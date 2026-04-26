@@ -1,7 +1,7 @@
 # TRGB — Briefing sessione
 
 **Ultimo aggiornamento:** 2026-04-26 (sessione 58 cont. — modulo Pranzo del Giorno: catalogo piatti riusabili, editor menu giornaliero, archivio, PDF brand cliente Osteria Tre Gobbi)
-**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/deploy.md`](./deploy.md)
+**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
 ---
@@ -73,6 +73,53 @@ Marco oggi gestisce il menu del pranzo di lavoro a mano in Word (file storico
 - Il `recipe_id` su `pranzo_piatti` e' opzionale: oggi non collegato a nulla, ma
   prepara il terreno per legare i piatti alle ricette del food cost se in futuro
   Marco vorra' calcolare il margine del pranzo di lavoro.
+
+### Iterazione 2 — Visione d'insieme + impostazioni in RicetteSettings (stessa giornata)
+
+Marco, dopo la prima passata: "se aggiungi qualcosa in un modulo devi rispettarne
+l'insieme — grafica, pulsanti, menu, dropdown, barra menu, docs" e "non perdere
+mai la visione dell'insieme". Inoltre: "le impostazioni del Menu Pranzo spostale
+nelle impostazioni della gestione cucina, in un sidebar dedicato".
+
+Correzioni applicate:
+
+**1. Sub-nav del modulo** — `frontend/src/pages/ricette/RicetteNav.jsx` ora
+include la tab "Pranzo" (icona 🥙). Aggiunta in stessa sessione anche la tab
+"Menu Carta" (icona 📜) che era stata dimenticata nella sessione 57.
+
+**2. Coerenza visiva** — `PranzoMenu.jsx` ora ha lo stesso wrapper di
+`RicetteArchivio` / `RicetteSettings`: niente `PageLayout`, ma
+`<RicetteNav current="pranzo"/>` in cima + `bg-brand-cream` + card
+`bg-white shadow-2xl rounded-3xl border-neutral-200 p-6 sm:p-8`. Header con
+titolo Playfair `text-orange-900`. Palette interna `bg-stone-*` → `bg-neutral-*`
+per matchare il modulo (orange come modulo color).
+
+**3. Impostazioni dentro RicetteSettings** — la tab Settings di PranzoMenu e'
+stata rimossa (resta a 3 tab: Oggi/Archivio/Catalogo). Le impostazioni vivono
+ora in `frontend/src/pages/ricette/PranzoSettingsPanel.jsx`, montato come voce
+`pranzo` (icona 🥙) nel `MENU` sidebar di `RicetteSettings`. Pattern stabilito:
+ogni futura aggiunta a Gestione Cucina porta le sue impostazioni nello stesso
+sidebar, niente tab Settings standalone.
+
+**4. Docs dedicato** — creato `docs/modulo_pranzo.md` con design completo
+(scopo, schema DB, endpoint, frontend, service PDF, workflow osteria, V1+).
+Aggiunto al blocco "Documenti collegati" di sessione.md.
+
+**5. Skill guardiano** — aggiornata `~/.claude/skills/guardiano/SKILL.md`
+con un nuovo step "Visione d'insieme del modulo" nel pre-audit, che verifica
+sub-nav, dropdown header, modules.json, versions, docs dedicato e palette.
+
+**6. Memoria** — salvato feedback `feedback_visione_insieme.md` con la
+checklist 6-punti.
+
+### File toccati (iterazione 2)
+- `frontend/src/pages/ricette/RicetteNav.jsx` — tab Pranzo + Menu Carta
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` — wrapper allineato, tab Settings rimossa, palette neutral
+- `frontend/src/pages/ricette/PranzoSettingsPanel.jsx` — nuovo
+- `frontend/src/pages/ricette/RicetteSettings.jsx` — voce `pranzo` nella sidebar
+- `docs/modulo_pranzo.md` — nuovo design doc
+- `docs/sessione.md` — questo blocco
+- `~/.claude/skills/guardiano/SKILL.md` — step "Visione d'insieme"
 
 ---
 

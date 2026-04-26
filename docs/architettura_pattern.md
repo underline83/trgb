@@ -202,6 +202,30 @@ Dopo ogni sessione:
 
 ---
 
+## 9-bis. Visione d'insieme su nuove pagine/sub-moduli (regola Marco, sessione 58 cont.)
+
+> Marco: "se aggiungi qualcosa in un modulo devi rispettarne l'insieme — grafica,
+> pulsanti, menu, dropdown, barra menu, docs" e "non perdere mai la visione
+> dell'insieme".
+
+Ogni pagina nuova o sub-modulo aggiunto a un macro-modulo TRGB DEVE rispettare la
+checklist a 7 punti documentata in `docs/checklist_visione_insieme.md`:
+
+1. Sub-nav del modulo aggiornata (es. `RicetteNav.jsx` per Gestione Cucina)
+2. Voce nel dropdown header (`frontend/src/config/modulesMenu.js`)
+3. `app/data/modules.json` — sub key + ruoli
+4. `frontend/src/config/versions.jsx` — bump o entry dedicata
+5. `docs/modulo_<nome>.md` per sotto-moduli grossi + blocco in `docs/sessione.md`
+6. Coerenza visiva (palette, primitives Btn/EmptyState, wrapper bg-brand-cream + card shadow-2xl rounded-3xl) — MAI inventare un mini-design system
+7. Le impostazioni del sotto-modulo vivono come voce nella sidebar di
+   `<Modulo>Settings.jsx` (es. `RicetteSettings.MENU`), NON come tab nella
+   pagina del sotto-modulo. La pagina linka `/ricette/settings` con un piccolo
+   "↗ Impostazioni Cucina"
+
+Il guardiano applica questa checklist nello Step 4-bis del pre-audit. Mancanze a livello 1, 2, 3 → BLOCK. Mancanze a livello 4, 5, 6, 7 → WARN.
+
+---
+
 ## 10. Push & deploy
 
 - **MAI** `git commit/push/add` direttamente. Solo Marco lancia `./push.sh "msg"`.

@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
+import PranzoSettingsPanel from "./PranzoSettingsPanel";
 import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
@@ -19,6 +20,7 @@ const MENU = [
   { key: "import-json",  label: "Import JSON",       icon: "📥", desc: "Carica ricette da file JSON" },
   { key: "macellaio",    label: "Scelta Macellaio",  icon: "🥩", desc: "Categorie tagli e widget" },
   { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
+  { key: "pranzo",       label: "Menu Pranzo",       icon: "🥙", desc: "Default titolo, prezzi e footer pranzo del giorno" },
 ];
 
 // ===============================================================
@@ -808,6 +810,11 @@ export default function RicetteSettings() {
           </div>
                   </section>
                 )}
+
+                {/* ============================================= */}
+                {/* SEZIONE 6: MENU PRANZO (sessione 58)          */}
+                {/* ============================================= */}
+                {activeSection === "pranzo" && <PranzoSettingsPanel />}
 
                 {/* INFO (sempre visibile in fondo) */}
                 <div className="mt-6 text-xs text-neutral-500 bg-neutral-50 rounded-xl p-4 border border-neutral-200">

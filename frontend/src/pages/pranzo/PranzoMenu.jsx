@@ -1,12 +1,17 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v1.0 — Modulo Pranzo del Giorno (sessione 58, 2026-04-26)
+// @version: v1.1 — Modulo Pranzo del Giorno (sessione 58 cont., 2026-04-26)
 //
 // Sub-modulo "Menu Pranzo" di Gestione Cucina.
-// 4 tab: Oggi (editor menu del giorno) · Archivio · Catalogo piatti · Impostazioni.
+// 3 tab: Oggi (editor menu del giorno) · Archivio · Catalogo piatti.
+// Le impostazioni vivono dentro RicetteSettings (sidebar "Menu Pranzo")
+// per coerenza con il resto del macro-modulo Gestione Cucina.
+// Wrapper visivo: RicetteNav in alto + bg-brand-cream + card bianca shadow-2xl
+// rounded-3xl, identico a RicetteArchivio/RicetteSettings.
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
-import { Btn, PageLayout, EmptyState } from "../../components/ui";
+import { Btn, EmptyState } from "../../components/ui";
+import RicetteNav from "../ricette/RicetteNav";
 
 // ─────────────────────────────────────────────────────────────
 // Costanti
@@ -50,27 +55,31 @@ const fmtPrezzo = (p) => {
 // ─────────────────────────────────────────────────────────────
 function TabNav({ tab, setTab }) {
   const tabs = [
-    { key: "oggi",     label: "Oggi",         emoji: "📅" },
-    { key: "archivio", label: "Archivio",     emoji: "📂" },
-    { key: "catalogo", label: "Catalogo",     emoji: "🍳" },
-    { key: "settings", label: "Impostazioni", emoji: "⚙️" },
+    { key: "oggi",     label: "Oggi",     emoji: "📅" },
+    { key: "archivio", label: "Archivio", emoji: "📂" },
+    { key: "catalogo", label: "Catalogo", emoji: "🍳" },
   ];
   return (
-    <div className="flex flex-wrap gap-2 border-b border-stone-300 pb-3 mb-4">
+    <div className="flex flex-wrap gap-2 border-b border-neutral-200 pb-3 mb-4 items-center">
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => setTab(t.key)}
           className={
-            "px-4 py-2 rounded-lg text-sm font-medium transition " +
+            "px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap " +
             (tab === t.key
-              ? "bg-orange-100 text-orange-900 border border-orange-300"
-              : "bg-white text-stone-700 border border-stone-200 hover:bg-stone-50")
+              ? "bg-orange-100 text-orange-900 shadow-sm"
+              : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800")
           }
         >
-          <span className="mr-1.5">{t.emoji}</span>{t.label}
+          <span className="mr-1">{t.emoji}</span>{t.label}
         </button>
       ))}
+      <a
+        href="/ricette/settings"
+        className="ml-auto text-[11px] text-neutral-400 hover:text-orange-700 transition"
+        title="Le impostazioni del Menu Pranzo vivono dentro Impostazioni Cucina"
+      >⚙️ Impostazioni Cucina →</a>
     </div>
   );
 }
@@ -256,17 +265,17 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
   // ── UI ──
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-stone-200 p-4 flex flex-wrap gap-3 items-end">
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-stone-500 mb-1">Data</label>
+          <label className="block text-xs uppercase tracking-wide text-neutral-500 mb-1">Data</label>
           <input
             type="date"
             value={data}
             onChange={(e) => setData(e.target.value)}
-            className="border border-stone-300 rounded-lg px-3 py-2"
+            className="border border-neutral-300 rounded-lg px-3 py-2"
           />
         </div>
-        <div className="text-sm text-stone-600 italic">
+        <div className="text-sm text-neutral-600 italic">
           {formatDataEstesa(data)} {loading && " · caricamento…"}
         </div>
         <div className="ml-auto flex gap-2">
@@ -287,63 +296,63 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
 
       {/* Testata + prezzi */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
-          <h3 className="font-semibold text-stone-700">Testata (override default)</h3>
+        <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
+          <h3 className="font-semibold text-neutral-700">Testata (override default)</h3>
           <div>
-            <label className="block text-xs text-stone-500 mb-1">Titolo</label>
+            <label className="block text-xs text-neutral-500 mb-1">Titolo</label>
             <input
               value={titolo}
               onChange={(e) => setTitolo(e.target.value)}
               placeholder={settings?.titolo_default || ""}
-              className="w-full border border-stone-300 rounded-lg px-3 py-2"
+              className="w-full border border-neutral-300 rounded-lg px-3 py-2"
             />
           </div>
           <div>
-            <label className="block text-xs text-stone-500 mb-1">Sottotitolo</label>
+            <label className="block text-xs text-neutral-500 mb-1">Sottotitolo</label>
             <textarea
               value={sottotitolo}
               onChange={(e) => setSottotitolo(e.target.value)}
               rows={2}
               placeholder={settings?.sottotitolo_default || ""}
-              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs text-stone-500 mb-1">Note footer</label>
+            <label className="block text-xs text-neutral-500 mb-1">Note footer</label>
             <textarea
               value={footer}
               onChange={(e) => setFooter(e.target.value)}
               rows={2}
               placeholder={settings?.footer_default || ""}
-              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
             />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
-          <h3 className="font-semibold text-stone-700">Menù Business — prezzi (€)</h3>
+        <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
+          <h3 className="font-semibold text-neutral-700">Menù Business — prezzi (€)</h3>
           {[
             { lbl: "1 portata", val: prezzo1, set: setPrezzo1 },
             { lbl: "2 portate", val: prezzo2, set: setPrezzo2 },
             { lbl: "3 portate", val: prezzo3, set: setPrezzo3 },
           ].map((p) => (
             <div key={p.lbl} className="flex items-center gap-3">
-              <label className="w-24 text-sm text-stone-600">{p.lbl}</label>
+              <label className="w-24 text-sm text-neutral-600">{p.lbl}</label>
               <input
                 type="number"
                 step="0.5"
                 value={p.val}
                 onChange={(e) => p.set(e.target.value)}
-                className="flex-1 border border-stone-300 rounded-lg px-3 py-2"
+                className="flex-1 border border-neutral-300 rounded-lg px-3 py-2"
               />
             </div>
           ))}
           <div className="flex items-center gap-3 pt-2">
-            <label className="w-24 text-sm text-stone-600">Stato</label>
+            <label className="w-24 text-sm text-neutral-600">Stato</label>
             <select
               value={stato}
               onChange={(e) => setStato(e.target.value)}
-              className="flex-1 border border-stone-300 rounded-lg px-3 py-2"
+              className="flex-1 border border-neutral-300 rounded-lg px-3 py-2"
             >
               <option value="bozza">Bozza</option>
               <option value="pubblicato">Pubblicato</option>
@@ -354,9 +363,9 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
       </div>
 
       {/* Piatti */}
-      <div className="bg-white rounded-xl border border-stone-200 p-4">
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h3 className="font-semibold text-stone-700">Piatti del giorno</h3>
+          <h3 className="font-semibold text-neutral-700">Piatti del giorno</h3>
           <div className="flex gap-2">
             <Btn variant="ghost" size="sm" onClick={ordinaPerCategoria}>↕ Ordina per categoria</Btn>
             <Btn variant="ghost" size="sm" onClick={() => aggiungiRiga(null)}>+ Riga ad-hoc</Btn>
@@ -367,23 +376,23 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
         <CatalogoQuickAdd catalogo={catalogo} onPick={aggiungiRiga} />
 
         {righe.length === 0 ? (
-          <div className="text-center text-stone-500 py-8 italic">
+          <div className="text-center text-neutral-500 py-8 italic">
             Nessun piatto. Scegli dal catalogo qui sopra o aggiungi una riga ad-hoc.
           </div>
         ) : (
           <div className="space-y-2 mt-3">
             {righe.map((r, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-2 p-2 bg-stone-50 rounded-lg border border-stone-200">
+              <div key={i} className="flex flex-wrap items-center gap-2 p-2 bg-white rounded-lg border border-neutral-200">
                 <div className="flex flex-col gap-0.5">
                   <button onClick={() => muoviRiga(i, -1)} disabled={i === 0}
-                    className="text-stone-500 hover:text-stone-900 disabled:opacity-30 text-xs px-1">▲</button>
+                    className="text-neutral-500 hover:text-neutral-900 disabled:opacity-30 text-xs px-1">▲</button>
                   <button onClick={() => muoviRiga(i, +1)} disabled={i === righe.length - 1}
-                    className="text-stone-500 hover:text-stone-900 disabled:opacity-30 text-xs px-1">▼</button>
+                    className="text-neutral-500 hover:text-neutral-900 disabled:opacity-30 text-xs px-1">▼</button>
                 </div>
                 <select
                   value={r.categoria}
                   onChange={(e) => aggiornaRiga(i, { categoria: e.target.value })}
-                  className="border border-stone-300 rounded px-2 py-1 text-sm"
+                  className="border border-neutral-300 rounded px-2 py-1 text-sm"
                 >
                   {CATEGORIE.map((c) => <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>)}
                 </select>
@@ -391,7 +400,7 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
                   value={r.nome}
                   onChange={(e) => aggiornaRiga(i, { nome: e.target.value, piatto_id: null })}
                   placeholder="Nome piatto"
-                  className="flex-1 min-w-[200px] border border-stone-300 rounded px-2 py-1 text-sm"
+                  className="flex-1 min-w-[200px] border border-neutral-300 rounded px-2 py-1 text-sm"
                 />
                 {r.piatto_id && (
                   <span className="text-[10px] uppercase tracking-wide text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
@@ -421,24 +430,24 @@ function CatalogoQuickAdd({ catalogo, onPick }) {
 
   if (!catalogo || catalogo.length === 0) {
     return (
-      <div className="text-xs text-stone-500 italic mb-2">
+      <div className="text-xs text-neutral-500 italic mb-2">
         Nessun piatto nel catalogo. Vai alla tab Catalogo per aggiungerne.
       </div>
     );
   }
 
   return (
-    <div className="border border-stone-200 rounded-lg p-2 bg-stone-50/50">
+    <div className="border border-neutral-200 rounded-lg p-2 bg-neutral-50">
       <div className="flex flex-wrap gap-1 mb-2 text-xs">
         <button
           onClick={() => setFilter("all")}
-          className={"px-2 py-0.5 rounded " + (filter === "all" ? "bg-orange-100 text-orange-900" : "bg-white text-stone-600 border border-stone-200")}
+          className={"px-2 py-0.5 rounded " + (filter === "all" ? "bg-orange-100 text-orange-900" : "bg-white text-neutral-600 border border-neutral-200")}
         >tutti</button>
         {CATEGORIE.map((c) => (
           <button
             key={c.key}
             onClick={() => setFilter(c.key)}
-            className={"px-2 py-0.5 rounded " + (filter === c.key ? "bg-orange-100 text-orange-900" : "bg-white text-stone-600 border border-stone-200")}
+            className={"px-2 py-0.5 rounded " + (filter === c.key ? "bg-orange-100 text-orange-900" : "bg-white text-neutral-600 border border-neutral-200")}
           >{c.emoji} {c.label}</button>
         ))}
       </div>
@@ -447,10 +456,10 @@ function CatalogoQuickAdd({ catalogo, onPick }) {
           <button
             key={p.id}
             onClick={() => onPick(p)}
-            className="text-xs bg-white border border-stone-200 rounded px-2 py-1 hover:bg-orange-50 hover:border-orange-300 text-left"
+            className="text-xs bg-white border border-neutral-200 rounded px-2 py-1 hover:bg-orange-50 hover:border-orange-300 text-left"
             title={p.nome}
           >
-            <span className="text-[9px] uppercase tracking-wider text-stone-500 mr-1">{p.categoria}</span>
+            <span className="text-[9px] uppercase tracking-wider text-neutral-500 mr-1">{p.categoria}</span>
             {p.nome.length > 50 ? p.nome.slice(0, 50) + "…" : p.nome}
           </button>
         ))}
@@ -489,20 +498,20 @@ function TabArchivio({ menus, refresh, onApri }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-stone-200 p-3 flex flex-wrap gap-3 items-end">
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-3 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs text-stone-500 mb-1">Da</label>
+          <label className="block text-xs text-neutral-500 mb-1">Da</label>
           <input type="date" value={filtroDa} onChange={(e) => setFiltroDa(e.target.value)}
-            className="border border-stone-300 rounded-lg px-3 py-2" />
+            className="border border-neutral-300 rounded-lg px-3 py-2" />
         </div>
         <div>
-          <label className="block text-xs text-stone-500 mb-1">A</label>
+          <label className="block text-xs text-neutral-500 mb-1">A</label>
           <input type="date" value={filtroA} onChange={(e) => setFiltroA(e.target.value)}
-            className="border border-stone-300 rounded-lg px-3 py-2" />
+            className="border border-neutral-300 rounded-lg px-3 py-2" />
         </div>
         <Btn variant="ghost" onClick={() => { setFiltroDa(""); setFiltroA(""); }}>Reset</Btn>
         <Btn variant="ghost" onClick={refresh}>↻ Aggiorna</Btn>
-        <div className="ml-auto text-sm text-stone-500">{filtered.length} menu</div>
+        <div className="ml-auto text-sm text-neutral-500">{filtered.length} menu</div>
       </div>
 
       {filtered.length === 0 ? (
@@ -512,9 +521,9 @@ function TabArchivio({ menus, refresh, onApri }) {
           description="Crea il primo menu del giorno dalla tab Oggi."
         />
       ) : (
-        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+        <div className="bg-neutral-50 rounded-xl border border-neutral-200 overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-stone-50 text-stone-600 text-xs uppercase tracking-wide">
+            <thead className="bg-neutral-50 text-neutral-600 text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-left px-4 py-2">Data</th>
                 <th className="text-left px-4 py-2">Stato</th>
@@ -525,20 +534,20 @@ function TabArchivio({ menus, refresh, onApri }) {
             </thead>
             <tbody>
               {filtered.map((m) => (
-                <tr key={m.id} className="border-t border-stone-100 hover:bg-orange-50/30">
+                <tr key={m.id} className="border-t border-neutral-100 hover:bg-orange-50/30">
                   <td className="px-4 py-2 font-medium">
                     {formatDataEstesa(m.data)}
                   </td>
                   <td className="px-4 py-2">
                     <span className={"text-xs px-2 py-0.5 rounded " +
                       (m.stato === "pubblicato" ? "bg-emerald-100 text-emerald-800"
-                        : m.stato === "archiviato" ? "bg-stone-200 text-stone-700"
+                        : m.stato === "archiviato" ? "bg-neutral-200 text-neutral-700"
                         : "bg-amber-100 text-amber-800")}>
                       {m.stato}
                     </span>
                   </td>
                   <td className="px-4 py-2">{m.n_piatti}</td>
-                  <td className="px-4 py-2 text-stone-600">
+                  <td className="px-4 py-2 text-neutral-600">
                     {fmtPrezzo(m.prezzo_1)} / {fmtPrezzo(m.prezzo_2)} / {fmtPrezzo(m.prezzo_3)}
                   </td>
                   <td className="px-4 py-2 text-right space-x-2">
@@ -614,7 +623,7 @@ function TabCatalogo({ catalogo, refresh }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="text-sm text-stone-600">
+        <div className="text-sm text-neutral-600">
           {(catalogo || []).length} piatti nel catalogo
         </div>
         <Btn onClick={startNew}>+ Nuovo piatto</Btn>
@@ -625,30 +634,30 @@ function TabCatalogo({ catalogo, refresh }) {
           <h4 className="font-semibold text-amber-900">{editing.id ? "Modifica piatto" : "Nuovo piatto"}</h4>
           <div className="grid md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
-              <label className="block text-xs text-stone-500 mb-1">Nome</label>
+              <label className="block text-xs text-neutral-500 mb-1">Nome</label>
               <input
                 value={editing.nome}
                 onChange={(e) => setEditing({ ...editing, nome: e.target.value })}
-                className="w-full border border-stone-300 rounded-lg px-3 py-2"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2"
                 autoFocus
               />
             </div>
             <div>
-              <label className="block text-xs text-stone-500 mb-1">Categoria</label>
+              <label className="block text-xs text-neutral-500 mb-1">Categoria</label>
               <select
                 value={editing.categoria}
                 onChange={(e) => setEditing({ ...editing, categoria: e.target.value })}
-                className="w-full border border-stone-300 rounded-lg px-3 py-2"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2"
               >
                 {CATEGORIE.map((c) => <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>)}
               </select>
             </div>
             <div className="md:col-span-3">
-              <label className="block text-xs text-stone-500 mb-1">Note (interne, non stampate)</label>
+              <label className="block text-xs text-neutral-500 mb-1">Note (interne, non stampate)</label>
               <input
                 value={editing.note || ""}
                 onChange={(e) => setEditing({ ...editing, note: e.target.value })}
-                className="w-full border border-stone-300 rounded-lg px-3 py-2"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2"
               />
             </div>
           </div>
@@ -663,16 +672,16 @@ function TabCatalogo({ catalogo, refresh }) {
         const items = byCat[c.key] || [];
         if (items.length === 0) return null;
         return (
-          <div key={c.key} className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-            <div className="bg-stone-50 px-4 py-2 font-semibold text-stone-700 border-b border-stone-200">
-              {c.emoji} {c.label} <span className="text-stone-400 font-normal">· {items.length}</span>
+          <div key={c.key} className="bg-neutral-50 rounded-xl border border-neutral-200 overflow-hidden">
+            <div className="bg-neutral-50 px-4 py-2 font-semibold text-neutral-700 border-b border-neutral-200">
+              {c.emoji} {c.label} <span className="text-neutral-400 font-normal">· {items.length}</span>
             </div>
-            <div className="divide-y divide-stone-100">
+            <div className="divide-y divide-neutral-100">
               {items.map((p) => (
-                <div key={p.id} className="px-4 py-2 flex items-center gap-3 hover:bg-stone-50">
+                <div key={p.id} className="px-4 py-2 flex items-center gap-3 hover:bg-neutral-50">
                   <div className="flex-1">
                     <div className="text-sm">{p.nome}</div>
-                    {p.note && <div className="text-xs text-stone-500 italic">{p.note}</div>}
+                    {p.note && <div className="text-xs text-neutral-500 italic">{p.note}</div>}
                   </div>
                   <Btn variant="ghost" size="sm" onClick={() => startEdit(p)}>✏️</Btn>
                   <Btn variant="ghost" size="sm" onClick={() => elimina(p)}>🗑️</Btn>
@@ -696,9 +705,14 @@ function TabCatalogo({ catalogo, refresh }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 4: IMPOSTAZIONI
+// TAB 4: IMPOSTAZIONI — RIMOSSA in v1.1 (sessione 58 cont.)
+// Le impostazioni del Menu Pranzo vivono dentro RicetteSettings
+// (sidebar "Impostazioni Cucina", sezione "Menu Pranzo"),
+// per coerenza con tutte le altre impostazioni del macro-modulo.
+// Vedi PranzoSettingsPanel.jsx + voce "pranzo" in MENU di RicetteSettings.
 // ─────────────────────────────────────────────────────────────
-function TabSettings({ settings, refresh }) {
+// eslint-disable-next-line no-unused-vars
+function TabSettings_REMOVED({ settings, refresh }) {
   const [form, setForm] = useState(settings || {});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -733,7 +747,7 @@ function TabSettings({ settings, refresh }) {
     }
   };
 
-  if (!settings) return <div className="text-stone-500">Caricamento…</div>;
+  if (!settings) return <div className="text-neutral-500">Caricamento…</div>;
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -745,64 +759,64 @@ function TabSettings({ settings, refresh }) {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
-        <h3 className="font-semibold text-stone-700">Testata default</h3>
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
+        <h3 className="font-semibold text-neutral-700">Testata default</h3>
         <div>
-          <label className="block text-xs text-stone-500 mb-1">Titolo</label>
+          <label className="block text-xs text-neutral-500 mb-1">Titolo</label>
           <input
             value={form.titolo_default || ""}
             onChange={(e) => update("titolo_default", e.target.value)}
-            className="w-full border border-stone-300 rounded-lg px-3 py-2"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2"
           />
         </div>
         <div>
-          <label className="block text-xs text-stone-500 mb-1">Sottotitolo</label>
+          <label className="block text-xs text-neutral-500 mb-1">Sottotitolo</label>
           <textarea
             value={form.sottotitolo_default || ""}
             onChange={(e) => update("sottotitolo_default", e.target.value)}
             rows={2}
-            className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
           />
         </div>
         <div>
-          <label className="block text-xs text-stone-500 mb-1">Titolo box prezzi</label>
+          <label className="block text-xs text-neutral-500 mb-1">Titolo box prezzi</label>
           <input
             value={form.titolo_business || ""}
             onChange={(e) => update("titolo_business", e.target.value)}
-            className="w-full border border-stone-300 rounded-lg px-3 py-2"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
-        <h3 className="font-semibold text-stone-700">Prezzi default Menù Business (€)</h3>
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
+        <h3 className="font-semibold text-neutral-700">Prezzi default Menù Business (€)</h3>
         {[
           ["prezzo_1_default", "1 portata"],
           ["prezzo_2_default", "2 portate"],
           ["prezzo_3_default", "3 portate"],
         ].map(([k, lbl]) => (
           <div key={k} className="flex items-center gap-3">
-            <label className="w-24 text-sm text-stone-600">{lbl}</label>
+            <label className="w-24 text-sm text-neutral-600">{lbl}</label>
             <input
               type="number"
               step="0.5"
               value={form[k] ?? ""}
               onChange={(e) => update(k, e.target.value)}
-              className="flex-1 border border-stone-300 rounded-lg px-3 py-2"
+              className="flex-1 border border-neutral-300 rounded-lg px-3 py-2"
             />
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
-        <h3 className="font-semibold text-stone-700">Footer note (default)</h3>
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
+        <h3 className="font-semibold text-neutral-700">Footer note (default)</h3>
         <textarea
           value={form.footer_default || ""}
           onChange={(e) => update("footer_default", e.target.value)}
           rows={3}
-          className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono"
+          className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm font-mono"
         />
-        <div className="text-xs text-stone-500">
+        <div className="text-xs text-neutral-500">
           Suggerimento: usa <code>*</code> per il riferimento "acqua, coperto e servizio inclusi" e
           <code> **</code> per "da Lunedì a Venerdì". Il PDF preserva i ritorni a capo.
         </div>
@@ -849,30 +863,39 @@ export default function PranzoMenu() {
   useEffect(() => { loadSettings(); loadCatalogo(); loadMenus(); }, [loadSettings, loadCatalogo, loadMenus]);
 
   return (
-    <PageLayout
-      title="Menu Pranzo del Giorno"
-      subtitle="Gestione cucina · pranzo di lavoro"
-      wide
-    >
-      <TabNav tab={tab} setTab={setTab} />
+    <>
+      <RicetteNav current="pranzo" />
+      <div className="min-h-screen bg-brand-cream font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="bg-white shadow-2xl rounded-3xl p-6 sm:p-8 border border-neutral-200">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-5">
+              <div>
+                <h1 className="text-2xl font-bold text-orange-900 font-playfair">Menu Pranzo del Giorno</h1>
+                <p className="text-sm text-neutral-500 mt-0.5">Gestione cucina · pranzo di lavoro</p>
+              </div>
+            </div>
 
-      {tab === "oggi" && (
-        <TabOggi
-          settings={settings}
-          catalogo={catalogo}
-          refreshArchivio={loadMenus}
-          key={pickData || "today"}
-        />
-      )}
-      {tab === "archivio" && (
-        <TabArchivio
-          menus={menus}
-          refresh={loadMenus}
-          onApri={(d) => { setPickData(d); setTab("oggi"); }}
-        />
-      )}
-      {tab === "catalogo" && <TabCatalogo catalogo={catalogo} refresh={loadCatalogo} />}
-      {tab === "settings" && <TabSettings settings={settings} refresh={loadSettings} />}
-    </PageLayout>
+            <TabNav tab={tab} setTab={setTab} />
+
+            {tab === "oggi" && (
+              <TabOggi
+                settings={settings}
+                catalogo={catalogo}
+                refreshArchivio={loadMenus}
+                key={pickData || "today"}
+              />
+            )}
+            {tab === "archivio" && (
+              <TabArchivio
+                menus={menus}
+                refresh={loadMenus}
+                onApri={(d) => { setPickData(d); setTab("oggi"); }}
+              />
+            )}
+            {tab === "catalogo" && <TabCatalogo catalogo={catalogo} refresh={loadCatalogo} />}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
