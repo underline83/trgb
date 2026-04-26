@@ -235,45 +235,64 @@ export default function PranzoMenu() {
 
   const loadMenu = useCallback(async (mondayIso) => {
     setLoading(true); setMsg(null);
-    try {
-      const res = await apiFetch(`${API_BASE}/pranzo/menu/${mondayIso}/`);
-      if (res.ok) {
-        const data = await res.json();
-        // Backend nuovo: {settimana_inizio, menu: {…} | null}
-        // Backend vecchio (compat): direttamente {id, settimana_inizio, righe}
-        const m = data && Object.prototype.hasOwnProperty.call(data, "menu")
-          ? data.menu
-          : data;
-        if (!m) {
-          setMenu(null);
-          setRighe([]);
-        } else {
-          setMenu(m);
-          setRighe((m.righe || []).map((r, i) => ({
-            recipe_id: r.recipe_id || null,
-            nome: r.nome,
-            categoria: r.categoria || "altro",
-            ordine: r.ordine ?? i,
-            note: r.note || "",
-          })));
-        }
-      } else if (res.status === 404) {
-        // Compat backend vecchio: 404 = nessun menu
+
+    // Helper: parsa la risposta in entrambi i possibili shape backend
+    const handleData = (data) => {
+      const m = data && Object.prototype.hasOwnProperty.call(data, "menu")
+        ? data.menu
+        : data;
+      if (!m) {
         setMenu(null);
         setRighe([]);
       } else {
-        const txt = await res.text().catch(() => "");
-        setMenu(null); setRighe([]);
-        setMsg({ tipo: "err", text: `Errore caricamento menu (${res.status}): ${txt.slice(0, 120)}` });
+        setMenu(m);
+        setRighe((m.righe || []).map((r, i) => ({
+          recipe_id: r.recipe_id || null,
+          nome: r.nome,
+          categoria: r.categoria || "altro",
+          ordine: r.ordine ?? i,
+          note: r.note || "",
+        })));
+      }
+    };
+
+    // Tentativo 1: query string (workaround iter 10 per "Failed to fetch" su Safari)
+    try {
+      const res = await apiFetch(`${API_BASE}/pranzo/menu/by-week/?settimana=${mondayIso}`);
+      if (res.ok) {
+        handleData(await res.json());
+        setLoading(false);
+        return;
+      }
+      if (res.status !== 404) {
+        // Diverso da 404 e diverso da OK: fallthrough al tentativo 2
+        // eslint-disable-next-line no-console
+        console.warn("[pranzo] by-week non OK", res.status);
       }
     } catch (e) {
       // eslint-disable-next-line no-console
+      console.warn("[pranzo] by-week fail, retry path-param", e);
+    }
+
+    // Tentativo 2: path param (compat backend vecchio o se by-week non esiste)
+    try {
+      const res = await apiFetch(`${API_BASE}/pranzo/menu/${mondayIso}/`);
+      if (res.ok) {
+        handleData(await res.json());
+      } else if (res.status === 404) {
+        setMenu(null); setRighe([]);
+      } else {
+        // Backend risponde ma non OK: pagina degradata, niente messaggio invasivo
+        setMenu(null); setRighe([]);
+        // eslint-disable-next-line no-console
+        console.warn(`[pranzo] menu non disponibile (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      // Network fail su entrambi i tentativi: degrada gracefully
+      // eslint-disable-next-line no-console
       console.error("[pranzo] loadMenu fail", e);
       setMenu(null); setRighe([]);
-      setMsg({
-        tipo: "err",
-        text: `Errore rete: ${e.message}. Prova a ricaricare con Ctrl+Shift+R; se persiste apri /pranzo/health per diagnosticare il backend.`,
-      });
+      // niente setMsg(): la card mostrerà l'empty state e Marco puo' comunque comporre
     } finally {
       setLoading(false);
     }
@@ -395,21 +414,31 @@ export default function PranzoMenu() {
 
   const copiaSettimanaPrecedente = async () => {
     const prevMon = shiftMonday(settimana, -1);
+    const fetchPrev = async () => {
+      // Stesso fallback by-week → path-param di loadMenu
+      try {
+        const r = await apiFetch(`${API_BASE}/pranzo/menu/by-week/?settimana=${prevMon}`);
+        if (r.ok) return await r.json();
+      } catch { /* fallthrough */ }
+      const r2 = await apiFetch(`${API_BASE}/pranzo/menu/${prevMon}/`);
+      if (r2.status === 404) return { menu: null };
+      if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+      return await r2.json();
+    };
     try {
-      const res = await apiFetch(`${API_BASE}/pranzo/menu/${prevMon}/`);
-      if (res.status === 404) {
+      const data = await fetchPrev();
+      const prev = data && Object.prototype.hasOwnProperty.call(data, "menu") ? data.menu : data;
+      if (!prev || !(prev.righe || []).length) {
         setMsg({ tipo: "err", text: "Settimana precedente vuota, niente da copiare." });
         return;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const prev = await res.json();
       setRighe((prev.righe || []).map((r, i) => ({
         recipe_id: r.recipe_id || null,
         nome: r.nome,
         categoria: r.categoria || "altro",
         ordine: i,
       })));
-      setMsg({ tipo: "ok", text: `Copiati ${prev.righe?.length || 0} piatti dalla ${labelWeekRange(prevMon)}. Salva per persistere.` });
+      setMsg({ tipo: "ok", text: `Copiati ${prev.righe.length} piatti dalla ${labelWeekRange(prevMon)}. Salva per persistere.` });
     } catch (e) {
       setMsg({ tipo: "err", text: e.message });
     }

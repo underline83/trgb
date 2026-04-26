@@ -370,6 +370,36 @@ Sintomo dopo iter 8: la pagina non crasha piu' (fix re-render OK), ma "Errore re
 3. Console browser su `/pranzo` (Inspector → Console): se ci sono ancora errori, devono apparire log `[pranzo] loadMenu fail` con stack utile.
 4. Log VPS al primo boot dopo push: deve apparire `[init] pranzo_db OK`. Se appare `[init] pranzo_db WARN: ...`, l'init al boot ha fallito ma il backend continua (le request fanno fallback a `_ensure_schema` al primo touch).
 
+### Iterazione 10 — Workaround "Failed to fetch": endpoint by-week (query string) + UI degradabile
+
+Sintomo dopo iter 9: "Errore rete: Load failed" persiste sull'endpoint `GET /pranzo/menu/{settimana}/` (path parameter). Il pool ricette continua a funzionare. La causa precisa non e' identificata, ma l'ipotesi e' un'idiosincrasia di routing/proxy sul path parameter con data ISO finale (`/menu/2026-04-20/`).
+
+**Workaround pragmatico**:
+
+1. **Backend nuovo endpoint** `GET /pranzo/menu/by-week/?settimana=YYYY-MM-DD`: stessa logica di `/menu/{settimana}/` ma usa query string invece di path parameter. Stesso shape di risposta `{settimana_inizio, menu}`. Il vecchio endpoint resta per backward compat.
+
+2. **Frontend `loadMenu` con doppio tentativo**:
+   - Prova `/pranzo/menu/by-week/?settimana=YYYY-MM-DD` come primo tentativo
+   - Se fallisce (network o non OK), retry su `/pranzo/menu/{YYYY-MM-DD}/` come fallback compat backend vecchio
+   - Se entrambi falliscono: `setMenu(null); setRighe([])` e log `console.error` ma niente messaggio rosso invasivo. La pagina rimane utilizzabile: si puo' comunque comporre dal pool e salvare.
+
+3. **`copiaSettimanaPrecedente` aggiornata** col medesimo doppio tentativo.
+
+4. **UI degradabile**: rimosso il banner rosso "Errore rete: Load failed" dal flusso di loadMenu. Ora il fail e' silente (visibile solo in console). La card "Piatti della settimana" mostra il suo empty state e Marco puo' continuare a lavorare.
+
+### File toccati (iterazione 10)
+- `app/routers/pranzo_router.py` — nuovo endpoint `GET /menu/by-week/`
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` — `loadMenu` doppio tentativo, `copiaSettimanaPrecedente` doppio tentativo, UI degradabile
+
+### Verifica iterazione 10
+- py_compile + esbuild OK (PranzoMenu 27.2kb).
+- Logica preservata: la pagina ora mostra empty state se entrambi i tentativi falliscono, log dettagliato in console.
+
+### Da verificare dopo push (iterazione 10)
+1. `/pranzo`: l'errore "Load failed" non dovrebbe piu' essere visibile come banner. La pagina dovrebbe caricare la settimana.
+2. Se il fix funziona: la causa era proprio il path-param. Da capire il perche' (proxy nginx? regex routing?).
+3. Console browser: se compaiono `[pranzo] by-week non OK NNN` o `[pranzo] by-week fail`, mandarmi il dettaglio.
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni

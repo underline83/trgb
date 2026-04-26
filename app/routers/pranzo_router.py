@@ -158,6 +158,21 @@ def get_menu_settimana_corrente():
     return {"settimana_inizio": monday, "menu": menu}
 
 
+@router.get("/menu/by-week/")
+def get_menu_by_week(settimana: str = Query(..., description="YYYY-MM-DD")):
+    """
+    Variante con query string del lookup menu per settimana. Aggiunto in
+    iter 10 perche' la versione path-param `/menu/{settimana}/` falliva
+    con TypeError 'Failed to fetch' su Safari (causa probabile: routing /
+    proxy che non gradisce il path parameter con trattini in posizione
+    finale). Stesso shape di risposta: `{settimana_inizio, menu}`.
+    """
+    _validate_data(settimana)
+    monday = repo.lunedi_di(settimana)
+    menu = repo.get_menu_by_settimana(monday)
+    return {"settimana_inizio": monday, "menu": menu}
+
+
 @router.get("/menu/{settimana}/")
 def get_menu_endpoint(settimana: str):
     """
