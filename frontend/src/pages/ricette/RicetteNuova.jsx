@@ -1,20 +1,22 @@
-// @version: v3.0 — Riorganizzato + ingredienti opzionali (sessione 58 cont., 2026-04-26)
+// @version: v3.1 — IngredientPicker typeahead + quick-create inline (sessione 58 cont., 2026-04-26)
 //
 // Nuova Ricetta — Food Cost v2.
-// Cambiamenti rispetto a v2.1:
-//   - Ingredienti OPZIONALI: si puo' creare un piatto "placeholder" senza
-//     scheda compilata, utile per piatti che entrano in menu carta o menu
-//     pranzo senza ricetta dettagliata (decisione Marco, S58 cont.).
-//   - Form riorganizzato in 5 sezioni nette:
-//       1. Anagrafica
-//       2. Nome cliente & menu (solo se NON e' ricetta base)
-//       3. Resa & prezzo
-//       4. Composizione (opzionale)
-//       5. Note interne
-//   - Palette allineata al modulo: bg-neutral-50 + orange-100/-900 per gli
-//     stati attivi. Niente amber/shadow-inner (era off-pattern).
+// Cambiamenti v3.1 (rispetto v3.0):
+//   - Sostituito il <select> con elenco enorme degli ingredienti con un
+//     <IngredientPicker> typeahead: cerca per testo, mostra fino a 12
+//     match raggruppati, e propone "+ Crea 'foo' come nuovo ingrediente"
+//     se il nome digitato non esiste ancora.
+//   - <QuickCreateIngrediente>: mini-dialog inline che chiama
+//     POST /foodcost/ingredients/ con nome + unità + categoria opzionale,
+//     aggiunge l'ingrediente alla lista locale e lo seleziona nella riga.
+//     Risolve il caso "ingrediente ancora non creato/non matchato dalle XML".
+//
+// v3.0:
+//   - Ingredienti OPZIONALI (placeholder per piatti senza scheda)
+//   - Form in 5 sezioni nette
+//   - Palette allineata al modulo (orange-100/-900, niente amber)
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
@@ -60,6 +62,218 @@ const inputCls =
   "w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500";
 
 // ─────────────────────────────────────────────────────────────
+// IngredientPicker — typeahead con quick-create
+// ─────────────────────────────────────────────────────────────
+function IngredientPicker({ ingredienti, value, onChange, onCreateRequest }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const selected = useMemo(
+    () => ingredienti.find((i) => String(i.id) === String(value)) || null,
+    [ingredienti, value]
+  );
+
+  // Chiudi su click fuori
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const list = useMemo(() => {
+    const ql = q.trim().toLowerCase();
+    if (!ql) return ingredienti.slice(0, 12);
+    return ingredienti
+      .filter((i) => (i.name || "").toLowerCase().includes(ql))
+      .slice(0, 12);
+  }, [ingredienti, q]);
+
+  const exact = useMemo(() => {
+    const ql = q.trim().toLowerCase();
+    if (!ql) return null;
+    return ingredienti.find((i) => (i.name || "").toLowerCase() === ql) || null;
+  }, [ingredienti, q]);
+
+  // Stato "selezionato non in editing" — mostra pill cliccabile
+  if (selected && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+          setQ("");
+          setTimeout(() => inputRef.current?.focus(), 0);
+        }}
+        className="w-full text-left border border-neutral-300 rounded px-2 py-1.5 text-sm bg-white hover:bg-neutral-50 flex items-center justify-between gap-2"
+        title="Cambia ingrediente"
+      >
+        <span className="truncate">
+          {selected.name}
+          <span className="text-neutral-400 ml-1">({selected.default_unit})</span>
+        </span>
+        <span className="text-neutral-400 text-xs flex-shrink-0">▾</span>
+      </button>
+    );
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={q}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder="Cerca ingrediente…"
+        className="w-full border border-neutral-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+      />
+      {open && (
+        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+          {list.length === 0 && !q.trim() && (
+            <div className="px-3 py-2 text-xs text-neutral-500 italic">
+              Inizia a digitare il nome dell'ingrediente.
+            </div>
+          )}
+          {list.map((i) => (
+            <button
+              key={i.id}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(i.id, i.default_unit);
+                setOpen(false);
+                setQ("");
+              }}
+              className="block w-full text-left px-3 py-1.5 text-sm hover:bg-orange-50"
+            >
+              {i.name}
+              <span className="text-neutral-400 ml-1">({i.default_unit})</span>
+            </button>
+          ))}
+          {q.trim() && !exact && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onCreateRequest(q.trim());
+                setOpen(false);
+                setQ("");
+              }}
+              className="block w-full text-left px-3 py-2 text-sm border-t border-neutral-200 bg-orange-50/40 text-orange-900 hover:bg-orange-100"
+            >
+              + Crea “{q.trim()}” come nuovo ingrediente
+            </button>
+          )}
+          {q.trim() && list.length === 0 && (
+            <div className="px-3 py-2 text-[11px] text-neutral-500 italic border-t border-neutral-100">
+              Nessun ingrediente esistente corrisponde — usa il pulsante qui sopra per crearlo.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// QuickCreateIngrediente — mini-dialog inline
+// ─────────────────────────────────────────────────────────────
+function QuickCreateIngrediente({ defaultName, categorie, onCancel, onCreated }) {
+  const [name, setName] = useState(defaultName || "");
+  const [defaultUnit, setDefaultUnit] = useState("g");
+  const [categoryId, setCategoryId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const salva = async (e) => {
+    e?.preventDefault();
+    if (!name.trim()) { setErr("Nome obbligatorio."); return; }
+    if (!defaultUnit.trim()) { setErr("Unità obbligatoria."); return; }
+    setSaving(true); setErr("");
+    try {
+      const res = await apiFetch(`${FC}/ingredients/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          default_unit: defaultUnit,
+          category_id: categoryId ? parseInt(categoryId) : null,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const created = await res.json();
+      onCreated(created);
+    } catch (e2) {
+      setErr(`Errore: ${e2.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 max-w-md w-full p-5">
+        <h3 className="text-base font-semibold text-orange-900 font-playfair mb-1">
+          Nuovo ingrediente
+        </h3>
+        <p className="text-xs text-neutral-500 mb-4">
+          Crea l'ingrediente al volo. Categoria e prezzi si aggiungono dopo dalla pagina ingredienti.
+        </p>
+        {err && (
+          <div className="mb-3 rounded-lg border border-red-300 bg-red-50 text-red-800 px-3 py-2 text-xs">
+            {err}
+          </div>
+        )}
+        <form onSubmit={salva} className="space-y-3">
+          <Field label="Nome" required>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputCls}
+              autoFocus
+              required
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Unità default" required hint="g/kg per peso · L/ml per volume · pz a numero">
+              <select
+                value={defaultUnit}
+                onChange={(e) => setDefaultUnit(e.target.value)}
+                className={inputCls}
+              >
+                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </Field>
+            <Field label="Categoria">
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">— Nessuna —</option>
+                {categorie.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Btn variant="ghost" size="md" type="button" onClick={onCancel} disabled={saving}>Annulla</Btn>
+            <Btn size="md" type="submit" loading={saving}>Crea ingrediente</Btn>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────────────────────
 export default function RicetteNuova() {
@@ -67,11 +281,15 @@ export default function RicetteNuova() {
 
   // Data sources
   const [ingredienti, setIngredienti] = useState([]);
+  const [ingCategorie, setIngCategorie] = useState([]);
   const [basi, setBasi] = useState([]);
   const [categorie, setCategorie] = useState([]);
   const [serviceTypes, setServiceTypes] = useState([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Quick-create ingrediente: { rowIdx, defaultName } | null
+  const [quickCreate, setQuickCreate] = useState(null);
 
   // Form
   const [form, setForm] = useState({
@@ -93,16 +311,18 @@ export default function RicetteNuova() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [rIng, rBasi, rCat, rSt] = await Promise.all([
+        const [rIng, rBasi, rCat, rSt, rIngCat] = await Promise.all([
           apiFetch(`${FC}/ingredients/`),
           apiFetch(`${FC}/ricette/basi`),
           apiFetch(`${FC}/ricette/categorie`),
           apiFetch(`${FC}/service-types`),
+          apiFetch(`${FC}/ingredients/categories`),
         ]);
         if (rIng.ok) setIngredienti(await rIng.json());
         if (rBasi.ok) setBasi(await rBasi.json());
         if (rCat.ok) setCategorie(await rCat.json());
         if (rSt.ok) setServiceTypes(await rSt.json());
+        if (rIngCat.ok) setIngCategorie(await rIngCat.json());
       } catch (err) {
         console.error("Errore caricamento dati:", err);
         setErrorMsg("Errore caricamento dati iniziali.");
@@ -110,6 +330,26 @@ export default function RicetteNuova() {
     };
     load();
   }, []);
+
+  // Handler creazione ingrediente al volo
+  const handleQuickCreated = (created) => {
+    setIngredienti((prev) => [...prev, created]);
+    if (quickCreate?.rowIdx != null) {
+      const idx = quickCreate.rowIdx;
+      setForm((p) => {
+        const items = [...p.items];
+        if (items[idx]) {
+          items[idx] = {
+            ...items[idx],
+            ingredient_id: created.id,
+            unit: created.default_unit || items[idx].unit || "g",
+          };
+        }
+        return { ...p, items };
+      });
+    }
+    setQuickCreate(null);
+  };
 
   const set = (field, value) => setForm((p) => ({ ...p, [field]: value }));
 
@@ -456,18 +696,17 @@ export default function RicetteNuova() {
 
                         <div className="flex-1 min-w-[200px]">
                           {row.tipo === "ingrediente" ? (
-                            <select
+                            <IngredientPicker
+                              ingredienti={ingredienti}
                               value={row.ingredient_id}
-                              onChange={(e) => updateItem(idx, "ingredient_id", e.target.value)}
-                              className="w-full border border-neutral-300 rounded px-2 py-1.5 text-sm"
-                            >
-                              <option value="">— ingrediente —</option>
-                              {ingredienti.map((ing) => (
-                                <option key={ing.id} value={ing.id}>
-                                  {ing.name} ({ing.default_unit})
-                                </option>
-                              ))}
-                            </select>
+                              onChange={(id, defaultUnit) => {
+                                updateItem(idx, "ingredient_id", id);
+                                if (defaultUnit && (!row.unit || row.unit === "g")) {
+                                  updateItem(idx, "unit", defaultUnit);
+                                }
+                              }}
+                              onCreateRequest={(name) => setQuickCreate({ rowIdx: idx, defaultName: name })}
+                            />
                           ) : (
                             <select
                               value={row.sub_recipe_id}
@@ -555,6 +794,15 @@ export default function RicetteNuova() {
           </div>
         </div>
       </div>
+
+      {quickCreate && (
+        <QuickCreateIngrediente
+          defaultName={quickCreate.defaultName}
+          categorie={ingCategorie}
+          onCancel={() => setQuickCreate(null)}
+          onCreated={handleQuickCreated}
+        />
+      )}
     </>
   );
 }

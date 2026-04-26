@@ -246,6 +246,50 @@ Marco: "il design della settimana copialo dai turni" + "il filtro per selezionar
 4. Pool: digitare "ravioli" filtra a chi ha ravioli nel nome. Cambiare categoria a "Primo" mostra solo i primi.
 5. Programmazione: settimane in colonne side-by-side (scroll orizzontale se molte). Cambiare il selettore a 4/12/26 settimane.
 
+### Iterazione 6 — IngredientPicker typeahead + quick-create al volo
+
+Marco: "A volte gli ingredienti non ci sono (nel senso che ancora non sono stati creati e matchati, devi trovare un modo migliore per gestirli. L'elencone con tutti gli ingredienti ha poco senso".
+
+Nel form ricetta il select ingredienti era un dropdown con TUTTI gli ingredienti (potenzialmente centinaia post-import fatture XML). Due problemi:
+1. Lista enorme = navigazione impossibile
+2. Se l'ingrediente non c'è ancora (fattura non ancora importata, ingrediente non ancora matchato) bisognava uscire dal form, andare in `/ricette/ingredienti`, crearlo, tornare, riprendere
+
+**v3.1 RicetteNuova.jsx — IngredientPicker + QuickCreateIngrediente**:
+
+`<IngredientPicker>`:
+- Pill cliccabile quando ingrediente già selezionato (mostra nome + unità default)
+- Click → diventa input testuale typeahead, focus automatico
+- Risultati filtrati su `name.includes(q)` con limite 12 visibili (no overflow)
+- Hover orange-50, click → seleziona + propaga `default_unit` al campo `unit` della riga (se non già modificato dall'utente)
+- Se la query non corrisponde a nessun ingrediente: bottone in coda alla lista "+ Crea 'foo' come nuovo ingrediente" (orange-50/40)
+- Click outside chiude il dropdown
+
+`<QuickCreateIngrediente>` (modal):
+- Campi minimi: nome (precompilato dal testo digitato), unità default (g/kg/L/ml/cl/pz), categoria opzionale
+- Endpoint: `POST /foodcost/ingredients/` (esiste già, accetta payload `{name, default_unit, category_id?}`)
+- Su success: aggiunge alla lista locale `ingredienti`, seleziona automaticamente nella riga del form ricetta
+- Niente prezzo: si aggiunge dopo nella pagina ingredienti (lo dico nel hint del modal)
+
+**Endpoint usato**: `GET /foodcost/ingredients/categories` per popolare il select categoria del modal.
+
+### File toccati (iterazione 6)
+- `frontend/src/pages/ricette/RicetteNuova.jsx` v3.1 — IngredientPicker + QuickCreateIngrediente
+
+### Verifica iterazione 6
+- esbuild OK (RicetteNuova: 22.8kb → 31.5kb, atteso per nuovi componenti).
+- Endpoint `/foodcost/ingredients/categories` confermato esistente in `foodcost_ingredients_router.py:242`.
+
+### Da verificare dopo push (iterazione 6)
+1. `/ricette/nuova`: cliccare "+ Ingrediente": appare un input typeahead invece del select grande.
+2. Digitare "rabarbaro" (assumendo non esista): appare in coda "+ Crea 'rabarbaro' come nuovo ingrediente". Click → modal con nome precompilato. Salvare con unità "g" e nessuna categoria.
+3. Tornati nel form: la riga ha "rabarbaro (g)" come ingrediente selezionato e l'unità della riga e' "g".
+4. Cliccare la pill ingrediente: torna in modalita' typeahead per cambiarlo.
+5. Verificare che salvando la ricetta la riga viene persistita correttamente (ingredient_id valorizzato).
+
+### Backlog suggerito (post-iterazione 6)
+- `RicetteModifica.jsx` ha lo stesso layout vecchio (non riorganizzato + select grande). Da portare a v3.1 quando lo si tocca.
+- `IngredientPicker` potrebbe essere estratto in `frontend/src/components/IngredientPicker.jsx` se lo riusi altrove.
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni
