@@ -1,7 +1,8 @@
 /* ============================================================
-   MENU PRANZO — CSS PDF (WeasyPrint) — v1.0 (sessione 58, 2026-04-26)
+   MENU PRANZO — CSS PDF (WeasyPrint) — v1.1 (sessione 58 cont., 2026-04-26)
    Brand cliente Osteria Tre Gobbi — coerente con carta_pdf.css
    (font Cormorant Garamond, sfondo bianco, niente brand TRGB-02 software).
+   v1.1: rimosso logo, layout forzato su singola pagina A4.
    ============================================================ */
 
 /* Font cross-platform: Mac/Win via static/fonts, Linux via /usr/local/share/fonts/tre_gobbi */
@@ -42,45 +43,51 @@
 }
 
 /* ============================================================
-   PAGINA E TIPOGRAFIA BASE
+   PAGINA SINGOLA A4 — niente overflow, niente seconde pagine
    ============================================================ */
 @page {
     size: A4;
-    margin: 18mm 22mm;
+    margin: 14mm 18mm;
 }
 
 * { box-sizing: border-box; }
 
-body {
-    font-family: "Cormorant Garamond", "Times New Roman", serif;
-    color: #111;
-    background: #fff;
+html, body {
     margin: 0;
     padding: 0;
+    background: #fff;
+    color: #111;
+    font-family: "Cormorant Garamond", "Times New Roman", serif;
     -webkit-font-smoothing: antialiased;
 }
 
+/* Wrapper "pagina": occupa l'intera area utile A4 e
+   blocca i page-break interni. Se il contenuto eccede,
+   WeasyPrint comprime invece di spezzare. */
+.menu-page {
+    /* Altezza utile A4 portrait con i margini @page sopra (297 - 14*2 = 269mm) */
+    height: 269mm;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-after: avoid;
+    display: flex;
+    flex-direction: column;
+}
+
 /* ============================================================
-   HEADER (logo + data)
+   HEADER (solo data, niente logo)
    ============================================================ */
 .menu-header {
     text-align: center;
-    margin-bottom: 8mm;
-}
-
-.menu-header .logo {
-    width: 28mm;
-    height: auto;
-    margin: 0 auto 3mm;
-    display: block;
+    margin-bottom: 4mm;
 }
 
 .menu-header .data {
     font-size: 11pt;
     color: #555;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    margin-top: 1mm;
+    font-weight: 500;
 }
 
 /* ============================================================
@@ -92,7 +99,7 @@ body {
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    margin: 6mm 0 3mm;
+    margin: 4mm 0 2mm;
     line-height: 1.15;
 }
 
@@ -101,7 +108,7 @@ body {
     font-size: 12pt;
     font-style: italic;
     color: #444;
-    margin: 0 0 8mm;
+    margin: 0 0 5mm;
     line-height: 1.3;
 }
 
@@ -110,7 +117,7 @@ body {
    ============================================================ */
 .menu-divider {
     text-align: center;
-    margin: 6mm 0;
+    margin: 4mm 0;
     color: #888;
     font-size: 14pt;
     letter-spacing: 0.5em;
@@ -120,18 +127,24 @@ body {
 
 /* ============================================================
    LISTA PIATTI — flat, ordinata per categoria
+   Si espande nello spazio disponibile (flex: 1) per riempire la pagina
+   anche con pochi piatti, e si comprime con tanti piatti.
    ============================================================ */
 .menu-piatti {
     list-style: none;
     margin: 0;
     padding: 0;
     text-align: center;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .menu-piatti li {
     font-size: 14pt;
-    line-height: 1.45;
-    padding: 2.5mm 0;
+    line-height: 1.4;
+    padding: 1.8mm 0;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-weight: 500;
@@ -148,19 +161,20 @@ body {
    BOX MENÙ BUSINESS
    ============================================================ */
 .menu-business {
-    margin: 8mm auto 0;
-    padding: 6mm 8mm;
+    margin: 5mm auto 0;
+    padding: 4mm 8mm;
     border-top: 1px solid #c8c0b0;
     border-bottom: 1px solid #c8c0b0;
     max-width: 130mm;
     text-align: center;
+    flex-shrink: 0;
 }
 
 .menu-business .business-titolo {
     font-size: 18pt;
     font-weight: 700;
     font-style: italic;
-    margin-bottom: 4mm;
+    margin-bottom: 3mm;
     letter-spacing: 0.04em;
 }
 
@@ -168,28 +182,23 @@ body {
     display: flex;
     justify-content: space-between;
     font-size: 13pt;
-    line-height: 1.6;
+    line-height: 1.5;
     padding: 0.5mm 4mm;
 }
 
-.menu-business .business-row .lbl {
-    text-align: left;
-}
-
-.menu-business .business-row .prz {
-    text-align: right;
-    font-weight: 600;
-}
+.menu-business .business-row .lbl { text-align: left; }
+.menu-business .business-row .prz { text-align: right; font-weight: 600; }
 
 /* ============================================================
    FOOTER NOTE
    ============================================================ */
 .menu-footer {
-    margin-top: 8mm;
+    margin-top: 5mm;
     text-align: center;
     font-size: 10pt;
     color: #666;
-    line-height: 1.5;
+    line-height: 1.4;
     font-style: italic;
     white-space: pre-line;
+    flex-shrink: 0;
 }

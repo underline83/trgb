@@ -26,7 +26,6 @@ from typing import Any, Dict, List, Optional
 BASE_DIR = Path(__file__).resolve().parents[2]
 STATIC_DIR = BASE_DIR / "static"
 CSS_PDF = STATIC_DIR / "css" / "menu_pranzo_pdf.css"
-LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -115,10 +114,6 @@ def _build_html(menu: Dict[str, Any], settings: Dict[str, Any]) -> str:
     piatti_html = _build_piatti_html(menu.get("righe") or [])
     business_html = _build_business_box_html(menu, settings)
 
-    logo_html = ""
-    if LOGO_PATH.exists():
-        logo_html = f'<img src="file://{LOGO_PATH}" class="logo" alt="Osteria Tre Gobbi">'
-
     html = f"""<!DOCTYPE html>
     <html>
     <head>
@@ -126,23 +121,24 @@ def _build_html(menu: Dict[str, Any], settings: Dict[str, Any]) -> str:
         <link rel="stylesheet" href="/static/css/menu_pranzo_pdf.css">
     </head>
     <body>
-        <div class="menu-header">
-            {logo_html}
-            <div class="data">{escape(data_str)}</div>
+        <div class="menu-page">
+            <div class="menu-header">
+                <div class="data">{escape(data_str)}</div>
+            </div>
+
+            <div class="menu-titolo">{escape(titolo)}</div>
+            <div class="menu-sottotitolo">{escape(sottotitolo)}</div>
+
+            <div class="menu-divider"></div>
+
+            {piatti_html}
+
+            <div class="menu-divider"></div>
+
+            {business_html}
+
+            <div class="menu-footer">{escape(footer)}</div>
         </div>
-
-        <div class="menu-titolo">{escape(titolo)}</div>
-        <div class="menu-sottotitolo">{escape(sottotitolo)}</div>
-
-        <div class="menu-divider"></div>
-
-        {piatti_html}
-
-        <div class="menu-divider"></div>
-
-        {business_html}
-
-        <div class="menu-footer">{escape(footer)}</div>
     </body>
     </html>
     """
