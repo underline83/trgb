@@ -179,6 +179,32 @@ Marco, dopo aver guardato l'UI: 4 indicazioni in cascata che hanno richiesto un 
 ### Note iterazione 3
 La tabella `pranzo_piatti` (catalogo separato) era stata creata in iterazione 1 e mai usata in prod. Riscriverla via mig 102 era sicuro perche' la mig non era mai girata sul VPS. Se in futuro si scoprisse che il pool ricette non basta (es. piatti senza ingredienti che non si vogliono creare come ricetta), si potra' reintrodurre con una tabella `pranzo_piatti_ad_hoc` complementare al pool ricette.
 
+### Iterazione 4 — RicetteNuova: ingredienti opzionali + form riorganizzato
+
+Marco: "quando vado a salvare una ricetta mi impone di aggiungere un ingrediente, ma talvolta sono dei placeholder per dei piatti da usare in menu o pranzo; quindi senza ricetta compilata" + "Va sistemato un po quel form se vai a toccarlo" + "Rendilo coerente con le grafiche che stiamo usando" + "Organizzalo meglio".
+
+Soluzione: il backend (`POST /foodcost/ricette`) gia' accetta lista items vuota — il vincolo era solo lato frontend (`RicetteNuova.jsx` righe 141 e 157). Tolto + form riscritto.
+
+**v3.0 RicetteNuova.jsx**:
+- Ingredienti OPZIONALI: lista vuota crea un piatto "placeholder" per uso in menu carta / menu pranzo senza scheda food cost.
+- Resa default `1 porzione` (prima era required > 0): per piatti placeholder Marco non deve riempire la resa, parte ok.
+- Riorganizzato in 5 sezioni nette:
+  1. Anagrafica (nome interno, categoria, flag ricetta base)
+  2. Nome cliente & menu (nome menu, descrizione, tipi servizio chips) — solo se NON base
+  3. Resa & prezzo (resa, unita, prezzo vendita, tempo prep)
+  4. Composizione (opzionale, con badge "⚠ Piatto placeholder" se vuoto)
+  5. Note interne
+- Helper components `<Section>` e `<Field>` per ridurre il rumore JSX e uniformare titoli/hint.
+- Palette allineata: tutte le sezioni `bg-neutral-50 border-neutral-200 rounded-xl`. La sezione "Nome cliente & menu" ha accent `border-orange-200 bg-orange-50/40` per evidenziarla (era amber/giallo prima — off-pattern). Chip tipo servizio attivo: `bg-orange-100 border-orange-300 text-orange-900` (era amber-600 bianco).
+- CTA salva: `<Btn>` primary del modulo (prima era "chip amber"). Label dinamica: "Salva ricetta" oppure "Salva piatto placeholder" se nessun ingrediente.
+- Hint visibile sui tipi servizio: "Spunta 'Pranzo di lavoro' per aggiungere il piatto al pool del modulo Menu Pranzo" — chiude il loop UX col modulo Pranzo.
+- Wrapper esterno coerente con RicetteArchivio/RicetteSettings: `<RicetteNav current="archivio">` + `bg-brand-cream` + card `shadow-2xl rounded-3xl border-neutral-200 p-6 sm:p-8`.
+
+**Da fare in futuro:** stesso refactor su `RicetteModifica.jsx` (oggi simile a v2.1 di Nuova). Marco non l'ha chiesto esplicitamente; aspetto che ci tocchi.
+
+### File toccati (iterazione 4)
+- `frontend/src/pages/ricette/RicetteNuova.jsx` v3.0 — riscritta
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni
