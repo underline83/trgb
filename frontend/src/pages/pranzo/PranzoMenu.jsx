@@ -1,10 +1,19 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v1.1 — Modulo Pranzo del Giorno (sessione 58 cont., 2026-04-26)
+// @version: v2.0 — Compositore Menu Pranzo SETTIMANALE (sessione 58 cont., 2026-04-26)
 //
 // Sub-modulo "Menu Pranzo" di Gestione Cucina.
-// 3 tab: Oggi (editor menu del giorno) · Archivio · Catalogo piatti.
-// Le impostazioni vivono dentro RicetteSettings (sidebar "Menu Pranzo")
-// per coerenza con il resto del macro-modulo Gestione Cucina.
+// La pagina e' SOLO un compositore:
+//   - selezione settimana (week picker)
+//   - scelta piatti dal pool delle ricette con service_type "Pranzo di lavoro"
+//   - vista Programmazione: ultime N settimane in colonne per non ripetersi
+//
+// Cosa NON e' qui (decisione di Marco, S58 cont.):
+//   - prezzi Menù Business      → Impostazioni Cucina sidebar "Menu Pranzo"
+//   - testata / sottotitolo     → Impostazioni Cucina
+//   - footer note               → Impostazioni Cucina
+//   - catalogo piatti           → ricette con service_type "Pranzo di lavoro"
+//                                 (gestiti in Gestione Cucina · Ricette)
+//
 // Wrapper visivo: RicetteNav in alto + bg-brand-cream + card bianca shadow-2xl
 // rounded-3xl, identico a RicetteArchivio/RicetteSettings.
 
@@ -26,28 +35,53 @@ const CATEGORIE = [
 ];
 const ORDINE_CAT = { antipasto: 1, primo: 2, secondo: 3, contorno: 4, dolce: 5, altro: 6 };
 
-const todayIso = () => {
-  const d = new Date();
+// ─── Helpers settimana ────────────────────────────────────────
+const fmtIso = (d) => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${dd}`;
 };
 
-const formatDataEstesa = (iso) => {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso + "T12:00:00");
-    return d.toLocaleDateString("it-IT", {
-      weekday: "long", day: "numeric", month: "long", year: "numeric",
-    });
-  } catch { return iso; }
+const lunediDi = (iso) => {
+  if (!iso) return fmtIso(lunediCorrente());
+  const d = new Date(iso + "T12:00:00");
+  const dow = (d.getDay() + 6) % 7; // 0 = lunedì
+  d.setDate(d.getDate() - dow);
+  return fmtIso(d);
 };
 
-const fmtPrezzo = (p) => {
-  if (p === null || p === undefined || p === "") return "—";
-  const n = Number(p);
-  return Number.isInteger(n) ? `${n}€` : `${n.toFixed(2).replace(".", ",")}€`;
+const lunediCorrente = () => {
+  const d = new Date();
+  const dow = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dow);
+  return d;
+};
+
+const formatSettimana = (mondayIso) => {
+  if (!mondayIso) return "";
+  const lun = new Date(mondayIso + "T12:00:00");
+  const ven = new Date(lun);
+  ven.setDate(ven.getDate() + 4);
+  const optMese = { day: "numeric", month: "long" };
+  const lunStr = lun.toLocaleDateString("it-IT", optMese);
+  const venStr = ven.toLocaleDateString("it-IT", optMese);
+  return `Settimana del ${lunStr} – ${venStr} ${lun.getFullYear()}`;
+};
+
+const settimanaShort = (mondayIso) => {
+  if (!mondayIso) return "";
+  const lun = new Date(mondayIso + "T12:00:00");
+  const ven = new Date(lun);
+  ven.setDate(ven.getDate() + 4);
+  const optMese = { day: "numeric", month: "short" };
+  return `${lun.toLocaleDateString("it-IT", optMese)} – ${ven.toLocaleDateString("it-IT", optMese)}`;
+};
+
+const aggiungiSettimane = (mondayIso, n) => {
+  const d = new Date(mondayIso + "T12:00:00");
+  d.setDate(d.getDate() + n * 7);
+  return fmtIso(d);
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -55,9 +89,8 @@ const fmtPrezzo = (p) => {
 // ─────────────────────────────────────────────────────────────
 function TabNav({ tab, setTab }) {
   const tabs = [
-    { key: "oggi",     label: "Oggi",     emoji: "📅" },
-    { key: "archivio", label: "Archivio", emoji: "📂" },
-    { key: "catalogo", label: "Catalogo", emoji: "🍳" },
+    { key: "compositore",   label: "Settimana",      emoji: "📅" },
+    { key: "programmazione", label: "Programmazione", emoji: "📊" },
   ];
   return (
     <div className="flex flex-wrap gap-2 border-b border-neutral-200 pb-3 mb-4 items-center">
@@ -76,56 +109,45 @@ function TabNav({ tab, setTab }) {
         </button>
       ))}
       <a
+        href="/ricette/archivio"
+        className="ml-3 text-[11px] text-neutral-400 hover:text-orange-700 transition"
+        title="Gestisci le ricette pranzo (service_type Pranzo di lavoro)"
+      >📚 Gestisci ricette →</a>
+      <a
         href="/ricette/settings"
         className="ml-auto text-[11px] text-neutral-400 hover:text-orange-700 transition"
-        title="Le impostazioni del Menu Pranzo vivono dentro Impostazioni Cucina"
-      >⚙️ Impostazioni Cucina →</a>
+        title="Prezzi, testata, footer del menu pranzo"
+      >⚙️ Impostazioni →</a>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 1: OGGI (editor menu del giorno)
+// TAB 1: COMPOSITORE settimana
 // ─────────────────────────────────────────────────────────────
-function TabOggi({ settings, catalogo, refreshArchivio }) {
-  const [data, setData] = useState(todayIso());
+function TabCompositore({ piattiPool, refreshArchivio }) {
+  const [settimana, setSettimana] = useState(fmtIso(lunediCorrente()));
   const [menu, setMenu] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
-
-  // form state
-  const [titolo, setTitolo] = useState("");
-  const [sottotitolo, setSottotitolo] = useState("");
-  const [prezzo1, setPrezzo1] = useState("");
-  const [prezzo2, setPrezzo2] = useState("");
-  const [prezzo3, setPrezzo3] = useState("");
-  const [footer, setFooter] = useState("");
-  const [stato, setStato] = useState("bozza");
   const [righe, setRighe] = useState([]);
 
-  const loadMenu = useCallback(async (d) => {
+  const loadMenu = useCallback(async (mondayIso) => {
     setLoading(true);
     setMsg(null);
     try {
-      const res = await apiFetch(`${API_BASE}/pranzo/menu/${d}/`);
+      const res = await apiFetch(`${API_BASE}/pranzo/menu/${mondayIso}/`);
       if (res.status === 404) {
         setMenu(null);
-        applyDefaults();
+        setRighe([]);
       } else if (res.ok) {
         const m = await res.json();
         setMenu(m);
-        setTitolo(m.titolo || "");
-        setSottotitolo(m.sottotitolo || "");
-        setPrezzo1(m.prezzo_1 ?? "");
-        setPrezzo2(m.prezzo_2 ?? "");
-        setPrezzo3(m.prezzo_3 ?? "");
-        setFooter(m.footer_note || "");
-        setStato(m.stato || "bozza");
         setRighe((m.righe || []).map((r, i) => ({
-          piatto_id: r.piatto_id || null,
+          recipe_id: r.recipe_id || null,
           nome: r.nome,
-          categoria: r.categoria || "primo",
+          categoria: r.categoria || "altro",
           ordine: r.ordine ?? i,
           note: r.note || "",
         })));
@@ -139,35 +161,24 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
     }
   }, []);
 
-  const applyDefaults = () => {
-    setTitolo("");
-    setSottotitolo("");
-    setPrezzo1(settings?.prezzo_1_default ?? "");
-    setPrezzo2(settings?.prezzo_2_default ?? "");
-    setPrezzo3(settings?.prezzo_3_default ?? "");
-    setFooter("");
-    setStato("bozza");
-    setRighe([]);
-  };
+  useEffect(() => { loadMenu(settimana); }, [settimana, loadMenu]);
 
-  useEffect(() => { if (settings) loadMenu(data); }, [data, settings, loadMenu]);
-
+  // ── azioni righe ──
   const aggiungiRiga = (piatto) => {
     if (piatto) {
       setRighe([...righe, {
-        piatto_id: piatto.id,
+        recipe_id: piatto.recipe_id,
         nome: piatto.nome,
         categoria: piatto.categoria,
         ordine: righe.length,
       }]);
     } else {
-      setRighe([...righe, { piatto_id: null, nome: "", categoria: "primo", ordine: righe.length }]);
+      setRighe([...righe, { recipe_id: null, nome: "", categoria: "altro", ordine: righe.length }]);
     }
   };
 
-  const aggiornaRiga = (idx, patch) => {
+  const aggiornaRiga = (idx, patch) =>
     setRighe(righe.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
-  };
 
   const rimuoviRiga = (idx) => setRighe(righe.filter((_, i) => i !== idx));
 
@@ -189,21 +200,13 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
   };
 
   const salva = async () => {
-    setSaving(true);
-    setMsg(null);
+    setSaving(true); setMsg(null);
     try {
       const payload = {
-        data,
-        titolo: titolo || null,
-        sottotitolo: sottotitolo || null,
-        prezzo_1: prezzo1 === "" ? null : Number(prezzo1),
-        prezzo_2: prezzo2 === "" ? null : Number(prezzo2),
-        prezzo_3: prezzo3 === "" ? null : Number(prezzo3),
-        footer_note: footer || null,
-        stato,
-        righe: righe.filter((r) => r.nome.trim()).map((r, i) => ({
-          piatto_id: r.piatto_id || null,
-          nome: r.nome.trim(),
+        settimana,
+        righe: righe.filter((r) => (r.nome || "").trim()).map((r, i) => ({
+          recipe_id: r.recipe_id || null,
+          nome: (r.nome || "").trim(),
           categoria: r.categoria,
           ordine: i,
           note: r.note || null,
@@ -214,13 +217,10 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`HTTP ${res.status}: ${t}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const m = await res.json();
       setMenu(m);
-      setMsg({ tipo: "ok", text: "Menu salvato." });
+      setMsg({ tipo: "ok", text: "Settimana salvata." });
       refreshArchivio?.();
     } catch (e) {
       setMsg({ tipo: "err", text: e.message });
@@ -231,12 +231,12 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
 
   const elimina = async () => {
     if (!menu) return;
-    if (!window.confirm(`Eliminare il menu del ${formatDataEstesa(data)}?`)) return;
+    if (!window.confirm(`Eliminare il menu della ${formatSettimana(settimana).toLowerCase()}?`)) return;
     try {
-      const res = await apiFetch(`${API_BASE}/pranzo/menu/${data}/`, { method: "DELETE" });
+      const res = await apiFetch(`${API_BASE}/pranzo/menu/${settimana}/`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setMenu(null);
-      applyDefaults();
+      setRighe([]);
       setMsg({ tipo: "ok", text: "Menu eliminato." });
       refreshArchivio?.();
     } catch (e) {
@@ -247,13 +247,10 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
   const apriPdf = () => {
     if (!menu) return;
     const token = localStorage.getItem("token");
-    fetch(`${API_BASE}/pranzo/menu/${data}/pdf/`, {
+    fetch(`${API_BASE}/pranzo/menu/${settimana}/pdf/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.blob();
-      })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         window.open(url, "_blank");
@@ -265,122 +262,55 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
   // ── UI ──
   return (
     <div className="space-y-4">
-      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 flex flex-wrap gap-3 items-end">
+      {/* Selezione settimana + azioni */}
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 flex flex-wrap gap-3 items-center">
+        <Btn variant="ghost" size="sm" onClick={() => setSettimana(aggiungiSettimane(settimana, -1))}>← Settimana prec.</Btn>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-neutral-500 mb-1">Data</label>
           <input
             type="date"
-            value={data}
-            onChange={(e) => setData(e.target.value)}
-            className="border border-neutral-300 rounded-lg px-3 py-2"
+            value={settimana}
+            onChange={(e) => setSettimana(lunediDi(e.target.value))}
+            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm"
           />
+          <div className="text-xs text-neutral-500 italic mt-0.5">{formatSettimana(settimana)} {loading && " · caricamento…"}</div>
         </div>
-        <div className="text-sm text-neutral-600 italic">
-          {formatDataEstesa(data)} {loading && " · caricamento…"}
-        </div>
-        <div className="ml-auto flex gap-2">
-          <Btn variant="ghost" onClick={() => setData(todayIso())}>Oggi</Btn>
-          {menu && <Btn variant="ghost" onClick={apriPdf}>📄 PDF</Btn>}
-          {menu && <Btn variant="danger" onClick={elimina}>Elimina</Btn>}
-          <Btn onClick={salva} loading={saving}>{menu ? "Aggiorna" : "Crea menu"}</Btn>
+        <Btn variant="ghost" size="sm" onClick={() => setSettimana(aggiungiSettimane(settimana, +1))}>Settimana succ. →</Btn>
+        <Btn variant="ghost" size="sm" onClick={() => setSettimana(fmtIso(lunediCorrente()))}>Oggi</Btn>
+
+        <div className="ml-auto flex flex-wrap gap-2">
+          {menu && <Btn variant="ghost" size="sm" onClick={apriPdf}>📄 PDF</Btn>}
+          {menu && <Btn variant="danger" size="sm" onClick={elimina}>Elimina</Btn>}
+          <Btn size="sm" onClick={salva} loading={saving}>{menu ? "Aggiorna" : "Crea menu settimana"}</Btn>
         </div>
       </div>
 
       {msg && (
-        <div className={"rounded-lg px-3 py-2 text-sm " +
-          (msg.tipo === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              : "bg-red-50 text-red-800 border border-red-200")}>
+        <div className={"text-sm rounded-lg px-3 py-2 border " +
+          (msg.tipo === "ok" ? "text-green-700 bg-green-50 border-green-200"
+                              : "text-red-700 bg-red-50 border-red-200")}>
           {msg.text}
         </div>
       )}
 
-      {/* Testata + prezzi */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
-          <h3 className="font-semibold text-neutral-700">Testata (override default)</h3>
-          <div>
-            <label className="block text-xs text-neutral-500 mb-1">Titolo</label>
-            <input
-              value={titolo}
-              onChange={(e) => setTitolo(e.target.value)}
-              placeholder={settings?.titolo_default || ""}
-              className="w-full border border-neutral-300 rounded-lg px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-neutral-500 mb-1">Sottotitolo</label>
-            <textarea
-              value={sottotitolo}
-              onChange={(e) => setSottotitolo(e.target.value)}
-              rows={2}
-              placeholder={settings?.sottotitolo_default || ""}
-              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-neutral-500 mb-1">Note footer</label>
-            <textarea
-              value={footer}
-              onChange={(e) => setFooter(e.target.value)}
-              rows={2}
-              placeholder={settings?.footer_default || ""}
-              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
+      {/* Pool piatti disponibili */}
+      <PiattiPoolCard pool={piattiPool} onPick={aggiungiRiga} />
 
-        <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
-          <h3 className="font-semibold text-neutral-700">Menù Business — prezzi (€)</h3>
-          {[
-            { lbl: "1 portata", val: prezzo1, set: setPrezzo1 },
-            { lbl: "2 portate", val: prezzo2, set: setPrezzo2 },
-            { lbl: "3 portate", val: prezzo3, set: setPrezzo3 },
-          ].map((p) => (
-            <div key={p.lbl} className="flex items-center gap-3">
-              <label className="w-24 text-sm text-neutral-600">{p.lbl}</label>
-              <input
-                type="number"
-                step="0.5"
-                value={p.val}
-                onChange={(e) => p.set(e.target.value)}
-                className="flex-1 border border-neutral-300 rounded-lg px-3 py-2"
-              />
-            </div>
-          ))}
-          <div className="flex items-center gap-3 pt-2">
-            <label className="w-24 text-sm text-neutral-600">Stato</label>
-            <select
-              value={stato}
-              onChange={(e) => setStato(e.target.value)}
-              className="flex-1 border border-neutral-300 rounded-lg px-3 py-2"
-            >
-              <option value="bozza">Bozza</option>
-              <option value="pubblicato">Pubblicato</option>
-              <option value="archiviato">Archiviato</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Piatti */}
+      {/* Righe del menu */}
       <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h3 className="font-semibold text-neutral-700">Piatti del giorno</h3>
+          <h3 className="font-semibold text-neutral-800">Piatti della settimana</h3>
           <div className="flex gap-2">
             <Btn variant="ghost" size="sm" onClick={ordinaPerCategoria}>↕ Ordina per categoria</Btn>
             <Btn variant="ghost" size="sm" onClick={() => aggiungiRiga(null)}>+ Riga ad-hoc</Btn>
           </div>
         </div>
 
-        {/* Quick-add da catalogo */}
-        <CatalogoQuickAdd catalogo={catalogo} onPick={aggiungiRiga} />
-
         {righe.length === 0 ? (
-          <div className="text-center text-neutral-500 py-8 italic">
-            Nessun piatto. Scegli dal catalogo qui sopra o aggiungi una riga ad-hoc.
+          <div className="text-center text-neutral-500 py-6 italic text-sm">
+            Nessun piatto. Scegli dal pool qui sopra o aggiungi una riga ad-hoc.
           </div>
         ) : (
-          <div className="space-y-2 mt-3">
+          <div className="space-y-2">
             {righe.map((r, i) => (
               <div key={i} className="flex flex-wrap items-center gap-2 p-2 bg-white rounded-lg border border-neutral-200">
                 <div className="flex flex-col gap-0.5">
@@ -398,13 +328,13 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
                 </select>
                 <input
                   value={r.nome}
-                  onChange={(e) => aggiornaRiga(i, { nome: e.target.value, piatto_id: null })}
+                  onChange={(e) => aggiornaRiga(i, { nome: e.target.value, recipe_id: null })}
                   placeholder="Nome piatto"
                   className="flex-1 min-w-[200px] border border-neutral-300 rounded px-2 py-1 text-sm"
                 />
-                {r.piatto_id && (
+                {r.recipe_id && (
                   <span className="text-[10px] uppercase tracking-wide text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
-                    catalogo
+                    ricetta #{r.recipe_id}
                   </span>
                 )}
                 <button
@@ -421,23 +351,40 @@ function TabOggi({ settings, catalogo, refreshArchivio }) {
   );
 }
 
-function CatalogoQuickAdd({ catalogo, onPick }) {
+// ─────────────────────────────────────────────────────────────
+// Pool piatti — chip cliccabili dal modulo Ricette
+// ─────────────────────────────────────────────────────────────
+function PiattiPoolCard({ pool, onPick }) {
   const [filter, setFilter] = useState("all");
   const list = useMemo(() => {
-    if (!catalogo) return [];
-    return filter === "all" ? catalogo : catalogo.filter((p) => p.categoria === filter);
-  }, [catalogo, filter]);
+    if (!pool) return [];
+    return filter === "all" ? pool : pool.filter((p) => p.categoria === filter);
+  }, [pool, filter]);
 
-  if (!catalogo || catalogo.length === 0) {
+  if (pool === null) {
+    return <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 text-sm text-neutral-500">Caricamento ricette…</div>;
+  }
+  if (pool.length === 0) {
     return (
-      <div className="text-xs text-neutral-500 italic mb-2">
-        Nessun piatto nel catalogo. Vai alla tab Catalogo per aggiungerne.
-      </div>
+      <EmptyState
+        icon="🍳"
+        title="Nessuna ricetta nel pool pranzo"
+        description={
+          <>
+            Per popolare il pool, vai in <a href="/ricette/archivio" className="underline hover:text-orange-700">Gestione Cucina · Ricette</a> e
+            associa le ricette al tipo servizio <em>Pranzo di lavoro</em>.
+          </>
+        }
+      />
     );
   }
 
   return (
-    <div className="border border-neutral-200 rounded-lg p-2 bg-neutral-50">
+    <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h3 className="font-semibold text-neutral-800 text-sm">Pool piatti pranzo <span className="text-neutral-400 font-normal">· {pool.length}</span></h3>
+        <a href="/ricette/archivio" className="text-[11px] text-neutral-400 hover:text-orange-700">Gestisci pool →</a>
+      </div>
       <div className="flex flex-wrap gap-1 mb-2 text-xs">
         <button
           onClick={() => setFilter("all")}
@@ -451,13 +398,13 @@ function CatalogoQuickAdd({ catalogo, onPick }) {
           >{c.emoji} {c.label}</button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
         {list.map((p) => (
           <button
-            key={p.id}
+            key={p.recipe_id}
             onClick={() => onPick(p)}
             className="text-xs bg-white border border-neutral-200 rounded px-2 py-1 hover:bg-orange-50 hover:border-orange-300 text-left"
-            title={p.nome}
+            title={p.menu_description || p.nome}
           >
             <span className="text-[9px] uppercase tracking-wider text-neutral-500 mr-1">{p.categoria}</span>
             {p.nome.length > 50 ? p.nome.slice(0, 50) + "…" : p.nome}
@@ -469,15 +416,28 @@ function CatalogoQuickAdd({ catalogo, onPick }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 2: ARCHIVIO
+// TAB 2: PROGRAMMAZIONE — vista comparativa N settimane
 // ─────────────────────────────────────────────────────────────
-function TabArchivio({ menus, refresh, onApri }) {
-  const [filtroDa, setFiltroDa] = useState("");
-  const [filtroA, setFiltroA] = useState("");
+function TabProgrammazione({ refreshArchivio }) {
+  const [n, setN] = useState(8);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const apriPdfData = (data) => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/pranzo/programmazione/?n=${n}`);
+      if (res.ok) setData(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [n]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const apriPdf = (mondayIso) => {
     const token = localStorage.getItem("token");
-    fetch(`${API_BASE}/pranzo/menu/${data}/pdf/`, {
+    fetch(`${API_BASE}/pranzo/menu/${mondayIso}/pdf/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.blob())
@@ -488,343 +448,82 @@ function TabArchivio({ menus, refresh, onApri }) {
       });
   };
 
-  const filtered = useMemo(() => {
-    return (menus || []).filter((m) => {
-      if (filtroDa && m.data < filtroDa) return false;
-      if (filtroA && m.data > filtroA) return false;
-      return true;
-    });
-  }, [menus, filtroDa, filtroA]);
+  const elimina = async (mondayIso) => {
+    if (!window.confirm(`Eliminare il menu della settimana del ${mondayIso}?`)) return;
+    const res = await apiFetch(`${API_BASE}/pranzo/menu/${mondayIso}/`, { method: "DELETE" });
+    if (res.ok) { load(); refreshArchivio?.(); }
+  };
+
+  const settimane = data?.settimane || [];
 
   return (
     <div className="space-y-4">
-      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-3 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs text-neutral-500 mb-1">Da</label>
-          <input type="date" value={filtroDa} onChange={(e) => setFiltroDa(e.target.value)}
-            className="border border-neutral-300 rounded-lg px-3 py-2" />
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-3 flex flex-wrap items-center gap-3">
+        <label className="text-sm text-neutral-600">Mostra ultime</label>
+        <select value={n} onChange={(e) => setN(Number(e.target.value))}
+          className="border border-neutral-300 rounded-lg px-2 py-1 text-sm">
+          {[4, 6, 8, 12, 16, 26, 52].map((x) => <option key={x} value={x}>{x} settimane</option>)}
+        </select>
+        <Btn variant="ghost" size="sm" onClick={load}>↻ Aggiorna</Btn>
+        <div className="ml-auto text-sm text-neutral-500">
+          {loading ? "caricamento…" : `${settimane.length} settimane con menu`}
         </div>
-        <div>
-          <label className="block text-xs text-neutral-500 mb-1">A</label>
-          <input type="date" value={filtroA} onChange={(e) => setFiltroA(e.target.value)}
-            className="border border-neutral-300 rounded-lg px-3 py-2" />
-        </div>
-        <Btn variant="ghost" onClick={() => { setFiltroDa(""); setFiltroA(""); }}>Reset</Btn>
-        <Btn variant="ghost" onClick={refresh}>↻ Aggiorna</Btn>
-        <div className="ml-auto text-sm text-neutral-500">{filtered.length} menu</div>
       </div>
 
-      {filtered.length === 0 ? (
+      {settimane.length === 0 ? (
         <EmptyState
-          icon="📂"
-          title="Nessun menu in archivio"
-          description="Crea il primo menu del giorno dalla tab Oggi."
+          icon="📊"
+          title="Nessuna settimana programmata"
+          description="Crea il primo menu dalla tab Settimana."
         />
       ) : (
-        <div className="bg-neutral-50 rounded-xl border border-neutral-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-neutral-600 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left px-4 py-2">Data</th>
-                <th className="text-left px-4 py-2">Stato</th>
-                <th className="text-left px-4 py-2">N. piatti</th>
-                <th className="text-left px-4 py-2">Prezzi (1/2/3)</th>
-                <th className="text-right px-4 py-2">Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((m) => (
-                <tr key={m.id} className="border-t border-neutral-100 hover:bg-orange-50/30">
-                  <td className="px-4 py-2 font-medium">
-                    {formatDataEstesa(m.data)}
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className={"text-xs px-2 py-0.5 rounded " +
-                      (m.stato === "pubblicato" ? "bg-emerald-100 text-emerald-800"
-                        : m.stato === "archiviato" ? "bg-neutral-200 text-neutral-700"
-                        : "bg-amber-100 text-amber-800")}>
-                      {m.stato}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2">{m.n_piatti}</td>
-                  <td className="px-4 py-2 text-neutral-600">
-                    {fmtPrezzo(m.prezzo_1)} / {fmtPrezzo(m.prezzo_2)} / {fmtPrezzo(m.prezzo_3)}
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-2">
-                    <Btn variant="ghost" size="sm" onClick={() => apriPdfData(m.data)}>📄 PDF</Btn>
-                    <Btn variant="ghost" size="sm" onClick={() => onApri(m.data)}>✏️ Apri</Btn>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// TAB 3: CATALOGO PIATTI
-// ─────────────────────────────────────────────────────────────
-function TabCatalogo({ catalogo, refresh }) {
-  const [editing, setEditing] = useState(null); // null | {id?, nome, categoria, note}
-  const [saving, setSaving] = useState(false);
-
-  const startNew = () => setEditing({ nome: "", categoria: "primo", note: "" });
-  const startEdit = (p) => setEditing({ ...p });
-
-  const salva = async () => {
-    if (!editing.nome.trim()) return;
-    setSaving(true);
-    try {
-      const isNew = !editing.id;
-      const url = isNew ? `${API_BASE}/pranzo/piatti/` : `${API_BASE}/pranzo/piatti/${editing.id}`;
-      const method = isNew ? "POST" : "PUT";
-      const res = await apiFetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome: editing.nome.trim(),
-          categoria: editing.categoria,
-          note: editing.note || null,
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setEditing(null);
-      refresh();
-    } catch (e) {
-      alert(`Errore: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const elimina = async (p) => {
-    if (!window.confirm(`Disattivare "${p.nome}" dal catalogo?`)) return;
-    try {
-      const res = await apiFetch(`${API_BASE}/pranzo/piatti/${p.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      refresh();
-    } catch (e) {
-      alert(`Errore: ${e.message}`);
-    }
-  };
-
-  // raggruppa per categoria
-  const byCat = useMemo(() => {
-    const map = {};
-    (catalogo || []).forEach((p) => {
-      (map[p.categoria] = map[p.categoria] || []).push(p);
-    });
-    return map;
-  }, [catalogo]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-neutral-600">
-          {(catalogo || []).length} piatti nel catalogo
-        </div>
-        <Btn onClick={startNew}>+ Nuovo piatto</Btn>
-      </div>
-
-      {editing && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-          <h4 className="font-semibold text-amber-900">{editing.id ? "Modifica piatto" : "Nuovo piatto"}</h4>
-          <div className="grid md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
-              <label className="block text-xs text-neutral-500 mb-1">Nome</label>
-              <input
-                value={editing.nome}
-                onChange={(e) => setEditing({ ...editing, nome: e.target.value })}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2"
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-neutral-500 mb-1">Categoria</label>
-              <select
-                value={editing.categoria}
-                onChange={(e) => setEditing({ ...editing, categoria: e.target.value })}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2"
-              >
-                {CATEGORIE.map((c) => <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>)}
-              </select>
-            </div>
-            <div className="md:col-span-3">
-              <label className="block text-xs text-neutral-500 mb-1">Note (interne, non stampate)</label>
-              <input
-                value={editing.note || ""}
-                onChange={(e) => setEditing({ ...editing, note: e.target.value })}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Btn variant="ghost" onClick={() => setEditing(null)}>Annulla</Btn>
-            <Btn onClick={salva} loading={saving}>Salva</Btn>
-          </div>
-        </div>
-      )}
-
-      {CATEGORIE.map((c) => {
-        const items = byCat[c.key] || [];
-        if (items.length === 0) return null;
-        return (
-          <div key={c.key} className="bg-neutral-50 rounded-xl border border-neutral-200 overflow-hidden">
-            <div className="bg-neutral-50 px-4 py-2 font-semibold text-neutral-700 border-b border-neutral-200">
-              {c.emoji} {c.label} <span className="text-neutral-400 font-normal">· {items.length}</span>
-            </div>
-            <div className="divide-y divide-neutral-100">
-              {items.map((p) => (
-                <div key={p.id} className="px-4 py-2 flex items-center gap-3 hover:bg-neutral-50">
-                  <div className="flex-1">
-                    <div className="text-sm">{p.nome}</div>
-                    {p.note && <div className="text-xs text-neutral-500 italic">{p.note}</div>}
+        <div className="overflow-x-auto">
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${settimane.length}, minmax(220px, 1fr))` }}>
+            {settimane.map((s) => {
+              const byCat = {};
+              (s.righe || []).forEach((r) => {
+                (byCat[r.categoria || "altro"] = byCat[r.categoria || "altro"] || []).push(r);
+              });
+              return (
+                <div key={s.id} className="bg-neutral-50 rounded-xl border border-neutral-200 p-3 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-xs uppercase tracking-wider text-neutral-500">{settimanaShort(s.settimana_inizio)}</div>
+                      <div className="text-[10px] text-neutral-400">{s.righe?.length || 0} piatti</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => apriPdf(s.settimana_inizio)}
+                        title="Apri PDF"
+                        className="text-xs px-1.5 py-0.5 hover:bg-orange-50 rounded"
+                      >📄</button>
+                      <button
+                        onClick={() => elimina(s.settimana_inizio)}
+                        title="Elimina"
+                        className="text-xs px-1.5 py-0.5 hover:bg-red-50 text-red-600 rounded"
+                      >🗑️</button>
+                    </div>
                   </div>
-                  <Btn variant="ghost" size="sm" onClick={() => startEdit(p)}>✏️</Btn>
-                  <Btn variant="ghost" size="sm" onClick={() => elimina(p)}>🗑️</Btn>
+                  <div className="space-y-1.5 text-xs flex-1">
+                    {CATEGORIE.map((c) => {
+                      const items = byCat[c.key] || [];
+                      if (items.length === 0) return null;
+                      return (
+                        <div key={c.key}>
+                          <div className="text-[10px] uppercase tracking-wider text-neutral-400 mb-0.5">{c.emoji} {c.label}</div>
+                          {items.map((it, i) => (
+                            <div key={i} className="text-neutral-700 leading-tight">{it.nome}</div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        );
-      })}
-
-      {(catalogo || []).length === 0 && !editing && (
-        <EmptyState
-          icon="🍳"
-          title="Catalogo vuoto"
-          description="Aggiungi i piatti che ricorrono nei pranzi di lavoro per riusarli velocemente."
-          action={<Btn onClick={startNew}>+ Nuovo piatto</Btn>}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// TAB 4: IMPOSTAZIONI — RIMOSSA in v1.1 (sessione 58 cont.)
-// Le impostazioni del Menu Pranzo vivono dentro RicetteSettings
-// (sidebar "Impostazioni Cucina", sezione "Menu Pranzo"),
-// per coerenza con tutte le altre impostazioni del macro-modulo.
-// Vedi PranzoSettingsPanel.jsx + voce "pranzo" in MENU di RicetteSettings.
-// ─────────────────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
-function TabSettings_REMOVED({ settings, refresh }) {
-  const [form, setForm] = useState(settings || {});
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
-
-  useEffect(() => { setForm(settings || {}); }, [settings]);
-
-  const update = (k, v) => setForm({ ...form, [k]: v });
-
-  const salva = async () => {
-    setSaving(true); setMsg(null);
-    try {
-      const res = await apiFetch(`${API_BASE}/pranzo/settings/`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          titolo_default: form.titolo_default,
-          sottotitolo_default: form.sottotitolo_default,
-          titolo_business: form.titolo_business,
-          prezzo_1_default: Number(form.prezzo_1_default),
-          prezzo_2_default: Number(form.prezzo_2_default),
-          prezzo_3_default: Number(form.prezzo_3_default),
-          footer_default: form.footer_default,
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setMsg({ tipo: "ok", text: "Impostazioni salvate." });
-      refresh();
-    } catch (e) {
-      setMsg({ tipo: "err", text: e.message });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!settings) return <div className="text-neutral-500">Caricamento…</div>;
-
-  return (
-    <div className="space-y-4 max-w-3xl">
-      {msg && (
-        <div className={"rounded-lg px-3 py-2 text-sm " +
-          (msg.tipo === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              : "bg-red-50 text-red-800 border border-red-200")}>
-          {msg.text}
         </div>
       )}
-
-      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
-        <h3 className="font-semibold text-neutral-700">Testata default</h3>
-        <div>
-          <label className="block text-xs text-neutral-500 mb-1">Titolo</label>
-          <input
-            value={form.titolo_default || ""}
-            onChange={(e) => update("titolo_default", e.target.value)}
-            className="w-full border border-neutral-300 rounded-lg px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-neutral-500 mb-1">Sottotitolo</label>
-          <textarea
-            value={form.sottotitolo_default || ""}
-            onChange={(e) => update("sottotitolo_default", e.target.value)}
-            rows={2}
-            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-neutral-500 mb-1">Titolo box prezzi</label>
-          <input
-            value={form.titolo_business || ""}
-            onChange={(e) => update("titolo_business", e.target.value)}
-            className="w-full border border-neutral-300 rounded-lg px-3 py-2"
-          />
-        </div>
-      </div>
-
-      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
-        <h3 className="font-semibold text-neutral-700">Prezzi default Menù Business (€)</h3>
-        {[
-          ["prezzo_1_default", "1 portata"],
-          ["prezzo_2_default", "2 portate"],
-          ["prezzo_3_default", "3 portate"],
-        ].map(([k, lbl]) => (
-          <div key={k} className="flex items-center gap-3">
-            <label className="w-24 text-sm text-neutral-600">{lbl}</label>
-            <input
-              type="number"
-              step="0.5"
-              value={form[k] ?? ""}
-              onChange={(e) => update(k, e.target.value)}
-              className="flex-1 border border-neutral-300 rounded-lg px-3 py-2"
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3">
-        <h3 className="font-semibold text-neutral-700">Footer note (default)</h3>
-        <textarea
-          value={form.footer_default || ""}
-          onChange={(e) => update("footer_default", e.target.value)}
-          rows={3}
-          className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm font-mono"
-        />
-        <div className="text-xs text-neutral-500">
-          Suggerimento: usa <code>*</code> per il riferimento "acqua, coperto e servizio inclusi" e
-          <code> **</code> per "da Lunedì a Venerdì". Il PDF preserva i ritorni a capo.
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <Btn onClick={salva} loading={saving}>Salva impostazioni</Btn>
-      </div>
     </div>
   );
 }
@@ -833,34 +532,23 @@ function TabSettings_REMOVED({ settings, refresh }) {
 // COMPONENT ROOT
 // ─────────────────────────────────────────────────────────────
 export default function PranzoMenu() {
-  const [tab, setTab] = useState("oggi");
-  const [settings, setSettings] = useState(null);
-  const [catalogo, setCatalogo] = useState(null);
-  const [menus, setMenus] = useState(null);
-  const [pickData, setPickData] = useState(null);
+  const [tab, setTab] = useState("compositore");
+  const [piattiPool, setPiattiPool] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const loadSettings = useCallback(async () => {
-    const res = await apiFetch(`${API_BASE}/pranzo/settings/`);
-    if (res.ok) setSettings(await res.json());
-  }, []);
-
-  const loadCatalogo = useCallback(async () => {
-    const res = await apiFetch(`${API_BASE}/pranzo/piatti/`);
+  const loadPool = useCallback(async () => {
+    const res = await apiFetch(`${API_BASE}/pranzo/piatti-disponibili/`);
     if (res.ok) {
       const d = await res.json();
-      setCatalogo(d.piatti || []);
+      setPiattiPool(d.piatti || []);
+    } else {
+      setPiattiPool([]);
     }
   }, []);
 
-  const loadMenus = useCallback(async () => {
-    const res = await apiFetch(`${API_BASE}/pranzo/menu/`);
-    if (res.ok) {
-      const d = await res.json();
-      setMenus(d.menus || []);
-    }
-  }, []);
+  useEffect(() => { loadPool(); }, [loadPool]);
 
-  useEffect(() => { loadSettings(); loadCatalogo(); loadMenus(); }, [loadSettings, loadCatalogo, loadMenus]);
+  const refreshAll = () => setReloadKey((x) => x + 1);
 
   return (
     <>
@@ -870,29 +558,25 @@ export default function PranzoMenu() {
           <div className="bg-white shadow-2xl rounded-3xl p-6 sm:p-8 border border-neutral-200">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 mb-5">
               <div>
-                <h1 className="text-2xl font-bold text-orange-900 font-playfair">Menu Pranzo del Giorno</h1>
-                <p className="text-sm text-neutral-500 mt-0.5">Gestione cucina · pranzo di lavoro</p>
+                <h1 className="text-2xl font-bold text-orange-900 font-playfair">Menu Pranzo settimanale</h1>
+                <p className="text-sm text-neutral-500 mt-0.5">
+                  Compositore · seleziona la settimana e scegli i piatti dal pool ricette
+                </p>
               </div>
             </div>
 
             <TabNav tab={tab} setTab={setTab} />
 
-            {tab === "oggi" && (
-              <TabOggi
-                settings={settings}
-                catalogo={catalogo}
-                refreshArchivio={loadMenus}
-                key={pickData || "today"}
+            {tab === "compositore" && (
+              <TabCompositore
+                key={reloadKey}
+                piattiPool={piattiPool}
+                refreshArchivio={refreshAll}
               />
             )}
-            {tab === "archivio" && (
-              <TabArchivio
-                menus={menus}
-                refresh={loadMenus}
-                onApri={(d) => { setPickData(d); setTab("oggi"); }}
-              />
+            {tab === "programmazione" && (
+              <TabProgrammazione key={reloadKey} refreshArchivio={refreshAll} />
             )}
-            {tab === "catalogo" && <TabCatalogo catalogo={catalogo} refresh={loadCatalogo} />}
           </div>
         </div>
       </div>

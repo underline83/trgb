@@ -1,7 +1,16 @@
-# Modulo Pranzo del Giorno — design + uso
+# Modulo Pranzo settimanale — design + uso
 
-**Versione:** 1.0 (sessione 58 cont., 2026-04-26)
+**Versione:** 2.0 (sessione 58 cont., 2026-04-26)
 **Stato:** alpha — in test cucina/sala
+
+> **Nota v2.0 (riscrittura iterazione 3):** il modulo e' SETTIMANALE, non
+> giornaliero. Niente catalogo separato `pranzo_piatti`: i piatti si pescano
+> dalle `recipes` con service_type "Pranzo di lavoro" (mig 074). La pagina
+> `/pranzo` e' solo un compositore: prezzi/testata/footer vivono solo in
+> Impostazioni Cucina · Menu Pranzo. Vedi `docs/sessione.md` iter 3.
+
+---
+
 **Ruoli destinatari:** chef/admin/superadmin (gestione completa), sous_chef/commis (gestione), sala/sommelier (sola lettura via dropdown)
 **Posizione UI:** sub-voce di Gestione Cucina (tab `RicetteNav`, dropdown header, route `/pranzo`)
 

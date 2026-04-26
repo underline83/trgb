@@ -121,6 +121,64 @@ checklist 6-punti.
 - `docs/sessione.md` — questo blocco
 - `~/.claude/skills/guardiano/SKILL.md` — step "Visione d'insieme"
 
+### Iterazione 3 — Settimanalizzazione + pesca da ricette + pagina solo compositore (stessa giornata)
+
+Marco, dopo aver guardato l'UI: 4 indicazioni in cascata che hanno richiesto un refactor profondo (mig 102 NON ancora pushata in prod, quindi riscritta in-place — niente mig 103 di adattamento):
+
+**1. PDF a pagina singola, niente logo**
+- `static/css/menu_pranzo_pdf.css` v1.1: `@page` margini 14×18mm, wrapper `.menu-page` con `height: 269mm` (area utile A4) + `page-break-inside/-after: avoid`. Lista piatti in flex column con `flex: 1 1 auto justify-center` per riempire/comprimere lo spazio.
+- `app/services/pranzo_pdf_service.py`: rimosso `LOGO_PATH` e tag `<img>`, rimosso constant.
+
+**2. Piatti pescati dalle `recipes` via service_type "Pranzo di lavoro"**
+- Eliminata tabella `pranzo_piatti` dal modello (catalogo separato non serve, esiste gia' il pool ricette filtrato per service_type, mig 074).
+- Repository: nuovo `list_piatti_disponibili()` con JOIN `recipes ⋈ recipe_service_types ⋈ service_types WHERE name='Pranzo di lavoro' AND active=1 AND r.is_active=1 AND COALESCE(is_base,0)=0`. Ordinamento per `recipe_categories.sort_order` poi `menu_name` (fallback `name`).
+- Mappatura categoria: `recipe_categories.name` (Antipasto/Primo/...) → categoria semantica pranzo (antipasto/primo/...). Voci non riconosciute → "altro".
+- `pranzo_menu_righe` ora ha `recipe_id` (FK opzionale a `recipes` ON DELETE SET NULL) invece di `piatto_id`. Snapshot `nome` + `categoria` ancora salvati (per archivio storico se la ricetta viene rinominata/eliminata).
+- Endpoint nuovo: `GET /pranzo/piatti-disponibili/`. Endpoint catalogo (`/piatti/`) rimossi.
+
+**3. Menu SETTIMANALE invece che giornaliero, con vista Programmazione**
+- `pranzo_menu`: chiave UNIQUE su `settimana_inizio` TEXT (lunedi YYYY-MM-DD) invece di `data`.
+- Helper `lunedi_di(iso)` nel repo + `lunediDi(iso)` lato frontend: normalizza qualsiasi giorno della settimana al lunedi corrispondente. Marco puo' picckare un giorno qualsiasi dal date input HTML5 e il sistema risale al lunedi.
+- Endpoint `GET /pranzo/menu/{settimana}/` accetta qualsiasi giorno della settimana.
+- Endpoint nuovo `GET /pranzo/programmazione/?n=8&fino_a=YYYY-MM-DD` ritorna le ultime N settimane CON le righe per la vista comparativa.
+- Frontend tab "Programmazione" mostra le N settimane in colonne side-by-side, raggruppate per categoria. Default 8 settimane (selezionabile 4-52). Permette di cogliere a colpo d'occhio cosa e' stato proposto e non ripetersi.
+- PDF testata: `_format_settimana(monday_iso)` produce stringhe del tipo "Settimana del 27 aprile - 1 maggio 2026" o "Settimana del 27 aprile - 3 maggio 2026" se a cavallo di mese.
+
+**4. Prezzi/testata/footer SOLO in Impostazioni — pagina e' solo compositore**
+- Rimossi prezzo_1/2/3, titolo, sottotitolo, footer_note, stato, da `pranzo_menu`. Schema piu' magro.
+- I default vivono SOLO in `pranzo_settings` (riga unica id=1). Nessun override per settimana.
+- `pranzo_pdf_service.py`: legge testata/prezzi/footer SEMPRE da `settings`, mai dal menu.
+- Frontend `PranzoMenu.jsx` v2.0 e' un compositore puro: 2 tab (Settimana / Programmazione), niente form prezzi/testata/footer/stato. Link `⚙️ Impostazioni →` rimanda a `/ricette/settings`. Link `📚 Gestisci ricette →` a `/ricette/archivio`.
+- `PranzoSettingsPanel.jsx` (gia' esistente in iterazione 2) resta com'era — i campi che stavano nella tab Settings rimossa sono gia' presenti qui.
+
+### Verifica iterazione 3
+- `python3 -m py_compile` backend OK.
+- `esbuild` frontend OK (PranzoMenu v2.0 ridotto da 32kb a 23kb dopo tagli).
+- Dry-run mig 102 su copia foodcost.db: 3 tabelle (`pranzo_menu`, `pranzo_menu_righe`, `pranzo_settings`), schema corretto.
+- Test repository: `lunedi_di('2026-04-30')` → `2026-04-27` (giovedi → lunedi stessa settimana ISO). `upsert_menu` funziona, `list_menu` ritorna archivio, `list_programmazione(n=4)` ok.
+- Test PDF HTML: contiene "Settimana del 27 aprile", piatti, "15€", nessun `<img>`, wrapper `menu-page`.
+
+### Da verificare dopo push (iterazione 3)
+1. Mig 102 al boot VPS: log `[102] modulo Pranzo settimanale: 3 tabelle pronte`.
+2. Marco entra in `/ricette/archivio`, apre una ricetta esistente (es. fusilli), tab/sezione tipi servizio: spunta "Pranzo di lavoro", salva. Verifica che la ricetta compaia nel pool di `/pranzo`.
+3. `/pranzo` tab Settimana: il date picker carica la settimana corrente, il pool mostra le ricette appena marcate, click su una chip aggiunge una riga. Salva → "Crea menu settimana".
+4. Click 📄 PDF: si apre PDF con testata "Settimana del DD - DD MMMM YYYY", lista piatti, box Menù Business con i prezzi delle Impostazioni Cucina, footer.
+5. Tab Programmazione: vede le settimane come colonne side-by-side. Cambia il selettore a 4/12/26 settimane.
+6. Impostazioni Cucina sidebar "Menu Pranzo": cambia un prezzo o il titolo, salva. Rigenera il PDF della settimana → vede il nuovo valore (perche' il PDF legge sempre da settings, mai snapshot per-settimana).
+
+### File toccati (iterazione 3)
+- `app/migrations/102_pranzo_init.py` — riscritta v2.0 (no pranzo_piatti, settimana_inizio, recipe_id, no override)
+- `app/repositories/pranzo_repository.py` — riscritta: `list_piatti_disponibili`, `lunedi_di`, settimanale, `list_programmazione`
+- `app/routers/pranzo_router.py` — riscritta v2.0: niente CRUD piatti, niente prezzi/testata nei payload, endpoint `/piatti-disponibili/` e `/programmazione/`
+- `app/services/pranzo_pdf_service.py` — riscritta v2.0 settimanale, niente logo, legge tutto da settings
+- `static/css/menu_pranzo_pdf.css` — v1.1 pagina singola
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` — v2.0 compositore puro, 2 tab
+- `docs/modulo_pranzo.md` — aggiornare con nuovo modello (vedi iter 3)
+- `docs/sessione.md` — questo blocco
+
+### Note iterazione 3
+La tabella `pranzo_piatti` (catalogo separato) era stata creata in iterazione 1 e mai usata in prod. Riscriverla via mig 102 era sicuro perche' la mig non era mai girata sul VPS. Se in futuro si scoprisse che il pool ricette non basta (es. piatti senza ingredienti che non si vogliono creare come ricetta), si potra' reintrodurre con una tabella `pranzo_piatti_ad_hoc` complementare al pool ricette.
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni
