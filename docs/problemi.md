@@ -81,6 +81,30 @@ _(S40-14, S40-15, S40-16, S40-17 risolti — vedi sezione Risolti.)_
 
 ---
 
+### D2. Modulo Pranzo — banner "Load failed" persistente su click utente durante restart backend
+**Segnalato:** 2026-04-26 (Marco screenshot, fix difensivo applicato in osservazione)
+**Modulo:** Pranzo / FE PranzoMenu.jsx
+**Gravità:** media (UX, niente perdita dati)
+
+**Sintomo:**
+Banner rosso "Load failed" rimane visibile sulla pagina `/pranzo` dopo che il click su Crea menu / Salva / Copia prec. cade nella finestra di restart del backend (push.sh ~3-5s di gap). Il messaggio è generico ("Load failed" = TypeError Safari su fetch fallito a livello rete), non parla di cosa è fallito, e non c'è X per chiuderlo né bottone Riprova.
+
+**Fix applicato (Modulo B+, PranzoMenu.jsx v3.2):**
+- `apiFetchSafe()` wrapper con 1 retry automatico dopo 1.5s su TypeError → copre i restart momentanei
+- Banner ora ha X di chiusura + bottone "Riprova" se l'azione è retryabile
+- Messaggio errore parlante ("Salvataggio fallito (rete). Il backend potrebbe essere in restart.") invece del generico "Load failed"
+- Esteso a salva, elimina, copiaSettimanaPrecedente, apriPdf, eliminaSettimana (tab Programmazione)
+
+**In osservazione:**
+Prossimo push del modulo Pranzo, riprovare a fare salva/copia subito dopo il restart e verificare che il retry automatico vada a buon fine. Se dopo 2 tentativi ancora fail → log backend per capire se è deadlock SQLite o worker bloccato.
+
+**Follow-up potenziale (se ricapita):**
+- Aumentare worker uvicorn da 1 a 2-4 → restart hanno meno gap totale
+- Endpoint `/system/maintenance` (roadmap 1.14.b) → banner FE quando backend in restart
+- Migrare upsert_menu a transaction più piccola (oggi DELETE righe + INSERT N righe in una sola transaction)
+
+---
+
 ### D1. Flussi di Cassa — Sistema storni difettoso
 **Segnalato:** 2026-04-10
 **Modulo:** Flussi di Cassa / Banca (sistema storni)

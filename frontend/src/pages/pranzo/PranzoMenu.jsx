@@ -1,5 +1,15 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.1 — Hotfix loop azioni + design turni preservato (sessione 58 cont., 2026-04-26)
+// @version: v3.2 — Resilienza UX: retry rete + banner con X + Riprova (Modulo B+, 2026-04-26)
+//
+// v3.2 cambiamenti vs v3.1:
+//   - apiFetchSafe(): wrapper di apiFetch che retrya 1 volta dopo 1.5s su
+//     TypeError (network fail). Copre i restart backend del push.sh: il fetch
+//     che cade nel gap di restart viene ripetuto e quasi sempre va a buon fine
+//     al secondo tentativo. Risolve "Load failed" persistente.
+//   - Banner messaggi ora ha X di chiusura + bottone Riprova quando l'azione
+//     che ha generato l'errore e' rieseguibile (salva/elimina/copia/pdf).
+//   - Messaggio errore piu' parlante: "Salvataggio fallito (rete)..." invece
+//     del generico "Load failed".
 //
 // Cambiamenti vs v3.0:
 //   - Eliminato il pattern register-callback (TabCompositore -> Toolbar):
@@ -18,6 +28,25 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, EmptyState } from "../../components/ui";
 import RicetteNav from "../ricette/RicetteNav";
+
+// ─────────────────────────────────────────────────────────────
+// apiFetchSafe — wrapper con 1 retry su TypeError di rete
+// Copre i casi "Load failed" durante restart backend (push.sh).
+// Il primo tentativo cade nel gap di restart (~3-5s), il secondo
+// tentativo dopo 1.5s di solito trova il backend gia' su.
+// ─────────────────────────────────────────────────────────────
+async function apiFetchSafe(url, opts) {
+  try {
+    return await apiFetch(url, opts);
+  } catch (e) {
+    if (e instanceof TypeError) {
+      // network fail (Safari "Load failed" / Chrome "Failed to fetch")
+      await new Promise((r) => setTimeout(r, 1500));
+      return await apiFetch(url, opts);
+    }
+    throw e;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Costanti
@@ -212,6 +241,18 @@ export default function PranzoMenu() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  // v3.2: callback dell'ultima azione fallita per esporre bottone "Riprova" nel banner
+  const [retryFn, setRetryFn] = useState(null);
+
+  // Helper centralizzato: gestisce errore + memorizza retry + messaggio parlante
+  const handleActionError = (e, actionLabel, retryCallback) => {
+    const isNetwork = e instanceof TypeError;
+    const baseText = isNetwork
+      ? `${actionLabel} fallito (rete). Il backend potrebbe essere in restart.`
+      : `${actionLabel} fallito: ${e.message}`;
+    setMsg({ tipo: "err", text: baseText });
+    setRetryFn(retryCallback ? () => retryCallback : null);
+  };
 
   // Programmazione
   const [progN, setProgN] = useState(8);
@@ -357,7 +398,7 @@ export default function PranzoMenu() {
 
   // ── Azioni ──────────────────────────────────────────────────
   const salva = async () => {
-    setSaving(true); setMsg(null);
+    setSaving(true); setMsg(null); setRetryFn(null);
     try {
       const payload = {
         settimana,
@@ -369,7 +410,7 @@ export default function PranzoMenu() {
           note: r.note || null,
         })),
       };
-      const res = await apiFetch(`${API_BASE}/pranzo/menu/`, {
+      const res = await apiFetchSafe(`${API_BASE}/pranzo/menu/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -379,7 +420,7 @@ export default function PranzoMenu() {
       setMenu(m);
       setMsg({ tipo: "ok", text: "Settimana salvata." });
     } catch (e) {
-      setMsg({ tipo: "err", text: e.message });
+      handleActionError(e, "Salvataggio", salva);
     } finally {
       setSaving(false);
     }
@@ -388,39 +429,56 @@ export default function PranzoMenu() {
   const elimina = async () => {
     if (!menu) return;
     if (!window.confirm(`Eliminare il menu della ${labelWeekRange(settimana)}?`)) return;
+    setMsg(null); setRetryFn(null);
     try {
-      const res = await apiFetch(`${API_BASE}/pranzo/menu/${settimana}/`, { method: "DELETE" });
+      const res = await apiFetchSafe(`${API_BASE}/pranzo/menu/${settimana}/`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setMenu(null); setRighe([]);
       setMsg({ tipo: "ok", text: "Menu eliminato." });
     } catch (e) {
-      setMsg({ tipo: "err", text: e.message });
+      handleActionError(e, "Eliminazione", elimina);
     }
   };
 
   const apriPdf = (mondayIso = settimana) => {
+    setMsg(null); setRetryFn(null);
     const token = localStorage.getItem("token");
-    fetch(`${API_BASE}/pranzo/menu/${mondayIso}/pdf/`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const doFetch = () =>
+      fetch(`${API_BASE}/pranzo/menu/${mondayIso}/pdf/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    // Retry network anche per PDF (stesso pattern di apiFetchSafe)
+    const fetchWithRetry = async () => {
+      try {
+        return await doFetch();
+      } catch (e) {
+        if (e instanceof TypeError) {
+          await new Promise((r) => setTimeout(r, 1500));
+          return await doFetch();
+        }
+        throw e;
+      }
+    };
+    fetchWithRetry()
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         window.open(url, "_blank");
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       })
-      .catch((e) => setMsg({ tipo: "err", text: `PDF: ${e.message}` }));
+      .catch((e) => handleActionError(e, "Apertura PDF", () => apriPdf(mondayIso)));
   };
 
   const copiaSettimanaPrecedente = async () => {
+    setMsg(null); setRetryFn(null);
     const prevMon = shiftMonday(settimana, -1);
     const fetchPrev = async () => {
-      // Stesso fallback by-week → path-param di loadMenu
+      // Stesso fallback by-week → path-param di loadMenu, con retry rete
       try {
-        const r = await apiFetch(`${API_BASE}/pranzo/menu/by-week/?settimana=${prevMon}`);
+        const r = await apiFetchSafe(`${API_BASE}/pranzo/menu/by-week/?settimana=${prevMon}`);
         if (r.ok) return await r.json();
       } catch { /* fallthrough */ }
-      const r2 = await apiFetch(`${API_BASE}/pranzo/menu/${prevMon}/`);
+      const r2 = await apiFetchSafe(`${API_BASE}/pranzo/menu/${prevMon}/`);
       if (r2.status === 404) return { menu: null };
       if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
       return await r2.json();
@@ -440,14 +498,20 @@ export default function PranzoMenu() {
       })));
       setMsg({ tipo: "ok", text: `Copiati ${prev.righe.length} piatti dalla ${labelWeekRange(prevMon)}. Salva per persistere.` });
     } catch (e) {
-      setMsg({ tipo: "err", text: e.message });
+      handleActionError(e, "Copia settimana precedente", copiaSettimanaPrecedente);
     }
   };
 
   const eliminaSettimana = async (mondayIso) => {
     if (!window.confirm(`Eliminare il menu della settimana ${labelWeekRange(mondayIso)}?`)) return;
-    const res = await apiFetch(`${API_BASE}/pranzo/menu/${mondayIso}/`, { method: "DELETE" });
-    if (res.ok) loadProgrammazione(progN, settimana);
+    setMsg(null); setRetryFn(null);
+    try {
+      const res = await apiFetchSafe(`${API_BASE}/pranzo/menu/${mondayIso}/`, { method: "DELETE" });
+      if (res.ok) loadProgrammazione(progN, settimana);
+      else throw new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      handleActionError(e, "Eliminazione settimana", () => eliminaSettimana(mondayIso));
+    }
   };
 
   // ── Render ──────────────────────────────────────────────────
@@ -515,12 +579,28 @@ export default function PranzoMenu() {
             </div>
           </div>
 
-          {/* MESSAGES */}
+          {/* MESSAGES — v3.2: con X di chiusura e bottone Riprova se errore retryabile */}
           {msg && (
-            <div className={"text-sm rounded-lg px-3 py-2 mb-3 border " +
+            <div className={"text-sm rounded-lg px-3 py-2 mb-3 border flex items-start justify-between gap-3 " +
               (msg.tipo === "ok" ? "text-green-700 bg-green-50 border-green-200"
                                   : "text-red-700 bg-red-50 border-red-200")}>
-              {msg.text}
+              <span className="flex-1 leading-snug">{msg.text}</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {msg.tipo === "err" && retryFn && (
+                  <button
+                    onClick={() => { const fn = retryFn; setRetryFn(null); setMsg(null); fn(); }}
+                    className="text-xs font-semibold underline hover:text-red-900"
+                  >
+                    Riprova
+                  </button>
+                )}
+                <button
+                  onClick={() => { setMsg(null); setRetryFn(null); }}
+                  className="text-lg leading-none hover:opacity-70"
+                  aria-label="Chiudi messaggio"
+                  title="Chiudi"
+                >×</button>
+              </div>
             </div>
           )}
 
