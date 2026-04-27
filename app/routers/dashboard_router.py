@@ -1004,3 +1004,235 @@ def get_dashboard_home():
         logger.warning(f"Dashboard: tasks scheduler trigger fallito: {e}")
 
     return response
+
+
+# ─────────────────────────────────────────────────────────
+# Modulo H — Dashboard Cucina chef (vista operativa giornaliera)
+# ─────────────────────────────────────────────────────────
+
+@router.get("/cucina")
+def get_dashboard_cucina():
+    """
+    Dashboard operativa per il chef: cosa serve sapere "adesso".
+
+    Aggrega in un'unica chiamata:
+    - Pranzo del giorno (presenza menu, stato bozza/pubblicato, count righe, prezzi)
+    - Pranzi pianificati prossimi 7gg
+    - Carta cliente attiva (edizione in_carta, count piatti pubblicati e visibili)
+    - Alert allergeni (publications visibili senza allergeni dichiarati né calcolati a monte)
+    - KPI ricette (totale, basi, piatti, senza prezzo vendita)
+    - Ricette modificate negli ultimi 7gg (max 8)
+    - Ingredienti senza prezzo (alert costing)
+    """
+    from app.models.foodcost_db import get_foodcost_connection
+    from datetime import date as _date, timedelta as _td
+
+    oggi = _date.today()
+    oggi_str = oggi.isoformat()
+    sette_gg = (oggi + _td(days=7)).isoformat()
+    sette_gg_fa = (oggi - _td(days=7)).isoformat()
+
+    out: Dict[str, Any] = {
+        "data_oggi": oggi_str,
+        "pranzo_oggi": None,
+        "pranzo_prossimi": [],
+        "carta_attiva": None,
+        "alert_allergeni": {"count": 0, "lista": []},
+        "kpi": {
+            "n_ricette_attive": 0,
+            "n_basi": 0,
+            "n_piatti": 0,
+            "n_senza_prezzo_vendita": 0,
+            "n_publications_carta": 0,
+            "n_pranzi_settimana": 0,
+        },
+        "ricette_modificate": [],
+        "ingredienti_senza_prezzo": 0,
+    }
+
+    try:
+        conn = get_foodcost_connection()
+        cur = conn.cursor()
+
+        # ── Pranzo oggi ──
+        try:
+            row = cur.execute("""
+                SELECT pm.id, pm.data, pm.titolo, pm.stato,
+                       pm.prezzo_1, pm.prezzo_2, pm.prezzo_3,
+                       (SELECT COUNT(*) FROM pranzo_menu_righe r WHERE r.menu_id = pm.id) AS n_righe
+                  FROM pranzo_menu pm
+                 WHERE pm.data = ?
+                 LIMIT 1
+            """, (oggi_str,)).fetchone()
+            if row:
+                out["pranzo_oggi"] = {
+                    "id": row["id"],
+                    "data": row["data"],
+                    "titolo": row["titolo"],
+                    "stato": row["stato"],
+                    "n_righe": row["n_righe"] or 0,
+                    "prezzo_1": row["prezzo_1"],
+                    "prezzo_2": row["prezzo_2"],
+                    "prezzo_3": row["prezzo_3"],
+                }
+        except Exception as e:
+            logger.warning(f"Dashboard cucina: pranzo oggi fallito: {e}")
+
+        # ── Pranzi prossimi 7gg ──
+        try:
+            rows = cur.execute("""
+                SELECT pm.id, pm.data, pm.titolo, pm.stato,
+                       (SELECT COUNT(*) FROM pranzo_menu_righe r WHERE r.menu_id = pm.id) AS n_righe
+                  FROM pranzo_menu pm
+                 WHERE pm.data > ? AND pm.data <= ?
+                 ORDER BY pm.data
+                 LIMIT 7
+            """, (oggi_str, sette_gg)).fetchall()
+            out["pranzo_prossimi"] = [
+                {
+                    "id": r["id"],
+                    "data": r["data"],
+                    "titolo": r["titolo"],
+                    "stato": r["stato"],
+                    "n_righe": r["n_righe"] or 0,
+                }
+                for r in rows
+            ]
+            out["kpi"]["n_pranzi_settimana"] = len(rows) + (1 if out["pranzo_oggi"] else 0)
+        except Exception as e:
+            logger.warning(f"Dashboard cucina: pranzi prossimi fallito: {e}")
+
+        # ── Carta cliente attiva ──
+        try:
+            ed = cur.execute("""
+                SELECT id, nome, slug, stagione, anno, data_inizio, data_fine, stato
+                  FROM menu_editions
+                 WHERE stato = 'in_carta'
+                 ORDER BY COALESCE(data_inizio, '0000-00-00') DESC
+                 LIMIT 1
+            """).fetchone()
+            if ed:
+                pub_count = cur.execute("""
+                    SELECT
+                        COUNT(*) AS tot,
+                        SUM(CASE WHEN COALESCE(is_visible, 1) = 1 THEN 1 ELSE 0 END) AS visibili
+                      FROM menu_dish_publications
+                     WHERE edition_id = ?
+                """, (ed["id"],)).fetchone()
+                out["carta_attiva"] = {
+                    "id": ed["id"],
+                    "nome": ed["nome"],
+                    "slug": ed["slug"],
+                    "stagione": ed["stagione"],
+                    "anno": ed["anno"],
+                    "data_inizio": ed["data_inizio"],
+                    "data_fine": ed["data_fine"],
+                    "n_publications": pub_count["tot"] or 0,
+                    "n_visibili": pub_count["visibili"] or 0,
+                }
+                out["kpi"]["n_publications_carta"] = pub_count["tot"] or 0
+
+                # ── Alert allergeni: publications visibili che non hanno né
+                # allergeni_dichiarati propri né allergeni_calcolati nella ricetta.
+                # Escludiamo le righe testuali (recipe_id IS NULL) tipo "Coperto",
+                # "Acqua", "Raccontati a voce", "Primo piatto bambini" — non sono
+                # piatti veri quindi non hanno senso nell'alert allergeni. ──
+                alert_rows = cur.execute("""
+                    SELECT mdp.id, mdp.sezione, mdp.titolo_override,
+                           mdp.recipe_id, r.name AS recipe_name
+                      FROM menu_dish_publications mdp
+                      INNER JOIN recipes r ON r.id = mdp.recipe_id
+                     WHERE mdp.edition_id = ?
+                       AND COALESCE(mdp.is_visible, 1) = 1
+                       AND (mdp.allergeni_dichiarati IS NULL
+                            OR TRIM(mdp.allergeni_dichiarati) = '')
+                       AND (r.allergeni_calcolati IS NULL
+                            OR TRIM(r.allergeni_calcolati) = '')
+                     ORDER BY mdp.sezione, mdp.sort_order
+                """, (ed["id"],)).fetchall()
+                out["alert_allergeni"] = {
+                    "count": len(alert_rows),
+                    "lista": [
+                        {
+                            "publication_id": r["id"],
+                            "sezione": r["sezione"],
+                            "titolo": r["titolo_override"] or r["recipe_name"] or "(senza nome)",
+                            "recipe_id": r["recipe_id"],
+                        }
+                        for r in alert_rows[:5]
+                    ],
+                }
+        except Exception as e:
+            logger.warning(f"Dashboard cucina: carta attiva fallito: {e}")
+
+        # ── KPI ricette ──
+        try:
+            row = cur.execute("""
+                SELECT
+                    COUNT(*) AS tot,
+                    SUM(CASE WHEN COALESCE(is_base, 0) = 1 THEN 1 ELSE 0 END) AS basi,
+                    SUM(CASE WHEN COALESCE(is_base, 0) = 0 THEN 1 ELSE 0 END) AS piatti,
+                    SUM(CASE WHEN COALESCE(is_base, 0) = 0
+                              AND (selling_price IS NULL OR selling_price <= 0)
+                             THEN 1 ELSE 0 END) AS senza_prezzo
+                  FROM recipes
+                 WHERE COALESCE(is_active, 1) = 1
+            """).fetchone()
+            if row:
+                out["kpi"]["n_ricette_attive"] = row["tot"] or 0
+                out["kpi"]["n_basi"] = row["basi"] or 0
+                out["kpi"]["n_piatti"] = row["piatti"] or 0
+                out["kpi"]["n_senza_prezzo_vendita"] = row["senza_prezzo"] or 0
+        except Exception as e:
+            logger.warning(f"Dashboard cucina: kpi ricette fallito: {e}")
+
+        # ── Ricette modificate ultimi 7gg (escluse base, sort desc per updated_at) ──
+        try:
+            rows = cur.execute("""
+                SELECT r.id, r.name, r.is_base, r.updated_at,
+                       rc.name AS category_name
+                  FROM recipes r
+                  LEFT JOIN recipe_categories rc ON rc.id = r.category_id
+                 WHERE COALESCE(r.is_active, 1) = 1
+                   AND r.updated_at >= ?
+                 ORDER BY r.updated_at DESC
+                 LIMIT 8
+            """, (sette_gg_fa,)).fetchall()
+            out["ricette_modificate"] = [
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "is_base": bool(r["is_base"]),
+                    "category": r["category_name"],
+                    "updated_at": r["updated_at"],
+                }
+                for r in rows
+            ]
+        except Exception as e:
+            logger.warning(f"Dashboard cucina: ricette modificate fallito: {e}")
+
+        # ── Ingredienti senza prezzo (count semplice) ──
+        try:
+            row = cur.execute("""
+                SELECT COUNT(*) AS n
+                  FROM ingredients i
+                 WHERE COALESCE(i.is_active, 1) = 1
+                   AND NOT EXISTS (
+                        SELECT 1 FROM ingredient_prices ip
+                         WHERE ip.ingredient_id = i.id
+                          AND ip.unit_price IS NOT NULL
+                          AND ip.unit_price > 0
+                   )
+            """).fetchone()
+            if row:
+                out["ingredienti_senza_prezzo"] = row["n"] or 0
+        except Exception as e:
+            # Schema ingredient_prices puo' essere diverso — fallback a 0 senza warning bloccante
+            logger.debug(f"Dashboard cucina: ingredienti senza prezzo skip: {e}")
+
+        conn.close()
+    except Exception as e:
+        logger.error(f"Dashboard cucina: errore generale: {e}")
+        out["error"] = str(e)
+
+    return out

@@ -9,10 +9,16 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   ricette: {
-    version: "3.11",
+    version: "3.12",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
+  },
+  cucinaDashboard: {
+    version: "1.0",
+    label: "Dashboard Cucina chef",
+    status: "alpha",
+    color: "orange",
   },
   pranzo: {
     version: "1.5",

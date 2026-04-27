@@ -45,10 +45,11 @@ const MODULES_MENU = {
     title: "Gestione Cucina", icon: "\uD83D\uDCD8", go: "/ricette",
     color: "bg-orange-50 border-orange-200 text-orange-900", hoverBg: "hover:bg-orange-50",
     sub: [
+      { label: "Dashboard Cucina", go: "/cucina/dashboard" },
       { label: "Archivio",      go: "/ricette/archivio" },
       { label: "Ingredienti",   go: "/ricette/ingredienti" },
       { label: "Matching",      go: "/ricette/matching",   check: "admin" },
-      { label: "Dashboard",     go: "/ricette/dashboard" },
+      { label: "Dashboard FC",  go: "/ricette/dashboard" },
       // Selezioni del giorno: gestite qui dentro (sessione 2026-04-20 — niente tile a sé in Home)
       { label: "Selezioni · Macellaio", go: "/selezioni/macellaio" },
       { label: "Selezioni · Pescato",   go: "/selezioni/pescato" },

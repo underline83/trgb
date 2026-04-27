@@ -1,7 +1,74 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-27 (sessione 59 — Modulo M.6: estensione Piano rate a TUTTE le spese fisse + auto-popolamento da cg_uscite + tooltip Importo + ricalcola dividendo)
+**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. — Modulo H: Dashboard Cucina chef vista operativa giornaliera + endpoint /dashboard/cucina)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
+
+---
+
+## SESSIONE 59 cont. (2026-04-27) — MODULO H: DASHBOARD CUCINA CHEF
+
+### Background
+Dopo aver chiuso M.6 (Piano rate esteso), Marco ha detto "ripartiamo in ordine"
+sui moduli pendenti dell'audit cucina. Modulo H = Dashboard Cucina chef: una
+vista operativa giornaliera per il chef, complementare alla `RicetteDashboard`
+(che è analitica food cost). La RicetteDashboard rimane com'è — rinominata in
+"Dashboard FC" nei menu — e affiancata da una nuova `DashboardCucina` con
+focus sull'oggi: cosa serve sapere appena entri in cucina al mattino.
+
+### Decisioni
+- Pagina nuova `/cucina/dashboard` (NON estensione di RicetteDashboard).
+- Sub-route `cucina_dashboard` registrato in `modules.json` (ruoli: admin,
+  chef, sous_chef, commis).
+- Backend: nuovo endpoint `GET /dashboard/cucina` aggregatore — ritorna in
+  un'unica chiamata pranzo oggi+7gg, carta attiva, alert allergeni, KPI
+  ricette, ricette modificate ultimi 7gg, ingredienti senza prezzo.
+- Filtri intelligenti: alert allergeni esclude le righe testuali della carta
+  (`recipe_id IS NULL`) come "Coperto", "Acqua", "Raccontati a voce" — non
+  sono piatti veri quindi non hanno senso nell'alert.
+
+### File toccati
+**Backend:**
+- `app/routers/dashboard_router.py` — nuovo `GET /dashboard/cucina` in fondo
+  al file (in coda agli endpoint esistenti).
+
+**Frontend:**
+- `frontend/src/pages/cucina/DashboardCucina.jsx` (NUOVO) — pagina con
+  PageLayout + header KPI 5 card + grid 2 colonne (Pranzo · Carta · Alert
+  Allergeni · Ricette modificate) + barra azioni rapide. Pattern coerente
+  con M.I primitives (Btn, PageLayout, EmptyState).
+- `frontend/src/App.jsx` — lazy import `DashboardCucina` + Route
+  `/cucina/dashboard` con `ProtectedRoute module="ricette" sub="cucina_dashboard"`.
+- `frontend/src/config/modulesMenu.js` — voce "Dashboard Cucina" come prima
+  entry sub di Gestione Cucina, "Dashboard" rinominato "Dashboard FC".
+- `frontend/src/config/versions.jsx` — `ricette: 3.11 → 3.12` + nuovo
+  `cucinaDashboard: 1.0 alpha`.
+- `app/data/modules.json` — sub `cucina_dashboard` aggiunto + label
+  "Dashboard" → "Dashboard FC" per chiarezza.
+
+### Verifica fatta
+- `py_compile dashboard_router.py` OK.
+- `esbuild DashboardCucina.jsx` + `esbuild App.jsx` OK (solo warning innocui
+  su `import.meta` in iife — è il check non runtime).
+- Test SQL diretto sul DB locale: pranzo oggi (1 menu bozza, 6 righe), carta
+  attiva (Primavera 2026, 36 publications), KPI ricette (48 attive, 14 basi,
+  34 piatti, 5 senza prezzo), alert allergeni (5 contorni reali — ignora
+  righe testuali), 82 ingredienti senza prezzo, 5 ricette modificate ultimi
+  7gg.
+
+### Da verificare dopo push
+1. Login → menu Gestione Cucina → "Dashboard Cucina" deve essere prima voce
+   del sub-menu.
+2. Apri `/cucina/dashboard` → verifica che si carichi con dati reali.
+3. KPI in alto coerenti; widget Pranzo Oggi mostra 6 piatti bozza con prezzi
+   15/25/35; Carta cliente "Primavera 2026" con 36 piatti; alert allergeni
+   con 5 contorni; 5 ricette modificate.
+4. Click su una ricetta nei "modificate recentemente" o "alert allergeni"
+   apre la scheda ricetta.
+5. Click "Apri carta cliente pubblica" apre `/carta/menu` in nuova tab.
+6. Pulsanti azioni rapide in fondo navigano correttamente.
+
+### Suggested commit
+`./push.sh "Modulo H — Dashboard Cucina chef: nuova pagina /cucina/dashboard + endpoint /dashboard/cucina (pranzo oggi+7gg, carta attiva, alert allergeni, KPI ricette, modifiche recenti)"`
 
 ---
 

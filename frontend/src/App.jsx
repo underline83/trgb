@@ -45,6 +45,7 @@ const RicetteIngredienti = lazy(() => import("./pages/ricette/RicetteIngredienti
 const RicetteIngredientiPrezzi = lazy(() => import("./pages/ricette/RicetteIngredientiPrezzi"));
 const RicetteMatching = lazy(() => import("./pages/ricette/RicetteMatching"));
 const RicetteDashboard = lazy(() => import("./pages/ricette/RicetteDashboard"));
+const DashboardCucina = lazy(() => import("./pages/cucina/DashboardCucina"));
 const RicetteSettings = lazy(() => import("./pages/ricette/RicetteSettings"));
 const MenuCartaElenco = lazy(() => import("./pages/cucina/MenuCartaElenco"));
 const MenuCartaDettaglio = lazy(() => import("./pages/cucina/MenuCartaDettaglio"));
@@ -278,6 +279,9 @@ export default function App() {
 
         {/* --- MENU PRANZO DEL GIORNO (sotto Gestione Cucina, mig 102, sessione 58) --- */}
         <Route path="/pranzo" element={<ProtectedRoute module="ricette" sub="pranzo"><PranzoMenu /></ProtectedRoute>} />
+
+        {/* --- DASHBOARD CUCINA chef (sotto Gestione Cucina, sessione 59 — Modulo H) --- */}
+        <Route path="/cucina/dashboard" element={<ProtectedRoute module="ricette" sub="cucina_dashboard"><DashboardCucina /></ProtectedRoute>} />
 
         {/* --- AREA AMMINISTRAZIONE (redirect legacy) --- */}
         <Route path="/admin" element={<Navigate to="/impostazioni" replace />} />

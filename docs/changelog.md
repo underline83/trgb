@@ -3,6 +3,50 @@
 
 ---
 
+## 2026-04-27 (sessione 59 cont.) — Modulo H: Dashboard Cucina chef
+
+### Background
+Vista operativa giornaliera per il chef, complementare alla `RicetteDashboard`
+(che resta come "Dashboard Food Cost" per analisi). Cosa serve sapere appena
+entri in cucina: pranzo del giorno, carta attiva, allergeni mancanti, ricette
+da rivedere.
+
+### Backend
+- **Nuovo endpoint** `GET /dashboard/cucina` in `app/routers/dashboard_router.py`.
+  Aggregatore unico che ritorna: `pranzo_oggi`, `pranzo_prossimi` (7gg),
+  `carta_attiva` (edizione `in_carta` + count publications/visibili),
+  `alert_allergeni` (publications visibili senza allergeni dichiarati né
+  calcolati a monte — esclude righe testuali con `recipe_id IS NULL`),
+  `kpi` (n_ricette_attive, n_basi, n_piatti, n_senza_prezzo_vendita,
+  n_publications_carta, n_pranzi_settimana), `ricette_modificate` (top 8
+  ultimi 7gg), `ingredienti_senza_prezzo` (count ingredients senza
+  ingredient_prices). Try/except attorno a ogni blocco — degrada con
+  warning ma non rompe l'aggregato.
+
+### Frontend
+- **Nuova pagina** `frontend/src/pages/cucina/DashboardCucina.jsx` v1.0.
+  Layout: PageLayout con titolo + data odierna + bottone Aggiorna · header
+  KPI 5 card colorate · grid 2 colonne con 4 sezioni (Pranzo del Giorno,
+  Carta Cliente in Corso, Alert Allergeni, Ricette Modificate
+  Recentemente) · barra Azioni Rapide in fondo. Filtra
+  `pranzo/menu-carta/archivio/ingredienti/dashboard FC/nuova ricetta`.
+- **Route** `/cucina/dashboard` in `App.jsx` con `ProtectedRoute module="ricette" sub="cucina_dashboard"`.
+- **modulesMenu.js**: voce "Dashboard Cucina" come prima entry sub di
+  Gestione Cucina, "Dashboard" → "Dashboard FC" per evitare ambiguità.
+- **modules.json**: aggiunto sub `cucina_dashboard` (ruoli admin/chef/sous_chef/commis).
+- **versions.jsx**: `ricette 3.11 → 3.12`, nuovo `cucinaDashboard: 1.0 alpha`.
+
+### File toccati
+- `app/routers/dashboard_router.py`
+- `frontend/src/pages/cucina/DashboardCucina.jsx` (NUOVO)
+- `frontend/src/App.jsx`
+- `frontend/src/config/modulesMenu.js`
+- `frontend/src/config/versions.jsx`
+- `app/data/modules.json`
+- `docs/sessione.md`, `docs/changelog.md`
+
+---
+
 ## 2026-04-27 (sessione 59) — M.6: Piano rate per TUTTE le spese fisse + ricalcola dividendo
 
 ### Background
