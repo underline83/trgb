@@ -245,6 +245,214 @@ def get_settings() -> Dict[str, Any]:
         conn.close()
 
 
+def compute_margine_settimana(settimana_inizio: str) -> Dict[str, Any]:
+    """
+    Calcola il margine atteso del Menù Business per una settimana.
+
+    Logica (Modulo F.1, 2026-04-27):
+      1. Carica menu della settimana + righe.
+      2. Per ogni riga con `recipe_id` valorizzato: ottiene `cost_per_unit` da recipes
+         (calcolato runtime dagli items + ingredient_prices).
+      3. Aggrega per categoria (antipasto/primo/secondo) calcolando media costo.
+      4. Compone i 3 menu standard:
+         - Menù 1 portata = costo medio del SECONDO (assumendo che il "1 portata"
+           sia il piatto principale; configurabile in futuro)
+         - Menù 2 portate = primo + secondo
+         - Menù 3 portate = antipasto + primo + secondo
+      5. Confronta con prezzi da pranzo_settings: prezzo - costo = margine €,
+         margine / prezzo * 100 = margine %.
+
+    Le righe ad-hoc (recipe_id NULL) non hanno costo calcolabile → escluse dalla
+    media. Se la settimana non ha ricette in una categoria, la sezione viene
+    marcata come "n/d".
+
+    Ritorna dict con:
+      - settimana_inizio
+      - costi_categoria: {antipasto: media_eur|None, primo, secondo, contorno, dolce}
+      - n_piatti_categoria: {antipasto: int, ...} (escluse righe ad-hoc)
+      - n_adhoc: int (righe senza recipe_id)
+      - menu: [
+          {portate: 1, prezzo, costo, margine_eur, margine_pct, dettaglio_costo: "..."},
+          {portate: 2, ...},
+          {portate: 3, ...},
+        ]
+    """
+    monday = lunedi_di(settimana_inizio)
+    conn = get_cucina_connection()
+    try:
+        _ensure_schema(conn)
+
+        # Menu della settimana
+        menu_row = conn.execute(
+            "SELECT id FROM pranzo_menu WHERE settimana_inizio = ?",
+            (monday,),
+        ).fetchone()
+        if not menu_row:
+            return {
+                "settimana_inizio": monday,
+                "menu_presente": False,
+                "costi_categoria": {},
+                "n_piatti_categoria": {},
+                "n_adhoc": 0,
+                "menu": [],
+            }
+
+        menu_id = menu_row["id"]
+
+        # Per ogni riga del menu, prendo categoria + cost_per_unit della ricetta
+        # cost_per_unit non e' nello schema recipes (e' calcolato runtime),
+        # quindi lo calcoliamo qui replicando la logica di _enrich_recipe_with_costs.
+        # Per semplicita': leggiamo recipe_items + ingredient_prices.
+        righe = conn.execute(
+            """SELECT recipe_id, categoria, nome
+                 FROM pranzo_menu_righe
+                WHERE menu_id = ?""",
+            (menu_id,),
+        ).fetchall()
+
+        n_adhoc = 0
+        costi_per_cat: Dict[str, List[float]] = {}
+        n_per_cat: Dict[str, int] = {}
+
+        for r in righe:
+            cat = (r["categoria"] or "altro").lower()
+            if not r["recipe_id"]:
+                n_adhoc += 1
+                continue
+            # Calcola costo unitario della ricetta (somma line_cost / yield_qty)
+            cost = _compute_recipe_cost_per_unit(conn, r["recipe_id"])
+            if cost is not None:
+                costi_per_cat.setdefault(cat, []).append(cost)
+            n_per_cat[cat] = n_per_cat.get(cat, 0) + 1
+
+        # Media per categoria
+        costi_medi = {
+            cat: (sum(v) / len(v)) if v else None
+            for cat, v in costi_per_cat.items()
+        }
+
+        # Carica settings per prezzi
+        s_row = conn.execute("SELECT * FROM pranzo_settings WHERE id = 1").fetchone()
+        settings = _row_to_dict(s_row) if s_row else {}
+        prezzi = {
+            1: settings.get("prezzo_1_default", 15.0),
+            2: settings.get("prezzo_2_default", 25.0),
+            3: settings.get("prezzo_3_default", 35.0),
+        }
+
+        # Componi i 3 menu
+        ant = costi_medi.get("antipasto")
+        pri = costi_medi.get("primo")
+        sec = costi_medi.get("secondo")
+
+        menu_compositions = {
+            1: ("secondo", sec),                  # 1 portata = solo secondo
+            2: ("primo+secondo", _sum_or_none(pri, sec)),
+            3: ("antipasto+primo+secondo", _sum_or_none(ant, pri, sec)),
+        }
+
+        menu_out = []
+        for portate, (dettaglio, costo) in menu_compositions.items():
+            prezzo = prezzi[portate]
+            if costo is None:
+                menu_out.append({
+                    "portate": portate,
+                    "prezzo": prezzo,
+                    "costo": None,
+                    "margine_eur": None,
+                    "margine_pct": None,
+                    "food_cost_pct": None,
+                    "dettaglio_costo": dettaglio,
+                    "warning": "Manca almeno una categoria nel menu della settimana",
+                })
+            else:
+                margine_eur = prezzo - costo
+                margine_pct = (margine_eur / prezzo) * 100 if prezzo else 0
+                food_cost_pct = (costo / prezzo) * 100 if prezzo else 0
+                menu_out.append({
+                    "portate": portate,
+                    "prezzo": round(prezzo, 2),
+                    "costo": round(costo, 2),
+                    "margine_eur": round(margine_eur, 2),
+                    "margine_pct": round(margine_pct, 1),
+                    "food_cost_pct": round(food_cost_pct, 1),
+                    "dettaglio_costo": dettaglio,
+                })
+
+        return {
+            "settimana_inizio": monday,
+            "menu_presente": True,
+            "costi_categoria": {k: (round(v, 2) if v is not None else None) for k, v in costi_medi.items()},
+            "n_piatti_categoria": n_per_cat,
+            "n_adhoc": n_adhoc,
+            "menu": menu_out,
+        }
+    finally:
+        conn.close()
+
+
+def _sum_or_none(*values) -> Optional[float]:
+    """Ritorna somma se TUTTI i valori sono non-None, altrimenti None."""
+    if any(v is None for v in values):
+        return None
+    return sum(values)
+
+
+def _compute_recipe_cost_per_unit(conn, recipe_id: int, _visited=None) -> Optional[float]:
+    """
+    Calcolo runtime cost_per_unit di una ricetta:
+      sum(item.qty * unit_cost) / yield_qty
+
+    unit_cost = ultimo prezzo di ingredient_prices per quel fornitore (semplifico:
+    prendo media degli ultimi prezzi). Per le sub-ricette: ricorre.
+
+    Protezione cicli con _visited.
+    Ritorna None se mancano dati (no items, no prezzi ingredienti).
+    """
+    if _visited is None:
+        _visited = set()
+    if recipe_id in _visited:
+        return None
+    _visited = _visited | {recipe_id}
+
+    rec = conn.execute(
+        "SELECT yield_qty FROM recipes WHERE id = ?",
+        (recipe_id,),
+    ).fetchone()
+    if not rec or not rec["yield_qty"]:
+        return None
+    yield_qty = rec["yield_qty"]
+
+    items = conn.execute(
+        "SELECT ingredient_id, sub_recipe_id, qty FROM recipe_items WHERE recipe_id = ?",
+        (recipe_id,),
+    ).fetchall()
+    if not items:
+        return None
+
+    total = 0.0
+    for it in items:
+        qty = it["qty"] or 0
+        unit_cost = None
+        if it["ingredient_id"]:
+            # Ultimo prezzo ingrediente
+            p = conn.execute(
+                """SELECT unit_price FROM ingredient_prices
+                    WHERE ingredient_id = ?
+                    ORDER BY price_date DESC, id DESC LIMIT 1""",
+                (it["ingredient_id"],),
+            ).fetchone()
+            if p:
+                unit_cost = p["unit_price"]
+        elif it["sub_recipe_id"]:
+            unit_cost = _compute_recipe_cost_per_unit(conn, it["sub_recipe_id"], _visited)
+        if unit_cost is not None:
+            total += qty * unit_cost
+        # Se manca prezzo per un ingrediente, lo skippo (sotto-stima, ma meglio di None)
+
+    return total / yield_qty if yield_qty else None
+
+
 def update_settings(**fields) -> Dict[str, Any]:
     allowed = {
         "titolo_default", "sottotitolo_default", "titolo_business",

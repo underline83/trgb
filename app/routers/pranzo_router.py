@@ -341,6 +341,36 @@ def get_menu_pdf(settimana: str):
 
 
 # ─────────────────────────────────────────────────────────────
+# MARGINE MENÙ BUSINESS (Modulo F.1, 2026-04-27)
+# ─────────────────────────────────────────────────────────────
+@router.get("/menu/{settimana}/margine")
+def get_margine_settimana(settimana: str):
+    """
+    Calcola il margine atteso del Menù Business per la settimana.
+
+    Output: per ogni menu (1/2/3 portate) prezzo, costo medio composto,
+    margine € e %, food cost %. Le righe ad-hoc (recipe_id NULL) sono
+    escluse dalla media costo. Se manca una categoria → menu marcato n/d
+    con warning.
+    Iter 11: try/except per evitare 502 silenziosi.
+    """
+    import logging
+    logger = logging.getLogger("pranzo")
+    try:
+        _validate_data(settimana)
+        return repo.compute_margine_settimana(settimana)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[pranzo.margine] FAIL settimana={settimana}: {type(e).__name__}: {e}")
+        return {
+            "settimana_inizio": None,
+            "menu_presente": False,
+            "error": str(e),
+        }
+
+
+# ─────────────────────────────────────────────────────────────
 # PROGRAMMAZIONE — vista comparativa N settimane precedenti
 # ─────────────────────────────────────────────────────────────
 @router.get("/programmazione/")

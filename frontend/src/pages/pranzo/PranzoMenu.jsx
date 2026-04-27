@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.3 — Diagnostica in pagina + AbortController 20s timeout (Modulo B++, 2026-04-26)
+// @version: v3.4 — Widget margine Menù Business (Modulo F.1, 2026-04-27)
 //
 // v3.2 cambiamenti vs v3.1:
 //   - apiFetchSafe(): wrapper di apiFetch che retrya 1 volta dopo 1.5s su
@@ -354,12 +354,32 @@ export default function PranzoMenu() {
     }
   }, []);
 
+  // Margine settimana (Modulo F.1)
+  const [margine, setMargine] = useState(null);
+  const [margineLoading, setMargineLoading] = useState(false);
+
+  const loadMargine = useCallback(async (mondayIso) => {
+    setMargineLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/pranzo/menu/${mondayIso}/margine`);
+      if (r.ok) setMargine(await r.json());
+      else setMargine(null);
+    } catch {
+      setMargine(null);
+    } finally {
+      setMargineLoading(false);
+    }
+  }, []);
+
   // ── Effetti ─────────────────────────────────────────────────
   useEffect(() => { loadPool(); }, [loadPool]);
 
   useEffect(() => {
-    if (tab === "compositore") loadMenu(settimana);
-  }, [tab, settimana, loadMenu]);
+    if (tab === "compositore") {
+      loadMenu(settimana);
+      loadMargine(settimana);
+    }
+  }, [tab, settimana, loadMenu, loadMargine]);
 
   useEffect(() => {
     if (tab === "programmazione") loadProgrammazione(progN, settimana);
@@ -739,6 +759,11 @@ export default function PranzoMenu() {
             </div>
           )}
 
+          {/* WIDGET MARGINE — Modulo F.1, 2026-04-27 */}
+          {tab === "compositore" && menu && (
+            <MargineCard data={margine} loading={margineLoading} onRicalcola={() => loadMargine(settimana)} />
+          )}
+
           {/* TAB PROGRAMMAZIONE */}
           {tab === "programmazione" && (
             <div className="bg-white rounded-xl shadow border border-neutral-200 p-4">
@@ -819,6 +844,136 @@ export default function PranzoMenu() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// MargineCard — widget intelligence margine Menù Business (F.1)
+// ─────────────────────────────────────────────────────────────
+function MargineCard({ data, loading, onRicalcola }) {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow border border-neutral-200 p-4 mt-4">
+        <h3 className="text-base font-semibold text-orange-900 font-playfair mb-2">💰 Margine Menù Business</h3>
+        <p className="text-sm text-neutral-500">Calcolo costi…</p>
+      </div>
+    );
+  }
+  if (!data || !data.menu_presente) {
+    return null; // niente menu → niente widget
+  }
+
+  const cat = data.costi_categoria || {};
+  const nCat = data.n_piatti_categoria || {};
+  const fmtEur = (v) => v != null ? `${v.toFixed(2)} €` : "—";
+  const colorPct = (pct) => {
+    if (pct == null) return "text-neutral-400";
+    if (pct >= 50) return "text-green-700";
+    if (pct >= 30) return "text-amber-700";
+    return "text-red-700";
+  };
+  const colorFc = (pct) => {
+    if (pct == null) return "text-neutral-400";
+    if (pct <= 30) return "text-green-700";
+    if (pct <= 45) return "text-amber-700";
+    return "text-red-700";
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow border border-neutral-200 p-4 mt-4">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <h3 className="text-base font-semibold text-orange-900 font-playfair">💰 Margine Menù Business</h3>
+          <p className="text-[11px] text-neutral-500">
+            Costi medi per categoria → margine atteso per ogni livello del menu pranzo.
+          </p>
+        </div>
+        <button
+          onClick={onRicalcola}
+          className="text-xs text-orange-700 hover:text-orange-900 underline"
+          title="Ricalcola dopo aver modificato la composizione"
+        >
+          ↻ Ricalcola
+        </button>
+      </div>
+
+      {/* Costi medi per categoria */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+        {[
+          { k: "antipasto", l: "Antipasto" },
+          { k: "primo", l: "Primo" },
+          { k: "secondo", l: "Secondo" },
+          { k: "contorno", l: "Contorno" },
+          { k: "dolce", l: "Dolce" },
+        ].map((c) => {
+          const v = cat[c.k];
+          const n = nCat[c.k] || 0;
+          if (n === 0) return null;
+          return (
+            <div key={c.k} className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
+              <div className="text-[10px] text-neutral-500 uppercase tracking-wide">{c.l}</div>
+              <div className="text-sm font-bold text-neutral-900">{fmtEur(v)}</div>
+              <div className="text-[10px] text-neutral-500">media {n} {n === 1 ? "piatto" : "piatti"}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {data.n_adhoc > 0 && (
+        <p className="text-[11px] text-amber-700 italic mb-3">
+          ⚠ {data.n_adhoc} {data.n_adhoc === 1 ? "riga ad-hoc esclusa" : "righe ad-hoc escluse"} dal calcolo (no recipe_id collegato).
+        </p>
+      )}
+
+      {/* Tabella margini per livello menu */}
+      <div className="border border-neutral-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-neutral-100 text-neutral-700">
+            <tr>
+              <th className="p-2 text-left font-semibold">Menù</th>
+              <th className="p-2 text-left font-semibold text-xs">Composizione</th>
+              <th className="p-2 text-right font-semibold">Prezzo</th>
+              <th className="p-2 text-right font-semibold">Costo</th>
+              <th className="p-2 text-right font-semibold">Margine €</th>
+              <th className="p-2 text-center font-semibold">Margine %</th>
+              <th className="p-2 text-center font-semibold">FC %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.menu.map((m) => (
+              <tr key={m.portate} className="border-t border-neutral-100">
+                <td className="p-2 font-semibold text-neutral-900">
+                  {m.portate} {m.portate === 1 ? "portata" : "portate"}
+                </td>
+                <td className="p-2 text-xs text-neutral-600 capitalize">{m.dettaglio_costo}</td>
+                <td className="p-2 text-right text-neutral-700">{fmtEur(m.prezzo)}</td>
+                <td className="p-2 text-right text-neutral-700">{fmtEur(m.costo)}</td>
+                <td className={`p-2 text-right font-semibold ${m.margine_eur != null && m.margine_eur < 0 ? "text-red-700" : "text-neutral-900"}`}>
+                  {fmtEur(m.margine_eur)}
+                </td>
+                <td className={`p-2 text-center font-bold ${colorPct(m.margine_pct)}`}>
+                  {m.margine_pct != null ? `${m.margine_pct.toFixed(1)}%` : "—"}
+                </td>
+                <td className={`p-2 text-center font-bold ${colorFc(m.food_cost_pct)}`}>
+                  {m.food_cost_pct != null ? `${m.food_cost_pct.toFixed(1)}%` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {data.menu.some((m) => m.warning) && (
+        <p className="text-[11px] text-amber-700 italic mt-2">
+          ⚠ Alcuni menu non hanno costo calcolabile: manca una categoria nella settimana o gli ingredienti non hanno prezzo aggiornato.
+        </p>
+      )}
+
+      <p className="text-[10px] text-neutral-400 mt-2">
+        Convenzione: <strong>1 portata</strong> = secondo · <strong>2 portate</strong> = primo + secondo · <strong>3 portate</strong> = antipasto + primo + secondo. I costi unitari arrivano dalle ricette del food cost (ultimo prezzo ingrediente).
+      </p>
     </div>
   );
 }
