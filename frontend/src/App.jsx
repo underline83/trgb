@@ -116,6 +116,7 @@ const SelezioniDelGiorno = lazy(() => import("./pages/selezioni/SelezioniDelGior
 // Task Manager (ex-Cucina, rinominato Phase B sessione 46)
 const TasksHome = lazy(() => import("./pages/tasks/TasksHome"));
 const TasksAgendaGiornaliera = lazy(() => import("./pages/tasks/AgendaGiornaliera"));
+const TasksReportHACCP = lazy(() => import("./pages/tasks/ReportHACCP"));
 const TasksAgendaSettimana = lazy(() => import("./pages/tasks/AgendaSettimana"));
 const TasksInstanceDetail = lazy(() => import("./pages/tasks/InstanceDetail"));
 const TasksTemplateList = lazy(() => import("./pages/tasks/TemplateList"));
@@ -462,6 +463,8 @@ export default function App() {
         <Route path="/tasks/templates/nuovo" element={<ProtectedRoute module="tasks" sub="templates"><TasksTemplateEditor /></ProtectedRoute>} />
         <Route path="/tasks/templates/:id" element={<ProtectedRoute module="tasks" sub="templates"><TasksTemplateEditor /></ProtectedRoute>} />
         <Route path="/tasks/tasks" element={<ProtectedRoute module="tasks" sub="tasks"><TasksTaskList /></ProtectedRoute>} />
+        {/* Modulo I — Report HACCP mensile (sessione 59 cont.) */}
+        <Route path="/tasks/haccp" element={<ProtectedRoute module="tasks" sub="haccp"><TasksReportHACCP /></ProtectedRoute>} />
 
         {/* Redirect legacy /cucina/* → /tasks/* (bookmark utenti) */}
         <Route path="/cucina"                  element={<Navigate to="/tasks"                  replace />} />

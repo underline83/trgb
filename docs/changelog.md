@@ -3,6 +3,62 @@
 
 ---
 
+## 2026-04-27 (sessione 59 cont. b) — Modulo I (iter 1): Loop HACCP report mensile
+
+### Background
+Il modulo Cucina/Tasks MVP esisteva dalla sessione 43 (DB tasks.sqlite3 con
+template+instance+execution). Mancava la chiusura del loop: vista aggregata
+mensile per chef/admin con compliance, eventi critici, top FAIL — base anche
+per il futuro PDF registro firmabile (rimandato a iter successiva).
+
+### Backend
+- **Nuovo service** `app/services/haccp_report_service.py` con
+  `compute_monthly_report(anno, mese)` che ritorna kpi (compliance %, item
+  OK/FAIL, eventi critici, gap), per_reparto (con bar chart compliance),
+  compliance_giornaliera (serie temporale), top_item_fail (max 5),
+  eventi_critici (TEMPERATURA/NUMERICO fuori soglia, max 50), giornate
+  senza dati. + helper `list_critical_events_recent(giorni)` per future
+  widget Dashboard.
+- **Nuovo router** `app/routers/haccp_router.py` (prefix `/haccp`) con
+  endpoint `GET /haccp/report/{anno}/{mese}` + `GET /haccp/report/recent-events`.
+  Validazione range mese, blocco mese futuro, auth richiesta.
+- `main.py` — `app.include_router(haccp_router)`.
+
+### Frontend
+- **Nuova pagina** `frontend/src/pages/tasks/ReportHACCP.jsx` v1.0.
+  Layout: header con saluto + selettore mese (prev/next, blocco futuro) ·
+  6 KPI tile (compliance, istanze, eventi critici, FAIL, scadute, gap) ·
+  grid 2 colonne (compliance per reparto con bar chart + top FAIL) ·
+  tabella eventi critici con valore/soglia/data/operatore · serie
+  compliance giornaliera con barre · lista giornate gap. Stile Home v3
+  potenziato (KPI tintate, Section card brand-cream, font-playfair).
+- `Nav.jsx` — voce "📊 Report HACCP" tra Task e Template; autoActive
+  aggiornato per pathname `/tasks/haccp`.
+- `App.jsx` — lazy import + Route con `ProtectedRoute module="tasks"
+  sub="haccp"`.
+- `modulesMenu.js` — voce "Report HACCP" sotto Task Manager.
+- `versions.jsx` — `tasks 1.3 → 1.4`, nuovo `haccp 1.0 alpha`.
+- `app/data/modules.json` — sub `haccp` (ruoli admin/chef/sous_chef).
+
+### Backlog rimandato
+- I.4 PDF registro mensile firmabile (WeasyPrint)
+- I.5 Foto + firma su item FAIL (dopo Modulo K Upload utente fuori repo)
+- I.6 Scadenze documenti staff con alert (corso HACCP, sanità) — 6.5 roadmap
+
+### File toccati
+- `app/services/haccp_report_service.py` (NUOVO)
+- `app/routers/haccp_router.py` (NUOVO)
+- `app/main.py`
+- `frontend/src/pages/tasks/ReportHACCP.jsx` (NUOVO)
+- `frontend/src/pages/tasks/Nav.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/config/modulesMenu.js`
+- `frontend/src/config/versions.jsx`
+- `app/data/modules.json`
+- `docs/sessione.md`, `docs/changelog.md`
+
+---
+
 ## 2026-04-27 (sessione 59 cont.) — Modulo H: Dashboard Cucina chef
 
 ### Background

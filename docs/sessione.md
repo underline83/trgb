@@ -1,7 +1,94 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. — Modulo H: Dashboard Cucina chef vista operativa giornaliera + endpoint /dashboard/cucina)
+**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. — Modulo I: Loop HACCP report mensile aggregato + endpoint /haccp/report + pagina /tasks/haccp)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
+
+---
+
+## SESSIONE 59 cont. b (2026-04-27) — MODULO I: LOOP HACCP COMPLETO (iter 1)
+
+### Background
+Dopo Modulo H (Dashboard Cucina chef), Marco "prosegui in ordine" → Modulo I.
+Il modulo Cucina/Tasks MVP esiste dalla sessione 43 (DB tasks.sqlite3 con
+checklist_template + instance + execution + task_singolo). Mancava la chiusura
+del loop: una vista aggregata mensile per chef/admin con compliance, eventi
+critici, top FAIL — utile sia operativamente che come base per il futuro PDF
+registro mensile firmabile (rimandato a I.4 successiva).
+
+### Scope iter 1 (questa pass)
+- Solo aggregazione + UI consultiva. NO PDF, NO foto+firma su FAIL (richiede
+  Modulo K Upload utente fuori repo prima).
+
+### Decisioni
+- Service `haccp_report_service.py` read-only su `tasks.sqlite3`.
+- Router separato `haccp_router.py` con prefix `/haccp` (NO sotto `/tasks`
+  per separare dominio audit dal dominio operativo).
+- Pagina frontend invece sotto `/tasks/haccp` (UX coerente: chef apre Task
+  Manager e trova il report lì, niente nuova top-level entry).
+- Sub-key `haccp` aggiunto a modules.json sotto `tasks` (ruoli admin/chef/
+  sous_chef — il commis non vede il report ma solo l'agenda).
+- Stile pagina: Home v3 originale potenziato (KPI tile tintate, Section card
+  brand-cream, font-playfair sui titoli, palette brand-red coerente con il
+  resto di Task Manager).
+
+### File toccati
+**Backend:**
+- `app/services/haccp_report_service.py` (NUOVO) — `compute_monthly_report
+  (anno, mese)` ritorna kpi/per_reparto/compliance_giornaliera/top_item_fail/
+  eventi_critici/giornate_senza_dati. + helper `list_critical_events_recent
+  (giorni)` per future widget.
+- `app/routers/haccp_router.py` (NUOVO) — `GET /haccp/report/{anno}/{mese}`
+  + `GET /haccp/report/recent-events?giorni=7`. Auth richiesta. Validazione
+  range mese e blocco mese futuro.
+- `main.py` — import + `app.include_router(haccp_router)`.
+
+**Frontend:**
+- `frontend/src/pages/tasks/ReportHACCP.jsx` (NUOVO) — Pagina con selettore
+  mese + 6 KPI tile (compliance, istanze, eventi critici, FAIL, scadute,
+  gap registro) + 2 sezioni affiancate (per_reparto bar chart, top FAIL) +
+  tabella eventi critici + serie temporale compliance giornaliera + lista
+  giornate gap. Pattern Home v3 potenziato.
+- `frontend/src/pages/tasks/Nav.jsx` — nuova entry "📊 Report HACCP" tra
+  Task e Template, autoActive aggiornato per pathname `/tasks/haccp`.
+- `frontend/src/App.jsx` — lazy import + Route con `ProtectedRoute
+  module="tasks" sub="haccp"`.
+- `frontend/src/config/modulesMenu.js` — voce "Report HACCP" sotto Task
+  Manager.
+- `frontend/src/config/versions.jsx` — `tasks 1.3 → 1.4`, nuovo
+  `haccp 1.0 alpha`.
+- `app/data/modules.json` — sub `haccp` aggiunto.
+
+### Verifica fatta
+- py_compile service+router+main OK.
+- esbuild ReportHACCP.jsx + App.jsx OK.
+- Logica SQL: aggregazioni testate mentalmente contro lo schema mig 084
+  (stati validi: INSTANCE_STATI={APERTA,IN_CORSO,COMPLETATA,SCADUTA,SALTATA}
+  EXEC_STATI={OK,FAIL,SKIPPED,PENDING}). Compliance % esclude SALTATE dal
+  denominatore. Eventi critici filtra `tipo IN ('TEMPERATURA','NUMERICO')`
+  con valore fuori `[min_valore, max_valore]`. Gap registro non considera
+  giorni futuri.
+
+### Backlog Modulo I (iterazioni successive)
+- I.4: PDF registro mensile firmabile (WeasyPrint, Service haccp_pdf_service)
+- I.5: Foto + firma su item FAIL (richiede Modulo K Upload prima)
+- I.6: Scadenze documenti staff con alert (es. corso HACCP) — lega 6.5
+  roadmap
+
+### Da verificare dopo push
+1. Backend boot: `[haccp_router]` registrato senza errori. Probe:
+   `curl -I https://trgb.tregobbi.it/haccp/report/recent-events` → 401
+   (auth richiesta) — corretto.
+2. Login → Task Manager → tab "📊 Report HACCP" appare nella nav top.
+3. Apri `/tasks/haccp` → mese corrente preselezionato → KPI con valori
+   reali (probabilmente bassi, niente cronologia in produzione fresca).
+4. Selettore mese: prev/next funziona, blocco su mese futuro.
+5. Top FAIL e eventi critici: vuoti se niente FAIL/temperature anomale —
+   mostra messaggio "✓ nessun problema".
+6. Gap registro: lista giorni del mese corrente senza istanze (probabile
+   se i template non sono attivi).
+
+### Suggested commit
+`./push.sh "Modulo I (iter 1) — Loop HACCP report mensile: backend /haccp/report + pagina /tasks/haccp con compliance, eventi critici, top FAIL, gap registro"`
 
 ---
 

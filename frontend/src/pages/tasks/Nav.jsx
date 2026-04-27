@@ -19,6 +19,7 @@ const ITEMS_TOP = [
   { key: "agenda",    label: "Agenda",    to: "/tasks/agenda",            icon: "📋" },
   { key: "settimana", label: "Settimana", to: "/tasks/agenda/settimana",  icon: "🗓️" },
   { key: "tasks",     label: "Task",      to: "/tasks/tasks",             icon: "✅" },
+  { key: "haccp",     label: "Report HACCP", to: "/tasks/haccp",          icon: "📊" },
   { key: "templates", label: "Template",  to: "/tasks/templates",         icon: "🧩", adminOnly: true },
 ];
 
@@ -166,6 +167,7 @@ function autoActive(pathname, fallback) {
   if (pathname.startsWith("/tasks/agenda/settimana"))     return "settimana";
   if (pathname.startsWith("/tasks/agenda"))               return "agenda";
   if (pathname.startsWith("/tasks/instances"))            return "agenda";
+  if (pathname.startsWith("/tasks/haccp"))                return "haccp";
   if (pathname.startsWith("/tasks/templates"))            return "menu";
   if (pathname === "/tasks")                              return fallback === "home" ? null : fallback;
   return fallback;

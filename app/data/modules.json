@@ -118,9 +118,10 @@
     "icon": "📋",
     "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "viewer"],
     "sub": [
-      { "key": "agenda",    "label": "Agenda",    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "viewer"] },
-      { "key": "tasks",     "label": "Task",      "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala"] },
-      { "key": "templates", "label": "Template",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] }
+      { "key": "agenda",    "label": "Agenda",      "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "viewer"] },
+      { "key": "tasks",     "label": "Task",        "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala"] },
+      { "key": "haccp",     "label": "Report HACCP","roles": ["superadmin", "admin", "chef", "sous_chef"] },
+      { "key": "templates", "label": "Template",    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] }
     ]
   },
   {

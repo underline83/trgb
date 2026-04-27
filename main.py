@@ -109,6 +109,9 @@ from app.routers import fattureincloud_router
 # TASK MANAGER — checklist ricorrenti + task singoli (ex-Cucina, rinominato Phase B sessione 46)
 from app.routers.tasks_router import router as tasks_router
 
+# HACCP — reportistica mensile (Modulo I sessione 59 cont., 2026-04-27)
+from app.routers.haccp_router import router as haccp_router
+
 # CARTA BEVANDE — sub-modulo del modulo Vini (Aperitivi, Birre, Distillati, Tisane, Tè, Amari)
 from app.routers.bevande_router import router as bevande_router
 
@@ -337,6 +340,9 @@ app.include_router(fattureincloud_router.router)
 # TASK MANAGER — checklist ricorrenti + task singoli (ex-Cucina)
 # (usa DB dedicato app/data/tasks.sqlite3, inizializzato in tasks_router al primo import)
 app.include_router(tasks_router)
+
+# HACCP — reportistica mensile read-only su tasks.sqlite3 (Modulo I)
+app.include_router(haccp_router)
 
 # CARTA BEVANDE — sub-modulo Vini per sezioni statiche (Aperitivi, Birre, Distillati, …)
 # (usa DB dedicato app/data/bevande.sqlite3, inizializzato dalla migration 089)
