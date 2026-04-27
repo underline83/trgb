@@ -3,6 +3,48 @@
 
 ---
 
+## 2026-04-27 (sessione 59) — M.6: Piano rate per TUTTE le spese fisse + ricalcola dividendo
+
+### Background
+Bug UX trovato da Marco su spesa fissa "Tassa Rateizzazione Fondo Est rif. N°572":
+importo 2525€ inserito come totale-da-dividere ma usato dal sistema come importo
+per-periodo → 21 uscite da 2525 cad invece di 21 da ~120. Inoltre il modale
+"Piano rate" appariva vuoto perché le uscite erano state generate dal job
+periodico delle spese fisse (che NON popola `cg_piano_rate`).
+
+### Backend
+- **`controllo_gestione_router.py` `GET /spese-fisse/{id}/piano-rate`**:
+  auto-popolamento di `cg_piano_rate` da `cg_uscite` quando il piano è vuoto.
+  Estrae `numero_rata` da nota `"Rata N/M"` se presente, altrimenti enumera 1..N.
+  Idempotente (try/except sull'UNIQUE `(spesa_fissa_id, periodo)`).
+
+### Frontend
+- **`ControlloGestioneSpeseFisse.jsx`**:
+  - Bottone **"Piano" sempre visibile** per ogni spesa fissa attiva (prima
+    solo PRESTITO/RATEIZZAZIONE). Tooltip differenziato per tipo. Bottone
+    "Storico" rimane disponibile in parallelo per i tipi non-rate.
+  - Tooltip ℹ accanto al campo "Importo (€)" nel form: «Importo per ogni
+    periodo (NON totale). Per dividere un totale tra N rate: salva, poi usa
+    Piano → Ricalcola dividendo».
+  - Nuovo widget giallo nel modale Piano: **"↻ Ricalcola dividendo: € [input]
+    per N rate non pagate [Applica]"**. Calcolo:
+    `(totale - già_versato) / N rate non pagate`. Applica come `pianoEdits`
+    in attesa della conferma con "Salva modifiche". Le rate già pagate restano
+    invariate.
+  - Header modale aggiornato: "Piano rate (importi e scadenze per periodo)"
+    per spese non PRESTITO/RATEIZZAZIONE.
+- **`versions.jsx`** — `controlloGestione: 2.15 → 2.16`.
+
+### File toccati
+- `app/routers/controllo_gestione_router.py` (modificato `get_piano_rate`)
+- `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx`
+  (5 punti: state, openPianoRate, closePianoRate, ricalcolaDividendo,
+  bottone Piano sempre visibile, tooltip Importo, widget Ricalcola)
+- `frontend/src/config/versions.jsx`
+- `docs/sessione.md`, `docs/changelog.md`
+
+---
+
 ## 2026-04-25 (sessione 58) — Vini: bottiglia in mescita, ritmo+SCARICO, fix calice, validazioni
 
 ### Background

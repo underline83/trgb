@@ -1611,6 +1611,12 @@ def get_piano_rate(
     """
     Restituisce il piano rate di una spesa fissa, arricchito con lo stato
     della corrispondente uscita (pagata / da pagare / scaduta) quando esiste.
+
+    Modulo M.6 (2026-04-27): auto-popolamento. Se la spesa fissa non ha
+    ancora cg_piano_rate ma ha gia' cg_uscite generate dal job periodico
+    (es. AFFITTO, RATEIZZAZIONE Fondo Est, UTENZA), popola cg_piano_rate
+    al volo derivandole dalle uscite. Cosi' il modale Piano funziona per
+    OGNI spesa fissa, non solo per i prestiti alla francese.
     """
     fc = get_fc_db()
     try:
@@ -1620,6 +1626,45 @@ def get_piano_rate(
             (spesa_id,)
         ).fetchone()
         spesa = dict(sf_row) if sf_row else None
+
+        # ── M.6: auto-popolamento da cg_uscite se piano vuoto ──
+        n_piano = fc.execute(
+            "SELECT COUNT(*) FROM cg_piano_rate WHERE spesa_fissa_id = ?",
+            (spesa_id,)
+        ).fetchone()[0]
+        if n_piano == 0 and spesa is not None:
+            uscite_esistenti = fc.execute("""
+                SELECT periodo_riferimento, totale, note
+                  FROM cg_uscite
+                 WHERE spesa_fissa_id = ?
+                   AND periodo_riferimento IS NOT NULL
+                 ORDER BY periodo_riferimento
+            """, (spesa_id,)).fetchall()
+            if uscite_esistenti:
+                inserite = 0
+                for idx, u in enumerate(uscite_esistenti, start=1):
+                    periodo = u[0]
+                    importo = float(u[1] or 0)
+                    note = u[2]
+                    # Estrai numero rata da nota se nel formato "Rata N/M"
+                    num_rata = idx
+                    if note and isinstance(note, str) and note.startswith("Rata "):
+                        try:
+                            num_rata = int(note.split("/")[0].replace("Rata ", "").strip())
+                        except (ValueError, IndexError):
+                            num_rata = idx
+                    try:
+                        fc.execute("""
+                            INSERT INTO cg_piano_rate (spesa_fissa_id, numero_rata, periodo, importo, note)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (spesa_id, num_rata, periodo, importo, note))
+                        inserite += 1
+                    except Exception:
+                        # Eventuale conflitto unique (spesa_fissa_id+periodo) → skip
+                        pass
+                if inserite:
+                    fc.commit()
+                    print(f"  [M.6] auto-popolato cg_piano_rate per spesa_fissa {spesa_id}: {inserite} rate da cg_uscite")
 
         # Piano rate + LEFT JOIN con cg_uscite (per stato + importo effettivamente pagato)
         # + LEFT JOIN con banca_movimenti (per mostrare stato riconciliazione bidirezionale)

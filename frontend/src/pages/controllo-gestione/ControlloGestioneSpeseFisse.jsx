@@ -97,6 +97,7 @@ export default function ControlloGestioneSpeseFisse() {
   const [pianoLoading, setPianoLoading] = useState(false);
   const [pianoEdits, setPianoEdits] = useState({});     // { periodo: nuovoImporto }
   const [pianoSaving, setPianoSaving] = useState(false);
+  const [pianoTotaleDividere, setPianoTotaleDividere] = useState(""); // M.6: input "Ricalcola dividendo"
 
   // Riconciliazione banca: modale "Cerca banca" (sovrapposta al piano rate o allo storico)
   const [bancaModal, setBancaModal] = useState(null);   // { uscita_id, contextLabel, dataRif, importo }
@@ -322,6 +323,7 @@ export default function ControlloGestioneSpeseFisse() {
     setPianoEdits({});
     setPianoRate([]);
     setPianoRiepilogo(null);
+    setPianoTotaleDividere("");
     setPianoLoading(true);
     try {
       const res = await apiFetch(`${CG}/spese-fisse/${s.id}/piano-rate`);
@@ -342,6 +344,7 @@ export default function ControlloGestioneSpeseFisse() {
     setPianoRate([]);
     setPianoRiepilogo(null);
     setPianoEdits({});
+    setPianoTotaleDividere("");
   };
 
   // Ricarica dati della modale piano/storico attualmente aperta (dopo link banca)
@@ -425,6 +428,45 @@ export default function ControlloGestioneSpeseFisse() {
       const cur = _readEdit(prev[periodo]);
       return { ...prev, [periodo]: { importo: cur.importo, scadenza: dataIso } };
     });
+  };
+
+  // Modulo M.6: ricalcola dividendo un totale per le rate non ancora pagate.
+  // Le rate gia' pagate vengono ignorate (manteniamo il loro importo storico).
+  // Tot residuo = totale - somma(pagato finora). Diviso per N rate non pagate.
+  const ricalcolaDividendo = () => {
+    const tot = parseFloat(pianoTotaleDividere);
+    if (!isFinite(tot) || tot <= 0) {
+      alert("Inserisci un totale valido (numero positivo).");
+      return;
+    }
+    const editabili = pianoRate.filter(r => !["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato));
+    if (editabili.length === 0) {
+      alert("Tutte le rate sono gia' pagate o parziali. Nessuna rata da ricalcolare.");
+      return;
+    }
+    // Somma di quanto gia' versato sulle rate pagate (uscita_pagato fallback su importo)
+    const giaVersato = pianoRate
+      .filter(r => ["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato))
+      .reduce((acc, r) => acc + Number(r.uscita_pagato || r.importo || 0), 0);
+    const residuo = Math.max(tot - giaVersato, 0);
+    const importoPerRata = residuo / editabili.length;
+    if (!isFinite(importoPerRata) || importoPerRata < 0) {
+      alert("Calcolo non valido.");
+      return;
+    }
+    const arrotondato = Math.round(importoPerRata * 100) / 100;
+    setPianoEdits(prev => {
+      const next = { ...prev };
+      editabili.forEach(r => {
+        const cur = _readEdit(next[r.periodo]);
+        next[r.periodo] = { importo: String(arrotondato), scadenza: cur.scadenza };
+      });
+      return next;
+    });
+    if (giaVersato > 0) {
+      // Mostra un piccolo riepilogo nell'alert per chiarezza
+      console.log(`[M.6] Ricalcolo dividendo: tot=${tot} - gia_versato=${giaVersato.toFixed(2)} = residuo ${residuo.toFixed(2)} / ${editabili.length} rate = ${arrotondato} cad.`);
+    }
   };
 
   // Salva tutte le modifiche pendenti
@@ -1373,7 +1415,12 @@ export default function ControlloGestioneSpeseFisse() {
                   placeholder="Es. Affitto locale Via Roma" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
               </div>
               <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Importo (&euro;) *</label>
+                <label className="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                  <span>Importo (&euro;) *</span>
+                  <Tooltip label="Importo per ogni periodo (NON totale). Per dividere un totale tra N rate: salva, poi usa Piano → Ricalcola dividendo">
+                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold cursor-help select-none">i</span>
+                  </Tooltip>
+                </label>
                 <input type="number" step="0.01" value={form.importo} onChange={e => setForm({ ...form, importo: e.target.value })}
                   placeholder="1500.00" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
               </div>
@@ -1558,8 +1605,10 @@ export default function ControlloGestioneSpeseFisse() {
                         </td>
                         <td className="px-4 py-2.5 text-center">
                           <div className="flex gap-1 justify-center flex-wrap">
-                            {s.attiva && ["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (
-                              <Tooltip label="Piano di ammortamento / rate">
+                            {s.attiva && (
+                              <Tooltip label={["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo)
+                                ? "Piano di ammortamento / rate"
+                                : "Piano rate (importi e scadenze per periodo)"}>
                                 <button onClick={() => openPianoRate(s)}
                                   className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200">
                                   Piano
@@ -1725,7 +1774,11 @@ export default function ControlloGestioneSpeseFisse() {
               <div>
                 <h3 className="text-base font-bold text-indigo-900">📅 Piano rate — {pianoModal.titolo}</h3>
                 <p className="text-[11px] text-indigo-600 mt-0.5">
-                  {pianoModal.tipo === "PRESTITO" ? "Piano di ammortamento prestito" : "Piano rateizzazione"} — modifica gli importi dei singoli periodi
+                  {pianoModal.tipo === "PRESTITO"
+                    ? "Piano di ammortamento prestito"
+                    : pianoModal.tipo === "RATEIZZAZIONE"
+                      ? "Piano rateizzazione"
+                      : "Piano rate (importi e scadenze per periodo)"} — modifica gli importi dei singoli periodi
                 </p>
               </div>
               <button onClick={closePianoRate}
@@ -1760,6 +1813,40 @@ export default function ControlloGestioneSpeseFisse() {
                   <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Residuo</div>
                   <div className="text-sm font-bold text-indigo-700">&euro; {fmt(pianoRiepilogo.totale_residuo)}</div>
                 </div>
+              </div>
+            )}
+
+            {/* M.6: Ricalcola dividendo (visibile solo se ci sono rate non ancora pagate) */}
+            {!pianoLoading && pianoRate.length > 0 && pianoRate.some(r => !["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato)) && (
+              <div className="px-6 py-2 border-b border-neutral-100 bg-amber-50/40 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-amber-800 font-semibold whitespace-nowrap">↻ Ricalcola dividendo:</span>
+                <div className="flex items-center gap-1 text-xs">
+                  <span className="text-neutral-500">€</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Totale"
+                    value={pianoTotaleDividere}
+                    onChange={e => setPianoTotaleDividere(e.target.value)}
+                    className="w-28 px-2 py-1 rounded border border-amber-300 text-right tabular-nums focus:border-amber-500 focus:ring-1 focus:ring-amber-200"
+                  />
+                  <span className="text-neutral-500">per</span>
+                  <span className="font-semibold text-neutral-700">
+                    {pianoRate.filter(r => !["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato)).length}
+                  </span>
+                  <span className="text-neutral-500">rate non pagate</span>
+                </div>
+                <button
+                  onClick={ricalcolaDividendo}
+                  disabled={!pianoTotaleDividere}
+                  className="px-3 py-1 rounded bg-amber-500 text-white text-[11px] font-semibold hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Applica
+                </button>
+                <Tooltip label="Imposta gli importi delle rate non pagate dividendo il totale inserito. Le rate gia' pagate restano invariate. Poi rivedi e premi 'Salva modifiche'.">
+                  <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-200 text-amber-800 text-[9px] font-bold cursor-help select-none">i</span>
+                </Tooltip>
               </div>
             )}
 

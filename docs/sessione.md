@@ -1,7 +1,85 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-26 (sessione 58 cont. — modulo Pranzo del Giorno: catalogo piatti riusabili, editor menu giornaliero, archivio, PDF brand cliente Osteria Tre Gobbi)
+**Ultimo aggiornamento:** 2026-04-27 (sessione 59 — Modulo M.6: estensione Piano rate a TUTTE le spese fisse + auto-popolamento da cg_uscite + tooltip Importo + ricalcola dividendo)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
+
+---
+
+## SESSIONE 59 (2026-04-27) — MODULO M.6: PIANO RATE PER TUTTE LE SPESE FISSE
+
+### Background
+Marco ha rilevato un bug UX su una spesa fissa di tipo `RATEIZZAZIONE` ("Tassa
+Rateizzazione Fondo Est rif. N°572"): nel form Modifica Spesa Fissa ha inserito
+2525€ pensando fosse il totale da dividere tra le 21 rate, ma il sistema usa
+quell'importo come *importo per ogni periodo* — risultato: 21 uscite generate da
+2525€ cad invece che il totale 2525€ diviso in 21. Inoltre, sebbene il bottone
+"Piano" fosse disponibile per le RATEIZZAZIONI, il modale appariva vuoto perché
+le uscite erano state generate dal job periodico delle spese fisse (che NON
+popola `cg_piano_rate`), non dal wizard di rateizzazione.
+
+### Decisione (confermata da Marco)
+Estendere il concetto di **Piano rate a TUTTE le spese fisse** (non più solo
+PRESTITO/RATEIZZAZIONE), in modo che:
+1. Il bottone "Piano" sia visibile per ogni spesa fissa attiva.
+2. Quando il piano è vuoto ma esistono già `cg_uscite` per quella spesa, il
+   backend auto-popola `cg_piano_rate` derivandole dalle uscite esistenti.
+3. Una volta popolato, l'utente può: modificare singoli importi, modificare
+   singole scadenze, oppure usare un nuovo widget **Ricalcola dividendo X
+   totale per N rate non pagate** per dividere uniformemente un totale tra le
+   rate non ancora pagate (rispettando quanto già versato).
+4. Nel form Modifica Spesa Fissa, l'icona ℹ accanto al campo Importo chiarisce
+   che si tratta di importo per periodo, non totale.
+
+### File toccati
+**Backend:**
+- `app/routers/controllo_gestione_router.py` — `GET /spese-fisse/{id}/piano-rate`
+  con auto-popolamento da `cg_uscite` quando `cg_piano_rate` è vuoto. Estrae
+  numero_rata da nota se nel formato "Rata N/M", altrimenti enumera 1..N.
+
+**Frontend:**
+- `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx`
+  - Bottone "Piano" sempre visibile per spese fisse attive (label tooltip
+    differenziata per PRESTITO/RATEIZZAZIONE vs altri tipi).
+  - Bottone "Storico" rimane per i tipi non-prestito/rateizzazione (i due
+    bottoni sono complementari).
+  - Tooltip ℹ accanto a label "Importo (€)" nel form: «Importo per ogni periodo
+    (NON totale). Per dividere un totale tra N rate: salva, poi usa Piano →
+    Ricalcola dividendo».
+  - Nuovo state `pianoTotaleDividere` + funzione `ricalcolaDividendo()`.
+  - Nuovo pannello giallo "↻ Ricalcola dividendo: € [input] per N rate non
+    pagate [Applica]" sopra la tabella rate del modale Piano (visibile solo se
+    ci sono rate non ancora pagate). Calcolo: `(totale - già_versato) / N rate
+    non pagate`, applicato come `pianoEdits` in attesa di conferma con "Salva".
+  - Header modale aggiornato per riflettere "Piano rate" generico per tipi
+    diversi da PRESTITO/RATEIZZAZIONE.
+- `frontend/src/config/versions.jsx` — `controlloGestione: 2.15 → 2.16`.
+
+### Verifica fatta
+- Edit puntuali coerenti con stack esistente (Tooltip già importato, pattern
+  pianoEdits già adottato).
+- Auto-popolamento idempotente: usa `INSERT` con try/except sull'UNIQUE
+  `(spesa_fissa_id, periodo)`, quindi se per qualche motivo la query gira due
+  volte non duplica nulla.
+- Rate già pagate vengono ignorate dal "Ricalcola dividendo" (mantengono il
+  loro importo storico) — coerente con il comportamento del POST piano-rate
+  che già esclude `PAGATA / PAGATA_MANUALE / PARZIALE` dagli UPDATE.
+
+### Da verificare dopo push
+1. Apri Controllo Gestione → Spese Fisse → trova "Tassa Rateizzazione Fondo Est
+   rif. N°572" → click "Piano". Devono apparire le 21 rate da 2525€ cad
+   (auto-popolate al volo dal backend).
+2. Inserisci nel campo "Ricalcola dividendo" il totale corretto (es. 2525) →
+   Applica → tutte le rate non pagate diventano `2525/21 ≈ 120,24` cad.
+3. "Salva modifiche" → controlla che le `cg_uscite` non pagate siano state
+   aggiornate al nuovo importo.
+4. Apri una spesa fissa di tipo AFFITTO o UTENZA → click "Piano" → deve mostrare
+   le scadenze passate/future con i relativi importi (auto-popolati). Il
+   bottone "Storico" resta disponibile in parallelo per la vista cronologica.
+5. Form Nuova/Modifica Spesa Fissa → l'icona ℹ accanto a "Importo" mostra il
+   tooltip al hover.
+
+### Suggested commit
+`./push.sh "M.6 — Piano rate esteso a tutte le spese fisse: auto-popola cg_piano_rate da cg_uscite, ricalcola dividendo, tooltip Importo + Piano sempre visibile"`
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
 ---
