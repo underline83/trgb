@@ -47,6 +47,15 @@ app/data/*.prev
 app/data/.fuse_hidden*
 app/data/backups/
 app/data/users.json
+
+# ============================================================
+# UPLOAD UTENTE — Modulo K (sessione 59 cont. d, 2026-04-27)
+# In dev locale gli upload finiscono in static/uploads_dev/ — gitignored.
+# In produzione finiscono in /home/marco/trgb_uploads/ (FUORI dal repo).
+# Vedi app/utils/uploads.py + docs/deploy.md sezione "Upload utente".
+# ============================================================
+static/uploads_dev/
+trgb_uploads/
 # modules.json è tracciato in git come SEED (default ruoli/permessi).
 # Lo stato effettivo vive in modules.runtime.json che NON va in git,
 # altrimenti ogni push.sh riporta i ruoli ai default (bug B1 problemi.md)

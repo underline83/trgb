@@ -206,6 +206,20 @@ app.mount(
     name="static",
 )
 
+# ──────────────────────────────────────────────────────────────
+# /uploads → directory upload utente FUORI dal repo (Modulo K)
+# Default prod: /home/marco/trgb_uploads · dev: <repo>/static/uploads_dev
+# Override via env TRGB_UPLOADS_DIR=/path/desiderato
+# ──────────────────────────────────────────────────────────────
+from app.utils.uploads import get_uploads_dir as _get_uploads_dir
+UPLOADS_DIR = _get_uploads_dir()
+print(f"📁 Upload utente: {UPLOADS_DIR}")
+app.mount(
+    "/uploads",
+    StaticFiles(directory=str(UPLOADS_DIR), check_dir=False),
+    name="uploads",
+)
+
 
 # ----------------------------------------
 # ROUTERS

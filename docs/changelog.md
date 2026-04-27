@@ -3,6 +3,60 @@
 
 ---
 
+## 2026-04-27 (sessione 59 cont. d) — Modulo K: Upload utente fuori repo + risolve D3
+
+### Background
+Bug D3 (foto Menu Carta non si vede) causato da: file dentro repo cancellati
+da `git clean -fd` ai redeploy + SW che cachava index.html sotto chiave
+foto. Fix tampone su sw.js insufficiente. Soluzione strutturale: spostare
+upload FUORI dal repo.
+
+### Backend
+- **Nuovo helper** `app/utils/uploads.py`: `get_uploads_dir()` env-aware
+  (default prod `/home/marco/trgb_uploads/`, dev `<repo>/static/uploads_dev/`
+  gitignored, override `TRGB_UPLOADS_DIR` env var). Detect env via presenza
+  `/home/marco/trgb` o env `TRGB_ENV=prod`. + `ensure_subdir()` + `to_db_path()`.
+- `main.py`: nuovo `app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR,
+  check_dir=False))` separato da `/static`. Stamp del path al boot per debug.
+- `app/services/menu_carta_image_service.py` v1.1: salva in `<UPLOADS>/
+  menu_carta/<eid>/<pid>.jpg`, path nel DB diventa `/uploads/...`. Aggiunto
+  `_resolve_existing_path()` che cerca file in entrambi i path (nuovo +
+  legacy `/static/`) → delete/get retrocompatibili.
+
+### Frontend
+- `sw.js` `isUserUpload()` ora bypassa anche `/uploads/`. `API_PATHS`
+  aggiornati con `/lista-spesa/` e `/haccp/` (registrati nei moduli J e I
+  ma mancanti dal bypass API).
+
+### Config
+- `.gitignore` — `static/uploads_dev/` e `trgb_uploads/`.
+- `docs/deploy.md` — nuova sezione 4.3 con setup VPS una-tantum + procedura
+  opzionale di migrazione foto esistenti (cp + UPDATE SQL) + backup rclone.
+- `docs/problemi.md` — D3 marcato ✅ RISOLTO con dettaglio causa radice.
+
+### Compat
+- I path legacy `/static/menu_carta/...` salvati nel DB pre-K continuano a
+  funzionare (mount `/static` resta attivo). Migrazione DB OPZIONALE,
+  documentata in deploy.md.
+
+### File toccati
+- `app/utils/uploads.py` (NUOVO)
+- `app/services/menu_carta_image_service.py`
+- `main.py`
+- `frontend/public/sw.js`
+- `.gitignore`
+- `docs/deploy.md`, `docs/problemi.md`, `docs/sessione.md`, `docs/changelog.md`
+
+### Setup VPS post-push (UNA TANTUM)
+```bash
+ssh trgb
+mkdir -p /home/marco/trgb_uploads
+chown marco:marco /home/marco/trgb_uploads
+chmod 755 /home/marco/trgb_uploads
+```
+
+---
+
 ## 2026-04-27 (sessione 59 cont. c) — Modulo J (Fase 1 MVP): Lista Spesa Cucina
 
 ### Background

@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
-# @version: v1.0-menu-carta-images (Modulo D, 2026-04-27)
+# @version: v1.1-uploads-fuori-repo (Modulo K, 2026-04-27)
 # -*- coding: utf-8 -*-
 """
 Servizio gestione immagini piatti Menu Carta (Modulo D audit cucina).
 
 Pipeline:
   upload bytes → resize max 1200x800 → JPEG quality 85
-  → salvataggio in static/menu_carta/<edition_id>/<pub_id>.jpg
-  → ritorno path relativo per menu_dish_publications.foto_path
+  → salvataggio in <UPLOADS_DIR>/menu_carta/<edition_id>/<pub_id>.jpg
+  → ritorno path relativo `/uploads/menu_carta/<edition_id>/<pub_id>.jpg`
+    da salvare in menu_dish_publications.foto_path
 
-Le immagini risiedono nella cartella `static/` montata da main.py su `/static`,
-quindi il browser le richiama come https://<host>/static/menu_carta/<edition_id>/<pub_id>.jpg.
+Modulo K (sessione 59 cont. d, 2026-04-27): le immagini ORA risiedono FUORI
+dal repo git (default `/home/marco/trgb_uploads/` in produzione, dev usa
+`<repo>/static/uploads_dev/`). Vedi `app/utils/uploads.py`. Risolve bug D3
+(SW cache + git clean al deploy).
+
+I path legacy `/static/menu_carta/...` salvati nel DB prima di K continuano
+a funzionare perché il mount `/static` resta attivo — i file vecchi sono
+sotto `static/menu_carta/` finché non vengono ricaricati o spostati a mano
+sul VPS (vedi docs/deploy.md sezione "Upload utente").
 
 Resize a 1200x800 max (mantiene aspect ratio): coerente con uso futuro:
   - Anteprima editoriale in MenuCartaDettaglio
@@ -31,18 +39,27 @@ from typing import Optional, Tuple
 
 from PIL import Image, ImageOps
 
+from app.utils.uploads import get_uploads_dir, ensure_subdir, to_db_path
+
 logger = logging.getLogger("menu_carta_image")
 
 
 # ─────────────────────────────────────────────────────────────
-# Path resolution
+# Path resolution — Modulo K: tutto via app.utils.uploads
 # ─────────────────────────────────────────────────────────────
-# main.py: BASE_DIR = Path(__file__).resolve().parent (root del progetto)
-# STATIC_DIR = BASE_DIR / "static"
-# Qui ricostruiamo la stessa logica per consistenza.
-_BASE_DIR = Path(__file__).resolve().parent.parent.parent  # app/services/this.py → root
-STATIC_DIR = _BASE_DIR / "static"
-MENU_CARTA_DIR = STATIC_DIR / "menu_carta"
+# Il path nel DB diventa /uploads/menu_carta/<eid>/<pid>.jpg.
+# I path legacy `/static/menu_carta/<eid>/<pid>.jpg` restano leggibili dal
+# mount /static esistente, finche' non vengono ricaricati o migrati a mano
+# (vedi docs/deploy.md sezione "Upload utente").
+
+# Path legacy (per compat read di vecchi file ancora dentro il repo).
+_BASE_DIR = Path(__file__).resolve().parent.parent.parent
+LEGACY_STATIC_MENU_CARTA = _BASE_DIR / "static" / "menu_carta"
+
+
+def _menu_carta_dir(edition_id: int) -> Path:
+    """Sotto-directory degli upload per un'edizione di Menu Carta."""
+    return ensure_subdir("menu_carta", str(edition_id))
 
 
 def _ensure_dir(path: Path) -> None:
@@ -81,7 +98,9 @@ def save_publication_image(
 
     Returns:
         Path relativo da salvare in menu_dish_publications.foto_path,
-        es. "/static/menu_carta/12/345.jpg"
+        es. "/uploads/menu_carta/12/345.jpg" (Modulo K, dal 2026-04-27).
+        Pre-K il path era "/static/menu_carta/...". Vedi compat in
+        delete/get sotto.
 
     Raises:
         ValueError: file troppo grande, formato non supportato, o immagine corrotta
@@ -119,30 +138,46 @@ def save_publication_image(
     # Resize mantenendo aspect ratio (Pillow .thumbnail modifica in-place)
     img.thumbnail((MAX_WIDTH, MAX_HEIGHT), Image.Resampling.LANCZOS)
 
-    # Path destinazione
-    edition_dir = MENU_CARTA_DIR / str(edition_id)
-    _ensure_dir(edition_dir)
+    # Path destinazione — Modulo K: FUORI dal repo
+    edition_dir = _menu_carta_dir(edition_id)
     dest_path = edition_dir / f"{pub_id}.jpg"
 
     # Salva JPEG
     img.save(dest_path, "JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True)
 
-    # Path relativo per FE/DB (cache-busting via mtime nel FE se serve)
-    rel_path = f"/static/menu_carta/{edition_id}/{pub_id}.jpg"
-    logger.info(f"[menu_carta_image] saved pub={pub_id} edition={edition_id} → {dest_path} ({dest_path.stat().st_size} bytes)")
+    # Path relativo per FE/DB — servito via mount /uploads
+    rel_path = to_db_path("menu_carta", edition_id, f"{pub_id}.jpg")
+    logger.info(f"[menu_carta_image] saved pub={pub_id} edition={edition_id} → {dest_path} ({dest_path.stat().st_size} bytes) → DB={rel_path}")
     return rel_path
+
+
+def _resolve_existing_path(edition_id: int, pub_id: int) -> Optional[Path]:
+    """
+    Trova il file immagine in uno dei due path possibili:
+    - NUOVO (Modulo K): <UPLOADS_DIR>/menu_carta/<eid>/<pid>.jpg
+    - LEGACY (pre-K):   <repo>/static/menu_carta/<eid>/<pid>.jpg
+
+    Restituisce il primo path che esiste, None se nessuno.
+    """
+    new_path = get_uploads_dir() / "menu_carta" / str(edition_id) / f"{pub_id}.jpg"
+    if new_path.exists():
+        return new_path
+    legacy_path = LEGACY_STATIC_MENU_CARTA / str(edition_id) / f"{pub_id}.jpg"
+    if legacy_path.exists():
+        return legacy_path
+    return None
 
 
 def delete_publication_image(edition_id: int, pub_id: int) -> bool:
     """
-    Rimuove il file immagine di una pubblicazione (se esiste).
+    Rimuove il file immagine di una pubblicazione (se esiste, cerca in entrambi i path).
     Ritorna True se ha cancellato, False se il file non esisteva.
     """
-    dest_path = MENU_CARTA_DIR / str(edition_id) / f"{pub_id}.jpg"
-    if dest_path.exists():
+    dest_path = _resolve_existing_path(edition_id, pub_id)
+    if dest_path is not None:
         try:
             dest_path.unlink()
-            logger.info(f"[menu_carta_image] deleted pub={pub_id} edition={edition_id}")
+            logger.info(f"[menu_carta_image] deleted pub={pub_id} edition={edition_id} ({dest_path})")
             return True
         except Exception as e:
             logger.error(f"[menu_carta_image] delete fail pub={pub_id}: {e}")
@@ -152,8 +187,8 @@ def delete_publication_image(edition_id: int, pub_id: int) -> bool:
 
 def get_image_size(edition_id: int, pub_id: int) -> Optional[Tuple[int, int]]:
     """Helper diagnostico: dimensioni dell'immagine se esiste, altrimenti None."""
-    dest_path = MENU_CARTA_DIR / str(edition_id) / f"{pub_id}.jpg"
-    if not dest_path.exists():
+    dest_path = _resolve_existing_path(edition_id, pub_id)
+    if dest_path is None:
         return None
     try:
         with Image.open(dest_path) as img:

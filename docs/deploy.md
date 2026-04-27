@@ -128,6 +128,61 @@ Host trgb
 
 ---
 
+## 4.3 Upload utente — directory persistente FUORI dal repo (Modulo K, S59 cont. d)
+
+Le foto piatti e gli altri upload utente NON devono finire dentro `static/`
+del repo: vengono cancellati ai redeploy (`git clean -fd`) e cachati in modo
+problematico dal service worker (vedi bug D3, ora risolto).
+
+**Path di default**:
+- **Produzione (VPS)**: `/home/marco/trgb_uploads/`
+- **Sviluppo (Mac/sandbox)**: `<repo>/static/uploads_dev/` (gitignored)
+- **Override**: `export TRGB_UPLOADS_DIR=/path/desiderato` (env var letta al boot).
+
+**Mount**: FastAPI monta `/uploads` → `<TRGB_UPLOADS_DIR>/` separato da `/static`.
+Path nel DB: `/uploads/menu_carta/<edition_id>/<pub_id>.jpg`.
+
+### Setup VPS (una tantum)
+```bash
+ssh trgb
+mkdir -p /home/marco/trgb_uploads
+chown marco:marco /home/marco/trgb_uploads
+chmod 755 /home/marco/trgb_uploads
+```
+Il backend al boot stamp `📁 Upload utente: /home/marco/trgb_uploads`.
+
+### Migrazione foto esistenti (opzionale, una tantum sul VPS)
+Se esistono già foto Menu Carta sotto `static/menu_carta/` (path legacy):
+```bash
+ssh trgb
+cd /home/marco/trgb/trgb
+# Copia mantenendo struttura
+mkdir -p /home/marco/trgb_uploads/menu_carta
+cp -rn static/menu_carta/* /home/marco/trgb_uploads/menu_carta/ 2>/dev/null || true
+ls -la /home/marco/trgb_uploads/menu_carta/
+```
+Poi aggiorna i path nel DB (script SQL):
+```bash
+sqlite3 app/data/foodcost.db "
+UPDATE menu_dish_publications
+   SET foto_path = REPLACE(foto_path, '/static/menu_carta/', '/uploads/menu_carta/'),
+       updated_at = datetime('now')
+ WHERE foto_path LIKE '/static/menu_carta/%';
+"
+```
+**NOTA**: anche senza la migrazione i path `/static/menu_carta/...` continuano
+a funzionare (mount `/static` sempre attivo). Migrare solo se si vogliono
+unificare e avere la garanzia di persistenza tra deploy futuri.
+
+### Backup
+La cartella `/home/marco/trgb_uploads/` deve essere inclusa nel backup
+periodico (vedi sezione 10). Esempio rclone aggiuntivo:
+```bash
+rclone sync /home/marco/trgb_uploads/ gdrive:trgb_uploads_backup/
+```
+
+---
+
 ## 4.2 Deploy manuale sul VPS (fallback se hook non funziona)
 
 > Usare solo se il deploy automatico fallisce.

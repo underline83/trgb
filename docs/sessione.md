@@ -1,7 +1,100 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. c — Modulo J Fase 1 MVP: Lista della Spesa Cucina con CRUD + filtri + raggruppamento per fornitore)
+**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. d — Modulo K: Upload utente fuori repo `/uploads` mount + risolto bug D3)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
+
+---
+
+## SESSIONE 59 cont. d (2026-04-27) — MODULO K: UPLOAD UTENTE FUORI REPO + chiude D3
+
+### Background
+Bug D3 (foto Menu Carta non si vede nel modal preview) trascinato dal Modulo
+D: file caricato correttamente sul VPS ma SW cachava la index.html sotto la
+chiave del path foto, e i redeploy con `git clean -fd` cancellavano i file.
+Fix tampone su sw.js insufficiente. Marco "prosegui in ordine" → ora K.
+
+### Decisioni
+- Path upload utente FUORI dal repo:
+  - **Prod (VPS)**: `/home/marco/trgb_uploads/` (default)
+  - **Dev (Mac/sandbox)**: `<repo>/static/uploads_dev/` (gitignored)
+  - Override `TRGB_UPLOADS_DIR` env var.
+- Mount FastAPI separato `/uploads` accanto a `/static`.
+- Path nel DB diventa `/uploads/menu_carta/<eid>/<pid>.jpg`.
+- **Compat read** dei path legacy `/static/menu_carta/...`: lasciati intatti
+  nel DB; il mount `/static` continua a servirli. delete/get cercano in
+  entrambi i path (resolve helper). Migrazione DB OPZIONALE, documentata.
+- Detect environment (prod vs dev) automatico (presenza `/home/marco/trgb`
+  o env `TRGB_ENV=prod`).
+
+### File toccati
+**Backend:**
+- `app/utils/uploads.py` (NUOVO) — `get_uploads_dir()` + `ensure_subdir()` +
+  `to_db_path()`. Detect env, env var override, crea cartella se mancante.
+- `app/services/menu_carta_image_service.py` v1.0 → v1.1: usa helper, salva
+  in `<UPLOADS>/menu_carta/...`, restituisce path `/uploads/...`. Aggiunto
+  `_resolve_existing_path()` per delete/get che trovano file in entrambi i
+  path (nuovo + legacy).
+- `main.py` — mount `/uploads` con `check_dir=False` (non crasha se la
+  cartella manca al boot, viene creata al primo upload). Stamp del path al
+  boot per debug.
+
+**Frontend:**
+- `frontend/public/sw.js` — `isUserUpload()` ora bypassa anche `/uploads/`.
+  `API_PATHS` aggiornati con `/lista-spesa/` e `/haccp/` (nuovi router K
+  nei moduli precedenti, non bypassati prima).
+
+**Config / docs:**
+- `.gitignore` — `static/uploads_dev/` e `trgb_uploads/` (entrambi
+  gitignored, doppia sicurezza).
+- `docs/deploy.md` — nuova sezione 4.3 "Upload utente — directory
+  persistente FUORI dal repo": setup VPS una-tantum, migrazione foto
+  esistenti opzionale (cp -rn + UPDATE SQL), backup rclone.
+- `docs/problemi.md` — D3 marcato ✅ RISOLTO con dettaglio della causa
+  radice e soluzione.
+
+### Verifica fatta
+- py_compile uploads.py + menu_carta_image_service.py + main.py OK.
+- Test runtime helper: `get_uploads_dir()` ritorna path corretto (in dev:
+  `/sessions/.../static/uploads_dev`, creata al volo).
+- `to_db_path("menu_carta", 12, "345.jpg")` → `/uploads/menu_carta/12/345.jpg` ✓
+- `ensure_subdir("menu_carta", "999")` crea sotto-cartella, idempotente.
+- sw.js parse OK (test con `new Function()` in node).
+
+### Setup VPS post-push (UNA TANTUM)
+1. SSH al VPS:
+   ```
+   ssh trgb
+   mkdir -p /home/marco/trgb_uploads
+   chown marco:marco /home/marco/trgb_uploads
+   chmod 755 /home/marco/trgb_uploads
+   ```
+2. Restart backend (push.sh lo fa già). Log dovrebbe stampare:
+   `📁 Upload utente: /home/marco/trgb_uploads`
+3. Opzionale — migrazione foto esistenti:
+   ```
+   mkdir -p /home/marco/trgb_uploads/menu_carta
+   cp -rn static/menu_carta/* /home/marco/trgb_uploads/menu_carta/ 2>/dev/null || true
+   sqlite3 app/data/foodcost.db "
+     UPDATE menu_dish_publications
+        SET foto_path = REPLACE(foto_path, '/static/menu_carta/', '/uploads/menu_carta/'),
+            updated_at = datetime('now')
+      WHERE foto_path LIKE '/static/menu_carta/%';
+   "
+   ```
+
+### Da verificare dopo push
+1. Backend boot → log con `📁 Upload utente: /home/marco/trgb_uploads`.
+2. Probe `curl -I https://trgb.tregobbi.it/uploads/` — atteso 200/403/404
+   (mount esiste, non più 502).
+3. Login → Menu Carta → carica una foto piatto nuova → file deve apparire
+   in `/home/marco/trgb_uploads/menu_carta/<eid>/<pid>.jpg`. Path in DB
+   con `/uploads/...`. Modal mostra preview correttamente. Click "Apri in
+   nuova scheda" apre l'immagine reale (no rimbalzo a /).
+4. Foto vecchie già in `static/menu_carta/`: continuano a funzionare via
+   mount `/static` (compat read).
+
+### Suggested commit
+`./push.sh "Modulo K — Upload utente fuori repo: app/utils/uploads.py + mount /uploads + service refactor + sw.js bypass + risolve D3"`
 
 ---
 

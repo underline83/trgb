@@ -81,29 +81,31 @@ _(S40-14, S40-15, S40-16, S40-17 risolti — vedi sezione Risolti.)_
 
 ---
 
-### D3. Menu Carta — Foto piatto non si vede nel modal preview (in coda, 2026-04-27)
+### D3. Menu Carta — Foto piatto non si vede nel modal preview (✅ RISOLTO 2026-04-27 con Modulo K)
 **Segnalato:** 2026-04-27 (Marco, post Modulo D)
 **Modulo:** Menu Carta / FE PublicationModal
-**Gravità:** bassa (la foto è caricata correttamente sul VPS, è solo un problema di rendering FE/cache)
+**Gravità:** bassa (la foto è caricata correttamente sul VPS, era solo problema di rendering FE/cache)
 
-**Sintomo:**
-1. Upload foto piatto via modal → backend salva correttamente in `static/menu_carta/<edition_id>/<pub_id>.jpg`, path scritto in DB.
-2. URL diretto `https://trgb.tregobbi.it/static/menu_carta/1/1.jpg` mostra l'immagine.
-3. Nel modal di modifica pubblicazione: la `<img>` tag mostra placeholder rotto ("?"), il link "Apri in nuova scheda" rimbalza a `/` (home).
+**Sintomo (originale):**
+1. Upload foto piatto via modal → backend salvava correttamente in `static/menu_carta/<edition_id>/<pub_id>.jpg`, path scritto in DB.
+2. URL diretto `https://trgb.tregobbi.it/static/menu_carta/1/1.jpg` mostrava l'immagine.
+3. Nel modal di modifica pubblicazione: la `<img>` tag mostrava placeholder rotto ("?"), il link "Apri in nuova scheda" rimbalzava a `/` (home).
 
-**Investigazioni fatte:**
-- File esiste sul VPS (`ls -la` confermato): owner marco, perm 644, 167KB.
-- `git clean -fd` del post-receive rispetta `.gitignore` → non cancella `static/menu_carta/`.
-- `push.sh` non fa rsync di static/, gestisce solo i .sqlite3.
-- Service worker v2 è network-first ma cacha le response 200. Ipotesi: nginx fa fallback SPA `index.html` per file inesistenti con status 200 → SW lo cacha sotto la chiave del path foto → quando il file viene poi caricato, SW serve la index cached.
+**Causa radice confermata:**
+- Path upload dentro repo `static/menu_carta/` → `git clean -fd` del post-receive lo cancellava ai redeploy.
+- nginx fallback SPA serviva index.html per file inesistenti (status 200) → SW cachava la index sotto la chiave del path foto → al caricamento successivo il SW serviva la index cached invece della foto.
+- Bypass `/static/menu_carta/*` su sw.js mitigava ma non eliminava il problema strutturale.
 
-**Fix tentato (NON pushato, in locale):**
-`frontend/public/sw.js` con bypass totale per richieste `/static/menu_carta/*` (network-only, mai in cache). CACHE_NAME al activate del nuovo SW pulirebbe automaticamente le cache vecchie.
+**Risoluzione (S59 cont. d, Modulo K, commit pending):**
+Spostato upload utente FUORI dal repo:
+- `app/utils/uploads.py` (NUOVO) helper `get_uploads_dir()` env-aware (default prod `/home/marco/trgb_uploads/`, dev `static/uploads_dev/` gitignored).
+- `main.py` mount `/uploads` → `<UPLOADS_DIR>/` separato da `/static`.
+- `app/services/menu_carta_image_service.py` v1.1: nuovi upload vanno in `<UPLOADS_DIR>/menu_carta/<eid>/<pid>.jpg`, path DB diventa `/uploads/...`. I path legacy `/static/menu_carta/...` continuano a funzionare per compat read.
+- `frontend/public/sw.js` bypass anche `/uploads/`.
+- `.gitignore` aggiunto `static/uploads_dev/` e `trgb_uploads/`.
+- `docs/deploy.md` sezione 4.3 con istruzioni setup VPS una-tantum + opzionale migrazione foto esistenti.
 
-**Da fare quando si riprende il bug:**
-1. Pushare il fix sw.js, Ctrl+Shift+R, riprovare in scheda incognito per confermare.
-2. Se ancora non va: indagare nginx config (verificare se fa try_files con fallback a index.html anche per /static/), DOM event nel modal (qualcosa intercepta il click sul link?), permessi specifici.
-3. Soluzione strutturale (consigliata): **Modulo K** — spostare upload in `/home/marco/trgb_uploads/` fuori dal repo, mount StaticFiles separato su `/uploads`. Elimina ogni futura interferenza con git/SW/nginx.
+**Test post-deploy:** ricaricare una foto piatto → file deve finire in `/home/marco/trgb_uploads/menu_carta/<eid>/<pid>.jpg`, DB con path `/uploads/...`, modal e link "Apri in nuova scheda" devono mostrare correttamente l'immagine.
 
 ---
 

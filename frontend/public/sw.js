@@ -64,11 +64,16 @@ function isApiRequest(request) {
 // non esistenti, il SW cachava quella response sotto la chiave del path foto,
 // e quando il file effettivamente caricato dall'utente diventava disponibile,
 // il SW serviva la index cachata → click sulla foto rimbalza alla home.
-// Soluzione: bypass totale del SW per i path di upload utente.
+// Modulo K (2026-04-27): nuovi upload vanno in /uploads/ FUORI dal repo.
+// I path /static/menu_carta/ legacy restano serviti per compat.
+// Soluzione: bypass totale del SW per entrambi i pattern.
 function isUserUpload(request) {
   try {
     const path = new URL(request.url).pathname;
-    return path.startsWith("/static/menu_carta/");
+    return (
+      path.startsWith("/uploads/") ||
+      path.startsWith("/static/menu_carta/")
+    );
   } catch (_) {
     return false;
   }
@@ -87,6 +92,7 @@ const API_PATHS = [
   "/preventivi/", "/statistiche/", "/prenotazioni/", "/macellaio/",
   "/salumi/", "/pescato/", "/formaggi/", "/selezioni/", "/ricette/",
   "/ipratico/", "/controllo-gestione/", "/service-types",
+  "/lista-spesa/", "/haccp/",
 ];
 function isBackendApi(request) {
   try {
