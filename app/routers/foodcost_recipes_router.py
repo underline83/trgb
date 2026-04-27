@@ -1526,6 +1526,119 @@ def delete_ricetta(recipe_id: int):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: CLONE RICETTA (Modulo L, 2026-04-27)
+# ─────────────────────────────────────────────
+
+@router.post("/ricette/{recipe_id}/clone", response_model=RecipeOut)
+def clone_ricetta(recipe_id: int):
+    """
+    Duplica una ricetta esistente:
+      - copia header (recipes) con nome "<orig> (copia)" e is_active=1 (subito attiva)
+      - copia tutti i recipe_items (ingredienti + sub-ricette)
+      - copia tutti i recipe_service_types
+      - ricalcolo allergeni automatico (trigger Modulo C)
+
+    Atomic: tutto in una transazione, rollback completo su errore.
+    """
+    now = datetime.utcnow().isoformat()
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+
+    # Verifica origine
+    orig = cur.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    if not orig:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ricetta origine non trovata")
+
+    try:
+        # Detect colonne disponibili (robusto pre-mig)
+        cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
+        has_menu_cols = "menu_name" in cols and "kind" in cols
+
+        new_name = f"{orig['name']} (copia)"
+
+        if has_menu_cols:
+            cur.execute(
+                """
+                INSERT INTO recipes (
+                    name, category_id, is_base, yield_qty, yield_unit,
+                    selling_price, prep_time, note, is_active,
+                    menu_name, menu_description, kind,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_name, orig["category_id"], orig["is_base"],
+                    orig["yield_qty"], orig["yield_unit"],
+                    orig["selling_price"], orig["prep_time"], orig["note"],
+                    orig["menu_name"], orig["menu_description"], orig["kind"],
+                    now, now,
+                ),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO recipes (
+                    name, category_id, is_base, yield_qty, yield_unit,
+                    selling_price, prep_time, note, is_active,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                (
+                    new_name, orig["category_id"], orig["is_base"],
+                    orig["yield_qty"], orig["yield_unit"],
+                    orig["selling_price"], orig["prep_time"], orig["note"],
+                    now, now,
+                ),
+            )
+        new_id = cur.lastrowid
+
+        # Copia recipe_items
+        items = cur.execute(
+            "SELECT ingredient_id, sub_recipe_id, qty, unit, sort_order, note FROM recipe_items WHERE recipe_id = ? ORDER BY sort_order, id",
+            (recipe_id,),
+        ).fetchall()
+        for it in items:
+            cur.execute(
+                """
+                INSERT INTO recipe_items (recipe_id, ingredient_id, sub_recipe_id, qty, unit, sort_order, note, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (new_id, it["ingredient_id"], it["sub_recipe_id"], it["qty"], it["unit"], it["sort_order"], it["note"], now),
+            )
+
+        # Copia recipe_service_types (ignora errori se tabella non esiste)
+        try:
+            sts = cur.execute(
+                "SELECT service_type_id FROM recipe_service_types WHERE recipe_id = ?",
+                (recipe_id,),
+            ).fetchall()
+            for st in sts:
+                cur.execute(
+                    "INSERT OR IGNORE INTO recipe_service_types (recipe_id, service_type_id) VALUES (?, ?)",
+                    (new_id, st["service_type_id"]),
+                )
+        except Exception:
+            pass
+
+        # Trigger allergeni (Modulo C)
+        try:
+            update_recipe_allergens_cache(new_id, conn=conn)
+        except Exception as _e:
+            import logging
+            logging.getLogger("foodcost").warning(f"[allergeni] clone ricalcolo fail recipe={new_id}: {_e}")
+
+        conn.commit()
+        return _fetch_recipe_full(conn, new_id)
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore clone: {e}") from e
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: EXPORT RICETTA SINGOLA → PDF
 # ─────────────────────────────────────────────
 

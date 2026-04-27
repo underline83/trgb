@@ -319,17 +319,32 @@ function CompositionTab({ r, ricalcolaAllergeni, recalcLoading }) {
                   {r.items.map((item, idx) => (
                     <tr
                       key={item.id}
-                      className={`border-t border-neutral-100 ${item.sub_recipe_id ? "bg-blue-50/30" : ""}`}
+                      className={`border-t border-neutral-100 ${item.sub_recipe_id ? "bg-blue-50/30 hover:bg-blue-50/60" : "hover:bg-neutral-50"} transition`}
                     >
                       <td className="p-3 text-neutral-500">{idx + 1}</td>
                       <td className="p-3 font-medium text-neutral-900">
                         {item.sub_recipe_id ? (
-                          <span className="flex items-center gap-2">
+                          <Link
+                            to={`/ricette/${item.sub_recipe_id}`}
+                            className="flex items-center gap-2 group"
+                            title="Apri sub-ricetta"
+                          >
                             <span className="text-xs bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-bold">SUB</span>
-                            {item.sub_recipe_name || `Ricetta #${item.sub_recipe_id}`}
-                          </span>
+                            <span className="group-hover:text-blue-700 group-hover:underline transition">
+                              {item.sub_recipe_name || `Ricetta #${item.sub_recipe_id}`}
+                            </span>
+                            <span className="text-blue-500 opacity-0 group-hover:opacity-100 transition text-xs">→</span>
+                          </Link>
+                        ) : item.ingredient_id ? (
+                          <Link
+                            to={`/ricette/ingredienti/${item.ingredient_id}/prezzi`}
+                            className="hover:text-orange-700 hover:underline transition"
+                            title="Apri storico prezzi ingrediente"
+                          >
+                            {item.ingredient_name || `Ing. #${item.ingredient_id}`}
+                          </Link>
                         ) : (
-                          item.ingredient_name || `Ing. #${item.ingredient_id}`
+                          <span className="text-neutral-400 italic">{item.ingredient_name || "—"}</span>
                         )}
                       </td>
                       <td className="p-3 text-right">{item.qty}</td>
