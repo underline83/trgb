@@ -74,6 +74,29 @@ function isUserUpload(request) {
   }
 }
 
+// --- Helper: API backend → mai cachare ---
+// Stesso problema dello user-upload ma su path API: nginx in alcuni casi
+// fa fallback a index.html per route non matchate (SPA mode), il SW cacha
+// l'HTML sotto la chiave del path API, le successive POST/GET ricevono HTML
+// invece di JSON → fetch fail.
+// Soluzione: bypass totale del SW per i path noti del backend FastAPI.
+const API_PATHS = [
+  "/contabilita/", "/foodcost/", "/menu-carta/", "/pranzo/", "/vini/",
+  "/banca/", "/clienti/", "/dipendenti/", "/admin/", "/auth/",
+  "/system/", "/dashboard/", "/notifiche/", "/alerts/", "/tasks/",
+  "/preventivi/", "/statistiche/", "/prenotazioni/", "/macellaio/",
+  "/salumi/", "/pescato/", "/formaggi/", "/selezioni/", "/ricette/",
+  "/ipratico/", "/controllo-gestione/", "/service-types",
+];
+function isBackendApi(request) {
+  try {
+    const path = new URL(request.url).pathname;
+    return API_PATHS.some((p) => path.startsWith(p));
+  } catch (_) {
+    return false;
+  }
+}
+
 // --- FETCH: network-first per tutto ---
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -86,6 +109,11 @@ self.addEventListener("fetch", (event) => {
 
   // Upload utente → network-only, mai cache (Modulo D fix)
   if (isUserUpload(request)) return;
+
+  // API backend (stesso origin) → network-only, mai cache
+  // Risolve "Errore di rete" persistente quando SW serviva index.html
+  // cached invece di passare la richiesta al backend (Modulo M debug)
+  if (isBackendApi(request)) return;
 
   // Tutto il resto: network-first con fallback cache
   event.respondWith(
