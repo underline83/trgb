@@ -184,7 +184,7 @@ export default function FattureElenco() {
   const segnaNonPagata = async (id) => {
     if (!window.confirm("Riportare questa fattura a NON pagata?\n\nL'eventuale uscita in Controllo Gestione torna in stato 'da pagare'/'scaduta'.")) return;
     try {
-      const res = await apiFetch(`${API_BASE}/fe/fatture/segna-non-pagate`, {
+      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/segna-non-pagate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fattura_ids: [id] }),
