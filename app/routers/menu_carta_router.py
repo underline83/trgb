@@ -47,7 +47,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 from app.services.auth_service import get_current_user
 from app.services.menu_carta_image_service import (
     save_publication_image,
@@ -210,7 +210,7 @@ def list_editions(stato: Optional[str] = None):
     if stato and stato not in STATI_VALIDI:
         raise HTTPException(400, f"stato non valido: {stato}")
 
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         q = "SELECT * FROM menu_editions"
         params: List[Any] = []
@@ -227,7 +227,7 @@ def list_editions(stato: Optional[str] = None):
 @router.get("/editions/{edition_id}")
 def get_edition(edition_id: int):
     """Dettaglio edizione + pubblicazioni raggruppate per sezione + degustazioni."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT * FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not e:
@@ -322,7 +322,7 @@ def get_edition(edition_id: int):
 
 @router.post("/editions/", status_code=201)
 def create_edition(payload: EditionIn):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         # check slug univoco
         ex = conn.execute("SELECT id FROM menu_editions WHERE slug = ?", (payload.slug,)).fetchone()
@@ -346,7 +346,7 @@ def create_edition(payload: EditionIn):
 
 @router.put("/editions/{edition_id}")
 def update_edition(edition_id: int, payload: EditionUpdate):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         ex = conn.execute("SELECT id FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not ex:
@@ -371,7 +371,7 @@ def publish_edition(edition_id: int):
     Promuove l'edizione a stato 'in_carta'. Se ce n'e' un'altra in_carta,
     la archivia automaticamente (solo una in_carta per volta).
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT id, stato FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not e:
@@ -397,7 +397,7 @@ def clone_edition(edition_id: int, payload: dict):
     if not nome or not slug:
         raise HTTPException(400, "nome e slug obbligatori")
 
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         src = conn.execute("SELECT * FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not src:
@@ -476,7 +476,7 @@ def clone_edition(edition_id: int, payload: dict):
 
 @router.post("/editions/{edition_id}/archive")
 def archive_edition(edition_id: int):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT id FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not e:
@@ -491,7 +491,7 @@ def archive_edition(edition_id: int):
 @router.delete("/editions/{edition_id}")
 def delete_edition(edition_id: int):
     """Elimina edizione (cascade su pubblicazioni e degustazioni). Solo se bozza."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT id, stato, nome FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not e:
@@ -511,7 +511,7 @@ def delete_edition(edition_id: int):
 
 @router.get("/publications/")
 def list_publications(edition_id: int = Query(...)):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         rows = conn.execute("""
             SELECT p.*,
@@ -532,7 +532,7 @@ def create_publication(payload: PublicationIn):
     if payload.sezione not in SEZIONI_VALIDE:
         raise HTTPException(400, f"sezione '{payload.sezione}' non valida")
 
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         cur = conn.execute("""
             INSERT INTO menu_dish_publications
@@ -569,7 +569,7 @@ def update_publication(pub_id: int, payload: PublicationUpdate):
     if not fields:
         raise HTTPException(400, "Nessun campo da aggiornare")
 
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         ex = conn.execute("SELECT id FROM menu_dish_publications WHERE id = ?", (pub_id,)).fetchone()
         if not ex:
@@ -586,7 +586,7 @@ def update_publication(pub_id: int, payload: PublicationUpdate):
 
 @router.delete("/publications/{pub_id}")
 def delete_publication(pub_id: int):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         # Recupera edition_id per cleanup foto
         ex = conn.execute(
@@ -625,7 +625,7 @@ async def upload_publication_foto(pub_id: int, file: UploadFile = File(...)):
 
     Rimpiazza eventuale foto esistente (overwrite).
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         pub = conn.execute(
             "SELECT id, edition_id FROM menu_dish_publications WHERE id = ?",
@@ -664,7 +664,7 @@ async def upload_publication_foto(pub_id: int, file: UploadFile = File(...)):
 @router.delete("/publications/{pub_id}/foto")
 def delete_publication_foto(pub_id: int):
     """Rimuove la foto di una pubblicazione (file su disco + foto_path NULL)."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         pub = conn.execute(
             "SELECT id, edition_id, foto_path FROM menu_dish_publications WHERE id = ?",
@@ -698,7 +698,7 @@ def delete_publication_foto(pub_id: int):
 
 @router.get("/tasting-paths/")
 def list_tasting_paths(edition_id: int = Query(...)):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         paths = conn.execute("""
             SELECT * FROM menu_tasting_paths WHERE edition_id = ?
@@ -735,7 +735,7 @@ def list_tasting_paths(edition_id: int = Query(...)):
 
 @router.post("/tasting-paths/", status_code=201)
 def create_tasting_path(payload: TastingPathIn):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         cur = conn.execute("""
             INSERT INTO menu_tasting_paths
@@ -760,7 +760,7 @@ def create_tasting_path(payload: TastingPathIn):
 @router.put("/tasting-paths/{path_id}")
 def update_tasting_path(path_id: int, payload: TastingPathIn):
     """Modifica path + replace di tutti gli steps."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         ex = conn.execute("SELECT id FROM menu_tasting_paths WHERE id = ?", (path_id,)).fetchone()
         if not ex:
@@ -789,7 +789,7 @@ def update_tasting_path(path_id: int, payload: TastingPathIn):
 
 @router.delete("/tasting-paths/{path_id}")
 def delete_tasting_path(path_id: int):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         ex = conn.execute("SELECT id FROM menu_tasting_paths WHERE id = ?", (path_id,)).fetchone()
         if not ex:
@@ -834,7 +834,7 @@ SEZIONE_TO_PARTITA: Dict[str, str] = {
 @router.get("/editions/{edition_id}/mep-preview")
 def preview_mep_for_edition(edition_id: int):
     """Anteprima JSON dei template MEP che verrebbero generati. NON scrive niente."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT slug, nome FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not e:
@@ -905,7 +905,7 @@ def generate_mep_for_edition(edition_id: int):
         raise HTTPException(503, "tasks.sqlite3 non disponibile (modulo Cucina HACCP non inizializzato)")
 
     # 1) Carica preview dal foodcost.db
-    fc = get_foodcost_connection()
+    fc = get_cucina_connection()
     try:
         e = fc.execute("SELECT slug, nome FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not e:
@@ -1090,7 +1090,7 @@ def export_edition_pdf(edition_id: int):
     from app.services.pdf_brand import genera_pdf_html
 
     # Carica dati edizione
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT * FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
         if not e:
@@ -1180,7 +1180,7 @@ def export_edition_pdf(edition_id: int):
 @public_router.get("/public/today")
 def public_menu_today():
     """Menu attualmente in_carta. NESSUNA AUTH — pensato per app esterne / sito / QR."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT * FROM menu_editions WHERE stato = 'in_carta' LIMIT 1").fetchone()
         if not e:

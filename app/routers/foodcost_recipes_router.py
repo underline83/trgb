@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 from app.services.auth_service import get_current_user
 from app.services.allergeni_service import (
     update_recipe_allergens_cache,
@@ -630,7 +630,7 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
 
 @router.get("/ricette/categorie", response_model=List[RecipeCategoryOut])
 def list_recipe_categories():
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     rows = conn.execute(
         "SELECT id, name, sort_order FROM recipe_categories ORDER BY sort_order, name"
     ).fetchall()
@@ -640,7 +640,7 @@ def list_recipe_categories():
 
 @router.post("/ricette/categorie", response_model=RecipeCategoryOut)
 def create_recipe_category(payload: RecipeCategoryCreate):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute(
@@ -674,7 +674,7 @@ def create_recipe_category(payload: RecipeCategoryCreate):
 @router.get("/ricette/stats/dashboard")
 def dashboard_stats():
     """Statistiche aggregate per la dashboard food cost."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     rows = cur.execute(
@@ -744,7 +744,7 @@ def dashboard_stats():
 @router.get("/ricette/export/json")
 def export_ricette_json():
     """Esporta tutte le ricette attive in formato JSON."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     rows = cur.execute(
@@ -814,7 +814,7 @@ def export_ricette_json():
 @router.get("/ricette/basi")
 def list_basi():
     """Lista ricette-base per il selettore sub-ricette nel form."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     rows = conn.execute(
         """
         SELECT id, name, yield_qty, yield_unit
@@ -846,7 +846,7 @@ def list_ricette(
       - service_type_id: solo piatti associati a quel tipo servizio
       - search: match parziale su name/menu_name
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     where = "WHERE r.is_active = 1"
@@ -941,7 +941,7 @@ def list_ricette(
 
 @router.get("/ricette/{recipe_id}", response_model=RecipeOut)
 def get_ricetta(recipe_id: int):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         return _fetch_recipe_full(conn, recipe_id)
     finally:
@@ -968,7 +968,7 @@ def create_ricetta(payload: RecipeCreate):
             )
 
     now = datetime.utcnow().isoformat()
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     try:
@@ -1087,7 +1087,7 @@ def create_ricetta(payload: RecipeCreate):
 @router.put("/ricette/{recipe_id}", response_model=RecipeOut)
 def update_ricetta(recipe_id: int, payload: RecipeUpdate):
     now = datetime.utcnow().isoformat()
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     # Verifica che esista
@@ -1228,7 +1228,7 @@ def quick_create_piatto(payload: RecipeQuickCreate):
     - servizi opzionali
     """
     now = datetime.utcnow().isoformat()
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     try:
@@ -1301,7 +1301,7 @@ class RecipeServiziPayload(BaseModel):
 @router.put("/ricette/{recipe_id}/servizi", response_model=RecipeOut)
 def set_recipe_servizi(recipe_id: int, payload: RecipeServiziPayload):
     """Imposta (sostituisce) la lista dei tipi servizio associati a un piatto."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
@@ -1350,7 +1350,7 @@ def ricalcola_allergeni_singola(recipe_id: int):
     rifrescare manualmente le ricette che lo usano (in attesa che qualcuno
     le risalvi).
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
         if not existing:
@@ -1383,7 +1383,7 @@ def ricalcola_allergeni_tutti(user=Depends(get_current_user)):
 @router.get("/service-types", response_model=List[ServiceTypeOut])
 def list_service_types(include_inactive: bool = False):
     """Lista tipi servizio (Alla carta, Banchetto, Pranzo lavoro, Aperitivo, custom...)."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     where = "" if include_inactive else "WHERE active = 1"
     rows = conn.execute(
         f"""
@@ -1405,7 +1405,7 @@ def list_service_types(include_inactive: bool = False):
 
 @router.post("/service-types", response_model=ServiceTypeOut)
 def create_service_type(payload: ServiceTypeIn):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     name = payload.name.strip()
@@ -1446,7 +1446,7 @@ def create_service_type(payload: ServiceTypeIn):
 
 @router.put("/service-types/{st_id}", response_model=ServiceTypeOut)
 def update_service_type(st_id: int, payload: ServiceTypeIn):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute(
@@ -1485,7 +1485,7 @@ def update_service_type(st_id: int, payload: ServiceTypeIn):
 @router.delete("/service-types/{st_id}")
 def delete_service_type(st_id: int):
     """Soft delete: imposta active=0. Non cancella associazioni esistenti con piatti."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute(
@@ -1508,7 +1508,7 @@ def delete_service_type(st_id: int):
 @router.delete("/ricette/{recipe_id}")
 def delete_ricetta(recipe_id: int):
     """Soft delete — imposta is_active = 0."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
@@ -1532,7 +1532,7 @@ def delete_ricetta(recipe_id: int):
 @router.get("/ricette/{recipe_id}/pdf")
 def export_ricetta_pdf(recipe_id: int):
     """Genera un PDF con il dettaglio di una ricetta e il suo food cost."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     row = cur.execute(
