@@ -11,7 +11,9 @@ Questo documento descrive tutte le procedure di deploy del gestionale TRGB.
 | **IP VPS** | `80.211.131.156` |
 | **Dominio VPS** | `trgb.tregobbi.it` |
 | **Provider** | Aruba Cloud (account ARU-339384) |
-| **OS** | Ubuntu 22.04 LTS |
+| **OS** | Ubuntu 24.04.4 LTS Noble (upgrade da 22.04 LTS Jammy il 2026-04-28) |
+| **Python sistema** | 3.12.3 (default `/usr/bin/python3`) |
+| **Venv backend** | `/home/marco/trgb/venv-trgb/` (ricreato 2026-04-28 post-upgrade) |
 | **Utente SSH** | `marco` (Mac: `underline83`, Windows: `mcarm`) |
 | **Connessione** | `ssh trgb` (alias configurato in `~/.ssh/config`) |
 | **Backend URL (prod)** | `https://trgb.tregobbi.it` |
@@ -462,6 +464,149 @@ Finché non è in produzione 1.14.a:
 - **Mai push** durante il servizio (12:00-14:30 / 19:00-23:00).
 - **Mai push rapidi consecutivi** (min 2 min tra uno e l'altro per far stabilizzare il backend).
 - Se è un fix urgente in orario di servizio: avvisare prima il personale di non salvare per 30s, poi pushare.
+
+---
+
+# 12. Upgrade Ubuntu major (es. Noble 24.04 → 26.04)
+
+> Procedura testata 2026-04-28 per upgrade Ubuntu 22.04 Jammy → 24.04.4 Noble.
+> Riusabile per i futuri upgrade major LTS-to-LTS (Ubuntu rilascia nuova LTS
+> ogni 2 anni: 24.04, 26.04, 28.04...).
+
+## 12.1 Pre-flight (CRITICO)
+
+**Snapshot Aruba (NON negoziabile)**
+1. Pannello Aruba Cloud → VM trgb-server → Backup → Crea Snapshot Manuale
+2. Nome: `pre-ubuntu-XX-upgrade-YYYY-MM-DD`
+3. Aspetta "Completato" (3-5 min). Validità default 48h, sufficiente per la finestra di rollback.
+
+**Backup tar.gz locale + Google Drive**
+```bash
+# Stop servizi per consistenza WAL
+sudo systemctl stop trgb-backend trgb-frontend
+
+# Checkpoint WAL (evita corruzione tipo S52)
+cd /home/marco/trgb/trgb
+for db in app/data/*.sqlite3; do
+  sqlite3 "$db" "PRAGMA wal_checkpoint(TRUNCATE);"
+done
+
+# Backup tar.gz
+mkdir -p ~/backups
+BACKUP="pre-upgrade-XXXX-$(date +%Y%m%d-%H%M).tar.gz"
+sudo tar czf ~/backups/$BACKUP \
+  /home/marco/trgb/trgb/app/data \
+  /home/marco/trgb_uploads \
+  /etc/nginx/sites-available \
+  /etc/nginx/sites-enabled \
+  /etc/systemd/system/trgb-backend.service \
+  /etc/systemd/system/trgb-frontend.service
+sudo chown marco:marco ~/backups/$BACKUP
+
+# Push gdrive
+rclone copy ~/backups/$BACKUP gdrive:trgb-backups/ -P
+```
+
+**Cleanup `/boot`**
+Verifica `df -h /boot`: deve essere **< 50%** (almeno 250MB liberi). Se più
+pieno, rimuovi kernel vecchi:
+```bash
+sudo apt purge linux-image-X.Y.Z-NNN-generic linux-headers-X.Y.Z-NNN-generic linux-modules-X.Y.Z-NNN-generic linux-modules-extra-X.Y.Z-NNN-generic -y
+sudo update-grub
+df -h /boot
+```
+
+## 12.2 Upgrade
+
+```bash
+# Pre-check (no install, verifica disponibilità)
+sudo do-release-upgrade -c
+
+# Upgrade vero (60-90 min)
+sudo do-release-upgrade
+```
+
+**Prompt da gestire** durante l'upgrade:
+- "Continue [yN]" iniziale → `y`
+- "Continue running under SSH? [yN]" → `y` (apre sshd backup su :1022)
+- "Third party sources disabled... press [ENTER]" → Enter
+- Dialog config file `/etc/sudoers`, `/etc/ssh/sshd_config`, `/etc/fail2ban/jail.conf`, `/etc/xrdp/xrdp.ini`, `/etc/fwupd/fwupd.conf` → **N (keep local)** o "keep the local version currently installed" SEMPRE per file con tue customizzazioni
+- Snap unreachable (thunderbird/firefox/libreoffice) → **Skip** (non servono al server)
+- "Daemons using outdated libraries — restart?" → `<Yes>` lasciando selezione default (i critici tipo dbus/lightdm sono già deselezionati). Se vedi `ssh.service` selezionato, deselezionalo.
+- "Remove obsolete packages? [yN]" → `y`
+- "Restart now? [yN]" → `y` finale
+
+## 12.3 Fix post-upgrade (CRITICO)
+
+Dopo il reboot, **il backend sarà giù** se Ubuntu è passato a una nuova
+versione major di Python. Ricreare il venv:
+
+```bash
+# Stop loop restart
+sudo systemctl stop trgb-backend
+
+# Backup vecchio venv (cancellabile dopo conferma stabilità)
+cd /home/marco/trgb
+mv venv-trgb venv-trgb.OLD-$(lsb_release -cs)-$(date +%Y%m%d)
+
+# Crea nuovo venv con Python sistema corrente
+python3 -m venv venv-trgb
+venv-trgb/bin/pip install --upgrade pip wheel setuptools
+
+# Installa requirements
+cd /home/marco/trgb/trgb
+/home/marco/trgb/venv-trgb/bin/pip install -r requirements.txt
+
+# Restart backend
+sudo systemctl reset-failed trgb-backend
+sudo systemctl start trgb-backend
+sleep 3
+sudo systemctl status trgb-backend --no-pager -l | head -20
+```
+
+**Possibili dipendenze mancanti** (verifica con `journalctl -u trgb-backend`):
+- Pydantic v2 ha estratto `email-validator` come extra → `pip install email-validator`
+- WeasyPrint può richiedere `sudo apt install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libfribidi0 libcairo2`
+
+## 12.4 Riabilitare repo terze parti
+
+`do-release-upgrade` disabilita i sources.list di terze parti perché non hanno
+release per la nuova versione al momento dell'upgrade. Per TRGB serve riabilitare:
+
+```bash
+# Node 20.x (per Vite frontend)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
+sudo apt install -y nodejs
+
+# (Opzionale, non serve a TRGB) Docker
+# (Opzionale, non serve a TRGB) Google Chrome
+```
+
+Node è in genere ancora installato e funzionante dopo l'upgrade, il repo
+serve solo per gli aggiornamenti minor futuri.
+
+## 12.5 Verifica finale
+
+Probe HTTP per confermare backend + endpoint critici:
+```bash
+curl -sI -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/                              # 405 atteso
+curl -s  -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/uploads/inesistente.jpg       # 404 atteso
+curl -s  -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/lista-spesa/items/             # 401 atteso
+curl -s  -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/dashboard/cucina               # 401 atteso
+```
+
+Status servizi:
+```bash
+sudo systemctl status trgb-backend trgb-frontend nginx --no-pager -l | head -25
+```
+
+## 12.6 Cleanup post-upgrade (dopo 24-48h)
+
+Quando confermi che tutto funziona stabilmente:
+```bash
+rm -rf /home/marco/trgb/venv-trgb.OLD-*
+rm ~/backups/pre-upgrade-*.tar.gz   # solo se confermato pinato anche su gdrive
+```
 
 ---
 

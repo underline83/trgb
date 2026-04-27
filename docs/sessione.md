@@ -1,7 +1,140 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. d — Modulo K: Upload utente fuori repo `/uploads` mount + risolto bug D3)
+**Ultimo aggiornamento:** 2026-04-28 (sessione 59 cont. e — VPS: aggiornamento minor 64 pacchetti + upgrade major Ubuntu 22.04 → 24.04.4 LTS Noble + ricreazione venv Python 3.12)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
+
+---
+
+## SESSIONE 59 cont. e (2026-04-27/28) — VPS: AGGIORNAMENTO MINOR + UPGRADE MAJOR UBUNTU 24.04 LTS NOBLE
+
+### Background
+A fine giornata Marco vuole aggiornare il VPS. Banner Ubuntu segnalava da
+giorni "System restart required" (kernel updates pendenti) + "New release
+'24.04.4 LTS' available". Affrontiamo entrambi: prima il minor (64 pacchetti
++ kernel) come riscaldamento, poi il major Jammy → Noble.
+
+### Fase 1 — Aggiornamento MINOR (sicuro)
+Tempo: ~15 min.
+
+**Pacchetti**: 64 upgradable, tutti security/bugfix. Niente major bump
+critico — nginx resta 1.18 (patch ubuntu14.8→14.10), systemd resta 249.11
+(patch 3.19→3.20), Python invariato. Notabili:
+- nodejs 20.19.6 → 20.20.2
+- docker-compose-plugin 2.40.3 → 5.1.3 (TRGB non usa Docker)
+- linux-firmware 316MB
+- Kernel 5.15.0-176 installato (era -173)
+
+**Procedura**: `apt update && apt upgrade -y && apt autoremove -y && reboot`.
+Reboot pulito. Backend e frontend ripartiti via systemd. Probe HTTP tutti
+verdi (vedi `.guardiano_state.json` audit `post-reboot-vps`).
+
+### Fase 2 — Upgrade MAJOR Ubuntu 22.04 → 24.04.4 LTS
+Tempo: ~1h 45min totali. Operazione delicata.
+
+**Pre-flight obbligatorio**:
+1. **Snapshot Aruba**: creato 27/04 23:49, scade 29/04 23:00. Rete di
+   sicurezza per rollback completo VM.
+2. **Backup tar.gz locale**: 577MB in `~/backups/pre-upgrade-noble-20260427-2350.tar.gz`
+   (DB tutti + uploads + nginx config + systemd unit). Push su gdrive via
+   rclone in 33s.
+3. **Cleanup `/boot`**: rimosso kernel 5.15.0-173 (era 66% pieno → 34%, da
+   180MB liberi a 278MB). Necessario per i nuovi initramfs noble.
+4. **Checkpoint WAL** su tutti `app/data/*.sqlite3` con `PRAGMA wal_checkpoint(TRUNCATE)`.
+   Errori "malformed schema" su 9 file `vini_magazzino.CORROTTO-*` /
+   `FORENSE-*` (artefatti recovery S51-52, file morti — non bloccante).
+5. **Stop servizi TRGB** durante backup per consistenza WAL.
+
+**Procedura**: `sudo do-release-upgrade`. ~30 min download + ~45 min
+install + prompt config + 280 obsolete pacchetti rimossi + reboot.
+
+**Prompt config gestiti** (tutti KEEP LOCAL):
+- `/etc/sudoers` — contiene NOPASSWD per restart trgb-backend/frontend
+- `/etc/ssh/sshd_config` — hardening Marco
+- `/etc/fail2ban/jail.conf` — regole ban brute force
+- `/etc/xrdp/xrdp.ini` — config RDP server
+- `/etc/fwupd/fwupd.conf` — non rilevante su VPS
+
+**Snap thunderbird unreachable** → SKIP (non serve sul server, bloccava
+solo il pacchetto desktop).
+
+**Repo terze parti disabilitati** (sono ancora installati ma niente
+aggiornamenti futuri finché non riabilitati): docker, nodejs, chrome.
+Per TRGB serve riattivare nodejs in futuro (task #44, non urgente: Node
+20 è ancora installato e funziona).
+
+### Fase 3 — Fix post-reboot (CRITICO)
+Tempo: ~15 min.
+
+**Problema 1 — Backend giù**: dopo reboot tutti gli endpoint 502. Causa:
+il `venv-trgb` aveva librerie Python in `lib/python3.10/site-packages/`
+ma ora il sistema ha solo Python 3.12. `ModuleNotFoundError: No module
+named 'uvicorn'` in loop restart.
+
+Fix:
+```bash
+sudo systemctl stop trgb-backend
+mv /home/marco/trgb/venv-trgb /home/marco/trgb/venv-trgb.OLD-noble-20260427
+python3 -m venv /home/marco/trgb/venv-trgb
+/home/marco/trgb/venv-trgb/bin/pip install --upgrade pip wheel setuptools
+cd /home/marco/trgb/trgb && /home/marco/trgb/venv-trgb/bin/pip install -r requirements.txt
+sudo systemctl reset-failed trgb-backend
+sudo systemctl start trgb-backend
+```
+
+**Problema 2 — `email-validator` mancante**: backend riparte ma crasha
+con `ImportError: email-validator is not installed`. In Pydantic 2.x
+`email-validator` è un extra opzionale (era incluso nelle vecchie versioni).
+
+Fix: `/home/marco/trgb/venv-trgb/bin/pip install email-validator` →
+backend UP alle 00:47:11.
+
+**Versioni installate** (NUOVE rispetto a pre-upgrade):
+- pandas 2.x → **3.0.2** (major bump)
+- numpy 1.x → **2.4.4** (major bump)
+- fastapi → 0.136.1
+- pydantic → 2.13.3
+- weasyprint → 68.1
+- cryptography → 47.0.0
+- Pillow → 12.2.0
+
+Funziona tutto, ma **requirements.txt non ha pinning stretti** → pip ha
+pescato le ultime release del 2026. Task #46: pinning con `pip freeze`
+per evitare sorprese future.
+
+### Verifica post-upgrade
+Tutti gli endpoint verdi via probe HTTP da Mac:
+- `GET /` → 405 (backend FastAPI vivo)
+- `GET /uploads/inesistente.jpg` → 404 application/json (Modulo K mount OK)
+- `GET /lista-spesa/items/` → 401 (Modulo J + mig 105 OK)
+- `GET /haccp/report/recent-events` → 401 (Modulo I OK)
+- `GET /dashboard/cucina` → 401 (Modulo H OK)
+- `GET /controllo-gestione/spese-fisse/.../piano-rate` → 401 (M.6 OK)
+- `GET /pranzo/menu/oggi/` → 401
+- `GET /menu-carta/editions/` → 401
+
+Servizi systemd: `trgb-backend`, `trgb-frontend`, `nginx` tutti
+`active (running)`. Vite 5.4.21 ready in 550ms (Node 20 ancora funzionante
+nonostante repo nodesource disabilitato).
+
+### Warning non bloccanti rilevati
+- `FastAPIDeprecationWarning: regex has been deprecated, please use pattern instead`
+  in `banca_router.py:2056` (e probabilmente altri). Sweep da fare in task #45.
+
+### Backlog post-upgrade (5 task creati)
+- **#44**: Re-add nodejs repo per noble (`curl -fsSL setup_20.x | bash`).
+  Bassa urgenza: Node 20 ancora installato, serve solo per aggiornamenti
+  futuri.
+- **#45**: Sweep `regex=` → `pattern=` in router FastAPI (deprecation).
+  Media urgenza, non bloccante.
+- **#46**: Pinning `requirements.txt` (`pip freeze > requirements-noble.txt`)
+  per evitare sorprese future. Media urgenza.
+- **#47**: Cleanup `venv-trgb.OLD-noble-20260427` dopo 24-48h di conferma
+  stabilità. Bassa.
+- **#48**: Aggiornare `docs/deploy.md` con sezione stack noble + procedura
+  upgrade major. Media (FATTO in questa sessione, vedi sotto).
+
+### Suggested commit (per docs)
+`./push.sh "Sessione 59 chiusa — docs: upgrade Ubuntu 24.04 Noble + Python 3.12 + procedura upgrade in deploy.md"`
 
 ---
 

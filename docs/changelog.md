@@ -3,6 +3,73 @@
 
 ---
 
+## 2026-04-28 (sessione 59 cont. e) — VPS: Ubuntu 22.04 → 24.04.4 LTS Noble + Python 3.12
+
+### Background
+Aggiornamento sistema operativo del VPS Aruba: prima minor (64 pacchetti +
+kernel 5.15.0-176), poi upgrade major Jammy → Noble. Operazione delicata
+ma completata con snapshot Aruba + backup tar.gz + rclone gdrive come rete
+di sicurezza tripla.
+
+### Sistema (VPS)
+- **Ubuntu**: `22.04.5 LTS Jammy` → `24.04.4 LTS Noble`
+- **Kernel**: `5.15.0-173-generic` → `5.15.0-176-generic` → (post-noble) `6.8.x-generic`
+- **Python sistema**: `3.10` → `3.12.3` (default `/usr/bin/python3`)
+- **nginx**: `1.18.0-6ubuntu14.10` (resta 1.18, patch sicurezza)
+- **systemd**: 249 → 255
+
+### Backend (riparazione post-upgrade)
+- **Ricreato venv-trgb** da zero con Python 3.12 (vecchio venv aveva libs
+  in `lib/python3.10/site-packages/` non più visibili).
+- **`pip install -r requirements.txt`** ha installato versioni nuove:
+  - `pandas` 2.x → **3.0.2** (major bump)
+  - `numpy` 1.x → **2.4.4** (major bump)
+  - `fastapi` → 0.136.1
+  - `pydantic` → 2.13.3
+  - `weasyprint` → 68.1
+  - `cryptography` → 47.0.0
+  - `Pillow` → 12.2.0
+- **Fix dipendenza mancante**: `pip install email-validator` (in pydantic 2.x
+  è extra opzionale, prima incluso). Backend up alle 00:47:11 dopo questo.
+
+### Compat note
+- Path systemd: `/lib/systemd/...` ora unificato in `/usr/lib/systemd/...`
+  (cambiamento normale Noble, niente da modificare nei service unit di TRGB).
+- Tutti i file in `/etc/` con customizzazioni mantenuti via "keep local"
+  durante l'upgrade (sudoers, sshd_config, jail.conf, xrdp.ini, fwupd.conf).
+- Repo nodesource (Node 20.x) disabilitato da do-release-upgrade — Node 20
+  ancora installato e funzionante, serve riabilitare il repo per futuri
+  aggiornamenti minor di Node.
+
+### Verifica post-upgrade
+Tutti gli endpoint verdi (probe HTTP da Mac):
+- `GET /` → 405 backend vivo
+- `GET /uploads/inesistente.jpg` → 404 application/json (Modulo K mount OK)
+- Endpoint moduli I, J, H, K, M.6, Pranzo, Menu Carta → tutti 401 (auth
+  richiesta = endpoint registrati e funzionanti)
+
+Servizi systemd: trgb-backend, trgb-frontend, nginx tutti `active (running)`.
+
+### Warning non bloccanti
+- `FastAPIDeprecationWarning: regex has been deprecated, please use pattern instead`
+  in `banca_router.py:2056` (e probabilmente altri router). Sweep deferred.
+
+### File toccati (questa sessione)
+- `docs/sessione.md` — entry sessione 59 cont. e con dettaglio fix venv +
+  email-validator + warning + backlog
+- `docs/changelog.md` — questa voce
+- `docs/deploy.md` — sezione 5.x "Stack Noble + procedura upgrade major Ubuntu"
+- `.guardiano_state.json` — audit `post-upgrade-major-noble` con dettagli
+  snapshot/backup/fix
+- (Nessun cambio codice in questa sessione — solo VPS + docs)
+
+### Backlog post-upgrade
+Task #44-48 creati per cleanup post-noble (re-add nodejs repo, sweep
+deprecation regex→pattern, pinning requirements, cleanup venv vecchio,
+aggiornare deploy.md).
+
+---
+
 ## 2026-04-27 (sessione 59 cont. d) — Modulo K: Upload utente fuori repo + risolve D3
 
 ### Background
