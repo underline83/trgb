@@ -59,6 +59,21 @@ function isApiRequest(request) {
   }
 }
 
+// --- Helper: upload utente (foto piatti, futuri) → mai cachare ---
+// Modulo D fix (2026-04-27): nginx serviva index.html in fallback per file
+// non esistenti, il SW cachava quella response sotto la chiave del path foto,
+// e quando il file effettivamente caricato dall'utente diventava disponibile,
+// il SW serviva la index cachata → click sulla foto rimbalza alla home.
+// Soluzione: bypass totale del SW per i path di upload utente.
+function isUserUpload(request) {
+  try {
+    const path = new URL(request.url).pathname;
+    return path.startsWith("/static/menu_carta/");
+  } catch (_) {
+    return false;
+  }
+}
+
 // --- FETCH: network-first per tutto ---
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -68,6 +83,9 @@ self.addEventListener("fetch", (event) => {
 
   // API → network-only, nessuna cache
   if (isApiRequest(request)) return;
+
+  // Upload utente → network-only, mai cache (Modulo D fix)
+  if (isUserUpload(request)) return;
 
   // Tutto il resto: network-first con fallback cache
   event.respondWith(

@@ -89,6 +89,12 @@
 | 4.5 | Conto economico mensile P&L automatico | M | DA FARE | Usa **M.B** PDF per export. Ricavi - costi = margine, mese per mese, confronto YoY |
 | 4.6 | Alert food cost fuori soglia | S | DA FARE | Usa **M.A** notifiche + **M.F** alert. Badge rosso se ricetta supera soglia % |
 | 4.7 | Margine per piatto su menu (ranking) | S | DA FARE | Food cost x prezzo vendita, top/bottom 5. Serve prezzo in DB |
+| 4.8 | **Lista della Spesa Cucina** — Fase 1 MVP testuale | S | DA FARE 2026-04-27 | Sub-voce Gestione Cucina. Cuochi segnano cose da comprare. CRUD items, urgente, filtri, lista checkbox |
+| 4.9 | Lista Spesa Fase 2 — link ingrediente + storico prezzi | S | DA FARE | FK opz. `ingredient_id`. Click item → storico prezzi + ultimo fornitore. Pre-requisito: 4.8 |
+| 4.10 | Lista Spesa Fase 2 — vista per fornitore + WhatsApp veloce | S | DA FARE | Raggruppa items per fornitore preferito, bottone WA via **M.C** composer. Pre-requisito: 4.9 |
+| 4.11 | Lista Spesa Fase 2 — generazione automatica da menu pranzo | M | DA FARE | "Genera spesa per W18" legge ricette del menu, somma yields ingredienti, sottrae stima scorta. Bottone in compositore Pranzo |
+| 4.12 | Lista Spesa Fase 2 — template ricorrenti | S | DA FARE | "Spesa lunedì" si auto-crea ogni N giorni. Usa **schedule** skill |
+| 4.13 | Lista Spesa Fase 2 — workflow ordinato/in_arrivo/ricevuto | M | DA FARE | Stato espanso. Matching automatico con righe fatture XML in arrivo |
 
 ---
 
