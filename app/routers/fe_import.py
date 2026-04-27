@@ -1040,38 +1040,61 @@ def segna_fatture_non_pagate(
     payload: Dict[str, Any] = Body(...),
     current_user: Any = Depends(get_current_user),
 ):
-    """Body: { fattura_ids: [1, 2, 3] }"""
-    conn = _get_conn()
-    _ensure_tables(conn)
+    """
+    Body: { fattura_ids: [1, 2, 3] }
 
+    Iter 2026-04-27: try/except esterno + logging dettagliato per evitare
+    eccezioni silenziose che chiudono la connessione (causa "errore di rete"
+    lato client invece di un HTTP 5xx esplicito).
+    """
+    import logging
+    logger = logging.getLogger("fe_import")
+    user_label = (current_user or {}).get("username") or (current_user or {}).get("email") or "?"
     ids = payload.get("fattura_ids", [])
-    if not ids:
+    logger.info(f"[segna-non-pagate] START user={user_label} ids={ids}")
+
+    try:
+        conn = _get_conn()
+        _ensure_tables(conn)
+
+        if not ids:
+            conn.close()
+            return {"ok": False, "error": "Nessuna fattura selezionata"}
+
+        oggi = datetime.now().strftime("%Y-%m-%d")
+
+        n_aggiornate_fe = 0
+        n_aggiornate_cg = 0
+        for fid in ids:
+            cur = conn.execute("UPDATE fe_fatture SET pagato = 0 WHERE id = ?", (fid,))
+            if cur.rowcount > 0:
+                n_aggiornate_fe += 1
+
+            existing = conn.execute(
+                "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?", (fid,)
+            ).fetchone()
+            if existing and existing["stato"] in ("PAGATA_MANUALE",):
+                # Ricalcola stato: se scadenza passata → SCADUTA, altrimenti DA_PAGARE
+                scad = existing["data_scadenza"]
+                nuovo_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
+                conn.execute("""
+                    UPDATE cg_uscite
+                    SET stato = ?, data_pagamento = NULL, importo_pagato = 0,
+                        metodo_pagamento = NULL, updated_at = ?
+                    WHERE fattura_id = ?
+                """, (nuovo_stato, oggi, fid))
+                n_aggiornate_cg += 1
+
+        conn.commit()
         conn.close()
-        return {"ok": False, "error": "Nessuna fattura selezionata"}
 
-    oggi = datetime.now().strftime("%Y-%m-%d")
-
-    for fid in ids:
-        conn.execute("UPDATE fe_fatture SET pagato = 0 WHERE id = ?", (fid,))
-
-        existing = conn.execute(
-            "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?", (fid,)
-        ).fetchone()
-        if existing and existing["stato"] in ("PAGATA_MANUALE",):
-            # Ricalcola stato: se scadenza passata → SCADUTA, altrimenti DA_PAGARE
-            scad = existing["data_scadenza"]
-            nuovo_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
-            conn.execute("""
-                UPDATE cg_uscite
-                SET stato = ?, data_pagamento = NULL, importo_pagato = 0,
-                    metodo_pagamento = NULL, updated_at = ?
-                WHERE fattura_id = ?
-            """, (nuovo_stato, oggi, fid))
-
-    conn.commit()
-    conn.close()
-
-    return {"ok": True, "fatture": len(ids)}
+        logger.info(f"[segna-non-pagate] OK fe={n_aggiornate_fe} cg={n_aggiornate_cg}")
+        return {"ok": True, "fatture": len(ids), "fe_updated": n_aggiornate_fe, "cg_updated": n_aggiornate_cg}
+    except Exception as e:
+        logger.error(f"[segna-non-pagate] FAIL ids={ids}: {type(e).__name__}: {e}", exc_info=True)
+        # Risposta JSON esplicita invece di eccezione propagata (evita "errore di rete" client-side)
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Errore segna-non-pagate: {type(e).__name__}: {e}")
 
 
 @router.get(
