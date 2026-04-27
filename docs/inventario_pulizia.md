@@ -123,6 +123,29 @@ cat /srv/git/trgb.git/hooks/post-receive  # o path equivalente
 
 ---
 
+## TODO Split DB cucina — Fase 1 fisica (2026-04-27)
+
+**Fase 0 fatta** (push 2026-04-27): creato `app/models/cucina_db.py` con `get_cucina_connection()` come alias di `get_foodcost_connection()`. 11 file backend pure-cucina (recipes/ingredients/menu_carta/pranzo/scelte/repositories/allergeni_service) usano il nuovo import. Zero impatto runtime: stesso file `foodcost.db`.
+
+**Fase 1 da fare** (effort M, push dedicato):
+- Mig 103 `103_split_cucina_db.py`: crea `app/data/cucina.sqlite3` con 26 tabelle cucina (CREATE TABLE) + popolamento da `foodcost.db` (INSERT INTO ... SELECT FROM)
+- Pattern WAL nativo su `cucina.sqlite3` (lessons learned S52-1)
+- Cambiare body di `get_cucina_connection()` da alias a connessione vera al nuovo file
+- `foodcost_matching_router.py` (14 query cross-cluster): aggiungere `ATTACH DATABASE 'cucina.sqlite3' AS cucina` e qualificare `ingredients` → `cucina.ingredients` nelle query JOIN con `fe_righe`
+- Tabelle cucina restano duplicate temporaneamente in `foodcost.db` come safety net
+- `push.sh`: aggiungere `cucina.sqlite3` alla lista pull
+
+**Fase 2 da fare** (effort XS, 1-2 settimane dopo Fase 1 stabile):
+- Mig 104: DROP TABLE cucina.* da `foodcost.db`
+- Eventualmente rinominare `foodcost.db` → `app_data.db` per riflettere la realtà (è il monolite acquisti+banca+CG+finanza+iPratico+matching)
+
+File misti che restano in foodcost.db (consumer cross-modulo):
+- `foodcost_matching_router.py`, `dashboard_router.py`, `alert_engine.py`, `preventivi_service.py`, `menu_templates_service.py`, `statistiche_router.py`, `home_actions_router.py`
+
+Riferimenti: `roadmap.md` punto 1.5, analisi cluster CUCINA isolato da PRAGMA foreign_key_list.
+
+---
+
 ## TODO Cleanup orfani modulo Pranzo (Modulo B audit cucina, 2026-04-26)
 
 Mig 102 v1.0 girata sul VPS il 2026-04-26 17:38 ha lasciato orfani che la riscrittura v2.0 (stesso file, stessa data) non rimuove perché la migration non viene rieseguita. Il `pranzo_repository._ensure_schema()` (iter 11) ha aggiunto `recipe_id` come soft-migration, ma:

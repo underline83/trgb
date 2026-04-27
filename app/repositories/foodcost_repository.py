@@ -17,7 +17,7 @@ NON si occupa di:
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 
 
 # ─────────────────────────────
@@ -28,7 +28,7 @@ def fetch_ingredients_with_last_price() -> List[Dict[str, Any]]:
     Ritorna dizionari con:
         ingredient_id, ingredient_name, default_unit, last_price
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     cur.execute(
@@ -66,7 +66,7 @@ def fetch_ingredient_cost_summary(ingredient_id: int) -> Optional[Dict[str, Any]
 
     Se l'ingrediente non esiste → None
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     # Anagrafica ingrediente

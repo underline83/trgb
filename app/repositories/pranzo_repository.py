@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import date as date_cls, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 
 
 # ─────────────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ def init_pranzo_db() -> None:
 
     Idempotente: usa la stessa _ensure_schema gated da `_SCHEMA_READY`.
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
     finally:
@@ -232,7 +232,7 @@ def init_pranzo_db() -> None:
 # SETTINGS (riga unica id=1)
 # ─────────────────────────────────────────────────────────────
 def get_settings() -> Dict[str, Any]:
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
         row = conn.execute("SELECT * FROM pranzo_settings WHERE id = 1").fetchone()
@@ -254,7 +254,7 @@ def update_settings(**fields) -> Dict[str, Any]:
     set_fields = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not set_fields:
         return get_settings()
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
         sets = ", ".join(f"{k} = ?" for k in set_fields)
@@ -281,7 +281,7 @@ def list_piatti_disponibili() -> List[Dict[str, Any]]:
     `categoria` e' mappata da `recipe_categories.name` -> antipasto|primo|...
     Se la categoria della ricetta non e' tra quelle riconosciute, va in 'altro'.
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         sql = """
             SELECT
@@ -324,7 +324,7 @@ def get_menu_by_settimana(settimana_inizio: str) -> Optional[Dict[str, Any]]:
     Ritorna {id, settimana_inizio, created_by, created_at, updated_at, righe[]}.
     """
     monday = lunedi_di(settimana_inizio)
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
         row = conn.execute("SELECT * FROM pranzo_menu WHERE settimana_inizio = ?", (monday,)).fetchone()
@@ -352,7 +352,7 @@ def list_menu(data_da: Optional[str] = None, data_a: Optional[str] = None, limit
     Archivio settimanale: lista testate ordinate per settimana DESC.
     `data_da` / `data_a` sono confrontati contro `settimana_inizio`.
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
         sql = """SELECT m.*, COUNT(r.id) AS n_piatti
@@ -390,7 +390,7 @@ def list_programmazione(n_settimane: int = 8, fino_a: Optional[str] = None) -> L
     da_date = date_cls.fromisoformat(anchor) - timedelta(weeks=n_settimane - 1)
     da = da_date.isoformat()
 
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
         menus = conn.execute(
@@ -434,7 +434,7 @@ def upsert_menu(
     NOT NULL legacy senza default.
     """
     monday = lunedi_di(settimana_inizio)
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
         # Detect colonne legacy NOT NULL senza default (residuo schema v1.0)
@@ -520,7 +520,7 @@ def upsert_menu(
 
 def delete_menu(settimana_inizio: str) -> bool:
     monday = lunedi_di(settimana_inizio)
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _ensure_schema(conn)
         cur = conn.execute("DELETE FROM pranzo_menu WHERE settimana_inizio = ?", (monday,))

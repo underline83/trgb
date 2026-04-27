@@ -70,8 +70,8 @@ def pranzo_health():
     senza autenticazione. Esempio: https://app.tregobbi.it/pranzo/health
     """
     try:
-        from app.models.foodcost_db import get_foodcost_connection
-        conn = get_foodcost_connection()
+        from app.models.cucina_db import get_cucina_connection
+        conn = get_cucina_connection()
         try:
             tables = [
                 r[0] for r in conn.execute(

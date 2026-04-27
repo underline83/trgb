@@ -29,7 +29,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 from app.services.auth_service import get_current_user
 
 logger = logging.getLogger("trgb.formaggi")
@@ -171,7 +171,7 @@ def lista_tagli(stato: str = "attivi"):
     ?stato=tutti        → tutti
     Alias legacy (retrocompat): disponibili→attivi, venduti→archiviati.
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         stato_norm = {
             "disponibili": "attivi",
@@ -193,7 +193,7 @@ def lista_tagli(stato: str = "attivi"):
 @router.post("/", response_model=TaglioOut, status_code=201)
 def crea_taglio(data: TaglioIn):
     """Inserisce un nuovo formaggio."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
         cur = conn.execute("""
@@ -220,7 +220,7 @@ def crea_taglio(data: TaglioIn):
 @router.put("/{taglio_id}", response_model=TaglioOut)
 def modifica_taglio(taglio_id: int, data: TaglioIn):
     """Modifica un formaggio esistente."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
@@ -253,7 +253,7 @@ def toggle_attivo(taglio_id: int, body: TaglioAttivoToggle):
     Segna un formaggio come attivo (in carta) o archiviato (riattivabile).
     Endpoint nuovo dopo mig 093.
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
@@ -279,7 +279,7 @@ def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
     ha piu' senso. Usare PATCH /{id}/attivo. Manteniamo questo endpoint per
     non rompere chiamate esistenti: lo mappiamo su `attivo`.
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
@@ -305,7 +305,7 @@ def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
 @router.delete("/{taglio_id}", status_code=204)
 def elimina_taglio(taglio_id: int):
     """Elimina un formaggio."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
@@ -323,7 +323,7 @@ def elimina_taglio(taglio_id: int):
 @router.get("/categorie/", response_model=List[CategoriaOut])
 def lista_categorie(solo_attive: bool = True):
     """Lista categorie formaggi ordinate per `ordine` ascendente, poi nome."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         base = "SELECT * FROM formaggi_categorie"
         if solo_attive:
@@ -338,7 +338,7 @@ def lista_categorie(solo_attive: bool = True):
 @router.post("/categorie/", response_model=CategoriaOut, status_code=201)
 def crea_categoria(data: CategoriaIn):
     """Crea una nuova categoria formaggi."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
         try:
@@ -361,7 +361,7 @@ def crea_categoria(data: CategoriaIn):
 @router.put("/categorie/{cat_id}", response_model=CategoriaOut)
 def modifica_categoria(cat_id: int, data: CategoriaIn):
     """Modifica categoria formaggi (rinomina + propaga nei tagli che la usavano)."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute(
             "SELECT * FROM formaggi_categorie WHERE id = ?", (cat_id,)
@@ -397,7 +397,7 @@ def modifica_categoria(cat_id: int, data: CategoriaIn):
 @router.delete("/categorie/{cat_id}", status_code=204)
 def elimina_categoria(cat_id: int):
     """Elimina una categoria formaggi solo se non in uso."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute(
             "SELECT nome FROM formaggi_categorie WHERE id = ?", (cat_id,)
@@ -425,7 +425,7 @@ def elimina_categoria(cat_id: int):
 
 @router.get("/config/", response_model=FormaggiConfigOut)
 def get_config():
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         return FormaggiConfigOut(
             widget_max_categorie=_get_config_int(conn, "widget_max_categorie", 4),
@@ -436,7 +436,7 @@ def get_config():
 
 @router.put("/config/", response_model=FormaggiConfigOut)
 def update_config(data: FormaggiConfigIn):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _set_config(conn, "widget_max_categorie", str(int(data.widget_max_categorie)))
         conn.commit()

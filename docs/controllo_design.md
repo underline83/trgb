@@ -12,11 +12,12 @@
 
 ## 1. Pattern testa+tab — schede non ancora refactorate
 
-**Stato**: 4 schede già passate al pattern testa fissa colorata + linguette tab + footer sticky:
+**Stato**: 5 schede già passate al pattern testa fissa colorata + linguette tab + footer sticky:
 - `SchedaVino.jsx` (S55)
 - `FattureDettaglio.jsx` (S56)
 - `FornitoreDetailView` dentro `FattureFornitoriElenco.jsx` (S56)
 - `MenuCartaDettaglio.jsx` (S57)
+- `RicetteDettaglio.jsx` (Modulo E, 2026-04-27) — testa orange + 4 KPI (Costo totale / Costo per unità / Prezzo / Food Cost) + tab (Composizione / Servizi / Note / Storico)
 
 **Da fare** (quando si toccano per altro motivo, opportunisticamente):
 - `ClientiScheda.jsx` — oggi pattern sidebar scura, simile al vecchio SchedaVino. Marco ha esplicitamente detto in S55 che vuole rivederla in futuro.

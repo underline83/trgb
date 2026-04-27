@@ -29,7 +29,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 from app.services.auth_service import get_current_user
 
 
@@ -241,7 +241,7 @@ def list_default_units():
 
 @router.get("/categories", response_model=List[IngredientCategory])
 def list_categories():
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
     cur.execute(
         "SELECT id, name, description FROM ingredient_categories ORDER BY name COLLATE NOCASE"
@@ -262,7 +262,7 @@ def create_category(payload: CategoryCreate):
     if not name:
         raise HTTPException(status_code=400, detail="Nome categoria obbligatorio")
 
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     # Evitiamo duplicati
@@ -307,7 +307,7 @@ def list_ingredients():
     - ultimo prezzo (se esiste)
     - nome ultimo fornitore
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     cur.execute(
@@ -375,7 +375,7 @@ def create_ingredient(payload: IngredientCreate):
     if not name:
         raise HTTPException(status_code=400, detail="Nome ingrediente obbligatorio")
 
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     # Gestione categoria
@@ -466,7 +466,7 @@ class IngredientUpdate(BaseModel):
 
 @router.put("/{ingredient_id}", response_model=IngredientDetail)
 def update_ingredient(ingredient_id: int, payload: IngredientUpdate):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute("SELECT id FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
@@ -517,7 +517,7 @@ class SupplierOut(BaseModel):
 @router.get("/suppliers", response_model=List[SupplierOut])
 def list_suppliers():
     """Lista fornitori (dalla tabella suppliers, alimentata da fatture XML)."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     rows = conn.execute(
         "SELECT id, name, partita_iva FROM suppliers ORDER BY name COLLATE NOCASE"
     ).fetchall()
@@ -557,7 +557,7 @@ class PriceCreate(BaseModel):
 
 @router.get("/{ingredient_id}/prezzi", response_model=List[PriceOut])
 def list_ingredient_prices(ingredient_id: int):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     rows = conn.execute(
         """
         SELECT p.id, p.ingredient_id, p.supplier_id, s.name AS supplier_name,
@@ -576,7 +576,7 @@ def list_ingredient_prices(ingredient_id: int):
 
 @router.post("/{ingredient_id}/prezzi", response_model=PriceOut)
 def create_ingredient_price(ingredient_id: int, payload: PriceCreate):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     # Verifica ingrediente
@@ -622,7 +622,7 @@ def create_ingredient_price(ingredient_id: int, payload: PriceCreate):
 
 @router.delete("/prezzi/{prezzo_id}")
 def delete_price(prezzo_id: int):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute("SELECT id FROM ingredient_prices WHERE id = ?", (prezzo_id,)).fetchone()
@@ -663,7 +663,7 @@ class UnitConversionCreate(BaseModel):
 @router.get("/{ingredient_id}/conversions", response_model=List[UnitConversionOut])
 def list_ingredient_conversions(ingredient_id: int):
     """Lista conversioni personalizzate per un ingrediente."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     rows = conn.execute(
         """
         SELECT id, ingredient_id, from_unit, to_unit, factor, note, created_at
@@ -683,7 +683,7 @@ def create_ingredient_conversion(ingredient_id: int, payload: UnitConversionCrea
     Crea una conversione personalizzata per un ingrediente.
     Es: 1 pz = 0.06 kg (uova), 1 mazzetto = 0.03 kg (basilico)
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     # Verifica ingrediente
@@ -735,7 +735,7 @@ def create_ingredient_conversion(ingredient_id: int, payload: UnitConversionCrea
 
 @router.delete("/conversions/{conversion_id}")
 def delete_ingredient_conversion(conversion_id: int):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     cur = conn.cursor()
 
     existing = cur.execute(

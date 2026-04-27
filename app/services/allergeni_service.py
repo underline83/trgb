@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from typing import Optional, Set, List, Dict, Any
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 
 
 # ─────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ def compute_recipe_allergens(
     """
     own_conn = conn is None
     if own_conn:
-        conn = get_foodcost_connection()
+        conn = get_cucina_connection()
     if _visited is None:
         _visited = set()
     if recipe_id in _visited:
@@ -128,7 +128,7 @@ def update_recipe_allergens_cache(recipe_id: int, conn=None) -> str:
     """
     own_conn = conn is None
     if own_conn:
-        conn = get_foodcost_connection()
+        conn = get_cucina_connection()
     try:
         allergeni = compute_recipe_allergens(recipe_id, conn=conn)
         csv = format_allergeni_csv(allergeni)
@@ -158,7 +158,7 @@ def recompute_all_recipes_allergens() -> Dict[str, Any]:
       - senza_allergeni: ricette pulite (set vuoto)
       - dettaglio: lista dicts {id, name, allergeni_calcolati}
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         rows = conn.execute(
             "SELECT id, name FROM recipes WHERE is_active = 1 ORDER BY id"
@@ -192,7 +192,7 @@ def get_allergeni_for_recipe(recipe_id: int) -> str:
     Restituisce il CSV allergeni cached della ricetta (read-only, no ricalcolo).
     Wrapper per consumer che vogliono leggere senza pensare alla connection.
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         row = conn.execute(
             "SELECT allergeni_calcolati FROM recipes WHERE id = ?",

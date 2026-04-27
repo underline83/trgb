@@ -43,7 +43,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.models.foodcost_db import get_foodcost_connection
+from app.models.cucina_db import get_cucina_connection
 from app.services.auth_service import get_current_user
 
 logger = logging.getLogger("trgb.pescato")
@@ -165,7 +165,7 @@ def lista_tagli(stato: str = "tutti"):
     ?stato=venduti     → solo venduti
     ?stato=tutti       → tutti (default)
     """
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         base = "SELECT * FROM pescato_tagli"
         if stato == "disponibili":
@@ -182,7 +182,7 @@ def lista_tagli(stato: str = "tutti"):
 @router.post("/", response_model=TaglioOut, status_code=201)
 def crea_taglio(data: TaglioIn):
     """Inserisce un nuovo pezzo di pescato."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
         cur = conn.execute("""
@@ -206,7 +206,7 @@ def crea_taglio(data: TaglioIn):
 @router.put("/{taglio_id}", response_model=TaglioOut)
 def modifica_taglio(taglio_id: int, data: TaglioIn):
     """Modifica un pezzo di pescato esistente."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
@@ -233,7 +233,7 @@ def modifica_taglio(taglio_id: int, data: TaglioIn):
 @router.patch("/{taglio_id}/venduto", response_model=TaglioOut)
 def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
     """Segna un pezzo di pescato come venduto o ripristina a disponibile."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
@@ -255,7 +255,7 @@ def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
 @router.delete("/{taglio_id}", status_code=204)
 def elimina_taglio(taglio_id: int):
     """Elimina un pezzo di pescato."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute("SELECT id FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
@@ -273,7 +273,7 @@ def elimina_taglio(taglio_id: int):
 @router.get("/categorie/", response_model=List[CategoriaOut])
 def lista_categorie(solo_attive: bool = True):
     """Lista categorie pescato ordinate per `ordine` ascendente, poi nome."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         base = "SELECT * FROM pescato_categorie"
         if solo_attive:
@@ -288,7 +288,7 @@ def lista_categorie(solo_attive: bool = True):
 @router.post("/categorie/", response_model=CategoriaOut, status_code=201)
 def crea_categoria(data: CategoriaIn):
     """Crea una nuova categoria pescato."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
         try:
@@ -311,7 +311,7 @@ def crea_categoria(data: CategoriaIn):
 @router.put("/categorie/{cat_id}", response_model=CategoriaOut)
 def modifica_categoria(cat_id: int, data: CategoriaIn):
     """Modifica categoria pescato (rinomina + propaga nei tagli che la usavano)."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute(
             "SELECT * FROM pescato_categorie WHERE id = ?", (cat_id,)
@@ -347,7 +347,7 @@ def modifica_categoria(cat_id: int, data: CategoriaIn):
 @router.delete("/categorie/{cat_id}", status_code=204)
 def elimina_categoria(cat_id: int):
     """Elimina una categoria pescato solo se non in uso."""
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         existing = conn.execute(
             "SELECT nome FROM pescato_categorie WHERE id = ?", (cat_id,)
@@ -375,7 +375,7 @@ def elimina_categoria(cat_id: int):
 
 @router.get("/config/", response_model=PescatoConfigOut)
 def get_config():
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         return PescatoConfigOut(
             widget_max_categorie=_get_config_int(conn, "widget_max_categorie", 4),
@@ -386,7 +386,7 @@ def get_config():
 
 @router.put("/config/", response_model=PescatoConfigOut)
 def update_config(data: PescatoConfigIn):
-    conn = get_foodcost_connection()
+    conn = get_cucina_connection()
     try:
         _set_config(conn, "widget_max_categorie", str(int(data.widget_max_categorie)))
         conn.commit()

@@ -81,6 +81,32 @@ _(S40-14, S40-15, S40-16, S40-17 risolti — vedi sezione Risolti.)_
 
 ---
 
+### D3. Menu Carta — Foto piatto non si vede nel modal preview (in coda, 2026-04-27)
+**Segnalato:** 2026-04-27 (Marco, post Modulo D)
+**Modulo:** Menu Carta / FE PublicationModal
+**Gravità:** bassa (la foto è caricata correttamente sul VPS, è solo un problema di rendering FE/cache)
+
+**Sintomo:**
+1. Upload foto piatto via modal → backend salva correttamente in `static/menu_carta/<edition_id>/<pub_id>.jpg`, path scritto in DB.
+2. URL diretto `https://trgb.tregobbi.it/static/menu_carta/1/1.jpg` mostra l'immagine.
+3. Nel modal di modifica pubblicazione: la `<img>` tag mostra placeholder rotto ("?"), il link "Apri in nuova scheda" rimbalza a `/` (home).
+
+**Investigazioni fatte:**
+- File esiste sul VPS (`ls -la` confermato): owner marco, perm 644, 167KB.
+- `git clean -fd` del post-receive rispetta `.gitignore` → non cancella `static/menu_carta/`.
+- `push.sh` non fa rsync di static/, gestisce solo i .sqlite3.
+- Service worker v2 è network-first ma cacha le response 200. Ipotesi: nginx fa fallback SPA `index.html` per file inesistenti con status 200 → SW lo cacha sotto la chiave del path foto → quando il file viene poi caricato, SW serve la index cached.
+
+**Fix tentato (NON pushato, in locale):**
+`frontend/public/sw.js` con bypass totale per richieste `/static/menu_carta/*` (network-only, mai in cache). CACHE_NAME al activate del nuovo SW pulirebbe automaticamente le cache vecchie.
+
+**Da fare quando si riprende il bug:**
+1. Pushare il fix sw.js, Ctrl+Shift+R, riprovare in scheda incognito per confermare.
+2. Se ancora non va: indagare nginx config (verificare se fa try_files con fallback a index.html anche per /static/), DOM event nel modal (qualcosa intercepta il click sul link?), permessi specifici.
+3. Soluzione strutturale (consigliata): **Modulo K** — spostare upload in `/home/marco/trgb_uploads/` fuori dal repo, mount StaticFiles separato su `/uploads`. Elimina ogni futura interferenza con git/SW/nginx.
+
+---
+
 ### D1. Flussi di Cassa — Sistema storni difettoso
 **Segnalato:** 2026-04-10
 **Modulo:** Flussi di Cassa / Banca (sistema storni)
