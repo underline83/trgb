@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import FattureDettaglio from "./FattureDettaglio";
 import { Btn } from "../../components/ui";
+import StatoPagamentoBadge, { STATI_PAGAMENTO } from "../../components/StatoPagamentoBadge";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const fmt = (v) =>
@@ -177,6 +178,40 @@ export default function FattureElenco() {
       // Aggiorna la riga nella lista; FattureDettaglio fa il proprio refetch
       setFatture(prev => prev.map(f => f.id === id ? { ...f, pagato: 1 } : f));
     } catch { alert("Errore di rete"); }
+  };
+
+  // ── Cambio stato pagamento (Modulo M.2, 2026-04-27) ──
+  // Endpoint: PUT /contabilita/fe/fatture/{id}/stato-pagamento
+  // Stati settabili manualmente: da_pagare, da_verificare, pagato_manuale.
+  // Lo stato 'pagato' (definitivo) si attiva da hook riconciliazione bancaria.
+  const cambiaStato = async (id, nuovoStato) => {
+    if (!STATI_PAGAMENTO[nuovoStato] || nuovoStato === "pagato") {
+      alert("Stato non valido o non settabile manualmente.");
+      return;
+    }
+    const url = `${API_BASE}/contabilita/fe/fatture/${id}/stato-pagamento`;
+    try {
+      const res = await apiFetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stato: nuovoStato }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        alert(`Errore HTTP ${res.status}: ${body.slice(0, 300)}`);
+        return;
+      }
+      const data = await res.json();
+      if (!data.ok) { alert(data.error || "Errore"); return; }
+      // Aggiorna riga nella lista
+      setFatture(prev => prev.map(f => f.id === id ? {
+        ...f,
+        stato_pagamento: nuovoStato,
+        pagato: nuovoStato === "pagato_manuale" ? 1 : 0,
+      } : f));
+    } catch (e) {
+      alert(`Errore di rete: ${e.message || e.name}`);
+    }
   };
 
   // ── Riporta a NON pagata (toggle inverso) — 2026-04-27 ──
@@ -466,6 +501,7 @@ export default function FattureElenco() {
                 onClose={() => setOpenId(null)}
                 onSegnaPagata={segnaPagata}
                 onSegnaNonPagata={segnaNonPagata}
+                onCambiaStato={cambiaStato}
                 onFatturaUpdated={(f) => {
                   // Sync riga nella lista con eventuali modifiche effettuate nel dettaglio
                   setFatture(prev => prev.map(x => x.id === f.id ? { ...x, ...f } : x));
@@ -529,9 +565,7 @@ export default function FattureElenco() {
                             : <span className="text-neutral-300">—</span>}
                         </td>
                         <td className="px-3 py-2 text-center">
-                          {f.pagato
-                            ? <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-100 text-emerald-700">Pagata</span>
-                            : <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-red-50 text-red-600">Da pagare</span>}
+                          <StatoPagamentoBadge stato={f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare")} />
                         </td>
                         <td className="px-3 py-2 text-center hidden xl:table-cell">
                           <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${

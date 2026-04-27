@@ -11,6 +11,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
+import StatoPagamentoBadge from "../../components/StatoPagamentoBadge";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CG = `${API_BASE}/controllo-gestione`;
@@ -130,7 +131,7 @@ function SectionHeader({ title, children }) {
  *     il componente esegue automaticamente refetch.
  */
 const FattureDettaglio = forwardRef(function FattureDettaglio(
-  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated, onSegnaPagata, onSegnaNonPagata, breadcrumb = null } = {},
+  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated, onSegnaPagata, onSegnaNonPagata, onCambiaStato, breadcrumb = null } = {},
   ref
 ) {
   const { id: idFromParams } = useParams();
@@ -309,6 +310,17 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
       await refetch();
     } catch (e) {
       console.error("segnaNonPagata:", e);
+    }
+  };
+
+  // Modulo M.2 (2026-04-27): cambio stato pagamento esplicito
+  const handleCambiaStato = async (nuovoStato) => {
+    if (!onCambiaStato || !fattura?.id) return;
+    try {
+      await onCambiaStato(fattura.id, nuovoStato);
+      await refetch();
+    } catch (e) {
+      console.error("cambiaStato:", e);
     }
   };
 
@@ -621,9 +633,13 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
           {activeTab === "pagamenti" && (
           <div>
             <SectionHeader title="Pagamenti & Scadenze">
+              {/* Modulo M.2: badge stato pagamento (4 stati) */}
+              {fattura.stato_pagamento && (
+                <StatoPagamentoBadge stato={fattura.stato_pagamento} size="md" />
+              )}
               {statoBadgeClass && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statoBadgeClass}`}>
-                  {statoUscita}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statoBadgeClass}`} title="Stato lato Controllo Gestione (cg_uscite)">
+                  CG: {statoUscita}
                 </span>
               )}
               {isRateizzata && (
@@ -927,12 +943,45 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
 
         {/* ═══════════ FOOTER AZIONI ═══════════ */}
         <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-t border-neutral-200 flex-shrink-0 flex-wrap">
-          {onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
+          {/* Modulo M.2 (2026-04-27): bottoni stato pagamento espliciti */}
+          {onCambiaStato && fattura.stato_pagamento !== "pagato" && !isRateizzata && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">Stato:</span>
+              {fattura.stato_pagamento !== "da_pagare" && (
+                <Btn variant="chip" tone="neutral" size="sm" type="button"
+                  onClick={() => handleCambiaStato("da_pagare")}
+                  title="Riporta in 'Da pagare'">
+                  Da pagare
+                </Btn>
+              )}
+              {fattura.stato_pagamento !== "da_verificare" && (
+                <Btn variant="chip" tone="amber" size="sm" type="button"
+                  onClick={() => handleCambiaStato("da_verificare")}
+                  title="Marca come 'Da verificare' (forse pagata)">
+                  ❓ Da verificare
+                </Btn>
+              )}
+              {fattura.stato_pagamento !== "pagato_manuale" && (
+                <Btn variant="chip" tone="emerald" size="sm" type="button"
+                  onClick={() => handleCambiaStato("pagato_manuale")}
+                  title="Pagato in attesa di riconciliazione bancaria">
+                  Pagato*
+                </Btn>
+              )}
+            </div>
+          )}
+          {fattura.stato_pagamento === "pagato" && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-900 bg-emerald-100 border border-emerald-500 px-3 py-1.5 rounded-full font-semibold">
+              🔒 Pagato — riconciliato banca (immutabile)
+            </span>
+          )}
+          {/* Legacy: bottoni pre-Modulo M (preservati per compat se onCambiaStato non passato) */}
+          {!onCambiaStato && onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
             <Btn variant="primary" size="md" type="button" onClick={handleSegnaPagata}>
               ✓ Segna pagata
             </Btn>
           )}
-          {onSegnaNonPagata && (fattura.pagato || statoUscita === "PAGATA_MANUALE") && (
+          {!onCambiaStato && onSegnaNonPagata && (fattura.pagato || statoUscita === "PAGATA_MANUALE") && (
             <Btn variant="chip" tone="red" size="md" type="button" onClick={handleSegnaNonPagata}>
               ✗ Segna NON pagata
             </Btn>
