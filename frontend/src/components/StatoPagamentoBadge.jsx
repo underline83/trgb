@@ -1,15 +1,27 @@
 // frontend/src/components/StatoPagamentoBadge.jsx
-// @version: v1.0 — Modulo M.2, 2026-04-27
+// @version: v1.1 — Modulo M.3 (2026-04-27): supporto valori CG (cg_uscite.stato)
 //
-// Badge condiviso per visualizzare i 4 stati pagamento fattura.
-//   - da_pagare      → grigio neutro
-//   - da_verificare  → ambra (attenzione)
-//   - pagato_manuale → verde chiaro con * (in attesa di riconciliazione)
-//   - pagato         → verde solido con 🔒 (immutabile, da banca)
+// Badge condiviso per visualizzare gli stati pagamento (4+ stati).
+//
+// Namespace supportati:
+//
+//   FATTURE (Modulo M.2, fe_fatture.stato_pagamento, lowercase):
+//     - da_pagare      → grigio neutro
+//     - da_verificare  → ambra (attenzione)
+//     - pagato_manuale → verde chiaro con * (in attesa di riconciliazione)
+//     - pagato         → verde solido con 🔒 (immutabile, da banca)
+//
+//   CG / RATE (Modulo M.3, cg_uscite.stato, uppercase):
+//     - DA_PAGARE       → mappato a "da_pagare"
+//     - SCADUTA         → mappato a "da_pagare" + flag scadutaModifier
+//     - DA_VERIFICARE   → mappato a "da_verificare"
+//     - PAGATA_MANUALE  → mappato a "pagato_manuale"
+//     - PAGATA          → mappato a "pagato"
+//     - PARZIALE        → 5° stato dedicato (caso edge rate, non in fatture)
 //
 // Uso:
-//   <StatoPagamentoBadge stato={f.stato_pagamento} />
-//   <StatoPagamentoBadge stato="pagato_manuale" size="lg" />
+//   <StatoPagamentoBadge stato={f.stato_pagamento} />              // fatture (lowercase)
+//   <StatoPagamentoBadge stato={uscita.stato} scaduta={isScaduta}/> // CG (uppercase)
 
 import React from "react";
 
@@ -38,10 +50,43 @@ export const STATI_PAGAMENTO = {
     icon: "🔒",
     desc: "Certificata da riconciliazione bancaria — immutabile",
   },
+  parziale: {
+    label: "Parziale",
+    color: "bg-amber-100 text-amber-800 border-amber-400",
+    icon: "◐",
+    desc: "Pagamento parziale registrato — manca differenza",
+  },
 };
 
-export default function StatoPagamentoBadge({ stato, size = "sm", showIcon = true, className = "" }) {
-  const cfg = STATI_PAGAMENTO[stato] || STATI_PAGAMENTO.da_pagare;
+// Mappa namespace CG (cg_uscite.stato uppercase) → namespace fatture (lowercase)
+const CG_TO_STANDARD = {
+  DA_PAGARE: "da_pagare",
+  SCADUTA: "da_pagare",       // SCADUTA = da_pagare con scadenza < oggi
+  DA_VERIFICARE: "da_verificare",
+  PAGATA_MANUALE: "pagato_manuale",
+  PAGATA: "pagato",
+  PARZIALE: "parziale",
+};
+
+export function normalizeStato(stato) {
+  if (!stato) return "da_pagare";
+  // Già lowercase (fatture)
+  if (STATI_PAGAMENTO[stato]) return stato;
+  // Uppercase (CG) → traduci
+  if (CG_TO_STANDARD[stato]) return CG_TO_STANDARD[stato];
+  return "da_pagare";
+}
+
+export default function StatoPagamentoBadge({ stato, scaduta = false, size = "sm", showIcon = true, className = "" }) {
+  const key = normalizeStato(stato);
+  const cfg = STATI_PAGAMENTO[key] || STATI_PAGAMENTO.da_pagare;
+  // Scaduta override visivo: se da_pagare + scaduta, dipingo rosso più forte
+  const isScadutaVisive = scaduta && key === "da_pagare";
+  const colorOverride = isScadutaVisive
+    ? "bg-red-100 text-red-800 border-red-400"
+    : cfg.color;
+  const labelOverride = isScadutaVisive ? "Scaduto" : cfg.label;
+
   const sz = size === "lg"
     ? "px-2.5 py-1 text-xs"
     : size === "md"
@@ -49,11 +94,11 @@ export default function StatoPagamentoBadge({ stato, size = "sm", showIcon = tru
     : "px-1.5 py-0.5 text-[9px]";
   return (
     <span
-      title={cfg.desc}
-      className={`inline-flex items-center gap-1 rounded-full font-semibold border ${cfg.color} ${sz} ${className}`}
+      title={cfg.desc + (isScadutaVisive ? " (scaduto)" : "")}
+      className={`inline-flex items-center gap-1 rounded-full font-semibold border ${colorOverride} ${sz} ${className}`}
     >
       {showIcon && cfg.icon && <span>{cfg.icon}</span>}
-      <span>{cfg.label}</span>
+      <span>{labelOverride}</span>
     </span>
   );
 }

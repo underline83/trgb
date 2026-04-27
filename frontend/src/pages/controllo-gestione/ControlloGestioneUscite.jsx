@@ -25,6 +25,8 @@ const STATO_STYLE = {
   SCADUTA:         { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduto" },
   PAGATA:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagato" },
   PAGATA_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagato *" },
+  // Modulo M.3 (2026-04-27): nuovo stato "Da verificare" per cg_uscite
+  DA_VERIFICARE:   { bg: "bg-amber-50",  text: "text-amber-800", border: "border-amber-300", label: "Da verificare" },
   PARZIALE:        { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
   RATEIZZATA:      { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-200", label: "Rateizzato" },
 };

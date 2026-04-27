@@ -2740,6 +2740,117 @@ def delete_pagamento_batch(
 
 
 # ── Segna pagata singola fattura (da Acquisti) ───────────────────
+@router.put("/uscita/{uscita_id}/stato-pagamento")
+def update_uscita_stato_pagamento(
+    uscita_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Modulo M.3 (2026-04-27): cambio manuale stato pagamento di una cg_uscite.
+
+    Body: { "stato": "DA_PAGARE" | "DA_VERIFICARE" | "PAGATA_MANUALE" }
+
+    Stati settabili manualmente:
+      - DA_PAGARE      → riporta a "da pagare" (SCADUTA viene ricalcolata da data)
+      - DA_VERIFICARE  → "forse pagata, controllare"
+      - PAGATA_MANUALE → "pagato in attesa di riconciliazione"
+
+    Stati NON settabili manualmente:
+      - PAGATA   → solo via riconciliazione bancaria (banca_fatture_link).
+                   Per uscire serve cancellare il link.
+      - SCADUTA  → derivata da data_scadenza < oggi su DA_PAGARE.
+      - PARZIALE → impostata da gestione pagamenti parziali (caso edge).
+
+    Per uscite collegate a fatture (fattura_id != NULL), sincronizza anche
+    fe_fatture.pagato e fe_fatture.stato_pagamento per coerenza cross-tabella.
+    """
+    import logging
+    logger = logging.getLogger("controllo_gestione")
+    nuovo_stato = (payload or {}).get("stato")
+    user_label = (current_user or {}).get("username") or (current_user or {}).get("email") or "?"
+
+    STATI_MANUALI = {"DA_PAGARE", "DA_VERIFICARE", "PAGATA_MANUALE"}
+    if nuovo_stato not in STATI_MANUALI:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Stato non settabile manualmente: {nuovo_stato}. Validi: {sorted(STATI_MANUALI)}",
+        )
+
+    fc = get_fc_db()
+    try:
+        usc = fc.execute(
+            "SELECT id, stato, fattura_id, data_scadenza FROM cg_uscite WHERE id = ?",
+            (uscita_id,),
+        ).fetchone()
+        if not usc:
+            raise HTTPException(404, "Uscita non trovata")
+
+        vecchio = usc["stato"]
+        if vecchio == "PAGATA":
+            raise HTTPException(
+                status_code=409,
+                detail="Uscita riconciliata bancariamente: stato immutabile. Cancellare prima il link banca_fatture_link.",
+            )
+        if vecchio == "PARZIALE":
+            raise HTTPException(
+                status_code=409,
+                detail="Uscita con pagamento parziale: gestire prima il completamento o annullare il pagamento parziale.",
+            )
+
+        oggi_str = date.today().isoformat()
+
+        # Per DA_PAGARE: ricalcola SCADUTA se data passata
+        stato_effettivo = nuovo_stato
+        if nuovo_stato == "DA_PAGARE" and usc["data_scadenza"] and usc["data_scadenza"] < oggi_str:
+            stato_effettivo = "SCADUTA"
+
+        if nuovo_stato == "PAGATA_MANUALE":
+            fc.execute("""
+                UPDATE cg_uscite
+                   SET stato = ?,
+                       data_pagamento = COALESCE(data_pagamento, ?),
+                       importo_pagato = totale,
+                       metodo_pagamento = COALESCE(metodo_pagamento, 'CONTO_CORRENTE'),
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?
+            """, (stato_effettivo, oggi_str, uscita_id))
+        else:
+            fc.execute("""
+                UPDATE cg_uscite
+                   SET stato = ?,
+                       data_pagamento = NULL,
+                       importo_pagato = 0,
+                       metodo_pagamento = NULL,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?
+            """, (stato_effettivo, uscita_id))
+
+        # Sincronizza fe_fatture se uscita collegata a fattura
+        if usc["fattura_id"]:
+            try:
+                from app.services.fatture_stato_service import set_stato as set_fattura_stato
+                stato_fattura = {
+                    "DA_PAGARE": "da_pagare",
+                    "DA_VERIFICARE": "da_verificare",
+                    "PAGATA_MANUALE": "pagato_manuale",
+                }[nuovo_stato]
+                set_fattura_stato(fc, usc["fattura_id"], stato_fattura, force=True)
+            except Exception as _e:
+                logger.warning(f"[uscita-stato] sync fattura fallito uscita={uscita_id}: {_e}")
+
+        fc.commit()
+        logger.info(f"[uscita-stato] user={user_label} uscita={uscita_id} {vecchio} → {stato_effettivo}")
+        return {"ok": True, "uscita_id": uscita_id, "vecchio_stato": vecchio, "nuovo_stato": stato_effettivo}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[uscita-stato] FAIL uscita={uscita_id}: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore: {type(e).__name__}: {e}")
+    finally:
+        fc.close()
+
+
 @router.post("/fattura/{fattura_id}/segna-pagata-manuale")
 def segna_pagata_manuale(
     fattura_id: int,
