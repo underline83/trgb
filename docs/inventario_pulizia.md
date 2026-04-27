@@ -104,6 +104,25 @@ def get_xxx_connection():
 
 ---
 
+## TODO Verifica post-receive hook VPS — `git clean` può cancellare foto piatti (Modulo D, 2026-04-27)
+
+Le foto piatti del Menu Carta sono salvate in `static/menu_carta/<edition_id>/<pub_id>.jpg` e `static/menu_carta/` è gitignored. Se il post-receive hook sul VPS esegue `git clean -fdx` (con la `x`), **cancella tutti i file gitignored** ad ogni push, comprese le foto caricate dall'utente.
+
+**Da verificare** (Marco da SSH al VPS):
+```bash
+cat /srv/git/trgb.git/hooks/post-receive  # o path equivalente
+# cerca "git clean"
+```
+
+**Soluzioni in ordine di rischio**:
+1. **Cambiare `git clean -fdx` in `git clean -fd`** (no `x`) → rispetta `.gitignore`, più sicuro per file utente
+2. **Aggiungere `--exclude=static/menu_carta`** al clean comando
+3. **Spostare upload fuori dal repo** → cartella tipo `/home/marco/trgb_uploads/menu_carta/` + mount StaticFiles separato in `main.py` su `/uploads`. Path dei file in DB diventerebbe `/uploads/...` invece di `/static/menu_carta/...`. Più robusto ma richiede config env-aware (dev locale vs prod VPS).
+
+**Effort**: XS (se opzione 1 o 2). M (se opzione 3, refactor service + endpoint + UI).
+
+---
+
 ## TODO Cleanup orfani modulo Pranzo (Modulo B audit cucina, 2026-04-26)
 
 Mig 102 v1.0 girata sul VPS il 2026-04-26 17:38 ha lasciato orfani che la riscrittura v2.0 (stesso file, stessa data) non rimuove perché la migration non viene rieseguita. Il `pranzo_repository._ensure_schema()` (iter 11) ha aggiunto `recipe_id` come soft-migration, ma:

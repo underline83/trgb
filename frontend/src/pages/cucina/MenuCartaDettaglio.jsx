@@ -1,5 +1,5 @@
 // frontend/src/pages/cucina/MenuCartaDettaglio.jsx
-// @version: v1.2-foto — upload foto piatto + thumbnail in lista (Modulo D, 2026-04-27)
+// @version: v1.3-foto-fix — img key + link diretto fallback per cache-bust difettoso (Modulo D, 2026-04-27)
 //
 // Dettaglio di un'edizione: testa fissa colorata + tab.
 // Tab: Sezioni (lista piatti raggruppata) | Degustazioni | Anteprima | Anagrafica
@@ -559,15 +559,36 @@ function PublicationModal({ pub, onClose, onSaved }) {
             <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-2">Foto piatto</div>
             {fotoPath ? (
               <div className="flex items-start gap-3">
-                <img
-                  src={`${fotoPath}?v=${fotoCacheBust}`}
-                  alt={titolo}
-                  className="w-32 h-24 object-cover rounded border border-neutral-200 flex-shrink-0"
-                  onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
-                />
+                <a
+                  href={`${fotoPath}?v=${fotoCacheBust}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 group"
+                  title="Apri foto in nuova scheda"
+                >
+                  <img
+                    key={`${fotoPath}-${fotoCacheBust}`}
+                    src={`${fotoPath}?v=${fotoCacheBust}`}
+                    alt={titolo}
+                    className="w-32 h-24 object-cover rounded border border-neutral-200 group-hover:border-brand-blue transition"
+                    onError={(e) => {
+                      // Se img tag fallisce a renderizzare, mostra placeholder broken
+                      e.currentTarget.style.opacity = "0.3";
+                      e.currentTarget.alt = "Anteprima non disponibile (clicca per aprire diretto)";
+                    }}
+                  />
+                </a>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-neutral-500 mb-2 truncate">{fotoPath}</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="text-[11px] text-neutral-500 mb-1 truncate">{fotoPath}</p>
+                  <a
+                    href={`${fotoPath}?v=${fotoCacheBust}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-brand-blue hover:underline mb-2 inline-block"
+                  >
+                    Apri foto in nuova scheda →
+                  </a>
+                  <div className="flex flex-wrap gap-2 mt-1">
                     <label className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition ${fotoUploading ? "bg-neutral-200 text-neutral-400" : "bg-brand-blue text-white hover:opacity-90"}`}>
                       {fotoUploading ? "Carico…" : "↻ Sostituisci"}
                       <input type="file" accept="image/*" onChange={handleUploadFoto} disabled={fotoUploading} className="hidden" />
