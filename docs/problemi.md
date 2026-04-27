@@ -125,6 +125,36 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 
 ## Risolti
 
+### D4. Fatture — bottone "Segna non pagata" mancante + AttributeError backend ✅ 2026-04-27
+**Aperto:** 2026-04-27 (Marco, fattura COL D'ORCIA #6796 segnata pagata per errore)
+**Chiuso:** 2026-04-27 dopo identificazione bug preesistente
+
+**Sintomi (in cascata):**
+1. Marco ha segnato pagata per errore una fattura. Cercava un bottone "togli flag pagato" — non c'era da `/acquisti/fatture` (esisteva solo da `/acquisti/fornitori` come azione batch).
+2. Aggiunto bottone rosso "Segna NON pagata" nel modal dettaglio (FattureElenco + FattureDettaglio v2026-04-27).
+3. Click sul bottone → "Errore di rete: Load failed" anche con retry e token fresco.
+4. Anche il bottone vecchio in `/acquisti/fornitori` (esistente da sempre) falliva con generico "Errore" — bug latente che nessuno aveva mai notato.
+5. Aggiunto try/except + logging dettagliato all'endpoint backend → il fix mostra HTTP 500 con dettaglio invece del TypeError silenzioso che il client traduceva in "errore di rete".
+6. Diagnosi: `AttributeError: module 'datetime' has no attribute 'now'` (riga 1064 di `fe_import.py`).
+
+**Causa radice:**
+File `fe_import.py` importa `import datetime` (modulo). Tutti gli altri endpoint nello stesso file usano correttamente `datetime.datetime.now()`. L'endpoint `segna-non-pagate` aveva un bug preesistente: `datetime.now()` che cercava `.now` sul modulo invece che sulla classe → AttributeError → uvicorn worker chiudeva la connessione → browser TypeError "Load failed".
+
+Bug "invisibile in produzione" perché:
+- Il vecchio handler client `FattureFornitoriElenco.handleMarkUnpaid` cattura nel try/except e mostra `result.error || "Errore"` generico
+- Il browser, ricevendo HTTP 5xx senza body JSON ben formato, lanciava TypeError fetch (interpretato come "errore di rete")
+- Nessuno aveva mai effettivamente cliccato quel bottone, o se l'aveva fatto aveva attribuito l'errore a "fluttuazione di rete"
+
+**Fix applicato:**
+1. `fe_import.py` riga 1064: `datetime.now()` → `datetime.datetime.now()` (bug 1 riga)
+2. `fe_import.py` endpoint `segna-non-pagate`: try/except esterno + logging + ritorno HTTP 500 esplicito invece di eccezione propagata (così bug futuri sono leggibili)
+3. `FattureElenco.jsx` + `FattureDettaglio.jsx`: nuovo bottone rosso "Segna NON pagata" nel modal con retry + diagnostica parlante (HTTP status + body)
+
+**Lezione di metodo:**
+Quando un endpoint POST non ha test e il client mostra "errore di rete" generico, sospettare bug Python silente nell'handler. Aggiungere try/except + logging esplicito è il primo passo diagnostico per smascherare eccezioni che chiudono la connessione prima del HTTP response. Pattern già usato per Modulo D (foto piatti) e Modulo F (pranzo upsert) — ora consolidato anche su fe_import.
+
+---
+
 ### D2. Modulo Pranzo — IntegrityError `pranzo_menu.data` su salvataggio + UX banner errore ✅ 2026-04-27
 **Aperto:** 2026-04-26 (Marco screenshot "Load failed")
 **Chiuso:** 2026-04-27 dopo verifica Marco ("Settimana salvata in 57ms")

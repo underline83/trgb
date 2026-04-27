@@ -1109,6 +1109,13 @@ def create_link(req: CrossRefLinkRequest):
                 WHERE fattura_id = ?
                   AND banca_movimento_id IS NULL
             """, (req.movimento_id, data_mov, req.fattura_id))
+            # Modulo M (2026-04-27): hook stato_pagamento → 'pagato' (banca ha ragione)
+            try:
+                from app.services.fatture_stato_service import on_riconciliazione_added
+                on_riconciliazione_added(conn, req.fattura_id)
+            except Exception as _e:
+                import logging
+                logging.getLogger("banca").warning(f"[hook stato_pagamento+] fattura={req.fattura_id}: {_e}")
         elif req.entrata_id:
             # ── Link entrata esistente (storno / nota di credito) ──
             cur.execute("""
@@ -1191,6 +1198,15 @@ def delete_link(link_id: str):
         if cur.rowcount == 0:
             conn.close()
             raise HTTPException(404, "Collegamento non trovato")
+        # Modulo M (2026-04-27): hook stato_pagamento → torna a 'pagato_manuale'
+        # (preserva intenzione utente, non resetta a 'da_pagare')
+        if link:
+            try:
+                from app.services.fatture_stato_service import on_riconciliazione_removed
+                on_riconciliazione_removed(conn, dict(link)["fattura_id"])
+            except Exception as _e:
+                import logging
+                logging.getLogger("banca").warning(f"[hook stato_pagamento-] fattura={dict(link)['fattura_id']}: {_e}")
         if link:
             l = dict(link)
             cur.execute("""

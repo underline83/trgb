@@ -954,6 +954,7 @@ def list_fatture(
             f.valuta, f.xml_filename, f.data_import,
             COALESCE(f.fonte, 'xml') AS fonte,
             COALESCE(f.pagato, 0) AS pagato,
+            COALESCE(f.stato_pagamento, 'da_pagare') AS stato_pagamento,
             f.data_scadenza, f.modalita_pagamento, f.importo_pagamento,
             (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
             COALESCE(f.is_autofattura, 0) AS is_autofattura,
@@ -1030,6 +1031,98 @@ def segna_fatture_pagate(
     conn.close()
 
     return {"ok": True, "aggiornate_fe": aggiornate_fe, "aggiornate_cg": aggiornate_cg, "fatture": len(ids), "metodo": metodo}
+
+
+@router.put(
+    "/fatture/{fattura_id}/stato-pagamento",
+    summary="Cambia stato pagamento (Modulo M, 2026-04-27)",
+)
+def update_stato_pagamento(
+    fattura_id: int,
+    payload: Dict[str, Any] = Body(...),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Cambia lo stato_pagamento di una fattura.
+
+    Body: { "stato": "da_pagare" | "da_verificare" | "pagato_manuale" }
+
+    NOTA: lo stato 'pagato' (definitivo) NON è settabile via questo endpoint —
+    si attiva automaticamente all'INSERT di banca_fatture_link e si rimuove
+    automaticamente al DELETE. Per uscire da 'pagato' bisogna prima cancellare
+    la riconciliazione bancaria.
+
+    Coerenza: la funzione sincronizza anche `cg_uscite.stato` per coerenza
+    cross-tabella (es. PAGATA_MANUALE / DA_PAGARE / SCADUTA).
+    """
+    from app.services.fatture_stato_service import set_stato
+    import logging
+    logger = logging.getLogger("fe_import")
+    nuovo_stato = (payload or {}).get("stato")
+    user_label = (current_user or {}).get("username") or (current_user or {}).get("email") or "?"
+    logger.info(f"[stato-pagamento] user={user_label} fattura={fattura_id} → {nuovo_stato}")
+
+    if not nuovo_stato:
+        raise HTTPException(status_code=400, detail="Body manca campo 'stato'")
+
+    conn = _get_conn()
+    try:
+        result = set_stato(conn, fattura_id, nuovo_stato)
+        if not result.get("ok"):
+            return result  # mantiene shape {ok: false, error: "..."}
+
+        # Sincronizza cg_uscite.stato per coerenza cross-tabella
+        oggi = datetime.datetime.now().strftime("%Y-%m-%d")
+        existing = conn.execute(
+            "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?",
+            (fattura_id,),
+        ).fetchone()
+        if existing:
+            cg_stato = None
+            if nuovo_stato == "pagato_manuale":
+                cg_stato = "PAGATA_MANUALE"
+            elif nuovo_stato == "da_pagare":
+                scad = existing["data_scadenza"]
+                cg_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
+            elif nuovo_stato == "da_verificare":
+                # Mappa "da_verificare" lato cg → DA_PAGARE (non c'è uno specifico)
+                scad = existing["data_scadenza"]
+                cg_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
+
+            if cg_stato:
+                if nuovo_stato == "pagato_manuale":
+                    conn.execute(
+                        """UPDATE cg_uscite
+                              SET stato = ?,
+                                  data_pagamento = COALESCE(data_pagamento, ?),
+                                  importo_pagato = totale,
+                                  metodo_pagamento = COALESCE(metodo_pagamento, 'CONTO_CORRENTE'),
+                                  updated_at = ?
+                            WHERE fattura_id = ?""",
+                        (cg_stato, oggi, oggi, fattura_id),
+                    )
+                else:
+                    conn.execute(
+                        """UPDATE cg_uscite
+                              SET stato = ?,
+                                  data_pagamento = NULL,
+                                  importo_pagato = 0,
+                                  metodo_pagamento = NULL,
+                                  updated_at = ?
+                            WHERE fattura_id = ?""",
+                        (cg_stato, oggi, fattura_id),
+                    )
+
+        conn.commit()
+        logger.info(f"[stato-pagamento] OK fattura={fattura_id} {result.get('vecchio_stato')} → {nuovo_stato}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[stato-pagamento] FAIL fattura={fattura_id}: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore stato-pagamento: {type(e).__name__}: {e}")
+    finally:
+        conn.close()
 
 
 @router.post(
@@ -1116,6 +1209,7 @@ def get_fattura_detail(fattura_id: int):
             f.valuta, f.xml_filename, f.data_import,
             COALESCE(f.fonte, 'xml') AS fonte,
             COALESCE(f.pagato, 0) AS pagato,
+            COALESCE(f.stato_pagamento, 'da_pagare') AS stato_pagamento,
             -- v2.0 campi pianificazione finanziaria (mig 056)
             f.data_scadenza               AS data_scadenza_xml,
             f.modalita_pagamento          AS modalita_pagamento_xml,
