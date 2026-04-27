@@ -403,8 +403,28 @@ export default function ControlloGestioneSpeseFisse() {
   };
 
   // Modifica importo rata (local only, da salvare)
+  // Modulo M.4 (2026-04-27): pianoEdits ora supporta sia importo che scadenza:
+  // shape può essere stringa (vecchia: solo importo) o oggetto {importo, scadenza}.
+  // Per retro-compat uso questo helper.
+  const _readEdit = (val) => {
+    if (val == null) return { importo: undefined, scadenza: undefined };
+    if (typeof val === "object") return { importo: val.importo, scadenza: val.scadenza };
+    return { importo: val, scadenza: undefined };  // legacy stringa
+  };
+
   const updatePianoRata = (periodo, valore) => {
-    setPianoEdits(prev => ({ ...prev, [periodo]: valore }));
+    setPianoEdits(prev => {
+      const cur = _readEdit(prev[periodo]);
+      return { ...prev, [periodo]: { importo: valore, scadenza: cur.scadenza } };
+    });
+  };
+
+  // Modulo M.4: cambio data scadenza rata (per riprogrammare scadute)
+  const updatePianoRataScadenza = (periodo, dataIso) => {
+    setPianoEdits(prev => {
+      const cur = _readEdit(prev[periodo]);
+      return { ...prev, [periodo]: { importo: cur.importo, scadenza: dataIso } };
+    });
   };
 
   // Salva tutte le modifiche pendenti
@@ -414,12 +434,17 @@ export default function ControlloGestioneSpeseFisse() {
       .map(([periodo, val]) => {
         const rata = pianoRate.find(r => r.periodo === periodo);
         if (!rata) return null;
-        const nuovo = parseFloat(val);
-        if (isNaN(nuovo) || nuovo < 0) return null;
-        if (Math.abs(nuovo - Number(rata.importo)) < 0.005) return null;
+        const edit = _readEdit(val);
+        const importoChanged = edit.importo !== undefined && !isNaN(parseFloat(edit.importo)) &&
+          Math.abs(parseFloat(edit.importo) - Number(rata.importo)) >= 0.005;
+        const scadenzaChanged = !!edit.scadenza && edit.scadenza !== rata.uscita_scadenza;
+        if (!importoChanged && !scadenzaChanged) return null;
+        const nuovoImporto = importoChanged ? parseFloat(edit.importo) : Number(rata.importo);
+        if (isNaN(nuovoImporto) || nuovoImporto < 0) return null;
         return {
           periodo,
-          importo: nuovo,
+          importo: nuovoImporto,
+          scadenza: scadenzaChanged ? edit.scadenza : undefined,
           numero_rata: rata.numero_rata,
           note: rata.note,
         };
@@ -1765,17 +1790,33 @@ export default function ControlloGestioneSpeseFisse() {
                       const badge = statoBadge(r.uscita_stato);
                       const isPagata = ["PAGATA", "PAGATA_MANUALE"].includes(r.uscita_stato);
                       const isParziale = r.uscita_stato === "PARZIALE";
-                      const editValue = pianoEdits[r.periodo];
-                      const displayValue = editValue !== undefined ? editValue : String(r.importo);
-                      const isEdited = editValue !== undefined && Math.abs(parseFloat(editValue || 0) - Number(r.importo)) >= 0.005;
-                      const scad = r.uscita_scadenza || `${r.periodo}-??`;
+                      const edit = _readEdit(pianoEdits[r.periodo]);
+                      const displayValue = edit.importo !== undefined ? edit.importo : String(r.importo);
+                      const displayScad = edit.scadenza !== undefined ? edit.scadenza : (r.uscita_scadenza || "");
+                      const isEditedImporto = edit.importo !== undefined && Math.abs(parseFloat(edit.importo || 0) - Number(r.importo)) >= 0.005;
+                      const isEditedScad = edit.scadenza !== undefined && edit.scadenza !== r.uscita_scadenza;
                       return (
                         <tr key={r.id || idx}
                           className={`border-b border-neutral-100 hover:bg-indigo-50/30 ${isPagata ? "bg-emerald-50/20" : ""}`}>
                           <td className="px-4 py-1.5 text-neutral-400 font-mono tabular-nums">{r.numero_rata || idx + 1}</td>
                           <td className="px-4 py-1.5 text-neutral-700 font-mono tabular-nums">{r.periodo}</td>
-                          <td className="px-4 py-1.5 text-neutral-600 tabular-nums">
-                            {r.uscita_scadenza ? new Date(r.uscita_scadenza + "T00:00:00").toLocaleDateString("it-IT") : "—"}
+                          <td className="px-4 py-1 text-neutral-600 tabular-nums">
+                            {/* Modulo M.4: data scadenza editabile per rate non pagate */}
+                            {isPagata || isParziale ? (
+                              <span className={isPagata ? "text-neutral-500" : ""}>
+                                {r.uscita_scadenza ? new Date(r.uscita_scadenza + "T00:00:00").toLocaleDateString("it-IT") : "—"}
+                              </span>
+                            ) : (
+                              <input
+                                type="date"
+                                value={displayScad}
+                                onChange={e => updatePianoRataScadenza(r.periodo, e.target.value)}
+                                className={`px-2 py-1 rounded border tabular-nums text-xs
+                                  ${isEditedScad ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-200" : "border-neutral-200"}
+                                  focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200`}
+                                title="Riprogramma scadenza rata"
+                              />
+                            )}
                           </td>
                           <td className="px-4 py-1 text-right">
                             <input
@@ -1785,7 +1826,7 @@ export default function ControlloGestioneSpeseFisse() {
                               value={displayValue}
                               onChange={e => updatePianoRata(r.periodo, e.target.value)}
                               className={`w-28 text-right px-2 py-1 rounded border tabular-nums text-xs
-                                ${isEdited ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-200" : "border-neutral-200"}
+                                ${isEditedImporto ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-200" : "border-neutral-200"}
                                 ${isPagata || isParziale ? "bg-neutral-100 text-neutral-500 cursor-not-allowed" : "focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"}`}
                               title={isPagata ? "Rata già pagata — non modificabile" : ""}
                             />
@@ -1850,8 +1891,11 @@ export default function ControlloGestioneSpeseFisse() {
                   const n = Object.entries(pianoEdits).filter(([periodo, val]) => {
                     const rata = pianoRate.find(r => r.periodo === periodo);
                     if (!rata) return false;
-                    const nuovo = parseFloat(val);
-                    return !isNaN(nuovo) && Math.abs(nuovo - Number(rata.importo)) >= 0.005;
+                    const e = _readEdit(val);
+                    const importoCambiato = e.importo !== undefined && !isNaN(parseFloat(e.importo)) &&
+                      Math.abs(parseFloat(e.importo) - Number(rata.importo)) >= 0.005;
+                    const scadenzaCambiata = !!e.scadenza && e.scadenza !== rata.uscita_scadenza;
+                    return importoCambiato || scadenzaCambiata;
                   }).length;
                   if (n === 0) return "Nessuna modifica pendente.";
                   return `${n} ${n === 1 ? "rata modificata" : "rate modificate"} — le uscite non ancora pagate verranno aggiornate.`;

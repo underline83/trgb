@@ -1727,11 +1727,16 @@ def add_piano_rate(
 ):
     """
     Aggiunge/aggiorna rate al piano. Accetta singola rata o lista.
-    Body: { rate: [{ numero_rata, periodo, importo, note? }] }
-    oppure: { numero_rata, periodo, importo, note? }
+    Body: { rate: [{ numero_rata, periodo, importo, scadenza?, note? }] }
+    oppure: { numero_rata, periodo, importo, scadenza?, note? }
 
-    Se sync_uscite = true (default), aggiorna anche l'importo (totale) delle
-    cg_uscite collegate per quel periodo, purché non siano già PAGATA / PAGATA_MANUALE / PARZIALE.
+    Se sync_uscite = true (default), aggiorna anche l'importo (totale) e
+    la data_scadenza delle cg_uscite collegate per quel periodo, purché
+    non siano già PAGATA / PAGATA_MANUALE / PARZIALE.
+
+    Modulo M.4 (2026-04-27): supporto cambio scadenza. Permette di
+    riprogrammare rate scadute spostandone la data. Se una rata era
+    SCADUTA e la nuova data è futura → torna a DA_PAGARE.
     """
     fc = get_fc_db()
     try:
@@ -1739,10 +1744,12 @@ def add_piano_rate(
         sync_uscite = bool(payload.get("sync_uscite", True))
         inserite = 0
         uscite_aggiornate = 0
+        scadenze_aggiornate = 0
         oggi_str = date.today().isoformat()
         for r in rate_input:
             periodo = r.get("periodo")
             importo = r.get("importo")
+            scadenza = r.get("scadenza")  # YYYY-MM-DD opzionale
             if not periodo or importo is None:
                 continue
             try:
@@ -1761,6 +1768,7 @@ def add_piano_rate(
 
             # Propaga sul tabellone uscite (solo righe non ancora pagate)
             if sync_uscite:
+                # Aggiorna importo
                 cur = fc.execute("""
                     UPDATE cg_uscite
                        SET totale = ?, updated_at = ?
@@ -1769,8 +1777,28 @@ def add_piano_rate(
                        AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
                 """, (float(importo), oggi_str, spesa_id, periodo))
                 uscite_aggiornate += cur.rowcount or 0
+
+                # Modulo M.4: se passata una nuova scadenza, aggiorna data_scadenza
+                # e ricalcola lo stato (SCADUTA/DA_PAGARE in base alla nuova data)
+                if scadenza:
+                    nuovo_stato = "SCADUTA" if scadenza < oggi_str else "DA_PAGARE"
+                    cur2 = fc.execute("""
+                        UPDATE cg_uscite
+                           SET data_scadenza = ?,
+                               stato = ?,
+                               updated_at = ?
+                         WHERE spesa_fissa_id = ?
+                           AND periodo_riferimento = ?
+                           AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                    """, (scadenza, nuovo_stato, oggi_str, spesa_id, periodo))
+                    scadenze_aggiornate += cur2.rowcount or 0
         fc.commit()
-        return {"ok": True, "inserite": inserite, "uscite_aggiornate": uscite_aggiornate}
+        return {
+            "ok": True,
+            "inserite": inserite,
+            "uscite_aggiornate": uscite_aggiornate,
+            "scadenze_aggiornate": scadenze_aggiornate,
+        }
     finally:
         fc.close()
 
