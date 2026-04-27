@@ -7,6 +7,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
+import StatoPagamentoBadge from "../../components/StatoPagamentoBadge";
 
 const FC = `${API_BASE}/fic`;
 
@@ -475,11 +476,7 @@ export default function FattureInCloud() {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-center">
-                          {f.pagato ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">Pagata</span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Da pagare</span>
-                          )}
+                          <StatoPagamentoBadge stato={f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare")} />
                         </td>
                       </tr>
                     ))

@@ -16,6 +16,7 @@ import FattureNav from "./FattureNav";
 import FattureDettaglio from "./FattureDettaglio";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
+import StatoPagamentoBadge from "../../components/StatoPagamentoBadge";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
@@ -1413,9 +1414,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
                         {f.n_righe > 0 ? <span className="text-teal-700 font-medium">{f.n_righe}</span> : <span className="text-neutral-300">—</span>}
                       </td>
                       <td className="px-3 py-2 text-center">
-                        {f.pagato
-                          ? <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-100 text-emerald-700">Pagata</span>
-                          : <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-red-50 text-red-600">Da pagare</span>}
+                        <StatoPagamentoBadge stato={f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare")} />
                       </td>
                       <td className="px-3 py-2 text-center">
                         <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
