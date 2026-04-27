@@ -137,14 +137,31 @@ export default function FattureElenco() {
   }, [fattureBase, fonteSel, tipoSel]);
 
   // ── Ordinamento ──
+  // Modulo M.2.1 (2026-04-27): ordinamento esteso a importi, fornitore, stato
+  // Ordine custom degli stati pagamento (per sort logico, non alfabetico)
+  const STATO_PAGAMENTO_ORDINE = {
+    da_pagare: 0,
+    da_verificare: 1,
+    pagato_manuale: 2,
+    pagato: 3,
+  };
+
   const fattureOrdinate = useMemo(() => {
     const list = [...fattureFiltrate];
     list.sort((a, b) => {
       let va = a[sortKey], vb = b[sortKey];
-      if (sortKey === "totale_fattura" || sortKey === "imponibile_totale") {
+      // Campi numerici
+      if (["totale_fattura", "imponibile_totale", "iva_totale"].includes(sortKey)) {
         va = va || 0; vb = vb || 0;
         return sortDir === "asc" ? va - vb : vb - va;
       }
+      // Stato pagamento: ordine logico custom, non alfabetico
+      if (sortKey === "stato_pagamento") {
+        const ka = STATO_PAGAMENTO_ORDINE[va] ?? 99;
+        const kb = STATO_PAGAMENTO_ORDINE[vb] ?? 99;
+        return sortDir === "asc" ? ka - kb : kb - ka;
+      }
+      // Default: stringa
       va = String(va || ""); vb = String(vb || "");
       return sortDir === "asc" ? va.localeCompare(vb, "it") : vb.localeCompare(va, "it");
     });
@@ -526,12 +543,16 @@ export default function FattureElenco() {
                     <th className="px-3 py-2 text-right cursor-pointer hover:text-teal-700" onClick={() => toggleSort("imponibile_totale")}>
                       Netto{sortIcon("imponibile_totale")}
                     </th>
-                    <th className="px-3 py-2 text-right hidden xl:table-cell">IVA</th>
+                    <th className="px-3 py-2 text-right hidden xl:table-cell cursor-pointer hover:text-teal-700" onClick={() => toggleSort("iva_totale")}>
+                      IVA{sortIcon("iva_totale")}
+                    </th>
                     <th className="px-3 py-2 text-right cursor-pointer hover:text-teal-700" onClick={() => toggleSort("totale_fattura")}>
                       Totale{sortIcon("totale_fattura")}
                     </th>
                     <th className="px-3 py-2 text-center hidden xl:table-cell">Righe</th>
-                    <th className="px-3 py-2 text-center">Stato</th>
+                    <th className="px-3 py-2 text-center cursor-pointer hover:text-teal-700" onClick={() => toggleSort("stato_pagamento")}>
+                      Stato{sortIcon("stato_pagamento")}
+                    </th>
                     <th className="px-3 py-2 text-center hidden xl:table-cell">Fonte</th>
                   </tr>
                 </thead>

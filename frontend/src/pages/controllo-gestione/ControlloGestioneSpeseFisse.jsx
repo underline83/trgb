@@ -1141,13 +1141,24 @@ export default function ControlloGestioneSpeseFisse() {
                       // L'ultima rata assorbe gli arrotondamenti
                       const rateArr = [];
                       const d = new Date(wizData.data_inizio + "T00:00:00");
+                      // Fix 2026-04-27: il campo "giorno_pagamento" NON era usato per le rate generate.
+                      // Ora se valorizzato, lo applichiamo dalla 2ª rata in poi (la 1ª mantiene la data
+                      // esplicita scelta dall'utente in "Data prima rata"). Gestione mese corto: clamp
+                      // al max giorno disponibile (es. giorno=31 in feb → 28/29).
+                      const giornoPag = wizData.giorno_scadenza ? parseInt(wizData.giorno_scadenza) : null;
                       let sommaParziale = 0;
                       for (let i = 0; i < nRate; i++) {
                         const isLast = i === nRate - 1;
                         const importoRata = isLast ? Math.round((totale - sommaParziale) * 100) / 100 : rataBase;
                         sommaParziale += importoRata;
-                        const dd = new Date(d);
+                        let dd = new Date(d);
                         dd.setMonth(d.getMonth() + i);
+                        // Applica giorno_pagamento dalla 2ª rata (i>=1) se richiesto
+                        if (i >= 1 && giornoPag && giornoPag >= 1 && giornoPag <= 31) {
+                          // Ultimo giorno valido del mese target
+                          const lastOfMonth = new Date(dd.getFullYear(), dd.getMonth() + 1, 0).getDate();
+                          dd.setDate(Math.min(giornoPag, lastOfMonth));
+                        }
                         const yyyy = dd.getFullYear();
                         const mm = String(dd.getMonth() + 1).padStart(2, "0");
                         const gg = String(dd.getDate()).padStart(2, "0");
@@ -1182,6 +1193,15 @@ export default function ControlloGestioneSpeseFisse() {
                 setWizData({ ...wizData, rate_tabella: nuove });
               };
 
+              // Modifica data/scadenza (Modulo M.3-pre, 2026-04-27)
+              const updateRataData = (idx, dataIso) => {
+                if (!dataIso) return;
+                const nuove = [...rate];
+                const periodo = dataIso.slice(0, 7); // YYYY-MM
+                nuove[idx] = { ...nuove[idx], data: dataIso, periodo };
+                setWizData({ ...wizData, rate_tabella: nuove });
+              };
+
               // Ricalcola: distribuisce equamente il residuo
               const ricalcola = () => {
                 const n = rate.length;
@@ -1197,7 +1217,7 @@ export default function ControlloGestioneSpeseFisse() {
                 <>
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-xs text-neutral-500">Modifica gli importi delle singole rate. Il totale deve corrispondere.</p>
+                      <p className="text-xs text-neutral-500">Modifica importi e date delle singole rate. Il totale deve corrispondere.</p>
                     </div>
                     <button onClick={ricalcola}
                       className="px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200">
@@ -1235,7 +1255,12 @@ export default function ControlloGestioneSpeseFisse() {
                         {rate.map((r, i) => (
                           <tr key={i} className="border-t border-neutral-100 hover:bg-violet-50/30">
                             <td className="px-3 py-1.5 text-neutral-400 font-mono">{r.numero}</td>
-                            <td className="px-3 py-1.5 text-neutral-700">{r.data}</td>
+                            <td className="px-3 py-1.5 text-neutral-700">
+                              <input type="date"
+                                value={r.data} onChange={e => updateRataData(i, e.target.value)}
+                                className="px-2 py-1 rounded border border-neutral-200 focus:border-violet-400 focus:ring-1 focus:ring-violet-200 text-xs tabular-nums"
+                              />
+                            </td>
                             <td className="px-3 py-1.5 text-right">
                               <input type="number" step="0.01"
                                 value={r.importo} onChange={e => updateRata(i, e.target.value)}
