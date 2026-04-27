@@ -36,6 +36,7 @@
     "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"],
     "sub": [
       { "key": "cucina_dashboard", "label": "Dashboard Cucina", "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
+      { "key": "spesa",       "label": "Lista Spesa",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
       { "key": "archivio",    "label": "Archivio",     "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
       { "key": "ingredienti", "label": "Ingredienti",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
       { "key": "matching",    "label": "Matching",     "roles": ["superadmin", "admin"] },

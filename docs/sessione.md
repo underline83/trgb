@@ -1,7 +1,89 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. — Modulo I: Loop HACCP report mensile aggregato + endpoint /haccp/report + pagina /tasks/haccp)
+**Ultimo aggiornamento:** 2026-04-27 (sessione 59 cont. c — Modulo J Fase 1 MVP: Lista della Spesa Cucina con CRUD + filtri + raggruppamento per fornitore)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
+
+---
+
+## SESSIONE 59 cont. c (2026-04-27) — MODULO J: LISTA SPESA CUCINA (Fase 1 MVP)
+
+### Background
+Marco "prosegui" → modulo J. Roadmap già definiva 4.8 (Fase 1 MVP testuale) +
+4.9-4.13 (Fase 2 link ingredienti/scorte/auto-da-menu). Le scorte ingredienti
+oggi NON esistono in DB (ingredients ha solo anagrafica), quindi
+l'auto-generazione "scorte basse + ricette pianificate − giacenze" della
+spec iniziale richiederebbe prima un sotto-modulo giacenze. Decisione:
+chiudo ora la Fase 1 MVP testuale (utile da subito), Fase 2 a iterazione
+successiva.
+
+### Decisioni
+- DB: nuova tabella `lista_spesa_items` su `foodcost.db` (mig 105) con
+  campi essenziali: titolo, quantita_libera (testo), urgente, fatto,
+  fornitore_freeform (testo), ingredient_id NULLABLE FK (per Fase 2 4.9),
+  note, metadata utenti.
+- Router: nuovo `/lista-spesa/items/` con CRUD + filtri + bulk-delete
+  completati. Ordinamento smart: non-fatti prima, urgenti in alto,
+  recent first.
+- Frontend: pagina sotto Gestione Cucina `/cucina/spesa`. Stile Home v3
+  originale potenziato (palette orange cucina, font-playfair, RicetteNav).
+  Form quick-add in alto, KPI 4-tile, filtri stato/urgenti/fornitore,
+  raggruppamento per fornitore, modale edit, touch target 44pt.
+
+### File toccati
+**Backend:**
+- `app/migrations/105_lista_spesa.py` (NUOVO) — CREATE TABLE IF NOT EXISTS
+  `lista_spesa_items` + 3 indici. Idempotente.
+- `app/routers/lista_spesa_router.py` (NUOVO) — `GET /lista-spesa/items/`
+  (con filtri + KPI), `POST`, `PUT /{id}` (toggle fatto + completato_at/da
+  automatici, edit fields), `DELETE /{id}`, `DELETE /` (bulk svuota
+  completati). Schemi pydantic ListaSpesaItemIn/Update.
+- `main.py` — import + `app.include_router(lista_spesa_router)`.
+
+**Frontend:**
+- `frontend/src/pages/cucina/ListaSpesa.jsx` (NUOVO) v1.0 — pagina con
+  RicetteNav current="spesa" + 4 KPI tile (totale, da fare, urgenti aperti,
+  completati) + form quick-add (titolo + quantità + fornitore + urgente) +
+  filtri (segmented stato + toggle urgenti + cerca fornitore + svuota
+  completati) + lista raggruppata per fornitore + modale edit. Checkbox
+  toggle 7×7 con stato visivo distinto. Tutto touch-friendly (44pt).
+- `frontend/src/pages/ricette/RicetteNav.jsx` — voce "🛒 Spesa" tra
+  "Ingredienti" e "Selezioni".
+- `frontend/src/App.jsx` — lazy import + Route `/cucina/spesa` con
+  `ProtectedRoute module="ricette" sub="spesa"`.
+- `frontend/src/config/modulesMenu.js` — voce "Lista Spesa" sotto
+  Gestione Cucina.
+- `frontend/src/config/versions.jsx` — nuovo `listaSpesa: 1.0 alpha`.
+- `app/data/modules.json` — sub `spesa` (admin/chef/sous_chef/commis).
+
+### Verifica fatta
+- py_compile mig+router+main OK.
+- Dry-run mig 105 su copia foodcost.db: tabella creata, idempotente.
+- esbuild ListaSpesa.jsx + App.jsx OK.
+
+### Backlog Modulo J (iterazioni successive)
+- J.4 — Fase 2 link ingrediente + storico prezzi (4.9): typeahead su
+  ingredients, click item → modal storico prezzi + ultimo fornitore.
+- J.5 — Fase 2 vista per fornitore + WhatsApp veloce (4.10): bottone WA
+  che genera messaggio "ciao FORNITORE, ci servirebbe X..." via M.C composer.
+- J.6 — Fase 2 generazione automatica da menu pranzo (4.11): "Genera
+  spesa per W18" legge ricette del menu, somma yield ingredienti, append
+  alla lista. Bottone in compositore Pranzo.
+- J.7 — Template ricorrenti (4.12): usa skill schedule, genera lista
+  settimanale.
+- J.8 — Workflow ordinato/in_arrivo/ricevuto (4.13): matching XML fatture.
+
+### Da verificare dopo push
+1. Migrazione 105 deve girare al boot del VPS — log `[105] lista_spesa_items: tabella pronta`.
+2. Login → Gestione Cucina → nuova entry "🛒 Spesa" nella RicetteNav top.
+3. `/cucina/spesa`: form quick-add, aggiungi 3-4 voci di test, marca una
+   urgente, una fatta. KPI in alto si aggiornano.
+4. Filtro "Da fare/Fatti/Tutti" funziona; toggle "Solo urgenti" filtra.
+5. Cambio fornitore → raggruppamento dinamico per fornitore.
+6. Click su voce → modale edit con tutti i campi modificabili.
+7. "Svuota completati" elimina solo le voci con fatto=1.
+
+### Suggested commit
+`./push.sh "Modulo J (Fase 1 MVP) — Lista Spesa Cucina: mig 105 + /lista-spesa/items + pagina /cucina/spesa con CRUD, filtri, raggruppamento fornitore, urgenti"`
 
 ---
 

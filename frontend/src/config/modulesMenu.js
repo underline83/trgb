@@ -46,6 +46,7 @@ const MODULES_MENU = {
     color: "bg-orange-50 border-orange-200 text-orange-900", hoverBg: "hover:bg-orange-50",
     sub: [
       { label: "Dashboard Cucina", go: "/cucina/dashboard" },
+      { label: "Lista Spesa",   go: "/cucina/spesa" },
       { label: "Archivio",      go: "/ricette/archivio" },
       { label: "Ingredienti",   go: "/ricette/ingredienti" },
       { label: "Matching",      go: "/ricette/matching",   check: "admin" },

@@ -3,6 +3,61 @@
 
 ---
 
+## 2026-04-27 (sessione 59 cont. c) — Modulo J (Fase 1 MVP): Lista Spesa Cucina
+
+### Background
+Roadmap aveva 4.8-4.13 definito. La spec iniziale del chef (auto-generazione
+da scorte basse + ricette pianificate − giacenze) richiede un sotto-modulo
+giacenze inesistente: rimandato a Fase 2 con altre intelligenze. Questa
+iter chiude la Fase 1 MVP testuale: lista checkbox utile da subito.
+
+### Backend
+- **Migration 105** `app/migrations/105_lista_spesa.py` — `CREATE TABLE
+  IF NOT EXISTS lista_spesa_items` (titolo, quantita_libera testo, urgente,
+  fatto, fornitore_freeform testo, ingredient_id NULL FK per Fase 2,
+  note, metadata utenti) + 3 indici. Idempotente.
+- **Nuovo router** `app/routers/lista_spesa_router.py` (prefix `/lista-spesa`)
+  con `GET /items/?stato=&solo_urgenti=&fornitore=` (con KPI), `POST /items/`,
+  `PUT /items/{id}` (toggle fatto auto-popola completato_at/da), `DELETE
+  /items/{id}`, `DELETE /items/` (svuota completati). Schema Pydantic per
+  validazione input.
+- `main.py` — `app.include_router(lista_spesa_router)`.
+
+### Frontend
+- **Nuova pagina** `frontend/src/pages/cucina/ListaSpesa.jsx` v1.0.
+  Header playfair orange + 4 KPI tile (totale/da_fare/urgenti/fatti) + form
+  quick-add (titolo + qta + fornitore + urgente) + filtri (segmented stato +
+  toggle urgenti + cerca fornitore + svuota completati) + lista raggruppata
+  per fornitore + modale edit. Touch target 44pt, palette orange cucina,
+  font-playfair sui titoli, brand-cream bg. Pattern Home v3 originale potenziato.
+- `RicetteNav.jsx` — voce "🛒 Spesa" tra Ingredienti e Selezioni.
+- `App.jsx` — lazy import + Route `/cucina/spesa` con `ProtectedRoute
+  module="ricette" sub="spesa"`.
+- `modulesMenu.js` — voce "Lista Spesa" sotto Gestione Cucina.
+- `versions.jsx` — nuovo `listaSpesa: 1.0 alpha`.
+- `app/data/modules.json` — sub `spesa` (admin/chef/sous_chef/commis).
+
+### Backlog rimandato (roadmap 4.9-4.13)
+- 4.9 link ingrediente + storico prezzi
+- 4.10 vista per fornitore + WhatsApp via M.C composer
+- 4.11 generazione automatica da menu pranzo (W18)
+- 4.12 template ricorrenti
+- 4.13 workflow ordinato/in_arrivo/ricevuto + matching XML fatture
+
+### File toccati
+- `app/migrations/105_lista_spesa.py` (NUOVO)
+- `app/routers/lista_spesa_router.py` (NUOVO)
+- `main.py`
+- `frontend/src/pages/cucina/ListaSpesa.jsx` (NUOVO)
+- `frontend/src/pages/ricette/RicetteNav.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/config/modulesMenu.js`
+- `frontend/src/config/versions.jsx`
+- `app/data/modules.json`
+- `docs/sessione.md`, `docs/changelog.md`
+
+---
+
 ## 2026-04-27 (sessione 59 cont. b) — Modulo I (iter 1): Loop HACCP report mensile
 
 ### Background

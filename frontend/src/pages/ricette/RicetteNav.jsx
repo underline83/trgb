@@ -8,6 +8,7 @@ const TABS = [
   { key: "cucina-dashboard", label: "Cucina", path: "/cucina/dashboard", icon: "🍳" },
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
+  { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },
   { key: "selezioni", label: "Selezioni", path: "/selezioni/macellaio", icon: "🍽️" },
   { key: "menu-carta", label: "Menu Carta", path: "/menu-carta", icon: "📜" },
   { key: "pranzo", label: "Pranzo", path: "/pranzo", icon: "🥙" },

@@ -112,6 +112,9 @@ from app.routers.tasks_router import router as tasks_router
 # HACCP — reportistica mensile (Modulo I sessione 59 cont., 2026-04-27)
 from app.routers.haccp_router import router as haccp_router
 
+# LISTA SPESA CUCINA — Fase 1 MVP (Modulo J sessione 59 cont. c, 2026-04-27)
+from app.routers.lista_spesa_router import router as lista_spesa_router
+
 # CARTA BEVANDE — sub-modulo del modulo Vini (Aperitivi, Birre, Distillati, Tisane, Tè, Amari)
 from app.routers.bevande_router import router as bevande_router
 
@@ -343,6 +346,9 @@ app.include_router(tasks_router)
 
 # HACCP — reportistica mensile read-only su tasks.sqlite3 (Modulo I)
 app.include_router(haccp_router)
+
+# LISTA SPESA CUCINA — Fase 1 MVP testuale (Modulo J)
+app.include_router(lista_spesa_router)
 
 # CARTA BEVANDE — sub-modulo Vini per sezioni statiche (Aperitivi, Birre, Distillati, …)
 # (usa DB dedicato app/data/bevande.sqlite3, inizializzato dalla migration 089)

@@ -20,6 +20,12 @@ const MODULE_VERSIONS = {
     status: "alpha",
     color: "orange",
   },
+  listaSpesa: {
+    version: "1.0",
+    label: "Lista Spesa Cucina",
+    status: "alpha",
+    color: "orange",
+  },
   pranzo: {
     version: "1.5",
     label: "Menu Pranzo del Giorno",
