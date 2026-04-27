@@ -11,6 +11,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import { Btn, StatusBadge } from "../../components/ui";
@@ -68,6 +69,31 @@ export default function RicetteDettaglio() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("composizione");
   const [recalcLoading, setRecalcLoading] = useState(false);
+  // F.2: storico FC
+  const [storico, setStorico] = useState(null);
+  const [storicoLoading, setStoricoLoading] = useState(false);
+  const [storicoFinestra, setStoricoFinestra] = useState(180); // giorni
+
+  const loadStorico = async (giorni = storicoFinestra) => {
+    if (!ricetta) return;
+    setStoricoLoading(true);
+    try {
+      const r = await apiFetch(`${FC}/ricette/${ricetta.id}/storico-fc?giorni=${giorni}&intervallo=mese`);
+      if (r.ok) setStorico(await r.json());
+      else setStorico(null);
+    } catch {
+      setStorico(null);
+    } finally {
+      setStoricoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "storico" && ricetta && !storico) {
+      loadStorico();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, ricetta]);
 
   const load = async () => {
     setLoading(true);
@@ -249,7 +275,16 @@ export default function RicetteDettaglio() {
           )}
           {activeTab === "servizi" && <ServiziTab r={r} />}
           {activeTab === "note" && <NoteTab r={r} />}
-          {activeTab === "storico" && <StoricoTab r={r} />}
+          {activeTab === "storico" && (
+            <StoricoTab
+              r={r}
+              storico={storico}
+              storicoLoading={storicoLoading}
+              storicoFinestra={storicoFinestra}
+              setStoricoFinestra={setStoricoFinestra}
+              onReload={loadStorico}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -470,40 +505,172 @@ function NoteTab({ r }) {
 }
 
 // ─────────────────────────────────────────
-// TAB: Storico (audit + metadati)
+// TAB: Storico (grafico FC + audit metadati)
 // ─────────────────────────────────────────
-function StoricoTab({ r }) {
+function StoricoTab({ r, storico, storicoLoading, storicoFinestra, setStoricoFinestra, onReload }) {
+  const datiGrafico = (storico?.snapshots || []).map((s) => ({
+    label: s.label,
+    fc: s.food_cost_pct,
+    cost: s.cost_per_unit,
+    completezza: s.completezza_pct,
+  }));
+  const haDati = datiGrafico.some((d) => d.fc != null);
+  const delta30 = storico?.delta_30gg;
+  const delta90 = storico?.delta_90gg;
+
+  const finestreLabel = { 90: "3 mesi", 180: "6 mesi", 365: "1 anno" };
+
   return (
-    <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-      <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-4">
-        Audit & metadati
-      </h2>
-      <dl className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4 text-sm">
-        <div>
-          <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">ID interno</dt>
-          <dd className="text-neutral-800 font-mono text-xs mt-0.5">R{String(r.id).padStart(3, "0")}</dd>
+    <div className="space-y-4">
+      {/* GRAFICO STORICO FOOD COST (Modulo F.2) */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-5">
+        <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700">
+              📈 Storico Food Cost
+            </h2>
+            <p className="text-[11px] text-neutral-600">
+              FC% ricostruito retroattivamente dai prezzi storici degli ingredienti.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={storicoFinestra}
+              onChange={(e) => {
+                const v = parseInt(e.target.value);
+                setStoricoFinestra(v);
+                onReload(v);
+              }}
+              className="border border-neutral-300 rounded-lg px-2 py-1 text-xs bg-white"
+            >
+              {Object.entries(finestreLabel).map(([k, l]) => (
+                <option key={k} value={k}>{l}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => onReload()}
+              className="text-xs text-orange-700 hover:text-orange-900 underline"
+            >
+              ↻
+            </button>
+          </div>
         </div>
-        <div>
-          <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Tipo</dt>
-          <dd className="text-neutral-800 mt-0.5">{r.kind || (r.is_base ? "base" : "dish")}</dd>
-        </div>
-        <div>
-          <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Stato</dt>
-          <dd className="text-neutral-800 mt-0.5">{r.is_active ? "Attiva" : "Disattivata"}</dd>
-        </div>
-        <div>
-          <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Categoria</dt>
-          <dd className="text-neutral-800 mt-0.5">{r.category_name || "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Creata il</dt>
-          <dd className="text-neutral-800 font-mono text-xs mt-0.5">{r.created_at || "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Ultimo aggiornamento</dt>
-          <dd className="text-neutral-800 font-mono text-xs mt-0.5">{r.updated_at || "—"}</dd>
-        </div>
-      </dl>
+
+        {/* Delta KPI */}
+        {(delta30 || delta90) && (
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {delta30 && <DeltaKpi label="Δ 30 giorni" delta={delta30} />}
+            {delta90 && <DeltaKpi label="Δ 90 giorni" delta={delta90} />}
+          </div>
+        )}
+
+        {/* Grafico Recharts */}
+        {storicoLoading ? (
+          <div className="h-64 flex items-center justify-center text-sm text-neutral-500">
+            Calcolo storico FC…
+          </div>
+        ) : !haDati ? (
+          <div className="h-64 flex flex-col items-center justify-center text-sm text-neutral-500 border border-dashed border-neutral-300 rounded-lg">
+            <p className="mb-1">📊 Storico non disponibile</p>
+            <p className="text-xs text-neutral-400 max-w-md text-center">
+              Per ricostruire lo storico FC serve almeno un prezzo per ogni ingrediente nella finestra temporale.
+              I prezzi si popolano automaticamente dal matching delle fatture XML.
+            </p>
+          </div>
+        ) : (
+          <div style={{ width: "100%", height: 280 }}>
+            <ResponsiveContainer>
+              <LineChart data={datiGrafico} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  label={{ value: "FC %", angle: -90, position: "insideLeft", fontSize: 11 }}
+                />
+                <RechartsTooltip
+                  formatter={(value, name) => {
+                    if (name === "fc") return [value != null ? `${value.toFixed(1)}%` : "n/d", "Food Cost"];
+                    if (name === "cost") return [value != null ? `${value.toFixed(2)} €` : "n/d", "Costo unit."];
+                    return [value, name];
+                  }}
+                />
+                <ReferenceLine y={30} stroke="#10b981" strokeDasharray="4 4" label={{ value: "30%", fontSize: 10, fill: "#10b981" }} />
+                <ReferenceLine y={45} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "45%", fontSize: 10, fill: "#ef4444" }} />
+                <Line
+                  type="monotone"
+                  dataKey="fc"
+                  stroke="#2E7BE8"
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: "#2E7BE8" }}
+                  activeDot={{ r: 6 }}
+                  connectNulls={false}
+                  name="fc"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {haDati && (
+          <p className="text-[10px] text-neutral-400 mt-2">
+            Linea verde: soglia FC buono (30%). Linea rossa: soglia critica (45%).
+            Punti mancanti = ingredienti senza prezzo nel periodo.
+          </p>
+        )}
+      </div>
+
+      {/* AUDIT & METADATI */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-5">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-4">
+          Audit & metadati
+        </h2>
+        <dl className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4 text-sm">
+          <div>
+            <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">ID interno</dt>
+            <dd className="text-neutral-800 font-mono text-xs mt-0.5">R{String(r.id).padStart(3, "0")}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Tipo</dt>
+            <dd className="text-neutral-800 mt-0.5">{r.kind || (r.is_base ? "base" : "dish")}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Stato</dt>
+            <dd className="text-neutral-800 mt-0.5">{r.is_active ? "Attiva" : "Disattivata"}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Categoria</dt>
+            <dd className="text-neutral-800 mt-0.5">{r.category_name || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Creata il</dt>
+            <dd className="text-neutral-800 font-mono text-xs mt-0.5">{r.created_at || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-neutral-500 uppercase tracking-wide">Ultimo aggiornamento</dt>
+            <dd className="text-neutral-800 font-mono text-xs mt-0.5">{r.updated_at || "—"}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+function DeltaKpi({ label, delta }) {
+  const positivo = delta.delta_pct > 0;
+  const alert = delta.alert;
+  const bg = alert ? "bg-red-50 border-red-300" : positivo ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200";
+  const txt = alert ? "text-red-800" : positivo ? "text-amber-800" : "text-green-800";
+  const arrow = positivo ? "↑" : delta.delta_pct < 0 ? "↓" : "→";
+  return (
+    <div className={`border rounded-lg px-3 py-2 ${bg}`}>
+      <div className="text-[10px] text-neutral-500 uppercase tracking-wide">{label}</div>
+      <div className={`text-base font-bold ${txt}`}>
+        {arrow} {Math.abs(delta.delta_pct).toFixed(1)}%
+        {alert && <span className="text-[10px] ml-2 font-normal">⚠ Alert</span>}
+      </div>
+      <div className="text-[10px] text-neutral-500">
+        {delta.prima.toFixed(1)}% → {delta.dopo.toFixed(1)}%
+      </div>
     </div>
   );
 }

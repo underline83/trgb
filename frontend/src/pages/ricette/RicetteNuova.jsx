@@ -22,6 +22,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
+import IngredientPicker, { QuickCreateIngrediente } from "./IngredientPicker";
 
 const FC = `${API_BASE}/foodcost`;
 const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
@@ -61,10 +62,15 @@ function Field({ label, hint, required, children, span = 1 }) {
 const inputCls =
   "w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500";
 
+// IngredientPicker e QuickCreateIngrediente: estratti in ./IngredientPicker.jsx
+// (Modulo F+, 2026-04-27 — condivisi con RicetteModifica)
+
 // ─────────────────────────────────────────────────────────────
-// IngredientPicker — typeahead con quick-create
+// (placeholder per evitare di disturbare lo scope dei numeri di riga
+//  delle altre funzioni — il codice sotto e' UNUSED legacy ma syntatticamente
+//  corretto; sara' droppato in un cleanup successivo)
 // ─────────────────────────────────────────────────────────────
-function IngredientPicker({ ingredienti, value, onChange, onCreateRequest }) {
+function _LegacyIngredientPicker({ ingredienti, value, onChange, onCreateRequest }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const wrapRef = useRef(null);
@@ -181,9 +187,9 @@ function IngredientPicker({ ingredienti, value, onChange, onCreateRequest }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// QuickCreateIngrediente — mini-dialog inline
+// _LegacyQuickCreateIngrediente — UNUSED, vedi import IngredientPicker.jsx
 // ─────────────────────────────────────────────────────────────
-function QuickCreateIngrediente({ defaultName, categorie, onCancel, onCreated }) {
+function _LegacyQuickCreateIngrediente({ defaultName, categorie, onCancel, onCreated }) {
   const [name, setName] = useState(defaultName || "");
   const [defaultUnit, setDefaultUnit] = useState("g");
   const [categoryId, setCategoryId] = useState("");

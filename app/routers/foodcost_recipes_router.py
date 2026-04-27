@@ -36,6 +36,7 @@ from app.services.allergeni_service import (
     update_recipe_allergens_cache,
     recompute_all_recipes_allergens,
 )
+from app.services.foodcost_history_service import compute_recipe_fc_history
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -1373,6 +1374,28 @@ def ricalcola_allergeni_tutti(user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Operazione riservata ad admin/chef")
     stats = recompute_all_recipes_allergens()
     return AllergeniBatchOut(**stats)
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: STORICO FC RICETTA (Modulo F.2, 2026-04-27)
+# ─────────────────────────────────────────────
+
+@router.get("/ricette/{recipe_id}/storico-fc")
+def get_storico_fc(
+    recipe_id: int,
+    giorni: int = 180,
+    intervallo: str = "mese",
+):
+    """
+    Ricostruisce storico Food Cost ricetta su finestra temporale (default 180gg/6 mesi).
+    Per ogni snapshot mensile (o settimanale): costo, FC%, % ingredienti con prezzo.
+    Include delta 30gg e 90gg con flag alert se variazione assoluta >= 20%.
+    """
+    if intervallo not in ("mese", "settimana"):
+        raise HTTPException(400, "intervallo deve essere 'mese' o 'settimana'")
+    if giorni < 7 or giorni > 730:
+        raise HTTPException(400, "giorni deve essere tra 7 e 730")
+    return compute_recipe_fc_history(recipe_id, giorni, intervallo)
 
 
 # ─────────────────────────────────────────────

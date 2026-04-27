@@ -1,12 +1,14 @@
-// @version: v2.1-mattoni — M.I primitives (Btn) su azioni + toolbar items
+// @version: v2.2-picker — IngredientPicker typeahead + quick-create (Modulo F+, 2026-04-27)
 // Modifica Ricetta — carica dati esistenti e salva con PUT
 // Supporta ingredienti + sub-ricette come RicetteNuova
+// v2.2: select gigante ingredienti sostituita con IngredientPicker condiviso.
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import { Btn } from "../../components/ui";
+import IngredientPicker, { QuickCreateIngrediente } from "./IngredientPicker";
 
 const FC = `${API_BASE}/foodcost`;
 const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
@@ -16,12 +18,15 @@ export default function RicetteModifica() {
   const navigate = useNavigate();
 
   const [ingredienti, setIngredienti] = useState([]);
+  const [ingCategorie, setIngCategorie] = useState([]);  // categorie ingredienti per QuickCreate
   const [basi, setBasi] = useState([]);
   const [categorie, setCategorie] = useState([]);
   const [serviceTypes, setServiceTypes] = useState([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingInit, setLoadingInit] = useState(true);
+  // Quick-create: { rowIdx, defaultName } | null
+  const [quickCreate, setQuickCreate] = useState(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -42,18 +47,20 @@ export default function RicetteModifica() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [rIng, rBasi, rCat, rSt, rRicetta] = await Promise.all([
+        const [rIng, rBasi, rCat, rSt, rRicetta, rIngCat] = await Promise.all([
           apiFetch(`${FC}/ingredients/`),
           apiFetch(`${FC}/ricette/basi`),
           apiFetch(`${FC}/ricette/categorie`),
           apiFetch(`${FC}/service-types`),
           apiFetch(`${FC}/ricette/${id}`),
+          apiFetch(`${FC}/categories`),  // categorie ingredienti per QuickCreate
         ]);
 
         if (rIng.ok) setIngredienti(await rIng.json());
         if (rBasi.ok) setBasi(await rBasi.json());
         if (rCat.ok) setCategorie(await rCat.json());
         if (rSt.ok) setServiceTypes(await rSt.json());
+        if (rIngCat.ok) setIngCategorie(await rIngCat.json());
 
         if (!rRicetta.ok) throw new Error("Ricetta non trovata");
         const r = await rRicetta.json();
@@ -352,13 +359,18 @@ export default function RicetteModifica() {
 
                   <div className="flex-1 min-w-[200px]">
                     {row.tipo === "ingrediente" ? (
-                      <select value={row.ingredient_id} onChange={(e) => updateItem(idx, "ingredient_id", e.target.value)}
-                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-orange-500">
-                        <option value="">— Seleziona —</option>
-                        {ingredienti.map((ing) => (
-                          <option key={ing.id} value={ing.id}>{ing.name} ({ing.default_unit})</option>
-                        ))}
-                      </select>
+                      <IngredientPicker
+                        ingredienti={ingredienti}
+                        value={row.ingredient_id}
+                        onChange={(ingId, defaultUnit) => {
+                          updateItem(idx, "ingredient_id", String(ingId));
+                          // Se la riga non ha ancora unità custom, propaga quella default
+                          if (!row.unit || row.unit === "g") {
+                            updateItem(idx, "unit", defaultUnit || "g");
+                          }
+                        }}
+                        onCreateRequest={(name) => setQuickCreate({ rowIdx: idx, defaultName: name })}
+                      />
                     ) : (
                       <select value={row.sub_recipe_id} onChange={(e) => updateItem(idx, "sub_recipe_id", e.target.value)}
                         className="w-full border border-blue-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -408,6 +420,31 @@ export default function RicetteModifica() {
 
         </form>
       </div>
+
+      {/* QuickCreate modal (Modulo F+) */}
+      {quickCreate && (
+        <QuickCreateIngrediente
+          defaultName={quickCreate.defaultName}
+          categorie={ingCategorie}
+          onCancel={() => setQuickCreate(null)}
+          onCreated={(created) => {
+            setIngredienti((prev) => [...prev, created]);
+            // Aggancia immediatamente l'ingrediente appena creato alla riga richiedente
+            const idx = quickCreate.rowIdx;
+            if (idx != null) {
+              setForm((prev) => ({
+                ...prev,
+                items: prev.items.map((row, i) =>
+                  i === idx
+                    ? { ...row, ingredient_id: String(created.id), unit: row.unit || created.default_unit || "g" }
+                    : row
+                ),
+              }));
+            }
+            setQuickCreate(null);
+          }}
+        />
+      )}
     </div>
   );
 }
