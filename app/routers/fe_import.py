@@ -1061,7 +1061,7 @@ def segna_fatture_non_pagate(
             conn.close()
             return {"ok": False, "error": "Nessuna fattura selezionata"}
 
-        oggi = datetime.now().strftime("%Y-%m-%d")
+        oggi = datetime.datetime.now().strftime("%Y-%m-%d")
 
         n_aggiornate_fe = 0
         n_aggiornate_cg = 0
