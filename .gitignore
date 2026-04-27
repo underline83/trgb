@@ -118,6 +118,10 @@ static/carta_vini.pdf
 static/carta_vini.docx
 static/carta_vini_staff.pdf
 
+# Foto piatti Menu Carta caricate dall'utente (Modulo D, 2026-04-27)
+# Vivono solo sul VPS, scaricate al pull non servono in repo
+static/menu_carta/
+
 # =====================
 #  LEGACY / JUNK — NON VERSIONARE
 # =====================

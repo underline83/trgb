@@ -1,5 +1,5 @@
 // frontend/src/pages/cucina/MenuCartaDettaglio.jsx
-// @version: v1.1-mattoni — RicetteNav + palette orange + Btn M.I (Modulo A, 2026-04-26)
+// @version: v1.2-foto — upload foto piatto + thumbnail in lista (Modulo D, 2026-04-27)
 //
 // Dettaglio di un'edizione: testa fissa colorata + tab.
 // Tab: Sezioni (lista piatti raggruppata) | Degustazioni | Anteprima | Anagrafica
@@ -221,8 +221,18 @@ function PublicationRow({ pub, onEdit }) {
     || "—";
 
   return (
-    <div className="px-4 py-3 hover:bg-neutral-50 cursor-pointer flex items-start justify-between gap-3"
+    <div className="px-4 py-3 hover:bg-neutral-50 cursor-pointer flex items-start gap-3"
          onClick={onEdit}>
+      {/* Modulo D: thumbnail foto se presente */}
+      {pub.foto_path && (
+        <img
+          src={pub.foto_path}
+          alt={titolo}
+          className="w-14 h-14 object-cover rounded border border-neutral-200 flex-shrink-0"
+          loading="lazy"
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+        />
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="font-medium text-brand-ink truncate">{titolo}</h3>
@@ -440,10 +450,55 @@ function PublicationModal({ pub, onClose, onSaved }) {
     allergeni_dichiarati: pub.allergeni_dichiarati || "",
   });
   const [busy, setBusy] = useState(false);
+  // Modulo D: foto piatto
+  const [fotoPath, setFotoPath] = useState(pub.foto_path || null);
+  const [fotoUploading, setFotoUploading] = useState(false);
+  const [fotoCacheBust, setFotoCacheBust] = useState(Date.now()); // forza reload preview dopo upload
 
   const titolo = pub.titolo_override || pub.recipe_menu_name || "(senza titolo)";
 
   const numOrNull = (v) => (v === "" || v == null ? null : Number(v));
+
+  const handleUploadFoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { alert("File troppo grande (max 10MB)"); return; }
+    setFotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = localStorage.getItem("token");
+      const r = await fetch(`${API_BASE}/menu-carta/publications/${pub.id}/foto`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      setFotoPath(data.foto_path);
+      setFotoCacheBust(Date.now());
+    } catch (err) {
+      alert(`Upload foto fallito: ${err.message}`);
+    } finally {
+      setFotoUploading(false);
+      e.target.value = ""; // reset input
+    }
+  };
+
+  const handleDeleteFoto = async () => {
+    if (!fotoPath) return;
+    if (!confirm("Rimuovere la foto del piatto?")) return;
+    setFotoUploading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/menu-carta/publications/${pub.id}/foto`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text());
+      setFotoPath(null);
+    } catch (err) {
+      alert(`Rimozione foto fallita: ${err.message}`);
+    } finally {
+      setFotoUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     const payload = {
@@ -498,6 +553,48 @@ function PublicationModal({ pub, onClose, onSaved }) {
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl">×</button>
         </div>
         <div className="p-5 space-y-4">
+
+          {/* Modulo D: Foto piatto */}
+          <div className="border border-neutral-200 rounded-lg p-3">
+            <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-2">Foto piatto</div>
+            {fotoPath ? (
+              <div className="flex items-start gap-3">
+                <img
+                  src={`${fotoPath}?v=${fotoCacheBust}`}
+                  alt={titolo}
+                  className="w-32 h-24 object-cover rounded border border-neutral-200 flex-shrink-0"
+                  onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-neutral-500 mb-2 truncate">{fotoPath}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <label className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition ${fotoUploading ? "bg-neutral-200 text-neutral-400" : "bg-brand-blue text-white hover:opacity-90"}`}>
+                      {fotoUploading ? "Carico…" : "↻ Sostituisci"}
+                      <input type="file" accept="image/*" onChange={handleUploadFoto} disabled={fotoUploading} className="hidden" />
+                    </label>
+                    <Btn variant="chip" tone="red" size="sm" onClick={handleDeleteFoto} loading={fotoUploading}>
+                      Rimuovi foto
+                    </Btn>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-32 h-24 rounded border-2 border-dashed border-neutral-300 flex items-center justify-center text-neutral-400 text-3xl flex-shrink-0">
+                  📷
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-neutral-600 mb-2">
+                    Nessuna foto. JPG/PNG/WEBP, max 10MB. Verrà ridimensionata a 1200×800.
+                  </p>
+                  <label className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition ${fotoUploading ? "bg-neutral-200 text-neutral-400" : "bg-brand-blue text-white hover:opacity-90"}`}>
+                    {fotoUploading ? "Carico…" : "+ Carica foto"}
+                    <input type="file" accept="image/*" onChange={handleUploadFoto} disabled={fotoUploading} className="hidden" />
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Field2 label="Sezione" value={form.sezione} onChange={v => setForm(p => ({ ...p, sezione: v }))}

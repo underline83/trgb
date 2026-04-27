@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# @version: v1.0-menu-carta-router
+# @version: v1.1-menu-carta-router-foto (Modulo D, 2026-04-27)
 # -*- coding: utf-8 -*-
 
 """
-Router Menu Carta — sessione 57 (2026-04-25)
+Router Menu Carta — sessione 57 (2026-04-25), v1.1 Modulo D foto piatto (2026-04-27)
 
 Schema in foodcost.db (mig 098): menu_editions, menu_dish_publications,
 menu_tasting_paths, menu_tasting_path_steps + ALTER recipes.
@@ -26,6 +26,8 @@ Endpoint principali:
   POST   /menu-carta/publications/                crea
   PUT    /menu-carta/publications/{id}            modifica
   DELETE /menu-carta/publications/{id}            elimina
+  POST   /menu-carta/publications/{id}/foto       upload foto (multipart, Modulo D)
+  DELETE /menu-carta/publications/{id}/foto       rimuovi foto (Modulo D)
 
   ── DEGUSTAZIONI ──
   GET    /menu-carta/tasting-paths/?edition_id=X  lista con steps
@@ -42,11 +44,15 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
+from app.services.menu_carta_image_service import (
+    save_publication_image,
+    delete_publication_image,
+)
 
 
 # Path al DB tasks.sqlite3 (modulo Cucina HACCP) — usato dal generatore MEP
@@ -582,12 +588,106 @@ def update_publication(pub_id: int, payload: PublicationUpdate):
 def delete_publication(pub_id: int):
     conn = get_foodcost_connection()
     try:
-        ex = conn.execute("SELECT id FROM menu_dish_publications WHERE id = ?", (pub_id,)).fetchone()
+        # Recupera edition_id per cleanup foto
+        ex = conn.execute(
+            "SELECT id, edition_id, foto_path FROM menu_dish_publications WHERE id = ?",
+            (pub_id,),
+        ).fetchone()
         if not ex:
             raise HTTPException(404, "Pubblicazione non trovata")
+        # Modulo D: cleanup foto orfana se presente
+        if ex["foto_path"]:
+            try:
+                delete_publication_image(ex["edition_id"], pub_id)
+            except Exception as e:
+                import logging
+                logging.getLogger("menu_carta").warning(f"[foto] cleanup fail pub={pub_id}: {e}")
         conn.execute("DELETE FROM menu_dish_publications WHERE id = ?", (pub_id,))
         conn.commit()
         return {"ok": True}
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
+#   FOTO PIATTO (Modulo D, 2026-04-27)
+# ─────────────────────────────────────────────
+
+@router.post("/publications/{pub_id}/foto")
+async def upload_publication_foto(pub_id: int, file: UploadFile = File(...)):
+    """
+    Upload foto piatto per una pubblicazione.
+
+    Multipart/form-data, campo 'file'. Formati: JPG/JPEG/PNG/WEBP.
+    L'immagine viene ridimensionata a max 1200x800 (aspect ratio preserved),
+    convertita in JPEG quality 85, salvata in static/menu_carta/<edition>/<pub>.jpg.
+    Il path relativo viene scritto in menu_dish_publications.foto_path.
+
+    Rimpiazza eventuale foto esistente (overwrite).
+    """
+    conn = get_foodcost_connection()
+    try:
+        pub = conn.execute(
+            "SELECT id, edition_id FROM menu_dish_publications WHERE id = ?",
+            (pub_id,),
+        ).fetchone()
+        if not pub:
+            raise HTTPException(404, "Pubblicazione non trovata")
+
+        try:
+            file_bytes = await file.read()
+        except Exception as e:
+            raise HTTPException(400, f"Lettura file fallita: {e}")
+
+        try:
+            rel_path = save_publication_image(
+                edition_id=pub["edition_id"],
+                pub_id=pub_id,
+                file_bytes=file_bytes,
+                original_filename=file.filename,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        except Exception as e:
+            raise HTTPException(500, f"Errore salvataggio immagine: {e}")
+
+        conn.execute(
+            "UPDATE menu_dish_publications SET foto_path = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+            (rel_path, pub_id),
+        )
+        conn.commit()
+        return {"ok": True, "foto_path": rel_path}
+    finally:
+        conn.close()
+
+
+@router.delete("/publications/{pub_id}/foto")
+def delete_publication_foto(pub_id: int):
+    """Rimuove la foto di una pubblicazione (file su disco + foto_path NULL)."""
+    conn = get_foodcost_connection()
+    try:
+        pub = conn.execute(
+            "SELECT id, edition_id, foto_path FROM menu_dish_publications WHERE id = ?",
+            (pub_id,),
+        ).fetchone()
+        if not pub:
+            raise HTTPException(404, "Pubblicazione non trovata")
+        if not pub["foto_path"]:
+            return {"ok": True, "had_foto": False}
+
+        try:
+            delete_publication_image(pub["edition_id"], pub_id)
+        except Exception as e:
+            import logging
+            logging.getLogger("menu_carta").warning(f"[foto] delete file fail pub={pub_id}: {e}")
+            # Continuiamo comunque con NULL DB anche se il file non si cancella
+
+        conn.execute(
+            "UPDATE menu_dish_publications SET foto_path = NULL, updated_at = datetime('now', 'localtime') WHERE id = ?",
+            (pub_id,),
+        )
+        conn.commit()
+        return {"ok": True, "had_foto": True}
     finally:
         conn.close()
 

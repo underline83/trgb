@@ -21,7 +21,7 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   menuCarta: {
-    version: "1.0",
+    version: "1.1",
     label: "Menu Carta",
     status: "beta",
     color: "blue",
