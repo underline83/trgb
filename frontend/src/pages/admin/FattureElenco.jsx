@@ -180,19 +180,42 @@ export default function FattureElenco() {
   };
 
   // ── Riporta a NON pagata (toggle inverso) — 2026-04-27 ──
-  // Endpoint backend: POST /fe/fatture/segna-non-pagate (gestisce sia fe_fatture che cg_uscite)
+  // Endpoint backend: POST /contabilita/fe/fatture/segna-non-pagate
+  // (gestisce sia fe_fatture.pagato che cg_uscite.stato in atomico)
   const segnaNonPagata = async (id) => {
     if (!window.confirm("Riportare questa fattura a NON pagata?\n\nL'eventuale uscita in Controllo Gestione torna in stato 'da pagare'/'scaduta'.")) return;
+    const url = `${API_BASE}/contabilita/fe/fatture/segna-non-pagate`;
+    const opts = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fattura_ids: [id] }),
+    };
+    // 1 retry automatico dopo 1.5s su TypeError (network / restart momentaneo)
+    let res;
     try {
-      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/segna-non-pagate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fattura_ids: [id] }),
-      });
-      const data = await res.json();
-      if (!data.ok) { alert(data.error || "Errore"); return; }
-      setFatture(prev => prev.map(f => f.id === id ? { ...f, pagato: 0 } : f));
-    } catch { alert("Errore di rete"); }
+      res = await apiFetch(url, opts);
+    } catch (e1) {
+      if (e1 instanceof TypeError) {
+        await new Promise((r) => setTimeout(r, 1500));
+        try { res = await apiFetch(url, opts); }
+        catch (e2) {
+          alert(`Errore di rete: backend non risponde. Aspetta qualche secondo e riprova.\n\nDettagli: ${e2.message || e2.name}`);
+          return;
+        }
+      } else {
+        alert(`Errore: ${e1.message || e1.name}`);
+        return;
+      }
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      alert(`Errore HTTP ${res.status}: ${body.slice(0, 300)}`);
+      return;
+    }
+    let data;
+    try { data = await res.json(); } catch { data = { ok: true }; }
+    if (!data.ok) { alert(data.error || "Errore: response non ok"); return; }
+    setFatture(prev => prev.map(f => f.id === id ? { ...f, pagato: 0 } : f));
   };
 
   // ── Sort helper ──
