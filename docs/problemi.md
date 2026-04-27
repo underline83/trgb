@@ -81,44 +81,6 @@ _(S40-14, S40-15, S40-16, S40-17 risolti — vedi sezione Risolti.)_
 
 ---
 
-### D2. Modulo Pranzo — banner "Load failed" persistente su click utente durante restart backend
-**Segnalato:** 2026-04-26 (Marco screenshot, fix difensivo applicato in osservazione)
-**Modulo:** Pranzo / FE PranzoMenu.jsx
-**Gravità:** media (UX, niente perdita dati)
-
-**Sintomo:**
-Banner rosso "Load failed" rimane visibile sulla pagina `/pranzo` dopo che il click su Crea menu / Salva / Copia prec. cade nella finestra di restart del backend (push.sh ~3-5s di gap). Il messaggio è generico ("Load failed" = TypeError Safari su fetch fallito a livello rete), non parla di cosa è fallito, e non c'è X per chiuderlo né bottone Riprova.
-
-**Fix applicato (Modulo B+, PranzoMenu.jsx v3.2):**
-- `apiFetchSafe()` wrapper con 1 retry automatico dopo 1.5s su TypeError → copre i restart momentanei
-- Banner ora ha X di chiusura + bottone "Riprova" se l'azione è retryabile
-- Messaggio errore parlante ("Salvataggio fallito (rete). Il backend potrebbe essere in restart.") invece del generico "Load failed"
-- Esteso a salva, elimina, copiaSettimanaPrecedente, apriPdf, eliminaSettimana (tab Programmazione)
-
-**Causa radice trovata (2026-04-27, diagnostica in pagina v3.3):**
-`IntegrityError: NOT NULL constraint failed: pranzo_menu.data`. La tabella `pranzo_menu` sul VPS ha schema misto v1.0+v2.0:
-- 5 colonne v1.0 residue: `data` (NOT NULL UNIQUE, ex chiave settimana), `titolo`, `sottotitolo`, `prezzo_*` (DEFAULT), `footer_note`, `stato` (DEFAULT 'bozza')
-- 1 colonna v2.0 aggiunta da `_ensure_schema`: `settimana_inizio` (nullable)
-
-`data` non si può droppare per UNIQUE constraint (richiederebbe recreate-table — rischio non zero su DB con 1 menu in produzione).
-
-**Fix applicato (Iter 12, repository pranzo v2.1):**
-`upsert_menu` ora detecta a runtime via PRAGMA table_info le colonne NOT NULL senza default residue (v1.0) e le include nell'INSERT con valori coerenti:
-- `data` → valore = `monday` (coerente con UNIQUE su settimana_inizio)
-- altre eventuali → stringa vuota
-
-Stesso pattern applicato a `pranzo_menu_righe` (preventivo, oggi non ne ha).
-
-**In osservazione:**
-Marco riprova a salvare la settimana W17 dopo questo push. Se OK → D2 chiuso. Se ancora errore → diagnostica box mostrerà nuovo IntegrityError con altra colonna.
-
-**Follow-up potenziale (se ricapita):**
-- Aumentare worker uvicorn da 1 a 2-4 → restart hanno meno gap totale
-- Endpoint `/system/maintenance` (roadmap 1.14.b) → banner FE quando backend in restart
-- Migrare upsert_menu a transaction più piccola (oggi DELETE righe + INSERT N righe in una sola transaction)
-
----
-
 ### D1. Flussi di Cassa — Sistema storni difettoso
 **Segnalato:** 2026-04-10
 **Modulo:** Flussi di Cassa / Banca (sistema storni)
@@ -136,6 +98,32 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### D2. Modulo Pranzo — IntegrityError `pranzo_menu.data` su salvataggio + UX banner errore ✅ 2026-04-27
+**Aperto:** 2026-04-26 (Marco screenshot "Load failed")
+**Chiuso:** 2026-04-27 dopo verifica Marco ("Settimana salvata in 57ms")
+**Modulo:** Pranzo / repository + FE PranzoMenu.jsx
+
+**Causa radice:**
+`IntegrityError: NOT NULL constraint failed: pranzo_menu.data`. La tabella `pranzo_menu` sul VPS ha schema misto v1.0+v2.0: la mig 102 v1.0 (girata 2026-04-26 17:38) ha creato `pranzo_menu` con colonna `data TEXT NOT NULL UNIQUE` come chiave settimana. La riscrittura v2.0 dello stesso file (stesso giorno) ha rinominato semanticamente la chiave in `settimana_inizio`. Il `_ensure_schema()` del repository (iter 11) ha aggiunto `settimana_inizio` come soft-migration, ma `data` è rimasta orfana, NOT NULL e non droppabile per UNIQUE constraint. L'INSERT del codice nuovo non specificava `data` → IntegrityError.
+
+Inoltre il banner errore FE era opaco: messaggio generico "Load failed" (TypeError Safari), no X di chiusura, no Riprova, no diagnostica visibile a Marco senza DevTools.
+
+**Fix applicato (3 iterazioni):**
+1. **PranzoMenu.jsx v3.2** (Modulo B+, 2026-04-26): `apiFetchSafe()` con 1 retry su TypeError + banner X di chiusura + bottone Riprova + messaggi parlanti.
+2. **PranzoMenu.jsx v3.3** (Modulo B++, 2026-04-26): AbortController 20s timeout + box espandibile `🔍 Dettagli tecnici` con JSON dell'errore + bottone `📋 Copia diagnostica`. Backend `pranzo_router.py` POST `/menu/` con try/except esterno + logging dettagliato + ritorno HTTP 500 esplicito (no più 502 silenzioso).
+3. **pranzo_repository.py iter 12** (D2 fix radice, 2026-04-27): `upsert_menu()` con INSERT dinamico che detecta a runtime via `PRAGMA table_info` colonne NOT NULL senza default residue v1.0 e le include nell'INSERT con valori coerenti (`data = monday`, altre = stringa vuota). Stesso pattern preventivo su `pranzo_menu_righe`. Zero DDL su DB live.
+
+**Verifica:** Marco salvataggio W17 in 57ms, primo tentativo, zero errori.
+
+**Lezione di metodo:**
+Quando si rinomina una colonna chiave in produzione (es. `data` → `settimana_inizio`), non basta soft-migration ADD COLUMN: la vecchia colonna se NOT NULL UNIQUE blocca tutti gli INSERT futuri. Soluzioni in ordine di rischio crescente: (a) detect a runtime e include nell'INSERT con valore coerente — quello che abbiamo fatto, zero rischio; (b) recreate-table per droppare la vecchia colonna — rischio dati; (c) DROP COLUMN se l'UNIQUE non c'è — semplice ma raro.
+
+**Follow-up tracciati:**
+- `docs/inventario_pulizia.md` voce "Cleanup orfani modulo Pranzo": migrazione 103 deferita per recreate-table di `pranzo_menu` (drop `data`, `titolo`, `sottotitolo`, `prezzo_*`, `footer_note`, `stato`, `pranzo_menu_righe.piatto_id`, tabella `pranzo_piatti`). Da fare in cleanup batch dedicato quando lo schema sarà stabile e si farà backup pre-DDL.
+- Considerare worker uvicorn > 1 e endpoint `/system/maintenance` (roadmap 1.14.b) per ridurre superficie altri "Load failed" durante restart.
+
+---
 
 ### S52-1. Corruzione `vini_magazzino.sqlite3` — CHIUSO ✅ 2026-04-25
 **Aperto:** 2026-04-21 (4ª manifestazione delle 00:53 senza push)

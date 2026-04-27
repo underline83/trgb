@@ -1,4 +1,4 @@
-// @version: v1.2-mattoni — M.I primitives (Btn) su CTA principali (export/import/scelta macellaio/tipi servizio)
+// @version: v1.3-allergeni — sezione "Allergeni" con bottone batch ricalcolo (Modulo C, 2026-04-27)
 // Impostazioni Cucina — Export JSON, Export PDF, Import JSON, Macellaio, Tipi Servizio
 // Visibile solo per admin
 import React, { useState, useEffect } from "react";
@@ -21,6 +21,7 @@ const MENU = [
   { key: "macellaio",    label: "Scelta Macellaio",  icon: "🥩", desc: "Categorie tagli e widget" },
   { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
   { key: "pranzo",       label: "Menu Pranzo",       icon: "🥙", desc: "Default titolo, prezzi e footer pranzo del giorno" },
+  { key: "allergeni",    label: "Allergeni",         icon: "⚠️", desc: "Ricalcolo batch allergeni di tutte le ricette" },
 ];
 
 // ===============================================================
@@ -816,6 +817,11 @@ export default function RicetteSettings() {
                 {/* ============================================= */}
                 {activeSection === "pranzo" && <PranzoSettingsPanel />}
 
+                {/* ============================================= */}
+                {/* SEZIONE 7: ALLERGENI (Modulo C, 2026-04-27)   */}
+                {/* ============================================= */}
+                {activeSection === "allergeni" && <AllergeniBatchPanel />}
+
                 {/* INFO (sempre visibile in fondo) */}
                 <div className="mt-6 text-xs text-neutral-500 bg-neutral-50 rounded-xl p-4 border border-neutral-200">
                   <p className="font-semibold mb-1">Note:</p>
@@ -831,5 +837,128 @@ export default function RicetteSettings() {
         </div>
       </div>
     </>
+  );
+}
+
+
+// ===============================================================
+// SEZIONE: AllergeniBatchPanel — ricalcolo batch allergeni (Modulo C)
+// ===============================================================
+function AllergeniBatchPanel() {
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const lancia = async () => {
+    if (!window.confirm("Ricalcolare gli allergeni di TUTTE le ricette attive?\n\nL'operazione legge gli allergeni dichiarati negli ingredienti, li propaga ricorsivamente attraverso le sub-ricette e aggiorna la cache 'allergeni_calcolati' su ogni ricetta.\n\nÈ sicura: nessun dato viene cancellato, solo ricalcolato.")) return;
+    setLoading(true);
+    setError("");
+    setStats(null);
+    try {
+      const r = await apiFetch(`${FC}/ricette/ricalcola-allergeni-tutti`, { method: "POST" });
+      if (!r.ok) {
+        const body = await r.text();
+        throw new Error(`HTTP ${r.status}: ${body}`);
+      }
+      setStats(await r.json());
+    } catch (e) {
+      setError(e.message || "Errore ricalcolo");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <SectionHeader
+        title="Ricalcolo allergeni"
+        desc="Ricalcola la cache degli allergeni per tutte le ricette attive partendo dagli allergeni dichiarati sugli ingredienti. Da usare dopo modifiche massive agli ingredienti."
+      />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-4">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">⚠️</span>
+          <div className="flex-1">
+            <h3 className="font-semibold text-amber-900 mb-1">Come funziona</h3>
+            <p className="text-sm text-amber-900/80 mb-3">
+              Per ogni ricetta attiva, il sistema legge gli allergeni di tutti gli ingredienti
+              diretti e di tutte le sub-ricette (ricorsivamente), unisce il risultato e lo salva
+              in <code className="bg-white px-1 rounded text-xs">recipes.allergeni_calcolati</code>.
+              Le ricette singole si aggiornano già automaticamente al salvataggio: questo batch
+              serve quando hai modificato gli allergeni di un ingrediente e vuoi propagare
+              il cambio a tutte le ricette che lo usano in un colpo solo.
+            </p>
+            <Btn variant="primary" size="md" onClick={lancia} loading={loading}>
+              {loading ? "Ricalcolo in corso…" : "↻ Ricalcola tutte le ricette"}
+            </Btn>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">
+          {error}
+        </div>
+      )}
+
+      {stats && (
+        <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-3 border-b border-neutral-200">
+            <div className="p-4 text-center border-r border-neutral-200">
+              <div className="text-2xl font-bold text-neutral-900">{stats.totale_ricette}</div>
+              <div className="text-xs text-neutral-500 mt-1">Ricette processate</div>
+            </div>
+            <div className="p-4 text-center border-r border-neutral-200 bg-amber-50/40">
+              <div className="text-2xl font-bold text-amber-900">{stats.con_allergeni}</div>
+              <div className="text-xs text-neutral-500 mt-1">Con allergeni</div>
+            </div>
+            <div className="p-4 text-center bg-emerald-50/40">
+              <div className="text-2xl font-bold text-emerald-700">{stats.senza_allergeni}</div>
+              <div className="text-xs text-neutral-500 mt-1">Senza allergeni</div>
+            </div>
+          </div>
+
+          {stats.dettaglio && stats.dettaglio.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowAll(!showAll)}
+                className="w-full px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 border-b border-neutral-200"
+              >
+                {showAll ? "Nascondi dettaglio" : `Mostra dettaglio (${stats.dettaglio.length} ricette)`}
+              </button>
+              {showAll && (
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-neutral-50 text-neutral-700 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left font-semibold">ID</th>
+                        <th className="p-2 text-left font-semibold">Nome</th>
+                        <th className="p-2 text-left font-semibold">Allergeni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.dettaglio.map((d) => (
+                        <tr key={d.id} className="border-t border-neutral-100 hover:bg-neutral-50">
+                          <td className="p-2 text-xs font-mono text-neutral-500">R{String(d.id).padStart(3, "0")}</td>
+                          <td className="p-2 text-neutral-800">{d.name}</td>
+                          <td className="p-2">
+                            {d.allergeni_calcolati ? (
+                              <span className="text-xs text-amber-900">{d.allergeni_calcolati}</span>
+                            ) : (
+                              <span className="text-xs text-neutral-400 italic">nessuno</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

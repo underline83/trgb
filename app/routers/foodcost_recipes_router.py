@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v2.0-foodcost-recipes-router
+# @version: v2.1-foodcost-recipes-router-allergeni (Modulo C, 2026-04-27)
 # -*- coding: utf-8 -*-
 
 """
@@ -10,15 +10,18 @@ Funzionalità:
 - Calcolo food cost ricorsivo (ingrediente + sub-ricetta a cascata)
 - Categorie ricette configurabili
 - Costo porzione + % su prezzo di vendita
+- Allergeni calcolati ricorsivi (Modulo C)
 
 Endpoint:
-  GET    /foodcost/ricette                → lista ricette con food cost
-  GET    /foodcost/ricette/{id}           → dettaglio + costi calcolati
-  POST   /foodcost/ricette                → crea ricetta
-  PUT    /foodcost/ricette/{id}           → aggiorna ricetta
+  GET    /foodcost/ricette                → lista ricette con food cost + allergeni
+  GET    /foodcost/ricette/{id}           → dettaglio + costi + allergeni calcolati
+  POST   /foodcost/ricette                → crea ricetta (trigger ricalcolo allergeni)
+  PUT    /foodcost/ricette/{id}           → aggiorna ricetta (trigger ricalcolo allergeni)
   DELETE /foodcost/ricette/{id}           → disattiva ricetta
   GET    /foodcost/ricette/categorie      → lista categorie ricetta
   POST   /foodcost/ricette/categorie      → crea categoria ricetta
+  POST   /foodcost/ricette/{id}/ricalcola-allergeni        → ricalcola singola
+  POST   /foodcost/ricette/ricalcola-allergeni-tutti       → batch (admin/chef)
 """
 
 from datetime import datetime
@@ -29,6 +32,10 @@ from pydantic import BaseModel, Field
 
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
+from app.services.allergeni_service import (
+    update_recipe_allergens_cache,
+    recompute_all_recipes_allergens,
+)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -152,6 +159,8 @@ class RecipeOut(BaseModel):
     total_cost: Optional[float] = None         # costo totale ricetta
     cost_per_unit: Optional[float] = None      # costo per unità di resa (€/porzione, €/kg)
     food_cost_pct: Optional[float] = None      # % food cost su selling_price
+    # Allergeni (Modulo C, 2026-04-27): cache ricorsiva da ingredients.allergeni
+    allergeni_calcolati: Optional[str] = None  # CSV ordinato (es. "glutine,latte,uova")
 
 
 class RecipeListItem(BaseModel):
@@ -163,6 +172,7 @@ class RecipeListItem(BaseModel):
     yield_unit: str
     selling_price: Optional[float] = None
     is_active: bool = True
+    allergeni_calcolati: Optional[str] = None  # Modulo C: anche in lista
     total_cost: Optional[float] = None
     cost_per_unit: Optional[float] = None
     food_cost_pct: Optional[float] = None
@@ -610,6 +620,7 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
         total_cost=rec_dict.get("total_cost"),
         cost_per_unit=rec_dict.get("cost_per_unit"),
         food_cost_pct=rec_dict.get("food_cost_pct"),
+        allergeni_calcolati=rec_dict.get("allergeni_calcolati"),
     )
 
 
@@ -864,7 +875,10 @@ def list_ricette(
     # Verifica se colonne menu esistono (robusto pre-migrazione)
     cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
     has_menu_cols = "menu_name" in cols and "kind" in cols
+    has_allergeni = "allergeni_calcolati" in cols  # Modulo C, mig 098
     select_extra = ", r.menu_name, r.menu_description, r.kind" if has_menu_cols else ""
+    if has_allergeni:
+        select_extra += ", r.allergeni_calcolati"
 
     rows = cur.execute(
         f"""
@@ -914,6 +928,7 @@ def list_ricette(
             menu_description=d.get("menu_description"),
             kind=d.get("kind") or ("base" if bool(d.get("is_base")) else "dish"),
             service_type_ids=rst_map.get(d["id"], []),
+            allergeni_calcolati=d.get("allergeni_calcolati"),
         ))
 
     conn.close()
@@ -1048,6 +1063,13 @@ def create_ricetta(payload: RecipeCreate):
                 except Exception:
                     pass
 
+        # Modulo C: ricalcolo allergeni cache (best-effort, no fail su errore)
+        try:
+            update_recipe_allergens_cache(recipe_id, conn=conn)
+        except Exception as _e:
+            import logging
+            logging.getLogger("foodcost").warning(f"[allergeni] ricalcolo create fail recipe={recipe_id}: {_e}")
+
         conn.commit()
         return _fetch_recipe_full(conn, recipe_id)
 
@@ -1169,6 +1191,15 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
                         now,
                     ),
                 )
+
+        # Modulo C: ricalcolo allergeni cache se gli items sono stati toccati
+        # (anche su update header-only ricalcoliamo per allinearsi a eventuali
+        # cambi ingredients.allergeni avvenuti nel frattempo — costo trascurabile)
+        try:
+            update_recipe_allergens_cache(recipe_id, conn=conn)
+        except Exception as _e:
+            import logging
+            logging.getLogger("foodcost").warning(f"[allergeni] ricalcolo update fail recipe={recipe_id}: {_e}")
 
         conn.commit()
         return _fetch_recipe_full(conn, recipe_id)
@@ -1292,6 +1323,56 @@ def set_recipe_servizi(recipe_id: int, payload: RecipeServiziPayload):
         raise HTTPException(status_code=500, detail=f"Errore servizi: {e}") from e
     finally:
         conn.close()
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: ALLERGENI (Modulo C, 2026-04-27)
+# ─────────────────────────────────────────────
+
+class AllergeniRecalcOut(BaseModel):
+    recipe_id: int
+    allergeni_calcolati: str  # CSV
+
+
+class AllergeniBatchOut(BaseModel):
+    totale_ricette: int
+    con_allergeni: int
+    senza_allergeni: int
+    dettaglio: List[Dict[str, Any]] = []
+
+
+@router.post("/ricette/{recipe_id}/ricalcola-allergeni", response_model=AllergeniRecalcOut)
+def ricalcola_allergeni_singola(recipe_id: int):
+    """
+    Ricalcola allergeni di una singola ricetta (cache aggiornata).
+    Trigger automatico esiste su POST/PUT ricetta. Questo endpoint serve
+    quando Marco modifica gli allergeni di un ingrediente e vuole
+    rifrescare manualmente le ricette che lo usano (in attesa che qualcuno
+    le risalvi).
+    """
+    conn = get_foodcost_connection()
+    try:
+        existing = conn.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Ricetta non trovata")
+        csv = update_recipe_allergens_cache(recipe_id, conn=conn)
+        conn.commit()
+        return AllergeniRecalcOut(recipe_id=recipe_id, allergeni_calcolati=csv)
+    finally:
+        conn.close()
+
+
+@router.post("/ricette/ricalcola-allergeni-tutti", response_model=AllergeniBatchOut)
+def ricalcola_allergeni_tutti(user=Depends(get_current_user)):
+    """
+    Ricalcola allergeni per TUTTE le ricette attive (batch).
+    Riservato admin/chef: usare dopo modifiche massive a ingredients.allergeni.
+    """
+    role = (user or {}).get("role", "")
+    if role not in ("superadmin", "admin", "chef"):
+        raise HTTPException(status_code=403, detail="Operazione riservata ad admin/chef")
+    stats = recompute_all_recipes_allergens()
+    return AllergeniBatchOut(**stats)
 
 
 # ─────────────────────────────────────────────

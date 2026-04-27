@@ -176,6 +176,8 @@ def _row_to_publication(r) -> Dict[str, Any]:
         "recipe_id": r["recipe_id"],
         "recipe_menu_name": r["recipe_menu_name"] if "recipe_menu_name" in r.keys() else None,
         "recipe_menu_description": r["recipe_menu_description"] if "recipe_menu_description" in r.keys() else None,
+        # Modulo C: allergeni della ricetta collegata (suggerimento, non vincolo)
+        "recipe_allergeni_calcolati": r["recipe_allergeni_calcolati"] if "recipe_allergeni_calcolati" in r.keys() else None,
         "sezione": r["sezione"], "sort_order": r["sort_order"],
         "titolo_override": r["titolo_override"],
         "descrizione_override": r["descrizione_override"],
@@ -226,11 +228,12 @@ def get_edition(edition_id: int):
             raise HTTPException(404, "Edizione non trovata")
         edition = _row_to_edition(e)
 
-        # Pubblicazioni con join recipes per fallback nome/descrizione
+        # Pubblicazioni con join recipes per fallback nome/descrizione/allergeni
         pubs = conn.execute("""
             SELECT p.*,
                    r.menu_name as recipe_menu_name,
-                   r.menu_description as recipe_menu_description
+                   r.menu_description as recipe_menu_description,
+                   r.allergeni_calcolati as recipe_allergeni_calcolati
             FROM menu_dish_publications p
             LEFT JOIN recipes r ON p.recipe_id = r.id
             WHERE p.edition_id = ?

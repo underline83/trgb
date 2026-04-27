@@ -1,4 +1,4 @@
-// @version: v2.1-mattoni — M.I primitives (Btn, StatusBadge, EmptyState)
+// @version: v2.2-allergeni — colonna ⚠️ con count allergeni calcolati (Modulo C, 2026-04-27)
 // Archivio Ricette — lista con food cost, filtri, azioni
 // Allineato al backend v2 (foodcost_recipes_router)
 
@@ -171,6 +171,7 @@ export default function RicetteArchivio() {
                     <th className="p-3 text-right font-semibold">Costo/pz</th>
                     <th className="p-3 text-right font-semibold">Vendita</th>
                     <th className="p-3 text-center font-semibold">FC %</th>
+                    <th className="p-3 text-center font-semibold" title="Allergeni calcolati ricorsivamente">⚠️</th>
                     <th className="p-3 text-right font-semibold">Azioni</th>
                   </tr>
                 </thead>
@@ -213,6 +214,18 @@ export default function RicetteArchivio() {
                       </td>
                       <td className="p-3 text-center">
                         <FcBadge pct={r.food_cost_pct} />
+                      </td>
+                      <td className="p-3 text-center text-xs">
+                        {r.allergeni_calcolati ? (
+                          <span
+                            className="inline-block bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded font-medium"
+                            title={r.allergeni_calcolati}
+                          >
+                            {r.allergeni_calcolati.split(",").length}
+                          </span>
+                        ) : (
+                          <span className="text-neutral-300">—</span>
+                        )}
                       </td>
                       <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1 justify-end">

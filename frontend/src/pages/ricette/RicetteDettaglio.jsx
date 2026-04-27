@@ -1,6 +1,6 @@
-// @version: v2.1-mattoni — M.I primitives (Btn, StatusBadge)
-// Dettaglio Ricetta — visualizzazione con food cost calcolato
-// Mostra: header, ingredienti con costi, totale, % food cost
+// @version: v2.2-allergeni — sezione allergeni calcolati + ricalcola (Modulo C, 2026-04-27)
+// Dettaglio Ricetta — visualizzazione con food cost calcolato + allergeni
+// Mostra: header, food cost KPI, allergeni (con ricalcola), ingredienti, totale
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -9,6 +9,15 @@ import RicetteNav from "./RicetteNav";
 import { Btn, StatusBadge } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
+
+// Pillola allergene — rosso/ambra per attenzione semantica
+function AllergeneBadge({ name }) {
+  return (
+    <span className="inline-block text-xs font-medium bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full">
+      {name}
+    </span>
+  );
+}
 
 function FcBadge({ pct }) {
   if (pct == null) return <span className="text-neutral-400">n/d</span>;
@@ -29,6 +38,22 @@ export default function RicetteDettaglio() {
   const [ricetta, setRicetta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [recalcLoading, setRecalcLoading] = useState(false);
+
+  const ricalcolaAllergeni = async () => {
+    if (!ricetta) return;
+    setRecalcLoading(true);
+    try {
+      const r = await apiFetch(`${FC}/ricette/${ricetta.id}/ricalcola-allergeni`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setRicetta((prev) => ({ ...prev, allergeni_calcolati: data.allergeni_calcolati }));
+    } catch (e) {
+      alert(`Ricalcolo allergeni fallito: ${e.message}`);
+    } finally {
+      setRecalcLoading(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -132,6 +157,36 @@ export default function RicetteDettaglio() {
               <FcBadge pct={r.food_cost_pct} />
             </div>
           </div>
+        </div>
+
+        {/* ALLERGENI (Modulo C, calcolati ricorsivamente da ingredients.allergeni) */}
+        <div className="bg-amber-50/40 border border-amber-200 rounded-2xl p-4 mb-6">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <h2 className="text-lg font-semibold font-playfair text-amber-900 flex items-center gap-2">
+                ⚠️ Allergeni
+              </h2>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                Calcolati ricorsivamente da ingredienti e sub-ricette.
+                Si ricalcolano automaticamente al salvataggio della ricetta.
+              </p>
+            </div>
+            <Btn variant="secondary" size="sm" onClick={ricalcolaAllergeni} loading={recalcLoading}>
+              {recalcLoading ? "Ricalcolo…" : "↻ Ricalcola"}
+            </Btn>
+          </div>
+          {r.allergeni_calcolati ? (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {r.allergeni_calcolati.split(",").filter(Boolean).map((a) => (
+                <AllergeneBadge key={a} name={a.trim()} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-500 italic mt-2">
+              Nessun allergene rilevato dagli ingredienti dichiarati.
+              {r.items.length === 0 && " (Aggiungi gli ingredienti per popolare il calcolo.)"}
+            </p>
+          )}
         </div>
 
         {/* TABELLA INGREDIENTI */}

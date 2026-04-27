@@ -541,9 +541,25 @@ function PublicationModal({ pub, onClose, onSaved }) {
               placeholder="firma / classico / novità" />
           </div>
 
-          <Field2 label="Allergeni dichiarati (CSV)" value={form.allergeni_dichiarati}
-            onChange={v => setForm(p => ({ ...p, allergeni_dichiarati: v }))}
-            placeholder="glutine,latte,uova,pesce" />
+          <div>
+            <Field2 label="Allergeni dichiarati (CSV)" value={form.allergeni_dichiarati}
+              onChange={v => setForm(p => ({ ...p, allergeni_dichiarati: v }))}
+              placeholder={pub.recipe_allergeni_calcolati || "glutine,latte,uova,pesce"} />
+            {pub.recipe_allergeni_calcolati && (
+              <div className="mt-1 flex items-center gap-2 text-[11px] text-neutral-600">
+                <span>Calcolati dalla ricetta: <code className="bg-amber-50 text-amber-900 px-1 rounded">{pub.recipe_allergeni_calcolati}</code></span>
+                {pub.recipe_allergeni_calcolati !== form.allergeni_dichiarati && (
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, allergeni_dichiarati: pub.recipe_allergeni_calcolati }))}
+                    className="text-orange-700 hover:text-orange-900 underline font-medium"
+                  >
+                    Usa questi
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="flex gap-4 pt-2">
             <label className="flex items-center gap-2 text-sm">
