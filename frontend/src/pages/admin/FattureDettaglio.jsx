@@ -130,7 +130,7 @@ function SectionHeader({ title, children }) {
  *     il componente esegue automaticamente refetch.
  */
 const FattureDettaglio = forwardRef(function FattureDettaglio(
-  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated, onSegnaPagata, breadcrumb = null } = {},
+  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated, onSegnaPagata, onSegnaNonPagata, breadcrumb = null } = {},
   ref
 ) {
   const { id: idFromParams } = useParams();
@@ -298,6 +298,17 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
       await refetch();
     } catch (e) {
       console.error("segnaPagata:", e);
+    }
+  };
+
+  // Wrapper per "Segna NON pagata" — toggle inverso (2026-04-27)
+  const handleSegnaNonPagata = async () => {
+    if (!onSegnaNonPagata || !fattura?.id) return;
+    try {
+      await onSegnaNonPagata(fattura.id);
+      await refetch();
+    } catch (e) {
+      console.error("segnaNonPagata:", e);
     }
   };
 
@@ -919,6 +930,11 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
           {onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
             <Btn variant="primary" size="md" type="button" onClick={handleSegnaPagata}>
               ✓ Segna pagata
+            </Btn>
+          )}
+          {onSegnaNonPagata && (fattura.pagato || statoUscita === "PAGATA_MANUALE") && (
+            <Btn variant="chip" tone="red" size="md" type="button" onClick={handleSegnaNonPagata}>
+              ✗ Segna NON pagata
             </Btn>
           )}
           {fattura.fornitore_piva && (

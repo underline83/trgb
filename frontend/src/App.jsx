@@ -24,6 +24,7 @@ const CartaBevande = lazy(() => import("./pages/vini/CartaBevande"));
 const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
 // PUBBLICA: pagina cliente accessibile da QR — sessione 58 fase 2
 const CartaClienti = lazy(() => import("./pages/public/CartaClienti"));
+const CartaMenuPubblica = lazy(() => import("./pages/public/CartaMenuPubblica"));
 // STAFF: vista sommelier (loggata) — sessione 58 fase 2 iter 5
 const CartaStaff = lazy(() => import("./pages/vini/CartaStaff"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
@@ -188,6 +189,8 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
+            {/* Modulo G.1 (2026-04-27): carta del menu cucina pubblica via QR */}
+            <Route path="/carta/menu" element={<CartaMenuPubblica />} />
             <Route path="/carta" element={<CartaClienti />} />
             <Route path="/carta/*" element={<CartaClienti />} />
           </Routes>

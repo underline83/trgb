@@ -1191,7 +1191,8 @@ def public_menu_today():
         pubs = conn.execute("""
             SELECT p.*,
                    r.menu_name as recipe_menu_name,
-                   r.menu_description as recipe_menu_description
+                   r.menu_description as recipe_menu_description,
+                   r.allergeni_calcolati as recipe_allergeni_calcolati
             FROM menu_dish_publications p
             LEFT JOIN recipes r ON p.recipe_id = r.id
             WHERE p.edition_id = ? AND p.is_visible = 1

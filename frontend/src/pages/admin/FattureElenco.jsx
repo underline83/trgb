@@ -179,6 +179,22 @@ export default function FattureElenco() {
     } catch { alert("Errore di rete"); }
   };
 
+  // ── Riporta a NON pagata (toggle inverso) — 2026-04-27 ──
+  // Endpoint backend: POST /fe/fatture/segna-non-pagate (gestisce sia fe_fatture che cg_uscite)
+  const segnaNonPagata = async (id) => {
+    if (!window.confirm("Riportare questa fattura a NON pagata?\n\nL'eventuale uscita in Controllo Gestione torna in stato 'da pagare'/'scaduta'.")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/fe/fatture/segna-non-pagate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fattura_ids: [id] }),
+      });
+      const data = await res.json();
+      if (!data.ok) { alert(data.error || "Errore"); return; }
+      setFatture(prev => prev.map(f => f.id === id ? { ...f, pagato: 0 } : f));
+    } catch { alert("Errore di rete"); }
+  };
+
   // ── Sort helper ──
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -426,6 +442,7 @@ export default function FattureElenco() {
                 inline={true}
                 onClose={() => setOpenId(null)}
                 onSegnaPagata={segnaPagata}
+                onSegnaNonPagata={segnaNonPagata}
                 onFatturaUpdated={(f) => {
                   // Sync riga nella lista con eventuali modifiche effettuate nel dettaglio
                   setFatture(prev => prev.map(x => x.id === f.id ? { ...x, ...f } : x));

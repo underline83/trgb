@@ -22,6 +22,7 @@ const MENU = [
   { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
   { key: "pranzo",       label: "Menu Pranzo",       icon: "🥙", desc: "Default titolo, prezzi e footer pranzo del giorno" },
   { key: "allergeni",    label: "Allergeni",         icon: "⚠️", desc: "Ricalcolo batch allergeni di tutte le ricette" },
+  { key: "qr-menu",      label: "QR Carta Menu",     icon: "📱", desc: "QR Code per i tavoli — link a /carta/menu" },
 ];
 
 // ===============================================================
@@ -822,6 +823,11 @@ export default function RicetteSettings() {
                 {/* ============================================= */}
                 {activeSection === "allergeni" && <AllergeniBatchPanel />}
 
+                {/* ============================================= */}
+                {/* SEZIONE 8: QR CARTA MENU (Modulo G.2, 2026-04-27) */}
+                {/* ============================================= */}
+                {activeSection === "qr-menu" && <QrMenuPanel />}
+
                 {/* INFO (sempre visibile in fondo) */}
                 <div className="mt-6 text-xs text-neutral-500 bg-neutral-50 rounded-xl p-4 border border-neutral-200">
                   <p className="font-semibold mb-1">Note:</p>
@@ -959,6 +965,158 @@ function AllergeniBatchPanel() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ===============================================================
+// SEZIONE: QrMenuPanel — QR Code per i tavoli (Modulo G.2)
+// ===============================================================
+function QrMenuPanel() {
+  const cartaUrl = `${window.location.origin}/carta/menu`;
+  const [size, setSize] = React.useState(600);
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=20&format=png&data=${encodeURIComponent(cartaUrl)}`;
+
+  const downloadQr = async () => {
+    try {
+      const res = await fetch(qrSrc);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `qr_carta_menu_${size}px.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`Download fallito: ${e.message}\n\nIn alternativa: tasto destro sull'immagine → Salva immagine.`);
+    }
+  };
+
+  const printQr = () => {
+    const w = window.open("", "_blank");
+    if (!w) { alert("Popup bloccato. Abilita i popup per stampare."); return; }
+    w.document.write(`
+      <!doctype html>
+      <html><head><meta charset="utf-8"><title>QR Carta Menu — Osteria Tre Gobbi</title>
+      <style>
+        @page { size: A4; margin: 20mm; }
+        body { font-family: 'Cormorant Garamond', 'Times New Roman', serif; text-align: center; color: #2b2118; }
+        .card { border: 2px solid #c5a97a; border-radius: 12px; padding: 30px 20px; max-width: 480px; margin: 40mm auto; background: #fdf8f0; }
+        h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: 0.04em; }
+        .subtitle { font-size: 14px; color: #5a4634; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 20px; }
+        img { width: 100%; max-width: 360px; height: auto; }
+        .label { font-size: 16px; color: #4a3826; margin-top: 18px; font-style: italic; }
+        .url { font-size: 11px; color: #8a7a65; font-family: monospace; margin-top: 6px; }
+      </style>
+      </head><body>
+        <div class="card">
+          <div class="subtitle">Osteria Tre Gobbi</div>
+          <h1>La Carta del Menu</h1>
+          <img src="${qrSrc}" alt="QR Code" />
+          <div class="label">Inquadra il codice per consultare il menu</div>
+          <div class="url">${cartaUrl}</div>
+        </div>
+        <script>window.onload = () => setTimeout(() => window.print(), 400);</script>
+      </body></html>
+    `);
+    w.document.close();
+  };
+
+  const copyUrl = () => {
+    navigator.clipboard?.writeText(cartaUrl);
+  };
+
+  return (
+    <div>
+      <SectionHeader
+        title="QR Code Carta Menu"
+        desc="Stampa il QR Code da mettere sui tavoli. I clienti lo inquadrano col telefono e vedono il menu in carta."
+      />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-4">
+        <div className="flex flex-col sm:flex-row gap-5">
+          {/* QR preview */}
+          <div className="flex-shrink-0">
+            <div className="bg-white border border-amber-300 rounded-xl p-3 shadow-sm">
+              <img src={qrSrc} alt="QR Code" className="w-48 h-48 block" />
+            </div>
+          </div>
+
+          {/* Info + azioni */}
+          <div className="flex-1">
+            <h3 className="font-semibold text-amber-900 mb-2">Link pubblico</h3>
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <code className="text-xs bg-white border border-amber-300 px-2 py-1 rounded font-mono break-all flex-1">
+                {cartaUrl}
+              </code>
+              <button
+                onClick={copyUrl}
+                className="text-xs px-2 py-1 rounded bg-white border border-amber-300 hover:bg-amber-100"
+                title="Copia URL"
+              >
+                📋
+              </button>
+            </div>
+
+            <p className="text-xs text-amber-900/80 mb-3">
+              La carta cliente è già pubblicata e leggibile <strong>senza login</strong>.
+              Si aggiorna automaticamente con l'edizione attualmente in carta (configurabile in Menu Carta).
+            </p>
+
+            <div className="mb-3">
+              <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-1">
+                Risoluzione QR (px)
+              </label>
+              <select
+                value={size}
+                onChange={(e) => setSize(parseInt(e.target.value))}
+                className="border border-neutral-300 rounded-lg px-2 py-1 text-sm bg-white"
+              >
+                <option value={300}>300×300 (web)</option>
+                <option value={600}>600×600 (volantino A6)</option>
+                <option value={1000}>1000×1000 (cartoncino A5)</option>
+                <option value={2000}>2000×2000 (poster A4 alta qualità)</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Btn variant="primary" size="md" onClick={downloadQr}>
+                ⬇ Scarica PNG
+              </Btn>
+              <Btn variant="secondary" size="md" onClick={printQr}>
+                🖨 Stampa cartoncino A4
+              </Btn>
+              <Btn
+                as="a"
+                href={cartaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="ghost"
+                size="md"
+              >
+                👁 Apri carta
+              </Btn>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-neutral-200 rounded-2xl p-4 text-xs text-neutral-600 space-y-2">
+        <p><strong className="text-neutral-800">Come usarlo:</strong></p>
+        <ol className="list-decimal list-inside space-y-1 ml-2">
+          <li>Scarica il PNG nella risoluzione adatta al supporto (cartoncino, volantino, poster).</li>
+          <li>Stampa in tipografia o a casa, ritaglia e plastifica per il tavolo.</li>
+          <li>In alternativa, "Stampa cartoncino A4" produce un cartoncino già impaginato pronto da piegare.</li>
+          <li>Quando aggiorni il menu in carta da Menu Carta → Pubblica edizione, il QR continua a funzionare automaticamente (l'URL non cambia).</li>
+        </ol>
+        <p className="text-[11px] text-neutral-500 italic mt-2">
+          Il QR è generato dal servizio gratuito api.qrserver.com. Non è necessario login né configurazione.
+        </p>
+      </div>
     </div>
   );
 }
