@@ -67,8 +67,39 @@ focus sull'oggi: cosa serve sapere appena entri in cucina al mattino.
 5. Click "Apri carta cliente pubblica" apre `/carta/menu` in nuova tab.
 6. Pulsanti azioni rapide in fondo navigano correttamente.
 
+### Iter 2 (stessa sessione, post-feedback Marco) — H v1.1 refactor stile
+Marco: "ok buon inizio MA NON HAI RISPETTATO LA REGOLA DI MANTENERE IL DESIGN
+UGUALE.. manca la barra menu". Mancavano due cose:
+1. **Sub-nav RicetteNav**: la pagina non aveva la barra di navigazione del
+   modulo cucina. Aggiunta come prima entry "🍳 Cucina" → `/cucina/dashboard`
+   in `RicetteNav.jsx` (e rinominata "Dashboard" → "Food Cost" per chiarezza).
+2. **Stile Home v3 originale potenziato**: la pagina usava `PageLayout` con
+   card bianche neutre e font sistema. Refactor totale a v1.1:
+   - Wrapper `<div className="min-h-screen bg-brand-cream">` + `<RicetteNav>`.
+   - Header con saluto contestuale (`Buongiorno/pomeriggio/sera, {nome} 🍳`)
+     in `font-playfair text-orange-900` 2xl/3xl + data lunga italiana.
+   - 5 KPI tile con sfondo tintato (`bg-orange-50`/`bg-indigo-50`/...),
+     border colorato coordinato, emoji 28px, valore tabular extrabold,
+     border-radius 14px, shadow Home v3 `0 2px 10px rgba(0,0,0,.06)`.
+   - 4 Section card con stesso pattern (Pranzo amber, Carta indigo, Alert
+     red/emerald, Ricette modificate bianca neutra). Header sezione con
+     emoji 24px + titolo `font-playfair`.
+   - Barra "Azioni rapide" con tile colorati coordinati al modulo target
+     (Menu Pranzo amber, Menu Carta indigo, Archivio orange, Food Cost
+     blue, Ingredienti emerald, Nuova ricetta neutral). Touch target 44pt.
+   - StatoBadge palette tintata (no più styling neutro tailwind shadcn-like).
+   - `TrgbLoader` come loader iniziale invece di testo statico.
+
+### File toccati Iter 2
+- `frontend/src/pages/cucina/DashboardCucina.jsx` v1.0 → v1.1 (refactor
+  totale: rimosso PageLayout/Btn/EmptyState, aggiunti RicetteNav + KpiTile +
+  Section + QuickAction custom + TrgbLoader).
+- `frontend/src/pages/ricette/RicetteNav.jsx` — aggiunta entry "🍳 Cucina"
+  come prima voce, rinominata "Dashboard" → "Food Cost" per evitare
+  ambiguità tra le due dashboard.
+
 ### Suggested commit
-`./push.sh "Modulo H — Dashboard Cucina chef: nuova pagina /cucina/dashboard + endpoint /dashboard/cucina (pranzo oggi+7gg, carta attiva, alert allergeni, KPI ricette, modifiche recenti)"`
+`./push.sh "Modulo H v1.1 — refactor stile Home v3 originale potenziato (KPI+Section card tintate, font-playfair, brand-cream) + RicetteNav con entry Cucina"`
 
 ---
 
