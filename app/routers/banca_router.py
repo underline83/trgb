@@ -1098,13 +1098,17 @@ def create_link(req: CrossRefLinkRequest):
                 INSERT INTO banca_fatture_link (movimento_id, fattura_id, note)
                 VALUES (?, ?, ?)
             """, (req.movimento_id, req.fattura_id, req.note))
-            # Propaga a cg_uscite
+            # Propaga a cg_uscite. Bug D5 (2026-04-27): reset in_pagamento_at e
+            # pagamento_batch_id quando arriva la riconciliazione bancaria, perché
+            # il pagamento è effettivamente concluso (non più "in pagamento").
             cur.execute("""
                 UPDATE cg_uscite
                 SET banca_movimento_id = ?,
                     stato = 'PAGATA',
                     data_pagamento = COALESCE(data_pagamento, ?),
                     importo_pagato = totale,
+                    in_pagamento_at = NULL,
+                    pagamento_batch_id = NULL,
                     updated_at = datetime('now')
                 WHERE fattura_id = ?
                   AND banca_movimento_id IS NULL
@@ -1129,12 +1133,15 @@ def create_link(req: CrossRefLinkRequest):
                 raise HTTPException(409, "Entrata già collegata o non trovata")
         else:
             # ── Link uscita diretta (spesa fissa, affitto, tassa…) ──
+            # Bug D5: reset in_pagamento_at + pagamento_batch_id (vedi sopra)
             cur.execute("""
                 UPDATE cg_uscite
                 SET banca_movimento_id = ?,
                     stato = 'PAGATA',
                     data_pagamento = COALESCE(data_pagamento, ?),
                     importo_pagato = totale,
+                    in_pagamento_at = NULL,
+                    pagamento_batch_id = NULL,
                     updated_at = datetime('now')
                 WHERE id = ?
                   AND banca_movimento_id IS NULL

@@ -529,11 +529,14 @@ def import_uscite(
             if ex["stato"] in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
                 if linked_mov and not ex.get("banca_movimento_id"):
                     # Cross-ref esiste ma non era propagato — aggiorna
+                    # Bug D5: reset in_pagamento_at quando si conferma PAGATA
                     fc.execute("""
                         UPDATE cg_uscite
                         SET banca_movimento_id = ?, stato = 'PAGATA',
                             importo_pagato = totale,
                             data_pagamento = COALESCE(data_pagamento, ?),
+                            in_pagamento_at = NULL,
+                            pagamento_batch_id = NULL,
                             updated_at = ?
                         WHERE id = ?
                     """, (linked_mov, linked_data, oggi_str, ex["id"]))
@@ -543,6 +546,7 @@ def import_uscite(
                 continue
             # Se DA_PAGARE/SCADUTA ma ha cross-ref → marca PAGATA
             if linked_mov:
+                # Bug D5: reset in_pagamento_at quando si conferma PAGATA da cross-ref
                 fc.execute("""
                     UPDATE cg_uscite
                     SET stato = 'PAGATA', banca_movimento_id = ?,
@@ -551,6 +555,8 @@ def import_uscite(
                         data_scadenza = ?, totale = ?,
                         numero_fattura = ?, data_fattura = ?,
                         fornitore_nome = ?, fornitore_piva = ?,
+                        in_pagamento_at = NULL,
+                        pagamento_batch_id = NULL,
                         updated_at = ?
                     WHERE id = ?
                 """, (linked_mov, linked_data,
@@ -2806,22 +2812,28 @@ def update_uscita_stato_pagamento(
             stato_effettivo = "SCADUTA"
 
         if nuovo_stato == "PAGATA_MANUALE":
+            # Bug D5: reset in_pagamento_at quando si dichiara pagato manuale
             fc.execute("""
                 UPDATE cg_uscite
                    SET stato = ?,
                        data_pagamento = COALESCE(data_pagamento, ?),
                        importo_pagato = totale,
                        metodo_pagamento = COALESCE(metodo_pagamento, 'CONTO_CORRENTE'),
+                       in_pagamento_at = NULL,
+                       pagamento_batch_id = NULL,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?
             """, (stato_effettivo, oggi_str, uscita_id))
         else:
+            # Riporta a DA_PAGARE/DA_VERIFICARE → toglie anche in_pagamento_at
             fc.execute("""
                 UPDATE cg_uscite
                    SET stato = ?,
                        data_pagamento = NULL,
                        importo_pagato = 0,
                        metodo_pagamento = NULL,
+                       in_pagamento_at = NULL,
+                       pagamento_batch_id = NULL,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?
             """, (stato_effettivo, uscita_id))
@@ -2969,12 +2981,15 @@ def riconcilia_uscita(
     uscita_full = fc.execute("SELECT fattura_id FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
     fattura_id = dict(uscita_full).get("fattura_id") if uscita_full else None
 
+    # Bug D5: reset in_pagamento_at + pagamento_batch_id alla riconciliazione
     fc.execute("""
         UPDATE cg_uscite
         SET banca_movimento_id = ?,
             stato = 'PAGATA',
             data_pagamento = COALESCE(data_pagamento, ?),
             importo_pagato = totale,
+            in_pagamento_at = NULL,
+            pagamento_batch_id = NULL,
             updated_at = ?
         WHERE id = ?
     """, (banca_id, dict(mov)["data_contabile"], oggi_str, uscita_id))
@@ -3083,6 +3098,7 @@ def paga_uscita_contanti(
         if nota_extra:
             note_final = f"{note_final} | {nota_extra}".strip(" |")
 
+        # Bug D5: reset in_pagamento_at quando pagata in contanti
         fc.execute("""
             UPDATE cg_uscite
             SET metodo_pagamento = 'CONTANTI',
@@ -3091,6 +3107,8 @@ def paga_uscita_contanti(
                 importo_pagato = totale,
                 note = ?,
                 banca_movimento_id = NULL,
+                in_pagamento_at = NULL,
+                pagamento_batch_id = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (data_pag, note_final or None, uscita_id))
@@ -3222,6 +3240,7 @@ def paga_uscita_carta(
         if nota_extra:
             note_final = f"{note_final} | {nota_extra}".strip(" |")
 
+        # Bug D5: reset in_pagamento_at quando pagata in carta
         fc.execute("""
             UPDATE cg_uscite
             SET metodo_pagamento = 'CARTA',
@@ -3230,6 +3249,8 @@ def paga_uscita_carta(
                 importo_pagato = totale,
                 note = ?,
                 banca_movimento_id = NULL,
+                in_pagamento_at = NULL,
+                pagamento_batch_id = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (data_pag, note_final or None, uscita_id))

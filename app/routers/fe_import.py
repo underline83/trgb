@@ -1018,10 +1018,14 @@ def segna_fatture_pagate(
         if existing and existing["stato"] not in ("PAGATA",):
             # PAGATA = riconciliata con banca (non toccare)
             # PAGATA_MANUALE = segnata dall'utente senza riconciliazione
+            # Bug D5 (2026-04-27): reset in_pagamento_at + pagamento_batch_id
+            # quando si segna pagata manualmente (il pagamento è completato)
             conn.execute("""
                 UPDATE cg_uscite
                 SET stato = 'PAGATA_MANUALE', data_pagamento = ?,
                     importo_pagato = totale, metodo_pagamento = ?,
+                    in_pagamento_at = NULL,
+                    pagamento_batch_id = NULL,
                     note = CASE WHEN ? != '' THEN ? ELSE note END, updated_at = ?
                 WHERE fattura_id = ?
             """, (data_pag, metodo, note, note, oggi, fid))
