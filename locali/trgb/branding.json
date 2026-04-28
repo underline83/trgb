@@ -4,7 +4,8 @@
 
   "id": "trgb",
   "wordmark_text": "TRGB",
-  "tagline": "Gestionale ristorazione",
+  "tagline": null,
+  "_tagline_note": "null = niente 'collab marker' nell'header. L'istanza prodotto pulita mostra solo TRGB. Quando un cliente nuovo viene creato copiando _template, mette qui il nome del suo locale (es. 'Osteria da Mario') che apparirà come 'TRGB × Osteria da Mario' nella home.",
 
   "colors": {
     "brand_red":    "#DC2626",

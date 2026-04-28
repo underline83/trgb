@@ -9,6 +9,7 @@ import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../uti
 import TrgbWordmark from "./TrgbWordmark";
 import useNotifiche from "../hooks/useNotifiche";
 import NotifichePanel from "./NotifichePanel";
+import { useBranding } from "../utils/brandConfig";
 
 // Normalizza per ricerca case/accent-insensitive
 function norm(s) {
@@ -23,6 +24,7 @@ export default function Header({ onLogout }) {
   const isViewer = role === "viewer";
 
   const { visibleModules, canAccessSub, modules: modulesData } = useModuleAccess();
+  const branding = useBranding();
 
   const [open, setOpen] = useState(false);
   const [notificheOpen, setNotificheOpen] = useState(false);
@@ -147,13 +149,26 @@ export default function Header({ onLogout }) {
       )}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 grid grid-cols-[auto_1fr_auto] sm:grid-cols-3 items-center gap-2 sm:gap-4">
 
-        {/* LEFT — Wordmark TRGB (link alla Home). Su mobile solo gobbette. */}
+        {/* LEFT — Wordmark TRGB (link alla Home). Su mobile solo gobbette.
+            R2 sessione 60: in Home page mostra anche "× <tagline>" del locale
+            corrente (stile collab brand TRGB × Osteria Tre Gobbi). Tag dal
+            branding.json del tenant: locali/<id>/branding.json campo `tagline`.
+            Sull'istanza prodotto pulita (locali/trgb/) la tagline è null →
+            niente collab marker. */}
         <button
           onClick={() => goTo("/")}
           className="flex items-center cursor-pointer group justify-self-start min-w-0"
           aria-label="Vai alla home"
         >
           <TrgbWordmark size="md" hideTextBelow="sm" className="group-hover:opacity-80 transition-opacity" />
+          {location.pathname === "/" && branding.tagline && (
+            <span className="ml-2.5 sm:ml-3 hidden sm:inline-flex items-baseline gap-1.5 text-neutral-500 select-none">
+              <span className="text-base font-light opacity-60">×</span>
+              <span className="text-xs sm:text-sm font-medium tracking-wide italic text-neutral-600">
+                {branding.tagline}
+              </span>
+            </span>
+          )}
         </button>
 
         {/* CENTER — Pulsante menu moduli con modulo corrente */}

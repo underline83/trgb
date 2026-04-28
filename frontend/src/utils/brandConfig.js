@@ -11,10 +11,18 @@
 //
 // Vedi docs/refactor_monorepo.md §3 R2 e locali/<id>/branding.json.
 
+import { useEffect, useState } from "react";
 import { API_BASE } from "../config/api";
 
 let _branding = null;
 let _loadPromise = null;
+const _subscribers = new Set();
+
+function _notifySubscribers() {
+  for (const fn of _subscribers) {
+    try { fn(_branding); } catch (e) { console.warn("brandConfig subscriber error:", e); }
+  }
+}
 
 /**
  * Mappa il branding.json sulle CSS vars del :root.
@@ -59,7 +67,8 @@ export function loadBrandConfig() {
     .then(data => {
       _branding = data || {};
       applyCssVars(_branding);
-      console.log(`🎨 Branding caricato: locale=${_branding.id || "?"} wordmark=${_branding.wordmark_text || "?"}`);
+      _notifySubscribers();
+      console.log(`🎨 Branding caricato: locale=${_branding.id || "?"} wordmark=${_branding.wordmark_text || "?"} tagline="${_branding.tagline || ""}"`);
       return _branding;
     })
     .catch(err => {
@@ -93,4 +102,29 @@ export function brandValue(path, fallback = null) {
     else return fallback;
   }
   return v != null ? v : fallback;
+}
+
+/**
+ * Hook React: ritorna il branding caricato. Se non è ancora pronto al primo
+ * render, aspetta loadBrandConfig() e re-renderizza appena disponibile.
+ * Esempio:
+ *   const branding = useBranding();
+ *   <span>{branding.wordmark_text}</span>
+ */
+export function useBranding() {
+  const [b, setB] = useState(_branding);
+  useEffect(() => {
+    if (_branding) {
+      // Già caricato: assicura sync
+      if (b !== _branding) setB(_branding);
+      return;
+    }
+    // Non ancora caricato: lancia/aspetta il fetch + sottoscrive notify
+    loadBrandConfig().then(() => setB(_branding));
+    const onUpdate = (next) => setB(next);
+    _subscribers.add(onUpdate);
+    return () => { _subscribers.delete(onUpdate); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return b || {};
 }
