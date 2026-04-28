@@ -696,36 +696,64 @@ function RisultatiRicerca({ data, sezioni, search, onApri }) {
 }
 
 function SezioneRender({ sezione, data, search }) {
-  if (sezione.id === "calici") return <SezioneCalici calici={data.calici} search={search} />;
+  if (sezione.id === "calici") return <SezioneCalici calici={data.calici} tipologieOrder={(data.tipologie || []).map(t => t.nome)} search={search} />;
   if (sezione.id.startsWith("vini-tip-")) return <SezioneVini tipologia={sezione.tipologiaRef} search={search} />;
   if (sezione.id.startsWith("bev-")) return <SezioneBevande sezione={sezione.bevandaRef} search={search} />;
   return null;
 }
 
-function SezioneCalici({ calici, search }) {
+function SezioneCalici({ calici, tipologieOrder, search }) {
+  // Modulo: vini. Bug fix sessione 60 (2026-04-28): prima il rendering era
+  // una lista flat senza header tipologia. Ora raggruppiamo per tipologia
+  // usando l'ordine canonico esposto da `data.tipologie[]` (gia' ordinato
+  // dal backend secondo `vini_settings.tipologia_order`).
+  // Mostra SOLO le tipologie che hanno almeno un calice (skip vuote).
   const filtered = (calici || []).filter(c => {
     const blob = `${c.descrizione} ${c.produttore} ${c.regione} ${c.tipologia} ${c.annata}`;
     return matchSearch(blob, search);
   });
   if (filtered.length === 0) return <div className="cc-empty">Nessun calice corrisponde.</div>;
+
+  // Raggruppa filtered per tipologia
+  const gruppi = {};
+  for (const c of filtered) {
+    const tip = (c.tipologia || "Senza tipologia").toString();
+    if (!gruppi[tip]) gruppi[tip] = [];
+    gruppi[tip].push(c);
+  }
+
+  // Ordina le tipologie secondo l'ordine canonico (tipologieOrder),
+  // poi alfabetico per quelle non in lista canonica.
+  const order = (tipologieOrder && tipologieOrder.length > 0) ? tipologieOrder : [];
+  const presenti = Object.keys(gruppi);
+  const ordinate = [
+    ...order.filter(t => presenti.includes(t)),
+    ...presenti.filter(t => !order.includes(t)).sort(),
+  ];
+
   return (
     <section>
       <div className="cc-section-title">Al calice</div>
-      {filtered.map(c => (
-        <div key={c.id} className="cc-calice-item">
-          <div className="cc-calice-row">
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="cc-calice-nome">
-                {c.descrizione}
-                {c.annata && <span className="cc-vino-annata"> {c.annata}</span>}
-                {c.in_mescita && <span className="cc-calice-mescita">in mescita</span>}
-              </div>
-              <div className="cc-calice-meta">
-                {[c.produttore, c.regione].filter(Boolean).join(" · ")}
+      {ordinate.map(tip => (
+        <div key={tip} className="cc-calici-tipologia-block">
+          <div className="cc-tipologia">{tip}</div>
+          {gruppi[tip].map(c => (
+            <div key={c.id} className="cc-calice-item">
+              <div className="cc-calice-row">
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="cc-calice-nome">
+                    {c.descrizione}
+                    {c.annata && <span className="cc-vino-annata"> {c.annata}</span>}
+                    {c.in_mescita && <span className="cc-calice-mescita">in mescita</span>}
+                  </div>
+                  <div className="cc-calice-meta">
+                    {[c.produttore, c.regione].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <div className="cc-calice-prezzo">{fmtPrezzo(c.prezzo)} €</div>
               </div>
             </div>
-            <div className="cc-calice-prezzo">{fmtPrezzo(c.prezzo)} €</div>
-          </div>
+          ))}
         </div>
       ))}
     </section>

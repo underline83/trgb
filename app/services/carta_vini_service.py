@@ -1,4 +1,4 @@
-# @version: v1.2-calici-section
+# @version: v1.3-calici-tipologie-ordinate
 # -*- coding: utf-8 -*-
 """
 TRGB — Service Carta Vini
@@ -118,6 +118,40 @@ def build_carta_body_html(rows: Iterable[Dict[str, Any]]) -> str:
 
 
 # ------------------------------------------------------------
+# HELPER — ordinamento canonico calici (sessione 60, 2026-04-28)
+# ------------------------------------------------------------
+def _sort_calici_canonical(rows: list) -> list:
+    """
+    Ordina le righe calici secondo l'ordine canonico configurato in
+    `vini_settings.tipologia_order` (es. BOLLICINE, BIANCHI, ROSATI, ROSSI...).
+
+    Tipologie non presenti nel DB settings vanno in fondo, ordinate
+    alfabeticamente. Stable sort: l'ordine pre-esistente all'interno della
+    stessa tipologia (per nazione/regione/produttore) viene preservato.
+
+    Modulo: vini. Bug fix: prima del fix, `groupby(rows, k_tip)` riceveva
+    rows non ordinate per tipologia → produceva gruppi spezzettati ad ogni
+    cambio di tipologia, e nel rendering sembrava che non raggruppasse.
+    """
+    try:
+        from app.repositories.vini_repository import load_tipologia_order
+        canonical = load_tipologia_order()
+        order_map = {tip: i for i, tip in enumerate(canonical)}
+    except Exception as _e:
+        # Fallback: ordine alfabetico se il settings DB non è raggiungibile
+        print(f"[carta_vini_service] _sort_calici_canonical fallback alfabetico: {_e}")
+        order_map = {}
+
+    fallback_idx = len(order_map) + 1_000_000  # tipologie non note → in fondo
+
+    def sort_key(r):
+        tip = r.get("TIPOLOGIA") or "Senza tipologia"
+        return (order_map.get(tip, fallback_idx), tip)
+
+    return sorted(rows, key=sort_key)
+
+
+# ------------------------------------------------------------
 # BUILDER — SEZIONE CALICI (PDF) — "un'unica pagina"
 # ------------------------------------------------------------
 def build_calici_section_html(rows: Iterable[Dict[str, Any]]) -> str:
@@ -125,8 +159,10 @@ def build_calici_section_html(rows: Iterable[Dict[str, Any]]) -> str:
     Genera la sezione Calici per PDF.
     Stile identico alla carta bottiglie ma preceduta da un titolo 'CALICI'.
     Tutti i vini in un blocco unico (senza page-break).
+    Raggruppa per tipologia secondo l'ordine canonico (sessione 60, 2026-04-28).
+    Mostra solo tipologie che hanno almeno un calice.
     """
-    rows = list(rows)
+    rows = _sort_calici_canonical(list(rows))
     if not rows:
         return ""
 
@@ -190,8 +226,11 @@ def build_calici_section_html(rows: Iterable[Dict[str, Any]]) -> str:
 
 
 def build_calici_section_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
-    """Versione HTML safe della sezione calici (per preview)."""
-    rows = list(rows)
+    """Versione HTML safe della sezione calici (per preview).
+    Raggruppa per tipologia secondo l'ordine canonico (sessione 60, 2026-04-28).
+    Mostra solo tipologie che hanno almeno un calice.
+    """
+    rows = _sort_calici_canonical(list(rows))
     if not rows:
         return ""
 

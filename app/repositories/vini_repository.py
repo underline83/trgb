@@ -62,6 +62,29 @@ def _load_ordinamenti() -> Tuple[Dict[str, int], Dict[str, int], Dict[str, int]]
     return tip_map, naz_map, reg_map
 
 
+def load_tipologia_order() -> List[str]:
+    """
+    Ritorna la lista delle tipologie nell'ordine canonico configurato in
+    `vini_settings` (tabella `tipologia_order`, ordinata per colonna `ordine`).
+
+    Esempio: ['GRANDI FORMATI', 'BOLLICINE', 'BIANCHI', 'ROSATI', 'ROSSI', 'PASSITI', 'ANALCOLICI']
+
+    Modulo: vini (platform settings condiviso). Usata da:
+      - carta_vini_service.build_calici_section_* per ordinare i calici
+      - vini_router (carta-cliente JSON) — futuro riuso
+    """
+    init_settings_db()
+    ensure_settings_defaults()
+
+    conn = get_settings_conn()
+    cur = conn.cursor()
+    rows = cur.execute(
+        "SELECT nome FROM tipologia_order ORDER BY ordine ASC;"
+    ).fetchall()
+    conn.close()
+    return [r["nome"] for r in rows if r["nome"]]
+
+
 # ---------------------------------------------------------
 # FILTRI (per carta vini)
 # ---------------------------------------------------------
