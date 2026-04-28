@@ -515,16 +515,15 @@ export default function Home() {
                   href="https://underline-studio.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 flex items-center gap-1.5 text-[10px] text-brand-ink/25 hover:text-brand-ink/50 transition select-none"
+                  className="mt-1 flex items-center gap-2 text-[10px] text-brand-ink/40 hover:text-brand-ink/70 transition select-none"
                   aria-label="Designed and developed by Marco Carminati — Underline Studio"
                 >
-                  <span>Designed &amp; developed by</span>
-                  <span className="font-medium">Marco Carminati</span>
-                  <span className="opacity-50">·</span>
+                  <span>Designed &amp; developed by Marco Carminati</span>
+                  <span className="opacity-40">·</span>
                   <img
                     src={underlineStudioMark}
                     alt="Underline Studio"
-                    className="h-2.5 w-auto opacity-70"
+                    className="h-5 w-auto opacity-90"
                   />
                 </a>
               </div>
