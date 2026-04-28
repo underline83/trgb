@@ -1,0 +1,44 @@
+<svg width="4000" height="1400" viewBox="0 0 4000 1400" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- UNDERLINE -->
+  <text x="2000" y="600"
+        font-family="Cormorant Garamond, serif"
+        font-size="300"
+        letter-spacing="12"
+        text-anchor="middle"
+        fill="#111111">
+    UNDERLINE
+  </text>
+
+  <!-- Linea sinistra (più corta, 85% larghezza ottica) -->
+  <line x1="1400" y1="720" x2="1880" y2="720"
+        stroke="#111111"
+        stroke-width="6"
+        stroke-linecap="round"/>
+
+  <!-- 83 -->
+  <text x="2000" y="742"
+        font-family="Cormorant Garamond, serif"
+        font-size="95"
+        text-anchor="middle"
+        fill="#111111">
+    83
+  </text>
+
+  <!-- Linea destra -->
+  <line x1="2120" y1="720" x2="2600" y2="720"
+        stroke="#111111"
+        stroke-width="6"
+        stroke-linecap="round"/>
+
+  <!-- STUDIO -->
+  <text x="2000" y="900"
+        font-family="Montserrat, sans-serif"
+        font-size="140"
+        letter-spacing="40"
+        text-anchor="middle"
+        fill="#111111">
+    STUDIO
+  </text>
+
+</svg>

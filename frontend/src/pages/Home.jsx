@@ -10,6 +10,7 @@ import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
 import useHomeActions from "../hooks/useHomeActions";
 import SelezioniCard from "../components/widgets/SelezioniCard";
+import underlineStudioMark from "../assets/brand/underline-studio-mark.svg";
 
 /* ── Fallback subtitle per moduli (usati quando il backend non ha ancora dati) ── */
 const MODULE_FALLBACK = {
@@ -500,12 +501,32 @@ export default function Home() {
                 );
               })()}
 
-              {/* Footer versione */}
+              {/* Footer versione + firma creator (sessione 60, 2026-04-29).
+                  La firma "Marco Carminati — Underline Studio" e' branding del
+                  CREATORE del prodotto TRGB, non del cliente Tre Gobbi. Visibile
+                  a tutti i clienti che useranno TRGB in futuro (come "Designed
+                  in California" sui prodotti Apple). Modulo: platform/UI primitives. */}
               <div className="mt-10 flex flex-col items-center gap-1.5">
                 <GobbetteMini className="opacity-30" />
                 <span className="text-[10px] text-brand-ink/30">
                   TRGB Gestionale v{MODULE_VERSIONS.sistema.version}
                 </span>
+                <a
+                  href="https://underline-studio.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 flex items-center gap-1.5 text-[10px] text-brand-ink/25 hover:text-brand-ink/50 transition select-none"
+                  aria-label="Designed and developed by Marco Carminati — Underline Studio"
+                >
+                  <span>Designed &amp; developed by</span>
+                  <span className="font-medium">Marco Carminati</span>
+                  <span className="opacity-50">·</span>
+                  <img
+                    src={underlineStudioMark}
+                    alt="Underline Studio"
+                    className="h-2.5 w-auto opacity-70"
+                  />
+                </a>
               </div>
             </div>
           </div>
