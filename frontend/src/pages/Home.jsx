@@ -10,7 +10,6 @@ import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
 import useHomeActions from "../hooks/useHomeActions";
 import SelezioniCard from "../components/widgets/SelezioniCard";
-import underlineStudioMark from "../assets/brand/underline-studio-mark.svg";
 
 /* ── Fallback subtitle per moduli (usati quando il backend non ha ancora dati) ── */
 const MODULE_FALLBACK = {
@@ -515,16 +514,12 @@ export default function Home() {
                   href="https://underlinestudio.it"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1.5 flex items-center gap-2.5 text-[11px] text-brand-ink/60 hover:text-brand-ink/85 transition select-none"
+                  className="mt-1.5 text-[11px] text-brand-ink/60 hover:text-brand-ink/85 transition select-none"
                   aria-label="Designed and developed by Marco Carminati — Underline Studio"
                 >
-                  <span>Designed &amp; developed by Marco Carminati</span>
-                  <span className="opacity-50">·</span>
-                  <img
-                    src={underlineStudioMark}
-                    alt="Underline Studio"
-                    className="h-7 w-auto"
-                  />
+                  Designed &amp; developed by Marco Carminati
+                  <span className="mx-1.5 opacity-50">·</span>
+                  <span className="font-medium">Underline Studio</span>
                 </a>
               </div>
             </div>
