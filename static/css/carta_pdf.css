@@ -309,6 +309,17 @@ td.prezzo { width: 10%; text-align: right; }
 .calici-section {
     page-break-after: always;
 }
+
+/* Dentro la sezione calici, il cambio tipologia (BOLLICINE → BIANCHI →
+   ROSATI → ROSSI...) NON deve forzare una nuova pagina: tutti i calici
+   stanno in continuum sotto il titolo "🥂 CALICI" per restare leggibili
+   come "lista unica". L'override va prima di `.calici-title` per
+   garantire la specificità di selettore (.calici-section .tipologia
+   batte il `.tipologia { page-break-before: always; }` globale). */
+.calici-section .tipologia {
+    page-break-before: auto;
+}
+
 .calici-title {
     font-family: "Cormorant Garamond", "Garamond", serif;
     font-size: 22pt;
