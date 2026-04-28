@@ -512,18 +512,18 @@ export default function Home() {
                   TRGB Gestionale v{MODULE_VERSIONS.sistema.version}
                 </span>
                 <a
-                  href="https://underline-studio.com"
+                  href="https://underlinestudio.it"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 flex items-center gap-2 text-[10px] text-brand-ink/40 hover:text-brand-ink/70 transition select-none"
+                  className="mt-1.5 flex items-center gap-2.5 text-[11px] text-brand-ink/60 hover:text-brand-ink/85 transition select-none"
                   aria-label="Designed and developed by Marco Carminati — Underline Studio"
                 >
                   <span>Designed &amp; developed by Marco Carminati</span>
-                  <span className="opacity-40">·</span>
+                  <span className="opacity-50">·</span>
                   <img
                     src={underlineStudioMark}
                     alt="Underline Studio"
-                    className="h-5 w-auto opacity-90"
+                    className="h-7 w-auto"
                   />
                 </a>
               </div>
