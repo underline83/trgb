@@ -1,0 +1,74 @@
+{
+  "_comment": "Branding istanza pulita TRGB — palette neutra prodotto, no gobbette, wordmark generico. Volutamente diverso da locali/tregobbi/ per smascherare contaminazioni hardcoded TRGB-02 nel codice durante il refactor.",
+  "_uso": "Build con TRGB_LOCALE=trgb (futuro deploy su trgb.it). In dev mode locale, lanciare il frontend con VITE_TRGB_LOCALE=trgb npm run dev per vedere visivamente la differenza dall'osteria.",
+
+  "id": "trgb",
+  "wordmark_text": "TRGB",
+  "tagline": "Gestionale ristorazione",
+
+  "colors": {
+    "brand_red":    "#DC2626",
+    "brand_green":  "#16A34A",
+    "brand_blue":   "#2563EB",
+    "brand_ink":    "#0F172A",
+    "brand_cream":  "#F8FAFC",
+    "brand_night":  "#0F172A"
+  },
+
+  "theme": {
+    "background":  "#F8FAFC",
+    "foreground":  "#0F172A",
+    "primary":     "#2563EB",
+    "success":     "#16A34A",
+    "danger":      "#DC2626",
+    "page_bg_class": "bg-brand-cream",
+    "html_theme_color": "#F8FAFC",
+    "html_apple_status_bar_style": "default"
+  },
+
+  "fonts": {
+    "headings": "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    "headings_weight": 700,
+    "body": "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+    "wordmark": "Inter, system-ui, sans-serif",
+    "wordmark_weight": 800,
+    "client_pdf": "Inter, system-ui, sans-serif"
+  },
+
+  "assets": {
+    "_note": "Set MINIMO di icone neutre per l'istanza prodotto. Quando arriva il dominio trgb.it si genereranno in step dedicato (R7). Per ora rimanda agli asset TRGB-02 esistenti come fallback temporaneo — verranno sostituiti.",
+    "icon": "/src/assets/brand/TRGB-02-icon-mono-black.svg",
+    "wordmark_color": "/src/assets/brand/TRGB-02-wordmark-black.svg",
+    "loader": "/src/assets/brand/TRGB-02-loader.svg",
+    "favicon_ico": "/icons/favicon.ico",
+    "favicon_16": "/icons/favicon-16.png",
+    "favicon_32": "/icons/favicon-32.png",
+    "icon_192": "/icons/icon-192.png",
+    "icon_512": "/icons/icon-512.png",
+    "icon_1024": "/icons/icon-1024.png"
+  },
+
+  "pwa": {
+    "name": "TRGB — Gestionale ristorazione",
+    "short_name": "TRGB",
+    "description": "Gestionale completo per ristorazione: vini, ricette, fatture, dipendenti, prenotazioni, controllo di gestione.",
+    "lang": "it-IT",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
+    "orientation": "any",
+    "background_color": "#F8FAFC",
+    "theme_color": "#F8FAFC",
+    "categories": ["business", "productivity", "food"]
+  },
+
+  "client_pdf": {
+    "_note": "PDF lato cliente in versione prodotto neutra. Sostituibile da settings UI in futuro (vedi roadmap 8.14).",
+    "logo": null,
+    "primary_color": "#0F172A",
+    "accent_color": "#64748B",
+    "page_bg": "#ffffff"
+  }
+}

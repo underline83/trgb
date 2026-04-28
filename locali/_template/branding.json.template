@@ -1,0 +1,71 @@
+{
+  "_comment": "TEMPLATE branding per locale nuovo. Compilare i campi tra <...>. Vedi locali/tregobbi/branding.json e locali/trgb/branding.json come esempi reali.",
+
+  "id": "<locale_id_lowercase>",
+  "wordmark_text": "<TESTO_WORDMARK>",
+  "tagline": "<sottotitolo opzionale>",
+
+  "colors": {
+    "_note": "Palette principale del cliente. 6 colori brand: red/green/blue/ink/cream/night. Usa colori coerenti con il logo del cliente.",
+    "brand_red":    "<#hex>",
+    "brand_green":  "<#hex>",
+    "brand_blue":   "<#hex>",
+    "brand_ink":    "<#hex>",
+    "brand_cream":  "<#hex>",
+    "brand_night":  "<#hex>"
+  },
+
+  "theme": {
+    "background":  "<#hex_sfondo_pagina>",
+    "foreground":  "<#hex_testo_principale>",
+    "primary":     "<#hex_azioni_primarie>",
+    "success":     "<#hex_conferma>",
+    "danger":      "<#hex_errore>",
+    "page_bg_class": "bg-brand-cream",
+    "html_theme_color": "<#hex_meta_theme_color>",
+    "html_apple_status_bar_style": "default"
+  },
+
+  "fonts": {
+    "headings": "<font-family per i titoli>",
+    "headings_weight": 700,
+    "body": "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    "wordmark": "<font-family wordmark>",
+    "wordmark_weight": 800,
+    "client_pdf": "<font-family per PDF cliente>"
+  },
+
+  "assets": {
+    "_note": "Path agli asset brand del cliente. Mettere i file in locali/<id>/assets/ e referenziarli qui. Servono almeno: icon, wordmark, favicon, icone PWA 192/512/1024.",
+    "icon": "<path/to/icon.svg>",
+    "wordmark_color": "<path/to/wordmark.svg>",
+    "loader": "<path/to/loader.svg>",
+    "favicon_ico": "<path/to/favicon.ico>",
+    "icon_192": "<path/to/icon-192.png>",
+    "icon_512": "<path/to/icon-512.png>",
+    "icon_1024": "<path/to/icon-1024.png>"
+  },
+
+  "pwa": {
+    "name": "<NOME_COMPLETO_APP>",
+    "short_name": "<NOME_BREVE>",
+    "description": "<DESCRIZIONE>",
+    "lang": "it-IT",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
+    "orientation": "any",
+    "background_color": "<#hex>",
+    "theme_color": "<#hex>",
+    "categories": ["business", "productivity", "food"]
+  },
+
+  "client_pdf": {
+    "logo": "<path/to/logo_pdf.png>",
+    "primary_color": "<#hex>",
+    "accent_color": "<#hex>",
+    "page_bg": "#ffffff"
+  }
+}

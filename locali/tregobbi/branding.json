@@ -1,0 +1,103 @@
+{
+  "_comment": "Branding Osteria Tre Gobbi — palette TRGB-02 (sessione 28 originale, sessione 60 R2 portata in tenant config). Modulo: vini/platform UI primitives.",
+  "_estratto_da": "frontend/src/index.css :root (palette CSS vars) + tailwind.config.js (theme.extend.colors) + frontend/index.html (theme-color) + CLAUDE.md sezione palette",
+
+  "id": "tregobbi",
+  "wordmark_text": "TRGB",
+  "tagline": "Osteria Tre Gobbi",
+
+  "colors": {
+    "brand_red": "#E8402B",
+    "brand_green": "#2EB872",
+    "brand_blue": "#2E7BE8",
+    "brand_ink": "#111111",
+    "brand_cream": "#F4F1EC",
+    "brand_night": "#0E0E10",
+    "_note_ruoli": "I 6 colori ruolo (amber admin, cyan contabile, purple sommelier, rose sala, emerald chef, slate viewer) restano i Tailwind standard, NON sono parte del branding tenant — sono affordance funzionale comune al prodotto."
+  },
+
+  "theme": {
+    "background": "#F4F1EC",
+    "foreground": "#111111",
+    "primary": "#2E7BE8",
+    "success": "#2EB872",
+    "danger":  "#E8402B",
+    "page_bg_class": "bg-brand-cream",
+    "html_theme_color": "#F4F1EC",
+    "html_apple_status_bar_style": "black-translucent"
+  },
+
+  "fonts": {
+    "headings": "'Playfair Display', Georgia, serif",
+    "headings_weight": 700,
+    "body": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+    "wordmark": "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    "wordmark_weight": 800,
+    "client_pdf": "'Cormorant Garamond', 'Garamond', serif"
+  },
+
+  "assets": {
+    "_note": "Path relativi a frontend/. Dopo R7 verranno spostati in locali/tregobbi/assets/ ma per ora restano dove sono per non rompere import React.",
+    "icon": "/src/assets/brand/TRGB-02-icon-transparent.svg",
+    "icon_color": "/src/assets/brand/TRGB-02-icon-color.svg",
+    "icon_dark": "/src/assets/brand/TRGB-02-icon-dark.svg",
+    "icon_mono_black": "/src/assets/brand/TRGB-02-icon-mono-black.svg",
+    "icon_mono_white": "/src/assets/brand/TRGB-02-icon-mono-white.svg",
+    "wordmark_color": "/src/assets/brand/TRGB-02-wordmark-color.svg",
+    "wordmark_black": "/src/assets/brand/TRGB-02-wordmark-black.svg",
+    "wordmark_dark": "/src/assets/brand/TRGB-02-wordmark-dark.svg",
+    "wordmark_white": "/src/assets/brand/TRGB-02-wordmark-white.svg",
+    "loader": "/src/assets/brand/TRGB-02-loader.svg",
+    "splash_svg": "/src/assets/brand/TRGB-02-splash.svg",
+    "gobbette_strip": "/src/assets/brand/TRGB-gobbette-strip.svg",
+    "gobbette_pattern_a": "/src/assets/brand/TRGB-pattern-gobbette-A.svg",
+    "gobbette_pattern_a_dark": "/src/assets/brand/TRGB-pattern-gobbette-A-dark.svg",
+    "gobbette_pattern_b": "/src/assets/brand/TRGB-pattern-gobbette-B.svg",
+    "favicon_ico": "/icons/favicon.ico",
+    "favicon_16": "/icons/favicon-16.png",
+    "favicon_32": "/icons/favicon-32.png",
+    "icon_192": "/icons/icon-192.png",
+    "icon_512": "/icons/icon-512.png",
+    "icon_1024": "/icons/icon-1024.png",
+    "icon_192_maskable": "/icons/icon-192-maskable.png",
+    "icon_512_maskable": "/icons/icon-512-maskable.png",
+    "apple_touch_icons": [
+      {"size": "29x29",   "src": "/icons/apple-touch-icon-29.png"},
+      {"size": "40x40",   "src": "/icons/apple-touch-icon-40.png"},
+      {"size": "60x60",   "src": "/icons/apple-touch-icon-60.png"},
+      {"size": "72x72",   "src": "/icons/apple-touch-icon-72.png"},
+      {"size": "76x76",   "src": "/icons/apple-touch-icon-76.png"},
+      {"size": "80x80",   "src": "/icons/apple-touch-icon-80.png"},
+      {"size": "87x87",   "src": "/icons/apple-touch-icon-87.png"},
+      {"size": "120x120", "src": "/icons/apple-touch-icon-120.png"},
+      {"size": "152x152", "src": "/icons/apple-touch-icon-152.png"},
+      {"size": "167x167", "src": "/icons/apple-touch-icon-167.png"},
+      {"size": "180x180", "src": "/icons/apple-touch-icon-180.png"}
+    ],
+    "_splash_ios_TODO": "Matrice splash iOS (apple-touch-startup-image) DA generare in step 4 di R2 con tool dedicato — vedi locali/tregobbi/assets/splash/SPLASH_TODO.md."
+  },
+
+  "pwa": {
+    "name": "TRGB Gestionale — Osteria Tre Gobbi",
+    "short_name": "TRGB",
+    "description": "Gestionale interno Osteria Tre Gobbi (Bergamo) — vini, foodcost, acquisti, dipendenti, prenotazioni, controllo gestione.",
+    "lang": "it-IT",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
+    "orientation": "any",
+    "background_color": "#F4F1EC",
+    "theme_color": "#F4F1EC",
+    "categories": ["business", "productivity", "food"]
+  },
+
+  "client_pdf": {
+    "_note": "Identità visiva osteria per PDF lato cliente (carta vini, menu pranzo) — diversa dal brand TRGB-02 software. Cormorant Garamond, sfondo bianco, palette caldi neutri.",
+    "logo": "static/img/logo_tregobbi.png",
+    "primary_color": "#5b2c1a",
+    "accent_color": "#c4a77d",
+    "page_bg": "#ffffff"
+  }
+}

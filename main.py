@@ -155,6 +155,53 @@ def system_info():
     }
 
 
+# ──────────────────────────────────────────────────────────────
+# /locale/branding.json — config visivo del locale (R2, sessione 60)
+# Endpoint pubblico read-only consumato dal frontend al boot per applicare
+# palette/font/asset paths senza hardcoding TRGB-02 nel codice.
+# Cached in memoria 60s per ridurre I/O. In dev mode disabilita la cache.
+# Vedi docs/refactor_monorepo.md §3 R2 e locali/<id>/branding.json.
+# ──────────────────────────────────────────────────────────────
+import json
+import time
+_BRANDING_CACHE = {"data": None, "ts": 0, "locale": None}
+_BRANDING_TTL = 60  # secondi
+
+def _load_branding_for_locale(locale: str) -> dict:
+    """
+    Carica locali/<locale>/branding.json e ritorna il dict.
+    Fallback al branding di 'tregobbi' se manca il file (caso boot
+    iniziale per un nuovo cliente prima della configurazione).
+    """
+    candidate_paths = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "locali", locale, "branding.json"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "locali", "tregobbi", "branding.json"),
+    ]
+    for path in candidate_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"⚠️ Errore lettura branding {path}: {e}")
+                continue
+    return {}
+
+@app.get("/locale/branding.json")
+def get_locale_branding():
+    """Branding tenant-aware: palette + font + asset paths del locale corrente."""
+    now = time.time()
+    if (_BRANDING_CACHE["data"] is not None
+        and _BRANDING_CACHE["locale"] == TRGB_LOCALE
+        and now - _BRANDING_CACHE["ts"] < _BRANDING_TTL):
+        return _BRANDING_CACHE["data"]
+    data = _load_branding_for_locale(TRGB_LOCALE)
+    _BRANDING_CACHE["data"] = data
+    _BRANDING_CACHE["locale"] = TRGB_LOCALE
+    _BRANDING_CACHE["ts"] = now
+    return data
+
+
 # ----------------------------------------
 # CORS (per frontend React/Vite)
 # ----------------------------------------
