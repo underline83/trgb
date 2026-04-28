@@ -1,6 +1,7 @@
 {
-  "_comment": "Branding Osteria Tre Gobbi — palette TRGB-02 (sessione 28 originale, sessione 60 R2 portata in tenant config). Modulo: vini/platform UI primitives.",
-  "_estratto_da": "frontend/src/index.css :root (palette CSS vars) + tailwind.config.js (theme.extend.colors) + frontend/index.html (theme-color) + CLAUDE.md sezione palette",
+  "_comment": "Branding Osteria Tre Gobbi — EREDITA dal branding prodotto (locali/trgb/branding.json) la palette TRGB-02 e gli asset gobbette+T (sono branding del PRODOTTO, non del cliente). Aggiunge SOLO override cliente: tagline (collab marker), pwa.name custom, client_pdf con identità osteria (Cormorant Garamond).",
+  "_estratto_da": "frontend/src/index.css :root + tailwind.config.js + index.html. Palette identica a locali/trgb/branding.json (è il prodotto). Differenze custom Tre Gobbi: tagline, pwa.name, client_pdf.",
+  "_inherit_from": "trgb (concettualmente — al momento il merge non è implementato, R2 serve il file completo. Da R7+ valutare merge effettivo deep nel backend / frontend).",
 
   "id": "tregobbi",
   "wordmark_text": "TRGB",

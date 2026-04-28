@@ -1,52 +1,78 @@
 {
-  "_comment": "Branding istanza pulita TRGB — palette neutra prodotto, no gobbette, wordmark generico. Volutamente diverso da locali/tregobbi/ per smascherare contaminazioni hardcoded TRGB-02 nel codice durante il refactor.",
-  "_uso": "Build con TRGB_LOCALE=trgb (futuro deploy su trgb.it). In dev mode locale, lanciare il frontend con VITE_TRGB_LOCALE=trgb npm run dev per vedere visivamente la differenza dall'osteria.",
+  "_comment": "Branding istanza pulita TRGB = BRANDING DEL PRODOTTO. Palette TRGB-02 e asset gobbette+T sono il MARCHIO SOFTWARE, non personalizzazione cliente. Quando un cliente nuovo compra TRGB, vede questo branding (come Shopify resta Shopify per tutti). Le personalizzazioni cliente (es. 'Osteria Tre Gobbi') aggiungono SOLO override custom su questa base, vedi locali/tregobbi/branding.json.",
+  "_uso": "Build con TRGB_LOCALE=trgb (futuro deploy su trgb.it). In dev: VITE_TRGB_LOCALE=trgb npm run dev. La differenza dall'osteria è SOLO la tagline (null = no collab marker), il pwa.name (versione prodotto) e il client_pdf (versione prodotto neutra). Palette + asset = identici al prodotto.",
 
   "id": "trgb",
   "wordmark_text": "TRGB",
   "tagline": null,
-  "_tagline_note": "null = niente 'collab marker' nell'header. L'istanza prodotto pulita mostra solo TRGB. Quando un cliente nuovo viene creato copiando _template, mette qui il nome del suo locale (es. 'Osteria da Mario') che apparirà come 'TRGB × Osteria da Mario' nella home.",
+  "_tagline_note": "null = niente 'collab marker' nell'header. L'istanza prodotto pulita mostra solo TRGB. Quando un cliente compra TRGB e copia _template, mette qui il nome del suo locale (es. 'Osteria da Mario') che apparirà come 'TRGB × Osteria da Mario' nella home — è l'unica differenza visibile rispetto al prodotto puro.",
 
   "colors": {
-    "brand_red":    "#DC2626",
-    "brand_green":  "#16A34A",
-    "brand_blue":   "#2563EB",
-    "brand_ink":    "#0F172A",
-    "brand_cream":  "#F8FAFC",
-    "brand_night":  "#0F172A"
+    "_note": "Palette TRGB-02 (sessione 28) — IDENTICA all'osteria perché è il branding del prodotto, non personalizzazione tenant.",
+    "brand_red":    "#E8402B",
+    "brand_green":  "#2EB872",
+    "brand_blue":   "#2E7BE8",
+    "brand_ink":    "#111111",
+    "brand_cream":  "#F4F1EC",
+    "brand_night":  "#0E0E10"
   },
 
   "theme": {
-    "background":  "#F8FAFC",
-    "foreground":  "#0F172A",
-    "primary":     "#2563EB",
-    "success":     "#16A34A",
-    "danger":      "#DC2626",
+    "background":  "#F4F1EC",
+    "foreground":  "#111111",
+    "primary":     "#2E7BE8",
+    "success":     "#2EB872",
+    "danger":      "#E8402B",
     "page_bg_class": "bg-brand-cream",
-    "html_theme_color": "#F8FAFC",
-    "html_apple_status_bar_style": "default"
+    "html_theme_color": "#F4F1EC",
+    "html_apple_status_bar_style": "black-translucent"
   },
 
   "fonts": {
-    "headings": "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    "headings": "'Playfair Display', Georgia, serif",
     "headings_weight": 700,
-    "body": "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
-    "wordmark": "Inter, system-ui, sans-serif",
+    "body": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+    "wordmark": "'Helvetica Neue', Helvetica, Arial, sans-serif",
     "wordmark_weight": 800,
     "client_pdf": "Inter, system-ui, sans-serif"
   },
 
   "assets": {
-    "_note": "Set MINIMO di icone neutre per l'istanza prodotto. Quando arriva il dominio trgb.it si genereranno in step dedicato (R7). Per ora rimanda agli asset TRGB-02 esistenti come fallback temporaneo — verranno sostituiti.",
-    "icon": "/src/assets/brand/TRGB-02-icon-mono-black.svg",
-    "wordmark_color": "/src/assets/brand/TRGB-02-wordmark-black.svg",
+    "_note": "Asset TRGB-02 (gobbette + T) — branding del prodotto, condivisi con tutte le istanze. Path attuali in frontend/. Da R7 si sposteranno in core/frontend/assets/brand/.",
+    "icon": "/src/assets/brand/TRGB-02-icon-transparent.svg",
+    "icon_color": "/src/assets/brand/TRGB-02-icon-color.svg",
+    "icon_dark": "/src/assets/brand/TRGB-02-icon-dark.svg",
+    "icon_mono_black": "/src/assets/brand/TRGB-02-icon-mono-black.svg",
+    "icon_mono_white": "/src/assets/brand/TRGB-02-icon-mono-white.svg",
+    "wordmark_color": "/src/assets/brand/TRGB-02-wordmark-color.svg",
+    "wordmark_black": "/src/assets/brand/TRGB-02-wordmark-black.svg",
+    "wordmark_dark": "/src/assets/brand/TRGB-02-wordmark-dark.svg",
+    "wordmark_white": "/src/assets/brand/TRGB-02-wordmark-white.svg",
     "loader": "/src/assets/brand/TRGB-02-loader.svg",
+    "splash_svg": "/src/assets/brand/TRGB-02-splash.svg",
+    "gobbette_strip": "/src/assets/brand/TRGB-gobbette-strip.svg",
     "favicon_ico": "/icons/favicon.ico",
     "favicon_16": "/icons/favicon-16.png",
     "favicon_32": "/icons/favicon-32.png",
     "icon_192": "/icons/icon-192.png",
     "icon_512": "/icons/icon-512.png",
-    "icon_1024": "/icons/icon-1024.png"
+    "icon_1024": "/icons/icon-1024.png",
+    "icon_192_maskable": "/icons/icon-192-maskable.png",
+    "icon_512_maskable": "/icons/icon-512-maskable.png",
+    "apple_touch_icons": [
+      {"size": "29x29",   "src": "/icons/apple-touch-icon-29.png"},
+      {"size": "40x40",   "src": "/icons/apple-touch-icon-40.png"},
+      {"size": "60x60",   "src": "/icons/apple-touch-icon-60.png"},
+      {"size": "72x72",   "src": "/icons/apple-touch-icon-72.png"},
+      {"size": "76x76",   "src": "/icons/apple-touch-icon-76.png"},
+      {"size": "80x80",   "src": "/icons/apple-touch-icon-80.png"},
+      {"size": "87x87",   "src": "/icons/apple-touch-icon-87.png"},
+      {"size": "120x120", "src": "/icons/apple-touch-icon-120.png"},
+      {"size": "152x152", "src": "/icons/apple-touch-icon-152.png"},
+      {"size": "167x167", "src": "/icons/apple-touch-icon-167.png"},
+      {"size": "180x180", "src": "/icons/apple-touch-icon-180.png"}
+    ],
+    "_splash_ios_TODO": "Matrice 14 splash iOS gia' pronta in TRGB-02-final.zip — da integrare in commit dedicato (frontend/public/icons/splash/) + tag <link rel='apple-touch-startup-image'> in index.html."
   },
 
   "pwa": {
@@ -60,16 +86,16 @@
     "display": "standalone",
     "display_override": ["standalone", "minimal-ui"],
     "orientation": "any",
-    "background_color": "#F8FAFC",
-    "theme_color": "#F8FAFC",
+    "background_color": "#F4F1EC",
+    "theme_color": "#F4F1EC",
     "categories": ["business", "productivity", "food"]
   },
 
   "client_pdf": {
-    "_note": "PDF lato cliente in versione prodotto neutra. Sostituibile da settings UI in futuro (vedi roadmap 8.14).",
+    "_note": "PDF lato cliente in versione PRODOTTO neutra (TRGB-02 minimal). Cliente che compra può sostituire con il suo brand (es. Cormorant Garamond + palette caldi come fa locali/tregobbi/). Roadmap 8.14: settings UI per personalizzazione.",
     "logo": null,
-    "primary_color": "#0F172A",
-    "accent_color": "#64748B",
+    "primary_color": "#111111",
+    "accent_color": "#2E7BE8",
     "page_bg": "#ffffff"
   }
 }
