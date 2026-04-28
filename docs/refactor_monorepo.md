@@ -393,7 +393,7 @@ Vedi `CLAUDE.md` sezione "Refactor monorepo — gestione operativa" e "Architett
 
 | Sessione | Stato | Data | Commit | Note |
 |----------|-------|------|--------|------|
-| R1 | DA FARE | — | — | Scaffolding cartelle |
+| R1 | ✅ FATTO | 2026-04-28 | `8876603` | Scaffolding `locali/{tregobbi,trgb,_template}/` + `TRGB_LOCALE` + `/system/info` + `VITE_TRGB_LOCALE` + `.gitignore`. Verifica: endpoint risponde `{"locale":"tregobbi"}`, banner nei log, backend OK. |
 | R2 | DA FARE | — | — | Branding + Splash iOS |
 | R3 | DA FARE | — | — | Seed migrations flag |
 | R4 | DA FARE | — | — | push.sh -l + uploads locale-aware |
