@@ -1,0 +1,14 @@
+{
+  "id": "<TENANT_ID_LOWERCASE>",
+  "nome": "<NOME_DEL_LOCALE>",
+  "descrizione": "<DESCRIZIONE_BREVE>",
+  "dominio": "<dominio.com>",
+  "lingua": "it-IT",
+  "timezone": "Europe/Rome",
+  "valuta": "EUR",
+  "indirizzo": "<CITTA, NAZIONE>",
+  "creato_il": "<YYYY-MM-DD>",
+  "creato_in_sessione": "<sessione di creazione>",
+  "note": "Locale creato copiando locali/_template. Da popolare branding.json, strings.json, deploy/env.production, assets/, seeds/.",
+  "moduli_attivi_default": "*"
+}

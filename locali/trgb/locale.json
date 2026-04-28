@@ -1,0 +1,14 @@
+{
+  "id": "trgb",
+  "nome": "TRGB",
+  "descrizione": "Istanza pulita del prodotto TRGB — gestionale per ristorazione. Futuro deploy su trgb.it come demo navigabile e presentazione prodotto a clienti potenziali.",
+  "dominio": "trgb.it",
+  "lingua": "it-IT",
+  "timezone": "Europe/Rome",
+  "valuta": "EUR",
+  "indirizzo": null,
+  "creato_il": "2026-04-28",
+  "creato_in_sessione": "60 (R1)",
+  "note": "Placeholder fino a R2. branding.json di questo locale userà palette neutra prodotto (no gobbette TRGB-02), wordmark generico. Deploy effettivo (Tappa 3) avverrà a fine R4. Prima di allora: utile in dev mode con TRGB_LOCALE=trgb per testare la separazione core/locale.",
+  "moduli_attivi_default": "*"
+}

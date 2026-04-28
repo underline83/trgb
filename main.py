@@ -119,6 +119,16 @@ from app.routers.lista_spesa_router import router as lista_spesa_router
 from app.routers.bevande_router import router as bevande_router
 
 
+# ──────────────────────────────────────────────────────────────
+# TRGB_LOCALE — identificativo del locale (R1, sessione 60, 2026-04-28)
+# Default "tregobbi" per l'osteria di Marco. Override via env var TRGB_LOCALE.
+# Vedi docs/refactor_monorepo.md §3 R1 e locali/README.md.
+# ──────────────────────────────────────────────────────────────
+import os
+TRGB_LOCALE = os.environ.get("TRGB_LOCALE", "tregobbi").strip() or "tregobbi"
+print(f"🏠 TRGB_LOCALE: {TRGB_LOCALE}")
+
+
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
 
@@ -127,6 +137,22 @@ run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'a
 # APP
 # ----------------------------------------
 app = FastAPI(title="TRGB Gestionale Web", version="2025.12-web")
+
+
+# ──────────────────────────────────────────────────────────────
+# /system/info — diagnostica + identificazione locale (R1)
+# Endpoint pubblico read-only per:
+#  - probe HTTP esterno (push.sh, monitoring)
+#  - identificare il locale corrente (frontend, scripts, demo affiancata)
+# Vedi docs/refactor_monorepo.md §3 R1.
+# ──────────────────────────────────────────────────────────────
+@app.get("/system/info")
+def system_info():
+    return {
+        "locale": TRGB_LOCALE,
+        "product": "TRGB",
+        "version": app.version,
+    }
 
 
 # ----------------------------------------

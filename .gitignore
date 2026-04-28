@@ -150,3 +150,14 @@ scripts_backup_*/
 .guardiano_state.json
 # Pacchetto skill generato da scripts/package_skill.py (artefatto build, rigenerabile)
 /guardiano.skill
+
+# =====================
+#  REFACTOR MONOREPO (R1, sessione 60, 2026-04-28)
+# =====================
+# Dati runtime/cliente del locale: DB SQLite, upload, stato — NON in repo.
+# La struttura `locali/<id>/data/` è creata dal codice e popolata in produzione.
+# Manteniamo `.gitkeep` per preservare la cartella vuota nel repo.
+locali/*/data/*
+!locali/*/data/.gitkeep
+# Ambiente locale-specific (override env var TRGB_LOCALE per dev/test)
+.env.locale.*

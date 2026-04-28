@@ -1,0 +1,14 @@
+{
+  "id": "tregobbi",
+  "nome": "Osteria Tre Gobbi",
+  "descrizione": "Osteria di Marco Carminati a Bergamo — cliente zero del prodotto TRGB.",
+  "dominio": "trgb.tregobbi.it",
+  "lingua": "it-IT",
+  "timezone": "Europe/Rome",
+  "valuta": "EUR",
+  "indirizzo": "Bergamo, Italia",
+  "creato_il": "2026-04-28",
+  "creato_in_sessione": "60 (R1)",
+  "note": "Personalizzazioni complete in branding.json (R2), strings.json (R5), seeds/ (R3), data/ (R6). Deploy su VPS Aruba, dominio trgb.tregobbi.it.",
+  "moduli_attivi_default": "*"
+}

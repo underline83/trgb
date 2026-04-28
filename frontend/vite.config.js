@@ -29,12 +29,19 @@ function versionJsonPlugin() {
   };
 }
 
+// TRGB_LOCALE — identificativo del locale (R1, sessione 60, 2026-04-28).
+// Default "tregobbi" per l'osteria di Marco. Override via env VITE_TRGB_LOCALE
+// quando si fa build per altri locali (es. VITE_TRGB_LOCALE=trgb npm run build).
+// Vedi docs/refactor_monorepo.md §3 R1.
+const TRGB_LOCALE = (process.env.VITE_TRGB_LOCALE || "tregobbi").trim() || "tregobbi";
+
 export default defineConfig({
   plugins: [react(), versionJsonPlugin()],
 
-  // Inietta BUILD_VERSION come costante globale in tutto il codice JS
+  // Inietta costanti globali in tutto il codice JS
   define: {
     __BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
+    __TRGB_LOCALE__: JSON.stringify(TRGB_LOCALE),
   },
 
   // Code-splitting: un chunk vendor per libreria pesante + un chunk per modulo
