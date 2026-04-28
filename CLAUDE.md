@@ -18,6 +18,69 @@
 - "caricato" = push fatto, VPS aggiornato.
 - Se qualcosa non funziona dopo il push: chiedi di refreshare con Ctrl+Shift+R.
 
+## Refactor monorepo — gestione operativa (in corso, da sessione 60)
+
+> **Documento completo:** `docs/refactor_monorepo.md` — leggere PRIMA di iniziare qualsiasi sessione di sviluppo.
+>
+> **Razionale:** TRGB serve sia all'osteria di Marco (cliente zero, su `trgb.tregobbi.it`) sia a diventare prodotto vendibile (su `trgb.it`). Il refactor separa `core/` (prodotto generico) da `locali/tregobbi/` (personalizzazioni Tre Gobbi) e introduce `locali/trgb/` (istanza pulita prodotto). 8 sessioni "R" (R1-R7 architettura locale + R8 architettura modulare), ognuna deployabile indipendentemente.
+
+### Stato corrente del refactor
+Vedi tabella in `docs/refactor_monorepo.md` §6. Aggiornare lo stato di ogni R a chiusura sessione.
+
+### Disciplina obbligatoria su nuove feature
+
+Da R1 in poi (anche se R1 non è ancora pushato), per OGNI feature/fix nuovo Claude DEVE classificare il lavoro in una di queste 3 categorie e scriverlo nel commit message:
+
+1. **`[core]`** — Logica di prodotto generica, riusabile per qualsiasi ristorante. Esempi: nuovo endpoint API, nuovo componente UI, mattone condiviso, fix di logica business standard.
+2. **`[locale:tregobbi]`** — Personalizzazione specifica dell'osteria di Marco. Esempi: brand assets, palette colori, dati seed Tre Gobbi, dominio, deploy VPS, testi italiani specifici.
+3. **`[mixed]`** — Tocca entrambi (es. una feature core + un suo seed in tenant). Va dichiarato e in commit dedicato per ciascuna parte se possibile.
+
+Se Claude non sa rispondere alla domanda "questa feature dove va?", DEVE chiedere a Marco prima di scrivere codice. Vietato decidere da soli.
+
+### Regole inderogabili durante R1-R8
+
+- **Una sessione = una direzione.** O sessione "R" (refactor), o sessione "feature/bug". Mai mischiare nello stesso commit.
+- **Bug fix urgenti hanno SEMPRE precedenza.** Si ferma R, si fixa nel codice corrente, si pusha, si riprende R.
+- **Mai rimuovere file in modo distruttivo durante R.** Si copia con alias temporaneo, si verifica, in R7 si ripulisce.
+- **Migrazioni DB durante R: solo idempotenti, solo ADD COLUMN.** Niente DROP, niente RENAME su DB live.
+- **Nuovi moduli durante R3-R5: meglio rinviare se grossi.** Bug fix e ritocchi piccoli OK.
+- **`/guardiano push` per ogni sessione R.** Pre-audit + push.sh + post-audit + update di `docs/refactor_monorepo.md` §6 (stato sessione + commit hash + data).
+- **Path locale futuro:** `locali/tregobbi/{branding.json, strings.json, seeds/, deploy/, data/, assets/, moduli_attivi.json}`. Niente file TRGB-specific in `core/` da R1 in poi.
+- **Strategia work:** una sola cartella `/Users/underline83/trgb/`, lavoro incrementale su `main`. Niente branch refactor lunghi, niente cartelle parallele. Ogni R è un commit deployabile, rollback con `git revert` se rompe.
+
+### Cosa significa "core" e "locale" oggi
+Pre-R1, la struttura `core/` non esiste ancora. Tutto è in `app/` e `frontend/src/`. Ma la domanda "core o locale?" si applica già: se aggiungi una stringa "Osteria Tre Gobbi" hardcoded oggi, sai che dovrai spostarla in R5 — quindi meglio usarla via futuro helper `t()` quando arriva R5, o almeno isolarla in un punto.
+
+## Architettura modulare — disciplina codice DA OGGI
+
+> **Documento completo:** `docs/refactor_monorepo.md` §3 R8 + §5.
+
+TRGB è strutturato come **monolite modulare con feature flags per locale**. Cliente compra "solo Vini" → vede solo Vini, il resto inesistente per lui. Il sistema di feature flags (`module_loader`) si implementa in R8, ma la **disciplina di codice si applica DA OGGI** per ogni feature nuova.
+
+### I moduli vendibili (mappa attuale)
+
+13 moduli + platform. Vedi tabella in `docs/refactor_monorepo.md` §3 R8 per dettagli (id, nome utente, tabelle DB, endpoint prefix):
+
+`vini`, `ricette`, `acquisti`, `controllo_gestione`, `banca`, `dipendenti`, `prenotazioni`, `clienti`, `cassa`, `menu_carta`, `cucina`, `task_manager`, `statistiche`.
+
+**Platform** (sempre inclusa, non vendibile da sola): auth + utenti + M.A notifiche + M.B PDF + M.C WA + M.D email + M.E calendar + M.F alert + M.G permessi + M.H import + M.I UI primitives.
+
+### Le 5 regole di disciplina codice
+
+Da rispettare per OGNI feature nuova, anche prima di R8:
+
+1. **Ogni feature appartiene a UN modulo dichiarato.** All'inizio del file backend o del componente frontend, dichiarare in commento: `# Modulo: vini` o `// Modulo: cucina`. Se non sai a quale modulo appartiene, CHIEDI a Marco prima di scrivere.
+2. **Niente import diretti tra router di moduli diversi.** `app/routers/vini_router.py` non importa da `app/routers/foodcost_router.py`. Se serve dato cross-modulo, passare via servizio platform (`app/services/`) o via evento.
+3. **Tabelle DB iniziano col prefisso del modulo.** `vini_*`, `dipendenti_*`, `cg_*` (Controllo Gestione), `pranzo_*`, `menu_carta_*`, `cucina_*`, `lista_spesa_*`, `tasks_*`. Tabelle generiche cross-modulo (es. `audit_log`, `notifiche`, `users`) vivono in platform.
+4. **Comunicazione cross-modulo via servizi platform o eventi.** Se modulo A ha bisogno di dato del modulo B, NON chiamare direttamente l'altro modulo: o si passa via un servizio platform condiviso, o via evento (`crea_notifica`, `import_engine`, ecc.). Eccezione: il modulo cross-aggregatore `statistiche` può leggere dati di altri moduli read-only.
+5. **Ogni modulo ha (o avrà a R8) un `module.json` di manifesto** con: id, nome, versione, dipendenze platform, dipendenze opzionali, tabelle DB, endpoint prefix, frontend route. Pre-R8: scrivere queste informazioni in commento all'inizio del router principale del modulo, così a R8 si raccolgono in un sol colpo.
+
+### Cosa significa "modulo" oggi
+
+Pre-R8, non c'è ancora `core/moduli/<id>/` come cartella. Ma le 5 regole sopra sono attive da subito. Se aggiungi una feature al modulo Vini oggi, scrivila come se domani il `module_loader` la dovesse trovare nel suo modulo: nessun import casuale, prefisso DB rispettato, classificazione esplicita.
+
+Se Claude non sa rispondere a "questa feature dove va?", deve CHIEDERE a Marco. Vietato decidere da soli.
+
 ## Stack e convenzioni codice
 - **Backend**: FastAPI (Python 3.12) + SQLite. Entry point: `main.py`.
 - **Frontend**: React 18 + Vite + TailwindCSS. No CSS separati. Componenti funzionali con hooks.

@@ -10,6 +10,34 @@
 
 ---
 
+## 0 — Refactor monorepo (`core/` + `locali/`) — STRATEGICO
+
+> **Documento completo:** `docs/refactor_monorepo.md`
+> **Razionale:** separare prodotto vendibile (`core/`) da personalizzazioni Tre Gobbi (`locali/tregobbi/`) e introdurre l'istanza pulita prodotto (`locali/trgb/` su futuro `trgb.it`). Prerequisito per: app pubblicata su App Store, primo cliente paying, vendita modulare per modulo.
+> **Decisione:** 2026-04-27 / 28 (Marco + Claude). **Stima totale:** 7-10 giornate effettive in 8 sessioni.
+> **Architettura:** monolite modulare con feature flags per locale. 13 moduli vendibili + platform sempre inclusa.
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 0.R1 | Scaffolding `locali/{tregobbi,trgb,_template}/` + env `TRGB_LOCALE` | S | DA FARE | Zero behavior change. Vedi `docs/refactor_monorepo.md` §3 R1 |
+| 0.R2 | Branding centralizzato `locali/<id>/branding.json` + Splash iOS | M | DA FARE | Palette + wordmark + manifest letti da config locale. Chiude PWA Fase 0 |
+| 0.R3 | Seed migrations TRGB-specific isolate | M | DA FARE | Flag `TRGB_SPECIFIC` su 12-15 migrazioni + runner locale-aware |
+| 0.R4 | `push.sh -l locale` + `locali/<id>/deploy/env.production` | S | DA FARE | Deploy parametrizzabile per locale + uploads.py locale-aware |
+| 0.R5 | Override testi UI in `locali/<id>/strings.json` | M | DA FARE | Helper `t(key, fallback)` per ~40 stringhe italiano-osteria |
+| 0.R6 | Dati TRGB (catalogo vini reali) in `locali/tregobbi/data/` | S | DA FARE | Lookup path locale-aware |
+| 0.R7 | Cleanup + docs + scaffold `locali/_template/` | S | DA FARE | Pronto per cliente nuovo. Zero contaminazioni TRGB in `core/` |
+| 0.R8 | Architettura modulare con feature flags per locale | L | DA FARE | `module_loader` + `moduli_attivi.json` per locale. 13 moduli + platform. Permette vendere "solo Vini" |
+
+**Effetto su roadmap esistente:**
+- 1.1 (PWA Fase 0) confluisce in R2: gli splash screens iOS si fanno mentre si centralizza il branding locale.
+- 1.3 (Capacitor wrapper) resta DA VALUTARE post-R7.
+- 1.11.2 (WAL coverage altri DB) si può fare opportunisticamente in R3 quando si toccano i modelli DB.
+- Modulo K (upload fuori repo, già fatto in c7aaa4a) è già un primo passo del pattern locale-aware. R4 lo generalizza al `TRGB_LOCALE`.
+- Da R1 in poi, ogni feature nuova va classificata `[core]`/`[locale:tregobbi]`/`[mixed]` nel commit (vedi `CLAUDE.md`).
+- Da OGGI le 5 regole disciplina codice modulare in `CLAUDE.md` §"Architettura modulare" sono attive (a prescindere da R8).
+
+---
+
 ## 1 — Infrastruttura / App
 
 | ID | Cosa | Effort | Stato | Note |
