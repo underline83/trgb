@@ -1,3 +1,8 @@
+# R3 (sessione 60, 2026-04-29): seed con 80 ingredienti + 35 ricette del menu
+# Primavera 2026 di Tre Gobbi — specifico Marco. Saltato dal migration_runner
+# quando TRGB_LOCALE != "tregobbi". Vedi locali/tregobbi/seeds/MIGRATIONS_TRGB.md.
+TRGB_SPECIFIC = True
+
 """
 Migrazione 099 — Seed dati TEST nel modulo Food Cost (sessione 57 — 2026-04-25)
 

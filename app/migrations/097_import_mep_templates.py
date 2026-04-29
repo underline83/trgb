@@ -1,3 +1,8 @@
+# R3 (sessione 60, 2026-04-29): contiene MEP templates importati dal docx
+# Primavera 2026 di Marco — specifici Tre Gobbi. Saltato dal migration_runner
+# quando TRGB_LOCALE != "tregobbi". Vedi locali/tregobbi/seeds/MIGRATIONS_TRGB.md.
+TRGB_SPECIFIC = True
+
 """
 Migrazione 097 — Importazione 5 template Mise en place per partita
 (sessione 57 — 2026-04-25)

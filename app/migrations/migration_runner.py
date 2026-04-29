@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
-# @version: v1.2-migrations
-# Sistema migrazioni TRGB — semplificato, stile Alembic
+# @version: v1.3-locale-aware (R3, sessione 60, 2026-04-29)
+# Sistema migrazioni TRGB — semplificato, stile Alembic.
+#
+# R3 (sessione 60): aggiunta supporto flag TRGB_SPECIFIC sulle migrazioni che
+# inseriscono SOLO dati seed dell'osteria di Marco (Tre Gobbi). Quando il
+# backend gira con TRGB_LOCALE != "tregobbi" (es. istanza prodotto pulita
+# locali/trgb/), queste migrazioni sono saltate — il cliente nuovo parte
+# con DB vuoti e popola i suoi dati dal pannello UI.
+# Vedi docs/refactor_monorepo.md §3 R3 e locali/tregobbi/seeds/MIGRATIONS_TRGB.md.
 
 import sqlite3
 import importlib
@@ -37,6 +44,27 @@ def get_applied_migrations(conn):
     return {row[0] for row in cur.fetchall()}
 
 
+def _is_trgb_specific(filename: str) -> bool:
+    """
+    R3 (sessione 60): controlla se una migrazione ha la flag TRGB_SPECIFIC = True
+    al livello modulo. Le migrazioni TRGB-specific contengono SOLO dati seed
+    dell'osteria di Marco (es. menu Primavera 2026, ingredienti specifici, MEP
+    templates). Vanno saltate quando si deploya su un locale != tregobbi.
+
+    Importa il modulo (idempotente — Python cacha) e legge l'attributo.
+    Ritorna False se l'attributo non esiste (default: migration generica).
+    """
+    module_name = f"app.migrations.{filename[:-3]}"
+    try:
+        module = importlib.import_module(module_name)
+        return bool(getattr(module, "TRGB_SPECIFIC", False))
+    except Exception:
+        # Se import fallisce, NON la marchiamo TRGB-specific: meglio applicare
+        # per errore una migrazione del prodotto, che skippare per errore una
+        # migrazione di schema universale.
+        return False
+
+
 def apply_migration(conn, filename):
     """Esegue una singola migration importando il file Python 001_*.py."""
     print(f"⚙️  Applying migration: {filename}")
@@ -59,12 +87,22 @@ def apply_migration(conn, filename):
 
 
 def run_migrations():
-    """Esegue tutte le migrazioni mancanti sul DB foodcost.db CORRETTO."""
+    """Esegue tutte le migrazioni mancanti sul DB foodcost.db CORRETTO.
+
+    R3 (sessione 60): se l'env var TRGB_LOCALE != "tregobbi", salta le
+    migrazioni con flag TRGB_SPECIFIC = True (vedi _is_trgb_specific).
+    Default TRGB_LOCALE = "tregobbi" → comportamento backward-compat per
+    l'osteria di Marco.
+    """
     print("🔍 Checking migrations…")
 
     # Assicuriamoci che la cartella app/data/ esista
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     print(f"📌 Using DB: {DB_PATH}")
+
+    # R3: locale corrente (per skip migrazioni TRGB-specific)
+    locale = os.environ.get("TRGB_LOCALE", "tregobbi").strip() or "tregobbi"
+    print(f"🏠 Locale corrente: {locale}")
 
     # Apertura DB
     conn = sqlite3.connect(DB_PATH)
@@ -77,13 +115,23 @@ def run_migrations():
         if f.endswith(".py") and f[0:3].isdigit()
     )
 
+    skipped_trgb = []
     # Applica solo le migrazioni NON ancora applicate
     for filename in migration_files:
-        if filename not in applied:
-            apply_migration(conn, filename)
+        if filename in applied:
+            continue
+        # R3: skip migrazioni TRGB-specific se non siamo sull'istanza tregobbi
+        if locale != "tregobbi" and _is_trgb_specific(filename):
+            print(f"⏭  Skip TRGB-specific (locale='{locale}'): {filename}")
+            skipped_trgb.append(filename)
+            continue
+        apply_migration(conn, filename)
 
     conn.close()
-    print("🎉 All migrations applied.")
+    if skipped_trgb:
+        print(f"🎉 All migrations applied (skipped {len(skipped_trgb)} TRGB-specific).")
+    else:
+        print("🎉 All migrations applied.")
 
 
 if __name__ == "__main__":
