@@ -129,6 +129,45 @@ TRGB_LOCALE = os.environ.get("TRGB_LOCALE", "tregobbi").strip() or "tregobbi"
 print(f"🏠 TRGB_LOCALE: {TRGB_LOCALE}")
 
 
+# ──────────────────────────────────────────────────────────────
+# GIT_COMMIT — hash del commit corrente (sessione 60 + R4 follow-up)
+# Letto UNA volta al boot e cached per esporre via /system/info
+# "quale codice gira ora?" senza bisogno di SSH al VPS.
+# Graceful fallback a None se git non è disponibile (es. container senza .git).
+# Modulo: platform/diagnostica.
+# ──────────────────────────────────────────────────────────────
+import subprocess
+def _read_git_commit() -> str | None:
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            cwd=os.path.dirname(os.path.abspath(__file__)) or ".",
+            timeout=2,
+        )
+        return out.decode().strip() or None
+    except Exception:
+        return None
+
+GIT_COMMIT = _read_git_commit()
+if GIT_COMMIT:
+    print(f"🔖 GIT_COMMIT: {GIT_COMMIT}")
+
+
+# ──────────────────────────────────────────────────────────────
+# APP_VERSION — single source of truth nel file VERSION root del repo
+# (sessione 60, 2026-04-29). Sostituisce il vecchio "2025.12-web" hardcoded.
+# Frontend (frontend/src/config/versions.jsx → sistema.version) deve
+# restare allineato a questo file. Vedi CLAUDE.md sezione "Versioning".
+# ──────────────────────────────────────────────────────────────
+_VERSION_FILE = Path(__file__).resolve().parent / "VERSION"
+try:
+    APP_VERSION = _VERSION_FILE.read_text(encoding="utf-8").strip() or "0.0.0-unknown"
+except Exception:
+    APP_VERSION = "0.0.0-unknown"
+print(f"📦 APP_VERSION: {APP_VERSION}")
+
+
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
 
@@ -136,7 +175,7 @@ run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'a
 # ----------------------------------------
 # APP
 # ----------------------------------------
-app = FastAPI(title="TRGB Gestionale Web", version="2025.12-web")
+app = FastAPI(title="TRGB Gestionale Web", version=APP_VERSION)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -151,7 +190,8 @@ def system_info():
     return {
         "locale": TRGB_LOCALE,
         "product": "TRGB",
-        "version": app.version,
+        "version": app.version,    # versione semantica storica del backend FastAPI
+        "commit": GIT_COMMIT,      # hash short del git HEAD in produzione (sessione 60)
     }
 
 

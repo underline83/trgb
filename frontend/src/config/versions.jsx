@@ -117,6 +117,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // ⚠️ ALLINEAMENTO OBBLIGATORIO con file `VERSION` in root del repo.
+    // Backend (`main.py`) legge da `VERSION` come single source of truth ed
+    // espone in `/system/info` come `version`. Quando bumpi questa stringa
+    // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
+    // Vedi CLAUDE.md sezione "Versioning prodotto".
     version: "5.11",
     label: "Sistema",
     status: "stabile",

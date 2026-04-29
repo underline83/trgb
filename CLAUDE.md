@@ -135,6 +135,13 @@ Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste
 
 **Regola:** se un modulo ha bisogno di una funzionalita' coperta da un mattone non ancora implementato, CHIEDERE a Marco se costruirlo prima o fare inline temporaneo.
 
+## Versioning prodotto — single source of truth
+- **File `VERSION`** in root del repo è la SINGLE SOURCE OF TRUTH della versione del prodotto TRGB.
+- Backend (`main.py`) la legge al boot, espone in `/system/info` come `version`.
+- Frontend (`frontend/src/config/versions.jsx` campo `sistema.version`) DEVE restare allineato: quando si bumpa una, si bumpa l'altra ALLO STESSO VALORE.
+- L'endpoint `/system/info` espone anche `commit` (hash short del git HEAD letto al boot) → utile per "quale codice gira ora?" senza SSH.
+- Le versioni dei singoli moduli (vini, ricette, ecc.) restano in `versions.jsx` con bumping indipendente.
+
 ## Migrazioni DB
 - File: `app/migrations/NNN_nome.py`, tracciate in `schema_migrations` di `foodcost.db`.
 - Una migrazione eseguita NON viene rieseguita. Per correggere, crea una nuova migrazione.
