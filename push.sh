@@ -2,25 +2,25 @@
 # push.sh — Commit, push e deploy sul VPS in un colpo solo
 #
 # Uso:
-#   ./push.sh "messaggio commit"      → deploy (via post-receive hook)
-#   ./push.sh "messaggio commit" -f   → deploy + pip install + npm install
-#   ./push.sh "messaggio commit" -m   → deploy + sync modules.json locale → VPS (forzato)
-#                                       NB: l'auto-detect attiva -m da solo se il
-#                                       modules.json locale differisce da quello sul VPS.
-#   ./push.sh "messaggio commit" -d   → deploy + sync codice su Google Drive
-#   ./push.sh "messaggio commit" -q   → output compatto (default: verbose)
+#   ./push.sh "messaggio commit"               → deploy locale tregobbi (default)
+#   ./push.sh -l <locale> "messaggio commit"   → deploy locale specifico (R4, sessione 60)
+#   ./push.sh "messaggio commit" -f            → deploy + pip install + npm install
+#   ./push.sh "messaggio commit" -m            → deploy + sync modules.json locale → VPS (forzato)
+#                                                NB: l'auto-detect attiva -m da solo se il
+#                                                modules.json locale differisce da quello sul VPS.
+#   ./push.sh "messaggio commit" -d            → deploy + sync codice su Google Drive
+#   ./push.sh "messaggio commit" -q            → output compatto (default: verbose)
+#
+# Locali supportati:
+#   tregobbi (default)  → osteria di Marco, su trgb.tregobbi.it
+#   trgb                → istanza prodotto pulita, futuro deploy su trgb.it
+#   <altri>             → richiede locali/<id>/deploy/env.production
 #
 # Remote:
 #   origin → VPS bare repo (deploy)
 #   github → GitHub (backup)
 
 set -euo pipefail
-
-VPS_HOST="trgb"
-VPS_DIR="/home/marco/trgb/trgb"
-VENV="/home/marco/trgb/venv-trgb"
-DB_LOCAL="app/data"
-DB_REMOTE="$VPS_DIR/app/data"
 
 # ── Colori e simboli ───────────────────────────────────────
 GREEN='\033[0;32m'
@@ -36,7 +36,47 @@ warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 fail() { echo -e "  ${RED}✗${NC} $1"; }
 step() { echo -e "\n${CYAN}${BOLD}▸ $1${NC}"; }
 
-# ── Argomenti ──────────────────────────────────────────────
+# ── R4 (sessione 60): Pre-parsing flag -l <locale> ─────────
+# Default tregobbi per backward compat. Estrae -l/--locale da $@ prima
+# del parsing dei flag boolean (-f, -m, -d, -q) e del messaggio.
+LOCALE="${TRGB_LOCALE:-tregobbi}"
+ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -l|--locale)
+      if [ -z "${2:-}" ]; then
+        fail "-l richiede un argomento (es. -l tregobbi)"
+        exit 1
+      fi
+      LOCALE="$2"
+      shift 2
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+# ── R4: Source del file env.production del locale ──────────
+ENV_FILE="locali/$LOCALE/deploy/env.production"
+if [ ! -f "$ENV_FILE" ]; then
+  fail "File env non trovato: $ENV_FILE"
+  echo "  Locale '$LOCALE' non configurato."
+  echo "  Per crearlo: cp -r locali/_template locali/$LOCALE && editare deploy/env.production"
+  exit 1
+fi
+set -a
+# shellcheck source=/dev/null
+source "$ENV_FILE"
+set +a
+
+# ── Variabili derivate (post-source env) ───────────────────
+DB_LOCAL="app/data"
+DB_REMOTE="$VPS_DIR/app/data"
+
+# ── Argomenti rimanenti (messaggio + flag boolean) ─────────
 MSG="${1:-}"
 SYNC_FULL=false
 SYNC_MODULES=false
@@ -52,6 +92,9 @@ for arg in "$@"; do
     -q) VERBOSE=false ;;
   esac
 done
+
+# ── R4: banner locale corrente ─────────────────────────────
+echo -e "${CYAN}${BOLD}🏠 Deploy locale:${NC} ${BOLD}$LOCALE${NC}  ${DIM}($DOMAIN → $VPS_HOST:$VPS_DIR)${NC}"
 
 # ── Modulo Guardiano L1 — Pre-push checks ──────────────────
 # Aggiunto 2026-04-25 (sessione 57 cont.) per ridurre il rischio di:

@@ -395,7 +395,7 @@ Vedi `CLAUDE.md` sezione "Refactor monorepo — gestione operativa" e "Architett
 |----------|-------|------|--------|------|
 | R1 | ✅ FATTO | 2026-04-28 | `8876603` | Scaffolding `locali/{tregobbi,trgb,_template}/` + `TRGB_LOCALE` + `/system/info` + `VITE_TRGB_LOCALE` + `.gitignore`. Verifica: endpoint risponde `{"locale":"tregobbi"}`, banner nei log, backend OK. |
 | R2 | ✅ FATTO | 2026-04-29 | `753019a` | Branding tenant-aware completo: `locali/<id>/branding.json` + endpoint `GET /locale/branding.json` + `loadBrandConfig()` + hook `useBranding()` + collab marker `TRGB × <tagline>` in Home. Disciplina applicata: palette+asset TRGB-02 in `locali/trgb/` (branding prodotto), tregobbi eredita + override solo tagline/pwa.name/client_pdf. Splash iOS pre-generati in `TRGB-02-final.zip` da integrare in commit dedicato. |
-| R3 | DA FARE | — | — | Seed migrations flag |
+| R3 | ✅ FATTO | 2026-04-29 | `503c88f` | `migration_runner.py` v1.3-locale-aware (`_is_trgb_specific()` + skip su `TRGB_LOCALE != "tregobbi"`). Flag `TRGB_SPECIFIC = True` sulle 3 migrazioni seed (097 MEP templates, 099 food_cost, 100 menu_primavera). Doc `locali/tregobbi/seeds/MIGRATIONS_TRGB.md` con razionale + criterio per marcature future. Zero behavior change su tregobbi (le 3 mig erano già in schema_migrations). |
 | R4 | DA FARE | — | — | push.sh -l + uploads locale-aware |
 | R5 | DA FARE | — | — | Strings.json |
 | R6 | DA FARE | — | — | vini.db in locali/tregobbi/data/ |

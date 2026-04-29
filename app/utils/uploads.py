@@ -1,4 +1,4 @@
-# @version: v1.0 — Modulo K Upload utente fuori repo (sessione 59 cont. d, 2026-04-27)
+# @version: v1.1 — Modulo K + R4 locale-aware (sessione 60, 2026-04-29)
 # -*- coding: utf-8 -*-
 """
 Helper centralizzato per la directory degli upload utente.
@@ -12,9 +12,13 @@ Razionale (Bug D3 + roadmap K):
   - non vanno backuppati con git (sono dati utente, non codice)
 
 Soluzione:
-- In **produzione (VPS)**: directory esterna `/home/marco/trgb_uploads/` (override
-  via env var `TRGB_UPLOADS_DIR`).
-- In **sviluppo locale**: fallback a `<repo>/static/uploads_dev/` (gitignored).
+- In **produzione (VPS)**: directory esterna per locale.
+  - Default tregobbi: `/home/marco/trgb_uploads` (storico, backward compat)
+  - Default altri locali: `/home/marco/trgb_uploads_<TRGB_LOCALE>`
+  - Override sempre disponibile via env var `TRGB_UPLOADS_DIR=/path/assoluto`
+    (settato nel file `locali/<id>/deploy/env.production`).
+- In **sviluppo locale**: fallback a `<repo>/static/uploads_dev/<TRGB_LOCALE>/`
+  (gitignored, isolato per locale).
 - FastAPI monta `/uploads` → `<UPLOADS_DIR>/` separato da `/static`.
 - Il path nel DB diventa `/uploads/<categoria>/<id>/<file>`.
 
@@ -34,10 +38,16 @@ from pathlib import Path
 from typing import Union
 
 
-# Default produzione: home dell'utente che gira il backend
-_DEFAULT_PROD_PATH = "/home/marco/trgb_uploads"
+# Path storico tregobbi (R4: backward compat — non spostato per non rompere
+# i path già scritti nei DB esistenti dell'osteria di Marco).
+_DEFAULT_PROD_TREGOBBI = "/home/marco/trgb_uploads"
 
-# Default sviluppo locale (Mac di Marco / sandbox): dentro il repo ma gitignored
+# Pattern per locali != tregobbi: path costruito da TRGB_LOCALE.
+# Es. TRGB_LOCALE=trgb → /home/marco/trgb_uploads_trgb
+_DEFAULT_PROD_PATTERN = "/home/marco/trgb_uploads_{locale}"
+
+# Default sviluppo locale (Mac di Marco / sandbox): dentro il repo ma gitignored.
+# Sotto-directory per locale per non mescolare upload di test fra istanze.
 _DEFAULT_DEV_PATH = "static/uploads_dev"
 
 
@@ -53,23 +63,38 @@ def _detect_environment() -> str:
     return "dev"
 
 
+def _current_locale() -> str:
+    """R4: ritorna il locale corrente (default 'tregobbi' per backward compat)."""
+    return os.environ.get("TRGB_LOCALE", "tregobbi").strip() or "tregobbi"
+
+
 def get_uploads_dir() -> Path:
     """
     Ritorna la directory base per gli upload utente, garantendo che esista.
 
-    Override esplicito via env: `TRGB_UPLOADS_DIR=/path/assoluto/desiderato`.
-    Altrimenti usa il default per environment.
+    Risoluzione path (in ordine di precedenza):
+      1. Override esplicito via env `TRGB_UPLOADS_DIR=/path/assoluto`
+         (di solito viene da locali/<id>/deploy/env.production via push.sh).
+      2. In prod, locale=tregobbi → /home/marco/trgb_uploads (storico).
+      3. In prod, locale=<altro>  → /home/marco/trgb_uploads_<locale>.
+      4. In dev → <repo>/static/uploads_dev/<locale>/.
 
     Crea la directory se non esiste.
     """
     explicit = os.environ.get("TRGB_UPLOADS_DIR", "").strip()
+    locale = _current_locale()
+
     if explicit:
         p = Path(explicit)
     elif _detect_environment() == "prod":
-        p = Path(_DEFAULT_PROD_PATH)
+        if locale == "tregobbi":
+            p = Path(_DEFAULT_PROD_TREGOBBI)
+        else:
+            p = Path(_DEFAULT_PROD_PATTERN.format(locale=locale))
     else:
-        # In dev usa path relativo al cwd del backend (BASE_DIR del repo)
-        p = Path(__file__).resolve().parents[2] / _DEFAULT_DEV_PATH
+        # Dev locale: isola gli upload di test per locale (così TRGB_LOCALE=trgb
+        # non sovrascrive gli upload di tregobbi durante lo sviluppo).
+        p = Path(__file__).resolve().parents[2] / _DEFAULT_DEV_PATH / locale
 
     try:
         p.mkdir(parents=True, exist_ok=True)

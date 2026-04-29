@@ -21,7 +21,7 @@
 |----|------|--------|-------|------|
 | 0.R1 | Scaffolding `locali/{tregobbi,trgb,_template}/` + env `TRGB_LOCALE` | S | ✅ FATTO 2026-04-28 (`8876603`) | Endpoint `/system/info` ritorna `{locale: "tregobbi"}`. Vedi `docs/refactor_monorepo.md` §3 R1 |
 | 0.R2 | Branding centralizzato `locali/<id>/branding.json` + Splash iOS | M | ✅ FATTO 2026-04-29 (`753019a`) | Branding tenant-aware live + collab marker. Splash iOS pre-generati (TRGB-02-final) da integrare in commit dedicato |
-| 0.R3 | Seed migrations TRGB-specific isolate | M | DA FARE | Flag `TRGB_SPECIFIC` su 12-15 migrazioni + runner locale-aware |
+| 0.R3 | Seed migrations TRGB-specific isolate | M | ✅ FATTO 2026-04-29 (`503c88f`) | `migration_runner.py` v1.3 locale-aware. Flag `TRGB_SPECIFIC = True` sulle 3 mig seed (097, 099, 100). Doc razionale in `locali/tregobbi/seeds/MIGRATIONS_TRGB.md`. Sorpresa: erano 3 non 12-15, le altre erano schema-only o seed universali |
 | 0.R4 | `push.sh -l locale` + `locali/<id>/deploy/env.production` | S | DA FARE | Deploy parametrizzabile per locale + uploads.py locale-aware |
 | 0.R5 | Override testi UI in `locali/<id>/strings.json` | M | DA FARE | Helper `t(key, fallback)` per ~40 stringhe italiano-osteria |
 | 0.R6 | Dati TRGB (catalogo vini reali) in `locali/tregobbi/data/` | S | DA FARE | Lookup path locale-aware |
