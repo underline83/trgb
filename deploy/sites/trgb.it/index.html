@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>TRGB — Gestionale ristorazione · in arrivo</title>
+    <meta name="description" content="TRGB — Gestionale completo per la ristorazione. Vini, ricette, fatture, dipendenti, prenotazioni, controllo di gestione. In arrivo nel 2027.">
+    <meta name="theme-color" content="#F4F1EC">
+    <meta property="og:title" content="TRGB — Gestionale ristorazione">
+    <meta property="og:description" content="In arrivo nel 2027">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #F4F1EC;
+            color: #111111;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+        .gobbette {
+            display: flex;
+            gap: 4px;
+        }
+        .gobbetta {
+            width: 38px;
+            height: 19px;
+            border: 4px solid currentColor;
+            border-radius: 38px 38px 0 0;
+            border-bottom: 0;
+        }
+        .gobbetta.red { color: #E8402B; animation: pulse 2.4s ease-in-out infinite; animation-delay: 0s; }
+        .gobbetta.green { color: #2EB872; animation: pulse 2.4s ease-in-out infinite; animation-delay: 0.4s; }
+        .gobbetta.blue { color: #2E7BE8; animation: pulse 2.4s ease-in-out infinite; animation-delay: 0.8s; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .wordmark {
+            font-family: 'Helvetica Neue', sans-serif;
+            font-weight: 800;
+            font-size: 3rem;
+            letter-spacing: -0.02em;
+            color: #111111;
+        }
+        h1 {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-weight: 700;
+            font-size: 2.5rem;
+            letter-spacing: -0.01em;
+            margin-bottom: 1rem;
+            max-width: 28ch;
+        }
+        .tagline {
+            font-size: 1.125rem;
+            color: rgba(17, 17, 17, 0.6);
+            max-width: 50ch;
+            margin-bottom: 3rem;
+            line-height: 1.5;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1.25rem;
+            background: rgba(46, 123, 232, 0.08);
+            border: 1px solid rgba(46, 123, 232, 0.25);
+            color: #2E7BE8;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+        .status::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            background: #2E7BE8;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .links {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            font-size: 0.875rem;
+        }
+        .links a {
+            color: rgba(17, 17, 17, 0.5);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .links a:hover { color: #2E7BE8; }
+        footer {
+            padding: 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: rgba(17, 17, 17, 0.4);
+        }
+        footer a { color: inherit; text-decoration: none; }
+        footer a:hover { color: #111; }
+        @media (max-width: 640px) {
+            .wordmark { font-size: 2rem; }
+            h1 { font-size: 1.5rem; }
+            .tagline { font-size: 1rem; }
+            .gobbetta { width: 26px; height: 13px; border-width: 3px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="gobbette" aria-hidden="true">
+                <div class="gobbetta red"></div>
+                <div class="gobbetta green"></div>
+                <div class="gobbetta blue"></div>
+            </div>
+            <span class="wordmark">TRGB</span>
+        </div>
+
+        <div class="status">In arrivo · 2027</div>
+
+        <h1>Il gestionale che la ristorazione aspettava.</h1>
+
+        <p class="tagline">
+            Vini, ricette, fatture, dipendenti, prenotazioni, controllo di gestione.
+            Tutto in un unico software, modulare, pensato da chi un ristorante lo gestisce davvero.
+        </p>
+
+        <div class="links">
+            <a href="mailto:marco@carminati.org?subject=TRGB%20—%20interesse">Scrivimi</a>
+            <a href="https://trgb.tregobbi.it">Vedi il prototipo (Osteria Tre Gobbi)</a>
+            <a href="https://underlinestudio.it">Underline Studio</a>
+        </div>
+    </div>
+
+    <footer>
+        Designed &amp; developed by <a href="https://underlinestudio.it">Marco Carminati · Underline Studio</a>
+    </footer>
+</body>
+</html>
