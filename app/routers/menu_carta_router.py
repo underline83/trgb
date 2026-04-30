@@ -49,6 +49,7 @@ from pydantic import BaseModel, Field
 
 from app.models.cucina_db import get_cucina_connection
 from app.services.auth_service import get_current_user
+from app.utils.locale_strings import t as t_  # R5: t() helper per stringhe locale-aware
 from app.services.menu_carta_image_service import (
     save_publication_image,
     delete_publication_image,
@@ -1154,7 +1155,8 @@ def export_edition_pdf(edition_id: int):
                     "SEZIONI_ORDER": PDF_SEZIONI_ORDER,
                 },
                 titolo=f"Menu — {edition['nome']}",
-                sottotitolo="Osteria Tre Gobbi",
+                # R5: sottotitolo letto da locali/<locale>/strings.json key pdf.subtitle_menu
+                sottotitolo=t_("pdf.subtitle_menu", "TRGB"),
                 orientamento="portrait",
                 filename=f"menu_carta_{edition['slug']}.pdf",
                 css_extra=_menu_carta_css(),

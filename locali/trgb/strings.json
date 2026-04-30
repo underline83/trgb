@@ -1,0 +1,31 @@
+{
+  "_comment": "Strings UI per istanza prodotto pulita TRGB (R5, sessione 60). Volutamente vuoto/generico — il prodotto NON ha nome di un locale specifico. Il frontend e il backend useranno i fallback dichiarati nel codice (es. 'TRGB' come nome organizzazione, saluti generici nei template WA, titoli pagina senza brand cliente).",
+  "_uso": "Quando un cliente compra TRGB, copia _template/strings.json.template e mette i suoi valori. Su trgb.it questo file è praticamente inutilizzato: l'istanza pulita serve solo per dimostrare il prodotto, non ha messaggi reali da inviare a clienti.",
+
+  "pdf": {
+    "org_name": "TRGB",
+    "org_sub": "Gestionale per ristorazione",
+    "footer_brand": "TRGB",
+    "footer_preventivo": "Generato da TRGB Gestionale.",
+    "cover_title": "MENU",
+    "subtitle_menu": ""
+  },
+
+  "wa": {
+    "template": {
+      "compleanno": "Buon compleanno {nome}! 🎉 Tanti auguri da parte nostra. 🎂",
+      "conferma_prenotazione": "Ciao {nome}, confermiamo la prenotazione per {persone} persone il {data} alle {ora}. Vi aspettiamo!",
+      "reminder_prenotazione": "Ciao {nome}, vi ricordiamo la prenotazione per {persone} persone domani {data} alle {ora}. A presto!",
+      "broadcast_clienti": "Ciao {nome}! {messaggio}"
+    }
+  },
+
+  "page": {
+    "title_carta_vini": "Carta vini & bevande",
+    "title_carta_staff": "Vista sommelier",
+    "title_qr_menu": "QR Carta Menu",
+    "alt_logo": "Logo",
+    "footer_carta_vini": "Carta aggiornata in tempo reale",
+    "banca_subtitle": "Panoramica movimenti bancari"
+  }
+}

@@ -772,6 +772,10 @@ def get_foglio_pdf(
     settimana_range = _format_week_range(iso)
     generato_il = datetime.now().strftime("%d/%m/%Y %H:%M")
 
+    # R5 (sessione 60): nome organizzazione letto da strings.json (key: pdf.org_name)
+    from app.utils.locale_strings import t as _t_locale
+    _brand_org = _t_locale("pdf.org_name", "TRGB")
+
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Turni {iso}</title>
 <style>
@@ -803,7 +807,7 @@ def get_foglio_pdf(
 </head>
 <body>
   <div class="header">
-    <div class="brand">🍷 Osteria Tre Gobbi</div>
+    <div class="brand">🍷 {_brand_org}</div>
     <div class="title">Turni settimana {settimana_range}</div>
     <div class="pill">{rep_icona} {rep_nome}</div>
   </div>

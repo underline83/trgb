@@ -122,11 +122,28 @@ export function buildBroadcastLinks(destinatari, template) {
 
 
 // ─── Template predefiniti (costanti, usati come fallback) ───
+// R5 (sessione 60): i template TRGB-specific (firma osteria) sono ora override-abili
+// via locali/<locale>/strings.json (key: wa.template.*) tramite il helper t().
+// I valori qui sono FALLBACK generici (firma "TRGB"). I file strings.json di
+// tregobbi sostituiscono con la firma "Osteria Tre Gobbi". Vedi
+// frontend/src/utils/localeStrings.js per il helper.
 
-export const WA_TEMPLATES = {
-  compleanno: "Buon compleanno {nome}! Da parte di tutto lo staff dell'Osteria Tre Gobbi, tanti auguri! 🎂",
-  conferma_prenotazione: "Ciao {nome}, confermiamo la prenotazione per {pax} persone il {data} alle {ora}. Vi aspettiamo! - Osteria Tre Gobbi",
-  reminder_prenotazione: "Ciao {nome}, vi ricordiamo la prenotazione per domani alle {ora} ({pax} persone). A presto! - Osteria Tre Gobbi",
-  broadcast_clienti: "Ciao {nome}, ti aspettiamo all'Osteria Tre Gobbi! A presto.",
+import { t } from "./localeStrings";
+
+// Template come getter dinamici: leggono dalla strings.json tenant-aware
+// se caricata, altrimenti fallback al testo generico.
+export const WA_TEMPLATES = new Proxy({
+  compleanno: "Buon compleanno {nome}! 🎉 Tanti auguri! 🎂",
+  conferma_prenotazione: "Ciao {nome}, confermiamo la prenotazione per {pax} persone il {data} alle {ora}. Vi aspettiamo!",
+  reminder_prenotazione: "Ciao {nome}, vi ricordiamo la prenotazione per domani alle {ora} ({pax} persone). A presto!",
+  broadcast_clienti: "Ciao {nome}, a presto!",
   cedolino: "Ciao {nome}, ecco la tua busta paga di {mese}/{anno}.\nNetto: € {importo}.\n(Il PDF è stato scaricato sul mio PC, te lo allego qui.)",
-};
+}, {
+  get(target, prop) {
+    if (typeof prop !== "string") return target[prop];
+    // Cedolino è universale (no firma osteria), resta hardcoded
+    if (prop === "cedolino") return target[prop];
+    // Le altre sono override-abili via locali/<locale>/strings.json
+    return t(`wa.template.${prop}`, target[prop] || "");
+  },
+});

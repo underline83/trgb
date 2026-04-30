@@ -1,0 +1,33 @@
+{
+  "_comment": "Template strings per nuovo locale TRGB (R5, sessione 60). Quando crei un cliente, copia questo file in locali/<id>/strings.json e personalizza i placeholder <...>. Le stringhe sono dot-notation lette via t() helper.",
+
+  "pdf": {
+    "_comment": "Brand stampe lato cliente — visibili al cliente finale.",
+    "org_name": "<NOME_LOCALE>",
+    "org_sub": "<CITTA — DOMINIO>",
+    "footer_brand": "TRGB — <NOME_LOCALE>",
+    "footer_preventivo": "Grazie per la fiducia. Per conferme e chiarimenti: <NOME_LOCALE> — <CITTA>.",
+    "cover_title": "<NOME_LOCALE in MAIUSCOLO>",
+    "subtitle_menu": "<NOME_LOCALE>"
+  },
+
+  "wa": {
+    "_comment": "Template messaggi WhatsApp — firmati con il nome del locale.",
+    "template": {
+      "compleanno": "Buon compleanno {nome}! 🎉 Da parte di tutto lo staff di <NOME_LOCALE>, tanti auguri! 🎂",
+      "conferma_prenotazione": "Ciao {nome}, confermiamo la prenotazione per {persone} persone il {data} alle {ora}. Vi aspettiamo! - <NOME_LOCALE>",
+      "reminder_prenotazione": "Ciao {nome}, vi ricordiamo la prenotazione per {persone} persone domani {data} alle {ora}. A presto! - <NOME_LOCALE>",
+      "broadcast_clienti": "Ciao {nome}! {messaggio}\n\nTi aspettiamo a <NOME_LOCALE>! A presto."
+    }
+  },
+
+  "page": {
+    "_comment": "Titoli pagina HTML + alt text immagini + sottotitoli pagine.",
+    "title_carta_vini": "Carta vini & bevande · <NOME_LOCALE>",
+    "title_carta_staff": "Vista sommelier · <NOME_LOCALE>",
+    "title_qr_menu": "QR Carta Menu — <NOME_LOCALE>",
+    "alt_logo": "<NOME_LOCALE>",
+    "footer_carta_vini": "<NOME_LOCALE> · Carta aggiornata in tempo reale",
+    "banca_subtitle": "Panoramica movimenti bancari <RAGIONE_SOCIALE>"
+  }
+}

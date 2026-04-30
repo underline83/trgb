@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { t } from "../../utils/localeStrings";  // R5: helper stringhe locale-aware
 import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
 import PranzoSettingsPanel from "./PranzoSettingsPanel";
@@ -1001,7 +1002,7 @@ function QrMenuPanel() {
     if (!w) { alert("Popup bloccato. Abilita i popup per stampare."); return; }
     w.document.write(`
       <!doctype html>
-      <html><head><meta charset="utf-8"><title>QR Carta Menu — Osteria Tre Gobbi</title>
+      <html><head><meta charset="utf-8"><title>${t("page.title_qr_menu", "QR Carta Menu — Osteria Tre Gobbi")}</title>
       <style>
         @page { size: A4; margin: 20mm; }
         body { font-family: 'Cormorant Garamond', 'Times New Roman', serif; text-align: center; color: #2b2118; }
@@ -1014,7 +1015,7 @@ function QrMenuPanel() {
       </style>
       </head><body>
         <div class="card">
-          <div class="subtitle">Osteria Tre Gobbi</div>
+          <div class="subtitle">${t("pdf.org_name", "Osteria Tre Gobbi")}</div>
           <h1>La Carta del Menu</h1>
           <img src="${qrSrc}" alt="QR Code" />
           <div class="label">Inquadra il codice per consultare il menu</div>

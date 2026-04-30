@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
 import Tooltip from "../../components/Tooltip";
+import { t } from "../../utils/localeStrings";  // R5: helper stringhe locale-aware
 import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/banca`;
@@ -170,7 +171,8 @@ export default function BancaDashboard() {
           Dashboard Banca
         </h1>
         <p className="text-neutral-600 text-sm mb-6">
-          Panoramica movimenti bancari Tre Gobbi S.R.L.
+          {/* R5: subtitle letto da locali/<locale>/strings.json (key: page.banca_subtitle) */}
+          {t("page.banca_subtitle", "Panoramica movimenti bancari Tre Gobbi S.R.L.")}
         </p>
 
         {/* Selettore periodo */}

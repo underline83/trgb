@@ -14,6 +14,9 @@ import { BUILD_VERSION } from "./build_version";
 // CSS vars al :root prima del primo render. Se fallisce, fallback a TRGB-02
 // hardcoded da index.css (l'app gira lo stesso).
 import { loadBrandConfig } from "./utils/brandConfig";
+// R5: carica le strings UI tenant-aware (locali/<locale>/strings.json)
+// in parallelo al branding, prima del primo render React.
+import { loadLocaleStrings } from "./utils/localeStrings";
 
 // ✔️ App principale
 import App from "./App.jsx";
@@ -49,10 +52,10 @@ if ("serviceWorker" in navigator) {
     .catch((err) => console.warn("⚠️ SW registrazione fallita:", err));
 }
 
-// Boot: carica il branding del locale (palette, font, asset paths) PRIMA del
-// primo render. Anche se la fetch fallisce, render comunque avviene con i
-// fallback hardcoded di index.css. Tempi: <80ms su LAN locale.
-loadBrandConfig().finally(() => {
+// Boot: carica branding + strings del locale in parallelo PRIMA del primo
+// render. Se una delle 2 fetch fallisce, render comunque avviene con i
+// fallback hardcoded. Tempi: <120ms su LAN locale.
+Promise.all([loadBrandConfig(), loadLocaleStrings()]).finally(() => {
   ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
       {/* cache-buster per forzare refresh UI a ogni build_version */}

@@ -288,7 +288,8 @@
 {% endblock %}
 
 {% block after_content %}
+    {# R5: footer letto da locali/<locale>/strings.json (key: pdf.footer_preventivo) via _context_base() #}
     <div class="small" style="margin-top:30px; border-top:1px solid #ddd; padding-top:8px;">
-        Grazie per la fiducia. Per conferme e chiarimenti: Osteria Tre Gobbi — Bergamo.
+        {{ footer_preventivo or ("Grazie per la fiducia. Per conferme e chiarimenti: " ~ org_nome ~ ".") }}
     </div>
 {% endblock %}

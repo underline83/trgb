@@ -139,12 +139,15 @@ def _base_css_brand(orientamento: str = "portrait") -> str:
     `orientamento`: "portrait" | "landscape".
     """
     size = "A4 portrait" if orientamento == "portrait" else "A4 landscape"
+    # R5 (sessione 60): footer brand letto da locali/<locale>/strings.json (key: pdf.footer_brand)
+    from app.utils.locale_strings import t
+    _footer_brand = t("pdf.footer_brand", "TRGB")
     return f"""
     @page {{
         size: {size};
         margin: 18mm 14mm 18mm 14mm;
         @bottom-left {{
-            content: "TRGB — Osteria Tre Gobbi";
+            content: "{_footer_brand}";
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             font-size: 8px;
             color: #999;
@@ -335,12 +338,20 @@ def _base_css_brand(orientamento: str = "portrait") -> str:
 # ---------------------------------------------------------------------------
 
 def _context_base(titolo: str, sottotitolo: Optional[str] = None) -> dict:
-    """Context condiviso da tutti i template PDF."""
+    """Context condiviso da tutti i template PDF.
+
+    R5 (sessione 60): org_nome / org_sub letti da locali/<locale>/strings.json
+    (chiavi pdf.org_name e pdf.org_sub) per supportare locali diversi.
+    """
+    from app.utils.locale_strings import t
     return {
         "titolo": titolo,
         "sottotitolo": sottotitolo or "",
-        "org_nome": "Osteria Tre Gobbi",
-        "org_sub": "Bergamo — trgb.tregobbi.it",
+        "org_nome": t("pdf.org_name", "TRGB"),
+        "org_sub": t("pdf.org_sub", ""),
+        "cover_title": t("pdf.cover_title", ""),
+        "subtitle_menu": t("pdf.subtitle_menu", ""),
+        "footer_preventivo": t("pdf.footer_preventivo", "Generato da TRGB Gestionale."),
         "data_oggi": datetime.now().strftime("%d/%m/%Y"),
         "data_oggi_lunga": datetime.now().strftime("%d/%m/%Y %H:%M"),
         "logo_data_uri": _svg_data_uri("logo-icon.svg"),

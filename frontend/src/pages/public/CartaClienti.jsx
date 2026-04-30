@@ -20,6 +20,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE } from "../../config/api";
+import { t } from "../../utils/localeStrings";  // R5: helper stringhe locale-aware
 
 // ─────────────────────────────────────────────────────────────
 // CSS (token osteria — Cormorant Garamond + palette beige/terracotta)
@@ -434,7 +435,8 @@ export default function CartaClienti() {
   const [sezioneAperta, setSezioneAperta] = useState(null); // null = indice
 
   useEffect(() => {
-    document.title = "Carta vini & bevande · Osteria Tre Gobbi";
+    // R5: title letto da locali/<locale>/strings.json (key: page.title_carta_vini)
+    document.title = t("page.title_carta_vini", "Carta vini & bevande · Osteria Tre Gobbi");
     let alive = true;
     fetch(`${API_BASE}/vini/carta-cliente/data`)
       .then(r => { if (!r.ok) throw new Error(`Errore ${r.status}`); return r.json(); })
@@ -531,7 +533,8 @@ export default function CartaClienti() {
         <div className="carta-clienti-root">
           <div className="cc-shell">
             <header className="cc-header">
-              <img className="cc-header-logo" src={`${API_BASE}/static/img/logo_tregobbi.png`} alt="Osteria Tre Gobbi" />
+              {/* R5: alt letto da locali/<locale>/strings.json (key: page.alt_logo) */}
+              <img className="cc-header-logo" src={`${API_BASE}/static/img/logo_tregobbi.png`} alt={t("page.alt_logo", "Osteria Tre Gobbi")} />
               <div className="cc-header-subtitle">Carta vini &amp; bevande</div>
               <div className="cc-header-date">Aggiornata al {data.data_aggiornamento}</div>
             </header>
@@ -613,7 +616,8 @@ export default function CartaClienti() {
             ) : <span></span>}
           </div>
 
-          <div className="cc-footer">Osteria Tre Gobbi · Carta aggiornata in tempo reale</div>
+          {/* R5: footer letto da locali/<locale>/strings.json (key: page.footer_carta_vini) */}
+          <div className="cc-footer">{t("page.footer_carta_vini", "Osteria Tre Gobbi · Carta aggiornata in tempo reale")}</div>
         </div>
       </div>
     </>

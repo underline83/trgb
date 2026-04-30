@@ -625,11 +625,13 @@ def build_carta_bevande_docx(logo_path=None, staff: bool = False) -> "Document":
     if logo_path and hasattr(logo_path, "exists") and logo_path.exists():
         doc.add_picture(str(logo_path), width=Inches(1.8))
 
+    from app.utils.locale_strings import t as _t_locale
     data_oggi = datetime.now().strftime("%d/%m/%Y")
     version = get_version_string()
+    _org = _t_locale("pdf.org_name", "TRGB")
     title = "CARTA DELLE BEVANDE — STAFF" if staff else "CARTA DELLE BEVANDE"
     doc.add_heading(title, level=0)
-    p_sub = doc.add_paragraph(f"Osteria Tre Gobbi — Aggiornata al {data_oggi}  ·  {version}")
+    p_sub = doc.add_paragraph(f"{_org} — Aggiornata al {data_oggi}  ·  {version}")
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     sezioni = _load_sezioni_attive()

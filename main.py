@@ -242,6 +242,18 @@ def get_locale_branding():
     return data
 
 
+# ──────────────────────────────────────────────────────────────
+# /locale/strings.json — testi UI tenant-aware (R5, sessione 60)
+# Endpoint pubblico read-only consumato dal frontend per il helper t().
+# Vedi app/utils/locale_strings.py + frontend/src/utils/localeStrings.js.
+# ──────────────────────────────────────────────────────────────
+@app.get("/locale/strings.json")
+def get_locale_strings():
+    """Strings UI tenant-aware: chiavi dot-notation con valori tradotti per il locale corrente."""
+    from app.utils.locale_strings import get_all_strings
+    return get_all_strings()
+
+
 # ----------------------------------------
 # CORS (per frontend React/Vite)
 # ----------------------------------------

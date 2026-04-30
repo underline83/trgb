@@ -18,7 +18,8 @@
 {% block content %}
 
   <div class="menu-cover">
-    <h1 class="cover-title">OSTERIA TRE GOBBI</h1>
+    {# R5: cover letto da locali/<locale>/strings.json (key: pdf.cover_title) via _context_base() #}
+    <h1 class="cover-title">{{ cover_title or org_nome|upper }}</h1>
     <div class="cover-divider"></div>
     <h2 class="cover-edition">{{ edition.nome }}</h2>
     {% if edition.data_inizio or edition.data_fine %}

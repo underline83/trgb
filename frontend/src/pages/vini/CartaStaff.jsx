@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
+import { t } from "../../utils/localeStrings";  // R5: helper stringhe locale-aware
 
 // ─────────────────────────────────────────────────────────────
 // CSS (token osteria — coerente con CartaClienti.jsx)
@@ -336,7 +337,8 @@ export default function CartaStaff() {
   }, []);
 
   useEffect(() => {
-    document.title = "Vista sommelier · Tre Gobbi";
+    // R5: title letto da locali/<locale>/strings.json (key: page.title_carta_staff)
+    document.title = t("page.title_carta_staff", "Vista sommelier · Tre Gobbi");
     fetchVini();
     const tid = setInterval(fetchVini, 30_000);
     return () => clearInterval(tid);

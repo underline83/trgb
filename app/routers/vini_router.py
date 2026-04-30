@@ -78,12 +78,18 @@ def genera_carta_vini_html():
     body = build_carta_body_html_htmlsafe(rows)
     data_oggi = datetime.now().strftime("%d/%m/%Y")
 
+    # R5 (sessione 60): brand letto da locali/<locale>/strings.json
+    from app.utils.locale_strings import t as t_
+    _org_name = t_("pdf.org_name", "Osteria Tre Gobbi")
+    _alt_logo = t_("page.alt_logo", "Osteria Tre Gobbi")
+    _page_title = t_("page.title_carta_vini", f"Carta Vini · {_org_name}")
+
     # Frontespizio inline (analogo a .front-page del PDF)
     frontespizio = f"""
     <div class="front-page">
-        <img src="/static/img/logo_tregobbi.png" class="front-logo" alt="Osteria Tre Gobbi">
+        <img src="/static/img/logo_tregobbi.png" class="front-logo" alt="{_alt_logo}">
         <div class="front-title">CARTA VINI</div>
-        <div class="front-subtitle">Osteria Tre Gobbi</div>
+        <div class="front-subtitle">{_org_name}</div>
         <div class="front-date">Aggiornata al {data_oggi}</div>
     </div>
     """
@@ -93,7 +99,7 @@ def genera_carta_vini_html():
     <head>
         <meta charset='utf-8'>
         <meta name='viewport' content='width=device-width, initial-scale=1'>
-        <title>Carta Vini · Osteria Tre Gobbi</title>
+        <title>{_page_title}</title>
         <link rel='stylesheet' href='/static/css/carta_html.css'>
     </head>
     <body>

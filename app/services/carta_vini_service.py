@@ -532,9 +532,11 @@ def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Documen
 
     # -- Titolo
     from datetime import datetime
+    from app.utils.locale_strings import t as _t_locale
     data_oggi = datetime.now().strftime("%d/%m/%Y")
+    _org = _t_locale("pdf.org_name", "TRGB")
     doc.add_heading("CARTA DEI VINI", level=0)
-    doc.add_paragraph(f"Osteria Tre Gobbi — Aggiornata al {data_oggi}")
+    doc.add_paragraph(f"{_org} — Aggiornata al {data_oggi}")
 
     if not rows:
         doc.add_paragraph("Nessun vino da mostrare.")

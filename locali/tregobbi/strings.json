@@ -1,0 +1,33 @@
+{
+  "_comment": "Strings UI specifiche dell'osteria Tre Gobbi (R5, sessione 60). Override delle stringhe hardcoded nel codice. Le chiavi sono dot-notation, lette via t() helper backend (app/utils/locale_strings.py) e frontend (frontend/src/utils/localeStrings.js).",
+
+  "pdf": {
+    "_comment": "Brand stampe lato cliente (carta vini, menu pranzo, preventivi). Visibili al cliente finale.",
+    "org_name": "Osteria Tre Gobbi",
+    "org_sub": "Bergamo — trgb.tregobbi.it",
+    "footer_brand": "TRGB — Osteria Tre Gobbi",
+    "footer_preventivo": "Grazie per la fiducia. Per conferme e chiarimenti: Osteria Tre Gobbi — Bergamo.",
+    "cover_title": "OSTERIA TRE GOBBI",
+    "subtitle_menu": "Osteria Tre Gobbi"
+  },
+
+  "wa": {
+    "_comment": "Template messaggi WhatsApp inviati dallo staff. Firmati con il nome dell'osteria.",
+    "template": {
+      "compleanno": "Buon compleanno {nome}! 🎉 Da parte di tutto lo staff dell'Osteria Tre Gobbi, tanti auguri! 🎂",
+      "conferma_prenotazione": "Ciao {nome}, confermiamo la prenotazione per {persone} persone il {data} alle {ora}. Vi aspettiamo! - Osteria Tre Gobbi",
+      "reminder_prenotazione": "Ciao {nome}, vi ricordiamo la prenotazione per {persone} persone domani {data} alle {ora}. A presto! - Osteria Tre Gobbi",
+      "broadcast_clienti": "Ciao {nome}! {messaggio}\n\nTi aspettiamo all'Osteria Tre Gobbi! A presto."
+    }
+  },
+
+  "page": {
+    "_comment": "Titoli pagina HTML (visibili in tab browser e SEO) + alt text immagini + sottotitoli pagine.",
+    "title_carta_vini": "Carta vini & bevande · Osteria Tre Gobbi",
+    "title_carta_staff": "Vista sommelier · Tre Gobbi",
+    "title_qr_menu": "QR Carta Menu — Osteria Tre Gobbi",
+    "alt_logo": "Osteria Tre Gobbi",
+    "footer_carta_vini": "Osteria Tre Gobbi · Carta aggiornata in tempo reale",
+    "banca_subtitle": "Panoramica movimenti bancari Tre Gobbi S.R.L."
+  }
+}
