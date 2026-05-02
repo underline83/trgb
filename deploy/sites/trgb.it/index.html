@@ -34,24 +34,24 @@
         }
         .logo {
             display: flex;
-            align-items: center;
-            gap: 0.75rem;
+            align-items: flex-end;
+            gap: 0.85rem;
             margin-bottom: 2rem;
         }
-        .gobbette {
-            display: flex;
-            gap: 4px;
+        .gobbette-svg {
+            width: 150px;
+            height: auto;
+            display: block;
         }
-        .gobbetta {
-            width: 38px;
-            height: 19px;
-            border: 4px solid currentColor;
-            border-radius: 38px 38px 0 0;
-            border-bottom: 0;
+        .gobbette-svg path {
+            fill: none;
+            stroke-width: 14;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
-        .gobbetta.red { color: #E8402B; animation: pulse 2.4s ease-in-out infinite; animation-delay: 0s; }
-        .gobbetta.green { color: #2EB872; animation: pulse 2.4s ease-in-out infinite; animation-delay: 0.4s; }
-        .gobbetta.blue { color: #2E7BE8; animation: pulse 2.4s ease-in-out infinite; animation-delay: 0.8s; }
+        .gobbette-svg .g-red { stroke: #E8402B; animation: pulse 2.4s ease-in-out infinite 0s; }
+        .gobbette-svg .g-green { stroke: #2EB872; animation: pulse 2.4s ease-in-out infinite 0.4s; }
+        .gobbette-svg .g-blue { stroke: #2E7BE8; animation: pulse 2.4s ease-in-out infinite 0.8s; }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
@@ -125,18 +125,18 @@
             .wordmark { font-size: 2rem; }
             h1 { font-size: 1.5rem; }
             .tagline { font-size: 1rem; }
-            .gobbetta { width: 26px; height: 13px; border-width: 3px; }
+            .gobbette-svg { width: 105px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo">
-            <div class="gobbette" aria-hidden="true">
-                <div class="gobbetta red"></div>
-                <div class="gobbetta green"></div>
-                <div class="gobbetta blue"></div>
-            </div>
+            <svg class="gobbette-svg" viewBox="-7 -7 439 60" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                <path class="g-red" d="M 0 46 L .8 42.7 L 1.8 39.4 L 2.9 36.1 L 4.1 32.9 L 5.4 29.8 L 6.9 26.7 L 8.6 23.7 L 10.4 20.7 L 12.4 17.9 L 14.6 15.1 L 17.1 12.4 L 19.7 9.8 L 22.5 7.7 L 25.4 5.7 L 28.4 4 L 31.5 2.7 L 34.8 1.6 L 38.1 .8 L 41.6 .3 L 45.2 0 L 48.8 0 L 52.4 .4 L 55.9 .9 L 59.3 1.5 L 62.7 2.3 L 66 3.3 L 69.2 4.5 L 72.4 5.7 L 75.5 7.1 L 78.6 8.6 L 81.6 10.2 L 84.7 11.8 L 87.7 13.5 L 90.6 15.3 L 93.5 17.1 L 96.4 19.1 L 99.3 21 L 102.2 23.1 L 105 25.2"/>
+                <path class="g-green" transform="translate(160 0)" d="M 0 46 L .8 42.7 L 1.8 39.4 L 2.9 36.1 L 4.1 32.9 L 5.4 29.8 L 6.9 26.7 L 8.6 23.7 L 10.4 20.7 L 12.4 17.9 L 14.6 15.1 L 17.1 12.4 L 19.7 9.8 L 22.5 7.7 L 25.4 5.7 L 28.4 4 L 31.5 2.7 L 34.8 1.6 L 38.1 .8 L 41.6 .3 L 45.2 0 L 48.8 0 L 52.4 .4 L 55.9 .9 L 59.3 1.5 L 62.7 2.3 L 66 3.3 L 69.2 4.5 L 72.4 5.7 L 75.5 7.1 L 78.6 8.6 L 81.6 10.2 L 84.7 11.8 L 87.7 13.5 L 90.6 15.3 L 93.5 17.1 L 96.4 19.1 L 99.3 21 L 102.2 23.1 L 105 25.2"/>
+                <path class="g-blue" transform="translate(320 0)" d="M 0 46 L .8 42.7 L 1.8 39.4 L 2.9 36.1 L 4.1 32.9 L 5.4 29.8 L 6.9 26.7 L 8.6 23.7 L 10.4 20.7 L 12.4 17.9 L 14.6 15.1 L 17.1 12.4 L 19.7 9.8 L 22.5 7.7 L 25.4 5.7 L 28.4 4 L 31.5 2.7 L 34.8 1.6 L 38.1 .8 L 41.6 .3 L 45.2 0 L 48.8 0 L 52.4 .4 L 55.9 .9 L 59.3 1.5 L 62.7 2.3 L 66 3.3 L 69.2 4.5 L 72.4 5.7 L 75.5 7.1 L 78.6 8.6 L 81.6 10.2 L 84.7 11.8 L 87.7 13.5 L 90.6 15.3 L 93.5 17.1 L 96.4 19.1 L 99.3 21 L 102.2 23.1 L 105 25.2"/>
+            </svg>
             <span class="wordmark">TRGB</span>
         </div>
 
@@ -151,7 +151,6 @@
 
         <div class="links">
             <a href="mailto:marco@carminati.org?subject=TRGB%20—%20interesse">Scrivimi</a>
-            <a href="https://trgb.tregobbi.it">Vedi il prototipo (Osteria Tre Gobbi)</a>
             <a href="https://underlinestudio.it">Underline Studio</a>
         </div>
     </div>
