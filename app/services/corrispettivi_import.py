@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 
+from pathlib import Path
 from typing import Optional
 
 from app.utils.locale_data import locale_data_path

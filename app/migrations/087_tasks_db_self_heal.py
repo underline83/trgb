@@ -27,6 +27,7 @@ DB: app/data/tasks.sqlite3 (post-rename).
 import shutil
 import sqlite3
 import time
+from pathlib import Path
 
 from app.utils.locale_data import locale_data_path
 
