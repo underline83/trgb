@@ -1,0 +1,45 @@
+{
+  "id": "ricette",
+  "nome": "Ricette / Foodcost",
+  "versione": "1.0",
+  "descrizione": "Gestione ricette, ingredienti, foodcost, matching fatture, selezioni del giorno (macellaio/salumi/formaggi/pescato)",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "import"],
+  "dipendenze_opzionali": ["acquisti", "menu_carta"],
+  "router_files": [
+    "foodcost_router",
+    "foodcost_ingredients_router",
+    "foodcost_recipes_router",
+    "foodcost_matching_router",
+    "scelta_macellaio_router",
+    "scelta_salumi_router",
+    "scelta_formaggi_router",
+    "scelta_pescato_router"
+  ],
+  "endpoint_prefix": [
+    "/foodcost",
+    "/matching",
+    "/macellaio",
+    "/salumi",
+    "/formaggi",
+    "/pescato"
+  ],
+  "tabelle_db": [
+    "recipes",
+    "recipe_categories",
+    "recipe_items",
+    "recipe_service_types",
+    "service_types",
+    "ingredients",
+    "ingredient_categories",
+    "ingredient_prices",
+    "ingredient_supplier_map",
+    "ingredient_unit_conversions",
+    "macellaio_*",
+    "salumi_*",
+    "formaggi_*",
+    "pescato_*"
+  ],
+  "frontend_route": ["/ricette"],
+  "frontend_menu_key": "ricette"
+}

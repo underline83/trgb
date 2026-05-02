@@ -1,0 +1,5 @@
+{
+  "locale_id": "tregobbi",
+  "moduli": ["*"],
+  "note": "Osteria Tre Gobbi (cliente zero): tutti i 13 moduli attivi. Il valore '*' è la wildcard backward-compat: il module_loader (R8b) interpreta questo come 'attiva tutto'. Anche se moduli_attivi.json mancasse, il default è 'tutto attivo' per non rompere il deploy esistente."
+}

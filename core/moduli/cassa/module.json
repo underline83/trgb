@@ -1,0 +1,27 @@
+{
+  "id": "cassa",
+  "nome": "Cassa / Chiusure",
+  "versione": "1.0",
+  "descrizione": "Chiusure turno, daily closures, corrispettivi, gestione contanti, configurazione giorni chiusura",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["banca", "controllo_gestione"],
+  "router_files": [
+    "admin_finance",
+    "chiusure_turno",
+    "closures_config_router"
+  ],
+  "endpoint_prefix": [
+    "/admin/finance",
+    "/admin/finance/shift-closures",
+    "/settings/closures-config"
+  ],
+  "tabelle_db": [
+    "daily_closures",
+    "shift_closures",
+    "cash_deposits",
+    "corrispettivi"
+  ],
+  "frontend_route": ["/vendite", "/cassa"],
+  "frontend_menu_key": "cassa"
+}

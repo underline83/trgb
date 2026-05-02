@@ -1,0 +1,30 @@
+{
+  "id": "prenotazioni",
+  "nome": "Prenotazioni",
+  "versione": "1.0",
+  "descrizione": "Planning sala, prenotazioni TheFork, preventivi eventi, template menu eventi",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "calendar", "wa", "pdf"],
+  "dipendenze_opzionali": ["clienti", "menu_carta"],
+  "router_files": [
+    "prenotazioni_router",
+    "preventivi_router",
+    "menu_templates_router"
+  ],
+  "endpoint_prefix": [
+    "/prenotazioni",
+    "/preventivi",
+    "/menu-templates"
+  ],
+  "tabelle_db": [
+    "clienti_prenotazioni",
+    "clienti_preventivi",
+    "clienti_preventivo_*",
+    "menu_templates",
+    "tavoli",
+    "tavoli_layout",
+    "tavoli_combinazioni"
+  ],
+  "frontend_route": ["/prenotazioni", "/preventivi"],
+  "frontend_menu_key": "prenotazioni"
+}

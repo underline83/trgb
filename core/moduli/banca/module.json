@@ -1,0 +1,22 @@
+{
+  "id": "banca",
+  "nome": "Banca / Flussi Cassa",
+  "versione": "1.0",
+  "descrizione": "Movimenti bancari, riconciliazione, versamenti contanti",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["controllo_gestione", "acquisti", "cassa"],
+  "router_files": [
+    "banca_router"
+  ],
+  "endpoint_prefix": [
+    "/banca"
+  ],
+  "tabelle_db": [
+    "banca_movimenti",
+    "banca_categorie",
+    "cash_deposits"
+  ],
+  "frontend_route": ["/banca"],
+  "frontend_menu_key": "banca"
+}

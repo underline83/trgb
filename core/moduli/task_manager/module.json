@@ -1,0 +1,28 @@
+{
+  "id": "task_manager",
+  "nome": "Task Manager / HACCP",
+  "versione": "1.0",
+  "descrizione": "Checklist template, istanze giornaliere, esecuzione tap-to-complete, task singoli, loop HACCP",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["dipendenti"],
+  "router_files": [
+    "tasks_router",
+    "haccp_router"
+  ],
+  "endpoint_prefix": [
+    "/tasks",
+    "/haccp"
+  ],
+  "tabelle_db": [
+    "checklist_template",
+    "checklist_item",
+    "checklist_instance",
+    "checklist_execution",
+    "task_singolo",
+    "task_alert_log",
+    "haccp_*"
+  ],
+  "frontend_route": ["/tasks", "/haccp"],
+  "frontend_menu_key": "task_manager"
+}

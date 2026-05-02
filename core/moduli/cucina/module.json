@@ -1,0 +1,21 @@
+{
+  "id": "cucina",
+  "nome": "Cucina (Lista Spesa)",
+  "versione": "1.0",
+  "descrizione": "Lista spesa cucina (richieste cuoco → acquisti). Dashboard cucina e HACCP vivono in platform/task_manager.",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["ricette", "acquisti", "task_manager"],
+  "router_files": [
+    "lista_spesa_router"
+  ],
+  "endpoint_prefix": [
+    "/lista-spesa"
+  ],
+  "tabelle_db": [
+    "lista_spesa_items",
+    "lista_spesa_righe"
+  ],
+  "frontend_route": ["/cucina"],
+  "frontend_menu_key": "cucina"
+}

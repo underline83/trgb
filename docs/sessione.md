@@ -1,6 +1,37 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-02 (sessione R6.5 push 1 — `locale_data_path()` applicato a 10 DB SQLite)
+**Ultimo aggiornamento:** 2026-05-02 (sessione R8a — manifesti dichiarativi 13 moduli + platform)
+
+---
+
+## SESSIONE R8a (2026-05-02) — Manifesti moduli dichiarativi (zero rischio runtime)
+
+### Cosa è stato fatto
+- Creati 13 `core/moduli/<id>/module.json` (uno per modulo vendibile) + 1 `core/moduli/platform/module.json` per i servizi infrastrutturali sempre attivi.
+- Mappati i 46 router esistenti ai 13 moduli + platform: vini (7 router), ricette (8), acquisti (4), controllo_gestione (1), banca (1), dipendenti (3), prenotazioni (3), clienti (1), cassa (3), menu_carta (3), cucina (1), task_manager (2), statistiche (1), platform (8).
+- Creato `locali/tregobbi/moduli_attivi.json` = `{"moduli": ["*"]}` (wildcard backward-compat).
+- Creato `locali/trgb/moduli_attivi.json` = idem (demo completa).
+- Creato `locali/_template/moduli_attivi.json.template` con documentazione inline (lista moduli disponibili + 3 esempi configurazione).
+
+### File modificati / creati
+- nuovi: `core/moduli/{vini,ricette,acquisti,controllo_gestione,banca,dipendenti,prenotazioni,clienti,cassa,menu_carta,cucina,task_manager,statistiche,platform}/module.json` (14 file)
+- nuovi: `locali/{tregobbi,trgb}/moduli_attivi.json`, `locali/_template/moduli_attivi.json.template`
+
+### Schema module.json
+Ogni manifesto contiene: `id`, `nome` (UI), `versione`, `descrizione`, `vendibile` (bool), `dipendenze_platform` (lista mattoni M.A-M.I), `dipendenze_opzionali` (altri moduli che potenziano questo), `router_files` (lista file in `app/routers/`), `endpoint_prefix` (lista prefissi FastAPI), `tabelle_db` (lista tabelle SQL), `frontend_route` (lista route), `frontend_menu_key` (chiave in `modulesMenu.js`).
+
+Per `platform`: in più `always_active: true` e mappa stato `mattoni` (M.A...M.I).
+
+### Verifica
+- Nessuno legge questi file ancora → zero impatto runtime → backend del ristorante intoccato. Sicuro anche di sabato sera.
+- I file servono come contratto per R8b (backend module_loader) e R8c (frontend filter menu).
+
+### Cosa NON ho fatto (R8b/R8c)
+- Backend: `app/platform/module_loader.py` da scrivere in R8b. Oggi `main.py` continua a montare i 46 router come sempre.
+- Frontend: filtro menu da scrivere in R8c. Oggi `modulesMenu.js` mostra tutto come sempre.
+
+### Suggested commit
+`./push.sh "[core] R8a — manifesti dichiarativi 13 moduli vendibili + platform (core/moduli/<id>/module.json) + moduli_attivi.json per locale (tregobbi/trgb='*' backward-compat) + template documentato. Nessun cambio runtime, scaffold per R8b loader."`
 
 ---
 

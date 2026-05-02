@@ -1,0 +1,31 @@
+{
+  "id": "acquisti",
+  "nome": "Acquisti / Fatture",
+  "versione": "1.0",
+  "descrizione": "Import fatture XML elettroniche, fornitori, categorie, proforma, sync FattureInCloud",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["ricette", "controllo_gestione", "banca"],
+  "router_files": [
+    "fe_import",
+    "fe_categorie_router",
+    "fe_proforme_router",
+    "fattureincloud_router"
+  ],
+  "endpoint_prefix": [
+    "/contabilita/fe",
+    "/contabilita/fe/categorie",
+    "/contabilita/fe/proforme",
+    "/fic"
+  ],
+  "tabelle_db": [
+    "fe_fatture",
+    "fe_righe",
+    "fe_fornitori",
+    "fe_fornitore_categoria",
+    "fe_proforme",
+    "suppliers"
+  ],
+  "frontend_route": ["/acquisti"],
+  "frontend_menu_key": "acquisti"
+}

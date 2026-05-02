@@ -1,0 +1,19 @@
+{
+  "id": "statistiche",
+  "nome": "Statistiche",
+  "versione": "1.0",
+  "descrizione": "Aggregati cross-modulo: KPI, vendite per periodo, top vini, top piatti, riepiloghi mensili",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["vini", "ricette", "cassa", "banca", "controllo_gestione"],
+  "note": "Modulo cross-aggregatore: accede in read-only ai dati degli altri moduli attivi. Le voci menu/widget si nascondono automaticamente se i moduli sorgente sono disattivati.",
+  "router_files": [
+    "statistiche_router"
+  ],
+  "endpoint_prefix": [
+    "/statistiche"
+  ],
+  "tabelle_db": [],
+  "frontend_route": ["/statistiche"],
+  "frontend_menu_key": "statistiche"
+}

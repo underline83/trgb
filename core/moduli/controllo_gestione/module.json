@@ -1,0 +1,23 @@
+{
+  "id": "controllo_gestione",
+  "nome": "Controllo Gestione",
+  "versione": "1.0",
+  "descrizione": "Uscite, entrate, spese fisse, rateizzazioni, liquidità, prestiti",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["acquisti", "banca", "cassa", "dipendenti"],
+  "router_files": [
+    "controllo_gestione_router"
+  ],
+  "endpoint_prefix": [
+    "/controllo-gestione"
+  ],
+  "tabelle_db": [
+    "cg_uscite",
+    "cg_entrate",
+    "cg_spese_fisse",
+    "cg_categorie"
+  ],
+  "frontend_route": ["/controllo-gestione"],
+  "frontend_menu_key": "controllo_gestione"
+}

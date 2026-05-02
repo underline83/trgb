@@ -1,0 +1,29 @@
+{
+  "_documentation": {
+    "locale_id": "ID univoco del locale (deve corrispondere al nome cartella sotto locali/)",
+    "moduli": "Array di id moduli da attivare. '*' = tutti. Lista esplicita = solo quelli (es. ['vini', 'cassa']). Vedi core/moduli/<id>/module.json per la lista dei moduli vendibili.",
+    "moduli_disponibili": [
+      "vini",
+      "ricette",
+      "acquisti",
+      "controllo_gestione",
+      "banca",
+      "dipendenti",
+      "prenotazioni",
+      "clienti",
+      "cassa",
+      "menu_carta",
+      "cucina",
+      "task_manager",
+      "statistiche"
+    ],
+    "platform": "Sempre attivo (auth, notifiche, dashboard, alerts, ecc.). Non va mai elencato, è incluso automaticamente.",
+    "esempi": {
+      "tutti_attivi": {"moduli": ["*"]},
+      "solo_vini_e_cassa": {"moduli": ["vini", "cassa"]},
+      "ristorante_minimo": {"moduli": ["prenotazioni", "clienti", "menu_carta", "cassa"]}
+    }
+  },
+  "locale_id": "TEMPLATE_DA_RINOMINARE",
+  "moduli": ["*"]
+}

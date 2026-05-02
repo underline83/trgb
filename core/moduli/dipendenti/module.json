@@ -1,0 +1,33 @@
+{
+  "id": "dipendenti",
+  "nome": "Dipendenti / Turni / Buste paga",
+  "versione": "1.0",
+  "descrizione": "Anagrafica dipendenti, calendario turni v2, buste paga PDF, scadenze documenti, ferie/permessi, contratti",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "calendar", "pdf"],
+  "dipendenze_opzionali": ["controllo_gestione"],
+  "router_files": [
+    "dipendenti",
+    "reparti",
+    "turni_router"
+  ],
+  "endpoint_prefix": [
+    "/dipendenti",
+    "/reparti",
+    "/turni"
+  ],
+  "tabelle_db": [
+    "dipendenti",
+    "dipendenti_allegati",
+    "dipendenti_scadenze",
+    "dipendenti_presenze",
+    "dipendenti_contratti",
+    "buste_paga",
+    "turni_tipi",
+    "turni_calendario",
+    "turni_template_*",
+    "reparti"
+  ],
+  "frontend_route": ["/dipendenti", "/turni"],
+  "frontend_menu_key": "dipendenti"
+}

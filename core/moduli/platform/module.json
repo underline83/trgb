@@ -1,0 +1,51 @@
+{
+  "id": "platform",
+  "nome": "Platform (sempre inclusa)",
+  "versione": "1.0",
+  "descrizione": "Servizi infrastrutturali sempre attivi: auth/utenti/permessi, notifiche (M.A), PDF brand (M.B), WA composer (M.C), email (M.D), calendar (M.E), alert engine (M.F), import (M.H), UI primitives (M.I), dashboard, modules registry, home actions, backup",
+  "vendibile": false,
+  "always_active": true,
+  "router_files": [
+    "auth_router",
+    "users_router",
+    "modules_router",
+    "dashboard_router",
+    "notifiche_router",
+    "alerts_router",
+    "home_actions_router",
+    "backup_router"
+  ],
+  "endpoint_prefix": [
+    "/auth",
+    "/auth/users",
+    "/settings/modules",
+    "/dashboard",
+    "/notifiche",
+    "/comunicazioni",
+    "/alerts",
+    "/settings/home-actions",
+    "/backup",
+    "/system",
+    "/locale"
+  ],
+  "tabelle_db": [
+    "users (users.json)",
+    "notifiche",
+    "notifiche_lettura",
+    "comunicazioni",
+    "alert_config",
+    "schema_migrations",
+    "audit_log"
+  ],
+  "mattoni": {
+    "M.A": "notifiche (FATTO, sessione 31)",
+    "M.B": "pdf brand (FATTO)",
+    "M.C": "wa composer (FATTO, sessione 31)",
+    "M.D": "email service (DA FARE)",
+    "M.E": "calendar component (FATTO)",
+    "M.F": "alert engine (FATTO, sessione 40)",
+    "M.G": "permessi (DA FARE)",
+    "M.H": "import engine (DA FARE)",
+    "M.I": "ui primitives (FATTO, sessione 2026-04-18)"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "clienti",
+  "nome": "Clienti CRM",
+  "versione": "1.0",
+  "descrizione": "Anagrafica clienti, tag, note, storico prenotazioni, merge duplicati",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "wa"],
+  "dipendenze_opzionali": ["prenotazioni"],
+  "router_files": [
+    "clienti_router"
+  ],
+  "endpoint_prefix": [
+    "/clienti"
+  ],
+  "tabelle_db": [
+    "clienti",
+    "clienti_tag",
+    "clienti_tag_assoc",
+    "clienti_note",
+    "clienti_alias",
+    "clienti_impostazioni"
+  ],
+  "frontend_route": ["/clienti"],
+  "frontend_menu_key": "clienti"
+}

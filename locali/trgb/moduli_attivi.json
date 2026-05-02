@@ -1,0 +1,5 @@
+{
+  "locale_id": "trgb",
+  "moduli": ["*"],
+  "note": "Istanza prodotto pulita (futuro deploy su trgb.it). Demo completa con tutti i moduli per mostrare ai clienti potenziali la versione full. Per dimostrare configurazioni 'a la carte' (es. solo Vini + Cassa), usare un locale_id alternativo (es. test_demo) con moduli espliciti."
+}

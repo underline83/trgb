@@ -1,0 +1,30 @@
+{
+  "id": "menu_carta",
+  "nome": "Menu Carta + Pranzo + PDF",
+  "versione": "1.0",
+  "descrizione": "Edizioni Menu Carta (cena), Menu Pranzo del giorno, generazione PDF, pubblicazione carta clienti",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "pdf", "import"],
+  "dipendenze_opzionali": ["ricette", "task_manager"],
+  "router_files": [
+    "menu_carta_router",
+    "pranzo_router",
+    "menu_router"
+  ],
+  "endpoint_prefix": [
+    "/menu-carta",
+    "/pranzo",
+    "/menu"
+  ],
+  "tabelle_db": [
+    "menu_editions",
+    "menu_dish_publications",
+    "menu_tasting_paths",
+    "menu_tasting_path_steps",
+    "pranzo_menu",
+    "pranzo_menu_righe",
+    "pranzo_settings"
+  ],
+  "frontend_route": ["/menu-carta", "/pranzo"],
+  "frontend_menu_key": "menu_carta"
+}
