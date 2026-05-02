@@ -3,6 +3,8 @@
 Report chiusure cassa — riepilogo mese per mese.
 Lancia dal server: python3 scripts/report_chiusure_mensili.py
 """
+# TODO R6.5: utility one-shot. DB_PATH hardcoded ad app/data/.
+# Sostituire con locale_data_path("admin_finance.sqlite3") se rilanciato.
 import sqlite3, os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "app", "data", "admin_finance.sqlite3")

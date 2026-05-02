@@ -12,10 +12,11 @@ DB: app/data/cucina.sqlite3 (separato da foodcost.db).
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-CUCINA_DB = BASE_DIR / "app" / "data" / "cucina.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware (cucina.sqlite3 storico, rinominato a tasks.sqlite3 da mig 086)
+CUCINA_DB = locale_data_path("cucina.sqlite3")
 
 # Tabelle target. Ordine importante per la print finale (devono esistere).
 TABLES = ["checklist_template", "checklist_instance", "task_singolo", "cucina_alert_log"]

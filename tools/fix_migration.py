@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Fix: assicura che le colonne della migrazione 035 esistano in cg_uscite."""
+# TODO R6.5: utility one-shot, path "app/data/foodcost.db" hardcoded.
+# Sostituire con `from app.utils.locale_data import locale_data_path`
+# se rilanciato in futuro su un locale diverso da tregobbi.
 import sqlite3
 
 conn = sqlite3.connect("app/data/foodcost.db")

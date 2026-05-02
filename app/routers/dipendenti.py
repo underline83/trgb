@@ -31,6 +31,11 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
 from app.services.auth_service import get_current_user
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware per cross-DB query verso foodcost.db
+# (cg_uscite, scadenze stipendio). Modulo: dipendenti.
+_FOODCOST_DB = str(locale_data_path("foodcost.db"))
 
 
 router = APIRouter(prefix="/dipendenti", tags=["Dipendenti"])
@@ -1357,7 +1362,7 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
     import logging as _logging
     _log = _logging.getLogger("trgb")
 
-    FOODCOST_DB = "app/data/foodcost.db"
+    FOODCOST_DB = _FOODCOST_DB  # R6.5 — locale-aware (vedi top-of-file)
 
     # Recupera dati dipendente
     dip = conn_dip.execute(
@@ -1454,7 +1459,7 @@ def scadenze_stipendio_mancanti(
       (uscita cancellata manualmente).
     """
     import sqlite3 as _sqlite3
-    FOODCOST_DB = "app/data/foodcost.db"
+    FOODCOST_DB = _FOODCOST_DB  # R6.5 — locale-aware (vedi top-of-file)
 
     conn = get_dipendenti_conn()
     query = """
@@ -1547,7 +1552,7 @@ def rigenera_scadenza_busta_paga(
 
         # Rileggi data_scadenza per il response
         import sqlite3 as _sqlite3
-        fc = _sqlite3.connect("app/data/foodcost.db")
+        fc = _sqlite3.connect(_FOODCOST_DB)  # R6.5 — locale-aware
         try:
             row = fc.execute(
                 "SELECT data_scadenza FROM cg_uscite WHERE id = ?",
@@ -2197,6 +2202,10 @@ def download_cedolino_pdf(
 # DOCUMENTI DIPENDENTE — CRUD allegati
 # ============================================================
 
+# TODO Modulo K (post-R6.5): documenti dipendenti (PDF buste paga +
+# allegati) sono uploads utente, vanno sotto TRGB_UPLOADS_DIR/<locale>/
+# documenti_dipendenti/. Per ora restano in app/data/. Stesso scope dei
+# 4 path os.path.join("app","data",pdf_rel) qui sotto.
 DOCS_BASE_DIR = os.path.join("app", "data", "documenti_dipendenti")
 
 

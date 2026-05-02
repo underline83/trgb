@@ -16,8 +16,10 @@
 import sqlite3
 from typing import Dict, List, Optional
 
+from app.utils.locale_data import locale_data_path
 
-VENDITE_DB = "app/data/admin_finance.sqlite3"
+# R6.5 — path tenant-aware. Modulo: statistiche (vendite cross-modulo).
+VENDITE_DB = str(locale_data_path("admin_finance.sqlite3"))
 
 
 def get_vendite_db() -> sqlite3.Connection:

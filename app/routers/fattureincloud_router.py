@@ -37,8 +37,10 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # app/
-DB_PATH = BASE_DIR / "data" / "foodcost.db"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: acquisti (FattureInCloud sync).
+DB_PATH = locale_data_path("foodcost.db")
 FIC_BASE = "https://api-v2.fattureincloud.it"
 
 

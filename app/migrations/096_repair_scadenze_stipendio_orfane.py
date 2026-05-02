@@ -66,8 +66,10 @@ def upgrade(conn: sqlite3.Connection) -> None:
     `conn` e' la connessione a foodcost.db (dove sono tracciate le
     migrazioni). Per dipendenti apriamo una connessione separata.
     """
-    # Path dipendenti.db relativo alla radice progetto (come fa dipendenti_db.py)
-    DIP_DB = Path("app/data/dipendenti.sqlite3")
+    # R6.5 — path tenant-aware (locali/<TRGB_LOCALE>/data/dipendenti.sqlite3
+    # con fallback ad app/data/dipendenti.sqlite3 — pattern dipendenti_db.py)
+    from app.utils.locale_data import locale_data_path
+    DIP_DB = locale_data_path("dipendenti.sqlite3")
 
     if not DIP_DB.exists():
         print("  [096] dipendenti.sqlite3 non trovato — migrazione no-op")

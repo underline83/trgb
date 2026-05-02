@@ -31,9 +31,11 @@ Idempotente: ogni ALTER e' protetto da check PRAGMA table_info.
 """
 
 import sqlite3
-from pathlib import Path
 
-DIP_DB = Path(__file__).resolve().parent.parent / "data" / "dipendenti.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware
+DIP_DB = locale_data_path("dipendenti.sqlite3")
 
 
 def _cols(conn, table):

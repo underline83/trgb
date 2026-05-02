@@ -1,5 +1,78 @@
 # TRGB — Briefing sessione
 
+**Ultimo aggiornamento:** 2026-05-02 (sessione R6.5 push 1 — `locale_data_path()` applicato a 10 DB SQLite)
+
+---
+
+## SESSIONE R6.5 push 1 (2026-05-02) — Path tenant-aware su tutti i DB SQLite
+
+### Cosa è stato fatto
+- Applicato `app/utils/locale_data.locale_data_path()` a tutti i 10 DB SQLite operativi (sorpresa: 10, non 9 — `vini.sqlite3` ancora attivo via `vini_model.py`, `dashboard_router.py`, `alert_engine.py`).
+- I file DB restano fisicamente in `app/data/` (push 2 li sposta).
+- Zero behavior change su tregobbi: l'helper trova i DB nel legacy path `app/data/` via fallback storico.
+- Disciplina forzata: ogni modulo pre-R8 punta al locale corrente via `TRGB_LOCALE` env (default `tregobbi`).
+
+### File modificati (~52)
+**Modelli (8):** `foodcost_db`, `vini_magazzino_db`, `settings_db`, `notifiche_db`, `tasks_db`, `bevande_db`, `clienti_db`, `dipendenti_db`.
+**Core (1):** `core/database.py` (MAIN_DB_PATH + SETTINGS_DB_PATH).
+**Migration runner:** `migration_runner.py` (CRITICO — punto di ingresso al boot).
+**Router (~12):** `banca_router`, `fe_import`, `fe_categorie_router`, `fe_proforme_router`, `fattureincloud_router`, `controllo_gestione_router`, `admin_finance` (FOODCOST_DB_PATH), `chiusure_turno`, `dipendenti` (cross-DB foodcost queries), `ipratico_products_router`, `menu_carta_router` (TASKS_DB), `dashboard_router` (vini.sqlite3 in 2 punti).
+**Servizi (4):** `corrispettivi_export`, `corrispettivi_import` (DB_PATH importato anche da admin_finance), `vendite_aggregator`, `alert_engine`.
+**Migrazioni (22):** 050, 068, 070-073, 075-088, 090, 096, 097.
+- Escluse: 057 (CSV output), 060 (self-aware via PRAGMA database_list), 064 (bug originale `.db` no-op safe), 089/095/101 (solo docstring, usano modelli già aggiornati).
+**Config locale (2):** `auth_service.py` (USERS_FILE), `closures_config_router.py` (CONFIG_FILE).
+**TODO inline:** 9 tools/scripts one-shot + 4 cartelle uploads/backups (app/data/uploads, ipratico_uploads, documenti_dipendenti, backups) — fuori scope R6.5, marcati per Modulo K-bis post-R6.5.
+
+### Verifica
+- `python -m compileall` su `app/{models,core,migrations,routers,services,utils}` → zero errori sintassi.
+- Smoke test import: tutti i path si risolvono correttamente. Sul VPS dove i DB esistono in `app/data/`, il fallback storico li trova → zero behavior change.
+- Grep finale `app/data/X.sqlite3|.db|.json`: zero match in codice eseguibile (solo docstring storiche e bug noto migrazione 064).
+
+### Note tecniche
+- `vini.sqlite3` è ancora attivo (era stato erroneamente censito come 9 DB nel piano §3 R6.5; sono 10): aggiornata tabella §6.
+- `settings_db.py` e `core/database.py` puntavano entrambi a `vini_settings.sqlite3` con costanti diverse — ora entrambi via `locale_data_path()`, stesso file. Riconciliazione implicita.
+- `cucina_db.py` non toccato: è solo alias di `get_foodcost_connection()` (Fase 0 split).
+- Migrazione 064 mantiene il bug `dipendenti.db` (non esiste, no-op safe). Migrazione 060 è già self-aware via PRAGMA.
+
+### Push 2 (separato, prossimo)
+Spostamento fisico file DB da `app/data/` a `locali/tregobbi/data/` sul VPS, sotto `[locale:tregobbi]`. Zero downtime: l'helper è già pronto per entrambi i path (lookup #1 tenant → fallback #2 legacy).
+
+### Suggested commit
+`./push.sh "[core] R6.5 push 1 — locale_data_path() su 10 DB SQLite (modelli + core + migration_runner + router + servizi + 22 migrazioni + users.json + closures_config.json)"`
+
+---
+
+## SESSIONE R7 (2026-05-02) — Chiusura prima fase refactor monorepo
+
+### Cosa è stato fatto
+- Push R7: scaffold `locali/_template/` completo (assets/data/seeds con `.gitkeep`) + `docs/architettura_locale.md` (doc canonico multi-tenant) + sync stato §6 `refactor_monorepo.md` + `roadmap.md` §0 + fix logo gobbette SVG su `deploy/sites/trgb.it/index.html`
+- Fix `.git/index.lock` orfano (processo git precedente crashato)
+- Rimossi `trgb_reel.mp4` e `trgb_reel_v2.mp4` (file temporanei altro agente)
+
+### File modificati
+- `docs/architettura_locale.md` (NUOVO — doc canonico)
+- `locali/_template/assets|data|seeds/.gitkeep` (NUOVI — scaffold)
+- `locali/_template/branding|locale|strings|deploy/env.production.template` (NUOVI)
+- `docs/refactor_monorepo.md` (§6 stato R7 aggiornato con hash `936a5e6`)
+- `docs/roadmap.md` (§0 stato R7 ✅ FATTO)
+- `deploy/sites/trgb.it/index.html` (gobbette SVG path reali + rimosso link prototipo)
+
+### Verifica post-push
+- HTTP probe `trgb.tregobbi.it` → 405 (backend vivo, 136ms)
+- Commit `936a5e6` confermato su `main`
+
+### Stato refactor
+R1✅ R2✅ R3✅ R4✅ R5✅ R6✅ R7✅ — R6.5 DA FARE — R8 DA FARE
+
+### Prossima sessione
+- R6.5: applica `locale_data_path()` ai 9 DB SQLite operativi (prerequisito R8)
+- R8: architettura modulare + feature flags (sessione lunga)
+
+### Commit
+`[mixed] R7 — scaffold locali/_template/ + docs/architettura_locale.md + sync stato §6 refactor_monorepo + roadmap §0 + trgb.it gobbette SVG` (commit `936a5e6`)
+
+---
+
 **Ultimo aggiornamento:** 2026-04-28 (sessione 59 cont. e — VPS: aggiornamento minor 64 pacchetti + upgrade major Ubuntu 22.04 → 24.04.4 LTS Noble + ricreazione venv Python 3.12)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/modulo_pranzo.md`](./modulo_pranzo.md) · [`docs/deploy.md`](./deploy.md)
 

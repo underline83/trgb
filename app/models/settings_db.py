@@ -28,13 +28,16 @@ Gestisce il DB SQLite dedicato alle impostazioni della Carta Vini:
 
 from __future__ import annotations
 import sqlite3
-from pathlib import Path
 
-SETTINGS_PATH = Path("app/data/vini_settings.sqlite3")
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Stesso file di app/core/database.py
+# (SETTINGS_DB_PATH): entrambi via locale_data_path puntano allo stesso
+# vini_settings.sqlite3 nel locale corrente. Modulo: vini.
+SETTINGS_PATH = locale_data_path("vini_settings.sqlite3")
 
 
 def get_settings_conn() -> sqlite3.Connection:
-    SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(SETTINGS_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     # Fix 1.11.2 (sessione 52) — WAL + synchronous=NORMAL + busy_timeout

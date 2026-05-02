@@ -21,13 +21,12 @@ Tabelle principali:
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = BASE_DIR / "app" / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from app.utils.locale_data import locale_data_path
 
-FOODCOST_DB_PATH = DATA_DIR / "foodcost.db"
+# R6.5 — path tenant-aware: locali/<TRGB_LOCALE>/data/foodcost.db con
+# fallback ad app/data/foodcost.db (path storico). Modulo: ricette/foodcost.
+FOODCOST_DB_PATH = locale_data_path("foodcost.db")
 
 
 # ─────────────────────────────────────────────────────────────

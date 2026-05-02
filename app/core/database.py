@@ -14,17 +14,14 @@ Fornisce:
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # app/
-DATA_DIR = BASE_DIR / "data"
+from app.utils.locale_data import locale_data_path
 
-MAIN_DB_PATH = DATA_DIR / "vini.sqlite3"
-SETTINGS_DB_PATH = DATA_DIR / "vini_settings.sqlite3"
-
-
-def _ensure_data_dir() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+# R6.5 — path tenant-aware. Modulo: vini.
+# locale_data_path crea la cartella destinazione se necessario, quindi
+# non serve piu' _ensure_data_dir esplicito.
+MAIN_DB_PATH = locale_data_path("vini.sqlite3")
+SETTINGS_DB_PATH = locale_data_path("vini_settings.sqlite3")
 
 
 def _apply_wal_pragmas(conn: sqlite3.Connection) -> None:
@@ -42,7 +39,6 @@ def get_connection() -> sqlite3.Connection:
     """
     Connessione al DB principale 'vini.sqlite3'.
     """
-    _ensure_data_dir()
     conn = sqlite3.connect(MAIN_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     _apply_wal_pragmas(conn)
@@ -54,7 +50,6 @@ def get_settings_conn() -> sqlite3.Connection:
     Connessione al DB impostazioni 'vini_settings.sqlite3'.
     (usato per ordinamenti tipologie/regioni, ecc.)
     """
-    _ensure_data_dir()
     conn = sqlite3.connect(SETTINGS_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     _apply_wal_pragmas(conn)

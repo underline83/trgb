@@ -29,9 +29,14 @@ from typing import List as TList
 
 router = APIRouter(prefix="/vini/ipratico", tags=["ipratico-products"])
 
-DB_MAG = Path("app/data/vini_magazzino.sqlite3")
-DB_FC = Path("app/data/foodcost.db")  # migration tables live here
+from app.utils.locale_data import locale_data_path
 
+# R6.5 — path tenant-aware. Modulo: vini (sub: ipratico products).
+DB_MAG = locale_data_path("vini_magazzino.sqlite3")
+DB_FC = locale_data_path("foodcost.db")  # migration tables live here
+
+# NB: ipratico_uploads è una cartella di upload utente, fuori scope R6.5.
+# TODO Modulo K: spostare sotto TRGB_UPLOADS_DIR/<locale>/ipratico_uploads.
 UPLOAD_DIR = Path("app/data/ipratico_uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 

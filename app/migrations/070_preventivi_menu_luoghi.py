@@ -22,9 +22,11 @@ NOTA: clienti_preventivi vive in clienti.sqlite3, non in foodcost.db.
 
 import sqlite3
 import json
-from pathlib import Path
 
-CLIENTI_DB = Path(__file__).resolve().parent.parent / "data" / "clienti.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware
+CLIENTI_DB = locale_data_path("clienti.sqlite3")
 
 
 def upgrade(conn):

@@ -12,13 +12,11 @@ DB separato: app/data/notifiche.sqlite3
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]  # .../trgb/
-DATA_DIR = BASE_DIR / "app" / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from app.utils.locale_data import locale_data_path
 
-DB_PATH = DATA_DIR / "notifiche.sqlite3"
+# R6.5 — path tenant-aware. Modulo: platform/M.A notifiche.
+DB_PATH = locale_data_path("notifiche.sqlite3")
 
 
 def get_notifiche_conn() -> sqlite3.Connection:

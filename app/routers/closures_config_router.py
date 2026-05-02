@@ -10,16 +10,18 @@ PUT  /settings/closures-config  — aggiorna configurazione (solo admin)
 """
 
 import json
-from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.services.auth_service import get_current_user, is_admin
+from app.utils.locale_data import locale_data_path
 
 router = APIRouter(prefix="/settings/closures-config", tags=["closures-config"])
 
-CONFIG_FILE = Path(__file__).resolve().parent.parent / "data" / "closures_config.json"
+# R6.5 — path tenant-aware. closures_config.json e' un dato di locale
+# (giorni di chiusura del ristorante), va sotto locali/<TRGB_LOCALE>/data/.
+CONFIG_FILE = locale_data_path("closures_config.json")
 
 GIORNI_SETTIMANA = {0: "Lunedì", 1: "Martedì", 2: "Mercoledì", 3: "Giovedì", 4: "Venerdì", 5: "Sabato", 6: "Domenica"}
 

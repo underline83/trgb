@@ -30,9 +30,11 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Body
 from pydantic import BaseModel
 import sqlite3
-from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "foodcost.db"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: banca.
+DB_PATH = locale_data_path("foodcost.db")
 
 router = APIRouter(prefix="/banca", tags=["banca"])
 

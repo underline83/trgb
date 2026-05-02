@@ -23,8 +23,10 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-FOODCOST_DB_PATH = BASE_DIR / "data" / "foodcost.db"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: acquisti (categorie fornitori).
+FOODCOST_DB_PATH = locale_data_path("foodcost.db")
 
 
 def _get_conn() -> sqlite3.Connection:

@@ -14,6 +14,8 @@ import importlib
 import os
 from pathlib import Path
 
+from app.utils.locale_data import locale_data_path
+
 # ---------------------------------------------------------
 # PERCORSI
 # ---------------------------------------------------------
@@ -24,8 +26,9 @@ BASE_DIR = Path(__file__).resolve().parent
 # /app/migrations/ (stesso livello dei file 001_*.py)
 MIGRATIONS_DIR = BASE_DIR
 
-# DB CORRETTO → /app/data/foodcost.db
-DB_PATH = BASE_DIR.parent / "data" / "foodcost.db"
+# R6.5 — path tenant-aware: locali/<TRGB_LOCALE>/data/foodcost.db con
+# fallback ad app/data/foodcost.db (storico). Punto di ingresso al boot.
+DB_PATH = locale_data_path("foodcost.db")
 
 
 def get_applied_migrations(conn):

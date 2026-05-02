@@ -1,23 +1,26 @@
 """
 TRGB — Auth Service
 
-Utenti persistiti in app/data/users.json.
+Utenti persistiti in users.json — R6.5 path tenant-aware
+(locali/<TRGB_LOCALE>/data/users.json con fallback ad app/data/users.json).
 Per cambiare password tramite CLI: python scripts/gen_passwords.py
 """
 
 import json
 import secrets
-from pathlib import Path
 from datetime import timedelta
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core import security
+from app.utils.locale_data import locale_data_path
 
 # ---------------------------------------------------------------------------
 # PERCORSO STORE UTENTI
 # ---------------------------------------------------------------------------
-USERS_FILE = Path(__file__).resolve().parent.parent / "data" / "users.json"
+# R6.5 — path tenant-aware. users.json e' un dato di locale (utenti del
+# ristorante), va sotto locali/<TRGB_LOCALE>/data/.
+USERS_FILE = locale_data_path("users.json")
 
 # ---------------------------------------------------------------------------
 # CARICA / SALVA UTENTI

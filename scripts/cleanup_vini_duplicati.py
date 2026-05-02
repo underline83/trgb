@@ -9,6 +9,8 @@ Uso:
   python3 scripts/cleanup_vini_duplicati.py            # solo report (dry-run)
   python3 scripts/cleanup_vini_duplicati.py --fix       # rimuove i duplicati
 """
+# TODO R6.5: utility one-shot. DB_PATH hardcoded ad app/data/.
+# Sostituire con locale_data_path("vini_magazzino.sqlite3") se rilanciata.
 import sqlite3, os, sys
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "app", "data", "vini_magazzino.sqlite3")

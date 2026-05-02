@@ -10,6 +10,9 @@ Modalità:
 - update (default)   → UPSERT su id_excel, non cancella nulla
 - full-reset         → svuota la tabella e reimporta tutto
 """
+# TODO R6.5: utility one-shot di import. SRC_DB hardcoded ad app/data/.
+# Sostituire con locale_data_path("vini.sqlite3") se serve rilanciarla
+# su un locale diverso da tregobbi.
 
 from pathlib import Path
 import sqlite3

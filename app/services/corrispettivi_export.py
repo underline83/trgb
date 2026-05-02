@@ -5,13 +5,15 @@
 
 import io
 import sqlite3
-from pathlib import Path
 from typing import Optional, List, Dict
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, numbers
 
-DB_PATH = "app/data/admin_finance.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: cassa (corrispettivi export).
+DB_PATH = str(locale_data_path("admin_finance.sqlite3"))
 
 # ══════════════════════════════════════════════
 # CANONICAL FIELDS — fonte di verità

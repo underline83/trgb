@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# TODO R6.5: utility one-shot da lanciare sul VPS. USERS_FILE hardcoded
+# ad app/data/. users.json e' ora tenant-aware (vedi auth_service.py),
+# quindi se in futuro si lancia per un locale != tregobbi, sostituire
+# con locale_data_path("users.json") e settare TRGB_LOCALE.
 """
 TRGB — Collega utenti a dipendenti.
 

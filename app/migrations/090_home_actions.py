@@ -28,10 +28,11 @@ Idempotente: INSERT OR IGNORE su (ruolo, key).
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-FOODCOST_DB = BASE_DIR / "app" / "data" / "foodcost.db"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware
+FOODCOST_DB = locale_data_path("foodcost.db")
 
 
 # --- SEED DATA ----------------------------------------------------------------

@@ -3,6 +3,8 @@
 Recupera tabelle mancanti/vuote dal DB corrotto (.corrupted)
 e le inserisce nel DB attuale, senza toccare tabelle che hanno già dati.
 """
+# TODO R6.5: utility one-shot di recovery. Path hardcoded ad app/data/.
+# Adattare manualmente al locale corrente se rilanciato in futuro.
 import sqlite3
 import sys
 

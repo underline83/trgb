@@ -41,13 +41,13 @@ router = APIRouter(
 # DB HELPERS
 # -------------------------------------------------------------------
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # app/
-DATA_DIR = BASE_DIR / "data"
-FOODCOST_DB_PATH = DATA_DIR / "foodcost.db"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: acquisti (fatture elettroniche import).
+FOODCOST_DB_PATH = locale_data_path("foodcost.db")
 
 
 def _get_conn() -> sqlite3.Connection:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(FOODCOST_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

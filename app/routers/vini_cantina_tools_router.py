@@ -1996,6 +1996,8 @@ async def matrice_import_old(current_user=Depends(get_current_user)):
 import shutil
 import glob as _glob
 
+# TODO post-R6.5: cartella backup runtime, andra' sotto locali/<TRGB_LOCALE>/
+# backups/ (o sotto TRGB_BACKUP_DIR via Modulo K-bis). Per ora: app/data/.
 _BACKUP_DIR = Path(__file__).resolve().parents[2] / "app" / "data" / "backups"
 _DB_FILES = [
     ("vini_magazzino.sqlite3", "Magazzino vini"),

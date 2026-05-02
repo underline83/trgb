@@ -4,6 +4,8 @@ Merge duplicati FIC/XML nel database fatture.
 Eseguire direttamente sul server:
   python3 scripts/merge_duplicati.py
 """
+# TODO R6.5: utility one-shot. DB_PATH hardcoded ad app/data/.
+# Sostituire con locale_data_path("foodcost.db") se rilanciato.
 import sqlite3
 import os
 

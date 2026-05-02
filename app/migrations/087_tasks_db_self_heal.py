@@ -27,12 +27,12 @@ DB: app/data/tasks.sqlite3 (post-rename).
 import shutil
 import sqlite3
 import time
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = BASE_DIR / "app" / "data"
-CUCINA_DB = DATA_DIR / "cucina.sqlite3"
-TASKS_DB = DATA_DIR / "tasks.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware
+CUCINA_DB = locale_data_path("cucina.sqlite3")
+TASKS_DB = locale_data_path("tasks.sqlite3")
 
 TABLES_REPARTO = ["checklist_template", "checklist_instance", "task_singolo", "cucina_alert_log", "task_alert_log"]
 TABLES_DATA_CHECK = ["checklist_template", "task_singolo", "checklist_instance"]

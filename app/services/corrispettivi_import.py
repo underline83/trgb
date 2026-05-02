@@ -6,10 +6,13 @@ import pandas as pd
 import numpy as np
 import sqlite3
 
-from pathlib import Path
 from typing import Optional
 
-DB_PATH = "app/data/admin_finance.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: cassa (corrispettivi import).
+# NB: importato anche da app/routers/admin_finance.py (`from app.services.corrispettivi_import import DB_PATH`).
+DB_PATH = str(locale_data_path("admin_finance.sqlite3"))
 
 # ==============================================================
 # DB CREATION / MIGRATION

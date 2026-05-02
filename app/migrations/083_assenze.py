@@ -11,10 +11,11 @@ Tabella: assenze (in dipendenti.sqlite3)
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-DIP_DB = BASE_DIR / "app" / "data" / "dipendenti.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware
+DIP_DB = locale_data_path("dipendenti.sqlite3")
 
 
 def upgrade(conn: sqlite3.Connection) -> None:

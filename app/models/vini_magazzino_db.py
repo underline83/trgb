@@ -18,15 +18,16 @@ In v1.2:
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-DB_MAG_PATH = Path("app/data/vini_magazzino.sqlite3")
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: vini.
+DB_MAG_PATH = locale_data_path("vini_magazzino.sqlite3")
 
 
 def get_magazzino_connection() -> sqlite3.Connection:
-    DB_MAG_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_MAG_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     # Fix 1.11 (sessione 51) — WAL + synchronous NORMAL per resistere a SIGTERM

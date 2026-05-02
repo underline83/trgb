@@ -16,7 +16,10 @@ from app.services.auth_service import get_current_user
 # DATABASE
 # ---------------------------------------------------------
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "admin_finance.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: cassa (chiusure turno).
+DB_PATH = locale_data_path("admin_finance.sqlite3")
 
 
 def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:

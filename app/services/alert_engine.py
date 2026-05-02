@@ -402,9 +402,10 @@ def _check_vini_sottoscorta(dry_run: bool = False, config: dict = None) -> Check
     try:
         # 2026-04-21 (sessione 52): rimosso import fantasma `from app.models import vini_db`
         # (modulo inesistente) che cadeva sempre nel fallback. Codice equivalente, meno rumore.
+        # R6.5 — path tenant-aware via locale_data_path.
         import sqlite3 as _sqlite3
-        from pathlib import Path
-        vini_path = Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3"
+        from app.utils.locale_data import locale_data_path
+        vini_path = locale_data_path("vini.sqlite3")
         conn = _sqlite3.connect(str(vini_path))
         conn.row_factory = _sqlite3.Row
 

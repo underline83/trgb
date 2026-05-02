@@ -32,6 +32,8 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
+# TODO Modulo K (post-R6.5): cartella upload utente, andra' sotto
+# TRGB_UPLOADS_DIR/<locale>/admin_finance_uploads/. Per ora: app/data/.
 UPLOAD_DIR = Path("app/data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1464,7 +1466,9 @@ async def get_top_days(
 # GESTIONE CONTANTI — Versamenti in banca
 # ---------------------------------------------------------
 
-FOODCOST_DB_PATH = str(Path(__file__).resolve().parent.parent / "data" / "foodcost.db")
+# R6.5 — path tenant-aware. Modulo: cassa.
+from app.utils.locale_data import locale_data_path as _locale_data_path
+FOODCOST_DB_PATH = str(_locale_data_path("foodcost.db"))
 
 
 def _ensure_cash_deposits_table(conn: sqlite3.Connection) -> None:

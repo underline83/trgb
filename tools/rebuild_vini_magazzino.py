@@ -8,6 +8,8 @@ nel DB app/data/vini_magazzino.sqlite3.
 - Ricrea la tabella con id INTEGER PRIMARY KEY (riparte da 1)
 - Copia i dati ordinati per id_excel (se esiste), altrimenti per id vecchio
 """
+# TODO R6.5: utility one-shot. DB_PATH hardcoded ad app/data/.
+# Sostituire con locale_data_path("vini_magazzino.sqlite3") se rilanciata.
 
 from pathlib import Path
 import sqlite3

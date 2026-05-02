@@ -19,13 +19,11 @@ per garantire che il DB sia pronto anche su ambienti freschi.
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = BASE_DIR / "app" / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from app.utils.locale_data import locale_data_path
 
-DB_PATH = DATA_DIR / "tasks.sqlite3"
+# R6.5 — path tenant-aware. Modulo: task_manager.
+DB_PATH = locale_data_path("tasks.sqlite3")
 
 
 def get_tasks_conn() -> sqlite3.Connection:

@@ -17,10 +17,11 @@ Seed: 3 template di esempio, tutti ATTIVO=0 (Marco decide se attivarli).
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-CUCINA_DB = BASE_DIR / "app" / "data" / "cucina.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware (cucina.sqlite3 storico, rinominato a tasks.sqlite3 da mig 086)
+CUCINA_DB = locale_data_path("cucina.sqlite3")
 
 
 def upgrade(conn: sqlite3.Connection) -> None:

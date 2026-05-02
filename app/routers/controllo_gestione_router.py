@@ -22,8 +22,11 @@ from app.services.liquidita_service import dashboard_liquidita
 
 router = APIRouter(prefix="/controllo-gestione", tags=["controllo-gestione"])
 
-FOODCOST_DB = "app/data/foodcost.db"
-VENDITE_DB = "app/data/admin_finance.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware. Modulo: controllo_gestione.
+FOODCOST_DB = locale_data_path("foodcost.db")
+VENDITE_DB = locale_data_path("admin_finance.sqlite3")
 
 
 def get_fc_db():

@@ -741,7 +741,8 @@ def _alerts(oggi: str) -> List[AlertItem]:
     try:
         import sqlite3
         from pathlib import Path
-        vini_path = Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3"
+        from app.utils.locale_data import locale_data_path  # R6.5 — locale-aware
+        vini_path = locale_data_path("vini.sqlite3")
         conn = sqlite3.connect(vini_path)
         conn.row_factory = sqlite3.Row
 
@@ -804,8 +805,8 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     # Nota 2026-04-21 (sessione 52): vedi commento sopra, stesso cleanup import fantasma.
     try:
         import sqlite3 as _sq
-        from pathlib import Path
-        conn = _sq.connect(Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3")
+        from app.utils.locale_data import locale_data_path  # R6.5 — locale-aware
+        conn = _sq.connect(locale_data_path("vini.sqlite3"))
         conn.row_factory = _sq.Row
         row = conn.execute("SELECT COUNT(*) as cnt FROM vini WHERE COALESCE(attivo,1)=1").fetchone()
         n_vini = row["cnt"] if row else 0

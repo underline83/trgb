@@ -49,11 +49,11 @@ Riferimenti:
 """
 
 import sqlite3
-from pathlib import Path
 
+from app.utils.locale_data import locale_data_path
 
-BASE_DIR = Path(__file__).resolve().parents[1]  # app/
-TASKS_DB = BASE_DIR / "data" / "tasks.sqlite3"
+# R6.5 — path tenant-aware
+TASKS_DB = locale_data_path("tasks.sqlite3")
 
 
 # ─────────────────────────────────────────────────────────────────────────

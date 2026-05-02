@@ -13,13 +13,11 @@ Contiene:
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]  # .../trgb/
-DATA_DIR = BASE_DIR / "app" / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from app.utils.locale_data import locale_data_path
 
-DB_PATH = DATA_DIR / "clienti.sqlite3"
+# R6.5 — path tenant-aware. Modulo: clienti (CRM + prenotazioni + preventivi).
+DB_PATH = locale_data_path("clienti.sqlite3")
 
 
 def get_clienti_conn() -> sqlite3.Connection:

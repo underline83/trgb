@@ -57,7 +57,9 @@ from app.services.menu_carta_image_service import (
 
 
 # Path al DB tasks.sqlite3 (modulo Cucina HACCP) — usato dal generatore MEP
-TASKS_DB = Path(__file__).resolve().parents[2] / "app" / "data" / "tasks.sqlite3"
+# R6.5 — path tenant-aware.
+from app.utils.locale_data import locale_data_path
+TASKS_DB = locale_data_path("tasks.sqlite3")
 
 
 # ─────────────────────────────────────────────

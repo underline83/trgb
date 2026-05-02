@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# TODO R6.5: script one-shot lanciato MANUALMENTE da Marco. Path foodcost.db
+# ricavato dinamicamente. Adattare al locale corrente se rilanciato in futuro
+# su un'istanza diversa da tregobbi (usare locale_data_path).
 """
 apply_backfill_057.py — applica il backfill delle rateizzazioni su fe_fatture.
 

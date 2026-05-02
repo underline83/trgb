@@ -16,11 +16,11 @@ DB: app/data/tasks.sqlite3
 """
 
 import sqlite3
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = BASE_DIR / "app" / "data"
-TASKS_DB = DATA_DIR / "tasks.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware
+TASKS_DB = locale_data_path("tasks.sqlite3")
 
 TABLES = ["task_singolo", "checklist_template", "checklist_instance"]
 

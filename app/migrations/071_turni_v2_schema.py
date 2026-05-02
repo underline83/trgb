@@ -46,9 +46,11 @@ Riferimenti:
 """
 
 import sqlite3
-from pathlib import Path
 
-DIPENDENTI_DB = Path(__file__).resolve().parent.parent / "data" / "dipendenti.sqlite3"
+from app.utils.locale_data import locale_data_path
+
+# R6.5 — path tenant-aware
+DIPENDENTI_DB = locale_data_path("dipendenti.sqlite3")
 
 
 # Palette colori dipendenti — 14 tinte distinte, alta saturazione, pensate per
