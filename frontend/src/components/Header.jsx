@@ -10,6 +10,9 @@ import TrgbWordmark from "./TrgbWordmark";
 import useNotifiche from "../hooks/useNotifiche";
 import NotifichePanel from "./NotifichePanel";
 import { useBranding } from "../utils/brandConfig";
+// R8c: filtra MODULES_MENU per moduli attivi del locale (feature flags).
+// Su tregobbi (wildcard "*") ritorna tutto, niente filtro applicato.
+import { useActiveModules } from "../utils/activeModules";
 
 // Normalizza per ricerca case/accent-insensitive
 function norm(s) {
@@ -25,6 +28,8 @@ export default function Header({ onLogout }) {
 
   const { visibleModules, canAccessSub, modules: modulesData } = useModuleAccess();
   const branding = useBranding();
+  // R8c: feature flags moduli per locale (wildcard su tregobbi → no-op).
+  const { isMenuKeyActive } = useActiveModules();
 
   const [open, setOpen] = useState(false);
   const [notificheOpen, setNotificheOpen] = useState(false);
@@ -88,10 +93,12 @@ export default function Header({ onLogout }) {
   // Chiudi su navigazione
   useEffect(() => { setOpen(false); setSearchQuery(""); }, [location.pathname, location.search]);
 
-  // Filtra moduli visibili per ruolo (da useModuleAccess)
-  const visibleKeys = visibleModules
+  // Filtra moduli visibili per ruolo (da useModuleAccess) E per feature flag locale (R8c).
+  // Ordine: prima il filtro per ruolo (esistente), poi quello per modulo attivo.
+  const visibleKeys = (visibleModules
     ? visibleModules.filter(k => MODULES_MENU[k])
-    : Object.keys(MODULES_MENU);
+    : Object.keys(MODULES_MENU)
+  ).filter(k => isMenuKeyActive(k));
 
   // Rileva modulo corrente dal path.
   // Match su `go` base e anche su qualsiasi sub.go: necessario per sub-path "esterni"

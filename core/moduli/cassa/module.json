@@ -23,5 +23,5 @@
     "corrispettivi"
   ],
   "frontend_route": ["/vendite", "/cassa"],
-  "frontend_menu_key": "cassa"
+  "frontend_menu_key": "vendite"
 }

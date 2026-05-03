@@ -118,6 +118,11 @@ from app.routers.lista_spesa_router import router as lista_spesa_router
 # CARTA BEVANDE — sub-modulo del modulo Vini (Aperitivi, Birre, Distillati, Tisane, Tè, Amari)
 from app.routers.bevande_router import router as bevande_router
 
+# R8b — module loader: feature flags per locale.
+# Legge locali/<TRGB_LOCALE>/moduli_attivi.json + core/moduli/<id>/module.json
+# per decidere quali router montare. Default backward-compat: tutti attivi.
+from app.platform import module_loader
+
 
 # ──────────────────────────────────────────────────────────────
 # TRGB_LOCALE — identificativo del locale (R1, sessione 60, 2026-04-28)
@@ -193,6 +198,18 @@ def system_info():
         "version": app.version,    # versione semantica storica del backend FastAPI
         "commit": GIT_COMMIT,      # hash short del git HEAD in produzione (sessione 60)
     }
+
+
+# ──────────────────────────────────────────────────────────────
+# /system/modules — diagnostica feature flags moduli (R8b)
+# Endpoint pubblico read-only consumato dal frontend (R8c useActiveModules
+# hook) per nascondere voci menu di moduli disattivati per il locale.
+# Vedi docs/refactor_monorepo.md §3 R8.
+# Modulo: platform.
+# ──────────────────────────────────────────────────────────────
+@app.get("/system/modules")
+def system_modules():
+    return module_loader.get_module_info()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -347,151 +364,146 @@ app.mount(
 
 
 # ----------------------------------------
-# ROUTERS
+# ROUTERS — montaggio condizionale via module_loader (R8b)
 # ----------------------------------------
+# Ogni include_router è ora wrappato da _mount: il loader controlla se il
+# modulo associato è attivo per il locale corrente (locali/<TRGB_LOCALE>/
+# moduli_attivi.json). Default backward-compat: '*' o file mancante → tutti
+# attivi (zero behavior change su tregobbi).
+#
+# Mappa router_file → module_id in core/moduli/<id>/module.json (R8a).
+
+_mount_log_active = []
+_mount_log_skipped = []
+
+
+def _mount(router_file: str, router, **kwargs) -> None:
+    """Monta un router solo se il modulo associato è attivo per il locale."""
+    if module_loader.is_router_active(router_file):
+        app.include_router(router, **kwargs)
+        _mount_log_active.append(router_file)
+    else:
+        _mount_log_skipped.append(router_file)
+
 
 # VINI
-app.include_router(vini_settings_router.router)
-app.include_router(vini_router.router)
-app.include_router(vini_magazzino_router.router)
-app.include_router(vini_cantina_tools_router.router)
+_mount("vini_settings_router", vini_settings_router.router)
+_mount("vini_router", vini_router.router)
+_mount("vini_magazzino_router", vini_magazzino_router.router)
+_mount("vini_cantina_tools_router", vini_cantina_tools_router.router)
 
-# FOODCOST
-app.include_router(foodcost_router.router, prefix="/foodcost", tags=["foodcost"])
-app.include_router(
-    foodcost_ingredients_router.router,
-    prefix="/foodcost",
-    tags=["foodcost-ingredients"],
-)
-app.include_router(
-    foodcost_recipes_router.router,
-    prefix="/foodcost",
-    tags=["foodcost-recipes"],
-)
-app.include_router(
-    foodcost_matching_router.router,
-    prefix="/foodcost",
-    tags=["foodcost-matching"],
-)
+# FOODCOST (modulo: ricette)
+_mount("foodcost_router", foodcost_router.router, prefix="/foodcost", tags=["foodcost"])
+_mount("foodcost_ingredients_router", foodcost_ingredients_router.router, prefix="/foodcost", tags=["foodcost-ingredients"])
+_mount("foodcost_recipes_router", foodcost_recipes_router.router, prefix="/foodcost", tags=["foodcost-recipes"])
+_mount("foodcost_matching_router", foodcost_matching_router.router, prefix="/foodcost", tags=["foodcost-matching"])
 
 # MENU CARTA (sessione 57, mig 098-100)
-app.include_router(
-    menu_carta_router.router,
-    prefix="/menu-carta",
-    tags=["menu-carta"],
-)
-app.include_router(
-    menu_carta_router.public_router,
-    prefix="/menu-carta",
-    tags=["menu-carta-public"],
-)
+_mount("menu_carta_router", menu_carta_router.router, prefix="/menu-carta", tags=["menu-carta"])
+_mount("menu_carta_router", menu_carta_router.public_router, prefix="/menu-carta", tags=["menu-carta-public"])
 
-# PRANZO DEL GIORNO (sessione 58, mig 102) — sub-modulo Cucina
+# PRANZO DEL GIORNO (sessione 58, mig 102) — sub-modulo menu_carta
 # Init schema 1 volta al boot (pattern Vini magazzino) per evitare CREATE TABLE
 # concorrenti su prima request (riduce rischio di lock SQLite).
-try:
-    from app.repositories.pranzo_repository import init_pranzo_db
-    init_pranzo_db()
-    print("[init] pranzo_db OK")
-except Exception as _e:
-    print(f"[init] pranzo_db WARN: {_e}")
-app.include_router(pranzo_router.router)
-app.include_router(pranzo_router.public_router)
+# NB: l'init avviene anche se il modulo è disattivato — è no-op (CREATE IF NOT EXISTS).
+if module_loader.is_router_active("pranzo_router"):
+    try:
+        from app.repositories.pranzo_repository import init_pranzo_db
+        init_pranzo_db()
+        print("[init] pranzo_db OK")
+    except Exception as _e:
+        print(f"[init] pranzo_db WARN: {_e}")
+_mount("pranzo_router", pranzo_router.router)
+_mount("pranzo_router", pranzo_router.public_router)
 
-# AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)
-app.include_router(admin_finance_router)
-app.include_router(chiusure_turno_router)
+# AMMINISTRAZIONE / CASSA (corrispettivi, chiusure, stats, confronti, calendario)
+_mount("admin_finance", admin_finance_router)
+_mount("chiusure_turno", chiusure_turno_router)
 
-# CONFIGURAZIONE CHIUSURE (giorno settimanale + ferie)
+# CONFIGURAZIONE CHIUSURE (giorno settimanale + ferie) — modulo cassa
 from app.routers.closures_config_router import router as closures_config_router
-app.include_router(closures_config_router)
+_mount("closures_config_router", closures_config_router)
 
-# FATTURAZIONE ELETTRONICA (XML)
-app.include_router(fe_import.router)
-app.include_router(fe_categorie_router.router)
-app.include_router(fe_proforme_router.router)
+# FATTURAZIONE ELETTRONICA (XML) — modulo acquisti
+_mount("fe_import", fe_import.router)
+_mount("fe_categorie_router", fe_categorie_router.router)
+_mount("fe_proforme_router", fe_proforme_router.router)
 
 # DIPENDENTI & TURNI
-# (usa DB dedicato app/data/dipendenti.sqlite3, inizializzato in dipendenti_db.init_dipendenti_db)
-app.include_router(dipendenti_router)
-app.include_router(reparti_router)
-app.include_router(turni_router)
+_mount("dipendenti", dipendenti_router)
+_mount("reparti", reparti_router)
+_mount("turni_router", turni_router)
 
 # BANCA
-app.include_router(banca_router.router)
+_mount("banca_router", banca_router.router)
 
 # CONTROLLO DI GESTIONE
-app.include_router(controllo_gestione_router.router)
+_mount("controllo_gestione_router", controllo_gestione_router.router)
 
 # STATISTICHE
-app.include_router(statistiche_router.router)
+_mount("statistiche_router", statistiche_router.router)
 
-# AUTH E MENU
-app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
-app.include_router(users_router)
-app.include_router(modules_router)
-app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
+# AUTH E MENU (platform — sempre attivi, eccetto menu che è di menu_carta)
+_mount("auth_router", auth_router.router, prefix="/auth", tags=["auth"])
+_mount("users_router", users_router)
+_mount("modules_router", modules_router)
+_mount("menu_router", menu_router.router, prefix="/menu", tags=["menu"])
 
-# BACKUP
-app.include_router(backup_router.router)
-app.include_router(vini_pricing_router.router)
-app.include_router(ipratico_products_router.router)
+# BACKUP / VINI / IPRATICO
+_mount("backup_router", backup_router.router)
+_mount("vini_pricing_router", vini_pricing_router.router)
+_mount("ipratico_products_router", ipratico_products_router.router)
 
 # CLIENTI CRM
-# (usa DB dedicato app/data/clienti.sqlite3, inizializzato in clienti_db.init_clienti_db)
-app.include_router(clienti_router)
+_mount("clienti_router", clienti_router)
 
 # PRENOTAZIONI
-app.include_router(prenotazioni_router)
+_mount("prenotazioni_router", prenotazioni_router)
 
-# PREVENTIVI (modulo 10 — gestione preventivi eventi, usa clienti.sqlite3)
-app.include_router(preventivi_router)
-app.include_router(menu_templates_router)
-app.include_router(menu_templates_preventivi_bridge_router)
+# PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)
+_mount("preventivi_router", preventivi_router)
+_mount("menu_templates_router", menu_templates_router)
+_mount("menu_templates_router", menu_templates_preventivi_bridge_router)
 
-# DASHBOARD HOME (widget Home v3)
-app.include_router(dashboard_router)
+# DASHBOARD HOME (platform)
+_mount("dashboard_router", dashboard_router)
 
-# NOTIFICHE & COMUNICAZIONI (mattone M.A — infrastruttura trasversale)
-# (usa DB dedicato app/data/notifiche.sqlite3, inizializzato in notifiche_db.init_notifiche_db)
-app.include_router(notifiche_router)
-app.include_router(comunicazioni_router)
+# NOTIFICHE & COMUNICAZIONI (mattone M.A — platform)
+_mount("notifiche_router", notifiche_router)
+_mount("notifiche_router", comunicazioni_router)
 
-# ALERT ENGINE (mattone M.F — controlla soglie/scadenze, genera notifiche via M.A)
-app.include_router(alerts_router)
+# ALERT ENGINE (mattone M.F — platform)
+_mount("alerts_router", alerts_router)
 
-# HOME PER RUOLO — azioni rapide Home configurabili da Impostazioni per ogni ruolo
-# (sostituisce gli array hardcoded ADMIN_ACTIONS/SALA_ACTIONS, sessione 49)
-app.include_router(home_actions_router)
+# HOME ACTIONS (platform)
+_mount("home_actions_router", home_actions_router)
 
-# SCELTA DEL MACELLAIO
-app.include_router(scelta_macellaio_router)
+# SELEZIONI DEL GIORNO (modulo ricette)
+_mount("scelta_macellaio_router", scelta_macellaio_router)
+_mount("scelta_salumi_router", scelta_salumi_router)
+_mount("scelta_formaggi_router", scelta_formaggi_router)
+_mount("scelta_pescato_router", scelta_pescato_router)
 
-# SCELTA DEI SALUMI — gemello macellaio per salumi con campi extra (sessione 50)
-app.include_router(scelta_salumi_router)
+# FATTURE IN CLOUD (modulo acquisti)
+_mount("fattureincloud_router", fattureincloud_router.router)
 
-# SCELTA DEI FORMAGGI — gemello macellaio per formaggi con campo latte (sessione 50)
-app.include_router(scelta_formaggi_router)
+# TASK MANAGER — checklist ricorrenti + task singoli
+_mount("tasks_router", tasks_router)
 
-# SCELTA DEL PESCATO — gemello macellaio con campo zona_fao (sessione 50, "Selezioni del Giorno")
-app.include_router(scelta_pescato_router)
+# HACCP — reportistica mensile (modulo task_manager)
+_mount("haccp_router", haccp_router)
 
-# FATTURE IN CLOUD
-app.include_router(fattureincloud_router.router)
+# LISTA SPESA CUCINA — Fase 1 MVP (modulo cucina)
+_mount("lista_spesa_router", lista_spesa_router)
 
-# TASK MANAGER — checklist ricorrenti + task singoli (ex-Cucina)
-# (usa DB dedicato app/data/tasks.sqlite3, inizializzato in tasks_router al primo import)
-app.include_router(tasks_router)
+# CARTA BEVANDE — sub-modulo Vini
+_mount("bevande_router", bevande_router)
 
-# HACCP — reportistica mensile read-only su tasks.sqlite3 (Modulo I)
-app.include_router(haccp_router)
 
-# LISTA SPESA CUCINA — Fase 1 MVP testuale (Modulo J)
-app.include_router(lista_spesa_router)
-
-# CARTA BEVANDE — sub-modulo Vini per sezioni statiche (Aperitivi, Birre, Distillati, …)
-# (usa DB dedicato app/data/bevande.sqlite3, inizializzato dalla migration 089)
-app.include_router(bevande_router)
+# Banner finale del module loader
+print(f"🧩 {module_loader.boot_banner()}")
+if _mount_log_skipped:
+    print(f"   ↳ skipped: {','.join(_mount_log_skipped)}")
 
 
 # ----------------------------------------

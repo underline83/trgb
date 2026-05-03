@@ -1,6 +1,50 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-02 (sessione R8a — manifesti dichiarativi 13 moduli + platform)
+**Ultimo aggiornamento:** 2026-05-02 (sessione R8b+R8c — module loader backend + filtro menu frontend)
+
+---
+
+## SESSIONE R8b + R8c (2026-05-02 nottata) — Module loader backend + filtro menu frontend
+
+### Cosa è stato fatto
+- **R8b backend**: nuovo modulo `app/platform/module_loader.py` (221 righe). Legge `locali/<TRGB_LOCALE>/moduli_attivi.json` + i 14 `core/moduli/<id>/module.json` per costruire la mappa `router_file → module_id` (46 router classificati). Espone `is_router_active()`, `is_module_active()`, `get_module_info()`, `boot_banner()`. Default backward-compat assoluta: `"*"` o file mancante → tutti attivi. Cache via `lru_cache`.
+- **main.py integrato**: 47 `app.include_router(...)` wrappati in helper `_mount(router_file, router, **kwargs)` che fa il check del loader. Banner finale al boot stampa moduli attivi + eventuali skip. Endpoint nuovo `GET /system/modules` per esporre lo stato al frontend.
+- **R8c frontend**: nuovo `frontend/src/utils/activeModules.js` (139 righe). Pattern speculare a `localeStrings.js`: load al boot in `main.jsx` (parallelo a brand+strings), cache, hook `useActiveModules()`. Esporta `isMenuKeyActive()`, `isModuleActive()`, `filterMenuByActive()`.
+- **Header.jsx + Home.jsx aggiornati**: filtro `MODULES_MENU` (Header dropdown navigazione + Home grid moduli) per `isMenuKeyActive(k)`. Su tregobbi (wildcard "*") = no-op visivo, niente cambia.
+- **Mismatch chiavi risolti**: `cassa.module.json` `frontend_menu_key: "cassa"→"vendite"` (allineato a MODULES_MENU.vendite), `task_manager.module.json` `"task_manager"→"tasks"` (allineato a MODULES_MENU.tasks).
+- **`/system/modules` espone** anche `frontend_menu_keys` (lista chiavi MODULES_MENU dei moduli attivi) per filtro facile lato FE.
+- **TabHomeActions.jsx NON filtrato**: pannello admin per config azioni rapide deve mostrare tutte le route esistenti (anche di moduli temporaneamente disattivati) per non perdere config.
+
+### File creati
+- `app/platform/__init__.py` (1 riga)
+- `app/platform/module_loader.py` (221 righe)
+- `frontend/src/utils/activeModules.js` (139 righe)
+
+### File modificati
+- `main.py`: import loader, helper `_mount`, 47 include sostituite con `_mount(...)`, endpoint `/system/modules`, banner boot
+- `core/moduli/cassa/module.json`: frontend_menu_key
+- `core/moduli/task_manager/module.json`: frontend_menu_key
+- `frontend/src/main.jsx`: import + load `loadActiveModules()` in parallelo
+- `frontend/src/components/Header.jsx`: hook `useActiveModules()` + filtro `visibleKeys`
+- `frontend/src/pages/Home.jsx`: hook + filtro `visibleModules`
+
+### Verifica
+- `python -m compileall app/platform main.py` → OK
+- `node --check frontend/src/utils/activeModules.js` → OK
+- Test loader con `TRGB_LOCALE=tregobbi`: 14 moduli attivi (wildcard), 46/46 router montati, `frontend_menu_keys` espone le 13 chiavi MODULES_MENU del FE.
+- Test loader con `TRGB_LOCALE=test_demo` + `{"moduli": ["vini","cassa"]}`: 18/46 router montati (vini 7 + cassa 3 + platform 8), banca/ricette/tasks/etc DISATTIVATI.
+
+### Backward-compat assoluta su tregobbi
+- moduli_attivi.json ha `"*"` → tutti attivi → comportamento IDENTICO a pre-R8.
+- `is_router_active()` su nome non mappato → True (default safe).
+- Frontend: se `/system/modules` non risponde → fallback wildcard, niente filtro applicato, tutto visibile.
+
+### Punti di attenzione (non bloccanti)
+- 4 moduli backend (`banca`, `controllo_gestione`, `menu_carta`, `cucina`) hanno `frontend_menu_key` impostato ma NON c'è una chiave corrispondente in MODULES_MENU oggi. Le voci di questi moduli vivono come sub-menu di altri (ricette/vendite/...) o sono raggiungibili solo via URL. Quando in futuro si aggiungono chiavi top-level in `modulesMenu.js`, il filtro le riconosce automaticamente.
+- `TabHomeActions.jsx` mostra tutte le route, anche di moduli disattivi (volutamente — pannello admin di config).
+
+### Suggested commit
+`./push.sh "[core] R8b+R8c — module loader backend (app/platform/module_loader.py) + endpoint /system/modules + filtro menu frontend (useActiveModules hook). Default wildcard, no behavior change su tregobbi. Test demo locale [vini,cassa]: 18/46 router montati."`
 
 ---
 

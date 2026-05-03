@@ -17,6 +17,10 @@ import { loadBrandConfig } from "./utils/brandConfig";
 // R5: carica le strings UI tenant-aware (locali/<locale>/strings.json)
 // in parallelo al branding, prima del primo render React.
 import { loadLocaleStrings } from "./utils/localeStrings";
+// R8c: carica la lista moduli attivi per il locale (GET /system/modules)
+// per filtrare voci menu di moduli disattivati. Backward-compat: se il
+// backend è pre-R8b o la chiamata fallisce, fallback wildcard (mostra tutto).
+import { loadActiveModules } from "./utils/activeModules";
 
 // ✔️ App principale
 import App from "./App.jsx";
@@ -52,10 +56,11 @@ if ("serviceWorker" in navigator) {
     .catch((err) => console.warn("⚠️ SW registrazione fallita:", err));
 }
 
-// Boot: carica branding + strings del locale in parallelo PRIMA del primo
-// render. Se una delle 2 fetch fallisce, render comunque avviene con i
-// fallback hardcoded. Tempi: <120ms su LAN locale.
-Promise.all([loadBrandConfig(), loadLocaleStrings()]).finally(() => {
+// Boot: carica branding + strings + moduli attivi del locale in parallelo
+// PRIMA del primo render. Se una fetch fallisce, render comunque avviene
+// con i fallback (TRGB-02 colors, fallback strings, wildcard moduli).
+// Tempi: <150ms su LAN locale (3 GET in parallelo).
+Promise.all([loadBrandConfig(), loadLocaleStrings(), loadActiveModules()]).finally(() => {
   ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
       {/* cache-buster per forzare refresh UI a ogni build_version */}

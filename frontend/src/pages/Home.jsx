@@ -10,6 +10,8 @@ import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
 import useHomeActions from "../hooks/useHomeActions";
 import SelezioniCard from "../components/widgets/SelezioniCard";
+// R8c: filtra Home grid per moduli attivi del locale (feature flags).
+import { useActiveModules } from "../utils/activeModules";
 
 /* ── Fallback subtitle per moduli (usati quando il backend non ha ancora dati) ── */
 const MODULE_FALLBACK = {
@@ -117,6 +119,8 @@ export default function Home() {
   const { comunicazioni, loading: comLoading, nonLette, segnaLetta } = useComunicazioni();
   // Azioni rapide configurate in Impostazioni (con fallback statico se BE down)
   const { actions: homeActions } = useHomeActions();
+  // R8c: feature flags moduli per locale (su tregobbi wildcard → no-op).
+  const { isMenuKeyActive } = useActiveModules();
 
   // Sala → dashboard dedicata (dopo gli hook)
   const isSalaDashboard = role === "sala" && !searchParams.get("full");
@@ -134,11 +138,13 @@ export default function Home() {
 
   // "selezioni" non ha piu' tile a se' in Home: vive sotto "Gestione Cucina" (sub di ricette)
   // Il widget SelezioniCard a pagina 1 resta (e' un widget di servizio, non un tile modulo).
+  // R8c: ulteriore filtro sui moduli attivi per il locale corrente (feature flags).
   const visibleModules = modules
     .filter((m) => m.key !== "selezioni")
     .filter((m) =>
       m.roles?.includes(role) || (role === "superadmin" && m.roles?.includes("admin"))
-    );
+    )
+    .filter((m) => isMenuKeyActive(m.key));
 
   /* ── Swipe gesture ── */
   const touchStartX = useRef(0);
