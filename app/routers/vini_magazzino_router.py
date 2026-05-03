@@ -25,7 +25,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
 from app.services.auth_service import get_current_user, is_admin
-from app.services.wine_pricing import calcola_prezzo_carta
+from app.services.wine_pricing import calcola_prezzo_carta, _round_to_half
 from app.models import vini_magazzino_db as db
 
 
@@ -544,7 +544,8 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
     Sessione 58 fase 2 (2026-04-25). Lista flat dei vini in carta per la
     pagina staff `/vini/carta-staff`. Include tutti i campi utili al
     sommelier: locazioni con quantita', prezzo bottiglia + calice
-    (con fallback PREZZO_CARTA/5), flag in_mescita, status calcolato.
+    (con fallback PREZZO_CARTA/5 arrotondato a 0.50), flag in_mescita,
+    status calcolato.
     """
     conn = db.get_magazzino_connection()
     cur = conn.cursor()
@@ -571,12 +572,12 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
         d = dict(r)
         qta_tot = int(d.get("QTA_TOTALE") or 0)
         bottiglia_aperta = bool(d.get("BOTTIGLIA_APERTA") or 0)
-        # Prezzo calice effettivo (fallback PREZZO_CARTA / 5)
+        # Prezzo calice effettivo (fallback PREZZO_CARTA / 5, arrotondato a 0.50)
         prezzo_calice = d.get("PREZZO_CALICE")
         if prezzo_calice is None or prezzo_calice == 0:
             pc = d.get("PREZZO_CARTA")
             if pc and pc > 0:
-                prezzo_calice = round(pc / 5, 2)
+                prezzo_calice = _round_to_half(pc / 5)
             else:
                 prezzo_calice = None
         is_calice = (d.get("VENDITA_CALICE") or "") == "SI" or bottiglia_aperta

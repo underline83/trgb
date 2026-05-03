@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-25 (sessione 58 — Vini quick wins + carta cliente pubblica `/carta` + vista sommelier `/vini/carta-staff` + ridisegno Centro Carta)
+**Ultimo aggiornamento:** 2026-05-02 (refactor monorepo CHIUSO — R8b+R8c live, follow-up post-refactor §0.1 aperti)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -25,9 +25,28 @@
 | 0.R4 | `push.sh -l locale` + `locali/<id>/deploy/env.production` | S | ✅ FATTO 2026-04-29 (`f200781` + `77b3430`) | Deploy parametrizzabile + uploads locale-aware + versioning unificato (VERSION file, commit hash in /system/info) |
 | 0.R5 | Override testi UI in `locali/<id>/strings.json` | M | ✅ FATTO 2026-04-29 (`ba46536`) | Helper `t()` BE+FE + endpoint `/locale/strings.json` + 18 stringhe sostituite in 9 file (PDF brand, WA templates, page titles, DOCX). Sorpresa: erano 18 non 40 — molte erano docstring/path già non-runtime |
 | 0.R6 | Cleanup `vini.db` legacy + helper `locale_data_path()` ready | S | ✅ FATTO 2026-04-29 (`90e1fe7`) | `app/utils/locale_data.py` con lookup tenant-aware ready. NON applicato ai 9 DB (rimandato a R6.5 per separare il rischio) |
-| 0.R6.5 (NEW) | Applica `locale_data_path()` a tutti i 9 DB + sposta fisici in tenant | M | DA FARE — prima di R8 | Sostituisce 10 costanti hardcoded `Path("app/data/...")` in core/database.py + models + migrazioni + router. 2 push separati (codice + sposta files) |
-| 0.R7 | Cleanup + docs + scaffold `locali/_template/` | S | ✅ FATTO 2026-04-30 (TBD post-push) | Scaffold completo + nuovo `docs/architettura_locale.md`. Pronto per cliente nuovo. Sequenza riallineata: R7 chiude prima fase, R6.5 e R8 dopo |
-| 0.R8 | Architettura modulare con feature flags per locale | L | DA FARE — DOPO R6.5 | `module_loader` + `moduli_attivi.json` per locale. 13 moduli + platform. Permette vendere "solo Vini" |
+| 0.R6.5 push 1 | Applica `locale_data_path()` a tutti i DB SQLite | M | ✅ FATTO 2026-05-02 (`00f5c1a` + hotfix `f5bd01e`) | 10 DB (sorpresa: vini.sqlite3 ancora attivo, non 9) → 50+ path hardcoded sostituiti in modelli, core, migration_runner, 13 router, 4 servizi, 22 migrazioni, users.json, closures_config.json. Hotfix per type hint `Path` orfano dopo cleanup imports. |
+| 0.R6.5 push 2 | Sposta fisicamente file DB in `locali/tregobbi/data/` | XS | ✅ FATTO 2026-05-02 | `mv` manuale sul VPS con stop+start backend (~10s downtime). Lookup tenant-aware risolve nuovo path, fallback storico irrilevante. |
+| 0.R7 | Cleanup + docs + scaffold `locali/_template/` | S | ✅ FATTO 2026-05-02 (`936a5e6`) | Scaffold completo + nuovo `docs/architettura_locale.md`. Pronto per cliente nuovo. |
+| 0.R8a | Manifesti dichiarativi 13 `module.json` + platform + `moduli_attivi.json` | S | ✅ FATTO 2026-05-02 (`4704507`) | 14 manifesti (13 vendibili + platform). 47 router mappati ai moduli. tregobbi/trgb=`["*"]` backward-compat. Zero impatto runtime, contratto per R8b/c. |
+| 0.R8b | Backend `module_loader` + endpoint `/system/modules` | M | ✅ FATTO 2026-05-02 (`<commit pending>`) | `app/platform/module_loader.py` (221 righe). 47 `app.include_router` wrappati in `_mount(name, router)`. Banner boot. Default `"*"` → tutti attivi. Test `TRGB_LOCALE=test_demo` con `["vini","cassa"]` → 18/46 router. |
+| 0.R8c | Frontend `useActiveModules` hook + filtro menu | S | ✅ FATTO 2026-05-02 (`<commit pending>`) | `frontend/src/utils/activeModules.js` (139 righe). Header dropdown + Home grid filtrate via `isMenuKeyActive`. Fallback wildcard su errore fetch (no UI flicker). |
+
+**Refactor monorepo CHIUSO 2026-05-02.** Tutti i deliverable §3 R1→R8c di `docs/refactor_monorepo.md` in produzione su tregobbi. Vedi anche `docs/changelog.md` voce 2026-05-02.
+
+---
+
+## 0.1 — Post-refactor / vendita prodotto (NEW 2026-05-02)
+
+> Follow-up emersi durante o derivati dal refactor. Nessuno blocca il funzionamento dell'osteria. Da affrontare quando opportuno o quando si scala oltre il primo cliente.
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 0.1.1 | **Fix git VPS disallineato + `/system/info` commit hash** | S | DA FARE — PRIORITÀ ALTA Marco | Post-receive hook usa `git --git-dir=bare --work-tree=worktree checkout -f main` → aggiorna file fisici ma non `.git/HEAD` del working tree (che ha `.git` autonomo). Risultato: `git rev-parse HEAD` (letto da main.py per `/system/info commit`) torna stantio. Fix: cambiare hook a `cd $WORKING_DIR && git fetch origin && git reset --hard origin/main && git clean -fd`. Plus: scrivere `DEPLOYED_COMMIT.txt` da push.sh come fallback safe. Vedi piano dettagliato in `docs/sessione.md` (post-R8). |
+| 0.1.2 | **Modulo K-bis**: 4 cartelle uploads/backup tenant-aware | M | DA FARE | `admin_finance.py:35` (UPLOAD_DIR), `ipratico_products_router.py:35` (UPLOAD_DIR), `dipendenti.py:2205` (DOCS_BASE_DIR + 3 path PDF buste paga), `vini_cantina_tools_router.py:1999` (_BACKUP_DIR) ancora hardcoded a `app/data/`. Da estendere `app/utils/uploads.py` con helper `tenant_dir(subname)` → `<TRGB_UPLOADS_DIR>/<TRGB_LOCALE>/<subname>`. 4 sostituzioni + spostamento fisico sul VPS. Diventa bloccante quando arriva il primo cliente nuovo. |
+| 0.1.3 | Migrations per modulo (opzionale) | M | FUTURO | Riorganizzare `app/migrations/0NN_*.py` in `app/migrations/<modulo>/0NN_*.py` + aggiornare `migration_runner.py`. ~104 file da spostare. Beneficio: ownership chiaro, possibile skip migrations di moduli non attivi. Non urgente, da valutare a 200+ migrations o al primo cliente nuovo che vuole solo alcuni moduli. |
+| 0.1.4 | Demo `trgb.it` online | M | DA FARE | Deploy seconda istanza prodotto su `trgb.it` (dominio acquistato). Tappa 3 del piano §9 in `docs/refactor_monorepo.md`. Implementazione: secondo systemd unit `trgb-backend-trgb` su porta diversa, secondo nginx vhost con cert Let's Encrypt, DB vuoti, login separato, `TRGB_LOCALE=trgb`. Costo zero ricorrente (stesso VPS). Permette di mostrare a clienti potenziali la versione "completa" o "solo Vini" o qualsiasi combinazione, senza redeploy. Prerequisito: 0.1.1 fix git (per evitare confusione tra le 2 istanze). |
+| 0.1.5 | Splash iOS PWA in produzione | S | DA FARE | Splash iOS pre-generati in `TRGB-02-final.zip` (R2). Da integrare in `locali/tregobbi/assets/splash/` + aggiornare `index.html` con i `<link rel="apple-touch-startup-image">`. Tracciato in R2 ma rinviato. Sblocca 1.1 PWA Fase 0. |
 
 **Effetto su roadmap esistente:**
 - 1.1 (PWA Fase 0) confluisce in R2: gli splash screens iOS si fanno mentre si centralizza il branding locale.

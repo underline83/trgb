@@ -1660,7 +1660,7 @@ export default function ViniImpostazioni() {
           <div className="mt-4 p-4 bg-violet-50 border border-violet-200 rounded-xl space-y-3">
             <h3 className="text-sm font-semibold text-violet-800 uppercase tracking-wide">Ricalcolo prezzi calice</h3>
             <p className="text-xs text-violet-700">
-              Ricalcola PREZZO_CALICE = PREZZO_CARTA / 5 per tutti i vini in modalità automatica.
+              Ricalcola PREZZO_CALICE = PREZZO_CARTA / 5 (arrotondato a €0,50: es. 8,70 → 8,50; 8,80 → 9,00) per tutti i vini in modalità automatica.
               I vini con prezzo calice manuale non vengono toccati.
             </p>
             <div className="flex items-center gap-3">

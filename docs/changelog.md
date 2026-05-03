@@ -3,6 +3,49 @@
 
 ---
 
+## 2026-05-02 — Refactor monorepo CONCLUSO (R1→R8c)
+
+Refactor strategico per separare prodotto vendibile (`core/`) da personalizzazioni Tre Gobbi (`locali/tregobbi/`). 11 sessioni in 5 settimane, deploy incrementale senza downtime sul ristorante. **Risultato: TRGB è ora un monolite modulare con feature flags per locale, pronto per primo cliente paying.**
+
+### Architettura raggiunta
+- Path tenant-aware: 10 DB SQLite + `users.json` + `closures_config.json` letti da `locali/<TRGB_LOCALE>/data/` con fallback storico (helper `app/utils/locale_data.py`).
+- Branding tenant-aware: palette/logo/font/wordmark/splash iOS in `locali/<id>/branding.json`, esposti via `GET /locale/branding.json`.
+- Strings tenant-aware: testi UI in `locali/<id>/strings.json`, esposti via `GET /locale/strings.json`, helper `t(key, fallback)` BE+FE.
+- Deploy multi-locale: `./push.sh -l <locale>`, env in `locali/<id>/deploy/env.production`.
+- Module loader: `locali/<id>/moduli_attivi.json` controlla quali dei 13 moduli attivare (più platform sempre on). 47 router montati condizionalmente. Endpoint `GET /system/modules`. Frontend filtra `MODULES_MENU` via `useActiveModules` hook.
+
+### Sessioni
+- **R1** (2026-04-28, `8876603`): scaffold `locali/{tregobbi,trgb,_template}/` + env `TRGB_LOCALE`.
+- **R2** (2026-04-29, `753019a`): branding centralizzato + collab marker.
+- **R3** (2026-04-29, `503c88f`): flag `TRGB_SPECIFIC` su 3 mig seed (097, 099, 100) + runner locale-aware.
+- **R4** (2026-04-29, `f200781` + `77b3430`): `push.sh -l <locale>` + `uploads.py` locale-aware + file `VERSION` single source of truth + commit hash dinamico in `/system/info`.
+- **R5** (2026-04-29, `ba46536`): locale strings (`t()` helper BE+FE, 18 stringhe sostituite in 9 file).
+- **R6** (2026-04-29, `90e1fe7`): cleanup `vini.db` legacy + helper `locale_data_path()` ready (non ancora applicato).
+- **R6.5 push 1** (2026-05-02, `00f5c1a`): `locale_data_path()` applicato a 10 DB SQLite — sostituiti 50+ path hardcoded in modelli, core, migration_runner, 13 router, 4 servizi, 22 migrazioni, `auth_service.py` (users.json), `closures_config_router.py`. Hotfix successivo (`f5bd01e`) per riaggiungere `from pathlib import Path` mancante in 2 file (NameError type hint scoperto post-deploy).
+- **R6.5 push 2** (2026-05-02): file fisicamente spostati sul VPS da `app/data/` a `locali/tregobbi/data/`.
+- **R7** (2026-05-02, `936a5e6`): scaffold `locali/_template/` completo + `docs/architettura_locale.md`.
+- **R8a** (2026-05-02, `4704507`): manifesti dichiarativi 13 `core/moduli/<id>/module.json` + platform + `moduli_attivi.json` per locale.
+- **R8b+R8c** (2026-05-02): `app/platform/module_loader.py` (221 righe) + 47 `_mount(...)` in `main.py` + endpoint `/system/modules` + frontend `activeModules.js` (139 righe) + filtro Header/Home.
+
+### Beneficio operativo
+- **Cliente nuovo onboarding**: `cp -r locali/_template locali/<id>` + edit `moduli_attivi.json` + `./push.sh -l <id> "..."`. Vede solo i moduli che ha comprato.
+- **Demo TRGB neutro**: pronto per deploy su `trgb.it` con `TRGB_LOCALE=trgb` (palette neutra, no gobbette).
+- **Disciplina codice**: ogni feature classificata `[core]`/`[locale:tregobbi]`/`[mixed]` in commit. 5 regole modulari attive in `CLAUDE.md`.
+- **Zero downtime**: ogni sessione R deployata indipendentemente, backward-compat assoluto su tregobbi (default `"*"` → tutti i moduli attivi).
+
+### Backward-compat
+- `moduli_attivi.json` con `"*"` o file mancante → tutti i 13 moduli attivi.
+- `users.json` e config in path tenant: helper trova fallback in `app/data/` se file non presente nel locale.
+- Frontend: errore fetch `/system/modules` → fallback wildcard, niente filtro applicato.
+
+### Follow-up post-refactor (vedi `docs/roadmap.md` §0.1 NEW)
+- Fix git VPS disallineato: post-receive hook aggiorna file fisici ma non `.git/HEAD` del working tree → `/system/info commit` mostra hash stantio.
+- Modulo K-bis: 4 cartelle uploads (`admin_finance/uploads`, `ipratico_uploads`, `documenti_dipendenti`, `backups/vini`) ancora hardcoded → da spostare sotto `TRGB_UPLOADS_DIR/<locale>/`.
+- Migrations per modulo (opzionale): riorganizzare `app/migrations/0NN.py` in `app/migrations/<modulo>/`. Non urgente.
+- Demo `trgb.it` online: deploy seconda istanza per cliente potenziali.
+
+---
+
 ## 2026-04-28 (sessione 59 cont. e) — VPS: Ubuntu 22.04 → 24.04.4 LTS Noble + Python 3.12
 
 ### Background

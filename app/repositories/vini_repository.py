@@ -42,6 +42,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from app.models.vini_magazzino_db import get_magazzino_connection
 from app.models.settings_db import get_settings_conn, init_settings_db
 from app.models.vini_settings import ensure_settings_defaults, _TIPOLOGIA_MAP
+from app.services.wine_pricing import _round_to_half
 
 
 # ---------------------------------------------------------
@@ -218,12 +219,12 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
     for r in ordered:
         # Calcolo prezzo calice "effettivo": se PREZZO_CALICE non c'e'
         # ma il vino e' venduto al calice / e' in mescita, fallback su
-        # PREZZO_CARTA / 5 (stessa logica di load_vini_calici).
+        # PREZZO_CARTA / 5 arrotondato a 0.50 (stessa logica di load_vini_calici).
         prezzo_calice = r["PREZZO_CALICE"]
         if (prezzo_calice is None or prezzo_calice == 0):
             pc = r["PREZZO_CARTA"]
             if pc and pc > 0:
-                prezzo_calice = round(pc / 5, 2)
+                prezzo_calice = _round_to_half(pc / 5)
 
         is_calice = (r["VENDITA_CALICE"] or "") == "SI" or bool(r["BOTTIGLIA_APERTA"] or 0)
 
@@ -259,7 +260,8 @@ def load_vini_calici() -> List[Dict[str, Any]]:
 
     Il filtro giacenza permette di restare in carta anche con QTA_TOTALE=0
     quando la bottiglia e' in mescita (calici residui ancora vendibili).
-    Usa PREZZO_CALICE; se mancante, fallback `PREZZO_CARTA / 5` arrotondato.
+    Usa PREZZO_CALICE; se mancante, fallback `PREZZO_CARTA / 5` arrotondato
+    al €0.50 piu' vicino (es. 8.70 -> 8.50, 8.80 -> 9.00).
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
@@ -294,12 +296,13 @@ def load_vini_calici() -> List[Dict[str, Any]]:
     for r in rows:
         qta = r["QTA_TOTALE"] or 0
         bottiglia_aperta = bool(r["BOTTIGLIA_APERTA"] or 0)
-        # Prezzo calice: usa PREZZO_CALICE se esiste, altrimenti auto-calc da PREZZO_CARTA / 5
+        # Prezzo calice: usa PREZZO_CALICE se esiste, altrimenti auto-calc da
+        # PREZZO_CARTA / 5 arrotondato a 0.50 (es. 8.70 -> 8.50, 8.80 -> 9.00)
         prezzo_calice = r["PREZZO_CALICE"]
         if prezzo_calice is None or prezzo_calice == 0:
             prezzo_carta = r["PREZZO_CARTA"]
             if prezzo_carta and prezzo_carta > 0:
-                prezzo_calice = round(prezzo_carta / 5, 2)
+                prezzo_calice = _round_to_half(prezzo_carta / 5)
 
         # Filtro giacenza: passa se qta sufficiente, oppure negative-mode, oppure
         # se la bottiglia e' aperta in mescita (anche con qta=0).
