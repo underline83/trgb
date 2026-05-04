@@ -36,8 +36,11 @@ DRIVE_PATH="gdrive:TRGB-Backup/db-daily"
 STATUS_FILE="$DATA_DIR/backups/.last_backup_status.json"
 VENV_PYTHON="/home/marco/trgb/venv-trgb/bin/python"
 
-RETAIN_HOURS=48
-RETAIN_DAYS=7
+# Retention: ultimi N backup PER DB (sia per hourly sia per daily).
+# Esempio con RETAIN_COUNT=10: per ogni DB tengo gli ultimi 10 backup orari
+# in hourly/, e gli ultimi 10 cicli daily completi in daily/. Quando arriva
+# il backup #11, il più vecchio viene cancellato.
+RETAIN_COUNT=10
 
 # Soglia minima byte per considerare valido un file SQLite
 # Un DB SQLite "vuoto" (solo header) è ~4096 byte. Tutti i nostri DB sono ben
@@ -74,7 +77,9 @@ JSON_FILES=(
 )
 JSON_MIN_SIZE_BYTES=20  # JSON valido minimo "{}" + un po' di margine
 
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+# Formato timestamp AAAAMMDDHHMMSS (14 cifre, niente separatori — più compatto e
+# ordinabile lessicograficamente).
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
 MODE="${1:-hourly}"
 
 # Stato accumulato durante il run (per JSON status finale)
@@ -98,6 +103,20 @@ echo ""
 
 # ── Crea cartelle ───────────────────────────────────────────────────────────
 mkdir -p "$BACKUP_HOURLY" "$BACKUP_DAILY" "$BACKUP_LKG"
+
+# ── Helper: dimensione file in MB (1 decimale, leggibile) ──────────────────
+# Esempi: 4096 → "0.0 MB", 86016 → "0.1 MB", 7368704 → "7.0 MB", 26800128 → "25.6 MB"
+human_size() {
+    local file="$1"
+    if [ ! -f "$file" ]; then
+        echo "n/a"
+        return
+    fi
+    local sz=$(stat -c%s "$file" 2>/dev/null || echo 0)
+    # Conversione bash: bytes / 1048576 con 1 decimale
+    # awk per evitare dipendenze: printf "%.1f"
+    awk -v b="$sz" 'BEGIN { printf "%.1f MB", b/1048576 }'
+}
 
 # ── Trova path sorgente per un DB (locale-aware → legacy fallback) ──────────
 find_db_source() {
@@ -179,8 +198,7 @@ do_backup() {
         return 1
     fi
 
-    local size=$(du -h "$dest" 2>/dev/null | cut -f1)
-    echo "  ✅ $db_name → $(basename $dest) ($size)"
+    echo "  ✅ $db_name → $(basename $dest) ($(human_size "$dest"))"
     return 0
 }
 
@@ -253,7 +271,7 @@ do_backup_json() {
     fi
 
     cp -f "$src" "$dest"
-    echo "  ✅ $name (${sz} B)"
+    echo "  ✅ $name ($(human_size "$dest"))"
     return 0
 }
 
@@ -355,15 +373,33 @@ if [ "$MODE" != "--daily" ]; then
     done
 
     # Rotazione: SOLO se almeno il 50% dei backup sono andati a buon fine.
-    # Se troppi falliscono, NON cancelliamo i backup vecchi (potrebbero essere
-    # gli unici integri rimasti).
+    # Per ogni DB/JSON tengo gli ultimi RETAIN_COUNT, cancello i precedenti.
+    # Questo schema è più robusto del "mtime > N ore" perché non rischia di
+    # cancellare TUTTI i backup se per qualche motivo sono tutti vecchi (es.
+    # cron disabilitato per giorni: invece di restare con 0 backup, restano
+    # gli ultimi 10 anche se sono di una settimana fa).
     total=$(( ${#DBS[@]} + ${#JSON_FILES[@]} ))
     ok_count=${#RUN_OK[@]}
     if [ "$ok_count" -ge $((total / 2)) ]; then
         echo ""
-        echo "🔄 Rotazione (elimino backup > ${RETAIN_HOURS}h)..."
-        find "$BACKUP_HOURLY" -type f \( -name "*.db" -o -name "*.sqlite3" -o -name "*.json" \) -mmin +$((RETAIN_HOURS * 60)) -delete -print 2>/dev/null | while read f; do
-            echo "  🗑️  Rimosso: $(basename $f)"
+        echo "🔄 Rotazione (mantengo ultimi $RETAIN_COUNT backup per DB)..."
+        # DB SQLite
+        for db in "${DBS[@]}"; do
+            name="${db%.*}"
+            ext="${db##*.}"
+            ls -1t "$BACKUP_HOURLY/${name}_"*.${ext} 2>/dev/null | tail -n +$((RETAIN_COUNT + 1)) | while read f; do
+                rm -f "$f"
+                echo "  🗑️  Rimosso: $(basename $f)"
+            done
+        done
+        # JSON config
+        for jf in "${JSON_FILES[@]}"; do
+            name="${jf%.*}"
+            ext="${jf##*.}"
+            ls -1t "$BACKUP_HOURLY/${name}_"*.${ext} 2>/dev/null | tail -n +$((RETAIN_COUNT + 1)) | while read f; do
+                rm -f "$f"
+                echo "  🗑️  Rimosso: $(basename $f)"
+            done
         done
     else
         echo ""
@@ -371,7 +407,7 @@ if [ "$MODE" != "--daily" ]; then
     fi
 
     count=$(find "$BACKUP_HOURLY" -type f \( -name "*.db" -o -name "*.sqlite3" -o -name "*.json" \) | wc -l)
-    echo "📊 Backup orari presenti: $count file (DB + JSON)"
+    echo "📊 Backup orari presenti: $count file (DB + JSON, target ≤ $((${#DBS[@]} + ${#JSON_FILES[@]})) × $RETAIN_COUNT)"
 fi
 
 # ── Backup giornaliero + Drive ──────────────────────────────────────────────
@@ -419,14 +455,18 @@ if [ "$MODE" == "--daily" ]; then
         fi
     done
 
-    # Rotazione: solo se la maggior parte dei backup sono OK
+    # Rotazione: tengo le ultime RETAIN_COUNT cartelle daily, cancello le precedenti
     total=$(( ${#DBS[@]} + ${#JSON_FILES[@]} ))
     ok_count=${#RUN_OK[@]}
     if [ "$ok_count" -ge $((total / 2)) ]; then
         echo ""
-        echo "🔄 Rotazione giornaliera (elimino > ${RETAIN_DAYS}gg)..."
-        find "$BACKUP_DAILY" -mindepth 1 -maxdepth 1 -type d -mtime +$RETAIN_DAYS -exec rm -rf {} \; -print 2>/dev/null | while read d; do
-            echo "  🗑️  Rimosso: $(basename $d)"
+        echo "🔄 Rotazione giornaliera (mantengo ultime $RETAIN_COUNT cartelle)..."
+        ls -1t "$BACKUP_DAILY" 2>/dev/null | tail -n +$((RETAIN_COUNT + 1)) | while read dirname; do
+            full="$BACKUP_DAILY/$dirname"
+            if [ -d "$full" ]; then
+                rm -rf "$full"
+                echo "  🗑️  Rimosso: $dirname"
+            fi
         done
     else
         echo ""
