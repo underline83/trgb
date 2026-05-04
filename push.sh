@@ -283,18 +283,20 @@ for db in $DBS; do
       RATIO_PCT=$(( NEW_SIZE * 100 / PREV_SIZE ))
       if [ "$RATIO_PCT" -lt 50 ]; then
         DB_REGRESSED=$((DB_REGRESSED + 1))
-        warn "$db REGRESSO: ${NEW_SIZE}B vs ${PREV_SIZE}B (${RATIO_PCT}%) — sospetta corruzione, .prev preservato"
+        NEW_MB=$(awk -v b="$NEW_SIZE" 'BEGIN{printf "%.1f MB", b/1048576}')
+        PREV_MB=$(awk -v b="$PREV_SIZE" 'BEGIN{printf "%.1f MB", b/1048576}')
+        warn "$db REGRESSO: $NEW_MB vs $PREV_MB (${RATIO_PCT}%) — sospetta corruzione, .prev preservato"
       else
         DB_OK=$((DB_OK + 1))
-        $VERBOSE && ok "$db (${NEW_SIZE}B)"
+        $VERBOSE && ok "$db ($(awk -v b="$NEW_SIZE" 'BEGIN{printf "%.1f MB", b/1048576}'))"
       fi
     elif [ "$NEW_SIZE" -lt 8192 ]; then
       DB_REGRESSED=$((DB_REGRESSED + 1))
-      warn "$db scaricato ma è uno STUB (${NEW_SIZE}B < 8KB) — ripristino .prev"
+      warn "$db scaricato ma è uno STUB ($NEW_SIZE B < 8KB) — ripristino .prev"
       [ -f "$DB_LOCAL/${db}.prev" ] && cp "$DB_LOCAL/${db}.prev" "$DB_LOCAL/$db"
     else
       DB_OK=$((DB_OK + 1))
-      $VERBOSE && ok "$db (${NEW_SIZE}B)"
+      $VERBOSE && ok "$db ($(awk -v b="$NEW_SIZE" 'BEGIN{printf "%.1f MB", b/1048576}'))"
     fi
   else
     DB_FAIL=$((DB_FAIL + 1))
