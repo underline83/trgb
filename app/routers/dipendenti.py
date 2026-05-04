@@ -2202,11 +2202,18 @@ def download_cedolino_pdf(
 # DOCUMENTI DIPENDENTE — CRUD allegati
 # ============================================================
 
-# TODO Modulo K (post-R6.5): documenti dipendenti (PDF buste paga +
-# allegati) sono uploads utente, vanno sotto TRGB_UPLOADS_DIR/<locale>/
-# documenti_dipendenti/. Per ora restano in app/data/. Stesso scope dei
-# 4 path os.path.join("app","data",pdf_rel) qui sotto.
-DOCS_BASE_DIR = os.path.join("app", "data", "documenti_dipendenti")
+# K-bis (sessione 2026-05-04): documenti dipendenti tenant-aware via helper.
+# Lookup: <TRGB_UPLOADS_DIR>/documenti_dipendenti/ → fallback app/data/documenti_dipendenti/
+# NB: i 3 path PDF buste paga (cedolini/anno/file.pdf qui sopra, costruiti via
+# os.path.join("app","data",pdf_rel)) NON sono toccati — coinvolgono il formato
+# `pdf_path` salvato nel DB e richiedono refactor separato (K-tris) per
+# evitare di rompere i record esistenti. Tracciato in roadmap.
+from pathlib import Path as _Path
+from app.utils.uploads import tenant_dir_with_legacy_fallback
+DOCS_BASE_DIR = str(tenant_dir_with_legacy_fallback(
+    "documenti_dipendenti",
+    _Path("app/data/documenti_dipendenti"),
+))
 
 
 @router.get("/{dipendente_id}/documenti")

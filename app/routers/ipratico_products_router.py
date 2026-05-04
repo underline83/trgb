@@ -35,10 +35,13 @@ from app.utils.locale_data import locale_data_path
 DB_MAG = locale_data_path("vini_magazzino.sqlite3")
 DB_FC = locale_data_path("foodcost.db")  # migration tables live here
 
-# NB: ipratico_uploads è una cartella di upload utente, fuori scope R6.5.
-# TODO Modulo K: spostare sotto TRGB_UPLOADS_DIR/<locale>/ipratico_uploads.
-UPLOAD_DIR = Path("app/data/ipratico_uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+# K-bis (sessione 2026-05-04): cartella upload utente tenant-aware via helper.
+# Lookup: <TRGB_UPLOADS_DIR>/ipratico_uploads/ → fallback app/data/ipratico_uploads/
+from app.utils.uploads import tenant_dir_with_legacy_fallback
+UPLOAD_DIR = tenant_dir_with_legacy_fallback(
+    "ipratico_uploads",
+    Path("app/data/ipratico_uploads"),
+)
 
 
 # ─── helpers ────────────────────────────────────────────────────────

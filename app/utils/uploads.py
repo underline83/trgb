@@ -114,6 +114,61 @@ def ensure_subdir(*parts: Union[str, int]) -> Path:
     return sub
 
 
+# ──────────────────────────────────────────────────────────────
+# K-bis (sessione 2026-05-04): helper per moduli che oggi hanno
+# UPLOAD_DIR/DOCS_BASE_DIR/_BACKUP_DIR hardcoded a `app/data/<subname>/`.
+# Pattern speculare a app/utils/locale_data.py::locale_data_path() — graduale,
+# zero downtime: se il path nuovo è vuoto e quello legacy ha file, usa legacy.
+# ──────────────────────────────────────────────────────────────
+
+def tenant_dir(subname: str) -> Path:
+    """
+    Ritorna `<UPLOADS_DIR>/<subname>/` tenant-aware, creandola se non esiste.
+    Esempio:
+        tenant_dir("admin_finance/uploads") → /home/marco/trgb_uploads/admin_finance/uploads/
+        tenant_dir("ipratico_uploads")      → /home/marco/trgb_uploads/ipratico_uploads/
+    """
+    p = get_uploads_dir() / subname
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def tenant_dir_with_legacy_fallback(subname: str, legacy_path: Path) -> Path:
+    """
+    Come tenant_dir(), MA se il nuovo path è vuoto/inesistente e legacy_path
+    esiste con almeno un file, ritorna legacy_path. Pensato per la migrazione
+    graduale (K-bis): backend continua a leggere file esistenti dal vecchio
+    path finché un'operazione manuale (mv) non li sposta nel nuovo.
+
+    Esempio:
+        DOCS_BASE_DIR = tenant_dir_with_legacy_fallback(
+            "documenti_dipendenti",
+            Path("app/data/documenti_dipendenti")
+        )
+
+    Una volta che gli operativi hanno fatto `mv` dei file nel nuovo path,
+    questa funzione ritorna automaticamente il nuovo path. Backward compat
+    assoluta finché legacy_path esiste con dati.
+    """
+    new = get_uploads_dir() / subname
+    if new.exists():
+        try:
+            if any(new.iterdir()):
+                return new
+        except Exception:
+            pass
+    # Nuovo vuoto: prova legacy
+    if legacy_path.exists():
+        try:
+            if any(legacy_path.iterdir()):
+                return legacy_path
+        except Exception:
+            pass
+    # Niente trovato: crea il nuovo (futuro-compat)
+    new.mkdir(parents=True, exist_ok=True)
+    return new
+
+
 def to_db_path(*parts: Union[str, int]) -> str:
     """
     Costruisce il path RELATIVO da salvare nel DB (servito via mount /uploads).

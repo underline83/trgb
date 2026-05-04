@@ -1996,9 +1996,13 @@ async def matrice_import_old(current_user=Depends(get_current_user)):
 import shutil
 import glob as _glob
 
-# TODO post-R6.5: cartella backup runtime, andra' sotto locali/<TRGB_LOCALE>/
-# backups/ (o sotto TRGB_BACKUP_DIR via Modulo K-bis). Per ora: app/data/.
-_BACKUP_DIR = Path(__file__).resolve().parents[2] / "app" / "data" / "backups"
+# K-bis (sessione 2026-05-04): backup runtime tenant-aware via helper.
+# Lookup: <TRGB_UPLOADS_DIR>/backups/vini/ → fallback app/data/backups/
+from app.utils.uploads import tenant_dir_with_legacy_fallback
+_BACKUP_DIR = tenant_dir_with_legacy_fallback(
+    "backups/vini",
+    Path(__file__).resolve().parents[2] / "app" / "data" / "backups",
+)
 _DB_FILES = [
     ("vini_magazzino.sqlite3", "Magazzino vini"),
     ("vini_settings.sqlite3",  "Impostazioni"),

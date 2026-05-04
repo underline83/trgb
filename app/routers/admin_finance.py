@@ -32,10 +32,14 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-# TODO Modulo K (post-R6.5): cartella upload utente, andra' sotto
-# TRGB_UPLOADS_DIR/<locale>/admin_finance_uploads/. Per ora: app/data/.
-UPLOAD_DIR = Path("app/data/uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+# K-bis (sessione 2026-05-04): cartella upload utente tenant-aware via helper.
+# Lookup: <TRGB_UPLOADS_DIR>/admin_finance/uploads/ → fallback app/data/uploads/
+# (backward compat: i file esistenti restano leggibili finché non spostati a mano).
+from app.utils.uploads import tenant_dir_with_legacy_fallback
+UPLOAD_DIR = tenant_dir_with_legacy_fallback(
+    "admin_finance/uploads",
+    Path("app/data/uploads"),
+)
 
 
 # ---------------------------------------------------------
