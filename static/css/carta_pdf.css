@@ -303,6 +303,22 @@ td.vino   { width: 65%; padding-right: 8pt; }
 td.annata { width: 10%; text-align: right; padding-right: 8pt; }
 td.prezzo { width: 10%; text-align: right; }
 
+/* Riga "Si abbina con: …" sotto un calice (sessione 2026-05-04). Stile in linea con
+   le birre nella carta bevande: italic color sabbia, leggermente rientrato e con un
+   po' di respiro sotto. La riga sta sempre sulla stessa pagina del vino di
+   riferimento. */
+tr.calice-abbinamenti-row td.calice-abbinamenti {
+    padding: 0 0 4pt 18pt;
+    font-size: 9.5pt;
+    color: #5a4634;
+    font-style: italic;
+}
+.calice-abbinamenti-label {
+    font-style: normal;
+    font-weight: 700;
+}
+tr.calice-abbinamenti-row { page-break-inside: avoid; }
+
 /* ============================================================
    SEZIONE CALICI
    ============================================================ */

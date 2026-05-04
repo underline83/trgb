@@ -63,6 +63,40 @@ def _annata_display(val) -> str:
     return s if s else "s.a."
 
 
+def _esc(val) -> str:
+    """Escape HTML minimale per testo libero in template."""
+    if val is None:
+        return ""
+    return (
+        str(val)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _calice_abbinamenti_row_html(r: Dict[str, Any], colspan: int = 3) -> str:
+    """
+    Render della riga "Si abbina con: …" sotto un calice nella sezione calici
+    della carta (PDF + preview HTML). Ritorna stringa vuota se il campo
+    ABBINAMENTI non è valorizzato.
+
+    Sessione 2026-05-04 — completa il porting su PDF/preview HTML della
+    funzionalità già attiva sulla carta cliente HTML (CartaClienti.jsx).
+    """
+    abb = r.get("ABBINAMENTI")
+    if not abb or not str(abb).strip():
+        return ""
+    return (
+        f"<tr class='calice-abbinamenti-row'>"
+        f"<td colspan='{colspan}' class='calice-abbinamenti'>"
+        f"<span class='calice-abbinamenti-label'>Si abbina con:</span> "
+        f"{_esc(str(abb).strip())}"
+        f"</td>"
+        f"</tr>"
+    )
+
+
 # ------------------------------------------------------------
 # BUILDER — CORPO CARTA (PDF)
 # ------------------------------------------------------------
@@ -232,6 +266,7 @@ def build_calici_section_html(rows: Iterable[Dict[str, Any]]) -> str:
                             f"<td class='prezzo'>{prezzo}</td>"
                             "</tr>"
                         )
+                        html += _calice_abbinamenti_row_html(r)
 
                     html += "</tbody></table></div>"
 
@@ -297,6 +332,7 @@ def build_calici_section_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
                             f"<td class='prezzo'>{prezzo}</td>"
                             "</tr>"
                         )
+                        html += _calice_abbinamenti_row_html(r)
 
                     html += "</tbody></table>"
 

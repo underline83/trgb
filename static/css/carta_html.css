@@ -165,6 +165,18 @@ td.vino   { width: 65%; padding-right: 8px; }
 td.annata { width: 10%; text-align: right; padding-right: 8px; }
 td.prezzo { width: 10%; text-align: right; }
 
+/* Riga abbinamenti calice (sessione 2026-05-04) — preview HTML del PDF */
+tr.calice-abbinamenti-row td.calice-abbinamenti {
+    padding: 0 0 6px 22px;
+    font-size: 13px;
+    color: #5a4634;
+    font-style: italic;
+}
+.calice-abbinamenti-label {
+    font-style: normal;
+    font-weight: 700;
+}
+
 /* ============================================================
    SEZIONE CALICI (in cima alla carta)
    ============================================================ */
