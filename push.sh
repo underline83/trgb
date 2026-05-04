@@ -326,6 +326,7 @@ fi
 step "Verifica bit +x script critici"
 EXEC_SCRIPTS=(
   "scripts/backup_db.sh"
+  "scripts/check_backup_health.sh"
   "push.sh"
 )
 FIXED=0

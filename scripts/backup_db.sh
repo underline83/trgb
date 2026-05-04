@@ -36,11 +36,15 @@ DRIVE_PATH="gdrive:TRGB-Backup/db-daily"
 STATUS_FILE="$DATA_DIR/backups/.last_backup_status.json"
 VENV_PYTHON="/home/marco/trgb/venv-trgb/bin/python"
 
-# Retention: ultimi N backup PER DB (sia per hourly sia per daily).
-# Esempio con RETAIN_COUNT=10: per ogni DB tengo gli ultimi 10 backup orari
-# in hourly/, e gli ultimi 10 cicli daily completi in daily/. Quando arriva
-# il backup #11, il più vecchio viene cancellato.
-RETAIN_COUNT=10
+# Retention: ultimi N backup PER DB.
+# - HOURLY: 10 backup per DB (10 ore se cron orario). RETAIN_COUNT_HOURLY.
+# - DAILY: 14 cartelle (= 1 settimana se 2 sync/giorno alle 03:00 e 18:00).
+#   Aumentato dal default 10 quando Marco ha richiesto 2 sync/giorno il 4 mag,
+#   per mantenere comunque ≥7 giorni di copertura.
+RETAIN_COUNT_HOURLY=10
+RETAIN_COUNT_DAILY=14
+# Alias backward-compat per i punti che usano ancora RETAIN_COUNT (da deprecare):
+RETAIN_COUNT=$RETAIN_COUNT_HOURLY
 
 # Soglia minima byte per considerare valido un file SQLite
 # Un DB SQLite "vuoto" (solo header) è ~4096 byte. Tutti i nostri DB sono ben
@@ -455,13 +459,14 @@ if [ "$MODE" == "--daily" ]; then
         fi
     done
 
-    # Rotazione: tengo le ultime RETAIN_COUNT cartelle daily, cancello le precedenti
+    # Rotazione: tengo le ultime RETAIN_COUNT_DAILY cartelle daily.
+    # Con 2 sync/giorno (03:00 e 18:00) e RETAIN_COUNT_DAILY=14 → 1 settimana.
     total=$(( ${#DBS[@]} + ${#JSON_FILES[@]} ))
     ok_count=${#RUN_OK[@]}
     if [ "$ok_count" -ge $((total / 2)) ]; then
         echo ""
-        echo "🔄 Rotazione giornaliera (mantengo ultime $RETAIN_COUNT cartelle)..."
-        ls -1t "$BACKUP_DAILY" 2>/dev/null | tail -n +$((RETAIN_COUNT + 1)) | while read dirname; do
+        echo "🔄 Rotazione giornaliera (mantengo ultime $RETAIN_COUNT_DAILY cartelle)..."
+        ls -1t "$BACKUP_DAILY" 2>/dev/null | tail -n +$((RETAIN_COUNT_DAILY + 1)) | while read dirname; do
             full="$BACKUP_DAILY/$dirname"
             if [ -d "$full" ]; then
                 rm -rf "$full"
@@ -473,25 +478,51 @@ if [ "$MODE" == "--daily" ]; then
         echo "⚠️  TROPPI BACKUP FALLITI ($ok_count/$total ok) → ROTAZIONE SOSPESA"
     fi
 
-    # Sync su Google Drive — DAILY include anche last_known_good come safety net
+    # Sync su Google Drive — DAILY include 3 destinazioni:
+    #  1. db-daily/   — backup completo dei DB di questo ciclo
+    #  2. db-lkg/     — last_known_good cumulativa (1 copia integra per file)
+    #  3. runbook/    — script + push.sh + docs + CLAUDE.md (recovery code)
+    #     così se il VPS muore E git è inaccessibile, su Drive c'è anche il
+    #     codice/script per ripristinare. Ridondante con GitHub ma nessuna
+    #     dipendenza esterna richiesta.
     echo ""
     echo "☁️  Sync su Google Drive..."
     if [ -f "$RCLONE_CONF" ]; then
         if rclone sync "$BACKUP_DAILY" "$DRIVE_PATH" --config "$RCLONE_CONF" 2>&1; then
             echo "  ✅ Drive daily sync completato"
-            # Aggiorno last sync timestamp (per check esterno)
             date +%s > "$DATA_DIR/backups/.last_drive_sync"
         else
-            echo "  ⚠️  Drive sync fallito"
+            echo "  ⚠️  Drive daily sync fallito"
             RUN_WARNINGS+=("drive_sync:failed")
         fi
-        # Sync separato della last_known_good (cumulativa, sempre presente)
+
         if rclone sync "$BACKUP_LKG" "${DRIVE_PATH%-daily}-lkg" --config "$RCLONE_CONF" 2>&1; then
             echo "  ✅ Drive LKG sync completato"
         else
             echo "  ⚠️  Drive LKG sync fallito"
             RUN_WARNINGS+=("drive_lkg_sync:failed")
         fi
+
+        # Runbook: script + push.sh + docs + CLAUDE.md (lista esplicita, niente
+        # app/ perché è in git). Sync incrementale: solo i file cambiati.
+        echo "  📜 Sync runbook (scripts + docs + push.sh + CLAUDE.md)..."
+        # File singoli da copiare in radice del runbook su Drive
+        for f in "$PROJECT_DIR/push.sh" "$PROJECT_DIR/CLAUDE.md" "$PROJECT_DIR/VERSION" "$PROJECT_DIR/main.py"; do
+            if [ -f "$f" ]; then
+                rclone copy "$f" "${DRIVE_PATH%-daily}-runbook/" --config "$RCLONE_CONF" 2>&1 >/dev/null
+            fi
+        done
+        # Cartelle da sincronizzare (specchio completo)
+        for d in scripts docs locali; do
+            if [ -d "$PROJECT_DIR/$d" ]; then
+                if rclone sync "$PROJECT_DIR/$d" "${DRIVE_PATH%-daily}-runbook/$d/" --config "$RCLONE_CONF" --exclude '**/__pycache__/**' --exclude '**/*.pyc' 2>&1 >/dev/null; then
+                    echo "    ✅ $d/"
+                else
+                    echo "    ⚠️  $d/ sync fallito"
+                    RUN_WARNINGS+=("drive_runbook_$d:failed")
+                fi
+            fi
+        done
     else
         echo "  ⚠️  rclone.conf non trovato, skip Drive sync"
         RUN_WARNINGS+=("drive_sync:no_rclone_conf")

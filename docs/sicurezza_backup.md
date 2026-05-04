@@ -84,13 +84,38 @@ File: `scripts/backup_db.sh`
   separata su `gdrive:TRGB-Backup-lkg` così nemmeno se Drive daily diventa
   corrotto perdiamo l'LKG.
 
+**Politica retention (aggiornata 4 mag 2026 dopo richiesta Marco):**
+- **Hourly** (`backup_db.sh` senza arg) — 10 backup PER DB → ~10 ore di copertura
+  con cron orario. Più robusto del "mtime > N ore" perché se cron resta fermo,
+  rimangono comunque gli ultimi 10 (anche se sono di una settimana fa).
+- **Daily** (`backup_db.sh --daily`) — 14 cartelle daily totali → 1 settimana
+  di copertura con 2 sync/giorno (alle 03:00 e 18:00).
+- **Last_known_good** — 1 copia per file, MAI ruotata se backup nuovo fallisce.
+- **Drive** — sync incrementale, retention allineata al locale (rclone sync rimuove
+  file dal remote che non sono più nel locale).
+
+**Politica sync Drive (aggiornata 4 mag 2026):**
+2 sync/giorno scelti per non interferire col servizio dell'osteria:
+- **03:00** — osteria sicuramente chiusa (notte profonda)
+- **18:00** — finestra morta tra fine pranzo (16:00) e inizio cena (19:30)
+
+Ogni sync `--daily` invia 3 cose distinte su Drive:
+1. `gdrive:TRGB-Backup/db-daily/` — backup DB di questo ciclo (retention 14)
+2. `gdrive:TRGB-Backup-lkg/` — last_known_good cumulativa (1 copia integra/file)
+3. `gdrive:TRGB-Backup-runbook/` — script + push.sh + docs + CLAUDE.md + locali/
+   (lo "userbook di recovery"; permette di ricostruire il sistema da zero anche
+   senza accesso a GitHub)
+
 **Cron consigliato:**
 ```
-# Hourly backup ogni ora, retention 48h
+# Hourly backup ogni ora (rotazione 10 ultimi per DB, NO Drive)
 0 * * * * /home/marco/trgb/trgb/scripts/backup_db.sh >> /home/marco/trgb/backup.log 2>&1
 
-# Daily backup alle 03:30 (con sync Drive), retention 7gg
-30 3 * * * /home/marco/trgb/trgb/scripts/backup_db.sh --daily >> /home/marco/trgb/backup.log 2>&1
+# Daily backup — 03:00 (osteria chiusa) + Drive sync
+0 3 * * * /home/marco/trgb/trgb/scripts/backup_db.sh --daily >> /home/marco/trgb/backup.log 2>&1
+
+# Daily backup — 18:00 (tra pranzo finito 16 e cena 19:30) + Drive sync
+0 18 * * * /home/marco/trgb/trgb/scripts/backup_db.sh --daily >> /home/marco/trgb/backup.log 2>&1
 ```
 
 ### 2.2 Layer 2 — `check_backup_health.sh` (post-incidente)
@@ -151,19 +176,23 @@ File: `~/.claude/skills/guardiano/SKILL.md` (vedi `docs/skill_guardiano_patch_po
 
 ### 2.5 Backup multipli (3-2-1 reale)
 
-**Ora abbiamo 4 livelli:**
-1. **Hourly** in `app/data/backups/hourly/` (48h retention)
-2. **Daily** in `app/data/backups/daily/<TIMESTAMP>/` (7gg retention)
+**Ora abbiamo 4 livelli locali + 3 destinazioni Drive:**
+1. **Hourly** in `app/data/backups/hourly/` (10 ultimi per DB)
+2. **Daily** in `app/data/backups/daily/<TIMESTAMP>/` (14 cartelle = 1 settimana
+   con 2 sync/giorno)
 3. **Last_known_good** in `app/data/backups/last_known_good/` (mai rotato se
    nuovo backup fallisce; sempre 1 copia integra per file)
-4. **Drive remote** in `gdrive:TRGB-Backup/db-daily/` (daily) e
-   `gdrive:TRGB-Backup-lkg/` (last_known_good cumulativo)
+4. **Drive remote** (3 destinazioni):
+   - `gdrive:TRGB-Backup/db-daily/` — backup completi giornalieri (rotazione 14)
+   - `gdrive:TRGB-Backup-lkg/` — last_known_good cumulativo (1 copia integra/file)
+   - `gdrive:TRGB-Backup-runbook/` — script + push.sh + docs + CLAUDE.md +
+     locali/ (codice di recovery indipendente da git/GitHub)
 
 **Da fare ancora (TODO):**
 - [ ] Aruba snapshot manuale settimanale (Marco lo fa dal pannello)
-- [ ] Backblaze B2 sync alternativa a Drive (ridondanza)
+- [ ] Backblaze B2 sync alternativa a Drive (ridondanza geografica)
 - [ ] Time Machine attivo sul Mac di Marco
-- [ ] Restore test settimanale automatico (lancia un .backup di prova,
+- [ ] Restore test settimanale automatico (lancia un `.backup` di prova,
   compara dimensione/integrity, notifica via M.A se fallisce)
 
 ---
