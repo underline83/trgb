@@ -542,22 +542,37 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     } catch {}
   };
 
+  // Normalizza il valore digitato/legacy nel campo ANNATA per il payload PATCH.
+  // Regole (sessione 2026-05-04, secondo fix):
+  //   - vuoto / soli spazi → null              (in carta diventa "s.a.")
+  //   - testo SENZA cifre ("s.a.", "n.d.", "—") → null e salviamo (legacy data)
+  //   - 4 cifre tra 1900 e annoMax → la stringa stessa (es. "2019")
+  //   - tutto il resto (cifre ma non valido come anno: "201", "20235", "abcd1") → ERRORE
+  // Restituisce { value: string|null, error: string|null }.
+  const _normalizzaAnnata = (raw) => {
+    const a = String(raw ?? "").trim();
+    if (a === "") return { value: null, error: null };
+    const annoMax = new Date().getFullYear() + 2;
+    if (/^\d{4}$/.test(a) && Number(a) >= 1900 && Number(a) <= annoMax) {
+      return { value: a, error: null };
+    }
+    if (!/\d/.test(a)) {
+      // Nessuna cifra → l'utente non ha tentato di inserire un anno
+      // (legacy "s.a.", "n.d.", "—", ecc.). Lo trattiamo come vuoto.
+      return { value: null, error: null };
+    }
+    return {
+      value: null,
+      error: `❌ Annata non valida: deve essere un anno a 4 cifre tra 1900 e ${annoMax}, oppure lasciare vuoto.`,
+    };
+  };
+
   const saveEdit = async () => {
     // Sessione 58: validazioni hard prima del PATCH (annata 4 cifre, grado 0-25%).
-    // Sessione 2026-05-04 fix: il check passava per stringhe con soli spazi
-    // ("  ") perche' la guardia `editData.ANNATA !== ""` non scartava i valori
-    // whitespace, e poi il regex falliva su `.trim()` vuoto. Ora trim PRIMA e
-    // ricontrollo, cosi' annata vuota / soli spazi e' sempre accettata
-    // (in carta verra' resa come "s.a." dal renderer).
-    {
-      const a = String(editData.ANNATA ?? "").trim();
-      if (a !== "") {
-        const annoMax = new Date().getFullYear() + 2;
-        if (!/^\d{4}$/.test(a) || Number(a) < 1900 || Number(a) > annoMax) {
-          setSaveMsg(`❌ Annata non valida: deve essere un anno a 4 cifre tra 1900 e ${annoMax}.`);
-          return;
-        }
-      }
+    const _annataNorm = _normalizzaAnnata(editData.ANNATA);
+    if (_annataNorm.error) {
+      setSaveMsg(_annataNorm.error);
+      return;
     }
     if (editData.GRADO_ALCOLICO != null && editData.GRADO_ALCOLICO !== "") {
       const g = parseFloat(editData.GRADO_ALCOLICO);
@@ -569,6 +584,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     setSaving(true); setSaveMsg("");
     try {
       const payload = { ...editData };
+      // Annata: forziamo il valore normalizzato (null oppure stringa "AAAA").
+      // Cosi' valori legacy come "s.a." vengono ripuliti in DB e poi resi
+      // dal renderer come "s.a." senza piu' bloccare il salvataggio.
+      payload.ANNATA = _annataNorm.value;
       ["GRADO_ALCOLICO","PREZZO_CARTA","PREZZO_CALICE","EURO_LISTINO","SCONTO"].forEach(k => {
         payload[k] = payload[k] === "" || payload[k] === null ? null : parseFloat(payload[k]);
       });
