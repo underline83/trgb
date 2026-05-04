@@ -544,13 +544,19 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
 
   const saveEdit = async () => {
     // Sessione 58: validazioni hard prima del PATCH (annata 4 cifre, grado 0-25%).
-    // L'attributo HTML min/max sull'input e' solo indicativo, non blocca submit.
-    if (editData.ANNATA != null && editData.ANNATA !== "") {
-      const a = String(editData.ANNATA).trim();
-      const annoMax = new Date().getFullYear() + 2;
-      if (!/^\d{4}$/.test(a) || Number(a) < 1900 || Number(a) > annoMax) {
-        setSaveMsg(`❌ Annata non valida: deve essere un anno a 4 cifre tra 1900 e ${annoMax}.`);
-        return;
+    // Sessione 2026-05-04 fix: il check passava per stringhe con soli spazi
+    // ("  ") perche' la guardia `editData.ANNATA !== ""` non scartava i valori
+    // whitespace, e poi il regex falliva su `.trim()` vuoto. Ora trim PRIMA e
+    // ricontrollo, cosi' annata vuota / soli spazi e' sempre accettata
+    // (in carta verra' resa come "s.a." dal renderer).
+    {
+      const a = String(editData.ANNATA ?? "").trim();
+      if (a !== "") {
+        const annoMax = new Date().getFullYear() + 2;
+        if (!/^\d{4}$/.test(a) || Number(a) < 1900 || Number(a) > annoMax) {
+          setSaveMsg(`❌ Annata non valida: deve essere un anno a 4 cifre tra 1900 e ${annoMax}.`);
+          return;
+        }
       }
     }
     if (editData.GRADO_ALCOLICO != null && editData.GRADO_ALCOLICO !== "") {

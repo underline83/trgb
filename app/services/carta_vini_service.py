@@ -49,6 +49,20 @@ def resolve_regione(r: Dict[str, Any]) -> str:
     return "Varie"
 
 
+def _annata_display(val) -> str:
+    """
+    Ritorna l'annata da stampare in carta, con fallback "s.a." (sans année /
+    senza annata) quando il campo è vuoto, None o composto da soli spazi.
+
+    Introdotto in sessione 2026-05-04: Marco preferisce che i vini senza
+    annata abbiano un'indicazione esplicita ("s.a.") invece di una cella
+    vuota, soprattutto su carta cliente dove la riga senza annata risultava
+    visivamente sbilanciata.
+    """
+    s = "" if val is None else str(val).strip()
+    return s if s else "s.a."
+
+
 # ------------------------------------------------------------
 # BUILDER — CORPO CARTA (PDF)
 # ------------------------------------------------------------
@@ -94,7 +108,7 @@ def build_carta_body_html(rows: Iterable[Dict[str, Any]]) -> str:
 
                     for r in g3:
                         desc = r["DESCRIZIONE"] or ""
-                        annata = r["ANNATA"] or ""
+                        annata = _annata_display(r["ANNATA"])
                         prezzo = r["PREZZO"]
                         if prezzo not in (None, ""):
                             try:
@@ -201,7 +215,7 @@ def build_calici_section_html(rows: Iterable[Dict[str, Any]]) -> str:
 
                     for r in g3:
                         desc = r["DESCRIZIONE"] or ""
-                        annata = r["ANNATA"] or ""
+                        annata = _annata_display(r["ANNATA"])
                         prezzo = r["PREZZO"]
                         if prezzo not in (None, ""):
                             try:
@@ -268,7 +282,7 @@ def build_calici_section_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
 
                     for r in g3:
                         desc = r["DESCRIZIONE"] or ""
-                        annata = r["ANNATA"] or ""
+                        annata = _annata_display(r["ANNATA"])
                         prezzo = r["PREZZO"]
                         if prezzo not in (None, ""):
                             try:
@@ -332,7 +346,7 @@ def build_carta_body_html_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
 
                     for r in g3:
                         desc = r["DESCRIZIONE"] or ""
-                        annata = r["ANNATA"] or ""
+                        annata = _annata_display(r["ANNATA"])
                         prezzo = r["PREZZO"]
                         if prezzo not in (None, ""):
                             try:
@@ -579,7 +593,7 @@ def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Documen
                     wines = []
                     for r in g3:
                         desc = r["DESCRIZIONE"] or ""
-                        annata = r["ANNATA"] or ""
+                        annata = _annata_display(r["ANNATA"])
                         prezzo = r["PREZZO"]
                         if prezzo not in (None, "", 0):
                             try:

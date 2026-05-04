@@ -1,5 +1,6 @@
 // frontend/src/pages/public/CartaClienti.jsx
-// @version: v2.2 — calici: abbinamenti consigliati per i vini al calice (2026-05-04)
+// @version: v2.3 — fallback "s.a." (sans année) quando l'annata e' vuota (2026-05-04)
+// v2.2 — calici: abbinamenti consigliati per i vini al calice (2026-05-04)
 // v2.1 — birre: badge stile + GF + abbinamenti + legenda (mig 106, 2026-05-04)
 // v2.0 — sessione 58 fase 2 iter 4 (2026-04-25)
 //
@@ -480,6 +481,13 @@ function fmtPrezzo(v) {
   if (!Number.isFinite(n)) return String(v);
   return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+// Annata in carta: vuoto/null/whitespace → "s.a." (sans année / senza annata).
+// Fix sessione 2026-05-04: prima il blocco annata veniva omesso quando vuoto;
+// Marco preferisce un'etichetta esplicita.
+function fmtAnnata(a) {
+  const s = (a == null ? "" : String(a)).trim();
+  return s || "s.a.";
+}
 function fmtPrezzoBev(voce) {
   if (voce.prezzo_label) return String(voce.prezzo_label);
   if (voce.prezzo_eur == null || voce.prezzo_eur === 0 || voce.prezzo_eur === "") return "";
@@ -763,7 +771,7 @@ function RisultatiRicerca({ data, sezioni, search, onApri }) {
           <div>
             <div className="cc-indice-voce-titolo" style={{ fontSize: 15 }}>
               {r.tipo === "calice" || r.tipo === "vino"
-                ? <>{r.item.descrizione} {r.item.annata && <span style={{ color: "#5a4634", fontStyle: "italic", fontWeight: 400 }}>{r.item.annata}</span>}</>
+                ? <>{r.item.descrizione} <span style={{ color: "#5a4634", fontStyle: "italic", fontWeight: 400 }}>{fmtAnnata(r.item.annata)}</span></>
                 : r.item.nome}
             </div>
             <div className="cc-indice-voce-sottotit">
@@ -827,7 +835,7 @@ function SezioneCalici({ calici, tipologieOrder, search }) {
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div className="cc-calice-nome">
                     {c.descrizione}
-                    {c.annata && <span className="cc-vino-annata"> {c.annata}</span>}
+                    <span className="cc-vino-annata"> {fmtAnnata(c.annata)}</span>
                     {c.in_mescita && <span className="cc-calice-mescita">in mescita</span>}
                   </div>
                   <div className="cc-calice-meta">
@@ -891,7 +899,7 @@ function SezioneVini({ tipologia, search }) {
                     <div key={v.id} className="cc-vino">
                       <div className="cc-vino-nome">
                         {v.descrizione}
-                        {v.annata && <span className="cc-vino-annata">{v.annata}</span>}
+                        <span className="cc-vino-annata">{fmtAnnata(v.annata)}</span>
                       </div>
                       <div className="cc-vino-prezzi">
                         {v.prezzo_calice != null && (
