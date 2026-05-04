@@ -1,5 +1,6 @@
 // frontend/src/pages/public/CartaClienti.jsx
-// @version: v2.1 — birre: badge stile + GF + abbinamenti + legenda (mig 106, 2026-05-04)
+// @version: v2.2 — calici: abbinamenti consigliati per i vini al calice (2026-05-04)
+// v2.1 — birre: badge stile + GF + abbinamenti + legenda (mig 106, 2026-05-04)
 // v2.0 — sessione 58 fase 2 iter 4 (2026-04-25)
 //
 // Pagina pubblica della Carta Vini & Bevande per il cliente al tavolo (QR).
@@ -256,6 +257,22 @@ const STYLE = `
 .cc-calice-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .cc-calice-nome { font-size: 16px; font-weight: 600; color: #2b2118; }
 .cc-calice-meta { font-size: 12px; color: #5a4634; margin-top: 2px; }
+/* Riga "Si abbina con: …" sotto il calice (sessione 2026-05-04) — coerente */
+/* col pattern usato per le birre (mig 106): leggera linea punteggiata di     */
+/* stacco e testo in italic color sabbia.                                     */
+.cc-calice-abbinamenti {
+  font-size: 12px;
+  color: #5a4634;
+  margin-top: 8px;
+  padding-top: 5px;
+  border-top: 1px dotted #e6dcc4;
+  font-style: italic;
+  line-height: 1.45;
+}
+.cc-calice-abbinamenti-label {
+  font-style: normal;
+  font-weight: 700;
+}
 .cc-calice-prezzo {
   font-size: 15px;
   font-weight: 700;
@@ -819,6 +836,12 @@ function SezioneCalici({ calici, tipologieOrder, search }) {
                 </div>
                 <div className="cc-calice-prezzo">{fmtPrezzo(c.prezzo)} €</div>
               </div>
+              {c.abbinamenti && (
+                <div className="cc-calice-abbinamenti">
+                  <span className="cc-calice-abbinamenti-label">Si abbina con:</span>{" "}
+                  {c.abbinamenti}
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -282,7 +282,8 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             PREZZO_CARTA,
             QTA_TOTALE,
             BOTTIGLIA_APERTA,
-            VENDITA_CALICE
+            VENDITA_CALICE,
+            ABBINAMENTI
         FROM vini_magazzino
         WHERE
             TIPOLOGIA IS NOT NULL
@@ -352,6 +353,9 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             "PREZZO_CALICE": r["_PREZZO_CALICE_FINAL"],  # alias esplicito per consumer
             "QTA": r["QTA_TOTALE"],
             "BOTTIGLIA_APERTA": r["BOTTIGLIA_APERTA"] or 0,
+            # Abbinamenti consigliati (sessione 2026-05-04): testo libero che il
+            # cliente vede nella sezione calici.
+            "ABBINAMENTI": r.get("ABBINAMENTI"),
         })
 
     return out

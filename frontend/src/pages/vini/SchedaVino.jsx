@@ -503,6 +503,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       STATO_CONSERVAZIONE: vino.STATO_CONSERVAZIONE ?? "",
       NOTE_STATO: vino.NOTE_STATO ?? "",
       NOTE: vino.NOTE ?? "",
+      // Sessione 2026-05-04 — abbinamenti consigliati (visibile in carta cliente
+      // solo per i vini al calice).
+      ABBINAMENTI: vino.ABBINAMENTI ?? "",
     });
     setEditMode(true); setSaveMsg("");
   };
@@ -832,6 +835,19 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                         {vino.NOTE_STATO && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-neutral-50 text-neutral-600 border-neutral-200">{vino.NOTE_STATO}</span>}
                       </div>
                     </div>
+                    {vino.ABBINAMENTI && (
+                      <div className="pt-3 border-t border-neutral-100">
+                        <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5 flex items-center gap-2">
+                          <span>🍽️ Abbinamenti consigliati</span>
+                          {vino.VENDITA_CALICE !== "SI" && !vino.BOTTIGLIA_APERTA && (
+                            <span className="text-[10px] font-normal text-neutral-400 normal-case italic">
+                              (non visibili al cliente: vino non al calice)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-neutral-800 whitespace-pre-wrap">{vino.ABBINAMENTI}</p>
+                      </div>
+                    )}
                     {vino.NOTE && <div className="pt-3 border-t border-neutral-100"><div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Note interne</div><p className="text-sm text-neutral-800 whitespace-pre-wrap">{vino.NOTE}</p></div>}
                   </div>
                 ) : (
@@ -895,6 +911,22 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Select label="Stato conservazione" name="STATO_CONSERVAZIONE" value={editData.STATO_CONSERVAZIONE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={STATO_CONSERVAZIONE_OPTIONS} />
                     </div>
                     <Input label="Note stato" name="NOTE_STATO" value={editData.NOTE_STATO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5 flex items-center gap-2">
+                        <span>🍽️ Abbinamenti consigliati</span>
+                        <span className="text-[10px] font-normal text-neutral-400 normal-case italic">
+                          (visibili in carta cliente solo per i vini al calice)
+                        </span>
+                      </label>
+                      <textarea
+                        name="ABBINAMENTI"
+                        value={editData.ABBINAMENTI ?? ""}
+                        onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))}
+                        rows={2}
+                        placeholder="Es. Tartare di manzo, risotto al tartufo, formaggi stagionati"
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      />
+                    </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Note interne</label>
                       <textarea name="NOTE" value={editData.NOTE ?? ""} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} rows={2} className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />

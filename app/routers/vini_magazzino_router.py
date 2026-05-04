@@ -93,6 +93,12 @@ class VinoMagazzinoBase(BaseModel):
         description="Flag bottiglia aperta in mescita (0=no, 1=si). Sessione 58. "
                     "Quando 1, il vino appare nella carta calici anche con QTA_TOTALE=0.",
     )
+    ABBINAMENTI: Optional[str] = Field(
+        None,
+        description="Abbinamenti consigliati (testo libero). Mostrato in carta "
+                    "cliente solo per i vini al calice (VENDITA_CALICE='SI' o "
+                    "BOTTIGLIA_APERTA=1). Sessione 2026-05-04.",
+    )
 
     STATO_VENDITA: Optional[str] = Field(
         None,
@@ -161,6 +167,7 @@ class VinoMagazzinoUpdate(BaseModel):
     DISCONTINUATO: Optional[str] = None
     FORZA_PREZZO: Optional[int] = None
     BOTTIGLIA_APERTA: Optional[int] = None
+    ABBINAMENTI: Optional[str] = None
 
     STATO_VENDITA: Optional[str] = None
     STATO_RIORDINO: Optional[str] = None

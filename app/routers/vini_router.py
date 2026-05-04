@@ -183,6 +183,10 @@ def get_carta_cliente_data():
             "tipologia": r.get("TIPOLOGIA"),
             "prezzo": prezzo,
             "in_mescita": bool(r.get("BOTTIGLIA_APERTA") or 0),
+            # Abbinamenti consigliati visibili al cliente — sessione 2026-05-04.
+            # Letti da vini_magazzino.ABBINAMENTI; valorizzati solo per i vini
+            # al calice (VENDITA_CALICE='SI' o BOTTIGLIA_APERTA=1).
+            "abbinamenti": r.get("ABBINAMENTI"),
         })
 
     # ---- BOTTIGLIE IN CARTA — raggruppate ----

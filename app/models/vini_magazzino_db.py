@@ -155,6 +155,10 @@ def init_magazzino_database() -> None:
             -- il vino deve apparire nella carta calici). Sessione 58 (2026-04-25).
             BOTTIGLIA_APERTA INTEGER DEFAULT 0,
 
+            -- Abbinamenti consigliati (sessione 2026-05-04). Testo libero,
+            -- mostrato in carta cliente solo per i vini al calice.
+            ABBINAMENTI     TEXT,
+
             -- Stato vendite / conservazione / riordino
             STATO_VENDITA   TEXT,
             NOTE_STATO      TEXT,
@@ -207,6 +211,10 @@ def init_magazzino_database() -> None:
         "PREZZO_CALICE_MANUALE INTEGER DEFAULT 0",
         "BIOLOGICO TEXT DEFAULT 'NO'",
         "VENDITA_CALICE TEXT DEFAULT 'NO'",
+        # Sessione 2026-05-04: campo testo libero per abbinamenti consigliati,
+        # mostrato in carta cliente solo per vini al calice (VENDITA_CALICE='SI'
+        # o BOTTIGLIA_APERTA=1).
+        "ABBINAMENTI TEXT",
     ]:
         col_name = col_def.split()[0]
         try:
