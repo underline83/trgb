@@ -100,9 +100,93 @@ echo -e "${CYAN}${BOLD}🏠 Deploy locale:${NC} ${BOLD}$LOCALE${NC}  ${DIM}($DOM
 # Aggiunto 2026-04-25 (sessione 57 cont.) per ridurre il rischio di:
 #  - SIGTERM al backend mentre utenti scrivono (causa corruzioni SQLite S51-S53)
 #  - Doppio push ravvicinato (= restart durante init_*_database())
-# I check sono SOFT: non bloccano mai con exit 1, solo chiedono conferma.
+# Esteso 2026-05-04 (post-incidente R6.5) per intercettare:
+#  - DB svuotati silenziosamente (corruption silente)
+#  - Backup VPS regrediti (last_known_good non più aggiornato)
+# I check sono SOFT salvo casi catastrofici (DB stub o integrity_check fail
+# sulla sorgente) che bloccano con conferma esplicita.
 
 step "Guardiano: pre-push checks"
+
+# ── DB sanity check sul VPS — bloccante in caso di stub/corruzione ──────────
+# Lancia integrity_check + dimensione minima su ogni DB sul VPS PRIMA del push.
+# Se trova qualcosa di sospetto, mostra l'elenco e chiede conferma esplicita.
+# Questo intercetta lo scenario dell'incidente 4 maggio: backend zombie con DB
+# vuoti, push.sh non se ne accorgeva e continuava a deployare distruggendo
+# anche le copie .prev locali.
+SANITY_DBS="foodcost.db admin_finance.sqlite3 vini.sqlite3 vini_magazzino.sqlite3 vini_settings.sqlite3 dipendenti.sqlite3 clienti.sqlite3 notifiche.sqlite3 tasks.sqlite3 bevande.sqlite3"
+SANITY_MIN_BYTES=8192  # < 8KB = stub o vuoto
+
+SANITY_OUT=$(ssh -q -o ConnectTimeout=6 "$VPS_HOST" "
+cd $VPS_DIR 2>/dev/null || exit 99
+RESULT=''
+for db in $SANITY_DBS; do
+    # Trova path attivo: locali/tregobbi/data/ poi app/data/
+    SRC=''
+    for p in 'locali/tregobbi/data/'\$db 'app/data/'\$db; do
+        [ -f \"\$p\" ] && SRC=\"\$p\" && break
+    done
+    if [ -z \"\$SRC\" ]; then
+        # DB non esistente: skip silente (es. DB di moduli non attivi)
+        continue
+    fi
+    SZ=\$(stat -c%s \"\$SRC\" 2>/dev/null || echo 0)
+    if [ \"\$SZ\" -lt $SANITY_MIN_BYTES ]; then
+        RESULT=\"\${RESULT}STUB \$db (\$SZ B); \"
+        continue
+    fi
+    INTEG=\$(sqlite3 \"\$SRC\" 'PRAGMA integrity_check;' 2>&1 | head -1)
+    if [ \"\$INTEG\" != 'ok' ]; then
+        RESULT=\"\${RESULT}CORRUPT \$db (\$INTEG); \"
+    fi
+done
+echo \"\$RESULT\"
+" 2>/dev/null)
+SSH_RC=$?
+
+if [ "$SSH_RC" -eq 99 ]; then
+    warn "VPS_DIR $VPS_DIR non trovato sul VPS — skip sanity check"
+elif [ "$SSH_RC" -ne 0 ]; then
+    warn "SSH al VPS fallito durante sanity check (rc=$SSH_RC) — skip"
+elif [ -n "$SANITY_OUT" ]; then
+    fail "DB SANITY CHECK FALLITO sul VPS:"
+    echo -e "  ${RED}${SANITY_OUT}${NC}"
+    echo -e "  ${YELLOW}Pushare ora rischia di propagare la corruzione e distruggere i backup .prev locali.${NC}"
+    echo -en "  ${BOLD}Pushare COMUNQUE? Solo se sai cosa stai facendo [y/N]${NC} "
+    read -r CONFIRM
+    case "$CONFIRM" in
+        y|Y|s|S) ok "OK, procedo (a tuo rischio)" ;;
+        *) fail "Annullato dall'utente — controlla integrità DB sul VPS prima di ripushare."; exit 0 ;;
+    esac
+else
+    $VERBOSE && ok "Sanity check DB VPS: tutti i DB esistenti hanno dimensione e integrity OK"
+fi
+
+# ── Stato ultimo backup_db.sh sul VPS ────────────────────────────────────────
+# Legge .last_backup_status.json scritto dal nuovo backup_db.sh.
+# Se l'ultimo backup è andato male o è troppo vecchio, segnala.
+BACKUP_STATUS=$(ssh -q -o ConnectTimeout=4 "$VPS_HOST" \
+    "cat $VPS_DIR/app/data/backups/.last_backup_status.json 2>/dev/null" || echo "")
+if [ -n "$BACKUP_STATUS" ]; then
+    # Estraggo failed_count e epoch (parse semplice senza jq)
+    FAILED=$(echo "$BACKUP_STATUS" | grep -o '"failed_count": [0-9]*' | grep -o '[0-9]*' | head -1)
+    LAST_EPOCH=$(echo "$BACKUP_STATUS" | grep -o '"epoch": [0-9]*' | grep -o '[0-9]*' | head -1)
+    NOW_EPOCH=$(date +%s)
+    AGE_HOURS=0
+    if [ -n "$LAST_EPOCH" ] && [ "$LAST_EPOCH" -gt 0 ]; then
+        AGE_HOURS=$(( (NOW_EPOCH - LAST_EPOCH) / 3600 ))
+    fi
+    if [ -n "$FAILED" ] && [ "$FAILED" -gt 0 ]; then
+        warn "Ultimo backup_db.sh ha avuto $FAILED fallimenti (vedi .last_backup_status.json sul VPS)"
+    elif [ "$AGE_HOURS" -gt 25 ]; then
+        warn "Ultimo backup risale a ${AGE_HOURS}h fa — backup_db.sh potrebbe non essere in esecuzione (cron?)"
+    else
+        $VERBOSE && ok "Ultimo backup OK (${AGE_HOURS}h fa)"
+    fi
+else
+    $VERBOSE && warn "Stato backup non leggibile (backup_db.sh v2 non ancora deployato?)"
+fi
+
 
 LAST_PUSH_FILE="${LAST_PUSH_FILE:-.last_push}"
 PUSH_DEBOUNCE_SECONDS="${PUSH_DEBOUNCE_SECONDS:-30}"
@@ -158,25 +242,76 @@ fi
 # ── Sync DB dal VPS ────────────────────────────────────────
 step "Sync database dal VPS"
 
-DBS="vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3 clienti.sqlite3 dipendenti.sqlite3 notifiche.sqlite3"
+# Lista DB completa: aggiunti tasks.sqlite3 e bevande.sqlite3 dopo R8a (post-incidente
+# 4 maggio: tasks.sqlite3 mancava, è stato uno dei DB persi).
+DBS="vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3 clienti.sqlite3 dipendenti.sqlite3 notifiche.sqlite3 tasks.sqlite3 bevande.sqlite3"
 DB_OK=0
 DB_FAIL=0
+DB_REGRESSED=0  # contatore DB che sono molto più piccoli del .prev (sospetto corruzione)
+# Il path remote tenta prima locali/tregobbi/data/ (post-R6.5) poi app/data/ (legacy).
 
 for db in $DBS; do
-  [ -f "$DB_LOCAL/$db" ] && cp "$DB_LOCAL/$db" "$DB_LOCAL/${db}.prev" 2>/dev/null || true
-  if ssh -q "$VPS_HOST" "sqlite3 '$DB_REMOTE/$db' \".backup '/tmp/trgb_$db'\"" 2>/dev/null \
+  # Salva copia .prev PRIMA di sovrascrivere
+  PREV_SIZE=0
+  if [ -f "$DB_LOCAL/$db" ]; then
+    cp "$DB_LOCAL/$db" "$DB_LOCAL/${db}.prev" 2>/dev/null || true
+    PREV_SIZE=$(stat -c%s "$DB_LOCAL/${db}.prev" 2>/dev/null || stat -f%z "$DB_LOCAL/${db}.prev" 2>/dev/null || echo 0)
+  fi
+
+  # Determina path remote (locale-aware con fallback legacy)
+  REMOTE_DB=$(ssh -q "$VPS_HOST" "
+    for p in '$VPS_DIR/locali/tregobbi/data/$db' '$DB_REMOTE/$db'; do
+      [ -f \"\$p\" ] && echo \"\$p\" && exit 0
+    done
+  " 2>/dev/null)
+
+  if [ -z "$REMOTE_DB" ]; then
+    DB_FAIL=$((DB_FAIL + 1))
+    $VERBOSE && warn "$db non trovato sul VPS"
+    continue
+  fi
+
+  if ssh -q "$VPS_HOST" "sqlite3 '$REMOTE_DB' \".backup '/tmp/trgb_$db'\"" 2>/dev/null \
     && scp -q "$VPS_HOST:/tmp/trgb_$db" "$DB_LOCAL/$db" 2>/dev/null \
     && ssh -q "$VPS_HOST" "rm -f '/tmp/trgb_$db'" 2>/dev/null; then
-    DB_OK=$((DB_OK + 1))
-    $VERBOSE && ok "$db"
+
+    NEW_SIZE=$(stat -c%s "$DB_LOCAL/$db" 2>/dev/null || stat -f%z "$DB_LOCAL/$db" 2>/dev/null || echo 0)
+
+    # Validation: se il nuovo è molto più piccolo del .prev, regressione sospetta.
+    # Soglia 50% per evitare falsi positivi su VACUUM (riduzione fisiologica).
+    if [ "$PREV_SIZE" -gt 8192 ] && [ "$NEW_SIZE" -gt 0 ]; then
+      RATIO_PCT=$(( NEW_SIZE * 100 / PREV_SIZE ))
+      if [ "$RATIO_PCT" -lt 50 ]; then
+        DB_REGRESSED=$((DB_REGRESSED + 1))
+        warn "$db REGRESSO: ${NEW_SIZE}B vs ${PREV_SIZE}B (${RATIO_PCT}%) — sospetta corruzione, .prev preservato"
+      else
+        DB_OK=$((DB_OK + 1))
+        $VERBOSE && ok "$db (${NEW_SIZE}B)"
+      fi
+    elif [ "$NEW_SIZE" -lt 8192 ]; then
+      DB_REGRESSED=$((DB_REGRESSED + 1))
+      warn "$db scaricato ma è uno STUB (${NEW_SIZE}B < 8KB) — ripristino .prev"
+      [ -f "$DB_LOCAL/${db}.prev" ] && cp "$DB_LOCAL/${db}.prev" "$DB_LOCAL/$db"
+    else
+      DB_OK=$((DB_OK + 1))
+      $VERBOSE && ok "$db (${NEW_SIZE}B)"
+    fi
   else
     DB_FAIL=$((DB_FAIL + 1))
-    $VERBOSE && warn "$db non trovato"
+    $VERBOSE && warn "$db backup/scp fallito"
   fi
 done
 
-if [ "$DB_FAIL" -eq 0 ]; then
-  ok "${DB_OK} database scaricati ${DIM}(copie .prev salvate)${NC}"
+if [ "$DB_REGRESSED" -gt 0 ]; then
+  fail "${DB_REGRESSED} DB regrediti drasticamente sul VPS — possibile corruzione in atto"
+  echo -en "  ${BOLD}Continuare il push lo stesso? [y/N]${NC} "
+  read -r CONFIRM
+  case "$CONFIRM" in
+    y|Y|s|S) warn "Procedo nonostante regressione" ;;
+    *) fail "Annullato — verifica DB VPS prima di ripushare."; exit 0 ;;
+  esac
+elif [ "$DB_FAIL" -eq 0 ]; then
+  ok "${DB_OK} database scaricati ${DIM}(copie .prev salvate, sanity OK)${NC}"
 else
   warn "${DB_OK} ok, ${DB_FAIL} non trovati (non bloccante)"
 fi
@@ -388,6 +523,63 @@ if $SYNC_DRIVE; then
   else
     warn "Sync Drive fallito (non bloccante)"
   fi
+fi
+
+# ── Post-deploy sanity check (post-incidente 4 maggio) ────
+# Dopo che il deploy è stato eseguito sul VPS (post-receive hook), aspetto un
+# attimo che il backend si riavvii (se non l'ha già fatto in questa sessione)
+# e ricontrollo che i DB siano ancora integri. Se trovo regressioni, ALLARME
+# ROSSO e notifica via M.A. Questo intercetta lo scenario in cui un commit di
+# codice introduce un bug che svuota o corrompe DB al primo restart.
+step "Post-deploy sanity check"
+sleep 4   # tempo per restart backend + init_*_database()
+
+POST_PROBE=$(curl -sI -o /dev/null -w "%{http_code}" --max-time 6 "$PROBE_URL" 2>/dev/null || echo "ERR")
+if [[ "$POST_PROBE" =~ ^[1234][0-9][0-9]$ ]]; then
+  $VERBOSE && ok "Backend UP post-deploy ($PROBE_URL → HTTP $POST_PROBE)"
+else
+  fail "Backend NON risponde post-deploy ($POST_PROBE) — controlla journalctl -u $BACKEND_SERVICE"
+fi
+
+POST_SANITY=$(ssh -q -o ConnectTimeout=6 "$VPS_HOST" "
+cd $VPS_DIR 2>/dev/null || exit 99
+RESULT=''
+for db in $SANITY_DBS; do
+    SRC=''
+    for p in 'locali/tregobbi/data/'\$db 'app/data/'\$db; do
+        [ -f \"\$p\" ] && SRC=\"\$p\" && break
+    done
+    [ -z \"\$SRC\" ] && continue
+    SZ=\$(stat -c%s \"\$SRC\" 2>/dev/null || echo 0)
+    if [ \"\$SZ\" -lt $SANITY_MIN_BYTES ]; then
+        RESULT=\"\${RESULT}STUB \$db (\$SZ B); \"
+        continue
+    fi
+    INTEG=\$(sqlite3 \"\$SRC\" 'PRAGMA integrity_check;' 2>&1 | head -1)
+    if [ \"\$INTEG\" != 'ok' ]; then
+        RESULT=\"\${RESULT}CORRUPT \$db; \"
+    fi
+done
+echo \"\$RESULT\"
+" 2>/dev/null)
+
+if [ -n "$POST_SANITY" ]; then
+    fail "DB SANITY POST-DEPLOY FALLITO: $POST_SANITY"
+    echo -e "  ${RED}${BOLD}⚠️  Il deploy ha rotto qualcosa sui DB. Ferma tutto e indaga PRIMA che backup_db.sh ruoti i backup vecchi integri.${NC}"
+    # Notifica M.A se possibile
+    ssh -q "$VPS_HOST" "cd $VPS_DIR && PYTHONPATH=$VPS_DIR $VENV/bin/python -c \"
+from app.services.notifiche_service import crea_notifica
+crea_notifica(
+    tipo='deploy',
+    titolo='⚠️ DB sanity FALLITO post-deploy',
+    messaggio='$POST_SANITY',
+    urgenza='alta',
+    modulo='platform',
+    dest_ruolo='superadmin',
+)
+\" 2>&1" 2>/dev/null || true
+else
+    ok "DB sanity post-deploy: tutto OK"
 fi
 
 # ── Modulo Guardiano L1 — Stamp .last_push per debounce ───

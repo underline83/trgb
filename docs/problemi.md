@@ -8,6 +8,101 @@
 
 ## Aperti — Priorità alta
 
+### S60-INC1. Incidente del 3-4 maggio 2026 — Corruzione silente DB da R6.5 push 1
+**Segnalato:** scoperto 2026-05-04 ore 18:00 circa durante R6.5 push 2.
+**Modulo:** SQLite / persistenza / `app/utils/locale_data.py` (helper introdotto R6.5 push 1)
+**Gravità:** **CRITICA** — backend zombie per ~36-48h, perdita dati operativi 1.5 giornate piene (osteria APERTA domenica 3 maggio).
+
+**Vettore identificato:**
+Commit di R6.5 push 1 (2026-05-02 sera) ha introdotto `locale_data_path()` con
+fallback automatico runtime: se `locali/<id>/data/<file>` non esiste, ritorna
+`app/data/<file>`. Quando il backend al boot apre connessioni SQLite sui path
+nuovi (con WAL già attivo sui path vecchi), si genera una race in cui:
+- File stub da 4096 byte (1 page SQLite, header valido ma vuoto) vengono creati
+  nei path nuovi.
+- Il backend tiene connessioni vive ai path vecchi via WAL e cache in-memory.
+- Risposte HTTP 200 OK (probe sani) MA i file su disco sono già svuotati.
+
+**Cronologia:**
+- **2 mag 22:25** — ultimo movimento vini_magazzino integro (sabato sera)
+- **2 mag 23:00** — ultimo backup hourly INTEGRO sul VPS
+- **3 mag 00:00 circa** — corruzione attivata da R6.5 push 1 (backend zombie)
+- **3 mag 03:30** — backup_db.sh daily copia stub da 4096 byte come fossero buoni
+- **3 mag (domenica APERTA)** — vendite/prenotazioni/movimenti scritti
+  su file stub. Backend continua a rispondere 200 OK perché ha cache in-memory.
+- **3 mag (ogni ora)** — backup_db.sh hourly continua a sostituire backup vecchi
+  integri con backup di file stub. Storia integra distrutta in <24h dalla
+  rotazione automatica.
+- **4 mag mattina** — sessione di sviluppo R8a, R8b, R8c, K-bis (4 push)
+  continuano sopra il sistema rotto. Ogni push trascina il problema in avanti
+  e distrugge i `.prev` locali.
+- **4 mag 18:00 circa** — durante R6.5 push 2 (consolidamento fisico DB) Marco
+  e Claude scoprono che i file su disco sono 4096 byte tutti.
+
+**Recovery:**
+- 7 DB recuperati al **2 mag 23:00** (ultimo hourly integro VPS): admin_finance,
+  clienti, dipendenti, foodcost, vini, vini_magazzino, vini_settings (al 03:30)
+- `notifiche.sqlite3` recuperato al **28/04** dal backup manuale Mac di Marco
+- `tasks.sqlite3` e `bevande.sqlite3` ricreati vuoti dalle migrazioni al boot
+  post-incidente (mai backuppati, modulo task_manager creato dopo 28/04)
+- `users.json` ricreato a mano con utente `marco` superadmin / PIN 1234 (poi
+  cambiato da Marco). Tutti gli altri utenti staff vanno ricreati dall'app.
+- 4 file JSON config (`modules.json`, `modules.runtime.json`, `closures_config.json`)
+  recuperati dal backup Mac 28/04.
+
+**Persi definitivamente:**
+- Movimenti vini di domenica 3 maggio + lunedì 4 mattina (osteria APERTA = vendite!)
+- Tutte le prenotazioni inserite domenica/lunedì
+- Chiusure fiscali di domenica sera
+- Modifiche a clienti/dipendenti/foodcost di domenica e lunedì
+- Tutti i task templates del modulo task_manager (mai backuppato)
+- Tutti gli utenti staff oltre `marco` (solo nominativi/PIN/ruoli)
+- Notifiche dal 28/04 in poi
+
+**Root cause analysis (perché i guardrail non hanno scattato):**
+1. `locale_data_path()` v1 con fallback automatico — design pericoloso
+2. `backup_db.sh` v1 senza integrity_check — copiava stub come buoni
+3. Rotazione automatica backup — ha distrutto storia integra in <24h
+4. Push.sh L1 sanity check — solo HTTP probe (backend zombie passava)
+5. Skill `/guardiano` — audit di codice, non di stato runtime DB
+6. 3-2-1 backup violato in tutti i punti (no Aruba snapshot, no Backblaze attivo, no Time Machine)
+
+**Fix applicati nello stesso 4 maggio (in commit dedicato post-recovery):**
+1. **`scripts/backup_db.sh` v2** — integrity check obbligatorio, last_known_good
+   separato (mai rotato se backup nuovo fallisce), status JSON, notifica via M.A
+   se fallimenti, lista DB completa (10), aggiunti backup JSON config (5)
+2. **`scripts/check_backup_health.sh`** (nuovo) — watchdog cron ogni 30 min:
+   alarm se hourly stale, daily stale, drive stale, LKG corrotto. Notifica M.A.
+3. **`push.sh` v2** — pre-push DB sanity check sul VPS via SSH (PRAGMA + size),
+   blocca con conferma se trova STUB/CORRUPT. Validation post-download `.prev`
+   con auto-restore se nuovo è stub. Post-deploy sanity check con notifica M.A.
+4. **`docs/skill_guardiano_patch_post_incidente.md`** — patch da applicare alla
+   skill `/guardiano` (path read-only, mod manuale): Step 5b sanity check post-
+   deploy obbligatorio + Step 5c lettura health status + sub-comando `backup-status`
+5. **`docs/sicurezza_backup.md`** — nuova doc canonica architettura sicurezza
+6. **5 nuove memorie persistenti Claude** — query SQL nomi colonne, paths VPS
+   corretti, orari osteria (domenica aperta)
+
+**Da fare ancora (TODO):**
+- [ ] Setup cron del nuovo backup_db.sh + check_backup_health.sh sul VPS
+- [ ] Ricreare utenti staff dall'app (Impostazioni → Utenti)
+- [ ] Aruba snapshot manuale del VPS (settimanale)
+- [ ] Time Machine attivo sul Mac
+- [ ] Backblaze B2 ridondante a Drive
+- [ ] R6.5 push 2 (consolidamento fisico DB + rimozione fallback locale_data_path)
+  da fare DOPO che sistema backup è solido e testato
+- [ ] Restore test settimanale automatico
+
+**Lezioni:**
+1. Un backend che risponde 200 OK NON significa che funzioni. L'unica verifica vera è interrogare i dati.
+2. Un backup che esiste NON è valido finché non è stato testato per restore.
+3. Una migrazione DB con fallback automatico è sempre rischiosa. Meglio fail-loud che fallback silente.
+4. WAL mode rende la corruzione silente: il backend continua a leggere/scrivere in memoria mentre il file su disco è già perso.
+5. Audit di codice ≠ audit di sistema vivo. Servono entrambi e sono check diversi.
+6. 3-2-1 dei backup non negoziabile per produzione.
+
+---
+
 _(S52-1 chiuso 2026-04-25 dopo 4 giorni stabili — vedi sezione Risolti.)_
 
 ### S52-1bis. (CHIUSO — testo conservato per storia)
