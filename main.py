@@ -216,6 +216,190 @@ def system_modules():
 
 
 # ──────────────────────────────────────────────────────────────
+# /system/backup-health — stato del sistema di backup (post-incidente 4 mag 2026)
+# Modulo: platform.
+# Endpoint protetto (JWT) per la dashboard "Backup" in Impostazioni Sistema.
+# Legge i 2 file di stato scritti da backup_db.sh v2 e check_backup_health.sh,
+# più ispeziona la cartella last_known_good/ per dare un quadro completo.
+# Vedi docs/sicurezza_backup.md.
+# ──────────────────────────────────────────────────────────────
+from fastapi import Depends, HTTPException
+from app.services.auth_service import get_current_user, is_admin
+from pathlib import Path as _Path
+from app.utils.locale_data import locale_data_dir as _ldd
+
+@app.get("/system/backup-health")
+def system_backup_health(user=Depends(get_current_user)):
+    """Restituisce stato corrente del sistema backup.
+
+    Ritorna:
+        {
+          "status": "healthy" | "unhealthy" | "unknown",
+          "last_health_check": {...},   # da .last_health_status.json
+          "last_backup_run": {...},     # da .last_backup_status.json
+          "ages": {                     # età in minuti/ore
+            "hourly_min": 23,
+            "daily_h": 4,
+            "drive_h": 4,
+          },
+          "lkg_files": [                # contenuto last_known_good/
+            {"name": "...", "size_mb": 7.0, "age_h": 4, "integrity_ok": true},
+            ...
+          ],
+          "issues": [...],
+          "lkg_summary": {"ok": 10, "missing": 0, "stub": 0, "corrupt": 0}
+        }
+    """
+    if not is_admin(user["role"]):
+        raise HTTPException(status_code=403, detail="Solo admin può vedere lo stato backup")
+
+    # Rilevo backup_dir relativo al locale (R6.5: app/data/backups/ legacy)
+    # Il backup_db.sh scrive sempre in app/data/backups/, indipendentemente dal locale,
+    # perché backup è cross-locale (proteggere il VPS, non un singolo locale).
+    base_data = _Path(__file__).resolve().parent / "app" / "data"
+    backup_dir = base_data / "backups"
+    health_file = backup_dir / ".last_health_status.json"
+    status_file = backup_dir / ".last_backup_status.json"
+    drive_stamp = backup_dir / ".last_drive_sync"
+    lkg_dir = backup_dir / "last_known_good"
+
+    out = {
+        "status": "unknown",
+        "last_health_check": None,
+        "last_backup_run": None,
+        "ages": {},
+        "lkg_files": [],
+        "issues": [],
+        "lkg_summary": {"ok": 0, "missing": 0, "stub": 0, "corrupt": 0, "total_expected": 0},
+    }
+
+    # 1. Health status
+    if health_file.exists():
+        try:
+            out["last_health_check"] = json.loads(health_file.read_text())
+            out["status"] = out["last_health_check"].get("status", "unknown")
+            out["issues"] = out["last_health_check"].get("issues", [])
+        except Exception as e:
+            out["issues"].append(f"health_file_parse_error:{e}")
+
+    # 2. Backup run status
+    if status_file.exists():
+        try:
+            out["last_backup_run"] = json.loads(status_file.read_text())
+        except Exception as e:
+            out["issues"].append(f"status_file_parse_error:{e}")
+
+    # 3. Età ultimo backup hourly (cerca file più recente in hourly/)
+    import time as _time
+    now = int(_time.time())
+    hourly_dir = backup_dir / "hourly"
+    daily_dir = backup_dir / "daily"
+
+    def _newest_age_min(directory):
+        if not directory.exists():
+            return None
+        try:
+            files = list(directory.rglob("*"))
+            files = [f for f in files if f.is_file()]
+            if not files:
+                return None
+            newest = max(f.stat().st_mtime for f in files)
+            return int((now - newest) / 60)
+        except Exception:
+            return None
+
+    hm = _newest_age_min(hourly_dir)
+    dm = _newest_age_min(daily_dir)
+    out["ages"]["hourly_min"] = hm
+    out["ages"]["daily_h"] = (dm // 60) if dm is not None else None
+
+    # 4. Età ultimo Drive sync
+    if drive_stamp.exists():
+        try:
+            ts = int(drive_stamp.read_text().strip())
+            out["ages"]["drive_h"] = int((now - ts) / 3600)
+        except Exception:
+            out["ages"]["drive_h"] = None
+    else:
+        out["ages"]["drive_h"] = None
+
+    # 5. Lista file last_known_good
+    expected_files = [
+        "foodcost.db", "admin_finance.sqlite3", "vini.sqlite3",
+        "vini_magazzino.sqlite3", "vini_settings.sqlite3",
+        "dipendenti.sqlite3", "clienti.sqlite3",
+        "notifiche.sqlite3", "tasks.sqlite3", "bevande.sqlite3",
+        "users.json", "modules.json", "modules.runtime.json",
+        "modules.runtime.meta.json", "closures_config.json",
+    ]
+    out["lkg_summary"]["total_expected"] = len(expected_files)
+
+    if lkg_dir.exists():
+        for fname in expected_files:
+            f = lkg_dir / fname
+            if not f.exists():
+                out["lkg_summary"]["missing"] += 1
+                out["lkg_files"].append({
+                    "name": fname, "size_mb": 0.0, "age_h": None,
+                    "integrity_ok": False, "status": "missing",
+                })
+                continue
+            sz = f.stat().st_size
+            mb = round(sz / 1048576, 2)
+            age_h = int((now - f.stat().st_mtime) / 3600)
+            file_status = "ok"
+            integrity_ok = True
+            if sz < 8192 and not fname.endswith(".json"):
+                out["lkg_summary"]["stub"] += 1
+                file_status = "stub"
+                integrity_ok = False
+            elif sz < 20 and fname.endswith(".json"):
+                out["lkg_summary"]["stub"] += 1
+                file_status = "stub"
+                integrity_ok = False
+            else:
+                # Per i SQLite, faccio anche integrity_check
+                if not fname.endswith(".json"):
+                    try:
+                        import sqlite3
+                        conn = sqlite3.connect(f"file:{f}?mode=ro", uri=True, timeout=2)
+                        cur = conn.cursor()
+                        cur.execute("PRAGMA integrity_check;")
+                        result = cur.fetchone()
+                        if result and result[0] == "ok":
+                            out["lkg_summary"]["ok"] += 1
+                        else:
+                            out["lkg_summary"]["corrupt"] += 1
+                            file_status = "corrupt"
+                            integrity_ok = False
+                        conn.close()
+                    except Exception as e:
+                        out["lkg_summary"]["corrupt"] += 1
+                        file_status = f"error:{e}"
+                        integrity_ok = False
+                else:
+                    out["lkg_summary"]["ok"] += 1
+
+            out["lkg_files"].append({
+                "name": fname, "size_mb": mb, "age_h": age_h,
+                "integrity_ok": integrity_ok, "status": file_status,
+            })
+    else:
+        out["issues"].append("lkg_dir_not_found")
+
+    # Se non c'è health_file ma il backup è recente, deduco status
+    if out["status"] == "unknown":
+        if hm is not None and hm < 70 and out["lkg_summary"]["ok"] >= 8:
+            out["status"] = "healthy"
+        elif hm is None or hm > 24 * 60:
+            out["status"] = "unhealthy"
+            if hm is None:
+                out["issues"].append("no_hourly_backup_found")
+
+    return out
+
+
+# ──────────────────────────────────────────────────────────────
 # /locale/branding.json — config visivo del locale (R2, sessione 60)
 # Endpoint pubblico read-only consumato dal frontend al boot per applicare
 # palette/font/asset paths senza hardcoding TRGB-02 nel codice.

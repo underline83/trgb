@@ -411,9 +411,30 @@ rclone config
 # Nome remote: gdrive
 ```
 
+**Account Google da usare:**
+- Per Tre Gobbi (riferimento): `osteriatregobbi@gmail.com` (account dedicato).
+- Per nuovi clienti: **creare sempre un account Gmail DEDICATO al locale**
+  (es. `osteria<NOME>@gmail.com`, `ristorante<NOME>@gmail.com`).
+- **NON usare l'account personale del cliente** — l'account è proprietà del
+  backup, va consegnato al cliente come parte della licenza.
+- 15 GB free su Gmail sono sufficienti per anni di backup di un ristorante medio
+  (~30 MB / sync × 2 sync × 365 giorni = ~22 GB/anno se non si fa retention; con
+  rotazione 14 cartelle daily si resta sotto i 5 GB stabili).
+
+**Annotare credenziali** in vault sicuro (1Password/Bitwarden) come:
+- Voce: `Drive backup TRGB — <NOME LOCALE>`
+- Email: `<email>@gmail.com`
+- Password: `<scelta>`
+- 2FA: ATTIVARE OBBLIGATORIAMENTE
+- Note: account usato per `rclone config` su VPS, NON usare per altre cose
+
 Verifica:
 ```bash
 rclone ls gdrive: 2>&1 | head -5
+rclone about gdrive:
+# Email associata (estrae da access token):
+TOKEN=$(grep -oP '"access_token":"[^"]+' ~/.config/rclone/rclone.conf | cut -d'"' -f4)
+curl -s "https://www.googleapis.com/oauth2/v3/userinfo?access_token=$TOKEN"
 ```
 
 ### 8.2 Permessi rclone.conf

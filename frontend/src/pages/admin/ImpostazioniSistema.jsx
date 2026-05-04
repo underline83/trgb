@@ -589,6 +589,20 @@ function TabBackup() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // ── Health del sistema di backup post-incidente 4 mag 2026 ──
+  // Legge /system/backup-health (popolato da scripts/backup_db.sh v2 +
+  // check_backup_health.sh). Vedi docs/sicurezza_backup.md.
+  const [health, setHealth] = useState(null);
+  const [healthExpanded, setHealthExpanded] = useState(false);
+
+  async function loadHealth() {
+    try {
+      const res = await apiFetch(`${API_BASE}/system/backup-health`);
+      if (res.ok) setHealth(await res.json());
+    } catch (e) { /* silente, non bloccante */ }
+  }
+  useEffect(() => { loadHealth(); }, []);
+
   async function loadData() {
     setLoading(true);
     setError("");
@@ -683,6 +697,9 @@ function TabBackup() {
 
   return (
     <div className="space-y-8">
+
+      {/* ── HEALTH SISTEMA BACKUP (post-incidente 4 mag 2026) ── */}
+      {health && <BackupHealthCard health={health} expanded={healthExpanded} setExpanded={setHealthExpanded} onReload={loadHealth} />}
 
       {/* WARNING ETÀ BACKUP */}
       {backupAlert && (
@@ -779,6 +796,148 @@ function TabBackup() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BACKUP HEALTH CARD — dashboard visiva sistema backup post-incidente 4 mag 2026
+// Legge /system/backup-health (vedi main.py) e mostra:
+//  - Status badge generale (verde/giallo/rosso)
+//  - 4 mini-card: hourly, daily, drive, last_known_good
+//  - Tabella espandibile dei file LKG con dimensione/età/integrità
+//  - Lista issues attive
+// ---------------------------------------------------------------------------
+function BackupHealthCard({ health, expanded, setExpanded, onReload }) {
+  const statusColors = {
+    healthy:   { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-800", icon: "✅", label: "SISTEMA SANO" },
+    unhealthy: { bg: "bg-red-50",     border: "border-red-200",     text: "text-red-800",     icon: "🚨", label: "PROBLEMI RILEVATI" },
+    unknown:   { bg: "bg-amber-50",   border: "border-amber-200",   text: "text-amber-800",   icon: "⚠️", label: "STATO SCONOSCIUTO" },
+  };
+  const sc = statusColors[health.status] || statusColors.unknown;
+
+  const fmtAge = (val, unit) => {
+    if (val == null) return "—";
+    if (unit === "min" && val >= 60) return `${Math.floor(val / 60)}h ${val % 60}m fa`;
+    return `${val} ${unit} fa`;
+  };
+
+  // Mini-card colore: verde se entro soglia, ambra warning, rosso oltre
+  const ageBadge = (val, warnThr, errThr, unit) => {
+    if (val == null) return { color: "bg-red-100 text-red-700", text: "mai" };
+    if (val > errThr) return { color: "bg-red-100 text-red-700", text: fmtAge(val, unit) };
+    if (val > warnThr) return { color: "bg-amber-100 text-amber-700", text: fmtAge(val, unit) };
+    return { color: "bg-emerald-100 text-emerald-700", text: fmtAge(val, unit) };
+  };
+
+  const hourly = ageBadge(health.ages?.hourly_min, 70, 180, "min");
+  const daily  = ageBadge(health.ages?.daily_h, 12, 25, "h");
+  const drive  = ageBadge(health.ages?.drive_h, 12, 25, "h");
+  const lkg = health.lkg_summary || { ok: 0, total_expected: 0, missing: 0, stub: 0, corrupt: 0 };
+  const lkgOk = lkg.ok === lkg.total_expected && lkg.total_expected > 0;
+  const lkgBadge = lkgOk
+    ? { color: "bg-emerald-100 text-emerald-700", text: `${lkg.ok}/${lkg.total_expected} integri` }
+    : { color: "bg-red-100 text-red-700", text: `${lkg.ok}/${lkg.total_expected} OK · ${lkg.missing}M ${lkg.stub}S ${lkg.corrupt}C` };
+
+  return (
+    <div className={`${sc.bg} ${sc.border} border-2 rounded-2xl p-5`}>
+      {/* HEADER */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{sc.icon}</span>
+          <div>
+            <h3 className={`font-bold ${sc.text}`}>{sc.label}</h3>
+            <p className="text-xs text-neutral-600">Stato sistema backup post-incidente 4 mag 2026</p>
+          </div>
+        </div>
+        <button onClick={onReload} className="text-xs text-neutral-600 hover:text-neutral-800 underline">
+          ↻ Ricarica
+        </button>
+      </div>
+
+      {/* MINI CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+        <MiniCard icon="⏱" label="Backup orario"  badge={hourly} />
+        <MiniCard icon="📅" label="Backup daily"   badge={daily} />
+        <MiniCard icon="☁️" label="Drive sync"     badge={drive} />
+        <MiniCard icon="🛡" label="Last known good" badge={lkgBadge} />
+      </div>
+
+      {/* ISSUES */}
+      {health.issues?.length > 0 && (
+        <div className="bg-white/60 rounded-xl px-4 py-3 mb-3">
+          <p className="text-xs font-semibold text-neutral-700 mb-1">⚠️ Issues attive ({health.issues.length}):</p>
+          <ul className="text-xs text-neutral-700 space-y-0.5 list-disc list-inside">
+            {health.issues.map((iss, i) => <li key={i}>{iss}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {/* TOGGLE EXPANDED */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="text-xs text-neutral-600 hover:text-neutral-800 underline"
+      >
+        {expanded ? "▲ Nascondi dettaglio file" : "▼ Mostra dettaglio file last_known_good"}
+      </button>
+
+      {/* TABELLA FILE LKG */}
+      {expanded && health.lkg_files?.length > 0 && (
+        <div className="mt-3 bg-white rounded-xl overflow-hidden border border-neutral-200">
+          <table className="w-full text-xs">
+            <thead className="bg-neutral-50 text-neutral-600">
+              <tr>
+                <th className="text-left px-3 py-2 font-semibold">File</th>
+                <th className="text-right px-3 py-2 font-semibold">Dimensione</th>
+                <th className="text-right px-3 py-2 font-semibold">Età</th>
+                <th className="text-center px-3 py-2 font-semibold">Stato</th>
+              </tr>
+            </thead>
+            <tbody>
+              {health.lkg_files.map((f) => {
+                const ok = f.status === "ok";
+                return (
+                  <tr key={f.name} className="border-t border-neutral-100">
+                    <td className="px-3 py-1.5 font-mono">{f.name}</td>
+                    <td className="px-3 py-1.5 text-right text-neutral-600">
+                      {f.size_mb > 0 ? `${f.size_mb.toFixed(1)} MB` : "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-neutral-600">
+                      {f.age_h == null ? "—" : f.age_h < 1 ? "< 1h" : `${f.age_h}h`}
+                    </td>
+                    <td className="px-3 py-1.5 text-center">
+                      {ok
+                        ? <span className="text-emerald-600">✓</span>
+                        : <span className="text-red-600 font-mono">{f.status}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* TIMESTAMP ULTIMO CHECK */}
+      {health.last_health_check?.timestamp && (
+        <p className="text-xs text-neutral-500 mt-3">
+          Ultimo check: {health.last_health_check.timestamp}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MiniCard({ icon, label, badge }) {
+  return (
+    <div className="bg-white rounded-xl px-3 py-2.5 border border-neutral-200">
+      <div className="flex items-center gap-1.5 text-neutral-600 text-xs mb-1">
+        <span>{icon}</span>
+        <span>{label}</span>
+      </div>
+      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${badge.color}`}>
+        {badge.text}
+      </span>
     </div>
   );
 }
