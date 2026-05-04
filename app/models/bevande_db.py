@@ -1,4 +1,4 @@
-# @version: v1.1-bevande-wal-protected
+# @version: v1.2-birre-abbinamenti-gf
 # -*- coding: utf-8 -*-
 """
 Database Carta Bevande — TRGB Gestionale (sub-modulo del modulo Vini)
@@ -95,6 +95,8 @@ def init_bevande_db() -> None:
             ordine        INTEGER NOT NULL DEFAULT 100,
             attivo        INTEGER NOT NULL DEFAULT 1,
             note_interne  TEXT,                      -- visibili solo nel PDF-staff
+            abbinamenti   TEXT,                      -- (mig 106) suggerimento piatti consigliati (uso primario: birre)
+            gluten_free   INTEGER NOT NULL DEFAULT 0,-- (mig 106) flag 0/1 senza glutine (uso primario: birre)
             created_at    TEXT DEFAULT (datetime('now','localtime')),
             updated_at    TEXT DEFAULT (datetime('now','localtime'))
         )
@@ -138,7 +140,13 @@ _SCHEMA_FORM = {
             {"key": "formato",     "label": "Formato",            "type": "text", "placeholder": "33ml"},
             {"key": "gradazione",  "label": "Gradazione % alc",   "type": "number", "step": 0.1},
             {"key": "ibu",         "label": "IBU",                "type": "number"},
+            {"key": "gluten_free", "label": "Gluten free",        "type": "checkbox",
+             "help": "Spunta se la birra è senza glutine: comparirà un badge GF in carta."},
             {"key": "descrizione", "label": "Descrizione",        "type": "textarea", "rows": 3},
+            {"key": "abbinamenti", "label": "Abbinamenti consigliati",
+             "type": "textarea", "rows": 2,
+             "placeholder": "Hamburger, fish & chips, pizze rustiche…",
+             "help": "Suggerimenti dei piatti che si abbinano bene. Compaiono in carta sotto la descrizione."},
             {"key": "prezzo_eur",  "label": "Prezzo €",           "type": "number", "step": 0.5},
             {"key": "note_interne","label": "Note interne",       "type": "textarea", "rows": 2},
         ]

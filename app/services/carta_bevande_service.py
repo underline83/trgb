@@ -1,4 +1,4 @@
-# @version: v1.0-fase3-export
+# @version: v1.1-birre-abbinamenti-gf
 # -*- coding: utf-8 -*-
 """
 TRGB — Service Carta Bevande
@@ -199,7 +199,8 @@ def _render_tabella_4col(voci: list[dict[str, Any]], staff: bool) -> str:
 
 def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
     """
-    Scheda estesa: nome grande, riga meta (stile/formato/grad/IBU), descrizione,
+    Scheda estesa: nome grande, riga meta (stile/formato/grad/IBU + badge GF
+    se gluten_free=1), descrizione, riga "Abbinamenti consigliati" (se valorizzata),
     prezzo allineato a destra. Pensato per birre con più attributi.
     """
     if not voci:
@@ -214,14 +215,16 @@ def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
         grad = v.get("gradazione")
         ibu = v.get("ibu")
         desc = v.get("descrizione") or ""
+        abbinamenti = v.get("abbinamenti") or ""
+        is_gf = bool(v.get("gluten_free"))
         prezzo = _format_prezzo(v)
 
         # Riga meta: pezzi disponibili, separati da ·
+        # NB: il sottotitolo (= stile birra "IPA", "Stout"…) NON entra qui:
+        # ora ha un badge dedicato accanto al nome (mig 106, rifinitura grafica).
         meta_parts = []
         if produttore:
             meta_parts.append(_esc(produttore))
-        if sottotit:
-            meta_parts.append(f"<em>{_esc(sottotit)}</em>")
         if formato:
             meta_parts.append(_esc(formato))
         if grad not in (None, "", 0, 0.0):
@@ -236,10 +239,22 @@ def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
                 meta_parts.append(f"IBU {_esc(ibu)}")
         meta_line = " · ".join(meta_parts)
 
+        # Badge "stile" (sottotitolo) accanto al nome — pattern affine alle tisane.
+        # Rende visibile a colpo d'occhio la categoria della birra (IPA, Stout, ...).
+        style_badge = (
+            f"<span class='bev-scheda-style'>{_esc(sottotit)}</span>"
+            if sottotit else ""
+        )
+        # Badge GF accanto al nome — piccolo, dedicato.
+        gf_badge = (
+            "<span class='bev-scheda-gf' title='Senza glutine'>GF</span>"
+            if is_gf else ""
+        )
+
         out.append("<div class='bev-scheda-item'>")
         out.append(
             "<div class='bev-scheda-head'>"
-            f"<span class='bev-scheda-nome'>{_esc(nome)}</span>"
+            f"<span class='bev-scheda-nome'>{_esc(nome)}{style_badge}{gf_badge}</span>"
             f"<span class='bev-scheda-prezzo'>{_esc(prezzo)}</span>"
             "</div>"
         )
@@ -247,6 +262,13 @@ def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
             out.append(f"<div class='bev-scheda-meta'>{meta_line}</div>")
         if desc:
             out.append(f"<div class='bev-scheda-desc'>{_esc(desc)}</div>")
+        if abbinamenti:
+            out.append(
+                "<div class='bev-scheda-abbinamenti'>"
+                "<span class='bev-scheda-abbinamenti-label'>Si abbina con:</span> "
+                f"{_esc(abbinamenti)}"
+                "</div>"
+            )
         staff_html = _note_staff_block(v, staff)
         if staff_html:
             out.append(staff_html)
@@ -733,6 +755,12 @@ def build_carta_bevande_docx(logo_path=None, staff: bool = False) -> "Document":
                 rn = p.add_run(v.get("nome") or "")
                 rn.bold = True
                 rn.font.size = Pt(12)
+                # Badge GF (mig 106) accanto al nome se gluten_free=1
+                if v.get("gluten_free"):
+                    rgf = p.add_run("  GF")
+                    rgf.bold = True
+                    rgf.font.size = Pt(8)
+                    rgf.font.color.rgb = RGBColor(0x2E, 0xB8, 0x72)  # brand-green
                 prezzo = _format_prezzo(v)
                 if prezzo:
                     p.add_run("   ")
@@ -767,6 +795,21 @@ def build_carta_bevande_docx(logo_path=None, staff: bool = False) -> "Document":
                     pd.paragraph_format.space_after = Pt(6)
                     for r_ in pd.runs:
                         r_.font.size = Pt(10)
+
+                # Abbinamenti (mig 106) — paragrafo dedicato sotto la descrizione,
+                # con spazio extra sopra per staccarlo visivamente da nome+descrizione.
+                if v.get("abbinamenti"):
+                    pa = doc.add_paragraph()
+                    rl = pa.add_run("Si abbina con: ")
+                    rl.bold = True
+                    rl.font.size = Pt(9)
+                    rl.font.color.rgb = RGBColor(0x5A, 0x46, 0x34)
+                    rv = pa.add_run(v["abbinamenti"])
+                    rv.font.size = Pt(9)
+                    rv.italic = True
+                    rv.font.color.rgb = RGBColor(0x5A, 0x46, 0x34)
+                    pa.paragraph_format.space_before = Pt(4)
+                    pa.paragraph_format.space_after = Pt(6)
 
                 if staff and v.get("note_interne"):
                     ps = doc.add_paragraph(f"[STAFF] {v['note_interne']}")

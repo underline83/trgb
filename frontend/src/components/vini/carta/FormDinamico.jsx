@@ -1,16 +1,24 @@
-// @version: v1.1 — fix: accetta sia `f.name` che `f.key` come identificatore campo.
+// @version: v1.2 — aggiunto type "checkbox" (mig 106 birre: flag gluten_free).
+// v1.1 — fix: accetta sia `f.name` che `f.key` come identificatore campo.
 // Il seed backend usa `key` (app/models/bevande_db.py); prima il FE leggeva solo
 // `f.name` → tutti i campi condividevano chiave `undefined` nello state e
 // digitare in uno li compilava tutti. Ora uso `fieldId(f)` ovunque.
 //
 // Schema atteso (JSON): { fields: [ {key|name, label, type, required, options?, placeholder?, help?}, ... ] }
-// Tipi supportati: text, number, textarea, select
-// Persisto sempre stringhe a video; la normalizzazione number la fa il chiamante prima di POST.
+// Tipi supportati: text, number, textarea, select, checkbox
+// Persisto stringhe a video per text/number/textarea/select, boolean per checkbox.
+// La normalizzazione (number → float, checkbox → 0/1) è fatta dal chiamante
+// (CartaSezioneEditor.normalizeValues) prima di POST.
 
 import React from "react";
 
 // Helper: identificatore campo — preferisce `name`, cade su `key` (seed DB usa `key`)
 const fieldId = (f) => f?.name ?? f?.key;
+
+// Riconosce un valore "checked" sia in stato boolean (after click) sia in stato
+// stringa "1"/"0" (after openEdit che fa String(voce.gluten_free)).
+const isChecked = (v) =>
+  v === true || v === 1 || v === "1" || v === "true" || v === "on";
 
 export default function FormDinamico({ schema, values, onChange, errors = {} }) {
   if (!schema || !Array.isArray(schema.fields)) {
@@ -36,6 +44,41 @@ export default function FormDinamico({ schema, values, onChange, errors = {} }) 
           "focus:outline-none focus:ring-2 focus:ring-brand-blue/40 focus:border-brand-blue " +
           (err ? "border-red-400" : "border-neutral-300");
         const fullWidth = f.type === "textarea" || f.fullWidth;
+
+        // Checkbox ha layout proprio: label sulla destra dello switch, no input full-width
+        if (f.type === "checkbox") {
+          const checked = isChecked(val);
+          return (
+            <div key={id} className={fullWidth ? "md:col-span-2" : ""}>
+              <label
+                className={`flex items-start gap-2.5 px-3 py-2.5 rounded-lg border min-h-[44px] cursor-pointer transition select-none ${
+                  checked
+                    ? "bg-emerald-50 border-emerald-300"
+                    : "bg-white border-neutral-300 hover:bg-neutral-50"
+                } ${err ? "border-red-400" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 w-4 h-4 accent-brand-green"
+                  checked={checked}
+                  onChange={(e) => setField(id, e.target.checked)}
+                />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-neutral-800">
+                    {f.label || id}
+                    {f.required && <span className="text-red-500 ml-0.5">*</span>}
+                  </span>
+                  {f.help && !err && (
+                    <span className="block text-[11px] text-neutral-500 mt-0.5">{f.help}</span>
+                  )}
+                  {err && (
+                    <span className="block text-[11px] text-red-600 mt-0.5 font-semibold">{err}</span>
+                  )}
+                </span>
+              </label>
+            </div>
+          );
+        }
 
         return (
           <div key={id} className={fullWidth ? "md:col-span-2" : ""}>

@@ -1,4 +1,4 @@
-# @version: v1.1-fase3-export
+# @version: v1.2-birre-abbinamenti-gf
 # -*- coding: utf-8 -*-
 """
 Router Carta Bevande — TRGB Gestionale (sub-modulo Vini)
@@ -154,6 +154,9 @@ class VoceBase(BaseModel):
     ordine: Optional[int] = 100
     attivo: Optional[int] = Field(1, ge=0, le=1)
     note_interne: Optional[str] = None
+    # mig 106 — uso primario sezione 'birre', generico a livello DB
+    abbinamenti: Optional[str] = None
+    gluten_free: Optional[int] = Field(0, ge=0, le=1)
 
 
 class VoceUpdate(BaseModel):
@@ -175,6 +178,9 @@ class VoceUpdate(BaseModel):
     ordine: Optional[int] = None
     attivo: Optional[int] = Field(None, ge=0, le=1)
     note_interne: Optional[str] = None
+    # mig 106
+    abbinamenti: Optional[str] = None
+    gluten_free: Optional[int] = Field(None, ge=0, le=1)
 
 
 class VociReorder(BaseModel):
@@ -195,6 +201,9 @@ class BulkImportRow(BaseModel):
     paese_origine: Optional[str] = None
     prezzo_eur: Optional[float] = None
     prezzo_label: Optional[str] = None
+    # mig 106
+    abbinamenti: Optional[str] = None
+    gluten_free: Optional[int] = Field(None, ge=0, le=1)
 
 
 class BulkImport(BaseModel):
@@ -349,6 +358,8 @@ _VOCE_FIELDS = [
     "sezione_key", "nome", "sottotitolo", "descrizione", "produttore", "regione",
     "formato", "gradazione", "ibu", "tipologia", "paese_origine",
     "prezzo_eur", "prezzo_label", "tags", "extra", "ordine", "attivo", "note_interne",
+    # mig 106
+    "abbinamenti", "gluten_free",
 ]
 
 
@@ -515,7 +526,8 @@ def bulk_import_voci(payload: BulkImport, user: dict = Depends(get_current_user)
         cols = [
             "sezione_key", "nome", "sottotitolo", "descrizione", "produttore", "regione",
             "formato", "gradazione", "ibu", "tipologia", "paese_origine",
-            "prezzo_eur", "prezzo_label", "ordine", "attivo",
+            "prezzo_eur", "prezzo_label", "abbinamenti", "gluten_free",
+            "ordine", "attivo",
         ]
         placeholders = ", ".join("?" for _ in cols)
         cols_sql = ", ".join(cols)
@@ -532,6 +544,8 @@ def bulk_import_voci(payload: BulkImport, user: dict = Depends(get_current_user)
                     r.sottotitolo, r.descrizione, r.produttore, r.regione,
                     r.formato, r.gradazione, r.ibu, r.tipologia, r.paese_origine,
                     r.prezzo_eur, r.prezzo_label,
+                    r.abbinamenti,
+                    int(r.gluten_free or 0),
                     base + i * 10,
                     1,
                 ),

@@ -470,6 +470,48 @@ html, body {
     color: #2b2118;
     margin-top: 2pt;
 }
+/* Badge stile birra — mig 106 */
+.bev-scheda-style {
+    display: inline-block;
+    margin-left: 6pt;
+    padding: 0.5pt 6pt;
+    border-radius: 999pt;
+    background: #efe6d6;
+    color: #5a4634;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+/* Badge "GF" — mig 106 */
+.bev-scheda-gf {
+    display: inline-block;
+    margin-left: 5pt;
+    padding: 0.5pt 4pt;
+    border-radius: 7pt;
+    background: #2EB872;
+    color: #ffffff;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+}
+/* Riga abbinamenti — mig 106 */
+/* Stacco visivo (border-top punteggiato + spazio) per separare il blocco */
+/* nome+descrizione dal suggerimento di abbinamento (richiesta Marco 2026-05-04). */
+.bev-scheda-abbinamenti {
+    font-size: 10pt;
+    color: #5a4634;
+    margin-top: 7pt;
+    padding-top: 4pt;
+    border-top: 0.4pt dotted #e6dcc4;
+    font-style: italic;
+}
+.bev-scheda-abbinamenti-label {
+    font-style: normal;
+    font-weight: 700;
+}
 
 /* Pattern C — nome + badge + desc */
 .bev-badge-item {
