@@ -1,5 +1,6 @@
 // frontend/src/pages/public/CartaClienti.jsx
-// @version: v2.0 — sessione 58 fase 2 iter 4 (2026-04-25)
+// @version: v2.1 — birre: badge stile + GF + abbinamenti + legenda (mig 106, 2026-05-04)
+// v2.0 — sessione 58 fase 2 iter 4 (2026-04-25)
 //
 // Pagina pubblica della Carta Vini & Bevande per il cliente al tavolo (QR).
 // Identita' Osteria Tre Gobbi (Cormorant Garamond, palette beige/marrone).
@@ -307,10 +308,72 @@ const STYLE = `
 .cc-bev-scheda:last-child { border-bottom: none; }
 .cc-bev-scheda-head { display: flex; justify-content: space-between; align-items: baseline; gap: 11px; }
 .cc-bev-scheda-nome { font-size: 17px; font-weight: 700; color: #2b2118; }
-.cc-bev-scheda-sottotit { font-size: 13px; font-style: italic; color: #5a4634; margin-left: 4px; font-weight: 400; }
 .cc-bev-scheda-prezzo { font-weight: 700; color: #2b2118; white-space: nowrap; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .cc-bev-scheda-meta { font-size: 13px; color: #5a4634; margin-top: 1px; }
 .cc-bev-scheda-desc { font-size: 14px; color: #2b2118; margin-top: 3px; line-height: 1.5; }
+/* Badge stile birra (IPA, Stout, ...) — allineato al PDF (mig 106) */
+.cc-bev-scheda-style {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #efe6d6;
+  color: #5a4634;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+/* Badge GF (gluten free) — allineato al PDF (mig 106) */
+.cc-bev-scheda-gf {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: #2EB872;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+}
+/* Riga "Si abbina con: …" sotto la descrizione — allineato al PDF (mig 106) */
+.cc-bev-scheda-abbinamenti {
+  font-size: 13px;
+  color: #5a4634;
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px dotted #e6dcc4;
+  font-style: italic;
+  line-height: 1.45;
+}
+.cc-bev-scheda-abbinamenti-label {
+  font-style: normal;
+  font-weight: 700;
+}
+/* Legenda GF in coda alla sezione — allineata al PDF (mig 106) */
+.cc-bev-legenda {
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid #e6dcc4;
+  font-size: 12px;
+  color: #7a6b5a;
+  font-style: italic;
+  text-align: right;
+}
+.cc-bev-legenda-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 3px;
+  border-radius: 9px;
+  background: #2EB872;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-style: normal;
+}
 
 /* Pattern C: nome + badge + desc (tisane, te) */
 .cc-bev-badge-item { padding: 8px 4px; border-bottom: 1px dotted #d8c8a8; }
@@ -892,29 +955,55 @@ function BevTabella4Col({ voci }) {
 }
 
 // Pattern B — scheda estesa
+// Allineato al PDF (mig 106): il sottotitolo (stile birra) compare come badge
+// ambra accanto al nome, il flag gluten_free come pillola verde "GF", e gli
+// abbinamenti consigliati come riga staccata sotto la descrizione.
+// In coda alla sezione, se c'è almeno una voce GF, una piccola legenda.
 function BevSchedaEstesa({ voci }) {
-  return voci.map(v => {
-    const meta = [
-      v.produttore,
-      v.regione,
-      v.formato,
-      v.gradazione != null ? `${v.gradazione}%` : null,
-      v.ibu != null ? `IBU ${v.ibu}` : null,
-    ].filter(Boolean).join(" · ");
-    return (
-      <div key={v.id} className="cc-bev-scheda">
-        <div className="cc-bev-scheda-head">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span className="cc-bev-scheda-nome">{v.nome}</span>
-            {v.sottotitolo && <span className="cc-bev-scheda-sottotit"> · {v.sottotitolo}</span>}
+  const haGF = voci.some(v => !!v.gluten_free);
+  return (
+    <>
+      {voci.map(v => {
+        // Sottotitolo NON entra più in meta: ora ha badge dedicato.
+        const meta = [
+          v.produttore,
+          v.regione,
+          v.formato,
+          v.gradazione != null ? `${v.gradazione}%` : null,
+          v.ibu != null ? `IBU ${v.ibu}` : null,
+        ].filter(Boolean).join(" · ");
+        return (
+          <div key={v.id} className="cc-bev-scheda">
+            <div className="cc-bev-scheda-head">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span className="cc-bev-scheda-nome">{v.nome}</span>
+                {v.sottotitolo && (
+                  <span className="cc-bev-scheda-style">{v.sottotitolo}</span>
+                )}
+                {v.gluten_free && (
+                  <span className="cc-bev-scheda-gf" title="Senza glutine">GF</span>
+                )}
+              </div>
+              {fmtPrezzoBev(v) && <div className="cc-bev-scheda-prezzo">{fmtPrezzoBev(v)}</div>}
+            </div>
+            {meta && <div className="cc-bev-scheda-meta">{meta}</div>}
+            {v.descrizione && <div className="cc-bev-scheda-desc">{v.descrizione}</div>}
+            {v.abbinamenti && (
+              <div className="cc-bev-scheda-abbinamenti">
+                <span className="cc-bev-scheda-abbinamenti-label">Si abbina con:</span>{" "}
+                {v.abbinamenti}
+              </div>
+            )}
           </div>
-          {fmtPrezzoBev(v) && <div className="cc-bev-scheda-prezzo">{fmtPrezzoBev(v)}</div>}
+        );
+      })}
+      {haGF && (
+        <div className="cc-bev-legenda">
+          <span className="cc-bev-legenda-tag">GF</span> = senza glutine
         </div>
-        {meta && <div className="cc-bev-scheda-meta">{meta}</div>}
-        {v.descrizione && <div className="cc-bev-scheda-desc">{v.descrizione}</div>}
-      </div>
-    );
-  });
+      )}
+    </>
+  );
 }
 
 // Pattern C — nome + badge + descrizione (tisane / tè)

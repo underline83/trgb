@@ -256,6 +256,8 @@ def get_carta_cliente_data():
             "produttore", "regione", "formato", "gradazione",
             "ibu", "tipologia", "paese_origine",
             "prezzo_eur", "prezzo_label", "tags",
+            # mig 106 — campi aggiunti per la sezione birre (visibili al cliente)
+            "abbinamenti", "gluten_free",
         )
         for s in _bev_sezioni():
             if s.get("key") == "vini" and s.get("layout") == "vini_dinamico":
