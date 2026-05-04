@@ -54,6 +54,7 @@ class TaglioIn(BaseModel):
     stagionatura: Optional[str] = Field(default=None, max_length=100)
     latte: Optional[str] = Field(default=None, max_length=60)
     territorio: Optional[str] = Field(default=None, max_length=200)
+    paese: Optional[str] = Field(default=None, max_length=60)
     descrizione: Optional[str] = None
     note: Optional[str] = None
 
@@ -68,6 +69,7 @@ class TaglioOut(BaseModel):
     stagionatura: Optional[str] = None
     latte: Optional[str] = None
     territorio: Optional[str] = None
+    paese: Optional[str] = None
     descrizione: Optional[str] = None
     note: Optional[str]
     attivo: bool = True
@@ -121,7 +123,29 @@ def _row_taglio(row) -> dict:
     d["attivo"] = bool(d.get("attivo", 1)) if "attivo" in d else True
     if "archiviato_at" not in d:
         d["archiviato_at"] = None
+    # `paese` arriva dalla mig 107; fallback difensivo se la mig non è ancora
+    # girata sul DB locale corrente.
+    if "paese" not in d:
+        d["paese"] = None
     return d
+
+
+def _has_paese_column(conn) -> bool:
+    """
+    Detect a runtime se la colonna paese esiste su formaggi_tagli (mig 107).
+    Pattern preventivo per evitare INSERT/UPDATE che falliscono se la mig
+    non è ancora stata applicata sul DB attuale.
+    """
+    try:
+        cols = conn.execute("PRAGMA table_info(formaggi_tagli)").fetchall()
+        for c in cols:
+            # PRAGMA table_info colonna 1 = name
+            name = c[1] if not isinstance(c, dict) else c.get("name")
+            if name == "paese":
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def _row_categoria(row) -> dict:
@@ -196,20 +220,37 @@ def crea_taglio(data: TaglioIn):
     conn = get_cucina_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
-        cur = conn.execute("""
-            INSERT INTO formaggi_tagli
-              (nome, categoria, grammatura_g, prezzo_euro,
-               produttore, stagionatura, latte, territorio,
-               descrizione, note, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            data.nome.strip(), _clean(data.categoria), data.grammatura_g,
-            data.prezzo_euro,
-            _clean(data.produttore), _clean(data.stagionatura),
-            _clean(data.latte), _clean(data.territorio),
-            _clean(data.descrizione), _clean(data.note),
-            now, now,
-        ))
+        if _has_paese_column(conn):
+            cur = conn.execute("""
+                INSERT INTO formaggi_tagli
+                  (nome, categoria, grammatura_g, prezzo_euro,
+                   produttore, stagionatura, latte, territorio, paese,
+                   descrizione, note, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
+                data.prezzo_euro,
+                _clean(data.produttore), _clean(data.stagionatura),
+                _clean(data.latte), _clean(data.territorio), _clean(data.paese),
+                _clean(data.descrizione), _clean(data.note),
+                now, now,
+            ))
+        else:
+            # Fallback se la mig 107 non è ancora stata applicata
+            cur = conn.execute("""
+                INSERT INTO formaggi_tagli
+                  (nome, categoria, grammatura_g, prezzo_euro,
+                   produttore, stagionatura, latte, territorio,
+                   descrizione, note, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
+                data.prezzo_euro,
+                _clean(data.produttore), _clean(data.stagionatura),
+                _clean(data.latte), _clean(data.territorio),
+                _clean(data.descrizione), _clean(data.note),
+                now, now,
+            ))
         conn.commit()
         row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (cur.lastrowid,)).fetchone()
         return _row_taglio(row)
@@ -226,20 +267,36 @@ def modifica_taglio(taglio_id: int, data: TaglioIn):
         if not existing:
             raise HTTPException(404, "Formaggio non trovato")
         now = datetime.now().isoformat(timespec="seconds")
-        conn.execute("""
-            UPDATE formaggi_tagli
-            SET nome = ?, categoria = ?, grammatura_g = ?, prezzo_euro = ?,
-                produttore = ?, stagionatura = ?, latte = ?, territorio = ?,
-                descrizione = ?, note = ?, updated_at = ?
-            WHERE id = ?
-        """, (
-            data.nome.strip(), _clean(data.categoria), data.grammatura_g,
-            data.prezzo_euro,
-            _clean(data.produttore), _clean(data.stagionatura),
-            _clean(data.latte), _clean(data.territorio),
-            _clean(data.descrizione), _clean(data.note),
-            now, taglio_id,
-        ))
+        if _has_paese_column(conn):
+            conn.execute("""
+                UPDATE formaggi_tagli
+                SET nome = ?, categoria = ?, grammatura_g = ?, prezzo_euro = ?,
+                    produttore = ?, stagionatura = ?, latte = ?, territorio = ?, paese = ?,
+                    descrizione = ?, note = ?, updated_at = ?
+                WHERE id = ?
+            """, (
+                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
+                data.prezzo_euro,
+                _clean(data.produttore), _clean(data.stagionatura),
+                _clean(data.latte), _clean(data.territorio), _clean(data.paese),
+                _clean(data.descrizione), _clean(data.note),
+                now, taglio_id,
+            ))
+        else:
+            conn.execute("""
+                UPDATE formaggi_tagli
+                SET nome = ?, categoria = ?, grammatura_g = ?, prezzo_euro = ?,
+                    produttore = ?, stagionatura = ?, latte = ?, territorio = ?,
+                    descrizione = ?, note = ?, updated_at = ?
+                WHERE id = ?
+            """, (
+                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
+                data.prezzo_euro,
+                _clean(data.produttore), _clean(data.stagionatura),
+                _clean(data.latte), _clean(data.territorio),
+                _clean(data.descrizione), _clean(data.note),
+                now, taglio_id,
+            ))
         conn.commit()
         row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         return _row_taglio(row)

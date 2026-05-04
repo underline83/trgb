@@ -103,6 +103,9 @@ from app.routers.scelta_formaggi_router import router as scelta_formaggi_router
 # SCELTA DEL PESCATO — pesce/crostacei/molluschi (sessione 50, refactor "Selezioni del Giorno")
 from app.routers.scelta_pescato_router import router as scelta_pescato_router
 
+# PIATTI DEL GIORNO — 5a zona di "Selezioni del Giorno" (mig 107)
+from app.routers.piatti_giorno_router import router as piatti_giorno_router
+
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
@@ -483,6 +486,7 @@ _mount("scelta_macellaio_router", scelta_macellaio_router)
 _mount("scelta_salumi_router", scelta_salumi_router)
 _mount("scelta_formaggi_router", scelta_formaggi_router)
 _mount("scelta_pescato_router", scelta_pescato_router)
+_mount("piatti_giorno_router", piatti_giorno_router)
 
 # FATTURE IN CLOUD (modulo acquisti)
 _mount("fattureincloud_router", fattureincloud_router.router)

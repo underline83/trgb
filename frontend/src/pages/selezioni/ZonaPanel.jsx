@@ -3,7 +3,7 @@
 // Guidato da ZONA_CONFIG (endpoint + campi extra + modello stato)
 // ============================================================
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn } from "../../components/ui";
 import { ZONA_CONFIG } from "./zonaConfig";
@@ -18,8 +18,12 @@ export default function ZonaPanel({ zona }) {
   const cfg = ZONA_CONFIG[zona];
   if (!cfg) return <div className="p-6 text-sm text-neutral-500">Zona sconosciuta: {zona}</div>;
 
-  // Per salumi/formaggi: niente grammatura/prezzo in UI
-  const showPesoPrezzo = cfg.stato === "venduto";
+  // Per salumi/formaggi: niente grammatura/prezzo in UI.
+  // Override esplicito tramite cfg.showPesoPrezzo (true/false), altrimenti
+  // default basato sul tipo di stato (venduto → mostra peso/prezzo).
+  const showPesoPrezzo = (typeof cfg.showPesoPrezzo === "boolean")
+    ? cfg.showPesoPrezzo
+    : cfg.stato === "venduto";
   // Stato "attivo" → filtro "attivi/archiviati/tutti"
   // Stato "venduto" → filtro "disponibili/venduti/tutti"
   const filtroOptions = cfg.stato === "attivo"
@@ -285,6 +289,17 @@ export default function ZonaPanel({ zona }) {
                     onChange={e => setForm(f => ({ ...f, [c.name]: e.target.value }))}
                     className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-blue focus:border-brand-blue"
                   />
+                ) : Array.isArray(c.options) ? (
+                  <select
+                    value={form[c.name] || ""}
+                    onChange={e => setForm(f => ({ ...f, [c.name]: e.target.value }))}
+                    className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-brand-blue focus:border-brand-blue"
+                  >
+                    <option value="">— {c.placeholder || c.label} —</option>
+                    {c.options.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                 ) : (
                   <input
                     type="text"
@@ -326,75 +341,137 @@ export default function ZonaPanel({ zona }) {
         <div className="text-sm text-neutral-400 italic border border-dashed border-neutral-200 rounded-xl p-6 text-center">
           Nessun elemento per questo filtro.
         </div>
-      ) : (
-        <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-left">Categoria</th>
-                {showPesoPrezzo && <th className="px-3 py-2 text-right">Peso</th>}
-                {showPesoPrezzo && <th className="px-3 py-2 text-right">€</th>}
-                {(cfg.campiExtra || [])
-                  .filter(c => !c.textarea)
-                  .slice(0, 2)
-                  .map(c => <th key={c.name} className="px-3 py-2 text-left">{c.label}</th>)}
-                <th className="px-3 py-2 text-center">Stato</th>
-                <th className="px-3 py-2 text-right">Azioni</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {tagli.map(t => {
-                const archiv = isArchiviato(t);
-                return (
-                  <tr key={t.id} className={archiv ? "bg-neutral-50 opacity-70" : ""}>
-                    <td className="px-3 py-2 font-medium text-neutral-800">
-                      {t.nome}
-                      {t.descrizione && (
-                        <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">{t.descrizione}</div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-neutral-600">{t.categoria || "—"}</td>
-                    {showPesoPrezzo && <td className="px-3 py-2 text-right font-mono text-xs">{t.grammatura_g ? `${t.grammatura_g} g` : "—"}</td>}
-                    {showPesoPrezzo && <td className="px-3 py-2 text-right font-mono text-xs">{t.prezzo_euro != null ? `€ ${Number(t.prezzo_euro).toFixed(2)}` : "—"}</td>}
-                    {(cfg.campiExtra || [])
-                      .filter(c => !c.textarea)
-                      .slice(0, 2)
-                      .map(c => <td key={c.name} className="px-3 py-2 text-neutral-600">{t[c.name] || "—"}</td>)}
-                    <td className="px-3 py-2 text-center">
-                      {cfg.stato === "attivo" ? (
-                        <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 border ${
-                          archiv ? "bg-neutral-100 text-neutral-500 border-neutral-200" : cfg.accent.badge
-                        }`}>
-                          {archiv ? "ARCHIVIO" : "IN CARTA"}
-                        </span>
-                      ) : (
-                        <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 border ${
-                          archiv ? "bg-neutral-100 text-neutral-500 border-neutral-200" : cfg.accent.badge
-                        }`}>
-                          {archiv ? "VENDUTO" : "DISPONIBILE"}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-end gap-1">
-                        <Btn variant="secondary" size="sm" onClick={() => handleToggleStato(t)}>
-                          {cfg.stato === "attivo"
-                            ? (archiv ? "↻ Riattiva" : "📦 Archivia")
-                            : (archiv ? "↻ Ripristina" : "✓ Venduto")
-                          }
-                        </Btn>
-                        <Btn variant="secondary" size="sm" onClick={() => handleEdit(t)}>Modifica</Btn>
-                        <Btn variant="secondary" size="sm" tone="danger" onClick={() => handleDelete(t.id)}>Elimina</Btn>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      ) : (() => {
+        // ── Raggruppamento opzionale per cfg.raggruppaPer (es. formaggi → paese) ──
+        const colCount = 2 + (showPesoPrezzo ? 2 : 0)
+          + Math.min(2, (cfg.campiExtra || []).filter(c => !c.textarea).length)
+          + 2; // stato + azioni
+
+        const renderRow = (t) => {
+          const archiv = isArchiviato(t);
+          return (
+            <tr key={t.id} className={archiv ? "bg-neutral-50 opacity-70" : ""}>
+              <td className="px-3 py-2 font-medium text-neutral-800">
+                {t.nome}
+                {t.descrizione && (
+                  <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">{t.descrizione}</div>
+                )}
+              </td>
+              <td className="px-3 py-2 text-neutral-600">{t.categoria || "—"}</td>
+              {showPesoPrezzo && <td className="px-3 py-2 text-right font-mono text-xs">{t.grammatura_g ? `${t.grammatura_g} g` : "—"}</td>}
+              {showPesoPrezzo && <td className="px-3 py-2 text-right font-mono text-xs">{t.prezzo_euro != null ? `€ ${Number(t.prezzo_euro).toFixed(2)}` : "—"}</td>}
+              {(cfg.campiExtra || [])
+                .filter(c => !c.textarea)
+                .slice(0, 2)
+                .map(c => <td key={c.name} className="px-3 py-2 text-neutral-600">{t[c.name] || "—"}</td>)}
+              <td className="px-3 py-2 text-center">
+                {cfg.stato === "attivo" ? (
+                  <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 border ${
+                    archiv ? "bg-neutral-100 text-neutral-500 border-neutral-200" : cfg.accent.badge
+                  }`}>
+                    {archiv ? "ARCHIVIO" : "IN CARTA"}
+                  </span>
+                ) : (
+                  <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 border ${
+                    archiv ? "bg-neutral-100 text-neutral-500 border-neutral-200" : cfg.accent.badge
+                  }`}>
+                    {archiv ? "VENDUTO" : "DISPONIBILE"}
+                  </span>
+                )}
+              </td>
+              <td className="px-3 py-2">
+                <div className="flex items-center justify-end gap-1">
+                  <Btn variant="secondary" size="sm" onClick={() => handleToggleStato(t)}>
+                    {cfg.stato === "attivo"
+                      ? (archiv ? "↻ Riattiva" : "📦 Archivia")
+                      : (archiv ? "↻ Ripristina" : "✓ Venduto")
+                    }
+                  </Btn>
+                  <Btn variant="secondary" size="sm" onClick={() => handleEdit(t)}>Modifica</Btn>
+                  <Btn variant="secondary" size="sm" tone="danger" onClick={() => handleDelete(t.id)}>Elimina</Btn>
+                </div>
+              </td>
+            </tr>
+          );
+        };
+
+        // Header colonne (riusato in entrambi i rami)
+        const tableHead = (
+          <thead className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
+            <tr>
+              <th className="px-3 py-2 text-left">Nome</th>
+              <th className="px-3 py-2 text-left">Categoria</th>
+              {showPesoPrezzo && <th className="px-3 py-2 text-right">Peso</th>}
+              {showPesoPrezzo && <th className="px-3 py-2 text-right">€</th>}
+              {(cfg.campiExtra || [])
+                .filter(c => !c.textarea)
+                .slice(0, 2)
+                .map(c => <th key={c.name} className="px-3 py-2 text-left">{c.label}</th>)}
+              <th className="px-3 py-2 text-center">Stato</th>
+              <th className="px-3 py-2 text-right">Azioni</th>
+            </tr>
+          </thead>
+        );
+
+        // Caso A: nessun raggruppamento → tabella flat (comportamento storico)
+        if (!cfg.raggruppaPer) {
+          return (
+            <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
+              <table className="w-full text-sm">
+                {tableHead}
+                <tbody className="divide-y divide-neutral-100">
+                  {tagli.map(renderRow)}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        // Caso B: raggruppamento per campo (es. paese per formaggi).
+        // Ordina i gruppi: prima quelli noti dalla emojiMap (Italia, Francia),
+        // poi gli altri alfabetici, infine "Senza <label>" alla fine.
+        const { campo, label: gruppoLabel, emojiMap = {} } = cfg.raggruppaPer;
+        const PLACEHOLDER = `Senza ${gruppoLabel || campo}`;
+        const buckets = new Map();
+        tagli.forEach(t => {
+          const key = (t[campo] && String(t[campo]).trim()) || PLACEHOLDER;
+          if (!buckets.has(key)) buckets.set(key, []);
+          buckets.get(key).push(t);
+        });
+        const noti = Object.keys(emojiMap);
+        const ordered = [];
+        noti.forEach(k => { if (buckets.has(k)) ordered.push(k); });
+        Array.from(buckets.keys())
+          .filter(k => !noti.includes(k) && k !== PLACEHOLDER)
+          .sort((a, b) => a.localeCompare(b, "it"))
+          .forEach(k => ordered.push(k));
+        if (buckets.has(PLACEHOLDER)) ordered.push(PLACEHOLDER);
+
+        return (
+          <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
+            <table className="w-full text-sm">
+              {tableHead}
+              <tbody className="divide-y divide-neutral-100">
+                {ordered.map(key => {
+                  const rows = buckets.get(key);
+                  const emoji = emojiMap[key] || "";
+                  return (
+                    <React.Fragment key={key}>
+                      <tr className="bg-neutral-50">
+                        <td colSpan={colCount} className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700">
+                          {emoji ? `${emoji} ` : ""}{key}
+                          <span className="ml-2 text-neutral-400 font-normal normal-case tracking-normal">· {rows.length}</span>
+                        </td>
+                      </tr>
+                      {rows.map(renderRow)}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       {/* TOAST */}
       {toast && (

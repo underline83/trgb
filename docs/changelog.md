@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-05-04 — Selezioni: 5a zona Piatti del giorno + paese formaggi + widget salumi mostra prodotti
+
+### Aggiunto
+- **Selezioni → 5a tab "Piatti del giorno"**: gestione piatti speciali del giorno con stato attivo/archivio (tabella `piatti_giorno` + categorie configurabili). 6 categorie seed: Antipasto, Primo, Secondo, Contorno, Dolce, Speciale. Endpoint `/piatti-giorno/`. Mig 107.
+- **Formaggi → categoria madre Paese**: nuovo campo `paese` (Italia/Francia/Altro) sui formaggi. UI: dropdown nel form, raggruppamento gerarchico in tabella ("🇮🇹 Italia" → Vaccino/Caprino/…, idem Francia). Le categorie figlie (Vaccino, Caprino, Ovino, Misto) restano condivise tra i due paesi. Mig 107 ALTER TABLE idempotente.
+- **ZonaPanel**: supporto generico per (a) `campiExtra[].options` → select; (b) `cfg.raggruppaPer` → raggruppamento tabella per campo; (c) `cfg.showPesoPrezzo` come override esplicito.
+
+### Cambiato
+- **Widget Selezioni in Home**: per zone Salumi e Formaggi (`stato === "attivo"`) il mini-blocco mostra ora i NOMI dei prodotti (primi 3) invece di "categoria · count". Per Macellaio e Pescato resta la preview categorie con count (più sensata data la varietà). Versione widget v1.1.
+
+### Versioni
+- `VERSION`: 5.11 → 5.12
+- modulo `selezioni`: 1.0 → 1.1
+
+---
+
 ## 2026-05-02 — Refactor monorepo CONCLUSO (R1→R8c)
 
 Refactor strategico per separare prodotto vendibile (`core/`) da personalizzazioni Tre Gobbi (`locali/tregobbi/`). 11 sessioni in 5 settimane, deploy incrementale senza downtime sul ristorante. **Risultato: TRGB è ora un monolite modulare con feature flags per locale, pronto per primo cliente paying.**

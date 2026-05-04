@@ -1,6 +1,60 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-02 (sessione R8b+R8c — module loader backend + filtro menu frontend)
+**Ultimo aggiornamento:** 2026-05-04 (sessione: Selezioni — Piatti del giorno + paese formaggi + widget salumi mostra prodotti)
+
+---
+
+## SESSIONE 2026-05-04 — Selezioni: 5a zona Piatti del giorno + categoria madre paese formaggi + widget salumi mostra prodotti
+
+### Cosa ha chiesto Marco
+1. Aggiungere sezione "Piatti del giorno" dentro Selezioni (separata, ma 5a tab della pagina).
+2. Nel widget Salumi della Home mostrare i nomi dei prodotti, non i totali per categoria.
+3. Nei Formaggi aggiungere "Formaggi Italiani" e "Formaggi Francesi" come categoria madre, dentro le quali stanno le categorie figlie esistenti (Vaccino, Caprino, Ovino, Misto).
+
+### Cosa è stato fatto
+
+#### A) Piatti del Giorno (5a zona di Selezioni) — `[mixed]`
+- **mig 107** crea `piatti_giorno`, `piatti_giorno_categorie`, `piatti_giorno_config` (pattern salumi). Seed 6 categorie generiche: Antipasto / Primo / Secondo / Contorno / Dolce / Speciale.
+- **router** `app/routers/piatti_giorno_router.py` — CRUD + categorie + config (gemello di `scelta_salumi_router.py`). Prefix `/piatti-giorno/`. Stato attivo/archivio.
+- **main.py** importa e monta il router via `_mount("piatti_giorno_router", piatti_giorno_router)`. Backward-compat: nessun module.json esplicito → loader default-attivo.
+- **frontend** `zonaConfig.js` aggiunge zona `"piatti-giorno"` con icona 🍽️, accent verde-emerald, `showPesoPrezzo: true` (override esplicito perché stato="attivo" ma il prezzo serve), descrizione textarea. `ZONA_ORDER` esteso da 4 a 5 zone.
+- **`SelezioniDelGiorno.jsx`** non tocca nulla: la sidebar legge `ZONA_ORDER` e `ZONA_CONFIG` → la 5a tab compare automaticamente. Stesso `ZonaPanel` riusato.
+
+#### B) Widget Salumi/Formaggi mostra prodotti — `[core]`
+- **`SelezioniCard.jsx` v1.1**: per zone `stato === "attivo"` (Salumi, Formaggi) il mini-blocco appiattisce `categorie[].tagli[]` e mostra i primi 3 NOMI dei prodotti. Per zone `stato === "venduto"` (Macellaio, Pescato) resta la preview categoria + count come prima (perché ce ne sono tanti per categoria, l'aggregato ha più senso).
+- Niente modifiche backend: `dashboard_router._salumi_widget` e `_formaggi_widget` già passano 2 tagli per categoria → il widget Home ne mostra 3 totali appiattendo, OK.
+
+#### C) Categoria madre paese sui Formaggi — `[core]`
+- **mig 107** ALTER TABLE `formaggi_tagli` ADD COLUMN `paese` TEXT (idempotente, NULL ammesso). Indice `idx_formaggi_paese`.
+- **`scelta_formaggi_router.py`**: aggiunto `paese` in `TaglioIn`/`TaglioOut`. Helper `_has_paese_column()` per detect a runtime (pattern preventivo dal feedback "schema_drift_legacy_columns" in memoria). INSERT/UPDATE branchano in base alla colonna presente, fallback graceful se mig 107 non ancora applicata.
+- **`zonaConfig.js`** formaggi: nuovo campo extra `paese` come SELECT (Italia 🇮🇹, Francia 🇫🇷, Altro), e `raggruppaPer: { campo: "paese", label: "Paese", emojiMap }`.
+- **`ZonaPanel.jsx`**:
+  - supporto generico per `campiExtra[].options` → renderizza `<select>` invece di `<input>`.
+  - supporto generico per `cfg.raggruppaPer` → la tabella raggruppa le righe per il campo indicato, con header di gruppo (es. "🇮🇹 Italia · 5"). Ordering: prima i valori noti dell'emojiMap, poi gli altri alfabetici, infine "Senza paese" alla fine.
+  - supporto generico per `cfg.showPesoPrezzo` come override esplicito.
+
+### File creati
+- `app/migrations/107_piatti_giorno_e_formaggi_paese.py` (3 tabelle nuove + 1 ADD COLUMN, idempotente)
+- `app/routers/piatti_giorno_router.py` (~365 righe, gemello di scelta_salumi_router)
+
+### File modificati
+- `main.py` — import + `_mount` del nuovo router piatti_giorno
+- `app/routers/scelta_formaggi_router.py` — campo paese + INSERT/UPDATE branchati
+- `frontend/src/pages/selezioni/zonaConfig.js` — 5a zona + select paese formaggi + raggruppaPer
+- `frontend/src/pages/selezioni/ZonaPanel.jsx` — supporto select / raggruppamento / showPesoPrezzo override
+- `frontend/src/components/widgets/SelezioniCard.jsx` — preview prodotti per zone "attivo"
+- `frontend/src/config/versions.jsx` — `selezioni: 1.0 → 1.1`
+- `VERSION` — `5.11 → 5.12`
+
+### Verifica suggerita post-deploy
+1. `/selezioni/piatti-giorno` mostra la 5a tab con CRUD funzionante (creare 1 piatto di test, archiviarlo, riattivarlo).
+2. Widget Selezioni in Home: mini-blocco Salumi e Formaggi mostrano i nomi dei prodotti, non più "Insaccati · 5".
+3. `/selezioni/formaggi` mostra il dropdown Paese nel form di creazione/modifica. Tabella raggruppata per "🇮🇹 Italia" / "🇫🇷 Francia" / "Senza Paese" finché Marco non assegna i paesi ai formaggi esistenti.
+
+### Cose volutamente NON fatte (rinviate)
+- Integrazione "Piatti del giorno" altrove (Home widget, modulo Cucina, menu carta) — Marco ha detto "ti spiegherò il passo successivo dopo".
+- Aggiornamento `_salumi_widget` / `_formaggi_widget` per portare più di 2 tagli per categoria: il widget Home ne mostra 3 appiattendo da più categorie, sufficiente in pratica.
+- Modifica delle categorie salumi/formaggi figlie esistenti: restano "Vaccino", "Caprino" ecc. condivise tra i due paesi (Marco: "le categorie di prima esistenti vanno bene").
 
 ---
 

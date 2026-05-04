@@ -93,7 +93,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   selezioni: {
-    version: "1.0",
+    version: "1.1",
     label: "Selezioni del Giorno",
     status: "beta",
     color: "blue",

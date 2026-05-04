@@ -1,11 +1,16 @@
 // FILE: frontend/src/components/widgets/SelezioniCard.jsx
-// @version: v1.0 — Widget unificato "Selezioni del Giorno"
-// Sostituisce MacellaioCard/SalumiCard/FormaggiCard separate: un'unica card con 4 mini-blocchi
-// (Macellaio, Pescato, Salumi, Formaggi). Click sul blocco → /selezioni/<zona>.
+// @version: v1.1 — Widget unificato "Selezioni del Giorno"
+//   - v1.0 (sessione 50): card unica con 4 mini-blocchi (preview categorie + count).
+//   - v1.1 (oggi): per zone "attivo" (Salumi, Formaggi) la preview mostra
+//     direttamente i NOMI dei prodotti, non i totali per categoria. Per zone
+//     "venduto" (Macellaio, Pescato) resta la preview categorie con count.
+//     Marco vuole poter leggere a colpo d'occhio quali sono i salumi/formaggi
+//     in carta oggi, senza dover aprire la pagina di gestione.
+// Click sul blocco → /selezioni/<zona>.
 //
 // Data shape (da /dashboard/home campo `selezioni`):
 //   {
-//     macellaio: { disponibili, venduti_oggi, categorie: [...], altre },
+//     macellaio: { disponibili, venduti_oggi, categorie: [{nome, emoji, disponibili, tagli:[{nome,...}]}, ...], altre },
 //     salumi:    { disponibili, venduti_oggi, categorie: [...], altre },   // disponibili = attivi
 //     formaggi:  { disponibili, venduti_oggi, categorie: [...], altre },   // disponibili = attivi
 //     pescato:   { disponibili, venduti_oggi, categorie: [...], altre },
@@ -88,8 +93,27 @@ export default function SelezioniCard({ data }) {
           const widget = selezioni[z.key] || {};
           const count = widget.disponibili ?? 0;
           const categorie = widget.categorie || [];
-          // Top 2 categorie per preview (nome + count), coerente con card classiche
-          const preview = categorie.slice(0, 2);
+
+          // Per zone "attivo" (salumi, formaggi) → mostra i NOMI dei prodotti
+          // (appiattendo cat.tagli da tutte le categorie). Marco vuole leggere
+          // i salumi/formaggi in carta a colpo d'occhio.
+          // Per zone "venduto" (macellaio, pescato) → resta la preview per
+          // categoria (nome + count) perché ce ne sono tanti per categoria.
+          let previewItems = [];   // [{label, sub?}]
+          if (z.stato === "attivo") {
+            for (const c of categorie) {
+              for (const t of (c.tagli || [])) {
+                previewItems.push({ label: t.nome, sub: null });
+                if (previewItems.length >= 3) break;
+              }
+              if (previewItems.length >= 3) break;
+            }
+          } else {
+            previewItems = categorie.slice(0, 2).map(c => ({
+              label: `${c.emoji ? `${c.emoji} ` : ""}${c.nome}`,
+              sub: ` · ${c.disponibili}`,
+            }));
+          }
 
           const isRight = i % 2 === 1;
           const isBottom = i >= 2;
@@ -113,18 +137,16 @@ export default function SelezioniCard({ data }) {
                 </span>
               </div>
 
-              {/* Preview categorie (massimo 2) */}
-              {preview.length > 0 ? (
+              {/* Preview: prodotti per "attivo", categorie+count per "venduto" */}
+              {previewItems.length > 0 ? (
                 <div className="flex-1 flex flex-col justify-end">
-                  {preview.map((c, ci) => (
+                  {previewItems.map((p, ci) => (
                     <div
                       key={ci}
                       className="text-[10.5px] text-[#7a766f] leading-tight truncate tabular-nums"
                     >
-                      <span className="font-medium">
-                        {c.emoji ? `${c.emoji} ` : ""}{c.nome}
-                      </span>
-                      <span className="text-[#a8a49e]"> · {c.disponibili}</span>
+                      <span className="font-medium">{p.label}</span>
+                      {p.sub && <span className="text-[#a8a49e]">{p.sub}</span>}
                     </div>
                   ))}
                 </div>
