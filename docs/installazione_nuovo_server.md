@@ -447,8 +447,16 @@ chmod 600 /home/<USER>/.config/rclone/rclone.conf
 ```bash
 rclone mkdir gdrive:TRGB-Backup
 rclone mkdir gdrive:TRGB-Backup/db-daily
-rclone mkdir gdrive:TRGB-Backup-lkg
-rclone mkdir gdrive:TRGB-Backup-runbook
+rclone mkdir gdrive:TRGB-Backup/db-lkg
+rclone mkdir gdrive:TRGB-Backup/db-runbook
+```
+
+**Struttura risultante su Drive:**
+```
+TRGB-Backup/
+  ├── db-daily/        ← cartelle <TIMESTAMP>/ con backup completi (rotazione 14)
+  ├── db-lkg/          ← last_known_good cumulativa (1 copia integra per file)
+  └── db-runbook/      ← script + docs + push.sh + CLAUDE.md + locali/ (recovery)
 ```
 
 ### 8.4 Cron — IL PEZZO CRITICO
