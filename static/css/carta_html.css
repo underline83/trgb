@@ -339,6 +339,28 @@ td.prezzo { width: 10%; text-align: right; }
     font-style: normal;
     font-weight: 700;
 }
+/* Legenda GF in coda alla sezione — mig 106 */
+.bev-legenda {
+    margin-top: 14px;
+    padding-top: 8px;
+    border-top: 1px solid #e6dcc4;
+    font-size: 12px;
+    color: #7a6b5a;
+    font-style: italic;
+    text-align: right;
+}
+.bev-legenda-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    margin-right: 3px;
+    border-radius: 9px;
+    background: #2EB872;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    font-style: normal;
+}
 
 /* ────────────── Pattern C — nome + badge + desc ────────────── */
 .bev-badge-item {

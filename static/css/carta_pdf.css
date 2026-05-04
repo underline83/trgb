@@ -512,6 +512,28 @@ html, body {
     font-style: normal;
     font-weight: 700;
 }
+/* Legenda GF in coda alla sezione — mig 106 */
+.bev-legenda {
+    margin-top: 10pt;
+    padding-top: 5pt;
+    border-top: 0.5pt solid #e6dcc4;
+    font-size: 9pt;
+    color: #7a6b5a;
+    font-style: italic;
+    text-align: right;
+}
+.bev-legenda-tag {
+    display: inline-block;
+    padding: 0.5pt 4pt;
+    margin-right: 2pt;
+    border-radius: 7pt;
+    background: #2EB872;
+    color: #ffffff;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    font-style: normal;
+}
 
 /* Pattern C — nome + badge + desc */
 .bev-badge-item {

@@ -274,6 +274,16 @@ def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
             out.append(staff_html)
         out.append("</div>")
 
+    # Legenda "GF = senza glutine" — mostrata solo se almeno una voce della
+    # sezione è gluten free. Pensata per la sezione birre (mig 106) ma il
+    # render e' generico: se qualcuno valorizzasse gluten_free in un'altra
+    # sezione scheda_estesa la legenda comparirebbe lo stesso.
+    if any(bool(v.get("gluten_free")) for v in voci):
+        out.append(
+            "<div class='bev-legenda'>"
+            "<span class='bev-legenda-tag'>GF</span> = senza glutine"
+            "</div>"
+        )
     out.append("</div>")
     return "".join(out)
 
@@ -817,5 +827,19 @@ def build_carta_bevande_docx(logo_path=None, staff: bool = False) -> "Document":
                         r_.font.size = Pt(9)
                         r_.italic = True
                         r_.font.color.rgb = RGBColor(0xA0, 0x40, 0x00)
+
+            # Legenda GF in coda alla sezione (solo se almeno una voce GF) — mig 106
+            if layout != "tabella_4col" and layout != "nome_badge_desc":
+                if any(bool(v.get("gluten_free")) for v in voci):
+                    pl = doc.add_paragraph()
+                    rt = pl.add_run("GF")
+                    rt.bold = True
+                    rt.font.size = Pt(8)
+                    rt.font.color.rgb = RGBColor(0x2E, 0xB8, 0x72)
+                    rl = pl.add_run(" = senza glutine")
+                    rl.italic = True
+                    rl.font.size = Pt(9)
+                    rl.font.color.rgb = RGBColor(0x5A, 0x46, 0x34)
+                    pl.paragraph_format.space_before = Pt(8)
 
     return doc

@@ -250,15 +250,51 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
     }
   };
 
-  const eliminaVoce = async (voce) => {
-    if (!window.confirm(`Eliminare "${voce.nome}"?`)) return;
+  // Disattiva = soft-delete (attivo=0). Equivalente al toggle pillola ON/OFF
+  // nella colonna "Attivo": utile come scorciatoia esplicita "metti via questa
+  // voce" che non rischia di cancellare nulla.
+  const disattivaVoce = async (voce) => {
+    if (!voce.attivo) {
+      toast("Voce già disattiva", { kind: "info" });
+      return;
+    }
     try {
       const r = await fetch(`${API_BASE}/bevande/voci/${voce.id}`, {
+        method: "PUT",
+        headers: { ...authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify({ attivo: 0 }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast("Voce disattivata (non comparirà in carta)", { kind: "success" });
+      loadAll();
+      onSaved?.();
+    } catch (e) {
+      console.error(e);
+      toast("Errore disattivazione", { kind: "error" });
+    }
+  };
+
+  // Elimina definitivamente = hard-delete (DELETE ?hard=1). Riservato ad
+  // admin/superadmin lato BE: se 403, lo segnaliamo all'utente.
+  const eliminaVoce = async (voce) => {
+    const ok = window.confirm(
+      `Eliminare definitivamente "${voce.nome}"?\n\n` +
+      "Questa azione cancella la voce dal database e non può essere annullata.\n" +
+      "Se invece vuoi solo nasconderla dalla carta, usa il bottone ⊘ (Disattiva) " +
+      "o il toggle ON/OFF."
+    );
+    if (!ok) return;
+    try {
+      const r = await fetch(`${API_BASE}/bevande/voci/${voce.id}?hard=1`, {
         method: "DELETE",
         headers: authHeader,
       });
+      if (r.status === 403) {
+        toast("Eliminazione definitiva riservata agli admin", { kind: "warn" });
+        return;
+      }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      toast("Voce eliminata", { kind: "success" });
+      toast("Voce eliminata definitivamente", { kind: "success" });
       loadAll();
       onSaved?.();
     } catch (e) {
@@ -520,9 +556,17 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
                                 ⎘
                               </button>
                               <button
+                                onClick={() => disattivaVoce(v)}
+                                disabled={!v.attivo}
+                                className="px-2 py-1 rounded text-xs text-amber-700 hover:bg-amber-50 font-medium disabled:opacity-30 disabled:hover:bg-transparent"
+                                title={v.attivo ? "Disattiva (non compare in carta)" : "Già disattivata"}
+                              >
+                                ⊘
+                              </button>
+                              <button
                                 onClick={() => eliminaVoce(v)}
                                 className="px-2 py-1 rounded text-xs text-red-600 hover:bg-red-50 font-medium"
-                                title="Elimina"
+                                title="Elimina definitivamente (cancella dal database)"
                               >
                                 🗑
                               </button>
