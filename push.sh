@@ -10,6 +10,8 @@
 #                                                modules.json locale differisce da quello sul VPS.
 #   ./push.sh "messaggio commit" -d            → deploy + sync codice su Google Drive
 #   ./push.sh "messaggio commit" -q            → output compatto (default: verbose)
+#   ./push.sh "messaggio commit" -T            → skip tail log post-deploy (default: tail 30s)
+#   ./push.sh "messaggio commit" --no-tail     → idem, alias lungo
 #
 # Locali supportati:
 #   tregobbi (default)  → osteria di Marco, su trgb.tregobbi.it
@@ -82,6 +84,7 @@ SYNC_FULL=false
 SYNC_MODULES=false
 SYNC_DRIVE=false
 VERBOSE=true
+SKIP_TAIL=false
 shift || true
 for arg in "$@"; do
   case "$arg" in
@@ -90,6 +93,7 @@ for arg in "$@"; do
     -d) SYNC_DRIVE=true ;;
     -v) VERBOSE=true ;;
     -q) VERBOSE=false ;;
+    -T|--no-tail) SKIP_TAIL=true ;;
   esac
 done
 
@@ -583,6 +587,28 @@ crea_notifica(
 \" 2>&1" 2>/dev/null || true
 else
     ok "DB sanity post-deploy: tutto OK"
+fi
+
+# ── Tail log backend post-deploy (default ON, skip con -T / --no-tail) ────
+# Aggiunto 2026-05-05 su richiesta Marco. Fa "tail -f" per ~30 secondi sui log
+# del backend filtrando le severity critiche. Cattura errori che il sanity
+# check non vede: ImportError al primo request, Traceback in init di un
+# router, deprecation warning bloccanti, FileNotFoundError dopo R6.5 push 3,
+# OperationalError SQLite. Se 0 errori, output 1 riga "tutto pulito". Se
+# errori, mostra le righe + suggerisce comando di follow-up via SSH.
+if ! $SKIP_TAIL; then
+  step "Tail log backend (30s, severity critiche)"
+  ERR_LOG=$(timeout 30 ssh -q "$VPS_HOST" \
+    "sudo journalctl -u $BACKEND_SERVICE -f --since '1 second ago' --no-pager 2>/dev/null" 2>/dev/null \
+    | grep -E "ERROR|Traceback|OperationalError|FileNotFoundError|Exception|CRITICAL|^E[0-9]" \
+    | head -20 || true)
+  if [ -z "$ERR_LOG" ]; then
+    ok "Nessun errore critico nei primi 30s post-deploy"
+  else
+    fail "Errori rilevati nei primi 30s post-deploy:"
+    echo "$ERR_LOG" | sed 's/^/    /'
+    echo -e "  ${YELLOW}Per investigare: ssh $VPS_HOST \"sudo journalctl -u $BACKEND_SERVICE -f\"${NC}"
+  fi
 fi
 
 # ── Modulo Guardiano L1 — Stamp .last_push per debounce ───
