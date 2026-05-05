@@ -381,7 +381,9 @@ fi
 # ── Rimuovi files runtime dal tracking se necessario ───────
 if git ls-files --error-unmatch app/data/users.json &>/dev/null; then
   git rm --cached app/data/users.json app/data/modules.json 2>/dev/null || true
-  git commit -m "chore: rimuove users.json e modules.json dal tracking" 2>/dev/null
+  # `|| true` necessario: se non c'è nulla da committare git commit ritorna 1
+  # e con `set -e` lo script esce silenziosamente. Bug scoperto 5 mag 2026.
+  git commit -m "chore: rimuove users.json e modules.json dal tracking" 2>/dev/null || true
   ok "Rimossi users.json e modules.json dal tracking"
 fi
 
