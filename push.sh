@@ -378,24 +378,36 @@ else
   echo -e "  ${DIM}Nessuna modifica da committare${NC}"
 fi
 
+# ── Da qui in poi disabilito `set -e` per evitare exit silenziosi ────────────
+# (5 mag 2026: bug ricorrente di push.sh che esce dopo "Commit" senza msg.
+# Le righe di cleanup runtime files + auto-detect modules.json + backup
+# runtime VPS hanno troppi comandi con rc non-zero "tollerabili" che con
+# `set -e` causavano exit silente. Da ora in poi gestione errori esplicita.)
+set +e
+
 # ── Rimuovi files runtime dal tracking se necessario ───────
 if git ls-files --error-unmatch app/data/users.json &>/dev/null; then
-  git rm --cached app/data/users.json app/data/modules.json 2>/dev/null || true
-  # `|| true` necessario: se non c'è nulla da committare git commit ritorna 1
-  # e con `set -e` lo script esce silenziosamente. Bug scoperto 5 mag 2026.
-  git commit -m "chore: rimuove users.json e modules.json dal tracking" 2>/dev/null || true
+  git rm --cached app/data/users.json app/data/modules.json 2>/dev/null
+  git commit -m "chore: rimuove users.json e modules.json dal tracking" 2>/dev/null
   ok "Rimossi users.json e modules.json dal tracking"
 fi
 
 # ── Auto-detect cambio modules.json ────────────────────────
 # Se modules.json locale differisce da quello sul VPS, attiva -m da solo.
-# Evita la classe di bug "ho aggiunto un modulo nuovo ma non appare in produzione
-# perché ho dimenticato il flag -m".
+# Post-R6.5 push 3: cerco anche in locali/<id>/data/ oltre al legacy app/data/.
 if ! $SYNC_MODULES; then
-  if [ -f "$DB_LOCAL/modules.json" ]; then
-    LOCAL_HASH=$(sha256sum "$DB_LOCAL/modules.json" 2>/dev/null | awk '{print $1}')
-    REMOTE_HASH=$(ssh -q "$VPS_HOST" "sha256sum '$DB_REMOTE/modules.json' 2>/dev/null" | awk '{print $1}')
-    if [ -n "$LOCAL_HASH" ] && [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+  LOCAL_MOD_PATH=""
+  for p in "locali/tregobbi/data/modules.json" "$DB_LOCAL/modules.json"; do
+    if [ -f "$p" ]; then LOCAL_MOD_PATH="$p"; break; fi
+  done
+  if [ -n "$LOCAL_MOD_PATH" ]; then
+    LOCAL_HASH=$(sha256sum "$LOCAL_MOD_PATH" 2>/dev/null | awk '{print $1}')
+    REMOTE_HASH=$(ssh -q "$VPS_HOST" "
+      for p in '$VPS_DIR/locali/tregobbi/data/modules.json' '$VPS_DIR/app/data/modules.json'; do
+        [ -f \"\$p\" ] && sha256sum \"\$p\" 2>/dev/null && break
+      done
+    " 2>/dev/null | awk '{print $1}')
+    if [ -n "$LOCAL_HASH" ] && [ -n "$REMOTE_HASH" ] && [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
       SYNC_MODULES=true
       step "Auto-sync modules.json"
       warn "modules.json locale differisce dal VPS → attivo -m automaticamente"
@@ -404,12 +416,20 @@ if ! $SYNC_MODULES; then
 fi
 
 # ── Backup files runtime VPS ───────────────────────────────
+# Cerca i file runtime in entrambi i path (post-R6.5 push 3 sono in locali/).
 ssh -q "$VPS_HOST" "
-  cd $VPS_DIR/app/data
   for f in users.json modules.json closures_config.json; do
-    [ -f \"\$f\" ] && cp \"\$f\" \"/tmp/trgb_\${f}.runtime\" 2>/dev/null || true
+    for d in '$VPS_DIR/locali/tregobbi/data' '$VPS_DIR/app/data'; do
+      if [ -f \"\$d/\$f\" ]; then
+        cp \"\$d/\$f\" \"/tmp/trgb_\${f}.runtime\" 2>/dev/null
+        break
+      fi
+    done
   done
-" 2>/dev/null || true
+" 2>/dev/null
+
+# Riabilito set -e per le sezioni successive (push, restart, sanity check)
+set -e
 
 # ── Push VPS ───────────────────────────────────────────────
 step "Push → VPS"
