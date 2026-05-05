@@ -1,8 +1,9 @@
 """
 TRGB — Auth Service
 
-Utenti persistiti in users.json — R6.5 path tenant-aware
-(locali/<TRGB_LOCALE>/data/users.json con fallback ad app/data/users.json).
+Utenti persistiti in users.json — path tenant-aware:
+locali/<TRGB_LOCALE>/data/users.json (path canonico, post R6.5 push 3 — niente
+più fallback ad app/data/, vedi docs/problemi.md S60-INC1).
 Per cambiare password tramite CLI: python scripts/gen_passwords.py
 """
 

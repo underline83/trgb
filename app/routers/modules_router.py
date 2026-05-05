@@ -14,16 +14,19 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from app.services.auth_service import get_current_user, is_admin
+from app.utils.locale_data import locale_data_path
 
 router = APIRouter(prefix="/settings/modules", tags=["modules"])
 
-_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# R6.5 push 3 — path tenant-aware via locale_data_path() (no più hardcoded
+# app/data/). modules.json e i runtime sono dati di locale (configurazione
+# permessi specifica del ristorante), vivono in locali/<TRGB_LOCALE>/data/.
 # modules.json = seed tracciato in git (default ruoli)
 # modules.runtime.json = stato effettivo, NON tracciato (sopravvive ai push)
 # modules.runtime.meta.json = hash del seed applicato al runtime (per auto-sync)
-MODULES_SEED_FILE = _DATA_DIR / "modules.json"
-MODULES_FILE = _DATA_DIR / "modules.runtime.json"
-MODULES_META_FILE = _DATA_DIR / "modules.runtime.meta.json"
+MODULES_SEED_FILE = locale_data_path("modules.json")
+MODULES_FILE = locale_data_path("modules.runtime.json")
+MODULES_META_FILE = locale_data_path("modules.runtime.meta.json")
 VALID_ROLES = {
     "superadmin", "admin", "contabile",
     "chef", "sous_chef", "commis",
