@@ -1,6 +1,71 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-07 (sessione: Fix UI Backup — parser timestamp dual-format + allineamento DB lista)
+**Ultimo aggiornamento:** 2026-05-07 (sessione: Fix UI Backup — parser timestamp + falsi positivi lkg_corrupt)
+
+---
+
+## SESSIONE 2026-05-07 (II) — Fix falsi positivi `lkg_corrupt` da race check vs backup orario
+
+### Cosa ha mostrato Marco
+Dopo il push del fix UI backup (parser timestamp duale), la pagina mostrava correttamente l'ultimo backup di ~1h fa con dimensione 34.93 MB. Però appariva un nuovo problema: il riquadro era passato da rosso ("88 ore") a rosso diverso ("PROBLEMI RILEVATI") con `Issues attive (3): lkg_corrupt:foodcost.db / vini.sqlite3 / clienti.sqlite3`. Contraddizione interna: le 4 card sopra mostravano tutto verde, "Last known good 15/15 integri".
+
+### Diagnosi
+- L'endpoint `/system/backup-health` (Python) apre i file LKG con `sqlite3.connect("file:...?mode=ro", uri=True)` → read-only puro → 15/15 ok.
+- Lo script `check_backup_health.sh` (bash, cron `*/30`) apriva i file LKG con `sqlite3 "$f" "PRAGMA integrity_check"` → modalità RW default. Su un file con `journal_mode=WAL` ereditato dal source, SQLite crea `<db>-shm` e `<db>-wal` accanto. Visto già nell'output `=== 7. LKG ===` precedente: i `-shm`/`-wal` avevano mtime alle `19:50` (da check), mentre i `.sqlite3` avevano mtime alle `19:00` (da backup orario).
+- Confronto fra il log delle 19:30 (`OK: 10/10`) e quello delle 20:00 (`Corrotti: 3`): il check ha trovato corrupt **esattamente al minuto :00**, in concomitanza con il cron del backup orario. La causa è una race tra `cp -f` di `update_lkg()` (non atomico — `clienti.sqlite3` da 25 MB richiede centinaia di ms) e `sqlite3 integrity_check` del check. I 3 DB sospetti erano i 3 più grandi e più scritti (foodcost 7 MB, vini 0.8 MB ma write-heavy, clienti 25 MB).
+- Conferma: test manuale fuori finestra cron (`sqlite3 PRAGMA integrity_check` su tutti e 3, sia RW che read-only) → tutti `ok`.
+
+### Cosa è stato fatto — `[core]`
+
+**A. `scripts/check_backup_health.sh` v1.1**
+- Estratto `check_lkg_integrity()` come helper.
+- `sqlite3 -readonly "$f"` invece di `sqlite3 "$f"` → no creazione di `-shm`/`-wal` accidentali.
+- Retry-once dopo 3 secondi se la prima passata non ritorna `ok`. Tre secondi sono sufficienti perché `cp -f` di un DB da 25 MB su disco SSD finisca. Se anche il retry fallisce → corruption reale, segnaliamo.
+- Aggiornato docstring con nota sulla v1.1 e cambio di cron suggerito (`15,45 * * * *`).
+
+**B. `scripts/backup_db.sh::update_lkg()`**
+- Dopo `cp -f`, `rm -f` su `<db>-shm` e `<db>-wal` orfani. Pulizia idempotente, non rompe nulla se non presenti.
+- Motivo: ripulire i residui esistenti (creati dai check pre-A) e blindare contro tool esterni futuri che aprissero la LKG in RW.
+
+**C. NON modificato** `setup-backup-and-security.sh`: è uno scaffold del first-time setup che ha solo 2 cron base (hourly + daily 03:30), mentre la crontab reale del VPS ha 4 job (orario, daily 03:00, daily 18:00, health check). Quel file è già fuori sync, sistemarlo qui sarebbe fuori scope. La crontab del VPS va aggiornata a mano (vedi punto sotto).
+
+### Da fare manualmente sul VPS dopo il push
+Sfasare il cron del check da `*/30` a `15,45` per non sovrapporsi mai ai cron di backup (`0 * * * *` orario, `0 3,18 * * *` daily):
+```
+crontab -e
+```
+Cambiare la riga:
+```
+*/30 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh ...
+```
+in:
+```
+15,45 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh ...
+```
+Anche senza questo cambio, il fix A (readonly + retry) dovrebbe già azzerare i falsi positivi, ma la sfasatura è cintura+bretelle.
+
+### File modificati
+- `scripts/check_backup_health.sh` (helper + readonly + retry + docstring)
+- `scripts/backup_db.sh` (cleanup -shm/-wal in update_lkg)
+- `VERSION` (5.13 → 5.14)
+- `frontend/src/config/versions.jsx` (sistema 5.13 → 5.14)
+- `docs/changelog.md` (entry "2026-05-07 (II)")
+- `docs/sessione.md` (questa sezione)
+
+### File NON modificati
+- `app/routers/backup_router.py` — già fixato nel push precedente
+- `setup-backup-and-security.sh` — scaffold obsoleto, fuori scope
+- `main.py::system_backup_health` — già usa read-only correttamente
+
+### Verifica suggerita post-deploy
+1. Aspettare il prossimo run del check (ogni :15 e :45 dopo aver sfasato il cron, o ogni :00 e :30 se non sfasato).
+2. Hard refresh `/impostazioni/sistema?tab=backup`.
+3. Box deve diventare verde "SISTEMA SANO" e restare tale anche al run successivo.
+4. Sul VPS: `cat /home/marco/trgb/trgb/app/data/backups/.last_health_status.json` → `"status":"healthy"`, `"issues":[]`.
+5. Sul VPS: `ls /home/marco/trgb/trgb/app/data/backups/last_known_good/*-shm /home/marco/trgb/trgb/app/data/backups/last_known_good/*-wal 2>&1` → dopo il prossimo backup orario non ci devono più essere file `-shm`/`-wal` (rm -f li ha puliti, e con readonly nessuno li ricrea).
+
+### Commit suggerito
+`./push.sh "[core] Fix falsi positivi lkg_corrupt: sqlite3 -readonly + retry nel check + cleanup -shm/-wal"`
 
 ---
 

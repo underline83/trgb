@@ -243,10 +243,21 @@ except Exception as e:
 # La cartella last_known_good/ contiene SEMPRE 1 backup integro per ogni DB.
 # Viene aggiornato SOLO se il backup di questo run è passato integrity_check.
 # In caso di corruzione persistente, qui resta la copia integra.
+#
+# v2.1 (2026-05-07): rimuove eventuali -shm/-wal orfani prima di sovrascrivere
+# il file LKG. Motivo: precedenti versioni di check_backup_health.sh aprivano
+# i file LKG in modalità RW (default), e SQLite — vedendo journal_mode=WAL
+# ereditato dal source — creava `<db>-shm` e `<db>-wal` accanto. Quei residui
+# possono confondere le aperture successive (file di journal "stale" rispetto
+# al main DB nuovo). Li puliamo qui per essere certi che la LKG resti una
+# copia "dormiente" senza WAL state. Dal 2026-05-07 il check usa già
+# `sqlite3 -readonly` quindi non crea più residui, ma teniamo la pulizia per
+# assorbire eventuali future regressioni o tool esterni che aprissero in RW.
 update_lkg() {
     local backup_file="$1"
     local db_name="$2"
     cp -f "$backup_file" "$BACKUP_LKG/$db_name"
+    rm -f "$BACKUP_LKG/${db_name}-shm" "$BACKUP_LKG/${db_name}-wal" 2>/dev/null
 }
 
 # ── Backup file JSON con verifica ───────────────────────────────────────────

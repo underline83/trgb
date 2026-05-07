@@ -12,9 +12,16 @@
 #   4. last_known_good/:    contiene tutti i DB con size > 8KB e integrity ok
 #   5. Backup hourly count: almeno N backup recenti per ogni DB
 #
-# Cron suggerito (ogni 30 min):
-#   */30 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh \
-#                  >> /home/marco/trgb/backup_health.log 2>&1
+# v1.1 (2026-05-07): integrity_check ora apre i file LKG con `sqlite3 -readonly`
+# e retry-once dopo 3 secondi se la prima passata fallisce. Motivo: il check
+# girava al minuto :00 in concomitanza con `backup_db.sh` orario, scontrandosi
+# col `cp -f` di `update_lkg()` sui 3 DB più grandi (foodcost/vini/clienti) →
+# vedeva file troncati a metà → falsi "lkg_corrupt". Fix mirato + sfasare il
+# cron del check da `*/30` a `15,45 * * * *` (vedi commit log per crontab edit).
+#
+# Cron suggerito (ogni 30 min, sfasato per non scontrarsi coi backup orari/daily):
+#   15,45 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh \
+#                   >> /home/marco/trgb/backup_health.log 2>&1
 
 set -uo pipefail
 
@@ -138,6 +145,30 @@ LKG_MISSING=0
 LKG_STUB=0
 LKG_CORRUPT=0
 LKG_OLD=0
+
+# Helper: integrity check su un file LKG con read-only e retry.
+# - sqlite3 -readonly evita di creare i file -shm/-wal accidentali (il
+#   default è RW e SQLite, vedendo journal_mode=WAL ereditato dal source,
+#   crea -shm/-wal anche se non scriviamo nulla).
+# - retry-once dopo 3s gestisce la race con `cp -f` di update_lkg() che
+#   gira al minuto :00 (backup orario): se beccato a metà copia, il primo
+#   check vede un file troncato → "Error: file is not a database" o simili.
+#   Tre secondi dopo, il cp è quasi sicuramente terminato.
+# Output: stampa "ok" se passa, altrimenti la prima riga di errore.
+check_lkg_integrity() {
+    local file="$1"
+    local result
+    result=$(sqlite3 -readonly "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
+    if [ "$result" = "ok" ]; then
+        echo "ok"
+        return 0
+    fi
+    # Retry: aspetto 3s, poi riprovo. Se ancora fallisce, è corruption vera.
+    sleep 3
+    result=$(sqlite3 -readonly "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
+    echo "$result"
+}
+
 for db in "${DBS[@]}"; do
     f="$LKG_DIR/$db"
     if [ ! -f "$f" ]; then
@@ -151,7 +182,7 @@ for db in "${DBS[@]}"; do
         ISSUES+=("lkg_stub:$db")
         continue
     fi
-    INTEG=$(sqlite3 "$f" "PRAGMA integrity_check;" 2>&1 | head -1)
+    INTEG=$(check_lkg_integrity "$f")
     if [ "$INTEG" != "ok" ]; then
         LKG_CORRUPT=$((LKG_CORRUPT + 1))
         ISSUES+=("lkg_corrupt:$db")

@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-05-07 (II) — Fix falsi positivi `lkg_corrupt` su check_backup_health.sh
+
+### Risolto
+- **Falsi `lkg_corrupt: foodcost.db / vini.sqlite3 / clienti.sqlite3`** segnalati da `check_backup_health.sh` ai run del minuto :00. Causa: race tra il cron del check (`*/30`) e il backup orario (`0 * * * *`) — quando il check apriva i file LKG mentre `update_lkg()::cp -f` li stava sovrascrivendo (operazione non atomica, `clienti.sqlite3` da 25 MB richiede centinaia di ms), `PRAGMA integrity_check` vedeva un file troncato e restituiva un errore. Il check successivo trovava i file integri ma il `.last_health_status.json` restava marcato "unhealthy" fino a che. Confermato da diff fra log 19:30 (`OK: 10/10`) e log 20:00 (`Corrotti: 3` esattamente sui 3 DB più grandi). Test manuale `sqlite3 PRAGMA integrity_check` fuori dalla finestra del cron: tutti `ok`. Nessun file LKG era realmente corrotto.
+
+### Cambiato
+- **`scripts/check_backup_health.sh`**: integrity check sulla LKG ora usa `sqlite3 -readonly` (no creazione di `.sqlite3-shm`/`-wal` orfani, fail-fast su file in scrittura) + retry-once dopo 3 secondi. Estratta la logica in helper `check_lkg_integrity()`. Il primo run cattura il caso normale, il retry assorbe la finestra di race senza falsi positivi. Se entrambi i passaggi falliscono, è corruption vera.
+- **`scripts/backup_db.sh::update_lkg()`**: dopo il `cp -f` rimuove eventuali `<db>-shm`/`<db>-wal` residui nella LKG. Sono artefatti di vecchie versioni del check che aprivano in RW; col fix di sopra non se ne creano più di nuovi, ma puliamo i preesistenti e blindiamo da future regressioni o tool esterni.
+
+### Da fare manualmente sul VPS
+Sfasare il cron del check di 15 minuti per evitare anche solo l'apparenza di race con i tre cron di backup (orario alle :00, daily 03:00 e 18:00):
+
+```
+crontab -e
+# cambiare:
+#   */30 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh ...
+# in:
+#   15,45 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh ...
+```
+
+### Versioni
+- `VERSION`: 5.13 → 5.14
+- modulo `sistema`: 5.13 → 5.14
+
+### Note
+- Fix `[core]`: nessuna logica tenant-specifica.
+- Sicurezza: il sistema di backup vero non è stato toccato (è già v2 robusto). Solo il monitor del sistema è stato reso meno paranoico verso le finestre di scrittura del cron orario.
+
+---
+
 ## 2026-05-07 — Fix UI Backup: parser timestamp dual-format + allineamento DB
 
 ### Risolto
