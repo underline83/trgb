@@ -1,10 +1,21 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 // Versione build — timestamp unico generato UNA volta per tutto il build
 const BUILD_VERSION = String(Math.floor(Date.now() / 1000));
+
+// APP_VERSION — letta dal file VERSION root del repo (single source of truth).
+// Iniettata in index.html come __APP_VERSION__ per il footer dello splash.
+function readAppVersion() {
+  try {
+    return readFileSync(resolve(__dirname, "..", "VERSION"), "utf-8").trim() || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+const APP_VERSION = readAppVersion();
 
 // Plugin: serve /version.json con il timestamp corrente
 // - Dev mode (VPS): middleware serve la risposta dinamicamente
@@ -35,8 +46,20 @@ function versionJsonPlugin() {
 // Vedi docs/refactor_monorepo.md §3 R1.
 const TRGB_LOCALE = (process.env.VITE_TRGB_LOCALE || "tregobbi").trim() || "tregobbi";
 
+// Plugin: sostituisce __APP_VERSION__ in index.html con il contenuto di VERSION.
+// Necessario perché lo splash custom (boot-splash) è inline in index.html prima
+// del JS modulo, quindi non può importare BUILD_VERSION via ES module.
+function htmlVersionInjectorPlugin() {
+  return {
+    name: "html-version-injector",
+    transformIndexHtml(html) {
+      return html.replace(/__APP_VERSION__/g, APP_VERSION);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), versionJsonPlugin()],
+  plugins: [react(), versionJsonPlugin(), htmlVersionInjectorPlugin()],
 
   // Inietta costanti globali in tutto il codice JS
   define: {
