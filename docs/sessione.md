@@ -1,6 +1,54 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-04 (sessione: Selezioni — Piatti del giorno + paese formaggi + widget salumi mostra prodotti)
+**Ultimo aggiornamento:** 2026-05-07 (sessione: Fix UI Backup — parser timestamp dual-format + allineamento DB lista)
+
+---
+
+## SESSIONE 2026-05-07 — Fix UI Backup: parser timestamp dual-format + DATABASES allineato
+
+### Cosa ha chiesto Marco
+Marco ha aperto la pagina "Impostazioni → Backup" e ha visto due segnali in contraddizione: il box verde "SISTEMA SANO" diceva backup orario 50 min fa / daily 1h fa / Drive sync 1h fa / LKG 15/15 integri, mentre subito sotto un box rosso urlava "Ultimo backup di 88 ore fa — verifica il cron". Domanda: tutto a posto o devo preoccuparmi?
+
+### Diagnosi
+Diagnosi remota via `ssh trgb`:
+- **Crontab**: tutti e 4 i job attivi (orario, daily 03:00, daily 18:00, health check ogni 30 min). OK.
+- **Script `backup_db.sh`**: versione v2 post-incidente (commit `aefc9b73`), eseguibile, ultimo run hourly del 7 mag 19:00 con 15 OK / 0 falliti.
+- **Cartelle daily reali sul VPS**: 14 cartelle, l'ultima `20260507180001` di 1h fa. Backup giornalieri **regolari**.
+- **Dati LKG**: tutti i 10 DB + 5 JSON config aggiornati al 7 mag 19:00.
+- **Drive sync**: OK al 7 mag 18:00 (DB + LKG + runbook).
+
+Quindi il sistema di backup era ed è perfettamente sano. Bug nella UI:
+- Le cartelle daily nuove (dal 5 mag) hanno il formato `YYYYMMDDHHMMSS` (14 cifre, da `date +%Y%m%d%H%M%S` dello script v2).
+- Le 3 cartelle storiche del 2/3/4 mag hanno il vecchio formato `YYYYMMDD_HHMMSS` (con underscore).
+- `app/routers/backup_router.py::_parse_folder_timestamp` parsava SOLO il vecchio formato → ignorava 11 cartelle nuove → "ultimo backup" interpretato come 4 mag 03:30 → allarme 88h.
+- Le dimensioni "0.03 MB" mostrate per il 3-4 mag erano probabilmente rumore: il parser non riconosceva le cartelle nuove e si limitava a misurare residui orfani.
+
+### Cosa è stato fatto — `[core]`
+- **`backup_router.py::_parse_folder_timestamp`** riscritta per accettare entrambi i formati. Tenta prima il nuovo (`%Y%m%d%H%M%S`, 14 cifre, `isdigit()`) per evitare il costo dell'eccezione sul caso comune; in fallback prova il vecchio (`%Y%m%d_%H%M%S`, 15 char con underscore in posizione 8). Tutto il resto respinto. Test su nomi reali del VPS: 14/14 OK.
+- **`DATABASES` allineata a `scripts/backup_db.sh::DBS`**: aggiunti `notifiche.sqlite3`, `tasks.sqlite3`, `bevande.sqlite3` che il cron già copiava ma che mancavano nel download on-demand `/backup/download`. Ordine concettuale (foodcost → finance → vini → tenant DB) coerente con lo script.
+- Aggiornati commenti/docstring del router per documentare i due formati timestamp e la motivazione della modifica.
+- Bumpato `VERSION` 5.12 → 5.13 e allineato `versions.jsx` `sistema.version` (era rimasto indietro a 5.11 dalla sessione precedente — fix dell'allineamento approfittando del bump).
+
+### File modificati
+- `app/routers/backup_router.py` (parser duale + DATABASES + commenti)
+- `VERSION` (5.12 → 5.13)
+- `frontend/src/config/versions.jsx` (`sistema: 5.11 → 5.13`)
+- `docs/changelog.md` (entry 2026-05-07)
+- `docs/sessione.md` (questa sezione)
+
+### File NON modificati (volutamente)
+- `scripts/backup_db.sh` — la v2 sul VPS è già corretta, è il client (router) che leggeva male.
+- `frontend/src/pages/admin/ImpostazioniSistema.jsx` — il `TabBackup` legge gli endpoint `/backup/info` + `/backup/list` + `/system/backup-health` invariati; basta che il backend ritorni dati giusti, niente da toccare lato React.
+
+### Verifica suggerita post-deploy
+1. Hard refresh `/impostazioni/sistema?tab=backup` (Ctrl+Shift+R).
+2. Box rosso "Ultimo backup di X ore fa" deve sparire (l'età deve risultare ~1h o meno, non più 88h).
+3. La sezione "Backup giornalieri sul server" deve mostrare ~14 cartelle con dimensioni realistiche (~30-35 MB ciascuna, non 0.03 MB).
+4. Cliccare "Scarica backup completo": il `.tar.gz` deve contenere ora 10 DB (non 7) — verificabile con `tar tzf trgb-backup-*.tar.gz | wc -l`.
+5. Il box verde "SISTEMA SANO" deve restare verde (legge `/system/backup-health`, non toccato).
+
+### Commit suggerito
+`./push.sh "[core] Fix UI Backup: parser timestamp dual-format + DATABASES allineato (10 DB)"`
 
 ---
 

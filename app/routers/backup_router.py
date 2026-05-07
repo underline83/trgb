@@ -6,6 +6,12 @@ Solo admin.
 v2: legge dai backup creati dal cron reale (scripts/backup_db.sh) che
 salva in app/data/backups/daily/<YYYYMMDD_HHMMSS>/ — niente più path
 orfano /home/marco/trgb/backups/.
+
+v2.1 (post-incidente 4 mag 2026): backup_db.sh v2 ha cambiato il formato
+del timestamp da `YYYYMMDD_HHMMSS` (15 char con underscore) a
+`YYYYMMDDHHMMSS` (14 cifre senza separatori, da `date +%Y%m%d%H%M%S`).
+Il parser ora accetta ENTRAMBI per retrocompatibilità con le cartelle
+vecchie ancora presenti (2-3-4 mag 2026) e visibilità di quelle nuove.
 """
 
 import subprocess
@@ -27,14 +33,21 @@ DAILY_DIR = DATA_DIR / "backups" / "daily"   # <─ cartelle create da backup_db
 HOURLY_DIR = DATA_DIR / "backups" / "hourly"
 
 # ── Database da includere nel backup on-demand ──
+# Allineato con DBS in scripts/backup_db.sh: stesso elenco, stesso ordine
+# concettuale (foodcost prima, poi finance, poi vini, ecc.). Aggiunti
+# notifiche/tasks/bevande il 7 mag 2026 — erano già backuppati dal cron
+# ma mancavano qui, quindi il download on-demand era incompleto.
 DATABASES = [
+    "foodcost.db",
     "admin_finance.sqlite3",
     "vini.sqlite3",
-    "vini_settings.sqlite3",
     "vini_magazzino.sqlite3",
-    "foodcost.db",
+    "vini_settings.sqlite3",
     "dipendenti.sqlite3",
     "clienti.sqlite3",
+    "notifiche.sqlite3",
+    "tasks.sqlite3",
+    "bevande.sqlite3",
 ]
 
 
@@ -44,11 +57,33 @@ def _require_admin(user: dict):
 
 
 def _parse_folder_timestamp(name: str):
-    """Converte il nome cartella 'YYYYMMDD_HHMMSS' in datetime. None se invalido."""
-    try:
-        return datetime.strptime(name, "%Y%m%d_%H%M%S")
-    except ValueError:
-        return None
+    """
+    Converte il nome cartella in datetime. None se invalido.
+
+    Supporta due formati:
+      - 'YYYYMMDD_HHMMSS' (15 char) — formato pre-4 mag 2026, ancora presente
+        nelle cartelle 20260502_033001 / 20260503_033001 / 20260504_033001.
+      - 'YYYYMMDDHHMMSS'  (14 cifre) — formato di backup_db.sh v2 post-incidente
+        4 mag 2026, generato da `date +%Y%m%d%H%M%S`.
+
+    Senza il fallback al nuovo formato, il router ignorava completamente
+    le cartelle dal 5 mag in avanti, mostrando l'allarme rosso "ultimo
+    backup XX ore fa" anche se i backup giornalieri erano regolarissimi.
+    """
+    # Nuovo formato (più probabile dal 5 mag in poi): prova per primo
+    # così il caso comune non paga il costo della prima eccezione.
+    if len(name) == 14 and name.isdigit():
+        try:
+            return datetime.strptime(name, "%Y%m%d%H%M%S")
+        except ValueError:
+            return None
+    # Vecchio formato (cartelle storiche 2-3-4 mag 2026)
+    if len(name) == 15 and name[8] == "_":
+        try:
+            return datetime.strptime(name, "%Y%m%d_%H%M%S")
+        except ValueError:
+            return None
+    return None
 
 
 def _folder_size_bytes(folder: Path) -> int:
@@ -138,7 +173,7 @@ def backup_list_daily(current_user: dict = Depends(get_current_user)):
     backups = []
     for folder, ts, size in snapshots:
         backups.append({
-            "filename": folder.name,                     # es. "20260410_214042"
+            "filename": folder.name,                     # es. "20260507180001" (v2) o "20260504_033001" (v1)
             "size_mb": round(size / (1024 * 1024), 2),
             "date": ts.strftime("%Y-%m-%d %H:%M"),       # formato leggibile per UI
         })
@@ -149,7 +184,8 @@ def backup_list_daily(current_user: dict = Depends(get_current_user)):
 def backup_download_daily(filename: str, current_user: dict = Depends(get_current_user)):
     """
     Impacchetta al volo in tar.gz la cartella di backup giornaliero
-    identificata da <filename> (= nome cartella 'YYYYMMDD_HHMMSS').
+    identificata da <filename> (= nome cartella 'YYYYMMDDHHMMSS' v2
+    o 'YYYYMMDD_HHMMSS' v1, vedi _parse_folder_timestamp).
     """
     _require_admin(current_user)
 

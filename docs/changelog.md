@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-05-07 — Fix UI Backup: parser timestamp dual-format + allineamento DB
+
+### Risolto
+- **Allarme rosso "Ultimo backup di X ore fa" pur con cron sano** — `app/routers/backup_router.py::_parse_folder_timestamp` accettava solo il formato vecchio `YYYYMMDD_HHMMSS` (con underscore), mentre `scripts/backup_db.sh` v2 (post-incidente 4 mag) genera cartelle nel nuovo formato `YYYYMMDDHHMMSS` (14 cifre, da `date +%Y%m%d%H%M%S`). Risultato: la UI ignorava tutte le 11 cartelle daily dal 5 mag in poi e mostrava come "ultimo backup" la cartella più recente del vecchio formato (4 mag 03:30, 88h fa) → allarme rosso, dimensioni sballate (0.03 MB perché contava solo file orfani), elenco "Backup giornalieri sul server" troncato a 3 voci. Il sistema di backup live era e resta perfettamente sano (`.last_backup_status.json` 15 OK / 0 falliti, daily 03:00 e 18:00 puntuali, Drive sync OK, LKG aggiornato).
+- **Parser ora accetta entrambi i formati** con preferenza al nuovo (caso comune dal 5 mag in poi). Edge case respinti: stringhe non-cifra, lunghezze diverse, valori non parsabili come datetime.
+
+### Cambiato
+- **`DATABASES` in `backup_router.py` allineata con `DBS` di `backup_db.sh`** — aggiunti `notifiche.sqlite3`, `tasks.sqlite3`, `bevande.sqlite3` che il cron già backuppava ma che il download on-demand `/backup/download` non includeva. Ora il `.tar.gz` "Scarica backup completo" contiene tutti e 10 i DB attivi anziché 7.
+
+### Versioni
+- `VERSION`: 5.12 → 5.13
+- modulo `sistema`: 5.11 → 5.13 (allineato a `VERSION`, era rimasto indietro dalla sessione 5.11)
+
+### Note
+- Il fix è `[core]`: il bug era in codice prodotto generico (parser di nomi cartella), si applica a qualsiasi locale.
+- Nessuna migrazione DB. Nessuna modifica a `scripts/backup_db.sh` (la v2 sul VPS è già corretta).
+- Le 3 cartelle storiche col vecchio formato (2/3/4 mag) restano visibili finché la rotazione non le pota dopo `RETAIN_COUNT_DAILY=14` cicli (~7 giorni). Dopodiché il vecchio formato sparirà naturalmente; il parser duale resta come safety-net per eventuali rollback.
+
+---
+
 ## 2026-05-04 — Selezioni: 5a zona Piatti del giorno + paese formaggi + widget salumi mostra prodotti
 
 ### Aggiunto
