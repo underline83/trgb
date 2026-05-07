@@ -138,14 +138,33 @@ print(f"🏠 TRGB_LOCALE: {TRGB_LOCALE}")
 
 
 # ──────────────────────────────────────────────────────────────
-# GIT_COMMIT — hash del commit corrente (sessione 60 + R4 follow-up)
+# GIT_COMMIT — hash del commit corrente (sessione 60 + R4 follow-up + 0.1.1 fix)
 # Letto UNA volta al boot e cached per esporre via /system/info
 # "quale codice gira ora?" senza bisogno di SSH al VPS.
-# Graceful fallback a None se git non è disponibile (es. container senza .git).
+#
+# Lookup order (post issue 0.1.1, 5 mag 2026):
+#   1. DEPLOYED_COMMIT.txt — scritto dal post-receive hook al deploy.
+#      Path canonico, sempre aggiornato dal hook nuovo.
+#   2. git rev-parse HEAD (fallback) — per dev locale o se DEPLOYED_COMMIT.txt
+#      manca. ATTENZIONE: in produzione sul VPS questo torna stantio se il
+#      vecchio post-receive (`git --git-dir=BARE --work-tree=WD checkout -f`)
+#      è ancora in uso, perché aggiorna i file ma non .git/HEAD del working dir.
+#      Il nuovo hook usa `cd WD && git fetch + reset --hard` che sincronizza
+#      anche .git/HEAD, quindi questo fallback è di nuovo affidabile.
 # Modulo: platform/diagnostica.
 # ──────────────────────────────────────────────────────────────
 import subprocess
 def _read_git_commit() -> str | None:
+    # 1. DEPLOYED_COMMIT.txt (autorevole post-deploy)
+    try:
+        deployed = Path(__file__).resolve().parent / "DEPLOYED_COMMIT.txt"
+        if deployed.exists():
+            txt = deployed.read_text(encoding="utf-8").strip()
+            if txt:
+                return txt[:8]   # short hash
+    except Exception:
+        pass
+    # 2. git rev-parse (fallback)
     try:
         out = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
