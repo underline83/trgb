@@ -67,4 +67,11 @@ Promise.all([loadBrandConfig(), loadLocaleStrings(), loadActiveModules()]).final
       <App key={BUILD_VERSION} />
     </React.StrictMode>
   );
+
+  // Nasconde lo splash custom HTML (definito in index.html). Rispetta
+  // window.__BOOT_SPLASH_MIN_MS__ per garantire un tempo minimo visibile,
+  // poi fade-out 400ms. Vedi index.html sezione "Boot splash custom".
+  if (typeof window.__hideBootSplash__ === "function") {
+    window.__hideBootSplash__();
+  }
 });
