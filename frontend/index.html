@@ -38,14 +38,165 @@
     <link rel="apple-touch-icon" sizes="40x40"  href="/icons/apple-touch-icon-40.png" />
     <link rel="apple-touch-icon" sizes="29x29"  href="/icons/apple-touch-icon-29.png" />
 
-    <!-- NOTA: gli splash screens iOS (apple-touch-startup-image) richiedono
-         una matrice completa di risoluzioni con media-query precise per ogni
-         device. Saranno aggiunti in Fase 1 (Capacitor) quando fisseremo i
-         target iPad/iPhone supportati. Per ora iOS mostra uno splash vuoto
-         con il background del manifest (#0f172a). -->
+    <!-- Apple Splash Screens iOS — matrice completa per device supportati.
+         Generati pre-rendered in public/splash-screens/ (TRGB-02 brand,
+         background #F4F1EC = brand-cream del manifest).
+         La media-query deve matchare ESATTAMENTE device-width × device-height
+         in CSS pixels (logical) + -webkit-device-pixel-ratio + orientation.
+         Riferimento: https://progressier.com/pwa-icons-and-ios-splash-screen-generator
+         Aggiunti 2026-05-07 — chiusura roadmap 0.1.5 + 1.1 PWA Fase 0. -->
+
+    <!-- iPhone SE (3rd gen) / iPhone 8 / 7 / 6s — 375×667 @2x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+          href="/splash-screens/splash-iPhone-8-SE3-750x1334.png" />
+
+    <!-- iPhone XR / 11 — 414×896 @2x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+          href="/splash-screens/splash-iPhone-XR-11-828x1792.png" />
+
+    <!-- iPhone XS Max / 11 Pro Max — 414×896 @3x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+          href="/splash-screens/splash-iPhone-XS-Max-11Pro-Max-1242x2688.png" />
+
+    <!-- iPhone X / XS / 11 Pro — 375×812 @3x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+          href="/splash-screens/splash-iPhone-X-XS-11Pro-1125x2436.png" />
+
+    <!-- iPhone 12 / 12 Pro / 13 / 13 Pro / 14 — 390×844 @3x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+          href="/splash-screens/splash-iPhone-14-1170x2532.png" />
+
+    <!-- iPhone 14 Pro / 15 / 15 Pro — 393×852 @3x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+          href="/splash-screens/splash-iPhone-15-Pro-1179x2556.png" />
+
+    <!-- iPhone 14 Pro Max / 15 Plus / 15 Pro Max — 430×932 @3x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+          href="/splash-screens/splash-iPhone-15-Pro-Max-1290x2796.png" />
+
+    <!-- iPad Mini 6 — 744×1133 @2x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+          href="/splash-screens/splash-iPad-Mini-6-1488x2266.png" />
+
+    <!-- iPad 10.2 (gen 7/8/9) — 810×1080 @2x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+          href="/splash-screens/splash-iPad-10.2-1620x2160.png" />
+
+    <!-- iPad Air 10.9 / iPad gen 10 — 820×1180 @2x -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+          href="/splash-screens/splash-iPad-Air-10.9-1640x2360.png" />
+
+    <!-- iPad Pro 11" — 834×1194 @2x portrait -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+          href="/splash-screens/splash-iPad-Pro-11-1668x2388.png" />
+
+    <!-- iPad Pro 11" — 834×1194 @2x landscape -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+          href="/splash-screens/splash-iPad-Pro-11-landscape-2388x1668.png" />
+
+    <!-- iPad Pro 12.9" — 1024×1366 @2x portrait -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+          href="/splash-screens/splash-iPad-Pro-12.9-2048x2732.png" />
+
+    <!-- iPad Pro 12.9" — 1024×1366 @2x landscape -->
+    <link rel="apple-touch-startup-image"
+          media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+          href="/splash-screens/splash-iPad-Pro-12.9-landscape-2732x2048.png" />
+    <!-- Boot splash custom (estende il tempo di splash iOS nativo) -->
+    <!-- Aggiunto 2026-05-07. Lo splash iOS Safari è gestito dal sistema e
+         dura ~1s al boot dell'app standalone. Questo blocco è uno splash
+         HTML che si sovrappone alla pagina PRIMA che React monti, e resta
+         visibile per BOOT_SPLASH_MIN_MS millisecondi minimo (configurabile
+         in index.html) o fino a quando React lo rimuove tramite postMessage.
+         Sparisce con dissolvenza CSS 400ms. -->
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #F4F1EC;     /* brand-cream */
+        color: #111111;          /* brand-ink */
+        font-family: 'Helvetica Neue', -apple-system, sans-serif;
+        font-weight: 800;
+        font-size: 4rem;
+        letter-spacing: 0.02em;
+        opacity: 1;
+        transition: opacity 400ms ease-out;
+        gap: 1.5rem;
+      }
+      #boot-splash.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot-splash .pulse {
+        animation: trgb-pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes trgb-pulse {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: 0.5; }
+      }
+      #boot-splash .tagline {
+        font-size: 0.95rem;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        color: #555;
+        text-transform: uppercase;
+        margin-top: 0.5rem;
+      }
+    </style>
   </head>
   <body class="bg-brand-cream">
+    <div id="boot-splash">
+      <span class="pulse">TRGB</span>
+      <span class="tagline">Osteria Tre Gobbi</span>
+    </div>
     <div id="root"></div>
+    <script>
+      // Configurazione: tempo MINIMO che lo splash custom resta visibile
+      // (ms) — anche se React è pronto prima, lo splash non sparisce prima
+      // di questo timeout. Aumentare per allungare la transizione branded.
+      window.__BOOT_SPLASH_MIN_MS__ = 1500;
+      window.__BOOT_SPLASH_TS__ = Date.now();
+
+      // Funzione invocabile da main.jsx quando React ha montato:
+      // chiama window.__hideBootSplash__() e lo splash sparisce con fade.
+      window.__hideBootSplash__ = function () {
+        var el = document.getElementById('boot-splash');
+        if (!el) return;
+        var elapsed = Date.now() - window.__BOOT_SPLASH_TS__;
+        var wait = Math.max(0, window.__BOOT_SPLASH_MIN_MS__ - elapsed);
+        setTimeout(function () {
+          el.classList.add('fade-out');
+          setTimeout(function () { el.remove(); }, 450);
+        }, wait);
+      };
+
+      // Safety net: se React non chiama __hideBootSplash__ entro 8s
+      // (es. errore di boot), nasconde comunque lo splash così l'utente
+      // vede o l'errore o la pagina.
+      setTimeout(function () {
+        if (document.getElementById('boot-splash')) {
+          window.__hideBootSplash__();
+        }
+      }, 8000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
