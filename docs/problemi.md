@@ -158,6 +158,46 @@ Quando il backend va giù dopo un push e c'è una `.sqlite3.prev` nel workspace 
 
 ---
 
+## Aperti — Debt minori (emersi nel consolidamento docs 2026-05-08)
+
+### V-BUG1. Import vini FORCE senza controllo ruolo
+**Segnalato:** ricognito durante consolidamento `modulo_vini.md` 2026-05-08
+**Modulo:** Vini / Magazzino / `app/routers/vini_magazzino_router.py`
+**Gravità:** media (rischio di sovrascritture massive da utente non admin)
+
+**Sintomo:** l'endpoint `POST /vini/magazzino/import` con modalità FORCE (riallineamento completo + ricostruzione tabella) **NON verifica il ruolo dell'utente**. Chiunque sia autenticato può eseguirlo, inclusi sommelier/sala/viewer. Il controllo deve essere admin only.
+
+**Fix proposto:**
+```python
+if mode == "FORCE":
+    if user["role"] not in ("admin", "superadmin"):
+        raise HTTPException(403, "FORCE import richiede ruolo admin")
+```
+
+**Stato:** voce roadmap §V (priorità media). Non bloccante in produzione (solo Marco e altri admin/sommelier hanno credenziali, ma il sommelier può tecnicamente forzare l'import senza saperne le conseguenze).
+
+---
+
+### CG-DEBT1. Bozze auto preventivi senza TTL
+Vedi `inventario_pulizia.md` §"Bozze auto preventivi senza TTL". Cron schedulato per pulizia bozze `is_bozza_auto=1` con `updated_at < now-7d`. Effort XS, decisione pendente Marco.
+
+---
+
+### TASKS-DEBT1. Modulo guardiano L2 / migrazioni unificate non-foodcost
+Vedi `inventario_pulizia.md` §"Migrazioni unificate per DB non-foodcost". Solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py`. Gli altri 9 DB hanno schema runtime. Schema drift potenziale dev↔prod. Effort M.
+
+---
+
+### CK-DEBT1. Post-receive hook VPS — `git clean -fdx` può cancellare foto piatti
+Vedi `inventario_pulizia.md` §"Verifica post-receive hook VPS". Le foto piatti del Menu Carta in `static/menu_carta/` (gitignored) rischiano cancellazione ad ogni push se hook usa `git clean -fdx` con la `x`. Effort XS (cambiare a `-fd` o aggiungere exclude).
+
+---
+
+### TEST-DEBT1. Zero test automatici
+Aperto da analisi 2026-03-14: nessun test unit/integration. >70 endpoint, >80 pagine FE. Rischio regressioni alto. Effort L (large).
+
+---
+
 ## Aperti — Priorità media
 
 _(S40-1, S40-2, S40-3 risolti Wave 1 — vedi sezione Risolti.)_

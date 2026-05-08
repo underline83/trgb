@@ -1,6 +1,6 @@
 # TRGB Gestionale
 Sistema gestionale interno dell'Osteria Tre Gobbi (Bergamo)
-**Versione:** 2026.04.10 — Sistema v5.3
+**Versione:** 2026.05.08 — Sistema v5.x (vedi `VERSION` in root + `/system/info`)
 
 ---
 
@@ -137,41 +137,53 @@ Dominio frontend: `https://app.tregobbi.it` → `127.0.0.1:5173`
 
 # 9. Moduli
 
-### Cantina & Vini (v3.8)
-Magazzino vini con locazioni gerarchiche, movimenti, dashboard KPI, vendite bottiglia/calici. Carta Vini con generazione HTML/PDF/DOCX (legge solo da magazzino, vecchio DB eliminato v3.0). Strumenti cantina: import/export Excel, modifica massiva, filtro unificato, stampa selezionati, SchedaVino con sidebar.
-Docs: `docs/modulo_vini.md`, `docs/modulo_magazzino_vini.md`
+### Cantina & Vini (v4.x)
+Magazzino vini con locazioni gerarchiche, movimenti, dashboard KPI con widget riordini per fornitore (8 fasi) e widget alert "vini in carta senza giacenza" (6 fasi A-F), vendite bottiglia/calici. Carta Vini con generazione HTML/PDF/DOCX. Carta Bevande sub-module (7 sezioni: aperitivi, birre, amari fatti in casa, amari & liquori, distillati, tisane, tè) con editor + export master. Strumenti cantina: import/export Excel, modifica massiva, filtro unificato, stampa selezionati, SchedaVino con sidebar colorata per tipologia. Sync iPratico per match diretto codici.
+Docs: `docs/modulo_vini.md`, `docs/modulo_vini_widget_dashboard.md`
 
 ### Gestione Acquisti (v2.3)
-Import FatturaPA XML + sync FattureInCloud API v2 con enrichment, dashboard acquisti con drill-down, elenco fornitori con sidebar filtri + dettaglio inline, categorie a 2 livelli, esclusioni fornitori, condizioni di pagamento. Dettaglio fornitore v3.2 con sidebar colorata (teal/amber/slate) e FattureDettaglio inline unificato (fine delle "due implementazioni parallele").
-Docs: `docs/Modulo_Acquisti.md`
+Import FatturaPA XML + sync FattureInCloud API v2 con enrichment, dashboard acquisti con drill-down, elenco fornitori con sidebar filtri + dettaglio inline, categorie a 2 livelli, esclusioni fornitori, condizioni di pagamento. Dettaglio fornitore v3.2 con sidebar colorata (teal/amber/slate) e FattureDettaglio inline unificato. Pro-forme spec assorbita (in pausa).
+Docs: `docs/modulo_acquisti.md`
 
 ### Ricette & Food Cost (v3.0)
-Ingredienti, fornitori, storico prezzi, ricette con sub-ricette, calcolo food cost ricorsivo, matching fatture con Smart Create, conversioni unita' personalizzate.
-Docs: `docs/modulo_foodcost.md`
+Ingredienti, fornitori, storico prezzi multi-fornitore, ricette con sub-ricette, calcolo food cost ricorsivo con cycle detection, matching fatture XML → ingredienti con Smart Create, conversioni unità personalizzate (3 livelli: custom + standard + chain).
+Docs: `docs/modulo_ricette_foodcost.md`
 
-### Gestione Vendite (v4.2)
-Import Excel corrispettivi, chiusure giornaliere, chiusure turno (pranzo/cena con logica cumulativa + chiusure parziali), pre-conti, spese dinamiche, fondo cassa, dashboard unificata 3 modalita' (Mensile/Trimestrale/Annuale), confronto YoY smart. Contanti e Mance spostati in Flussi di Cassa dalla v1.0.
-Docs: `docs/modulo_corrispettivi.md`, `docs/design_gestione_vendite.md`
+### Selezioni / Gestione Vendite (v4.x)
+Import Excel corrispettivi, chiusure giornaliere, chiusure turno (pranzo/cena con logica cumulativa + chiusure parziali), pre-conti, spese dinamiche, fondo cassa, dashboard unificata 3 modalità (Mensile/Trimestrale/Annuale), confronto YoY smart. Contanti e Mance spostati in Flussi di Cassa.
+Docs: `docs/modulo_selezioni.md`
 
-### Flussi di Cassa (v1.5)
-Hub finanziario unificato: conti correnti (import CSV Banco BPM, movimenti, cross-ref fatture), carta di credito, gestione contanti (pagamenti spese e versamenti in banca, pre-conti, spese turno, spese varie), mance. Route: `/flussi-cassa/*` con redirect da `/banca/*`.
-Docs: `docs/modulo_flussi_cassa.md`
+### Banca + Flussi di Cassa (v1.x)
+Estratti conto BPM/Sella, movimenti bancari con matching scadenze (manuale + automatico in roadmap), riconciliazione, gestione contanti separata, mance con distribuzione cumulativo.
+Docs: `docs/modulo_banca.md`
 
 ### Controllo Gestione (v2.1c)
-Dashboard unificata vendite/acquisti/banca/margine. **v2.0 CG aggregatore (2026-04-10)**: lo Scadenzario legge direttamente da `fe_fatture` + `cg_spese_fisse` via JOIN (nessuna duplicazione dati), con smart dispatcher per edit scadenza/IBAN/modalita pagamento (2 rami: FATTURA → `fe_fatture`, altro → legacy). Rateizzazioni tracciate via `fe_fatture.rateizzata_in_spesa_fissa_id`. **v2.1c (2026-04-10 notte)**: rewrite sidebar Scadenzario con layout flat 240px, stato in griglia 2×2, tipo come segment control, periodo preset 3-col, footer sticky. FattureDettaglio arricchito con card "Pagamenti & Scadenze". Click-through intelligente Scadenzario → FattureDettaglio/SpeseFisse.
-Docs: `docs/Modulo_ControlloGestione.md`, `docs/v2.0-decisioni.md`
+Dashboard unificata vendite/acquisti/banca/margine. CG aggregatore: Scadenzario legge da `fe_fatture` + `cg_spese_fisse` via JOIN, smart dispatcher per edit scadenza/IBAN/modalità pagamento. Rateizzazioni tracciate via `fe_fatture.rateizzata_in_spesa_fissa_id`. FattureDettaglio arricchito con card "Pagamenti & Scadenze". Click-through Scadenzario → FattureDettaglio/SpeseFisse.
+Docs: `docs/modulo_controllo_gestione.md`
 
-### Gestione Clienti (v2.0)
-CRM completo con DB dedicato `clienti.sqlite3`. Anagrafica con tabella ordinabile + sidebar filtri, scheda cliente layout 3 colonne, diario note, tag toggle, storico prenotazioni. Dashboard CRM con 8 KPI card, compleanni 7gg, top clienti, distribuzioni (rank/tag/canale), andamento mensile. Import TheFork (clienti + prenotazioni), merge duplicati 3-step, export Google Contacts, protezione dati con alias merge.
-Docs: `docs/modulo_clienti.md`
+### Cucina (MVP + Phase A.2/A.3)
+Checklist ricorrenti HACCP/apertura/chiusura/pulizie, task singoli non ricorrenti, scheduler giornaliero idempotente, score di compliance. Phase A.2 livelli cucina (chef/sous_chef/commis), Phase A.3 brigata cucina ruoli utente reali con filtro auto.
+Docs: `docs/modulo_cucina.md` + `docs/modulo_pranzo.md` + `docs/modulo_menu_carta.md`
+
+### Gestione Clienti / CRM (v1.x)
+CRM completo con DB dedicato `clienti.sqlite3`. Anagrafica con sidebar filtri, scheda cliente con tab (anagrafica, prenotazioni, preventivi, note), tag, segmenti marketing, RFM. Sync Mailchimp con merge fields + tag automatici per segmento.
+Docs: `docs/modulo_clienti_crm.md`
 
 ### Prenotazioni (v2.0)
-Modulo prenotazioni basato su `clienti.sqlite3`, obiettivo eliminare TheFork Manager. Vista tabella globale con filtri (stato, canale, date), badge colorati, paginazione.
+Modulo prenotazioni basato su `clienti.sqlite3`, obiettivo eliminare TheFork Manager. Planning giornaliero, vista settimanale, autocomplete cliente CRM, mappa tavoli (Fase 2 in roadmap), widget pubblico (Fase 3 in roadmap).
 Docs: `docs/modulo_prenotazioni.md`
 
-### Dipendenti & Turni (v2.1)
-Anagrafica, tipologie turno, calendario.
-Docs: `docs/modulo_dipendenti.md`
+### Preventivi
+Aggregare preventivi per eventi privati, cene aziendali, gruppi. Numero progressivo annuale, stati con transizioni, template riutilizzabili, righe editabili con totale live, link a prenotazione confermata.
+Docs: `docs/modulo_preventivi.md`
+
+### Dipendenti & Turni (v2.x)
+Anagrafica + Turni v2 (foglio settimana stile Excel) operativi. In roadmap: Buste paga (PDF parsing → cg_uscite), Presenze, Scadenze documenti (HACCP/sicurezza/visite), Contratti, Dashboard costi.
+Docs: `docs/modulo_dipendenti.md`, `docs/modulo_dipendenti_turni.md`
+
+### Statistiche
+Import iPratico mensile (.xls HTML), dashboard KPI, classifica top prodotti, trend mensile, dettaglio prodotti con filtri, storico import.
+Docs: `docs/modulo_statistiche.md`
 
 ---
 
@@ -208,15 +220,24 @@ Schema dettagliato → `docs/database.md`
 
 | File | Contenuto |
 |------|-----------|
-| `docs/architettura.md` | Architettura tecnica completa |
+| `docs/stack_tecnico.md` | Architettura tecnica completa (ex `architettura.md`) |
+| `docs/architettura_locale.md` | Architettura locale post-R6.5 (path canonico `locali/<id>/data/`) |
+| `docs/architettura_mattoni.md` | Mattoni condivisi M.A-M.I |
+| `docs/architettura_pattern.md` | Pattern ricorrenti (WAL, trailing slash, ecc.) |
 | `docs/database.md` | Schema tutti i database |
 | `docs/deploy.md` | Guida deploy VPS e locale |
+| `docs/sicurezza_backup.md` | Architettura backup post-incidente S60-INC1 |
+| `docs/installazione_nuovo_server.md` | Runbook setup nuovo cliente |
+| `docs/refactor_monorepo.md` | Refactor R1-R8 monorepo (core/ + locali/) |
 | `docs/changelog.md` | Storico rilasci |
-| `docs/roadmap.md` | Task aperti e pianificati |
+| `docs/roadmap.md` | Task aperti e pianificati (modulo per modulo) |
+| `docs/problemi.md` | Bug aperti e debt tecnico |
 | `docs/sessione.md` | Briefing per sessioni Claude |
 | `docs/GUIDA-RAPIDA.md` | Guida rapida operativa |
-| `docs/v2.0-decisioni.md` | Decisioni architetturali CG aggregatore |
-| `docs/Modulo_*.md` | Documentazione per modulo |
+| `docs/inventario_pulizia.md` | Tech debt + cleanup batch (worktree, file morti, WAL TODO) |
+| `docs/controllo_design.md` | Regole UI/UX trasversali |
+| `docs/checklist_visione_insieme.md` | Checklist 6-punti per ogni modifica |
+| `docs/modulo_*.md` | Documentazione per modulo (vini, acquisti, ricette_foodcost, cucina, dipendenti, ecc.) |
 
 ---
 

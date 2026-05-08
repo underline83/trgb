@@ -69,7 +69,7 @@ clienti_menu_template / clienti_menu_template_righe (clienti.sqlite3)
 
 ### 1.3 Cosa NON va toccato
 
-- `recipes`, `recipe_items`, `recipe_categories` → schema food cost v2, production-ready, IMPLEMENTATO al 100% (cfr. `docs/design_ricette_foodcost_v2.md`). Solo **ADD COLUMN** non distruttive.
+- `recipes`, `recipe_items`, `recipe_categories` → schema food cost v2, production-ready, IMPLEMENTATO al 100% (cfr. `docs/modulo_ricette_foodcost.md`). Solo **ADD COLUMN** non distruttive.
 - `clienti_menu_template*` → modulo Preventivi/Banchetti, non c'entra con menu carta. Resta indipendente.
 - `cucina.sqlite3` → modulo Cucina HACCP (checklist), parallelo, non si tocca.
 
@@ -611,7 +611,7 @@ Tre fasi minime. Ogni fase è un push.
 
 ## 11. Riferimenti
 
-- `docs/design_ricette_foodcost_v2.md` — schema food cost v2 (fonte di verità su `recipes`)
+- `docs/modulo_ricette_foodcost.md` — schema food cost v2 (fonte di verità su `recipes`)
 - `docs/modulo_cucina.md` — modulo Cucina HACCP MVP (sessione 43)
 - `docs/architettura_mattoni.md` — mattoni condivisi (M.A, M.B, M.F)
 - `app/migrations/074_recipes_menu_servizi.py` — estensione `recipes` per menu/servizi (sessione 35)

@@ -683,3 +683,39 @@ Dopo 1 mese di utilizzo in produzione:
 - NON duplicare dati prenotazioni — stessa tabella `clienti_prenotazioni`
 - NON complicare la mappa tavoli — SVG semplice, no Canvas/WebGL
 - NON automatizzare WhatsApp senza valutare costi — iniziare con link manuali
+
+---
+
+# 14. Stato implementazione (assorbito da `prenotazioni_todo.md` 2026-05-08)
+
+> **Nota:** la task list dettagliata era in `prenotazioni_todo.md`, ora rimossa. Le voci aperte sono tracciate nella roadmap operativa: `roadmap.md` §PR. Sintesi qui sotto dello stato fasi.
+
+## Fase 1A — Backend Agenda
+**Stato:** parzialmente fatto. La tabella `clienti_prenotazioni` è popolata (31k record da TheFork import). Il router `prenotazioni_router.py` esiste con i principali endpoint planning/settimana/calendario. Manca: backfill `turno`/`fonte` per le 31k esistenti, tabella `prenotazioni_config` con valori default, tabelle `tavoli` + `tavoli_combinazioni` e seed (Fase 2).
+
+## Fase 1B — Frontend Agenda
+**Stato:** parzialmente fatto. Esistono `PrenotazioniMenu`, `PrenotazioniPlanning`, `PrenotazioniForm`, `PrenotazioniSettimana`, `PrenotazioniImpostazioni`. Da rifinire: badge canale completi (TheFork/tel/WA/walk-in/widget), espansione riga con dettagli completi, colorazione righe per stato, riepilogo footer, autocomplete cliente con creazione inline.
+
+## Fase 2A — Backend Tavoli
+**Stato:** ⏳ TODO. Tutti gli endpoint tavoli + layout + combinazioni da implementare (vedi roadmap PR.x).
+
+## Fase 2B — Frontend Mappa Tavoli
+**Stato:** ⏳ TODO. `TavoliEditor` (canvas SVG drag-snap) + `TavoliMappa` (mappa serale interattiva) + responsive tablet.
+
+## Fase 3 — Widget pubblico
+**Stato:** ⏳ TODO. Endpoint pubblici disponibilità/prenota/cancella + pagina `/prenota` standalone + Cloudflare Turnstile + rate limiting.
+
+## Fase 4 — Conferme e notifiche
+**Stato:** parzialmente coperto da M.D Email (ancora da implementare) + M.C WA composer (mattone già pronto). Endpoint `/{id}/wa-link` disponibile. Email conferma/reminder/cancellazione richiede M.D.
+
+## Fase 5 — Distacco TheFork Manager
+**Stato:** ⏳ TODO. Decisione strategica (import XLSX giornaliero vs API/scraping) + 2 settimane parallelo TFM/TRGB + disattivazione Booking Module + disdetta TFM.
+
+## Decisioni prese (2026-04-06)
+- Tutto in `clienti.sqlite3`, stessa tabella `clienti_prenotazioni`
+- Colore tema: indigo
+- Widget: slot precisi cena, fascia generica pranzo
+- Utenti: Marco (admin) + staff sala (inserimento + arrivi)
+- Conferme: email + link WA manuale, poi eventuale WA Business API
+- Layout sala cambia spesso → layout salvabili obbligatori
+- 14 interni + 20 esterni + ~20 combinazioni interne

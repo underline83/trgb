@@ -1,66 +1,357 @@
-# Modulo Carta Vini — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-04-19 (sessione 47 — nota sub-module Carta Bevande)
-**Stato:** stabile — generazione carta da DB magazzino unico
-**Router:** `app/routers/vini_router.py`
-**DB:** `vini_magazzino.sqlite3` (unico DB, vecchio `vini.sqlite3` eliminato in v3.0)
+# Modulo Vini — TRGB Gestionale
 
-> **Sub-module Carta Bevande (sessione 47):** la Carta Vini è ora una delle sezioni della più ampia **Carta delle Bevande** (endpoint `/bevande/carta*`, service `carta_bevande_service.py`, DB `bevande.sqlite3`). Gli endpoint `/vini/carta*` descritti sotto restano **invariati** per retro-compat. Vedi `docs/carta_bevande_todo.md` per la checklist e la specifica.
-
----
-
-# 1. Obiettivo del modulo
-
-Il modulo **Carta Vini** gestisce:
-
-- Generazione Carta Vini in: HTML, PDF cliente, PDF staff, DOCX
-- Ordinamento strutturato (tipologia → nazione → regione → produttore → descrizione → annata)
-- Filtri carta (quantita' minima, mostra negativi, mostra senza prezzo)
-- Anteprima live embedded nel gestionale
-
-Legge i dati dal **DB magazzino** (`vini_magazzino.sqlite3`) tramite `vini_repository.py`.
-
-Funziona in integrazione con:
-- **Modulo Cantina & Magazzino Vini** (`docs/modulo_magazzino_vini.md`)
-- **Modulo Settings Vini** (ordini tipologie, nazioni e regioni)
-- **Carta delle Bevande** (`docs/carta_bevande_todo.md`) — la Carta Vini è embeddata come sezione `vini_dinamico` nella carta master bevande
+**Ultimo aggiornamento:** 2026-05-08
+**Stato:** stabile, in evoluzione (sub-module Carta Bevande FE/BE pronto, manca popolamento dati Marco; sub-module iPratico stabile; widget dashboard a 14 fasi cumulative — vedi `docs/modulo_vini_widget_dashboard.md`)
+**Versione modulo (`versions.jsx`):** vini 4.x · cantina (magazzino) v3.x · carta_bevande v1.0
+**Roadmap:** sezione `V.` di `docs/roadmap.md` per priorità e voci aperte
 
 ---
 
-# 2. Flusso dati
+# 0. Indice
 
-1. `load_vini_ordinati()` legge da `vini_magazzino.sqlite3` (WHERE CARTA='SI')
-2. Applica filtri quantita'/prezzo da `vini_settings.sqlite3`
-3. Normalizza tipologie (vecchie → nuove) con `_TIPOLOGIA_MAP`
-4. Ordina per tipologia → nazione → regione → produttore → descrizione → annata
-5. Genera carta (HTML/PDF/DOCX) tramite `carta_vini_service.py`
+1. Panoramica modulo
+2. Architettura backend
+3. Magazzino (cantina interna) — FE/BE
+4. Dashboard Vini (KPI + alert + analytics)
+5. Carta Vini (export HTML/PDF/DOCX)
+6. Carta Bevande (sub-module: 7 sezioni extra-vini)
+7. Sincronizzazione iPratico
+8. Cantina Tools (import/export Excel + locazioni)
+9. Stampa inventario filtrato
+10. Movimenti cantina + storico prezzi
+11. Permessi e ruoli
+12. Bug noti / debt tecnico
+13. Storico bugfix
+
+> **Storia widget dashboard (14 fasi):** spostata in `docs/modulo_vini_widget_dashboard.md`. Qui sotto solo lo stato corrente.
 
 ---
 
-# 3. Endpoint principali
+# 1. Panoramica modulo
 
-### Carta Vini (`vini_router.py` v3.0)
+Il modulo **Vini** copre l'intera filiera della cantina dell'osteria:
+
+- **Magazzino** — anagrafica vini, giacenze per locazione (frigo + 3 magazzini), movimenti cantina (CARICO/SCARICO/VENDITA/RETTIFICA), note operative, prezzi listino e carta.
+- **Dashboard operativa** — KPI stock + vendite, alert giacenza zero su vini in carta, vini fermi 30gg, top venduti, distribuzione tipologie, widget riordini per fornitore.
+- **Carta Vini** — generatore della carta cliente (HTML preview + PDF cliente + PDF staff + DOCX), ordinata gerarchicamente.
+- **Carta Bevande** (sub-module) — gestione editoriale delle 7 sezioni extra-vini (Aperitivi, Birre, Amari fatti in casa, Amari & Liquori, Distillati, Tisane, Tè) con export unificato.
+- **iPratico sync** — match diretto sui codici 4 cifre nel campo Name iPratico, export Excel con TRGB priority, lista vini mancanti.
+- **Import/export** — Excel cantina via `cantina-tools` (modalità SAFE / FORCE), bulk-import voci bevande da testo.
+
+DB principale: `vini_magazzino.sqlite3` (unico, vecchio `vini.sqlite3` eliminato in v3.0). DB separato: `bevande.sqlite3` per le 7 sezioni extra-vini (le voci della Carta Vini restano in `vini_magazzino`).
+
+---
+
+# 2. Architettura backend
+
+## File principali
+
+| File | Ruolo |
+|------|-------|
+| `app/models/vini_magazzino_db.py` | Tutte le query SQLite (CRUD vini, movimenti, note, dashboard, ordini pending, storico prezzi) |
+| `app/models/bevande_db.py` | Schema + helper `bevande.sqlite3` (sezioni + voci editoriali) |
+| `app/models/vini_settings.py` | Settings Carta Vini + `_TIPOLOGIA_MAP` (normalizzazione runtime) |
+| `app/repositories/vini_repository.py` | Ordering, filtri, query `load_vini_ordinati()` da magazzino |
+| `app/routers/vini_magazzino_router.py` | Endpoint magazzino (CRUD, dashboard, movimenti, ordini pending, prezzi storico) |
+| `app/routers/vini_router.py` | Endpoint Carta Vini (HTML/PDF/DOCX, movimenti) |
+| `app/routers/vini_cantina_tools_router.py` | Import/export Excel diretto, locazioni-config, stampa inventario |
+| `app/routers/ipratico_products_router.py` | Sync iPratico (mapping, export, sync-log) |
+| `app/routers/vini_settings_router.py` | Settings Carta (ordine tipologie/nazioni/regioni, filtri) |
+| `app/routers/bevande_router.py` | Carta Bevande: CRUD sezioni/voci + export unificato |
+| `app/services/carta_vini_service.py` | Builder HTML/PDF/DOCX Carta Vini (WeasyPrint, python-docx, font Cormorant Garamond) |
+| `app/services/carta_bevande_service.py` | Orchestratore master (vini + 7 sezioni bevande) + 3 pattern render |
+| `app/utils/vini_metrics.py` | Helper riusabili: `calcola_ritmo_vendita()`, `giorni_dalla_ultima_vendita()` |
+| `static/css/carta_pdf.css` + `carta_html.css` | Stile preview e PDF (allineati) |
+
+## File deprecated (ancora presenti)
+- `app/models/vini_db.py` — vecchio schema DB pre-v3.0, non più importato (rimuovere in cleanup)
+- `app/models/vini_model.py` — contiene `normalize_dataframe()` ancora usata da import-excel cantina-tools
+
+---
+
+# 3. Magazzino (cantina interna)
+
+## 3.1 Pagine frontend
+
+| Pagina | Route | Descrizione |
+|--------|-------|-------------|
+| `ViniMenu.jsx` | `/vini` | Hub modulo |
+| `MagazzinoVini.jsx` | `/vini/magazzino` | Lista vini + pannello dettaglio rapido |
+| `MagazzinoViniDettaglio.jsx` | `/vini/magazzino/:id` | Scheda completa (anagrafica, giacenze, movimenti, note) |
+| `MagazzinoViniNuovo.jsx` | `/vini/magazzino/nuovo` | Form creazione nuovo vino |
+| `MagazzinoAdmin.jsx` | `/vini/magazzino/admin` | Tabellona modifica massiva (admin only) |
+| `DashboardVini.jsx` | `/vini/dashboard` | Dashboard operativa (vedi §4) |
+| `RegistroMovimenti.jsx` | `/vini/movimenti` | Storico globale movimenti |
+| `iPraticoSync.jsx` | `/vini/ipratico` | Sync e mapping iPratico |
+| `ViniImpostazioni.jsx` | `/vini/impostazioni` | Settings Carta + locazioni |
+
+Sub-menu: `MagazzinoSubMenu.jsx` (Magazzino, Dashboard, Import, Impostazioni).
+
+## 3.2 Filtri MagazzinoVini (v4.x)
+
+**Ricerca testuale:** ID DB, ID Excel (`id_excel`), descrizione, denominazione, produttore, codice, regione/nazione.
+
+**Numerici:** giacenza totale (>, <, tra), solo positiva, prezzo carta.
+
+**Combinati:** tipologia, nazione, regione, produttore. Le liste sono dipendenti (riducono dinamicamente con `useMemo` clientside).
+
+**Filtro locazione unificato (v4.0):** sostituisce i 6 select gerarchici della v3.0. Due dropdown:
+- **Locazione** — nomi unici da tutte le sezioni (Frigorifero, Locazione 1/2/3) deduplicati e ordinati
+- **Spazio** — spazi disponibili per la locazione selezionata (inclusi spazi matrice `(col,riga)`)
+
+Il filtro cerca contemporaneamente in tutte e 4 le colonne DB (`FRIGORIFERO`, `LOCAZIONE_1/2/3`). Senza spazio = tutti i vini in quel contenitore. Con spazio = match esatto su `"nome - spazio"`. Valori da `locazioni_config` via endpoint `/locazioni-config`.
+
+## 3.3 Scheda dettaglio vino — `SchedaVino.jsx` v5.x
+
+Layout `grid-cols-[260px_1fr]`: sidebar tinta dinamica per TIPOLOGIA + area main scrollabile.
+
+**Sidebar (260px, gradiente per tipologia):**
+- ROSSI → red-700→red-900 · BIANCHI → amber-600→amber-800 · BOLLICINE → yellow · ROSATI → pink · PASSITI → orange · GRANDI FORMATI → purple · ANALCOLICI → teal · fallback → grigio
+- Nome + badge `#id`
+- Stat box (4): Bottiglie, Prezzo, Listino, Formato
+- Lista info: Tipologia, Annata, Denominazione, Produttore, Regione, Nazione, Stato vendita, Conservazione
+- Pulsanti: Modifica anagrafica, Modifica giacenze, Duplica vino, Chiudi
+
+**Main:**
+- §3.3.1 Anagrafica: visualizzazione + edit inline (PATCH `/vini/magazzino/{id}`). Edit attivato dal pulsante sidebar
+- §3.3.2 Giacenze per locazione: edit separato per frigo/loc1/loc2/loc3. Salvataggio genera RETTIFICA se `QTA_TOTALE` cambia
+- §3.3.3 Movimenti cantina: storico + form aggiunta + delete (admin/sommelier only)
+- §3.3.4 Note operative: lista + add + delete con conferma
+- §3.3.5 Storico prezzi (Fase 8 widget riordini, vedi `modulo_vini_widget_dashboard.md`): lista cronologica EURO_LISTINO con Δ colorato, filtro campo, mini-grafico Recharts
+
+## 3.4 Movimenti cantina
+
+| Tipo | Emoji | Colore | Significato |
+|------|-------|--------|-------------|
+| CARICO | ⬆️ | emerald | Ricezione merce (acquisto/fornitore) |
+| SCARICO | ⬇️ | red | Uscita non commerciale (rottura, consumo interno, degustazione) |
+| VENDITA | 🛒 | violet | Vendita commerciale (inserimento manuale — iPratico non esporta dati) |
+| RETTIFICA | ✏️ | amber | Correzione giacenza (inventario, errori) |
+
+**Note modello dati:**
+- Le VENDITE sono inserite manualmente (iPratico non esporta dati dalle vendite in nessun formato)
+- SCARICO ≠ VENDITA: scarico = uscita senza corrispettivo commerciale
+- Ogni modifica giacenza da UI genera automaticamente una RETTIFICA
+
+**Tabella `vini_magazzino_movimenti`:** `id`, `vino_id` (FK), `tipo`, `qta`, `note`, `utente`, `data_mov`. Indice consigliato: `(vino_id, tipo, data_mov)`.
+
+## 3.5 Tabella `vini_magazzino` — campi
+
+`id` (immutabile), `id_excel` (origine), `DESCRIZIONE`, `PRODUTTORE`, `REGIONE`, `NAZIONE`, `TIPOLOGIA`, `ANNATA`, `DENOMINAZIONE`, `FORMATO`, `GRADI`, `QTA_FRIGO`, `QTA_LOC1`, `QTA_LOC2`, `QTA_LOC3`, `QTA_TOTALE` (calcolato), `EURO_LISTINO`, `EURO_CARTA`, `CARTA` (SI/NO), `IPRATICO` (SI/NO), `NOTE`, `STATO_RIORDINO`, `STATO_VENDITA`, `STATO_CONSERVAZIONE`, `DISTRIBUTORE`, `RAPPRESENTANTE`.
+
+## 3.6 Endpoint magazzino principali
+
+| Metodo | Path | Descrizione |
+|--------|------|-------------|
+| GET | `/vini/magazzino/` | Lista vini con filtri |
+| GET | `/vini/magazzino/dashboard` | Statistiche aggregate (vedi §4) |
+| GET | `/vini/magazzino/{id}` | Dettaglio vino |
+| POST | `/vini/magazzino/` | Crea vino |
+| PATCH | `/vini/magazzino/{id}` | Aggiorna anagrafica (hook: se `EURO_LISTINO` cambia, insert in `vini_prezzi_storico`) |
+| POST | `/vini/magazzino/{id}/movimenti` | Registra movimento |
+| DELETE | `/vini/magazzino/movimenti/{id}` | Elimina movimento (admin/sommelier) |
+| GET | `/vini/magazzino/{id}/note` | Lista note vino |
+| POST | `/vini/magazzino/{id}/note` | Aggiunge nota |
+| DELETE | `/vini/magazzino/{id}/note/{nota_id}` | Elimina nota |
+| POST | `/vini/magazzino/import` | Import Excel (SAFE / FORCE) |
+| POST | `/vini/magazzino/check-duplicati` | Verifica duplicati pre-import |
+| POST | `/vini/magazzino/{id}/duplica` | Duplica con nuova annata (Fase 2 widget) |
+| GET | `/vini/magazzino/ordini-pending/` | Lista ordini pending (Fase 3 widget) |
+| POST | `/vini/magazzino/{id}/ordine-pending` | Upsert ordine (Fase 4 widget) |
+| DELETE | `/vini/magazzino/{id}/ordine-pending` | Cancella ordine pending |
+| POST | `/vini/magazzino/{id}/ordine-pending/conferma-arrivo` | Converte ordine → CARICO (Fase 5 widget) |
+| GET | `/vini/magazzino/{id}/prezzi-storico/` | Storico prezzi vino (Fase 6 widget) |
+
+⚠ **Nota router:** `GET /dashboard` deve essere dichiarato PRIMA di `GET /{vino_id}` per evitare che FastAPI interpreti "dashboard" come `vino_id` intero (genera 422).
+
+## 3.7 Modifica massiva — `MagazzinoAdmin.jsx` v2.0
+
+Tabellona editabile per admin con tutte le colonne principali:
+- Click sugli header per ordinamento ASC/DESC (▲/▼/⇅)
+- Colonne FRIGORIFERO, LOCAZIONE_1, LOCAZIONE_2 con dropdown valori configurati (tipo `loc_select`)
+- Valori non configurati mostrati con suffisso "(non config.)"
+- Salvataggio riga singola o batch
+
+---
+
+# 4. Dashboard Vini — `DashboardVini.jsx` v4.x
+
+## 4.1 KPI Stock (4 tile)
+
+| Tile | Dato | Drill-down |
+|------|------|------------|
+| 🍾 Bottiglie in cantina | `total_bottiglie` su `n` referenze | — |
+| 📋 Vini in carta | `vini_in_carta` con % su catalogo | — |
+| ⚠️ Senza prezzo listino | `vini_senza_listino` | ✅ tabella inline + link a scheda |
+| 💤 Vini fermi (30gg) | giacenza > 0 e nessun movimento in 30gg (include mai movimentati) | ✅ lista espandibile |
+
+## 4.2 KPI Vendite (4 tile)
+- 🛒 Bottiglie vendute ultimi 7gg
+- 📈 Bottiglie vendute ultimi 30gg
+- 💰 Valore acquisto totale (QTA × listino)
+- 💎 Valore carta totale (QTA × prezzo carta)
+
+## 4.3 Alert e widget (vedi `modulo_vini_widget_dashboard.md` per il dettaglio delle 14 fasi)
+
+- 🚨 **Vini in carta senza giacenza** (banner alert collassabile, 6 fasi A-F implementate): pill `+ ordina · N` inline con qta suggerita storico 60gg ÷ 2; badge ritmo vendita (top/medio/poco/mai); pill stato riordino (📝/🚨/📦/🗓️/⛔); chip filtro tipologia (Tutti/Rossi/Bianchi/Bollicine/Rosati/Altri); toggle raggruppa per distributore (persistito in `localStorage`); bottone `✅ Arrivato` inline.
+- 💤 **Vini fermi** — lista espandibile, "mai movimentato" evidenziato
+- **Vendite recenti** (col sx) + **Movimenti operativi** (col dx)
+- **Top venduti 30gg** (larghezza piena) — ranking a barre, click → scheda vino
+- **Distribuzione tipologie** — barre proporzionali con contatore
+- **📦 Riordini per fornitore** (sezione gestionale completa, 8 fasi 1-8 implementate): tabella raggruppata per distributore con sort produttore, pulsante info dedicato, duplica con nuova annata, colonna riordino + modale qty, bottone arrivato + carico, listino inline editabile con storico, sort multi-colonna.
+
+---
+
+# 5. Carta Vini
+
+## 5.1 Endpoint
 
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
 | GET | `/vini/carta` | Anteprima web HTML |
-| GET | `/vini/carta/html` | Alias compatibilita' |
+| GET | `/vini/carta/html` | Alias compatibilità |
 | GET | `/vini/carta/pdf` | PDF cliente |
 | GET | `/vini/carta/pdf-staff` | PDF staff |
 | GET | `/vini/carta/docx` | Documento Word |
-| GET | `/{vino_id}/movimenti` | Lista movimenti vino |
-| POST | `/{vino_id}/movimenti` | Registra movimento |
 
-### Strumenti Cantina (`vini_cantina_tools_router.py` v3.1)
+> Endpoint legacy mantenuti per retro-compat anche dopo l'introduzione della Carta Bevande (vedi §6).
 
-| Metodo | Endpoint | Funzione |
-|--------|----------|----------|
-| POST | `/vini/cantina-tools/import-excel` | Import Excel diretto → magazzino |
-| GET | `/vini/cantina-tools/export-excel` | Download .xlsx da magazzino |
-| GET | `/vini/cantina-tools/locazioni-config` | Locazioni configurate |
+## 5.2 Flusso dati
 
-> **Rimossi in v3.0:** `/vini/upload` (import Excel vecchio), `/vini/cantina-tools/sync-from-excel` (sync vecchio DB)
+1. `load_vini_ordinati()` legge da `vini_magazzino.sqlite3` (WHERE `CARTA='SI'`)
+2. Applica filtri quantità/prezzo da `vini_settings.sqlite3`
+3. Normalizza tipologie (vecchie → nuove) con `_TIPOLOGIA_MAP`
+4. Ordina per tipologia → nazione → regione → produttore → descrizione → annata
+5. Genera carta (HTML/PDF/DOCX) tramite `carta_vini_service.py`
 
-### Sincronizzazione iPratico (`ipratico_products_router.py` v2.0)
+## 5.3 Gerarchia carta
+
+```
+Tipologia (GRANDI FORMATI, BOLLICINE, BIANCHI, ROSATI, ROSSI, PASSITI, ANALCOLICI)
+  └── Nazione (Italia, Francia, Germania, Austria, Spagna...)  [filetti decorativi]
+       └── Regione (Lombardia, Piemonte, Champagne...)
+            └── Produttore (bold)
+                 └── Vino: descrizione | annata | prezzo
+```
+
+## 5.4 Settings Carta — `vini_settings_router.py`
+
+- Ordine tipologie (lista riordinabile con frecce)
+- Ordine nazioni (riordinabile)
+- Ordine regioni per nazione
+- Filtri carta: quantità minima, mostra negativi, mostra senza prezzo
+
+## 5.5 Voci roadmap aperte (vedi `roadmap.md` §V)
+- PDF con indici cliccabili (TOC con link interni)
+- Versioning della carta (storico PDF)
+- Template multipli (eventi, degustazioni)
+
+---
+
+# 6. Carta Bevande (sub-module)
+
+> Versione 1.0 — Backend (Fase 1) e Frontend editor (Fase 2) e Export unificato (Fase 3) **completati 2026-04-19**. Manca **Fase 4 popolamento dati Marco**.
+
+## 6.1 Posizionamento UI
+
+Tab **"Carta"** nel sub-menu Vini (nome invariato). La pagina diventa hub con 8 card (Vini come hero span 2 col).
+
+| Ordine | Sezione | Emoji | Key |
+|--------|---------|-------|-----|
+| 1 | Vini | 🍷 | `vini` (hero, dati da `vini_magazzino`) |
+| 2 | Aperitivi | 🍸 | `aperitivi` |
+| 3 | Birre | 🍺 | `birre` |
+| 4 | Amari fatti in casa | 🌿 | `amari_casa` |
+| 5 | Amari & Liquori | 🥃 | `amari_liquori` |
+| 6 | Distillati | 🥂 | `distillati` (Grappa/Rum/Whisky via tag tipologia) |
+| 7 | Tisane | 🍵 | `tisane` |
+| 8 | Tè | 🫖 | `te` |
+
+## 6.2 Rotte
+
+```
+/vini/carta                       → Hub (CartaBevande.jsx)
+/vini/carta/vini                  → Preview + export Carta Vini (CartaVini.jsx)
+/vini/carta/sezione/:key          → Editor sezione (CartaSezioneEditor.jsx)
+/vini/carta/anteprima             → Preview completa master (CartaAnteprima.jsx)
+```
+
+## 6.3 Modello dati — `bevande.sqlite3`
+
+DB isolato (coerente con `notifiche.sqlite3`, `cg.sqlite3`) per backup/restore semplificati.
+
+**Tabella `bevande_sezioni`:** `id` PK, `key` UNIQUE, `nome`, `intro_html`, `ordine`, `attivo`, `layout` (`tabella_4col`/`scheda_estesa`/`nome_badge_desc`), `schema_form` JSON (per editor dinamico), `created_at`, `updated_at`. Seed iniziale: 8 sezioni con `layout` di default.
+
+**Tabella `bevande_voci`:** tutte le voci di tutte le sezioni in tabella piatta. Campi: `id`, `sezione_key`, `nome`, `sottotitolo`, `descrizione`, `produttore`, `regione`, `formato`, `gradazione`, `ibu`, `tipologia`, `paese_origine`, `prezzo_eur`, `prezzo_label` (override testuale), `tags` JSON, `extra` JSON catch-all, `ordine`, `attivo`, `note_interne` (visibili solo PDF-staff), `created_at`, `updated_at`. Indici: `idx_bevande_voci_sezione (sezione_key, ordine)`, `idx_bevande_voci_attivo`.
+
+## 6.4 Pattern di render (3 layout)
+
+- **Pattern A — `tabella_4col`** (Distillati, Amari & Liquori): `[REGIONE/PAESE] [PRODUTTORE] [NOME + annata] [€]`. Compatto.
+- **Pattern B — `scheda_estesa`** (Birre, Aperitivi, Amari fatti in casa): nome + sottotitolo + meta line (produttore · stile · formato · grad · IBU) + descrizione + prezzo.
+- **Pattern C — `nome_badge_desc`** (Tisane, Tè): nome + badge tipologia colorato + descrizione/ingredienti + paese origine (solo tè).
+
+Aggiungere un nuovo pattern = aggiungere una funzione Python in `carta_bevande_service.py` + un valore enum. Zero migration.
+
+## 6.5 Endpoint Carta Bevande
+
+| Metodo | Path | Descrizione |
+|--------|------|-------------|
+| GET | `/bevande/sezioni/` | Lista sezioni + conteggi voci totali/attive (per card hub) |
+| GET | `/bevande/sezioni/{key}` | Dettaglio + schema_form parsato |
+| PUT | `/bevande/sezioni/{key}` | Aggiorna nome/intro_html/ordine/attivo/layout/schema_form |
+| POST | `/bevande/sezioni/reorder` | Riordino batch |
+| GET | `/bevande/voci/?sezione=&attivo=&q=` | Lista filtrata + ricerca su nome/produttore/descrizione |
+| GET | `/bevande/voci/{id}` | Dettaglio |
+| POST | `/bevande/voci/` | Crea voce (blocca sezione `vini` dinamica) |
+| PUT | `/bevande/voci/{id}` | Aggiorna (PATCH-like) |
+| DELETE | `/bevande/voci/{id}` | Soft-delete; `?hard=1` solo admin/superadmin |
+| POST | `/bevande/voci/reorder` | Riordino batch |
+| POST | `/bevande/voci/bulk-import` | Import accodato (parser TAB/2+spazi) |
+| GET | `/bevande/carta` | HTML preview master (Vini + sezioni attive) |
+| GET | `/bevande/carta/pdf` | PDF cliente (WeasyPrint) |
+| GET | `/bevande/carta/pdf-staff` | PDF staff con `note_interne` |
+| GET | `/bevande/carta/docx` | DOCX master |
+| GET | `/bevande/sezioni/{key}/preview` | HTML singola sezione (per editor) |
+
+**Permessi:** `_require_editor` (admin/superadmin/sommelier) per scrittura, `_require_reader` (tutti tranne viewer) per lettura. NESSUN endpoint pubblico — JWT obbligatorio ovunque.
+
+**Retro-compat:** `/vini/carta*` invariati (carta vini standalone), `/bevande/carta*` per la carta master.
+
+## 6.6 Versioning automatico
+
+Footer PDF cliente: `Carta delle Bevande — v{YYYY}.{MM}.{DD}` calcolato da `MAX(updated_at)` su `bevande_sezioni` + `bevande_voci`. Permette di riconoscere a colpo d'occhio se il PDF in sala è aggiornato.
+
+## 6.7 Decisioni chiuse (2026-04-19)
+
+1. **Multi-lingua:** NO in MVP. Solo italiano. Da rivalutare in futuro.
+2. **URL pubblico `/carta-bevande`:** NO. Solo staff con JWT.
+3. **Versioning automatico:** SÌ (vedi §6.6).
+4. **Mattone M.B PDF brand:** non aspettiamo. Pipeline attuale `carta_vini_service` estesa in `carta_bevande_service`. Quando M.B arriverà, migreremo.
+
+## 6.8 Da fare (Fase 4)
+
+Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
+- Aperitivi (~10 min, 5-10 voci)
+- Birre (~15 min, ~10 voci)
+- Amari fatti in casa (~10 min, 5-10 voci)
+- Amari & Liquori (~30 min, 20-30 voci)
+- Distillati (~60 min, ~60 voci: Grappe + Rum + Whisky)
+- Tisane (~10 min, ~7 voci)
+- Tè (~20 min, 10-15 voci)
+
+**Totale stimato: ~2.5 ore** (o meno con bulk-import da testo).
+
+---
+
+# 7. Sincronizzazione iPratico — `ipratico_products_router.py` v2.0
+
+## 7.1 Logica chiave
+
+- Il codice 4 cifre nel campo Name iPratico = `vini_magazzino.id` (match diretto, ~99.7%)
+- TRGB ha priorità: se un vino cambia su TRGB, l'export aggiorna nome/giacenza/prezzo su iPratico
+- L'export aggiunge automaticamente vini TRGB mancanti con campi default configurabili (Family, reparti, listini, prezzi)
+
+## 7.2 Endpoint
 
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
@@ -75,59 +366,131 @@ Funziona in integrazione con:
 | GET | `/vini/ipratico/sync-log` | Storico sincronizzazioni |
 | GET | `/vini/ipratico/stats` | Riepilogo veloce (matched, unmatched, ignored, missing) |
 
-**Logica chiave:**
-- Il codice 4 cifre nel campo Name iPratico = `vini_magazzino.id` (match diretto, ~99.7%)
-- TRGB ha priorita': se un vino cambia su TRGB, l'export aggiorna nome/giacenza/prezzo su iPratico
-- L'export aggiunge automaticamente vini TRGB mancanti con campi default configurabili (Family, reparti, listini, prezzi)
+> ⚠️ **Nota dati vendite:** iPratico NON esporta dati di vendita in nessun formato. Le VENDITE in TRGB vanno inserite manualmente (vedi §3.4).
 
 ---
 
-# 4. Componenti tecnici
+# 8. Cantina Tools — `vini_cantina_tools_router.py` v3.x
 
-- `app/repositories/vini_repository.py` — ordering, filtri, query `load_vini_ordinati()` da magazzino
-- `app/routers/vini_router.py` — API carta + movimenti
-- `app/services/carta_vini_service.py` — builder HTML/PDF/DOCX (WeasyPrint, python-docx, font Cormorant Garamond)
-- `app/models/vini_settings.py` — settings + `_TIPOLOGIA_MAP` per normalizzazione runtime
-- `static/css/carta_pdf.css` — stile PDF con page-break-after:avoid su intestazioni
-- `static/css/carta_html.css` — stile preview HTML allineato al PDF
+| Metodo | Endpoint | Funzione |
+|--------|----------|----------|
+| POST | `/vini/cantina-tools/import-excel` | Import Excel diretto → magazzino |
+| GET | `/vini/cantina-tools/export-excel` | Download `.xlsx` da magazzino |
+| GET | `/vini/cantina-tools/locazioni-config` | Locazioni configurate (drop-down filtro) |
 
-### File deprecated (ancora presenti)
-- `app/models/vini_db.py` — vecchio schema DB, non piu' importato
-- `app/models/vini_model.py` — contiene `normalize_dataframe()` usata da import-excel
+> **Rimossi in v3.0:** `/vini/upload` (import vecchio), `/vini/cantina-tools/sync-from-excel` (sync vecchio DB).
 
----
+## 8.1 Import Excel — modalità
 
-# 5. Impostazioni Carta (`vini_settings_router.py`)
+**SAFE (default):** ID DB preservati, aggiorna solo i campi consentiti, magazzino esistente preservato.
 
-- Ordine tipologie (lista riordinabile con frecce)
-- Ordine nazioni (lista riordinabile)
-- Ordine regioni per nazione
-- Filtri carta: quantita' minima, mostra negativi, mostra senza prezzo
+**FORCE (solo admin):** riallineamento completo database, modifiche massicce e ricostruzione tabella.
+
+> ⚠️ **Bug aperto V-BUG1 (vedi roadmap.md §V):** controllo ruolo per FORCE non ancora implementato in `vini_magazzino_router.py`. Attualmente chiunque può eseguire FORCE anche senza ruolo admin. Da fixare.
 
 ---
 
-# 6. Gerarchia carta
+# 9. Stampa inventario filtrato
 
+## 9.1 Stampa selezionati (v4.0)
+
+Dalla toolbar `MagazzinoVini`, pulsante "Stampa selezionati" genera direttamente un PDF con i vini selezionati (multi-select sempre attivo):
+- FE: `handlePrintSelection()` invia POST con `{ ids: selectedIds }` al backend
+- BE: `POST /vini/cantina-tools/inventario/selezione/pdf` — accetta lista ID via Body, genera PDF con WeasyPrint, restituisce `Response(media_type="application/pdf")`
+- PDF si apre in nuovo tab via `URL.createObjectURL(blob)`
+- Auth via Bearer token (non query token)
+
+## 9.2 Stampa con filtri (modale `StampaFiltrata`)
+
+Pannello modale con filtri componibili per generare PDF inventario:
+- Ricerca libera, tipologia, nazione, regione, produttore, annata, formato
+- Stato vendita, stato riordino, discontinuato, in carta
+- Range quantità e prezzo
+- Filtri locazione gerarchici: 3 gruppi cascading (Frigo/Loc1/Loc2 → nome → spazio) — `StampaFiltrata` mantiene filtri separati per-locazione (server-side)
+- Solo con giacenza positiva
+- Genera PDF via `/inventario/filtrato/pdf` con tutti i filtri come query params
+
+---
+
+# 10. Movimenti cantina + storico prezzi
+
+## 10.1 Tabella `vini_ordini_pending` (Fase 3 widget)
+
+```sql
+CREATE TABLE vini_ordini_pending (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  vino_id      INTEGER NOT NULL UNIQUE,
+  qta          INTEGER NOT NULL CHECK (qta > 0),
+  data_ordine  TEXT NOT NULL,
+  note         TEXT,
+  utente       TEXT,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_vop_vino ON vini_ordini_pending (vino_id);
 ```
-Tipologia (GRANDI FORMATI, BOLLICINE, BIANCHI, ROSATI, ROSSI, PASSITI, ANALCOLICI)
-  └── Nazione (Italia, Francia, Germania, Austria, Spagna...)  [filetti decorativi]
-       └── Regione (Lombardia, Piemonte, Champagne...)
-            └── Produttore (bold)
-                 └── Vino: descrizione | annata | prezzo
+
+Regola: un solo ordine aperto per vino (UNIQUE). Upsert con `INSERT OR REPLACE` o pattern `UPDATE if exists else INSERT`. Quando arriva la merce → `CARICO` registrato + ordine pending cancellato (in transazione).
+
+## 10.2 Tabella `vini_prezzi_storico` (Fase 6 widget)
+
+```sql
+CREATE TABLE vini_prezzi_storico (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  vino_id      INTEGER NOT NULL,
+  campo        TEXT NOT NULL CHECK (campo IN ('EURO_LISTINO','PREZZO_CARTA','PREZZO_CALICE')),
+  valore_old   REAL,
+  valore_new   REAL,
+  data         TEXT NOT NULL,
+  utente       TEXT,
+  origine      TEXT,  -- 'GESTIONALE-EDIT' / 'IMPORT-CSV' / 'SCANNER-OCR'
+  FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_vps_vino_data ON vini_prezzi_storico (vino_id, data DESC);
+CREATE INDEX idx_vps_campo ON vini_prezzi_storico (campo);
 ```
+
+Hook PATCH `/vini/magazzino/{id}` registra solo `EURO_LISTINO` per ora; estendibile a `PREZZO_CARTA` e `PREZZO_CALICE` senza modifiche schema.
 
 ---
 
-# 7. Roadmap modulo Carta Vini
+# 11. Permessi e ruoli
 
-- [x] Eliminazione vecchio DB vini.sqlite3 — 2026-03-15
-- [x] Raggruppamento per nazione con filetti decorativi — 2026-03-14
-- [x] Allineamento CSS HTML ↔ PDF — 2026-03-15
-- [x] Fix salti pagina PDF (intestazioni orfane) — 2026-03-15
-- [x] DOCX con tabelle allineate (desc|annata|prezzo) — 2026-03-15
-- [x] Unificazione loader carta (eliminato codice duplicato) — 2026-03-15
-- [x] Fix cancellazione movimenti (delta inverso) — 2026-03-15
-- [x] Carta Vini embeddata come sezione della Carta Bevande — 2026-04-19 (service `carta_bevande_service.py`, router `bevande_router.py` v1.1, 5 endpoint export unificato). Sezione `vini_dinamico` delega a `carta_vini_service` esistente, nessuna modifica al motore vini
-- [ ] PDF con indici cliccabili (TOC con link interni)
-- [ ] Versioning della carta (storico PDF)
-- [ ] Template multipli (eventi, degustazioni)
+| Azione | Ruoli ammessi |
+|--------|---------------|
+| Lettura magazzino + dashboard | tutti tranne viewer |
+| CRUD anagrafica vino | admin, superadmin, sommelier |
+| Modifica giacenze | admin, superadmin, sommelier |
+| Movimenti (add) | admin, superadmin, sommelier, sala (limitato VENDITA?) |
+| Movimenti (delete) | admin, superadmin, sommelier |
+| Import Excel SAFE | admin, superadmin, sommelier |
+| Import Excel FORCE | admin only **(non ancora controllato — V-BUG1)** |
+| iPratico mapping/sync | admin, superadmin, sommelier |
+| Settings Carta | admin, superadmin, sommelier |
+| Carta Bevande — editing | admin, superadmin, sommelier |
+| Carta Bevande — lettura/export | tutti tranne viewer |
+
+Pattern: `Depends(get_current_user)` + check ruolo nel router.
+
+---
+
+# 12. Bug noti / debt tecnico
+
+- **V-BUG1**: FORCE import senza ruolo check → vedi §8.1 e roadmap.md §V
+- **Modelli deprecated**: `vini_db.py` non importato; `vini_model.py` ancora usato da import-excel ma da rivalutare
+- **`/dashboard` PRIMA di `/{id}`**: regola applicata, ma da non rompere se si rifattora il router
+- **Filtri server-side per dataset grandi**: oggi tutti clientside con `useMemo`, da spostare a server quando il magazzino crescerà oltre ~5000 vini
+- **Indice `(vino_id, tipo, data_mov)` su `vini_magazzino_movimenti`**: verificare se presente, altrimenti aggiungere
+
+---
+
+# 13. Storico bugfix significativi
+
+- **Dicembre 2025:** eliminati duplicati importazioni precedenti, ripristinati 1186 record reali, consolidata protezione ID
+- **Marzo 2026:** fix smart quotes (U+201C/U+201D) nel router che causavano `SyntaxError` al boot; fix mode bit `deploy.sh`; deploy senza password configurato via sudoers
+- **2026-03-15:** consolidamento DB — eliminato `vini.sqlite3`, tutto su `vini_magazzino.sqlite3`. Allineamento CSS HTML ↔ PDF. DOCX con tabelle allineate. Unificazione loader carta. Fix cancellazione movimenti (delta inverso).
+- **2026-03-16:** filtro locazione unificato (2 dropdown), stampa selezionati diretta PDF, SchedaVino layout sidebar+main con colori dinamici per TIPOLOGIA.
+- **2026-04-19:** Carta Vini embeddata come sezione della Carta Bevande (Fase 1-3 sub-module). Sezione `vini_dinamico` delega a `carta_vini_service` esistente, nessuna modifica al motore vini.
+- **2026-04-20 (sessione 51):** widget riordini per fornitore — refactor 8 fasi (vedi `modulo_vini_widget_dashboard.md`).
+- **2026-04-24:** widget alert "Vini in carta senza giacenza" — refactor 6 fasi A-F (vedi `modulo_vini_widget_dashboard.md`).

@@ -4,7 +4,7 @@
 **Data introduzione:** 2025-12-05
 **Dominio funzionale:** Acquisti & Controllo di Gestione
 
-> Questo modulo e' ora parte del modulo **Gestione Acquisti** (v2.0). Per la documentazione completa del modulo Acquisti, vedere `docs/Modulo_Acquisti.md`.
+> Questo modulo e' ora parte del modulo **Gestione Acquisti** (v2.0). Per la documentazione completa del modulo Acquisti, vedere `docs/modulo_acquisti.md`.
 
 Il modulo consente di importare file FatturaPA in formato XML e trasformarli in dati strutturati per analisi acquisti, matching ingredienti e controllo di gestione.
 
@@ -36,7 +36,7 @@ Router: `app/routers/fe_import.py` + `fe_categorie_router.py`
 Prefix: `/contabilita/fe`
 Auth: JWT (tutte le route)
 
-Per la lista completa degli endpoint, vedere `docs/Modulo_Acquisti.md` sezione 4.
+Per la lista completa degli endpoint, vedere `docs/modulo_acquisti.md` sezione 4.
 
 ---
 
@@ -58,7 +58,7 @@ Schema dettagliato → `docs/database.md`
 # 4. Frontend
 
 Route migrate da `/admin/fatture/*` a `/acquisti/*` (2026-03-10).
-Vedere `docs/Modulo_Acquisti.md` per dettagli pagine e routing.
+Vedere `docs/modulo_acquisti.md` per dettagli pagine e routing.
 
 ---
 

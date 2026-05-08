@@ -29,7 +29,7 @@ Se la sub-nav non esiste per il modulo, **non crearla d'iniziativa**: chiedi a M
 `frontend/src/config/versions.jsx` — bump del macro-modulo se la modifica e' incrementale, oppure entry dedicata se il sotto-modulo e' grosso (DB nuovo, endpoint nuovi, pagina dedicata).
 
 ### 5. Docs dedicato
-Per ogni sub-modulo nuovo (DB tabelle nuove + endpoint + UI dedicata) deve esistere `docs/modulo_<nome>.md` o `docs/<nome>.md` con: scopo, schema DB, endpoint, frontend, workflow, V1+. Esempi di reference: `docs/modulo_cucina.md`, `docs/menu_carta.md`, `docs/modulo_pranzo.md`.
+Per ogni sub-modulo nuovo (DB tabelle nuove + endpoint + UI dedicata) deve esistere `docs/modulo_<nome>.md` con: scopo, schema DB, endpoint, frontend, workflow, V1+. Esempi di reference: `docs/modulo_cucina.md`, `docs/modulo_menu_carta.md`, `docs/modulo_pranzo.md`.
 
 Sempre aggiornato anche `docs/sessione.md` con il blocco "SESSIONE N — titolo".
 
