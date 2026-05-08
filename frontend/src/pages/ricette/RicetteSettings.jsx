@@ -20,6 +20,9 @@ const MENU = [
   { key: "export-pdf",   label: "Schede PDF",        icon: "📄", desc: "Schede ricetta con food cost" },
   { key: "import-json",  label: "Import JSON",       icon: "📥", desc: "Carica ricette da file JSON" },
   { key: "macellaio",    label: "Scelta Macellaio",  icon: "🥩", desc: "Categorie tagli e widget" },
+  { key: "pescato",      label: "Scelta Pescato",    icon: "🐟", desc: "Categorie del pescato" },
+  { key: "salumi",       label: "Scelta Salumi",     icon: "🥓", desc: "Categorie dei salumi" },
+  { key: "formaggi",     label: "Scelta Formaggi",   icon: "🧀", desc: "Categorie dei formaggi" },
   { key: "widget-home",  label: "Widget Home",       icon: "🏠", desc: "Cosa mostra la card Selezioni del Giorno" },
   { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
   { key: "pranzo",       label: "Menu Pranzo",       icon: "🥙", desc: "Default titolo, prezzi e footer pranzo del giorno" },
@@ -821,6 +824,32 @@ export default function RicetteSettings() {
                 {activeSection === "pranzo" && <PranzoSettingsPanel />}
 
                 {/* ============================================= */}
+                {/* SEZIONI: Scelta Pescato/Salumi/Formaggi      */}
+                {/* CRUD categorie zona — componente generico    */}
+                {/* ============================================= */}
+                {activeSection === "pescato" && (
+                  <CategorieZonaPanel
+                    zonaKey="pescato" zonaLabel="Pescato" emojiDefault="🐟"
+                    apiPrefix="pescato" titolo="Categorie del Pescato"
+                    desc="Categorie usate nella pagina Scelta Pescato e nella card Selezioni del Giorno della Home. Per cambiare cosa mostra il widget Home, vai nella sezione 'Widget Home'."
+                  />
+                )}
+                {activeSection === "salumi" && (
+                  <CategorieZonaPanel
+                    zonaKey="salumi" zonaLabel="Salumi" emojiDefault="🥓"
+                    apiPrefix="salumi" titolo="Categorie dei Salumi"
+                    desc="Categorie usate nella pagina Scelta Salumi e nella card Selezioni del Giorno della Home."
+                  />
+                )}
+                {activeSection === "formaggi" && (
+                  <CategorieZonaPanel
+                    zonaKey="formaggi" zonaLabel="Formaggi" emojiDefault="🧀"
+                    apiPrefix="formaggi" titolo="Categorie dei Formaggi"
+                    desc="Categorie usate nella pagina Scelta Formaggi e nella card Selezioni del Giorno della Home."
+                  />
+                )}
+
+                {/* ============================================= */}
                 {/* SEZIONE: Widget Home — preview Selezioni del Giorno */}
                 {/* ============================================= */}
                 {activeSection === "widget-home" && <WidgetHomePanel />}
@@ -1317,6 +1346,260 @@ function WidgetHomePanel() {
           <br />
           <strong>Tutto: categorie + nomi prodotti</strong> — la vista più ricca: vedi sia come è strutturata l'offerta, sia i nomi dei singoli prodotti sotto ogni categoria. Costa più spazio in altezza.
         </p>
+      </div>
+    </section>
+  );
+}
+
+
+// ============================================================
+// SEZIONE: CategorieZonaPanel — CRUD categorie generico
+// Usato per le sezioni Scelta Pescato / Scelta Salumi / Scelta Formaggi.
+// Modulo: la zona corrispondente (pescato/salumi/formaggi).
+// Replica la UX della sezione Macellaio (definita inline sopra) ma in
+// versione generica parametrizzata per non duplicare ~150 righe per zona.
+// API: GET/POST/PUT/DELETE su /<apiPrefix>/categorie/.
+// La config widget_max_categorie è in "Widget Home" (sezione separata).
+// ============================================================
+function CategorieZonaPanel({ zonaKey, zonaLabel, emojiDefault, apiPrefix, titolo, desc }) {
+  const [categorie, setCategorie] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [newCat, setNewCat] = useState({ nome: "", emoji: emojiDefault, ordine: 999 });
+  const [editId, setEditId] = useState(null);
+  const [editCat, setEditCat] = useState({ nome: "", emoji: "", ordine: 999, attivo: true });
+
+  const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(""), 3000); };
+  const showErr = (m) => { setErr(m); setTimeout(() => setErr(""), 5000); };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/${apiPrefix}/categorie/?solo_attive=false`);
+      if (r.ok) setCategorie(await r.json());
+      else showErr(`Errore caricamento categorie ${zonaLabel}`);
+    } catch (e) {
+      showErr(`Errore: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Ricarica quando cambia zona (quando l'utente passa da una sezione all'altra)
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [zonaKey]);
+
+  const handleCreate = async () => {
+    if (!newCat.nome.trim()) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/${apiPrefix}/categorie/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: newCat.nome.trim(),
+          emoji: newCat.emoji || null,
+          ordine: Number(newCat.ordine) || 999,
+          attivo: true,
+        }),
+      });
+      if (!r.ok) {
+        const t = await r.text().catch(() => "");
+        showErr(`Errore creazione: ${t || r.status}`);
+        return;
+      }
+      setNewCat({ nome: "", emoji: emojiDefault, ordine: 999 });
+      showMsg("Categoria creata");
+      load();
+    } catch (e) { showErr(e.message); }
+  };
+
+  const handleStartEdit = (c) => {
+    setEditId(c.id);
+    setEditCat({ nome: c.nome, emoji: c.emoji || "", ordine: c.ordine, attivo: c.attivo });
+  };
+
+  const handleSaveEdit = async (id) => {
+    try {
+      const r = await apiFetch(`${API_BASE}/${apiPrefix}/categorie/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: editCat.nome.trim(),
+          emoji: editCat.emoji || null,
+          ordine: Number(editCat.ordine) || 999,
+          attivo: !!editCat.attivo,
+        }),
+      });
+      if (!r.ok) {
+        const t = await r.text().catch(() => "");
+        showErr(`Errore salvataggio: ${t || r.status}`);
+        return;
+      }
+      setEditId(null);
+      showMsg("Categoria salvata");
+      load();
+    } catch (e) { showErr(e.message); }
+  };
+
+  const handleDelete = async (id, nome) => {
+    if (!window.confirm(`Eliminare la categoria "${nome}"? I prodotti già assegnati a questa categoria non vengono cancellati ma perdono la categoria.`)) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/${apiPrefix}/categorie/${id}`, { method: "DELETE" });
+      if (!r.ok) {
+        const t = await r.text().catch(() => "");
+        showErr(`Errore eliminazione: ${t || r.status}`);
+        return;
+      }
+      showMsg("Categoria eliminata");
+      load();
+    } catch (e) { showErr(e.message); }
+  };
+
+  return (
+    <section>
+      <SectionHeader title={titolo} desc={desc} />
+
+      {msg && (
+        <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3 mb-4">{msg}</div>
+      )}
+      {err && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3 mb-4">{err}</div>
+      )}
+
+      {/* ── Lista categorie ── */}
+      <div className="border border-neutral-200 rounded-xl overflow-hidden mb-4">
+        <table className="w-full text-sm">
+          <thead className="bg-neutral-100 text-neutral-600">
+            <tr>
+              <th className="p-2.5 text-left font-medium w-16">Emoji</th>
+              <th className="p-2.5 text-left font-medium">Nome</th>
+              <th className="p-2.5 text-center font-medium w-24">Ordine</th>
+              <th className="p-2.5 text-center font-medium w-20">Attiva</th>
+              <th className="p-2.5 text-right font-medium w-40">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} className="p-4 text-center text-neutral-400">Caricamento…</td></tr>
+            ) : categorie.length === 0 ? (
+              <tr><td colSpan={5} className="p-4 text-center text-neutral-400">Nessuna categoria configurata.</td></tr>
+            ) : (
+              categorie.map((c) => (
+                <tr key={c.id} className="border-t border-neutral-100">
+                  {editId === c.id ? (
+                    <>
+                      <td className="p-2">
+                        <input
+                          value={editCat.emoji}
+                          onChange={(e) => setEditCat({ ...editCat, emoji: e.target.value })}
+                          maxLength={4}
+                          className="w-12 px-2 py-1 border border-neutral-300 rounded text-sm text-center"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          value={editCat.nome}
+                          onChange={(e) => setEditCat({ ...editCat, nome: e.target.value })}
+                          className="w-full px-2 py-1 border border-neutral-300 rounded text-sm"
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        <input
+                          type="number"
+                          value={editCat.ordine}
+                          onChange={(e) => setEditCat({ ...editCat, ordine: e.target.value })}
+                          className="w-20 px-2 py-1 border border-neutral-300 rounded text-sm text-center"
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={!!editCat.attivo}
+                          onChange={(e) => setEditCat({ ...editCat, attivo: e.target.checked })}
+                        />
+                      </td>
+                      <td className="p-2 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => handleSaveEdit(c.id)}
+                            className="px-2.5 py-1 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                          >Salva</button>
+                          <button
+                            onClick={() => setEditId(null)}
+                            className="px-2.5 py-1 text-xs font-semibold bg-neutral-200 hover:bg-neutral-300 rounded-lg transition"
+                          >Annulla</button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="p-2.5 text-center text-xl">{c.emoji || "—"}</td>
+                      <td className="p-2.5 font-medium text-neutral-900">{c.nome}</td>
+                      <td className="p-2.5 text-center text-neutral-600">{c.ordine}</td>
+                      <td className="p-2.5 text-center">
+                        {c.attivo ? (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Sì</span>
+                        ) : (
+                          <span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full">No</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => handleStartEdit(c)}
+                            className="px-2.5 py-1 text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 rounded-lg transition"
+                          >Modifica</button>
+                          <button
+                            onClick={() => handleDelete(c.id, c.nome)}
+                            className="px-2.5 py-1 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg transition"
+                          >Elimina</button>
+                        </div>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Nuova categoria ── */}
+      <div className="border border-dashed border-neutral-300 rounded-xl p-4 bg-neutral-50">
+        <p className="text-xs font-semibold text-neutral-700 mb-2">Aggiungi categoria</p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="block text-[11px] text-neutral-500 mb-1">Emoji</label>
+            <input
+              value={newCat.emoji}
+              onChange={(e) => setNewCat({ ...newCat, emoji: e.target.value })}
+              maxLength={4}
+              placeholder={emojiDefault}
+              className="w-16 px-2 py-2 border border-neutral-300 rounded-lg text-sm text-center"
+            />
+          </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-[11px] text-neutral-500 mb-1">Nome categoria</label>
+            <input
+              value={newCat.nome}
+              onChange={(e) => setNewCat({ ...newCat, nome: e.target.value })}
+              placeholder={`es. nuova categoria ${zonaLabel.toLowerCase()}`}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-neutral-500 mb-1">Ordine</label>
+            <input
+              type="number"
+              value={newCat.ordine}
+              onChange={(e) => setNewCat({ ...newCat, ordine: e.target.value })}
+              className="w-24 px-2 py-2 border border-neutral-300 rounded-lg text-sm text-center"
+            />
+          </div>
+          <Btn variant="chip" tone="blue" size="md" onClick={handleCreate} disabled={!newCat.nome.trim()}>
+            Aggiungi
+          </Btn>
+        </div>
       </div>
     </section>
   );
