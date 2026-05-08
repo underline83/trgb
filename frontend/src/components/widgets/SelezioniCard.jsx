@@ -137,10 +137,13 @@ export default function SelezioniCard({ data }) {
                 </span>
               </div>
 
-              {/* Preview: 3 modalità — categorie / tagli / tutto */}
+              {/* Preview: 3 modalità — categorie / tagli / tutto.
+                  Contenuto ancorato in alto subito sotto l'header (justify-start);
+                  lo spazio vuoto eventuale resta in basso. Le celle vuote mostrano
+                  un placeholder centrato verticalmente. */}
               {mode === "tutto" ? (
                 previewGroups.length > 0 ? (
-                  <div className="flex-1 flex flex-col justify-end gap-2">
+                  <div className="flex-1 flex flex-col gap-2 mt-1">
                     {previewGroups.map((g, gi) => (
                       <div key={gi} className="flex flex-col gap-[1px]">
                         <div className={`text-[11px] font-bold ${z.textActive} truncate leading-tight`}>
@@ -159,12 +162,12 @@ export default function SelezioniCard({ data }) {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex-1 flex items-end">
+                  <div className="flex-1 flex items-center justify-center">
                     <span className="text-[10.5px] text-[#a8a49e] italic">—</span>
                   </div>
                 )
               ) : previewItems.length > 0 ? (
-                <div className="flex-1 flex flex-col justify-end gap-[1px]">
+                <div className="flex-1 flex flex-col gap-[1px] mt-1">
                   {previewItems.map((p, ci) => (
                     <div
                       key={ci}
@@ -176,7 +179,7 @@ export default function SelezioniCard({ data }) {
                   ))}
                 </div>
               ) : (
-                <div className="flex-1 flex items-end">
+                <div className="flex-1 flex items-center justify-center">
                   <span className="text-[10.5px] text-[#a8a49e] italic">—</span>
                 </div>
               )}
