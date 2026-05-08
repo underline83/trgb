@@ -209,9 +209,18 @@ def _prenotazioni_oggi(oggi: str) -> PrenotazioniOggi:
 
 
 def _incasso_ieri(ieri: str, giorno_settimana: int) -> IncassoIeri:
-    """Incasso totale di ieri + delta % vs media stesso giorno settimana ultimi 30gg"""
+    """Incasso totale di ieri + delta % vs media stesso giorno settimana ultimi 30gg.
+
+    Modulo: cassa. La tabella `shift_closures` vive in admin_finance.sqlite3
+    (locale-aware), NON in foodcost.db. Bug fix sessione 2026-05-08: prima
+    puntava a foodcost.db e cadeva nel fallback zero (incasso ieri sempre 0
+    anche con dati validi).
+    """
     try:
-        conn = get_foodcost_connection()
+        import sqlite3 as _sq
+        from app.utils.locale_data import locale_data_path
+        conn = _sq.connect(locale_data_path("admin_finance.sqlite3"))
+        conn.row_factory = _sq.Row
 
         # Incasso ieri
         row = conn.execute("""
@@ -249,9 +258,16 @@ def _incasso_ieri(ieri: str, giorno_settimana: int) -> IncassoIeri:
 
 
 def _coperti_mese(oggi: date) -> CopertiMese:
-    """Coperti mese corrente + stesso mese anno precedente"""
+    """Coperti mese corrente + stesso mese anno precedente.
+
+    Modulo: cassa. Stesso fix di `_incasso_ieri`: shift_closures sta in
+    admin_finance.sqlite3, non in foodcost.db.
+    """
     try:
-        conn = get_foodcost_connection()
+        import sqlite3 as _sq
+        from app.utils.locale_data import locale_data_path
+        conn = _sq.connect(locale_data_path("admin_finance.sqlite3"))
+        conn.row_factory = _sq.Row
         anno = oggi.year
         mese = oggi.month
         prefix = f"{anno}-{mese:02d}"
@@ -736,35 +752,41 @@ def _alerts(oggi: str) -> List[AlertItem]:
 
     # 3. Vini sotto scorta (se c'è il campo scorta_minima)
     # Nota 2026-04-21 (sessione 52): rimosso import fantasma `from app.models import vini_db`
-    # (modulo mai esistito) che cadeva sempre nel fallback sottostante. Codice semanticamente
-    # identico, senza il warning `cannot import name 'vini_db'` nei log.
+    # Nota 2026-05-08: schema reale TRGB ha colonne in MAIUSCOLO (QTA, PREZZO, …) e
+    # NON ha colonne `attivo` né `scorta_minima`. Usiamo `QTA`. Se in futuro nasce
+    # una colonna `scorta_minima` (case-insensitive), il blocco interno la userà;
+    # altrimenti l'except interno non emette alert.
     try:
         import sqlite3
-        from pathlib import Path
         from app.utils.locale_data import locale_data_path  # R6.5 — locale-aware
         vini_path = locale_data_path("vini.sqlite3")
         conn = sqlite3.connect(vini_path)
         conn.row_factory = sqlite3.Row
 
-        # Prova: non tutti i setup hanno scorta_minima
-        try:
-            rows = conn.execute("""
-                SELECT COUNT(*) as cnt
-                FROM vini
-                WHERE COALESCE(scorta_minima, 0) > 0
-                  AND COALESCE(qta, 0) < scorta_minima
-                  AND COALESCE(attivo, 1) = 1
-            """).fetchone()
-            cnt = rows["cnt"] if rows else 0
-            if cnt > 0:
-                alerts.append(AlertItem(
-                    tipo="vini",
-                    modulo="vini",
-                    testo=f"{cnt} vin{'o' if cnt == 1 else 'i'} sotto scorta minima",
-                    accent="#2E7BE8",
-                ))
-        except Exception:
-            pass  # colonna scorta_minima potrebbe non esistere
+        # Determina dinamicamente quali colonne esistono (case-insensitive)
+        cols = {c["name"].lower(): c["name"]
+                for c in conn.execute("PRAGMA table_info(vini)").fetchall()}
+        col_qta = cols.get("qta")
+        col_min = cols.get("scorta_minima")
+
+        if col_qta and col_min:
+            try:
+                rows = conn.execute(f"""
+                    SELECT COUNT(*) as cnt
+                    FROM vini
+                    WHERE COALESCE("{col_min}", 0) > 0
+                      AND COALESCE("{col_qta}", 0) < "{col_min}"
+                """).fetchone()
+                cnt = rows["cnt"] if rows else 0
+                if cnt > 0:
+                    alerts.append(AlertItem(
+                        tipo="vini",
+                        modulo="vini",
+                        testo=f"{cnt} vin{'o' if cnt == 1 else 'i'} sotto scorta minima",
+                        accent="#2E7BE8",
+                    ))
+            except Exception:
+                pass
         conn.close()
     except Exception as e:
         logger.warning(f"Dashboard: errore alert vini: {e}")
@@ -802,54 +824,100 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     summaries.append(ModuloSummary(key="vendite", line1=line1, line2=line2))
 
     # ── Vini ──
-    # Nota 2026-04-21 (sessione 52): vedi commento sopra, stesso cleanup import fantasma.
+    # Nota 2026-04-21 (sessione 52): cleanup import fantasma `from app.models import vini_db`.
+    # Nota 2026-05-08: schema reale TRGB ha colonne in MAIUSCOLO (QTA, PREZZO, …) e NON
+    # ha `attivo` né `scorta_minima`. Conta tutte le etichette presenti; somma giacenza
+    # totale come sotto-info. Se in futuro nasce `scorta_minima` la usiamo dinamicamente.
     try:
         import sqlite3 as _sq
         from app.utils.locale_data import locale_data_path  # R6.5 — locale-aware
         conn = _sq.connect(locale_data_path("vini.sqlite3"))
         conn.row_factory = _sq.Row
-        row = conn.execute("SELECT COUNT(*) as cnt FROM vini WHERE COALESCE(attivo,1)=1").fetchone()
-        n_vini = row["cnt"] if row else 0
+
+        cols = {c["name"].lower(): c["name"]
+                for c in conn.execute("PRAGMA table_info(vini)").fetchall()}
+        col_qta = cols.get("qta")
+        col_min = cols.get("scorta_minima")
+
+        n_vini = conn.execute("SELECT COUNT(*) as cnt FROM vini").fetchone()["cnt"] or 0
+
         sotto = 0
-        try:
-            r2 = conn.execute("""
-                SELECT COUNT(*) as cnt FROM vini
-                WHERE COALESCE(scorta_minima,0)>0
-                  AND COALESCE(qta,0)<scorta_minima
-                  AND COALESCE(attivo,1)=1
-            """).fetchone()
-            sotto = r2["cnt"] if r2 else 0
-        except Exception:
-            pass
+        if col_qta and col_min:
+            try:
+                r2 = conn.execute(f"""
+                    SELECT COUNT(*) as cnt FROM vini
+                    WHERE COALESCE("{col_min}",0)>0
+                      AND COALESCE("{col_qta}",0)<"{col_min}"
+                """).fetchone()
+                sotto = r2["cnt"] if r2 else 0
+            except Exception:
+                pass
+
+        # Bottiglie totali in giacenza (line2 più informativa quando manca scorta_minima)
+        bottiglie = 0
+        if col_qta:
+            try:
+                r3 = conn.execute(
+                    f'SELECT COALESCE(SUM("{col_qta}"),0) as tot FROM vini'
+                ).fetchone()
+                bottiglie = int(r3["tot"] or 0)
+            except Exception:
+                pass
+
         conn.close()
-        line2 = f"{sotto} sotto scorta" if sotto > 0 else "Giacenze ok"
+
+        if sotto > 0:
+            line2 = f"{sotto} sotto scorta"
+        elif bottiglie > 0:
+            line2 = f"{bottiglie} bottiglie in giacenza"
+        else:
+            line2 = "Giacenze ok"
+
         summaries.append(ModuloSummary(
-            key="vini", line1=f"{n_vini} etichette attive", line2=line2,
+            key="vini", line1=f"{n_vini} etichette in cantina", line2=line2,
             badge=sotto,
         ))
     except Exception:
         summaries.append(ModuloSummary(key="vini", line1="Cantina & Vini", line2=""))
 
     # ── Ricette ──
+    # Nota 2026-05-08: la tabella si chiama `recipes` (non `ricette`) e usa
+    # `is_active` (non `attiva`). Niente colonna `food_cost_pct`: il food cost si
+    # calcola via join recipe_ingredients × ingredient_prices, troppo costoso per
+    # un widget Home — meglio mostrare quanti piatti hanno un prezzo vendita.
     try:
         conn = get_foodcost_connection()
-        row = conn.execute("SELECT COUNT(*) as cnt FROM ricette WHERE COALESCE(attiva,1)=1").fetchone()
-        n_ric = row["cnt"] if row else 0
-        # Food cost medio (se ci sono dati)
-        fc_str = ""
-        try:
-            r2 = conn.execute("""
-                SELECT AVG(food_cost_pct) as avg_fc FROM ricette
-                WHERE COALESCE(attiva,1)=1 AND food_cost_pct IS NOT NULL AND food_cost_pct > 0
-            """).fetchone()
-            if r2 and r2["avg_fc"]:
-                fc_str = f"Food cost medio {r2['avg_fc']:.0f}%"
-        except Exception:
-            pass
+        row = conn.execute("""
+            SELECT
+                COUNT(*) AS tot,
+                SUM(CASE WHEN COALESCE(is_base,0)=0 THEN 1 ELSE 0 END) AS piatti,
+                SUM(CASE WHEN COALESCE(is_base,0)=1 THEN 1 ELSE 0 END) AS basi,
+                SUM(CASE WHEN COALESCE(is_base,0)=0
+                          AND selling_price IS NOT NULL AND selling_price > 0
+                         THEN 1 ELSE 0 END) AS con_prezzo
+            FROM recipes
+            WHERE COALESCE(is_active,1)=1
+        """).fetchone()
+        n_tot = (row["tot"] if row else 0) or 0
+        n_piatti = (row["piatti"] if row else 0) or 0
+        n_basi = (row["basi"] if row else 0) or 0
+        n_con_prezzo = (row["con_prezzo"] if row else 0) or 0
+        n_senza_prezzo = max(0, n_piatti - n_con_prezzo)
         conn.close()
+
+        if n_piatti > 0:
+            if n_senza_prezzo > 0:
+                line2 = f"{n_piatti} piatti · {n_senza_prezzo} senza prezzo"
+            else:
+                line2 = f"{n_piatti} piatti · {n_basi} basi"
+        else:
+            line2 = "Archivio ricette"
+
         summaries.append(ModuloSummary(
-            key="ricette", line1=f"{n_ric} schede attive",
-            line2=fc_str or "Archivio ricette",
+            key="ricette",
+            line1=f"{n_tot} schede attive",
+            line2=line2,
+            badge=n_senza_prezzo,
         ))
     except Exception:
         summaries.append(ModuloSummary(key="ricette", line1="Gestione Cucina", line2=""))
@@ -863,20 +931,41 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     ))
 
     # ── Flussi di Cassa ──
+    # Nota 2026-05-08: la tabella `flussi_cassa` non è mai esistita. La fonte
+    # reale è `finanza_movimenti` (foodcost.db) con colonne `dare`/`avere`/`data`.
+    # `dare` è già negativo, `avere` positivo: saldo = SUM(avere) + SUM(dare).
     try:
         conn = get_foodcost_connection()
         prefix = oggi[:7]  # YYYY-MM
         row = conn.execute("""
-            SELECT COALESCE(SUM(CASE WHEN tipo='entrata' THEN importo ELSE -importo END), 0) as saldo
-            FROM flussi_cassa WHERE data LIKE ?
+            SELECT COALESCE(SUM(COALESCE(avere,0) + COALESCE(dare,0)), 0) AS saldo,
+                   COALESCE(SUM(CASE WHEN COALESCE(avere,0) > 0 THEN avere ELSE 0 END), 0) AS entrate,
+                   COALESCE(SUM(CASE WHEN COALESCE(dare,0)  < 0 THEN -dare  ELSE 0 END), 0) AS uscite,
+                   COUNT(*) AS n
+            FROM finanza_movimenti
+            WHERE data LIKE ?
         """, (prefix + "%",)).fetchone()
         saldo = row["saldo"] if row else 0
+        entrate = row["entrate"] if row else 0
+        uscite = row["uscite"] if row else 0
+        n_mov = row["n"] if row else 0
         conn.close()
-        segno = "+" if saldo >= 0 else ""
+
+        segno = "+" if saldo >= 0 else "−"
+        line1 = f"Saldo mese: {segno}€ {abs(saldo):,.0f}".replace(",", ".")
+        if n_mov > 0:
+            line2 = (
+                f"+€ {entrate:,.0f}".replace(",", ".")
+                + f" / −€ {uscite:,.0f}".replace(",", ".")
+                + f" · {n_mov} mov."
+            )
+        else:
+            line2 = "Nessun movimento questo mese"
+
         summaries.append(ModuloSummary(
             key="flussi-cassa",
-            line1=f"Saldo mese: {segno}€ {saldo:,.0f}".replace(",", "."),
-            line2="CC · Carta · Contanti · Mance",
+            line1=line1,
+            line2=line2,
         ))
     except Exception:
         summaries.append(ModuloSummary(key="flussi-cassa", line1="Flussi di Cassa", line2="CC · Carta · Contanti"))

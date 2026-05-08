@@ -309,6 +309,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 |----|------|--------|-------|------|
 | T.1 | Health check endpoint /health + UptimeRobot | S | ALTA | Monitor esterno |
 | T.2 | K-tris: 3 path PDF cedolini → tenant_dir() (residuo K-bis) | M | ALTA | Da R6.5 |
+| T.2b | **Frontend statico (Vite dev → build) in produzione** | M | **ALTA** | Vedi `analisi_hardening_vps.md §3.A` + memoria `project_frontend_statico_pianificato`. Sourcemap chiusi, perf migliore, no SPF Vite crash. Pianificato primo mercoledì libero, ~3-4h con fallback Vite per 24h. Pre-requisito Capacitor (Scenario B App Store). |
 | T.3 | Banner "nuova versione disponibile" FE (polling BUILD_VERSION) | S | MEDIA | |
 | T.4 | WAL mode coverage 6 DB rimanenti (batch cleanup) | S | MEDIA | |
 | T.5 | Migrazioni unificate ai 9 DB non-foodcost | M | MEDIA | |
