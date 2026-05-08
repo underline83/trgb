@@ -1,6 +1,49 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-07 (sessione: Fix UI Backup — parser timestamp + falsi positivi lkg_corrupt)
+**Ultimo aggiornamento:** 2026-05-08 (sessione: Fix Home dashboard — 4 query rotte su moduli Vendite/Vini/Ricette/Flussi-cassa)
+
+---
+
+## SESSIONE 2026-05-08 — Fix Home dashboard: 4 query rotte (Vendite, Vini, Ricette, Flussi-cassa)
+
+### Cosa ha mostrato Marco
+"In Acquisti vedo `1250 da pagare`, vero? In Vendite `incasso ieri 0`, falso." Marco chiedeva un audit dato per dato di tutte le card dei moduli sulla Home.
+
+### Diagnosi (dataset locale, DB freschi del giorno)
+Audit `app/routers/dashboard_router.py` (endpoint `GET /dashboard/home`) — 4 bug nascosti dietro `try/except` silenziosi che cadevano in fallback statico:
+
+1. **Vendite — `_incasso_ieri()`**: cercava `shift_closures` in `foodcost.db`, ma la tabella vive in `admin_finance.sqlite3` (modulo cassa, locale-aware). Eccezione swallowed → IncassoIeri() = zero. Realtà ieri: €1.348 / 21 coperti su 2 turni.
+2. **Coperti mese — `_coperti_mese()`**: stesso bug DB sbagliato → 0 falso, mostrato anche dentro la card Controllo Gestione. Realtà: 172 coperti maggio 2026.
+3. **Vini — blocco in `_alerts()` e `_moduli_summary()`**: query usavano `attivo` e `scorta_minima` che NON esistono nel DB Tre Gobbi. Le colonne reali sono in MAIUSCOLO (QTA, PREZZO, …). Eccezione → fallback statico "Cantina & Vini". Realtà: 1.238 etichette, 1.261 bottiglie.
+4. **Ricette — blocco in `_moduli_summary()`**: cercava tabella `ricette` con `attiva` e `food_cost_pct`. Tabella reale: `recipes` con `is_active`. Niente `food_cost_pct` (calcolo costoso, va via join recipe_ingredients × ingredient_prices). Fallback statico "Gestione Cucina". Realtà: 48 schede, 34 piatti, 5 senza prezzo vendita.
+5. **Flussi cassa — blocco in `_moduli_summary()`**: tabella `flussi_cassa` non esiste in nessun DB (mai creata). Fonte vera: `finanza_movimenti` in foodcost.db con colonne `dare`/`avere`/`data` (`dare` già negativo). 2.643 movimenti totali, 23 nel mese corrente.
+
+Caso a parte: **Acquisti `1250 fatture / €588.608`** — dato VERO, ma fuorviante. 1249 su 1250 fatture hanno `stato_pagamento='da_pagare'` (default all'import SDI), solo 1 marcata pagata manualmente. 3 anni di backlog SDI mai aggiornato. Non è bug del codice, è workflow operativo. Lasciato invariato: decisione separata se cambiare semantica del badge.
+
+### Cosa è stato fatto — `[core]`
+Modifiche solo a `app/routers/dashboard_router.py` (modulo: platform, dashboard aggregatore generico):
+- `_incasso_ieri()`: `sqlite3.connect(locale_data_path("admin_finance.sqlite3"))` invece di `get_foodcost_connection()`. Stessa query.
+- `_coperti_mese()`: stesso refit di DB.
+- `_alerts()` blocco vini: `PRAGMA table_info(vini)` per detectare dinamicamente le colonne reali (case-insensitive). Se non c'è `qta` o `scorta_minima`, no alert (silenzioso, non errore).
+- `_moduli_summary()` blocco vini: stesso pattern dinamico. Conta tutte le etichette + somma `QTA` come "bottiglie in giacenza".
+- `_moduli_summary()` blocco ricette: query su `recipes` con breakdown is_base 0/1 + selling_price > 0. Line2: "X piatti · Y senza prezzo" o "X piatti · Y basi". Badge = piatti senza prezzo vendita.
+- `_moduli_summary()` blocco flussi-cassa: query su `finanza_movimenti` con `SUM(avere + dare)`. Line2: "+€E / −€U · N mov.".
+
+Nessuna migration DB. Nessun nuovo file. Nessuna dipendenza nuova.
+
+### File modificati
+- `app/routers/dashboard_router.py` (5 punti — 4 fix + 1 helper dinamico colonne vini)
+
+### Commit
+`[core] fix dashboard Home: 4 query rotte (vendite, vini, ricette, flussi-cassa)`
+
+### Verifica post-deploy
+Marco deve fare Ctrl+Shift+R sulla Home e controllare che le 5 card mostrino numeri reali (vedi tabella in changelog). Se restano statiche, problema di cache CDN/browser (pulire/forzare reload).
+
+### Note operative aperte
+- **Acquisti `1250 fatture`**: workflow da decidere — o marca pagate, o cambia semantica badge a "ultimi 30/60gg".
+- **Saldo Flussi cassa "tutto uscite"**: `finanza_movimenti` contiene solo movimenti banca, non corrispettivi. Per saldo "vero" (incassi netti − uscite) servirebbe unire shift_closures + finanza_movimenti. Fix successivo se serve.
+- **Coperti maggio 2025 = 0**: dato storico mancante (modulo cassa post-2025), non bug.
 
 ---
 

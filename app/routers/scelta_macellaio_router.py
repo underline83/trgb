@@ -98,10 +98,16 @@ class CategoriaOut(BaseModel):
 
 class MacellaioConfigOut(BaseModel):
     widget_max_categorie: int = 4
+    # Preview Home (sessione 2026-05-08) — Modulo: platform/dashboard
+    # mode: "categorie" mostra cat+count, "tagli" mostra nomi prodotto
+    widget_preview_mode: str = "categorie"
+    widget_preview_max: int = 3
 
 
 class MacellaioConfigIn(BaseModel):
     widget_max_categorie: int = Field(default=4, ge=1, le=20)
+    widget_preview_mode: str = Field(default="categorie", pattern="^(categorie|tagli)$")
+    widget_preview_max: int = Field(default=3, ge=1, le=20)
 
 
 # ─────────────────────────────────────────────────────────
@@ -127,6 +133,18 @@ def _get_config_int(conn, chiave: str, default: int) -> int:
         ).fetchone()
         if r and r["valore"] is not None:
             return int(r["valore"])
+    except Exception:
+        pass
+    return default
+
+
+def _get_config_str(conn, chiave: str, default: str) -> str:
+    try:
+        r = conn.execute(
+            "SELECT valore FROM macellaio_config WHERE chiave = ?", (chiave,)
+        ).fetchone()
+        if r and r["valore"] is not None:
+            return str(r["valore"])
     except Exception:
         pass
     return default
@@ -360,6 +378,8 @@ def get_config():
     try:
         return MacellaioConfigOut(
             widget_max_categorie=_get_config_int(conn, "widget_max_categorie", 4),
+            widget_preview_mode=_get_config_str(conn, "widget_preview_mode", "categorie"),
+            widget_preview_max=_get_config_int(conn, "widget_preview_max", 3),
         )
     finally:
         conn.close()
@@ -371,9 +391,13 @@ def update_config(data: MacellaioConfigIn):
     conn = get_cucina_connection()
     try:
         _set_config(conn, "widget_max_categorie", str(int(data.widget_max_categorie)))
+        _set_config(conn, "widget_preview_mode", str(data.widget_preview_mode))
+        _set_config(conn, "widget_preview_max", str(int(data.widget_preview_max)))
         conn.commit()
         return MacellaioConfigOut(
             widget_max_categorie=_get_config_int(conn, "widget_max_categorie", 4),
+            widget_preview_mode=_get_config_str(conn, "widget_preview_mode", "categorie"),
+            widget_preview_max=_get_config_int(conn, "widget_preview_max", 3),
         )
     finally:
         conn.close()

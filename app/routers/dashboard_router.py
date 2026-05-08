@@ -97,29 +97,43 @@ class CategoriaGruppo(BaseModel):
     disponibili: int = 0
     tagli: List[TaglioBreve] = []  # preview primi N tagli disponibili in questa categoria
 
+class WidgetPreview(BaseModel):
+    """
+    Configurazione preview per il widget Home (sessione 2026-05-08).
+    Driven dalle chiavi `widget_preview_mode` e `widget_preview_max` di XXX_config.
+    Il frontend SelezioniCard usa questi due campi per decidere come renderizzare
+    il blocco zona — niente più hardcode lato FE.
+    """
+    mode: str = "categorie"  # "categorie" → cat+count; "tagli" → nomi prodotto
+    max: int = 3             # numero massimo di righe da mostrare
+
 class MacellaioWidget(BaseModel):
     disponibili: int = 0
     venduti_oggi: int = 0
     categorie: List[CategoriaGruppo] = []  # raggruppamento per categoria, limitato da config
     altre: int = 0  # count categorie extra non mostrate
+    preview: WidgetPreview = WidgetPreview()
 
 class SalumiWidget(BaseModel):
     disponibili: int = 0
     venduti_oggi: int = 0
     categorie: List[CategoriaGruppo] = []
     altre: int = 0
+    preview: WidgetPreview = WidgetPreview()
 
 class FormaggiWidget(BaseModel):
     disponibili: int = 0
     venduti_oggi: int = 0
     categorie: List[CategoriaGruppo] = []
     altre: int = 0
+    preview: WidgetPreview = WidgetPreview()
 
 class PescatoWidget(BaseModel):
     disponibili: int = 0
     venduti_oggi: int = 0
     categorie: List[CategoriaGruppo] = []
     altre: int = 0
+    preview: WidgetPreview = WidgetPreview()
 
 class SelezioniWidget(BaseModel):
     """
@@ -301,16 +315,29 @@ def _macellaio_widget(oggi: str, tagli_per_cat: int = 2) -> MacellaioWidget:
     try:
         conn = get_foodcost_connection()
 
-        # ── Config max categorie da mostrare ──
+        # ── Config max categorie + preview Home da macellaio_config ──
+        def _cfg(chiave, default):
+            try:
+                r_cfg = conn.execute(
+                    "SELECT valore FROM macellaio_config WHERE chiave = ?", (chiave,)
+                ).fetchone()
+                return r_cfg["valore"] if r_cfg and r_cfg["valore"] is not None else default
+            except Exception:
+                return default
         try:
-            r_cfg = conn.execute(
-                "SELECT valore FROM macellaio_config WHERE chiave = 'widget_max_categorie'"
-            ).fetchone()
-            max_cat = int(r_cfg["valore"]) if r_cfg and r_cfg["valore"] else 4
+            max_cat = int(_cfg("widget_max_categorie", 4))
         except Exception:
             max_cat = 4
         if max_cat < 1:
             max_cat = 1
+        preview_mode = str(_cfg("widget_preview_mode", "categorie"))
+        try:
+            preview_max = int(_cfg("widget_preview_max", 3))
+        except Exception:
+            preview_max = 3
+        # Se preview "tagli", garantisci abbastanza tagli per cat (vedi salumi).
+        if preview_mode == "tagli" and preview_max > tagli_per_cat:
+            tagli_per_cat = preview_max
 
         # ── Count totali ──
         r1 = conn.execute("""
@@ -389,6 +416,7 @@ def _macellaio_widget(oggi: str, tagli_per_cat: int = 2) -> MacellaioWidget:
             venduti_oggi=venduti_oggi,
             categorie=categorie_out,
             altre=altre,
+            preview=WidgetPreview(mode=preview_mode, max=preview_max),
         )
     except Exception as e:
         logger.warning(f"Dashboard: errore macellaio widget: {e}")
@@ -405,16 +433,32 @@ def _salumi_widget(oggi: str, tagli_per_cat: int = 2) -> SalumiWidget:
     try:
         conn = get_foodcost_connection()
 
-        # ── Config max categorie da mostrare ──
+        # ── Config max categorie + preview Home da salumi_config ──
+        def _cfg(chiave, default):
+            try:
+                r_cfg = conn.execute(
+                    "SELECT valore FROM salumi_config WHERE chiave = ?", (chiave,)
+                ).fetchone()
+                return r_cfg["valore"] if r_cfg and r_cfg["valore"] is not None else default
+            except Exception:
+                return default
         try:
-            r_cfg = conn.execute(
-                "SELECT valore FROM salumi_config WHERE chiave = 'widget_max_categorie'"
-            ).fetchone()
-            max_cat = int(r_cfg["valore"]) if r_cfg and r_cfg["valore"] else 4
+            max_cat = int(_cfg("widget_max_categorie", 4))
         except Exception:
             max_cat = 4
         if max_cat < 1:
             max_cat = 1
+        preview_mode = str(_cfg("widget_preview_mode", "categorie"))
+        try:
+            preview_max = int(_cfg("widget_preview_max", 3))
+        except Exception:
+            preview_max = 3
+        # Se preview "tagli", il FE ne mostra fino a preview_max appiattendo le
+        # categorie. Garantiamo che il backend restituisca abbastanza tagli per
+        # categoria perché il FE non vada a corto. tagli_per_cat = preview_max
+        # è una stima generosa (worst case: 1 sola categoria popolata).
+        if preview_mode == "tagli" and preview_max > tagli_per_cat:
+            tagli_per_cat = preview_max
 
         # ── Count attivi (= in carta) ──
         r1 = conn.execute("""
@@ -486,6 +530,7 @@ def _salumi_widget(oggi: str, tagli_per_cat: int = 2) -> SalumiWidget:
             venduti_oggi=venduti_oggi,
             categorie=categorie_out,
             altre=altre,
+            preview=WidgetPreview(mode=preview_mode, max=preview_max),
         )
     except Exception as e:
         logger.warning(f"Dashboard: errore salumi widget: {e}")
@@ -501,16 +546,28 @@ def _formaggi_widget(oggi: str, tagli_per_cat: int = 2) -> FormaggiWidget:
     try:
         conn = get_foodcost_connection()
 
-        # ── Config max categorie da mostrare ──
+        # ── Config max categorie + preview Home da formaggi_config ──
+        def _cfg(chiave, default):
+            try:
+                r_cfg = conn.execute(
+                    "SELECT valore FROM formaggi_config WHERE chiave = ?", (chiave,)
+                ).fetchone()
+                return r_cfg["valore"] if r_cfg and r_cfg["valore"] is not None else default
+            except Exception:
+                return default
         try:
-            r_cfg = conn.execute(
-                "SELECT valore FROM formaggi_config WHERE chiave = 'widget_max_categorie'"
-            ).fetchone()
-            max_cat = int(r_cfg["valore"]) if r_cfg and r_cfg["valore"] else 4
+            max_cat = int(_cfg("widget_max_categorie", 4))
         except Exception:
             max_cat = 4
         if max_cat < 1:
             max_cat = 1
+        preview_mode = str(_cfg("widget_preview_mode", "categorie"))
+        try:
+            preview_max = int(_cfg("widget_preview_max", 3))
+        except Exception:
+            preview_max = 3
+        if preview_mode == "tagli" and preview_max > tagli_per_cat:
+            tagli_per_cat = preview_max
 
         # ── Count attivi (= in carta) ──
         r1 = conn.execute("""
@@ -582,6 +639,7 @@ def _formaggi_widget(oggi: str, tagli_per_cat: int = 2) -> FormaggiWidget:
             venduti_oggi=venduti_oggi,
             categorie=categorie_out,
             altre=altre,
+            preview=WidgetPreview(mode=preview_mode, max=preview_max),
         )
     except Exception as e:
         logger.warning(f"Dashboard: errore formaggi widget: {e}")
@@ -597,16 +655,28 @@ def _pescato_widget(oggi: str, tagli_per_cat: int = 2) -> PescatoWidget:
     try:
         conn = get_foodcost_connection()
 
-        # ── Config max categorie da mostrare ──
+        # ── Config max categorie + preview Home da pescato_config ──
+        def _cfg(chiave, default):
+            try:
+                r_cfg = conn.execute(
+                    "SELECT valore FROM pescato_config WHERE chiave = ?", (chiave,)
+                ).fetchone()
+                return r_cfg["valore"] if r_cfg and r_cfg["valore"] is not None else default
+            except Exception:
+                return default
         try:
-            r_cfg = conn.execute(
-                "SELECT valore FROM pescato_config WHERE chiave = 'widget_max_categorie'"
-            ).fetchone()
-            max_cat = int(r_cfg["valore"]) if r_cfg and r_cfg["valore"] else 4
+            max_cat = int(_cfg("widget_max_categorie", 4))
         except Exception:
             max_cat = 4
         if max_cat < 1:
             max_cat = 1
+        preview_mode = str(_cfg("widget_preview_mode", "categorie"))
+        try:
+            preview_max = int(_cfg("widget_preview_max", 3))
+        except Exception:
+            preview_max = 3
+        if preview_mode == "tagli" and preview_max > tagli_per_cat:
+            tagli_per_cat = preview_max
 
         # ── Count totali ──
         r1 = conn.execute("""
@@ -684,6 +754,7 @@ def _pescato_widget(oggi: str, tagli_per_cat: int = 2) -> PescatoWidget:
             venduti_oggi=venduti_oggi,
             categorie=categorie_out,
             altre=altre,
+            preview=WidgetPreview(mode=preview_mode, max=preview_max),
         )
     except Exception as e:
         logger.warning(f"Dashboard: errore pescato widget: {e}")

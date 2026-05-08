@@ -3,6 +3,47 @@
 
 ---
 
+## 2026-05-08 — Fix Home dashboard: 4 query rotte su moduli Vendite/Vini/Ricette/Flussi-cassa
+
+### Risolto
+- **Vendite "Incasso ieri €0" anche con turni regolarmente chiusi** — `dashboard_router._incasso_ieri()` cercava la tabella `shift_closures` in `foodcost.db`, ma da R6.5 il modulo cassa vive in `admin_finance.sqlite3` (locale-aware). L'eccezione era catturata silenziosamente e il widget cadeva in `IncassoIeri()` default zero. Realtà ieri (07/05): €1.348 / 21 coperti su 2 turni. Stesso bug propagato a `_coperti_mese()` (mostrava 0 invece di 172 coperti del mese).
+- **Vini card "Cantina & Vini" generica (statica)** — query usavano colonne `attivo` e `scorta_minima` che non esistono nel DB Tre Gobbi. Le colonne reali sono in MAIUSCOLO (QTA, PREZZO, …). Eccezione swallowed → fallback statico. Realtà: 1.238 etichette in cantina, 1.261 bottiglie totali in giacenza.
+- **Ricette card "Gestione Cucina" generica (statica)** — query cercava tabella `ricette` con `attiva` e `food_cost_pct`. Tabella reale è `recipes` con `is_active`, e non c'è colonna `food_cost_pct` (food cost si calcola via join recipe_ingredients × ingredient_prices, troppo costoso per un widget Home). Realtà: 48 schede attive, 34 piatti (di cui 5 senza prezzo vendita) e 14 basi.
+- **Flussi cassa card "Flussi di Cassa" generica (statica)** — la tabella `flussi_cassa` non è mai esistita. Fonte reale: `finanza_movimenti` (foodcost.db) con colonne `dare`/`avere`/`data`. Saldo mese maggio: −€49.175 su 23 movimenti banca (tutti in uscita).
+
+### Cambiato
+- **`app/routers/dashboard_router.py::_incasso_ieri`**: collega ad `admin_finance.sqlite3` via `locale_data_path()`. Query identica.
+- **`app/routers/dashboard_router.py::_coperti_mese`**: stesso refit DB.
+- **`app/routers/dashboard_router.py::_alerts` blocco vini**: detection dinamica colonne via `PRAGMA table_info(vini)` (case-insensitive). Se schema cambia da locale a locale, il widget si adatta invece di crashare.
+- **`app/routers/dashboard_router.py::_moduli_summary` blocco vini**: count etichette su tabella reale (no filtro `attivo` perché non esiste). Line2: "N bottiglie in giacenza" se c'è `QTA`, altrimenti "Giacenze ok".
+- **`app/routers/dashboard_router.py::_moduli_summary` blocco ricette**: query su `recipes WHERE is_active`, breakdown `is_base 0/1` + count `selling_price > 0`. Line2: "X piatti · Y senza prezzo" + badge sui piatti senza prezzo (utile a chef per chiudere food cost).
+- **`app/routers/dashboard_router.py::_moduli_summary` blocco flussi-cassa**: query su `finanza_movimenti` con `SUM(avere + dare)` (dare già negativo). Line2 mostra entrate, uscite e count movimenti del mese.
+
+### Non toccato
+- **Acquisti `1250 fatture / €588.608 in sospeso`**: dato VERO. Il calcolo è corretto, ma 1249 su 1250 fatture hanno `stato_pagamento='da_pagare'` (default import SDI) e solo 1 risulta `pagato_manuale`. È backlog di 3 anni di SDI mai marcate pagate, non bug del codice. Decisione di workflow rimandata — o si marcano pagate, o si cambia semantica del badge a "ultime 30gg da pagare".
+- **Card statiche Controllo Gestione / Statistiche / Impostazioni**: restano con placeholder hardcoded. Non sono bug, sono spazi mai popolati.
+
+### Verifica
+Simulazione delle nuove query sui DB locali confermata (Marco fa Ctrl+Shift+R per pulire cache):
+
+| Card | Prima del fix | Dopo il fix |
+|---|---|---|
+| Vendite | "€0 / 0 coperti" | "€1.348 / −36,2% vs media · 21 coperti" |
+| Controllo Gestione (coperti) | "0" | "172 (vs 0 prec.)" |
+| Vini | "Cantina & Vini" (statico) | "1.238 etichette in cantina / 1.261 bottiglie in giacenza" |
+| Ricette | "Gestione Cucina" (statico) | "48 schede attive / 34 piatti · 5 senza prezzo" |
+| Flussi cassa | "Flussi di Cassa / CC · Carta · Contanti" | "Saldo mese: −€49.175 / +€0 / −€49.175 · 23 mov." |
+
+### Versioni
+Nessun bump (fix puntuale di routing dati, no nuova feature, no cambio API).
+
+### Note
+- Fix `[core]`: dashboard_router è generico, modulo `platform`. Nessuna logica tenant-specifica.
+- Nessuna migration DB. Nessun nuovo file. Nessuna dipendenza nuova.
+- I 4 bug erano nascosti dietro `try/except: pass` con fallback statico, quindi invisibili a logging e a smoke test. Lezione: i fallback "soft" su funzioni della Home andrebbero loggati a WARNING con stack trace, non swallowed silenziosamente.
+
+---
+
 ## 2026-05-07 (II) — Fix falsi positivi `lkg_corrupt` su check_backup_health.sh
 
 ### Risolto

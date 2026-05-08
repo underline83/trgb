@@ -20,6 +20,7 @@ const MENU = [
   { key: "export-pdf",   label: "Schede PDF",        icon: "📄", desc: "Schede ricetta con food cost" },
   { key: "import-json",  label: "Import JSON",       icon: "📥", desc: "Carica ricette da file JSON" },
   { key: "macellaio",    label: "Scelta Macellaio",  icon: "🥩", desc: "Categorie tagli e widget" },
+  { key: "widget-home",  label: "Widget Home",       icon: "🏠", desc: "Cosa mostra la card Selezioni del Giorno" },
   { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
   { key: "pranzo",       label: "Menu Pranzo",       icon: "🥙", desc: "Default titolo, prezzi e footer pranzo del giorno" },
   { key: "allergeni",    label: "Allergeni",         icon: "⚠️", desc: "Ricalcolo batch allergeni di tutte le ricette" },
@@ -820,6 +821,11 @@ export default function RicetteSettings() {
                 {activeSection === "pranzo" && <PranzoSettingsPanel />}
 
                 {/* ============================================= */}
+                {/* SEZIONE: Widget Home — preview Selezioni del Giorno */}
+                {/* ============================================= */}
+                {activeSection === "widget-home" && <WidgetHomePanel />}
+
+                {/* ============================================= */}
                 {/* SEZIONE 7: ALLERGENI (Modulo C, 2026-04-27)   */}
                 {/* ============================================= */}
                 {activeSection === "allergeni" && <AllergeniBatchPanel />}
@@ -1119,5 +1125,194 @@ function QrMenuPanel() {
         </p>
       </div>
     </div>
+  );
+}
+
+
+// ============================================================
+// SEZIONE: WidgetHomePanel — preview Selezioni del Giorno
+// Modulo: platform/dashboard (sessione 2026-05-08)
+// Config-driven dei 4 widget zona della Home: per ognuno l'oste può
+// scegliere se mostrare le categorie con count, o i nomi dei prodotti,
+// e quanti elementi mostrare.
+// Endpoint: GET/PUT su /macellaio/config/, /pescato/config/,
+//          /salumi/config/, /formaggi/config/.
+// ============================================================
+function WidgetHomePanel() {
+  const ZONES = [
+    { key: "macellaio", label: "Macellaio", emoji: "🥩", api: "macellaio" },
+    { key: "pescato",   label: "Pescato",   emoji: "🐟", api: "pescato" },
+    { key: "salumi",    label: "Salumi",    emoji: "🥓", api: "salumi" },
+    { key: "formaggi",  label: "Formaggi",  emoji: "🧀", api: "formaggi" },
+  ];
+
+  const [configs, setConfigs] = useState({});  // { macellaio: {mode, max, max_cat}, ... }
+  const [loading, setLoading] = useState(true);
+  const [savingZone, setSavingZone] = useState(null);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(""), 3000); };
+  const showErr = (m) => { setErr(m); setTimeout(() => setErr(""), 5000); };
+
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const results = await Promise.all(
+        ZONES.map(z => apiFetch(`${API_BASE}/${z.api}/config/`).then(r => r.json()))
+      );
+      const out = {};
+      ZONES.forEach((z, i) => {
+        const c = results[i] || {};
+        out[z.key] = {
+          widget_max_categorie: Number(c.widget_max_categorie) || 4,
+          widget_preview_mode: c.widget_preview_mode || "categorie",
+          widget_preview_max:  Number(c.widget_preview_max) || 3,
+        };
+      });
+      setConfigs(out);
+    } catch (e) {
+      showErr("Errore caricamento configurazioni");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadAll(); }, []);
+
+  const setZoneField = (zoneKey, field, value) => {
+    setConfigs(prev => ({
+      ...prev,
+      [zoneKey]: { ...(prev[zoneKey] || {}), [field]: value },
+    }));
+  };
+
+  const saveZone = async (zoneKey, apiKey) => {
+    const c = configs[zoneKey];
+    if (!c) return;
+    setSavingZone(zoneKey);
+    try {
+      const r = await apiFetch(`${API_BASE}/${apiKey}/config/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          widget_max_categorie: Number(c.widget_max_categorie) || 4,
+          widget_preview_mode:  c.widget_preview_mode || "categorie",
+          widget_preview_max:   Number(c.widget_preview_max) || 3,
+        }),
+      });
+      if (!r.ok) {
+        const t = await r.text().catch(() => "");
+        showErr(`Errore salvataggio ${zoneKey}: ${t || r.status}`);
+        return;
+      }
+      showMsg(`${zoneKey} salvato. Ricarica la Home con Ctrl+Shift+R per vedere le modifiche.`);
+    } catch (e) {
+      showErr(e.message);
+    } finally {
+      setSavingZone(null);
+    }
+  };
+
+  return (
+    <section>
+      <SectionHeader
+        title="Widget Home — Selezioni del Giorno"
+        desc="Per ogni zona scegli cosa mostrare nella card della Home: le categorie con il conteggio, oppure i nomi dei singoli prodotti. Decidi anche quanti elementi visualizzare. Le modifiche sono visibili sulla Home dopo un refresh (Ctrl+Shift+R)."
+      />
+
+      {msg && (
+        <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3 mb-4">{msg}</div>
+      )}
+      {err && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3 mb-4">{err}</div>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-neutral-400">Caricamento...</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {ZONES.map(z => {
+            const c = configs[z.key] || {};
+            return (
+              <div key={z.key} className="border border-neutral-200 rounded-2xl p-4 bg-white">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">{z.emoji}</span>
+                  <h3 className="font-semibold text-neutral-900">{z.label}</h3>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-600 mb-1">
+                      Cosa mostrare
+                    </label>
+                    <select
+                      value={c.widget_preview_mode || "categorie"}
+                      onChange={e => setZoneField(z.key, "widget_preview_mode", e.target.value)}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm bg-white"
+                    >
+                      <option value="categorie">Categorie con conteggio (es. "Bovino · 12")</option>
+                      <option value="tagli">Nomi dei prodotti (es. "Costata di Fassona")</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-600 mb-1">
+                      Quanti elementi (1-20)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={c.widget_preview_max ?? 3}
+                      onChange={e => setZoneField(z.key, "widget_preview_max", e.target.value)}
+                      className="w-28 px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                    />
+                  </div>
+
+                  <details className="text-xs text-neutral-500">
+                    <summary className="cursor-pointer hover:text-neutral-700">Impostazione avanzata</summary>
+                    <div className="mt-2 pl-2 border-l-2 border-neutral-200">
+                      <label className="block text-xs font-medium text-neutral-600 mb-1">
+                        Max categorie attive (filtro per pagina di gestione, 1-20)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={c.widget_max_categorie ?? 4}
+                        onChange={e => setZoneField(z.key, "widget_max_categorie", e.target.value)}
+                        className="w-28 px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                      />
+                    </div>
+                  </details>
+
+                  <div className="pt-2">
+                    <Btn
+                      variant="chip"
+                      tone="amber"
+                      size="sm"
+                      onClick={() => saveZone(z.key, z.api)}
+                      loading={savingZone === z.key}
+                    >
+                      Salva {z.label}
+                    </Btn>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-6 text-xs text-neutral-500 bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <p className="font-semibold mb-1 text-amber-900">Suggerimento</p>
+        <p>
+          Per le zone con <strong>pochi pezzi al giorno</strong> (Pescato), conviene "Nomi dei prodotti".
+          Per le zone con <strong>molti tagli divisi per categoria</strong> (Macellaio), conviene "Categorie con conteggio".
+          Per Salumi e Formaggi che cambiano poco e l'oste vuole vedere i nomi a colpo d'occhio, "Nomi dei prodotti" con valori 5-6 funziona bene.
+        </p>
+      </div>
+    </section>
   );
 }

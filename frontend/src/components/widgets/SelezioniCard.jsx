@@ -1,63 +1,39 @@
 // FILE: frontend/src/components/widgets/SelezioniCard.jsx
-// @version: v1.1 — Widget unificato "Selezioni del Giorno"
+// @version: v1.3 — Widget unificato "Selezioni del Giorno"
 //   - v1.0 (sessione 50): card unica con 4 mini-blocchi (preview categorie + count).
-//   - v1.1 (oggi): per zone "attivo" (Salumi, Formaggi) la preview mostra
-//     direttamente i NOMI dei prodotti, non i totali per categoria. Per zone
-//     "venduto" (Macellaio, Pescato) resta la preview categorie con count.
-//     Marco vuole poter leggere a colpo d'occhio quali sono i salumi/formaggi
-//     in carta oggi, senza dover aprire la pagina di gestione.
+//   - v1.1: per zone "attivo" (Salumi, Formaggi) preview con NOMI prodotto;
+//     zone "venduto" (Macellaio, Pescato) preview con categorie + count.
+//   - v1.2: scelta esplicita per zona (mode + max), ma hardcoded nel componente.
+//   - v1.3 (2026-05-08): config-driven. Il backend (XXX_config tabelle key-value)
+//     espone `widget.preview = {mode, max}` per ogni zona. Niente hardcode FE.
+//     L'oste configura tutto dalla pagina Impostazioni Cucina (RicetteSettings).
+//       · mode "categorie" → mostra nome categoria + count
+//       · mode "tagli"     → mostra nomi prodotto (appiattendo cat.tagli)
+//       · max              → numero righe da mostrare
+//     min-height del mini-blocco calcolato da max (più nomi = più alto).
 // Click sul blocco → /selezioni/<zona>.
 //
 // Data shape (da /dashboard/home campo `selezioni`):
 //   {
-//     macellaio: { disponibili, venduti_oggi, categorie: [{nome, emoji, disponibili, tagli:[{nome,...}]}, ...], altre },
-//     salumi:    { disponibili, venduti_oggi, categorie: [...], altre },   // disponibili = attivi
-//     formaggi:  { disponibili, venduti_oggi, categorie: [...], altre },   // disponibili = attivi
-//     pescato:   { disponibili, venduti_oggi, categorie: [...], altre },
+//     macellaio: { disponibili, venduti_oggi, categorie: [...], altre, preview: {mode, max} },
+//     salumi:    { disponibili, venduti_oggi, categorie: [...], altre, preview: {mode, max} },
+//     formaggi:  { disponibili, venduti_oggi, categorie: [...], altre, preview: {mode, max} },
+//     pescato:   { disponibili, venduti_oggi, categorie: [...], altre, preview: {mode, max} },
 //   }
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-// ── Config visivo per zona (allineato a zonaConfig.js FE) ──
+// ── Config visiva per zona (solo presentazione, no logica preview) ──
 const ZONE = [
-  {
-    key: "macellaio",
-    label: "Macellaio",
-    emoji: "🥩",
-    border: "border-red-200",
-    tint: "bg-red-50",
-    textActive: "text-red-900",
-    stato: "venduto", // mostra "disponibili"
-  },
-  {
-    key: "pescato",
-    label: "Pescato",
-    emoji: "🐟",
-    border: "border-sky-200",
-    tint: "bg-sky-50",
-    textActive: "text-sky-900",
-    stato: "venduto",
-  },
-  {
-    key: "salumi",
-    label: "Salumi",
-    emoji: "🥓",
-    border: "border-amber-200",
-    tint: "bg-amber-50",
-    textActive: "text-amber-900",
-    stato: "attivo", // mostra "in carta"
-  },
-  {
-    key: "formaggi",
-    label: "Formaggi",
-    emoji: "🧀",
-    border: "border-yellow-200",
-    tint: "bg-yellow-50",
-    textActive: "text-yellow-900",
-    stato: "attivo",
-  },
+  { key: "macellaio", label: "Macellaio", emoji: "🥩", tint: "bg-red-50",    textActive: "text-red-900" },
+  { key: "pescato",   label: "Pescato",   emoji: "🐟", tint: "bg-sky-50",    textActive: "text-sky-900" },
+  { key: "salumi",    label: "Salumi",    emoji: "🥓", tint: "bg-amber-50",  textActive: "text-amber-900" },
+  { key: "formaggi",  label: "Formaggi",  emoji: "🧀", tint: "bg-yellow-50", textActive: "text-yellow-900" },
 ];
+
+// Default core (usato se il backend non ritorna `preview` per qualche motivo)
+const DEFAULT_PREVIEW = { mode: "categorie", max: 3 };
 
 /**
  * @param {object} props
@@ -87,29 +63,34 @@ export default function SelezioniCard({ data }) {
         </div>
       </div>
 
-      {/* 4 mini-blocchi in griglia 2x2 */}
+      {/* 4 mini-blocchi in griglia 2x2. min-h dinamico in base al numero
+          di righe richieste dalla config: ~14px per riga + 64px overhead
+          (header + padding). Le celle in stessa riga si allineano sull'altezza
+          maggiore, quindi se una zona vuole più spazio l'altra la segue. */}
       <div className="grid grid-cols-2 gap-0">
         {ZONE.map((z, i) => {
           const widget = selezioni[z.key] || {};
           const count = widget.disponibili ?? 0;
           const categorie = widget.categorie || [];
 
-          // Per zone "attivo" (salumi, formaggi) → mostra i NOMI dei prodotti
-          // (appiattendo cat.tagli da tutte le categorie). Marco vuole leggere
-          // i salumi/formaggi in carta a colpo d'occhio.
-          // Per zone "venduto" (macellaio, pescato) → resta la preview per
-          // categoria (nome + count) perché ce ne sono tanti per categoria.
-          let previewItems = [];   // [{label, sub?}]
-          if (z.stato === "attivo") {
+          // Preview config dal backend (config-driven, settabile da Impostazioni)
+          const previewCfg = widget.preview || DEFAULT_PREVIEW;
+          const mode = previewCfg.mode || DEFAULT_PREVIEW.mode;
+          const max = Math.max(1, previewCfg.max || DEFAULT_PREVIEW.max);
+
+          let previewItems = []; // [{label, sub?}]
+          if (mode === "tagli") {
+            // Appiattisce cat.tagli in lista nomi, fino a `max`
             for (const c of categorie) {
               for (const t of (c.tagli || [])) {
                 previewItems.push({ label: t.nome, sub: null });
-                if (previewItems.length >= 3) break;
+                if (previewItems.length >= max) break;
               }
-              if (previewItems.length >= 3) break;
+              if (previewItems.length >= max) break;
             }
           } else {
-            previewItems = categorie.slice(0, 2).map(c => ({
+            // mode "categorie": emoji + nome + " · count"
+            previewItems = categorie.slice(0, max).map(c => ({
               label: `${c.emoji ? `${c.emoji} ` : ""}${c.nome}`,
               sub: ` · ${c.disponibili}`,
             }));
@@ -117,12 +98,16 @@ export default function SelezioniCard({ data }) {
 
           const isRight = i % 2 === 1;
           const isBottom = i >= 2;
+          // min-h calcolato: 64px (header+padding) + 14px per riga di preview.
+          // Cap inferiore a 96px (mantiene il look compatto del v1.0).
+          const minH = Math.max(96, 64 + max * 14);
 
           return (
             <button
               key={z.key}
               onClick={() => navigate(`/selezioni/${z.key}`)}
-              className={`text-left ${z.tint} p-3 min-h-[96px] flex flex-col cursor-pointer active:scale-[.99] transition-transform ${
+              style={{ minHeight: `${minH}px` }}
+              className={`text-left ${z.tint} p-3 flex flex-col cursor-pointer active:scale-[.99] transition-transform ${
                 !isRight ? "border-r border-[#f0ede8]" : ""
               } ${!isBottom ? "border-b border-[#f0ede8]" : ""}`}
             >
@@ -137,9 +122,9 @@ export default function SelezioniCard({ data }) {
                 </span>
               </div>
 
-              {/* Preview: prodotti per "attivo", categorie+count per "venduto" */}
+              {/* Preview: nomi prodotto o categorie+count, secondo widget.preview.mode */}
               {previewItems.length > 0 ? (
-                <div className="flex-1 flex flex-col justify-end">
+                <div className="flex-1 flex flex-col justify-end gap-[1px]">
                   {previewItems.map((p, ci) => (
                     <div
                       key={ci}
