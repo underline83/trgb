@@ -122,12 +122,12 @@ export default function SelezioniCard({ data }) {
               key={z.key}
               onClick={() => navigate(`/selezioni/${z.key}`)}
               style={{ minHeight: `${minH}px` }}
-              className={`text-left ${z.tint} p-3 flex flex-col cursor-pointer active:scale-[.99] transition-transform ${
+              className={`text-left ${z.tint} px-3 pt-2 pb-3 flex flex-col cursor-pointer active:scale-[.99] transition-transform ${
                 !isRight ? "border-r border-[#f0ede8]" : ""
               } ${!isBottom ? "border-b border-[#f0ede8]" : ""}`}
             >
               {/* Header mini-blocco */}
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between">
                 <span className={`text-[12px] font-bold ${z.textActive} flex items-center gap-1.5`}>
                   <span className="text-base leading-none">{z.emoji}</span>
                   <span>{z.label}</span>
@@ -138,12 +138,11 @@ export default function SelezioniCard({ data }) {
               </div>
 
               {/* Preview: 3 modalità — categorie / tagli / tutto.
-                  Contenuto ancorato in alto subito sotto l'header (justify-start);
-                  lo spazio vuoto eventuale resta in basso. Le celle vuote mostrano
-                  un placeholder centrato verticalmente. */}
+                  Contenuto compatto subito sotto l'header (niente mt-1, niente
+                  margin sull'header). Le celle vuote → placeholder centrato. */}
               {mode === "tutto" ? (
                 previewGroups.length > 0 ? (
-                  <div className="flex-1 flex flex-col gap-2 mt-1">
+                  <div className="flex-1 flex flex-col gap-1.5">
                     {previewGroups.map((g, gi) => (
                       <div key={gi} className="flex flex-col gap-[1px]">
                         <div className={`text-[11px] font-bold ${z.textActive} truncate leading-tight`}>
@@ -167,7 +166,7 @@ export default function SelezioniCard({ data }) {
                   </div>
                 )
               ) : previewItems.length > 0 ? (
-                <div className="flex-1 flex flex-col gap-[1px] mt-1">
+                <div className="flex-1 flex flex-col gap-[1px]">
                   {previewItems.map((p, ci) => (
                     <div
                       key={ci}
