@@ -142,6 +142,30 @@ scripts_backup_*/
 .claude/
 
 # =====================
+#  HOUSEKEEPING M.J — pattern bloccati preventivamente
+# =====================
+# (root cleanup S60 2026-05-08 dopo audit S51 inevaso)
+# Mockup mai in root: vanno in docs/mockups/ o docs/archive/mockups/
+/mockup-*.html
+/mockup-*.jsx
+/splash-mockup.html
+# Output dryrun/test/debug
+/*_dryrun*.csv
+/*_test_output*.csv
+/*_debug*.json
+# Backup forensi DB con suffissi
+/*.RESTORE*.sqlite3
+/*.RESTORE*.db
+/*.CORROTTO*.sqlite3
+/*.FORENSE*.sqlite3
+# File lock di Word
+~$*.docx
+~$*.xlsx
+~$*.pptx
+# File test rapidi
+.test_write*
+
+# =====================
 #  MODULO GUARDIANO — runtime
 # =====================
 # Timestamp ultimo push (debounce anti-doppio-push, sessione 57 cont.)
