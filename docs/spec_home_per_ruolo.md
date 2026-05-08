@@ -206,7 +206,7 @@ Fallback: `frontend/src/config/homeActionsFallback.js` contiene gli stessi dati 
 ## 9. File toccati
 
 ### Nuovi
-- `docs/home_per_ruolo.md` (questo file)
+- `docs/spec_home_per_ruolo.md` (questo file)
 - `app/migrations/090_home_actions.py`
 - `app/routers/home_actions_router.py`
 - `frontend/src/hooks/useHomeActions.js`
