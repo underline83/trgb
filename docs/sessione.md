@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-08 (sessione: Fix Home dashboard — 4 query rotte su moduli Vendite/Vini/Ricette/Flussi-cassa)
+**Ultimo aggiornamento:** 2026-05-08 (II) (sessione: Widget Home config-driven + UI Impostazioni Selezioni)
 
 ---
 

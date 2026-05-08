@@ -1,16 +1,18 @@
 // FILE: frontend/src/components/widgets/SelezioniCard.jsx
-// @version: v1.3 — Widget unificato "Selezioni del Giorno"
+// @version: v1.4 — Widget unificato "Selezioni del Giorno"
 //   - v1.0 (sessione 50): card unica con 4 mini-blocchi (preview categorie + count).
 //   - v1.1: per zone "attivo" (Salumi, Formaggi) preview con NOMI prodotto;
 //     zone "venduto" (Macellaio, Pescato) preview con categorie + count.
 //   - v1.2: scelta esplicita per zona (mode + max), ma hardcoded nel componente.
-//   - v1.3 (2026-05-08): config-driven. Il backend (XXX_config tabelle key-value)
-//     espone `widget.preview = {mode, max}` per ogni zona. Niente hardcode FE.
-//     L'oste configura tutto dalla pagina Impostazioni Cucina (RicetteSettings).
-//       · mode "categorie" → mostra nome categoria + count
-//       · mode "tagli"     → mostra nomi prodotto (appiattendo cat.tagli)
-//       · max              → numero righe da mostrare
-//     min-height del mini-blocco calcolato da max (più nomi = più alto).
+//   - v1.3 (2026-05-08): config-driven via /XXX/config/.
+//   - v1.4 (2026-05-08): aggiunta modalità "tutto" — header categoria + nomi
+//     prodotto sotto. Utile quando l'oste vuole vedere a colpo d'occhio sia
+//     come è strutturata l'offerta (categorie) sia i nomi specifici.
+//       · mode "categorie" → emoji + nome cat + count
+//       · mode "tagli"     → solo nomi prodotto (appiattisce le categorie)
+//       · mode "tutto"     → header categoria + sotto i nomi dei suoi tagli
+//       · max              → max categorie (categorie/tutto) o max nomi (tagli)
+//     min-height del mini-blocco calcolato in base a mode + max.
 // Click sul blocco → /selezioni/<zona>.
 //
 // Data shape (da /dashboard/home campo `selezioni`):
@@ -78,8 +80,18 @@ export default function SelezioniCard({ data }) {
           const mode = previewCfg.mode || DEFAULT_PREVIEW.mode;
           const max = Math.max(1, previewCfg.max || DEFAULT_PREVIEW.max);
 
-          let previewItems = []; // [{label, sub?}]
-          if (mode === "tagli") {
+          // Per mode "tutto" il render è strutturato (header cat + tagli sotto).
+          // Per "categorie" e "tagli" è una semplice lista flat.
+          let previewItems = []; // mode="categorie"|"tagli": [{label, sub?}]
+          let previewGroups = []; // mode="tutto": [{header, sub, tagli:[nome,...]}]
+
+          if (mode === "tutto") {
+            previewGroups = categorie.slice(0, max).map(c => ({
+              header: `${c.emoji ? `${c.emoji} ` : ""}${c.nome}`,
+              sub: ` · ${c.disponibili}`,
+              tagli: (c.tagli || []).map(t => t.nome),
+            }));
+          } else if (mode === "tagli") {
             // Appiattisce cat.tagli in lista nomi, fino a `max`
             for (const c of categorie) {
               for (const t of (c.tagli || [])) {
@@ -98,9 +110,12 @@ export default function SelezioniCard({ data }) {
 
           const isRight = i % 2 === 1;
           const isBottom = i >= 2;
-          // min-h calcolato: 64px (header+padding) + 14px per riga di preview.
-          // Cap inferiore a 96px (mantiene il look compatto del v1.0).
-          const minH = Math.max(96, 64 + max * 14);
+          // min-h calcolato in base a mode:
+          //  - categorie/tagli: 64 + max*14 (1 riga per item)
+          //  - tutto: 64 + max*42 (header cat + ~2 tagli sotto per cat)
+          // Cap inferiore a 96px (look compatto v1.0).
+          const rowsHeight = mode === "tutto" ? max * 42 : max * 14;
+          const minH = Math.max(96, 64 + rowsHeight);
 
           return (
             <button
@@ -122,8 +137,33 @@ export default function SelezioniCard({ data }) {
                 </span>
               </div>
 
-              {/* Preview: nomi prodotto o categorie+count, secondo widget.preview.mode */}
-              {previewItems.length > 0 ? (
+              {/* Preview: 3 modalità — categorie / tagli / tutto */}
+              {mode === "tutto" ? (
+                previewGroups.length > 0 ? (
+                  <div className="flex-1 flex flex-col justify-end gap-2">
+                    {previewGroups.map((g, gi) => (
+                      <div key={gi} className="flex flex-col gap-[1px]">
+                        <div className={`text-[11px] font-bold ${z.textActive} truncate leading-tight`}>
+                          <span>{g.header}</span>
+                          <span className="text-[#a8a49e] font-medium">{g.sub}</span>
+                        </div>
+                        {g.tagli.map((nome, ti) => (
+                          <div
+                            key={ti}
+                            className="text-[10.5px] text-[#7a766f] leading-tight truncate pl-2"
+                          >
+                            {nome}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-end">
+                    <span className="text-[10.5px] text-[#a8a49e] italic">—</span>
+                  </div>
+                )
+              ) : previewItems.length > 0 ? (
                 <div className="flex-1 flex flex-col justify-end gap-[1px]">
                   {previewItems.map((p, ci) => (
                     <div

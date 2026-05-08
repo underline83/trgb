@@ -1253,12 +1253,15 @@ function WidgetHomePanel() {
                     >
                       <option value="categorie">Categorie con conteggio (es. "Bovino · 12")</option>
                       <option value="tagli">Nomi dei prodotti (es. "Costata di Fassona")</option>
+                      <option value="tutto">Tutto: categorie + nomi prodotti sotto</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-neutral-600 mb-1">
-                      Quanti elementi (1-20)
+                      {(c.widget_preview_mode || "categorie") === "tagli"
+                        ? "Quanti nomi prodotto (1-20)"
+                        : "Quante categorie (1-20)"}
                     </label>
                     <input
                       type="number"
@@ -1308,9 +1311,11 @@ function WidgetHomePanel() {
       <div className="mt-6 text-xs text-neutral-500 bg-amber-50 border border-amber-200 rounded-xl p-4">
         <p className="font-semibold mb-1 text-amber-900">Suggerimento</p>
         <p>
-          Per le zone con <strong>pochi pezzi al giorno</strong> (Pescato), conviene "Nomi dei prodotti".
-          Per le zone con <strong>molti tagli divisi per categoria</strong> (Macellaio), conviene "Categorie con conteggio".
-          Per Salumi e Formaggi che cambiano poco e l'oste vuole vedere i nomi a colpo d'occhio, "Nomi dei prodotti" con valori 5-6 funziona bene.
+          <strong>Categorie con conteggio</strong> — utile quando i tagli sono tanti e suddivisi per categoria (es. Macellaio).
+          <br />
+          <strong>Nomi dei prodotti</strong> — utile quando i pezzi sono pochi (es. Pescato) o quando vuoi leggere a colpo d'occhio cosa è in carta (Salumi/Formaggi, valori 5-6).
+          <br />
+          <strong>Tutto: categorie + nomi prodotti</strong> — la vista più ricca: vedi sia come è strutturata l'offerta, sia i nomi dei singoli prodotti sotto ogni categoria. Costa più spazio in altezza.
         </p>
       </div>
     </section>

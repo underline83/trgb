@@ -129,7 +129,7 @@ class SalumiConfigOut(BaseModel):
 
 class SalumiConfigIn(BaseModel):
     widget_max_categorie: int = Field(default=4, ge=1, le=20)
-    widget_preview_mode: str = Field(default="categorie", pattern="^(categorie|tagli)$")
+    widget_preview_mode: str = Field(default="categorie", pattern="^(categorie|tagli|tutto)$")
     widget_preview_max: int = Field(default=3, ge=1, le=20)
 
 
