@@ -65,11 +65,12 @@ export default function SelezioniCard({ data }) {
         </div>
       </div>
 
-      {/* 4 mini-blocchi in griglia 2x2. min-h dinamico in base al numero
-          di righe richieste dalla config: ~14px per riga + 64px overhead
-          (header + padding). Le celle in stessa riga si allineano sull'altezza
-          maggiore, quindi se una zona vuole più spazio l'altra la segue. */}
-      <div className="grid grid-cols-2 gap-0">
+      {/* 4 mini-blocchi in griglia 2x2:
+          - Riga superiore (Macellaio/Pescato) altezza fissa 96px (compatta).
+          - Riga inferiore (Salumi/Formaggi) altezza naturale dal contenuto.
+          Le 2 righe sono indipendenti — la zona ricca di contenuto sotto
+          non gonfia più la riga sopra. */}
+      <div className="grid grid-cols-2 grid-rows-[96px_auto] gap-0">
         {ZONE.map((z, i) => {
           const widget = selezioni[z.key] || {};
           const count = widget.disponibili ?? 0;
@@ -110,24 +111,21 @@ export default function SelezioniCard({ data }) {
 
           const isRight = i % 2 === 1;
           const isBottom = i >= 2;
-          // min-h calcolato in base a mode:
-          //  - categorie/tagli: 64 + max*14 (1 riga per item)
-          //  - tutto: 64 + max*42 (header cat + ~2 tagli sotto per cat)
-          // Cap inferiore a 96px (look compatto v1.0).
-          const rowsHeight = mode === "tutto" ? max * 42 : max * 14;
-          const minH = Math.max(96, 64 + rowsHeight);
+          // Niente min-h calcolato: lascio l'altezza naturale del contenuto.
+          // Floor: 96px (look compatto v1.0). Padding bottom ridotto (pb-2)
+          // perché le celle del grid si allineano sull'altezza naturale della
+          // riga, non su una stima — lo spazio sotto diventa minimo.
 
           return (
             <button
               key={z.key}
               onClick={() => navigate(`/selezioni/${z.key}`)}
-              style={{ minHeight: `${minH}px` }}
-              className={`text-left ${z.tint} px-3 pt-2 pb-3 flex flex-col cursor-pointer active:scale-[.99] transition-transform ${
+              className={`text-left ${z.tint} px-3 pt-3 pb-2 min-h-[96px] flex flex-col cursor-pointer active:scale-[.99] transition-transform ${
                 !isRight ? "border-r border-[#f0ede8]" : ""
               } ${!isBottom ? "border-b border-[#f0ede8]" : ""}`}
             >
               {/* Header mini-blocco */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-1">
                 <span className={`text-[12px] font-bold ${z.textActive} flex items-center gap-1.5`}>
                   <span className="text-base leading-none">{z.emoji}</span>
                   <span>{z.label}</span>
