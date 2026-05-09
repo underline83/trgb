@@ -762,15 +762,36 @@ def _pescato_widget(oggi: str, tagli_per_cat: int = 2) -> PescatoWidget:
 
 
 def _fatture_pending() -> FatturePending:
-    """Fatture non pagate (escluse autofatture)"""
+    """
+    Fatture realmente da pagare per la card "Acquisti" della Home.
+
+    Source of truth: cg_uscite.stato (modulo Controllo Gestione).
+    `fe_fatture.pagato` storicamente non viene aggiornato quando l'utente
+    riconcilia da banca o marca PAGATA_MANUALE in CG → era source di drift
+    massiccio (sessione 2026-05-09: ~600 fatture pagate ma flag a 0
+    inflavano la card Home a € 588k vs ~€ 333k reale).
+
+    Filtri:
+      - LEFT JOIN cg_uscite (su fattura_id)
+      - se ha proiezione cg_uscite: include solo stato DA_PAGARE / SCADUTA
+      - se NON ha proiezione (fattura recente non ancora processata dal
+        proiettore, o particolarità storica): fallback su fe_fatture.pagato=0
+      - sempre: escludi autofatture e fatture rateizzate (passate a spese fisse,
+        altrimenti contate due volte)
+    """
     try:
         conn = get_foodcost_connection()
         row = conn.execute("""
-            SELECT COUNT(*) as cnt,
-                   COALESCE(SUM(totale_fattura), 0) as importo
-            FROM fe_fatture
-            WHERE COALESCE(pagato, 0) = 0
-              AND COALESCE(is_autofattura, 0) = 0
+            SELECT COUNT(*) AS cnt,
+                   COALESCE(SUM(f.totale_fattura), 0) AS importo
+            FROM fe_fatture f
+            LEFT JOIN cg_uscite u ON u.fattura_id = f.id
+            WHERE COALESCE(f.is_autofattura, 0) = 0
+              AND f.rateizzata_in_spesa_fissa_id IS NULL
+              AND (
+                u.stato IN ('DA_PAGARE', 'SCADUTA')
+                OR (u.id IS NULL AND COALESCE(f.pagato, 0) = 0)
+              )
         """).fetchone()
         conn.close()
         return FatturePending(
