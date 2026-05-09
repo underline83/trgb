@@ -11,24 +11,35 @@ import {
 import { GIORNI_IT_3, GIORNI_IT_1, COLORI_EVENTO, DEFAULT_COLOR } from "./constants";
 
 // Quanti eventi mostrare come chip prima di collassare in "+N altri"
-const MAX_CHIPS = 3;
+// (con layout 2-righe ridotto da 3 a 2 per non sforare la cella)
+const MAX_CHIPS = 2;
 
 function EventChip({ event, onClick }) {
   const palette = COLORI_EVENTO[event.color] || COLORI_EVENTO[DEFAULT_COLOR];
+  // Se l'evento ha sia title (es. importo) che subtitle (es. nome), layout su 2 righe.
+  // Altrimenti (eventi storici single-line), layout classico a una riga truncata.
+  const hasTwoLines = !!event.subtitle;
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick && onClick(event); }}
       className={
-        "w-full text-left text-[11px] leading-tight truncate px-1.5 py-0.5 rounded border " +
+        "block w-full min-w-0 text-left text-[11px] leading-tight px-1.5 py-0.5 rounded border " +
         palette.soft +
         " hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
       }
       aria-label={event.title + (event.subtitle ? ", " + event.subtitle : "")}
       title={event.title + (event.subtitle ? " — " + event.subtitle : "")}
     >
-      {event.icon ? <span className="mr-0.5">{event.icon}</span> : null}
-      {event.title}
+      <div className="flex items-center gap-0.5 truncate font-semibold">
+        {event.icon ? <span className="shrink-0">{event.icon}</span> : null}
+        <span className="truncate">{event.title}</span>
+      </div>
+      {hasTwoLines && (
+        <div className="text-[10px] leading-tight text-neutral-700/90 truncate">
+          {event.subtitle}
+        </div>
+      )}
     </button>
   );
 }
@@ -59,7 +70,7 @@ function DayCell({
     <div
       className={
         "relative flex flex-col border-b border-r border-neutral-200 " +
-        "min-h-[4.5rem] md:min-h-[5.5rem] xl:min-h-[6.5rem] " +
+        "min-h-[5.5rem] md:min-h-[7rem] xl:min-h-[8rem] " +
         "cursor-pointer select-none " +
         baseBg + " " + selected + " " + todayRing
       }

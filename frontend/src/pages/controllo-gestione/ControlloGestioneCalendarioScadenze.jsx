@@ -93,6 +93,8 @@ export default function ControlloGestioneCalendarioScadenze() {
   const [err, setErr] = useState("");
   const [filters, setFilters] = useState(loadFilters);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  // G.2.B-fix8 — modale elenco scadenze per livello (click su card riepilogo)
+  const [livelloModale, setLivelloModale] = useState(null); // 'scaduta' | 'urgente' | 'avvicinamento' | 'pianificazione' | null
 
   // Persistenza filtri
   useEffect(() => { saveFilters(filters); }, [filters]);
@@ -144,13 +146,15 @@ export default function ControlloGestioneCalendarioScadenze() {
   useEffect(() => { loadScadenze(); }, [loadScadenze]);
 
   // Mappa scadenze → eventi M.E
-  // title compatto: "€XXX · Nome" con titolo_breve dal backend (max 26 char)
+  // 2 righe: title = importo (bold), subtitle = nome (max 26 char dal backend)
+  // EventChip mostra: [icon] €XXX (riga 1, prominente)
+  //                   nome fornitore (riga 2, ~10px, truncate)
   const events = useMemo(() => scadenze.map((s) => ({
     id: s.id,
     start: isoToDate(s.data_scadenza),
     allDay: true,
-    title: `€${fmtEuro(s.totale)} · ${s.titolo_breve || s.titolo}`,
-    subtitle: LIVELLO_LABEL[s.livello] || "",
+    title: `€${fmtEuro(s.totale)}`,
+    subtitle: s.titolo_breve || s.titolo,
     color: LIVELLO_COLOR[s.livello] || "blue",
     icon: s.livello === "scaduta" ? "⚠️" : (s.livello === "urgente" ? "🔴" : null),
     payload: s,
@@ -198,12 +202,12 @@ export default function ControlloGestioneCalendarioScadenze() {
           </div>
         </div>
 
-        {/* RIEPILOGO — 4 card vive + footer compatto */}
+        {/* RIEPILOGO — 4 card vive cliccabili (apre modale con elenco) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-          <SummaryCard color="red"   label="Scadute"        agg={summary.scaduta}       sub="non riconciliate" />
-          <SummaryCard color="red"   label="Urgenti"        agg={summary.urgente}       sub="≤ 7 giorni" />
-          <SummaryCard color="amber" label="Avvicinamento"  agg={summary.avvicinamento} sub="8 – 15 giorni" />
-          <SummaryCard color="blue"  label="Pianificazione" agg={summary.pianificazione} sub="16 – 30 giorni" />
+          <SummaryCard color="red"   label="Scadute"        agg={summary.scaduta}       sub="non riconciliate" onClick={() => summary.scaduta.n > 0 && setLivelloModale("scaduta")} />
+          <SummaryCard color="red"   label="Urgenti"        agg={summary.urgente}       sub="≤ 7 giorni"      onClick={() => summary.urgente.n > 0 && setLivelloModale("urgente")} />
+          <SummaryCard color="amber" label="Avvicinamento"  agg={summary.avvicinamento} sub="8 – 15 giorni"   onClick={() => summary.avvicinamento.n > 0 && setLivelloModale("avvicinamento")} />
+          <SummaryCard color="blue"  label="Pianificazione" agg={summary.pianificazione} sub="16 – 30 giorni" onClick={() => summary.pianificazione.n > 0 && setLivelloModale("pianificazione")} />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4 px-1 text-xs text-neutral-600">
           <div>
@@ -311,6 +315,17 @@ export default function ControlloGestioneCalendarioScadenze() {
             )}
           </div>
         </div>
+
+        {/* G.2.B-fix8 — Modale elenco scadenze per livello */}
+        {livelloModale && (
+          <ModaleElencoLivello
+            livello={livelloModale}
+            scadenze={scadenze.filter((s) => s.livello === livelloModale)}
+            onClose={() => setLivelloModale(null)}
+            onGotoUscite={() => navigate("/controllo-gestione/uscite")}
+            onGotoSpesaFissa={(id) => navigate(`/controllo-gestione/spese-fisse?highlight=${id}`)}
+          />
+        )}
       </div>
     </div>
   );
@@ -318,7 +333,7 @@ export default function ControlloGestioneCalendarioScadenze() {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function SummaryCard({ color, label, agg, sub }) {
+function SummaryCard({ color, label, agg, sub, onClick }) {
   const palette = {
     red:    "bg-red-50 border-red-200 text-red-800",
     amber:  "bg-amber-50 border-amber-200 text-amber-800",
@@ -328,11 +343,16 @@ function SummaryCard({ color, label, agg, sub }) {
   }[color] || "bg-neutral-50 border-neutral-200 text-neutral-700";
 
   const isEmpty = !agg?.n;
-  // Card "spenta" quando count=0 → diventa rumore, la rendiamo discreta
-  const dim = isEmpty ? "opacity-40" : "";
+  const dim = isEmpty ? "opacity-40 cursor-default" : "cursor-pointer hover:brightness-95 hover:shadow-sm";
+
+  const Element = onClick && !isEmpty ? "button" : "div";
 
   return (
-    <div className={`rounded-lg border ${palette} ${dim} px-3 py-2 flex items-center gap-3 transition-opacity`}>
+    <Element
+      type={Element === "button" ? "button" : undefined}
+      onClick={onClick}
+      className={`rounded-lg border ${palette} ${dim} px-3 py-2 flex items-center gap-3 transition w-full text-left`}
+    >
       <div className="flex-1 min-w-0">
         <div className="text-[10px] uppercase tracking-wide opacity-70 truncate">{label}</div>
         {sub && <div className="text-[10px] opacity-60 truncate">{sub}</div>}
@@ -343,7 +363,7 @@ function SummaryCard({ color, label, agg, sub }) {
           <div className="text-[10px] opacity-70 tabular-nums mt-0.5">€ {fmtEuro(agg.eur)}</div>
         )}
       </div>
-    </div>
+    </Element>
   );
 }
 
@@ -352,6 +372,121 @@ function LegendItem({ dot, label }) {
     <div className="flex items-center gap-2">
       <span className={`w-2.5 h-2.5 rounded-full ${dot}`} />
       <span className="text-neutral-700">{label}</span>
+    </div>
+  );
+}
+
+// G.2.B-fix8 — Modale: elenco scadenze del livello cliccato (Scadute / Urgenti / ...)
+function ModaleElencoLivello({ livello, scadenze, onClose, onGotoUscite, onGotoSpesaFissa }) {
+  // Lock scroll body mentre la modale è aperta
+  React.useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // Esc per chiudere
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const colorMap = {
+    scaduta: { hdr: "bg-red-50 border-red-200", text: "text-red-800", dot: "bg-brand-red" },
+    urgente: { hdr: "bg-red-50 border-red-200", text: "text-red-800", dot: "bg-brand-red" },
+    avvicinamento: { hdr: "bg-amber-50 border-amber-200", text: "text-amber-800", dot: "bg-amber-500" },
+    pianificazione: { hdr: "bg-blue-50 border-blue-200", text: "text-blue-800", dot: "bg-brand-blue" },
+  };
+  const cm = colorMap[livello] || colorMap.pianificazione;
+
+  // Ordina per data scadenza ascendente
+  const items = [...scadenze].sort((a, b) => (a.data_scadenza || "").localeCompare(b.data_scadenza || ""));
+  const totale = items.reduce((s, x) => s + (x.totale || 0), 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 sm:my-0 max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className={`${cm.hdr} border-b rounded-t-2xl px-5 py-3 flex items-center justify-between`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`w-3 h-3 rounded-full ${cm.dot}`} />
+            <h3 className={`text-lg font-bold ${cm.text} truncate`}>
+              {LIVELLO_LABEL[livello] || livello}
+            </h3>
+            <span className={`text-sm ${cm.text} opacity-80 ml-2 whitespace-nowrap`}>
+              {items.length} scadenz{items.length === 1 ? "a" : "e"} · € {fmtEuro(totale)}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-800 text-2xl leading-none px-2" aria-label="Chiudi">×</button>
+        </div>
+
+        {/* Lista scrollabile */}
+        <div className="overflow-y-auto flex-1">
+          {items.length === 0 ? (
+            <div className="text-center text-neutral-400 py-12 text-sm">Nessuna scadenza</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 border-b border-neutral-200 sticky top-0">
+                <tr>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Data</th>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Titolo</th>
+                  <th className="text-left px-4 py-2 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Tipo</th>
+                  <th className="text-right px-4 py-2 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Importo</th>
+                  <th className="text-center px-4 py-2 text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((s) => (
+                  <tr key={s.id} className="border-b border-neutral-100 hover:bg-neutral-50">
+                    <td className="px-4 py-2.5 tabular-nums whitespace-nowrap text-neutral-700">{fmtDateIT(s.data_scadenza)}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-neutral-900">{s.titolo || "—"}</div>
+                      {s.fornitore_nome && s.fornitore_nome !== s.titolo && (
+                        <div className="text-[11px] text-neutral-500 truncate max-w-[260px]">{s.fornitore_nome}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-[11px] text-neutral-500">{s.tipo_uscita || "—"}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-neutral-900">€ {fmtEuro(s.totale)}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <button
+                          onClick={() => onGotoUscite()}
+                          className="text-[11px] px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200 border border-sky-200 whitespace-nowrap"
+                        >
+                          💸 Scadenziario
+                        </button>
+                        {s.spesa_fissa_id && (
+                          <button
+                            onClick={() => onGotoSpesaFissa(s.spesa_fissa_id)}
+                            className="text-[11px] px-2 py-1 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-200 whitespace-nowrap"
+                          >
+                            🏠 Spesa fissa
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-neutral-200 px-5 py-3 flex items-center justify-between bg-neutral-50 rounded-b-2xl">
+          <div className="text-sm text-neutral-600">
+            Totale: <span className="font-bold text-neutral-900 tabular-nums">€ {fmtEuro(totale)}</span>
+          </div>
+          <Btn size="sm" variant="ghost" onClick={onClose}>Chiudi</Btn>
+        </div>
+      </div>
     </div>
   );
 }

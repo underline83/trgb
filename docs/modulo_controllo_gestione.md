@@ -228,6 +228,14 @@ Iterazione successiva al primo deploy di G.2.B per affinare densità informazion
 - **Card riepilogo:** ridotte da 6 a 4 vive (Scadute/Urgenti/Avvicinamento/Pianificazione, ognuna con count grande + € sotto). Future e Totale generale spostati come riga footer compatta. Card a 0 in `opacity-40` per ridurre rumore visivo. Layout flex `[label sub] / [count €]` così count è in evidenza.
 - **Pannello dettaglio:** da box multi-grid a una sola riga compatta (~64px h): pillola livello + titolo full + meta inline (data/importo/tipo/fornitore) + pulsanti Scadenziario/SpesaFissa + chiusura `×`. Wrappa su mobile.
 
+#### 3.7.2 Eventi calendario su 2 righe + card cliccabili (G.2.B-fix2, 2026-05-09)
+
+Iterazione successiva: i tile su una sola riga troncavano il nome del fornitore ("€700 · MARCH..."), perdendo info utile. Inoltre le card riepilogo erano puramente informative. Cambi:
+
+- **`MonthView` (M.E):** `EventChip` ora layout 2-righe quando ha `subtitle`: prima riga = `title` bold (importo), seconda riga = `subtitle` truncate (nome fornitore). Eventi senza subtitle continuano a layout single-line (retrocompatibilità). `MAX_CHIPS` ridotto da 3 a 2 e `min-h` celle aumentato (da 4.5/5.5/6.5 rem a 5.5/7/8 rem) per dare aria.
+- **Pagina:** mapping evento aggiornato → `title = "€XXX,XX"`, `subtitle = titolo_breve`. La pillola livello rimossa dal subtitle (ridondante col colore della cella).
+- **Card riepilogo cliccabili:** click su Scadute / Urgenti / Avvicinamento / Pianificazione → modale `<ModaleElencoLivello>` con tabella scrollabile (data, titolo, fornitore, tipo, importo) + bottoni `💸 Scadenziario` e `🏠 Spesa fissa` per ogni riga. Chiusura via X / Esc / click overlay. Card a 0 non cliccabili (cursor-default).
+
 ---
 
 # 4. Navigazione
