@@ -64,10 +64,12 @@ DB principale, gestito da `migration_runner.py` con tabella `schema_migrations`.
 - `banca_import_log`
 
 ### 2.4 Tabelle Controllo Gestione (vedi `modulo_controllo_gestione.md`)
-- `cg_uscite` — scadenzario unificato (FATTURA/PROFORMA/STIPENDIO/SPESA_RICORRENTE)
-- `cg_spese_fisse` (predisposta, modulo non ancora implementato — voce G.1 roadmap)
-- `cg_piano_rate` (mig 048 — rateizzazioni formali)
-- `cg_pagamenti_batch` (batch pagamenti multipli)
+- `cg_uscite` — scadenzario unificato. `tipo_uscita` ∈ {FATTURA, SPESA_FISSA, SPESA_BANCARIA, STIPENDIO, IMPOSTA_BOLLO, COMMISSIONE_POS, ALTRO_USCITA, PROFORMA}. FK opzionali: `fattura_id`, `spesa_fissa_id`, `pagamento_batch_id`, `banca_movimento_id`.
+- `cg_spese_fisse` — spese fisse ricorrenti senza fattura (affitti, prestiti, rateizzazioni, tasse, assicurazioni). Già in produzione (22 record). Campi extra: `iban`, `importo_originale`, `spese_legali`. Tipi: AFFITTO/ASSICURAZIONE/PRESTITO/RATEIZZAZIONE/TASSA/STIPENDIO/ALTRO. Frequenze: MENSILE/BIMESTRALE/TRIMESTRALE/SEMESTRALE/ANNUALE/UNA_TANTUM.
+- `cg_piano_rate` (mig 048) — piano ammortamento per rateizzazioni alla francese e prestiti. UNIQUE(spesa_fissa_id, periodo). **Mig 108** (2026-05-08) ha aggiunto:
+  - `data_scadenza_specifica TEXT NULL` — override del giorno di scadenza per piani con date irregolari (es. AdE/PagoPA: rate spostate al 02/11 perché il 1° è domenica). Quando NULL, il proiettore di `cg_uscite` usa `cg_spese_fisse.giorno_scadenza`.
+  - `codice_pagamento TEXT NULL` — RAV/IUV PagoPA/numero atto/codice tributo F24. Indice `idx_piano_rate_codice` per duplicate detection in re-import CSV.
+- `cg_pagamenti_batch` — batch pagamenti multipli (più uscite pagate in un'unica operazione)
 
 ### 2.5 Tabelle iPratico
 - `ipratico_product_map` — mapping prodotti iPratico ↔ vini (codice 4 cifre = `vini_magazzino.id`)
@@ -250,6 +252,7 @@ Mattone Notifiche cross-modulo. Vedi `architettura_mattoni.md` §M.A.
 - **105** Lista spesa
 - **106** Birre — abbinamenti gluten-free
 - **107** Piatti del giorno + formaggi paese
+- **108** `cg_piano_rate.data_scadenza_specifica` + `codice_pagamento` (G.1.5 — sblocca import CSV piani rate AdE/PagoPA con date irregolari)
 
 ---
 

@@ -86,11 +86,50 @@ Vista tabellare di tutte le uscite (fatture importate) con:
 ## 3.4 Confronto Periodi (`/controllo-gestione/confronto`)
 Confronta due periodi (mesi o anni interi) su: vendite, acquisti, margine, banca entrate/uscite. Calcola variazioni percentuali.
 
-## 3.5 Spese Fisse (`/controllo-gestione/spese-fisse`) — TODO
-Sezione per gestire spese ricorrenti senza fattura:
-- **Tipi**: AFFITTO, TASSA, STIPENDIO, PRESTITO, RATEIZZAZIONE, ALTRO
+## 3.5 Spese Fisse (`/controllo-gestione/spese-fisse`) — IMPLEMENTATO
+
+Sezione per gestire spese ricorrenti senza fattura. Pagina `ControlloGestioneSpeseFisse.jsx`, già in produzione con dati reali (22 spese fisse + 274 rate al 2026-05-08).
+
+- **Tipi**: AFFITTO, TASSA, STIPENDIO, PRESTITO, RATEIZZAZIONE, ASSICURAZIONE, ALTRO
 - **Frequenze**: MENSILE, BIMESTRALE, TRIMESTRALE, SEMESTRALE, ANNUALE, UNA_TANTUM
-- CRUD completo con data inizio/fine, giorno scadenza, importo, note
+- **CRUD completo** con data inizio/fine, giorno scadenza, importo, note, IBAN, importo_originale, spese_legali
+- **Wizard guidati**: Affitto, Prestito/Mutuo, Assicurazione, Tasse/F24 (template), Rateizzazione (da fatture)
+- **Piano rate** (`cg_piano_rate`): rate variabili per prestiti alla francese, rateizzazioni con date irregolari
+- **Storico** (modale): lista addebiti passati per spese senza piano rate (affitti, utenze)
+- **Riconciliazione banca per uscita** (modale "Cerca banca"): match rata ↔ movimento bancario
+
+### 3.5.1 Import CSV piano rate (G.1.5, 2026-05-08)
+
+Per piani di rateizzazione **Abaco / Agenzia delle Entrate / PagoPA / F24 rateizzato** che arrivano come file CSV:
+
+**Endpoint:** `POST /controllo-gestione/spese-fisse/import-csv` (multipart)
+
+**Body multipart:**
+- `file` — CSV con header `Numero,Identificativo,Scadenza,Importo,Stato`
+- `titolo` — string libera (es. "Rateizzazione Abaco — atto 0075330")
+- `tipo` — uno di {AFFITTO, ASSICURAZIONE, PRESTITO, RATEIZZAZIONE, TASSA, ALTRO} — default `TASSA`
+- `note` — opzionale
+- `iban` — opzionale
+- `force` — bool, default `false`. Set `true` per bypass duplicate detection.
+
+**Mapping CSV → DB:**
+| CSV | DB |
+|-----|----|
+| `Numero` | `cg_piano_rate.numero_rata` |
+| `Identificativo` (RAV/IUV/atto) | `cg_piano_rate.codice_pagamento` (mig 108) |
+| `Scadenza` (DD/MM/YYYY) | `cg_piano_rate.data_scadenza_specifica` (mig 108, ISO YYYY-MM-DD) + `cg_piano_rate.periodo` (YYYY-MM) |
+| `Importo` | `cg_piano_rate.importo` |
+| `Stato` (Pagata/Da pagare) | tracciato in `cg_piano_rate.note`. Le `cg_uscite` sono sempre create DA_PAGARE/SCADUTA — la riconciliazione vera dal modulo Banca evita doppia contabilizzazione. |
+
+**Encoding/delimiter:** auto-detect UTF-8/UTF-8 BOM/cp1252/latin1 + `,` o `;`. Importi accettano formato IT (`211,00`) e EN (`211.00` o `1,234.56`).
+
+**Duplicate detection (light):** se almeno 1 dei primi 3 `codice_pagamento` matcha un piano esistente → `409 Conflict` con dettaglio piani esistenti. UI mostra modale "Crea comunque (duplicato)" / "Annulla". Niente merge intelligente: per riscrivere un piano AdE modificato, l'utente cancella + reimporta.
+
+**Date irregolari (chiave AdE/PagoPA):** il proiettore `cg_uscite` (in `import_uscite()`) controlla `cg_piano_rate.data_scadenza_specifica`: se valorizzata, la usa direttamente in `cg_uscite.data_scadenza`. Altrimenti calcolo standard `{anno}-{mese}-{giorno_scadenza}` clampato. Backward-compat totale: rate pre-mig 108 funzionano come prima.
+
+### 3.5.2 Delete spesa fissa con rate riconciliate (G.1.5)
+
+`DELETE /controllo-gestione/spese-fisse/{id}` ora fa **cascade** su `cg_piano_rate` + `cg_uscite`. Se la spesa ha rate già riconciliate (`banca_movimento_id NOT NULL` o stato PAGATA/PAGATA_MANUALE/PARZIALE), ritorna **409** con conteggio. Solo con `?confirm_riconciliate=true` procede comunque (i movimenti banca tornano "non abbinati"). UI mostra warning esplicito: *"X rate riconciliate, eliminandole la riconciliazione si rompe — continuare?"*
 
 ---
 

@@ -108,6 +108,15 @@ export default function ControlloGestioneSpeseFisse() {
   const [storicoRiepilogo, setStoricoRiepilogo] = useState(null);
   const [storicoLoading, setStoricoLoading] = useState(false);
 
+  // ─── G.1.5 Import CSV piano rate (sessione 2026-05-08) ───
+  // Wizard CSV per importare piani Abaco/AdE/PagoPA da file .csv
+  // Header atteso: Numero,Identificativo,Scadenza,Importo,Stato
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvParsed, setCsvParsed] = useState(null);   // { rows, totale, prima, ultima, n_pagate, errors }
+  const [csvForm, setCsvForm] = useState({ titolo: "", tipo: "TASSA", note: "", iban: "" });
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvDuplicateWarn, setCsvDuplicateWarn] = useState(null);  // { existing, codici_match }
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -201,6 +210,130 @@ export default function ControlloGestioneSpeseFisse() {
     }
   };
 
+  // ─── G.1.5 Import CSV piano rate — handlers ───
+  // Parse locale (preview senza chiamata BE)
+  const parseCsvLocal = (text) => {
+    const errors = [];
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) {
+      errors.push("CSV vuoto o senza dati");
+      return { errors };
+    }
+    // delimiter detection
+    const sample = lines.slice(0, 5).join("\n");
+    const delim = sample.split(";").length > sample.split(",").length ? ";" : ",";
+    const split = (line) => line.split(delim).map(s => s.trim());
+
+    const headers = split(lines[0]);
+    const required = ["Numero", "Identificativo", "Scadenza", "Importo", "Stato"];
+    const missing = required.filter(h => !headers.includes(h));
+    if (missing.length) {
+      errors.push(`Header mancanti: ${missing.join(", ")}. Trovati: ${headers.join(", ")}`);
+      return { errors, headers };
+    }
+    const idx = Object.fromEntries(required.map(h => [h, headers.indexOf(h)]));
+    const rows = [];
+    let totale = 0;
+    let n_pagate = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const c = split(lines[i]);
+      if (c.length < required.length) continue;
+      const numero = parseInt(c[idx.Numero], 10);
+      const codice = c[idx.Identificativo] || "";
+      const scadRaw = c[idx.Scadenza] || "";
+      // Parse DD/MM/YYYY o YYYY-MM-DD
+      let scadIso = "";
+      const m1 = scadRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      const m2 = scadRaw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m1) scadIso = `${m1[3]}-${m1[2].padStart(2, "0")}-${m1[1].padStart(2, "0")}`;
+      else if (m2) scadIso = `${m2[1]}-${m2[2].padStart(2, "0")}-${m2[3].padStart(2, "0")}`;
+      else { errors.push(`riga ${i + 1}: scadenza non valida (${scadRaw})`); continue; }
+
+      // Parse importo (211.00 o 211,00 o 1.234,56)
+      let impStr = (c[idx.Importo] || "").replace("€", "").replace(/\s/g, "");
+      if (impStr.includes(",") && impStr.includes(".")) impStr = impStr.replace(/\./g, "").replace(",", ".");
+      else if (impStr.includes(",")) impStr = impStr.replace(",", ".");
+      const importo = parseFloat(impStr);
+      if (isNaN(importo) || importo <= 0) { errors.push(`riga ${i + 1}: importo non valido (${c[idx.Importo]})`); continue; }
+
+      const stato = c[idx.Stato] || "";
+      if (stato.toLowerCase().startsWith("pag")) n_pagate++;
+      totale += importo;
+      rows.push({ numero, codice, scadIso, scadRaw, importo, stato });
+    }
+    rows.sort((a, b) => a.numero - b.numero);
+    return {
+      rows,
+      errors,
+      totale: Math.round(totale * 100) / 100,
+      prima: rows[0]?.scadIso,
+      ultima: rows[rows.length - 1]?.scadIso,
+      n_pagate,
+    };
+  };
+
+  const handleCsvFileChange = (file) => {
+    setCsvFile(file);
+    setCsvParsed(null);
+    setCsvDuplicateWarn(null);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const parsed = parseCsvLocal(reader.result);
+      setCsvParsed(parsed);
+      // Suggerisci titolo dal nome file
+      if (!csvForm.titolo) {
+        const suggested = file.name.replace(/\.csv$/i, "").replace(/[_-]/g, " ");
+        setCsvForm(f => ({ ...f, titolo: `Rateizzazione ${suggested}` }));
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  };
+
+  const submitCsvImport = async (force = false) => {
+    if (!csvFile || !csvForm.titolo.trim()) return;
+    setCsvImporting(true);
+    setCsvDuplicateWarn(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", csvFile);
+      fd.append("titolo", csvForm.titolo.trim());
+      fd.append("tipo", csvForm.tipo);
+      if (csvForm.note) fd.append("note", csvForm.note);
+      if (csvForm.iban) fd.append("iban", csvForm.iban);
+      fd.append("force", force ? "true" : "false");
+      const res = await apiFetch(`${CG}/spese-fisse/import-csv`, { method: "POST", body: fd });
+      if (res.status === 409) {
+        const data = await res.json();
+        setCsvDuplicateWarn(data.detail);
+        return;
+      }
+      if (!res.ok) {
+        const txt = await res.text();
+        alert(`Errore import: ${txt}`);
+        return;
+      }
+      const out = await res.json();
+      // Trigger proiettore per generare cg_uscite
+      try {
+        await apiFetch(`${CG}/uscite/import`, { method: "POST" });
+      } catch (e) { /* non bloccare */ }
+      alert(`✓ ${out.msg}\n\nRate: ${out.n_rate} (${out.gia_scadute} già scadute, ${out.future} future)\nTotale: €${out.totale.toFixed(2)}`);
+      // Reset wizard
+      setWizard(null);
+      setCsvFile(null);
+      setCsvParsed(null);
+      setCsvForm({ titolo: "", tipo: "TASSA", note: "", iban: "" });
+      setCsvDuplicateWarn(null);
+      fetchData();
+    } catch (e) {
+      console.error("Errore import CSV:", e);
+      alert(`Errore: ${e.message}`);
+    } finally {
+      setCsvImporting(false);
+    }
+  };
+
   // ── Salva da wizard ──
   const saveFromWizard = async (data) => {
     setSaving(true);
@@ -269,7 +402,34 @@ export default function ControlloGestioneSpeseFisse() {
 
   const handleDelete = async (s) => {
     if (!window.confirm(`Eliminare "${s.titolo}"?`)) return;
-    await apiFetch(`${CG}/spese-fisse/${s.id}`, { method: "DELETE" });
+    let res = await apiFetch(`${CG}/spese-fisse/${s.id}`, { method: "DELETE" });
+
+    // G.1.5: se 409 ci sono rate riconciliate, mostra warning chiaro e chiedi conferma
+    if (res.status === 409) {
+      try {
+        const data = await res.json();
+        const d = data.detail || data;
+        const msg = (
+          `"${d.titolo || s.titolo}" ha ${d.n_uscite} rate, di cui ${d.n_riconciliate} ` +
+          `GIÀ RICONCILIATE con movimenti banca.\n\n` +
+          `Eliminandola, la riconciliazione di queste ${d.n_riconciliate} rate verrà ` +
+          `persa (i movimenti banca torneranno "non abbinati" e dovrai riconciliarli ` +
+          `di nuovo).\n\n` +
+          `Continuare comunque?`
+        );
+        if (!window.confirm(msg)) return;
+        res = await apiFetch(`${CG}/spese-fisse/${s.id}?confirm_riconciliate=true`, { method: "DELETE" });
+      } catch (e) {
+        alert(`Errore lettura risposta DELETE: ${e.message}`);
+        return;
+      }
+    }
+
+    if (!res.ok) {
+      const txt = await res.text();
+      alert(`Errore eliminazione: ${txt}`);
+      return;
+    }
     fetchData();
   };
 
@@ -616,6 +776,23 @@ export default function ControlloGestioneSpeseFisse() {
           <div>
             <div className="text-sm font-bold text-neutral-800">Inserimento manuale</div>
             <div className="text-[10px] text-neutral-500">Form libero per qualsiasi spesa</div>
+          </div>
+        </button>
+
+        {/* G.1.5 — Import CSV piano rate */}
+        <button onClick={() => {
+            setWizard("IMPORT_CSV");
+            setCsvFile(null);
+            setCsvParsed(null);
+            setCsvForm({ titolo: "", tipo: "TASSA", note: "", iban: "" });
+            setCsvDuplicateWarn(null);
+            setShowCreazione(false);
+          }}
+          className="flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition text-left">
+          <span className="text-2xl">📥</span>
+          <div>
+            <div className="text-sm font-bold text-emerald-900">Importa CSV piano rate</div>
+            <div className="text-[10px] text-emerald-600">Abaco / AdE / PagoPA / F24 rateizzato</div>
           </div>
         </button>
       </div>
@@ -1392,6 +1569,170 @@ export default function ControlloGestioneSpeseFisse() {
                 </>
               );
             })()}
+          </WizardPanel>
+        )}
+
+        {/* ═══════ G.1.5 WIZARD IMPORT CSV PIANO RATE ═══════ */}
+        {wizard === "IMPORT_CSV" && (
+          <WizardPanel title="Importa piano rate da CSV" icon="📥" color="emerald" onClose={() => setWizard(null)}>
+            <div className="space-y-4">
+
+              {/* STEP 1: File picker */}
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <div className="text-xs font-semibold text-emerald-900 mb-2">1. Seleziona CSV</div>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={e => handleCsvFileChange(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-neutral-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700"
+                />
+                <div className="text-[11px] text-emerald-700 mt-2">
+                  Header atteso: <code className="bg-white px-1 rounded">Numero,Identificativo,Scadenza,Importo,Stato</code>
+                </div>
+                {csvFile && (
+                  <div className="text-[11px] text-emerald-800 mt-1">📄 {csvFile.name} ({(csvFile.size/1024).toFixed(1)} KB)</div>
+                )}
+              </div>
+
+              {/* STEP 2: Preview rate parsate */}
+              {csvParsed && (
+                <div className="rounded-lg border border-neutral-200 bg-white p-4">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2">2. Anteprima rate parsate</div>
+                  {csvParsed.errors?.length > 0 && (
+                    <div className="rounded bg-red-50 border border-red-200 p-2 mb-3 text-[11px] text-red-800">
+                      <div className="font-semibold mb-1">⚠ {csvParsed.errors.length} errori:</div>
+                      <ul className="list-disc list-inside">
+                        {csvParsed.errors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
+                      </ul>
+                      {csvParsed.errors.length > 5 && <div className="text-neutral-500 mt-1">… e altri {csvParsed.errors.length - 5}</div>}
+                    </div>
+                  )}
+                  {csvParsed.rows?.length > 0 && (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-[11px]">
+                        <div className="rounded bg-emerald-50 p-2"><div className="text-emerald-600">Rate</div><div className="font-bold text-emerald-900">{csvParsed.rows.length}</div></div>
+                        <div className="rounded bg-emerald-50 p-2"><div className="text-emerald-600">Totale</div><div className="font-bold text-emerald-900">€ {fmt(csvParsed.totale)}</div></div>
+                        <div className="rounded bg-emerald-50 p-2"><div className="text-emerald-600">Prima</div><div className="font-bold text-emerald-900">{csvParsed.prima}</div></div>
+                        <div className="rounded bg-emerald-50 p-2"><div className="text-emerald-600">Ultima</div><div className="font-bold text-emerald-900">{csvParsed.ultima}</div></div>
+                      </div>
+                      {csvParsed.n_pagate > 0 && (
+                        <div className="rounded bg-amber-50 border border-amber-200 p-2 mb-3 text-[11px] text-amber-800">
+                          ℹ {csvParsed.n_pagate} rate marcate "Pagata" nel CSV — verranno create comunque come <strong>DA_PAGARE/SCADUTA</strong>. La riconciliazione vera la fai dal modulo Banca.
+                        </div>
+                      )}
+                      <div className="overflow-x-auto max-h-48 overflow-y-auto border border-neutral-200 rounded">
+                        <table className="w-full text-[11px]">
+                          <thead className="bg-neutral-50 sticky top-0">
+                            <tr>
+                              <th className="px-2 py-1 text-left">N°</th>
+                              <th className="px-2 py-1 text-left">Codice</th>
+                              <th className="px-2 py-1 text-left">Scadenza</th>
+                              <th className="px-2 py-1 text-right">Importo</th>
+                              <th className="px-2 py-1 text-left">Stato CSV</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {csvParsed.rows.map((r, i) => (
+                              <tr key={i} className="border-t border-neutral-100">
+                                <td className="px-2 py-1">{r.numero}</td>
+                                <td className="px-2 py-1 font-mono text-[10px]">{r.codice || "—"}</td>
+                                <td className="px-2 py-1">{r.scadIso}</td>
+                                <td className="px-2 py-1 text-right">€ {fmt(r.importo)}</td>
+                                <td className="px-2 py-1">{r.stato || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* STEP 3: Form metadata */}
+              {csvParsed?.rows?.length > 0 && (
+                <div className="rounded-lg border border-neutral-200 bg-white p-4">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2">3. Dati del piano</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="text-xs text-neutral-500 mb-1 block">Titolo * (es. "Rateizzazione Abaco — atto X")</label>
+                      <input type="text" value={csvForm.titolo} onChange={e => setCsvForm({ ...csvForm, titolo: e.target.value })}
+                        placeholder="Rateizzazione Abaco — atto 0075330"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-500 mb-1 block">Tipo</label>
+                      <select value={csvForm.tipo} onChange={e => setCsvForm({ ...csvForm, tipo: e.target.value })}
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+                        <option value="TASSA">🏛️ Tassa</option>
+                        <option value="RATEIZZAZIONE">📅 Rateizzazione</option>
+                        <option value="PRESTITO">🏦 Prestito</option>
+                        <option value="ALTRO">📌 Altro</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-500 mb-1 block">IBAN beneficiario (opz.)</label>
+                      <input type="text" value={csvForm.iban} onChange={e => setCsvForm({ ...csvForm, iban: e.target.value })}
+                        placeholder="IT60 X054 2811 1010 0000 0123 456"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs text-neutral-500 mb-1 block">Note (opz.)</label>
+                      <textarea value={csvForm.note} onChange={e => setCsvForm({ ...csvForm, note: e.target.value })}
+                        rows={2}
+                        placeholder="Eventuali note interne sul piano"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Duplicate warning (409) */}
+              {csvDuplicateWarn && (
+                <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4">
+                  <div className="text-sm font-bold text-amber-900 mb-2">⚠ Possibile piano duplicato</div>
+                  <div className="text-[12px] text-amber-800 mb-3">
+                    {csvDuplicateWarn.msg || "Esiste già un piano con codici di pagamento in comune."}
+                  </div>
+                  {csvDuplicateWarn.existing?.length > 0 && (
+                    <div className="text-[11px] mb-3">
+                      Piani esistenti:
+                      <ul className="list-disc list-inside text-amber-900">
+                        {csvDuplicateWarn.existing.map((e, i) => (
+                          <li key={i}>#{e.spesa_fissa_id} — {e.titolo}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => setCsvDuplicateWarn(null)}
+                      className="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 text-xs font-semibold hover:bg-amber-100">
+                      Annulla
+                    </button>
+                    <button onClick={() => submitCsvImport(true)}
+                      disabled={csvImporting}
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">
+                      {csvImporting ? "Creazione..." : "Crea comunque (duplicato)"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Submit */}
+              {csvParsed?.rows?.length > 0 && !csvDuplicateWarn && (
+                <div className="flex gap-2 justify-end pt-2">
+                  <button onClick={() => setWizard(null)}
+                    className="px-4 py-2 rounded-lg border border-neutral-300 text-sm hover:bg-neutral-100">
+                    Annulla
+                  </button>
+                  <button onClick={() => submitCsvImport(false)}
+                    disabled={csvImporting || !csvForm.titolo.trim() || csvParsed.errors?.length > 0}
+                    className="px-5 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                    {csvImporting ? "Importazione..." : `Importa ${csvParsed.rows.length} rate`}
+                  </button>
+                </div>
+              )}
+            </div>
           </WizardPanel>
         )}
 

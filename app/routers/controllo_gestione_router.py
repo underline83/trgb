@@ -9,10 +9,12 @@ DB: foodcost.db (lettura acquisti, banca, cg_uscite, cg_spese_fisse),
 """
 
 import calendar
+import csv
+import io
 import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Body
+from fastapi import APIRouter, Depends, Query, Body, UploadFile, File, Form, HTTPException
 from app.services.auth_service import get_current_user, is_admin
 from app.services.vendite_aggregator import (
     totali_periodo as vendite_totali_periodo,
@@ -709,19 +711,24 @@ def import_uscite(
                 g = min(giorno, max_day)
                 data_scad = f"{current.year}-{current.month:02d}-{g:02d}"
 
-                # Importo: dal piano rate se esiste, altrimenti fisso dalla spesa
+                # Importo + (mig 108) data_scadenza_specifica + nota: dal piano rate se esiste,
+                # altrimenti fisso dalla spesa con calcolo standard.
                 importo_rata = sf["importo"]
                 nota_rata = None
                 try:
                     pr = fc.execute(
-                        "SELECT importo, note FROM cg_piano_rate WHERE spesa_fissa_id = ? AND periodo = ?",
+                        "SELECT importo, note, data_scadenza_specifica FROM cg_piano_rate WHERE spesa_fissa_id = ? AND periodo = ?",
                         (sf["id"], periodo)
                     ).fetchone()
                     if pr:
                         importo_rata = pr["importo"]
                         nota_rata = pr["note"]
+                        # mig 108: override data_scadenza con la specifica della rata
+                        # (necessario per piani AdE/PagoPA con date irregolari)
+                        if pr["data_scadenza_specifica"]:
+                            data_scad = pr["data_scadenza_specifica"]
                 except Exception:
-                    pass  # Tabella non ancora creata
+                    pass  # Tabella non ancora creata o colonne mig 108 non presenti
 
                 existing = fc.execute(
                     "SELECT id, stato FROM cg_uscite WHERE spesa_fissa_id = ? AND periodo_riferimento = ?",
@@ -745,11 +752,12 @@ def import_uscite(
                     ex = dict(existing)
                     if ex["stato"] not in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
                         new_stato = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
-                        # Sync titolo, importo e stato
+                        # Sync titolo, importo, data_scadenza e stato
+                        # (mig 108: data_scad può essere quella specifica della rata)
                         fc.execute("""
-                            UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, stato = ?, updated_at = ?
+                            UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, data_scadenza = ?, stato = ?, updated_at = ?
                             WHERE id = ?
-                        """, (sf["titolo"], importo_rata, new_stato, oggi_str, ex["id"]))
+                        """, (sf["titolo"], importo_rata, data_scad, new_stato, oggi_str, ex["id"]))
                     sf_saltate += 1
 
             # Avanza di un mese
@@ -1592,14 +1600,68 @@ def update_spesa_fissa(
 @router.delete("/spese-fisse/{spesa_id}")
 def delete_spesa_fissa(
     spesa_id: int,
+    confirm_riconciliate: bool = Query(default=False, description="Set True per confermare delete con rate riconciliate"),
     current_user=Depends(get_current_user),
 ):
-    """Elimina una spesa fissa."""
+    """
+    Elimina una spesa fissa + cascade su cg_piano_rate + cg_uscite collegate.
+
+    G.1.5 (sessione 2026-05-08): se la spesa ha rate già riconciliate con
+    movimenti banca (`banca_movimento_id IS NOT NULL` o stato PAGATA), ritorna
+    409 con il conteggio per mostrare warning all'utente. Solo con
+    `confirm_riconciliate=True` procede comunque (la riconciliazione si rompe
+    e i movimenti banca tornano "non abbinati").
+    """
     fc = get_fc_db()
-    fc.execute("DELETE FROM cg_spese_fisse WHERE id = ?", (spesa_id,))
-    fc.commit()
-    fc.close()
-    return {"ok": True}
+    try:
+        # Conta rate riconciliate (PAGATA con banca_movimento_id, o PAGATA_MANUALE/PARZIALE)
+        riconciliate = fc.execute(
+            """
+            SELECT COUNT(*) AS n
+            FROM cg_uscite
+            WHERE spesa_fissa_id = ?
+              AND (
+                banca_movimento_id IS NOT NULL
+                OR stato IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+              )
+            """,
+            (spesa_id,),
+        ).fetchone()
+        n_riconciliate = (riconciliate["n"] if riconciliate else 0) or 0
+
+        if n_riconciliate > 0 and not confirm_riconciliate:
+            sf_row = fc.execute("SELECT titolo FROM cg_spese_fisse WHERE id = ?", (spesa_id,)).fetchone()
+            titolo = sf_row["titolo"] if sf_row else "?"
+            n_uscite = fc.execute(
+                "SELECT COUNT(*) AS n FROM cg_uscite WHERE spesa_fissa_id = ?", (spesa_id,)
+            ).fetchone()["n"]
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "rate_riconciliate",
+                    "titolo": titolo,
+                    "n_uscite": n_uscite,
+                    "n_riconciliate": n_riconciliate,
+                    "msg": (
+                        f'"{titolo}" ha {n_uscite} rate, di cui {n_riconciliate} già riconciliate '
+                        "con movimenti banca. Eliminandola, la riconciliazione si rompe "
+                        "(i movimenti banca torneranno 'non abbinati'). Conferma con "
+                        "?confirm_riconciliate=true per procedere."
+                    ),
+                },
+            )
+
+        # Cascade: rimuovi cg_uscite + cg_piano_rate prima di cg_spese_fisse
+        fc.execute("DELETE FROM cg_uscite WHERE spesa_fissa_id = ?", (spesa_id,))
+        fc.execute("DELETE FROM cg_piano_rate WHERE spesa_fissa_id = ?", (spesa_id,))
+        fc.execute("DELETE FROM cg_spese_fisse WHERE id = ?", (spesa_id,))
+        fc.commit()
+        return {"ok": True, "deleted": spesa_id, "n_uscite_riconciliate_rotte": n_riconciliate}
+    except HTTPException:
+        fc.rollback()
+        raise
+    finally:
+        fc.close()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1869,6 +1931,336 @@ def delete_piano_rata(
     fc.commit()
     fc.close()
     return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# IMPORT CSV PIANO RATE — G.1.5 (sessione 2026-05-08)
+# ═══════════════════════════════════════════════════════════════════
+# Importa un piano di rateizzazione (Abaco/AdE/PagoPA/F24 rateizzato) da CSV.
+# Formato CSV atteso: header Numero,Identificativo,Scadenza,Importo,Stato
+#   Numero        → cg_piano_rate.numero_rata (1..N)
+#   Identificativo → cg_piano_rate.codice_pagamento (RAV/IUV/numero atto)
+#   Scadenza      → DD/MM/YYYY → cg_piano_rate.data_scadenza_specifica (ISO)
+#                                + cg_piano_rate.periodo (YYYY-MM)
+#   Importo       → cg_piano_rate.importo
+#   Stato         → tracciato in note ("Pagata"/"Da pagare" come info iniziale)
+#                   ma cg_uscite generate sempre come DA_PAGARE/SCADUTA
+#                   (la riconciliazione vera avverrà dal modulo Banca)
+# Crea cg_spese_fisse + N cg_piano_rate. Le cg_uscite sono generate dal
+# proiettore standard (chiamare /uscite/import dopo).
+
+def _parse_data_it(s: str) -> Optional[str]:
+    """DD/MM/YYYY → YYYY-MM-DD. Ritorna None se invalido."""
+    s = (s or "").strip()
+    if not s:
+        return None
+    for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_importo_csv(s: str) -> Optional[float]:
+    """Parse importo accettando '211.00' o '211,00' o '1.234,56'. Ritorna None se invalido."""
+    s = (s or "").strip().replace("€", "").replace(" ", "")
+    if not s:
+        return None
+    # Heuristica: se contiene sia virgola che punto, il punto è separatore migliaia.
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+@router.post("/spese-fisse/import-csv")
+def import_piano_rate_csv(
+    file: UploadFile = File(...),
+    titolo: str = Form(...),
+    tipo: str = Form("TASSA"),
+    note: Optional[str] = Form(None),
+    iban: Optional[str] = Form(None),
+    force: bool = Form(False),
+    current_user=Depends(get_current_user),
+):
+    """
+    Importa un piano di rateizzazione da CSV.
+
+    Decisioni di design (sessione 2026-05-08):
+    - Tipo default `TASSA` (categoria fiscale generica: cartelle AdE, contribuzioni,
+      F24 rateizzato). Distinzione fine via `titolo` + `codice_pagamento`.
+    - Stato cg_uscite generate sempre DA_PAGARE/SCADUTA — riconciliazione successiva
+      coi movimenti banca evita doppia contabilizzazione.
+    - Duplicate detection light: se almeno 1 dei primi 3 codici_pagamento è già
+      presente in DB → 409 (a meno di force=True). No merge intelligente: l'utente
+      cancella + reimporta in caso di sostituzione piano.
+
+    Body multipart:
+      file       — CSV (header: Numero,Identificativo,Scadenza,Importo,Stato)
+      titolo     — string libera (es. "Rateizzazione Abaco — atto X")
+      tipo       — uno di {AFFITTO, ASSICURAZIONE, PRESTITO, RATEIZZAZIONE, TASSA, ALTRO}
+      note       — opzionale, va in cg_spese_fisse.note
+      iban       — opzionale, va in cg_spese_fisse.iban
+      force      — bool default False; True = bypass check duplicate
+
+    Risposta:
+      201 → {ok, spesa_fissa_id, n_rate, totale, prima_scadenza, ultima_scadenza,
+             gia_scadute, future, in_csv_pagate}
+      400 → CSV malformato / dati invalidi
+      409 → {detail: "duplicate", existing_spesa_id, codici_match} (se force=False)
+    """
+    if not is_admin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo admin può importare piani")
+
+    # ── 1. Validazione tipo ──
+    VALID_TIPI = {"AFFITTO", "ASSICURAZIONE", "PRESTITO", "RATEIZZAZIONE", "TASSA", "ALTRO"}
+    if tipo not in VALID_TIPI:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo non valido: {tipo!r}. Valori ammessi: {sorted(VALID_TIPI)}",
+        )
+
+    titolo_clean = (titolo or "").strip()
+    if not titolo_clean:
+        raise HTTPException(status_code=400, detail="Titolo obbligatorio")
+
+    # ── 2. Parsing CSV ──
+    try:
+        raw = file.file.read()
+    finally:
+        file.file.close()
+
+    # Tenta UTF-8, fallback su cp1252/latin1 per CSV tipici da Windows/Excel italiano
+    text = None
+    for enc in ("utf-8-sig", "utf-8", "cp1252", "latin1"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        raise HTTPException(status_code=400, detail="Encoding CSV non riconosciuto")
+
+    # Detect delimiter (comma o semicolon)
+    sample = text[:2048]
+    delimiter = ","
+    if sample.count(";") > sample.count(","):
+        delimiter = ";"
+
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    headers_csv = [h.strip() for h in (reader.fieldnames or [])]
+    REQUIRED = ["Numero", "Identificativo", "Scadenza", "Importo", "Stato"]
+    missing = [h for h in REQUIRED if h not in headers_csv]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV header mancanti: {missing}. Header trovati: {headers_csv}",
+        )
+
+    # ── 3. Parse righe ──
+    rate_parsed = []
+    errors = []
+    for i, row in enumerate(reader, start=2):  # start=2 perché riga 1 è header
+        numero_raw = (row.get("Numero") or "").strip()
+        codice = (row.get("Identificativo") or "").strip()
+        scad_raw = (row.get("Scadenza") or "").strip()
+        importo_raw = (row.get("Importo") or "").strip()
+        stato_csv = (row.get("Stato") or "").strip()
+
+        try:
+            numero_rata = int(numero_raw)
+        except ValueError:
+            errors.append(f"riga {i}: Numero non intero ({numero_raw!r})")
+            continue
+
+        data_scad = _parse_data_it(scad_raw)
+        if not data_scad:
+            errors.append(f"riga {i}: Scadenza non parsabile ({scad_raw!r})")
+            continue
+
+        importo = _parse_importo_csv(importo_raw)
+        if importo is None or importo <= 0:
+            errors.append(f"riga {i}: Importo non valido ({importo_raw!r})")
+            continue
+
+        periodo = data_scad[:7]  # YYYY-MM
+        rate_parsed.append({
+            "numero_rata": numero_rata,
+            "codice_pagamento": codice or None,
+            "data_scadenza_specifica": data_scad,
+            "periodo": periodo,
+            "importo": importo,
+            "stato_csv": stato_csv,
+        })
+
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={"errors": errors[:20], "tot_errors": len(errors)},
+        )
+    if not rate_parsed:
+        raise HTTPException(status_code=400, detail="CSV vuoto o senza righe valide")
+
+    # Ordina per numero_rata e verifica unicità
+    rate_parsed.sort(key=lambda r: r["numero_rata"])
+    nums = [r["numero_rata"] for r in rate_parsed]
+    if len(set(nums)) != len(nums):
+        raise HTTPException(status_code=400, detail="Numero rata duplicato nel CSV")
+
+    fc = get_fc_db()
+    try:
+        # ── 4. Duplicate detection (sui primi 3 codici se valorizzati) ──
+        codici_check = [r["codice_pagamento"] for r in rate_parsed[:3] if r["codice_pagamento"]]
+        if codici_check and not force:
+            placeholders = ",".join("?" * len(codici_check))
+            existing = fc.execute(
+                f"""
+                SELECT DISTINCT pr.spesa_fissa_id, sf.titolo
+                FROM cg_piano_rate pr
+                JOIN cg_spese_fisse sf ON pr.spesa_fissa_id = sf.id
+                WHERE pr.codice_pagamento IN ({placeholders})
+                """,
+                codici_check,
+            ).fetchall()
+            if existing:
+                ex_list = [{"spesa_fissa_id": r["spesa_fissa_id"], "titolo": r["titolo"]} for r in existing]
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "duplicate",
+                        "msg": "Esiste già un piano con codici di pagamento in comune. Usa force=true per importare comunque (creerà un duplicato).",
+                        "existing": ex_list,
+                        "codici_match": codici_check,
+                    },
+                )
+
+        # ── 5. Crea cg_spese_fisse ──
+        prima_scad = rate_parsed[0]["data_scadenza_specifica"]
+        ultima_scad = rate_parsed[-1]["data_scadenza_specifica"]
+        importo_medio = round(sum(r["importo"] for r in rate_parsed) / len(rate_parsed), 2)
+        importo_totale = round(sum(r["importo"] for r in rate_parsed), 2)
+        oggi_str = date.today().isoformat()
+
+        # giorno_scadenza approssimativo (per uniformità con UI esistente, ma il
+        # proiettore userà data_scadenza_specifica della singola rata)
+        try:
+            giorno_riferimento = int(prima_scad.split("-")[2])
+        except (ValueError, IndexError):
+            giorno_riferimento = 1
+
+        cur = fc.execute(
+            """
+            INSERT INTO cg_spese_fisse (
+                tipo, titolo, descrizione, importo, frequenza,
+                giorno_scadenza, data_inizio, data_fine, attiva,
+                note, iban, importo_originale, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'MENSILE', ?, ?, ?, 1, ?, ?, ?, ?, ?)
+            """,
+            (
+                tipo,
+                titolo_clean,
+                f"Piano da CSV — {len(rate_parsed)} rate (totale {importo_totale:.2f}€)",
+                importo_medio,
+                giorno_riferimento,
+                prima_scad,
+                ultima_scad,
+                note,
+                (iban or "").strip() or None,
+                importo_totale,
+                oggi_str,
+                oggi_str,
+            ),
+        )
+        spesa_id = cur.lastrowid
+
+        # ── 6. Crea cg_piano_rate ──
+        n_csv_pagate = 0
+        for r in rate_parsed:
+            stato_csv = r["stato_csv"]
+            if stato_csv.lower().startswith("pag"):
+                n_csv_pagate += 1
+            note_rata = f"Rata {r['numero_rata']}/{len(rate_parsed)}"
+            if stato_csv:
+                note_rata += f" — CSV: {stato_csv}"
+
+            try:
+                fc.execute(
+                    """
+                    INSERT INTO cg_piano_rate (
+                        spesa_fissa_id, numero_rata, periodo, importo, note,
+                        data_scadenza_specifica, codice_pagamento
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        spesa_id,
+                        r["numero_rata"],
+                        r["periodo"],
+                        r["importo"],
+                        note_rata,
+                        r["data_scadenza_specifica"],
+                        r["codice_pagamento"],
+                    ),
+                )
+            except sqlite3.IntegrityError as e:
+                # UNIQUE(spesa_fissa_id, periodo) — può capitare se più rate cadono
+                # nello stesso mese (raro ma possibile). Aggiungiamo suffisso al periodo.
+                periodo_unique = f"{r['periodo']}-r{r['numero_rata']}"
+                fc.execute(
+                    """
+                    INSERT INTO cg_piano_rate (
+                        spesa_fissa_id, numero_rata, periodo, importo, note,
+                        data_scadenza_specifica, codice_pagamento
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        spesa_id,
+                        r["numero_rata"],
+                        periodo_unique,
+                        r["importo"],
+                        note_rata + f" [periodo dup mese {r['periodo']}]",
+                        r["data_scadenza_specifica"],
+                        r["codice_pagamento"],
+                    ),
+                )
+
+        fc.commit()
+
+        # ── 7. Conteggi finali ──
+        gia_scadute = sum(1 for r in rate_parsed if r["data_scadenza_specifica"] < oggi_str)
+        future = len(rate_parsed) - gia_scadute
+
+        return {
+            "ok": True,
+            "spesa_fissa_id": spesa_id,
+            "n_rate": len(rate_parsed),
+            "totale": importo_totale,
+            "importo_medio": importo_medio,
+            "prima_scadenza": prima_scad,
+            "ultima_scadenza": ultima_scad,
+            "gia_scadute": gia_scadute,
+            "future": future,
+            "in_csv_pagate": n_csv_pagate,
+            "tipo": tipo,
+            "titolo": titolo_clean,
+            "msg": (
+                f"Piano '{titolo_clean}' creato con {len(rate_parsed)} rate "
+                f"(totale {importo_totale:.2f}€). "
+                f"Lancia /uscite/import per generare lo scadenziario."
+            ),
+        }
+    except HTTPException:
+        fc.rollback()
+        raise
+    except Exception as e:
+        fc.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore import CSV: {e}")
+    finally:
+        fc.close()
 
 
 # ═══════════════════════════════════════════════════════════════════

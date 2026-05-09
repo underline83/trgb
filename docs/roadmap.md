@@ -166,16 +166,15 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| G.1 | Spese Fisse — implementazione modulo (CRUD + frequenze) | L | ALTA | Documentate da marzo, mai implementate |
+| G.1 | Spese Fisse — implementazione modulo (CRUD + frequenze) | L | ✅ FATTO | In produzione con 22 spese fisse + 274 rate (riassorbito da G.4-G.5: prestiti+rateizzazioni+tasse già operativi). Roadmap aggiornata 2026-05-08 |
+| G.1.5 | **Import CSV piano rate (Abaco/AdE/PagoPA/F24)** | M | ✅ FATTO 2026-05-08 | mig 108 + endpoint `POST /spese-fisse/import-csv` + UI wizard CSV + DELETE warning rate riconciliate. Vedi `modulo_controllo_gestione.md §3.5.1-3.5.2` |
 | G.2 | Scadenziario unificato + alert (M.E + M.A + M.F) | M | ALTA | Cross banca |
 | G.3 | P&L mensile (cross-modulo Cassa + Acquisti + Stipendi) | M | ALTA | M.B PDF |
-| G.4 | Rateizzazioni dentro Spese Fisse | M | MEDIA | Dipende G.1 |
-| G.5 | Prestiti dentro Spese Fisse | M | MEDIA | Dipende G.1 |
-| G.6 | Tasse — sezione dedicata | M | MEDIA | Dipende G.1 |
-| G.7 | Stipendi — sezione dedicata | M | MEDIA | Dipende G.1 + cross §D |
+| G.6 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato |
+| G.7 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite |
 
 **Bug/debt:**
-- G-DEBT1 — Spese Fisse documentate, mai implementate (v1.0 beta da 2 mesi)
+- ~~G-DEBT1~~ — Risolto: Spese Fisse implementate da marzo (la roadmap riportava "mai implementate", era falso). Rimosso 2026-05-08.
 
 ---
 
