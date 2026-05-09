@@ -1003,6 +1003,8 @@ def get_cross_ref(
             suggestions.append(d)
 
         # 3) Uscite CG non pagate: match per nome nella descrizione
+        # PAGATA_MANUALE incluso: rate/spese chiuse a mano sono ricollegabili
+        # al movimento bancario quando viene importato.
         cur3 = conn.cursor()
         cur3.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
@@ -1012,7 +1014,7 @@ def get_cross_ref(
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
         """)
         for r in cur3.fetchall():
             if not _nome_match(r["fornitore_nome"] or "", desc_lower):
@@ -1031,6 +1033,7 @@ def get_cross_ref(
                 suggestions.append(d)
 
         # 4) Uscite CG: match per importo simile (±15%) entro ±30 giorni
+        # PAGATA_MANUALE incluso: vedi nota sulla query (3).
         cur3b = conn.cursor()
         cur3b.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
@@ -1040,7 +1043,7 @@ def get_cross_ref(
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
               AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.15
               AND cu.data_scadenza BETWEEN date(?, '-30 days') AND date(?, '+30 days')
             ORDER BY ABS(cu.totale - ?) ASC

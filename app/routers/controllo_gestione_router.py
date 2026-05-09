@@ -1033,6 +1033,36 @@ def get_uscite(
 # Ritorna le rate da pagare/scadute non riconciliate nel range richiesto,
 # con campi minimali e già "pronti" per il <CalendarView> di M.E.
 # ──────────────────────────────────────────────────────────────────────────
+
+def _accorcia_titolo_scadenza(titolo: str) -> str:
+    """
+    Accorcia il titolo per uso compatto nelle celle calendario.
+    Rimuove prefissi/suffissi che mangiano spazio senza aggiungere valore.
+    Esempi:
+      "Rateizzazione MARCHESI ANTINORI SPA — 2 fatture" → "MARCHESI ANTINORI SPA"
+      "Rateizzazione Cantina Nalles-Magrè/Niclara Soc. Agr. Coop." → "Cantina Nalles-Magrè/Niclara Soc.…"
+      "TIM S.p.A." → "TIM S.p.A."
+    Max ~26 caratteri, '…' al posto di "..." (font-friendly).
+    """
+    if not titolo:
+        return "—"
+    s = titolo.strip()
+    # Rimuovi prefisso "Rateizzazione " (case-insensitive)
+    low = s.lower()
+    for prefix in ("rateizzazione ", "rate. ", "ratea ", "rateazione "):
+        if low.startswith(prefix):
+            s = s[len(prefix):].strip()
+            break
+    # Rimuovi suffisso " — N fattura/e" o " - N fattura/e"
+    import re
+    s = re.sub(r"\s*[—-]\s*\d+\s*fattur[ae]\s*$", "", s, flags=re.IGNORECASE).strip()
+    # Trim a 26 char con ellipsis
+    MAX = 26
+    if len(s) > MAX:
+        s = s[: MAX - 1].rstrip() + "…"
+    return s or "—"
+
+
 @router.get("/scadenze")
 def get_scadenze_calendario(
     da: str = Query(..., description="Data inizio range (YYYY-MM-DD)"),
@@ -1133,11 +1163,13 @@ def get_scadenze_calendario(
 
         # Titolo human-readable: usa spesa_titolo per spese fisse, fornitore per fatture
         titolo = (r["spesa_titolo"] or r["fornitore_nome"] or "—").strip()
+        titolo_breve = _accorcia_titolo_scadenza(titolo)
 
         out.append({
             "id": r["id"],
             "data_scadenza": r["data_scadenza"],
             "titolo": titolo,
+            "titolo_breve": titolo_breve,
             "fornitore_nome": r["fornitore_nome"],
             "totale": float(r["totale"] or 0),
             "stato": r["stato"],

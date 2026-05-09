@@ -16,16 +16,19 @@ function EventRow({ event, onClick }) {
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick && onClick(event); }}
       className={
-        "w-full text-left text-xs px-2 py-1 rounded border " + palette.soft +
+        "block w-full min-w-0 max-w-full text-left text-xs px-2 py-1 rounded border " + palette.soft +
         " hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
       }
+      title={event.title + (event.subtitle ? " — " + event.subtitle : "")}
       aria-label={event.title + (event.subtitle ? ", " + event.subtitle : "")}
     >
-      {!event.allDay && (
-        <span className="font-semibold mr-1">{formatTime(event.start)}</span>
-      )}
-      {event.icon ? <span className="mr-0.5">{event.icon}</span> : null}
-      <span className="truncate">{event.title}</span>
+      <div className="truncate">
+        {!event.allDay && (
+          <span className="font-semibold mr-1">{formatTime(event.start)}</span>
+        )}
+        {event.icon ? <span className="mr-0.5">{event.icon}</span> : null}
+        {event.title}
+      </div>
       {event.subtitle && (
         <div className="text-[10px] text-neutral-600 truncate">{event.subtitle}</div>
       )}
@@ -44,7 +47,7 @@ function DayColumn({
   return (
     <div
       className={
-        "flex flex-col border-r border-neutral-200 last:border-r-0 min-h-full " +
+        "flex flex-col border-r border-neutral-200 last:border-r-0 min-h-full min-w-0 " +
         (isWeekend ? "bg-brand-cream/30" : "bg-white")
       }
       onClick={() => onSelectDate && onSelectDate(day)}
@@ -70,7 +73,7 @@ function DayColumn({
         </span>
       </div>
 
-      <div className="flex-1 flex flex-col gap-1 p-1.5 min-h-[11rem]">
+      <div className="flex-1 flex flex-col gap-1 p-1.5 min-h-[11rem] min-w-0 overflow-hidden">
         {sorted.length === 0 ? (
           <div className="text-[11px] text-neutral-300 text-center py-4">—</div>
         ) : (

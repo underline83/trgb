@@ -218,6 +218,16 @@ Mapping livello → colore preset M.E:
 
 **Tab sub-nav:** "Calendario" 📅 — `ControlloGestioneNav.jsx` con key `calendario`. Ordine tab: Dashboard / Liquidità / Uscite / **Calendario** / Riconciliazione / Confronto.
 
+#### 3.7.1 Polish formattazione (G.2.B-fix, 2026-05-09)
+
+Iterazione successiva al primo deploy di G.2.B per affinare densità informazione e fix overflow:
+
+- **Backend:** helper `_accorcia_titolo_scadenza()` produce `titolo_breve` (max 26 char), rimuove prefisso "Rateizzazione "/"Rate. "/"Ratea "/"Rateazione " e suffisso "— N fatture"; ellipsis `…` su tagli. Esempio: `"Rateizzazione MARCHESI ANTINORI SPA — 2 fatture"` → `"MARCHESI ANTINORI SPA"`. L'evento calendario usa `titolo_breve`, mentre il pannello dettaglio mostra il `titolo` full.
+- **M.E `WeekView`:** fix overflow eventi titoli lunghi: `<span className="truncate">` → `<div className="truncate">` (truncate richiede block, non inline) + `min-w-0` sui flex container DayColumn e contenitore eventi. Risolve sforamento "evento attraversa 3 colonne".
+- **M.E `MonthView`:** counter eventi top-right delle celle ora è badge a pallino (≥3 eventi) invece di testo nudo (sempre presente). Cliccare "+N altri" già drilla in vista giorno via `onDrillDown` di default di `<CalendarView>`.
+- **Card riepilogo:** ridotte da 6 a 4 vive (Scadute/Urgenti/Avvicinamento/Pianificazione, ognuna con count grande + € sotto). Future e Totale generale spostati come riga footer compatta. Card a 0 in `opacity-40` per ridurre rumore visivo. Layout flex `[label sub] / [count €]` così count è in evidenza.
+- **Pannello dettaglio:** da box multi-grid a una sola riga compatta (~64px h): pillola livello + titolo full + meta inline (data/importo/tipo/fornitore) + pulsanti Scadenziario/SpesaFissa + chiusura `×`. Wrappa su mobile.
+
 ---
 
 # 4. Navigazione

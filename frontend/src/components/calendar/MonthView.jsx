@@ -69,7 +69,7 @@ function DayCell({
       onClick={handleCellClick}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCellClick(); } }}
     >
-      {/* Numero giorno */}
+      {/* Numero giorno + badge counter (solo se ≥3 eventi, altrimenti rumore) */}
       <div className="flex items-center justify-between px-1.5 pt-1">
         <span
           className={
@@ -79,8 +79,10 @@ function DayCell({
         >
           {day.getDate()}
         </span>
-        {dayEvents.length > 0 && !isToday && (
-          <span className="text-[10px] text-neutral-400">{dayEvents.length}</span>
+        {dayEvents.length >= 3 && !isToday && (
+          <span className="text-[9px] font-semibold text-neutral-500 bg-neutral-200 rounded-full w-4 h-4 flex items-center justify-center">
+            {dayEvents.length}
+          </span>
         )}
       </div>
 

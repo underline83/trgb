@@ -144,24 +144,33 @@ export default function ControlloGestioneCalendarioScadenze() {
   useEffect(() => { loadScadenze(); }, [loadScadenze]);
 
   // Mappa scadenze → eventi M.E
+  // title compatto: "€XXX · Nome" con titolo_breve dal backend (max 26 char)
   const events = useMemo(() => scadenze.map((s) => ({
     id: s.id,
     start: isoToDate(s.data_scadenza),
     allDay: true,
-    title: `€${fmtEuro(s.totale)} · ${s.titolo}`,
+    title: `€${fmtEuro(s.totale)} · ${s.titolo_breve || s.titolo}`,
     subtitle: LIVELLO_LABEL[s.livello] || "",
     color: LIVELLO_COLOR[s.livello] || "blue",
     icon: s.livello === "scaduta" ? "⚠️" : (s.livello === "urgente" ? "🔴" : null),
     payload: s,
   })), [scadenze]);
 
-  // Riepilogo per livello
+  // Riepilogo per livello (count + €)
   const summary = useMemo(() => {
-    const m = { scaduta: 0, urgente: 0, avvicinamento: 0, pianificazione: 0, futuro: 0, pagata: 0, parziale: 0 };
+    const init = (n = 0, eur = 0) => ({ n, eur });
+    const m = {
+      scaduta: init(), urgente: init(), avvicinamento: init(),
+      pianificazione: init(), futuro: init(), pagata: init(), parziale: init(),
+    };
     let totale = 0;
     scadenze.forEach((s) => {
-      m[s.livello] = (m[s.livello] || 0) + 1;
-      totale += s.totale || 0;
+      const eur = s.totale || 0;
+      if (m[s.livello]) {
+        m[s.livello].n += 1;
+        m[s.livello].eur += eur;
+      }
+      totale += eur;
     });
     return { ...m, totale };
   }, [scadenze]);
@@ -189,14 +198,26 @@ export default function ControlloGestioneCalendarioScadenze() {
           </div>
         </div>
 
-        {/* RIEPILOGO BADGE */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
-          <SummaryCard color="red"     label="Scadute"        n={summary.scaduta} />
-          <SummaryCard color="red"     label="Urgenti"        n={summary.urgente} sub="≤7gg" />
-          <SummaryCard color="amber"   label="Avvicinamento"  n={summary.avvicinamento} sub="8-15gg" />
-          <SummaryCard color="blue"    label="Pianificazione" n={summary.pianificazione} sub="16-30gg" />
-          <SummaryCard color="slate"   label="Future"         n={summary.futuro} sub=">30gg" />
-          <SummaryCard color="emerald" label="Totale €"       n={fmtEuro(summary.totale)} isCurrency />
+        {/* RIEPILOGO — 4 card vive + footer compatto */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+          <SummaryCard color="red"   label="Scadute"        agg={summary.scaduta}       sub="non riconciliate" />
+          <SummaryCard color="red"   label="Urgenti"        agg={summary.urgente}       sub="≤ 7 giorni" />
+          <SummaryCard color="amber" label="Avvicinamento"  agg={summary.avvicinamento} sub="8 – 15 giorni" />
+          <SummaryCard color="blue"  label="Pianificazione" agg={summary.pianificazione} sub="16 – 30 giorni" />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 px-1 text-xs text-neutral-600">
+          <div>
+            <span className="text-neutral-400 mr-1">Future (oltre 30gg):</span>
+            <span className="font-semibold text-slate-700 tabular-nums">{summary.futuro.n}</span>
+            {summary.futuro.eur > 0 && (
+              <span className="text-neutral-500 ml-1 tabular-nums">· € {fmtEuro(summary.futuro.eur)}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
+            <span className="text-emerald-600">Totale periodo:</span>
+            <span className="font-bold text-emerald-800 tabular-nums">€ {fmtEuro(summary.totale)}</span>
+            <span className="text-emerald-500 text-[10px]">({scadenze.length})</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
@@ -297,7 +318,7 @@ export default function ControlloGestioneCalendarioScadenze() {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function SummaryCard({ color, label, n, sub, isCurrency }) {
+function SummaryCard({ color, label, agg, sub }) {
   const palette = {
     red:    "bg-red-50 border-red-200 text-red-800",
     amber:  "bg-amber-50 border-amber-200 text-amber-800",
@@ -306,13 +327,22 @@ function SummaryCard({ color, label, n, sub, isCurrency }) {
     emerald:"bg-emerald-50 border-emerald-200 text-emerald-800",
   }[color] || "bg-neutral-50 border-neutral-200 text-neutral-700";
 
+  const isEmpty = !agg?.n;
+  // Card "spenta" quando count=0 → diventa rumore, la rendiamo discreta
+  const dim = isEmpty ? "opacity-40" : "";
+
   return (
-    <div className={`rounded-lg border ${palette} px-3 py-2`}>
-      <div className="text-[10px] uppercase tracking-wide opacity-70">{label}</div>
-      <div className="text-lg font-bold tabular-nums">
-        {isCurrency ? `€ ${n}` : n}
+    <div className={`rounded-lg border ${palette} ${dim} px-3 py-2 flex items-center gap-3 transition-opacity`}>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] uppercase tracking-wide opacity-70 truncate">{label}</div>
+        {sub && <div className="text-[10px] opacity-60 truncate">{sub}</div>}
       </div>
-      {sub && <div className="text-[10px] opacity-60">{sub}</div>}
+      <div className="text-right">
+        <div className="text-2xl font-bold tabular-nums leading-none">{agg?.n ?? 0}</div>
+        {!isEmpty && agg?.eur > 0 && (
+          <div className="text-[10px] opacity-70 tabular-nums mt-0.5">€ {fmtEuro(agg.eur)}</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -328,46 +358,48 @@ function LegendItem({ dot, label }) {
 
 function DettaglioRata({ ev, onClose, onGotoUscite, onGotoSpesaFissa }) {
   const s = ev.payload || {};
+  // Pillola colorata in base al livello
+  const livColor = {
+    scaduta: "bg-red-100 text-red-700 border-red-300",
+    urgente: "bg-red-100 text-red-700 border-red-300",
+    avvicinamento: "bg-amber-100 text-amber-800 border-amber-300",
+    pianificazione: "bg-blue-100 text-blue-700 border-blue-300",
+    futuro: "bg-slate-100 text-slate-700 border-slate-300",
+    pagata: "bg-emerald-100 text-emerald-700 border-emerald-300",
+    parziale: "bg-violet-100 text-violet-700 border-violet-300",
+  }[s.livello] || "bg-neutral-100 text-neutral-700 border-neutral-300";
+
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl p-4 shadow-sm">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="text-xs text-neutral-500 uppercase tracking-wide">Dettaglio scadenza</div>
-          <h3 className="text-lg font-bold text-neutral-900">{s.titolo || ev.title}</h3>
-          <div className="text-sm text-neutral-500 mt-0.5">{LIVELLO_LABEL[s.livello] || ""}</div>
+    <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3 shadow-sm flex items-center gap-3 flex-wrap">
+      {/* Livello badge */}
+      <span className={`inline-block text-[10px] font-bold uppercase tracking-wide border rounded-full px-2 py-0.5 ${livColor}`}>
+        {LIVELLO_LABEL[s.livello] || s.livello}
+      </span>
+
+      {/* Titolo + meta inline */}
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-neutral-900 truncate" title={s.titolo}>{s.titolo || ev.title}</div>
+        <div className="text-xs text-neutral-500 flex items-center gap-2 flex-wrap">
+          <span>📅 <span className="tabular-nums">{fmtDateIT(s.data_scadenza)}</span></span>
+          <span>·</span>
+          <span className="font-semibold tabular-nums text-neutral-700">€ {fmtEuro(s.totale)}</span>
+          {s.tipo_uscita && <><span>·</span><span>{s.tipo_uscita}</span></>}
+          {s.fornitore_nome && s.fornitore_nome !== s.titolo && (
+            <><span>·</span><span className="truncate">{s.fornitore_nome}</span></>
+          )}
         </div>
-        <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">×</button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <Field label="Scadenza" value={fmtDateIT(s.data_scadenza)} />
-        <Field label="Importo" value={`€ ${fmtEuro(s.totale)}`} mono />
-        <Field label="Stato" value={s.stato || "—"} />
-        <Field label="Tipo" value={s.tipo_uscita || "—"} />
-        {s.fornitore_nome && s.fornitore_nome !== s.titolo && (
-          <Field label="Fornitore" value={s.fornitore_nome} className="col-span-2" />
-        )}
-      </div>
-
-      <div className="flex gap-2 mt-4 flex-wrap">
-        <Btn size="sm" variant="primary" onClick={onGotoUscite}>
-          💸 Apri Scadenziario
-        </Btn>
+      {/* Azioni */}
+      <div className="flex items-center gap-2">
+        <Btn size="sm" variant="primary" onClick={onGotoUscite}>💸 Scadenziario</Btn>
         {s.spesa_fissa_id && (
           <Btn size="sm" variant="chip" tone="violet" onClick={() => onGotoSpesaFissa(s.spesa_fissa_id)}>
-            🏠 Vai alla Spesa Fissa
+            🏠 Spesa Fissa
           </Btn>
         )}
+        <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none px-1" aria-label="Chiudi">×</button>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, value, mono = false, className = "" }) {
-  return (
-    <div className={className}>
-      <div className="text-[10px] text-neutral-500 uppercase">{label}</div>
-      <div className={`font-medium text-neutral-800 ${mono ? "tabular-nums" : ""}`}>{value}</div>
     </div>
   );
 }
