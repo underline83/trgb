@@ -10,6 +10,7 @@ const TABS = [
   { key: "dashboard",       label: "Dashboard",       path: "/controllo-gestione/dashboard",       icon: "📊" },
   { key: "liquidita",       label: "Liquidita'",      path: "/controllo-gestione/liquidita",       icon: "🏦" },
   { key: "uscite",          label: "Uscite",          path: "/controllo-gestione/uscite",          icon: "💸" },
+  { key: "calendario",      label: "Calendario",      path: "/controllo-gestione/calendario",      icon: "📅" },
   { key: "riconciliazione", label: "Riconciliazione", path: "/controllo-gestione/riconciliazione", icon: "🔗" },
   { key: "confronto",       label: "Confronto",       path: "/controllo-gestione/confronto",       icon: "📈" },
 ];

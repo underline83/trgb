@@ -1028,6 +1028,133 @@ def get_uscite(
 # FATTURE SENZA SCADENZA — per avvisi in Acquisti
 # ═══════════════════════════════════════════════════════════════════
 
+# ──────────────────────────────────────────────────────────────────────────
+# G.2.B — Scadenziario per calendario (vista mensile + widget timeline)
+# Ritorna le rate da pagare/scadute non riconciliate nel range richiesto,
+# con campi minimali e già "pronti" per il <CalendarView> di M.E.
+# ──────────────────────────────────────────────────────────────────────────
+@router.get("/scadenze")
+def get_scadenze_calendario(
+    da: str = Query(..., description="Data inizio range (YYYY-MM-DD)"),
+    a: str = Query(..., description="Data fine range (YYYY-MM-DD), inclusivo"),
+    tipo_uscita: Optional[str] = Query(default=None, description="Filtra per tipo (FATTURA/SPESA_FISSA/STIPENDIO/...)"),
+    importo_min: Optional[float] = Query(default=None, description="Filtra solo importi ≥ N euro"),
+    includi_pagate: bool = Query(default=False, description="Se True include anche PAGATA/PAGATA_MANUALE/PARZIALE"),
+    current_user=Depends(get_current_user),
+):
+    """
+    Lista cg_uscite nel range richiesto, ordinate per data_scadenza.
+    Output ottimizzato per CalendarView (M.E):
+      [{id, data_scadenza, titolo, fornitore_nome, totale, stato, tipo_uscita,
+        spesa_fissa_id, spesa_titolo, livello}, ...]
+    Il campo `livello` è derivato (urgente/avvicinamento/pianificazione/futuro)
+    in base alla soglia rispetto a oggi — usato dal frontend per scegliere il colore.
+    """
+    fc = get_fc_db()
+
+    # Validazione range
+    try:
+        d_da = date.fromisoformat(da)
+        d_a = date.fromisoformat(a)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date non valide (YYYY-MM-DD)")
+    if d_a < d_da:
+        raise HTTPException(status_code=400, detail="Range non valido: a < da")
+
+    where = ["u.data_scadenza IS NOT NULL", "u.data_scadenza != ''",
+             "u.data_scadenza >= :da", "u.data_scadenza <= :a"]
+    params: dict = {"da": da, "a": a}
+
+    if includi_pagate:
+        where.append("u.stato IN ('DA_PAGARE','SCADUTA','PAGATA','PAGATA_MANUALE','PARZIALE')")
+    else:
+        where.append("u.stato IN ('DA_PAGARE','SCADUTA')")
+        where.append("u.banca_movimento_id IS NULL")
+
+    if tipo_uscita:
+        where.append("u.tipo_uscita = :tipo_uscita")
+        params["tipo_uscita"] = tipo_uscita
+    if importo_min is not None:
+        where.append("COALESCE(u.totale, 0) >= :importo_min")
+        params["importo_min"] = importo_min
+
+    sql = f"""
+        SELECT
+            u.id,
+            u.data_scadenza,
+            u.fornitore_nome,
+            u.totale,
+            u.stato,
+            u.tipo_uscita,
+            u.spesa_fissa_id,
+            u.fattura_id,
+            sf.titolo AS spesa_titolo
+        FROM cg_uscite u
+        LEFT JOIN cg_spese_fisse sf ON sf.id = u.spesa_fissa_id
+        WHERE {' AND '.join(where)}
+        ORDER BY u.data_scadenza ASC, u.totale DESC
+    """
+    rows = fc.execute(sql, params).fetchall()
+    fc.close()
+
+    # Classificazione livello per il colore evento
+    today = date.today()
+    out = []
+    for r in rows:
+        try:
+            scad = date.fromisoformat(r["data_scadenza"])
+            delta = (scad - today).days
+        except Exception:
+            delta = 9999
+
+        # 4 livelli, allineati con G.2.A:
+        #   - "scaduta": data passata e non riconciliata
+        #   - "urgente": ≤ 7 gg
+        #   - "avvicinamento": 8..15 gg
+        #   - "pianificazione": 16..30 gg
+        #   - "futuro": > 30 gg
+        # NB: la soglia esatta dei livelli urgente/avv/pian può divergere
+        # dalla config alert_engine, ma 7/15/30 è il default condiviso
+        # e il frontend può comunque sovrascrivere il colore.
+        if r["stato"] in ("PAGATA", "PAGATA_MANUALE"):
+            livello = "pagata"
+        elif r["stato"] == "PARZIALE":
+            livello = "parziale"
+        elif delta < 0:
+            livello = "scaduta"
+        elif delta <= 7:
+            livello = "urgente"
+        elif delta <= 15:
+            livello = "avvicinamento"
+        elif delta <= 30:
+            livello = "pianificazione"
+        else:
+            livello = "futuro"
+
+        # Titolo human-readable: usa spesa_titolo per spese fisse, fornitore per fatture
+        titolo = (r["spesa_titolo"] or r["fornitore_nome"] or "—").strip()
+
+        out.append({
+            "id": r["id"],
+            "data_scadenza": r["data_scadenza"],
+            "titolo": titolo,
+            "fornitore_nome": r["fornitore_nome"],
+            "totale": float(r["totale"] or 0),
+            "stato": r["stato"],
+            "tipo_uscita": r["tipo_uscita"],
+            "spesa_fissa_id": r["spesa_fissa_id"],
+            "fattura_id": r["fattura_id"],
+            "livello": livello,
+        })
+
+    return {
+        "scadenze": out,
+        "count": len(out),
+        "totale": round(sum(s["totale"] for s in out), 2),
+        "range": {"da": da, "a": a},
+    }
+
+
 @router.get("/uscite/senza-scadenza")
 def get_fatture_senza_scadenza(
     current_user=Depends(get_current_user),

@@ -174,7 +174,49 @@ Implementati su mattone **M.F Alert engine** (`app/services/alert_engine.py`) e 
 - Non fa pagamenti automatici
 - Non sostituisce M.A campana — la notifica vive lì come tutte le altre
 
-**Roadmap successiva (G.2.B):** vista calendario scadenze (`<CalendarView>` di M.E) come tab dedicato sotto `/controllo-gestione/calendario` + widget mini-timeline nella dashboard CG.
+### 3.7 Calendario scadenze + widget timeline (G.2.B, 2026-05-09)
+
+Vista calendario completa dei pagamenti in arrivo (e scaduti non riconciliati), basata sul mattone **M.E `<CalendarView>`**, integrata nel sub-nav del modulo. Inoltre widget compatto in dashboard CG che mostra a colpo d'occhio i prossimi 30 giorni.
+
+**Endpoint:** `GET /controllo-gestione/scadenze?da=YYYY-MM-DD&a=YYYY-MM-DD` con query params opzionali:
+- `tipo_uscita` — filtra (FATTURA, SPESA_FISSA, STIPENDIO, SPESA_BANCARIA, IMPOSTA_BOLLO, COMMISSIONE_POS, PROFORMA, ALTRO_USCITA)
+- `importo_min` — soglia minima importo (€)
+- `includi_pagate` — bool (default false). Se true include PAGATA/PAGATA_MANUALE/PARZIALE.
+
+Risposta:
+```json
+{
+  "scadenze": [
+    {"id": 123, "data_scadenza": "2026-05-15", "titolo": "Rateizzazione Abaco",
+     "fornitore_nome": "Abaco SpA", "totale": 211.77, "stato": "DA_PAGARE",
+     "tipo_uscita": "SPESA_FISSA", "spesa_fissa_id": 42, "fattura_id": null,
+     "livello": "urgente"}
+  ],
+  "count": 1, "totale": 211.77, "range": {"da": "2026-05-09", "a": "2026-06-08"}
+}
+```
+
+Il campo `livello` è derivato server-side dalla distanza temporale (oggi → data_scadenza):
+- `scaduta` (delta < 0)
+- `urgente` (≤7gg)
+- `avvicinamento` (8..15gg)
+- `pianificazione` (16..30gg)
+- `futuro` (>30gg)
+- `pagata` / `parziale` (se includi_pagate=true)
+
+**Pagina UI:** `/controllo-gestione/calendario` — `frontend/src/pages/controllo-gestione/ControlloGestioneCalendarioScadenze.jsx`. 6 card riepilogo (scadute/urgenti/avvicinamento/pianificazione/future/totale €), sidebar filtri (tipo/importo min/pagate) con persistenza `localStorage["cg_calendario_filters"]`, vista mese/settimana/giorno tramite `<CalendarView>` (tasti M/S/G + frecce per navigare). Click su evento → pannello laterale con dettaglio + bottoni "Apri Scadenziario" e (se applicabile) "Vai alla Spesa Fissa".
+
+Mapping livello → colore preset M.E:
+- scaduta/urgente → `red` (banda rossa)
+- avvicinamento → `amber`
+- pianificazione → `blue`
+- futuro → `slate`
+- pagata → `green`
+- parziale → `violet`
+
+**Widget dashboard:** componente `WidgetScadenzeTimeline` (inline in `ControlloGestioneDashboard.jsx`). Mini-timeline orizzontale dei prossimi 31 giorni: pallini colorati sui giorni con scadenze, dimensione proporzionale all'importo aggregato. Tooltip su hover con dettaglio data/conteggio/totale. Click su pallino o "Vai al calendario →" → naviga a `/controllo-gestione/calendario`. Visivamente coerente con la pagina completa.
+
+**Tab sub-nav:** "Calendario" 📅 — `ControlloGestioneNav.jsx` con key `calendario`. Ordine tab: Dashboard / Liquidità / Uscite / **Calendario** / Riconciliazione / Confronto.
 
 ---
 

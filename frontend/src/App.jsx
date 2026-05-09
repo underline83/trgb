@@ -147,6 +147,7 @@ const FlussiCassaMance = lazy(() => import("./pages/banca/FlussiCassaMance"));
 const ControlloGestioneDashboard = lazy(() => import("./pages/controllo-gestione/ControlloGestioneDashboard"));
 const ControlloGestioneConfronto = lazy(() => import("./pages/controllo-gestione/ControlloGestioneConfronto"));
 const ControlloGestioneUscite = lazy(() => import("./pages/controllo-gestione/ControlloGestioneUscite"));
+const ControlloGestioneCalendarioScadenze = lazy(() => import("./pages/controllo-gestione/ControlloGestioneCalendarioScadenze"));
 const ControlloGestioneSpeseFisse = lazy(() => import("./pages/controllo-gestione/ControlloGestioneSpeseFisse"));
 const ControlloGestioneRiconciliazione = lazy(() => import("./pages/controllo-gestione/ControlloGestioneRiconciliazione"));
 const ControlloGestioneLiquidita = lazy(() => import("./pages/controllo-gestione/ControlloGestioneLiquidita"));
@@ -367,6 +368,7 @@ export default function App() {
         <Route path="/controllo-gestione/liquidita" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneLiquidita /></ProtectedRoute>} />
         <Route path="/controllo-gestione/confronto" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneConfronto /></ProtectedRoute>} />
         <Route path="/controllo-gestione/uscite" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneUscite /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/calendario" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneCalendarioScadenze /></ProtectedRoute>} />
         <Route path="/controllo-gestione/spese-fisse" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneSpeseFisse /></ProtectedRoute>} />
         <Route path="/controllo-gestione/riconciliazione" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneRiconciliazione /></ProtectedRoute>} />
 

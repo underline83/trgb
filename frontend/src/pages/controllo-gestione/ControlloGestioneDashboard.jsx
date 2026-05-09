@@ -181,6 +181,9 @@ export default function ControlloGestioneDashboard() {
             color="neutral" />
         </div>
 
+        {/* G.2.B — Widget mini-timeline scadenze prossimi 30gg */}
+        <WidgetScadenzeTimeline onOpenCalendar={() => navigate("/controllo-gestione/calendario")} />
+
         {/* ─── RIGA 2: ANDAMENTO ANNUALE ─── */}
         <div className="grid grid-cols-1 gap-6 mb-6">
 
@@ -317,6 +320,142 @@ export default function ControlloGestioneDashboard() {
 
       </div>
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// G.2.B — Widget mini-timeline scadenze prossimi 30 giorni
+// Card compatta nella dashboard CG: pallini colorati sui giorni con scadenze,
+// dimensione proporzionale all'importo aggregato del giorno.
+// Click sull'header / sull'area → naviga al Calendario completo.
+// ──────────────────────────────────────────────────────────────────────────
+function WidgetScadenzeTimeline({ onOpenCalendar }) {
+  const [scad, setScad] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [hovered, setHovered] = React.useState(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    const today = new Date();
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    const da = fmt(today);
+    const a = fmt(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30));
+    apiFetch(`${CG}/scadenze?da=${da}&a=${a}`)
+      .then((r) => r.ok ? r.json() : { scadenze: [] })
+      .then((d) => { if (alive) setScad(d.scadenze || []); })
+      .catch(() => { if (alive) setScad([]); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  // Aggrega per data: { '2026-05-12': { count, totale, livello_max }, ... }
+  const byDay = React.useMemo(() => {
+    const m = {};
+    scad.forEach((s) => {
+      const k = s.data_scadenza;
+      if (!m[k]) m[k] = { count: 0, totale: 0, livello_max: "futuro" };
+      m[k].count += 1;
+      m[k].totale += s.totale || 0;
+      // Priorità livello: scaduta > urgente > avvicinamento > pianificazione > futuro
+      const ord = { scaduta: 5, urgente: 4, avvicinamento: 3, pianificazione: 2, futuro: 1 };
+      if ((ord[s.livello] || 0) > (ord[m[k].livello_max] || 0)) m[k].livello_max = s.livello;
+    });
+    return m;
+  }, [scad]);
+
+  // Genera 30 giorni
+  const giorni = React.useMemo(() => {
+    const today = new Date();
+    return Array.from({ length: 31 }, (_, i) => {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      return { date: d, iso, day: d.getDate(), agg: byDay[iso] || null };
+    });
+  }, [byDay]);
+
+  const totale = scad.reduce((s, x) => s + (x.totale || 0), 0);
+  const totEur = totale.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const maxImporto = Math.max(1, ...Object.values(byDay).map((x) => x.totale));
+
+  // Color map identico al calendario
+  const dotColor = {
+    scaduta: "bg-brand-red",
+    urgente: "bg-brand-red",
+    avvicinamento: "bg-amber-500",
+    pianificazione: "bg-brand-blue",
+    futuro: "bg-slate-500",
+  };
+
+  return (
+    <div className="rounded-2xl border border-sky-100 bg-white p-4 mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-sm font-bold text-sky-800">📅 Prossime scadenze (30 giorni)</h2>
+          <div className="text-[11px] text-neutral-500">
+            {loading ? "Caricamento..." : (
+              scad.length > 0
+                ? <>{scad.length} pagamenti · totale <span className="font-semibold tabular-nums">€ {totEur}</span></>
+                : "Nessuna scadenza nei prossimi 30 giorni"
+            )}
+          </div>
+        </div>
+        <button onClick={onOpenCalendar}
+          className="text-xs font-medium text-brand-blue hover:text-blue-700 underline">
+          Vai al calendario →
+        </button>
+      </div>
+
+      {/* Timeline */}
+      {scad.length > 0 && (
+        <div className="relative pt-2 pb-6">
+          <div className="flex items-end justify-between gap-px h-12">
+            {giorni.map((g, i) => {
+              const agg = g.agg;
+              const isFirst = i === 0;
+              const isLast = i === giorni.length - 1;
+              // Dimensione del pallino proporzionale all'importo (4px..14px)
+              const size = agg ? Math.round(4 + (agg.totale / maxImporto) * 10) : 0;
+              const color = agg ? (dotColor[agg.livello_max] || "bg-slate-400") : "";
+              return (
+                <div
+                  key={g.iso}
+                  className="flex-1 flex flex-col items-center justify-end relative"
+                  onMouseEnter={() => agg && setHovered(g.iso)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={() => agg && onOpenCalendar()}
+                  style={{ cursor: agg ? "pointer" : "default" }}
+                >
+                  {agg && (
+                    <div
+                      className={`rounded-full ${color}`}
+                      style={{ width: `${size}px`, height: `${size}px` }}
+                    />
+                  )}
+                  <div className={`text-[9px] mt-1 tabular-nums ${isFirst || isLast || g.day === 1 ? "font-bold text-neutral-700" : "text-neutral-400"}`}>
+                    {g.day === 1 || isFirst ? `${g.day}/${g.date.getMonth() + 1}` : g.day}
+                  </div>
+                  {/* Tooltip on hover */}
+                  {hovered === g.iso && agg && (
+                    <div className="absolute bottom-full mb-1 z-10 bg-neutral-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap shadow-lg">
+                      <div className="font-semibold">{g.iso}</div>
+                      <div>{agg.count} scadenz{agg.count === 1 ? "a" : "e"}</div>
+                      <div>€ {agg.totale.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legenda mini */}
+          <div className="flex items-center justify-center gap-3 mt-3 text-[9px] text-neutral-500">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand-red"/>Urgente/Scad</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"/>≤15gg</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand-blue"/>≤30gg</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1413,6 +1413,8 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             results.append(d)
 
         # Uscite CG per importo (solo non-fattura)
+        # PAGATA_MANUALE incluso: l'utente ha chiuso a mano la rata e ora vuole
+        # collegare il vero movimento bancario (il link UPDATE setta stato=PAGATA).
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
@@ -1421,7 +1423,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
               AND ABS(cu.totale - ?) < MAX(? * 0.1, 1.0)
             ORDER BY ABS(cu.totale - ?) ASC
             LIMIT ?
@@ -1473,6 +1475,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             results.append(d)
 
         # Uscite CG per testo (solo non-fattura)
+        # PAGATA_MANUALE incluso: vedi nota analoga sulla query per importo.
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
@@ -1481,7 +1484,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
               AND (cu.fornitore_nome LIKE ? OR cu.numero_fattura LIKE ?)
             ORDER BY cu.data_scadenza DESC
             LIMIT ?
