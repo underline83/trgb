@@ -765,19 +765,27 @@ def _fatture_pending() -> FatturePending:
     """
     Fatture realmente da pagare per la card "Acquisti" della Home.
 
-    Source of truth: cg_uscite.stato (modulo Controllo Gestione).
-    `fe_fatture.pagato` storicamente non viene aggiornato quando l'utente
-    riconcilia da banca o marca PAGATA_MANUALE in CG → era source di drift
-    massiccio (sessione 2026-05-09: ~600 fatture pagate ma flag a 0
-    inflavano la card Home a € 588k vs ~€ 333k reale).
+    Drift storico: lo stato di pagamento di una fattura vive in DUE posti
+    senza trigger sincrono fra loro:
+      - `fe_fatture.pagato` (boolean, autorevole quando =1)
+      - `cg_uscite.stato`   (workflow CG: DA_PAGARE/SCADUTA/PAGATA/...)
 
-    Filtri:
-      - LEFT JOIN cg_uscite (su fattura_id)
-      - se ha proiezione cg_uscite: include solo stato DA_PAGARE / SCADUTA
-      - se NON ha proiezione (fattura recente non ancora processata dal
-        proiettore, o particolarità storica): fallback su fe_fatture.pagato=0
-      - sempre: escludi autofatture e fatture rateizzate (passate a spese fisse,
-        altrimenti contate due volte)
+    Strategia "AND": consideriamo una fattura DA PAGARE solo se ENTRAMBE le
+    fonti concordano (`pagato=0` E `stato in DA_PAGARE/SCADUTA o nessuna
+    proiezione`). Se UNA delle due dice "pagata", la rispettiamo.
+
+    Filtri sempre attivi:
+      - escludi autofatture (`is_autofattura=1`)
+      - escludi fatture rateizzate in spesa fissa (doppio conteggio col modulo CG → Spese Fisse)
+      - escludi fornitori con `fe_fornitore_categoria.escluso_acquisti=1` —
+        IMPORTANTE: stessa logica del modulo Acquisti → Fatture (toggle "Mostra
+        fornitori esclusi"). Es. CATTANEO SILVIA / BANA MARIA DOLORES sono
+        "non-fatture importate da FIC" (bonifici registrati come fatture senza
+        P.IVA né numero, probabili affitti/spese cassa) → Marco le ha già
+        marcate escluso_acquisti=1 e per lui "non esistono". Senza questo
+        filtro la card Home sommava ~€70k di rumore (CATTANEO €58k + BANA €13k).
+      - match fornitore_categoria via P.IVA quando presente, fallback su nome
+        per fornitori senza P.IVA (caso non-fatture).
     """
     try:
         conn = get_foodcost_connection()
@@ -786,12 +794,14 @@ def _fatture_pending() -> FatturePending:
                    COALESCE(SUM(f.totale_fattura), 0) AS importo
             FROM fe_fatture f
             LEFT JOIN cg_uscite u ON u.fattura_id = f.id
+            LEFT JOIN fe_fornitore_categoria c
+                ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva, '') != '')
+                OR (COALESCE(f.fornitore_piva, '') = '' AND c.fornitore_nome = f.fornitore_nome)
             WHERE COALESCE(f.is_autofattura, 0) = 0
               AND f.rateizzata_in_spesa_fissa_id IS NULL
-              AND (
-                u.stato IN ('DA_PAGARE', 'SCADUTA')
-                OR (u.id IS NULL AND COALESCE(f.pagato, 0) = 0)
-              )
+              AND COALESCE(f.pagato, 0) = 0
+              AND (u.id IS NULL OR u.stato IN ('DA_PAGARE', 'SCADUTA'))
+              AND COALESCE(c.escluso_acquisti, 0) = 0
         """).fetchone()
         conn.close()
         return FatturePending(
