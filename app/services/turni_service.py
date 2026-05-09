@@ -111,11 +111,16 @@ def ore_lorde(ora_inizio: str, ora_fine: str) -> float:
     return round(diff / 60.0, 2)
 
 
-# Soglie orarie per pausa staff: la pausa vale SOLO per chi arriva prima
-# della soglia. Chi entra 12:00 (pranzo) o 19:00 (cena) arriva "già
-# mangiato" → nessuna pausa dedotta.
-SOGLIA_PAUSA_PRANZO = "11:30"   # arrivo < 11:30 → diritto pausa pranzo
-SOGLIA_PAUSA_CENA   = "18:30"   # arrivo < 18:30 → diritto pausa cena
+# Soglie orarie per pausa staff: la pausa vale SOLO se il turno COPRE
+# l'ora del pasto staff. Cioè: arrivo PRIMA della soglia di inizio E
+# fine DOPO la soglia di fine.
+# - Chi entra 12:00 (pranzo) / 19:00 (cena) arriva "già mangiato" → no pausa.
+# - Chi esce 11:30 (pranzo) / 18:30 (cena) se ne va prima del pasto → no pausa.
+# Esempio: turno P 09:00–11:30 NON ha pausa pranzo (esce prima del pasto staff).
+SOGLIA_PAUSA_PRANZO = "11:30"   # arrivo < 11:30 → potenziale pausa pranzo
+SOGLIA_PAUSA_CENA   = "18:30"   # arrivo < 18:30 → potenziale pausa cena
+SOGLIA_FINE_PRANZO  = "12:00"   # fine > 12:00 → ha avuto modo di pranzare
+SOGLIA_FINE_CENA    = "19:00"   # fine > 19:00 → ha avuto modo di cenare
 
 
 def calcola_ore_nette_giorno(
@@ -132,15 +137,23 @@ def calcola_ore_nette_giorno(
     Regole:
     - Se 'ore_effettive' è impostato sul turno, lo si usa così (override).
     - Altrimenti parte dalle ore lorde (fine - inizio).
-    - Pausa PRANZO dedotta SOLO se almeno un turno PRANZO ha ora_inizio
-      < SOGLIA_PAUSA_PRANZO (11:30). Chi entra 12:00 arriva già mangiato.
-    - Pausa CENA dedotta SOLO se almeno un turno CENA ha ora_inizio
-      < SOGLIA_PAUSA_CENA (18:30). Chi entra 19:00 arriva già mangiato.
+    - Pausa PRANZO dedotta SOLO se almeno un turno PRANZO ha
+      ora_inizio < SOGLIA_PAUSA_PRANZO (11:30) E
+      ora_fine   > SOGLIA_FINE_PRANZO   (12:00).
+      Chi entra 12:00 arriva già mangiato; chi esce alle 11:30 esce prima del pasto.
+    - Pausa CENA dedotta SOLO se almeno un turno CENA ha
+      ora_inizio < SOGLIA_PAUSA_CENA (18:30) E
+      ora_fine   > SOGLIA_FINE_CENA  (19:00).
+      Chi entra 19:00 arriva già mangiato; chi esce alle 18:30 esce prima del pasto.
+    - Per i turni che attraversano la mezzanotte (fine < inizio) la fine viene
+      proiettata al giorno dopo prima del confronto con la soglia.
     - Pause applicate UNA VOLTA per servizio, non una per turno.
     - Stato='OPZIONALE' o 'ANNULLATO' → il turno NON pesa nel conto (da confermare / annullato).
     """
-    soglia_p = _parse_hhmm(SOGLIA_PAUSA_PRANZO) or 0
-    soglia_c = _parse_hhmm(SOGLIA_PAUSA_CENA) or 0
+    soglia_p  = _parse_hhmm(SOGLIA_PAUSA_PRANZO) or 0
+    soglia_c  = _parse_hhmm(SOGLIA_PAUSA_CENA)   or 0
+    soglia_fp = _parse_hhmm(SOGLIA_FINE_PRANZO)  or 0
+    soglia_fc = _parse_hhmm(SOGLIA_FINE_CENA)    or 0
 
     totale_lordo = 0.0
     diritto_pausa_pranzo = False
@@ -165,9 +178,18 @@ def calcola_ore_nette_giorno(
 
         serv = (t.get("servizio") or "").upper()
         ini = _parse_hhmm(t.get("ora_inizio") or "")
-        if serv == "PRANZO" and ini is not None and ini < soglia_p:
+        fin = _parse_hhmm(t.get("ora_fine")   or "")
+        # Turno che scavalca la mezzanotte: proietta fine al giorno dopo
+        # per il confronto con le soglie (es. 18:00–01:00 → fin_eff=25:00).
+        if ini is not None and fin is not None and fin < ini:
+            fin_eff = fin + 24 * 60
+        else:
+            fin_eff = fin
+        if (serv == "PRANZO" and ini is not None and fin_eff is not None
+                and ini < soglia_p and fin_eff > soglia_fp):
             diritto_pausa_pranzo = True
-        elif serv == "CENA" and ini is not None and ini < soglia_c:
+        elif (serv == "CENA" and ini is not None and fin_eff is not None
+                and ini < soglia_c and fin_eff > soglia_fc):
             diritto_pausa_cena = True
 
     # deduci pause staff solo se spetta

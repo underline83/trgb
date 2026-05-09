@@ -301,12 +301,18 @@ massimo 3 tap per cella (tap → scegli persona → salva).
 - **Calcolo ore nette** (servizio condiviso `app/services/turni_service.py`):
   ```
   ore_lorde = somma ore_effettive (o ore_lavoro del tipo)
-  pause = pausa_pranzo_min/60  se ha turno PRANZO
-        + pausa_cena_min/60    se ha turno CENA
+  pause = pausa_pranzo_min/60  se turno PRANZO copre il pasto staff
+                                (inizio < 11:30 E fine > 12:00)
+        + pausa_cena_min/60    se turno CENA copre il pasto staff
+                                (inizio < 18:30 E fine > 19:00)
   ore_nette = ore_lorde - pause
   ```
   Pause prese da `reparti.pausa_pranzo_min/pausa_cena_min` (default 30/30).
-  Configurabile in futuro per dipendente, oggi solo per reparto.
+  La pausa è dedotta SOLO se il turno copre l'intera fascia del pasto
+  staff: chi entra alle 12:00 / 19:00 arriva già mangiato, chi esce
+  alle 11:30 / 18:30 esce prima del pasto. Esempio: turno P 09:00–11:30
+  → niente pausa pranzo (esce prima del pasto staff). Configurabile in
+  futuro per dipendente, oggi solo per reparto.
 - Colonna destra nel foglio: "Ore nette" con semaforo
   (<=40 verde, 40-48 giallo, >48 rosso). Tooltip mostra dettaglio
   "Lorde 45h − pause 3.5h = 41.5h nette".
@@ -369,7 +375,7 @@ modulo Presenze separato. In Turni v2 resta solo:
 *Obiettivo:* "quando lavoro il prossimo mese?" a colpo d'occhio.
 
 **Backend — `turni_service.build_vista_dipendente` + `GET /turni/dipendente`:**
-- Service calcola per N settimane (1..12, default 4) una timeline completa per 1 dipendente, con turni raggruppati per data, ore lorde+nette giornaliere (riusa `calcola_ore_nette_giorno` con pause staff deducibili solo se soglia 11:30/18:30 rispettata), totali periodo (ore, giorni lavorati, riposi = giorni non chiusi senza turni, chiusure, opzionali), semaforo CCNL per settimana.
+- Service calcola per N settimane (1..12, default 4) una timeline completa per 1 dipendente, con turni raggruppati per data, ore lorde+nette giornaliere (riusa `calcola_ore_nette_giorno` con pause staff deducibili solo se il turno copre la fascia del pasto staff: pranzo inizio<11:30 ∧ fine>12:00, cena inizio<18:30 ∧ fine>19:00), totali periodo (ore, giorni lavorati, riposi = giorni non chiusi senza turni, chiusure, opzionali), semaforo CCNL per settimana.
 - Endpoint `GET /turni/dipendente?dipendente_id=X&settimana_inizio=YYYY-Www&num_settimane=4` (JWT). Default settimana = corrente.
 - Payload include anche dipendente+reparto (colore, ruolo, nome reparto, pause staff) per auto-coerenza del FE.
 

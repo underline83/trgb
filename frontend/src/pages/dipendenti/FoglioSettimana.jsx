@@ -1037,7 +1037,7 @@ function OrePanel({ ore, reparto, giorni = [], assenzeMap = {}, onCreaAssenza, o
         Semaforo: ≤40h <span className="text-green-600">verde</span>, 40–48 <span className="text-amber-600">giallo</span>, &gt;48 <span className="text-red-600">rosso</span>
       </div>
       <div className="mt-1 text-[10px] text-neutral-400 leading-snug">
-        Pausa pranzo dedotta solo per arrivi &lt; 11:30; pausa cena per arrivi &lt; 18:30 (chi entra 12/19 arriva già mangiato).
+        Pausa pranzo: solo se arrivo &lt; 11:30 E fine &gt; 12:00; pausa cena: solo se arrivo &lt; 18:30 E fine &gt; 19:00 (chi entra dopo o esce prima salta il pasto staff).
       </div>
       <div className="mt-1 flex gap-2 text-[10px] text-neutral-400">
         {ASSENZA_TIPI.map(t => (
