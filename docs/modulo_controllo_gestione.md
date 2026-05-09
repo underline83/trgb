@@ -131,6 +131,22 @@ Per piani di rateizzazione **Abaco / Agenzia delle Entrate / PagoPA / F24 rateiz
 
 `DELETE /controllo-gestione/spese-fisse/{id}` ora fa **cascade** su `cg_piano_rate` + `cg_uscite`. Se la spesa ha rate già riconciliate (`banca_movimento_id NOT NULL` o stato PAGATA/PAGATA_MANUALE/PARZIALE), ritorna **409** con conteggio. Solo con `?confirm_riconciliate=true` procede comunque (i movimenti banca tornano "non abbinati"). UI mostra warning esplicito: *"X rate riconciliate, eliminandole la riconciliazione si rompe — continuare?"*
 
+### 3.5.3 Template CSV scaricabile (G.1.5, 2026-05-09)
+
+`GET /controllo-gestione/spese-fisse/template-csv` (auth) restituisce un CSV preformattato col nostro standard, con BOM UTF-8 (Excel italiano lo apre bene), 3 righe di esempio e righe `#` di intestazione che spiegano i formati. L'utente lo scarica, lo compila in Excel/Numbers, lo salva come CSV e lo ricarica via wizard "Importa CSV piano rate".
+
+**Importante (parser):** il parser CSV ignora ora anche le righe che iniziano con `#` — usato per i commenti del template, ma utile in generale.
+
+**Posizionamento route:** registrato PRIMA di `/spese-fisse/{spesa_id}` per evitare il match parametrico (FastAPI valuta in ordine di definizione; con `spesa_id: int` il path `/spese-fisse/template-csv` darebbe altrimenti 422).
+
+UI:
+- Pannello creazione spese fisse: terzo bottone (ambra) "📋 Scarica template CSV" accanto a "Inserimento manuale" e "Importa CSV piano rate"
+- Wizard import (step 1): link "Non hai un CSV? 📋 Scarica il template — compilalo in Excel/Numbers e ricaricalo qui"
+
+### 3.5.4 Visualizzazione Pagato/Residuo + Totale piano (G.1.5, 2026-05-09)
+
+In `ControlloGestioneSpeseFisse.jsx` la barra Pagato/Residuo + bar di progresso ora si mostra ogni volta che `s.n_rate_totali > 0`, indipendente dal `tipo`. Prima era limitata a `PRESTITO`/`RATEIZZAZIONE`: una rateizzazione importata come `TASSA` (es. cartelle Abaco) non vedeva la barra. Aggiunta riga "Totale piano: € X — N rate" che usa `s.importo_originale` (popolato all'import CSV o al wizard prestito).
+
 ---
 
 # 4. Navigazione

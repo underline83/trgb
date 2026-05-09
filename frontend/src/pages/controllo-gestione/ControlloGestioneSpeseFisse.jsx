@@ -290,6 +290,29 @@ export default function ControlloGestioneSpeseFisse() {
     reader.readAsText(file, "utf-8");
   };
 
+  // G.1.5 — Download template CSV preformattato
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await apiFetch(`${CG}/spese-fisse/template-csv`);
+      if (!res.ok) {
+        alert("Errore download template");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "template_piano_rate.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[template-csv]", err);
+      alert("Errore download template");
+    }
+  };
+
   const submitCsvImport = async (force = false) => {
     if (!csvFile || !csvForm.titolo.trim()) return;
     setCsvImporting(true);
@@ -793,6 +816,16 @@ export default function ControlloGestioneSpeseFisse() {
           <div>
             <div className="text-sm font-bold text-emerald-900">Importa CSV piano rate</div>
             <div className="text-[10px] text-emerald-600">Abaco / AdE / PagoPA / F24 rateizzato</div>
+          </div>
+        </button>
+
+        {/* G.1.5 — Scarica template CSV */}
+        <button onClick={handleDownloadTemplate}
+          className="flex items-center gap-3 p-4 rounded-xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 transition text-left">
+          <span className="text-2xl">📋</span>
+          <div>
+            <div className="text-sm font-bold text-amber-900">Scarica template CSV</div>
+            <div className="text-[10px] text-amber-700">Per piani non da Abaco/AdE: compila e reimporta</div>
           </div>
         </button>
       </div>
@@ -1592,6 +1625,15 @@ export default function ControlloGestioneSpeseFisse() {
                 {csvFile && (
                   <div className="text-[11px] text-emerald-800 mt-1">📄 {csvFile.name} ({(csvFile.size/1024).toFixed(1)} KB)</div>
                 )}
+                {/* G.1.5 — Link template CSV per chi non ha un file da banca/AdE */}
+                <div className="text-[11px] text-emerald-800 mt-2 pt-2 border-t border-emerald-200">
+                  Non hai un CSV?{" "}
+                  <button type="button" onClick={handleDownloadTemplate}
+                    className="underline font-semibold text-emerald-900 hover:text-emerald-700">
+                    📋 Scarica il template
+                  </button>
+                  {" "}— compilalo in Excel/Numbers e ricaricalo qui.
+                </div>
               </div>
 
               {/* STEP 2: Preview rate parsate */}
@@ -1894,14 +1936,20 @@ export default function ControlloGestioneSpeseFisse() {
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           <div className="font-semibold text-neutral-800">&euro; {fmt(s.importo)}</div>
-                          {["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (s.n_rate_totali > 0 || s.totale_pagato > 0 || s.totale_residuo > 0) && (
+                          {/* G.1.5 — Mostra Totale piano + Pagato/Residuo per QUALSIASI tipo con piano rate associato */}
+                          {s.n_rate_totali > 0 && (
                             <div className="mt-1 space-y-0.5 text-[10px] leading-tight">
+                              {s.importo_originale > 0 && (
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-neutral-400">Totale piano</span>
+                                  <span className="font-semibold text-neutral-700 tabular-nums">&euro; {fmt(s.importo_originale)}</span>
+                                  <span className="text-[9px] text-neutral-400">({s.n_rate_totali} rate)</span>
+                                </div>
+                              )}
                               <div className="flex items-center justify-end gap-1">
                                 <span className="text-neutral-400">Pagato</span>
                                 <span className="font-semibold text-emerald-700 tabular-nums">&euro; {fmt(s.totale_pagato)}</span>
-                                {s.n_rate_totali > 0 && (
-                                  <span className="text-[9px] text-neutral-400">({s.n_rate_pagate}/{s.n_rate_totali})</span>
-                                )}
+                                <span className="text-[9px] text-neutral-400">({s.n_rate_pagate}/{s.n_rate_totali})</span>
                               </div>
                               <div className="flex items-center justify-end gap-1">
                                 <span className="text-neutral-400">Residuo</span>

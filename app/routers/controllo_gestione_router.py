@@ -14,7 +14,7 @@ import io
 import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Body, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, Query, Body, UploadFile, File, Form, HTTPException, Response
 from app.services.auth_service import get_current_user, is_admin
 from app.services.vendite_aggregator import (
     totali_periodo as vendite_totali_periodo,
@@ -1387,6 +1387,56 @@ def list_spese_fisse(
     }
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# G.1.5 — Template CSV piano rate (scaricabile, da compilare e ricaricare)
+# Registrato PRIMA di /spese-fisse/{spesa_id} per evitare match parametrico
+# (FastAPI valuta le rotte in ordine di definizione; con spesa_id:int una
+# richiesta a /spese-fisse/template-csv altrimenti restituirebbe 422).
+# ──────────────────────────────────────────────────────────────────────────
+@router.get("/spese-fisse/template-csv")
+def download_template_csv(current_user=Depends(get_current_user)):
+    """
+    Restituisce un CSV preformattato col nostro standard, con righe di esempio
+    e commenti header che spiegano formato data/importo.
+
+    Header: Numero,Identificativo,Scadenza,Importo,Stato
+
+    L'utente lo scarica, lo apre in Excel/Numbers, lo compila, lo salva come CSV
+    e lo ricarica via wizard "Importa CSV piano rate".
+    """
+    today = date.today()
+    # Esempio: 3 rate mensili partendo dal mese prossimo
+    sample_dates = []
+    for i in range(1, 4):
+        m = today.month + i
+        y = today.year + (m - 1) // 12
+        m = ((m - 1) % 12) + 1
+        # giorno 30 per sicurezza
+        sample_dates.append(f"30/{m:02d}/{y}")
+
+    lines = [
+        "# Template TRGB - piano rate",
+        "# Compila le righe sotto e poi importa via 'Importa CSV piano rate'",
+        "# Formato data: GG/MM/AAAA  -  Formato importo: 211,77 oppure 211.77",
+        "# Stato: lascia 'Da pagare' per rate non ancora pagate",
+        "# (le righe con # vengono ignorate dall'importatore)",
+        "Numero,Identificativo,Scadenza,Importo,Stato",
+        f"1,RATA001,{sample_dates[0]},\"211,77\",Da pagare",
+        f"2,RATA002,{sample_dates[1]},\"211,77\",Da pagare",
+        f"3,RATA003,{sample_dates[2]},\"211,77\",Da pagare",
+    ]
+    csv_text = "\n".join(lines) + "\n"
+    # BOM UTF-8 così Excel italiano riconosce subito l'encoding
+    body = ("﻿" + csv_text).encode("utf-8")
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="template_piano_rate.csv"',
+        },
+    )
+
+
 @router.get("/spese-fisse/{spesa_id}")
 def get_spesa_fissa(spesa_id: int, current_user=Depends(get_current_user)):
     fc = get_fc_db()
@@ -2046,13 +2096,18 @@ def import_piano_rate_csv(
     if text is None:
         raise HTTPException(status_code=400, detail="Encoding CSV non riconosciuto")
 
+    # G.1.5 — Filtra righe di commento (template CSV TRGB usa # come prefisso)
+    text_filtered = "\n".join(
+        ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
+    )
+
     # Detect delimiter (comma o semicolon)
-    sample = text[:2048]
+    sample = text_filtered[:2048]
     delimiter = ","
     if sample.count(";") > sample.count(","):
         delimiter = ";"
 
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    reader = csv.DictReader(io.StringIO(text_filtered), delimiter=delimiter)
     headers_csv = [h.strip() for h in (reader.fieldnames or [])]
     REQUIRED = ["Numero", "Identificativo", "Scadenza", "Importo", "Stato"]
     missing = [h for h in REQUIRED if h not in headers_csv]
