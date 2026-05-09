@@ -85,6 +85,10 @@ CHECKER_LABELS = {
     "fatture_scadenza":    {"label": "Fatture in scadenza",    "icon": "💰", "desc": "Fatture non pagate scadute o in scadenza"},
     "dipendenti_scadenze": {"label": "Documenti dipendenti",   "icon": "📋", "desc": "Documenti personale in scadenza (permessi, certificati)"},
     "vini_sottoscorta":    {"label": "Vini sotto scorta",      "icon": "🍷", "desc": "Vini con giacenza inferiore alla scorta minima"},
+    # G.2 — Scadenze pagamenti CG (3 livelli, range esclusivi)
+    "cg_scadenze_imminenti":      {"label": "Pagamenti urgenti",        "icon": "🔴", "desc": "Rate scadute non riconciliate + scadenze entro la soglia (default 7gg)"},
+    "cg_scadenze_avvicinamento":  {"label": "Pagamenti in avvicinamento", "icon": "🟡", "desc": "Range esclusivo: oltre soglia 'urgenti', entro soglia avvicinamento (default 15gg)"},
+    "cg_scadenze_pianificazione": {"label": "Pagamenti in pianificazione", "icon": "🔵", "desc": "Vista lunga: oltre soglia 'avvicinamento', entro soglia pianificazione (default 30gg)"},
 }
 
 

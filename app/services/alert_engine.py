@@ -465,3 +465,236 @@ def _check_vini_sottoscorta(dry_run: bool = False, config: dict = None) -> Check
         result.error = str(e)
         logger.exception(f"Checker vini_sottoscorta: {e}")
         return result
+
+
+# ═════════════════════════════════════════════
+# G.2 — CHECKER 4/5/6: Scadenze pagamenti CG (3 livelli)
+# Modulo: controllo_gestione
+#
+# Scadenziario unificato (cg_uscite con stato DA_PAGARE/SCADUTA) suddiviso in
+# 3 livelli per priorità di alert:
+#   - imminenti (default 7 gg, urgenza ALTA)   → include scadute non riconciliate
+#   - avvicinamento (default 15 gg, NORMALE)   → range esclusivo: > soglia_imminente
+#   - pianificazione (default 30 gg, INFO)     → range esclusivo: > soglia_avvicinamento
+#
+# Le 3 soglie sono configurabili indipendentemente da Impostazioni → Notifiche
+# (alert_config.soglia_giorni di ognuno dei 3 checker).
+# Anti-dup per livello: una sola notifica aggregata per livello, con `tipo`
+# distinto, in modo che l'anti-dup non incrocio i livelli.
+# ═════════════════════════════════════════════
+
+def _query_scadenze_pagamenti(min_offset: Optional[int], max_offset: int) -> List[dict]:
+    """
+    Query helper per cg_uscite. Ritorna le rate da pagare/scadute nel range.
+
+    min_offset:
+        - None → include scadute (data_scadenza < oggi)
+        - int  → data_scadenza > oggi + min_offset (esclusivo)
+    max_offset:
+        - data_scadenza ≤ oggi + max_offset
+    Filtri sempre attivi:
+        - stato in (DA_PAGARE, SCADUTA)
+        - data_scadenza NOT NULL
+        - banca_movimento_id IS NULL (non riconciliata)
+    Ordinati per data_scadenza ASC.
+    """
+    from app.models.foodcost_db import get_foodcost_connection
+
+    today = date.today()
+    max_date = (today + timedelta(days=max_offset)).isoformat()
+
+    sql = """
+        SELECT
+            u.id, u.fornitore_nome, u.totale, u.data_scadenza,
+            u.stato, u.tipo_uscita, u.spesa_fissa_id,
+            sf.titolo AS spesa_titolo
+        FROM cg_uscite u
+        LEFT JOIN cg_spese_fisse sf ON sf.id = u.spesa_fissa_id
+        WHERE u.stato IN ('DA_PAGARE', 'SCADUTA')
+          AND u.data_scadenza IS NOT NULL
+          AND u.data_scadenza != ''
+          AND u.banca_movimento_id IS NULL
+          AND u.data_scadenza <= ?
+    """
+    params = [max_date]
+
+    if min_offset is not None:
+        # Range esclusivo: scadenza strettamente > oggi+min_offset
+        min_date = (today + timedelta(days=min_offset)).isoformat()
+        sql += " AND u.data_scadenza > ?"
+        params.append(min_date)
+    # Se min_offset è None, includiamo tutto fino a max (cioè anche scadute)
+
+    sql += " ORDER BY u.data_scadenza ASC, u.totale DESC"
+
+    conn = get_foodcost_connection()
+    try:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _build_scadenze_messaggio(rows: List[dict]) -> str:
+    """Compone il messaggio sintetico (max 5 voci + 'altre')."""
+    if not rows:
+        return ""
+    lines = []
+    for r in rows[:5]:
+        nome = r.get("spesa_titolo") or r.get("fornitore_nome") or "—"
+        importo = float(r.get("totale") or 0)
+        scad = r.get("data_scadenza", "")
+        lines.append(f"{scad} · {nome} · €{importo:,.2f}")
+    if len(rows) > 5:
+        lines.append(f"…e altre {len(rows) - 5}")
+    return "\n".join(lines)
+
+
+def _check_cg_scadenze_livello(
+    *,
+    checker_name: str,
+    livello_label: str,        # "imminenti" / "avvicinamento" / "pianificazione"
+    urgenza: str,              # "alta" / "normale" / "info"
+    icona: str,
+    min_offset: Optional[int], # None = include scadute
+    max_offset: int,
+    config: dict,
+    dry_run: bool,
+) -> CheckResult:
+    """Logica comune ai 3 checker scadenze pagamenti."""
+    result = CheckResult(checker=checker_name)
+    try:
+        rows = _query_scadenze_pagamenti(min_offset, max_offset)
+        result.found = len(rows)
+        if result.found == 0:
+            return result
+
+        result.details = [
+            {
+                "uscita_id": r["id"],
+                "fornitore": r.get("spesa_titolo") or r.get("fornitore_nome"),
+                "totale": float(r.get("totale") or 0),
+                "scadenza": r["data_scadenza"],
+                "stato": r["stato"],
+                "tipo_uscita": r.get("tipo_uscita"),
+            }
+            for r in rows
+        ]
+
+        if dry_run:
+            result.skipped = result.found
+            return result
+
+        tipo_notifica = f"alert_cg_scadenze_{livello_label}"
+        if _notifica_recente_esiste(tipo_notifica, ore=config.get("antidup_ore", 24)):
+            result.skipped = result.found
+            return result
+
+        totale_eur = sum(float(r.get("totale") or 0) for r in rows)
+        n_scadute = sum(1 for r in rows if r.get("stato") == "SCADUTA")
+
+        # Titolo: se siamo in livello imminente con scadute, evidenzialo
+        if livello_label == "imminenti" and n_scadute > 0:
+            titolo = f"Pagamenti urgenti: {n_scadute} scadut{'a' if n_scadute == 1 else 'e'} + {result.found - n_scadute} entro {max_offset}gg"
+        else:
+            label_human = {
+                "imminenti": f"entro {max_offset}gg",
+                "avvicinamento": f"in {max_offset}gg",
+                "pianificazione": f"in {max_offset}gg",
+            }.get(livello_label, f"entro {max_offset}gg")
+            titolo = f"Pagamenti {livello_label}: {result.found} scadenz{'a' if result.found == 1 else 'e'} {label_human} (€{totale_eur:,.2f})"
+
+        messaggio = _build_scadenze_messaggio(rows)
+
+        _send_notification(config,
+            tipo=tipo_notifica,
+            titolo=titolo,
+            messaggio=messaggio,
+            link="/controllo-gestione/uscite",
+            icona=icona,
+            urgenza=urgenza,
+            modulo="controllo_gestione",
+        )
+        result.notified = 1
+        return result
+
+    except Exception as e:
+        result.error = str(e)
+        logger.exception(f"Checker {checker_name}: {e}")
+        return result
+
+
+@register_checker("cg_scadenze_imminenti")
+def _check_cg_scadenze_imminenti(dry_run: bool = False, config: dict = None) -> CheckResult:
+    """
+    Pagamenti urgenti: scadenza ≤ oggi+soglia (default 7gg) + scadute non riconciliate.
+    Urgenza "urgente" (banda rossa nella campana M.A). Destinatari/canali da config.
+    """
+    cfg = config or _get_config("cg_scadenze_imminenti")
+    return _check_cg_scadenze_livello(
+        checker_name="cg_scadenze_imminenti",
+        livello_label="imminenti",
+        urgenza="urgente",
+        icona="🔴",
+        min_offset=None,                      # include scadute
+        max_offset=int(cfg.get("soglia_giorni") or 7),
+        config=cfg,
+        dry_run=dry_run,
+    )
+
+
+@register_checker("cg_scadenze_avvicinamento")
+def _check_cg_scadenze_avvicinamento(dry_run: bool = False, config: dict = None) -> CheckResult:
+    """
+    Pagamenti in avvicinamento: range esclusivo > soglia_imminente, ≤ soglia_avvicinamento (default 15gg).
+    Urgenza NORMALE.
+    """
+    cfg = config or _get_config("cg_scadenze_avvicinamento")
+    cfg_imm = _get_config("cg_scadenze_imminenti")
+    soglia_imm = int(cfg_imm.get("soglia_giorni") or 7)
+    soglia_avv = int(cfg.get("soglia_giorni") or 15)
+    if soglia_avv <= soglia_imm:
+        # config inconsistente: skippiamo questo livello
+        return CheckResult(
+            checker="cg_scadenze_avvicinamento",
+            skipped=1,
+            error=f"soglia_avvicinamento ({soglia_avv}) ≤ soglia_imminente ({soglia_imm})",
+        )
+    return _check_cg_scadenze_livello(
+        checker_name="cg_scadenze_avvicinamento",
+        livello_label="avvicinamento",
+        urgenza="normale",
+        icona="🟡",
+        min_offset=soglia_imm,
+        max_offset=soglia_avv,
+        config=cfg,
+        dry_run=dry_run,
+    )
+
+
+@register_checker("cg_scadenze_pianificazione")
+def _check_cg_scadenze_pianificazione(dry_run: bool = False, config: dict = None) -> CheckResult:
+    """
+    Pagamenti in pianificazione: range esclusivo > soglia_avvicinamento, ≤ soglia_pianificazione (default 30gg).
+    Urgenza INFO (priorità bassa, raggruppamento "vista lunga").
+    """
+    cfg = config or _get_config("cg_scadenze_pianificazione")
+    cfg_avv = _get_config("cg_scadenze_avvicinamento")
+    soglia_avv = int(cfg_avv.get("soglia_giorni") or 15)
+    soglia_pia = int(cfg.get("soglia_giorni") or 30)
+    if soglia_pia <= soglia_avv:
+        return CheckResult(
+            checker="cg_scadenze_pianificazione",
+            skipped=1,
+            error=f"soglia_pianificazione ({soglia_pia}) ≤ soglia_avvicinamento ({soglia_avv})",
+        )
+    return _check_cg_scadenze_livello(
+        checker_name="cg_scadenze_pianificazione",
+        livello_label="pianificazione",
+        urgenza="info",
+        icona="🔵",
+        min_offset=soglia_avv,
+        max_offset=soglia_pia,
+        config=cfg,
+        dry_run=dry_run,
+    )

@@ -254,6 +254,9 @@ function CheckerCard({ cfg, users, saving, onUpdate, onSave, onRun }) {
                 {cfg.checker === "fatture_scadenza" && "Giorni prima della scadenza per segnalare la fattura"}
                 {cfg.checker === "dipendenti_scadenze" && "Fallback se il documento non ha alert_giorni impostato"}
                 {cfg.checker === "vini_sottoscorta" && "Non usato (il confronto è qta vs scorta_minima)"}
+                {cfg.checker === "cg_scadenze_imminenti" && "Pagamenti urgenti: scadenza ≤ N giorni + scadute non riconciliate"}
+                {cfg.checker === "cg_scadenze_avvicinamento" && "Pagamenti in avvicinamento: range esclusivo > soglia 'urgenti', ≤ N giorni"}
+                {cfg.checker === "cg_scadenze_pianificazione" && "Pagamenti in pianificazione: range esclusivo > soglia 'avvicinamento', ≤ N giorni"}
               </p>
             </div>
             <div>

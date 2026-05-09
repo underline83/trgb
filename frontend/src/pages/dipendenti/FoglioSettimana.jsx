@@ -995,13 +995,14 @@ function OrePanel({ ore, reparto, giorni = [], assenzeMap = {}, onCreaAssenza, o
                     const key = `${d.dipendente_id}_${g}`;
                     const ass = assenzeMap[key];
                     const meta = ass ? ASSENZA_BY_TIPO[ass.tipo] : null;
+                    const giornoNum = Number((g || "").split("-")[2]) || "";
                     return (
                       <button
                         key={g}
                         type="button"
                         onClick={(e) => handleDotClick(d.dipendente_id, g, e)}
                         className="flex flex-col items-center w-[30px] rounded hover:bg-neutral-100 transition-colors py-0.5"
-                        title={ass ? `${meta?.emoji || ""} ${meta?.label || ass.tipo} — click per rimuovere` : `${MINI_GIORNI[i]} — click per segnare assenza`}
+                        title={ass ? `${meta?.emoji || ""} ${meta?.label || ass.tipo} ${giornoNum} — click per rimuovere` : `${MINI_GIORNI[i]} ${giornoNum} — click per segnare assenza`}
                       >
                         <span className="text-[8px] text-neutral-400 leading-none">{MINI_GIORNI[i]}</span>
                         {ass ? (
@@ -1010,7 +1011,7 @@ function OrePanel({ ore, reparto, giorni = [], assenzeMap = {}, onCreaAssenza, o
                             style={{ backgroundColor: meta?.bg || "#e5e7eb", color: meta?.text || "#111", borderColor: meta?.text || "#999" }}
                           >{meta?.sigla || "?"}</span>
                         ) : (
-                          <span className="w-5 h-5 rounded-full border border-dashed border-neutral-300 mt-0.5"></span>
+                          <span className="w-5 h-5 rounded-full border border-dashed border-neutral-300 mt-0.5 flex items-center justify-center text-[9px] text-neutral-400 font-mono leading-none">{giornoNum}</span>
                         )}
                       </button>
                     );

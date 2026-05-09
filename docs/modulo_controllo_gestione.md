@@ -147,6 +147,35 @@ UI:
 
 In `ControlloGestioneSpeseFisse.jsx` la barra Pagato/Residuo + bar di progresso ora si mostra ogni volta che `s.n_rate_totali > 0`, indipendente dal `tipo`. Prima era limitata a `PRESTITO`/`RATEIZZAZIONE`: una rateizzazione importata come `TASSA` (es. cartelle Abaco) non vedeva la barra. Aggiunta riga "Totale piano: € X — N rate" che usa `s.importo_originale` (popolato all'import CSV o al wizard prestito).
 
+### 3.6 Alert scadenze pagamenti (G.2.A, 2026-05-09)
+
+Implementati su mattone **M.F Alert engine** (`app/services/alert_engine.py`) e mattone **M.A Notifiche**. Tre checker distinti, soglie indipendenti configurabili da Impostazioni → Notifiche, range esclusivi.
+
+| Checker | Default | Urgenza | Range scadenza (rispetto a oggi) |
+|---|---|---|---|
+| `cg_scadenze_imminenti` | 7 gg | "urgente" (banda rossa) | tutto ciò che è ≤ oggi+7gg, **incluse scadute non riconciliate** |
+| `cg_scadenze_avvicinamento` | 15 gg | "normale" | `> oggi+soglia_imminente` AND `≤ oggi+soglia_avvicinamento` |
+| `cg_scadenze_pianificazione` | 30 gg | "normale" | `> oggi+soglia_avvicinamento` AND `≤ oggi+soglia_pianificazione` |
+
+**Filtro comune:** `cg_uscite.stato IN ('DA_PAGARE','SCADUTA')` AND `banca_movimento_id IS NULL` AND `data_scadenza NOT NULL`.
+
+**Anti-dup:** una sola notifica AGGREGATA per livello (tipo `alert_cg_scadenze_imminenti` / `_avvicinamento` / `_pianificazione`). Anti-dup di N ore (config `antidup_ore`, default 12/24/48). I tipi distinti permettono notifiche separate quando una rata "transita" tra livelli (es. da pianificazione a avvicinamento col passare del tempo).
+
+**Coerenza soglie:** se l'utente imposta avvicinamento ≤ imminente o pianificazione ≤ avvicinamento, il checker affetto ritorna `skipped` con errore esplicito anziché fare query degenerate.
+
+**Configurazione UI:** pagina `/admin/notifiche-impostazioni` (ImpostazioniSistema → tab Notifiche). I 3 checker compaiono automaticamente perché la UI fa GET dinamico su `/alerts/config/`. Per ogni checker: on/off, soglia giorni, antidup ore, destinatari (ruolo + lista username), canali (in-app, WhatsApp, email — quest'ultimo placeholder M.D).
+
+**Trigger esecuzione:** stesso scheduler M.F (cron interno). Test manuale via `POST /alerts/run/cg_scadenze_imminenti/` o "Esegui" dalla UI Impostazioni.
+
+**Path UI per il deep-link:** `link="/controllo-gestione/uscite"` (lo Scadenziario Unificato), così cliccando la notifica si arriva alla lista filtrata per scadenza.
+
+**Cosa non fa (per scelta):**
+- Non manda email (M.D non implementato — segnale stub solo log)
+- Non fa pagamenti automatici
+- Non sostituisce M.A campana — la notifica vive lì come tutte le altre
+
+**Roadmap successiva (G.2.B):** vista calendario scadenze (`<CalendarView>` di M.E) come tab dedicato sotto `/controllo-gestione/calendario` + widget mini-timeline nella dashboard CG.
+
 ---
 
 # 4. Navigazione

@@ -151,11 +151,15 @@ def init_notifiche_db() -> None:
         )
     """)
 
-    # Seed defaults per i 3 checker iniziali
+    # Seed defaults per i checker registrati
+    # G.2 (2026-05-09): aggiunti i 3 livelli scadenze pagamenti CG (imminenti/avvicinamento/pianificazione).
     for checker, soglia, antidup, label in [
         ("fatture_scadenza", 7, 12, "Fatture in scadenza"),
         ("dipendenti_scadenze", 30, 24, "Documenti dipendenti"),
         ("vini_sottoscorta", 0, 24, "Vini sotto scorta"),
+        ("cg_scadenze_imminenti", 7, 12, "Pagamenti urgenti (≤7gg)"),
+        ("cg_scadenze_avvicinamento", 15, 24, "Pagamenti in avvicinamento (≤15gg)"),
+        ("cg_scadenze_pianificazione", 30, 48, "Pagamenti in pianificazione (≤30gg)"),
     ]:
         cur.execute("""
             INSERT OR IGNORE INTO alert_config (checker, soglia_giorni, antidup_ore)
