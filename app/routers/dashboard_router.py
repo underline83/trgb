@@ -855,6 +855,10 @@ def _acquisti_metrics() -> dict:
             """, (yyyy_mm,)).fetchone()
             return float(row["tot"] or 0)
 
+        # vendite_totali_periodo legge da admin_finance.sqlite3 (shift_closures + daily_closures),
+        # NON da foodcost.db. Servire la connection corretta o fallisce silenziosamente.
+        from app.services.vendite_aggregator import get_vendite_db
+
         def _fatturato_del_mese(yyyy: int, mm: int) -> float:
             try:
                 primo = _date(yyyy, mm, 1).isoformat()
@@ -862,8 +866,12 @@ def _acquisti_metrics() -> dict:
                     primo_succ = _date(yyyy + 1, 1, 1).isoformat()
                 else:
                     primo_succ = _date(yyyy, mm + 1, 1).isoformat()
-                tot_vend = vendite_totali_periodo(conn, primo, primo_succ)
-                return float(tot_vend.get("totale_incassi") or 0)
+                vdb = get_vendite_db()
+                try:
+                    tot_vend = vendite_totali_periodo(vdb, primo, primo_succ)
+                    return float(tot_vend.get("totale_incassi") or 0)
+                finally:
+                    vdb.close()
             except Exception as e_vend:
                 logger.warning(f"Dashboard: errore fatturato {yyyy}-{mm}: {e_vend}")
                 return 0.0
