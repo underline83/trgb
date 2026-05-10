@@ -66,7 +66,10 @@ export default function ChiusureTurnoLista() {
   useEffect(() => {
     if (!isAdminRole(role)) return;
     setLoading(true);
-    const url = `${API}/admin/finance/shift-closures?from_date=${fromDate}&to_date=${toDate}`;
+    // NB: trailing slash OBBLIGATORIO — endpoint backend è @router.get("/") su prefix
+    // /admin/finance/shift-closures. Senza slash, FastAPI fa 307 redirect e in alcuni
+    // setup di proxy l'header Authorization viene strippato → 401 silente → array vuoto.
+    const url = `${API}/admin/finance/shift-closures/?from_date=${fromDate}&to_date=${toDate}`;
 
     // Carica chiusure + turni chiusi in parallelo
     Promise.all([
