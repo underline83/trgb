@@ -308,15 +308,33 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
                 result["merged"] = 1
 
         # Aggiorna header con dati dal dettaglio + pagamento
+        # Post G.5: la colonna fe_fatture.pagato è stata rimossa (mig 112).
+        # Il flag pagato letto da FIC viene salvato in fic_pagato_raw (info "raw" da FIC).
+        # Lo stato di pagamento "vero" lo gestiamo via cg_uscite (creata sotto se necessario).
         conn.execute(
             """UPDATE fe_fatture SET
                 numero_fattura = ?,
-                pagato = ?,
+                fic_pagato_raw = ?,
                 data_scadenza = COALESCE(data_scadenza, ?),
                 importo_pagamento = COALESCE(importo_pagamento, ?)
             WHERE id = ?""",
             (invoice_number, pagato, fic_data_scadenza, fic_importo_pagamento, fattura_db_id),
         )
+
+        # Se FIC dice che è pagata e cg_uscite non riflette ancora questo stato,
+        # propaga su cg_uscite.stato='PAGATA_MANUALE' (banca non riconciliata, è
+        # solo dichiarazione FIC: l'utente potrà poi abbinare al movimento banca).
+        if pagato == 1:
+            try:
+                from app.services.fatture_stato_service import set_stato, get_stato
+                stato_cg_attuale = get_stato(conn, fattura_db_id)
+                # Non sovrascrivere 'pagato' (riconciliata banca, ha precedenza)
+                if stato_cg_attuale not in ("pagato", "pagato_manuale"):
+                    set_stato(conn, fattura_db_id, "pagato_manuale", force=True)
+            except Exception as _e:
+                logging.getLogger("fattureincloud").warning(
+                    f"[fic_propaga_pagato] fattura={fattura_db_id}: {_e}"
+                )
 
         # ── RIGHE / ITEMS ────────────────────────────────
         items_list = doc_data.get("items_list") or []
@@ -875,6 +893,7 @@ def fic_fatture_list(
             f"SELECT COUNT(*) FROM fe_fatture f{where_sql}", params
         ).fetchone()[0]
 
+        # Post G.5: usa fe_fatture_with_stato per ricostruire pagato da cg_uscite.stato
         rows = conn.execute(
             f"""
             SELECT f.id, f.fic_id, f.numero_fattura as numero, f.data_fattura as data,
@@ -883,8 +902,9 @@ def fic_fatture_list(
                    f.totale_fattura as importo_totale,
                    f.fornitore_nome, f.fornitore_piva, f.fonte,
                    COALESCE(f.pagato, 0) as pagato,
+                   COALESCE(f.fic_pagato_raw, 0) as fic_pagato_raw,
                    (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) as n_righe
-            FROM fe_fatture f{where_sql}
+            FROM fe_fatture_with_stato f{where_sql}
             ORDER BY f.data_fattura DESC
             LIMIT ? OFFSET ?
             """,

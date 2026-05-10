@@ -661,13 +661,14 @@ def candidates_riconciliazione(
             where_fornitore = "f.fornitore_nome LIKE ?"
             params = [f"%{nome}%"]
 
+        # Post G.5: usa la VIEW per ricostruire pagato da cg_uscite.stato
         rows = conn.execute(f"""
             SELECT
                 f.id, f.fornitore_nome, f.fornitore_piva,
                 f.numero_fattura, f.data_fattura,
                 f.totale_fattura, f.fonte,
                 f.pagato
-            FROM fe_fatture f
+            FROM fe_fatture_with_stato f
             WHERE {where_fornitore}
               AND f.totale_fattura BETWEEN ? AND ?
               AND f.is_autofattura = 0

@@ -3582,8 +3582,9 @@ def segna_pagata_manuale(
                 data_pag, nuovo_stato, metodo
             ))
 
-        # Aggiorna fe_fatture.pagato
-        fc.execute("UPDATE fe_fatture SET pagato = 1 WHERE id = ?", (fattura_id,))
+        # Post G.5: pagato è una VIEW derivata da cg_uscite.stato, sopra abbiamo
+        # già aggiornato cg_uscite quindi la VIEW si allinea automaticamente.
+        # Niente UPDATE diretto su fe_fatture.pagato (la colonna fisica non esiste più).
         fc.commit()
 
         return {"ok": True, "stato": nuovo_stato, "fattura_id": fattura_id}

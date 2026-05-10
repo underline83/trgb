@@ -1,30 +1,35 @@
 #!/usr/bin/env python3
-# @version: v1.0-stati-pagamento (Modulo M, 2026-04-27)
+# @version: v2.0-unificato (G.5 Livello 3, 2026-05-10)
 # -*- coding: utf-8 -*-
 """
-Servizio gestione stati pagamento fattura (Modulo M).
+Servizio gestione stati pagamento fattura — UNIFICATO post G.5.
 
-4 stati validi:
-  - da_pagare         (default)
-  - da_verificare     (utente in dubbio)
-  - pagato_manuale    (utente dichiara, "Pagato*")
-  - pagato            (riconciliazione banca, IMMUTABILE manualmente)
+Da G.5 in poi, c'è UNA SOLA fonte di verità: `cg_uscite.stato`.
+Le ex colonne `fe_fatture.pagato` e `fe_fatture.stato_pagamento` sono state
+rimosse fisicamente (mig 112). La VIEW `fe_fatture_with_stato` le ricostruisce
+al volo per le query di lettura.
+
+Mappatura semantica stato_pagamento (legacy esposto al frontend) ↔ cg_uscite.stato:
+    'da_pagare'        ⟷  'DA_PAGARE'
+    'da_verificare'    ⟷  'DA_VERIFICARE' (nuovo da G.5)
+    'pagato_manuale'   ⟷  'PAGATA_MANUALE'
+    'pagato'           ⟷  'PAGATA' (riconciliato banca, banca_movimento_id valorizzato)
+
+Stati cg_uscite extra (non esposti come stato_pagamento):
+    'SCADUTA'  → mappato a 'da_pagare' nella VIEW (data passata, da pagare comunque)
+    'PARZIALE' → mappato a 'da_verificare' (utente decide se chiudere o lasciare)
+    'RATEIZZATA' → mappato a 'da_pagare' (ma di fatto la spesa fissa gestisce)
 
 Invarianti:
-  - Stato 'pagato' può essere settato SOLO da hook riconciliazione
-    (presenza di banca_fatture_link).
-  - Da 'pagato' si può uscire SOLO cancellando la riconciliazione
-    (DELETE banca_fatture_link), che fa scattare recompute → torna a
-    'pagato_manuale' (preserva intenzione).
-  - Hook riconciliazione: INSERT su banca_fatture_link → setta 'pagato'
-    (sovrascrive qualsiasi stato precedente — la banca ha sempre ragione).
+  - Stato 'pagato' (PAGATA in cg_uscite) può essere settato SOLO da hook
+    riconciliazione bancaria (presenza di banca_fatture_link o
+    cg_uscite.banca_movimento_id valorizzato).
+  - Da 'pagato' si può uscire SOLO cancellando la riconciliazione: l'hook
+    on_riconciliazione_removed riporta a 'pagato_manuale' (preserva intenzione
+    utente di dichiarare pagata).
+  - Hook riconciliazione (INSERT su banca_fatture_link): forza 'pagato'.
 
-Compatibilità legacy:
-  - fe_fatture.pagato (0/1) viene SEMPRE sincronizzato col nuovo stato:
-      pagato=1 ⇔ stato_pagamento IN ('pagato_manuale', 'pagato')
-  - Codice vecchio che legge `pagato` continua a funzionare.
-
-Use case principali:
+Use case principali (interfaccia INVARIATA rispetto v1):
   - UI button "Segna pagato manuale": set_stato(id, 'pagato_manuale')
   - UI button "Da verificare": set_stato(id, 'da_verificare')
   - UI button "Riporta a da pagare": set_stato(id, 'da_pagare')
@@ -38,43 +43,123 @@ from typing import Optional
 
 logger = logging.getLogger("fatture_stato")
 
-# Stati validi
+# Stati validi (legacy: stessi 4 valori esposti al frontend)
 STATI_VALIDI = {"da_pagare", "da_verificare", "pagato_manuale", "pagato"}
 
 # Stati che l'utente può settare manualmente (NON 'pagato' che è da banca)
 STATI_MANUALI = {"da_pagare", "da_verificare", "pagato_manuale"}
 
+# Mappatura stato_pagamento legacy → cg_uscite.stato canonico
+LEGACY_TO_CG = {
+    "da_pagare":      "DA_PAGARE",
+    "da_verificare":  "DA_VERIFICARE",
+    "pagato_manuale": "PAGATA_MANUALE",
+    "pagato":         "PAGATA",
+}
 
-def get_stato(conn, fattura_id: int) -> Optional[str]:
-    """Ritorna lo stato_pagamento corrente o None se fattura non esiste."""
+# Mappatura inversa cg_uscite.stato → stato_pagamento legacy
+CG_TO_LEGACY = {
+    "DA_PAGARE":      "da_pagare",
+    "SCADUTA":        "da_pagare",  # SCADUTA è "da pagare ma in ritardo"
+    "DA_VERIFICARE":  "da_verificare",
+    "PARZIALE":       "da_verificare",
+    "PAGATA_MANUALE": "pagato_manuale",
+    "PAGATA":         "pagato",
+    "RATEIZZATA":     "da_pagare",  # neutro: la spesa fissa gestisce
+}
+
+
+def _get_cg_uscita_id(conn, fattura_id: int) -> Optional[int]:
+    """Ritorna l'id della riga cg_uscite per la fattura, o None se manca."""
     row = conn.execute(
-        "SELECT stato_pagamento FROM fe_fatture WHERE id = ?",
+        "SELECT id FROM cg_uscite WHERE fattura_id = ? LIMIT 1",
         (fattura_id,),
     ).fetchone()
-    return row["stato_pagamento"] if row else None
+    if row is None:
+        return None
+    return row[0] if not hasattr(row, "keys") else row["id"]
+
+
+def _ensure_cg_uscita(conn, fattura_id: int) -> Optional[int]:
+    """
+    Garantisce che esista una cg_uscite per la fattura.
+    Se manca, la crea con campi minimali derivati da fe_fatture.
+    Caso edge: fatture importate ma non ancora processate dal proiettore.
+    """
+    uid = _get_cg_uscita_id(conn, fattura_id)
+    if uid is not None:
+        return uid
+
+    # Stub: leggi i campi base da fe_fatture
+    f = conn.execute("""
+        SELECT fornitore_nome, fornitore_piva, numero_fattura,
+               data_fattura, totale_fattura, data_scadenza
+        FROM fe_fatture WHERE id = ?
+    """, (fattura_id,)).fetchone()
+    if f is None:
+        return None
+
+    # data_scadenza: fallback su data_fattura se manca
+    nome = f["fornitore_nome"] if hasattr(f, "keys") else f[0]
+    piva = f["fornitore_piva"] if hasattr(f, "keys") else f[1]
+    numero = f["numero_fattura"] if hasattr(f, "keys") else f[2]
+    df = f["data_fattura"] if hasattr(f, "keys") else f[3]
+    tot = f["totale_fattura"] if hasattr(f, "keys") else f[4]
+    ds = f["data_scadenza"] if hasattr(f, "keys") else f[5]
+    data_scad = ds or df
+
+    cur = conn.execute("""
+        INSERT INTO cg_uscite (
+            fattura_id, fornitore_nome, fornitore_piva, numero_fattura,
+            data_fattura, totale, data_scadenza,
+            importo_pagato, stato, note,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'DA_PAGARE',
+                  '[stub creato da fatture_stato_service]',
+                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """, (fattura_id, nome, piva, numero, df, tot, data_scad))
+    return cur.lastrowid
+
+
+def get_stato(conn, fattura_id: int) -> Optional[str]:
+    """
+    Ritorna lo stato_pagamento corrente (formato legacy) o None se fattura
+    non esiste. Legge da cg_uscite via mappatura.
+    """
+    row = conn.execute("""
+        SELECT u.stato AS cg_stato
+        FROM fe_fatture f LEFT JOIN cg_uscite u ON u.fattura_id = f.id
+        WHERE f.id = ?
+    """, (fattura_id,)).fetchone()
+    if row is None:
+        return None
+    cg_stato = row["cg_stato"] if hasattr(row, "keys") else row[0]
+    if cg_stato is None:
+        return "da_pagare"  # default per fatture orfane
+    return CG_TO_LEGACY.get(cg_stato, "da_pagare")
 
 
 def is_riconciliata(conn, fattura_id: int) -> bool:
-    """True se la fattura ha almeno un movimento bancario riconciliato."""
-    row = conn.execute(
-        "SELECT 1 FROM banca_fatture_link WHERE fattura_id = ? LIMIT 1",
-        (fattura_id,),
-    ).fetchone()
+    """
+    True se la fattura ha almeno un movimento bancario riconciliato.
+    Verifica entrambe le fonti: banca_fatture_link (legacy) e
+    cg_uscite.banca_movimento_id (workflow CG).
+    """
+    row = conn.execute("""
+        SELECT 1 FROM banca_fatture_link WHERE fattura_id = ? LIMIT 1
+    """, (fattura_id,)).fetchone()
+    if row is not None:
+        return True
+    row = conn.execute("""
+        SELECT 1 FROM cg_uscite
+        WHERE fattura_id = ? AND banca_movimento_id IS NOT NULL LIMIT 1
+    """, (fattura_id,)).fetchone()
     return row is not None
-
-
-def _sync_pagato_legacy(conn, fattura_id: int, nuovo_stato: str) -> None:
-    """Sincronizza il vecchio campo `pagato` 0/1 con il nuovo stato."""
-    pagato = 1 if nuovo_stato in ("pagato_manuale", "pagato") else 0
-    conn.execute(
-        "UPDATE fe_fatture SET pagato = ? WHERE id = ?",
-        (pagato, fattura_id),
-    )
 
 
 def set_stato(conn, fattura_id: int, nuovo_stato: str, *, force: bool = False) -> dict:
     """
-    Cambia lo stato_pagamento di una fattura.
+    Cambia lo stato_pagamento di una fattura (interfaccia legacy invariata).
 
     Validazioni:
       - nuovo_stato deve essere in STATI_VALIDI
@@ -82,11 +167,10 @@ def set_stato(conn, fattura_id: int, nuovo_stato: str, *, force: bool = False) -
       - se stato attuale == 'pagato' E force=False → rifiuta (immutabile finché
         riconciliata; serve cancellare il link prima)
 
-    Sincronizza fe_fatture.pagato per legacy compat.
-
-    Args:
-        force: bypass delle validazioni. Usato dagli hook riconciliazione
-               (interno) e dal job di re-sync.
+    Internamente:
+      - Mappa nuovo_stato → cg_uscite.stato canonico
+      - Crea cg_uscite stub se manca
+      - UPDATE cg_uscite.stato → la VIEW fe_fatture_with_stato si aggiorna automaticamente
 
     Returns:
         {ok: bool, fattura_id, vecchio_stato, nuovo_stato, error?}
@@ -99,30 +183,31 @@ def set_stato(conn, fattura_id: int, nuovo_stato: str, *, force: bool = False) -
         return {"ok": False, "error": f"Fattura {fattura_id} non trovata"}
 
     if not force:
-        # Setta 'pagato' solo via riconciliazione automatica
         if nuovo_stato == "pagato":
             return {
                 "ok": False,
                 "error": "Lo stato 'pagato' può essere settato solo da una riconciliazione bancaria. Usa 'pagato_manuale' per dichiarazione utente.",
             }
-        # Esci da 'pagato' solo cancellando il link banca
         if vecchio == "pagato":
             return {
                 "ok": False,
                 "error": "La fattura è 'pagata' tramite riconciliazione bancaria: stato immutabile. Per cambiare, cancella prima la riconciliazione del movimento.",
             }
 
-    # No-op se invariato
     if vecchio == nuovo_stato:
         return {"ok": True, "fattura_id": fattura_id, "vecchio_stato": vecchio, "nuovo_stato": nuovo_stato, "noop": True}
 
-    conn.execute(
-        "UPDATE fe_fatture SET stato_pagamento = ? WHERE id = ?",
-        (nuovo_stato, fattura_id),
-    )
-    _sync_pagato_legacy(conn, fattura_id, nuovo_stato)
+    # Garantisce esistenza cg_uscite
+    uid = _ensure_cg_uscita(conn, fattura_id)
+    if uid is None:
+        return {"ok": False, "error": f"Impossibile creare cg_uscite per fattura {fattura_id}"}
 
-    logger.info(f"[stato_pagamento] fattura={fattura_id} {vecchio} → {nuovo_stato} (force={force})")
+    cg_stato_target = LEGACY_TO_CG[nuovo_stato]
+    conn.execute(
+        "UPDATE cg_uscite SET stato = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (cg_stato_target, uid),
+    )
+    logger.info(f"[stato_pagamento] fattura={fattura_id} {vecchio} → {nuovo_stato} (cg.id={uid}, force={force})")
     return {"ok": True, "fattura_id": fattura_id, "vecchio_stato": vecchio, "nuovo_stato": nuovo_stato}
 
 
@@ -130,24 +215,23 @@ def set_stato(conn, fattura_id: int, nuovo_stato: str, *, force: bool = False) -
 # Hook chiamati dalla logica riconciliazione bancaria
 # ─────────────────────────────────────────────
 
-def on_riconciliazione_added(conn, fattura_id: int) -> None:
+def on_riconciliazione_added(conn, fattura_id: int) -> dict:
     """
     Chiamato dopo INSERT in banca_fatture_link.
-    Forza stato a 'pagato' (la banca ha ragione, sovrascrive ogni stato precedente).
+    Forza stato a 'pagato' (la banca ha ragione).
     """
     res = set_stato(conn, fattura_id, "pagato", force=True)
     logger.info(f"[hook+] fattura {fattura_id} riconciliata → 'pagato'")
     return res
 
 
-def on_riconciliazione_removed(conn, fattura_id: int) -> None:
+def on_riconciliazione_removed(conn, fattura_id: int) -> dict:
     """
     Chiamato dopo DELETE da banca_fatture_link.
-    Verifica se restano altri link: se sì, resta 'pagato'. Se no, torna a
-    'pagato_manuale' (preserva intenzione utente di dichiarare pagata).
+    Se restano altri link/match banca → resta 'pagato'.
+    Altrimenti torna a 'pagato_manuale' (preserva intenzione utente).
     """
     if is_riconciliata(conn, fattura_id):
-        # Ci sono ancora altri movimenti riconciliati, resta 'pagato'
         return {"ok": True, "noop": True, "reason": "altri link presenti"}
     res = set_stato(conn, fattura_id, "pagato_manuale", force=True)
     logger.info(f"[hook-] fattura {fattura_id} de-riconciliata → 'pagato_manuale'")
@@ -156,61 +240,33 @@ def on_riconciliazione_removed(conn, fattura_id: int) -> None:
 
 def recompute_all_states(conn) -> dict:
     """
-    Ricalcola lo stato_pagamento di TUTTE le fatture in base ai dati esistenti.
+    Ricalcola lo stato di TUTTE le fatture in base alle riconciliazioni esistenti.
     Job manutentivo: utile dopo import massivi o per sanare incoerenze.
 
-    Logica (uguale al backfill della mig 103):
-      1. Esiste banca_fatture_link → 'pagato'
-      2. else if pagato=1 → 'pagato_manuale'
-      3. else → 'da_pagare'
+    Logica (post G.5):
+      1. Esiste banca_fatture_link O cg_uscite.banca_movimento_id → cg_uscite.stato='PAGATA'
+      2. Stato corrente PAGATA ma niente più link → torna a PAGATA_MANUALE
+      3. Niente link e niente cg_uscite → crea stub DA_PAGARE
 
-    NON tocca 'da_verificare' (è uno stato esplicito utente che non si può
-    derivare).
+    NON tocca DA_VERIFICARE / PARZIALE (sono stati espliciti utente).
     """
-    # Step 1: pagati da banca
-    cur = conn.execute(
-        """
-        UPDATE fe_fatture
-           SET stato_pagamento = 'pagato'
-         WHERE id IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
-           AND stato_pagamento != 'pagato'
-        """
-    )
+    # Step 1: forza PAGATA per fatture con riconciliazione attiva
+    cur = conn.execute("""
+        UPDATE cg_uscite SET stato = 'PAGATA', updated_at = CURRENT_TIMESTAMP
+        WHERE fattura_id IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
+          AND stato != 'PAGATA'
+    """)
     n_pagato = cur.rowcount
 
-    # Step 2: pagato_manuale (pagato=1 ma no banca, e stato attuale non pagato/da_verificare)
-    cur = conn.execute(
-        """
-        UPDATE fe_fatture
-           SET stato_pagamento = 'pagato_manuale'
-         WHERE pagato = 1
-           AND id NOT IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
-           AND stato_pagamento NOT IN ('pagato', 'pagato_manuale', 'da_verificare')
-        """
-    )
+    # Step 2: PAGATA → PAGATA_MANUALE se non ha più link banca
+    cur = conn.execute("""
+        UPDATE cg_uscite SET stato = 'PAGATA_MANUALE', updated_at = CURRENT_TIMESTAMP
+        WHERE stato = 'PAGATA'
+          AND fattura_id IS NOT NULL
+          AND fattura_id NOT IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
+          AND COALESCE(banca_movimento_id, 0) = 0
+    """)
     n_man = cur.rowcount
 
-    # Step 3: da_pagare (pagato=0 e nessun link e stato attuale 'pagato' fasullo)
-    cur = conn.execute(
-        """
-        UPDATE fe_fatture
-           SET stato_pagamento = 'da_pagare'
-         WHERE pagato = 0
-           AND id NOT IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
-           AND stato_pagamento = 'pagato'
-        """
-    )
-    n_dpa = cur.rowcount
-
-    # Sync legacy field
-    conn.execute(
-        """
-        UPDATE fe_fatture
-           SET pagato = CASE
-               WHEN stato_pagamento IN ('pagato', 'pagato_manuale') THEN 1
-               ELSE 0
-           END
-        """
-    )
     conn.commit()
-    return {"pagato": n_pagato, "pagato_manuale": n_man, "da_pagare_recovery": n_dpa}
+    return {"pagato": n_pagato, "pagato_manuale_recovery": n_man}

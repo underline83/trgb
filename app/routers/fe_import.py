@@ -946,6 +946,8 @@ def list_fatture(
           ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc_excl.fornitore_piva)
           OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc_excl.fornitore_nome AND fc_excl.fornitore_piva IS NULL)
     """
+    # Post G.5: leggiamo da fe_fatture_with_stato (VIEW) che ricostruisce
+    # pagato + stato_pagamento via JOIN cg_uscite. Source of truth è cg_uscite.stato.
     cur.execute(f"""
         SELECT
             f.id, f.fornitore_nome, f.fornitore_piva,
@@ -959,7 +961,7 @@ def list_fatture(
             (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
             COALESCE(f.is_autofattura, 0) AS is_autofattura,
             COALESCE(fc_excl.escluso_acquisti, 0) AS escluso_acquisti
-        FROM fe_fatture f {cat_join} {excl_join}
+        FROM fe_fatture_with_stato f {cat_join} {excl_join}
         WHERE {where_sql}
         ORDER BY COALESCE(f.data_fattura, '') DESC, f.id DESC
         LIMIT ? OFFSET ?
@@ -985,8 +987,12 @@ def segna_fatture_pagate(
         data_pagamento?: "2026-03-15",
         note?: "..."
     }
-    Aggiorna fe_fatture.pagato = 1 e cg_uscite.stato = 'PAGATA_MANUALE'.
+    Post G.5: scrive solo su cg_uscite.stato='PAGATA_MANUALE'.
+    fe_fatture.pagato e .stato_pagamento sono stati rimossi (mig 112);
+    la VIEW fe_fatture_with_stato li ricostruisce per le query di lettura.
     """
+    from app.services.fatture_stato_service import set_stato, _ensure_cg_uscita
+
     conn = _get_conn()
     _ensure_tables(conn)
 
@@ -1003,38 +1009,51 @@ def segna_fatture_pagate(
     note = payload.get("note", "")
     oggi = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    aggiornate_fe = 0
-    aggiornate_cg = 0
+    aggiornate = 0
+    skip_pagata = 0  # già PAGATA via banca
 
     for fid in ids:
-        # Aggiorna fe_fatture
-        conn.execute("UPDATE fe_fatture SET pagato = 1 WHERE id = ?", (fid,))
-        aggiornate_fe += conn.total_changes
+        # Garantisce cg_uscite (per fatture orfane non ancora proiettate)
+        uid = _ensure_cg_uscita(conn, fid)
+        if uid is None:
+            continue
 
-        # Aggiorna cg_uscite se esiste
         existing = conn.execute(
-            "SELECT id, stato FROM cg_uscite WHERE fattura_id = ?", (fid,)
+            "SELECT id, stato FROM cg_uscite WHERE id = ?", (uid,)
         ).fetchone()
-        if existing and existing["stato"] not in ("PAGATA",):
-            # PAGATA = riconciliata con banca (non toccare)
-            # PAGATA_MANUALE = segnata dall'utente senza riconciliazione
-            # Bug D5 (2026-04-27): reset in_pagamento_at + pagamento_batch_id
-            # quando si segna pagata manualmente (il pagamento è completato)
-            conn.execute("""
-                UPDATE cg_uscite
-                SET stato = 'PAGATA_MANUALE', data_pagamento = ?,
-                    importo_pagato = totale, metodo_pagamento = ?,
-                    in_pagamento_at = NULL,
-                    pagamento_batch_id = NULL,
-                    note = CASE WHEN ? != '' THEN ? ELSE note END, updated_at = ?
-                WHERE fattura_id = ?
-            """, (data_pag, metodo, note, note, oggi, fid))
-            aggiornate_cg += 1
+        if existing and existing["stato"] == "PAGATA":
+            # PAGATA = riconciliata banca, non sovrascrivere
+            skip_pagata += 1
+            continue
+
+        # Set stato + dettagli pagamento manuale
+        # (set_stato cambia solo il flag stato; metodo/data/importo li aggiorniamo qui)
+        result = set_stato(conn, fid, "pagato_manuale")
+        if not result.get("ok"):
+            continue
+        conn.execute("""
+            UPDATE cg_uscite
+            SET data_pagamento = ?,
+                importo_pagato = totale,
+                metodo_pagamento = ?,
+                in_pagamento_at = NULL,
+                pagamento_batch_id = NULL,
+                note = CASE WHEN ? != '' THEN COALESCE(note, '') || ' ' || ? ELSE note END,
+                updated_at = ?
+            WHERE id = ?
+        """, (data_pag, metodo, note, note, oggi, uid))
+        aggiornate += 1
 
     conn.commit()
     conn.close()
 
-    return {"ok": True, "aggiornate_fe": aggiornate_fe, "aggiornate_cg": aggiornate_cg, "fatture": len(ids), "metodo": metodo}
+    return {
+        "ok": True,
+        "aggiornate": aggiornate,
+        "skip_pagata_banca": skip_pagata,
+        "fatture": len(ids),
+        "metodo": metodo,
+    }
 
 
 @router.put(
@@ -1071,51 +1090,34 @@ def update_stato_pagamento(
 
     conn = _get_conn()
     try:
+        # Post G.5: set_stato scrive direttamente su cg_uscite
+        # (nessuna sync extra necessaria: la VIEW si aggiorna sola)
         result = set_stato(conn, fattura_id, nuovo_stato)
         if not result.get("ok"):
-            return result  # mantiene shape {ok: false, error: "..."}
+            return result  # shape {ok: false, error: "..."}
 
-        # Sincronizza cg_uscite.stato per coerenza cross-tabella
-        oggi = datetime.datetime.now().strftime("%Y-%m-%d")
-        existing = conn.execute(
-            "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?",
-            (fattura_id,),
-        ).fetchone()
-        if existing:
-            cg_stato = None
-            if nuovo_stato == "pagato_manuale":
-                cg_stato = "PAGATA_MANUALE"
-            elif nuovo_stato == "da_pagare":
-                scad = existing["data_scadenza"]
-                cg_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
-            elif nuovo_stato == "da_verificare":
-                # Mappa "da_verificare" lato cg → DA_PAGARE (non c'è uno specifico)
-                scad = existing["data_scadenza"]
-                cg_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
-
-            if cg_stato:
-                if nuovo_stato == "pagato_manuale":
-                    conn.execute(
-                        """UPDATE cg_uscite
-                              SET stato = ?,
-                                  data_pagamento = COALESCE(data_pagamento, ?),
-                                  importo_pagato = totale,
-                                  metodo_pagamento = COALESCE(metodo_pagamento, 'CONTO_CORRENTE'),
-                                  updated_at = ?
-                            WHERE fattura_id = ?""",
-                        (cg_stato, oggi, oggi, fattura_id),
-                    )
-                else:
-                    conn.execute(
-                        """UPDATE cg_uscite
-                              SET stato = ?,
-                                  data_pagamento = NULL,
-                                  importo_pagato = 0,
-                                  metodo_pagamento = NULL,
-                                  updated_at = ?
-                            WHERE fattura_id = ?""",
-                        (cg_stato, oggi, fattura_id),
-                    )
+        # Per pagato_manuale settiamo anche data_pagamento e metodo
+        # (campi extra che set_stato non gestisce)
+        if nuovo_stato == "pagato_manuale":
+            oggi = datetime.datetime.now().strftime("%Y-%m-%d")
+            conn.execute("""
+                UPDATE cg_uscite
+                SET data_pagamento = COALESCE(data_pagamento, ?),
+                    importo_pagato = totale,
+                    metodo_pagamento = COALESCE(metodo_pagamento, 'CONTO_CORRENTE'),
+                    updated_at = ?
+                WHERE fattura_id = ?
+            """, (oggi, oggi, fattura_id))
+        elif nuovo_stato in ("da_pagare", "da_verificare"):
+            # Reset campi pagamento (utente ha annullato)
+            conn.execute("""
+                UPDATE cg_uscite
+                SET data_pagamento = NULL,
+                    importo_pagato = 0,
+                    metodo_pagamento = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE fattura_id = ?
+            """, (fattura_id,))
 
         conn.commit()
         logger.info(f"[stato-pagamento] OK fattura={fattura_id} {result.get('vecchio_stato')} → {nuovo_stato}")
@@ -1151,6 +1153,8 @@ def segna_fatture_non_pagate(
     logger.info(f"[segna-non-pagate] START user={user_label} ids={ids}")
 
     try:
+        from app.services.fatture_stato_service import set_stato
+
         conn = _get_conn()
         _ensure_tables(conn)
 
@@ -1160,36 +1164,47 @@ def segna_fatture_non_pagate(
 
         oggi = datetime.datetime.now().strftime("%Y-%m-%d")
 
-        n_aggiornate_fe = 0
-        n_aggiornate_cg = 0
+        n_aggiornate = 0
+        skip_pagata_banca = 0
         for fid in ids:
-            cur = conn.execute("UPDATE fe_fatture SET pagato = 0 WHERE id = ?", (fid,))
-            if cur.rowcount > 0:
-                n_aggiornate_fe += 1
-
+            # Verifica se è PAGATA via banca (no toccare)
             existing = conn.execute(
                 "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?", (fid,)
             ).fetchone()
-            if existing and existing["stato"] in ("PAGATA_MANUALE",):
-                # Ricalcola stato: se scadenza passata → SCADUTA, altrimenti DA_PAGARE
-                scad = existing["data_scadenza"]
-                nuovo_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
-                conn.execute("""
-                    UPDATE cg_uscite
-                    SET stato = ?, data_pagamento = NULL, importo_pagato = 0,
-                        metodo_pagamento = NULL, updated_at = ?
-                    WHERE fattura_id = ?
-                """, (nuovo_stato, oggi, fid))
-                n_aggiornate_cg += 1
+            if existing and existing["stato"] == "PAGATA":
+                skip_pagata_banca += 1
+                continue
+
+            # Riporta a DA_PAGARE (set_stato lo mappa correttamente)
+            # Se la scadenza è passata, post-update aggiorniamo a SCADUTA
+            result = set_stato(conn, fid, "da_pagare")
+            if not result.get("ok"):
+                continue
+
+            # Reset campi pagamento + check scadenza per derivare SCADUTA
+            cg_id = existing["id"] if existing else None
+            scad = existing["data_scadenza"] if existing else None
+            cg_stato_finale = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
+            conn.execute("""
+                UPDATE cg_uscite
+                SET stato = ?, data_pagamento = NULL, importo_pagato = 0,
+                    metodo_pagamento = NULL, updated_at = ?
+                WHERE fattura_id = ?
+            """, (cg_stato_finale, oggi, fid))
+            n_aggiornate += 1
 
         conn.commit()
         conn.close()
 
-        logger.info(f"[segna-non-pagate] OK fe={n_aggiornate_fe} cg={n_aggiornate_cg}")
-        return {"ok": True, "fatture": len(ids), "fe_updated": n_aggiornate_fe, "cg_updated": n_aggiornate_cg}
+        logger.info(f"[segna-non-pagate] OK aggiornate={n_aggiornate} skip_banca={skip_pagata_banca}")
+        return {
+            "ok": True,
+            "fatture": len(ids),
+            "aggiornate": n_aggiornate,
+            "skip_pagata_banca": skip_pagata_banca,
+        }
     except Exception as e:
         logger.error(f"[segna-non-pagate] FAIL ids={ids}: {type(e).__name__}: {e}", exc_info=True)
-        # Risposta JSON esplicita invece di eccezione propagata (evita "errore di rete" client-side)
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Errore segna-non-pagate: {type(e).__name__}: {e}")
 
@@ -1214,6 +1229,7 @@ def get_fattura_detail(fattura_id: int):
             COALESCE(f.fonte, 'xml') AS fonte,
             COALESCE(f.pagato, 0) AS pagato,
             COALESCE(f.stato_pagamento, 'da_pagare') AS stato_pagamento,
+            f.cg_uscite_stato,
             -- v2.0 campi pianificazione finanziaria (mig 056)
             f.data_scadenza               AS data_scadenza_xml,
             f.modalita_pagamento          AS modalita_pagamento_xml,
@@ -1228,7 +1244,7 @@ def get_fattura_detail(fattura_id: int):
             s.modalita_pagamento_default  AS mp_fornitore,
             sf.titolo                     AS rateizzata_sf_titolo,
             sf.iban                       AS rateizzata_sf_iban
-        FROM fe_fatture f
+        FROM fe_fatture_with_stato f
         LEFT JOIN suppliers       s  ON f.fornitore_piva = s.partita_iva
         LEFT JOIN cg_spese_fisse  sf ON f.rateizzata_in_spesa_fissa_id = sf.id
         WHERE f.id = ?

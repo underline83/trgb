@@ -808,7 +808,7 @@ def _acquisti_metrics() -> dict:
             SELECT
                 COALESCE(u.data_scadenza, f.data_scadenza) AS scad,
                 f.totale_fattura
-            FROM fe_fatture f
+            FROM fe_fatture_with_stato f
             LEFT JOIN cg_uscite u ON u.fattura_id = f.id
             LEFT JOIN fe_fornitore_categoria c
                 ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva,'') != '')
@@ -934,7 +934,7 @@ def _fatture_pending() -> FatturePending:
         row = conn.execute("""
             SELECT COUNT(*) AS cnt,
                    COALESCE(SUM(f.totale_fattura), 0) AS importo
-            FROM fe_fatture f
+            FROM fe_fatture_with_stato f
             LEFT JOIN cg_uscite u ON u.fattura_id = f.id
             LEFT JOIN fe_fornitore_categoria c
                 ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva, '') != '')

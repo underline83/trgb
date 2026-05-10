@@ -219,9 +219,10 @@ def _check_fatture_scadenza(dry_run: bool = False, config: dict = None) -> Check
     try:
         conn = get_foodcost_connection()
 
+        # Post G.5: legge da fe_fatture_with_stato (pagato derivato da cg_uscite.stato)
         scadute = conn.execute("""
             SELECT id, fornitore_nome, totale_fattura, data_scadenza
-            FROM fe_fatture
+            FROM fe_fatture_with_stato
             WHERE COALESCE(pagato, 0) = 0
               AND data_scadenza IS NOT NULL AND data_scadenza != ''
               AND data_scadenza < ?
@@ -229,7 +230,7 @@ def _check_fatture_scadenza(dry_run: bool = False, config: dict = None) -> Check
 
         in_scadenza = conn.execute("""
             SELECT id, fornitore_nome, totale_fattura, data_scadenza
-            FROM fe_fatture
+            FROM fe_fatture_with_stato
             WHERE COALESCE(pagato, 0) = 0
               AND data_scadenza IS NOT NULL AND data_scadenza != ''
               AND data_scadenza >= ? AND data_scadenza <= ?
