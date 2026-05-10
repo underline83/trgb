@@ -510,7 +510,7 @@ export default function FattureProformeElenco() {
                         <span className={scaduta ? "text-brand-red font-medium" : ""}>
                           {fmtData(p.data_scadenza)}
                         </span>
-                        {scaduta && <span className="ml-1 text-[9px] text-brand-red font-semibold">SCADUTA</span>}
+                        {scaduta && <span className="ml-1 text-[9px] text-brand-red font-semibold">SCADUTO</span>}
                       </td>
                       <td className="px-4 py-3 text-neutral-600">
                         {p.numero_proforma || "-"}

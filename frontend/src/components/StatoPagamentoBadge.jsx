@@ -12,11 +12,11 @@
 //     - pagato         → verde solido con 🔒 (immutabile, da banca)
 //
 //   CG / RATE (Modulo M.3, cg_uscite.stato, uppercase):
-//     - DA_PAGARE       → mappato a "da_pagare"
-//     - SCADUTA         → mappato a "da_pagare" + flag scadutaModifier
-//     - DA_VERIFICARE   → mappato a "da_verificare"
-//     - PAGATA_MANUALE  → mappato a "pagato_manuale"
-//     - PAGATA          → mappato a "pagato"
+//     - PROGRAMMATO       → mappato a "da_pagare"
+//     - SCADUTO         → mappato a "da_pagare" + flag scadutaModifier
+//     - VERIFICARE   → mappato a "da_verificare"
+//     - PAGATO_MANUALE  → mappato a "pagato_manuale"
+//     - PAGATO          → mappato a "pagato"
 //     - PARZIALE        → 5° stato dedicato (caso edge rate, non in fatture)
 //
 // Uso:
@@ -60,11 +60,11 @@ export const STATI_PAGAMENTO = {
 
 // Mappa namespace CG (cg_uscite.stato uppercase) → namespace fatture (lowercase)
 const CG_TO_STANDARD = {
-  DA_PAGARE: "da_pagare",
-  SCADUTA: "da_pagare",       // SCADUTA = da_pagare con scadenza < oggi
-  DA_VERIFICARE: "da_verificare",
-  PAGATA_MANUALE: "pagato_manuale",
-  PAGATA: "pagato",
+  PROGRAMMATO: "da_pagare",
+  SCADUTO: "da_pagare",       // SCADUTO = da_pagare con scadenza < oggi
+  VERIFICARE: "da_verificare",
+  PAGATO_MANUALE: "pagato_manuale",
+  PAGATO: "pagato",
   PARZIALE: "parziale",
 };
 

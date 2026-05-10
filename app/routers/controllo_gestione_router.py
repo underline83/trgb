@@ -433,9 +433,9 @@ def import_uscite(
     3. NULL → la fattura finisce in "senza scadenza" (avviso)
 
     Logica stato:
-    - Se data_scadenza < oggi → SCADUTA (arretrato)
-    - Se data_scadenza >= oggi → DA_PAGARE (uscita corrente)
-    - Se data_scadenza è NULL → DA_PAGARE (senza scadenza, richiede attenzione)
+    - Se data_scadenza < oggi → SCADUTO (arretrato)
+    - Se data_scadenza >= oggi → PROGRAMMATO (uscita corrente)
+    - Se data_scadenza è NULL → PROGRAMMATO (senza scadenza, richiede attenzione)
 
     Fatture già importate: aggiorna stato se cambiato.
     Autofatture (is_autofattura=1) e note credito (TD04) escluse.
@@ -509,17 +509,17 @@ def import_uscite(
         if not data_scad:
             senza_scadenza += 1
 
-        # ── Cross-ref: se c'è un link bancario, la fattura è PAGATA ──
+        # ── Cross-ref: se c'è un link bancario, la fattura è PAGATO ──
         linked_mov = fat.get("linked_movimento_id")
         linked_data = fat.get("linked_data_mov")
 
         # ── Calcola stato ──
         if linked_mov:
-            stato = "PAGATA"
+            stato = "PAGATO"
         elif data_scad and data_scad < oggi_str:
-            stato = "SCADUTA"
+            stato = "SCADUTO"
         else:
-            stato = "DA_PAGARE"
+            stato = "PROGRAMMATO"
 
         # ── Controlla se già importata ──
         existing = fc.execute(
@@ -529,15 +529,15 @@ def import_uscite(
 
         if existing:
             ex = dict(existing)
-            # Se già PAGATA, PAGATA_MANUALE o PARZIALE, non toccare
+            # Se già PAGATO, PAGATO_MANUALE o PARZIALE, non toccare
             # ECCEZIONE: se c'è un cross-ref nuovo non ancora propagato, aggiorna
-            if ex["stato"] in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
+            if ex["stato"] in ("PAGATO", "PAGATO_MANUALE", "PARZIALE"):
                 if linked_mov and not ex.get("banca_movimento_id"):
                     # Cross-ref esiste ma non era propagato — aggiorna
-                    # Bug D5: reset in_pagamento_at quando si conferma PAGATA
+                    # Bug D5: reset in_pagamento_at quando si conferma PAGATO
                     fc.execute("""
                         UPDATE cg_uscite
-                        SET banca_movimento_id = ?, stato = 'PAGATA',
+                        SET banca_movimento_id = ?, stato = 'PAGATO',
                             importo_pagato = totale,
                             data_pagamento = COALESCE(data_pagamento, ?),
                             in_pagamento_at = NULL,
@@ -549,12 +549,12 @@ def import_uscite(
                 else:
                     saltate += 1
                 continue
-            # Se DA_PAGARE/SCADUTA ma ha cross-ref → marca PAGATA
+            # Se PROGRAMMATO/SCADUTO ma ha cross-ref → marca PAGATO
             if linked_mov:
-                # Bug D5: reset in_pagamento_at quando si conferma PAGATA da cross-ref
+                # Bug D5: reset in_pagamento_at quando si conferma PAGATO da cross-ref
                 fc.execute("""
                     UPDATE cg_uscite
-                    SET stato = 'PAGATA', banca_movimento_id = ?,
+                    SET stato = 'PAGATO', banca_movimento_id = ?,
                         importo_pagato = totale,
                         data_pagamento = COALESCE(data_pagamento, ?),
                         data_scadenza = ?, totale = ?,
@@ -594,7 +594,7 @@ def import_uscite(
             else:
                 saltate += 1
         else:
-            # Nuova uscita — se ha cross-ref, inserisci già come PAGATA
+            # Nuova uscita — se ha cross-ref, inserisci già come PAGATO
             fc.execute("""
                 INSERT INTO cg_uscite (
                     fattura_id, fornitore_nome, fornitore_piva,
@@ -621,13 +621,13 @@ def import_uscite(
         FROM cg_uscite cu
         JOIN fe_fatture f ON cu.fattura_id = f.id
         WHERE (cu.tipo_uscita IS NULL OR cu.tipo_uscita = 'FATTURA')
-          AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+          AND cu.stato IN ('PROGRAMMATO', 'SCADUTO')
           AND (f.totale_fattura <= 0 OR f.totale_fattura IS NULL)
           AND cu.totale > 0
     """).fetchall()
     for az in fatture_azzerate:
         fc.execute("""
-            UPDATE cg_uscite SET totale = 0, stato = 'PAGATA', note = 'Fattura azzerata/stornata', updated_at = ?
+            UPDATE cg_uscite SET totale = 0, stato = 'PAGATO', note = 'Fattura azzerata/stornata', updated_at = ?
             WHERE id = ?
         """, (oggi_str, az["id"]))
         aggiornate += 1
@@ -668,7 +668,7 @@ def import_uscite(
                 (sf["id"], periodo)
             ).fetchone()
             if not existing:
-                stato_sf = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
+                stato_sf = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
                 fc.execute("""
                     INSERT INTO cg_uscite (
                         spesa_fissa_id, tipo_uscita, fornitore_nome,
@@ -686,7 +686,7 @@ def import_uscite(
                 fc.execute("""
                     UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, updated_at = ?
                     WHERE spesa_fissa_id = ? AND periodo_riferimento = ?
-                      AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                      AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
                 """, (sf["titolo"], sf["importo"], oggi_str, sf["id"], periodo))
                 sf_saltate += 1
             continue
@@ -735,7 +735,7 @@ def import_uscite(
                     (sf["id"], periodo)
                 ).fetchone()
                 if not existing:
-                    stato_sf = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
+                    stato_sf = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
                     fc.execute("""
                         INSERT INTO cg_uscite (
                             spesa_fissa_id, tipo_uscita, fornitore_nome,
@@ -750,8 +750,8 @@ def import_uscite(
                     sf_importate += 1
                 else:
                     ex = dict(existing)
-                    if ex["stato"] not in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
-                        new_stato = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
+                    if ex["stato"] not in ("PAGATO", "PAGATO_MANUALE", "PARZIALE"):
+                        new_stato = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
                         # Sync titolo, importo, data_scadenza e stato
                         # (mig 108: data_scad può essere quella specifica della rata)
                         fc.execute("""
@@ -813,13 +813,13 @@ def get_uscite(
     cg_uscite resta indice di workflow; per le righe FATTURA la "verità" dei
     campi di pianificazione finanziaria (data scadenza effettiva, IBAN,
     modalità pagamento) viene letta da fe_fatture via JOIN.
-    Filtri: stato (DA_PAGARE, SCADUTA, PAGATA, PARZIALE), fornitore, range scadenza.
+    Filtri: stato (PROGRAMMATO, SCADUTO, PAGATO, PARZIALE), fornitore, range scadenza.
     """
     fc = get_fc_db()
     oggi_str = date.today().isoformat()
 
     # Filtro fisso: nascondi rateizzate di default (riattivabili con includi_rateizzate)
-    where = ["(:includi_rateizzate = 1 OR (f.rateizzata_in_spesa_fissa_id IS NULL AND u.stato <> 'RATEIZZATA'))"]
+    where = ["(:includi_rateizzate = 1 OR (f.rateizzata_in_spesa_fissa_id IS NULL AND u.stato <> 'RATEIZZATO'))"]
     # Filtro fisso: nascondi righe di fornitori con escluso_acquisti=1 (riattivabili con includi_escluse).
     # Le cg_uscite di tipo SPESA_FISSA non hanno fattura_id né fornitore escluso, quindi passano sempre.
     where.append("(:includi_escluse = 1 OR u.fattura_id IS NULL OR COALESCE(fc_cat.escluso_acquisti, 0) = 0)")
@@ -933,17 +933,17 @@ def get_uscite(
             -- Flag derivato
             CASE
                 WHEN f.rateizzata_in_spesa_fissa_id IS NOT NULL THEN 1
-                WHEN u.stato = 'RATEIZZATA' THEN 1
+                WHEN u.stato = 'RATEIZZATO' THEN 1
                 ELSE 0
             END                              AS is_rateizzata,
 
-            -- Stato normalizzato (display): fa vedere come RATEIZZATA/PAGATA
+            -- Stato normalizzato (display): fa vedere come RATEIZZATO/PAGATO
             -- anche quando cg_uscite non è ancora allineata
             CASE
-                WHEN f.rateizzata_in_spesa_fissa_id IS NOT NULL THEN 'RATEIZZATA'
-                WHEN u.stato = 'RATEIZZATA' THEN 'RATEIZZATA'
-                WHEN f.data_effettiva_pagamento IS NOT NULL AND u.stato NOT IN ('PAGATA','PAGATA_MANUALE','PARZIALE')
-                     THEN 'PAGATA'
+                WHEN f.rateizzata_in_spesa_fissa_id IS NOT NULL THEN 'RATEIZZATO'
+                WHEN u.stato = 'RATEIZZATO' THEN 'RATEIZZATO'
+                WHEN f.data_effettiva_pagamento IS NOT NULL AND u.stato NOT IN ('PAGATO','PAGATO_MANUALE','PARZIALE')
+                     THEN 'PAGATO'
                 ELSE u.stato
             END                              AS stato
 
@@ -996,14 +996,14 @@ def get_uscite(
         rows.append(row)
 
     # ── Riepilogo ──
-    totale_da_pagare = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "DA_PAGARE")
-    totale_scadute = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "SCADUTA")
-    stati_pagata = ("PAGATA", "PAGATA_MANUALE", "PARZIALE")
+    totale_da_pagare = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "PROGRAMMATO")
+    totale_scadute = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "SCADUTO")
+    stati_pagata = ("PAGATO", "PAGATO_MANUALE", "PARZIALE")
     totale_pagate = sum(r["importo_pagato"] for r in rows if r["stato"] in stati_pagata)
     n_senza_scadenza = sum(1 for r in rows if r["data_scadenza"] is None and r["stato"] not in stati_pagata)
-    n_pagata_manuale = sum(1 for r in rows if r["stato"] == "PAGATA_MANUALE")
+    n_pagata_manuale = sum(1 for r in rows if r["stato"] == "PAGATO_MANUALE")
     n_riconciliate = sum(1 for r in rows if r.get("banca_movimento_id"))
-    n_da_riconciliare = sum(1 for r in rows if r["stato"] == "PAGATA_MANUALE" and not r.get("banca_movimento_id"))
+    n_da_riconciliare = sum(1 for r in rows if r["stato"] == "PAGATO_MANUALE" and not r.get("banca_movimento_id"))
 
     fc.close()
 
@@ -1013,8 +1013,8 @@ def get_uscite(
             "totale_da_pagare": round(totale_da_pagare, 2),
             "totale_scadute": round(totale_scadute, 2),
             "totale_pagate": round(totale_pagate, 2),
-            "num_da_pagare": sum(1 for r in rows if r["stato"] == "DA_PAGARE"),
-            "num_scadute": sum(1 for r in rows if r["stato"] == "SCADUTA"),
+            "num_da_pagare": sum(1 for r in rows if r["stato"] == "PROGRAMMATO"),
+            "num_scadute": sum(1 for r in rows if r["stato"] == "SCADUTO"),
             "num_pagate": sum(1 for r in rows if r["stato"] in stati_pagata),
             "num_pagata_manuale": n_pagata_manuale,
             "num_senza_scadenza": n_senza_scadenza,
@@ -1069,7 +1069,7 @@ def get_scadenze_calendario(
     a: str = Query(..., description="Data fine range (YYYY-MM-DD), inclusivo"),
     tipo_uscita: Optional[str] = Query(default=None, description="Filtra per tipo (FATTURA/SPESA_FISSA/STIPENDIO/...)"),
     importo_min: Optional[float] = Query(default=None, description="Filtra solo importi ≥ N euro"),
-    includi_pagate: bool = Query(default=False, description="Se True include anche PAGATA/PAGATA_MANUALE/PARZIALE"),
+    includi_pagate: bool = Query(default=False, description="Se True include anche PAGATO/PAGATO_MANUALE/PARZIALE"),
     current_user=Depends(get_current_user),
 ):
     """
@@ -1096,9 +1096,9 @@ def get_scadenze_calendario(
     params: dict = {"da": da, "a": a}
 
     if includi_pagate:
-        where.append("u.stato IN ('DA_PAGARE','SCADUTA','PAGATA','PAGATA_MANUALE','PARZIALE')")
+        where.append("u.stato IN ('PROGRAMMATO','SCADUTO','PAGATO','PAGATO_MANUALE','PARZIALE')")
     else:
-        where.append("u.stato IN ('DA_PAGARE','SCADUTA')")
+        where.append("u.stato IN ('PROGRAMMATO','SCADUTO')")
         where.append("u.banca_movimento_id IS NULL")
 
     if tipo_uscita:
@@ -1146,7 +1146,7 @@ def get_scadenze_calendario(
         # NB: la soglia esatta dei livelli urgente/avv/pian può divergere
         # dalla config alert_engine, ma 7/15/30 è il default condiviso
         # e il frontend può comunque sovrascrivere il colore.
-        if r["stato"] in ("PAGATA", "PAGATA_MANUALE"):
+        if r["stato"] in ("PAGATO", "PAGATO_MANUALE"):
             livello = "pagata"
         elif r["stato"] == "PARZIALE":
             livello = "parziale"
@@ -1207,7 +1207,7 @@ def get_fatture_senza_scadenza(
         FROM cg_uscite u
         LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
         WHERE u.data_scadenza IS NULL
-          AND u.stato NOT IN ('PAGATA')
+          AND u.stato NOT IN ('PAGATO')
         ORDER BY u.totale DESC
     """).fetchall()
     fc.close()
@@ -1489,13 +1489,13 @@ def list_spese_fisse(
         SELECT
             spesa_fissa_id,
             COUNT(*) AS n_rate,
-            SUM(CASE WHEN stato IN ('PAGATA','PAGATA_MANUALE','PARZIALE')
+            SUM(CASE WHEN stato IN ('PAGATO','PAGATO_MANUALE','PARZIALE')
                      THEN COALESCE(importo_pagato, 0) ELSE 0 END) AS totale_pagato,
-            SUM(CASE WHEN stato IN ('DA_PAGARE','SCADUTA','PARZIALE')
+            SUM(CASE WHEN stato IN ('PROGRAMMATO','SCADUTO','PARZIALE')
                      THEN COALESCE(totale, 0) - COALESCE(importo_pagato, 0) ELSE 0 END) AS totale_residuo,
-            SUM(CASE WHEN stato IN ('PAGATA','PAGATA_MANUALE') THEN 1 ELSE 0 END) AS n_pagate,
-            SUM(CASE WHEN stato = 'DA_PAGARE' THEN 1 ELSE 0 END) AS n_da_pagare,
-            SUM(CASE WHEN stato = 'SCADUTA' THEN 1 ELSE 0 END) AS n_scadute,
+            SUM(CASE WHEN stato IN ('PAGATO','PAGATO_MANUALE') THEN 1 ELSE 0 END) AS n_pagate,
+            SUM(CASE WHEN stato = 'PROGRAMMATO' THEN 1 ELSE 0 END) AS n_da_pagare,
+            SUM(CASE WHEN stato = 'SCADUTO' THEN 1 ELSE 0 END) AS n_scadute,
             SUM(CASE WHEN stato = 'PARZIALE' THEN 1 ELSE 0 END) AS n_parziali
         FROM cg_uscite
         WHERE spesa_fissa_id IS NOT NULL
@@ -1692,12 +1692,12 @@ def create_spesa_fissa(
                 except Exception:
                     continue
 
-                # Stato: se scaduta → SCADUTA, altrimenti DA_PAGARE
+                # Stato: se scaduta → SCADUTO, altrimenti PROGRAMMATO
                 try:
                     ds = date.fromisoformat(data_scad)
-                    stato_u = "SCADUTA" if ds < oggi else "DA_PAGARE"
+                    stato_u = "SCADUTO" if ds < oggi else "PROGRAMMATO"
                 except Exception:
-                    stato_u = "DA_PAGARE"
+                    stato_u = "PROGRAMMATO"
 
                 # Evita duplicati se già esistente
                 existing = fc.execute(
@@ -1776,7 +1776,7 @@ def update_spesa_fissa(
         fc.execute(f"""
             UPDATE cg_uscite SET {', '.join(upd_sets)}
             WHERE spesa_fissa_id = ?
-              AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+              AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
         """, upd_params)
 
     # Per UNA_TANTUM: se cambia data_inizio, propaga la nuova data_scadenza
@@ -1798,7 +1798,7 @@ def update_spesa_fissa(
                     periodo_riferimento = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE spesa_fissa_id = ?
-                  AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                  AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
             """, (nuova_data, nuova_data, nuovo_periodo, spesa_id))
 
     fc.commit()
@@ -1816,14 +1816,14 @@ def delete_spesa_fissa(
     Elimina una spesa fissa + cascade su cg_piano_rate + cg_uscite collegate.
 
     G.1.5 (sessione 2026-05-08): se la spesa ha rate già riconciliate con
-    movimenti banca (`banca_movimento_id IS NOT NULL` o stato PAGATA), ritorna
+    movimenti banca (`banca_movimento_id IS NOT NULL` o stato PAGATO), ritorna
     409 con il conteggio per mostrare warning all'utente. Solo con
     `confirm_riconciliate=True` procede comunque (la riconciliazione si rompe
     e i movimenti banca tornano "non abbinati").
     """
     fc = get_fc_db()
     try:
-        # Conta rate riconciliate (PAGATA con banca_movimento_id, o PAGATA_MANUALE/PARZIALE)
+        # Conta rate riconciliate (PAGATO con banca_movimento_id, o PAGATO_MANUALE/PARZIALE)
         riconciliate = fc.execute(
             """
             SELECT COUNT(*) AS n
@@ -1831,7 +1831,7 @@ def delete_spesa_fissa(
             WHERE spesa_fissa_id = ?
               AND (
                 banca_movimento_id IS NOT NULL
-                OR stato IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                OR stato IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
               )
             """,
             (spesa_id,),
@@ -1982,17 +1982,17 @@ def get_piano_rate(
             imp = float(d.get("importo") or 0)
             tot_pianificato += imp
             stato = d.get("uscita_stato")
-            if stato in ("PAGATA", "PAGATA_MANUALE"):
+            if stato in ("PAGATO", "PAGATO_MANUALE"):
                 n_pagate += 1
                 tot_pagato += float(d.get("uscita_pagato") or 0)
             elif stato == "PARZIALE":
                 n_pagate += 1
                 tot_pagato += float(d.get("uscita_pagato") or 0)
                 tot_residuo += max(float(d.get("uscita_totale") or imp) - float(d.get("uscita_pagato") or 0), 0)
-            elif stato == "SCADUTA":
+            elif stato == "SCADUTO":
                 n_scadute += 1
                 tot_residuo += imp
-            elif stato == "DA_PAGARE":
+            elif stato == "PROGRAMMATO":
                 n_da_pagare += 1
                 tot_residuo += imp
             else:
@@ -2005,9 +2005,9 @@ def get_piano_rate(
                 ric = "aperta"
             elif has_mov:
                 ric = "riconciliata"  # "automatica" riservato per futuro matcher
-            elif stato == "PAGATA_MANUALE":
+            elif stato == "PAGATO_MANUALE":
                 ric = "da_collegare"
-            elif stato in ("PAGATA", "PARZIALE"):
+            elif stato in ("PAGATO", "PARZIALE"):
                 ric = "riconciliata"
             else:
                 ric = "aperta"
@@ -2057,11 +2057,11 @@ def add_piano_rate(
 
     Se sync_uscite = true (default), aggiorna anche l'importo (totale) e
     la data_scadenza delle cg_uscite collegate per quel periodo, purché
-    non siano già PAGATA / PAGATA_MANUALE / PARZIALE.
+    non siano già PAGATO / PAGATO_MANUALE / PARZIALE.
 
     Modulo M.4 (2026-04-27): supporto cambio scadenza. Permette di
     riprogrammare rate scadute spostandone la data. Se una rata era
-    SCADUTA e la nuova data è futura → torna a DA_PAGARE.
+    SCADUTO e la nuova data è futura → torna a PROGRAMMATO.
     """
     fc = get_fc_db()
     try:
@@ -2099,14 +2099,14 @@ def add_piano_rate(
                        SET totale = ?, updated_at = ?
                      WHERE spesa_fissa_id = ?
                        AND periodo_riferimento = ?
-                       AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                       AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
                 """, (float(importo), oggi_str, spesa_id, periodo))
                 uscite_aggiornate += cur.rowcount or 0
 
                 # Modulo M.4: se passata una nuova scadenza, aggiorna data_scadenza
-                # e ricalcola lo stato (SCADUTA/DA_PAGARE in base alla nuova data)
+                # e ricalcola lo stato (SCADUTO/PROGRAMMATO in base alla nuova data)
                 if scadenza:
-                    nuovo_stato = "SCADUTA" if scadenza < oggi_str else "DA_PAGARE"
+                    nuovo_stato = "SCADUTO" if scadenza < oggi_str else "PROGRAMMATO"
                     cur2 = fc.execute("""
                         UPDATE cg_uscite
                            SET data_scadenza = ?,
@@ -2114,7 +2114,7 @@ def add_piano_rate(
                                updated_at = ?
                          WHERE spesa_fissa_id = ?
                            AND periodo_riferimento = ?
-                           AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                           AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
                     """, (scadenza, nuovo_stato, oggi_str, spesa_id, periodo))
                     scadenze_aggiornate += cur2.rowcount or 0
         fc.commit()
@@ -2153,7 +2153,7 @@ def delete_piano_rata(
 #                                + cg_piano_rate.periodo (YYYY-MM)
 #   Importo       → cg_piano_rate.importo
 #   Stato         → tracciato in note ("Pagata"/"Da pagare" come info iniziale)
-#                   ma cg_uscite generate sempre come DA_PAGARE/SCADUTA
+#                   ma cg_uscite generate sempre come PROGRAMMATO/SCADUTO
 #                   (la riconciliazione vera avverrà dal modulo Banca)
 # Crea cg_spese_fisse + N cg_piano_rate. Le cg_uscite sono generate dal
 # proiettore standard (chiamare /uscite/import dopo).
@@ -2203,7 +2203,7 @@ def import_piano_rate_csv(
     Decisioni di design (sessione 2026-05-08):
     - Tipo default `TASSA` (categoria fiscale generica: cartelle AdE, contribuzioni,
       F24 rateizzato). Distinzione fine via `titolo` + `codice_pagamento`.
-    - Stato cg_uscite generate sempre DA_PAGARE/SCADUTA — riconciliazione successiva
+    - Stato cg_uscite generate sempre PROGRAMMATO/SCADUTO — riconciliazione successiva
       coi movimenti banca evita doppia contabilizzazione.
     - Duplicate detection light: se almeno 1 dei primi 3 codici_pagamento è già
       presente in DB → 409 (a meno di force=True). No merge intelligente: l'utente
@@ -2531,7 +2531,7 @@ def get_storico_spesa_fissa(
             imp = float(d.get("uscita_totale") or 0)
             tot_pianificato += imp
             stato = d.get("uscita_stato")
-            if stato in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
+            if stato in ("PAGATO", "PAGATO_MANUALE", "PARZIALE"):
                 tot_pagato += float(d.get("uscita_pagato") or 0)
 
             has_mov = d.get("banca_movimento_id") is not None
@@ -2539,9 +2539,9 @@ def get_storico_spesa_fissa(
                 ric = "aperta"
             elif has_mov:
                 ric = "riconciliata"
-            elif stato == "PAGATA_MANUALE":
+            elif stato == "PAGATO_MANUALE":
                 ric = "da_collegare"
-            elif stato in ("PAGATA", "PARZIALE"):
+            elif stato in ("PAGATO", "PARZIALE"):
                 ric = "riconciliata"
             else:
                 ric = "aperta"
@@ -2649,7 +2649,7 @@ def get_candidati_banca(
     }
 
 
-# ── Worklist "Da riconciliare": uscite PAGATA_MANUALE senza movimento collegato ──
+# ── Worklist "Da riconciliare": uscite PAGATO_MANUALE senza movimento collegato ──
 @router.get("/uscite/da-riconciliare")
 def get_uscite_da_riconciliare(
     limit: int = 200,
@@ -2661,15 +2661,15 @@ def get_uscite_da_riconciliare(
 
     Parametri:
       canale = "banca" (default) | "carta" | "contanti"
-        - banca:    uscite PAGATA_MANUALE senza banca_movimento_id
+        - banca:    uscite PAGATO_MANUALE senza banca_movimento_id
                     E metodo_pagamento NON in ('CARTA','CONTANTI')
                     (cioe' pagamenti tipo bonifico/conto corrente/assegno/NULL)
-        - carta:    uscite PAGATA_MANUALE con metodo_pagamento='CARTA'
+        - carta:    uscite PAGATO_MANUALE con metodo_pagamento='CARTA'
                     (predisposizione per il futuro modulo Carta di Credito
                     che collegherà gli estratti carta ai cg_uscite)
         - contanti: uscite pagate in contanti (metodo_pagamento='CONTANTI').
-                    Di norma sono già PAGATA automatiche, ma possono esserci
-                    edge case in PAGATA_MANUALE.
+                    Di norma sono già PAGATO automatiche, ma possono esserci
+                    edge case in PAGATO_MANUALE.
 
     Restituisce righe ordinate per data pagamento desc.
     """
@@ -2678,13 +2678,13 @@ def get_uscite_da_riconciliare(
         canale = (canale or "banca").lower()
         if canale == "carta":
             where = (
-                "u.stato = 'PAGATA_MANUALE' "
+                "u.stato = 'PAGATO_MANUALE' "
                 "AND u.banca_movimento_id IS NULL "
                 "AND u.metodo_pagamento = 'CARTA'"
             )
         elif canale == "contanti":
             where = (
-                "u.stato = 'PAGATA_MANUALE' "
+                "u.stato = 'PAGATO_MANUALE' "
                 "AND u.banca_movimento_id IS NULL "
                 "AND u.metodo_pagamento = 'CONTANTI'"
             )
@@ -2692,7 +2692,7 @@ def get_uscite_da_riconciliare(
             # default "banca": esclude CARTA e CONTANTI (questi hanno il loro canale)
             canale = "banca"
             where = (
-                "u.stato = 'PAGATA_MANUALE' "
+                "u.stato = 'PAGATO_MANUALE' "
                 "AND u.banca_movimento_id IS NULL "
                 "AND (u.metodo_pagamento IS NULL "
                 "     OR u.metodo_pagamento NOT IN ('CARTA','CONTANTI'))"
@@ -2844,8 +2844,8 @@ def modifica_scadenza(
     rate delle spese fisse la scadenza effettiva vive in cg_uscite.
 
     In entrambi i rami, lo stato di workflow (`cg_uscite.stato`) viene
-    ricalcolato rispetto a oggi: SCADUTA se nuova < oggi, altrimenti
-    DA_PAGARE (solo quando lo stato attuale è DA_PAGARE o SCADUTA).
+    ricalcolato rispetto a oggi: SCADUTO se nuova < oggi, altrimenti
+    PROGRAMMATO (solo quando lo stato attuale è PROGRAMMATO o SCADUTO).
 
     Se lo spostamento rispetto alla data originale è > 10 giorni,
     il frontend lo mostrerà come 'arretrato'. Il delta è calcolato
@@ -2871,7 +2871,7 @@ def modifica_scadenza(
             return {"ok": False, "error": "Uscita non trovata"}
 
         # Non permettere modifica se già pagata via banca
-        if row["stato"] == "PAGATA":
+        if row["stato"] == "PAGATO":
             return {"ok": False, "error": "Impossibile modificare: uscita già riconciliata con banca"}
 
         tipo_uscita = (row["tipo_uscita"] or "FATTURA")
@@ -2906,12 +2906,12 @@ def modifica_scadenza(
             """, [nuova, uscita_id])
             fonte_modifica = "cg_uscite.data_scadenza"
 
-        # Ricalcola stato workflow (sempre su cg_uscite): SCADUTA se < oggi, DA_PAGARE altrimenti
+        # Ricalcola stato workflow (sempre su cg_uscite): SCADUTO se < oggi, PROGRAMMATO altrimenti
         oggi = date.today().isoformat()
-        if nuova < oggi and row["stato"] == "DA_PAGARE":
-            conn.execute("UPDATE cg_uscite SET stato = 'SCADUTA', updated_at = datetime('now') WHERE id = ?", [uscita_id])
-        elif nuova >= oggi and row["stato"] == "SCADUTA":
-            conn.execute("UPDATE cg_uscite SET stato = 'DA_PAGARE', updated_at = datetime('now') WHERE id = ?", [uscita_id])
+        if nuova < oggi and row["stato"] == "PROGRAMMATO":
+            conn.execute("UPDATE cg_uscite SET stato = 'SCADUTO', updated_at = datetime('now') WHERE id = ?", [uscita_id])
+        elif nuova >= oggi and row["stato"] == "SCADUTO":
+            conn.execute("UPDATE cg_uscite SET stato = 'PROGRAMMATO', updated_at = datetime('now') WHERE id = ?", [uscita_id])
 
         conn.commit()
 
@@ -2998,7 +2998,7 @@ def modifica_iban(
         """, [uscita_id]).fetchone()
         if not row:
             return {"ok": False, "error": "Uscita non trovata"}
-        if row["stato"] == "PAGATA":
+        if row["stato"] == "PAGATO":
             return {"ok": False, "error": "Impossibile modificare: uscita già riconciliata con banca"}
 
         tipo_uscita = (row["tipo_uscita"] or "FATTURA")
@@ -3066,7 +3066,7 @@ def modifica_modalita_pagamento(
         """, [uscita_id]).fetchone()
         if not row:
             return {"ok": False, "error": "Uscita non trovata"}
-        if row["stato"] == "PAGATA":
+        if row["stato"] == "PAGATO":
             return {"ok": False, "error": "Impossibile modificare: uscita già riconciliata con banca"}
 
         tipo_uscita = (row["tipo_uscita"] or "FATTURA")
@@ -3106,9 +3106,9 @@ def segna_pagate_bulk(
     Segna più uscite come pagate in un colpo solo.
     Body: { ids: [int], metodo_pagamento: str, data_pagamento?: str }
 
-    - CONTANTI → stato = PAGATA (il modulo contanti è la riconciliazione)
-    - Altri metodi → stato = PAGATA_MANUALE (richiede riconciliazione banca)
-    Non tocca righe già PAGATA (riconciliate via banca).
+    - CONTANTI → stato = PAGATO (il modulo contanti è la riconciliazione)
+    - Altri metodi → stato = PAGATO_MANUALE (richiede riconciliazione banca)
+    Non tocca righe già PAGATO (riconciliate via banca).
     """
     ids = payload.get("ids", [])
     metodo = payload.get("metodo_pagamento", "CONTO_CORRENTE")
@@ -3123,12 +3123,12 @@ def segna_pagate_bulk(
 
     # CONTANTI = riconciliato (il modulo contanti È la prova di pagamento)
     # Altri metodi = manuale (serve riconciliazione con banca)
-    nuovo_stato = "PAGATA" if metodo == "CONTANTI" else "PAGATA_MANUALE"
+    nuovo_stato = "PAGATO" if metodo == "CONTANTI" else "PAGATO_MANUALE"
 
     conn = get_fc_db()
     try:
         placeholders = ",".join("?" * len(ids))
-        # Aggiorna solo righe DA_PAGARE, SCADUTA o PARZIALE (non toccare PAGATA già riconciliate)
+        # Aggiorna solo righe PROGRAMMATO, SCADUTO o PARZIALE (non toccare PAGATO già riconciliate)
         conn.execute(f"""
             UPDATE cg_uscite
             SET stato = ?,
@@ -3136,7 +3136,7 @@ def segna_pagate_bulk(
                 data_pagamento = ?,
                 importo_pagato = totale
             WHERE id IN ({placeholders})
-              AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE', 'PAGATA_MANUALE')
+              AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE', 'PAGATO_MANUALE')
         """, [nuovo_stato, metodo, data_pag] + ids)
         aggiornate = conn.total_changes
         conn.commit()
@@ -3182,7 +3182,7 @@ def crea_batch_pagamento(
             SELECT COUNT(*) AS n, COALESCE(SUM(totale - importo_pagato), 0) AS tot
             FROM cg_uscite
             WHERE id IN ({placeholders})
-              AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+              AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE')
         """, ids).fetchone()
 
         n_uscite = agg["n"] if agg else 0
@@ -3212,7 +3212,7 @@ def crea_batch_pagamento(
                 in_pagamento_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id IN ({placeholders})
-              AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+              AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE')
         """, [batch_id] + ids)
 
         conn.commit()
@@ -3409,17 +3409,17 @@ def update_uscita_stato_pagamento(
     """
     Modulo M.3 (2026-04-27): cambio manuale stato pagamento di una cg_uscite.
 
-    Body: { "stato": "DA_PAGARE" | "DA_VERIFICARE" | "PAGATA_MANUALE" }
+    Body: { "stato": "PROGRAMMATO" | "VERIFICARE" | "PAGATO_MANUALE" }
 
     Stati settabili manualmente:
-      - DA_PAGARE      → riporta a "da pagare" (SCADUTA viene ricalcolata da data)
-      - DA_VERIFICARE  → "forse pagata, controllare"
-      - PAGATA_MANUALE → "pagato in attesa di riconciliazione"
+      - PROGRAMMATO      → riporta a "da pagare" (SCADUTO viene ricalcolata da data)
+      - VERIFICARE  → "forse pagata, controllare"
+      - PAGATO_MANUALE → "pagato in attesa di riconciliazione"
 
     Stati NON settabili manualmente:
-      - PAGATA   → solo via riconciliazione bancaria (banca_fatture_link).
+      - PAGATO   → solo via riconciliazione bancaria (banca_fatture_link).
                    Per uscire serve cancellare il link.
-      - SCADUTA  → derivata da data_scadenza < oggi su DA_PAGARE.
+      - SCADUTO  → derivata da data_scadenza < oggi su PROGRAMMATO.
       - PARZIALE → impostata da gestione pagamenti parziali (caso edge).
 
     Per uscite collegate a fatture (fattura_id != NULL), sincronizza anche
@@ -3430,7 +3430,7 @@ def update_uscita_stato_pagamento(
     nuovo_stato = (payload or {}).get("stato")
     user_label = (current_user or {}).get("username") or (current_user or {}).get("email") or "?"
 
-    STATI_MANUALI = {"DA_PAGARE", "DA_VERIFICARE", "PAGATA_MANUALE"}
+    STATI_MANUALI = {"PROGRAMMATO", "VERIFICARE", "PAGATO_MANUALE"}
     if nuovo_stato not in STATI_MANUALI:
         raise HTTPException(
             status_code=400,
@@ -3447,7 +3447,7 @@ def update_uscita_stato_pagamento(
             raise HTTPException(404, "Uscita non trovata")
 
         vecchio = usc["stato"]
-        if vecchio == "PAGATA":
+        if vecchio == "PAGATO":
             raise HTTPException(
                 status_code=409,
                 detail="Uscita riconciliata bancariamente: stato immutabile. Cancellare prima il link banca_fatture_link.",
@@ -3460,12 +3460,12 @@ def update_uscita_stato_pagamento(
 
         oggi_str = date.today().isoformat()
 
-        # Per DA_PAGARE: ricalcola SCADUTA se data passata
+        # Per PROGRAMMATO: ricalcola SCADUTO se data passata
         stato_effettivo = nuovo_stato
-        if nuovo_stato == "DA_PAGARE" and usc["data_scadenza"] and usc["data_scadenza"] < oggi_str:
-            stato_effettivo = "SCADUTA"
+        if nuovo_stato == "PROGRAMMATO" and usc["data_scadenza"] and usc["data_scadenza"] < oggi_str:
+            stato_effettivo = "SCADUTO"
 
-        if nuovo_stato == "PAGATA_MANUALE":
+        if nuovo_stato == "PAGATO_MANUALE":
             # Bug D5: reset in_pagamento_at quando si dichiara pagato manuale
             fc.execute("""
                 UPDATE cg_uscite
@@ -3479,7 +3479,7 @@ def update_uscita_stato_pagamento(
                  WHERE id = ?
             """, (stato_effettivo, oggi_str, uscita_id))
         else:
-            # Riporta a DA_PAGARE/DA_VERIFICARE → toglie anche in_pagamento_at
+            # Riporta a PROGRAMMATO/VERIFICARE → toglie anche in_pagamento_at
             fc.execute("""
                 UPDATE cg_uscite
                    SET stato = ?,
@@ -3497,9 +3497,9 @@ def update_uscita_stato_pagamento(
             try:
                 from app.services.fatture_stato_service import set_stato as set_fattura_stato
                 stato_fattura = {
-                    "DA_PAGARE": "da_pagare",
-                    "DA_VERIFICARE": "da_verificare",
-                    "PAGATA_MANUALE": "pagato_manuale",
+                    "PROGRAMMATO": "da_pagare",
+                    "VERIFICARE": "da_verificare",
+                    "PAGATO_MANUALE": "pagato_manuale",
                 }[nuovo_stato]
                 set_fattura_stato(fc, usc["fattura_id"], stato_fattura, force=True)
             except Exception as _e:
@@ -3524,7 +3524,7 @@ def segna_pagata_manuale(
     current_user=Depends(get_current_user),
 ):
     """
-    Segna una fattura come PAGATA_MANUALE (in attesa di riconciliazione banca).
+    Segna una fattura come PAGATO_MANUALE (in attesa di riconciliazione banca).
     Usato dal modulo Acquisti per segnare pagamenti non ancora riconciliati.
     Se esiste già una cg_uscite per questa fattura, aggiorna lo stato.
     Se non esiste, la crea.
@@ -3537,7 +3537,7 @@ def segna_pagata_manuale(
     if metodo not in METODI_VALIDI:
         return {"ok": False, "error": f"Metodo pagamento non valido: {metodo}"}
 
-    nuovo_stato = "PAGATA" if metodo == "CONTANTI" else "PAGATA_MANUALE"
+    nuovo_stato = "PAGATO" if metodo == "CONTANTI" else "PAGATO_MANUALE"
 
     fc = get_fc_db()
     try:
@@ -3556,14 +3556,14 @@ def segna_pagata_manuale(
 
         if uscita:
             # Già riconciliata via banca? Non toccare
-            if uscita["stato"] == "PAGATA":
+            if uscita["stato"] == "PAGATO":
                 return {"ok": False, "error": "Fattura già riconciliata via banca"}
             # Aggiorna stato
             fc.execute("""
                 UPDATE cg_uscite
                 SET stato = ?, metodo_pagamento = ?, data_pagamento = ?,
                     importo_pagato = totale, updated_at = CURRENT_TIMESTAMP
-                WHERE fattura_id = ? AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE', 'PAGATA_MANUALE')
+                WHERE fattura_id = ? AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE', 'PAGATO_MANUALE')
             """, (nuovo_stato, metodo, data_pag, fattura_id))
         else:
             # Crea nuovo record cg_uscite
@@ -3601,7 +3601,7 @@ def riconcilia_uscita(
     """
     Collega un'uscita a un movimento bancario.
     Body: { "banca_movimento_id": int }
-    Effetto: banca_movimento_id viene salvato, stato → PAGATA.
+    Effetto: banca_movimento_id viene salvato, stato → PAGATO.
     """
     fc = get_fc_db()
     banca_id = payload.get("banca_movimento_id")
@@ -3640,7 +3640,7 @@ def riconcilia_uscita(
     fc.execute("""
         UPDATE cg_uscite
         SET banca_movimento_id = ?,
-            stato = 'PAGATA',
+            stato = 'PAGATO',
             data_pagamento = COALESCE(data_pagamento, ?),
             importo_pagato = totale,
             in_pagamento_at = NULL,
@@ -3662,7 +3662,7 @@ def riconcilia_uscita(
     fc.commit()
     fc.close()
 
-    return {"ok": True, "nuovo_stato": "PAGATA"}
+    return {"ok": True, "nuovo_stato": "PAGATO"}
 
 
 @router.delete("/uscite/{uscita_id}/riconcilia")
@@ -3672,7 +3672,7 @@ def scollega_uscita(
 ):
     """
     Scollega un'uscita dal movimento bancario.
-    Riporta lo stato a PAGATA_MANUALE.
+    Riporta lo stato a PAGATO_MANUALE.
     Propaga lo scollega anche a banca_fatture_link.
     """
     fc = get_fc_db()
@@ -3691,7 +3691,7 @@ def scollega_uscita(
     fc.execute("""
         UPDATE cg_uscite
         SET banca_movimento_id = NULL,
-            stato = 'PAGATA_MANUALE',
+            stato = 'PAGATO_MANUALE',
             updated_at = ?
         WHERE id = ?
     """, (oggi_str, uscita_id))
@@ -3706,7 +3706,7 @@ def scollega_uscita(
     fc.commit()
     fc.close()
 
-    return {"ok": True, "nuovo_stato": "PAGATA_MANUALE"}
+    return {"ok": True, "nuovo_stato": "PAGATO_MANUALE"}
 
 
 # ── Riconciliazione alternativa: CONTANTI ─────────────────────────
@@ -3722,7 +3722,7 @@ def paga_uscita_contanti(
 
     Effetto:
       - metodo_pagamento = 'CONTANTI'
-      - stato = 'PAGATA'  (il modulo Contanti E' la prova di pagamento)
+      - stato = 'PAGATO'  (il modulo Contanti E' la prova di pagamento)
       - data_pagamento = oggi o valore passato
       - importo_pagato = totale
       - banca_movimento_id = NULL (non coinvolge la banca)
@@ -3757,7 +3757,7 @@ def paga_uscita_contanti(
         fc.execute("""
             UPDATE cg_uscite
             SET metodo_pagamento = 'CONTANTI',
-                stato = 'PAGATA',
+                stato = 'PAGATO',
                 data_pagamento = ?,
                 importo_pagato = totale,
                 note = ?,
@@ -3771,7 +3771,7 @@ def paga_uscita_contanti(
 
         return {
             "ok": True,
-            "nuovo_stato": "PAGATA",
+            "nuovo_stato": "PAGATO",
             "metodo_pagamento": "CONTANTI",
             "data_pagamento": data_pag,
         }
@@ -3791,11 +3791,11 @@ def cambia_canale_uscita(
     Body: { "canale": "banca" | "carta" | "contanti" }
 
     Effetto sul DB (cg_uscite):
-      - canale='banca'    → metodo_pagamento=NULL, stato=PAGATA_MANUALE
+      - canale='banca'    → metodo_pagamento=NULL, stato=PAGATO_MANUALE
                             (torna in attesa di match a movimento bancario)
-      - canale='carta'    → metodo_pagamento='CARTA', stato=PAGATA_MANUALE
+      - canale='carta'    → metodo_pagamento='CARTA', stato=PAGATO_MANUALE
                             (riconciliazione delegata al futuro modulo Carta)
-      - canale='contanti' → metodo_pagamento='CONTANTI', stato=PAGATA
+      - canale='contanti' → metodo_pagamento='CONTANTI', stato=PAGATO
                             (il modulo Contanti È la prova di pagamento)
 
     Rifiuta se l'uscita e' gia' collegata a un movimento bancario
@@ -3823,13 +3823,13 @@ def cambia_canale_uscita(
 
         if target == "banca":
             new_metodo = None
-            new_stato = "PAGATA_MANUALE"
+            new_stato = "PAGATO_MANUALE"
         elif target == "carta":
             new_metodo = "CARTA"
-            new_stato = "PAGATA_MANUALE"
+            new_stato = "PAGATO_MANUALE"
         else:  # contanti
             new_metodo = "CONTANTI"
-            new_stato = "PAGATA"
+            new_stato = "PAGATO"
 
         fc.execute("""
             UPDATE cg_uscite
@@ -3864,7 +3864,7 @@ def paga_uscita_carta(
     NOTA: il modulo Carta di Credito (matching con estratti carta) e' pianificato
     ma non ancora implementato. Per ora l'uscita viene marcata con:
       - metodo_pagamento = 'CARTA'
-      - stato = 'PAGATA_MANUALE'  (in attesa del matcher carta)
+      - stato = 'PAGATO_MANUALE'  (in attesa del matcher carta)
       - data_pagamento = oggi o valore passato
       - importo_pagato = totale
       - banca_movimento_id = NULL
@@ -3899,7 +3899,7 @@ def paga_uscita_carta(
         fc.execute("""
             UPDATE cg_uscite
             SET metodo_pagamento = 'CARTA',
-                stato = 'PAGATA_MANUALE',
+                stato = 'PAGATO_MANUALE',
                 data_pagamento = ?,
                 importo_pagato = totale,
                 note = ?,
@@ -3913,7 +3913,7 @@ def paga_uscita_carta(
 
         return {
             "ok": True,
-            "nuovo_stato": "PAGATA_MANUALE",
+            "nuovo_stato": "PAGATO_MANUALE",
             "metodo_pagamento": "CARTA",
             "data_pagamento": data_pag,
         }
@@ -3981,13 +3981,13 @@ def get_uscite_da_pagare(
     """
     fc = get_fc_db()
 
-    # Pulizia 1: marca PAGATA le uscite la cui fattura sorgente è stata azzerata
+    # Pulizia 1: marca PAGATO le uscite la cui fattura sorgente è stata azzerata
     fc.execute("""
-        UPDATE cg_uscite SET totale = 0, stato = 'PAGATA',
+        UPDATE cg_uscite SET totale = 0, stato = 'PAGATO',
             note = COALESCE(note, '') || ' [azzerata da sconto/storno]',
             updated_at = CURRENT_TIMESTAMP
         WHERE fattura_id IS NOT NULL
-          AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+          AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE')
           AND fattura_id IN (
               SELECT id FROM fe_fatture WHERE COALESCE(totale_fattura, 0) <= 0
           )
@@ -4000,7 +4000,7 @@ def get_uscite_da_pagare(
                data_fattura, totale AS importo, data_scadenza, stato, tipo_uscita,
                periodo_riferimento, note
         FROM cg_uscite
-        WHERE stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+        WHERE stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE')
           AND COALESCE(totale, 0) > 0
     """
     params = []
@@ -4072,7 +4072,7 @@ def adeguamento_spesa(
         SET totale = ?, updated_at = ?
         WHERE spesa_fissa_id = ?
           AND data_scadenza >= ?
-          AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+          AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
     """, (nuovo_importo, oggi_str, spesa_id, data_dec))
     n_aggiornate = cur.rowcount
 

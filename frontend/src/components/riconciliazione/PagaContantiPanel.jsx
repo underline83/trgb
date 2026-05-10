@@ -3,7 +3,7 @@
 // Usato nel workbench ControlloGestioneRiconciliazione quando il canale selezionato e' "contanti".
 //
 // POST /controllo-gestione/uscite/{id}/paga-contanti  { data_pagamento?, note? }
-// Effetto backend: metodo_pagamento=CONTANTI, stato=PAGATA.
+// Effetto backend: metodo_pagamento=CONTANTI, stato=PAGATO.
 //
 // Props:
 //   uscitaId      : number (obbligatorio)
@@ -83,7 +83,7 @@ export default function PagaContantiPanel({
           Marca come pagata in <b>contanti</b>.
           <span className="block text-[10px] text-emerald-700/80 mt-0.5">
             La prova di pagamento E' il modulo Contanti: l'uscita verra' chiusa
-            (stato PAGATA) senza alcun movimento bancario collegato.
+            (stato PAGATO) senza alcun movimento bancario collegato.
           </span>
         </div>
       </div>

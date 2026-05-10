@@ -4,7 +4,7 @@
 // estratti carta NON e' ancora implementato: questa e' una predisposizione.
 //
 // POST /controllo-gestione/uscite/{id}/paga-carta  { data_pagamento?, note? }
-// Effetto backend: metodo_pagamento=CARTA, stato=PAGATA_MANUALE.
+// Effetto backend: metodo_pagamento=CARTA, stato=PAGATO_MANUALE.
 // L'uscita esce dalla worklist banca (filtrata per canale) e sara' visibile
 // nella worklist carta quando il modulo sara' attivo.
 //
@@ -81,7 +81,7 @@ export default function PagaCartaPanel({
         <div className="mt-1.5 text-[10px] text-amber-700/90 bg-amber-100/60 border border-amber-200 rounded px-2 py-1.5">
           <b>⚠️ Modulo Carta di Credito in arrivo.</b><br />
           Per ora l'uscita viene marcata <code className="bg-white px-1 rounded">CARTA</code>
-          {" / "}<code className="bg-white px-1 rounded">PAGATA_MANUALE</code>. Quando il
+          {" / "}<code className="bg-white px-1 rounded">PAGATO_MANUALE</code>. Quando il
           modulo sara' attivo potrai collegarla ai movimenti dell'estratto carta
           (una worklist dedicata "canale = carta").
         </div>

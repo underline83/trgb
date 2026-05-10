@@ -3,8 +3,8 @@
 // Palette "minimal dot" (palette C del mockup) + nomi "tecnici semaforici" (palette A):
 //   ● Riconciliata   — banca_movimento_id != null (manuale o auto, indistintamente)
 //   ● Automatica     — riservato futuro (matcher auto), oggi non appare
-//   ● Da collegare   — stato PAGATA_MANUALE ma senza banca_movimento_id
-//   ● Aperta         — DA_PAGARE / SCADUTA / nessuna uscita ancora generata
+//   ● Da collegare   — stato PAGATO_MANUALE ma senza banca_movimento_id
+//   ● Aperta         — PROGRAMMATO / SCADUTO / nessuna uscita ancora generata
 //
 // Uso:
 //   import StatoRiconciliazioneBadge, { derivaStatoRiconciliazione } from "..."
@@ -32,9 +32,9 @@ export function derivaStatoRiconciliazione(row) {
     return isAuto ? "automatica" : "riconciliata";
   }
 
-  if (s === "PAGATA_MANUALE") return "da_collegare";
-  if (s === "PAGATA" || s === "PARZIALE") return "riconciliata"; // fallback: PAGATA senza movimento è raro
-  return "aperta"; // DA_PAGARE, SCADUTA, RATEIZZATA, etc.
+  if (s === "PAGATO_MANUALE") return "da_collegare";
+  if (s === "PAGATO" || s === "PARZIALE") return "riconciliata"; // fallback: PAGATO senza movimento è raro
+  return "aperta"; // PROGRAMMATO, SCADUTO, RATEIZZATO, etc.
 }
 
 // ── Definizione dei 4 stati ──

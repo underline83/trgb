@@ -45,44 +45,44 @@ const MP_LABELS = {
 };
 
 const STATO_BADGE = {
-  DA_PAGARE:      "bg-amber-100 text-amber-800 border-amber-200",
-  SCADUTA:        "bg-red-100 text-red-800 border-red-200",
-  PAGATA:         "bg-emerald-100 text-emerald-800 border-emerald-200",
-  PAGATA_MANUALE: "bg-sky-100 text-sky-800 border-sky-200",
+  PROGRAMMATO:      "bg-amber-100 text-amber-800 border-amber-200",
+  SCADUTO:        "bg-red-100 text-red-800 border-red-200",
+  PAGATO:         "bg-emerald-100 text-emerald-800 border-emerald-200",
+  PAGATO_MANUALE: "bg-sky-100 text-sky-800 border-sky-200",
   PARZIALE:       "bg-blue-100 text-blue-800 border-blue-200",
-  RATEIZZATA:     "bg-purple-100 text-purple-800 border-purple-200",
+  RATEIZZATO:     "bg-purple-100 text-purple-800 border-purple-200",
 };
 
 // Sidebar colors in base allo stato fattura — stesso stile di TIPOLOGIA_SIDEBAR in SchedaVino
 const FATTURA_SIDEBAR = {
-  PAGATA:         { bg: "bg-gradient-to-b from-emerald-700 to-emerald-900",  accent: "bg-emerald-500/30", text: "text-emerald-100" },
-  PAGATA_MANUALE: { bg: "bg-gradient-to-b from-teal-700 to-teal-900",        accent: "bg-teal-500/30",    text: "text-teal-100" },
-  DA_PAGARE:      { bg: "bg-gradient-to-b from-amber-700 to-amber-900",      accent: "bg-amber-500/30",   text: "text-amber-100" },
-  SCADUTA:        { bg: "bg-gradient-to-b from-red-700 to-red-900",          accent: "bg-red-500/30",     text: "text-red-100" },
+  PAGATO:         { bg: "bg-gradient-to-b from-emerald-700 to-emerald-900",  accent: "bg-emerald-500/30", text: "text-emerald-100" },
+  PAGATO_MANUALE: { bg: "bg-gradient-to-b from-teal-700 to-teal-900",        accent: "bg-teal-500/30",    text: "text-teal-100" },
+  PROGRAMMATO:      { bg: "bg-gradient-to-b from-amber-700 to-amber-900",      accent: "bg-amber-500/30",   text: "text-amber-100" },
+  SCADUTO:        { bg: "bg-gradient-to-b from-red-700 to-red-900",          accent: "bg-red-500/30",     text: "text-red-100" },
   PARZIALE:       { bg: "bg-gradient-to-b from-blue-700 to-blue-900",        accent: "bg-blue-500/30",    text: "text-blue-100" },
-  RATEIZZATA:     { bg: "bg-gradient-to-b from-purple-700 to-purple-900",    accent: "bg-purple-500/30",  text: "text-purple-100" },
+  RATEIZZATO:     { bg: "bg-gradient-to-b from-purple-700 to-purple-900",    accent: "bg-purple-500/30",  text: "text-purple-100" },
   DEFAULT:        { bg: "bg-gradient-to-b from-slate-700 to-slate-900",      accent: "bg-slate-500/30",   text: "text-slate-100" },
 };
 
 function getFatturaSidebar(stato, isRateizzata) {
-  if (isRateizzata) return FATTURA_SIDEBAR.RATEIZZATA;
+  if (isRateizzata) return FATTURA_SIDEBAR.RATEIZZATO;
   return FATTURA_SIDEBAR[stato] || FATTURA_SIDEBAR.DEFAULT;
 }
 
 // Palette "soft" per la testa del nuovo layout a tab (sessione 55, redesign).
 // Affianca FATTURA_SIDEBAR (palette scura) ma e' il nuovo default.
 const FATTURA_HEADER = {
-  PAGATA:         { bg: "bg-gradient-to-b from-emerald-50 to-white", border: "border-emerald-200", accent: "border-l-emerald-600", badge: "bg-emerald-100 text-emerald-800 border-emerald-200", text: "text-emerald-900" },
-  PAGATA_MANUALE: { bg: "bg-gradient-to-b from-teal-50 to-white",    border: "border-teal-200",    accent: "border-l-teal-600",    badge: "bg-teal-100 text-teal-800 border-teal-200",       text: "text-teal-900" },
-  DA_PAGARE:      { bg: "bg-gradient-to-b from-amber-50 to-white",   border: "border-amber-200",   accent: "border-l-amber-600",   badge: "bg-amber-100 text-amber-800 border-amber-200",    text: "text-amber-900" },
-  SCADUTA:        { bg: "bg-gradient-to-b from-red-50 to-white",     border: "border-red-200",     accent: "border-l-red-600",     badge: "bg-red-100 text-red-800 border-red-200",          text: "text-red-900" },
+  PAGATO:         { bg: "bg-gradient-to-b from-emerald-50 to-white", border: "border-emerald-200", accent: "border-l-emerald-600", badge: "bg-emerald-100 text-emerald-800 border-emerald-200", text: "text-emerald-900" },
+  PAGATO_MANUALE: { bg: "bg-gradient-to-b from-teal-50 to-white",    border: "border-teal-200",    accent: "border-l-teal-600",    badge: "bg-teal-100 text-teal-800 border-teal-200",       text: "text-teal-900" },
+  PROGRAMMATO:      { bg: "bg-gradient-to-b from-amber-50 to-white",   border: "border-amber-200",   accent: "border-l-amber-600",   badge: "bg-amber-100 text-amber-800 border-amber-200",    text: "text-amber-900" },
+  SCADUTO:        { bg: "bg-gradient-to-b from-red-50 to-white",     border: "border-red-200",     accent: "border-l-red-600",     badge: "bg-red-100 text-red-800 border-red-200",          text: "text-red-900" },
   PARZIALE:       { bg: "bg-gradient-to-b from-blue-50 to-white",    border: "border-blue-200",    accent: "border-l-blue-600",    badge: "bg-blue-100 text-blue-800 border-blue-200",       text: "text-blue-900" },
-  RATEIZZATA:     { bg: "bg-gradient-to-b from-purple-50 to-white",  border: "border-purple-200",  accent: "border-l-purple-600",  badge: "bg-purple-100 text-purple-800 border-purple-200", text: "text-purple-900" },
+  RATEIZZATO:     { bg: "bg-gradient-to-b from-purple-50 to-white",  border: "border-purple-200",  accent: "border-l-purple-600",  badge: "bg-purple-100 text-purple-800 border-purple-200", text: "text-purple-900" },
   DEFAULT:        { bg: "bg-gradient-to-b from-slate-50 to-white",   border: "border-slate-200",   accent: "border-l-slate-600",   badge: "bg-slate-100 text-slate-700 border-slate-200",    text: "text-slate-900" },
 };
 
 function getFatturaHeader(stato, isRateizzata) {
-  if (isRateizzata) return FATTURA_HEADER.RATEIZZATA;
+  if (isRateizzata) return FATTURA_HEADER.RATEIZZATO;
   return FATTURA_HEADER[stato] || FATTURA_HEADER.DEFAULT;
 }
 
@@ -391,7 +391,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   const hasMpOverride = !!fattura.modalita_pagamento_override;
   const isRateizzata = fattura.is_rateizzata;
   const uscita = fattura.uscita;
-  const statoUscita = uscita?.uscita_stato || (fattura.pagato ? "PAGATA" : null);
+  const statoUscita = uscita?.uscita_stato || (fattura.pagato ? "PAGATO" : null);
   const statoBadgeClass = statoUscita ? STATO_BADGE[statoUscita] || "bg-neutral-100 text-neutral-700 border-neutral-200" : null;
   const sbc = getFatturaSidebar(statoUscita, isRateizzata);
 
@@ -402,7 +402,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
 
   // "Giorni alla scadenza" per il KPI in testa: negativo = scaduta, 0 = oggi.
   const gg = daysFromToday(scadenzaEff);
-  const ggLabel = fattura.pagato || statoUscita === "PAGATA" || statoUscita === "PAGATA_MANUALE"
+  const ggLabel = fattura.pagato || statoUscita === "PAGATO" || statoUscita === "PAGATO_MANUALE"
     ? "Pagata"
     : isRateizzata
       ? "Rateizzata"
@@ -414,7 +414,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
             ? "oggi"
             : `${gg} gg`;
   const ggClass =
-    (fattura.pagato || statoUscita === "PAGATA" || statoUscita === "PAGATA_MANUALE") ? "text-emerald-700" :
+    (fattura.pagato || statoUscita === "PAGATO" || statoUscita === "PAGATO_MANUALE") ? "text-emerald-700" :
     isRateizzata                              ? "text-purple-700" :
     gg == null                                ? "text-neutral-400" :
     gg < 0                                    ? "text-red-700"    :
@@ -711,7 +711,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                       {hasScadenzaOverride && scadenzaXml && (
                         <p className="text-[10px] text-neutral-400 mt-0.5">XML: <span className="tabular-nums">{scadenzaXml}</span></p>
                       )}
-                      {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATA" && (
+                      {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATO" && (
                         <button
                           type="button"
                           onClick={() => {
@@ -773,7 +773,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                       {hasMpOverride && fattura.modalita_pagamento_xml && (
                         <p className="text-[10px] text-neutral-400 mt-0.5">XML: {fattura.modalita_pagamento_xml}</p>
                       )}
-                      {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATA" && (
+                      {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATO" && (
                         <button
                           type="button"
                           onClick={() => {
@@ -830,7 +830,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                       {hasIbanOverride && fattura.iban_fornitore && fattura.iban_fornitore !== ibanEff && (
                         <p className="text-[9px] text-neutral-400 mt-0.5 font-mono break-all">Fornitore: {fattura.iban_fornitore}</p>
                       )}
-                      {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATA" && (
+                      {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATO" && (
                         <button
                           type="button"
                           onClick={() => {
@@ -976,12 +976,12 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
             </span>
           )}
           {/* Legacy: bottoni pre-Modulo M (preservati per compat se onCambiaStato non passato) */}
-          {!onCambiaStato && onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
+          {!onCambiaStato && onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATO" && !isRateizzata && (
             <Btn variant="primary" size="md" type="button" onClick={handleSegnaPagata}>
               ✓ Segna pagata
             </Btn>
           )}
-          {!onCambiaStato && onSegnaNonPagata && (fattura.pagato || statoUscita === "PAGATA_MANUALE") && (
+          {!onCambiaStato && onSegnaNonPagata && (fattura.pagato || statoUscita === "PAGATO_MANUALE") && (
             <Btn variant="chip" tone="red" size="md" type="button" onClick={handleSegnaNonPagata}>
               ✗ Segna NON pagata
             </Btn>

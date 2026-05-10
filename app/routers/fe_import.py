@@ -989,7 +989,7 @@ def segna_fatture_pagate(
         data_pagamento?: "2026-03-15",
         note?: "..."
     }
-    Post G.5: scrive solo su cg_uscite.stato='PAGATA_MANUALE'.
+    Post G.5: scrive solo su cg_uscite.stato='PAGATO_MANUALE'.
     fe_fatture.pagato e .stato_pagamento sono stati rimossi (mig 112);
     la VIEW fe_fatture_with_stato li ricostruisce per le query di lettura.
     """
@@ -1012,7 +1012,7 @@ def segna_fatture_pagate(
     oggi = datetime.datetime.now().strftime("%Y-%m-%d")
 
     aggiornate = 0
-    skip_pagata = 0  # già PAGATA via banca
+    skip_pagata = 0  # già PAGATO via banca
 
     for fid in ids:
         # Garantisce cg_uscite (per fatture orfane non ancora proiettate)
@@ -1023,8 +1023,8 @@ def segna_fatture_pagate(
         existing = conn.execute(
             "SELECT id, stato FROM cg_uscite WHERE id = ?", (uid,)
         ).fetchone()
-        if existing and existing["stato"] == "PAGATA":
-            # PAGATA = riconciliata banca, non sovrascrivere
+        if existing and existing["stato"] == "PAGATO":
+            # PAGATO = riconciliata banca, non sovrascrivere
             skip_pagata += 1
             continue
 
@@ -1078,7 +1078,7 @@ def update_stato_pagamento(
     la riconciliazione bancaria.
 
     Coerenza: la funzione sincronizza anche `cg_uscite.stato` per coerenza
-    cross-tabella (es. PAGATA_MANUALE / DA_PAGARE / SCADUTA).
+    cross-tabella (es. PAGATO_MANUALE / PROGRAMMATO / SCADUTO).
     """
     from app.services.fatture_stato_service import set_stato
     import logging
@@ -1169,24 +1169,24 @@ def segna_fatture_non_pagate(
         n_aggiornate = 0
         skip_pagata_banca = 0
         for fid in ids:
-            # Verifica se è PAGATA via banca (no toccare)
+            # Verifica se è PAGATO via banca (no toccare)
             existing = conn.execute(
                 "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?", (fid,)
             ).fetchone()
-            if existing and existing["stato"] == "PAGATA":
+            if existing and existing["stato"] == "PAGATO":
                 skip_pagata_banca += 1
                 continue
 
-            # Riporta a DA_PAGARE (set_stato lo mappa correttamente)
-            # Se la scadenza è passata, post-update aggiorniamo a SCADUTA
+            # Riporta a PROGRAMMATO (set_stato lo mappa correttamente)
+            # Se la scadenza è passata, post-update aggiorniamo a SCADUTO
             result = set_stato(conn, fid, "da_pagare")
             if not result.get("ok"):
                 continue
 
-            # Reset campi pagamento + check scadenza per derivare SCADUTA
+            # Reset campi pagamento + check scadenza per derivare SCADUTO
             cg_id = existing["id"] if existing else None
             scad = existing["data_scadenza"] if existing else None
-            cg_stato_finale = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
+            cg_stato_finale = "SCADUTO" if scad and scad < oggi else "PROGRAMMATO"
             conn.execute("""
                 UPDATE cg_uscite
                 SET stato = ?, data_pagamento = NULL, importo_pagato = 0,

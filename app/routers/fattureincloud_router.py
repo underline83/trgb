@@ -322,7 +322,7 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         )
 
         # Se FIC dice che è pagata e cg_uscite non riflette ancora questo stato,
-        # propaga su cg_uscite.stato='PAGATA_MANUALE' (banca non riconciliata, è
+        # propaga su cg_uscite.stato='PAGATO_MANUALE' (banca non riconciliata, è
         # solo dichiarazione FIC: l'utente potrà poi abbinare al movimento banca).
         if pagato == 1:
             try:

@@ -85,8 +85,9 @@ export default function FattureElenco() {
     uniq(fatture.map(f => f.fornitore_nome).filter(Boolean)),
   [fatture]);
 
-  // ── Filtro base (tutti i filtri TRANNE fonte e tipo — usato per conteggi badge) ──
-  const fattureBase = useMemo(() => {
+  // ── Filtro "pre-pagamento" — tutti i filtri TRANNE quello pagamento.
+  // Usato per calcolare i count dei chip Pagamento (i count cambiano con anno/mese/fornitore/...).
+  const fattureNoPagamento = useMemo(() => {
     let list = [...fatture];
 
     // S40-8: nascondi fatture dei fornitori esclusi da acquisti (default)
@@ -115,22 +116,6 @@ export default function FattureElenco() {
     });
     if (fornitoreSel) list = list.filter(f => f.fornitore_nome === fornitoreSel);
     if (pivaSel) list = list.filter(f => (f.fornitore_piva || "").includes(pivaSel));
-    // Filtro pagamento drill-down 2 livelli (post G.5 v2):
-    //   Riga 1 (esclusivi):
-    //     "" = tutti, "pagato" = qualsiasi pagata, "non_pagato" = qualsiasi non pagata
-    //   Riga 2 (sotto-stati specifici, basati su cg_uscite.stato esposto come f.cg_uscite_stato):
-    //     "riconciliato" → cg_uscite.stato='PAGATA' (banca abbinata)
-    //     "manuale"      → cg_uscite.stato='PAGATA_MANUALE'
-    //     "scaduto"      → cg_uscite.stato='SCADUTA'
-    //     "in_pagamento" → cg_uscite.stato='DA_VERIFICARE'
-    //     "rateizzato"   → rateizzata_in_spesa_fissa_id NOT NULL
-    if (pagatoSel === "pagato") list = list.filter(f => f.pagato);
-    else if (pagatoSel === "non_pagato") list = list.filter(f => !f.pagato);
-    else if (pagatoSel === "riconciliato") list = list.filter(f => f.cg_uscite_stato === "PAGATA");
-    else if (pagatoSel === "manuale") list = list.filter(f => f.cg_uscite_stato === "PAGATA_MANUALE");
-    else if (pagatoSel === "scaduto") list = list.filter(f => f.cg_uscite_stato === "SCADUTA");
-    else if (pagatoSel === "in_pagamento") list = list.filter(f => f.cg_uscite_stato === "DA_VERIFICARE");
-    else if (pagatoSel === "rateizzato") list = list.filter(f => f.rateizzata_in_spesa_fissa_id);
 
     if (importoMode === "gt" && importoVal1)
       list = list.filter(f => (f.totale_fattura || 0) > parseFloat(importoVal1));
@@ -143,7 +128,30 @@ export default function FattureElenco() {
       });
 
     return list;
-  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2, mostraEsclusi]);
+  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, importoMode, importoVal1, importoVal2, mostraEsclusi]);
+
+  // ── Filtro base (tutti i filtri TRANNE fonte e tipo — usato per conteggi badge fonte/tipo) ──
+  // Applica il filtro pagamento alla lista no-pagamento. Filtro pagamento drill-down 2 livelli:
+  //   Riga 1 (esclusivi):
+  //     "" = tutti, "pagato" = qualsiasi pagata, "non_pagato" = qualsiasi non pagata
+  //   Riga 2 (sotto-stati specifici, basati su cg_uscite.stato esposto come f.cg_uscite_stato):
+  //     "riconciliato" → cg_uscite.stato='PAGATO' (banca abbinata)
+  //     "manuale"      → cg_uscite.stato='PAGATO_MANUALE'
+  //     "scaduto"      → cg_uscite.stato='SCADUTO'
+  //     "in_pagamento" → cg_uscite.stato='VERIFICARE'
+  //     "rateizzato"   → rateizzata_in_spesa_fissa_id NOT NULL
+  const fattureBase = useMemo(() => {
+    let list = [...fattureNoPagamento];
+    if (pagatoSel === "pagato") list = list.filter(f => f.pagato);
+    else if (pagatoSel === "non_pagato") list = list.filter(f => !f.pagato);
+    else if (pagatoSel === "riconciliato") list = list.filter(f => f.cg_uscite_stato === "PAGATO");
+    else if (pagatoSel === "manuale") list = list.filter(f => f.cg_uscite_stato === "PAGATO_MANUALE");
+    else if (pagatoSel === "programmato") list = list.filter(f => f.cg_uscite_stato === "PROGRAMMATO" && !f.rateizzata_in_spesa_fissa_id);
+    else if (pagatoSel === "scaduto") list = list.filter(f => f.cg_uscite_stato === "SCADUTO");
+    else if (pagatoSel === "in_pagamento") list = list.filter(f => f.cg_uscite_stato === "VERIFICARE");
+    else if (pagatoSel === "rateizzato") list = list.filter(f => f.rateizzata_in_spesa_fissa_id);
+    return list;
+  }, [fattureNoPagamento, pagatoSel]);
 
   // ── Filtro completo (aggiunge fonte + tipo) ──
   const fattureFiltrate = useMemo(() => {
@@ -429,12 +437,9 @@ export default function FattureElenco() {
               <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-2">Pagamento</div>
               {/* Filtro drill-down 2 livelli: Riga 1 (Tutti/Pagato/Da pagare) + Riga 2 condizionale */}
               {(() => {
-                // Lista base per i count (esclude solo fornitori esclusi se toggle OFF;
-                // le rateizzate sono SEMPRE incluse — sono "non pagate" a piano).
-                const baseList = fatture.filter(f => {
-                  if (!mostraEsclusi && f.escluso_acquisti) return false;
-                  return true;
-                });
+                // Lista base per i count = fatture filtrate per tutto TRANNE pagamento.
+                // Così i count chip si aggiornano quando cambio anno/mese/fornitore/importo/ricerca.
+                const baseList = fattureNoPagamento;
                 const isPagato   = (f) => f.pagato;
                 const isNonPagato = (f) => !f.pagato;
                 const cg = (f) => f.cg_uscite_stato;
@@ -448,7 +453,7 @@ export default function FattureElenco() {
 
                 // ── Determina famiglia attiva (per riga 2) ──
                 const PAGATO_SUBS = ["riconciliato", "manuale"];
-                const NON_PAGATO_SUBS = ["scaduto", "in_pagamento", "rateizzato"];
+                const NON_PAGATO_SUBS = ["programmato", "scaduto", "in_pagamento", "rateizzato"];
                 const isFamigliaPagato = pagatoSel === "pagato" || PAGATO_SUBS.includes(pagatoSel);
                 const isFamigliaNonPagato = pagatoSel === "non_pagato" || NON_PAGATO_SUBS.includes(pagatoSel);
 
@@ -459,13 +464,14 @@ export default function FattureElenco() {
                 let liv2 = null;
                 if (isFamigliaPagato) {
                   liv2 = [
-                    { value: "riconciliato", label: "Riconciliato", n: baseList.filter(f => cg(f) === "PAGATA").length,         act: "bg-blue-100 text-blue-900 border-blue-300" },
-                    { value: "manuale",      label: "Manuale",      n: baseList.filter(f => cg(f) === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                    { value: "riconciliato", label: "Riconciliato", n: baseList.filter(f => cg(f) === "PAGATO").length,         act: "bg-blue-100 text-blue-900 border-blue-300" },
+                    { value: "manuale",      label: "Manuale",      n: baseList.filter(f => cg(f) === "PAGATO_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   ];
                 } else if (isFamigliaNonPagato) {
                   liv2 = [
-                    { value: "scaduto",      label: "Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTA").length,                act: "bg-red-100 text-red-900 border-red-300" },
-                    { value: "in_pagamento", label: "In pagamento", n: baseList.filter(f => cg(f) === "DA_VERIFICARE").length,          act: "bg-orange-100 text-orange-900 border-orange-300" },
+                    { value: "programmato",  label: "Programmato",  n: baseList.filter(f => cg(f) === "PROGRAMMATO" && !f.rateizzata_in_spesa_fissa_id).length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                    { value: "scaduto",      label: "Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTO").length,                act: "bg-red-100 text-red-900 border-red-300" },
+                    { value: "in_pagamento", label: "Da verificare", n: baseList.filter(f => cg(f) === "VERIFICARE").length,         act: "bg-orange-100 text-orange-900 border-orange-300" },
                     { value: "rateizzato",   label: "Rateizzato",   n: baseList.filter(f => f.rateizzata_in_spesa_fissa_id).length,     act: "bg-violet-100 text-violet-900 border-violet-300" },
                   ];
                 }
@@ -496,7 +502,7 @@ export default function FattureElenco() {
                         <div className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider mb-1">
                           {isFamigliaPagato ? "Tipo pagamento" : "Stato"}
                         </div>
-                        <div className={`grid gap-1 ${liv2.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                        <div className={`grid gap-1 ${liv2.length === 2 ? "grid-cols-2" : "grid-cols-2"}`}>
                           {liv2.map(o => renderChip(o, pagatoSel))}
                         </div>
                       </div>

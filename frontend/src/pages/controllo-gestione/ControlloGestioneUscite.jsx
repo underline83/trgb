@@ -21,14 +21,14 @@ const giorniA = (d) => d ? Math.ceil((new Date(d) - new Date()) / 86400000) : nu
 const cleanFatt = (s) => s && s !== "&mdash;" && s !== "—" && s.trim() ? s : null;
 
 const STATO_STYLE = {
-  DA_PAGARE:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Programmato" },
-  SCADUTA:         { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduto" },
-  PAGATA:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagato" },
-  PAGATA_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagato *" },
+  PROGRAMMATO:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Programmato" },
+  SCADUTO:         { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduto" },
+  PAGATO:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagato" },
+  PAGATO_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagato *" },
   // Modulo M.3 (2026-04-27): nuovo stato "Da verificare" per cg_uscite
-  DA_VERIFICARE:   { bg: "bg-amber-50",  text: "text-amber-800", border: "border-amber-300", label: "Da verificare" },
+  VERIFICARE:   { bg: "bg-amber-50",  text: "text-amber-800", border: "border-amber-300", label: "Da verificare" },
   PARZIALE:        { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
-  RATEIZZATA:      { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-200", label: "Rateizzato" },
+  RATEIZZATO:      { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-200", label: "Rateizzato" },
 };
 
 const TIPO_USCITA_STYLE = {
@@ -61,12 +61,12 @@ export default function ControlloGestioneUscite() {
   // ── Filtri (locali, no API) ──
   const [search, setSearch] = useState("");
   // filtroStato: Set di stati selezionati. Vuoto = "tutti".
-  // Valori possibili: "DA_PAGARE", "SCADUTA", "PAGATA" (include anche PAGATA_MANUALE), "PARZIALE"
+  // Valori possibili: "PROGRAMMATO", "SCADUTO", "PAGATO" (include anche PAGATO_MANUALE), "PARZIALE"
   //
   // v3.1 (sessione 40): DEFAULT = Programmato + Scaduto + Pagato.
   // Marco entra nella pagina e vede subito il quadro completo del mese in corso
   // (niente Parziale di default perché è rumore raro, va cercato esplicitamente).
-  const [filtroStato, setFiltroStato] = useState(() => new Set(["DA_PAGARE", "SCADUTA", "PAGATA"]));
+  const [filtroStato, setFiltroStato] = useState(() => new Set(["PROGRAMMATO", "SCADUTO", "PAGATO"]));
   const [filtroTipo, setFiltroTipo] = useState(""); // FATTURA | SPESA_FISSA | ""
   // v3.1: DEFAULT periodo = mese corrente (primo giorno → ultimo giorno).
   // Stesso vantaggio: chi apre la pagina ha già la vista "mese" come in Excel.
@@ -181,7 +181,7 @@ export default function ControlloGestioneUscite() {
   // - Pagato (selezionato da solo) → data_scadenza DESC (le più recenti prima)
   useEffect(() => {
     setSortCol("data_scadenza");
-    const soloPagate = filtroStato.size === 1 && filtroStato.has("PAGATA");
+    const soloPagate = filtroStato.size === 1 && filtroStato.has("PAGATO");
     setSortDir(soloPagate ? "desc" : "asc");
   }, [filtroStato]);
 
@@ -205,8 +205,8 @@ export default function ControlloGestioneUscite() {
     }
     if (filtroStato.size > 0) {
       rows = rows.filter(u => {
-        // PAGATA del filtro include sia PAGATA che PAGATA_MANUALE
-        if (filtroStato.has("PAGATA") && (u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE")) return true;
+        // PAGATO del filtro include sia PAGATO che PAGATO_MANUALE
+        if (filtroStato.has("PAGATO") && (u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE")) return true;
         return filtroStato.has(u.stato);
       });
     }
@@ -222,9 +222,9 @@ export default function ControlloGestioneUscite() {
 
   // ── KPI calcolati sui filtrati ──
   const kpi = useMemo(() => {
-    const dp = filtered.filter(u => u.stato === "DA_PAGARE");
-    const sc = filtered.filter(u => u.stato === "SCADUTA");
-    const pg = filtered.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE" || u.stato === "PARZIALE");
+    const dp = filtered.filter(u => u.stato === "PROGRAMMATO");
+    const sc = filtered.filter(u => u.stato === "SCADUTO");
+    const pg = filtered.filter(u => u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE" || u.stato === "PARZIALE");
     return {
       da_pagare: dp.reduce((s, u) => s + (u.totale - u.importo_pagato), 0),
       n_da_pagare: dp.length,
@@ -311,7 +311,7 @@ export default function ControlloGestioneUscite() {
   // ── Modifica scadenza ──
   const apriModaleScadenza = (u) => {
     // Non aprire per righe riconciliate via banca
-    if (u.stato === "PAGATA") return;
+    if (u.stato === "PAGATO") return;
     // v2.0: per fatture la "data originale" semantica è quella XML (f.data_scadenza).
     // Per spese fisse / manuali resta cg_uscite.data_scadenza_originale.
     const isFatturaV2 = !!u.fattura_id;
@@ -328,7 +328,7 @@ export default function ControlloGestioneUscite() {
   // STIPENDIO/ALTRO/altre   → modale modifica scadenza (comportamento legacy)
   const handleRowClick = (u) => {
     // Riconciliata via banca → non succede niente (comportamento pre-esistente)
-    if (u.stato === "PAGATA") return;
+    if (u.stato === "PAGATO") return;
 
     const tipo = u.tipo_uscita || "FATTURA";
 
@@ -357,7 +357,7 @@ export default function ControlloGestioneUscite() {
     }
 
     // 2) Rateizzata anche senza spesa_fissa_id diretta → se c'è una fattura, vai lì inline
-    if (u.stato === "RATEIZZATA" && u.fattura_id) {
+    if (u.stato === "RATEIZZATO" && u.fattura_id) {
       setOpenFatturaId(u.fattura_id);
       setTimeout(() => {
         fatturaInlineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -419,7 +419,7 @@ export default function ControlloGestioneUscite() {
       .reduce((s, u) => s + ((u.totale || 0) - (u.importo_pagato || 0)), 0);
   }, [allUscite, selected]);
   const selezionabili = useMemo(() =>
-    sorted.filter(u => ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato)).map(u => u.id),
+    sorted.filter(u => ["PROGRAMMATO", "SCADUTO", "PARZIALE"].includes(u.stato)).map(u => u.id),
     [sorted]
   );
   const allSelected = selezionabili.length > 0 && selezionabili.every(id => selected.has(id));
@@ -561,9 +561,9 @@ export default function ControlloGestioneUscite() {
         ? new Date(u.data_scadenza + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })
         : "—";
       const importo = Number(u.totale - u.importo_pagato).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const stato = u.stato === "SCADUTA" ? "SCADUTA" : "";
+      const stato = u.stato === "SCADUTO" ? "SCADUTO" : "";
       return `
-        <tr class="${stato === "SCADUTA" ? "scaduta" : ""}">
+        <tr class="${stato === "SCADUTO" ? "scaduta" : ""}">
           <td class="num">${i + 1}</td>
           <td class="scad">${dataScad}${stato ? ` <span class="tag">${stato}</span>` : ""}</td>
           <td class="forn">
@@ -774,9 +774,9 @@ export default function ControlloGestioneUscite() {
               </div>
               <div className="grid grid-cols-2 gap-1">
                 {[
-                  { value: "DA_PAGARE", label: "Programmato", n: allUscite.filter(u => u.stato === "DA_PAGARE").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
-                  { value: "SCADUTA",   label: "Scaduto",     n: allUscite.filter(u => u.stato === "SCADUTA").length,   act: "bg-red-100 text-red-900 border-red-300" },
-                  { value: "PAGATA",    label: "Pagato",      n: allUscite.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                  { value: "PROGRAMMATO", label: "Programmato", n: allUscite.filter(u => u.stato === "PROGRAMMATO").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                  { value: "SCADUTO",   label: "Scaduto",     n: allUscite.filter(u => u.stato === "SCADUTO").length,   act: "bg-red-100 text-red-900 border-red-300" },
+                  { value: "PAGATO",    label: "Pagato",      n: allUscite.filter(u => u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   { value: "PARZIALE",  label: "Parziale",    n: allUscite.filter(u => u.stato === "PARZIALE").length,  act: "bg-blue-100 text-blue-900 border-blue-300" },
                 ].map(o => {
                   const active = filtroStato.has(o.value);
@@ -978,11 +978,11 @@ export default function ControlloGestioneUscite() {
           {/* KPI BAR */}
           <div className="px-3 py-2 border-b border-neutral-200 bg-white flex flex-wrap gap-2 items-center flex-shrink-0">
             <KPI label="Programmato" value={kpi.da_pagare} n={kpi.n_da_pagare} color="amber"
-              active={filtroStato.has("DA_PAGARE")} onClick={() => toggleStato("DA_PAGARE")} />
+              active={filtroStato.has("PROGRAMMATO")} onClick={() => toggleStato("PROGRAMMATO")} />
             <KPI label="Scaduto" value={kpi.scadute} n={kpi.n_scadute} color="red"
-              active={filtroStato.has("SCADUTA")} onClick={() => toggleStato("SCADUTA")} />
+              active={filtroStato.has("SCADUTO")} onClick={() => toggleStato("SCADUTO")} />
             <KPI label="Pagato" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
-              active={filtroStato.has("PAGATA")} onClick={() => toggleStato("PAGATA")} />
+              active={filtroStato.has("PAGATO")} onClick={() => toggleStato("PAGATO")} />
             {/* KPI "Da riconciliare" — clic apre il workbench split-pane */}
             {rig.num_da_riconciliare > 0 && (
               <KPI
@@ -1154,14 +1154,14 @@ export default function ControlloGestioneUscite() {
                 </thead>
                 <tbody>
                   {sorted.map((u) => {
-                    const st = STATO_STYLE[u.stato] || STATO_STYLE.DA_PAGARE;
+                    const st = STATO_STYLE[u.stato] || STATO_STYLE.PROGRAMMATO;
                     const residuo = (u.totale || 0) - (u.importo_pagato || 0);
                     const isSF = (u.tipo_uscita || "FATTURA") === "SPESA_FISSA";
                     const isStipendio = u.tipo_uscita === "STIPENDIO";
                     const isProforma = u.tipo_uscita === "PROFORMA";
                     const isRiconciliata = !!u.banca_movimento_id;
-                    const puoRiconciliare = u.stato === "PAGATA_MANUALE" && !isRiconciliata;
-                    const puoSelezionare = ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato);
+                    const puoRiconciliare = u.stato === "PAGATO_MANUALE" && !isRiconciliata;
+                    const puoSelezionare = ["PROGRAMMATO", "SCADUTO", "PARZIALE"].includes(u.stato);
                     const inPagamento = !!u.in_pagamento_at;
 
                     return (
@@ -1175,8 +1175,8 @@ export default function ControlloGestioneUscite() {
                         className={`border-b border-neutral-100 hover:bg-sky-50/50 transition cursor-pointer ${
                         selected.has(u.id) ? "bg-teal-50/60" :
                         inPagamento ? "bg-indigo-50/50" :
-                        u.stato === "RATEIZZATA" ? "bg-purple-50/40" :
-                        u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : isStipendio ? "bg-violet-50/20" : isProforma ? "bg-amber-50/20" : "bg-white"
+                        u.stato === "RATEIZZATO" ? "bg-purple-50/40" :
+                        u.stato === "SCADUTO" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : isStipendio ? "bg-violet-50/20" : isProforma ? "bg-amber-50/20" : "bg-white"
                       }`}>
                         {/* CHECKBOX */}
                         <td className="px-2 py-1.5 text-center" onClick={e => e.stopPropagation()}>
@@ -1191,7 +1191,7 @@ export default function ControlloGestioneUscite() {
                         {/* SCADENZA */}
                         <td className="px-3 py-1.5 whitespace-nowrap">
                           {u.data_scadenza ? (
-                            <span className={u.stato === "SCADUTA" ? "text-red-700 font-bold" : "text-neutral-700"}>
+                            <span className={u.stato === "SCADUTO" ? "text-red-700 font-bold" : "text-neutral-700"}>
                               {fmtDateFull(u.data_scadenza)}
                             </span>
                           ) : (
@@ -1286,7 +1286,7 @@ export default function ControlloGestioneUscite() {
                                 <BancaLinkIcon size={14} />
                               </button>
                             </Tooltip>
-                          ) : u.stato === "PAGATA" && u.banca_movimento_id ? (
+                          ) : u.stato === "PAGATO" && u.banca_movimento_id ? (
                             <BancaCheckIcon size={14} className="text-emerald-400" />
                           ) : (
                             <span className="text-neutral-200">&mdash;</span>
@@ -1320,7 +1320,7 @@ export default function ControlloGestioneUscite() {
 
             <div className="px-5 py-3 text-[11px] text-neutral-600 bg-amber-50 border-b border-amber-100">
               Eliminare un batch <strong>non cancella</strong> le uscite collegate: vengono solo scollegate dal batch e tornano
-              al loro stato originale (DA_PAGARE / SCADUTA / PAGATA). Utile per ripulire test o annullare un invio sbagliato.
+              al loro stato originale (PROGRAMMATO / SCADUTO / PAGATO). Utile per ripulire test o annullare un invio sbagliato.
             </div>
 
             <div className="flex-1 overflow-y-auto">

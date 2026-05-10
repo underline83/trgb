@@ -2,9 +2,9 @@
 // Workbench Riconciliazione — split-pane dedicato, uno per canale di pagamento.
 //
 // SX: worklist uscite "Da collegare", filtrata per canale selezionato:
-//     - banca    → stato=PAGATA_MANUALE, banca_movimento_id NULL, metodo_pagamento NOT IN (CARTA,CONTANTI)
-//     - carta    → stato=PAGATA_MANUALE, metodo_pagamento=CARTA  (predisposizione modulo futuro)
-//     - contanti → stato=PAGATA_MANUALE, metodo_pagamento=CONTANTI  (edge case, di norma vuoto)
+//     - banca    → stato=PAGATO_MANUALE, banca_movimento_id NULL, metodo_pagamento NOT IN (CARTA,CONTANTI)
+//     - carta    → stato=PAGATO_MANUALE, metodo_pagamento=CARTA  (predisposizione modulo futuro)
+//     - contanti → stato=PAGATO_MANUALE, metodo_pagamento=CONTANTI  (edge case, di norma vuoto)
 //
 // DX: pannello dipende dal canale:
 //     - banca    → RiconciliaBancaPanel (Auto + Ricerca libera su banca_movimenti)

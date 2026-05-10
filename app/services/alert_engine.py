@@ -472,7 +472,7 @@ def _check_vini_sottoscorta(dry_run: bool = False, config: dict = None) -> Check
 # G.2 — CHECKER 4/5/6: Scadenze pagamenti CG (3 livelli)
 # Modulo: controllo_gestione
 #
-# Scadenziario unificato (cg_uscite con stato DA_PAGARE/SCADUTA) suddiviso in
+# Scadenziario unificato (cg_uscite con stato PROGRAMMATO/SCADUTO) suddiviso in
 # 3 livelli per priorità di alert:
 #   - imminenti (default 7 gg, urgenza ALTA)   → include scadute non riconciliate
 #   - avvicinamento (default 15 gg, NORMALE)   → range esclusivo: > soglia_imminente
@@ -494,7 +494,7 @@ def _query_scadenze_pagamenti(min_offset: Optional[int], max_offset: int) -> Lis
     max_offset:
         - data_scadenza ≤ oggi + max_offset
     Filtri sempre attivi:
-        - stato in (DA_PAGARE, SCADUTA)
+        - stato in (PROGRAMMATO, SCADUTO)
         - data_scadenza NOT NULL
         - banca_movimento_id IS NULL (non riconciliata)
     Ordinati per data_scadenza ASC.
@@ -511,7 +511,7 @@ def _query_scadenze_pagamenti(min_offset: Optional[int], max_offset: int) -> Lis
             sf.titolo AS spesa_titolo
         FROM cg_uscite u
         LEFT JOIN cg_spese_fisse sf ON sf.id = u.spesa_fissa_id
-        WHERE u.stato IN ('DA_PAGARE', 'SCADUTA')
+        WHERE u.stato IN ('PROGRAMMATO', 'SCADUTO')
           AND u.data_scadenza IS NOT NULL
           AND u.data_scadenza != ''
           AND u.banca_movimento_id IS NULL
@@ -592,7 +592,7 @@ def _check_cg_scadenze_livello(
             return result
 
         totale_eur = sum(float(r.get("totale") or 0) for r in rows)
-        n_scadute = sum(1 for r in rows if r.get("stato") == "SCADUTA")
+        n_scadute = sum(1 for r in rows if r.get("stato") == "SCADUTO")
 
         # Titolo: se siamo in livello imminente con scadute, evidenzialo
         if livello_label == "imminenti" and n_scadute > 0:

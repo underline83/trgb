@@ -622,14 +622,14 @@ export default function ControlloGestioneSpeseFisse() {
       alert("Inserisci un totale valido (numero positivo).");
       return;
     }
-    const editabili = pianoRate.filter(r => !["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato));
+    const editabili = pianoRate.filter(r => !["PAGATO", "PAGATO_MANUALE", "PARZIALE"].includes(r.uscita_stato));
     if (editabili.length === 0) {
       alert("Tutte le rate sono gia' pagate o parziali. Nessuna rata da ricalcolare.");
       return;
     }
     // Somma di quanto gia' versato sulle rate pagate (uscita_pagato fallback su importo)
     const giaVersato = pianoRate
-      .filter(r => ["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato))
+      .filter(r => ["PAGATO", "PAGATO_MANUALE", "PARZIALE"].includes(r.uscita_stato))
       .reduce((acc, r) => acc + Number(r.uscita_pagato || r.importo || 0), 0);
     const residuo = Math.max(tot - giaVersato, 0);
     const importoPerRata = residuo / editabili.length;
@@ -702,11 +702,11 @@ export default function ControlloGestioneSpeseFisse() {
 
   const statoBadge = (stato) => {
     const map = {
-      PAGATA: { label: "Pagato", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-      PAGATA_MANUALE: { label: "Pagato", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      PAGATO: { label: "Pagato", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      PAGATO_MANUALE: { label: "Pagato", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
       PARZIALE: { label: "Parziale", cls: "bg-amber-100 text-amber-700 border-amber-200" },
-      SCADUTA: { label: "Scaduto", cls: "bg-red-100 text-red-700 border-red-200" },
-      DA_PAGARE: { label: "Programmato", cls: "bg-sky-100 text-sky-700 border-sky-200" },
+      SCADUTO: { label: "Scaduto", cls: "bg-red-100 text-red-700 border-red-200" },
+      PROGRAMMATO: { label: "Programmato", cls: "bg-sky-100 text-sky-700 border-sky-200" },
     };
     if (!stato) return { label: "—", cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
     return map[stato] || { label: stato, cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
@@ -719,10 +719,10 @@ export default function ControlloGestioneSpeseFisse() {
       const res = await apiFetch(`${CG}/uscite`);
       if (!res.ok) throw new Error("Errore");
       const d = await res.json();
-      // Solo fatture DA_PAGARE o SCADUTE con importo > 0
+      // Solo fatture PROGRAMMATO o SCADUTE con importo > 0
       const fatt = (d.uscite || []).filter(u =>
         (u.tipo_uscita || "FATTURA") === "FATTURA" &&
-        ["DA_PAGARE", "SCADUTA"].includes(u.stato) &&
+        ["PROGRAMMATO", "SCADUTO"].includes(u.stato) &&
         u.totale > 0
       );
       setFattureDisponibili(fatt);
@@ -1296,8 +1296,8 @@ export default function ControlloGestioneSpeseFisse() {
                               <div className="text-xs font-medium text-neutral-800 truncate">{f.fornitore_nome}</div>
                               <div className="text-[10px] text-neutral-400">
                                 n. {f.numero_fattura || "—"} · {f.data_fattura || "—"}
-                                {f.stato === "SCADUTA" && (
-                                  <span className="ml-2 text-red-600 font-semibold">SCADUTA</span>
+                                {f.stato === "SCADUTO" && (
+                                  <span className="ml-2 text-red-600 font-semibold">SCADUTO</span>
                                 )}
                               </div>
                             </div>
@@ -1659,7 +1659,7 @@ export default function ControlloGestioneSpeseFisse() {
                       </div>
                       {csvParsed.n_pagate > 0 && (
                         <div className="rounded bg-amber-50 border border-amber-200 p-2 mb-3 text-[11px] text-amber-800">
-                          ℹ {csvParsed.n_pagate} rate marcate "Pagata" nel CSV — verranno create comunque come <strong>DA_PAGARE/SCADUTA</strong>. La riconciliazione vera la fai dal modulo Banca.
+                          ℹ {csvParsed.n_pagate} rate marcate "Pagata" nel CSV — verranno create comunque come <strong>PROGRAMMATO/SCADUTO</strong>. La riconciliazione vera la fai dal modulo Banca.
                         </div>
                       )}
                       <div className="overflow-x-auto max-h-48 overflow-y-auto border border-neutral-200 rounded">
@@ -2206,7 +2206,7 @@ export default function ControlloGestioneSpeseFisse() {
             )}
 
             {/* M.6: Ricalcola dividendo (visibile solo se ci sono rate non ancora pagate) */}
-            {!pianoLoading && pianoRate.length > 0 && pianoRate.some(r => !["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato)) && (
+            {!pianoLoading && pianoRate.length > 0 && pianoRate.some(r => !["PAGATO", "PAGATO_MANUALE", "PARZIALE"].includes(r.uscita_stato)) && (
               <div className="px-6 py-2 border-b border-neutral-100 bg-amber-50/40 flex flex-wrap items-center gap-2">
                 <span className="text-[11px] text-amber-800 font-semibold whitespace-nowrap">↻ Ricalcola dividendo:</span>
                 <div className="flex items-center gap-1 text-xs">
@@ -2222,7 +2222,7 @@ export default function ControlloGestioneSpeseFisse() {
                   />
                   <span className="text-neutral-500">per</span>
                   <span className="font-semibold text-neutral-700">
-                    {pianoRate.filter(r => !["PAGATA", "PAGATA_MANUALE", "PARZIALE"].includes(r.uscita_stato)).length}
+                    {pianoRate.filter(r => !["PAGATO", "PAGATO_MANUALE", "PARZIALE"].includes(r.uscita_stato)).length}
                   </span>
                   <span className="text-neutral-500">rate non pagate</span>
                 </div>
@@ -2264,7 +2264,7 @@ export default function ControlloGestioneSpeseFisse() {
                   <tbody>
                     {pianoRate.map((r, idx) => {
                       const badge = statoBadge(r.uscita_stato);
-                      const isPagata = ["PAGATA", "PAGATA_MANUALE"].includes(r.uscita_stato);
+                      const isPagata = ["PAGATO", "PAGATO_MANUALE"].includes(r.uscita_stato);
                       const isParziale = r.uscita_stato === "PARZIALE";
                       const edit = _readEdit(pianoEdits[r.periodo]);
                       const displayValue = edit.importo !== undefined ? edit.importo : String(r.importo);

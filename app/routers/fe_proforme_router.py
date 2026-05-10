@@ -302,8 +302,8 @@ def crea_proforma(
         proforma_id = cur.lastrowid
 
         # ── Crea riga in cg_uscite (scadenziario) ──
-        # Stato: DA_PAGARE o SCADUTA in base alla data
-        stato_uscita = "SCADUTA" if payload.data_scadenza < oggi else "DA_PAGARE"
+        # Stato: PROGRAMMATO o SCADUTO in base alla data
+        stato_uscita = "SCADUTO" if payload.data_scadenza < oggi else "PROGRAMMATO"
 
         cur2 = conn.execute("""
             INSERT INTO cg_uscite
@@ -398,7 +398,7 @@ def modifica_proforma(
             if "data_scadenza" in updates:
                 cg_updates["data_scadenza"] = updates["data_scadenza"]
                 oggi = date.today().isoformat()
-                cg_updates["stato"] = "SCADUTA" if updates["data_scadenza"] < oggi else "DA_PAGARE"
+                cg_updates["stato"] = "SCADUTO" if updates["data_scadenza"] < oggi else "PROGRAMMATO"
 
             if cg_updates:
                 cg_updates["updated_at"] = "CURRENT_TIMESTAMP"
@@ -576,7 +576,7 @@ def dissocia_proforma(
             )
 
         oggi = date.today().isoformat()
-        stato_uscita = "SCADUTA" if proforma["data_scadenza"] < oggi else "DA_PAGARE"
+        stato_uscita = "SCADUTO" if proforma["data_scadenza"] < oggi else "PROGRAMMATO"
 
         # Ricrea riga cg_uscite
         cur = conn.execute("""

@@ -10,18 +10,18 @@ rimosse fisicamente (mig 112). La VIEW `fe_fatture_with_stato` le ricostruisce
 al volo per le query di lettura.
 
 Mappatura semantica stato_pagamento (legacy esposto al frontend) ↔ cg_uscite.stato:
-    'da_pagare'        ⟷  'DA_PAGARE'
-    'da_verificare'    ⟷  'DA_VERIFICARE' (nuovo da G.5)
-    'pagato_manuale'   ⟷  'PAGATA_MANUALE'
-    'pagato'           ⟷  'PAGATA' (riconciliato banca, banca_movimento_id valorizzato)
+    'da_pagare'        ⟷  'PROGRAMMATO'
+    'da_verificare'    ⟷  'VERIFICARE' (nuovo da G.5)
+    'pagato_manuale'   ⟷  'PAGATO_MANUALE'
+    'pagato'           ⟷  'PAGATO' (riconciliato banca, banca_movimento_id valorizzato)
 
 Stati cg_uscite extra (non esposti come stato_pagamento):
-    'SCADUTA'  → mappato a 'da_pagare' nella VIEW (data passata, da pagare comunque)
+    'SCADUTO'  → mappato a 'da_pagare' nella VIEW (data passata, da pagare comunque)
     'PARZIALE' → mappato a 'da_verificare' (utente decide se chiudere o lasciare)
-    'RATEIZZATA' → mappato a 'da_pagare' (ma di fatto la spesa fissa gestisce)
+    'RATEIZZATO' → mappato a 'da_pagare' (ma di fatto la spesa fissa gestisce)
 
 Invarianti:
-  - Stato 'pagato' (PAGATA in cg_uscite) può essere settato SOLO da hook
+  - Stato 'pagato' (PAGATO in cg_uscite) può essere settato SOLO da hook
     riconciliazione bancaria (presenza di banca_fatture_link o
     cg_uscite.banca_movimento_id valorizzato).
   - Da 'pagato' si può uscire SOLO cancellando la riconciliazione: l'hook
@@ -51,21 +51,21 @@ STATI_MANUALI = {"da_pagare", "da_verificare", "pagato_manuale"}
 
 # Mappatura stato_pagamento legacy → cg_uscite.stato canonico
 LEGACY_TO_CG = {
-    "da_pagare":      "DA_PAGARE",
-    "da_verificare":  "DA_VERIFICARE",
-    "pagato_manuale": "PAGATA_MANUALE",
-    "pagato":         "PAGATA",
+    "da_pagare":      "PROGRAMMATO",
+    "da_verificare":  "VERIFICARE",
+    "pagato_manuale": "PAGATO_MANUALE",
+    "pagato":         "PAGATO",
 }
 
 # Mappatura inversa cg_uscite.stato → stato_pagamento legacy
 CG_TO_LEGACY = {
-    "DA_PAGARE":      "da_pagare",
-    "SCADUTA":        "da_pagare",  # SCADUTA è "da pagare ma in ritardo"
-    "DA_VERIFICARE":  "da_verificare",
+    "PROGRAMMATO":      "da_pagare",
+    "SCADUTO":        "da_pagare",  # SCADUTO è "da pagare ma in ritardo"
+    "VERIFICARE":  "da_verificare",
     "PARZIALE":       "da_verificare",
-    "PAGATA_MANUALE": "pagato_manuale",
-    "PAGATA":         "pagato",
-    "RATEIZZATA":     "da_pagare",  # neutro: la spesa fissa gestisce
+    "PAGATO_MANUALE": "pagato_manuale",
+    "PAGATO":         "pagato",
+    "RATEIZZATO":     "da_pagare",  # neutro: la spesa fissa gestisce
 }
 
 
@@ -114,7 +114,7 @@ def _ensure_cg_uscita(conn, fattura_id: int) -> Optional[int]:
             data_fattura, totale, data_scadenza,
             importo_pagato, stato, note,
             created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'DA_PAGARE',
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'PROGRAMMATO',
                   '[stub creato da fatture_stato_service]',
                   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     """, (fattura_id, nome, piva, numero, df, tot, data_scad))
@@ -244,24 +244,24 @@ def recompute_all_states(conn) -> dict:
     Job manutentivo: utile dopo import massivi o per sanare incoerenze.
 
     Logica (post G.5):
-      1. Esiste banca_fatture_link O cg_uscite.banca_movimento_id → cg_uscite.stato='PAGATA'
-      2. Stato corrente PAGATA ma niente più link → torna a PAGATA_MANUALE
-      3. Niente link e niente cg_uscite → crea stub DA_PAGARE
+      1. Esiste banca_fatture_link O cg_uscite.banca_movimento_id → cg_uscite.stato='PAGATO'
+      2. Stato corrente PAGATO ma niente più link → torna a PAGATO_MANUALE
+      3. Niente link e niente cg_uscite → crea stub PROGRAMMATO
 
-    NON tocca DA_VERIFICARE / PARZIALE (sono stati espliciti utente).
+    NON tocca VERIFICARE / PARZIALE (sono stati espliciti utente).
     """
-    # Step 1: forza PAGATA per fatture con riconciliazione attiva
+    # Step 1: forza PAGATO per fatture con riconciliazione attiva
     cur = conn.execute("""
-        UPDATE cg_uscite SET stato = 'PAGATA', updated_at = CURRENT_TIMESTAMP
+        UPDATE cg_uscite SET stato = 'PAGATO', updated_at = CURRENT_TIMESTAMP
         WHERE fattura_id IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
-          AND stato != 'PAGATA'
+          AND stato != 'PAGATO'
     """)
     n_pagato = cur.rowcount
 
-    # Step 2: PAGATA → PAGATA_MANUALE se non ha più link banca
+    # Step 2: PAGATO → PAGATO_MANUALE se non ha più link banca
     cur = conn.execute("""
-        UPDATE cg_uscite SET stato = 'PAGATA_MANUALE', updated_at = CURRENT_TIMESTAMP
-        WHERE stato = 'PAGATA'
+        UPDATE cg_uscite SET stato = 'PAGATO_MANUALE', updated_at = CURRENT_TIMESTAMP
+        WHERE stato = 'PAGATO'
           AND fattura_id IS NOT NULL
           AND fattura_id NOT IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
           AND COALESCE(banca_movimento_id, 0) = 0

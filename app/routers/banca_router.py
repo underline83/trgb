@@ -1003,7 +1003,7 @@ def get_cross_ref(
             suggestions.append(d)
 
         # 3) Uscite CG non pagate: match per nome nella descrizione
-        # PAGATA_MANUALE incluso: rate/spese chiuse a mano sono ricollegabili
+        # PAGATO_MANUALE incluso: rate/spese chiuse a mano sono ricollegabili
         # al movimento bancario quando viene importato.
         cur3 = conn.cursor()
         cur3.execute("""
@@ -1014,7 +1014,7 @@ def get_cross_ref(
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
+              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
         """)
         for r in cur3.fetchall():
             if not _nome_match(r["fornitore_nome"] or "", desc_lower):
@@ -1033,7 +1033,7 @@ def get_cross_ref(
                 suggestions.append(d)
 
         # 4) Uscite CG: match per importo simile (±15%) entro ±30 giorni
-        # PAGATA_MANUALE incluso: vedi nota sulla query (3).
+        # PAGATO_MANUALE incluso: vedi nota sulla query (3).
         cur3b = conn.cursor()
         cur3b.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
@@ -1043,7 +1043,7 @@ def get_cross_ref(
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
+              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
               AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.15
               AND cu.data_scadenza BETWEEN date(?, '-30 days') AND date(?, '+30 days')
             ORDER BY ABS(cu.totale - ?) ASC
@@ -1109,7 +1109,7 @@ def create_link(req: CrossRefLinkRequest):
             cur.execute("""
                 UPDATE cg_uscite
                 SET banca_movimento_id = ?,
-                    stato = 'PAGATA',
+                    stato = 'PAGATO',
                     data_pagamento = COALESCE(data_pagamento, ?),
                     importo_pagato = totale,
                     in_pagamento_at = NULL,
@@ -1142,7 +1142,7 @@ def create_link(req: CrossRefLinkRequest):
             cur.execute("""
                 UPDATE cg_uscite
                 SET banca_movimento_id = ?,
-                    stato = 'PAGATA',
+                    stato = 'PAGATO',
                     data_pagamento = COALESCE(data_pagamento, ?),
                     importo_pagato = totale,
                     in_pagamento_at = NULL,
@@ -1191,7 +1191,7 @@ def delete_link(link_id: str):
         cur.execute("""
             UPDATE cg_uscite
             SET banca_movimento_id = NULL,
-                stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTA' ELSE 'DA_PAGARE' END,
+                stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTO' ELSE 'PROGRAMMATO' END,
                 importo_pagato = 0,
                 data_pagamento = NULL,
                 updated_at = datetime('now')
@@ -1224,7 +1224,7 @@ def delete_link(link_id: str):
             cur.execute("""
                 UPDATE cg_uscite
                 SET banca_movimento_id = NULL,
-                    stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTA' ELSE 'DA_PAGARE' END,
+                    stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTO' ELSE 'PROGRAMMATO' END,
                     importo_pagato = 0,
                     data_pagamento = NULL,
                     updated_at = datetime('now')
@@ -1416,8 +1416,8 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             results.append(d)
 
         # Uscite CG per importo (solo non-fattura)
-        # PAGATA_MANUALE incluso: l'utente ha chiuso a mano la rata e ora vuole
-        # collegare il vero movimento bancario (il link UPDATE setta stato=PAGATA).
+        # PAGATO_MANUALE incluso: l'utente ha chiuso a mano la rata e ora vuole
+        # collegare il vero movimento bancario (il link UPDATE setta stato=PAGATO).
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
@@ -1426,7 +1426,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
+              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
               AND ABS(cu.totale - ?) < MAX(? * 0.1, 1.0)
             ORDER BY ABS(cu.totale - ?) ASC
             LIMIT ?
@@ -1478,7 +1478,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             results.append(d)
 
         # Uscite CG per testo (solo non-fattura)
-        # PAGATA_MANUALE incluso: vedi nota analoga sulla query per importo.
+        # PAGATO_MANUALE incluso: vedi nota analoga sulla query per importo.
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
@@ -1487,7 +1487,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
-              AND cu.stato IN ('DA_PAGARE', 'SCADUTA', 'PAGATA_MANUALE')
+              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
               AND (cu.fornitore_nome LIKE ? OR cu.numero_fattura LIKE ?)
             ORDER BY cu.data_scadenza DESC
             LIMIT ?
@@ -1656,7 +1656,7 @@ def registra_movimento(req: RegistraMovimentoRequest):
                 fornitore_nome, totale, data_scadenza, stato,
                 banca_movimento_id, tipo_uscita, note,
                 importo_pagato, data_pagamento
-            ) VALUES (?, ?, ?, 'PAGATA', ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, 'PAGATO', ?, ?, ?, ?, ?)
         """, (
             desc, abs(importo), data, req.movimento_id,
             req.categoria, req.note,
@@ -1730,7 +1730,7 @@ def registra_bulk(req: RegistraBulkRequest):
                 INSERT INTO cg_uscite (
                     fornitore_nome, totale, data_scadenza, stato,
                     banca_movimento_id, tipo_uscita, importo_pagato, data_pagamento
-                ) VALUES (?, ?, ?, 'PAGATA', ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, 'PAGATO', ?, ?, ?, ?)
             """, (desc, abs(importo), data, mov_id, req.categoria, abs(importo), data))
             ok_count += 1
         else:
@@ -1774,7 +1774,7 @@ def annulla_registrazione(movimento_id: int):
       DELETE → l'uscita non esiste se non collegata al movimento.
     - Altrimenti (STIPENDIO, FATTURA, SPESA_FISSA, PROFORMA, …):
       UPDATE che scollega il movimento senza distruggere l'uscita
-      (`banca_movimento_id=NULL`, stato torna a DA_PAGARE se era PAGATA
+      (`banca_movimento_id=NULL`, stato torna a PROGRAMMATO se era PAGATO
       tramite banca, cosi' l'utente puo' rifare la riconciliazione).
     """
     # Tipi che l'endpoint `POST /cross-ref/registra` crea al volo: senza
@@ -1824,7 +1824,7 @@ def annulla_registrazione(movimento_id: int):
                 SET banca_movimento_id = NULL,
                     importo_pagato = 0,
                     data_pagamento = NULL,
-                    stato = CASE WHEN stato = 'PAGATA' THEN 'DA_PAGARE' ELSE stato END
+                    stato = CASE WHEN stato = 'PAGATO' THEN 'PROGRAMMATO' ELSE stato END
                 WHERE id = ?
             """, (uscita_id,)).rowcount
             action = "unlinked"

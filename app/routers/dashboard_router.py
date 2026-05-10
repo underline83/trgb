@@ -773,7 +773,7 @@ def _acquisti_metrics() -> dict:
 
     Ritorna 4 valori:
       - pct_su_fatturato: % acquisti del mese in corso / fatturato corrispettivi del mese
-      - scaduti_eur: € fatture con data_scadenza < oggi (DA_PAGARE/SCADUTA, non riconciliate)
+      - scaduti_eur: € fatture con data_scadenza < oggi (PROGRAMMATO/SCADUTO, non riconciliate)
       - entro_30gg_eur: € con data_scadenza tra oggi e oggi+30
       - oltre_30gg_eur: € con data_scadenza > oggi+30 (o senza scadenza, residui storici)
 
@@ -819,7 +819,7 @@ def _acquisti_metrics() -> dict:
             WHERE COALESCE(f.is_autofattura, 0) = 0
               AND f.rateizzata_in_spesa_fissa_id IS NULL
               AND COALESCE(f.pagato, 0) = 0
-              AND (u.id IS NULL OR u.stato IN ('DA_PAGARE','SCADUTA'))
+              AND (u.id IS NULL OR u.stato IN ('PROGRAMMATO','SCADUTO'))
               AND COALESCE(c.escluso_acquisti, 0) = 0
         """).fetchall()
 
@@ -921,10 +921,10 @@ def _fatture_pending() -> FatturePending:
     Drift storico: lo stato di pagamento di una fattura vive in DUE posti
     senza trigger sincrono fra loro:
       - `fe_fatture.pagato` (boolean, autorevole quando =1)
-      - `cg_uscite.stato`   (workflow CG: DA_PAGARE/SCADUTA/PAGATA/...)
+      - `cg_uscite.stato`   (workflow CG: PROGRAMMATO/SCADUTO/PAGATO/...)
 
     Strategia "AND": consideriamo una fattura DA PAGARE solo se ENTRAMBE le
-    fonti concordano (`pagato=0` E `stato in DA_PAGARE/SCADUTA o nessuna
+    fonti concordano (`pagato=0` E `stato in PROGRAMMATO/SCADUTO o nessuna
     proiezione`). Se UNA delle due dice "pagata", la rispettiamo.
 
     Filtri sempre attivi:
@@ -953,7 +953,7 @@ def _fatture_pending() -> FatturePending:
             WHERE COALESCE(f.is_autofattura, 0) = 0
               AND f.rateizzata_in_spesa_fissa_id IS NULL
               AND COALESCE(f.pagato, 0) = 0
-              AND (u.id IS NULL OR u.stato IN ('DA_PAGARE', 'SCADUTA'))
+              AND (u.id IS NULL OR u.stato IN ('PROGRAMMATO', 'SCADUTO'))
               AND COALESCE(c.escluso_acquisti, 0) = 0
         """).fetchone()
         conn.close()
