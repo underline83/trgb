@@ -251,9 +251,11 @@ def upgrade(conn: sqlite3.Connection) -> None:
         ).fetchall()]
         _archive_uscite(uscite_pre, "pagata_pre_chiusa")
 
-        # Set fe_fatture.pagato = 1
+        # Set fe_fatture.pagato = 1 + stato_pagamento = 'pagato_manuale'
+        # (allinea i 3 source of truth: pagato boolean, stato_pagamento TEXT, cg_uscite.stato)
         cur.execute(
             f"UPDATE fe_fatture SET pagato = 1, "
+            f"  stato_pagamento = 'pagato_manuale', "
             f"  note_mig110 = '[mig110: pagata pre-30/11/2025, chiusura d-ufficio]' "
             f"WHERE id IN ({placeholders})",
             IDS_PRE_30_11_2025,
@@ -287,6 +289,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
 
         cur.execute(
             f"UPDATE fe_fatture SET pagato = 1, "
+            f"  stato_pagamento = 'pagato_manuale', "
             f"  note_mig110 = '[mig110: pagata via cc post-30/11/2025, da abbinare estratto banca 2026]' "
             f"WHERE id IN ({placeholders})",
             IDS_POST_30_11_2025,
@@ -311,6 +314,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
     _archive_fatture([COMPAGNIA_VINO_FID], "compagnia_vino_zero")
     cur.execute(
         "UPDATE fe_fatture SET pagato = 1, "
+        "  stato_pagamento = 'pagato_manuale', "
         "  note_mig110 = '[mig110: COMPAGNIA DEL VINO €0 — chiusa per evitare re-import FIC]' "
         "WHERE id = ?",
         (COMPAGNIA_VINO_FID,),
@@ -323,6 +327,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
         _archive_uscite([s["uscita_id"]], "sistemare_banca")
         cur.execute(
             "UPDATE fe_fatture SET pagato = 1, "
+            "  stato_pagamento = 'pagato_manuale', "
             "  note_mig110 = ? WHERE id = ?",
             (f"[mig110: {s['nota']}]", s["fattura_id"]),
         )
@@ -377,6 +382,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
         _archive_uscite(uscite_risto, "risto_team_review")
         cur.execute(
             f"UPDATE fe_fatture SET "
+            f"  stato_pagamento = 'da_verificare', "
             f"  note_mig110 = '[mig110: RISTO TEAM da abbinare manualmente a piano rateizzazione]' "
             f"WHERE id IN ({placeholders})",
             IDS_RISTO_TEAM_REVIEW,
@@ -390,7 +396,9 @@ def upgrade(conn: sqlite3.Connection) -> None:
         )
         print(f"  [110] RISTO TEAM: {len(IDS_RISTO_TEAM_REVIEW)} fatture marcate per review manuale")
 
-    # ── 10. CONTROLLARE (120) — flag review, stato invariato ──
+    # ── 10. CONTROLLARE (120) — stato_pagamento='da_verificare' (richiesta Marco) ──
+    # Marco vuole che siano evidenziate come "da verificare" nel modulo Acquisti
+    # (badge giallo). pagato resta 0 (non sappiamo ancora). cg_uscite stato invariato.
     if IDS_CONTROLLARE:
         _archive_fatture(IDS_CONTROLLARE, "controllare_review")
         placeholders = ",".join("?" * len(IDS_CONTROLLARE))
@@ -401,6 +409,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
         _archive_uscite(uscite_ctrl, "controllare_review")
         cur.execute(
             f"UPDATE fe_fatture SET "
+            f"  stato_pagamento = 'da_verificare', "
             f"  note_mig110 = '[mig110: in revisione (CONTROLLARE)]' "
             f"WHERE id IN ({placeholders})",
             IDS_CONTROLLARE,
@@ -412,7 +421,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
             f"WHERE fattura_id IN ({placeholders})",
             IDS_CONTROLLARE,
         )
-        print(f"  [110] CONTROLLARE: {len(IDS_CONTROLLARE)} fatture marcate per review")
+        print(f"  [110] CONTROLLARE: {len(IDS_CONTROLLARE)} fatture → stato_pagamento='da_verificare'")
 
     conn.commit()
 

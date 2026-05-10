@@ -499,11 +499,23 @@ export default function Home() {
                               <span className="text-[24px] leading-none">{menu.icon}</span>
                               <div className="text-[13px] sm:text-sm font-bold leading-tight">{menu.title}</div>
                             </div>
-                            <div className="text-[11px] opacity-75 mt-2 leading-snug">
-                              {summary.metrics.pct_su_fatturato != null
-                                ? <>Acquisti / fatturato mese: <span className="font-bold">{summary.metrics.pct_su_fatturato.toFixed(1)}%</span></>
-                                : <>Acquisti mese: € {(summary.metrics.acquisti_mese_eur || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</>
-                              }
+                            {/* Riga 1: mese corrente — acquisti € + (% del venduto) */}
+                            <div className="text-[11px] opacity-80 mt-2 leading-snug capitalize">
+                              <span className="font-semibold">{summary.metrics.mese_label || "Mese"}</span>
+                              {": "}
+                              <span className="font-bold">€ {(summary.metrics.acquisti_mese_eur || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                              {summary.metrics.pct_su_fatturato != null && (
+                                <span className="ml-1 opacity-70">({summary.metrics.pct_su_fatturato.toFixed(1)}% del venduto)</span>
+                              )}
+                            </div>
+                            {/* Riga 2: mese precedente — più piccolo per confronto */}
+                            <div className="text-[10px] opacity-55 leading-snug capitalize">
+                              {summary.metrics.mese_prev_label || "Mese prec."}
+                              {": "}
+                              € {(summary.metrics.acquisti_mese_prev_eur || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              {summary.metrics.pct_su_fatturato_prev != null && (
+                                <span className="ml-1">({summary.metrics.pct_su_fatturato_prev.toFixed(1)}%)</span>
+                              )}
                             </div>
                             <div className="grid grid-cols-3 gap-1 mt-2">
                               {[

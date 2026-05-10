@@ -837,43 +837,64 @@ def _acquisti_metrics() -> dict:
                 out["oltre_30gg_eur"] += tot
                 out["oltre_30gg_n"] += 1
 
-        # ── % acquisti del mese in corso / fatturato del mese ──
+        # ── Acquisti + fatturato MESE CORRENTE e MESE PRECEDENTE ──
         # Acquisti: tutte le fatture passive del mese, NON solo quelle pendenti.
-        # Cibo per ora include tutto (anche servizi/non-cibo). Marco vede il rapporto
-        # totale "uscite acquisti" su "vendite". Non è food cost puro: è un indicatore
-        # di intensità di spesa rispetto al volume.
-        row_acq = conn.execute("""
-            SELECT COALESCE(SUM(f.totale_fattura), 0) AS tot
-            FROM fe_fatture f
-            LEFT JOIN fe_fornitore_categoria c
-                ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva,'') != '')
-                OR (COALESCE(f.fornitore_piva,'') = '' AND c.fornitore_nome = f.fornitore_nome)
-            WHERE COALESCE(f.is_autofattura, 0) = 0
-              AND COALESCE(c.escluso_acquisti, 0) = 0
-              AND substr(f.data_fattura, 1, 7) = ?
-        """, (mese_str,)).fetchone()
-        acq_mese = float(row_acq["tot"] or 0)
+        # Esclude autofatture e fornitori "escluso_acquisti=1" (allineato col modulo Acquisti).
+        from datetime import date as _date
 
-        # Fatturato del mese (incassi totali = corrispettivi + fatture emesse)
-        # Usa l'aggregator condiviso del modulo Vendite (date_to esclusivo).
-        try:
-            from datetime import date as _date
-            primo_mese = today.replace(day=1).isoformat()
-            # Primo del mese successivo (esclusivo)
-            if today.month == 12:
-                primo_succ = _date(today.year + 1, 1, 1).isoformat()
-            else:
-                primo_succ = _date(today.year, today.month + 1, 1).isoformat()
-            tot_vend = vendite_totali_periodo(conn, primo_mese, primo_succ)
-            fatt_mese = float(tot_vend.get("totale_incassi") or 0)
-        except Exception as e_vend:
-            logger.warning(f"Dashboard: errore fatturato mese: {e_vend}")
-            fatt_mese = 0.0
+        def _acquisti_del_mese(yyyy_mm: str) -> float:
+            row = conn.execute("""
+                SELECT COALESCE(SUM(f.totale_fattura), 0) AS tot
+                FROM fe_fatture f
+                LEFT JOIN fe_fornitore_categoria c
+                    ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva,'') != '')
+                    OR (COALESCE(f.fornitore_piva,'') = '' AND c.fornitore_nome = f.fornitore_nome)
+                WHERE COALESCE(f.is_autofattura, 0) = 0
+                  AND COALESCE(c.escluso_acquisti, 0) = 0
+                  AND substr(f.data_fattura, 1, 7) = ?
+            """, (yyyy_mm,)).fetchone()
+            return float(row["tot"] or 0)
+
+        def _fatturato_del_mese(yyyy: int, mm: int) -> float:
+            try:
+                primo = _date(yyyy, mm, 1).isoformat()
+                if mm == 12:
+                    primo_succ = _date(yyyy + 1, 1, 1).isoformat()
+                else:
+                    primo_succ = _date(yyyy, mm + 1, 1).isoformat()
+                tot_vend = vendite_totali_periodo(conn, primo, primo_succ)
+                return float(tot_vend.get("totale_incassi") or 0)
+            except Exception as e_vend:
+                logger.warning(f"Dashboard: errore fatturato {yyyy}-{mm}: {e_vend}")
+                return 0.0
+
+        # Mese corrente
+        acq_mese = _acquisti_del_mese(mese_str)
+        fatt_mese = _fatturato_del_mese(today.year, today.month)
+
+        # Mese precedente
+        if today.month == 1:
+            prev_year, prev_month = today.year - 1, 12
+        else:
+            prev_year, prev_month = today.year, today.month - 1
+        prev_mese_str = f"{prev_year:04d}-{prev_month:02d}"
+        acq_prev = _acquisti_del_mese(prev_mese_str)
+        fatt_prev = _fatturato_del_mese(prev_year, prev_month)
 
         if fatt_mese > 0:
             out["pct_su_fatturato"] = round(100 * acq_mese / fatt_mese, 1)
         out["acquisti_mese_eur"] = round(acq_mese, 2)
         out["fatturato_mese_eur"] = round(fatt_mese, 2)
+        out["mese_label"] = today.strftime("%B").lower()  # "maggio", "aprile", ...
+
+        # Mese precedente
+        out["acquisti_mese_prev_eur"] = round(acq_prev, 2)
+        out["fatturato_mese_prev_eur"] = round(fatt_prev, 2)
+        if fatt_prev > 0:
+            out["pct_su_fatturato_prev"] = round(100 * acq_prev / fatt_prev, 1)
+        else:
+            out["pct_su_fatturato_prev"] = None
+        out["mese_prev_label"] = _date(prev_year, prev_month, 1).strftime("%B").lower()
 
         conn.close()
     except Exception as e:
@@ -1151,11 +1172,8 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     # fallback per ambienti che non supportano ancora il nuovo layout.
     am = _acquisti_metrics()
     pct = am.get("pct_su_fatturato")
-    if pct is not None:
-        line1 = f"Acquisti / fatturato mese: {pct:.1f}%"
-    else:
-        line1 = f"{fatture.count} fattur{'a' if fatture.count == 1 else 'e'} da pagare"
-    line2 = ""  # tre colonne in metrics
+    line1 = f"{fatture.count} fattur{'a' if fatture.count == 1 else 'e'} da pagare"  # fallback
+    line2 = ""
 
     summaries.append(ModuloSummary(
         key="acquisti",
@@ -1166,6 +1184,11 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
             "pct_su_fatturato": am.get("pct_su_fatturato"),
             "acquisti_mese_eur": am.get("acquisti_mese_eur", 0),
             "fatturato_mese_eur": am.get("fatturato_mese_eur", 0),
+            "mese_label": am.get("mese_label", ""),
+            "pct_su_fatturato_prev": am.get("pct_su_fatturato_prev"),
+            "acquisti_mese_prev_eur": am.get("acquisti_mese_prev_eur", 0),
+            "fatturato_mese_prev_eur": am.get("fatturato_mese_prev_eur", 0),
+            "mese_prev_label": am.get("mese_prev_label", ""),
             "scaduti_eur": am.get("scaduti_eur", 0),
             "scaduti_n": am.get("scaduti_n", 0),
             "entro_30gg_eur": am.get("entro_30gg_eur", 0),
