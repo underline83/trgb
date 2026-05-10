@@ -30,6 +30,7 @@ from app.models.clienti_db import get_clienti_conn
 from app.models.foodcost_db import get_foodcost_connection
 from app.models.dipendenti_db import get_dipendenti_conn
 from app.services.auth_service import get_current_user
+from app.services.vendite_aggregator import totali_periodo as vendite_totali_periodo
 
 logger = logging.getLogger("trgb.dashboard")
 
@@ -84,6 +85,11 @@ class ModuloSummary(BaseModel):
     line1: str = ""
     line2: str = ""
     badge: int = 0    # 0 = nessun badge, >0 = notifica
+    # Metrics opzionali per card multi-colonna (sessione 2026-05-10).
+    # Card classica (Vendite, Vini, ecc.): non popolare → frontend mostra line1/line2 standard.
+    # Card avanzata (Acquisti): popolare con dict di KPI → frontend renderizza colonne.
+    # Schema dipende dal modulo, frontend interpreta in base a `key`.
+    metrics: Optional[Dict[str, Any]] = None
 
 class TaglioBreve(BaseModel):
     nome: str
@@ -761,6 +767,121 @@ def _pescato_widget(oggi: str, tagli_per_cat: int = 2) -> PescatoWidget:
         return PescatoWidget()
 
 
+def _acquisti_metrics() -> dict:
+    """
+    Metrics per la card Home "Gestione Acquisti" multi-colonna (sessione 2026-05-10).
+
+    Ritorna 4 valori:
+      - pct_su_fatturato: % acquisti del mese in corso / fatturato corrispettivi del mese
+      - scaduti_eur: € fatture con data_scadenza < oggi (DA_PAGARE/SCADUTA, non riconciliate)
+      - entro_30gg_eur: € con data_scadenza tra oggi e oggi+30
+      - oltre_30gg_eur: € con data_scadenza > oggi+30 (o senza scadenza, residui storici)
+
+    Filtri sempre attivi (allineati con _fatture_pending):
+      - escludi autofatture (is_autofattura=1)
+      - escludi rateizzate (rateizzata_in_spesa_fissa_id NOT NULL)
+      - escludi pagate (f.pagato=1) o cg_uscite in stato pagato
+      - escludi fornitori con escluso_acquisti=1 (non-fatture FIC ecc.)
+
+    Source data_scadenza: prima cg_uscite.data_scadenza, fallback f.data_scadenza.
+    """
+    out = {
+        "pct_su_fatturato": None,
+        "scaduti_eur": 0.0,
+        "entro_30gg_eur": 0.0,
+        "oltre_30gg_eur": 0.0,
+        "scaduti_n": 0,
+        "entro_30gg_n": 0,
+        "oltre_30gg_n": 0,
+    }
+
+    today = date.today()
+    today_str = today.isoformat()
+    plus30_str = (today + timedelta(days=30)).isoformat()
+    mese_str = today.strftime("%Y-%m")
+
+    try:
+        conn = get_foodcost_connection()
+
+        # ── Pendenti per fascia temporale ──
+        rows = conn.execute("""
+            SELECT
+                COALESCE(u.data_scadenza, f.data_scadenza) AS scad,
+                f.totale_fattura
+            FROM fe_fatture f
+            LEFT JOIN cg_uscite u ON u.fattura_id = f.id
+            LEFT JOIN fe_fornitore_categoria c
+                ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva,'') != '')
+                OR (COALESCE(f.fornitore_piva,'') = '' AND c.fornitore_nome = f.fornitore_nome)
+            WHERE COALESCE(f.is_autofattura, 0) = 0
+              AND f.rateizzata_in_spesa_fissa_id IS NULL
+              AND COALESCE(f.pagato, 0) = 0
+              AND (u.id IS NULL OR u.stato IN ('DA_PAGARE','SCADUTA'))
+              AND COALESCE(c.escluso_acquisti, 0) = 0
+        """).fetchall()
+
+        for r in rows:
+            scad = r["scad"]
+            tot = float(r["totale_fattura"] or 0)
+            if not scad or scad == "":
+                # Senza scadenza → la mettiamo nella fascia "oltre 30gg" (residui storici)
+                out["oltre_30gg_eur"] += tot
+                out["oltre_30gg_n"] += 1
+            elif scad < today_str:
+                out["scaduti_eur"] += tot
+                out["scaduti_n"] += 1
+            elif scad <= plus30_str:
+                out["entro_30gg_eur"] += tot
+                out["entro_30gg_n"] += 1
+            else:
+                out["oltre_30gg_eur"] += tot
+                out["oltre_30gg_n"] += 1
+
+        # ── % acquisti del mese in corso / fatturato del mese ──
+        # Acquisti: tutte le fatture passive del mese, NON solo quelle pendenti.
+        # Cibo per ora include tutto (anche servizi/non-cibo). Marco vede il rapporto
+        # totale "uscite acquisti" su "vendite". Non è food cost puro: è un indicatore
+        # di intensità di spesa rispetto al volume.
+        row_acq = conn.execute("""
+            SELECT COALESCE(SUM(f.totale_fattura), 0) AS tot
+            FROM fe_fatture f
+            LEFT JOIN fe_fornitore_categoria c
+                ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva,'') != '')
+                OR (COALESCE(f.fornitore_piva,'') = '' AND c.fornitore_nome = f.fornitore_nome)
+            WHERE COALESCE(f.is_autofattura, 0) = 0
+              AND COALESCE(c.escluso_acquisti, 0) = 0
+              AND substr(f.data_fattura, 1, 7) = ?
+        """, (mese_str,)).fetchone()
+        acq_mese = float(row_acq["tot"] or 0)
+
+        # Fatturato del mese (incassi totali = corrispettivi + fatture emesse)
+        # Usa l'aggregator condiviso del modulo Vendite (date_to esclusivo).
+        try:
+            from datetime import date as _date
+            primo_mese = today.replace(day=1).isoformat()
+            # Primo del mese successivo (esclusivo)
+            if today.month == 12:
+                primo_succ = _date(today.year + 1, 1, 1).isoformat()
+            else:
+                primo_succ = _date(today.year, today.month + 1, 1).isoformat()
+            tot_vend = vendite_totali_periodo(conn, primo_mese, primo_succ)
+            fatt_mese = float(tot_vend.get("totale_incassi") or 0)
+        except Exception as e_vend:
+            logger.warning(f"Dashboard: errore fatturato mese: {e_vend}")
+            fatt_mese = 0.0
+
+        if fatt_mese > 0:
+            out["pct_su_fatturato"] = round(100 * acq_mese / fatt_mese, 1)
+        out["acquisti_mese_eur"] = round(acq_mese, 2)
+        out["fatturato_mese_eur"] = round(fatt_mese, 2)
+
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Dashboard: errore acquisti metrics: {e}")
+
+    return out
+
+
 def _fatture_pending() -> FatturePending:
     """
     Fatture realmente da pagare per la card "Acquisti" della Home.
@@ -1024,12 +1145,34 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     except Exception:
         summaries.append(ModuloSummary(key="ricette", line1="Gestione Cucina", line2=""))
 
-    # ── Acquisti ──
-    line1 = f"{fatture.count} fattur{'a' if fatture.count == 1 else 'e'} da pagare"
-    line2 = f"€ {fatture.importo:,.0f}".replace(",", ".") + " in sospeso" if fatture.importo > 0 else "Tutto pagato"
+    # ── Acquisti — card avanzata con 3 colonne KPI (sessione 2026-05-10) ──
+    # Vedi `_acquisti_metrics()`. Frontend renderizza `metrics` se presente,
+    # altrimenti cade su line1/line2 standard. line1/line2 sono qui come
+    # fallback per ambienti che non supportano ancora il nuovo layout.
+    am = _acquisti_metrics()
+    pct = am.get("pct_su_fatturato")
+    if pct is not None:
+        line1 = f"Acquisti / fatturato mese: {pct:.1f}%"
+    else:
+        line1 = f"{fatture.count} fattur{'a' if fatture.count == 1 else 'e'} da pagare"
+    line2 = ""  # tre colonne in metrics
+
     summaries.append(ModuloSummary(
-        key="acquisti", line1=line1, line2=line2,
+        key="acquisti",
+        line1=line1,
+        line2=line2,
         badge=fatture.count,
+        metrics={
+            "pct_su_fatturato": am.get("pct_su_fatturato"),
+            "acquisti_mese_eur": am.get("acquisti_mese_eur", 0),
+            "fatturato_mese_eur": am.get("fatturato_mese_eur", 0),
+            "scaduti_eur": am.get("scaduti_eur", 0),
+            "scaduti_n": am.get("scaduti_n", 0),
+            "entro_30gg_eur": am.get("entro_30gg_eur", 0),
+            "entro_30gg_n": am.get("entro_30gg_n", 0),
+            "oltre_30gg_eur": am.get("oltre_30gg_eur", 0),
+            "oltre_30gg_n": am.get("oltre_30gg_n", 0),
+        },
     ))
 
     # ── Flussi di Cassa ──

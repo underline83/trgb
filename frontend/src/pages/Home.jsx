@@ -480,6 +480,51 @@ export default function Home() {
                       const summary = widgets?.moduli?.find((s) => s.key === m.key);
                       const badge = summary?.badge || 0;
 
+                      // Acquisti: card avanzata con 3 colonne KPI (sessione 2026-05-10)
+                      if (m.key === "acquisti" && summary?.metrics) {
+                        return (
+                          <div
+                            key={m.key}
+                            onClick={() => navigate(menu.go)}
+                            className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform relative overflow-hidden ${menu.color}`}
+                            style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)", padding: 16, minHeight: 110 }}
+                          >
+                            {badge > 0 && (
+                              <span className="absolute top-2.5 right-2.5 text-[10px] font-bold text-white rounded-full text-center"
+                                style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20, boxShadow: "0 1px 3px rgba(232,64,43,.3)" }}>
+                                {badge}
+                              </span>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-[24px] leading-none">{menu.icon}</span>
+                              <div className="text-[13px] sm:text-sm font-bold leading-tight">{menu.title}</div>
+                            </div>
+                            <div className="text-[11px] opacity-75 mt-2 leading-snug">
+                              {summary.metrics.pct_su_fatturato != null
+                                ? <>Acquisti / fatturato mese: <span className="font-bold">{summary.metrics.pct_su_fatturato.toFixed(1)}%</span></>
+                                : <>Acquisti mese: € {(summary.metrics.acquisti_mese_eur || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</>
+                              }
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 mt-2">
+                              {[
+                                { label: "Scaduti",       eur: summary.metrics.scaduti_eur,    n: summary.metrics.scaduti_n,    color: "text-brand-red" },
+                                { label: "Entro 30gg",    eur: summary.metrics.entro_30gg_eur, n: summary.metrics.entro_30gg_n, color: "text-amber-700" },
+                                { label: "Oltre 30gg",    eur: summary.metrics.oltre_30gg_eur, n: summary.metrics.oltre_30gg_n, color: "text-slate-700" },
+                              ].map((col) => (
+                                <div key={col.label} className="bg-white/40 rounded-lg px-1.5 py-1.5 text-center">
+                                  <div className="text-[8px] uppercase tracking-wide opacity-60 leading-tight truncate">{col.label}</div>
+                                  <div className={`text-[12px] font-bold tabular-nums leading-tight ${col.color}`}>
+                                    € {Math.round(col.eur || 0).toLocaleString("it-IT")}
+                                  </div>
+                                  <div className="text-[8px] opacity-50 leading-tight">{col.n || 0} fatt.</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Card standard per gli altri moduli
                       return (
                         <div
                           key={m.key}
