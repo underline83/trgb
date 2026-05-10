@@ -44,7 +44,6 @@ export default function FattureElenco() {
   const [importoVal2, setImportoVal2] = useState("");
   const [tipoSel, setTipoSel] = useState(""); // "" | "autofattura"
   const [mostraEsclusi, setMostraEsclusi] = useState(false); // S40-8: nascondi fornitori esclusi da acquisti
-  const [mostraRateizzate, setMostraRateizzate] = useState(false); // G.5: nascondi rateizzate (in piano spesa fissa) — allinea col widget Home
 
   // ── Ordinamento ──
   const [sortKey, setSortKey] = useState("data_fattura");
@@ -94,12 +93,9 @@ export default function FattureElenco() {
     if (!mostraEsclusi) {
       list = list.filter(f => !f.escluso_acquisti);
     }
-    // G.5: nascondi fatture rateizzate (in piano spesa fissa) di default — allinea col widget Home.
-    // Le rateizzate restano comunque accessibili filtrando "Pagamento → Rateizzata" oppure
-    // attivando il toggle "Mostra rateizzate" sotto.
-    if (!mostraRateizzate && pagatoSel !== "rateizzata") {
-      list = list.filter(f => !f.rateizzata_in_spesa_fissa_id);
-    }
+    // G.5 v2 (2026-05-10): rateizzate INCLUSE di default nel modulo Acquisti.
+    // Sono "non pagate" a tutti gli effetti, solo a piano. Per filtrare solo loro
+    // usare il chip "Rateizzato" sotto "Da pagare".
 
     if (searchText) {
       const q = searchText.toLowerCase();
@@ -147,7 +143,7 @@ export default function FattureElenco() {
       });
 
     return list;
-  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2, mostraEsclusi, mostraRateizzate]);
+  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2, mostraEsclusi]);
 
   // ── Filtro completo (aggiunge fonte + tipo) ──
   const fattureFiltrate = useMemo(() => {
@@ -433,10 +429,10 @@ export default function FattureElenco() {
               <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-2">Pagamento</div>
               {/* Filtro drill-down 2 livelli: Riga 1 (Tutti/Pagato/Da pagare) + Riga 2 condizionale */}
               {(() => {
-                // Lista base per i count (esclude fornitori esclusi + rateizzate se toggle OFF)
+                // Lista base per i count (esclude solo fornitori esclusi se toggle OFF;
+                // le rateizzate sono SEMPRE incluse — sono "non pagate" a piano).
                 const baseList = fatture.filter(f => {
                   if (!mostraEsclusi && f.escluso_acquisti) return false;
-                  if (!mostraRateizzate && f.rateizzata_in_spesa_fissa_id) return false;
                   return true;
                 });
                 const isPagato   = (f) => f.pagato;
@@ -468,9 +464,9 @@ export default function FattureElenco() {
                   ];
                 } else if (isFamigliaNonPagato) {
                   liv2 = [
-                    { value: "scaduto",      label: "Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTA").length,        act: "bg-red-100 text-red-900 border-red-300" },
-                    { value: "in_pagamento", label: "In pagamento", n: baseList.filter(f => cg(f) === "DA_VERIFICARE").length,  act: "bg-orange-100 text-orange-900 border-orange-300" },
-                    { value: "rateizzato",   label: "Rateizzato",   n: fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length, act: "bg-violet-100 text-violet-900 border-violet-300" },
+                    { value: "scaduto",      label: "Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTA").length,                act: "bg-red-100 text-red-900 border-red-300" },
+                    { value: "in_pagamento", label: "In pagamento", n: baseList.filter(f => cg(f) === "DA_VERIFICARE").length,          act: "bg-orange-100 text-orange-900 border-orange-300" },
+                    { value: "rateizzato",   label: "Rateizzato",   n: baseList.filter(f => f.rateizzata_in_spesa_fissa_id).length,     act: "bg-violet-100 text-violet-900 border-violet-300" },
                   ];
                 }
 
@@ -552,23 +548,14 @@ export default function FattureElenco() {
                 </div>
               </div>
 
-              {/* Toggle speciali (sotto, sezione separata) */}
-              {(fatture.some(f => f.escluso_acquisti) || fatture.some(f => f.rateizzata_in_spesa_fissa_id)) && (
-                <div className="mt-2 pt-2 border-t border-emerald-200 space-y-1">
-                  {fatture.some(f => f.escluso_acquisti) && (
-                    <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer">
-                      <input type="checkbox" checked={mostraEsclusi} onChange={e => setMostraEsclusi(e.target.checked)}
-                        className="accent-amber-600" />
-                      Mostra fornitori esclusi ({fatture.filter(f => f.escluso_acquisti).length})
-                    </label>
-                  )}
-                  {fatture.some(f => f.rateizzata_in_spesa_fissa_id) && (
-                    <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer">
-                      <input type="checkbox" checked={mostraRateizzate} onChange={e => setMostraRateizzate(e.target.checked)}
-                        className="accent-violet-600" />
-                      Mostra rateizzate ({fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length})
-                    </label>
-                  )}
+              {/* Toggle fornitori esclusi (food cost) */}
+              {fatture.some(f => f.escluso_acquisti) && (
+                <div className="mt-2 pt-2 border-t border-emerald-200">
+                  <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer">
+                    <input type="checkbox" checked={mostraEsclusi} onChange={e => setMostraEsclusi(e.target.checked)}
+                      className="accent-amber-600" />
+                    Mostra fornitori esclusi ({fatture.filter(f => f.escluso_acquisti).length})
+                  </label>
                 </div>
               )}
             </div>
