@@ -3,7 +3,7 @@
 **Ultimo aggiornamento:** 2026-05-08
 **Path canonico:** `locali/tregobbi/data/` (post R6.5 push 2+3, vedi `architettura_locale.md`).
 **Path legacy:** `app/data/` — mantenuto per dev locale, NON in produzione (R6.5 push 3 ha rimosso il fallback runtime).
-**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (001-112). Gli altri 9 DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in `roadmap.md`).
+**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (001-113). Gli altri 9 DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in `roadmap.md`).
 **Pattern WAL:** attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Da estendere ai restanti 5 DB (T.4 in `roadmap.md`).
 
 ---
@@ -12,7 +12,7 @@
 
 | File | Modulo | DB pattern | Versione/migrazioni |
 |------|--------|-----------|---------------------|
-| `foodcost.db` | Ricette/FoodCost + Acquisti (XML/FIC) + Banca/CG + iPratico + Statistiche | migrazioni tracciate | mig 001-112 (vedi §11) |
+| `foodcost.db` | Ricette/FoodCost + Acquisti (XML/FIC) + Banca/CG + iPratico + Statistiche | migrazioni tracciate | mig 001-113 (vedi §11) |
 | `vini_magazzino.sqlite3` | Vini — magazzino + movimenti + ordini + storico prezzi | runtime | v3.x |
 | `vini_settings.sqlite3` | Vini — settings Carta (tipologie/nazioni/regioni/filtri) | runtime | v1.x |
 | `vini.sqlite3` | Vini — DB ponte Carta Cliente pubblica (`/vini/carta-cliente/data`) | runtime | v3.0+ (post-recovery 2026-05) |
@@ -257,6 +257,7 @@ Mattone Notifiche cross-modulo. Vedi `architettura_mattoni.md` §M.A.
 - **110** Bonifica fatture pendenti audit Marco (2026-05-10) — Risolve il debito storico di fatture mai riconciliate dopo l'analisi manuale di Marco (`claude/audit_fatture_non_pagate.xlsx`). Aggiunge colonna `fe_fatture.note_mig110` (TEXT NULL) per tracciamento audit. Aggiorna 513 fatture in batch: 330 PAGATA-DA-RICONCILIARE pre-30/11/2025 chiuse come PAGATA_MANUALE, 40 POST-30/11/2025 marcate "pagata via cc, da abbinare estratto banca 2026", 120 CONTROLLARE con flag review, 18 RISTO TEAM con flag review, 2 rateizzate agganciate (COL D'ORCIA → spesa fissa #20, NALLES → #21), 2 SISTEMARE riconciliate al 100% con bonifico parziale già in banca (MALOWINE → mov #986, Reepack → mov #112), 1 Compagnia del Vino €0 chiusa per evitare re-import FIC. Backup completo in `fe_fatture_archive_110` + `cg_uscite_archive_110` (513+512 righe). Effetto: card Home Acquisti scende da 555 fatture/€258k a 180 fatture/€99.6k.
 - **111** Preparazione G.5 unificazione stato pagamento (2026-05-10) — Step preparatorio pre-DROP. Aggiunge colonna `fe_fatture.fic_pagato_raw` (INTEGER NULL) per preservare il flag pagato letto da Fatture in Cloud durante l'import API (così non si perde dopo il DROP COLUMN della 112). Crea indice composito `idx_cg_uscite_fattura_stato` su `cg_uscite(fattura_id, stato)` per performance della VIEW. Crea cg_uscite stub per le fatture orfane (senza proiezione cg_uscite). Aggiunge `DA_VERIFICARE` come valore valido in `cg_uscite.stato`.
 - **112** G.5 — DROP fe_fatture.pagato + .stato_pagamento + CREATE VIEW (2026-05-10) — **CAMBIAMENTO STRUTTURALE**: rimuove le 2 colonne ridondanti che duplicavano informazione già presente in `cg_uscite.stato`. `cg_uscite.stato` diventa la **fonte di verità unica** per lo stato di pagamento delle fatture. Crea VIEW `fe_fatture_with_stato` che ricostruisce automaticamente i campi `pagato` (boolean) e `stato_pagamento` (TEXT) via JOIN cg_uscite, mantenendo retrocompatibilità con tutti gli endpoint che leggono. Mappatura: PAGATA→(1,pagato), PAGATA_MANUALE→(1,pagato_manuale), PARZIALE/DA_VERIFICARE→(0,da_verificare), DA_PAGARE/SCADUTA/RATEIZZATA→(0,da_pagare), no cg_uscite→(0,da_pagare). Drop indice `idx_fe_fatture_stato_pagamento`. Vedi `docs/stato_pagamento_unificato.md` per dettagli completi.
+- **113** Ripristino DA_VERIFICARE post-G5 (2026-05-10) — Bug cronologico: la mig 110 aveva settato `fe_fatture.stato_pagamento='da_verificare'` per 138 fatture (120 CONTROLLARE + 18 RISTO TEAM) ma NON aveva propagato su `cg_uscite.stato`. Mig 112 ha droppato la colonna → info persa. Questa mig usa le note `fe_fatture.note_mig110` (sopravvissute) per identificare le fatture interessate e setta `cg_uscite.stato='DA_VERIFICARE'` per quelle che erano in `DA_PAGARE`/`SCADUTA`. Idempotente. Effetto: il filtro frontend "Da verificare" (modulo Acquisti → Fatture) torna a mostrare le 138 fatture marcate da Marco.
 
 ---
 
