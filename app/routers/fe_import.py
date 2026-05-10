@@ -960,6 +960,7 @@ def list_fatture(
             f.data_scadenza, f.modalita_pagamento, f.importo_pagamento,
             (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
             COALESCE(f.is_autofattura, 0) AS is_autofattura,
+            f.rateizzata_in_spesa_fissa_id,
             COALESCE(fc_excl.escluso_acquisti, 0) AS escluso_acquisti
         FROM fe_fatture_with_stato f {cat_join} {excl_join}
         WHERE {where_sql}

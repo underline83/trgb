@@ -112,8 +112,16 @@ export default function FattureElenco() {
     });
     if (fornitoreSel) list = list.filter(f => f.fornitore_nome === fornitoreSel);
     if (pivaSel) list = list.filter(f => (f.fornitore_piva || "").includes(pivaSel));
+    // Filtro pagamento granulare (post G.5):
+    //   "" = tutti, "si" = pagata, "no" = da pagare,
+    //   "da_pagare", "da_verificare", "pagato_manuale", "pagato" = stato_pagamento esatto,
+    //   "rateizzata" = fatture in piano rate (rateizzata_in_spesa_fissa_id NOT NULL)
     if (pagatoSel === "si") list = list.filter(f => f.pagato);
-    if (pagatoSel === "no") list = list.filter(f => !f.pagato);
+    else if (pagatoSel === "no") list = list.filter(f => !f.pagato);
+    else if (pagatoSel === "rateizzata") list = list.filter(f => f.rateizzata_in_spesa_fissa_id);
+    else if (["da_pagare", "da_verificare", "pagato_manuale", "pagato"].includes(pagatoSel)) {
+      list = list.filter(f => (f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare")) === pagatoSel);
+    }
 
     if (importoMode === "gt" && importoVal1)
       list = list.filter(f => (f.totale_fattura || 0) > parseFloat(importoVal1));
@@ -423,8 +431,19 @@ export default function FattureElenco() {
                   <label className={fLbl}>Pagamento</label>
                   <select value={pagatoSel} onChange={e => setPagatoSel(e.target.value)} className={fSel}>
                     <option value="">Tutti</option>
-                    <option value="si">Pagata</option>
-                    <option value="no">Da pagare</option>
+                    <optgroup label="Quick">
+                      <option value="si">Pagata (qualsiasi)</option>
+                      <option value="no">Da pagare</option>
+                    </optgroup>
+                    <optgroup label="Stato dettagliato">
+                      <option value="da_pagare">📅 Da pagare</option>
+                      <option value="da_verificare">⚠️ Da verificare</option>
+                      <option value="pagato_manuale">✓ Pagata manuale</option>
+                      <option value="pagato">🏦 Pagata (banca)</option>
+                    </optgroup>
+                    <optgroup label="Speciali">
+                      <option value="rateizzata">🔄 Rateizzata (in piano)</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>

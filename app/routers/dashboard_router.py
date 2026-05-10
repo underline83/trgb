@@ -804,6 +804,9 @@ def _acquisti_metrics() -> dict:
         conn = get_foodcost_connection()
 
         # ── Pendenti per fascia temporale ──
+        # NOTA (2026-05-10): RATEIZZATE escluse dal widget perché hanno già un
+        # piano (= "riprogrammate", non sono debito da gestire ad-hoc nel widget).
+        # Restano filtrabili nel modulo Acquisti → Fatture come stato a sé.
         rows = conn.execute("""
             SELECT
                 COALESCE(u.data_scadenza, f.data_scadenza) AS scad,
