@@ -242,22 +242,40 @@ def _incasso_ieri(ieri: str, giorno_settimana: int) -> IncassoIeri:
         conn = _sq.connect(locale_data_path("admin_finance.sqlite3"))
         conn.row_factory = _sq.Row
 
-        # Incasso ieri
+        # Incasso ieri.
+        # ATTENZIONE: nel form Chiusura Turno i campi della CENA sono inseriti come
+        # valori cumulativi giornalieri (pranzo+cena), mentre il pranzo contiene
+        # solo i parziali del pranzo. Sommare totale_incassi pranzo + cena conta
+        # due volte il pranzo. Si prende cena se esiste, altrimenti pranzo (stessa
+        # logica di vendite_aggregator.giorni_merged riga 89: `base = cena or pranzo`).
+        # Coperti invece sono sempre per-turno, quindi vanno sommati.
         row = conn.execute("""
-            SELECT COALESCE(SUM(totale_incassi), 0) as totale,
-                   COALESCE(SUM(coperti), 0) as coperti
+            SELECT
+                COALESCE(
+                    MAX(CASE WHEN turno='cena'   THEN totale_incassi END),
+                    MAX(CASE WHEN turno='pranzo' THEN totale_incassi END),
+                    0
+                ) AS totale,
+                COALESCE(SUM(coperti), 0) AS coperti
             FROM shift_closures
             WHERE date = ?
         """, (ieri,)).fetchone()
         totale = row["totale"] if row else 0
         coperti = row["coperti"] if row else 0
 
-        # Media stesso giorno settimana ultimi ~8 settimane (escluso ieri)
+        # Media stesso giorno settimana ultimi ~8 settimane (escluso ieri).
+        # Stessa attenzione anti double-counting: per ogni giorno usa cena se
+        # esiste, altrimenti pranzo.
         delta_pct = None
         try:
             media_row = conn.execute("""
                 SELECT AVG(day_total) as media FROM (
-                    SELECT date, SUM(totale_incassi) as day_total
+                    SELECT date,
+                        COALESCE(
+                            MAX(CASE WHEN turno='cena'   THEN totale_incassi END),
+                            MAX(CASE WHEN turno='pranzo' THEN totale_incassi END),
+                            0
+                        ) AS day_total
                     FROM shift_closures
                     WHERE date < ?
                       AND date >= date(?, '-60 days')
