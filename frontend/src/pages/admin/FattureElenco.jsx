@@ -146,9 +146,10 @@ export default function FattureElenco() {
     else if (pagatoSel === "non_pagato") list = list.filter(f => !f.pagato);
     else if (pagatoSel === "riconciliato") list = list.filter(f => f.cg_uscite_stato === "PAGATO");
     else if (pagatoSel === "manuale") list = list.filter(f => f.cg_uscite_stato === "PAGATO_MANUALE");
-    else if (pagatoSel === "programmato") list = list.filter(f => f.cg_uscite_stato === "PROGRAMMATO" && !f.rateizzata_in_spesa_fissa_id);
-    else if (pagatoSel === "scaduto") list = list.filter(f => f.cg_uscite_stato === "SCADUTO");
+    else if (pagatoSel === "programmato") list = list.filter(f => (f.cg_uscite_stato === "PROGRAMMATO" || !f.cg_uscite_stato) && !f.rateizzata_in_spesa_fissa_id);
+    else if (pagatoSel === "scaduto") list = list.filter(f => f.cg_uscite_stato === "SCADUTO" && !f.rateizzata_in_spesa_fissa_id);
     else if (pagatoSel === "in_pagamento") list = list.filter(f => f.cg_uscite_stato === "VERIFICARE");
+    else if (pagatoSel === "spostato") list = list.filter(f => f.cg_uscite_stato === "SPOSTATO" && !f.rateizzata_in_spesa_fissa_id);
     else if (pagatoSel === "rateizzato") list = list.filter(f => f.rateizzata_in_spesa_fissa_id);
     return list;
   }, [fattureNoPagamento, pagatoSel]);
@@ -453,7 +454,7 @@ export default function FattureElenco() {
 
                 // ── Determina famiglia attiva (per riga 2) ──
                 const PAGATO_SUBS = ["riconciliato", "manuale"];
-                const NON_PAGATO_SUBS = ["programmato", "scaduto", "in_pagamento", "rateizzato"];
+                const NON_PAGATO_SUBS = ["programmato", "scaduto", "in_pagamento", "spostato", "rateizzato"];
                 const isFamigliaPagato = pagatoSel === "pagato" || PAGATO_SUBS.includes(pagatoSel);
                 const isFamigliaNonPagato = pagatoSel === "non_pagato" || NON_PAGATO_SUBS.includes(pagatoSel);
 
@@ -469,9 +470,10 @@ export default function FattureElenco() {
                   ];
                 } else if (isFamigliaNonPagato) {
                   liv2 = [
-                    { value: "programmato",  label: "Programmato",  n: baseList.filter(f => cg(f) === "PROGRAMMATO" && !f.rateizzata_in_spesa_fissa_id).length, act: "bg-amber-100 text-amber-900 border-amber-300" },
-                    { value: "scaduto",      label: "Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTO").length,                act: "bg-red-100 text-red-900 border-red-300" },
+                    { value: "programmato",  label: "Programmato",  n: baseList.filter(f => (cg(f) === "PROGRAMMATO" || !cg(f)) && !f.rateizzata_in_spesa_fissa_id).length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                    { value: "scaduto",      label: "Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTO" && !f.rateizzata_in_spesa_fissa_id).length, act: "bg-red-100 text-red-900 border-red-300" },
                     { value: "in_pagamento", label: "Da verificare", n: baseList.filter(f => cg(f) === "VERIFICARE").length,         act: "bg-orange-100 text-orange-900 border-orange-300" },
+                    { value: "spostato",     label: "Spostato",     n: baseList.filter(f => cg(f) === "SPOSTATO" && !f.rateizzata_in_spesa_fissa_id).length, act: "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300" },
                     { value: "rateizzato",   label: "Rateizzato",   n: baseList.filter(f => f.rateizzata_in_spesa_fissa_id).length,     act: "bg-violet-100 text-violet-900 border-violet-300" },
                   ];
                 }

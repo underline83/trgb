@@ -21,14 +21,15 @@ const giorniA = (d) => d ? Math.ceil((new Date(d) - new Date()) / 86400000) : nu
 const cleanFatt = (s) => s && s !== "&mdash;" && s !== "—" && s.trim() ? s : null;
 
 const STATO_STYLE = {
-  PROGRAMMATO:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Programmato" },
-  SCADUTO:         { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduto" },
-  PAGATO:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagato" },
-  PAGATO_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagato *" },
-  // Modulo M.3 (2026-04-27): nuovo stato "Da verificare" per cg_uscite
-  VERIFICARE:   { bg: "bg-amber-50",  text: "text-amber-800", border: "border-amber-300", label: "Da verificare" },
-  PARZIALE:        { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
-  RATEIZZATO:      { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-200", label: "Rateizzato" },
+  PROGRAMMATO:    { bg: "bg-amber-100",   text: "text-amber-800",   border: "border-amber-200",   label: "Programmato" },
+  SCADUTO:        { bg: "bg-red-100",     text: "text-red-800",     border: "border-red-200",     label: "Scaduto" },
+  PAGATO:         { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagato" },
+  PAGATO_MANUALE: { bg: "bg-teal-100",    text: "text-teal-800",    border: "border-teal-200",    label: "Pagato *" },
+  VERIFICARE:     { bg: "bg-amber-50",    text: "text-amber-800",   border: "border-amber-300",   label: "Verificare" },
+  PARZIALE:       { bg: "bg-blue-100",    text: "text-blue-800",    border: "border-blue-200",    label: "Parziale" },
+  RATEIZZATO:     { bg: "bg-purple-100",  text: "text-purple-800",  border: "border-purple-200",  label: "Rateizzato" },
+  // G.7 (2026-05-10): stato SPOSTATO per scadenze rinegoziate singolarmente
+  SPOSTATO:       { bg: "bg-fuchsia-100", text: "text-fuchsia-800", border: "border-fuchsia-200", label: "Spostato" },
 };
 
 const TIPO_USCITA_STYLE = {
@@ -776,6 +777,8 @@ export default function ControlloGestioneUscite() {
                 {[
                   { value: "PROGRAMMATO", label: "Programmato", n: allUscite.filter(u => u.stato === "PROGRAMMATO").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
                   { value: "SCADUTO",   label: "Scaduto",     n: allUscite.filter(u => u.stato === "SCADUTO").length,   act: "bg-red-100 text-red-900 border-red-300" },
+                  { value: "SPOSTATO",  label: "Spostato",    n: allUscite.filter(u => u.stato === "SPOSTATO").length,  act: "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300" },
+                  { value: "VERIFICARE", label: "Verificare", n: allUscite.filter(u => u.stato === "VERIFICARE").length, act: "bg-orange-100 text-orange-900 border-orange-300" },
                   { value: "PAGATO",    label: "Pagato",      n: allUscite.filter(u => u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   { value: "PARZIALE",  label: "Parziale",    n: allUscite.filter(u => u.stato === "PARZIALE").length,  act: "bg-blue-100 text-blue-900 border-blue-300" },
                 ].map(o => {

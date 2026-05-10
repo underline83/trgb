@@ -172,9 +172,86 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 | G.2.B | Calendario scadenze (M.E) + widget mini-timeline dashboard | M | ✅ FATTO 2026-05-09 | Endpoint `GET /controllo-gestione/scadenze` + pagina `ControlloGestioneCalendarioScadenze.jsx` + widget timeline in dashboard CG. Vedi `modulo_controllo_gestione.md §3.7` |
 | G.5 | Unificazione stato pagamento fatture | L | ✅ FATTO 2026-05-10 | Mig 111+112: DROP `fe_fatture.pagato` + `.stato_pagamento` + CREATE VIEW `fe_fatture_with_stato`. Source of truth = `cg_uscite.stato`. Service refactored. Vedi `stato_pagamento_unificato.md` |
 | G.6 | Rename stati al maschile + SPOSTATO + col data_scadenza_originale | M | ✅ FATTO 2026-05-10 | Mig 114: rename `DA_PAGARE`→`PROGRAMMATO`, `SCADUTA`→`SCADUTO`, `DA_VERIFICARE`→`VERIFICARE`, `RATEIZZATA`→`RATEIZZATO`, `PAGATA`→`PAGATO`, `PAGATA_MANUALE`→`PAGATO_MANUALE`. Nuovo stato `SPOSTATO`. Refactor ~370 occorrenze backend+frontend. UX "Sposta data" da implementare in G.7 |
+| G.7 | UX "Sposta data" + completamento stato SPOSTATO | M | ✅ FATTO 2026-05-10 | Endpoint `PUT /uscite/{id}/scadenza` esteso (auto-setta SPOSTATO se data ≠ originale) + nuovo `PUT /uscite/{id}/ripristina-data`. FattureDettaglio: 2 sotto-celle "Scadenza iniziale" + "Programmata" + bottone Ripristina. Chip "Spostato" in FattureElenco e ControlloGestioneUscite. Vedi `stato_pagamento_unificato.md §13` |
 | G.3 | P&L mensile (cross-modulo Cassa + Acquisti + Stipendi) | M | ALTA | M.B PDF |
-| G.6 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato |
-| G.7 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite |
+| G.8 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato |
+| G.9 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite |
+
+### G.7 — Piano dettagliato "Sposta data" (UX completamento SPOSTATO) ✅ FATTO 2026-05-10
+
+**Contesto:** G.6 ha aggiunto lo stato `SPOSTATO` come valore valido in `cg_uscite.stato` e la colonna `cg_uscite.data_scadenza_originale` (TEXT NULL). G.7 ha aggiunto la UX dedicata. Implementato:
+- Endpoint `PUT /uscite/{id}/scadenza` esteso (set automatico SPOSTATO + preserva originale alla prima rinegoziazione)
+- Endpoint `PUT /uscite/{id}/ripristina-data` (reset data + ricalcolo stato)
+- `FattureDettaglio.jsx`: card scadenza ora 2 sotto-celle ("Scadenza iniziale" read-only + "Programmata" editabile con bottoni Sposta data / Ripristina originale)
+- `FattureElenco.jsx`: chip "Spostato" in drill-down filtro pagamento riga 2
+- `ControlloGestioneUscite.jsx`: chip "Spostato" + palette fuchsia in STATO_STYLE
+
+Sezione storica/piano qui sotto preservata per riferimento.
+
+**Concetto:**
+- `fe_fatture.data_scadenza` = **Scadenza iniziale** (dall'XML/FIC, read-only normalmente, modificabile solo per "errori di import")
+- `cg_uscite.data_scadenza` = **Scadenza programmata** (editabile via UX "Sposta data")
+- Quando la programmata viene modificata rispetto all'originale → stato diventa `SPOSTATO`
+- `cg_uscite.data_scadenza_originale` salva la prima scadenza programmata prima del primo spostamento
+
+**Distinzione semantica:**
+- `RATEIZZATO`: N nuove date in un piano rate (gestito da `cg_spese_fisse` + `cg_piano_rate`)
+- `SPOSTATO`: 1 sola nuova data concordata (rinegoziazione singola)
+
+**Task da fare:**
+
+1. **Backend — endpoint `PUT /controllo-gestione/uscite/{id}/sposta-data`**
+   - Body: `{ nuova_data_scadenza: "YYYY-MM-DD", motivo?: str }`
+   - Logica:
+     - Se `data_scadenza_originale IS NULL`: salva la `data_scadenza` corrente come originale (prima rinegoziazione)
+     - Aggiorna `data_scadenza` con la nuova
+     - Setta `stato = 'SPOSTATO'`
+     - Aggiunge nota tipo `[sposto_data 2026-05-10: motivo X]`
+   - Auth: admin only
+
+2. **Backend — endpoint `PUT /controllo-gestione/uscite/{id}/ripristina-data`**
+   - Riporta `data_scadenza` a `data_scadenza_originale`
+   - Setta `stato` derivato (SCADUTO se data passata, PROGRAMMATO altrimenti)
+   - Cancella `data_scadenza_originale` (torna a NULL)
+   - Usato per "ho sbagliato a spostare, ripristina"
+
+3. **Frontend — modifiche `FattureDettaglio.jsx`**
+   - Aggiungere 2 celle in pannello scadenza:
+     - **"Scadenza iniziale"**: read-only, mostra `fattura.data_scadenza` (da fe_fatture). Bottone "Modifica" piccolo (solo correzione import).
+     - **"Scadenza programmata"**: mostra `uscita.data_scadenza`. Bottone "Sposta data" prominente.
+   - Modal "Sposta data":
+     - Date picker per nuova data
+     - Campo note/motivo (opzionale)
+     - Mostra anche "Scadenza originale prima: GG/MM/YYYY" se già spostata in precedenza
+     - Bottoni: "Sposta" + "Annulla"
+     - Se attuale è già SPOSTATO: aggiungi bottone secondario "Ripristina originale"
+
+4. **Frontend — chip "Spostato" nel modulo Acquisti**
+   - Aggiungere a `FattureElenco.jsx` un 5° chip nella riga 2 sotto "Da pagare":
+     - `Programmato | Scaduto | Verificare | Rateizzato | Spostato`
+   - Filtro frontend: `f.cg_uscite_stato === "SPOSTATO"`
+   - Colore: tono violet-ambra (a metà tra rateizzato e amber)
+
+5. **Frontend — chip "Spostato" anche in `ControlloGestioneUscite.jsx`**
+   - Aggiungere alla griglia chip stati in sidebar
+   - Mapping label: `SPOSTATO → "Spostato"`, colore amber-violet
+   - Default filtro: includere SPOSTATO insieme a PROGRAMMATO+SCADUTO
+
+6. **Mig 115** (opzionale, se serve backfill)
+   - Per fatture che hanno `cg_uscite.data_scadenza ≠ fe_fatture.data_scadenza`:
+     - Verifica se la differenza è "spostamento concordato" o "errore import": probabilmente impossibile distinguere senza intervento utente
+     - Lasciamo come sono — solo nuovi spostamenti saranno SPOSTATO
+
+7. **Test integrazione**
+   - Sposta data di una fattura → verifica stato passa a SPOSTATO
+   - Ripristina → torna a PROGRAMMATO/SCADUTO
+   - Re-spostamento: data_scadenza_originale resta la prima
+
+8. **Documentazione**
+   - Aggiorna `docs/stato_pagamento_unificato.md` con SPOSTATO + nuovo workflow
+   - Sezione in `docs/modulo_controllo_gestione.md` sul "Sposta data"
+
+**Effort stimato:** 3-4 ore (2 endpoint backend + 1 modal + 2 chip + test + docs).
 
 **Bug/debt:**
 - ~~G-DEBT1~~ — Risolto: Spese Fisse implementate da marzo (la roadmap riportava "mai implementate", era falso). Rimosso 2026-05-08.

@@ -1,6 +1,6 @@
-# Stato pagamento unificato (G.5) — riferimento tecnico
+# Stato pagamento unificato (G.5 + G.6 + G.7) — riferimento tecnico
 
-> Sessione 2026-05-10. Documento canonico per capire come funziona lo stato di pagamento delle fatture passive nel sistema TRGB **post G.5 Livello 3**.
+> Sessione 2026-05-10. Documento canonico per capire come funziona lo stato di pagamento delle fatture passive nel sistema TRGB **post G.5 Livello 3 + G.6 uniformazione naming + G.7 Sposta data**.
 
 ## 1. Storia del problema
 
@@ -9,6 +9,8 @@ Prima di G.5, il sistema TRGB aveva **3 source of truth indipendenti** per lo st
 1. `fe_fatture.pagato` (boolean 0/1) — il primo flag, dal 2024
 2. `fe_fatture.stato_pagamento` (TEXT: `da_pagare`/`da_verificare`/`pagato_manuale`/`pagato`) — aggiunto in mig 103 (2026-04-27)
 3. `cg_uscite.stato` (TEXT: `DA_PAGARE`/`SCADUTA`/`PAGATA`/`PAGATA_MANUALE`/`PARZIALE`/`RATEIZZATA`) — workflow modulo CG
+
+> ⚠️ Naming pre-G.6. **Dopo G.6 (mig 114) tutti gli stati sono stati rinominati al maschile**: `PROGRAMMATO`/`SCADUTO`/`PAGATO`/`PAGATO_MANUALE`/`PARZIALE`/`RATEIZZATO`/`VERIFICARE`/`SPOSTATO`. Vedi §12.
 
 **Conseguenza:** moduli diversi vedevano numeri diversi sulla stessa cosa. Il widget Home Acquisti mostrava 555 fatture, il modulo Acquisti → Fatture filtro "Da pagare" 838, il modulo CG ~620. Drift fra le 3 colonne mai risolto, perché ogni endpoint scriveva sul suo flag senza aggiornare gli altri.
 
@@ -151,3 +153,62 @@ Atteso dopo deploy:
 - **Source of truth**: `cg_uscite.stato`
 - **Service**: `app/services/fatture_stato_service.py` — unico punto autorizzato a scrivere lo stato
 - **`fic_pagato_raw`**: flag importato da Fatture in Cloud, preservato per audit ma non usato dal workflow
+
+## 12. G.6 — Naming uniforme al maschile (mig 114)
+
+Prima di G.6 c'era incoerenza fra forme maschili e femminili degli stati (es. `DA_PAGARE` ma `PAGATA`, `SCADUTA` ma `PAGATA_MANUALE`). Per dare logica univoca, **tutti gli stati sono al maschile** dopo G.6.
+
+### Tabella rename (eseguita da mig 114)
+
+| Pre-G.6 | Post-G.6 | Note |
+|---|---|---|
+| `DA_PAGARE`      | `PROGRAMMATO`    | "Programmato" = scadenza decisa, data nel futuro. Più chiaro di "da pagare" |
+| `SCADUTA`        | `SCADUTO`        | Data scadenza passata |
+| `DA_VERIFICARE`  | `VERIFICARE`     | Pagamento ambiguo (audit, marcatura manuale). Niente preposizione "da" |
+| `PAGATA`         | `PAGATO`         | Riconciliata via banca |
+| `PAGATA_MANUALE` | `PAGATO_MANUALE` | Marcata pagata manualmente |
+| `RATEIZZATA`     | `RATEIZZATO`     | Rateizzata in spesa fissa |
+| `PARZIALE`       | `PARZIALE`       | Invariato (già neutro) |
+| _(nuovo)_        | `SPOSTATO`       | Aggiunto da G.7, vedi §13 |
+
+### Impatto
+
+- Mig 114 fa UPDATE atomico su `cg_uscite.stato` + ricrea VIEW `fe_fatture_with_stato` con i nuovi valori
+- Backend service `fatture_stato_service.py` mappa i 4 stati legacy `da_pagare`/`da_verificare`/`pagato_manuale`/`pagato` → nuovi nomi maschili
+- Frontend `STATO_STYLE`, `STATO_BADGE`, `STATO_LABEL` aggiornati con i nuovi nomi
+- I label utente restano "Programmato" / "Scaduto" / "Verificare" / etc. (capitalize)
+
+## 13. G.7 — Stato SPOSTATO + UX Sposta data
+
+### Razionale
+
+Era frequente che una fattura importata da SDI portasse una `data_scadenza_xml` errata o non rispettata, e Marco doveva riprogrammare manualmente la scadenza. Pre-G.7 questo si faceva editando direttamente `cg_uscite.data_scadenza`, **perdendo traccia dell'originale**. Inoltre lo stato restava `PROGRAMMATO`, indistinguibile dalle fatture mai toccate.
+
+### Soluzione
+
+1. Nuovo stato `SPOSTATO` (mig 114): la fattura ha una scadenza riprogrammata dall'utente
+2. Nuova colonna `cg_uscite.data_scadenza_originale` (mig 114): preserva la scadenza pre-spostamento
+3. Endpoint `PUT /controllo-gestione/uscite/{id}/scadenza` esteso:
+   - se la nuova data ≠ originale e lo stato è `PROGRAMMATO`/`SCADUTO`/`SPOSTATO`, setta `stato = 'SPOSTATO'` e salva l'originale in `data_scadenza_originale` (solo la prima volta)
+4. Nuovo endpoint `PUT /controllo-gestione/uscite/{id}/ripristina-data`:
+   - ripristina `data_scadenza ← data_scadenza_originale`
+   - ricalcola stato (`SCADUTO` se data nel passato, altrimenti `PROGRAMMATO`)
+   - reset `data_scadenza_originale = NULL`
+
+### UX frontend
+
+- **`FattureDettaglio.jsx`** tab Pagamenti: la card Scadenza è 2 sotto-celle affiancate
+  - "Scadenza iniziale" (read-only, da XML)
+  - "Programmata" (editabile, con badge "spost." se `statoUscita === 'SPOSTATO'` e bottone "Ripristina originale")
+- **`ControlloGestioneUscite.jsx`**: chip filtro `SPOSTATO` con palette fuchsia + label "Spostato"
+- **`FattureElenco.jsx`**: drill-down filtro pagamento riga 2 include chip `Spostato`
+
+### Mapping `data_scadenza` derivato
+
+| Caso | `data_scadenza` mostrata | `data_scadenza_originale` | Stato |
+|---|---|---|---|
+| Fattura mai toccata        | = `data_scadenza_xml` | NULL | `PROGRAMMATO` o `SCADUTO` |
+| Marco sposta una scadenza  | nuova data | data XML originale | `SPOSTATO` |
+| Marco sposta una scadenza già spostata | ultima data | originale (preservato dal primo spostamento) | `SPOSTATO` |
+| Marco ripristina           | = `data_scadenza_originale` | NULL | ricalcolato (`SCADUTO`/`PROGRAMMATO`) |
+| Pagata                     | invariata | invariata | `PAGATO`/`PAGATO_MANUALE` |

@@ -671,60 +671,99 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* SCADENZA */}
-                <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider">Scadenza effettiva</p>
-                    {hasScadenzaOverride && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">override</span>
-                    )}
-                  </div>
-                  {editingScadenza ? (
-                    <div className="space-y-2">
-                      <input
-                        type="date"
-                        value={draftScadenza}
-                        onChange={(e) => setDraftScadenza(e.target.value)}
-                        className="w-full px-2 py-1 text-sm border border-neutral-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-400"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={saveScadenza}
-                          disabled={saving || !draftScadenza}
-                          className="flex-1 px-2 py-1 text-xs font-medium bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-50"
-                        >
-                          Salva
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingScadenza(false)}
-                          className="px-2 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-100"
-                        >
-                          Annulla
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
+                {/* SCADENZA — G.7: 2 sotto-celle affiancate "Iniziale" + "Programmata" */}
+                <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 md:col-span-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* INIZIALE — read-only (dall'XML/FIC) */}
                     <div>
-                      <p className="text-sm font-bold text-neutral-900 tabular-nums">{scadenzaEff || "—"}</p>
-                      {hasScadenzaOverride && scadenzaXml && (
-                        <p className="text-[10px] text-neutral-400 mt-0.5">XML: <span className="tabular-nums">{scadenzaXml}</span></p>
-                      )}
-                      {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATO" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDraftScadenza(scadenzaEff || "");
-                            setEditingScadenza(true);
-                          }}
-                          className="mt-2 text-[10px] text-teal-700 hover:text-teal-900 font-medium underline"
-                        >
-                          Modifica
-                        </button>
+                      <p className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider mb-0.5">Scadenza iniziale</p>
+                      <p className="text-xs font-bold text-neutral-700 tabular-nums">{scadenzaXml || "—"}</p>
+                      <p className="text-[9px] text-neutral-400 mt-0.5">da fattura</p>
+                    </div>
+                    {/* PROGRAMMATA — editabile */}
+                    <div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <p className="text-[10px] text-fuchsia-700 font-medium uppercase tracking-wider">Programmata</p>
+                        {statoUscita === "SPOSTATO" && (
+                          <span className="text-[8px] px-1 py-0 rounded bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200">spost.</span>
+                        )}
+                      </div>
+                      {editingScadenza ? (
+                        <div className="space-y-1">
+                          <input
+                            type="date"
+                            value={draftScadenza}
+                            onChange={(e) => setDraftScadenza(e.target.value)}
+                            className="w-full px-1 py-0.5 text-[11px] border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-fuchsia-400"
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={saveScadenza}
+                              disabled={saving || !draftScadenza}
+                              className="flex-1 px-1 py-0.5 text-[10px] font-medium bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700 disabled:opacity-50"
+                            >
+                              Sposta
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingScadenza(false)}
+                              className="px-1 py-0.5 text-[10px] border border-neutral-300 rounded hover:bg-neutral-100"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-xs font-bold text-neutral-900 tabular-nums">{scadenzaEff || "—"}</p>
+                          {!isRateizzata && uscita?.uscita_id && statoUscita !== "PAGATO" && (
+                            <div className="mt-1 flex flex-col gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDraftScadenza(scadenzaEff || "");
+                                  setEditingScadenza(true);
+                                }}
+                                className="text-[10px] text-fuchsia-700 hover:text-fuchsia-900 font-medium underline text-left"
+                              >
+                                {statoUscita === "SPOSTATO" ? "Modifica" : "Sposta data"}
+                              </button>
+                              {statoUscita === "SPOSTATO" && uscita?.uscita_id && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!window.confirm("Ripristinare la scadenza originale?")) return;
+                                    setSaving(true);
+                                    try {
+                                      const res = await apiFetch(
+                                        `${CG}/uscite/${uscita.uscita_id}/ripristina-data`,
+                                        { method: "PUT" }
+                                      );
+                                      const data = await res.json();
+                                      if (data.ok) {
+                                        showToast("Scadenza ripristinata");
+                                        await refetch();
+                                      } else {
+                                        showToast(data.error || "Errore", "err");
+                                      }
+                                    } catch (e) {
+                                      showToast("Errore di rete", "err");
+                                    } finally {
+                                      setSaving(false);
+                                    }
+                                  }}
+                                  className="text-[10px] text-neutral-500 hover:text-neutral-700 underline text-left"
+                                >
+                                  Ripristina originale
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* MODALITÀ PAGAMENTO */}

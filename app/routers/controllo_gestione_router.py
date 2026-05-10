@@ -2906,9 +2906,19 @@ def modifica_scadenza(
             """, [nuova, uscita_id])
             fonte_modifica = "cg_uscite.data_scadenza"
 
-        # Ricalcola stato workflow (sempre su cg_uscite): SCADUTO se < oggi, PROGRAMMATO altrimenti
+        # Ricalcola stato workflow (G.7, 2026-05-10):
+        # - Se nuova data ≠ originale → stato = SPOSTATO (riprogrammazione esplicita)
+        # - Se nuova data = originale → torna allo stato derivato da data (PROGRAMMATO/SCADUTO)
+        # Non tocca VERIFICARE/PARZIALE/RATEIZZATO/PAGATO (stati espliciti utente o riconciliazione).
         oggi = date.today().isoformat()
-        if nuova < oggi and row["stato"] == "PROGRAMMATO":
+        if originale and nuova != originale and row["stato"] in ("PROGRAMMATO", "SCADUTO", "SPOSTATO"):
+            # La scadenza è stata spostata rispetto all'originale → SPOSTATO
+            conn.execute("UPDATE cg_uscite SET stato = 'SPOSTATO', updated_at = datetime('now') WHERE id = ?", [uscita_id])
+        elif originale and nuova == originale and row["stato"] == "SPOSTATO":
+            # La scadenza è tornata uguale all'originale → ricalcolo
+            nuovo_st = "SCADUTO" if nuova < oggi else "PROGRAMMATO"
+            conn.execute("UPDATE cg_uscite SET stato = ?, updated_at = datetime('now') WHERE id = ?", [nuovo_st, uscita_id])
+        elif nuova < oggi and row["stato"] == "PROGRAMMATO":
             conn.execute("UPDATE cg_uscite SET stato = 'SCADUTO', updated_at = datetime('now') WHERE id = ?", [uscita_id])
         elif nuova >= oggi and row["stato"] == "SCADUTO":
             conn.execute("UPDATE cg_uscite SET stato = 'PROGRAMMATO', updated_at = datetime('now') WHERE id = ?", [uscita_id])
@@ -2932,6 +2942,73 @@ def modifica_scadenza(
             "delta_giorni": delta_giorni,
             "is_arretrato": abs(delta_giorni) > 10,
             "fonte_modifica": fonte_modifica,  # debug/tracciamento v2.0
+        }
+    finally:
+        conn.close()
+
+
+# ── G.7 — Ripristina data originale (per stato SPOSTATO) ──
+@router.put("/uscite/{uscita_id}/ripristina-data")
+def ripristina_data_originale(
+    uscita_id: int,
+    current_user=Depends(get_current_user),
+):
+    """
+    Ripristina la data_scadenza all'originale (data_scadenza_originale).
+    Usato per annullare uno SPOSTATO precedente.
+
+    Effetti:
+    - cg_uscite.data_scadenza ← data_scadenza_originale
+    - cg_uscite.stato ← PROGRAMMATO o SCADUTO (in base alla data)
+    - cg_uscite.data_scadenza_originale ← NULL (torna a "mai spostata")
+
+    Se l'uscita è una FATTURA (v2.0), pulisce anche fe_fatture.data_prevista_pagamento
+    per coerenza (la VIEW lettura ritornerà al COALESCE su fe_fatture.data_scadenza).
+
+    Non permette il ripristino se:
+    - Non c'è data_scadenza_originale (mai spostata) → 400
+    - Stato è PAGATO (riconciliata banca) → 400
+    """
+    conn = get_fc_db()
+    try:
+        row = conn.execute("""
+            SELECT u.id, u.data_scadenza, u.data_scadenza_originale, u.stato,
+                   u.tipo_uscita, u.fattura_id
+            FROM cg_uscite u WHERE u.id = ?
+        """, [uscita_id]).fetchone()
+        if not row:
+            return {"ok": False, "error": "Uscita non trovata"}
+        if not row["data_scadenza_originale"]:
+            return {"ok": False, "error": "Nessuna scadenza originale registrata (mai spostata)"}
+        if row["stato"] == "PAGATO":
+            return {"ok": False, "error": "Impossibile ripristinare: uscita già riconciliata"}
+
+        originale = row["data_scadenza_originale"]
+        oggi = date.today().isoformat()
+        nuovo_stato = "SCADUTO" if originale < oggi else "PROGRAMMATO"
+
+        # Reset cg_uscite
+        conn.execute("""
+            UPDATE cg_uscite
+            SET data_scadenza = ?,
+                data_scadenza_originale = NULL,
+                stato = ?,
+                updated_at = datetime('now')
+            WHERE id = ?
+        """, [originale, nuovo_stato, uscita_id])
+
+        # Se fattura v2.0, pulisce anche data_prevista_pagamento
+        if row["tipo_uscita"] == "FATTURA" and row["fattura_id"]:
+            conn.execute("""
+                UPDATE fe_fatture SET data_prevista_pagamento = NULL WHERE id = ?
+            """, [row["fattura_id"]])
+
+        conn.commit()
+        return {
+            "ok": True,
+            "data_scadenza": originale,
+            "nuovo_stato": nuovo_stato,
+            "msg": f"Scadenza ripristinata a {originale}",
         }
     finally:
         conn.close()
