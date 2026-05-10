@@ -119,16 +119,22 @@ export default function FattureElenco() {
     });
     if (fornitoreSel) list = list.filter(f => f.fornitore_nome === fornitoreSel);
     if (pivaSel) list = list.filter(f => (f.fornitore_piva || "").includes(pivaSel));
-    // Filtro pagamento granulare (post G.5):
-    //   "" = tutti, "si" = pagata, "no" = da pagare,
-    //   "da_pagare", "da_verificare", "pagato_manuale", "pagato" = stato_pagamento esatto,
-    //   "rateizzata" = fatture in piano rate (rateizzata_in_spesa_fissa_id NOT NULL)
-    if (pagatoSel === "si") list = list.filter(f => f.pagato);
-    else if (pagatoSel === "no") list = list.filter(f => !f.pagato);
-    else if (pagatoSel === "rateizzata") list = list.filter(f => f.rateizzata_in_spesa_fissa_id);
-    else if (["da_pagare", "da_verificare", "pagato_manuale", "pagato"].includes(pagatoSel)) {
-      list = list.filter(f => (f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare")) === pagatoSel);
-    }
+    // Filtro pagamento drill-down 2 livelli (post G.5 v2):
+    //   Riga 1 (esclusivi):
+    //     "" = tutti, "pagato" = qualsiasi pagata, "non_pagato" = qualsiasi non pagata
+    //   Riga 2 (sotto-stati specifici, basati su cg_uscite.stato esposto come f.cg_uscite_stato):
+    //     "riconciliato" → cg_uscite.stato='PAGATA' (banca abbinata)
+    //     "manuale"      → cg_uscite.stato='PAGATA_MANUALE'
+    //     "scaduto"      → cg_uscite.stato='SCADUTA'
+    //     "in_pagamento" → cg_uscite.stato='DA_VERIFICARE'
+    //     "rateizzato"   → rateizzata_in_spesa_fissa_id NOT NULL
+    if (pagatoSel === "pagato") list = list.filter(f => f.pagato);
+    else if (pagatoSel === "non_pagato") list = list.filter(f => !f.pagato);
+    else if (pagatoSel === "riconciliato") list = list.filter(f => f.cg_uscite_stato === "PAGATA");
+    else if (pagatoSel === "manuale") list = list.filter(f => f.cg_uscite_stato === "PAGATA_MANUALE");
+    else if (pagatoSel === "scaduto") list = list.filter(f => f.cg_uscite_stato === "SCADUTA");
+    else if (pagatoSel === "in_pagamento") list = list.filter(f => f.cg_uscite_stato === "DA_VERIFICARE");
+    else if (pagatoSel === "rateizzato") list = list.filter(f => f.rateizzata_in_spesa_fissa_id);
 
     if (importoMode === "gt" && importoVal1)
       list = list.filter(f => (f.totale_fattura || 0) > parseFloat(importoVal1));
@@ -425,38 +431,82 @@ export default function FattureElenco() {
             {/* ── Stato ── */}
             <div className="bg-emerald-50/40 rounded-lg p-2.5 border border-emerald-100 shadow-sm">
               <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-2">Pagamento</div>
-              {/* Stato pagamento — chip grid 2 colonne con count (pattern CG → Uscite) */}
-              <div className="grid grid-cols-2 gap-1">
-                {(() => {
-                  // Calcolo lista fatture base (senza filtro pagamento) per i count
-                  const baseList = fatture.filter(f => {
-                    if (!mostraEsclusi && f.escluso_acquisti) return false;
-                    if (!mostraRateizzate && f.rateizzata_in_spesa_fissa_id) return false;
-                    return true;
-                  });
-                  const sp = (f) => f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare");
-                  const opts = [
-                    { value: "",               label: "Tutti",       n: baseList.length, act: "bg-neutral-200 text-neutral-900 border-neutral-300" },
-                    { value: "da_pagare",      label: "📅 Da pagare", n: baseList.filter(f => sp(f) === "da_pagare").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
-                    { value: "da_verificare",  label: "⚠️ Da verificare", n: baseList.filter(f => sp(f) === "da_verificare").length, act: "bg-orange-100 text-orange-900 border-orange-300" },
-                    { value: "pagato_manuale", label: "✓ Pag. manuale", n: baseList.filter(f => sp(f) === "pagato_manuale").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
-                    { value: "pagato",         label: "🏦 Pag. banca", n: baseList.filter(f => sp(f) === "pagato").length, act: "bg-blue-100 text-blue-900 border-blue-300" },
-                    { value: "rateizzata",     label: "🔄 Rateizzata", n: fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length, act: "bg-violet-100 text-violet-900 border-violet-300" },
+              {/* Filtro drill-down 2 livelli: Riga 1 (Tutti/Pagato/Da pagare) + Riga 2 condizionale */}
+              {(() => {
+                // Lista base per i count (esclude fornitori esclusi + rateizzate se toggle OFF)
+                const baseList = fatture.filter(f => {
+                  if (!mostraEsclusi && f.escluso_acquisti) return false;
+                  if (!mostraRateizzate && f.rateizzata_in_spesa_fissa_id) return false;
+                  return true;
+                });
+                const isPagato   = (f) => f.pagato;
+                const isNonPagato = (f) => !f.pagato;
+                const cg = (f) => f.cg_uscite_stato;
+
+                // ── Riga 1: scelta primaria ──
+                const liv1 = [
+                  { value: "",           label: "Tutti",      n: baseList.length, act: "bg-neutral-200 text-neutral-900 border-neutral-300" },
+                  { value: "pagato",     label: "✓ Pagato",   n: baseList.filter(isPagato).length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                  { value: "non_pagato", label: "📅 Da pagare", n: baseList.filter(isNonPagato).length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                ];
+
+                // ── Determina famiglia attiva (per riga 2) ──
+                const PAGATO_SUBS = ["riconciliato", "manuale"];
+                const NON_PAGATO_SUBS = ["scaduto", "in_pagamento", "rateizzato"];
+                const isFamigliaPagato = pagatoSel === "pagato" || PAGATO_SUBS.includes(pagatoSel);
+                const isFamigliaNonPagato = pagatoSel === "non_pagato" || NON_PAGATO_SUBS.includes(pagatoSel);
+
+                // Quale chip riga 1 è "attivo" visivamente
+                const liv1ActiveValue = isFamigliaPagato ? "pagato" : (isFamigliaNonPagato ? "non_pagato" : pagatoSel);
+
+                // ── Riga 2: condizionale ──
+                let liv2 = null;
+                if (isFamigliaPagato) {
+                  liv2 = [
+                    { value: "riconciliato", label: "🏦 Riconciliato",  n: baseList.filter(f => cg(f) === "PAGATA").length,         act: "bg-blue-100 text-blue-900 border-blue-300" },
+                    { value: "manuale",      label: "✓ Manuale",        n: baseList.filter(f => cg(f) === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   ];
-                  return opts.map(o => {
-                    const active = pagatoSel === o.value;
-                    return (
-                      <button key={o.value} onClick={() => setPagatoSel(active ? "" : o.value)}
-                        className={`px-2 py-1.5 rounded-md text-[11px] font-medium border transition flex flex-col items-start leading-tight ${
-                          active ? o.act : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
-                        }`}>
-                        <span className="truncate w-full text-left">{o.label}</span>
-                        <span className={`text-[9px] font-semibold tabular-nums ${active ? "opacity-70" : "text-neutral-400"}`}>{o.n}</span>
-                      </button>
-                    );
-                  });
-                })()}
-              </div>
+                } else if (isFamigliaNonPagato) {
+                  liv2 = [
+                    { value: "scaduto",      label: "⏰ Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTA").length,        act: "bg-red-100 text-red-900 border-red-300" },
+                    { value: "in_pagamento", label: "⚠️ In pagamento", n: baseList.filter(f => cg(f) === "DA_VERIFICARE").length,  act: "bg-orange-100 text-orange-900 border-orange-300" },
+                    { value: "rateizzato",   label: "🔄 Rateizzato",   n: fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length, act: "bg-violet-100 text-violet-900 border-violet-300" },
+                  ];
+                }
+
+                const renderChip = (o, activeValue) => {
+                  const active = activeValue === o.value;
+                  return (
+                    <button key={o.value} onClick={() => setPagatoSel(active ? "" : o.value)}
+                      className={`px-2 py-1.5 rounded-md text-[11px] font-medium border transition flex flex-col items-start leading-tight ${
+                        active ? o.act : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
+                      }`}>
+                      <span className="truncate w-full text-left">{o.label}</span>
+                      <span className={`text-[9px] font-semibold tabular-nums ${active ? "opacity-70" : "text-neutral-400"}`}>{o.n}</span>
+                    </button>
+                  );
+                };
+
+                return (
+                  <>
+                    {/* Riga 1: 3 chip primari */}
+                    <div className="grid grid-cols-3 gap-1">
+                      {liv1.map(o => renderChip(o, liv1ActiveValue))}
+                    </div>
+                    {/* Riga 2: dettaglio (slide-in animato) */}
+                    {liv2 && (
+                      <div className="mt-1.5 pt-1.5 border-t border-emerald-200/60">
+                        <div className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider mb-1">
+                          {isFamigliaPagato ? "Tipo pagamento" : "Stato"}
+                        </div>
+                        <div className={`grid gap-1 ${liv2.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                          {liv2.map(o => renderChip(o, pagatoSel))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Fonte — segment control orizzontale */}
               <div className="mt-2">

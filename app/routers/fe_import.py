@@ -957,6 +957,7 @@ def list_fatture(
             COALESCE(f.fonte, 'xml') AS fonte,
             COALESCE(f.pagato, 0) AS pagato,
             COALESCE(f.stato_pagamento, 'da_pagare') AS stato_pagamento,
+            f.cg_uscite_stato,
             f.data_scadenza, f.modalita_pagamento, f.importo_pagamento,
             (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
             COALESCE(f.is_autofattura, 0) AS is_autofattura,
