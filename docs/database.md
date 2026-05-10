@@ -3,7 +3,7 @@
 **Ultimo aggiornamento:** 2026-05-08
 **Path canonico:** `locali/tregobbi/data/` (post R6.5 push 2+3, vedi `architettura_locale.md`).
 **Path legacy:** `app/data/` — mantenuto per dev locale, NON in produzione (R6.5 push 3 ha rimosso il fallback runtime).
-**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (001-109). Gli altri 9 DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in `roadmap.md`).
+**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (001-110). Gli altri 9 DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in `roadmap.md`).
 **Pattern WAL:** attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Da estendere ai restanti 5 DB (T.4 in `roadmap.md`).
 
 ---
@@ -12,7 +12,7 @@
 
 | File | Modulo | DB pattern | Versione/migrazioni |
 |------|--------|-----------|---------------------|
-| `foodcost.db` | Ricette/FoodCost + Acquisti (XML/FIC) + Banca/CG + iPratico + Statistiche | migrazioni tracciate | mig 001-109 (vedi §11) |
+| `foodcost.db` | Ricette/FoodCost + Acquisti (XML/FIC) + Banca/CG + iPratico + Statistiche | migrazioni tracciate | mig 001-110 (vedi §11) |
 | `vini_magazzino.sqlite3` | Vini — magazzino + movimenti + ordini + storico prezzi | runtime | v3.x |
 | `vini_settings.sqlite3` | Vini — settings Carta (tipologie/nazioni/regioni/filtri) | runtime | v1.x |
 | `vini.sqlite3` | Vini — DB ponte Carta Cliente pubblica (`/vini/carta-cliente/data`) | runtime | v3.0+ (post-recovery 2026-05) |
@@ -254,6 +254,7 @@ Mattone Notifiche cross-modulo. Vedi `architettura_mattoni.md` §M.A.
 - **107** Piatti del giorno + formaggi paese
 - **108** `cg_piano_rate.data_scadenza_specifica` + `codice_pagamento` (G.1.5 — sblocca import CSV piani rate AdE/PagoPA con date irregolari)
 - **109** Cleanup non-fatture FIC senza P.IVA (2026-05-09) — Cancella 57 righe da `fe_fatture` (CATTANEO SILVIA 28 + BANA MARIA DOLORES 28 + PONTIGGIA 1) che erano "non-fatture" importate da Fatture in Cloud (bonifici/spese cassa registrate erroneamente come fatture, senza P.IVA né numero). Backup automatico in tabella `fe_fatture_archive_109`. Pulisce anche `cg_uscite_audit_063` per coerenza FK lieve. Le 3 categorie in `fe_fornitore_categoria` con `escluso_acquisti=1` restano come safety net contro futuri re-import accidentali da FIC.
+- **110** Bonifica fatture pendenti audit Marco (2026-05-10) — Risolve il debito storico di fatture mai riconciliate dopo l'analisi manuale di Marco (`claude/audit_fatture_non_pagate.xlsx`). Aggiunge colonna `fe_fatture.note_mig110` (TEXT NULL) per tracciamento audit. Aggiorna 513 fatture in batch: 330 PAGATA-DA-RICONCILIARE pre-30/11/2025 chiuse come PAGATA_MANUALE, 40 POST-30/11/2025 marcate "pagata via cc, da abbinare estratto banca 2026", 120 CONTROLLARE con flag review, 18 RISTO TEAM con flag review, 2 rateizzate agganciate (COL D'ORCIA → spesa fissa #20, NALLES → #21), 2 SISTEMARE riconciliate al 100% con bonifico parziale già in banca (MALOWINE → mov #986, Reepack → mov #112), 1 Compagnia del Vino €0 chiusa per evitare re-import FIC. Backup completo in `fe_fatture_archive_110` + `cg_uscite_archive_110` (513+512 righe). Effetto: card Home Acquisti scende da 555 fatture/€258k a 180 fatture/€99.6k.
 
 ---
 

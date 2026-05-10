@@ -141,6 +141,11 @@ scripts_backup_*/
 # Claude Code worktrees
 .claude/
 
+# Cartella scratch per output Claude condivisi con Marco (audit, export, analisi).
+# Gitignorata per non inquinare il repo. Pattern: file generati on-demand,
+# da consultare in Excel/Numbers, poi cancellabili senza conseguenze.
+/claude/
+
 # =====================
 #  HOUSEKEEPING M.J — pattern bloccati preventivamente
 # =====================
