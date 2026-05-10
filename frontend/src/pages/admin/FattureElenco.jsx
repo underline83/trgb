@@ -443,11 +443,11 @@ export default function FattureElenco() {
                 const isNonPagato = (f) => !f.pagato;
                 const cg = (f) => f.cg_uscite_stato;
 
-                // ── Riga 1: scelta primaria ──
+                // ── Riga 1: scelta primaria (label compatte, no emoji) ──
                 const liv1 = [
-                  { value: "",           label: "Tutti",      n: baseList.length, act: "bg-neutral-200 text-neutral-900 border-neutral-300" },
-                  { value: "pagato",     label: "✓ Pagato",   n: baseList.filter(isPagato).length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
-                  { value: "non_pagato", label: "📅 Da pagare", n: baseList.filter(isNonPagato).length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                  { value: "",           label: "Tutti",     n: baseList.length, act: "bg-neutral-200 text-neutral-900 border-neutral-300" },
+                  { value: "pagato",     label: "Pagato",    n: baseList.filter(isPagato).length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                  { value: "non_pagato", label: "Da pagare", n: baseList.filter(isNonPagato).length, act: "bg-amber-100 text-amber-900 border-amber-300" },
                 ];
 
                 // ── Determina famiglia attiva (per riga 2) ──
@@ -459,18 +459,18 @@ export default function FattureElenco() {
                 // Quale chip riga 1 è "attivo" visivamente
                 const liv1ActiveValue = isFamigliaPagato ? "pagato" : (isFamigliaNonPagato ? "non_pagato" : pagatoSel);
 
-                // ── Riga 2: condizionale ──
+                // ── Riga 2: condizionale (label compatte, label-wrap se serve) ──
                 let liv2 = null;
                 if (isFamigliaPagato) {
                   liv2 = [
-                    { value: "riconciliato", label: "🏦 Riconciliato",  n: baseList.filter(f => cg(f) === "PAGATA").length,         act: "bg-blue-100 text-blue-900 border-blue-300" },
-                    { value: "manuale",      label: "✓ Manuale",        n: baseList.filter(f => cg(f) === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                    { value: "riconciliato", label: "Riconciliato", n: baseList.filter(f => cg(f) === "PAGATA").length,         act: "bg-blue-100 text-blue-900 border-blue-300" },
+                    { value: "manuale",      label: "Manuale",      n: baseList.filter(f => cg(f) === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   ];
                 } else if (isFamigliaNonPagato) {
                   liv2 = [
-                    { value: "scaduto",      label: "⏰ Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTA").length,        act: "bg-red-100 text-red-900 border-red-300" },
-                    { value: "in_pagamento", label: "⚠️ In pagamento", n: baseList.filter(f => cg(f) === "DA_VERIFICARE").length,  act: "bg-orange-100 text-orange-900 border-orange-300" },
-                    { value: "rateizzato",   label: "🔄 Rateizzato",   n: fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length, act: "bg-violet-100 text-violet-900 border-violet-300" },
+                    { value: "scaduto",      label: "Scaduto",      n: baseList.filter(f => cg(f) === "SCADUTA").length,        act: "bg-red-100 text-red-900 border-red-300" },
+                    { value: "in_pagamento", label: "In pagamento", n: baseList.filter(f => cg(f) === "DA_VERIFICARE").length,  act: "bg-orange-100 text-orange-900 border-orange-300" },
+                    { value: "rateizzato",   label: "Rateizzato",   n: fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length, act: "bg-violet-100 text-violet-900 border-violet-300" },
                   ];
                 }
 
@@ -478,11 +478,12 @@ export default function FattureElenco() {
                   const active = activeValue === o.value;
                   return (
                     <button key={o.value} onClick={() => setPagatoSel(active ? "" : o.value)}
-                      className={`px-2 py-1.5 rounded-md text-[11px] font-medium border transition flex flex-col items-start leading-tight ${
+                      className={`px-1.5 py-1.5 rounded-md text-[10.5px] font-medium border transition flex flex-col items-start leading-tight min-h-[40px] ${
                         active ? o.act : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
-                      }`}>
-                      <span className="truncate w-full text-left">{o.label}</span>
-                      <span className={`text-[9px] font-semibold tabular-nums ${active ? "opacity-70" : "text-neutral-400"}`}>{o.n}</span>
+                      }`}
+                      title={`${o.label} (${o.n})`}>
+                      <span className="w-full text-left whitespace-normal break-words">{o.label}</span>
+                      <span className={`text-[9px] font-semibold tabular-nums mt-auto ${active ? "opacity-70" : "text-neutral-400"}`}>{o.n}</span>
                     </button>
                   );
                 };
