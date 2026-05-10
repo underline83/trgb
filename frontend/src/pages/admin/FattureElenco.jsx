@@ -44,6 +44,7 @@ export default function FattureElenco() {
   const [importoVal2, setImportoVal2] = useState("");
   const [tipoSel, setTipoSel] = useState(""); // "" | "autofattura"
   const [mostraEsclusi, setMostraEsclusi] = useState(false); // S40-8: nascondi fornitori esclusi da acquisti
+  const [mostraRateizzate, setMostraRateizzate] = useState(false); // G.5: nascondi rateizzate (in piano spesa fissa) — allinea col widget Home
 
   // ── Ordinamento ──
   const [sortKey, setSortKey] = useState("data_fattura");
@@ -93,6 +94,12 @@ export default function FattureElenco() {
     if (!mostraEsclusi) {
       list = list.filter(f => !f.escluso_acquisti);
     }
+    // G.5: nascondi fatture rateizzate (in piano spesa fissa) di default — allinea col widget Home.
+    // Le rateizzate restano comunque accessibili filtrando "Pagamento → Rateizzata" oppure
+    // attivando il toggle "Mostra rateizzate" sotto.
+    if (!mostraRateizzate && pagatoSel !== "rateizzata") {
+      list = list.filter(f => !f.rateizzata_in_spesa_fissa_id);
+    }
 
     if (searchText) {
       const q = searchText.toLowerCase();
@@ -134,7 +141,7 @@ export default function FattureElenco() {
       });
 
     return list;
-  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2, mostraEsclusi]);
+  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2, mostraEsclusi, mostraRateizzate]);
 
   // ── Filtro completo (aggiunge fonte + tipo) ──
   const fattureFiltrate = useMemo(() => {
@@ -417,50 +424,101 @@ export default function FattureElenco() {
 
             {/* ── Stato ── */}
             <div className="bg-emerald-50/40 rounded-lg p-2.5 border border-emerald-100 shadow-sm">
-              <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-1.5">Stato</div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <div>
-                  <label className={fLbl}>Fonte</label>
-                  <select value={fonteSel} onChange={e => setFonteSel(e.target.value)} className={fSel}>
-                    <option value="">Tutte</option>
-                    <option value="xml">XML</option>
-                    <option value="fic">FIC</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={fLbl}>Pagamento</label>
-                  <select value={pagatoSel} onChange={e => setPagatoSel(e.target.value)} className={fSel}>
-                    <option value="">Tutti</option>
-                    <optgroup label="Quick">
-                      <option value="si">Pagata (qualsiasi)</option>
-                      <option value="no">Da pagare</option>
-                    </optgroup>
-                    <optgroup label="Stato dettagliato">
-                      <option value="da_pagare">📅 Da pagare</option>
-                      <option value="da_verificare">⚠️ Da verificare</option>
-                      <option value="pagato_manuale">✓ Pagata manuale</option>
-                      <option value="pagato">🏦 Pagata (banca)</option>
-                    </optgroup>
-                    <optgroup label="Speciali">
-                      <option value="rateizzata">🔄 Rateizzata (in piano)</option>
-                    </optgroup>
-                  </select>
+              <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-2">Pagamento</div>
+              {/* Stato pagamento — chip grid 2 colonne con count (pattern CG → Uscite) */}
+              <div className="grid grid-cols-2 gap-1">
+                {(() => {
+                  // Calcolo lista fatture base (senza filtro pagamento) per i count
+                  const baseList = fatture.filter(f => {
+                    if (!mostraEsclusi && f.escluso_acquisti) return false;
+                    if (!mostraRateizzate && f.rateizzata_in_spesa_fissa_id) return false;
+                    return true;
+                  });
+                  const sp = (f) => f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare");
+                  const opts = [
+                    { value: "",               label: "Tutti",       n: baseList.length, act: "bg-neutral-200 text-neutral-900 border-neutral-300" },
+                    { value: "da_pagare",      label: "📅 Da pagare", n: baseList.filter(f => sp(f) === "da_pagare").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                    { value: "da_verificare",  label: "⚠️ Da verificare", n: baseList.filter(f => sp(f) === "da_verificare").length, act: "bg-orange-100 text-orange-900 border-orange-300" },
+                    { value: "pagato_manuale", label: "✓ Pag. manuale", n: baseList.filter(f => sp(f) === "pagato_manuale").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                    { value: "pagato",         label: "🏦 Pag. banca", n: baseList.filter(f => sp(f) === "pagato").length, act: "bg-blue-100 text-blue-900 border-blue-300" },
+                    { value: "rateizzata",     label: "🔄 Rateizzata", n: fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length, act: "bg-violet-100 text-violet-900 border-violet-300" },
+                  ];
+                  return opts.map(o => {
+                    const active = pagatoSel === o.value;
+                    return (
+                      <button key={o.value} onClick={() => setPagatoSel(active ? "" : o.value)}
+                        className={`px-2 py-1.5 rounded-md text-[11px] font-medium border transition flex flex-col items-start leading-tight ${
+                          active ? o.act : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
+                        }`}>
+                        <span className="truncate w-full text-left">{o.label}</span>
+                        <span className={`text-[9px] font-semibold tabular-nums ${active ? "opacity-70" : "text-neutral-400"}`}>{o.n}</span>
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Fonte — segment control orizzontale */}
+              <div className="mt-2">
+                <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Fonte</div>
+                <div className="flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5">
+                  {[
+                    { value: "",    label: "Tutte" },
+                    { value: "xml", label: "XML" },
+                    { value: "fic", label: "FIC" },
+                  ].map(o => {
+                    const active = fonteSel === o.value;
+                    return (
+                      <button key={o.value} onClick={() => setFonteSel(active ? "" : o.value)}
+                        className={`flex-1 px-2 py-1.5 rounded text-[11px] font-medium transition ${
+                          active ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                        }`}>
+                        {o.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="mt-1.5">
-                <label className={fLbl}>Tipo</label>
-                <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} className={fSel}>
-                  <option value="">Tutte</option>
-                  <option value="autofattura">Autofatture</option>
-                </select>
+
+              {/* Tipo — segment control orizzontale */}
+              <div className="mt-2">
+                <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Tipo</div>
+                <div className="flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5">
+                  {[
+                    { value: "",            label: "Tutte" },
+                    { value: "autofattura", label: "Autofatture" },
+                  ].map(o => {
+                    const active = tipoSel === o.value;
+                    return (
+                      <button key={o.value} onClick={() => setTipoSel(active ? "" : o.value)}
+                        className={`flex-1 px-2 py-1.5 rounded text-[11px] font-medium transition ${
+                          active ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                        }`}>
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              {/* S40-8: toggle fornitori esclusi — visibile solo se ce ne sono */}
-              {fatture.some(f => f.escluso_acquisti) && (
-                <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer mt-2 pt-1.5 border-t border-emerald-200">
-                  <input type="checkbox" checked={mostraEsclusi} onChange={e => setMostraEsclusi(e.target.checked)}
-                    className="accent-amber-600" />
-                  Mostra fornitori esclusi ({fatture.filter(f => f.escluso_acquisti).length})
-                </label>
+
+              {/* Toggle speciali (sotto, sezione separata) */}
+              {(fatture.some(f => f.escluso_acquisti) || fatture.some(f => f.rateizzata_in_spesa_fissa_id)) && (
+                <div className="mt-2 pt-2 border-t border-emerald-200 space-y-1">
+                  {fatture.some(f => f.escluso_acquisti) && (
+                    <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer">
+                      <input type="checkbox" checked={mostraEsclusi} onChange={e => setMostraEsclusi(e.target.checked)}
+                        className="accent-amber-600" />
+                      Mostra fornitori esclusi ({fatture.filter(f => f.escluso_acquisti).length})
+                    </label>
+                  )}
+                  {fatture.some(f => f.rateizzata_in_spesa_fissa_id) && (
+                    <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer">
+                      <input type="checkbox" checked={mostraRateizzate} onChange={e => setMostraRateizzate(e.target.checked)}
+                        className="accent-violet-600" />
+                      Mostra rateizzate ({fatture.filter(f => f.rateizzata_in_spesa_fissa_id).length})
+                    </label>
+                  )}
+                </div>
               )}
             </div>
 
