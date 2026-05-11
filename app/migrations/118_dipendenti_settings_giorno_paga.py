@@ -7,14 +7,19 @@ CONTESTO:
   e 18 i dipendenti avevano `giorno_paga = 27` (default storico errato).
 
 OBIETTIVI:
-  1. Allineare `dipendenti.giorno_paga` da 27 a 15 per i 18 attuali (Marco ha
-     detto: lascia le 9 buste paga già caricate, ma per le prossime usa 15).
+  1. Allineare `dipendenti.giorno_paga` da 27 a 15 per i 18 attuali.
   2. Creare tabella `dipendenti_settings` (key, value) per esporre default
      globale "giorno_pagamento_stipendi_default" = 15 (cambiabile da UI).
   3. La logica di generazione scadenza userà:
         giorno = dip["giorno_paga"] or settings["giorno_pagamento_stipendi_default"] or 15
+  4. Allineare retroattivamente data_scadenza delle 9 buste paga caricate
+     oggi 11/05 alle 19:32 (e di eventuali altre con data 27 ancora non
+     pagate). Marco ha confermato: vuole 15/05 anche per queste.
 
-DB COLPITO: dipendenti.sqlite3 (locale-aware).
+DB COLPITI:
+  - dipendenti.sqlite3: settings + giorno_paga
+  - foodcost.db: cg_uscite.data_scadenza per STIPENDIO non ancora pagate
+
 Idempotente.
 """
 import sqlite3
