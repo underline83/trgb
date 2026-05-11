@@ -903,50 +903,48 @@ export default function ControlloGestioneUscite() {
             <div className="px-3 py-3 border-b border-neutral-100">
               <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">Filtri speciali</div>
               <div className="space-y-1">
-                {/* Rateizzate */}
-                <button onClick={() => setIncludiRateizzate(v => !v)}
-                  className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-md text-[11px] transition border ${
-                    includiRateizzate
-                      ? "bg-purple-50 border-purple-200 text-purple-900"
-                      : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
-                  }`}>
-                  <span className="flex items-center gap-1.5">
-                    <span className={`inline-block w-2 h-2 rounded-full ${includiRateizzate ? "bg-purple-500" : "bg-neutral-300"}`}></span>
-                    <span>Mostra rateizzate</span>
-                  </span>
-                </button>
-                {/* Escluse (fornitori con escluso_acquisti=1) */}
+                {/* Rateizzate — count delle fatture origine attualmente nascoste */}
                 <Tooltip
-                  label="Mostra le fatture di fornitori esclusi dagli acquisti (es. affitti importati da FIC). Di default sono nascoste per evitare doppio conteggio con le spese fisse CG."
+                  label="Nascoste di default per evitare doppio conteggio: le rate generate dalla spesa fissa appaiono già nello scadenzario, mostrare anche la fattura origine raddoppierebbe l'importo."
                   className="w-full"
                 >
-                  <button onClick={() => setIncludiEscluse(v => !v)}
+                  <button onClick={() => setIncludiRateizzate(v => !v)}
                     className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-md text-[11px] transition border ${
-                      includiEscluse
-                        ? "bg-amber-50 border-amber-200 text-amber-900"
+                      includiRateizzate
+                        ? "bg-purple-50 border-purple-200 text-purple-900"
                         : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
                     }`}>
                     <span className="flex items-center gap-1.5">
-                      <span className={`inline-block w-2 h-2 rounded-full ${includiEscluse ? "bg-amber-500" : "bg-neutral-300"}`}></span>
-                      <span>Mostra escluse</span>
+                      <span className={`inline-block w-2 h-2 rounded-full ${includiRateizzate ? "bg-purple-500" : "bg-neutral-300"}`}></span>
+                      <span>Mostra rateizzate</span>
+                    </span>
+                    <span className={`text-[9px] tabular-nums ${includiRateizzate ? "text-purple-500" : "text-neutral-400"}`}>
+                      {allUscite.filter(u => u.rateizzata_in_spesa_fissa_id).length}
                     </span>
                   </button>
                 </Tooltip>
-                {/* Solo in pagamento */}
-                <button onClick={() => setFiltroInPagamento(v => !v)}
-                  className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-md text-[11px] transition border ${
-                    filtroInPagamento
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-900"
-                      : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
-                  }`}>
-                  <span className="flex items-center gap-1.5">
-                    <span className={`inline-block w-2 h-2 rounded-full ${filtroInPagamento ? "bg-indigo-500" : "bg-neutral-300"}`}></span>
-                    <span>Solo in pagamento</span>
-                  </span>
-                  <span className={`text-[9px] tabular-nums ${filtroInPagamento ? "text-indigo-500" : "text-neutral-400"}`}>
-                    {allUscite.filter(u => u.in_pagamento_at).length}
-                  </span>
-                </button>
+                {/* "Mostra escluse" rimosso 2026-05-11: 0 fornitori hanno escluso_acquisti=1
+                    nel DB, il toggle era inattivo. Backend resta retrocompatibile (param ignorato). */}
+                {/* Solo in pagamento — uscite attualmente in un batch pagamenti */}
+                <Tooltip
+                  label="Mostra solo le uscite collegate a un batch di pagamento attivo (in_pagamento_at valorizzato). Si popola dopo aver creato un batch da 'Gestisci batch'."
+                  className="w-full"
+                >
+                  <button onClick={() => setFiltroInPagamento(v => !v)}
+                    className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-md text-[11px] transition border ${
+                      filtroInPagamento
+                        ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+                        : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                    }`}>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`inline-block w-2 h-2 rounded-full ${filtroInPagamento ? "bg-indigo-500" : "bg-neutral-300"}`}></span>
+                      <span>Solo in pagamento</span>
+                    </span>
+                    <span className={`text-[9px] tabular-nums ${filtroInPagamento ? "text-indigo-500" : "text-neutral-400"}`}>
+                      {allUscite.filter(u => u.in_pagamento_at).length}
+                    </span>
+                  </button>
+                </Tooltip>
                 {/* Gestisci batch */}
                 <button onClick={apriGestioneBatch}
                   className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 transition border border-dashed border-neutral-300">

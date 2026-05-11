@@ -818,8 +818,12 @@ def get_uscite(
     fc = get_fc_db()
     oggi_str = date.today().isoformat()
 
-    # Filtro fisso: nascondi rateizzate di default (riattivabili con includi_rateizzate)
-    where = ["(:includi_rateizzate = 1 OR (f.rateizzata_in_spesa_fissa_id IS NULL AND u.stato <> 'RATEIZZATO'))"]
+    # Filtro fisso: nascondi rateizzate di default (riattivabili con includi_rateizzate).
+    # Sessione 2026-05-11: rimossa la clausola morta `u.stato <> 'RATEIZZATO'` post-G.6
+    # rename. Le rate generate dalla spesa fissa hanno fattura_id=NULL e stato
+    # PROGRAMMATO/SCADUTO/PAGATO, quindi passano il filtro come previsto. La fattura
+    # ORIGINE rateizzata viene esclusa dal check su rateizzata_in_spesa_fissa_id.
+    where = ["(:includi_rateizzate = 1 OR f.rateizzata_in_spesa_fissa_id IS NULL)"]
     # Filtro fisso: nascondi righe di fornitori con escluso_acquisti=1 (riattivabili con includi_escluse).
     # Le cg_uscite di tipo SPESA_FISSA non hanno fattura_id né fornitore escluso, quindi passano sempre.
     where.append("(:includi_escluse = 1 OR u.fattura_id IS NULL OR COALESCE(fc_cat.escluso_acquisti, 0) = 0)")
