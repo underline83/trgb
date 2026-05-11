@@ -9,6 +9,7 @@ import Tooltip from "../../components/Tooltip";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 import CaliciDisponibiliCard from "../../components/widgets/CaliciDisponibiliCard";
+import DecidiPrezzoCalice, { roundToHalf } from "../../components/vini/DecidiPrezzoCalice";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -73,6 +74,10 @@ export default function ViniVendite() {
   const [regNote, setRegNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState("");
+  // Modale "Decidi prezzo calice" — si apre quando il sommelier apre per calici un
+  // vino con VENDITA_CALICE != 'SI' e BOTTIGLIA_APERTA = 0 (prima apertura manuale).
+  // Sessione 2026-05-11.
+  const [decidiPrezzo, setDecidiPrezzo] = useState(null); // null o { vino, defaultPrezzo }
   const searchRef = useRef(null);
   const suggestionsRef = useRef(null);
 
@@ -258,44 +263,55 @@ export default function ViniVendite() {
   }, [selectedCelle, regLoc, isLoc3Matrice]);
 
   // ── Registra vendita ──
-  const submitVendita = async () => {
-    if (!selectedVino) { alert("Seleziona un vino dalla ricerca."); return; }
+  // Esegue effettivamente la POST del movimento. Estratto da submitVendita
+  // perché può essere chiamato sia direttamente sia dopo la conferma del modale
+  // "Decidi prezzo calice" (con prezzo+nota aggiuntiva).
+  const eseguiVendita = async ({ extraNota = "", prezzoCustom = null } = {}) => {
     const qtaNum = Number(regQta);
-    if (!regQta || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
-    if (!regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
-
-    // Per loc3 matrice: obbliga selezione celle
-    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length === 0) {
-      alert("Seleziona dalla griglia le celle da svuotare."); return;
-    }
-
     setSubmitting(true);
     setSubmitMsg("");
-
-    // Compone la nota con il tag modalità
-    const modTag = `[${modalita}]`;
-    const notaParts = [modTag];
-    if (regNote.trim()) notaParts.push(regNote.trim());
-    const notaFinale = notaParts.join(" ");
-
-    // Prepara payload con eventuale celle_matrice
-    const payload = {
-      tipo: "VENDITA",
-      qta: qtaNum,
-      locazione: regLoc,
-      note: notaFinale,
-    };
-    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length > 0) {
-      payload.celle_matrice = selectedCelle.map(c => [c.riga, c.colonna]);
-    }
-
     try {
+      // Se il sommelier ha scelto un prezzo custom per il calice, propaga il
+      // valore nell'anagrafica del vino PRIMA della registrazione movimento.
+      // Setta anche PREZZO_CALICE_MANUALE=1 per non farlo sovrascrivere dai
+      // ricalcoli automatici (logica già usata in vini_pricing_router).
+      if (prezzoCustom != null) {
+        const resPatch = await apiFetch(`${API_BASE}/vini/magazzino/${selectedVino.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            PREZZO_CALICE: prezzoCustom,
+            PREZZO_CALICE_MANUALE: 1,
+          }),
+        });
+        if (!resPatch.ok) {
+          const err = await resPatch.json().catch(() => ({}));
+          throw new Error(`Errore PATCH prezzo calice: ${err.detail || resPatch.status}`);
+        }
+      }
+
+      // Compone nota: tag modalità + nota utente + eventuale extraNota (motivazione)
+      const modTag = `[${modalita}]`;
+      const notaParts = [modTag];
+      if (regNote.trim()) notaParts.push(regNote.trim());
+      if (extraNota && extraNota.trim()) notaParts.push(`[MOTIV: ${extraNota.trim()}]`);
+      const notaFinale = notaParts.join(" ");
+
+      const payload = {
+        tipo: "VENDITA",
+        qta: qtaNum,
+        locazione: regLoc,
+        note: notaFinale,
+      };
+      if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length > 0) {
+        payload.celle_matrice = selectedCelle.map(c => [c.riga, c.colonna]);
+      }
+
       const res = await apiFetch(`${API_BASE}/vini/magazzino/${selectedVino.id}/movimenti`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Errore ${res.status}`);
@@ -303,14 +319,10 @@ export default function ViniVendite() {
 
       const modInfo = MODALITA[modalita];
       setSubmitMsg(`✅ ${modInfo.icon} ${modInfo.label} — ${qtaNum} bt di ${selectedVino.DESCRIZIONE}`);
-
-      // Reset form
       clearVino();
       setRegQta("1");
       setRegNote("");
       setTimeout(() => setSubmitMsg(""), 5000);
-
-      // Ricarica
       fetchMovimenti(true);
       fetchStats();
     } catch (err) {
@@ -318,6 +330,33 @@ export default function ViniVendite() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const submitVendita = async () => {
+    if (!selectedVino) { alert("Seleziona un vino dalla ricerca."); return; }
+    const qtaNum = Number(regQta);
+    if (!regQta || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
+    if (!regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
+
+    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length === 0) {
+      alert("Seleziona dalla griglia le celle da svuotare."); return;
+    }
+
+    // Intercetto: modalità CALICI su vino con VENDITA_CALICE != 'SI' e bottiglia
+    // non ancora aperta → apri modale "Decidi prezzo calice" (sessione 2026-05-11).
+    // Logica: è una scelta del sommelier, deve fissare lui il prezzo.
+    const isCaliceNonStd =
+      modalita === "CALICI" &&
+      (selectedVino.VENDITA_CALICE || "") !== "SI" &&
+      !selectedVino.BOTTIGLIA_APERTA;
+    if (isCaliceNonStd) {
+      const carta = Number(selectedVino.PREZZO_CARTA || 0);
+      const defaultPrezzo = carta > 0 ? roundToHalf(carta / 5) : 0;
+      setDecidiPrezzo({ vino: selectedVino, defaultPrezzo });
+      return; // attende conferma utente nel modale, poi chiama eseguiVendita
+    }
+
+    await eseguiVendita();
   };
 
   // ── Filtri storico ──
@@ -798,6 +837,19 @@ export default function ViniVendite() {
         </div>
 
       </div>
+
+      {/* Modale "Decidi prezzo calice" (sessione 2026-05-11) */}
+      {decidiPrezzo && (
+        <DecidiPrezzoCalice
+          vino={decidiPrezzo.vino}
+          defaultPrezzo={decidiPrezzo.defaultPrezzo}
+          onCancel={() => setDecidiPrezzo(null)}
+          onConfirm={({ prezzo, nota }) => {
+            setDecidiPrezzo(null);
+            eseguiVendita({ extraNota: nota, prezzoCustom: prezzo });
+          }}
+        />
+      )}
     </div>
   );
 }

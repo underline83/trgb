@@ -19,8 +19,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 
-// Soglia oltre la quale una bottiglia in mescita viene segnalata come "vecchia".
-// 36h = circa 1.5 giorni: oltre, il vino in mescita perde le sue qualità organolettiche.
+// Soglie di età della bottiglia in mescita (in ore).
+// Colore riga + alert dipendono dalla zona:
+//   < FRESH_HOURS                   → sfondo verde (fresca)
+//   FRESH_HOURS ≤ età < ALERT_HOURS → sfondo giallo (attenzione)
+//   ≥ ALERT_HOURS                   → sfondo rosso + icona ⚠
+const FRESH_HOURS = 12;
 const ALERT_HOURS = 36;
 
 /** Ritorna le ore trascorse da una data ISO. Null se data invalida. */
@@ -103,15 +107,33 @@ export default function CaliciDisponibiliCard({
         <ul className="divide-y divide-neutral-100">
           {vini.map(v => {
             const ore = hoursSince(v.data_apertura);
-            const isOld = ore != null && ore > ALERT_HOURS;
+            // Determina zona di freschezza (verde / giallo / rosso).
+            let zone = "neutro"; // se data_apertura mancante
+            if (ore != null) {
+              if (ore < FRESH_HOURS) zone = "fresca";
+              else if (ore < ALERT_HOURS) zone = "attenzione";
+              else zone = "vecchia";
+            }
+            const bgRow = {
+              fresca:     "bg-emerald-50/60 hover:bg-emerald-50",
+              attenzione: "bg-amber-50/60 hover:bg-amber-100/60",
+              vecchia:    "bg-red-50/60 hover:bg-red-100/60",
+              neutro:     onClick ? "hover:bg-amber-50" : "",
+            }[zone];
+            const colorLabel = {
+              fresca:     "text-emerald-700",
+              attenzione: "text-amber-700",
+              vecchia:    "text-red-600 font-semibold",
+              neutro:     "text-neutral-400",
+            }[zone];
             return (
             <li key={v.id}
                 onClick={onClick ? () => onClick(v) : undefined}
                 className={`flex items-center gap-3 px-4 ${compact ? "py-2" : "py-2.5"} ${
-                  onClick ? "hover:bg-amber-50 cursor-pointer" : ""
-                } ${isOld ? "bg-red-50/40" : ""} transition`}>
+                  onClick ? "cursor-pointer" : ""
+                } ${bgRow} transition`}>
               {/* Icona alert se bottiglia aperta da > ALERT_HOURS */}
-              {isOld && (
+              {zone === "vecchia" && (
                 <span
                   className="shrink-0 w-6 h-6 rounded-full bg-red-100 border border-red-300 flex items-center justify-center text-red-700 text-xs"
                   title={`Aperta da ${formatAge(ore)} (oltre ${ALERT_HOURS}h)`}
@@ -128,7 +150,7 @@ export default function CaliciDisponibiliCard({
                 <div className="text-[10px] text-neutral-500 truncate">
                   {[v.PRODUTTORE, v.REGIONE, v.TIPOLOGIA].filter(Boolean).join(" · ")}
                   {ore != null && (
-                    <span className={`ml-1.5 ${isOld ? "text-red-600 font-semibold" : "text-neutral-400"}`}>
+                    <span className={`ml-1.5 ${colorLabel}`}>
                       · aperta da {formatAge(ore)}
                     </span>
                   )}
