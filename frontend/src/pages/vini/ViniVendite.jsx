@@ -263,6 +263,69 @@ export default function ViniVendite() {
   }, [selectedCelle, regLoc, isLoc3Matrice]);
 
   // ── Registra vendita ──
+  // "Attiva calice da bottiglia residua": click dal bottone +🥂 in storico
+  // vendite. Caso: bottiglia venduta come intera, il cliente la lascia
+  // avanzata, decidiamo di servire i calici residui. NON crea movimento
+  // (la bottiglia era già stata venduta), si limita ad attivare il flag
+  // BOTTIGLIA_APERTA=1 + DATA_APERTURA. Se il vino non è in carta calici
+  // (VENDITA_CALICE != SI), apre il modale DecidiPrezzoCalice per fissare
+  // il prezzo manuale. Sessione 2026-05-11.
+  const [attivandoCaliceId, setAttivandoCaliceId] = useState(null);
+  const attivaCaliceDaResiduo = async (movimento) => {
+    if (!movimento?.vino_id) return;
+    setAttivandoCaliceId(movimento.id);
+    try {
+      // Pre-carica il vino completo (lo storico ha solo vino_id/desc/produttore)
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${movimento.vino_id}`);
+      if (!r.ok) throw new Error("Vino non trovato");
+      const vino = await r.json();
+      // Se già aperta, basta un toast informativo
+      if (vino.BOTTIGLIA_APERTA) {
+        setSubmitMsg(`ℹ ${vino.DESCRIZIONE} è già in mescita.`);
+        setTimeout(() => setSubmitMsg(""), 4000);
+        return;
+      }
+      // Se VENDITA_CALICE = SI → patch diretto BOTTIGLIA_APERTA=1
+      if ((vino.VENDITA_CALICE || "") === "SI") {
+        await patchAttivaCalice(vino.id);
+        setSubmitMsg(`✅ 🥂 ${vino.DESCRIZIONE} attivato per i calici.`);
+        setTimeout(() => setSubmitMsg(""), 4000);
+        return;
+      }
+      // Altrimenti: apri modale DecidiPrezzoCalice
+      const carta = Number(vino.PREZZO_CARTA || 0);
+      const defaultPrezzo = carta > 0 ? roundToHalf(carta / 5) : 0;
+      setDecidiPrezzo({
+        vino,
+        defaultPrezzo,
+        // flag interno per indicare "no movimento, solo attivazione"
+        soloAttivazione: true,
+      });
+    } catch (err) {
+      setSubmitMsg(`❌ ${err.message}`);
+      setTimeout(() => setSubmitMsg(""), 5000);
+    } finally {
+      setAttivandoCaliceId(null);
+    }
+  };
+
+  // PATCH che attiva BOTTIGLIA_APERTA=1 (DATA_APERTURA viene gestita backend)
+  const patchAttivaCalice = async (vinoId, extra = {}) => {
+    const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ BOTTIGLIA_APERTA: 1, ...extra }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `Errore ${r.status}`);
+    }
+    // Refresh storico + widget (CaliciDisponibili si autocarica al prossimo mount,
+    // ma forziamo un refetch dei dati lato pagina)
+    fetchMovimenti(true);
+    fetchStats();
+  };
+
   // Esegue effettivamente la POST del movimento. Estratto da submitVendita
   // perché può essere chiamato sia direttamente sia dopo la conferma del modale
   // "Decidi prezzo calice" (con prezzo+nota aggiuntiva).
@@ -732,12 +795,13 @@ export default function ViniVendite() {
                   <th className="px-3 py-2 text-left hidden md:table-cell cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("locazione")}>Locazione <SortIcon col="locazione" /></th>
                   <th className="px-3 py-2 text-left hidden md:table-cell">Note</th>
                   <th className="px-3 py-2 text-left hidden md:table-cell cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("utente")}>Utente <SortIcon col="utente" /></th>
+                  <th className="px-3 py-2 text-center w-16">Azioni</th>
                 </tr>
               </thead>
               <tbody>
                 {movLoading && movimenti.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-neutral-400">
+                    <td colSpan={8} className="px-4 py-8 text-center text-neutral-400">
                       Caricamento...
                     </td>
                   </tr>
@@ -745,7 +809,7 @@ export default function ViniVendite() {
 
                 {!movLoading && movimenti.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-neutral-400">
+                    <td colSpan={8} className="px-4 py-8 text-center text-neutral-400">
                       Nessuna vendita trovata.
                     </td>
                   </tr>
@@ -801,6 +865,20 @@ export default function ViniVendite() {
                       <td className="px-3 py-2.5 text-xs text-neutral-400 hidden md:table-cell">
                         {m.utente || "—"}
                       </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {mod === "BOTTIGLIA" && (
+                          <Tooltip label="Attiva calice da bottiglia residua (es. cliente che lascia bottiglia non finita). Non crea movimento, marca solo la bottiglia come in mescita e ti chiede il prezzo se non è in carta calici.">
+                            <button
+                              type="button"
+                              onClick={() => attivaCaliceDaResiduo(m)}
+                              disabled={attivandoCaliceId === m.id}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold hover:bg-rose-100 hover:border-rose-300 transition disabled:opacity-50"
+                            >
+                              {attivandoCaliceId === m.id ? "…" : "+🥂"}
+                            </button>
+                          </Tooltip>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -844,8 +922,34 @@ export default function ViniVendite() {
           vino={decidiPrezzo.vino}
           defaultPrezzo={decidiPrezzo.defaultPrezzo}
           onCancel={() => setDecidiPrezzo(null)}
-          onConfirm={({ prezzo, nota }) => {
+          onConfirm={async ({ prezzo, nota }) => {
+            const soloAtt = decidiPrezzo.soloAttivazione;
+            const vino = decidiPrezzo.vino;
             setDecidiPrezzo(null);
+            if (soloAtt) {
+              // Caso "Attiva calice da bottiglia residua": niente movimento,
+              // solo PATCH per attivare la mescita + nuovo prezzo manuale.
+              try {
+                const extra = {
+                  PREZZO_CALICE: prezzo,
+                  PREZZO_CALICE_MANUALE: 1,
+                };
+                if (nota && nota.trim()) {
+                  // Concateno la nota motivazione alle NOTE del vino (audit
+                  // veloce dal dettaglio scheda). Pattern coerente con i
+                  // marker [MOTIV:...] usati nei movimenti vendita.
+                  extra.NOTE = `[MOTIV ${new Date().toISOString().slice(0,10)}] ${nota.trim()}`;
+                }
+                await patchAttivaCalice(vino.id, extra);
+                setSubmitMsg(`✅ 🥂 ${vino.DESCRIZIONE} attivato per calici a € ${prezzo.toFixed(2)}.`);
+                setTimeout(() => setSubmitMsg(""), 5000);
+              } catch (err) {
+                setSubmitMsg(`❌ ${err.message}`);
+                setTimeout(() => setSubmitMsg(""), 5000);
+              }
+              return;
+            }
+            // Caso normale: registra movimento vendita con prezzo custom + motivazione
             eseguiVendita({ extraNota: nota, prezzoCustom: prezzo });
           }}
         />
