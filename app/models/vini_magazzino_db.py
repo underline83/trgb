@@ -1852,8 +1852,13 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         WHERE v.CARTA = 'SI'
           AND (v.QTA_TOTALE IS NULL OR v.QTA_TOTALE = 0)
           AND v.STATO_VENDITA IN ('V', 'F', 'S', 'T')
+          -- Sessione 2026-05-11: escludi stati di riordino "decisi"
+          -- '0' Ordinato      → ordine già piazzato, non urgente
+          -- 'A' Annata esaur. → non posso riordinare la stessa annata
+          -- 'X' Non ricompr.  → decisione esplicita, fuori catalogo
+          -- Restano: NULL/vuoto, 'D' Da ordinare, 'O' Finito/Ordina
+          AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('0', 'A', 'X'))
         ORDER BY
-            CASE WHEN v.STATO_RIORDINO = 'X' THEN 1 ELSE 0 END,
             CASE v.STATO_VENDITA
                 WHEN 'S' THEN 0  -- aggressivo prima
                 WHEN 'F' THEN 1  -- spingere
@@ -2046,8 +2051,12 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                OR (v.QTA_TOTALE > 0 AND v.CARTA = 'SI')
         """
     else:
+        # Sessione 2026-05-11: include anche 'A' (Annata esaurita) e 'X' (Non
+        # ricomprare). Spariscono dall'alert principale, ma compaiono qui per
+        # tracciamento col fornitore (badge "Chiedere nuova annata" / "Non
+        # ricomprare"). Frontend differenzia visivamente.
         riordini_where = """
-            WHERE v.STATO_RIORDINO IN ('D', 'O', '0')
+            WHERE v.STATO_RIORDINO IN ('D', 'O', '0', 'A', 'X')
                OR (v.QTA_TOTALE = 0 AND v.CARTA = 'SI'
                    AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
         """
