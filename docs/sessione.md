@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-11 (sessione: G.7 sposta data + 4 bug fix Vendite/CG)
+**Ultimo aggiornamento:** 2026-05-11 (sessione: G.7 + G.8 stato macro/sotto + bug fix import + mig 115)
 
 ---
 

@@ -1,6 +1,6 @@
-# Stato pagamento unificato (G.5 + G.6 + G.7) — riferimento tecnico
+# Stato pagamento unificato (G.5 + G.6 + G.7 + G.8) — riferimento tecnico
 
-> Sessione 2026-05-10. Documento canonico per capire come funziona lo stato di pagamento delle fatture passive nel sistema TRGB **post G.5 Livello 3 + G.6 uniformazione naming + G.7 Sposta data**.
+> Sessione 2026-05-11. Documento canonico per capire come funziona lo stato di pagamento delle fatture passive nel sistema TRGB **post G.5 Livello 3 + G.6 uniformazione naming + G.7 Sposta data + G.8 livello macro/sotto**.
 
 ## 1. Storia del problema
 
@@ -212,3 +212,76 @@ Era frequente che una fattura importata da SDI portasse una `data_scadenza_xml` 
 | Marco sposta una scadenza già spostata | ultima data | originale (preservato dal primo spostamento) | `SPOSTATO` |
 | Marco ripristina           | = `data_scadenza_originale` | NULL | ricalcolato (`SCADUTO`/`PROGRAMMATO`) |
 | Pagata                     | invariata | invariata | `PAGATO`/`PAGATO_MANUALE` |
+
+## 14. G.8 — Livello macro/sotto (CHIUSO/APERTO)
+
+### Razionale
+
+Prima di G.8 i check semantici "è pagato?" erano sparsi come tuple IN hardcoded:
+```python
+if ex["stato"] in ("PAGATO", "PAGATO_MANUALE", "PARZIALE"):
+```
+
+Ogni nuovo sotto-stato (VERIFICARE da G.5, SPOSTATO/RATEIZZATO da G.6/G.7) richiedeva di rivedere TUTTI i punti di check. **Bug di omissione inevitabile**: durante un re-import, 138 fatture VERIFICARE sono state distrutte perché il check su `/uscite/import` non era stato aggiornato (vedi changelog 2026-05-11 e mig 115).
+
+### Soluzione
+
+Tassonomia a 2 livelli:
+
+| MACRO | SOTTO | Significato |
+|---|---|---|
+| **CHIUSO** | `PAGATO` | Riconciliato banca |
+| **CHIUSO** | `PAGATO_MANUALE` | Pagato dichiarato, da riconciliare |
+| **APERTO** | `PROGRAMMATO` | Scadenza futura |
+| **APERTO** | `SCADUTO` | Scadenza passata |
+| **APERTO** | `VERIFICARE` | Dubbio sul pagamento |
+| **APERTO** | `SPOSTATO` | Scadenza rinegoziata (G.7) |
+| **APERTO** | `RATEIZZATO` | Piano rate aperto |
+| **APERTO** | `PARZIALE` | Pagato in parte |
+
+### Implementazione (mig 116)
+
+**Colonna `cg_uscite.stato_macro`** come `GENERATED ALWAYS AS (...) VIRTUAL`:
+```sql
+ALTER TABLE cg_uscite ADD COLUMN stato_macro TEXT
+GENERATED ALWAYS AS (
+    CASE
+        WHEN stato IN ('PAGATO', 'PAGATO_MANUALE') THEN 'CHIUSO'
+        ELSE 'APERTO'
+    END
+) VIRTUAL
+```
+
+**Invariante DB-level**: la colonna si autocalcola ad ogni read da `stato`. Impossibile finire in stato incoerente. Niente trigger, niente sync manuale lato Python.
+
+### Service centralizzato
+
+File `app/services/stati_pagamento.py`:
+- `STATI_CHIUSI`, `STATI_APERTI` (frozenset)
+- `STATO_MACRO` (dict sotto → macro)
+- `is_chiuso(stato)`, `is_aperto(stato)`, `derive_macro(stato)`
+
+Tutto il codice Python che faceva tuple IN list deve passare a `is_chiuso()`/`is_aperto()` o filtrare in SQL via `WHERE stato_macro = 'CHIUSO'`.
+
+### Difesa contro re-import
+
+`/uscite/import` ora protegge tutti gli stati **non derivati dalla data**:
+```python
+STATI_DERIVATI_DA_DATA = {"PROGRAMMATO", "SCADUTO"}
+if ex["stato"] not in STATI_DERIVATI_DA_DATA:
+    # NON toccare lo stato — è una decisione utente
+```
+
+Logica difensiva per costruzione: se in futuro si aggiunge un nuovo stato (es. `IBRIDATO`), sarà **automaticamente protetto** senza richiedere modifica del codice. Solo PROGRAMMATO/SCADUTO sono fisiologicamente "ricalcolabili" da data.
+
+### VIEW estesa
+
+`fe_fatture_with_stato` ora espone:
+- `cg_uscite_stato` (sotto-stato grezzo, già presente da G.6)
+- `cg_uscite_stato_macro` (macro, nuovo da G.8)
+
+### Migrazioni stack G.8
+
+| Mig | Azione |
+|---|---|
+| **116** | ADD COLUMN `stato_macro` GENERATED VIRTUAL + ricreata VIEW con nuova colonna esposta |

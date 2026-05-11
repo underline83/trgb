@@ -529,19 +529,13 @@ def import_uscite(
 
         if existing:
             ex = dict(existing)
-            # Se già in uno stato "deciso dall'utente" (pagato, parziale,
-            # verificare, spostato, rateizzato) → NON toccare lo stato.
-            # ECCEZIONE: se c'è un cross-ref bancario nuovo non ancora propagato,
-            # aggiorna a PAGATO (riconciliazione automatica).
-            # Sessione 2026-05-11: aggiunti VERIFICARE/SPOSTATO/RATEIZZATO al
-            # branch protetto. Prima erano fuori e venivano travolti dal re-import
-            # con un PROGRAMMATO/SCADUTO calcolato. Bug preesistente per
-            # DA_VERIFICARE, amplificato da G.6/G.7 con i nuovi stati.
-            STATI_INTOCCABILI = (
-                "PAGATO", "PAGATO_MANUALE", "PARZIALE",
-                "VERIFICARE", "SPOSTATO", "RATEIZZATO",
-            )
-            if ex["stato"] in STATI_INTOCCABILI:
+            # G.8: il re-import non tocca MAI uno stato "deciso dall'utente".
+            # Solo PROGRAMMATO e SCADUTO sono "derivati dalla data" e quindi
+            # ricalcolabili. Tutti gli altri (CHIUSI + APERTI espliciti tipo
+            # VERIFICARE/SPOSTATO/RATEIZZATO/PARZIALE) sono intoccabili dal sync.
+            # ECCEZIONE: cross-ref banca nuovo → propaga PAGATO.
+            STATI_DERIVATI_DA_DATA = {"PROGRAMMATO", "SCADUTO"}
+            if ex["stato"] not in STATI_DERIVATI_DA_DATA:
                 if linked_mov and not ex.get("banca_movimento_id"):
                     # Cross-ref esiste ma non era propagato — aggiorna
                     # Bug D5: reset in_pagamento_at quando si conferma PAGATO
@@ -884,6 +878,7 @@ def get_uscite(
             u.importo_pagato,
             u.data_pagamento,
             u.stato                         AS stato_cg,
+            u.stato_macro,
             u.banca_movimento_id,
             u.note,
             u.created_at,
