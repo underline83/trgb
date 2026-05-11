@@ -241,6 +241,14 @@ export default function ControlloGestioneUscite() {
     };
   }, [filtered]);
 
+  // ── KPI TOTALI globali (ignorano filtri periodo) — Opzione B chip "n/nTot" ──
+  // Servono per esporre il totale assoluto accanto al filtrato nei chip in alto.
+  const kpiTot = useMemo(() => ({
+    n_da_pagare: allUscite.filter(u => u.stato === "PROGRAMMATO").length,
+    n_scadute:   allUscite.filter(u => u.stato === "SCADUTO").length,
+    n_pagate:    allUscite.filter(u => u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE" || u.stato === "PARZIALE").length,
+  }), [allUscite]);
+
   const handleSort = (col) => {
     if (sortCol === col) {
       setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -984,12 +992,15 @@ export default function ControlloGestioneUscite() {
 
           {/* KPI BAR */}
           <div className="px-3 py-2 border-b border-neutral-200 bg-white flex flex-wrap gap-2 items-center flex-shrink-0">
-            <KPI label="Programmato" value={kpi.da_pagare} n={kpi.n_da_pagare} color="amber"
-              active={filtroStato.has("PROGRAMMATO")} onClick={() => toggleStato("PROGRAMMATO")} />
-            <KPI label="Scaduto" value={kpi.scadute} n={kpi.n_scadute} color="red"
-              active={filtroStato.has("SCADUTO")} onClick={() => toggleStato("SCADUTO")} />
-            <KPI label="Pagato" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
-              active={filtroStato.has("PAGATO")} onClick={() => toggleStato("PAGATO")} />
+            <KPI label="Programmato" value={kpi.da_pagare} n={kpi.n_da_pagare} nTot={kpiTot.n_da_pagare} color="amber"
+              active={filtroStato.has("PROGRAMMATO")} onClick={() => toggleStato("PROGRAMMATO")}
+              title="Filtrate nel periodo / totali nel DB" />
+            <KPI label="Scaduto" value={kpi.scadute} n={kpi.n_scadute} nTot={kpiTot.n_scadute} color="red"
+              active={filtroStato.has("SCADUTO")} onClick={() => toggleStato("SCADUTO")}
+              title="Filtrate nel periodo / totali nel DB" />
+            <KPI label="Pagato" value={kpi.pagate} n={kpi.n_pagate} nTot={kpiTot.n_pagate} color="emerald"
+              active={filtroStato.has("PAGATO")} onClick={() => toggleStato("PAGATO")}
+              title="Filtrate nel periodo / totali nel DB" />
             {/* KPI "Da riconciliare" — clic apre il workbench split-pane */}
             {rig.num_da_riconciliare > 0 && (
               <KPI
@@ -1617,7 +1628,7 @@ export default function ControlloGestioneUscite() {
 }
 
 
-function KPI({ label, value, n, color, active, onClick, dot = false, title }) {
+function KPI({ label, value, n, nTot, color, active, onClick, dot = false, title }) {
   const cm = {
     amber:   "border-amber-200 bg-amber-50 text-amber-800",
     red:     "border-red-200 bg-red-50 text-red-800",
@@ -1629,13 +1640,21 @@ function KPI({ label, value, n, color, active, onClick, dot = false, title }) {
     amber: "bg-amber-500", red: "bg-red-500",
     emerald: "bg-emerald-500", violet: "bg-violet-500", sky: "bg-sky-500",
   };
+  // Conteggio: "n / nTot" se nTot esiste e differisce da n (= filtro attivo),
+  // altrimenti solo "n". Così quando non c'è filtro periodo i due numeri
+  // coincidono e mostriamo solo il primo.
+  const hasDelta = nTot != null && nTot !== n;
   const btn = (
     <button onClick={onClick}
       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition cursor-pointer ${cm[color] || ""} ${active ? "ring-2 ring-sky-400 shadow-md" : "hover:shadow-sm"}`}>
       {dot && <span className={`inline-block w-2 h-2 rounded-full ${dotColor[color] || "bg-neutral-400"}`}></span>}
       <span>{label}</span>
       {value != null && <span className="font-bold">&euro; {fmt(value)}</span>}
-      {n != null && <span className="opacity-50 font-normal text-[9px]">({n})</span>}
+      {n != null && (
+        <span className="opacity-60 font-normal text-[9px]">
+          ({n}{hasDelta ? <span className="opacity-50"> / {nTot}</span> : null})
+        </span>
+      )}
     </button>
   );
   // Se c'è un title usiamo il componente <Tooltip> (touch-friendly con

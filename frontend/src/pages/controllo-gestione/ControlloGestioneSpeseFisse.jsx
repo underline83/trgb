@@ -544,39 +544,67 @@ export default function ControlloGestioneSpeseFisse() {
     }
   }, [pianoModal]);
 
-  // ── Riapri rata: rimette una rata pagata in stato PROGRAMMATO ──
-  // Per PAGATO_MANUALE: cambio diretto stato.
-  // Per PAGATO (riconciliata): scollega prima il link banca, poi cambio stato.
-  // Sessione 2026-05-11. Endpoint backend: M.3 PUT /uscita/{id}/stato-pagamento.
-  const [riaprendoRata, setRiaprendoRata] = useState(null); // uscita_id in corso (per disabilitare bottone)
+  // ── Riapri rata: rimette una rata pagata in stato PROGRAMMATO + opzionale nuova data ──
+  // Per PAGATO_MANUALE: cambio diretto stato + (opz.) nuova data.
+  // Per PAGATO (riconciliata): scollega prima il link banca, poi cambio stato + (opz.) data.
+  // Sessione 2026-05-11. Endpoint backend: M.3 PUT /uscita/{id}/stato-pagamento + PUT /uscite/{id}/scadenza.
+  const [riaprendoRata, setRiaprendoRata] = useState(null); // uscita_id in corso
+
+  // Default "nuova data" suggerita: il 1° del mese successivo a oggi (giorno di lavoro tipico).
+  const defaultNuovaData = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  };
+
   const riapriRata = async (rata) => {
     if (!rata?.uscita_id) return;
     const periodo = rata.periodo || "?";
     const importo = fmt(rata.importo);
     const stato = rata.uscita_stato;
     const isRiconciliata = stato === "PAGATO" || rata.riconciliazione_stato === "riconciliata" || rata.riconciliazione_stato === "automatica";
+    const scadenzaAttuale = rata.uscita_scadenza || "";
 
-    // Conferma all'utente
-    let msg;
+    // Step 1 — conferma (con avviso scollegamento se riconciliata)
+    let msgConferma;
     if (isRiconciliata) {
       const dataRic = rata.banca_data_contabile
         ? new Date(rata.banca_data_contabile + "T00:00:00").toLocaleDateString("it-IT")
         : "data ignota";
-      msg = `Attenzione: la rata ${periodo} (€ ${importo}) è riconciliata col movimento bancario del ${dataRic}.\n\n` +
-        `Procedere significa:\n` +
-        `1) Scollegare il link col movimento bancario\n` +
-        `2) Riportare la rata a stato PROGRAMMATO\n\n` +
+      msgConferma = `La rata ${periodo} (€ ${importo}) è riconciliata col movimento bancario del ${dataRic}.\n\n` +
+        `Procedendo verrà:\n` +
+        `1) Scollegato il link col movimento bancario\n` +
+        `2) Riportata a PROGRAMMATO\n` +
+        `3) Chiesta la nuova data di scadenza\n\n` +
         `Continuare?`;
     } else {
-      msg = `Riaprire la rata ${periodo} (€ ${importo})?\n\n` +
-        `Stato passerà da "${stato}" a PROGRAMMATO (o SCADUTO se la data è passata).\n` +
-        `Potrai poi modificare scadenza e importo dalla stessa modale.`;
+      msgConferma = `Riaprire la rata ${periodo} (€ ${importo})?\n\n` +
+        `Stato passerà da "${stato}" a PROGRAMMATO.\n` +
+        `Subito dopo ti chiederò la nuova data di scadenza.`;
     }
-    if (!window.confirm(msg)) return;
+    if (!window.confirm(msgConferma)) return;
+
+    // Step 2 — chiedi NUOVA data (default = 1° del mese prossimo o data attuale se nel futuro)
+    const oggi = new Date().toISOString().slice(0, 10);
+    const suggerita = (scadenzaAttuale && scadenzaAttuale >= oggi) ? scadenzaAttuale : defaultNuovaData();
+    const nuovaData = window.prompt(
+      `Nuova data scadenza per ${periodo} (formato YYYY-MM-DD).\n` +
+      `Lascia vuoto e premi OK per MANTENERE la data attuale (${scadenzaAttuale || "—"}).`,
+      suggerita
+    );
+    if (nuovaData === null) return; // utente ha annullato
+
+    // Validazione data se compilata
+    const dataFinale = nuovaData.trim();
+    if (dataFinale && !/^\d{4}-\d{2}-\d{2}$/.test(dataFinale)) {
+      alert(`Formato data non valido: "${dataFinale}". Atteso YYYY-MM-DD (es. 2026-06-15).`);
+      return;
+    }
 
     setRiaprendoRata(rata.uscita_id);
     try {
-      // 1) Se riconciliata banca, scollega prima
+      // 1) Se riconciliata banca, scollega prima il link.
       if (isRiconciliata) {
         const resR = await apiFetch(`${CG}/uscite/${rata.uscita_id}/riconcilia`, { method: "DELETE" });
         const dR = await resR.json().catch(() => ({}));
@@ -585,7 +613,8 @@ export default function ControlloGestioneSpeseFisse() {
           return;
         }
       }
-      // 2) Cambia stato a PROGRAMMATO
+      // 2) Forza stato a PROGRAMMATO (l'endpoint lo ricalcolerà a SCADUTO se data
+      //    attuale è < oggi).
       const res = await apiFetch(`${CG}/uscita/${rata.uscita_id}/stato-pagamento`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -596,7 +625,24 @@ export default function ControlloGestioneSpeseFisse() {
         alert(`Errore cambio stato: ${d.error || d.detail || res.statusText}`);
         return;
       }
-      // 3) Refresh modale + lista esterna
+      // 3) Se nuova data indicata, aggiorna scadenza DOPO il cambio stato.
+      //    L'endpoint /uscite/{id}/scadenza vedrà stato PROGRAMMATO/SCADUTO e
+      //    attiverà la logica G.7 SPOSTATO (rata "spostata" a nuova data,
+      //    preservando data_scadenza_originale). Semanticamente corretto: la
+      //    rata è stata rinegoziata, è una nuova programmazione esplicita.
+      if (dataFinale && dataFinale !== scadenzaAttuale) {
+        const resS = await apiFetch(`${CG}/uscite/${rata.uscita_id}/scadenza`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data_scadenza: dataFinale }),
+        });
+        const dS = await resS.json().catch(() => ({}));
+        if (!resS.ok || dS.ok === false) {
+          alert(`Stato cambiato ma errore aggiornamento data: ${dS.error || dS.detail || resS.statusText}`);
+          // continuo per fare refresh, ma con warning
+        }
+      }
+      // 4) Refresh modale + lista esterna
       await refreshPianoRate();
       fetchData();
     } catch (e) {
