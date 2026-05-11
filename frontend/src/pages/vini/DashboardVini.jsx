@@ -847,14 +847,14 @@ export default function DashboardVini() {
                 "neutral-dark": "bg-slate-100 text-slate-500 border-slate-300",
               };
               // Fase C iter 2 — picker inline STATO_RIORDINO con emoji + label breve.
-              // Le lettere singole D/O/0/A/X non erano comprensibili se non conoscevi
+              // Le lettere singole D/0/A/X non erano comprensibili se non conoscevi
               // il codice interno. Ora ogni pill e' autoesplicativa.
               // Attiva: bg saturo colore stato + border-2 + font-bold.
               // Inattiva: bianco + border neutro + hover leggero.
               // Click su attiva = clear; click su inattiva = imposta.
+              // 'O' (Finito — ordina) rimosso 2026-05-11: ridondante con 'D'. Mig 122 ha migrato i dati storici.
               const PICKER_STATI = [
                 { code: "D", emoji: "📝", label: "Da ordinare" },
-                { code: "O", emoji: "🚨", label: "Finito — ordina" },
                 { code: "0", emoji: "📦", label: "Ordinato" },
                 { code: "A", emoji: "🗓️", label: "Annata esaurita" },
                 { code: "X", emoji: "⛔", label: "Non ricomprare" },
