@@ -26,9 +26,13 @@ V-BUG1 in `problemi.md` dichiarava un endpoint `POST /vini/magazzino/import` con
 - `roadmap.md` sezione V: priorità ridefinite. Aggiunta sezione "Hardening tecnico modulo Vini" con i task V-H.A..H. V-DEBT1 marcato obsoleto, V-DEBT2 confermato.
 - `problemi.md` V-BUG1: chiuso come falso positivo con verifica endpoint per endpoint.
 
+### V-H.C — Trailing slash uniformati `[doc]`
+Censiti tutti gli endpoint backend del modulo Vini con `/` finale dichiarato (5 in `vini_magazzino_router.py`, 3 in `bevande_router.py`) e relative chiamate FE. **Nessun mismatch**: tutte le chiamate FE hanno già lo slash giusto. Verosimilmente effetto positivo della disciplina post-fix Chiusure Turno. Modulo Vini conforme alla regola CLAUDE.md.
+
+### V-H.D — QTA_TOTALE read-only via API + cintura+bretelle DB `[core]`
+Audit: Pydantic `VinoMagazzinoBase`/`Update` **non avevano** `QTA_TOTALE` → era già impossibile patcharlo via API (mio audit precedente era impreciso). FE usa `QTA_TOTALE` solo in lettura (display, filtri, sort), mai in payload. Aggiunto `data.pop("QTA_TOTALE", None)` in `update_vino` (`vini_magazzino_db.py:893`) come safety contro chiamate dirette future. Nessuna modifica FE necessaria.
+
 ### Task di hardening tecnico ancora aperti (per la prossima sessione)
-- **V-H.C** trailing slash uniformati su route Vini
-- **V-H.D** QTA_TOTALE read-only via PATCH (opzione 1) + audit FE
 - **V-H.G** Soglie configurabili Vini (tabella settings + UI Impostazioni) — Marco ha esplicitamente vietato di hardcodare soglie operative da ora in poi (memoria salvata)
 - **V-H.E** Normalizzazione 5 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE, DISCONTINUATO)
 - **V-H.F** Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint (decisione semantica da prendere con Marco prima di partire)

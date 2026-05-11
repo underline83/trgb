@@ -890,6 +890,15 @@ def update_vino(
     data = dict(data)
     data["UPDATED_AT"] = _now_iso()
 
+    # Sessione 2026-05-12: QTA_TOTALE e' un campo derivato (somma di
+    # QTA_FRIGO+QTA_LOC1+QTA_LOC2+QTA_LOC3). Non deve mai essere settato
+    # esplicitamente: il valore corretto viene ricalcolato dopo da
+    # _recalc_qta_totale se cambia una locazione. Se arriva nel data dict
+    # (chiamate dirette legacy o future imprevisti) viene scartato qui per
+    # evitare divergenza DB. Il PATCH router non lo passa mai (non e' nel
+    # Pydantic VinoMagazzinoUpdate), questa e' cintura + bretelle.
+    data.pop("QTA_TOTALE", None)
+
     # Sessione 2026-05-11: gestione DATA_APERTURA quando BOTTIGLIA_APERTA cambia.
     # - Set BOTTIGLIA_APERTA=1 e DATA_APERTURA non passata esplicitamente →
     #   valorizza DATA_APERTURA solo se la bottiglia NON era già aperta prima

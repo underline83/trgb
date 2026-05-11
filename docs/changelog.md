@@ -16,6 +16,10 @@
 ### Memoria persistente
 - **Vietato hardcodare soglie operative** `[doc]`. Marco ha esplicitato: ore/giorni/percentuali/cutoff non vanno hardcoded nel codice. Bloccare la sessione e proporre tabella `*_settings` + UI Impostazioni modulo. Eccezioni solo per costanti matematiche pure.
 
+### Verificato (V-H.C, V-H.D)
+- **Trailing slash route Vini** `[core]`. Censiti tutti gli endpoint del modulo Vini con `/` finale dichiarato: 5 in `vini_magazzino_router.py` (lista `GET/POST /`, `carta-staff/`, `calici-disponibili/`, `ordini-pending/`) + 3 in `bevande_router.py` (`sezioni/`, `voci/` GET/POST). Verificate tutte le chiamate FE corrispondenti: nessun mismatch. Il modulo è conforme alla regola CLAUDE.md sul trailing slash. Nessuna modifica al codice.
+- **QTA_TOTALE già read-only via API** `[core]`. Audit: Pydantic `VinoMagazzinoBase`/`Update` non avevano `QTA_TOTALE` → impossibile patcharlo via FastAPI (audit precedente era impreciso, riga 127 del router era `QTA_LOC3`, non `QTA_TOTALE`). FE usa `QTA_TOTALE` solo in lettura. Aggiunto `data.pop("QTA_TOTALE", None)` in `update_vino` (`vini_magazzino_db.py:893`) come safety: se qualcuno in futuro chiamerà direttamente la funzione Python con `QTA_TOTALE` nel dict, viene scartato e ricalcolato da `_recalc_qta_totale` se le locazioni cambiano.
+
 ---
 
 ## 2026-05-11 — G.7 + G.8 + 5 bug fix + ripristino dati audit
