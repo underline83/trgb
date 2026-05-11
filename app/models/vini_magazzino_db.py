@@ -154,6 +154,11 @@ def init_magazzino_database() -> None:
             -- Mescita: 1 se la bottiglia e' aperta in mescita (anche con QTA_TOTALE=0
             -- il vino deve apparire nella carta calici). Sessione 58 (2026-04-25).
             BOTTIGLIA_APERTA INTEGER DEFAULT 0,
+            -- Data ISO 8601 di quando BOTTIGLIA_APERTA è stato settato a 1
+            -- (sia da auto-VENDITA [CALICI] che da toggle manuale). NULL se mai
+            -- aperta o se è stata chiusa. Usata per alert "aperta da troppo tempo"
+            -- nel widget Calici disponibili. Sessione 2026-05-11.
+            DATA_APERTURA   TEXT,
 
             -- Abbinamenti consigliati (sessione 2026-05-04). Testo libero,
             -- mostrato in carta cliente solo per i vini al calice.
@@ -269,6 +274,8 @@ def init_magazzino_database() -> None:
         cur.execute("ALTER TABLE vini_magazzino ADD COLUMN FORZA_PREZZO INTEGER DEFAULT 0;")
     if "BOTTIGLIA_APERTA" not in cols:
         cur.execute("ALTER TABLE vini_magazzino ADD COLUMN BOTTIGLIA_APERTA INTEGER DEFAULT 0;")
+    if "DATA_APERTURA" not in cols:
+        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN DATA_APERTURA TEXT;")
     # Indice su DISTRIBUTORE (se non esiste)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_distributore ON vini_magazzino (DISTRIBUTORE);")
 
@@ -879,6 +886,24 @@ def update_vino(
     data = dict(data)
     data["UPDATED_AT"] = _now_iso()
 
+    # Sessione 2026-05-11: gestione DATA_APERTURA quando BOTTIGLIA_APERTA cambia.
+    # - Set BOTTIGLIA_APERTA=1 e DATA_APERTURA non passata esplicitamente →
+    #   valorizza DATA_APERTURA solo se la bottiglia NON era già aperta prima
+    #   (così le riaperture multiple non perdono la data originale).
+    # - Set BOTTIGLIA_APERTA=0 e DATA_APERTURA non passata → NULL (chiusura).
+    if "BOTTIGLIA_APERTA" in data and "DATA_APERTURA" not in data:
+        nuovo_flag = int(data["BOTTIGLIA_APERTA"] or 0)
+        if nuovo_flag == 0:
+            data["DATA_APERTURA"] = None
+        else:
+            # Leggi stato corrente: se era già aperta, non rinfresca la data.
+            row_old = cur.execute(
+                "SELECT BOTTIGLIA_APERTA, DATA_APERTURA FROM vini_magazzino WHERE id = ?;",
+                (vino_id,),
+            ).fetchone()
+            if not row_old or not row_old["BOTTIGLIA_APERTA"] or not row_old["DATA_APERTURA"]:
+                data["DATA_APERTURA"] = data["UPDATED_AT"]
+
     # --- Pre-lettura valori prezzo per storico (solo se almeno un campo prezzo in data) ---
     vecchi_prezzi: Dict[str, Any] = {}
     prezzi_in_data = [k for k in _PREZZI_TRACCIATI if k in data]
@@ -1374,9 +1399,21 @@ def registra_movimento(
     # Il sommelier spegne il flag manualmente (✕ nel widget o toggle in scheda)
     # quando i calici finiscono o quando chiude la bottiglia.
     if tipo == "VENDITA" and note and "[CALICI]" in note:
+        # Sessione 2026-05-11: setta DATA_APERTURA solo se la bottiglia non era
+        # già aperta (preserva la data della prima apertura, non la rinfresca a
+        # ogni vendita calice successiva).
         cur.execute(
-            "UPDATE vini_magazzino SET BOTTIGLIA_APERTA = 1, UPDATED_AT = ? WHERE id = ?;",
-            (created_at, vino_id),
+            """
+            UPDATE vini_magazzino
+            SET BOTTIGLIA_APERTA = 1,
+                DATA_APERTURA = COALESCE(
+                    CASE WHEN BOTTIGLIA_APERTA = 1 THEN DATA_APERTURA ELSE NULL END,
+                    ?
+                ),
+                UPDATED_AT = ?
+            WHERE id = ?;
+            """,
+            (created_at, created_at, vino_id),
         )
 
     conn.commit()

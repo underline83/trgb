@@ -639,36 +639,41 @@ def list_calici_disponibili(current_user: Any = Depends(get_current_user)):
     """
     Lista vini con BOTTIGLIA_APERTA=1.
 
-    Sessione 2026-05-11: aggiunto campo `data_apertura` derivato dal movimento
-    VENDITA con tag [CALICI] più recente (la bottiglia viene marcata aperta
-    automaticamente quando si registra una vendita calici — vedi
-    `vini_magazzino_db.py:1376`). Permette al frontend di mostrare un alert
-    icona se la bottiglia è aperta da troppo tempo (es. > 36h).
-    Se non c'è movimento [CALICI] (apertura manuale dal toggle scheda), il
-    campo è NULL e il frontend non mostra alert.
+    Sessione 2026-05-11: campo `data_apertura` dalla colonna `DATA_APERTURA`
+    (mig 121). Settata automaticamente sia da auto-VENDITA [CALICI] (in
+    `register_movimento`) che da toggle manuale dell'endpoint PATCH (in
+    `update_vino`). Resa NULL quando BOTTIGLIA_APERTA torna a 0.
+    Frontend usa il campo per mostrare alert ⚠ se aperta da >36h.
     """
     conn = db.get_magazzino_connection()
     cur = conn.cursor()
     rows = cur.execute(
         """
-        SELECT v.id, v.DESCRIZIONE, v.ANNATA, v.TIPOLOGIA, v.PRODUTTORE, v.REGIONE,
-               v.PREZZO_CALICE, v.PREZZO_CARTA, v.QTA_TOTALE, v.BOTTIGLIA_APERTA,
-               v.VENDITA_CALICE,
-               (
-                   SELECT MAX(m.data_mov)
-                   FROM vini_magazzino_movimenti m
-                   WHERE m.vino_id = v.id
-                     AND m.tipo = 'VENDITA'
-                     AND m.note LIKE '%[CALICI]%'
-               ) AS data_apertura
-        FROM vini_magazzino v
-        WHERE v.BOTTIGLIA_APERTA = 1
-          AND (v.TIPOLOGIA IS NOT NULL AND v.TIPOLOGIA <> 'ERRORE')
-        ORDER BY v.TIPOLOGIA, v.DESCRIZIONE;
+        SELECT id, DESCRIZIONE, ANNATA, TIPOLOGIA, PRODUTTORE, REGIONE,
+               PREZZO_CALICE, PREZZO_CARTA, QTA_TOTALE, BOTTIGLIA_APERTA,
+               VENDITA_CALICE,
+               DATA_APERTURA AS data_apertura
+        FROM vini_magazzino
+        WHERE BOTTIGLIA_APERTA = 1
+          AND (TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE')
+        ORDER BY TIPOLOGIA, DESCRIZIONE;
         """
     ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+
+    # Sessione 2026-05-11: fallback PREZZO_CALICE = PREZZO_CARTA / 5 (a step 0,50)
+    # quando manca o è 0. Stessa logica già in /carta-staff/ riga 583-589 e in
+    # repositories/vini_repository.py. Senza fallback alcuni vini non mostrano il
+    # prezzo nel widget anche se hanno il prezzo bottiglia valorizzato.
+    out = []
+    for r in rows:
+        d = dict(r)
+        if not d.get("PREZZO_CALICE"):
+            pc = d.get("PREZZO_CARTA")
+            if pc and pc > 0:
+                d["PREZZO_CALICE"] = _round_to_half(pc / 5)
+        out.append(d)
+    return out
 
 
 # ---------------------------------------------------------
