@@ -544,6 +544,69 @@ export default function ControlloGestioneSpeseFisse() {
     }
   }, [pianoModal]);
 
+  // ── Riapri rata: rimette una rata pagata in stato PROGRAMMATO ──
+  // Per PAGATO_MANUALE: cambio diretto stato.
+  // Per PAGATO (riconciliata): scollega prima il link banca, poi cambio stato.
+  // Sessione 2026-05-11. Endpoint backend: M.3 PUT /uscita/{id}/stato-pagamento.
+  const [riaprendoRata, setRiaprendoRata] = useState(null); // uscita_id in corso (per disabilitare bottone)
+  const riapriRata = async (rata) => {
+    if (!rata?.uscita_id) return;
+    const periodo = rata.periodo || "?";
+    const importo = fmt(rata.importo);
+    const stato = rata.uscita_stato;
+    const isRiconciliata = stato === "PAGATO" || rata.riconciliazione_stato === "riconciliata" || rata.riconciliazione_stato === "automatica";
+
+    // Conferma all'utente
+    let msg;
+    if (isRiconciliata) {
+      const dataRic = rata.banca_data_contabile
+        ? new Date(rata.banca_data_contabile + "T00:00:00").toLocaleDateString("it-IT")
+        : "data ignota";
+      msg = `Attenzione: la rata ${periodo} (€ ${importo}) è riconciliata col movimento bancario del ${dataRic}.\n\n` +
+        `Procedere significa:\n` +
+        `1) Scollegare il link col movimento bancario\n` +
+        `2) Riportare la rata a stato PROGRAMMATO\n\n` +
+        `Continuare?`;
+    } else {
+      msg = `Riaprire la rata ${periodo} (€ ${importo})?\n\n` +
+        `Stato passerà da "${stato}" a PROGRAMMATO (o SCADUTO se la data è passata).\n` +
+        `Potrai poi modificare scadenza e importo dalla stessa modale.`;
+    }
+    if (!window.confirm(msg)) return;
+
+    setRiaprendoRata(rata.uscita_id);
+    try {
+      // 1) Se riconciliata banca, scollega prima
+      if (isRiconciliata) {
+        const resR = await apiFetch(`${CG}/uscite/${rata.uscita_id}/riconcilia`, { method: "DELETE" });
+        const dR = await resR.json().catch(() => ({}));
+        if (!resR.ok || dR.ok === false) {
+          alert(`Errore scollegamento banca: ${dR.error || dR.detail || resR.statusText}`);
+          return;
+        }
+      }
+      // 2) Cambia stato a PROGRAMMATO
+      const res = await apiFetch(`${CG}/uscita/${rata.uscita_id}/stato-pagamento`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stato: "PROGRAMMATO" }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.ok === false) {
+        alert(`Errore cambio stato: ${d.error || d.detail || res.statusText}`);
+        return;
+      }
+      // 3) Refresh modale + lista esterna
+      await refreshPianoRate();
+      fetchData();
+    } catch (e) {
+      console.error("Errore riapri rata:", e);
+      alert("Errore di rete: " + (e.message || e));
+    } finally {
+      setRiaprendoRata(null);
+    }
+  };
+
   const refreshStorico = useCallback(async () => {
     if (storicoModal) {
       try {
@@ -2259,6 +2322,7 @@ export default function ControlloGestioneSpeseFisse() {
                       <th className="px-4 py-2 text-right text-neutral-600 font-semibold">Pagato</th>
                       <th className="px-4 py-2 text-center text-neutral-600 font-semibold">Stato</th>
                       <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Banca</th>
+                      <th className="px-4 py-2 text-center text-neutral-600 font-semibold w-20">Azioni</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2351,6 +2415,27 @@ export default function ControlloGestioneSpeseFisse() {
                               }
                               return <StatoRiconciliazioneBadge stato="aperta" size="xs" />;
                             })()}
+                          </td>
+                          {/* Azioni: bottone "Riapri" per rate pagate (sessione 2026-05-11) */}
+                          <td className="px-2 py-1 text-center">
+                            {isPagata && r.uscita_id ? (
+                              <Tooltip label={
+                                r.uscita_stato === "PAGATO"
+                                  ? "Scollega il movimento bancario e riporta la rata a PROGRAMMATO"
+                                  : "Riporta la rata a PROGRAMMATO (eventuale nuova scadenza editabile dopo)"
+                              }>
+                                <button
+                                  type="button"
+                                  onClick={() => riapriRata(r)}
+                                  disabled={riaprendoRata === r.uscita_id}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-neutral-300 bg-white hover:bg-neutral-50 text-[10px] text-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {riaprendoRata === r.uscita_id ? "..." : "↺ Riapri"}
+                                </button>
+                              </Tooltip>
+                            ) : (
+                              <span className="text-neutral-300 text-xs">—</span>
+                            )}
                           </td>
                         </tr>
                       );
