@@ -175,8 +175,8 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 | G.7 | UX "Sposta data" + completamento stato SPOSTATO | M | ✅ FATTO 2026-05-10 | Endpoint `PUT /uscite/{id}/scadenza` esteso (auto-setta SPOSTATO se data ≠ originale) + nuovo `PUT /uscite/{id}/ripristina-data`. FattureDettaglio: 2 sotto-celle "Scadenza iniziale" + "Programmata" + bottone Ripristina. Chip "Spostato" in FattureElenco e ControlloGestioneUscite. Vedi `stato_pagamento_unificato.md §13` |
 | G.8 | Livello macro/sotto stato pagamento (CHIUSO/APERTO) | M | ✅ FATTO 2026-05-11 | Mig 116 ADD COLUMN `cg_uscite.stato_macro` GENERATED VIRTUAL + service `app/services/stati_pagamento.py` con costanti centralizzate + refactor `/uscite/import` con whitelist invariante per costruzione (STATI_DERIVATI_DA_DATA={PROGRAMMATO,SCADUTO}). Mig 115 ripara 138 VERIFICARE perse da bug import preesistente. Vedi `stato_pagamento_unificato.md §14` |
 | G.3 | P&L mensile (cross-modulo Cassa + Acquisti + Stipendi) | M | ALTA | M.B PDF |
-| G.8 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato |
-| G.9 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite |
+| G.9 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato (era G.8 pre-2026-05-11 rinumerato per evitare collisione con macro/sotto stato) |
+| G.10 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite (era G.9, rinumerato) |
 
 ### G.7 — Piano dettagliato "Sposta data" (UX completamento SPOSTATO) ✅ FATTO 2026-05-10
 

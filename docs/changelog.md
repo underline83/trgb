@@ -3,7 +3,7 @@
 
 ---
 
-## 2026-05-11 — G.7 Sposta data + 4 bug fix Vendite/CG
+## 2026-05-11 — G.7 + G.8 + 5 bug fix + ripristino dati audit
 
 ### Aggiunto
 - **G.7 — UX "Sposta data" sulle scadenze cg_uscite** `[core]`. Card scadenza in `FattureDettaglio.jsx` ora 2 sotto-celle: "Scadenza iniziale" (read-only, dal XML SDI) + "Programmata" (editabile). Bottone "Sposta data" → modifica la programmata e setta automaticamente stato a `SPOSTATO`, preservando `data_scadenza_originale` alla prima rinegoziazione. Bottone "Ripristina originale" → reset `data_scadenza ← data_scadenza_originale` con ricalcolo `SCADUTO`/`PROGRAMMATO`. Endpoint backend: `PUT /controllo-gestione/uscite/{id}/scadenza` esteso + nuovo `PUT /controllo-gestione/uscite/{id}/ripristina-data`. Chip "Spostato" aggiunto in `FattureElenco.jsx` (drill-down filtro pagamento) e in `ControlloGestioneUscite.jsx` (palette fuchsia).
@@ -36,9 +36,17 @@
 - **`docs/stato_pagamento_unificato.md`** — §12 (G.6 rename stati al maschile) + §13 (G.7 SPOSTATO + UX Sposta data).
 - **`docs/roadmap.md`** — G.7 marchiata ✅ FATTO.
 
-### Note
-- **1291 "Da riconciliare" nel chip CG Uscite**: 1118 fatture + 166 spese fisse + 7 stipendi marcati `PAGATO_MANUALE` senza match banca. 521 hanno origine `fic_pagato_raw=1` (Fatture in Cloud), 754 sono senza data_scadenza (probabili spese fisse storiche o stipendi import malformati). Da decidere: filtrare per orizzonte temporale recente per rendere il chip azionabile.
-- **Discrepanza RT vs canali Chiusure Turno (10/05)**: € 2.143 di scarto tra chiusura RT (2.686 = battuto su registratore telematico) e somma canali pagamento (4.829 = contanti+POS+thefork). Possibile errore di battitura RT o pre-conti aperti non ancora battuti. Non è bug software ma anomalia operativa da indagare con chi chiude i turni.
+### Verifica post-deploy (su VPS dopo push)
+- Backend riavviato OK (PID 801183, APP_VERSION 5.14, commit `a71d5527`), nessun errore in log
+- `schema_migrations`: mig 115 applicata alle 14:15:15, mig 116 alle 14:37:18 ✓
+- `SELECT COUNT(*) FROM cg_uscite WHERE stato='VERIFICARE'` → **138** ✓ (120 CONTROLLARE + 18 RISTO TEAM ripristinati come previsto)
+- `GROUP BY stato_macro` → **APERTO 388 / CHIUSO 1746** ✓ (totale 2134 = 2089 visibili in UI + 45 fatture rateizzate nascoste di default)
+
+### Note (non urgenti, in sospeso)
+- **1291 "Da riconciliare" nel chip CG Uscite**: 1118 fatture + 166 spese fisse + 7 stipendi marcati `PAGATO_MANUALE` senza match banca. 521 da Fatture in Cloud (`fic_pagato_raw=1`), 754 senza data_scadenza. Da decidere se filtrare per orizzonte temporale per renderlo azionabile.
+- **61 SCADUTO pre-2026** (PREGIS 40, METRO 9, FZ 4, ecc.): dati operativi storici mai aggiornati nel DB. Marco ha indicato: "sono già state sistemate operativamente, non urgente bonificare lo stato in DB". Eventuale audit Excel + mig 117 quando serve.
+- **Discrepanza RT vs canali Chiusure Turno (10/05)**: € 2.143 di scarto tra chiusura RT (2.686 = battuto registratore) e somma canali pagamento (4.829 = contanti+POS+thefork). Non è bug software, è errore di battitura registratore o pre-conti aperti non ancora battuti. Da chiarire con chi chiude i turni.
+- **FastAPI deprecation warning** in `app/routers/banca_router.py:2064` (`regex=` → `pattern=`). Non bloccante, da fixare in cleanup futuro.
 
 ---
 

@@ -1,53 +1,84 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-11 (sessione: G.7 + G.8 stato macro/sotto + bug fix import + mig 115)
+**Ultimo aggiornamento:** 2026-05-11 (sessione: G.7 Sposta data + bug fix Vendite/CG + G.8 stato macro/sotto + bug critico import + mig 115/116)
 
 ---
 
-## SESSIONE 2026-05-11 — G.7 Sposta data + 4 bug fix (Chiusure, widget Home, Riapri rata, filtro scaduti)
+## SESSIONE 2026-05-11 — G.7 + G.8 + 5 bug fix + ripristino dati audit
 
-### Cosa ha mostrato Marco
+### Sintesi
+Sessione lunga, 4 fasi consecutive:
+1. **G.7 Sposta data** chiuso (UX 2-celle + endpoint /uscite/{id}/scadenza esteso + /ripristina-data + chip Spostato)
+2. **5 bug operativi** scovati a catena (Chiusure pagina vuota, widget Home double-count, riapri rata UI, filtro Scadenzario, filtri speciali UX)
+3. **Bug critico storico**: scoperto che 138 fatture VERIFICARE erano state distrutte da un re-import perché `/uscite/import` non proteggeva quegli stati. Mig 115 di ripristino + fix endpoint.
+4. **G.8 — Stato macro/sotto** end-to-end (backend + frontend): tassonomia CHIUSO/APERTO sopra i sotto-stati. Architettura difensiva contro futuri bug di omissione.
 
-Sessione lunga partita da G.5/G.6/G.7 (refactor stato pagamento fatture e UX Sposta data), poi virata su 4 bug operativi che si sono palesati in sequenza nel modulo Vendite e Controllo di Gestione.
+### G.7 — UX "Sposta data" + completamento stato SPOSTATO `[core]`
+- Backend: `PUT /controllo-gestione/uscite/{id}/scadenza` esteso (auto-setta `SPOSTATO` se data nuova ≠ originale + preserva `data_scadenza_originale` alla prima rinegoziazione). Nuovo endpoint `PUT /controllo-gestione/uscite/{id}/ripristina-data`.
+- Frontend `FattureDettaglio.jsx`: card scadenza ridisegnata in 2 sotto-celle ("Scadenza iniziale" read-only + "Programmata" editabile con bottoni "Sposta data"/"Ripristina originale" + badge "spost.").
+- Chip "Spostato" aggiunto in `FattureElenco.jsx` (drill-down filtro pagamento) e `ControlloGestioneUscite.jsx` (palette fuchsia).
 
-### Cosa è stato fatto
+### Bug 1 — Chiusure Turno: pagina vuota da settimane `[core]`
+`ChiusureTurnoLista.jsx` faceva fetch a `${API}/admin/finance/shift-closures?from_date=...` SENZA trailing slash. FastAPI 307 redirect → proxy strippava l'`Authorization` → 401 silente → array vuoto (file usa `fetch()` direct, non `apiFetch()` che gestirebbe il 401). Fix: aggiunto `/` prima del `?` + commento esplicativo.
 
-#### G.7 — UX "Sposta data" + completamento stato SPOSTATO `[core]`
-Implementata la UX dedicata per lo stato `SPOSTATO` aggiunto in G.6:
-- Backend: `PUT /controllo-gestione/uscite/{id}/scadenza` esteso (auto-setta `SPOSTATO` se data nuova ≠ originale + preserva `data_scadenza_originale` alla prima rinegoziazione). Nuovo endpoint `PUT /controllo-gestione/uscite/{id}/ripristina-data` (reset data + ricalcolo `SCADUTO`/`PROGRAMMATO`).
-- Frontend `FattureDettaglio.jsx`: card scadenza ridisegnata in 2 sotto-celle ("Scadenza iniziale" read-only da XML + "Programmata" editabile con bottoni "Sposta data"/"Ripristina originale" + badge "spost." quando attivo).
-- Chip "Spostato" aggiunto in `FattureElenco.jsx` (drill-down filtro pagamento riga 2) e in `ControlloGestioneUscite.jsx` (chip filtro con palette fuchsia).
-- Docs: `stato_pagamento_unificato.md` §13 + roadmap G.7 chiusa.
+### Bug 2 — Widget Home "Incasso ieri" double-counting `[core]`
+`_incasso_ieri()` in `dashboard_router.py` faceva `SUM(totale_incassi)` su pranzo+cena. Ma nel form Chiusura Turno i campi della CENA sono inseriti come **valori CUMULATIVI giornalieri** (commento UI a riga 591 di `ChiusuraTurno.jsx`: "valori giornalieri — i parziali cena sono calcolati"). Sommare conta due volte il pranzo. Per il 10/05: 1.963 + 2.866 = 4.829 mostrato vs reale 2.866. Fix: `COALESCE(MAX(cena), MAX(pranzo), 0)` invece di SUM. Coerente con `vendite_aggregator.giorni_merged()` riga 89.
 
-#### Bug 1 — Chiusure Turno: pagina vuota da settimane `[core]`
-**Causa**: in `ChiusureTurnoLista.jsx` la fetch verso `${API}/admin/finance/shift-closures?from_date=...` era senza trailing slash. FastAPI con `prefix="/admin/finance/shift-closures"` + `@router.get("/")` esige URL canonico `/.../shift-closures/`. Senza slash, redirect 307 → in alcuni setup di proxy l'header `Authorization` viene strippato → 401 silente → frontend con `res.ok ? res.json() : []` ritornava array vuoto. Marco non vedeva 401 in console perché il file usa `fetch()` direct, non `apiFetch()`.
-**Fix**: aggiunto `/` prima del `?` + commento esplicativo. Tutti gli altri 14 fetch verso `shift-closures` nel frontend hanno già lo slash giusto.
+### Bug 3 — Riapri rata pagata in modale Piano Rate `[core]`
+Marco aveva marcato per errore una rata di FAMIGLIA COTARELLA come pagata, senza modo di riaprirla dalla UI. Aggiunta funzione `riapriRata` + colonna "Azioni" in tabella. Bottone "↺ Riapri" condizionale, esteso poi con prompt nuova data (default 1° mese prossimo) che attiva SPOSTATO automaticamente — semantica coerente con G.7.
 
-#### Bug 2 — Widget Home "Incasso ieri" double-counting `[core]`
-**Causa**: `_incasso_ieri()` in `dashboard_router.py` faceva `SUM(totale_incassi)` sui due record (pranzo+cena). Ma nel form Chiusura Turno i campi della CENA sono inseriti come valori CUMULATIVI giornalieri (commento esistente nella UI: "valori giornalieri — i parziali cena sono calcolati"), mentre il pranzo contiene solo i parziali. Quindi sommare conta due volte il pranzo. Per il 10/05: 1.963 (pranzo) + 2.866 (cena cumulativo) = 4.829 mostrato, ma il dato reale era 2.866.
-**Fix**: `COALESCE(MAX(cena), MAX(pranzo), 0)` invece di SUM. Coerente con `vendite_aggregator.giorni_merged()` riga 89 (`base = cena or pranzo`). Applicato anche al sub-query "media stesso giorno settimana". Coperti restano SUM (sono per-turno). Test su DB locale: 10/05 → 2.866 ✓, 03/05 solo-cena → 2.985 ✓.
+### Bug 4 — Scadenzario Uscite: filtro periodo iterato 2 volte `[core]`
+Marco voleva vedere la rata Cotarella scaduta a marzo mentre filtra Maggio. Prima tentativo: SCADUTO bypassa filtroDa → troppo permissivo, trascinava archivio 2024. Secondo tentativo: cap 60gg → arbitrario, non rispetta la semantica del filtro. **Rollback definitivo a strict**: il filtro è chiaro per costruzione; se ci sono scaduti vecchi visibili dove non vorresti è perché sono **dati sporchi** (61 SCADUTO pre-2026 da bonificare), non si nasconde il sintomo via UI. Marco mi ha ripreso giustamente: "perché stai facendo caos? quelle fatture non hanno data di scadenza quindi trascini il dubbio?". Lesson learned, memoria salvata.
 
-#### Bug 3 — Riapri rata pagata in modale Piano Rate `[core]`
-**Caso d'uso**: Marco aveva marcato per errore una rata di FAMIGLIA COTARELLA come pagata. Non aveva modo di riaprirla dalla UI (modale Piano Rate `disabled if isPagata`).
-**Fix**: aggiunta funzione `riapriRata` + nuova colonna "Azioni" in tabella rate. Bottone "↺ Riapri" condizionale:
-- `PAGATO_MANUALE` → conferma semplice → `PUT /controllo-gestione/uscita/{id}/stato-pagamento` con `PROGRAMMATO`
-- `PAGATO` (riconciliata banca) → conferma severa con data riconciliazione → prima `DELETE /uscite/{id}/riconcilia` poi `PUT stato-pagamento`
-- Disabilitato durante l'operazione, refresh modale + lista esterna a fine
-- Riusa endpoint M.3 esistente (sessione 04-27)
+### Bug 5 — Filtri speciali Scadenzario: ripulizia `[core]`
+Mostra escluse: 0 fornitori con `escluso_acquisti=1` in DB → toggle morto, rimosso da UI. Mostra rateizzate: aggiunto count "(45)" + tooltip esplicativo. Solo in pagamento: aggiunto tooltip su quando si popola (post batch). Pulita clausola SQL morta `u.stato <> 'RATEIZZATO'` nel backend post-G.6 (0 hit reali, ridondante con `rateizzata_in_spesa_fissa_id IS NULL`).
 
-#### Bug 4 — Scadenzario Uscite: filtro periodo nasconde scaduti vecchi `[core]`
-**Caso**: dopo aver riaperto la rata di marzo di Cotarella (data 15/03/2026, stato SCADUTO), filtrando "Maggio" nello Scadenzario Uscite la rata non appariva.
-**Causa**: filtro `data_scadenza` strict (`>= filtroDa AND <= filtroA`). Per uno scadenzario è controintuitivo: gli scaduti aperti devono restare visibili anche se la data è precedente al range.
-**Fix**: `filtroDa` lascia passare gli `SCADUTO` indipendentemente dalla data. `filtroA` resta strict (no scadenze future al range). Il count del chip "Scaduto" ora include tutti gli scaduti aperti del periodo cumulativo.
+### Chip KPI con doppio numero "filtrato / totale" `[core]`
+Confusione tra count chip top (filtrato) e sidebar (globale). Implementata opzione B dei mockup: chip mostra `(n_filtrato / n_totale_globale)`. Es: con filtro Mag → "Scaduto € 3.942 (5 / 85)". Quando non c'è filtro periodo, i due numeri coincidono e mostra solo `n`.
+
+### BUG CRITICO storico — /uscite/import distruggeva VERIFICARE/SPOSTATO/RATEIZZATO `[core]`
+Marco nota: "0 verificare ma ieri ne avevamo gestite 138". Diagnosi: il branch protetto in `/uscite/import` (riga 534) era `if ex["stato"] in ("PAGATO","PAGATO_MANUALE","PARZIALE")`. Per gli altri stati "decisi dall'utente" (VERIFICARE, SPOSTATO, RATEIZZATO) il re-import sovrascriveva con uno stato calcolato `PROGRAMMATO`/`SCADUTO`. Bug **preesistente** per DA_VERIFICARE, amplificato da G.6/G.7 con i nuovi stati. Le 138 fatture VERIFICARE ripristinate da mig 113 erano state travolte da un re-import successivo. **Mig 115** rifa il ripristino (120 CONTROLLARE + 18 RISTO TEAM → VERIFICARE).
+
+### G.8 — Stato macro/sotto a 2 livelli `[core]`
+Architettura difensiva strutturale. Marco ha proposto: 2 livelli, macro (CHIUSO/APERTO) sopra sotto-stato. Implementato come **mig 116** con `cg_uscite.stato_macro` come `GENERATED ALWAYS AS (...) VIRTUAL`: si autocalcola da `stato` ad ogni read, invariante DB-level. Service Python centralizzato `app/services/stati_pagamento.py` (STATI_CHIUSI, STATI_APERTI, is_chiuso, is_aperto, derive_macro). Refactor `/uscite/import` come **whitelist invariante**: `STATI_DERIVATI_DA_DATA = {PROGRAMMATO, SCADUTO}` — solo questi 2 sono ricalcolabili, tutti gli altri (presenti e futuri) sono protetti per costruzione. Mai più un bug di omissione su questa logica. Mirror frontend in `frontend/src/utils/statoPagamento.js` + refactor 5 punti chiave (FattureDettaglio, ControlloGestioneUscite, ControlloGestioneSpeseFisse).
 
 ### File modificati
-- `app/routers/controllo_gestione_router.py` — endpoint G.7 (scadenza esteso + ripristina-data)
+**Backend**
+- `app/routers/controllo_gestione_router.py` — endpoint G.7 (scadenza esteso + ripristina-data), refactor /uscite/import whitelist invariante, espone stato_macro in GET /uscite, pulita clausola SQL morta
 - `app/routers/dashboard_router.py` — fix double-counting widget Home
-- `app/migrations/114_rename_stati_uniformi.py` — già pushato in G.6
-- `app/services/fatture_stato_service.py` — già pushato in G.6
-- `frontend/src/pages/admin/FattureDettaglio.jsx` — 2-celle scadenza + Sposta data + Ripristina
-- `frontend/src/pages/admin/FattureElenco.jsx` — chip Spostato drill-down
-- `frontend/src/pages/admin/ChiusureTurnoLista.jsx` — fix trailing slash
+- `app/services/stati_pagamento.py` — **nuovo**, costanti+helper centralizzati
+- `app/migrations/115_ripristina_verificare_post_g6.py` — **nuovo**, mig ripristino 138 VERIFICARE
+- `app/migrations/116_stato_macro_generated.py` — **nuovo**, GENERATED VIRTUAL column + VIEW aggiornata
+
+**Frontend**
+- `frontend/src/utils/statoPagamento.js` — **nuovo**, mirror JS del service
+- `frontend/src/pages/admin/FattureDettaglio.jsx` — 2-celle scadenza + isChiuso refactor
+- `frontend/src/pages/admin/FattureElenco.jsx` — chip Spostato
+- `frontend/src/pages/admin/ChiusureTurnoLista.jsx` — trailing slash fix
+- `frontend/src/pages/controllo-gestione/ControlloGestioneUscite.jsx` — chip Spostato + chip KPI doppio numero + filtri ripuliti + refactor stato_macro
+- `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx` — bottone Riapri rata + isChiuso refactor
+
+**Docs**
+- `docs/stato_pagamento_unificato.md` — §12 G.6 + §13 G.7 + §14 G.8 livello macro/sotto
+- `docs/roadmap.md` — G.7 ✅ + G.8 ✅
+- `docs/changelog.md` — voci dettagliate
+
+### Verifica post-deploy
+Su VPS dopo push.sh:
+- HTTP 200 OK, backend up, niente errori in log
+- `schema_migrations`: 115 applicata alle 14:15, 116 alle 14:37 ✓
+- `SELECT COUNT(*) FROM cg_uscite WHERE stato='VERIFICARE'` → **138** ✓ (i 120 CONTROLLARE + 18 RISTO TEAM ripristinati)
+- `GROUP BY stato_macro` → APERTO 388 / CHIUSO 1746 ✓ (totale 2134 = 2089 visibili + 45 fatture rateizzate nascoste)
+
+### Lezioni operative salvate in memoria
+- **Rename stati richiede verifica semantica**, non solo testuale. Conta gli hit delle clausole post-rename: se 0, la clausola era pensata per un significato che non vale più — segnalare/rimuovere/aggiornare. Salvato in `feedback_rename_semantica.md`.
+- **Sessione TRGB si chiude con docs**: a fine sessione aggiornare sessione.md + changelog.md SEMPRE, non aspettare. Marco mi ha definito "bambino genio che si dimentica di allacciarsi le scarpe". Salvato in `feedback_chiudere_sessione.md`.
+
+### Note operative aperte (non urgenti)
+- **1291 "Da riconciliare"** nel chip CG Uscite: 1118 fatture + 166 spese fisse + 7 stipendi PAGATO_MANUALE senza match banca. 521 da Fatture in Cloud, 754 senza data_scadenza. Da decidere se filtrare per orizzonte temporale.
+- **61 SCADUTO pre-2026** (PREGIS 40, METRO 9, ecc.): dati operativi storici mai aggiornati. Bonifica con audit Excel + mig 117 quando serve. **Marco ha detto "sono già state sistemate, non urgente"**.
+- **Discrepanza RT vs canali Chiusura Turno** (€2.143 sul 10/05): chiusura RT 2.686 vs incassi canali 2.866. Non è bug software, è errore di battitura registratore o pre-conti aperti. Da chiarire con chi chiude i turni.
+- **FastAPI deprecation warning** in `banca_router.py:2064` (`regex=` → `pattern=`). Non bloccante.
 - `frontend/src/pages/controllo-gestione/ControlloGestioneUscite.jsx` — chip Spostato + filtro SCADUTO bypassa filtroDa
 - `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx` — bottone Riapri rata
 - `docs/stato_pagamento_unificato.md` — §12 G.6 + §13 G.7
