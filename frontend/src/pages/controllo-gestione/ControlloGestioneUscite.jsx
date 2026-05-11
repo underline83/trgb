@@ -112,6 +112,12 @@ export default function ControlloGestioneUscite() {
 
   // ── Filtro "solo in pagamento" ──
   const [filtroInPagamento, setFiltroInPagamento] = useState(false);
+  // Sessione 2026-05-11: filtra solo PAGATO_MANUALE senza match banca (= "da riconciliare").
+  // Si attiva cliccando il KPI "Da riconciliare" in barra alta (prima apriva la pagina dedicata).
+  const [filtroDaRiconciliare, setFiltroDaRiconciliare] = useState(false);
+  // Sessione 2026-05-11: filtra le uscite riconciliate (banca_movimento_id valorizzato).
+  // Si attiva cliccando il KPI "Riconciliate" in barra alta (prima apriva cross-ref FdC).
+  const [filtroRiconciliate, setFiltroRiconciliate] = useState(false);
 
   // ── v2.0: filtro rateizzate (server-side, passato come query param) ──
   const [includiRateizzate, setIncludiRateizzate] = useState(false);
@@ -214,6 +220,13 @@ export default function ControlloGestioneUscite() {
         // se non sono nel filtroStato (ha senso: se chiedo di vederle,
         // voglio vederle, indipendentemente dal default filtri stato).
         if (includiRateizzate && u.stato === "RATEIZZATO") return true;
+        // KPI "Da riconciliare" attivo → fa passare le PAGATO_MANUALE non
+        // riconciliate anche se PAGATO non è nel filtroStato (il filtro
+        // dedicato successivo le isolerà definitivamente).
+        if (filtroDaRiconciliare && u.stato === "PAGATO_MANUALE" && !u.banca_movimento_id) return true;
+        // KPI "Riconciliate" attivo → fa passare le righe con match banca anche
+        // se PAGATO non è nel filtroStato (idem, filtro dedicato successivo).
+        if (filtroRiconciliate && u.banca_movimento_id) return true;
         return filtroStato.has(u.stato);
       });
     }
@@ -225,8 +238,14 @@ export default function ControlloGestioneUscite() {
     if (filtroDa) rows = rows.filter(u => u.data_scadenza && u.data_scadenza >= filtroDa);
     if (filtroA) rows = rows.filter(u => u.data_scadenza && u.data_scadenza <= filtroA);
     if (filtroInPagamento) rows = rows.filter(u => !!u.in_pagamento_at);
+    // "Da riconciliare": PAGATO_MANUALE senza match banca (= incasso dichiarato
+    // ma non ancora linkato a un movimento bancario).
+    if (filtroDaRiconciliare) rows = rows.filter(u => u.stato === "PAGATO_MANUALE" && !u.banca_movimento_id);
+    // "Riconciliate": qualunque uscita con banca_movimento_id valorizzato
+    // (tipicamente stato PAGATO, ma può anche essere PAGATO_MANUALE in casi edge).
+    if (filtroRiconciliate) rows = rows.filter(u => !!u.banca_movimento_id);
     return rows;
-  }, [allUscite, search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento, includiRateizzate]);
+  }, [allUscite, search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento, filtroDaRiconciliare, filtroRiconciliate, includiRateizzate]);
 
   // ── Sorting locale ──
   const sorted = useMemo(() => sortRows(filtered, sortCol, sortDir), [filtered, sortCol, sortDir]);
@@ -734,6 +753,8 @@ export default function ControlloGestioneUscite() {
     filtroDa,
     filtroA,
     filtroInPagamento,
+    filtroDaRiconciliare,
+    filtroRiconciliate,
     includiRateizzate,
     includiEscluse,
   ].filter(Boolean).length;
@@ -744,6 +765,8 @@ export default function ControlloGestioneUscite() {
     setFiltroDa("");
     setFiltroA("");
     setFiltroInPagamento(false);
+    setFiltroDaRiconciliare(false);
+    setFiltroRiconciliate(false);
     setIncludiRateizzate(false);
     setIncludiEscluse(false);
   };
@@ -1008,26 +1031,33 @@ export default function ControlloGestioneUscite() {
             <KPI label="Pagato" value={kpi.pagate} n={kpi.n_pagate} nTot={kpiTot.n_pagate} color="emerald"
               active={filtroStato.has("PAGATO")} onClick={() => toggleStato("PAGATO")}
               title="Filtrate nel periodo / totali nel DB" />
-            {/* KPI "Da riconciliare" — clic apre il workbench split-pane */}
+            {/* KPI "Da riconciliare" — sessione 2026-05-11: ora filtra in-pagina invece
+                di navigare al workbench. Marco vuole vedere le uscite non riconciliate
+                nello stesso Scadenzario. Per aprire il workbench dedicato c'è la voce
+                "Riconciliazione" nella tab bar in alto. */}
             {rig.num_da_riconciliare > 0 && (
               <KPI
                 label="Da riconciliare"
                 n={rig.num_da_riconciliare}
                 color="amber"
                 dot
-                onClick={() => navigate("/controllo-gestione/riconciliazione")}
-                title="Apri il workbench riconciliazione"
+                active={filtroDaRiconciliare}
+                onClick={() => setFiltroDaRiconciliare(v => !v)}
+                title="Filtra le uscite PAGATO_MANUALE senza match banca. Click di nuovo per togliere il filtro."
               />
             )}
-            {/* KPI "Riconciliate" — clic apre il cross-ref di Flussi di Cassa (tab collegati) */}
+            {/* KPI "Riconciliate" — sessione 2026-05-11: ora filtra in-pagina invece di
+                navigare al cross-ref di Flussi di Cassa. Per il cross-ref c'è la voce
+                dedicata in Flussi di Cassa. */}
             {rig.num_riconciliate > 0 && (
               <KPI
                 label="Riconciliate"
                 n={rig.num_riconciliate}
                 color="violet"
                 dot
-                onClick={() => navigate("/flussi-cassa/cc/crossref")}
-                title="Vedi i movimenti bancari collegati"
+                active={filtroRiconciliate}
+                onClick={() => setFiltroRiconciliate(v => !v)}
+                title="Filtra le uscite con match banca (banca_movimento_id valorizzato). Click di nuovo per togliere il filtro."
               />
             )}
             <span className="ml-auto text-[10px] text-neutral-400 flex-shrink-0">

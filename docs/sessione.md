@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-11 (sessione: G.7 Sposta data + bug fix Vendite/CG + G.8 stato macro/sotto + bug critico import + mig 115/116)
+**Ultimo aggiornamento:** 2026-05-11 (sessione molto lunga: G.7 + G.8 + 10+ bug fix + 6 migrazioni 115-120 + trigger SQLite difensivo + settings dipendenti + bug COL D'ORCIA save piano-rate + fix batch pagamento SPOSTATO/VERIFICARE + tile Rateizzato unificato nei filtri speciali)
 
 ---
 
