@@ -13,7 +13,7 @@ import FattureDettaglio from "../admin/FattureDettaglio";
 import Tooltip from "../../components/Tooltip";
 import ControlloGestioneNav from "./ControlloGestioneNav";
 import { Btn } from "../../components/ui";
-import { isChiuso, isPagatoKpi } from "../../utils/statoPagamento";
+import { isChiuso, isAperto, isPagatoKpi } from "../../utils/statoPagamento";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
@@ -210,6 +210,10 @@ export default function ControlloGestioneUscite() {
       rows = rows.filter(u => {
         // PAGATO del filtro include sia PAGATO che PAGATO_MANUALE = tutti i CHIUSI
         if (filtroStato.has("PAGATO") && isChiuso(u.stato)) return true;
+        // Toggle "Mostra rateizzate" attivo → fa passare le RATEIZZATO anche
+        // se non sono nel filtroStato (ha senso: se chiedo di vederle,
+        // voglio vederle, indipendentemente dal default filtri stato).
+        if (includiRateizzate && u.stato === "RATEIZZATO") return true;
         return filtroStato.has(u.stato);
       });
     }
@@ -222,7 +226,7 @@ export default function ControlloGestioneUscite() {
     if (filtroA) rows = rows.filter(u => u.data_scadenza && u.data_scadenza <= filtroA);
     if (filtroInPagamento) rows = rows.filter(u => !!u.in_pagamento_at);
     return rows;
-  }, [allUscite, search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento]);
+  }, [allUscite, search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento, includiRateizzate]);
 
   // ── Sorting locale ──
   const sorted = useMemo(() => sortRows(filtered, sortCol, sortDir), [filtered, sortCol, sortDir]);
@@ -798,6 +802,7 @@ export default function ControlloGestioneUscite() {
                   { value: "VERIFICARE", label: "Verificare", n: allUscite.filter(u => u.stato === "VERIFICARE").length, act: "bg-orange-100 text-orange-900 border-orange-300" },
                   { value: "PAGATO",    label: "Pagato",      n: allUscite.filter(u => isChiuso(u.stato)).length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   { value: "PARZIALE",  label: "Parziale",    n: allUscite.filter(u => u.stato === "PARZIALE").length,  act: "bg-blue-100 text-blue-900 border-blue-300" },
+                  { value: "RATEIZZATO", label: "Rateizzato",  n: allUscite.filter(u => u.stato === "RATEIZZATO").length, act: "bg-purple-100 text-purple-900 border-purple-300" },
                 ].map(o => {
                   const active = filtroStato.has(o.value);
                   return (
@@ -1182,7 +1187,11 @@ export default function ControlloGestioneUscite() {
                     const isProforma = u.tipo_uscita === "PROFORMA";
                     const isRiconciliata = !!u.banca_movimento_id;
                     const puoRiconciliare = u.stato === "PAGATO_MANUALE" && !isRiconciliata;
-                    const puoSelezionare = ["PROGRAMMATO", "SCADUTO", "PARZIALE"].includes(u.stato);
+                    // Tutti gli APERTI tranne RATEIZZATO sono selezionabili per batch
+                    // pagamento. RATEIZZATO è la fattura origine già "consumata" in
+                    // piano rate: vanno selezionate le RATE, non l'origine.
+                    // Sessione 2026-05-11: aggiunti SPOSTATO + VERIFICARE che mancavano.
+                    const puoSelezionare = isAperto(u.stato) && u.stato !== "RATEIZZATO";
                     const inPagamento = !!u.in_pagamento_at;
 
                     return (

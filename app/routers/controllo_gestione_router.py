@@ -828,11 +828,17 @@ def get_uscite(
     oggi_str = date.today().isoformat()
 
     # Filtro fisso: nascondi rateizzate di default (riattivabili con includi_rateizzate).
-    # Sessione 2026-05-11: rimossa la clausola morta `u.stato <> 'RATEIZZATO'` post-G.6
-    # rename. Le rate generate dalla spesa fissa hanno fattura_id=NULL e stato
-    # PROGRAMMATO/SCADUTO/PAGATO, quindi passano il filtro come previsto. La fattura
-    # ORIGINE rateizzata viene esclusa dal check su rateizzata_in_spesa_fissa_id.
-    where = ["(:includi_rateizzate = 1 OR f.rateizzata_in_spesa_fissa_id IS NULL)"]
+    # Doppio check (riportato in sessione 2026-05-11 dopo mig 120):
+    #  - f.rateizzata_in_spesa_fissa_id IS NULL  → esclude fatture origine via FE
+    #  - u.stato <> 'RATEIZZATO'                 → esclude cg_uscite marcate RATEIZZATO
+    #    (mig 120 backfill, e in futuro l'endpoint di rateizzazione deve farlo
+    #    al momento della creazione)
+    # Le rate generate dalla spesa fissa hanno fattura_id=NULL e stato
+    # PROGRAMMATO/SCADUTO/PAGATO/etc., quindi passano il filtro.
+    where = [
+        "(:includi_rateizzate = 1 "
+        " OR (f.rateizzata_in_spesa_fissa_id IS NULL AND u.stato <> 'RATEIZZATO'))"
+    ]
     # Filtro fisso: nascondi righe di fornitori con escluso_acquisti=1 (riattivabili con includi_escluse).
     # Le cg_uscite di tipo SPESA_FISSA non hanno fattura_id né fornitore escluso, quindi passano sempre.
     where.append("(:includi_escluse = 1 OR u.fattura_id IS NULL OR COALESCE(fc_cat.escluso_acquisti, 0) = 0)")
@@ -3282,12 +3288,14 @@ def crea_batch_pagamento(
     conn = get_fc_db()
     try:
         placeholders = ",".join("?" * len(ids))
-        # Calcola totale e conteggio dalle uscite effettive (non pagate)
+        # Calcola totale e conteggio dalle uscite effettive (non pagate).
+        # Sessione 2026-05-11: aggiunti SPOSTATO + VERIFICARE (mancavano post-G.6/G.7).
+        # Tutti i sotto-stati APERTI tranne RATEIZZATO (origine consumata).
         agg = conn.execute(f"""
             SELECT COUNT(*) AS n, COALESCE(SUM(totale - importo_pagato), 0) AS tot
             FROM cg_uscite
             WHERE id IN ({placeholders})
-              AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE')
+              AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE', 'SPOSTATO', 'VERIFICARE')
         """, ids).fetchone()
 
         n_uscite = agg["n"] if agg else 0
@@ -3317,7 +3325,7 @@ def crea_batch_pagamento(
                 in_pagamento_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id IN ({placeholders})
-              AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE')
+              AND stato IN ('PROGRAMMATO', 'SCADUTO', 'PARZIALE', 'SPOSTATO', 'VERIFICARE')
         """, [batch_id] + ids)
 
         conn.commit()
