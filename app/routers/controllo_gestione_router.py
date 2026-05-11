@@ -754,7 +754,12 @@ def import_uscite(
                     sf_importate += 1
                 else:
                     ex = dict(existing)
-                    if ex["stato"] not in ("PAGATO", "PAGATO_MANUALE", "PARZIALE"):
+                    # G.8 difensivo: sync stato/data solo se lo stato è derivato dalla
+                    # data (PROGRAMMATO/SCADUTO). VERIFICARE, SPOSTATO, RATEIZZATO,
+                    # PARZIALE e i CHIUSI sono decisioni utente: non toccare.
+                    # Stessa logica della whitelist invariante introdotta da G.8
+                    # per le fatture.
+                    if ex["stato"] in ("PROGRAMMATO", "SCADUTO"):
                         new_stato = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
                         # Sync titolo, importo, data_scadenza e stato
                         # (mig 108: data_scad può essere quella specifica della rata)
@@ -2080,31 +2085,38 @@ def add_piano_rate(
         uscite_aggiornate = 0
         scadenze_aggiornate = 0
         oggi_str = date.today().isoformat()
-        # ── DEBUG TEMPORANEO (sessione 2026-05-11 — da rimuovere dopo verifica) ──
-        # Bug riportato: cambio data rata da modale Piano Rate non si propaga a
-        # cg_uscite.data_scadenza. Loggo payload + count delle righe aggiornate
-        # per capire se il bug è frontend (payload senza scadenza) o backend
-        # (UPDATE che non matcha).
-        print(f"[DBG piano-rate] spesa_id={spesa_id}  sync_uscite={sync_uscite}  payload_rate={rate_input}", flush=True)
         for r in rate_input:
             periodo = r.get("periodo")
             importo = r.get("importo")
             scadenza = r.get("scadenza")  # YYYY-MM-DD opzionale
             if not periodo or importo is None:
-                print(f"[DBG piano-rate]   skip rata (periodo o importo mancante): {r}", flush=True)
                 continue
+            # 2026-05-11 bug fix: salvare data_scadenza_specifica in cg_piano_rate
+            # quando viene passata scadenza nel payload. Senza questo, un re-import
+            # successivo rigenera la data_scadenza di cg_uscite usando il giorno
+            # default della spesa fissa (es. 1) e cancella la modifica utente.
             try:
                 fc.execute("""
-                    INSERT INTO cg_piano_rate (spesa_fissa_id, numero_rata, periodo, importo, note)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (spesa_id, r.get("numero_rata", 0), periodo, importo, r.get("note")))
+                    INSERT INTO cg_piano_rate (spesa_fissa_id, numero_rata, periodo, importo, note, data_scadenza_specifica)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (spesa_id, r.get("numero_rata", 0), periodo, importo, r.get("note"), scadenza))
                 inserite += 1
             except Exception:
                 # Duplicato (spesa_fissa_id + periodo) — aggiorna
-                fc.execute("""
-                    UPDATE cg_piano_rate SET importo = ?, numero_rata = ?, note = ?
-                    WHERE spesa_fissa_id = ? AND periodo = ?
-                """, (importo, r.get("numero_rata", 0), r.get("note"), spesa_id, periodo))
+                # Se scadenza è passata, aggiorna anche data_scadenza_specifica.
+                # Se scadenza è None nel payload, NON tocca data_scadenza_specifica
+                # esistente (per non perdere eventuale valore già impostato).
+                if scadenza:
+                    fc.execute("""
+                        UPDATE cg_piano_rate
+                        SET importo = ?, numero_rata = ?, note = ?, data_scadenza_specifica = ?
+                        WHERE spesa_fissa_id = ? AND periodo = ?
+                    """, (importo, r.get("numero_rata", 0), r.get("note"), scadenza, spesa_id, periodo))
+                else:
+                    fc.execute("""
+                        UPDATE cg_piano_rate SET importo = ?, numero_rata = ?, note = ?
+                        WHERE spesa_fissa_id = ? AND periodo = ?
+                    """, (importo, r.get("numero_rata", 0), r.get("note"), spesa_id, periodo))
                 inserite += 1
 
             # Propaga sul tabellone uscite (solo righe non ancora pagate)
@@ -2132,11 +2144,7 @@ def add_piano_rate(
                            AND periodo_riferimento = ?
                            AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
                     """, (scadenza, nuovo_stato, oggi_str, spesa_id, periodo))
-                    n_scad = cur2.rowcount or 0
-                    scadenze_aggiornate += n_scad
-                    print(f"[DBG piano-rate]   periodo={periodo} scadenza={scadenza} stato={nuovo_stato}  → UPDATE rowcount={n_scad}", flush=True)
-                else:
-                    print(f"[DBG piano-rate]   periodo={periodo} scadenza=None (solo importo cambiato)", flush=True)
+                    scadenze_aggiornate += cur2.rowcount or 0
         fc.commit()
         return {
             "ok": True,
