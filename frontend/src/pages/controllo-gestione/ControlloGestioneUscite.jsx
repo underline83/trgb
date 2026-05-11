@@ -212,7 +212,14 @@ export default function ControlloGestioneUscite() {
       });
     }
     if (filtroTipo) rows = rows.filter(u => (u.tipo_uscita || "FATTURA") === filtroTipo);
-    if (filtroDa) rows = rows.filter(u => u.data_scadenza && u.data_scadenza >= filtroDa);
+    // Filtro periodo scadenza:
+    // - filtroDa lascia passare SCADUTO indipendentemente dalla data: gli scaduti
+    //   sono cose ancora aperte e devono restare visibili quando si guarda un
+    //   periodo futuro (es. filtri maggio, vuoi vedere anche la rata scaduta a marzo).
+    // - filtroA resta strict perché ha senso non mostrare scadenze future al range.
+    if (filtroDa) rows = rows.filter(u =>
+      u.stato === "SCADUTO" || (u.data_scadenza && u.data_scadenza >= filtroDa)
+    );
     if (filtroA) rows = rows.filter(u => u.data_scadenza && u.data_scadenza <= filtroA);
     if (filtroInPagamento) rows = rows.filter(u => !!u.in_pagamento_at);
     return rows;
