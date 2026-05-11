@@ -65,10 +65,11 @@ export default function ControlloGestioneUscite() {
   // filtroStato: Set di stati selezionati. Vuoto = "tutti".
   // Valori possibili: "PROGRAMMATO", "SCADUTO", "PAGATO" (include anche PAGATO_MANUALE), "PARZIALE"
   //
-  // v3.1 (sessione 40): DEFAULT = Programmato + Scaduto + Pagato.
-  // Marco entra nella pagina e vede subito il quadro completo del mese in corso
-  // (niente Parziale di default perché è rumore raro, va cercato esplicitamente).
-  const [filtroStato, setFiltroStato] = useState(() => new Set(["PROGRAMMATO", "SCADUTO", "PAGATO"]));
+  // v3.1 (sessione 40) + revisione 2026-05-11: DEFAULT = Programmato + Scaduto
+  // + Spostato + Verificare. Lo Scadenzario apre la vista "cose da gestire del
+  // mese" — senza i PAGATO (rumore, le vedi solo se le cerchi) e includendo
+  // SPOSTATO (rinegoziati G.7) e VERIFICARE (dubbi pagamento, audit).
+  const [filtroStato, setFiltroStato] = useState(() => new Set(["PROGRAMMATO", "SCADUTO", "SPOSTATO", "VERIFICARE"]));
   const [filtroTipo, setFiltroTipo] = useState(""); // FATTURA | SPESA_FISSA | ""
   // v3.1: DEFAULT periodo = mese corrente (primo giorno → ultimo giorno).
   // Stesso vantaggio: chi apre la pagina ha già la vista "mese" come in Excel.

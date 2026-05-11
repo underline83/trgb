@@ -45,6 +45,70 @@ init_dipendenti_db()
 
 
 # ============================================================
+# SETTINGS HELPER (mig 118, 2026-05-11)
+# ============================================================
+def _get_setting_int(key: str, default: int) -> int:
+    """Legge un setting intero da `dipendenti_settings`. Ritorna `default` se
+    la key non esiste o il valore non è parsabile. Resiliente: errori → default."""
+    try:
+        conn = get_dipendenti_conn()
+        row = conn.execute(
+            "SELECT value FROM dipendenti_settings WHERE key = ?", (key,)
+        ).fetchone()
+        if row is None:
+            return default
+        return int(row[0])
+    except Exception:
+        return default
+
+
+@router.get("/settings/", response_class=JSONResponse)
+def get_dipendenti_settings(current_user: dict = Depends(get_current_user)):
+    """Ritorna tutti i settings dipendenti come dict {key: value}.
+    Esempio: {'giorno_pagamento_stipendi_default': '15'}.
+    Default disponibili sono creati dalla mig 118."""
+    conn = get_dipendenti_conn()
+    # Assicura che la tabella esista (idempotente, no-op se già fatto da mig 118)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS dipendenti_settings (
+            key TEXT PRIMARY KEY, value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    rows = conn.execute("SELECT key, value FROM dipendenti_settings").fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
+@router.put("/settings/{key}", response_class=JSONResponse)
+def put_dipendenti_setting(
+    key: str,
+    payload: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Aggiorna (o crea) un singolo setting. Body: {value: <stringa>}.
+    Il valore viene serializzato come stringa; cast a int/etc. è responsabilità del caller."""
+    if "value" not in payload:
+        raise HTTPException(400, "Campo 'value' mancante nel body")
+    value = str(payload["value"])
+    conn = get_dipendenti_conn()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS dipendenti_settings (
+            key TEXT PRIMARY KEY, value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("""
+        INSERT INTO dipendenti_settings (key, value, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(key) DO UPDATE SET
+            value = excluded.value,
+            updated_at = excluded.updated_at
+    """, (key, value))
+    conn.commit()
+    return {"ok": True, "key": key, "value": value}
+
+
+# ============================================================
 # MODELLI Pydantic — Dipendenti
 # ============================================================
 class DipendenteBase(BaseModel):
@@ -1378,7 +1442,11 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
         )
         return None
 
-    giorno = dip["giorno_paga"] or 15
+    # G.8 follow-up (2026-05-11): se l'anagrafica del dipendente non ha
+    # `giorno_paga` specifico, leggi il default globale dai settings dipendenti
+    # (chiave 'giorno_pagamento_stipendi_default', default 15). Configurabile
+    # da UI Impostazioni Dipendenti → Stipendi.
+    giorno = dip["giorno_paga"] or _get_setting_int("giorno_pagamento_stipendi_default", 15)
     mese = payload["mese"]
     anno = payload["anno"]
     netto = payload["netto"]
