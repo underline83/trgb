@@ -1,11 +1,14 @@
 // src/components/widgets/CaliciDisponibiliCard.jsx
-// @version: v1.0 — sessione 58 (2026-04-25)
+// @version: v1.1 — sessione 2026-05-11
 // Widget compatto: lista vini con bottiglia in mescita + toggle on/off rapido.
 // Usato da ViniVendite (admin/sommelier) e DashboardSala (per la sala).
 //
 // Endpoint: GET /vini/magazzino/calici-disponibili/  → lista vini con
 // BOTTIGLIA_APERTA=1. Il toggle off chiama PATCH /vini/magazzino/{id} con
 // BOTTIGLIA_APERTA=0 e refresha la lista.
+//
+// v1.1: alert visivo (⚠) se bottiglia aperta da > ALERT_HOURS ore.
+// `data_apertura` arriva dall'endpoint (MAX data_mov movimento VENDITA [CALICI]).
 //
 // Props:
 //   - title (default "🥂 Calici disponibili")
@@ -15,6 +18,29 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+
+// Soglia oltre la quale una bottiglia in mescita viene segnalata come "vecchia".
+// 36h = circa 1.5 giorni: oltre, il vino in mescita perde le sue qualità organolettiche.
+const ALERT_HOURS = 36;
+
+/** Ritorna le ore trascorse da una data ISO. Null se data invalida. */
+function hoursSince(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return null;
+  const diffMs = Date.now() - d.getTime();
+  return diffMs / (1000 * 60 * 60);
+}
+
+/** Format umano: "12h", "1g 6h", "2g". */
+function formatAge(hours) {
+  if (hours == null) return "";
+  if (hours < 1) return "<1h";
+  if (hours < 24) return `${Math.round(hours)}h`;
+  const d = Math.floor(hours / 24);
+  const h = Math.round(hours - d * 24);
+  return h > 0 ? `${d}g ${h}h` : `${d}g`;
+}
 
 export default function CaliciDisponibiliCard({
   title = "🥂 Calici disponibili",
@@ -75,12 +101,25 @@ export default function CaliciDisponibiliCard({
         </div>
       ) : (
         <ul className="divide-y divide-neutral-100">
-          {vini.map(v => (
+          {vini.map(v => {
+            const ore = hoursSince(v.data_apertura);
+            const isOld = ore != null && ore > ALERT_HOURS;
+            return (
             <li key={v.id}
                 onClick={onClick ? () => onClick(v) : undefined}
                 className={`flex items-center gap-3 px-4 ${compact ? "py-2" : "py-2.5"} ${
                   onClick ? "hover:bg-amber-50 cursor-pointer" : ""
-                } transition`}>
+                } ${isOld ? "bg-red-50/40" : ""} transition`}>
+              {/* Icona alert se bottiglia aperta da > ALERT_HOURS */}
+              {isOld && (
+                <span
+                  className="shrink-0 w-6 h-6 rounded-full bg-red-100 border border-red-300 flex items-center justify-center text-red-700 text-xs"
+                  title={`Aperta da ${formatAge(ore)} (oltre ${ALERT_HOURS}h)`}
+                  aria-label="Bottiglia aperta da troppo tempo"
+                >
+                  ⚠
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <div className={`${compact ? "text-xs" : "text-sm"} font-semibold text-neutral-900 truncate`}>
                   {v.DESCRIZIONE}
@@ -88,6 +127,11 @@ export default function CaliciDisponibiliCard({
                 </div>
                 <div className="text-[10px] text-neutral-500 truncate">
                   {[v.PRODUTTORE, v.REGIONE, v.TIPOLOGIA].filter(Boolean).join(" · ")}
+                  {ore != null && (
+                    <span className={`ml-1.5 ${isOld ? "text-red-600 font-semibold" : "text-neutral-400"}`}>
+                      · aperta da {formatAge(ore)}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -108,7 +152,8 @@ export default function CaliciDisponibiliCard({
                 </button>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

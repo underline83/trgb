@@ -636,17 +636,35 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
 
 @router.get("/calici-disponibili/", summary="Vini con bottiglia aperta in mescita")
 def list_calici_disponibili(current_user: Any = Depends(get_current_user)):
+    """
+    Lista vini con BOTTIGLIA_APERTA=1.
+
+    Sessione 2026-05-11: aggiunto campo `data_apertura` derivato dal movimento
+    VENDITA con tag [CALICI] più recente (la bottiglia viene marcata aperta
+    automaticamente quando si registra una vendita calici — vedi
+    `vini_magazzino_db.py:1376`). Permette al frontend di mostrare un alert
+    icona se la bottiglia è aperta da troppo tempo (es. > 36h).
+    Se non c'è movimento [CALICI] (apertura manuale dal toggle scheda), il
+    campo è NULL e il frontend non mostra alert.
+    """
     conn = db.get_magazzino_connection()
     cur = conn.cursor()
     rows = cur.execute(
         """
-        SELECT id, DESCRIZIONE, ANNATA, TIPOLOGIA, PRODUTTORE, REGIONE,
-               PREZZO_CALICE, PREZZO_CARTA, QTA_TOTALE, BOTTIGLIA_APERTA,
-               VENDITA_CALICE
-        FROM vini_magazzino
-        WHERE BOTTIGLIA_APERTA = 1
-          AND (TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE')
-        ORDER BY TIPOLOGIA, DESCRIZIONE;
+        SELECT v.id, v.DESCRIZIONE, v.ANNATA, v.TIPOLOGIA, v.PRODUTTORE, v.REGIONE,
+               v.PREZZO_CALICE, v.PREZZO_CARTA, v.QTA_TOTALE, v.BOTTIGLIA_APERTA,
+               v.VENDITA_CALICE,
+               (
+                   SELECT MAX(m.data_mov)
+                   FROM vini_magazzino_movimenti m
+                   WHERE m.vino_id = v.id
+                     AND m.tipo = 'VENDITA'
+                     AND m.note LIKE '%[CALICI]%'
+               ) AS data_apertura
+        FROM vini_magazzino v
+        WHERE v.BOTTIGLIA_APERTA = 1
+          AND (v.TIPOLOGIA IS NOT NULL AND v.TIPOLOGIA <> 'ERRORE')
+        ORDER BY v.TIPOLOGIA, v.DESCRIZIONE;
         """
     ).fetchall()
     conn.close()
