@@ -12,15 +12,13 @@ OBIETTIVI:
      globale "giorno_pagamento_stipendi_default" = 15 (cambiabile da UI).
   3. La logica di generazione scadenza userà:
         giorno = dip["giorno_paga"] or settings["giorno_pagamento_stipendi_default"] or 15
-  4. Allineare retroattivamente data_scadenza delle 9 buste paga caricate
-     oggi 11/05 alle 19:32 (e di eventuali altre con data 27 ancora non
-     pagate). Marco ha confermato: vuole 15/05 anche per queste.
 
-DB COLPITI:
-  - dipendenti.sqlite3: settings + giorno_paga
-  - foodcost.db: cg_uscite.data_scadenza per STIPENDIO non ancora pagate
-
+DB COLPITO: dipendenti.sqlite3 (locale-aware).
 Idempotente.
+
+NB: il fix retroattivo `data_scadenza` 27→15 sulle cg_uscite STIPENDIO già
+esistenti è stato spostato in mig 119 (perché la 118 era già applicata sul
+DB quando Marco ha chiesto il fix retroattivo).
 """
 import sqlite3
 from app.utils.locale_data import locale_data_path

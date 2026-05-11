@@ -2080,11 +2080,18 @@ def add_piano_rate(
         uscite_aggiornate = 0
         scadenze_aggiornate = 0
         oggi_str = date.today().isoformat()
+        # ── DEBUG TEMPORANEO (sessione 2026-05-11 — da rimuovere dopo verifica) ──
+        # Bug riportato: cambio data rata da modale Piano Rate non si propaga a
+        # cg_uscite.data_scadenza. Loggo payload + count delle righe aggiornate
+        # per capire se il bug è frontend (payload senza scadenza) o backend
+        # (UPDATE che non matcha).
+        print(f"[DBG piano-rate] spesa_id={spesa_id}  sync_uscite={sync_uscite}  payload_rate={rate_input}", flush=True)
         for r in rate_input:
             periodo = r.get("periodo")
             importo = r.get("importo")
             scadenza = r.get("scadenza")  # YYYY-MM-DD opzionale
             if not periodo or importo is None:
+                print(f"[DBG piano-rate]   skip rata (periodo o importo mancante): {r}", flush=True)
                 continue
             try:
                 fc.execute("""
@@ -2125,7 +2132,11 @@ def add_piano_rate(
                            AND periodo_riferimento = ?
                            AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
                     """, (scadenza, nuovo_stato, oggi_str, spesa_id, periodo))
-                    scadenze_aggiornate += cur2.rowcount or 0
+                    n_scad = cur2.rowcount or 0
+                    scadenze_aggiornate += n_scad
+                    print(f"[DBG piano-rate]   periodo={periodo} scadenza={scadenza} stato={nuovo_stato}  → UPDATE rowcount={n_scad}", flush=True)
+                else:
+                    print(f"[DBG piano-rate]   periodo={periodo} scadenza=None (solo importo cambiato)", flush=True)
         fc.commit()
         return {
             "ok": True,
