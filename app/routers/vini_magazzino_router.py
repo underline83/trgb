@@ -51,6 +51,10 @@ class VinoMagazzinoBase(BaseModel):
     ANNATA: Optional[str] = None
     VITIGNI: Optional[str] = None
     GRADO_ALCOLICO: Optional[float] = None
+    FORMATO: Optional[str] = Field(
+        None,
+        description="Formato bottiglia (lista controllata in vini_model.FORMATO_VALIDI: 0.75, MG=1.5L, JE=3L, ecc.)",
+    )
 
     PRODUTTORE: Optional[str] = None
     DISTRIBUTORE: Optional[str] = None
@@ -106,7 +110,7 @@ class VinoMagazzinoBase(BaseModel):
     )
     STATO_RIORDINO: Optional[str] = Field(
         None,
-        description="Gestione stock: D=Da ordinare, O=Finito/ordinare, 0=Ordinato, A=Annata esaurita, X=Non ricomprare",
+        description="Gestione stock: D=Da ordinare, 0=Ordinato, A=Annata esaurita, X=Non ricomprare. ('O' Finito/ordinare rimosso 2026-05-11 — ridondante con D, mig 122 ha migrato i dati storici)",
     )
     STATO_CONSERVAZIONE: Optional[str] = Field(
         None,
@@ -148,6 +152,7 @@ class VinoMagazzinoUpdate(BaseModel):
     ANNATA: Optional[str] = None
     VITIGNI: Optional[str] = None
     GRADO_ALCOLICO: Optional[float] = None
+    FORMATO: Optional[str] = None
 
     PRODUTTORE: Optional[str] = None
     DISTRIBUTORE: Optional[str] = None

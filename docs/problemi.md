@@ -160,21 +160,23 @@ Quando il backend va giù dopo un push e c'è una `.sqlite3.prev` nel workspace 
 
 ## Aperti — Debt minori (emersi nel consolidamento docs 2026-05-08)
 
-### V-BUG1. Import vini FORCE senza controllo ruolo
+### V-BUG1. Import vini FORCE senza controllo ruolo — FALSO POSITIVO ✅ 2026-05-12
 **Segnalato:** ricognito durante consolidamento `modulo_vini.md` 2026-05-08
 **Modulo:** Vini / Magazzino / `app/routers/vini_magazzino_router.py`
-**Gravità:** media (rischio di sovrascritture massive da utente non admin)
 
-**Sintomo:** l'endpoint `POST /vini/magazzino/import` con modalità FORCE (riallineamento completo + ricostruzione tabella) **NON verifica il ruolo dell'utente**. Chiunque sia autenticato può eseguirlo, inclusi sommelier/sala/viewer. Il controllo deve essere admin only.
+**Verificato 2026-05-12 (audit modulo Vini):**
 
-**Fix proposto:**
-```python
-if mode == "FORCE":
-    if user["role"] not in ("admin", "superadmin"):
-        raise HTTPException(403, "FORCE import richiede ruolo admin")
-```
+L'endpoint `POST /vini/magazzino/import` citato **non esiste** in `vini_magazzino_router.py`. Probabile confusione con `POST /vini/cantina-tools/import-excel`, che ha `_require_admin(current_user)` su tutti i flussi massivi. Verificati uno per uno:
 
-**Stato:** voce roadmap §V (priorità media). Non bloccante in produzione (solo Marco e altri admin/sommelier hanno credenziali, ma il sommelier può tecnicamente forzare l'import senza saperne le conseguenze).
+| Endpoint | Path completo | Admin guard |
+|----------|---------------|-------------|
+| Reset DB cantina | `POST /vini/cantina-tools/reset-database` | ✅ `_require_admin` (riga 127) |
+| Import Excel | `POST /vini/cantina-tools/import-excel` | ✅ `_require_admin` (riga 169) |
+| Bulk update | `PATCH /vini/magazzino/bulk-update` | ✅ `is_admin(role)` (riga 406) |
+| Bulk duplicate | `POST /vini/magazzino/bulk-duplicate` | ✅ `is_admin(role)` (riga 469) |
+| Delete vino | `DELETE /vini/magazzino/delete-vino/{id}` | ✅ `is_admin(role)` (riga 506) |
+
+Nessun endpoint sensibile è esposto senza guard. Voce chiusa.
 
 ---
 

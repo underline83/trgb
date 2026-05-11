@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-05-12 — Audit modulo Vini + hardening tecnico (A/H/B)
+
+### Risolto
+- **Bug FORMATO droppato dalla CRUD principale** `[core]`. Il campo `FORMATO` esisteva nel DB (`vini_magazzino.FORMATO`), era presente nel FE (SchedaVino, MagazzinoVini, MagazzinoViniNuovo) e veniva mandato nel payload, ma **non era nei Pydantic** `VinoMagazzinoBase` e `VinoMagazzinoUpdate` di `vini_magazzino_router.py`. FastAPI lo droppava silenziosamente. Risultato: cambiare formato di un vino tramite UI non aveva alcun effetto sul DB (solo l'import Excel via cantina-tools, che passa da `upsert_vino`, lo scriveva). Bug invisibile da quando esiste il campo. Aggiunto `FORMATO: Optional[str] = None` ai due schema. File: `app/routers/vini_magazzino_router.py:54-57, 150`.
+- **V-BUG1 falso positivo** `[doc]`. La voce `problemi.md` V-BUG1 ("`POST /vini/magazzino/import` FORCE senza admin guard") **non corrispondeva ad alcun endpoint reale**. Verificati uno per uno tutti gli endpoint massivi del modulo Vini: `reset-database`, `import-excel`, `bulk-update`, `bulk-duplicate`, `delete-vino` — tutti hanno già admin guard. Voce chiusa.
+
+### Cambiato
+- **Roadmap V — priorità riviste** `[doc]`. Marco ha ridefinito le priorità della sezione Vini: prioritari V.1 → V.2 → V.3 → V.6 → V.7 → V.8 → V.5; basso V.4 (declassato da ALTA) + V.9-V.12; da valutare V.13-V.18. Aggiunta sezione "Hardening tecnico" con i 8 task V-H.A..H emersi dall'audit.
+- **`docs/modulo_vini.md` §3.5** `[doc]`. Elenco campi della tabella `vini_magazzino` completo e categorizzato (anagrafica, prezzi, flag, stati, locazioni, metadati). Era fermo a 26 campi storici, ora i 35 reali con tipo e note.
+
+### Memoria persistente
+- **Vietato hardcodare soglie operative** `[doc]`. Marco ha esplicitato: ore/giorni/percentuali/cutoff non vanno hardcoded nel codice. Bloccare la sessione e proporre tabella `*_settings` + UI Impostazioni modulo. Eccezioni solo per costanti matematiche pure.
+
+---
+
 ## 2026-05-11 — G.7 + G.8 + 5 bug fix + ripristino dati audit
 
 ### Aggiunto

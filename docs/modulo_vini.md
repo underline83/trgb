@@ -137,7 +137,56 @@ Layout `grid-cols-[260px_1fr]`: sidebar tinta dinamica per TIPOLOGIA + area main
 
 ## 3.5 Tabella `vini_magazzino` — campi
 
-`id` (immutabile), `id_excel` (origine), `DESCRIZIONE`, `PRODUTTORE`, `REGIONE`, `NAZIONE`, `TIPOLOGIA`, `ANNATA`, `DENOMINAZIONE`, `FORMATO`, `GRADI`, `QTA_FRIGO`, `QTA_LOC1`, `QTA_LOC2`, `QTA_LOC3`, `QTA_TOTALE` (calcolato), `EURO_LISTINO`, `EURO_CARTA`, `CARTA` (SI/NO), `IPRATICO` (SI/NO), `NOTE`, `STATO_RIORDINO`, `STATO_VENDITA`, `STATO_CONSERVAZIONE`, `DISTRIBUTORE`, `RAPPRESENTANTE`.
+Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
+
+**Anagrafica**
+- `id` INTEGER PK — immutabile
+- `id_excel` INTEGER UNIQUE — id di origine se importato da Excel
+- `TIPOLOGIA` TEXT NOT NULL — lista controllata in `vini_model.TIPOLOGIA_VALIDE`
+- `NAZIONE` TEXT NOT NULL
+- `REGIONE` TEXT
+- `CODICE` TEXT — campo legacy attualmente non utilizzato (rivedere)
+- `DESCRIZIONE` TEXT NOT NULL
+- `DENOMINAZIONE` TEXT
+- `ANNATA` TEXT — stringa "YYYY", validata FE
+- `VITIGNI` TEXT — testo libero (V.8 prevede normalizzazione)
+- `GRADO_ALCOLICO` REAL
+- `FORMATO` TEXT — lista controllata in `vini_model.FORMATO_VALIDI`
+- `PRODUTTORE`, `DISTRIBUTORE`, `RAPPRESENTANTE` TEXT
+
+**Prezzi e listino**
+- `PREZZO_CARTA` REAL — prezzo bottiglia in carta
+- `EURO_LISTINO` REAL — prezzo cassa/fornitore
+- `SCONTO` REAL — sconto fornitore (storicizzato)
+- `NOTE_PREZZO` TEXT
+- `PREZZO_CALICE` REAL — prezzo singolo calice
+- `PREZZO_CALICE_MANUALE` INTEGER 0/1 DEFAULT 0 — flag override sommelier (sessione 2026-05-11)
+
+**Flag operativi**
+- `CARTA` TEXT 'SI'/'NO' — pubblicato in carta cliente
+- `IPRATICO` TEXT 'SI'/'NO' — esportato verso iPratico
+- `BIOLOGICO` TEXT 'SI'/'NO' DEFAULT 'NO'
+- `VENDITA_CALICE` TEXT 'SI'/'NO' DEFAULT 'NO' — abilitato per vendita al calice
+- `DISCONTINUATO` TEXT 'SI'/'NO' — non riordinabile (UI WIP — voce roadmap V.1)
+- `FORZA_PREZZO` INTEGER 0/1 DEFAULT 0 — bypassa markup automatico
+- `BOTTIGLIA_APERTA` INTEGER 0/1 DEFAULT 0 — bottiglia in mescita (sessione 58)
+- `DATA_APERTURA` TEXT ISO — data apertura calice (sessione 2026-05-11, mig 121)
+- `ABBINAMENTI` TEXT — abbinamenti consigliati per carta cliente calici
+- `ORIGINE` TEXT 'EXCEL'/'MANUALE'
+
+**Stati codificati (lettera/numero — eredità Excel, V.F roadmap futura)**
+- `STATO_VENDITA` TEXT: N/T/V/F/S/C
+- `STATO_RIORDINO` TEXT: D/0/A/X (mig 122 — 'O' rimosso)
+- `STATO_CONSERVAZIONE` TEXT: 1/2/3
+- `NOTE_STATO` TEXT
+
+**Locazioni e quantità**
+- `FRIGORIFERO`/`QTA_FRIGO`, `LOCAZIONE_1..3`/`QTA_LOC1..3` (LOC3 può contenere coordinate matrice se vino in `matrice_celle`)
+- `QTA_TOTALE` INTEGER DEFAULT 0 — somma delle 4 locazioni, ricalcolato da `_recalc_qta_totale`. Read-only via PATCH (sessione 2026-05-12, vedi task D).
+
+**Metadati**
+- `NOTE` TEXT — note operative interne
+- `CREATED_AT`, `UPDATED_AT` TEXT ISO
 
 ## 3.6 Endpoint magazzino principali
 
@@ -193,7 +242,7 @@ Tabellona editabile per admin con tutte le colonne principali:
 
 ## 4.3 Alert e widget (vedi `modulo_vini_widget_dashboard.md` per il dettaglio delle 14 fasi)
 
-- 🚨 **Vini in carta senza giacenza** (banner alert collassabile, 6 fasi A-F implementate): pill `+ ordina · N` inline con qta suggerita storico 60gg ÷ 2; badge ritmo vendita (top/medio/poco/mai); pill stato riordino (📝/🚨/📦/🗓️/⛔); chip filtro tipologia (Tutti/Rossi/Bianchi/Bollicine/Rosati/Altri); toggle raggruppa per distributore (persistito in `localStorage`); bottone `✅ Arrivato` inline.
+- 🚨 **Vini in carta senza giacenza** (banner alert collassabile, 6 fasi A-F implementate): pill `+ ordina · N` inline con qta suggerita storico 60gg ÷ 2; badge ritmo vendita (top/medio/poco/mai); pill stato riordino (📝 Da ordinare / 📦 Ordinato / 🗓️ Annata esaurita / ⛔ Non ricomprare — 4 stati dopo rimozione 'O' 2026-05-11); chip filtro tipologia (Tutti/Rossi/Bianchi/Bollicine/Rosati/Altri); toggle raggruppa per distributore (persistito in `localStorage`); bottone `✅ Arrivato` inline.
 - 💤 **Vini fermi** — lista espandibile, "mai movimentato" evidenziato
 - **Vendite recenti** (col sx) + **Movimenti operativi** (col dx)
 - **Top venduti 30gg** (larghezza piena) — ranking a barre, click → scheda vino

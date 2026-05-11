@@ -252,9 +252,13 @@ def init_magazzino_database() -> None:
             "CHECK (DISCONTINUATO IN ('SI','NO') OR DISCONTINUATO IS NULL);"
         )
     if "STATO_RIORDINO" not in cols:
+        # 'O' (Finito/ordina) rimosso 2026-05-11: ridondante con 'D' (mig 122).
+        # Il CHECK qui vale solo per DB nuovi; per DB esistenti il constraint
+        # originale resta in tabella e include ancora 'O', ma non e' un problema
+        # operativo perche' il flusso UI non permette piu' di selezionarlo.
         cur.execute(
             "ALTER TABLE vini_magazzino ADD COLUMN STATO_RIORDINO TEXT "
-            "CHECK (STATO_RIORDINO IN ('D','O','0','A','X') OR STATO_RIORDINO IS NULL);"
+            "CHECK (STATO_RIORDINO IN ('D','0','A','X') OR STATO_RIORDINO IS NULL);"
         )
     if "STATO_CONSERVAZIONE" not in cols:
         cur.execute(
@@ -1856,7 +1860,8 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
           -- '0' Ordinato      → ordine già piazzato, non urgente
           -- 'A' Annata esaur. → non posso riordinare la stessa annata
           -- 'X' Non ricompr.  → decisione esplicita, fuori catalogo
-          -- Restano: NULL/vuoto, 'D' Da ordinare, 'O' Finito/Ordina
+          -- Restano: NULL/vuoto, 'D' Da ordinare
+          -- ('O' Finito/Ordina rimosso 2026-05-11, mig 122 ha migrato i dati → 'D')
           AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('0', 'A', 'X'))
         ORDER BY
             CASE v.STATO_VENDITA
@@ -2041,8 +2046,10 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     ).fetchall()
 
     # Riordini per distributore/rappresentante:
-    # Base: vini da riordinare (STATO_RIORDINO D/O/0 oppure QTA=0 e in carta)
+    # Base: vini da riordinare (STATO_RIORDINO D/0 oppure QTA=0 e in carta)
     # Con flag: anche tutti i vini con giacenza positiva e fornitore assegnato
+    # 'O' resta nelle IN list come compat per record storici (mig 122 li ha
+    # migrati a 'D' ma teniamo per safety).
     if includi_giacenza_positiva:
         riordini_where = """
             WHERE (v.DISTRIBUTORE IS NOT NULL AND v.DISTRIBUTORE != '')

@@ -62,32 +62,49 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 
 ## V — VINI / CANTINA (include carta bevande)
 
-| ID | Cosa | Effort | Stato | Note |
-|----|------|--------|-------|------|
-| V.1 | Flag DISCONTINUATO UI + filtro | S | ALTA | DB ready (colonna esiste), serve solo UI |
-| V.2 | Alert sottoscorta (M.A + M.F) | S | ALTA | Mattoni esistono |
-| V.3 | Storico prezzi fornitore — grafico Recharts | S | ALTA | Dati già in `vini_prezzi_storico` |
-| V.4 | Note degustative cliente (AI-generate + edit + visibili in carta cliente) | M | ALTA | Marco S58. Campo `NOTE_DEGUSTAZIONE` su `vini_magazzino` |
-| V.5 | Più distributori/rappresentanti per vino | L | MEDIA | Tabella `vino_distributori` strutturale |
-| V.6 | Anagrafiche normalizzate (produttori/distributori/denominazioni) | M | MEDIA | Tabelle dedicate + autocomplete + dedup |
-| V.7 | Famiglia vino raggruppa annate | M-L | MEDIA | Tabella `vini_famiglie` |
-| V.8 | Vitigni con percentuali | M | MEDIA | Tabella `vini_vitigni_anagrafica` + somma=100 |
-| V.9 | Inventario rapido da iPad (mobile-first +/- giacenza) | M | MEDIA | UI touch |
-| V.10 | Carichi automatici da Fatture XML | M | MEDIA | Match iPratico → CARICO automatico |
-| V.11 | PDF carta con TOC cliccabile | S | MEDIA | Motore `carta_vini_service.py` esistente |
-| V.12 | Import Excel diff interattivo | M | MEDIA | Richiede M.H |
-| V.13 | Inventario fisico mobile con QR/barcode | L | BASSA | QR generation per vino |
-| V.14 | Carta vini multi-template (eventi, degustazioni) | M | BASSA | Motore esistente |
-| V.15 | Audit log scheda vino | S | BASSA | Tabella audit |
-| V.16 | Filtri lato server (per dataset > 5000) | M | BASSA | Solo se scala oltre 1 cliente |
-| V.17 | iPratico test e2e completo | S | BASSA | Test manuale |
-| V.18 | Widget alert WA lista spesa (punto 7) | M | BASSA | Bloccato da V.5 + M.B PDF |
+Priorità ridefinite con Marco 2026-05-12 (audit modulo Vini).
+
+**Ordine prioritari:** V.1 → V.2 → V.3 → V.6 → V.7 → V.8 → V.5
+
+| ID | Cosa | Effort | Priorità | Note |
+|----|------|--------|----------|------|
+| V.1 | Flag DISCONTINUATO UI + filtro | S | **PRIORITARIO 1** | DB ready (colonna esiste), serve solo UI |
+| V.2 | Alert sottoscorta (M.A + M.F) | S | **PRIORITARIO 2** | Mattoni esistono |
+| V.3 | Storico prezzi fornitore — grafico Recharts | S | **PRIORITARIO 3** | Dati già in `vini_prezzi_storico` |
+| V.6 | Anagrafiche normalizzate (produttori/distributori/denominazioni) | M | **PRIORITARIO 4** | Tabelle dedicate + autocomplete + dedup |
+| V.7 | Famiglia vino raggruppa annate | M-L | **PRIORITARIO 5** | Tabella `vini_famiglie` |
+| V.8 | Vitigni con percentuali | M | **PRIORITARIO 6** | Tabella `vini_vitigni_anagrafica` + somma=100 |
+| V.5 | Più distributori/rappresentanti per vino | L | **PRIORITARIO 7** | Tabella `vino_distributori` strutturale |
+| V.4 | Note degustative cliente (AI-generate + edit + visibili in carta cliente) | M | BASSA | Marco S58. Campo `NOTE_DEGUSTAZIONE`. Declassato 2026-05-12 |
+| V.9 | Inventario rapido da iPad (mobile-first +/- giacenza) | M | BASSA | UI touch |
+| V.10 | Carichi automatici da Fatture XML | M | BASSA | Match iPratico → CARICO automatico |
+| V.11 | PDF carta con TOC cliccabile | S | BASSA | Motore `carta_vini_service.py` esistente |
+| V.12 | Import Excel diff interattivo | M | BASSA | Richiede M.H |
+| V.13 | Inventario fisico mobile con QR/barcode | L | DA VALUTARE | QR generation per vino |
+| V.14 | Carta vini multi-template (eventi, degustazioni) | M | DA VALUTARE | Motore esistente |
+| V.15 | Audit log scheda vino | S | DA VALUTARE | Tabella audit |
+| V.16 | Filtri lato server (per dataset > 5000) | M | DA VALUTARE | Solo se scala oltre 1 cliente |
+| V.17 | iPratico test e2e completo | S | DA VALUTARE | Test manuale |
+| V.18 | Widget alert WA lista spesa (punto 7) | M | DA VALUTARE | Bloccato da V.5 + M.B PDF |
 | V.19 | Carta Bevande — TODO da `carta_bevande_todo.md` | M | DA VALUTARE | Cap. dedicato in `modulo_vini.md` (consolidamento) |
 
+**Hardening tecnico modulo Vini (sessione 2026-05-12):**
+
+| ID | Cosa | Effort | Stato |
+|----|------|--------|-------|
+| V-H.A | Fix bug FORMATO droppato dalla CRUD principale (Pydantic) | XS | FATTO 2026-05-12 |
+| V-H.B | V-BUG1 admin guard FORCE import | XS | FALSO POSITIVO (endpoint inesistente, guard già presenti su tutti i massive endpoint) |
+| V-H.C | Trailing slash uniformati su route Vini | S | TODO |
+| V-H.D | QTA_TOTALE read-only (opzione 1) + audit FE | S | TODO |
+| V-H.E | Normalizzazione 5 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE, DISCONTINUATO) | M | TODO |
+| V-H.F | Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint | M | TODO (da decidere semantica) |
+| V-H.G | Soglie configurabili (vini_settings + UI Impostazioni Vini) | M | TODO |
+| V-H.H | Allineamento docs §3.5 + roadmap V | XS | FATTO 2026-05-12 |
+
 **Bug/debt:**
-- V-BUG1 — FORCE import senza ruolo admin in `vini_magazzino_router.py` (sicurezza, problemi.md)
-- V-DEBT1 — `app/models/vini_db.py` deprecated ma file ancora presente
-- V-DEBT2 — `app/models/vini_model.py` ridotto a `normalize_dataframe()`
+- V-BUG1 — FALSO POSITIVO 2026-05-12: l'endpoint `POST /vini/magazzino/import` citato non esiste. Tutti gli endpoint massivi reali (`/reset-database`, `/import-excel`, `/bulk-update`, `/bulk-duplicate`, `/delete-vino/{id}`) hanno già admin guard. Voce da chiudere in `problemi.md`.
+- V-DEBT1 — `app/models/vini_db.py`: file già rimosso. Voce obsoleta, da rimuovere.
+- V-DEBT2 — `app/models/vini_model.py` ridotto a `normalize_dataframe()`. Usato solo da `import_excel_to_cantina`. Valutare se inglobare in `vini_cantina_tools_router.py`.
 
 ---
 

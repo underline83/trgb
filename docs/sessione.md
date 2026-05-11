@@ -1,6 +1,40 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-11 (sessione molto lunga: G.7 + G.8 + 10+ bug fix + 6 migrazioni 115-120 + trigger SQLite difensivo + settings dipendenti + bug COL D'ORCIA save piano-rate + fix batch pagamento SPOSTATO/VERIFICARE + tile Rateizzato unificato nei filtri speciali)
+**Ultimo aggiornamento:** 2026-05-12 (audit modulo Vini + hardening tecnico iniziato: A FORMATO bug, H docs alignment, V-BUG1 falso positivo accertato)
+
+---
+
+## SESSIONE 2026-05-12 — Audit modulo Vini + V-H.A/H/B chiusi
+
+### Sintesi
+Sessione di audit profondo del modulo Vini, con piano di hardening tecnico in 8 task (V-H.A..H). Conclusione: V-BUG1 era un falso positivo. Iniziati i lavori di pulizia, restano 5 task tecnici (C, D, G, E, F) prima di poter affrontare la roadmap V prioritaria (V.1, V.2, V.3, V.6, V.7, V.8, V.5).
+
+### Riprogrammazione priorità roadmap V
+Marco ha rivisto le priorità della sezione V (Vini) di roadmap.md:
+- **Prioritari** (in quest'ordine): V.1 → V.2 → V.3 → V.6 → V.7 → V.8 → V.5
+- **Basso**: V.4 (note degustative AI, declassato da ALTA), V.9, V.10, V.11, V.12
+- **Da valutare**: V.13-V.18
+
+### V-H.A — Fix bug FORMATO droppato dalla CRUD `[core]`
+Il campo `FORMATO` esisteva nel DB e nel FE ma **non era nei Pydantic** `VinoMagazzinoBase`/`VinoMagazzinoUpdate`. FastAPI lo droppava silenziosamente. Aggiunto a entrambi gli schema in `vini_magazzino_router.py:54-57` e `:150`. Bug invisibile da quando esiste il campo. Effort: 2 righe.
+
+### V-H.B — V-BUG1 falso positivo `[doc]`
+V-BUG1 in `problemi.md` dichiarava un endpoint `POST /vini/magazzino/import` con FORCE senza admin guard. **Quell'endpoint non esiste**. Verificati uno per uno tutti gli endpoint massivi reali: hanno tutti `_require_admin`/`is_admin`. Voce chiusa in `problemi.md` come falso positivo.
+
+### V-H.H — Allineamento docs `[doc]`
+- `modulo_vini.md` §3.5: elenco campi DB completo e categorizzato (anagrafica, prezzi, flag, stati, locazioni, metadati). Era fermo a 26 campi storici, ora i 35 reali.
+- `roadmap.md` sezione V: priorità ridefinite. Aggiunta sezione "Hardening tecnico modulo Vini" con i task V-H.A..H. V-DEBT1 marcato obsoleto, V-DEBT2 confermato.
+- `problemi.md` V-BUG1: chiuso come falso positivo con verifica endpoint per endpoint.
+
+### Task di hardening tecnico ancora aperti (per la prossima sessione)
+- **V-H.C** trailing slash uniformati su route Vini
+- **V-H.D** QTA_TOTALE read-only via PATCH (opzione 1) + audit FE
+- **V-H.G** Soglie configurabili Vini (tabella settings + UI Impostazioni) — Marco ha esplicitamente vietato di hardcodare soglie operative da ora in poi (memoria salvata)
+- **V-H.E** Normalizzazione 5 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE, DISCONTINUATO)
+- **V-H.F** Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint (decisione semantica da prendere con Marco prima di partire)
+
+### Memoria persistente salvata
+- `feedback_soglie_hardcoded.md`: vietato hardcodare soglie operative. Prima di scrivere `const SOGLIA = 12`, fermarsi e proporre `*_settings` + UI Impostazioni.
 
 ---
 
