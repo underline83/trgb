@@ -36,6 +36,10 @@
 - **`docs/stato_pagamento_unificato.md`** — §12 (G.6 rename stati al maschile) + §13 (G.7 SPOSTATO + UX Sposta data).
 - **`docs/roadmap.md`** — G.7 marchiata ✅ FATTO.
 
+### Risolto (parte 4 — bug nascosto modulo Dipendenti)
+- **Bug `dipendenti.py` scriveva stati col vecchio nome `DA_PAGARE`** `[core]`. Riga 1415 (UPDATE) e 1425 (INSERT) erano hardcoded `'DA_PAGARE'`. Non aggiornati durante G.6. Conseguenza: le buste paga caricate post-G.6 finivano in `cg_uscite` con uno stato non più riconosciuto dal sistema (lo Scadenzario cerca `PROGRAMMATO`/`SCADUTO`, non `DA_PAGARE`). Marco oggi ha caricato 9 buste paga di aprile (scadenza 27/05): tutte 9 invisibili allo Scadenzario fino al fix. Fix: 2 occorrenze `'DA_PAGARE'` → `'PROGRAMMATO'`.
+- **Mig 117 — rinomina residui + trigger di validazione `cg_uscite.stato`** `[core]`. Difesa strutturale DB-level: due trigger SQLite `trg_cg_uscite_stato_valido_insert/_update` che fanno `RAISE(ABORT)` se viene scritto uno stato non in `STATI_VALIDI = {PROGRAMMATO, SCADUTO, VERIFICARE, SPOSTATO, RATEIZZATO, PARZIALE, PAGATO_MANUALE, PAGATO}`. Da ora qualunque codice (presente o futuro) che provi a inserire un valore non valido fallisce con eccezione SQLite esplicita: niente più silent corruption come è successo con `DA_PAGARE`. Mig include anche rinomina idempotente residui (rifaceva quello di mig 114 + ripara nuove contaminazioni post-mig). Dry-run su DB locale: 9 residui `DA_PAGARE` ripuliti, trigger blocca scrittura vecchio nome con messaggio chiaro.
+
 ### Verifica post-deploy (su VPS dopo push)
 - Backend riavviato OK (PID 801183, APP_VERSION 5.14, commit `a71d5527`), nessun errore in log
 - `schema_migrations`: mig 115 applicata alle 14:15:15, mig 116 alle 14:37:18 ✓

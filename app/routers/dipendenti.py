@@ -1411,8 +1411,12 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
         num_fattura = f"Stipendio {MESI_IT[mese]} {anno}"
 
         if existing:
+            # Sessione 2026-05-11 — bug fix post-G.6: era hardcoded 'DA_PAGARE'
+            # (vecchio nome pre-rename mig 114) → ora 'PROGRAMMATO'. Senza il fix,
+            # le buste paga caricate da G.6 in poi finivano in cg_uscite con stato
+            # non più riconosciuto, quindi invisibili allo Scadenzario.
             fc_conn.execute("""
-                UPDATE cg_uscite SET totale = ?, importo_pagato = 0, stato = 'DA_PAGARE',
+                UPDATE cg_uscite SET totale = ?, importo_pagato = 0, stato = 'PROGRAMMATO',
                     tipo_uscita = 'STIPENDIO', numero_fattura = ?, periodo_riferimento = ?
                 WHERE id = ?
             """, [netto, num_fattura, periodo_rif, existing["id"]])
@@ -1422,7 +1426,7 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
                 INSERT INTO cg_uscite
                 (fornitore_nome, totale, data_scadenza, stato, tipo_uscita,
                  numero_fattura, periodo_riferimento, note)
-                VALUES (?, ?, ?, 'DA_PAGARE', 'STIPENDIO', ?, ?, ?)
+                VALUES (?, ?, ?, 'PROGRAMMATO', 'STIPENDIO', ?, ?, ?)
             """, [
                 f"Stipendio - {nome_completo}",
                 netto, data_scadenza,
