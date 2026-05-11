@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { invalidateViniWidgetSettingsCache } from "../../hooks/useViniWidgetSettings";
 import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
@@ -75,6 +76,7 @@ const MENU = [
   { key: "markup",      label: "Markup Prezzi",       icon: "💰", desc: "Ricarichi per fascia costo / tipologia" },
   { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍", desc: "Frigo, cantina, sale, matrici posti" },
   { key: "stati",       label: "Stati",               icon: "🏷️", desc: "Stati vendita, riordino, conservazione" },
+  { key: "widget",      label: "Widget e soglie",     icon: "⚙️", desc: "Calici, dashboard, prezzi, ritmo vendita" },
   { key: "manutenzione",label: "Manutenzione",        icon: "🔧", desc: "Cleanup DB, backup, integrità dati" },
 ];
 
@@ -160,6 +162,13 @@ export default function ViniImpostazioni() {
   const [markupRecalcResult, setMarkupRecalcResult] = useState(null);
   const [markupRecalcing, setMarkupRecalcing] = useState(false);
 
+  // --- Widget e soglie (sessione 2026-05-12, V-H.G) ---
+  const [widgetSettings, setWidgetSettings] = useState(null);  // { key: {value, raw, tipo, descrizione} }
+  const [widgetEdits, setWidgetEdits] = useState({});  // { key: newValue } (dirty)
+  const [widgetLoading, setWidgetLoading] = useState(false);
+  const [widgetSaving, setWidgetSaving] = useState(false);
+  const [widgetMsg, setWidgetMsg] = useState("");
+
   // -------------------------------------------------------
   // FETCH
   // -------------------------------------------------------
@@ -214,6 +223,24 @@ export default function ViniImpostazioni() {
   useEffect(() => {
     if (activeSection === "markup" && !markupBP) fetchMarkupBP();
   }, [activeSection, markupBP, fetchMarkupBP]);
+
+  // Widget settings fetch
+  const fetchWidgetSettings = useCallback(async () => {
+    setWidgetLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/settings/vini/widget/`);
+      if (r.ok) {
+        const data = await r.json();
+        setWidgetSettings(data || {});
+      }
+    } catch {} finally {
+      setWidgetLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "widget" && !widgetSettings) fetchWidgetSettings();
+  }, [activeSection, widgetSettings, fetchWidgetSettings]);
 
   // -------------------------------------------------------
   // SALVA IMPOSTAZIONI
@@ -1402,6 +1429,195 @@ export default function ViniImpostazioni() {
   );
 
   // -------------------------------------------------------
+  // WIDGET E SOGLIE — handler + render
+  // (sessione 2026-05-12, V-H.G)
+  // -------------------------------------------------------
+  const widgetFlash = (msg) => { setWidgetMsg(msg); setTimeout(() => setWidgetMsg(""), 4000); };
+
+  const saveWidgetSettings = async () => {
+    if (Object.keys(widgetEdits).length === 0) return;
+    setWidgetSaving(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/settings/vini/widget/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(widgetEdits),
+      });
+      if (r.ok) {
+        const res = await r.json();
+        const skippedTxt = res.skipped?.length ? ` (${res.skipped.length} scartate per tipo non valido)` : "";
+        widgetFlash(`✓ Salvate ${res.updated?.length || 0} soglie${skippedTxt}`);
+        setWidgetEdits({});
+        await fetchWidgetSettings();
+        // Invalida cache hook condivisa così i consumer (CaliciDisponibiliCard,
+        // DecidiPrezzoCalice) prendono i nuovi valori al prossimo mount.
+        invalidateViniWidgetSettingsCache();
+      } else {
+        widgetFlash("Errore salvataggio");
+      }
+    } catch (e) {
+      widgetFlash("Errore: " + (e.message || "rete"));
+    } finally {
+      setWidgetSaving(false);
+    }
+  };
+
+  const resetWidgetSettings = async () => {
+    if (!window.confirm("Ripristinare tutte le soglie ai valori di default? Non recuperabile.")) return;
+    setWidgetSaving(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/settings/vini/widget/reset`, { method: "POST" });
+      if (r.ok) {
+        widgetFlash("✓ Soglie ripristinate ai default");
+        setWidgetEdits({});
+        await fetchWidgetSettings();
+        invalidateViniWidgetSettingsCache();
+      } else if (r.status === 403) {
+        widgetFlash("Solo admin può fare reset");
+      } else {
+        widgetFlash("Errore reset");
+      }
+    } catch (e) {
+      widgetFlash("Errore: " + (e.message || "rete"));
+    } finally {
+      setWidgetSaving(false);
+    }
+  };
+
+  // Raggruppa le soglie per area logica per leggibilità UI
+  const WIDGET_GROUPS = [
+    {
+      titolo: "🥂 Calici disponibili",
+      desc: "Soglie età bottiglia in mescita usate dal widget Calici in dashboard.",
+      keys: ["calici_fresh_hours", "calici_alert_hours"],
+    },
+    {
+      titolo: "📊 Dashboard Vini",
+      desc: "Finestre temporali per i widget 'Top vendute' e 'Vini fermi'.",
+      keys: ["top_vendute_giorni", "vini_fermi_giorni"],
+    },
+    {
+      titolo: "🛒 Alert riordino (qta suggerita)",
+      desc: "Calcolo della quantità suggerita di riordino: vendite negli ultimi N giorni divise per K.",
+      keys: ["qta_suggerita_giorni_storico", "qta_suggerita_divisore"],
+    },
+    {
+      titolo: "📈 Ritmo vendita",
+      desc: "Soglie bottiglie/mese per classificare i vini come 'top seller' / 'medio' / 'poco venduto'.",
+      keys: ["ritmo_soglia_top", "ritmo_soglia_medio"],
+    },
+    {
+      titolo: "💰 Prezzo calice (default e modale sommelier)",
+      desc: "Calcolo automatico PREZZO_CALICE da PREZZO_CARTA + tolleranze prezzo manuale.",
+      keys: ["prezzo_calice_divisore", "prezzo_calice_step_round", "decidi_calice_soglia_warn_pct", "decidi_calice_soglia_block_pct"],
+    },
+  ];
+
+  const renderWidget = () => {
+    if (widgetLoading) {
+      return <div className="text-sm text-neutral-500">Carico le impostazioni...</div>;
+    }
+    if (!widgetSettings || Object.keys(widgetSettings).length === 0) {
+      return (
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold text-amber-900 font-playfair">Widget e soglie</h2>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+            Impostazioni non trovate. Eseguire la migrazione 123 (`./push.sh` o restart backend).
+          </div>
+        </div>
+      );
+    }
+
+    const dirty = Object.keys(widgetEdits).length > 0;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-amber-900 font-playfair">Widget e soglie</h2>
+            <p className="text-sm text-neutral-600 mt-1">
+              Valori operativi (ore, giorni, percentuali, divisori) usati dai widget Vini.
+              Modificali qui per adattarli al tuo locale, senza toccare il codice.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {widgetMsg && (
+              <span className="text-xs text-emerald-700 font-medium">{widgetMsg}</span>
+            )}
+            <button
+              onClick={() => setWidgetEdits({})}
+              disabled={!dirty}
+              className="px-3 py-1.5 text-xs rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Annulla modifiche
+            </button>
+            <button
+              onClick={saveWidgetSettings}
+              disabled={!dirty || widgetSaving}
+              className="px-4 py-1.5 text-xs rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {widgetSaving ? "Salvo..." : `Salva ${dirty ? `(${Object.keys(widgetEdits).length})` : ""}`}
+            </button>
+            <button
+              onClick={resetWidgetSettings}
+              disabled={widgetSaving}
+              className="px-3 py-1.5 text-xs rounded-lg border border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
+              title="Ripristina i valori storici (admin)"
+            >
+              Reset default
+            </button>
+          </div>
+        </div>
+
+        {WIDGET_GROUPS.map(group => (
+          <div key={group.titolo} className="border border-neutral-200 rounded-xl bg-white p-4">
+            <h3 className="text-sm font-bold text-neutral-800">{group.titolo}</h3>
+            <p className="text-xs text-neutral-500 mb-3">{group.desc}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {group.keys.map(key => {
+                const cfg = widgetSettings[key];
+                if (!cfg) return null;
+                const editing = key in widgetEdits;
+                const value = editing ? widgetEdits[key] : cfg.value;
+                const unit = cfg.tipo === "percent" ? "%"
+                  : (key.endsWith("_hours") ? "ore"
+                  : (key.endsWith("_giorni") || key.endsWith("_giorni_storico") ? "gg"
+                  : ""));
+                return (
+                  <div key={key} className="space-y-1">
+                    <label className="block text-xs font-medium text-neutral-700">
+                      {cfg.descrizione || key}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step={cfg.tipo === "float" ? "0.1" : "1"}
+                        value={value}
+                        onChange={(e) => setWidgetEdits(prev => ({ ...prev, [key]: e.target.value }))}
+                        className={`w-28 px-2 py-1.5 rounded-lg text-sm tabular-nums text-right
+                          ${editing ? "border-2 border-amber-300 bg-amber-50" : "border border-neutral-300"}
+                          focus:outline-none focus:ring-2 focus:ring-amber-300`}
+                      />
+                      {unit && <span className="text-xs text-neutral-500">{unit}</span>}
+                      <span className="text-[10px] text-neutral-400 ml-auto font-mono">{key}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-[11px] text-neutral-600 leading-relaxed">
+          <strong>Nota:</strong> i widget Vini leggono questi valori in cache.
+          Dopo aver salvato, può servire un refresh della pagina (Ctrl+Shift+R) per
+          vederli applicati ovunque. I valori sono per-locale (multi-tenant).
+        </div>
+      </div>
+    );
+  };
+
+  // -------------------------------------------------------
   // MARKUP PREZZI — handler
   // -------------------------------------------------------
   const markupFlash = (msg) => { setMarkupMsg(msg); setTimeout(() => setMarkupMsg(""), 5000); };
@@ -1944,6 +2160,7 @@ export default function ViniImpostazioni() {
     markup: renderMarkup,
     locazioni: renderLocazioni,
     stati: renderStati,
+    widget: renderWidget,
     manutenzione: renderManutenzione,
   };
 

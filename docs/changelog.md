@@ -20,6 +20,20 @@
 - **Trailing slash route Vini** `[core]`. Censiti tutti gli endpoint del modulo Vini con `/` finale dichiarato: 5 in `vini_magazzino_router.py` (lista `GET/POST /`, `carta-staff/`, `calici-disponibili/`, `ordini-pending/`) + 3 in `bevande_router.py` (`sezioni/`, `voci/` GET/POST). Verificate tutte le chiamate FE corrispondenti: nessun mismatch. Il modulo è conforme alla regola CLAUDE.md sul trailing slash. Nessuna modifica al codice.
 - **QTA_TOTALE già read-only via API** `[core]`. Audit: Pydantic `VinoMagazzinoBase`/`Update` non avevano `QTA_TOTALE` → impossibile patcharlo via FastAPI (audit precedente era impreciso, riga 127 del router era `QTA_LOC3`, non `QTA_TOTALE`). FE usa `QTA_TOTALE` solo in lettura. Aggiunto `data.pop("QTA_TOTALE", None)` in `update_vino` (`vini_magazzino_db.py:893`) come safety: se qualcuno in futuro chiamerà direttamente la funzione Python con `QTA_TOTALE` nel dict, viene scartato e ricalcolato da `_recalc_qta_totale` se le locazioni cambiano.
 
+### Aggiunto (V-H.G)
+- **12 soglie operative Vini ora configurabili** `[core]`. Mig 123 introduce la tabella `vini_widget_settings` in `vini_settings.sqlite3` (key/value/tipo/descrizione/updated_at). Soglie raccolte da 6 file diversi:
+  - `calici_fresh_hours` (default 12), `calici_alert_hours` (36) — widget Calici Disponibili
+  - `vini_fermi_giorni` (30), `top_vendute_giorni` (30) — Dashboard Vini
+  - `qta_suggerita_giorni_storico` (60), `qta_suggerita_divisore` (2) — alert riordino
+  - `ritmo_soglia_top` (5), `ritmo_soglia_medio` (1) — classificazione `vini_metrics`
+  - `decidi_calice_soglia_warn_pct` (40), `decidi_calice_soglia_block_pct` (50) — modale prezzo calice
+  - `prezzo_calice_divisore` (5), `prezzo_calice_step_round` (0.5) — auto-calc prezzo calice
+- **Service** `app/services/vini_widget_settings_service.py` — cache process-life, helper `calcola_prezzo_calice_default(prezzo_carta)` riusato da 4 punti (carta-staff, calici-disponibili, vini_repository, ricalcola-calici bulk). Single source of truth dei default (la migration importa da qui).
+- **Endpoint** in `vini_settings_router.py`: `GET/PUT /settings/vini/widget/`, `POST /settings/vini/widget/reset` (admin).
+- **Hook FE** `useViniWidgetSettings.js` con cache.
+- **UI Impostazioni Vini → nuova sezione "Widget e soglie"** in `ViniImpostazioni.jsx`. Raggruppata per area, edit inline + Salva batch (con count modifiche pending) + Reset default (admin).
+- **Refactor consumer**: `vini_metrics.py`, `vini_magazzino_db.py` (3 query interpolate), `vini_magazzino_router.py`, `vini_repository.py`, `vini_pricing_router.py`, `vini_router.py`, `CaliciDisponibiliCard.jsx`, `DecidiPrezzoCalice.jsx`.
+
 ---
 
 ## 2026-05-11 — G.7 + G.8 + 5 bug fix + ripristino dati audit

@@ -290,19 +290,22 @@ def ricalcola_tutti(
 
 # ── Endpoint: ricalcola calici ───────────────────────────
 
-@router.post("/ricalcola-calici", summary="Ricalcola PREZZO_CALICE su tutti i vini (auto = PREZZO_CARTA / 5, arrotondato a 0.50)")
+@router.post("/ricalcola-calici", summary="Ricalcola PREZZO_CALICE su tutti i vini (auto = PREZZO_CARTA / N step K, configurabile via widget_settings)")
 def ricalcola_calici(
     current_user: Any = Depends(get_current_user),
 ):
     """
     Per ogni vino con PREZZO_CALICE_MANUALE = 0 (auto):
-    - Se PREZZO_CARTA > 0 → PREZZO_CALICE = PREZZO_CARTA / 5, arrotondato al
-      €0.50 più vicino (es. 8.70 → 8.50, 8.80 → 9.00). Coerente con la stessa
-      logica di arrotondamento usata per PREZZO_CARTA e con i form frontend.
+    - Se PREZZO_CARTA > 0 → PREZZO_CALICE = PREZZO_CARTA / N, arrotondato a
+      step K (default N=5 K=0.50 → es. 8.70 → 8.50, 8.80 → 9.00).
+      Divisore e step configurabili via widget_settings (sessione 2026-05-12
+      V-H.G).
     - Altrimenti → PREZZO_CALICE = NULL
     Non tocca i prezzi manuali (PREZZO_CALICE_MANUALE = 1).
     """
     _require_admin(current_user)
+
+    from app.services.vini_widget_settings_service import calcola_prezzo_calice_default
 
     rows = db.search_vini()  # tutti i vini
     aggiornati = 0
@@ -324,7 +327,10 @@ def ricalcola_calici(
             senza_prezzo += 1
             continue
 
-        nuovo = _round_to_half(prezzo_carta / 5)
+        nuovo = calcola_prezzo_calice_default(prezzo_carta)
+        if nuovo is None:
+            senza_prezzo += 1
+            continue
         attuale = r.get("PREZZO_CALICE")
 
         if attuale is not None and abs(nuovo - attuale) < 0.01:

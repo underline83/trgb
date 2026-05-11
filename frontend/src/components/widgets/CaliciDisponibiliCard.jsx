@@ -18,14 +18,15 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import useViniWidgetSettings from "../../hooks/useViniWidgetSettings";
 
 // Soglie di età della bottiglia in mescita (in ore).
+// Sessione 2026-05-12 (V-H.G): valori letti da vini_widget_settings.
+// I default (12 / 36) sono fallback se la fetch non è ancora completata.
 // Colore riga + alert dipendono dalla zona:
-//   < FRESH_HOURS                   → sfondo verde (fresca)
-//   FRESH_HOURS ≤ età < ALERT_HOURS → sfondo giallo (attenzione)
-//   ≥ ALERT_HOURS                   → sfondo rosso + icona ⚠
-const FRESH_HOURS = 12;
-const ALERT_HOURS = 36;
+//   < freshHours                  → sfondo verde (fresca)
+//   freshHours ≤ età < alertHours → sfondo giallo (attenzione)
+//   ≥ alertHours                  → sfondo rosso + icona ⚠
 
 /** Ritorna le ore trascorse da una data ISO. Null se data invalida. */
 function hoursSince(isoString) {
@@ -55,6 +56,9 @@ export default function CaliciDisponibiliCard({
   const [vini, setVini] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const { get: getSetting } = useViniWidgetSettings();
+  const FRESH_HOURS = Number(getSetting("calici_fresh_hours", 12));
+  const ALERT_HOURS = Number(getSetting("calici_alert_hours", 36));
 
   const fetchVini = useCallback(async () => {
     setLoading(true);

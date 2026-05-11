@@ -32,8 +32,21 @@ Censiti tutti gli endpoint backend del modulo Vini con `/` finale dichiarato (5 
 ### V-H.D — QTA_TOTALE read-only via API + cintura+bretelle DB `[core]`
 Audit: Pydantic `VinoMagazzinoBase`/`Update` **non avevano** `QTA_TOTALE` → era già impossibile patcharlo via API (mio audit precedente era impreciso). FE usa `QTA_TOTALE` solo in lettura (display, filtri, sort), mai in payload. Aggiunto `data.pop("QTA_TOTALE", None)` in `update_vino` (`vini_magazzino_db.py:893`) come safety contro chiamate dirette future. Nessuna modifica FE necessaria.
 
+### V-H.G — Soglie configurabili Vini (mig 123 + UI Impostazioni) `[core]`
+**12 soglie operative** estratte dal codice e migrate a `vini_widget_settings` (DB `vini_settings.sqlite3`, tabella key/value/tipo/descrizione/updated_at, seed via mig 123). Pattern coerente con `dipendenti_settings` (mig 118). Lavoro completo in un solo commit:
+
+- **Migration 123** — `app/migrations/123_vini_widget_settings.py`. Idempotente (INSERT OR IGNORE). 12 default seedati.
+- **Service `vini_widget_settings_service.py`** — single source of truth dei default (importati anche dalla migration), cache process-life invalidabile, helper `calcola_prezzo_calice_default(prezzo_carta)` riusato da 4 punti.
+- **Endpoint** in `vini_settings_router.py`: `GET /settings/vini/widget/`, `PUT /settings/vini/widget/` (batch update), `POST /settings/vini/widget/reset` (admin only).
+- **Hook FE** `useViniWidgetSettings.js` — cache process-life, expone `get(key, default)`.
+- **Refactor consumer**:
+  - BE: `vini_metrics.py` (ritmo top/medio), `vini_magazzino_db.py` (vini_fermi 30gg, top_vendute 30gg, qta_suggerita 60gg/2), `vini_magazzino_router.py`+`vini_repository.py`+`vini_pricing_router.py` (prezzo calice via helper)
+  - FE: `CaliciDisponibiliCard.jsx` (fresh/alert hours), `DecidiPrezzoCalice.jsx` (soglie warn/block %)
+- **UI**: nuova sezione "Widget e soglie" in `ViniImpostazioni.jsx`, raggruppata per area (Calici / Dashboard / Riordino / Ritmo / Prezzo calice). Edit inline + Salva batch + Reset default (admin).
+
+Le 12 soglie sono: `calici_fresh_hours` (12), `calici_alert_hours` (36), `vini_fermi_giorni` (30), `top_vendute_giorni` (30), `qta_suggerita_giorni_storico` (60), `qta_suggerita_divisore` (2), `ritmo_soglia_top` (5), `ritmo_soglia_medio` (1), `decidi_calice_soglia_warn_pct` (40), `decidi_calice_soglia_block_pct` (50), `prezzo_calice_divisore` (5), `prezzo_calice_step_round` (0.5).
+
 ### Task di hardening tecnico ancora aperti (per la prossima sessione)
-- **V-H.G** Soglie configurabili Vini (tabella settings + UI Impostazioni) — Marco ha esplicitamente vietato di hardcodare soglie operative da ora in poi (memoria salvata)
 - **V-H.E** Normalizzazione 5 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE, DISCONTINUATO)
 - **V-H.F** Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint (decisione semantica da prendere con Marco prima di partire)
 

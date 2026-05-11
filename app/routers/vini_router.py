@@ -167,7 +167,8 @@ def get_carta_cliente_data():
     """
     # ---- CALICI ----
     # Nota: load_vini_calici() ritorna un dict con campo PREZZO che e' gia'
-    # il prezzo al calice (con fallback PREZZO_CARTA/5 se PREZZO_CALICE manca).
+    # il prezzo al calice (con fallback configurabile, default PREZZO_CARTA/5
+    # step 0.5 — vedi widget_settings sessione 2026-05-12 V-H.G).
     calici_rows = list(load_vini_calici())
     calici = []
     for r in calici_rows:

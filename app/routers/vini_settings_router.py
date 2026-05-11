@@ -319,3 +319,58 @@ def reset_impostazioni():
     ensure_settings_defaults()
 
     return {"status": "ok", "msg": "Impostazioni ripristinate ai valori di default."}
+
+
+# ============================================================
+# WIDGET SETTINGS (Vini)
+# ------------------------------------------------------------
+# Modulo: vini
+# Soglie operative configurabili (calici, dashboard, ritmo, prezzo calice)
+# storate in `vini_widget_settings` (mig 123, sessione 2026-05-12).
+# Consumer: CaliciDisponibiliCard, DecidiPrezzoCalice, DashboardVini,
+# vini_metrics.py, vini_magazzino_db.py (cutoff dashboard).
+# ============================================================
+from app.services import vini_widget_settings_service as wss
+from app.services.auth_service import is_admin
+
+
+@router.get("/widget/")
+def get_widget_settings() -> Dict[str, Any]:
+    """Ritorna tutti i settings widget: { key: {value, raw, tipo, descrizione, updated_at} }."""
+    return wss.get_all_widget_settings()
+
+
+@router.put("/widget/")
+def update_widget_settings(data: Dict[str, Any], current_user: Any = Depends(get_current_user)):
+    """
+    Aggiorna uno o più settings widget. Body: { key1: value, key2: value, ... }
+    Sole chiavi esistenti vengono aggiornate; le altre vengono ignorate.
+    Ritorna { updated: [keys], skipped: [keys] }.
+    """
+    if not isinstance(data, dict) or not data:
+        raise HTTPException(400, "Body deve essere un dict { key: value } non vuoto.")
+
+    updated = []
+    skipped = []
+    for key, value in data.items():
+        ok = wss.set_widget_setting(key, value)
+        if ok:
+            updated.append(key)
+        else:
+            skipped.append(key)
+
+    return {"status": "ok", "updated": updated, "skipped": skipped}
+
+
+@router.post("/widget/reset")
+def reset_widget_settings_endpoint(current_user: Any = Depends(get_current_user)):
+    """Ripristina tutti i settings widget ai default. Solo admin."""
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if not is_admin(role):
+        raise HTTPException(403, "Operazione riservata agli admin.")
+
+    n = wss.reset_widget_settings()
+    return {"status": "ok", "righe": n}

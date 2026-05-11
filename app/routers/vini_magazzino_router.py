@@ -35,6 +35,14 @@ router = APIRouter(
 )
 
 
+# Helper prezzo calice default (sessione 2026-05-12, V-H.G): single source of
+# truth nel service vini_widget_settings_service. Importato qui come alias
+# per leggibilità.
+from app.services.vini_widget_settings_service import (
+    calcola_prezzo_calice_default as _prezzo_calice_da_carta,
+)
+
+
 # ---------------------------------------------------------
 # SCHEMI Pydantic
 # ---------------------------------------------------------
@@ -584,14 +592,11 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
         d = dict(r)
         qta_tot = int(d.get("QTA_TOTALE") or 0)
         bottiglia_aperta = bool(d.get("BOTTIGLIA_APERTA") or 0)
-        # Prezzo calice effettivo (fallback PREZZO_CARTA / 5, arrotondato a 0.50)
+        # Prezzo calice effettivo (fallback configurabile da widget_settings,
+        # default PREZZO_CARTA / 5 step 0.5)
         prezzo_calice = d.get("PREZZO_CALICE")
         if prezzo_calice is None or prezzo_calice == 0:
-            pc = d.get("PREZZO_CARTA")
-            if pc and pc > 0:
-                prezzo_calice = _round_to_half(pc / 5)
-            else:
-                prezzo_calice = None
+            prezzo_calice = _prezzo_calice_da_carta(d.get("PREZZO_CARTA"))
         is_calice = (d.get("VENDITA_CALICE") or "") == "SI" or bottiglia_aperta
         # Locazioni con qta non zero
         loc_list = []
@@ -666,17 +671,16 @@ def list_calici_disponibili(current_user: Any = Depends(get_current_user)):
     ).fetchall()
     conn.close()
 
-    # Sessione 2026-05-11: fallback PREZZO_CALICE = PREZZO_CARTA / 5 (a step 0,50)
-    # quando manca o è 0. Stessa logica già in /carta-staff/ riga 583-589 e in
-    # repositories/vini_repository.py. Senza fallback alcuni vini non mostrano il
-    # prezzo nel widget anche se hanno il prezzo bottiglia valorizzato.
+    # Sessione 2026-05-11: fallback PREZZO_CALICE = PREZZO_CARTA / N (step K)
+    # quando manca o è 0. Sessione 2026-05-12 (V-H.G): divisore e step
+    # configurabili via widget_settings, helper _prezzo_calice_da_carta.
     out = []
     for r in rows:
         d = dict(r)
         if not d.get("PREZZO_CALICE"):
-            pc = d.get("PREZZO_CARTA")
-            if pc and pc > 0:
-                d["PREZZO_CALICE"] = _round_to_half(pc / 5)
+            pc = _prezzo_calice_da_carta(d.get("PREZZO_CARTA"))
+            if pc is not None:
+                d["PREZZO_CALICE"] = pc
         out.append(d)
     return out
 

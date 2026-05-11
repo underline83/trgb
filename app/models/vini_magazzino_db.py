@@ -1807,6 +1807,21 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     # per evitare dipendenze circolari a modulo top-level.
     from app.utils.vini_metrics import calcola_ritmo_vendita, DATA_INIZIO_STORICO
 
+    # Soglie configurabili (sessione 2026-05-12, V-H.G). Lette qui una volta
+    # e interpolate nelle query SQLite sotto. Fallback ai valori storici se
+    # il service non riesce a leggere il DB settings.
+    try:
+        from app.services.vini_widget_settings_service import get_widget_setting
+        SETTING_VINI_FERMI_GIORNI = int(get_widget_setting("vini_fermi_giorni", default=30))
+        SETTING_TOP_VENDUTE_GIORNI = int(get_widget_setting("top_vendute_giorni", default=30))
+        SETTING_QTA_SUGG_GIORNI = int(get_widget_setting("qta_suggerita_giorni_storico", default=60))
+        SETTING_QTA_SUGG_DIV = float(get_widget_setting("qta_suggerita_divisore", default=2))
+    except Exception:
+        SETTING_VINI_FERMI_GIORNI = 30
+        SETTING_TOP_VENDUTE_GIORNI = 30
+        SETTING_QTA_SUGG_GIORNI = 60
+        SETTING_QTA_SUGG_DIV = 2.0
+
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
@@ -1849,7 +1864,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                 FROM vini_magazzino_movimenti m
                 WHERE m.vino_id = v.id
                   AND m.tipo = 'VENDITA'
-                  AND datetime(m.data_mov) >= datetime('now', '-60 days')
+                  AND datetime(m.data_mov) >= datetime('now', '-{SETTING_QTA_SUGG_GIORNI} days')
                ) AS vendite_60gg,
                (SELECT COALESCE(SUM(m.qta), 0)
                 FROM vini_magazzino_movimenti m
@@ -1884,7 +1899,9 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     ).fetchall()
 
     # Post-processo:
-    #  - `qta_suggerita`: regola Fase A (60gg ÷ 2, floor 1). Immutata.
+    #  - `qta_suggerita`: regola Fase A (vendite_N_giorni ÷ K, floor 1).
+    #    N = qta_suggerita_giorni_storico (default 60), K = qta_suggerita_divisore
+    #    (default 2). Entrambi configurabili da widget_settings.
     #  - `ritmo_vendita`: dict completo da calcola_ritmo_vendita() — alimenta
     #    il nuovo badge combo "Finito ~Xgg · N bt/mese · top/medio/poco/mai".
     def _enrich(row):
@@ -1894,7 +1911,10 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             v60 = int(v60)
         except (TypeError, ValueError):
             v60 = 0
-        d["qta_suggerita"] = max(1, round(v60 / 2)) if v60 > 0 else None
+        if v60 > 0 and SETTING_QTA_SUGG_DIV > 0:
+            d["qta_suggerita"] = max(1, round(v60 / SETTING_QTA_SUGG_DIV))
+        else:
+            d["qta_suggerita"] = None
 
         vtot = d.pop("vendite_totali", 0) or 0
         try:
@@ -1977,9 +1997,9 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         """
     ).fetchall()
 
-    # Top 8 vini più venduti negli ultimi 30 giorni
+    # Top 8 vini più venduti nella finestra configurabile (default 30 giorni).
     top_venduti = cur.execute(
-        """
+        f"""
         SELECT
             v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
             SUM(m.qta) AS tot_vendute,
@@ -1987,14 +2007,15 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         FROM vini_magazzino_movimenti m
         JOIN vini_magazzino v ON v.id = m.vino_id
         WHERE m.tipo = 'VENDITA'
-          AND datetime(m.data_mov) >= datetime('now', '-30 days')
+          AND datetime(m.data_mov) >= datetime('now', '-{SETTING_TOP_VENDUTE_GIORNI} days')
         GROUP BY m.vino_id
         ORDER BY tot_vendute DESC
         LIMIT 8;
         """
     ).fetchall()
 
-    # Vini fermi: QTA_TOTALE > 0 e nessun movimento negli ultimi 30 giorni
+    # Vini fermi: QTA_TOTALE > 0 e nessun movimento negli ultimi N giorni
+    # (N = vini_fermi_giorni, default 30, configurabile via widget_settings).
     # Include anche vini che non hanno MAI avuto movimenti (LEFT JOIN + IS NULL).
     # Subquery `vendite_totali` (da 2026-03-01) per calcolare il ritmo mensile
     # in post-processing Python (helper calcola_ritmo_vendita).
@@ -2014,7 +2035,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         WHERE v.QTA_TOTALE > 0
         GROUP BY v.id
         HAVING ultimo_movimento IS NULL
-            OR datetime(ultimo_movimento) < datetime('now', '-30 days')
+            OR datetime(ultimo_movimento) < datetime('now', '-{SETTING_VINI_FERMI_GIORNI} days')
         ORDER BY
             CASE WHEN ultimo_movimento IS NULL THEN 0 ELSE 1 END,
             v.QTA_TOTALE DESC, v.TIPOLOGIA, v.DESCRIZIONE;

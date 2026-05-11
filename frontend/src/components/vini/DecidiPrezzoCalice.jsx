@@ -13,6 +13,7 @@
 // auditabile dallo storico vendite del vino.
 
 import React, { useState, useEffect } from "react";
+import useViniWidgetSettings from "../../hooks/useViniWidgetSettings";
 
 /** Arrotonda a step 0,50 (es. 7,3 → 7,5; 7,1 → 7,0). */
 function roundToHalf(v) {
@@ -27,6 +28,7 @@ export default function DecidiPrezzoCalice({
 }) {
   const [prezzo, setPrezzo] = useState(defaultPrezzo);
   const [nota, setNota] = useState("");
+  const { get: getSetting } = useViniWidgetSettings();
 
   // Re-set del prezzo se cambia il vino selezionato
   useEffect(() => { setPrezzo(defaultPrezzo); setNota(""); }, [defaultPrezzo, vino?.id]);
@@ -34,16 +36,18 @@ export default function DecidiPrezzoCalice({
   const prezzoNum = Number(prezzo);
   const isValid = Number.isFinite(prezzoNum) && prezzoNum > 0;
 
-  // Soglie
-  const soglia40 = defaultPrezzo * 1.4;
-  const soglia50 = defaultPrezzo * 1.5;
+  // Soglie configurabili (sessione 2026-05-12, V-H.G). Default storici: 40% / 50%.
+  const warnPct = Number(getSetting("decidi_calice_soglia_warn_pct", 40));
+  const blockPct = Number(getSetting("decidi_calice_soglia_block_pct", 50));
+  const sogliaWarn = defaultPrezzo * (1 + warnPct / 100);
+  const sogliaBlock = defaultPrezzo * (1 + blockPct / 100);
 
   // Determina zona
   let zone = "ok"; // ok | basso | tolleranza-alta | alto
   if (isValid) {
     if (prezzoNum < defaultPrezzo) zone = "basso";
-    else if (prezzoNum <= soglia40) zone = "ok";
-    else if (prezzoNum <= soglia50) zone = "tolleranza-alta";
+    else if (prezzoNum <= sogliaWarn) zone = "ok";
+    else if (prezzoNum <= sogliaBlock) zone = "tolleranza-alta";
     else zone = "alto";
   }
 
@@ -112,12 +116,12 @@ export default function DecidiPrezzoCalice({
         )}
         {zone === "tolleranza-alta" && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[11px] text-amber-800 mt-2">
-            ℹ Prezzo superiore al sistema entro la tolleranza (+40% / +50%). OK.
+            ℹ Prezzo superiore al sistema entro la tolleranza (+{warnPct}% / +{blockPct}%). OK.
           </div>
         )}
         {zone === "alto" && (
           <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-[11px] text-red-800 mt-2">
-            ⚠ <strong>Prezzo molto superiore al sistema (+50%).</strong> Conferma
+            ⚠ <strong>Prezzo molto superiore al sistema (+{blockPct}%).</strong> Conferma
             con una nota di motivazione (es. annata particolare, edizione limitata,
             richiesta cliente).
           </div>

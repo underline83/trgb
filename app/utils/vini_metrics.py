@@ -92,11 +92,20 @@ def calcola_ritmo_vendita(
 
     bt_mese = vendite_totali / mesi_storico
 
-    if bt_mese >= 5:
+    # Soglie configurabili (sessione 2026-05-12, V-H.G). Fallback ai valori
+    # storici (5 e 1) se il service non riesce a leggere il DB settings.
+    try:
+        from app.services.vini_widget_settings_service import get_widget_setting
+        soglia_top = float(get_widget_setting("ritmo_soglia_top", default=5))
+        soglia_medio = float(get_widget_setting("ritmo_soglia_medio", default=1))
+    except Exception:
+        soglia_top, soglia_medio = 5.0, 1.0
+
+    if bt_mese >= soglia_top:
         categoria = "top"
         tone = "emerald"
         label = f"Top seller · {bt_mese:.1f} bt/mese"
-    elif bt_mese >= 1:
+    elif bt_mese >= soglia_medio:
         categoria = "medio"
         tone = "amber"
         label = f"Vende · {bt_mese:.1f} bt/mese"
