@@ -802,7 +802,6 @@ export default function ControlloGestioneUscite() {
                   { value: "VERIFICARE", label: "Verificare", n: allUscite.filter(u => u.stato === "VERIFICARE").length, act: "bg-orange-100 text-orange-900 border-orange-300" },
                   { value: "PAGATO",    label: "Pagato",      n: allUscite.filter(u => isChiuso(u.stato)).length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   { value: "PARZIALE",  label: "Parziale",    n: allUscite.filter(u => u.stato === "PARZIALE").length,  act: "bg-blue-100 text-blue-900 border-blue-300" },
-                  { value: "RATEIZZATO", label: "Rateizzato",  n: allUscite.filter(u => u.stato === "RATEIZZATO").length, act: "bg-purple-100 text-purple-900 border-purple-300" },
                 ].map(o => {
                   const active = filtroStato.has(o.value);
                   return (
