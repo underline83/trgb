@@ -8,6 +8,7 @@ import StatoRiconciliazioneBadge from "../../components/riconciliazione/StatoRic
 import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBancaPanel";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
+import { isChiuso } from "../../utils/statoPagamento";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -2374,7 +2375,10 @@ export default function ControlloGestioneSpeseFisse() {
                   <tbody>
                     {pianoRate.map((r, idx) => {
                       const badge = statoBadge(r.uscita_stato);
-                      const isPagata = ["PAGATO", "PAGATO_MANUALE"].includes(r.uscita_stato);
+                      // G.8: check macro centralizzato. Equivalente all'IN list
+                      // hardcoded ["PAGATO","PAGATO_MANUALE"], ma invariante per
+                      // costruzione se si aggiungono nuovi sotto-stati CHIUSI.
+                      const isPagata = isChiuso(r.uscita_stato);
                       const isParziale = r.uscita_stato === "PARZIALE";
                       const edit = _readEdit(pianoEdits[r.periodo]);
                       const displayValue = edit.importo !== undefined ? edit.importo : String(r.importo);

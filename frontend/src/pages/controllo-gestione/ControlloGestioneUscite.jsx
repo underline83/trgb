@@ -13,6 +13,7 @@ import FattureDettaglio from "../admin/FattureDettaglio";
 import Tooltip from "../../components/Tooltip";
 import ControlloGestioneNav from "./ControlloGestioneNav";
 import { Btn } from "../../components/ui";
+import { isChiuso, isPagatoKpi } from "../../utils/statoPagamento";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
@@ -206,8 +207,8 @@ export default function ControlloGestioneUscite() {
     }
     if (filtroStato.size > 0) {
       rows = rows.filter(u => {
-        // PAGATO del filtro include sia PAGATO che PAGATO_MANUALE
-        if (filtroStato.has("PAGATO") && (u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE")) return true;
+        // PAGATO del filtro include sia PAGATO che PAGATO_MANUALE = tutti i CHIUSI
+        if (filtroStato.has("PAGATO") && isChiuso(u.stato)) return true;
         return filtroStato.has(u.stato);
       });
     }
@@ -229,7 +230,10 @@ export default function ControlloGestioneUscite() {
   const kpi = useMemo(() => {
     const dp = filtered.filter(u => u.stato === "PROGRAMMATO");
     const sc = filtered.filter(u => u.stato === "SCADUTO");
-    const pg = filtered.filter(u => u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE" || u.stato === "PARZIALE");
+    // KPI "Pagato": include PARZIALE (è "in pagamento", non da programmare).
+    // Usa costante STATI_PAGATO_KPI da utils/statoPagamento (vs isChiuso che
+    // esclude PARZIALE perché PARZIALE è APERTO nella tassonomia G.8).
+    const pg = filtered.filter(u => isPagatoKpi(u.stato));
     return {
       da_pagare: dp.reduce((s, u) => s + (u.totale - u.importo_pagato), 0),
       n_da_pagare: dp.length,
@@ -246,7 +250,7 @@ export default function ControlloGestioneUscite() {
   const kpiTot = useMemo(() => ({
     n_da_pagare: allUscite.filter(u => u.stato === "PROGRAMMATO").length,
     n_scadute:   allUscite.filter(u => u.stato === "SCADUTO").length,
-    n_pagate:    allUscite.filter(u => u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE" || u.stato === "PARZIALE").length,
+    n_pagate:    allUscite.filter(u => isPagatoKpi(u.stato)).length,
   }), [allUscite]);
 
   const handleSort = (col) => {
@@ -791,7 +795,7 @@ export default function ControlloGestioneUscite() {
                   { value: "SCADUTO",   label: "Scaduto",     n: allUscite.filter(u => u.stato === "SCADUTO").length,   act: "bg-red-100 text-red-900 border-red-300" },
                   { value: "SPOSTATO",  label: "Spostato",    n: allUscite.filter(u => u.stato === "SPOSTATO").length,  act: "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300" },
                   { value: "VERIFICARE", label: "Verificare", n: allUscite.filter(u => u.stato === "VERIFICARE").length, act: "bg-orange-100 text-orange-900 border-orange-300" },
-                  { value: "PAGATO",    label: "Pagato",      n: allUscite.filter(u => u.stato === "PAGATO" || u.stato === "PAGATO_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                  { value: "PAGATO",    label: "Pagato",      n: allUscite.filter(u => isChiuso(u.stato)).length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
                   { value: "PARZIALE",  label: "Parziale",    n: allUscite.filter(u => u.stato === "PARZIALE").length,  act: "bg-blue-100 text-blue-900 border-blue-300" },
                 ].map(o => {
                   const active = filtroStato.has(o.value);

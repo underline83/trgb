@@ -12,6 +12,7 @@ import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
 import StatoPagamentoBadge from "../../components/StatoPagamentoBadge";
+import { isChiuso } from "../../utils/statoPagamento";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CG = `${API_BASE}/controllo-gestione`;
@@ -401,8 +402,10 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   const hdr = getFatturaHeader(statoUscita, isRateizzata);
 
   // "Giorni alla scadenza" per il KPI in testa: negativo = scaduta, 0 = oggi.
+  // G.8: il check "è pagata?" usa isChiuso() centralizzato invece di IN list.
   const gg = daysFromToday(scadenzaEff);
-  const ggLabel = fattura.pagato || statoUscita === "PAGATO" || statoUscita === "PAGATO_MANUALE"
+  const isFatturaChiusa = fattura.pagato || isChiuso(statoUscita);
+  const ggLabel = isFatturaChiusa
     ? "Pagata"
     : isRateizzata
       ? "Rateizzata"
@@ -414,7 +417,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
             ? "oggi"
             : `${gg} gg`;
   const ggClass =
-    (fattura.pagato || statoUscita === "PAGATO" || statoUscita === "PAGATO_MANUALE") ? "text-emerald-700" :
+    isFatturaChiusa                           ? "text-emerald-700" :
     isRateizzata                              ? "text-purple-700" :
     gg == null                                ? "text-neutral-400" :
     gg < 0                                    ? "text-red-700"    :
