@@ -54,12 +54,8 @@ export const STATO_RIORDINO = {
     color: "bg-orange-100 text-orange-800 border-orange-200",
     dot:   "bg-orange-400",
   },
-  O: {
-    label: "Finito — ordinare",
-    short: "O",
-    color: "bg-red-100 text-red-800 border-red-200",
-    dot:   "bg-red-500",
-  },
+  // 'O' (Finito — ordinare) rimosso 2026-05-11: ridondante con 'D'.
+  // Vecchi record con stato 'O' vengono trattati come 'D' dalle query.
   "0": {
     label: "Ordinato",
     short: "0",

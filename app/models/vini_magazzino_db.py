@@ -2055,6 +2055,8 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         # ricomprare). Spariscono dall'alert principale, ma compaiono qui per
         # tracciamento col fornitore (badge "Chiedere nuova annata" / "Non
         # ricomprare"). Frontend differenzia visivamente.
+        # 'O' rimosso dal flusso UI ma mantenuto in IN (...) per compat coi
+        # vecchi record (la mig 122 li migra a 'D').
         riordini_where = """
             WHERE v.STATO_RIORDINO IN ('D', 'O', '0', 'A', 'X')
                OR (v.QTA_TOTALE = 0 AND v.CARTA = 'SI'

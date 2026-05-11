@@ -1320,19 +1320,22 @@ export default function DashboardVini() {
             return Math.floor(diff / 86400000);
           };
 
-          // Sessione 2026-05-11: estesi i label per A (Annata esaurita) e X
-          // (Non ricomprare). Ora il widget li include con badge differenziato
-          // per tracciamento col fornitore (es. "chiedere nuova annata").
+          // Sessione 2026-05-11: 'O' (Finito/Ordina) rimosso — ridondante con 'D'.
+          // Mig 122 migra eventuali 'O' residui a 'D'. La mappa lo mantiene
+          // come fallback ma con stessa rappresentazione di D, così se sopravvive
+          // qualche record vecchio viene comunque mostrato.
+          // Esteso con A (Annata esaurita) e X (Non ricomprare) per tracciamento
+          // col fornitore.
           const SR_LABELS = {
             D: "Da ordinare",
-            O: "Finito, ordinare",
+            O: "Da ordinare",  // alias di D per compat
             "0": "Ordinato",
             A: "Chiedere nuova annata",
             X: "Non ricomprare",
           };
           const SR_CLS = {
             D: "bg-orange-100 text-orange-800 border-orange-200",
-            O: "bg-red-100 text-red-800 border-red-200",
+            O: "bg-orange-100 text-orange-800 border-orange-200",  // alias di D
             "0": "bg-blue-100 text-blue-800 border-blue-200",
             A: "bg-purple-100 text-purple-800 border-purple-200",
             X: "bg-neutral-200 text-neutral-600 border-neutral-300",
