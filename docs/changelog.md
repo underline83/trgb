@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-05-11 — G.7 Sposta data + 4 bug fix Vendite/CG
+
+### Aggiunto
+- **G.7 — UX "Sposta data" sulle scadenze cg_uscite** `[core]`. Card scadenza in `FattureDettaglio.jsx` ora 2 sotto-celle: "Scadenza iniziale" (read-only, dal XML SDI) + "Programmata" (editabile). Bottone "Sposta data" → modifica la programmata e setta automaticamente stato a `SPOSTATO`, preservando `data_scadenza_originale` alla prima rinegoziazione. Bottone "Ripristina originale" → reset `data_scadenza ← data_scadenza_originale` con ricalcolo `SCADUTO`/`PROGRAMMATO`. Endpoint backend: `PUT /controllo-gestione/uscite/{id}/scadenza` esteso + nuovo `PUT /controllo-gestione/uscite/{id}/ripristina-data`. Chip "Spostato" aggiunto in `FattureElenco.jsx` (drill-down filtro pagamento) e in `ControlloGestioneUscite.jsx` (palette fuchsia).
+- **Bottone "Riapri rata" in modale Piano Rate (CG Spese Fisse)** `[core]`. Per le rate `PAGATO_MANUALE` o `PAGATO` Marco può ora annullare l'errato segna-pagato dalla UI invece di doverlo fare in DB. Per le rate riconciliate banca, prima scollega il link (`DELETE /uscite/{id}/riconcilia`), poi cambia stato a `PROGRAMMATO`. Conferma utente differenziata per i due casi. File: `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx`.
+
+### Risolto
+- **Pagina Chiusure Turno completamente vuota** `[core]`. `frontend/src/pages/admin/ChiusureTurnoLista.jsx` faceva fetch a `${API}/admin/finance/shift-closures?from_date=...` senza trailing slash. FastAPI con `prefix="/admin/finance/shift-closures"` + `@router.get("/")` rispondeva 307 redirect → in alcuni setup di proxy l'header `Authorization` veniva strippato → 401 silente → frontend con `res.ok ? res.json() : []` cadeva in array vuoto. Marco non vedeva 401 in console perché il file usa `fetch()` diretto, non `apiFetch()`. Aggiunto trailing slash + commento esplicativo per evitare regressioni.
+- **Widget Home "Incasso ieri" gonfiato (double-counting del pranzo)** `[core]`. `dashboard_router._incasso_ieri()` faceva `SUM(totale_incassi)` su pranzo+cena. Ma nel form Chiusura Turno i campi della CENA sono inseriti come valori CUMULATIVI giornalieri ("valori giornalieri — i parziali cena sono calcolati", lo dice anche `ChiusuraTurno.jsx:591`), mentre il pranzo contiene solo i parziali. Quindi sommare contava due volte il pranzo. Esempio 10/05: 1.963 (pranzo) + 2.866 (cena cumulativo) = 4.829 mostrato → corretto 2.866. Fix: `COALESCE(MAX(CASE WHEN turno='cena' THEN totale_incassi END), MAX(CASE WHEN turno='pranzo' THEN totale_incassi END), 0)`. Coerente con `vendite_aggregator.giorni_merged()` riga 89 (`base = cena or pranzo`). Applicato anche al sub-query "media stesso giorno settimana". Coperti restano SUM (sono per-turno).
+- **Scadenzario Uscite: filtro periodo nasconde scaduti vecchi aperti** `[core]`. `ControlloGestioneUscite.jsx`: filtro `data_scadenza` era strict (`>= filtroDa AND <= filtroA`). Per uno scadenzario è controintuitivo: gli `SCADUTO` aperti devono restare visibili anche se la data è antecedente al range. Fix: `filtroDa` lascia passare gli `SCADUTO` indipendentemente dalla data. `filtroA` resta strict per non mostrare scadenze future al range. Il count del chip "Scaduto" ora include tutti gli scaduti aperti del periodo cumulativo.
+
+### Cambiato
+- **`app/routers/controllo_gestione_router.py`** — endpoint `PUT /uscite/{id}/scadenza` esteso (sessione G.7): se nuova data ≠ originale e stato in `('PROGRAMMATO','SCADUTO','SPOSTATO')`, setta `stato='SPOSTATO'` e salva `data_scadenza_originale` alla prima rinegoziazione. Nuovo endpoint `PUT /uscite/{id}/ripristina-data` (reset data + clear originale + ricalcolo stato).
+- **`app/routers/dashboard_router.py::_incasso_ieri`** — query refactored per evitare double-counting cena cumulativa.
+- **`frontend/src/pages/admin/FattureDettaglio.jsx`** — card scadenza ridisegnata in 2 sotto-celle (Iniziale + Programmata), bottoni Sposta/Ripristina, badge "spost.".
+- **`frontend/src/pages/admin/ChiusureTurnoLista.jsx`** — trailing slash fix.
+- **`frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx`** — colonna "Azioni" in tabella rate modale, funzione `riapriRata`.
+- **`frontend/src/pages/controllo-gestione/ControlloGestioneUscite.jsx`** — chip Spostato in palette fuchsia + filtro SCADUTO bypassa filtroDa.
+- **`docs/stato_pagamento_unificato.md`** — §12 (G.6 rename stati al maschile) + §13 (G.7 SPOSTATO + UX Sposta data).
+- **`docs/roadmap.md`** — G.7 marchiata ✅ FATTO.
+
+### Note
+- **1291 "Da riconciliare" nel chip CG Uscite**: 1118 fatture + 166 spese fisse + 7 stipendi marcati `PAGATO_MANUALE` senza match banca. 521 hanno origine `fic_pagato_raw=1` (Fatture in Cloud), 754 sono senza data_scadenza (probabili spese fisse storiche o stipendi import malformati). Da decidere: filtrare per orizzonte temporale recente per rendere il chip azionabile.
+- **Discrepanza RT vs canali Chiusure Turno (10/05)**: € 2.143 di scarto tra chiusura RT (2.686 = battuto su registratore telematico) e somma canali pagamento (4.829 = contanti+POS+thefork). Possibile errore di battitura RT o pre-conti aperti non ancora battuti. Non è bug software ma anomalia operativa da indagare con chi chiude i turni.
+
+---
+
 ## 2026-05-08 — Fix Home dashboard: 4 query rotte su moduli Vendite/Vini/Ricette/Flussi-cassa
 
 ### Risolto

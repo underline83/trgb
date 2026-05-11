@@ -1,6 +1,71 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-08 (II) (sessione: Widget Home config-driven + UI Impostazioni Selezioni)
+**Ultimo aggiornamento:** 2026-05-11 (sessione: G.7 sposta data + 4 bug fix Vendite/CG)
+
+---
+
+## SESSIONE 2026-05-11 — G.7 Sposta data + 4 bug fix (Chiusure, widget Home, Riapri rata, filtro scaduti)
+
+### Cosa ha mostrato Marco
+
+Sessione lunga partita da G.5/G.6/G.7 (refactor stato pagamento fatture e UX Sposta data), poi virata su 4 bug operativi che si sono palesati in sequenza nel modulo Vendite e Controllo di Gestione.
+
+### Cosa è stato fatto
+
+#### G.7 — UX "Sposta data" + completamento stato SPOSTATO `[core]`
+Implementata la UX dedicata per lo stato `SPOSTATO` aggiunto in G.6:
+- Backend: `PUT /controllo-gestione/uscite/{id}/scadenza` esteso (auto-setta `SPOSTATO` se data nuova ≠ originale + preserva `data_scadenza_originale` alla prima rinegoziazione). Nuovo endpoint `PUT /controllo-gestione/uscite/{id}/ripristina-data` (reset data + ricalcolo `SCADUTO`/`PROGRAMMATO`).
+- Frontend `FattureDettaglio.jsx`: card scadenza ridisegnata in 2 sotto-celle ("Scadenza iniziale" read-only da XML + "Programmata" editabile con bottoni "Sposta data"/"Ripristina originale" + badge "spost." quando attivo).
+- Chip "Spostato" aggiunto in `FattureElenco.jsx` (drill-down filtro pagamento riga 2) e in `ControlloGestioneUscite.jsx` (chip filtro con palette fuchsia).
+- Docs: `stato_pagamento_unificato.md` §13 + roadmap G.7 chiusa.
+
+#### Bug 1 — Chiusure Turno: pagina vuota da settimane `[core]`
+**Causa**: in `ChiusureTurnoLista.jsx` la fetch verso `${API}/admin/finance/shift-closures?from_date=...` era senza trailing slash. FastAPI con `prefix="/admin/finance/shift-closures"` + `@router.get("/")` esige URL canonico `/.../shift-closures/`. Senza slash, redirect 307 → in alcuni setup di proxy l'header `Authorization` viene strippato → 401 silente → frontend con `res.ok ? res.json() : []` ritornava array vuoto. Marco non vedeva 401 in console perché il file usa `fetch()` direct, non `apiFetch()`.
+**Fix**: aggiunto `/` prima del `?` + commento esplicativo. Tutti gli altri 14 fetch verso `shift-closures` nel frontend hanno già lo slash giusto.
+
+#### Bug 2 — Widget Home "Incasso ieri" double-counting `[core]`
+**Causa**: `_incasso_ieri()` in `dashboard_router.py` faceva `SUM(totale_incassi)` sui due record (pranzo+cena). Ma nel form Chiusura Turno i campi della CENA sono inseriti come valori CUMULATIVI giornalieri (commento esistente nella UI: "valori giornalieri — i parziali cena sono calcolati"), mentre il pranzo contiene solo i parziali. Quindi sommare conta due volte il pranzo. Per il 10/05: 1.963 (pranzo) + 2.866 (cena cumulativo) = 4.829 mostrato, ma il dato reale era 2.866.
+**Fix**: `COALESCE(MAX(cena), MAX(pranzo), 0)` invece di SUM. Coerente con `vendite_aggregator.giorni_merged()` riga 89 (`base = cena or pranzo`). Applicato anche al sub-query "media stesso giorno settimana". Coperti restano SUM (sono per-turno). Test su DB locale: 10/05 → 2.866 ✓, 03/05 solo-cena → 2.985 ✓.
+
+#### Bug 3 — Riapri rata pagata in modale Piano Rate `[core]`
+**Caso d'uso**: Marco aveva marcato per errore una rata di FAMIGLIA COTARELLA come pagata. Non aveva modo di riaprirla dalla UI (modale Piano Rate `disabled if isPagata`).
+**Fix**: aggiunta funzione `riapriRata` + nuova colonna "Azioni" in tabella rate. Bottone "↺ Riapri" condizionale:
+- `PAGATO_MANUALE` → conferma semplice → `PUT /controllo-gestione/uscita/{id}/stato-pagamento` con `PROGRAMMATO`
+- `PAGATO` (riconciliata banca) → conferma severa con data riconciliazione → prima `DELETE /uscite/{id}/riconcilia` poi `PUT stato-pagamento`
+- Disabilitato durante l'operazione, refresh modale + lista esterna a fine
+- Riusa endpoint M.3 esistente (sessione 04-27)
+
+#### Bug 4 — Scadenzario Uscite: filtro periodo nasconde scaduti vecchi `[core]`
+**Caso**: dopo aver riaperto la rata di marzo di Cotarella (data 15/03/2026, stato SCADUTO), filtrando "Maggio" nello Scadenzario Uscite la rata non appariva.
+**Causa**: filtro `data_scadenza` strict (`>= filtroDa AND <= filtroA`). Per uno scadenzario è controintuitivo: gli scaduti aperti devono restare visibili anche se la data è precedente al range.
+**Fix**: `filtroDa` lascia passare gli `SCADUTO` indipendentemente dalla data. `filtroA` resta strict (no scadenze future al range). Il count del chip "Scaduto" ora include tutti gli scaduti aperti del periodo cumulativo.
+
+### File modificati
+- `app/routers/controllo_gestione_router.py` — endpoint G.7 (scadenza esteso + ripristina-data)
+- `app/routers/dashboard_router.py` — fix double-counting widget Home
+- `app/migrations/114_rename_stati_uniformi.py` — già pushato in G.6
+- `app/services/fatture_stato_service.py` — già pushato in G.6
+- `frontend/src/pages/admin/FattureDettaglio.jsx` — 2-celle scadenza + Sposta data + Ripristina
+- `frontend/src/pages/admin/FattureElenco.jsx` — chip Spostato drill-down
+- `frontend/src/pages/admin/ChiusureTurnoLista.jsx` — fix trailing slash
+- `frontend/src/pages/controllo-gestione/ControlloGestioneUscite.jsx` — chip Spostato + filtro SCADUTO bypassa filtroDa
+- `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx` — bottone Riapri rata
+- `docs/stato_pagamento_unificato.md` — §12 G.6 + §13 G.7
+- `docs/roadmap.md` — G.7 ✅ FATTO
+- `docs/changelog.md` — voci sessione 2026-05-11
+
+### Commit suggeriti
+```
+[core] G.6+G.7: rename stati al maschile + SPOSTATO + UX Sposta data
+[core] Fix Chiusure Turno: trailing slash mancante in ChiusureTurnoLista.jsx
+[core] Fix widget Home Incasso ieri: SUM faceva double-count del pranzo
+[core] CG Spese Fisse: bottone 'Riapri' nella modale Piano Rate
+[core] CG Scadenzario: filtro periodo lascia passare SCADUTO sopra filtroDa
+```
+
+### Note operative aperte
+- **1291 Da riconciliare**: chip CG Uscite gonfio. 1118 fatture + 166 spese fisse + 7 stipendi, 521 da Fatture in Cloud (`fic_pagato_raw=1`), 754 senza `data_scadenza`. Da rivedere: filtro orizzonte temporale del chip (es. ultimi 24 mesi) per renderlo azionabile.
+- **Discrepanza RT vs canali Chiusure Turno**: per 10/05 il delta è € 2.143 (RT 2.686 vs incassi canali 4.829-1.963=2.866). Vale la pena indagare se è errore di battitura sul registratore o se ci sono pre-conti aperti non ancora battuti. Non è bug software.
 
 ---
 
