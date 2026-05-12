@@ -26,6 +26,7 @@ from app.routers import vini_router
 from app.routers import vini_settings_router
 from app.routers import vini_magazzino_router
 from app.routers import vini_cantina_tools_router
+from app.routers import vini_anagrafiche_router  # V.6+V.7+V.8 Fase 2
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
@@ -597,6 +598,7 @@ _mount("vini_settings_router", vini_settings_router.router)
 _mount("vini_router", vini_router.router)
 _mount("vini_magazzino_router", vini_magazzino_router.router)
 _mount("vini_cantina_tools_router", vini_cantina_tools_router.router)
+_mount("vini_anagrafiche_router", vini_anagrafiche_router.router)  # V.6+V.7+V.8 Fase 2
 
 # FOODCOST (modulo: ricette)
 _mount("foodcost_router", foodcost_router.router, prefix="/foodcost", tags=["foodcost"])
