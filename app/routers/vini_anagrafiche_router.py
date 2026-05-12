@@ -313,6 +313,29 @@ def update_denominazione(did: int, payload: DenominazioneUpdate, current_user: A
     return ana.get_denominazione(did)
 
 
+# Sync da eAmbrosia API + PDF MASAF (Fase 3)
+@router.post("/denominazioni/sync", summary="Sync denominazioni da eAmbrosia + PDF MASAF (admin)")
+def sync_denominazioni(
+    dry_run: bool = Query(False, description="Se true, solo preview senza scrivere"),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Scarica le denominazioni vino dall'API eAmbrosia (Commissione UE) e le
+    arricchisce con la menzione tradizionale italiana (DOC/DOCG/IGT) dai PDF
+    MASAF. Upsert su `codice_eambrosia` UNIQUE.
+
+    Usage:
+      - dry_run=true → preview con conteggi per nazione/tipo, nessuna scrittura
+      - dry_run=false → commit, popola/aggiorna `vini_denominazioni_v2`
+    """
+    _require_admin(current_user)
+    from app.services.vini_denominazioni_sync import sync_denominazioni as _sync
+    try:
+        return _sync(dry_run=dry_run)
+    except Exception as e:
+        raise HTTPException(500, f"Sync fallita: {e}")
+
+
 @router.delete("/denominazioni/{did}", summary="Elimina denominazione (admin)")
 def delete_denominazione(did: int, current_user: Any = Depends(get_current_user)):
     _require_admin(current_user)
