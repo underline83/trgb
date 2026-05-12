@@ -314,6 +314,34 @@ def update_denominazione(did: int, payload: DenominazioneUpdate, current_user: A
 
 
 # Sync da eAmbrosia API + PDF MASAF (Fase 3)
+# =====  MIGRAZIONE DATI DAL VECCHIO MODELLO (Fase 5) =====
+@router.post("/migrate-from-legacy", summary="Migra anagrafiche dai vini esistenti (admin)")
+def migrate_from_legacy_endpoint(
+    dry_run: bool = Query(True, description="Anteprima senza scrivere. SEMPRE provare prima con dry_run=true."),
+    force_reset: bool = Query(False, description="ATTENZIONE: cancella le _v2 prima di ripopolare (solo testing)."),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Pipeline completa di migrazione dei 1287 vini esistenti verso il nuovo
+    schema anagrafiche (refactor V.6+V.7+V.8 Fase 5):
+      1. produttori distinct → vini_produttori_v2
+      2. fornitori distinct (con rappresentante inline) → vini_fornitori_v2
+      3. denominazioni match best-effort → link a vini_denominazioni_v2
+      4. clustering (produttore, descrizione) → vini_madre_v2
+      5. link bottiglie → madre via madre_id
+      6. parser vitigni TEXT → 5 slot strutturati
+
+    Idempotente in modalità safe (non duplica righe esistenti).
+    Con `force_reset=true` svuota _v2 prima — uso solo per testing iterativo.
+    """
+    _require_admin(current_user)
+    from app.services.vini_anagrafiche_migrate import migrate_from_legacy
+    try:
+        return migrate_from_legacy(dry_run=dry_run, force_reset=force_reset)
+    except Exception as e:
+        raise HTTPException(500, f"Migrazione fallita: {e}")
+
+
 @router.post("/denominazioni/sync", summary="Sync denominazioni da eAmbrosia + PDF MASAF (admin)")
 def sync_denominazioni(
     dry_run: bool = Query(False, description="Se true, solo preview senza scrivere"),

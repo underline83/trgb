@@ -20,6 +20,17 @@
 - **Trailing slash route Vini** `[core]`. Censiti tutti gli endpoint del modulo Vini con `/` finale dichiarato: 5 in `vini_magazzino_router.py` (lista `GET/POST /`, `carta-staff/`, `calici-disponibili/`, `ordini-pending/`) + 3 in `bevande_router.py` (`sezioni/`, `voci/` GET/POST). Verificate tutte le chiamate FE corrispondenti: nessun mismatch. Il modulo è conforme alla regola CLAUDE.md sul trailing slash. Nessuna modifica al codice.
 - **QTA_TOTALE già read-only via API** `[core]`. Audit: Pydantic `VinoMagazzinoBase`/`Update` non avevano `QTA_TOTALE` → impossibile patcharlo via FastAPI (audit precedente era impreciso, riga 127 del router era `QTA_LOC3`, non `QTA_TOTALE`). FE usa `QTA_TOTALE` solo in lettura. Aggiunto `data.pop("QTA_TOTALE", None)` in `update_vino` (`vini_magazzino_db.py:893`) come safety: se qualcuno in futuro chiamerà direttamente la funzione Python con `QTA_TOTALE` nel dict, viene scartato e ricalcolato da `_recalc_qta_totale` se le locazioni cambiano.
 
+### V.6+V.7+V.8 — Refactor anagrafiche vini, Fase 5 (migrazione dati clustering)
+- **Service `vini_anagrafiche_migrate.py`** `[core]`. Pipeline di migrazione dei 1287 vini esistenti verso il nuovo schema anagrafiche:
+  1. Produttori distinct (normalizzazione UPPER+TRIM+squash spazi, scelta nome canonico per frequenza + lunghezza + alfabetico) → INSERT in `vini_produttori_v2`.
+  2. Fornitori distinct (con rappresentante inline scelto per frequenza) → INSERT in `vini_fornitori_v2`.
+  3. Match denominazioni best-effort (match esatto su `(nazione, nome)`, fallback con rimozione suffisso DOC/DOCG/IGT/AOC) → link a `vini_denominazioni_v2`.
+  4. Clustering `(produttore_norm, descrizione_norm)` → 1 riga `vini_madre_v2` per cluster, eredita dati anagrafici aggregati dalle bottiglie del cluster (tipologia/nazione/regione per most_common, grado_alcolico_tipico come media).
+  5. UPDATE bottiglie con `madre_id` (orfane: bottiglie senza produttore).
+  6. Parser VITIGNI TEXT con split su `,;/`, " e ", " & " + regex `\d+%` per percentuali. Match contro `vini_vitigni_v2` (case-insensitive) → popola 5 slot `vitigno_N_id` + `vitigno_N_pct`. Vitigni non riconosciuti restano in `VITIGNI TEXT` come fallback. Overflow oltre 5 slot conteggiato in report.
+- **Endpoint admin** `POST /vini/anagrafiche/migrate-from-legacy?dry_run=true|false&force_reset=true|false`. Report dettagliato per step: produttori (esempi varianti per dedup ambiguo), fornitori, denominazioni (counts exact/no_match/ambiguous), madre (esempi inseriti), bottiglie linkate/orfane, vitigni (counts match/no_match/overflow + top vitigni non riconosciuti per debug).
+- **Idempotente**: re-run safe (skip se anagrafiche già popolate). Con `force_reset=true` svuota `_v2` prima — solo per testing iterativo durante la validazione.
+
 ### V.6+V.7+V.8 — Refactor anagrafiche vini, Fase 4 (seed vitigni)
 - **Mig 127 — seed vitigni base** `[core]`. Popola `vini_vitigni_v2` con 60 vitigni canonici (33 italiani — bianchi + rossi — e 27 internazionali). Idempotente via `INSERT OR IGNORE` su `nome` UNIQUE. Note descrittive su ogni vitigno (es. "Cannonau" → "Sardegna. Stesso vitigno del Grenache francese"). L'utente può aggiungere altri vitigni custom via endpoint CRUD esistente `POST /vini/anagrafiche/vitigni/`. Italiani inclusi: Nebbiolo, Sangiovese, Barbera, Aglianico, Glera, Trebbiano, Vermentino, Pinot Nero, ecc. Internazionali: Pinot Noir, Cabernet Sauvignon, Merlot, Chardonnay, Sauvignon Blanc, Riesling, Syrah, Tempranillo, Malbec, ecc.
 

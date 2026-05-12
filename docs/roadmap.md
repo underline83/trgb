@@ -99,6 +99,22 @@ Priorità ridefinite con Marco 2026-05-12 (audit modulo Vini).
 | V-H.E | Normalizzazione 4 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE) + rimozione DISCONTINUATO (consolidato in STATO_RIORDINO='X') | M | FATTO 2026-05-12 (mig 124, single shot atomico, backup esplicito) |
 | V-H.I | Cleanup completo file legacy (`vini_model.py` con stub deprecati, DB `vini.sqlite3` se vuoto) | XS | DA VALUTARE (dopo verifica produzione) |
 | V-H.J | Import/Export Vini v2 (template + import + export, vecchio eliminato) | M | FATTO 2026-05-12 (3 endpoint nuovi, vecchi rimossi, UI Impostazioni rifatta) |
+
+### V.6+V.7+V.8 — Refactor strutturale anagrafiche vini (in corso)
+
+Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-green con tabelle `_v2` parallele, swap atomico finale.
+
+| Fase | Cosa | Stato |
+|---|---|---|
+| 1 | Mig 125 — setup impalcatura 6 tabelle `_v2` + copia 1287 bottiglie | FATTO 2026-05-13 |
+| 2 | Backend service + 26 endpoint CRUD `/vini/anagrafiche/...` | FATTO 2026-05-13 |
+| 3 | Seed denominazioni (1637 da eAmbrosia API + 505 italiane DOC/DOCG/IGT da PDF MASAF). Fix mig 126 vincolo UNIQUE + mapping nazioni esteso | FATTO 2026-05-13 |
+| 4 | Mig 127 — seed 60 vitigni canonici | FATTO 2026-05-13 |
+| **5** | **Migrazione dati esistenti** (clustering 1287 vini → produttori/madre/fornitori + parser vitigni TEXT → 5 slot) | **TODO domani — prioritario** |
+| 6 | UI gestione anagrafiche "🧪 beta" in ViniImpostazioni.jsx | TODO |
+| 7 | Service sync runtime (campi ridondanti dal madre → bottiglie) + endpoint rollback rapido | TODO |
+| 8 | Workflow nuovo inserimento vino 3-step (produttore → madre → annata) | TODO |
+| 10 | Cutover atomico (swap tabelle in transazione) | TODO finale |
 | V-H.F | Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint | M | TODO (da decidere semantica) |
 | V-H.G | Soglie configurabili (vini_settings + UI Impostazioni Vini) | M | FATTO 2026-05-12 (mig 123, 12 soglie, sezione "Widget e soglie") |
 | V-H.H | Allineamento docs §3.5 + roadmap V | XS | FATTO 2026-05-12 |

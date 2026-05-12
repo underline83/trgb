@@ -1,6 +1,86 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-12 (audit modulo Vini + hardening tecnico iniziato: A FORMATO bug, H docs alignment, V-BUG1 falso positivo accertato)
+**Ultimo aggiornamento:** 2026-05-13 (sera) — Refactor anagrafiche vini V.6+V.7+V.8: Fasi 1-4 completate (impalcatura + CRUD + 1637 denominazioni + 60 vitigni). Da fare domani: Fase 5 (migrazione dati clustering).
+
+---
+
+## SESSIONE 2026-05-13 — Refactor anagrafiche vini (Fasi 1-4)
+
+### Sintesi
+Sessione lunga: progettazione iterativa dello schema del refactor strutturale del modulo Vini (V.6 anagrafiche + V.7 vino madre + V.8 vitigni con %), discusso poco alla volta su richiesta di Marco. Strategia blue-green rinforzata. 4 fasi su 6 completate. Domani si parte da Fase 5 (migrazione dati clustering dei 1287 vini esistenti).
+
+### Decisioni di schema (tutte in `docs/refactor_anagrafiche_vini.md`)
+- **6 tabelle nuove** con suffisso `_v2` nello stesso file `vini_magazzino.sqlite3`:
+  - `vini_produttori_v2` (cantine, indirizzo validato)
+  - `vini_fornitori_v2` (distributori con rappresentante inline come campi `rappresentante_nome/telefono/email`)
+  - `vini_denominazioni_v2` (DOC/DOCG/IGT/AOC, codice_eambrosia UNIQUE come chiave naturale)
+  - `vini_vitigni_v2` (anagrafica canonica vitigni)
+  - `vini_madre_v2` (etichetta stabile, FK a produttori/fornitori/denominazioni)
+  - `vini_bottiglie_v2` (ex `vini_magazzino` + `madre_id` + 5 slot vitigno colonna)
+- **Decisione chiave**: scartato il "modulo Vini duplicato completo" — la blue-green è già abbastanza sicura, modulo duplicato avrebbe introdotto sync delta movimenti al cutover.
+- **Fornitore sul madre** (non sulla bottiglia): 1 vino = 1 distributore.
+- **Vitigni come 5 colonne** in `vini_bottiglie_v2` (non tabella di link): più snello, basta per il caso d'uso.
+- **Campi anagrafici duplicati e sincronizzati**: la fonte di verità è il madre, ma anche le bottiglie hanno copia coerente (sync via service Python, niente trigger SQLite).
+- **API eAmbrosia** trovata e validata: `GET /api/v1/geographical-indications` ritorna ~3995 voci EU. Per le italiane si arricchisce con menzione DOC/DOCG/IGT dai PDF MASAF.
+
+### Fase 1 — Setup impalcatura (mig 125)
+- Backup esplicito pre-mig + CREATE TABLE delle 6 tabelle `_v2` + copia 1287 vini da `vini_magazzino` → `vini_bottiglie_v2` (`madre_id` e 5 slot vitigno NULL).
+- Verifica: 6 tabelle create in produzione, `vini_bottiglie_v2` con 1287 righe.
+
+### Fase 2 — Backend CRUD anagrafiche
+- `app/models/vini_anagrafiche_db.py` (~440 righe): funzioni CRUD per le 5 anagrafiche.
+- `app/routers/vini_anagrafiche_router.py`: 26 endpoint REST su prefix `/vini/anagrafiche/`. Admin guard sulle scritture, FK validation su madre, DELETE protetto con 409 se record collegati.
+- Mappa nomi tabella centralizzata in costante `TABELLE` per facilitare lo swap finale.
+- Router registrato in `main.py`.
+
+### Fase 3 — Seed denominazioni
+- `app/services/vini_denominazioni_sync.py` (~280 righe): pipeline fetch eAmbrosia API → parse PDF MASAF italiani → compose con mapping euristico per nazioni non italiane (Francia AOC/IGP, Germania QbA/Landwein, Austria DAC/Landwein, Spagna DO/VdT, Portogallo DOC/Vinho Regional) → upsert su `codice_eambrosia` UNIQUE.
+- PDF MASAF copiati in `app/data/seed_denominazioni/` come asset di seed (490KB DOP + 426KB IGP).
+- Endpoint admin `POST /vini/anagrafiche/denominazioni/sync?dry_run=true|false`.
+- **Risultato**: 1637 denominazioni vino UE inserite. 523 italiane (di cui 505 con DOC/DOCG/IGT dal MASAF), 440 francesi, 149 spagnole, 147 greche, 54 rumene, 54 bulgare, 46 tedesche, 44 portoghesi, ecc.
+- **Fix necessari emersi in sessione**:
+  - Mig 126: rimosso vincolo `UNIQUE(nazione, nome, tipo)` su `vini_denominazioni_v2` perché eAmbrosia ha 5 casi rumeni con stesso nome+tipo ma codici diversi (es. "Dealu Mare" PDO x4). Chiave naturale corretta = `codice_eambrosia`.
+  - Regex `P[DG]O-IT-` corretto a `(?:PDO|PGI)-IT-` (matchava solo DOP, non IGP perché PGI ha P+G+I, non P+G+O).
+  - Mapping nazioni esteso con NL/BE/DK/SE/FI/PL/EE/LV/LT/IE.
+
+### Fase 4 — Seed vitigni base (mig 127)
+- 60 vitigni canonici: 33 italiani (Nebbiolo, Sangiovese, Glera, Trebbiano, ecc.) + 27 internazionali (Pinot Noir, Cabernet Sauvignon, Chardonnay, Syrah, ecc.).
+- Note descrittive su ogni vitigno (es. Cannonau = Grenache, Primitivo = Zinfandel).
+- INSERT OR IGNORE su `nome` UNIQUE — idempotente. L'utente può aggiungere altri via CRUD `POST /vini/anagrafiche/vitigni/`.
+
+### Stato DB post sessione
+```
+vini_produttori_v2     0    (popolato in Fase 5)
+vini_fornitori_v2      0    (popolato in Fase 5)
+vini_denominazioni_v2  1637 (sync eAmbrosia + MASAF)
+vini_vitigni_v2        60   (seed mig 127)
+vini_madre_v2          0    (popolato in Fase 5 via clustering)
+vini_bottiglie_v2      1287 (copia da vini_magazzino mig 125, madre_id NULL)
+```
+
+### Fasi rimaste (domani / sessioni successive)
+- **Fase 5** — Migrazione dati esistenti (PRIORITARIA domani). Algoritmo di clustering: estrae produttori distinct + fornitori + cluster `(produttore, descrizione)` → vini madre + link bottiglie → madre. Parser vitigni TEXT → 5 slot. Endpoint admin `POST /vini/anagrafiche/migrate-from-legacy?dry_run=true|false` con report cluster sospetti.
+- **Fase 6** — UI gestione anagrafiche "🧪 beta" in `ViniImpostazioni.jsx` (sub-menu nuovo).
+- **Fase 7** — Service `vini_anagrafiche_sync.py` (sync runtime campi ridondanti dal madre alle bottiglie) + endpoint admin rollback rapido.
+- **Fase 8** — Workflow nuovo inserimento vino 3-step (Scegli produttore → Scegli madre → Annata).
+- **Fase 10** — Cutover atomico (swap tabelle in transazione).
+
+### Note operative
+- **Backup automatico DB**: la mig 125 ha già creato `vini_magazzino.sqlite3.pre-mig-125-<ts>` come safety net.
+- **Marco superadmin**, login via `POST /auth/login` con `{"username":"marco","password":"5261"}`.
+- **Python venv**: `/home/marco/trgb/venv-trgb/bin/python` (non `/venv/`, è `/venv-trgb/`).
+- **Path DB**: `locali/tregobbi/data/vini_magazzino.sqlite3` (R6.5 layout).
+- **Auth service**: `create_access_token` vive in `app.core.security`, NON in `app.services.auth_service`.
+- **Endpoint API**: niente prefix `/api/` (path diretti tipo `https://trgb.tregobbi.it/vini/anagrafiche/stats/`).
+- **Push.sh non scarica DB v2 sul Mac**: nota di Marco da indagare in sessione futura (non urgente).
+
+### Memorie persistenti salvate
+- `reference_trgb_api_no_prefix.md` — niente `/api/` nelle URL.
+- (esistenti, non toccate oggi)
+
+---
+
+## SESSIONE 2026-05-12 — Audit modulo Vini + V-H.A/H/B chiusi
 
 ---
 
