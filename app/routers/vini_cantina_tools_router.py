@@ -44,7 +44,9 @@ from weasyprint import HTML, CSS
 from app.services.pdf_brand import wrappa_html_brand, safe_filename
 from app.services.auth_service import get_current_user, decode_access_token, is_admin
 from app.models import vini_magazzino_db as mag_db
-from app.models.vini_model import normalize_dataframe
+# V-H.J (sessione 2026-05-12): vini_model.normalize_dataframe eliminato.
+# Import/Export usa il nuovo formato v2 (service vini_xlsx_v2).
+from app.services import vini_xlsx_v2
 from app.services.carta_vini_service import (
     build_carta_body_html,
     build_carta_body_html_htmlsafe,
@@ -185,143 +187,103 @@ def reset_database(
 
 
 # =============================================================
-# 1. IMPORT DIRETTO EXCEL → CANTINA
+# 1. IMPORT / EXPORT v2 — formato unificato (V-H.J, sessione 2026-05-12)
+# -----------------------------------------------------------------
+# Sostituisce il vecchio /import-excel + /export-excel (eliminati).
+# Template, import e export hanno tutti lo stesso layout: round-trip pulito.
+# Vedi `app/services/vini_xlsx_v2.py` per il dettaglio del formato.
 # =============================================================
-@router.post("/import-excel", summary="Import diretto Excel → Cantina")
-async def import_excel_to_cantina(
+
+@router.get("/template-v2", summary="Scarica il template Excel ufficiale per inserire vini")
+def template_v2_download(
+    include_esempio: bool = Query(True, description="Includi 1 riga di esempio compilata"),
+    current_user: Any = Depends(_get_user_from_query_token),
+):
+    """
+    Genera il template `.xlsx` ufficiale per inserire vini nel sistema.
+    Fogli: Vini (header + esempio), Locazioni (dinamico), Riferimento valori,
+    Istruzioni. Usato sia per nuovi locali sia per data entry batch.
+    """
+    data = vini_xlsx_v2.generate_template_xlsx(include_esempio=include_esempio)
+    filename = f"trgb_template_vini_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import-v2", summary="Importa vini dal template v2 (skip se ID esiste)")
+async def import_v2(
     file: UploadFile = File(...),
     current_user: Any = Depends(get_current_user),
 ):
     """
-    Importa un file Excel direttamente nel DB cantina (senza passare
-    per vini.sqlite3). Usa normalize_dataframe per compatibilità.
-    I vini con id già presente vengono aggiornati (upsert su id_excel).
-    I vini nuovi vengono inseriti con giacenze dall'Excel.
+    Importa vini dal nuovo formato (template v2). Solo INSERT di vini nuovi:
+    - ID vuoto in Excel → inserisce un nuovo vino con ID auto-generato.
+    - ID popolato e già presente nel DB → SKIP (la riga viene saltata).
+    - ID popolato ma NON presente nel DB → errore di riga (dati ambigui).
+
+    Non sovrascrive mai i vini esistenti. Per modificare un vino, usa la sua
+    scheda dal gestionale.
     """
     _require_admin(current_user)
-
-    # Salva file temporaneo
-    suffix = Path(file.filename or "upload.xlsx").suffix
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
         content = await file.read()
-        tmp.write(content)
-        tmp.close()
-
-        df = pd.read_excel(tmp.name, sheet_name="VINI")
-        df = df.dropna(how="all")
-        df = normalize_dataframe(df)
+        result = vini_xlsx_v2.parse_import_xlsx(content)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Errore lettura Excel: {e}",
+            detail=f"Errore lettura import: {e}",
         )
-    finally:
-        os.unlink(tmp.name)
 
-    # Pre-carica mappa di vini esistenti per match veloce
-    conn_mag = mag_db.get_magazzino_connection()
-    cur_mag = conn_mag.cursor()
-    # Mappa: chiave naturale → id cantina (per match robusto)
-    natural_key_map = {}
-    for vrow in cur_mag.execute(
-        "SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO FROM vini_magazzino;"
-    ):
-        nk = (
-            (vrow["DESCRIZIONE"] or "").strip().upper(),
-            (vrow["PRODUTTORE"] or "").strip().upper(),
-            (vrow["ANNATA"] or "").strip(),
-            (vrow["FORMATO"] or "").strip(),
-        )
-        natural_key_map[nk] = vrow["id"]
-    conn_mag.close()
-
-    inseriti = 0
-    aggiornati = 0
-    errori = []
-
-    for ridx, row in df.iterrows():
-        try:
-            data = {
-                "TIPOLOGIA": row.get("TIPOLOGIA"),
-                "NAZIONE": row.get("NAZIONE"),
-                "REGIONE": row.get("REGIONE"),
-                "DESCRIZIONE": row.get("DESCRIZIONE"),
-                "DENOMINAZIONE": row.get("DENOMINAZIONE"),
-                "ANNATA": row.get("ANNATA"),
-                "FORMATO": row.get("FORMATO"),
-                "PRODUTTORE": row.get("PRODUTTORE"),
-                "DISTRIBUTORE": row.get("DISTRIBUTORE"),
-                "PREZZO_CARTA": row.get("PREZZO"),
-                "EURO_LISTINO": row.get("EURO_LISTINO"),
-                "SCONTO": row.get("SCONTO"),
-                "CARTA": _yn_to_int(row.get("CARTA")),
-                "IPRATICO": _yn_to_int(row.get("IPRATICO")),
-                "FRIGORIFERO": row.get("FRIGORIFERO"),
-                "LOCAZIONE_1": row.get("LOCAZIONE_1"),
-                "LOCAZIONE_2": row.get("LOCAZIONE_2"),
-                "ORIGINE": "EXCEL",
-            }
-
-            # Pulizia None/NaN
-            for k, v in data.items():
-                if pd.isna(v) if isinstance(v, float) else False:
-                    data[k] = None
-
-            # Se DESCRIZIONE è necessaria
-            if not data.get("DESCRIZIONE"):
-                continue
-            if not data.get("TIPOLOGIA"):
-                data["TIPOLOGIA"] = "ERRORE"
-            if not data.get("NAZIONE"):
-                data["NAZIONE"] = "SCONOSCIUTA"
-
-            # Cerca match per chiave naturale (DESCRIZIONE+PRODUTTORE+ANNATA+FORMATO)
-            nk = (
-                (data["DESCRIZIONE"] or "").strip().upper(),
-                (data.get("PRODUTTORE") or "").strip().upper(),
-                (data.get("ANNATA") or "").strip(),
-                (data.get("FORMATO") or "").strip(),
-            )
-            existing_id = natural_key_map.get(nk)
-
-            if existing_id:
-                # Aggiorna il vino esistente (senza toccare giacenze)
-                update_data = {
-                    k: v for k, v in data.items()
-                    if k not in ("QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_TOTALE")
-                    and v is not None
-                }
-                mag_db.update_vino(existing_id, update_data)
-                aggiornati += 1
-            else:
-                # Nuovo: importa con giacenze
-                data["QTA_FRIGO"] = int(row.get("N_FRIGO", 0) or 0)
-                data["QTA_LOC1"] = int(row.get("N_LOC1", 0) or 0)
-                data["QTA_LOC2"] = int(row.get("N_LOC2", 0) or 0)
-                data["QTA_TOTALE"] = int(row.get("QTA", 0) or 0)
-                # Serve almeno una locazione per create_vino
-                if not any([data.get("FRIGORIFERO"), data.get("LOCAZIONE_1"), data.get("LOCAZIONE_2")]):
-                    data["FRIGORIFERO"] = "Frigo"
-                new_id = mag_db.create_vino(data)
-                # Aggiungi alla mappa per evitare doppi inserimenti nello stesso import
-                natural_key_map[nk] = new_id
-                inseriti += 1
-
-        except Exception as e:
-            desc = row.get("DESCRIZIONE") or ""
-            prod = row.get("PRODUTTORE") or ""
-            errori.append(f"riga {ridx}: {desc} ({prod}): {e}")
-
+    msg_parts = []
+    if result["inseriti"]:
+        msg_parts.append(f"{result['inseriti']} vini inseriti")
+    if result["saltati_esistenti"]:
+        msg_parts.append(f"{result['saltati_esistenti']} righe saltate (ID già esistente)")
+    if result["errori"]:
+        msg_parts.append(f"{result['errori']} errori")
     return {
-        "status": "ok",
-        "righe_excel": len(df),
-        "inseriti": inseriti,
-        "aggiornati": aggiornati,
-        "errori": errori,
-        "msg": f"Import completato: {inseriti} nuovi, {aggiornati} aggiornati"
-        + (f", {len(errori)} errori" if errori else ""),
+        "status": "ok" if result["errori"] == 0 else "partial",
+        "inseriti": result["inseriti"],
+        "saltati_esistenti": result["saltati_esistenti"],
+        "errori": result["errori"],
+        "dettaglio_errori": result["dettaglio_errori"],
+        "msg": "Import completato: " + ", ".join(msg_parts) if msg_parts else "Nessuna riga importata",
     }
+
+
+@router.get("/export-v2", summary="Esporta tutti i vini nel formato template v2")
+def export_v2(
+    current_user: Any = Depends(_get_user_from_query_token),
+):
+    """
+    Esporta tutti i vini del DB in un file `.xlsx` con lo stesso layout del
+    template. Round-trip: scarica → modifica fuori sistema → reimporta (le
+    righe esistenti vengono saltate, le nuove inserite).
+    """
+    data = vini_xlsx_v2.generate_export_xlsx()
+    filename = f"trgb_vini_export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# =============================================================
+# (ELIMINATO V-H.J sessione 2026-05-12)
+# Vecchio import_excel_to_cantina + export_cantina_excel rimossi.
+# Logica spostata in app/services/vini_xlsx_v2.py + endpoint sopra.
+# =============================================================
+# V-H.J: il vecchio import_excel_to_cantina è stato eliminato.
+# Logica e formato v2 in `app/services/vini_xlsx_v2.py`.
+_LEGACY_IMPORT_PLACEHOLDER = (
+    "Il vecchio formato Excel (foglio 'VINI' con header normalizzato da "
+    "vini_model.normalize_dataframe) è stato eliminato il 2026-05-12. Usa il "
+    "template v2 scaricabile da /vini/cantina-tools/template-v2."
+)
 
 
 # =============================================================
@@ -401,148 +363,8 @@ def cleanup_duplicates(
     }
 
 
-# =============================================================
-# 3. EXPORT CANTINA → EXCEL
-# =============================================================
-@router.get("/export-excel", summary="Esporta cantina in Excel")
-def export_cantina_excel(
-    current_user: Any = Depends(_get_user_from_query_token),
-):
-    """
-    Genera un .xlsx con tutti i vini dal DB cantina,
-    in formato compatibile con l'Excel storico di lavoro.
-    """
-    # Pre-calcolo vendite_totali per vino con una sola query (evita N+1).
-    # Poi per ogni vino calcoliamo il ritmo in Python (funzione pura).
-    from app.utils.vini_metrics import calcola_ritmo_vendita, DATA_INIZIO_STORICO
-
-    conn = mag_db.get_magazzino_connection()
-    cur = conn.cursor()
-
-    vendite_map = {}
-    try:
-        for row in cur.execute(
-            """
-            SELECT vino_id, COALESCE(SUM(qta), 0) AS tot
-            FROM vini_magazzino_movimenti
-            WHERE tipo = 'VENDITA' AND date(data_mov) >= ?
-            GROUP BY vino_id
-            """,
-            (DATA_INIZIO_STORICO,),
-        ).fetchall():
-            try:
-                vendite_map[int(row["vino_id"])] = int(row["tot"] or 0)
-            except (TypeError, ValueError):
-                pass
-    except Exception:
-        # Se la tabella movimenti non esiste / e' vuota, proseguiamo con mappa vuota:
-        # tutti i vini risultano "Mai venduto". L'export non si rompe.
-        vendite_map = {}
-
-    rows = cur.execute(
-        """
-        SELECT *
-        FROM vini_magazzino
-        ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE, ANNATA
-        """
-    ).fetchall()
-    conn.close()
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "VINI"
-
-    # Header — ultime 3 colonne aggiunte 2026-04-24 per statistiche vendita.
-    headers = [
-        "ID", "TIPOLOGIA", "NAZIONE", "REGIONE",
-        "CARTA", "DESCRIZIONE", "ANNATA", "PRODUTTORE",
-        "DENOMINAZIONE", "FORMATO",
-        "PREZZO", "LISTINO", "SCONTO",
-        "FRIGORIFERO", "N", "LOCAZIONE 1", "N.1", "LOCAZIONE 2", "N.2",
-        "Q.TA", "DISTRIBUTORE", "IPRATICO", "ORIGINE",
-        "VENDITE TOT", "RITMO BT/MESE", "CATEGORIA RITMO",
-    ]
-
-    header_font = Font(bold=True, color="FFFFFF", size=10)
-    header_fill = PatternFill(start_color="6B2D5B", end_color="6B2D5B", fill_type="solid")
-    thin_border = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin"),
-    )
-
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center")
-        cell.border = thin_border
-
-    # Dati
-    for row_idx, r in enumerate(rows, 2):
-        vtot = vendite_map.get(int(r["id"]), 0)
-        ritmo = calcola_ritmo_vendita(vtot)
-        # bt_mese None per "Mai venduto" → cella vuota invece di 0 (piu' onesto)
-        ritmo_val = ritmo["bt_mese"] if ritmo["bt_mese"] is not None else None
-        categoria = ritmo["categoria"]  # top | medio | poco | mai
-        values = [
-            r["id"],
-            r["TIPOLOGIA"],
-            r["NAZIONE"],
-            r["REGIONE"],
-            _int_to_yn(r["CARTA"]),  # V-H.E: DB è INTEGER, Excel resta SI/NO leggibile
-            r["DESCRIZIONE"],
-            r["ANNATA"],
-            r["PRODUTTORE"],
-            r["DENOMINAZIONE"],
-            r["FORMATO"],
-            r["PREZZO_CARTA"],
-            r["EURO_LISTINO"],
-            r["SCONTO"],
-            r["FRIGORIFERO"],
-            r["QTA_FRIGO"],
-            r["LOCAZIONE_1"],
-            r["QTA_LOC1"],
-            r["LOCAZIONE_2"],
-            r["QTA_LOC2"],
-            r["QTA_TOTALE"],
-            r["DISTRIBUTORE"],
-            _int_to_yn(r["IPRATICO"]),  # idem
-
-            r["ORIGINE"],
-            vtot,
-            ritmo_val,
-            categoria,
-        ]
-        for col_idx, val in enumerate(values, 1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
-            cell.border = thin_border
-
-    # Auto-width
-    for col in ws.columns:
-        max_len = 0
-        col_letter = col[0].column_letter
-        for cell in col:
-            try:
-                if cell.value:
-                    max_len = max(max_len, len(str(cell.value)))
-            except Exception:
-                pass
-        ws.column_dimensions[col_letter].width = min(max_len + 3, 40)
-
-    # Freeze header
-    ws.freeze_panes = "A2"
-
-    # Salva
-    out_path = STATIC_DIR / "cantina_export.xlsx"
-    wb.save(str(out_path))
-
-    return FileResponse(
-        str(out_path),
-        filename=f"cantina_vini_{datetime.now().strftime('%Y%m%d')}.xlsx",
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+# V-H.J: il vecchio export_cantina_excel è stato eliminato.
+# Sostituito da export_v2 (formato unificato col template). Vedi sopra.
 
 
 # =============================================================

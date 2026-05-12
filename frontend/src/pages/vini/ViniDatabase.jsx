@@ -1,6 +1,10 @@
-// @version: v2.5-mattoni — M.I primitives (Btn) su back e import
+// @version: v2.5-mattoni — DEPRECATO 2026-05-12 (V-H.J)
+//
 // Pagina Database Vini — Import Excel + Risultato
-// Stile Vintage Premium allineato a Carta e Menu
+//
+// DEPRECATO 2026-05-12 (V-H.J): pagina NON routata in App.jsx, codice orfano.
+// Le funzionalità Import sono state spostate in ViniImpostazioni.jsx → sezione
+// "Import / Export" con il nuovo formato v2. Da eliminare in V-H.I (cleanup).
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";

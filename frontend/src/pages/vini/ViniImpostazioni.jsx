@@ -296,31 +296,27 @@ export default function ViniImpostazioni() {
   };
 
   // -------------------------------------------------------
-  // HANDLERS OPERAZIONI
+  // HANDLERS OPERAZIONI — Import/Export v2 (sessione 2026-05-12, V-H.J)
   // -------------------------------------------------------
-  // handleSync rimosso in v3.0 (vecchio sync eliminato)
-  const handleImportExcel = async (file) => {
+  // Vecchi handler (handleSync, handleImportExcel su /import-excel) eliminati:
+  // il formato Excel legacy non è più supportato. Ora si usa /template-v2 +
+  // /import-v2 + /export-v2.
+  const handleDownloadTemplate = () => {
+    const token = localStorage.getItem("token");
+    window.open(`${API_BASE}/vini/cantina-tools/template-v2?token=${token}`, "_blank");
+  };
+  const handleImportV2 = async (file) => {
     if (!file) return; setImportLoading(true); setError(""); setImportResult(null);
-    try { const form = new FormData(); form.append("file", file);
-      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/import-excel`, { method: "POST", body: form });
-      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`); setImportResult(await resp.json());
+    try {
+      const form = new FormData(); form.append("file", file);
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/import-v2`, { method: "POST", body: form });
+      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+      setImportResult(await resp.json());
     } catch (e) { setError(e?.message || "Errore import."); } finally { setImportLoading(false); }
   };
-  const handleExport = () => {
+  const handleExportV2 = () => {
     const token = localStorage.getItem("token");
-    window.open(`${API_BASE}/vini/cantina-tools/export-excel?token=${token}`, "_blank");
-  };
-  const handleResetAndReimport = async (file) => {
-    if (!file) return;
-    setResetLoading(true); setError(""); setResetResult(null); setImportResult(null);
-    try { const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/reset-database`, { method: "POST" });
-      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore reset: ${resp.status}`); setResetResult(await resp.json());
-    } catch (e) { setError(e?.message || "Errore reset database."); setResetLoading(false); return; }
-    setResetLoading(false); setImportLoading(true);
-    try { const form = new FormData(); form.append("file", file);
-      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/import-excel`, { method: "POST", body: form });
-      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore import: ${resp.status}`); setImportResult(await resp.json());
-    } catch (e) { setError(e?.message || "Errore import dopo reset."); } finally { setImportLoading(false); }
+    window.open(`${API_BASE}/vini/cantina-tools/export-v2?token=${token}`, "_blank");
   };
   const handleCleanupDuplicates = async (dryRun) => {
     setCleanupLoading(true); setError(""); setCleanupResult(null);
@@ -576,37 +572,146 @@ export default function ViniImpostazioni() {
   const renderImportExport = () => (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-amber-900 font-playfair">Import / Export</h2>
+      <p className="text-sm text-neutral-600">
+        Il modello Excel standard di TRGB serve sia per inserire vini in un locale nuovo
+        sia per fare backup leggibili. Scarica, modifica, reimporta — i vini già esistenti
+        non vengono sovrascritti (la modifica puntuale si fa dalla scheda del vino).
+      </p>
 
-      {/* Sezione sync rimossa in v3.0 — vecchio DB eliminato */}
-
-      {/* IMPORT / EXPORT / RESET */}
-      <div className="border border-neutral-200 rounded-xl p-5">
-        <h3 className="font-semibold text-neutral-800 mb-2">Import / Export diretto</h3>
-        <p className="text-sm text-neutral-600 mb-3">Import diretto di un Excel nella cantina, oppure esporta per lavorare offline.</p>
-        <div className="flex flex-wrap gap-3">
-          <label className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition cursor-pointer text-center ${importLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`}>
-            {importLoading ? "Importazione…" : "Importa Excel"}
-            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleImportExcel(e.target.files?.[0])} disabled={importLoading} />
-          </label>
-          <button onClick={handleExport}
-            className="px-5 py-2 rounded-xl text-sm font-semibold border border-green-300 bg-green-50 text-green-800 hover:bg-green-100 shadow transition">
-            Esporta Excel
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* SCARICA TEMPLATE */}
+        <div className="border-2 border-amber-300 bg-amber-50/30 rounded-xl p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="text-3xl">📥</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-neutral-900">Scarica template</h3>
+              <p className="text-xs text-neutral-600 mt-1">
+                File Excel pulito con tutti i campi, valori validi e istruzioni.
+                Usalo per data entry su un locale nuovo.
+              </p>
+            </div>
+          </div>
+          <button onClick={handleDownloadTemplate}
+            className="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition">
+            Scarica template.xlsx
           </button>
-          <label className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition cursor-pointer text-center ${resetLoading || importLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-red-600 text-white hover:bg-red-700"}`}>
-            {resetLoading ? "Reset…" : importLoading ? "Importazione…" : "Azzera e Ricarica"}
+        </div>
+
+        {/* IMPORTA */}
+        <div className="border-2 border-blue-300 bg-blue-50/30 rounded-xl p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="text-3xl">📤</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-neutral-900">Importa vini</h3>
+              <p className="text-xs text-neutral-600 mt-1">
+                Carica un file Excel compilato. Righe con ID vuoto = vini nuovi.
+                Righe con ID già esistente = saltate (no overwrite).
+              </p>
+            </div>
+          </div>
+          <label className={`block w-full px-4 py-2 rounded-lg text-sm font-semibold shadow transition cursor-pointer text-center
+            ${importLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`}>
+            {importLoading ? "Importazione in corso…" : "Scegli file .xlsx e importa"}
             <input type="file" accept=".xlsx,.xls" className="hidden"
-              onChange={e => { const file = e.target.files?.[0]; if (file && window.confirm("ATTENZIONE: Cancellerà TUTTI i vini, movimenti e note, poi importerà il file Excel.\n\nContinuare?")) handleResetAndReimport(file); e.target.value = ""; }}
-              disabled={resetLoading || importLoading} />
+              onChange={e => { handleImportV2(e.target.files?.[0]); e.target.value = ""; }}
+              disabled={importLoading} />
           </label>
         </div>
-        {resetResult && <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">{resetResult.msg}</div>}
-        {importResult && (
-          <div className="mt-3 bg-green-50 border border-green-200 rounded-xl p-3 text-sm">
-            <p className="font-semibold text-green-800">{importResult.msg}</p>
-            <p className="text-green-700">Righe: <strong>{importResult.righe_excel}</strong> — Nuovi: <strong>{importResult.inseriti}</strong> — Aggiornati: <strong>{importResult.aggiornati}</strong></p>
+
+        {/* ESPORTA TUTTO */}
+        <div className="border-2 border-emerald-300 bg-emerald-50/30 rounded-xl p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="text-3xl">💾</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-neutral-900">Esporta tutto</h3>
+              <p className="text-xs text-neutral-600 mt-1">
+                Scarica un file Excel con TUTTI i vini del DB. Stesso layout del
+                template — puoi modificarlo fuori sistema e reimportarlo.
+              </p>
+            </div>
           </div>
-        )}
+          <button onClick={handleExportV2}
+            className="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition">
+            Scarica export.xlsx
+          </button>
+        </div>
+
+        {/* GUIDA */}
+        <div className="border-2 border-neutral-200 bg-white rounded-xl p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="text-3xl">📖</div>
+            <div className="flex-1">
+              <h3 className="font-bold text-neutral-900">Guida</h3>
+              <p className="text-xs text-neutral-600 mt-1">
+                Le istruzioni complete sono nel foglio "Istruzioni" del file scaricato.
+              </p>
+            </div>
+          </div>
+          <div className="text-[11px] text-neutral-700 space-y-1.5 leading-relaxed">
+            <p><strong>Campi obbligatori:</strong> TIPOLOGIA, DESCRIZIONE, NAZIONE.</p>
+            <p><strong>ID:</strong> vuoto = nuovo vino; popolato = la riga viene saltata se il vino esiste già.</p>
+            <p><strong>Flag SI/NO:</strong> CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE. Vuoto = NO.</p>
+            <p><strong>PREZZO_CALICE:</strong> vuoto = auto-calcolo da PREZZO_CARTA (config in "Widget e soglie").</p>
+            <p><strong>QTA_TOTALE:</strong> non inserire — calcolato dalla somma delle 4 locazioni.</p>
+            <p><strong>Locazioni:</strong> usa i nomi configurati (foglio "Locazioni" del template).</p>
+            <p className="mt-2 text-neutral-500 italic">Per modificare un vino esistente usa sempre la sua scheda, non l'import.</p>
+          </div>
+        </div>
       </div>
+
+      {/* RISULTATO IMPORT */}
+      {importResult && (
+        <div className={`border rounded-xl p-4 text-sm ${
+          importResult.errori > 0
+            ? "bg-amber-50 border-amber-300 text-amber-900"
+            : "bg-emerald-50 border-emerald-300 text-emerald-900"
+        }`}>
+          <p className="font-semibold mb-1">{importResult.msg}</p>
+          <p className="text-xs">
+            Inseriti: <strong>{importResult.inseriti}</strong> ·
+            Saltati (ID già esistente): <strong>{importResult.saltati_esistenti}</strong> ·
+            Errori: <strong>{importResult.errori}</strong>
+          </p>
+          {importResult.dettaglio_errori && importResult.dettaglio_errori.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-semibold">Dettaglio errori ({importResult.dettaglio_errori.length})</summary>
+              <ul className="mt-1 text-[11px] space-y-1 max-h-40 overflow-auto">
+                {importResult.dettaglio_errori.map((e, i) => (
+                  <li key={i}>Riga {e.riga}: {e.errore}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* RESET DATABASE (admin) */}
+      <details className="border border-rose-200 bg-rose-50/40 rounded-xl">
+        <summary className="px-4 py-3 cursor-pointer text-sm font-semibold text-rose-800">
+          ⚠ Azione admin: Azzera database cantina
+        </summary>
+        <div className="px-4 pb-4 text-xs text-rose-700 space-y-2">
+          <p>Elimina TUTTI i vini, movimenti e note. Irreversibile.
+            Da usare solo per setup di un nuovo locale, dopo aver fatto un export di backup.</p>
+          <button
+            onClick={async () => {
+              if (!window.confirm("ATTENZIONE: cancellerà TUTTI i vini, movimenti e note. Sicuro?")) return;
+              if (!window.confirm("Conferma seconda volta: VERAMENTE sicuro? Hai fatto un export di backup?")) return;
+              setResetLoading(true); setError(""); setResetResult(null);
+              try {
+                const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/reset-database`, { method: "POST" });
+                if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+                setResetResult(await resp.json());
+              } catch (e) { setError(e?.message || "Errore reset."); }
+              finally { setResetLoading(false); }
+            }}
+            disabled={resetLoading}
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-40">
+            {resetLoading ? "Reset in corso…" : "Conferma reset DB cantina"}
+          </button>
+          {resetResult && <div className="mt-2 bg-white border border-rose-200 rounded p-2">{resetResult.msg}</div>}
+        </div>
+      </details>
     </div>
   );
 

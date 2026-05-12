@@ -1,6 +1,13 @@
-// @version: v2.1-mattoni — M.I primitives (Btn) su CTA header, import/export, salva ordinamenti
+// @version: v2.1-mattoni — DEPRECATO 2026-05-12 (V-H.J)
+//
 // Strumenti Cantina — Sync, Import/Export, Genera Carta, Impostazioni ordinamento
 // Solo admin
+//
+// DEPRECATO 2026-05-12 (V-H.J): questa pagina NON è più routata in App.jsx
+// (nessuna route /vini/cantina-tools nel frontend). Le funzionalità Import/Export
+// sono state spostate in ViniImpostazioni.jsx → sezione "Import / Export" con
+// il nuovo formato v2 (template-v2 + import-v2 + export-v2).
+// File mantenuto per riferimento storico, da eliminare in V-H.I (cleanup).
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";

@@ -73,8 +73,37 @@ Le 12 soglie sono: `calici_fresh_hours` (12), `calici_alert_hours` (36), `vini_f
 
 **Da fare in coda (V-H.I):** tabella `vini` legacy (`vini_model.py`) — 3 occorrenze `CARTA='SI'` in staging import Excel. Lascio TEXT perché Marco ha detto di sistemare l'import dopo.
 
+### V-H.J — Import/Export Vini v2 (vecchia logica eliminata) `[core]`
+
+Sostituita la vecchia logica import/export Excel (eredità Excel originale) con un nuovo formato unificato. Decisione Marco: "passato, elimina, ormai mesi che usiamo nuovo sistema".
+
+**Nuovi endpoint** (`vini_cantina_tools_router.py`):
+- `GET /vini/cantina-tools/template-v2` → scarica il template `.xlsx` ufficiale
+- `POST /vini/cantina-tools/import-v2` → importa dal nuovo formato (skip se ID esiste)
+- `GET /vini/cantina-tools/export-v2` → esporta tutti i vini nello stesso formato
+
+**Service `app/services/vini_xlsx_v2.py`** (nuovo, ~450 righe):
+- `TEMPLATE_COLUMNS`: schema autoritativo (single source of truth) con tipo + obbligatorio + valori validi per ogni colonna.
+- `generate_template_xlsx()`: 4 fogli (Vini, Locazioni dinamiche dal DB locazioni-config, Riferimento valori dinamici, Istruzioni).
+- `generate_export_xlsx()`: stesso layout del template, dati popolati con tutti i vini del DB → **round-trip pulito**.
+- `parse_import_xlsx()`: valida header, salta righe esempio, gestisce SI/NO → 0/1, INSERT solo se ID vuoto, SKIP se ID esiste, errore di riga se ID inesistente.
+- Costanti `TIPOLOGIA_VALIDE`, `FORMATO_VALIDI`, `STATO_VENDITA_VALIDI`, `STATO_RIORDINO_VALIDI`, `STATO_CONSERVAZIONE_VALIDI` promosse qui da `vini_model.py`.
+
+**Chiave d'unicità**: `id` (vini_magazzino.id, auto-increment). Marco: "la chiave per me è l'ID; se esiste non va sovrascritto". Per modificare un vino esistente → scheda gestionale, mai import.
+
+**Eliminato**:
+- `POST /vini/cantina-tools/import-excel` → rimosso del tutto
+- `GET /vini/cantina-tools/export-excel` → rimosso del tutto
+- `app/models/vini_model.py`: `normalize_dataframe`, `init_database`, `clear_vini_table`, `_clean_str` → file ridotto a stub deprecati con `NotImplementedError` (impedisce regressioni silenti se import legacy sopravvive). DB legacy `vini.sqlite3` resta intoccato (V-H.I lo pulirà se vuoto).
+
+**UI Impostazioni Vini → sezione "Import / Export" rifatta**:
+- 4 card a griglia 2×2: 📥 Scarica template / 📤 Importa vini / 💾 Esporta tutto / 📖 Guida (in-page con i punti chiave).
+- Risultato import dettagliato (inseriti, saltati, errori con riga + motivo).
+- Card "⚠ Azione admin: Azzera database cantina" come `<details>` collassato sotto, con doppia conferma (richiede sia "sicuro?" sia "hai fatto export di backup?").
+
 ### Task di hardening tecnico ancora aperti (per la prossima sessione)
 - **V-H.F** Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint (decisione semantica da prendere con Marco prima di partire)
+- **V-H.I** Cleanup completo file legacy `vini_model.py` (eliminare definitivamente) + valutare se eliminare DB `vini.sqlite3` se vuoto in produzione
 
 ### Memoria persistente salvata
 - `feedback_soglie_hardcoded.md`: vietato hardcodare soglie operative. Prima di scrivere `const SOGLIA = 12`, fermarsi e proporre `*_settings` + UI Impostazioni.

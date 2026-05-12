@@ -1,313 +1,40 @@
-# @version: v1.20-stable
+# @version: v3.0-deprecated (sessione 2026-05-12, V-H.J)
 # -*- coding: utf-8 -*-
 """
-Model util — import, normalizzazione e insert per 'vini'.
-- Mappa le colonne dall'Excel 'VINI' verso lo schema DB ufficiale
-- Inserisce QTA come da Excel (nessuna colonna generata)
-- Raccoglie errori riga per riga (con anteprima vino)
+DEPRECATO 2026-05-12 (V-H.J).
+
+Questo modulo conteneva la logica del vecchio import Excel:
+  - normalize_dataframe()  → mapping colonne Excel storico → DB
+  - init_database()        → init DB legacy `vini.sqlite3`
+  - clear_vini_table()     → svuota tabella vini staging
+  - upload_vini_from_df()  → upsert su staging table
+
+Eliminato perché il flusso v2 (template + import-v2 + export-v2) ha
+sostituito completamente l'eredità Excel del vecchio formato. La logica
+attuale vive in `app/services/vini_xlsx_v2.py`.
+
+Le costanti di validazione (TIPOLOGIA_VALIDE, FORMATO_VALIDI) sono state
+promosse in `app/services/vini_xlsx_v2.py` come single source of truth.
+
+Il file è mantenuto vuoto solo per evitare ImportError accidentali in
+import legacy. Eliminare definitivamente in V-H.I (cleanup completo legacy).
 """
 
 from __future__ import annotations
 
-import sqlite3
-import pandas as pd
+# Backwards compat stubs (per evitare ImportError se qualche file legacy
+# importa ancora qui). Tutti raise NotImplementedError.
 
-from app.core.database import get_connection, get_settings_conn
-
-# ------------------------------------------------------------
-# COSTANTI DI VALIDAZIONE
-# ------------------------------------------------------------
-
-TIPOLOGIA_VALIDE = {
-    "GRANDI FORMATI",
-    "BOLLICINE",
-    "BIANCHI",
-    "ROSATI",
-    "ROSSI",
-    "PASSITI E VINI DA MEDITAZIONE",
-    "VINI ANALCOLICI",
-    "ERRORE",
-}
-
-FORMATO_VALIDI = {
-    "MN", "QP", "ME", "DM", "CL", "BT", "BN", "MG", "MJ",
-    "JB", "RH", "JBX", "MS", "SM", "BZ", "NB", "ML", "PR", "MZ",
-}
-
-
-# ------------------------------------------------------------
-# INIT DATABASE (COMPAT PER vini_router.upload_vini)
-# ------------------------------------------------------------
-
-def init_database() -> None:
-    """
-    Compatibilità per vini_router.upload_vini.
-
-    Oggi il DB 'vini.sqlite3' viene già creato altrove (script/migrazioni).
-    Qui facciamo solo una open/close per garantire che il file esista.
-
-    Non facciamo CREATE TABLE, perché le tabelle esistono già
-    (vini, vini_movimenti, vini_note).
-    """
-    conn = get_connection()
-    conn.close()
-
-
-# ------------------------------------------------------------
-# UTILITY BASE
-# ------------------------------------------------------------
-
-def clear_vini_table(conn: sqlite3.Connection) -> None:
-    cur = conn.cursor()
-    cur.execute("DELETE FROM vini;")
-    # Reset AUTOINCREMENT counter so IDs restart from 1.
-    # Senza questo, ogni re-import genera ID nuovi (501, 502, ...)
-    # che rompono il collegamento id_excel in vini_magazzino.
-    cur.execute("DELETE FROM sqlite_sequence WHERE name='vini';")
-    conn.commit()
-
-
-def _clean_str(x):
-    s = str(x).strip()
-    return s if s != "" and s.upper() != "NAN" else None
-
-
-# ------------------------------------------------------------
-# NORMALIZZAZIONE DATAFRAME EXCEL
-# ------------------------------------------------------------
-
-def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    - Uppercase & strip intestazioni
-    - Rinomina colonne Excel -> DB
-    - Pulisce valori (strip, None)
-    - Non tocca i numerici, salvo coercizioni sicure
-
-    ATTENZIONE:
-    Le colonne dell'Excel vengono portate a UPPER + STRIP,
-    quindi la rename_map DEVE usare nomi già puliti.
-    """
-    df = df.copy()
-    df.columns = [c.strip().upper() for c in df.columns]
-
-    # Mappa dalle intestazioni reali (pulite) ai nomi DB
-    rename_map = {
-        # Colonne quantità / locazioni
-        "N": "N_FRIGO",
-        "N.1": "N_LOC1",
-        "N.2": "N_LOC2",
-        "LOCAZIONE 1": "LOCAZIONE_1",
-        "LOCAZIONE 2": "LOCAZIONE_2",
-        "Q.TA": "QTA",
-
-        # COLONNA LISTINO (dal tuo header: ' LISTINO ' -> 'LISTINO')
-        "LISTINO": "EURO_LISTINO",
-
-        # SCONTO
-        "SCONTO": "SCONTO",
-
-        # Campi da ignorare (non ci servono nel DB)
-        "NOTA PREZZO": None,
-        "F": None,
-        "PREZZO IVA": None,
-        "CALCOLO PREZZO": None,
-        "PREZZO VENDITA": None,
-        "PREZZO SCOTATO": None,
-        "NOME CONCATENATO": None,
-        "COSTO C": None,
-        "NUM": None,
-        "VALORIZZAZIONE": None,
-        "COSTO": None,
-    }
-
-    keep_cols = []
-    for c in list(df.columns):
-        if c in rename_map:
-            newc = rename_map[c]
-            if newc is None:
-                df.drop(columns=[c], inplace=True)
-            else:
-                df.rename(columns={c: newc}, inplace=True)
-                keep_cols.append(newc)
-        else:
-            keep_cols.append(c)
-
-    # Normalizza tipologia
-    if "TIPOLOGIA" in df.columns:
-        df["TIPOLOGIA"] = (
-            df["TIPOLOGIA"]
-            .astype(str)
-            .str.strip()
-            .str.replace("VINI DEALCOLIZZATI", "VINI ANALCOLICI", regex=False)
-            .str.replace("VINI DEALCOLATI", "VINI ANALCOLICI", regex=False)
-        )
-
-    # Interi soft
-    for col_int in ("N_FRIGO", "N_LOC1", "N_LOC2", "QTA"):
-        if col_int in df.columns:
-            df[col_int] = pd.to_numeric(df[col_int], errors="coerce").fillna(0).astype(int)
-
-    # Real soft
-    for col_real in ("PREZZO", "EURO_LISTINO", "SCONTO"):
-        if col_real in df.columns:
-            df[col_real] = pd.to_numeric(df[col_real], errors="coerce")
-
-    # Pulizia stringhe chiave
-    for col in (
-        "TIPOLOGIA", "NAZIONE", "REGIONE", "CARTA", "IPRATICO",
-        "DENOMINAZIONE", "FORMATO", "FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2",
-        "DESCRIZIONE", "ANNATA", "PRODUTTORE", "DISTRIBUTORE",
-    ):
-        if col in df.columns:
-            df[col] = df[col].map(_clean_str)
-
-    return df
-
-
-# ------------------------------------------------------------
-# INSERT RIGHE NELLA TABELLA vini
-# ------------------------------------------------------------
-
-def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
-    """
-    Inserisce le righe nel DB.
-    Ritorna: (count_inserite, errori:list[str], conteggio_tipologie:dict)
-    """
-    cur = conn.cursor()
-    inserite = 0
-    errori: list[str] = []
-
-    tip_count = (
-        df["TIPOLOGIA"].value_counts(dropna=False).to_dict()
-        if "TIPOLOGIA" in df.columns
-        else {}
+def normalize_dataframe(*args, **kwargs):  # pragma: no cover
+    raise NotImplementedError(
+        "normalize_dataframe è stato eliminato in V-H.J (sessione 2026-05-12). "
+        "Usa il template v2 (GET /vini/cantina-tools/template-v2) e l'import "
+        "v2 (POST /vini/cantina-tools/import-v2)."
     )
 
-    for ridx, row in df.iterrows():
-        try:
-            tip = row.get("TIPOLOGIA")
-            if tip and tip not in TIPOLOGIA_VALIDE:
-                raise ValueError(f"TIPOLOGIA non ammessa: {tip}")
 
-            fmt = row.get("FORMATO")
-            if fmt and fmt not in FORMATO_VALIDI:
-                raise ValueError(f"FORMATO non ammesso: {fmt}")
-
-            cur.execute(
-                """
-                INSERT INTO vini (
-                    TIPOLOGIA, NAZIONE, REGIONE,
-                    CARTA, IPRATICO, DENOMINAZIONE, FORMATO,
-                    N_FRIGO, FRIGORIFERO, N_LOC1, LOCAZIONE_1,
-                    N_LOC2, LOCAZIONE_2, QTA,
-                    DESCRIZIONE, ANNATA, PRODUTTORE,
-                    PREZZO, DISTRIBUTORE, EURO_LISTINO, SCONTO
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    row.get("TIPOLOGIA"),
-                    row.get("NAZIONE"),
-                    row.get("REGIONE"),
-                    row.get("CARTA"),
-                    row.get("IPRATICO"),
-                    row.get("DENOMINAZIONE"),
-                    row.get("FORMATO"),
-                    int(row.get("N_FRIGO", 0) or 0),
-                    row.get("FRIGORIFERO"),
-                    int(row.get("N_LOC1", 0) or 0),
-                    row.get("LOCAZIONE_1"),
-                    int(row.get("N_LOC2", 0) or 0),
-                    row.get("LOCAZIONE_2"),
-                    int(row.get("QTA", 0) or 0),
-                    row.get("DESCRIZIONE"),
-                    row.get("ANNATA"),
-                    row.get("PRODUTTORE"),
-                    row.get("PREZZO"),
-                    row.get("DISTRIBUTORE"),
-                    row.get("EURO_LISTINO"),
-                    row.get("SCONTO"),
-                ),
-            )
-            inserite += 1
-        except Exception as e:
-            desc = row.get("DESCRIZIONE") or ""
-            prod = row.get("PRODUTTORE") or ""
-            ann = row.get("ANNATA") or ""
-            preview = f"{desc} — {prod} ({ann})"
-            errori.append(f"riga Excel {ridx}: {e} — {preview}")
-
-    conn.commit()
-    return inserite, errori, tip_count
-
-
-# ------------------------------------------------------------
-# FUNZIONI PER CARTA VINI
-# ------------------------------------------------------------
-
-def fetch_carta_vini(conn: sqlite3.Connection):
-    """
-    Ritorna le righe pronte per la Carta Vini, già ordinate:
-    TIPOLOGIA → REGIONE → PRODUTTORE → DESCRIZIONE → ANNATA
-    Filtrate per:
-    - CARTA = 'SI'
-    - TIPOLOGIA non nulla e diversa da 'ERRORE'
-    """
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT
-            TIPOLOGIA,
-            REGIONE,
-            PRODUTTORE,
-            DESCRIZIONE,
-            ANNATA,
-            PREZZO
-        FROM vini
-        WHERE
-            TIPOLOGIA IS NOT NULL
-            AND TIPOLOGIA <> 'ERRORE'
-            AND CARTA = 'SI'
-        ORDER BY
-            TIPOLOGIA,
-            REGIONE,
-            PRODUTTORE,
-            DESCRIZIONE,
-            ANNATA
-        ;
-        """
+def init_database(*args, **kwargs):  # pragma: no cover
+    raise NotImplementedError(
+        "init_database (DB legacy 'vini.sqlite3') è stato eliminato in V-H.J. "
+        "Il DB di magazzino è 'vini_magazzino.sqlite3'."
     )
-    return cur.fetchall()
-
-
-def load_vini_ordinati():
-    """
-    Ritorna i vini per la carta, con ordinamento basato sulle
-    tabelle di ordinamento tipologie/regioni nel DB settings.
-    """
-    conn = get_connection()
-    sconn = get_settings_conn()
-
-    cur = conn.cursor()
-    scur = sconn.cursor()
-
-    rows = cur.execute(
-        """
-        SELECT v.*,
-               t.ordine AS ord_tip,
-               r.ordine AS ord_reg
-        FROM vini v
-        LEFT JOIN tipologia_order t ON t.nome = v.TIPOLOGIA
-        LEFT JOIN regioni_order r   ON r.nome = v.REGIONE
-        WHERE v.CARTA='SI' AND v.TIPOLOGIA!='ERRORE'
-        ORDER BY
-            ord_tip ASC,
-            ord_reg ASC,
-            v.PRODUTTORE ASC,
-            v.DESCRIZIONE ASC,
-            v.ANNATA ASC;
-        """
-    ).fetchall()
-
-    conn.close()
-    sconn.close()
-    return rows
