@@ -70,6 +70,16 @@ NAZIONI_MAP = {
     "GB": "Regno Unito",
     "MT": "Malta",
     "CY": "Cipro",
+    "NL": "Paesi Bassi",
+    "BE": "Belgio",
+    "DK": "Danimarca",
+    "SE": "Svezia",
+    "FI": "Finlandia",
+    "PL": "Polonia",
+    "EE": "Estonia",
+    "LV": "Lettonia",
+    "LT": "Lituania",
+    "IE": "Irlanda",
 }
 
 # Mapping euristico: per i paesi NON italiani, tipo "umano" derivato da tipo_ue.

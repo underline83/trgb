@@ -136,8 +136,10 @@ def upgrade(conn: sqlite3.Connection) -> None:
                     source              TEXT,
                     last_synced_at      TEXT,
                     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
-                    updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
-                    UNIQUE(nazione, nome, tipo)
+                    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+                    -- NOTA mig 126: rimosso UNIQUE(nazione, nome, tipo) — troppo restrittivo
+                    -- per eAmbrosia (es. "Dealu Mare" RO ha 4 codici diversi con stesso nome+tipo).
+                    -- La chiave naturale è codice_eambrosia (già UNIQUE, sufficiente).
                 )
             """)
             cur.execute("CREATE INDEX idx_vd2_nazione ON vini_denominazioni_v2 (nazione)")
