@@ -36,7 +36,7 @@ Il modulo **Vini** copre l'intera filiera della cantina dell'osteria:
 - **Carta Vini** — generatore della carta cliente (HTML preview + PDF cliente + PDF staff + DOCX), ordinata gerarchicamente.
 - **Carta Bevande** (sub-module) — gestione editoriale delle 7 sezioni extra-vini (Aperitivi, Birre, Amari fatti in casa, Amari & Liquori, Distillati, Tisane, Tè) con export unificato.
 - **iPratico sync** — match diretto sui codici 4 cifre nel campo Name iPratico, export Excel con TRGB priority, lista vini mancanti.
-- **Import/export** — Excel cantina via `cantina-tools` (modalità SAFE / FORCE), bulk-import voci bevande da testo.
+- **Import/export** — formato unificato v2 (template Excel + import + export speculari) via `cantina-tools/template-v2|import-v2|export-v2`, bulk-import voci bevande da testo. **Vecchio formato Excel (foglio "VINI" con header storico) eliminato in V-H.J 2026-05-12.**
 
 DB principale: `vini_magazzino.sqlite3` (unico, vecchio `vini.sqlite3` eliminato in v3.0). DB separato: `bevande.sqlite3` per le 7 sezioni extra-vini (le voci della Carta Vini restano in `vini_magazzino`).
 
@@ -64,8 +64,9 @@ DB principale: `vini_magazzino.sqlite3` (unico, vecchio `vini.sqlite3` eliminato
 | `static/css/carta_pdf.css` + `carta_html.css` | Stile preview e PDF (allineati) |
 
 ## File deprecated (ancora presenti)
-- `app/models/vini_db.py` — vecchio schema DB pre-v3.0, non più importato (rimuovere in cleanup)
-- `app/models/vini_model.py` — contiene `normalize_dataframe()` ancora usata da import-excel cantina-tools
+- `app/models/vini_db.py` — vecchio schema DB pre-v3.0, non più importato (rimuovere in cleanup V-H.I)
+- `app/models/vini_model.py` — V-H.J 2026-05-12: ridotto a stub deprecati con `NotImplementedError`. Costanti `TIPOLOGIA_VALIDE`/`FORMATO_VALIDI` spostate in `app/services/vini_xlsx_v2.py` (single source of truth)
+- `frontend/src/pages/vini/CantinaTools.jsx`, `frontend/src/pages/vini/ViniDatabase.jsx` — non più routate in `App.jsx`, marcate `@version: DEPRECATO`. Cleanup V-H.I
 
 ---
 
@@ -426,11 +427,13 @@ Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
 
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
-| POST | `/vini/cantina-tools/import-excel` | Import Excel diretto → magazzino |
-| GET | `/vini/cantina-tools/export-excel` | Download `.xlsx` da magazzino |
+| GET | `/vini/cantina-tools/template-v2` | Download template `.xlsx` ufficiale (4 fogli: Vini esempio, Locazioni, Riferimento valori, Istruzioni) |
+| POST | `/vini/cantina-tools/import-v2` | Import dal nuovo formato (skip se ID esistente, INSERT solo nuovi) |
+| GET | `/vini/cantina-tools/export-v2` | Download `.xlsx` con tutti i vini (round-trip identico al template) |
 | GET | `/vini/cantina-tools/locazioni-config` | Locazioni configurate (drop-down filtro) |
 
 > **Rimossi in v3.0:** `/vini/upload` (import vecchio), `/vini/cantina-tools/sync-from-excel` (sync vecchio DB).
+> **Rimossi in V-H.J 2026-05-12:** `POST /vini/cantina-tools/import-excel`, `GET /vini/cantina-tools/export-excel` (vecchio formato Excel con header storico). Sostituiti dai 3 endpoint `v2` sopra.
 
 ## 8.1 Import Excel — modalità
 
@@ -530,7 +533,7 @@ Pattern: `Depends(get_current_user)` + check ruolo nel router.
 # 12. Bug noti / debt tecnico
 
 - **V-BUG1**: FORCE import senza ruolo check → vedi §8.1 e roadmap.md §V
-- **Modelli deprecated**: `vini_db.py` non importato; `vini_model.py` ancora usato da import-excel ma da rivalutare
+- **Modelli deprecated** (V-H.J 2026-05-12): `vini_db.py` non importato; `vini_model.py` ridotto a stub deprecati con `NotImplementedError`. Cleanup definitivo in V-H.I.
 - **`/dashboard` PRIMA di `/{id}`**: regola applicata, ma da non rompere se si rifattora il router
 - **Filtri server-side per dataset grandi**: oggi tutti clientside con `useMemo`, da spostare a server quando il magazzino crescerà oltre ~5000 vini
 - **Indice `(vino_id, tipo, data_mov)` su `vini_magazzino_movimenti`**: verificare se presente, altrimenti aggiungere

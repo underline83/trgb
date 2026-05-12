@@ -101,8 +101,28 @@ Sostituita la vecchia logica import/export Excel (eredità Excel originale) con 
 - Risultato import dettagliato (inseriti, saltati, errori con riga + motivo).
 - Card "⚠ Azione admin: Azzera database cantina" come `<details>` collassato sotto, con doppia conferma (richiede sia "sicuro?" sia "hai fatto export di backup?").
 
+### V.6+V.7+V.8 — Refactor anagrafiche vini (Fase 1: setup impalcatura) `[core]`
+
+Inizio del refactor strutturale grosso. Schema concordato iterativamente con Marco in sessione (vedi `docs/refactor_anagrafiche_vini.md` per il design completo). Strategia: **blue-green rinforzata** (tabelle `_v2` parallele nello stesso file `vini_magazzino.sqlite3`, swap atomico finale, 3 rinforzi: snapshot esplicito, endpoint rollback rapido, UI nuova etichettata "beta").
+
+**Decisione architetturale**: scartato il "modulo Vini duplicato completo" (frontend+backend separati su `/vini-test/...`) perché introduceva sync delta movimenti al cutover senza ridurre la complessità vera del refactor (clustering, sync anagrafiche, parser vitigni).
+
+**Mig 125 (Fase 1)**: backup esplicito pre-mig + CREATE TABLE delle 6 tabelle `_v2` (`vini_produttori_v2`, `vini_fornitori_v2`, `vini_denominazioni_v2`, `vini_vitigni_v2`, `vini_madre_v2`, `vini_bottiglie_v2`) + copia 1287 vini da `vini_magazzino` → `vini_bottiglie_v2`. Le tabelle `_v2` sono pronte ma vuote (eccetto bottiglie). Marco continua a usare il modulo Vini normalmente, nessun impatto sull'utente.
+
+**Prossime fasi pianificate** (file `docs/refactor_anagrafiche_vini.md` §4):
+- Fase 2: backend service + endpoint CRUD scheletro `/vini/anagrafiche/...`
+- Fase 3: seed denominazioni (eAmbrosia API + parsing PDF MASAF)
+- Fase 4: seed vitigni base (~50)
+- Fase 5: migrazione dati (clustering produttori → madre → bottiglie + parser vitigni)
+- Fase 6: UI gestione anagrafiche (sezione "🧪 beta" in `ViniImpostazioni.jsx`)
+- Fase 7: service sync + endpoint rollback rapido
+- Fase 8: workflow nuovo inserimento 3-step (produttore → madre → annata)
+- Fase 10: cutover atomico (rename tabelle in transazione)
+
+Effort totale stimato: 12-14h distribuite su 3-4 sessioni di sviluppo + 1 di verifica Marco.
+
 ### Task di hardening tecnico ancora aperti (per la prossima sessione)
-- **V-H.F** Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint (decisione semantica da prendere con Marco prima di partire)
+- **V-H.F** Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint (decisione: dopo il refactor anagrafiche per non mescolare 2 refactor strutturali)
 - **V-H.I** Cleanup completo file legacy `vini_model.py` (eliminare definitivamente) + valutare se eliminare DB `vini.sqlite3` se vuoto in produzione
 
 ### Memoria persistente salvata
