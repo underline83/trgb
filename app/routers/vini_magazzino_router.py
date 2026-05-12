@@ -76,25 +76,23 @@ class VinoMagazzinoBase(BaseModel):
     PREZZO_CALICE: Optional[float] = None
     PREZZO_CALICE_MANUALE: Optional[int] = 0
 
-    CARTA: Optional[str] = Field(
+    # Flag normalizzati a INTEGER 0/1 (sessione 2026-05-12, V-H.E, mig 124).
+    # DISCONTINUATO rimosso: ridondante con STATO_RIORDINO='X' (Non ricomprare).
+    CARTA: Optional[int] = Field(
         None,
-        description="Flag pubblicazione in carta (SI/NO)",
+        description="Flag pubblicazione in carta (0/1)",
     )
-    IPRATICO: Optional[str] = Field(
+    IPRATICO: Optional[int] = Field(
         None,
-        description="Flag esportazione iPratico (SI/NO)",
+        description="Flag esportazione iPratico (0/1)",
     )
-    BIOLOGICO: Optional[str] = Field(
-        "NO",
-        description="Flag vino biologico (SI/NO)",
+    BIOLOGICO: Optional[int] = Field(
+        0,
+        description="Flag vino biologico (0/1)",
     )
-    VENDITA_CALICE: Optional[str] = Field(
-        "NO",
-        description="Flag vendita al calice (SI/NO)",
-    )
-    DISCONTINUATO: Optional[str] = Field(
-        None,
-        description="Flag vino non da riordinare (SI/NO)",
+    VENDITA_CALICE: Optional[int] = Field(
+        0,
+        description="Flag vendita al calice (0/1)",
     )
     FORZA_PREZZO: Optional[int] = Field(
         0,
@@ -108,7 +106,7 @@ class VinoMagazzinoBase(BaseModel):
     ABBINAMENTI: Optional[str] = Field(
         None,
         description="Abbinamenti consigliati (testo libero). Mostrato in carta "
-                    "cliente solo per i vini al calice (VENDITA_CALICE='SI' o "
+                    "cliente solo per i vini al calice (VENDITA_CALICE=1 o "
                     "BOTTIGLIA_APERTA=1). Sessione 2026-05-04.",
     )
 
@@ -173,11 +171,11 @@ class VinoMagazzinoUpdate(BaseModel):
     SCONTO: Optional[float] = None
     NOTE_PREZZO: Optional[str] = None
 
-    CARTA: Optional[str] = None
-    IPRATICO: Optional[str] = None
-    BIOLOGICO: Optional[str] = None
-    VENDITA_CALICE: Optional[str] = None
-    DISCONTINUATO: Optional[str] = None
+    # Flag INTEGER 0/1 (sessione 2026-05-12, V-H.E). DISCONTINUATO rimosso.
+    CARTA: Optional[int] = None
+    IPRATICO: Optional[int] = None
+    BIOLOGICO: Optional[int] = None
+    VENDITA_CALICE: Optional[int] = None
     FORZA_PREZZO: Optional[int] = None
     BOTTIGLIA_APERTA: Optional[int] = None
     ABBINAMENTI: Optional[str] = None
@@ -437,7 +435,7 @@ def duplicate_vino_endpoint(
     """
     Body opzionale:
     - `annata` (str): se presente, imposta ANNATA del duplicato e applica i
-      default "nuova annata" → STATO_RIORDINO='0' (Ordinato), CARTA='NO'.
+      default "nuova annata" → STATO_RIORDINO='0' (Ordinato), CARTA=0.
       Usato dal widget "Riordini per fornitore" per duplicare un vino con
       un'annata nuova senza aprire il dettaglio.
     - `overrides` (dict): override avanzati di altri campi.
@@ -580,7 +578,7 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
                LOCAZIONE_3, QTA_LOC3,
                QTA_TOTALE, STATO_VENDITA, STATO_RIORDINO
           FROM vini_magazzino
-         WHERE CARTA = 'SI'
+         WHERE CARTA = 1
            AND TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE'
         ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE
         """
@@ -597,7 +595,7 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
         prezzo_calice = d.get("PREZZO_CALICE")
         if prezzo_calice is None or prezzo_calice == 0:
             prezzo_calice = _prezzo_calice_da_carta(d.get("PREZZO_CARTA"))
-        is_calice = (d.get("VENDITA_CALICE") or "") == "SI" or bottiglia_aperta
+        is_calice = bool(d.get("VENDITA_CALICE") or 0) or bottiglia_aperta
         # Locazioni con qta non zero
         loc_list = []
         for label, q in [
@@ -633,7 +631,7 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
             "formato": d.get("FORMATO"),
             "prezzo_carta": d.get("PREZZO_CARTA"),
             "prezzo_calice": prezzo_calice if is_calice else None,
-            "vendita_calice": (d.get("VENDITA_CALICE") or "") == "SI",
+            "vendita_calice": bool(d.get("VENDITA_CALICE") or 0),
             "in_mescita": bottiglia_aperta,
             "locazioni": loc_list,
             "qta_totale": qta_tot,

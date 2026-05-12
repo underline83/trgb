@@ -33,8 +33,8 @@ export default function CartaVini() {
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <div className="font-semibold mb-1">Cosa entra in carta</div>
         <ul className="list-disc list-inside space-y-1 text-amber-800">
-          <li>Tutti i vini con flag <code className="px-1 rounded bg-amber-100">CARTA = SI</code></li>
-          <li>Sezione "Al calice" automatica per i vini con <code className="px-1 rounded bg-amber-100">VENDITA_CALICE = SI</code> o <em>bottiglia in mescita</em></li>
+          <li>Tutti i vini con flag <strong>Carta Vini</strong> attivo</li>
+          <li>Sezione "Al calice" automatica per i vini con flag <strong>Calice</strong> attivo o <em>bottiglia in mescita</em></li>
           <li>Ordinati per Tipologia → Nazione → Regione → Produttore (configurabile in Impostazioni Vini)</li>
         </ul>
       </div>

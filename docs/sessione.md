@@ -46,8 +46,34 @@ Audit: Pydantic `VinoMagazzinoBase`/`Update` **non avevano** `QTA_TOTALE` → er
 
 Le 12 soglie sono: `calici_fresh_hours` (12), `calici_alert_hours` (36), `vini_fermi_giorni` (30), `top_vendute_giorni` (30), `qta_suggerita_giorni_storico` (60), `qta_suggerita_divisore` (2), `ritmo_soglia_top` (5), `ritmo_soglia_medio` (1), `decidi_calice_soglia_warn_pct` (40), `decidi_calice_soglia_block_pct` (50), `prezzo_calice_divisore` (5), `prezzo_calice_step_round` (0.5).
 
+### V-H.E — Normalizzazione 4 flag SI/NO → INTEGER 0/1 + eliminazione DISCONTINUATO `[core]`
+
+**Migrazione 124** (single shot atomico, backup esplicito):
+- Backup `vini_magazzino.sqlite3.pre-mig-124-YYYYMMDD-HHMMSS` salvato nello stesso path del DB prima di toccarlo (recovery: rinominare).
+- Consolidamento `DISCONTINUATO='SI'` → `STATO_RIORDINO='X'` (decisione Marco: i due erano sinonimi semantici, DISCONTINUATO eredità Excel).
+- ADD COLUMN `<flag>_INT` per i 4 flag (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE).
+- Backfill: `'SI'→1`, `'NO'→0`, NULL→NULL/default 0.
+- DROP COLUMN delle 4 colonne TEXT vecchie + DISCONTINUATO (richiede SQLite >= 3.35, OK su Python 3.12).
+- RENAME COLUMN `<flag>_INT` → nome canonico.
+- Idempotente (check tipo PRAGMA all'ingresso). Re-run no-op.
+
+**Refactor backend** (5 file):
+- `vini_magazzino_db.py`: schema CREATE TABLE aggiornato (INTEGER), commenti, query SQL `CARTA = 'SI'` → `CARTA = 1`, default `"NO"` → 0, ALTER TABLE DISCONTINUATO rimosso.
+- `vini_repository.py`: query WHERE + compare `(r["VENDITA_CALICE"] or "") == "SI"` → `bool(r["VENDITA_CALICE"] or 0)`.
+- `vini_magazzino_router.py`: Pydantic `Optional[str]` → `Optional[int]`, default `"NO"` → `0`, rimossa Pydantic DISCONTINUATO, compare, output dict.
+- `vini_cantina_tools_router.py`: helper `_yn_to_int` e `_int_to_yn` per import/export Excel (Marco lascia file Excel leggibile con SI/NO, il DB resta INTEGER). DISCONTINUATO param Query deprecato. SELECT senza DISCONTINUATO.
+- `vini_router.py`: commenti aggiornati.
+
+**Refactor frontend** (5 file):
+- `MagazzinoVini.jsx`: select option `value="1"/"0"`, filtri client-side con `String(v.CARTA ?? "") === sel`, badge tabella `=== 1`, bulk select con coerce Number, rimosso filtro DISCONTINUATO.
+- `MagazzinoAdmin.jsx`: colonne grid `options: ["","1","0"]` con `optionLabels` per visual "SI"/"NO", `fSoloCarta` filtro `=== 1`, rimossa colonna DISCONTINUATO.
+- `MagazzinoViniNuovo.jsx`: state init `CARTA: 1` etc, save coerce `? 1 : 0`, helper `flagToggle` aggiornato a INTEGER 0/1 con compat retroattiva.
+- `SchedaVino.jsx`: FlagBadge `=== 1`, FlagToggle accetta INTEGER 0/1, save senza DISCONTINUATO, FlagToggle "Forza Prezzo" semplificato (era SI/NO→1/0, ora diretto).
+- `ViniVendite.jsx`: compare `VENDITA_CALICE === 1` (era `(v.VENDITA_CALICE || "") === "SI"`).
+
+**Da fare in coda (V-H.I):** tabella `vini` legacy (`vini_model.py`) — 3 occorrenze `CARTA='SI'` in staging import Excel. Lascio TEXT perché Marco ha detto di sistemare l'import dopo.
+
 ### Task di hardening tecnico ancora aperti (per la prossima sessione)
-- **V-H.E** Normalizzazione 5 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE, DISCONTINUATO)
 - **V-H.F** Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint (decisione semantica da prendere con Marco prima di partire)
 
 ### Memoria persistente salvata

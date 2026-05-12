@@ -162,16 +162,19 @@ Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
 - `PREZZO_CALICE` REAL — prezzo singolo calice
 - `PREZZO_CALICE_MANUALE` INTEGER 0/1 DEFAULT 0 — flag override sommelier (sessione 2026-05-11)
 
-**Flag operativi**
-- `CARTA` TEXT 'SI'/'NO' — pubblicato in carta cliente
-- `IPRATICO` TEXT 'SI'/'NO' — esportato verso iPratico
-- `BIOLOGICO` TEXT 'SI'/'NO' DEFAULT 'NO'
-- `VENDITA_CALICE` TEXT 'SI'/'NO' DEFAULT 'NO' — abilitato per vendita al calice
-- `DISCONTINUATO` TEXT 'SI'/'NO' — non riordinabile (UI WIP — voce roadmap V.1)
+**Flag operativi** (tutti INTEGER 0/1 dopo V-H.E 2026-05-12, mig 124)
+- `CARTA` INTEGER 0/1 — pubblicato in carta cliente
+- `IPRATICO` INTEGER 0/1 — esportato verso iPratico
+- `BIOLOGICO` INTEGER 0/1 DEFAULT 0
+- `VENDITA_CALICE` INTEGER 0/1 DEFAULT 0 — abilitato per vendita al calice
 - `FORZA_PREZZO` INTEGER 0/1 DEFAULT 0 — bypassa markup automatico
 - `BOTTIGLIA_APERTA` INTEGER 0/1 DEFAULT 0 — bottiglia in mescita (sessione 58)
 - `DATA_APERTURA` TEXT ISO — data apertura calice (sessione 2026-05-11, mig 121)
 - `ABBINAMENTI` TEXT — abbinamenti consigliati per carta cliente calici
+<!-- DISCONTINUATO rimosso 2026-05-12 (V-H.E, mig 124): ridondante con
+     STATO_RIORDINO='X' (Non ricomprare). I dati storici DISCONTINUATO='SI'
+     sono stati consolidati nel nuovo stato. -->
+- `PREZZO_CALICE_MANUALE` INTEGER 0/1 DEFAULT 0 (già citato sopra in "Prezzi")
 - `ORIGINE` TEXT 'EXCEL'/'MANUALE'
 
 **Stati codificati (lettera/numero — eredità Excel, V.F roadmap futura)**

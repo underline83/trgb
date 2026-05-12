@@ -186,7 +186,7 @@ def get_carta_cliente_data():
             "in_mescita": bool(r.get("BOTTIGLIA_APERTA") or 0),
             # Abbinamenti consigliati visibili al cliente — sessione 2026-05-04.
             # Letti da vini_magazzino.ABBINAMENTI; valorizzati solo per i vini
-            # al calice (VENDITA_CALICE='SI' o BOTTIGLIA_APERTA=1).
+            # al calice (VENDITA_CALICE=1 o BOTTIGLIA_APERTA=1).
             "abbinamenti": r.get("ABBINAMENTI"),
         })
 
@@ -226,7 +226,7 @@ def get_carta_cliente_data():
             "annata": r.get("ANNATA"),
             "prezzo": r.get("PREZZO"),
             # Sessione 58: prezzo calice mostrato accanto se il vino
-            # e' venduto al calice (VENDITA_CALICE='SI' o bottiglia aperta).
+            # e' venduto al calice (VENDITA_CALICE=1 o bottiglia aperta).
             "prezzo_calice": r.get("PREZZO_CALICE"),
         })
 

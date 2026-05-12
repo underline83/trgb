@@ -73,10 +73,11 @@ export default function MagazzinoViniNuovo() {
     SCONTO: "",
     NOTE_PREZZO: "",
 
-    CARTA: "SI",
-    IPRATICO: "NO",
-    VENDITA_CALICE: "NO",
-    BIOLOGICO: "NO",
+    // Flag INTEGER 0/1 (V-H.E sessione 2026-05-12, mig 124).
+    CARTA: 1,
+    IPRATICO: 0,
+    VENDITA_CALICE: 0,
+    BIOLOGICO: 0,
     FORZA_PREZZO: 0,
 
     STATO_VENDITA: "",
@@ -265,10 +266,13 @@ export default function MagazzinoViniNuovo() {
       SCONTO: numberOrNull(form.SCONTO),
       NOTE_PREZZO: nullIfEmpty(form.NOTE_PREZZO),
 
-      CARTA: form.CARTA === "SI" ? "SI" : "NO",
-      IPRATICO: form.IPRATICO === "SI" ? "SI" : "NO",
-      VENDITA_CALICE: form.VENDITA_CALICE === "SI" ? "SI" : "NO",
-      BIOLOGICO: form.BIOLOGICO === "SI" ? "SI" : "NO",
+      // Flag INTEGER 0/1 (V-H.E sessione 2026-05-12, mig 124).
+      // I form.CARTA ecc. arrivano già come numeri 0/1 dallo state iniziale +
+      // flagToggle helper (vedi sotto). Coerce difensivo a 0/1.
+      CARTA: form.CARTA ? 1 : 0,
+      IPRATICO: form.IPRATICO ? 1 : 0,
+      VENDITA_CALICE: form.VENDITA_CALICE ? 1 : 0,
+      BIOLOGICO: form.BIOLOGICO ? 1 : 0,
       FORZA_PREZZO: form.FORZA_PREZZO ? 1 : 0,
 
       STATO_VENDITA: nullIfEmpty(form.STATO_VENDITA),
@@ -651,11 +655,14 @@ function selectField(label, value, onChange, options, placeholder) {
 }
 
 function flagToggle(label, value, onChange) {
-  const on = value === "SI" || value === 1 || value === true;
+  // V-H.E sessione 2026-05-12: i flag sono INTEGER 0/1. Helper accetta anche
+  // vecchi valori "SI"/"NO"/true per compat retroattiva (es. vino caricato
+  // pre-mig in cache locale). onChange ritorna sempre 0/1.
+  const on = value === 1 || value === "SI" || value === true;
   return (
     <div className="flex flex-col items-center gap-1">
       <span className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">{label}</span>
-      <button type="button" onClick={() => onChange(on ? "NO" : "SI")}
+      <button type="button" onClick={() => onChange(on ? 0 : 1)}
         className={`w-12 h-6 rounded-full relative transition-colors ${on ? "bg-amber-500" : "bg-neutral-300"}`}>
         <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${on ? "left-6" : "left-0.5"}`} />
       </button>

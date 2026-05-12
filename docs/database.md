@@ -98,7 +98,7 @@ Vedi `modulo_vini.md` §3.5 per schema completo.
 
 | Tabella | Contenuto |
 |---------|-----------|
-| `vini_magazzino` | Anagrafica + giacenze 4 locazioni + flag CARTA/IPRATICO/DISCONTINUATO + stati operativi |
+| `vini_magazzino` | Anagrafica + giacenze 4 locazioni + flag CARTA/IPRATICO/BIOLOGICO/VENDITA_CALICE INTEGER 0/1 (V-H.E mig 124) + stati operativi |
 | `vini_magazzino_movimenti` | Storico movimenti (CARICO/SCARICO/VENDITA/RETTIFICA) |
 | `vini_magazzino_note` | Note operative per vino |
 | `vini_ordini_pending` | Ordini pending widget riordini (UNIQUE su vino_id) |

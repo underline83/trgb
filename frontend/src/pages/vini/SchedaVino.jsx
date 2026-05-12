@@ -495,8 +495,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       PREZZO_CALICE_MANUALE: vino.PREZZO_CALICE_MANUALE ?? 0,
       EURO_LISTINO: vino.EURO_LISTINO ?? "",
       SCONTO: vino.SCONTO ?? "", NOTE_PREZZO: vino.NOTE_PREZZO ?? "",
-      CARTA: vino.CARTA ?? "NO", IPRATICO: vino.IPRATICO ?? "NO",
-      BIOLOGICO: vino.BIOLOGICO ?? "NO", VENDITA_CALICE: vino.VENDITA_CALICE ?? "NO",
+      // V-H.E: flag INTEGER 0/1 (mig 124). Default 0 se NULL.
+      CARTA: vino.CARTA ?? 0, IPRATICO: vino.IPRATICO ?? 0,
+      BIOLOGICO: vino.BIOLOGICO ?? 0, VENDITA_CALICE: vino.VENDITA_CALICE ?? 0,
       FORZA_PREZZO: vino.FORZA_PREZZO ?? 0,
       STATO_VENDITA: vino.STATO_VENDITA ?? "",
       STATO_RIORDINO: vino.STATO_RIORDINO ?? "",
@@ -591,8 +592,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       ["GRADO_ALCOLICO","PREZZO_CARTA","PREZZO_CALICE","EURO_LISTINO","SCONTO"].forEach(k => {
         payload[k] = payload[k] === "" || payload[k] === null ? null : parseFloat(payload[k]);
       });
-      // Converti stringhe vuote in null per i campi con CHECK constraint
-      ["STATO_VENDITA","STATO_RIORDINO","STATO_CONSERVAZIONE","DISCONTINUATO"].forEach(k => {
+      // Converti stringhe vuote in null per i campi stato (DISCONTINUATO rimosso
+      // in V-H.E sessione 2026-05-12, consolidato in STATO_RIORDINO='X')
+      ["STATO_VENDITA","STATO_RIORDINO","STATO_CONSERVAZIONE"].forEach(k => {
         if (payload[k] === "") payload[k] = null;
       });
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
@@ -730,10 +732,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                   <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">#{vino.id}</span>
                   {vino.TIPOLOGIA && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${hdr.badge}`}>{vino.TIPOLOGIA}</span>}
-                  {vino.CARTA === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">In carta</span>}
-                  {vino.IPRATICO === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-sky-50 text-sky-700 border-sky-200">iPratico</span>}
-                  {vino.VENDITA_CALICE === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-200">Calice</span>}
-                  {vino.BIOLOGICO === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-lime-50 text-lime-700 border-lime-200">Biologico</span>}
+                  {vino.CARTA === 1 && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">In carta</span>}
+                  {vino.IPRATICO === 1 && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-sky-50 text-sky-700 border-sky-200">iPratico</span>}
+                  {vino.VENDITA_CALICE === 1 && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-200">Calice</span>}
+                  {vino.BIOLOGICO === 1 && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-lime-50 text-lime-700 border-lime-200">Biologico</span>}
                   {vino.STATO_VENDITA && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${s.color}`}>{s.label}</span> : null; })()}
                 </div>
                 {/* Nome vino */}
@@ -847,10 +849,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                     </div>
                     <div className="pt-3 border-t border-neutral-100 space-y-2">
                       <div className="flex flex-wrap gap-2">
-                        <FlagBadge active={vino.CARTA === "SI"} label="Carta Vini" activeColor="bg-emerald-50 text-emerald-700 border-emerald-200" />
-                        <FlagBadge active={vino.IPRATICO === "SI"} label="iPratico" activeColor="bg-sky-50 text-sky-700 border-sky-200" />
-                        <FlagBadge active={vino.VENDITA_CALICE === "SI"} label="Calice" activeColor="bg-violet-50 text-violet-700 border-violet-200" />
-                        <FlagBadge active={vino.BIOLOGICO === "SI"} label="Biologico" activeColor="bg-lime-50 text-lime-700 border-lime-200" />
+                        <FlagBadge active={vino.CARTA === 1} label="Carta Vini" activeColor="bg-emerald-50 text-emerald-700 border-emerald-200" />
+                        <FlagBadge active={vino.IPRATICO === 1} label="iPratico" activeColor="bg-sky-50 text-sky-700 border-sky-200" />
+                        <FlagBadge active={vino.VENDITA_CALICE === 1} label="Calice" activeColor="bg-violet-50 text-violet-700 border-violet-200" />
+                        <FlagBadge active={vino.BIOLOGICO === 1} label="Biologico" activeColor="bg-lime-50 text-lime-700 border-lime-200" />
                         <FlagBadge active={!!vino.FORZA_PREZZO} label="Forza Prezzo" activeColor="bg-rose-50 text-rose-700 border-rose-200" />
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -864,7 +866,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <div className="pt-3 border-t border-neutral-100">
                         <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5 flex items-center gap-2">
                           <span>🍽️ Abbinamenti consigliati</span>
-                          {vino.VENDITA_CALICE !== "SI" && !vino.BOTTIGLIA_APERTA && (
+                          {vino.VENDITA_CALICE !== 1 && !vino.BOTTIGLIA_APERTA && (
                             <span className="text-[10px] font-normal text-neutral-400 normal-case italic">
                               (non visibili al cliente: vino non al calice)
                             </span>
@@ -928,7 +930,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <FlagToggle label="iPratico" name="IPRATICO" value={editData.IPRATICO} onChange={v => setEditData(p => ({...p, IPRATICO: v}))} />
                       <FlagToggle label="Calice" name="VENDITA_CALICE" value={editData.VENDITA_CALICE} onChange={v => setEditData(p => ({...p, VENDITA_CALICE: v}))} />
                       <FlagToggle label="Biologico" name="BIOLOGICO" value={editData.BIOLOGICO} onChange={v => setEditData(p => ({...p, BIOLOGICO: v}))} />
-                      <FlagToggle label="Forza Prezzo" name="FORZA_PREZZO" value={editData.FORZA_PREZZO ? "SI" : "NO"} onChange={v => setEditData(p => ({...p, FORZA_PREZZO: v === "SI" ? 1 : 0}))} />
+                      <FlagToggle label="Forza Prezzo" name="FORZA_PREZZO" value={editData.FORZA_PREZZO} onChange={v => setEditData(p => ({...p, FORZA_PREZZO: v}))} />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-neutral-100">
                       <Select label="Stato vendita" name="STATO_VENDITA" value={editData.STATO_VENDITA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={STATO_VENDITA_OPTIONS} />
@@ -978,7 +980,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               <div className="p-5">
                 {/* Toggle "Bottiglia in mescita" — visibile solo se vendita al calice abilitata.
                     Quando ON, il vino resta in carta calici anche con QTA_TOTALE=0. */}
-                {vino.VENDITA_CALICE === "SI" && (
+                {vino.VENDITA_CALICE === 1 && (
                   <div className={`mb-4 p-3 rounded-xl border flex items-center justify-between gap-3 ${
                     vino.BOTTIGLIA_APERTA
                       ? "bg-amber-50 border-amber-300"
@@ -1543,11 +1545,13 @@ function FlagBadge({ active, label, activeColor }) {
 }
 
 function FlagToggle({ label, name, value, onChange }) {
-  const on = value === "SI";
+  // V-H.E sessione 2026-05-12: i flag sono INTEGER 0/1.
+  // Compat retroattiva per "SI"/"NO" / true / false in caching legacy.
+  const on = value === 1 || value === "SI" || value === true;
   return (
     <div>
       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-1">{label}</label>
-      <button type="button" onClick={() => onChange(on ? "NO" : "SI")}
+      <button type="button" onClick={() => onChange(on ? 0 : 1)}
         className={`relative w-12 h-6 rounded-full transition-colors ${on ? "bg-emerald-500" : "bg-neutral-300"}`}>
         <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${on ? "translate-x-6" : ""}`} />
       </button>

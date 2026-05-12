@@ -111,6 +111,38 @@ def _get_username(current_user: Any) -> str:
     return "unknown"
 
 
+# Sessione 2026-05-12 (V-H.E): i flag CARTA/IPRATICO/BIOLOGICO/VENDITA_CALICE
+# sono INTEGER 0/1 nel DB (mig 124). Il file Excel di Marco continua a usare
+# 'SI'/'NO' come testo leggibile. Convertitori per import (XLS→DB) e export
+# (DB→XLS). L'intero modulo import è dichiarato "in coda" da Marco (V-H.I)
+# — questi helper sono il minimo per non rompere il flusso esistente.
+def _yn_to_int(value):
+    """Converte 'SI'/1/'1' → 1, 'NO'/0/'0' → 0, altro → None."""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return 1 if value == 1 else 0 if value == 0 else None
+    s = str(value).strip().upper()
+    if s == "SI":
+        return 1
+    if s == "NO":
+        return 0
+    if s == "1":
+        return 1
+    if s == "0":
+        return 0
+    return None
+
+
+def _int_to_yn(value):
+    """Converte 1 → 'SI', 0 → 'NO', None/altro → '' per export Excel leggibile."""
+    if value == 1:
+        return "SI"
+    if value == 0:
+        return "NO"
+    return ""
+
+
 
 
 # =============================================================
@@ -223,8 +255,8 @@ async def import_excel_to_cantina(
                 "PREZZO_CARTA": row.get("PREZZO"),
                 "EURO_LISTINO": row.get("EURO_LISTINO"),
                 "SCONTO": row.get("SCONTO"),
-                "CARTA": row.get("CARTA"),
-                "IPRATICO": row.get("IPRATICO"),
+                "CARTA": _yn_to_int(row.get("CARTA")),
+                "IPRATICO": _yn_to_int(row.get("IPRATICO")),
                 "FRIGORIFERO": row.get("FRIGORIFERO"),
                 "LOCAZIONE_1": row.get("LOCAZIONE_1"),
                 "LOCAZIONE_2": row.get("LOCAZIONE_2"),
@@ -459,7 +491,7 @@ def export_cantina_excel(
             r["TIPOLOGIA"],
             r["NAZIONE"],
             r["REGIONE"],
-            r["CARTA"],
+            _int_to_yn(r["CARTA"]),  # V-H.E: DB è INTEGER, Excel resta SI/NO leggibile
             r["DESCRIZIONE"],
             r["ANNATA"],
             r["PRODUTTORE"],
@@ -476,7 +508,8 @@ def export_cantina_excel(
             r["QTA_LOC2"],
             r["QTA_TOTALE"],
             r["DISTRIBUTORE"],
-            r["IPRATICO"],
+            _int_to_yn(r["IPRATICO"]),  # idem
+
             r["ORIGINE"],
             vtot,
             ritmo_val,
@@ -617,8 +650,12 @@ def _load_all_vini_inventario(
         conditions.append("FORMATO = ?")
         params.append(formato)
     if carta:
-        conditions.append("CARTA = ?")
-        params.append(carta)
+        # V-H.E: il param può arrivare ancora come 'SI'/'NO' da FE non aggiornato
+        # o direttamente come 0/1 — coerce a INTEGER.
+        carta_int = _yn_to_int(carta)
+        if carta_int is not None:
+            conditions.append("CARTA = ?")
+            params.append(carta_int)
     if stato_vendita:
         conditions.append("STATO_VENDITA = ?")
         params.append(stato_vendita)
@@ -628,9 +665,9 @@ def _load_all_vini_inventario(
     if stato_conservazione:
         conditions.append("STATO_CONSERVAZIONE = ?")
         params.append(stato_conservazione)
-    if discontinuato:
-        conditions.append("DISCONTINUATO = ?")
-        params.append(discontinuato)
+    # DISCONTINUATO rimosso (V-H.E, sessione 2026-05-12). Consolidato in
+    # STATO_RIORDINO='X'. Il param Query resta per compat retroattiva ma
+    # non filtra più nulla — FE già aggiornato.
     if qta_min is not None:
         conditions.append("QTA_TOTALE >= ?")
         params.append(qta_min)
@@ -690,8 +727,7 @@ def _load_all_vini_inventario(
             LOCAZIONE_2, QTA_LOC2,
             LOCAZIONE_3, QTA_LOC3,
             QTA_TOTALE,
-            CARTA, STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
-            DISCONTINUATO
+            CARTA, STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE
         FROM vini_magazzino
         {where}
     """, params).fetchall()
@@ -1149,7 +1185,7 @@ def _build_filtri_subtitle(kwargs: Dict[str, Any]) -> str:
         "carta": "In carta",
         "stato_vendita": "Stato vendita",
         "stato_riordino": "Stato riordino",
-        "discontinuato": "Discontinuato",
+        # "discontinuato": rimosso V-H.E sessione 2026-05-12 — consolidato in STATO_RIORDINO='X'
         "text": "Testo",
     }
     parts = []

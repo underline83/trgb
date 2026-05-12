@@ -189,7 +189,7 @@ INSERT OR REPLACE INTO vini_impostazioni (chiave, valore) VALUES
 
 -- Filtri logici carta
 INSERT OR REPLACE INTO vini_impostazioni (chiave, valore) VALUES
-    ('carta_filtra_carta_si', '1'),          -- CARTA = 'SI'
+    ('carta_filtra_carta_si', '1'),          -- CARTA = 1 (V-H.E: INTEGER 0/1)
     ('carta_escludi_tipologia_errore', '1'); -- escludi sempre ERRORE
 
 PRAGMA foreign_keys = ON;

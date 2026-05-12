@@ -26,7 +26,7 @@ function StampaFiltrata({ onClose }) {
   const [f, setF] = useState({
     tipologia: "", nazione: "", regione: "", produttore: "",
     annata: "", formato: "", carta: "", ipratico: "", biologico: "", calice: "",
-    stato_vendita: "", stato_riordino: "", stato_conservazione: "", discontinuato: "",
+    stato_vendita: "", stato_riordino: "", stato_conservazione: "",
     solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
     frigo_nome: "", frigo_spazio: "",
@@ -74,7 +74,7 @@ function StampaFiltrata({ onClose }) {
   const pulisci = () => setF({
     tipologia: "", nazione: "", regione: "", produttore: "",
     annata: "", formato: "", carta: "", ipratico: "", biologico: "", calice: "",
-    stato_vendita: "", stato_riordino: "", stato_conservazione: "", discontinuato: "",
+    stato_vendita: "", stato_riordino: "", stato_conservazione: "",
     solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
     frigo_nome: "", frigo_spazio: "",
@@ -148,38 +148,38 @@ function StampaFiltrata({ onClose }) {
             </div>
           </div>
 
-          {/* Flag */}
+          {/* Flag — INTEGER 0/1 (V-H.E sessione 2026-05-12, mig 124) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className={lbl}>Carta Vini</label>
               <select value={f.carta} onChange={set("carta")} className={sel}>
                 <option value="">Tutti</option>
-                <option value="SI">SI</option>
-                <option value="NO">NO</option>
+                <option value="1">SI</option>
+                <option value="0">NO</option>
               </select>
             </div>
             <div>
               <label className={lbl}>iPratico</label>
               <select value={f.ipratico || ""} onChange={set("ipratico")} className={sel}>
                 <option value="">Tutti</option>
-                <option value="SI">SI</option>
-                <option value="NO">NO</option>
+                <option value="1">SI</option>
+                <option value="0">NO</option>
               </select>
             </div>
             <div>
               <label className={lbl}>Biologico</label>
               <select value={f.biologico || ""} onChange={set("biologico")} className={sel}>
                 <option value="">Tutti</option>
-                <option value="SI">SI</option>
-                <option value="NO">NO</option>
+                <option value="1">SI</option>
+                <option value="0">NO</option>
               </select>
             </div>
             <div>
               <label className={lbl}>Calice</label>
               <select value={f.calice || ""} onChange={set("calice")} className={sel}>
                 <option value="">Tutti</option>
-                <option value="SI">SI</option>
-                <option value="NO">NO</option>
+                <option value="1">SI</option>
+                <option value="0">NO</option>
               </select>
             </div>
           </div>
@@ -207,14 +207,9 @@ function StampaFiltrata({ onClose }) {
                 {STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
-            <div>
-              <label className={lbl}>Discontinuato</label>
-              <select value={f.discontinuato} onChange={set("discontinuato")} className={sel}>
-                <option value="">Tutti</option>
-                <option value="SI">SI</option>
-                <option value="NO">NO</option>
-              </select>
-            </div>
+            {/* Filtro DISCONTINUATO rimosso (V-H.E sessione 2026-05-12, mig 124):
+                consolidato in STATO_RIORDINO='X' (Non ricomprare). Per filtrare
+                i vini fuori catalogo, usa lo stato riordino sopra. */}
           </div>
 
           {/* Locazioni gerarchiche */}
@@ -869,11 +864,11 @@ export default function MagazzinoVini() {
     if (statoRiordinoSel) out = out.filter((v) => v.STATO_RIORDINO === statoRiordinoSel);
     if (statoConservazioneSel) out = out.filter((v) => v.STATO_CONSERVAZIONE === statoConservazioneSel);
 
-    // 7b) Filtri flag
-    if (cartaSel) out = out.filter((v) => v.CARTA === cartaSel);
-    if (ipraticoSel) out = out.filter((v) => v.IPRATICO === ipraticoSel);
-    if (biologicoSel) out = out.filter((v) => v.BIOLOGICO === biologicoSel);
-    if (caliceSel) out = out.filter((v) => v.VENDITA_CALICE === caliceSel);
+    // 7b) Filtri flag — INTEGER 0/1 dal BE, select value stringa "0"/"1" → coerce
+    if (cartaSel) out = out.filter((v) => String(v.CARTA ?? "") === cartaSel);
+    if (ipraticoSel) out = out.filter((v) => String(v.IPRATICO ?? "") === ipraticoSel);
+    if (biologicoSel) out = out.filter((v) => String(v.BIOLOGICO ?? "") === biologicoSel);
+    if (caliceSel) out = out.filter((v) => String(v.VENDITA_CALICE ?? "") === caliceSel);
 
     // 8) Filtro locazione unificato (cerca in tutte le colonne)
     if (locNome) {
@@ -1419,10 +1414,10 @@ export default function MagazzinoVini() {
                         </td>
                         <td className="px-1 py-1.5 text-center">
                           <div className="flex flex-wrap gap-0.5 justify-center">
-                            {vino.CARTA === "SI" && <Tooltip label="Carta Vini"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">C</span></Tooltip>}
-                            {vino.IPRATICO === "SI" && <Tooltip label="iPratico"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-sky-100 text-sky-700 border border-sky-200">iP</span></Tooltip>}
-                            {vino.VENDITA_CALICE === "SI" && <Tooltip label="Calice"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 border border-amber-200">🥂</span></Tooltip>}
-                            {vino.BIOLOGICO === "SI" && <Tooltip label="Biologico"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-lime-100 text-lime-700 border border-lime-200">🌿</span></Tooltip>}
+                            {vino.CARTA === 1 && <Tooltip label="Carta Vini"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">C</span></Tooltip>}
+                            {vino.IPRATICO === 1 && <Tooltip label="iPratico"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-sky-100 text-sky-700 border border-sky-200">iP</span></Tooltip>}
+                            {vino.VENDITA_CALICE === 1 && <Tooltip label="Calice"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 border border-amber-200">🥂</span></Tooltip>}
+                            {vino.BIOLOGICO === 1 && <Tooltip label="Biologico"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-lime-100 text-lime-700 border border-lime-200">🌿</span></Tooltip>}
                           </div>
                         </td>
                       </tr>
@@ -1593,26 +1588,26 @@ export default function MagazzinoVini() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Carta Vini</label>
-                      <select name="CARTA" value={bulkData.CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("CARTA")}>
-                        <option value="">{bfPlaceholder("CARTA")}</option><option value="SI">SI</option><option value="NO">NO</option>
+                      <select name="CARTA" value={bulkData.CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value === "" ? "" : Number(e.target.value))} className={bfClass("CARTA")}>
+                        <option value="">{bfPlaceholder("CARTA")}</option><option value="1">SI</option><option value="0">NO</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">iPratico</label>
-                      <select name="IPRATICO" value={bulkData.IPRATICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("IPRATICO")}>
-                        <option value="">{bfPlaceholder("IPRATICO")}</option><option value="SI">SI</option><option value="NO">NO</option>
+                      <select name="IPRATICO" value={bulkData.IPRATICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value === "" ? "" : Number(e.target.value))} className={bfClass("IPRATICO")}>
+                        <option value="">{bfPlaceholder("IPRATICO")}</option><option value="1">SI</option><option value="0">NO</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Biologico</label>
-                      <select name="BIOLOGICO" value={bulkData.BIOLOGICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("BIOLOGICO")}>
-                        <option value="">{bfPlaceholder("BIOLOGICO")}</option><option value="SI">SI</option><option value="NO">NO</option>
+                      <select name="BIOLOGICO" value={bulkData.BIOLOGICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value === "" ? "" : Number(e.target.value))} className={bfClass("BIOLOGICO")}>
+                        <option value="">{bfPlaceholder("BIOLOGICO")}</option><option value="1">SI</option><option value="0">NO</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Calice</label>
-                      <select name="VENDITA_CALICE" value={bulkData.VENDITA_CALICE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("VENDITA_CALICE")}>
-                        <option value="">{bfPlaceholder("VENDITA_CALICE")}</option><option value="SI">SI</option><option value="NO">NO</option>
+                      <select name="VENDITA_CALICE" value={bulkData.VENDITA_CALICE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value === "" ? "" : Number(e.target.value))} className={bfClass("VENDITA_CALICE")}>
+                        <option value="">{bfPlaceholder("VENDITA_CALICE")}</option><option value="1">SI</option><option value="0">NO</option>
                       </select>
                     </div>
                   </div>

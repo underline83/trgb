@@ -32,9 +32,10 @@ const BASE_COLUMNS = [
   { key: "QTA_LOC2",        label: "Q.L2",        type: "number", w: "w-14" },
   { key: "QTA_LOC3",        label: "Q.L3",        type: "number", w: "w-14" },
   { key: "QTA_TOTALE",      label: "Tot",         type: "readonly", w: "w-14" },
-  { key: "CARTA",           label: "Carta",       type: "select", options: ["","SI","NO"], w: "w-16" },
-  { key: "IPRATICO",        label: "iPrat",       type: "select", options: ["","SI","NO"], w: "w-16" },
-  { key: "DISCONTINUATO",   label: "Disc.",       type: "select", options: ["","SI","NO"], w: "w-16" },
+  // Flag INTEGER 0/1 (V-H.E sessione 2026-05-12, mig 124).
+  // DISCONTINUATO rimosso: consolidato in STATO_RIORDINO='X' (Non ricomprare).
+  { key: "CARTA",           label: "Carta",       type: "select", options: ["","1","0"], optionLabels: { "1": "SI", "0": "NO" }, w: "w-16" },
+  { key: "IPRATICO",        label: "iPrat",       type: "select", options: ["","1","0"], optionLabels: { "1": "SI", "0": "NO" }, w: "w-16" },
   { key: "STATO_VENDITA",   label: "St.Vend",     type: "select", options: STATO_VENDITA_OPTIONS.map(o => o.value), w: "w-16" },
   { key: "STATO_RIORDINO",  label: "St.Riord",    type: "select", options: STATO_RIORDINO_OPTIONS.map(o => o.value), w: "w-16" },
   { key: "STATO_CONSERVAZIONE", label: "St.Cons",  type: "select", options: STATO_CONSERVAZIONE_OPTIONS.map(o => o.value), w: "w-16" },
@@ -149,7 +150,7 @@ export default function MagazzinoAdmin() {
     if (fTipologia) list = list.filter(v => v.TIPOLOGIA === fTipologia);
     if (fNazione) list = list.filter(v => v.NAZIONE === fNazione);
     if (fSoloGiacenza) list = list.filter(v => (v.QTA_TOTALE || 0) > 0);
-    if (fSoloCarta) list = list.filter(v => v.CARTA === "SI");
+    if (fSoloCarta) list = list.filter(v => v.CARTA === 1);  // V-H.E: INTEGER 0/1
 
     // Ordinamento
     if (sortKey) {
@@ -460,15 +461,25 @@ function CellEditor({ col, value, originalValue, onChange }) {
   }
 
   if (col.type === "select") {
-    const curVal = value ?? "";
-    const hasVal = curVal && !col.options.includes(curVal);
+    // V-H.E (sessione 2026-05-12): value può essere INTEGER (0/1) o stringa (per
+    // stati ABCDX). Normalizzo a stringa per confronto select. optionLabels
+    // permette di mostrare "SI"/"NO" mentre il value sotto è "1"/"0".
+    const curStr = value == null ? "" : String(value);
+    const hasVal = curStr && !col.options.includes(curStr);
+    const labelOf = (opt) => (col.optionLabels && col.optionLabels[opt]) || opt || "—";
     return (
-      <select value={curVal} onChange={(e) => onChange(e.target.value)}
+      <select value={curStr} onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === "") return onChange(null);
+        // Se optionLabels è presente, è un flag boolean → cast a Number
+        if (col.optionLabels) return onChange(Number(raw));
+        onChange(raw);
+      }}
         className={base + " cursor-pointer"}>
         {col.options.map(opt => (
-          <option key={opt} value={opt}>{opt || "—"}</option>
+          <option key={opt} value={opt}>{labelOf(opt)}</option>
         ))}
-        {hasVal && <option value={curVal}>{curVal} (non config.)</option>}
+        {hasVal && <option value={curStr}>{curStr} (non config.)</option>}
       </select>
     );
   }

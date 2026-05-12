@@ -165,7 +165,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
         WHERE
             TIPOLOGIA IS NOT NULL
             AND TIPOLOGIA <> 'ERRORE'
-            AND CARTA = 'SI'
+            AND CARTA = 1
         """
     ).fetchall()
     conn.close()
@@ -226,7 +226,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             from app.services.vini_widget_settings_service import calcola_prezzo_calice_default
             prezzo_calice = calcola_prezzo_calice_default(r["PREZZO_CARTA"])
 
-        is_calice = (r["VENDITA_CALICE"] or "") == "SI" or bool(r["BOTTIGLIA_APERTA"] or 0)
+        is_calice = bool(r["VENDITA_CALICE"] or 0) or bool(r["BOTTIGLIA_APERTA"] or 0)
 
         out.append({
             "id": r["id"],
@@ -251,17 +251,17 @@ def load_vini_calici() -> List[Dict[str, Any]]:
     """
     Restituisce i vini destinati alla sezione CALICI della carta.
 
-    Logica di inclusione (sessione 58, 2026-04-25):
-    - vini flaggati `VENDITA_CALICE='SI'` in anagrafica → standard;
+    Logica di inclusione (sessione 58, 2026-04-25 — flag INTEGER da V-H.E 2026-05-12):
+    - vini flaggati `VENDITA_CALICE=1` in anagrafica → standard;
     - vini con `BOTTIGLIA_APERTA=1` (bottiglia in mescita) → inclusi anche se
-      `VENDITA_CALICE='NO'`. Caso d'uso: il sommelier apre estemporaneamente
+      `VENDITA_CALICE=0`. Caso d'uso: il sommelier apre estemporaneamente
       una bottiglia da carta normale per servirla al calice; il vino appare
       in carta calici finche' il flag e' attivo.
 
     Il filtro giacenza permette di restare in carta anche con QTA_TOTALE=0
     quando la bottiglia e' in mescita (calici residui ancora vendibili).
-    Usa PREZZO_CALICE; se mancante, fallback `PREZZO_CARTA / 5` arrotondato
-    al €0.50 piu' vicino (es. 8.70 -> 8.50, 8.80 -> 9.00).
+    Usa PREZZO_CALICE; se mancante, fallback configurabile via widget_settings
+    (default PREZZO_CARTA / 5 step 0.50).
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
@@ -288,7 +288,7 @@ def load_vini_calici() -> List[Dict[str, Any]]:
         WHERE
             TIPOLOGIA IS NOT NULL
             AND TIPOLOGIA <> 'ERRORE'
-            AND (VENDITA_CALICE = 'SI' OR BOTTIGLIA_APERTA = 1)
+            AND (VENDITA_CALICE = 1 OR BOTTIGLIA_APERTA = 1)
         """
     ).fetchall()
     conn.close()
@@ -418,7 +418,7 @@ def search_vini(
 
     # solo vini in carta
     if solo_in_carta:
-        sql += " AND CARTA = 'SI'"
+        sql += " AND CARTA = 1"
 
     # solo vini con stock positivo
     if solo_disponibili:

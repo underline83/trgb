@@ -96,7 +96,8 @@ Priorità ridefinite con Marco 2026-05-12 (audit modulo Vini).
 | V-H.B | V-BUG1 admin guard FORCE import | XS | FALSO POSITIVO (endpoint inesistente, guard già presenti su tutti i massive endpoint) |
 | V-H.C | Trailing slash uniformati su route Vini | S | FATTO 2026-05-12 (verificato conforme, no modifiche) |
 | V-H.D | QTA_TOTALE read-only (opzione 1) + audit FE | S | FATTO 2026-05-12 (era già di fatto sicuro + cintura `data.pop` in `update_vino`) |
-| V-H.E | Normalizzazione 5 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE, DISCONTINUATO) | M | TODO |
+| V-H.E | Normalizzazione 4 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE) + rimozione DISCONTINUATO (consolidato in STATO_RIORDINO='X') | M | FATTO 2026-05-12 (mig 124, single shot atomico, backup esplicito) |
+| V-H.I | Normalizzare anche tabella `vini` legacy (DB `vini.sqlite3`) — staging import Excel | XS | DA VALUTARE (in coda dopo refactor import Excel) |
 | V-H.F | Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint | M | TODO (da decidere semantica) |
 | V-H.G | Soglie configurabili (vini_settings + UI Impostazioni Vini) | M | FATTO 2026-05-12 (mig 123, 12 soglie, sezione "Widget e soglie") |
 | V-H.H | Allineamento docs §3.5 + roadmap V | XS | FATTO 2026-05-12 |

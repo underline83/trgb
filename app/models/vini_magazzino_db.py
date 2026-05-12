@@ -145,11 +145,13 @@ def init_magazzino_database() -> None:
             PREZZO_CALICE       REAL,
             PREZZO_CALICE_MANUALE INTEGER DEFAULT 0,  -- 1 se il prezzo è stato modificato manualmente
 
-            -- Flag di visibilità / export
-            CARTA           TEXT CHECK (CARTA IN ('SI','NO') OR CARTA IS NULL),
-            IPRATICO        TEXT CHECK (IPRATICO IN ('SI','NO') OR IPRATICO IS NULL),
-            BIOLOGICO       TEXT CHECK (BIOLOGICO IN ('SI','NO') OR BIOLOGICO IS NULL) DEFAULT 'NO',
-            VENDITA_CALICE  TEXT CHECK (VENDITA_CALICE IN ('SI','NO') OR VENDITA_CALICE IS NULL) DEFAULT 'NO',
+            -- Flag di visibilità / export (sessione 2026-05-12, V-H.E:
+            -- normalizzati da TEXT 'SI'/'NO' a INTEGER 0/1, mig 124).
+            -- DISCONTINUATO rimosso: ridondante con STATO_RIORDINO='X' (Non ricomprare).
+            CARTA           INTEGER,
+            IPRATICO        INTEGER,
+            BIOLOGICO       INTEGER DEFAULT 0,
+            VENDITA_CALICE  INTEGER DEFAULT 0,
 
             -- Mescita: 1 se la bottiglia e' aperta in mescita (anche con QTA_TOTALE=0
             -- il vino deve apparire nella carta calici). Sessione 58 (2026-04-25).
@@ -210,14 +212,18 @@ def init_magazzino_database() -> None:
         "ON vini_magazzino (DESCRIZIONE);"
     )
 
-    # Nuove colonne per DB esistenti (ALTER TABLE idempotente)
+    # Nuove colonne per DB esistenti (ALTER TABLE idempotente).
+    # NOTA (sessione 2026-05-12, V-H.E): BIOLOGICO/VENDITA_CALICE qui sono
+    # dichiarati come INTEGER, ma su DB ESISTENTI erano stati creati come TEXT
+    # da una versione precedente di questo blocco. La mig 124 li ricrea come
+    # INTEGER. Per nuovi DB il CREATE TABLE sopra è già corretto.
     for col_def in [
         "PREZZO_CALICE REAL",
         "PREZZO_CALICE_MANUALE INTEGER DEFAULT 0",
-        "BIOLOGICO TEXT DEFAULT 'NO'",
-        "VENDITA_CALICE TEXT DEFAULT 'NO'",
+        "BIOLOGICO INTEGER DEFAULT 0",
+        "VENDITA_CALICE INTEGER DEFAULT 0",
         # Sessione 2026-05-04: campo testo libero per abbinamenti consigliati,
-        # mostrato in carta cliente solo per vini al calice (VENDITA_CALICE='SI'
+        # mostrato in carta cliente solo per vini al calice (VENDITA_CALICE=1
         # o BOTTIGLIA_APERTA=1).
         "ABBINAMENTI TEXT",
     ]:
@@ -246,11 +252,8 @@ def init_magazzino_database() -> None:
     cols = [row[1] for row in cur.fetchall()]
     if "ANNATA" not in cols:
         cur.execute("ALTER TABLE vini_magazzino ADD COLUMN ANNATA TEXT;")
-    if "DISCONTINUATO" not in cols:
-        cur.execute(
-            "ALTER TABLE vini_magazzino ADD COLUMN DISCONTINUATO TEXT "
-            "CHECK (DISCONTINUATO IN ('SI','NO') OR DISCONTINUATO IS NULL);"
-        )
+    # DISCONTINUATO rimosso 2026-05-12 (V-H.E, mig 124): ridondante con
+    # STATO_RIORDINO='X' (Non ricomprare). I dati sono stati consolidati.
     if "STATO_RIORDINO" not in cols:
         # 'O' (Finito/ordina) rimosso 2026-05-11: ridondante con 'D' (mig 122).
         # Il CHECK qui vale solo per DB nuovi; per DB esistenti il constraint
@@ -635,7 +638,7 @@ def duplicate_vino(
     Parametri:
     - vino_id: id del vino sorgente.
     - annata: se fornita, imposta ANNATA del duplicato e applica i default
-      "nuova annata": STATO_RIORDINO='0' (Ordinato) e CARTA='NO'
+      "nuova annata": STATO_RIORDINO='0' (Ordinato) e CARTA=0
       (il vino si mette in carta solo quando arriva e viene caricato).
       Se None, il comportamento è quello storico (copia esatta anagrafica).
     - overrides: dict opzionale con campi da sovrascrivere esplicitamente.
@@ -682,7 +685,7 @@ def duplicate_vino(
         if annata is not None and str(annata).strip() != "":
             data["ANNATA"] = str(annata).strip()
             data["STATO_RIORDINO"] = "0"   # Ordinato
-            data["CARTA"] = "NO"           # In carta solo quando arriva
+            data["CARTA"] = 0              # In carta solo quando arriva (V-H.E: 'NO' → 0)
 
         # Override espliciti dal chiamante (ultima priorità)
         if overrides:
@@ -1201,7 +1204,7 @@ def search_vini(
         params.append(f"%{produttore}%")
 
     if solo_in_carta:
-        where.append("CARTA = 'SI'")
+        where.append("CARTA = 1")
 
     if min_qta is not None:
         where.append("QTA_TOTALE >= ?")
@@ -1833,7 +1836,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             COUNT(CASE WHEN STATO_VENDITA IN ('V','F','S','T')
                        THEN 1 END)                                        AS referenze_attive,
             COALESCE(SUM(QTA_TOTALE), 0)                                  AS total_bottiglie,
-            COUNT(CASE WHEN CARTA = 'SI' THEN 1 END)                      AS vini_in_carta,
+            COUNT(CASE WHEN CARTA = 1 THEN 1 END)                      AS vini_in_carta,
             COUNT(CASE WHEN QTA_TOTALE > 0 THEN 1 END)                    AS vini_con_giacenza,
             COUNT(CASE WHEN (EURO_LISTINO IS NULL OR EURO_LISTINO = '')
                        THEN 1 END)                                         AS vini_senza_listino,
@@ -1877,7 +1880,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                 WHERE m.vino_id = v.id AND m.tipo = 'VENDITA'
                ) AS ultima_vendita
         FROM vini_magazzino v
-        WHERE v.CARTA = 'SI'
+        WHERE v.CARTA = 1
           AND (v.QTA_TOTALE IS NULL OR v.QTA_TOTALE = 0)
           AND v.STATO_VENDITA IN ('V', 'F', 'S', 'T')
           -- Sessione 2026-05-11: escludi stati di riordino "decisi"
@@ -2085,7 +2088,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             WHERE (v.DISTRIBUTORE IS NOT NULL AND v.DISTRIBUTORE != '')
                OR (v.RAPPRESENTANTE IS NOT NULL AND v.RAPPRESENTANTE != '')
                OR v.STATO_RIORDINO IN ('D', 'O', '0')
-               OR (v.QTA_TOTALE > 0 AND v.CARTA = 'SI')
+               OR (v.QTA_TOTALE > 0 AND v.CARTA = 1)
         """
     else:
         # Sessione 2026-05-11: include anche 'A' (Annata esaurita) e 'X' (Non
@@ -2096,7 +2099,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         # vecchi record (la mig 122 li migra a 'D').
         riordini_where = """
             WHERE v.STATO_RIORDINO IN ('D', 'O', '0', 'A', 'X')
-               OR (v.QTA_TOTALE = 0 AND v.CARTA = 'SI'
+               OR (v.QTA_TOTALE = 0 AND v.CARTA = 1
                    AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
         """
     riordini_per_fornitore = cur.execute(

@@ -285,8 +285,8 @@ export default function ViniVendite() {
         setTimeout(() => setSubmitMsg(""), 4000);
         return;
       }
-      // Se VENDITA_CALICE = SI → patch diretto BOTTIGLIA_APERTA=1
-      if ((vino.VENDITA_CALICE || "") === "SI") {
+      // Se VENDITA_CALICE = 1 → patch diretto BOTTIGLIA_APERTA=1 (V-H.E: INTEGER 0/1)
+      if (vino.VENDITA_CALICE === 1) {
         await patchAttivaCalice(vino.id);
         setSubmitMsg(`✅ 🥂 ${vino.DESCRIZIONE} attivato per i calici.`);
         setTimeout(() => setSubmitMsg(""), 4000);
@@ -410,7 +410,7 @@ export default function ViniVendite() {
     // Logica: è una scelta del sommelier, deve fissare lui il prezzo.
     const isCaliceNonStd =
       modalita === "CALICI" &&
-      (selectedVino.VENDITA_CALICE || "") !== "SI" &&
+      selectedVino.VENDITA_CALICE !== 1 &&
       !selectedVino.BOTTIGLIA_APERTA;
     if (isCaliceNonStd) {
       const carta = Number(selectedVino.PREZZO_CARTA || 0);
