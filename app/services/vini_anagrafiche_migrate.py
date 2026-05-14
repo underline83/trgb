@@ -48,6 +48,7 @@ def _pick_canonical_name(forms_with_counts: Dict[str, int]) -> str:
     """
     Dato un dict {forma_originale: count}, sceglie la forma canonica:
       - frequenza più alta (count desc)
+      - preferenza per NON-tutto-uppercase (CAMPERCHI vs Camperchi → Camperchi)
       - tiebreak: lunghezza maggiore (più descrittiva)
       - tiebreak finale: alfabetico
     """
@@ -55,7 +56,7 @@ def _pick_canonical_name(forms_with_counts: Dict[str, int]) -> str:
         return ""
     sorted_forms = sorted(
         forms_with_counts.items(),
-        key=lambda x: (-x[1], -len(x[0]), x[0]),
+        key=lambda x: (-x[1], x[0].isupper(), -len(x[0]), x[0]),
     )
     return sorted_forms[0][0].strip()
 
