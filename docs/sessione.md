@@ -48,6 +48,18 @@ Sessione lunga: progettazione iterativa dello schema del refactor strutturale de
 - Note descrittive su ogni vitigno (es. Cannonau = Grenache, Primitivo = Zinfandel).
 - INSERT OR IGNORE su `nome` UNIQUE — idempotente. L'utente può aggiungere altri via CRUD `POST /vini/anagrafiche/vitigni/`.
 
+### Fase 5 — Migrazione dati clustering ✅
+- Service `vini_anagrafiche_migrate.py` + endpoint `POST /vini/anagrafiche/migrate-from-legacy?dry_run=true|false`. Pipeline 6 step (produttori → fornitori → denominazioni match → madre clustering → link bottiglie → parser vitigni).
+- Fix preferenza canonical naming: non-uppercase prima di uppercase (es. "Camperchi" vs "CAMPERCHI" sceglie il primo).
+- **Risultati produzione 2026-05-13**:
+  - 350 produttori distinct creati (solo 3 multi-variante banali case-sensitive)
+  - 40 fornitori (con rappresentanti inline)
+  - 995 vini madre clusterizzati
+  - 270 denominazioni linkate automaticamente (exact match) / 725 no_match (compileranno a mano in Fase 6 UI)
+  - 1285 bottiglie linkate al madre, 2 orfane (senza produttore)
+  - 37 vitigni assegnati su 44 bottiglie con campo VITIGNI valorizzato (campo poco usato da Marco)
+- Vitigni non riconosciuti (~13): Clairette, Verdeca, Susumaniello, Vernaccia, Catarratto, Zibibbo, Gewürztraminer, ecc. — da aggiungere all'anagrafica.
+
 ### Stato DB post sessione
 ```
 vini_produttori_v2     0    (popolato in Fase 5)

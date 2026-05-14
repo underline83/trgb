@@ -110,7 +110,7 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 | 2 | Backend service + 26 endpoint CRUD `/vini/anagrafiche/...` | FATTO 2026-05-13 |
 | 3 | Seed denominazioni (1637 da eAmbrosia API + 505 italiane DOC/DOCG/IGT da PDF MASAF). Fix mig 126 vincolo UNIQUE + mapping nazioni esteso | FATTO 2026-05-13 |
 | 4 | Mig 127 — seed 60 vitigni canonici | FATTO 2026-05-13 |
-| **5** | **Migrazione dati esistenti** (clustering 1287 vini → produttori/madre/fornitori + parser vitigni TEXT → 5 slot) | **TODO domani — prioritario** |
+| 5 | Migrazione dati clustering: 350 produttori + 40 fornitori + 995 madre + 1285 bottiglie linkate + 2 orfane + 37 vitigni assegnati | FATTO 2026-05-13 |
 | 6 | UI gestione anagrafiche "🧪 beta" in ViniImpostazioni.jsx | TODO |
 | 7 | Service sync runtime (campi ridondanti dal madre → bottiglie) + endpoint rollback rapido | TODO |
 | 8 | Workflow nuovo inserimento vino 3-step (produttore → madre → annata) | TODO |
