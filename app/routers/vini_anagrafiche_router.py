@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.services.auth_service import get_current_user, is_admin
 from app.models import vini_anagrafiche_db as ana
+from app.services import vini_anagrafiche_sync as ana_sync
 
 
 router = APIRouter(
@@ -202,8 +203,11 @@ def update_produttore(pid: int, payload: ProduttoreUpdate, current_user: Any = D
     if not ana.get_produttore(pid):
         raise HTTPException(404, "Produttore non trovato")
     ana.update_produttore(pid, payload.dict(exclude_unset=True))
-    # TODO Fase 7: trigger sync_bottiglie_from_produttore(pid)
-    return ana.get_produttore(pid)
+    # Fase 7: cascade sync su tutti i madre+bottiglie che usano questo produttore
+    sync_report = ana_sync.sync_bottiglie_from_produttore(pid)
+    row = ana.get_produttore(pid)
+    row["_sync"] = sync_report
+    return row
 
 
 @router.delete("/produttori/{pid}", summary="Elimina produttore (admin)")
@@ -253,8 +257,11 @@ def update_fornitore(fid: int, payload: FornitoreUpdate, current_user: Any = Dep
     if not ana.get_fornitore(fid):
         raise HTTPException(404, "Fornitore non trovato")
     ana.update_fornitore(fid, payload.dict(exclude_unset=True))
-    # TODO Fase 7: trigger sync_bottiglie_from_fornitore(fid)
-    return ana.get_fornitore(fid)
+    # Fase 7: cascade sync su tutti i madre+bottiglie che usano questo fornitore
+    sync_report = ana_sync.sync_bottiglie_from_fornitore(fid)
+    row = ana.get_fornitore(fid)
+    row["_sync"] = sync_report
+    return row
 
 
 @router.delete("/fornitori/{fid}", summary="Elimina fornitore (admin)")
@@ -309,8 +316,11 @@ def update_denominazione(did: int, payload: DenominazioneUpdate, current_user: A
     if not ana.get_denominazione(did):
         raise HTTPException(404, "Denominazione non trovata")
     ana.update_denominazione(did, payload.dict(exclude_unset=True))
-    # TODO Fase 7: trigger sync_bottiglie_from_denominazione(did)
-    return ana.get_denominazione(did)
+    # Fase 7: cascade sync su tutti i madre+bottiglie che usano questa denominazione
+    sync_report = ana_sync.sync_bottiglie_from_denominazione(did)
+    row = ana.get_denominazione(did)
+    row["_sync"] = sync_report
+    return row
 
 
 # Sync da eAmbrosia API + PDF MASAF (Fase 3)
@@ -480,8 +490,11 @@ def update_madre(mid: int, payload: MadreUpdate, current_user: Any = Depends(get
     if data.get("denominazione_id") is not None and not ana.get_denominazione(data["denominazione_id"]):
         raise HTTPException(400, f"Denominazione {data['denominazione_id']} non trovata")
     ana.update_madre(mid, data)
-    # TODO Fase 7: trigger sync_bottiglie_from_madre(mid)
-    return ana.get_madre(mid)
+    # Fase 7: propaga campi anagrafici a tutte le bottiglie del madre
+    n_bot = ana_sync.sync_bottiglie_from_madre(mid)
+    row = ana.get_madre(mid)
+    row["_sync"] = {"n_bottiglie": n_bot}
+    return row
 
 
 @router.delete("/madre/{mid}", summary="Elimina vino madre (admin)")
@@ -494,3 +507,97 @@ def delete_madre(mid: int, current_user: Any = Depends(get_current_user)):
     if not ok:
         raise HTTPException(404, "Vino madre non trovato")
     return {"status": "ok", "deleted_id": mid}
+
+
+# ============================================================
+# SYNC FULL — safety net (Fase 7)
+# ============================================================
+@router.post("/sync-all", summary="Risincronizza tutte le bottiglie dalle anagrafiche (admin)")
+def sync_all_endpoint(current_user: Any = Depends(get_current_user)):
+    """
+    Full resync: propaga i campi anagrafici da `vini_madre_v2` (+ produttori,
+    fornitori, denominazioni) verso `vini_bottiglie_v2` per TUTTI i madre.
+
+    Safety net contro drift accidentali. Idempotente. Le bottiglie orfane
+    (madre_id IS NULL) non vengono toccate.
+
+    Ritorna un report con n_madre_processati, n_bottiglie_aggiornate,
+    n_orfani_skippati, durata_sec.
+    """
+    _require_admin(current_user)
+    try:
+        return ana_sync.sync_all_bottiglie()
+    except Exception as e:
+        raise HTTPException(500, f"Sync fallita: {e}")
+
+
+# ============================================================
+# ROLLBACK — drop tabelle _v2 (Fase 7, safety blue-green)
+# ============================================================
+@router.post("/rollback", summary="Rollback: droppa tutte le tabelle _v2 (admin, distruttivo)")
+def rollback_v2_tables(
+    confirm: str = Query(
+        "",
+        description="Per sicurezza, passare confirm=YES_DROP_V2_TABLES per eseguire davvero."
+    ),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    DISTRUTTIVO: cancella le 6 tabelle `_v2` del refactor anagrafiche
+    (produttori, fornitori, denominazioni, vitigni, madre, bottiglie),
+    riportando il DB allo stato pre-refactor.
+
+    Prima del drop, fa un backup esplicito del file DB con timestamp.
+
+    Da usare SOLO in finestra di rollback (fino a 24h dopo lo swap, vedi
+    docs/refactor_anagrafiche_vini.md §1).
+
+    Richiede confirm=YES_DROP_V2_TABLES per evitare click accidentali.
+    """
+    _require_admin(current_user)
+    if confirm != "YES_DROP_V2_TABLES":
+        raise HTTPException(
+            400,
+            "Rollback bloccato: passare ?confirm=YES_DROP_V2_TABLES per confermare."
+        )
+
+    import shutil
+    import sqlite3 as _sqlite3
+    from datetime import datetime
+    from app.models.vini_anagrafiche_db import TABELLE
+    from app.utils.locale_data import locale_data_path
+
+    db_path = locale_data_path("vini_magazzino.sqlite3")
+    if not db_path.exists():
+        raise HTTPException(500, f"DB non trovato: {db_path}")
+
+    # 1) Backup esplicito pre-drop
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_path = db_path.with_name(db_path.name + f".pre-rollback-{ts}")
+    shutil.copy2(db_path, backup_path)
+
+    # 2) Drop in ordine inverso alle FK (bottiglie -> madre -> resto)
+    drop_order = ["bottiglie", "madre", "vitigni", "denominazioni", "fornitori", "produttori"]
+    droppate = []
+    conn = _sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        for key in drop_order:
+            tbl = TABELLE[key]
+            cur.execute(f"DROP TABLE IF EXISTS {tbl}")
+            droppate.append(tbl)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "status": "ok",
+        "backup": str(backup_path),
+        "tabelle_droppate": droppate,
+        "timestamp": ts,
+        "warning": (
+            "Refactor anagrafiche rollbackato. Per ripartire da zero, "
+            "rilancia le mig 125 + 126 + 127 (boot backend) e re-esegui "
+            "POST /vini/anagrafiche/migrate-from-legacy."
+        ),
+    }

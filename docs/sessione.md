@@ -1,6 +1,68 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-13 (sera) — Refactor anagrafiche vini V.6+V.7+V.8: Fasi 1-4 completate (impalcatura + CRUD + 1637 denominazioni + 60 vitigni). Da fare domani: Fase 5 (migrazione dati clustering).
+**Ultimo aggiornamento:** 2026-05-14 — Refactor anagrafiche vini V.6+V.7+V.8: Fasi 5-7 chiuse. Migrazione 1287 vini fatta, UI beta pubblicata, sync runtime + rollback online. Prossimo: Fase 8 (workflow nuovo inserimento vino 3-step) o testing utente esteso.
+
+---
+
+## SESSIONE 2026-05-14 — Refactor anagrafiche vini (Fase 7) + fix Fase 6
+
+### Sintesi
+Sessione di consolidamento. Chiuso il refactor del campo `nazione_origine` sui vitigni (rimosso, fuorviante per vitigni multi-nazione). Poi implementata l'intera Fase 7 del refactor: service `vini_anagrafiche_sync.py` che propaga i campi anagrafici dal `vini_madre_v2` (+ produttori/fornitori/denominazioni) alle bottiglie collegate, agganciato automaticamente ai 4 PATCH del router. Aggiunti endpoint admin `/sync-all` (safety net contro drift) e `/rollback` (drop tabelle `_v2` con backup esplicito e confirm string). Bottone "Risincronizza tutto" nella tab Panoramica dell'UI beta.
+
+### Fase 6 fix — Rimozione `nazione_origine` da vitigni
+- Marco ha notato che il seed metteva Gewürztraminer come "Francia" ma è coltivato in Italia/Germania/Alsazia. Estesa l'osservazione a tutti i vitigni multi-nazione (Pinot Nero, Cannonau/Grenache, Primitivo/Zinfandel, ecc.).
+- Decisione: rimuovere la colonna. L'info nazione storica eventuale finisce in `note` come testo libero ("Francia (Bordeaux). Coltivato in tutto il mondo").
+- Codice aggiornato: `VITIGNI_FIELDS` in models, Pydantic `VitignoBase/Update` senza nazione, `VITIGNO_FIELDS` in `AnagraficheVini.jsx` con placeholder note esplicativo.
+- Mig 127 riscritta: tuple `(nome, note)` e INSERT su 2 colonne. 60 vitigni canonici aggiornati con note descrittive.
+- Comando SQL one-shot dato a Marco: `ALTER TABLE vini_vitigni_v2 DROP COLUMN nazione_origine;` (eseguito post-push, ok su VPS).
+
+### Fase 7 — Sync runtime + rollback
+
+#### A. Service `app/services/vini_anagrafiche_sync.py` (~230 righe)
+- 5 funzioni esposte:
+  - `sync_bottiglie_from_madre(mid) -> int` (n righe aggiornate)
+  - `sync_bottiglie_from_produttore(pid) -> {n_madre, n_bottiglie}` (cascade)
+  - `sync_bottiglie_from_fornitore(fid) -> {n_madre, n_bottiglie}` (cascade)
+  - `sync_bottiglie_from_denominazione(did) -> {n_madre, n_bottiglie}` (cascade)
+  - `sync_all_bottiglie() -> {n_madre_processati, n_bottiglie_aggiornate, n_orfani_skippati, durata_sec}`
+- Una sola query JOIN per madre: `vini_madre_v2 ⨝ produttori_v2 ⟕ fornitori_v2 ⟕ denominazioni_v2`. Fallback intelligenti: `madre.nazione || produttore.nazione`, denominazione_id NULL → `DENOMINAZIONE = NULL`.
+- Campi sincronizzati (9): PRODUTTORE, DESCRIZIONE, DENOMINAZIONE, TIPOLOGIA, NAZIONE, REGIONE, DISTRIBUTORE, RAPPRESENTANTE, ABBINAMENTI.
+- Campi non toccati: annata-specifici, stati operativi, locazioni/qta, vitigni (5 slot + TEXT legacy).
+- Bottiglie orfane (`madre_id IS NULL`) saltate — restano con TEXT free-form originale.
+
+#### B. Aggancio nei 4 PATCH del router
+- `PATCH /madre/{id}` → `sync_bottiglie_from_madre(mid)` → return include `_sync: {n_bottiglie}`.
+- `PATCH /produttori/{id}` → `sync_bottiglie_from_produttore(pid)` (cascade su tutti i madre).
+- `PATCH /fornitori/{id}` → idem.
+- `PATCH /denominazioni/{id}` → idem.
+- Sostituiti tutti i `TODO Fase 7` con codice vivo.
+
+#### C. Endpoint `POST /vini/anagrafiche/sync-all` (admin)
+- Safety net contro drift. Idempotente.
+- Esposto via bottone "🔄 Risincronizza tutto" in tab Panoramica di `AnagraficheVini.jsx`, con conferma `window.confirm` e report inline (madre, bottiglie, orfani, durata).
+
+#### D. Endpoint `POST /vini/anagrafiche/rollback?confirm=YES_DROP_V2_TABLES` (admin)
+- DISTRUTTIVO: droppa le 6 tabelle `_v2` (bottiglie → madre → vitigni/denominazioni/fornitori/produttori).
+- Backup esplicito pre-drop: copia file DB con suffisso `.pre-rollback-<timestamp>`.
+- Confirm string obbligatorio (no click accidentali). NESSUN bottone UI: solo via curl admin.
+- Use case: finestra rollback fino a 24h dopo lo swap atomico (Fase 10).
+
+### File toccati
+- `app/services/vini_anagrafiche_sync.py` (NUOVO)
+- `app/routers/vini_anagrafiche_router.py` (4 PATCH aggiornati + 2 endpoint nuovi)
+- `app/migrations/127_seed_vitigni_base.py` (tuple e SQL senza nazione_origine)
+- `app/models/vini_anagrafiche_db.py` (VITIGNI_FIELDS senza nazione_origine)
+- `frontend/src/pages/vini/AnagraficheVini.jsx` (Pydantic-free, panel SyncAll)
+
+### Verifiche smoke test
+- `python3 -m py_compile` OK su service, router, mig 127.
+- Import `from app.services.vini_anagrafiche_sync` OK — 5 funzioni esposte come previsto.
+- `app.utils.locale_data.locale_data_path('vini_magazzino.sqlite3')` risolve correttamente al path locale (assente sul Mac per problema noto push.sh non scarica `_v2`, presente sul VPS).
+
+### Prossimi step
+- Marco testa: PATCH madre/produttore/fornitore/denominazione → controlla che le bottiglie collegate riflettano i nuovi valori in real-time.
+- Bottone "Risincronizza tutto" come safety net dopo eventuali sessioni di pulizia manuale.
+- Fase 8: workflow inserimento nuovo vino 3-step (produttore → madre → bottiglia). Da fare quando le anagrafiche sono state validate dall'uso.
 
 ---
 

@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-05-14 — Refactor anagrafiche vini Fase 7 (sync runtime + rollback)
+
+### Aggiunto
+- **Service sync runtime** `[core]`. `app/services/vini_anagrafiche_sync.py`: propaga i 9 campi anagrafici (PRODUTTORE, DESCRIZIONE, DENOMINAZIONE, TIPOLOGIA, NAZIONE, REGIONE, DISTRIBUTORE, RAPPRESENTANTE, ABBINAMENTI) dal `vini_madre_v2` + anagrafiche collegate verso `vini_bottiglie_v2`. 5 funzioni: `sync_bottiglie_from_madre/produttore/fornitore/denominazione` + `sync_all_bottiglie`. Una sola query JOIN per madre con fallback intelligenti (es. `madre.nazione || produttore.nazione`).
+- **Aggancio automatico nei PATCH del router anagrafiche** `[core]`. I 4 PATCH (`/madre/`, `/produttori/`, `/fornitori/`, `/denominazioni/`) chiamano la sync corrispondente dopo l'update e includono `_sync: {...}` nel return per visibilità.
+- **Endpoint `POST /vini/anagrafiche/sync-all`** `[core]`. Safety net contro drift. Esposto via bottone "🔄 Risincronizza tutto" in tab Panoramica della UI beta. Report inline (madre processati, bottiglie aggiornate, orfani skippati, durata).
+- **Endpoint `POST /vini/anagrafiche/rollback?confirm=YES_DROP_V2_TABLES`** `[core]`. Distruttivo: droppa le 6 tabelle `_v2` riportando il DB pre-refactor. Backup esplicito pre-drop (file DB con suffisso `.pre-rollback-<ts>`). Nessun bottone UI — solo via curl admin per evitare click accidentali. Use case: finestra rollback fino a 24h post-swap.
+
+### Cambiato
+- **Vitigni — rimossa colonna `nazione_origine`** `[core]`. Era fuorviante per vitigni multi-nazione (Gewürztraminer in Italia/Germania/Alsazia, Pinot Nero in Francia/Italia/Borgogna, ecc.). L'info storica eventuale finisce in `note` come testo libero. Mig 127 riscritta con tuple `(nome, note)`. Comando one-shot dato a Marco per VPS: `ALTER TABLE vini_vitigni_v2 DROP COLUMN nazione_origine;` (eseguito).
+
+---
+
 ## 2026-05-12 — Audit modulo Vini + hardening tecnico (A/H/B)
 
 ### Risolto

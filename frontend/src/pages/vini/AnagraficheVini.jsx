@@ -116,6 +116,72 @@ function StatsPanel({ onJump }) {
           <li>Aggiungere i ~10 vitigni mancanti (Clairette, Verdeca, Susumaniello, Vernaccia, Catarratto, Zibibbo, Gewürztraminer, ecc.)</li>
         </ul>
       </div>
+
+      <SyncAllPanel />
+    </div>
+  );
+}
+
+
+// ===============================================================
+// SYNC ALL — Risincronizza tutte le bottiglie dalle anagrafiche
+// (Fase 7 — safety net contro drift)
+// ===============================================================
+function SyncAllPanel() {
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState(null);
+  const [error, setError] = useState("");
+
+  const run = async () => {
+    if (!window.confirm(
+      "Risincronizzare tutte le bottiglie dalle anagrafiche?\n\n" +
+      "Operazione idempotente. Aggiorna i campi PRODUTTORE, DESCRIZIONE, " +
+      "DENOMINAZIONE, ecc. su tutte le bottiglie con madre_id. " +
+      "Le bottiglie orfane (senza madre_id) non sono toccate."
+    )) return;
+    setBusy(true); setError(""); setReport(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/anagrafiche/sync-all`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setReport(await r.json());
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="border border-amber-200 rounded-xl p-4 bg-amber-50 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-amber-900">🔄 Risincronizza tutto</div>
+          <div className="text-xs text-amber-800 mt-0.5">
+            Safety net: ricalcola i campi anagrafici di tutte le bottiglie dal loro vino madre.
+            Da usare se sospetti drift (es. dopo modifiche manuali su DB).
+          </div>
+        </div>
+        <button
+          onClick={run}
+          disabled={busy}
+          className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold disabled:opacity-50 whitespace-nowrap"
+        >
+          {busy ? "Sync in corso…" : "Avvia sync"}
+        </button>
+      </div>
+      {report && (
+        <div className="text-xs bg-white border border-amber-200 rounded-lg p-3 font-mono tabular-nums">
+          <div>✓ Madre processati: <strong>{report.n_madre_processati}</strong></div>
+          <div>✓ Bottiglie aggiornate: <strong>{report.n_bottiglie_aggiornate}</strong></div>
+          <div>· Orfane skippate (madre_id NULL): {report.n_orfani_skippati}</div>
+          <div>· Durata: {report.durata_sec}s</div>
+        </div>
+      )}
+      {error && (
+        <div className="text-xs bg-red-50 border border-red-300 rounded-lg p-2 text-red-800">
+          Errore: {error}
+        </div>
+      )}
     </div>
   );
 }
