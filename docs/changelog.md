@@ -20,6 +20,16 @@
 - **Trailing slash route Vini** `[core]`. Censiti tutti gli endpoint del modulo Vini con `/` finale dichiarato: 5 in `vini_magazzino_router.py` (lista `GET/POST /`, `carta-staff/`, `calici-disponibili/`, `ordini-pending/`) + 3 in `bevande_router.py` (`sezioni/`, `voci/` GET/POST). Verificate tutte le chiamate FE corrispondenti: nessun mismatch. Il modulo è conforme alla regola CLAUDE.md sul trailing slash. Nessuna modifica al codice.
 - **QTA_TOTALE già read-only via API** `[core]`. Audit: Pydantic `VinoMagazzinoBase`/`Update` non avevano `QTA_TOTALE` → impossibile patcharlo via FastAPI (audit precedente era impreciso, riga 127 del router era `QTA_LOC3`, non `QTA_TOTALE`). FE usa `QTA_TOTALE` solo in lettura. Aggiunto `data.pop("QTA_TOTALE", None)` in `update_vino` (`vini_magazzino_db.py:893`) come safety: se qualcuno in futuro chiamerà direttamente la funzione Python con `QTA_TOTALE` nel dict, viene scartato e ricalcolato da `_recalc_qta_totale` se le locazioni cambiano.
 
+### V.6+V.7+V.8 — Refactor anagrafiche vini, Fase 6 (UI "🧪 beta")
+- **Componente `AnagraficheVini.jsx`** `[core]`. Sezione dedicata sotto Impostazioni Vini → "🧪 Anagrafiche (beta)". Lavora ESCLUSIVAMENTE sulle tabelle `_v2` parallele — la UI vecchia del modulo Vini non è toccata. Tab navigation con 6 tab:
+  - **Panoramica** — stats overview con conteggi (cliccabili per saltare al tab), checklist priorità verso cutover.
+  - **Produttori** — CRUD generico con lista filtrabile + modale edit/create + delete protetto (409 se collegato a madre).
+  - **Fornitori** — CRUD con campi inline rappresentante (nome/telefono/email).
+  - **Denominazioni** — lista 1637 voci con filtri nazione/tipo, bottoni Sync (dry-run / commit) integrati per ricaricare da eAmbrosia + MASAF.
+  - **Vitigni** — CRUD veloce per anagrafica canonica.
+  - **Vini madre** — lista 995 cluster con filtro produttore + checkbox "Solo senza denominazione" (per gestire i 725 no_match dalla migrazione). Modale dettaglio madre con autocomplete denominazione live (typeahead).
+- **Registrato in `ViniImpostazioni.jsx`** come voce di menu nuova + sectionRenderer. Marco apre Impostazioni Vini → "🧪 Anagrafiche (beta)" e vede tutto. Edit puntuali, niente bulk operations in questa fase.
+
 ### V.6+V.7+V.8 — Refactor anagrafiche vini, Fase 5 (migrazione dati clustering)
 - **Service `vini_anagrafiche_migrate.py`** `[core]`. Pipeline di migrazione dei 1287 vini esistenti verso il nuovo schema anagrafiche:
   1. Produttori distinct (normalizzazione UPPER+TRIM+squash spazi, scelta nome canonico per frequenza + lunghezza + alfabetico) → INSERT in `vini_produttori_v2`.
