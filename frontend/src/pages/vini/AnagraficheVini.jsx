@@ -605,6 +605,7 @@ function MadreEditModal({ madre, onClose, onSaved }) {
   const [fornitori, setFornitori] = useState([]);
   const [denoSearch, setDenoSearch] = useState("");
   const [denoResults, setDenoResults] = useState([]);
+  const [currentDeno, setCurrentDeno] = useState(null);  // denominazione attualmente assegnata
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -617,6 +618,20 @@ function MadreEditModal({ madre, onClose, onSaved }) {
       setProduttori(pr); setFornitori(fr);
     })();
   }, []);
+
+  // Carica la denominazione corrente quando il madre arriva con denominazione_id già settato
+  useEffect(() => {
+    if (!form.denominazione_id) { setCurrentDeno(null); return; }
+    // Se l'ho già caricata (stesso id), skip
+    if (currentDeno && currentDeno.id === Number(form.denominazione_id)) return;
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/denominazioni/${form.denominazione_id}`);
+        if (r.ok) setCurrentDeno(await r.json());
+        else setCurrentDeno(null);
+      } catch { setCurrentDeno(null); }
+    })();
+  }, [form.denominazione_id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ricerca denominazioni live
   useEffect(() => {
@@ -631,7 +646,11 @@ function MadreEditModal({ madre, onClose, onSaved }) {
     return () => { cancelled = true; clearTimeout(t); };
   }, [denoSearch, form.nazione]);
 
-  const selectedDeno = denoResults.find(d => d.id === form.denominazione_id);
+  // La denominazione attualmente visualizzata: prima cerca tra i risultati search,
+  // poi nel valore caricato all'aperture del modale (currentDeno).
+  const selectedDeno =
+    denoResults.find(d => d.id === Number(form.denominazione_id))
+    || (currentDeno && currentDeno.id === Number(form.denominazione_id) ? currentDeno : null);
 
   const handleSave = async () => {
     setError(""); setSaving(true);
@@ -712,20 +731,23 @@ function MadreEditModal({ madre, onClose, onSaved }) {
               className="w-full px-2 py-1 border rounded" />
           </Field>
           <Field label="Denominazione">
-            {selectedDeno || (form.denominazione_id && !denoResults.length) ? (
-              <div className="flex items-center gap-2">
+            {form.denominazione_id && selectedDeno ? (
+              <div className="flex items-center gap-2 px-2 py-1 bg-amber-50 border border-amber-200 rounded">
                 <span className="flex-1 text-xs">
-                  {selectedDeno ? `${selectedDeno.nome} ${selectedDeno.tipo} · ${selectedDeno.nazione}` : `#${form.denominazione_id} (caricamento…)`}
+                  <strong>{selectedDeno.nome} {selectedDeno.tipo}</strong> · {selectedDeno.nazione}
+                  {selectedDeno.regione && ` · ${selectedDeno.regione}`}
                 </span>
                 <button type="button"
-                  onClick={() => { setForm(p => ({ ...p, denominazione_id: "" })); setDenoSearch(""); }}
+                  onClick={() => { setForm(p => ({ ...p, denominazione_id: "" })); setDenoSearch(""); setCurrentDeno(null); }}
                   className="text-xs px-2 py-0.5 border border-red-300 text-red-700 rounded hover:bg-red-50">
                   Rimuovi
                 </button>
               </div>
+            ) : form.denominazione_id && !selectedDeno ? (
+              <div className="text-xs text-neutral-500 italic">#{form.denominazione_id} (caricamento…)</div>
             ) : (
               <div className="space-y-1">
-                <input type="text" placeholder="Cerca denominazione…"
+                <input type="text" placeholder="Cerca denominazione (min 2 caratteri)…"
                   value={denoSearch} onChange={e => setDenoSearch(e.target.value)}
                   className="w-full px-2 py-1 border rounded" />
                 {denoResults.length > 0 && (
