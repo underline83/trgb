@@ -336,7 +336,7 @@ def delete_denominazione(did: int) -> bool:
 # ============================================================
 # VITIGNI
 # ============================================================
-VITIGNI_FIELDS = {"nome", "nazione_origine", "note"}
+VITIGNI_FIELDS = {"nome", "note"}
 
 
 def list_vitigni(search: Optional[str] = None) -> List[Dict[str, Any]]:

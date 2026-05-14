@@ -359,9 +359,8 @@ const FORNITORE_FIELDS = [
 ];
 
 const VITIGNO_FIELDS = [
-  { key: "nome",            label: "Nome",            required: true,  placeholder: "es. Nebbiolo" },
-  { key: "nazione_origine", label: "Nazione origine",                  placeholder: "es. Italia" },
-  { key: "note",            label: "Note", type: "textarea" },
+  { key: "nome", label: "Nome", required: true, placeholder: "es. Nebbiolo" },
+  { key: "note", label: "Note", type: "textarea", placeholder: "Sinonimi, caratteristiche, regioni dove è coltivato, ecc." },
 ];
 
 // ===============================================================

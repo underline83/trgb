@@ -120,15 +120,15 @@ class DenominazioneUpdate(BaseModel):
 
 
 # --- Vitigni ---
+# Nazione_origine rimossa 2026-05-13: fuorviante (es. Gewürztraminer coltivato
+# in Francia, Italia, Germania). Info storica eventuale finisce in `note`.
 class VitignoBase(BaseModel):
     nome: str = Field(..., min_length=1)
-    nazione_origine: Optional[str] = None
     note: Optional[str] = None
 
 
 class VitignoUpdate(BaseModel):
     nome: Optional[str] = None
-    nazione_origine: Optional[str] = None
     note: Optional[str] = None
 
 
