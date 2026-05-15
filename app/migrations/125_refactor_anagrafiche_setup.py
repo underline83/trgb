@@ -241,6 +241,10 @@ def upgrade(conn: sqlite3.Connection) -> None:
                     ABBINAMENTI         TEXT,
 
                     -- Stati codificati
+                    -- STATO_VENDITA: TEXT originale, post mig 128 → INTEGER 0..3
+                    -- (0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE, 3=SPINGERE).
+                    -- Mig 125 lascia TEXT per copy_from_legacy fedele; mig 128
+                    -- fa il rebuild colonna su entrambe le tabelle.
                     STATO_VENDITA       TEXT,
                     STATO_RIORDINO      TEXT,
                     STATO_CONSERVAZIONE TEXT,

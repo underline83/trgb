@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-05-15 — V-H.F: STATO_VENDITA TEXT → INTEGER 0..3 (codici parlanti)
+
+### Cambiato
+- **STATO_VENDITA rifattorizzato da 6 codici lettera a 4 livelli numerici** `[core]`. Pre-mig: 6 codici TEXT (N/T/V/F/S/C). Analisi su 1287 vini reali: 3 codici (N/T/S) mai usati, 1 (F) usato 1 volta; semantica bipolare V (385 in cantina) vs C (901 totali). Schema ridotto a 4 livelli intensity-ordered:
+  - `0` = NON_VENDERE (bloccato in carta)
+  - `1` = CONTROLLARE (verifica prima di proporlo)
+  - `2` = VENDERE (default nuovi vini)
+  - `3` = SPINGERE (promuovere attivamente in sala)
+  Numerico → ordinamento naturale. Default DB = 2 per nuovi insert.
+
+### Aggiunto
+- **Migration 128** `[core]`. Rebuild colonna `STATO_VENDITA` TEXT → INTEGER su `vini_magazzino` E `vini_bottiglie_v2` (refactor anagrafiche). Pattern: ADD COLUMN nuova + UPDATE backfill con CASE mapping + DROP COLUMN vecchia + RENAME COLUMN. Backup esplicito pre-mig (`*.pre-mig-128-<ts>`). Idempotente: re-run su colonna già INTEGER fa no-op. Mapping: V→2, C→1, F→3, S→3, T→1, N→0, NULL→2.
+
+### Refactor
+- **Backend**:
+  - `app/routers/vini_magazzino_router.py`: Pydantic `STATO_VENDITA: Optional[int] = Field(None, ge=0, le=3)` con descrizione aggiornata (Base + Update schemas).
+  - `app/models/vini_magazzino_db.py`: bulk-fix init usa 2/1 invece di 'V'/'C'; query KPI `STATO_VENDITA IN ('V','F','S','T')` → `STATO_VENDITA >= 2`; ORDER BY CASE → `STATO_VENDITA DESC` (numerico naturale).
+  - `app/services/vini_xlsx_v2.py`: `STATO_VENDITA_VALIDI = [0,1,2,3]`, hint del template + foglio "Riferimento valori" + cella di esempio aggiornati a 4 livelli.
+- **Frontend**:
+  - `frontend/src/config/viniConstants.js`: oggetto `STATO_VENDITA` con chiavi `0`/`1`/`2`/`3` invece di `N`/`T`/`V`/`F`/`S`/`C`. Tolti `T` ("cautela") e `S` ("aggressivo") semanticamente accorpati.
+  - `frontend/src/pages/vini/SchedaVino.jsx`: badge conditional fix da `vino.STATO_VENDITA &&` (rotto per `0` falsy) a `vino.STATO_VENDITA != null && vino.STATO_VENDITA !== ""`.
+  - `frontend/src/pages/vini/MagazzinoVini.jsx`: filter via `String(v.STATO_VENDITA) === String(statoVenditaSel)` per gestire mismatch INTEGER (backend) vs string (select HTML).
+  - `frontend/src/pages/vini/AnagraficheVini.jsx`: fix `b.STATO_VENDITA != null` invece di `||` per non confondere `0` con assenza valore.
+
+### Note
+- `STATO_VENDITA` ora ordinabile naturalmente: `ORDER BY STATO_VENDITA DESC` mette SPINGERE in cima, NON_VENDERE in fondo.
+- Pydantic accetta sia int che string-int ("2") nel payload PATCH per retrocompat con form HTML.
+
+---
+
 ## 2026-05-15 — Discovery dinamica DB (push.sh + backup_router + backup_db.sh)
 
 ### Cambiato

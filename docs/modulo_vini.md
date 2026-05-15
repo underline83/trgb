@@ -178,8 +178,13 @@ Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
 - `PREZZO_CALICE_MANUALE` INTEGER 0/1 DEFAULT 0 (già citato sopra in "Prezzi")
 - `ORIGINE` TEXT 'EXCEL'/'MANUALE'
 
-**Stati codificati (lettera/numero — eredità Excel, V.F roadmap futura)**
-- `STATO_VENDITA` TEXT: N/T/V/F/S/C
+**Stati codificati**
+- `STATO_VENDITA` INTEGER 0..3 (post V-H.F mig 128, 2026-05-15)
+  - `0` = NON_VENDERE (bloccato in carta)
+  - `1` = CONTROLLARE (verifica annata/conservazione prima di proporlo)
+  - `2` = VENDERE (default nuovi vini, normale in carta)
+  - `3` = SPINGERE (promuovere attivamente in sala)
+  - Pre-mig: TEXT con codici N/T/V/F/S/C. Mapping rebuild: V→2, C→1, F→3, S→3, T→1, N→0, NULL→2 (default).
 - `STATO_RIORDINO` TEXT: D/0/A/X (mig 122 — 'O' rimosso)
 - `STATO_CONSERVAZIONE` TEXT: 1/2/3
 - `NOTE_STATO` TEXT

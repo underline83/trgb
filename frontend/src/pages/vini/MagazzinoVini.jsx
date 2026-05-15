@@ -860,7 +860,9 @@ export default function MagazzinoVini() {
     }
 
     // 7) Filtri stati
-    if (statoVenditaSel) out = out.filter((v) => v.STATO_VENDITA === statoVenditaSel);
+    // Post V-H.F mig 128: STATO_VENDITA è INTEGER dal backend (0..3), mentre
+    // statoVenditaSel arriva dalla select come stringa. Confronto via String().
+    if (statoVenditaSel) out = out.filter((v) => String(v.STATO_VENDITA) === String(statoVenditaSel));
     if (statoRiordinoSel) out = out.filter((v) => v.STATO_RIORDINO === statoRiordinoSel);
     if (statoConservazioneSel) out = out.filter((v) => v.STATO_CONSERVAZIONE === statoConservazioneSel);
 

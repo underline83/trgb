@@ -4,43 +4,34 @@
 
 // ─────────────────────────────────────────────────────────────
 // STATO VENDITA — comportamento commerciale
+// Post V-H.F (mig 128, 2026-05-15): INTEGER 0..3 (lettere ritirate).
+// 0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE (default nuovi vini), 3=SPINGERE.
+// L'ordine numerico è anche un'intensità: 0 minima → 3 massima spinta commerciale.
 // ─────────────────────────────────────────────────────────────
 export const STATO_VENDITA = {
-  N: {
+  0: {
     label: "Non vendere",
-    short: "N",
+    short: "0",
     color: "bg-red-100 text-red-800 border-red-200",
     dot:   "bg-red-500",
   },
-  T: {
-    label: "Vendere con cautela",
-    short: "T",
-    color: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    dot:   "bg-yellow-400",
+  1: {
+    label: "Controllare",
+    short: "1",
+    color: "bg-neutral-100 text-neutral-600 border-neutral-300",
+    dot:   "bg-neutral-400",
   },
-  V: {
+  2: {
     label: "Vendere",
-    short: "V",
+    short: "2",
     color: "bg-emerald-100 text-emerald-800 border-emerald-200",
     dot:   "bg-emerald-500",
   },
-  F: {
+  3: {
     label: "Spingere",
-    short: "F",
+    short: "3",
     color: "bg-blue-100 text-blue-800 border-blue-200",
     dot:   "bg-blue-500",
-  },
-  S: {
-    label: "Vendere aggressivo",
-    short: "S",
-    color: "bg-violet-100 text-violet-800 border-violet-200",
-    dot:   "bg-violet-500",
-  },
-  C: {
-    label: "Controllare",
-    short: "C",
-    color: "bg-neutral-100 text-neutral-600 border-neutral-300",
-    dot:   "bg-neutral-400",
   },
 };
 

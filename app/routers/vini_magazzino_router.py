@@ -110,9 +110,12 @@ class VinoMagazzinoBase(BaseModel):
                     "BOTTIGLIA_APERTA=1). Sessione 2026-05-04.",
     )
 
-    STATO_VENDITA: Optional[str] = Field(
+    STATO_VENDITA: Optional[int] = Field(
         None,
-        description="Comportamento commerciale: N=Non vendere, T=Cautela, V=Vendere, F=Spingere, S=Aggressivo, C=Controllare",
+        ge=0, le=3,
+        description="Comportamento commerciale (INTEGER 0..3 post V-H.F mig 128): "
+                    "0=NON_VENDERE (bloccato), 1=CONTROLLARE (verifica), "
+                    "2=VENDERE (default), 3=SPINGERE (promuovere)",
     )
     STATO_RIORDINO: Optional[str] = Field(
         None,
@@ -180,7 +183,7 @@ class VinoMagazzinoUpdate(BaseModel):
     BOTTIGLIA_APERTA: Optional[int] = None
     ABBINAMENTI: Optional[str] = None
 
-    STATO_VENDITA: Optional[str] = None
+    STATO_VENDITA: Optional[int] = Field(None, ge=0, le=3)  # 0..3 post V-H.F mig 128
     STATO_RIORDINO: Optional[str] = None
     STATO_CONSERVAZIONE: Optional[str] = None
     NOTE_STATO: Optional[str] = None

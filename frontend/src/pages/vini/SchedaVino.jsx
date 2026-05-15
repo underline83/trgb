@@ -736,7 +736,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   {vino.IPRATICO === 1 && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-sky-50 text-sky-700 border-sky-200">iPratico</span>}
                   {vino.VENDITA_CALICE === 1 && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-200">Calice</span>}
                   {vino.BIOLOGICO === 1 && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-lime-50 text-lime-700 border-lime-200">Biologico</span>}
-                  {vino.STATO_VENDITA && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${s.color}`}>{s.label}</span> : null; })()}
+                  {vino.STATO_VENDITA != null && vino.STATO_VENDITA !== "" && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${s.color}`}>{s.label}</span> : null; })()}
                 </div>
                 {/* Nome vino */}
                 <h2 className={`text-base md:text-lg font-bold leading-tight ${hdr.text}`}>
@@ -856,7 +856,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                         <FlagBadge active={!!vino.FORZA_PREZZO} label="Forza Prezzo" activeColor="bg-rose-50 text-rose-700 border-rose-200" />
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {vino.STATO_VENDITA && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${s.color}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{s.label}</span> : null; })()}
+                        {vino.STATO_VENDITA != null && vino.STATO_VENDITA !== "" && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${s.color}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{s.label}</span> : null; })()}
                         {vino.STATO_RIORDINO && (() => { const s = STATO_RIORDINO[vino.STATO_RIORDINO]; return s ? <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${s.color}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />Riordino: {s.label}</span> : null; })()}
                         {vino.STATO_CONSERVAZIONE && (() => { const s = STATO_CONSERVAZIONE[vino.STATO_CONSERVAZIONE]; return s ? <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${s.color}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />Conservazione: {s.label}</span> : null; })()}
                         {vino.NOTE_STATO && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-neutral-50 text-neutral-600 border-neutral-200">{vino.NOTE_STATO}</span>}

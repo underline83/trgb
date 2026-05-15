@@ -1,6 +1,50 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-15 — Refactor Vini V.6+V.7+V.8 fino a Fase 8 (opz. C) chiuso. Discovery dinamica DB: push.sh + backup_router.py + backup_db.sh non hanno più liste hardcoded. Prossimo: V-H.F rename STATO_VENDITA codici parlanti.
+**Ultimo aggiornamento:** 2026-05-15 (sera) — V-H.F chiuso: STATO_VENDITA rifattorizzato da 6 codici TEXT a 4 livelli INTEGER 0..3 con ordinamento naturale. Refactor Vini V.6+V.7+V.8 fino a Fase 8 (opz. C) chiuso. Discovery dinamica DB online.
+
+## SESSIONE 2026-05-15 (sera) — V-H.F STATO_VENDITA INTEGER
+
+### Sintesi
+Marco ha chiesto di non avere 6 codici lettera per STATO_VENDITA (eccessivi) — analisi sul DB reale ha confermato: 3 codici (N/T/S) mai usati su 1287 vini, 1 (F) usato 1 volta. Schema ridotto a 4 livelli numerici 0..3 con ordinamento naturale (intensity-ordered).
+
+### Schema finale
+| Livello | Nome | Note |
+|---|---|---|
+| 0 | NON_VENDERE | bloccato in carta |
+| 1 | CONTROLLARE | verifica annata/conservazione |
+| 2 | VENDERE | default nuovi vini |
+| 3 | SPINGERE | promuovere attivamente |
+
+### Mig 128 — rebuild colonna su vini_magazzino + vini_bottiglie_v2
+Pattern: ADD COLUMN nuova INTEGER DEFAULT 2 + UPDATE backfill via CASE + DROP COLUMN vecchia + RENAME COLUMN. Backup esplicito pre-mig. Idempotente. Mapping: V→2, C→1, F→3, S→3, T→1, N→0, NULL→2. Testata su copia DB locale: 1287 record → 901 livello 1, 385 livello 2, 1 livello 3.
+
+### Refactor codice
+- BE: vini_magazzino_db.py (KPI query, ORDER BY, bulk-fix), vini_magazzino_router.py (Pydantic Optional[int] con ge=0/le=3), vini_xlsx_v2.py (template Excel hint + esempio).
+- FE: viniConstants.js (oggetto 4 chiavi numero), SchedaVino.jsx (badge fix per "0" falsy), MagazzinoVini.jsx (filter String() per coerenza int/string), AnagraficheVini.jsx (mostra label).
+
+### File toccati
+- `app/migrations/128_stato_vendita_int.py` (NEW)
+- `app/migrations/125_refactor_anagrafiche_setup.py` (commento DDL)
+- `app/models/vini_magazzino_db.py`
+- `app/routers/vini_magazzino_router.py`
+- `app/services/vini_xlsx_v2.py`
+- `frontend/src/config/viniConstants.js`
+- `frontend/src/pages/vini/SchedaVino.jsx`
+- `frontend/src/pages/vini/MagazzinoVini.jsx`
+- `frontend/src/pages/vini/AnagraficheVini.jsx`
+- `docs/modulo_vini.md` §3.5
+- `docs/changelog.md`
+
+### Verifiche
+- `py_compile` OK su 5 file backend
+- Mig 128 testata su copia DB locale + idempotenza verificata
+- Distribuzione post-mig: 1 livello 1 (901 record), livello 2 (385), livello 3 (1) — coerente con pre-mig
+
+### Status backlog Vini
+- V-H.F (rename STATO_VENDITA): chiuso ✓
+- V-H.I (cleanup vini_model.py legacy): pending, basso priority
+
+---
 
 ## SESSIONE 2026-05-15 — Discovery dinamica DB
 

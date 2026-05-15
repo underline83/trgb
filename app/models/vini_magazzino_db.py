@@ -286,19 +286,21 @@ def init_magazzino_database() -> None:
     # Indice su DISTRIBUTORE (se non esiste)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_distributore ON vini_magazzino (DISTRIBUTORE);")
 
-    # Bulk fix: assegna STATO_VENDITA a vini che non ce l'hanno
-    # - Con giacenza > 0 → 'V' (vendere)
-    # - Con giacenza 0  → 'C' (controllare / fuori catalogo)
+    # Bulk fix: assegna STATO_VENDITA a vini che non ce l'hanno.
+    # Post V-H.F (mig 128) i codici sono INTEGER 0..3:
+    #   0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE, 3=SPINGERE
+    # - Con giacenza > 0 → 2 (VENDERE)
+    # - Con giacenza 0  → 1 (CONTROLLARE — fuori catalogo da verificare)
     cur.execute("""
         UPDATE vini_magazzino
-        SET STATO_VENDITA = 'V', UPDATED_AT = datetime('now')
-        WHERE (STATO_VENDITA IS NULL OR STATO_VENDITA = '')
+        SET STATO_VENDITA = 2, UPDATED_AT = datetime('now')
+        WHERE STATO_VENDITA IS NULL
           AND QTA_TOTALE > 0;
     """)
     cur.execute("""
         UPDATE vini_magazzino
-        SET STATO_VENDITA = 'C', UPDATED_AT = datetime('now')
-        WHERE (STATO_VENDITA IS NULL OR STATO_VENDITA = '')
+        SET STATO_VENDITA = 1, UPDATED_AT = datetime('now')
+        WHERE STATO_VENDITA IS NULL
           AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0);
     """)
 
@@ -1833,7 +1835,10 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         """
         SELECT
             COUNT(*)                                                      AS total_vini,
-            COUNT(CASE WHEN STATO_VENDITA IN ('V','F','S','T')
+            -- Post V-H.F (mig 128): STATO_VENDITA INTEGER 0..3
+            --   0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE, 3=SPINGERE
+            -- Referenze attive = tutto quello da vendere o spingere (>= 2).
+            COUNT(CASE WHEN STATO_VENDITA >= 2
                        THEN 1 END)                                        AS referenze_attive,
             COALESCE(SUM(QTA_TOTALE), 0)                                  AS total_bottiglie,
             COUNT(CASE WHEN CARTA = 1 THEN 1 END)                      AS vini_in_carta,
@@ -1882,7 +1887,10 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         FROM vini_magazzino v
         WHERE v.CARTA = 1
           AND (v.QTA_TOTALE IS NULL OR v.QTA_TOTALE = 0)
-          AND v.STATO_VENDITA IN ('V', 'F', 'S', 'T')
+          -- Post V-H.F (mig 128): STATO_VENDITA INTEGER 0..3
+          --   0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE, 3=SPINGERE
+          -- Includo solo i vini "da vendere": livello >= 2.
+          AND v.STATO_VENDITA >= 2
           -- Sessione 2026-05-11: escludi stati di riordino "decisi"
           -- '0' Ordinato      → ordine già piazzato, non urgente
           -- 'A' Annata esaur. → non posso riordinare la stessa annata
@@ -1891,12 +1899,8 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
           -- ('O' Finito/Ordina rimosso 2026-05-11, mig 122 ha migrato i dati → 'D')
           AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('0', 'A', 'X'))
         ORDER BY
-            CASE v.STATO_VENDITA
-                WHEN 'S' THEN 0  -- aggressivo prima
-                WHEN 'F' THEN 1  -- spingere
-                WHEN 'V' THEN 2  -- vendere
-                WHEN 'T' THEN 3  -- cautela
-                ELSE 4 END,
+            -- Priorità decrescente: spingere (3) prima, vendere (2) dopo.
+            v.STATO_VENDITA DESC,
             v.TIPOLOGIA, v.DESCRIZIONE;
         """
     ).fetchall()

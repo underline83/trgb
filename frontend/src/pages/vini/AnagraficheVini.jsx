@@ -1006,7 +1006,7 @@ function AnnateModal({ madre, produttoreName, onClose }) {
                       <td className="px-3 py-1.5 text-right tabular-nums text-xs text-neutral-600">{fmtEuro(b.EURO_LISTINO)}</td>
                       <td className="px-3 py-1.5 text-center tabular-nums font-semibold">{b.QTA_TOTALE || 0}</td>
                       <td className="px-3 py-1.5 text-center text-xs">
-                        <span className="inline-block px-1.5 py-0.5 rounded bg-neutral-100 font-mono">{b.STATO_VENDITA || "—"}</span>
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-neutral-100 font-mono">{b.STATO_VENDITA != null ? b.STATO_VENDITA : "—"}</span>
                         {b.STATO_RIORDINO && <span className="ml-1 text-amber-700">{b.STATO_RIORDINO}</span>}
                       </td>
                       <td className="px-3 py-1.5 text-xs text-neutral-600">{loc || "—"}</td>

@@ -51,7 +51,9 @@ FORMATO_VALIDI = [
     "JB", "RH", "JBX", "MS", "SM", "BZ", "NB", "ML", "PR", "MZ",
 ]
 
-STATO_VENDITA_VALIDI = ["N", "T", "V", "F", "S", "C"]
+# STATO_VENDITA: INTEGER 0..3 (post V-H.F mig 128).
+# 0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE (default), 3=SPINGERE.
+STATO_VENDITA_VALIDI = [0, 1, 2, 3]
 STATO_RIORDINO_VALIDI = ["D", "0", "A", "X"]
 STATO_CONSERVAZIONE_VALIDI = ["1", "2", "3"]
 
@@ -100,7 +102,7 @@ TEMPLATE_COLUMNS: List[Dict[str, Any]] = [
     {"col": "VENDITA_CALICE",       "field": "VENDITA_CALICE",        "tipo": "flag_yn",  "obbligatorio": False, "hint": "SI/NO — abilitato per vendita al calice"},
     {"col": "ABBINAMENTI",          "field": "ABBINAMENTI",           "tipo": "str_opt",  "obbligatorio": False, "hint": "abbinamenti consigliati (mostrato in carta cliente per i calici)"},
     # STATI
-    {"col": "STATO_VENDITA",        "field": "STATO_VENDITA",         "tipo": "enum",     "obbligatorio": False, "hint": "N=Non vendere, T=Cautela, V=Vendere, F=Spingere, S=Aggressivo, C=Controllare", "options": STATO_VENDITA_VALIDI},
+    {"col": "STATO_VENDITA",        "field": "STATO_VENDITA",         "tipo": "enum",     "obbligatorio": False, "hint": "0=Non vendere, 1=Controllare, 2=Vendere (default), 3=Spingere", "options": STATO_VENDITA_VALIDI},
     {"col": "STATO_RIORDINO",       "field": "STATO_RIORDINO",        "tipo": "enum",     "obbligatorio": False, "hint": "D=Da ordinare, 0=Ordinato, A=Annata esaurita, X=Non ricomprare", "options": STATO_RIORDINO_VALIDI},
     {"col": "STATO_CONSERVAZIONE",  "field": "STATO_CONSERVAZIONE",   "tipo": "enum",     "obbligatorio": False, "hint": "1=Difficile, 2=Buona, 3=Perfetta", "options": STATO_CONSERVAZIONE_VALIDI},
     {"col": "NOTE_STATO",           "field": "NOTE_STATO",            "tipo": "str_opt",  "obbligatorio": False, "hint": ""},
@@ -231,7 +233,7 @@ def _scrivi_foglio_vini(ws, righe_dati: List[Dict[str, Any]] = None) -> None:
             "IPRATICO": "NO",
             "BIOLOGICO": "NO",
             "VENDITA_CALICE": "NO",
-            "STATO_VENDITA": "V",
+            "STATO_VENDITA": 2,  # 2 = VENDERE (post V-H.F mig 128)
             "QTA_FRIGO": 3,
             "FRIGORIFERO": "Cantina",
             "NOTE": "<-- riga di esempio, eliminala prima di importare",
@@ -266,12 +268,10 @@ def _scrivi_foglio_riferimento(ws) -> None:
         ("TIPOLOGIA", TIPOLOGIA_VALIDE),
         ("FORMATO", FORMATO_VALIDI),
         ("STATO_VENDITA", [
-            "N — Non vendere",
-            "T — Vendere con cautela",
-            "V — Vendere (normale)",
-            "F — Spingere",
-            "S — Vendere aggressivo",
-            "C — Controllare",
+            "0 — NON_VENDERE (bloccato in carta)",
+            "1 — CONTROLLARE (verifica annata/conservazione)",
+            "2 — VENDERE (default, normale in carta)",
+            "3 — SPINGERE (promuovere attivamente in sala)",
         ]),
         ("STATO_RIORDINO", [
             "D — Da ordinare",
@@ -360,7 +360,7 @@ def _scrivi_foglio_istruzioni(ws) -> None:
         ("• IPRATICO = SI → vino esportabile verso iPratico (cassa).", None),
         ("", None),
         ("Stati codificati (vedi foglio 'Riferimento valori' per la legenda completa):", Font(bold=True, size=11)),
-        ("• STATO_VENDITA: N/T/V/F/S/C", None),
+        ("• STATO_VENDITA: 0/1/2/3 (0=non vendere, 1=controllare, 2=vendere, 3=spingere)", None),
         ("• STATO_RIORDINO: D/0/A/X (Non ricomprare = X)", None),
         ("• STATO_CONSERVAZIONE: 1/2/3", None),
         ("", None),
