@@ -262,6 +262,25 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 
 **Riassorbe**: G.9 (tasse), G.10 (stipendi). Una volta chiuso G.3, queste due voci sono coperte dal conto economico unificato.
 
+#### Decisioni di prodotto prese (Marco 2026-05-14)
+- **Imponibile** (no IVA — l'IVA è pass-through, non costo/ricavo).
+- **V1 stipendi = solo netto** (da `cg_uscite.totale` dove `tipo_uscita='STIPENDIO'`). Costo personale completo (lordo+contributi+TFR) → v1.1.
+- **Note credito (TD04)**: già escluse via WHERE clause esistenti — nessuna gestione extra.
+- **Cassa + Competenza**: entrambi come toggle (default competenza).
+- **Spalmatura mensile spese pluri-mensili** (es. assicurazione annuale → 1/12 mese): v2 futuro. V1 conteggia tutto nel mese di pagamento.
+
+#### Estensioni post-G.3 (TODO futuri)
+
+| ID | Cosa | Effort | Priorità | Note |
+|----|------|--------|----------|------|
+| G.3.1 | **Costo personale completo** (lordo + contributi INPS + TFR maturato invece del solo netto) | S | MEDIA | Campi già disponibili in `buste_paga`. Sostituire `cg_uscite.totale` (netto) con `lordo+contributi_inps+irpef+addizionali+tfr_maturato`. Differenza ~40% sul costo personale visibile |
+| G.3.2 | **Spalmatura mensile** spese pluri-mensili | M | MEDIA | Aggiungere campo `mesi_competenza` su `cg_spese_fisse`. Es. assicurazione annuale €1200 pagata in gennaio → competenza €100/mese × 12 mesi. UI: toggle "intera/spalmata" |
+| G.3.3 | **Food cost vero** (consumo, non acquisti) | L | MEDIA | Richiede inventario magazzino merce fresca (oggi c'è solo per vini). Acquisti = €5000 ma se magazzino cresce €1000, consumo reale = €4000 |
+| G.3.4 | **Vendite per tipo** (food vs beverage) | M | MEDIA | Distinzione margine cibo (~65%) vs bevande (~80%). Richiede iPratico breakdown o categorizzazione prodotti POS |
+| G.3.5 | **Ammortamenti** beni strumentali (cucina, forno, lavastoviglie...) | M | BASSA | Per bilancio annuale commercialista. Tabella `cg_ammortamenti` + amm.to mensile auto |
+| G.3.6 | **Budget vs consuntivo** | M | BASSA | Tabella `cg_budget` (anno, mese, categoria, importo_atteso). Scostamento % in dashboard CE |
+| G.3.7 | **Vista trimestrale + annuale + export PDF** | S | BASSA | V1 è solo mensile. Estendere endpoint con `periodo=mese|trimestre|anno` + export PDF via M.B |
+
 ---
 
 ### G.7 — Piano dettagliato "Sposta data" (UX completamento SPOSTATO) ✅ FATTO 2026-05-10

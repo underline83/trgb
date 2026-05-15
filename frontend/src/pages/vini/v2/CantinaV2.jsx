@@ -425,56 +425,93 @@ export default function CantinaV2() {
             </table>
           )}
 
-          {/* ── VISTA MADRI ── */}
+          {/* ── VISTA MADRI ── compact layout (1-annata inline, N-annate tabella stretta) */}
           {!loading && !error && vista === "madri" && (
-            <div className="p-3 space-y-2">
+            <div className="p-2 space-y-1.5">
               {madri.map(m => {
                 const tip = m.tipologia;
-                return (
-                  <div key={m.id} className={`bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden border-l-4 ${tip?.toUpperCase()?.includes("ROSS") ? "border-l-red-600" : tip?.toUpperCase()?.includes("BIANC") ? "border-l-amber-600" : tip?.toUpperCase()?.includes("BOLLIC") ? "border-l-yellow-600" : "border-l-neutral-400"}`}>
-                    <div className={`bg-gradient-to-b from-white to-white border-b border-neutral-200 px-4 py-2.5`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">M{String(m.id).padStart(4, "0")}</span>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${tipoBadge(tip)}`}>{tip}</span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-purple-100 text-purple-800 border-purple-200">{m.n_annate} annat{m.n_annate === 1 ? "a" : "e"}</span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-neutral-100 text-neutral-700 border-neutral-200">{m.qta_tot} bottiglie</span>
-                          </div>
-                          <h3 className="text-base font-bold text-neutral-900 leading-tight">{m.descrizione}</h3>
-                          <p className="text-[11px] text-neutral-600 mt-0.5">
-                            {[m.produttore_nome, m.regione, m.denominazione_display].filter(Boolean).join(" · ")}
-                          </p>
-                        </div>
+                const borderColor =
+                  tip?.toUpperCase()?.includes("ROSS") ? "border-l-red-600" :
+                  tip?.toUpperCase()?.includes("BIANC") ? "border-l-amber-600" :
+                  tip?.toUpperCase()?.includes("BOLLIC") ? "border-l-yellow-600" :
+                  tip?.toUpperCase()?.includes("ROSAT") ? "border-l-pink-600" :
+                  "border-l-neutral-400";
+                const isSingle = (m.annate?.length || 0) === 1;
+                const sottotitolo = [m.produttore_nome, m.regione, m.denominazione_display].filter(Boolean).join(" · ");
+
+                // ── 1 ANNATA: tutto inline su una sola riga compatta (~50px) ──
+                if (isSingle) {
+                  const a = m.annate[0];
+                  const loc = [
+                    a.FRIGORIFERO && `Frigo: ${a.QTA_FRIGO || 0}`,
+                    a.LOCAZIONE_1 && `${a.LOCAZIONE_1}: ${a.QTA_LOC1 || 0}`,
+                    a.LOCAZIONE_2 && `${a.LOCAZIONE_2}: ${a.QTA_LOC2 || 0}`,
+                  ].filter(Boolean).join(" · ");
+                  return (
+                    <div key={m.id} onClick={() => navigate(`/vini/v2/bottiglia/${a.id}`)}
+                      className={`bg-white rounded-lg border border-neutral-200 shadow-sm hover:bg-amber-50/40 cursor-pointer border-l-4 ${borderColor} flex items-center gap-2 px-3 py-1.5`}>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">M{String(m.id).padStart(4, "0")}</span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${tipoBadge(tip)} hidden md:inline`}>{tip}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-[13px] text-neutral-900 truncate leading-tight">{m.descrizione}</div>
+                        {sottotitolo && <div className="text-[10px] text-neutral-500 truncate leading-tight">{sottotitolo}</div>}
+                      </div>
+                      <div className="flex items-center gap-2.5 text-[11px] flex-shrink-0">
+                        <span className="font-semibold text-neutral-700 w-12 text-right">{a.ANNATA || "NV"}</span>
+                        <span className="text-neutral-500 w-8 text-center">{a.FORMATO || "BT"}</span>
+                        <span className="font-semibold text-neutral-700 w-14 text-right tabular-nums">{fmtEuro(a.PREZZO_CARTA)}</span>
+                        <span className="font-bold text-neutral-900 w-12 text-center tabular-nums">{a.QTA_TOTALE || 0}<span className="text-[9px] text-neutral-400 font-normal"> bt</span></span>
+                        {a.STATO_VENDITA != null && (() => {
+                          const s = STATO_VENDITA[a.STATO_VENDITA];
+                          return s ? <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border w-20 text-center ${s.color}`}>{s.label}</span> : <span className="w-20 inline-block" />;
+                        })()}
+                        {loc && <span className="text-[10px] text-neutral-500 hidden lg:inline w-44 truncate">{loc}</span>}
                       </div>
                     </div>
-                    {m.annate && m.annate.length > 0 && (
-                      <table className="w-full text-[11px]">
-                        <tbody>
-                          {m.annate.map(a => (
+                  );
+                }
+
+                // ── N ANNATE: header compatto (1 riga) + tabella stretta sotto ──
+                return (
+                  <div key={m.id} className={`bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden border-l-4 ${borderColor}`}>
+                    <div className="px-3 py-1.5 flex items-center gap-2 border-b border-neutral-100">
+                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 flex-shrink-0">M{String(m.id).padStart(4, "0")}</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${tipoBadge(tip)} flex-shrink-0 hidden md:inline`}>{tip}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-[13px] text-neutral-900 truncate leading-tight">{m.descrizione}</div>
+                        {sottotitolo && <div className="text-[10px] text-neutral-500 truncate leading-tight">{sottotitolo}</div>}
+                      </div>
+                      <span className="text-[10px] text-neutral-500 whitespace-nowrap flex-shrink-0">{m.n_annate} annate · {m.qta_tot} bt</span>
+                    </div>
+                    <table className="w-full text-[11px]">
+                      <tbody>
+                        {m.annate.map(a => {
+                          const loc = [
+                            a.FRIGORIFERO && `Frigo: ${a.QTA_FRIGO || 0}`,
+                            a.LOCAZIONE_1 && `${a.LOCAZIONE_1}: ${a.QTA_LOC1 || 0}`,
+                            a.LOCAZIONE_2 && `${a.LOCAZIONE_2}: ${a.QTA_LOC2 || 0}`,
+                          ].filter(Boolean).join(" · ");
+                          return (
                             <tr key={a.id} onClick={() => navigate(`/vini/v2/bottiglia/${a.id}`)}
                               className="cursor-pointer border-t border-neutral-100 hover:bg-amber-50/70">
-                              <td className="px-3 py-1.5 font-semibold w-20">{a.ANNATA || "NV"}</td>
-                              <td className="px-3 py-1.5 text-neutral-600 w-16">{a.FORMATO || "BT"}</td>
-                              <td className="px-3 py-1.5 text-right font-semibold w-24">{fmtEuro(a.PREZZO_CARTA)}</td>
-                              <td className="px-3 py-1.5 text-center font-bold w-14">{a.QTA_TOTALE || 0}</td>
-                              <td className="px-3 py-1.5 w-32">
+                              <td className="pl-3 pr-2 py-1 font-semibold w-16 text-right">{a.ANNATA || "NV"}</td>
+                              <td className="px-2 py-1 text-neutral-600 w-10 text-center">{a.FORMATO || "BT"}</td>
+                              <td className="px-2 py-1 text-right font-semibold w-16 tabular-nums">{fmtEuro(a.PREZZO_CARTA)}</td>
+                              <td className="px-2 py-1 text-center font-bold w-12 tabular-nums">{a.QTA_TOTALE || 0}</td>
+                              <td className="px-2 py-1 w-24">
                                 {a.STATO_VENDITA != null && (() => {
                                   const s = STATO_VENDITA[a.STATO_VENDITA];
-                                  return s ? <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${s.color}`}>{s.label}</span> : null;
+                                  return s ? <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${s.color}`}>{s.label}</span> : null;
                                 })()}
                               </td>
-                              <td className="px-3 py-1.5 text-[10px] text-neutral-600">
-                                {[
-                                  a.FRIGORIFERO && `Frigo: ${a.QTA_FRIGO || 0}`,
-                                  a.LOCAZIONE_1 && `${a.LOCAZIONE_1}: ${a.QTA_LOC1 || 0}`,
-                                ].filter(Boolean).join(" · ")}
-                              </td>
+                              <td className="px-2 py-1 text-[10px] text-neutral-500 truncate">{loc}</td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 );
               })}
