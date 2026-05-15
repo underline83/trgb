@@ -27,6 +27,7 @@ from app.routers import vini_settings_router
 from app.routers import vini_magazzino_router
 from app.routers import vini_cantina_tools_router
 from app.routers import vini_anagrafiche_router  # V.6+V.7+V.8 Fase 2
+from app.routers import vini_v2_router  # V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo)
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
@@ -599,6 +600,7 @@ _mount("vini_router", vini_router.router)
 _mount("vini_magazzino_router", vini_magazzino_router.router)
 _mount("vini_cantina_tools_router", vini_cantina_tools_router.router)
 _mount("vini_anagrafiche_router", vini_anagrafiche_router.router)  # V.6+V.7+V.8 Fase 2
+_mount("vini_v2_router", vini_v2_router.router)  # V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo)
 
 # FOODCOST (modulo: ricette)
 _mount("foodcost_router", foodcost_router.router, prefix="/foodcost", tags=["foodcost"])

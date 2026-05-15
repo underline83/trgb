@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-05-15 — Modulo Gestione Vino 2 (M2 sessione 1: backend + nav + Cantina v2)
+
+### Aggiunto
+- **Backend `/vini/v2/*` read-only** `[core]`. Nuovo router `app/routers/vini_v2_router.py` con 4 endpoint sulla porzione `_v2` del DB: `GET /bottiglie/` (lista con filtri replica MagazzinoVini: search, tipologia, produttore, distributore, stati, flag, giacenza_positiva, missing_listino), `GET /bottiglie/{id}` (dettaglio bottiglia con campi anagrafici joinati dal madre come `m_*`/`p_*`/`f_*`/`d_*`), `GET /madri-raggruppate/` (vista raggruppata per madre con annate nested + qta_tot per madre), `GET /dashboard/` (KPI aggregati: n_bottiglie, n_madri, valore_carta, riepilogo per tipologia). Nessun POST/PATCH/DELETE — strategia read-only per test parallelo.
+- **Frontend modulo `/vini/v2/`** `[core]`. Voce "🧪 Gestione 2" in `ViniNav` (admin/sommelier). Pagina entry `GestioneVino2.jsx` con sub-nav delle 4 viste (Cantina · Per Produttore · Nuovo vino · Scheda) + banner "test parallelo read-only" + link alla Cantina classica per modifiche reali.
+- **CantinaV2 funzionante** `[core]`. `frontend/src/pages/vini/v2/CantinaV2.jsx`: sidebar filtri identica al codice esistente (Ricerca / Anagrafica / Stati / Flag / Giacenza), riepilogo tipologie chip cliccabili, tabella bottiglie stile reale (ID badge slate-700, colonna Vino con denominazione, sfondo riga per tipologia, chip Flag C/I/B/K + numero stato vendita). Toggle "🍾 Bottiglie" ↔ "🍷 Madri" che switcha la vista nel content area (lista flat vs raggruppata per vino madre). Click su una riga apre `SchedaVinoV2` (placeholder).
+- **Placeholder stub** per `SchedaVinoV2`, `PerProduttoreV2`, `NuovoVinoV2`: pagine "in arrivo" con descrizione di cosa conterrà la sessione successiva. Routing in `App.jsx`.
+
+### Strategia
+- **Read-only**: durante il periodo di test parallelo (1-3 settimane), Marco modifica i vini solo dalla Cantina classica (scrive su `vini_magazzino`). Il modulo v2 mostra esclusivamente cosa c'è nelle `_v2` (popolate da clustering Fase 5 + sync runtime Fase 7). Niente sync delta da gestire.
+- **Cutover** (Fase 10): quando Marco conferma che la nuova UI è solida, swap atomico delle tabelle + voce v2 della nav diventa la voce "Cantina" principale.
+
+---
+
 ## 2026-05-15 — V-H.F: STATO_VENDITA TEXT → INTEGER 0..3 (codici parlanti)
 
 ### Cambiato

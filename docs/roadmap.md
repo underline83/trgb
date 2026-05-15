@@ -209,9 +209,60 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 | G.6 | Rename stati al maschile + SPOSTATO + col data_scadenza_originale | M | ✅ FATTO 2026-05-10 | Mig 114: rename `DA_PAGARE`→`PROGRAMMATO`, `SCADUTA`→`SCADUTO`, `DA_VERIFICARE`→`VERIFICARE`, `RATEIZZATA`→`RATEIZZATO`, `PAGATA`→`PAGATO`, `PAGATA_MANUALE`→`PAGATO_MANUALE`. Nuovo stato `SPOSTATO`. Refactor ~370 occorrenze backend+frontend. UX "Sposta data" da implementare in G.7 |
 | G.7 | UX "Sposta data" + completamento stato SPOSTATO | M | ✅ FATTO 2026-05-10 | Endpoint `PUT /uscite/{id}/scadenza` esteso (auto-setta SPOSTATO se data ≠ originale) + nuovo `PUT /uscite/{id}/ripristina-data`. FattureDettaglio: 2 sotto-celle "Scadenza iniziale" + "Programmata" + bottone Ripristina. Chip "Spostato" in FattureElenco e ControlloGestioneUscite. Vedi `stato_pagamento_unificato.md §13` |
 | G.8 | Livello macro/sotto stato pagamento (CHIUSO/APERTO) | M | ✅ FATTO 2026-05-11 | Mig 116 ADD COLUMN `cg_uscite.stato_macro` GENERATED VIRTUAL + service `app/services/stati_pagamento.py` con costanti centralizzate + refactor `/uscite/import` con whitelist invariante per costruzione (STATI_DERIVATI_DA_DATA={PROGRAMMATO,SCADUTO}). Mig 115 ripara 138 VERIFICARE perse da bug import preesistente. Vedi `stato_pagamento_unificato.md §14` |
-| G.3 | P&L mensile (cross-modulo Cassa + Acquisti + Stipendi) | M | ALTA | M.B PDF |
-| G.9 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato (era G.8 pre-2026-05-11 rinumerato per evitare collisione con macro/sotto stato) |
-| G.10 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite (era G.9, rinumerato) |
+| G.3 | **Conto Economico Completo (P&L mensile con utile netto)** | L | 🔴 **TOP — PRIORITÀ MASSIMA Marco 2026-05-14** | Allineamento richiesto da Marco: oggi dashboard mostra solo margine LORDO (Vendite − Acquisti), manca aggregazione spese operative (stipendi/affitti/utenze/tasse/assicurazioni) → utile netto fuorviante. Vedi §G.3 dettaglio sotto |
+| G.9 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA → riassorbito in G.3 | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato (era G.8 pre-2026-05-11 rinumerato per evitare collisione con macro/sotto stato) |
+| G.10 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA → riassorbito in G.3 | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite (era G.9, rinumerato) |
+
+### G.3 — Piano dettagliato "Conto Economico Completo" 🔴 PRIORITÀ TOP 2026-05-14
+
+**Contesto**: il dashboard CG mostra solo `margine_lordo = vendite - acquisti`. Le 22 spese fisse + 274 rate (affitti, stipendi, tasse, assicurazioni, prestiti) NON entrano nel KPI utile. Marco vede un margine 60% quando il vero utile potrebbe essere ~7%.
+
+**Decisioni di prodotto prese (Marco 2026-05-14):**
+1. Aggregare per **categorie fatture esistenti** (9 macro `fe_categorie` + sottocategorie già modellate). Vanno usate TUTTE nel conto economico.
+2. **Fonte unica stipendi**: `cg_uscite tipo='STIPENDIO'` (deriva da `buste_paga.uscita_netto_id`, una riga per `periodo_riferimento`). `cg_spese_fisse tipo='STIPENDIO'` resta come template-proiezione e NON entra nel calcolo storico (anti-doppio-conteggio).
+3. **Cassa + Competenza** entrambi disponibili come toggle. Default: competenza (data_fattura + periodo_riferimento).
+4. **Affitti/Assicurazioni/Tasse**: gestite con categorizzazione di `cg_spese_fisse` (non sono in `fe_fatture` perché senza documento).
+
+**Fase A — Schema (Mig 117)**:
+- INSERT 3 nuove macro-cat in `fe_categorie`: `TASSE E IMPOSTE`, `ASSICURAZIONI`, `FINANZIARI`
+- INSERT sottocat:
+  - TASSE → F24, IRES/IRAP, IVA, IMU, TARI, INPS, RIFIUTI, ALTRO
+  - ASSICURAZIONI → RC, INCENDIO, INFORTUNI, AUTO, ALTRO
+  - FINANZIARI → MUTUI, PRESTITI, INTERESSI, RATEIZZAZIONI
+- ALTER `cg_spese_fisse` ADD COLUMN `categoria_id INTEGER NULL`, `sottocategoria_id INTEGER NULL` (FK soft)
+- Backfill auto da `tipo`: AFFITTO→AFFITTI, STIPENDIO→STAFF/STIPENDI, TASSA→TASSE, ASSICURAZIONE→ASSICURAZIONI, PRESTITO/RATEIZZAZIONE→FINANZIARI, ALTRO→ALTRO
+- Idempotente, niente DROP
+
+**Fase B — Backend**:
+- `app/services/conto_economico.py` nuovo:
+  - `compute_pl(anno, mese, modalita='competenza'|'cassa')` → dict
+  - Aggrega `fe_fatture + fe_righe` per (categoria, sottocategoria) — usando `data_fattura` o `data_pagamento` a seconda della modalità
+  - Aggrega `cg_spese_fisse` per (categoria, sottocategoria) — usando `periodo_riferimento` (mese di riferimento) o `data_pagamento` di `cg_uscite` collegata
+  - Aggrega `cg_uscite tipo='STIPENDIO'` separatamente come fonte unica stipendi (filtro per `periodo_riferimento` competenza o `data_pagamento` cassa)
+  - Calcola: `ricavi → costo_merce → margine_lordo → costi_operativi → utile_netto`
+- Endpoint `GET /controllo-gestione/conto-economico?anno=YYYY&mese=MM&modalita=competenza|cassa`
+- Output strutturato con waterfall + breakdown per categoria + sottocategoria
+
+**Fase C — Frontend**:
+- Nuova pagina `frontend/src/pages/controllo-gestione/ControlloGestioneContoEconomico.jsx`:
+  - 3 KPI top: Ricavi / Margine lordo / **Utile Netto**
+  - Waterfall chart: Ricavi → -Costo merce → Margine lordo → -Costi operativi (per categoria) → Utile Netto
+  - Tabella espandibile categoria → sottocategoria → singole fatture/spese
+  - Toggle **Competenza / Cassa**
+  - Confronto YoY (stesso mese anno precedente)
+- KPI "Utile netto" aggiunto anche in `ControlloGestioneDashboard.jsx` (margine lordo esistente preservato)
+- Voce nav in `ControlloGestioneNav.jsx`: "Conto Economico"
+
+**Fase D — Verifica con dati reali**:
+- Test P&L su maggio 2026 dopo import buste paga
+- Confronto col calcolo a mano (commercialista) per validare
+- Aggiustamenti puntuali
+
+**Effort**: L (1.5-2 sessioni dedicate). Fase A ~30min, B ~1.5h, C ~2h, D iterativa.
+
+**Riassorbe**: G.9 (tasse), G.10 (stipendi). Una volta chiuso G.3, queste due voci sono coperte dal conto economico unificato.
+
+---
 
 ### G.7 — Piano dettagliato "Sposta data" (UX completamento SPOSTATO) ✅ FATTO 2026-05-10
 

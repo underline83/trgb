@@ -35,6 +35,8 @@ const MagazzinoViniNuovo = lazy(() => import("./pages/vini/MagazzinoViniNuovo"))
 const MagazzinoAdmin = lazy(() => import("./pages/vini/MagazzinoAdmin"));
 const RegistroMovimenti = lazy(() => import("./pages/vini/RegistroMovimenti"));
 const DashboardVini = lazy(() => import("./pages/vini/DashboardVini"));
+// V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo read-only)
+const GestioneVino2 = lazy(() => import("./pages/vini/v2/GestioneVino2"));
 
 // RICETTE & FOOD COST
 const RicetteNuova = lazy(() => import("./pages/ricette/RicetteNuova"));
@@ -252,6 +254,8 @@ export default function App() {
         <Route path="/vini/magazzino/tools" element={<Navigate to="/vini/settings" replace />} />
         <Route path="/vini/magazzino/:id" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoViniDettaglio /></ProtectedRoute>} />
         <Route path="/vini/dashboard" element={<ProtectedRoute module="vini" sub="dashboard"><DashboardVini /></ProtectedRoute>} />
+        {/* V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo). Cattura tutte le subroute via splat */}
+        <Route path="/vini/v2/*" element={<ProtectedRoute module="vini" sub="magazzino"><GestioneVino2 /></ProtectedRoute>} />
         {/* /vini/ipratico ora è una sezione di ViniImpostazioni (sessione 39) — redirect per link legacy */}
         <Route path="/vini/ipratico" element={<Navigate to="/vini/settings" replace />} />
 

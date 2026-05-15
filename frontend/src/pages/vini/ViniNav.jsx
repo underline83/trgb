@@ -11,6 +11,11 @@ const TABS = [
   { key: "carta", label: "Carta", path: "/vini/carta", icon: "📜" },
   { key: "carta-staff", label: "Sommelier", path: "/vini/carta-staff", icon: "🥂" },
   { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
+  // V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo read-only).
+  // Solo admin/sommelier per ora — durante la fase di test si valuta apertura
+  // a tutti, poi al cutover (Fase 10) la voce "Cantina" classica viene
+  // sostituita da quella v2 e questa entry sparisce.
+  { key: "v2", label: "Gestione 2", path: "/vini/v2", icon: "🧪", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️", roles: ["admin", "sommelier"] },
 ];
 

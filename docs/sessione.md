@@ -1,6 +1,36 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-15 (sera) — V-H.F chiuso: STATO_VENDITA rifattorizzato da 6 codici TEXT a 4 livelli INTEGER 0..3 con ordinamento naturale. Refactor Vini V.6+V.7+V.8 fino a Fase 8 (opz. C) chiuso. Discovery dinamica DB online.
+**Ultimo aggiornamento:** 2026-05-15 (notte) — Modulo Gestione Vino 2 (M2 sessione 1): backend /vini/v2/* read-only + voce nav "🧪 Gestione 2" + Cantina v2 funzionante (sidebar filtri identica + toggle Bottiglie/Madri). Le altre 3 viste sono placeholder stub. Read-only durante test parallelo.
+
+## SESSIONE 2026-05-15 (notte) — M2 sessione 1 (Modulo Gestione Vino 2)
+
+### Sintesi
+Marco ha proposto di rigirare la strategia post-cutover: invece della UI beta "Anagrafiche" minimale + cutover atomico, vuole **un modulo parallelo completo** (Gestione Vino 2) che legga dalle tabelle `_v2`. Lo prova read-only per qualche settimana, poi se gli piace si fa il cutover. Strategia "Piano B" (4 viste essenziali, no duplicazione di Dashboard/Carta/Calici/Vendite che restano sul modulo classico).
+
+### Decisioni
+- **Read-only durante test parallelo**: modifiche solo da Cantina classica (scrive su `vini_magazzino`). Modulo v2 mostra solo `_v2`. Niente sync delta, niente rischio drift.
+- **Ambito Piano B**: 4 viste — Cantina v2 (lista + raggruppato per madre), Scheda Vino v2 (anagrafica con campi madre 🔗), Per Produttore v2, Nuovo Vino v2 (wizard 3-step preview-only). Le altre pagine Vini (Dashboard, Carta cliente, Calici, Vendite) restano sul classico.
+- **3 sessioni**: 1) backend + nav + Cantina (oggi), 2) Scheda v2 + tab Anagrafica refactor, 3) Per Produttore + Nuovo 3-step + docs/push finale.
+
+### Fatto in sessione 1
+- `app/routers/vini_v2_router.py` (~270 righe): 4 endpoint read-only `/vini/v2/bottiglie/`, `/bottiglie/{id}`, `/madri-raggruppate/`, `/dashboard/`. JOIN bottiglia + madre + produttore + fornitore + denominazione. Filtri replica MagazzinoVini.jsx (search, tipologia, produttore, distributore, 4 stati, 4 flag, giacenza, listino).
+- `main.py`: import + `_mount(vini_v2_router)`.
+- `frontend/src/pages/vini/ViniNav.jsx`: voce "🧪 Gestione 2" (admin/sommelier).
+- `frontend/src/App.jsx`: route `/vini/v2/*` con splat per subroute.
+- `frontend/src/pages/vini/v2/GestioneVino2.jsx`: entry point con sub-nav 4 viste + banner test parallelo.
+- `frontend/src/pages/vini/v2/CantinaV2.jsx` (~450 righe): vista funzionante. Sidebar filtri identica + riepilogo tipologie chip + tabella bottiglie con badge slate-700/sfondo tipologia/chip Flag + toggle Bottiglie/Madri.
+- `frontend/src/pages/vini/v2/{PerProduttoreV2,NuovoVinoV2,SchedaVinoV2}.jsx`: placeholder stub.
+
+### Verifiche
+- `py_compile` OK su `vini_v2_router.py` + `main.py`.
+- Routing: App.jsx ha import GestioneVino2 + Route splat `/vini/v2/*`. ViniNav ha la voce. Zero modifiche a codice esistente del modulo classico.
+
+### Prossimo
+- M2.4 SchedaVinoV2 con modal madre
+- M2.5 PerProduttoreV2 funzionante
+- M2.6 NuovoVinoV2 wizard 3-step preview
+
+---
 
 ## SESSIONE 2026-05-15 (sera) — V-H.F STATO_VENDITA INTEGER
 
