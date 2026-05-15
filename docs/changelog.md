@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-05-15 — Discovery dinamica DB (push.sh + backup_router + backup_db.sh)
+
+### Cambiato
+- **push.sh — path canonico + lista DB dinamica** `[core]`. `DB_LOCAL` ora è `locali/$LOCALE/data/` (path canonico post R6.5 push 3) invece di `app/data/` (legacy). Lista DB scoperta via SSH `ls *.sqlite3 *.db` invece di lista hardcoded. Sia sanity-check pre-push sia sync DB sia post-deploy sanity check usano la stessa lista dinamica. Conseguenza: ogni DB nuovo aggiunto sul VPS in `locali/<id>/data/` viene scaricato automaticamente al prossimo push senza modificare lo script.
+- **`app/routers/backup_router.py` — discovery dinamica** `[core]`. Rimossa costante `DATABASES` hardcoded, sostituita con `_discover_databases()` che scansiona `locale_data_dir()` per `*.sqlite3` e `*.db` (esclude journal `.wal/.shm` e backup `.prev/.bak/.pre-*`). Sia `/backup/info` sia `/backup/download` sia `/backup/list` usano la lista dinamica. `DATA_DIR` ora deriva da `locale_data_dir()`. Effetto: la UI Impostazioni → Backup mostra automaticamente tutti i DB presenti sul VPS, non più lista cablata.
+- **`scripts/backup_db.sh` — lista DB dinamica** `[core]`. Anche il cron notturno scopre i DB dinamicamente (cerca in `$LOCALE_DATA_DIR` poi `$DATA_DIR`, dedup per nome, esclude file di journal). Effetto: il backup_db.sh ora include automaticamente qualsiasi nuovo DB (es. se aggiungiamo `carta_clienti.sqlite3` non serve toccare lo script).
+
+### Note
+- Il path locale-aware `locali/tregobbi/data/` sul Mac restava vuoto pre-fix: i DB venivano scaricati nel vecchio `app/data/`. Post-fix: tutti i 10 DB attivi (incluso `vini_magazzino.sqlite3` con le 6 tabelle `_v2` del refactor anagrafiche) vivono in `locali/tregobbi/data/`.
+
+---
+
 ## 2026-05-14 — Refactor anagrafiche vini Fase 8 (opzione C, vista read-only annate)
 
 ### Aggiunto

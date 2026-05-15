@@ -75,8 +75,14 @@ source "$ENV_FILE"
 set +a
 
 # ── Variabili derivate (post-source env) ───────────────────
-DB_LOCAL="app/data"
-DB_REMOTE="$VPS_DIR/app/data"
+# Path canonico locale-aware (post R6.5 push 3): locali/<locale>/data/.
+# DB_REMOTE_LEGACY tenuto come fallback per locali non ancora migrati
+# (env.production senza locali/<id>/data/).
+DB_LOCAL="locali/$LOCALE/data"
+DB_REMOTE="$VPS_DIR/locali/$LOCALE/data"
+DB_LOCAL_LEGACY="app/data"
+DB_REMOTE_LEGACY="$VPS_DIR/app/data"
+mkdir -p "$DB_LOCAL" 2>/dev/null || true
 
 # ── Argomenti rimanenti (messaggio + flag boolean) ─────────
 MSG="${1:-}"
@@ -118,22 +124,37 @@ step "Guardiano: pre-push checks"
 # Questo intercetta lo scenario dell'incidente 4 maggio: backend zombie con DB
 # vuoti, push.sh non se ne accorgeva e continuava a deployare distruggendo
 # anche le copie .prev locali.
-SANITY_DBS="foodcost.db admin_finance.sqlite3 vini.sqlite3 vini_magazzino.sqlite3 vini_settings.sqlite3 dipendenti.sqlite3 clienti.sqlite3 notifiche.sqlite3 tasks.sqlite3 bevande.sqlite3"
+#
+# 2026-05-15: discovery DINAMICA della lista DB. La lista hardcoded era diventata
+# stale (mancavano i DB v2 del refactor anagrafiche vini, e qualsiasi DB nuovo).
+# Ora interrogo il VPS per scoprire i file *.sqlite3 e *.db effettivamente
+# presenti nella cartella data/ del locale corrente.
+REMOTE_DATA_DIR=$(ssh -q -o ConnectTimeout=4 "$VPS_HOST" "
+    for p in '$DB_REMOTE' '$DB_REMOTE_LEGACY'; do
+        [ -d \"\$p\" ] && echo \"\$p\" && exit 0
+    done
+" 2>/dev/null)
+if [ -z "$REMOTE_DATA_DIR" ]; then
+    warn "Cartella data/ non trovata sul VPS (provati: $DB_REMOTE, $DB_REMOTE_LEGACY) — skip sanity check"
+    SANITY_DBS=""
+else
+    SANITY_DBS=$(ssh -q -o ConnectTimeout=4 "$VPS_HOST" "
+        ls '$REMOTE_DATA_DIR' 2>/dev/null | grep -E '\\.(sqlite3|db)\$' | grep -vE '\\.(wal|shm|prev|bak)\$'
+    " 2>/dev/null | tr '\n' ' ')
+    $VERBOSE && [ -n "$SANITY_DBS" ] && ok "DB sul VPS ($REMOTE_DATA_DIR): $(echo $SANITY_DBS | wc -w) file"
+fi
 SANITY_MIN_BYTES=8192  # < 8KB = stub o vuoto
 
+if [ -z "$SANITY_DBS" ]; then
+    SANITY_OUT=""
+    SSH_RC=0
+else
 SANITY_OUT=$(ssh -q -o ConnectTimeout=6 "$VPS_HOST" "
 cd $VPS_DIR 2>/dev/null || exit 99
 RESULT=''
 for db in $SANITY_DBS; do
-    # Trova path attivo: locali/tregobbi/data/ poi app/data/
-    SRC=''
-    for p in 'locali/tregobbi/data/'\$db 'app/data/'\$db; do
-        [ -f \"\$p\" ] && SRC=\"\$p\" && break
-    done
-    if [ -z \"\$SRC\" ]; then
-        # DB non esistente: skip silente (es. DB di moduli non attivi)
-        continue
-    fi
+    SRC=\"$REMOTE_DATA_DIR/\$db\"
+    [ -f \"\$SRC\" ] || continue
     SZ=\$(stat -c%s \"\$SRC\" 2>/dev/null || echo 0)
     if [ \"\$SZ\" -lt $SANITY_MIN_BYTES ]; then
         RESULT=\"\${RESULT}STUB \$db (\$SZ B); \"
@@ -147,6 +168,7 @@ done
 echo \"\$RESULT\"
 " 2>/dev/null)
 SSH_RC=$?
+fi
 
 if [ "$SSH_RC" -eq 99 ]; then
     warn "VPS_DIR $VPS_DIR non trovato sul VPS — skip sanity check"
@@ -246,13 +268,17 @@ fi
 # ── Sync DB dal VPS ────────────────────────────────────────
 step "Sync database dal VPS"
 
-# Lista DB completa: aggiunti tasks.sqlite3 e bevande.sqlite3 dopo R8a (post-incidente
-# 4 maggio: tasks.sqlite3 mancava, è stato uno dei DB persi).
-DBS="vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3 clienti.sqlite3 dipendenti.sqlite3 notifiche.sqlite3 tasks.sqlite3 bevande.sqlite3"
+# Lista DB DINAMICA (2026-05-15): riusiamo $SANITY_DBS scoperto sopra via SSH.
+# Niente più lista hardcoded. Ogni DB nuovo aggiunto in locali/<id>/data/ sul VPS
+# verrà scaricato automaticamente al prossimo push.
+DBS="$SANITY_DBS"
 DB_OK=0
 DB_FAIL=0
 DB_REGRESSED=0  # contatore DB che sono molto più piccoli del .prev (sospetto corruzione)
-# Il path remote tenta prima locali/tregobbi/data/ (post-R6.5) poi app/data/ (legacy).
+
+if [ -z "$DBS" ]; then
+  warn "Nessun DB da scaricare (REMOTE_DATA_DIR vuoto) — skip"
+fi
 
 for db in $DBS; do
   # Salva copia .prev PRIMA di sovrascrivere
@@ -262,18 +288,8 @@ for db in $DBS; do
     PREV_SIZE=$(stat -c%s "$DB_LOCAL/${db}.prev" 2>/dev/null || stat -f%z "$DB_LOCAL/${db}.prev" 2>/dev/null || echo 0)
   fi
 
-  # Determina path remote (locale-aware con fallback legacy)
-  REMOTE_DB=$(ssh -q "$VPS_HOST" "
-    for p in '$VPS_DIR/locali/tregobbi/data/$db' '$DB_REMOTE/$db'; do
-      [ -f \"\$p\" ] && echo \"\$p\" && exit 0
-    done
-  " 2>/dev/null)
-
-  if [ -z "$REMOTE_DB" ]; then
-    DB_FAIL=$((DB_FAIL + 1))
-    $VERBOSE && warn "$db non trovato sul VPS"
-    continue
-  fi
+  # Path remote: REMOTE_DATA_DIR è già stato scoperto sopra (canonical o legacy)
+  REMOTE_DB="$REMOTE_DATA_DIR/$db"
 
   if ssh -q "$VPS_HOST" "sqlite3 '$REMOTE_DB' \".backup '/tmp/trgb_$db'\"" 2>/dev/null \
     && scp -q "$VPS_HOST:/tmp/trgb_$db" "$DB_LOCAL/$db" 2>/dev/null \
@@ -570,15 +586,15 @@ else
   fail "Backend NON risponde post-deploy ($POST_PROBE) — controlla journalctl -u $BACKEND_SERVICE"
 fi
 
+if [ -z "$SANITY_DBS" ] || [ -z "$REMOTE_DATA_DIR" ]; then
+    POST_SANITY=""
+else
 POST_SANITY=$(ssh -q -o ConnectTimeout=6 "$VPS_HOST" "
 cd $VPS_DIR 2>/dev/null || exit 99
 RESULT=''
 for db in $SANITY_DBS; do
-    SRC=''
-    for p in 'locali/tregobbi/data/'\$db 'app/data/'\$db; do
-        [ -f \"\$p\" ] && SRC=\"\$p\" && break
-    done
-    [ -z \"\$SRC\" ] && continue
+    SRC=\"$REMOTE_DATA_DIR/\$db\"
+    [ -f \"\$SRC\" ] || continue
     SZ=\$(stat -c%s \"\$SRC\" 2>/dev/null || echo 0)
     if [ \"\$SZ\" -lt $SANITY_MIN_BYTES ]; then
         RESULT=\"\${RESULT}STUB \$db (\$SZ B); \"
@@ -591,6 +607,7 @@ for db in $SANITY_DBS; do
 done
 echo \"\$RESULT\"
 " 2>/dev/null)
+fi
 
 if [ -n "$POST_SANITY" ]; then
     fail "DB SANITY POST-DEPLOY FALLITO: $POST_SANITY"

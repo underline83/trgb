@@ -19,36 +19,56 @@ import tarfile
 import io
 from pathlib import Path
 from datetime import datetime
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.services.auth_service import get_current_user, is_admin
+from app.utils.locale_data import locale_data_dir
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
-# ── Percorsi ──
-DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-DAILY_DIR = DATA_DIR / "backups" / "daily"   # <─ cartelle create da backup_db.sh --daily
+# ── Percorsi (locale-aware, post R6.5 push 3) ──
+# Path canonico dei dati = locali/<locale>/data/. La cartella backups/ vive
+# dentro lo stesso path. Niente più fallback ad app/data/.
+DATA_DIR = locale_data_dir()
+DAILY_DIR = DATA_DIR / "backups" / "daily"     # cartelle create da backup_db.sh --daily
 HOURLY_DIR = DATA_DIR / "backups" / "hourly"
 
-# ── Database da includere nel backup on-demand ──
-# Allineato con DBS in scripts/backup_db.sh: stesso elenco, stesso ordine
-# concettuale (foodcost prima, poi finance, poi vini, ecc.). Aggiunti
-# notifiche/tasks/bevande il 7 mag 2026 — erano già backuppati dal cron
-# ma mancavano qui, quindi il download on-demand era incompleto.
-DATABASES = [
-    "foodcost.db",
-    "admin_finance.sqlite3",
-    "vini.sqlite3",
-    "vini_magazzino.sqlite3",
-    "vini_settings.sqlite3",
-    "dipendenti.sqlite3",
-    "clienti.sqlite3",
-    "notifiche.sqlite3",
-    "tasks.sqlite3",
-    "bevande.sqlite3",
-]
+
+def _discover_databases() -> List[str]:
+    """
+    Scopre dinamicamente tutti i file DB SQLite nella cartella data/ del locale
+    corrente. Riconosce sia `*.sqlite3` (estensione canonica) sia `*.db` (legacy,
+    es. `foodcost.db`).
+
+    Esclude:
+      - file `*.wal`/`*.shm` (file di journal SQLite)
+      - file `*.prev`/`*.bak`/`*.pre-*` (backup espliciti)
+      - sottocartelle (backups/, ecc.)
+
+    Razionale (2026-05-15): la lista hardcoded `DATABASES` rendeva invisibili
+    i DB nuovi (es. `vini_magazzino.sqlite3` post-refactor V.6+V.7+V.8 con
+    le tabelle `_v2`) finché qualcuno non si ricordava di aggiungerli a mano.
+    Discovery dinamica → ogni DB nella cartella è automaticamente backuppato
+    e visibile nella UI.
+    """
+    if not DATA_DIR.exists():
+        return []
+    found: List[str] = []
+    for p in sorted(DATA_DIR.iterdir()):
+        if not p.is_file():
+            continue
+        name = p.name
+        # Skip file di journal/backup
+        if name.endswith((".wal", ".shm", ".prev", ".bak")) or ".pre-" in name:
+            continue
+        if name.startswith("."):
+            continue
+        if name.endswith(".sqlite3") or name.endswith(".db"):
+            found.append(name)
+    return found
 
 
 def _require_admin(user: dict):
@@ -128,7 +148,7 @@ def backup_download(current_user: dict = Depends(get_current_user)):
     # Crea il tar.gz in memoria
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for db_name in DATABASES:
+        for db_name in _discover_databases():
             src = DATA_DIR / db_name
             if not src.exists():
                 continue
@@ -224,12 +244,13 @@ def backup_info(current_user: dict = Depends(get_current_user)):
     _require_admin(current_user)
 
     databases = []
-    for db_name in DATABASES:
+    for db_name in _discover_databases():
         src = DATA_DIR / db_name
         if src.exists():
             size_mb = round(src.stat().st_size / (1024 * 1024), 2)
             databases.append({"name": db_name, "size_mb": size_mb, "exists": True})
         else:
+            # Non dovrebbe mai capitare con discovery dinamica, ma safety net
             databases.append({"name": db_name, "size_mb": 0, "exists": False})
 
     # Ultimo backup giornaliero = cartella più recente in daily/

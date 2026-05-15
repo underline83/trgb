@@ -52,22 +52,28 @@ RETAIN_COUNT=$RETAIN_COUNT_HOURLY
 # fronte a un file svuotato o stub: NON va accettato come buono.
 MIN_SIZE_BYTES=8192
 
-# Database SQLite da backuppare (10 DB attivi). Ogni DB ha 2 path possibili:
-# legacy (app/data/) e locale-aware (locali/tregobbi/data/) introdotto con R6.5.
-# Lo script trova automaticamente quale dei due esiste. Se trova entrambi
-# (durante migrazione) usa quello con dimensione maggiore.
-DBS=(
-    "foodcost.db"
-    "admin_finance.sqlite3"
-    "vini.sqlite3"
-    "vini_magazzino.sqlite3"
-    "vini_settings.sqlite3"
-    "dipendenti.sqlite3"
-    "clienti.sqlite3"
-    "notifiche.sqlite3"
-    "tasks.sqlite3"
-    "bevande.sqlite3"
-)
+# Database SQLite da backuppare — DISCOVERY DINAMICA (2026-05-15).
+# Cerca tutti i *.sqlite3 e *.db in LOCALE_DATA_DIR e DATA_DIR (legacy fallback),
+# dedup per nome, esclude file di journal/backup. Ogni DB nuovo aggiunto nella
+# cartella data/ viene automaticamente preso in carico dal prossimo cron run.
+DBS=()
+declare -A _SEEN_DBS
+for _dir in "$LOCALE_DATA_DIR" "$DATA_DIR"; do
+    [ -d "$_dir" ] || continue
+    for _f in "$_dir"/*.sqlite3 "$_dir"/*.db; do
+        [ -f "$_f" ] || continue
+        _name=$(basename "$_f")
+        # Esclude file di journal/backup
+        case "$_name" in
+            *.wal|*.shm|*.prev|*.bak|*.pre-*) continue ;;
+        esac
+        if [ -z "${_SEEN_DBS[$_name]:-}" ]; then
+            DBS+=("$_name")
+            _SEEN_DBS[$_name]=1
+        fi
+    done
+done
+unset _SEEN_DBS _dir _f _name
 
 # File JSON di configurazione (NON SQLite ma altrettanto critici, da backuppare
 # con copia semplice + verifica dimensione minima e validità JSON).

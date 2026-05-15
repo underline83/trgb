@@ -1,6 +1,34 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-14 (sera) — Refactor anagrafiche vini V.6+V.7+V.8: Fasi 5-8 chiuse (Fase 8 in versione "opzione C" read-only — niente inserimento bottiglie fino a Fase 10). Migrazione 1287 vini, UI beta con drill-down annate, sync runtime + rollback online. Prossimo: testing utente esteso + decisione finale su inserimento (opz. A o B) prima del cutover.
+**Ultimo aggiornamento:** 2026-05-15 — Refactor Vini V.6+V.7+V.8 fino a Fase 8 (opz. C) chiuso. Discovery dinamica DB: push.sh + backup_router.py + backup_db.sh non hanno più liste hardcoded. Prossimo: V-H.F rename STATO_VENDITA codici parlanti.
+
+## SESSIONE 2026-05-15 — Discovery dinamica DB
+
+### Sintesi
+Marco ha richiesto 3 cose: (1) procedere con V-H.F rename stati Vini, (2) verificare che i DB v2 siano scaricabili localmente post-push, (3) fixare push.sh per scaricare TUTTI i DB della cartella + UI Backup per mostrarli tutti. Fatti i punti 2 e 3 in questo push, V-H.F nel prossimo.
+
+### Risultato P2 (check DB locali)
+DB v2 effettivamente scaricati dal push, ma nel path vecchio `app/data/` invece del nuovo `locali/tregobbi/data/`. Conteggi tornano: 1287 bottiglie, 995 madre, 68 vitigni, 1637 denominazioni. Sintomo: push.sh ancora puntato al path legacy.
+
+### Risultato P3 (fix push.sh + backup)
+- **push.sh**: `DB_LOCAL`/`DB_REMOTE` cambiati a `locali/$LOCALE/data/`. Lista DB scoperta via SSH una volta sola (`ls *.sqlite3 *.db | grep -vE 'wal|shm|prev|bak'`) e riusata in sanity check + sync + post-deploy. Niente più liste hardcoded.
+- **`app/routers/backup_router.py`**: rimossa `DATABASES` hardcoded. `_discover_databases()` scansiona `locale_data_dir()`. `/backup/info` ritorna tutti i DB scoperti → UI Impostazioni→Backup mostra l'elenco completo automaticamente.
+- **`scripts/backup_db.sh`**: lista `DBS` scoperta dinamicamente cercando in `$LOCALE_DATA_DIR` poi `$DATA_DIR` (dedup per nome). Cron notturno backuppa automaticamente qualsiasi DB nuovo.
+
+### File toccati
+- `push.sh` (DB_LOCAL/REMOTE canonical, discovery DBS via SSH, sanity + post-deploy adattati)
+- `app/routers/backup_router.py` (DATA_DIR da locale_data_dir, `_discover_databases()`, usato in download/info/list)
+- `scripts/backup_db.sh` (DBS array popolato dinamicamente con dedup)
+
+### Verifiche
+- `bash -n` OK su push.sh + backup_db.sh
+- `py_compile` OK su backup_router.py
+- Test runtime sandbox: discovery scopre i 10 DB attesi (admin_finance, bevande, clienti, dipendenti, notifiche, tasks, vini, vini_magazzino, vini_settings, foodcost.db)
+
+### Prossimo (separato in commit dedicato)
+- V-H.F: rename codici STATO_VENDITA lettera → parlanti. Stile G.6 (mig + censimento + refactor backend + frontend).
+
+---
 
 ## SESSIONE 2026-05-14 (sera) — Fase 8 opzione C (vista esplorativa annate)
 
