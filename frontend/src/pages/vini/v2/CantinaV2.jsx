@@ -61,7 +61,7 @@ export default function CantinaV2() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Filtri (replica della sidebar di MagazzinoVini)
+  // Filtri (replica della sidebar di MagazzinoVini, client-side per reattività)
   const [search, setSearch] = useState("");
   const [searchId, setSearchId] = useState("");
   const [tipologia, setTipologia] = useState("");
@@ -69,47 +69,34 @@ export default function CantinaV2() {
   const [regione, setRegione] = useState("");
   const [produttore, setProduttore] = useState("");
   const [distributore, setDistributore] = useState("");
+  const [rappresentante, setRappresentante] = useState("");
   const [statoVendita, setStatoVendita] = useState("");
   const [statoRiordino, setStatoRiordino] = useState("");
   const [carta, setCarta] = useState("");
   const [calice, setCalice] = useState("");
   const [biologico, setBiologico] = useState("");
   const [ipratico, setIpratico] = useState("");
+  const [locNome, setLocNome] = useState("");
+  const [locSpazio, setLocSpazio] = useState("");
+  const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
+  const [giacenzaVal1, setGiacenzaVal1] = useState("");
+  const [giacenzaVal2, setGiacenzaVal2] = useState("");
+  const [prezzoMode, setPrezzoMode] = useState("any");
+  const [prezzoVal1, setPrezzoVal1] = useState("");
+  const [prezzoVal2, setPrezzoVal2] = useState("");
   const [onlyPositive, setOnlyPositive] = useState(false);
   const [onlyMissingListino, setOnlyMissingListino] = useState(false);
 
-  // Fetch dati
+  // Fetch dati (un solo fetch all'inizio, poi tutti i filtri sono client-side)
   const fetchData = async () => {
     setLoading(true); setError("");
     try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (searchId) params.set("id_search", searchId);
-      if (tipologia) params.set("tipologia", tipologia);
-      if (nazione) params.set("nazione", nazione);
-      if (regione) params.set("regione", regione);
-      if (produttore) params.set("produttore", produttore);
-      if (distributore) params.set("distributore", distributore);
-      if (statoVendita !== "") params.set("stato_vendita", statoVendita);
-      if (statoRiordino) params.set("stato_riordino", statoRiordino);
-      if (carta !== "") params.set("carta", carta);
-      if (calice !== "") params.set("calice", calice);
-      if (biologico !== "") params.set("biologico", biologico);
-      if (ipratico !== "") params.set("ipratico", ipratico);
-      if (onlyPositive) params.set("only_positive_stock", "true");
-      if (onlyMissingListino) params.set("only_missing_listino", "true");
-
       if (vista === "bottiglie") {
-        const r = await apiFetch(`${API_BASE}/vini/v2/bottiglie/?${params}`);
+        const r = await apiFetch(`${API_BASE}/vini/v2/bottiglie/?limit=10000`);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         setBottiglie(await r.json());
       } else {
-        // Vista madri raggruppate (subset di filtri supportati)
-        const mp = new URLSearchParams();
-        if (search) mp.set("search", search);
-        if (tipologia) mp.set("tipologia", tipologia);
-        if (onlyPositive) mp.set("only_positive_stock", "true");
-        const r = await apiFetch(`${API_BASE}/vini/v2/madri-raggruppate/?${mp}`);
+        const r = await apiFetch(`${API_BASE}/vini/v2/madri-raggruppate/`);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         setMadri(await r.json());
       }
@@ -124,28 +111,121 @@ export default function CantinaV2() {
 
   const clearAll = () => {
     setSearch(""); setSearchId(""); setTipologia(""); setNazione(""); setRegione("");
-    setProduttore(""); setDistributore(""); setStatoVendita(""); setStatoRiordino("");
+    setProduttore(""); setDistributore(""); setRappresentante("");
+    setStatoVendita(""); setStatoRiordino("");
     setCarta(""); setCalice(""); setBiologico(""); setIpratico("");
+    setLocNome(""); setLocSpazio("");
+    setGiacenzaMode("any"); setGiacenzaVal1(""); setGiacenzaVal2("");
+    setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");
     setOnlyPositive(false); setOnlyMissingListino(false);
-    setTimeout(fetchData, 100);
   };
 
   // Opzioni distinct ricavate dai dati (per popolare i select)
   const opts = useMemo(() => {
     const src = bottiglie;
     const distinct = (key) => [...new Set(src.map(v => v[key]).filter(Boolean))].sort();
+    // Locazioni: unione delle 3 colonne LOCAZIONE_1/2/3 + FRIGORIFERO
+    const locSet = new Set();
+    for (const v of src) {
+      [v.FRIGORIFERO, v.LOCAZIONE_1, v.LOCAZIONE_2, v.LOCAZIONE_3].forEach(x => x && locSet.add(x));
+    }
     return {
       tipologie: distinct("TIPOLOGIA"),
       nazioni: distinct("NAZIONE"),
       regioni: distinct("REGIONE"),
       produttori: distinct("PRODUTTORE"),
       distributori: distinct("DISTRIBUTORE"),
+      rappresentanti: distinct("RAPPRESENTANTE"),
+      locazioni: Array.from(locSet).sort(),
     };
   }, [bottiglie]);
 
-  // Riepilogo tipologie (per i chip sopra la tabella)
+  // ── FILTRI CLIENT-SIDE su bottiglie ──
+  // Tutti i filtri sopra/laterali si applicano qui in-page → reattivi senza fetch
+  const bottiglieFiltrate = useMemo(() => {
+    let out = bottiglie;
+    const s = (v) => (v == null ? "" : String(v)).toLowerCase();
+
+    if (search) {
+      const q = search.toLowerCase();
+      out = out.filter(v =>
+        s(v.DESCRIZIONE).includes(q) || s(v.PRODUTTORE).includes(q) ||
+        s(v.DENOMINAZIONE).includes(q) || s(v.m_descrizione).includes(q) ||
+        s(v.p_nome).includes(q) || s(v.d_display).includes(q)
+      );
+    }
+    if (searchId) out = out.filter(v => String(v.id).includes(searchId));
+    if (tipologia) out = out.filter(v => (v.TIPOLOGIA || v.m_tipologia) === tipologia);
+    if (nazione) out = out.filter(v => (v.NAZIONE || v.p_nazione) === nazione);
+    if (regione) out = out.filter(v => (v.REGIONE || v.p_regione) === regione);
+    if (produttore) out = out.filter(v => (v.PRODUTTORE || v.p_nome) === produttore);
+    if (distributore) out = out.filter(v => (v.DISTRIBUTORE || v.f_nome) === distributore);
+    if (rappresentante) out = out.filter(v => (v.RAPPRESENTANTE || v.f_rappresentante_nome) === rappresentante);
+    if (statoVendita !== "") out = out.filter(v => String(v.STATO_VENDITA) === String(statoVendita));
+    if (statoRiordino) out = out.filter(v => v.STATO_RIORDINO === statoRiordino);
+    if (carta !== "") out = out.filter(v => Number(v.CARTA || 0) === Number(carta));
+    if (calice !== "") out = out.filter(v => Number(v.VENDITA_CALICE || 0) === Number(calice));
+    if (biologico !== "") out = out.filter(v => Number(v.BIOLOGICO || 0) === Number(biologico));
+    if (ipratico !== "") out = out.filter(v => Number(v.IPRATICO || 0) === Number(ipratico));
+    if (locNome) {
+      out = out.filter(v =>
+        v.FRIGORIFERO === locNome || v.LOCAZIONE_1 === locNome ||
+        v.LOCAZIONE_2 === locNome || v.LOCAZIONE_3 === locNome
+      );
+    }
+    if (locSpazio) {
+      const q = locSpazio.toLowerCase();
+      out = out.filter(v =>
+        s(v.LOCAZIONE_1).includes(q) || s(v.LOCAZIONE_2).includes(q) || s(v.LOCAZIONE_3).includes(q)
+      );
+    }
+    // Giacenza con mode
+    const g1 = giacenzaVal1 === "" ? null : Number(giacenzaVal1);
+    const g2 = giacenzaVal2 === "" ? null : Number(giacenzaVal2);
+    if (giacenzaMode === "gt" && g1 != null) out = out.filter(v => (v.QTA_TOTALE || 0) > g1);
+    if (giacenzaMode === "lt" && g1 != null) out = out.filter(v => (v.QTA_TOTALE || 0) < g1);
+    if (giacenzaMode === "between" && g1 != null && g2 != null) {
+      out = out.filter(v => (v.QTA_TOTALE || 0) >= g1 && (v.QTA_TOTALE || 0) <= g2);
+    }
+    // Prezzo con mode
+    const p1 = prezzoVal1 === "" ? null : Number(prezzoVal1);
+    const p2 = prezzoVal2 === "" ? null : Number(prezzoVal2);
+    const prc = (v) => Number(v.PREZZO_CARTA || 0);
+    if (prezzoMode === "gt" && p1 != null) out = out.filter(v => prc(v) > p1);
+    if (prezzoMode === "lt" && p1 != null) out = out.filter(v => prc(v) < p1);
+    if (prezzoMode === "between" && p1 != null && p2 != null) {
+      out = out.filter(v => prc(v) >= p1 && prc(v) <= p2);
+    }
+    if (onlyPositive) out = out.filter(v => (v.QTA_TOTALE || 0) > 0);
+    if (onlyMissingListino) out = out.filter(v => !v.EURO_LISTINO || v.EURO_LISTINO === 0);
+
+    return out;
+  }, [bottiglie, search, searchId, tipologia, nazione, regione, produttore, distributore, rappresentante,
+      statoVendita, statoRiordino, carta, calice, biologico, ipratico,
+      locNome, locSpazio, giacenzaMode, giacenzaVal1, giacenzaVal2,
+      prezzoMode, prezzoVal1, prezzoVal2, onlyPositive, onlyMissingListino]);
+
+  // ── FILTRI CLIENT-SIDE su madri (subset, applicati a madre+annate) ──
+  const madriFiltrate = useMemo(() => {
+    let out = madri;
+    const s = (v) => (v == null ? "" : String(v)).toLowerCase();
+    if (search) {
+      const q = search.toLowerCase();
+      out = out.filter(m =>
+        s(m.descrizione).includes(q) || s(m.produttore_nome).includes(q) || s(m.denominazione_display).includes(q)
+      );
+    }
+    if (tipologia) out = out.filter(m => m.tipologia === tipologia);
+    if (nazione) out = out.filter(m => m.nazione === nazione);
+    if (regione) out = out.filter(m => m.regione === regione);
+    if (produttore) out = out.filter(m => m.produttore_nome === produttore);
+    if (onlyPositive) out = out.filter(m => (m.qta_tot || 0) > 0);
+    return out;
+  }, [madri, search, tipologia, nazione, regione, produttore, onlyPositive]);
+
+  // Riepilogo tipologie (per i chip sopra la tabella) — calcolato sui dati filtrati
   const riepilogo = useMemo(() => {
-    const src = vista === "bottiglie" ? bottiglie : madri.flatMap(m => m.annate || []);
+    const src = vista === "bottiglie" ? bottiglieFiltrate : madriFiltrate.flatMap(m => m.annate || []);
     const map = new Map();
     for (const r of src) {
       const t = r.TIPOLOGIA || r.tipologia || "(senza)";
@@ -157,7 +237,7 @@ export default function CantinaV2() {
       if (qta === 0) e.esaurite += 1;
     }
     return Array.from(map.values()).sort((a, b) => b.etichette - a.etichette);
-  }, [bottiglie, madri, vista]);
+  }, [bottiglieFiltrate, madriFiltrate, vista]);
 
   return (
     <div className="flex" style={{ minHeight: "calc(100vh - 200px)" }}>
@@ -216,13 +296,39 @@ export default function CantinaV2() {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-1.5 mt-1.5">
+            <div className="grid grid-cols-2 gap-1.5 mt-1.5">
               <div>
                 <label className={fLbl}>Distributore</label>
                 <select value={distributore} onChange={e => setDistributore(e.target.value)} className={fSel}>
                   <option value="">Tutti</option>
                   {opts.distributori.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className={fLbl}>Rappresentante</label>
+                <select value={rappresentante} onChange={e => setRappresentante(e.target.value)} className={fSel}>
+                  <option value="">Tutti</option>
+                  {opts.rappresentanti.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Locazioni */}
+          <div className="bg-emerald-50/40 rounded-lg p-2.5 border border-emerald-100 shadow-sm">
+            <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-1.5">Locazioni</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className={fLbl}>Locazione</label>
+                <select value={locNome} onChange={e => setLocNome(e.target.value)} className={fSel}>
+                  <option value="">Tutte</option>
+                  {opts.locazioni.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={fLbl}>Spazio</label>
+                <input type="text" value={locSpazio} onChange={e => setLocSpazio(e.target.value)}
+                  placeholder="es. A2, Fila C" className={fInp} />
               </div>
             </div>
           </div>
@@ -285,14 +391,52 @@ export default function CantinaV2() {
             </div>
           </div>
 
-          {/* Giacenza */}
+          {/* Giacenza e prezzo */}
           <div className="bg-violet-50/40 rounded-lg p-2.5 border border-violet-100 shadow-sm">
-            <div className="text-[9px] font-extrabold text-violet-600 uppercase tracking-widest mb-1.5">Giacenza</div>
+            <div className="text-[9px] font-extrabold text-violet-600 uppercase tracking-widest mb-1.5">Giacenza e prezzo</div>
             <div className="space-y-1.5">
+              {/* Filtro giacenza con mode */}
+              <div>
+                <label className={fLbl}>Filtro giacenza</label>
+                <div className="flex gap-1 items-center">
+                  <select value={giacenzaMode} onChange={e => setGiacenzaMode(e.target.value)}
+                    className="border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white w-[52px]">
+                    <option value="any">—</option>
+                    <option value="gt">&gt;</option>
+                    <option value="lt">&lt;</option>
+                    <option value="between">tra</option>
+                  </select>
+                  <input type="number" value={giacenzaVal1} onChange={e => setGiacenzaVal1(e.target.value)}
+                    className="w-14 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="da" />
+                  {giacenzaMode === "between" && (
+                    <input type="number" value={giacenzaVal2} onChange={e => setGiacenzaVal2(e.target.value)}
+                      className="w-14 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="a" />
+                  )}
+                </div>
+              </div>
               <label className="flex items-center gap-1.5 text-[10px] text-neutral-700 cursor-pointer">
                 <input type="checkbox" checked={onlyPositive} onChange={e => setOnlyPositive(e.target.checked)} className="rounded w-3.5 h-3.5" />
                 <span>Solo giacenza positiva</span>
               </label>
+              {/* Filtro prezzo carta */}
+              <div>
+                <label className={fLbl}>Filtro prezzo carta €</label>
+                <div className="flex gap-1 items-center">
+                  <select value={prezzoMode} onChange={e => setPrezzoMode(e.target.value)}
+                    className="border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white w-[52px]">
+                    <option value="any">—</option>
+                    <option value="gt">&gt;</option>
+                    <option value="lt">&lt;</option>
+                    <option value="between">tra</option>
+                  </select>
+                  <input type="number" step="0.01" value={prezzoVal1} onChange={e => setPrezzoVal1(e.target.value)}
+                    className="w-16 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="da" />
+                  {prezzoMode === "between" && (
+                    <input type="number" step="0.01" value={prezzoVal2} onChange={e => setPrezzoVal2(e.target.value)}
+                      className="w-16 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="a" />
+                  )}
+                </div>
+              </div>
               <label className="flex items-center gap-1.5 text-[10px] text-neutral-700 cursor-pointer">
                 <input type="checkbox" checked={onlyMissingListino} onChange={e => setOnlyMissingListino(e.target.checked)} className="rounded w-3.5 h-3.5" />
                 <span>Solo senza listino</span>
@@ -354,7 +498,9 @@ export default function CantinaV2() {
               </button>
             ))}
             <span className="ml-auto text-[10px] text-neutral-500 flex-shrink-0">
-              {vista === "bottiglie" ? `${bottiglie.length} bottiglie` : `${madri.length} madri · ${madri.reduce((s, m) => s + (m.annate?.length || 0), 0)} annate`}
+              {vista === "bottiglie"
+                ? `${bottiglieFiltrate.length} di ${bottiglie.length} bottiglie`
+                : `${madriFiltrate.length} di ${madri.length} madri · ${madriFiltrate.reduce((s, m) => s + (m.annate?.length || 0), 0)} annate`}
             </span>
           </div>
         )}
@@ -379,7 +525,7 @@ export default function CantinaV2() {
                 </tr>
               </thead>
               <tbody>
-                {bottiglie.map(v => {
+                {bottiglieFiltrate.map(v => {
                   const tip = v.TIPOLOGIA || v.m_tipologia;
                   const denom = v.DENOMINAZIONE || v.d_display;
                   return (
@@ -418,7 +564,7 @@ export default function CantinaV2() {
                     </tr>
                   );
                 })}
-                {bottiglie.length === 0 && (
+                {bottiglieFiltrate.length === 0 && (
                   <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-neutral-500">Nessun vino con i filtri correnti.</td></tr>
                 )}
               </tbody>
@@ -428,7 +574,7 @@ export default function CantinaV2() {
           {/* ── VISTA MADRI ── compact layout (1-annata inline, N-annate tabella stretta) */}
           {!loading && !error && vista === "madri" && (
             <div className="p-2 space-y-1.5">
-              {madri.map(m => {
+              {madriFiltrate.map(m => {
                 const tip = m.tipologia;
                 const borderColor =
                   tip?.toUpperCase()?.includes("ROSS") ? "border-l-red-600" :
@@ -515,7 +661,7 @@ export default function CantinaV2() {
                   </div>
                 );
               })}
-              {madri.length === 0 && (
+              {madriFiltrate.length === 0 && (
                 <div className="p-8 text-center text-sm text-neutral-500">Nessun vino madre con i filtri correnti.</div>
               )}
             </div>

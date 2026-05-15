@@ -86,6 +86,7 @@ def list_bottiglie(
     regione: Optional[str] = Query(None),
     produttore: Optional[str] = Query(None, description="nome produttore (LIKE)"),
     distributore: Optional[str] = Query(None),
+    rappresentante: Optional[str] = Query(None),
     stato_vendita: Optional[int] = Query(None, ge=0, le=3),
     stato_riordino: Optional[str] = Query(None),
     stato_conservazione: Optional[str] = Query(None),
@@ -93,6 +94,15 @@ def list_bottiglie(
     ipratico: Optional[int] = Query(None, ge=0, le=1),
     biologico: Optional[int] = Query(None, ge=0, le=1),
     calice: Optional[int] = Query(None, ge=0, le=1),
+    # Locazioni: LIKE su FRIGORIFERO/LOCAZIONE_1/2/3 e su spazio (concatenato in LOC text)
+    locazione: Optional[str] = Query(None, description="nome locazione (FRIGORIFERO o LOCAZIONE_1/2/3)"),
+    spazio: Optional[str] = Query(None, description="spazio dentro la locazione (LIKE)"),
+    # Range giacenza
+    qta_min: Optional[int] = Query(None, ge=0),
+    qta_max: Optional[int] = Query(None, ge=0),
+    # Range prezzo carta
+    prezzo_min: Optional[float] = Query(None, ge=0),
+    prezzo_max: Optional[float] = Query(None, ge=0),
     only_positive_stock: bool = Query(False),
     only_missing_listino: bool = Query(False),
     limit: int = Query(2000, ge=1, le=10000),
@@ -155,6 +165,39 @@ def list_bottiglie(
     if calice is not None:
         where.append("b.VENDITA_CALICE = ?")
         params.append(calice)
+
+    if rappresentante:
+        where.append("(b.RAPPRESENTANTE LIKE ? OR f.rappresentante_nome LIKE ?)")
+        params.extend([f"%{rappresentante}%", f"%{rappresentante}%"])
+
+    if locazione:
+        # match su frigorifero o una delle 3 locazioni
+        where.append(
+            "(b.FRIGORIFERO LIKE ? OR b.LOCAZIONE_1 LIKE ? OR b.LOCAZIONE_2 LIKE ? OR b.LOCAZIONE_3 LIKE ?)"
+        )
+        like = f"%{locazione}%"
+        params.extend([like, like, like, like])
+    if spazio:
+        # spazio è codificato spesso dentro LOCAZIONE_N (es "Cantina-A2") — LIKE generico
+        where.append(
+            "(b.LOCAZIONE_1 LIKE ? OR b.LOCAZIONE_2 LIKE ? OR b.LOCAZIONE_3 LIKE ?)"
+        )
+        like = f"%{spazio}%"
+        params.extend([like, like, like])
+
+    if qta_min is not None:
+        where.append("COALESCE(b.QTA_TOTALE, 0) >= ?")
+        params.append(qta_min)
+    if qta_max is not None:
+        where.append("COALESCE(b.QTA_TOTALE, 0) <= ?")
+        params.append(qta_max)
+
+    if prezzo_min is not None:
+        where.append("CAST(COALESCE(b.PREZZO_CARTA, 0) AS REAL) >= ?")
+        params.append(prezzo_min)
+    if prezzo_max is not None:
+        where.append("CAST(COALESCE(b.PREZZO_CARTA, 0) AS REAL) <= ?")
+        params.append(prezzo_max)
 
     if only_positive_stock:
         where.append("COALESCE(b.QTA_TOTALE, 0) > 0")
