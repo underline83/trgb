@@ -123,12 +123,28 @@ export default function CantinaV2() {
   // Opzioni distinct ricavate dai dati (per popolare i select)
   const opts = useMemo(() => {
     const src = bottiglie;
-    const distinct = (key) => [...new Set(src.map(v => v[key]).filter(Boolean))].sort();
-    // Locazioni: unione delle 3 colonne LOCAZIONE_1/2/3 + FRIGORIFERO
-    const locSet = new Set();
+    const distinct = (key) => [...new Set(src.map(v => v[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "it"));
+
+    // Locazioni: split "Nome - Spazio" per popolare dropdown a 2 livelli
+    // (replica di locConfig in MagazzinoVini).
+    const locMap = new Map(); // Map<nome, Set<spazio>>
     for (const v of src) {
-      [v.FRIGORIFERO, v.LOCAZIONE_1, v.LOCAZIONE_2, v.LOCAZIONE_3].forEach(x => x && locSet.add(x));
+      for (const raw of [v.FRIGORIFERO, v.LOCAZIONE_1, v.LOCAZIONE_2, v.LOCAZIONE_3]) {
+        if (!raw) continue;
+        const idx = raw.indexOf(" - ");
+        if (idx >= 0) {
+          const nome = raw.slice(0, idx).trim();
+          const spazio = raw.slice(idx + 3).trim();
+          if (!locMap.has(nome)) locMap.set(nome, new Set());
+          if (spazio) locMap.get(nome).add(spazio);
+        } else {
+          // Locazione senza spazio (es. "Bancone")
+          if (!locMap.has(raw)) locMap.set(raw, new Set());
+        }
+      }
     }
+    const locazioniNomi = Array.from(locMap.keys()).sort((a, b) => a.localeCompare(b, "it"));
+
     return {
       tipologie: distinct("TIPOLOGIA"),
       nazioni: distinct("NAZIONE"),
@@ -136,68 +152,112 @@ export default function CantinaV2() {
       produttori: distinct("PRODUTTORE"),
       distributori: distinct("DISTRIBUTORE"),
       rappresentanti: distinct("RAPPRESENTANTE"),
-      locazioni: Array.from(locSet).sort(),
+      locazioniNomi,
+      locazioniSpazi: locMap, // Map<nome, Set<spazio>>
     };
   }, [bottiglie]);
 
-  // ── FILTRI CLIENT-SIDE su bottiglie ──
-  // Tutti i filtri sopra/laterali si applicano qui in-page → reattivi senza fetch
-  const bottiglieFiltrate = useMemo(() => {
-    let out = bottiglie;
-    const s = (v) => (v == null ? "" : String(v)).toLowerCase();
+  // Spazi disponibili per la locazione selezionata (dropdown a 2 livelli)
+  const locSpaziOptions = useMemo(() => {
+    if (!locNome) return [];
+    const set = opts.locazioniSpazi.get(locNome);
+    return set ? Array.from(set).sort((a, b) => a.localeCompare(b, "it")) : [];
+  }, [opts, locNome]);
 
-    if (search) {
-      const q = search.toLowerCase();
-      out = out.filter(v =>
-        s(v.DESCRIZIONE).includes(q) || s(v.PRODUTTORE).includes(q) ||
-        s(v.DENOMINAZIONE).includes(q) || s(v.m_descrizione).includes(q) ||
-        s(v.p_nome).includes(q) || s(v.d_display).includes(q)
-      );
+  // ── FILTRI CLIENT-SIDE su bottiglie ──
+  // Replica 1:1 della logica di MagazzinoVini.jsx riga 757+ (viniFiltrati)
+  const bottiglieFiltrate = useMemo(() => {
+    let out = [...bottiglie];
+
+    // 1) Ricerca per ID (match esatto se numero)
+    if (searchId.trim()) {
+      const idTrim = searchId.trim();
+      const idNum = parseInt(idTrim, 10);
+      out = out.filter(v => {
+        if (!Number.isNaN(idNum) && v.id != null) return v.id === idNum;
+        return String(v.id ?? "").toLowerCase().includes(idTrim.toLowerCase());
+      });
     }
-    if (searchId) out = out.filter(v => String(v.id).includes(searchId));
-    if (tipologia) out = out.filter(v => (v.TIPOLOGIA || v.m_tipologia) === tipologia);
-    if (nazione) out = out.filter(v => (v.NAZIONE || v.p_nazione) === nazione);
-    if (regione) out = out.filter(v => (v.REGIONE || v.p_regione) === regione);
-    if (produttore) out = out.filter(v => (v.PRODUTTORE || v.p_nome) === produttore);
-    if (distributore) out = out.filter(v => (v.DISTRIBUTORE || v.f_nome) === distributore);
-    if (rappresentante) out = out.filter(v => (v.RAPPRESENTANTE || v.f_rappresentante_nome) === rappresentante);
+
+    // 2) Ricerca libera (DESCRIZIONE/DENOMINAZIONE/PRODUTTORE/REGIONE/NAZIONE/DISTRIBUTORE/RAPPRESENTANTE)
+    if (search.trim()) {
+      const needle = search.trim().toLowerCase();
+      out = out.filter(v => {
+        const campi = [v.DESCRIZIONE, v.DENOMINAZIONE, v.PRODUTTORE, v.REGIONE, v.NAZIONE, v.DISTRIBUTORE, v.RAPPRESENTANTE];
+        return campi.some(c => c && String(c).toLowerCase().includes(needle));
+      });
+    }
+
+    // 3) Select anagrafica (match esatto)
+    if (tipologia) out = out.filter(v => v.TIPOLOGIA === tipologia);
+    if (nazione) out = out.filter(v => v.NAZIONE === nazione);
+    if (regione) out = out.filter(v => v.REGIONE === regione);
+    if (produttore) out = out.filter(v => v.PRODUTTORE === produttore);
+    if (distributore) out = out.filter(v => v.DISTRIBUTORE === distributore);
+    if (rappresentante) out = out.filter(v => v.RAPPRESENTANTE === rappresentante);
+
+    // 4) Giacenza (con fallback su QTA_FRIGO + QTA_LOC*)
+    const parseIntSafe = (val) => { const n = parseInt(val, 10); return Number.isNaN(n) ? null : n; };
+    const totQta = (v) => (v.QTA_TOTALE ?? ((v.QTA_FRIGO ?? 0) + (v.QTA_LOC1 ?? 0) + (v.QTA_LOC2 ?? 0) + (v.QTA_LOC3 ?? 0))) || 0;
+    const g1 = parseIntSafe(giacenzaVal1);
+    const g2 = parseIntSafe(giacenzaVal2);
+    if (giacenzaMode !== "any") {
+      out = out.filter(v => {
+        const tot = totQta(v);
+        if (giacenzaMode === "gt" && g1 != null) return tot > g1;
+        if (giacenzaMode === "lt" && g1 != null) return tot < g1;
+        if (giacenzaMode === "between" && g1 != null && g2 != null) {
+          return tot >= Math.min(g1, g2) && tot <= Math.max(g1, g2);
+        }
+        return true;
+      });
+    }
+    if (onlyPositive) out = out.filter(v => totQta(v) > 0);
+
+    // 5) Prezzo carta (skip se null/"")
+    const parseFloatSafe = (val) => { const n = parseFloat(String(val).replace(",", ".")); return Number.isNaN(n) ? null : n; };
+    const p1 = parseFloatSafe(prezzoVal1);
+    const p2 = parseFloatSafe(prezzoVal2);
+    if (prezzoMode !== "any") {
+      out = out.filter(v => {
+        if (v.PREZZO_CARTA == null || v.PREZZO_CARTA === "") return false;
+        const prezzo = parseFloatSafe(v.PREZZO_CARTA);
+        if (prezzo == null) return false;
+        if (prezzoMode === "gt" && p1 != null) return prezzo > p1;
+        if (prezzoMode === "lt" && p1 != null) return prezzo < p1;
+        if (prezzoMode === "between" && p1 != null && p2 != null) {
+          return prezzo >= Math.min(p1, p2) && prezzo <= Math.max(p1, p2);
+        }
+        return true;
+      });
+    }
+
+    // 6) Solo senza listino (null o "")
+    if (onlyMissingListino) {
+      out = out.filter(v => v.EURO_LISTINO == null || v.EURO_LISTINO === "");
+    }
+
+    // 7) Stati (string-cast su STATO_VENDITA per coerenza INTEGER/string select)
     if (statoVendita !== "") out = out.filter(v => String(v.STATO_VENDITA) === String(statoVendita));
     if (statoRiordino) out = out.filter(v => v.STATO_RIORDINO === statoRiordino);
-    if (carta !== "") out = out.filter(v => Number(v.CARTA || 0) === Number(carta));
-    if (calice !== "") out = out.filter(v => Number(v.VENDITA_CALICE || 0) === Number(calice));
-    if (biologico !== "") out = out.filter(v => Number(v.BIOLOGICO || 0) === Number(biologico));
-    if (ipratico !== "") out = out.filter(v => Number(v.IPRATICO || 0) === Number(ipratico));
+
+    // 7b) Flag — INTEGER 0/1 dal BE, select value stringa "0"/"1" → coerce a stringa
+    if (carta !== "") out = out.filter(v => String(v.CARTA ?? "") === String(carta));
+    if (ipratico !== "") out = out.filter(v => String(v.IPRATICO ?? "") === String(ipratico));
+    if (biologico !== "") out = out.filter(v => String(v.BIOLOGICO ?? "") === String(biologico));
+    if (calice !== "") out = out.filter(v => String(v.VENDITA_CALICE ?? "") === String(calice));
+
+    // 8) Locazione unificato (format "Nome - Spazio" o startsWith)
     if (locNome) {
-      out = out.filter(v =>
-        v.FRIGORIFERO === locNome || v.LOCAZIONE_1 === locNome ||
-        v.LOCAZIONE_2 === locNome || v.LOCAZIONE_3 === locNome
-      );
+      const locCols = ["FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3"];
+      if (locSpazio) {
+        const full = `${locNome} - ${locSpazio}`;
+        out = out.filter(v => locCols.some(col => v[col] === full));
+      } else {
+        const prefix = `${locNome} - `;
+        out = out.filter(v => locCols.some(col => v[col] && (v[col] === locNome || String(v[col]).startsWith(prefix))));
+      }
     }
-    if (locSpazio) {
-      const q = locSpazio.toLowerCase();
-      out = out.filter(v =>
-        s(v.LOCAZIONE_1).includes(q) || s(v.LOCAZIONE_2).includes(q) || s(v.LOCAZIONE_3).includes(q)
-      );
-    }
-    // Giacenza con mode
-    const g1 = giacenzaVal1 === "" ? null : Number(giacenzaVal1);
-    const g2 = giacenzaVal2 === "" ? null : Number(giacenzaVal2);
-    if (giacenzaMode === "gt" && g1 != null) out = out.filter(v => (v.QTA_TOTALE || 0) > g1);
-    if (giacenzaMode === "lt" && g1 != null) out = out.filter(v => (v.QTA_TOTALE || 0) < g1);
-    if (giacenzaMode === "between" && g1 != null && g2 != null) {
-      out = out.filter(v => (v.QTA_TOTALE || 0) >= g1 && (v.QTA_TOTALE || 0) <= g2);
-    }
-    // Prezzo con mode
-    const p1 = prezzoVal1 === "" ? null : Number(prezzoVal1);
-    const p2 = prezzoVal2 === "" ? null : Number(prezzoVal2);
-    const prc = (v) => Number(v.PREZZO_CARTA || 0);
-    if (prezzoMode === "gt" && p1 != null) out = out.filter(v => prc(v) > p1);
-    if (prezzoMode === "lt" && p1 != null) out = out.filter(v => prc(v) < p1);
-    if (prezzoMode === "between" && p1 != null && p2 != null) {
-      out = out.filter(v => prc(v) >= p1 && prc(v) <= p2);
-    }
-    if (onlyPositive) out = out.filter(v => (v.QTA_TOTALE || 0) > 0);
-    if (onlyMissingListino) out = out.filter(v => !v.EURO_LISTINO || v.EURO_LISTINO === 0);
 
     return out;
   }, [bottiglie, search, searchId, tipologia, nazione, regione, produttore, distributore, rappresentante,
@@ -314,21 +374,27 @@ export default function CantinaV2() {
             </div>
           </div>
 
-          {/* Locazioni */}
+          {/* Locazioni — dropdown a 2 livelli (Nome → Spazio) replica MagazzinoVini */}
           <div className="bg-emerald-50/40 rounded-lg p-2.5 border border-emerald-100 shadow-sm">
             <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-1.5">Locazioni</div>
             <div className="grid grid-cols-2 gap-1.5">
               <div>
                 <label className={fLbl}>Locazione</label>
-                <select value={locNome} onChange={e => setLocNome(e.target.value)} className={fSel}>
+                <select value={locNome}
+                  onChange={e => { setLocNome(e.target.value); setLocSpazio(""); }}
+                  className={fSel}>
                   <option value="">Tutte</option>
-                  {opts.locazioni.map(l => <option key={l} value={l}>{l}</option>)}
+                  {opts.locazioniNomi.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <div>
                 <label className={fLbl}>Spazio</label>
-                <input type="text" value={locSpazio} onChange={e => setLocSpazio(e.target.value)}
-                  placeholder="es. A2, Fila C" className={fInp} />
+                <select value={locSpazio} onChange={e => setLocSpazio(e.target.value)}
+                  disabled={!locNome || locSpaziOptions.length === 0}
+                  className={fSel + " disabled:opacity-50"}>
+                  <option value="">Tutti</option>
+                  {locSpaziOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
           </div>
