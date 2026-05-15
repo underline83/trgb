@@ -526,6 +526,48 @@ def delete_madre(mid: int) -> bool:
     return ok
 
 
+def list_bottiglie_by_madre(mid: int) -> List[Dict[str, Any]]:
+    """
+    Ritorna le bottiglie (annate) collegate a un madre — Fase 8 vista
+    esplorativa madre → annate. Read-only.
+
+    Solo campi annata-specifici + giacenze + stati. I campi anagrafici
+    (PRODUTTORE/DESCRIZIONE/...) NON sono inclusi: sono ridondanza sincronizzata,
+    li conosci dal madre.
+    """
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    rows = cur.execute(
+        f"""
+        SELECT
+            id, id_excel,
+            ANNATA, FORMATO,
+            PREZZO_CARTA, EURO_LISTINO, SCONTO, PREZZO_CALICE, PREZZO_CALICE_MANUALE,
+            GRADO_ALCOLICO,
+            STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
+            CARTA, BIOLOGICO, VENDITA_CALICE, BOTTIGLIA_APERTA, DATA_APERTURA,
+            FRIGORIFERO, QTA_FRIGO,
+            LOCAZIONE_1, QTA_LOC1, LOCAZIONE_2, QTA_LOC2, LOCAZIONE_3, QTA_LOC3,
+            QTA_TOTALE,
+            NOTE, NOTE_STATO, NOTE_PREZZO,
+            vitigno_1_id, vitigno_1_pct, vitigno_2_id, vitigno_2_pct,
+            vitigno_3_id, vitigno_3_pct, vitigno_4_id, vitigno_4_pct,
+            vitigno_5_id, vitigno_5_pct,
+            CREATED_AT, UPDATED_AT
+        FROM {TABELLE['bottiglie']}
+        WHERE madre_id = ?
+        ORDER BY
+          CASE WHEN ANNATA = '' OR ANNATA IS NULL THEN 1 ELSE 0 END,
+          ANNATA DESC,
+          FORMATO
+        """,
+        (mid,),
+    ).fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
+
+
 # ============================================================
 # STATS — overview per dashboard
 # ============================================================

@@ -1,6 +1,29 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-14 — Refactor anagrafiche vini V.6+V.7+V.8: Fasi 5-7 chiuse. Migrazione 1287 vini fatta, UI beta pubblicata, sync runtime + rollback online. Prossimo: Fase 8 (workflow nuovo inserimento vino 3-step) o testing utente esteso.
+**Ultimo aggiornamento:** 2026-05-14 (sera) — Refactor anagrafiche vini V.6+V.7+V.8: Fasi 5-8 chiuse (Fase 8 in versione "opzione C" read-only — niente inserimento bottiglie fino a Fase 10). Migrazione 1287 vini, UI beta con drill-down annate, sync runtime + rollback online. Prossimo: testing utente esteso + decisione finale su inserimento (opz. A o B) prima del cutover.
+
+## SESSIONE 2026-05-14 (sera) — Fase 8 opzione C (vista esplorativa annate)
+
+### Sintesi
+Marco ha richiesto la Fase 8 "workflow inserimento 3-step", ma ho identificato un'ambiguità di design nel doc canonico: dove vanno scritte le nuove bottiglie? Tre opzioni proposte (A sandbox `_v2`, B dual-write con `ADD COLUMN madre_id` su `vini_magazzino`, C read-only vista esplorativa). Marco ha scelto **C** — test UI senza rischio, decisione su A/B rimandata al post-testing.
+
+### Implementazione Fase 8 (opz. C)
+- **Backend**: `list_bottiglie_by_madre(mid)` in `vini_anagrafiche_db.py` + endpoint `GET /vini/anagrafiche/madre/{id}/bottiglie` che ritorna le annate con campi annata-specifici (formato, prezzi, qta, stato, locazioni, vitigni 5 slot). I campi anagrafici esclusi: sono ridondanza sincronizzata, accessibili via GET /madre/{mid}.
+- **Frontend**: bottone 🍷 nella riga del MadrePanel (accanto al ✏️ di edit) apre `AnnateModal`. Modal mostra header con info del madre (descrizione, produttore, tipologia, nazione/regione) + riepilogo aggregato (n. bottiglie, pezzi totali, annate disponibili, formati) + tabella read-only con ID, annata, formato, prezzo carta/calice/listino, qta totale, stato vendita+riordino, locazioni. Footer chiarisce: per editare usa Magazzino classico.
+
+### File toccati
+- `app/models/vini_anagrafiche_db.py` (+`list_bottiglie_by_madre`)
+- `app/routers/vini_anagrafiche_router.py` (+endpoint GET madre/{id}/bottiglie)
+- `frontend/src/pages/vini/AnagraficheVini.jsx` (+state viewAnnate, +bottone 🍷, +componente AnnateModal)
+
+### Verifiche
+- `py_compile` OK su model+router.
+- Frontend logico: state `viewAnnate` + setter + bottone + render + componente AnnateModal in scope, 6 ricorrenze.
+
+### Decisione tecnica
+- Fase 8 originale (inserimento 3-step) RIMANDATA. Per ora Marco testa la vista nuova "madre + annate" e valida la migrazione clustering. Quando l'UI è solida, decideremo A o B per il workflow inserimento.
+
+---
 
 ---
 

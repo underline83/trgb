@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-05-14 — Refactor anagrafiche vini Fase 8 (opzione C, vista read-only annate)
+
+### Aggiunto
+- **Endpoint `GET /vini/anagrafiche/madre/{id}/bottiglie`** `[core]`. Ritorna le bottiglie (annate) collegate a un vino madre con campi annata-specifici (formato, prezzi carta/calice/listino, qta totale, stato vendita/riordino, locazioni, vitigni 5 slot). I campi anagrafici sono esclusi (sono ridondanza sincronizzata dal madre). Ordinato per annata DESC + formato.
+- **UI modale "Annate"** `[core]`. Tab Madre della UI beta: bottone 🍷 accanto a ✏️ apre un modal read-only con header (descrizione madre, produttore, tipologia, nazione) + riepilogo (n. bottiglie, pezzi totali, annate, formati) + tabella annate con ID, annata, formato, prezzi, qta, stato, locazioni. Footer esplicativo: "per editare usa il Magazzino classico". Implementa l'opzione C del workflow Fase 8 (no inserimento nuove bottiglie fino al cutover).
+
+### Note
+- L'opzione A (creazione bottiglie in sandbox `_v2`) e B (dual-write su `vini_magazzino` con ALTER TABLE ADD COLUMN madre_id) sono rinviate. Marco testa prima la UI esplorativa, poi decide se procedere con l'inserimento vero.
+
+---
+
 ## 2026-05-14 — Refactor anagrafiche vini Fase 7 (sync runtime + rollback)
 
 ### Aggiunto

@@ -553,6 +553,7 @@ function MadrePanel() {
   const [produttori, setProduttori] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [viewAnnate, setViewAnnate] = useState(null);  // Fase 8 — drill-down annate
 
   // Carica lista produttori per il dropdown
   useEffect(() => {
@@ -627,9 +628,15 @@ function MadrePanel() {
                   {m.denominazione_id ? `#${m.denominazione_id}` :
                     <span className="text-amber-700 font-semibold">— da assegnare —</span>}
                 </td>
-                <td className="px-3 py-1.5 text-right">
+                <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                  <button onClick={() => setViewAnnate(m)}
+                    className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100 mr-1"
+                    title="Vedi annate in cantina">
+                    🍷
+                  </button>
                   <button onClick={() => setEditing(m)}
-                    className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100">
+                    className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100"
+                    title="Modifica vino madre">
                     ✏️
                   </button>
                 </td>
@@ -644,6 +651,14 @@ function MadrePanel() {
           madre={editing}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); reload(); }}
+        />
+      )}
+
+      {viewAnnate && (
+        <AnnateModal
+          madre={viewAnnate}
+          produttoreName={prodById[viewAnnate.produttore_id]?.nome}
+          onClose={() => setViewAnnate(null)}
         />
       )}
     </div>
@@ -872,6 +887,143 @@ function Field({ label, required, children }) {
         {label}{required && <span className="text-red-500"> *</span>}
       </label>
       {children}
+    </div>
+  );
+}
+
+
+// ===============================================================
+// MODALE ANNATE — Fase 8 vista read-only "madre → annate"
+// ===============================================================
+function AnnateModal({ madre, produttoreName, onClose }) {
+  const [bottiglie, setBottiglie] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true); setError("");
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}/bottiglie`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        setBottiglie(await r.json());
+      } catch (e) {
+        setError(String(e.message || e));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [madre.id]);
+
+  // Aggregati per riepilogo header
+  const totQta = bottiglie.reduce((s, b) => s + (b.QTA_TOTALE || 0), 0);
+  const annate = [...new Set(bottiglie.map(b => b.ANNATA).filter(Boolean))].sort().reverse();
+  const formati = [...new Set(bottiglie.map(b => b.FORMATO).filter(Boolean))];
+
+  const fmtEuro = (v) => (v == null || v === "" ? "—" : `€ ${Number(v).toFixed(2)}`);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+           onClick={e => e.stopPropagation()}>
+
+        {/* Header — info del madre */}
+        <div className="px-5 py-3 border-b border-neutral-200 bg-gradient-to-r from-rose-50 to-amber-50">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs uppercase tracking-wider text-neutral-500">Vino madre #{madre.id}</div>
+              <h3 className="text-lg font-semibold font-playfair text-neutral-900 truncate">
+                🍷 {madre.descrizione}
+              </h3>
+              <div className="text-xs text-neutral-700 mt-0.5">
+                {produttoreName || `Produttore #${madre.produttore_id}`}
+                {madre.tipologia && <span className="text-neutral-500"> · {madre.tipologia}</span>}
+                {madre.nazione && <span className="text-neutral-500"> · {madre.nazione}</span>}
+                {madre.regione && <span className="text-neutral-500"> · {madre.regione}</span>}
+              </div>
+            </div>
+            <button onClick={onClose}
+              className="px-3 py-1 rounded-lg text-sm border border-neutral-300 hover:bg-neutral-100">
+              Chiudi
+            </button>
+          </div>
+
+          {!loading && bottiglie.length > 0 && (
+            <div className="mt-2 flex items-center gap-4 text-xs">
+              <span><strong>{bottiglie.length}</strong> bottiglie in cantina</span>
+              <span><strong>{totQta}</strong> pezzi totali</span>
+              {annate.length > 0 && (
+                <span>Annate: <strong>{annate.slice(0, 5).join(", ")}{annate.length > 5 ? "…" : ""}</strong></span>
+              )}
+              {formati.length > 0 && (
+                <span>Formati: <strong>{formati.join(", ")}</strong></span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Tabella annate */}
+        <div className="overflow-auto flex-1">
+          {loading && <div className="p-6 text-center text-neutral-500">Carico annate…</div>}
+          {error && <div className="p-6 text-center text-red-700">Errore: {error}</div>}
+          {!loading && !error && bottiglie.length === 0 && (
+            <div className="p-6 text-center text-neutral-500">
+              Nessuna annata in cantina per questo vino madre.
+            </div>
+          )}
+          {!loading && !error && bottiglie.length > 0 && (
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-600 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left">ID</th>
+                  <th className="px-3 py-2 text-left">Annata</th>
+                  <th className="px-3 py-2 text-left">Formato</th>
+                  <th className="px-3 py-2 text-right">Carta</th>
+                  <th className="px-3 py-2 text-right">Calice</th>
+                  <th className="px-3 py-2 text-right">Listino</th>
+                  <th className="px-3 py-2 text-center">Qta</th>
+                  <th className="px-3 py-2 text-center">Stato</th>
+                  <th className="px-3 py-2 text-left">Locazioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bottiglie.map(b => {
+                  const loc = [
+                    b.FRIGORIFERO && `Frigo: ${b.QTA_FRIGO || 0}`,
+                    b.LOCAZIONE_1 && `${b.LOCAZIONE_1}: ${b.QTA_LOC1 || 0}`,
+                    b.LOCAZIONE_2 && `${b.LOCAZIONE_2}: ${b.QTA_LOC2 || 0}`,
+                    b.LOCAZIONE_3 && `${b.LOCAZIONE_3}: ${b.QTA_LOC3 || 0}`,
+                  ].filter(Boolean).join(" · ");
+                  return (
+                    <tr key={b.id} className="border-t border-neutral-100 hover:bg-neutral-50">
+                      <td className="px-3 py-1.5 font-mono text-xs text-neutral-500">{b.id}</td>
+                      <td className="px-3 py-1.5 font-semibold">{b.ANNATA || "—"}</td>
+                      <td className="px-3 py-1.5 text-xs">{b.FORMATO || "—"}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{fmtEuro(b.PREZZO_CARTA)}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">
+                        {b.VENDITA_CALICE ? fmtEuro(b.PREZZO_CALICE_MANUALE || b.PREZZO_CALICE) : <span className="text-neutral-400">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-xs text-neutral-600">{fmtEuro(b.EURO_LISTINO)}</td>
+                      <td className="px-3 py-1.5 text-center tabular-nums font-semibold">{b.QTA_TOTALE || 0}</td>
+                      <td className="px-3 py-1.5 text-center text-xs">
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-neutral-100 font-mono">{b.STATO_VENDITA || "—"}</span>
+                        {b.STATO_RIORDINO && <span className="ml-1 text-amber-700">{b.STATO_RIORDINO}</span>}
+                      </td>
+                      <td className="px-3 py-1.5 text-xs text-neutral-600">{loc || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-2 border-t border-neutral-200 bg-neutral-50 text-xs text-neutral-600">
+          Vista read-only. Per modificare quantità, prezzi o stato di una bottiglia,
+          usa il Magazzino Vini classico (l'edit live non passa ancora da qui — verrà al cutover Fase 10).
+        </div>
+      </div>
     </div>
   );
 }

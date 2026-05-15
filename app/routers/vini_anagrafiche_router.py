@@ -509,6 +509,21 @@ def delete_madre(mid: int, current_user: Any = Depends(get_current_user)):
     return {"status": "ok", "deleted_id": mid}
 
 
+@router.get("/madre/{mid}/bottiglie", summary="Bottiglie (annate) collegate al madre")
+def get_bottiglie_by_madre(mid: int, current_user: Any = Depends(get_current_user)):
+    """
+    Vista esplorativa Fase 8 (opzione C, read-only): per il madre `mid`,
+    ritorna l'elenco delle annate disponibili in cantina con campi
+    annata-specifici (formato, prezzi, giacenze, stati).
+
+    I campi anagrafici (PRODUTTORE/DESCRIZIONE/...) NON sono ripetuti qui:
+    sono ridondanza sincronizzata dal madre, accessibili via GET /madre/{mid}.
+    """
+    if not ana.get_madre(mid):
+        raise HTTPException(404, "Vino madre non trovato")
+    return ana.list_bottiglie_by_madre(mid)
+
+
 # ============================================================
 # SYNC FULL — safety net (Fase 7)
 # ============================================================
