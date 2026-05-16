@@ -159,7 +159,18 @@ function SectionHeader({ title, children }) {
  *   - onVinoUpdated: function(vino) (opzionale) — notifica il parent quando il vino viene aggiornato
  *   - inline: boolean (opzionale) — se true, non mostra header con titolone (usato dentro MagazzinoVini)
  */
-const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = false }, ref) {
+const SchedaVino = forwardRef(function SchedaVino({
+  vinoId, onClose, onVinoUpdated, inline = false,
+  // ── NUOVO 2026-05-15 (M2.4): props additive opt-in per modulo Gestione 2 ──
+  // Default invariati: il modulo Cantina classica funziona ESATTAMENTE come prima.
+  // - readOnly=true  → nasconde tutti i bottoni di modifica (Modifica anagrafica,
+  //                    Duplica, Aggiungi movimento/nota). Banner read-only in alto.
+  // - apiBaseDettaglio → parametrizza SOLO l'endpoint GET dettaglio (riga ~241).
+  //                      Le sotto-risorse (movimenti/note/prezzi/stats) restano
+  //                      sulle tabelle uniche di vini_magazzino.
+  readOnly = false,
+  apiBaseDettaglio = "/vini/magazzino",
+}, ref) {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
   const canDelete = isAdminRole(role) || role === "sommelier" || role === "sala";
@@ -238,7 +249,8 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   const fetchVino = async () => {
     setLoading(true); setError("");
     try {
-      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`);
+      // Endpoint parametrizzato: default "/vini/magazzino", in modulo v2 "/vini/v2/bottiglie"
+      const r = await apiFetch(`${API_BASE}${apiBaseDettaglio}/${vinoId}`);
       if (r.status === 404) { setError("Vino non trovato."); return; }
       if (!r.ok) throw new Error(`Errore server: ${r.status}`);
       const data = await r.json();
@@ -817,10 +829,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
             <div>
               <SectionHeader title="Anagrafica">
                 {saveMsg && <span className="text-xs font-medium">{saveMsg}</span>}
-                {!editMode && (
+                {!editMode && !readOnly && (
                   <Btn variant="primary" size="sm" type="button" onClick={startEdit}>✎ Modifica</Btn>
                 )}
-                {editMode && <>
+                {editMode && !readOnly && <>
                   <Btn variant="secondary" size="sm" type="button" onClick={cancelEdit}>Annulla</Btn>
                   <Btn variant="primary" size="sm" type="button" onClick={saveEdit} disabled={saving} loading={saving}>{saving ? "Salvo…" : "Salva"}</Btn>
                 </>}
@@ -969,10 +981,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
             {activeTab === "giacenze" && (
             <div>
               <SectionHeader title="Giacenze per locazione">
-                {!giacenzeEdit && (
+                {!giacenzeEdit && !readOnly && (
                   <Btn variant="primary" size="sm" type="button" onClick={startGiacenze}>✎ Modifica</Btn>
                 )}
-                {giacenzeEdit && <>
+                {giacenzeEdit && !readOnly && <>
                   <Btn variant="secondary" size="sm" type="button" onClick={cancelGiacenze}>Annulla</Btn>
                   <Btn variant="primary" size="sm" type="button" onClick={saveGiacenze} disabled={giacenzeSaving} loading={giacenzeSaving}>{giacenzeSaving ? "Salvo…" : "Salva"}</Btn>
                 </>}
@@ -1515,9 +1527,16 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
 
           {/* ═══════════ FOOTER AZIONI ═══════════ */}
           <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-t border-neutral-200 flex-shrink-0">
-            <Btn variant="secondary" size="md" type="button" onClick={handleDuplica} disabled={duplicating}>
-              {duplicating ? "Duplico…" : "Duplica vino"}
-            </Btn>
+            {!readOnly && (
+              <Btn variant="secondary" size="md" type="button" onClick={handleDuplica} disabled={duplicating}>
+                {duplicating ? "Duplico…" : "Duplica vino"}
+              </Btn>
+            )}
+            {readOnly && (
+              <span className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md flex items-center gap-1.5">
+                🔒 <strong>READ-ONLY</strong> · per modificare apri questo vino nella Cantina classica
+              </span>
+            )}
             {saveMsg && <span className="text-xs font-medium text-neutral-600">{saveMsg}</span>}
             <span className="flex-1" />
             {onClose && (

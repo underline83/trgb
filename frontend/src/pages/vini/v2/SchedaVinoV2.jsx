@@ -1,28 +1,45 @@
-// src/pages/vini/v2/SchedaVinoV2.jsx — placeholder (sessione M2.4)
+// src/pages/vini/v2/SchedaVinoV2.jsx
+// Modulo: vini (V.6+V.7+V.8 — Modulo Gestione Vino 2)
+//
+// Wrapper di SchedaVino classica con prop readOnly + apiBaseDettaglio="/vini/v2/bottiglie".
+// Promessa: STESSO componente, niente codice duplicato. La pagina è identica
+// alla scheda della Cantina classica, con i soli 3 bottoni di edit nascosti
+// (Modifica anagrafica, Modifica giacenze, Duplica vino).
+//
+// Tab Movimenti/Note/Prezzi/Statistiche puntano alle tabelle uniche di
+// vini_magazzino (`vini_magazzino_movimenti` ecc.) → letture identiche al
+// classico per definizione.
+
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import SchedaVino from "../SchedaVino";
 
 export default function SchedaVinoV2() {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  if (!id) return null;
+
   return (
-    <div className="max-w-[1100px] mx-auto p-6">
-      <div className="bg-white border border-neutral-200 rounded-2xl shadow-sm p-8">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => navigate("/vini/v2/cantina")} className="text-xs text-blue-600 hover:underline">← Cantina v2</button>
-          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">#{id}</span>
-        </div>
-        <div className="text-center py-6">
-          <div className="text-4xl mb-3">📄</div>
-          <h2 className="text-lg font-bold text-amber-900 mb-2">Scheda Vino 2 — in arrivo</h2>
-          <p className="text-sm text-neutral-600 max-w-md mx-auto">
-            Dettaglio bottiglia con tab Anagrafica refactor: campi del vino madre marcati 🔗 con bottone
-            "Modifica madre" che apre il modal. Altri tab (Giacenze · Movimenti · Prezzi · Statistiche · Note)
-            puntano alla versione del modulo classico finché siamo in test parallelo.
-          </p>
-          <p className="text-[11px] text-neutral-400 mt-3">Implementazione prevista in sessione M2.4</p>
-        </div>
+    <div className="max-w-[1100px] mx-auto p-3">
+      <div className="px-2 pb-2 flex items-center gap-2 text-xs">
+        <button onClick={() => navigate("/vini/v2/cantina")}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-50 transition shadow-sm">
+          ← Cantina v2
+        </button>
+        <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">#{id}</span>
+        <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md inline-flex items-center gap-1">
+          🔒 <strong>READ-ONLY</strong> · per modificare apri questo vino nella <button onClick={() => navigate(`/vini/magazzino`)} className="underline">Cantina classica</button>
+        </span>
       </div>
+
+      <SchedaVino
+        vinoId={Number(id)}
+        inline={true}
+        readOnly={true}
+        apiBaseDettaglio="/vini/v2/bottiglie"
+        onClose={() => navigate("/vini/v2/cantina")}
+      />
     </div>
   );
 }

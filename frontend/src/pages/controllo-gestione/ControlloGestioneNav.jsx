@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 
 const TABS = [
   { key: "dashboard",       label: "Dashboard",       path: "/controllo-gestione/dashboard",       icon: "📊" },
+  { key: "conto-economico", label: "Conto Economico", path: "/controllo-gestione/conto-economico", icon: "💼" },
   { key: "liquidita",       label: "Liquidita'",      path: "/controllo-gestione/liquidita",       icon: "🏦" },
   { key: "uscite",          label: "Uscite",          path: "/controllo-gestione/uscite",          icon: "💸" },
   { key: "calendario",      label: "Calendario",      path: "/controllo-gestione/calendario",      icon: "📅" },
