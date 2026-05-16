@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-05-16 — G.3 Fase E (E.4): endpoint import-paghe-pdf + UI dropzone multi-file
+
+### Aggiunto
+- **Endpoint `POST /dipendenti/buste-paga/import-paghe-pdf`** `[core]`. Riceve 1-N file PDF (anche misti), rileva il tipo per ogni file (`_detect_pdf_type` scansiona prime 3 pagine cercando keyword: "COSTO CONSUNTIVO" → ELAB, "Mod. F24 / UNIFICATO" → F24, "Libro Unico / Cedolino" → LUL). Per ELAB: chiama `parse_elab_pdf` → `_import_elab_to_db` con `INSERT OR REPLACE` su UNIQUE (anno, mese, matricola), match `dipendente_id` via `_match_dipendente` fuzzy esistente + riga sintetica AZIENDA per INAIL. Per F24: chiama `parse_f24_pdf` → `_import_f24_to_db` con `DELETE WHERE fonte_hash = ?` + INSERT (idempotente per hash). LUL viene skip con nota (usa flusso legacy). Ritorna riepilogo per file con righe inserite, dipendenti matchati/non-matchati, deleghe, periodi competenza, warnings.
+- **UI dropzone Import ELAB / F24** `[core]`. `frontend/src/pages/dipendenti/DipendentiBustePaga.jsx`: nuovo bottone "📑 Import ELAB / F24" accanto a "Import PDF LUL" nell'header. Input file `multiple` per upload batch. Sotto l'header banner amber con riepilogo strutturato per file: badge colorato per tipo (🟢 ELAB / 🔵 F24 / 🟡 LUL skip / ⚠️ unknown/error), periodo competenza, righe inserite, dipendenti non-matchati per intervento manuale, warnings parser, conteggio righe riemesse (per re-import F24).
+
+### Verifiche
+- py_compile pulito su `app/routers/dipendenti.py`.
+- JSX braces bilanciate (`DipendentiBustePaga.jsx` 958 righe, 466 `{` = 466 `}`).
+- Test end-to-end in sandbox su PDF reali Aprile 2026:
+  - **ELAB**: 11 record inseriti (10 dipendenti + AZIENDA INAIL), 7/10 dipendenti matched (Albuquerque/Vasilevskaya/Carminati multi-token recuperati dal fuzzy `_match_dipendente`). Re-import stesso PDF: 11 → 11 (idempotente via UNIQUE).
+  - **F24**: 23 righe inserite (Erario 9 + Comuni 8 + INPS 4 + Regioni 1 + INAIL 1). Saldo totale = € 5.573,90 = saldi PDF al centesimo (90 + 5.483,90 + 0).
+  - **CE post-import**: STAFF € 20.581,02 = 20.488,88 (dipendenti) + 92,14 (INAIL), modalità "completo", utile -1.643,62 (-3,4%), warning banner sparito ✓.
+
+### Cambiato
+Niente fuori dal modulo Dipendenti. L'endpoint è additivo. Marco quando avrà tempo carica gli 8 PDF di gen-apr 2026 (4 ELAB + 4 F24) in un colpo solo via dropzone e il CE retroattivo si correzionerà automaticamente.
+
+### Prossimo (G.3 Fase E parte 2/2 chiusura)
+- E.7: import retro 2026 (Marco usa l'endpoint E.4 per i mesi gen-apr — non serve mig dedicata)
+- E.8: tab "Costi mensili" sotto modulo Dipendenti (vista per consultare il costo aziendale + F24 versati per mese)
+- E.9: rimozione warning banner CE — solo dopo verifica Marco che tutti i mesi 2026 sono correttamente importati
+
+---
+
 ## 2026-05-16 — M2.5.5 refactor + M2.6 Per Produttore (Cantina 2)
 
 ### Aggiunto

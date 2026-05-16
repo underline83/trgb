@@ -2435,6 +2435,321 @@ def download_documento(
     return FileResponse(row["filename"], filename=orig_name)
 
 
+# ════════════════════════════════════════════════════════════
+# G.3 FASE E — IMPORT PDF PAGHE: ELAB (costo consuntivo) + F24 (versamenti)
+# ════════════════════════════════════════════════════════════
+# Marco 2026-05-16: oltre al LUL già importato (buste paga PDF), ogni mese
+# carichiamo anche ELAB (riepilogo costi azienda) e F24 (versamenti).
+#
+# Flusso:
+#   1. Marco apre /dipendenti/buste-paga, click "Carica ELAB / F24"
+#   2. Drag&drop 1-N file PDF (anche misti ELAB+F24)
+#   3. Backend rileva il tipo per ogni file, chiama il parser appropriato,
+#      INSERT nelle tabelle (dipendenti_costo_consuntivo per ELAB, f24_versamenti
+#      per F24)
+#   4. Ritorna riepilogo: file/tipo/periodo/righe-inserite
+#
+# Anti-doppio:
+#   - dipendenti_costo_consuntivo ha UNIQUE su (anno, mese, matricola): re-import
+#     stesso ELAB → INSERT OR REPLACE su matricola, no duplicati.
+#   - f24_versamenti: usa raggruppamento_id che include fonte_hash; re-import
+#     stesso F24 → DELETE precedente + INSERT (idempotente per hash).
+# ════════════════════════════════════════════════════════════
+
+
+def _detect_pdf_type(content: bytes) -> str:
+    """Rileva se il PDF è LUL / ELAB / F24 dal contenuto della prima pagina.
+    Ritorna 'ELAB' | 'F24' | 'LUL' | 'UNKNOWN'."""
+    try:
+        import pdfplumber
+        import io
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            # Scansiona le prime 2-3 pagine per le keyword identificative
+            sample_text = ""
+            for page in pdf.pages[:3]:
+                sample_text += (page.extract_text() or "") + "\n"
+            sample_upper = sample_text.upper()
+            if "COSTO CONSUNTIVO" in sample_upper or "C O S T O" in sample_upper:
+                return "ELAB"
+            if "MOD. F24" in sample_upper or "MODELLO DI PAGAMENTO" in sample_upper or "UNIFICATO" in sample_upper:
+                return "F24"
+            if "LIBRO UNICO" in sample_upper or "CEDOLINO" in sample_upper or "BUSTA PAGA" in sample_upper:
+                return "LUL"
+        return "UNKNOWN"
+    except Exception:
+        return "UNKNOWN"
+
+
+def _import_elab_to_db(parsed: dict, dip_conn) -> dict:
+    """Inserisce i dati di un ELAB parsato in dipendenti_costo_consuntivo.
+    Cerca dipendente_id via fuzzy match su nome.
+    Anti-doppio: UNIQUE (anno, mese, matricola) → INSERT OR REPLACE.
+    Ritorna {inserted, replaced, skipped, dipendenti_matched, dipendenti_not_matched}.
+    """
+    anno = parsed.get("anno")
+    mese = parsed.get("mese")
+    if anno is None or mese is None:
+        return {"error": "anno/mese non estratti dal PDF"}
+
+    fonte = parsed.get("fonte_pdf")
+    fonte_hash = parsed.get("fonte_hash")
+    inail_mese = parsed.get("inail_mese")
+
+    cur = dip_conn.cursor()
+    inserted = 0
+    matched = 0
+    not_matched = []
+
+    # 1. Righe per ogni dipendente
+    for dip_row in parsed.get("dipendenti", []):
+        cognome_nome = dip_row.get("cognome_nome") or ""
+        matricola = dip_row.get("matricola")
+        # Match dipendente_id via fuzzy su cognome_nome
+        # NB: _match_dipendente è dentro questo modulo, riusiamolo passando
+        # un "cedolino fake" con solo cognome_nome
+        fake_cedolino = {"cognome_nome": cognome_nome}
+        dip = _match_dipendente(dip_conn, fake_cedolino)
+        dipendente_id = dip["id"] if dip else None
+        if dipendente_id:
+            matched += 1
+        else:
+            not_matched.append(f"{matricola or '?'} {cognome_nome}")
+
+        cur.execute("""
+            INSERT OR REPLACE INTO dipendenti_costo_consuntivo
+            (anno, mese, dipendente_id, matricola, cognome_nome,
+             ore_lavorate, retribuzione_lorda, contributi_lordo,
+             ore_straord, retribuzione_straord, contributi_straord,
+             ratei_importo, contributi_su_ratei, tfr_maturato,
+             inail_mese, costo_totale, fonte_pdf, fonte_hash, importato_il)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (
+            anno, mese, dipendente_id, matricola, cognome_nome,
+            dip_row.get("ore_lavorate"),
+            dip_row.get("retribuzione_lorda"),
+            dip_row.get("contributi_lordo"),
+            dip_row.get("ore_straord"),
+            dip_row.get("retribuzione_straord"),
+            dip_row.get("contributi_straord"),
+            dip_row.get("ratei_importo"),
+            dip_row.get("contributi_su_ratei"),
+            dip_row.get("tfr_maturato"),
+            None,  # inail_mese su righe dipendente è NULL (sta sulla riga AZIENDA)
+            dip_row.get("costo_totale"),
+            fonte, fonte_hash,
+        ))
+        inserted += 1
+
+    # 2. Riga sintetica AZIENDA per INAIL totale azienda (se disponibile)
+    if inail_mese is not None and inail_mese > 0:
+        cur.execute("""
+            INSERT OR REPLACE INTO dipendenti_costo_consuntivo
+            (anno, mese, dipendente_id, matricola, cognome_nome,
+             costo_totale, inail_mese, fonte_pdf, fonte_hash, importato_il)
+            VALUES (?, ?, NULL, 'AZIENDA', 'INAIL azienda', 0, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (anno, mese, inail_mese, fonte, fonte_hash))
+        inserted += 1
+
+    dip_conn.commit()
+    return {
+        "tipo": "ELAB",
+        "fonte": fonte,
+        "periodo": f"{mese:02d}/{anno}",
+        "righe_inserite": inserted,
+        "dipendenti_matched": matched,
+        "dipendenti_not_matched": not_matched,
+        "warnings": parsed.get("warnings", []),
+    }
+
+
+def _import_f24_to_db(parsed: dict, fc_conn) -> dict:
+    """Inserisce i dati di un F24 parsato in f24_versamenti.
+    raggruppamento_id = '<fonte_hash>_<pagina>' per legare i tributi della
+    stessa delega F24.
+    Anti-doppio: DELETE precedente same fonte_hash + INSERT (idempotente).
+    """
+    fonte = parsed.get("fonte_pdf")
+    fonte_hash = parsed.get("fonte_hash")
+    cur = fc_conn.cursor()
+
+    # Anti-doppio: cancella tutto ciò che proviene da questo PDF (stesso hash)
+    cur.execute("DELETE FROM f24_versamenti WHERE fonte_hash = ?", (fonte_hash,))
+    deleted = cur.rowcount
+
+    inserted = 0
+    periodi_competenza = set()
+
+    for delega in parsed.get("deleghe", []):
+        pagina = delega.get("pagina_pdf")
+        raggr = f"{fonte_hash}_p{pagina}"
+        data_scad = delega.get("data_scadenza")
+        anno_comp = delega.get("anno_competenza")
+        mese_comp = delega.get("mese_competenza")
+        if anno_comp and mese_comp:
+            periodi_competenza.add(f"{mese_comp:02d}/{anno_comp}")
+
+        for riga in delega.get("righe", []):
+            cur.execute("""
+                INSERT INTO f24_versamenti
+                (raggruppamento_id, data_scadenza, anno_competenza, mese_competenza,
+                 sezione, codice_tributo, descrizione_tributo,
+                 periodo_rif_anno, periodo_rif_mese,
+                 codice_sede, matricola_inps, codice_regione, codice_comune, codice_ente,
+                 importo_debito, importo_credito, saldo,
+                 fonte_pdf, fonte_hash, pagina_pdf, importato_il)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (
+                raggr, data_scad, anno_comp, mese_comp,
+                riga.get("sezione"), riga.get("codice_tributo"), riga.get("descrizione_tributo"),
+                riga.get("periodo_rif_anno"), riga.get("periodo_rif_mese"),
+                riga.get("codice_sede"), riga.get("matricola_inps"),
+                riga.get("codice_regione"), riga.get("codice_comune"), riga.get("codice_ente"),
+                riga.get("importo_debito") or 0,
+                riga.get("importo_credito") or 0,
+                riga.get("saldo"),
+                fonte, fonte_hash, pagina,
+            ))
+            inserted += 1
+
+    fc_conn.commit()
+    return {
+        "tipo": "F24",
+        "fonte": fonte,
+        "deleghe": len(parsed.get("deleghe", [])),
+        "righe_inserite": inserted,
+        "righe_riemesse": deleted,
+        "periodi_competenza": sorted(periodi_competenza),
+        "warnings": parsed.get("warnings", []),
+    }
+
+
+@router.post("/buste-paga/import-paghe-pdf")
+async def import_paghe_pdf(
+    files: list[UploadFile] = File(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    G.3 Fase E — Import PDF paghe: accetta uno o più PDF (ELAB o F24, anche misti)
+    e li importa nelle tabelle dedicate.
+
+    Flow:
+      - Per ogni file: detect tipo (ELAB / F24 / LUL / UNKNOWN) dalle prime pagine
+      - Per ELAB: chiama elab_parser → INSERT in dipendenti_costo_consuntivo
+        + riga sintetica AZIENDA per INAIL del mese
+      - Per F24: chiama f24_parser → INSERT in f24_versamenti
+      - Per LUL: NOT IMPLEMENTED qui (usa endpoint legacy /buste-paga/anteprima-pdf)
+      - Per UNKNOWN: skip + warning
+
+    Ritorna riepilogo aggregato: { results: [...], summary: {tot_files, tot_ok, tot_err} }
+    Anti-doppio: gestito a livello DB (UNIQUE su ELAB, DELETE+INSERT per F24).
+
+    NB: chi tocca questo endpoint, ricordi che `dipendenti_costo_consuntivo`
+    vive in dipendenti.sqlite3 e `f24_versamenti` in foodcost.db.
+    """
+    import sqlite3
+    from pathlib import Path as _Path
+    from app.utils.locale_data import locale_data_path
+
+    if not files:
+        raise HTTPException(400, "Nessun file fornito")
+
+    # Connessioni necessarie
+    dip_conn = get_dipendenti_conn()
+    fc_path = locale_data_path("foodcost.db")
+    fc_conn = sqlite3.connect(fc_path)
+    fc_conn.row_factory = sqlite3.Row
+
+    results = []
+    tot_ok = 0
+    tot_err = 0
+
+    try:
+        for f in files:
+            filename = f.filename or "?"
+            try:
+                content = await f.read()
+                if not content:
+                    results.append({"file": filename, "error": "file vuoto"})
+                    tot_err += 1
+                    continue
+
+                tipo = _detect_pdf_type(content)
+
+                if tipo == "ELAB":
+                    # Scrivi temporaneamente su disco (i parser leggono da path)
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                        tmp.write(content)
+                        tmp_path = tmp.name
+                    try:
+                        from app.services.elab_parser import parse_elab_pdf
+                        parsed = parse_elab_pdf(tmp_path)
+                        # Override fonte_pdf col nome originale (non il tmp)
+                        parsed["fonte_pdf"] = filename
+                        r = _import_elab_to_db(parsed, dip_conn)
+                        r["file"] = filename
+                        results.append(r)
+                        tot_ok += 1
+                    finally:
+                        try:
+                            _Path(tmp_path).unlink(missing_ok=True)
+                        except Exception:
+                            pass
+
+                elif tipo == "F24":
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                        tmp.write(content)
+                        tmp_path = tmp.name
+                    try:
+                        from app.services.f24_parser import parse_f24_pdf
+                        parsed = parse_f24_pdf(tmp_path)
+                        parsed["fonte_pdf"] = filename
+                        r = _import_f24_to_db(parsed, fc_conn)
+                        r["file"] = filename
+                        results.append(r)
+                        tot_ok += 1
+                    finally:
+                        try:
+                            _Path(tmp_path).unlink(missing_ok=True)
+                        except Exception:
+                            pass
+
+                elif tipo == "LUL":
+                    results.append({
+                        "file": filename,
+                        "tipo": "LUL",
+                        "skipped": True,
+                        "note": "Per importare un LUL usa l'endpoint Anteprima Cedolini (flusso esistente).",
+                    })
+
+                else:
+                    results.append({
+                        "file": filename,
+                        "tipo": "UNKNOWN",
+                        "skipped": True,
+                        "note": "Tipo PDF non riconosciuto (atteso: ELAB / F24 / LUL).",
+                    })
+
+            except Exception as exc:
+                results.append({"file": filename, "error": str(exc)})
+                tot_err += 1
+
+    finally:
+        dip_conn.close()
+        fc_conn.close()
+
+    return {
+        "results": results,
+        "summary": {
+            "tot_files": len(files),
+            "tot_ok": tot_ok,
+            "tot_err": tot_err,
+            "tot_skipped": len([r for r in results if r.get("skipped")]),
+        },
+    }
+
+
 # ============================================================
 # FINE FILE
 # ============================================================

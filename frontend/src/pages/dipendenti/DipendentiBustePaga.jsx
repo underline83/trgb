@@ -33,6 +33,11 @@ export default function DipendentiBustePaga() {
   const [testResult, setTestResult] = useState(null);
   const testInputRef = React.useRef(null);
 
+  // G.3 Fase E: Upload ELAB + F24 PDF (multi-file)
+  const [paghePdfUploading, setPaghePdfUploading] = useState(false);
+  const [paghePdfResult, setPaghePdfResult] = useState(null);
+  const paghePdfInputRef = React.useRef(null);
+
   // Form manuale
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -199,6 +204,41 @@ export default function DipendentiBustePaga() {
     }
   };
 
+  // ── G.3 FASE E: Upload ELAB / F24 (multi-file) ──
+  // Endpoint backend: POST /dipendenti/buste-paga/import-paghe-pdf
+  // Riceve 1-N file, rileva tipo (ELAB/F24/LUL/UNKNOWN), parsea, INSERT diretto
+  // nelle tabelle (anti-doppio via UNIQUE constraint). Mostra riepilogo per file.
+  const handleUploadPaghePdf = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setPaghePdfUploading(true);
+    setPaghePdfResult(null);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("files", f));
+      const res = await apiFetch(`${API_BASE}/dipendenti/buste-paga/import-paghe-pdf`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        alert(`Errore import (HTTP ${res.status}): ${txt.slice(0, 200)}`);
+        return;
+      }
+      const json = await res.json();
+      setPaghePdfResult(json);
+      // Refresh dati buste paga (i record ELAB/F24 non sono buste, ma può
+      // essere utile rinfrescare l'UI per allineare numeri)
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert("Errore di rete durante l'upload");
+    } finally {
+      setPaghePdfUploading(false);
+      if (paghePdfInputRef.current) paghePdfInputRef.current.value = "";
+    }
+  };
+
   // ── STEP 2: Conferma Import ──
   const handleConfermaImport = async () => {
     if (!pdfFile) return;
@@ -328,6 +368,16 @@ export default function DipendentiBustePaga() {
             disabled={uploading} loading={uploading}>
             {uploading ? "Analizzando..." : <>{"\uD83D\uDCC4"} Import PDF LUL</>}
           </Btn>
+          {/* G.3 Fase E: Import ELAB (costo consuntivo) + F24 (versamenti) \u2014 multi-file */}
+          <input ref={paghePdfInputRef} type="file" accept=".pdf" multiple
+            onChange={handleUploadPaghePdf} className="hidden" />
+          <Tooltip label="Carica gli ELAB (riepilogo paghe) e i F24 mensili del consulente. Possibilit\u00E0 di selezionare pi\u00F9 file insieme.">
+            <Btn variant="chip" tone="amber" size="sm"
+              onClick={() => paghePdfInputRef.current?.click()}
+              disabled={paghePdfUploading} loading={paghePdfUploading}>
+              {paghePdfUploading ? "Analizzando..." : <>{"\uD83D\uDCD1"} Import ELAB / F24</>}
+            </Btn>
+          </Tooltip>
           <Btn variant="secondary" size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
             + Inserisci Manuale
           </Btn>
@@ -340,6 +390,74 @@ export default function DipendentiBustePaga() {
           </Tooltip>
         </div>
       </div>
+
+      {/* G.3 FASE E: Risultato import ELAB / F24 — modale chiudibile */}
+      {paghePdfResult && (
+        <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-bold text-amber-900">
+              📑 Riepilogo import ELAB / F24
+              <span className="ml-3 text-xs text-amber-700">
+                {paghePdfResult.summary?.tot_ok || 0} OK ·{" "}
+                {paghePdfResult.summary?.tot_err || 0} errori ·{" "}
+                {paghePdfResult.summary?.tot_skipped || 0} skip
+              </span>
+            </div>
+            <button onClick={() => setPaghePdfResult(null)}
+              className="text-xs text-amber-700 hover:text-amber-900">
+              chiudi ✕
+            </button>
+          </div>
+          <div className="space-y-1 text-xs">
+            {(paghePdfResult.results || []).map((r, i) => (
+              <div key={i} className={`p-2 rounded border ${
+                r.error ? "bg-red-50 border-red-200" :
+                r.skipped ? "bg-neutral-50 border-neutral-200" :
+                r.tipo === "ELAB" ? "bg-green-50 border-green-200" :
+                r.tipo === "F24" ? "bg-blue-50 border-blue-200" :
+                "bg-white border-neutral-200"
+              }`}>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="font-mono text-[11px]">
+                    {r.tipo === "ELAB" && "🟢 ELAB"}
+                    {r.tipo === "F24" && "🔵 F24"}
+                    {r.tipo === "LUL" && "🟡 LUL"}
+                    {(!r.tipo || r.tipo === "UNKNOWN") && "⚠️"}
+                    {" — "}
+                    <span className="font-semibold">{r.file}</span>
+                  </div>
+                  {r.periodo && <span className="text-neutral-600">periodo {r.periodo}</span>}
+                  {r.periodi_competenza?.length > 0 && (
+                    <span className="text-neutral-600">comp. {r.periodi_competenza.join(", ")}</span>
+                  )}
+                </div>
+                {r.error && <div className="text-red-700 mt-1">Errore: {r.error}</div>}
+                {r.tipo === "ELAB" && (
+                  <div className="text-green-800 mt-1">
+                    {r.righe_inserite} righe inserite ·{" "}
+                    {r.dipendenti_matched} dipendenti abbinati
+                    {r.dipendenti_not_matched?.length > 0 && (
+                      <span className="text-amber-700"> · {r.dipendenti_not_matched.length} non abbinati: {r.dipendenti_not_matched.join(", ")}</span>
+                    )}
+                  </div>
+                )}
+                {r.tipo === "F24" && (
+                  <div className="text-blue-800 mt-1">
+                    {r.deleghe} deleghe ({r.righe_inserite} righe tributo){" "}
+                    {r.righe_riemesse > 0 && <span className="text-amber-700">· {r.righe_riemesse} righe precedenti riemesse (re-import)</span>}
+                  </div>
+                )}
+                {r.note && <div className="text-neutral-600 mt-1 italic">{r.note}</div>}
+                {r.warnings?.length > 0 && (
+                  <div className="text-amber-700 mt-1">
+                    {r.warnings.map((w, j) => <div key={j}>⚠ {w}</div>)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI + FILTRI */}
       <div className="px-4 py-3 flex items-center gap-4 bg-white border-b border-neutral-100 flex-wrap">
