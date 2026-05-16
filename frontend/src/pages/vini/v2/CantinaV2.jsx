@@ -19,18 +19,25 @@ import {
   STATO_CONSERVAZIONE_OPTIONS,
 } from "../../../config/viniConstants";
 import useCantinaFilters from "../../../hooks/useCantinaFilters";
+import useBulkSelection from "../../../hooks/useBulkSelection";
+import useSortableTable from "../../../hooks/useSortableTable";
 import CantinaFiltri from "../../../components/vini/CantinaFiltri";
 import RiepilogoTipologie, { applyRiepilogoFilter } from "../../../components/vini/RiepilogoTipologie";
+import BulkActionBar from "../../../components/vini/BulkActionBar";
 import groupByMadre from "../../../utils/vini/groupByMadre";
 
 // ──────────────────────────────────────────────
 // Helpers stile (replica MagazzinoVini)
 // ──────────────────────────────────────────────
+// Opacità identica a MagazzinoVini (TIPOLOGIA_COLORS riga 414-422)
 const TIPO_ROW_BG = {
-  ROSSI:     "bg-red-50/30",
-  BIANCHI:   "bg-amber-50/30",
-  BOLLICINE: "bg-yellow-50/30",
-  ROSATI:    "bg-pink-50/30",
+  ROSSI:     "bg-red-50/70",
+  BIANCHI:   "bg-amber-50/50",
+  BOLLICINE: "bg-yellow-50/60",
+  ROSATI:    "bg-pink-50/60",
+  "PASSITI E VINI DA MEDITAZIONE": "bg-orange-50/50",
+  "GRANDI FORMATI": "bg-purple-50/50",
+  "VINI ANALCOLICI": "bg-teal-50/50",
 };
 const TIPO_BORDER_L = {
   ROSSI:     "border-l-red-600",
@@ -61,6 +68,11 @@ export default function CantinaV2() {
   const [bottiglie, setBottiglie] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [printingPdf, setPrintingPdf] = useState(false);
+  // Selezione multipla (riusa hook)
+  const sel = useBulkSelection();
+  // Sort tabella (riusa hook)
+  const sort = useSortableTable();
   const [locConfig, setLocConfig] = useState({ frigorifero: [], locazione_1: [], locazione_2: [], locazione_3: [] });
   const [riepilogoFilter, setRiepilogoFilter] = useState(null);
 
@@ -118,8 +130,43 @@ export default function CantinaV2() {
   // 2) applyRiepilogoFilter dei chip in cima → bottiglieVisibili
   // 3) groupByMadre delle visibili → madriVisibili (solo per vista madri)
   const bottiglieFiltrate = useMemo(() => f.applyFilters(bottiglie), [f, bottiglie]);
-  const bottiglieVisibili = useMemo(() => applyRiepilogoFilter(bottiglieFiltrate, riepilogoFilter), [bottiglieFiltrate, riepilogoFilter]);
+  const bottiglieVisibili = useMemo(() => {
+    const filtered = applyRiepilogoFilter(bottiglieFiltrate, riepilogoFilter);
+    // Sort secondo header cliccato (replica MagazzinoVini)
+    return sort.sortRows(filtered, {
+      id:          v => v.id ?? 0,
+      descrizione: v => (v.DESCRIZIONE || "").toLowerCase(),
+      produttore:  v => (v.PRODUTTORE || "").toLowerCase(),
+      origine:     v => ((v.NAZIONE || "") + (v.REGIONE || "")).toLowerCase(),
+      qta:         v => (v.QTA_TOTALE ?? ((v.QTA_FRIGO ?? 0) + (v.QTA_LOC1 ?? 0) + (v.QTA_LOC2 ?? 0) + (v.QTA_LOC3 ?? 0))) || 0,
+      prezzo:      v => parseFloat(v.PREZZO_CARTA) || 0,
+    });
+  }, [bottiglieFiltrate, riepilogoFilter, sort]);
   const madriVisibili = useMemo(() => groupByMadre(bottiglieVisibili), [bottiglieVisibili]);
+
+  // ── Stampa selezione PDF (riusa lo stesso endpoint di Cantina classica) ──
+  const handlePrintSelection = async () => {
+    if (sel.count === 0) return;
+    setPrintingPdf(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/inventario/selezione/pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: sel.ids }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || "Errore generazione PDF");
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (e) {
+      alert(e.message || "Errore durante la stampa");
+    } finally {
+      setPrintingPdf(false);
+    }
+  };
 
   return (
     <div className="flex" style={{ minHeight: "calc(100vh - 200px)" }}>
@@ -141,17 +188,13 @@ export default function CantinaV2() {
       {/* CONTENT */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Header + toggle vista */}
-        <div className="px-3 py-2 bg-white border-b border-neutral-200 flex items-center justify-between gap-2 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-amber-900">🍷 Cantina v2</h2>
-            <span className="text-[10px] text-neutral-500">Read-only — test parallelo</span>
-          </div>
+        {/* Toggle vista (header rimosso: ora il brand "Gestione 2" è nell'header globale) */}
+        <div className="px-3 py-1.5 bg-white border-b border-neutral-200 flex items-center justify-end gap-2 flex-shrink-0">
           <div className="flex border border-neutral-300 rounded-lg overflow-hidden">
             <button onClick={() => setVista("bottiglie")}
-              className={`px-3 py-1.5 text-xs font-semibold transition ${vista === "bottiglie" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍾 Bottiglie</button>
+              className={`px-3 py-1 text-xs font-semibold transition ${vista === "bottiglie" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍾 Bottiglie</button>
             <button onClick={() => setVista("madri")}
-              className={`px-3 py-1.5 text-xs font-semibold transition ${vista === "madri" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍷 Madri</button>
+              className={`px-3 py-1 text-xs font-semibold transition ${vista === "madri" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍷 Madri</button>
           </div>
         </div>
 
@@ -175,12 +218,30 @@ export default function CantinaV2() {
             <table className="w-full text-[11px]">
               <thead className="bg-neutral-100 sticky top-0 z-10">
                 <tr className="text-[9px] text-neutral-600 uppercase tracking-wide select-none">
-                  <th className="px-2 py-2 text-left w-12">ID</th>
-                  <th className="px-2 py-2 text-left">Vino</th>
-                  <th className="px-2 py-2 text-left w-20">Produttore</th>
-                  <th className="px-2 py-2 text-left w-16">Origine</th>
-                  <th className="px-2 py-2 text-center w-10">Qta</th>
-                  <th className="px-2 py-2 text-center w-14">Prezzo</th>
+                  <th className="px-1.5 py-2 text-center w-8">
+                    <input type="checkbox"
+                      checked={sel.allSelected(bottiglieVisibili.map(v => v.id))}
+                      onChange={() => sel.toggleAll(bottiglieVisibili.map(v => v.id))}
+                      className="rounded border-violet-400 text-violet-600 focus:ring-violet-300 w-3.5 h-3.5" />
+                  </th>
+                  <th className="px-2 py-2 text-left w-12 cursor-pointer hover:text-amber-700 transition" onClick={() => sort.handleSort("id")}>
+                    ID <sort.SortIcon col="id" />
+                  </th>
+                  <th className="px-2 py-2 text-left cursor-pointer hover:text-amber-700 transition" onClick={() => sort.handleSort("descrizione")}>
+                    Vino <sort.SortIcon col="descrizione" />
+                  </th>
+                  <th className="px-2 py-2 text-left w-20 cursor-pointer hover:text-amber-700 transition" onClick={() => sort.handleSort("produttore")}>
+                    Produttore <sort.SortIcon col="produttore" />
+                  </th>
+                  <th className="px-2 py-2 text-left w-16 cursor-pointer hover:text-amber-700 transition" onClick={() => sort.handleSort("origine")}>
+                    Origine <sort.SortIcon col="origine" />
+                  </th>
+                  <th className="px-2 py-2 text-center w-10 cursor-pointer hover:text-amber-700 transition" onClick={() => sort.handleSort("qta")}>
+                    Qta <sort.SortIcon col="qta" />
+                  </th>
+                  <th className="px-2 py-2 text-center w-14 cursor-pointer hover:text-amber-700 transition" onClick={() => sort.handleSort("prezzo")}>
+                    Prezzo <sort.SortIcon col="prezzo" />
+                  </th>
                   <th className="px-2 py-2 text-center w-20">Flag</th>
                 </tr>
               </thead>
@@ -188,10 +249,17 @@ export default function CantinaV2() {
                 {bottiglieVisibili.map(v => {
                   const tip = v.TIPOLOGIA || v.m_tipologia;
                   const denom = v.DENOMINAZIONE || v.d_display;
+                  const isSel = sel.isSelected(v.id);
                   return (
                     <tr key={v.id}
-                      className={`cursor-pointer border-b border-neutral-100 hover:bg-amber-50/70 ${pickByTipo(tip, TIPO_ROW_BG, "bg-white")}`}
+                      className={`cursor-pointer border-b border-neutral-100 hover:bg-amber-50/70 transition ${
+                        isSel ? "bg-violet-50/80" : pickByTipo(tip, TIPO_ROW_BG, "bg-white")
+                      }`}
                       onClick={() => navigate(`/vini/v2/bottiglia/${v.id}`)}>
+                      <td className="px-1.5 py-1.5 text-center" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={isSel} onChange={() => sel.toggleId(v.id)}
+                          className="rounded border-violet-400 text-violet-600 focus:ring-violet-300 w-3.5 h-3.5" />
+                      </td>
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <span className="inline-flex items-center bg-slate-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded font-mono">#{v.id}</span>
                       </td>
@@ -225,7 +293,7 @@ export default function CantinaV2() {
                   );
                 })}
                 {bottiglieVisibili.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-neutral-500">Nessun vino con i filtri correnti.</td></tr>
+                  <tr><td colSpan={8} className="px-3 py-8 text-center text-sm text-neutral-500">Nessun vino con i filtri correnti.</td></tr>
                 )}
               </tbody>
             </table>
@@ -321,6 +389,35 @@ export default function CantinaV2() {
           )}
         </div>
       </div>
+
+      {/* Barra fissa azioni multiple (read-only: Modifica/Duplica disabilitati) */}
+      <BulkActionBar
+        count={sel.count}
+        onClear={sel.clear}
+        actions={[
+          {
+            label: "Modifica",
+            icon: "✏️",
+            disabled: true,
+            tooltip: "Read-only nel modulo v2 — usa Cantina classica per modificare",
+            variant: "primary",
+          },
+          {
+            label: "Duplica",
+            icon: "📋",
+            disabled: true,
+            tooltip: "Read-only nel modulo v2 — usa Cantina classica per duplicare",
+            variant: "blue",
+          },
+          {
+            label: printingPdf ? "Genero…" : "Stampa",
+            icon: "🖨️",
+            onClick: handlePrintSelection,
+            loading: printingPdf,
+            variant: "emerald",
+          },
+        ]}
+      />
     </div>
   );
 }

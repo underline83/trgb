@@ -35,29 +35,18 @@ export default function GestioneVino2() {
     <div className="min-h-screen bg-brand-cream font-sans">
       <ViniNav current="v2" />
 
-      {/* Banner test parallelo */}
-      <div className="bg-rose-50 border-b border-rose-200">
-        <div className="max-w-[1100px] mx-auto px-3 py-1.5 flex items-center gap-2 text-[11px] text-rose-800">
-          <span>🧪</span>
-          <span>
-            <strong>Modulo Gestione Vino 2 — test parallelo, READ-ONLY.</strong>{" "}
-            Legge dalle tabelle <code className="font-mono bg-rose-100 px-1 py-0.5 rounded">_v2</code> del refactor anagrafiche.
-            Per modificare un vino, usa la <button onClick={() => navigate("/vini/magazzino")} className="underline">Cantina classica</button>.
-          </span>
-        </div>
-      </div>
-
-      {/* Sub-nav delle 4 viste */}
+      {/* Header unico: brand + sub-nav + warning READ-ONLY in linea (compatto come Cantina classica) */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
-        <div className="max-w-[1100px] mx-auto px-3 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-1">
+        <div className="max-w-[1100px] mx-auto px-3 py-2 flex items-center gap-3">
+          <h1 className="text-xl font-bold text-amber-900 tracking-wide whitespace-nowrap">🧪 Gestione 2</h1>
+          <div className="flex items-center gap-0.5">
             {SUBTABS.map(tab => {
               const active = activeSub === tab.key;
               return (
                 <button
                   key={tab.key}
                   onClick={() => navigate(tab.path)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
                     active
                       ? "bg-amber-100 text-amber-900 shadow-sm"
                       : "text-neutral-600 hover:bg-neutral-100"
@@ -68,7 +57,13 @@ export default function GestioneVino2() {
               );
             })}
           </div>
-          <div className="text-[10px] text-neutral-400">v2 · prefisso API /vini/v2/</div>
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md whitespace-nowrap">
+            <span>🔒</span>
+            <span><strong>READ-ONLY</strong></span>
+            <button onClick={() => navigate("/vini/magazzino")} className="underline hover:text-rose-900">
+              modifica in Cantina classica →
+            </button>
+          </span>
         </div>
       </div>
 

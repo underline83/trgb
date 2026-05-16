@@ -41,7 +41,9 @@ export default function useCantinaFilters({ locConfig } = {}) {
   const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
   const [giacenzaVal1, setGiacenzaVal1] = useState("");
   const [giacenzaVal2, setGiacenzaVal2] = useState("");
-  const [onlyPositiveStock, setOnlyPositiveStock] = useState(false);
+  // Default true come MagazzinoVini riga 444: parti con solo giacenza positiva.
+  // L'utente lo disabilita esplicitamente se vuole vedere anche le esaurite.
+  const [onlyPositiveStock, setOnlyPositiveStock] = useState(true);
 
   const [prezzoMode, setPrezzoMode] = useState("any");
   const [prezzoVal1, setPrezzoVal1] = useState("");

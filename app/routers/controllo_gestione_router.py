@@ -276,6 +276,57 @@ def dashboard(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# CONTO ECONOMICO COMPLETO (G.3 Fase B, 2026-05-14)
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/conto-economico")
+def conto_economico(
+    anno: int = Query(default=None, ge=2020, le=2100),
+    mese: int = Query(default=None, ge=1, le=12),
+    modalita: str = Query(default="competenza", pattern="^(competenza|cassa)$"),
+    current_user=Depends(get_current_user),
+):
+    """
+    Conto Economico Completo per (anno, mese).
+
+    Ritorna: ricavi → costo merce → margine lordo → costi operativi → utile netto,
+    con breakdown per categoria/sottocategoria delle fatture acquisti
+    (fe_categorie/fe_sottocategorie) + spese fisse + stipendi.
+
+    Aggrega:
+      - Ricavi: corrispettivi POS (da admin_finance via vendite_aggregator)
+      - Costo merce: fatture imponibile con categoria in {MATERIE PRIME, BEVANDE}
+      - Costi operativi: tutte le altre categorie fatture + spese fisse
+        (cg_uscite tipo='SPESA_FISSA') + stipendi (cg_uscite tipo='STIPENDIO',
+        v1 = netto)
+
+    Modalità:
+      - 'competenza' (default): data_fattura per fatture, periodo_riferimento
+        per spese fisse/stipendi. È quella che usa il commercialista.
+      - 'cassa' (TODO v1.1): fallback a competenza con warning.
+
+    Decisioni di prodotto: imponibile (no IVA), TD04 escluse, autofatture
+    escluse, escluso_acquisti=1 escluse, anti-doppio-conteggio stipendi
+    (solo da cg_uscite, NON da cg_spese_fisse tipo='STIPENDIO').
+
+    Vedi: docs/roadmap.md §G.3, app/services/conto_economico.py
+    """
+    oggi = date.today()
+    anno = anno or oggi.year
+    mese = mese or oggi.month
+
+    fc = get_fc_db()
+    vdb = get_vendite_db()
+    try:
+        # Lazy import per coerenza con altri endpoint
+        from app.services.conto_economico import compute_pl
+        return compute_pl(fc, vdb, anno, mese, modalita)
+    finally:
+        fc.close()
+        vdb.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
 # CONFRONTO PERIODI — due mesi/trimestri/anni a confronto
 # ═══════════════════════════════════════════════════════════════════
 
