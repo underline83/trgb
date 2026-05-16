@@ -3,6 +3,60 @@
 
 ---
 
+## 2026-05-16 — G.3 Conto Economico Fase D (cascata fix) + aggregazione per RIGA
+
+### Aggiunto
+- **Drill-down 3 livelli nel CE** `[core]`. Espansione categoria → sottocategoria → righe singole con badge tipo (Fattura/Spesa fissa/Stipendio) + data + fornitore. `frontend/src/pages/controllo-gestione/ControlloGestioneContoEconomico.jsx` v1.1.
+- **Deep-link sulle righe** `[core]`. Click su una riga: fattura → `/acquisti/dettaglio/:id`, spesa fissa → `/controllo-gestione/spese-fisse?highlight=:id`, stipendio → `/dipendenti/buste-paga`.
+- **Percentuali sui ricavi (convenzione ristorazione)** `[core]`. Sostituite le % sul totale spese con % sui ricavi per Costo Merce (food cost) e Costi Operativi. Coerente con margine lordo e utile netto già espressi sui ricavi.
+- **Barra "Ripartizione dei ricavi"** `[core]`. 3 fette (Costo merce + Costi op + Utile) somma 100% dei ricavi. Caso perdita: 2 fette + nota "Perdita del mese".
+- **Tipo `RATEIZZAZIONE_TASSE`** `[core]`. Nuovo valore in `cg_spese_fisse.tipo` per cartelle/F24 pregressi rateizzati (Abaco, AdE, rottamazione), separato da `TASSA` (correnti del mese) e `RATEIZZAZIONE` (rate generiche non-tassa). Escluso in modalità competenza nel CE, incluso in cassa. Frontend `ControlloGestioneSpeseFisse` (voce 🧾 arancione) + `BancaCrossRef` (filtro "Rata tasse") + backend router (`_sf_tipo_labels`, `TIPO_SPESA`, `VALID_TIPI`).
+- **Warning banner CE "Costo personale parziale"** `[core]`. Avviso esplicito che STAFF include solo netti bonificati; manca carico ditta + ratei + TFR + INAIL (~€ 8.000/mese di costi nascosti per Aprile 2026). Da rimuovere a chiusura G.3 Fase E.
+- **PIN admin default random** `[locale:tregobbi]`. `app/services/auth_service.py`: il PIN admin di default non è più "0000" hardcoded ma generato random 6 cifre (`secrets.randbelow`) e stampato in console al primo avvio.
+- **Piano G.3 Fase E in roadmap** `[core]`. Sezione dedicata in `docs/roadmap.md`: tasks E.1-E.9 (mig 132 schema, parser ELAB+F24, UI upload 3 file, refactor `_aggregate_stipendi`, anti-doppio `F24_STIPENDI`, mig retro gen-apr 2026, tab "Costi mensili" Dipendenti, rimozione warning).
+
+### Cambiato
+- **Aggregazione fatture CE per RIGA invece che per fornitore** `[core]`. `app/services/conto_economico.py` `_aggregate_fatture_per_categoria`: riscritta query con `JOIN fe_righe` + GROUP BY `f.id + categoria_riga`. Gerarchia fallback categoria: `fe_righe.categoria_id` → `fe_fornitore_categoria.categoria_id` → `'Non categorizzato'`. Una fattura con righe in N categorie viene spezzata in N entry (Sogegross 6934: 95,24 MATERIE PRIME + 222,70 BEVANDE + 157,24 Non cat). Counter `fatture_count` conta fatture DISTINTE (id unici). Effetto su Aprile 2026: "Non categorizzato" da € 6.677 a € 3.269 (-51%), UTENZE da € 70 a € 3.160 (A2A finalmente classificato).
+- **Stipendi salvati con `periodo_riferimento` YYYY-MM** `[core]`. `app/routers/dipendenti.py:1478`: `periodo_rif = f"{anno}-{int(mese):02d}"` invece di `f"{MESI_IT[mese]} {anno}"`. Bug fix critico: prima `periodo_riferimento='Aprile 2026'` non matchava mai nel filtro WHERE del CE → stipendi invisibili nei costi operativi.
+- **Default CSV import piani rate** `[core]`. `ControlloGestioneSpeseFisse.jsx`: `csvForm.tipo` default da `"TASSA"` a `"RATEIZZAZIONE_TASSE"` (il wizard CSV è esplicitamente per piani Abaco/AdE/PagoPA). Backend `/spese-fisse/import-csv` default `tipo` allineato.
+- **`tipi_esclusi_competenza` nel CE** `[core]`. `conto_economico.py`: aggiunto `RATEIZZAZIONE_TASSE` alla lista. In competenza esclusi STIPENDIO+RATEIZZAZIONE+RATEIZZAZIONE_TASSE; in cassa esclusi solo STIPENDIO (anti-doppio col flow stipendi).
+
+### Risolto
+- **CE "load failed" HTTP 500** `[core]`. `app/services/conto_economico.py:115`: `f.escluso_acquisti` → `ffc.escluso_acquisti`. `escluso_acquisti` vive su `fe_fornitore_categoria` (regola critica CLAUDE.md), NON su `fe_fatture`. La query falliva con `OperationalError: no such column: f.escluso_acquisti`.
+- **Stipendi non visualizzati nel CE** `[core]`. Combinato fix codice (vedi `dipendenti.py:1478`) + mig 130: normalizza retroattivamente 35 record `cg_uscite tipo='STIPENDIO'` da formato italiano testuale a YYYY-MM (Gennaio→Aprile 2026). Idempotente.
+- **Rateizzazioni pregresse conteggiate come tasse correnti** `[core]`. Mig 131: identifica i record `cg_spese_fisse tipo='TASSA'` il cui titolo matcha pattern di rateizzazione (rateizzazione/abaco/rottamazione/definizione agevolata/saldo e stralcio) e li riclassifica a `RATEIZZAZIONE_TASSE`. Risultato Aprile: € 463,50 ([id=22, 23] Rateizzazione Abaco + Fondo Est) tolti dalla competenza P&L. Idempotente.
+
+### Verifiche
+- py_compile pulito su `conto_economico.py`, `controllo_gestione_router.py`, mig 129/130/131.
+- JSX braces bilanciate (664 lines, 295 `{` = 295 `}`).
+- Test conservazione importi: per ognuna delle 52 fatture di Aprile, somma degli split CE == imponibile DB (3 fatture con scarto 0,08-0,18€ da arrotondamento XML SDI; totale 0,13€ su 23.349€).
+- Test split: Sogegross 6934 (475€) → 5 entry (MATERIE PRIME ERBE/FRUTTA 84,24 + MATERIE PRIME FORMAGGI 11,00 + BEVANDE VINO 202,86 + BEVANDE ALCOLICI 19,84 + Non cat 157,24 = 475,18 ✓).
+- Numeri reali Aprile 2026 verificati end-to-end: Ricavi 49.057, Costo merce 12.936 (26,4%), Margine lordo 36.121 (73,6%), Costi op 29.324 (59,8%), Utile 6.797 (13,9% — ⚠ sovrastimato di ~€ 8.000 per costi staff incompleti, Fase E corregge).
+
+---
+
+## 2026-05-16 — SchedaMadreV2 full frame + M2.5.1 Produttori dedicato
+
+### Aggiunto
+- **SchedaMadreV2 a piena altezza inline** `[core]`. `frontend/src/components/vini/SchedaMadreV2.jsx`: altezza fissa `78vh` sul wrapper interno (coerente con `SchedaVino` classica `inline=true`) + `flex-1 overflow-auto min-h-0` sul contenitore tab. Risultato: header e TabBar sticky in alto, il contenuto tab scrolla nel suo riquadro invece di lasciare la scheda "afflosciata" sul contenuto.
+- **Backend conta vini per produttore** `[core]`. `vini_anagrafiche_db.py`: `list_produttori(with_counts=True, only_orphans=False, nazione=None)` con LEFT JOIN aggregato che ritorna `n_madre / n_bottiglie / qta_bottiglie`. Nuove funzioni `count_vini_per_produttore`, `list_madri_per_produttore`, `merge_produttori`.
+- **Endpoint dettaglio produttore arricchito + merge** `[core]`. `vini_anagrafiche_router.py`:
+  - `GET /produttori/?with_counts&only_orphans&nazione&search` — lista con conteggi.
+  - `GET /produttori/{id}?with_madri=true` — dettaglio con `n_madre / n_bottiglie / qta_bottiglie` + lista vini madre collegati.
+  - `POST /produttori/{source}/merge?target_id={dst}` (admin) — sposta tutti i vini madre dal source al target, cascade sync sulle bottiglie ereditate via `ana_sync.sync_bottiglie_from_produttore`, elimina il source. Idempotente sul lato dati.
+- **Pannello Produttori dedicato (M2.5.1)** `[core]`. `pages/vini/anagrafiche/ProduttoriPanel.jsx`: sostituisce la CrudList generica con UI ricca — KPI riepilogativi (totali + n.orfani), tabella con colonne ordinabili (Nome / Nazione / Regione / Madri / Btg / Giac.), filtri (ricerca + nazione + checkbox "solo orfani"), riga cliccabile → modale dettaglio con lista vini madre collegati, modali Edit/Nuovo, modale Merge duplicati (radio selettore destinazione, doppia conferma). Eliminazione bloccata se ci sono madri collegati (errore 409 dal backend).
+- **Bump versione modulo vini** `[core]`. 3.29 → 3.30.
+
+### Cambiato
+- **`AnagraficheVini.jsx`**: sotto-tab "Produttori" ora usa `ProduttoriPanel`. La sotto-tab "Fornitori" mantiene label UI "Distributori" e usa ancora la `CrudList` generica (sarà rilavorata in M2.5.2).
+
+### Prossimo
+- M2.5.2 — Distributori: stesso pattern + colonna rappresentante.
+- M2.5.3 — Denominazioni: gestione casi extra non in eAmbrosia/MASAF.
+- M2.5.4 — Vitigni: aggiunta vitigni custom oltre ai ~60 canonici.
+
+---
+
 ## 2026-05-16 — M2.4-5 prezzo_unitario sui movimenti + M2.5-arch nav refactor
 
 ### Aggiunto

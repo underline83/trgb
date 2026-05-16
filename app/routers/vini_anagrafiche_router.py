@@ -174,17 +174,61 @@ def stats(current_user: Any = Depends(get_current_user)):
 @router.get("/produttori/", summary="Lista produttori")
 def list_produttori(
     search: Optional[str] = Query(None, description="filtro su nome"),
+    nazione: Optional[str] = Query(None, description="filtro esatto nazione"),
+    with_counts: bool = Query(False, description="se true, include n_madre/n_bottiglie/qta_bottiglie per produttore"),
+    only_orphans: bool = Query(False, description="se true, restituisce solo produttori senza madri collegati (forza with_counts)"),
     current_user: Any = Depends(get_current_user),
 ):
-    return ana.list_produttori(search=search)
+    return ana.list_produttori(
+        search=search, nazione=nazione,
+        with_counts=with_counts, only_orphans=only_orphans,
+    )
 
 
-@router.get("/produttori/{pid}", summary="Dettaglio produttore")
-def get_produttore(pid: int, current_user: Any = Depends(get_current_user)):
+@router.get("/produttori/{pid}", summary="Dettaglio produttore (con conta vini collegati + lista madri)")
+def get_produttore(
+    pid: int,
+    with_madri: bool = Query(False, description="se true, include la lista vini madre collegati"),
+    current_user: Any = Depends(get_current_user),
+):
     row = ana.get_produttore(pid)
     if not row:
         raise HTTPException(404, "Produttore non trovato")
+    # Conta sempre i vini collegati: dato leggero, utile a UI per pulsanti delete
+    row.update(ana.count_vini_per_produttore(pid))
+    if with_madri:
+        row["vini_madre"] = ana.list_madri_per_produttore(pid)
     return row
+
+
+@router.post("/produttori/{source_id}/merge", summary="Fonde un produttore dentro un altro (admin)")
+def merge_produttori_endpoint(
+    source_id: int,
+    target_id: int = Query(..., description="id del produttore di destinazione"),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Sposta tutti i vini madre dal produttore `source_id` a `target_id`, poi
+    elimina il produttore source. Riallinea la cache dei campi anagrafici
+    nelle bottiglie via cascade sync sul target.
+
+    Errori:
+      - 400 se source==target
+      - 404 se uno dei due id non esiste
+    """
+    _require_admin(current_user)
+    try:
+        report = ana.merge_produttori(source_id, target_id)
+    except ValueError as e:
+        msg = str(e)
+        if "non trovato" in msg:
+            raise HTTPException(404, msg)
+        raise HTTPException(400, msg)
+    # Cascade sync sul target: rinfresca i campi cache nelle bottiglie ereditate
+    sync_report = ana_sync.sync_bottiglie_from_produttore(target_id)
+    report["_sync"] = sync_report
+    report["target"] = ana.get_produttore(target_id)
+    return report
 
 
 @router.post("/produttori/", summary="Crea produttore (admin)")

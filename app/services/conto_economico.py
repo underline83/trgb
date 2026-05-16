@@ -27,6 +27,15 @@ CATEGORIZZAZIONE COSTI:
   - "Non categorizzato": macro implicita per fatture senza categoria assegnata
     (mostrate in costi operativi con flag "anomalia")
 
+GERARCHIA DI CATEGORIZZAZIONE (Marco 2026-05-16, dopo bug fix):
+  Il CE considera la categoria di ogni RIGA della fattura, non solo del
+  fornitore intero. Gerarchia di fallback:
+    1. fe_righe.categoria_id              (categoria della singola voce)
+    2. fe_fornitore_categoria.cat_id      (categoria globale fornitore)
+    3. 'Non categorizzato'                (davvero non assegnato)
+  Una fattura con righe in più categorie viene SPEZZATA nel CE (es.
+  Sogegross 475€ → 5,99 MATERIE PRIME + 35,76 BEVANDE + ... + non cat).
+
 OUTPUT (dict JSON-serializable):
 {
   "anno": 2026, "mese": 5, "modalita": "competenza",
@@ -91,38 +100,60 @@ def _aggregate_fatture_per_categoria(
     fc_conn: sqlite3.Connection, primo: str, ultimo: str
 ) -> list[dict]:
     """
-    Ritorna le righe SINGOLE di fe_fatture nel periodo, ognuna con
-    categoria/sottocategoria inferite via fe_fornitore_categoria.
-    Modalità COMPETENZA (data_fattura nel range).
+    Aggrega le righe delle fatture (fe_righe) nel periodo, raggruppate per
+    (fattura, categoria_riga). Modalità COMPETENZA (data_fattura nel range).
+
+    GERARCHIA DI CATEGORIZZAZIONE (Marco 2026-05-16, bug fix):
+      1. fe_righe.categoria_id          → categoria della SINGOLA RIGA (granulare)
+      2. fe_fornitore_categoria.cat_id  → categoria globale del FORNITORE (fallback)
+      3. 'Non categorizzato'            → davvero non assegnato
+
+    Storia del bug: fino al 2026-05-16 il CE aggregava solo per (1.) della
+    categoria fornitore. Risultato: fornitori con righe già categorizzate ma
+    senza categoria a livello fornitore (es. A2A Energia → 62 righe UTENZE
+    ma categoria_id NULL sul fornitore perché era stato 'escluso ricette')
+    finivano tutti in 'Non categorizzato'. Per Aprile 2026: € 3.408 di costi
+    UTENZE/MATERIE PRIME/BEVANDE classificati erroneamente come orfani.
 
     Esclude: autofatture, note credito TD04, fornitore escluso_acquisti=1.
 
-    Ogni riga è uno schema riga unificato (cfr. _build_breakdown):
-      {categoria, sottocategoria, tipo_riga, id, data, descrizione, ref, importo}
+    Una fattura con righe in N categorie diverse produce N entry (spezzata).
+    L'`id` ritornato è f.id (fattura intera) per permettere il deep-link su
+    /acquisti/dettaglio/:id dove Marco può rifinire le singole righe.
+
+    Schema riga di output (cfr. _build_breakdown):
+      {categoria, sottocategoria, tipo_riga, id, spesa_fissa_id, data,
+       descrizione, ref, importo}
     """
     rows = fc_conn.execute("""
         SELECT
-            COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
-            COALESCE(fsub.nome, '—')                   AS sottocategoria,
-            'fattura'                                  AS tipo_riga,
-            f.id                                       AS id,
-            NULL                                       AS spesa_fissa_id,
-            f.data_fattura                             AS data,
-            COALESCE(f.numero_fattura, '—')            AS descrizione,
-            COALESCE(f.fornitore_nome, '—')            AS ref,
-            COALESCE(f.imponibile_totale, 0)           AS importo
+            COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
+            COALESCE(fsub_riga.nome, fsub_forn.nome, '—')                 AS sottocategoria,
+            'fattura'                                                     AS tipo_riga,
+            f.id                                                          AS id,
+            NULL                                                          AS spesa_fissa_id,
+            f.data_fattura                                                AS data,
+            COALESCE(f.numero_fattura, '—')                               AS descrizione,
+            COALESCE(f.fornitore_nome, '—')                               AS ref,
+            COALESCE(SUM(r.prezzo_totale), 0)                             AS importo
         FROM fe_fatture f
+        JOIN fe_righe r ON r.fattura_id = f.id
         LEFT JOIN fe_fornitore_categoria ffc
                ON f.fornitore_piva = ffc.fornitore_piva
-        LEFT JOIN fe_categorie       fcat ON ffc.categoria_id     = fcat.id
-        LEFT JOIN fe_sottocategorie  fsub ON ffc.sottocategoria_id = fsub.id
+        LEFT JOIN fe_categorie       fcat_riga ON r.categoria_id     = fcat_riga.id
+        LEFT JOIN fe_sottocategorie  fsub_riga ON r.sottocategoria_id = fsub_riga.id
+        LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
+        LEFT JOIN fe_sottocategorie  fsub_forn ON ffc.sottocategoria_id = fsub_forn.id
         WHERE f.data_fattura >= ? AND f.data_fattura < ?
           AND COALESCE(f.is_autofattura, 0) = 0
           AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
           -- escluso_acquisti vive su fe_fornitore_categoria (CLAUDE.md regola critica),
           -- NON su fe_fatture. Bug fix 2026-05-16 (Marco "load failed" CE).
           AND COALESCE(ffc.escluso_acquisti, 0) = 0
-        ORDER BY f.data_fattura DESC, f.id DESC
+        GROUP BY f.id,
+                 COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato'),
+                 COALESCE(fsub_riga.nome, fsub_forn.nome, '—')
+        ORDER BY f.data_fattura DESC, importo DESC, f.id DESC
     """, (primo, ultimo)).fetchall()
     return [dict(r) for r in rows]
 
@@ -380,8 +411,10 @@ def compute_pl(
                                    # Fatture vendita clienti → TODO v1.x
 
     # ─── 2. ACQUISTI righe singole (fatture imponibile) ────────────────
+    # Una fattura con righe in N categorie diverse produce N entry: per il
+    # counter logico contiamo le fatture DISTINTE (per id), non gli split.
     rows_fatture = _aggregate_fatture_per_categoria(fc_conn, primo, ultimo)
-    fatture_count = len(rows_fatture)
+    fatture_count = len({r["id"] for r in rows_fatture})
 
     # ─── 3. SPESE FISSE righe singole (da cg_uscite SPESA_FISSA) ───────
     # Modalita 'competenza' esclude RATEIZZAZIONE / RATEIZZAZIONE_TASSE.

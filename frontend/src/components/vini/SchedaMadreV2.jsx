@@ -139,8 +139,13 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
   }, [madre.annate]);
 
   return (
+    // Altezza fissa a 78vh per coerenza con SchedaVino classica in modalità inline
+    // (vedi pages/vini/SchedaVino.jsx riga 778). In questo modo header + TabBar
+    // restano sticky in alto e il contenuto tab scrolla nel suo riquadro interno,
+    // invece di lasciare la scheda "afflosciata" sul contenuto e far scrollare
+    // tutta la pagina.
     <div className="rounded-2xl shadow-lg overflow-hidden border border-neutral-200 bg-white">
-      <div className={`flex flex-col border-l-4 ${hdr.accent}`}>
+      <div className={`flex flex-col border-l-4 ${hdr.accent}`} style={{ height: "78vh" }}>
 
         {/* ═══════════ HEADER ═══════════ */}
         <div className={`${hdr.bg} border-b ${hdr.border} px-4 md:px-5 py-3 md:py-4 flex-shrink-0`}>
@@ -208,7 +213,10 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
         </div>
 
         {/* ═══════════ Contenuto tab ═══════════ */}
-        <div className="overflow-auto">
+        {/* flex-1 + min-h-0 → il contenuto tab prende tutto lo spazio rimanente
+            dentro il flex-col genitore e scrolla internamente. min-h-0 è
+            indispensabile per far funzionare l'overflow su flex children. */}
+        <div className="flex-1 overflow-auto min-h-0">
 
           {/* TAB ANAGRAFICA */}
           {activeTab === "anagrafica" && (

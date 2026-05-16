@@ -17,6 +17,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+// M2.5.1 (2026-05-16): pannello Produttori dedicato (counts + merge + ricerca)
+import ProduttoriPanel from "./anagrafiche/ProduttoriPanel";
 
 // Sotto-tab Anagrafiche.
 // NB: "fornitori" è il nome backend storico della tabella (vini_fornitori_v2),
@@ -70,8 +72,11 @@ export default function AnagraficheVini() {
       {/* Tab content */}
       <div className="pt-2">
         {tab === "stats"         && <StatsPanel onJump={setTab} />}
-        {tab === "produttori"    && <CrudList kind="produttori"    fields={PRODUTTORE_FIELDS}    titleSing="Produttore"    titlePl="Produttori"    />}
-        {tab === "fornitori"     && <CrudList kind="fornitori"     fields={FORNITORE_FIELDS}     titleSing="Fornitore"     titlePl="Fornitori"     />}
+        {/* M2.5.1 (2026-05-16): Produttori usa il nuovo pannello dedicato (ProduttoriPanel)
+            con counts/merge/ricerca. Gli altri sotto-tab verranno rilavorati uno alla volta
+            (M2.5.2 Distributori, M2.5.3 Denominazioni, M2.5.4 Vitigni). */}
+        {tab === "produttori"    && <ProduttoriPanel />}
+        {tab === "fornitori"     && <CrudList kind="fornitori"     fields={FORNITORE_FIELDS}     titleSing="Distributore"  titlePl="Distributori"  />}
         {tab === "denominazioni" && <DenominazioniPanel />}
         {tab === "vitigni"       && <CrudList kind="vitigni"       fields={VITIGNO_FIELDS}       titleSing="Vitigno"       titlePl="Vitigni"       />}
         {tab === "madre"         && <MadrePanel />}

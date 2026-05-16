@@ -61,22 +61,162 @@ PRODUTTORI_FIELDS = {
 }
 
 
-def list_produttori(search: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_produttori(
+    search: Optional[str] = None,
+    nazione: Optional[str] = None,
+    with_counts: bool = False,
+    only_orphans: bool = False,
+) -> List[Dict[str, Any]]:
+    """
+    Lista produttori. Quando with_counts=True restituisce anche:
+      - n_madre:      numero di vini madre collegati
+      - n_bottiglie:  numero di bottiglie (annate) collegate
+      - qta_bottiglie: somma QTA_TOTALE delle bottiglie collegate
+    only_orphans=True filtra ai soli produttori senza vini madre collegati
+    (utili per pulizia anagrafica). Forza with_counts=True.
+    """
+    if only_orphans:
+        with_counts = True
+
     conn = get_magazzino_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+
+    where = []
+    params: list = []
     if search:
+        where.append("p.nome LIKE ?")
+        params.append(f"%{search}%")
+    if nazione:
+        where.append("p.nazione = ?")
+        params.append(nazione)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    if not with_counts:
         rows = cur.execute(
-            f"SELECT * FROM {TABELLE['produttori']} "
-            f"WHERE nome LIKE ? ORDER BY nome",
-            (f"%{search}%",),
+            f"SELECT p.* FROM {TABELLE['produttori']} p {where_sql} ORDER BY p.nome",
+            params,
         ).fetchall()
-    else:
-        rows = cur.execute(
-            f"SELECT * FROM {TABELLE['produttori']} ORDER BY nome"
-        ).fetchall()
+        conn.close()
+        return [_row_to_dict(r) for r in rows]
+
+    # Conta madri + bottiglie + giacenza, una query con LEFT JOIN aggregato
+    sql = f"""
+        SELECT p.*,
+               COALESCE(c.n_madre, 0)       AS n_madre,
+               COALESCE(c.n_bottiglie, 0)   AS n_bottiglie,
+               COALESCE(c.qta_bottiglie, 0) AS qta_bottiglie
+        FROM {TABELLE['produttori']} p
+        LEFT JOIN (
+            SELECT m.produttore_id,
+                   COUNT(DISTINCT m.id)              AS n_madre,
+                   COUNT(b.id)                       AS n_bottiglie,
+                   COALESCE(SUM(b.QTA_TOTALE), 0)    AS qta_bottiglie
+            FROM {TABELLE['madre']} m
+            LEFT JOIN {TABELLE['bottiglie']} b ON b.madre_id = m.id
+            GROUP BY m.produttore_id
+        ) c ON c.produttore_id = p.id
+        {where_sql}
+        ORDER BY p.nome
+    """
+    rows = cur.execute(sql, params).fetchall()
+    conn.close()
+    out = [_row_to_dict(r) for r in rows]
+    if only_orphans:
+        out = [r for r in out if (r.get("n_madre") or 0) == 0]
+    return out
+
+
+def count_vini_per_produttore(pid: int) -> Dict[str, int]:
+    """Conta veloce dei vini collegati a un produttore (per dettaglio)."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    n_madre = cur.execute(
+        f"SELECT COUNT(*) FROM {TABELLE['madre']} WHERE produttore_id = ?", (pid,)
+    ).fetchone()[0]
+    row = cur.execute(
+        f"""SELECT COUNT(b.id), COALESCE(SUM(b.QTA_TOTALE), 0)
+            FROM {TABELLE['bottiglie']} b
+            JOIN {TABELLE['madre']} m ON m.id = b.madre_id
+            WHERE m.produttore_id = ?""",
+        (pid,),
+    ).fetchone()
+    conn.close()
+    return {
+        "n_madre": n_madre or 0,
+        "n_bottiglie": (row[0] if row else 0) or 0,
+        "qta_bottiglie": (row[1] if row else 0) or 0,
+    }
+
+
+def list_madri_per_produttore(pid: int) -> List[Dict[str, Any]]:
+    """
+    Vini madre collegati a un produttore, con conta bottiglie/giacenza per madre.
+    Usato dal modale dettaglio Produttore (M2.5.1).
+    """
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    rows = cur.execute(
+        f"""
+        SELECT m.id, m.descrizione, m.tipologia, m.denominazione_id,
+               CASE WHEN d.id IS NOT NULL THEN d.nome || ' ' || d.tipo ELSE NULL END AS denominazione_display,
+               COUNT(b.id)                    AS n_bottiglie,
+               COALESCE(SUM(b.QTA_TOTALE), 0) AS qta_tot
+        FROM {TABELLE['madre']} m
+        LEFT JOIN {TABELLE['denominazioni']} d ON d.id = m.denominazione_id
+        LEFT JOIN {TABELLE['bottiglie']}     b ON b.madre_id = m.id
+        WHERE m.produttore_id = ?
+        GROUP BY m.id
+        ORDER BY m.descrizione
+        """,
+        (pid,),
+    ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
+
+
+def merge_produttori(source_id: int, target_id: int) -> Dict[str, Any]:
+    """
+    Fonde il produttore `source_id` dentro `target_id`:
+      - sposta tutti i vini madre dal source al target (UPDATE produttore_id)
+      - aggiorna updated_at dei madre toccati
+      - elimina il produttore source
+    Ritorna {source_id, target_id, n_madre_spostati}.
+
+    NB: la sync cache lato bottiglie (PRODUTTORE, NAZIONE, REGIONE testuali)
+    NON è fatta qui — la fa il router via ana_sync.sync_bottiglie_from_produttore
+    sull'ID target dopo il merge, così le bottiglie ereditano i campi canonici
+    del produttore di destinazione.
+    """
+    if source_id == target_id:
+        raise ValueError("source e target sono lo stesso produttore")
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    for pid, label in [(source_id, "source"), (target_id, "target")]:
+        if not cur.execute(
+            f"SELECT 1 FROM {TABELLE['produttori']} WHERE id = ?", (pid,)
+        ).fetchone():
+            conn.close()
+            raise ValueError(f"Produttore {label} {pid} non trovato")
+
+    cur.execute(
+        f"UPDATE {TABELLE['madre']} "
+        f"SET produttore_id = ?, updated_at = datetime('now') "
+        f"WHERE produttore_id = ?",
+        (target_id, source_id),
+    )
+    n_madre_spostati = cur.rowcount
+
+    cur.execute(f"DELETE FROM {TABELLE['produttori']} WHERE id = ?", (source_id,))
+    conn.commit()
+    conn.close()
+    return {
+        "source_id": source_id,
+        "target_id": target_id,
+        "n_madre_spostati": n_madre_spostati,
+    }
 
 
 def get_produttore(pid: int) -> Optional[Dict[str, Any]]:

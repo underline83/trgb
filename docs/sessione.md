@@ -1,6 +1,52 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-16 — M2.4-5 prezzo_unitario snapshot su movimenti (mig 129 + autopop FE) + M2.5-arch ristrutturazione nav Vini: "Gestione 2" → "Cantina 2", nuovo tab "📚 Anagrafiche" promosso da sotto-pagina Impostazioni a primo livello (sotto-tab: Produttori · Distributori · Denominazioni · Vitigni · Vini madre). Versione modulo vini 3.28 → 3.29.
+**Ultimo aggiornamento:** 2026-05-16 — G.3 Fase D Conto Economico fix cascata (drill-down righe + % sui ricavi + RATEIZZAZIONE_TASSE + aggregazione per RIGA con fallback) + Piano G.3 Fase E (costo personale completo via ELAB+F24) + lato Vini: M2.4-5 prezzo_unitario snapshot (mig 129) + M2.5-arch nav refactor (Cantina 2 + nuovo tab 📚 Anagrafiche) + SchedaMadreV2 full-frame inline + M2.5.1 Produttori pannello dedicato. Versione modulo vini 3.28 → 3.30.
+
+## SESSIONE 2026-05-16 — G.3 Conto Economico Fase D (cascata fix) + bug aggregazione
+
+### Sintesi
+Chiusa Fase D di G.3 con verifica sui dati reali di Aprile 2026. Trovati e fixati 4 bug a cascata. Aggregazione del CE per categoria reimplementata sul livello RIGA (era a livello fornitore, perdeva categorizzazioni granulari come A2A). Aggiunto drill-down 3 livelli + percentuali sui ricavi (convenzione ristorazione). Programmata Fase E (costo personale completo via import ELAB+F24).
+
+### Fatto (in più commit aggregati lungo la sessione)
+- **Bug 1 — Load failed CE**: `f.escluso_acquisti` → `ffc.escluso_acquisti` in `conto_economico.py` (regola CLAUDE.md: escluso_acquisti vive su `fe_fornitore_categoria`).
+- **Bug 2 — Stipendi invisibili**: `app/routers/dipendenti.py:1478` salvava `periodo_riferimento` come "Aprile 2026" testuale. Fix: `f"{anno}-{int(mese):02d}"`. Mig 130 normalizza retroattivamente 35 record storici.
+- **Bug 3 — Rateizzazioni pregresse**: nuovo tipo `RATEIZZAZIONE_TASSE` su `cg_spese_fisse`, distinto da `TASSA` (correnti) e `RATEIZZAZIONE` (rate generiche). Mig 131 riclassifica id=22,23 (Abaco, Fondo Est). Escluso in competenza, incluso in cassa.
+- **Bug 4 — Aggregazione per fornitore vs per riga**: il CE raggruppava solo per `fe_fornitore_categoria.categoria_id`, perdendo i fornitori con righe categorizzate ma senza categoria a livello fornitore (es. A2A: 62 righe UTENZE 100% ma `categoria_id=NULL` perché escluso da ricette). Fix: aggregazione per `fe_righe.categoria_id` con fallback gerarchico (1. riga → 2. fornitore → 3. "Non categorizzato"). Per Aprile: "Non categorizzato" passa da € 6.677 a € 3.269 (-51%), UTENZE da € 70 a € 3.160.
+- **Drill-down 3 livelli**: il CE ora espande categoria → sottocategoria → righe singole. Click su una riga apre `/acquisti/dettaglio/:id` (fattura), `/controllo-gestione/spese-fisse?highlight=:id` (spesa fissa) o `/dipendenti/buste-paga` (stipendio).
+- **Percentuali sui ricavi**: sostituito `pct_su_spese` con `pct_su_ricavi` (convenzione ristorazione: food cost % = costo merce / ricavi). Barra orizzontale "Ripartizione dei ricavi" a 3 fette. Gestione caso perdita.
+- **Warning banner CE**: "Costo personale parziale — STAFF mostra solo netti bonificati. Mancano carico ditta + ratei + TFR + INAIL. Per Aprile 2026 il costo reale è ~€ 20.500 vs € 12.140 attualmente conteggiati → utile sovrastimato di ~€ 8.000/mese". Da rimuovere a chiusura Fase E.
+- **Roadmap G.3 Fase E**: sezione dedicata in `docs/roadmap.md` con piano completo (mig 132 nuove tabelle, parser PDF ELAB + F24, UI upload, refactor `_aggregate_stipendi`, anti-doppio F24_STIPENDI, mig 133 retro gen-apr 2026).
+
+### Decisioni (Marco 2026-05-16)
+- **Food cost % calcolato sui RICAVI, non sul totale spese**. Convenzione universale ristorazione. Per Aprile: food cost 26,4%, costi op 59,8%, utile 13,9% (somma 100%).
+- **F24 stipendi: importeremo anche il PDF** per riconciliazione cassa + validazione cross-check + sblocco modalità Cassa del CE.
+- **Storico Fase E**: solo 2026 (gen-apr). Anni precedenti li abbiamo ma non ci interessano.
+- **F24 mai inseriti in cg_spese_fisse**: nessun rischio doppio conteggio.
+
+### Numeri reali di Aprile 2026 (post-fix, pre-Fase E)
+- Ricavi:           € 49.057
+- Costo merce:      € 12.936 (26,4%)
+- Margine lordo:    € 36.121 (73,6%)
+- Costi op:         € 29.324 (59,8%) — di cui STAFF solo netti
+- Utile netto:      € 6.797 (13,9%) ⚠ sovrastimato di ~€ 8.000/mese (Fase E lo correggerà)
+- "Non categorizzato" Aprile: € 3.985 (era € 7.393 prima del fix per riga)
+
+### Verifiche
+- py_compile pulito su conto_economico, controllo_gestione_router, mig 129/130/131.
+- JSX braces bilanciate su ControlloGestioneContoEconomico.jsx (664 lines, 295 `{` = 295 `}`).
+- Conservazione importi: per ognuna delle 52 fatture di Aprile, somma degli split del CE == imponibile DB (3 fatture con scarto 0,08-0,18€ da arrotondamento XML SDI, totale 0,13€ su 23.349€).
+- Test sample fattura Sogegross 6934 (475€) spezzata correttamente: 95,24 MATERIE PRIME + 222,70 BEVANDE + 157,24 Non categorizzato.
+
+### File toccati (sessione completa, multi-push)
+- Backend: `app/services/conto_economico.py`, `app/routers/controllo_gestione_router.py`, `app/routers/dipendenti.py`, `app/services/auth_service.py` (PIN random — sicurezza)
+- Migration: `app/migrations/129_conto_economico_fase_a.py` (mapping aggiornato), `app/migrations/130_normalizza_periodo_riferimento_stipendi.py` (nuovo), `app/migrations/131_riclassifica_tasse_arretrate.py` (nuovo)
+- Frontend: `frontend/src/pages/controllo-gestione/ControlloGestioneContoEconomico.jsx` (v1.1: drill-down, % ricavi, deep-link, warning banner), `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx`, `frontend/src/pages/banca/BancaCrossRef.jsx`
+- Docs: `docs/roadmap.md` (sezione G.3 Fase E)
+
+### Prossimo
+- **G.3 Fase E — Costo personale completo** (sessione dedicata): parser ELAB+F24, nuove tabelle DB, UI upload, refactor `_aggregate_stipendi`, mig retro gen-apr 2026.
+
+---
 
 ## SESSIONE 2026-05-16 — M2.4-5 prezzo_unitario + M2.5-arch nav refactor
 
@@ -40,9 +86,20 @@ Due cambi atomici, stessa sessione.
 - Routing: nuovo path `/vini/anagrafiche` non collide con path esistenti. ViniNav `current="anagrafiche"` matcha.
 - Le link legacy non sono toccate: `/vini/v2` continua a funzionare, `/vini/settings` non ha più la sezione anagrafiche ma il default `import` apre senza errori.
 
+### Fatto SchedaMadreV2 full-frame
+- `frontend/src/components/vini/SchedaMadreV2.jsx`: altezza fissa `78vh` sul wrapper interno + `flex-1 overflow-auto min-h-0` sul contenitore tab. Header e TabBar sticky, contenuto tab scrolla internamente. Coerente con SchedaVino classica in modalità inline.
+
+### Fatto M2.5.1 Produttori (CRUD + counts + merge)
+- **Backend**: `vini_anagrafiche_db.py` con `list_produttori(with_counts, only_orphans, nazione)` + `count_vini_per_produttore` + `list_madri_per_produttore` + `merge_produttori`. Router con GET arricchito (`?with_counts`, `?with_madri`) + POST `/produttori/{src}/merge?target_id={dst}` (admin, cascade sync).
+- **Frontend**: nuovo file `pages/vini/anagrafiche/ProduttoriPanel.jsx`. Sostituisce CrudList generica nella sotto-tab Produttori. KPI riepilogativi (totali + n.orfani), tabella con colonne ordinabili (Nome / Nazione / Regione / Madri / Btg / Giac.), filtri (ricerca + nazione + checkbox "solo orfani"). Click su riga → modale dettaglio con lista vini madre. Modali Edit/Nuovo, modale Merge duplicati con radio destinazione + doppia conferma.
+- Versione modulo vini 3.29 → 3.30.
+
+### Verifiche
+- `py_compile` OK su `vini_anagrafiche_db.py` + `vini_anagrafiche_router.py`.
+- Endpoint compatibili indietro: chi chiamava `/produttori/` senza query param riceve la stessa lista di prima (campi nuovi solo se `with_counts=true`).
+
 ### Prossimo
-- M2.5.1 — Produttori: CRUD pieno, merge duplicati, ricerca, conta vini collegati.
-- M2.5.2 — Distributori: idem + colonna rappresentante + contatti.
+- M2.5.2 — Distributori: stesso pattern + colonna rappresentante + contatti.
 - M2.5.3 — Denominazioni: gestione casi extra non in eAmbrosia/MASAF.
 - M2.5.4 — Vitigni: aggiunta vitigni custom oltre ai ~60 canonici.
 
