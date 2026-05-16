@@ -1,31 +1,41 @@
 // src/pages/vini/v2/CantinaV2.jsx
 // Modulo: vini (V.6+V.7+V.8 — Modulo Gestione Vino 2)
 //
-// Pagina principale del modulo v2: lista bottiglie (vista flat di default)
-// con possibilità di passare alla vista "Visualizza Madri" (raggruppata).
-// Read-only durante il test parallelo: niente checkbox/bulk/modifiche.
+// Cantina v2 read-only. Usa i mattoni condivisi:
+//   - useCantinaFilters (hook): state filtri + applyFilters(items)
+//   - <CantinaFiltri />: sidebar JSX identica a MagazzinoVini
+//   - <RiepilogoTipologie /> + applyRiepilogoFilter: chip in cima
 //
-// Stile fedele a MagazzinoVini.jsx (stessa sidebar filtri, stessa intestazione,
-// stessa tabella con badge slate-700 per ID, chip Flag, riepilogo tipologie).
+// Differenza dal classico: legge da `/vini/v2/*` (tabelle `_v2`), niente
+// scritture/checkbox/bulk. Tutto il resto del comportamento filtri è IDENTICO.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../../config/api";
-import { STATO_VENDITA } from "../../../config/viniConstants";
+import {
+  STATO_VENDITA,
+  STATO_VENDITA_OPTIONS,
+  STATO_RIORDINO_OPTIONS,
+  STATO_CONSERVAZIONE_OPTIONS,
+} from "../../../config/viniConstants";
+import useCantinaFilters from "../../../hooks/useCantinaFilters";
+import CantinaFiltri from "../../../components/vini/CantinaFiltri";
+import RiepilogoTipologie, { applyRiepilogoFilter } from "../../../components/vini/RiepilogoTipologie";
 
 // ──────────────────────────────────────────────
-// HELPERS stile
+// Helpers stile (replica MagazzinoVini)
 // ──────────────────────────────────────────────
-const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase mb-0.5";
-const fInp = "w-full border border-neutral-300 rounded-md px-2 py-1.5 text-[11px] bg-white";
-const fSel = "w-full border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white";
-
-// Mappa colori per tipologia (replica TIPOLOGIA_HEADER di SchedaVino + tipologiaRowColor)
 const TIPO_ROW_BG = {
   ROSSI:     "bg-red-50/30",
   BIANCHI:   "bg-amber-50/30",
   BOLLICINE: "bg-yellow-50/30",
   ROSATI:    "bg-pink-50/30",
+};
+const TIPO_BORDER_L = {
+  ROSSI:     "border-l-red-600",
+  BIANCHI:   "border-l-amber-600",
+  BOLLICINE: "border-l-yellow-600",
+  ROSATI:    "border-l-pink-600",
 };
 const TIPO_BADGE = {
   ROSSI:     "bg-red-100 text-red-800 border-red-200",
@@ -33,61 +43,31 @@ const TIPO_BADGE = {
   BOLLICINE: "bg-yellow-100 text-yellow-800 border-yellow-200",
   ROSATI:    "bg-pink-100 text-pink-800 border-pink-200",
 };
-function tipoRowBg(t) {
-  if (!t) return "bg-white";
+function pickByTipo(t, map, fallback = "") {
+  if (!t) return fallback;
   const k = String(t).toUpperCase();
-  for (const [key, v] of Object.entries(TIPO_ROW_BG)) if (k.includes(key)) return v;
-  return "bg-white";
-}
-function tipoBadge(t) {
-  if (!t) return "bg-neutral-100 text-neutral-700 border-neutral-200";
-  const k = String(t).toUpperCase();
-  for (const [key, v] of Object.entries(TIPO_BADGE)) if (k.includes(key)) return v;
-  return "bg-neutral-100 text-neutral-700 border-neutral-200";
+  for (const [key, v] of Object.entries(map)) if (k.includes(key)) return v;
+  return fallback;
 }
 function fmtEuro(v) {
   if (v == null || v === "") return "—";
   return `€${Number(v).toLocaleString("it-IT", { minimumFractionDigits: 0 })}`;
 }
 
-// ──────────────────────────────────────────────
-// COMPONENT
-// ──────────────────────────────────────────────
 export default function CantinaV2() {
   const navigate = useNavigate();
-  const [vista, setVista] = useState("bottiglie");  // "bottiglie" | "madri"
+  const [vista, setVista] = useState("bottiglie"); // "bottiglie" | "madri"
   const [bottiglie, setBottiglie] = useState([]);
   const [madri, setMadri] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [locConfig, setLocConfig] = useState({ frigorifero: [], locazione_1: [], locazione_2: [], locazione_3: [] });
+  const [riepilogoFilter, setRiepilogoFilter] = useState(null);
 
-  // Filtri (replica della sidebar di MagazzinoVini, client-side per reattività)
-  const [search, setSearch] = useState("");
-  const [searchId, setSearchId] = useState("");
-  const [tipologia, setTipologia] = useState("");
-  const [nazione, setNazione] = useState("");
-  const [regione, setRegione] = useState("");
-  const [produttore, setProduttore] = useState("");
-  const [distributore, setDistributore] = useState("");
-  const [rappresentante, setRappresentante] = useState("");
-  const [statoVendita, setStatoVendita] = useState("");
-  const [statoRiordino, setStatoRiordino] = useState("");
-  const [carta, setCarta] = useState("");
-  const [calice, setCalice] = useState("");
-  const [biologico, setBiologico] = useState("");
-  const [ipratico, setIpratico] = useState("");
-  const [locNome, setLocNome] = useState("");
-  const [locSpazio, setLocSpazio] = useState("");
-  const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
-  const [giacenzaVal1, setGiacenzaVal1] = useState("");
-  const [giacenzaVal2, setGiacenzaVal2] = useState("");
-  const [prezzoMode, setPrezzoMode] = useState("any");
-  const [prezzoVal1, setPrezzoVal1] = useState("");
-  const [prezzoVal2, setPrezzoVal2] = useState("");
-  const [onlyPositive, setOnlyPositive] = useState(false);
-  const [onlyMissingListino, setOnlyMissingListino] = useState(false);
+  // ── Hook condiviso filtri ──
+  const f = useCantinaFilters({ locConfig });
 
-  // Fetch dati (un solo fetch all'inizio, poi tutti i filtri sono client-side)
+  // ── Fetch dati v2 ──
   const fetchData = async () => {
     setLoading(true); setError("");
     try {
@@ -107,44 +87,28 @@ export default function CantinaV2() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [vista]);  // eslint-disable-line
+  useEffect(() => { fetchData(); }, [vista]); // eslint-disable-line
 
-  const clearAll = () => {
-    setSearch(""); setSearchId(""); setTipologia(""); setNazione(""); setRegione("");
-    setProduttore(""); setDistributore(""); setRappresentante("");
-    setStatoVendita(""); setStatoRiordino("");
-    setCarta(""); setCalice(""); setBiologico(""); setIpratico("");
-    setLocNome(""); setLocSpazio("");
-    setGiacenzaMode("any"); setGiacenzaVal1(""); setGiacenzaVal2("");
-    setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");
-    setOnlyPositive(false); setOnlyMissingListino(false);
-  };
-
-  // Opzioni distinct ricavate dai dati (per popolare i select)
-  const opts = useMemo(() => {
-    const src = bottiglie;
-    const distinct = (key) => [...new Set(src.map(v => v[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "it"));
-
-    // Locazioni: split "Nome - Spazio" per popolare dropdown a 2 livelli
-    // (replica di locConfig in MagazzinoVini).
-    const locMap = new Map(); // Map<nome, Set<spazio>>
-    for (const v of src) {
-      for (const raw of [v.FRIGORIFERO, v.LOCAZIONE_1, v.LOCAZIONE_2, v.LOCAZIONE_3]) {
-        if (!raw) continue;
-        const idx = raw.indexOf(" - ");
-        if (idx >= 0) {
-          const nome = raw.slice(0, idx).trim();
-          const spazio = raw.slice(idx + 3).trim();
-          if (!locMap.has(nome)) locMap.set(nome, new Set());
-          if (spazio) locMap.get(nome).add(spazio);
-        } else {
-          // Locazione senza spazio (es. "Bancone")
-          if (!locMap.has(raw)) locMap.set(raw, new Set());
+  // ── Carica locConfig (stessa fonte di MagazzinoVini) ──
+  useEffect(() => {
+    apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setLocConfig({
+            frigorifero: data.frigorifero || [],
+            locazione_1: data.locazione_1 || [],
+            locazione_2: data.locazione_2 || [],
+            locazione_3: data.locazione_3 || [],
+          });
         }
-      }
-    }
-    const locazioniNomi = Array.from(locMap.keys()).sort((a, b) => a.localeCompare(b, "it"));
+      })
+      .catch(() => {});
+  }, []);
 
+  // ── opts per i select anagrafica (distinct dai dati come MagazzinoVini) ──
+  const opts = useMemo(() => {
+    const distinct = (key) => [...new Set(bottiglie.map(v => v[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "it"));
     return {
       tipologie: distinct("TIPOLOGIA"),
       nazioni: distinct("NAZIONE"),
@@ -152,377 +116,37 @@ export default function CantinaV2() {
       produttori: distinct("PRODUTTORE"),
       distributori: distinct("DISTRIBUTORE"),
       rappresentanti: distinct("RAPPRESENTANTE"),
-      locazioniNomi,
-      locazioniSpazi: locMap, // Map<nome, Set<spazio>>
     };
   }, [bottiglie]);
 
-  // Spazi disponibili per la locazione selezionata (dropdown a 2 livelli)
-  const locSpaziOptions = useMemo(() => {
-    if (!locNome) return [];
-    const set = opts.locazioniSpazi.get(locNome);
-    return set ? Array.from(set).sort((a, b) => a.localeCompare(b, "it")) : [];
-  }, [opts, locNome]);
+  // ── Filtri applicati (hook + chip riepilogo) ──
+  const bottiglieFiltrate = useMemo(() => f.applyFilters(bottiglie), [f, bottiglie]);
+  const bottiglieVisibili = useMemo(() => applyRiepilogoFilter(bottiglieFiltrate, riepilogoFilter), [bottiglieFiltrate, riepilogoFilter]);
 
-  // ── FILTRI CLIENT-SIDE su bottiglie ──
-  // Replica 1:1 della logica di MagazzinoVini.jsx riga 757+ (viniFiltrati)
-  const bottiglieFiltrate = useMemo(() => {
-    let out = [...bottiglie];
-
-    // 1) Ricerca per ID (match esatto se numero)
-    if (searchId.trim()) {
-      const idTrim = searchId.trim();
-      const idNum = parseInt(idTrim, 10);
-      out = out.filter(v => {
-        if (!Number.isNaN(idNum) && v.id != null) return v.id === idNum;
-        return String(v.id ?? "").toLowerCase().includes(idTrim.toLowerCase());
-      });
-    }
-
-    // 2) Ricerca libera (DESCRIZIONE/DENOMINAZIONE/PRODUTTORE/REGIONE/NAZIONE/DISTRIBUTORE/RAPPRESENTANTE)
-    if (search.trim()) {
-      const needle = search.trim().toLowerCase();
-      out = out.filter(v => {
-        const campi = [v.DESCRIZIONE, v.DENOMINAZIONE, v.PRODUTTORE, v.REGIONE, v.NAZIONE, v.DISTRIBUTORE, v.RAPPRESENTANTE];
-        return campi.some(c => c && String(c).toLowerCase().includes(needle));
-      });
-    }
-
-    // 3) Select anagrafica (match esatto)
-    if (tipologia) out = out.filter(v => v.TIPOLOGIA === tipologia);
-    if (nazione) out = out.filter(v => v.NAZIONE === nazione);
-    if (regione) out = out.filter(v => v.REGIONE === regione);
-    if (produttore) out = out.filter(v => v.PRODUTTORE === produttore);
-    if (distributore) out = out.filter(v => v.DISTRIBUTORE === distributore);
-    if (rappresentante) out = out.filter(v => v.RAPPRESENTANTE === rappresentante);
-
-    // 4) Giacenza (con fallback su QTA_FRIGO + QTA_LOC*)
-    const parseIntSafe = (val) => { const n = parseInt(val, 10); return Number.isNaN(n) ? null : n; };
-    const totQta = (v) => (v.QTA_TOTALE ?? ((v.QTA_FRIGO ?? 0) + (v.QTA_LOC1 ?? 0) + (v.QTA_LOC2 ?? 0) + (v.QTA_LOC3 ?? 0))) || 0;
-    const g1 = parseIntSafe(giacenzaVal1);
-    const g2 = parseIntSafe(giacenzaVal2);
-    if (giacenzaMode !== "any") {
-      out = out.filter(v => {
-        const tot = totQta(v);
-        if (giacenzaMode === "gt" && g1 != null) return tot > g1;
-        if (giacenzaMode === "lt" && g1 != null) return tot < g1;
-        if (giacenzaMode === "between" && g1 != null && g2 != null) {
-          return tot >= Math.min(g1, g2) && tot <= Math.max(g1, g2);
-        }
-        return true;
-      });
-    }
-    if (onlyPositive) out = out.filter(v => totQta(v) > 0);
-
-    // 5) Prezzo carta (skip se null/"")
-    const parseFloatSafe = (val) => { const n = parseFloat(String(val).replace(",", ".")); return Number.isNaN(n) ? null : n; };
-    const p1 = parseFloatSafe(prezzoVal1);
-    const p2 = parseFloatSafe(prezzoVal2);
-    if (prezzoMode !== "any") {
-      out = out.filter(v => {
-        if (v.PREZZO_CARTA == null || v.PREZZO_CARTA === "") return false;
-        const prezzo = parseFloatSafe(v.PREZZO_CARTA);
-        if (prezzo == null) return false;
-        if (prezzoMode === "gt" && p1 != null) return prezzo > p1;
-        if (prezzoMode === "lt" && p1 != null) return prezzo < p1;
-        if (prezzoMode === "between" && p1 != null && p2 != null) {
-          return prezzo >= Math.min(p1, p2) && prezzo <= Math.max(p1, p2);
-        }
-        return true;
-      });
-    }
-
-    // 6) Solo senza listino (null o "")
-    if (onlyMissingListino) {
-      out = out.filter(v => v.EURO_LISTINO == null || v.EURO_LISTINO === "");
-    }
-
-    // 7) Stati (string-cast su STATO_VENDITA per coerenza INTEGER/string select)
-    if (statoVendita !== "") out = out.filter(v => String(v.STATO_VENDITA) === String(statoVendita));
-    if (statoRiordino) out = out.filter(v => v.STATO_RIORDINO === statoRiordino);
-
-    // 7b) Flag — INTEGER 0/1 dal BE, select value stringa "0"/"1" → coerce a stringa
-    if (carta !== "") out = out.filter(v => String(v.CARTA ?? "") === String(carta));
-    if (ipratico !== "") out = out.filter(v => String(v.IPRATICO ?? "") === String(ipratico));
-    if (biologico !== "") out = out.filter(v => String(v.BIOLOGICO ?? "") === String(biologico));
-    if (calice !== "") out = out.filter(v => String(v.VENDITA_CALICE ?? "") === String(calice));
-
-    // 8) Locazione unificato (format "Nome - Spazio" o startsWith)
-    if (locNome) {
-      const locCols = ["FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3"];
-      if (locSpazio) {
-        const full = `${locNome} - ${locSpazio}`;
-        out = out.filter(v => locCols.some(col => v[col] === full));
-      } else {
-        const prefix = `${locNome} - `;
-        out = out.filter(v => locCols.some(col => v[col] && (v[col] === locNome || String(v[col]).startsWith(prefix))));
-      }
-    }
-
-    return out;
-  }, [bottiglie, search, searchId, tipologia, nazione, regione, produttore, distributore, rappresentante,
-      statoVendita, statoRiordino, carta, calice, biologico, ipratico,
-      locNome, locSpazio, giacenzaMode, giacenzaVal1, giacenzaVal2,
-      prezzoMode, prezzoVal1, prezzoVal2, onlyPositive, onlyMissingListino]);
-
-  // ── FILTRI CLIENT-SIDE su madri (subset, applicati a madre+annate) ──
-  const madriFiltrate = useMemo(() => {
-    let out = madri;
-    const s = (v) => (v == null ? "" : String(v)).toLowerCase();
-    if (search) {
-      const q = search.toLowerCase();
-      out = out.filter(m =>
-        s(m.descrizione).includes(q) || s(m.produttore_nome).includes(q) || s(m.denominazione_display).includes(q)
-      );
-    }
-    if (tipologia) out = out.filter(m => m.tipologia === tipologia);
-    if (nazione) out = out.filter(m => m.nazione === nazione);
-    if (regione) out = out.filter(m => m.regione === regione);
-    if (produttore) out = out.filter(m => m.produttore_nome === produttore);
-    if (onlyPositive) out = out.filter(m => (m.qta_tot || 0) > 0);
-    return out;
-  }, [madri, search, tipologia, nazione, regione, produttore, onlyPositive]);
-
-  // Riepilogo tipologie (per i chip sopra la tabella) — calcolato sui dati filtrati
-  const riepilogo = useMemo(() => {
-    const src = vista === "bottiglie" ? bottiglieFiltrate : madriFiltrate.flatMap(m => m.annate || []);
-    const map = new Map();
-    for (const r of src) {
-      const t = r.TIPOLOGIA || r.tipologia || "(senza)";
-      if (!map.has(t)) map.set(t, { tip: t, etichette: 0, bottiglie: 0, esaurite: 0 });
-      const e = map.get(t);
-      e.etichette += 1;
-      const qta = r.QTA_TOTALE || 0;
-      e.bottiglie += qta;
-      if (qta === 0) e.esaurite += 1;
-    }
-    return Array.from(map.values()).sort((a, b) => b.etichette - a.etichette);
-  }, [bottiglieFiltrate, madriFiltrate, vista]);
+  // Madri: applichiamo gli stessi filtri base alle annate, scartando madri senza annate visibili
+  const madriVisibili = useMemo(() => {
+    if (!madri.length) return [];
+    return madri.map(m => {
+      const annateFiltered = applyRiepilogoFilter(f.applyFilters(m.annate || []), riepilogoFilter);
+      return { ...m, annate: annateFiltered, n_annate: annateFiltered.length, qta_tot: annateFiltered.reduce((s, a) => s + (a.QTA_TOTALE || 0), 0) };
+    }).filter(m => m.annate.length > 0);
+  }, [madri, f, riepilogoFilter]);
 
   return (
     <div className="flex" style={{ minHeight: "calc(100vh - 200px)" }}>
 
-      {/* SIDEBAR FILTRI 280px */}
+      {/* SIDEBAR FILTRI (condivisa) */}
       <aside className="w-sidebar min-w-sidebar border-r border-neutral-200 bg-neutral-50 overflow-y-auto flex-shrink-0">
-        <div className="p-2.5 space-y-2">
-
-          {/* Ricerca */}
-          <div className="bg-white rounded-lg p-2.5 border border-neutral-200 shadow-sm">
-            <div className="text-[9px] font-extrabold text-neutral-400 uppercase tracking-widest mb-1.5">Ricerca</div>
-            <div className="space-y-1.5">
-              <div>
-                <label className={fLbl}>Ricerca libera</label>
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Descrizione, produttore…" className={fInp} />
-              </div>
-              <div>
-                <label className={fLbl}>Ricerca per ID</label>
-                <input type="text" value={searchId} onChange={e => setSearchId(e.target.value)}
-                  placeholder="es. 1234" className={fInp} />
-              </div>
-            </div>
-          </div>
-
-          {/* Anagrafica */}
-          <div className="bg-amber-50/50 rounded-lg p-2.5 border border-amber-100 shadow-sm">
-            <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest mb-1.5">Anagrafica</div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <label className={fLbl}>Tipologia</label>
-                <select value={tipologia} onChange={e => setTipologia(e.target.value)} className={fSel}>
-                  <option value="">Tutte</option>
-                  {opts.tipologie.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Nazione</label>
-                <select value={nazione} onChange={e => setNazione(e.target.value)} className={fSel}>
-                  <option value="">Tutte</option>
-                  {opts.nazioni.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Regione</label>
-                <select value={regione} onChange={e => setRegione(e.target.value)} className={fSel}>
-                  <option value="">Tutte</option>
-                  {opts.regioni.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Produttore</label>
-                <select value={produttore} onChange={e => setProduttore(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option>
-                  {opts.produttori.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 mt-1.5">
-              <div>
-                <label className={fLbl}>Distributore</label>
-                <select value={distributore} onChange={e => setDistributore(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option>
-                  {opts.distributori.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Rappresentante</label>
-                <select value={rappresentante} onChange={e => setRappresentante(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option>
-                  {opts.rappresentanti.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Locazioni — dropdown a 2 livelli (Nome → Spazio) replica MagazzinoVini */}
-          <div className="bg-emerald-50/40 rounded-lg p-2.5 border border-emerald-100 shadow-sm">
-            <div className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest mb-1.5">Locazioni</div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <label className={fLbl}>Locazione</label>
-                <select value={locNome}
-                  onChange={e => { setLocNome(e.target.value); setLocSpazio(""); }}
-                  className={fSel}>
-                  <option value="">Tutte</option>
-                  {opts.locazioniNomi.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Spazio</label>
-                <select value={locSpazio} onChange={e => setLocSpazio(e.target.value)}
-                  disabled={!locNome || locSpaziOptions.length === 0}
-                  className={fSel + " disabled:opacity-50"}>
-                  <option value="">Tutti</option>
-                  {locSpaziOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Stati */}
-          <div className="bg-blue-50/40 rounded-lg p-2.5 border border-blue-100 shadow-sm">
-            <div className="text-[9px] font-extrabold text-blue-600 uppercase tracking-widest mb-1.5">Stati</div>
-            <div className="space-y-1.5">
-              <div>
-                <label className={fLbl}>Stato vendita</label>
-                <select value={statoVendita} onChange={e => setStatoVendita(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option>
-                  <option value="0">0 — Non vendere</option>
-                  <option value="1">1 — Controllare</option>
-                  <option value="2">2 — Vendere</option>
-                  <option value="3">3 — Spingere</option>
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Stato riordino</label>
-                <select value={statoRiordino} onChange={e => setStatoRiordino(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option>
-                  <option value="D">D — Da ordinare</option>
-                  <option value="0">0 — Ordinato</option>
-                  <option value="A">A — Annata esaurita</option>
-                  <option value="X">X — Non ricomprare</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Flag */}
-          <div className="bg-rose-50/40 rounded-lg p-2.5 border border-rose-100 shadow-sm">
-            <div className="text-[9px] font-extrabold text-rose-600 uppercase tracking-widest mb-1.5">Flag</div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <label className={fLbl}>Carta</label>
-                <select value={carta} onChange={e => setCarta(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option><option value="1">SI</option><option value="0">NO</option>
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Calice</label>
-                <select value={calice} onChange={e => setCalice(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option><option value="1">SI</option><option value="0">NO</option>
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>Biologico</label>
-                <select value={biologico} onChange={e => setBiologico(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option><option value="1">SI</option><option value="0">NO</option>
-                </select>
-              </div>
-              <div>
-                <label className={fLbl}>iPratico</label>
-                <select value={ipratico} onChange={e => setIpratico(e.target.value)} className={fSel}>
-                  <option value="">Tutti</option><option value="1">SI</option><option value="0">NO</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Giacenza e prezzo */}
-          <div className="bg-violet-50/40 rounded-lg p-2.5 border border-violet-100 shadow-sm">
-            <div className="text-[9px] font-extrabold text-violet-600 uppercase tracking-widest mb-1.5">Giacenza e prezzo</div>
-            <div className="space-y-1.5">
-              {/* Filtro giacenza con mode */}
-              <div>
-                <label className={fLbl}>Filtro giacenza</label>
-                <div className="flex gap-1 items-center">
-                  <select value={giacenzaMode} onChange={e => setGiacenzaMode(e.target.value)}
-                    className="border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white w-[52px]">
-                    <option value="any">—</option>
-                    <option value="gt">&gt;</option>
-                    <option value="lt">&lt;</option>
-                    <option value="between">tra</option>
-                  </select>
-                  <input type="number" value={giacenzaVal1} onChange={e => setGiacenzaVal1(e.target.value)}
-                    className="w-14 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="da" />
-                  {giacenzaMode === "between" && (
-                    <input type="number" value={giacenzaVal2} onChange={e => setGiacenzaVal2(e.target.value)}
-                      className="w-14 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="a" />
-                  )}
-                </div>
-              </div>
-              <label className="flex items-center gap-1.5 text-[10px] text-neutral-700 cursor-pointer">
-                <input type="checkbox" checked={onlyPositive} onChange={e => setOnlyPositive(e.target.checked)} className="rounded w-3.5 h-3.5" />
-                <span>Solo giacenza positiva</span>
-              </label>
-              {/* Filtro prezzo carta */}
-              <div>
-                <label className={fLbl}>Filtro prezzo carta €</label>
-                <div className="flex gap-1 items-center">
-                  <select value={prezzoMode} onChange={e => setPrezzoMode(e.target.value)}
-                    className="border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white w-[52px]">
-                    <option value="any">—</option>
-                    <option value="gt">&gt;</option>
-                    <option value="lt">&lt;</option>
-                    <option value="between">tra</option>
-                  </select>
-                  <input type="number" step="0.01" value={prezzoVal1} onChange={e => setPrezzoVal1(e.target.value)}
-                    className="w-16 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="da" />
-                  {prezzoMode === "between" && (
-                    <input type="number" step="0.01" value={prezzoVal2} onChange={e => setPrezzoVal2(e.target.value)}
-                      className="w-16 border border-neutral-300 rounded-md px-1.5 py-1.5 text-[11px] bg-white" placeholder="a" />
-                  )}
-                </div>
-              </div>
-              <label className="flex items-center gap-1.5 text-[10px] text-neutral-700 cursor-pointer">
-                <input type="checkbox" checked={onlyMissingListino} onChange={e => setOnlyMissingListino(e.target.checked)} className="rounded w-3.5 h-3.5" />
-                <span>Solo senza listino</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Bottoni */}
-          <div className="flex gap-2 pt-1">
-            <button onClick={clearAll} className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100">
-              ✕ Pulisci
-            </button>
-            <button onClick={fetchData} disabled={loading}
-              className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold shadow transition ${
-                loading ? "bg-neutral-400 text-white" : "bg-amber-700 text-white hover:bg-amber-800"
-              }`}>
-              {loading ? "Carico…" : "⟳ Ricarica"}
-            </button>
-          </div>
-        </div>
+        <CantinaFiltri
+          f={f}
+          opts={opts}
+          statoVenditaOptions={STATO_VENDITA_OPTIONS}
+          statoRiordinoOptions={STATO_RIORDINO_OPTIONS}
+          statoConservazioneOptions={STATO_CONSERVAZIONE_OPTIONS}
+          loading={loading}
+          onReload={fetchData}
+          error={error}
+        />
       </aside>
 
       {/* CONTENT */}
@@ -534,44 +158,24 @@ export default function CantinaV2() {
             <h2 className="text-base font-bold text-amber-900">🍷 Cantina v2</h2>
             <span className="text-[10px] text-neutral-500">Read-only — test parallelo</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex border border-neutral-300 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setVista("bottiglie")}
-                className={`px-3 py-1.5 text-xs font-semibold transition ${vista === "bottiglie" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>
-                🍾 Bottiglie
-              </button>
-              <button
-                onClick={() => setVista("madri")}
-                className={`px-3 py-1.5 text-xs font-semibold transition ${vista === "madri" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>
-                🍷 Madri
-              </button>
-            </div>
+          <div className="flex border border-neutral-300 rounded-lg overflow-hidden">
+            <button onClick={() => setVista("bottiglie")}
+              className={`px-3 py-1.5 text-xs font-semibold transition ${vista === "bottiglie" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍾 Bottiglie</button>
+            <button onClick={() => setVista("madri")}
+              className={`px-3 py-1.5 text-xs font-semibold transition ${vista === "madri" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍷 Madri</button>
           </div>
         </div>
 
-        {/* Riepilogo tipologie chip */}
-        {!loading && riepilogo.length > 0 && (
-          <div className="px-3 py-2 border-b border-neutral-200 bg-white flex flex-wrap gap-1.5 items-center flex-shrink-0">
-            <span className="text-[9px] font-extrabold text-neutral-400 uppercase tracking-widest mr-1">Riepilogo</span>
-            {riepilogo.map(r => (
-              <button key={r.tip}
-                onClick={() => setTipologia(tipologia === r.tip ? "" : r.tip)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-semibold transition cursor-pointer ${tipoBadge(r.tip)} ${tipologia === r.tip ? "ring-2 ring-amber-400 shadow-md" : "hover:shadow-sm"}`}>
-                <span>{r.tip}</span><span className="opacity-60">·</span><span>{r.etichette}</span>
-                {vista === "bottiglie" && <span className="opacity-40 font-normal">({r.bottiglie}bt)</span>}
-                {r.esaurite > 0 && <span className="text-[9px] text-red-600 font-bold ml-0.5">⚠{r.esaurite}</span>}
-              </button>
-            ))}
-            <span className="ml-auto text-[10px] text-neutral-500 flex-shrink-0">
-              {vista === "bottiglie"
-                ? `${bottiglieFiltrate.length} di ${bottiglie.length} bottiglie`
-                : `${madriFiltrate.length} di ${madri.length} madri · ${madriFiltrate.reduce((s, m) => s + (m.annate?.length || 0), 0)} annate`}
-            </span>
-          </div>
+        {/* Riepilogo tipologie chip (condiviso) */}
+        {vista === "bottiglie" ? (
+          <RiepilogoTipologie items={bottiglieFiltrate} riepilogoFilter={riepilogoFilter} setRiepilogoFilter={setRiepilogoFilter}
+            rightSummary={`${bottiglieVisibili.length} di ${bottiglie.length} bottiglie`} />
+        ) : (
+          <RiepilogoTipologie items={madri.flatMap(m => m.annate || [])} riepilogoFilter={riepilogoFilter} setRiepilogoFilter={setRiepilogoFilter}
+            rightSummary={`${madriVisibili.length} madri · ${madriVisibili.reduce((s, m) => s + (m.annate?.length || 0), 0)} annate`} />
         )}
 
-        {/* Contenuto: tabella bottiglie o lista madri */}
+        {/* Contenuto */}
         <div className="flex-1 overflow-auto min-h-0">
           {loading && <div className="p-6 text-center text-sm text-neutral-500">Carico…</div>}
           {error && !loading && <div className="p-6 text-center text-sm text-red-600">Errore: {error}</div>}
@@ -591,12 +195,12 @@ export default function CantinaV2() {
                 </tr>
               </thead>
               <tbody>
-                {bottiglieFiltrate.map(v => {
+                {bottiglieVisibili.map(v => {
                   const tip = v.TIPOLOGIA || v.m_tipologia;
                   const denom = v.DENOMINAZIONE || v.d_display;
                   return (
                     <tr key={v.id}
-                      className={`cursor-pointer border-b border-neutral-100 hover:bg-amber-50/70 ${tipoRowBg(tip)}`}
+                      className={`cursor-pointer border-b border-neutral-100 hover:bg-amber-50/70 ${pickByTipo(tip, TIPO_ROW_BG, "bg-white")}`}
                       onClick={() => navigate(`/vini/v2/bottiglia/${v.id}`)}>
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <span className="inline-flex items-center bg-slate-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded font-mono">#{v.id}</span>
@@ -630,28 +234,22 @@ export default function CantinaV2() {
                     </tr>
                   );
                 })}
-                {bottiglieFiltrate.length === 0 && (
+                {bottiglieVisibili.length === 0 && (
                   <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-neutral-500">Nessun vino con i filtri correnti.</td></tr>
                 )}
               </tbody>
             </table>
           )}
 
-          {/* ── VISTA MADRI ── compact layout (1-annata inline, N-annate tabella stretta) */}
+          {/* ── VISTA MADRI ── 1 annata inline / N annate compatte */}
           {!loading && !error && vista === "madri" && (
             <div className="p-2 space-y-1.5">
-              {madriFiltrate.map(m => {
+              {madriVisibili.map(m => {
                 const tip = m.tipologia;
-                const borderColor =
-                  tip?.toUpperCase()?.includes("ROSS") ? "border-l-red-600" :
-                  tip?.toUpperCase()?.includes("BIANC") ? "border-l-amber-600" :
-                  tip?.toUpperCase()?.includes("BOLLIC") ? "border-l-yellow-600" :
-                  tip?.toUpperCase()?.includes("ROSAT") ? "border-l-pink-600" :
-                  "border-l-neutral-400";
-                const isSingle = (m.annate?.length || 0) === 1;
+                const borderColor = pickByTipo(tip, TIPO_BORDER_L, "border-l-neutral-400");
                 const sottotitolo = [m.produttore_nome, m.regione, m.denominazione_display].filter(Boolean).join(" · ");
+                const isSingle = m.annate.length === 1;
 
-                // ── 1 ANNATA: tutto inline su una sola riga compatta (~50px) ──
                 if (isSingle) {
                   const a = m.annate[0];
                   const loc = [
@@ -664,7 +262,7 @@ export default function CantinaV2() {
                       className={`bg-white rounded-lg border border-neutral-200 shadow-sm hover:bg-amber-50/40 cursor-pointer border-l-4 ${borderColor} flex items-center gap-2 px-3 py-1.5`}>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">M{String(m.id).padStart(4, "0")}</span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${tipoBadge(tip)} hidden md:inline`}>{tip}</span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pickByTipo(tip, TIPO_BADGE)} hidden md:inline`}>{tip}</span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-[13px] text-neutral-900 truncate leading-tight">{m.descrizione}</div>
@@ -685,12 +283,11 @@ export default function CantinaV2() {
                   );
                 }
 
-                // ── N ANNATE: header compatto (1 riga) + tabella stretta sotto ──
                 return (
                   <div key={m.id} className={`bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden border-l-4 ${borderColor}`}>
                     <div className="px-3 py-1.5 flex items-center gap-2 border-b border-neutral-100">
                       <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 flex-shrink-0">M{String(m.id).padStart(4, "0")}</span>
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${tipoBadge(tip)} flex-shrink-0 hidden md:inline`}>{tip}</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pickByTipo(tip, TIPO_BADGE)} flex-shrink-0 hidden md:inline`}>{tip}</span>
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-[13px] text-neutral-900 truncate leading-tight">{m.descrizione}</div>
                         {sottotitolo && <div className="text-[10px] text-neutral-500 truncate leading-tight">{sottotitolo}</div>}
@@ -727,7 +324,7 @@ export default function CantinaV2() {
                   </div>
                 );
               })}
-              {madriFiltrate.length === 0 && (
+              {madriVisibili.length === 0 && (
                 <div className="p-8 text-center text-sm text-neutral-500">Nessun vino madre con i filtri correnti.</div>
               )}
             </div>
