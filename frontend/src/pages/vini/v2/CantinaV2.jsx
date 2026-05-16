@@ -9,7 +9,7 @@
 // Differenza dal classico: legge da `/vini/v2/*` (tabelle `_v2`), niente
 // scritture/checkbox/bulk. Tutto il resto del comportamento filtri è IDENTICO.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../../config/api";
 import {
@@ -25,6 +25,7 @@ import CantinaFiltri from "../../../components/vini/CantinaFiltri";
 import RiepilogoTipologie, { applyRiepilogoFilter } from "../../../components/vini/RiepilogoTipologie";
 import BulkActionBar from "../../../components/vini/BulkActionBar";
 import groupByMadre from "../../../utils/vini/groupByMadre";
+import SchedaVino from "../SchedaVino";
 
 // ──────────────────────────────────────────────
 // Helpers stile (replica MagazzinoVini)
@@ -69,6 +70,9 @@ export default function CantinaV2() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [printingPdf, setPrintingPdf] = useState(false);
+  // Scheda inline aperta (id bottiglia) — null = lista
+  const [openSchedaId, setOpenSchedaId] = useState(null);
+  const schedaRef = useRef(null);
   // Selezione multipla (riusa hook)
   const sel = useBulkSelection();
   // Sort tabella (riusa hook)
@@ -144,6 +148,12 @@ export default function CantinaV2() {
   }, [bottiglieFiltrate, riepilogoFilter, sort]);
   const madriVisibili = useMemo(() => groupByMadre(bottiglieVisibili), [bottiglieVisibili]);
 
+  // ── Apertura scheda inline (sostituisce la lista nel frame centrale) ──
+  const handleRowClick = (id) => {
+    setOpenSchedaId(id);
+    setTimeout(() => schedaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  };
+
   // ── Stampa selezione PDF (riusa lo stesso endpoint di Cantina classica) ──
   const handlePrintSelection = async () => {
     if (sel.count === 0) return;
@@ -213,8 +223,55 @@ export default function CantinaV2() {
           {loading && <div className="p-6 text-center text-sm text-neutral-500">Carico…</div>}
           {error && !loading && <div className="p-6 text-center text-sm text-red-600">Errore: {error}</div>}
 
+          {/* ── SCHEDA INLINE (sostituisce la lista quando openSchedaId è settato) ── */}
+          {openSchedaId && (() => {
+            // Calcola prev/next nella lista visibile per la barra di navigazione
+            const curIdx = bottiglieVisibili.findIndex(v => v.id === openSchedaId);
+            const prevVino = curIdx > 0 ? bottiglieVisibili[curIdx - 1] : null;
+            const nextVino = curIdx >= 0 && curIdx < bottiglieVisibili.length - 1 ? bottiglieVisibili[curIdx + 1] : null;
+            return (
+              <div className="flex-1 overflow-auto min-h-0">
+                {/* Barra navigazione (replica MagazzinoVini) */}
+                <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => setOpenSchedaId(null)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-50 transition shadow-sm">
+                    ← Lista
+                  </button>
+                  <div className="flex items-center gap-1 ml-2">
+                    <button onClick={() => prevVino && setOpenSchedaId(prevVino.id)} disabled={!prevVino}
+                      title={prevVino ? `← ${prevVino.DESCRIZIONE}` : "Primo vino"}
+                      className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-amber-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                      ‹
+                    </button>
+                    <span className="text-[10px] text-amber-700 font-medium min-w-[60px] text-center">
+                      {curIdx >= 0 ? `${curIdx + 1} / ${bottiglieVisibili.length}` : "—"}
+                    </span>
+                    <button onClick={() => nextVino && setOpenSchedaId(nextVino.id)} disabled={!nextVino}
+                      title={nextVino ? `→ ${nextVino.DESCRIZIONE}` : "Ultimo vino"}
+                      className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-amber-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                      ›
+                    </button>
+                  </div>
+                  <span className="text-xs text-amber-800 font-medium ml-2">#{openSchedaId}</span>
+                  <span className="ml-auto text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md inline-flex items-center gap-1 whitespace-nowrap">
+                    🔒 READ-ONLY
+                  </span>
+                </div>
+                <div className="p-3" ref={schedaRef}>
+                  <SchedaVino
+                    vinoId={openSchedaId}
+                    inline={true}
+                    readOnly={true}
+                    apiBaseDettaglio="/vini/v2/bottiglie"
+                    onClose={() => setOpenSchedaId(null)}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── VISTA BOTTIGLIE ── */}
-          {!loading && !error && vista === "bottiglie" && (
+          {!openSchedaId && !loading && !error && vista === "bottiglie" && (
             <table className="w-full text-[11px]">
               <thead className="bg-neutral-100 sticky top-0 z-10">
                 <tr className="text-[9px] text-neutral-600 uppercase tracking-wide select-none">
@@ -255,7 +312,7 @@ export default function CantinaV2() {
                       className={`cursor-pointer border-b border-neutral-100 hover:bg-amber-50/70 transition ${
                         isSel ? "bg-violet-50/80" : pickByTipo(tip, TIPO_ROW_BG, "bg-white")
                       }`}
-                      onClick={() => navigate(`/vini/v2/bottiglia/${v.id}`)}>
+                      onClick={() => handleRowClick(v.id)}>
                       <td className="px-1.5 py-1.5 text-center" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={isSel} onChange={() => sel.toggleId(v.id)}
                           className="rounded border-violet-400 text-violet-600 focus:ring-violet-300 w-3.5 h-3.5" />
@@ -300,7 +357,7 @@ export default function CantinaV2() {
           )}
 
           {/* ── VISTA MADRI ── 1 annata inline / N annate compatte */}
-          {!loading && !error && vista === "madri" && (
+          {!openSchedaId && !loading && !error && vista === "madri" && (
             <div className="p-2 space-y-1.5">
               {madriVisibili.map(m => {
                 const tip = m.tipologia;
@@ -316,7 +373,7 @@ export default function CantinaV2() {
                     a.LOCAZIONE_2 && `${a.LOCAZIONE_2}: ${a.QTA_LOC2 || 0}`,
                   ].filter(Boolean).join(" · ");
                   return (
-                    <div key={m.id} onClick={() => navigate(`/vini/v2/bottiglia/${a.id}`)}
+                    <div key={m.id} onClick={() => handleRowClick(a.id)}
                       className={`bg-white rounded-lg border border-neutral-200 shadow-sm hover:bg-amber-50/40 cursor-pointer border-l-4 ${borderColor} flex items-center gap-2 px-3 py-1.5`}>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">M{String(m.id).padStart(4, "0")}</span>
@@ -361,7 +418,7 @@ export default function CantinaV2() {
                             a.LOCAZIONE_2 && `${a.LOCAZIONE_2}: ${a.QTA_LOC2 || 0}`,
                           ].filter(Boolean).join(" · ");
                           return (
-                            <tr key={a.id} onClick={() => navigate(`/vini/v2/bottiglia/${a.id}`)}
+                            <tr key={a.id} onClick={() => handleRowClick(a.id)}
                               className="cursor-pointer border-t border-neutral-100 hover:bg-amber-50/70">
                               <td className="pl-3 pr-2 py-1 font-semibold w-16 text-right">{a.ANNATA || "NV"}</td>
                               <td className="px-2 py-1 text-neutral-600 w-10 text-center">{a.FORMATO || "BT"}</td>
