@@ -21,6 +21,7 @@ import {
 import useCantinaFilters from "../../../hooks/useCantinaFilters";
 import CantinaFiltri from "../../../components/vini/CantinaFiltri";
 import RiepilogoTipologie, { applyRiepilogoFilter } from "../../../components/vini/RiepilogoTipologie";
+import groupByMadre from "../../../utils/vini/groupByMadre";
 
 // ──────────────────────────────────────────────
 // Helpers stile (replica MagazzinoVini)
@@ -58,7 +59,6 @@ export default function CantinaV2() {
   const navigate = useNavigate();
   const [vista, setVista] = useState("bottiglie"); // "bottiglie" | "madri"
   const [bottiglie, setBottiglie] = useState([]);
-  const [madri, setMadri] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [locConfig, setLocConfig] = useState({ frigorifero: [], locazione_1: [], locazione_2: [], locazione_3: [] });
@@ -67,19 +67,13 @@ export default function CantinaV2() {
   // ── Hook condiviso filtri ──
   const f = useCantinaFilters({ locConfig });
 
-  // ── Fetch dati v2 ──
+  // ── Fetch dati v2 (un solo fetch — la vista Madri raggruppa client-side) ──
   const fetchData = async () => {
     setLoading(true); setError("");
     try {
-      if (vista === "bottiglie") {
-        const r = await apiFetch(`${API_BASE}/vini/v2/bottiglie/?limit=10000`);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        setBottiglie(await r.json());
-      } else {
-        const r = await apiFetch(`${API_BASE}/vini/v2/madri-raggruppate/`);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        setMadri(await r.json());
-      }
+      const r = await apiFetch(`${API_BASE}/vini/v2/bottiglie/?limit=10000`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setBottiglie(await r.json());
     } catch (e) {
       setError(String(e.message || e));
     } finally {
@@ -87,7 +81,7 @@ export default function CantinaV2() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [vista]); // eslint-disable-line
+  useEffect(() => { fetchData(); }, []); // eslint-disable-line
 
   // ── Carica locConfig (stessa fonte di MagazzinoVini) ──
   useEffect(() => {
@@ -119,18 +113,13 @@ export default function CantinaV2() {
     };
   }, [bottiglie]);
 
-  // ── Filtri applicati (hook + chip riepilogo) ──
+  // ── Pipeline filtri unica (vale per Bottiglie e Madri) ──
+  // 1) applyFilters dei filtri sidebar → bottiglieFiltrate
+  // 2) applyRiepilogoFilter dei chip in cima → bottiglieVisibili
+  // 3) groupByMadre delle visibili → madriVisibili (solo per vista madri)
   const bottiglieFiltrate = useMemo(() => f.applyFilters(bottiglie), [f, bottiglie]);
   const bottiglieVisibili = useMemo(() => applyRiepilogoFilter(bottiglieFiltrate, riepilogoFilter), [bottiglieFiltrate, riepilogoFilter]);
-
-  // Madri: applichiamo gli stessi filtri base alle annate, scartando madri senza annate visibili
-  const madriVisibili = useMemo(() => {
-    if (!madri.length) return [];
-    return madri.map(m => {
-      const annateFiltered = applyRiepilogoFilter(f.applyFilters(m.annate || []), riepilogoFilter);
-      return { ...m, annate: annateFiltered, n_annate: annateFiltered.length, qta_tot: annateFiltered.reduce((s, a) => s + (a.QTA_TOTALE || 0), 0) };
-    }).filter(m => m.annate.length > 0);
-  }, [madri, f, riepilogoFilter]);
+  const madriVisibili = useMemo(() => groupByMadre(bottiglieVisibili), [bottiglieVisibili]);
 
   return (
     <div className="flex" style={{ minHeight: "calc(100vh - 200px)" }}>
@@ -166,14 +155,15 @@ export default function CantinaV2() {
           </div>
         </div>
 
-        {/* Riepilogo tipologie chip (condiviso) */}
-        {vista === "bottiglie" ? (
-          <RiepilogoTipologie items={bottiglieFiltrate} riepilogoFilter={riepilogoFilter} setRiepilogoFilter={setRiepilogoFilter}
-            rightSummary={`${bottiglieVisibili.length} di ${bottiglie.length} bottiglie`} />
-        ) : (
-          <RiepilogoTipologie items={madri.flatMap(m => m.annate || [])} riepilogoFilter={riepilogoFilter} setRiepilogoFilter={setRiepilogoFilter}
-            rightSummary={`${madriVisibili.length} madri · ${madriVisibili.reduce((s, m) => s + (m.annate?.length || 0), 0)} annate`} />
-        )}
+        {/* Riepilogo tipologie chip — sempre sulle bottigliefiltrate (=stessa pipeline) */}
+        <RiepilogoTipologie
+          items={bottiglieFiltrate}
+          riepilogoFilter={riepilogoFilter}
+          setRiepilogoFilter={setRiepilogoFilter}
+          rightSummary={vista === "bottiglie"
+            ? `${bottiglieVisibili.length} di ${bottiglie.length} bottiglie`
+            : `${madriVisibili.length} madri · ${bottiglieVisibili.length} annate`}
+        />
 
         {/* Contenuto */}
         <div className="flex-1 overflow-auto min-h-0">
