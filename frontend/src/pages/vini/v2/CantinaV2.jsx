@@ -58,6 +58,16 @@ function pickByTipo(t, map, fallback = "") {
   for (const [key, v] of Object.entries(map)) if (k.includes(key)) return v;
   return fallback;
 }
+// Mini Field component per la scheda madre read-only
+function Field({ label, value }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">{label}</div>
+      <div className="text-sm text-neutral-900">{value || <span className="text-neutral-400">—</span>}</div>
+    </div>
+  );
+}
+
 function fmtEuro(v) {
   if (v == null || v === "") return "—";
   return `€${Number(v).toLocaleString("it-IT", { minimumFractionDigits: 0 })}`;
@@ -72,6 +82,8 @@ export default function CantinaV2() {
   const [printingPdf, setPrintingPdf] = useState(false);
   // Scheda inline aperta (id bottiglia) — null = lista
   const [openSchedaId, setOpenSchedaId] = useState(null);
+  // Scheda Madre inline aperta (id madre) — null = lista
+  const [openMadreId, setOpenMadreId] = useState(null);
   const schedaRef = useRef(null);
   // Selezione multipla (riusa hook)
   const sel = useBulkSelection();
@@ -150,9 +162,22 @@ export default function CantinaV2() {
 
   // ── Apertura scheda inline (sostituisce la lista nel frame centrale) ──
   const handleRowClick = (id) => {
+    setOpenMadreId(null);
     setOpenSchedaId(id);
     setTimeout(() => schedaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
+  const handleMadreClick = (id) => {
+    setOpenSchedaId(null);
+    setOpenMadreId(id);
+    setTimeout(() => schedaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  };
+  const closeAll = () => { setOpenSchedaId(null); setOpenMadreId(null); };
+
+  // Madre attualmente aperta (dati già in memoria via groupByMadre)
+  const openMadre = useMemo(
+    () => (openMadreId ? madriVisibili.find(m => m.id === openMadreId) : null),
+    [openMadreId, madriVisibili]
+  );
 
   // ── Stampa selezione PDF (riusa lo stesso endpoint di Cantina classica) ──
   const handlePrintSelection = async () => {
@@ -223,8 +248,123 @@ export default function CantinaV2() {
           {loading && <div className="p-6 text-center text-sm text-neutral-500">Carico…</div>}
           {error && !loading && <div className="p-6 text-center text-sm text-red-600">Errore: {error}</div>}
 
-          {/* ── SCHEDA INLINE (sostituisce la lista quando openSchedaId è settato) ── */}
-          {openSchedaId && (() => {
+          {/* ── SCHEDA MADRE INLINE (sostituisce la lista quando openMadreId è settato) ── */}
+          {openMadre && (
+            <div className="flex-1 overflow-auto min-h-0">
+              <div className="px-3 py-2 bg-rose-50 border-b border-rose-200 flex items-center gap-2 flex-shrink-0">
+                <button onClick={closeAll}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-50 transition shadow-sm">
+                  ← Lista
+                </button>
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">
+                  M{String(openMadre.id).padStart(4, "0")}
+                </span>
+                <span className="text-xs font-bold text-rose-900">🍷 Vino madre</span>
+                <span className="ml-auto text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md inline-flex items-center gap-1 whitespace-nowrap">
+                  🔒 READ-ONLY
+                </span>
+              </div>
+              <div ref={schedaRef} className="p-4 space-y-4">
+                {/* Identità madre */}
+                <div className="bg-white border-2 border-rose-200 rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="text-3xl flex-shrink-0">🍷</div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-xl font-bold text-neutral-900 leading-tight">{openMadre.descrizione}</h2>
+                      <p className="text-sm text-neutral-600 mt-1">
+                        {[openMadre.produttore_nome, openMadre.regione, openMadre.denominazione_display].filter(Boolean).join(" · ")}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {openMadre.tipologia && (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${pickByTipo(openMadre.tipologia, TIPO_BADGE, "bg-neutral-100 text-neutral-700 border-neutral-200")}`}>
+                            {openMadre.tipologia}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-purple-100 text-purple-800 border-purple-200">
+                          {openMadre.n_annate} annat{openMadre.n_annate === 1 ? "a" : "e"} in cantina
+                        </span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-neutral-100 text-neutral-700 border-neutral-200">
+                          {openMadre.qta_tot} bottiglie totali
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Anagrafica (campi del madre, read-only) */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-3 border-t border-rose-100">
+                    <Field label="Produttore" value={openMadre.produttore_nome} />
+                    <Field label="Tipologia" value={openMadre.tipologia} />
+                    <Field label="Denominazione" value={openMadre.denominazione_display} />
+                    <Field label="Nazione" value={openMadre.nazione} />
+                    <Field label="Regione" value={openMadre.regione} />
+                    <Field label="Distributore" value={openMadre.fornitore_nome} />
+                    <Field label="Rappresentante" value={openMadre.rappresentante_nome} />
+                  </div>
+
+                  {openMadre.abbinamenti && (
+                    <div className="pt-3 border-t border-rose-100 mt-3">
+                      <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-1">🍽️ Abbinamenti consigliati</div>
+                      <p className="text-sm text-neutral-800 whitespace-pre-wrap">{openMadre.abbinamenti}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Annate in cantina (cliccabili → scheda bottiglia) */}
+                <div className="bg-white border border-neutral-200 rounded-2xl shadow-sm overflow-hidden">
+                  <div className="bg-neutral-50 border-b border-neutral-200 px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-600">
+                    Annate in cantina — clicca su una riga per aprire la scheda bottiglia
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider text-neutral-500">
+                      <tr>
+                        <th className="px-3 py-1.5 text-left w-16">ID</th>
+                        <th className="px-3 py-1.5 text-left w-20">Annata</th>
+                        <th className="px-3 py-1.5 text-left w-16">Formato</th>
+                        <th className="px-3 py-1.5 text-right w-24">Prezzo carta</th>
+                        <th className="px-3 py-1.5 text-right w-24">Listino</th>
+                        <th className="px-3 py-1.5 text-center w-12">Qta</th>
+                        <th className="px-3 py-1.5 text-left w-32">Stato</th>
+                        <th className="px-3 py-1.5 text-left">Locazioni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {openMadre.annate.map(a => {
+                        const loc = [
+                          a.FRIGORIFERO && `Frigo: ${a.QTA_FRIGO || 0}`,
+                          a.LOCAZIONE_1 && `${a.LOCAZIONE_1}: ${a.QTA_LOC1 || 0}`,
+                          a.LOCAZIONE_2 && `${a.LOCAZIONE_2}: ${a.QTA_LOC2 || 0}`,
+                          a.LOCAZIONE_3 && `${a.LOCAZIONE_3}: ${a.QTA_LOC3 || 0}`,
+                        ].filter(Boolean).join(" · ");
+                        return (
+                          <tr key={a.id} onClick={() => handleRowClick(a.id)}
+                            className="cursor-pointer border-t border-neutral-100 hover:bg-amber-50/70">
+                            <td className="px-3 py-1.5">
+                              <span className="inline-flex items-center bg-slate-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded font-mono">#{a.id}</span>
+                            </td>
+                            <td className="px-3 py-1.5 font-semibold">{a.ANNATA || "NV"}</td>
+                            <td className="px-3 py-1.5 text-neutral-600">{a.FORMATO || "BT"}</td>
+                            <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fmtEuro(a.PREZZO_CARTA)}</td>
+                            <td className="px-3 py-1.5 text-right text-neutral-500 tabular-nums">{fmtEuro(a.EURO_LISTINO)}</td>
+                            <td className="px-3 py-1.5 text-center font-bold">{a.QTA_TOTALE || 0}</td>
+                            <td className="px-3 py-1.5">
+                              {a.STATO_VENDITA != null && (() => {
+                                const s = STATO_VENDITA[a.STATO_VENDITA];
+                                return s ? <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${s.color}`}>{s.label}</span> : null;
+                              })()}
+                            </td>
+                            <td className="px-3 py-1.5 text-[10px] text-neutral-500">{loc || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SCHEDA BOTTIGLIA INLINE (sostituisce la lista quando openSchedaId è settato) ── */}
+          {openSchedaId && !openMadre && (() => {
             // Calcola prev/next nella lista visibile per la barra di navigazione
             const curIdx = bottiglieVisibili.findIndex(v => v.id === openSchedaId);
             const prevVino = curIdx > 0 ? bottiglieVisibili[curIdx - 1] : null;
@@ -373,17 +513,23 @@ export default function CantinaV2() {
                     a.LOCAZIONE_2 && `${a.LOCAZIONE_2}: ${a.QTA_LOC2 || 0}`,
                   ].filter(Boolean).join(" · ");
                   return (
-                    <div key={m.id} onClick={() => handleRowClick(a.id)}
-                      className={`bg-white rounded-lg border border-neutral-200 shadow-sm hover:bg-amber-50/40 cursor-pointer border-l-4 ${borderColor} flex items-center gap-2 px-3 py-1.5`}>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">M{String(m.id).padStart(4, "0")}</span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pickByTipo(tip, TIPO_BADGE)} hidden md:inline`}>{tip}</span>
+                    <div key={m.id}
+                      className={`bg-white rounded-lg border border-neutral-200 shadow-sm border-l-4 ${borderColor} flex items-center gap-2 px-3 py-1.5`}>
+                      {/* Zona MADRE (cliccabile → scheda madre) */}
+                      <div onClick={() => handleMadreClick(m.id)} title="Apri scheda vino madre"
+                        className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer hover:bg-rose-50/50 -ml-1 px-1 py-0.5 rounded transition">
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">M{String(m.id).padStart(4, "0")}</span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pickByTipo(tip, TIPO_BADGE)} hidden md:inline`}>{tip}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-[13px] text-neutral-900 truncate leading-tight">{m.descrizione}</div>
+                          {sottotitolo && <div className="text-[10px] text-neutral-500 truncate leading-tight">{sottotitolo}</div>}
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-[13px] text-neutral-900 truncate leading-tight">{m.descrizione}</div>
-                        {sottotitolo && <div className="text-[10px] text-neutral-500 truncate leading-tight">{sottotitolo}</div>}
-                      </div>
-                      <div className="flex items-center gap-2.5 text-[11px] flex-shrink-0">
+                      {/* Zona ANNATA (cliccabile → scheda bottiglia) */}
+                      <div onClick={() => handleRowClick(a.id)} title="Apri scheda bottiglia (annata)"
+                        className="flex items-center gap-2.5 text-[11px] flex-shrink-0 cursor-pointer hover:bg-amber-50 -mr-1 px-1 py-0.5 rounded transition">
                         <span className="font-semibold text-neutral-700 w-12 text-right">{a.ANNATA || "NV"}</span>
                         <span className="text-neutral-500 w-8 text-center">{a.FORMATO || "BT"}</span>
                         <span className="font-semibold text-neutral-700 w-14 text-right tabular-nums">{fmtEuro(a.PREZZO_CARTA)}</span>
@@ -400,7 +546,9 @@ export default function CantinaV2() {
 
                 return (
                   <div key={m.id} className={`bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden border-l-4 ${borderColor}`}>
-                    <div className="px-3 py-1.5 flex items-center gap-2 border-b border-neutral-100">
+                    {/* Header madre — cliccabile → scheda madre */}
+                    <div onClick={() => handleMadreClick(m.id)} title="Apri scheda vino madre"
+                      className="px-3 py-1.5 flex items-center gap-2 border-b border-neutral-100 cursor-pointer hover:bg-rose-50/50 transition">
                       <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 flex-shrink-0">M{String(m.id).padStart(4, "0")}</span>
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pickByTipo(tip, TIPO_BADGE)} flex-shrink-0 hidden md:inline`}>{tip}</span>
                       <div className="min-w-0 flex-1">
