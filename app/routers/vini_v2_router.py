@@ -414,9 +414,15 @@ def list_movimenti_madre(
         return []
 
     placeholders = ",".join(["?"] * len(bottiglie_ids))
+    # NB: vini_magazzino_movimenti NON ha prezzo_unitario.
+    # Stimiamo il "totale" del movimento come qta * b.PREZZO_CARTA (prezzo attuale
+    # della bottiglia). È un'approssimazione: il prezzo carta può essere cambiato
+    # dopo il movimento, ma non abbiamo storico per movimento.
     rows = cur.execute(
         f"""
-        SELECT m.*, b.ANNATA, b.FORMATO
+        SELECT m.id, m.vino_id, m.data_mov, m.tipo, m.qta, m.locazione, m.note,
+               m.origine, m.utente, m.created_at,
+               b.ANNATA, b.FORMATO, b.PREZZO_CARTA AS prezzo_carta_attuale
         FROM vini_magazzino_movimenti m
         LEFT JOIN {TABELLE['bottiglie']} b ON b.id = m.vino_id
         WHERE m.vino_id IN ({placeholders})
@@ -477,15 +483,17 @@ def stats_madre(mid: int, current_user: Any = Depends(get_current_user)):
     ultima_vendita = None
     if bottiglie_ids:
         placeholders = ",".join(["?"] * len(bottiglie_ids))
-        # Vendite totali (qta + ricavo stimato via prezzo_unitario o prezzo_carta)
+        # Vendite totali (qta + ricavo stimato via PREZZO_CARTA della bottiglia
+        # al momento attuale — non c'è prezzo_unitario per movimento).
         r = cur.execute(
             f"""
-            SELECT COALESCE(SUM(qta), 0) AS qta_tot,
-                   COALESCE(SUM(qta * COALESCE(prezzo_unitario, 0)), 0) AS ricavo,
-                   MIN(data_mov) AS prima,
-                   MAX(data_mov) AS ultima
-            FROM vini_magazzino_movimenti
-            WHERE vino_id IN ({placeholders}) AND tipo = 'VENDITA'
+            SELECT COALESCE(SUM(m.qta), 0) AS qta_tot,
+                   COALESCE(SUM(m.qta * COALESCE(b.PREZZO_CARTA, 0)), 0) AS ricavo_stimato,
+                   MIN(m.data_mov) AS prima,
+                   MAX(m.data_mov) AS ultima
+            FROM vini_magazzino_movimenti m
+            LEFT JOIN {TABELLE['bottiglie']} b ON b.id = m.vino_id
+            WHERE m.vino_id IN ({placeholders}) AND m.tipo = 'VENDITA'
             """,
             bottiglie_ids,
         ).fetchone()

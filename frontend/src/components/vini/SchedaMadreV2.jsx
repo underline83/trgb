@@ -438,8 +438,8 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                         <th className="px-3 py-1.5 text-left w-24">Tipo</th>
                         <th className="px-3 py-1.5 text-left w-20">Annata</th>
                         <th className="px-3 py-1.5 text-center w-12">Qta</th>
-                        <th className="px-3 py-1.5 text-right w-24">€/unità</th>
-                        <th className="px-3 py-1.5 text-right w-28">Totale</th>
+                        <th className="px-3 py-1.5 text-right w-28">Valore stimato</th>
+                        <th className="px-3 py-1.5 text-left w-32">Locazione</th>
                         <th className="px-3 py-1.5 text-left">Note</th>
                       </tr>
                     </thead>
@@ -451,7 +451,8 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                           tipo === "CARICO"  ? "bg-blue-100 text-blue-800 border-blue-200" :
                           tipo === "SCARICO" ? "bg-rose-100 text-rose-800 border-rose-200" :
                           "bg-neutral-100 text-neutral-700 border-neutral-200";
-                        const totale = (Number(m.qta) || 0) * (Number(m.prezzo_unitario) || 0);
+                        // Valore stimato = qta * prezzo_carta_attuale della bottiglia (approssimazione)
+                        const valore = (Number(m.qta) || 0) * (Number(m.prezzo_carta_attuale) || 0);
                         return (
                           <tr key={m.id} className="border-t border-neutral-100">
                             <td className="px-3 py-1 text-[11px] text-neutral-600">{fmtDate(m.data_mov)}</td>
@@ -460,8 +461,8 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                             </td>
                             <td className="px-3 py-1 font-semibold">{m.ANNATA || "NV"}{m.FORMATO ? ` · ${m.FORMATO}` : ""}</td>
                             <td className="px-3 py-1 text-center font-bold">{m.qta}</td>
-                            <td className="px-3 py-1 text-right tabular-nums">{fmtEuro(m.prezzo_unitario)}</td>
-                            <td className="px-3 py-1 text-right font-semibold tabular-nums">{fmtEuro(totale)}</td>
+                            <td className="px-3 py-1 text-right font-semibold tabular-nums" title="qta × prezzo carta attuale della bottiglia (stima)">{fmtEuro(valore)}</td>
+                            <td className="px-3 py-1 text-[11px] text-neutral-600 truncate">{m.locazione || ""}</td>
                             <td className="px-3 py-1 text-[11px] text-neutral-600 truncate max-w-xs">{m.note || ""}</td>
                           </tr>
                         );

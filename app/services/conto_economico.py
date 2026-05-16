@@ -121,34 +121,89 @@ def _aggregate_fatture_per_categoria(
 
 
 def _aggregate_spese_fisse_per_categoria(
-    fc_conn: sqlite3.Connection, periodo_rif: str
+    fc_conn: sqlite3.Connection, periodo_rif: str,
+    modalita: str = "competenza"
 ) -> list[dict]:
     """
     Aggrega cg_uscite tipo_uscita='SPESA_FISSA' del periodo, raggruppate per
     categoria/sottocategoria dalla cg_spese_fisse collegata.
 
-    NOTA: Esclude tipo='STIPENDIO' su cg_spese_fisse (anti-doppio-conteggio:
-    gli stipendi reali arrivano da cg_uscite tipo='STIPENDIO' aggregati a parte).
+    ESCLUSIONI per tipo (Marco 2026-05-16):
+
+    - **STIPENDIO** (sempre escluso): anti-doppio-conteggio. Gli stipendi reali
+      arrivano da cg_uscite tipo='STIPENDIO' via _aggregate_stipendi.
+
+    - In modalità **COMPETENZA**: esclusa anche tipo='RATEIZZAZIONE'.
+      Razionale: per definizione = rate di obblighi PREGRESSI (mutui su
+      fatture passate, accollo debiti). La competenza è la data fattura
+      originale, non la singola rata mensile.
+
+    - In modalità **COMPETENZA**: INCLUSI tipo IN ('PRESTITO', 'TASSA',
+      'AFFITTO', 'ASSICURAZIONE', 'ALTRO'). Razionale:
+        * PRESTITO/MUTUO = la rata mensile rappresenta gli interessi + quota
+          capitale di QUEL mese. Gli interessi sono costo finanziario di
+          competenza del mese stesso. Marco 2026-05-16: "prestito ha senso
+          tenerlo, competenza resta giusta".
+        * TASSA = tassa di competenza del mese (IVA/IRPEF correnti, ecc.).
+          IMPORTANTE: se Marco ha tasse PREGRESSE rateizzate (cartelle AdE,
+          F24 vecchi rateizzati), DEVE riclassificarle come RATEIZZAZIONE
+          dal modulo Spese Fisse, altrimenti gonfiano il P&L mensile. Marco
+          2026-05-16: "se la tassa è di quel mese dovrebbe essere inclusa,
+          TASSA è flag troppo grossolano". TODO v1.1: aggiungere flag
+          `e_pregresso` o `data_obbligazione_origine` su cg_spese_fisse per
+          distinguere pulitamente senza affidarsi all'etichetta `tipo`.
+        * AFFITTO/ASSICURAZIONE/ALTRO = costo del servizio erogato nel mese
+          (per assicurazioni annuali pagate intere, spalmatura mensile è
+          v2 — vedi roadmap G.3.2).
+
+    - In modalità **CASSA**: TUTTI i tipi inclusi (rate, mutui, tasse, ecc.).
+      La cassa è l'esborso reale del mese.
 
     Modalità COMPETENZA: filtra per cg_uscite.periodo_riferimento = YYYY-MM.
     """
-    rows = fc_conn.execute("""
-        SELECT
-            COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
-            COALESCE(fsub.nome, '—')                   AS sottocategoria,
-            COUNT(u.id)                                AS num_uscite,
-            COALESCE(SUM(u.totale), 0)                 AS importo
-        FROM cg_uscite u
-        LEFT JOIN cg_spese_fisse     sf   ON u.spesa_fissa_id     = sf.id
-        LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
-        LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
-        WHERE u.tipo_uscita = 'SPESA_FISSA'
-          AND u.periodo_riferimento = ?
-          AND COALESCE(sf.tipo, '') != 'STIPENDIO'
-        GROUP BY COALESCE(fcat.nome, 'Non categorizzato'),
-                 COALESCE(fsub.nome, '—')
-        ORDER BY importo DESC
-    """, (periodo_rif,)).fetchall()
+    # NB: PRESTITO+TASSA inclusi (competenza mensile generica).
+    # Per cartelle pregresse: riclassificare come RATEIZZAZIONE.
+    # TODO G.3.x: flag `e_pregresso` per distinzione pulita.
+    tipi_esclusi_competenza = ('STIPENDIO', 'RATEIZZAZIONE')
+    if modalita == "competenza":
+        # Escludi stipendi + rate/prestiti/tasse pregresse
+        placeholders = ','.join(['?'] * len(tipi_esclusi_competenza))
+        rows = fc_conn.execute(f"""
+            SELECT
+                COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
+                COALESCE(fsub.nome, '—')                   AS sottocategoria,
+                COUNT(u.id)                                AS num_uscite,
+                COALESCE(SUM(u.totale), 0)                 AS importo
+            FROM cg_uscite u
+            LEFT JOIN cg_spese_fisse     sf   ON u.spesa_fissa_id     = sf.id
+            LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
+            LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
+            WHERE u.tipo_uscita = 'SPESA_FISSA'
+              AND u.periodo_riferimento = ?
+              AND COALESCE(sf.tipo, '') NOT IN ({placeholders})
+            GROUP BY COALESCE(fcat.nome, 'Non categorizzato'),
+                     COALESCE(fsub.nome, '—')
+            ORDER BY importo DESC
+        """, (periodo_rif, *tipi_esclusi_competenza)).fetchall()
+    else:
+        # Modalità cassa: esclude solo stipendi (resto = esborso reale del mese)
+        rows = fc_conn.execute("""
+            SELECT
+                COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
+                COALESCE(fsub.nome, '—')                   AS sottocategoria,
+                COUNT(u.id)                                AS num_uscite,
+                COALESCE(SUM(u.totale), 0)                 AS importo
+            FROM cg_uscite u
+            LEFT JOIN cg_spese_fisse     sf   ON u.spesa_fissa_id     = sf.id
+            LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
+            LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
+            WHERE u.tipo_uscita = 'SPESA_FISSA'
+              AND u.periodo_riferimento = ?
+              AND COALESCE(sf.tipo, '') != 'STIPENDIO'
+            GROUP BY COALESCE(fcat.nome, 'Non categorizzato'),
+                     COALESCE(fsub.nome, '—')
+            ORDER BY importo DESC
+        """, (periodo_rif,)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -254,7 +309,11 @@ def compute_pl(
     fatture_count = sum(r["num_fatture"] for r in rows_fatture)
 
     # ─── 3. SPESE FISSE per categoria (da cg_uscite SPESA_FISSA) ───────
-    rows_spese_fisse = _aggregate_spese_fisse_per_categoria(fc_conn, periodo_rif)
+    # Modalita 'competenza' esclude RATEIZZAZIONE (obblighi pregressi).
+    # Modalita 'cassa' include tutto (esborso reale del mese).
+    rows_spese_fisse = _aggregate_spese_fisse_per_categoria(
+        fc_conn, periodo_rif, modalita=modalita
+    )
     spese_fisse_count = sum(r["num_uscite"] for r in rows_spese_fisse)
 
     # ─── 4. STIPENDI (cg_uscite STIPENDIO, fonte unica anti-doppio) ────
