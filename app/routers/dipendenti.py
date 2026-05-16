@@ -2458,22 +2458,51 @@ def download_documento(
 
 
 def _detect_pdf_type(content: bytes) -> str:
-    """Rileva se il PDF è LUL / ELAB / F24 dal contenuto della prima pagina.
+    """Rileva se il PDF è LUL / ELAB / F24 dal contenuto.
+    Scansiona FINO A 10 pagine (l'ELAB ha "COSTO CONSUNTIVO" in pagina 8).
     Ritorna 'ELAB' | 'F24' | 'LUL' | 'UNKNOWN'."""
+    # Keyword multi-pattern per riconoscimento robusto.
+    # ATTENZIONE: "FIL. DIPENDENTI" e "POSIZIONE INAIL" appaiono ANCHE nel
+    # LUL → NON usarle come marker ELAB (ambiguità).
+    # ELAB ha keyword univoche di pagine specifiche:
+    ELAB_KEYWORDS = (
+        "COSTO CONSUNTIVO",             # sezione pag.8 ELAB
+        "C O S T O",                    # idem, distanziato a lettere
+        "DATI USO AMMINISTRATIVO",      # pag.2 ELAB — assente nel LUL
+        "RIEPILOGO PAGHE E CONTRIBUTI", # pag.3+ ELAB — assente nel LUL
+        "R I E P I L O G O",            # idem, distanziato
+    )
+    F24_KEYWORDS = (
+        "MOD. F24",
+        "MODELLO DI PAGAMENTO",
+        "DELEGA IRREVOCABILE",
+        "SEZIONE ERARIO",               # presente solo in F24
+    )
+    # LUL: "MENSILITA'" è univoco (header tabella cedolino), così come
+    # "CARTEL." (cartellino unità produttiva).
+    LUL_KEYWORDS = (
+        "LIBRO UNICO",
+        "MENSILITA'",                   # header tab. cedolino LUL
+        "CARTEL.",                      # "CARTEL. UNITA' PRODUTTIVA"
+        "CEDOLINO",
+        "BUSTA PAGA",
+    )
     try:
         import pdfplumber
         import io
         with pdfplumber.open(io.BytesIO(content)) as pdf:
-            # Scansiona le prime 2-3 pagine per le keyword identificative
+            # Scansiona fino a 10 pagine (ELAB ha COSTO CONSUNTIVO in pag.8)
             sample_text = ""
-            for page in pdf.pages[:3]:
+            for page in pdf.pages[:10]:
                 sample_text += (page.extract_text() or "") + "\n"
             sample_upper = sample_text.upper()
-            if "COSTO CONSUNTIVO" in sample_upper or "C O S T O" in sample_upper:
-                return "ELAB"
-            if "MOD. F24" in sample_upper or "MODELLO DI PAGAMENTO" in sample_upper or "UNIFICATO" in sample_upper:
+            # F24 check PRIMA di ELAB: il template F24 contiene "SEZIONE ERARIO"
+            # che è una sezione vuota anche, ma il bollo "MOD. F24" è univoco.
+            if any(k in sample_upper for k in F24_KEYWORDS):
                 return "F24"
-            if "LIBRO UNICO" in sample_upper or "CEDOLINO" in sample_upper or "BUSTA PAGA" in sample_upper:
+            if any(k in sample_upper for k in ELAB_KEYWORDS):
+                return "ELAB"
+            if any(k in sample_upper for k in LUL_KEYWORDS):
                 return "LUL"
         return "UNKNOWN"
     except Exception:
