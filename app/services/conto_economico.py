@@ -110,7 +110,9 @@ def _aggregate_fatture_per_categoria(
         WHERE f.data_fattura >= ? AND f.data_fattura < ?
           AND COALESCE(f.is_autofattura, 0) = 0
           AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
-          AND COALESCE(f.escluso_acquisti, 0) = 0
+          -- escluso_acquisti vive su fe_fornitore_categoria (CLAUDE.md regola critica),
+          -- NON su fe_fatture. Bug fix 2026-05-16 (Marco "load failed" CE).
+          AND COALESCE(ffc.escluso_acquisti, 0) = 0
         GROUP BY COALESCE(fcat.nome, 'Non categorizzato'),
                  COALESCE(fsub.nome, '—')
         ORDER BY importo DESC

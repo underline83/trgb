@@ -376,3 +376,210 @@ def dashboard(current_user: Any = Depends(get_current_user)):
             for r in riepilogo
         ],
     }
+
+
+# ============================================================
+# SCHEDA MADRE — endpoint aggregati per la SchedaMadreV2 (Fase 8 step 4)
+# ============================================================
+
+@router.get("/madre/{mid}/movimenti", summary="Movimenti aggregati di tutte le annate del madre")
+def list_movimenti_madre(
+    mid: int,
+    limit: int = Query(500, ge=1, le=5000),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Tutti i movimenti delle bottiglie collegate al madre, ordinati per data DESC.
+    Include l'ANNATA della bottiglia per distinguere quale annata ha generato il movimento.
+    """
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    # Verifica esistenza madre
+    if not cur.execute(
+        f"SELECT id FROM {TABELLE['madre']} WHERE id = ?", (mid,)
+    ).fetchone():
+        conn.close()
+        raise HTTPException(404, "Vino madre non trovato")
+
+    # Trova bottiglie del madre
+    bottiglie_ids = [
+        r[0] for r in cur.execute(
+            f"SELECT id FROM {TABELLE['bottiglie']} WHERE madre_id = ?", (mid,)
+        ).fetchall()
+    ]
+    if not bottiglie_ids:
+        conn.close()
+        return []
+
+    placeholders = ",".join(["?"] * len(bottiglie_ids))
+    rows = cur.execute(
+        f"""
+        SELECT m.*, b.ANNATA, b.FORMATO
+        FROM vini_magazzino_movimenti m
+        LEFT JOIN {TABELLE['bottiglie']} b ON b.id = m.vino_id
+        WHERE m.vino_id IN ({placeholders})
+        ORDER BY datetime(m.data_mov) DESC, m.id DESC
+        LIMIT ?
+        """,
+        bottiglie_ids + [limit],
+    ).fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
+
+
+@router.get("/madre/{mid}/stats", summary="Statistiche aggregate del vino madre")
+def stats_madre(mid: int, current_user: Any = Depends(get_current_user)):
+    """
+    KPI aggregati per il vino madre:
+      - grado_alcolico_medio (media dei GRADO_ALCOLICO delle annate)
+      - vendite_totali (somma qta VENDITA su tutto lo storico)
+      - ricavo_totale (somma qta * prezzo_carta delle vendite)
+      - bt_mese_medio (vendite ultimi 60gg / 2)
+      - prima_vendita / ultima_vendita
+      - valore_carta_attuale (somma prezzo * qta delle annate in cantina)
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    # Verifica esistenza madre
+    if not cur.execute(
+        f"SELECT id FROM {TABELLE['madre']} WHERE id = ?", (mid,)
+    ).fetchone():
+        conn.close()
+        raise HTTPException(404, "Vino madre non trovato")
+
+    # Grado alcolico medio (sulle annate che hanno il dato)
+    grado = cur.execute(
+        f"""
+        SELECT AVG(CAST(GRADO_ALCOLICO AS REAL))
+        FROM {TABELLE['bottiglie']}
+        WHERE madre_id = ?
+          AND GRADO_ALCOLICO IS NOT NULL
+          AND GRADO_ALCOLICO != ''
+          AND CAST(GRADO_ALCOLICO AS REAL) > 0
+        """,
+        (mid,),
+    ).fetchone()[0]
+
+    # Bottiglie del madre
+    bottiglie_ids = [
+        r[0] for r in cur.execute(
+            f"SELECT id FROM {TABELLE['bottiglie']} WHERE madre_id = ?", (mid,)
+        ).fetchall()
+    ]
+
+    vendite_totali = 0
+    ricavo_totale = 0.0
+    bt_60gg = 0
+    prima_vendita = None
+    ultima_vendita = None
+    if bottiglie_ids:
+        placeholders = ",".join(["?"] * len(bottiglie_ids))
+        # Vendite totali (qta + ricavo stimato via prezzo_unitario o prezzo_carta)
+        r = cur.execute(
+            f"""
+            SELECT COALESCE(SUM(qta), 0) AS qta_tot,
+                   COALESCE(SUM(qta * COALESCE(prezzo_unitario, 0)), 0) AS ricavo,
+                   MIN(data_mov) AS prima,
+                   MAX(data_mov) AS ultima
+            FROM vini_magazzino_movimenti
+            WHERE vino_id IN ({placeholders}) AND tipo = 'VENDITA'
+            """,
+            bottiglie_ids,
+        ).fetchone()
+        vendite_totali = r[0] or 0
+        ricavo_totale = r[1] or 0.0
+        prima_vendita = r[2]
+        ultima_vendita = r[3]
+        # Vendite ultimi 60gg
+        bt_60gg = cur.execute(
+            f"""
+            SELECT COALESCE(SUM(qta), 0)
+            FROM vini_magazzino_movimenti
+            WHERE vino_id IN ({placeholders}) AND tipo = 'VENDITA'
+              AND date(data_mov) >= date('now', '-60 days')
+            """,
+            bottiglie_ids,
+        ).fetchone()[0]
+
+    # Valore carta attuale (somma prezzo * qta delle annate con giacenza)
+    valore_carta = cur.execute(
+        f"""
+        SELECT COALESCE(SUM(
+            CASE WHEN COALESCE(QTA_TOTALE,0) > 0 AND PREZZO_CARTA IS NOT NULL
+                 THEN PREZZO_CARTA * QTA_TOTALE ELSE 0 END), 0)
+        FROM {TABELLE['bottiglie']}
+        WHERE madre_id = ?
+        """,
+        (mid,),
+    ).fetchone()[0]
+
+    conn.close()
+    return {
+        "grado_alcolico_medio": round(grado, 1) if grado else None,
+        "vendite_totali": vendite_totali,
+        "ricavo_totale": round(ricavo_totale, 2),
+        "bt_60gg": bt_60gg,
+        "bt_mese_medio": round(bt_60gg / 2, 1),  # 60gg = ~2 mesi
+        "prima_vendita": prima_vendita,
+        "ultima_vendita": ultima_vendita,
+        "valore_carta_attuale": round(valore_carta, 2),
+    }
+
+
+@router.get("/madre/{mid}/prezzi-storico", summary="Storico prezzi cumulativo delle annate del madre")
+def prezzi_storico_madre(mid: int, current_user: Any = Depends(get_current_user)):
+    """
+    Per ogni annata del madre, lo storico prezzi (da `vini_prezzi_storico` se esiste).
+    Restituisce array di { bottiglia_id, annata, formato, storico: [...] }.
+    """
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    # Verifica esistenza madre
+    if not cur.execute(
+        f"SELECT id FROM {TABELLE['madre']} WHERE id = ?", (mid,)
+    ).fetchone():
+        conn.close()
+        raise HTTPException(404, "Vino madre non trovato")
+
+    # Esiste la tabella vini_prezzi_storico?
+    has_storico = cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='vini_prezzi_storico'"
+    ).fetchone() is not None
+
+    bottiglie = cur.execute(
+        f"""
+        SELECT id, ANNATA, FORMATO, PREZZO_CARTA, EURO_LISTINO, SCONTO, PREZZO_CALICE,
+               PREZZO_CALICE_MANUALE, NOTE_PREZZO
+        FROM {TABELLE['bottiglie']}
+        WHERE madre_id = ?
+        ORDER BY ANNATA DESC
+        """,
+        (mid,),
+    ).fetchall()
+
+    out = []
+    for b in bottiglie:
+        bd = _row_to_dict(b)
+        if has_storico:
+            storico = cur.execute(
+                """
+                SELECT data_modifica, prezzo_carta_vecchio, prezzo_carta_nuovo,
+                       euro_listino_vecchio, euro_listino_nuovo
+                FROM vini_prezzi_storico
+                WHERE vino_id = ?
+                ORDER BY data_modifica DESC
+                """,
+                (bd["id"],),
+            ).fetchall()
+            bd["storico"] = [_row_to_dict(s) for s in storico]
+        else:
+            bd["storico"] = []
+        out.append(bd)
+
+    conn.close()
+    return out
