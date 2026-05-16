@@ -44,6 +44,34 @@
 
 ---
 
+## 2026-05-16 — G.3 Fase E (E.5 + E.6): refactor service CE + tipo F24_STIPENDI
+
+### Aggiunto
+- **Tipo `F24_STIPENDI` su `cg_spese_fisse`** `[core]`. Quando Marco inserirà un F24 stipendi come spesa fissa generica (es. per memo cassa), si marca con questo tipo. **Competenza**: escluso dal CE (il costo è già nel `costo_aziendale_totale` via ELAB → no doppio conteggio). **Cassa**: incluso come esborso reale del mese (16 del mese successivo). Replica lo stesso pattern di `RATEIZZAZIONE_TASSE`: voce 📋 grigio acciaio in `ControlloGestioneSpeseFisse.jsx` TIPI + filtro "F24 stipendi" in `BancaCrossRef.jsx` + backend router (`_sf_tipo_labels` / `TIPO_SPESA` / `VALID_TIPI`) + `conto_economico.py` `tipi_esclusi_competenza`.
+- **Endpoint CE ora apre dip_conn** `[core]`. `controllo_gestione_router.py`: nuova helper `get_dipendenti_db()` che apre `locali/<tenant>/data/dipendenti.sqlite3` con graceful fallback a `None` se il file non esiste (ambiente legacy). L'endpoint `GET /conto-economico` passa la connessione a `compute_pl`.
+- **Tipo riga `costo_consuntivo` nel drill-down CE** `[core]`. `ControlloGestioneContoEconomico.jsx` v1.2: nuovo badge viola "Costo azienda" sotto STAFF. Deep-link su `/dipendenti/buste-paga` (futuro E.8 → vista "Costi mensili").
+
+### Cambiato
+- **`_aggregate_stipendi` riscritto con dual-mode** `[core]`. `app/services/conto_economico.py`: nuova firma `(fc_conn, periodo_rif, dip_conn=None, anno=None, mese=None)` che ritorna `(righe, meta)`. Logica:
+  1. Se `dip_conn` aperta + tabella `dipendenti_costo_consuntivo` presente + ci sono record per `(anno, mese)` → modalità **"completo"**: legge il costo aziendale vero (lordo + carico ditta + ratei + TFR per ogni dipendente, + riga sintetica `AZIENDA` per INAIL).
+  2. Altrimenti → modalità **"netti_fallback"**: legge i netti bonificati da `cg_uscite STIPENDIO` come pre-Fase E + warning "costo personale parziale".
+  Output: `_meta.costo_personale.modalita` = `"completo"` | `"netti_fallback"`, usato dal frontend per nascondere/mostrare il warning banner.
+- **Warning banner CE diventato condizionato** `[core]`. `ControlloGestioneContoEconomico.jsx`: prima era hard-coded sempre visibile. Ora si mostra solo se `data._meta.costo_personale.modalita === "netti_fallback"`. Per i mesi importati da ELAB sparisce automaticamente.
+- **`compute_pl` accetta `dip_conn`** `[core]`. Nuovo parametro opzionale per la connessione `dipendenti.sqlite3`. Backward compatible (default `None` → comportamento pre-Fase E identico).
+
+### Verifiche
+- py_compile pulito su conto_economico, controllo_gestione_router.
+- Test 1 — `dip_conn=None`: STAFF 12.140 (= netti), utile 6.797 (13,9%), warning attivo. Identico a oggi ✓.
+- Test 2 — `dip_conn` ma tabella vuota: idem fallback netti. Codice di check `count(*) WHERE anno=? AND mese=?` ✓.
+- Test 3 — dati ELAB Aprile simulati (10 dipendenti + INAIL azienda): STAFF 20.581,02 = 20.488,88 (somma dipendenti) + 92,14 (INAIL) → esatto al centesimo vs PDF. Utile netto -1.643,62 (-3,4%) — perdita reale rivelata. Drill-down 11 righe split (10 STIPENDI + 1 INAIL). Warning costo personale sparito ✓.
+
+### Prossimo (G.3 Fase E parte 2/2 continua)
+- E.4: UI Dipendenti "Carica buste paga del mese" (dropzone 3 file LUL+ELAB+F24)
+- E.7: mig 133 import retro gen-apr 2026 dai 8 PDF archiviati (4 ELAB + 4 F24)
+- E.8: tab "Costi mensili" in Dipendenti
+
+---
+
 ## 2026-05-16 — G.3 Fase E (parte 1/2): schema DB + parser ELAB + parser F24
 
 ### Aggiunto

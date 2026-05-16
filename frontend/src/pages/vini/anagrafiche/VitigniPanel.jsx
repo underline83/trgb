@@ -17,31 +17,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE, apiFetch } from "../../../config/api";
 import SchedaMadreV2 from "../../../components/vini/SchedaMadreV2";
-
-function sortRows(rows, key, dir) {
-  const m = dir === "desc" ? -1 : 1;
-  return [...rows].sort((a, b) => {
-    const av = a?.[key], bv = b?.[key];
-    if (av == null && bv == null) return 0;
-    if (av == null) return 1;
-    if (bv == null) return -1;
-    if (typeof av === "number" && typeof bv === "number") return (av - bv) * m;
-    return String(av).localeCompare(String(bv), "it") * m;
-  });
-}
-function SortTh({ label, sortKey, sort, setSort, className = "", align = "left" }) {
-  const active = sort.key === sortKey;
-  const dir = active ? sort.dir : null;
-  return (
-    <th onClick={() => setSort({ key: sortKey, dir: active && dir === "asc" ? "desc" : "asc" })}
-        className={`px-3 py-2 text-${align} cursor-pointer select-none hover:bg-neutral-100 transition ${className}`}>
-      <span className="inline-flex items-center gap-1">
-        {label}
-        <span className="text-[9px] text-neutral-400">{active ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
-      </span>
-    </th>
-  );
-}
+// SchedaMadreV2 importato per coerenza con gli altri panel; non usato qui perché
+// /vini/v2/madri-raggruppate non filtra per vitigno_id (UNION sui 5 slot servirebbe).
+// eslint-disable-next-line no-unused-vars
+const _SchedaMadreV2Ref = SchedaMadreV2;
+// M2.5.5: helper condivisi.
+import { sortRows, SortTh } from "../../../utils/vini/sortableTable";
+import MergeAnagraficaModal from "../../../components/vini/MergeAnagraficaModal";
 
 export default function VitigniPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
@@ -226,8 +208,18 @@ export default function VitigniPanel() {
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />
       )}
       {merging && canEdit && (
-        <MergeVitigniModal source={merging} candidates={items.filter(v => v.id !== merging.id)}
-          onClose={() => setMerging(null)} onDone={() => { setMerging(null); reload(); }} />
+        <MergeAnagraficaModal
+          kind="vitigni"
+          palette="emerald"
+          source={merging}
+          candidates={items.filter(v => v.id !== merging.id)}
+          countField="n_bottiglie"
+          countLabel="bottiglie"
+          reportField="n_bottiglie_modificate"
+          reportLabel="righe slot vitigno aggiornate"
+          onClose={() => setMerging(null)}
+          onDone={() => { setMerging(null); reload(); }}
+        />
       )}
     </div>
   );
@@ -403,126 +395,4 @@ function VitignoEditModal({ item, isNew, onClose, onSaved }) {
 }
 
 
-// ════════════════════════════════════════════════════════════════
-// MODALE MERGE VITIGNI
-// ════════════════════════════════════════════════════════════════
-function MergeVitigniModal({ source, candidates, onClose, onDone }) {
-  const [search, setSearch] = useState("");
-  const [targetId, setTargetId] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const arr = q ? candidates.filter(c => (c.nome || "").toLowerCase().includes(q)) : candidates;
-    return arr.slice(0, 50);
-  }, [search, candidates]);
-  const target = candidates.find(c => c.id === targetId) || null;
-
-  const doMerge = async () => {
-    if (!target) return;
-    if (!window.confirm(
-      `Confermare il merge?\n\n` +
-      `SORGENTE: #${source.id} ${source.nome} (${source.n_bottiglie || 0} bottiglie)\n` +
-      `DESTINAZIONE: #${target.id} ${target.nome}\n\n` +
-      `Tutti gli slot vitigno che usano la sorgente passeranno alla destinazione. ` +
-      `La sorgente verrà ELIMINATA. Le percentuali NON vengono ridistribuite automaticamente.\n` +
-      `Irreversibile.`
-    )) return;
-    setBusy(true); setError("");
-    try {
-      const url = `${API_BASE}/vini/anagrafiche/vitigni/${source.id}/merge?target_id=${target.id}`;
-      const r = await apiFetch(url, { method: "POST" });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({ detail: r.statusText }));
-        throw new Error(err.detail || "errore");
-      }
-      const report = await r.json();
-      alert(`✓ Merge completato.\n${report.n_bottiglie_modificate} righe slot vitigno aggiornate.`);
-      onDone();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-emerald-200 bg-gradient-to-r from-emerald-50 to-white">
-          <h3 className="text-base font-bold text-emerald-900">🔀 Fondi vitigno</h3>
-          <p className="text-xs text-neutral-600 mt-1">
-            Sostituisce il vitigno sorgente con quello di destinazione su tutti i 5 slot di tutte le bottiglie.
-            Tipico: "nebbiolo" minuscolo + "Nebbiolo" canonico → fondi.
-          </p>
-        </div>
-        <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-neutral-200 bg-neutral-50">
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-rose-700 font-semibold">Sorgente (sarà eliminata)</div>
-            <div className="text-sm font-bold text-neutral-900">#{source.id} {source.nome}</div>
-            <div className="text-xs text-neutral-600 mt-0.5"><strong>{source.n_bottiglie || 0}</strong> bottiglie</div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">Destinazione</div>
-            {target ? (
-              <>
-                <div className="text-sm font-bold text-neutral-900">#{target.id} {target.nome}</div>
-                <div className="text-xs text-neutral-600 mt-0.5"><strong>{target.n_bottiglie || 0}</strong> bottiglie</div>
-              </>
-            ) : (
-              <div className="text-sm text-neutral-400 italic">— seleziona dalla lista —</div>
-            )}
-          </div>
-        </div>
-        <div className="px-5 py-2 border-b border-neutral-200">
-          <input type="text" placeholder="Cerca destinazione…"
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-        </div>
-        <div className="flex-1 overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider text-neutral-600 sticky top-0">
-              <tr>
-                <th className="px-3 py-1.5 text-left w-10"></th>
-                <th className="px-3 py-1.5 text-left w-12">ID</th>
-                <th className="px-3 py-1.5 text-left">Nome</th>
-                <th className="px-3 py-1.5 text-right">Btg</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c.id}
-                    className={`border-t border-neutral-100 cursor-pointer transition ${
-                      c.id === targetId ? "bg-emerald-50" : "hover:bg-neutral-50"
-                    }`}
-                    onClick={() => setTargetId(c.id)}>
-                  <td className="px-3 py-1 text-center">
-                    <input type="radio" checked={c.id === targetId} onChange={() => setTargetId(c.id)} />
-                  </td>
-                  <td className="px-3 py-1 font-mono text-[11px] text-neutral-500">{c.id}</td>
-                  <td className="px-3 py-1 font-semibold">{c.nome}</td>
-                  <td className="px-3 py-1 text-right tabular-nums">{c.n_bottiglie || 0}</td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={4} className="px-3 py-6 text-center text-neutral-500 text-xs">Nessun candidato. Affina la ricerca.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {error && <div className="px-5 py-2 text-xs text-red-700 bg-red-50 border-t border-red-200">{error}</div>}
-        <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2">
-          <button onClick={onClose} disabled={busy}
-            className="px-4 py-1.5 rounded-lg border border-neutral-300 text-sm hover:bg-neutral-50 disabled:opacity-40">
-            Annulla
-          </button>
-          <button onClick={doMerge} disabled={!target || busy}
-            className="px-5 py-1.5 rounded-lg bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-40">
-            {busy ? "Merge in corso…" : `Fondi → #${target?.id || "?"}`}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// M2.5.5: MergeVitigniModal sostituito da MergeAnagraficaModal generico.
