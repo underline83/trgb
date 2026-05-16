@@ -1,6 +1,51 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-16 — G.3 Fase D Conto Economico fix cascata (drill-down righe + % sui ricavi + RATEIZZAZIONE_TASSE + aggregazione per RIGA con fallback) + Piano G.3 Fase E (costo personale completo via ELAB+F24) + lato Vini: M2.4-5 prezzo_unitario snapshot (mig 129) + M2.5-arch nav refactor (Cantina 2 + nuovo tab 📚 Anagrafiche) + SchedaMadreV2 full-frame inline + M2.5.1 Produttori pannello dedicato. Versione modulo vini 3.28 → 3.30.
+**Ultimo aggiornamento:** 2026-05-16 — **G.3 Fase E parte 1/2**: schema DB costo personale (mig 132 — `dipendenti_costo_consuntivo` + `f24_versamenti`) + parser ELAB pdf + parser F24 pdf — testati su PDF reali Aprile 2026 con saldi al centesimo. + G.3 Fase D Conto Economico fix cascata (drill-down righe + % sui ricavi + RATEIZZAZIONE_TASSE + aggregazione per RIGA con fallback). + lato Vini: M2.4-5 prezzo_unitario snapshot + M2.5-arch nav refactor + SchedaMadreV2 full-frame + M2.5.1 Produttori + M2.5.2 Distributori/Denominazioni. Versione modulo vini 3.28 → 3.30.
+
+## SESSIONE 2026-05-16 — G.3 Fase E parte 1/2: schema DB + parser PDF
+
+### Sintesi
+Marco ha fornito 3 PDF mensili campione del consulente paghe (LUL già importato, ELAB e F24 nuovi). Confermato: solo il netto bonificato in `cg_uscite` non basta — il costo aziendale vero (lordo + carico ditta INPS + ratei 13ª/14ª/ferie + TFR + INAIL) sta nell'ELAB pagina 8 "COSTO CONSUNTIVO". Per Aprile 2026: netto bonificato € 12.140 vs costo vero € 20.489 → utile sovrastimato di € 8.349/mese.
+
+Sessione dedicata a porre le fondamenta: schema DB + parser PDF. Niente UI / niente refactor del service CE: rimandati a sessione successiva. Tutto a basso impatto sul sistema in produzione (tabelle nuove vuote, parser non chiamati da nessun endpoint).
+
+### Fatto
+- **Mig 132** `[core]` — `app/migrations/132_g3_fase_e_costo_personale.py`. Crea tabella `dipendenti_costo_consuntivo` in dipendenti.sqlite3 (21 colonne) e `f24_versamenti` in foodcost.db (25 colonne). UNIQUE su (anno, mese, dipendente) e (anno, mese, matricola) per anti-doppio. 5 indici sul costo, 6 sul F24 (compresi raggruppamento, banca_movimento_id, hash). Pattern cross-DB via PRAGMA database_list (riusato dalla mig 060). Idempotente.
+- **Parser ELAB** `[core]` — `app/services/elab_parser.py`. Estrae:
+  - meta: anno/mese (da titolo "DAL MESE DI X Y"), azienda (codice + ragione sociale), sha256 del PDF
+  - 10 dipendenti con dettaglio costo (matricola, nome, ore, lordo, contributi, straord, ratei, TFR, totale)
+  - riga "T O T A L I AZIENDA" come totale aggregato
+  - INAIL del mese (pagina 2 sezione POSIZIONE INAIL → tot 92,14€ Aprile)
+  - lista warnings su righe parziali/totali mancanti
+  Test 3GOBBI_ELAB_4.pdf: 10 dipendenti + totale azienda € 20.488,88 = somma costo dipendenti, ZERO discrepanza.
+- **Parser F24** `[core]` — `app/services/f24_parser.py`. Multi-pagina (ogni pagina = una delega F24 separata). Riconosce 5 sezioni (Erario / INPS / Regioni / IMU+Tributi Locali / INAIL) tramite regex specifiche. Codici tributo mappati con descrizione human-readable. Formato importi Entratel "compresso" (rimuovi punti, dividi per 100). `CODICI_CREDITO` whitelist (1704, 6781) per riconoscere compensazioni come crediti anche senza segno "-" esplicito. Test 3GOBBI_F24_4.pdf: 3 deleghe, saldi 90,00 / 5.483,90 / 0,00 = saldi PDF attesi al centesimo.
+
+### Decisioni di design
+- **Tabella `dipendenti_costo_consuntivo` in dipendenti.sqlite3** (non in foodcost.db). Coerente con disciplina modulare (CLAUDE.md): prefisso `dipendenti_*`. Il CE leggerà via apertura connection separata (pattern già esistente per vendite_conn).
+- **Tabella `f24_versamenti` in foodcost.db**. Cross-modulo: collegata a CE (cassa) e banca_movimenti (riconciliazione). Non solo dipendenti.
+- **Anti-doppio import** via campo `fonte_hash` (sha256 del PDF) — se stesso file ricaricato, l'import lato app skip-pa.
+- **Match dipendente_id best-effort**: la tabella ha sia `matricola` (chiave certa) sia `dipendente_id` (FK soft, NULL ammesso). L'import del PDF associa matricola → dipendente_id via lookup nome.
+- **Whitelist codici credito F24**: codici 1704 e 6781 sono SEMPRE crediti (compensazioni). Altri codici Erario (1001, 1040, 1075) sono SEMPRE debiti. Eventuali futuri segni espliciti "-" continuano a essere riconosciuti.
+
+### Verifiche
+- py_compile pulito su mig 132, elab_parser, f24_parser.
+- Mig 132 testata in sandbox `/tmp/mig132_test/`: tabelle create con 21 + 25 colonne, 5 + 6 indici. Re-run senza errori (CREATE IF NOT EXISTS).
+- Parser ELAB Aprile 2026: 10 dipendenti, INAIL 92,14€, totale azienda 20.488,88€. Somma dei `costo_totale` per dipendente coincide con `totale_azienda` al centesimo.
+- Parser F24 Aprile 2026: 3 deleghe con saldi 90,00 + 5.483,90 + 0,00. Compensazioni 6781 (375,86€ credito) e 1704 (1.237,42€ credito su 4 mesi) riconosciute. 16 righe estratte totali (Erario + INPS + Regioni + 4 comuni + INAIL).
+
+### File toccati (commit pendente)
+- Backend nuovo: `app/migrations/132_g3_fase_e_costo_personale.py`, `app/services/elab_parser.py`, `app/services/f24_parser.py`
+- Docs: `docs/changelog.md`, `docs/sessione.md`, `docs/roadmap.md` (già aggiornata in commit precedente)
+
+### Prossima sessione (G.3 Fase E parte 2/2)
+- E.4: UI Dipendenti "Carica buste paga del mese" — dropzone per i 3 file LUL+ELAB+F24
+- E.5: refactor `_aggregate_stipendi` in `conto_economico.py` (legge da `dipendenti_costo_consuntivo` se mese presente, fallback netti)
+- E.6: nuovo tipo `F24_STIPENDI` in `cg_spese_fisse` (anti-doppio competenza vs cassa)
+- E.7: mig 133 retro import gen-apr 2026 dagli 8 PDF archiviati (4 ELAB + 4 F24)
+- E.8: tab "Costi mensili" in Dipendenti — vista per consultare costo aziendale per mese
+- E.9: rimozione warning banner CE "costo personale parziale" — solo dopo verifica Marco
+
+---
 
 ## SESSIONE 2026-05-16 — G.3 Conto Economico Fase D (cascata fix) + bug aggregazione
 

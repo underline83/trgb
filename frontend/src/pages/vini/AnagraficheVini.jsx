@@ -15,10 +15,41 @@
 //
 // Vedi `docs/refactor_anagrafiche_vini.md` per il design completo.
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 // M2.5.1 (2026-05-16): pannello Produttori dedicato (counts + merge + ricerca)
 import ProduttoriPanel from "./anagrafiche/ProduttoriPanel";
+// M2.5.2 (2026-05-16): pannello Distributori dedicato + drill-down su tutti i panel
+import DistributoriPanel from "./anagrafiche/DistributoriPanel";
+import SchedaMadreV2 from "../../components/vini/SchedaMadreV2";
+
+// Helper sort condiviso (interno al file).
+function sortRowsLocal(rows, key, dir) {
+  const m = dir === "desc" ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const av = a?.[key], bv = b?.[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * m;
+    return String(av).localeCompare(String(bv), "it") * m;
+  });
+}
+function SortThLocal({ label, sortKey, sort, setSort, className = "", align = "left" }) {
+  const active = sort.key === sortKey;
+  const dir = active ? sort.dir : null;
+  return (
+    <th
+      onClick={() => setSort({ key: sortKey, dir: active && dir === "asc" ? "desc" : "asc" })}
+      className={`px-3 py-2 text-${align} cursor-pointer select-none hover:bg-neutral-100 transition ${className}`}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className="text-[9px] text-neutral-400">{active ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
+      </span>
+    </th>
+  );
+}
 
 // Sotto-tab Anagrafiche.
 // NB: "fornitori" è il nome backend storico della tabella (vini_fornitori_v2),
@@ -76,7 +107,7 @@ export default function AnagraficheVini() {
             con counts/merge/ricerca. Gli altri sotto-tab verranno rilavorati uno alla volta
             (M2.5.2 Distributori, M2.5.3 Denominazioni, M2.5.4 Vitigni). */}
         {tab === "produttori"    && <ProduttoriPanel />}
-        {tab === "fornitori"     && <CrudList kind="fornitori"     fields={FORNITORE_FIELDS}     titleSing="Distributore"  titlePl="Distributori"  />}
+        {tab === "fornitori"     && <DistributoriPanel />}
         {tab === "denominazioni" && <DenominazioniPanel />}
         {tab === "vitigni"       && <CrudList kind="vitigni"       fields={VITIGNO_FIELDS}       titleSing="Vitigno"       titlePl="Vitigni"       />}
         {tab === "madre"         && <MadrePanel />}
@@ -273,47 +304,8 @@ function CrudList({ kind, fields, titleSing, titlePl }) {
 
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-sm text-red-700">{error}</div>}
 
-      <div className="border border-neutral-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-600">
-            <tr>
-              <th className="px-3 py-2 text-left">ID</th>
-              {fields.map(f => (
-                <th key={f.key} className="px-3 py-2 text-left">{f.label}</th>
-              ))}
-              <th className="px-3 py-2 text-right">Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={fields.length + 2} className="px-3 py-6 text-center text-neutral-500">Carico…</td></tr>
-            )}
-            {!loading && items.length === 0 && (
-              <tr><td colSpan={fields.length + 2} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>
-            )}
-            {!loading && items.map(item => (
-              <tr key={item.id} className="border-t border-neutral-100 hover:bg-neutral-50">
-                <td className="px-3 py-2 font-mono text-xs text-neutral-500">{item.id}</td>
-                {fields.map(f => (
-                  <td key={f.key} className="px-3 py-2">
-                    {String(item[f.key] ?? "")}
-                  </td>
-                ))}
-                <td className="px-3 py-2 text-right space-x-1">
-                  <button onClick={() => setEditing(item)}
-                    className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100">
-                    ✏️
-                  </button>
-                  <button onClick={() => handleDelete(item)}
-                    className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50">
-                    🗑
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <CrudListTable items={items} fields={fields} loading={loading}
+        onEdit={setEditing} onDelete={handleDelete} />
 
       {editing && (
         <EditModal
@@ -325,6 +317,55 @@ function CrudList({ kind, fields, titleSing, titlePl }) {
           onClose={() => setEditing(null)}
         />
       )}
+    </div>
+  );
+}
+
+// Tabella CrudList separata per gestire lo stato di ordinamento isolato (M2.5.2).
+function CrudListTable({ items, fields, loading, onEdit, onDelete }) {
+  const [sort, setSort] = useState({ key: fields[0]?.key || "id", dir: "asc" });
+  const sorted = useMemo(() => sortRowsLocal(items, sort.key, sort.dir), [items, sort]);
+  return (
+    <div className="border border-neutral-200 rounded-xl overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-600">
+          <tr>
+            <SortThLocal label="ID" sortKey="id" sort={sort} setSort={setSort} className="w-12" />
+            {fields.map(f => (
+              <SortThLocal key={f.key} label={f.label} sortKey={f.key} sort={sort} setSort={setSort} />
+            ))}
+            <th className="px-3 py-2 text-right">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && (
+            <tr><td colSpan={fields.length + 2} className="px-3 py-6 text-center text-neutral-500">Carico…</td></tr>
+          )}
+          {!loading && sorted.length === 0 && (
+            <tr><td colSpan={fields.length + 2} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>
+          )}
+          {!loading && sorted.map(item => (
+            <tr key={item.id} className="border-t border-neutral-100 hover:bg-neutral-50">
+              <td className="px-3 py-2 font-mono text-xs text-neutral-500">{item.id}</td>
+              {fields.map(f => (
+                <td key={f.key} className="px-3 py-2">
+                  {String(item[f.key] ?? "")}
+                </td>
+              ))}
+              <td className="px-3 py-2 text-right space-x-1">
+                <button onClick={() => onEdit(item)}
+                  className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100">
+                  ✏️
+                </button>
+                <button onClick={() => onDelete(item)}
+                  className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50">
+                  🗑
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -526,26 +567,60 @@ function DenominazioniPanel() {
         <span className="text-xs text-neutral-500">{items.length} risultati</span>
       </div>
 
+      <DenominazioniTable items={items} loading={loading} />
+    </div>
+  );
+}
+
+// Sotto-componente: tabella denominazioni con ordinamento + drill-down vini.
+function DenominazioniTable({ items, loading }) {
+  const [sort, setSort] = useState({ key: "nome", dir: "asc" });
+  // Aggiunta campo display per ordinare per "Display canonico" (nome + tipo).
+  const itemsWithDisplay = useMemo(
+    () => items.map(d => ({ ...d, _display: `${d.nome || ""} ${d.tipo || ""}`.trim() })),
+    [items]
+  );
+  const sorted = useMemo(() => sortRowsLocal(itemsWithDisplay, sort.key, sort.dir), [itemsWithDisplay, sort]);
+  const [detail, setDetail] = useState(null);
+
+  const openDetail = async (did) => {
+    try {
+      const [rDet, rMadri] = await Promise.all([
+        apiFetch(`${API_BASE}/vini/anagrafiche/denominazioni/${did}?with_madri=true`),
+        apiFetch(`${API_BASE}/vini/v2/madri-raggruppate/?denominazione_id=${did}`),
+      ]);
+      if (!rDet.ok) throw new Error(`HTTP ${rDet.status}`);
+      const det = await rDet.json();
+      det._madri_complete = rMadri.ok ? await rMadri.json() : [];
+      setDetail(det);
+    } catch (e) {
+      alert(`Errore: ${e.message}`);
+    }
+  };
+
+  return (
+    <>
       <div className="border border-neutral-200 rounded-xl overflow-hidden max-h-[60vh] overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-600 sticky top-0">
+          <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-600 sticky top-0 z-10">
             <tr>
-              <th className="px-3 py-2 text-left">ID</th>
-              <th className="px-3 py-2 text-left">Codice eAmbrosia</th>
-              <th className="px-3 py-2 text-left">Display canonico</th>
-              <th className="px-3 py-2 text-left">Nazione</th>
-              <th className="px-3 py-2 text-left">Regione</th>
-              <th className="px-3 py-2 text-left">Source</th>
+              <th className="px-3 py-2 text-left w-12">ID</th>
+              <SortThLocal label="Codice eAmbrosia" sortKey="codice_eambrosia" sort={sort} setSort={setSort} />
+              <SortThLocal label="Display canonico" sortKey="_display"         sort={sort} setSort={setSort} />
+              <SortThLocal label="Nazione"          sortKey="nazione"          sort={sort} setSort={setSort} />
+              <SortThLocal label="Regione"          sortKey="regione"          sort={sort} setSort={setSort} />
+              <SortThLocal label="Source"           sortKey="source"           sort={sort} setSort={setSort} />
             </tr>
           </thead>
           <tbody>
             {loading && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Carico…</td></tr>}
-            {!loading && items.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>}
-            {!loading && items.map(d => (
-              <tr key={d.id} className="border-t border-neutral-100 hover:bg-neutral-50">
+            {!loading && sorted.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>}
+            {!loading && sorted.map(d => (
+              <tr key={d.id} className="border-t border-neutral-100 hover:bg-violet-50 cursor-pointer transition"
+                  onClick={() => openDetail(d.id)} title="Apri lista vini con questa denominazione">
                 <td className="px-3 py-1.5 font-mono text-xs text-neutral-500">{d.id}</td>
                 <td className="px-3 py-1.5 font-mono text-xs">{d.codice_eambrosia || "—"}</td>
-                <td className="px-3 py-1.5 font-semibold">{d.nome} {d.tipo}</td>
+                <td className="px-3 py-1.5 font-semibold text-violet-900 hover:underline">{d.nome} {d.tipo}</td>
                 <td className="px-3 py-1.5">{d.nazione}</td>
                 <td className="px-3 py-1.5">{d.regione || "—"}</td>
                 <td className="px-3 py-1.5 text-xs text-neutral-500">{d.source || "—"}</td>
@@ -553,6 +628,105 @@ function DenominazioniPanel() {
             ))}
           </tbody>
         </table>
+      </div>
+      {detail && <DenominazioneDetailModal denominazione={detail} onClose={() => setDetail(null)} />}
+    </>
+  );
+}
+
+// Modale dettaglio denominazione con drill-down vini.
+function DenominazioneDetailModal({ denominazione: d, onClose }) {
+  const madriComplete = d._madri_complete || [];
+  const madriIndex = useMemo(
+    () => Object.fromEntries(madriComplete.map(m => [m.id, m])),
+    [madriComplete]
+  );
+  const lista = (d.vini_madre && d.vini_madre.length)
+    ? d.vini_madre
+    : madriComplete.map(m => ({
+        id: m.id, descrizione: m.descrizione, tipologia: m.tipologia,
+        produttore_nome: m.produttore_nome,
+        n_bottiglie: (m.annate || []).length,
+        qta_tot: m.qta_tot || 0,
+      }));
+
+  const [sort, setSort] = useState({ key: "descrizione", dir: "asc" });
+  const sortedLista = useMemo(() => sortRowsLocal(lista, sort.key, sort.dir), [lista, sort]);
+
+  const [openMadreId, setOpenMadreId] = useState(null);
+  const openMadre = openMadreId ? madriIndex[openMadreId] : null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col"
+           onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-violet-200 bg-gradient-to-r from-violet-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-violet-700">Denominazione #{d.id}{d.codice_eambrosia ? ` · ${d.codice_eambrosia}` : ""}</div>
+            <h3 className="text-lg font-semibold font-playfair text-violet-900 truncate">📜 {d.nome} {d.tipo}</h3>
+            <p className="text-xs text-neutral-700 mt-0.5">
+              {[d.nazione, d.regione, d.source].filter(Boolean).join(" · ") || "—"}
+            </p>
+          </div>
+          <button onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 hover:bg-neutral-50 flex-shrink-0">
+            Chiudi
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-2 px-5 py-2 bg-neutral-50 border-b border-neutral-200 text-xs flex-shrink-0">
+          <div><span className="text-neutral-500">Vini madre:</span> <strong>{d.n_madre || 0}</strong></div>
+          <div><span className="text-neutral-500">Bottiglie:</span> <strong>{d.n_bottiglie || 0}</strong></div>
+          <div><span className="text-neutral-500">Giacenza:</span> <strong>{d.qta_bottiglie || 0}</strong></div>
+        </div>
+
+        {openMadre && (
+          <div className="px-3 py-2 bg-rose-50 border-b border-rose-200 flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => setOpenMadreId(null)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-50 shadow-sm">
+              ← Vini con {d.nome} {d.tipo}
+            </button>
+            <span className="text-xs font-bold text-rose-900">🍷 Scheda Vino Madre</span>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-auto min-h-0 bg-neutral-50">
+          {openMadre ? (
+            <div className="p-3"><SchedaMadreV2 madre={openMadre} onClose={() => setOpenMadreId(null)} /></div>
+          ) : lista.length === 0 ? (
+            <div className="p-8 text-center text-sm text-neutral-500">Nessun vino madre con questa denominazione.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-white text-xs uppercase tracking-wider text-neutral-600 sticky top-0 z-10 border-b border-neutral-200">
+                <tr>
+                  <th className="px-3 py-2 text-left w-12">ID</th>
+                  <SortThLocal label="Descrizione" sortKey="descrizione"     sort={sort} setSort={setSort} />
+                  <SortThLocal label="Produttore"  sortKey="produttore_nome" sort={sort} setSort={setSort} />
+                  <SortThLocal label="Tipologia"   sortKey="tipologia"       sort={sort} setSort={setSort} />
+                  <SortThLocal label="Btg"         sortKey="n_bottiglie"     sort={sort} setSort={setSort} align="right" />
+                  <SortThLocal label="Giac."       sortKey="qta_tot"         sort={sort} setSort={setSort} align="right" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortedLista.map(m => {
+                  const canDrill = !!madriIndex[m.id];
+                  return (
+                    <tr key={m.id}
+                        className={`border-t border-neutral-100 transition ${canDrill ? "cursor-pointer hover:bg-violet-50" : "opacity-60"}`}
+                        onClick={() => canDrill && setOpenMadreId(m.id)}
+                        title={canDrill ? "Apri scheda vino madre" : "Scheda non disponibile"}>
+                      <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{m.id}</td>
+                      <td className="px-3 py-1.5 font-semibold text-violet-900 hover:underline">{m.descrizione}</td>
+                      <td className="px-3 py-1.5 text-xs text-neutral-700">{m.produttore_nome || <span className="text-neutral-400">—</span>}</td>
+                      <td className="px-3 py-1.5 text-xs text-neutral-700">{m.tipologia || "—"}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{m.n_bottiglie || 0}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{m.qta_tot || 0}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -600,6 +774,15 @@ function MadrePanel() {
 
   const prodById = Object.fromEntries(produttori.map(p => [p.id, p]));
 
+  // Sort colonne (M2.5.2). Arricchiamo ogni riga con `_produttore_nome` per ordinare
+  // per nome produttore senza dover andare via FK.
+  const [sort, setSort] = useState({ key: "descrizione", dir: "asc" });
+  const itemsEnriched = useMemo(
+    () => items.map(m => ({ ...m, _produttore_nome: prodById[m.produttore_id]?.nome || "" })),
+    [items, prodById]
+  );
+  const sorted = useMemo(() => sortRowsLocal(itemsEnriched, sort.key, sort.dir), [itemsEnriched, sort]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -621,24 +804,24 @@ function MadrePanel() {
 
       <div className="border border-neutral-200 rounded-xl overflow-hidden max-h-[60vh] overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-600 sticky top-0">
+          <thead className="bg-neutral-50 text-xs uppercase tracking-wider text-neutral-600 sticky top-0 z-10">
             <tr>
-              <th className="px-3 py-2 text-left">ID</th>
-              <th className="px-3 py-2 text-left">Descrizione</th>
-              <th className="px-3 py-2 text-left">Produttore</th>
-              <th className="px-3 py-2 text-left">Tipologia</th>
-              <th className="px-3 py-2 text-left">Denominazione</th>
+              <th className="px-3 py-2 text-left w-12">ID</th>
+              <SortThLocal label="Descrizione"   sortKey="descrizione"        sort={sort} setSort={setSort} />
+              <SortThLocal label="Produttore"    sortKey="_produttore_nome"   sort={sort} setSort={setSort} />
+              <SortThLocal label="Tipologia"     sortKey="tipologia"          sort={sort} setSort={setSort} />
+              <SortThLocal label="Denominazione" sortKey="denominazione_id"   sort={sort} setSort={setSort} />
               <th className="px-3 py-2 text-right">Azioni</th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Carico…</td></tr>}
-            {!loading && items.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>}
-            {!loading && items.map(m => (
+            {!loading && sorted.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>}
+            {!loading && sorted.map(m => (
               <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50">
                 <td className="px-3 py-1.5 font-mono text-xs text-neutral-500">{m.id}</td>
                 <td className="px-3 py-1.5 font-semibold">{m.descrizione}</td>
-                <td className="px-3 py-1.5 text-xs">{prodById[m.produttore_id]?.nome || `#${m.produttore_id}`}</td>
+                <td className="px-3 py-1.5 text-xs">{m._produttore_nome || `#${m.produttore_id}`}</td>
                 <td className="px-3 py-1.5 text-xs">{m.tipologia}</td>
                 <td className="px-3 py-1.5 text-xs">
                   {m.denominazione_id ? `#${m.denominazione_id}` :

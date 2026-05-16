@@ -236,11 +236,14 @@ def list_madri_raggruppate(
     search: Optional[str] = Query(None),
     tipologia: Optional[str] = Query(None),
     produttore_id: Optional[int] = Query(None),
+    fornitore_id: Optional[int] = Query(None),
+    denominazione_id: Optional[int] = Query(None),
     only_positive_stock: bool = Query(False),
     current_user: Any = Depends(get_current_user),
 ):
     """Ritorna lista madri con campi anagrafici + array annate sotto.
-    Pensato per la vista "Visualizza Madri" del modulo Gestione 2."""
+    Pensato per la vista "Visualizza Madri" del modulo Gestione 2 e per i drill-down
+    dei pannelli Anagrafiche (filtra per produttore_id / fornitore_id / denominazione_id)."""
     conn = get_magazzino_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
@@ -257,6 +260,12 @@ def list_madri_raggruppate(
     if produttore_id is not None:
         where_m.append("m.produttore_id = ?")
         params.append(produttore_id)
+    if fornitore_id is not None:
+        where_m.append("m.fornitore_id = ?")
+        params.append(fornitore_id)
+    if denominazione_id is not None:
+        where_m.append("m.denominazione_id = ?")
+        params.append(denominazione_id)
 
     where_sql = ("WHERE " + " AND ".join(where_m)) if where_m else ""
 

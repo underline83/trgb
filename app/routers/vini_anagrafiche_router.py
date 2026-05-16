@@ -269,20 +269,50 @@ def delete_produttore(pid: int, current_user: Any = Depends(get_current_user)):
 # ============================================================
 # FORNITORI
 # ============================================================
-@router.get("/fornitori/", summary="Lista fornitori")
+@router.get("/fornitori/", summary="Lista fornitori (con counts opzionali)")
 def list_fornitori(
     search: Optional[str] = Query(None),
+    with_counts: bool = Query(False, description="aggiunge n_madre / n_bottiglie / qta_bottiglie"),
+    only_orphans: bool = Query(False, description="solo fornitori senza vini collegati"),
     current_user: Any = Depends(get_current_user),
 ):
-    return ana.list_fornitori(search=search)
+    return ana.list_fornitori(search=search, with_counts=with_counts, only_orphans=only_orphans)
 
 
-@router.get("/fornitori/{fid}", summary="Dettaglio fornitore")
-def get_fornitore(fid: int, current_user: Any = Depends(get_current_user)):
+@router.get("/fornitori/{fid}", summary="Dettaglio fornitore (con conta + lista madri)")
+def get_fornitore(
+    fid: int,
+    with_madri: bool = Query(False, description="include lista vini madre distribuiti"),
+    current_user: Any = Depends(get_current_user),
+):
     row = ana.get_fornitore(fid)
     if not row:
         raise HTTPException(404, "Fornitore non trovato")
+    row.update(ana.count_vini_per_fornitore(fid))
+    if with_madri:
+        row["vini_madre"] = ana.list_madri_per_fornitore(fid)
     return row
+
+
+@router.post("/fornitori/{source_id}/merge", summary="Fonde un fornitore dentro un altro (admin)")
+def merge_fornitori_endpoint(
+    source_id: int,
+    target_id: int = Query(..., description="id del fornitore di destinazione"),
+    current_user: Any = Depends(get_current_user),
+):
+    """Sposta tutti i vini madre dal fornitore source al target, sync cache su bottiglie, elimina source."""
+    _require_admin(current_user)
+    try:
+        report = ana.merge_fornitori(source_id, target_id)
+    except ValueError as e:
+        msg = str(e)
+        if "non trovato" in msg:
+            raise HTTPException(404, msg)
+        raise HTTPException(400, msg)
+    sync_report = ana_sync.sync_bottiglie_from_fornitore(target_id)
+    report["_sync"] = sync_report
+    report["target"] = ana.get_fornitore(target_id)
+    return report
 
 
 @router.post("/fornitori/", summary="Crea fornitore (admin)")
@@ -336,11 +366,18 @@ def list_denominazioni(
     )
 
 
-@router.get("/denominazioni/{did}", summary="Dettaglio denominazione")
-def get_denominazione(did: int, current_user: Any = Depends(get_current_user)):
+@router.get("/denominazioni/{did}", summary="Dettaglio denominazione (con conta + lista madri)")
+def get_denominazione(
+    did: int,
+    with_madri: bool = Query(False, description="include lista vini madre con questa denominazione"),
+    current_user: Any = Depends(get_current_user),
+):
     row = ana.get_denominazione(did)
     if not row:
         raise HTTPException(404, "Denominazione non trovata")
+    row.update(ana.count_vini_per_denominazione(did))
+    if with_madri:
+        row["vini_madre"] = ana.list_madri_per_denominazione(did)
     return row
 
 

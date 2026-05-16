@@ -3,6 +3,57 @@
 
 ---
 
+## 2026-05-16 — G.3 Fase E (parte 1/2): schema DB + parser ELAB + parser F24
+
+### Aggiunto
+- **Migration 132 — schema costo personale completo** `[core]`. `app/migrations/132_g3_fase_e_costo_personale.py`: crea tabella `dipendenti_costo_consuntivo` in `dipendenti.sqlite3` (21 colonne: ore, lordo, contributi ditta, ratei, contr/ratei, TFR, INAIL, costo_totale + meta) e tabella `f24_versamenti` in `foodcost.db` (25 colonne: codice tributo, periodo, debito/credito, raggruppamento, link banca per riconciliazione cassa). UNIQUE su (anno, mese, dipendente) e (anno, mese, matricola). Indici su anno/mese, dipendente, raggruppamento, banca, codice tributo, hash. Idempotente (CREATE IF NOT EXISTS + cross-DB via PRAGMA database_list).
+- **Parser ELAB pagine paghe** `[core]`. `app/services/elab_parser.py`: legge il PDF mensile "Riepilogo paghe e contributi" del consulente paghe, estrae dalla pagina "COSTO CONSUNTIVO DEL PERIODO" la tabella 13 colonne (matricola, cognome, ore, lordo, contributi, straord ore/imp/contr, ratei, ctr_ratei, TFR, totale, costo orario, % incid). Cattura riga `T O T A L I A Z I E N D A` come totale aggregato. Estrae anche INAIL del mese (pagina 2 sezione POSIZIONE INAIL). Anno/mese dal titolo "DAL MESE DI <X> <Y>". sha256 del PDF come anti-doppio import. Test su 3GOBBI_ELAB_4.pdf: 10 dipendenti estratti + totale azienda € 20.488,88 (= somma costo_totale dipendenti, zero discrepanza).
+- **Parser F24 bozza Entratel** `[core]`. `app/services/f24_parser.py`: parsea il PDF F24 Entratel multi-pagina, riconosce 5 sezioni (Erario / INPS / Regioni / IMU-Tributi Locali / INAIL) tramite regex specifiche per layout. Codici tributo: 1001/1040/1075 (debito), 1704/6781 (CODICI_CREDITO compensazioni), DM10/EBTU/EST1/C10 (INPS), 3802 (add regionale), 3847/3848 (add comunali), 13100 (INAIL). Formato importi Entratel compressi ("9000" = 90,00; "1.41247" = 1.412,47). Data scadenza da "Scadenza 18 Maggio 2026". Test su 3GOBBI_F24_4.pdf: 3 deleghe estratte, saldi calcolati 90,00 / 5.483,90 / 0,00 = saldi PDF attesi al centesimo. Compensazioni 6781 (375,86 credito) + 1704 (1.237,42 credito su 4 mesi) riconosciute correttamente.
+
+### Verifiche
+- py_compile pulito su mig 132, elab_parser, f24_parser.
+- Mig 132 testata in sandbox: tabelle create (21 + 25 colonne, 5 + 6 indici), re-run idempotente.
+- Parser ELAB: 10 dipendenti + INAIL € 92,14 + Totale azienda € 20.488,88 — somma dipendenti = totale al centesimo.
+- Parser F24: 3 saldi su 3 verificati al centesimo (90,00 + 5.483,90 + 0,00 vs saldi PDF originali).
+
+### Cambiato
+Niente. Schema DB nuovo + parser nuovi: zero impatto su CE e flow esistenti. Le tabelle nuove sono ancora vuote — saranno popolate via UI upload (task E.4, prossima sessione).
+
+### Prossimo (G.3 Fase E parte 2/2)
+- E.4: UI upload 3 file (LUL + ELAB + F24) sotto modulo Dipendenti
+- E.5: refactor `_aggregate_stipendi` nel CE — legge da `dipendenti_costo_consuntivo` se presente, fallback netti
+- E.6: nuovo tipo `F24_STIPENDI` in `cg_spese_fisse` (anti-doppio competenza)
+- E.7: mig 133 import retro gen-apr 2026 dai PDF archiviati
+- E.8: tab "Costi mensili" in Dipendenti
+- E.9: rimozione warning banner CE "costo personale parziale"
+
+---
+
+## 2026-05-16 — M2.5.2: drill-down vini su Produttori/Distributori/Denominazioni + ordinamento ovunque
+
+### Aggiunto
+- **Drill-down vino dalla scheda anagrafica** `[core]`. In ProduttoriPanel, DistributoriPanel e DenominazioniPanel: il modale dettaglio mostra la lista vini collegati con riga cliccabile → la SchedaMadreV2 si apre **dentro lo stesso frame** (modale stesso, vista alternativa) con un bottone "← Torna alla lista". Niente modal-on-modal, niente cambio di route.
+- **DistributoriPanel.jsx** `[core]`. Nuovo pannello per i distributori (tabella fornitori) — pattern identico a ProduttoriPanel: KPI riepilogativi, ordinamento colonne, ricerca (nome o rappresentante), checkbox solo orfani, modale dettaglio con vini distribuiti + drill-down inline, modali Edit/Nuovo, modale Merge duplicati. La label UI è "Distributori" — la tabella DB resta `vini_fornitori_v2`.
+- **Backend distributori (fornitori) arricchito** `[core]`. `vini_anagrafiche_db.py`: `list_fornitori(with_counts, only_orphans)` con LEFT JOIN aggregato (`n_madre / n_bottiglie / qta_bottiglie`). Nuove `count_vini_per_fornitore`, `list_madri_per_fornitore`, `merge_fornitori`. Router: GET con `?with_counts&with_madri`, POST `/fornitori/{src}/merge?target_id={dst}` (admin, cascade sync).
+- **Backend denominazioni con drill-down** `[core]`. `count_vini_per_denominazione` + `list_madri_per_denominazione` + GET `/denominazioni/{id}?with_madri=true`.
+- **Filtri madri-raggruppate v2** `[core]`. `vini_v2_router.py`: `/madri-raggruppate/` accetta ora anche `fornitore_id` e `denominazione_id` (oltre a `produttore_id`). Permette ai panel di caricare le annate complete per il drill-down inline.
+
+### Cambiato
+- **Ordinamento colonne ovunque nelle Anagrafiche** `[core]`. Cliccando un'intestazione si ordina asc/desc. Implementato in:
+  - DenominazioniPanel (Codice / Display / Nazione / Regione / Source)
+  - MadrePanel (Descrizione / Produttore / Tipologia / Denominazione)
+  - CrudList generica (usata per Vitigni) — pattern uniforme.
+  - Già presente in ProduttoriPanel (M2.5.1) e ora nel nuovo DistributoriPanel.
+- **Sotto-tab "Distributori"** ora usa `DistributoriPanel` invece della `CrudList` generica.
+- **DenominazioniPanel** — righe cliccabili: apre modale dettaglio con vini collegati e SchedaMadreV2 inline.
+- **Bump versione modulo vini** `[core]`. 3.30 → 3.31.
+
+### Prossimo
+- M2.5.3 — Denominazioni: gestione casi extra non in eAmbrosia/MASAF (CRUD + sync delta).
+- M2.5.4 — Vitigni: vitigni custom oltre ai ~60 canonici.
+
+---
+
 ## 2026-05-16 — G.3 Conto Economico Fase D (cascata fix) + aggregazione per RIGA
 
 ### Aggiunto
