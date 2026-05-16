@@ -273,13 +273,88 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 
 | ID | Cosa | Effort | Priorità | Note |
 |----|------|--------|----------|------|
-| G.3.1 | **Costo personale completo** (lordo + contributi INPS + TFR maturato invece del solo netto) | S | MEDIA | Campi già disponibili in `buste_paga`. Sostituire `cg_uscite.totale` (netto) con `lordo+contributi_inps+irpef+addizionali+tfr_maturato`. Differenza ~40% sul costo personale visibile |
+| G.3.1 | ~~Costo personale completo~~ → **Promosso a G.3 Fase E (PRIORITÀ ALTA)** | L | 🔴 ALTA → 2026-05-16 | Vedi sezione dedicata G.3 Fase E sotto. Pre-mortem 2026-05-16 con Marco: i campi di `buste_paga` non bastano (manca carico ditta + ratei + INAIL), serve importare ELAB.pdf mensile del commercialista |
 | G.3.2 | **Spalmatura mensile** spese pluri-mensili | M | MEDIA | Aggiungere campo `mesi_competenza` su `cg_spese_fisse`. Es. assicurazione annuale €1200 pagata in gennaio → competenza €100/mese × 12 mesi. UI: toggle "intera/spalmata" |
 | G.3.3 | **Food cost vero** (consumo, non acquisti) | L | MEDIA | Richiede inventario magazzino merce fresca (oggi c'è solo per vini). Acquisti = €5000 ma se magazzino cresce €1000, consumo reale = €4000 |
 | G.3.4 | **Vendite per tipo** (food vs beverage) | M | MEDIA | Distinzione margine cibo (~65%) vs bevande (~80%). Richiede iPratico breakdown o categorizzazione prodotti POS |
 | G.3.5 | **Ammortamenti** beni strumentali (cucina, forno, lavastoviglie...) | M | BASSA | Per bilancio annuale commercialista. Tabella `cg_ammortamenti` + amm.to mensile auto |
 | G.3.6 | **Budget vs consuntivo** | M | BASSA | Tabella `cg_budget` (anno, mese, categoria, importo_atteso). Scostamento % in dashboard CE |
 | G.3.7 | **Vista trimestrale + annuale + export PDF** | S | BASSA | V1 è solo mensile. Estendere endpoint con `periodo=mese|trimestre|anno` + export PDF via M.B |
+
+---
+
+### G.3 Fase E — Costo personale completo (PRIORITÀ ALTA, 2026-05-16)
+
+**Contesto (Marco 2026-05-16):** chiusa Fase D di G.3 (verifica con dati reali), abbiamo scoperto che il "costo personale" mostrato nel CE è solo la somma dei netti bonificati (`cg_uscite tipo='STIPENDIO'`). Manca tutto il "costo aziendale vero": carico ditta INPS, ratei 13ª/14ª/ferie/permessi, TFR maturato, INAIL.
+
+**Esempio Aprile 2026 (numeri reali da ELAB.pdf):**
+- Netti bonificati (oggi nel CE): **€ 12.140**
+- Costo aziendale vero (consuntivo ELAB): **€ 20.489**
+- Differenza nascosta: **€ 8.349/mese** (+69%)
+- Effetto sul P&L Aprile: Utile passa da **+€ 6.797 (+13,9%)** a **−€ 1.551 (−3,2%)** → perdita reale ad Aprile.
+
+**Decisioni di prodotto (Marco 2026-05-16):**
+1. Carichiamo **tre PDF mensili** dal commercialista: `LUL` (già esistente, buste paga PDF), `ELAB` (riepilogo costi consuntivo — NUOVO), `F24` (versamenti — NUOVO).
+2. ELAB pagina 8 "COSTO CONSUNTIVO" è la single source of truth del costo personale. F24 serve per riconciliazione cassa.
+3. Storico da importare: solo 2026 (gen-apr). Anni precedenti li abbiamo ma non interessano.
+4. Mai inseriti F24 stipendi in `cg_spese_fisse` finora → nessun rischio di doppio conteggio da rompere.
+
+**Pre-push immediato (sessione 2026-05-16):**
+- Warning banner nel CE "Costo personale parziale" già in produzione.
+- Drill-down + % sui ricavi + RATEIZZAZIONE_TASSE pushati in commit dedicato.
+
+**Tasks Fase E (sessione dedicata, ~6h):**
+
+| Step | Cosa | Note |
+|------|------|------|
+| E.1 | Mig 132: nuove tabelle `dipendenti_costo_consuntivo` + `f24_versamenti` | schema in §G.3.E sotto |
+| E.2 | Parser pdfplumber: `app/services/elab_parser.py` (legge pagina 8) | tabella per dipendente: ore, lordo, contributi, ratei, ctr_ratei, tfr, totale_costo |
+| E.3 | Parser pdfplumber: `app/services/f24_parser.py` (legge tutte le sezioni) | codici tributo: 1001/1040 erario, DM10/EBTU/EST1 INPS, 3802/3847/3848 add, INAIL 13100 |
+| E.4 | UI Dipendenti > "Carica buste paga del mese": dropzone 3 file (LUL+ELAB+F24) | feedback strutturato: cosa è stato parsato, cosa manca, conferma prima del commit DB |
+| E.5 | Refactor `_aggregate_stipendi` in `conto_economico.py`: legge da `dipendenti_costo_consuntivo` se record presente, fallback netti + warning | Anti-regressione su mesi senza ELAB |
+| E.6 | Nuovo tipo `F24_STIPENDI` su `cg_spese_fisse`: escluso in competenza (già nel costo aziendale), incluso in cassa | Anti-doppio conteggio quando Marco inserirà F24 manualmente in futuro |
+| E.7 | Mig 133 retro: import ELAB+F24 gen-apr 2026 da PDF già archiviati | Marco fornisce 8 PDF (4 ELAB + 4 F24) |
+| E.8 | Tab "Costi mensili" sotto modulo Dipendenti: vista lista import + dettaglio per dipendente per mese | UI di trasparenza, non solo CE |
+| E.9 | Rimuovere warning banner CE "costo personale parziale" | Solo dopo verifica Marco su dati corretti |
+
+**Schema DB (G.3 Fase E):**
+```
+CREATE TABLE dipendenti_costo_consuntivo (
+  id INTEGER PRIMARY KEY,
+  anno INTEGER NOT NULL, mese INTEGER NOT NULL,
+  dipendente_id INTEGER NOT NULL,  -- FK dipendenti.id
+  ore_lavorate REAL,
+  retribuzione_lorda REAL,
+  contributi_lordo REAL,           -- carico ditta su lordo
+  ore_straord REAL, retribuzione_straord REAL, contributi_straord REAL,
+  ratei_importo REAL,              -- 13a+14a+ferie+permessi
+  contributi_su_ratei REAL,
+  tfr_maturato REAL,
+  costo_totale REAL,               -- costo aziendale VERO del mese
+  fonte_pdf TEXT,                  -- nome file ELAB
+  importato_il TEXT,
+  UNIQUE(anno, mese, dipendente_id)
+);
+
+CREATE TABLE f24_versamenti (
+  id INTEGER PRIMARY KEY,
+  anno_competenza INTEGER, mese_competenza INTEGER,
+  data_scadenza TEXT,                -- normalmente 16 del mese successivo
+  sezione TEXT NOT NULL,             -- 'erario'|'inps'|'regioni'|'comuni'|'inail'|'altri'
+  codice_tributo TEXT,               -- 1001, 1040, DM10, 3802, ...
+  periodo_rif_tributo TEXT,          -- MM/AAAA del singolo codice
+  importo_debito REAL,
+  importo_credito REAL,
+  fonte_pdf TEXT, importato_il TEXT,
+  raggruppamento_id TEXT,            -- ID che lega tutti i tributi del medesimo F24
+  banca_movimento_id INTEGER         -- match con estratto conto (cassa)
+);
+```
+
+**Anti-doppio per F24 stipendi:**
+- Nuovo `tipo='F24_STIPENDI'` su `cg_spese_fisse` (se Marco vuole continuare a inserirli a mano nella scadenze view).
+- `conto_economico.py` `_aggregate_spese_fisse_per_categoria`: escludere `F24_STIPENDI` in competenza (già dentro `costo_totale`), includere in cassa.
+- Banca CrossRef: link automatico tra movimento di pagamento F24 e `f24_versamenti.raggruppamento_id`.
 
 ---
 

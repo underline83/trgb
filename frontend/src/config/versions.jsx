@@ -3,7 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.28",
+    version: "3.29",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

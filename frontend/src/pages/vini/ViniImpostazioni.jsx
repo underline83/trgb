@@ -10,7 +10,9 @@ import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 import IPraticoSync from "./iPraticoSync";
-import AnagraficheVini from "./AnagraficheVini";  // V.6+V.7+V.8 Fase 6 — beta UI
+// M2.5-arch (2026-05-16): AnagraficheVini promosso a tab di primo livello.
+// La voce "Anagrafiche" qui in Impostazioni è stata rimossa — vive ora in
+// /vini/anagrafiche (vedi AnagraficheHub).
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
 } from "../../config/viniConstants";
@@ -78,7 +80,7 @@ const MENU = [
   { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍", desc: "Frigo, cantina, sale, matrici posti" },
   { key: "stati",       label: "Stati",               icon: "🏷️", desc: "Stati vendita, riordino, conservazione" },
   { key: "widget",      label: "Widget e soglie",     icon: "⚙️", desc: "Calici, dashboard, prezzi, ritmo vendita" },
-  { key: "anagrafiche", label: "🧪 Anagrafiche (beta)", icon: "🍇", desc: "Produttori, fornitori, denominazioni, vitigni, vini madre — refactor in corso" },
+  // Voce "🧪 Anagrafiche (beta)" rimossa qui — vive in /vini/anagrafiche da M2.5-arch.
   { key: "manutenzione",label: "Manutenzione",        icon: "🔧", desc: "Cleanup DB, backup, integrità dati" },
 ];
 
@@ -2268,7 +2270,7 @@ export default function ViniImpostazioni() {
     locazioni: renderLocazioni,
     stati: renderStati,
     widget: renderWidget,
-    anagrafiche: () => <AnagraficheVini />,   // V.6+V.7+V.8 Fase 6 beta
+    // anagrafiche: rimosso (vive in /vini/anagrafiche da M2.5-arch).
     manutenzione: renderManutenzione,
   };
 

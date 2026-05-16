@@ -233,6 +233,26 @@ export default function ControlloGestioneContoEconomico() {
           </div>
         )}
 
+        {/* WARNING SPECIFICO COSTO PERSONALE PARZIALE
+            Da rimuovere in G.3 Fase E quando importeremo ELAB (PDF mensile del
+            commercialista) per avere costo aziendale completo (lordo + carico
+            ditta INPS + ratei 13a/14a/ferie + TFR + INAIL). Oggi vediamo solo
+            i netti bonificati: per Aprile 2026 sono 12.140€ contro costo vero
+            di 20.489€ → utile può essere sovrastimato di ~8.000€/mese. */}
+        <div className="mb-5 rounded-xl border border-orange-300 bg-orange-50 p-3">
+          <div className="text-xs font-semibold text-orange-900 uppercase tracking-wider mb-1">
+            ⚠ Costo personale parziale (G.3 Fase E in arrivo)
+          </div>
+          <div className="text-sm text-orange-800 leading-relaxed">
+            Oggi la voce STAFF include solo i <strong>netti bonificati</strong> ai dipendenti.
+            Mancano: contributi INPS a carico ditta, ratei 13ª/14ª/ferie/permessi, TFR maturato,
+            INAIL. Per Aprile 2026 il costo reale è circa <strong>€&nbsp;20.500</strong> contro
+            i <strong>€&nbsp;12.140</strong> attualmente conteggiati → l'utile netto mostrato
+            è <strong>sovrastimato</strong> di circa €&nbsp;8.000/mese. Importeremo gli ELAB
+            mensili del commercialista per il calcolo corretto.
+          </div>
+        </div>
+
         {/* KPI HERO — 3 card primarie */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <KpiHero

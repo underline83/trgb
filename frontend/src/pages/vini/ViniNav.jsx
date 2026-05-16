@@ -8,14 +8,20 @@ import { useNavigate } from "react-router-dom";
 const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
   { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
+  // V.6+V.7+V.8 — Modulo "Cantina 2" (test parallelo read-only sulle tabelle _v2).
+  // Solo admin/sommelier per ora. Al cutover atomico (Fase 10) la "Cantina"
+  // classica viene sostituita dalla v2 e questa entry sparisce.
+  // Rinomina M2.5-arch (2026-05-16): era "Gestione 2", ora "Cantina 2" perché
+  // di fatto è una cantina alternativa. "Gestione" viene liberato per il nuovo
+  // tab Anagrafiche (gestione produttori/distributori/denominazioni/vitigni/madre).
+  { key: "v2", label: "Cantina 2", path: "/vini/v2", icon: "🧪", roles: ["admin", "sommelier"] },
+  // M2.5-arch (2026-05-16): tab "Anagrafiche" — pannello dedicato alle entità master
+  // (produttori, distributori, denominazioni, vitigni, vini madre). Promosso dalla
+  // sotto-pagina "🧪 Anagrafiche (beta)" che viveva sotto Impostazioni.
+  { key: "anagrafiche", label: "Anagrafiche", path: "/vini/anagrafiche", icon: "📚", roles: ["admin", "sommelier"] },
   { key: "carta", label: "Carta", path: "/vini/carta", icon: "📜" },
   { key: "carta-staff", label: "Sommelier", path: "/vini/carta-staff", icon: "🥂" },
   { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
-  // V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo read-only).
-  // Solo admin/sommelier per ora — durante la fase di test si valuta apertura
-  // a tutti, poi al cutover (Fase 10) la voce "Cantina" classica viene
-  // sostituita da quella v2 e questa entry sparisce.
-  { key: "v2", label: "Gestione 2", path: "/vini/v2", icon: "🧪", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️", roles: ["admin", "sommelier"] },
 ];
 

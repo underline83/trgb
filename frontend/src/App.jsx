@@ -35,8 +35,10 @@ const MagazzinoViniNuovo = lazy(() => import("./pages/vini/MagazzinoViniNuovo"))
 const MagazzinoAdmin = lazy(() => import("./pages/vini/MagazzinoAdmin"));
 const RegistroMovimenti = lazy(() => import("./pages/vini/RegistroMovimenti"));
 const DashboardVini = lazy(() => import("./pages/vini/DashboardVini"));
-// V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo read-only)
+// V.6+V.7+V.8 — Modulo "Cantina 2" (test parallelo read-only sulle tabelle _v2)
 const GestioneVino2 = lazy(() => import("./pages/vini/v2/GestioneVino2"));
+// M2.5-arch — Hub Anagrafiche Vini (produttori, distributori, denominazioni, vitigni, madre)
+const AnagraficheHub = lazy(() => import("./pages/vini/anagrafiche/AnagraficheHub"));
 
 // RICETTE & FOOD COST
 const RicetteNuova = lazy(() => import("./pages/ricette/RicetteNuova"));
@@ -257,6 +259,9 @@ export default function App() {
         <Route path="/vini/dashboard" element={<ProtectedRoute module="vini" sub="dashboard"><DashboardVini /></ProtectedRoute>} />
         {/* V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo). Cattura tutte le subroute via splat */}
         <Route path="/vini/v2/*" element={<ProtectedRoute module="vini" sub="magazzino"><GestioneVino2 /></ProtectedRoute>} />
+        {/* M2.5-arch (2026-05-16): Hub Anagrafiche promosso da sotto-pagina Impostazioni a tab di primo livello.
+            sub="settings" perché eredita il livello di permessi che aveva sotto Impostazioni Vini. */}
+        <Route path="/vini/anagrafiche" element={<ProtectedRoute module="vini" sub="settings"><AnagraficheHub /></ProtectedRoute>} />
         {/* /vini/ipratico ora è una sezione di ViniImpostazioni (sessione 39) — redirect per link legacy */}
         <Route path="/vini/ipratico" element={<Navigate to="/vini/settings" replace />} />
 

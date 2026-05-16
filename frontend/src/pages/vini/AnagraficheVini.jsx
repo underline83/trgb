@@ -1,20 +1,31 @@
 // src/pages/vini/AnagraficheVini.jsx
-// Modulo: vini (refactor V.6+V.7+V.8 Fase 6 — UI "🧪 beta")
+// Modulo: vini (refactor V.6+V.7+V.8 — pannello anagrafiche)
 //
-// Sezione separata sotto Impostazioni Vini per gestire le anagrafiche del
-// nuovo modello: produttori, fornitori, denominazioni, vitigni, vini madre.
-// Lavora SULLE TABELLE _v2 parallele — la UI vecchia del modulo Vini non
-// è toccata. Fase 6 del refactor anagrafiche.
+// Pannello di gestione delle entità master del modulo Vini: produttori,
+// distributori (fornitori), denominazioni, vitigni, vini madre.
+// Lavora sulle TABELLE _v2 parallele. La UI vecchia del modulo Vini non è
+// toccata. Al cutover atomico (Fase 10) le _v2 sostituiscono quelle live.
+//
+// Storia file:
+//   - Fase 6 refactor anagrafiche: nato come sotto-pagina di Impostazioni Vini.
+//   - M2.5-arch (2026-05-16): promosso a tab di primo livello "Anagrafiche".
+//     Questo file rimane come componente di contenuto, montato dentro
+//     pages/vini/anagrafiche/AnagraficheHub.jsx. Nelle sessioni successive
+//     (M2.5.1+) ogni sotto-tab verrà spinto in un file dedicato.
 //
 // Vedi `docs/refactor_anagrafiche_vini.md` per il design completo.
 
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 
+// Sotto-tab Anagrafiche.
+// NB: "fornitori" è il nome backend storico della tabella (vini_fornitori_v2),
+// la label UI è "Distributori" perché è il vocabolario che usa Marco in
+// osteria — la mappa è 1:1. Da NON rinominare lato DB/router.
 const TABS = [
   { key: "stats",         label: "Panoramica",   icon: "📊" },
   { key: "produttori",    label: "Produttori",   icon: "🏛️" },
-  { key: "fornitori",     label: "Fornitori",    icon: "🚚" },
+  { key: "fornitori",     label: "Distributori", icon: "🚚" },
   { key: "denominazioni", label: "Denominazioni", icon: "📜" },
   { key: "vitigni",       label: "Vitigni",      icon: "🍇" },
   { key: "madre",         label: "Vini madre",   icon: "🍷" },
@@ -26,13 +37,13 @@ export default function AnagraficheVini() {
   return (
     <div className="space-y-5">
       <div className="border-b border-amber-200 pb-3">
-        <h2 className="text-xl font-semibold text-amber-900 font-playfair">
-          🧪 Anagrafiche Vini (beta)
+        <h2 className="text-2xl font-semibold text-amber-900 font-playfair">
+          📚 Anagrafiche Vini
         </h2>
         <p className="text-xs text-neutral-500 mt-1">
-          Refactor V.6+V.7+V.8 — lavora sulle tabelle <code className="font-mono">_v2</code> parallele.
-          La UI vecchia del modulo Vini resta intatta. Al cutover atomico (Fase 10) queste tabelle
-          sostituiranno quelle live.
+          Gestione produttori, distributori, denominazioni, vitigni e vini madre.
+          Lavoriamo sulle tabelle <code className="font-mono">_v2</code> parallele del refactor V.6+V.7+V.8:
+          al cutover atomico (Fase 10) sostituiranno quelle live.
         </p>
       </div>
 
@@ -100,7 +111,7 @@ function StatsPanel({ onJump }) {
     <div className="space-y-5">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card label="Produttori"    value={stats.produttori}    tab="produttori"    color="border-amber-300 bg-amber-50" />
-        <Card label="Fornitori"     value={stats.fornitori}     tab="fornitori"     color="border-blue-300 bg-blue-50" />
+        <Card label="Distributori"  value={stats.fornitori}     tab="fornitori"     color="border-blue-300 bg-blue-50" />
         <Card label="Denominazioni" value={stats.denominazioni} tab="denominazioni" color="border-violet-300 bg-violet-50" />
         <Card label="Vitigni"       value={stats.vitigni}       tab="vitigni"       color="border-emerald-300 bg-emerald-50" />
         <Card label="Vini madre"    value={stats.madre}         tab="madre"         color="border-rose-300 bg-rose-50" />

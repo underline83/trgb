@@ -1,6 +1,52 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-15 (notte) — Modulo Gestione Vino 2 (M2 sessione 1): backend /vini/v2/* read-only + voce nav "🧪 Gestione 2" + Cantina v2 funzionante (sidebar filtri identica + toggle Bottiglie/Madri). Le altre 3 viste sono placeholder stub. Read-only durante test parallelo.
+**Ultimo aggiornamento:** 2026-05-16 — M2.4-5 prezzo_unitario snapshot su movimenti (mig 129 + autopop FE) + M2.5-arch ristrutturazione nav Vini: "Gestione 2" → "Cantina 2", nuovo tab "📚 Anagrafiche" promosso da sotto-pagina Impostazioni a primo livello (sotto-tab: Produttori · Distributori · Denominazioni · Vitigni · Vini madre). Versione modulo vini 3.28 → 3.29.
+
+## SESSIONE 2026-05-16 — M2.4-5 prezzo_unitario + M2.5-arch nav refactor
+
+### Sintesi
+Due cambi atomici, stessa sessione.
+
+**M2.4-5 — prezzo_unitario snapshot:** finora `vini_magazzino_movimenti` salvava solo qta+tipo, il ricavo era una stima (qta × prezzo carta attuale, impreciso se il prezzo è cambiato). Da oggi snapshot del prezzo per ogni movimento → ricavo reale, costo acquisto storico, margine effettivo, ricarico %.
+
+**M2.5-arch — ristrutturazione nav Vini:** Marco ha proposto di rinominare "Gestione 2" in "Cantina 2" (è una cantina alternativa, non un modulo generico) e di liberare lo spazio per un nuovo tab dedicato alle entità master (produttori, distributori, denominazioni, vitigni, vini madre), oggi sepolto sotto Impostazioni → "🧪 Anagrafiche (beta)". Promosso a tab di primo livello "📚 Anagrafiche".
+
+### Decisioni M2.5-arch
+- **Nome del nuovo tab**: "Anagrafiche" (non "Gestione"). Coerente con backend `/vini/anagrafiche/*`, file `AnagraficheVini.jsx`, modulo `vini_anagrafiche_db.py`, docs `refactor_anagrafiche_vini.md`. Termine standard nel mondo gestionali italiani.
+- **Destino del pannello beta**: rimosso da Impostazioni Vini (non sono impostazioni vere e proprie). Vive solo nella nuova tab.
+- **Cantina 2**: rinomina solo della label UI ("Gestione 2" → "Cantina 2") e dell'header interno di GestioneVino2.jsx. Path `/vini/v2` e nome file invariati (no rotture su link/routing).
+- **Sub-rename UI "Fornitori" → "Distributori"**: vocabolario di osteria. La tabella DB resta `vini_fornitori_v2` (mappa 1:1, no rinomina backend).
+- **Approccio operativo**: M2.5-arch fa solo l'ossatura (rename + promozione + spostamento). Le sessioni successive (M2.5.1 Produttori, M2.5.2 Distributori, M2.5.3 Denominazioni, M2.5.4 Vitigni) rilavorano una sotto-tab alla volta.
+
+### Fatto M2.4-5 (prezzo_unitario)
+- `app/migrations/129_movimenti_prezzo_unitario.py`: ADD COLUMN `prezzo_unitario REAL` + backfill best-effort (VENDITA→PREZZO_CARTA, CARICO→EURO_LISTINO). Idempotente.
+- `app/models/vini_magazzino_db.py`: `registra_movimento()` accetta `prezzo_unitario` con autopop server-side (None → SELECT del prezzo carta/listino).
+- `app/routers/vini_magazzino_router.py`: `MovimentoCreate.prezzo_unitario: Optional[float]` + propagazione.
+- `app/routers/vini_v2_router.py`: `/madre/{id}/stats` ora usa `COALESCE(m.prezzo_unitario, b.PREZZO_CARTA, 0)`, espone nuovi KPI `qta_acquisti` + `costo_acquisti_totale`. `/madre/{id}/movimenti` espone `prezzo_unitario`.
+- `frontend/src/pages/vini/SchedaVino.jsx`: form "Aggiungi movimento" con input `€/bt` autopop (VENDITA→PREZZO_CARTA, CARICO→EURO_LISTINO), editabile. Tabella movimenti con colonne €/bt e Totale.
+- `frontend/src/components/vini/SchedaMadreV2.jsx`: tab Movimenti distingue prezzo reale vs stima (asterisco + italic). Tab Statistiche aggiunge riga Acquisti: Bt acquistate, Costo acquisti, Margine lordo, Ricarico %.
+
+### Fatto M2.5-arch (nav refactor)
+- `frontend/src/pages/vini/ViniNav.jsx`: rename "Gestione 2" → "Cantina 2"; nuovo tab "📚 Anagrafiche" → `/vini/anagrafiche` (admin/sommelier).
+- `frontend/src/pages/vini/v2/GestioneVino2.jsx`: header interno "🧪 Cantina 2".
+- `frontend/src/pages/vini/anagrafiche/AnagraficheHub.jsx` (NUOVO): pagina contenitore con ViniNav globale + montaggio AnagraficheVini.
+- `frontend/src/pages/vini/AnagraficheVini.jsx`: header rebrand "📚 Anagrafiche Vini" (rimosso "🧪 beta"). Sotto-tab "Fornitori" → "Distributori" (UI only).
+- `frontend/src/pages/vini/ViniImpostazioni.jsx`: rimossa voce "🧪 Anagrafiche (beta)" da MENU + dal renderer (import commentato).
+- `frontend/src/App.jsx`: lazy import `AnagraficheHub` + Route `/vini/anagrafiche` con `sub="settings"`.
+- `frontend/src/config/versions.jsx`: vini 3.28 → 3.29.
+
+### Verifiche
+- Sintassi JS: i file editati hanno tutti corpo coerente (no JSX in `.js`, import puliti).
+- Routing: nuovo path `/vini/anagrafiche` non collide con path esistenti. ViniNav `current="anagrafiche"` matcha.
+- Le link legacy non sono toccate: `/vini/v2` continua a funzionare, `/vini/settings` non ha più la sezione anagrafiche ma il default `import` apre senza errori.
+
+### Prossimo
+- M2.5.1 — Produttori: CRUD pieno, merge duplicati, ricerca, conta vini collegati.
+- M2.5.2 — Distributori: idem + colonna rappresentante + contatti.
+- M2.5.3 — Denominazioni: gestione casi extra non in eAmbrosia/MASAF.
+- M2.5.4 — Vitigni: aggiunta vitigni custom oltre ai ~60 canonici.
+
+---
 
 ## SESSIONE 2026-05-15 (notte) — M2 sessione 1 (Modulo Gestione Vino 2)
 

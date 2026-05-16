@@ -1,10 +1,15 @@
 // src/pages/vini/v2/GestioneVino2.jsx
-// Modulo: vini (V.6+V.7+V.8 — Modulo Gestione Vino 2, test parallelo read-only)
+// Modulo: vini (V.6+V.7+V.8 — Modulo "Cantina 2", test parallelo read-only)
 //
-// Entry point del nuovo modulo "Gestione Vino 2" che legge dalle tabelle _v2.
+// Entry point della nuova "Cantina 2" che legge dalle tabelle _v2.
 // Strategia: parallelo al modulo Vini classico, read-only durante la fase
 // di test (1-3 settimane). Al cutover (Fase 10) il classico sparisce e
 // questo prende il suo posto.
+//
+// Rinomina M2.5-arch (2026-05-16): label "Gestione 2" → "Cantina 2".
+// La parola "Gestione" viene liberata per il nuovo tab "Anagrafiche" dedicato
+// a produttori/distributori/denominazioni/vitigni/madre. Il file resta come
+// GestioneVino2.jsx (path /vini/v2) per non rompere link/routing esistenti.
 //
 // Sub-nav: Cantina · Per Produttore · Nuovo (3-step preview) · Scheda
 // (la scheda si apre cliccando una bottiglia dalla Cantina)
@@ -38,7 +43,7 @@ export default function GestioneVino2() {
       {/* Header unico: brand + sub-nav + warning READ-ONLY in linea (compatto come Cantina classica) */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="max-w-[1100px] mx-auto px-3 py-2 flex items-center gap-3">
-          <h1 className="text-xl font-bold text-amber-900 tracking-wide whitespace-nowrap">🧪 Gestione 2</h1>
+          <h1 className="text-xl font-bold text-amber-900 tracking-wide whitespace-nowrap">🧪 Cantina 2</h1>
           <div className="flex items-center gap-0.5">
             {SUBTABS.map(tab => {
               const active = activeSub === tab.key;
