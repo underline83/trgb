@@ -1053,7 +1053,9 @@ def get_uscite(
         tipo_u = row.get("tipo_uscita") or "FATTURA"
         row["tipo_uscita"] = tipo_u
         if tipo_u == "SPESA_FISSA":
-            _sf_tipo_labels = {"AFFITTO": "Affitto", "TASSA": "Tassa", "STIPENDIO": "Stipendio",
+            _sf_tipo_labels = {"AFFITTO": "Affitto", "TASSA": "Tassa",
+                               "RATEIZZAZIONE_TASSE": "Rateizzazione tasse",
+                               "STIPENDIO": "Stipendio",
                                "PRESTITO": "Prestito", "RATEIZZAZIONE": "Rateizzazione",
                                "ASSICURAZIONE": "Assicurazione", "ALTRO": "Altro"}
             row["sf_tipo_label"] = _sf_tipo_labels.get(row.get("sf_tipo"), row.get("sf_tipo"))
@@ -1527,7 +1529,7 @@ def delete_preset_pagamento(
 # SPESE FISSE — Spese ricorrenti senza fattura
 # ═══════════════════════════════════════════════════════════════════
 
-TIPO_SPESA = ("AFFITTO", "TASSA", "STIPENDIO", "PRESTITO", "RATEIZZAZIONE", "ASSICURAZIONE", "ALTRO")
+TIPO_SPESA = ("AFFITTO", "TASSA", "RATEIZZAZIONE_TASSE", "STIPENDIO", "PRESTITO", "RATEIZZAZIONE", "ASSICURAZIONE", "ALTRO")
 FREQ_SPESA = ("MENSILE", "BIMESTRALE", "TRIMESTRALE", "SEMESTRALE", "ANNUALE", "UNA_TANTUM")
 
 
@@ -2276,7 +2278,7 @@ def _parse_importo_csv(s: str) -> Optional[float]:
 def import_piano_rate_csv(
     file: UploadFile = File(...),
     titolo: str = Form(...),
-    tipo: str = Form("TASSA"),
+    tipo: str = Form("RATEIZZAZIONE_TASSE"),
     note: Optional[str] = Form(None),
     iban: Optional[str] = Form(None),
     force: bool = Form(False),
@@ -2312,7 +2314,7 @@ def import_piano_rate_csv(
         raise HTTPException(status_code=403, detail="Solo admin può importare piani")
 
     # ── 1. Validazione tipo ──
-    VALID_TIPI = {"AFFITTO", "ASSICURAZIONE", "PRESTITO", "RATEIZZAZIONE", "TASSA", "ALTRO"}
+    VALID_TIPI = {"AFFITTO", "ASSICURAZIONE", "PRESTITO", "RATEIZZAZIONE", "RATEIZZAZIONE_TASSE", "TASSA", "ALTRO"}
     if tipo not in VALID_TIPI:
         raise HTTPException(
             status_code=400,

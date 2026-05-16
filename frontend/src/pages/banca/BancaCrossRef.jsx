@@ -100,6 +100,7 @@ const TIPO_LINK_OPTIONS = [
   { key: "AFFITTO",      label: "Affitto",        group: "out" },
   { key: "STIPENDIO",    label: "Stipendio",      group: "out" },
   { key: "TASSA",        label: "Tassa",          group: "out" },
+  { key: "RATEIZZAZIONE_TASSE", label: "Rata tasse", group: "out" },
   { key: "RATEIZZAZIONE",label: "Rata",           group: "out" },
   { key: "ASSICURAZIONE",label: "Assicurazione",  group: "out" },
   { key: "ENTRATA",      label: "Entrate reg.",   group: "in" },

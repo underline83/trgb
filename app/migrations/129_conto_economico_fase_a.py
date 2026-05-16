@@ -70,13 +70,18 @@ NUOVE_SOTTOCATEGORIE = {
 }
 
 # Mapping cg_spese_fisse.tipo → fe_categorie.nome (per backfill)
+# NB: RATEIZZAZIONE_TASSE è stato introdotto post-129 (mig 131): mapping qui
+# documentato per coerenza, ma la mig 131 fa il backfill specifico dei record
+# riclassificati. Aggiungerlo qui lo include automaticamente nei prossimi
+# backfill (re-run dovesse mai capitare).
 TIPO_TO_CATEGORIA = {
-    "AFFITTO":       "AFFITTI",
-    "STIPENDIO":     "STAFF",
-    "TASSA":         "TASSE E IMPOSTE",
-    "ASSICURAZIONE": "ASSICURAZIONI",
-    "PRESTITO":      "FINANZIARI",
-    "RATEIZZAZIONE": "FINANZIARI",
+    "AFFITTO":             "AFFITTI",
+    "STIPENDIO":           "STAFF",
+    "TASSA":               "TASSE E IMPOSTE",
+    "RATEIZZAZIONE_TASSE": "TASSE E IMPOSTE",
+    "ASSICURAZIONE":       "ASSICURAZIONI",
+    "PRESTITO":            "FINANZIARI",
+    "RATEIZZAZIONE":       "FINANZIARI",
     # "ALTRO": niente default → resta NULL, Marco mappa manualmente
 }
 

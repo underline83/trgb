@@ -18,6 +18,7 @@ const fmtDateShort = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it
 const TIPI = [
   { value: "AFFITTO", label: "Affitto", icon: "🏠", color: "bg-blue-100 text-blue-800 border-blue-200" },
   { value: "TASSA", label: "Tassa", icon: "🏛️", color: "bg-red-100 text-red-800 border-red-200" },
+  { value: "RATEIZZAZIONE_TASSE", label: "Rateizzazione tasse", icon: "🧾", color: "bg-orange-100 text-orange-800 border-orange-200" },
   { value: "STIPENDIO", label: "Stipendio", icon: "👤", color: "bg-green-100 text-green-800 border-green-200" },
   { value: "PRESTITO", label: "Prestito", icon: "🏦", color: "bg-amber-100 text-amber-800 border-amber-200" },
   { value: "RATEIZZAZIONE", label: "Rateizzazione", icon: "📅", color: "bg-violet-100 text-violet-800 border-violet-200" },
@@ -347,7 +348,7 @@ export default function ControlloGestioneSpeseFisse() {
       setWizard(null);
       setCsvFile(null);
       setCsvParsed(null);
-      setCsvForm({ titolo: "", tipo: "TASSA", note: "", iban: "" });
+      setCsvForm({ titolo: "", tipo: "RATEIZZAZIONE_TASSE", note: "", iban: "" });
       setCsvDuplicateWarn(null);
       fetchData();
     } catch (e) {
@@ -917,7 +918,7 @@ export default function ControlloGestioneSpeseFisse() {
             setWizard("IMPORT_CSV");
             setCsvFile(null);
             setCsvParsed(null);
-            setCsvForm({ titolo: "", tipo: "TASSA", note: "", iban: "" });
+            setCsvForm({ titolo: "", tipo: "RATEIZZAZIONE_TASSE", note: "", iban: "" });
             setCsvDuplicateWarn(null);
             setShowCreazione(false);
           }}
@@ -1817,6 +1818,7 @@ export default function ControlloGestioneSpeseFisse() {
                       <select value={csvForm.tipo} onChange={e => setCsvForm({ ...csvForm, tipo: e.target.value })}
                         className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm">
                         <option value="TASSA">🏛️ Tassa</option>
+                        <option value="RATEIZZAZIONE_TASSE">🧾 Rateizzazione tasse</option>
                         <option value="RATEIZZAZIONE">📅 Rateizzazione</option>
                         <option value="PRESTITO">🏦 Prestito</option>
                         <option value="ALTRO">📌 Altro</option>

@@ -138,6 +138,12 @@ def _aggregate_spese_fisse_per_categoria(
       fatture passate, accollo debiti). La competenza è la data fattura
       originale, non la singola rata mensile.
 
+    - In modalità **COMPETENZA**: esclusa anche tipo='RATEIZZAZIONE_TASSE'.
+      Tipo introdotto 2026-05-16 (mig 131) per distinguere RATE di cartelle
+      / F24 PREGRESSI (Abaco, AdE, rottamazione) dalle tasse correnti del
+      mese. La competenza del costo era nei bilanci passati: includerla
+      gonfia il P&L corrente. In cassa rientra come esborso reale.
+
     - In modalità **COMPETENZA**: INCLUSI tipo IN ('PRESTITO', 'TASSA',
       'AFFITTO', 'ASSICURAZIONE', 'ALTRO'). Razionale:
         * PRESTITO/MUTUO = la rata mensile rappresenta gli interessi + quota
@@ -145,11 +151,11 @@ def _aggregate_spese_fisse_per_categoria(
           competenza del mese stesso. Marco 2026-05-16: "prestito ha senso
           tenerlo, competenza resta giusta".
         * TASSA = tassa di competenza del mese (IVA/IRPEF correnti, ecc.).
-          IMPORTANTE: se Marco ha tasse PREGRESSE rateizzate (cartelle AdE,
-          F24 vecchi rateizzati), DEVE riclassificarle come RATEIZZAZIONE
-          dal modulo Spese Fisse, altrimenti gonfiano il P&L mensile. Marco
-          2026-05-16: "se la tassa è di quel mese dovrebbe essere inclusa,
-          TASSA è flag troppo grossolano". TODO v1.1: aggiungere flag
+          Le tasse PREGRESSE rateizzate (cartelle AdE, F24 vecchi rateizzati)
+          vivono nel tipo dedicato RATEIZZAZIONE_TASSE, escluso in competenza.
+          Marco 2026-05-16: "se la tassa è di quel mese dovrebbe essere
+          inclusa, TASSA è flag troppo grossolano → RATEIZZAZIONE_TASSE
+          separata per averne controllo". TODO v1.1: aggiungere flag
           `e_pregresso` o `data_obbligazione_origine` su cg_spese_fisse per
           distinguere pulitamente senza affidarsi all'etichetta `tipo`.
         * AFFITTO/ASSICURAZIONE/ALTRO = costo del servizio erogato nel mese
@@ -162,9 +168,13 @@ def _aggregate_spese_fisse_per_categoria(
     Modalità COMPETENZA: filtra per cg_uscite.periodo_riferimento = YYYY-MM.
     """
     # NB: PRESTITO+TASSA inclusi (competenza mensile generica).
-    # Per cartelle pregresse: riclassificare come RATEIZZAZIONE.
+    # Le cartelle/F24 pregressi rateizzati sono classificati come
+    # RATEIZZAZIONE_TASSE (tipo distinto da TASSA): esclusi qui per non
+    # gonfiare il costo del mese in competenza (sono pagamenti diluiti
+    # di cartelle anni precedenti). In modalità cassa restano visibili
+    # come esborso reale.
     # TODO G.3.x: flag `e_pregresso` per distinzione pulita.
-    tipi_esclusi_competenza = ('STIPENDIO', 'RATEIZZAZIONE')
+    tipi_esclusi_competenza = ('STIPENDIO', 'RATEIZZAZIONE', 'RATEIZZAZIONE_TASSE')
     if modalita == "competenza":
         # Escludi stipendi + rate/prestiti/tasse pregresse
         placeholders = ','.join(['?'] * len(tipi_esclusi_competenza))
