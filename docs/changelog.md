@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-05-16 — M2.5.5 refactor + M2.6 Per Produttore (Cantina 2)
+
+### Aggiunto
+- **`utils/vini/sortableTable.jsx`** `[core]`. Helper condivisi `sortRows(rows, key, dir)` + `<SortTh>`. Estratti dai 4 panel anagrafiche dove vivevano duplicati identici. Da qui in avanti si importano.
+- **`components/vini/MergeAnagraficaModal.jsx`** `[core]`. Componente generico di merge per tutte le anagrafiche. Props: `kind` (produttori/fornitori/denominazioni/vitigni), `palette` (amber/blue/violet/emerald), `source`, `candidates`, `countField` + `countLabel` + `reportField` + `reportLabel`, `renderSubtitle` opzionale. Sostituisce 4 implementazioni quasi identiche (~150 righe ciascuna).
+- **`pages/vini/v2/PerProduttoreV2.jsx` (M2.6)** `[core]`. Pagina "catalogo" del modulo Cantina 2. Layout split:
+  - **Sidebar sinistra** (320px): lista produttori della cantina con ricerca + filtro nazione + filtro "solo con giacenza > 0" + sort multi-criterio (Nome/Giacenza/N.vini). KPI rapidi per riga (vini · bottiglie).
+  - **Content destra**: header con KPI del produttore selezionato, filtri (ricerca vino + tipologia), cards espandibili dei vini madre con tabella annate inline (annata, formato, qta totale, locazioni, prezzo carta, listino, tutte ordinabili). Bottone "📋 Scheda" → SchedaMadreV2 inline a piena pagina con "← Torna ai vini di {produttore}".
+  - Stato persistente del produttore selezionato durante la sessione (state in-page). Lazy fetch delle madri al cambio produttore.
+
+### Cambiato
+- **ProduttoriPanel / DistributoriPanel / VitigniPanel / DenominazioniPanel** `[core]`. Tutti e 4 ora:
+  - Importano `sortRows` + `SortTh` da `utils/vini/sortableTable` (rimosse le definizioni locali).
+  - Usano `MergeAnagraficaModal` con parametri specifici al posto delle modali Merge custom.
+  - Le 4 funzioni `Merge*Modal` interne sono state rimosse.
+- **Risparmio righe netto**: ~600 righe duplicate eliminate (4 × ~150). I 4 file scendono mediamente del 25%.
+- **Bump versione modulo vini** `[core]`. 3.33 → 3.34.
+
+### Note
+- I file panel mantengono il loro `import SchedaMadreV2` per il drill-down inline; VitigniPanel ne ha solo il riferimento dichiarato (no drill-down per i vitigni perché `/vini/v2/madri-raggruppate/` non filtra per vitigno_id senza una UNION sui 5 slot).
+- La `CrudList` generica in `AnagraficheVini.jsx` resta nel codice ma non è più referenziata da nessun tab. Verrà rimossa in R7 (cleanup post-refactor).
+
+### Prossimo (stop sessione)
+- Marco prova le 4 anagrafiche e la nuova Per Produttore, manda feedback su UX/bug.
+- M2.7 — Wizard "Nuovo Vino" 3-step (preview-only) resta in piano.
+
+---
+
 ## 2026-05-16 — M2.5.4: Vitigni pannello dedicato (counts su 5 slot + merge)
 
 ### Aggiunto
