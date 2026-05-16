@@ -29,6 +29,10 @@ from app.utils.locale_data import locale_data_path
 # R6.5 — path tenant-aware. Modulo: controllo_gestione.
 FOODCOST_DB = locale_data_path("foodcost.db")
 VENDITE_DB = locale_data_path("admin_finance.sqlite3")
+# G.3 Fase E (2026-05-16): il CE legge anche da dipendenti.sqlite3 per il
+# costo aziendale completo del personale (tabella dipendenti_costo_consuntivo
+# popolata dall'import ELAB.pdf). Fallback ai netti se il file non esiste.
+DIPENDENTI_DB = locale_data_path("dipendenti.sqlite3")
 
 
 def get_fc_db():
@@ -40,6 +44,18 @@ def get_fc_db():
 
 def get_vendite_db():
     conn = sqlite3.connect(VENDITE_DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def get_dipendenti_db():
+    """Connessione read-only a dipendenti.sqlite3 (per costo aziendale completo
+    nel CE — G.3 Fase E). Ritorna None se il file non esiste (ambiente legacy
+    o errore di path)."""
+    from pathlib import Path
+    if not Path(DIPENDENTI_DB).exists():
+        return None
+    conn = sqlite3.connect(DIPENDENTI_DB)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -317,13 +333,16 @@ def conto_economico(
 
     fc = get_fc_db()
     vdb = get_vendite_db()
+    dip = get_dipendenti_db()  # può ritornare None (graceful fallback)
     try:
         # Lazy import per coerenza con altri endpoint
         from app.services.conto_economico import compute_pl
-        return compute_pl(fc, vdb, anno, mese, modalita)
+        return compute_pl(fc, vdb, anno, mese, modalita, dip_conn=dip)
     finally:
         fc.close()
         vdb.close()
+        if dip is not None:
+            dip.close()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1054,6 +1073,7 @@ def get_uscite(
         row["tipo_uscita"] = tipo_u
         if tipo_u == "SPESA_FISSA":
             _sf_tipo_labels = {"AFFITTO": "Affitto", "TASSA": "Tassa",
+                               "F24_STIPENDI": "F24 stipendi",
                                "RATEIZZAZIONE_TASSE": "Rateizzazione tasse",
                                "STIPENDIO": "Stipendio",
                                "PRESTITO": "Prestito", "RATEIZZAZIONE": "Rateizzazione",
@@ -1529,7 +1549,7 @@ def delete_preset_pagamento(
 # SPESE FISSE — Spese ricorrenti senza fattura
 # ═══════════════════════════════════════════════════════════════════
 
-TIPO_SPESA = ("AFFITTO", "TASSA", "RATEIZZAZIONE_TASSE", "STIPENDIO", "PRESTITO", "RATEIZZAZIONE", "ASSICURAZIONE", "ALTRO")
+TIPO_SPESA = ("AFFITTO", "TASSA", "F24_STIPENDI", "RATEIZZAZIONE_TASSE", "STIPENDIO", "PRESTITO", "RATEIZZAZIONE", "ASSICURAZIONE", "ALTRO")
 FREQ_SPESA = ("MENSILE", "BIMESTRALE", "TRIMESTRALE", "SEMESTRALE", "ANNUALE", "UNA_TANTUM")
 
 
@@ -2314,7 +2334,7 @@ def import_piano_rate_csv(
         raise HTTPException(status_code=403, detail="Solo admin può importare piani")
 
     # ── 1. Validazione tipo ──
-    VALID_TIPI = {"AFFITTO", "ASSICURAZIONE", "PRESTITO", "RATEIZZAZIONE", "RATEIZZAZIONE_TASSE", "TASSA", "ALTRO"}
+    VALID_TIPI = {"AFFITTO", "ASSICURAZIONE", "PRESTITO", "RATEIZZAZIONE", "RATEIZZAZIONE_TASSE", "TASSA", "F24_STIPENDI", "ALTRO"}
     if tipo not in VALID_TIPI:
         raise HTTPException(
             status_code=400,

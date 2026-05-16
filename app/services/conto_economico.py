@@ -211,8 +211,18 @@ def _aggregate_spese_fisse_per_categoria(
     # gonfiare il costo del mese in competenza (sono pagamenti diluiti
     # di cartelle anni precedenti). In modalità cassa restano visibili
     # come esborso reale.
+    # F24_STIPENDI: il versamento mensile F24 stipendi (IRPEF dipendenti +
+    # INPS dipendenti + addizionali + INAIL) è già conteggiato nel costo
+    # aziendale completo della modalità "completo" (dipendenti_costo_consuntivo,
+    # via ELAB pagina 8). Escluderlo in competenza evita doppio conteggio.
+    # In cassa resta visibile come esborso reale (16 del mese successivo).
     # TODO G.3.x: flag `e_pregresso` per distinzione pulita.
-    tipi_esclusi_competenza = ('STIPENDIO', 'RATEIZZAZIONE', 'RATEIZZAZIONE_TASSE')
+    tipi_esclusi_competenza = (
+        'STIPENDIO',
+        'RATEIZZAZIONE',
+        'RATEIZZAZIONE_TASSE',
+        'F24_STIPENDI',
+    )
     if modalita == "competenza":
         # Escludi stipendi + rate/prestiti/tasse pregresse
         placeholders = ','.join(['?'] * len(tipi_esclusi_competenza))
@@ -237,7 +247,12 @@ def _aggregate_spese_fisse_per_categoria(
             ORDER BY u.totale DESC, u.id DESC
         """, (periodo_rif, *tipi_esclusi_competenza)).fetchall()
     else:
-        # Modalità cassa: esclude solo stipendi (resto = esborso reale del mese)
+        # Modalità cassa: esclude solo STIPENDIO da cg_spese_fisse perché
+        # i netti reali vengono dal flow stipendi (cg_uscite STIPENDIO o
+        # dipendenti_costo_consuntivo). F24_STIPENDI invece RESTA visibile
+        # perché è il pagamento reale del 16 del mese successivo.
+        # RATEIZZAZIONE/RATEIZZAZIONE_TASSE/PRESTITO/TASSA tutti inclusi
+        # (esborso reale del mese).
         rows = fc_conn.execute("""
             SELECT
                 COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
@@ -262,18 +277,103 @@ def _aggregate_spese_fisse_per_categoria(
 
 
 def _aggregate_stipendi(
-    fc_conn: sqlite3.Connection, periodo_rif: str
-) -> list[dict]:
+    fc_conn: sqlite3.Connection,
+    periodo_rif: str,
+    dip_conn: Optional[sqlite3.Connection] = None,
+    anno: Optional[int] = None,
+    mese: Optional[int] = None,
+) -> tuple[list[dict], dict]:
     """
-    Ritorna le righe SINGOLE degli stipendi (cg_uscite tipo='STIPENDIO')
-    del periodo. Una riga per dipendente.
-    V1: NETTO. V1.1 (TODO): lordo + contributi + TFR da buste_paga.
+    Ritorna le righe del costo personale per il periodo + meta info.
+
+    DUE MODALITÀ (G.3 Fase E, Marco 2026-05-16):
+
+    1. **Costo completo** (preferita): se per il (anno, mese) esistono
+       record in `dipendenti_costo_consuntivo` (dipendenti.sqlite3, popolato
+       dall'import ELAB.pdf), legge il COSTO AZIENDALE VERO per dipendente
+       (lordo + contributi ditta + ratei 13a/14a/ferie + TFR + INAIL).
+
+    2. **Fallback netti**: se la tabella consuntivo è vuota per quel mese
+       (o dip_conn non fornito), ritorna i NETTI bonificati da
+       `cg_uscite tipo='STIPENDIO'` come prima (comportamento pre-Fase E).
+       In questo caso un warning segnala il "costo personale parziale".
 
     Schema riga unificato (cfr. _build_breakdown):
-      categoria='STAFF', sottocategoria='STIPENDI', tipo_riga='stipendio',
-      ref=nome dipendente, descrizione=numero_fattura/cedolino.
+      categoria='STAFF',
+      sottocategoria='STIPENDI' | 'INAIL' (riga sintetica INAIL azienda),
+      tipo_riga='costo_consuntivo' | 'stipendio' (fallback),
+      ref=cognome_nome dipendente, descrizione=fonte.
+
+    Ritorna (righe, meta) dove meta = {
+        "modalita_costo": "completo" | "netti_fallback",
+        "fonte": "dipendenti_costo_consuntivo" | "cg_uscite",
+        "warnings": [str, ...],
+    }
     """
-    rows = fc_conn.execute("""
+    warnings: list[str] = []
+    rows: list[dict] = []
+
+    # ── Tentativo: leggi da dipendenti_costo_consuntivo (modalità completo) ──
+    consuntivo_disponibile = False
+    if dip_conn is not None and anno is not None and mese is not None:
+        try:
+            # Verifica esistenza tabella (potrebbe non esistere su DB legacy)
+            t = dip_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='dipendenti_costo_consuntivo'"
+            ).fetchone()
+            if t is not None:
+                # Conta record per il mese
+                n = dip_conn.execute(
+                    "SELECT COUNT(*) FROM dipendenti_costo_consuntivo "
+                    "WHERE anno=? AND mese=?",
+                    (anno, mese)
+                ).fetchone()[0]
+                consuntivo_disponibile = (n > 0)
+        except sqlite3.Error:
+            consuntivo_disponibile = False
+
+    if consuntivo_disponibile:
+        # ── Modalità "completo" — legge costo aziendale vero ──
+        # Una riga per dipendente con costo_totale (lordo+contributi+ratei+TFR).
+        # Eventuale riga sintetica matricola='AZIENDA' (per INAIL totale azienda
+        # spalmato) viene presa come sottocategoria='INAIL'.
+        date_first = f"{anno:04d}-{mese:02d}-01"
+        for r in dip_conn.execute("""
+            SELECT id, matricola, cognome_nome, costo_totale, inail_mese,
+                   retribuzione_lorda, contributi_lordo, ratei_importo,
+                   tfr_maturato, dipendente_id
+            FROM dipendenti_costo_consuntivo
+            WHERE anno=? AND mese=?
+            ORDER BY costo_totale DESC, matricola
+        """, (anno, mese)).fetchall():
+            r = dict(r)
+            is_azienda = (r["matricola"] or "").upper() == "AZIENDA"
+            importo = (r["costo_totale"] or 0) + (r["inail_mese"] or 0) if is_azienda \
+                      else (r["costo_totale"] or 0)
+            sottocat = "INAIL" if is_azienda else "STIPENDI"
+            descrizione = "INAIL azienda" if is_azienda else "Costo aziendale completo"
+            rows.append({
+                "categoria": "STAFF",
+                "sottocategoria": sottocat,
+                "tipo_riga": "costo_consuntivo",
+                "id": r["id"],
+                "spesa_fissa_id": None,
+                "data": date_first,
+                "descrizione": descrizione,
+                "ref": r["cognome_nome"] or "—",
+                "importo": round(float(importo), 2),
+            })
+
+        meta = {
+            "modalita_costo": "completo",
+            "fonte": "dipendenti_costo_consuntivo",
+            "warnings": [],
+        }
+        return rows, meta
+
+    # ── Modalità "fallback netti" (comportamento pre-Fase E) ──
+    for r in fc_conn.execute("""
         SELECT
             'STAFF'                                        AS categoria,
             'STIPENDI'                                     AS sottocategoria,
@@ -288,8 +388,25 @@ def _aggregate_stipendi(
         WHERE tipo_uscita = 'STIPENDIO'
           AND periodo_riferimento = ?
         ORDER BY totale DESC, id DESC
-    """, (periodo_rif,)).fetchall()
-    return [dict(r) for r in rows]
+    """, (periodo_rif,)).fetchall():
+        rows.append(dict(r))
+
+    # Warning solo se ci sono dati di stipendio nel mese (altrimenti
+    # potrebbe essere mese vuoto, niente da segnalare)
+    if rows:
+        warnings.append(
+            "Costo personale parziale per questo mese: ELAB del consulente paghe "
+            "non ancora importato → mostrati solo i netti bonificati. "
+            "Mancano carico ditta INPS + ratei 13ª/14ª/ferie + TFR + INAIL "
+            "(~+70% sul costo reale)."
+        )
+
+    meta = {
+        "modalita_costo": "netti_fallback",
+        "fonte": "cg_uscite",
+        "warnings": warnings,
+    }
+    return rows, meta
 
 
 def _build_breakdown(
@@ -379,11 +496,18 @@ def compute_pl(
     anno: int,
     mese: int,
     modalita: str = "competenza",
+    dip_conn: Optional[sqlite3.Connection] = None,
 ) -> dict:
     """
     Calcola il Conto Economico per il periodo (anno, mese).
 
     modalita: 'competenza' (default, v1) | 'cassa' (TODO v1.1 → fallback con warning)
+    dip_conn (G.3 Fase E, 2026-05-16): connessione opzionale a dipendenti.sqlite3.
+        Se passata e per (anno, mese) esistono record in
+        dipendenti_costo_consuntivo (popolato dall'import ELAB.pdf), il costo
+        del personale è il "costo aziendale completo" (lordo + carico ditta
+        + ratei + TFR + INAIL). Altrimenti fallback netti bonificati con
+        warning "costo personale parziale" — comportamento pre-Fase E.
     """
     primo, ultimo, periodo_rif = _range_periodo(anno, mese)
     warnings: list[str] = []
@@ -425,8 +549,14 @@ def compute_pl(
     spese_fisse_count = len(rows_spese_fisse)
 
     # ─── 4. STIPENDI righe singole (cg_uscite STIPENDIO, anti-doppio) ──
-    rows_stipendi = _aggregate_stipendi(fc_conn, periodo_rif)
+    # G.3 Fase E: passa dip_conn + anno/mese — l'aggregator decide se usare
+    # costo aziendale completo (dipendenti_costo_consuntivo) o fallback netti.
+    rows_stipendi, stipendi_meta = _aggregate_stipendi(
+        fc_conn, periodo_rif, dip_conn=dip_conn, anno=anno, mese=mese
+    )
     stipendi_count = len(rows_stipendi)
+    # Propaga warning "costo parziale" se eventualmente presente
+    warnings.extend(stipendi_meta.get("warnings", []))
 
     # ─── 5. UNIFICAZIONE: tutte le righe in un unico flat ──────────────
     # Schema riga: {categoria, sottocategoria, tipo_riga, id, data,
@@ -510,5 +640,13 @@ def compute_pl(
             "spese_fisse_count": spese_fisse_count,
             "stipendi_count": stipendi_count,
             "warnings": warnings,
+            # G.3 Fase E: trasparenza sulla qualità del dato personale.
+            # "modalita_costo": "completo" → costo aziendale vero da ELAB.
+            # "modalita_costo": "netti_fallback" → solo netti bonificati.
+            # Il frontend usa questo per nascondere il warning banner.
+            "costo_personale": {
+                "modalita": stipendi_meta.get("modalita_costo"),
+                "fonte": stipendi_meta.get("fonte"),
+            },
         },
     }

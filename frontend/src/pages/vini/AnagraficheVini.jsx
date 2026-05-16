@@ -21,6 +21,8 @@ import { API_BASE, apiFetch } from "../../config/api";
 import ProduttoriPanel from "./anagrafiche/ProduttoriPanel";
 // M2.5.2 (2026-05-16): pannello Distributori dedicato + drill-down su tutti i panel
 import DistributoriPanel from "./anagrafiche/DistributoriPanel";
+// M2.5.4 (2026-05-16): pannello Vitigni dedicato (counts su 5 slot + merge)
+import VitigniPanel from "./anagrafiche/VitigniPanel";
 import SchedaMadreV2 from "../../components/vini/SchedaMadreV2";
 
 // Helper sort condiviso (interno al file).
@@ -109,7 +111,7 @@ export default function AnagraficheVini() {
         {tab === "produttori"    && <ProduttoriPanel />}
         {tab === "fornitori"     && <DistributoriPanel />}
         {tab === "denominazioni" && <DenominazioniPanel />}
-        {tab === "vitigni"       && <CrudList kind="vitigni"       fields={VITIGNO_FIELDS}       titleSing="Vitigno"       titlePl="Vitigni"       />}
+        {tab === "vitigni"       && <VitigniPanel />}
         {tab === "madre"         && <MadrePanel />}
       </div>
     </div>

@@ -233,25 +233,26 @@ export default function ControlloGestioneContoEconomico() {
           </div>
         )}
 
-        {/* WARNING SPECIFICO COSTO PERSONALE PARZIALE
-            Da rimuovere in G.3 Fase E quando importeremo ELAB (PDF mensile del
-            commercialista) per avere costo aziendale completo (lordo + carico
-            ditta INPS + ratei 13a/14a/ferie + TFR + INAIL). Oggi vediamo solo
-            i netti bonificati: per Aprile 2026 sono 12.140€ contro costo vero
-            di 20.489€ → utile può essere sovrastimato di ~8.000€/mese. */}
-        <div className="mb-5 rounded-xl border border-orange-300 bg-orange-50 p-3">
-          <div className="text-xs font-semibold text-orange-900 uppercase tracking-wider mb-1">
-            ⚠ Costo personale parziale (G.3 Fase E in arrivo)
+        {/* WARNING COSTO PERSONALE PARZIALE — solo se il backend NON ha
+            usato i dati ELAB (dipendenti_costo_consuntivo).
+            G.3 Fase E parte 2/2: quando per il mese in vista esistono i record
+            ELAB importati, modalita="completo" e il warning sparisce. Se invece
+            modalita="netti_fallback", il banner resta a segnalare la stima parziale. */}
+        {data._meta?.costo_personale?.modalita === "netti_fallback" && (
+          <div className="mb-5 rounded-xl border border-orange-300 bg-orange-50 p-3">
+            <div className="text-xs font-semibold text-orange-900 uppercase tracking-wider mb-1">
+              ⚠ Costo personale parziale per {data.periodo_label}
+            </div>
+            <div className="text-sm text-orange-800 leading-relaxed">
+              Per questo mese sto mostrando solo i <strong>netti bonificati</strong>
+              ai dipendenti. Mancano: contributi INPS a carico ditta, ratei
+              13ª/14ª/ferie/permessi, TFR maturato, INAIL. Il costo reale è
+              tipicamente <strong>~+70%</strong> sui netti → l'utile netto è
+              sovrastimato. Carica l'ELAB del consulente paghe per questo mese
+              dal modulo Dipendenti per il calcolo corretto.
+            </div>
           </div>
-          <div className="text-sm text-orange-800 leading-relaxed">
-            Oggi la voce STAFF include solo i <strong>netti bonificati</strong> ai dipendenti.
-            Mancano: contributi INPS a carico ditta, ratei 13ª/14ª/ferie/permessi, TFR maturato,
-            INAIL. Per Aprile 2026 il costo reale è circa <strong>€&nbsp;20.500</strong> contro
-            i <strong>€&nbsp;12.140</strong> attualmente conteggiati → l'utile netto mostrato
-            è <strong>sovrastimato</strong> di circa €&nbsp;8.000/mese. Importeremo gli ELAB
-            mensili del commercialista per il calcolo corretto.
-          </div>
-        </div>
+        )}
 
         {/* KPI HERO — 3 card primarie */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -600,6 +601,8 @@ const TIPO_RIGA_LABEL = {
   fattura: { label: "Fattura", color: "text-blue-700 bg-blue-50 border-blue-200" },
   spesa_fissa: { label: "Spesa fissa", color: "text-amber-700 bg-amber-50 border-amber-200" },
   stipendio: { label: "Stipendio", color: "text-green-700 bg-green-50 border-green-200" },
+  // G.3 Fase E: costo aziendale completo da ELAB.pdf (lordo + carico ditta + ratei + TFR + INAIL)
+  costo_consuntivo: { label: "Costo azienda", color: "text-purple-700 bg-purple-50 border-purple-200" },
 };
 
 function RigaDettaglio({ riga }) {
@@ -621,6 +624,9 @@ function RigaDettaglio({ riga }) {
   } else if (riga.tipo_riga === "spesa_fissa" && riga.spesa_fissa_id) {
     target = `/controllo-gestione/spese-fisse?highlight=${riga.spesa_fissa_id}`;
   } else if (riga.tipo_riga === "stipendio") {
+    target = `/dipendenti/buste-paga`;
+  } else if (riga.tipo_riga === "costo_consuntivo") {
+    // G.3 Fase E: vista costi mensili (sarà E.8). Per ora atterra su buste-paga.
     target = `/dipendenti/buste-paga`;
   }
   const clickable = !!target;

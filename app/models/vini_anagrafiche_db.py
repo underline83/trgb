@@ -693,21 +693,191 @@ def merge_denominazioni(source_id: int, target_id: int) -> Dict[str, Any]:
 VITIGNI_FIELDS = {"nome", "note"}
 
 
-def list_vitigni(search: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_vitigni(
+    search: Optional[str] = None,
+    with_counts: bool = False,
+    only_orphans: bool = False,
+) -> List[Dict[str, Any]]:
+    """
+    Lista vitigni. Con with_counts=True aggiunge:
+      - n_bottiglie:  bottiglie che usano questo vitigno (su uno qualsiasi dei 5 slot)
+      - n_madre:      vini madre distinti che usano questo vitigno
+      - qta_bottiglie: somma QTA_TOTALE delle bottiglie che lo usano
+    only_orphans=True restituisce solo i vitigni senza bottiglie collegate
+    (utili per pulizia anagrafica). Forza with_counts=True.
+
+    NB: i vitigni sono linkati alle bottiglie via 5 slot denormalizzati
+    (vitigno_1_id … vitigno_5_id). Costruiamo una sub-query UNION per
+    avere una unica colonna "vitigno_id" per ogni bottiglia, poi GROUP BY.
+    """
+    if only_orphans:
+        with_counts = True
+
     conn = get_magazzino_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+
+    where = []
+    params: list = []
     if search:
+        where.append("v.nome LIKE ?")
+        params.append(f"%{search}%")
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    if not with_counts:
         rows = cur.execute(
-            f"SELECT * FROM {TABELLE['vitigni']} WHERE nome LIKE ? ORDER BY nome",
-            (f"%{search}%",),
+            f"SELECT v.* FROM {TABELLE['vitigni']} v {where_sql} ORDER BY v.nome",
+            params,
         ).fetchall()
-    else:
-        rows = cur.execute(
-            f"SELECT * FROM {TABELLE['vitigni']} ORDER BY nome"
-        ).fetchall()
+        conn.close()
+        return [_row_to_dict(r) for r in rows]
+
+    # Sub-query: bottiglia × slot → vitigno_id (esplodiamo i 5 slot in righe).
+    # Usiamo COUNT DISTINCT madre_id per il count vini madre.
+    btg_t = TABELLE['bottiglie']
+    union_slots = " UNION ALL ".join(
+        f"SELECT id AS bid, madre_id, COALESCE(QTA_TOTALE,0) AS qta, vitigno_{s}_id AS vit FROM {btg_t} WHERE vitigno_{s}_id IS NOT NULL"
+        for s in range(1, 6)
+    )
+    sql = f"""
+        SELECT v.*,
+               COALESCE(c.n_madre, 0)       AS n_madre,
+               COALESCE(c.n_bottiglie, 0)   AS n_bottiglie,
+               COALESCE(c.qta_bottiglie, 0) AS qta_bottiglie
+        FROM {TABELLE['vitigni']} v
+        LEFT JOIN (
+            SELECT vit AS vitigno_id,
+                   COUNT(DISTINCT madre_id) AS n_madre,
+                   COUNT(DISTINCT bid)      AS n_bottiglie,
+                   SUM(qta)                 AS qta_bottiglie
+            FROM ({union_slots})
+            GROUP BY vit
+        ) c ON c.vitigno_id = v.id
+        {where_sql}
+        ORDER BY v.nome
+    """
+    rows = cur.execute(sql, params).fetchall()
+    conn.close()
+    out = [_row_to_dict(r) for r in rows]
+    if only_orphans:
+        out = [r for r in out if (r.get("n_bottiglie") or 0) == 0]
+    return out
+
+
+def count_vini_per_vitigno(vid: int) -> Dict[str, int]:
+    """Conta veloce bottiglie/madri/giacenza che usano un vitigno (su tutti gli slot)."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    btg_t = TABELLE['bottiglie']
+    or_clause = " OR ".join(f"vitigno_{s}_id = ?" for s in range(1, 6))
+    params = [vid] * 5
+    n_bottiglie = cur.execute(
+        f"SELECT COUNT(*) FROM {btg_t} WHERE {or_clause}", params
+    ).fetchone()[0]
+    n_madre = cur.execute(
+        f"SELECT COUNT(DISTINCT madre_id) FROM {btg_t} WHERE ({or_clause}) AND madre_id IS NOT NULL",
+        params,
+    ).fetchone()[0]
+    qta = cur.execute(
+        f"SELECT COALESCE(SUM(QTA_TOTALE), 0) FROM {btg_t} WHERE {or_clause}",
+        params,
+    ).fetchone()[0]
+    conn.close()
+    return {
+        "n_madre": n_madre or 0,
+        "n_bottiglie": n_bottiglie or 0,
+        "qta_bottiglie": qta or 0,
+    }
+
+
+def list_madri_per_vitigno(vid: int) -> List[Dict[str, Any]]:
+    """
+    Vini madre che hanno almeno una bottiglia (annata) con questo vitigno
+    in uno dei 5 slot. Aggrega su madre con conta bottiglie/giacenza.
+    """
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    btg_t = TABELLE['bottiglie']
+    or_clause = " OR ".join(f"b.vitigno_{s}_id = ?" for s in range(1, 6))
+    params = [vid] * 5
+    rows = cur.execute(
+        f"""
+        SELECT m.id, m.descrizione, m.tipologia,
+               p.nome AS produttore_nome,
+               CASE WHEN d.id IS NOT NULL THEN d.nome || ' ' || d.tipo ELSE NULL END AS denominazione_display,
+               COUNT(DISTINCT b.id)             AS n_bottiglie,
+               COALESCE(SUM(b.QTA_TOTALE), 0)   AS qta_tot
+        FROM {btg_t} b
+        JOIN {TABELLE['madre']}         m ON m.id = b.madre_id
+        LEFT JOIN {TABELLE['produttori']} p ON p.id = m.produttore_id
+        LEFT JOIN {TABELLE['denominazioni']} d ON d.id = m.denominazione_id
+        WHERE {or_clause}
+        GROUP BY m.id
+        ORDER BY p.nome, m.descrizione
+        """,
+        params,
+    ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
+
+
+def merge_vitigni(source_id: int, target_id: int) -> Dict[str, Any]:
+    """
+    Fonde il vitigno source dentro target. Per ogni slot 1..5:
+      - se la bottiglia ha source in quello slot → lo sostituisce con target
+    Attenzione: se una bottiglia ha SIA source SIA target in slot diversi,
+    dopo il merge avrebbe target due volte → in quel caso si azzera lo slot
+    "source" (per evitare duplicati con stessi target_id) e si conserva
+    quello che era già target. Le % vengono ridistribuite manualmente
+    dall'utente (non automatizzabile).
+
+    Ritorna {source_id, target_id, n_bottiglie_modificate}.
+    Solleva ValueError se source==target o id non esistenti.
+    """
+    if source_id == target_id:
+        raise ValueError("source e target sono lo stesso vitigno")
+
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    for vid, label in [(source_id, "source"), (target_id, "target")]:
+        if not cur.execute(
+            f"SELECT 1 FROM {TABELLE['vitigni']} WHERE id = ?", (vid,)
+        ).fetchone():
+            conn.close()
+            raise ValueError(f"Vitigno {label} {vid} non trovato")
+
+    btg_t = TABELLE['bottiglie']
+    n_modificate = 0
+    # Per ogni slot, prima azzera le righe che avrebbero entrambi source+target
+    # (collisione), poi rimpiazza source → target.
+    for slot in range(1, 6):
+        col = f"vitigno_{slot}_id"
+        # collisione: stessa bottiglia ha target in ALTRO slot e source qui → azzera questo slot
+        other_slots = [f"vitigno_{s}_id" for s in range(1, 6) if s != slot]
+        any_other_eq_target = " OR ".join(f"{c} = ?" for c in other_slots)
+        cur.execute(
+            f"UPDATE {btg_t} SET {col} = NULL "
+            f"WHERE {col} = ? AND ({any_other_eq_target})",
+            [source_id] + [target_id] * len(other_slots),
+        )
+        n_modificate += cur.rowcount
+        # rimpiazza source → target negli slot rimasti (no collisione)
+        cur.execute(
+            f"UPDATE {btg_t} SET {col} = ? WHERE {col} = ?",
+            (target_id, source_id),
+        )
+        n_modificate += cur.rowcount
+
+    cur.execute(f"DELETE FROM {TABELLE['vitigni']} WHERE id = ?", (source_id,))
+    conn.commit()
+    conn.close()
+    return {
+        "source_id": source_id,
+        "target_id": target_id,
+        "n_bottiglie_modificate": n_modificate,
+    }
 
 
 def get_vitigno(vid: int) -> Optional[Dict[str, Any]]:

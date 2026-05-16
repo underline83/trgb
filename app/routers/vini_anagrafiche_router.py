@@ -497,20 +497,54 @@ def delete_denominazione(did: int, current_user: Any = Depends(get_current_user)
 # ============================================================
 # VITIGNI
 # ============================================================
-@router.get("/vitigni/", summary="Lista vitigni")
+@router.get("/vitigni/", summary="Lista vitigni (con counts opzionali)")
 def list_vitigni(
     search: Optional[str] = Query(None),
+    with_counts: bool = Query(False, description="aggiunge n_madre / n_bottiglie / qta_bottiglie"),
+    only_orphans: bool = Query(False, description="solo vitigni senza bottiglie collegate"),
     current_user: Any = Depends(get_current_user),
 ):
-    return ana.list_vitigni(search=search)
+    return ana.list_vitigni(search=search, with_counts=with_counts, only_orphans=only_orphans)
 
 
-@router.get("/vitigni/{vid}", summary="Dettaglio vitigno")
-def get_vitigno(vid: int, current_user: Any = Depends(get_current_user)):
+@router.get("/vitigni/{vid}", summary="Dettaglio vitigno (con conta + lista madri)")
+def get_vitigno(
+    vid: int,
+    with_madri: bool = Query(False, description="include lista vini madre che usano il vitigno"),
+    current_user: Any = Depends(get_current_user),
+):
     row = ana.get_vitigno(vid)
     if not row:
         raise HTTPException(404, "Vitigno non trovato")
+    row.update(ana.count_vini_per_vitigno(vid))
+    if with_madri:
+        row["vini_madre"] = ana.list_madri_per_vitigno(vid)
     return row
+
+
+@router.post("/vitigni/{source_id}/merge", summary="Fonde un vitigno dentro un altro (admin)")
+def merge_vitigni_endpoint(
+    source_id: int,
+    target_id: int = Query(..., description="id del vitigno di destinazione"),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Fonde i vitigni duplicati. Tipico caso: hai aggiunto a mano "Nebbiolo " (con
+    spazio finale) prima del seed, oppure "nebbiolo" minuscolo e poi è arrivato
+    "Nebbiolo" canonico → si fondono.
+    Per ogni bottiglia: nei 5 slot vitigno_X_id, source viene sostituito da target.
+    Se la bottiglia aveva già target in un altro slot, lo slot source viene azzerato
+    (evita duplicati con stesso id). Percentuali NON ridistribuite automaticamente.
+    """
+    _require_admin(current_user)
+    try:
+        report = ana.merge_vitigni(source_id, target_id)
+    except ValueError as e:
+        msg = str(e)
+        if "non trovato" in msg:
+            raise HTTPException(404, msg)
+        raise HTTPException(400, msg)
+    return report
 
 
 @router.post("/vitigni/", summary="Crea vitigno (admin)")

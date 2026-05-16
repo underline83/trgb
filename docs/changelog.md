@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-05-16 — M2.5.4: Vitigni pannello dedicato (counts su 5 slot + merge)
+
+### Aggiunto
+- **Backend vitigni con counts + drill-down + merge** `[core]`. `vini_anagrafiche_db.py`:
+  - `list_vitigni(with_counts, only_orphans, search)` — UNION ALL sui 5 slot `vitigno_X_id` delle bottiglie + GROUP BY per ottenere n_madre/n_bottiglie/qta_bottiglie distinti per vitigno.
+  - `count_vini_per_vitigno(vid)` — conta veloce per dettaglio.
+  - `list_madri_per_vitigno(vid)` — vini madre che usano il vitigno in almeno uno slot, aggregati con n_bottiglie/qta_tot.
+  - `merge_vitigni(source, target)` — sostituisce source con target su tutti i 5 slot di tutte le bottiglie. Gestisce il caso "collisione" (bottiglia che già ha target in altro slot): azzera lo slot source per evitare duplicati. Percentuali NON ridistribuite.
+- **Router vitigni esteso** `[core]`. GET `/vitigni/?with_counts&only_orphans`, GET `/vitigni/{id}?with_madri=true`, POST `/vitigni/{src}/merge?target_id={dst}` (admin).
+- **VitigniPanel.jsx** `[core]`. Nuovo pannello dedicato (palette emerald): KPI riepilogativi (totale vitigni, vini madre con vitigno, bottiglie, orfani), tabella con colonne ordinabili (Nome / Note / Madri / Btg / Giac.), filtri ricerca + "solo orfani", riga cliccabile → modale dettaglio con lista vini madre, modale Edit/Nuovo, modale Merge duplicati (es. "nebbiolo" minuscolo → "Nebbiolo").
+
+### Cambiato
+- **Sotto-tab "Vitigni"** ora usa `VitigniPanel` (al posto della `CrudList` generica). La CrudList resta nel codice ma non è più referenziata — verrà rimossa in R7 (cleanup post-refactor).
+- **Bump versione modulo vini** `[core]`. 3.32 → 3.33.
+
+### Note
+- Il drill-down vino → SchedaMadreV2 non è implementato qui perché l'endpoint `/vini/v2/madri-raggruppate/` non filtra per vitigno_id (richiederebbe UNION ALL sui 5 slot anche lì). Per ora il modale mostra solo la lista vini collegati con i totali; per aprire una scheda specifica si usa la Cantina classica o Cantina 2.
+
+### Prossimo
+- M2.5.5 — Cleanup: estrazione `useSortable` + componenti `SortTh`/`KpiCard` condivisi tra i panel anagrafiche (oggi duplicati nei 4 file).
+- M2.6 — Cantina 2: Per Produttore (raggruppamento dedicato).
+
+---
+
 ## 2026-05-16 — M2.5.3: Denominazioni CRUD admin + merge duplicati
 
 ### Aggiunto

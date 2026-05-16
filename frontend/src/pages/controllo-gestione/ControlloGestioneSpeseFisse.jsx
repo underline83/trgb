@@ -18,6 +18,7 @@ const fmtDateShort = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it
 const TIPI = [
   { value: "AFFITTO", label: "Affitto", icon: "🏠", color: "bg-blue-100 text-blue-800 border-blue-200" },
   { value: "TASSA", label: "Tassa", icon: "🏛️", color: "bg-red-100 text-red-800 border-red-200" },
+  { value: "F24_STIPENDI", label: "F24 stipendi", icon: "📋", color: "bg-slate-100 text-slate-800 border-slate-200" },
   { value: "RATEIZZAZIONE_TASSE", label: "Rateizzazione tasse", icon: "🧾", color: "bg-orange-100 text-orange-800 border-orange-200" },
   { value: "STIPENDIO", label: "Stipendio", icon: "👤", color: "bg-green-100 text-green-800 border-green-200" },
   { value: "PRESTITO", label: "Prestito", icon: "🏦", color: "bg-amber-100 text-amber-800 border-amber-200" },
