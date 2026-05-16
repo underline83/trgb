@@ -40,6 +40,8 @@ export default function groupByMadre(bottiglie) {
         fornitore_nome: b.f_nome || b.DISTRIBUTORE,
         rappresentante_nome: b.f_rappresentante_nome || b.RAPPRESENTANTE,
         abbinamenti: b.m_abbinamenti || b.ABBINAMENTI,
+        note_madre: b.m_note_madre || null,
+        grado_alcolico_tipico: b.m_grado_alcolico_tipico || null,
         annate: [],
       });
     }

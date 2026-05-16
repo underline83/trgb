@@ -1475,8 +1475,14 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
             WHERE fornitore_nome = ? AND data_scadenza = ? AND tipo_uscita = 'STIPENDIO'
         """, [f"Stipendio - {nome_completo}", data_scadenza]).fetchone()
 
-        periodo_rif = f"{MESI_IT[mese]} {anno}"
-        num_fattura = f"Stipendio {MESI_IT[mese]} {anno}"
+        # Bug fix 2026-05-16: periodo_riferimento DEVE essere in formato YYYY-MM
+        # (es. "2026-04") perché viene matchato come tale dal service Conto Economico
+        # (vedi conto_economico.py: WHERE periodo_riferimento = '2026-MM'). Prima
+        # produceva "Aprile 2026" e il CE non vedeva gli stipendi storici.
+        # periodo_display resta in italiano per leggibilità di numero_fattura/note.
+        periodo_rif = f"{anno}-{int(mese):02d}"
+        periodo_display = f"{MESI_IT[mese]} {anno}"
+        num_fattura = f"Stipendio {periodo_display}"
 
         if existing:
             # Sessione 2026-05-11 — bug fix post-G.6: era hardcoded 'DA_PAGARE'
@@ -1499,7 +1505,7 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
                 f"Stipendio - {nome_completo}",
                 netto, data_scadenza,
                 num_fattura, periodo_rif,
-                f"Cedolino {periodo_rif}",
+                f"Cedolino {periodo_display}",   # display italiano nelle note
             ])
             uscita_id = fc_conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
