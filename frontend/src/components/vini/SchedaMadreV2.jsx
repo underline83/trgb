@@ -438,7 +438,8 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                         <th className="px-3 py-1.5 text-left w-24">Tipo</th>
                         <th className="px-3 py-1.5 text-left w-20">Annata</th>
                         <th className="px-3 py-1.5 text-center w-12">Qta</th>
-                        <th className="px-3 py-1.5 text-right w-28">Valore stimato</th>
+                        <th className="px-3 py-1.5 text-right w-20">€/bt</th>
+                        <th className="px-3 py-1.5 text-right w-24">Totale</th>
                         <th className="px-3 py-1.5 text-left w-32">Locazione</th>
                         <th className="px-3 py-1.5 text-left">Note</th>
                       </tr>
@@ -451,8 +452,14 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                           tipo === "CARICO"  ? "bg-blue-100 text-blue-800 border-blue-200" :
                           tipo === "SCARICO" ? "bg-rose-100 text-rose-800 border-rose-200" :
                           "bg-neutral-100 text-neutral-700 border-neutral-200";
-                        // Valore stimato = qta * prezzo_carta_attuale della bottiglia (approssimazione)
-                        const valore = (Number(m.qta) || 0) * (Number(m.prezzo_carta_attuale) || 0);
+                        // Mig 129 (2026-05-16): usa snapshot prezzo_unitario.
+                        // Fallback a prezzo_carta_attuale solo se NULL (record pre-mig non backfillati).
+                        const prezzoReale = m.prezzo_unitario != null ? Number(m.prezzo_unitario) : null;
+                        const prezzoFallback = m.prezzo_carta_attuale != null ? Number(m.prezzo_carta_attuale) : null;
+                        const prezzoEff = prezzoReale != null ? prezzoReale : prezzoFallback;
+                        const isStima = prezzoReale == null && prezzoFallback != null;
+                        const totale = (prezzoEff != null && tipo !== "MODIFICA" && tipo !== "RETTIFICA")
+                          ? (Number(m.qta) || 0) * prezzoEff : null;
                         return (
                           <tr key={m.id} className="border-t border-neutral-100">
                             <td className="px-3 py-1 text-[11px] text-neutral-600">{fmtDate(m.data_mov)}</td>
@@ -461,7 +468,19 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                             </td>
                             <td className="px-3 py-1 font-semibold">{m.ANNATA || "NV"}{m.FORMATO ? ` · ${m.FORMATO}` : ""}</td>
                             <td className="px-3 py-1 text-center font-bold">{m.qta}</td>
-                            <td className="px-3 py-1 text-right font-semibold tabular-nums" title="qta × prezzo carta attuale della bottiglia (stima)">{fmtEuro(valore)}</td>
+                            <td className="px-3 py-1 text-right tabular-nums text-[11px]"
+                                title={isStima ? "Stima: prezzo carta attuale (nessuno snapshot disponibile)" : "Snapshot al momento del movimento"}>
+                              {prezzoEff != null ? (
+                                <span className={isStima ? "text-neutral-400 italic" : "text-neutral-700"}>
+                                  {fmtEuro(prezzoEff)}{isStima ? "*" : ""}
+                                </span>
+                              ) : <span className="text-neutral-300">—</span>}
+                            </td>
+                            <td className="px-3 py-1 text-right font-semibold tabular-nums">
+                              {totale != null
+                                ? <span className={isStima ? "text-neutral-500 italic" : ""}>{fmtEuro(totale)}</span>
+                                : <span className="text-neutral-300">—</span>}
+                            </td>
                             <td className="px-3 py-1 text-[11px] text-neutral-600 truncate">{m.locazione || ""}</td>
                             <td className="px-3 py-1 text-[11px] text-neutral-600 truncate max-w-xs">{m.note || ""}</td>
                           </tr>
@@ -471,6 +490,9 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                   </table>
                   <div className="bg-neutral-50 border-t border-neutral-200 px-3 py-1.5 text-[10px] text-neutral-500 text-center">
                     {movimenti.length} movimenti totali
+                    {movimenti.some(m => m.prezzo_unitario == null && m.prezzo_carta_attuale != null) && (
+                      <span className="ml-2 italic">· * = stima (prezzo carta attuale, snapshot non disponibile per movimento pre-mig 129)</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -502,6 +524,33 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                       <div className="text-xl font-bold text-violet-900">{fmtNum(stats.bt_mese_medio, 1)}<span className="text-xs font-normal text-violet-700"> bt/mese</span></div>
                     </div>
                   </div>
+                  {/* Riga acquisti + margine (mig 129) — visibile solo se ci sono dati acquisto */}
+                  {(stats.qta_acquisti > 0 || stats.costo_acquisti_totale > 0) && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                      <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-sky-700 font-semibold">Acquistate (storiche)</div>
+                        <div className="text-xl font-bold text-sky-900">{stats.qta_acquisti || 0}<span className="text-xs font-normal text-sky-700"> bt</span></div>
+                      </div>
+                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-rose-700 font-semibold">Costo acquisti</div>
+                        <div className="text-xl font-bold text-rose-900">{fmtEuro(stats.costo_acquisti_totale || 0)}</div>
+                      </div>
+                      <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-teal-700 font-semibold">Margine lordo</div>
+                        <div className="text-xl font-bold text-teal-900">
+                          {fmtEuro((stats.ricavo_totale || 0) - (stats.costo_acquisti_totale || 0))}
+                        </div>
+                      </div>
+                      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-neutral-600 font-semibold">Ricarico %</div>
+                        <div className="text-xl font-bold text-neutral-900">
+                          {stats.costo_acquisti_totale > 0
+                            ? `${fmtNum(((stats.ricavo_totale || 0) / stats.costo_acquisti_totale - 1) * 100, 0)}%`
+                            : "—"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4 pt-3 border-t border-neutral-100">
                     <Field label="Prima vendita" value={fmtDate(stats.prima_vendita)} />
                     <Field label="Ultima vendita" value={fmtDate(stats.ultima_vendita)} />

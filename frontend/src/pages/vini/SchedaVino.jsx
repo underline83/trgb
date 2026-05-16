@@ -215,6 +215,12 @@ const SchedaVino = forwardRef(function SchedaVino({
   const [qtaMov, setQtaMov]           = useState("");
   const [locMov, setLocMov]           = useState("");
   const [noteMov, setNoteMov]         = useState("");
+  // Snapshot prezzo unitario per movimento (mig 129, 2026-05-16). VENDITA → PREZZO_CARTA,
+  // CARICO → EURO_LISTINO, altri → vuoto. Editabile dall'utente, sovrascrive il default.
+  const [prezzoMov, setPrezzoMov]     = useState("");
+  // Flag: l'utente ha toccato manualmente il prezzo? Se sì, non lo sovrascriviamo
+  // quando cambia tipo. Si resetta a false dopo submit.
+  const [prezzoMovTouched, setPrezzoMovTouched] = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [submitMsg, setSubmitMsg]     = useState("");
 
@@ -660,24 +666,65 @@ const SchedaVino = forwardRef(function SchedaVino({
   };
 
   // ── movimenti ────────────────────────────────────────
+  // Helper: prezzo suggerito a partire dal tipo di movimento e dai dati vino correnti.
+  // VENDITA → PREZZO_CARTA (incasso vendita), CARICO → EURO_LISTINO (costo acquisto).
+  // SCARICO/RETTIFICA/MODIFICA → "" (rottura/correzione, nessun valore monetario).
+  const suggerisciPrezzoPerTipo = (tipo, v) => {
+    if (!v) return "";
+    if (tipo === "VENDITA") {
+      const p = v.PREZZO_CARTA;
+      return p != null && p !== "" ? String(p) : "";
+    }
+    if (tipo === "CARICO") {
+      const p = v.EURO_LISTINO;
+      return p != null && p !== "" ? String(p) : "";
+    }
+    return "";
+  };
+
+  // Quando cambia tipo o quando vino arriva, ripopola il prezzo SE l'utente non
+  // l'ha toccato manualmente (sennò rispettiamo la sua scelta).
+  useEffect(() => {
+    if (prezzoMovTouched) return;
+    setPrezzoMov(suggerisciPrezzoPerTipo(tipoMov, vino));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoMov, vino?.PREZZO_CARTA, vino?.EURO_LISTINO]);
+
   const submitMovimento = async () => {
     const qtaNum = Number(qtaMov);
     if (!qtaMov || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
     if ((tipoMov === "VENDITA" || tipoMov === "SCARICO") && !locMov) {
       alert("Seleziona la locazione da cui scalare."); return;
     }
+    // prezzo_unitario: opzionale, parsing soft (vuoto = null = autopop lato backend)
+    let prezzoNum = null;
+    if (prezzoMov !== "" && prezzoMov != null) {
+      const n = Number(prezzoMov);
+      if (!Number.isFinite(n) || n < 0) {
+        alert("Prezzo unitario non valido (deve essere ≥ 0)."); return;
+      }
+      prezzoNum = n;
+    }
     setSubmitting(true); setSubmitMsg("");
     try {
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/movimenti`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: tipoMov, qta: qtaNum, locazione: locMov || null, note: noteMov || null }),
+        body: JSON.stringify({
+          tipo: tipoMov,
+          qta: qtaNum,
+          locazione: locMov || null,
+          note: noteMov || null,
+          prezzo_unitario: prezzoNum,
+        }),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
       const data = await r.json();
       if (data.vino) notifyUpdate(data.vino);
       if (data.movimenti) setMovimenti(data.movimenti);
       setQtaMov(""); setLocMov(""); setNoteMov("");
+      setPrezzoMovTouched(false); // riabilita autopop
+      setPrezzoMov(suggerisciPrezzoPerTipo(tipoMov, data.vino || vino));
       setSubmitMsg("✅ Registrato."); setTimeout(() => setSubmitMsg(""), 3000);
     } catch (e) { setSubmitMsg(`❌ ${e.message}`); }
     finally { setSubmitting(false); }
@@ -1082,7 +1129,7 @@ const SchedaVino = forwardRef(function SchedaVino({
               </SectionHeader>
               <div className="p-5 space-y-5">
                 <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-3">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <select value={tipoMov} onChange={e => { setTipoMov(e.target.value); if (e.target.value === "RETTIFICA") setLocMov(""); }}
                       className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
                       <option value="CARICO">Carico</option>
@@ -1107,6 +1154,28 @@ const SchedaVino = forwardRef(function SchedaVino({
                     </select>
                     <input type="number" placeholder="Qtà *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}
                       className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                    {/* Prezzo unitario snapshot (mig 129, 2026-05-16) — VENDITA: PREZZO_CARTA, CARICO: EURO_LISTINO */}
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        placeholder={
+                          tipoMov === "VENDITA" ? "€/bt (carta)"
+                          : tipoMov === "CARICO" ? "€/bt (listino)"
+                          : "€/bt (opz.)"
+                        }
+                        value={prezzoMov}
+                        onChange={e => { setPrezzoMov(e.target.value); setPrezzoMovTouched(true); }}
+                        title={
+                          tipoMov === "VENDITA" ? "Prezzo carta al momento della vendita (modificabile)"
+                          : tipoMov === "CARICO" ? "Prezzo di acquisto / listino (modificabile)"
+                          : "Prezzo unitario (opzionale per rettifiche/scarichi)"
+                        }
+                        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 pr-7"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 pointer-events-none">€</span>
+                    </div>
                     <Btn variant="primary" size="md" type="button" onClick={submitMovimento} disabled={submitting} loading={submitting}>
                       {submitting ? "Registro…" : "Registra"}
                     </Btn>
@@ -1116,12 +1185,14 @@ const SchedaVino = forwardRef(function SchedaVino({
                   {submitMsg && <p className="text-sm font-medium">{submitMsg}</p>}
                 </div>
                 <div className="border border-neutral-200 rounded-xl overflow-x-auto">
-                  <table className="w-full text-sm min-w-[600px]">
+                  <table className="w-full text-sm min-w-[680px]">
                     <thead className="bg-neutral-100">
                       <tr className="text-xs text-neutral-600 uppercase tracking-wide">
                         <th className="px-3 py-2 text-left">Data</th>
                         <th className="px-3 py-2 text-center">Tipo</th>
                         <th className="px-3 py-2 text-center">Qtà</th>
+                        <th className="px-3 py-2 text-right">€/bt</th>
+                        <th className="px-3 py-2 text-right">Totale</th>
                         <th className="px-3 py-2 text-left">Loc.</th>
                         <th className="px-3 py-2 text-left">Note</th>
                         <th className="px-3 py-2 text-left">Utente</th>
@@ -1131,11 +1202,20 @@ const SchedaVino = forwardRef(function SchedaVino({
                     <tbody>
                       {movimenti.map(m => {
                         const t = TIPO_LABELS[m.tipo] ?? { label: m.tipo, cls: "" };
+                        const prezzo = m.prezzo_unitario != null ? Number(m.prezzo_unitario) : null;
+                        const totale = (prezzo != null && m.qta != null && m.tipo !== "MODIFICA")
+                          ? prezzo * Number(m.qta) : null;
                         return (
                           <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition">
                             <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">{m.data_mov?.slice(0,16).replace("T"," ")}</td>
                             <td className="px-3 py-2 text-center"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${t.cls}`}>{t.label}</span></td>
                             <td className="px-3 py-2 text-center font-semibold">{m.tipo === "MODIFICA" ? "—" : m.qta}</td>
+                            <td className="px-3 py-2 text-right text-xs text-neutral-700 tabular-nums">
+                              {prezzo != null ? `${fmtNum(prezzo)} €` : <span className="text-neutral-300">—</span>}
+                            </td>
+                            <td className="px-3 py-2 text-right text-xs font-medium text-neutral-800 tabular-nums">
+                              {totale != null ? `${fmtNum(totale)} €` : <span className="text-neutral-300">—</span>}
+                            </td>
                             <td className="px-3 py-2 text-xs text-neutral-600">{m.tipo === "MODIFICA" ? "—" : (m.locazione || "—")}</td>
                             <td className="px-3 py-2 text-xs text-neutral-700" style={{maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis"}}>{m.note || ""}</td>
                             <td className="px-3 py-2 text-xs text-neutral-500">{m.utente || "—"}</td>
@@ -1144,7 +1224,7 @@ const SchedaVino = forwardRef(function SchedaVino({
                         );
                       })}
                       {movimenti.length === 0 && (
-                        <tr><td colSpan={canDelete ? 7 : 6} className="px-4 py-5 text-center text-sm text-neutral-500">Nessun movimento registrato.</td></tr>
+                        <tr><td colSpan={canDelete ? 9 : 8} className="px-4 py-5 text-center text-sm text-neutral-500">Nessun movimento registrato.</td></tr>
                       )}
                     </tbody>
                   </table>

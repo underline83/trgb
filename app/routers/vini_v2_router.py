@@ -414,14 +414,14 @@ def list_movimenti_madre(
         return []
 
     placeholders = ",".join(["?"] * len(bottiglie_ids))
-    # NB: vini_magazzino_movimenti NON ha prezzo_unitario.
-    # Stimiamo il "totale" del movimento come qta * b.PREZZO_CARTA (prezzo attuale
-    # della bottiglia). È un'approssimazione: il prezzo carta può essere cambiato
-    # dopo il movimento, ma non abbiamo storico per movimento.
+    # Dal mig 129: usiamo m.prezzo_unitario (snapshot al momento del movimento).
+    # Per i record storici pre-mig il backfill l'ha popolato con stima PREZZO_CARTA/EURO_LISTINO,
+    # NULL per SCARICO/RETTIFICA/MODIFICA. La FE distingue "stima" da "reale" guardando il flag origine.
+    # Esponiamo anche b.PREZZO_CARTA come `prezzo_carta_attuale` per compat UI esistente.
     rows = cur.execute(
         f"""
         SELECT m.id, m.vino_id, m.data_mov, m.tipo, m.qta, m.locazione, m.note,
-               m.origine, m.utente, m.created_at,
+               m.origine, m.utente, m.created_at, m.prezzo_unitario,
                b.ANNATA, b.FORMATO, b.PREZZO_CARTA AS prezzo_carta_attuale
         FROM vini_magazzino_movimenti m
         LEFT JOIN {TABELLE['bottiglie']} b ON b.id = m.vino_id
@@ -481,14 +481,17 @@ def stats_madre(mid: int, current_user: Any = Depends(get_current_user)):
     bt_60gg = 0
     prima_vendita = None
     ultima_vendita = None
+    costo_acquisti_totale = 0.0
+    qta_acquisti = 0
     if bottiglie_ids:
         placeholders = ",".join(["?"] * len(bottiglie_ids))
-        # Vendite totali (qta + ricavo stimato via PREZZO_CARTA della bottiglia
-        # al momento attuale — non c'è prezzo_unitario per movimento).
+        # Vendite totali (qta + ricavo dallo snapshot m.prezzo_unitario, mig 129).
+        # Fallback su b.PREZZO_CARTA quando prezzo_unitario è NULL (record pre-mig
+        # senza backfill — es. vino con PREZZO_CARTA vuoto al momento del backfill).
         r = cur.execute(
             f"""
             SELECT COALESCE(SUM(m.qta), 0) AS qta_tot,
-                   COALESCE(SUM(m.qta * COALESCE(b.PREZZO_CARTA, 0)), 0) AS ricavo_stimato,
+                   COALESCE(SUM(m.qta * COALESCE(m.prezzo_unitario, b.PREZZO_CARTA, 0)), 0) AS ricavo,
                    MIN(m.data_mov) AS prima,
                    MAX(m.data_mov) AS ultima
             FROM vini_magazzino_movimenti m
@@ -512,6 +515,20 @@ def stats_madre(mid: int, current_user: Any = Depends(get_current_user)):
             bottiglie_ids,
         ).fetchone()[0]
 
+        # Costo acquisti totale (snapshot prezzo_unitario sui CARICO, fallback EURO_LISTINO)
+        ra = cur.execute(
+            f"""
+            SELECT COALESCE(SUM(m.qta), 0) AS qta_a,
+                   COALESCE(SUM(m.qta * COALESCE(m.prezzo_unitario, b.EURO_LISTINO, 0)), 0) AS costo
+            FROM vini_magazzino_movimenti m
+            LEFT JOIN {TABELLE['bottiglie']} b ON b.id = m.vino_id
+            WHERE m.vino_id IN ({placeholders}) AND m.tipo = 'CARICO'
+            """,
+            bottiglie_ids,
+        ).fetchone()
+        qta_acquisti = ra[0] or 0
+        costo_acquisti_totale = ra[1] or 0.0
+
     # Valore carta attuale (somma prezzo * qta delle annate con giacenza)
     valore_carta = cur.execute(
         f"""
@@ -534,6 +551,9 @@ def stats_madre(mid: int, current_user: Any = Depends(get_current_user)):
         "prima_vendita": prima_vendita,
         "ultima_vendita": ultima_vendita,
         "valore_carta_attuale": round(valore_carta, 2),
+        # Nuovi campi mig 129 (snapshot prezzo_unitario sui movimenti)
+        "qta_acquisti": qta_acquisti,
+        "costo_acquisti_totale": round(costo_acquisti_totale, 2),
     }
 
 

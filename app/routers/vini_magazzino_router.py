@@ -217,6 +217,13 @@ class MovimentoCreate(BaseModel):
         None,
         description="Lista di [riga, colonna] da svuotare per vendita/scarico da matrice",
     )
+    # M2.4-5 (mig 129): snapshot prezzo per movimento.
+    # Se None → autopop sul backend: VENDITA → PREZZO_CARTA, CARICO → EURO_LISTINO.
+    # Per SCARICO/RETTIFICA resta NULL salvo override esplicito.
+    prezzo_unitario: Optional[float] = Field(
+        None, ge=0,
+        description="€/unità di questo movimento. Se omesso, autopop per VENDITA (prezzo carta) e CARICO (listino).",
+    )
 
 
 class NotaCreate(BaseModel):
@@ -850,6 +857,7 @@ def crea_movimento(
             origine=payload.origine,
             data_mov=payload.data_mov,
             celle_matrice=celle,
+            prezzo_unitario=payload.prezzo_unitario,
         )
     except ValueError as e:
         raise HTTPException(

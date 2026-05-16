@@ -1,6 +1,9 @@
-// @version: v1.0 — G.3 Fase C, 2026-05-14
+// @version: v1.1 — G.3 Fase C, 2026-05-16
 // Conto Economico Completo: Ricavi → Costo merce → Margine lordo →
 // Costi operativi (per categoria) → Utile Netto. Toggle Competenza/Cassa.
+//
+// v1.1 (2026-05-16): drill-down 3 livelli (cat → sottocat → righe singole)
+//   + percentuali Costo Merce / Costi Operativi sul TOTALE SPESE.
 //
 // Decisioni di prodotto (Marco 2026-05-14): imponibile no IVA, stipendi solo
 // netto v1 (v1.1 lordo+contributi+TFR), TD04/autofatture escluse, cassa v1.1.
@@ -55,6 +58,8 @@ export default function ControlloGestioneContoEconomico() {
   const [error, setError] = useState("");
   // Espansione tabella: set di categorie aperte
   const [expandedCat, setExpandedCat] = useState(new Set());
+  // Espansione 3° livello: set di "<categoria>::<sottocategoria>" aperti
+  const [expandedSub, setExpandedSub] = useState(new Set());
 
   useEffect(() => { load(); }, [anno, mese, modalita]);
 
@@ -78,6 +83,16 @@ export default function ControlloGestioneContoEconomico() {
       const next = new Set(prev);
       if (next.has(catNome)) next.delete(catNome);
       else next.add(catNome);
+      return next;
+    });
+  };
+
+  const toggleSub = (catNome, subNome) => {
+    const key = `${catNome}::${subNome}`;
+    setExpandedSub((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -129,9 +144,12 @@ export default function ControlloGestioneContoEconomico() {
 
   const ricavi = data.ricavi?.totale || 0;
   const costoMerce = data.costo_merce?.totale || 0;
+  const costoMercePctSpese = data.costo_merce?.pct_su_spese;
   const margineLordo = data.margine_lordo || 0;
   const marginePct = data.margine_lordo_pct;
   const costiOp = data.costi_operativi?.totale || 0;
+  const costiOpPctSpese = data.costi_operativi?.pct_su_spese;
+  const totaleSpese = data.totale_spese || 0;
   const utileNetto = data.utile_netto || 0;
   const utilePct = data.utile_netto_pct;
   const warnings = data._meta?.warnings || [];
@@ -251,7 +269,9 @@ export default function ControlloGestioneContoEconomico() {
             {/* - Costo merce (negativo, rosso scuro) */}
             <WaterfallRow label="Costo merce" value={-costoMerce}
                           color="red" tipo="costo"
-                          detail={`${data.costo_merce?.per_categoria?.length || 0} categorie`} />
+                          detail={`${data.costo_merce?.per_categoria?.length || 0} categorie · ${
+                            costoMercePctSpese != null ? `${costoMercePctSpese.toFixed(1)}% del totale spese` : ""
+                          }`} />
 
             {/* = Margine lordo (subtotale, sky) */}
             <WaterfallRow label="Margine Lordo" value={margineLordo}
@@ -261,7 +281,9 @@ export default function ControlloGestioneContoEconomico() {
             {/* - Costi operativi (negativo, ambra) */}
             <WaterfallRow label="Costi operativi" value={-costiOp}
                           color="amber" tipo="costo"
-                          detail={`${data.costi_operativi?.per_categoria?.length || 0} categorie`} />
+                          detail={`${data.costi_operativi?.per_categoria?.length || 0} categorie · ${
+                            costiOpPctSpese != null ? `${costiOpPctSpese.toFixed(1)}% del totale spese` : ""
+                          }`} />
 
             {/* = Utile Netto (totale, viola/rosso) */}
             <WaterfallRow label="Utile Netto" value={utileNetto}
@@ -271,7 +293,49 @@ export default function ControlloGestioneContoEconomico() {
           </div>
         </div>
 
-        {/* COSTO MERCE: breakdown per categoria/sottocategoria */}
+        {/* RIPARTIZIONE SPESE TOTALI: barra orizzontale percentuale */}
+        {totaleSpese > 0 && (
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+            <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-neutral-700 uppercase tracking-wider">
+                Ripartizione spese totali
+              </h2>
+              <div className="text-sm font-mono text-neutral-700">
+                € {totaleSpese.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <div className="flex h-7 rounded-md overflow-hidden border border-neutral-200">
+                <div
+                  className="bg-red-400 flex items-center justify-center text-xs font-semibold text-white"
+                  style={{ width: `${costoMercePctSpese || 0}%` }}
+                  title={`Costo merce: ${fmtEur(costoMerce)}`}
+                >
+                  {costoMercePctSpese != null && costoMercePctSpese >= 8 && `${costoMercePctSpese.toFixed(1)}%`}
+                </div>
+                <div
+                  className="bg-amber-400 flex items-center justify-center text-xs font-semibold text-white"
+                  style={{ width: `${costiOpPctSpese || 0}%` }}
+                  title={`Costi operativi: ${fmtEur(costiOp)}`}
+                >
+                  {costiOpPctSpese != null && costiOpPctSpese >= 8 && `${costiOpPctSpese.toFixed(1)}%`}
+                </div>
+              </div>
+              <div className="flex justify-between text-xs mt-2 text-neutral-600">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block"></span>
+                  Costo merce {costoMercePctSpese != null && <span className="text-neutral-400">({costoMercePctSpese.toFixed(1)}%)</span>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span>
+                  Costi operativi {costiOpPctSpese != null && <span className="text-neutral-400">({costiOpPctSpese.toFixed(1)}%)</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* COSTO MERCE: breakdown per categoria/sottocategoria/righe */}
         {costoMerce > 0 && (
           <CategoriaBreakdown
             titolo="Costo merce (food cost)"
@@ -279,12 +343,15 @@ export default function ControlloGestioneContoEconomico() {
             colore="red"
             categorie={data.costo_merce?.per_categoria || []}
             totale={costoMerce}
+            pctSulTotaleSpese={costoMercePctSpese}
             expanded={expandedCat}
             toggle={toggleCat}
+            expandedSub={expandedSub}
+            toggleSub={toggleSub}
           />
         )}
 
-        {/* COSTI OPERATIVI: breakdown per categoria/sottocategoria */}
+        {/* COSTI OPERATIVI: breakdown per categoria/sottocategoria/righe */}
         {costiOp > 0 && (
           <CategoriaBreakdown
             titolo="Costi operativi"
@@ -292,8 +359,11 @@ export default function ControlloGestioneContoEconomico() {
             colore="amber"
             categorie={data.costi_operativi?.per_categoria || []}
             totale={costiOp}
+            pctSulTotaleSpese={costiOpPctSpese}
             expanded={expandedCat}
             toggle={toggleCat}
+            expandedSub={expandedSub}
+            toggleSub={toggleSub}
           />
         )}
 
@@ -356,25 +426,34 @@ function WaterfallRow({ label, value, color, tipo, detail, pct }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// SUB-COMPONENT: breakdown per categoria con sottocategorie espandibili
+// SUB-COMPONENT: breakdown 3 livelli (categoria → sottocat → righe)
 // ─────────────────────────────────────────────────────────────────
-function CategoriaBreakdown({ titolo, icona, colore, categorie, totale, expanded, toggle }) {
+function CategoriaBreakdown({ titolo, icona, colore, categorie, totale,
+                              pctSulTotaleSpese,
+                              expanded, toggle, expandedSub, toggleSub }) {
   if (!categorie || categorie.length === 0) return null;
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
-      <div className={`px-5 py-3 border-b border-neutral-200 bg-${colore}-50`}>
+      <div className={`px-5 py-3 border-b border-neutral-200 bg-${colore}-50 flex items-center justify-between flex-wrap gap-2`}>
         <h2 className={`text-sm font-bold text-${colore}-900 uppercase tracking-wider`}>
-          {icona} {titolo} — € {totale.toLocaleString("it-IT", {
-            minimumFractionDigits: 2, maximumFractionDigits: 2,
-          })}
+          {icona} {titolo}
         </h2>
+        <div className={`text-sm font-mono font-bold text-${colore}-900`}>
+          € {totale.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {pctSulTotaleSpese != null && (
+            <span className={`ml-2 text-xs font-medium text-${colore}-700`}>
+              · {pctSulTotaleSpese.toFixed(1)}% delle spese
+            </span>
+          )}
+        </div>
       </div>
       <div className="divide-y divide-neutral-100">
         {categorie.map((cat) => {
           const isOpen = expanded.has(cat.categoria);
           const catColor = CATEGORIA_COLORE[cat.categoria] || "neutral";
           const pctSulTotale = totale > 0 ? (cat.importo / totale) * 100 : 0;
+          const numRighe = cat.num ?? (cat.sottocategorie || []).reduce((s, x) => s + (x.num || 0), 0);
 
           return (
             <div key={cat.categoria}>
@@ -393,7 +472,7 @@ function CategoriaBreakdown({ titolo, icona, colore, categorie, totale, expanded
                       {cat.categoria}
                     </div>
                     <div className="text-xs text-neutral-500">
-                      {cat.sottocategorie?.length || 0} sottocategorie · {pctSulTotale.toFixed(1)}% del totale
+                      {cat.sottocategorie?.length || 0} sottocat · {numRighe} voci · {pctSulTotale.toFixed(1)}% del blocco
                     </div>
                   </div>
                 </div>
@@ -407,27 +486,95 @@ function CategoriaBreakdown({ titolo, icona, colore, categorie, totale, expanded
               {/* Sottocategorie espanse */}
               {isOpen && (
                 <div className="bg-neutral-50 border-t border-neutral-100 divide-y divide-neutral-200">
-                  {cat.sottocategorie?.map((sub, i) => (
-                    <div key={i} className="flex items-center justify-between pl-14 pr-5 py-2">
-                      <div className="text-sm text-neutral-700">
-                        {sub.nome}
-                        {sub.num > 0 && (
-                          <span className="text-xs text-neutral-400 ml-2">
-                            ({sub.num})
-                          </span>
+                  {cat.sottocategorie?.map((sub, i) => {
+                    const subKey = `${cat.categoria}::${sub.nome}`;
+                    const isSubOpen = expandedSub?.has(subKey);
+                    const hasRighe = (sub.righe || []).length > 0;
+                    return (
+                      <div key={i}>
+                        <button
+                          onClick={() => hasRighe && toggleSub(cat.categoria, sub.nome)}
+                          className={`w-full flex items-center justify-between pl-10 pr-5 py-2 text-left ${
+                            hasRighe ? "hover:bg-neutral-100 cursor-pointer" : "cursor-default"
+                          } transition`}
+                        >
+                          <div className="flex items-center gap-2 text-sm text-neutral-700">
+                            {hasRighe ? (
+                              <span className={`text-[10px] w-4 h-4 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center transition-transform ${
+                                isSubOpen ? "rotate-90" : ""
+                              }`}>
+                                ▶
+                              </span>
+                            ) : (
+                              <span className="w-4 h-4 inline-block" />
+                            )}
+                            <span className="font-medium">{sub.nome}</span>
+                            {sub.num > 0 && (
+                              <span className="text-xs text-neutral-400">
+                                ({sub.num} {sub.num === 1 ? "voce" : "voci"})
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-mono text-sm text-neutral-700">
+                            € {sub.importo.toLocaleString("it-IT", {
+                              minimumFractionDigits: 2, maximumFractionDigits: 2,
+                            })}
+                          </div>
+                        </button>
+
+                        {/* Righe singole (livello 3) */}
+                        {isSubOpen && hasRighe && (
+                          <div className="bg-white border-t border-neutral-200 divide-y divide-neutral-100">
+                            {sub.righe.map((r, j) => (
+                              <RigaDettaglio key={j} riga={r} />
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <div className="font-mono text-sm text-neutral-700">
-                        € {sub.importo.toLocaleString("it-IT", {
-                          minimumFractionDigits: 2, maximumFractionDigits: 2,
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SUB-COMPONENT: riga di dettaglio (3° livello)
+// ─────────────────────────────────────────────────────────────────
+const TIPO_RIGA_LABEL = {
+  fattura: { label: "Fattura", color: "text-blue-700 bg-blue-50 border-blue-200" },
+  spesa_fissa: { label: "Spesa fissa", color: "text-amber-700 bg-amber-50 border-amber-200" },
+  stipendio: { label: "Stipendio", color: "text-green-700 bg-green-50 border-green-200" },
+};
+
+function RigaDettaglio({ riga }) {
+  const meta = TIPO_RIGA_LABEL[riga.tipo_riga] || {
+    label: "Altro", color: "text-neutral-700 bg-neutral-50 border-neutral-200"
+  };
+  const dataFmt = riga.data
+    ? new Date(riga.data + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" })
+    : "—";
+
+  return (
+    <div className="flex items-center justify-between pl-16 pr-5 py-2 hover:bg-neutral-50 transition">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium ${meta.color}`}>
+          {meta.label}
+        </span>
+        <span className="shrink-0 text-xs text-neutral-500 font-mono w-14">{dataFmt}</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-neutral-800 truncate">{riga.ref}</div>
+          <div className="text-xs text-neutral-500 truncate">{riga.descrizione}</div>
+        </div>
+      </div>
+      <div className="shrink-0 font-mono text-sm text-neutral-800 ml-3">
+        € {riga.importo.toLocaleString("it-IT", {
+          minimumFractionDigits: 2, maximumFractionDigits: 2,
         })}
       </div>
     </div>

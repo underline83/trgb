@@ -91,17 +91,25 @@ def _aggregate_fatture_per_categoria(
     fc_conn: sqlite3.Connection, primo: str, ultimo: str
 ) -> list[dict]:
     """
-    Aggrega fe_fatture per (categoria, sottocategoria) usando imponibile_totale.
+    Ritorna le righe SINGOLE di fe_fatture nel periodo, ognuna con
+    categoria/sottocategoria inferite via fe_fornitore_categoria.
     Modalità COMPETENZA (data_fattura nel range).
 
-    Esclude: autofatture, note credito TD04, fatture escluso_acquisti=1.
+    Esclude: autofatture, note credito TD04, fornitore escluso_acquisti=1.
+
+    Ogni riga è uno schema riga unificato (cfr. _build_breakdown):
+      {categoria, sottocategoria, tipo_riga, id, data, descrizione, ref, importo}
     """
     rows = fc_conn.execute("""
         SELECT
             COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
             COALESCE(fsub.nome, '—')                   AS sottocategoria,
-            COUNT(DISTINCT f.id)                       AS num_fatture,
-            COALESCE(SUM(f.imponibile_totale), 0)      AS importo
+            'fattura'                                  AS tipo_riga,
+            f.id                                       AS id,
+            f.data_fattura                             AS data,
+            COALESCE(f.numero_fattura, '—')            AS descrizione,
+            COALESCE(f.fornitore_nome, '—')            AS ref,
+            COALESCE(f.imponibile_totale, 0)           AS importo
         FROM fe_fatture f
         LEFT JOIN fe_fornitore_categoria ffc
                ON f.fornitore_piva = ffc.fornitore_piva
@@ -113,9 +121,7 @@ def _aggregate_fatture_per_categoria(
           -- escluso_acquisti vive su fe_fornitore_categoria (CLAUDE.md regola critica),
           -- NON su fe_fatture. Bug fix 2026-05-16 (Marco "load failed" CE).
           AND COALESCE(ffc.escluso_acquisti, 0) = 0
-        GROUP BY COALESCE(fcat.nome, 'Non categorizzato'),
-                 COALESCE(fsub.nome, '—')
-        ORDER BY importo DESC
+        ORDER BY f.data_fattura DESC, f.id DESC
     """, (primo, ultimo)).fetchall()
     return [dict(r) for r in rows]
 
@@ -182,8 +188,12 @@ def _aggregate_spese_fisse_per_categoria(
             SELECT
                 COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
                 COALESCE(fsub.nome, '—')                   AS sottocategoria,
-                COUNT(u.id)                                AS num_uscite,
-                COALESCE(SUM(u.totale), 0)                 AS importo
+                'spesa_fissa'                              AS tipo_riga,
+                u.id                                       AS id,
+                COALESCE(u.data_pagamento, u.data_scadenza, u.data_fattura) AS data,
+                COALESCE(sf.titolo, u.numero_fattura, '—') AS descrizione,
+                COALESCE(sf.tipo, '—')                     AS ref,
+                COALESCE(u.totale, 0)                      AS importo
             FROM cg_uscite u
             LEFT JOIN cg_spese_fisse     sf   ON u.spesa_fissa_id     = sf.id
             LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
@@ -191,9 +201,7 @@ def _aggregate_spese_fisse_per_categoria(
             WHERE u.tipo_uscita = 'SPESA_FISSA'
               AND u.periodo_riferimento = ?
               AND COALESCE(sf.tipo, '') NOT IN ({placeholders})
-            GROUP BY COALESCE(fcat.nome, 'Non categorizzato'),
-                     COALESCE(fsub.nome, '—')
-            ORDER BY importo DESC
+            ORDER BY u.totale DESC, u.id DESC
         """, (periodo_rif, *tipi_esclusi_competenza)).fetchall()
     else:
         # Modalità cassa: esclude solo stipendi (resto = esborso reale del mese)
@@ -201,8 +209,12 @@ def _aggregate_spese_fisse_per_categoria(
             SELECT
                 COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
                 COALESCE(fsub.nome, '—')                   AS sottocategoria,
-                COUNT(u.id)                                AS num_uscite,
-                COALESCE(SUM(u.totale), 0)                 AS importo
+                'spesa_fissa'                              AS tipo_riga,
+                u.id                                       AS id,
+                COALESCE(u.data_pagamento, u.data_scadenza, u.data_fattura) AS data,
+                COALESCE(sf.titolo, u.numero_fattura, '—') AS descrizione,
+                COALESCE(sf.tipo, '—')                     AS ref,
+                COALESCE(u.totale, 0)                      AS importo
             FROM cg_uscite u
             LEFT JOIN cg_spese_fisse     sf   ON u.spesa_fissa_id     = sf.id
             LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
@@ -210,70 +222,118 @@ def _aggregate_spese_fisse_per_categoria(
             WHERE u.tipo_uscita = 'SPESA_FISSA'
               AND u.periodo_riferimento = ?
               AND COALESCE(sf.tipo, '') != 'STIPENDIO'
-            GROUP BY COALESCE(fcat.nome, 'Non categorizzato'),
-                     COALESCE(fsub.nome, '—')
-            ORDER BY importo DESC
+            ORDER BY u.totale DESC, u.id DESC
         """, (periodo_rif,)).fetchall()
     return [dict(r) for r in rows]
 
 
 def _aggregate_stipendi(
     fc_conn: sqlite3.Connection, periodo_rif: str
-) -> dict:
+) -> list[dict]:
     """
-    Aggrega gli stipendi (cg_uscite tipo='STIPENDIO') per il periodo.
-    V1: somma dei NETTI. V1.1 (TODO): lordo + contributi + TFR da buste_paga.
+    Ritorna le righe SINGOLE degli stipendi (cg_uscite tipo='STIPENDIO')
+    del periodo. Una riga per dipendente.
+    V1: NETTO. V1.1 (TODO): lordo + contributi + TFR da buste_paga.
 
-    Ritorna: {categoria: 'STAFF', sottocategoria: 'STIPENDI', importo, num_dipendenti}
+    Schema riga unificato (cfr. _build_breakdown):
+      categoria='STAFF', sottocategoria='STIPENDI', tipo_riga='stipendio',
+      ref=nome dipendente, descrizione=numero_fattura/cedolino.
     """
-    row = fc_conn.execute("""
+    rows = fc_conn.execute("""
         SELECT
-            COUNT(*)                       AS num_dipendenti,
-            COALESCE(SUM(totale), 0)       AS importo
+            'STAFF'                                        AS categoria,
+            'STIPENDI'                                     AS sottocategoria,
+            'stipendio'                                    AS tipo_riga,
+            id                                             AS id,
+            COALESCE(data_pagamento, data_scadenza, data_fattura) AS data,
+            COALESCE(numero_fattura, 'Cedolino')           AS descrizione,
+            COALESCE(fornitore_nome, '—')                  AS ref,
+            COALESCE(totale, 0)                            AS importo
         FROM cg_uscite
         WHERE tipo_uscita = 'STIPENDIO'
           AND periodo_riferimento = ?
-    """, (periodo_rif,)).fetchone()
-
-    return {
-        "categoria": "STAFF",
-        "sottocategoria": "STIPENDI",
-        "num_dipendenti": row["num_dipendenti"],
-        "importo": float(row["importo"] or 0),
-    }
+        ORDER BY totale DESC, id DESC
+    """, (periodo_rif,)).fetchall()
+    return [dict(r) for r in rows]
 
 
 def _build_breakdown(
-    rows: list[dict], importo_key: str = "importo"
+    righe: list[dict]
 ) -> tuple[list[dict], float]:
     """
-    Trasforma le righe flat in struttura {categoria → [sottocat]} con totale.
+    Trasforma una lista di righe SINGOLE (schema unificato) in struttura
+    annidata {categoria → [sottocat → [righe dettaglio]]} con totale.
 
-    Output: (lista categorie con sottocat dentro, totale_assoluto)
+    Schema riga di input:
+      {categoria, sottocategoria, tipo_riga, id, data, descrizione, ref, importo}
+
+    Output per categoria:
+      {
+        categoria: str, importo: float, num: int,
+        sottocategorie: [
+          {nome: str, importo: float, num: int, righe: [
+            {tipo_riga, id, data, descrizione, ref, importo}
+          ]}
+        ]
+      }
+    Ordina categorie e sottocat per importo desc; righe per importo desc.
     """
+    # Aggregato per (categoria, sottocategoria)
     grouped: dict[str, dict] = {}
     totale = 0.0
-    for r in rows:
+    for r in righe:
         cat = r["categoria"]
-        imp = float(r.get(importo_key, 0) or 0)
+        sub = r["sottocategoria"]
+        imp = float(r.get("importo") or 0)
+        totale += imp
+
         if cat not in grouped:
             grouped[cat] = {
                 "categoria": cat,
                 "importo": 0.0,
-                "sottocategorie": [],
+                "num": 0,
+                "_sub_index": {},   # sottocat_nome -> sottocat dict
             }
-        grouped[cat]["sottocategorie"].append({
-            "nome": r["sottocategoria"],
-            "importo": round(imp, 2),
-            "num": r.get("num_fatture") or r.get("num_uscite") or 0,
-        })
-        grouped[cat]["importo"] += imp
-        totale += imp
+        cat_node = grouped[cat]
+        cat_node["importo"] += imp
+        cat_node["num"] += 1
 
-    out = sorted(
-        ({**v, "importo": round(v["importo"], 2)} for v in grouped.values()),
-        key=lambda x: -x["importo"]
-    )
+        if sub not in cat_node["_sub_index"]:
+            cat_node["_sub_index"][sub] = {
+                "nome": sub,
+                "importo": 0.0,
+                "num": 0,
+                "righe": [],
+            }
+        sub_node = cat_node["_sub_index"][sub]
+        sub_node["importo"] += imp
+        sub_node["num"] += 1
+        sub_node["righe"].append({
+            "tipo_riga": r.get("tipo_riga"),
+            "id": r.get("id"),
+            "data": r.get("data"),
+            "descrizione": r.get("descrizione") or "—",
+            "ref": r.get("ref") or "—",
+            "importo": round(imp, 2),
+        })
+
+    # Finalizza: ordina sottocat per importo desc, dropping _sub_index
+    out = []
+    for cat_node in grouped.values():
+        sub_list = sorted(cat_node["_sub_index"].values(), key=lambda s: -s["importo"])
+        for s in sub_list:
+            s["importo"] = round(s["importo"], 2)
+            # righe già inserite ordinate (la query SQL ORDER BY importo DESC);
+            # ri-ordino qui per sicurezza (può esserci mix da fonti diverse).
+            s["righe"].sort(key=lambda x: -x["importo"])
+        out.append({
+            "categoria": cat_node["categoria"],
+            "importo": round(cat_node["importo"], 2),
+            "num": cat_node["num"],
+            "sottocategorie": sub_list,
+        })
+
+    out.sort(key=lambda x: -x["importo"])
     return out, round(totale, 2)
 
 
@@ -314,44 +374,35 @@ def compute_pl(
     ricavi_totale = corrispettivi  # In v1 solo corrispettivi POS.
                                    # Fatture vendita clienti → TODO v1.x
 
-    # ─── 2. ACQUISTI per categoria (fatture imponibile) ────────────────
+    # ─── 2. ACQUISTI righe singole (fatture imponibile) ────────────────
     rows_fatture = _aggregate_fatture_per_categoria(fc_conn, primo, ultimo)
-    fatture_count = sum(r["num_fatture"] for r in rows_fatture)
+    fatture_count = len(rows_fatture)
 
-    # ─── 3. SPESE FISSE per categoria (da cg_uscite SPESA_FISSA) ───────
-    # Modalita 'competenza' esclude RATEIZZAZIONE (obblighi pregressi).
+    # ─── 3. SPESE FISSE righe singole (da cg_uscite SPESA_FISSA) ───────
+    # Modalita 'competenza' esclude RATEIZZAZIONE / RATEIZZAZIONE_TASSE.
     # Modalita 'cassa' include tutto (esborso reale del mese).
     rows_spese_fisse = _aggregate_spese_fisse_per_categoria(
         fc_conn, periodo_rif, modalita=modalita
     )
-    spese_fisse_count = sum(r["num_uscite"] for r in rows_spese_fisse)
+    spese_fisse_count = len(rows_spese_fisse)
 
-    # ─── 4. STIPENDI (cg_uscite STIPENDIO, fonte unica anti-doppio) ────
-    stipendi = _aggregate_stipendi(fc_conn, periodo_rif)
+    # ─── 4. STIPENDI righe singole (cg_uscite STIPENDIO, anti-doppio) ──
+    rows_stipendi = _aggregate_stipendi(fc_conn, periodo_rif)
+    stipendi_count = len(rows_stipendi)
 
-    # ─── 5. UNIFICAZIONE PER CATEGORIA ──────────────────────────────────
-    # Unisco fatture + spese fisse + stipendi in un unico flow flat,
-    # poi splitto per (costo_merce vs costi_operativi).
-    flat_all = list(rows_fatture) + list(rows_spese_fisse)
+    # ─── 5. UNIFICAZIONE: tutte le righe in un unico flat ──────────────
+    # Schema riga: {categoria, sottocategoria, tipo_riga, id, data,
+    #               descrizione, ref, importo}
+    flat_all = list(rows_fatture) + list(rows_spese_fisse) + list(rows_stipendi)
 
-    # Aggiungo stipendi come riga sintetica (se >0)
-    if stipendi["importo"] > 0:
-        flat_all.append({
-            "categoria": stipendi["categoria"],
-            "sottocategoria": stipendi["sottocategoria"],
-            "num_fatture": stipendi["num_dipendenti"],
-            "importo": stipendi["importo"],
-        })
-
-    # Costo merce: solo categorie in CATEGORIE_COSTO_MERCE
+    # Costo merce: categorie in CATEGORIE_COSTO_MERCE; costi op: tutto il resto.
     rows_costo_merce = [r for r in flat_all if r["categoria"] in CATEGORIE_COSTO_MERCE]
-    # Costi operativi: tutto il resto (incluso "Non categorizzato")
     rows_costi_op = [r for r in flat_all if r["categoria"] not in CATEGORIE_COSTO_MERCE]
 
     costo_merce_breakdown, costo_merce_tot = _build_breakdown(rows_costo_merce)
     costi_op_breakdown,    costi_op_tot   = _build_breakdown(rows_costi_op)
 
-    # ─── 6. CALCOLO MARGINI ─────────────────────────────────────────────
+    # ─── 6. CALCOLO MARGINI + PERCENTUALI SUL TOTALE SPESE ─────────────
     margine_lordo = round(ricavi_totale - costo_merce_tot, 2)
     margine_lordo_pct = (
         round(margine_lordo / ricavi_totale * 100, 1)
@@ -363,6 +414,17 @@ def compute_pl(
         round(utile_netto / ricavi_totale * 100, 1)
         if ricavi_totale > 0 else None
     )
+
+    # Totale spese = costo merce + costi operativi (gli stipendi sono inclusi
+    # in costi_operativi via categoria STAFF). Marco 2026-05-16: vuole vedere
+    # la fetta di costo merce e quella di costi operativi sul totale spese.
+    totale_spese = round(costo_merce_tot + costi_op_tot, 2)
+    if totale_spese > 0:
+        costo_merce_pct_su_spese = round(costo_merce_tot / totale_spese * 100, 1)
+        costi_op_pct_su_spese = round(costi_op_tot / totale_spese * 100, 1)
+    else:
+        costo_merce_pct_su_spese = None
+        costi_op_pct_su_spese = None
 
     # ─── 7. CHECK ANOMALIE ──────────────────────────────────────────────
     # Fatture senza categoria assegnata → segnalazione
@@ -389,20 +451,23 @@ def compute_pl(
         },
         "costo_merce": {
             "totale": costo_merce_tot,
+            "pct_su_spese": costo_merce_pct_su_spese,
             "per_categoria": costo_merce_breakdown,
         },
         "margine_lordo": margine_lordo,
         "margine_lordo_pct": margine_lordo_pct,
         "costi_operativi": {
             "totale": costi_op_tot,
+            "pct_su_spese": costi_op_pct_su_spese,
             "per_categoria": costi_op_breakdown,
         },
+        "totale_spese": totale_spese,
         "utile_netto": utile_netto,
         "utile_netto_pct": utile_netto_pct,
         "_meta": {
             "fatture_count": fatture_count,
             "spese_fisse_count": spese_fisse_count,
-            "stipendi_count": stipendi["num_dipendenti"],
+            "stipendi_count": stipendi_count,
             "warnings": warnings,
         },
     }

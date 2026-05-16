@@ -1296,6 +1296,7 @@ def registra_movimento(
     origine: Optional[str] = "GESTIONALE",
     data_mov: Optional[str] = None,
     celle_matrice: Optional[List[tuple]] = None,
+    prezzo_unitario: Optional[float] = None,  # M2.4-5 (mig 129): snapshot prezzo per movimento
 ) -> None:
     """
     Registra un movimento di cantina, aggiorna QTA_TOTALE e — se locazione
@@ -1401,13 +1402,34 @@ def registra_movimento(
 
     # Registra movimento solo se c'è effettivamente un delta
     if delta != 0:
+        # M2.4-5: prezzo_unitario salvato come snapshot. Se non passato esplicito,
+        # autopop intelligente sui tipi che hanno senso (VENDITA → PREZZO_CARTA,
+        # CARICO → EURO_LISTINO della bottiglia). Per altri tipi (SCARICO/RETTIFICA/
+        # MODIFICA) resta NULL.
+        prezzo_da_salvare = prezzo_unitario
+        if prezzo_da_salvare is None:
+            if tipo == "VENDITA":
+                v = cur.execute(
+                    "SELECT PREZZO_CARTA FROM vini_magazzino WHERE id = ?", (vino_id,)
+                ).fetchone()
+                if v and v[0] not in (None, ""):
+                    try: prezzo_da_salvare = float(v[0])
+                    except (TypeError, ValueError): pass
+            elif tipo == "CARICO":
+                v = cur.execute(
+                    "SELECT EURO_LISTINO FROM vini_magazzino WHERE id = ?", (vino_id,)
+                ).fetchone()
+                if v and v[0] not in (None, ""):
+                    try: prezzo_da_salvare = float(v[0])
+                    except (TypeError, ValueError): pass
+
         cur.execute(
             """
             INSERT INTO vini_magazzino_movimenti
-            (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at, prezzo_unitario)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
-            (vino_id, data_mov, tipo, abs(delta), loc, note, origine, utente, created_at),
+            (vino_id, data_mov, tipo, abs(delta), loc, note, origine, utente, created_at, prezzo_da_salvare),
         )
 
     # Sessione 58 (2026-04-25): auto-on di BOTTIGLIA_APERTA quando si registra
