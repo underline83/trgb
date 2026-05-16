@@ -106,6 +106,7 @@ def _aggregate_fatture_per_categoria(
             COALESCE(fsub.nome, '—')                   AS sottocategoria,
             'fattura'                                  AS tipo_riga,
             f.id                                       AS id,
+            NULL                                       AS spesa_fissa_id,
             f.data_fattura                             AS data,
             COALESCE(f.numero_fattura, '—')            AS descrizione,
             COALESCE(f.fornitore_nome, '—')            AS ref,
@@ -190,6 +191,7 @@ def _aggregate_spese_fisse_per_categoria(
                 COALESCE(fsub.nome, '—')                   AS sottocategoria,
                 'spesa_fissa'                              AS tipo_riga,
                 u.id                                       AS id,
+                u.spesa_fissa_id                           AS spesa_fissa_id,
                 COALESCE(u.data_pagamento, u.data_scadenza, u.data_fattura) AS data,
                 COALESCE(sf.titolo, u.numero_fattura, '—') AS descrizione,
                 COALESCE(sf.tipo, '—')                     AS ref,
@@ -211,6 +213,7 @@ def _aggregate_spese_fisse_per_categoria(
                 COALESCE(fsub.nome, '—')                   AS sottocategoria,
                 'spesa_fissa'                              AS tipo_riga,
                 u.id                                       AS id,
+                u.spesa_fissa_id                           AS spesa_fissa_id,
                 COALESCE(u.data_pagamento, u.data_scadenza, u.data_fattura) AS data,
                 COALESCE(sf.titolo, u.numero_fattura, '—') AS descrizione,
                 COALESCE(sf.tipo, '—')                     AS ref,
@@ -245,6 +248,7 @@ def _aggregate_stipendi(
             'STIPENDI'                                     AS sottocategoria,
             'stipendio'                                    AS tipo_riga,
             id                                             AS id,
+            NULL                                           AS spesa_fissa_id,
             COALESCE(data_pagamento, data_scadenza, data_fattura) AS data,
             COALESCE(numero_fattura, 'Cedolino')           AS descrizione,
             COALESCE(fornitore_nome, '—')                  AS ref,
@@ -311,6 +315,7 @@ def _build_breakdown(
         sub_node["righe"].append({
             "tipo_riga": r.get("tipo_riga"),
             "id": r.get("id"),
+            "spesa_fissa_id": r.get("spesa_fissa_id"),
             "data": r.get("data"),
             "descrizione": r.get("descrizione") or "—",
             "ref": r.get("ref") or "—",
@@ -416,15 +421,18 @@ def compute_pl(
     )
 
     # Totale spese = costo merce + costi operativi (gli stipendi sono inclusi
-    # in costi_operativi via categoria STAFF). Marco 2026-05-16: vuole vedere
-    # la fetta di costo merce e quella di costi operativi sul totale spese.
+    # in costi_operativi via categoria STAFF). Mantenuto per uso interno
+    # / barra di ripartizione, ma le percentuali primarie sono sui RICAVI
+    # (convenzione standard della ristorazione: food cost % = costo merce
+    # / ricavi del mese; un food cost sano è 28-35%).
+    # Marco 2026-05-16: "il food cost si calcola sui ricavi".
     totale_spese = round(costo_merce_tot + costi_op_tot, 2)
-    if totale_spese > 0:
-        costo_merce_pct_su_spese = round(costo_merce_tot / totale_spese * 100, 1)
-        costi_op_pct_su_spese = round(costi_op_tot / totale_spese * 100, 1)
+    if ricavi_totale > 0:
+        costo_merce_pct_su_ricavi = round(costo_merce_tot / ricavi_totale * 100, 1)
+        costi_op_pct_su_ricavi = round(costi_op_tot / ricavi_totale * 100, 1)
     else:
-        costo_merce_pct_su_spese = None
-        costi_op_pct_su_spese = None
+        costo_merce_pct_su_ricavi = None
+        costi_op_pct_su_ricavi = None
 
     # ─── 7. CHECK ANOMALIE ──────────────────────────────────────────────
     # Fatture senza categoria assegnata → segnalazione
@@ -451,14 +459,14 @@ def compute_pl(
         },
         "costo_merce": {
             "totale": costo_merce_tot,
-            "pct_su_spese": costo_merce_pct_su_spese,
+            "pct_su_ricavi": costo_merce_pct_su_ricavi,
             "per_categoria": costo_merce_breakdown,
         },
         "margine_lordo": margine_lordo,
         "margine_lordo_pct": margine_lordo_pct,
         "costi_operativi": {
             "totale": costi_op_tot,
-            "pct_su_spese": costi_op_pct_su_spese,
+            "pct_su_ricavi": costi_op_pct_su_ricavi,
             "per_categoria": costi_op_breakdown,
         },
         "totale_spese": totale_spese,

@@ -3,7 +3,10 @@
 // Costi operativi (per categoria) → Utile Netto. Toggle Competenza/Cassa.
 //
 // v1.1 (2026-05-16): drill-down 3 livelli (cat → sottocat → righe singole)
-//   + percentuali Costo Merce / Costi Operativi sul TOTALE SPESE.
+//   + percentuali Costo Merce / Costi Operativi sui RICAVI (convenzione
+//   ristorazione: food cost % = costo merce / ricavi, NON sulle spese).
+//   + click su una riga apre la pagina dettaglio (fattura / spesa fissa /
+//   buste paga) per andare a sistemarla.
 //
 // Decisioni di prodotto (Marco 2026-05-14): imponibile no IVA, stipendi solo
 // netto v1 (v1.1 lordo+contributi+TFR), TD04/autofatture escluse, cassa v1.1.
@@ -144,11 +147,11 @@ export default function ControlloGestioneContoEconomico() {
 
   const ricavi = data.ricavi?.totale || 0;
   const costoMerce = data.costo_merce?.totale || 0;
-  const costoMercePctSpese = data.costo_merce?.pct_su_spese;
+  const costoMercePctRicavi = data.costo_merce?.pct_su_ricavi;
   const margineLordo = data.margine_lordo || 0;
   const marginePct = data.margine_lordo_pct;
   const costiOp = data.costi_operativi?.totale || 0;
-  const costiOpPctSpese = data.costi_operativi?.pct_su_spese;
+  const costiOpPctRicavi = data.costi_operativi?.pct_su_ricavi;
   const totaleSpese = data.totale_spese || 0;
   const utileNetto = data.utile_netto || 0;
   const utilePct = data.utile_netto_pct;
@@ -269,9 +272,8 @@ export default function ControlloGestioneContoEconomico() {
             {/* - Costo merce (negativo, rosso scuro) */}
             <WaterfallRow label="Costo merce" value={-costoMerce}
                           color="red" tipo="costo"
-                          detail={`${data.costo_merce?.per_categoria?.length || 0} categorie · ${
-                            costoMercePctSpese != null ? `${costoMercePctSpese.toFixed(1)}% del totale spese` : ""
-                          }`} />
+                          detail={`${data.costo_merce?.per_categoria?.length || 0} categorie · food cost`}
+                          pct={costoMercePctRicavi} />
 
             {/* = Margine lordo (subtotale, sky) */}
             <WaterfallRow label="Margine Lordo" value={margineLordo}
@@ -281,9 +283,8 @@ export default function ControlloGestioneContoEconomico() {
             {/* - Costi operativi (negativo, ambra) */}
             <WaterfallRow label="Costi operativi" value={-costiOp}
                           color="amber" tipo="costo"
-                          detail={`${data.costi_operativi?.per_categoria?.length || 0} categorie · ${
-                            costiOpPctSpese != null ? `${costiOpPctSpese.toFixed(1)}% del totale spese` : ""
-                          }`} />
+                          detail={`${data.costi_operativi?.per_categoria?.length || 0} categorie`}
+                          pct={costiOpPctRicavi} />
 
             {/* = Utile Netto (totale, viola/rosso) */}
             <WaterfallRow label="Utile Netto" value={utileNetto}
@@ -293,43 +294,72 @@ export default function ControlloGestioneContoEconomico() {
           </div>
         </div>
 
-        {/* RIPARTIZIONE SPESE TOTALI: barra orizzontale percentuale */}
-        {totaleSpese > 0 && (
+        {/* RIPARTIZIONE DEI RICAVI: barra orizzontale (costo merce · costi op · utile) */}
+        {ricavi > 0 && (
           <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
-            <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
+            <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-bold text-neutral-700 uppercase tracking-wider">
-                Ripartizione spese totali
+                Ripartizione dei ricavi
               </h2>
               <div className="text-sm font-mono text-neutral-700">
-                € {totaleSpese.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                € {ricavi.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
             <div className="px-5 py-4">
-              <div className="flex h-7 rounded-md overflow-hidden border border-neutral-200">
-                <div
-                  className="bg-red-400 flex items-center justify-center text-xs font-semibold text-white"
-                  style={{ width: `${costoMercePctSpese || 0}%` }}
-                  title={`Costo merce: ${fmtEur(costoMerce)}`}
-                >
-                  {costoMercePctSpese != null && costoMercePctSpese >= 8 && `${costoMercePctSpese.toFixed(1)}%`}
+              {utileNetto >= 0 ? (
+                // Caso normale: 3 fette (merce + op + utile) = 100% dei ricavi
+                <div className="flex h-7 rounded-md overflow-hidden border border-neutral-200">
+                  <div className="bg-red-400 flex items-center justify-center text-xs font-semibold text-white"
+                       style={{ width: `${costoMercePctRicavi || 0}%` }}
+                       title={`Costo merce: ${fmtEur(costoMerce)}`}>
+                    {costoMercePctRicavi != null && costoMercePctRicavi >= 8 && `${costoMercePctRicavi.toFixed(1)}%`}
+                  </div>
+                  <div className="bg-amber-400 flex items-center justify-center text-xs font-semibold text-white"
+                       style={{ width: `${costiOpPctRicavi || 0}%` }}
+                       title={`Costi operativi: ${fmtEur(costiOp)}`}>
+                    {costiOpPctRicavi != null && costiOpPctRicavi >= 8 && `${costiOpPctRicavi.toFixed(1)}%`}
+                  </div>
+                  <div className="bg-violet-400 flex items-center justify-center text-xs font-semibold text-white"
+                       style={{ width: `${utilePct || 0}%` }}
+                       title={`Utile netto: ${fmtEur(utileNetto)}`}>
+                    {utilePct != null && utilePct >= 8 && `${utilePct.toFixed(1)}%`}
+                  </div>
                 </div>
-                <div
-                  className="bg-amber-400 flex items-center justify-center text-xs font-semibold text-white"
-                  style={{ width: `${costiOpPctSpese || 0}%` }}
-                  title={`Costi operativi: ${fmtEur(costiOp)}`}
-                >
-                  {costiOpPctSpese != null && costiOpPctSpese >= 8 && `${costiOpPctSpese.toFixed(1)}%`}
+              ) : (
+                // Caso perdita: spese > ricavi. Mostro 2 fette + nota
+                <div>
+                  <div className="flex h-7 rounded-md overflow-hidden border border-red-200">
+                    <div className="bg-red-400 flex items-center justify-center text-xs font-semibold text-white"
+                         style={{ width: `${Math.min(100, costoMercePctRicavi || 0)}%` }}
+                         title={`Costo merce: ${fmtEur(costoMerce)}`}>
+                      {costoMercePctRicavi >= 8 && `${costoMercePctRicavi.toFixed(1)}%`}
+                    </div>
+                    <div className="bg-amber-400 flex items-center justify-center text-xs font-semibold text-white"
+                         style={{ width: `${Math.min(100 - (costoMercePctRicavi || 0), costiOpPctRicavi || 0)}%` }}
+                         title={`Costi operativi: ${fmtEur(costiOp)}`}>
+                      {costiOpPctRicavi >= 8 && `${costiOpPctRicavi.toFixed(1)}%`}
+                    </div>
+                  </div>
+                  <div className="text-xs text-red-700 mt-2 font-medium">
+                    ⚠ Perdita del mese: {fmtEur(-utileNetto)} ({utilePct != null && `${Math.abs(utilePct).toFixed(1)}% dei ricavi`})
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-between text-xs mt-2 text-neutral-600">
+              )}
+              <div className="flex flex-wrap gap-4 text-xs mt-2 text-neutral-600">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block"></span>
-                  Costo merce {costoMercePctSpese != null && <span className="text-neutral-400">({costoMercePctSpese.toFixed(1)}%)</span>}
+                  Costo merce {costoMercePctRicavi != null && <span className="text-neutral-400">({costoMercePctRicavi.toFixed(1)}%)</span>}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span>
-                  Costi operativi {costiOpPctSpese != null && <span className="text-neutral-400">({costiOpPctSpese.toFixed(1)}%)</span>}
+                  Costi operativi {costiOpPctRicavi != null && <span className="text-neutral-400">({costiOpPctRicavi.toFixed(1)}%)</span>}
                 </div>
+                {utileNetto >= 0 && utilePct != null && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-violet-400 inline-block"></span>
+                    Utile netto <span className="text-neutral-400">({utilePct.toFixed(1)}%)</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -343,7 +373,7 @@ export default function ControlloGestioneContoEconomico() {
             colore="red"
             categorie={data.costo_merce?.per_categoria || []}
             totale={costoMerce}
-            pctSulTotaleSpese={costoMercePctSpese}
+            pctSulRicavi={costoMercePctRicavi}
             expanded={expandedCat}
             toggle={toggleCat}
             expandedSub={expandedSub}
@@ -359,7 +389,7 @@ export default function ControlloGestioneContoEconomico() {
             colore="amber"
             categorie={data.costi_operativi?.per_categoria || []}
             totale={costiOp}
-            pctSulTotaleSpese={costiOpPctSpese}
+            pctSulRicavi={costiOpPctRicavi}
             expanded={expandedCat}
             toggle={toggleCat}
             expandedSub={expandedSub}
@@ -429,7 +459,7 @@ function WaterfallRow({ label, value, color, tipo, detail, pct }) {
 // SUB-COMPONENT: breakdown 3 livelli (categoria → sottocat → righe)
 // ─────────────────────────────────────────────────────────────────
 function CategoriaBreakdown({ titolo, icona, colore, categorie, totale,
-                              pctSulTotaleSpese,
+                              pctSulRicavi,
                               expanded, toggle, expandedSub, toggleSub }) {
   if (!categorie || categorie.length === 0) return null;
 
@@ -441,9 +471,9 @@ function CategoriaBreakdown({ titolo, icona, colore, categorie, totale,
         </h2>
         <div className={`text-sm font-mono font-bold text-${colore}-900`}>
           € {totale.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          {pctSulTotaleSpese != null && (
+          {pctSulRicavi != null && (
             <span className={`ml-2 text-xs font-medium text-${colore}-700`}>
-              · {pctSulTotaleSpese.toFixed(1)}% delle spese
+              · {pctSulRicavi.toFixed(1)}% dei ricavi
             </span>
           )}
         </div>
@@ -553,6 +583,7 @@ const TIPO_RIGA_LABEL = {
 };
 
 function RigaDettaglio({ riga }) {
+  const navigate = useNavigate();
   const meta = TIPO_RIGA_LABEL[riga.tipo_riga] || {
     label: "Altro", color: "text-neutral-700 bg-neutral-50 border-neutral-200"
   };
@@ -560,15 +591,45 @@ function RigaDettaglio({ riga }) {
     ? new Date(riga.data + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" })
     : "—";
 
+  // Deep-link a seconda della fonte della riga.
+  //  - fattura: pagina dettaglio fattura acquisti (route /acquisti/dettaglio/:id)
+  //  - spesa_fissa: lista Spese Fisse con highlight (cg_spese_fisse.id)
+  //  - stipendio: lista Buste Paga del mese
+  let target = null;
+  if (riga.tipo_riga === "fattura" && riga.id) {
+    target = `/acquisti/dettaglio/${riga.id}`;
+  } else if (riga.tipo_riga === "spesa_fissa" && riga.spesa_fissa_id) {
+    target = `/controllo-gestione/spese-fisse?highlight=${riga.spesa_fissa_id}`;
+  } else if (riga.tipo_riga === "stipendio") {
+    target = `/dipendenti/buste-paga`;
+  }
+  const clickable = !!target;
+
+  const go = () => { if (target) navigate(target); };
+
   return (
-    <div className="flex items-center justify-between pl-16 pr-5 py-2 hover:bg-neutral-50 transition">
+    <div
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? go : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter") go(); } : undefined}
+      className={`flex items-center justify-between pl-16 pr-5 py-2 transition ${
+        clickable ? "hover:bg-sky-50 cursor-pointer" : "hover:bg-neutral-50"
+      }`}
+      title={clickable ? "Apri per modificare" : undefined}
+    >
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium ${meta.color}`}>
           {meta.label}
         </span>
         <span className="shrink-0 text-xs text-neutral-500 font-mono w-14">{dataFmt}</span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm text-neutral-800 truncate">{riga.ref}</div>
+          <div className="text-sm text-neutral-800 truncate flex items-center gap-1.5">
+            {riga.ref}
+            {clickable && (
+              <span className="text-neutral-400 text-xs" aria-hidden>↗</span>
+            )}
+          </div>
           <div className="text-xs text-neutral-500 truncate">{riga.descrizione}</div>
         </div>
       </div>
