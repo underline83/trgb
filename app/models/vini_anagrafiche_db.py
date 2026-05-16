@@ -637,6 +637,56 @@ def delete_denominazione(did: int) -> bool:
     return ok
 
 
+def merge_denominazioni(source_id: int, target_id: int) -> Dict[str, Any]:
+    """
+    Fonde la denominazione `source_id` dentro `target_id`:
+      - sposta tutti i vini madre da source a target (UPDATE denominazione_id)
+      - aggiorna updated_at dei madre toccati
+      - elimina la denominazione source
+    Tipico uso: l'utente aveva aggiunto a mano "Barolo DOCG" custom, poi il sync
+    eAmbrosia/MASAF ne ha portata una con codice ufficiale → si fondono.
+
+    Ritorna {source_id, target_id, n_madre_spostati}.
+    Solleva ValueError se source==target o se uno dei due non esiste.
+
+    NB: come per produttori/fornitori, la sync cache lato bottiglie (campi
+    PRODUTTORE, NAZIONE, REGIONE, DENOMINAZIONE testuali) richiede una passata
+    successiva — gli aggiornamenti del campo cache `DENOMINAZIONE` sulle
+    bottiglie non sono automatici qui. Il router può chiamare `sync_bottiglie_*`
+    di conseguenza (oggi non esiste sync_bottiglie_from_denominazione → si usa
+    sync_all sul madre target via la cascade del PATCH madre, oppure si invoca
+    il sync globale dall'UI).
+    """
+    if source_id == target_id:
+        raise ValueError("source e target sono la stessa denominazione")
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    for did, label in [(source_id, "source"), (target_id, "target")]:
+        if not cur.execute(
+            f"SELECT 1 FROM {TABELLE['denominazioni']} WHERE id = ?", (did,)
+        ).fetchone():
+            conn.close()
+            raise ValueError(f"Denominazione {label} {did} non trovata")
+
+    cur.execute(
+        f"UPDATE {TABELLE['madre']} "
+        f"SET denominazione_id = ?, updated_at = datetime('now') "
+        f"WHERE denominazione_id = ?",
+        (target_id, source_id),
+    )
+    n_madre_spostati = cur.rowcount
+
+    cur.execute(f"DELETE FROM {TABELLE['denominazioni']} WHERE id = ?", (source_id,))
+    conn.commit()
+    conn.close()
+    return {
+        "source_id": source_id,
+        "target_id": target_id,
+        "n_madre_spostati": n_madre_spostati,
+    }
+
+
 # ============================================================
 # VITIGNI
 # ============================================================

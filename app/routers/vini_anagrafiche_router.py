@@ -404,6 +404,33 @@ def update_denominazione(did: int, payload: DenominazioneUpdate, current_user: A
     return row
 
 
+@router.post("/denominazioni/{source_id}/merge", summary="Fonde una denominazione dentro un'altra (admin)")
+def merge_denominazioni_endpoint(
+    source_id: int,
+    target_id: int = Query(..., description="id della denominazione di destinazione"),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Caso d'uso tipico: hai aggiunto a mano una denominazione custom, poi il sync
+    eAmbrosia/MASAF ne ha portata una con codice ufficiale → fondi la custom
+    nella seedata. I vini madre passano alla nuova denominazione, la cache
+    DENOMINAZIONE delle bottiglie viene risincronizzata sul target.
+    """
+    _require_admin(current_user)
+    try:
+        report = ana.merge_denominazioni(source_id, target_id)
+    except ValueError as e:
+        msg = str(e)
+        if "non trovata" in msg:
+            raise HTTPException(404, msg)
+        raise HTTPException(400, msg)
+    # Cascade sync sul target: rinfresca campo cache DENOMINAZIONE sulle bottiglie
+    sync_report = ana_sync.sync_bottiglie_from_denominazione(target_id)
+    report["_sync"] = sync_report
+    report["target"] = ana.get_denominazione(target_id)
+    return report
+
+
 # Sync da eAmbrosia API + PDF MASAF (Fase 3)
 # =====  MIGRAZIONE DATI DAL VECCHIO MODELLO (Fase 5) =====
 @router.post("/migrate-from-legacy", summary="Migra anagrafiche dai vini esistenti (admin)")

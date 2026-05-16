@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-05-16 — M2.5.3: Denominazioni CRUD admin + merge duplicati
+
+### Aggiunto
+- **Backend merge denominazioni** `[core]`. `vini_anagrafiche_db.py`: `merge_denominazioni(source_id, target_id)` sposta i vini madre da source a target, elimina source. Router: `POST /vini/anagrafiche/denominazioni/{src}/merge?target_id={dst}` (admin) con cascade sync (`sync_bottiglie_from_denominazione`) sul target per rinfrescare la cache `DENOMINAZIONE` nelle bottiglie.
+- **UI Denominazioni full CRUD** `[core]`. `AnagraficheVini.jsx → DenominazioniPanel`:
+  - Bottone **"+ Nuova denominazione"** nella toolbar (admin/sommelier) — apre `DenominazioneEditModal`. Casi d'uso: denominazioni non presenti in eAmbrosia/MASAF (es. "Costa Toscana IGT"). Marca `source="manual"` di default.
+  - Colonna **Azioni** con ✏️ Modifica · 🔀 Fondi · 🗑 Elimina su ogni riga.
+  - Modale **Merge denominazioni** con radio-selettore + filtro search; doppia conferma; alert con conteggio madri spostati.
+  - Indicatore visivo "manuale" per le denominazioni custom (no codice eAmbrosia, source != eambrosia/masaf).
+  - Avviso esplicito nella modale Edit: "se è una denominazione seedata, il prossimo sync potrebbe sovrascriverla — eAmbrosia/MASAF sono la fonte canonica".
+- **Bump versione modulo vini** `[core]`. 3.31 → 3.32.
+
+### Prossimo
+- M2.5.4 — Vitigni: aggiunta vitigni custom oltre ai ~60 canonici (stesso pattern: + Nuovo + Edit/Delete; merge opzionale).
+
+---
+
 ## 2026-05-16 — G.3 Fase E (parte 1/2): schema DB + parser ELAB + parser F24
 
 ### Aggiunto

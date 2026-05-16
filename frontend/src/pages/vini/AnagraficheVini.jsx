@@ -490,6 +490,9 @@ const VITIGNO_FIELDS = [
 // DENOMINAZIONI — UI dedicata (gestione + sync)
 // ===============================================================
 function DenominazioniPanel() {
+  const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
+  const canEdit = role === "admin" || role === "superadmin" || role === "sommelier";
+
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
   const [nazione, setNazione] = useState("");
@@ -497,6 +500,9 @@ function DenominazioniPanel() {
   const [loading, setLoading] = useState(true);
   const [syncResult, setSyncResult] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  // M2.5.3: modali edit/nuovo/merge per CRUD admin
+  const [editing, setEditing] = useState(null);    // null | "new" | <denominazione>
+  const [merging, setMerging] = useState(null);    // null | <denominazione source>
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -565,17 +571,45 @@ function DenominazioniPanel() {
           <option>IGP</option><option>DOP</option><option>PDO</option><option>PGI</option>
         </select>
         <span className="text-xs text-neutral-500">{items.length} risultati</span>
+        {canEdit && (
+          <button onClick={() => setEditing("new")}
+            className="px-4 py-1.5 rounded-lg bg-violet-700 text-white text-sm font-semibold hover:bg-violet-800 shadow-sm ml-auto">
+            + Nuova denominazione
+          </button>
+        )}
       </div>
 
-      <DenominazioniTable items={items} loading={loading} />
+      <DenominazioniTable
+        items={items} loading={loading}
+        canEdit={canEdit}
+        onEdit={setEditing}
+        onMerge={setMerging}
+        onReload={reload}
+      />
+
+      {editing && canEdit && (
+        <DenominazioneEditModal
+          item={editing === "new" ? {} : editing}
+          isNew={editing === "new"}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); reload(); }}
+        />
+      )}
+      {merging && canEdit && (
+        <MergeDenominazioniModal
+          source={merging}
+          candidates={items.filter(d => d.id !== merging.id)}
+          onClose={() => setMerging(null)}
+          onDone={() => { setMerging(null); reload(); }}
+        />
+      )}
     </div>
   );
 }
 
-// Sotto-componente: tabella denominazioni con ordinamento + drill-down vini.
-function DenominazioniTable({ items, loading }) {
+// Sotto-componente: tabella denominazioni con ordinamento + drill-down vini + azioni admin.
+function DenominazioniTable({ items, loading, canEdit, onEdit, onMerge, onReload }) {
   const [sort, setSort] = useState({ key: "nome", dir: "asc" });
-  // Aggiunta campo display per ordinare per "Display canonico" (nome + tipo).
   const itemsWithDisplay = useMemo(
     () => items.map(d => ({ ...d, _display: `${d.nome || ""} ${d.tipo || ""}`.trim() })),
     [items]
@@ -598,6 +632,20 @@ function DenominazioniTable({ items, loading }) {
     }
   };
 
+  const handleDelete = async (d) => {
+    if (!window.confirm(`Eliminare la denominazione "${d.nome} ${d.tipo}"?\nOperazione irreversibile.`)) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/anagrafiche/denominazioni/${d.id}`, { method: "DELETE" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(err.detail || `HTTP ${r.status}`);
+      }
+      onReload && onReload();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
   return (
     <>
       <div className="border border-neutral-200 rounded-xl overflow-hidden max-h-[60vh] overflow-y-auto">
@@ -610,27 +658,279 @@ function DenominazioniTable({ items, loading }) {
               <SortThLocal label="Nazione"          sortKey="nazione"          sort={sort} setSort={setSort} />
               <SortThLocal label="Regione"          sortKey="regione"          sort={sort} setSort={setSort} />
               <SortThLocal label="Source"           sortKey="source"           sort={sort} setSort={setSort} />
+              {canEdit && <th className="px-3 py-2 text-right">Azioni</th>}
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Carico…</td></tr>}
-            {!loading && sorted.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>}
-            {!loading && sorted.map(d => (
-              <tr key={d.id} className="border-t border-neutral-100 hover:bg-violet-50 cursor-pointer transition"
-                  onClick={() => openDetail(d.id)} title="Apri lista vini con questa denominazione">
-                <td className="px-3 py-1.5 font-mono text-xs text-neutral-500">{d.id}</td>
-                <td className="px-3 py-1.5 font-mono text-xs">{d.codice_eambrosia || "—"}</td>
-                <td className="px-3 py-1.5 font-semibold text-violet-900 hover:underline">{d.nome} {d.tipo}</td>
-                <td className="px-3 py-1.5">{d.nazione}</td>
-                <td className="px-3 py-1.5">{d.regione || "—"}</td>
-                <td className="px-3 py-1.5 text-xs text-neutral-500">{d.source || "—"}</td>
-              </tr>
-            ))}
+            {loading && <tr><td colSpan={canEdit ? 7 : 6} className="px-3 py-6 text-center text-neutral-500">Carico…</td></tr>}
+            {!loading && sorted.length === 0 && <tr><td colSpan={canEdit ? 7 : 6} className="px-3 py-6 text-center text-neutral-500">Nessun risultato.</td></tr>}
+            {!loading && sorted.map(d => {
+              // "manual" = aggiunta a mano dall'utente (non viene da eAmbrosia/MASAF).
+              // Sono le candidate naturali al merge verso una denominazione seedata.
+              const isManual = !d.codice_eambrosia && (d.source !== "eambrosia") && (d.source !== "masaf");
+              return (
+                <tr key={d.id} className="border-t border-neutral-100 hover:bg-violet-50 cursor-pointer transition"
+                    onClick={() => openDetail(d.id)} title="Apri lista vini con questa denominazione">
+                  <td className="px-3 py-1.5 font-mono text-xs text-neutral-500">{d.id}</td>
+                  <td className="px-3 py-1.5 font-mono text-xs">{d.codice_eambrosia || (isManual ? <span className="text-amber-700 italic">manuale</span> : "—")}</td>
+                  <td className="px-3 py-1.5 font-semibold text-violet-900 hover:underline">{d.nome} {d.tipo}</td>
+                  <td className="px-3 py-1.5">{d.nazione}</td>
+                  <td className="px-3 py-1.5">{d.regione || "—"}</td>
+                  <td className="px-3 py-1.5 text-xs text-neutral-500">{d.source || "—"}</td>
+                  {canEdit && (
+                    <td className="px-3 py-1.5 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => onEdit(d)}
+                        className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100 mr-1"
+                        title="Modifica denominazione">✏️</button>
+                      <button onClick={() => onMerge(d)}
+                        className="px-2 py-1 text-xs rounded border border-violet-400 text-violet-800 hover:bg-violet-50 mr-1"
+                        title="Fondi in un'altra denominazione (duplicati)">🔀</button>
+                      <button onClick={() => handleDelete(d)}
+                        className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50"
+                        title="Elimina (bloccato se ci sono vini collegati)">🗑</button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
       {detail && <DenominazioneDetailModal denominazione={detail} onClose={() => setDetail(null)} />}
     </>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// MODALE EDIT / NUOVA DENOMINAZIONE
+// ════════════════════════════════════════════════════════════════
+const DENO_FIELDS = [
+  { key: "nome",             label: "Nome",             required: true,  placeholder: "es. Barolo" },
+  { key: "tipo",             label: "Tipo",             required: true,  placeholder: "DOCG / DOC / IGT / AOC / IGP / DOP" },
+  { key: "nazione",          label: "Nazione",          required: true,  placeholder: "Italia / Francia / …" },
+  { key: "regione",          label: "Regione",                            placeholder: "es. Piemonte" },
+  { key: "tipo_ue",          label: "Tipo UE",                            placeholder: "DOP / PDO / IGP / PGI" },
+  { key: "codice_eambrosia", label: "Codice eAmbrosia",                   placeholder: "(facoltativo, solo se ufficiale)" },
+];
+
+function DenominazioneEditModal({ item, isNew, onClose, onSaved }) {
+  const [form, setForm] = useState(() => {
+    const init = {};
+    DENO_FIELDS.forEach(f => { init[f.key] = item[f.key] ?? ""; });
+    return init;
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    setError("");
+    for (const f of DENO_FIELDS) {
+      if (f.required && !String(form[f.key] || "").trim()) {
+        setError(`Campo obbligatorio: ${f.label}`); return;
+      }
+    }
+    const payload = {};
+    DENO_FIELDS.forEach(f => {
+      const v = form[f.key];
+      if (v !== "" && v != null) payload[f.key] = v;
+    });
+    // Per le nuove denominazioni aggiunte manualmente, marca source=manual.
+    if (isNew && !payload.source) payload.source = "manual";
+    setSaving(true);
+    try {
+      const url = `${API_BASE}/vini/anagrafiche/denominazioni/${isNew ? "" : item.id}`;
+      const r = await apiFetch(url, {
+        method: isNew ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(err.detail || "errore");
+      }
+      onSaved();
+    } catch (e) {
+      setError(e.message || "Errore salvataggio");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <h3 className="text-base font-bold mb-1 text-neutral-900">
+          {isNew ? "🆕 Nuova denominazione" : `✏️ Modifica denominazione #${item.id}`}
+        </h3>
+        <p className="text-xs text-neutral-500 mb-3">
+          {isNew
+            ? "Aggiunta manuale per casi non presenti in eAmbrosia/MASAF. Verrà marcata source=\"manual\"."
+            : "Se questa è una denominazione seedata, attenzione: il prossimo sync potrebbe sovrascrivere i campi (eAmbrosia/MASAF sono la fonte canonica)."}
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {DENO_FIELDS.map(f => (
+            <div key={f.key} className={f.key === "nome" || f.key === "codice_eambrosia" ? "col-span-2" : ""}>
+              <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                {f.label}{f.required && <span className="text-red-500"> *</span>}
+              </label>
+              <input type="text" value={form[f.key] ?? ""}
+                onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                placeholder={f.placeholder || ""}
+                className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" />
+            </div>
+          ))}
+        </div>
+        {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onClose}
+            className="px-4 py-1.5 rounded-lg border border-neutral-300 text-sm hover:bg-neutral-50">
+            Annulla
+          </button>
+          <button onClick={save} disabled={saving}
+            className="px-5 py-1.5 rounded-lg bg-violet-700 text-white text-sm font-semibold hover:bg-violet-800 disabled:opacity-40">
+            {saving ? "Salvo…" : (isNew ? "Crea" : "Salva")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// MODALE MERGE DENOMINAZIONI
+// ════════════════════════════════════════════════════════════════
+function MergeDenominazioniModal({ source, candidates, onClose, onDone }) {
+  const [search, setSearch] = useState("");
+  const [targetId, setTargetId] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const arr = q
+      ? candidates.filter(c => `${c.nome || ""} ${c.tipo || ""} ${c.codice_eambrosia || ""}`.toLowerCase().includes(q))
+      : candidates;
+    return arr.slice(0, 50);
+  }, [search, candidates]);
+  const target = candidates.find(c => c.id === targetId) || null;
+
+  const doMerge = async () => {
+    if (!target) return;
+    if (!window.confirm(
+      `Confermare il merge?\n\n` +
+      `SORGENTE: #${source.id} ${source.nome} ${source.tipo}\n` +
+      `DESTINAZIONE: #${target.id} ${target.nome} ${target.tipo}\n\n` +
+      `Tutti i vini madre che usano la sorgente passeranno alla destinazione. ` +
+      `La sorgente verrà ELIMINATA. Operazione irreversibile.`
+    )) return;
+    setBusy(true); setError("");
+    try {
+      const url = `${API_BASE}/vini/anagrafiche/denominazioni/${source.id}/merge?target_id=${target.id}`;
+      const r = await apiFetch(url, { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(err.detail || "errore");
+      }
+      const report = await r.json();
+      alert(`✓ Merge completato.\n${report.n_madre_spostati} vini madre spostati.`);
+      onDone();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-violet-200 bg-gradient-to-r from-violet-50 to-white">
+          <h3 className="text-base font-bold text-violet-900">🔀 Fondi denominazione</h3>
+          <p className="text-xs text-neutral-600 mt-1">
+            Sposta tutti i vini madre alla destinazione, poi elimina la sorgente.
+            Tipico: una "manuale" che il sync ha poi portato come ufficiale → fondi la manuale dentro la seedata.
+          </p>
+        </div>
+        <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-neutral-200 bg-neutral-50">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-rose-700 font-semibold">Sorgente (sarà eliminata)</div>
+            <div className="text-sm font-bold text-neutral-900">#{source.id} {source.nome} {source.tipo}</div>
+            <div className="text-xs text-neutral-600 mt-0.5">
+              {source.codice_eambrosia ? `${source.codice_eambrosia} · ` : ""}{source.nazione || "—"}
+              {source.regione ? ` · ${source.regione}` : ""}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">Destinazione</div>
+            {target ? (
+              <>
+                <div className="text-sm font-bold text-neutral-900">#{target.id} {target.nome} {target.tipo}</div>
+                <div className="text-xs text-neutral-600 mt-0.5">
+                  {target.codice_eambrosia ? `${target.codice_eambrosia} · ` : ""}{target.nazione || "—"}
+                  {target.regione ? ` · ${target.regione}` : ""}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-neutral-400 italic">— seleziona dalla lista —</div>
+            )}
+          </div>
+        </div>
+        <div className="px-5 py-2 border-b border-neutral-200">
+          <input type="text" placeholder="Cerca destinazione (nome, tipo, codice eAmbrosia)…"
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" />
+        </div>
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider text-neutral-600 sticky top-0">
+              <tr>
+                <th className="px-3 py-1.5 text-left w-10"></th>
+                <th className="px-3 py-1.5 text-left w-12">ID</th>
+                <th className="px-3 py-1.5 text-left">Codice / Display</th>
+                <th className="px-3 py-1.5 text-left">Naz / Reg</th>
+                <th className="px-3 py-1.5 text-left">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(c => (
+                <tr key={c.id}
+                    className={`border-t border-neutral-100 cursor-pointer transition ${
+                      c.id === targetId ? "bg-emerald-50" : "hover:bg-neutral-50"
+                    }`}
+                    onClick={() => setTargetId(c.id)}>
+                  <td className="px-3 py-1 text-center">
+                    <input type="radio" checked={c.id === targetId} onChange={() => setTargetId(c.id)} />
+                  </td>
+                  <td className="px-3 py-1 font-mono text-[11px] text-neutral-500">{c.id}</td>
+                  <td className="px-3 py-1">
+                    {c.codice_eambrosia && <span className="font-mono text-[10px] text-neutral-500 mr-1">{c.codice_eambrosia}</span>}
+                    <span className="font-semibold">{c.nome} {c.tipo}</span>
+                  </td>
+                  <td className="px-3 py-1 text-xs text-neutral-600">{[c.nazione, c.regione].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="px-3 py-1 text-xs text-neutral-500">{c.source || "—"}</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={5} className="px-3 py-6 text-center text-neutral-500 text-xs">Nessun candidato. Affina la ricerca.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {error && <div className="px-5 py-2 text-xs text-red-700 bg-red-50 border-t border-red-200">{error}</div>}
+        <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2">
+          <button onClick={onClose} disabled={busy}
+            className="px-4 py-1.5 rounded-lg border border-neutral-300 text-sm hover:bg-neutral-50 disabled:opacity-40">
+            Annulla
+          </button>
+          <button onClick={doMerge} disabled={!target || busy}
+            className="px-5 py-1.5 rounded-lg bg-violet-700 text-white text-sm font-semibold hover:bg-violet-800 disabled:opacity-40">
+            {busy ? "Merge in corso…" : `Fondi → #${target?.id || "?"}`}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
