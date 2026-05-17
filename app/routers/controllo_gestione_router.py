@@ -106,6 +106,7 @@ def dashboard(
 
     fc = get_fc_db()
     vdb = get_vendite_db()
+    dip = get_dipendenti_db()  # opzionale (G.3 Fase E)
 
     result = {
         "anno": anno,
@@ -113,6 +114,20 @@ def dashboard(
         "mese_label": _fmt_month(mese),
         "periodo": f"{_fmt_month(mese)} {anno}",
     }
+
+    # ─── 0. CONTO ECONOMICO CANONICO (G.3 Fase D — audit 2026-05-16) ───
+    # Dashboard prima leggeva ricavi/acquisti/margine direttamente da
+    # fe_fatture (con IVA, niente filtri categorie/escluso_acquisti).
+    # Discrepanza vs Conto Economico (che usa imponibile no-IVA + filtri).
+    # Audit Marco 2026-05-16: Dashboard riusa compute_pl per coerenza
+    # con il CE. Le viste specifiche (banca, andamento annuale) restano sui
+    # propri SQL diretti per non gonfiare il payload.
+    try:
+        from app.services.conto_economico import compute_pl
+        pl = compute_pl(fc, vdb, anno, mese, modalita="competenza", dip_conn=dip)
+    except Exception as e:
+        pl = None
+        result["pl_error"] = str(e)
 
     # ─── 1. VENDITE (da admin_finance.sqlite3 via vendite_aggregator) ───
     # Usa shift_closures come sorgente primaria (chiusure turno in app),
@@ -191,19 +206,38 @@ def dashboard(
     # ─── 4. SCADENZE / RATEIZZAZIONI — TODO (punti 6-7) ───
     # Per ora non collegato. Sara' sviluppato in fase successiva.
 
-    # ─── 5. MARGINE LORDO (vendite - acquisti) ───
-
-    vendite_tot = result["vendite"].get("totale_corrispettivi", 0)
-    acquisti_tot = result["acquisti"].get("totale_acquisti", 0)
-    margine = vendite_tot - acquisti_tot
-    margine_pct = round(margine / vendite_tot * 100, 1) if vendite_tot > 0 else None
-
-    result["margine"] = {
-        "margine_lordo": round(margine, 2),
-        "margine_pct": margine_pct,
-        "vendite": round(vendite_tot, 2),
-        "acquisti": round(acquisti_tot, 2),
-    }
+    # ─── 5. MARGINE LORDO + UTILE NETTO (canonici da CE — audit 2026-05-16) ───
+    # OLD: margine = vendite − tutti gli acquisti (con IVA, no filtri).
+    # NEW: usa il Conto Economico canonico (vendite − costo merce per
+    #      margine lordo; − costi operativi per utile netto). Coerente al
+    #      centesimo con la pagina Conto Economico.
+    # Fallback: se compute_pl ha errori, ricade sul calcolo legacy.
+    if pl is not None:
+        result["margine"] = {
+            "vendite": pl["ricavi"]["totale"],
+            "costo_merce": pl["costo_merce"]["totale"],
+            "costo_merce_pct": pl["costo_merce"].get("pct_su_ricavi"),
+            "margine_lordo": pl["margine_lordo"],
+            "margine_pct": pl["margine_lordo_pct"],
+            "costi_operativi": pl["costi_operativi"]["totale"],
+            "costi_operativi_pct": pl["costi_operativi"].get("pct_su_ricavi"),
+            "utile_netto": pl["utile_netto"],
+            "utile_netto_pct": pl["utile_netto_pct"],
+            "modalita_costo_personale": pl["_meta"].get("costo_personale", {}).get("modalita"),
+        }
+    else:
+        # Fallback legacy se compute_pl fallisce
+        vendite_tot = result["vendite"].get("totale_corrispettivi", 0)
+        acquisti_tot = result["acquisti"].get("totale_acquisti", 0)
+        margine = vendite_tot - acquisti_tot
+        margine_pct = round(margine / vendite_tot * 100, 1) if vendite_tot > 0 else None
+        result["margine"] = {
+            "margine_lordo": round(margine, 2),
+            "margine_pct": margine_pct,
+            "vendite": round(vendite_tot, 2),
+            "acquisti": round(acquisti_tot, 2),
+            "_legacy_fallback": True,
+        }
 
     # ─── 6. ANDAMENTO ANNUALE (mesi dell'anno) ───
 
@@ -288,6 +322,8 @@ def dashboard(
     result["categorie_acquisti"] = [dict(r) for r in cat_acquisti]
 
     fc.close()
+    if dip is not None:
+        dip.close()
     return result
 
 

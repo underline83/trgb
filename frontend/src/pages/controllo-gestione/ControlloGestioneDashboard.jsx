@@ -146,6 +146,11 @@ export default function ControlloGestioneDashboard() {
         {loading && <div className="text-xs text-sky-400 mb-3 animate-pulse">Aggiornamento...</div>}
 
         {/* ─── RIGA KPI PRINCIPALE ─── */}
+        {/* Audit 2026-05-16: rivisti i 6 KPI per coerenza col Conto Economico:
+            - "Margine lordo" ora = vendite − costo merce (food cost), come nel CE
+            - "Utile netto" è nuovo KPI (era assente in Dashboard, calcolato dal CE)
+            - Rimossi KPI "TODO" mai sviluppati (Uscite programmate / Rateizzazioni)
+            - Aggiunti "Costo merce" e "Costi operativi" per spiegare l'utile */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <KPI icon="💵" label="Vendite mese"
             value={`€ ${fmt(v.totale_corrispettivi)}`}
@@ -153,33 +158,43 @@ export default function ControlloGestioneDashboard() {
             color="emerald"
             onClick={() => navigate("/vendite/dashboard")} />
 
-          <KPI icon="📦" label="Acquisti mese"
-            value={`€ ${fmt(a.totale_acquisti)}`}
-            sub={a.variazione_mese_prec}
-            color="teal"
-            onClick={() => navigate("/acquisti/dashboard")} />
+          <KPI icon="🥩" label="Costo merce"
+            value={`€ ${fmt(m.costo_merce ?? a.totale_acquisti)}`}
+            sub={m.costo_merce_pct != null ? `${m.costo_merce_pct}% food cost` : null}
+            color="red"
+            onClick={() => navigate("/controllo-gestione/conto-economico")} />
 
           <KPI icon="📊" label="Margine lordo"
             value={`€ ${fmt(m.margine_lordo)}`}
-            sub={m.margine_pct != null ? `${m.margine_pct}%` : null}
-            color={m.margine_lordo >= 0 ? "emerald" : "red"} />
+            sub={m.margine_pct != null ? `${m.margine_pct}% dei ricavi` : null}
+            color={m.margine_lordo >= 0 ? "sky" : "red"}
+            onClick={() => navigate("/controllo-gestione/conto-economico")} />
+
+          <KPI icon="📋" label="Costi operativi"
+            value={`€ ${fmt(m.costi_operativi)}`}
+            sub={m.costi_operativi_pct != null ? `${m.costi_operativi_pct}% dei ricavi` : null}
+            color="amber"
+            onClick={() => navigate("/controllo-gestione/conto-economico")} />
+
+          <KPI icon="💰" label="Utile netto"
+            value={`€ ${fmt(m.utile_netto)}`}
+            sub={m.utile_netto_pct != null ? `${m.utile_netto_pct}% dei ricavi` : null}
+            color={(m.utile_netto ?? 0) >= 0 ? "violet" : "red"}
+            onClick={() => navigate("/controllo-gestione/conto-economico")} />
 
           <KPI icon="🏦" label="Saldo banca"
             value={`€ ${fmt(b.saldo_conto)}`}
             sub={`${b.num_movimenti} mov.`}
             color="blue"
-            onClick={() => navigate("/banca/dashboard")} />
-
-          <KPI icon="📅" label="Uscite programmate"
-            value="In lavorazione"
-            sub="TODO"
-            color="neutral" />
-
-          <KPI icon="🔄" label="Rateizzazioni"
-            value="In lavorazione"
-            sub="TODO"
-            color="neutral" />
+            onClick={() => navigate("/flussi-cassa/dashboard")} />
         </div>
+
+        {/* Audit 2026-05-16: badge "costo personale parziale" se il CE è in fallback netti */}
+        {m.modalita_costo_personale === "netti_fallback" && (
+          <div className="-mt-3 mb-5 text-[11px] text-orange-700">
+            ⚠ Costo personale parziale: l'ELAB del mese non è ancora importato, l'utile netto potrebbe essere sovrastimato.
+          </div>
+        )}
 
         {/* G.2.B — Widget mini-timeline scadenze prossimi 30gg */}
         <WidgetScadenzeTimeline onOpenCalendar={() => navigate("/controllo-gestione/calendario")} />
