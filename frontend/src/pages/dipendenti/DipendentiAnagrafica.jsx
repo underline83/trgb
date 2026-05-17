@@ -30,6 +30,9 @@ const EMPTY_FORM = {
   note: "", attivo: true,
   reparto_id: null, colore: "", a_chiamata: false,
   trasmissione_telematica: false,
+  // G.3 Fase E (2026-05-16): flag amministratore — per il CE va in macro
+  // 'AMMINISTRATORI' invece di 'STAFF'. Compenso non subordinato (no TFR, no ratei).
+  is_amministratore: false,
   // Utente app collegato (per vista self-service "/miei-turni"). "" = nessuno.
   utente_username: "",
 };
@@ -147,6 +150,7 @@ export default function DipendentiAnagrafica() {
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
       a_chiamata: !!d.a_chiamata,
       trasmissione_telematica: !!d.trasmissione_telematica,
+      is_amministratore: !!d.is_amministratore,
       utente_username: linkedUsername,
     });
     setUtenteInitial(linkedUsername);
@@ -184,6 +188,7 @@ export default function DipendentiAnagrafica() {
       colore: form.colore || null,
       a_chiamata: !!form.a_chiamata,
       trasmissione_telematica: !!form.trasmissione_telematica,
+      is_amministratore: !!form.is_amministratore,
     };
     const isEdit = !!form.id;
     try {
@@ -589,6 +594,16 @@ export default function DipendentiAnagrafica() {
                         className="rounded border-neutral-300 text-blue-600" />
                       <label htmlFor="trasmissione_telematica" className="text-xs text-neutral-700" title="Trasmissione dati telematici">
                         {"\uD83D\uDCE1"} Trasmissione dati telematici
+                      </label>
+                    </div>
+                    {/* G.3 Fase E (mig 134): flag amministratore per il CE */}
+                    <div className="flex items-center gap-2">
+                      <input id="is_amministratore" type="checkbox" checked={!!form.is_amministratore}
+                        onChange={e => handleChange("is_amministratore", e.target.checked)}
+                        className="rounded border-neutral-300 text-violet-600" />
+                      <label htmlFor="is_amministratore" className="text-xs text-neutral-700"
+                        title="Se attivo: il costo di questo dipendente va sotto 'AMMINISTRATORI' nel Conto Economico (compenso non subordinato, senza TFR n\u00E9 ratei). Altrimenti: 'STAFF' (operai/dipendenti).">
+                        {"\uD83D\uDC54"} Amministratore (compenso, non subordinato)
                       </label>
                     </div>
                   </div>

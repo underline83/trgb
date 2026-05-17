@@ -400,19 +400,46 @@ def _aggregate_stipendi(
         except sqlite3.Error:
             pass
 
-        for r in dip_conn.execute("""
-            SELECT id, matricola, cognome_nome, costo_totale, inail_mese,
-                   retribuzione_lorda, contributi_lordo, ratei_importo,
-                   contributi_su_ratei, tfr_maturato, dipendente_id
-            FROM dipendenti_costo_consuntivo
-            WHERE anno=? AND mese=?
-            ORDER BY costo_totale DESC, matricola
+        # G.3 Fase E + flag is_amministratore (mig 134, 2026-05-16):
+        # JOIN su dipendenti per leggere `is_amministratore` e discriminare
+        # STAFF vs AMMINISTRATORI nel CE. LEFT JOIN così i record orfani
+        # (dipendente_id NULL) restano in STAFF di default.
+        has_is_amm_col = False
+        try:
+            has_is_amm_col = any(
+                c[1] == "is_amministratore"
+                for c in dip_conn.execute("PRAGMA table_info(dipendenti)").fetchall()
+            )
+        except sqlite3.Error:
+            pass
+        amm_join = (
+            "LEFT JOIN dipendenti d ON dcc.dipendente_id = d.id" if has_is_amm_col else ""
+        )
+        amm_select = (
+            ", COALESCE(d.is_amministratore, 0) AS is_amministratore"
+            if has_is_amm_col else ", 0 AS is_amministratore"
+        )
+        for r in dip_conn.execute(f"""
+            SELECT dcc.id, dcc.matricola, dcc.cognome_nome, dcc.costo_totale,
+                   dcc.inail_mese, dcc.retribuzione_lorda, dcc.contributi_lordo,
+                   dcc.ratei_importo, dcc.contributi_su_ratei, dcc.tfr_maturato,
+                   dcc.dipendente_id
+                   {amm_select}
+            FROM dipendenti_costo_consuntivo dcc
+            {amm_join}
+            WHERE dcc.anno=? AND dcc.mese=?
+            ORDER BY dcc.costo_totale DESC, dcc.matricola
         """, (anno, mese)).fetchall():
             r = dict(r)
             is_azienda = (r["matricola"] or "").upper() == "AZIENDA"
+            # Categoria CE: AMMINISTRATORI se flag, altrimenti STAFF (default)
+            cat_ce = "AMMINISTRATORI" if r.get("is_amministratore") else "STAFF"
 
             if is_azienda:
-                # Riga INAIL azienda — singola sottocategoria INAIL
+                # Riga INAIL azienda — singola sottocategoria INAIL.
+                # NB: l'INAIL azienda è sull'intera ditta, lo lasciamo sempre
+                # sotto STAFF (è un premio assicurativo che copre tutti i
+                # subordinati; gli amministratori non hanno INAIL).
                 rows.append({
                     "categoria": "STAFF",
                     "sottocategoria": "INAIL",
@@ -473,7 +500,7 @@ def _aggregate_stipendi(
                 if abs(importo) < 0.01:
                     continue  # skip componenti azzerati (es. Panichi cost 0,10)
                 rows.append({
-                    "categoria": "STAFF",
+                    "categoria": cat_ce,  # STAFF o AMMINISTRATORI (mig 134)
                     "sottocategoria": sottocat,
                     "tipo_riga": "costo_consuntivo",
                     "id": id_base,
