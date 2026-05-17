@@ -351,36 +351,138 @@ def _aggregate_stipendi(
             consuntivo_disponibile = False
 
     if consuntivo_disponibile:
-        # ── Modalità "completo" — legge costo aziendale vero ──
-        # Una riga per dipendente con costo_totale (lordo+contributi+ratei+TFR).
-        # Eventuale riga sintetica matricola='AZIENDA' (per INAIL totale azienda
-        # spalmato) viene presa come sottocategoria='INAIL'.
+        # ── Modalità "completo" — spezza il costo aziendale in 4 sottocategorie ──
+        # Marco 2026-05-16: vuole vedere chiaramente quanto è il netto bonificato
+        # vs le altre voci del costo personale. Spacca STAFF in:
+        #   NETTI BONIFICATI            = quanto esce dal conto del datore verso
+        #                                 i dipendenti (LUL.netto; fallback cg_uscite;
+        #                                 fallback stima 80% del lordo ELAB)
+        #   CONTRIBUTI INPS AZIENDA     = ELAB.contributi_lordo + contributi_su_ratei
+        #                                 (carico ditta versato via F24 DM10)
+        #   TRATTENUTE + RATEI + TFR    = costo_totale - netto - carico_ditta
+        #                                 = trattenute fisco dipendente (IRPEF+INPS dip+add)
+        #                                 + ratei 13ª/14ª/ferie + TFR maturato
+        #   INAIL                       = riga sintetica matricola='AZIENDA'
+        #                                 (premio mensile azienda)
+        # GARANZIA: la somma delle 4 sottocategorie per ogni dipendente coincide
+        # ESATTAMENTE col costo_totale_azienda dell'ELAB (al centesimo).
+        # ELAB.lordo include solo paga ordinaria+straord (NON ratei),
+        # quindi non possiamo fare semplice trattenute=lordo-netto.
         date_first = f"{anno:04d}-{mese:02d}-01"
+
+        # Pre-fetch netti dal LUL (buste_paga) per dipendente_id
+        netti_lul: dict[int, float] = {}
+        if dip_conn is not None:
+            try:
+                for nr in dip_conn.execute(
+                    "SELECT dipendente_id, netto FROM buste_paga "
+                    "WHERE anno=? AND mese=? AND dipendente_id IS NOT NULL",
+                    (anno, mese)
+                ).fetchall():
+                    if nr["dipendente_id"] is not None and nr["netto"] is not None:
+                        netti_lul[nr["dipendente_id"]] = float(nr["netto"])
+            except sqlite3.Error:
+                pass
+
+        # Pre-fetch netti da cg_uscite STIPENDIO (fallback per chi non ha LUL)
+        netti_cg: dict[str, float] = {}  # chiave = cognome_nome upper
+        try:
+            for nr in fc_conn.execute(
+                "SELECT fornitore_nome, totale FROM cg_uscite "
+                "WHERE tipo_uscita='STIPENDIO' AND periodo_riferimento=?",
+                (periodo_rif,)
+            ).fetchall():
+                fn = (nr["fornitore_nome"] or "").upper()
+                # cg_uscite ha "Stipendio - Cognome Nome" → estraggo nome dopo "Stipendio - "
+                if "STIPENDIO - " in fn:
+                    fn = fn.replace("STIPENDIO - ", "")
+                netti_cg[fn] = float(nr["totale"] or 0)
+        except sqlite3.Error:
+            pass
+
         for r in dip_conn.execute("""
             SELECT id, matricola, cognome_nome, costo_totale, inail_mese,
                    retribuzione_lorda, contributi_lordo, ratei_importo,
-                   tfr_maturato, dipendente_id
+                   contributi_su_ratei, tfr_maturato, dipendente_id
             FROM dipendenti_costo_consuntivo
             WHERE anno=? AND mese=?
             ORDER BY costo_totale DESC, matricola
         """, (anno, mese)).fetchall():
             r = dict(r)
             is_azienda = (r["matricola"] or "").upper() == "AZIENDA"
-            importo = (r["costo_totale"] or 0) + (r["inail_mese"] or 0) if is_azienda \
-                      else (r["costo_totale"] or 0)
-            sottocat = "INAIL" if is_azienda else "STIPENDI"
-            descrizione = "INAIL azienda" if is_azienda else "Costo aziendale completo"
-            rows.append({
-                "categoria": "STAFF",
-                "sottocategoria": sottocat,
-                "tipo_riga": "costo_consuntivo",
-                "id": r["id"],
-                "spesa_fissa_id": None,
-                "data": date_first,
-                "descrizione": descrizione,
-                "ref": r["cognome_nome"] or "—",
-                "importo": round(float(importo), 2),
-            })
+
+            if is_azienda:
+                # Riga INAIL azienda — singola sottocategoria INAIL
+                rows.append({
+                    "categoria": "STAFF",
+                    "sottocategoria": "INAIL",
+                    "tipo_riga": "costo_consuntivo",
+                    "id": r["id"],
+                    "spesa_fissa_id": None,
+                    "data": date_first,
+                    "descrizione": "INAIL azienda",
+                    "ref": r["cognome_nome"] or "—",
+                    "importo": round(float(r["inail_mese"] or 0), 2),
+                })
+                continue
+
+            # Dipendente: ricava il netto bonificato
+            lordo_elab = float(r["retribuzione_lorda"] or 0)
+            costo_totale = float(r["costo_totale"] or 0)
+
+            # Cerco netto in priorità: LUL → cg_uscite → fallback 80% lordo
+            netto = None
+            if r["dipendente_id"] is not None:
+                netto = netti_lul.get(r["dipendente_id"])
+            if netto is None:
+                netto = netti_cg.get((r["cognome_nome"] or "").upper())
+                # Prova anche ordine invertito (cg_uscite ha spesso "Nome Cognome")
+                if netto is None:
+                    cn_parts = (r["cognome_nome"] or "").strip().upper().split()
+                    if len(cn_parts) >= 2:
+                        inverted = " ".join(reversed(cn_parts))
+                        netto = netti_cg.get(inverted)
+            if netto is None and lordo_elab > 0:
+                netto = round(lordo_elab * 0.80, 2)  # stima fallback
+            if netto is None:
+                netto = 0.0
+
+            # Carico ditta = contributi su lordo + contributi su ratei
+            carico_ditta = round(
+                float(r["contributi_lordo"] or 0)
+                + float(r["contributi_su_ratei"] or 0),
+                2,
+            )
+
+            # RESIDUO = costo_totale - netto - carico_ditta
+            # Contiene: trattenute fisco al dipendente (IRPEF+INPS dip+add)
+            # + ratei 13ª/14ª/ferie + TFR maturato.
+            # GARANTITO che la somma quadri al centesimo (è una sottrazione).
+            residuo = round(costo_totale - netto - carico_ditta, 2)
+
+            ref = r["cognome_nome"] or "—"
+            id_base = r["id"]
+
+            # 3 righe sintetiche per dipendente (somma = costo_totale)
+            componenti = [
+                ("NETTI BONIFICATI", "Bonifico mensile al dipendente", netto),
+                ("CONTRIBUTI INPS", "Carico ditta INPS — versato via F24 DM10", carico_ditta),
+                ("F24 + RATEI + TFR", "Trattenute fisco dip + ratei 13ª/14ª/ferie + TFR", residuo),
+            ]
+            for sottocat, descr, importo in componenti:
+                if abs(importo) < 0.01:
+                    continue  # skip componenti azzerati (es. Panichi cost 0,10)
+                rows.append({
+                    "categoria": "STAFF",
+                    "sottocategoria": sottocat,
+                    "tipo_riga": "costo_consuntivo",
+                    "id": id_base,
+                    "spesa_fissa_id": None,
+                    "data": date_first,
+                    "descrizione": descr,
+                    "ref": ref,
+                    "importo": round(float(importo), 2),
+                })
 
         meta = {
             "modalita_costo": "completo",
