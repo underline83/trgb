@@ -2436,6 +2436,115 @@ def download_documento(
 
 
 # ════════════════════════════════════════════════════════════
+# G.3 FASE E — MATCH DIPENDENTE DEDICATO PER ELAB (costo consuntivo)
+# ════════════════════════════════════════════════════════════
+# Il `_match_dipendente` esistente è ottimizzato per il LUL (ha CF e tronca
+# cognomi sempre uguali). Per l'ELAB del consulente paghe servono:
+#   - includere EX dipendenti (attivo=0): i mesi passati possono contenere
+#     persone non più attive (es. stagionali licenziati, contratti scaduti)
+#   - cognomi MULTI-TOKEN ≥ 3 parole (es. "ALBUQUERQUE DOS SANTOS")
+#   - tolleranza per troncamenti PDF a 21-25 caratteri
+# ════════════════════════════════════════════════════════════
+
+def _match_dipendente_consuntivo(conn, cognome_nome: str) -> Optional[dict]:
+    """Match cognome_nome del PDF ELAB → record dipendenti. Considera
+    sia attivi che ex dipendenti. Prova split a 1, 2, 3 token cognome.
+    Fallback fuzzy SequenceMatcher con soglia rilassata (0.80).
+    """
+    if not cognome_nome:
+        return None
+    parts = cognome_nome.strip().upper().split()
+    if not parts:
+        return None
+
+    # ── 1. Match esatto su cognome+nome per varie posizioni di split ──
+    # ELAB layout: "<COGNOME> <NOME>" dove cognome può essere 1, 2, 3 token.
+    # Es: "SOLA PAOLO" → cognome=1 / nome=1
+    #     "DOS SANTOS MIRLA STEFANE" → cognome=2 / nome=2
+    #     "ALBUQUERQUE DOS SANTOS" → cognome=3 / nome=0 (troncato)
+    for split_at in range(1, len(parts)):
+        cognome_test = " ".join(parts[:split_at])
+        nome_test = " ".join(parts[split_at:])
+        # Match esatto (case insensitive). attivo: any.
+        row = conn.execute(
+            "SELECT id, nome, cognome, codice_fiscale, giorno_paga, attivo "
+            "FROM dipendenti WHERE UPPER(cognome) = ? AND UPPER(nome) = ?",
+            (cognome_test, nome_test)
+        ).fetchone()
+        if row:
+            return dict(row)
+        # Match con LIKE sul nome (utile se PDF tronca a 21 caratteri)
+        row = conn.execute(
+            "SELECT id, nome, cognome, codice_fiscale, giorno_paga, attivo "
+            "FROM dipendenti WHERE UPPER(cognome) = ? AND UPPER(nome) LIKE ?",
+            (cognome_test, nome_test + "%")
+        ).fetchone()
+        if row:
+            return dict(row)
+        # Match inverso (PDF ha solo cognome senza nome dopo troncamento)
+        if not nome_test:
+            continue
+        # LIKE sul cognome (PDF tronca il cognome lungo)
+        row = conn.execute(
+            "SELECT id, nome, cognome, codice_fiscale, giorno_paga, attivo "
+            "FROM dipendenti WHERE UPPER(cognome) LIKE ? AND UPPER(nome) = ?",
+            (cognome_test + "%", nome_test)
+        ).fetchone()
+        if row:
+            return dict(row)
+
+    # ── 2. Caso cognome troncato: cerca con LIKE sul whole cognome ──
+    # Es. PDF "ALBUQUERQUE DOS SANTOS" (22 char, può essere il cognome intero)
+    full_cog = " ".join(parts)
+    row = conn.execute(
+        "SELECT id, nome, cognome, codice_fiscale, giorno_paga, attivo "
+        "FROM dipendenti WHERE UPPER(cognome) LIKE ? || '%'",
+        (full_cog,)
+    ).fetchone()
+    if row:
+        return dict(row)
+
+    # ── 2b. Match per SOLO cognome (primo token) se univoco ──
+    # Risolve casi tipo "ALBUQUERQUE DOS SANTOS" (PDF) vs "Albuquerque" + nome
+    # "Mirla Dos Santos Stefane" (DB): il PDF tronca, il primo token coincide.
+    # Sicuro solo se il cognome è univoco in anagrafica (else ambiguità).
+    primo_token = parts[0]
+    candidates = conn.execute(
+        "SELECT id, nome, cognome, codice_fiscale, giorno_paga, attivo "
+        "FROM dipendenti WHERE UPPER(cognome) = ?",
+        (primo_token,)
+    ).fetchall()
+    if len(candidates) == 1:
+        return dict(candidates[0])
+
+    # ── 3. Fuzzy match con SequenceMatcher (soglia 0.80, più rilassata
+    #      del LUL=0.85 perché l'ELAB tronca/concatena più aggressivamente). ──
+    from difflib import SequenceMatcher
+    ced_norm = " ".join(parts)
+    best = None
+    best_ratio = 0.0
+    for d in conn.execute(
+        "SELECT id, nome, cognome, codice_fiscale, giorno_paga, attivo FROM dipendenti"
+    ).fetchall():
+        dip = dict(d)
+        cand_a = f"{(dip.get('cognome') or '').upper()} {(dip.get('nome') or '').upper()}".strip()
+        cand_b = f"{(dip.get('nome') or '').upper()} {(dip.get('cognome') or '').upper()}".strip()
+        # Variante "solo cognome" per troncamenti
+        cand_c = (dip.get("cognome") or "").upper().strip()
+        for cand in (cand_a, cand_b, cand_c):
+            cand = " ".join(cand.split())
+            if not cand:
+                continue
+            r = SequenceMatcher(None, ced_norm, cand).ratio()
+            if r > best_ratio:
+                best_ratio = r
+                best = dip
+    if best and best_ratio >= 0.80:
+        return best
+    return None
+
+
+# ════════════════════════════════════════════════════════════
 # G.3 FASE E — IMPORT PDF PAGHE: ELAB (costo consuntivo) + F24 (versamenti)
 # ════════════════════════════════════════════════════════════
 # Marco 2026-05-16: oltre al LUL già importato (buste paga PDF), ogni mese
@@ -2533,11 +2642,9 @@ def _import_elab_to_db(parsed: dict, dip_conn) -> dict:
     for dip_row in parsed.get("dipendenti", []):
         cognome_nome = dip_row.get("cognome_nome") or ""
         matricola = dip_row.get("matricola")
-        # Match dipendente_id via fuzzy su cognome_nome
-        # NB: _match_dipendente è dentro questo modulo, riusiamolo passando
-        # un "cedolino fake" con solo cognome_nome
-        fake_cedolino = {"cognome_nome": cognome_nome}
-        dip = _match_dipendente(dip_conn, fake_cedolino)
+        # G.3 Fase E: match dedicato per ELAB (include ex dipendenti + cognomi
+        # multi-token. Vedi `_match_dipendente_consuntivo`).
+        dip = _match_dipendente_consuntivo(dip_conn, cognome_nome)
         dipendente_id = dip["id"] if dip else None
         if dipendente_id:
             matched += 1
@@ -2777,6 +2884,50 @@ async def import_paghe_pdf(
             "tot_skipped": len([r for r in results if r.get("skipped")]),
         },
     }
+
+
+@router.post("/buste-paga/rematch-consuntivo")
+def rematch_dipendenti_consuntivo(
+    current_user=Depends(get_current_user),
+):
+    """G.3 Fase E — Re-match dipendente_id su record `dipendenti_costo_consuntivo`
+    con `dipendente_id IS NULL`. Da chiamare dopo aver migliorato la funzione
+    di match (`_match_dipendente_consuntivo`) o dopo aver creato/riattivato
+    dipendenti che erano "ex" al momento dell'import.
+
+    Ritorna {tentati, abbinati_ora, ancora_null}.
+    Esclude le righe sintetiche AZIENDA (matricola='AZIENDA', dipendente_id resta NULL).
+    """
+    conn = get_dipendenti_conn()
+    try:
+        # Tutti i record orfani (escluse righe sintetiche AZIENDA)
+        orfani = conn.execute("""
+            SELECT id, cognome_nome
+            FROM dipendenti_costo_consuntivo
+            WHERE dipendente_id IS NULL
+              AND COALESCE(matricola, '') != 'AZIENDA'
+        """).fetchall()
+        tentati = len(orfani)
+        abbinati = 0
+        non_abbinati = []
+        for r in orfani:
+            dip = _match_dipendente_consuntivo(conn, r["cognome_nome"] or "")
+            if dip:
+                conn.execute(
+                    "UPDATE dipendenti_costo_consuntivo SET dipendente_id = ? WHERE id = ?",
+                    (dip["id"], r["id"])
+                )
+                abbinati += 1
+            else:
+                non_abbinati.append(r["cognome_nome"])
+        conn.commit()
+        return {
+            "tentati": tentati,
+            "abbinati_ora": abbinati,
+            "ancora_non_abbinati": non_abbinati,
+        }
+    finally:
+        conn.close()
 
 
 # ============================================================

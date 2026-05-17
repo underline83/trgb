@@ -378,6 +378,34 @@ export default function DipendentiBustePaga() {
               {paghePdfUploading ? "Analizzando..." : <>{"\uD83D\uDCD1"} Import ELAB / F24</>}
             </Btn>
           </Tooltip>
+          {/* G.3 Fase E: re-match dipendenti su record costo consuntivo NULL */}
+          <Tooltip label="Riprova ad abbinare i dipendenti rimasti 'non abbinati' negli import ELAB (usa fuzzy match aggiornato e include ex dipendenti).">
+            <Btn variant="chip" tone="violet" size="sm"
+              onClick={async () => {
+                if (!confirm("Riabbinare i dipendenti orfani sui record ELAB gi\u00E0 importati?")) return;
+                try {
+                  const res = await apiFetch(`${API_BASE}/dipendenti/buste-paga/rematch-consuntivo`, {
+                    method: "POST",
+                  });
+                  if (!res.ok) {
+                    const txt = await res.text();
+                    alert(`Errore re-match: ${txt.slice(0, 200)}`);
+                    return;
+                  }
+                  const json = await res.json();
+                  let msg = `Tentati: ${json.tentati}\nAbbinati ora: ${json.abbinati_ora}`;
+                  if (json.ancora_non_abbinati?.length > 0) {
+                    msg += `\n\nAncora non abbinati (${json.ancora_non_abbinati.length}):\n` +
+                           json.ancora_non_abbinati.join(", ");
+                  }
+                  alert(msg);
+                } catch (err) {
+                  alert("Errore di rete");
+                }
+              }}>
+              {"\uD83D\uDD17"} Re-match dipendenti
+            </Btn>
+          </Tooltip>
           <Btn variant="secondary" size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
             + Inserisci Manuale
           </Btn>
