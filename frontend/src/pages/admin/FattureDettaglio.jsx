@@ -499,11 +499,61 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
               <h2 className={`text-base md:text-lg font-bold leading-tight ${hdr.text}`}>
                 {fattura.fornitore_nome || "—"}
               </h2>
-              {/* Sottotitolo: p.iva · data fattura · scadenza */}
-              <p className="text-xs text-neutral-600 mt-0.5 flex flex-wrap gap-x-1.5">
+              {/* Sottotitolo: p.iva · data fattura · scadenza · competenza override */}
+              <p className="text-xs text-neutral-600 mt-0.5 flex flex-wrap gap-x-1.5 items-center">
                 {fattura.fornitore_piva && <span className="font-mono">P.IVA {fattura.fornitore_piva}</span>}
                 {fattura.data_fattura && <><span>·</span><span>emessa {fattura.data_fattura}</span></>}
                 {scadenzaEff && <><span>·</span><span>scad. {scadenzaEff}</span></>}
+                {/* G.3.1b: competenza override per il CE */}
+                {fattura.competenza_anno_mese && (
+                  <>
+                    <span>·</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold border border-amber-200"
+                          title="Mese di competenza override per il Conto Economico (diverso dalla data fattura)">
+                      P&L competenza {fattura.competenza_anno_mese}
+                    </span>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const current = fattura.competenza_anno_mese;
+                    const promptMsg = current
+                      ? `Competenza attuale: ${current}\n\nNuovo mese di competenza P&L (formato YYYY-MM, vuoto per rimuovere e usare data fattura):`
+                      : `Data fattura: ${fattura.data_fattura}\n\nMese di competenza P&L (formato YYYY-MM, es. "2026-01" per spostare a gennaio):`;
+                    const val = prompt(promptMsg, current || "");
+                    if (val === null) return;  // utente annulla
+                    let body;
+                    if (val.trim() === "") {
+                      body = { anno: null, mese: null };
+                    } else {
+                      const m = val.match(/^(\d{4})-(\d{2})$/);
+                      if (!m) { alert("Formato non valido: usa YYYY-MM (es. 2026-01)"); return; }
+                      body = { anno: parseInt(m[1], 10), mese: parseInt(m[2], 10) };
+                    }
+                    try {
+                      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/${fattura.id}/competenza`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body),
+                      });
+                      if (!res.ok) {
+                        const txt = await res.text();
+                        alert(`Errore: ${txt.slice(0, 200)}`);
+                        return;
+                      }
+                      // Refresh dettaglio fattura
+                      if (typeof onReload === "function") onReload();
+                      else window.location.reload();
+                    } catch (err) {
+                      alert("Errore di rete");
+                    }
+                  }}
+                  className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                  title="Imposta o cancella il mese di competenza P&L override (diverso dalla data fattura)"
+                >
+                  {fattura.competenza_anno_mese ? "✏️ modifica competenza" : "📅 sposta competenza"}
+                </button>
               </p>
             </div>
             {onClose && !Array.isArray(breadcrumb) && (

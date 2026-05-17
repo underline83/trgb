@@ -407,6 +407,51 @@ export default function DipendentiBustePaga() {
               {"\uD83D\uDD17"} Re-match dipendenti
             </Btn>
           </Tooltip>
+          {/* G.3.1c: auto-create placeholder per dipendenti mancanti in anagrafica */}
+          <Tooltip label="Per ogni cognome_nome rimasto orfano nei record ELAB, crea un placeholder in anagrafica (attivo=0, codice DIP-ELAB-<matricola>). Da rivedere e completare a mano poi.">
+            <Btn variant="chip" tone="emerald" size="sm"
+              onClick={async () => {
+                try {
+                  // Prima preview: chiama rematch per vedere chi \u00E8 ancora orfano
+                  const pre = await apiFetch(`${API_BASE}/dipendenti/buste-paga/rematch-consuntivo`, {method: "POST"});
+                  const preJson = pre.ok ? await pre.json() : { ancora_non_abbinati: [] };
+                  const candidati = preJson.ancora_non_abbinati || [];
+                  if (candidati.length === 0) {
+                    alert("Nessun dipendente da auto-creare: tutto gi\u00E0 abbinato.");
+                    return;
+                  }
+                  if (!confirm(
+                    `Sto per creare ${[...new Set(candidati)].length} dipendenti placeholder in anagrafica (attivo=0):\n\n` +
+                    [...new Set(candidati)].join("\n") +
+                    "\n\nProcedere?"
+                  )) return;
+
+                  const res = await apiFetch(`${API_BASE}/dipendenti/buste-paga/auto-create-mancanti`, {
+                    method: "POST",
+                  });
+                  if (!res.ok) {
+                    const txt = await res.text();
+                    alert(`Errore auto-create: ${txt.slice(0, 200)}`);
+                    return;
+                  }
+                  const json = await res.json();
+                  let msg = `Creati: ${json.creati?.length || 0} placeholder\n` +
+                            `Record costo consuntivo collegati: ${json.record_collegati}\n\n`;
+                  if (json.creati?.length > 0) {
+                    msg += "Nuovi dipendenti (rivedi/completa in anagrafica):\n";
+                    json.creati.forEach(c => {
+                      msg += `  \u2022 ${c.codice}: ${c.cognome_nome} (${c.record_collegati} record collegati)\n`;
+                    });
+                  }
+                  alert(msg);
+                  fetchData();  // refresh dropdown filtro + cedolini
+                } catch (err) {
+                  alert("Errore di rete");
+                }
+              }}>
+              {"\uD83C\uDD95"} Crea mancanti
+            </Btn>
+          </Tooltip>
           <Btn variant="secondary" size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
             + Inserisci Manuale
           </Btn>

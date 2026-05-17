@@ -125,7 +125,24 @@ def _aggregate_fatture_per_categoria(
       {categoria, sottocategoria, tipo_riga, id, spesa_fissa_id, data,
        descrizione, ref, importo}
     """
-    rows = fc_conn.execute("""
+    # G.3.1b (Marco 2026-05-16): competenza override.
+    # Una fattura può avere `competenza_anno_mese` valorizzato (YYYY-MM): se sì,
+    # quella è la sua competenza P&L, indipendentemente da data_fattura. Altrimenti
+    # fallback a strftime('%Y-%m', data_fattura) come default. Pattern di
+    # tabella simile a `periodo_riferimento` su `cg_uscite` (stipendi).
+    # `periodo_rif` è la stringa 'YYYY-MM' del periodo richiesto.
+    periodo_rif = primo[:7]  # primo = 'YYYY-MM-01'
+    # NB: il check tollera DB legacy senza la colonna (try/except + fallback).
+    has_competenza_col = any(
+        r[1] == "competenza_anno_mese"
+        for r in fc_conn.execute("PRAGMA table_info(fe_fatture)").fetchall()
+    )
+    competenza_clause = (
+        "COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) = ?"
+        if has_competenza_col
+        else "strftime('%Y-%m', f.data_fattura) = ?"
+    )
+    rows = fc_conn.execute(f"""
         SELECT
             COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
             COALESCE(fsub_riga.nome, fsub_forn.nome, '—')                 AS sottocategoria,
@@ -144,7 +161,7 @@ def _aggregate_fatture_per_categoria(
         LEFT JOIN fe_sottocategorie  fsub_riga ON r.sottocategoria_id = fsub_riga.id
         LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
         LEFT JOIN fe_sottocategorie  fsub_forn ON ffc.sottocategoria_id = fsub_forn.id
-        WHERE f.data_fattura >= ? AND f.data_fattura < ?
+        WHERE {competenza_clause}
           AND COALESCE(f.is_autofattura, 0) = 0
           AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
           -- escluso_acquisti vive su fe_fornitore_categoria (CLAUDE.md regola critica),
@@ -154,7 +171,7 @@ def _aggregate_fatture_per_categoria(
                  COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato'),
                  COALESCE(fsub_riga.nome, fsub_forn.nome, '—')
         ORDER BY f.data_fattura DESC, importo DESC, f.id DESC
-    """, (primo, ultimo)).fetchall()
+    """, (periodo_rif,)).fetchall()
     return [dict(r) for r in rows]
 
 

@@ -1260,6 +1260,18 @@ def get_fattura_detail(fattura_id: int):
             status_code=status.HTTP_404_NOT_FOUND, detail="Fattura non trovata"
         )
 
+    # G.3.1b: leggo competenza_anno_mese separatamente per non rompere la view
+    # `fe_fatture_with_stato` (potrebbe non esporre il campo nuovo).
+    try:
+        _comp = cur.execute(
+            "SELECT competenza_anno_mese FROM fe_fatture WHERE id = ?",
+            (fattura_id,),
+        ).fetchone()
+        competenza_override = _comp["competenza_anno_mese"] if _comp else None
+    except sqlite3.OperationalError:
+        # Colonna non esiste ancora (DB legacy pre-mig 133)
+        competenza_override = None
+
     cur.execute(
         """
         SELECT
@@ -1331,6 +1343,8 @@ def get_fattura_detail(fattura_id: int):
         "is_rateizzata": fattura_dict.get("rateizzata_in_spesa_fissa_id") is not None,
         "uscita": uscita,
         "righe": [dict(r) for r in righe],
+        # G.3.1b: override competenza P&L (override su data_fattura)
+        "competenza_anno_mese": competenza_override,
     }
 
 
@@ -2078,3 +2092,91 @@ def stats_anomalie(
 
     conn.close()
     return anomalie
+
+
+# ════════════════════════════════════════════════════════════
+# G.3.1b — Override competenza fattura acquisti (Marco 2026-05-16)
+# ════════════════════════════════════════════════════════════
+# Una fattura datata es. 2 febbraio può essere in realtà di competenza
+# gennaio (fornitore non ha fatturato il 31 a causa di una festività).
+# Endpoint per impostare/cancellare il mese di competenza override.
+# La data_fattura NON viene toccata (resta il dato fiscale).
+# ════════════════════════════════════════════════════════════
+
+@router.put(
+    "/fatture/{fattura_id}/competenza",
+    summary="Imposta o cancella la competenza P&L override di una fattura (G.3.1b)",
+)
+def set_fattura_competenza(
+    fattura_id: int,
+    anno: int = Body(None, embed=True),
+    mese: int = Body(None, embed=True),
+    current_user=Depends(get_current_user),
+):
+    """Imposta il mese di competenza override per il Conto Economico.
+
+    Body:
+      - anno+mese valorizzati  → imposta `competenza_anno_mese` = 'YYYY-MM'
+      - anno=null e mese=null  → cancella l'override (la fattura torna a usare
+        `data_fattura` per la competenza, comportamento di default)
+
+    Esempio: fattura datata 2026-02-02 ma di competenza gennaio:
+      PUT /contabilita/fe/fatture/123/competenza   {"anno": 2026, "mese": 1}
+      → competenza_anno_mese = '2026-01'
+
+    Cancellazione:
+      PUT /contabilita/fe/fatture/123/competenza   {"anno": null, "mese": null}
+      → competenza_anno_mese = NULL (usa data_fattura)
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        # Verifica che la fattura esista
+        row = cur.execute(
+            "SELECT id, data_fattura, competenza_anno_mese FROM fe_fatture WHERE id = ?",
+            (fattura_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Fattura id={fattura_id} non trovata")
+
+        if anno is None and mese is None:
+            # Cancella override
+            cur.execute(
+                "UPDATE fe_fatture SET competenza_anno_mese = NULL WHERE id = ?",
+                (fattura_id,)
+            )
+            conn.commit()
+            return {
+                "id": fattura_id,
+                "competenza_anno_mese": None,
+                "data_fattura": row["data_fattura"],
+                "azione": "competenza_rimossa",
+            }
+
+        # Validazione anno + mese
+        if anno is None or mese is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Devi fornire ENTRAMBI anno e mese, oppure entrambi null per cancellare."
+            )
+        if not (2020 <= anno <= 2100) or not (1 <= mese <= 12):
+            raise HTTPException(
+                status_code=400,
+                detail=f"anno={anno} o mese={mese} fuori range (anno 2020-2100, mese 1-12)"
+            )
+
+        nuovo = f"{anno:04d}-{mese:02d}"
+        cur.execute(
+            "UPDATE fe_fatture SET competenza_anno_mese = ? WHERE id = ?",
+            (nuovo, fattura_id)
+        )
+        conn.commit()
+        return {
+            "id": fattura_id,
+            "competenza_anno_mese": nuovo,
+            "data_fattura": row["data_fattura"],
+            "competenza_precedente": row["competenza_anno_mese"],
+            "azione": "competenza_impostata",
+        }
+    finally:
+        conn.close()

@@ -2886,6 +2886,193 @@ async def import_paghe_pdf(
     }
 
 
+@router.get("/costi-mensili")
+def costi_mensili(
+    anno: int = Query(default=None, ge=2020, le=2100),
+    mese: int = Query(default=None, ge=1, le=12),
+    current_user=Depends(get_current_user),
+):
+    """G.3 Fase E (E.8) — Vista "Costi mensili" per il modulo Dipendenti.
+    Ritorna per (anno, mese):
+      - totali aggregati (lordo, contributi ditta, ratei, TFR, INAIL, costo_totale)
+      - lista dipendenti del mese con costo per persona
+      - F24 versato del mese (raggruppato per sezione)
+      - cross-check coerenza ELAB vs F24 (somma INPS ELAB = DM10 F24?)
+
+    Se anno/mese non passati → mese corrente.
+    Se per il mese non c'è ELAB → ritorna `costo_consuntivo=null` (UI mostrerà "non importato").
+    """
+    from datetime import date as _date
+    import sqlite3
+    from app.utils.locale_data import locale_data_path
+
+    oggi = _date.today()
+    anno = anno or oggi.year
+    mese = mese or oggi.month
+
+    dip_conn = get_dipendenti_conn()
+    fc_path = locale_data_path("foodcost.db")
+    fc_conn = sqlite3.connect(fc_path)
+    fc_conn.row_factory = sqlite3.Row
+
+    try:
+        # ── 1. Costo consuntivo dipendenti dal ELAB ──
+        costo_consuntivo = None
+        tbl = dip_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name='dipendenti_costo_consuntivo'"
+        ).fetchone()
+        if tbl is not None:
+            dipendenti_rows = dip_conn.execute("""
+                SELECT id, matricola, cognome_nome, dipendente_id, ore_lavorate,
+                       retribuzione_lorda, contributi_lordo,
+                       ratei_importo, contributi_su_ratei, tfr_maturato,
+                       inail_mese, costo_totale, fonte_pdf
+                FROM dipendenti_costo_consuntivo
+                WHERE anno = ? AND mese = ?
+                ORDER BY
+                    CASE WHEN COALESCE(matricola, '') = 'AZIENDA' THEN 1 ELSE 0 END,
+                    costo_totale DESC, matricola
+            """, (anno, mese)).fetchall()
+
+            if dipendenti_rows:
+                dip_only = [d for d in dipendenti_rows
+                            if (d["matricola"] or "").upper() != "AZIENDA"]
+                inail_row = next(
+                    (d for d in dipendenti_rows
+                     if (d["matricola"] or "").upper() == "AZIENDA"),
+                    None
+                )
+                totali = {
+                    "lordo": sum(d["retribuzione_lorda"] or 0 for d in dip_only),
+                    "contributi_lordo": sum(d["contributi_lordo"] or 0 for d in dip_only),
+                    "ratei": sum(d["ratei_importo"] or 0 for d in dip_only),
+                    "contributi_su_ratei": sum(d["contributi_su_ratei"] or 0 for d in dip_only),
+                    "tfr_maturato": sum(d["tfr_maturato"] or 0 for d in dip_only),
+                    "inail": (inail_row["inail_mese"] if inail_row else 0) or 0,
+                    "costo_totale_dipendenti": sum(d["costo_totale"] or 0 for d in dip_only),
+                }
+                totali["costo_totale_azienda"] = (
+                    totali["costo_totale_dipendenti"] + totali["inail"]
+                )
+                costo_consuntivo = {
+                    "totali": {k: round(v, 2) for k, v in totali.items()},
+                    "n_dipendenti": len(dip_only),
+                    "dipendenti": [
+                        {
+                            "id": d["id"],
+                            "matricola": d["matricola"],
+                            "cognome_nome": d["cognome_nome"],
+                            "dipendente_id": d["dipendente_id"],
+                            "ore_lavorate": d["ore_lavorate"],
+                            "retribuzione_lorda": d["retribuzione_lorda"],
+                            "contributi_lordo": d["contributi_lordo"],
+                            "ratei_importo": d["ratei_importo"],
+                            "contributi_su_ratei": d["contributi_su_ratei"],
+                            "tfr_maturato": d["tfr_maturato"],
+                            "costo_totale": d["costo_totale"],
+                        }
+                        for d in dip_only
+                    ],
+                    "fonte_pdf": (dipendenti_rows[0]["fonte_pdf"] if dipendenti_rows else None),
+                }
+
+        # ── 2. F24 del mese (per anno_competenza/mese_competenza) ──
+        f24 = None
+        tbl_f24 = fc_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='f24_versamenti'"
+        ).fetchone()
+        if tbl_f24 is not None:
+            righe_f24 = fc_conn.execute("""
+                SELECT raggruppamento_id, data_scadenza, sezione, codice_tributo,
+                       descrizione_tributo, periodo_rif_anno, periodo_rif_mese,
+                       codice_sede, matricola_inps, codice_regione, codice_comune,
+                       importo_debito, importo_credito, saldo, fonte_pdf, pagina_pdf
+                FROM f24_versamenti
+                WHERE anno_competenza = ? AND mese_competenza = ?
+                ORDER BY sezione, codice_tributo, periodo_rif_anno, periodo_rif_mese
+            """, (anno, mese)).fetchall()
+
+            if righe_f24:
+                # Aggrega per sezione
+                per_sezione: dict[str, dict] = {}
+                for r in righe_f24:
+                    sez = r["sezione"]
+                    if sez not in per_sezione:
+                        per_sezione[sez] = {"sezione": sez, "righe": [],
+                                            "tot_debito": 0.0, "tot_credito": 0.0}
+                    per_sezione[sez]["righe"].append(dict(r))
+                    per_sezione[sez]["tot_debito"] += r["importo_debito"] or 0
+                    per_sezione[sez]["tot_credito"] += r["importo_credito"] or 0
+
+                # Saldo totale
+                saldo_tot = sum(
+                    (r["saldo"] or 0) for r in righe_f24
+                )
+
+                # Raggruppa per delega (per scadenza UI)
+                deleghe = {}
+                for r in righe_f24:
+                    rid = r["raggruppamento_id"]
+                    if rid not in deleghe:
+                        deleghe[rid] = {
+                            "raggruppamento_id": rid,
+                            "data_scadenza": r["data_scadenza"],
+                            "fonte_pdf": r["fonte_pdf"],
+                            "pagina_pdf": r["pagina_pdf"],
+                            "saldo": 0.0,
+                        }
+                    deleghe[rid]["saldo"] += r["saldo"] or 0
+
+                f24 = {
+                    "per_sezione": [
+                        {**v, "tot_debito": round(v["tot_debito"], 2),
+                         "tot_credito": round(v["tot_credito"], 2)}
+                        for v in per_sezione.values()
+                    ],
+                    "deleghe": [
+                        {**d, "saldo": round(d["saldo"], 2)}
+                        for d in deleghe.values()
+                    ],
+                    "saldo_totale": round(saldo_tot, 2),
+                    "n_righe": len(righe_f24),
+                }
+
+        # ── 3. Cross-check: somma contributi ELAB (lordo+ratei) vs DM10 F24 ──
+        crosscheck = None
+        if costo_consuntivo and f24:
+            contributi_elab = (
+                costo_consuntivo["totali"]["contributi_lordo"] +
+                costo_consuntivo["totali"]["contributi_su_ratei"]
+            )
+            # Trova totale DM10 nel F24 (sezione INPS, codice DM10)
+            dm10_f24 = 0.0
+            for sez in f24["per_sezione"]:
+                if sez["sezione"] == "INPS":
+                    for r in sez["righe"]:
+                        if r["codice_tributo"] == "DM10":
+                            dm10_f24 += r["importo_debito"] or 0
+            crosscheck = {
+                "contributi_elab": round(contributi_elab, 2),
+                "dm10_f24": round(dm10_f24, 2),
+                "delta": round(contributi_elab - dm10_f24, 2),
+                # Tolleranza: differenza < 5€ ok (arrotondamenti)
+                "match": abs(contributi_elab - dm10_f24) < 5.0,
+            }
+
+        return {
+            "anno": anno,
+            "mese": mese,
+            "costo_consuntivo": costo_consuntivo,
+            "f24": f24,
+            "crosscheck": crosscheck,
+        }
+
+    finally:
+        dip_conn.close()
+        fc_conn.close()
+
+
 @router.get("/buste-paga/stato-import-mensile")
 def stato_import_mensile_paghe(
     anno: int = Query(default=None, ge=2020, le=2100),
@@ -2973,6 +3160,118 @@ def stato_import_mensile_paghe(
     finally:
         dip_conn.close()
         fc_conn.close()
+
+
+@router.post("/buste-paga/auto-create-mancanti")
+def auto_create_dipendenti_mancanti(
+    current_user=Depends(get_current_user),
+):
+    """G.3.1c — Crea automaticamente in anagrafica `dipendenti` i placeholder
+    per ogni cognome_nome distinto presente in `dipendenti_costo_consuntivo`
+    con `dipendente_id IS NULL` (escluse righe AZIENDA).
+
+    Strategia:
+      - Raggruppa per (matricola, cognome_nome) distinte
+      - Per ogni gruppo: ricontrolla _match_dipendente_consuntivo (può aver
+        cambiato risultato dopo le ultime creazioni); se ancora None crea
+        placeholder con:
+          codice = "DIP-ELAB-<matricola>"
+          cognome = primo token, nome = resto
+          ruolo = "Auto-creato da ELAB"
+          attivo = 0
+          note = "Placeholder creato auto da import ELAB <fonte>"
+      - UPDATE dei record `dipendenti_costo_consuntivo` orfani col nuovo id
+
+    Ritorna {creati: [...], record_collegati, ancora_orfani}.
+    """
+    conn = get_dipendenti_conn()
+    creati = []
+    record_collegati = 0
+    ancora_orfani = []
+    try:
+        # Raggruppa orfani per cognome_nome + matricola
+        orfani = conn.execute("""
+            SELECT id, matricola, cognome_nome, fonte_pdf
+            FROM dipendenti_costo_consuntivo
+            WHERE dipendente_id IS NULL
+              AND COALESCE(matricola, '') != 'AZIENDA'
+        """).fetchall()
+
+        # Mappa: (matricola, cognome_nome) → primo record di esempio
+        gruppi: dict[tuple, dict] = {}
+        for r in orfani:
+            key = (r["matricola"] or "", (r["cognome_nome"] or "").strip().upper())
+            if key not in gruppi:
+                gruppi[key] = {"sample": r, "ids": []}
+            gruppi[key]["ids"].append(r["id"])
+
+        for (matricola, cognome_nome_upper), data in gruppi.items():
+            sample = data["sample"]
+            ids = data["ids"]
+
+            # Riprova il match prima di creare (può essere cambiato)
+            dip = _match_dipendente_consuntivo(conn, sample["cognome_nome"] or "")
+            if dip:
+                # Match riuscito → solo update
+                conn.execute(
+                    "UPDATE dipendenti_costo_consuntivo SET dipendente_id = ? "
+                    "WHERE id IN (" + ",".join(["?"] * len(ids)) + ")",
+                    [dip["id"], *ids]
+                )
+                record_collegati += len(ids)
+                continue
+
+            # Crea placeholder
+            parts = (sample["cognome_nome"] or "").strip().upper().split()
+            if not parts:
+                ancora_orfani.append({"matricola": matricola, "motivo": "cognome_nome vuoto"})
+                continue
+            new_cognome = parts[0].title()
+            new_nome = " ".join(p.title() for p in parts[1:]) if len(parts) > 1 else "—"
+            codice = f"DIP-ELAB-{matricola}" if matricola else f"DIP-ELAB-NULL-{len(creati)}"
+
+            # Verifica unicità codice (per non rompere UNIQUE constraint)
+            esiste = conn.execute(
+                "SELECT id FROM dipendenti WHERE codice = ?", (codice,)
+            ).fetchone()
+            if esiste:
+                # Codice già usato → aggiungi suffix random
+                import random
+                codice = f"{codice}-{random.randint(100, 999)}"
+
+            cur = conn.execute("""
+                INSERT INTO dipendenti
+                (codice, cognome, nome, ruolo, attivo, created_at, updated_at, note)
+                VALUES (?, ?, ?, 'Auto-creato da ELAB', 0,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                        ?)
+            """, (codice, new_cognome, new_nome,
+                  f"Placeholder creato auto da import ELAB ({sample['fonte_pdf']}) — matricola paghe {matricola}"))
+            new_id = cur.lastrowid
+
+            # Update tutti i record di questo gruppo
+            conn.execute(
+                "UPDATE dipendenti_costo_consuntivo SET dipendente_id = ? "
+                "WHERE id IN (" + ",".join(["?"] * len(ids)) + ")",
+                [new_id, *ids]
+            )
+            record_collegati += len(ids)
+            creati.append({
+                "id": new_id,
+                "codice": codice,
+                "cognome_nome": f"{new_cognome} {new_nome}".strip(),
+                "matricola": matricola,
+                "record_collegati": len(ids),
+            })
+
+        conn.commit()
+        return {
+            "creati": creati,
+            "record_collegati": record_collegati,
+            "ancora_orfani": ancora_orfani,
+        }
+    finally:
+        conn.close()
 
 
 @router.post("/buste-paga/rematch-consuntivo")
