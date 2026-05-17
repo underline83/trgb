@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-05-16 — M2.7: Wizard Nuovo Vino 3-step (preview-only)
+
+### Aggiunto
+- **`pages/vini/v2/NuovoVinoV2.jsx`** `[core]` — sostituisce lo stub con il wizard completo:
+  - **Step 1 Produttore**: search autocomplete sui produttori esistenti (`/vini/anagrafiche/produttori/?search=`), o creazione inline (nome, nazione, regione, provincia, città).
+  - **Step 2 Vino madre**: lista madri del produttore selezionato (`/vini/anagrafiche/madre/?produttore_id=`), o creazione inline con form ricco (descrizione, tipologia, nazione, regione, grado alcolico tipico, distributore via dropdown fornitori, denominazione via autocomplete `/vini/anagrafiche/denominazioni/?search=&nazione=`, fino a 5 vitigni con autocomplete `/vini/anagrafiche/vitigni/?search=` + % opzionali, abbinamenti, note).
+  - **Step 3 Annata**: form completo con tutti i campi annata raggruppati in sezioni (Identificazione, Prezzi, Flag presentazione, Stati gestione, Locazioni e giacenza iniziale, Note). Opzioni locazioni/formati caricate da `/vini/cantina-tools/locazioni-config` e `/settings/vini/valori-tabellati`.
+- **Stepper visivo** in alto con progressione (done/active/pending) e crumbs delle selezioni precedenti come "chip" cliccabili visualmente.
+- **Preview modale finale** `[core]` — al "✓ Conferma (preview)" mostra riassunto strutturato a 3 blocchi (Produttore / Vino madre / Annata) con badge "DA CREARE" vs "esistente #id". Banner esplicito "🧪 PREVIEW — nessuna scrittura su DB" sia nel footer del wizard sia nell'header del modale. Bottoni Ricomincia / Chiudi.
+
+### Note di scope
+- **Preview-only** (deciso con Marco): al submit non viene scritto nulla sul DB. Al cutover Fase 10 questo wizard sostituirà il MagazzinoViniNuovo classico e farà gli INSERT veri (in transazione su 3 tabelle: produttori/madre/bottiglie + eventuali nuove denominazioni se l'utente le aggiunge).
+- **Step 3 completi** (deciso con Marco): tutti i campi annata della scheda classica, non solo i minimi. Coerente con SchedaVino in lettura.
+- **Validazione minima**: Annata obbligatoria per avanzare. Resto opzionale (è preview, non serve robusta validazione DB).
+- **Reset coerenza**: se in Step 1 l'utente cambia produttore esistente con uno diverso, il madre selezionato viene resettato (era del produttore precedente).
+
+### Bump versione modulo vini
+3.34 → 3.35.
+
+### Stato suite M2 (Cantina 2 + Anagrafiche)
+M2.1 ✓ · M2.2 ✓ · M2.3 ✓ · M2.4 ✓ · M2.4-bis/ter/quater/fix/5 ✓ · M2.5-arch ✓ · M2.5.1 ✓ · M2.5.2 ✓ · M2.5.3 ✓ · M2.5.4 ✓ · M2.5.5 ✓ · M2.6 ✓ · **M2.7 ✓ (oggi)**
+
+Suite chiusa. Prossimo: testing utente esteso (Fase 9 refactor anagrafiche, 2-3 settimane di uso reale) + cleanup pre-cutover.
+
+---
+
 ## 2026-05-16 — G.3 Fase E (E.4): endpoint import-paghe-pdf + UI dropzone multi-file
 
 ### Aggiunto

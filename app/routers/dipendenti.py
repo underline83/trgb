@@ -2886,6 +2886,95 @@ async def import_paghe_pdf(
     }
 
 
+@router.get("/buste-paga/stato-import-mensile")
+def stato_import_mensile_paghe(
+    anno: int = Query(default=None, ge=2020, le=2100),
+    current_user=Depends(get_current_user),
+):
+    """G.3 Fase E — Stato import mensile dei 3 PDF paghe per l'anno richiesto.
+    Ritorna, per ogni mese 1..12:
+      - lul:  numero cedolini in `buste_paga` per (anno, mese) — è il LUL già importato
+      - elab: 1 se esiste almeno una riga dipendente (matricola != 'AZIENDA') in
+              `dipendenti_costo_consuntivo` per (anno, mese), 0 altrimenti
+      - elab_inail: 1 se esiste la riga sintetica AZIENDA (INAIL) per il mese
+      - f24:  numero righe in `f24_versamenti` con `mese_competenza = X` AND `anno_competenza = anno`
+    Schema risposta: {anno, mesi: [{mese, lul, elab, elab_inail, f24}, ...]}
+    """
+    from datetime import date as _date
+    from pathlib import Path as _Path
+    import sqlite3
+    from app.utils.locale_data import locale_data_path
+
+    anno = anno or _date.today().year
+
+    dip_conn = get_dipendenti_conn()
+    fc_path = locale_data_path("foodcost.db")
+    fc_conn = sqlite3.connect(fc_path)
+    fc_conn.row_factory = sqlite3.Row
+
+    try:
+        # Conteggi LUL (buste_paga)
+        lul_per_mese = {}
+        for r in dip_conn.execute(
+            "SELECT mese, COUNT(*) AS n FROM buste_paga WHERE anno = ? GROUP BY mese",
+            (anno,)
+        ).fetchall():
+            lul_per_mese[r["mese"]] = r["n"]
+
+        # Conteggi ELAB (escludendo righe AZIENDA per il count "dipendenti")
+        elab_dip_per_mese = {}
+        elab_inail_per_mese = {}
+        # Tabella potrebbe non esistere su DB legacy
+        tbl = dip_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name='dipendenti_costo_consuntivo'"
+        ).fetchone()
+        if tbl is not None:
+            for r in dip_conn.execute("""
+                SELECT mese, COUNT(*) AS n
+                FROM dipendenti_costo_consuntivo
+                WHERE anno = ? AND COALESCE(matricola, '') != 'AZIENDA'
+                GROUP BY mese
+            """, (anno,)).fetchall():
+                elab_dip_per_mese[r["mese"]] = r["n"]
+            for r in dip_conn.execute("""
+                SELECT mese FROM dipendenti_costo_consuntivo
+                WHERE anno = ? AND COALESCE(matricola, '') = 'AZIENDA'
+            """, (anno,)).fetchall():
+                elab_inail_per_mese[r["mese"]] = 1
+
+        # Conteggi F24 (per mese_competenza)
+        f24_per_mese = {}
+        tbl = fc_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='f24_versamenti'"
+        ).fetchone()
+        if tbl is not None:
+            for r in fc_conn.execute("""
+                SELECT mese_competenza AS mese, COUNT(*) AS n
+                FROM f24_versamenti
+                WHERE anno_competenza = ?
+                  AND mese_competenza IS NOT NULL
+                GROUP BY mese_competenza
+            """, (anno,)).fetchall():
+                f24_per_mese[r["mese"]] = r["n"]
+
+        # Costruisce array completo 1..12
+        mesi = []
+        for m in range(1, 13):
+            mesi.append({
+                "mese": m,
+                "lul": lul_per_mese.get(m, 0),
+                "elab": elab_dip_per_mese.get(m, 0),
+                "elab_inail": elab_inail_per_mese.get(m, 0),
+                "f24": f24_per_mese.get(m, 0),
+            })
+
+        return {"anno": anno, "mesi": mesi}
+    finally:
+        dip_conn.close()
+        fc_conn.close()
+
+
 @router.post("/buste-paga/rematch-consuntivo")
 def rematch_dipendenti_consuntivo(
     current_user=Depends(get_current_user),
