@@ -727,7 +727,15 @@ function Step3Annata({ annata, setAnnata }) {
           <FieldLabel label="Formato">
             <select value={annata.FORMATO} onChange={e => upd("FORMATO", e.target.value)} className={fieldCls}>
               {formati.length === 0 && <option value="BT">BT</option>}
-              {formati.map(f => <option key={f} value={f}>{f}</option>)}
+              {formati.map((f, i) => {
+                // L'API può ritornare stringhe o oggetti {formato, descrizione, litri}.
+                // Coerente con MagazzinoViniNuovo classico.
+                const fmt = typeof f === "string" ? f : f.formato;
+                const desc = typeof f === "string" ? "" : f.descrizione;
+                const litri = typeof f === "string" ? "" : f.litri;
+                const label = desc ? `${fmt} — ${desc}${litri ? ` (${litri}L)` : ""}` : fmt;
+                return <option key={fmt || i} value={fmt}>{label}</option>;
+              })}
             </select>
           </FieldLabel>
           <FieldLabel label="Grado alcolico (%)">

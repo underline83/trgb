@@ -56,6 +56,9 @@ export default function ControlloGestioneContoEconomico() {
   const [anno, setAnno] = useState(oggi.getFullYear());
   const [mese, setMese] = useState(oggi.getMonth() + 1);
   const [modalita, setModalita] = useState("competenza");
+  // G.3.7a: vista mese / trimestre / anno
+  const [periodo, setPeriodo] = useState("mese");
+  const [trimestre, setTrimestre] = useState(Math.ceil((oggi.getMonth() + 1) / 3));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -64,13 +67,20 @@ export default function ControlloGestioneContoEconomico() {
   // Espansione 3° livello: set di "<categoria>::<sottocategoria>" aperti
   const [expandedSub, setExpandedSub] = useState(new Set());
 
-  useEffect(() => { load(); }, [anno, mese, modalita]);
+  useEffect(() => { load(); }, [anno, mese, modalita, periodo, trimestre]);
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const url = `${CG}/conto-economico?anno=${anno}&mese=${mese}&modalita=${modalita}`;
+      const params = new URLSearchParams({
+        anno: String(anno),
+        mese: String(mese),
+        modalita,
+        periodo,
+      });
+      if (periodo === "trimestre") params.set("trimestre", String(trimestre));
+      const url = `${CG}/conto-economico?${params}`;
       const r = await apiFetch(url);
       if (!r.ok) throw new Error(`Errore caricamento (HTTP ${r.status})`);
       setData(await r.json());
@@ -181,6 +191,27 @@ export default function ControlloGestioneContoEconomico() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* G.3.7a — Toggle periodo: Mese / Trimestre / Anno */}
+            <div className="flex bg-white rounded-lg border border-sky-300 overflow-hidden">
+              {[
+                { key: "mese", label: "Mese" },
+                { key: "trimestre", label: "Trim." },
+                { key: "anno", label: "Anno" },
+              ].map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setPeriodo(p.key)}
+                  className={`px-3 py-1.5 text-xs font-medium transition ${
+                    periodo === p.key
+                      ? "bg-sky-100 text-sky-900"
+                      : "text-neutral-600 hover:bg-neutral-50"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
             {/* Toggle modalità */}
             <div className="flex bg-white rounded-lg border border-sky-300 overflow-hidden">
               {["competenza", "cassa"].map((m) => (
@@ -198,15 +229,29 @@ export default function ControlloGestioneContoEconomico() {
               ))}
             </div>
 
-            <select
-              value={mese}
-              onChange={(e) => setMese(+e.target.value)}
-              className="border border-sky-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-            >
-              {MESI.slice(1).map((m, i) => (
-                <option key={i + 1} value={i + 1}>{m}</option>
-              ))}
-            </select>
+            {/* G.3.7a — Selettore mese / trimestre (visibile solo se rilevante) */}
+            {periodo === "mese" && (
+              <select
+                value={mese}
+                onChange={(e) => setMese(+e.target.value)}
+                className="border border-sky-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+              >
+                {MESI.slice(1).map((m, i) => (
+                  <option key={i + 1} value={i + 1}>{m}</option>
+                ))}
+              </select>
+            )}
+            {periodo === "trimestre" && (
+              <select
+                value={trimestre}
+                onChange={(e) => setTrimestre(+e.target.value)}
+                className="border border-sky-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+              >
+                {[1, 2, 3, 4].map((t) => (
+                  <option key={t} value={t}>T{t} ({["Gen-Mar","Apr-Giu","Lug-Set","Ott-Dic"][t-1]})</option>
+                ))}
+              </select>
+            )}
 
             <select
               value={anno}
@@ -233,24 +278,21 @@ export default function ControlloGestioneContoEconomico() {
           </div>
         )}
 
-        {/* WARNING COSTO PERSONALE PARZIALE — solo se il backend NON ha
-            usato i dati ELAB (dipendenti_costo_consuntivo).
-            G.3 Fase E parte 2/2: quando per il mese in vista esistono i record
-            ELAB importati, modalita="completo" e il warning sparisce. Se invece
-            modalita="netti_fallback", il banner resta a segnalare la stima parziale. */}
+        {/* G.3 Fase E — E.9 (2026-05-16): warning costo personale ridotto a label
+            discreta nel header (visibile solo se ELAB non ancora importato per il
+            mese). Per i mesi importati, il costo personale è completo e nessuna
+            label appare. Per pre-Fase E o mesi futuri, sostituisce il banner
+            verboso con un chip compatto. Per il dettaglio carica l'ELAB del
+            mese in Buste Paga (oppure verifica lo stato in Impostazioni →
+            Stato import paghe). */}
         {data._meta?.costo_personale?.modalita === "netti_fallback" && (
-          <div className="mb-5 rounded-xl border border-orange-300 bg-orange-50 p-3">
-            <div className="text-xs font-semibold text-orange-900 uppercase tracking-wider mb-1">
-              ⚠ Costo personale parziale per {data.periodo_label}
-            </div>
-            <div className="text-sm text-orange-800 leading-relaxed">
-              Per questo mese sto mostrando solo i <strong>netti bonificati</strong>
-              ai dipendenti. Mancano: contributi INPS a carico ditta, ratei
-              13ª/14ª/ferie/permessi, TFR maturato, INAIL. Il costo reale è
-              tipicamente <strong>~+70%</strong> sui netti → l'utile netto è
-              sovrastimato. Carica l'ELAB del consulente paghe per questo mese
-              dal modulo Dipendenti per il calcolo corretto.
-            </div>
+          <div className="mb-3 flex items-center gap-2 text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-800 border border-orange-200 font-medium">
+              ⚠ Costo personale parziale
+            </span>
+            <span className="text-neutral-500">
+              ELAB non ancora importato per {data.periodo_label} — STAFF mostra solo i netti bonificati.
+            </span>
           </div>
         )}
 

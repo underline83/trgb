@@ -90,10 +90,47 @@ def _range_periodo(anno: int, mese: int) -> tuple[str, str, str]:
     return primo, ultimo, periodo_rif
 
 
+def _range_periodo_multi(anno: int, mese_da: int, mese_a: int) -> tuple[str, str, list[str]]:
+    """G.3.7a — Range multi-mese per viste trimestrali/annuali.
+    Ritorna (primo_giorno, ultimo_giorno_esclusivo, lista_periodi_rif).
+    Esempio: anno=2026, mese_da=1, mese_a=3 (T1):
+      → ('2026-01-01', '2026-04-01', ['2026-01', '2026-02', '2026-03'])
+    """
+    primo = f"{anno}-{mese_da:02d}-01"
+    if mese_a == 12:
+        ultimo = f"{anno + 1}-01-01"
+    else:
+        ultimo = f"{anno}-{mese_a + 1:02d}-01"
+    periodi_rif = [f"{anno}-{m:02d}" for m in range(mese_da, mese_a + 1)]
+    return primo, ultimo, periodi_rif
+
+
 def _fmt_mese_label(anno: int, mese: int) -> str:
     nomi = ["", "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
             "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
     return f"{nomi[mese]} {anno}" if 1 <= mese <= 12 else f"M{mese} {anno}"
+
+
+def _fmt_periodo_label(anno: int, mese_da: int, mese_a: int) -> str:
+    """G.3.7a — Etichetta human-readable per il periodo:
+      - mese singolo: "Mag 2026"
+      - trimestre: "T1 2026 (Gen–Mar)"
+      - anno: "Anno 2026"
+      - range custom: "Gen–Apr 2026"
+    """
+    if mese_da == mese_a:
+        return _fmt_mese_label(anno, mese_da)
+    if mese_da == 1 and mese_a == 12:
+        return f"Anno {anno}"
+    if mese_a - mese_da == 2 and mese_da in (1, 4, 7, 10):
+        # È un trimestre canonico
+        t = (mese_da - 1) // 3 + 1
+        nomi_da = _fmt_mese_label(anno, mese_da).split()[0]
+        nomi_a = _fmt_mese_label(anno, mese_a).split()[0]
+        return f"T{t} {anno} ({nomi_da}–{nomi_a})"
+    nomi_da = _fmt_mese_label(anno, mese_da).split()[0]
+    nomi_a = _fmt_mese_label(anno, mese_a).split()[0]
+    return f"{nomi_da}–{nomi_a} {anno}"
 
 
 def _aggregate_fatture_per_categoria(
@@ -643,9 +680,17 @@ def compute_pl(
     mese: int,
     modalita: str = "competenza",
     dip_conn: Optional[sqlite3.Connection] = None,
+    mese_da: Optional[int] = None,
+    mese_a: Optional[int] = None,
 ) -> dict:
     """
-    Calcola il Conto Economico per il periodo (anno, mese).
+    Calcola il Conto Economico per il periodo.
+
+    Range del periodo:
+      - Default: singolo mese identificato da `mese` (1-12), retrocompatibile.
+      - G.3.7a (2026-05-16): se `mese_da` e `mese_a` sono passati, il CE
+        copre il range inclusivo da mese_da a mese_a (es. T1: mese_da=1,
+        mese_a=3; Anno: 1..12). In questo caso `mese` viene ignorato.
 
     modalita: 'competenza' (default, v1) | 'cassa' (TODO v1.1 → fallback con warning)
     dip_conn (G.3 Fase E, 2026-05-16): connessione opzionale a dipendenti.sqlite3.
@@ -655,7 +700,14 @@ def compute_pl(
         + ratei + TFR + INAIL). Altrimenti fallback netti bonificati con
         warning "costo personale parziale" — comportamento pre-Fase E.
     """
-    primo, ultimo, periodo_rif = _range_periodo(anno, mese)
+    # G.3.7a: normalizzo i parametri di range
+    if mese_da is None or mese_a is None:
+        mese_da = mese_a = mese
+    if mese_a < mese_da:
+        mese_da, mese_a = mese_a, mese_da
+
+    primo, ultimo, periodi_rif = _range_periodo_multi(anno, mese_da, mese_a)
+    n_mesi = mese_a - mese_da + 1
     warnings: list[str] = []
 
     # Modalità cassa: TODO v1.1 — per ora fallback a competenza con warning
@@ -683,23 +735,49 @@ def compute_pl(
     # ─── 2. ACQUISTI righe singole (fatture imponibile) ────────────────
     # Una fattura con righe in N categorie diverse produce N entry: per il
     # counter logico contiamo le fatture DISTINTE (per id), non gli split.
-    rows_fatture = _aggregate_fatture_per_categoria(fc_conn, primo, ultimo)
+    # G.3.7a: per range multi-mese, aggrego tutte le fatture nei mesi del range.
+    # _aggregate_fatture_per_categoria filtra internamente per
+    # competenza_anno_mese (mig 133) che è singolo: itero sui periodi.
+    rows_fatture = []
+    for periodo_rif in periodi_rif:
+        anno_m, mese_m = int(periodo_rif[:4]), int(periodo_rif[5:7])
+        p_primo, p_ultimo, _ = _range_periodo(anno_m, mese_m)
+        rows_fatture.extend(
+            _aggregate_fatture_per_categoria(fc_conn, p_primo, p_ultimo)
+        )
     fatture_count = len({r["id"] for r in rows_fatture})
 
     # ─── 3. SPESE FISSE righe singole (da cg_uscite SPESA_FISSA) ───────
     # Modalita 'competenza' esclude RATEIZZAZIONE / RATEIZZAZIONE_TASSE.
     # Modalita 'cassa' include tutto (esborso reale del mese).
-    rows_spese_fisse = _aggregate_spese_fisse_per_categoria(
-        fc_conn, periodo_rif, modalita=modalita
-    )
+    # G.3.7a: itero su tutti i mesi del range.
+    rows_spese_fisse = []
+    for periodo_rif_m in periodi_rif:
+        rows_spese_fisse.extend(
+            _aggregate_spese_fisse_per_categoria(
+                fc_conn, periodo_rif_m, modalita=modalita
+            )
+        )
     spese_fisse_count = len(rows_spese_fisse)
 
     # ─── 4. STIPENDI righe singole (cg_uscite STIPENDIO, anti-doppio) ──
     # G.3 Fase E: passa dip_conn + anno/mese — l'aggregator decide se usare
     # costo aziendale completo (dipendenti_costo_consuntivo) o fallback netti.
-    rows_stipendi, stipendi_meta = _aggregate_stipendi(
-        fc_conn, periodo_rif, dip_conn=dip_conn, anno=anno, mese=mese
-    )
+    # G.3.7a: itero su tutti i mesi del range, mergeo i meta (warnings/modalita).
+    rows_stipendi = []
+    stipendi_meta_combined = {"modalita_costo": "completo", "fonte": "dipendenti_costo_consuntivo", "warnings": []}
+    for periodo_rif_m in periodi_rif:
+        anno_m, mese_m = int(periodo_rif_m[:4]), int(periodo_rif_m[5:7])
+        rs, m = _aggregate_stipendi(
+            fc_conn, periodo_rif_m, dip_conn=dip_conn, anno=anno_m, mese=mese_m
+        )
+        rows_stipendi.extend(rs)
+        # Se anche solo un mese è in fallback netti, segnala il range come parziale
+        if m.get("modalita_costo") == "netti_fallback":
+            stipendi_meta_combined["modalita_costo"] = "netti_fallback"
+            stipendi_meta_combined["fonte"] = "cg_uscite"
+        stipendi_meta_combined["warnings"].extend(m.get("warnings", []))
+    stipendi_meta = stipendi_meta_combined
     stipendi_count = len(rows_stipendi)
     # Propaga warning "costo parziale" se eventualmente presente
     warnings.extend(stipendi_meta.get("warnings", []))
@@ -761,7 +839,10 @@ def compute_pl(
         "mese": mese,
         "modalita": modalita_effettiva,
         "modalita_richiesta": modalita,
-        "periodo_label": _fmt_mese_label(anno, mese),
+        "periodo_label": _fmt_periodo_label(anno, mese_da, mese_a),
+        "mese_da": mese_da,
+        "mese_a": mese_a,
+        "n_mesi": n_mesi,
         "ricavi": {
             "corrispettivi": round(corrispettivi, 2),
             "totale": round(ricavi_totale, 2),

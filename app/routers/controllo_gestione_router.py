@@ -300,6 +300,9 @@ def conto_economico(
     anno: int = Query(default=None, ge=2020, le=2100),
     mese: int = Query(default=None, ge=1, le=12),
     modalita: str = Query(default="competenza", pattern="^(competenza|cassa)$"),
+    # G.3.7a (2026-05-16): vista trimestrale / annuale
+    periodo: str = Query(default="mese", pattern="^(mese|trimestre|anno)$"),
+    trimestre: int = Query(default=None, ge=1, le=4),
     current_user=Depends(get_current_user),
 ):
     """
@@ -331,13 +334,25 @@ def conto_economico(
     anno = anno or oggi.year
     mese = mese or oggi.month
 
+    # G.3.7a — Determina range mese_da..mese_a in base al `periodo`.
+    if periodo == "anno":
+        mese_da, mese_a = 1, 12
+    elif periodo == "trimestre":
+        t = trimestre or ((mese - 1) // 3 + 1)
+        mese_da = (t - 1) * 3 + 1
+        mese_a = mese_da + 2
+    else:  # mese (default, retrocompat)
+        mese_da = mese_a = mese
+
     fc = get_fc_db()
     vdb = get_vendite_db()
     dip = get_dipendenti_db()  # può ritornare None (graceful fallback)
     try:
-        # Lazy import per coerenza con altri endpoint
         from app.services.conto_economico import compute_pl
-        return compute_pl(fc, vdb, anno, mese, modalita, dip_conn=dip)
+        return compute_pl(
+            fc, vdb, anno, mese, modalita,
+            dip_conn=dip, mese_da=mese_da, mese_a=mese_a,
+        )
     finally:
         fc.close()
         vdb.close()
