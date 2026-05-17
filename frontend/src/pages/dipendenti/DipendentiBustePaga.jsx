@@ -37,21 +37,8 @@ export default function DipendentiBustePaga() {
   const [paghePdfUploading, setPaghePdfUploading] = useState(false);
   const [paghePdfResult, setPaghePdfResult] = useState(null);
   const paghePdfInputRef = React.useRef(null);
-  // G.3 Fase E: stato import mensile (LUL/ELAB/F24) per anno corrente
-  const [statoImport, setStatoImport] = useState(null);
-
-  const fetchStatoImport = useCallback(async () => {
-    try {
-      const res = await apiFetch(`${API_BASE}/dipendenti/buste-paga/stato-import-mensile?anno=${filtroAnno}`);
-      if (res.ok) {
-        setStatoImport(await res.json());
-      }
-    } catch (e) {
-      // Endpoint potrebbe non esistere su backend legacy → silenzio
-    }
-  }, [filtroAnno]);
-
-  useEffect(() => { fetchStatoImport(); }, [fetchStatoImport]);
+  // NB: la griglia "Stato import mensile" è in Impostazioni → "Stato import paghe"
+  // (spostata 2026-05-16 dalla pagina Buste Paga su richiesta Marco).
 
   // Form manuale
   const [showForm, setShowForm] = useState(false);
@@ -242,9 +229,8 @@ export default function DipendentiBustePaga() {
       }
       const json = await res.json();
       setPaghePdfResult(json);
-      // Refresh dati buste paga + stato import mensile
+      // Refresh dati buste paga (la griglia stato import è in Impostazioni)
       fetchData();
-      fetchStatoImport();
     } catch (err) {
       console.error(err);
       alert("Errore di rete durante l'upload");
@@ -502,81 +488,8 @@ export default function DipendentiBustePaga() {
         </div>
       )}
 
-      {/* G.3 FASE E: griglia stato import mensile (LUL / ELAB / F24) per anno */}
-      {statoImport?.mesi && (
-        <div className="px-4 py-2 bg-white border-b border-neutral-200">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider">
-              📊 Stato import {statoImport.anno}
-            </span>
-            <span className="text-[10px] text-neutral-400">
-              LUL: cedolini · ELAB: costo aziendale · F24: versamenti tributi
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="text-[11px]">
-              <thead>
-                <tr className="text-neutral-500">
-                  <th className="text-left pr-2 font-semibold w-12">Mese</th>
-                  {statoImport.mesi.map(m => (
-                    <th key={m.mese} className="px-1.5 py-0.5 text-center font-medium w-8">
-                      {MESI[m.mese].slice(0, 3).toLowerCase()}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="text-neutral-600 pr-2 font-medium">LUL</td>
-                  {statoImport.mesi.map(m => (
-                    <td key={m.mese} className={`px-1.5 py-0.5 text-center font-mono ${
-                      m.lul > 0 ? "text-violet-700 font-bold" : "text-neutral-300"
-                    }`}
-                      title={m.lul > 0 ? `${m.lul} cedolini importati` : "Nessun cedolino"}>
-                      {m.lul > 0 ? m.lul : "—"}
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <td className="text-neutral-600 pr-2 font-medium">ELAB</td>
-                  {statoImport.mesi.map(m => {
-                    const elabOk = m.elab > 0;
-                    const inailOk = m.elab_inail > 0;
-                    return (
-                      <td key={m.mese} className="px-1.5 py-0.5 text-center"
-                        title={elabOk
-                          ? `${m.elab} dipendenti${inailOk ? " + INAIL ✓" : " (INAIL mancante)"}`
-                          : "ELAB non importato"}>
-                        {elabOk
-                          ? <span className={inailOk ? "text-green-700 font-bold" : "text-amber-600 font-bold"}>
-                              ✓{inailOk ? "" : "*"}
-                            </span>
-                          : <span className="text-neutral-300">—</span>}
-                      </td>
-                    );
-                  })}
-                </tr>
-                <tr>
-                  <td className="text-neutral-600 pr-2 font-medium">F24</td>
-                  {statoImport.mesi.map(m => (
-                    <td key={m.mese} className={`px-1.5 py-0.5 text-center ${
-                      m.f24 > 0 ? "text-blue-700 font-bold" : "text-neutral-300"
-                    }`}
-                      title={m.f24 > 0 ? `${m.f24} righe tributo importate` : "F24 non importato"}>
-                      {m.f24 > 0 ? "✓" : "—"}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-            {statoImport.mesi.some(m => m.elab > 0 && !m.elab_inail) && (
-              <div className="text-[10px] text-amber-700 mt-1">
-                ✓* = ELAB con dipendenti ma senza INAIL (la riga AZIENDA non è stata estratta).
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* NB: la griglia "Stato import mensile" è stata spostata in
+          Impostazioni → "Stato import paghe" (2026-05-16, su richiesta Marco). */}
 
       {/* KPI + FILTRI */}
       <div className="px-4 py-3 flex items-center gap-4 bg-white border-b border-neutral-100 flex-wrap">

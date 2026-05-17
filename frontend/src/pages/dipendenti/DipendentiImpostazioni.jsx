@@ -14,6 +14,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 const SECTIONS = [
   { key: "reparti",          label: "Reparti",           icon: "🏢", desc: "SALA, CUCINA, ... orari standard, pause staff, colore e icona", ready: true  },
   { key: "stipendi",         label: "Stipendi",          icon: "💶", desc: "Default giorno scadenza buste paga (è il giorno del mese successivo all'incasso)", ready: true  },
+  { key: "stato_import",     label: "Stato import paghe", icon: "📊", desc: "Quali mesi hanno LUL/ELAB/F24 importati (G.3 Fase E)",         ready: true  },
   { key: "soglie_ccnl",      label: "Soglie CCNL",       icon: "⚡", desc: "Personalizza soglie 40h/48h per semaforo ore",                   ready: false },
   { key: "template_wa",      label: "Template WhatsApp", icon: "📨", desc: "Modifica il testo di default per l'invio turni via WA",         ready: false },
 ];
@@ -84,6 +85,7 @@ export default function DipendentiImpostazioni() {
             <div className="flex-1 min-w-0 bg-white shadow-sm rounded-xl border border-neutral-200 overflow-hidden flex flex-col">
               {section === "reparti" && <GestioneReparti embedded />}
               {section === "stipendi" && <StipendiSection />}
+              {section === "stato_import" && <StatoImportSection />}
               {section === "soglie_ccnl" && <PlaceholderSection s={currentSection} />}
               {section === "template_wa" && <PlaceholderSection s={currentSection} />}
             </div>
@@ -243,6 +245,137 @@ function StipendiSection() {
         modifica il campo <code className="px-1 bg-white rounded">giorno_paga</code> nella
         sua anagrafica per sovrascrivere il default.
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Sezione Stato Import Paghe (G.3 Fase E, 2026-05-16)
+// Mostra, per ogni mese dell'anno selezionato, lo stato di importazione
+// dei 3 PDF paghe: LUL (cedolini), ELAB (costo aziendale), F24 (versamenti).
+// ──────────────────────────────────────────────────────────────────────
+const MESI_ABBR = ["", "gen", "feb", "mar", "apr", "mag", "giu",
+                   "lug", "ago", "set", "ott", "nov", "dic"];
+
+function StatoImportSection() {
+  const [anno, setAnno] = useState(new Date().getFullYear());
+  const [stato, setStato] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStato = async (a) => {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/dipendenti/buste-paga/stato-import-mensile?anno=${a}`);
+      if (res.ok) setStato(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchStato(anno); }, [anno]);
+
+  const anni = [];
+  const annoCorrente = new Date().getFullYear();
+  for (let y = annoCorrente; y >= annoCorrente - 5; y--) anni.push(y);
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div>
+          <h2 className="text-lg font-bold text-purple-900 mb-1">📊 Stato import paghe</h2>
+          <p className="text-xs text-neutral-500">
+            Quali mesi dell'anno hanno i PDF già caricati. Verde ✓ = caricato, — = mancante.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-neutral-500 font-semibold">Anno:</label>
+          <select value={anno} onChange={(e) => setAnno(parseInt(e.target.value, 10))}
+            className="border border-neutral-300 rounded-lg px-2 py-1 text-sm">
+            {anni.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {loading && !stato && <div className="text-sm text-neutral-500">Caricamento...</div>}
+
+      {stato?.mesi && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-neutral-500 border-b border-neutral-200">
+                  <th className="text-left py-2 pr-3 font-semibold w-20">Fonte</th>
+                  {stato.mesi.map((m) => (
+                    <th key={m.mese} className="px-2 py-2 text-center font-medium">
+                      {MESI_ABBR[m.mese]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-neutral-100">
+                  <td className="py-2 pr-3 text-neutral-700 font-semibold">LUL</td>
+                  {stato.mesi.map((m) => (
+                    <td key={m.mese}
+                      className={`px-2 py-2 text-center font-mono ${
+                        m.lul > 0 ? "text-violet-700 font-bold" : "text-neutral-300"
+                      }`}
+                      title={m.lul > 0 ? `${m.lul} cedolini importati` : "Nessun cedolino"}>
+                      {m.lul > 0 ? m.lul : "—"}
+                    </td>
+                  ))}
+                </tr>
+                <tr className="border-b border-neutral-100">
+                  <td className="py-2 pr-3 text-neutral-700 font-semibold">ELAB</td>
+                  {stato.mesi.map((m) => {
+                    const elabOk = m.elab > 0;
+                    const inailOk = m.elab_inail > 0;
+                    return (
+                      <td key={m.mese} className="px-2 py-2 text-center"
+                        title={elabOk
+                          ? `${m.elab} dipendenti${inailOk ? " + INAIL ✓" : " (INAIL mancante)"}`
+                          : "ELAB non importato"}>
+                        {elabOk
+                          ? <span className={inailOk ? "text-green-700 font-bold" : "text-amber-600 font-bold"}>
+                              ✓{inailOk ? "" : "*"}
+                            </span>
+                          : <span className="text-neutral-300">—</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr>
+                  <td className="py-2 pr-3 text-neutral-700 font-semibold">F24</td>
+                  {stato.mesi.map((m) => (
+                    <td key={m.mese}
+                      className={`px-2 py-2 text-center ${
+                        m.f24 > 0 ? "text-blue-700 font-bold" : "text-neutral-300"
+                      }`}
+                      title={m.f24 > 0 ? `${m.f24} righe tributo importate` : "F24 non importato"}>
+                      {m.f24 > 0 ? "✓" : "—"}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {stato.mesi.some((m) => m.elab > 0 && !m.elab_inail) && (
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+              <strong>Nota:</strong> <code className="px-1 bg-white rounded">✓*</code> indica ELAB con dipendenti importati ma senza riga sintetica INAIL azienda. Il CE del mese funziona ma manca il costo INAIL (~€90/mese). Re-importa l'ELAB o verifica il PDF originale.
+            </div>
+          )}
+
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900">
+            <strong>Legenda:</strong>
+            <ul className="mt-2 space-y-1 list-disc list-inside">
+              <li><strong>LUL</strong> (Libro Unico Lavoro): numero di cedolini importati nel mese. Si carica dalla pagina Buste Paga (Import PDF LUL).</li>
+              <li><strong>ELAB</strong> (Riepilogo paghe): ✓ se il costo aziendale completo del mese è stato importato. Si carica dalla pagina Buste Paga (Import ELAB / F24).</li>
+              <li><strong>F24</strong> (Versamenti): ✓ se i versamenti tributi del mese sono stati caricati. Stessa dropzone dell'ELAB.</li>
+            </ul>
+          </div>
+        </>
+      )}
     </div>
   );
 }
