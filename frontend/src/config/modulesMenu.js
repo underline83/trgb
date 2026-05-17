@@ -77,12 +77,16 @@ const MODULES_MENU = {
   "controllo-gestione": {
     title: "Controllo di Gestione", icon: "\uD83C\uDFAF", go: "/controllo-gestione",
     color: "bg-sky-50 border-sky-200 text-sky-900", hoverBg: "hover:bg-sky-50",
+    // Audit 2026-05-16: rimosse "Liquidit\u00E0" (overlap Flussi Cassa + CE cassa)
+    // e "Confronto" (placeholder mai sviluppato). Aggiunto "Conto Economico"
+    // (era assente). Stesso ordine della nav del modulo.
     sub: [
-      { label: "Dashboard",     go: "/controllo-gestione/dashboard" },
-      { label: "Liquidita'",    go: "/controllo-gestione/liquidita" },
-      { label: "Scadenzario",   go: "/controllo-gestione/uscite" },
-      { label: "Confronto",     go: "/controllo-gestione/confronto" },
-      { label: "Spese Fisse",   go: "/controllo-gestione/spese-fisse" },
+      { label: "Dashboard",       go: "/controllo-gestione/dashboard" },
+      { label: "Conto Economico", go: "/controllo-gestione/conto-economico" },
+      { label: "Scadenzario",     go: "/controllo-gestione/uscite" },
+      { label: "Calendario",      go: "/controllo-gestione/calendario" },
+      { label: "Spese Fisse",     go: "/controllo-gestione/spese-fisse" },
+      { label: "Riconciliazione", go: "/controllo-gestione/riconciliazione" },
     ],
   },
   statistiche: {

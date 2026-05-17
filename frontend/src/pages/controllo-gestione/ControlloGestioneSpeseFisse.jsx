@@ -9,6 +9,7 @@ import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBan
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
 import { isChiuso } from "../../utils/statoPagamento";
+import ControlloGestioneNav from "./ControlloGestioneNav";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -70,8 +71,22 @@ export default function ControlloGestioneSpeseFisse() {
   const [form, setForm] = useState({
     tipo: "AFFITTO", titolo: "", descrizione: "", importo: "",
     frequenza: "MENSILE", giorno_scadenza: "", data_inizio: "", data_fine: "", note: "",
+    categoria_id: "", sottocategoria_id: "",  // Audit 2026-05-16
   });
   const [saving, setSaving] = useState(false);
+  // Audit 2026-05-16: lista categorie CE (fe_categorie) per il selettore
+  const [categorieCG, setCategorieCG] = useState([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/contabilita/fe/categorie`);
+        if (r.ok) {
+          const data = await r.json();
+          setCategorieCG(Array.isArray(data) ? data : (data.categorie || []));
+        }
+      } catch (e) { /* silenzioso */ }
+    })();
+  }, []);
 
   // Wizard attivo
   const [wizard, setWizard] = useState(null); // "AFFITTO" | "PRESTITO" | "ASSICURAZIONE" | "TASSE" | "RATEIZZAZIONE" | null
@@ -164,7 +179,8 @@ export default function ControlloGestioneSpeseFisse() {
 
   const resetForm = () => {
     setForm({ tipo: "AFFITTO", titolo: "", descrizione: "", importo: "",
-              frequenza: "MENSILE", giorno_scadenza: "", data_inizio: "", data_fine: "", note: "", iban: "" });
+              frequenza: "MENSILE", giorno_scadenza: "", data_inizio: "", data_fine: "", note: "", iban: "",
+              categoria_id: "", sottocategoria_id: "" });
     setEditId(null);
   };
 
@@ -175,6 +191,8 @@ export default function ControlloGestioneSpeseFisse() {
       giorno_scadenza: s.giorno_scadenza ? String(s.giorno_scadenza) : "",
       data_inizio: s.data_inizio || "", data_fine: s.data_fine || "",
       note: s.note || "", iban: s.iban || "",
+      categoria_id: s.categoria_id ? String(s.categoria_id) : "",
+      sottocategoria_id: s.sottocategoria_id ? String(s.sottocategoria_id) : "",
     });
     setEditId(s.id);
     setShowForm(true);
@@ -199,6 +217,9 @@ export default function ControlloGestioneSpeseFisse() {
           : (form.giorno_scadenza ? parseInt(form.giorno_scadenza) : null),
         data_inizio: form.data_inizio || null,
         data_fine: form.frequenza === "UNA_TANTUM" ? null : (form.data_fine || null),
+        // Audit 2026-05-16: categoria CE (null se non scelta)
+        categoria_id: form.categoria_id ? parseInt(form.categoria_id) : null,
+        sottocategoria_id: form.sottocategoria_id ? parseInt(form.sottocategoria_id) : null,
       };
       const url = editId ? `${CG}/spese-fisse/${editId}` : `${CG}/spese-fisse`;
       const method = editId ? "PUT" : "POST";
@@ -945,7 +966,9 @@ export default function ControlloGestioneSpeseFisse() {
   );
 
   return (
-    <div className="min-h-screen bg-brand-cream p-4 md:p-6">
+    <div className="min-h-screen bg-brand-cream">
+      <ControlloGestioneNav current="spese-fisse" />
+      <div className="p-4 md:p-6">
       <div className="max-w-6xl mx-auto">
 
         {/* HEADER */}
@@ -1910,6 +1933,41 @@ export default function ControlloGestioneSpeseFisse() {
                 <input type="text" value={form.titolo} onChange={e => setForm({ ...form, titolo: e.target.value })}
                   placeholder="Es. Affitto locale Via Roma" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
               </div>
+              {/* Audit 2026-05-16: selettori Categoria + Sottocategoria CE
+                  Permettono di assegnare la spesa fissa a una categoria specifica
+                  del Conto Economico (es. spese condominiali → ALTRO, manutenzione
+                  attrezzature → MANUTENZIONE). Se vuoto: il CE userà il fallback
+                  automatico dal tipo (mig 129) o "Non categorizzato". */}
+              <div>
+                <label className="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                  <span>Categoria CE</span>
+                  <Tooltip label="Categoria del Conto Economico in cui far apparire questa spesa. Lascia vuoto per usare il fallback automatico dal tipo.">
+                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold cursor-help select-none">i</span>
+                  </Tooltip>
+                </label>
+                <select
+                  value={form.categoria_id}
+                  onChange={e => setForm({ ...form, categoria_id: e.target.value, sottocategoria_id: "" })}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+                  <option value="">(automatico dal tipo)</option>
+                  {categorieCG.map(c => (
+                    <option key={c.id} value={c.id}>{c.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs text-neutral-500 mb-1 block">Sottocategoria CE (opzionale)</label>
+                <select
+                  value={form.sottocategoria_id}
+                  onChange={e => setForm({ ...form, sottocategoria_id: e.target.value })}
+                  disabled={!form.categoria_id}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm disabled:bg-neutral-50 disabled:text-neutral-400">
+                  <option value="">(nessuna sottocategoria)</option>
+                  {(categorieCG.find(c => String(c.id) === String(form.categoria_id))?.sottocategorie || []).map(s => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="text-xs text-neutral-500 mb-1 flex items-center gap-1">
                   <span>Importo (&euro;) *</span>
@@ -2680,6 +2738,7 @@ export default function ControlloGestioneSpeseFisse() {
           </div>
         </div>
       )}
+      </div>{/* close p-4 md:p-6 */}
     </div>
   );
 }

@@ -1736,12 +1736,27 @@ def create_spesa_fissa(
 
     fc = get_fc_db()
     try:
+        # Audit 2026-05-16: categoria_id + sottocategoria_id (mig 129) ora
+        # editabili da UI (cgspesefisse non aveva mai esposto il selettore).
+        # NULL ok → fallback automatico via mapping TIPO→categoria di mig 129
+        # (es. TASSA→TASSE E IMPOSTE) oppure "Non categorizzato" nel CE.
+        cat_id = payload.get("categoria_id")
+        sub_id = payload.get("sottocategoria_id")
+        try:
+            cat_id = int(cat_id) if cat_id not in (None, "", 0) else None
+        except (ValueError, TypeError):
+            cat_id = None
+        try:
+            sub_id = int(sub_id) if sub_id not in (None, "", 0) else None
+        except (ValueError, TypeError):
+            sub_id = None
         fc.execute("""
             INSERT INTO cg_spese_fisse
                 (tipo, titolo, descrizione, importo, frequenza, giorno_scadenza,
                  data_inizio, data_fine, note, iban, attiva,
-                 importo_originale, spese_legali)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                 importo_originale, spese_legali,
+                 categoria_id, sottocategoria_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
         """, (
             tipo,
             payload.get("titolo", "").strip(),
@@ -1755,6 +1770,8 @@ def create_spesa_fissa(
             payload.get("iban", ""),
             payload.get("importo_originale"),
             float(payload.get("spese_legali", 0) or 0),
+            cat_id,
+            sub_id,
         ))
         new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
 
@@ -1850,14 +1867,25 @@ def update_spesa_fissa(
         from fastapi import HTTPException
         raise HTTPException(404, "Spesa non trovata")
 
+    # Audit 2026-05-16: aggiunti categoria_id + sottocategoria_id (mig 129).
+    # Editabili dalla UI Spese Fisse, ammessi NULL per "fallback automatico al
+    # mapping TIPO→categoria (mig 129) o 'Non categorizzato' nel CE".
     allowed = ("tipo", "titolo", "descrizione", "importo", "frequenza",
-               "giorno_scadenza", "data_inizio", "data_fine", "note", "iban", "attiva")
+               "giorno_scadenza", "data_inizio", "data_fine", "note", "iban", "attiva",
+               "categoria_id", "sottocategoria_id")
     sets = []
     params = []
     for field in allowed:
         if field in payload:
             sets.append(f"{field} = ?")
-            params.append(payload[field])
+            val = payload[field]
+            # Normalizza int/null per i campi FK soft
+            if field in ("categoria_id", "sottocategoria_id"):
+                try:
+                    val = int(val) if val not in (None, "", 0) else None
+                except (ValueError, TypeError):
+                    val = None
+            params.append(val)
     sets.append("updated_at = CURRENT_TIMESTAMP")
 
     if not params:

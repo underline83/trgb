@@ -150,12 +150,14 @@ const FlussiCassaMance = lazy(() => import("./pages/banca/FlussiCassaMance"));
 // CONTROLLO DI GESTIONE
 const ControlloGestioneDashboard = lazy(() => import("./pages/controllo-gestione/ControlloGestioneDashboard"));
 const ControlloGestioneContoEconomico = lazy(() => import("./pages/controllo-gestione/ControlloGestioneContoEconomico"));
-const ControlloGestioneConfronto = lazy(() => import("./pages/controllo-gestione/ControlloGestioneConfronto"));
+// Audit 2026-05-16: ControlloGestioneConfronto rimosso (placeholder mai sviluppato).
+// File mantenuto in fs ma non più importato. Route /controllo-gestione/confronto → redirect Dashboard.
 const ControlloGestioneUscite = lazy(() => import("./pages/controllo-gestione/ControlloGestioneUscite"));
 const ControlloGestioneCalendarioScadenze = lazy(() => import("./pages/controllo-gestione/ControlloGestioneCalendarioScadenze"));
 const ControlloGestioneSpeseFisse = lazy(() => import("./pages/controllo-gestione/ControlloGestioneSpeseFisse"));
 const ControlloGestioneRiconciliazione = lazy(() => import("./pages/controllo-gestione/ControlloGestioneRiconciliazione"));
-const ControlloGestioneLiquidita = lazy(() => import("./pages/controllo-gestione/ControlloGestioneLiquidita"));
+// Audit 2026-05-16: ControlloGestioneLiquidita rimosso (overlap Flussi Cassa + CE cassa).
+// File mantenuto in fs ma non più importato. Route /controllo-gestione/liquidita → redirect Flussi Cassa.
 
 // STATISTICHE
 const StatisticheDashboard = lazy(() => import("./pages/statistiche/StatisticheDashboard"));
@@ -366,18 +368,21 @@ export default function App() {
         <Route path="/banca/categorie" element={<Navigate to="/flussi-cassa/impostazioni" replace />} />
 
         {/* --- CONTROLLO DI GESTIONE --- */}
+        {/* Audit 2026-05-16: ridotti i target dell'auto-redirect alle pagine attive.
+            Niente più Confronto/Liquidita. Aggiunto Conto Economico. */}
         <Route path="/controllo-gestione" element={
           <ModuleRedirect module="controllo-gestione" targets={[
             { path: "/controllo-gestione/dashboard" },
+            { path: "/controllo-gestione/conto-economico" },
             { path: "/controllo-gestione/uscite" },
-            { path: "/controllo-gestione/confronto" },
             { path: "/controllo-gestione/spese-fisse" },
           ]} />
         } />
         <Route path="/controllo-gestione/dashboard" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneDashboard /></ProtectedRoute>} />
         <Route path="/controllo-gestione/conto-economico" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneContoEconomico /></ProtectedRoute>} />
-        <Route path="/controllo-gestione/liquidita" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneLiquidita /></ProtectedRoute>} />
-        <Route path="/controllo-gestione/confronto" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneConfronto /></ProtectedRoute>} />
+        {/* Audit 2026-05-16: link legacy → redirect (no 404 per chi ha vecchi bookmark) */}
+        <Route path="/controllo-gestione/liquidita" element={<Navigate to="/flussi-cassa/dashboard" replace />} />
+        <Route path="/controllo-gestione/confronto" element={<Navigate to="/controllo-gestione/dashboard" replace />} />
         <Route path="/controllo-gestione/uscite" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneUscite /></ProtectedRoute>} />
         <Route path="/controllo-gestione/calendario" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneCalendarioScadenze /></ProtectedRoute>} />
         <Route path="/controllo-gestione/spese-fisse" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneSpeseFisse /></ProtectedRoute>} />
