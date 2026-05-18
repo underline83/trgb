@@ -206,9 +206,11 @@ export default function NuovoVinoV2() {
     if (step === 2) return !!madre;
     if (step === 3) return !!(annata.ANNATA || "").toString().trim();
     if (step === 4) {
-      // Almeno una locazione con quantità > 0 (come Cantina classica)
+      // Almeno una locazione con quantità > 0 (come Cantina classica).
+      // QTA_LOC3 viene dalla MATRICE (non da dropdown): conta le celle preselezionate.
+      const nMatrice = (annata.MATRICE_CELLE || []).length;
       const qtaSum = Number(annata.QTA_FRIGO || 0) + Number(annata.QTA_LOC1 || 0)
-        + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
+        + Number(annata.QTA_LOC2 || 0) + nMatrice;
       return qtaSum > 0;
     }
     return false;
@@ -1085,8 +1087,9 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
 
   const upd = (k, v) => setAnnata(prev => ({ ...prev, [k]: v }));
 
+  // QTA_LOC3 viene dalla MATRICE (come SchedaVino): conta le celle, non il dropdown.
   const qtaTot = Number(annata.QTA_FRIGO || 0) + Number(annata.QTA_LOC1 || 0)
-    + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
+    + Number(annata.QTA_LOC2 || 0) + (annata.MATRICE_CELLE || []).length;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -1107,7 +1110,10 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
         </div>
 
         <div className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Loc1/Loc2/Frigo = locazioni "libere" gestite a mano.
+              QTA_LOC3 + LOCAZIONE_3 NON sono qui: vengono ricalcolate auto dalla matrice
+              (stesso comportamento di SchedaVino → tab Giacenze). */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <LocCard title="Frigorifero" options={opzioniFrigo}
               loc={annata.FRIGORIFERO} onLoc={v => upd("FRIGORIFERO", v)}
               qta={annata.QTA_FRIGO} onQta={v => upd("QTA_FRIGO", v)} />
@@ -1117,9 +1123,6 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
             <LocCard title="Locazione 2" options={opzioniLoc2}
               loc={annata.LOCAZIONE_2} onLoc={v => upd("LOCAZIONE_2", v)}
               qta={annata.QTA_LOC2} onQta={v => upd("QTA_LOC2", v)} />
-            <LocCard title="Locazione 3" options={opzioniLoc3}
-              loc={annata.LOCAZIONE_3} onLoc={v => upd("LOCAZIONE_3", v)}
-              qta={annata.QTA_LOC3} onQta={v => upd("QTA_LOC3", v)} />
           </div>
           {/* M2.9-ter: posizione scaffali (matrice) — opzionale, draft.
               Stesso componente di SchedaVino → tab Giacenze (MatricePicker),
@@ -1152,8 +1155,9 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
 // PREVIEW MODAL — riassunto finale (no scrittura)
 // =====================================================================
 function PreviewModal({ open, produttore, madre, annata, saving, submitError, submitResult, onConfirm, onClose, onReset }) {
+  // QTA_LOC3 dalla matrice (come SchedaVino)
   const qtaTot = Number(annata.QTA_FRIGO || 0) + Number(annata.QTA_LOC1 || 0)
-    + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
+    + Number(annata.QTA_LOC2 || 0) + (annata.MATRICE_CELLE || []).length;
 
   // Descrizione finale della bottiglia (composta — è il "nome" da inserire).
   const vitigniMadreFinale = madre?.vitigni_list || madre?.vitigni || [];
