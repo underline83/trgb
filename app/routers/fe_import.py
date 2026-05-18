@@ -1278,18 +1278,28 @@ def get_fattura_detail(fattura_id: int):
         spalmatura_mesi = None
         spalmatura_data_inizio = None
 
+    # C.2 (2026-05-18): JOIN con categorie/sottocategorie per editor inline
+    # nel tab CE. Espone categoria_id, sottocategoria_id, *_nome, categoria_auto
+    # (per distinguere assegnata da utente vs ereditata da fornitore).
     cur.execute(
         """
         SELECT
-            id, fattura_id,
-            numero_linea, descrizione,
-            quantita, unita_misura,
-            prezzo_unitario, prezzo_totale,
-            aliquota_iva, categoria_grezza, note_analisi,
-            COALESCE(codice_articolo, '') AS codice_articolo
-        FROM fe_righe
-        WHERE fattura_id = ?
-        ORDER BY numero_linea ASC, id ASC
+            r.id, r.fattura_id,
+            r.numero_linea, r.descrizione,
+            r.quantita, r.unita_misura,
+            r.prezzo_unitario, r.prezzo_totale,
+            r.aliquota_iva, r.categoria_grezza, r.note_analisi,
+            COALESCE(r.codice_articolo, '') AS codice_articolo,
+            r.categoria_id,
+            r.sottocategoria_id,
+            COALESCE(r.categoria_auto, 0) AS categoria_auto,
+            c.nome  AS categoria_nome,
+            s.nome  AS sottocategoria_nome
+        FROM fe_righe r
+        LEFT JOIN fe_categorie     c ON r.categoria_id     = c.id
+        LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
+        WHERE r.fattura_id = ?
+        ORDER BY r.numero_linea ASC, r.id ASC
         """,
         (fattura_id,),
     )

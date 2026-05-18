@@ -160,6 +160,10 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   // C.2 (2026-05-18): dati CE-impatto, fetch lazy al primo click su tab "conto-economico"
   const [ceImpatto, setCeImpatto] = useState(null);
   const [ceLoading, setCeLoading] = useState(false);
+  // C.2 (2026-05-18): lista categorie/sottocategorie per editor inline righe.
+  // Fetch lazy al primo apertura tab CE (riusa endpoint di fe_categorie_router).
+  const [categorie, setCategorie] = useState(null);
+  const [savingRigaId, setSavingRigaId] = useState(null);
   const handleChangeTab = (newTab) => {
     if (newTab === activeTab) return;
     if (editingScadenza || editingIban || editingMp) {
@@ -177,6 +181,13 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
         .then(j => setCeImpatto(j))
         .catch(e => console.error("ce-impatto:", e))
         .finally(() => setCeLoading(false));
+    }
+    // C.2: fetch lazy della lista categorie/sottocategorie per editor inline
+    if (newTab === "conto-economico" && categorie == null) {
+      apiFetch(`${API_BASE}/contabilita/fe/categorie`)
+        .then(r => r.ok ? r.json() : Promise.reject(new Error("categorie fetch failed")))
+        .then(j => setCategorie(Array.isArray(j) ? j : []))
+        .catch(e => console.error("categorie:", e));
     }
   };
 
@@ -418,6 +429,39 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
       setCeImpatto(null);
       await refetch();
     } catch { alert("Errore di rete"); }
+  };
+
+  // ─── C.2 (2026-05-18): cambio categoria/sottocategoria su una riga ───
+  // BIDIREZIONALE — usa lo STESSO endpoint di FattureFornitoriElenco
+  // (POST /contabilita/fe/categorie/fornitori/prodotti/assegna):
+  //   - Aggiorna fe_righe.categoria_id su TUTTE le righe con quella
+  //     descrizione di quel fornitore (anche in altre fatture)
+  //   - Salva mapping in fe_prodotto_categoria_map per i futuri import
+  // Quindi cambiare qui = cambiare anche in vista Fornitori + import futuri.
+  const handleAssignRiga = async (riga, newCatId, newSubId) => {
+    if (!fattura || !riga) return;
+    setSavingRigaId(riga.id);
+    try {
+      const res = await apiFetch(`${API_BASE}/contabilita/fe/categorie/fornitori/prodotti/assegna`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fornitore_piva: fattura.fornitore_piva,
+          fornitore_nome: fattura.fornitore_nome,
+          descrizione: riga.descrizione,
+          categoria_id: newCatId || null,
+          sottocategoria_id: newSubId || null,
+        }),
+      });
+      if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
+      setCeImpatto(null);  // invalida cache impatto P&L
+      await refetch();
+      showToast("Categoria aggiornata (anche su Fornitori)");
+    } catch (e) {
+      showToast("Errore di rete", "err");
+    } finally {
+      setSavingRigaId(null);
+    }
   };
 
   // ── Wrapper loading / error (shape identico a SchedaVino) ──
@@ -1235,7 +1279,9 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
             {/* ─── SEZIONE 2: CATEGORIA NEL CE ─── */}
             <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
               <h4 className="text-sm font-semibold text-neutral-800 mb-3">🏷 Categoria nel Conto Economico</h4>
-              <div className="bg-white border border-neutral-200 rounded-lg p-3">
+
+              {/* 2a — Aggregato (read-only) */}
+              <div className="bg-white border border-neutral-200 rounded-lg p-3 mb-3">
                 {fattura.categoria_aggregata && fattura.categoria_aggregata.length > 0 ? (
                   <>
                     <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">
@@ -1261,15 +1307,102 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                         ))}
                       </tbody>
                     </table>
-                    <div className="text-[10px] text-neutral-500 mt-2">
-                      Gerarchia: categoria_riga &gt; categoria_fornitore &gt; "Non categorizzato".
-                      Per riassegnare manualmente le righe, vai in Acquisti → Categorie.
-                    </div>
                   </>
                 ) : (
                   <div className="text-sm text-neutral-500">Nessuna riga da categorizzare</div>
                 )}
               </div>
+
+              {/* 2b — Editor inline per riga (BIDIREZIONALE con vista Fornitori) */}
+              {righe.length > 0 && (
+                <div className="bg-white border border-neutral-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] text-neutral-500 uppercase tracking-wide">
+                      Modifica per riga
+                    </div>
+                    <div className="text-[10px] text-neutral-400">
+                      Le modifiche si riflettono in <span className="font-semibold text-neutral-600">Fornitori → {fattura.fornitore_nome}</span> (stessa descrizione)
+                    </div>
+                  </div>
+
+                  {categorie == null ? (
+                    <div className="text-xs text-neutral-500 italic py-2">Caricamento categorie…</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-neutral-500 border-b border-neutral-100">
+                            <th className="text-left font-medium py-1.5 pr-2 w-8">#</th>
+                            <th className="text-left font-medium py-1.5 pr-2">Descrizione</th>
+                            <th className="text-left font-medium py-1.5 pr-2 w-40">Categoria</th>
+                            <th className="text-left font-medium py-1.5 pr-2 w-40">Sottocategoria</th>
+                            <th className="text-right font-medium py-1.5 w-20">Importo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {righe.map((r) => {
+                            const isSaving = savingRigaId === r.id;
+                            const selCat = categorie.find(c => c.id === r.categoria_id);
+                            const subOpts = selCat?.sottocategorie || [];
+                            const isEreditata = r.categoria_id && r.categoria_auto;
+                            const isVuota = !r.categoria_id;
+                            return (
+                              <tr key={r.id}
+                                className={`border-b border-neutral-50 ${isVuota ? "bg-amber-50/30" : ""}`}>
+                                <td className="py-1.5 pr-2 text-neutral-400 tabular-nums">{r.numero_linea || ""}</td>
+                                <td className="py-1.5 pr-2 text-neutral-800">
+                                  <div className="max-w-sm truncate" title={r.descrizione}>{r.descrizione || "—"}</div>
+                                  {isEreditata && (
+                                    <div className="text-[9px] text-neutral-400 italic">ereditata dal fornitore</div>
+                                  )}
+                                </td>
+                                <td className="py-1 pr-2">
+                                  <select
+                                    value={r.categoria_id || ""}
+                                    disabled={isSaving}
+                                    onChange={e => {
+                                      const newCat = e.target.value ? Number(e.target.value) : null;
+                                      handleAssignRiga(r, newCat, null);  // reset sotto al cambio cat
+                                    }}
+                                    className="w-full text-xs border border-neutral-300 rounded px-1.5 py-1 bg-white">
+                                    <option value="">— scegli —</option>
+                                    {categorie.map(c => (
+                                      <option key={c.id} value={c.id}>{c.nome}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="py-1 pr-2">
+                                  <select
+                                    value={r.sottocategoria_id || ""}
+                                    disabled={isSaving || !r.categoria_id}
+                                    onChange={e => {
+                                      const newSub = e.target.value ? Number(e.target.value) : null;
+                                      handleAssignRiga(r, r.categoria_id, newSub);
+                                    }}
+                                    className="w-full text-xs border border-neutral-300 rounded px-1.5 py-1 bg-white disabled:bg-neutral-100">
+                                    <option value="">{r.categoria_id ? "— scegli —" : "—"}</option>
+                                    {subOpts.map(s => (
+                                      <option key={s.id} value={s.id}>{s.nome}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="py-1.5 text-right tabular-nums font-semibold text-neutral-900">
+                                  € {fmt(r.prezzo_totale)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-neutral-500 mt-2 leading-tight">
+                    Gerarchia: categoria_riga &gt; categoria_fornitore &gt; "Non categorizzato".
+                    Modificando una riga, l'endpoint aggiorna anche tutte le altre righe (passate e future) con la stessa descrizione di questo fornitore.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ─── SEZIONE 3: DOVE APPARE NEL CE ─── */}
