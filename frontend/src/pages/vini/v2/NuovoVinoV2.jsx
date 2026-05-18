@@ -814,8 +814,17 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
         <div className="p-5 space-y-4">
           {/* Identificazione */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FieldLabel label="Annata" required>
-              <TextInput value={annata.ANNATA} onChange={v => upd("ANNATA", v)} placeholder="es. 2019" autoFocus />
+            <FieldLabel label="Annata" required
+                        hint={(() => {
+                          const y = parseInt(annata.ANNATA, 10);
+                          const max = new Date().getFullYear();
+                          if (Number.isFinite(y) && y > max) return `⚠️ Annata futura non valida (max ${max})`;
+                          if (Number.isFinite(y) && y < 1900) return "⚠️ Annata troppo vecchia (min 1900)";
+                          return null;
+                        })()}>
+              <TextInput type="number" min={1900} max={new Date().getFullYear()}
+                value={annata.ANNATA} onChange={v => upd("ANNATA", v)}
+                placeholder="es. 2019" autoFocus />
             </FieldLabel>
             <FieldLabel label="Formato">
               <Select value={annata.FORMATO} onChange={v => upd("FORMATO", v)} options={formatiOptions} />

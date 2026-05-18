@@ -1284,28 +1284,31 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
 
         {/* ═══════════ FOOTER AZIONI ═══════════ */}
         <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-t border-neutral-200 flex-shrink-0 flex-wrap">
-          {/* Modulo M.2 (2026-04-27): bottoni stato pagamento espliciti */}
+          {/* Modulo M.2 (2026-04-27, fix label C.2 2026-05-18): bottoni
+              di CAMBIO stato. La label era "Stato:" → confondeva l'utente
+              (sembrava visualizzazione dello stato attuale invece che azione).
+              Lo stato attuale è già nei chip dell'header (D1+D3). */}
           {onCambiaStato && fattura.stato_pagamento !== "pagato" && !isRateizzata && (
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">Stato:</span>
+              <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">Cambia stato →</span>
               {fattura.stato_pagamento !== "da_pagare" && (
                 <Btn variant="chip" tone="neutral" size="sm" type="button"
                   onClick={() => handleCambiaStato("da_pagare")}
-                  title="Riporta in 'Da pagare'">
+                  title="Riporta lo stato a 'Da pagare'">
                   Da pagare
                 </Btn>
               )}
               {fattura.stato_pagamento !== "da_verificare" && (
                 <Btn variant="chip" tone="amber" size="sm" type="button"
                   onClick={() => handleCambiaStato("da_verificare")}
-                  title="Marca come 'Da verificare' (forse pagata)">
+                  title="Marca come 'Da verificare' (forse pagata, controllare estratto conto)">
                   ❓ Da verificare
                 </Btn>
               )}
               {fattura.stato_pagamento !== "pagato_manuale" && (
                 <Btn variant="chip" tone="emerald" size="sm" type="button"
                   onClick={() => handleCambiaStato("pagato_manuale")}
-                  title="Pagato in attesa di riconciliazione bancaria">
+                  title="Marca come pagata (in attesa di riconciliazione bancaria)">
                   Pagato*
                 </Btn>
               )}
