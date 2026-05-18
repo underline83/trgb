@@ -18,6 +18,8 @@ import {
   Btn, Card, Modal, Stepper, TextInput, Select, Textarea,
   FieldLabel, SectionTitle,
 } from "../../../components/ui";
+// M2.9: composizione automatica descrizione (denom + nome + vitigni + grado).
+import componiDescrizione, { vitigniToString } from "../../../utils/vini/componiDescrizione";
 // STATO_RIORDINO non è usato dal wizard (Marco 2026-05-16: non ha senso in creazione).
 import {
   STATO_VENDITA_OPTIONS_LONG as STATO_VENDITA_OPTIONS,
@@ -105,8 +107,8 @@ export default function NuovoVinoV2() {
         <div className="flex-1 overflow-auto bg-neutral-50">
           {step === 1 && <Step1Produttore produttore={produttore} onSelect={handleSelectProduttore} />}
           {step === 2 && <Step2Madre produttore={produttore} madre={madre} onSelect={setMadre} />}
-          {step === 3 && <Step3Annata annata={annata} setAnnata={setAnnata} />}
-          {step === 4 && <Step4Giacenze annata={annata} setAnnata={setAnnata} />}
+          {step === 3 && <Step3Annata annata={annata} setAnnata={setAnnata} produttore={produttore} madre={madre} />}
+          {step === 4 && <Step4Giacenze annata={annata} setAnnata={setAnnata} produttore={produttore} madre={madre} />}
         </div>
 
         {/* Footer */}
@@ -304,8 +306,13 @@ function Step2Madre({ produttore, madre, onSelect }) {
   const [error, setError] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
 
+  // M2.9 (2026-05-16): la descrizione del madre non si scrive più a mano.
+  // Si compone automaticamente da denominazione + nome_etichetta + vitigni +
+  // grado_alcolico_tipico. Il campo "nome_etichetta" (NEW, mig 130) è
+  // l'unico "nome aggiuntivo" che l'utente inserisce (cru, fantasia, etc).
   const [newM, setNewM] = useState({
-    descrizione: "",
+    nome_etichetta: "",         // NEW: cru o nome di fantasia. Opzionale.
+    descrizione: "",            // Composta automaticamente — non si edita mai.
     tipologia: "",
     nazione: produttore?.nazione || "Italia",
     regione: produttore?.regione || "",
@@ -401,10 +408,31 @@ function Step2Madre({ produttore, madre, onSelect }) {
     setNewM(prev => ({ ...prev, vitigni: prev.vitigni.filter(v => v.vitigno_id !== vid) }));
   };
 
+  // Anteprima descrizione composta (live). I vitigni con % vengono formattati,
+  // il grado_alcolico_tipico è usato come "grado del madre".
+  const descrizioneComposta = useMemo(() => componiDescrizione({
+    denominazione:  newM.denominazione_label,
+    nome_etichetta: newM.nome_etichetta,
+    vitigni:        vitigniToString(newM.vitigni),
+    grado:          newM.grado_alcolico_tipico,
+  }), [newM.denominazione_label, newM.nome_etichetta, newM.vitigni, newM.grado_alcolico_tipico]);
+
   const confirmNewMadre = () => {
-    if (!newM.descrizione.trim()) { alert("Descrizione obbligatoria"); return; }
+    // Validazione minima: serve almeno la denominazione (così la descrizione
+    // ha un anchor) e la tipologia. Il nome_etichetta resta opzionale.
+    if (!newM.denominazione_id) {
+      alert("Seleziona una denominazione (necessaria per comporre la descrizione)"); return;
+    }
     if (!newM.tipologia) { alert("Tipologia obbligatoria"); return; }
-    onSelect({ _new: true, ...newM });
+    // La descrizione viene composta automaticamente — la passo a Step 3 come
+    // valore proposto. Sarà ricalcolata anche lato bottiglia con i vitigni
+    // dell'annata reale (che possono cambiare tra annate).
+    onSelect({
+      _new: true,
+      ...newM,
+      descrizione: descrizioneComposta,  // valore composto al momento della creazione
+      descrizione_auto: 1,                // flag mig 130: descrizione gestita automaticamente
+    });
     setShowNewForm(false);
   };
 
@@ -480,8 +508,11 @@ function Step2Madre({ produttore, madre, onSelect }) {
           <div className="text-xs font-semibold text-amber-900 mb-3">🆕 Nuovo vino madre</div>
 
           <div className="grid grid-cols-2 gap-2">
-            <FieldLabel label="Descrizione (nome del vino)" required>
-              <TextInput value={newM.descrizione} onChange={v => setNewM(d => ({ ...d, descrizione: v }))} placeholder="es. Barolo Castiglione" />
+            <FieldLabel label="Nome etichetta / Cru"
+                        hint="Opzionale. Es. 'Castiglione', 'Sorì Tildin', 'Bricco delle Viole'. Se vuoto, la descrizione sarà composta solo dalla denominazione.">
+              <TextInput value={newM.nome_etichetta}
+                onChange={v => setNewM(d => ({ ...d, nome_etichetta: v }))}
+                placeholder="es. Castiglione" />
             </FieldLabel>
             <FieldLabel label="Tipologia" required>
               <Select value={newM.tipologia} onChange={v => setNewM(d => ({ ...d, tipologia: v }))}
@@ -586,6 +617,21 @@ function Step2Madre({ produttore, madre, onSelect }) {
             <Textarea rows={2} value={newM.note_madre} onChange={v => setNewM(d => ({ ...d, note_madre: v }))} />
           </FieldLabel>
 
+          {/* Anteprima descrizione composta — live, si aggiorna mentre digiti.
+              È quello che diventerà il "nome" della bottiglia. */}
+          <div className="mt-4 p-3 rounded-xl border-2 border-amber-300 bg-white">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 mb-1">
+              📜 Descrizione composta (anteprima)
+            </div>
+            <div className="text-sm font-semibold text-neutral-900">
+              {descrizioneComposta || <span className="text-neutral-400 italic">— scegli denominazione e nome per vedere l'anteprima —</span>}
+            </div>
+            <div className="text-[10px] text-neutral-500 mt-1.5 italic">
+              Si compone come: <code className="font-mono">denominazione + nome + (vitigni) + grado%</code>.
+              Si aggiorna automaticamente nelle annate quando cambi vitigni o grado.
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2 pt-3">
             <Btn variant="secondary" size="sm" onClick={() => setShowNewForm(false)}>Annulla</Btn>
             <Btn variant="warning" size="sm" onClick={confirmNewMadre}>Usa questo vino madre</Btn>
@@ -603,7 +649,7 @@ function Step2Madre({ produttore, madre, onSelect }) {
 // per coerenza estetica: form a sezioni separate da border-top, niente
 // card annidate, flag come toggle iOS-style.
 // =====================================================================
-function Step3Annata({ annata, setAnnata }) {
+function Step3Annata({ annata, setAnnata, produttore, madre }) {
   const [formati, setFormati] = useState([]);
 
   useEffect(() => {
@@ -616,6 +662,16 @@ function Step3Annata({ annata, setAnnata }) {
   }, []);
 
   const upd = (k, v) => setAnnata(prev => ({ ...prev, [k]: v }));
+
+  // M2.9: descrizione composta della BOTTIGLIA = denominazione (madre) +
+  // nome_etichetta (madre) + vitigni (annata, se compilati) + grado (annata).
+  // Si aggiorna live mentre l'utente cambia VITIGNI o GRADO_ALCOLICO.
+  const descrizioneBottiglia = useMemo(() => componiDescrizione({
+    denominazione:  madre?.denominazione_label || "",
+    nome_etichetta: madre?.nome_etichetta || "",
+    vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+    grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
+  }), [madre, annata.VITIGNI, annata.GRADO_ALCOLICO]);
 
   // Adatta i formati dal backend a {value,label} per Select
   const formatiOptions = useMemo(() => formati.map((f) => {
@@ -647,7 +703,13 @@ function Step3Annata({ annata, setAnnata }) {
   const statoConservazioneOptions = STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value !== "");
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="p-4 md:p-6 space-y-4">
+      {/* Anteprima descrizione composta (live, banner principale) */}
+      <DescrizioneAnteprima testo={descrizioneBottiglia} sub="Nome di questa bottiglia. Si aggiorna se modifichi i vitigni o il grado." />
+
+      {/* Box "Vino madre" — campi ereditati, read-only (conferma visiva). */}
+      <MadreReadOnlyBox produttore={produttore} madre={madre} />
+
       <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200">
           <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">Annata · Prezzi · Flag · Stati</h2>
@@ -732,11 +794,19 @@ function Step3Annata({ annata, setAnnata }) {
 // =====================================================================
 // STEP 4 — GIACENZE per locazione (replica Cantina 1: locCard 2x2)
 // =====================================================================
-function Step4Giacenze({ annata, setAnnata }) {
+function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
   const [opzioniLoc2, setOpzioniLoc2] = useState([]);
   const [opzioniLoc3, setOpzioniLoc3] = useState([]);
+
+  // Descrizione composta della bottiglia (stessa logica dello Step 3).
+  const descrizioneBottiglia = useMemo(() => componiDescrizione({
+    denominazione:  madre?.denominazione_label || "",
+    nome_etichetta: madre?.nome_etichetta || "",
+    vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+    grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
+  }), [madre, annata.VITIGNI, annata.GRADO_ALCOLICO]);
 
   useEffect(() => {
     (async () => {
@@ -759,7 +829,11 @@ function Step4Giacenze({ annata, setAnnata }) {
     + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="p-4 md:p-6 space-y-4">
+      {/* Banner descrizione composta + box madre (stessa conferma visiva di Step 3) */}
+      <DescrizioneAnteprima testo={descrizioneBottiglia} sub="Bottiglia che stai per inserire in cantina." />
+      <MadreReadOnlyBox produttore={produttore} madre={madre} />
+
       <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
           <div>
@@ -808,6 +882,14 @@ function Step4Giacenze({ annata, setAnnata }) {
 function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
   const qtaTot = Number(annata.QTA_FRIGO || 0) + Number(annata.QTA_LOC1 || 0)
     + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
+
+  // Descrizione finale della bottiglia (composta — è il "nome" da inserire).
+  const descrizioneFinale = componiDescrizione({
+    denominazione:  madre?.denominazione_label || "",
+    nome_etichetta: madre?.nome_etichetta || "",
+    vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+    grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
+  });
   return (
     <Modal
       open={open}
@@ -833,11 +915,12 @@ function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
         </PreviewBlock>
 
         <PreviewBlock title="🍷 Vino madre" highlight={madre?._new ? "DA CREARE" : `esistente #${madre?.id}`}>
-          <PreviewRow label="Descrizione" value={madre?.descrizione} />
+          <PreviewRow label="Denominazione" value={madre?._new ? madre?.denominazione_label : (madre?.denominazione_id ? `#${madre.denominazione_id}` : null)} />
+          <PreviewRow label="Nome etichetta / Cru" value={madre?.nome_etichetta} />
+          <PreviewRow label="Descrizione (auto)" value={madre?.descrizione} />
           <PreviewRow label="Tipologia" value={madre?.tipologia} />
           <PreviewRow label="Nazione · Regione" value={[madre?.nazione, madre?.regione].filter(Boolean).join(" · ")} />
           <PreviewRow label="Grado alcolico tipico" value={madre?.grado_alcolico_tipico ? `${madre.grado_alcolico_tipico}%` : null} />
-          <PreviewRow label="Denominazione" value={madre?._new ? madre?.denominazione_label : (madre?.denominazione_id ? `#${madre.denominazione_id}` : null)} />
           <PreviewRow label="Distributore" value={madre?._new ? madre?.fornitore_label : (madre?.fornitore_id ? `#${madre.fornitore_id}` : null)} />
           {madre?._new && madre.vitigni?.length > 0 && (
             <PreviewRow label="Vitigni" value={madre.vitigni.map(v => `${v.vitigno_label}${v.pct ? ` ${v.pct}%` : ""}`).join(", ")} />
@@ -847,6 +930,7 @@ function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
         </PreviewBlock>
 
         <PreviewBlock title="📅 Annata (nuova bottiglia)" highlight="DA CREARE">
+          <PreviewRow label="📜 Descrizione (auto)" value={descrizioneFinale || null} />
           <PreviewRow label="Annata · Formato" value={`${annata.ANNATA || "?"} · ${annata.FORMATO || "BT"}`} />
           <PreviewRow label="Grado alcolico" value={annata.GRADO_ALCOLICO ? `${annata.GRADO_ALCOLICO}%` : null} />
           <PreviewRow label="Listino · Sconto" value={annata.EURO_LISTINO ? `€ ${annata.EURO_LISTINO}${annata.SCONTO ? ` − ${annata.SCONTO}%` : ""}` : null} />
@@ -894,6 +978,64 @@ function FlagToggle({ label, value, onChange }) {
         <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${on ? "left-6" : "left-0.5"}`} />
       </button>
       <span className={`text-[10px] font-medium ${on ? "text-amber-700" : "text-neutral-400"}`}>{on ? "Sì" : "No"}</span>
+    </div>
+  );
+}
+
+// Anteprima descrizione composta — banner visibile in Step 3 e Step 4.
+// Mostra il "nome" che avrà la bottiglia. Si aggiorna live.
+function DescrizioneAnteprima({ testo, sub }) {
+  return (
+    <div className="p-3 md:p-4 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-white shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">
+        📜 Descrizione composta (auto)
+      </div>
+      <div className="text-base md:text-lg font-bold text-neutral-900">
+        {testo || <span className="text-neutral-400 italic">— manca denominazione/vitigni/grado per comporre —</span>}
+      </div>
+      {sub && <div className="text-[11px] text-neutral-600 mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+// Box "Vino madre selezionato" — i campi del madre come read-only, per dare
+// conferma visiva di stare lavorando sul madre giusto (Marco 2026-05-16).
+function MadreReadOnlyBox({ produttore, madre }) {
+  if (!madre) return null;
+  const nomeEt = madre.nome_etichetta || "";
+  return (
+    <div className="bg-white border border-amber-200 rounded-2xl overflow-hidden">
+      <div className="px-5 py-2.5 bg-gradient-to-r from-amber-50 to-white border-b border-amber-200 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+          🍷 Vino madre {madre._new
+            ? <span className="ml-2 text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-semibold">DA CREARE</span>
+            : <span className="ml-2 text-[10px] text-neutral-500 font-mono">#{madre.id}</span>}
+        </h3>
+        <span className="text-[10px] text-neutral-500 italic">i campi del madre sono read-only</span>
+      </div>
+      <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+        <ReadOnlyField label="Produttore" value={produttore?.nome} />
+        <ReadOnlyField label="Denominazione" value={madre.denominazione_label || (madre.denominazione_id ? `#${madre.denominazione_id}` : null)} />
+        <ReadOnlyField label="Nome etichetta" value={nomeEt} placeholder="—" />
+        <ReadOnlyField label="Tipologia" value={madre.tipologia} />
+        <ReadOnlyField label="Nazione" value={madre.nazione || produttore?.nazione} />
+        <ReadOnlyField label="Regione" value={madre.regione || produttore?.regione} />
+      </div>
+    </div>
+  );
+}
+
+// Campo read-only stilizzato come gli altri input ma disabilitato + colore neutro.
+function ReadOnlyField({ label, value, placeholder = "—" }) {
+  const empty = value == null || value === "";
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-neutral-600 uppercase tracking-wider mb-1">{label}</label>
+      <div className={`px-2 py-1.5 rounded-lg border text-sm bg-neutral-50 ${
+        empty ? "text-neutral-400 italic border-neutral-200" : "text-neutral-800 border-neutral-300"
+      }`}>
+        {empty ? placeholder : value}
+      </div>
     </div>
   );
 }
