@@ -787,24 +787,31 @@ def _pescato_widget(oggi: str, tagli_per_cat: int = 2) -> PescatoWidget:
 
 def _controllo_gestione_metrics() -> dict:
     """G.3 audit P5 (2026-05-16) — Metrics per la tile Home del modulo
-    Controllo Gestione. Restituisce KPI del P&L del mese corrente +
-    confronto col mese precedente + indicatori benchmark (food cost %,
-    personale %) + alert se ELAB del mese non è stato importato.
+    Controllo Gestione.
+
+    REFINEMENT (Marco 2026-05-16, post-screenshot): la tile mostrava il
+    mese CORRENTE (es. Maggio a metà mese): risultato fuorviante perché
+    senza ELAB caricato l'utile è gonfiato (staff=0) e food cost basso
+    (poche fatture). Soluzione: la tile mostra l'ULTIMO MESE CHIUSO
+    (ultimo mese con ELAB importato → costo personale completo →
+    P&L definitivo). Mese precedente chiuso come riferimento visivo.
 
     Schema risposta:
       {
-        "mese_label": "Mag 2026",
-        "utile_mese_eur": 5500.0,
-        "utile_mese_pct": 11.3,
-        "mese_prev_label": "Apr 2026",
-        "utile_mese_prev_eur": 6797.0,
-        "utile_mese_prev_pct": 13.9,
-        "food_cost_pct": 26.4,         # benchmark sano 28-35%
-        "personale_pct": 35.2,         # benchmark sano 25-35%
-        "elab_caricato": True,         # False → badge ⚠ ELAB
+        "mese_label": "Apr 2026",            # ultimo mese chiuso (con ELAB)
+        "utile_mese_eur": 6797.0,
+        "utile_mese_pct": 13.9,
+        "mese_prev_label": "Mar 2026",       # precedente chiuso (anch'esso con ELAB)
+        "utile_mese_prev_eur": ...,
+        "utile_mese_prev_pct": ...,
+        "food_cost_pct": 29.3,               # benchmark sano 28-35%
+        "personale_pct": 41.9,               # benchmark sano 25-35%
+        "stato_dati": "completo" | "in_corso" | "nessun_dato",
+        "alert": None | "elab_mancanti_da_N_mesi",
+        "n_mesi_arretrati": 0,               # quanti mesi senza ELAB rispetto al corrente
       }
 
-    Non leva eccezioni: in caso di errore ritorna un dict con i campi a None.
+    Non leva eccezioni: in caso di errore ritorna schema con campi None.
     """
     from datetime import date as _date
     import sqlite3
@@ -813,17 +820,15 @@ def _controllo_gestione_metrics() -> dict:
     out = {
         "mese_label": "", "utile_mese_eur": None, "utile_mese_pct": None,
         "mese_prev_label": "", "utile_mese_prev_eur": None, "utile_mese_prev_pct": None,
-        "food_cost_pct": None, "personale_pct": None, "elab_caricato": False,
+        "food_cost_pct": None, "personale_pct": None,
+        "stato_dati": "nessun_dato",
+        "alert": None,
+        "n_mesi_arretrati": 0,
     }
-
-    oggi = _date.today()
-    anno, mese = oggi.year, oggi.month
-    prev_anno, prev_mese = (anno, mese - 1) if mese > 1 else (anno - 1, 12)
 
     nomi_mese = ["", "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
                  "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
-    out["mese_label"] = f"{nomi_mese[mese]} {anno}"
-    out["mese_prev_label"] = f"{nomi_mese[prev_mese]} {prev_anno}"
+    oggi = _date.today()
 
     try:
         from app.services.conto_economico import compute_pl
@@ -840,23 +845,54 @@ def _controllo_gestione_metrics() -> dict:
             dip = sqlite3.connect(dip_path); dip.row_factory = sqlite3.Row
 
         try:
-            # P&L mese corrente
+            # ── Trova l'ultimo mese CHIUSO (ELAB caricato) ──
+            ultimo_chiuso = None  # (anno, mese)
+            if dip is not None:
+                try:
+                    row = dip.execute("""
+                        SELECT anno, MAX(mese) AS mese
+                        FROM dipendenti_costo_consuntivo
+                        WHERE anno = (SELECT MAX(anno) FROM dipendenti_costo_consuntivo)
+                        GROUP BY anno
+                    """).fetchone()
+                    if row and row["anno"] and row["mese"]:
+                        ultimo_chiuso = (int(row["anno"]), int(row["mese"]))
+                except sqlite3.Error:
+                    pass
+
+            if ultimo_chiuso is None:
+                # Nessun ELAB caricato → mostra mese corrente con flag "in corso"
+                anno, mese = oggi.year, oggi.month
+                out["stato_dati"] = "in_corso"
+                out["alert"] = "elab_mai_caricato"
+            else:
+                anno, mese = ultimo_chiuso
+                out["stato_dati"] = "completo"
+                # Calcola quanti mesi indietro rispetto al corrente
+                mesi_arretrati = (oggi.year - anno) * 12 + (oggi.month - mese)
+                out["n_mesi_arretrati"] = mesi_arretrati
+                if mesi_arretrati >= 2:
+                    out["alert"] = f"elab_arretrati_{mesi_arretrati}_mesi"
+
+            out["mese_label"] = f"{nomi_mese[mese]} {anno}"
+
+            # Mese precedente (per riferimento visivo)
+            prev_anno, prev_mese = (anno, mese - 1) if mese > 1 else (anno - 1, 12)
+            out["mese_prev_label"] = f"{nomi_mese[prev_mese]} {prev_anno}"
+
+            # P&L mese hero (= ultimo chiuso)
             pl_cur = compute_pl(fc, ve, anno, mese, modalita="competenza", dip_conn=dip)
             out["utile_mese_eur"] = pl_cur["utile_netto"]
             out["utile_mese_pct"] = pl_cur["utile_netto_pct"]
             out["food_cost_pct"] = pl_cur["costo_merce"].get("pct_su_ricavi")
-            # personale_pct = staff totale / ricavi * 100
             staff_tot = sum(
                 cat["importo"] for cat in pl_cur["costi_operativi"]["per_categoria"]
                 if cat["categoria"] in ("STAFF", "AMMINISTRATORI")
             )
             ricavi = pl_cur["ricavi"]["totale"] or 0
             out["personale_pct"] = round(staff_tot / ricavi * 100, 1) if ricavi > 0 else None
-            out["elab_caricato"] = (
-                pl_cur["_meta"].get("costo_personale", {}).get("modalita") == "completo"
-            )
 
-            # P&L mese precedente (utile + %)
+            # P&L mese precedente
             try:
                 pl_prev = compute_pl(fc, ve, prev_anno, prev_mese, modalita="competenza", dip_conn=dip)
                 out["utile_mese_prev_eur"] = pl_prev["utile_netto"]
@@ -869,7 +905,7 @@ def _controllo_gestione_metrics() -> dict:
             if dip is not None:
                 dip.close()
     except Exception:
-        pass  # ritorna lo schema vuoto, frontend cade su line1/line2 standard
+        pass
 
     return out
 
@@ -1358,20 +1394,22 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
 
     # ── Controllo Gestione — card avanzata con KPI P&L (audit Marco 2026-05-16) ──
     # Frontend renderizza `metrics` se presente, altrimenti cade su line1/line2.
-    # Badge = 1 se ELAB del mese NON caricato (alert visivo).
+    # Mostra l'ULTIMO MESE CHIUSO (con ELAB caricato) come hero, non il mese
+    # corrente parziale che darebbe numeri fuorvianti.
     cgm = _controllo_gestione_metrics()
     line1_cg = "Conto Economico, Scadenzario, Spese Fisse"  # fallback
     line2_cg = ""
     if cgm.get("utile_mese_eur") is not None:
-        # Fallback testuale anche con metrics, per ambienti legacy
         line1_cg = f"{cgm['mese_label']}: utile € {cgm['utile_mese_eur']:.0f} ({cgm.get('utile_mese_pct') or 0:.1f}%)"
         if cgm.get("utile_mese_prev_eur") is not None:
             line2_cg = f"{cgm['mese_prev_label']}: € {cgm['utile_mese_prev_eur']:.0f}"
+    # Badge: 1 se gli ELAB sono arretrati (≥ 2 mesi rispetto al corrente) o mai caricati
+    badge_cg = 1 if cgm.get("alert") else 0
     summaries.append(ModuloSummary(
         key="controllo-gestione",
         line1=line1_cg,
         line2=line2_cg,
-        badge=0 if cgm.get("elab_caricato") else 1,
+        badge=badge_cg,
         metrics=cgm,
     ))
 
