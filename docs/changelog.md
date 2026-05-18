@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-05-16 — M2.8: refactor ramo v2 con primitive M.I (palette amber unificata)
+
+### Cambiato
+- **NuovoVinoV2.jsx** — wizard rifatto interamente con primitive M.I: `Card` (wrapper + sezioni Step3), `Stepper`, `Btn` (Indietro/Avanti/Conferma/Ricomincia con varianti `secondary`/`warning`/`ghost`/`dark`), `TextInput`, `Select`, `Textarea`, `FieldLabel`, `SectionTitle`, `Modal` (preview finale). Spariti tutti i `const fieldCls = "..."` inline. Bottoni stepper-header e footer ora coerenti (entrambi Btn).
+- **ProduttoriPanel.jsx** — toolbar filtri in `<Card tone="amber">` con `TextInput`/`Select`/`Btn`. `ProduttoreEditModal` ora usa `<Modal tone="amber">` + `FieldLabel`/`TextInput`/`Textarea`/`Btn`. Detail modal: `rounded-2xl` → `rounded-3xl` come da spec §9-bis pt 6, bottoni "Modifica"/"Chiudi" via Btn. Toolbar drill-down: palette `rose` → `amber` (era inconsistenza vecchia).
+- **DistributoriPanel.jsx** — **palette `blue` → `amber` ovunque** (regola unicità modulo Vini), `EditModal` su `<Modal>` con primitive, `DetailModal` rounded-3xl + bottoni Btn.
+- **VitigniPanel.jsx** — **palette `emerald` → `amber` ovunque**, `EditModal` su `<Modal>`, `DetailModal` rounded-3xl + Btn.
+- **AnagraficheVini.jsx (DenominazioniPanel)** — **palette `violet` → `amber` ovunque** (toolbar sync, badge KPI, header dettaglio, modale merge param `palette="violet"` → `"amber"`).
+- **MergeAnagraficaModal.jsx** — wrapper `rounded-2xl` → `rounded-3xl` (spec §9-bis pt 6).
+
+### Risultato visivo
+Tutto il modulo Vini ora è **monocromatico amber**, le 4 sotto-entità anagrafiche (Produttori/Distributori/Denominazioni/Vitigni) si distinguono solo per emoji+etichetta (🏛️ 🚚 📜 🍇) come prescritto dall'architettura. Modali standardizzate (`rounded-3xl`, header amber gradient, footer con Btn primitive). Form interamente sotto primitive: stessi padding/border/focus ring ovunque.
+
+### Bump versione modulo vini
+3.37 → 3.38.
+
+### Non toccato (intenzionale)
+- CantinaV2, PerProduttoreV2, SchedaMadreV2, GestioneVino2 — già usavano pattern coerente (Btn nell'header globale, palette amber già unica). I refactor lì sarebbero invisibili.
+- MergeAnagraficaModal interno — usa ancora struttura custom (non Modal primitive) perché ha logica radio-table specifica, ma stile uniformato (rounded-3xl).
+- Cantina classica — fuori scope strada B (regola refactor ramo v2 only).
+
+### Prossimo
+- Marco prova le 4 anagrafiche + wizard nuovo vino in Cantina 2 → check visivo coerenza.
+- Eventuali ritocchi UX residui prima del cutover Fase 10.
+
+---
+
 ## 2026-05-16 — M.I espansione: 9 nuove primitive UI condivise (no codice modulo)
 
 ### Aggiunto

@@ -504,13 +504,23 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                 {fattura.fornitore_piva && <span className="font-mono">P.IVA {fattura.fornitore_piva}</span>}
                 {fattura.data_fattura && <><span>·</span><span>emessa {fattura.data_fattura}</span></>}
                 {scadenzaEff && <><span>·</span><span>scad. {scadenzaEff}</span></>}
-                {/* G.3.1b: competenza override per il CE */}
-                {fattura.competenza_anno_mese && (
+                {/* G.3.1b / C0a: competenza override (mese singolo) */}
+                {fattura.competenza_anno_mese && !fattura.spalmatura_mesi && (
                   <>
                     <span>·</span>
                     <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold border border-amber-200"
                           title="Mese di competenza override per il Conto Economico (diverso dalla data fattura)">
                       P&L competenza {fattura.competenza_anno_mese}
+                    </span>
+                  </>
+                )}
+                {/* C1 / G.3.2: spalmatura su N mesi (priorità su competenza) */}
+                {fattura.spalmatura_mesi && (
+                  <>
+                    <span>·</span>
+                    <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 text-[10px] font-semibold border border-violet-200"
+                          title={`Spalmatura attiva: il costo è distribuito su ${fattura.spalmatura_mesi} mesi a partire da ${fattura.spalmatura_data_inizio || "—"}`}>
+                      📆 Spalmata {fattura.spalmatura_mesi} mesi da {(fattura.spalmatura_data_inizio || "").slice(0, 7)}
                     </span>
                   </>
                 )}
@@ -553,6 +563,62 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                   title="Imposta o cancella il mese di competenza P&L override (diverso dalla data fattura)"
                 >
                   {fattura.competenza_anno_mese ? "✏️ modifica competenza" : "📅 sposta competenza"}
+                </button>
+                {/* C1 / G.3.2: bottone Spalmatura — il costo della fattura viene
+                    distribuito su N mesi nel CE in competenza. Priorità su "sposta
+                    competenza" se entrambi valorizzati. */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const hasSpalm = !!fattura.spalmatura_mesi;
+                    const promptMsg = hasSpalm
+                      ? `Spalmatura attuale: ${fattura.spalmatura_mesi} mesi da ${fattura.spalmatura_data_inizio}\n\nNumero mesi (3/6/12/24/36 o custom; vuoto per RIMUOVERE la spalmatura):`
+                      : `Data fattura: ${fattura.data_fattura}\n\nSpalma il costo su quanti mesi? (3/6/12/24/36 o custom)\n\nEsempio: assicurazione annuale → 12 mesi`;
+                    const valMesi = prompt(promptMsg, hasSpalm ? String(fattura.spalmatura_mesi) : "12");
+                    if (valMesi === null) return;
+                    if (valMesi.trim() === "") {
+                      // Rimuovi
+                      try {
+                        const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/${fattura.id}/spalmatura`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ mesi: null, data_inizio: null }),
+                        });
+                        if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
+                        if (typeof onReload === "function") onReload(); else window.location.reload();
+                      } catch { alert("Errore di rete"); }
+                      return;
+                    }
+                    const nMesi = parseInt(valMesi, 10);
+                    if (!Number.isInteger(nMesi) || nMesi < 1 || nMesi > 120) {
+                      alert("Numero mesi non valido (1-120)");
+                      return;
+                    }
+                    // Prompt secondo: primo mese coperto
+                    const defaultStart = fattura.spalmatura_data_inizio
+                      ? fattura.spalmatura_data_inizio.slice(0, 7)
+                      : (fattura.data_fattura || "").slice(0, 7);
+                    const valData = prompt(
+                      `Primo mese coperto dalla spalmatura (formato YYYY-MM):\n\nEsempio: 2026-01 per spalmare a partire da gennaio.`,
+                      defaultStart
+                    );
+                    if (valData === null) return;
+                    const m = valData.trim().match(/^(\d{4})-(\d{2})$/);
+                    if (!m) { alert("Formato data non valido: usa YYYY-MM (es. 2026-01)"); return; }
+                    try {
+                      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/${fattura.id}/spalmatura`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ mesi: nMesi, data_inizio: `${m[1]}-${m[2]}-01` }),
+                      });
+                      if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
+                      if (typeof onReload === "function") onReload(); else window.location.reload();
+                    } catch { alert("Errore di rete"); }
+                  }}
+                  className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                  title="Spalma il costo della fattura su N mesi nel Conto Economico (es. assicurazione annuale → 12 mesi)"
+                >
+                  {fattura.spalmatura_mesi ? "✏️ modifica spalmatura" : "📆 spalma su N mesi"}
                 </button>
               </p>
             </div>

@@ -1262,15 +1262,21 @@ def get_fattura_detail(fattura_id: int):
 
     # G.3.1b: leggo competenza_anno_mese separatamente per non rompere la view
     # `fe_fatture_with_stato` (potrebbe non esporre il campo nuovo).
+    # C1 / G.3.2: leggo anche spalmatura_mesi + spalmatura_data_inizio (mig 135).
     try:
         _comp = cur.execute(
-            "SELECT competenza_anno_mese FROM fe_fatture WHERE id = ?",
+            "SELECT competenza_anno_mese, spalmatura_mesi, spalmatura_data_inizio "
+            "FROM fe_fatture WHERE id = ?",
             (fattura_id,),
         ).fetchone()
         competenza_override = _comp["competenza_anno_mese"] if _comp else None
+        spalmatura_mesi = _comp["spalmatura_mesi"] if _comp else None
+        spalmatura_data_inizio = _comp["spalmatura_data_inizio"] if _comp else None
     except sqlite3.OperationalError:
-        # Colonna non esiste ancora (DB legacy pre-mig 133)
+        # Colonna non esiste ancora (DB legacy pre-mig 133/135)
         competenza_override = None
+        spalmatura_mesi = None
+        spalmatura_data_inizio = None
 
     cur.execute(
         """
@@ -1345,6 +1351,9 @@ def get_fattura_detail(fattura_id: int):
         "righe": [dict(r) for r in righe],
         # G.3.1b: override competenza P&L (override su data_fattura)
         "competenza_anno_mese": competenza_override,
+        # C1 / G.3.2: spalmatura competenza su N mesi (priorità su competenza_anno_mese)
+        "spalmatura_mesi": spalmatura_mesi,
+        "spalmatura_data_inizio": spalmatura_data_inizio,
     }
 
 
@@ -2102,6 +2111,93 @@ def stats_anomalie(
 # Endpoint per impostare/cancellare il mese di competenza override.
 # La data_fattura NON viene toccata (resta il dato fiscale).
 # ════════════════════════════════════════════════════════════
+
+@router.put(
+    "/fatture/{fattura_id}/spalmatura",
+    summary="Imposta o cancella la spalmatura competenza di una fattura su N mesi (C1 / G.3.2)",
+)
+def set_fattura_spalmatura(
+    fattura_id: int,
+    mesi: int = Body(None, embed=True),
+    data_inizio: str = Body(None, embed=True),  # 'YYYY-MM-01'
+    current_user=Depends(get_current_user),
+):
+    """Imposta la spalmatura competenza per il Conto Economico.
+
+    Body:
+      - mesi + data_inizio   → imposta `spalmatura_mesi` + `spalmatura_data_inizio`
+        L'importo della fattura viene diviso per N e attribuito ai mesi del range
+        [data_inizio, data_inizio + mesi).
+      - mesi=null e data_inizio=null  → cancella la spalmatura (torna al default
+        data_fattura o competenza_anno_mese se valorizzato).
+
+    Esempio: assicurazione annuale del 15/01/2026 da €1.200:
+      PUT /contabilita/fe/fatture/456/spalmatura  {"mesi": 12, "data_inizio": "2026-01-01"}
+      → CE Gen-Dic 2026 vede € 100/mese sotto ASSICURAZIONI.
+
+    Priorità nel service CE: spalmatura > competenza_anno_mese > data_fattura.
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        # Verifica colonne (mig 135 applicata?)
+        cols = {r[1] for r in cur.execute("PRAGMA table_info(fe_fatture)").fetchall()}
+        if "spalmatura_mesi" not in cols:
+            raise HTTPException(
+                status_code=503,
+                detail="Spalmatura non disponibile su questo DB (mig 135 non applicata)",
+            )
+
+        row = cur.execute(
+            "SELECT id, data_fattura, spalmatura_mesi, spalmatura_data_inizio "
+            "FROM fe_fatture WHERE id = ?",
+            (fattura_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Fattura id={fattura_id} non trovata")
+
+        # Cancellazione
+        if mesi is None and (data_inizio is None or not str(data_inizio).strip()):
+            cur.execute(
+                "UPDATE fe_fatture SET spalmatura_mesi=NULL, spalmatura_data_inizio=NULL "
+                "WHERE id=?",
+                (fattura_id,)
+            )
+            conn.commit()
+            return {"id": fattura_id, "spalmatura_mesi": None, "spalmatura_data_inizio": None,
+                    "azione": "spalmatura_rimossa"}
+
+        # Validazione
+        if mesi is None or not isinstance(mesi, int) or mesi <= 0 or mesi > 120:
+            raise HTTPException(status_code=400,
+                detail=f"Parametro 'mesi' invalido: {mesi}. Atteso intero 1..120")
+        if not data_inizio or not isinstance(data_inizio, str):
+            raise HTTPException(status_code=400,
+                detail="Parametro 'data_inizio' obbligatorio (formato YYYY-MM-01)")
+        # Normalizzazione: accetta YYYY-MM o YYYY-MM-DD, forza al primo del mese
+        di = data_inizio.strip()
+        if len(di) == 7 and di[4] == "-":
+            di = di + "-01"
+        import re as _re
+        if not _re.match(r"^\d{4}-\d{2}-01$", di):
+            raise HTTPException(status_code=400,
+                detail=f"data_inizio invalida: {data_inizio}. Atteso YYYY-MM o YYYY-MM-01")
+
+        cur.execute(
+            "UPDATE fe_fatture SET spalmatura_mesi=?, spalmatura_data_inizio=? WHERE id=?",
+            (mesi, di, fattura_id)
+        )
+        conn.commit()
+        return {
+            "id": fattura_id,
+            "spalmatura_mesi": mesi,
+            "spalmatura_data_inizio": di,
+            "data_fattura": row["data_fattura"],
+            "azione": "spalmatura_impostata",
+        }
+    finally:
+        conn.close()
+
 
 @router.put(
     "/fatture/{fattura_id}/competenza",

@@ -1675,13 +1675,22 @@ def create_spesa_fissa(
             sub_id = int(sub_id) if sub_id not in (None, "", 0) else None
         except (ValueError, TypeError):
             sub_id = None
+        # C1 / G.3.2: spalmatura_mesi + spalmatura_data_inizio (mig 135)
+        spal_mesi = payload.get("spalmatura_mesi")
+        try:
+            spal_mesi = int(spal_mesi) if spal_mesi not in (None, "", 0) else None
+        except (ValueError, TypeError):
+            spal_mesi = None
+        spal_data = payload.get("spalmatura_data_inizio") or None
+
         fc.execute("""
             INSERT INTO cg_spese_fisse
                 (tipo, titolo, descrizione, importo, frequenza, giorno_scadenza,
                  data_inizio, data_fine, note, iban, attiva,
                  importo_originale, spese_legali,
-                 categoria_id, sottocategoria_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+                 categoria_id, sottocategoria_id,
+                 spalmatura_mesi, spalmatura_data_inizio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
         """, (
             tipo,
             payload.get("titolo", "").strip(),
@@ -1697,6 +1706,8 @@ def create_spesa_fissa(
             float(payload.get("spese_legali", 0) or 0),
             cat_id,
             sub_id,
+            spal_mesi,
+            spal_data,
         ))
         new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
 
@@ -1795,9 +1806,11 @@ def update_spesa_fissa(
     # Audit 2026-05-16: aggiunti categoria_id + sottocategoria_id (mig 129).
     # Editabili dalla UI Spese Fisse, ammessi NULL per "fallback automatico al
     # mapping TIPO→categoria (mig 129) o 'Non categorizzato' nel CE".
+    # C1 / G.3.2 (Marco 2026-05-16): spalmatura_mesi + spalmatura_data_inizio (mig 135).
     allowed = ("tipo", "titolo", "descrizione", "importo", "frequenza",
                "giorno_scadenza", "data_inizio", "data_fine", "note", "iban", "attiva",
-               "categoria_id", "sottocategoria_id")
+               "categoria_id", "sottocategoria_id",
+               "spalmatura_mesi", "spalmatura_data_inizio")
     sets = []
     params = []
     for field in allowed:

@@ -128,7 +128,7 @@ function StatsPanel({ onJump }) {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card label="Produttori"    value={stats.produttori}    tab="produttori"    color="border-amber-300 bg-amber-50" />
         <Card label="Distributori"  value={stats.fornitori}     tab="fornitori"     color="border-blue-300 bg-blue-50" />
-        <Card label="Denominazioni" value={stats.denominazioni} tab="denominazioni" color="border-violet-300 bg-violet-50" />
+        <Card label="Denominazioni" value={stats.denominazioni} tab="denominazioni" color="border-amber-300 bg-amber-50" />
         <Card label="Vitigni"       value={stats.vitigni}       tab="vitigni"       color="border-emerald-300 bg-emerald-50" />
         <Card label="Vini madre"    value={stats.madre}         tab="madre"         color="border-rose-300 bg-rose-50" />
         <Card label="Bottiglie (in v2)" value={stats.bottiglie}  tab="madre"        color="border-neutral-300 bg-white" />
@@ -515,18 +515,18 @@ function DenominazioniPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 flex-wrap p-3 bg-violet-50 border border-violet-200 rounded-lg">
-        <span className="text-xs font-semibold text-violet-900">Sync da fonti ufficiali UE:</span>
+      <div className="flex items-center gap-2 flex-wrap p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <span className="text-xs font-semibold text-amber-900">Sync da fonti ufficiali UE:</span>
         <button onClick={() => handleSync(true)} disabled={syncing}
-          className="px-3 py-1 rounded text-xs font-semibold border border-violet-400 text-violet-800 bg-white hover:bg-violet-50 disabled:opacity-40">
+          className="px-3 py-1 rounded text-xs font-semibold border border-amber-400 text-amber-800 bg-white hover:bg-amber-50 disabled:opacity-40">
           {syncing ? "…" : "Dry-run (preview)"}
         </button>
         <button onClick={() => handleSync(false)} disabled={syncing}
-          className="px-3 py-1 rounded text-xs font-semibold bg-violet-700 text-white hover:bg-violet-800 disabled:opacity-40">
+          className="px-3 py-1 rounded text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-40">
           {syncing ? "…" : "Sync (commit)"}
         </button>
         {syncResult && (
-          <span className="text-xs ml-2 text-violet-900">
+          <span className="text-xs ml-2 text-amber-900">
             {syncResult.error ? `❌ ${syncResult.error}` :
               syncResult.dry_run ? `Preview: ${syncResult.denominazioni_pronte} pronte` :
               `✓ ${syncResult.upsert?.inseriti || 0} inseriti, ${syncResult.upsert?.aggiornati || 0} aggiornati, ${syncResult.upsert?.invariati || 0} invariati`}
@@ -553,7 +553,7 @@ function DenominazioniPanel() {
         <span className="text-xs text-neutral-500">{items.length} risultati</span>
         {canEdit && (
           <button onClick={() => setEditing("new")}
-            className="px-4 py-1.5 rounded-lg bg-violet-700 text-white text-sm font-semibold hover:bg-violet-800 shadow-sm ml-auto">
+            className="px-4 py-1.5 rounded-lg bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800 shadow-sm ml-auto">
             + Nuova denominazione
           </button>
         )}
@@ -578,7 +578,7 @@ function DenominazioniPanel() {
       {merging && canEdit && (
         <MergeAnagraficaModal
           kind="denominazioni"
-          palette="violet"
+          palette="amber"
           source={merging}
           candidates={items.filter(d => d.id !== merging.id)}
           countField="n_madre"
@@ -662,11 +662,11 @@ function DenominazioniTable({ items, loading, canEdit, onEdit, onMerge, onReload
               // Sono le candidate naturali al merge verso una denominazione seedata.
               const isManual = !d.codice_eambrosia && (d.source !== "eambrosia") && (d.source !== "masaf");
               return (
-                <tr key={d.id} className="border-t border-neutral-100 hover:bg-violet-50 cursor-pointer transition"
+                <tr key={d.id} className="border-t border-neutral-100 hover:bg-amber-50 cursor-pointer transition"
                     onClick={() => openDetail(d.id)} title="Apri lista vini con questa denominazione">
                   <td className="px-3 py-1.5 font-mono text-xs text-neutral-500">{d.id}</td>
                   <td className="px-3 py-1.5 font-mono text-xs">{d.codice_eambrosia || (isManual ? <span className="text-amber-700 italic">manuale</span> : "—")}</td>
-                  <td className="px-3 py-1.5 font-semibold text-violet-900 hover:underline">{d.nome} {d.tipo}</td>
+                  <td className="px-3 py-1.5 font-semibold text-amber-900 hover:underline">{d.nome} {d.tipo}</td>
                   <td className="px-3 py-1.5">{d.nazione}</td>
                   <td className="px-3 py-1.5">{d.regione || "—"}</td>
                   <td className="px-3 py-1.5 text-xs text-neutral-500">{d.source || "—"}</td>
@@ -676,7 +676,7 @@ function DenominazioniTable({ items, loading, canEdit, onEdit, onMerge, onReload
                         className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100 mr-1"
                         title="Modifica denominazione">✏️</button>
                       <button onClick={() => onMerge(d)}
-                        className="px-2 py-1 text-xs rounded border border-violet-400 text-violet-800 hover:bg-violet-50 mr-1"
+                        className="px-2 py-1 text-xs rounded border border-amber-400 text-amber-800 hover:bg-amber-50 mr-1"
                         title="Fondi in un'altra denominazione (duplicati)">🔀</button>
                       <button onClick={() => handleDelete(d)}
                         className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50"
@@ -770,7 +770,7 @@ function DenominazioneEditModal({ item, isNew, onClose, onSaved }) {
               <input type="text" value={form[f.key] ?? ""}
                 onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                 placeholder={f.placeholder || ""}
-                className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
             </div>
           ))}
         </div>
@@ -781,7 +781,7 @@ function DenominazioneEditModal({ item, isNew, onClose, onSaved }) {
             Annulla
           </button>
           <button onClick={save} disabled={saving}
-            className="px-5 py-1.5 rounded-lg bg-violet-700 text-white text-sm font-semibold hover:bg-violet-800 disabled:opacity-40">
+            className="px-5 py-1.5 rounded-lg bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800 disabled:opacity-40">
             {saving ? "Salvo…" : (isNew ? "Crea" : "Salva")}
           </button>
         </div>
@@ -819,10 +819,10 @@ function DenominazioneDetailModal({ denominazione: d, onClose }) {
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col"
            onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-violet-200 bg-gradient-to-r from-violet-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
+        <div className="px-5 py-3 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-violet-700">Denominazione #{d.id}{d.codice_eambrosia ? ` · ${d.codice_eambrosia}` : ""}</div>
-            <h3 className="text-lg font-semibold font-playfair text-violet-900 truncate">📜 {d.nome} {d.tipo}</h3>
+            <div className="text-[10px] uppercase tracking-wider text-amber-700">Denominazione #{d.id}{d.codice_eambrosia ? ` · ${d.codice_eambrosia}` : ""}</div>
+            <h3 className="text-lg font-semibold font-playfair text-amber-900 truncate">📜 {d.nome} {d.tipo}</h3>
             <p className="text-xs text-neutral-700 mt-0.5">
               {[d.nazione, d.regione, d.source].filter(Boolean).join(" · ") || "—"}
             </p>
@@ -870,11 +870,11 @@ function DenominazioneDetailModal({ denominazione: d, onClose }) {
                   const canDrill = !!madriIndex[m.id];
                   return (
                     <tr key={m.id}
-                        className={`border-t border-neutral-100 transition ${canDrill ? "cursor-pointer hover:bg-violet-50" : "opacity-60"}`}
+                        className={`border-t border-neutral-100 transition ${canDrill ? "cursor-pointer hover:bg-amber-50" : "opacity-60"}`}
                         onClick={() => canDrill && setOpenMadreId(m.id)}
                         title={canDrill ? "Apri scheda vino madre" : "Scheda non disponibile"}>
                       <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{m.id}</td>
-                      <td className="px-3 py-1.5 font-semibold text-violet-900 hover:underline">{m.descrizione}</td>
+                      <td className="px-3 py-1.5 font-semibold text-amber-900 hover:underline">{m.descrizione}</td>
                       <td className="px-3 py-1.5 text-xs text-neutral-700">{m.produttore_nome || <span className="text-neutral-400">—</span>}</td>
                       <td className="px-3 py-1.5 text-xs text-neutral-700">{m.tipologia || "—"}</td>
                       <td className="px-3 py-1.5 text-right tabular-nums">{m.n_bottiglie || 0}</td>

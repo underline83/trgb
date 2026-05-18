@@ -24,6 +24,8 @@ import SchedaMadreV2 from "../../../components/vini/SchedaMadreV2";
 // M2.5.5: helper condivisi (sortRows + SortTh) e componente Merge generico.
 import { sortRows, SortTh } from "../../../utils/vini/sortableTable";
 import MergeAnagraficaModal from "../../../components/vini/MergeAnagraficaModal";
+// M2.8: primitive M.I (palette amber unificata per tutto il modulo Vini).
+import { Btn, Card, Modal, FieldLabel, TextInput, Select, Textarea } from "../../../components/ui";
 
 export default function ProduttoriPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
@@ -85,30 +87,25 @@ export default function ProduttoriPanel() {
   return (
     <div className="space-y-3">
       {/* Toolbar filtri */}
-      <div className="flex items-center gap-2 flex-wrap p-3 bg-amber-50 border border-amber-200 rounded-lg">
-        <input
-          type="text"
-          placeholder="Cerca produttore per nome…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-1.5 rounded-lg border border-amber-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-        />
-        <select value={nazione} onChange={e => setNazione(e.target.value)}
-          className="px-3 py-1.5 rounded-lg border border-amber-300 text-sm bg-white">
-          <option value="">Tutte le nazioni</option>
-          {nazioniDisponibili.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
-        <label className="flex items-center gap-1.5 text-xs text-amber-900 bg-white border border-amber-300 rounded-lg px-2 py-1.5 cursor-pointer">
-          <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
-          Solo orfani (0 vini)
-        </label>
-        {canEdit && (
-          <button onClick={() => setEditing("new")}
-            className="px-4 py-1.5 rounded-lg bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800 shadow-sm">
-            + Nuovo produttore
-          </button>
-        )}
-      </div>
+      <Card tone="amber" radius="2xl" padding="sm">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <TextInput value={search} onChange={setSearch} placeholder="Cerca produttore per nome…" />
+          </div>
+          <Select value={nazione} onChange={setNazione}
+            options={nazioniDisponibili}
+            placeholder="Tutte le nazioni" />
+          <label className="flex items-center gap-1.5 text-xs text-amber-900 bg-white border border-amber-300 rounded-lg px-2 py-1.5 cursor-pointer">
+            <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
+            Solo orfani (0 vini)
+          </label>
+          {canEdit && (
+            <Btn variant="warning" size="sm" onClick={() => setEditing("new")}>
+              + Nuovo produttore
+            </Btn>
+          )}
+        </div>
+      </Card>
 
       {/* Riepilogo KPI */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
@@ -302,8 +299,8 @@ function ProduttoreDetailModal({ produttore: p, onClose, onEdit }) {
   const openMadre = openMadreId ? madriIndex[openMadreId] : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col"
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col"
            onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-3 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
@@ -316,15 +313,9 @@ function ProduttoreDetailModal({ produttore: p, onClose, onEdit }) {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {!openMadre && (
-              <button onClick={onEdit}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800">
-                ✏️ Modifica
-              </button>
+              <Btn variant="warning" size="sm" onClick={onEdit}>✏️ Modifica</Btn>
             )}
-            <button onClick={onClose}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 hover:bg-neutral-50">
-              Chiudi
-            </button>
+            <Btn variant="secondary" size="sm" onClick={onClose}>Chiudi</Btn>
           </div>
         </div>
 
@@ -344,12 +335,11 @@ function ProduttoreDetailModal({ produttore: p, onClose, onEdit }) {
 
         {/* Toolbar drill-down (visibile se vino aperto) */}
         {openMadre && (
-          <div className="px-3 py-2 bg-rose-50 border-b border-rose-200 flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => setOpenMadreId(null)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-50 shadow-sm">
+          <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 flex-shrink-0">
+            <Btn variant="secondary" size="sm" onClick={() => setOpenMadreId(null)}>
               ← Lista vini di {p.nome}
-            </button>
-            <span className="text-xs font-bold text-rose-900">🍷 Scheda Vino Madre</span>
+            </Btn>
+            <span className="text-xs font-bold text-amber-900">🍷 Scheda Vino Madre</span>
           </div>
         )}
 
@@ -456,43 +446,34 @@ function ProduttoreEditModal({ item, isNew, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold mb-4 text-neutral-900">
-          {isNew ? "🆕 Nuovo produttore" : `✏️ Modifica produttore #${item.id}`}
-        </h3>
-        <div className="space-y-3">
-          {PRODUTTORE_FIELDS.map(f => (
-            <div key={f.key}>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                {f.label}{f.required && <span className="text-red-500"> *</span>}
-              </label>
-              {f.type === "textarea" ? (
-                <textarea rows={3} value={form[f.key] ?? ""}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
-              ) : (
-                <input type="text" value={form[f.key] ?? ""}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder || ""}
-                  className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
-              )}
-            </div>
-          ))}
-        </div>
-        {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
-        <div className="flex justify-end gap-2 mt-5">
-          <button onClick={onClose}
-            className="px-4 py-1.5 rounded-lg border border-neutral-300 text-sm hover:bg-neutral-50">
-            Annulla
-          </button>
-          <button onClick={save} disabled={saving}
-            className="px-5 py-1.5 rounded-lg bg-amber-700 text-white text-sm font-semibold hover:bg-amber-800 disabled:opacity-40">
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={isNew ? "🆕 Nuovo produttore" : `✏️ Modifica produttore #${item.id}`}
+      tone="amber"
+      size="md"
+      footer={
+        <>
+          <Btn variant="secondary" size="md" onClick={onClose}>Annulla</Btn>
+          <Btn variant="warning" size="md" onClick={save} loading={saving}>
             {saving ? "Salvo…" : (isNew ? "Crea" : "Salva")}
-          </button>
-        </div>
+          </Btn>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {PRODUTTORE_FIELDS.map(f => (
+          <FieldLabel key={f.key} label={f.label} required={f.required}>
+            {f.type === "textarea" ? (
+              <Textarea rows={3} value={form[f.key]} onChange={v => setForm(p => ({ ...p, [f.key]: v }))} />
+            ) : (
+              <TextInput value={form[f.key]} onChange={v => setForm(p => ({ ...p, [f.key]: v }))} placeholder={f.placeholder} />
+            )}
+          </FieldLabel>
+        ))}
       </div>
-    </div>
+      {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
+    </Modal>
   );
 }
 

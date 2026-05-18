@@ -162,23 +162,65 @@ def _aggregate_fatture_per_categoria(
       {categoria, sottocategoria, tipo_riga, id, spesa_fissa_id, data,
        descrizione, ref, importo}
     """
-    # G.3.1b (Marco 2026-05-16): competenza override.
-    # Una fattura può avere `competenza_anno_mese` valorizzato (YYYY-MM): se sì,
-    # quella è la sua competenza P&L, indipendentemente da data_fattura. Altrimenti
-    # fallback a strftime('%Y-%m', data_fattura) come default. Pattern di
-    # tabella simile a `periodo_riferimento` su `cg_uscite` (stipendi).
+    # G.3.1b / C0a (Marco 2026-05-16): competenza override.
+    # G.3.2 / C1   (Marco 2026-05-16): SPALMATURA su N mesi.
+    #
+    # Una fattura può avere:
+    #  - `competenza_anno_mese` (YYYY-MM): "questo singolo mese" è la competenza
+    #  - `spalmatura_mesi` + `spalmatura_data_inizio`: il costo è distribuito
+    #    su N mesi consecutivi a partire da `spalmatura_data_inizio`. Esempio:
+    #    assicurazione annuale €1200 con spalmatura_mesi=12,
+    #    spalmatura_data_inizio='2026-01-01' → 100€/mese da Gen a Dic 2026.
+    #
+    # Priorità: spalmatura > competenza_anno_mese > data_fattura.
+    # Se la fattura è spalmata, l'importo di OGNI riga viene diviso per N
+    # e incluso nel mese richiesto SOLO se è dentro l'intervallo coperto.
     # `periodo_rif` è la stringa 'YYYY-MM' del periodo richiesto.
     periodo_rif = primo[:7]  # primo = 'YYYY-MM-01'
-    # NB: il check tollera DB legacy senza la colonna (try/except + fallback).
-    has_competenza_col = any(
-        r[1] == "competenza_anno_mese"
-        for r in fc_conn.execute("PRAGMA table_info(fe_fatture)").fetchall()
-    )
-    competenza_clause = (
-        "COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) = ?"
-        if has_competenza_col
-        else "strftime('%Y-%m', f.data_fattura) = ?"
-    )
+
+    pragma_cols = {r[1] for r in fc_conn.execute("PRAGMA table_info(fe_fatture)").fetchall()}
+    has_competenza_col = "competenza_anno_mese" in pragma_cols
+    has_spalmatura_col = "spalmatura_mesi" in pragma_cols
+
+    # WHERE clause che gestisce 3 livelli di priorità:
+    #   spalmatura (range mesi) > competenza_override (mese singolo) > data_fattura (mese)
+    if has_spalmatura_col and has_competenza_col:
+        # Spalmatura: il periodo_rif è in [spalmatura_data_inizio, +spalmatura_mesi)
+        # SQLite: 'YYYY-MM' + N mesi → uso date(spalmatura_data_inizio, '+N months') < ?
+        # ma più semplice è confronto stringa: spalmatura_data_inizio <= periodo_rif+'-01'
+        # AND spalmatura_data_inizio + N mesi > periodo_rif+'-01'.
+        competenza_clause = """
+            (
+              f.spalmatura_mesi IS NOT NULL AND f.spalmatura_mesi > 0
+              AND f.spalmatura_data_inizio IS NOT NULL
+              AND f.spalmatura_data_inizio <= ? || '-01'
+              AND strftime('%Y-%m', date(f.spalmatura_data_inizio, '+' || f.spalmatura_mesi || ' months', '-1 day')) >= ?
+            )
+            OR (
+              (f.spalmatura_mesi IS NULL OR f.spalmatura_mesi = 0)
+              AND COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) = ?
+            )
+        """
+        params = (periodo_rif, periodo_rif, periodo_rif)
+    elif has_competenza_col:
+        competenza_clause = "COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) = ?"
+        params = (periodo_rif,)
+    else:
+        competenza_clause = "strftime('%Y-%m', f.data_fattura) = ?"
+        params = (periodo_rif,)
+
+    # Importo: se spalmatura attiva, dividi per N mesi. Altrimenti SUM riga.
+    if has_spalmatura_col:
+        importo_expr = """
+            CASE
+              WHEN f.spalmatura_mesi IS NOT NULL AND f.spalmatura_mesi > 0 THEN
+                COALESCE(SUM(r.prezzo_totale), 0) / CAST(f.spalmatura_mesi AS REAL)
+              ELSE COALESCE(SUM(r.prezzo_totale), 0)
+            END
+        """
+    else:
+        importo_expr = "COALESCE(SUM(r.prezzo_totale), 0)"
+
     rows = fc_conn.execute(f"""
         SELECT
             COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
@@ -189,7 +231,7 @@ def _aggregate_fatture_per_categoria(
             f.data_fattura                                                AS data,
             COALESCE(f.numero_fattura, '—')                               AS descrizione,
             COALESCE(f.fornitore_nome, '—')                               AS ref,
-            COALESCE(SUM(r.prezzo_totale), 0)                             AS importo
+            {importo_expr}                                                AS importo
         FROM fe_fatture f
         JOIN fe_righe r ON r.fattura_id = f.id
         LEFT JOIN fe_fornitore_categoria ffc
@@ -198,7 +240,7 @@ def _aggregate_fatture_per_categoria(
         LEFT JOIN fe_sottocategorie  fsub_riga ON r.sottocategoria_id = fsub_riga.id
         LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
         LEFT JOIN fe_sottocategorie  fsub_forn ON ffc.sottocategoria_id = fsub_forn.id
-        WHERE {competenza_clause}
+        WHERE ({competenza_clause})
           AND COALESCE(f.is_autofattura, 0) = 0
           AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
           -- escluso_acquisti vive su fe_fornitore_categoria (CLAUDE.md regola critica),
@@ -208,7 +250,7 @@ def _aggregate_fatture_per_categoria(
                  COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato'),
                  COALESCE(fsub_riga.nome, fsub_forn.nome, '—')
         ORDER BY f.data_fattura DESC, importo DESC, f.id DESC
-    """, (periodo_rif,)).fetchall()
+    """, params).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -277,10 +319,24 @@ def _aggregate_spese_fisse_per_categoria(
         'RATEIZZAZIONE_TASSE',
         'F24_STIPENDI',
     )
+    # C1 / G.3.2 (Marco 2026-05-16): SPALMATURA.
+    # Verifico presenza colonna su cg_spese_fisse (DB legacy può non averla).
+    sf_cols = {r[1] for r in fc_conn.execute("PRAGMA table_info(cg_spese_fisse)").fetchall()}
+    has_spalmatura_sf = "spalmatura_mesi" in sf_cols
+
     if modalita == "competenza":
         # Escludi stipendi + rate/prestiti/tasse pregresse
         placeholders = ','.join(['?'] * len(tipi_esclusi_competenza))
-        rows = fc_conn.execute(f"""
+        # Ramo 1: spese fisse "normali" (non spalmate) → leggo da cg_uscite come prima
+        # Ramo 2: spese fisse SPALMATE → leggo direttamente da cg_spese_fisse,
+        #         calcolo quota mensile, filtro se periodo_rif nel range coperto.
+        # NB: se una spesa è spalmata, le sue cg_uscite mensili NON entrano (filtro
+        # `spalmatura_mesi IS NULL OR = 0` sul ramo 1) per evitare doppio conteggio.
+        spalmatura_filter_ramo1 = (
+            "AND (sf.spalmatura_mesi IS NULL OR sf.spalmatura_mesi = 0)"
+            if has_spalmatura_sf else ""
+        )
+        rows_normali = fc_conn.execute(f"""
             SELECT
                 COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
                 COALESCE(fsub.nome, '—')                   AS sottocategoria,
@@ -298,8 +354,40 @@ def _aggregate_spese_fisse_per_categoria(
             WHERE u.tipo_uscita = 'SPESA_FISSA'
               AND u.periodo_riferimento = ?
               AND COALESCE(sf.tipo, '') NOT IN ({placeholders})
+              {spalmatura_filter_ramo1}
             ORDER BY u.totale DESC, u.id DESC
         """, (periodo_rif, *tipi_esclusi_competenza)).fetchall()
+        rows = list(rows_normali)
+
+        # Ramo 2: spese fisse SPALMATE attive il cui range copre periodo_rif
+        if has_spalmatura_sf:
+            rows_spalmate = fc_conn.execute(f"""
+                SELECT
+                    COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
+                    COALESCE(fsub.nome, '—')                   AS sottocategoria,
+                    'spesa_fissa_spalmata'                     AS tipo_riga,
+                    sf.id                                      AS id,
+                    sf.id                                      AS spesa_fissa_id,
+                    (? || '-01')                               AS data,
+                    sf.titolo || ' (quota ' || sf.spalmatura_mesi || ')' AS descrizione,
+                    COALESCE(sf.tipo, '—')                     AS ref,
+                    CAST(sf.importo AS REAL) / CAST(sf.spalmatura_mesi AS REAL) AS importo
+                FROM cg_spese_fisse sf
+                LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
+                LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
+                WHERE sf.attiva = 1
+                  AND sf.spalmatura_mesi IS NOT NULL
+                  AND sf.spalmatura_mesi > 0
+                  AND sf.spalmatura_data_inizio IS NOT NULL
+                  AND sf.spalmatura_data_inizio <= ? || '-01'
+                  AND strftime('%Y-%m',
+                               date(sf.spalmatura_data_inizio,
+                                    '+' || sf.spalmatura_mesi || ' months',
+                                    '-1 day')) >= ?
+                  AND COALESCE(sf.tipo, '') NOT IN ({placeholders})
+                ORDER BY sf.importo DESC
+            """, (periodo_rif, periodo_rif, periodo_rif, *tipi_esclusi_competenza)).fetchall()
+            rows.extend(rows_spalmate)
     else:
         # Modalità cassa: esclude solo STIPENDIO da cg_spese_fisse perché
         # i netti reali vengono dal flow stipendi (cg_uscite STIPENDIO o

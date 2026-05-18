@@ -72,6 +72,7 @@ export default function ControlloGestioneSpeseFisse() {
     tipo: "AFFITTO", titolo: "", descrizione: "", importo: "",
     frequenza: "MENSILE", giorno_scadenza: "", data_inizio: "", data_fine: "", note: "",
     categoria_id: "", sottocategoria_id: "",  // Audit 2026-05-16
+    spalmatura_mesi: "", spalmatura_data_inizio: "",  // C1 (G.3.2) 2026-05-16
   });
   const [saving, setSaving] = useState(false);
   // Audit 2026-05-16: lista categorie CE (fe_categorie) per il selettore
@@ -180,7 +181,8 @@ export default function ControlloGestioneSpeseFisse() {
   const resetForm = () => {
     setForm({ tipo: "AFFITTO", titolo: "", descrizione: "", importo: "",
               frequenza: "MENSILE", giorno_scadenza: "", data_inizio: "", data_fine: "", note: "", iban: "",
-              categoria_id: "", sottocategoria_id: "" });
+              categoria_id: "", sottocategoria_id: "",
+              spalmatura_mesi: "", spalmatura_data_inizio: "" });
     setEditId(null);
   };
 
@@ -193,6 +195,8 @@ export default function ControlloGestioneSpeseFisse() {
       note: s.note || "", iban: s.iban || "",
       categoria_id: s.categoria_id ? String(s.categoria_id) : "",
       sottocategoria_id: s.sottocategoria_id ? String(s.sottocategoria_id) : "",
+      spalmatura_mesi: s.spalmatura_mesi ? String(s.spalmatura_mesi) : "",
+      spalmatura_data_inizio: s.spalmatura_data_inizio || "",
     });
     setEditId(s.id);
     setShowForm(true);
@@ -220,6 +224,9 @@ export default function ControlloGestioneSpeseFisse() {
         // Audit 2026-05-16: categoria CE (null se non scelta)
         categoria_id: form.categoria_id ? parseInt(form.categoria_id) : null,
         sottocategoria_id: form.sottocategoria_id ? parseInt(form.sottocategoria_id) : null,
+        // C1 / G.3.2: spalmatura competenza (null = no spalmatura)
+        spalmatura_mesi: form.spalmatura_mesi ? parseInt(form.spalmatura_mesi) : null,
+        spalmatura_data_inizio: form.spalmatura_data_inizio || null,
       };
       const url = editId ? `${CG}/spese-fisse/${editId}` : `${CG}/spese-fisse`;
       const method = editId ? "PUT" : "POST";
@@ -1967,6 +1974,41 @@ export default function ControlloGestioneSpeseFisse() {
                     <option key={s.id} value={s.id}>{s.nome}</option>
                   ))}
                 </select>
+              </div>
+              {/* C1 / G.3.2 (Marco 2026-05-16): spalmatura competenza su N mesi.
+                  Esempio: assicurazione annuale €1.200 pagata in gennaio → competenza
+                  €100/mese × 12. Nel CE in competenza viene mostrata la quota mensile;
+                  in cassa il costo intero nel mese di pagamento. */}
+              <div>
+                <label className="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                  <span>Spalmatura competenza</span>
+                  <Tooltip label="Se valorizzato, il costo della spesa viene distribuito su N mesi nel Conto Economico (modalità competenza). Esempio: assicurazione annuale €1.200 con 12 mesi → €100/mese. Vuoto = nessuna spalmatura.">
+                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold cursor-help select-none">i</span>
+                  </Tooltip>
+                </label>
+                <select
+                  value={form.spalmatura_mesi}
+                  onChange={e => setForm({ ...form, spalmatura_mesi: e.target.value })}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+                  <option value="">Nessuna (costo nel mese di pagamento)</option>
+                  <option value="3">3 mesi (trimestrale)</option>
+                  <option value="6">6 mesi (semestrale)</option>
+                  <option value="12">12 mesi (annuale)</option>
+                  <option value="24">24 mesi (biennale)</option>
+                  <option value="36">36 mesi (triennale)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-neutral-500 mb-1 block">
+                  Spalmatura — primo mese coperto
+                </label>
+                <input
+                  type="month"
+                  value={(form.spalmatura_data_inizio || "").slice(0, 7)}
+                  onChange={e => setForm({ ...form, spalmatura_data_inizio: e.target.value ? `${e.target.value}-01` : "" })}
+                  disabled={!form.spalmatura_mesi}
+                  placeholder="2026-01"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm disabled:bg-neutral-50 disabled:text-neutral-400" />
               </div>
               <div>
                 <label className="text-xs text-neutral-500 mb-1 flex items-center gap-1">

@@ -16,14 +16,11 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE, apiFetch } from "../../../config/api";
-import SchedaMadreV2 from "../../../components/vini/SchedaMadreV2";
-// SchedaMadreV2 importato per coerenza con gli altri panel; non usato qui perché
-// /vini/v2/madri-raggruppate non filtra per vitigno_id (UNION sui 5 slot servirebbe).
-// eslint-disable-next-line no-unused-vars
-const _SchedaMadreV2Ref = SchedaMadreV2;
 // M2.5.5: helper condivisi.
 import { sortRows, SortTh } from "../../../utils/vini/sortableTable";
 import MergeAnagraficaModal from "../../../components/vini/MergeAnagraficaModal";
+// M2.8: primitive M.I. Palette amber (modulo Vini), no più emerald per entità.
+import { Btn, Card, Modal, FieldLabel, TextInput, Textarea } from "../../../components/ui";
 
 export default function VitigniPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
@@ -99,25 +96,22 @@ export default function VitigniPanel() {
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-        <input
-          type="text"
-          placeholder="Cerca vitigno per nome…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-1.5 rounded-lg border border-emerald-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
-        />
-        <label className="flex items-center gap-1.5 text-xs text-emerald-900 bg-white border border-emerald-300 rounded-lg px-2 py-1.5 cursor-pointer">
-          <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
-          Solo orfani (0 bottiglie)
-        </label>
-        {canEdit && (
-          <button onClick={() => setEditing("new")}
-            className="px-4 py-1.5 rounded-lg bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 shadow-sm">
-            + Nuovo vitigno
-          </button>
-        )}
-      </div>
+      <Card tone="amber" radius="2xl" padding="sm">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <TextInput value={search} onChange={setSearch} placeholder="Cerca vitigno per nome…" />
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-amber-900 bg-white border border-amber-300 rounded-lg px-2 py-1.5 cursor-pointer">
+            <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
+            Solo orfani (0 bottiglie)
+          </label>
+          {canEdit && (
+            <Btn variant="warning" size="sm" onClick={() => setEditing("new")}>
+              + Nuovo vitigno
+            </Btn>
+          )}
+        </div>
+      </Card>
 
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
@@ -169,10 +163,10 @@ export default function VitigniPanel() {
                 const isOrfano = (v.n_bottiglie || 0) === 0;
                 return (
                   <tr key={v.id}
-                      className={`border-t border-neutral-100 hover:bg-emerald-50/50 cursor-pointer transition ${isOrfano ? "bg-rose-50/30" : ""}`}
+                      className={`border-t border-neutral-100 hover:bg-amber-50/50 cursor-pointer transition ${isOrfano ? "bg-rose-50/30" : ""}`}
                       onClick={() => openDetail(v.id)}>
                     <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{v.id}</td>
-                    <td className="px-3 py-1.5 font-semibold text-emerald-900 hover:underline">{v.nome}</td>
+                    <td className="px-3 py-1.5 font-semibold text-amber-900 hover:underline">{v.nome}</td>
                     <td className="px-3 py-1.5 text-xs text-neutral-600 truncate max-w-[300px]" title={v.note || ""}>{v.note || <span className="text-neutral-400">—</span>}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums font-medium">{v.n_madre || 0}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{v.n_bottiglie || 0}</td>
@@ -183,7 +177,7 @@ export default function VitigniPanel() {
                           className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100 mr-1"
                           title="Modifica vitigno">✏️</button>
                         <button onClick={() => setMerging(v)}
-                          className="px-2 py-1 text-xs rounded border border-emerald-400 text-emerald-800 hover:bg-emerald-50 mr-1"
+                          className="px-2 py-1 text-xs rounded border border-amber-400 text-amber-800 hover:bg-amber-50 mr-1"
                           title="Fondi in un altro vitigno (duplicati)">🔀</button>
                         <button onClick={() => handleDelete(v)}
                           className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50"
@@ -210,7 +204,7 @@ export default function VitigniPanel() {
       {merging && canEdit && (
         <MergeAnagraficaModal
           kind="vitigni"
-          palette="emerald"
+          palette="amber"
           source={merging}
           candidates={items.filter(v => v.id !== merging.id)}
           countField="n_bottiglie"
@@ -237,24 +231,18 @@ function VitignoDetailModal({ vitigno: v, onClose, onEdit }) {
   const sortedLista = useMemo(() => sortRows(lista, sort.key, sort.dir), [lista, sort]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] overflow-hidden flex flex-col"
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[92vh] overflow-hidden flex flex-col"
            onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-emerald-200 bg-gradient-to-r from-emerald-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
+        <div className="px-5 py-3 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-emerald-700">Vitigno #{v.id}</div>
-            <h3 className="text-lg font-semibold font-playfair text-emerald-900 truncate">🍇 {v.nome}</h3>
+            <div className="text-[10px] uppercase tracking-wider text-amber-700">Vitigno #{v.id}</div>
+            <h3 className="text-lg font-semibold font-playfair text-amber-900 truncate">🍇 {v.nome}</h3>
             {v.note && <p className="text-xs text-neutral-700 mt-0.5 italic">{v.note}</p>}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={onEdit}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800">
-              ✏️ Modifica
-            </button>
-            <button onClick={onClose}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 hover:bg-neutral-50">
-              Chiudi
-            </button>
+            <Btn variant="warning" size="sm" onClick={onEdit}>✏️ Modifica</Btn>
+            <Btn variant="secondary" size="sm" onClick={onClose}>Chiudi</Btn>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 px-5 py-2 bg-neutral-50 border-b border-neutral-200 text-xs flex-shrink-0">
@@ -283,9 +271,9 @@ function VitignoDetailModal({ vitigno: v, onClose, onEdit }) {
               </thead>
               <tbody>
                 {sortedLista.map(m => (
-                  <tr key={m.id} className="border-t border-neutral-100 hover:bg-emerald-50/40">
+                  <tr key={m.id} className="border-t border-neutral-100 hover:bg-amber-50/40">
                     <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{m.id}</td>
-                    <td className="px-3 py-1.5 font-semibold text-emerald-900">{m.descrizione}</td>
+                    <td className="px-3 py-1.5 font-semibold text-amber-900">{m.descrizione}</td>
                     <td className="px-3 py-1.5 text-xs text-neutral-700">{m.produttore_nome || <span className="text-neutral-400">—</span>}</td>
                     <td className="px-3 py-1.5 text-xs text-neutral-700">{m.tipologia || "—"}</td>
                     <td className="px-3 py-1.5 text-xs text-neutral-700">{m.denominazione_display || <span className="text-neutral-400">—</span>}</td>
@@ -353,44 +341,34 @@ function VitignoEditModal({ item, isNew, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold mb-4 text-neutral-900">
-          {isNew ? "🆕 Nuovo vitigno" : `✏️ Modifica vitigno #${item.id}`}
-        </h3>
-        <div className="space-y-3">
-          {VITIGNO_FIELDS.map(f => (
-            <div key={f.key}>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                {f.label}{f.required && <span className="text-red-500"> *</span>}
-              </label>
-              {f.type === "textarea" ? (
-                <textarea rows={3} value={form[f.key] ?? ""}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder || ""}
-                  className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-              ) : (
-                <input type="text" value={form[f.key] ?? ""}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder || ""}
-                  className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-              )}
-            </div>
-          ))}
-        </div>
-        {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
-        <div className="flex justify-end gap-2 mt-5">
-          <button onClick={onClose}
-            className="px-4 py-1.5 rounded-lg border border-neutral-300 text-sm hover:bg-neutral-50">
-            Annulla
-          </button>
-          <button onClick={save} disabled={saving}
-            className="px-5 py-1.5 rounded-lg bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-40">
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={isNew ? "🆕 Nuovo vitigno" : `✏️ Modifica vitigno #${item.id}`}
+      tone="amber"
+      size="md"
+      footer={
+        <>
+          <Btn variant="secondary" size="md" onClick={onClose}>Annulla</Btn>
+          <Btn variant="warning" size="md" onClick={save} loading={saving}>
             {saving ? "Salvo…" : (isNew ? "Crea" : "Salva")}
-          </button>
-        </div>
+          </Btn>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {VITIGNO_FIELDS.map(f => (
+          <FieldLabel key={f.key} label={f.label} required={f.required}>
+            {f.type === "textarea" ? (
+              <Textarea rows={3} value={form[f.key]} onChange={v => setForm(p => ({ ...p, [f.key]: v }))} placeholder={f.placeholder} />
+            ) : (
+              <TextInput value={form[f.key]} onChange={v => setForm(p => ({ ...p, [f.key]: v }))} placeholder={f.placeholder} />
+            )}
+          </FieldLabel>
+        ))}
       </div>
-    </div>
+      {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
+    </Modal>
   );
 }
 

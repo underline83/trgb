@@ -22,6 +22,8 @@ import SchedaMadreV2 from "../../../components/vini/SchedaMadreV2";
 // M2.5.5: helper condivisi.
 import { sortRows, SortTh } from "../../../utils/vini/sortableTable";
 import MergeAnagraficaModal from "../../../components/vini/MergeAnagraficaModal";
+// M2.8: primitive M.I. Palette amber (modulo Vini), no più blue per entità.
+import { Btn, Card, Modal, FieldLabel, TextInput, Textarea } from "../../../components/ui";
 
 export default function DistributoriPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
@@ -70,25 +72,22 @@ export default function DistributoriPanel() {
   return (
     <div className="space-y-3">
       {/* Toolbar filtri */}
-      <div className="flex items-center gap-2 flex-wrap p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <input
-          type="text"
-          placeholder="Cerca distributore o rappresentante…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-1.5 rounded-lg border border-blue-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-        />
-        <label className="flex items-center gap-1.5 text-xs text-blue-900 bg-white border border-blue-300 rounded-lg px-2 py-1.5 cursor-pointer">
-          <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
-          Solo orfani (0 vini)
-        </label>
-        {canEdit && (
-          <button onClick={() => setEditing("new")}
-            className="px-4 py-1.5 rounded-lg bg-blue-700 text-white text-sm font-semibold hover:bg-blue-800 shadow-sm">
-            + Nuovo distributore
-          </button>
-        )}
-      </div>
+      <Card tone="amber" radius="2xl" padding="sm">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <TextInput value={search} onChange={setSearch} placeholder="Cerca distributore o rappresentante…" />
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-amber-900 bg-white border border-amber-300 rounded-lg px-2 py-1.5 cursor-pointer">
+            <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
+            Solo orfani (0 vini)
+          </label>
+          {canEdit && (
+            <Btn variant="warning" size="sm" onClick={() => setEditing("new")}>
+              + Nuovo distributore
+            </Btn>
+          )}
+        </div>
+      </Card>
 
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
@@ -145,7 +144,7 @@ export default function DistributoriPanel() {
                 const isOrfano = (f.n_madre || 0) === 0;
                 return (
                   <tr key={f.id}
-                      className={`border-t border-neutral-100 hover:bg-blue-50/50 cursor-pointer transition ${isOrfano ? "bg-rose-50/30" : ""}`}
+                      className={`border-t border-neutral-100 hover:bg-amber-50 cursor-pointer transition ${isOrfano ? "bg-rose-50/30" : ""}`}
                       onClick={() => openDetail(f.id)}>
                     <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{f.id}</td>
                     <td className="px-3 py-1.5 font-semibold text-neutral-900">{f.nome}</td>
@@ -161,7 +160,7 @@ export default function DistributoriPanel() {
                             className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100 mr-1"
                             title="Modifica anagrafica">✏️</button>
                           <button onClick={() => setMerging(f)}
-                            className="px-2 py-1 text-xs rounded border border-blue-400 text-blue-800 hover:bg-blue-50 mr-1"
+                            className="px-2 py-1 text-xs rounded border border-amber-400 text-amber-800 hover:bg-amber-50 mr-1"
                             title="Fondi in un altro distributore (duplicati)">🔀</button>
                           <button onClick={() => handleDelete(f)}
                             className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50"
@@ -196,7 +195,7 @@ export default function DistributoriPanel() {
       {merging && canEdit && (
         <MergeAnagraficaModal
           kind="fornitori"
-          palette="blue"
+          palette="amber"
           source={merging}
           candidates={items.filter(f => f.id !== merging.id)}
           countField="n_madre"
@@ -273,29 +272,21 @@ function DistributoreDetailModal({ fornitore: f, onClose, onEdit }) {
   const openMadre = openMadreId ? madriIndex[openMadreId] : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col"
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col"
            onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-blue-200 bg-gradient-to-r from-blue-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
+        <div className="px-5 py-3 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-blue-700">Distributore #{f.id}</div>
-            <h3 className="text-lg font-semibold font-playfair text-blue-900 truncate">🚚 {f.nome}</h3>
+            <div className="text-[10px] uppercase tracking-wider text-amber-700">Distributore #{f.id}</div>
+            <h3 className="text-lg font-semibold font-playfair text-amber-900 truncate">🚚 {f.nome}</h3>
             <p className="text-xs text-neutral-700 mt-0.5">
               {[f.citta, f.provincia, f.regione, f.nazione].filter(Boolean).join(" · ") || "—"}
               {f.rappresentante_nome && <span> · <strong>{f.rappresentante_nome}</strong>{f.rappresentante_telefono ? ` (${f.rappresentante_telefono})` : ""}</span>}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {!openMadre && (
-              <button onClick={onEdit}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800">
-                ✏️ Modifica
-              </button>
-            )}
-            <button onClick={onClose}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 hover:bg-neutral-50">
-              Chiudi
-            </button>
+            {!openMadre && <Btn variant="warning" size="sm" onClick={onEdit}>✏️ Modifica</Btn>}
+            <Btn variant="secondary" size="sm" onClick={onClose}>Chiudi</Btn>
           </div>
         </div>
 
@@ -306,7 +297,7 @@ function DistributoreDetailModal({ fornitore: f, onClose, onEdit }) {
         </div>
 
         {f.note && !openMadre && (
-          <div className="px-5 py-2 border-b border-neutral-200 text-xs text-neutral-700 italic bg-blue-50/40 flex-shrink-0">
+          <div className="px-5 py-2 border-b border-neutral-200 text-xs text-neutral-700 italic bg-amber-50/40 flex-shrink-0">
             {f.note}
           </div>
         )}
@@ -348,11 +339,11 @@ function DistributoreDetailModal({ fornitore: f, onClose, onEdit }) {
                   const canDrill = !!madriIndex[m.id];
                   return (
                     <tr key={m.id}
-                        className={`border-t border-neutral-100 transition ${canDrill ? "cursor-pointer hover:bg-blue-50" : "opacity-60"}`}
+                        className={`border-t border-neutral-100 transition ${canDrill ? "cursor-pointer hover:bg-amber-50" : "opacity-60"}`}
                         onClick={() => canDrill && setOpenMadreId(m.id)}
                         title={canDrill ? "Apri scheda vino madre" : "Scheda non disponibile (dati v2 mancanti)"}>
                       <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{m.id}</td>
-                      <td className="px-3 py-1.5 font-semibold text-blue-900 hover:underline">{m.descrizione}</td>
+                      <td className="px-3 py-1.5 font-semibold text-amber-900 hover:underline">{m.descrizione}</td>
                       <td className="px-3 py-1.5 text-xs text-neutral-700">{m.produttore_nome || <span className="text-neutral-400">—</span>}</td>
                       <td className="px-3 py-1.5 text-xs text-neutral-700">{m.tipologia || "—"}</td>
                       <td className="px-3 py-1.5 text-xs text-neutral-700">{m.denominazione_display || <span className="text-neutral-400">—</span>}</td>
@@ -428,43 +419,34 @@ function DistributoreEditModal({ item, isNew, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold mb-4 text-neutral-900">
-          {isNew ? "🆕 Nuovo distributore" : `✏️ Modifica distributore #${item.id}`}
-        </h3>
-        <div className="space-y-3">
-          {DISTRIBUTORE_FIELDS.map(f => (
-            <div key={f.key}>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                {f.label}{f.required && <span className="text-red-500"> *</span>}
-              </label>
-              {f.type === "textarea" ? (
-                <textarea rows={3} value={form[f.key] ?? ""}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-              ) : (
-                <input type="text" value={form[f.key] ?? ""}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder || ""}
-                  className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-              )}
-            </div>
-          ))}
-        </div>
-        {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
-        <div className="flex justify-end gap-2 mt-5">
-          <button onClick={onClose}
-            className="px-4 py-1.5 rounded-lg border border-neutral-300 text-sm hover:bg-neutral-50">
-            Annulla
-          </button>
-          <button onClick={save} disabled={saving}
-            className="px-5 py-1.5 rounded-lg bg-blue-700 text-white text-sm font-semibold hover:bg-blue-800 disabled:opacity-40">
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={isNew ? "🆕 Nuovo distributore" : `✏️ Modifica distributore #${item.id}`}
+      tone="amber"
+      size="md"
+      footer={
+        <>
+          <Btn variant="secondary" size="md" onClick={onClose}>Annulla</Btn>
+          <Btn variant="warning" size="md" onClick={save} loading={saving}>
             {saving ? "Salvo…" : (isNew ? "Crea" : "Salva")}
-          </button>
-        </div>
+          </Btn>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {DISTRIBUTORE_FIELDS.map(f => (
+          <FieldLabel key={f.key} label={f.label} required={f.required}>
+            {f.type === "textarea" ? (
+              <Textarea rows={3} value={form[f.key]} onChange={v => setForm(p => ({ ...p, [f.key]: v }))} />
+            ) : (
+              <TextInput value={form[f.key]} onChange={v => setForm(p => ({ ...p, [f.key]: v }))} placeholder={f.placeholder} />
+            )}
+          </FieldLabel>
+        ))}
       </div>
-    </div>
+      {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
+    </Modal>
   );
 }
 

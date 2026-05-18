@@ -122,7 +122,7 @@ export default function MergeAnagraficaModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
            onClick={e => e.stopPropagation()}>
         <div className={`px-5 py-3 border-b ${p.border} bg-gradient-to-r ${p.from} to-white`}>
           <h3 className={`text-base font-bold ${p.text}`}>{TITLES[kind] || "🔀 Fondi anagrafica"}</h3>
