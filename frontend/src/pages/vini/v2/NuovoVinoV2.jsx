@@ -898,6 +898,29 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
       return upd_;
     });
   };
+
+  // Auto-calcolo PREZZO_CARTA da EURO_LISTINO via /vini/pricing/calcola
+  // (replica MagazzinoViniNuovo_legacy righe 105-123). Triggerato onBlur.
+  const [prezzoAutoCalc, setPrezzoAutoCalc] = useState(false);
+  const onListinoBlur = async (val) => {
+    const pf = parseFloat(String(val).replace(",", "."));
+    if (!Number.isFinite(pf) || pf <= 0) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/calcola`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euro_listino: pf }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        // Aggiorna PREZZO_CARTA via onPrezzoCartaChange per riattivare anche
+        // l'auto-calcolo del calice a cascata.
+        onPrezzoCartaChange(String(data.prezzo_carta));
+        setPrezzoAutoCalc(true);
+        setTimeout(() => setPrezzoAutoCalc(false), 2000);
+      }
+    } catch {}
+  };
   const onPrezzoCaliceChange = (val) => {
     setAnnata(prev => ({ ...prev, PREZZO_CALICE: val, PREZZO_CALICE_MANUALE: 1 }));
   };
@@ -996,8 +1019,11 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
             <FieldLabel label={`Calice €${annata.PREZZO_CALICE_MANUALE ? " ✎" : " (auto)"}`}>
               <TextInput type="number" step="0.50" value={annata.PREZZO_CALICE} onChange={onPrezzoCaliceChange} />
             </FieldLabel>
-            <FieldLabel label="Listino €">
-              <TextInput type="number" step="0.01" value={annata.EURO_LISTINO} onChange={v => upd("EURO_LISTINO", v)} />
+            <FieldLabel label={`Listino €${prezzoAutoCalc ? " ✓ auto-calcolato" : ""}`}
+                        hint="Esci dal campo (Tab/click): il Prezzo Carta viene calcolato automaticamente.">
+              <TextInput type="number" step="0.01" value={annata.EURO_LISTINO}
+                onChange={v => upd("EURO_LISTINO", v)}
+                onBlur={(e) => onListinoBlur(e.target.value)} />
             </FieldLabel>
             <FieldLabel label="Sconto %">
               <TextInput type="number" step="0.01" value={annata.SCONTO} onChange={v => upd("SCONTO", v)} />
