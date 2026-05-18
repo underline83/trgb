@@ -36,6 +36,7 @@ export default function SchedaVinoV2() {
         readOnly={false}
         apiBaseDettaglio="/vini/v2/bottiglie"
         onClose={() => navigate("/vini/v2/cantina")}
+        onOpenMadre={(mid) => navigate(`/vini/v2/cantina?vista=madri&openMadre=${mid}`)}
       />
     </div>
   );

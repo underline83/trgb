@@ -170,6 +170,9 @@ const SchedaVino = forwardRef(function SchedaVino({
   //                      sulle tabelle uniche di vini_magazzino.
   readOnly = false,
   apiBaseDettaglio = "/vini/magazzino",
+  // S2 cutover 2026-05-19: callback opzionale per "Vai al madre" (bottone footer).
+  // Riceve (madre_id) → il parent decide come navigare/aprire la scheda madre.
+  onOpenMadre,
 }, ref) {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
@@ -1635,6 +1638,11 @@ const SchedaVino = forwardRef(function SchedaVino({
 
           {/* ═══════════ FOOTER AZIONI ═══════════ */}
           <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-t border-neutral-200 flex-shrink-0">
+            {vino?.madre_id && onOpenMadre && (
+              <Btn variant="secondary" size="md" type="button" onClick={() => onOpenMadre(vino.madre_id)}>
+                🍷 Vai al madre
+              </Btn>
+            )}
             {!readOnly && (
               <Btn variant="secondary" size="md" type="button" onClick={handleDuplica} disabled={duplicating}>
                 {duplicating ? "Duplico…" : "Duplica vino"}

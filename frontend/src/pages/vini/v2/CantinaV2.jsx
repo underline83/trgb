@@ -81,6 +81,8 @@ export default function CantinaV2() {
   // leggiamo soltanto; non c'è più state interno o toggle nella pagina.
   const [searchParams] = useSearchParams();
   const vista = searchParams.get("vista") === "madri" ? "madri" : "bottiglie";
+  // S2 cutover 2026-05-19: deep-link da SchedaVinoV2 "Vai al madre" → ?openMadre=N
+  const openMadreFromUrl = searchParams.get("openMadre");
   const [bottiglie, setBottiglie] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -115,6 +117,18 @@ export default function CantinaV2() {
   };
 
   useEffect(() => { fetchData(); }, []); // eslint-disable-line
+
+  // Apre la scheda madre se arrivo con ?openMadre=N (da SchedaVinoV2 "Vai al madre").
+  // Attendo che bottiglie sia caricato perché madri vengono derivate da groupByMadre.
+  useEffect(() => {
+    if (openMadreFromUrl && bottiglie.length > 0) {
+      const mid = parseInt(openMadreFromUrl, 10);
+      if (Number.isFinite(mid)) {
+        setOpenSchedaId(null);
+        setOpenMadreId(mid);
+      }
+    }
+  }, [openMadreFromUrl, bottiglie.length]);
 
   // ── Carica locConfig (stessa fonte di MagazzinoVini) ──
   useEffect(() => {
@@ -305,6 +319,8 @@ export default function CantinaV2() {
                     readOnly={false}
                     apiBaseDettaglio="/vini/v2/bottiglie"
                     onClose={() => setOpenSchedaId(null)}
+                    onVinoUpdated={fetchData}
+                    onOpenMadre={handleMadreClick}
                   />
                 </div>
               </div>
