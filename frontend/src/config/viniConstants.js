@@ -129,3 +129,40 @@ export const STATO_CONSERVAZIONE_OPTIONS = [
     label: `${v.short} — ${v.label}`,
   })),
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// Varianti "label-only" (M2 v2, sessione 2026-05-16).
+//
+// Razionale (Marco): nei dropdown del ramo Cantina 2 (form di
+// inserimento/edit, wizard, modali) i codici corti sono rumore — sono
+// rimasti dall'era Excel quando l'utente li scriveva a mano. Qui il
+// sistema popola le opzioni, l'utente sceglie: serve solo la label
+// parlante.
+//
+// I codici `short` restano dove sono visivamente utili: badge in tabelle
+// dense (cantina list), stampe, export. Non sono toccati dal sistema
+// classico né dalle visualizzazioni read-only.
+// ─────────────────────────────────────────────────────────────────────
+export const STATO_VENDITA_OPTIONS_LONG = [
+  { value: "", label: "— nessuna indicazione —" },
+  ...Object.entries(STATO_VENDITA).map(([k, v]) => ({
+    value: k,
+    label: v.label,
+  })),
+];
+
+export const STATO_RIORDINO_OPTIONS_LONG = [
+  { value: "", label: "— nessuna indicazione —" },
+  ...Object.entries(STATO_RIORDINO).map(([k, v]) => ({
+    value: k,
+    label: v.label,
+  })),
+];
+
+export const STATO_CONSERVAZIONE_OPTIONS_LONG = [
+  { value: "", label: "— nessuna indicazione —" },
+  ...Object.entries(STATO_CONSERVAZIONE).map(([k, v]) => ({
+    value: k,
+    label: v.label,
+  })),
+];

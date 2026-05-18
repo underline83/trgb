@@ -25,10 +25,13 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { API_BASE, apiFetch } from "../../../config/api";
+// Versioni "long" (solo label parlanti, senza codici corti tipo "1 — ").
+// Coerente con la riflessione UX di Marco (2026-05-16): nei form di input del
+// ramo v2 i codici Excel non aggiungono informazione — restano nei badge tabella.
 import {
-  STATO_VENDITA_OPTIONS,
-  STATO_RIORDINO_OPTIONS,
-  STATO_CONSERVAZIONE_OPTIONS,
+  STATO_VENDITA_OPTIONS_LONG as STATO_VENDITA_OPTIONS,
+  STATO_RIORDINO_OPTIONS_LONG as STATO_RIORDINO_OPTIONS,
+  STATO_CONSERVAZIONE_OPTIONS_LONG as STATO_CONSERVAZIONE_OPTIONS,
 } from "../../../config/viniConstants";
 
 const STEPS = [
@@ -84,7 +87,23 @@ export default function NuovoVinoV2() {
       <div className="bg-white border border-neutral-200 rounded-2xl shadow-sm overflow-hidden flex flex-col"
            style={{ height: "calc(100vh - 130px)" }}>
 
-        <Stepper currentStep={step} />
+        {/* Header sticky con Stepper + bottoni avanzamento (duplicati del footer
+            così sono sempre a portata di mano anche con finestra grande). */}
+        <div className="border-b border-amber-200 bg-gradient-to-r from-amber-50 to-white flex-shrink-0 flex items-center gap-3 px-4 py-3">
+          <div className="flex-1 min-w-0">
+            <Stepper currentStep={step} />
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={goBack} disabled={step === 1}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed">
+              ← Indietro
+            </button>
+            <button onClick={goNext} disabled={!canAdvance}
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-40 disabled:cursor-not-allowed">
+              {step === 3 ? "✓ Conferma" : "Avanti →"}
+            </button>
+          </div>
+        </div>
         <Crumbs produttore={produttore} madre={madre} step={step} />
 
         <div className="flex-1 overflow-auto bg-neutral-50">
@@ -132,8 +151,10 @@ export default function NuovoVinoV2() {
 // STEPPER VISIVO
 // =====================================================================
 function Stepper({ currentStep }) {
+  // NB: il wrapper esterno (padding, sfondo, border) è ora nell'header del
+  // wizard (NuovoVinoV2) per allineare il Stepper ai bottoni Indietro/Avanti.
   return (
-    <div className="px-4 py-3 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-white flex-shrink-0">
+    <div>
       <div className="flex items-center gap-2">
         {STEPS.map((s, i) => {
           const done = s.key < currentStep;
@@ -729,11 +750,14 @@ function Step3Annata({ annata, setAnnata }) {
               {formati.length === 0 && <option value="BT">BT</option>}
               {formati.map((f, i) => {
                 // L'API può ritornare stringhe o oggetti {formato, descrizione, litri}.
-                // Coerente con MagazzinoViniNuovo classico.
+                // Label parlante senza codice (M2 v2 design choice): "Bottiglia (0.75L)"
+                // invece di "BT — Bottiglia (0.75L)". Il codice corto resta sul value.
                 const fmt = typeof f === "string" ? f : f.formato;
                 const desc = typeof f === "string" ? "" : f.descrizione;
                 const litri = typeof f === "string" ? "" : f.litri;
-                const label = desc ? `${fmt} — ${desc}${litri ? ` (${litri}L)` : ""}` : fmt;
+                const label = desc
+                  ? `${desc}${litri ? ` (${litri}L)` : ""}`
+                  : fmt;
                 return <option key={fmt || i} value={fmt}>{label}</option>;
               })}
             </select>
@@ -915,9 +939,9 @@ function PreviewModal({ produttore, madre, annata, onClose, onReset }) {
               annata.IPRATICO ? "iPratico" : null,
               annata.FORZA_PREZZO ? "prezzo forzato" : null,
             ].filter(Boolean).join(" · ") || null} />
-            <PreviewRow label="Stato vendita" value={annata.STATO_VENDITA !== "" ? STATO_VENDITA_OPTIONS.find(o => String(o.value) === String(annata.STATO_VENDITA))?.label : null} />
-            <PreviewRow label="Stato riordino" value={annata.STATO_RIORDINO || null} />
-            <PreviewRow label="Stato conservazione" value={annata.STATO_CONSERVAZIONE || null} />
+            <PreviewRow label="Stato vendita"        value={labelOf(STATO_VENDITA_OPTIONS, annata.STATO_VENDITA)} />
+            <PreviewRow label="Stato riordino"       value={labelOf(STATO_RIORDINO_OPTIONS, annata.STATO_RIORDINO)} />
+            <PreviewRow label="Stato conservazione"  value={labelOf(STATO_CONSERVAZIONE_OPTIONS, annata.STATO_CONSERVAZIONE)} />
             <PreviewRow label="Locazioni" value={[
               annata.FRIGORIFERO && `${annata.FRIGORIFERO}: ${annata.QTA_FRIGO || 0}`,
               annata.LOCAZIONE_1 && `${annata.LOCAZIONE_1}: ${annata.QTA_LOC1 || 0}`,
@@ -1012,6 +1036,14 @@ function PreviewBlock({ title, highlight, children }) {
       </div>
     </div>
   );
+}
+
+// Cerca la label parlante di un'opzione dropdown dato il value, restituisce null
+// se vuoto / non trovato (così il PreviewRow non mostra la riga).
+function labelOf(options, value) {
+  if (value === "" || value == null) return null;
+  const opt = options.find(o => String(o.value) === String(value));
+  return opt && opt.value !== "" ? opt.label : null;
 }
 
 function PreviewRow({ label, value }) {
