@@ -33,7 +33,7 @@ export default function SchedaVinoV2() {
       <SchedaVino
         vinoId={Number(id)}
         inline={true}
-        readOnly={true}
+        readOnly={false}
         apiBaseDettaglio="/vini/v2/bottiglie"
         onClose={() => navigate("/vini/v2/cantina")}
       />

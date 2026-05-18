@@ -302,7 +302,7 @@ export default function CantinaV2() {
                   <SchedaVino
                     vinoId={openSchedaId}
                     inline={true}
-                    readOnly={true}
+                    readOnly={false}
                     apiBaseDettaglio="/vini/v2/bottiglie"
                     onClose={() => setOpenSchedaId(null)}
                   />

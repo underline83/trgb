@@ -487,6 +487,34 @@ const SchedaVino = forwardRef(function SchedaVino({
     }
   };
 
+  // Cancellazione vino (admin-only sul backend). Cascade: cancella movimenti,
+  // note e celle matrice collegate. Richiede doppia conferma.
+  const [deleting, setDeleting] = useState(false);
+  const handleElimina = async () => {
+    const titolo = vino?.DESCRIZIONE ? `"${vino.DESCRIZIONE}"` : `bottiglia #${vinoId}`;
+    if (!window.confirm(
+      `⚠️ Eliminare definitivamente ${titolo}?\n\n`
+      + `Verranno cancellati anche tutti i movimenti, note e celle matrice collegati.\n`
+      + `L'operazione NON è reversibile.`
+    )) return;
+    if (!window.confirm(`Sei sicuro? Conferma definitiva per ${titolo}.`)) return;
+    setDeleting(true);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/delete-vino/${vinoId}`, { method: "DELETE" });
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => "");
+        throw new Error(txt || `Errore ${resp.status}`);
+      }
+      // Successo: torna alla cantina v2 (o chiude se inline modal)
+      if (onClose) onClose();
+      else navigate("/vini/v2/cantina");
+    } catch (err) {
+      alert(err.message || "Errore durante l'eliminazione");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const cancelEdit = () => {
     if (hasEditChanges()) {
       if (!window.confirm("Hai modifiche non salvate nell'anagrafica. Vuoi davvero annullare?")) return;
@@ -1612,7 +1640,11 @@ const SchedaVino = forwardRef(function SchedaVino({
                 {duplicating ? "Duplico…" : "Duplica vino"}
               </Btn>
             )}
-{/* S2 cutover 2026-05-18: banner "Cantina classica" rimosso (Cantina classica morta). */}
+            {!readOnly && (
+              <Btn variant="danger" size="md" type="button" onClick={handleElimina} disabled={deleting}>
+                {deleting ? "Elimino…" : "🗑️ Elimina vino"}
+              </Btn>
+            )}
             {saveMsg && <span className="text-xs font-medium text-neutral-600">{saveMsg}</span>}
             <span className="flex-1" />
             {onClose && (

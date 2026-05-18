@@ -11,7 +11,7 @@ Sostituisce completamente la vecchia logica `vini_model.normalize_dataframe`
 
 PRINCIPI:
 - DB è la source of truth, Excel è solo I/O leggibile umano.
-- Chiave d'unicità per import = `id` (vini_magazzino.id, auto-increment DB).
+- Chiave d'unicità per import = `id` (vini_bottiglie.id, auto-increment DB).
 - Import idempotente: se ID esiste → SKIP (no overwrite). Se ID vuoto → INSERT.
 - Flag SI/NO leggibili nel file Excel, conversione 0/1 automatica al DB.
 - Template/export hanno le STESSE colonne (round-trip pulito).
