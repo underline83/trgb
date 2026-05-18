@@ -131,13 +131,7 @@ export default function GestioneVino2() {
                 </div>
               )}
             </div>
-            <span className="inline-flex items-center gap-1.5 text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md whitespace-nowrap">
-              <span>🔒</span>
-              <strong>READ-ONLY</strong>
-              <button onClick={() => navigate("/vini/magazzino")} className="underline hover:text-rose-900 ml-1">
-                in Cantina classica →
-              </button>
-            </span>
+{/* S2 cutover 2026-05-18: badge READ-ONLY rimosso (Cantina classica morta, scrittura attiva via wizard). */}
           </div>
         </div>
       </div>

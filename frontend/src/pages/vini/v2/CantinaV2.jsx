@@ -296,9 +296,7 @@ export default function CantinaV2() {
                     </button>
                   </div>
                   <span className="text-xs text-amber-800 font-medium ml-2">#{openSchedaId}</span>
-                  <span className="ml-auto text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md inline-flex items-center gap-1 whitespace-nowrap">
-                    🔒 READ-ONLY
-                  </span>
+                  {/* S2 cutover 2026-05-18: badge READ-ONLY rimosso. */}
                 </div>
                 <div className="p-3" ref={schedaRef}>
                   <SchedaVino
