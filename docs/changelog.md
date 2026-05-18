@@ -3,6 +3,24 @@
 
 ---
 
+## 2026-05-18 — Vini 3.41 · M2.9-bis (vitigni strutturati sul madre) `[core]`
+
+### Aggiunto
+- **Mig 131** — `app/migrations/131_madre_vitigni_strutturati.py`: ADD COLUMN x10 su `vini_madre_v2` (`vitigno_1_id..vitigno_5_id` INTEGER + `vitigno_1_pct..vitigno_5_pct` REAL). Backfill best-effort: per ogni madre, copia i vitigni dalla bottiglia più recente (ANNATA DESC, id DESC). Idempotente: skippa madri già popolati. Smoke test in sandbox: 32 madri popolati su 995, il resto ha bottiglie senza vitigni strutturati (fallback corretto).
+- **Backend model** — `promote_madre_a_composto` accetta ora una lista `vitigni: List[{vitigno_id, pct}]` (preferita) oltre a `vitigni_stringa` (deprecata). Risolve i nomi via JOIN, scrive i 5 slot strutturati sul madre, ricalcola la stringa per la composizione descrizione. `get_madre()` decora il record con `vitigni_list: [{vitigno_id, vitigno_label, pct}]`. `MADRE_FIELDS` esteso con i 10 nuovi campi.
+- **Backend router** — `MadrePromotePayload` accetta `vitigni: List[VitignoSlot]`. `MadreBase`/`MadreUpdate` estesi con i 10 campi `vitigno_X_id`/`pct` per permettere update diretto via PATCH `/madre/{id}` (whitelist `MADRE_FIELDS`).
+- **FE wizard** `NuovoVinoV2.jsx` — `PromuoviMadreModal` inizializza la lista vitigni dai dati del madre (`vitigni_list`), manda al backend i vitigni strutturati (non più solo la stringa).
+- **FE anagrafiche** `AnagraficheVini.jsx` — `MadreEditModal` ha nuova sezione "🍇 Vitigni tipici (max 5)" con UI dinamica: zero campi vuoti pre-allocati, autocomplete + righe compatte `[nome] [% input] [×]`. Caricamento iniziale via GET `/madre/{id}` (vitigni_list già risolto). Save esplode la lista nei 10 slot del PATCH (slot non usati → null espliciti per cancellare i rimossi). La preview "Descrizione composta" ora include i vitigni come quarto ingrediente.
+
+### Decisione di design
+- **Semantica vitigni**: i 5 slot sul **madre** = blend "tipico" dell'etichetta (riferimento). I 5 slot sulla **bottiglia** = blend "effettivo" per quell'annata (può divergere). Non si sincronizzano: due semantiche distinte.
+- **UI senza campi vuoti**: niente form con 10 campi statici. Pattern uniforme tra wizard e anagrafiche: autocomplete + righe dinamiche.
+
+### Bump versione
+- frontend `versions.jsx`: **vini 3.40 → 3.41**.
+
+---
+
 ## 2026-05-18 — Vini 3.40 · M2.9-bis: promozione madri legacy a descrizione composta `[core]`
 
 ### Aggiunto

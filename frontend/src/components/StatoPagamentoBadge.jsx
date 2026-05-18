@@ -1,23 +1,25 @@
 // frontend/src/components/StatoPagamentoBadge.jsx
-// @version: v1.1 — Modulo M.3 (2026-04-27): supporto valori CG (cg_uscite.stato)
+// @version: v1.2 — Step A redesign fatture (2026-05-18): + rateizzato, spostato
 //
-// Badge condiviso per visualizzare gli stati pagamento (4+ stati).
+// Badge condiviso per visualizzare gli stati pagamento (7 chip + override scaduta).
 //
 // Namespace supportati:
 //
-//   FATTURE (Modulo M.2, fe_fatture.stato_pagamento, lowercase):
-//     - da_pagare      → grigio neutro
+//   FATTURE (Modulo M.2, fe_fatture.stato_pagamento, lowercase) — legacy lossy:
+//     - da_pagare      → rosso pallido
 //     - da_verificare  → ambra (attenzione)
 //     - pagato_manuale → verde chiaro con * (in attesa di riconciliazione)
 //     - pagato         → verde solido con 🔒 (immutabile, da banca)
 //
-//   CG / RATE (Modulo M.3, cg_uscite.stato, uppercase):
-//     - PROGRAMMATO       → mappato a "da_pagare"
-//     - SCADUTO         → mappato a "da_pagare" + flag scadutaModifier
-//     - VERIFICARE   → mappato a "da_verificare"
-//     - PAGATO_MANUALE  → mappato a "pagato_manuale"
-//     - PAGATO          → mappato a "pagato"
-//     - PARZIALE        → 5° stato dedicato (caso edge rate, non in fatture)
+//   CG / RATE (Modulo M.3, cg_uscite.stato, uppercase) — tassonomia full 8 stati:
+//     - PROGRAMMATO     → "da_pagare"
+//     - SCADUTO         → "da_pagare" + flag scadutaModifier (rosso forte + "Scaduto")
+//     - VERIFICARE      → "da_verificare"
+//     - PAGATO_MANUALE  → "pagato_manuale"
+//     - PAGATO          → "pagato"
+//     - PARZIALE        → "parziale" (◐ amber)
+//     - RATEIZZATO      → "rateizzato" (📆 purple) — NEW v1.2
+//     - SPOSTATO        → "spostato" (↩ fuchsia) — NEW v1.2
 //
 // Uso:
 //   <StatoPagamentoBadge stato={f.stato_pagamento} />              // fatture (lowercase)
@@ -56,16 +58,30 @@ export const STATI_PAGAMENTO = {
     icon: "◐",
     desc: "Pagamento parziale registrato — manca differenza",
   },
+  rateizzato: {
+    label: "Rateizzata",
+    color: "bg-purple-100 text-purple-800 border-purple-300",
+    icon: "📆",
+    desc: "Piano rate aperto — la spesa fissa gestisce le scadenze",
+  },
+  spostato: {
+    label: "Scadenza spostata",
+    color: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300",
+    icon: "↩",
+    desc: "Scadenza rinegoziata singolarmente (G.7)",
+  },
 };
 
 // Mappa namespace CG (cg_uscite.stato uppercase) → namespace fatture (lowercase)
 const CG_TO_STANDARD = {
   PROGRAMMATO: "da_pagare",
-  SCADUTO: "da_pagare",       // SCADUTO = da_pagare con scadenza < oggi
+  SCADUTO: "da_pagare",       // SCADUTO = da_pagare con scadenza < oggi (override via prop scaduta)
   VERIFICARE: "da_verificare",
   PAGATO_MANUALE: "pagato_manuale",
   PAGATO: "pagato",
   PARZIALE: "parziale",
+  RATEIZZATO: "rateizzato",   // v1.2: chip dedicato (prima → da_pagare)
+  SPOSTATO: "spostato",       // v1.2: chip dedicato (prima → da_pagare)
 };
 
 export function normalizeStato(stato) {

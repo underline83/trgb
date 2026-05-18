@@ -1143,7 +1143,15 @@ function PromuoviMadreModal({ madre, onClose, onSuccess }) {
   const [denoResults, setDenoResults] = useState([]);
   const [nomeEtichetta, setNomeEtichetta] = useState(madre?.nome_etichetta || "");
   const [grado, setGrado] = useState(madre?.grado_alcolico_tipico || "");
-  const [vitigniList, setVitigniList] = useState([]); // [{vitigno_id, vitigno_label, pct}]
+  // M2.9-bis (mig 131): se il madre ha già vitigni_list precaricati (es. da
+  // backfill o da promozione precedente), li mostriamo come stato iniziale.
+  const [vitigniList, setVitigniList] = useState(
+    (madre?.vitigni_list || []).map(v => ({
+      vitigno_id: v.vitigno_id,
+      vitigno_label: v.vitigno_label,
+      pct: v.pct ?? "",
+    }))
+  );
   const [vitignoQ, setVitignoQ] = useState("");
   const [vitignoResults, setVitignoResults] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -1208,7 +1216,14 @@ function PromuoviMadreModal({ madre, onClose, onSuccess }) {
         denominazione_id: denoId,
         nome_etichetta: nomeEtichetta || null,
         grado_alcolico_tipico: grado === "" ? null : parseFloat(String(grado).replace(",", ".")),
-        vitigni_stringa: vitigniString || null,
+        // M2.9-bis (mig 131): vitigni strutturati per persistenza negli slot.
+        // Backend ricalcola anche la stringa per la descrizione composta.
+        vitigni: vitigniList
+          .filter(v => !!v.vitigno_id)
+          .map(v => ({
+            vitigno_id: v.vitigno_id,
+            pct: v.pct === "" || v.pct == null ? null : parseFloat(String(v.pct).replace(",", ".")),
+          })),
       };
       const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}/promote-composto`, {
         method: "POST",

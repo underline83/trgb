@@ -148,6 +148,17 @@ class MadreBase(BaseModel):
     # M2.9 (2026-05-16): descrizione composta
     nome_etichetta: Optional[str] = None
     descrizione_auto: Optional[int] = None  # 0=legacy testuale, 1=composta da ingredienti
+    # M2.9-bis (mig 131, 2026-05-18): 5 slot vitigni strutturati "tipici" del madre
+    vitigno_1_id: Optional[int] = None
+    vitigno_1_pct: Optional[float] = None
+    vitigno_2_id: Optional[int] = None
+    vitigno_2_pct: Optional[float] = None
+    vitigno_3_id: Optional[int] = None
+    vitigno_3_pct: Optional[float] = None
+    vitigno_4_id: Optional[int] = None
+    vitigno_4_pct: Optional[float] = None
+    vitigno_5_id: Optional[int] = None
+    vitigno_5_pct: Optional[float] = None
 
 
 class MadreUpdate(BaseModel):
@@ -164,9 +175,26 @@ class MadreUpdate(BaseModel):
     # M2.9 (2026-05-16): descrizione composta
     nome_etichetta: Optional[str] = None
     descrizione_auto: Optional[int] = None
+    # M2.9-bis (mig 131, 2026-05-18): 5 slot vitigni strutturati
+    vitigno_1_id: Optional[int] = None
+    vitigno_1_pct: Optional[float] = None
+    vitigno_2_id: Optional[int] = None
+    vitigno_2_pct: Optional[float] = None
+    vitigno_3_id: Optional[int] = None
+    vitigno_3_pct: Optional[float] = None
+    vitigno_4_id: Optional[int] = None
+    vitigno_4_pct: Optional[float] = None
+    vitigno_5_id: Optional[int] = None
+    vitigno_5_pct: Optional[float] = None
 
 
 # --- Promozione madre a descrizione composta (M2.9-bis, 2026-05-18) ---
+class VitignoSlot(BaseModel):
+    """Un singolo slot vitigno strutturato sul madre (mig 131). Max 5 slot."""
+    vitigno_id: int
+    pct: Optional[float] = None
+
+
 class MadrePromotePayload(BaseModel):
     """
     Payload per promuovere un madre "legacy" (descrizione_auto=0) a
@@ -175,16 +203,24 @@ class MadrePromotePayload(BaseModel):
 
     L'effetto è:
       1) aggiorna i 4 ingredienti sul madre (se presenti nel payload)
-      2) ricompone `descrizione` con `componi_descrizione(...)`
-      3) setta `descrizione_auto = 1`
-      4) sparisce il badge "OLD" in UI (il madre è ora "standard")
+      2) persiste i vitigni "tipici" del madre nei 5 slot strutturati (mig 131)
+      3) ricompone `descrizione` con `componi_descrizione(...)`
+      4) setta `descrizione_auto = 1`
+      5) sparisce il badge "OLD" in UI (il madre è ora "standard")
     """
     denominazione_id: Optional[int] = None
     nome_etichetta: Optional[str] = None
     grado_alcolico_tipico: Optional[float] = None
+    # M2.9-bis (mig 131): lista vitigni strutturati persistiti nei 5 slot.
+    # Se passata, vince su vitigni_stringa per la composizione descrizione
+    # (la stringa viene ricalcolata via JOIN sui nomi vitigno).
+    vitigni: Optional[List[VitignoSlot]] = Field(
+        None,
+        description="Lista di max 5 vitigni strutturati [{vitigno_id, pct}] — persistiti negli slot del madre",
+    )
     vitigni_stringa: Optional[str] = Field(
         None,
-        description="Stringa già formattata 'Nebbiolo 100%' o 'Nebbiolo 95%, Barbera 5%'",
+        description="DEPRECATO post-mig131: stringa già formattata 'Nebbiolo 100%' o 'Nebbiolo 95%, Barbera 5%'. Usata solo se `vitigni` non è passata.",
     )
 
 
@@ -710,6 +746,7 @@ def promote_madre_composto(
             nome_etichetta=payload.nome_etichetta,
             grado_alcolico_tipico=payload.grado_alcolico_tipico,
             vitigni_stringa=payload.vitigni_stringa,
+            vitigni=[v.dict() for v in payload.vitigni] if payload.vitigni else None,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))

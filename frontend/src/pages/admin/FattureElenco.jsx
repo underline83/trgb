@@ -227,8 +227,11 @@ export default function FattureElenco() {
   // Endpoint: PUT /contabilita/fe/fatture/{id}/stato-pagamento
   // Stati settabili manualmente: da_pagare, da_verificare, pagato_manuale.
   // Lo stato 'pagato' (definitivo) si attiva da hook riconciliazione bancaria.
+  // PARZIALE/RATEIZZATO/SPOSTATO sono visualizzabili ma NON settabili da qui
+  // (vivono in cg_uscite, non in fe_fatture.stato_pagamento).
+  const STATI_MANUALI_FATTURA = new Set(["da_pagare", "da_verificare", "pagato_manuale"]);
   const cambiaStato = async (id, nuovoStato) => {
-    if (!STATI_PAGAMENTO[nuovoStato] || nuovoStato === "pagato") {
+    if (!STATI_MANUALI_FATTURA.has(nuovoStato)) {
       alert("Stato non valido o non settabile manualmente.");
       return;
     }

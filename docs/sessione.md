@@ -1,6 +1,43 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-18 — **M2.9-bis Promozione madri legacy a descrizione composta**: backend (modello + endpoint POST `/vini/anagrafiche/madre/{id}/promote-composto`) e frontend (badge 📜 OLD sui madri legacy nel wizard + lista Anagrafiche, banner Step 3 con bottone "Sistema il madre", modal `PromuoviMadreModal` con form 4 ingredienti + anteprima live, MadreEditModal in Anagrafiche con campo nome_etichetta + ricomposizione automatica al save, filtro "Solo legacy" nella lista madri Anagrafiche). Versione modulo vini 3.39 → 3.40.
+**Ultimo aggiornamento:** 2026-05-18 — **M2.9-bis Promozione madri legacy + vitigni strutturati sul madre (mig 131)**: backend (modello + endpoint POST `/vini/anagrafiche/madre/{id}/promote-composto`, accetta lista vitigni strutturata) e frontend (badge 📜 OLD sui madri legacy nel wizard + lista Anagrafiche, banner Step 3 con bottone "Sistema il madre", modal `PromuoviMadreModal` con form 4 ingredienti + UI vitigni dinamica + anteprima live, MadreEditModal con sezione "🍇 Vitigni tipici" dinamica (max 5, niente campi vuoti pre-allocati) + ricomposizione automatica al save, filtro "Solo legacy" nella lista madri Anagrafiche). Mig 131: 5+5 colonne vitigno sul madre + backfill best-effort dalla prima bottiglia. Versione modulo vini 3.39 → 3.41.
+
+## SESSIONE 2026-05-18 (parte 2) — M2.9-bis: vitigni strutturati sul madre (mig 131)
+
+### Sintesi
+Esteso M2.9-bis con persistenza strutturata dei vitigni "tipici" sul madre (Marco: "ho 10 campi vitigni nella tabella bottiglie, perché sul madre li hai solo stringa?"). Decisione: i 5+5 slot sul madre = blend tipico di riferimento, quelli sulla bottiglia = blend effettivo per annata, NON si sincronizzano. UI dinamica unificata tra wizard e anagrafiche: autocomplete + righe `[nome][% input][×]`, max 5, zero campi vuoti pre-allocati.
+
+### Fatto `[core]`
+- **Mig 131** — `app/migrations/131_madre_vitigni_strutturati.py`: ADD COLUMN x10 su vini_madre_v2 (`vitigno_1_id..vitigno_5_id` INTEGER + `vitigno_1_pct..vitigno_5_pct` REAL). Backfill: copia dalla bottiglia più recente di ogni madre (ANNATA DESC, id DESC). Idempotente. Smoke test sandbox: 32/995 popolati (gli altri 963 hanno bottiglie senza vitigni strutturati, lascia NULL).
+- **Backend model** `app/models/vini_anagrafiche_db.py`: `MADRE_FIELDS` esteso con 10 nuovi campi. `get_madre()` decora con `vitigni_list: [{vitigno_id, vitigno_label, pct}]` via JOIN. `promote_madre_a_composto` accetta `vitigni: List[{vitigno_id, pct}]` (preferita) — risolve nomi via JOIN, scrive i 5 slot, ricostruisce la stringa per la composizione descrizione.
+- **Backend router** `app/routers/vini_anagrafiche_router.py`: `VitignoSlot` schema + `MadrePromotePayload.vitigni`. `MadreBase`/`MadreUpdate` estesi con i 10 campi (PATCH `/madre/{id}` accetta direttamente i vitigni strutturati).
+- **FE wizard `NuovoVinoV2.jsx`**: `PromuoviMadreModal` inizializza la lista vitigni dai dati del madre (madre.vitigni_list), submit manda `vitigni: [...]` strutturata.
+- **FE anagrafiche `AnagraficheVini.jsx`**: import `vitigniToString`. `MadreEditModal` con sezione "🍇 Vitigni tipici (max 5)" — caricamento via GET `/madre/{id}`, autocomplete + righe compatte, save esplode in `vitigno_1_id..pct` con null espliciti sui rimossi. Preview descrizione composta ora include i vitigni come 4° ingrediente. `isCompostaMode` true anche se l'utente ha solo aggiunto vitigni (senza nome_etichetta/grado).
+
+### Decisione di design
+- **Vitigni madre = tipici / riferimento.** Vitigni bottiglia = effettivi per annata. Possono divergere senza sync — sono semantiche diverse.
+- **UI dinamica, zero campi vuoti**: pattern unificato tra wizard e anagrafiche.
+
+### Verifiche
+- `py_compile` OK su mig 131 + model + router.
+- `esbuild` OK su NuovoVinoV2 (66.9 KB) + AnagraficheVini (75.6 KB).
+- Mig 131 in sandbox: prima run aggiunge 10 colonne + backfilla 32 madri, seconda run skippa entrambe le operazioni (idempotente).
+
+### Bump versione
+- vini 3.40 → 3.41.
+
+### File toccati (commit pendente)
+- Backend nuovo: `app/migrations/131_madre_vitigni_strutturati.py`
+- Backend modificato: `app/models/vini_anagrafiche_db.py`, `app/routers/vini_anagrafiche_router.py`
+- Frontend modificato: `frontend/src/pages/vini/v2/NuovoVinoV2.jsx`, `frontend/src/pages/vini/AnagraficheVini.jsx`, `frontend/src/config/versions.jsx`
+- Docs: `docs/sessione.md`, `docs/changelog.md`
+
+### Commit suggerito
+```
+./push.sh "[core] vini 3.41 — M2.9-bis vitigni strutturati sul madre (mig 131 + 5 slot + UI dinamica anagrafiche/wizard)"
+```
+
+---
 
 ## SESSIONE 2026-05-18 — M2.9-bis Promozione madri legacy → descrizione composta
 

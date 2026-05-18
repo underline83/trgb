@@ -959,6 +959,15 @@ MADRE_FIELDS = {
     "grado_alcolico_tipico", "abbinamenti", "note_madre",
     # M2.9 (mig 130): nuovi campi per descrizione composta automaticamente.
     "nome_etichetta", "descrizione_auto",
+    # M2.9-bis (mig 131): 5 slot vitigni strutturati sul madre = vitigni "tipici".
+    # Semantica distinta dai vitigni "effettivi" sulla bottiglia (per annata):
+    # qui sta il blend di riferimento dell'etichetta, lì quello realmente
+    # prodotto in una specifica annata (possono divergere senza sync).
+    "vitigno_1_id", "vitigno_1_pct",
+    "vitigno_2_id", "vitigno_2_pct",
+    "vitigno_3_id", "vitigno_3_pct",
+    "vitigno_4_id", "vitigno_4_pct",
+    "vitigno_5_id", "vitigno_5_pct",
 }
 
 
@@ -991,14 +1000,41 @@ def list_madre(
 
 
 def get_madre(mid: int) -> Optional[Dict[str, Any]]:
+    """
+    Ritorna il madre + un campo aggiuntivo `vitigni_list` con i 5 slot vitigno
+    risolti via JOIN (vitigno_id → nome) — utile alla UI per evitare un giro
+    extra. Sono solo gli slot popolati; ordine = posizione (1..5).
+    """
     conn = get_magazzino_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     row = cur.execute(
         f"SELECT * FROM {TABELLE['madre']} WHERE id = ?", (mid,)
     ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    madre = _row_to_dict(row)
+
+    # Decora con vitigni_list (slot risolti). Best-effort: salta gli slot vuoti.
+    vit_list = []
+    for i in range(1, 6):
+        vid = madre.get(f"vitigno_{i}_id")
+        vpct = madre.get(f"vitigno_{i}_pct")
+        if not vid:
+            continue
+        v_row = cur.execute(
+            f"SELECT nome FROM {TABELLE['vitigni']} WHERE id = ?", (vid,)
+        ).fetchone()
+        vit_list.append({
+            "vitigno_id": vid,
+            "vitigno_label": v_row["nome"] if v_row else f"#{vid}",
+            "pct": vpct,
+        })
+    madre["vitigni_list"] = vit_list
+
     conn.close()
-    return _row_to_dict(row)
+    return madre
 
 
 def create_madre(data: Dict[str, Any]) -> int:
@@ -1041,26 +1077,34 @@ def promote_madre_a_composto(
     nome_etichetta: Optional[str] = None,
     grado_alcolico_tipico: Optional[float] = None,
     vitigni_stringa: Optional[str] = None,
+    vitigni: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Promuove un vino madre "legacy" (descrizione testuale libera) al nuovo schema
-    a descrizione composta automatica (M2.9, 2026-05-16).
+    a descrizione composta automatica (M2.9, 2026-05-16 → M2.9-bis 2026-05-18).
 
     Cosa fa:
       1. Aggiorna i sotto-campi forniti (denominazione_id, nome_etichetta,
          grado_alcolico_tipico).
-      2. Ricompone la descrizione testuale come:
+      2. Se passata `vitigni` (lista strutturata), aggiorna i 5 slot
+         vitigno_X_id/pct sul madre (mig 131).
+      3. Ricompone la descrizione testuale come:
          "{denominazione_display} {nome_etichetta} ({vitigni}) {grado}%"
-      3. Setta descrizione_auto = 1 (segnale: questo madre è "pulito").
+      4. Setta descrizione_auto = 1 (segnale: questo madre è "pulito").
 
-    `vitigni_stringa` è il testo già formattato dei vitigni (es. "Nebbiolo 100%").
-    Non vive sul madre — viene usato solo per la composizione della descrizione,
-    poi i vitigni reali stanno sulle bottiglie negli slot 1..5. Se l'utente vuole
-    persistere i vitigni "tipici" del madre, dovrà collegarli alle bottiglie.
+    Parametri vitigni — accetta DUE forme (compatibilità FE):
+      - `vitigni`: lista [{vitigno_id: int, pct: float}, ...] (preferito,
+        persistito strutturato negli slot 1..5 del madre)
+      - `vitigni_stringa`: testo già formattato "Nebbiolo 95%, Barbera 5%"
+        (fallback, usato SOLO per la composizione descrizione; non persistito
+        strutturato). Se entrambi sono passati, vitigni vince per la
+        persistenza strutturata e per la composizione (ricalcolata dai nomi
+        risolti).
 
-    Ritorna il record madre aggiornato, o None se non esiste.
+    Ritorna il record madre aggiornato (con vitigni_list già decorata), o None
+    se non esiste.
     """
-    from app.services.vini_descrizione import componi_descrizione
+    from app.services.vini_descrizione import componi_descrizione, vitigni_to_string
 
     conn = get_magazzino_connection()
     conn.row_factory = sqlite3.Row
@@ -1086,6 +1130,34 @@ def promote_madre_a_composto(
         if d_row:
             denominazione_display = f"{d_row['nome']} {d_row['tipo']}".strip()
 
+    # Risolvi vitigni: se passata lista strutturata, risolvi i nomi via JOIN
+    # e ri-costruisci la stringa formattata (sovrascrivi vitigni_stringa).
+    vitigni_strutturati = None  # lista [{vitigno_id, vitigno_label, pct}] decorata
+    if vitigni:
+        vitigni_strutturati = []
+        for v in vitigni[:5]:  # max 5 slot
+            try:
+                vid = int(v.get("vitigno_id") or v.get("id"))
+            except (TypeError, ValueError):
+                continue
+            pct = v.get("pct")
+            try:
+                pct = float(pct) if pct not in (None, "", 0) else None
+            except (TypeError, ValueError):
+                pct = None
+            vrow = cur.execute(
+                f"SELECT nome FROM {TABELLE['vitigni']} WHERE id = ?", (vid,)
+            ).fetchone()
+            if not vrow:
+                continue  # vitigno_id non esistente: skip
+            vitigni_strutturati.append({
+                "vitigno_id": vid,
+                "vitigno_label": vrow["nome"],
+                "pct": pct,
+            })
+        # Stringa per descrizione: ricalcolata sui dati strutturati appena risolti
+        vitigni_stringa = vitigni_to_string(vitigni_strutturati)
+
     # Compone descrizione con i nuovi campi (fallback ai valori già sul madre)
     nuova_descr = componi_descrizione(
         denominazione=denominazione_display,
@@ -1110,19 +1182,24 @@ def promote_madre_a_composto(
     if grado_alcolico_tipico is not None:
         updates.append("grado_alcolico_tipico = ?")
         values.append(grado_alcolico_tipico)
+    # Vitigni strutturati: scrivo i 5 slot (riempio quelli passati, azzero gli altri)
+    if vitigni_strutturati is not None:
+        for i in range(5):
+            slot = vitigni_strutturati[i] if i < len(vitigni_strutturati) else None
+            updates.append(f"vitigno_{i+1}_id = ?")
+            updates.append(f"vitigno_{i+1}_pct = ?")
+            values.append(slot["vitigno_id"] if slot else None)
+            values.append(slot["pct"] if slot else None)
 
     cur.execute(
         f"UPDATE {TABELLE['madre']} SET {', '.join(updates)} WHERE id = ?",
         values + [mid],
     )
     conn.commit()
-
-    # Ricarica e ritorna
-    row2 = cur.execute(
-        f"SELECT * FROM {TABELLE['madre']} WHERE id = ?", (mid,)
-    ).fetchone()
     conn.close()
-    return _row_to_dict(row2)
+
+    # Ricarica via get_madre() così otteniamo anche vitigni_list decorata
+    return get_madre(mid)
 
 
 def delete_madre(mid: int) -> bool:

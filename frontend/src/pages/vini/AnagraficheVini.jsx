@@ -18,7 +18,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 // M2.9-bis (2026-05-18): helper per descrizione composta automaticamente
-import componiDescrizione from "../../utils/vini/componiDescrizione";
+import componiDescrizione, { vitigniToString } from "../../utils/vini/componiDescrizione";
 // M2.5.1 (2026-05-16): pannello Produttori dedicato (counts + merge + ricerca)
 import ProduttoriPanel from "./anagrafiche/ProduttoriPanel";
 // M2.5.2 (2026-05-16): pannello Distributori dedicato + drill-down su tutti i panel
@@ -1074,6 +1074,13 @@ function MadreEditModal({ madre, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // M2.9-bis (mig 131): vitigni "tipici" del madre come lista dinamica.
+  // Caricati via GET /madre/{id} (che restituisce vitigni_list già risolto).
+  // UI: autocomplete + righe compatte con % e bottone rimuovi, max 5.
+  const [vitigniList, setVitigniList] = useState([]);
+  const [vitignoQ, setVitignoQ] = useState("");
+  const [vitignoResults, setVitignoResults] = useState([]);
+
   useEffect(() => {
     (async () => {
       const [pr, fr] = await Promise.all([
@@ -1083,6 +1090,51 @@ function MadreEditModal({ madre, onClose, onSaved }) {
       setProduttori(pr); setFornitori(fr);
     })();
   }, []);
+
+  // Carica vitigni_list dal backend (decorato con nomi via JOIN)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}`);
+        if (r.ok && !cancelled) {
+          const data = await r.json();
+          const list = (data.vitigni_list || []).map(v => ({
+            vitigno_id: v.vitigno_id,
+            vitigno_label: v.vitigno_label,
+            pct: v.pct ?? "",
+          }));
+          setVitigniList(list);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [madre.id]);
+
+  // Autocomplete vitigni
+  useEffect(() => {
+    if (vitignoQ.trim().length < 2) { setVitignoResults([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/vitigni/?search=${encodeURIComponent(vitignoQ)}`);
+        if (r.ok && !cancelled) setVitignoResults((await r.json()).slice(0, 10));
+      } catch {}
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [vitignoQ]);
+
+  const addVitigno = (v) => {
+    if (vitigniList.length >= 5) { alert("Massimo 5 vitigni"); return; }
+    if (vitigniList.find(x => x.vitigno_id === v.id)) { setVitignoQ(""); return; }
+    setVitigniList(prev => [...prev, { vitigno_id: v.id, vitigno_label: v.nome, pct: "" }]);
+    setVitignoQ("");
+    setVitignoResults([]);
+  };
+  const removeVitigno = (vid) => setVitigniList(prev => prev.filter(v => v.vitigno_id !== vid));
+  const updateVitignoPct = (vid, pct) => {
+    setVitigniList(prev => prev.map(v => v.vitigno_id === vid ? { ...v, pct } : v));
+  };
 
   // Carica la denominazione corrente quando il madre arriva con denominazione_id già settato
   useEffect(() => {
@@ -1118,22 +1170,23 @@ function MadreEditModal({ madre, onClose, onSaved }) {
     || (currentDeno && currentDeno.id === Number(form.denominazione_id) ? currentDeno : null);
 
   // M2.9-bis: preview live della descrizione composta dai 4 ingredienti.
-  // Se il madre è già "composto" (descrizione_auto=1) o se l'utente ha compilato
-  // denominazione + (nome_etichetta o grado), proponiamo la composizione automatica.
+  // I vitigni ora vivono strutturati sul madre (mig 131), quindi entrano
+  // nella composizione della descrizione del madre stesso.
   const denoLabel = selectedDeno ? `${selectedDeno.nome} ${selectedDeno.tipo}`.trim() : "";
+  const vitigniString = useMemo(() => vitigniToString(vitigniList), [vitigniList]);
   const descrizioneComposta = useMemo(() => componiDescrizione({
     denominazione:  denoLabel,
     nome_etichetta: form.nome_etichetta,
-    vitigni:        "",  // i vitigni stanno sulle bottiglie, non sul madre — qui niente
+    vitigni:        vitigniString,
     grado:          form.grado_alcolico_tipico,
-  }), [denoLabel, form.nome_etichetta, form.grado_alcolico_tipico]);
+  }), [denoLabel, form.nome_etichetta, vitigniString, form.grado_alcolico_tipico]);
 
   // "Modalità composta": il madre è già auto OPPURE l'utente ha riempito gli ingredienti
   // base (denominazione + qualcosa). In modalità composta, la descrizione testuale viene
   // sostituita dalla composizione automatica al save.
   const isCompostaMode =
     (form.descrizione_auto === 1)
-    || (!!form.denominazione_id && (!!form.nome_etichetta || !!form.grado_alcolico_tipico));
+    || (!!form.denominazione_id && (!!form.nome_etichetta || !!form.grado_alcolico_tipico || vitigniList.length > 0));
 
   const handleSave = async () => {
     setError(""); setSaving(true);
@@ -1155,6 +1208,16 @@ function MadreEditModal({ madre, onClose, onSaved }) {
       if (isCompostaMode && descrizioneComposta) {
         payload.descrizione = descrizioneComposta;
         payload.descrizione_auto = 1;
+      }
+      // M2.9-bis (mig 131): esplodo la lista vitigniList nei 10 slot.
+      // Slot non usati → null esplicito (così uno "rimosso" viene davvero cancellato).
+      for (let i = 0; i < 5; i++) {
+        const slot = vitigniList[i];
+        payload[`vitigno_${i+1}_id`] = slot ? slot.vitigno_id : null;
+        payload[`vitigno_${i+1}_pct`] =
+          slot && slot.pct !== "" && slot.pct != null
+            ? parseFloat(String(slot.pct).replace(",", "."))
+            : null;
       }
       const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}`, {
         method: "PATCH",
@@ -1293,6 +1356,63 @@ function MadreEditModal({ madre, onClose, onSaved }) {
               </div>
             )}
           </Field>
+        </div>
+
+        {/* M2.9-bis (mig 131): vitigni "tipici" del madre — UI dinamica.
+            Niente 10 campi fissi: si aggiungono righe via autocomplete fino a 5. */}
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[11px] font-semibold text-neutral-700 uppercase tracking-wider">
+              🍇 Vitigni tipici <span className="text-neutral-400 font-normal normal-case">(max 5)</span>
+            </label>
+            <span className="text-[10px] text-neutral-500">
+              {vitigniList.length}/5
+            </span>
+          </div>
+
+          {/* Righe vitigni già aggiunti */}
+          {vitigniList.length > 0 && (
+            <div className="space-y-1.5 mb-2">
+              {vitigniList.map(v => (
+                <div key={v.vitigno_id} className="flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-2 py-1.5">
+                  <span className="text-xs font-semibold text-neutral-800 flex-1 truncate">{v.vitigno_label}</span>
+                  <input type="number" step="1" min="0" max="100"
+                    value={v.pct}
+                    onChange={e => updateVitignoPct(v.vitigno_id, e.target.value)}
+                    placeholder="%"
+                    className="w-16 px-1.5 py-0.5 border border-neutral-300 rounded text-xs text-right" />
+                  <span className="text-xs text-neutral-500">%</span>
+                  <button type="button" onClick={() => removeVitigno(v.vitigno_id)}
+                    className="text-red-600 hover:text-red-800 px-1 text-sm font-bold leading-none" title="Rimuovi">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Autocomplete per aggiungere un vitigno (visibile finché non si arriva a 5) */}
+          {vitigniList.length < 5 && (
+            <div>
+              <input type="text" placeholder={vitigniList.length === 0 ? "Cerca e aggiungi un vitigno…" : "+ Aggiungi un altro vitigno…"}
+                value={vitignoQ} onChange={e => setVitignoQ(e.target.value)}
+                className="w-full px-2 py-1 border border-neutral-300 rounded text-xs" />
+              {vitignoResults.length > 0 && (
+                <div className="mt-1 max-h-32 overflow-y-auto border border-neutral-200 rounded-lg bg-white shadow-sm">
+                  {vitignoResults.map(v => (
+                    <button key={v.id} type="button" onClick={() => addVitigno(v)}
+                      className="block w-full text-left px-2 py-1.5 text-xs hover:bg-amber-50 border-b border-neutral-100">
+                      {v.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {vitigniList.length === 0 && (
+            <p className="text-[10px] text-neutral-500 italic mt-1">
+              Nessun vitigno collegato. Aggiungi i vitigni con la loro % per rendere il vino più ricercabile e per la composizione automatica della descrizione.
+            </p>
+          )}
         </div>
 
         <div className="mt-3">
