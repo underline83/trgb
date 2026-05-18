@@ -1,7 +1,11 @@
-// @version: v3.0-tabs — Redesign sessione 56 (2026-04-25): testa fissa colorata
-// soft + 4 KPI (Totale/Imponibile/IVA/Da pagare) + 3 tab (Riepilogo/Pagamenti/Righe)
-// al posto della vecchia sidebar scura. Aggiunta prop `breadcrumb` opzionale per
-// l'apertura via FattureFornitoriElenco senza nesting matrioska.
+// @version: v3.1-3D — Modello 3-dimensioni (2026-05-18, vedi §15)
+// v3.1: zona chip header e tab Pagamenti riscritte secondo modello D1/D2/D3:
+//   - D1+D2 stato pagamento via <StatoPagamentoBadge>
+//   - D3 stato scadenza via <StatoScadenzaBadge> (nuovo componente)
+//   - Tolti chip duplicati ("CG: PROGRAMMATO" + "Rateizzata" sparsi + raw uppercase)
+//   - STATO_BADGE dict rimosso (sostituito dai componenti badge)
+// v3.0-tabs (2026-04-25): testa fissa colorata soft + 4 KPI + 3 tab.
+// Aggiunta prop `breadcrumb` opzionale per FattureFornitoriElenco anti-matrioska.
 // Componente riutilizzabile: dettaglio fattura singola. Usato come pagina
 // standalone (route /acquisti/dettaglio/:id) e inline dentro FattureElenco,
 // FattureFornitoriElenco (con breadcrumb), ControlloGestioneUscite.
@@ -12,6 +16,7 @@ import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
 import StatoPagamentoBadge from "../../components/StatoPagamentoBadge";
+import StatoScadenzaBadge, { deriveStatoScadenza, giorniLabel } from "../../components/StatoScadenzaBadge";
 import { isChiuso } from "../../utils/statoPagamento";
 
 const FE = `${API_BASE}/contabilita/fe`;
@@ -45,14 +50,8 @@ const MP_LABELS = {
   MP23: "PagoPA",
 };
 
-const STATO_BADGE = {
-  PROGRAMMATO:      "bg-amber-100 text-amber-800 border-amber-200",
-  SCADUTO:        "bg-red-100 text-red-800 border-red-200",
-  PAGATO:         "bg-emerald-100 text-emerald-800 border-emerald-200",
-  PAGATO_MANUALE: "bg-sky-100 text-sky-800 border-sky-200",
-  PARZIALE:       "bg-blue-100 text-blue-800 border-blue-200",
-  RATEIZZATO:     "bg-purple-100 text-purple-800 border-purple-200",
-};
+// STATO_BADGE rimosso 2026-05-18 — sostituito da <StatoPagamentoBadge> + <StatoScadenzaBadge>
+// che applicano il modello 3D (vedi docs/stato_pagamento_unificato.md §15).
 
 // Sidebar colors in base allo stato fattura — stesso stile di TIPOLOGIA_SIDEBAR in SchedaVino
 const FATTURA_SIDEBAR = {
@@ -393,7 +392,6 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   const isRateizzata = fattura.is_rateizzata;
   const uscita = fattura.uscita;
   const statoUscita = uscita?.uscita_stato || (fattura.pagato ? "PAGATO" : null);
-  const statoBadgeClass = statoUscita ? STATO_BADGE[statoUscita] || "bg-neutral-100 text-neutral-700 border-neutral-200" : null;
   const sbc = getFatturaSidebar(statoUscita, isRateizzata);
 
   // ─────────────────────────────────────────────────────────────────────
@@ -469,21 +467,31 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
         <div className={`${hdr.bg} border-b ${hdr.border} px-4 md:px-5 py-3 md:py-4 flex-shrink-0`}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              {/* Badge identita + stato */}
+              {/* Badge identita + stato — modello 3D (vedi docs/stato_pagamento_unificato.md §15)
+                  Zona 1: FT identità
+                  Zona 2: D1+D2 pagamento (StatoPagamentoBadge) — sempre presente
+                  Zona 3: D3 scadenza (StatoScadenzaBadge) — solo se aperta
+                  Annotazioni: batch + riconciliazione (D2 implicito)
+              */}
               <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                 <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">
                   FT {fattura.numero_fattura || `#${fattura.id}`}
                 </span>
-                {statoUscita && (
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${hdr.badge}`}>
-                    {statoUscita}
-                  </span>
-                )}
-                {isRateizzata && (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-purple-100 text-purple-800 border-purple-200">
-                    Rateizzata
-                  </span>
-                )}
+                {/* D1 + D2 — stato PAGAMENTO */}
+                <StatoPagamentoBadge stato={statoUscita || "da_pagare"} size="md" />
+                {/* D3 — stato SCADENZA (solo se non chiusa) */}
+                {(() => {
+                  // Priorità: se la fattura è rateizzata in spesa fissa → chip "Rateizzata"
+                  // a prescindere dallo stato cg_uscite (può essere PROGRAMMATO sulla madre)
+                  if (isRateizzata) {
+                    return <StatoScadenzaBadge stato="rateizzata" size="md" />;
+                  }
+                  const d3 = deriveStatoScadenza(statoUscita, scadenzaEff);
+                  if (!d3) return null;
+                  const gg = d3 === "in_scadenza" || d3 === "scaduta" ? giorniLabel(scadenzaEff) : null;
+                  return <StatoScadenzaBadge stato={d3} giorni={gg} size="md" />;
+                })()}
+                {/* Annotazioni di pagamento */}
                 {uscita?.batch_titolo && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-indigo-100 text-indigo-800 border-indigo-200">
                     Batch: {uscita.batch_titolo}
@@ -752,20 +760,17 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
           {activeTab === "pagamenti" && (
           <div>
             <SectionHeader title="Pagamenti & Scadenze">
-              {/* Modulo M.2: badge stato pagamento (4 stati) */}
-              {fattura.stato_pagamento && (
-                <StatoPagamentoBadge stato={fattura.stato_pagamento} size="md" />
-              )}
-              {statoBadgeClass && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statoBadgeClass}`} title="Stato lato Controllo Gestione (cg_uscite)">
-                  CG: {statoUscita}
-                </span>
-              )}
-              {isRateizzata && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-purple-100 text-purple-800 border-purple-200">
-                  Rateizzata
-                </span>
-              )}
+              {/* Modello 3D: D1+D2 (pagamento) + D3 (scadenza) come 2 chip separati.
+                  Niente più chip raw "CG: PROGRAMMATO" — confondeva l'utente.
+                  Vedi docs/stato_pagamento_unificato.md §15 */}
+              <StatoPagamentoBadge stato={statoUscita || fattura.stato_pagamento || "da_pagare"} size="md" />
+              {(() => {
+                if (isRateizzata) return <StatoScadenzaBadge stato="rateizzata" size="md" />;
+                const d3 = deriveStatoScadenza(statoUscita, scadenzaEff);
+                if (!d3) return null;
+                const gg = d3 === "in_scadenza" || d3 === "scaduta" ? giorniLabel(scadenzaEff) : null;
+                return <StatoScadenzaBadge stato={d3} giorni={gg} size="md" />;
+              })()}
               {uscita?.batch_titolo && (
                 <span className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-3 py-1">
                   Batch: <span className="font-semibold">{uscita.batch_titolo}</span> ({uscita.batch_stato})
