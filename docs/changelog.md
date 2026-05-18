@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-05-18 — Vini 3.42 · Fix descrizione composta bottiglia post-promozione `[core]`
+
+### Fixato
+Dopo aver promosso un madre legacy a composto (es. Barolo DOCG · Conteisa · Nebbiolo 100% · 14%), il banner "📜 DESCRIZIONE COMPOSTA (AUTO)" in Step 3 mostrava solo "Conteisa 14%" — mancava la denominazione e i vitigni. Causa: il record madre tornava dal backend con `denominazione_id` ma senza la label decorata, e i vitigni risolti erano in `vitigni_list` mentre il FE leggeva `vitigni`.
+
+- **Backend `get_madre()`** decora ora il record con `denominazione_label` (`{nome} {tipo}` via JOIN). Coperto anche post-promozione (la funzione viene richiamata internamente).
+- **Backend `list_madre()`** decora anch'esso con `denominazione_label` + `vitigni_list` via 6 LEFT JOIN in singolo SELECT (no N+1). Così quando l'utente seleziona un madre già esistente dalla lista in Step 2, lo state porta avanti i dati decorati senza fetch dettaglio extra.
+- **FE NuovoVinoV2** (Step 3, Step 4, PreviewModal): `componiDescrizione` ora legge i vitigni del madre con fallback `madre.vitigni_list || madre.vitigni || []` — copre sia il caso `_new` del wizard sia il caso del madre caricato/aggiornato dal backend.
+
+### Bump versione
+- frontend `versions.jsx`: **vini 3.41 → 3.42**.
+
+---
+
 ## 2026-05-18 — Vini 3.41 · M2.9-bis (vitigni strutturati sul madre) `[core]`
 
 ### Aggiunto

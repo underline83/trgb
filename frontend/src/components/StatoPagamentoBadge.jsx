@@ -1,29 +1,40 @@
 // frontend/src/components/StatoPagamentoBadge.jsx
-// @version: v1.2 — Step A redesign fatture (2026-05-18): + rateizzato, spostato
+// @version: v1.3 — modello 3-dimensioni granitico (2026-05-18)
 //
-// Badge condiviso per visualizzare gli stati pagamento (7 chip + override scaduta).
+// IMPORTANTE — leggere docs/stato_pagamento_unificato.md §15 + CLAUDE.md.
 //
-// Namespace supportati:
+// Questo badge gestisce SOLO la dimensione D1 (stato PAGAMENTO) + i modificatori D2
+// (tecnici: *, ?). La dimensione D3 (scadenza/tempo: rateizzata/spostata/in_scadenza/scaduta)
+// vive in un componente separato `StatoScadenzaBadge` (da creare).
 //
-//   FATTURE (Modulo M.2, fe_fatture.stato_pagamento, lowercase) — legacy lossy:
-//     - da_pagare      → rosso pallido
-//     - da_verificare  → ambra (attenzione)
-//     - pagato_manuale → verde chiaro con * (in attesa di riconciliazione)
-//     - pagato         → verde solido con 🔒 (immutabile, da banca)
+// D1 — stato pagamento (3 valori business):
+//   - "non_pagata"    → rosso pallido         (= D1 NON PAGATA, default)
+//   - "pagata"        → verde solido + 🔒     (= D1 PAGATA, riconciliata banca)
+//   - "parziale"      → amber + ◐             (= D1 PARZIALMENTE PAGATA)
 //
-//   CG / RATE (Modulo M.3, cg_uscite.stato, uppercase) — tassonomia full 8 stati:
-//     - PROGRAMMATO     → "da_pagare"
-//     - SCADUTO         → "da_pagare" + flag scadutaModifier (rosso forte + "Scaduto")
-//     - VERIFICARE      → "da_verificare"
-//     - PAGATO_MANUALE  → "pagato_manuale"
-//     - PAGATO          → "pagato"
-//     - PARZIALE        → "parziale" (◐ amber)
-//     - RATEIZZATO      → "rateizzato" (📆 purple) — NEW v1.2
-//     - SPOSTATO        → "spostato" (↩ fuchsia) — NEW v1.2
+// D2 — modificatori tecnici (CG-only, annotazione sopra D1):
+//   - "pagata_non_riconciliata" → verde chiaro + *  (D1=PAGATA + D2=non riconciliata)
+//   - "da_verificare"           → ambra + ?         (D1=NON PAGATA + D2=dubbio)
+//
+// Compatibilità con valori storici già usati nel codice (alias):
+//   - "da_pagare"      → alias di "non_pagata"
+//   - "pagato"         → alias di "pagata"
+//   - "pagato_manuale" → alias di "pagata_non_riconciliata"
+//
+// NON gestiti più da qui (sono D3 — usare StatoScadenzaBadge):
+//   - RATEIZZATO, SPOSTATO     → caratteristiche della scadenza
+//   - SCADUTO, PROGRAMMATO     → tempo della scadenza
+//
+// Override visivo "scaduta": SE D1=non_pagata AND flag scaduta=true → palette rosso forte
+// e label "Scaduto". Compatibile col passato — molti consumer lo usano già così.
 //
 // Uso:
-//   <StatoPagamentoBadge stato={f.stato_pagamento} />              // fatture (lowercase)
-//   <StatoPagamentoBadge stato={uscita.stato} scaduta={isScaduta}/> // CG (uppercase)
+//   // legacy lowercase (fe_fatture.stato_pagamento via VIEW lossy):
+//   <StatoPagamentoBadge stato={f.stato_pagamento} />
+//   // raw uppercase (cg_uscite.stato), passa direttamente:
+//   <StatoPagamentoBadge stato={uscita.stato} scaduta={isScaduta}/>
+//   // Per CG (Uscite/Scadenzario) si può unire D1+D3 in un solo badge — vedi
+//   // ControlloGestioneUscite.jsx STATO_STYLE che ha la sua palette completa.
 
 import React from "react";
 
@@ -56,32 +67,24 @@ export const STATI_PAGAMENTO = {
     label: "Parziale",
     color: "bg-amber-100 text-amber-800 border-amber-400",
     icon: "◐",
-    desc: "Pagamento parziale registrato — manca differenza",
-  },
-  rateizzato: {
-    label: "Rateizzata",
-    color: "bg-purple-100 text-purple-800 border-purple-300",
-    icon: "📆",
-    desc: "Piano rate aperto — la spesa fissa gestisce le scadenze",
-  },
-  spostato: {
-    label: "Scadenza spostata",
-    color: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300",
-    icon: "↩",
-    desc: "Scadenza rinegoziata singolarmente (G.7)",
+    desc: "Pagamento parziale registrato — manca differenza (D1=parziale)",
   },
 };
 
-// Mappa namespace CG (cg_uscite.stato uppercase) → namespace fatture (lowercase)
+// Mappa namespace CG (cg_uscite.stato uppercase) → namespace D1+D2 (lowercase)
+// IMPORTANTE: questo badge gestisce SOLO D1 (pagamento) + D2 (modificatori tecnici).
+// I valori D3 (RATEIZZATO/SPOSTATO/PROGRAMMATO/SCADUTO) sono PROIETTATI su D1 perché
+// per quei sotto-stati D1 vale "non pagata". L'informazione D3 va mostrata da un
+// componente separato (StatoScadenzaBadge) o dal STATO_STYLE locale di CG.
 const CG_TO_STANDARD = {
-  PROGRAMMATO: "da_pagare",
-  SCADUTO: "da_pagare",       // SCADUTO = da_pagare con scadenza < oggi (override via prop scaduta)
-  VERIFICARE: "da_verificare",
-  PAGATO_MANUALE: "pagato_manuale",
-  PAGATO: "pagato",
-  PARZIALE: "parziale",
-  RATEIZZATO: "rateizzato",   // v1.2: chip dedicato (prima → da_pagare)
-  SPOSTATO: "spostato",       // v1.2: chip dedicato (prima → da_pagare)
+  PROGRAMMATO:    "da_pagare",        // D1=non pagata, D3=in scadenza
+  SCADUTO:        "da_pagare",        // D1=non pagata, D3=scaduta (override via prop scaduta)
+  VERIFICARE:     "da_verificare",    // D1=non pagata + D2=dubbio
+  PAGATO_MANUALE: "pagato_manuale",   // D1=pagata + D2=* non riconciliata
+  PAGATO:         "pagato",           // D1=pagata (riconciliata)
+  PARZIALE:       "parziale",         // D1=parziale
+  RATEIZZATO:     "da_pagare",        // D1=non pagata; D3=rateizzata → StatoScadenzaBadge
+  SPOSTATO:       "da_pagare",        // D1=non pagata; D3=spostata → StatoScadenzaBadge
 };
 
 export function normalizeStato(stato) {

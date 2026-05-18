@@ -976,34 +976,85 @@ def list_madre(
     produttore_id: Optional[int] = None,
     denominazione_id: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
+    """
+    Lista madri con campi decorati per la UI:
+      - `denominazione_label` ("{nome} {tipo}" via JOIN su denominazioni_v2)
+      - `vitigni_list` (5 slot risolti via 5 JOIN su vitigni_v2)
+
+    Un singolo SELECT con 6 LEFT JOIN evita la "N+1" query per ogni madre.
+    Per 1287 madri il costo è trascurabile in SQLite.
+    """
     conn = get_magazzino_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     where = []
     params: list = []
     if search:
-        where.append("descrizione LIKE ?")
+        where.append("m.descrizione LIKE ?")
         params.append(f"%{search}%")
     if produttore_id is not None:
-        where.append("produttore_id = ?")
+        where.append("m.produttore_id = ?")
         params.append(produttore_id)
     if denominazione_id is not None:
-        where.append("denominazione_id = ?")
+        where.append("m.denominazione_id = ?")
         params.append(denominazione_id)
     where_sql = "WHERE " + " AND ".join(where) if where else ""
-    rows = cur.execute(
-        f"SELECT * FROM {TABELLE['madre']} {where_sql} ORDER BY descrizione",
-        params,
-    ).fetchall()
+
+    rows = cur.execute(f"""
+        SELECT m.*,
+               d.nome AS _deno_nome, d.tipo AS _deno_tipo,
+               v1.nome AS _v1_nome, v2.nome AS _v2_nome, v3.nome AS _v3_nome,
+               v4.nome AS _v4_nome, v5.nome AS _v5_nome
+        FROM {TABELLE['madre']} m
+        LEFT JOIN {TABELLE['denominazioni']} d ON d.id = m.denominazione_id
+        LEFT JOIN {TABELLE['vitigni']} v1 ON v1.id = m.vitigno_1_id
+        LEFT JOIN {TABELLE['vitigni']} v2 ON v2.id = m.vitigno_2_id
+        LEFT JOIN {TABELLE['vitigni']} v3 ON v3.id = m.vitigno_3_id
+        LEFT JOIN {TABELLE['vitigni']} v4 ON v4.id = m.vitigno_4_id
+        LEFT JOIN {TABELLE['vitigni']} v5 ON v5.id = m.vitigno_5_id
+        {where_sql}
+        ORDER BY m.descrizione
+    """, params).fetchall()
     conn.close()
-    return [_row_to_dict(r) for r in rows]
+
+    result = []
+    for r in rows:
+        madre = _row_to_dict(r)
+        # Estrai e rimuovi i campi "alias" del JOIN (iniziano con underscore)
+        deno_nome = madre.pop("_deno_nome", None)
+        deno_tipo = madre.pop("_deno_tipo", None)
+        madre["denominazione_label"] = (
+            f"{deno_nome} {deno_tipo}".strip() if deno_nome else ""
+        )
+        # vitigni_list dai JOIN
+        vit_list = []
+        for i in range(1, 6):
+            nome = madre.pop(f"_v{i}_nome", None)
+            vid = madre.get(f"vitigno_{i}_id")
+            vpct = madre.get(f"vitigno_{i}_pct")
+            if vid:
+                vit_list.append({
+                    "vitigno_id": vid,
+                    "vitigno_label": nome or f"#{vid}",
+                    "pct": vpct,
+                })
+        madre["vitigni_list"] = vit_list
+        result.append(madre)
+    return result
 
 
 def get_madre(mid: int) -> Optional[Dict[str, Any]]:
     """
-    Ritorna il madre + un campo aggiuntivo `vitigni_list` con i 5 slot vitigno
-    risolti via JOIN (vitigno_id → nome) — utile alla UI per evitare un giro
-    extra. Sono solo gli slot popolati; ordine = posizione (1..5).
+    Ritorna il madre + due campi decorati per la UI:
+      - `denominazione_label`: "{nome} {tipo}" risolto via JOIN dalla FK
+        denominazione_id (es. "Barolo DOCG"). Stringa vuota se senza deno.
+      - `vitigni_list`: i 5 slot vitigno risolti via JOIN (vitigno_id → nome).
+        Solo slot popolati; ordine = posizione (1..5).
+
+    Senza queste decorazioni la UI mostrava la descrizione composta incompleta
+    dopo la promozione di un madre legacy (M2.9-bis bug 2026-05-18): il madre
+    aggiornato tornava con `denominazione_id` ma senza label, quindi
+    `componi_descrizione` lato FE non aveva il pezzo "Barolo DOCG" da inserire.
     """
     conn = get_magazzino_connection()
     conn.row_factory = sqlite3.Row
@@ -1015,6 +1066,17 @@ def get_madre(mid: int) -> Optional[Dict[str, Any]]:
         conn.close()
         return None
     madre = _row_to_dict(row)
+
+    # Decora denominazione_label dalla FK (utile alla UI per descrizione composta)
+    denominazione_label = ""
+    if madre.get("denominazione_id"):
+        d_row = cur.execute(
+            f"SELECT nome, tipo FROM {TABELLE['denominazioni']} WHERE id = ?",
+            (madre["denominazione_id"],),
+        ).fetchone()
+        if d_row:
+            denominazione_label = f"{d_row['nome']} {d_row['tipo']}".strip()
+    madre["denominazione_label"] = denominazione_label
 
     # Decora con vitigni_list (slot risolti). Best-effort: salta gli slot vuoti.
     vit_list = []

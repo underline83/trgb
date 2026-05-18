@@ -19,6 +19,20 @@
 // espone già `stato_macro` nella response (mig 116, GENERATED VIRTUAL): se
 // disponibile usarla direttamente; se no, `deriveMacro(stato)` fa la
 // stessa cosa lato JS.
+//
+// MODELLO 3-DIMENSIONI (2026-05-18) — vedi docs/stato_pagamento_unificato.md §15.
+// I 7 sotto-stati sopra sono lo SCHIACCIAMENTO DB di 3 dimensioni semantiche:
+//
+//   D1 — PAGAMENTO (business): PAGATA / NON PAGATA / PARZIALMENTE PAGATA
+//   D2 — Modificatori tecnici: * (non riconciliata), ? (da verificare)
+//   D3 — SCADENZA: in scadenza / scaduta / rateizzata / spostata
+//
+// Quando l'UI deve distinguere D1 da D3 (es. FattureDettaglio), derivarle a partire
+// dal valore raw `cg_uscite.stato`. Quando l'UI può unirle (es. CG Uscite), si può
+// usare un chip unico con la palette completa (vedi ControlloGestioneUscite.STATO_STYLE).
+//
+// `isChiuso`/`isAperto` derivano dalla macro G.8 e sono ortogonali alle 3 dimensioni —
+// sono solo un'utility "è chiuso il pagamento?" (= D1 in {PAGATA, PAGATA*}).
 
 export const STATI_CHIUSI = Object.freeze([
   "PAGATO",

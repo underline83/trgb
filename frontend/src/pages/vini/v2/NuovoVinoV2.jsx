@@ -708,10 +708,14 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
   const isMadreComposto = madre?._new || madre?.descrizione_auto === 1;
   const descrizioneBottiglia = useMemo(() => {
     if (isMadreComposto) {
+      // M2.9-bis fix (2026-05-18): leggo i vitigni preferendo `vitigni_list`
+      // (decorata dal backend con i nomi via JOIN dopo promote/get_madre),
+      // poi `vitigni` per il caso madre._new del wizard Step 2.
+      const vitigniMadre = madre?.vitigni_list || madre?.vitigni || [];
       return componiDescrizione({
         denominazione:  madre?.denominazione_label || "",
         nome_etichetta: madre?.nome_etichetta || "",
-        vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+        vitigni:        annata.VITIGNI || vitigniToString(vitigniMadre),
         grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
       });
     }
@@ -891,10 +895,12 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
   const isMadreComposto = madre?._new || madre?.descrizione_auto === 1;
   const descrizioneBottiglia = useMemo(() => {
     if (isMadreComposto) {
+      // M2.9-bis fix: vitigni_list (backend decorato) o vitigni (madre._new wizard)
+      const vitigniMadre = madre?.vitigni_list || madre?.vitigni || [];
       return componiDescrizione({
         denominazione:  madre?.denominazione_label || "",
         nome_etichetta: madre?.nome_etichetta || "",
-        vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+        vitigni:        annata.VITIGNI || vitigniToString(vitigniMadre),
         grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
       });
     }
@@ -977,10 +983,11 @@ function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
     + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
 
   // Descrizione finale della bottiglia (composta — è il "nome" da inserire).
+  const vitigniMadreFinale = madre?.vitigni_list || madre?.vitigni || [];
   const descrizioneFinale = componiDescrizione({
     denominazione:  madre?.denominazione_label || "",
     nome_etichetta: madre?.nome_etichetta || "",
-    vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+    vitigni:        annata.VITIGNI || vitigniToString(vitigniMadreFinale),
     grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
   });
   return (

@@ -285,3 +285,103 @@ Logica difensiva per costruzione: se in futuro si aggiunge un nuovo stato (es. `
 | Mig | Azione |
 |---|---|
 | **116** | ADD COLUMN `stato_macro` GENERATED VIRTUAL + ricreata VIEW con nuova colonna esposta |
+
+---
+
+## 15. MODELLO MENTALE GRANITICO — 3 dimensioni di "stato" (2026-05-18)
+
+> Questa sezione è il **modello canonico** che chiarisce cosa significa "stato" per una fattura.
+> Tutti i tre livelli G.5+G.6+G.7+G.8 sopra raccontano l'**implementazione**: la migrazione
+> dei dati, il refactor degli enum, la VIEW. Ma **semanticamente** l'utente ragiona in modo
+> diverso: distingue 3 dimensioni ortogonali, non un unico enum a 8 valori.
+>
+> Ogni futura UI/feature DEVE rispettare questa distinzione.
+
+### Le 3 dimensioni semantiche
+
+Una fattura ha **3 stati ortogonali**, non uno solo:
+
+**D1 — Stato del PAGAMENTO** (semantico, business, 3 soli valori):
+
+| Valore | Significato |
+|---|---|
+| **PAGATA** | La fattura è stata pagata interamente |
+| **NON PAGATA** | Nessun pagamento registrato |
+| **PARZIALMENTE PAGATA** | Versato in parte, manca differenza |
+
+Questi 3 sono gli **unici stati che servono al business**. Sono la risposta alla domanda "questa fattura è pagata?". Lo userebbe il commercialista, l'oste, chi controlla il conto.
+
+**D2 — Modificatori tecnici del pagamento** (CG-only, organizzativi):
+
+| Modificatore | Significato | Applicabile a |
+|---|---|---|
+| **\*** (non riconciliata) | Pagata dichiarata, non ancora matchata con un movimento bancario | PAGATA → "Pagata*" |
+| **? (da verificare)** | Dubbio utente: "forse pagata, controllare estratto conto" | NON PAGATA → "Da verificare" |
+
+Questi sono **flag tecnici** che servono solo all'utente che gestisce i pagamenti (Marco nel CG). Non sono stati semantici a sé — sono **annotazioni** sopra D1.
+
+**D3 — Stato della SCADENZA / TEMPO** (quando, non se):
+
+| Valore | Significato |
+|---|---|
+| **IN SCADENZA** | Scadenza nel futuro (es. "fra 5 gg") |
+| **SCADUTA** | Scadenza nel passato (es. "scaduta da 3 gg") |
+| **RATEIZZATA** | La fattura ha più date di pagamento (gestita da spesa fissa) |
+| **SPOSTATA** | La scadenza è stata rinegoziata singolarmente (G.7) |
+
+Questi descrivono **quando** una fattura deve essere pagata. Sono **irrilevanti** se D1 = PAGATA (i soldi sono già usciti, la scadenza non importa più).
+
+**Stato eccezionale — ANNULLATA**: non è una posizione su D1/D2/D3, è un'eccezione globale (nota di credito totale, errore di emissione). Ortogonale a tutto il resto. **Da modellare a parte** quando lo implementeremo.
+
+### Come queste 3 dimensioni mappano sul DB (`cg_uscite.stato`)
+
+L'enum a 8 valori di `cg_uscite.stato` (post G.6/G.7/G.8) **schiaccia** le 3 dimensioni in un unico campo. Per ogni valore:
+
+| `cg_uscite.stato` | D1 | D2 | D3 |
+|---|---|---|---|
+| `PAGATO`           | PAGATA | (riconciliata) | — irrilevante |
+| `PAGATO_MANUALE`   | PAGATA | * non riconciliata | — irrilevante |
+| `PARZIALE`         | PARZIALMENTE PAGATA | — | — (la rata pagata ha la sua data) |
+| `VERIFICARE`       | NON PAGATA | ? da verificare | — |
+| `PROGRAMMATO`      | NON PAGATA | — | IN SCADENZA |
+| `SCADUTO`          | NON PAGATA | — | SCADUTA |
+| `RATEIZZATO`       | NON PAGATA | — | RATEIZZATA (la madre; le rate vivono in spesa fissa) |
+| `SPOSTATO`         | NON PAGATA | — | SPOSTATA |
+
+**Conseguenza pratica**: `cg_uscite.stato` non può rappresentare combinazioni miste (es. "parzialmente pagata e scaduta"). Quando serve granularità, l'UI deve **derivare** D1/D2/D3 a partire da `cg_uscite.stato` + dati di contesto (`data_scadenza`, `importo_pagato`, `banca_movimento_id`).
+
+### Quando UNIRE le dimensioni, quando SEPARARLE
+
+**Regola obbligatoria** per ogni nuova UI:
+
+| Contesto | Dimensioni | Razionale |
+|---|---|---|
+| **Modulo Fatture** (FattureDettaglio, FattureElenco) | **D1 e D3 SEPARATI** (due chip distinti nell'header) | L'utente sta guardando UNA fattura come documento contabile: vuole sapere "è pagata?" (D1) e "quando va pagata?" (D3) come informazioni distinte |
+| **Modulo CG** (Uscite, Scadenzario) | **D1+D2+D3 UNITI** in un unico chip | Marco sta gestendo i pagamenti operativamente: la lista uscite ha senso come "cose da fare oggi" → un chip per riga è più scannerizzabile |
+| **Dashboard / KPI** | **D1 sola** (eventualmente "open vs closed" via `stato_macro`) | Conta solo il business: quanto ho da pagare, quanto ho pagato |
+| **Alert engine** | **D3 sola** (per checker scadenza), **D1+D2 sola** (per checker pagamenti) | Ogni checker si occupa di una sola dimensione |
+
+### Nomenclatura UI obbligatoria
+
+I label utente devono **non confondere** le dimensioni. Esempi:
+
+- ✅ Header fattura: `<chip D1: "Non pagata">  <chip D3: "Scaduta da 3gg">`
+- ❌ Header fattura: `<chip "Scaduto">` (mescola: implica non pagata ma anche scaduta — l'utente non sa cosa significa)
+- ✅ Riga CG uscita: `<chip "Scaduto">` (ok unire: l'utente è nel contesto CG)
+- ✅ Spesa fissa rateizzata: nella fattura madre, D3="Rateizzata 📆" come **info accanto alla data di scadenza**, non come stato pagamento
+
+### Conseguenze sul codice
+
+1. **`StatoPagamentoBadge.jsx`** deve gestire SOLO D1 (pagamento). Se contiene chip D3 (rateizzato, spostato, scaduto come stato), va **scisso** in due componenti separati: `StatoPagamentoBadge` (D1+D2) e `StatoScadenzaBadge` (D3).
+2. **`fatture_stato_service.py`** scrive solo D1+D2 (sui 3 valori legacy + transizione a riconciliato). Le mutazioni di D3 (sposta scadenza, marca rateizzata) **passano da endpoint dedicati**, non da `set_stato`.
+3. **VIEW `fe_fatture_with_stato`** continua a esporre il campo legacy lossy `stato_pagamento` (per consumer vecchi) E il raw `cg_uscite_stato`. I consumer nuovi DEVONO usare `cg_uscite_stato` + derivare D1/D2/D3 in UI.
+4. **CLAUDE.md** ha un richiamo a questo §15 per ogni feature che tocchi "stato".
+
+### Anti-pattern da evitare
+
+| ❌ Errore | ✅ Corretto |
+|---|---|
+| Mostrare "Da pagare" come UN chip in FattureDettaglio | Mostrare "Non pagata" (D1) + "Scade fra 5gg" (D3) |
+| Far settare manualmente "RATEIZZATO" via `set_stato` dropdown | Endpoint dedicato "Marca rateizzata in spesa fissa X" |
+| Considerare PARZIALE come "da_verificare" nella VIEW | PARZIALE è D1=parziale, distinta da D2=da_verificare |
+| Conteggio KPI "fatture aperte" che esclude PARZIALE | PARZIALE è APERTO (gestionalmente non chiuso), ma in D1 è "parzialmente pagata" non "non pagata" |

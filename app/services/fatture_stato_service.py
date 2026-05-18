@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-# @version: v2.0-unificato (G.5 Livello 3, 2026-05-10)
+# @version: v2.1-3-dimensioni (2026-05-18)
 # -*- coding: utf-8 -*-
 """
 Servizio gestione stati pagamento fattura — UNIFICATO post G.5.
+
+MODELLO 3-DIMENSIONI (vedi docs/stato_pagamento_unificato.md §15):
+  Questo service scrive SOLO D1 (stato pagamento) + D2 (modificatori tecnici).
+  Le mutazioni D3 (scadenza/tempo: sposta data, marca rateizzata) NON passano da
+  qui — hanno endpoint dedicati (es. PUT /controllo-gestione/uscite/{id}/scadenza
+  per D3=SPOSTATO, marca-rateizzata per D3=RATEIZZATO).
+  STATI_VALIDI sotto contiene SOLO i 4 valori D1+D2 legacy.
 
 Da G.5 in poi, c'è UNA SOLA fonte di verità: `cg_uscite.stato`.
 Le ex colonne `fe_fatture.pagato` e `fe_fatture.stato_pagamento` sono state

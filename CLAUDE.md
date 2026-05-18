@@ -142,6 +142,30 @@ Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste
 - L'endpoint `/system/info` espone anche `commit` (hash short del git HEAD letto al boot) → utile per "quale codice gira ora?" senza SSH.
 - Le versioni dei singoli moduli (vini, ricette, ecc.) restano in `versions.jsx` con bumping indipendente.
 
+## Stato pagamento fatture — 3 dimensioni GRANITICHE (NON confondere)
+
+> **Documento canonico:** `docs/stato_pagamento_unificato.md` §15 — leggere PRIMA di toccare qualunque UI/feature che parli di "stato" di una fattura.
+
+L'enum `cg_uscite.stato` ha 8 valori, ma **semanticamente esistono 3 dimensioni ortogonali**. Confonderle è la fonte storica di bug e di UI confuse.
+
+| Dimensione | Cos'è | Valori |
+|---|---|---|
+| **D1 — PAGAMENTO** | Stato business, risponde a "è pagata?" | PAGATA / NON PAGATA / PARZIALMENTE PAGATA |
+| **D2 — Modificatori tecnici** | Annotazioni CG-only sopra D1 | `*` (pagata non riconciliata), `?` (da verificare) |
+| **D3 — SCADENZA / TEMPO** | Quando va pagata, non se | IN SCADENZA / SCADUTA / RATEIZZATA / SPOSTATA |
+
+**Regole d'oro:**
+- Nel **modulo Fatture** (FattureDettaglio, FattureElenco) D1 e D3 devono essere VISUALIZZATI SEPARATI (due chip distinti).
+- Nel **modulo CG** (Uscite, Scadenzario) si possono UNIRE in un chip unico (operativamente più scannerizzabile).
+- D3 è IRRILEVANTE se D1 = PAGATA (i soldi sono usciti, la scadenza non conta più).
+- **RATEIZZATA è D3, non D1**: è un flag sulla data di scadenza ("più date"), non sullo stato pagamento.
+- **SPOSTATA è D3, non D1**: è una data rinegoziata, lo stato pagamento resta NON PAGATA.
+- **ANNULLATA** è uno stato eccezionale, ortogonale a D1/D2/D3 (nota di credito totale). Da modellare a parte.
+- `StatoPagamentoBadge` (frontend) gestisce SOLO D1+D2. Un eventuale `StatoScadenzaBadge` separato gestirà D3.
+- `set_stato()` nel service scrive solo D1+D2. Le mutazioni D3 (sposta, marca rateizzata) hanno endpoint dedicati.
+
+Se non sai a quale dimensione appartiene un valore che vuoi mostrare/scrivere, CHIEDI a Marco. Vietato decidere da soli.
+
 ## Migrazioni DB
 - File: `app/migrations/NNN_nome.py`, tracciate in `schema_migrations` di `foodcost.db`.
 - Una migrazione eseguita NON viene rieseguita. Per correggere, crea una nuova migrazione.
