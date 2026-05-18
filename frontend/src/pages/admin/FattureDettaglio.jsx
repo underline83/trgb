@@ -86,11 +86,12 @@ function getFatturaHeader(stato, isRateizzata) {
   return FATTURA_HEADER[stato] || FATTURA_HEADER.DEFAULT;
 }
 
-// Linguette del nuovo layout a tab (sessione 55).
+// Linguette del nuovo layout a tab (sessione 55, +CE in C.2 2026-05-18).
 const TABS = [
-  { key: "riepilogo",  label: "Riepilogo" },
-  { key: "pagamenti",  label: "Pagamenti" },
-  { key: "righe",      label: "Righe" },
+  { key: "riepilogo",       label: "Riepilogo" },
+  { key: "pagamenti",       label: "Pagamenti" },
+  { key: "righe",           label: "Righe" },
+  { key: "conto-economico", label: "Conto Economico" },
 ];
 
 // Calcolo dei giorni mancanti/trascorsi rispetto a una data ISO (YYYY-MM-DD).
@@ -156,6 +157,9 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
 
   // Tab attiva (sessione 55: layout testa fissa + linguette)
   const [activeTab, setActiveTab] = useState("riepilogo");
+  // C.2 (2026-05-18): dati CE-impatto, fetch lazy al primo click su tab "conto-economico"
+  const [ceImpatto, setCeImpatto] = useState(null);
+  const [ceLoading, setCeLoading] = useState(false);
   const handleChangeTab = (newTab) => {
     if (newTab === activeTab) return;
     if (editingScadenza || editingIban || editingMp) {
@@ -165,6 +169,15 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
       setEditingMp(false);
     }
     setActiveTab(newTab);
+    // C.2: fetch lazy dei dati CE-impatto al primo accesso al tab
+    if (newTab === "conto-economico" && id && ceImpatto == null && !ceLoading) {
+      setCeLoading(true);
+      apiFetch(`${FE}/fatture/${id}/ce-impatto`)
+        .then(r => r.ok ? r.json() : Promise.reject(new Error("ce-impatto fetch failed")))
+        .then(j => setCeImpatto(j))
+        .catch(e => console.error("ce-impatto:", e))
+        .finally(() => setCeLoading(false));
+    }
   };
 
   // Esponi hasPendingChanges al parent (pattern SchedaVino)
@@ -198,6 +211,8 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
       setEditingScadenza(false);
       setEditingIban(false);
       setEditingMp(false);
+      // C.2: reset cache ce-impatto (sarà ri-fetched al click sul tab)
+      setCeImpatto(null);
       try {
         const res = await apiFetch(`${FE}/fatture/${id}`);
         if (!res.ok) {
@@ -322,6 +337,87 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
     } catch (e) {
       console.error("cambiaStato:", e);
     }
+  };
+
+  // ─── C.2 (2026-05-18): handlers competenza P&L + spalmatura ───
+  // Estratti dai bottoni inline del header (rimossi in C.2) — ora vivono
+  // nel tab "Conto Economico" come azioni esplicite.
+  const handleSpostaCompetenza = async () => {
+    if (!fattura) return;
+    const current = fattura.competenza_anno_mese;
+    const promptMsg = current
+      ? `Competenza attuale: ${current}\n\nNuovo mese di competenza P&L (formato YYYY-MM, vuoto per rimuovere e usare data fattura):`
+      : `Data fattura: ${fattura.data_fattura}\n\nMese di competenza P&L (formato YYYY-MM, es. "2026-01" per spostare a gennaio):`;
+    const val = prompt(promptMsg, current || "");
+    if (val === null) return;
+    let body;
+    if (val.trim() === "") {
+      body = { anno: null, mese: null };
+    } else {
+      const m = val.match(/^(\d{4})-(\d{2})$/);
+      if (!m) { alert("Formato non valido: usa YYYY-MM (es. 2026-01)"); return; }
+      body = { anno: parseInt(m[1], 10), mese: parseInt(m[2], 10) };
+    }
+    try {
+      const res = await apiFetch(`${FE}/fatture/${fattura.id}/competenza`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
+      setCeImpatto(null);  // invalida cache
+      await refetch();
+    } catch (e) {
+      alert("Errore di rete");
+    }
+  };
+
+  const handleSpalmatura = async () => {
+    if (!fattura) return;
+    const hasSpalm = !!fattura.spalmatura_mesi;
+    const promptMsg = hasSpalm
+      ? `Spalmatura attuale: ${fattura.spalmatura_mesi} mesi da ${fattura.spalmatura_data_inizio}\n\nNumero mesi (3/6/12/24/36 o custom; vuoto per RIMUOVERE la spalmatura):`
+      : `Data fattura: ${fattura.data_fattura}\n\nSpalma il costo su quanti mesi? (3/6/12/24/36 o custom)\n\nEsempio: assicurazione annuale → 12 mesi`;
+    const valMesi = prompt(promptMsg, hasSpalm ? String(fattura.spalmatura_mesi) : "12");
+    if (valMesi === null) return;
+    if (valMesi.trim() === "") {
+      try {
+        const res = await apiFetch(`${FE}/fatture/${fattura.id}/spalmatura`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mesi: null, data_inizio: null }),
+        });
+        if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
+        setCeImpatto(null);
+        await refetch();
+      } catch { alert("Errore di rete"); }
+      return;
+    }
+    const nMesi = parseInt(valMesi, 10);
+    if (!Number.isInteger(nMesi) || nMesi < 1 || nMesi > 120) {
+      alert("Numero mesi non valido (1-120)");
+      return;
+    }
+    const defaultStart = fattura.spalmatura_data_inizio
+      ? fattura.spalmatura_data_inizio.slice(0, 7)
+      : (fattura.data_fattura || "").slice(0, 7);
+    const valData = prompt(
+      `Primo mese coperto dalla spalmatura (formato YYYY-MM):\n\nEsempio: 2026-01 per spalmare a partire da gennaio.`,
+      defaultStart
+    );
+    if (valData === null) return;
+    const m = valData.trim().match(/^(\d{4})-(\d{2})$/);
+    if (!m) { alert("Formato data non valido: usa YYYY-MM (es. 2026-01)"); return; }
+    try {
+      const res = await apiFetch(`${FE}/fatture/${fattura.id}/spalmatura`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mesi: nMesi, data_inizio: `${m[1]}-${m[2]}-01` }),
+      });
+      if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
+      setCeImpatto(null);
+      await refetch();
+    } catch { alert("Errore di rete"); }
   };
 
   // ── Wrapper loading / error (shape identico a SchedaVino) ──
@@ -532,102 +628,10 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                     </span>
                   </>
                 )}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const current = fattura.competenza_anno_mese;
-                    const promptMsg = current
-                      ? `Competenza attuale: ${current}\n\nNuovo mese di competenza P&L (formato YYYY-MM, vuoto per rimuovere e usare data fattura):`
-                      : `Data fattura: ${fattura.data_fattura}\n\nMese di competenza P&L (formato YYYY-MM, es. "2026-01" per spostare a gennaio):`;
-                    const val = prompt(promptMsg, current || "");
-                    if (val === null) return;  // utente annulla
-                    let body;
-                    if (val.trim() === "") {
-                      body = { anno: null, mese: null };
-                    } else {
-                      const m = val.match(/^(\d{4})-(\d{2})$/);
-                      if (!m) { alert("Formato non valido: usa YYYY-MM (es. 2026-01)"); return; }
-                      body = { anno: parseInt(m[1], 10), mese: parseInt(m[2], 10) };
-                    }
-                    try {
-                      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/${fattura.id}/competenza`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(body),
-                      });
-                      if (!res.ok) {
-                        const txt = await res.text();
-                        alert(`Errore: ${txt.slice(0, 200)}`);
-                        return;
-                      }
-                      // Refresh dettaglio fattura
-                      if (typeof onReload === "function") onReload();
-                      else window.location.reload();
-                    } catch (err) {
-                      alert("Errore di rete");
-                    }
-                  }}
-                  className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                  title="Imposta o cancella il mese di competenza P&L override (diverso dalla data fattura)"
-                >
-                  {fattura.competenza_anno_mese ? "✏️ modifica competenza" : "📅 sposta competenza"}
-                </button>
-                {/* C1 / G.3.2: bottone Spalmatura — il costo della fattura viene
-                    distribuito su N mesi nel CE in competenza. Priorità su "sposta
-                    competenza" se entrambi valorizzati. */}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const hasSpalm = !!fattura.spalmatura_mesi;
-                    const promptMsg = hasSpalm
-                      ? `Spalmatura attuale: ${fattura.spalmatura_mesi} mesi da ${fattura.spalmatura_data_inizio}\n\nNumero mesi (3/6/12/24/36 o custom; vuoto per RIMUOVERE la spalmatura):`
-                      : `Data fattura: ${fattura.data_fattura}\n\nSpalma il costo su quanti mesi? (3/6/12/24/36 o custom)\n\nEsempio: assicurazione annuale → 12 mesi`;
-                    const valMesi = prompt(promptMsg, hasSpalm ? String(fattura.spalmatura_mesi) : "12");
-                    if (valMesi === null) return;
-                    if (valMesi.trim() === "") {
-                      // Rimuovi
-                      try {
-                        const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/${fattura.id}/spalmatura`, {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ mesi: null, data_inizio: null }),
-                        });
-                        if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
-                        if (typeof onReload === "function") onReload(); else window.location.reload();
-                      } catch { alert("Errore di rete"); }
-                      return;
-                    }
-                    const nMesi = parseInt(valMesi, 10);
-                    if (!Number.isInteger(nMesi) || nMesi < 1 || nMesi > 120) {
-                      alert("Numero mesi non valido (1-120)");
-                      return;
-                    }
-                    // Prompt secondo: primo mese coperto
-                    const defaultStart = fattura.spalmatura_data_inizio
-                      ? fattura.spalmatura_data_inizio.slice(0, 7)
-                      : (fattura.data_fattura || "").slice(0, 7);
-                    const valData = prompt(
-                      `Primo mese coperto dalla spalmatura (formato YYYY-MM):\n\nEsempio: 2026-01 per spalmare a partire da gennaio.`,
-                      defaultStart
-                    );
-                    if (valData === null) return;
-                    const m = valData.trim().match(/^(\d{4})-(\d{2})$/);
-                    if (!m) { alert("Formato data non valido: usa YYYY-MM (es. 2026-01)"); return; }
-                    try {
-                      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture/${fattura.id}/spalmatura`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ mesi: nMesi, data_inizio: `${m[1]}-${m[2]}-01` }),
-                      });
-                      if (!res.ok) { alert(`Errore: ${(await res.text()).slice(0, 200)}`); return; }
-                      if (typeof onReload === "function") onReload(); else window.location.reload();
-                    } catch { alert("Errore di rete"); }
-                  }}
-                  className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                  title="Spalma il costo della fattura su N mesi nel Conto Economico (es. assicurazione annuale → 12 mesi)"
-                >
-                  {fattura.spalmatura_mesi ? "✏️ modifica spalmatura" : "📆 spalma su N mesi"}
-                </button>
+                {/* C.2: bottoni "sposta competenza" / "spalma" rimossi dal header.
+                    Spostati nel tab "Conto Economico" come azioni esplicite.
+                    I chip read-only sopra (P&L competenza · Spalmata) restano
+                    come segnale rapido se un override è attivo. */}
               </p>
             </div>
             {onClose && !Array.isArray(breadcrumb) && (
@@ -1099,6 +1103,180 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                 </table>
               </div>
             )}
+          </div>
+          )}
+
+          {/* ── CONTO ECONOMICO (C.2, 2026-05-18) ── */}
+          {activeTab === "conto-economico" && (
+          <div className="p-5 space-y-4">
+            {/* Banner se la fattura è esclusa dal CE */}
+            {fattura.escluso_acquisti && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-900">
+                ⚠ Questa fattura è <strong>esclusa dal Conto Economico</strong> perché il fornitore
+                ha il flag <code className="text-[11px] bg-amber-100 px-1 rounded">escluso_acquisti</code> attivo.
+                Per includerla, modifica l'anagrafica del fornitore.
+              </div>
+            )}
+
+            {/* ─── SEZIONE 1: COMPETENZA P&L ─── */}
+            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-neutral-800">📅 Competenza P&L</h4>
+                <span className="text-[10px] text-neutral-500">Quando questa fattura impatta il CE</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Mese singolo */}
+                <div className="bg-white border border-neutral-200 rounded-lg p-3">
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1">Mese singolo</div>
+                  <div className="text-base font-bold text-neutral-900">
+                    {fattura.competenza_anno_mese || (fattura.data_fattura || "").slice(0, 7) || "—"}
+                  </div>
+                  <div className="text-[10px] text-neutral-500 mt-0.5">
+                    {fattura.competenza_anno_mese
+                      ? "override attivo"
+                      : "default: data fattura"}
+                  </div>
+                  <Btn variant="secondary" size="sm" type="button"
+                    onClick={handleSpostaCompetenza}
+                    className="mt-2 text-xs">
+                    {fattura.competenza_anno_mese ? "✏️ Modifica competenza" : "📅 Sposta competenza"}
+                  </Btn>
+                </div>
+                {/* Spalmatura */}
+                <div className="bg-white border border-neutral-200 rounded-lg p-3">
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1">Spalmatura su N mesi</div>
+                  {fattura.spalmatura_mesi ? (
+                    <>
+                      <div className="text-base font-bold text-violet-900">
+                        {fattura.spalmatura_mesi} mesi
+                      </div>
+                      <div className="text-[10px] text-violet-600 mt-0.5">
+                        da {(fattura.spalmatura_data_inizio || "").slice(0, 7) || "—"}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-base font-bold text-neutral-400">Non attiva</div>
+                      <div className="text-[10px] text-neutral-500 mt-0.5">
+                        es. assicurazione annuale → 12 mesi
+                      </div>
+                    </>
+                  )}
+                  <Btn variant="secondary" size="sm" type="button"
+                    onClick={handleSpalmatura}
+                    className="mt-2 text-xs">
+                    {fattura.spalmatura_mesi ? "✏️ Modifica spalmatura" : "📆 Spalma su N mesi"}
+                  </Btn>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── SEZIONE 2: CATEGORIA NEL CE ─── */}
+            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+              <h4 className="text-sm font-semibold text-neutral-800 mb-3">🏷 Categoria nel Conto Economico</h4>
+              <div className="bg-white border border-neutral-200 rounded-lg p-3">
+                {fattura.categoria_aggregata && fattura.categoria_aggregata.length > 0 ? (
+                  <>
+                    <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">
+                      Aggregazione per categoria{fattura.categoria_aggregata.length > 1 ? ` (${fattura.categoria_aggregata.length} categorie diverse)` : ""}
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-neutral-500 border-b border-neutral-100">
+                          <th className="text-left font-medium py-1">Categoria</th>
+                          <th className="text-left font-medium py-1">Sottocategoria</th>
+                          <th className="text-right font-medium py-1">Righe</th>
+                          <th className="text-right font-medium py-1">Importo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fattura.categoria_aggregata.map((c, i) => (
+                          <tr key={i} className="border-b border-neutral-50">
+                            <td className="py-1.5 font-semibold text-neutral-800">{c.categoria}</td>
+                            <td className="py-1.5 text-neutral-600">{c.sottocategoria}</td>
+                            <td className="py-1.5 text-right text-neutral-500 tabular-nums">{c.righe_count}</td>
+                            <td className="py-1.5 text-right font-semibold text-neutral-900 tabular-nums">€ {fmt(c.importo)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="text-[10px] text-neutral-500 mt-2">
+                      Gerarchia: categoria_riga &gt; categoria_fornitore &gt; "Non categorizzato".
+                      Per riassegnare manualmente le righe, vai in Acquisti → Categorie.
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-neutral-500">Nessuna riga da categorizzare</div>
+                )}
+              </div>
+            </div>
+
+            {/* ─── SEZIONE 3: DOVE APPARE NEL CE ─── */}
+            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+              <h4 className="text-sm font-semibold text-neutral-800 mb-3">📊 Dove appare nel Conto Economico</h4>
+              {ceLoading && (
+                <div className="text-sm text-neutral-500 italic">Calcolo dell'impatto P&L in corso…</div>
+              )}
+              {!ceLoading && ceImpatto && (
+                <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-2">
+                  <div className="flex justify-between items-start text-xs">
+                    <span className="text-neutral-500">Mese di competenza</span>
+                    <span className="font-semibold text-neutral-900 text-right">
+                      {ceImpatto.mese_label}
+                      {ceImpatto.modalita === "spalmatura" && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 border border-violet-200 text-[9px]">
+                          spalmata
+                        </span>
+                      )}
+                      {ceImpatto.modalita === "competenza_override" && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[9px]">
+                          override
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-500">
+                      Importo P&L{ceImpatto.modalita === "spalmatura" ? " (per mese)" : ""}
+                    </span>
+                    <span className="font-bold text-neutral-900 tabular-nums">€ {fmt(ceImpatto.importo_pl_per_mese)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-500">Categoria principale</span>
+                    <span className="font-semibold text-neutral-900">
+                      {ceImpatto.categoria_principale}
+                      {ceImpatto.sottocategoria_principale && ceImpatto.sottocategoria_principale !== "—" && (
+                        <span className="text-neutral-400"> › {ceImpatto.sottocategoria_principale}</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-500">% sui ricavi del mese</span>
+                    <span className="font-semibold text-neutral-900 tabular-nums">
+                      {ceImpatto.perc_su_ricavi != null ? `${fmt(ceImpatto.perc_su_ricavi)}%` : "—"}
+                      <span className="text-[10px] text-neutral-400 ml-1">su € {fmt(ceImpatto.ricavi_mese_riferimento)}</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-500">% sulla categoria</span>
+                    <span className="font-semibold text-neutral-900 tabular-nums">
+                      {ceImpatto.perc_su_categoria != null ? `${fmt(ceImpatto.perc_su_categoria)}%` : "—"}
+                      <span className="text-[10px] text-neutral-400 ml-1">su € {fmt(ceImpatto.totale_categoria_mese)}</span>
+                    </span>
+                  </div>
+                  <div className="pt-2 mt-2 border-t border-neutral-100">
+                    <a href={ceImpatto.link_ce}
+                      onClick={(e) => { e.preventDefault(); if (inline && onClose) onClose(); navigate(ceImpatto.link_ce); }}
+                      className="text-xs font-semibold text-brand-blue hover:underline">
+                      Apri Conto Economico {ceImpatto.mese_label} →
+                    </a>
+                  </div>
+                </div>
+              )}
+              {!ceLoading && !ceImpatto && (
+                <div className="text-sm text-neutral-500 italic">Impossibile calcolare l'impatto P&L (riprova)</div>
+              )}
+            </div>
           </div>
           )}
 

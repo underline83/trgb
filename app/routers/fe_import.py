@@ -1341,6 +1341,48 @@ def get_fattura_detail(fattura_id: int):
         or fattura_dict.get("iban_fornitore")
     )
 
+    # C.2 / Tab CE — Aggregazione righe per (categoria, sottocategoria).
+    # Stessa gerarchia di conto_economico.py:_aggregate_fatture_per_categoria:
+    #   1. fe_righe.categoria_id          (per riga, granulare)
+    #   2. fe_fornitore_categoria         (fallback fornitore)
+    #   3. 'Non categorizzato'
+    # Espone anche ffc.escluso_acquisti: il frontend può avvertire l'utente
+    # "questa fattura NON entra nel CE perché il fornitore è escluso".
+    conn_ce = _get_conn()
+    try:
+        categorie_rows = conn_ce.execute("""
+            SELECT
+                COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
+                COALESCE(fsub_riga.nome, fsub_forn.nome, '—')                 AS sottocategoria,
+                COUNT(r.id)                                                   AS righe_count,
+                COALESCE(SUM(r.prezzo_totale), 0)                             AS importo
+            FROM fe_righe r
+            LEFT JOIN fe_fatture f ON r.fattura_id = f.id
+            LEFT JOIN fe_fornitore_categoria ffc
+                   ON f.fornitore_piva = ffc.fornitore_piva
+            LEFT JOIN fe_categorie       fcat_riga ON r.categoria_id     = fcat_riga.id
+            LEFT JOIN fe_sottocategorie  fsub_riga ON r.sottocategoria_id = fsub_riga.id
+            LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
+            LEFT JOIN fe_sottocategorie  fsub_forn ON ffc.sottocategoria_id = fsub_forn.id
+            WHERE r.fattura_id = ?
+            GROUP BY COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato'),
+                     COALESCE(fsub_riga.nome, fsub_forn.nome, '—')
+            ORDER BY importo DESC
+        """, (fattura_id,)).fetchall()
+        categoria_aggregata = [dict(r) for r in categorie_rows]
+
+        escl_row = conn_ce.execute("""
+            SELECT COALESCE(ffc.escluso_acquisti, 0) AS escluso_acquisti
+            FROM fe_fatture f
+            LEFT JOIN fe_fornitore_categoria ffc
+                   ON f.fornitore_piva = ffc.fornitore_piva
+            WHERE f.id = ?
+            LIMIT 1
+        """, (fattura_id,)).fetchone()
+        escluso_acquisti = bool(escl_row["escluso_acquisti"]) if escl_row else False
+    finally:
+        conn_ce.close()
+
     return {
         **fattura_dict,
         "data_scadenza_effettiva": data_scadenza_effettiva,
@@ -1354,6 +1396,227 @@ def get_fattura_detail(fattura_id: int):
         # C1 / G.3.2: spalmatura competenza su N mesi (priorità su competenza_anno_mese)
         "spalmatura_mesi": spalmatura_mesi,
         "spalmatura_data_inizio": spalmatura_data_inizio,
+        # C.2 / Tab CE: aggregazione categorie + flag escluso_acquisti
+        "categoria_aggregata": categoria_aggregata,
+        "escluso_acquisti": escluso_acquisti,
+    }
+
+
+# -------------------------------------------------------------------
+# C.2 / TAB CE — Impatto fattura nel Conto Economico
+# -------------------------------------------------------------------
+
+@router.get(
+    "/fatture/{fattura_id}/ce-impatto",
+    response_model=Dict[str, Any],
+    summary="Impatto della fattura nel Conto Economico (per tab CE nel dettaglio)",
+)
+def get_fattura_ce_impatto(fattura_id: int):
+    """
+    Ritorna informazioni sull'impatto P&L di UNA fattura:
+      - mese (o range mesi se spalmata) in cui appare nel CE
+      - importo per mese (totale / N mesi se spalmata)
+      - categoria principale (riga con importo maggiore)
+      - ricavi totale del mese di riferimento
+      - totale categoria nel mese di riferimento
+      - % sui ricavi, % sulla categoria
+
+    Riusa la stessa logica gerarchica di conto_economico.py per garantire
+    coerenza con il CE renderizzato.
+    """
+    import logging
+    _log = logging.getLogger("fe_import")
+
+    conn = _get_conn()
+    try:
+        # ─── 1. Carica metadati fattura per determinare competenza ───
+        f = conn.execute("""
+            SELECT id, data_fattura, fornitore_piva,
+                   COALESCE(imponibile_totale, totale_fattura, 0) AS importo_lordo
+            FROM fe_fatture WHERE id = ?
+        """, (fattura_id,)).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="Fattura non trovata")
+        data_fattura = f["data_fattura"]
+        piva = f["fornitore_piva"]
+
+        # competenza_anno_mese + spalmatura (mig 133/135) possono non esistere
+        # in DB legacy — try/except difensivo.
+        try:
+            comp_row = conn.execute("""
+                SELECT competenza_anno_mese, spalmatura_mesi, spalmatura_data_inizio
+                FROM fe_fatture WHERE id = ?
+            """, (fattura_id,)).fetchone()
+            comp_override = comp_row["competenza_anno_mese"] if comp_row else None
+            spalm_mesi = comp_row["spalmatura_mesi"] if comp_row else None
+            spalm_inizio = comp_row["spalmatura_data_inizio"] if comp_row else None
+        except sqlite3.OperationalError:
+            comp_override = None
+            spalm_mesi = None
+            spalm_inizio = None
+
+        # ─── 2. Determina mesi di competenza ───
+        nomi_mesi = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio",
+                     "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre",
+                     "Novembre", "Dicembre"]
+
+        def fmt_mese(yyyy_mm: str) -> str:
+            try:
+                y, m = yyyy_mm.split("-")
+                return f"{nomi_mesi[int(m)]} {y}"
+            except Exception:
+                return yyyy_mm
+
+        def mesi_range(start_iso: str, n: int) -> list[str]:
+            """Da '2026-01-01' + 12 → ['2026-01','2026-02',...,'2026-12']."""
+            y, m = int(start_iso[:4]), int(start_iso[5:7])
+            out = []
+            for _ in range(n):
+                out.append(f"{y:04d}-{m:02d}")
+                m += 1
+                if m > 12:
+                    m = 1; y += 1
+            return out
+
+        if spalm_mesi and spalm_inizio and spalm_mesi > 0:
+            modalita = "spalmatura"
+            mesi_coinvolti = mesi_range(spalm_inizio, int(spalm_mesi))
+            mese_riferimento = mesi_coinvolti[0]
+            if len(mesi_coinvolti) > 1:
+                mese_label = f"{fmt_mese(mesi_coinvolti[0])} → {fmt_mese(mesi_coinvolti[-1])}"
+            else:
+                mese_label = fmt_mese(mesi_coinvolti[0])
+        elif comp_override:
+            modalita = "competenza_override"
+            mesi_coinvolti = [comp_override]
+            mese_riferimento = comp_override
+            mese_label = fmt_mese(comp_override)
+        else:
+            if not data_fattura:
+                raise HTTPException(status_code=400, detail="Fattura senza data: impossibile dedurre competenza")
+            modalita = "competenza_singola"
+            mesi_coinvolti = [data_fattura[:7]]
+            mese_riferimento = data_fattura[:7]
+            mese_label = fmt_mese(data_fattura[:7])
+
+        # ─── 3. Importo P&L per mese (totale / N mesi se spalmata) ───
+        # Sommo le righe (= imponibile categorizzato). Se spalmata, divido.
+        riga = conn.execute("""
+            SELECT COALESCE(SUM(prezzo_totale), 0) AS tot_righe,
+                   COUNT(*)                       AS n_righe
+            FROM fe_righe WHERE fattura_id = ?
+        """, (fattura_id,)).fetchone()
+        tot_righe = float(riga["tot_righe"] or 0)
+        if modalita == "spalmatura":
+            importo_pl_per_mese = round(tot_righe / int(spalm_mesi), 2)
+        else:
+            importo_pl_per_mese = round(tot_righe, 2)
+
+        # ─── 4. Categoria principale (riga con importo maggiore) ───
+        cat_row = conn.execute("""
+            SELECT
+                COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
+                COALESCE(fsub_riga.nome, fsub_forn.nome, '—')                 AS sottocategoria,
+                COALESCE(SUM(r.prezzo_totale), 0)                             AS importo
+            FROM fe_righe r
+            LEFT JOIN fe_fatture f ON r.fattura_id = f.id
+            LEFT JOIN fe_fornitore_categoria ffc ON f.fornitore_piva = ffc.fornitore_piva
+            LEFT JOIN fe_categorie       fcat_riga ON r.categoria_id     = fcat_riga.id
+            LEFT JOIN fe_sottocategorie  fsub_riga ON r.sottocategoria_id = fsub_riga.id
+            LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
+            LEFT JOIN fe_sottocategorie  fsub_forn ON ffc.sottocategoria_id = fsub_forn.id
+            WHERE r.fattura_id = ?
+            GROUP BY COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato'),
+                     COALESCE(fsub_riga.nome, fsub_forn.nome, '—')
+            ORDER BY importo DESC
+            LIMIT 1
+        """, (fattura_id,)).fetchone()
+        if cat_row:
+            categoria_principale = cat_row["categoria"]
+            sottocategoria_principale = cat_row["sottocategoria"]
+        else:
+            categoria_principale = "Non categorizzato"
+            sottocategoria_principale = "—"
+
+        # ─── 5. Totale categoria nel mese di riferimento ───
+        # Aggrega tutte le righe del mese che vanno nella stessa categoria,
+        # rispettando la gerarchia categoria_riga > categoria_fornitore.
+        # Filtro mese: spalmatura > competenza_override > data_fattura
+        # ATTENZIONE: per semplificare uso comp_override OR data_fattura.
+        # Le spalmate del mese non sono incluse qui (sarebbero un altro layer).
+        anno_ref, mese_ref = int(mese_riferimento[:4]), int(mese_riferimento[5:7])
+        primo_mese = f"{anno_ref:04d}-{mese_ref:02d}-01"
+        try:
+            cat_totale_row = conn.execute("""
+                SELECT COALESCE(SUM(r.prezzo_totale), 0) AS tot_cat
+                FROM fe_righe r
+                JOIN fe_fatture f ON r.fattura_id = f.id
+                LEFT JOIN fe_fornitore_categoria ffc ON f.fornitore_piva = ffc.fornitore_piva
+                LEFT JOIN fe_categorie       fcat_riga ON r.categoria_id     = fcat_riga.id
+                LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
+                WHERE COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') = ?
+                  AND COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) = ?
+                  AND COALESCE(f.is_autofattura, 0) = 0
+                  AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
+                  AND COALESCE(ffc.escluso_acquisti, 0) = 0
+            """, (categoria_principale, mese_riferimento)).fetchone()
+        except sqlite3.OperationalError:
+            cat_totale_row = conn.execute("""
+                SELECT COALESCE(SUM(r.prezzo_totale), 0) AS tot_cat
+                FROM fe_righe r
+                JOIN fe_fatture f ON r.fattura_id = f.id
+                LEFT JOIN fe_fornitore_categoria ffc ON f.fornitore_piva = ffc.fornitore_piva
+                LEFT JOIN fe_categorie       fcat_riga ON r.categoria_id     = fcat_riga.id
+                LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
+                WHERE COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') = ?
+                  AND strftime('%Y-%m', f.data_fattura) = ?
+                  AND COALESCE(f.is_autofattura, 0) = 0
+                  AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
+                  AND COALESCE(ffc.escluso_acquisti, 0) = 0
+            """, (categoria_principale, mese_riferimento)).fetchone()
+        totale_categoria_mese = round(float(cat_totale_row["tot_cat"] or 0), 2)
+    finally:
+        conn.close()
+
+    # ─── 6. Ricavi del mese di riferimento (vendite_aggregator) ───
+    from datetime import date
+    import calendar
+    ultimo_g = calendar.monthrange(anno_ref, mese_ref)[1]
+    ultimo_mese = f"{anno_ref:04d}-{mese_ref:02d}-{ultimo_g:02d}"
+    ricavi_mese = 0.0
+    try:
+        VENDITE_DB = locale_data_path("admin_finance.sqlite3")
+        v_conn = sqlite3.connect(VENDITE_DB)
+        v_conn.row_factory = sqlite3.Row
+        try:
+            from app.services.vendite_aggregator import totali_periodo
+            v = totali_periodo(v_conn, primo_mese, ultimo_mese)
+            ricavi_mese = float(v.get("totale_corrispettivi", 0) or 0)
+        finally:
+            v_conn.close()
+    except Exception as e:
+        _log.warning(f"ce-impatto: ricavi non disponibili: {e}")
+
+    # ─── 7. Percentuali ───
+    perc_su_ricavi = round((importo_pl_per_mese / ricavi_mese * 100), 2) if ricavi_mese > 0 else None
+    perc_su_categoria = round((importo_pl_per_mese / totale_categoria_mese * 100), 2) if totale_categoria_mese > 0 else None
+
+    # ─── 8. Link al CE pre-popolato sul mese ───
+    link_ce = f"/controllo-gestione/conto-economico?anno={anno_ref}&mese={mese_ref}"
+
+    return {
+        "fattura_id": fattura_id,
+        "modalita": modalita,
+        "mese_label": mese_label,
+        "mesi_coinvolti": mesi_coinvolti,
+        "importo_pl_per_mese": importo_pl_per_mese,
+        "categoria_principale": categoria_principale,
+        "sottocategoria_principale": sottocategoria_principale,
+        "ricavi_mese_riferimento": round(ricavi_mese, 2),
+        "totale_categoria_mese": totale_categoria_mese,
+        "perc_su_ricavi": perc_su_ricavi,
+        "perc_su_categoria": perc_su_categoria,
+        "link_ce": link_ce,
     }
 
 
