@@ -785,6 +785,95 @@ def _pescato_widget(oggi: str, tagli_per_cat: int = 2) -> PescatoWidget:
         return PescatoWidget()
 
 
+def _controllo_gestione_metrics() -> dict:
+    """G.3 audit P5 (2026-05-16) — Metrics per la tile Home del modulo
+    Controllo Gestione. Restituisce KPI del P&L del mese corrente +
+    confronto col mese precedente + indicatori benchmark (food cost %,
+    personale %) + alert se ELAB del mese non è stato importato.
+
+    Schema risposta:
+      {
+        "mese_label": "Mag 2026",
+        "utile_mese_eur": 5500.0,
+        "utile_mese_pct": 11.3,
+        "mese_prev_label": "Apr 2026",
+        "utile_mese_prev_eur": 6797.0,
+        "utile_mese_prev_pct": 13.9,
+        "food_cost_pct": 26.4,         # benchmark sano 28-35%
+        "personale_pct": 35.2,         # benchmark sano 25-35%
+        "elab_caricato": True,         # False → badge ⚠ ELAB
+      }
+
+    Non leva eccezioni: in caso di errore ritorna un dict con i campi a None.
+    """
+    from datetime import date as _date
+    import sqlite3
+    from app.utils.locale_data import locale_data_path
+
+    out = {
+        "mese_label": "", "utile_mese_eur": None, "utile_mese_pct": None,
+        "mese_prev_label": "", "utile_mese_prev_eur": None, "utile_mese_prev_pct": None,
+        "food_cost_pct": None, "personale_pct": None, "elab_caricato": False,
+    }
+
+    oggi = _date.today()
+    anno, mese = oggi.year, oggi.month
+    prev_anno, prev_mese = (anno, mese - 1) if mese > 1 else (anno - 1, 12)
+
+    nomi_mese = ["", "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+                 "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+    out["mese_label"] = f"{nomi_mese[mese]} {anno}"
+    out["mese_prev_label"] = f"{nomi_mese[prev_mese]} {prev_anno}"
+
+    try:
+        from app.services.conto_economico import compute_pl
+        from pathlib import Path
+
+        fc_path = locale_data_path("foodcost.db")
+        ve_path = locale_data_path("admin_finance.sqlite3")
+        dip_path = locale_data_path("dipendenti.sqlite3")
+
+        fc = sqlite3.connect(fc_path); fc.row_factory = sqlite3.Row
+        ve = sqlite3.connect(ve_path); ve.row_factory = sqlite3.Row
+        dip = None
+        if Path(dip_path).exists():
+            dip = sqlite3.connect(dip_path); dip.row_factory = sqlite3.Row
+
+        try:
+            # P&L mese corrente
+            pl_cur = compute_pl(fc, ve, anno, mese, modalita="competenza", dip_conn=dip)
+            out["utile_mese_eur"] = pl_cur["utile_netto"]
+            out["utile_mese_pct"] = pl_cur["utile_netto_pct"]
+            out["food_cost_pct"] = pl_cur["costo_merce"].get("pct_su_ricavi")
+            # personale_pct = staff totale / ricavi * 100
+            staff_tot = sum(
+                cat["importo"] for cat in pl_cur["costi_operativi"]["per_categoria"]
+                if cat["categoria"] in ("STAFF", "AMMINISTRATORI")
+            )
+            ricavi = pl_cur["ricavi"]["totale"] or 0
+            out["personale_pct"] = round(staff_tot / ricavi * 100, 1) if ricavi > 0 else None
+            out["elab_caricato"] = (
+                pl_cur["_meta"].get("costo_personale", {}).get("modalita") == "completo"
+            )
+
+            # P&L mese precedente (utile + %)
+            try:
+                pl_prev = compute_pl(fc, ve, prev_anno, prev_mese, modalita="competenza", dip_conn=dip)
+                out["utile_mese_prev_eur"] = pl_prev["utile_netto"]
+                out["utile_mese_prev_pct"] = pl_prev["utile_netto_pct"]
+            except Exception:
+                pass
+        finally:
+            fc.close()
+            ve.close()
+            if dip is not None:
+                dip.close()
+    except Exception:
+        pass  # ritorna lo schema vuoto, frontend cade su line1/line2 standard
+
+    return out
+
+
 def _acquisti_metrics() -> dict:
     """
     Metrics per la card Home "Gestione Acquisti" multi-colonna (sessione 2026-05-10).
@@ -1267,11 +1356,23 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     except Exception:
         summaries.append(ModuloSummary(key="flussi-cassa", line1="Flussi di Cassa", line2="CC · Carta · Contanti"))
 
-    # ── Controllo Gestione ──
+    # ── Controllo Gestione — card avanzata con KPI P&L (audit Marco 2026-05-16) ──
+    # Frontend renderizza `metrics` se presente, altrimenti cade su line1/line2.
+    # Badge = 1 se ELAB del mese NON caricato (alert visivo).
+    cgm = _controllo_gestione_metrics()
+    line1_cg = "Conto Economico, Scadenzario, Spese Fisse"  # fallback
+    line2_cg = ""
+    if cgm.get("utile_mese_eur") is not None:
+        # Fallback testuale anche con metrics, per ambienti legacy
+        line1_cg = f"{cgm['mese_label']}: utile € {cgm['utile_mese_eur']:.0f} ({cgm.get('utile_mese_pct') or 0:.1f}%)"
+        if cgm.get("utile_mese_prev_eur") is not None:
+            line2_cg = f"{cgm['mese_prev_label']}: € {cgm['utile_mese_prev_eur']:.0f}"
     summaries.append(ModuloSummary(
         key="controllo-gestione",
-        line1="Dashboard P&L e confronto",
-        line2=f"Coperti mese: {coperti.totale} (vs {coperti.anno_precedente} prec.)" if coperti.anno_precedente > 0 else f"Coperti mese: {coperti.totale}",
+        line1=line1_cg,
+        line2=line2_cg,
+        badge=0 if cgm.get("elab_caricato") else 1,
+        metrics=cgm,
     ))
 
     # ── Dipendenti ──

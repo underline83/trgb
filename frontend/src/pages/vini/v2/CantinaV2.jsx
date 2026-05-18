@@ -10,7 +10,7 @@
 // scritture/checkbox/bulk. Tutto il resto del comportamento filtri è IDENTICO.
 
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../../config/api";
 import {
   STATO_VENDITA,
@@ -76,7 +76,11 @@ function fmtEuro(v) {
 
 export default function CantinaV2() {
   const navigate = useNavigate();
-  const [vista, setVista] = useState("bottiglie"); // "bottiglie" | "madri"
+  // M2.7-bis: la vista (bottiglie/madri) è ora pilotata dall'URL search param
+  // `?vista=`, gestito dal toggle nell'header globale di GestioneVino2. Qui la
+  // leggiamo soltanto; non c'è più state interno o toggle nella pagina.
+  const [searchParams] = useSearchParams();
+  const vista = searchParams.get("vista") === "madri" ? "madri" : "bottiglie";
   const [bottiglie, setBottiglie] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -224,15 +228,7 @@ export default function CantinaV2() {
       {/* CONTENT */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Toggle vista (header rimosso: ora il brand "Gestione 2" è nell'header globale) */}
-        <div className="px-3 py-1.5 bg-white border-b border-neutral-200 flex items-center justify-end gap-2 flex-shrink-0">
-          <div className="flex border border-neutral-300 rounded-lg overflow-hidden">
-            <button onClick={() => setVista("bottiglie")}
-              className={`px-3 py-1 text-xs font-semibold transition ${vista === "bottiglie" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍾 Bottiglie</button>
-            <button onClick={() => setVista("madri")}
-              className={`px-3 py-1 text-xs font-semibold transition ${vista === "madri" ? "bg-amber-700 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100"}`}>🍷 Madri</button>
-          </div>
-        </div>
+        {/* Toggle Bottiglie/Madri è ora nell'header globale di GestioneVino2 (M2.7-bis). */}
 
         {/* Riepilogo tipologie chip — sempre sulle bottigliefiltrate (=stessa pipeline) */}
         <RiepilogoTipologie

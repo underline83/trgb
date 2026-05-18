@@ -536,6 +536,75 @@ export default function Home() {
                         );
                       }
 
+                      // Controllo Gestione: card avanzata con KPI P&L (audit Marco 2026-05-16)
+                      if (m.key === "controllo-gestione" && summary?.metrics?.utile_mese_eur != null) {
+                        const cm = summary.metrics;
+                        const isUtilePositivo = (cm.utile_mese_eur ?? 0) >= 0;
+                        // Benchmark ristorazione: food cost sano 28-35%, personale sano 25-35%
+                        const fcOk = cm.food_cost_pct != null && cm.food_cost_pct <= 35;
+                        const persOk = cm.personale_pct != null && cm.personale_pct <= 35;
+                        return (
+                          <div
+                            key={m.key}
+                            onClick={() => navigate(menu.go)}
+                            className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform relative overflow-hidden ${menu.color}`}
+                            style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)", padding: 16, minHeight: 110 }}
+                          >
+                            {/* Badge ⚠ ELAB se costo personale parziale (mese non importato) */}
+                            {!cm.elab_caricato && (
+                              <span className="absolute top-2.5 right-2.5 text-[9px] font-semibold text-white rounded-full text-center"
+                                style={{ background: "#BA7517", padding: "2px 7px", boxShadow: "0 1px 3px rgba(186,117,23,.3)" }}
+                                title="ELAB del mese non ancora importato — costo personale parziale">
+                                ⚠ ELAB
+                              </span>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-[24px] leading-none">{menu.icon}</span>
+                              <div className="text-[13px] sm:text-sm font-bold leading-tight">{menu.title}</div>
+                            </div>
+                            {/* Riga 1: utile netto del mese + % sui ricavi */}
+                            <div className="text-[11px] opacity-90 mt-2 leading-snug">
+                              <span className="font-semibold capitalize">{cm.mese_label}</span>
+                              {": utile "}
+                              <span className={`font-bold ${isUtilePositivo ? "" : "text-brand-red"}`}>
+                                € {(cm.utile_mese_eur || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              </span>
+                              {cm.utile_mese_pct != null && (
+                                <span className="ml-1 opacity-70">({cm.utile_mese_pct.toFixed(1)}%)</span>
+                              )}
+                            </div>
+                            {/* Riga 2: mese precedente (riferimento visivo) */}
+                            {cm.utile_mese_prev_eur != null && (
+                              <div className="text-[10px] opacity-55 leading-snug capitalize">
+                                {cm.mese_prev_label}: € {(cm.utile_mese_prev_eur || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                {cm.utile_mese_prev_pct != null && (
+                                  <span className="ml-1">({cm.utile_mese_prev_pct.toFixed(1)}%)</span>
+                                )}
+                              </div>
+                            )}
+                            {/* Indicatori benchmark salute (food cost % + personale %) */}
+                            <div className="grid grid-cols-2 gap-1 mt-2">
+                              {[
+                                { label: "Food cost", pct: cm.food_cost_pct, ok: fcOk, target: "28-35%" },
+                                { label: "Personale", pct: cm.personale_pct, ok: persOk, target: "25-35%" },
+                              ].map((kp) => (
+                                <div key={kp.label} className="bg-white/40 rounded-lg px-2 py-1.5">
+                                  <div className="flex items-center justify-between leading-tight">
+                                    <span className="text-[8px] uppercase tracking-wide opacity-60">{kp.label}</span>
+                                    <span className={`text-[9px] ${kp.ok ? "text-emerald-700" : "text-amber-700"}`}>
+                                      {kp.pct == null ? "—" : kp.ok ? "✓" : "⚠"}
+                                    </span>
+                                  </div>
+                                  <div className="text-[12px] font-bold tabular-nums leading-tight">
+                                    {kp.pct == null ? "—" : `${kp.pct.toFixed(1)}%`}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
                       // Card standard per gli altri moduli
                       return (
                         <div
