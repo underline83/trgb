@@ -3,6 +3,46 @@
 
 ---
 
+## 2026-05-19 — Vini 3.47 → 3.53 · F11 Hotfix giornata post-cutover `[core]`
+
+Giornata di test ad osteria chiusa post-cutover refactor anagrafiche. ~10 bug fixati uno alla volta + UI clean-up + 2 feature.
+
+### Backend (sed esteso `vini_magazzino → vini_bottiglie` su 5 file aggiuntivi)
+- `vini_cantina_tools_router.py` — matrice + stampe inventario PDF (3 voci) + locazioni → senza fix erano 500 immediati.
+- `vini_magazzino_db.py` — modulo core legacy (133 occorrenze), usato da `mag_db.matrice_get_stato()`, `mag_db.get_vino_by_id()` e decine di altri endpoint che altrimenti puntavano alla legacy archiviata.
+- `vini_magazzino_router.py` — `/dashboard` + `/movimenti-globali` (vendite Marco).
+- `vini_xlsx_v2.py` — import/export Excel.
+- `vini_settings.py` — query distinct NAZIONE/REGIONE.
+
+Per ognuno: sed regex con boundary `[^_.]` per evitare di toccare `vini_magazzino.sqlite3` (file path) e `vini_magazzino_movimenti/note` (satellite NON rinominate).
+
+### Frontend
+- **Banner "READ-ONLY · per modificare apri Cantina classica"** rimossi in 4 punti: `SchedaVino.jsx` footer, `SchedaVinoV2.jsx` header, `CantinaV2.jsx` scheda inline, `GestioneVino2.jsx` top-right.
+- **`readOnly={false}`** in `SchedaVinoV2` + scheda inline `CantinaV2`: la cantina v2 è ora pienamente scrivibile.
+- **BulkActionBar Cantina v2**: rimossi bottoni "Modifica" + "Duplica" che erano disabilitati come placeholder.
+- **Wizard Step 4**: rimossa 4° LocCard "Locazione 3" (gestita automaticamente dalla matrice come in SchedaVino). Le celle pre-selezionate ora contano nel totale + nello sblocco "Avanti".
+- **Wizard Step 3**: auto-calcolo Prezzo Carta da Listino `onBlur` via endpoint `/vini/pricing/calcola` (replica MagazzinoViniNuovo legacy).
+- **Bottone "🗑️ Elimina vino"** nel footer SchedaVino — doppia conferma + cascade DB (movimenti, note, celle matrice). Visibile solo se `!readOnly`.
+- **Bottone "🍷 Vai al madre"** nel footer SchedaVino — prop opzionale `onOpenMadre(mid)`. Da Cantina v2 inline apre scheda madre via `handleMadreClick`. Da SchedaVinoV2 route naviga a `/vini/v2/cantina?vista=madri&openMadre={mid}` con auto-apertura sul mount.
+- **Stale cache fix**: `onVinoUpdated={fetchData}` in CantinaV2 → quando si modifica un vino, la lista bottiglie viene ricaricata e la SchedaMadre mostra dati freschi.
+
+### Bump versione
+- frontend `versions.jsx`: vini **3.46 → 3.53** (3.47 sed F11 + 3.48 banner footer + 3.49 banner top + 3.50 Loc3/matrice + 3.51 prezzo auto + 3.52 elimina + 3.53 vai al madre/cache).
+- VERSION root: rimasto 5.15 (bumpato ieri per il cutover).
+
+### Doc + memoria aggiornate
+- `docs/modulo_vini.md` — nuova sezione "📌 STATO POST-CUTOVER (2026-05-19)" all'inizio: schema DB + relazioni + concetti semantici critici + UI + wizard + endpoint principali. Header bumpato a 3.53.
+- `docs/roadmap.md` §V: V.6+V.7+V.8 marcati CHIUSI con sotto-tabella Fasi 1-10. Aggiunte V.20/V.21/V.22 da rivedere.
+- `docs/sessione.md`: entry F11 con dettaglio di ogni fix.
+- Memoria interna `project_refactor_anagrafiche_vini.md` aggiornata da "fasi 1-7 chiuse" a "CHIUSO 2026-05-19" con elenco lezioni operative.
+
+### Task pending per future sessioni
+- **V.20 / task #2** — Import/Export Vini v3 (template 3 fogli strutturato)
+- **V.21 / task #3** — Bulk delete da BulkActionBar (XS)
+- **V.22 / task #136** — Refactor UX Vista Sommelier (CartaStaff)
+
+---
+
 ## 2026-05-18 — Sistema 5.15 · Cutover refactor anagrafiche vini (milestone strutturale)
 
 Bump VERSION sistema 5.14 → **5.15** per riflettere il completamento del refactor anagrafiche V.6+V.7+V.8 — milestone strutturale del prodotto (schema DB cambiato, tabelle rinominate, architettura semplificata). Allineamento file `VERSION` root + `frontend/src/config/versions.jsx` campo `sistema.version`.

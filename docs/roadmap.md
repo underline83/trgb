@@ -62,24 +62,24 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 
 ## V — VINI / CANTINA (include carta bevande)
 
-Priorità ridefinite con Marco 2026-05-12 (audit modulo Vini).
+**Aggiornato 2026-05-19:** post-cutover refactor anagrafiche (V.6+V.7+V.8 → CHIUSO con mig 133). Aggiunti task V.20/V.21/V.22 da rivedere insieme. Priorità V.5 da rivedere (parzialmente coperto).
 
-**Ordine prioritari:** V.1 → V.2 → V.3 → V.6 → V.7 → V.8 → V.5
+**Ordine prioritari attuali:** V.1 → V.2 → V.3 → poi rivalutare V.5/V.20/V.21/V.22.
 
 | ID | Cosa | Effort | Priorità | Note |
 |----|------|--------|----------|------|
-| V.1 | Flag DISCONTINUATO UI + filtro | S | **PRIORITARIO 1** | DB ready (colonna esiste), serve solo UI |
+| V.1 | Flag DISCONTINUATO UI + filtro | S | **PRIORITARIO 1** | DB ready (consolidato in `STATO_RIORDINO='X'` post mig 124), serve solo UI/filtro nella Cantina v2 |
 | V.2 | Alert sottoscorta (M.A + M.F) | S | **PRIORITARIO 2** | Mattoni esistono |
 | V.3 | Storico prezzi fornitore — grafico Recharts | S | **PRIORITARIO 3** | Dati già in `vini_prezzi_storico` |
-| V.6 | Anagrafiche normalizzate (produttori/distributori/denominazioni) | M | **PRIORITARIO 4** | Tabelle dedicate + autocomplete + dedup |
-| V.7 | Famiglia vino raggruppa annate | M-L | **PRIORITARIO 5** | Tabella `vini_famiglie` |
-| V.8 | Vitigni con percentuali | M | **PRIORITARIO 6** | Tabella `vini_vitigni_anagrafica` + somma=100 |
-| V.5 | Più distributori/rappresentanti per vino | L | **PRIORITARIO 7** | Tabella `vino_distributori` strutturale |
+| **V.20** | **Import/Export Vini v3 — template strutturato 3 fogli (Produttori / Madri / Bottiglie)** | L | **DA RIPRIORITIZZARE** | Post-cutover: template attuale è ancora "piatto" legacy, va rifatto per riflettere nuove anagrafiche strutturate. Match FK per ID o nome con auto-creazione. Vedi task interno #2. |
+| **V.21** | **Bulk delete da BulkActionBar Cantina v2 (selezione multipla)** | XS | **DA RIPRIORITIZZARE** | Backend già pronto (DELETE FROM vini_bottiglie WHERE id IN). Manca solo action UI. Task interno #3. |
+| **V.22** | **Refactor UX Vista Sommelier (CartaStaff)** | M | **DA RIPRIORITIZZARE** | Mobile-first sommelier in sala, ricerca rapida, filtri tipologia/regione, abbinamenti dal madre. Funziona ma da ridisegnare completamente. Task interno #136. |
+| V.5 | Più distributori/rappresentanti per vino | L | **DA RIPRIORITIZZARE** | Tabella `vino_distributori` strutturale. **Parzialmente coperto da refactor (`vini_fornitori` ha 1 rappresentante inline). Da valutare se serve davvero la M:N o 1:1 basta operativamente.** |
 | V.4 | Note degustative cliente (AI-generate + edit + visibili in carta cliente) | M | BASSA | Marco S58. Campo `NOTE_DEGUSTAZIONE`. Declassato 2026-05-12 |
 | V.9 | Inventario rapido da iPad (mobile-first +/- giacenza) | M | BASSA | UI touch |
 | V.10 | Carichi automatici da Fatture XML | M | BASSA | Match iPratico → CARICO automatico |
 | V.11 | PDF carta con TOC cliccabile | S | BASSA | Motore `carta_vini_service.py` esistente |
-| V.12 | Import Excel diff interattivo | M | BASSA | Richiede M.H |
+| V.12 | Import Excel diff interattivo | M | BASSA | Richiede M.H. Probabilmente superato da V.20 quando arriva. |
 | V.13 | Inventario fisico mobile con QR/barcode | L | DA VALUTARE | QR generation per vino |
 | V.14 | Carta vini multi-template (eventi, degustazioni) | M | DA VALUTARE | Motore esistente |
 | V.15 | Audit log scheda vino | S | DA VALUTARE | Tabella audit |
@@ -87,6 +87,11 @@ Priorità ridefinite con Marco 2026-05-12 (audit modulo Vini).
 | V.17 | iPratico test e2e completo | S | DA VALUTARE | Test manuale |
 | V.18 | Widget alert WA lista spesa (punto 7) | M | DA VALUTARE | Bloccato da V.5 + M.B PDF |
 | V.19 | Carta Bevande — TODO da `carta_bevande_todo.md` | M | DA VALUTARE | Cap. dedicato in `modulo_vini.md` (consolidamento) |
+
+**Voci CHIUSE dopo il cutover refactor** (storia, lasciate per tracking):
+- ~~V.6~~ — Anagrafiche normalizzate → **FATTO 2026-05-19** (mig 125-131 + cutover mig 133)
+- ~~V.7~~ — Famiglia vino raggruppa annate → **FATTO 2026-05-19** (concept `madre` raggruppa annate-bottiglie, vista "Madri" in Cantina v2)
+- ~~V.8~~ — Vitigni con percentuali → **FATTO 2026-05-19** (mig 131, 5 slot strutturati sul madre + 5 sulla bottiglia per annata)
 
 **Hardening tecnico modulo Vini (sessione 2026-05-12):**
 
@@ -100,24 +105,35 @@ Priorità ridefinite con Marco 2026-05-12 (audit modulo Vini).
 | V-H.I | Cleanup completo file legacy (`vini_model.py` con stub deprecati, DB `vini.sqlite3` se vuoto) | XS | DA VALUTARE (dopo verifica produzione) |
 | V-H.J | Import/Export Vini v2 (template + import + export, vecchio eliminato) | M | FATTO 2026-05-12 (3 endpoint nuovi, vecchi rimossi, UI Impostazioni rifatta) |
 
-### V.6+V.7+V.8 — Refactor strutturale anagrafiche vini (in corso)
+### V.6+V.7+V.8 — Refactor strutturale anagrafiche vini → **COMPLETATO 2026-05-19**
 
-Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-green con tabelle `_v2` parallele, swap atomico finale.
+Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-green con tabelle `_v2` parallele → cutover atomico mig 133.
 
 | Fase | Cosa | Stato |
 |---|---|---|
-| 1 | Mig 125 — setup impalcatura 6 tabelle `_v2` + copia 1287 bottiglie | FATTO 2026-05-13 |
-| 2 | Backend service + 26 endpoint CRUD `/vini/anagrafiche/...` | FATTO 2026-05-13 |
-| 3 | Seed denominazioni (1637 da eAmbrosia API + 505 italiane DOC/DOCG/IGT da PDF MASAF). Fix mig 126 vincolo UNIQUE + mapping nazioni esteso | FATTO 2026-05-13 |
-| 4 | Mig 127 — seed 60 vitigni canonici | FATTO 2026-05-13 |
-| 5 | Migrazione dati clustering: 350 produttori + 40 fornitori + 995 madre + 1285 bottiglie linkate + 2 orfane + 37 vitigni assegnati | FATTO 2026-05-13 |
-| 6 | UI gestione anagrafiche "🧪 beta" (Panoramica + 5 tab CRUD + assegna denominazioni live typeahead) | FATTO 2026-05-13 |
-| 7 | Service sync runtime (campi ridondanti dal madre → bottiglie) + endpoint rollback rapido | TODO |
-| 8 | Workflow nuovo inserimento vino 3-step (produttore → madre → annata) | TODO |
-| 10 | Cutover atomico (swap tabelle in transazione) | TODO finale |
-| V-H.F | Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint | M | TODO (da decidere semantica) |
-| V-H.G | Soglie configurabili (vini_settings + UI Impostazioni Vini) | M | FATTO 2026-05-12 (mig 123, 12 soglie, sezione "Widget e soglie") |
-| V-H.H | Allineamento docs §3.5 + roadmap V | XS | FATTO 2026-05-12 |
+| 1 | Mig 125 — setup impalcatura 6 tabelle `_v2` + copia 1287 bottiglie | ✅ FATTO 2026-05-13 |
+| 2 | Backend service + 26 endpoint CRUD `/vini/anagrafiche/...` | ✅ FATTO 2026-05-13 |
+| 3 | Seed denominazioni (1637 da eAmbrosia API + 505 italiane DOC/DOCG/IGT da PDF MASAF) | ✅ FATTO 2026-05-13 |
+| 4 | Mig 127 — seed 60 vitigni canonici | ✅ FATTO 2026-05-13 |
+| 5 | Migrazione dati clustering: 350 produttori + 40 fornitori + 995 madre + 1285 bottiglie linkate + 37 vitigni assegnati | ✅ FATTO 2026-05-13 |
+| 6 | UI gestione anagrafiche tab dedicato | ✅ FATTO 2026-05-13 |
+| 7 | Service sync runtime + endpoint rollback rapido | ✅ FATTO 2026-05-14 |
+| 8 | Wizard nuovo inserimento vino 4-step (produttore → madre → annata → giacenze) — scrittura reale post M2.9-ter | ✅ FATTO 2026-05-18/19 (S1 cutover, vini 3.44) |
+| 9 | Testing parallelo Cantina classica vs v2 + validazione | ✅ FATTO 2026-05-13→18 |
+| 10 | Cutover atomico (mig 133): backup file + ALTER TABLE RENAME × 7 + sed `_v2→""` su 8 file backend | ✅ FATTO 2026-05-18 (S3 cutover, vini 3.46) |
+| 10-bis | Hotfix post-cutover F11 (vini_repository, ipratico, vini_cantina_tools, vini_magazzino_db, vini_magazzino_router, vini_xlsx_v2, vini_settings) | ✅ FATTO 2026-05-19 (vini 3.47-3.53) |
+
+**M2.9 — descrizione composta automatica** (sotto-feature del refactor):
+- M2.9 — descrizione composta `{denom} {nome_etichetta} ({vitigni}) {grado}%` (mig 130, helper `componi_descrizione` py+js) — ✅ FATTO 2026-05-16
+- M2.9-bis — promozione madri legacy a composto via modal Wizard Step 3 + filtro "📜 Solo legacy" — ✅ FATTO 2026-05-18 (vini 3.40)
+- M2.9-bis 2 — vitigni strutturati sul madre (mig 131, 5+5 slot + backfill da prima bottiglia) — ✅ FATTO 2026-05-18 (vini 3.41)
+- M2.9-ter — `MatricePicker` riusato in wizard Step 4 con modalità draft (vinoId=null + pendingCells) — ✅ FATTO 2026-05-18 (vini 3.43)
+- M2.9-quater — fix annate future (max=anno corrente) + pseudo-locazione "📦 DA POSIZIONARE" per carico senza locazione — ✅ FATTO 2026-05-18
+
+**Hardening tecnico chiuso anch'esso**:
+- V-H.F | Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint | M | ✅ FATTO 2026-05-15 (mig 128 TEXT→INTEGER 0..3)
+- V-H.G | Soglie configurabili (vini_settings + UI Impostazioni Vini) | M | ✅ FATTO 2026-05-12 (mig 123, 12 soglie)
+- V-H.H | Allineamento docs §3.5 + roadmap V | XS | ✅ FATTO 2026-05-12
 
 **Bug/debt:**
 - V-BUG1 — FALSO POSITIVO 2026-05-12: l'endpoint `POST /vini/magazzino/import` citato non esiste. Tutti gli endpoint massivi reali (`/reset-database`, `/import-excel`, `/bulk-update`, `/bulk-duplicate`, `/delete-vino/{id}`) hanno già admin guard. Voce da chiudere in `problemi.md`.

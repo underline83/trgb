@@ -1,9 +1,141 @@
 # Modulo Vini — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-08
-**Stato:** stabile, in evoluzione (sub-module Carta Bevande FE/BE pronto, manca popolamento dati Marco; sub-module iPratico stabile; widget dashboard a 14 fasi cumulative — vedi `docs/modulo_vini_widget_dashboard.md`)
-**Versione modulo (`versions.jsx`):** vini 4.x · cantina (magazzino) v3.x · carta_bevande v1.0
+**Ultimo aggiornamento:** 2026-05-19 (post-cutover refactor anagrafiche V.6+V.7+V.8)
+**Stato:** stabile post-cutover · Cantina "v2" promossa a Cantina unica · Cantina classica deprecata (file `*_legacy.jsx` archiviati nel repo, route redirect a v2)
+**Versione modulo (`versions.jsx`):** **vini 3.53** · sistema **5.15**
 **Roadmap:** sezione `V.` di `docs/roadmap.md` per priorità e voci aperte
+**Refactor design:** `docs/refactor_anagrafiche_vini.md` per il design originale del refactor V.6+V.7+V.8
+
+---
+
+# 📌 STATO POST-CUTOVER (2026-05-19) — leggi prima di tutto il resto
+
+Il modulo Vini ha completato il **refactor strutturale anagrafiche** (V.6+V.7+V.8) il 2026-05-18/19 con un cutover atomico (mig 133). Cosa è cambiato:
+
+## Tabelle DB (vini_magazzino.sqlite3) — schema attuale
+
+Le 6 tabelle "core" del modulo (post-rename dal `_v2`):
+
+| Tabella | Cosa contiene | Righe (5/19) |
+|---|---|---|
+| `vini_bottiglie` | **Annate fisiche** in cantina (giacenze, prezzi annata-specifici, stati, formato, ID Excel) | 1287 |
+| `vini_madre` | **Etichette stabili** (descrizione composta, denominazione_id FK, nome_etichetta cru, grado_alcolico_tipico, 5 slot vitigni "tipici") | 995 |
+| `vini_produttori` | Cantine (nome, nazione, regione) | 350 |
+| `vini_fornitori` | Distributori con rappresentante inline (nome, telefono, email) | 40 |
+| `vini_denominazioni` | DOC/DOCG/IGT/AOC seed da eAmbrosia API + PDF MASAF | 1637 |
+| `vini_vitigni` | Anagrafica canonica vitigni | 68 |
+| `vini_magazzino_legacy_20260518` | Archivio safety net pre-cutover (read-only) | 1287 |
+
+Tabelle satellite **NON rinominate** (restano col vecchio prefisso):
+- `vini_magazzino_movimenti` — storico CARICO/SCARICO/VENDITA/RETTIFICA/MODIFICA con `prezzo_unitario` snapshot (mig 129)
+- `vini_magazzino_note` — note operative interne
+- `matrice_celle` — celle scaffali fisici (riga, colonna, vino_id)
+- `vini_prezzi_storico`, `vini_ordini_pending`, `locazioni_config` — utility
+
+## Relazioni chiave
+
+```
+vini_produttori (cantine)
+    ↓ 1:N
+vini_madre (etichette stabili) ──→ vini_denominazioni (FK opzionale)
+    ↓ 1:N                ──→ vini_fornitori (FK opzionale, distributore)
+vini_bottiglie (annate)  ──→ vini_vitigni (5 slot strutturati per annata)
+    ↓ N:M
+matrice_celle (posizione scaffale fisica)
+
+vini_magazzino_movimenti.vino_id → vini_bottiglie.id (storico vendite/carichi)
+vini_magazzino_note.vino_id      → vini_bottiglie.id
+```
+
+## Concetti semantici da non confondere
+
+1. **Madre vs Bottiglia**: il "madre" è l'etichetta stabile (es. "Barolo DOCG Castiglione"). Le "bottiglie" sono le annate fisiche del madre (es. 2018, 2019, 2020). Una bottiglia ha SEMPRE `madre_id` (post-cutover), zero orfani.
+2. **Descrizione composta automatica (M2.9)**: per i madri "composti" (`descrizione_auto=1`), il campo `descrizione` è ricalcolato come `"{denominazione_display} {nome_etichetta} ({vitigni}) {grado}%"`. Per i legacy (`descrizione_auto=0`) la descrizione è testo libero ereditato dall'import Excel originale.
+3. **Madri "📜 OLD" (legacy)**: pre-cutover esistono 995 madri di cui ~963 con `descrizione_auto=0` (legacy). UI mostra badge 📜 OLD su questi: nel wizard "+ Nuovo" Step 3 c'è un bottone "Sistema il madre" che apre il modal di promozione (compili denominazione/nome_etichetta/vitigni/grado → `componi_descrizione` ricostruisce → `descrizione_auto=1`).
+4. **Vitigni "tipici" (madre) vs "effettivi" (bottiglia)**: il madre ha 5 slot vitigno per il blend di riferimento. La bottiglia ha 5 slot per il blend effettivo di quella specifica annata. Possono divergere senza sync (intenzionale).
+5. **Posizione scaffali (matrice)**: `matrice_celle` è una tabella M:N (1 vino può occupare N celle, 1 cella può ospitare 1 solo vino). `QTA_LOC3` sulla bottiglia è auto-ricalcolato come count delle celle assegnate (vedi `_recalc_qta_loc3_from_matrice`). Per questo nel wizard la LocCard "Locazione 3" NON esiste — c'è solo la matrice.
+6. **Carico senza locazione** ("📦 DA POSIZIONARE"): convenzione operativa, NON schema speciale. È una voce nel settings di Locazione 1 che Marco aggiunge a mano. Quando una bottiglia ha `LOCAZIONE_1 = "📦 DA POSIZIONARE"`, vuol dire "caricata ma non ancora collocata fisicamente".
+
+## UI post-cutover
+
+| Tab in `ViniNav` | Path | Componente | Note |
+|---|---|---|---|
+| 📊 Dashboard | `/vini/dashboard` | `DashboardVini.jsx` | KPI stock + vendite + alert. Invariato. |
+| 🍷 **Cantina** | `/vini/v2/cantina` | `CantinaV2.jsx` + `GestioneVino2.jsx` | **Era "Cantina 2", ora è LA Cantina.** 3 viste: Bottiglie / Madri / Per Produttore. |
+| 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` + 5 panel | 5 sotto-tab: Produttori, Distributori, Denominazioni, Vitigni, Madri. CRUD admin-only + merge duplicati. |
+| 📜 Carta | `/vini/carta` | `CartaBevande.jsx` | Carta cliente HTML/PDF (vedi §5). |
+| 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | Vista staff per servizio (da rifare completamente — vedi task V.22). |
+| 🛒 Vendite | `/vini/vendite` | `ViniVendite.jsx` | Registra vendite (bottiglia/calici) + storico + calici disponibili. |
+| ⚙️ Impostazioni | `/vini/settings` | `ViniImpostazioni.jsx` | Locazioni, soglie, import/export, iPratico. |
+
+**File `*_legacy.jsx`** ancora nel repo come archivio (mai importati):
+`MagazzinoVini_legacy`, `MagazzinoViniNuovo_legacy`, `MagazzinoViniDettaglio_legacy`, `MagazzinoAdmin_legacy`, `RegistroMovimenti_legacy`, `CantinaTools_legacy`, `MovimentiCantina_legacy`, `MagazzinoSubMenu_legacy`, `ViniDatabase_legacy`. Da eliminare quando il cutover sarà stabile da settimane.
+
+**Route legacy** ora redirect via `App.jsx`:
+- `/vini/magazzino` → `/vini/v2/cantina`
+- `/vini/magazzino/nuovo` → `/vini/v2/nuovo`
+- `/vini/magazzino/:id` → `/vini/v2/bottiglia/:id`
+- `/vini/magazzino/admin|registro|tools` → `/vini/v2/cantina` o `/vini/settings`
+
+## Wizard "+ Nuovo Vino" (Cantina v2)
+
+Route: `/vini/v2/nuovo`. Componente: `NuovoVinoV2.jsx` (~1500 righe). **Scrittura attiva** post S1 cutover (vini 3.44).
+
+4 step + PreviewModal:
+1. **Step 1 — Produttore**: autocomplete su `vini_produttori` con "+ Nuovo produttore" inline (nome + nazione + regione).
+2. **Step 2 — Vino madre**: lista madri del produttore (con badge 📜 OLD sui legacy) + "+ Nuovo madre" inline. Il form madre nuovo include autocomplete denominazione, nome_etichetta, lista vitigni con %, grado.
+3. **Step 3 — Annata**: campi annata-specifici (ANNATA con max=current year, FORMATO, VITIGNI override, GRADO, prezzi con auto-calc Listino→Carta→Calice via `/vini/pricing/calcola`, flag CARTA/IPRATICO/BIOLOGICO/CALICE/FORZA_PREZZO, STATO_VENDITA/CONSERVAZIONE, note). Se il madre selezionato è legacy, banner "🔧 Sistema il madre" apre il modal di promozione.
+4. **Step 4 — Giacenze**: 3 LocCard (Frigo, Loc1, Loc2) + 🗄️ Posizione scaffali via `MatricePicker` in modalità draft (vinoId=null + pendingCells controllato). Loc3 NON esiste — gestita dalla matrice come da SchedaVino.
+
+Submit (`submitWizard`): POST produttore (se `_new`) → POST madre (se `_new`, con vitigni strutturati) → POST bottiglia → loop POST `/matrice/assegna` per ogni cella selezionata. Schermata successo con ID generati + "+ Nuovo vino" reset.
+
+## Endpoint backend principali (post-cutover)
+
+### `/vini/anagrafiche/*` (CRUD anagrafiche, admin-only su scrittura)
+- `GET /produttori|fornitori|denominazioni|vitigni|madre/[?search&filtri]` — lista
+- `GET /produttori/{id}|...|madre/{id}` — dettaglio (madre include `vitigni_list` + `denominazione_label` decorati via JOIN)
+- `POST` / `PATCH` / `DELETE` per ogni entità
+- `POST /madre/{mid}/promote-composto` — promozione legacy a composto (mig 130/131)
+- `POST /bottiglia/` — creazione bottiglia (usato dal wizard)
+- `POST /produttori/{src}/merge?target_id=N` — fonde 2 produttori (idem fornitori, denominazioni, vitigni)
+- `POST /sync-all` — risincronizza campi anagrafici cache su tutte le bottiglie
+- `POST /rollback?confirm=YES_DROP_V2_TABLES` — emergency drop (storico, post-cutover le `_v2` non esistono più)
+- `POST /migrate-from-legacy?dry_run=true` — ri-clustering one-shot (usato in Fase 5, ora storico)
+
+### `/vini/v2/*` (read-only Cantina, vista per UI)
+- `GET /bottiglie/?limit=&filtri` — lista bottiglie con JOIN su madre/produttore/fornitore/denominazione
+- `GET /bottiglie/{bid}` — dettaglio
+- `GET /madri-raggruppate/` — vista "Madri" con `annate` array nested
+- `GET /madre/{mid}/movimenti|stats|prezzi-storico` — vista madre aggregata
+- `GET /dashboard/` — statistiche aggregate
+
+### `/vini/magazzino/*` (router classico, ancora attivo per CRUD bottiglia + dashboard + movimenti)
+Tutti gli endpoint puntano ora a `vini_bottiglie` (post sed F11). Usato da SchedaVino (parametrizzata con `apiBaseDettaglio="/vini/v2/bottiglie"` in modalità v2 ma altri endpoint storici sono qui):
+- `GET /dashboard` — KPI stock + vendite (alimenta `DashboardVini.jsx` e `ViniVendite.jsx`)
+- `GET /movimenti-globali?tipo=VENDITA` — storico vendite
+- `POST /{vino_id}/movimenti|note` — aggiungi movimento o nota
+- `PATCH /{vino_id}` — modifica vino
+- `DELETE /delete-vino/{vino_id}` — elimina vino + cascade movimenti/note/celle
+- `POST /{vino_id}/duplica` — duplica vino con giacenze a zero
+
+### `/vini/cantina-tools/*` (utility)
+- `GET /matrice/stato|celle/{vid}` + `POST /matrice/assegna|rimuovi` — gestione celle scaffali
+- `GET /template-v2|export-v2` · `POST /import-v2` — import/export Excel (template ancora "piatto" legacy-style, vedi V.20 per refactor a 3 fogli)
+- `GET /inventario/pdf|giacenza/pdf|locazioni/pdf` — stampe inventario filtrate
+- `GET /locazioni-config` + `POST /locazioni-config/{campo}` — config locazioni + matrice
+
+### `/vini/carta/*` (Carta cliente)
+- `GET /vini/carta/pdf|html` — generazione carta vini cliente
+- `GET /vini/carta-staff` — vista sommelier (`CartaStaff.jsx`)
+- Vedi §5 per dettaglio sub-module Carta + §6 per Carta Bevande
+
+### `/vini/pricing/calcola`
+- `POST {euro_listino}` → `{prezzo_carta}` — usato in `MagazzinoViniNuovo_legacy` e `NuovoVinoV2` wizard
+
+### `/ipratico/products/*`
+- `GET /missing|match` · `POST /sync` — sync codici 4 cifre nel Name iPratico con `vini_bottiglie.id`
+
+---
 
 ---
 
