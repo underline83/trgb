@@ -18,9 +18,9 @@ import {
   Btn, Card, Modal, Stepper, TextInput, Select, Textarea,
   FieldLabel, SectionTitle,
 } from "../../../components/ui";
+// STATO_RIORDINO non è usato dal wizard (Marco 2026-05-16: non ha senso in creazione).
 import {
   STATO_VENDITA_OPTIONS_LONG as STATO_VENDITA_OPTIONS,
-  STATO_RIORDINO_OPTIONS_LONG as STATO_RIORDINO_OPTIONS,
   STATO_CONSERVAZIONE_OPTIONS_LONG as STATO_CONSERVAZIONE_OPTIONS,
 } from "../../../config/viniConstants";
 
@@ -28,6 +28,7 @@ const STEPS = [
   { key: 1, label: "Produttore",  icon: "🏛️" },
   { key: 2, label: "Vino madre",  icon: "🍷" },
   { key: 3, label: "Annata",      icon: "📅" },
+  { key: 4, label: "Giacenze",    icon: "📦" },
 ];
 
 const TONE = "amber"; // Modulo Vini = amber sempre
@@ -54,11 +55,17 @@ export default function NuovoVinoV2() {
     if (step === 1) return !!produttore;
     if (step === 2) return !!madre;
     if (step === 3) return !!(annata.ANNATA || "").toString().trim();
+    if (step === 4) {
+      // Almeno una locazione con quantità > 0 (come Cantina classica)
+      const qtaSum = Number(annata.QTA_FRIGO || 0) + Number(annata.QTA_LOC1 || 0)
+        + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
+      return qtaSum > 0;
+    }
     return false;
   }, [step, produttore, madre, annata]);
 
   const goNext = () => {
-    if (step < 3) setStep(step + 1);
+    if (step < 4) setStep(step + 1);
     else setShowPreview(true);
   };
   const goBack = () => {
@@ -86,7 +93,7 @@ export default function NuovoVinoV2() {
               ← Indietro
             </Btn>
             <Btn variant="warning" size="sm" onClick={goNext} disabled={!canAdvance}>
-              {step === 3 ? "✓ Conferma" : "Avanti →"}
+              {step === 4 ? "✓ Conferma" : "Avanti →"}
             </Btn>
           </div>
         </div>
@@ -99,6 +106,7 @@ export default function NuovoVinoV2() {
           {step === 1 && <Step1Produttore produttore={produttore} onSelect={handleSelectProduttore} />}
           {step === 2 && <Step2Madre produttore={produttore} madre={madre} onSelect={setMadre} />}
           {step === 3 && <Step3Annata annata={annata} setAnnata={setAnnata} />}
+          {step === 4 && <Step4Giacenze annata={annata} setAnnata={setAnnata} />}
         </div>
 
         {/* Footer */}
@@ -110,7 +118,7 @@ export default function NuovoVinoV2() {
           <div className="ml-auto flex items-center gap-2">
             <Btn variant="secondary" size="md" onClick={goBack} disabled={step === 1}>← Indietro</Btn>
             <Btn variant="warning" size="md" onClick={goNext} disabled={!canAdvance}>
-              {step === 3 ? "✓ Conferma (preview)" : "Avanti →"}
+              {step === 4 ? "✓ Conferma (preview)" : "Avanti →"}
             </Btn>
           </div>
         </div>
@@ -590,10 +598,141 @@ function Step2Madre({ produttore, madre, onSelect }) {
 
 
 // =====================================================================
-// STEP 3 — ANNATA (form completo)
+// STEP 3 — ANNATA, prezzi, flag, stati (NO Riordino — decisione Marco)
+// Pattern di layout/dimensioni replicato da MagazzinoViniNuovo (Cantina 1)
+// per coerenza estetica: form a sezioni separate da border-top, niente
+// card annidate, flag come toggle iOS-style.
 // =====================================================================
 function Step3Annata({ annata, setAnnata }) {
   const [formati, setFormati] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rTab = await apiFetch(`${API_BASE}/settings/vini/valori-tabellati`);
+        if (rTab.ok) setFormati((await rTab.json()).formati || []);
+      } catch {}
+    })();
+  }, []);
+
+  const upd = (k, v) => setAnnata(prev => ({ ...prev, [k]: v }));
+
+  // Adatta i formati dal backend a {value,label} per Select
+  const formatiOptions = useMemo(() => formati.map((f) => {
+    const fmt = typeof f === "string" ? f : f.formato;
+    const desc = typeof f === "string" ? "" : f.descrizione;
+    const litri = typeof f === "string" ? "" : f.litri;
+    return { value: fmt, label: desc ? `${desc}${litri ? ` (${litri}L)` : ""}` : fmt };
+  }), [formati]);
+
+  // Auto-calcolo prezzo calice = round((prezzoCarta/5)*2)/2, se non manuale.
+  // Replica esatta della logica di MagazzinoViniNuovo (Cantina 1, riga ~540).
+  const onPrezzoCartaChange = (val) => {
+    setAnnata(prev => {
+      const upd_ = { ...prev, PREZZO_CARTA: val };
+      if (!prev.PREZZO_CALICE_MANUALE) {
+        const pf = parseFloat(val);
+        upd_.PREZZO_CALICE = pf > 0 ? (Math.round((pf / 5) * 2) / 2).toFixed(1) : "";
+      }
+      return upd_;
+    });
+  };
+  const onPrezzoCaliceChange = (val) => {
+    setAnnata(prev => ({ ...prev, PREZZO_CALICE: val, PREZZO_CALICE_MANUALE: 1 }));
+  };
+
+  // STATO_VENDITA / STATO_CONSERVAZIONE: niente opzione "— nessuna indicazione —"
+  // (i default 2 e "3" sono sempre validi a creazione, decisione Marco 2026-05-16).
+  const statoVenditaOptions = STATO_VENDITA_OPTIONS.filter(o => o.value !== "");
+  const statoConservazioneOptions = STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value !== "");
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200">
+          <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">Annata · Prezzi · Flag · Stati</h2>
+          <p className="text-xs text-neutral-500 mt-0.5">Dati specifici dell'annata. Le giacenze si compilano nel prossimo step.</p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Identificazione */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <FieldLabel label="Annata" required>
+              <TextInput value={annata.ANNATA} onChange={v => upd("ANNATA", v)} placeholder="es. 2019" autoFocus />
+            </FieldLabel>
+            <FieldLabel label="Formato">
+              <Select value={annata.FORMATO} onChange={v => upd("FORMATO", v)} options={formatiOptions} />
+            </FieldLabel>
+            <FieldLabel label="Vitigni">
+              <TextInput value={annata.VITIGNI} onChange={v => upd("VITIGNI", v)} placeholder="es. Nebbiolo 100%" />
+            </FieldLabel>
+            <FieldLabel label="Grado alcolico">
+              <TextInput type="number" step="0.1" value={annata.GRADO_ALCOLICO}
+                onChange={v => upd("GRADO_ALCOLICO", v)} placeholder="13.5" />
+            </FieldLabel>
+          </div>
+
+          {/* Prezzi (auto-calc carta→calice come Cantina 1) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-neutral-100">
+            <FieldLabel label="Prezzo carta €">
+              <TextInput type="number" step="0.50" value={annata.PREZZO_CARTA} onChange={onPrezzoCartaChange} />
+            </FieldLabel>
+            <FieldLabel label={`Calice €${annata.PREZZO_CALICE_MANUALE ? " ✎" : " (auto)"}`}>
+              <TextInput type="number" step="0.50" value={annata.PREZZO_CALICE} onChange={onPrezzoCaliceChange} />
+            </FieldLabel>
+            <FieldLabel label="Listino €">
+              <TextInput type="number" step="0.01" value={annata.EURO_LISTINO} onChange={v => upd("EURO_LISTINO", v)} />
+            </FieldLabel>
+            <FieldLabel label="Sconto %">
+              <TextInput type="number" step="0.01" value={annata.SCONTO} onChange={v => upd("SCONTO", v)} />
+            </FieldLabel>
+          </div>
+
+          {/* Flag toggle (iOS-style come Cantina 1) */}
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-4 pt-3 border-t border-neutral-100">
+            <FlagToggle label="Carta Vini"   value={annata.CARTA}          onChange={v => upd("CARTA", v)} />
+            <FlagToggle label="iPratico"     value={annata.IPRATICO}       onChange={v => upd("IPRATICO", v)} />
+            <FlagToggle label="Calice"       value={annata.VENDITA_CALICE} onChange={v => upd("VENDITA_CALICE", v)} />
+            <FlagToggle label="Biologico"    value={annata.BIOLOGICO}      onChange={v => upd("BIOLOGICO", v)} />
+            <FlagToggle label="Forza Prezzo" value={annata.FORZA_PREZZO}   onChange={v => upd("FORZA_PREZZO", v)} />
+          </div>
+
+          {/* Stati (no Riordino — decisione Marco: non ha senso a creazione) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-neutral-100">
+            <FieldLabel label="Stato vendita" hint="Default: Vendere">
+              <Select value={annata.STATO_VENDITA} onChange={v => upd("STATO_VENDITA", v)}
+                options={statoVenditaOptions} />
+            </FieldLabel>
+            <FieldLabel label="Stato conservazione" hint="Default: Perfetta">
+              <Select value={annata.STATO_CONSERVAZIONE} onChange={v => upd("STATO_CONSERVAZIONE", v)}
+                options={statoConservazioneOptions} />
+            </FieldLabel>
+          </div>
+
+          {/* Note prezzo / stato / interne */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-neutral-100">
+            <FieldLabel label="Note stato">
+              <TextInput value={annata.NOTE_STATO} onChange={v => upd("NOTE_STATO", v)} />
+            </FieldLabel>
+            <FieldLabel label="Note prezzo">
+              <TextInput value={annata.NOTE_PREZZO} onChange={v => upd("NOTE_PREZZO", v)} />
+            </FieldLabel>
+          </div>
+
+          <FieldLabel label="Note interne">
+            <Textarea rows={2} value={annata.NOTE} onChange={v => upd("NOTE", v)} />
+          </FieldLabel>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// =====================================================================
+// STEP 4 — GIACENZE per locazione (replica Cantina 1: locCard 2x2)
+// =====================================================================
+function Step4Giacenze({ annata, setAnnata }) {
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
   const [opzioniLoc2, setOpzioniLoc2] = useState([]);
@@ -602,8 +741,6 @@ function Step3Annata({ annata, setAnnata }) {
   useEffect(() => {
     (async () => {
       try {
-        const rTab = await apiFetch(`${API_BASE}/settings/vini/valori-tabellati`);
-        if (rTab.ok) setFormati((await rTab.json()).formati || []);
         const rLoc = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`);
         if (rLoc.ok) {
           const data = await rLoc.json();
@@ -618,143 +755,48 @@ function Step3Annata({ annata, setAnnata }) {
 
   const upd = (k, v) => setAnnata(prev => ({ ...prev, [k]: v }));
 
-  // Adatta i formati dal backend a {value,label} per Select
-  const formatiOptions = useMemo(() => formati.map((f, i) => {
-    const fmt = typeof f === "string" ? f : f.formato;
-    const desc = typeof f === "string" ? "" : f.descrizione;
-    const litri = typeof f === "string" ? "" : f.litri;
-    return { value: fmt, label: desc ? `${desc}${litri ? ` (${litri}L)` : ""}` : fmt };
-  }), [formati]);
+  const qtaTot = Number(annata.QTA_FRIGO || 0) + Number(annata.QTA_LOC1 || 0)
+    + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-neutral-900 mb-1">Step 3 — Dati dell'annata</h2>
-        <p className="text-xs text-neutral-600">
-          Compila i campi specifici dell'annata. I campi anagrafici sono ereditati dai passi precedenti.
-        </p>
+    <div className="p-4 md:p-6">
+      <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">Giacenze per locazione</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Obbligatorio almeno una locazione con quantità &gt; 0.</p>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase text-neutral-500">Totale</div>
+            <div className="text-lg font-bold text-amber-900 tabular-nums">{qtaTot} bt</div>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <LocCard title="Frigorifero" options={opzioniFrigo}
+              loc={annata.FRIGORIFERO} onLoc={v => upd("FRIGORIFERO", v)}
+              qta={annata.QTA_FRIGO} onQta={v => upd("QTA_FRIGO", v)} />
+            <LocCard title="Locazione 1" options={opzioniLoc1}
+              loc={annata.LOCAZIONE_1} onLoc={v => upd("LOCAZIONE_1", v)}
+              qta={annata.QTA_LOC1} onQta={v => upd("QTA_LOC1", v)} />
+            <LocCard title="Locazione 2" options={opzioniLoc2}
+              loc={annata.LOCAZIONE_2} onLoc={v => upd("LOCAZIONE_2", v)}
+              qta={annata.QTA_LOC2} onQta={v => upd("QTA_LOC2", v)} />
+            <LocCard title="Locazione 3" options={opzioniLoc3}
+              loc={annata.LOCAZIONE_3} onLoc={v => upd("LOCAZIONE_3", v)}
+              qta={annata.QTA_LOC3} onQta={v => upd("QTA_LOC3", v)} />
+          </div>
+          <div className="mt-4 p-3 border border-dashed border-neutral-300 rounded-xl bg-neutral-50">
+            <p className="text-xs text-neutral-600">
+              <strong>Matrice (cantina con scaffali):</strong> la posizione esatta delle bottiglie
+              (riga · colonna delle celle matrice) si assegna <em>dopo</em> la creazione,
+              dalla scheda dettaglio del vino → tab Giacenze. È intenzionale: a creazione
+              non si conosce ancora dove fisicamente posizionarle.
+            </p>
+          </div>
+        </div>
       </div>
-
-      <Card padding="md">
-        <SectionTitle tone="amber">Identificazione annata</SectionTitle>
-        <div className="grid grid-cols-3 gap-2">
-          <FieldLabel label="Annata" required>
-            <TextInput value={annata.ANNATA} onChange={v => upd("ANNATA", v)} placeholder="2021 / NV" autoFocus />
-          </FieldLabel>
-          <FieldLabel label="Formato">
-            <Select value={annata.FORMATO} onChange={v => upd("FORMATO", v)} options={formatiOptions} />
-          </FieldLabel>
-          <FieldLabel label="Grado alcolico (%)">
-            <TextInput type="number" step="0.1" value={annata.GRADO_ALCOLICO}
-              onChange={v => upd("GRADO_ALCOLICO", v)} placeholder="13.5" />
-          </FieldLabel>
-        </div>
-      </Card>
-
-      <Card padding="md">
-        <SectionTitle tone="amber">Prezzi</SectionTitle>
-        <div className="grid grid-cols-3 gap-2">
-          <FieldLabel label="Listino acquisto (€)">
-            <TextInput type="number" step="0.01" value={annata.EURO_LISTINO} onChange={v => upd("EURO_LISTINO", v)} />
-          </FieldLabel>
-          <FieldLabel label="Sconto (%)">
-            <TextInput type="number" step="0.1" value={annata.SCONTO} onChange={v => upd("SCONTO", v)} />
-          </FieldLabel>
-          <FieldLabel label="Prezzo carta (€)">
-            <TextInput type="number" step="0.01" value={annata.PREZZO_CARTA} onChange={v => upd("PREZZO_CARTA", v)} />
-          </FieldLabel>
-          <FieldLabel label="Prezzo calice (€)">
-            <TextInput type="number" step="0.01" value={annata.PREZZO_CALICE} onChange={v => upd("PREZZO_CALICE", v)} />
-          </FieldLabel>
-          <FieldLabel label="Forza prezzo carta">
-            <BoolToggle value={annata.FORZA_PREZZO} onChange={v => upd("FORZA_PREZZO", v)} />
-          </FieldLabel>
-          <FieldLabel label="Note prezzo">
-            <TextInput value={annata.NOTE_PREZZO} onChange={v => upd("NOTE_PREZZO", v)} />
-          </FieldLabel>
-        </div>
-      </Card>
-
-      <Card padding="md">
-        <SectionTitle tone="amber">Flag presentazione</SectionTitle>
-        <div className="grid grid-cols-4 gap-2">
-          <FieldLabel label="In carta">
-            <BoolToggle value={annata.CARTA} onChange={v => upd("CARTA", v)} />
-          </FieldLabel>
-          <FieldLabel label="Vendita al calice">
-            <BoolToggle value={annata.VENDITA_CALICE} onChange={v => upd("VENDITA_CALICE", v)} />
-          </FieldLabel>
-          <FieldLabel label="Biologico">
-            <BoolToggle value={annata.BIOLOGICO} onChange={v => upd("BIOLOGICO", v)} />
-          </FieldLabel>
-          <FieldLabel label="Sync iPratico">
-            <BoolToggle value={annata.IPRATICO} onChange={v => upd("IPRATICO", v)} />
-          </FieldLabel>
-        </div>
-      </Card>
-
-      <Card padding="md">
-        <SectionTitle tone="amber">Stati gestione</SectionTitle>
-        <div className="grid grid-cols-3 gap-2">
-          <FieldLabel label="Stato vendita">
-            <Select value={annata.STATO_VENDITA} onChange={v => upd("STATO_VENDITA", v)}
-              options={STATO_VENDITA_OPTIONS.slice(1).map(o => ({ value: o.value, label: o.label }))}
-              placeholder="— nessuna indicazione —" />
-          </FieldLabel>
-          <FieldLabel label="Stato riordino">
-            <Select value={annata.STATO_RIORDINO} onChange={v => upd("STATO_RIORDINO", v)}
-              options={STATO_RIORDINO_OPTIONS.slice(1).map(o => ({ value: o.value, label: o.label }))}
-              placeholder="— nessuna indicazione —" />
-          </FieldLabel>
-          <FieldLabel label="Stato conservazione">
-            <Select value={annata.STATO_CONSERVAZIONE} onChange={v => upd("STATO_CONSERVAZIONE", v)}
-              options={STATO_CONSERVAZIONE_OPTIONS.slice(1).map(o => ({ value: o.value, label: o.label }))}
-              placeholder="— nessuna indicazione —" />
-          </FieldLabel>
-          <FieldLabel label="Note stato" className="col-span-3">
-            <TextInput value={annata.NOTE_STATO} onChange={v => upd("NOTE_STATO", v)} />
-          </FieldLabel>
-        </div>
-      </Card>
-
-      <Card padding="md">
-        <SectionTitle tone="amber" subtitle="La quantità totale è calcolata come somma delle 4 colonne">
-          Locazioni e giacenza iniziale
-        </SectionTitle>
-        <div className="grid grid-cols-4 gap-2">
-          <FieldLabel label="Frigorifero">
-            <Select value={annata.FRIGORIFERO} onChange={v => upd("FRIGORIFERO", v)} options={opzioniFrigo} placeholder="—" />
-          </FieldLabel>
-          <FieldLabel label="Qtà frigo">
-            <TextInput type="number" value={annata.QTA_FRIGO} onChange={v => upd("QTA_FRIGO", v)} />
-          </FieldLabel>
-          <FieldLabel label="Locazione 1">
-            <Select value={annata.LOCAZIONE_1} onChange={v => upd("LOCAZIONE_1", v)} options={opzioniLoc1} placeholder="—" />
-          </FieldLabel>
-          <FieldLabel label="Qtà loc.1">
-            <TextInput type="number" value={annata.QTA_LOC1} onChange={v => upd("QTA_LOC1", v)} />
-          </FieldLabel>
-          <FieldLabel label="Locazione 2">
-            <Select value={annata.LOCAZIONE_2} onChange={v => upd("LOCAZIONE_2", v)} options={opzioniLoc2} placeholder="—" />
-          </FieldLabel>
-          <FieldLabel label="Qtà loc.2">
-            <TextInput type="number" value={annata.QTA_LOC2} onChange={v => upd("QTA_LOC2", v)} />
-          </FieldLabel>
-          <FieldLabel label="Locazione 3">
-            <Select value={annata.LOCAZIONE_3} onChange={v => upd("LOCAZIONE_3", v)} options={opzioniLoc3} placeholder="—" />
-          </FieldLabel>
-          <FieldLabel label="Qtà loc.3">
-            <TextInput type="number" value={annata.QTA_LOC3} onChange={v => upd("QTA_LOC3", v)} />
-          </FieldLabel>
-        </div>
-      </Card>
-
-      <Card padding="md">
-        <SectionTitle tone="amber">Note</SectionTitle>
-        <FieldLabel label="Note generali">
-          <Textarea rows={3} value={annata.NOTE} onChange={v => upd("NOTE", v)} />
-        </FieldLabel>
-      </Card>
     </div>
   );
 }
@@ -818,7 +860,7 @@ function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
             annata.FORZA_PREZZO ? "prezzo forzato" : null,
           ].filter(Boolean).join(" · ") || null} />
           <PreviewRow label="Stato vendita" value={labelOf(STATO_VENDITA_OPTIONS, annata.STATO_VENDITA)} />
-          <PreviewRow label="Stato riordino" value={labelOf(STATO_RIORDINO_OPTIONS, annata.STATO_RIORDINO)} />
+          {/* Stato riordino NON è gestito dal wizard (decisione Marco 2026-05-16). */}
           <PreviewRow label="Stato conservazione" value={labelOf(STATO_CONSERVAZIONE_OPTIONS, annata.STATO_CONSERVAZIONE)} />
           <PreviewRow label="Locazioni" value={[
             annata.FRIGORIFERO && `${annata.FRIGORIFERO}: ${annata.QTA_FRIGO || 0}`,
@@ -839,17 +881,36 @@ function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
 // HELPERS INTERNI
 // =====================================================================
 
-function BoolToggle({ value, onChange }) {
-  const on = !!value && Number(value) !== 0;
+// FlagToggle: switch iOS-style (12pt × 24px) replicato fedelmente da
+// MagazzinoViniNuovo (Cantina 1, funzione flagToggle riga ~657) per coerenza
+// estetica tra wizard v2 e form classico. I valori sono INTEGER 0/1.
+function FlagToggle({ label, value, onChange }) {
+  const on = value === 1 || value === "SI" || value === true;
   return (
-    <button type="button" onClick={() => onChange(on ? 0 : 1)}
-      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition w-full ${
-        on
-          ? "bg-emerald-100 border-2 border-emerald-400 text-emerald-900"
-          : "bg-neutral-100 border-2 border-neutral-300 text-neutral-600 hover:bg-neutral-200"
-      }`}>
-      {on ? "✓ Sì" : "○ No"}
-    </button>
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">{label}</span>
+      <button type="button" onClick={() => onChange(on ? 0 : 1)}
+        className={`w-12 h-6 rounded-full relative transition-colors ${on ? "bg-amber-500" : "bg-neutral-300"}`}>
+        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${on ? "left-6" : "left-0.5"}`} />
+      </button>
+      <span className={`text-[10px] font-medium ${on ? "text-amber-700" : "text-neutral-400"}`}>{on ? "Sì" : "No"}</span>
+    </div>
+  );
+}
+
+// LocCard: card singola locazione + quantità (replica Cantina 1 funzione locCard
+// riga ~674). Usata nello Step 4 del wizard.
+function LocCard({ title, options, loc, onLoc, qta, onQta }) {
+  return (
+    <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
+      <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">{title}</div>
+      <Select value={loc} onChange={onLoc} options={options} placeholder="— nessuna —" />
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-neutral-600">Quantità</span>
+        <TextInput type="number" value={qta} onChange={onQta} placeholder="0" className="!w-24" />
+        <span className="text-xs text-neutral-500">bt</span>
+      </div>
+    </div>
   );
 }
 
@@ -887,10 +948,15 @@ function PreviewRow({ label, value }) {
 
 function emptyAnnata() {
   return {
-    ANNATA: "", FORMATO: "BT", GRADO_ALCOLICO: "",
-    EURO_LISTINO: "", SCONTO: "", PREZZO_CARTA: "", PREZZO_CALICE: "", NOTE_PREZZO: "",
+    ANNATA: "", FORMATO: "BT", VITIGNI: "", GRADO_ALCOLICO: "",
+    EURO_LISTINO: "", SCONTO: "", PREZZO_CARTA: "", PREZZO_CALICE: "",
+    PREZZO_CALICE_MANUALE: 0, NOTE_PREZZO: "",
     CARTA: 1, VENDITA_CALICE: 0, BIOLOGICO: 0, IPRATICO: 0, FORZA_PREZZO: 0,
-    STATO_VENDITA: "", STATO_RIORDINO: "", STATO_CONSERVAZIONE: "", NOTE_STATO: "",
+    // Defaults sensati per nuovi vini (Marco 2026-05-16):
+    //  - STATO_VENDITA = 2 ("Vendere") — il nuovo vino è subito vendibile
+    //  - STATO_CONSERVAZIONE = "3" ("Perfetta — non urgente") — appena entrato in cantina
+    //  - STATO_RIORDINO NON è presente nel wizard (non ha senso a creazione)
+    STATO_VENDITA: 2, STATO_CONSERVAZIONE: "3", NOTE_STATO: "",
     FRIGORIFERO: "", QTA_FRIGO: "", LOCAZIONE_1: "", QTA_LOC1: "",
     LOCAZIONE_2: "", QTA_LOC2: "", LOCAZIONE_3: "", QTA_LOC3: "",
     NOTE: "",
