@@ -144,7 +144,7 @@ async def upload_ipratico_export(file: UploadFile = File(...)):
     mag_ids = set()
     try:
         mconn = _mag_conn()
-        for r in mconn.execute("SELECT id FROM vini_magazzino").fetchall():
+        for r in mconn.execute("SELECT id FROM vini_bottiglie").fetchall():
             mag_ids.add(r["id"])
         mconn.close()
     except Exception:
@@ -221,7 +221,7 @@ def get_mappings(
         mconn = _mag_conn()
         for r in mconn.execute(
             "SELECT id, DESCRIZIONE, DENOMINAZIONE, ANNATA, PRODUTTORE, "
-            "FORMATO, QTA_TOTALE, PREZZO_CARTA FROM vini_magazzino"
+            "FORMATO, QTA_TOTALE, PREZZO_CARTA FROM vini_bottiglie"
         ).fetchall():
             mag_map[r["id"]] = dict(r)
         mconn.close()
@@ -307,7 +307,7 @@ def get_trgb_wines(search: Optional[str] = Query(None)):
         mconn = _mag_conn()
         rows = mconn.execute(
             "SELECT id, DESCRIZIONE, DENOMINAZIONE, ANNATA, PRODUTTORE, FORMATO, QTA_TOTALE, PREZZO_CARTA "
-            "FROM vini_magazzino ORDER BY PRODUTTORE, ANNATA"
+            "FROM vini_bottiglie ORDER BY PRODUTTORE, ANNATA"
         ).fetchall()
         wines = [dict(r) for r in rows]
         mconn.close()
@@ -360,7 +360,7 @@ async def export_ipratico(file: UploadFile = File(...)):
         mconn = _mag_conn()
         for r in mconn.execute(
             "SELECT id, DESCRIZIONE, DENOMINAZIONE, ANNATA, PRODUTTORE, FORMATO, "
-            "QTA_TOTALE, PREZZO_CARTA FROM vini_magazzino"
+            "QTA_TOTALE, PREZZO_CARTA FROM vini_bottiglie"
         ).fetchall():
             mag_data[r["id"]] = dict(r)
         mconn.close()
@@ -505,7 +505,7 @@ def get_missing_wines(search: Optional[str] = Query(None)):
         mconn = _mag_conn()
         rows = mconn.execute(
             "SELECT id, DESCRIZIONE, DENOMINAZIONE, ANNATA, PRODUTTORE, FORMATO, "
-            "QTA_TOTALE, PREZZO_CARTA, IPRATICO FROM vini_magazzino ORDER BY id"
+            "QTA_TOTALE, PREZZO_CARTA, IPRATICO FROM vini_bottiglie ORDER BY id"
         ).fetchall()
         for r in rows:
             if r["id"] not in ipratico_ids:
@@ -566,7 +566,7 @@ def get_ipratico_stats():
     if ipratico_ids:
         try:
             mconn = _mag_conn()
-            all_ids = set(r["id"] for r in mconn.execute("SELECT id FROM vini_magazzino").fetchall())
+            all_ids = set(r["id"] for r in mconn.execute("SELECT id FROM vini_bottiglie").fetchall())
             n_missing = len(all_ids - ipratico_ids)
             mconn.close()
         except Exception:

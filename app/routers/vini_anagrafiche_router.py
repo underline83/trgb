@@ -506,10 +506,10 @@ def migrate_from_legacy_endpoint(
     """
     Pipeline completa di migrazione dei 1287 vini esistenti verso il nuovo
     schema anagrafiche (refactor V.6+V.7+V.8 Fase 5):
-      1. produttori distinct → vini_produttori_v2
-      2. fornitori distinct (con rappresentante inline) → vini_fornitori_v2
-      3. denominazioni match best-effort → link a vini_denominazioni_v2
-      4. clustering (produttore, descrizione) → vini_madre_v2
+      1. produttori distinct → vini_produttori
+      2. fornitori distinct (con rappresentante inline) → vini_fornitori
+      3. denominazioni match best-effort → link a vini_denominazioni
+      4. clustering (produttore, descrizione) → vini_madre
       5. link bottiglie → madre via madre_id
       6. parser vitigni TEXT → 5 slot strutturati
 
@@ -536,7 +536,7 @@ def sync_denominazioni(
 
     Usage:
       - dry_run=true → preview con conteggi per nazione/tipo, nessuna scrittura
-      - dry_run=false → commit, popola/aggiorna `vini_denominazioni_v2`
+      - dry_run=false → commit, popola/aggiorna `vini_denominazioni`
     """
     _require_admin(current_user)
     from app.services.vini_denominazioni_sync import sync_denominazioni as _sync
@@ -772,6 +772,95 @@ def delete_madre(mid: int, current_user: Any = Depends(get_current_user)):
     return {"status": "ok", "deleted_id": mid}
 
 
+# ============================================================
+# BOTTIGLIE — POST per creazione (Fase 8 wizard attivato, 2026-05-18)
+# ============================================================
+class BottigliaCreate(BaseModel):
+    """
+    Payload per creare una bottiglia (annata di un madre) via wizard.
+
+    `madre_id` e `ANNATA` sono gli unici obbligatori; il resto è opzionale.
+    I campi anagrafici (PRODUTTORE/DESCRIZIONE/REGIONE/...) NON sono nel payload:
+    vengono propagati dal madre via cascade sync. Solo `madre_id` lega.
+    """
+    madre_id: int
+    ANNATA: str = Field(..., min_length=1)
+    id_excel: Optional[int] = None
+
+    FORMATO: Optional[str] = None
+    VITIGNI: Optional[str] = None
+    GRADO_ALCOLICO: Optional[float] = None
+
+    # Prezzi
+    PREZZO_CARTA: Optional[float] = None
+    EURO_LISTINO: Optional[float] = None
+    SCONTO: Optional[float] = None
+    NOTE_PREZZO: Optional[str] = None
+    PREZZO_CALICE: Optional[float] = None
+    PREZZO_CALICE_MANUALE: Optional[int] = 0
+
+    # Flag (INTEGER 0/1)
+    CARTA: Optional[int] = None
+    IPRATICO: Optional[int] = None
+    BIOLOGICO: Optional[int] = 0
+    VENDITA_CALICE: Optional[int] = 0
+    FORZA_PREZZO: Optional[int] = 0
+
+    # Stati
+    STATO_VENDITA: Optional[int] = None
+    STATO_RIORDINO: Optional[str] = None
+    STATO_CONSERVAZIONE: Optional[str] = None
+    NOTE_STATO: Optional[str] = None
+
+    # Locazioni + quantità
+    FRIGORIFERO: Optional[str] = None
+    QTA_FRIGO: Optional[int] = 0
+    LOCAZIONE_1: Optional[str] = None
+    QTA_LOC1: Optional[int] = 0
+    LOCAZIONE_2: Optional[str] = None
+    QTA_LOC2: Optional[int] = 0
+    LOCAZIONE_3: Optional[str] = None
+    QTA_LOC3: Optional[int] = 0
+
+    # 5 slot vitigno per annata (possono divergere dal madre)
+    vitigno_1_id: Optional[int] = None
+    vitigno_1_pct: Optional[float] = None
+    vitigno_2_id: Optional[int] = None
+    vitigno_2_pct: Optional[float] = None
+    vitigno_3_id: Optional[int] = None
+    vitigno_3_pct: Optional[float] = None
+    vitigno_4_id: Optional[int] = None
+    vitigno_4_pct: Optional[float] = None
+    vitigno_5_id: Optional[int] = None
+    vitigno_5_pct: Optional[float] = None
+
+    # Metadati
+    NOTE: Optional[str] = None
+    ORIGINE: Optional[str] = "wizard_v2"
+
+
+@router.post("/bottiglia/", summary="Crea bottiglia (annata di un madre) — Fase 8 wizard attivato")
+def create_bottiglia(
+    payload: BottigliaCreate,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Endpoint principale per la creazione di una nuova annata via wizard
+    Cantina 2. Crea la bottiglia in `vini_bottiglie` linkata al madre,
+    chiama il cascade sync per popolare i campi anagrafici ridondanti.
+
+    Errori:
+      - 400 se madre_id non esiste o ANNATA manca/empty
+      - 500 su altri errori
+    """
+    _require_admin(current_user)
+    try:
+        new_id = ana.create_bottiglia(payload.dict(exclude_unset=False))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return ana.get_bottiglia(new_id) if hasattr(ana, "get_bottiglia") else {"id": new_id, "status": "created"}
+
+
 @router.get("/madre/{mid}/bottiglie", summary="Bottiglie (annate) collegate al madre")
 def get_bottiglie_by_madre(mid: int, current_user: Any = Depends(get_current_user)):
     """
@@ -793,8 +882,8 @@ def get_bottiglie_by_madre(mid: int, current_user: Any = Depends(get_current_use
 @router.post("/sync-all", summary="Risincronizza tutte le bottiglie dalle anagrafiche (admin)")
 def sync_all_endpoint(current_user: Any = Depends(get_current_user)):
     """
-    Full resync: propaga i campi anagrafici da `vini_madre_v2` (+ produttori,
-    fornitori, denominazioni) verso `vini_bottiglie_v2` per TUTTI i madre.
+    Full resync: propaga i campi anagrafici da `vini_madre` (+ produttori,
+    fornitori, denominazioni) verso `vini_bottiglie` per TUTTI i madre.
 
     Safety net contro drift accidentali. Idempotente. Le bottiglie orfane
     (madre_id IS NULL) non vengono toccate.

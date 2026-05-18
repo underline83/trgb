@@ -4,12 +4,12 @@ Migrazione dati dal vecchio modello al nuovo schema anagrafiche
 (refactor V.6+V.7+V.8 Fase 5).
 
 Algoritmo:
-  1. Estrae produttori distinct da vini_magazzino.PRODUTTORE → popola vini_produttori_v2
-  2. Estrae fornitori distinct da DISTRIBUTORE (con RAPPRESENTANTE inline) → vini_fornitori_v2
-  3. Clustering (PRODUTTORE_norm, DESCRIZIONE_norm) → 1 riga vini_madre_v2 per cluster
+  1. Estrae produttori distinct da vini_magazzino.PRODUTTORE → popola vini_produttori
+  2. Estrae fornitori distinct da DISTRIBUTORE (con RAPPRESENTANTE inline) → vini_fornitori
+  3. Clustering (PRODUTTORE_norm, DESCRIZIONE_norm) → 1 riga vini_madre per cluster
      - eredita dati anagrafici dalla bottiglia più recente del cluster
      - linka denominazione via best-effort match sui nomi
-  4. UPDATE vini_bottiglie_v2.madre_id per ogni bottiglia
+  4. UPDATE vini_bottiglie.madre_id per ogni bottiglia
   5. Parser VITIGNI TEXT → 5 slot vitigno con percentuale opzionale
   6. Sync campi anagrafici ridondanti dal madre alle bottiglie
 
@@ -209,7 +209,7 @@ def migrate_from_legacy(
         conn.commit()
 
     # ─────────── STEP 1: PRODUTTORI ───────────
-    # Estrae produttori dalla legacy bottle table (vini_bottiglie_v2 ha già la copia)
+    # Estrae produttori dalla legacy bottle table (vini_bottiglie ha già la copia)
     produttori_raw = cur.execute(
         f"""
         SELECT PRODUTTORE, NAZIONE, REGIONE, COUNT(*) AS n

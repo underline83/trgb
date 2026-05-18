@@ -3,6 +3,40 @@
 
 ---
 
+## 2026-05-18 — Vini 3.46 · CUTOVER refactor anagrafiche (3 sessioni: wizard attivato + Cantina classica spenta + rename atomico) `[core]`
+
+### S1 — Wizard attivato (3.44)
+- **Backend** `POST /vini/anagrafiche/bottiglia/` (creazione bottiglia in `vini_bottiglie_v2`) + schema `BottigliaCreate` + funzione `create_bottiglia()` con sync cascade dei campi anagrafici dal madre.
+- **Frontend** `submitWizard()` in `NuovoVinoV2.jsx`: orchestra POST produttore (se _new) → POST madre (se _new, con denominazione + nome_etichetta + vitigni strutturati + grado) → POST bottiglia (annata + prezzi + flag + stati + locazioni) → loop POST `matrice/assegna` per ogni cella selezionata. PreviewModal evoluto in "Riepilogo prima della creazione" + schermata di successo.
+- Badge UI "PREVIEW · nessuna scrittura" sostituito con "✓ SCRITTURA ATTIVA".
+
+### S2 — Cantina classica spenta (3.45)
+- **Backend `vini_repository.py`** (carta vini cliente PDF + calici + storico vendite, 4 SELECT) e **`ipratico_products_router.py`** (sync iPratico, 5 SELECT) refactorati per leggere da `vini_bottiglie_v2`.
+- **App.jsx** route `/vini/magazzino/*` ora redirect a `/vini/v2/*`. Helper `RedirectMagazzinoToV2` per preservare `:id` nella scheda dettaglio.
+- **ViniNav.jsx** v3.0: tab "Cantina" punta direttamente a `/vini/v2/cantina`. Tab "Cantina 2" rimosso (era ridondante).
+- **9 file FE rinominati** in `_legacy.jsx` (MagazzinoVini, MagazzinoViniNuovo, MagazzinoViniDettaglio, MagazzinoAdmin, RegistroMovimenti, CantinaTools, MovimentiCantina, MagazzinoSubMenu, ViniDatabase). I file restano nel repo come archivio; saranno eliminati post-cutover stabile.
+
+### S3 — Cutover atomico (3.46)
+- **Mig 133** `app/migrations/133_cutover_rename_tabelle_v2.py`:
+  - Backup esplicito del file SQLite con suffisso `.pre-cutover-YYYYMMDD-HHMMSS` PRIMA di qualunque ALTER.
+  - Transazione atomica BEGIN/COMMIT: `vini_magazzino` → `vini_magazzino_legacy_YYYYMMDD` + 6 rename `vini_*_v2` → `vini_*`.
+  - Verifica idempotenza: skip se cutover già applicato (rilevato dalla presenza di `vini_bottiglie` senza `vini_bottiglie_v2`).
+  - Verifica integrità: ABORT con messaggio chiaro se mancano le 6 `_v2` o se il nome di destinazione esiste già.
+  - Smoke test in sandbox: 14 tabelle finali, conteggi corretti (995 madre, 1287 bottiglie, 350 produttori, 40 fornitori, 1637 denominazioni, 68 vitigni); seconda run = skip idempotente.
+- **Sed `_v2` → `""` nei 7 file backend runtime**: `vini_anagrafiche_db.py`, `vini_anagrafiche_sync.py`, `vini_anagrafiche_migrate.py`, `vini_anagrafiche_router.py`, `vini_v2_router.py`, `vini_repository.py`, `ipratico_products_router.py`. I file migrations 125-131 sono intoccati (storia).
+- Tabelle satellite `vini_magazzino_movimenti`, `vini_magazzino_note`, `matrice_celle` RESTANO col nome attuale — refactor separato eventuale.
+
+### Bump versione
+- frontend `versions.jsx`: **vini 3.43 → 3.46** (3.44 S1 + 3.45 S2 + 3.46 S3).
+
+### Note operative post-deploy
+1. Marco prima del push: **backup VPS manuale** (zip cartella `app/data/` o tool dedicato). La mig 133 ne fa uno automatico interno, ma il manuale è un secondo livello di sicurezza.
+2. Dopo il push, al boot del backend la mig 133 gira automaticamente: 1 backup file + 7 rename atomici. Tempo stimato <2 secondi.
+3. **Smoke test post-deploy**: aprire Cantina → vedere 1287 bottiglie; aprire una scheda; creare un vino nuovo dal wizard; aprire carta cliente PDF.
+4. **Rollback**: restore del file `app/data/vini_magazzino.sqlite3.pre-cutover-YYYYMMDD-HHMMSS` ripristina lo stato esatto pre-cutover.
+
+---
+
 ## 2026-05-18 — Vini 3.43 · M2.9-ter: posizione scaffali (matrice) anche in creazione `[core]`
 
 ### Aggiunto

@@ -1,20 +1,17 @@
-// @version: v2.2-no-ipratico-tab — iPratico spostato dentro Impostazioni (sessione 39)
-// Tab navigation persistente per la sezione vini
-// Ordine: Dashboard, Cantina, Carta, Vendite, Impostazioni
+// @version: v3.0 — S2 cutover (2026-05-18): Cantina 2 promossa a "Cantina".
+// La Cantina classica viene spenta (i file restano in _legacy.jsx come archivio).
+// Tab navigation persistente per la sezione vini.
+// Ordine: Dashboard, Cantina, Anagrafiche, Carta, Sommelier, Vendite, Impostazioni
 // Impostazioni visibile solo per admin e sommelier
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
-  { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
-  // V.6+V.7+V.8 — Modulo "Cantina 2" (test parallelo read-only sulle tabelle _v2).
-  // Solo admin/sommelier per ora. Al cutover atomico (Fase 10) la "Cantina"
-  // classica viene sostituita dalla v2 e questa entry sparisce.
-  // Rinomina M2.5-arch (2026-05-16): era "Gestione 2", ora "Cantina 2" perché
-  // di fatto è una cantina alternativa. "Gestione" viene liberato per il nuovo
-  // tab Anagrafiche (gestione produttori/distributori/denominazioni/vitigni/madre).
-  { key: "v2", label: "Cantina 2", path: "/vini/v2", icon: "🧪", roles: ["admin", "sommelier"] },
+  // S2 cutover (2026-05-18): la tab "Cantina" ora punta direttamente alle _v2.
+  // La Cantina classica (`/vini/magazzino`) è deprecata, route in App.jsx
+  // redirect a `/vini/v2/cantina`.
+  { key: "cantina", label: "Cantina", path: "/vini/v2/cantina", icon: "🍷" },
   // M2.5-arch (2026-05-16): tab "Anagrafiche" — pannello dedicato alle entità master
   // (produttori, distributori, denominazioni, vitigni, vini madre). Promosso dalla
   // sotto-pagina "🧪 Anagrafiche (beta)" che viveva sotto Impostazioni.

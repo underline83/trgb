@@ -29,11 +29,9 @@ const CartaMenuPubblica = lazy(() => import("./pages/public/CartaMenuPubblica"))
 const CartaStaff = lazy(() => import("./pages/vini/CartaStaff"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
 const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
-const MagazzinoVini = lazy(() => import("./pages/vini/MagazzinoVini"));
-const MagazzinoViniDettaglio = lazy(() => import("./pages/vini/MagazzinoViniDettaglio"));
-const MagazzinoViniNuovo = lazy(() => import("./pages/vini/MagazzinoViniNuovo"));
-const MagazzinoAdmin = lazy(() => import("./pages/vini/MagazzinoAdmin"));
-const RegistroMovimenti = lazy(() => import("./pages/vini/RegistroMovimenti"));
+// S2 cutover (2026-05-18): Cantina classica deprecata. Le route legacy
+// /vini/magazzino/* vengono redirette a /vini/v2/*. I file restano nel repo
+// con suffisso _legacy come archivio (cancellati post-cutover stabile).
 const DashboardVini = lazy(() => import("./pages/vini/DashboardVini"));
 // V.6+V.7+V.8 — Modulo "Cantina 2" (test parallelo read-only sulle tabelle _v2)
 const GestioneVino2 = lazy(() => import("./pages/vini/v2/GestioneVino2"));
@@ -180,6 +178,13 @@ function RedirectLegacySezione() {
   return <Navigate to={`/vini/carta/${key || "vini"}`} replace />;
 }
 
+// S2 cutover (2026-05-18): redirect dei vecchi link /vini/magazzino/:id
+// alle nuove schede bottiglia in Cantina 2.
+function RedirectMagazzinoToV2() {
+  const { id } = useParams();
+  return <Navigate to={`/vini/v2/bottiglia/${id}`} replace />;
+}
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
@@ -252,12 +257,13 @@ export default function App() {
         <Route path="/vini/carta/:sezione" element={<ProtectedRoute module="vini" sub="carta"><CartaBevande /></ProtectedRoute>} />
         <Route path="/vini/vendite" element={<ProtectedRoute module="vini" sub="vendite"><ViniVendite /></ProtectedRoute>} />
         <Route path="/vini/settings" element={<ProtectedRoute module="vini" sub="settings"><ViniImpostazioni /></ProtectedRoute>} />
-        <Route path="/vini/magazzino" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoVini /></ProtectedRoute>} />
-        <Route path="/vini/magazzino/nuovo" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoViniNuovo /></ProtectedRoute>} />
-        <Route path="/vini/magazzino/admin" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoAdmin /></ProtectedRoute>} />
-        <Route path="/vini/magazzino/registro" element={<ProtectedRoute module="vini" sub="magazzino"><RegistroMovimenti /></ProtectedRoute>} />
+        {/* S2 cutover (2026-05-18): Cantina classica deprecata. Redirect a v2. */}
+        <Route path="/vini/magazzino" element={<Navigate to="/vini/v2/cantina" replace />} />
+        <Route path="/vini/magazzino/nuovo" element={<Navigate to="/vini/v2/nuovo" replace />} />
+        <Route path="/vini/magazzino/admin" element={<Navigate to="/vini/v2/cantina" replace />} />
+        <Route path="/vini/magazzino/registro" element={<Navigate to="/vini/v2/cantina" replace />} />
         <Route path="/vini/magazzino/tools" element={<Navigate to="/vini/settings" replace />} />
-        <Route path="/vini/magazzino/:id" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoViniDettaglio /></ProtectedRoute>} />
+        <Route path="/vini/magazzino/:id" element={<RedirectMagazzinoToV2 />} />
         <Route path="/vini/dashboard" element={<ProtectedRoute module="vini" sub="dashboard"><DashboardVini /></ProtectedRoute>} />
         {/* V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo). Cattura tutte le subroute via splat */}
         <Route path="/vini/v2/*" element={<ProtectedRoute module="vini" sub="magazzino"><GestioneVino2 /></ProtectedRoute>} />

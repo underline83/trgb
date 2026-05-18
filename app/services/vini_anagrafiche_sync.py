@@ -2,19 +2,19 @@
 """
 Service sync runtime — refactor V.6+V.7+V.8 Fase 7 (2026-05-14).
 
-Propaga i campi anagrafici dalla "fonte di verita'" (vini_madre_v2 +
-anagrafiche collegate) verso la ridondanza legacy su vini_bottiglie_v2.
+Propaga i campi anagrafici dalla "fonte di verita'" (vini_madre +
+anagrafiche collegate) verso la ridondanza legacy su vini_bottiglie.
 
 CAMPI SINCRONIZZATI (dal doc refactor §3):
-  - PRODUTTORE      <- vini_produttori_v2.nome (via madre.produttore_id)
-  - DESCRIZIONE     <- vini_madre_v2.descrizione
+  - PRODUTTORE      <- vini_produttori.nome (via madre.produttore_id)
+  - DESCRIZIONE     <- vini_madre.descrizione
   - DENOMINAZIONE   <- "{deno.nome} {deno.tipo}" (via madre.denominazione_id)
-  - TIPOLOGIA       <- vini_madre_v2.tipologia
-  - NAZIONE         <- vini_madre_v2.nazione || produttore.nazione (fallback)
-  - REGIONE         <- vini_madre_v2.regione  || produttore.regione  (fallback)
-  - DISTRIBUTORE    <- vini_fornitori_v2.nome (via madre.fornitore_id)
-  - RAPPRESENTANTE  <- vini_fornitori_v2.rappresentante_nome
-  - ABBINAMENTI     <- vini_madre_v2.abbinamenti
+  - TIPOLOGIA       <- vini_madre.tipologia
+  - NAZIONE         <- vini_madre.nazione || produttore.nazione (fallback)
+  - REGIONE         <- vini_madre.regione  || produttore.regione  (fallback)
+  - DISTRIBUTORE    <- vini_fornitori.nome (via madre.fornitore_id)
+  - RAPPRESENTANTE  <- vini_fornitori.rappresentante_nome
+  - ABBINAMENTI     <- vini_madre.abbinamenti
 
 CAMPI NON TOCCATI:
   - Annata-specifici (ANNATA, FORMATO, PREZZO_*, GRADO_ALCOLICO, NOTE_*, ecc.)
@@ -112,7 +112,7 @@ def _update_bottiglie_with_values(
     cur: sqlite3.Cursor, madre_id: int, values: Dict[str, Any]
 ) -> int:
     """
-    Esegue UPDATE su vini_bottiglie_v2 WHERE madre_id = ?. Ritorna n. righe aggiornate.
+    Esegue UPDATE su vini_bottiglie WHERE madre_id = ?. Ritorna n. righe aggiornate.
     """
     set_clause = ", ".join(f"{f} = ?" for f in SYNCED_FIELDS)
     sql = (

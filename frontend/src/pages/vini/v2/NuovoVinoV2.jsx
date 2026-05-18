@@ -48,6 +48,10 @@ export default function NuovoVinoV2() {
   const [madre, setMadre] = useState(null);
   const [annata, setAnnata] = useState(() => emptyAnnata());
   const [showPreview, setShowPreview] = useState(false);
+  // Fase 8 attivata (2026-05-18): submit reale
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitResult, setSubmitResult] = useState(null);  // {bottigliaId, madreId, produttoreId}
 
   const reset = () => {
     setProduttore(null);
@@ -55,6 +59,146 @@ export default function NuovoVinoV2() {
     setAnnata(emptyAnnata());
     setStep(1);
     setShowPreview(false);
+    setSaving(false);
+    setSubmitError("");
+    setSubmitResult(null);
+  };
+
+  // ============================================================
+  // SUBMIT WIZARD — crea produttore (se _new) + madre (se _new) + bottiglia
+  // + celle matrice (Fase 8 attivata 2026-05-18).
+  // ============================================================
+  const submitWizard = async () => {
+    setSaving(true);
+    setSubmitError("");
+    try {
+      // 1) Produttore: se _new, POST; altrimenti uso l'id esistente
+      let produttoreId = produttore?.id;
+      if (produttore?._new) {
+        const body = {
+          nome: produttore.nome,
+          nazione: produttore.nazione || "Italia",
+          regione: produttore.regione || null,
+          provincia: produttore.provincia || null,
+          citta: produttore.citta || null,
+          note: produttore.note || null,
+        };
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/produttori/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`Errore creazione produttore: ${(await r.text()).slice(0, 200)}`);
+        const created = await r.json();
+        produttoreId = created.id;
+      }
+
+      // 2) Madre: se _new, POST; altrimenti uso l'id esistente
+      let madreId = madre?.id;
+      if (madre?._new) {
+        const body = {
+          produttore_id: produttoreId,
+          descrizione: madre.descrizione || "",  // composta in Step 2 con descrizione_auto=1
+          tipologia: madre.tipologia,
+          fornitore_id: madre.fornitore_id || null,
+          denominazione_id: madre.denominazione_id || null,
+          nazione: madre.nazione || null,
+          regione: madre.regione || null,
+          grado_alcolico_tipico:
+            madre.grado_alcolico_tipico === "" || madre.grado_alcolico_tipico == null
+              ? null
+              : parseFloat(madre.grado_alcolico_tipico),
+          abbinamenti: madre.abbinamenti || null,
+          note_madre: madre.note_madre || null,
+          nome_etichetta: madre.nome_etichetta || null,
+          descrizione_auto: madre.descrizione_auto ?? 1,
+        };
+        // Espande i 5 slot vitigno strutturati sul madre (mig 131)
+        const vitList = (madre.vitigni || []).slice(0, 5);
+        for (let i = 0; i < 5; i++) {
+          const v = vitList[i];
+          body[`vitigno_${i + 1}_id`] = v ? v.vitigno_id : null;
+          body[`vitigno_${i + 1}_pct`] =
+            v && v.pct !== "" && v.pct != null
+              ? parseFloat(String(v.pct).replace(",", "."))
+              : null;
+        }
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`Errore creazione madre: ${(await r.text()).slice(0, 200)}`);
+        const created = await r.json();
+        madreId = created.id;
+      }
+
+      // 3) Bottiglia (annata): POST sempre
+      const bottigliaBody = {
+        madre_id: madreId,
+        ANNATA: String(annata.ANNATA || "").trim(),
+        FORMATO: annata.FORMATO || null,
+        VITIGNI: annata.VITIGNI || null,
+        GRADO_ALCOLICO:
+          annata.GRADO_ALCOLICO === "" || annata.GRADO_ALCOLICO == null
+            ? null
+            : parseFloat(annata.GRADO_ALCOLICO),
+        PREZZO_CARTA: parseNum(annata.PREZZO_CARTA),
+        EURO_LISTINO: parseNum(annata.EURO_LISTINO),
+        SCONTO: parseNum(annata.SCONTO),
+        NOTE_PREZZO: annata.NOTE_PREZZO || null,
+        PREZZO_CALICE: parseNum(annata.PREZZO_CALICE),
+        PREZZO_CALICE_MANUALE: annata.PREZZO_CALICE_MANUALE || 0,
+        CARTA: annata.CARTA || 0,
+        IPRATICO: annata.IPRATICO || 0,
+        BIOLOGICO: annata.BIOLOGICO || 0,
+        VENDITA_CALICE: annata.VENDITA_CALICE || 0,
+        FORZA_PREZZO: annata.FORZA_PREZZO || 0,
+        STATO_VENDITA: annata.STATO_VENDITA != null && annata.STATO_VENDITA !== ""
+          ? Number(annata.STATO_VENDITA)
+          : null,
+        STATO_CONSERVAZIONE: annata.STATO_CONSERVAZIONE || null,
+        NOTE_STATO: annata.NOTE_STATO || null,
+        FRIGORIFERO: annata.FRIGORIFERO || null,
+        QTA_FRIGO: parseInt(annata.QTA_FRIGO || 0, 10) || 0,
+        LOCAZIONE_1: annata.LOCAZIONE_1 || null,
+        QTA_LOC1: parseInt(annata.QTA_LOC1 || 0, 10) || 0,
+        LOCAZIONE_2: annata.LOCAZIONE_2 || null,
+        QTA_LOC2: parseInt(annata.QTA_LOC2 || 0, 10) || 0,
+        LOCAZIONE_3: annata.LOCAZIONE_3 || null,
+        QTA_LOC3: parseInt(annata.QTA_LOC3 || 0, 10) || 0,
+        NOTE: annata.NOTE || null,
+        ORIGINE: "wizard_v2",
+      };
+      const rb = await apiFetch(`${API_BASE}/vini/anagrafiche/bottiglia/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bottigliaBody),
+      });
+      if (!rb.ok) throw new Error(`Errore creazione bottiglia: ${(await rb.text()).slice(0, 200)}`);
+      const bottigliaCreated = await rb.json();
+      const bottigliaId = bottigliaCreated.id;
+
+      // 4) Celle matrice (se preselezionate in Step 4)
+      const celle = annata.MATRICE_CELLE || [];
+      for (const cella of celle) {
+        try {
+          await apiFetch(`${API_BASE}/vini/cantina-tools/matrice/assegna`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vino_id: bottigliaId, riga: cella.riga, colonna: cella.colonna }),
+          });
+        } catch {
+          // Cella eventualmente già occupata: non blocca, l'utente può rimediare dopo
+        }
+      }
+
+      setSubmitResult({ bottigliaId, madreId, produttoreId });
+    } catch (e) {
+      setSubmitError(String(e.message || e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const canAdvance = useMemo(() => {
@@ -118,13 +262,13 @@ export default function NuovoVinoV2() {
         {/* Footer */}
         <div className="px-4 py-3 border-t border-neutral-200 bg-white flex items-center gap-3 flex-shrink-0">
           <Btn variant="ghost" size="sm" onClick={reset}>↺ Ricomincia</Btn>
-          <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md inline-flex items-center gap-1 whitespace-nowrap">
-            <span>🧪</span><strong>PREVIEW</strong> · nessuna scrittura su DB
+          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md inline-flex items-center gap-1 whitespace-nowrap">
+            <span>✓</span><strong>SCRITTURA ATTIVA</strong>
           </span>
           <div className="ml-auto flex items-center gap-2">
             <Btn variant="secondary" size="md" onClick={goBack} disabled={step === 1}>← Indietro</Btn>
             <Btn variant="warning" size="md" onClick={goNext} disabled={!canAdvance}>
-              {step === 4 ? "✓ Conferma (preview)" : "Avanti →"}
+              {step === 4 ? "✓ Riepilogo e conferma" : "Avanti →"}
             </Btn>
           </div>
         </div>
@@ -135,7 +279,11 @@ export default function NuovoVinoV2() {
         produttore={produttore}
         madre={madre}
         annata={annata}
-        onClose={() => setShowPreview(false)}
+        saving={saving}
+        submitError={submitError}
+        submitResult={submitResult}
+        onConfirm={submitWizard}
+        onClose={() => { setShowPreview(false); if (submitResult) reset(); }}
         onReset={reset}
       />
     </div>
@@ -1003,7 +1151,7 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
 // =====================================================================
 // PREVIEW MODAL — riassunto finale (no scrittura)
 // =====================================================================
-function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
+function PreviewModal({ open, produttore, madre, annata, saving, submitError, submitResult, onConfirm, onClose, onReset }) {
   const qtaTot = Number(annata.QTA_FRIGO || 0) + Number(annata.QTA_LOC1 || 0)
     + Number(annata.QTA_LOC2 || 0) + Number(annata.QTA_LOC3 || 0);
 
@@ -1015,21 +1163,54 @@ function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
     vitigni:        annata.VITIGNI || vitigniToString(vitigniMadreFinale),
     grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
   });
+
+  // Stato post-submit: mostra schermata di successo invece del riepilogo.
+  const isSuccess = !!submitResult && !saving && !submitError;
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="🧪 Preview — cosa verrebbe creato"
-      subtitle="Nessuna scrittura su DB. Riepilogo strutturato del nuovo vino. Per crearlo davvero, usa il + Nuovo Vino della Cantina classica (al cutover Fase 10 questo wizard prenderà quel posto)."
+      title={isSuccess ? "✓ Vino creato" : "Riepilogo prima della creazione"}
+      subtitle={isSuccess
+        ? "La bottiglia è stata salvata in cantina. Puoi creare un altro vino o chiudere."
+        : "Verifica i dati. Conferma per creare produttore/madre/bottiglia + celle matrice."}
       tone="amber"
       size="xl"
       footer={
-        <>
-          <Btn variant="secondary" size="md" onClick={onReset}>↺ Ricomincia</Btn>
-          <Btn variant="dark" size="md" onClick={onClose}>Chiudi</Btn>
-        </>
+        isSuccess ? (
+          <>
+            <Btn variant="secondary" size="md" onClick={onReset}>+ Nuovo vino</Btn>
+            <Btn variant="warning" size="md" onClick={onClose}>Chiudi</Btn>
+          </>
+        ) : (
+          <>
+            <Btn variant="ghost" size="md" onClick={onClose} disabled={saving}>Indietro</Btn>
+            <Btn variant="warning" size="md" onClick={onConfirm} disabled={saving} loading={saving}>
+              {saving ? "Salvataggio…" : "✓ Conferma e crea"}
+            </Btn>
+          </>
+        )
       }
     >
+      {isSuccess && (
+        <div className="mb-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm">
+          <div className="text-emerald-900 font-semibold">Creato con successo:</div>
+          <ul className="mt-1 text-emerald-800 text-xs space-y-0.5">
+            <li>• Bottiglia <strong>#{submitResult.bottigliaId}</strong></li>
+            <li>• Madre <strong>#{submitResult.madreId}</strong></li>
+            <li>• Produttore <strong>#{submitResult.produttoreId}</strong></li>
+            {(annata.MATRICE_CELLE || []).length > 0 && (
+              <li>• {annata.MATRICE_CELLE.length} cell{annata.MATRICE_CELLE.length === 1 ? "a" : "e"} matrice assegnat{annata.MATRICE_CELLE.length === 1 ? "a" : "e"}</li>
+            )}
+          </ul>
+        </div>
+      )}
+      {submitError && (
+        <div className="mb-4 rounded-xl border-2 border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+          ⚠️ {submitError}
+        </div>
+      )}
       <div className="space-y-4">
         <PreviewBlock title="🏛️ Produttore" highlight={produttore?._new ? "DA CREARE" : `esistente #${produttore?.id}`}>
           <PreviewRow label="Nome" value={produttore?.nome} />
@@ -1481,6 +1662,13 @@ function PreviewRow({ label, value }) {
       <span className="font-medium text-neutral-900">{value}</span>
     </div>
   );
+}
+
+// Helper: parsing robusto di numeri da TextInput
+function parseNum(v) {
+  if (v === "" || v == null) return null;
+  const n = parseFloat(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
 }
 
 function emptyAnnata() {

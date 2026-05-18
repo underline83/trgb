@@ -4,13 +4,13 @@ DB access per le anagrafiche del refactor V.6+V.7+V.8 (Fase 2).
 
 Tabelle gestite (tutte con suffisso `_v2` durante il refactor, vedi
 `docs/refactor_anagrafiche_vini.md`):
-  - vini_produttori_v2
-  - vini_fornitori_v2
-  - vini_denominazioni_v2
-  - vini_vitigni_v2
-  - vini_madre_v2
+  - vini_produttori
+  - vini_fornitori
+  - vini_denominazioni
+  - vini_vitigni
+  - vini_madre
 
-`vini_bottiglie_v2` NON è gestita qui: è una copia di `vini_magazzino`
+`vini_bottiglie` NON è gestita qui: è una copia di `vini_magazzino`
 mantenuta in parallelo, gestita dal servizio sync (Fase 7).
 
 COSTANTI NOMI TABELLA: centralizzate in TABELLE per facilitare lo swap
@@ -28,12 +28,12 @@ from app.models.vini_magazzino_db import get_magazzino_connection
 # Mappa nomi tabella (single source of truth per il refactor)
 # ============================================================
 TABELLE = {
-    "produttori":      "vini_produttori_v2",
-    "fornitori":       "vini_fornitori_v2",
-    "denominazioni":   "vini_denominazioni_v2",
-    "vitigni":         "vini_vitigni_v2",
-    "madre":           "vini_madre_v2",
-    "bottiglie":       "vini_bottiglie_v2",
+    "produttori":      "vini_produttori",
+    "fornitori":       "vini_fornitori",
+    "denominazioni":   "vini_denominazioni",
+    "vitigni":         "vini_vitigni",
+    "madre":           "vini_madre",
+    "bottiglie":       "vini_bottiglie",
 }
 
 
@@ -932,7 +932,7 @@ def delete_vitigno(vid: int) -> bool:
     """Elimina vitigno. Falla se referenziato dalle bottiglie."""
     conn = get_magazzino_connection()
     cur = conn.cursor()
-    # Verifica se referenziato in uno dei 5 slot di vini_bottiglie_v2
+    # Verifica se referenziato in uno dei 5 slot di vini_bottiglie
     n_uses = 0
     for slot in range(1, 6):
         col = f"vitigno_{slot}_id"
@@ -1321,6 +1321,134 @@ def list_bottiglie_by_madre(mid: int) -> List[Dict[str, Any]]:
     ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
+
+
+# Whitelist colonne scrivibili su vini_bottiglie dal POST.
+# I campi anagrafici (DESCRIZIONE/PRODUTTORE/REGIONE/...) NON sono in lista
+# perché vengono sincronizzati dal madre via sync_bottiglie_from_madre.
+# QTA_TOTALE è auto-calcolato (somma 4 location).
+BOTTIGLIA_FIELDS = {
+    "id_excel", "madre_id",
+    "ANNATA", "FORMATO", "VITIGNI", "GRADO_ALCOLICO",
+    "PREZZO_CARTA", "EURO_LISTINO", "SCONTO", "NOTE_PREZZO",
+    "PREZZO_CALICE", "PREZZO_CALICE_MANUALE",
+    "CARTA", "IPRATICO", "BIOLOGICO", "VENDITA_CALICE", "FORZA_PREZZO",
+    "BOTTIGLIA_APERTA", "DATA_APERTURA", "ABBINAMENTI",
+    "STATO_VENDITA", "STATO_RIORDINO", "STATO_CONSERVAZIONE", "NOTE_STATO",
+    "FRIGORIFERO", "QTA_FRIGO",
+    "LOCAZIONE_1", "QTA_LOC1",
+    "LOCAZIONE_2", "QTA_LOC2",
+    "LOCAZIONE_3", "QTA_LOC3",
+    "vitigno_1_id", "vitigno_1_pct",
+    "vitigno_2_id", "vitigno_2_pct",
+    "vitigno_3_id", "vitigno_3_pct",
+    "vitigno_4_id", "vitigno_4_pct",
+    "vitigno_5_id", "vitigno_5_pct",
+    "NOTE", "ORIGINE",
+}
+
+
+def create_bottiglia(data: Dict[str, Any]) -> int:
+    """
+    Crea una nuova bottiglia (= annata di un madre) in `vini_bottiglie`.
+
+    Workflow (Fase 8 — attivazione wizard 2026-05-18):
+      1. Filtra i campi accettati via BOTTIGLIA_FIELDS (whitelist).
+      2. Calcola QTA_TOTALE come somma QTA_FRIGO + QTA_LOC1 + QTA_LOC2 + QTA_LOC3.
+      3. Setta CREATED_AT / UPDATED_AT a now.
+      4. INSERT.
+      5. Cascade sync: chiama sync_bottiglie_from_madre per popolare i campi
+         anagrafici ridondanti (DESCRIZIONE/PRODUTTORE/REGIONE/DENOMINAZIONE/...).
+      6. Ritorna l'id della bottiglia creata.
+
+    Args:
+        data: dict con i campi annata-specifici. `madre_id` è obbligatorio.
+
+    Raises:
+        ValueError: se madre_id manca o non esiste, o se ANNATA manca.
+
+    Returns:
+        id della nuova bottiglia.
+    """
+    if not data.get("madre_id"):
+        raise ValueError("madre_id obbligatorio")
+    if not data.get("ANNATA"):
+        raise ValueError("ANNATA obbligatoria")
+
+    # Verifica esistenza madre
+    madre = get_madre(int(data["madre_id"]))
+    if not madre:
+        raise ValueError(f"Madre {data['madre_id']} non trovato")
+
+    # Filtra campi accettati
+    payload = {k: v for k, v in data.items() if k in BOTTIGLIA_FIELDS}
+
+    # Calcola QTA_TOTALE
+    qta_totale = (
+        int(payload.get("QTA_FRIGO") or 0)
+        + int(payload.get("QTA_LOC1") or 0)
+        + int(payload.get("QTA_LOC2") or 0)
+        + int(payload.get("QTA_LOC3") or 0)
+    )
+    payload["QTA_TOTALE"] = qta_totale
+
+    # Timestamps
+    now = _now_iso()
+    payload["CREATED_AT"] = now
+    payload["UPDATED_AT"] = now
+
+    # Campi anagrafici minimi NOT NULL: usiamo i valori del madre come
+    # placeholder iniziale. Il sync subito dopo li riallinea con la sorgente
+    # corrente (idempotente). DESCRIZIONE è NOT NULL nello schema.
+    if "DESCRIZIONE" not in payload:
+        payload["DESCRIZIONE"] = madre.get("descrizione") or ""
+    if "TIPOLOGIA" not in payload:
+        payload["TIPOLOGIA"] = madre.get("tipologia") or ""
+    if "NAZIONE" not in payload:
+        payload["NAZIONE"] = madre.get("nazione") or ""
+
+    # INSERT
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    cols = ", ".join(payload.keys())
+    placeholders = ", ".join(["?"] * len(payload))
+    cur.execute(
+        f"INSERT INTO {TABELLE['bottiglie']} ({cols}) VALUES ({placeholders})",
+        list(payload.values()),
+    )
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+
+    # Cascade sync: propaga campi anagrafici dal madre alle nuove bottiglie.
+    # Importazione tardiva per evitare loop circolare di import.
+    try:
+        from app.services import vini_anagrafiche_sync as _sync
+        _sync.sync_bottiglie_from_madre(int(data["madre_id"]))
+    except Exception:
+        # Sync fallita non è bloccante per la creazione: l'utente vedrà i
+        # placeholder iniziali del madre, può forzare sync globale in seguito.
+        pass
+
+    return new_id
+
+
+def _now_iso() -> str:
+    """ISO 8601 con secondi, no microsecondi. Usato per CREATED_AT/UPDATED_AT."""
+    from datetime import datetime
+    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def get_bottiglia(bid: int) -> Optional[Dict[str, Any]]:
+    """Dettaglio bottiglia (post-INSERT / generico). Senza decorazioni."""
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    row = cur.execute(
+        f"SELECT * FROM {TABELLE['bottiglie']} WHERE id = ?", (bid,)
+    ).fetchone()
+    conn.close()
+    return _row_to_dict(row) if row else None
 
 
 # ============================================================

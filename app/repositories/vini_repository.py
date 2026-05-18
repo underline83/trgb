@@ -161,7 +161,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             VENDITA_CALICE,
             BOTTIGLIA_APERTA,
             QTA_TOTALE
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE
             TIPOLOGIA IS NOT NULL
             AND TIPOLOGIA <> 'ERRORE'
@@ -284,7 +284,7 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             BOTTIGLIA_APERTA,
             VENDITA_CALICE,
             ABBINAMENTI
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE
             TIPOLOGIA IS NOT NULL
             AND TIPOLOGIA <> 'ERRORE'
@@ -392,7 +392,7 @@ def search_vini(
             PREZZO_CARTA,
             QTA_TOTALE,
             CARTA
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE 1 = 1
     """
     params: list[Any] = []
@@ -478,7 +478,7 @@ def get_vino_dettaglio(vino_id: int) -> Optional[Dict[str, Any]]:
             PREZZO_CARTA,
             FORMATO,
             QTA_TOTALE
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE id = ?
         """,
         (vino_id,),

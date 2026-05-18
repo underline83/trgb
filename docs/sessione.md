@@ -1,6 +1,86 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-18 — **M2.9-bis + M2.9-ter** in cascata: promozione madri legacy a descrizione composta + vitigni strutturati sul madre (mig 131) + posizione scaffali matrice in creazione (riuso `MatricePicker` con modalità draft). Versione modulo vini 3.39 → 3.43.
+**Ultimo aggiornamento:** 2026-05-18 — **CUTOVER COMPLETO refactor anagrafiche vini** in 3 sessioni consecutive: S1 wizard attivato (scrittura reale), S2 Cantina classica spenta (route redirect + 9 file rinominati in `_legacy.jsx` + refactor backend lettori carta/iPratico), S3 cutover atomico mig 133 (rename `vini_magazzino` → `vini_magazzino_legacy_YYYYMMDD` + 6 rename `_v2` → "" + sed nei 7 file backend runtime). Versione modulo vini 3.43 → 3.46.
+
+## SESSIONE 2026-05-18 (parte 4) — CUTOVER: S1+S2+S3 in giornata
+
+### Sintesi
+Marco vuole chiudere il refactor anagrafiche oggi in 3 sessioni: wizard scritto + Cantina classica spenta + rename atomico. Domani osteria chiusa → giornata di test e fix se serve. Backup automatico nella mig 133 + raccomandazione backup VPS manuale prima del push.
+
+### S1 — Attivazione wizard
+- Backend `POST /vini/anagrafiche/bottiglia/` con schema `BottigliaCreate` (~30 campi annata) + `create_bottiglia()` nel model + sync cascade automatico al madre.
+- Frontend `submitWizard()` in `NuovoVinoV2.jsx`: orchestra 4-5 POST sequenziali (produttore se _new → madre se _new → bottiglia → loop celle matrice).
+- `PreviewModal` evoluto da "preview senza scrittura" a "Riepilogo prima della creazione" con bottone "✓ Conferma e crea". Schermata successo post-submit con ID generati + opzione "+ Nuovo vino".
+
+### S2 — Spegnimento Cantina classica
+- `vini_repository.py` (carta/calici/storico) + `ipratico_products_router.py` (sync) refactorati per leggere `vini_bottiglie_v2`. Sed mirato preservando i path file SQLite.
+- `App.jsx`: 6 route `/vini/magazzino/*` ora redirect a `/vini/v2/*`. Helper `RedirectMagazzinoToV2` preserva `:id` nelle scheda dettaglio.
+- `ViniNav.jsx` v3.0: tab "Cantina" punta direttamente a v2. Tab "Cantina 2" rimosso (era ridondante).
+- **9 file FE rinominati `_legacy.jsx`** (MagazzinoVini, MagazzinoViniNuovo, MagazzinoViniDettaglio, MagazzinoAdmin, RegistroMovimenti, CantinaTools, MovimentiCantina, MagazzinoSubMenu, ViniDatabase). I file restano nel repo come archivio.
+
+### S3 — Cutover atomico
+- **Mig 133** `app/migrations/133_cutover_rename_tabelle_v2.py`: backup file `.pre-cutover-YYYYMMDD-HHMMSS` prima del rename + transazione atomica BEGIN/COMMIT con 7 ALTER (1 legacy → _legacy_YYYYMMDD + 6 _v2 → senza suffisso). Idempotente: skip se cutover già applicato. ABORT pulito se 6 `_v2` mancanti o nome destinazione già esistente.
+- **Sed `_v2 → ""` nei 7 file backend runtime**: `vini_anagrafiche_db.py` (dict TABELLE), `vini_anagrafiche_sync.py`, `vini_anagrafiche_migrate.py`, `vini_anagrafiche_router.py` (schemi + commenti runtime), `vini_v2_router.py`, `vini_repository.py`, `ipratico_products_router.py`. Migrations 125-131 INTOCCATE (storia).
+- **Tabelle satellite restano col nome attuale**: `vini_magazzino_movimenti`, `vini_magazzino_note`, `matrice_celle`. Refactor separato eventuale post-cutover.
+
+### Verifiche
+- `py_compile` OK su tutti i 7 file refactorati + mig 133.
+- `esbuild` OK su App.jsx + ViniNav.jsx + NuovoVinoV2.jsx + tutti i pages/vini/v2/*.
+- **Smoke test sandbox mig 133**: prima run = 1 backup + 7 rename atomici + 14 tabelle finali con conteggi corretti (995 madre, 1287 bottiglie, 350 produttori, 40 fornitori, 1637 denominazioni, 68 vitigni). Seconda run = skip idempotente.
+
+### Bump versione
+- vini 3.43 → 3.44 (S1) → 3.45 (S2) → **3.46 (S3)**.
+
+### File toccati (commit pendente — TRE COMMIT consecutivi)
+
+**S1 — Attivazione wizard (`vini 3.44`)**:
+- Backend nuovo: nessuno
+- Backend modificato: `app/models/vini_anagrafiche_db.py` (+create_bottiglia, +get_bottiglia, +BOTTIGLIA_FIELDS, +_now_iso), `app/routers/vini_anagrafiche_router.py` (+BottigliaCreate, +POST /bottiglia/)
+- Frontend modificato: `frontend/src/pages/vini/v2/NuovoVinoV2.jsx` (+submitWizard, +stato saving/result/error, +parseNum helper, PreviewModal con onConfirm/saving/result)
+- Versioni: `frontend/src/config/versions.jsx`
+
+**S2 — Spegnimento Cantina classica (`vini 3.45`)**:
+- Backend modificato: `app/repositories/vini_repository.py` (4 SELECT), `app/routers/ipratico_products_router.py` (5 SELECT)
+- Frontend modificato: `frontend/src/App.jsx` (route redirect, helper RedirectMagazzinoToV2, import lazy rimossi), `frontend/src/pages/vini/ViniNav.jsx` v3.0
+- Frontend rinominati: 9 file `*_legacy.jsx` (MagazzinoVini, MagazzinoViniNuovo, MagazzinoViniDettaglio, MagazzinoAdmin, RegistroMovimenti, CantinaTools, MovimentiCantina, MagazzinoSubMenu, ViniDatabase)
+- Versioni: `frontend/src/config/versions.jsx`
+
+**S3 — Cutover atomico (`vini 3.46`)**:
+- Backend nuovo: `app/migrations/133_cutover_rename_tabelle_v2.py`
+- Backend modificato (sed `_v2 → ""`): `app/models/vini_anagrafiche_db.py`, `app/services/vini_anagrafiche_sync.py`, `app/services/vini_anagrafiche_migrate.py`, `app/routers/vini_anagrafiche_router.py`, `app/routers/vini_v2_router.py`, `app/repositories/vini_repository.py`, `app/routers/ipratico_products_router.py`
+- Versioni: `frontend/src/config/versions.jsx`
+- Docs: `docs/sessione.md`, `docs/changelog.md`
+
+### Commit suggeriti (3 push consecutivi)
+```
+./push.sh "[core] vini 3.44 — S1 wizard attivato (POST bottiglia + submitWizard FE) → la cantina ora scrive sulle _v2"
+./push.sh "[core] vini 3.45 — S2 Cantina classica spenta (route redirect + 9 file _legacy + vini_repository/ipratico leggono _v2)"
+./push.sh "[core] vini 3.46 — S3 CUTOVER ATOMICO (mig 133 backup + rename _v2→\"\" + sed 7 file backend)"
+```
+
+### ⚠️ Procedura backup PRIMA del push S3
+Sul VPS, prima di lanciare `./push.sh` per S3:
+```bash
+ssh trgb
+cd /home/marco/trgb/trgb
+zip -r /home/marco/backups_cutover_$(date +%Y%m%d-%H%M%S).zip locali/tregobbi/data/
+```
+Doppio livello di sicurezza: backup VPS manuale + backup automatico mig 133.
+
+### Smoke test post-deploy S3
+1. Aprire Cantina → vedere 1287 bottiglie + nomi madre coerenti.
+2. Aprire una scheda bottiglia → tab Anagrafica/Prezzi/Movimenti/Stats funzionano.
+3. Creare un vino nuovo dal wizard → toast successo + bottiglia visibile in cantina.
+4. Aprire carta cliente PDF → 1287 vini stampati correttamente.
+5. iPratico sync (`/ipratico/products/missing` o `/match`) → risponde.
+
+### Rollback in caso di problema
+- Restore del file `app/data/vini_magazzino.sqlite3.pre-cutover-YYYYMMDD-HHMMSS` → stato pre-cutover ripristinato.
+- Git revert dei 3 commit (S1+S2+S3).
+
+---
+
+## SESSIONE 2026-05-18 (parte 3) — M2.9-ter: matrice scaffali anche in creazione
 
 ## SESSIONE 2026-05-18 (parte 3) — M2.9-ter: matrice scaffali anche in creazione
 

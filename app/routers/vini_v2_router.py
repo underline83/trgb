@@ -3,8 +3,8 @@
 Router read-only del nuovo modulo "Gestione Vino 2" (V.6+V.7+V.8 — test parallelo).
 
 Prefisso: /vini/v2/...
-Database: vini_magazzino.sqlite3, tabelle `_v2` (vini_bottiglie_v2, vini_madre_v2,
-vini_produttori_v2, vini_fornitori_v2, vini_denominazioni_v2, vini_vitigni_v2).
+Database: vini_magazzino.sqlite3, tabelle `_v2` (vini_bottiglie, vini_madre,
+vini_produttori, vini_fornitori, vini_denominazioni, vini_vitigni).
 
 Strategia (concordata con Marco 2026-05-15):
   - Modulo PARALLELO al Vini classico
@@ -42,7 +42,7 @@ def _row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
 # SELECT base — JOIN bottiglia + madre + produttore + denominazione
 # ============================================================
 # La SELECT include:
-#  - tutti i campi di vini_bottiglie_v2 (b.*)
+#  - tutti i campi di vini_bottiglie (b.*)
 #  - i campi anagrafici "ricalcolati" dal madre (con prefisso m_*) per
 #    permettere alla UI di mostrare etichetta madre + bottiglia in un colpo
 #  - nome produttore (p_nome), denominazione formattata (d_display)
