@@ -1612,11 +1612,7 @@ const SchedaVino = forwardRef(function SchedaVino({
                 {duplicating ? "Duplico…" : "Duplica vino"}
               </Btn>
             )}
-            {readOnly && (
-              <span className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md flex items-center gap-1.5">
-                🔒 <strong>READ-ONLY</strong> · per modificare apri questo vino nella Cantina classica
-              </span>
-            )}
+{/* S2 cutover 2026-05-18: banner "Cantina classica" rimosso (Cantina classica morta). */}
             {saveMsg && <span className="text-xs font-medium text-neutral-600">{saveMsg}</span>}
             <span className="flex-1" />
             {onClose && (
