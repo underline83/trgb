@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-05-18 — Vini 3.40 · M2.9-bis: promozione madri legacy a descrizione composta `[core]`
+
+### Aggiunto
+- **Backend** — `app/models/vini_anagrafiche_db.py`: nuova funzione `promote_madre_a_composto(mid, denominazione_id, nome_etichetta, grado_alcolico_tipico, vitigni_stringa)`. Aggiorna i 4 ingredienti, ricompone descrizione via helper `componi_descrizione`, setta `descrizione_auto=1`. Raise ValueError se composizione vuota. `MADRE_FIELDS` esteso con `nome_etichetta` + `descrizione_auto`.
+- **Backend router** — `app/routers/vini_anagrafiche_router.py`: nuovo endpoint admin `POST /vini/anagrafiche/madre/{mid}/promote-composto` con payload `MadrePromotePayload`. Verifica FK denominazione, chiama model, cascade sync su bottiglie. `MadreBase`/`MadreUpdate` estesi con i 2 nuovi campi.
+- **Wizard NuovoVinoV2 Step 2** — badge 📜 OLD inline sui madri legacy nella lista (`descrizione_auto=0`) + sulla card "vino madre selezionato". Niente badge sui madri composti (`descrizione_auto=1`) — sono lo standard.
+- **Wizard NuovoVinoV2 Step 3** — banner warning con bottone "🔧 Sistema il madre" quando il madre selezionato è legacy. Non bloccante: si può proseguire senza promuovere. Nuovo componente `PromuoviMadreModal` (size lg, tone amber): form 4 ingredienti (autocomplete denominazioni, nome_etichetta, lista vitigni con %, grado), preview live della "Nuova descrizione" (helper JS `componiDescrizione`), descrizione attuale legacy in alto read-only. Submit → POST endpoint backend, aggiorna `madre` nel parent, banner sparisce.
+- **AnagraficheVini MadrePanel** — badge 📜 OLD inline accanto a `descrizione` nella tabella madri. Filtro "📜 Solo legacy" per scoprire tutti i madri da promuovere.
+- **AnagraficheVini MadreEditModal** — campo `nome_etichetta` aggiunto. Badge 📜 OLD / ✓ COMPOSTA in header. Preview "Descrizione composta (anteprima)" attivata quando l'utente ha denominazione + (nome_etichetta o grado) → la descrizione testuale si auto-disabilita. Al save in modalità composta, descrizione ricomposta e `descrizione_auto=1` settato nel PATCH.
+
+### Convenzione decisa
+- **Nuovo = standard, OLD = eccezione**: nessun badge sui madri composti. Marco: "sulle new non mettere un bollino, dovrebbe essere lo standard, piuttosto mettile su tutte le attuali che partono come OLD".
+- **Promozione progressiva**: i 1287 madri legacy si sistemano organicamente man mano che vengono toccati (creazione annata o modifica). Niente job batch.
+
+### Bump versione
+- frontend `versions.jsx`: **vini 3.39 → 3.40**.
+
+### Note
+- L'endpoint promote è admin-only (errori 403 mostrati nel modal).
+- Cascade sync su bottiglie chiamato automaticamente dopo la promozione (la descrizione è cache anche lì).
+- Il `descrizione_auto` flag (colonna mig 130) viene scritto in modo idempotente: il madre già composto non viene "ri-promosso" se non cambia nulla.
+
+---
+
 ## 2026-05-16 — M2.8: refactor ramo v2 con primitive M.I (palette amber unificata)
 
 ### Cambiato

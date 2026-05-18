@@ -1,6 +1,57 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-16 — **G.3 Fase E parte 1/2**: schema DB costo personale (mig 132 — `dipendenti_costo_consuntivo` + `f24_versamenti`) + parser ELAB pdf + parser F24 pdf — testati su PDF reali Aprile 2026 con saldi al centesimo. + G.3 Fase D Conto Economico fix cascata (drill-down righe + % sui ricavi + RATEIZZAZIONE_TASSE + aggregazione per RIGA con fallback). + lato Vini: M2.4-5 prezzo_unitario snapshot + M2.5-arch nav refactor + SchedaMadreV2 full-frame + M2.5.1 Produttori + M2.5.2 Distributori/Denominazioni. Versione modulo vini 3.28 → 3.30.
+**Ultimo aggiornamento:** 2026-05-18 — **M2.9-bis Promozione madri legacy a descrizione composta**: backend (modello + endpoint POST `/vini/anagrafiche/madre/{id}/promote-composto`) e frontend (badge 📜 OLD sui madri legacy nel wizard + lista Anagrafiche, banner Step 3 con bottone "Sistema il madre", modal `PromuoviMadreModal` con form 4 ingredienti + anteprima live, MadreEditModal in Anagrafiche con campo nome_etichetta + ricomposizione automatica al save, filtro "Solo legacy" nella lista madri Anagrafiche). Versione modulo vini 3.39 → 3.40.
+
+## SESSIONE 2026-05-18 — M2.9-bis Promozione madri legacy → descrizione composta
+
+### Sintesi
+Chiusura del modello "descrizione composta" iniziato in M2.9. I 1287 madri legacy (descrizione testuale libera) ora possono essere promossi uno a uno al modello composto (descrizione_auto=1, ricomposta dai 4 ingredienti: denominazione + nome_etichetta + vitigni + grado). Triggers di promozione: bottone in wizard Step 3 quando si crea un'annata su madre legacy; oppure modifica diretta del madre in Anagrafiche se vengono valorizzati gli ingredienti. Badge 📜 OLD sui legacy (no badge sui composti = standard, scelta UX di Marco: "il nuovo è lo standard, l'OLD è l'eccezione").
+
+### Fatto `[core]`
+- **Backend model** — `app/models/vini_anagrafiche_db.py`: nuova funzione `promote_madre_a_composto(mid, denominazione_id, nome_etichetta, grado_alcolico_tipico, vitigni_stringa)` che aggiorna i 4 ingredienti, ricompone descrizione via `componi_descrizione` e setta `descrizione_auto=1`. Idempotente. Raise ValueError se la composizione sarebbe vuota. `MADRE_FIELDS` esteso con `nome_etichetta` + `descrizione_auto`.
+- **Backend router** — `app/routers/vini_anagrafiche_router.py`: nuovo endpoint admin `POST /vini/anagrafiche/madre/{mid}/promote-composto`. Payload `MadrePromotePayload` con i 4 ingredienti opzionali. Verifica FK denominazione, chiama model, cascade sync su bottiglie. `MadreBase`/`MadreUpdate` estesi con `nome_etichetta` + `descrizione_auto`.
+- **Frontend wizard `NuovoVinoV2.jsx`**:
+  - Step 2 — badge 📜 OLD inline sui madri legacy nella lista (descrizione_auto=0). Anche sulla card "vino madre selezionato" sotto.
+  - Step 3 — banner warning grosso con bottone "🔧 Sistema il madre" quando si lavora su un madre legacy. Non bloccante: si può proseguire senza promuovere.
+  - Nuovo componente `PromuoviMadreModal` con form 4 ingredienti (autocomplete denominazioni + nome_etichetta + lista vitigni con %, fino a 5 + grado), preview live "Nuova descrizione" (helper JS `componiDescrizione` gemello del backend), descrizione attuale legacy mostrata read-only in alto. Submit → POST endpoint backend.
+- **Frontend anagrafiche `AnagraficheVini.jsx`**:
+  - `MadrePanel` (lista madri): badge 📜 OLD inline accanto alla descrizione. Filtro "📜 Solo legacy" per scoprire tutti i madri da promuovere.
+  - `MadreEditModal`: campo `nome_etichetta` aggiunto. Badge 📜 OLD / ✓ COMPOSTA in header. Preview "Descrizione composta (anteprima)" live se attivata la modalità composta (denominazione + nome_etichetta o grado). Campo descrizione testuale si auto-disabilita in modalità composta. Al save, se modalità composta, descrizione viene ricomposta e `descrizione_auto=1` settato.
+
+### Decisioni di design
+- **Default = "nuovo standard"**: la convenzione è che i madri nuovi (creati via wizard) e quelli promossi hanno `descrizione_auto=1` = no badge. Il badge 📜 OLD esiste solo sui legacy `descrizione_auto=0` per ricordare che vanno "sistemati". Marco: "sulle new non mettere un bollino, dovrebbe essere lo standard, piuttosto mettile su tutte le attuali che partono come OLD". Convenzione coerente: il nuovo è lo standard, l'eccezione è l'OLD.
+- **Promozione non bloccante**: il wizard mostra il banner ma permette comunque di creare l'annata su un madre legacy. Marco: "se non viene usato va bene lo stesso perché il sistema li leggerà sulla stampa PDF e sulla carta html comunque corretti". La descrizione testuale legacy continua a funzionare ovunque.
+- **Promozione progressiva**: i 1287 madri legacy si sistemano man mano che l'utente li tocca, senza job batch. Migrazione organica.
+
+### Versione
+- frontend `versions.jsx`: vini 3.39 → 3.40 (stabile, color green)
+- VERSION root: invariato (modulo vini bump indipendente)
+
+### Verifiche
+- `py_compile` OK su router + model + service descrizione
+- esbuild OK su NuovoVinoV2.jsx (66 KB) + AnagraficheVini.jsx (70 KB) — JSX/import puliti
+- Smoke flow logico: wizard Step 3 su madre legacy → modal con preview live, save → POST endpoint → cascade sync su bottiglie → madre re-fetched in parent con descrizione_auto=1 → banner sparisce.
+
+### Prossima sessione possibile
+- Push M2.9-bis + verifica live con click manuale su un madre legacy reale (es. quello "Langhe DOC Rossj-Bass" citato come riferimento)
+- Eventuale promozione massiva semi-automatica per madri dove la regex riesce a separare denominazione + nome etichetta + vitigni dalla descrizione testuale (sondaggio: quanti dei 1287 si auto-promuoverebbero in modo affidabile?)
+- M2.10 — riepilogo finale architettura Cantina 2 prima di considerarla "pronta per cutover" parallelo a Cantina 1
+
+### File toccati (commit pendente)
+- Backend: `app/routers/vini_anagrafiche_router.py`, `app/models/vini_anagrafiche_db.py`
+- Frontend: `frontend/src/pages/vini/v2/NuovoVinoV2.jsx`, `frontend/src/pages/vini/AnagraficheVini.jsx`, `frontend/src/config/versions.jsx`
+- Docs: `docs/sessione.md`, `docs/changelog.md`
+
+### Commit suggerito
+```
+./push.sh "[core] vini 3.40 — M2.9-bis Promozione madri legacy → descrizione composta (backend promote endpoint + modal wizard + badge OLD)"
+```
+
+---
+
+## SESSIONE 2026-05-16 — G.3 Fase E parte 1/2: schema DB + parser PDF (storico)
+
+**Header originale (pre-M2.9-bis):** G.3 Fase E parte 1/2: schema DB costo personale (mig 132 — `dipendenti_costo_consuntivo` + `f24_versamenti`) + parser ELAB pdf + parser F24 pdf — testati su PDF reali Aprile 2026 con saldi al centesimo. + G.3 Fase D Conto Economico fix cascata (drill-down righe + % sui ricavi + RATEIZZAZIONE_TASSE + aggregazione per RIGA con fallback). + lato Vini: M2.4-5 prezzo_unitario snapshot + M2.5-arch nav refactor + SchedaMadreV2 full-frame + M2.5.1 Produttori + M2.5.2 Distributori/Denominazioni. Versione modulo vini 3.28 → 3.30.
 
 ## SESSIONE 2026-05-16 — G.3 Fase E parte 1/2: schema DB + parser PDF
 

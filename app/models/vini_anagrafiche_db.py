@@ -957,6 +957,8 @@ MADRE_FIELDS = {
     "produttore_id", "fornitore_id", "denominazione_id",
     "descrizione", "tipologia", "nazione", "regione",
     "grado_alcolico_tipico", "abbinamenti", "note_madre",
+    # M2.9 (mig 130): nuovi campi per descrizione composta automaticamente.
+    "nome_etichetta", "descrizione_auto",
 }
 
 
@@ -1031,6 +1033,96 @@ def update_madre(mid: int, data: Dict[str, Any]) -> bool:
     conn.commit()
     conn.close()
     return ok
+
+
+def promote_madre_a_composto(
+    mid: int,
+    denominazione_id: Optional[int] = None,
+    nome_etichetta: Optional[str] = None,
+    grado_alcolico_tipico: Optional[float] = None,
+    vitigni_stringa: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Promuove un vino madre "legacy" (descrizione testuale libera) al nuovo schema
+    a descrizione composta automatica (M2.9, 2026-05-16).
+
+    Cosa fa:
+      1. Aggiorna i sotto-campi forniti (denominazione_id, nome_etichetta,
+         grado_alcolico_tipico).
+      2. Ricompone la descrizione testuale come:
+         "{denominazione_display} {nome_etichetta} ({vitigni}) {grado}%"
+      3. Setta descrizione_auto = 1 (segnale: questo madre è "pulito").
+
+    `vitigni_stringa` è il testo già formattato dei vitigni (es. "Nebbiolo 100%").
+    Non vive sul madre — viene usato solo per la composizione della descrizione,
+    poi i vitigni reali stanno sulle bottiglie negli slot 1..5. Se l'utente vuole
+    persistere i vitigni "tipici" del madre, dovrà collegarli alle bottiglie.
+
+    Ritorna il record madre aggiornato, o None se non esiste.
+    """
+    from app.services.vini_descrizione import componi_descrizione
+
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    # Carica madre + denominazione display per la composizione
+    row = cur.execute(
+        f"SELECT * FROM {TABELLE['madre']} WHERE id = ?", (mid,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    madre = _row_to_dict(row)
+
+    # Risolvi denominazione display dalla FK target (se cambia, prende il nuovo;
+    # se invariata, riusa quella attuale del madre)
+    target_deno_id = denominazione_id if denominazione_id is not None else madre.get("denominazione_id")
+    denominazione_display = None
+    if target_deno_id:
+        d_row = cur.execute(
+            f"SELECT nome, tipo FROM {TABELLE['denominazioni']} WHERE id = ?", (target_deno_id,)
+        ).fetchone()
+        if d_row:
+            denominazione_display = f"{d_row['nome']} {d_row['tipo']}".strip()
+
+    # Compone descrizione con i nuovi campi (fallback ai valori già sul madre)
+    nuova_descr = componi_descrizione(
+        denominazione=denominazione_display,
+        nome_etichetta=nome_etichetta if nome_etichetta is not None else madre.get("nome_etichetta"),
+        vitigni=vitigni_stringa,
+        grado=grado_alcolico_tipico if grado_alcolico_tipico is not None else madre.get("grado_alcolico_tipico"),
+    )
+
+    # Update atomico — solo se descrizione composta non è vuota (sennò sarebbe un downgrade)
+    if not nuova_descr.strip():
+        conn.close()
+        raise ValueError("Promozione fallita: la descrizione composta sarebbe vuota. Compila almeno denominazione + nome_etichetta o grado.")
+
+    updates = ["descrizione = ?", "descrizione_auto = 1", "updated_at = datetime('now')"]
+    values: list = [nuova_descr]
+    if denominazione_id is not None:
+        updates.append("denominazione_id = ?")
+        values.append(denominazione_id)
+    if nome_etichetta is not None:
+        updates.append("nome_etichetta = ?")
+        values.append(nome_etichetta)
+    if grado_alcolico_tipico is not None:
+        updates.append("grado_alcolico_tipico = ?")
+        values.append(grado_alcolico_tipico)
+
+    cur.execute(
+        f"UPDATE {TABELLE['madre']} SET {', '.join(updates)} WHERE id = ?",
+        values + [mid],
+    )
+    conn.commit()
+
+    # Ricarica e ritorna
+    row2 = cur.execute(
+        f"SELECT * FROM {TABELLE['madre']} WHERE id = ?", (mid,)
+    ).fetchone()
+    conn.close()
+    return _row_to_dict(row2)
 
 
 def delete_madre(mid: int) -> bool:

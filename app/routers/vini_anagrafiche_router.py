@@ -145,6 +145,9 @@ class MadreBase(BaseModel):
     grado_alcolico_tipico: Optional[float] = None
     abbinamenti: Optional[str] = None
     note_madre: Optional[str] = None
+    # M2.9 (2026-05-16): descrizione composta
+    nome_etichetta: Optional[str] = None
+    descrizione_auto: Optional[int] = None  # 0=legacy testuale, 1=composta da ingredienti
 
 
 class MadreUpdate(BaseModel):
@@ -158,6 +161,31 @@ class MadreUpdate(BaseModel):
     grado_alcolico_tipico: Optional[float] = None
     abbinamenti: Optional[str] = None
     note_madre: Optional[str] = None
+    # M2.9 (2026-05-16): descrizione composta
+    nome_etichetta: Optional[str] = None
+    descrizione_auto: Optional[int] = None
+
+
+# --- Promozione madre a descrizione composta (M2.9-bis, 2026-05-18) ---
+class MadrePromotePayload(BaseModel):
+    """
+    Payload per promuovere un madre "legacy" (descrizione_auto=0) a
+    descrizione composta. Tutti i campi sono opzionali: l'helper backend
+    usa i valori passati se presenti, altrimenti tiene quelli già sul madre.
+
+    L'effetto è:
+      1) aggiorna i 4 ingredienti sul madre (se presenti nel payload)
+      2) ricompone `descrizione` con `componi_descrizione(...)`
+      3) setta `descrizione_auto = 1`
+      4) sparisce il badge "OLD" in UI (il madre è ora "standard")
+    """
+    denominazione_id: Optional[int] = None
+    nome_etichetta: Optional[str] = None
+    grado_alcolico_tipico: Optional[float] = None
+    vitigni_stringa: Optional[str] = Field(
+        None,
+        description="Stringa già formattata 'Nebbiolo 100%' o 'Nebbiolo 95%, Barbera 5%'",
+    )
 
 
 # ============================================================
@@ -637,6 +665,62 @@ def update_madre(mid: int, payload: MadreUpdate, current_user: Any = Depends(get
     row = ana.get_madre(mid)
     row["_sync"] = {"n_bottiglie": n_bot}
     return row
+
+
+@router.post(
+    "/madre/{mid}/promote-composto",
+    summary="Promuove un madre legacy a descrizione composta (M2.9-bis, admin)",
+)
+def promote_madre_composto(
+    mid: int,
+    payload: MadrePromotePayload,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Promuove un vino madre dalla descrizione legacy (testuale, descrizione_auto=0)
+    alla descrizione composta automatica (descrizione_auto=1).
+
+    Vedi `app/services/vini_descrizione.py` per la regola di composizione.
+
+    Use case: l'utente sta creando un nuovo "figlio" (annata) di un madre vecchio
+    e il wizard "Nuovo Vino" gli mostra un banner "questo madre è ancora in formato
+    legacy → vuoi sistemarlo?". L'utente compila i 4 ingredienti (denominazione,
+    nome_etichetta, vitigni con %, grado), il frontend invia il payload qui, il
+    backend ricompone la descrizione e setta `descrizione_auto = 1`.
+
+    Errori:
+      - 404 se madre non esiste
+      - 400 se la denominazione_id passata non esiste
+      - 400 se la composizione risulterebbe vuota (mancano tutti gli ingredienti)
+    """
+    _require_admin(current_user)
+    if not ana.get_madre(mid):
+        raise HTTPException(404, "Vino madre non trovato")
+
+    # Verifica FK denominazione se passata
+    if payload.denominazione_id is not None and not ana.get_denominazione(payload.denominazione_id):
+        raise HTTPException(
+            400, f"Denominazione {payload.denominazione_id} non trovata"
+        )
+
+    try:
+        updated = ana.promote_madre_a_composto(
+            mid=mid,
+            denominazione_id=payload.denominazione_id,
+            nome_etichetta=payload.nome_etichetta,
+            grado_alcolico_tipico=payload.grado_alcolico_tipico,
+            vitigni_stringa=payload.vitigni_stringa,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    if updated is None:
+        raise HTTPException(404, "Vino madre non trovato")
+
+    # Cascade sync sulle bottiglie del madre (la descrizione è cache anche lì)
+    n_bot = ana_sync.sync_bottiglie_from_madre(mid)
+    updated["_sync"] = {"n_bottiglie": n_bot}
+    return updated
 
 
 @router.delete("/madre/{mid}", summary="Elimina vino madre (admin)")

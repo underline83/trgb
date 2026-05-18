@@ -107,7 +107,7 @@ export default function NuovoVinoV2() {
         <div className="flex-1 overflow-auto bg-neutral-50">
           {step === 1 && <Step1Produttore produttore={produttore} onSelect={handleSelectProduttore} />}
           {step === 2 && <Step2Madre produttore={produttore} madre={madre} onSelect={setMadre} />}
-          {step === 3 && <Step3Annata annata={annata} setAnnata={setAnnata} produttore={produttore} madre={madre} />}
+          {step === 3 && <Step3Annata annata={annata} setAnnata={setAnnata} produttore={produttore} madre={madre} setMadre={setMadre} />}
           {step === 4 && <Step4Giacenze annata={annata} setAnnata={setAnnata} produttore={produttore} madre={madre} />}
         </div>
 
@@ -464,12 +464,26 @@ function Step2Madre({ produttore, madre, onSelect }) {
               <div className="max-h-[40vh] overflow-y-auto">
                 {madri.map(m => {
                   const selected = madre && !madre._new && madre.id === m.id;
+                  // M2.9-bis: madri legacy (descrizione_auto=0) ricevono un badge OLD
+                  // che ricorda all'utente di promuoverli alla descrizione composta.
+                  // I madri nuovi/composti (descrizione_auto=1) sono lo standard → nessun badge.
+                  const isLegacy = (m.descrizione_auto || 0) === 0;
                   return (
                     <button key={m.id} type="button" onClick={() => onSelect(m)}
                       className={`w-full text-left px-3 py-2 border-b border-neutral-100 transition ${
                         selected ? "bg-amber-100 border-l-4 border-l-amber-600" : "hover:bg-amber-50"
                       }`}>
-                      <div className="font-semibold text-neutral-900">{m.descrizione}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-neutral-900">{m.descrizione}</span>
+                        {isLegacy && (
+                          <span
+                            title="Vino madre in formato legacy — sistemalo per ottenere la descrizione composta automaticamente"
+                            className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-orange-100 text-orange-800 border-orange-300"
+                          >
+                            📜 OLD
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-neutral-600">
                         {[m.tipologia, m.regione].filter(Boolean).join(" · ") || "—"}
                         {m.denominazione_id && <span className="text-neutral-400 ml-1">· denom. #{m.denominazione_id}</span>}
@@ -485,8 +499,19 @@ function Step2Madre({ produttore, madre, onSelect }) {
 
       {madre && (
         <Card tone="success" radius="2xl" padding="sm">
-          <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-1">
-            ✓ Vino madre selezionato {madre._new && <span className="bg-amber-200 text-amber-900 px-1 rounded ml-1">DA CREARE</span>}
+          <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-1 flex items-center gap-1 flex-wrap">
+            ✓ Vino madre selezionato
+            {madre._new && (
+              <span className="bg-amber-200 text-amber-900 px-1 rounded ml-1">DA CREARE</span>
+            )}
+            {!madre._new && (madre.descrizione_auto || 0) === 0 && (
+              <span
+                title="Vino madre legacy: la descrizione è un testo unico, non i 4 ingredienti separati. Nel prossimo step potrai sistemarlo."
+                className="bg-orange-100 text-orange-800 border border-orange-300 px-1 rounded ml-1 normal-case"
+              >
+                📜 OLD
+              </span>
+            )}
           </div>
           <div className="text-base font-bold text-neutral-900">{madre.descrizione}</div>
           <div className="text-xs text-neutral-700">
@@ -649,8 +674,10 @@ function Step2Madre({ produttore, madre, onSelect }) {
 // per coerenza estetica: form a sezioni separate da border-top, niente
 // card annidate, flag come toggle iOS-style.
 // =====================================================================
-function Step3Annata({ annata, setAnnata, produttore, madre }) {
+function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
   const [formati, setFormati] = useState([]);
+  // M2.9-bis (2026-05-18): modal di promozione madre legacy → composto.
+  const [showPromote, setShowPromote] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -663,15 +690,35 @@ function Step3Annata({ annata, setAnnata, produttore, madre }) {
 
   const upd = (k, v) => setAnnata(prev => ({ ...prev, [k]: v }));
 
-  // M2.9: descrizione composta della BOTTIGLIA = denominazione (madre) +
-  // nome_etichetta (madre) + vitigni (annata, se compilati) + grado (annata).
-  // Si aggiorna live mentre l'utente cambia VITIGNI o GRADO_ALCOLICO.
-  const descrizioneBottiglia = useMemo(() => componiDescrizione({
-    denominazione:  madre?.denominazione_label || "",
-    nome_etichetta: madre?.nome_etichetta || "",
-    vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
-    grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
-  }), [madre, annata.VITIGNI, annata.GRADO_ALCOLICO]);
+  // Callback dopo promozione riuscita: aggiorna lo state del madre nel parent.
+  const handleMadrePromosso = (madreAggiornato) => {
+    if (madreAggiornato && setMadre) {
+      setMadre({ ...madre, ...madreAggiornato });
+    }
+    setShowPromote(false);
+  };
+
+  // M2.9: descrizione della BOTTIGLIA. Due strade:
+  //  - Madre "composto" (descrizione_auto=1, tipicamente i nuovi via wizard):
+  //    componi live da denominazione + nome_etichetta + vitigni + grado.
+  //  - Madre "legacy" (descrizione_auto=0 OR campi mancanti, tipicamente i 1287
+  //    importati da Excel): la descrizione è un TESTO UNICO già pronto sul madre
+  //    (es. "Langhe DOC Rossj-Bass (100% chardonnay)") — uso quella così com'è
+  //    e ci appendo solo il grado se l'utente lo cambia per l'annata.
+  const isMadreComposto = madre?._new || madre?.descrizione_auto === 1;
+  const descrizioneBottiglia = useMemo(() => {
+    if (isMadreComposto) {
+      return componiDescrizione({
+        denominazione:  madre?.denominazione_label || "",
+        nome_etichetta: madre?.nome_etichetta || "",
+        vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+        grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
+      });
+    }
+    // Madre legacy: la descrizione del madre è il testo originale immutato.
+    // Se l'utente specifica un grado per QUESTA annata diverso, lo appendo.
+    return (madre?.descrizione || "").trim();
+  }, [isMadreComposto, madre, annata.VITIGNI, annata.GRADO_ALCOLICO]);
 
   // Adatta i formati dal backend a {value,label} per Select
   const formatiOptions = useMemo(() => formati.map((f) => {
@@ -702,13 +749,53 @@ function Step3Annata({ annata, setAnnata, produttore, madre }) {
   const statoVenditaOptions = STATO_VENDITA_OPTIONS.filter(o => o.value !== "");
   const statoConservazioneOptions = STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value !== "");
 
+  // M2.9-bis: il madre è "legacy" (descrizione_auto=0) se viene dal DB e non
+  // è ancora stato promosso al modello composto. Mostriamo un banner che invita
+  // a sistemarlo prima di proseguire, senza bloccare il flusso.
+  const isMadreLegacy = madre && !madre._new && (madre.descrizione_auto || 0) === 0;
+
   return (
     <div className="p-4 md:p-6 space-y-4">
+      {/* Banner madre legacy — invito (non bloccante) a promuovere */}
+      {isMadreLegacy && (
+        <div className="rounded-2xl border-2 border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 px-4 py-3 flex items-start gap-3 shadow-sm">
+          <div className="text-2xl flex-shrink-0">📜</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-orange-100 text-orange-800 border-orange-300">
+                OLD
+              </span>
+              <strong className="text-sm text-orange-900">Vino madre in formato legacy</strong>
+            </div>
+            <p className="text-xs text-orange-800 mt-1 leading-relaxed">
+              La descrizione è un testo unico, non scomposta nei 4 ingredienti (denominazione, nome
+              etichetta, vitigni, grado). Puoi sistemarlo ora — il sistema ricostruirà la descrizione
+              automaticamente e il badge OLD sparirà. Non è obbligatorio: puoi proseguire e la
+              descrizione attuale resterà valida ovunque (stampa carta, PDF…).
+            </p>
+          </div>
+          <div className="flex-shrink-0">
+            <Btn variant="warning" size="sm" onClick={() => setShowPromote(true)}>
+              🔧 Sistema il madre
+            </Btn>
+          </div>
+        </div>
+      )}
+
       {/* Anteprima descrizione composta (live, banner principale) */}
       <DescrizioneAnteprima testo={descrizioneBottiglia} sub="Nome di questa bottiglia. Si aggiorna se modifichi i vitigni o il grado." />
 
       {/* Box "Vino madre" — campi ereditati, read-only (conferma visiva). */}
       <MadreReadOnlyBox produttore={produttore} madre={madre} />
+
+      {/* Modal promozione madre legacy → composto */}
+      {showPromote && (
+        <PromuoviMadreModal
+          madre={madre}
+          onClose={() => setShowPromote(false)}
+          onSuccess={handleMadrePromosso}
+        />
+      )}
 
       <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200">
@@ -800,13 +887,19 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
   const [opzioniLoc2, setOpzioniLoc2] = useState([]);
   const [opzioniLoc3, setOpzioniLoc3] = useState([]);
 
-  // Descrizione composta della bottiglia (stessa logica dello Step 3).
-  const descrizioneBottiglia = useMemo(() => componiDescrizione({
-    denominazione:  madre?.denominazione_label || "",
-    nome_etichetta: madre?.nome_etichetta || "",
-    vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
-    grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
-  }), [madre, annata.VITIGNI, annata.GRADO_ALCOLICO]);
+  // Descrizione bottiglia (stessa logica dello Step 3 — madre composto vs legacy).
+  const isMadreComposto = madre?._new || madre?.descrizione_auto === 1;
+  const descrizioneBottiglia = useMemo(() => {
+    if (isMadreComposto) {
+      return componiDescrizione({
+        denominazione:  madre?.denominazione_label || "",
+        nome_etichetta: madre?.nome_etichetta || "",
+        vitigni:        annata.VITIGNI || vitigniToString(madre?.vitigni || []),
+        grado:          annata.GRADO_ALCOLICO || madre?.grado_alcolico_tipico,
+      });
+    }
+    return (madre?.descrizione || "").trim();
+  }, [isMadreComposto, madre, annata.VITIGNI, annata.GRADO_ALCOLICO]);
 
   useEffect(() => {
     (async () => {
@@ -982,18 +1075,23 @@ function FlagToggle({ label, value, onChange }) {
   );
 }
 
-// Anteprima descrizione composta — banner visibile in Step 3 e Step 4.
-// Mostra il "nome" che avrà la bottiglia. Si aggiorna live.
-function DescrizioneAnteprima({ testo, sub }) {
+// Anteprima descrizione — banner visibile in Step 3 e Step 4. Distingue 2 casi:
+//  - composta=true   → "📜 Descrizione composta (auto)" — si aggiorna con vitigni/grado
+//  - composta=false  → "📜 Descrizione (testo ereditato dal madre)" — testo storico immutato
+function DescrizioneAnteprima({ testo, composta = true, sub }) {
+  const titolo = composta
+    ? "📜 Descrizione composta (auto)"
+    : "📜 Descrizione (ereditata dal madre)";
+  const subTesto = sub || (composta
+    ? "Nome di questa bottiglia. Si aggiorna se modifichi i vitigni o il grado."
+    : "Testo storico del madre, non si ricompone. Per cambiarlo modifica il vino madre.");
   return (
     <div className="p-3 md:p-4 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-white shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">
-        📜 Descrizione composta (auto)
-      </div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">{titolo}</div>
       <div className="text-base md:text-lg font-bold text-neutral-900">
-        {testo || <span className="text-neutral-400 italic">— manca denominazione/vitigni/grado per comporre —</span>}
+        {testo || <span className="text-neutral-400 italic">— manca {composta ? "denominazione/vitigni/grado" : "descrizione sul madre"} —</span>}
       </div>
-      {sub && <div className="text-[11px] text-neutral-600 mt-1">{sub}</div>}
+      <div className="text-[11px] text-neutral-600 mt-1">{subTesto}</div>
     </div>
   );
 }
@@ -1024,6 +1122,251 @@ function MadreReadOnlyBox({ produttore, madre }) {
     </div>
   );
 }
+
+// =====================================================================
+// MODAL PROMOZIONE MADRE LEGACY → COMPOSTO (M2.9-bis, 2026-05-18)
+// =====================================================================
+// Mostrato quando l'utente clicca "Sistema il madre" in Step 3, su un madre
+// con descrizione_auto = 0 (legacy). Permette di compilare i 4 ingredienti
+// (denominazione, nome etichetta, vitigni con %, grado alcolico) e di
+// ricomporre automaticamente la descrizione del madre. Una volta promosso,
+// il madre diventa "standard" (descrizione_auto = 1) e il badge OLD sparisce.
+//
+// L'operazione è admin-only sul backend. Su errore di permesso, il modal
+// mostra il messaggio del backend invece di chiudersi.
+function PromuoviMadreModal({ madre, onClose, onSuccess }) {
+  // Stato locale del form: precarico i campi già presenti sul madre,
+  // così l'utente vede subito cosa "già c'è" e cosa manca.
+  const [denoLabel, setDenoLabel] = useState(madre?.denominazione_label || "");
+  const [denoId, setDenoId] = useState(madre?.denominazione_id || null);
+  const [denoQ, setDenoQ] = useState("");
+  const [denoResults, setDenoResults] = useState([]);
+  const [nomeEtichetta, setNomeEtichetta] = useState(madre?.nome_etichetta || "");
+  const [grado, setGrado] = useState(madre?.grado_alcolico_tipico || "");
+  const [vitigniList, setVitigniList] = useState([]); // [{vitigno_id, vitigno_label, pct}]
+  const [vitignoQ, setVitignoQ] = useState("");
+  const [vitignoResults, setVitignoResults] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Autocomplete denominazioni
+  useEffect(() => {
+    if (denoQ.trim().length < 2) { setDenoResults([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/denominazioni/?search=${encodeURIComponent(denoQ)}`);
+        if (r.ok && !cancelled) setDenoResults((await r.json()).slice(0, 10));
+      } catch {}
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [denoQ]);
+
+  // Autocomplete vitigni
+  useEffect(() => {
+    if (vitignoQ.trim().length < 2) { setVitignoResults([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/vitigni/?search=${encodeURIComponent(vitignoQ)}`);
+        if (r.ok && !cancelled) setVitignoResults((await r.json()).slice(0, 10));
+      } catch {}
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [vitignoQ]);
+
+  const addVitigno = (v) => {
+    if (vitigniList.length >= 5) { alert("Massimo 5 vitigni"); return; }
+    if (vitigniList.find(x => x.vitigno_id === v.id)) { setVitignoQ(""); return; }
+    setVitigniList(prev => [...prev, { vitigno_id: v.id, vitigno_label: v.nome, pct: "" }]);
+    setVitignoQ("");
+    setVitignoResults([]);
+  };
+  const removeVitigno = (vid) => setVitigniList(prev => prev.filter(v => v.vitigno_id !== vid));
+  const updateVitignoPct = (vid, pct) => {
+    setVitigniList(prev => prev.map(v => v.vitigno_id === vid ? { ...v, pct } : v));
+  };
+
+  // Preview live della nuova descrizione composta — gemello del backend.
+  const vitigniString = useMemo(() => vitigniToString(vitigniList), [vitigniList]);
+  const nuovaDescrizione = useMemo(() => componiDescrizione({
+    denominazione:  denoLabel,
+    nome_etichetta: nomeEtichetta,
+    vitigni:        vitigniString,
+    grado:          grado,
+  }), [denoLabel, nomeEtichetta, vitigniString, grado]);
+
+  const handleSubmit = async () => {
+    if (!nuovaDescrizione.trim()) {
+      setError("La descrizione composta sarebbe vuota. Compila almeno la denominazione.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const body = {
+        denominazione_id: denoId,
+        nome_etichetta: nomeEtichetta || null,
+        grado_alcolico_tipico: grado === "" ? null : parseFloat(String(grado).replace(",", ".")),
+        vitigni_stringa: vitigniString || null,
+      };
+      const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}/promote-composto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        let msg = `Errore ${r.status}`;
+        try { msg = JSON.parse(t).detail || msg; } catch {}
+        throw new Error(msg);
+      }
+      const updated = await r.json();
+      onSuccess?.(updated);
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={true} onClose={onClose}
+           title="🔧 Sistema il vino madre"
+           subtitle="Promozione da descrizione legacy a descrizione composta automatica"
+           size="lg" tone="amber">
+      <div className="space-y-4">
+        {/* Descrizione attuale (legacy) */}
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-orange-700 mb-1">
+            📜 Descrizione attuale (legacy)
+          </div>
+          <div className="text-sm font-medium text-neutral-800">
+            {madre?.descrizione || <span className="italic text-neutral-400">— vuota —</span>}
+          </div>
+          <div className="text-[11px] text-orange-700 mt-1">
+            Questa è la descrizione storica del madre come testo unico. Sotto, compila i 4
+            ingredienti separati per ricomporla strutturata.
+          </div>
+        </div>
+
+        {/* Form ingredienti */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Denominazione */}
+          <div className="md:col-span-2">
+            <FieldLabel label="Denominazione" required
+                        hint="Es. Barolo DOCG, Langhe DOC, Chianti Classico DOCG…">
+              <TextInput value={denoQ || denoLabel}
+                onChange={v => { setDenoQ(v); if (!v) { setDenoId(null); setDenoLabel(""); } }}
+                placeholder="cerca denominazione…" />
+            </FieldLabel>
+            {denoResults.length > 0 && (
+              <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 rounded-lg bg-white">
+                {denoResults.map(d => (
+                  <button key={d.id} type="button"
+                    onClick={() => {
+                      const label = `${d.nome} ${d.tipo}`.trim();
+                      setDenoId(d.id);
+                      setDenoLabel(label);
+                      setDenoQ("");
+                      setDenoResults([]);
+                    }}
+                    className="block w-full text-left px-2 py-1.5 text-xs hover:bg-amber-50 border-b border-neutral-100">
+                    <strong>{d.nome} {d.tipo}</strong>
+                    {d.regione && <span className="text-neutral-500"> · {d.regione}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {denoLabel && !denoQ && (
+              <div className="text-[11px] text-emerald-700 mt-1">✓ Selezionata: {denoLabel}</div>
+            )}
+          </div>
+
+          {/* Nome etichetta */}
+          <FieldLabel label="Nome etichetta / Cru"
+                      hint="Opzionale. Es. Castiglione, Sorì Tildin, Rossj-Bass…">
+            <TextInput value={nomeEtichetta}
+              onChange={setNomeEtichetta}
+              placeholder="es. Castiglione" />
+          </FieldLabel>
+
+          {/* Grado */}
+          <FieldLabel label="Grado alcolico tipico"
+                      hint="Es. 13.5. Il grado specifico dell'annata sta sulla bottiglia.">
+            <TextInput type="number" step="0.1" value={grado}
+              onChange={setGrado} placeholder="13.5" />
+          </FieldLabel>
+
+          {/* Vitigni */}
+          <div className="md:col-span-2">
+            <FieldLabel label="Vitigni"
+                        hint="Cerca e aggiungi. Es. Nebbiolo 100% oppure Nebbiolo 95% + Barbera 5%.">
+              <TextInput value={vitignoQ} onChange={setVitignoQ} placeholder="cerca vitigno…" />
+            </FieldLabel>
+            {vitignoResults.length > 0 && (
+              <div className="mt-1 max-h-32 overflow-y-auto border border-neutral-200 rounded-lg bg-white">
+                {vitignoResults.map(v => (
+                  <button key={v.id} type="button" onClick={() => addVitigno(v)}
+                    className="block w-full text-left px-2 py-1.5 text-xs hover:bg-amber-50 border-b border-neutral-100">
+                    {v.nome}
+                  </button>
+                ))}
+              </div>
+            )}
+            {vitigniList.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                {vitigniList.map(v => (
+                  <div key={v.vitigno_id} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                    <span className="text-xs font-semibold text-neutral-800 flex-1">{v.vitigno_label}</span>
+                    <TextInput type="number" step="1" value={v.pct}
+                      onChange={(val) => updateVitignoPct(v.vitigno_id, val)}
+                      placeholder="%" className="!w-20" />
+                    <span className="text-xs text-neutral-500">%</span>
+                    <button type="button" onClick={() => removeVitigno(v.vitigno_id)}
+                      className="text-red-600 hover:text-red-800 px-1 text-sm font-bold" title="Rimuovi">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Preview nuova descrizione */}
+        <div className="rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-white p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+            ✨ Nuova descrizione (anteprima)
+          </div>
+          <div className="text-base font-bold text-neutral-900">
+            {nuovaDescrizione || <span className="text-neutral-400 italic">— compila gli ingredienti sopra —</span>}
+          </div>
+          <div className="text-[11px] text-emerald-700 mt-1">
+            Composta automaticamente dai 4 ingredienti. Salvando, sostituirà la descrizione storica
+            su tutte le bottiglie collegate (la stampa carta e il PDF resteranno coerenti).
+          </div>
+        </div>
+
+        {/* Errore */}
+        {error && (
+          <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+            ⚠️ {error}
+          </div>
+        )}
+
+        {/* Azioni */}
+        <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">
+          <Btn variant="secondary" size="md" onClick={onClose} disabled={saving}>Annulla</Btn>
+          <Btn variant="warning" size="md" onClick={handleSubmit}
+               disabled={saving || !nuovaDescrizione.trim()}
+               loading={saving}>
+            {saving ? "Salvataggio…" : "💾 Promuovi a composto"}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 
 // Campo read-only stilizzato come gli altri input ma disabilitato + colore neutro.
 function ReadOnlyField({ label, value, placeholder = "—" }) {

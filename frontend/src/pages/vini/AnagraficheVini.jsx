@@ -17,6 +17,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+// M2.9-bis (2026-05-18): helper per descrizione composta automaticamente
+import componiDescrizione from "../../utils/vini/componiDescrizione";
 // M2.5.1 (2026-05-16): pannello Produttori dedicato (counts + merge + ricerca)
 import ProduttoriPanel from "./anagrafiche/ProduttoriPanel";
 // M2.5.2 (2026-05-16): pannello Distributori dedicato + drill-down su tutti i panel
@@ -899,6 +901,10 @@ function MadrePanel() {
   const [search, setSearch] = useState("");
   const [filtroProd, setFiltroProd] = useState("");
   const [filtroNoDeno, setFiltroNoDeno] = useState(false);
+  // M2.9-bis: filtro per mostrare solo i madri legacy (descrizione_auto=0).
+  // Utile per "campagna" di promozione massiva. I 1287 madri esistenti partono
+  // tutti come legacy; man mano che l'utente li sistema, la lista si svuota.
+  const [filtroLegacy, setFiltroLegacy] = useState(false);
   const [produttori, setProduttori] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
@@ -924,10 +930,11 @@ function MadrePanel() {
       if (r.ok) {
         let data = await r.json();
         if (filtroNoDeno) data = data.filter(m => !m.denominazione_id);
+        if (filtroLegacy) data = data.filter(m => (m.descrizione_auto || 0) === 0);
         setItems(data);
       }
     } finally { setLoading(false); }
-  }, [search, filtroProd, filtroNoDeno]);
+  }, [search, filtroProd, filtroNoDeno, filtroLegacy]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -958,6 +965,11 @@ function MadrePanel() {
             onChange={e => setFiltroNoDeno(e.target.checked)} />
           Solo senza denominazione
         </label>
+        <label className="flex items-center gap-1 text-xs" title="Mostra solo i madri con descrizione legacy (📜 OLD) — quelli da promuovere a composta">
+          <input type="checkbox" checked={filtroLegacy}
+            onChange={e => setFiltroLegacy(e.target.checked)} />
+          📜 Solo legacy
+        </label>
         <span className="text-xs text-neutral-500">{items.length} risultati</span>
       </div>
 
@@ -979,7 +991,19 @@ function MadrePanel() {
             {!loading && sorted.map(m => (
               <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50">
                 <td className="px-3 py-1.5 font-mono text-xs text-neutral-500">{m.id}</td>
-                <td className="px-3 py-1.5 font-semibold">{m.descrizione}</td>
+                <td className="px-3 py-1.5 font-semibold">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>{m.descrizione}</span>
+                    {(m.descrizione_auto || 0) === 0 && (
+                      <span
+                        title="Vino madre in formato legacy — clicca ✏️ per promuoverlo a descrizione composta"
+                        className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-orange-100 text-orange-800 border-orange-300 whitespace-nowrap"
+                      >
+                        📜 OLD
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-3 py-1.5 text-xs">{m._produttore_nome || `#${m.produttore_id}`}</td>
                 <td className="px-3 py-1.5 text-xs">{m.tipologia}</td>
                 <td className="px-3 py-1.5 text-xs">
@@ -1038,6 +1062,9 @@ function MadreEditModal({ madre, onClose, onSaved }) {
     grado_alcolico_tipico: madre.grado_alcolico_tipico ?? "",
     abbinamenti: madre.abbinamenti || "",
     note_madre: madre.note_madre || "",
+    // M2.9-bis: campi della descrizione composta
+    nome_etichetta: madre.nome_etichetta || "",
+    descrizione_auto: madre.descrizione_auto ?? 0,
   });
   const [produttori, setProduttori] = useState([]);
   const [fornitori, setFornitori] = useState([]);
@@ -1090,6 +1117,24 @@ function MadreEditModal({ madre, onClose, onSaved }) {
     denoResults.find(d => d.id === Number(form.denominazione_id))
     || (currentDeno && currentDeno.id === Number(form.denominazione_id) ? currentDeno : null);
 
+  // M2.9-bis: preview live della descrizione composta dai 4 ingredienti.
+  // Se il madre è già "composto" (descrizione_auto=1) o se l'utente ha compilato
+  // denominazione + (nome_etichetta o grado), proponiamo la composizione automatica.
+  const denoLabel = selectedDeno ? `${selectedDeno.nome} ${selectedDeno.tipo}`.trim() : "";
+  const descrizioneComposta = useMemo(() => componiDescrizione({
+    denominazione:  denoLabel,
+    nome_etichetta: form.nome_etichetta,
+    vitigni:        "",  // i vitigni stanno sulle bottiglie, non sul madre — qui niente
+    grado:          form.grado_alcolico_tipico,
+  }), [denoLabel, form.nome_etichetta, form.grado_alcolico_tipico]);
+
+  // "Modalità composta": il madre è già auto OPPURE l'utente ha riempito gli ingredienti
+  // base (denominazione + qualcosa). In modalità composta, la descrizione testuale viene
+  // sostituita dalla composizione automatica al save.
+  const isCompostaMode =
+    (form.descrizione_auto === 1)
+    || (!!form.denominazione_id && (!!form.nome_etichetta || !!form.grado_alcolico_tipico));
+
   const handleSave = async () => {
     setError(""); setSaving(true);
     try {
@@ -1105,6 +1150,12 @@ function MadreEditModal({ madre, onClose, onSaved }) {
         payload.grado_alcolico_tipico = Number(payload.grado_alcolico_tipico);
       }
       payload.produttore_id = Number(payload.produttore_id);
+      // M2.9-bis: se in modalità composta, ricompongo la descrizione e setto il flag.
+      // Altrimenti lascio la descrizione testuale così com'è (legacy invariato).
+      if (isCompostaMode && descrizioneComposta) {
+        payload.descrizione = descrizioneComposta;
+        payload.descrizione_auto = 1;
+      }
       const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1123,13 +1174,52 @@ function MadreEditModal({ madre, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5"
            onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold mb-1 text-neutral-900">Vino madre #{madre.id}</h3>
+        <h3 className="text-base font-bold mb-1 text-neutral-900 flex items-center gap-2 flex-wrap">
+          Vino madre #{madre.id}
+          {(form.descrizione_auto === 0) && (
+            <span
+              title="Vino madre in formato legacy. Compila denominazione + nome etichetta o grado per promuoverlo a descrizione composta."
+              className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-orange-100 text-orange-800 border-orange-300"
+            >
+              📜 OLD
+            </span>
+          )}
+          {(form.descrizione_auto === 1) && (
+            <span
+              title="Descrizione composta automaticamente dai 4 ingredienti"
+              className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-emerald-100 text-emerald-800 border-emerald-300"
+            >
+              ✓ COMPOSTA
+            </span>
+          )}
+        </h3>
         <p className="text-xs text-neutral-500 mb-4">Modifica anagrafica del vino (etichetta stabile, indipendente dall'annata)</p>
 
+        {/* M2.9-bis: preview descrizione composta — visibile solo se gli ingredienti sono in atto */}
+        {isCompostaMode && descrizioneComposta && (
+          <div className="mb-4 rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-white p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+              ✨ Descrizione composta (anteprima)
+            </div>
+            <div className="text-sm font-bold text-neutral-900">{descrizioneComposta}</div>
+            <div className="text-[11px] text-emerald-700 mt-1">
+              Al salvataggio, sostituirà la descrizione testuale qui sotto e il madre diventerà
+              <strong> COMPOSTA</strong>.
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <Field label="Descrizione" required>
+          <Field label={isCompostaMode ? "Descrizione (verrà ricomposta al salvataggio)" : "Descrizione"} required>
             <input type="text" value={form.descrizione}
               onChange={e => setForm(p => ({ ...p, descrizione: e.target.value }))}
+              disabled={isCompostaMode}
+              className={`w-full px-2 py-1 border rounded ${isCompostaMode ? "bg-neutral-100 text-neutral-500 italic" : ""}`} />
+          </Field>
+          <Field label="Nome etichetta / Cru">
+            <input type="text" value={form.nome_etichetta}
+              onChange={e => setForm(p => ({ ...p, nome_etichetta: e.target.value }))}
+              placeholder="opzionale — es. Castiglione"
               className="w-full px-2 py-1 border rounded" />
           </Field>
           <Field label="Tipologia" required>
