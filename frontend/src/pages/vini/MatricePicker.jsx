@@ -9,18 +9,44 @@ import Tooltip from "../../components/Tooltip";
 
 /**
  * MatricePicker — griglia visuale per locazione 3 (matrice).
+ *
+ * Due modalità di funzionamento:
+ *   1) "live" (vinoId valorizzato): click → POST /matrice/assegna|rimuovi al
+ *      backend, refresh stato. È il comportamento storico (SchedaVino → Giacenze).
+ *   2) "draft" (vinoId null + pendingCells/onPendingChange passati, M2.9-ter
+ *      2026-05-18): click → modifica solo la lista controllata `pendingCells`.
+ *      Niente chiamate API. Usato nel wizard Nuovo Vino Step 4: l'utente
+ *      preseleziona le celle, il salvataggio reale avviene a fine wizard.
+ *
  * Props:
- *   - vinoId: number — id del vino corrente (se null, siamo in creazione)
- *   - onVinoUpdated: (vino) => void — callback dopo ogni modifica
+ *   - vinoId: number | null
+ *   - onVinoUpdated: (vino) => void — callback (live mode)
  *   - disabled: boolean
+ *   - pendingCells: [{riga, colonna}] — solo draft mode (controllato)
+ *   - onPendingChange: (newCells) => void — solo draft mode
  */
-export default function MatricePicker({ vinoId, onVinoUpdated, disabled = false }) {
+export default function MatricePicker({
+  vinoId,
+  onVinoUpdated,
+  disabled = false,
+  pendingCells,
+  onPendingChange,
+}) {
+  // Draft mode attivo se le 2 prop draft sono passate (e vinoId è null)
+  const isDraft = !vinoId && Array.isArray(pendingCells) && typeof onPendingChange === "function";
+
   const [stato, setStato] = useState(null);   // {righe, colonne, nome, celle: [{riga,colonna,vino_id,DESCRIZIONE,...}]}
   const [myCelle, setMyCelle] = useState([]); // celle del vino corrente: [{riga, colonna}]
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(false);
+
+  // In draft mode, "myCelle" è semplicemente lo stato controllato pendingCells.
+  // Sincronizzo localmente per riutilizzare il render esistente senza branching.
+  useEffect(() => {
+    if (isDraft) setMyCelle(pendingCells);
+  }, [isDraft, pendingCells]);
 
   // Carica stato matrice completo
   const fetchStato = async () => {
@@ -33,8 +59,10 @@ export default function MatricePicker({ vinoId, onVinoUpdated, disabled = false 
     } catch {} finally { setLoading(false); }
   };
 
-  // Carica celle del vino corrente
+  // Carica celle del vino corrente (live mode); in draft mode salta — myCelle è
+  // sincronizzata da pendingCells via l'effetto sopra.
   const fetchMyCelle = async () => {
+    if (isDraft) return;
     if (!vinoId) { setMyCelle([]); return; }
     try {
       const r = await apiFetch(`${API_BASE}/vini/cantina-tools/matrice/celle/${vinoId}`);
@@ -68,15 +96,27 @@ export default function MatricePicker({ vinoId, onVinoUpdated, disabled = false 
   }, [myCelle]);
 
   const handleCellClick = async (riga, colonna) => {
-    if (disabled || saving || !vinoId) return;
+    if (disabled || saving) return;
+    // In draft mode posso cliccare anche senza vinoId; in live mode serve.
+    if (!isDraft && !vinoId) return;
     const key = `${riga},${colonna}`;
     const isMine = mySet.has(key);
     const isOccupied = occupiedMap[key];
 
     if (isOccupied && !isMine) {
-      // Cella occupata da un altro vino
+      // Cella occupata da un altro vino (verifico anche in draft: la matrice
+      // è condivisa, se la cella è già presa non si può preselezionare).
       setError(`Cella (${colonna},${riga}) occupata da: ${isOccupied.DESCRIZIONE || "altro vino"}`);
       setTimeout(() => setError(""), 4000);
+      return;
+    }
+
+    if (isDraft) {
+      // Modalità draft: nessuna chiamata API, modifica solo lo stato controllato.
+      const next = isMine
+        ? pendingCells.filter(c => !(c.riga === riga && c.colonna === colonna))
+        : [...pendingCells, { riga, colonna }];
+      onPendingChange(next);
       return;
     }
 

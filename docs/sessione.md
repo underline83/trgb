@@ -1,6 +1,44 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-18 — **M2.9-bis Promozione madri legacy + vitigni strutturati sul madre (mig 131)**: backend (modello + endpoint POST `/vini/anagrafiche/madre/{id}/promote-composto`, accetta lista vitigni strutturata) e frontend (badge 📜 OLD sui madri legacy nel wizard + lista Anagrafiche, banner Step 3 con bottone "Sistema il madre", modal `PromuoviMadreModal` con form 4 ingredienti + UI vitigni dinamica + anteprima live, MadreEditModal con sezione "🍇 Vitigni tipici" dinamica (max 5, niente campi vuoti pre-allocati) + ricomposizione automatica al save, filtro "Solo legacy" nella lista madri Anagrafiche). Mig 131: 5+5 colonne vitigno sul madre + backfill best-effort dalla prima bottiglia. Versione modulo vini 3.39 → 3.41.
+**Ultimo aggiornamento:** 2026-05-18 — **M2.9-bis + M2.9-ter** in cascata: promozione madri legacy a descrizione composta + vitigni strutturati sul madre (mig 131) + posizione scaffali matrice in creazione (riuso `MatricePicker` con modalità draft). Versione modulo vini 3.39 → 3.43.
+
+## SESSIONE 2026-05-18 (parte 3) — M2.9-ter: matrice scaffali anche in creazione
+
+### Sintesi
+Marco voleva poter scegliere già in creazione la posizione fisica delle bottiglie sugli scaffali (cella riga × colonna della matrice), invece di rimandarla alla scheda → tab Giacenze post-creazione. Decisione operativa: se l'utente lo sa, deve poterlo mettere — la tabella è la stessa.
+
+**Regola che mi sono preso (e memorizzato)**: prima di scrivere un componente nuovo, grep nel repo per pattern simili. Riusare `MatricePicker.jsx` esistente con un'estensione retrocompatibile, niente fork. Marco: *"non farei cose diverse, usa stesso codice, smetti di riscrivere"*.
+
+### Fatto `[core]`
+- **`MatricePicker.jsx`** estensione minima: 2 prop opzionali `pendingCells` + `onPendingChange`. Quando passate (con `vinoId=null`), entra in modalità "draft": click pre-seleziona celle nella lista controllata invece di POST API. Comportamento storico invariato per SchedaVino. ~25 righe aggiunte, render esistente riusato.
+- **Wizard Step 4** — sezione "🗄️ Posizione scaffali (opzionale)" che monta `<MatricePicker vinoId={null} pendingCells={annata.MATRICE_CELLE} onPendingChange={...} />`. L'utente vede l'occupazione e pre-seleziona. Rimosso il banner-testo che diceva "si farà dopo".
+- **`PreviewModal`** — riga "🗄️ Posizione scaffali" con le celle pre-selezionate formato `(col,riga)`.
+- **emptyAnnata()** — campo `MATRICE_CELLE: []` di default.
+
+### Decisione di design
+- La matrice è M:N condivisa: non importa quando l'utente la compila, il dato finale è lo stesso. Non c'è motivo di forzare un solo punto.
+- Modalità draft = niente scrittura DB nel wizard (è ancora preview-only). Al cutover scrittura, le celle preselezionate vanno chiamate via `matrice_assegna_cella` per ognuna.
+
+### Verifiche
+- `esbuild` OK su MatricePicker (8.1 KB) + NuovoVinoV2 (67.8 KB).
+- Render Step 4: griglia compatta, click su cella libera la colora con tag amber, click rimuove. Celle occupate da altri vini bloccate (con tooltip vino occupante).
+
+### Bump versione
+- vini 3.42 → **3.43**.
+
+### File toccati (commit pendente)
+- Frontend modificato: `frontend/src/pages/vini/MatricePicker.jsx` (estensione draft), `frontend/src/pages/vini/v2/NuovoVinoV2.jsx` (Step 4 + PreviewModal + emptyAnnata), `frontend/src/config/versions.jsx`.
+- Docs: `docs/sessione.md`, `docs/changelog.md`.
+- Memoria: `feedback_riusa_non_riscrivere.md` (nuova regola operativa per me).
+
+### Commit suggerito
+```
+./push.sh "[core] vini 3.43 — M2.9-ter posizione scaffali matrice anche in creazione (riuso MatricePicker con modalità draft)"
+```
+
+---
+
+## SESSIONE 2026-05-18 (parte 2) — M2.9-bis: vitigni strutturati sul madre (mig 131)
 
 ## SESSIONE 2026-05-18 (parte 2) — M2.9-bis: vitigni strutturati sul madre (mig 131)
 

@@ -20,6 +20,10 @@ import {
 } from "../../../components/ui";
 // M2.9: composizione automatica descrizione (denom + nome + vitigni + grado).
 import componiDescrizione, { vitigniToString } from "../../../utils/vini/componiDescrizione";
+// M2.9-ter (2026-05-18): riuso del componente matrice esistente in modalità "draft"
+// (vinoId=null + pendingCells controllato) — l'utente può preselezionare le celle
+// scaffali già in creazione. La scrittura su matrice_celle avverrà al cutover.
+import MatricePicker from "../MatricePicker";
 // STATO_RIORDINO non è usato dal wizard (Marco 2026-05-16: non ha senso in creazione).
 import {
   STATO_VENDITA_OPTIONS_LONG as STATO_VENDITA_OPTIONS,
@@ -960,13 +964,25 @@ function Step4Giacenze({ annata, setAnnata, produttore, madre }) {
               loc={annata.LOCAZIONE_3} onLoc={v => upd("LOCAZIONE_3", v)}
               qta={annata.QTA_LOC3} onQta={v => upd("QTA_LOC3", v)} />
           </div>
-          <div className="mt-4 p-3 border border-dashed border-neutral-300 rounded-xl bg-neutral-50">
-            <p className="text-xs text-neutral-600">
-              <strong>Matrice (cantina con scaffali):</strong> la posizione esatta delle bottiglie
-              (riga · colonna delle celle matrice) si assegna <em>dopo</em> la creazione,
-              dalla scheda dettaglio del vino → tab Giacenze. È intenzionale: a creazione
-              non si conosce ancora dove fisicamente posizionarle.
-            </p>
+          {/* M2.9-ter: posizione scaffali (matrice) — opzionale, draft.
+              Stesso componente di SchedaVino → tab Giacenze (MatricePicker),
+              usato in modalità draft (vinoId=null + pendingCells controllato):
+              click su una cella la pre-seleziona, niente scrittura DB. La
+              persistenza vera avverrà al cutover del wizard. */}
+          <div className="mt-4 p-3 rounded-xl bg-amber-50/40 border border-amber-200">
+            <div className="flex items-baseline justify-between mb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                🗄️ Posizione scaffali <span className="text-neutral-500 font-normal normal-case">(opzionale)</span>
+              </h3>
+              <span className="text-[10px] text-neutral-500 italic">
+                puoi anche compilarla dopo dalla scheda → Giacenze
+              </span>
+            </div>
+            <MatricePicker
+              vinoId={null}
+              pendingCells={annata.MATRICE_CELLE || []}
+              onPendingChange={cells => upd("MATRICE_CELLE", cells)}
+            />
           </div>
         </div>
       </div>
@@ -1052,6 +1068,11 @@ function PreviewModal({ open, produttore, madre, annata, onClose, onReset }) {
             annata.LOCAZIONE_2 && `${annata.LOCAZIONE_2}: ${annata.QTA_LOC2 || 0}`,
             annata.LOCAZIONE_3 && `${annata.LOCAZIONE_3}: ${annata.QTA_LOC3 || 0}`,
           ].filter(Boolean).join(" · ") || null} />
+          <PreviewRow label="🗄️ Posizione scaffali" value={
+            (annata.MATRICE_CELLE && annata.MATRICE_CELLE.length > 0)
+              ? annata.MATRICE_CELLE.map(c => `(${c.colonna},${c.riga})`).join(" · ")
+              : null
+          } />
           <PreviewRow label="Qtà totale calcolata" value={`${qtaTot} bottiglie`} />
           <PreviewRow label="Note" value={annata.NOTE} />
         </PreviewBlock>
@@ -1466,6 +1487,9 @@ function emptyAnnata() {
     STATO_VENDITA: 2, STATO_CONSERVAZIONE: "3", NOTE_STATO: "",
     FRIGORIFERO: "", QTA_FRIGO: "", LOCAZIONE_1: "", QTA_LOC1: "",
     LOCAZIONE_2: "", QTA_LOC2: "", LOCAZIONE_3: "", QTA_LOC3: "",
+    // M2.9-ter: posizione scaffali matrice (draft) — lista [{riga, colonna}]
+    // raccolta nel wizard. Persistenza su `matrice_celle` al cutover scrittura.
+    MATRICE_CELLE: [],
     NOTE: "",
   };
 }

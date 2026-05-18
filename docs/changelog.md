@@ -3,6 +3,25 @@
 
 ---
 
+## 2026-05-18 — Vini 3.43 · M2.9-ter: posizione scaffali (matrice) anche in creazione `[core]`
+
+### Aggiunto
+- **`MatricePicker.jsx`** estensione retrocompatibile: due nuove prop opzionali `pendingCells` + `onPendingChange`. Quando passate (e `vinoId=null`), il componente entra in **modalità "draft"**: i click pre-selezionano le celle nella lista controllata invece di chiamare le API `/cantina-tools/matrice/assegna|rimuovi`. Comportamento storico (live mode) invariato per SchedaVino → tab Giacenze.
+- **Wizard `NuovoVinoV2.jsx` Step 4** — sezione "🗄️ Posizione scaffali (opzionale)" che monta `MatricePicker` in modalità draft, legato allo stato `annata.MATRICE_CELLE`. L'utente vede l'occupazione attuale della cantina, pre-seleziona le celle dove finiranno le nuove bottiglie. La persistenza vera su `matrice_celle` avverrà al cutover scrittura del wizard.
+- **`PreviewModal`** mostra una nuova riga "🗄️ Posizione scaffali" con le celle pre-selezionate formato `(col,riga)`.
+
+### Cambiato
+- Rimosso il banner-testo "la posizione esatta si assegna dopo la creazione…" che bloccava l'utente: ora se sa già dove mettere le bottiglie, le mette subito.
+
+### Decisione di design
+- **Riuso del componente esistente**, niente fork. Marco: "non farei cose diverse, usa stesso codice, smetti di riscrivere". L'estensione draft è ~25 righe + 2 prop opzionali, comportamento esistente intatto.
+- **Disponibilità anche in creazione**: la matrice scaffali è M:N condivisa tra vini, in qualunque momento ho la stessa view. L'utente decide se compilarla al volo o lasciarla per dopo (scheda → Giacenze) — non c'è motivo di forzare un solo punto.
+
+### Bump versione
+- frontend `versions.jsx`: **vini 3.42 → 3.43**.
+
+---
+
 ## 2026-05-18 — Vini 3.42 · Fix descrizione composta bottiglia post-promozione `[core]`
 
 ### Fixato
