@@ -1,6 +1,75 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-19 — **F11 Hotfix post-cutover** (vini 3.46 → **3.53**, sistema 5.14 → **5.15**). Sessione di test ad osteria chiusa: identificati e fixati ~10 bug post-cutover (lettori legacy non aggiornati nel sed S3, banner READ-ONLY obsoleti, BulkActionBar deprecati, Loc3↔matrice, prezzo Listino→Carta auto, eliminazione vino, vai al madre, stale cache). Cantina v2 ora pienamente operativa e scrivibile. Aggiornata `docs/modulo_vini.md` con sezione "📌 STATO POST-CUTOVER" completa.
+**Ultimo aggiornamento:** 2026-05-19 (cont. sera) — **CG/Fatture: modello stati 3D + redesign FattureDettaglio + tab Conto Economico** (fatture 3.0 → **3.1**, controlloGestione 2.16 → **2.17**, sistema 5.15 → **5.16**). Sessione parallela alla F11 vini: chiusura semantica sugli stati pagamento (modello D1/D2/D3 granitico), redesign del dettaglio fattura con 4° tab "Conto Economico" (competenza+spalmatura+categoria editor bidirezionale+impatto P&L), riquadro stato pagamento nel tab Pagamenti, footer ripulito dalla label "STATO:" fuorviante.
+
+## SESSIONE 2026-05-19 (cont. sera) — CG/Fatture redesign + modello stati 3D
+
+### Sintesi
+Sessione parallela alla F11 vini. Apertura: Marco lamenta che il dettaglio fattura ha bottoni e chip stato sparsi e confusi. Identificata la radice del problema: l'enum `cg_uscite.stato` a 8 valori schiaccia 3 dimensioni semantiche ortogonali, e nessuno aveva mai disambiguato. Sistemata la cosa "granitica" sui docs + memoria + codice, poi redesign vero del dettaglio fattura con tab CE dedicato + editor categoria/sottocategoria bidirezionale con vista Fornitori.
+
+### Modello 3D stati pagamento (chiusura semantica)
+Aggiunta sezione §15 in `docs/stato_pagamento_unificato.md` come modello canonico:
+- **D1 — PAGAMENTO** (business, 3 valori): PAGATA / NON PAGATA / PARZIALMENTE PAGATA
+- **D2 — Modificatori tecnici** (CG-only): `*` non riconciliata, `?` da verificare
+- **D3 — SCADENZA/TEMPO**: in scadenza / scaduta / rateizzata / spostata
+
+Regole: nel modulo Fatture D1 e D3 vanno SEPARATI (2 chip distinti). Nel modulo CG si possono UNIRE. D3 irrilevante se D1=PAGATA. RATEIZZATA/SPOSTATA sono D3, non D1.
+
+Aggiunto richiamo in `CLAUDE.md` + memoria persistente `feedback_stati_pagamento_3_dimensioni.md`. Commenti allineati in `StatoPagamentoBadge.jsx`, `statoPagamento.js`, `fatture_stato_service.py`.
+
+### Componenti nuovi/aggiornati
+- **`StatoScadenzaBadge.jsx` v1.0** (nuovo): badge dedicato a D3 con 4 chip (💤 in_scadenza, ⚠ scaduta, 📆 rateizzata, ↩ spostata). Export `deriveStatoScadenza(uscitaStato, scadenzaISO)` + `giorniLabel(scadenzaISO)`.
+- **`StatoPagamentoBadge.jsx` v1.3**: gestisce SOLO D1+D2. RATEIZZATO/SPOSTATO proiettati su `da_pagare` (D1=NON PAGATA).
+- **`fatture_stato_service.py` v2.1**: `set_stato()` scrive SOLO D1+D2. Mutazioni D3 passano da endpoint dedicati.
+
+### FattureDettaglio v3.1 — redesign secondo il modello 3D
+1. **Header**: 2 chip distinti D1+D3 in cima. Rimossi i 2 bottoni inline "📅 sposta competenza" / "📆 spalma su N mesi" dal sottotitolo (spostati nel tab CE). I 2 chip read-only restano come segnale rapido.
+2. **Tab Pagamenti**: riquadro "Stato pagamento attuale" in cima, con chip D1+D2 grande + bottoni di cambio (`Da pagare` / `❓ Da verificare` / `Pagato*`) sotto label "Cambia stato →". Banner verde "🔒 Stato definitivo" se riconciliato. Riquadro nascosto per fatture rateizzate.
+3. **Tab "Conto Economico"** (NUOVO, 4° tab): 3 sezioni:
+   - **📅 Competenza P&L**: 2 card "Mese singolo" + "Spalmatura" con bottoni di modifica.
+   - **🏷 Categoria nel CE**: aggregato read-only + tabella per riga con dropdown editabili (bidirezionale con Fornitori).
+   - **📊 Dove appare nel CE**: fetch lazy, mostra importo P&L, mese, categoria, % ricavi, % categoria, link al CE.
+4. **Footer ripulito**: rimossa label "STATO:" + i 3 bottoni di cambio (erano fuorvianti). Ora solo "Modifica anagrafica fornitore" + "Chiudi".
+
+### Bidirezionalità categoria fatture ↔ fornitori
+La nuova tabella "Modifica per riga" nel tab CE riusa **lo stesso endpoint** di `FattureFornitoriElenco`: `POST /contabilita/fe/categorie/fornitori/prodotti/assegna`. Effetto by design: modificare qui aggiorna anche tutte le righe esistenti con stessa descrizione di quel fornitore + il mapping `fe_prodotto_categoria_map` + la vista Fornitori. Zero rischio di drift fra moduli.
+
+### Endpoint backend
+- **NUOVO** `GET /contabilita/fe/fatture/{id}/ce-impatto`: ritorna impatto P&L per il tab CE.
+- **ESTESO** `GET /contabilita/fe/fatture/{id}`: response aggiunta `categoria_aggregata[]` + `escluso_acquisti` + righe con `categoria_id/sottocategoria_id/categoria_nome/sottocategoria_nome/categoria_auto`.
+
+### File modificati
+**Backend:** `app/routers/fe_import.py` (get_fattura_detail esteso + endpoint ce-impatto), `app/services/fatture_stato_service.py` (v2.1), `frontend/src/pages/admin/FattureElenco.jsx` (guardia cambiaStato ristretta a STATI_MANUALI).
+
+**Frontend:** `frontend/src/components/StatoScadenzaBadge.jsx` (nuovo), `StatoPagamentoBadge.jsx` (v1.3), `utils/statoPagamento.js` (commenti), `pages/admin/FattureDettaglio.jsx` (v3.1 redesign).
+
+**Docs/config:** `docs/stato_pagamento_unificato.md` (§15), `docs/modulo_controllo_gestione.md` (aggiornamento), `CLAUDE.md` (richiamo §3D), `versions.jsx` (3 bump), `VERSION` (5.15→5.16), `docs/sessione.md` (questa entry).
+
+**Memoria persistente:** `feedback_stati_pagamento_3_dimensioni.md`, `feedback_coordinamento_sessioni_parallele.md`.
+
+### Note di coordinamento sessioni parallele
+Marco mi ha richiamato a metà sessione: avevo dichiarato che il refactor vini era "Fasi 1-7 chiuse, restano 8/9/10" basandomi sulla memoria del 14 maggio, mentre dal `git log` si vedeva che l'altro agente in parallelo aveva già fatto il cutover (`ba344e2`) + vini 3.46→3.53. Scritta memoria comportamentale: PRIMA di dichiarare stato corrente a Marco, verificare SEMPRE `git log --oneline -15` + `git status --short`. La memoria personale può essere stantia di giorni, il `.guardiano_state.json` è fermo al 28 aprile e non è canale real-time.
+
+### Verifiche post-deploy attese
+- Aprire una fattura: header mostra 2 chip distinti D1+D3.
+- Tab Pagamenti: riquadro stato pagamento con chip + 3 bottoni cambio.
+- Tab Conto Economico: 3 sezioni renderizzate, fetch lazy "Dove appare" funzionante.
+- Cambio categoria su una riga del tab CE → in Fornitori la stessa descrizione mostra la categoria aggiornata.
+- Fattura PAGATA: tab Pagamenti mostra banner "🔒 Stato definitivo".
+- Fattura rateizzata: niente riquadro stato (banner viola "Rateizzata in spesa fissa X" resta).
+
+### Roadmap CG aggiornata (codici brevi C1-C6)
+- **C1** (G.3.2) Spalmatura competenza — ✅ FATTO
+- **C2** (G.3.4) Vendite per tipo food/beverage — 🟡 in pausa (8 domande pending per Marco sul tracciato iPratico)
+- **C3** Ammortamenti — stand-by
+- **C4** Food cost vero per categoria — da pianificare
+- **C5** Budget vs consuntivo — da pianificare
+- **C6** Export PDF CE — bloccato (manca M.B PDF brand)
+
+### Prossima sessione
+Marco userà la nuova UI fatture in produzione. Quando vorrà rispondere alle 8 domande iPratico pending, si attacca C2 (vendite per tipo).
+
+---
 
 ## SESSIONE 2026-05-19 — F11 Hotfix giornata di test ad osteria chiusa
 

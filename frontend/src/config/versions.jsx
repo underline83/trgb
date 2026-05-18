@@ -45,7 +45,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   fatture: {
-    version: "3.0",
+    version: "3.1",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
@@ -75,7 +75,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   controlloGestione: {
-    version: "2.16",
+    version: "2.17",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -122,7 +122,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.15",
+    version: "5.16",
     label: "Sistema",
     status: "stabile",
     color: "green",

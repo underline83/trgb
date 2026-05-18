@@ -1,8 +1,82 @@
 # Modulo Controllo di Gestione — TRGB Gestionale
-**Versione:** 1.0
+**Versione modulo:** 2.17 (`versions.jsx`)
+**Sistema:** 5.16
 **Stato:** Beta
-**Data ultimo aggiornamento:** 2026-03-29
-**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti
+**Data ultimo aggiornamento:** 2026-05-19
+**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti, Conto Economico
+
+---
+
+# 📌 AGGIORNAMENTO 2026-05-19 — Modello stati 3D + tab CE in FattureDettaglio
+
+Sessione cont. del 19/05 (dopo F11 vini): chiusura semantica sugli stati pagamento + redesign del dettaglio fattura con tab "Conto Economico" dedicato.
+
+## A. Modello mentale stati pagamento — 3 dimensioni granitiche
+
+> Doc canonico: `docs/stato_pagamento_unificato.md` §15. Richiamo breve in `CLAUDE.md`. Memoria persistente: `feedback_stati_pagamento_3_dimensioni.md`.
+
+L'enum `cg_uscite.stato` ha 8 valori, ma semanticamente vivono 3 dimensioni ortogonali (sbagliarle è la fonte storica di bug e UI confuse):
+
+| Dim | Cos'è | Valori |
+|---|---|---|
+| **D1 — PAGAMENTO** | Business, "è pagata?" | PAGATA / NON PAGATA / PARZIALMENTE PAGATA |
+| **D2 — Modificatori tecnici** | CG-only, annotazioni su D1 | `*` (pagata non riconciliata), `?` (da verificare) |
+| **D3 — SCADENZA/TEMPO** | "Quando va pagata?" | IN SCADENZA / SCADUTA / RATEIZZATA / SPOSTATA |
+
+**Regole d'oro:**
+- Nel **modulo Fatture** D1 e D3 vanno mostrati come **2 chip separati** (un chip "Da pagare" + un chip "⚠ Scaduta da Ngg" o "📆 Rateizzata", non un unico chip che li mescola).
+- Nel **modulo CG** (Uscite/Scadenzario) si possono **unire** in un chip unico — operativamente più scannerizzabile.
+- D3 è **irrilevante** se D1=PAGATA.
+- RATEIZZATA / SPOSTATA sono D3, **non D1**.
+
+**Componenti frontend:**
+- `frontend/src/components/StatoPagamentoBadge.jsx` v1.3 — gestisce SOLO D1+D2.
+- `frontend/src/components/StatoScadenzaBadge.jsx` v1.0 (nuovo) — gestisce SOLO D3 (in_scadenza/scaduta/rateizzata/spostata). Helper `deriveStatoScadenza(uscitaStato, scadenzaISO)` e `giorniLabel(scadenzaISO)`.
+
+**Service backend:**
+- `app/services/fatture_stato_service.py` v2.1 — `set_stato()` scrive SOLO D1+D2. Mutazioni D3 (sposta data, marca rateizzata) passano da endpoint dedicati esistenti.
+
+## B. FattureDettaglio v3.1 — redesign secondo il modello 3D
+
+### B.1 Header
+- 2 chip distinti in cima al nome fornitore: `<StatoPagamentoBadge>` (D1+D2) + `<StatoScadenzaBadge>` (D3). Prima c'era un chip raw uppercase tipo "PROGRAMMATO" + un chip "Rateizzata" separato sparso.
+- Rimossi dal sottotitolo i 2 bottoni inline "📅 sposta competenza" / "📆 spalma su N mesi" (spostati nel nuovo tab CE). I 2 chip read-only "P&L competenza YYYY-MM" / "📆 Spalmata N mesi" restano nel sottotitolo come segnale rapido se override attivo.
+
+### B.2 Tab Pagamenti — riquadro "Stato pagamento attuale"
+Riquadro in cima al tab, prima della grid Scadenza/Modalità/IBAN:
+- Chip D1+D2 grande (size lg) a sinistra + chip "✓ Riconciliata con banca" se applicabile.
+- A destra: i 3 bottoni di cambio stato (`Da pagare` / `❓ Da verificare` / `Pagato*`) sotto label "Cambia stato →".
+- Se `stato=pagato` (riconciliato banca, definitivo): banner verde "🔒 Stato definitivo" invece dei bottoni.
+- Per fatture rateizzate: riquadro NASCOSTO (le scadenze vivono nella spesa fissa target).
+
+### B.3 Tab "Conto Economico" (NUOVO, 4° tab)
+3 sezioni:
+
+1. **📅 Competenza P&L** — 2 card affiancate ("Mese singolo" + "Spalmatura"). Bottoni "Sposta competenza" / "Spalma su N mesi" qui dentro (spostati dal header). Banner ambra in cima se la fattura è esclusa dal CE (`fe_fornitore_categoria.escluso_acquisti=1`).
+2. **🏷 Categoria nel Conto Economico** — 2 sotto-sezioni:
+   - **Aggregato (read-only)**: tabella `categoria · sottocategoria · righe · importo` derivata dalla gerarchia `fe_righe.categoria_id > fe_fornitore_categoria.categoria_id > "Non categorizzato"`.
+   - **Modifica per riga (editabile, BIDIREZIONALE)**: tabella delle singole righe con 2 dropdown (Categoria + Sottocategoria). Riusa lo **stesso endpoint** di `FattureFornitoriElenco`: `POST /contabilita/fe/categorie/fornitori/prodotti/assegna`. Modificare qui aggiorna anche tutte le righe (passate e future) con la stessa descrizione di quel fornitore + il mapping `fe_prodotto_categoria_map` per i futuri import. Toast "Categoria aggiornata (anche su Fornitori)".
+3. **📊 Dove appare nel Conto Economico** — fetch lazy al primo click sul tab, mostra: mese di competenza (label + chip "spalmata"/"override"), importo P&L (per mese se spalmata), categoria principale, % sui ricavi del mese, % sulla categoria. Link "Apri Conto Economico {mese} →" che apre il CE pre-popolato.
+
+### B.4 Footer ripulito
+- Rimossa label "STATO:" + i 3 bottoni di cambio stato che erano lì (ora vivono nel tab Pagamenti, vedi B.2). La label era fuorviante: sembrava visualizzazione invece che azione.
+- Footer ora ha solo "Modifica anagrafica fornitore" + "Chiudi".
+
+## C. Endpoint nuovi/estesi
+
+| Endpoint | Cosa fa |
+|---|---|
+| `GET /contabilita/fe/fatture/{id}/ce-impatto` (NUOVO) | Ritorna impatto P&L di una fattura: mese_label, mesi_coinvolti, importo_pl_per_mese, categoria_principale, ricavi_mese, totale_categoria_mese, % su ricavi, % su categoria, link_ce |
+| `GET /contabilita/fe/fatture/{id}` (esteso) | Aggiunti campi response: `categoria_aggregata[]` (lista cat/sub con righe_count+importo), `escluso_acquisti` (bool flag ffc del fornitore). Righe ora espongono anche `categoria_id`, `sottocategoria_id`, `categoria_nome`, `sottocategoria_nome`, `categoria_auto` |
+
+## D. Effetto sul CE
+
+Cambiando categoria di una riga dal tab CE della fattura, l'effetto si propaga immediatamente:
+- Vista `Acquisti → Fornitori` mostra la stessa categoria (stesso `fe_prodotto_categoria_map`).
+- I prossimi import della stessa descrizione → categoria già assegnata in automatico.
+- Il CE del mese (`compute_pl`) riassegna correttamente la riga alla nuova categoria.
+
+Niente endpoint nuovo per la modifica per riga: si riusa lo stesso (`/categorie/fornitori/prodotti/assegna`) → zero rischio di drift fra modulo Fatture e modulo Fornitori.
 
 ---
 
