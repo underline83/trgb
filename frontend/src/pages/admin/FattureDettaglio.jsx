@@ -798,6 +798,67 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                 </div>
               )}
 
+              {/* ─── RIQUADRO STATO PAGAMENTO (D1+D2, 2026-05-18) ───
+                  Spostato dal footer per chiarezza: stato attuale + azioni di
+                  cambio in un unico posto, dentro il tab Pagamenti (sua casa
+                  naturale). Per fatture rateizzate è solo read-only — le
+                  scadenze vivono nella spesa fissa target. */}
+              {!isRateizzata && (
+                <div className="mb-4 bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">Stato pagamento attuale</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <StatoPagamentoBadge stato={statoUscita || fattura.stato_pagamento || "da_pagare"} size="lg" />
+                        {uscita?.banca_movimento_id && (
+                          <span className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium">
+                            ✓ Riconciliata con banca
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {fattura.stato_pagamento === "pagato" ? (
+                      <div className="text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-300 px-3 py-2 rounded-lg max-w-xs">
+                        🔒 Stato definitivo (riconciliazione banca).
+                        <br/>Per cambiarlo annulla la riconciliazione.
+                      </div>
+                    ) : (
+                      onCambiaStato && (
+                        <div>
+                          <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">Cambia stato →</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {fattura.stato_pagamento !== "da_pagare" && (
+                              <Btn variant="chip" tone="neutral" size="sm" type="button"
+                                onClick={() => handleCambiaStato("da_pagare")}
+                                title="Riporta lo stato a 'Da pagare'">
+                                Da pagare
+                              </Btn>
+                            )}
+                            {fattura.stato_pagamento !== "da_verificare" && (
+                              <Btn variant="chip" tone="amber" size="sm" type="button"
+                                onClick={() => handleCambiaStato("da_verificare")}
+                                title="Marca come 'Da verificare' (forse pagata, controllare estratto conto)">
+                                ❓ Da verificare
+                              </Btn>
+                            )}
+                            {fattura.stato_pagamento !== "pagato_manuale" && (
+                              <Btn variant="chip" tone="emerald" size="sm" type="button"
+                                onClick={() => handleCambiaStato("pagato_manuale")}
+                                title="Marca come pagata (in attesa di riconciliazione bancaria)">
+                                Pagato*
+                              </Btn>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-neutral-400 mt-1.5 max-w-xs leading-tight">
+                            "Pagato" definitivo si attiva solo dalla riconciliazione bancaria.
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* SCADENZA — G.7: 2 sotto-celle affiancate "Iniziale" + "Programmata" */}
                 <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 md:col-span-1">
@@ -1284,41 +1345,9 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
 
         {/* ═══════════ FOOTER AZIONI ═══════════ */}
         <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-t border-neutral-200 flex-shrink-0 flex-wrap">
-          {/* Modulo M.2 (2026-04-27, fix label C.2 2026-05-18): bottoni
-              di CAMBIO stato. La label era "Stato:" → confondeva l'utente
-              (sembrava visualizzazione dello stato attuale invece che azione).
-              Lo stato attuale è già nei chip dell'header (D1+D3). */}
-          {onCambiaStato && fattura.stato_pagamento !== "pagato" && !isRateizzata && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-1">Cambia stato →</span>
-              {fattura.stato_pagamento !== "da_pagare" && (
-                <Btn variant="chip" tone="neutral" size="sm" type="button"
-                  onClick={() => handleCambiaStato("da_pagare")}
-                  title="Riporta lo stato a 'Da pagare'">
-                  Da pagare
-                </Btn>
-              )}
-              {fattura.stato_pagamento !== "da_verificare" && (
-                <Btn variant="chip" tone="amber" size="sm" type="button"
-                  onClick={() => handleCambiaStato("da_verificare")}
-                  title="Marca come 'Da verificare' (forse pagata, controllare estratto conto)">
-                  ❓ Da verificare
-                </Btn>
-              )}
-              {fattura.stato_pagamento !== "pagato_manuale" && (
-                <Btn variant="chip" tone="emerald" size="sm" type="button"
-                  onClick={() => handleCambiaStato("pagato_manuale")}
-                  title="Marca come pagata (in attesa di riconciliazione bancaria)">
-                  Pagato*
-                </Btn>
-              )}
-            </div>
-          )}
-          {fattura.stato_pagamento === "pagato" && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-900 bg-emerald-100 border border-emerald-500 px-3 py-1.5 rounded-full font-semibold">
-              🔒 Pagato — riconciliato banca (immutabile)
-            </span>
-          )}
+          {/* C.2 (2026-05-18): bottoni cambio stato spostati nel tab "Pagamenti"
+              dentro il nuovo riquadro "Stato pagamento attuale".
+              Il footer resta pulito con solo le azioni globali (anagrafica, chiudi). */}
           {/* Legacy: bottoni pre-Modulo M (preservati per compat se onCambiaStato non passato) */}
           {!onCambiaStato && onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATO" && !isRateizzata && (
             <Btn variant="primary" size="md" type="button" onClick={handleSegnaPagata}>
