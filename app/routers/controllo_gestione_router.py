@@ -397,81 +397,12 @@ def conto_economico(
 
 
 # ═══════════════════════════════════════════════════════════════════
-# CONFRONTO PERIODI — due mesi/trimestri/anni a confronto
+# CONFRONTO PERIODI — RIMOSSO 2026-05-16 (audit Marco)
+# Endpoint /confronto era stub mai usato (pagina frontend placeholder
+# rimossa dalla nav). Per confronti periodo-periodo usare /conto-economico
+# con i parametri periodo=mese|trimestre|anno.
+# Recupero codice: `git log -p -- app/routers/controllo_gestione_router.py`
 # ═══════════════════════════════════════════════════════════════════
-
-@router.get("/confronto")
-def confronto(
-    anno1: int = Query(...),
-    mese1: int = Query(default=None),
-    anno2: int = Query(...),
-    mese2: int = Query(default=None),
-    current_user=Depends(get_current_user),
-):
-    """
-    Confronta due periodi. Se mese e' specificato confronta mesi, altrimenti anni interi.
-    """
-    fc = get_fc_db()
-    vdb = get_vendite_db()
-
-    def _get_periodo_data(a, m):
-        if m:
-            primo = f"{a}-{m:02d}-01"
-            if m == 12:
-                ultimo = f"{a + 1}-01-01"
-            else:
-                ultimo = f"{a}-{m + 1:02d}-01"
-            label = f"{_fmt_month(m)} {a}"
-        else:
-            primo = f"{a}-01-01"
-            ultimo = f"{a + 1}-01-01"
-            label = str(a)
-
-        acq = fc.execute("""
-            SELECT COUNT(*) AS num, COALESCE(SUM(totale_fattura), 0) AS tot
-            FROM fe_fatture WHERE data_fattura >= ? AND data_fattura < ? AND is_autofattura = 0
-        """, (primo, ultimo)).fetchone()
-
-        banca = fc.execute("""
-            SELECT
-                COALESCE(SUM(CASE WHEN importo > 0 THEN importo ELSE 0 END), 0) AS entrate,
-                COALESCE(SUM(CASE WHEN importo < 0 THEN ABS(importo) ELSE 0 END), 0) AS uscite
-            FROM banca_movimenti WHERE data_contabile >= ? AND data_contabile < ?
-        """, (primo, ultimo)).fetchone()
-
-        try:
-            ven = vendite_totali_periodo(vdb, primo, ultimo)["totale_corrispettivi"]
-        except Exception:
-            ven = 0
-
-        return {
-            "label": label,
-            "vendite": round(ven, 2),
-            "acquisti": round(acq["tot"], 2),
-            "num_fatture": acq["num"],
-            "banca_entrate": round(banca["entrate"], 2),
-            "banca_uscite": round(banca["uscite"], 2),
-            "margine": round(ven - acq["tot"], 2),
-        }
-
-    p1 = _get_periodo_data(anno1, mese1)
-    p2 = _get_periodo_data(anno2, mese2)
-
-    fc.close()
-    vdb.close()
-
-    # Calcola variazioni %
-    variazioni = {}
-    for key in ["vendite", "acquisti", "margine", "banca_entrate", "banca_uscite"]:
-        v1 = p1[key]
-        v2 = p2[key]
-        variazioni[key] = round((v1 - v2) / abs(v2) * 100, 1) if v2 != 0 else None
-
-    return {
-        "periodo_1": p1,
-        "periodo_2": p2,
-        "variazioni": variazioni,
-    }
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -506,35 +437,14 @@ MP_LABELS = {
 
 
 # ═══════════════════════════════════════════════════════════════════
-# LIQUIDITA' — Principio di cassa (banca_movimenti)
+# LIQUIDITA' — RIMOSSO 2026-05-16 (audit Marco)
+# Endpoint /liquidita era usato dalla pagina ControlloGestioneLiquidita
+# (frontend rimosso, route ora redirect a /flussi-cassa/dashboard).
+# La visione "principio di cassa" è coperta da:
+#   - modulo Flussi di Cassa (banca_movimenti, contanti)
+#   - Conto Economico modalità "cassa" (TODO v1.2)
+# Recupero codice: `git log -p -- app/routers/controllo_gestione_router.py`
 # ═══════════════════════════════════════════════════════════════════
-
-@router.get("/liquidita")
-def liquidita(
-    anno: int = Query(default=None),
-    mese: int = Query(default=None),
-    current_user=Depends(get_current_user),
-):
-    """
-    Dashboard Liquidita' — complementare a /dashboard (competenza).
-
-    Legge da banca_movimenti per rispondere alla domanda "quanto ho in banca,
-    da dove arrivano i soldi e quando?". Classifica le entrate in POS /
-    Contanti / Bonifici / Altro anche quando il feed BPM non ha categoria.
-
-    Parametri:
-    - anno: default anno corrente
-    - mese: default mese corrente
-    """
-    oggi = date.today()
-    anno = anno or oggi.year
-    mese = mese or oggi.month
-
-    fc = get_fc_db()
-    try:
-        return dashboard_liquidita(fc, anno, mese)
-    finally:
-        fc.close()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1331,35 +1241,12 @@ def get_scadenze_calendario(
     }
 
 
-@router.get("/uscite/senza-scadenza")
-def get_fatture_senza_scadenza(
-    current_user=Depends(get_current_user),
-):
-    """
-    Lista fatture importate in cg_uscite che non hanno data_scadenza.
-    Queste richiedono: configurare giorni_pagamento sul fornitore,
-    oppure scadenza manuale.
-    """
-    fc = get_fc_db()
-    rows = fc.execute("""
-        SELECT
-            u.id, u.fattura_id, u.fornitore_nome, u.fornitore_piva,
-            u.numero_fattura, u.data_fattura, u.totale,
-            s.id AS supplier_id,
-            s.modalita_pagamento_default,
-            s.giorni_pagamento
-        FROM cg_uscite u
-        LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
-        WHERE u.data_scadenza IS NULL
-          AND u.stato NOT IN ('PAGATO')
-        ORDER BY u.totale DESC
-    """).fetchall()
-    fc.close()
-
-    return {
-        "fatture": [dict(r) for r in rows],
-        "count": len(rows),
-    }
+# ═══════════════════════════════════════════════════════════════════
+# /uscite/senza-scadenza — RIMOSSO 2026-05-16 (audit Marco)
+# Zero chiamate da frontend. La funzionalità è coperta dallo Scadenziario
+# con filtro "stato=SENZA_SCADENZA" (se mai servirà reimplementare).
+# Recupero codice: `git log -p -- app/routers/controllo_gestione_router.py`
+# ═══════════════════════════════════════════════════════════════════
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1514,10 +1401,12 @@ def update_fornitore_pagamento(
     return {"ok": True}
 
 
-@router.get("/mp-labels")
-def get_mp_labels(current_user=Depends(get_current_user)):
-    """Ritorna il mapping codici modalità pagamento FatturaPA → label italiane."""
-    return MP_LABELS
+# ═══════════════════════════════════════════════════════════════════
+# /mp-labels — RIMOSSO 2026-05-16 (audit Marco)
+# Zero chiamate da frontend. Il MP_LABELS dict resta in memoria per uso
+# interno (es. enrichment uscite). Se servirà esporlo via API,
+# ripristinare l'endpoint da git log.
+# ═══════════════════════════════════════════════════════════════════
 
 
 # ── Preset condizioni pagamento ──────────────────────────
