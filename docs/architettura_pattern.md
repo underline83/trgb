@@ -117,10 +117,61 @@ def update_qualcosa(...):
 | **M.C WhatsApp** | ✅ FATTO | FE: `import { openWhatsApp, buildWaLink, fillTemplate, WA_TEMPLATES } from "../utils/whatsapp"`<br>BE: `from app.utils.whatsapp import build_wa_link, normalize_phone, fill_template`<br>**MAI** `wa.me/` a mano, MAI `.replace(" ","")` su telefoni |
 | **M.E Calendar** | ✅ FATTO | FE: `import { CalendarView } from "../../components/calendar"`<br>Vedi `docs/mattone_calendar.md` |
 | **M.F Alert engine** | ✅ FATTO | BE: `from app.services.alert_engine import run_all_checks, run_check`<br>Decoratore: `@register_checker("nome")` |
-| **M.I UI primitives** | ✅ FATTO | FE: `import { Btn, PageLayout, StatusBadge, EmptyState } from "../../components/ui"`<br>Touch target 44pt su `Btn size="md\|lg"` |
+| **M.I UI primitives** | ✅ FATTO + ESPANSO (2026-05-16) | FE: `import { Btn, PageLayout, StatusBadge, EmptyState, FieldLabel, TextInput, Select, Textarea, Card, SectionTitle, Modal, Stepper, Pill, PillGroup } from "../../components/ui"`<br>**Regola operativa**: per qualunque nuovo form/modale/wizard usare le primitive M.I. Vietato inventare mini design system. Vedi §3-bis. |
 | M.D Email service | ⏳ DA FARE | — |
 | M.G Permessi centralizzati | ⏳ DA FARE | — (oggi check ruolo sparsi `if role==`) |
 | M.H Import engine | ⏳ DA FARE | — (pattern in `clienti_router.py` da estrarre) |
+
+---
+
+## 3-bis. M.I — guida operativa primitive UI (sessione 2026-05-16)
+
+> **Regola d'oro**: per qualunque form, modale, wizard o card di un nuovo modulo o sotto-modulo, **partire SEMPRE dalle primitive M.I**. Niente classi Tailwind inline duplicate, niente mini design system per modulo. Se manca una primitive, la si aggiunge a M.I e si usa, non si inventa nel posto.
+
+### Quando usare cosa
+
+| Caso d'uso | Primitive M.I |
+|---|---|
+| Pulsante azione (CTA, secondary, ghost) | `<Btn variant="primary\|secondary\|ghost\|danger" size="sm\|md\|lg">` |
+| Pulsante toggle/radio (Bottiglie/Madri/Per Produttore) | `<Pill active tone="amber">` o `<PillGroup value/onChange options=[...]>` |
+| Input testo / number / email | `<TextInput value onChange size>` (onChange riceve il VALORE, non l'evento) |
+| Dropdown select | `<Select value onChange options=[stringhe o {value,label}] placeholder>` |
+| Textarea | `<Textarea rows value onChange>` |
+| Label sopra un campo | `<FieldLabel label required hint error>` wrappa l'input |
+| Card/contenitore (default = rounded-3xl shadow-2xl come da spec §9-bis pt 6) | `<Card tone="neutral\|amber\|success\|...">` |
+| Titolo di sezione dentro un form | `<SectionTitle subtitle right tone>` |
+| Modale (backdrop + header + body + footer) | `<Modal open onClose title subtitle tone size footer>` |
+| Stepper wizard (1 → 2 → 3) | `<Stepper current steps=[{key,label,icon}] tone>` |
+| Pagina con sub-nav + header titolo+azioni | `<PageLayout nav title subtitle actions toolbar wide>` |
+| Empty state ("nessun dato") | `<EmptyState icon title description action>` |
+| Badge di stato | `<StatusBadge tone size dot>` |
+
+### Palette delle primitive
+
+Ogni primitive accetta `tone` per essere intonata al modulo:
+
+- **Modulo Vini**: `tone="amber"` (storico, ruolo sommelier).
+- **Modulo Acquisti / CG / Banca**: `tone="blue"` (azioni primarie brand-blue).
+- **Cucina / Ricette**: `tone="emerald"` (chef).
+- **Clienti / Prenotazioni**: `tone="rose"` (sala).
+- Stati semantici (Card e Modal): `tone="success\|warning\|danger\|info"`.
+
+**Regola unicità tone per modulo**: dentro un modulo, le card/modali/pill usano UN solo tone. Non distinguere sub-entità con colori diversi (es. nelle Anagrafiche Vini, tutti i 4 panel devono essere amber: Produttori, Distributori, Denominazioni, Vitigni si distinguono per emoji ed etichetta, non per palette).
+
+### Antipattern (cose da NON fare)
+
+- ❌ `<button className="px-3 py-1.5 rounded-lg bg-amber-700 text-white ...">` → usa `<Btn>`.
+- ❌ `const fieldCls = "w-full px-2 py-1.5 rounded border border-neutral-300 ...";` → usa `<TextInput>`.
+- ❌ Modali con backdrop e header copiati a mano → usa `<Modal>`.
+- ❌ Inventare palette per sub-entità (`ProduttoriPanel`=amber, `DistributoriPanel`=blue): dentro Vini è sempre amber.
+- ❌ `rounded-2xl shadow-sm` su contenitori principali — il default è `rounded-3xl shadow-2xl` (passa via `<Card>` o esplicita).
+
+### Riferimenti file
+
+Tutti in `frontend/src/components/ui/`:
+- `Btn.jsx`, `PageLayout.jsx`, `StatusBadge.jsx`, `EmptyState.jsx` (M.I storico, 2026-04-18)
+- `FieldLabel.jsx`, `TextInput.jsx`, `Select.jsx`, `Textarea.jsx`, `Card.jsx`, `SectionTitle.jsx`, `Modal.jsx`, `Stepper.jsx`, `Pill.jsx` (espansione 2026-05-16)
+- `index.js` (barrel export — importare sempre da qui)
 
 ---
 

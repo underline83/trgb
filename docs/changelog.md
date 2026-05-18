@@ -3,6 +3,37 @@
 
 ---
 
+## 2026-05-16 — M.I espansione: 9 nuove primitive UI condivise (no codice modulo)
+
+### Aggiunto
+Strada B post-audit guardiano sulla coerenza estetica Cantina 2: prima di rifare il ramo v2, espandiamo M.I con i mattoni che mancavano (causa root delle 6 deviazioni segnalate). Ora ogni nuovo form/modale/wizard parte da qui.
+
+Nuovi file in `frontend/src/components/ui/`:
+- **`FieldLabel.jsx`** — wrapper label sopra il campo, gestisce `required`, `hint`, `error`. Sostituisce le helper `FieldLabel` inline duplicate in 4 file.
+- **`TextInput.jsx`** — input testo/number/email. `onChange` semplificato (riceve valore, non evento). Size sm/md/lg con touch target 40pt+ su md.
+- **`Select.jsx`** — dropdown. Accetta opzioni come array di stringhe O di `{value,label,disabled}`. `placeholder` opzionale per opzione "vuota".
+- **`Textarea.jsx`** — gemello di TextInput per multi-riga.
+- **`Card.jsx`** — wrapper contenitore. Default = `rounded-3xl shadow-2xl` (specifica §9-bis pt 6). Tone neutral/info/success/warning/danger + amber/emerald/blue/violet/rose per evidenze contestuali.
+- **`SectionTitle.jsx`** — titolo di sezione dentro form/card. Supporta subtitle + right slot (es. counter, link aggiuntivo). Tone modulare.
+- **`Modal.jsx`** — modale standard: backdrop, ESC per chiudere, scroll body lock, header tone-colored sticky, body scrollabile, footer azioni configurabile. Sostituisce ~7 implementazioni custom in v2 e classico.
+- **`Stepper.jsx`** — wizard multi-step (1→2→3) con stato done/active/pending visivo. Pulisce lo stepper inline del wizard nuovo vino.
+- **`Pill.jsx`** + **`PillGroup.jsx`** (in stesso file) — toggle radio-style (Bottiglie/Madri/Per Produttore, chip filtri tipologia). API dichiarativa con `value`/`onChange`/`options`.
+
+### Cambiato
+- **`components/ui/index.js`** — barrel aggiornato con tutti i nuovi export. Import unificato: `import { Btn, FieldLabel, TextInput, Select, Card, Modal, ... } from "../../components/ui"`.
+- **`docs/architettura_pattern.md`** — riga M.I in §3 aggiornata con elenco completo + nota "regola operativa". Nuova sezione §3-bis "M.I — guida operativa primitive UI" con: tabella "quando usare cosa", linee guida palette per modulo, lista antipattern espliciti.
+
+### Razionale
+Audit guardiano (2026-05-16) ha rilevato 6 deviazioni dalla coerenza estetica nel ramo Cantina 2 (bottoni inline, palette codificata per entità, card con shadow/radius inferiori alla specifica, modali ad hoc, form fields duplicati). Causa root: M.I aveva solo Btn/PageLayout/StatusBadge/EmptyState. Senza primitive form/contenitori/modali, ogni nuova pagina era costretta a reinventare. Questa espansione chiude il gap. Il ramo v2 sarà rifattorizzato nella sessione successiva usando solo queste primitive (sessione M2.8).
+
+### Bump versione modulo vini
+3.36.2 → 3.37 (anticipando che il refactor v2 prossimo userà M.I espanso).
+
+### Prossimo
+- **M2.8 — Refactor coerenza ramo v2**: NuovoVinoV2, CantinaV2, PerProduttoreV2, SchedaMadreV2, ProduttoriPanel, DistributoriPanel, DenominazioniPanel/AnagraficheVini, VitigniPanel → tutti riconvertiti per usare M.I (Btn, TextInput, Select, Card, Modal, FieldLabel, SectionTitle, Stepper, Pill). Risultato atteso: -25/30% righe nei panel + palette amber unificata + card/modali coerenti con la spec.
+
+---
+
 ## 2026-05-16 — M2.7: Wizard Nuovo Vino 3-step (preview-only)
 
 ### Aggiunto
