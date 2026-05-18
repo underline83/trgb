@@ -498,25 +498,14 @@ export default function CantinaV2() {
         </div>
       </div>
 
-      {/* Barra fissa azioni multiple (read-only: Modifica/Duplica disabilitati) */}
+      {/* Barra fissa azioni multiple (S2 cutover 2026-05-18: Modifica/Duplica
+          erano disabilitati per "read-only modulo v2", ora che la Cantina classica
+          è morta e v2 è scrivibile non hanno più senso come placeholder vuoti.
+          Tornare quando saranno implementate come funzioni vere su _v2). */}
       <BulkActionBar
         count={sel.count}
         onClear={sel.clear}
         actions={[
-          {
-            label: "Modifica",
-            icon: "✏️",
-            disabled: true,
-            tooltip: "Read-only nel modulo v2 — usa Cantina classica per modificare",
-            variant: "primary",
-          },
-          {
-            label: "Duplica",
-            icon: "📋",
-            disabled: true,
-            tooltip: "Read-only nel modulo v2 — usa Cantina classica per duplicare",
-            variant: "blue",
-          },
           {
             label: printingPdf ? "Genero…" : "Stampa",
             icon: "🖨️",

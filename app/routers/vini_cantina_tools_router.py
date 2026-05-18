@@ -164,17 +164,17 @@ def reset_database(
     cur = conn.cursor()
 
     # Conta prima di cancellare (per il report)
-    n_vini = cur.execute("SELECT COUNT(*) FROM vini_magazzino").fetchone()[0]
+    n_vini = cur.execute("SELECT COUNT(*) FROM vini_bottiglie").fetchone()[0]
     n_mov = cur.execute("SELECT COUNT(*) FROM vini_magazzino_movimenti").fetchone()[0]
     n_note = cur.execute("SELECT COUNT(*) FROM vini_magazzino_note").fetchone()[0]
 
     # Svuota le tabelle (ordine: figlie prima, poi padre)
     cur.execute("DELETE FROM vini_magazzino_note;")
     cur.execute("DELETE FROM vini_magazzino_movimenti;")
-    cur.execute("DELETE FROM vini_magazzino;")
+    cur.execute("DELETE FROM vini_bottiglie;")
 
     # Reset autoincrement
-    cur.execute("DELETE FROM sqlite_sequence WHERE name IN ('vini_magazzino', 'vini_magazzino_movimenti', 'vini_magazzino_note');")
+    cur.execute("DELETE FROM sqlite_sequence WHERE name IN ('vini_bottiglie', 'vini_magazzino_movimenti', 'vini_magazzino_note');")
 
     conn.commit()
     conn.close()
@@ -316,7 +316,7 @@ def cleanup_duplicates(
             TRIM(COALESCE(FORMATO, ''))             AS fk,
             COUNT(*) AS cnt,
             GROUP_CONCAT(id, ',') AS ids
-        FROM vini_magazzino
+        FROM vini_bottiglie
         GROUP BY dk, pk, ak, fk
         HAVING cnt > 1
         ORDER BY cnt DESC, dk
@@ -343,7 +343,7 @@ def cleanup_duplicates(
     eliminati = 0
     if not dry_run and ids_to_delete:
         placeholders = ",".join("?" * len(ids_to_delete))
-        cur.execute(f"DELETE FROM vini_magazzino WHERE id IN ({placeholders})", ids_to_delete)
+        cur.execute(f"DELETE FROM vini_bottiglie WHERE id IN ({placeholders})", ids_to_delete)
         conn.commit()
         eliminati = len(ids_to_delete)
 
@@ -550,7 +550,7 @@ def _load_all_vini_inventario(
             LOCAZIONE_3, QTA_LOC3,
             QTA_TOTALE,
             CARTA, STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE
-        FROM vini_magazzino
+        FROM vini_bottiglie
         {where}
     """, params).fetchall()
     conn.close()
@@ -1173,7 +1173,7 @@ def inventario_selezione_pdf(
     cur = conn.cursor()
     placeholders = ",".join("?" for _ in ids)
     rows = cur.execute(
-        f"SELECT * FROM vini_magazzino WHERE id IN ({placeholders})", ids
+        f"SELECT * FROM vini_bottiglie WHERE id IN ({placeholders})", ids
     ).fetchall()
     conn.close()
 
@@ -1228,7 +1228,7 @@ def inventario_filtri_options(
 
     def distinct(col):
         rows = cur.execute(
-            f"SELECT DISTINCT {col} FROM vini_magazzino "
+            f"SELECT DISTINCT {col} FROM vini_bottiglie "
             f"WHERE {col} IS NOT NULL AND {col} != '' ORDER BY {col}"
         ).fetchall()
         return [r[0] for r in rows]
@@ -1477,7 +1477,7 @@ async def get_locazioni_valori(
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
     rows = cur.execute(
-        f"SELECT {col}, COUNT(*) as cnt FROM vini_magazzino "
+        f"SELECT {col}, COUNT(*) as cnt FROM vini_bottiglie "
         f"WHERE {col} IS NOT NULL AND {col} != '' "
         f"GROUP BY {col} ORDER BY cnt DESC"
     ).fetchall()
@@ -1540,7 +1540,7 @@ async def applica_normalizzazione_locazioni(
         # Stringa vuota = svuota la locazione
         actual_val = new_val.strip() if new_val else None
         result = cur.execute(
-            f"UPDATE vini_magazzino SET {col} = ? WHERE {col} = ?",
+            f"UPDATE vini_bottiglie SET {col} = ? WHERE {col} = ?",
             (actual_val, old_val),
         )
         totale += result.rowcount
@@ -1577,7 +1577,7 @@ async def get_vini_per_locazione(
     cur = conn.cursor()
     rows = cur.execute(
         f"SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO, {col}, {qta_col} "
-        f"FROM vini_magazzino WHERE {col} = ? ORDER BY DESCRIZIONE",
+        f"FROM vini_bottiglie WHERE {col} = ? ORDER BY DESCRIZIONE",
         (valore,),
     ).fetchall()
     conn.close()
@@ -1626,7 +1626,7 @@ async def check_giacenze_locazione(
     placeholders = ",".join(["?"] * len(valori))
     rows = cur.execute(
         f"SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, {col}, {qta_col} "
-        f"FROM vini_magazzino WHERE {col} IN ({placeholders}) "
+        f"FROM vini_bottiglie WHERE {col} IN ({placeholders}) "
         f"AND {qta_col} IS NOT NULL AND {qta_col} > 0 "
         f"ORDER BY {qta_col} DESC",
         valori,
@@ -1674,7 +1674,7 @@ async def update_vino_locazione(
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
     cur.execute(
-        f"UPDATE vini_magazzino SET {col} = ? WHERE id = ?",
+        f"UPDATE vini_bottiglie SET {col} = ? WHERE id = ?",
         (nuovo_valore if nuovo_valore else None, vino_id),
     )
     conn.commit()
@@ -1792,7 +1792,7 @@ async def matrice_old_values(current_user=Depends(get_current_user)):
     rows = cur.execute(
         "SELECT id, DESCRIZIONE, FRIGORIFERO, QTA_FRIGO, "
         "LOCAZIONE_1, QTA_LOC1, LOCAZIONE_2, QTA_LOC2, "
-        "LOCAZIONE_3, QTA_LOC3 FROM vini_magazzino "
+        "LOCAZIONE_3, QTA_LOC3 FROM vini_bottiglie "
         "ORDER BY id"
     ).fetchall()
     existing = set(r[0] for r in cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall())

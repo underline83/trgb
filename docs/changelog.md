@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-05-18 — Sistema 5.15 · Cutover refactor anagrafiche vini (milestone strutturale)
+
+Bump VERSION sistema 5.14 → **5.15** per riflettere il completamento del refactor anagrafiche V.6+V.7+V.8 — milestone strutturale del prodotto (schema DB cambiato, tabelle rinominate, architettura semplificata). Allineamento file `VERSION` root + `frontend/src/config/versions.jsx` campo `sistema.version`.
+
+---
+
 ## 2026-05-18 — Vini 3.46 · CUTOVER refactor anagrafiche (3 sessioni: wizard attivato + Cantina classica spenta + rename atomico) `[core]`
 
 ### S1 — Wizard attivato (3.44)

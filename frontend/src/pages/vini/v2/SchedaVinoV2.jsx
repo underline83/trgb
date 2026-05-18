@@ -28,9 +28,6 @@ export default function SchedaVinoV2() {
           ← Cantina v2
         </button>
         <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">#{id}</span>
-        <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md inline-flex items-center gap-1">
-          🔒 <strong>READ-ONLY</strong> · per modificare apri questo vino nella <button onClick={() => navigate(`/vini/magazzino`)} className="underline">Cantina classica</button>
-        </span>
       </div>
 
       <SchedaVino

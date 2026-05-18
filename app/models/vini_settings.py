@@ -89,20 +89,20 @@ def _migrate_nazioni_regioni_titlecase(cur, default_nations, default_regions) ->
         mc = mag.cursor()
 
         # Normalizza NAZIONE — prendi tutti i valori distinti e mappa
-        distinct_naz = mc.execute("SELECT DISTINCT NAZIONE FROM vini_magazzino WHERE NAZIONE IS NOT NULL;").fetchall()
+        distinct_naz = mc.execute("SELECT DISTINCT NAZIONE FROM vini_bottiglie WHERE NAZIONE IS NOT NULL;").fetchall()
         for row in distinct_naz:
             old = row["NAZIONE"]
             new = naz_map.get(_normalize_key(old))
             if new and new != old:
-                mc.execute("UPDATE vini_magazzino SET NAZIONE = ? WHERE NAZIONE = ?;", (new, old))
+                mc.execute("UPDATE vini_bottiglie SET NAZIONE = ? WHERE NAZIONE = ?;", (new, old))
 
         # Normalizza REGIONE — prendi tutti i valori distinti e mappa
-        distinct_reg = mc.execute("SELECT DISTINCT REGIONE FROM vini_magazzino WHERE REGIONE IS NOT NULL;").fetchall()
+        distinct_reg = mc.execute("SELECT DISTINCT REGIONE FROM vini_bottiglie WHERE REGIONE IS NOT NULL;").fetchall()
         for row in distinct_reg:
             old = row["REGIONE"]
             new = reg_map.get(_normalize_key(old))
             if new and new != old:
-                mc.execute("UPDATE vini_magazzino SET REGIONE = ? WHERE REGIONE = ?;", (new, old))
+                mc.execute("UPDATE vini_bottiglie SET REGIONE = ? WHERE REGIONE = ?;", (new, old))
 
         mag.commit()
         mag.close()
@@ -158,7 +158,7 @@ def _migrate_tipologie_semplificate(cur) -> None:
         mag = get_magazzino_connection()
         mc = mag.cursor()
         for old_tipo, new_tipo in _TIPOLOGIA_MAP.items():
-            mc.execute("UPDATE vini_magazzino SET TIPOLOGIA = ? WHERE TIPOLOGIA = ?;",
+            mc.execute("UPDATE vini_bottiglie SET TIPOLOGIA = ? WHERE TIPOLOGIA = ?;",
                        (new_tipo, old_tipo))
         mag.commit()
         mag.close()

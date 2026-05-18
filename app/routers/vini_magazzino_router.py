@@ -587,7 +587,7 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
                LOCAZIONE_2, QTA_LOC2,
                LOCAZIONE_3, QTA_LOC3,
                QTA_TOTALE, STATO_VENDITA, STATO_RIORDINO
-          FROM vini_magazzino
+          FROM vini_bottiglie
          WHERE CARTA = 1
            AND TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE'
         ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE
@@ -671,7 +671,7 @@ def list_calici_disponibili(current_user: Any = Depends(get_current_user)):
                PREZZO_CALICE, PREZZO_CARTA, QTA_TOTALE, BOTTIGLIA_APERTA,
                VENDITA_CALICE,
                DATA_APERTURA AS data_apertura
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE BOTTIGLIA_APERTA = 1
           AND (TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE')
         ORDER BY TIPOLOGIA, DESCRIZIONE;

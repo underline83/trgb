@@ -292,13 +292,13 @@ def init_magazzino_database() -> None:
     # - Con giacenza > 0 → 2 (VENDERE)
     # - Con giacenza 0  → 1 (CONTROLLARE — fuori catalogo da verificare)
     cur.execute("""
-        UPDATE vini_magazzino
+        UPDATE vini_bottiglie
         SET STATO_VENDITA = 2, UPDATED_AT = datetime('now')
         WHERE STATO_VENDITA IS NULL
           AND QTA_TOTALE > 0;
     """)
     cur.execute("""
-        UPDATE vini_magazzino
+        UPDATE vini_bottiglie
         SET STATO_VENDITA = 1, UPDATED_AT = datetime('now')
         WHERE STATO_VENDITA IS NULL
           AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0);
@@ -485,7 +485,7 @@ def init_magazzino_database() -> None:
             qta = len(celle_rows)
             loc3_text = ", ".join(f"({r[1]},{r[0]})" for r in celle_rows) if celle_rows else None
             cur.execute(
-                "UPDATE vini_magazzino SET LOCAZIONE_3 = ?, QTA_LOC3 = ? WHERE id = ?",
+                "UPDATE vini_bottiglie SET LOCAZIONE_3 = ?, QTA_LOC3 = ? WHERE id = ?",
                 (loc3_text, qta, vid),
             )
         print(f"✅ Matrice: ricalcolate coordinate (col,riga) per {len(vino_ids_rows)} vini")
@@ -500,7 +500,7 @@ def init_magazzino_database() -> None:
     cleaned = 0
     for loc_col, qta_col in loc_pairs:
         res = cur.execute(
-            f"UPDATE vini_magazzino SET {loc_col} = NULL "
+            f"UPDATE vini_bottiglie SET {loc_col} = NULL "
             f"WHERE {loc_col} IS NOT NULL AND {loc_col} != '' "
             f"AND COALESCE({qta_col}, 0) = 0"
         )
@@ -577,7 +577,7 @@ def _recalc_qta_totale(conn: sqlite3.Connection, vino_id: int) -> None:
             COALESCE(QTA_LOC1, 0) AS q1,
             COALESCE(QTA_LOC2, 0) AS q2,
             COALESCE(QTA_LOC3, 0) AS q3
-        FROM vini_magazzino WHERE id = ?;
+        FROM vini_bottiglie WHERE id = ?;
         """,
         (vino_id,),
     ).fetchone()
@@ -587,7 +587,7 @@ def _recalc_qta_totale(conn: sqlite3.Connection, vino_id: int) -> None:
 
     totale = row["qf"] + row["q1"] + row["q2"] + row["q3"]
     cur.execute(
-        "UPDATE vini_magazzino SET QTA_TOTALE = ? WHERE id = ?;",
+        "UPDATE vini_bottiglie SET QTA_TOTALE = ? WHERE id = ?;",
         (totale, vino_id),
     )
     conn.commit()
@@ -616,7 +616,7 @@ def create_vino(data: Dict[str, Any]) -> int:
     values = list(data.values())
 
     cur.execute(
-        f"INSERT INTO vini_magazzino ({columns}) VALUES ({placeholders});",
+        f"INSERT INTO vini_bottiglie ({columns}) VALUES ({placeholders});",
         values,
     )
     vino_id = cur.lastrowid
@@ -652,7 +652,7 @@ def duplicate_vino(
     cur = conn.cursor()
 
     try:
-        row = cur.execute("SELECT * FROM vini_magazzino WHERE id = ?;", (vino_id,)).fetchone()
+        row = cur.execute("SELECT * FROM vini_bottiglie WHERE id = ?;", (vino_id,)).fetchone()
         if not row:
             raise ValueError(f"Vino {vino_id} non trovato")
 
@@ -700,7 +700,7 @@ def duplicate_vino(
         columns = ", ".join(f'"{k}"' for k in data.keys())
         placeholders = ", ".join(["?"] * len(data))
         cur.execute(
-            f"INSERT INTO vini_magazzino ({columns}) VALUES ({placeholders});",
+            f"INSERT INTO vini_bottiglie ({columns}) VALUES ({placeholders});",
             list(data.values()),
         )
         new_id = cur.lastrowid
@@ -756,7 +756,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
     conn.row_factory = sqlite3.Row
     row_pre = cur.execute(
         "SELECT id, PREZZO_CARTA, EURO_LISTINO, SCONTO "
-        "FROM vini_magazzino WHERE id_excel = ?;",
+        "FROM vini_bottiglie WHERE id_excel = ?;",
         (data["id_excel"],),
     ).fetchone()
     vecchi_prezzi_carta: Dict[str, Any] = {}
@@ -769,7 +769,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
 
     cur.execute(
         """
-        INSERT INTO vini_magazzino (
+        INSERT INTO vini_bottiglie (
             id_excel,
             TIPOLOGIA, NAZIONE, REGIONE,
             DESCRIZIONE, DENOMINAZIONE, ANNATA, VITIGNI, GRADO_ALCOLICO,
@@ -840,7 +840,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         vino_id: Optional[int] = cur.lastrowid
     else:
         row = cur.execute(
-            "SELECT id FROM vini_magazzino WHERE id_excel = ?;",
+            "SELECT id FROM vini_bottiglie WHERE id_excel = ?;",
             (data["id_excel"],),
         ).fetchone()
         vino_id = row["id"] if row else None
@@ -916,7 +916,7 @@ def update_vino(
         else:
             # Leggi stato corrente: se era già aperta, non rinfresca la data.
             row_old = cur.execute(
-                "SELECT BOTTIGLIA_APERTA, DATA_APERTURA FROM vini_magazzino WHERE id = ?;",
+                "SELECT BOTTIGLIA_APERTA, DATA_APERTURA FROM vini_bottiglie WHERE id = ?;",
                 (vino_id,),
             ).fetchone()
             if not row_old or not row_old["BOTTIGLIA_APERTA"] or not row_old["DATA_APERTURA"]:
@@ -928,7 +928,7 @@ def update_vino(
     if prezzi_in_data:
         cols_sql = ", ".join(prezzi_in_data)
         row_prima = cur.execute(
-            f"SELECT {cols_sql} FROM vini_magazzino WHERE id = ?;",
+            f"SELECT {cols_sql} FROM vini_bottiglie WHERE id = ?;",
             (vino_id,),
         ).fetchone()
         if row_prima:
@@ -940,7 +940,7 @@ def update_vino(
     values.append(vino_id)
 
     cur.execute(
-        f"UPDATE vini_magazzino SET {', '.join(set_parts)} WHERE id = ?;",
+        f"UPDATE vini_bottiglie SET {', '.join(set_parts)} WHERE id = ?;",
         values,
     )
 
@@ -1014,7 +1014,7 @@ def bulk_update_vini(
         if prezzi_in_data:
             cols_sql = ", ".join(prezzi_in_data)
             row_prima = cur.execute(
-                f"SELECT {cols_sql} FROM vini_magazzino WHERE id = ?;",
+                f"SELECT {cols_sql} FROM vini_bottiglie WHERE id = ?;",
                 (vino_id,),
             ).fetchone()
             if row_prima:
@@ -1027,7 +1027,7 @@ def bulk_update_vini(
         values.append(vino_id)
 
         cur.execute(
-            f"UPDATE vini_magazzino SET {', '.join(set_parts)} WHERE id = ?;",
+            f"UPDATE vini_bottiglie SET {', '.join(set_parts)} WHERE id = ?;",
             values,
         )
         count += cur.rowcount
@@ -1061,14 +1061,14 @@ def delete_vino(vino_id: int) -> bool:
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
-    row = cur.execute("SELECT id FROM vini_magazzino WHERE id = ?;", (vino_id,)).fetchone()
+    row = cur.execute("SELECT id FROM vini_bottiglie WHERE id = ?;", (vino_id,)).fetchone()
     if not row:
         conn.close()
         return False
 
     cur.execute("DELETE FROM vini_magazzino_movimenti WHERE vino_id = ?;", (vino_id,))
     cur.execute("DELETE FROM vini_magazzino_note WHERE vino_id = ?;", (vino_id,))
-    cur.execute("DELETE FROM vini_magazzino WHERE id = ?;", (vino_id,))
+    cur.execute("DELETE FROM vini_bottiglie WHERE id = ?;", (vino_id,))
 
     conn.commit()
     conn.close()
@@ -1079,7 +1079,7 @@ def get_vino_by_id(vino_id: int) -> Optional[sqlite3.Row]:
     conn = get_magazzino_connection()
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT * FROM vini_magazzino WHERE id = ?;",
+        "SELECT * FROM vini_bottiglie WHERE id = ?;",
         (vino_id,),
     ).fetchone()
     conn.close()
@@ -1214,7 +1214,7 @@ def search_vini(
 
     where_sql = " WHERE " + " AND ".join(where) if where else ""
     sql = (
-        "SELECT * FROM vini_magazzino"
+        "SELECT * FROM vini_bottiglie"
         + where_sql
         + " ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE;"
     )
@@ -1262,7 +1262,7 @@ def aggiorna_quantita_locazioni(
     values.append(vino_id)
 
     cur.execute(
-        f"UPDATE vini_magazzino SET {', '.join(set_parts)} WHERE id = ?;",
+        f"UPDATE vini_bottiglie SET {', '.join(set_parts)} WHERE id = ?;",
         values,
     )
     conn.commit()
@@ -1337,7 +1337,7 @@ def registra_movimento(
                   COALESCE(QTA_LOC1, 0) AS q1,
                   COALESCE(QTA_LOC2, 0) AS q2,
                   COALESCE(QTA_LOC3, 0) AS q3
-           FROM vini_magazzino WHERE id = ?;""",
+           FROM vini_bottiglie WHERE id = ?;""",
         (vino_id,),
     ).fetchone()
 
@@ -1360,7 +1360,7 @@ def registra_movimento(
 
     # Aggiorna QTA_TOTALE
     cur.execute(
-        "UPDATE vini_magazzino SET QTA_TOTALE = ?, UPDATED_AT = ? WHERE id = ?;",
+        "UPDATE vini_bottiglie SET QTA_TOTALE = ?, UPDATED_AT = ? WHERE id = ?;",
         (nuova_qta, created_at, vino_id),
     )
 
@@ -1386,7 +1386,7 @@ def registra_movimento(
             nuova_qta_loc = qta_loc_attuale  # RETTIFICA: non tocca la locazione
 
         cur.execute(
-            f"UPDATE vini_magazzino SET {col} = ?, UPDATED_AT = ? WHERE id = ?;",
+            f"UPDATE vini_bottiglie SET {col} = ?, UPDATED_AT = ? WHERE id = ?;",
             (nuova_qta_loc, created_at, vino_id),
         )
 
@@ -1410,14 +1410,14 @@ def registra_movimento(
         if prezzo_da_salvare is None:
             if tipo == "VENDITA":
                 v = cur.execute(
-                    "SELECT PREZZO_CARTA FROM vini_magazzino WHERE id = ?", (vino_id,)
+                    "SELECT PREZZO_CARTA FROM vini_bottiglie WHERE id = ?", (vino_id,)
                 ).fetchone()
                 if v and v[0] not in (None, ""):
                     try: prezzo_da_salvare = float(v[0])
                     except (TypeError, ValueError): pass
             elif tipo == "CARICO":
                 v = cur.execute(
-                    "SELECT EURO_LISTINO FROM vini_magazzino WHERE id = ?", (vino_id,)
+                    "SELECT EURO_LISTINO FROM vini_bottiglie WHERE id = ?", (vino_id,)
                 ).fetchone()
                 if v and v[0] not in (None, ""):
                     try: prezzo_da_salvare = float(v[0])
@@ -1444,7 +1444,7 @@ def registra_movimento(
         # ogni vendita calice successiva).
         cur.execute(
             """
-            UPDATE vini_magazzino
+            UPDATE vini_bottiglie
             SET BOTTIGLIA_APERTA = 1,
                 DATA_APERTURA = COALESCE(
                     CASE WHEN BOTTIGLIA_APERTA = 1 THEN DATA_APERTURA ELSE NULL END,
@@ -1569,7 +1569,7 @@ def list_movimenti_globali(
         f"""
         SELECT COUNT(*) AS cnt
         FROM vini_magazzino_movimenti m
-        JOIN vini_magazzino v ON v.id = m.vino_id
+        JOIN vini_bottiglie v ON v.id = m.vino_id
         WHERE {where_sql};
         """,
         params,
@@ -1586,7 +1586,7 @@ def list_movimenti_globali(
             v.ANNATA      AS vino_annata,
             v.TIPOLOGIA   AS vino_tipologia
         FROM vini_magazzino_movimenti m
-        JOIN vini_magazzino v ON v.id = m.vino_id
+        JOIN vini_bottiglie v ON v.id = m.vino_id
         WHERE {where_sql}
         ORDER BY datetime(m.data_mov) DESC, m.id DESC
         LIMIT ? OFFSET ?;
@@ -1624,7 +1624,7 @@ def search_vini_autocomplete(
                LOCAZIONE_1, QTA_LOC1,
                LOCAZIONE_2, QTA_LOC2,
                LOCAZIONE_3, QTA_LOC3
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE (DESCRIZIONE LIKE ? OR PRODUTTORE LIKE ?
            OR DENOMINAZIONE LIKE ? OR CAST(id AS TEXT) = ?)
         {filtro_qta}
@@ -1774,7 +1774,7 @@ def aggiungi_nota_vino(
 
     # verifica esistenza vino (evita note orfane)
     row = cur.execute(
-        "SELECT id FROM vini_magazzino WHERE id = ?;",
+        "SELECT id FROM vini_bottiglie WHERE id = ?;",
         (vino_id,),
     ).fetchone()
 
@@ -1875,7 +1875,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                 CASE WHEN QTA_TOTALE > 0 AND PREZZO_CARTA IS NOT NULL AND PREZZO_CARTA != ''
                      THEN QTA_TOTALE * PREZZO_CARTA ELSE 0 END
             ), 0)                                                          AS valore_carta
-        FROM vini_magazzino;
+        FROM vini_bottiglie;
         """
     ).fetchone()
 
@@ -1906,7 +1906,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                 FROM vini_magazzino_movimenti m
                 WHERE m.vino_id = v.id AND m.tipo = 'VENDITA'
                ) AS ultima_vendita
-        FROM vini_magazzino v
+        FROM vini_bottiglie v
         WHERE v.CARTA = 1
           AND (v.QTA_TOTALE IS NULL OR v.QTA_TOTALE = 0)
           -- Post V-H.F (mig 128): STATO_VENDITA INTEGER 0..3
@@ -2005,7 +2005,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             m.id, m.data_mov, m.tipo, m.qta, m.note, m.utente,
             v.id AS vino_id, v.DESCRIZIONE AS vino_desc, v.TIPOLOGIA AS vino_tipo
         FROM vini_magazzino_movimenti m
-        JOIN vini_magazzino v ON v.id = m.vino_id
+        JOIN vini_bottiglie v ON v.id = m.vino_id
         WHERE m.tipo = 'VENDITA'
         ORDER BY datetime(m.data_mov) DESC, m.id DESC
         LIMIT 8;
@@ -2019,7 +2019,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             m.id, m.data_mov, m.tipo, m.qta, m.note, m.utente,
             v.id AS vino_id, v.DESCRIZIONE AS vino_desc
         FROM vini_magazzino_movimenti m
-        JOIN vini_magazzino v ON v.id = m.vino_id
+        JOIN vini_bottiglie v ON v.id = m.vino_id
         WHERE m.tipo IN ('CARICO', 'SCARICO', 'RETTIFICA')
         ORDER BY datetime(m.data_mov) DESC, m.id DESC
         LIMIT 6;
@@ -2034,7 +2034,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             SUM(m.qta) AS tot_vendute,
             v.QTA_TOTALE
         FROM vini_magazzino_movimenti m
-        JOIN vini_magazzino v ON v.id = m.vino_id
+        JOIN vini_bottiglie v ON v.id = m.vino_id
         WHERE m.tipo = 'VENDITA'
           AND datetime(m.data_mov) >= datetime('now', '-{SETTING_TOP_VENDUTE_GIORNI} days')
         GROUP BY m.vino_id
@@ -2059,7 +2059,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                AND m2.tipo = 'VENDITA'
                AND date(m2.data_mov) >= '{DATA_INIZIO_STORICO}'
             ) AS vendite_totali
-        FROM vini_magazzino v
+        FROM vini_bottiglie v
         LEFT JOIN vini_magazzino_movimenti m ON m.vino_id = v.id
         WHERE v.QTA_TOTALE > 0
         GROUP BY v.id
@@ -2086,7 +2086,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             v.id   AS vino_id,
             v.DESCRIZIONE AS vino_desc
         FROM vini_magazzino_movimenti m
-        JOIN vini_magazzino v ON v.id = m.vino_id
+        JOIN vini_bottiglie v ON v.id = m.vino_id
         ORDER BY datetime(m.data_mov) DESC, m.id DESC
         LIMIT 10;
         """
@@ -2097,7 +2097,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         """
         SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA,
                PREZZO_CARTA, EURO_LISTINO, QTA_TOTALE
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE (EURO_LISTINO IS NULL OR EURO_LISTINO = '')
         ORDER BY TIPOLOGIA, DESCRIZIONE
         LIMIT 200;
@@ -2143,7 +2143,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
              WHERE m.vino_id = v.id AND m.tipo = 'VENDITA'
                AND date(m.data_mov) >= '{DATA_INIZIO_STORICO}'
             ) AS vendite_totali
-        FROM vini_magazzino v
+        FROM vini_bottiglie v
         {riordini_where}
         ORDER BY v.DISTRIBUTORE, v.RAPPRESENTANTE, v.DESCRIZIONE;
         """
@@ -2156,7 +2156,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             TIPOLOGIA,
             COUNT(*)                         AS n_vini,
             COALESCE(SUM(QTA_TOTALE), 0)     AS tot_bottiglie
-        FROM vini_magazzino
+        FROM vini_bottiglie
         GROUP BY TIPOLOGIA
         ORDER BY tot_bottiglie DESC;
         """
@@ -2244,7 +2244,7 @@ def find_potential_duplicates(
             REGIONE,
             COALESCE(QTA_TOTALE, 0) AS QTA_TOTALE,
             PREZZO_CARTA
-        FROM vini_magazzino
+        FROM vini_bottiglie
         WHERE {where_sql}
         ORDER BY NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE
         LIMIT ?;
@@ -2287,7 +2287,7 @@ def matrice_get_stato() -> Dict[str, Any]:
         SELECT mc.riga, mc.colonna, mc.vino_id,
                v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA
         FROM matrice_celle mc
-        JOIN vini_magazzino v ON v.id = mc.vino_id
+        JOIN vini_bottiglie v ON v.id = mc.vino_id
         ORDER BY mc.riga, mc.colonna;
         """
     ).fetchall()
@@ -2327,7 +2327,7 @@ def matrice_assegna_cella(vino_id: int, riga: int, colonna: int) -> Dict[str, An
         # Cella già occupata — scopri da chi
         existing = cur.execute(
             """SELECT mc.vino_id, v.DESCRIZIONE
-               FROM matrice_celle mc JOIN vini_magazzino v ON v.id = mc.vino_id
+               FROM matrice_celle mc JOIN vini_bottiglie v ON v.id = mc.vino_id
                WHERE mc.riga = ? AND mc.colonna = ?""",
             (riga, colonna),
         ).fetchone()
@@ -2424,7 +2424,7 @@ def matrice_import_from_all_locations() -> dict:
     rows = cur.execute(
         "SELECT id, DESCRIZIONE, FRIGORIFERO, QTA_FRIGO, "
         "LOCAZIONE_1, QTA_LOC1, LOCAZIONE_2, QTA_LOC2, "
-        "LOCAZIONE_3, QTA_LOC3 FROM vini_magazzino ORDER BY id"
+        "LOCAZIONE_3, QTA_LOC3 FROM vini_bottiglie ORDER BY id"
     ).fetchall()
 
     existing_vino_ids = set(r[0] for r in cur.execute(
@@ -2483,7 +2483,7 @@ def matrice_import_from_all_locations() -> dict:
             for loc_col in campi_trovati:
                 qta_col = LOC_COLUMNS[loc_col]
                 cur.execute(
-                    f"UPDATE vini_magazzino SET {loc_col} = NULL, {qta_col} = 0, UPDATED_AT = ? WHERE id = ?",
+                    f"UPDATE vini_bottiglie SET {loc_col} = NULL, {qta_col} = 0, UPDATED_AT = ? WHERE id = ?",
                     (now, vino_id),
                 )
 
@@ -2514,7 +2514,7 @@ def matrice_recalc_preview() -> list:
     results = []
     for vid in vino_ids:
         vino = cur.execute(
-            "SELECT id, DESCRIZIONE, LOCAZIONE_3 FROM vini_magazzino WHERE id = ?", (vid,)
+            "SELECT id, DESCRIZIONE, LOCAZIONE_3 FROM vini_bottiglie WHERE id = ?", (vid,)
         ).fetchone()
         celle_rows = cur.execute(
             "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY riga, colonna",
@@ -2566,7 +2566,7 @@ def _recalc_qta_loc3_from_matrice(conn: sqlite3.Connection, cur: sqlite3.Cursor,
         loc3_text = None
 
     cur.execute(
-        "UPDATE vini_magazzino SET LOCAZIONE_3 = ?, QTA_LOC3 = ?, UPDATED_AT = ? WHERE id = ?",
+        "UPDATE vini_bottiglie SET LOCAZIONE_3 = ?, QTA_LOC3 = ?, UPDATED_AT = ? WHERE id = ?",
         (loc3_text, qta_loc3, _now_iso(), vino_id),
     )
     _recalc_qta_totale(conn, vino_id)
@@ -2604,7 +2604,7 @@ def list_ordini_pending() -> List[Dict[str, Any]]:
               v.RAPPRESENTANTE  AS RAPPRESENTANTE,
               v.QTA_TOTALE      AS QTA_TOTALE
             FROM vini_ordini_pending op
-            JOIN vini_magazzino v ON v.id = op.vino_id
+            JOIN vini_bottiglie v ON v.id = op.vino_id
             ORDER BY op.data_ordine DESC, op.id DESC;
             """
         ).fetchall()
@@ -2655,7 +2655,7 @@ def upsert_ordine_pending(
         # Verifica che il vino esista (evita FK silenziosa su SQLite
         # senza PRAGMA foreign_keys=ON)
         vino_row = cur.execute(
-            "SELECT id FROM vini_magazzino WHERE id = ?;",
+            "SELECT id FROM vini_bottiglie WHERE id = ?;",
             (vino_id,),
         ).fetchone()
         if not vino_row:
@@ -2752,7 +2752,7 @@ def conferma_arrivo_ordine_pending(
 
         # 1. Vino esistente?
         row = cur.execute(
-            "SELECT COALESCE(QTA_TOTALE, 0) AS q FROM vini_magazzino WHERE id = ?;",
+            "SELECT COALESCE(QTA_TOTALE, 0) AS q FROM vini_bottiglie WHERE id = ?;",
             (vino_id,),
         ).fetchone()
         if not row:
@@ -2775,7 +2775,7 @@ def conferma_arrivo_ordine_pending(
         # 3. Aggiorna giacenza + UPDATED_AT
         nuova_qta = int(row["q"]) + qta_ricevuta
         cur.execute(
-            "UPDATE vini_magazzino SET QTA_TOTALE = ?, UPDATED_AT = ? WHERE id = ?;",
+            "UPDATE vini_bottiglie SET QTA_TOTALE = ?, UPDATED_AT = ? WHERE id = ?;",
             (nuova_qta, now, vino_id),
         )
 

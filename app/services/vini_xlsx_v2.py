@@ -419,7 +419,7 @@ def generate_export_xlsx() -> bytes:
     rows = cur.execute(
         f"""
         SELECT {', '.join(c['field'] for c in TEMPLATE_COLUMNS)}
-        FROM vini_magazzino
+        FROM vini_bottiglie
         ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE
         """
     ).fetchall()
@@ -503,7 +503,7 @@ def parse_import_xlsx(file_bytes: bytes) -> ImportResult:
     conn = mag_db.get_magazzino_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    existing_ids = {r[0] for r in cur.execute("SELECT id FROM vini_magazzino").fetchall()}
+    existing_ids = {r[0] for r in cur.execute("SELECT id FROM vini_bottiglie").fetchall()}
     conn.close()
 
     # Itera righe dati (skip header)

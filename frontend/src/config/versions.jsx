@@ -3,7 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.46",
+    version: "3.47",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -122,7 +122,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.14",
+    version: "5.15",
     label: "Sistema",
     status: "stabile",
     color: "green",
