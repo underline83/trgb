@@ -1684,7 +1684,7 @@ def delete_movimento(movimento_id: int) -> None:
         # Non possiamo sapere il valore precedente, quindi facciamo
         # replay conservativo di tutti i movimenti rimasti.
         cur.execute(
-            """UPDATE vini_magazzino
+            """UPDATE vini_bottiglie
                SET QTA_TOTALE = 0, QTA_FRIGO = 0, QTA_LOC1 = 0,
                    QTA_LOC2 = 0, QTA_LOC3 = 0
                WHERE id = ?;""",
@@ -1714,7 +1714,7 @@ def delete_movimento(movimento_id: int) -> None:
                 qta_tot = q
 
         cur.execute(
-            """UPDATE vini_magazzino
+            """UPDATE vini_bottiglie
                SET QTA_TOTALE = ?, QTA_FRIGO = ?, QTA_LOC1 = ?,
                    QTA_LOC2 = ?, QTA_LOC3 = ?
                WHERE id = ?;""",
@@ -1733,7 +1733,7 @@ def delete_movimento(movimento_id: int) -> None:
             delta_loc = qta
 
         cur.execute(
-            """UPDATE vini_magazzino
+            """UPDATE vini_bottiglie
                SET QTA_TOTALE = COALESCE(QTA_TOTALE, 0) + ?
                WHERE id = ?;""",
             (delta_tot, vino_id),
@@ -1743,7 +1743,7 @@ def delete_movimento(movimento_id: int) -> None:
         if loc and loc in LOCAZIONE_TO_COLUMN:
             col = LOCAZIONE_TO_COLUMN[loc]
             cur.execute(
-                f"""UPDATE vini_magazzino
+                f"""UPDATE vini_bottiglie
                     SET {col} = COALESCE({col}, 0) + ?
                     WHERE id = ?;""",
                 (delta_loc, vino_id),
