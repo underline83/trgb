@@ -453,18 +453,28 @@ const SchedaVino = forwardRef(function SchedaVino({
   };
 
   // Sessione 58 (2026-04-25): toggle "bottiglia in mescita".
-  // Aggiorna solo il flag BOTTIGLIA_APERTA via PATCH; il vino resta visibile
+  // Aggiorna il flag BOTTIGLIA_APERTA via PATCH; il vino resta visibile
   // nella carta calici anche con QTA_TOTALE=0 finche' il flag e' 1.
+  // 2026-05-19: il toggle è ora visibile anche per vini NON al calice
+  // (VENDITA_CALICE !== 1): attivarlo setta sia VENDITA_CALICE=1 sia
+  // BOTTIGLIA_APERTA=1 (caso "eccezione: apro questa bottiglia al calice").
   const [bottigliaSaving, setBottigliaSaving] = useState(false);
   const toggleBottigliaAperta = async () => {
     if (!vino) return;
     const next = vino.BOTTIGLIA_APERTA ? 0 : 1;
+    const payload = { BOTTIGLIA_APERTA: next };
+    // Se sto attivando una bottiglia che NON è al calice → attiva anche la
+    // vendita al calice (eccezione operativa: l'oste apre questa bottiglia
+    // per servire calici, anche se di solito non si vende così).
+    if (next === 1 && vino.VENDITA_CALICE !== 1) {
+      payload.VENDITA_CALICE = 1;
+    }
     setBottigliaSaving(true);
     try {
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ BOTTIGLIA_APERTA: next }),
+        body: JSON.stringify(payload),
       });
       if (!r.ok) throw new Error(`Errore ${r.status}`);
       notifyUpdate(await r.json());
@@ -1068,34 +1078,53 @@ const SchedaVino = forwardRef(function SchedaVino({
                 </>}
               </SectionHeader>
               <div className="p-5">
-                {/* Toggle "Bottiglia in mescita" — visibile solo se vendita al calice abilitata.
-                    Quando ON, il vino resta in carta calici anche con QTA_TOTALE=0. */}
-                {vino.VENDITA_CALICE === 1 && (
-                  <div className={`mb-4 p-3 rounded-xl border flex items-center justify-between gap-3 ${
-                    vino.BOTTIGLIA_APERTA
-                      ? "bg-amber-50 border-amber-300"
-                      : "bg-neutral-50 border-neutral-200"
-                  }`}>
-                    <div className="min-w-0">
-                      <div className={`text-sm font-semibold ${vino.BOTTIGLIA_APERTA ? "text-amber-900" : "text-neutral-700"}`}>
-                        🍷 Bottiglia in mescita {vino.BOTTIGLIA_APERTA ? "— ATTIVA" : "— spenta"}
+                {/* Toggle "Bottiglia in mescita" — sempre visibile.
+                    Per vini al calice (VENDITA_CALICE=1): on/off classico.
+                    Per vini NON al calice (eccezione): attivare il toggle
+                    setta anche VENDITA_CALICE=1, così il vino entra in carta
+                    calici per servire quella specifica bottiglia aperta. */}
+                {(() => {
+                  const isCaliceAbilitato = vino.VENDITA_CALICE === 1;
+                  const aperta = !!vino.BOTTIGLIA_APERTA;
+                  return (
+                    <div className={`mb-4 p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                      aperta
+                        ? "bg-amber-50 border-amber-300"
+                        : "bg-neutral-50 border-neutral-200"
+                    }`}>
+                      <div className="min-w-0">
+                        <div className={`text-sm font-semibold ${aperta ? "text-amber-900" : "text-neutral-700"}`}>
+                          🍷 Bottiglia in mescita {aperta ? "— ATTIVA" : "— spenta"}
+                          {!isCaliceAbilitato && !aperta && (
+                            <span className="ml-2 text-[10px] font-normal text-neutral-500 normal-case italic">
+                              (vino non al calice — attivando il toggle l'oste apre eccezionalmente questa bottiglia ai calici)
+                            </span>
+                          )}
+                          {!isCaliceAbilitato && aperta && (
+                            <span className="ml-2 text-[10px] font-normal text-amber-700 normal-case italic">
+                              (eccezione: vino non al calice ma bottiglia attiva)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-neutral-600 mt-0.5">
+                          {aperta
+                            ? "Il vino resta nella carta calici anche con giacenza 0. Spegni quando i calici finiscono."
+                            : isCaliceAbilitato
+                              ? "Quando apri una bottiglia per la mescita, accendi il flag così il vino resta in carta anche se la giacenza va a zero."
+                              : "Attivando il toggle: il vino entra in carta calici (VENDITA_CALICE=1) E la bottiglia viene marcata come aperta. Ricordati di spegnere quando finisci i calici."}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-neutral-600 mt-0.5">
-                        {vino.BOTTIGLIA_APERTA
-                          ? "Il vino resta nella carta calici anche con giacenza 0. Spegni quando i calici finiscono."
-                          : "Quando apri una bottiglia per la mescita, accendi il flag così il vino resta in carta anche se la giacenza va a zero."}
-                      </div>
+                      <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving}
+                        className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+                          aperta ? "bg-amber-500" : "bg-neutral-300"
+                        }`}>
+                        <span className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                          aperta ? "translate-x-6" : ""
+                        }`} />
+                      </button>
                     </div>
-                    <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving}
-                      className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
-                        vino.BOTTIGLIA_APERTA ? "bg-amber-500" : "bg-neutral-300"
-                      }`}>
-                      <span className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
-                        vino.BOTTIGLIA_APERTA ? "translate-x-6" : ""
-                      }`} />
-                    </button>
-                  </div>
-                )}
+                  );
+                })()}
                 {!giacenzeEdit ? (
                   <div className="divide-y divide-neutral-100">
                     {[
