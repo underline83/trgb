@@ -1639,6 +1639,42 @@ def search_vini_autocomplete(
     return rows
 
 
+def update_movimento_data(movimento_id: int, nuova_data_iso: str) -> bool:
+    """
+    Aggiorna la sola colonna `data_mov` di un movimento esistente.
+    Admin-only sul router. NON tocca QTA né locazioni — è puro relabeling
+    temporale (utile per correzioni "ho registrato in ritardo").
+
+    Args:
+        movimento_id: id del movimento.
+        nuova_data_iso: stringa ISO 8601 "YYYY-MM-DDTHH:MM:SS" (o con secondi).
+            Il valore viene scritto raw in `data_mov` (TEXT NOT NULL).
+
+    Returns:
+        True se aggiornato, False se movimento non trovato.
+    """
+    if not nuova_data_iso or not isinstance(nuova_data_iso, str):
+        raise ValueError("nuova_data_iso obbligatoria")
+    # Normalizzo formato: accetta "YYYY-MM-DDTHH:MM" e "YYYY-MM-DDTHH:MM:SS"
+    s = nuova_data_iso.strip()
+    if len(s) == 16:  # senza secondi (datetime-local)
+        s = s + ":00"
+    # Sanity check: deve cominciare con YYYY-MM-DDTHH
+    if not (len(s) >= 19 and s[4] == "-" and s[7] == "-" and s[10] == "T" and s[13] == ":"):
+        raise ValueError(f"Formato data invalido: {nuova_data_iso}. Atteso YYYY-MM-DDTHH:MM[:SS]")
+
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE vini_magazzino_movimenti SET data_mov = ? WHERE id = ?;",
+        (s, movimento_id),
+    )
+    ok = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return ok
+
+
 def delete_movimento(movimento_id: int) -> None:
     """
     Elimina un movimento e ripristina QTA_TOTALE + QTA per locazione

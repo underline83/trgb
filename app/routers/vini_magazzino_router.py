@@ -894,6 +894,39 @@ def delete_movimento(
     return {"status": "ok"}
 
 
+class MovimentoDataUpdate(BaseModel):
+    data_mov: str = Field(..., description="Nuova data/ora ISO 'YYYY-MM-DDTHH:MM[:SS]'")
+
+
+@router.patch("/movimenti/{movimento_id}/data", summary="Modifica data/ora di un movimento (admin-only)")
+def update_movimento_data_endpoint(
+    movimento_id: int,
+    payload: MovimentoDataUpdate,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Aggiorna solo `data_mov` di un movimento esistente. NON tocca QTA né
+    locazioni (puro relabeling temporale per correzioni "registrato in ritardo").
+    Admin-only (decisione Marco 2026-05-19: data è dato storico delicato).
+    """
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if not is_admin(role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Modifica data movimento riservata agli admin.",
+        )
+    try:
+        ok = db.update_movimento_data(movimento_id, payload.data_mov)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
+        raise HTTPException(status_code=404, detail="Movimento non trovato")
+    return {"status": "ok", "movimento_id": movimento_id, "data_mov": payload.data_mov}
+
+
 # ---------------------------------------------------------
 # ENDPOINT: ORDINI PENDING  (Widget Riordini — Fase 3, sessione 2026-04-20)
 # Design: docs/modulo_vini_riordini.md §4

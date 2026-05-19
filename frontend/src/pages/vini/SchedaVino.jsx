@@ -177,6 +177,10 @@ const SchedaVino = forwardRef(function SchedaVino({
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
   const canDelete = isAdminRole(role) || role === "sommelier" || role === "sala";
+  const canEditDataMov = isAdminRole(role);  // modifica data movimento: admin-only (Marco 2026-05-19)
+  // Stato inline edit data movimento: { id, valore } o null
+  const [editingDataMov, setEditingDataMov] = useState(null);
+  const [savingDataMov, setSavingDataMov] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
 
   // ── stato base ───────────────────────────────────────
@@ -782,6 +786,36 @@ const SchedaVino = forwardRef(function SchedaVino({
     } catch (e) { alert(e.message); }
   };
 
+  // Apre l'inline editor della data movimento (admin-only).
+  const startEditDataMov = (mov) => {
+    // data_mov nel formato "YYYY-MM-DDTHH:MM:SS" — taglio i secondi per input datetime-local
+    const initial = (mov.data_mov || "").slice(0, 16);
+    setEditingDataMov({ id: mov.id, valore: initial });
+  };
+  const cancelEditDataMov = () => setEditingDataMov(null);
+  const saveDataMov = async () => {
+    if (!editingDataMov) return;
+    const { id, valore } = editingDataMov;
+    if (!valore || valore.length < 16) {
+      alert("Data non valida"); return;
+    }
+    setSavingDataMov(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/movimenti/${id}/data`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data_mov: valore }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
+      setEditingDataMov(null);
+      fetchMovimenti();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSavingDataMov(false);
+    }
+  };
+
   // ── note ────────────────────────────────────────────
   const addNota = async () => {
     if (!notaText.trim()) return;
@@ -1269,7 +1303,30 @@ const SchedaVino = forwardRef(function SchedaVino({
                           ? prezzo * Number(m.qta) : null;
                         return (
                           <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition">
-                            <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">{m.data_mov?.slice(0,16).replace("T"," ")}</td>
+                            <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">
+                              {editingDataMov?.id === m.id ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <input type="datetime-local"
+                                    value={editingDataMov.valore}
+                                    onChange={e => setEditingDataMov(p => ({ ...p, valore: e.target.value }))}
+                                    className="px-1 py-0.5 border border-amber-400 rounded text-[11px]" />
+                                  <button type="button" onClick={saveDataMov} disabled={savingDataMov}
+                                    className="text-emerald-700 hover:text-emerald-900 text-sm" title="Salva">✓</button>
+                                  <button type="button" onClick={cancelEditDataMov}
+                                    className="text-neutral-500 hover:text-neutral-800 text-sm" title="Annulla">✕</button>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1">
+                                  {m.data_mov?.slice(0,16).replace("T"," ")}
+                                  {canEditDataMov && (
+                                    <button type="button" onClick={() => startEditDataMov(m)}
+                                      className="text-neutral-300 hover:text-amber-700 text-[10px] opacity-0 group-hover:opacity-100 transition"
+                                      style={{opacity: 0.4}}
+                                      title="Modifica data (admin)">✏️</button>
+                                  )}
+                                </span>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-center"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${t.cls}`}>{t.label}</span></td>
                             <td className="px-3 py-2 text-center font-semibold">{m.tipo === "MODIFICA" ? "—" : m.qta}</td>
                             <td className="px-3 py-2 text-right text-xs text-neutral-700 tabular-nums">
