@@ -492,7 +492,9 @@ const SchedaVino = forwardRef(function SchedaVino({
       const resp = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/duplica`, { method: "POST" });
       if (!resp.ok) throw new Error("Errore durante la duplicazione");
       const data = await resp.json();
-      navigate(`/vini/magazzino/${data.id}`);
+      // 2026-05-19: route legacy redireziona a /vini/v2/bottiglia/:id, ma
+      // saltiamo direttamente al target per evitare il rimbalzo.
+      navigate(`/vini/v2/bottiglia/${data.id}`);
     } catch (err) {
       alert(err.message || "Errore durante la duplicazione");
     } finally {
