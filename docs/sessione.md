@@ -27,11 +27,14 @@ Marco: "nel figlio potrebbe non esserci annata". Discusso il modello: un vino se
 ### Anche — modifica del vino madre dalla Cantina (stesso push)
 Marco: "ho bisogno di modificare la madre anche dalla cantina, ora si può solo dalla creazione del vino". La scheda madre in Cantina (`SchedaMadreV2`, vista raggruppata) era read-only. Aggiunto bottone **✎ Modifica** gated `is_vini_manager`. Per riuso senza import circolare, `MadreEditModal` + helper `Field` **estratti** da `AnagraficheVini.jsx` nel nuovo file `frontend/src/components/vini/MadreEditModal.jsx` (importato da Anagrafiche e da SchedaMadreV2). Il modale ora fa self-fetch del madre completo via `GET /madre/{id}` (necessario perché da `groupByMadre` il madre arriva senza FK). Al salvataggio `CantinaV2` rifà `fetchData()`.
 
+### Anche — controllo annata duplicata nel wizard (stesso push)
+Marco: "se scelgo un madre e creo un figlio con la stessa annata di uno esistente deve dirmelo (idem se lascio vuoto)". `submitWizard` ora, se il madre è esistente, fa `GET /madre/{id}/bottiglie` e se trova un'annata già presente (vuota inclusa) mostra un `confirm` con i dati della bottiglia esistente. Stesso anno + formato diverso è legittimo → avviso, non blocco. Check non bloccante su errore di rete.
+
 ### Verifica
 `PY_OK` sui file backend; **vite build completo OK** (dist generato, nessun errore, import circolare risolto con l'estrazione). Versione vini 3.59 → 3.60.
 
 ### Commit suggerito
-`./push.sh "[core] vini 3.60 — permessi catalogo al sommelier (is_vini_manager) + denominazione/annata opzionali nel wizard + modifica madre dalla Cantina (MadreEditModal estratto)"`
+`./push.sh "[core] vini 3.60 — permessi catalogo al sommelier (is_vini_manager) + denominazione/annata opzionali + modifica madre dalla Cantina + controllo annata duplicata nel wizard"`
 
 ---
 

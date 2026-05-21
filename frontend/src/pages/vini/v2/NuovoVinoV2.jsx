@@ -72,6 +72,36 @@ export default function NuovoVinoV2() {
     setSaving(true);
     setSubmitError("");
     try {
+      // 0) Controllo annata duplicata. Se il madre è ESISTENTE, verifico che non
+      //    abbia già un figlio (bottiglia) con la stessa annata — annata vuota
+      //    inclusa ("senza annata"). Stessa annata ma FORMATO diverso è
+      //    legittimo (es. 0.75 vs Magnum) → avviso con conferma, non blocco.
+      //    Check non bloccante in caso di errore di rete.
+      if (madre && !madre._new && madre.id) {
+        const annataNuova = String(annata.ANNATA || "").trim();
+        try {
+          const rc = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}/bottiglie`);
+          if (rc.ok) {
+            const esistenti = await rc.json();
+            const dup = (Array.isArray(esistenti) ? esistenti : []).find(
+              b => String(b.ANNATA || "").trim() === annataNuova
+            );
+            if (dup) {
+              const lbl = annataNuova || "senza annata";
+              const proceed = window.confirm(
+                `⚠️ Esiste già una bottiglia "${lbl}" per questo vino madre:\n\n` +
+                `#${dup.id} — ${dup.ANNATA || "senza annata"} · ${dup.FORMATO || "BT"} ` +
+                `(giacenza ${dup.QTA_TOTALE || 0} bt)\n\n` +
+                `Vuoi crearne un'altra comunque? Es. stesso anno ma formato diverso.`
+              );
+              if (!proceed) { setSaving(false); return; }
+            }
+          }
+        } catch {
+          /* verifica non bloccante: se fallisce procedo comunque */
+        }
+      }
+
       // 1) Produttore: se _new, POST; altrimenti uso l'id esistente
       let produttoreId = produttore?.id;
       if (produttore?._new) {
