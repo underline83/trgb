@@ -8,17 +8,18 @@
 Marco aveva bisogno di un PDF da consegnare al commercialista per il controllo dei corrispettivi. Deciso insieme: periodo mensile, solo prospetto fiscale (niente metodi di pagamento), funzione nel modulo Vendite.
 
 ### Implementazione
-- **`app/services/corrispettivi_export.py`** — nuova `build_corrispettivi_pdf(year, month)`: legge la fonte unita (`_merge_shift_and_daily`), costruisce tabella giornaliera (Data, Giorno, Corrispettivi RT, di cui IVA 10%, di cui IVA 22%, Fatture, Totale) + riga totali mese + summary box, genera PDF col mattone M.B (`pdf_brand.wrappa_html_brand`). Helper `_fmt_euro_it` per i numeri in formato italiano.
+- **`app/services/corrispettivi_export.py`** — nuova `build_corrispettivi_pdf(year, month)`: legge la fonte unita (`_merge_shift_and_daily`), costruisce tabella giornaliera (Data, Giorno, Corrispettivo lordo, Imponibile, IVA, Fatture, Totale) con scorporo IVA (`_scorpora_imponibile`, half-up) + riga totali mese + summary box + **riepilogo IVA per aliquota**. Genera PDF col mattone M.B. Helper `_fmt_euro_it` per i numeri in formato italiano.
 - **`app/routers/admin_finance.py`** — endpoint `GET /admin/finance/export-corrispettivi-pdf?year=&month=` (404 se il mese è vuoto, 500 su errore di rendering).
 - **`frontend/src/pages/admin/CorrispettiviDashboard.jsx`** — bottone "📄 PDF commercialista" nella barra navigazione, solo in modalità mensile; usa `openAuthedInNewTab` (download JWT-protetto).
 
 ### Note tecniche
 - Sorgente = fonte unita shift+daily (`_merge_shift_and_daily`, stesso pattern di dashboard ed export Excel). I giorni dalle chiusure turno non hanno lo split IVA → trattati come 100% IVA 10% (somministrazione pura, decisione Marco).
+- Il PDF dà la sostanza fiscale (lordo + scorporo imponibile/imposta per aliquota), NON riproduce il tracciato XML 7.0 dei corrispettivi telematici (è un formato di trasmissione del RT).
 - Classificazione `[core]`: ogni ristorante ha un commercialista; il branding PDF arriva già dalle stringhe locale.
-- Verificato in sandbox: PDF di Gennaio/Marzo/Aprile 2026 generati correttamente. Aprile passa da € 0 (bug: leggeva solo `daily_closures`) a € 49.057 reali via merge.
+- Verificato in sandbox: PDF di Gennaio/Marzo/Aprile 2026 generati correttamente. Aprile passa da € 0 (bug: leggeva solo `daily_closures`) a € 49.057 lordo / € 44.597,28 imponibile / € 4.459,72 IVA via merge.
 
 ### Refactor pianificato (sessione dedicata, deciso 2026-05-21)
-Marco ha segnalato che `daily_closures` (import Excel) e `shift_closures` (chiusure turno) sono **due sistemi che si incrociano male**. Direzione concordata: l'import Excel deve scrivere in `shift_closures`, `daily_closures` viene **migrata interamente** (tutti i 6 anni, ~1.400 giornate con dati) e poi dismessa. Da fare in sessione "refactor" separata — non mescolata al commit del PDF. Tracciato in `roadmap.md` §K.
+Marco ha segnalato che `daily_closures` (import Excel) e `shift_closures` (chiusure turno) sono **due sistemi che si incrociano male**. Direzione concordata: l'import Excel deve scrivere in `shift_closures`, `daily_closures` viene **migrata interamente** (tutti i 6 anni, ~1.400 giornate con dati) e poi dismessa — `roadmap.md` §K.12. In aggiunta (§K.13): import dei file XML dei corrispettivi telematici dal portale AdE come fonte dati in più. Da fare in sessione "refactor" separata, non mescolata al commit del PDF.
 
 ### Commit suggerito
 `./push.sh "[core] Export PDF corrispettivi per il commercialista (modulo Vendite)"`

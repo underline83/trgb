@@ -196,6 +196,7 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 | K.10 | Alert variazione drastica chiusura vs media (fraud detection) | M | BASSA | Richiede storico |
 | K.11 | Importazione automatica RT (registratore cassa) | L | BASSA | "Se fattibile" — Marco |
 | K.12 | **Unificare import Excel → `shift_closures` (dismettere `daily_closures`)** | L | 🔴 ALTA — deciso Marco 2026-05-21 | Doppia tabella che si incrocia male. Vedi dettaglio §K.12 |
+| K.13 | **Import XML corrispettivi telematici dal portale AdE come fonte aggiuntiva** | M | MEDIA — deciso Marco 2026-05-21 | Parser dei file XML 7.0 scaricati da "Fatture e Corrispettivi". Vedi dettaglio §K.13 |
 
 ### K.12 — Unificazione corrispettivi: una tabella sola 🔴 ALTA (deciso 2026-05-21)
 
@@ -215,6 +216,18 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 5. **Dismissione** — `daily_closures` resta read-only durante la transizione, si elimina solo dopo verifica conteggi.
 
 **Sessione "refactor" dedicata** — non mescolare a feature/bugfix (regola "una sessione = una direzione").
+
+### K.13 — Import XML corrispettivi telematici AdE (fonte aggiuntiva) — MEDIA (deciso 2026-05-21)
+
+**Idea:** il registratore telematico (RT) genera e trasmette già, a ogni chiusura, il file XML dei corrispettivi telematici (tracciato ufficiale "Tipi Dati per i corrispettivi" v7.0). Quei file sono scaricabili dal portale "Fatture e Corrispettivi" dell'Agenzia delle Entrate (sezione *Consultazione e download massivo*, accesso con delega del commercialista).
+
+**Cosa fare:** un parser che importa quei file XML in TRGB come **fonte dati aggiuntiva** dei corrispettivi — più affidabile di Excel e chiusure turno perché è il dato fiscale ufficiale, con imponibile e imposta già ripartiti per aliquota.
+
+**Note:**
+- È una fonte *in più*, non sostituisce le chiusure turno operative (quelle servono per la quadratura di cassa serale).
+- Non esiste un'API pubblica semplice per scaricare i corrispettivi: il flusso passa dal portale AdE (download massivo). L'import in TRGB sarebbe da file XML caricato a mano, almeno in prima battuta.
+- Si lega a §K.12: una volta unificata la tabella corrispettivi, l'XML AdE diventa una delle sorgenti di alimentazione.
+- NON va riprodotto il tracciato XML in uscita (è un formato di trasmissione macchina-a-macchina) — qui si parla solo di **leggerlo in ingresso**.
 
 ---
 

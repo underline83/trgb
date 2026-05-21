@@ -5,6 +5,7 @@
 
 import io
 import sqlite3
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, List, Dict
 
 from openpyxl import Workbook
@@ -328,6 +329,19 @@ def _fmt_euro_it(value) -> str:
     return s.replace(",", "§").replace(".", ",").replace("§", ".")
 
 
+def _scorpora_imponibile(lordo: float, aliquota_pct: int) -> float:
+    """Imponibile netto scorporato da un importo lordo (IVA inclusa).
+
+    Es. lordo 110,00 al 10% → imponibile 100,00. Arrotondamento commerciale
+    (half-up) a 2 decimali, come richiesto per i documenti fiscali.
+    """
+    if not lordo or lordo <= 0:
+        return 0.0
+    div = Decimal(100 + aliquota_pct) / Decimal(100)
+    imp = (Decimal(str(lordo)) / div).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return float(imp)
+
+
 def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     """
     Genera il PDF del prospetto fiscale dei corrispettivi di un mese, pensato
@@ -341,8 +355,13 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     fa somministrazione pura, quindi i giorni senza split vengono trattati come
     interamente IVA 10% (decisione Marco 2026-05-21).
 
-    Per ogni giorno riporta: corrispettivi RT, ripartizione IVA 10% / 22%,
-    fatture emesse, totale giornaliero. Chiude con i totali del mese.
+    Per ogni giorno riporta il corrispettivo al lordo (IVA inclusa) e il suo
+    scorporo in imponibile + imposta; le fatture emesse a parte; il totale.
+    Chiude con i totali del mese e un riepilogo IVA per aliquota.
+
+    NB: non riproduce il tracciato XML 7.0 dei corrispettivi telematici (formato
+    di trasmissione macchina-a-macchina generato dal RT); ne riporta solo la
+    sostanza utile al commercialista in forma leggibile.
 
     Args:
         year: anno (es. 2026)
@@ -374,8 +393,11 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
             f"Nessun corrispettivo registrato per {_MESI_IT[month]} {year}."
         )
 
-    tot_corr = tot_i10 = tot_i22 = tot_fatt = tot_ctot = 0.0
-    giorni_aperti = 0
+    # Totali per aliquota (per il riepilogo IVA) + totali generali.
+    lordo10 = imp10_tot = iva10_tot = 0.0
+    lordo22 = imp22_tot = iva22_tot = 0.0
+    tot_fatt = tot_gen = 0.0
+    giorni_con_incasso = 0
     body_rows = []
 
     for r in rows:
@@ -390,7 +412,6 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         i10 = float(r.get("iva_10") or 0)
         i22 = float(r.get("iva_22") or 0)
         fatt = float(r.get("fatture") or 0)
-        ctot = float(r.get("corrispettivi_tot") or 0) or (corr + fatt)
 
         if r.get("is_closed"):
             body_rows.append(
@@ -405,43 +426,61 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         if corr > 0 and i10 == 0 and i22 == 0:
             i10 = corr
 
-        tot_corr += corr
-        tot_i10 += i10
-        tot_i22 += i22
+        # Scorporo: dal lordo (IVA inclusa) → imponibile netto + imposta.
+        imp10 = _scorpora_imponibile(i10, 10)
+        iva10 = round(i10 - imp10, 2)
+        imp22 = _scorpora_imponibile(i22, 22)
+        iva22 = round(i22 - imp22, 2)
+
+        day_lordo = i10 + i22
+        day_imponibile = round(imp10 + imp22, 2)
+        day_imposta = round(iva10 + iva22, 2)
+        day_totale = day_lordo + fatt
+
+        lordo10 += i10
+        imp10_tot += imp10
+        iva10_tot += iva10
+        lordo22 += i22
+        imp22_tot += imp22
+        iva22_tot += iva22
         tot_fatt += fatt
-        tot_ctot += ctot
-        if corr > 0:
-            giorni_aperti += 1
+        tot_gen += day_totale
+        if day_lordo > 0:
+            giorni_con_incasso += 1
 
         body_rows.append(
             f"<tr><td>{data_label}</td><td>{giorno_label}</td>"
-            f"<td class='num'>{_fmt_euro_it(corr)}</td>"
-            f"<td class='num'>{_fmt_euro_it(i10)}</td>"
-            f"<td class='num'>{_fmt_euro_it(i22)}</td>"
+            f"<td class='num'>{_fmt_euro_it(day_lordo)}</td>"
+            f"<td class='num'>{_fmt_euro_it(day_imponibile)}</td>"
+            f"<td class='num'>{_fmt_euro_it(day_imposta)}</td>"
             f"<td class='num'>{_fmt_euro_it(fatt)}</td>"
-            f"<td class='num'>{_fmt_euro_it(ctot)}</td></tr>"
+            f"<td class='num'>{_fmt_euro_it(day_totale)}</td></tr>"
         )
+
+    tot_lordo = lordo10 + lordo22
+    tot_imponibile = imp10_tot + imp22_tot
+    tot_imposta = iva10_tot + iva22_tot
 
     # Riga totali in tbody (non in tfoot: tfoot verrebbe ripetuto su ogni pagina).
     body_rows.append(
         f"<tr class='tot-row'><td colspan='2'>TOTALE {_MESI_IT[month].upper()} {year}</td>"
-        f"<td class='num'>{_fmt_euro_it(tot_corr)}</td>"
-        f"<td class='num'>{_fmt_euro_it(tot_i10)}</td>"
-        f"<td class='num'>{_fmt_euro_it(tot_i22)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_lordo)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_imponibile)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_imposta)}</td>"
         f"<td class='num'>{_fmt_euro_it(tot_fatt)}</td>"
-        f"<td class='num'>{_fmt_euro_it(tot_ctot)}</td></tr>"
+        f"<td class='num'>{_fmt_euro_it(tot_gen)}</td></tr>"
     )
 
     summary = (
         "<div class='summary-row'>"
-        f"<div class='summary-box'><div class='label'>Corrispettivi RT</div>"
-        f"<div class='value'>&euro; {_fmt_euro_it(tot_corr)}</div></div>"
+        f"<div class='summary-box'><div class='label'>Corrispettivi lordo</div>"
+        f"<div class='value'>&euro; {_fmt_euro_it(tot_lordo)}</div></div>"
+        f"<div class='summary-box'><div class='label'>Imponibile</div>"
+        f"<div class='value'>&euro; {_fmt_euro_it(tot_imponibile)}</div></div>"
+        f"<div class='summary-box'><div class='label'>IVA (imposta)</div>"
+        f"<div class='value'>&euro; {_fmt_euro_it(tot_imposta)}</div></div>"
         f"<div class='summary-box'><div class='label'>Fatture emesse</div>"
         f"<div class='value'>&euro; {_fmt_euro_it(tot_fatt)}</div></div>"
-        f"<div class='summary-box'><div class='label'>Totale del mese</div>"
-        f"<div class='value'>&euro; {_fmt_euro_it(tot_ctot)}</div></div>"
-        f"<div class='summary-box'><div class='label'>Giorni di apertura</div>"
-        f"<div class='value'>{giorni_aperti}</div></div>"
         "</div>"
     )
 
@@ -449,25 +488,58 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         "<table class='brand'>"
         "<thead><tr>"
         "<th>Data</th><th>Giorno</th>"
-        "<th class='num'>Corrispettivi RT</th>"
-        "<th class='num'>di cui IVA 10%</th>"
-        "<th class='num'>di cui IVA 22%</th>"
+        "<th class='num'>Corrispettivo lordo</th>"
+        "<th class='num'>Imponibile</th>"
+        "<th class='num'>IVA</th>"
         "<th class='num'>Fatture</th>"
         "<th class='num'>Totale</th>"
         "</tr></thead>"
         f"<tbody>{''.join(body_rows)}</tbody>"
         "</table>"
-        "<p class='small'>Prospetto generato dai corrispettivi registrati in TRGB Gestionale. "
-        "&laquo;Corrispettivi RT&raquo; &egrave; la chiusura giornaliera del registratore "
-        "telematico; &laquo;di cui IVA 10% / 22%&raquo; ne indicano la ripartizione per "
-        "aliquota; &laquo;Fatture&raquo; sono le fatture emesse nel giorno; &laquo;Totale&raquo; "
-        "= Corrispettivi RT + Fatture. I giorni di chiusura non concorrono ai totali.</p>"
+    )
+
+    # Riepilogo IVA per aliquota — la base su cui il commercialista liquida l'IVA.
+    riep_rows = []
+    if lordo10 > 0 or (lordo22 == 0):
+        riep_rows.append(
+            f"<tr><td>10%</td><td class='num'>{_fmt_euro_it(lordo10)}</td>"
+            f"<td class='num'>{_fmt_euro_it(imp10_tot)}</td>"
+            f"<td class='num'>{_fmt_euro_it(iva10_tot)}</td></tr>"
+        )
+    if lordo22 > 0:
+        riep_rows.append(
+            f"<tr><td>22%</td><td class='num'>{_fmt_euro_it(lordo22)}</td>"
+            f"<td class='num'>{_fmt_euro_it(imp22_tot)}</td>"
+            f"<td class='num'>{_fmt_euro_it(iva22_tot)}</td></tr>"
+        )
+    riep_rows.append(
+        f"<tr class='tot-row'><td>Totale</td><td class='num'>{_fmt_euro_it(tot_lordo)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_imponibile)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_imposta)}</td></tr>"
+    )
+
+    riepilogo = (
+        "<h3>Riepilogo IVA</h3>"
+        "<table class='brand'>"
+        "<thead><tr><th>Aliquota</th>"
+        "<th class='num'>Corrispettivi lordo</th>"
+        "<th class='num'>Imponibile</th>"
+        "<th class='num'>Imposta</th></tr></thead>"
+        f"<tbody>{''.join(riep_rows)}</tbody>"
+        "</table>"
+        "<p class='small'>I corrispettivi sono riportati al lordo (IVA inclusa). "
+        "&laquo;Imponibile&raquo; e &laquo;IVA&raquo; ne sono lo scorporo per aliquota; "
+        "le &laquo;Fatture&raquo; emesse sono indicate a parte, al lordo; &laquo;Totale&raquo; "
+        "= corrispettivo lordo + fatture. I giorni di chiusura non concorrono ai totali. "
+        f"Giorni con incasso nel mese: {giorni_con_incasso}. Aliquota applicata: 10% "
+        "(somministrazione di alimenti e bevande); i giorni provenienti dalle chiusure "
+        "turno, prive dello split IVA, sono trattati come interamente al 10%.</p>"
     )
 
     return wrappa_html_brand(
         titolo="Corrispettivi — Controllo Commercialista",
         sottotitolo=f"{_MESI_IT[month]} {year}",
-        body_html=summary + tabella,
+        body_html=summary + tabella + riepilogo,
         orientamento="portrait",
     )
 
