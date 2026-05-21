@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-05-21 — Vini 3.60: permessi catalogo aperti al sommelier `[core]`
+
+Marco, loggato come **sommelier**, non riusciva a modificare un vino madre (403 "riservata agli admin"). Il modulo Vini gatava tutta la scrittura del catalogo ai soli admin, mentre la doc `modulo_vini.md §11` prevedeva già il sommelier: drift doc/codice. Ora codice e doc sono allineati.
+
+### Aggiunto
+- Helper `is_vini_manager(role)` in `app/services/auth_service.py` → `admin | superadmin | sommelier`. È il ruolo che **gestisce il catalogo vini**; `sala` e `viewer` restano in sola lettura.
+
+### Modificato
+- `vini_anagrafiche_router.py`: nuovo helper `_require_vini_manager`. I 17 endpoint di gestione catalogo (create/modifica/elimina di produttori, fornitori, denominazioni, vitigni, madre, bottiglia + `promote-composto`) passano da `_require_admin` a `_require_vini_manager`. Restano admin-only le 8 operazioni distruttive di massa: merge anagrafiche ×3, `migrate-from-legacy`, `denominazioni/sync`, `sync-all`, `rollback`.
+- `vini_magazzino_router.py`: `update_vino_magazzino` (`PATCH /{id}` — scheda bottiglia + giacenze + toggle mescita) ora richiede `is_vini_manager` (prima **nessun** check: anche `viewer` poteva scrivere). `create_vino_magazzino` e `duplica` idem. `delete-vino` passa da admin-only a `is_vini_manager`. Bulk-update/bulk-duplicate restano admin-only.
+- Frontend: `SchedaVino.jsx` calcola `roReadOnly` dal ruolo e nasconde i bottoni Modifica anagrafica / Modifica giacenze / toggle mescita / Duplica / Elimina ai ruoli non-manager. `MagazzinoSubMenu.jsx` e `DashboardVini.jsx` nascondono la voce "Nuovo vino" a `sala`/`viewer`.
+
+### Note
+- I **movimenti** (registra/elimina carico-scarico-vendita) restano accessibili anche a `sala`: sono azioni operative di servizio, non gestione catalogo. Lasciati intenzionalmente invariati.
+
+### File modificati
+`app/services/auth_service.py`, `app/routers/vini_anagrafiche_router.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/components/vini/MagazzinoSubMenu.jsx`, `frontend/src/pages/vini/DashboardVini.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
+
+---
+
 ## 2026-05-21 — Fix Dashboard Vendite: giorni migliori/peggiori + click calendario `[core]`
 
 Due bug segnalati da Marco sulla Dashboard Vendite.

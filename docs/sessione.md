@@ -1,6 +1,28 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-21 — **Export PDF corrispettivi per il commercialista** (modulo Cassa/Vendite, `[core]`). Nuovo `build_corrispettivi_pdf()` in `corrispettivi_export.py` + endpoint `GET /admin/finance/export-corrispettivi-pdf` + bottone "📄 PDF commercialista" nella Dashboard Vendite (modalità mensile). Prospetto fiscale giornaliero da `daily_closures` (corrispettivi RT, ripartizione IVA 10%/22%, fatture, totale) generato col mattone M.B. Da pushare.
+**Ultimo aggiornamento:** 2026-05-21 — **Vini 3.60: permessi catalogo aperti al sommelier** (`[core]`). Marco da utente sommelier non riusciva a modificare un vino madre (403 admin-only). Nuovo helper `is_vini_manager(role)` (admin/superadmin/sommelier); 17 endpoint anagrafiche + create/patch/duplica/delete bottiglia passano da admin-only a vini_manager; `sala`/`viewer` in sola lettura. Merge/migrate/sync restano admin-only. Frontend SchedaVino/SubMenu/Dashboard nascondono i bottoni di modifica ai non-manager. Da pushare.
+
+## SESSIONE 2026-05-21 — Vini 3.60: permessi catalogo aperti al sommelier
+
+### Sintesi
+Marco, testando il modulo Vini come **sommelier**, ha segnalato che non gli era permesso modificare un vino madre. Diagnosi: l'endpoint `PATCH /vini/anagrafiche/madre/{id}` (e tutta la scrittura del catalogo) era gatato a `_require_admin` (solo admin/superadmin). Emersa anche un'incoerenza: `PATCH /vini/magazzino/{id}` (scheda bottiglia) **non aveva alcun check** → anche `viewer` poteva scrivere. La doc `modulo_vini.md §11` prevedeva già il sommelier per il CRUD: era un drift doc/codice.
+
+Decisione di Marco: **opzione 3** — l'intero catalogo vini è gestito da sommelier + admin; `sala` solo lettura, niente modifica.
+
+### Implementazione
+- **`auth_service.py`** — nuovo helper `is_vini_manager(role)` → `admin | superadmin | sommelier`.
+- **`vini_anagrafiche_router.py`** — nuovo `_require_vini_manager`. 17 endpoint catalogo (CRUD produttori/fornitori/denominazioni/vitigni/madre/bottiglia + promote-composto) → `_require_vini_manager`. Restano `_require_admin` le 8 operazioni distruttive di massa: merge ×3, migrate-from-legacy, denominazioni/sync, sync-all, rollback.
+- **`vini_magazzino_router.py`** — `update_vino_magazzino`, `create_vino_magazzino`, `duplica` → check `is_vini_manager`. `delete-vino` da admin-only a `is_vini_manager`. Bulk-update/bulk-duplicate restano admin-only.
+- **Frontend** — `SchedaVino.jsx`: `roReadOnly` derivato dal ruolo, nasconde Modifica anagrafica/giacenze, toggle mescita, Duplica, Elimina ai non-manager. `MagazzinoSubMenu.jsx` + `DashboardVini.jsx`: voce "Nuovo vino" nascosta a `sala`/`viewer`.
+
+### Note
+- I **movimenti** (registra/elimina carico-scarico-vendita) restano accessibili a `sala`: azioni operative di servizio, non gestione catalogo. Invariati di proposito.
+- Verifica: `PY_OK` sui 3 file backend, esbuild OK sui 4 file frontend. Versione vini 3.59 → 3.60.
+
+### Commit suggerito
+`./push.sh "[core] vini 3.60 — permessi catalogo aperti al sommelier (is_vini_manager): anagrafiche + scheda bottiglia gestite da admin/sommelier, sala in sola lettura; merge/migrate/sync restano admin-only"`
+
+---
 
 ## SESSIONE 2026-05-21 — Export PDF corrispettivi per il commercialista
 

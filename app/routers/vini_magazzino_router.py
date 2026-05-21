@@ -24,7 +24,7 @@ from typing import Optional, List, Any, Dict, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
-from app.services.auth_service import get_current_user, is_admin
+from app.services.auth_service import get_current_user, is_admin, is_vini_manager
 from app.services.wine_pricing import calcola_prezzo_carta, _round_to_half
 from app.models import vini_magazzino_db as db
 
@@ -360,6 +360,17 @@ def create_vino_magazzino(
     payload: VinoMagazzinoCreate,
     current_user: Any = Depends(get_current_user),
 ):
+    # Creazione vino = gestione catalogo: admin + sommelier. Sala/viewer: sola lettura.
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if not is_vini_manager(role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata ad admin e sommelier.",
+        )
+
     data: Dict[str, Any] = payload.dict(exclude_unset=True)
 
     # Regola semplice: almeno una locazione NON vuota
@@ -453,6 +464,17 @@ def duplicate_vino_endpoint(
     Senza body (o body vuoto) → comportamento storico: copia esatta
     anagrafica, giacenze a zero.
     """
+    # Duplica vino = gestione catalogo: admin + sommelier. Sala/viewer: sola lettura.
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if not is_vini_manager(role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata ad admin e sommelier.",
+        )
+
     annata = None
     overrides = None
     if isinstance(request_body, dict):
@@ -510,7 +532,7 @@ def bulk_duplicate_vini(
     }
 
 
-@router.delete("/delete-vino/{vino_id}", summary="Elimina un vino e tutti i dati collegati (solo admin)")
+@router.delete("/delete-vino/{vino_id}", summary="Elimina un vino e tutti i dati collegati (admin/sommelier)")
 def delete_vino_endpoint(
     vino_id: int,
     current_user: Any = Depends(get_current_user),
@@ -519,10 +541,10 @@ def delete_vino_endpoint(
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if not is_admin(role):
+    if not is_vini_manager(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata agli admin.",
+            detail="Operazione riservata ad admin e sommelier.",
         )
 
     deleted = db.delete_vino(vino_id)
@@ -732,6 +754,18 @@ def update_vino_magazzino(
     payload: VinoMagazzinoUpdate,
     current_user: Any = Depends(get_current_user),
 ):
+    # Modifica scheda bottiglia = gestione catalogo: admin + sommelier.
+    # Sala e viewer hanno sola lettura sul modulo Vini.
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if not is_vini_manager(role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata ad admin e sommelier.",
+        )
+
     row = db.get_vino_by_id(vino_id)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")

@@ -170,6 +170,16 @@ def is_cucina_brigade(role: str) -> bool:
     """True per chef, sous_chef, commis — i 3 ruoli della brigata cucina."""
     return role in ("chef", "sous_chef", "commis")
 
+
+def is_vini_manager(role: str) -> bool:
+    """True per admin, superadmin, sommelier — i ruoli abilitati a GESTIRE il
+    catalogo vini (anagrafiche produttori/fornitori/denominazioni/vitigni/madre
+    + scheda bottiglia). Gli altri ruoli (sala, viewer, cucina...) hanno sola
+    lettura sul modulo Vini. Le operazioni distruttive di massa (merge, migrate,
+    sync) restano comunque riservate ai soli admin via is_admin()."""
+    return role in ("admin", "superadmin", "sommelier")
+
+
 def list_users() -> list:
     return [
         {

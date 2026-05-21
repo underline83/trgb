@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.services.auth_service import get_current_user, is_admin
+from app.services.auth_service import get_current_user, is_admin, is_vini_manager
 from app.models import vini_anagrafiche_db as ana
 from app.services import vini_anagrafiche_sync as ana_sync
 
@@ -33,15 +33,31 @@ router = APIRouter(
 # ============================================================
 # AUTH HELPERS
 # ============================================================
-def _require_admin(current_user: Any):
-    role = (
+def _role_of(current_user: Any):
+    return (
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if not is_admin(role):
+
+
+def _require_admin(current_user: Any):
+    """Solo admin/superadmin. Per le operazioni distruttive di massa
+    (merge, migrate, sync, rollback)."""
+    if not is_admin(_role_of(current_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operazione riservata agli admin."
+        )
+
+
+def _require_vini_manager(current_user: Any):
+    """admin/superadmin/sommelier. Per la gestione del catalogo vini
+    (create/modifica/elimina di produttori, fornitori, denominazioni,
+    vitigni, madre, bottiglie). Sala e viewer hanno sola lettura."""
+    if not is_vini_manager(_role_of(current_user)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata ad admin e sommelier."
         )
 
 
@@ -295,9 +311,9 @@ def merge_produttori_endpoint(
     return report
 
 
-@router.post("/produttori/", summary="Crea produttore (admin)")
+@router.post("/produttori/", summary="Crea produttore (admin/sommelier)")
 def create_produttore(payload: ProduttoreBase, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         new_id = ana.create_produttore(payload.dict(exclude_unset=True))
     except ValueError as e:
@@ -305,9 +321,9 @@ def create_produttore(payload: ProduttoreBase, current_user: Any = Depends(get_c
     return ana.get_produttore(new_id)
 
 
-@router.patch("/produttori/{pid}", summary="Modifica produttore (admin)")
+@router.patch("/produttori/{pid}", summary="Modifica produttore (admin/sommelier)")
 def update_produttore(pid: int, payload: ProduttoreUpdate, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     if not ana.get_produttore(pid):
         raise HTTPException(404, "Produttore non trovato")
     ana.update_produttore(pid, payload.dict(exclude_unset=True))
@@ -318,9 +334,9 @@ def update_produttore(pid: int, payload: ProduttoreUpdate, current_user: Any = D
     return row
 
 
-@router.delete("/produttori/{pid}", summary="Elimina produttore (admin)")
+@router.delete("/produttori/{pid}", summary="Elimina produttore (admin/sommelier)")
 def delete_produttore(pid: int, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         ok = ana.delete_produttore(pid)
     except ValueError as e:
@@ -379,9 +395,9 @@ def merge_fornitori_endpoint(
     return report
 
 
-@router.post("/fornitori/", summary="Crea fornitore (admin)")
+@router.post("/fornitori/", summary="Crea fornitore (admin/sommelier)")
 def create_fornitore(payload: FornitoreBase, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         new_id = ana.create_fornitore(payload.dict(exclude_unset=True))
     except ValueError as e:
@@ -389,9 +405,9 @@ def create_fornitore(payload: FornitoreBase, current_user: Any = Depends(get_cur
     return ana.get_fornitore(new_id)
 
 
-@router.patch("/fornitori/{fid}", summary="Modifica fornitore (admin)")
+@router.patch("/fornitori/{fid}", summary="Modifica fornitore (admin/sommelier)")
 def update_fornitore(fid: int, payload: FornitoreUpdate, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     if not ana.get_fornitore(fid):
         raise HTTPException(404, "Fornitore non trovato")
     ana.update_fornitore(fid, payload.dict(exclude_unset=True))
@@ -402,9 +418,9 @@ def update_fornitore(fid: int, payload: FornitoreUpdate, current_user: Any = Dep
     return row
 
 
-@router.delete("/fornitori/{fid}", summary="Elimina fornitore (admin)")
+@router.delete("/fornitori/{fid}", summary="Elimina fornitore (admin/sommelier)")
 def delete_fornitore(fid: int, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         ok = ana.delete_fornitore(fid)
     except ValueError as e:
@@ -445,9 +461,9 @@ def get_denominazione(
     return row
 
 
-@router.post("/denominazioni/", summary="Crea denominazione (admin)")
+@router.post("/denominazioni/", summary="Crea denominazione (admin/sommelier)")
 def create_denominazione(payload: DenominazioneBase, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         new_id = ana.create_denominazione(payload.dict(exclude_unset=True))
     except ValueError as e:
@@ -455,9 +471,9 @@ def create_denominazione(payload: DenominazioneBase, current_user: Any = Depends
     return ana.get_denominazione(new_id)
 
 
-@router.patch("/denominazioni/{did}", summary="Modifica denominazione (admin)")
+@router.patch("/denominazioni/{did}", summary="Modifica denominazione (admin/sommelier)")
 def update_denominazione(did: int, payload: DenominazioneUpdate, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     if not ana.get_denominazione(did):
         raise HTTPException(404, "Denominazione non trovata")
     ana.update_denominazione(did, payload.dict(exclude_unset=True))
@@ -546,9 +562,9 @@ def sync_denominazioni(
         raise HTTPException(500, f"Sync fallita: {e}")
 
 
-@router.delete("/denominazioni/{did}", summary="Elimina denominazione (admin)")
+@router.delete("/denominazioni/{did}", summary="Elimina denominazione (admin/sommelier)")
 def delete_denominazione(did: int, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         ok = ana.delete_denominazione(did)
     except ValueError as e:
@@ -611,9 +627,9 @@ def merge_vitigni_endpoint(
     return report
 
 
-@router.post("/vitigni/", summary="Crea vitigno (admin)")
+@router.post("/vitigni/", summary="Crea vitigno (admin/sommelier)")
 def create_vitigno(payload: VitignoBase, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         new_id = ana.create_vitigno(payload.dict(exclude_unset=True))
     except ValueError as e:
@@ -621,18 +637,18 @@ def create_vitigno(payload: VitignoBase, current_user: Any = Depends(get_current
     return ana.get_vitigno(new_id)
 
 
-@router.patch("/vitigni/{vid}", summary="Modifica vitigno (admin)")
+@router.patch("/vitigni/{vid}", summary="Modifica vitigno (admin/sommelier)")
 def update_vitigno(vid: int, payload: VitignoUpdate, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     if not ana.get_vitigno(vid):
         raise HTTPException(404, "Vitigno non trovato")
     ana.update_vitigno(vid, payload.dict(exclude_unset=True))
     return ana.get_vitigno(vid)
 
 
-@router.delete("/vitigni/{vid}", summary="Elimina vitigno (admin)")
+@router.delete("/vitigni/{vid}", summary="Elimina vitigno (admin/sommelier)")
 def delete_vitigno(vid: int, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         ok = ana.delete_vitigno(vid)
     except ValueError as e:
@@ -665,9 +681,9 @@ def get_madre(mid: int, current_user: Any = Depends(get_current_user)):
     return row
 
 
-@router.post("/madre/", summary="Crea vino madre (admin)")
+@router.post("/madre/", summary="Crea vino madre (admin/sommelier)")
 def create_madre(payload: MadreBase, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     # Verifica FK
     if not ana.get_produttore(payload.produttore_id):
         raise HTTPException(400, f"Produttore {payload.produttore_id} non trovato")
@@ -682,9 +698,9 @@ def create_madre(payload: MadreBase, current_user: Any = Depends(get_current_use
     return ana.get_madre(new_id)
 
 
-@router.patch("/madre/{mid}", summary="Modifica vino madre (admin)")
+@router.patch("/madre/{mid}", summary="Modifica vino madre (admin/sommelier)")
 def update_madre(mid: int, payload: MadreUpdate, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     if not ana.get_madre(mid):
         raise HTTPException(404, "Vino madre non trovato")
     data = payload.dict(exclude_unset=True)
@@ -705,7 +721,7 @@ def update_madre(mid: int, payload: MadreUpdate, current_user: Any = Depends(get
 
 @router.post(
     "/madre/{mid}/promote-composto",
-    summary="Promuove un madre legacy a descrizione composta (M2.9-bis, admin)",
+    summary="Promuove un madre legacy a descrizione composta (M2.9-bis, admin/sommelier)",
 )
 def promote_madre_composto(
     mid: int,
@@ -729,7 +745,7 @@ def promote_madre_composto(
       - 400 se la denominazione_id passata non esiste
       - 400 se la composizione risulterebbe vuota (mancano tutti gli ingredienti)
     """
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     if not ana.get_madre(mid):
         raise HTTPException(404, "Vino madre non trovato")
 
@@ -760,9 +776,9 @@ def promote_madre_composto(
     return updated
 
 
-@router.delete("/madre/{mid}", summary="Elimina vino madre (admin)")
+@router.delete("/madre/{mid}", summary="Elimina vino madre (admin/sommelier)")
 def delete_madre(mid: int, current_user: Any = Depends(get_current_user)):
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         ok = ana.delete_madre(mid)
     except ValueError as e:
@@ -853,7 +869,7 @@ def create_bottiglia(
       - 400 se madre_id non esiste o ANNATA manca/empty
       - 500 su altri errori
     """
-    _require_admin(current_user)
+    _require_vini_manager(current_user)
     try:
         new_id = ana.create_bottiglia(payload.dict(exclude_unset=False))
     except ValueError as e:

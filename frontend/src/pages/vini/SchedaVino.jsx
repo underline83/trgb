@@ -178,6 +178,11 @@ const SchedaVino = forwardRef(function SchedaVino({
   const role = localStorage.getItem("role");
   const canDelete = isAdminRole(role) || role === "sommelier" || role === "sala";
   const canEditDataMov = isAdminRole(role);  // modifica data movimento: admin-only (Marco 2026-05-19)
+  // Gestione catalogo vini = admin/superadmin/sommelier (Marco 2026-05-21).
+  // Sala e viewer hanno sola lettura: niente bottoni Modifica/Duplica/Elimina.
+  const isViniManager = isAdminRole(role) || role === "sommelier";
+  // readOnly effettivo: o forzato dal parent, o perche' il ruolo non e' manager.
+  const roReadOnly = readOnly || !isViniManager;
   // Stato inline edit data movimento: { id, valore } o null
   const [editingDataMov, setEditingDataMov] = useState(null);
   const [savingDataMov, setSavingDataMov] = useState(false);
@@ -953,10 +958,10 @@ const SchedaVino = forwardRef(function SchedaVino({
             <div>
               <SectionHeader title="Anagrafica">
                 {saveMsg && <span className="text-xs font-medium">{saveMsg}</span>}
-                {!editMode && !readOnly && (
+                {!editMode && !roReadOnly && (
                   <Btn variant="primary" size="sm" type="button" onClick={startEdit}>✎ Modifica</Btn>
                 )}
-                {editMode && !readOnly && <>
+                {editMode && !roReadOnly && <>
                   <Btn variant="secondary" size="sm" type="button" onClick={cancelEdit}>Annulla</Btn>
                   <Btn variant="primary" size="sm" type="button" onClick={saveEdit} disabled={saving} loading={saving}>{saving ? "Salvo…" : "Salva"}</Btn>
                 </>}
@@ -1105,10 +1110,10 @@ const SchedaVino = forwardRef(function SchedaVino({
             {activeTab === "giacenze" && (
             <div>
               <SectionHeader title="Giacenze per locazione">
-                {!giacenzeEdit && !readOnly && (
+                {!giacenzeEdit && !roReadOnly && (
                   <Btn variant="primary" size="sm" type="button" onClick={startGiacenze}>✎ Modifica</Btn>
                 )}
-                {giacenzeEdit && !readOnly && <>
+                {giacenzeEdit && !roReadOnly && <>
                   <Btn variant="secondary" size="sm" type="button" onClick={cancelGiacenze}>Annulla</Btn>
                   <Btn variant="primary" size="sm" type="button" onClick={saveGiacenze} disabled={giacenzeSaving} loading={giacenzeSaving}>{giacenzeSaving ? "Salvo…" : "Salva"}</Btn>
                 </>}
@@ -1150,8 +1155,8 @@ const SchedaVino = forwardRef(function SchedaVino({
                               : "Attivando il toggle: il vino entra in carta calici (VENDITA_CALICE=1) E la bottiglia viene marcata come aperta. Ricordati di spegnere quando finisci i calici."}
                         </div>
                       </div>
-                      <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving}
-                        className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+                      <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving || roReadOnly}
+                        className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           aperta ? "bg-amber-500" : "bg-neutral-300"
                         }`}>
                         <span className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
@@ -1731,12 +1736,12 @@ const SchedaVino = forwardRef(function SchedaVino({
                 🍷 Vai al madre
               </Btn>
             )}
-            {!readOnly && (
+            {!roReadOnly && (
               <Btn variant="secondary" size="md" type="button" onClick={handleDuplica} disabled={duplicating}>
                 {duplicating ? "Duplico…" : "Duplica vino"}
               </Btn>
             )}
-            {!readOnly && (
+            {!roReadOnly && (
               <Btn variant="danger" size="md" type="button" onClick={handleElimina} disabled={deleting}>
                 {deleting ? "Elimino…" : "🗑️ Elimina vino"}
               </Btn>

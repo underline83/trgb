@@ -10,6 +10,7 @@ import { STATO_RIORDINO, STATO_CONSERVAZIONE } from "../../config/viniConstants"
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 import useToast from "../../hooks/useToast";
+import { isAdminRole } from "../../utils/authHelpers";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -53,6 +54,10 @@ function formatDate(isoStr) {
 // ─────────────────────────────────────────────────────────────
 export default function DashboardVini() {
   const navigate = useNavigate();
+  // Gestione catalogo = admin/superadmin/sommelier (Marco 2026-05-21).
+  // Sala/viewer: sola lettura, niente "Nuovo vino" nell'accesso rapido.
+  const _role = localStorage.getItem("role");
+  const isViniManager = isAdminRole(_role) || _role === "sommelier";
 
   const [stats, setStats]         = useState(null);
   const [loading, setLoading]     = useState(false);
@@ -1625,9 +1630,11 @@ export default function DashboardVini() {
             <Btn variant="chip" tone="emerald" size="md" type="button" onClick={() => navigate("/vini/vendite")}>
               🛒 Vendite
             </Btn>
-            <Btn variant="chip" tone="amber" size="md" type="button" onClick={() => navigate("/vini/magazzino/nuovo")}>
-              ➕ Nuovo vino
-            </Btn>
+            {isViniManager && (
+              <Btn variant="chip" tone="amber" size="md" type="button" onClick={() => navigate("/vini/magazzino/nuovo")}>
+                ➕ Nuovo vino
+              </Btn>
+            )}
             <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/carta")}>
               📋 Carta vini
             </Btn>

@@ -15,6 +15,9 @@ const inactive =
 
 export default function MagazzinoSubMenu() {
   const role = localStorage.getItem("role");
+  // Gestione catalogo = admin/superadmin/sommelier (Marco 2026-05-21).
+  // Sala/viewer: sola lettura, niente "Nuovo vino".
+  const isViniManager = isAdminRole(role) || role === "sommelier";
 
   return (
     <div className="mb-6">
@@ -27,12 +30,14 @@ export default function MagazzinoSubMenu() {
           🍷 Cantina
         </NavLink>
 
-        <NavLink
-          to="/vini/magazzino/nuovo"
-          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
-        >
-          ➕ Nuovo vino
-        </NavLink>
+        {isViniManager && (
+          <NavLink
+            to="/vini/magazzino/nuovo"
+            className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+          >
+            ➕ Nuovo vino
+          </NavLink>
+        )}
 
         <button
           onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}

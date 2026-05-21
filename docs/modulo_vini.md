@@ -62,7 +62,7 @@ vini_magazzino_note.vino_id      → vini_bottiglie.id
 |---|---|---|---|
 | 📊 Dashboard | `/vini/dashboard` | `DashboardVini.jsx` | KPI stock + vendite + alert. Invariato. |
 | 🍷 **Cantina** | `/vini/v2/cantina` | `CantinaV2.jsx` + `GestioneVino2.jsx` | **Era "Cantina 2", ora è LA Cantina.** 3 viste: Bottiglie / Madri / Per Produttore. |
-| 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` + 5 panel | 5 sotto-tab: Produttori, Distributori, Denominazioni, Vitigni, Madri. CRUD admin-only + merge duplicati. |
+| 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` + 5 panel | 5 sotto-tab: Produttori, Distributori, Denominazioni, Vitigni, Madri. CRUD admin/sommelier (`is_vini_manager`) + merge duplicati admin-only. |
 | 📜 Carta | `/vini/carta` | `CartaBevande.jsx` | Carta cliente HTML/PDF (vedi §5). |
 | 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | Vista staff per servizio (da rifare completamente — vedi task V.22). |
 | 🛒 Vendite | `/vini/vendite` | `ViniVendite.jsx` | Registra vendite (bottiglia/calici) + storico + calici disponibili. |
@@ -91,7 +91,7 @@ Submit (`submitWizard`): POST produttore (se `_new`) → POST madre (se `_new`, 
 
 ## Endpoint backend principali (post-cutover)
 
-### `/vini/anagrafiche/*` (CRUD anagrafiche, admin-only su scrittura)
+### `/vini/anagrafiche/*` (CRUD anagrafiche, admin/sommelier su scrittura — merge/migrate/sync admin-only)
 - `GET /produttori|fornitori|denominazioni|vitigni|madre/[?search&filtri]` — lista
 - `GET /produttori/{id}|...|madre/{id}` — dettaglio (madre include `vitigni_list` + `denominazione_label` decorati via JOIN)
 - `POST` / `PATCH` / `DELETE` per ogni entità
@@ -649,21 +649,38 @@ Hook PATCH `/vini/magazzino/{id}` registra solo `EURO_LISTINO` per ora; estendib
 
 # 11. Permessi e ruoli
 
-| Azione | Ruoli ammessi |
-|--------|---------------|
-| Lettura magazzino + dashboard | tutti tranne viewer |
-| CRUD anagrafica vino | admin, superadmin, sommelier |
-| Modifica giacenze | admin, superadmin, sommelier |
-| Movimenti (add) | admin, superadmin, sommelier, sala (limitato VENDITA?) |
-| Movimenti (delete) | admin, superadmin, sommelier |
-| Import Excel SAFE | admin, superadmin, sommelier |
-| Import Excel FORCE | admin only **(non ancora controllato — V-BUG1)** |
-| iPratico mapping/sync | admin, superadmin, sommelier |
-| Settings Carta | admin, superadmin, sommelier |
-| Carta Bevande — editing | admin, superadmin, sommelier |
-| Carta Bevande — lettura/export | tutti tranne viewer |
+> **Modello "gestione catalogo" (Marco 2026-05-21, vini 3.60).** Il catalogo vini
+> (anagrafiche + schede bottiglia + creazione/duplica/elimina vino) è gestito da
+> **admin, superadmin e sommelier**. `sala` e `viewer` hanno **sola lettura** sul
+> modulo Vini. Helper backend: `is_vini_manager(role)` in `auth_service.py`
+> (`admin | superadmin | sommelier`). Le operazioni distruttive di massa
+> (merge anagrafiche, migrate-from-legacy, sync, sync-all, rollback) restano
+> riservate ai soli admin via `is_admin()`. Eccezione operativa: i **movimenti**
+> (registra/elimina carico-scarico-vendita) restano accessibili anche a `sala`,
+> perché sono azioni di servizio, non gestione catalogo.
 
-Pattern: `Depends(get_current_user)` + check ruolo nel router.
+| Azione | Ruoli ammessi | Enforcement |
+|--------|---------------|-------------|
+| Lettura magazzino + dashboard | tutti tranne viewer | — |
+| CRUD anagrafica vino (produttori, fornitori, denominazioni, vitigni, madre) | admin, superadmin, sommelier | `_require_vini_manager` in `vini_anagrafiche_router.py` |
+| Crea / modifica / duplica / elimina vino-bottiglia | admin, superadmin, sommelier | `is_vini_manager` in `vini_magazzino_router.py` (`create`, `PATCH /{id}`, `duplica`, `delete-vino`) |
+| Modifica giacenze + toggle "bottiglia in mescita" | admin, superadmin, sommelier | `PATCH /vini/magazzino/{id}` → `is_vini_manager` |
+| Movimenti (add) | admin, superadmin, sommelier, sala | nessun check ruolo su `POST /{id}/movimenti` (azione operativa) |
+| Movimenti (delete) | admin, superadmin, sommelier, sala | check inline in `delete_movimento` |
+| Movimenti (modifica data/ora) | admin only | check inline in `update_movimento_data` |
+| Merge anagrafiche / migrate / sync / sync-all / rollback | admin only | `_require_admin` |
+| Bulk-update / bulk-duplicate vini | admin only | `is_admin` inline |
+| Import Excel SAFE | admin, superadmin, sommelier | — |
+| Import Excel FORCE | admin only **(non ancora controllato — V-BUG1)** | — |
+| iPratico mapping/sync | admin, superadmin, sommelier | — |
+| Settings Carta | admin, superadmin, sommelier | — |
+| Carta Bevande — editing | admin, superadmin, sommelier | `_require_editor` |
+| Carta Bevande — lettura/export | tutti tranne viewer | `_require_reader` |
+
+Pattern: `Depends(get_current_user)` + check ruolo nel router. Frontend: la
+`SchedaVino` calcola `roReadOnly` da `is_vini_manager` e nasconde i bottoni
+Modifica/Duplica/Elimina ai ruoli non-manager; `MagazzinoSubMenu` e
+`DashboardVini` nascondono la voce "Nuovo vino" a `sala`/`viewer`.
 
 ---
 
