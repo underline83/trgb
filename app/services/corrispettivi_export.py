@@ -309,6 +309,163 @@ def export_corrispettivi_to_excel(
 
 
 # ══════════════════════════════════════════════
+# EXPORT DB → PDF (prospetto fiscale commercialista)
+# Modulo: cassa
+# ══════════════════════════════════════════════
+
+_WEEKDAY_IT = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+_MESI_IT = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+            "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+
+
+def _fmt_euro_it(value) -> str:
+    """Formatta un numero in stile italiano: 1.234,56 (senza simbolo €)."""
+    try:
+        n = float(value or 0)
+    except (TypeError, ValueError):
+        n = 0.0
+    s = f"{n:,.2f}"  # formato US: 1,234.56
+    return s.replace(",", "§").replace(".", ",").replace("§", ".")
+
+
+def build_corrispettivi_pdf(year: int, month: int) -> bytes:
+    """
+    Genera il PDF del prospetto fiscale dei corrispettivi di un mese, pensato
+    per il controllo del commercialista.
+
+    Sorgente dati: tabella `daily_closures` (registro fiscale ufficiale TRGB).
+    Per ogni giorno riporta: corrispettivi RT, ripartizione IVA 10% / 22%,
+    fatture emesse, totale giornaliero. Chiude con i totali del mese.
+
+    Args:
+        year: anno (es. 2026)
+        month: mese 1-12
+
+    Returns:
+        bytes del PDF brandizzato (mattone M.B `pdf_brand`).
+
+    Raises:
+        ValueError: se non esistono righe per il periodo richiesto.
+    """
+    from datetime import datetime as _dt
+    from app.services.pdf_brand import wrappa_html_brand
+
+    ym_prefix = f"{year:04d}-{month:02d}"
+
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
+    try:
+        rows = conn.execute(
+            """
+            SELECT date, weekday, corrispettivi, iva_10, iva_22,
+                   fatture, corrispettivi_tot, COALESCE(is_closed, 0) AS is_closed
+            FROM daily_closures
+            WHERE substr(date, 1, 7) = ?
+            ORDER BY date ASC
+            """,
+            (ym_prefix,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        raise ValueError(
+            f"Nessun corrispettivo registrato per {_MESI_IT[month]} {year}."
+        )
+
+    tot_corr = tot_i10 = tot_i22 = tot_fatt = tot_ctot = 0.0
+    giorni_aperti = 0
+    body_rows = []
+
+    for r in rows:
+        try:
+            d_obj = _dt.strptime(r["date"], "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            d_obj = None
+        data_label = d_obj.strftime("%d/%m/%Y") if d_obj else (r["date"] or "")
+        giorno_label = r["weekday"] or (_WEEKDAY_IT[d_obj.weekday()] if d_obj else "")
+
+        if r["is_closed"]:
+            body_rows.append(
+                f"<tr><td>{data_label}</td><td>{giorno_label}</td>"
+                f"<td colspan='5' class='text-muted' style='text-align:center'>— chiuso —</td></tr>"
+            )
+            continue
+
+        corr = float(r["corrispettivi"] or 0)
+        i10 = float(r["iva_10"] or 0)
+        i22 = float(r["iva_22"] or 0)
+        fatt = float(r["fatture"] or 0)
+        ctot = float(r["corrispettivi_tot"] or 0) or (corr + fatt)
+
+        tot_corr += corr
+        tot_i10 += i10
+        tot_i22 += i22
+        tot_fatt += fatt
+        tot_ctot += ctot
+        giorni_aperti += 1
+
+        body_rows.append(
+            f"<tr><td>{data_label}</td><td>{giorno_label}</td>"
+            f"<td class='num'>{_fmt_euro_it(corr)}</td>"
+            f"<td class='num'>{_fmt_euro_it(i10)}</td>"
+            f"<td class='num'>{_fmt_euro_it(i22)}</td>"
+            f"<td class='num'>{_fmt_euro_it(fatt)}</td>"
+            f"<td class='num'>{_fmt_euro_it(ctot)}</td></tr>"
+        )
+
+    # Riga totali in tbody (non in tfoot: tfoot verrebbe ripetuto su ogni pagina).
+    body_rows.append(
+        f"<tr class='tot-row'><td colspan='2'>TOTALE {_MESI_IT[month].upper()} {year}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_corr)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_i10)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_i22)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_fatt)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_ctot)}</td></tr>"
+    )
+
+    summary = (
+        "<div class='summary-row'>"
+        f"<div class='summary-box'><div class='label'>Corrispettivi RT</div>"
+        f"<div class='value'>&euro; {_fmt_euro_it(tot_corr)}</div></div>"
+        f"<div class='summary-box'><div class='label'>Fatture emesse</div>"
+        f"<div class='value'>&euro; {_fmt_euro_it(tot_fatt)}</div></div>"
+        f"<div class='summary-box'><div class='label'>Totale del mese</div>"
+        f"<div class='value'>&euro; {_fmt_euro_it(tot_ctot)}</div></div>"
+        f"<div class='summary-box'><div class='label'>Giorni di apertura</div>"
+        f"<div class='value'>{giorni_aperti}</div></div>"
+        "</div>"
+    )
+
+    tabella = (
+        "<table class='brand'>"
+        "<thead><tr>"
+        "<th>Data</th><th>Giorno</th>"
+        "<th class='num'>Corrispettivi RT</th>"
+        "<th class='num'>di cui IVA 10%</th>"
+        "<th class='num'>di cui IVA 22%</th>"
+        "<th class='num'>Fatture</th>"
+        "<th class='num'>Totale</th>"
+        "</tr></thead>"
+        f"<tbody>{''.join(body_rows)}</tbody>"
+        "</table>"
+        "<p class='small'>Prospetto generato dai corrispettivi registrati in TRGB Gestionale. "
+        "&laquo;Corrispettivi RT&raquo; &egrave; la chiusura giornaliera del registratore "
+        "telematico; &laquo;di cui IVA 10% / 22%&raquo; ne indicano la ripartizione per "
+        "aliquota; &laquo;Fatture&raquo; sono le fatture emesse nel giorno; &laquo;Totale&raquo; "
+        "= Corrispettivi RT + Fatture. I giorni di chiusura non concorrono ai totali.</p>"
+    )
+
+    return wrappa_html_brand(
+        titolo="Corrispettivi — Controllo Commercialista",
+        sottotitolo=f"{_MESI_IT[month]} {year}",
+        body_html=summary + tabella,
+        orientamento="portrait",
+    )
+
+
+# ══════════════════════════════════════════════
 # TEMPLATE VUOTO
 # ══════════════════════════════════════════════
 

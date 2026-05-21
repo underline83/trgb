@@ -1,6 +1,30 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-19 (cont. notte) — **Audit autonomo Claude Code + riallineamento decisioni PO**. Sessione di sola docs: l'audit autonomo del pomeriggio (committato in `90f1b73` insieme a vini 3.54) ha prodotto 8 file in `docs/audit-2026-05-19/` con verdetto adversarial **87/100**. Marco ha risposto alle 5 decisioni PO. Commit `[mixed]` di docs hardening: rinomina `modulo_selezioni.md` → `modulo_vendite.md`, nuovi stub `modulo_selezioni_giorno.md` (CRIT-2) e `modulo_fatture_in_cloud.md` (CRIT-1, 17 endpoint), disciplina docs in `CLAUDE.md`.
+**Ultimo aggiornamento:** 2026-05-21 — **Export PDF corrispettivi per il commercialista** (modulo Cassa/Vendite, `[core]`). Nuovo `build_corrispettivi_pdf()` in `corrispettivi_export.py` + endpoint `GET /admin/finance/export-corrispettivi-pdf` + bottone "📄 PDF commercialista" nella Dashboard Vendite (modalità mensile). Prospetto fiscale giornaliero da `daily_closures` (corrispettivi RT, ripartizione IVA 10%/22%, fatture, totale) generato col mattone M.B. Da pushare.
+
+## SESSIONE 2026-05-21 — Export PDF corrispettivi per il commercialista
+
+### Sintesi
+Marco aveva bisogno di un PDF da consegnare al commercialista per il controllo dei corrispettivi. Deciso insieme: periodo mensile, solo prospetto fiscale (niente metodi di pagamento), funzione nel modulo Vendite.
+
+### Implementazione
+- **`app/services/corrispettivi_export.py`** — nuova `build_corrispettivi_pdf(year, month)`: legge `daily_closures`, costruisce tabella giornaliera (Data, Giorno, Corrispettivi RT, di cui IVA 10%, di cui IVA 22%, Fatture, Totale) + riga totali mese + summary box, genera PDF col mattone M.B (`pdf_brand.wrappa_html_brand`). Helper `_fmt_euro_it` per i numeri in formato italiano.
+- **`app/routers/admin_finance.py`** — endpoint `GET /admin/finance/export-corrispettivi-pdf?year=&month=` (404 se il mese è vuoto, 500 su errore di rendering).
+- **`frontend/src/pages/admin/CorrispettiviDashboard.jsx`** — bottone "📄 PDF commercialista" nella barra navigazione, solo in modalità mensile; usa `openAuthedInNewTab` (download JWT-protetto).
+
+### Note tecniche
+- Sorgente = `daily_closures` (registro fiscale ufficiale con split IVA), non `shift_closures` (operativa, IVA non ripartita).
+- Classificazione `[core]`: ogni ristorante ha un commercialista; il branding PDF arriva già dalle stringhe locale.
+- Verificato in sandbox: PDF di Marzo 2026 generato correttamente (2 pagine, header brand, totali quadrati).
+
+### Commit suggerito
+`./push.sh "[core] Export PDF corrispettivi per il commercialista (modulo Vendite)"`
+
+---
+
+## SESSIONE 2026-05-19 (cont. notte) — riferimento storico
+
+**Audit autonomo Claude Code + riallineamento decisioni PO**. Sessione di sola docs: l'audit autonomo del pomeriggio (committato in `90f1b73` insieme a vini 3.54) ha prodotto 8 file in `docs/audit-2026-05-19/` con verdetto adversarial **87/100**. Marco ha risposto alle 5 decisioni PO. Commit `[mixed]` di docs hardening: rinomina `modulo_selezioni.md` → `modulo_vendite.md`, nuovi stub `modulo_selezioni_giorno.md` (CRIT-2) e `modulo_fatture_in_cloud.md` (CRIT-1, 17 endpoint), disciplina docs in `CLAUDE.md`.
 
 ## SESSIONE 2026-05-19 (cont. notte) — Audit autonomo + decisioni PO + docs hardening
 

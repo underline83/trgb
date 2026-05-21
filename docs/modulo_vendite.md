@@ -346,6 +346,7 @@ Quando il periodo è in corso (mese/trimestre/anno corrente), il confronto limit
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
 | POST | `/admin/finance/import` | Import Excel corrispettivi |
+| GET | `/admin/finance/export-corrispettivi-pdf` | PDF prospetto corrispettivi per il commercialista (mensile, sorgente `daily_closures`, mattone M.B) |
 | GET | `/admin/finance/chiusure/{year}/{month}` | Chiusure mensili |
 | GET/POST/PUT | `/admin/finance/chiusura/{date}` | Chiusura giornaliera CRUD |
 | GET | `/admin/finance/stats/monthly` | Statistiche mensili |
@@ -406,6 +407,7 @@ Quando il periodo è in corso (mese/trimestre/anno corrente), il confronto limit
 
 - Checklist fine turno configurabile (seed dati default pranzo/cena)
 - Integrazione cross-check chiusura turno vs `daily_closures` (import Excel)
+- ✅ Export PDF prospetto corrispettivi per il commercialista — mensile, dalla Dashboard Vendite (2026-05-21)
 - Export PDF riepilogo giornaliero/settimanale (dipendenza M.B PDF brand)
 - Coperti e scontrino medio nella dashboard (Fase 2)
 - Integrazione vendite vini (cross-query, Fase 3)

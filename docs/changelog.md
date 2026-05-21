@@ -3,6 +3,24 @@
 
 ---
 
+## 2026-05-21 — Export PDF corrispettivi per il commercialista `[core]`
+
+Nuova funzione nel modulo Cassa/Vendite: export PDF del prospetto fiscale dei corrispettivi mensili, pensato per il controllo del commercialista.
+
+### Aggiunto
+- **Backend**: `build_corrispettivi_pdf(year, month)` in `app/services/corrispettivi_export.py` — legge `daily_closures` (registro fiscale ufficiale), costruisce il prospetto giornaliero (corrispettivi RT, ripartizione IVA 10%/22%, fatture, totale) + totali del mese, genera il PDF col mattone M.B (`pdf_brand.wrappa_html_brand`).
+- **Endpoint**: `GET /admin/finance/export-corrispettivi-pdf?year=&month=` — ritorna il PDF brandizzato (404 se il mese non ha dati).
+- **Frontend**: bottone "📄 PDF commercialista" nella Dashboard Vendite (`CorrispettiviDashboard.jsx`), visibile in modalità mensile. Usa `openAuthedInNewTab` per il download auth-protetto.
+
+### Note
+- Classificazione `[core]`: logica di prodotto generica (ogni ristorante ha un commercialista); il branding PDF è già preso dalle stringhe locale.
+- Sorgente dati = `daily_closures`: è la tabella fiscale ufficiale con la ripartizione IVA, non `shift_closures` (operativa, senza split IVA).
+
+### File modificati
+`app/services/corrispettivi_export.py`, `app/routers/admin_finance.py`, `frontend/src/pages/admin/CorrispettiviDashboard.jsx`, `docs/modulo_vendite.md`, `docs/changelog.md`, `docs/sessione.md`.
+
+---
+
 ## 2026-05-19 — Docs hardening post audit autonomo `[mixed]`
 
 Sessione di sola documentazione, post audit autonomo (`docs/audit-2026-05-19/`, verdetto adversarial 87/100). Chiusura delle 5 decisioni PO in sospeso.

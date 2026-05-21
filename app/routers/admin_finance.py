@@ -313,6 +313,41 @@ async def download_template():
 
 
 # ---------------------------------------------------------
+# EXPORT PDF — PROSPETTO CORRISPETTIVI PER IL COMMERCIALISTA
+# Modulo: cassa
+# ---------------------------------------------------------
+
+@router.get("/export-corrispettivi-pdf")
+async def export_corrispettivi_pdf(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+):
+    """
+    Esporta il prospetto fiscale dei corrispettivi di un mese in PDF brandizzato,
+    pensato per il controllo del commercialista.
+
+    Sorgente: daily_closures (registro fiscale ufficiale). Una riga per giorno
+    con corrispettivi RT, ripartizione IVA 10%/22%, fatture e totale, piu' i
+    totali del mese. Generato col mattone M.B (pdf_brand).
+    """
+    from app.services.corrispettivi_export import build_corrispettivi_pdf
+
+    try:
+        pdf_bytes = build_corrispettivi_pdf(year=year, month=month)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
+
+    filename = f"corrispettivi_commercialista_{year}-{month:02d}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------
 # DAILY CLOSURES: LETTURA PER DATA
 # ---------------------------------------------------------
 

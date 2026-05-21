@@ -11,6 +11,7 @@ import {
 import { API_BASE, apiFetch } from "../../config/api";
 import TrgbLoader from "../../components/TrgbLoader";
 import { Btn } from "../../components/ui";
+import { openAuthedInNewTab } from "../../utils/authFetch";
 
 // ── Costanti ──
 const MONTH_NAMES = [
@@ -585,6 +586,15 @@ export default function CorrispettiviDashboard() {
             )}
             <input type="number" value={year} onChange={e => setYear(Number(e.target.value))}
               className="w-24 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm" />
+            {mode === "mensile" && (
+              <Btn variant="primary" size="sm"
+                onClick={() => openAuthedInNewTab(
+                  `${API_BASE}/admin/finance/export-corrispettivi-pdf?year=${year}&month=${month}`,
+                  { onError: (err) => setError(`Errore generazione PDF: ${err.message || err}`) }
+                )}>
+                📄 PDF commercialista
+              </Btn>
+            )}
           </div>
         </div>
 
