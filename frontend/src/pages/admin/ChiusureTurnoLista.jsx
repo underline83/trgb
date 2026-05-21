@@ -4,7 +4,7 @@
 // Ogni giorno mostra riepilogo giornaliero + dettagli pranzo/cena espandibili
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
 import Tooltip from "../../components/Tooltip";
@@ -41,6 +41,9 @@ const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","
 
 export default function ChiusureTurnoLista() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // ?date=YYYY-MM-DD → si arriva da un click sul calendario della dashboard
+  const targetDate = searchParams.get("date");
   const token = localStorage.getItem("token");
   const role = localStorage.getItem("role");
 
@@ -51,10 +54,13 @@ export default function ChiusureTurnoLista() {
   const [turniChiusi, setTurniChiusi] = useState([]); // turni parzialmente chiusi
   const isSuperAdmin = isSuperAdminRole(role);
 
-  // Filtro mese: default = mese corrente
+  // Filtro mese: default = mese corrente, oppure il mese di ?date= se presente
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
+  const _initDate = targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)
+    ? new Date(targetDate + "T00:00:00")
+    : now;
+  const [year, setYear] = useState(_initDate.getFullYear());
+  const [month, setMonth] = useState(_initDate.getMonth() + 1); // 1-12
 
   // Calcola range date dal mese selezionato
   const fromDate = useMemo(() => `${year}-${String(month).padStart(2, "0")}-01`, [year, month]);
@@ -81,11 +87,23 @@ export default function ChiusureTurnoLista() {
       .then(([closuresData, configData]) => {
         setClosures(closuresData);
         setTurniChiusi(configData.turni_chiusi || []);
-        setExpandedDay(null);
+        // Se si arriva da ?date= ed esiste una chiusura per quel giorno, lo espande.
+        setExpandedDay(
+          targetDate && Array.isArray(closuresData) && closuresData.some(c => c.date === targetDate)
+            ? targetDate
+            : null
+        );
       })
       .catch(() => setClosures([]))
       .finally(() => setLoading(false));
-  }, [fromDate, toDate, token, role]);
+  }, [fromDate, toDate, token, role, targetDate]);
+
+  // Scroll automatico al giorno aperto via ?date= (click dal calendario dashboard)
+  useEffect(() => {
+    if (loading || !targetDate) return;
+    const el = document.querySelector(`[data-day="${targetDate}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [loading, targetDate, closures]);
 
   if (!isAdminRole(role)) {
     return (
@@ -447,7 +465,7 @@ export default function ChiusureTurnoLista() {
               const onlyCena = !pranzo && cena;
 
               return (
-                <div key={day.date} className="bg-white rounded-2xl shadow border border-neutral-200 overflow-hidden">
+                <div key={day.date} data-day={day.date} className="bg-white rounded-2xl shadow border border-neutral-200 overflow-hidden">
                   {/* ── Riga giorno ── */}
                   <button type="button" onClick={() => setExpandedDay(isDayExpanded ? null : day.date)}
                     className="w-full text-left p-4 hover:bg-neutral-50 transition">

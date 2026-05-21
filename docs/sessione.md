@@ -21,8 +21,13 @@ Marco aveva bisogno di un PDF da consegnare al commercialista per il controllo d
 ### Refactor pianificato (sessione dedicata, deciso 2026-05-21)
 Marco ha segnalato che `daily_closures` (import Excel) e `shift_closures` (chiusure turno) sono **due sistemi che si incrociano male**. Direzione concordata: l'import Excel deve scrivere in `shift_closures`, `daily_closures` viene **migrata interamente** (tutti i 6 anni, ~1.400 giornate con dati) e poi dismessa — `roadmap.md` §K.12. In aggiunta (§K.13): import dei file XML dei corrispettivi telematici dal portale AdE come fonte dati in più. Da fare in sessione "refactor" separata, non mescolata al commit del PDF.
 
+### Fix Dashboard Vendite (stessa sessione, segnalati da Marco)
+Due bug della Dashboard Vendite corretti insieme al PDF (tutto `[core]`, modulo Vendite):
+- **Giorni migliori/peggiori**: `GET /admin/finance/stats/top-days` ordinava per `totale_incassi` (deprecato, spesso 0) e includeva i giorni a zero → liste senza senso. Ora ordina per `corrispettivi_tot` ed esclude i giorni a zero; il frontend usa direttamente `top_best`/`top_worst`.
+- **Click sul calendario**: la cella rimandava a `/vendite/chiusure?date=X` ma `ChiusureTurnoLista.jsx` ignorava `?date=`. Ora legge il parametro, si posiziona sul mese giusto, espande il giorno e ci fa scroll.
+
 ### Commit suggerito
-`./push.sh "[core] Export PDF corrispettivi per il commercialista (modulo Vendite)"`
+`./push.sh "[core] PDF corrispettivi commercialista + fix Dashboard Vendite (top-days, click calendario)"`
 
 ---
 

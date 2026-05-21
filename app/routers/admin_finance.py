@@ -1472,12 +1472,18 @@ async def get_top_days(
 
     rows = [DictRow(d) for d in merged_data.values()]
 
-    # Filtra i giorni aperti usando la logica unica
-    open_rows = [r for r in rows if not _is_effectively_closed(r)]
+    # Considera solo i giorni aperti CON corrispettivi reali (> 0): un giorno
+    # a zero — chiuso, futuro o senza dati — non è né "migliore" né "peggiore".
+    open_rows = [
+        r for r in rows
+        if not _is_effectively_closed(r) and (r["corrispettivi_tot"] or 0) > 0
+    ]
 
-    # ordina per incassi discendente/ascendente
-    best_sorted = sorted(open_rows, key=lambda r: r["totale_incassi"], reverse=True)
-    worst_sorted = sorted(open_rows, key=lambda r: r["totale_incassi"])
+    # Ordina per corrispettivi, coerente col resto della dashboard (basata sui
+    # corrispettivi). NB: prima si ordinava per totale_incassi, dato deprecato
+    # e spesso a 0 → giorni migliori/peggiori privi di senso.
+    best_sorted = sorted(open_rows, key=lambda r: r["corrispettivi_tot"] or 0, reverse=True)
+    worst_sorted = sorted(open_rows, key=lambda r: r["corrispettivi_tot"] or 0)
 
     best_rows = best_sorted[:limit]
     worst_rows = worst_sorted[:limit]

@@ -953,12 +953,11 @@ export default function CorrispettiviDashboard() {
             )}
 
             {/* ── TOP / BOTTOM DAYS ── */}
-            {topDays && (() => {
-              const validDays = [...(topDays.top_best || []), ...(topDays.top_worst || [])]
-                .filter((d, i, arr) => arr.findIndex(x => x.date === d.date) === i)
-                .filter(d => (d.corrispettivi ?? 0) > 0);
-              const bestByCorr = [...validDays].sort((a, b) => (b.corrispettivi ?? 0) - (a.corrispettivi ?? 0)).slice(0, 10);
-              const worstByCorr = [...validDays].sort((a, b) => (a.corrispettivi ?? 0) - (b.corrispettivi ?? 0)).slice(0, 10);
+            {topDays && (topDays.top_best?.length > 0) && (() => {
+              // L'endpoint /stats/top-days restituisce già i giorni ordinati per
+              // corrispettivi (migliori desc, peggiori asc) ed esclude i giorni a zero.
+              const bestByCorr = topDays.top_best || [];
+              const worstByCorr = topDays.top_worst || [];
               return (
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                   <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">

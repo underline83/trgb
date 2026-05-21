@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-05-21 — Fix Dashboard Vendite: giorni migliori/peggiori + click calendario `[core]`
+
+Due bug segnalati da Marco sulla Dashboard Vendite.
+
+### Corretto
+- **Giorni migliori / peggiori** — l'endpoint `GET /admin/finance/stats/top-days` ordinava per `totale_incassi` (dato deprecato, spesso a 0) e includeva i giorni vuoti/futuri a zero; il frontend poi ri-ordinava per `corrispettivi` su quel set, producendo liste prive di senso. Ora l'endpoint ordina per `corrispettivi_tot` ed esclude i giorni a zero; il frontend (`CorrispettiviDashboard.jsx`) usa direttamente `top_best`/`top_worst` senza ri-filtrare.
+- **Click su un giorno del calendario** — la cella rimandava a `/vendite/chiusure?date=X` ma `ChiusureTurnoLista.jsx` ignorava il parametro `?date=`. Ora la pagina legge `?date=`, si posiziona sul mese giusto, espande il giorno corrispondente e ci fa scroll automatico.
+
+### File modificati
+`app/routers/admin_finance.py`, `frontend/src/pages/admin/CorrispettiviDashboard.jsx`, `frontend/src/pages/admin/ChiusureTurnoLista.jsx`.
+
+---
+
 ## 2026-05-21 — Export PDF corrispettivi per il commercialista `[core]`
 
 Nuova funzione nel modulo Cassa/Vendite: export PDF del prospetto fiscale dei corrispettivi mensili, pensato per il controllo del commercialista.
