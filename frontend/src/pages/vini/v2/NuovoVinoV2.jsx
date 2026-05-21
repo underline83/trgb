@@ -572,10 +572,13 @@ function Step2Madre({ produttore, madre, onSelect }) {
   }), [newM.denominazione_label, newM.nome_etichetta, newM.vitigni, newM.grado_alcolico_tipico]);
 
   const confirmNewMadre = () => {
-    // Validazione minima: serve almeno la denominazione (così la descrizione
-    // ha un anchor) e la tipologia. Il nome_etichetta resta opzionale.
-    if (!newM.denominazione_id) {
-      alert("Seleziona una denominazione (necessaria per comporre la descrizione)"); return;
+    // Validazione minima: la descrizione composta ha bisogno di un "anchor".
+    // Di norma è la denominazione, ma ci sono vini che NON ne hanno (vino da
+    // tavola, IGT generici): in quel caso basta il nome etichetta. Quindi
+    // serve denominazione OPPURE nome_etichetta. Più la tipologia.
+    const nomeEtic = (newM.nome_etichetta || "").toString().trim();
+    if (!newM.denominazione_id && !nomeEtic) {
+      alert("Indica almeno la denominazione oppure il nome dell'etichetta: serve come riferimento per la descrizione del vino."); return;
     }
     if (!newM.tipologia) { alert("Tipologia obbligatoria"); return; }
     // La descrizione viene composta automaticamente — la passo a Step 3 come
@@ -720,7 +723,7 @@ function Step2Madre({ produttore, madre, onSelect }) {
           </div>
 
           {/* Denominazione */}
-          <FieldLabel label="Denominazione" className="mt-3">
+          <FieldLabel label="Denominazione (opzionale)" className="mt-3">
             {newM.denominazione_id ? (
               <div className="flex items-center gap-2 px-2 py-1.5 bg-white border border-amber-300 rounded-lg">
                 <span className="text-sm flex-1">{newM.denominazione_label}</span>
@@ -1454,7 +1457,7 @@ function PromuoviMadreModal({ madre, onClose, onSuccess }) {
 
   const handleSubmit = async () => {
     if (!nuovaDescrizione.trim()) {
-      setError("La descrizione composta sarebbe vuota. Compila almeno la denominazione.");
+      setError("La descrizione composta sarebbe vuota. Compila almeno la denominazione o il nome dell'etichetta.");
       return;
     }
     setSaving(true);

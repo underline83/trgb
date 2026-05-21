@@ -18,8 +18,11 @@ Marco, loggato come **sommelier**, non riusciva a modificare un vino madre (403 
 ### Note
 - I **movimenti** (registra/elimina carico-scarico-vendita) restano accessibili anche a `sala`: sono azioni operative di servizio, non gestione catalogo. Lasciati intenzionalmente invariati.
 
+### Anche — creazione madre senza denominazione
+Il wizard "Nuovo Vino" (`NuovoVinoV2.jsx`) obbligava a selezionare una denominazione per creare un vino madre. Ma esistono vini che non ne hanno (vino da tavola, IGT generici). Ora la validazione richiede **denominazione _oppure_ nome etichetta** come riferimento per la descrizione composta — la denominazione torna opzionale (campo etichettato "Denominazione (opzionale)"). L'helper `componiDescrizione` già saltava gli ingredienti mancanti, nessuna modifica lì.
+
 ### File modificati
-`app/services/auth_service.py`, `app/routers/vini_anagrafiche_router.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/components/vini/MagazzinoSubMenu.jsx`, `frontend/src/pages/vini/DashboardVini.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
+`app/services/auth_service.py`, `app/routers/vini_anagrafiche_router.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/components/vini/MagazzinoSubMenu.jsx`, `frontend/src/pages/vini/DashboardVini.jsx`, `frontend/src/pages/vini/v2/NuovoVinoV2.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
 
 ---
 

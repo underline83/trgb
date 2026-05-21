@@ -17,10 +17,15 @@ Decisione di Marco: **opzione 3** — l'intero catalogo vini è gestito da somme
 
 ### Note
 - I **movimenti** (registra/elimina carico-scarico-vendita) restano accessibili a `sala`: azioni operative di servizio, non gestione catalogo. Invariati di proposito.
-- Verifica: `PY_OK` sui 3 file backend, esbuild OK sui 4 file frontend. Versione vini 3.59 → 3.60.
+
+### Anche — creazione madre senza denominazione (stesso push)
+Marco ha segnalato che il wizard "Nuovo Vino" obbligava a scegliere una denominazione, ma ci sono vini che non ne hanno (vino da tavola, IGT generici). Corretta la validazione `confirmNewMadre` in `NuovoVinoV2.jsx`: ora serve **denominazione _oppure_ nome etichetta** (anchor per la descrizione composta), non più la denominazione obbligatoria. Campo rietichettato "Denominazione (opzionale)". Backend già OK (`MadreBase.denominazione_id` Optional). Allineato anche il messaggio d'errore del box "promuovi madre legacy".
+
+### Verifica
+`PY_OK` sui 3 file backend, esbuild OK sui 5 file frontend. Versione vini 3.59 → 3.60.
 
 ### Commit suggerito
-`./push.sh "[core] vini 3.60 — permessi catalogo aperti al sommelier (is_vini_manager): anagrafiche + scheda bottiglia gestite da admin/sommelier, sala in sola lettura; merge/migrate/sync restano admin-only"`
+`./push.sh "[core] vini 3.60 — permessi catalogo aperti al sommelier (is_vini_manager) + denominazione opzionale nella creazione madre"`
 
 ---
 
