@@ -8,7 +8,7 @@
 Nuova funzione nel modulo Cassa/Vendite: export PDF del prospetto fiscale dei corrispettivi mensili, pensato per il controllo del commercialista.
 
 ### Aggiunto
-- **Backend**: `build_corrispettivi_pdf(year, month)` in `app/services/corrispettivi_export.py` — legge la fonte unita (`_merge_shift_and_daily`: `shift_closures` primaria, `daily_closures` di ripiego), costruisce il prospetto giornaliero (Data, Giorno, corrispettivo lordo, imponibile, IVA, fatture, totale) con lo **scorporo IVA** (`_scorpora_imponibile`, arrotondamento commerciale half-up), una riga totali di mese e un **riepilogo IVA per aliquota** (lordo / imponibile / imposta). Genera il PDF col mattone M.B (`pdf_brand.wrappa_html_brand`).
+- **Backend**: `build_corrispettivi_pdf(year, month)` in `app/services/corrispettivi_export.py` — legge la fonte unita (`_merge_shift_and_daily`: `shift_closures` primaria, `daily_closures` di ripiego), costruisce il prospetto giornaliero (Data, Giorno, corrispettivo lordo, imponibile 10%, IVA 10%, fatture, totale) con lo **scorporo IVA** (`_scorpora_imponibile`, arrotondamento commerciale half-up), una riga totali di mese e un **riepilogo IVA per aliquota** (lordo / imponibile / imposta). Genera il PDF col mattone M.B (`pdf_brand.wrappa_html_brand`). CSS compatto (`_corrispettivi_pdf_css`): un mese intero — anche 31 giorni — sta in una sola pagina A4.
 - **Endpoint**: `GET /admin/finance/export-corrispettivi-pdf?year=&month=` — ritorna il PDF brandizzato (404 se il mese non ha dati).
 - **Frontend**: bottone "📄 PDF commercialista" nella Dashboard Vendite (`CorrispettiviDashboard.jsx`), visibile in modalità mensile. Usa `openAuthedInNewTab` per il download auth-protetto.
 

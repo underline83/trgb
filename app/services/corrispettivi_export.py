@@ -342,6 +342,28 @@ def _scorpora_imponibile(lordo: float, aliquota_pct: int) -> float:
     return float(imp)
 
 
+def _corrispettivi_pdf_css() -> str:
+    """CSS compatto: comprime righe, header e box per far stare un mese
+    intero (fino a 31 giorni) in una sola pagina A4."""
+    return """
+    @page { margin: 11mm 12mm 13mm 12mm; }
+    .brand-header { padding-bottom: 5px; margin-bottom: 8px; }
+    .brand-header .wordmark-svg svg { height: 22pt; }
+    .brand-header .wordmark-text { font-size: 21pt; }
+    .brand-header .doc-title { font-size: 12pt; }
+    .gobbette-strip { margin: -6px 0 8px 0; }
+    .summary-row { margin: 2pt 0 7pt 0; }
+    .summary-box { padding: 3pt 9pt; margin: 0 5pt 5pt 0; }
+    .summary-box .label { font-size: 6.5pt; }
+    .summary-box .value { font-size: 10.5pt; }
+    table.brand { margin: 4pt 0 6pt 0; }
+    table.brand th { padding: 2.6pt 6pt; font-size: 7pt; }
+    table.brand td { padding: 1.7pt 6pt; font-size: 8pt; line-height: 1.15; }
+    h3 { font-size: 9.5pt; margin: 6pt 0 1pt 0; }
+    .small { font-size: 6.8pt; line-height: 1.3; margin: 4pt 0 0 0; }
+    """
+
+
 def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     """
     Genera il PDF del prospetto fiscale dei corrispettivi di un mese, pensato
@@ -489,8 +511,8 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         "<thead><tr>"
         "<th>Data</th><th>Giorno</th>"
         "<th class='num'>Corrispettivo lordo</th>"
-        "<th class='num'>Imponibile</th>"
-        "<th class='num'>IVA</th>"
+        "<th class='num'>Imponibile 10%</th>"
+        "<th class='num'>IVA 10%</th>"
         "<th class='num'>Fatture</th>"
         "<th class='num'>Totale</th>"
         "</tr></thead>"
@@ -527,20 +549,19 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         "<th class='num'>Imposta</th></tr></thead>"
         f"<tbody>{''.join(riep_rows)}</tbody>"
         "</table>"
-        "<p class='small'>I corrispettivi sono riportati al lordo (IVA inclusa). "
-        "&laquo;Imponibile&raquo; e &laquo;IVA&raquo; ne sono lo scorporo per aliquota; "
-        "le &laquo;Fatture&raquo; emesse sono indicate a parte, al lordo; &laquo;Totale&raquo; "
-        "= corrispettivo lordo + fatture. I giorni di chiusura non concorrono ai totali. "
-        f"Giorni con incasso nel mese: {giorni_con_incasso}. Aliquota applicata: 10% "
-        "(somministrazione di alimenti e bevande); i giorni provenienti dalle chiusure "
-        "turno, prive dello split IVA, sono trattati come interamente al 10%.</p>"
+        "<p class='small'>Corrispettivi al lordo (IVA inclusa); imponibile e imposta ne "
+        "sono lo scorporo. Fatture emesse indicate a parte, al lordo. &laquo;Totale&raquo; "
+        "= corrispettivo lordo + fatture. Aliquota 10% (somministrazione di alimenti e "
+        "bevande); i giorni dalle chiusure turno, privi di split IVA, sono trattati al 10%. "
+        f"Giorni con incasso nel mese: {giorni_con_incasso}.</p>"
     )
 
     return wrappa_html_brand(
         titolo="Corrispettivi — Controllo Commercialista",
-        sottotitolo=f"{_MESI_IT[month]} {year}",
+        sottotitolo=f"{_MESI_IT[month]} {year} &mdash; IVA 10%",
         body_html=summary + tabella + riepilogo,
         orientamento="portrait",
+        css_extra=_corrispettivi_pdf_css(),
     )
 
 
