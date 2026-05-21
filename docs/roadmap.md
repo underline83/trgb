@@ -195,6 +195,26 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 | K.9 | Foto scontrino allegato a chiusura turno | M | MEDIA | BLOB/path |
 | K.10 | Alert variazione drastica chiusura vs media (fraud detection) | M | BASSA | Richiede storico |
 | K.11 | Importazione automatica RT (registratore cassa) | L | BASSA | "Se fattibile" — Marco |
+| K.12 | **Unificare import Excel → `shift_closures` (dismettere `daily_closures`)** | L | 🔴 ALTA — deciso Marco 2026-05-21 | Doppia tabella che si incrocia male. Vedi dettaglio §K.12 |
+
+### K.12 — Unificazione corrispettivi: una tabella sola 🔴 ALTA (deciso 2026-05-21)
+
+**Problema:** oggi i corrispettivi vivono in due tabelle che si sovrappongono male:
+- `daily_closures` — la riempie l'import Excel, granularità giornaliera, ha lo split IVA 10/22, copre 2021→2026 (~1.400 giornate con dati).
+- `shift_closures` — la riempie lo staff con le chiusure turno, granularità pranzo/cena, **niente colonne IVA**, copre da marzo 2026.
+
+Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commercialista, `vendite_aggregator`) usano il cerotto `_merge_shift_and_daily`. Il bug del PDF Aprile-a-zero (2026-05-21) è stato il sintomo.
+
+**Direzione concordata (Marco 2026-05-21):** l'import Excel deve scrivere in `shift_closures`. `daily_closures` viene **migrata interamente** (tutti i 6 anni) e poi dismessa.
+
+**Nodi da sciogliere nella sessione dedicata:**
+1. **Granularità** — l'Excel ha il totale giornaliero, `shift_closures` ragiona per turno. Convenzione: una giornata importata = una riga con `turno='giornaliero'` (nuovo valore accanto a pranzo/cena).
+2. **IVA** — aggiungere `iva_10` / `iva_22` a `shift_closures` (ADD COLUMN idempotente) per non perdere lo split.
+3. **Migrazione storico** — spostare ~1.400 giornate `daily_closures` → `shift_closures` come righe `turno='giornaliero'`.
+4. **Lettori** — puntare dashboard, stats, export Excel, PDF commercialista, `vendite_aggregator` su `shift_closures`; semplificare/eliminare `_merge_shift_and_daily`.
+5. **Dismissione** — `daily_closures` resta read-only durante la transizione, si elimina solo dopo verifica conteggi.
+
+**Sessione "refactor" dedicata** — non mescolare a feature/bugfix (regola "una sessione = una direzione").
 
 ---
 

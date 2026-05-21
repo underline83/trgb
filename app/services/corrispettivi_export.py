@@ -333,7 +333,14 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     Genera il PDF del prospetto fiscale dei corrispettivi di un mese, pensato
     per il controllo del commercialista.
 
-    Sorgente dati: tabella `daily_closures` (registro fiscale ufficiale TRGB).
+    Sorgente dati: fonte unita `_merge_shift_and_daily` — chiusure turno
+    (`shift_closures`, operative) come primaria, import Excel (`daily_closures`)
+    come ripiego. Stesso pattern di export Excel e dashboard.
+
+    Ripartizione IVA: le chiusure turno non registrano lo split 10/22. L'osteria
+    fa somministrazione pura, quindi i giorni senza split vengono trattati come
+    interamente IVA 10% (decisione Marco 2026-05-21).
+
     Per ogni giorno riporta: corrispettivi RT, ripartizione IVA 10% / 22%,
     fatture emesse, totale giornaliero. Chiude con i totali del mese.
 
@@ -356,16 +363,9 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=30000")
     try:
-        rows = conn.execute(
-            """
-            SELECT date, weekday, corrispettivi, iva_10, iva_22,
-                   fatture, corrispettivi_tot, COALESCE(is_closed, 0) AS is_closed
-            FROM daily_closures
-            WHERE substr(date, 1, 7) = ?
-            ORDER BY date ASC
-            """,
-            (ym_prefix,),
-        ).fetchall()
+        rows = _merge_shift_and_daily(
+            conn, "WHERE substr(date, 1, 7) = ?", [ym_prefix], ym_prefix
+        )
     finally:
         conn.close()
 
@@ -383,28 +383,35 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
             d_obj = _dt.strptime(r["date"], "%Y-%m-%d").date()
         except (TypeError, ValueError):
             d_obj = None
-        data_label = d_obj.strftime("%d/%m/%Y") if d_obj else (r["date"] or "")
-        giorno_label = r["weekday"] or (_WEEKDAY_IT[d_obj.weekday()] if d_obj else "")
+        data_label = d_obj.strftime("%d/%m/%Y") if d_obj else (r.get("date") or "")
+        giorno_label = r.get("weekday") or (_WEEKDAY_IT[d_obj.weekday()] if d_obj else "")
 
-        if r["is_closed"]:
+        corr = float(r.get("corrispettivi") or 0)
+        i10 = float(r.get("iva_10") or 0)
+        i22 = float(r.get("iva_22") or 0)
+        fatt = float(r.get("fatture") or 0)
+        ctot = float(r.get("corrispettivi_tot") or 0) or (corr + fatt)
+
+        if r.get("is_closed"):
             body_rows.append(
                 f"<tr><td>{data_label}</td><td>{giorno_label}</td>"
                 f"<td colspan='5' class='text-muted' style='text-align:center'>— chiuso —</td></tr>"
             )
             continue
 
-        corr = float(r["corrispettivi"] or 0)
-        i10 = float(r["iva_10"] or 0)
-        i22 = float(r["iva_22"] or 0)
-        fatt = float(r["fatture"] or 0)
-        ctot = float(r["corrispettivi_tot"] or 0) or (corr + fatt)
+        # Ripartizione IVA: le chiusure turno non registrano lo split 10/22.
+        # Somministrazione pura → giorni senza split = interamente IVA 10%
+        # (decisione Marco 2026-05-21).
+        if corr > 0 and i10 == 0 and i22 == 0:
+            i10 = corr
 
         tot_corr += corr
         tot_i10 += i10
         tot_i22 += i22
         tot_fatt += fatt
         tot_ctot += ctot
-        giorni_aperti += 1
+        if corr > 0:
+            giorni_aperti += 1
 
         body_rows.append(
             f"<tr><td>{data_label}</td><td>{giorno_label}</td>"

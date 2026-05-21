@@ -8,13 +8,14 @@
 Nuova funzione nel modulo Cassa/Vendite: export PDF del prospetto fiscale dei corrispettivi mensili, pensato per il controllo del commercialista.
 
 ### Aggiunto
-- **Backend**: `build_corrispettivi_pdf(year, month)` in `app/services/corrispettivi_export.py` — legge `daily_closures` (registro fiscale ufficiale), costruisce il prospetto giornaliero (corrispettivi RT, ripartizione IVA 10%/22%, fatture, totale) + totali del mese, genera il PDF col mattone M.B (`pdf_brand.wrappa_html_brand`).
+- **Backend**: `build_corrispettivi_pdf(year, month)` in `app/services/corrispettivi_export.py` — legge la fonte unita (`_merge_shift_and_daily`: `shift_closures` primaria, `daily_closures` di ripiego), costruisce il prospetto giornaliero (corrispettivi RT, ripartizione IVA 10%/22%, fatture, totale) + totali del mese, genera il PDF col mattone M.B (`pdf_brand.wrappa_html_brand`).
 - **Endpoint**: `GET /admin/finance/export-corrispettivi-pdf?year=&month=` — ritorna il PDF brandizzato (404 se il mese non ha dati).
 - **Frontend**: bottone "📄 PDF commercialista" nella Dashboard Vendite (`CorrispettiviDashboard.jsx`), visibile in modalità mensile. Usa `openAuthedInNewTab` per il download auth-protetto.
 
 ### Note
 - Classificazione `[core]`: logica di prodotto generica (ogni ristorante ha un commercialista); il branding PDF è già preso dalle stringhe locale.
-- Sorgente dati = `daily_closures`: è la tabella fiscale ufficiale con la ripartizione IVA, non `shift_closures` (operativa, senza split IVA).
+- Sorgente = fonte unita shift+daily (stesso pattern di dashboard ed export Excel). I giorni che arrivano dalle chiusure turno non hanno lo split IVA: essendo somministrazione pura vengono trattati come interamente IVA 10% (decisione Marco 2026-05-21).
+- **Nota architetturale**: la doppia tabella `daily_closures` (import Excel) vs `shift_closures` (chiusure turno) è il problema di fondo. Refactor pianificato: l'import Excel scriverà direttamente in `shift_closures` e `daily_closures` verrà migrata e dismessa. Vedi `roadmap.md` §K.
 
 ### File modificati
 `app/services/corrispettivi_export.py`, `app/routers/admin_finance.py`, `frontend/src/pages/admin/CorrispettiviDashboard.jsx`, `docs/modulo_vendite.md`, `docs/changelog.md`, `docs/sessione.md`.

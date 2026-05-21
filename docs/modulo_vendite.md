@@ -346,7 +346,7 @@ Quando il periodo è in corso (mese/trimestre/anno corrente), il confronto limit
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
 | POST | `/admin/finance/import` | Import Excel corrispettivi |
-| GET | `/admin/finance/export-corrispettivi-pdf` | PDF prospetto corrispettivi per il commercialista (mensile, sorgente `daily_closures`, mattone M.B) |
+| GET | `/admin/finance/export-corrispettivi-pdf` | PDF prospetto corrispettivi per il commercialista (mensile, fonte unita shift+daily, mattone M.B) |
 | GET | `/admin/finance/chiusure/{year}/{month}` | Chiusure mensili |
 | GET/POST/PUT | `/admin/finance/chiusura/{date}` | Chiusura giornaliera CRUD |
 | GET | `/admin/finance/stats/monthly` | Statistiche mensili |
