@@ -339,7 +339,7 @@ async def export_corrispettivi_pdf(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
 
-    filename = f"corrispettivi_commercialista_{year}-{month:02d}.pdf"
+    filename = f"{year:04d}{month:02d}-corrispettivi.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
