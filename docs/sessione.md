@@ -21,11 +21,14 @@ Decisione di Marco: **opzione 3** — l'intero catalogo vini è gestito da somme
 ### Anche — creazione madre senza denominazione (stesso push)
 Marco ha segnalato che il wizard "Nuovo Vino" obbligava a scegliere una denominazione, ma ci sono vini che non ne hanno (vino da tavola, IGT generici). Corretta la validazione `confirmNewMadre` in `NuovoVinoV2.jsx`: ora serve **denominazione _oppure_ nome etichetta** (anchor per la descrizione composta), non più la denominazione obbligatoria. Campo rietichettato "Denominazione (opzionale)". Backend già OK (`MadreBase.denominazione_id` Optional). Allineato anche il messaggio d'errore del box "promuovi madre legacy".
 
+### Anche — bottiglia senza annata (stesso push)
+Marco: "nel figlio potrebbe non esserci annata". Discusso il modello: un vino senza annata = **1 madre + 1 bottiglia con annata vuota** (modello A, confermato da Marco). La giacenza resta sulla bottiglia, nessuna modifica al modello dati — il vincolo era solo una validazione artificiale. Annata resa opzionale su 3 livelli: `canAdvance` step 3 in `NuovoVinoV2.jsx` (blocca solo su anno invalido futuro/<1900), `BottigliaCreate.ANNATA` da `Field(..., min_length=1)` a `Optional[str]`, `create_bottiglia()` (rimosso `raise ValueError`). La colonna `vini_bottiglie.ANNATA` era già nullable (7 bottiglie senza annata già esistenti nel DB). FieldLabel "Annata (opzionale)", preview mostra "senza annata".
+
 ### Verifica
-`PY_OK` sui 3 file backend, esbuild OK sui 5 file frontend. Versione vini 3.59 → 3.60.
+`PY_OK` sui file backend, esbuild OK sui file frontend. Versione vini 3.59 → 3.60.
 
 ### Commit suggerito
-`./push.sh "[core] vini 3.60 — permessi catalogo aperti al sommelier (is_vini_manager) + denominazione opzionale nella creazione madre"`
+`./push.sh "[core] vini 3.60 — permessi catalogo al sommelier (is_vini_manager) + denominazione e annata opzionali nel wizard Nuovo Vino"`
 
 ---
 

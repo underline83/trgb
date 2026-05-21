@@ -21,8 +21,11 @@ Marco, loggato come **sommelier**, non riusciva a modificare un vino madre (403 
 ### Anche — creazione madre senza denominazione
 Il wizard "Nuovo Vino" (`NuovoVinoV2.jsx`) obbligava a selezionare una denominazione per creare un vino madre. Ma esistono vini che non ne hanno (vino da tavola, IGT generici). Ora la validazione richiede **denominazione _oppure_ nome etichetta** come riferimento per la descrizione composta — la denominazione torna opzionale (campo etichettato "Denominazione (opzionale)"). L'helper `componiDescrizione` già saltava gli ingredienti mancanti, nessuna modifica lì.
 
+### Anche — bottiglia senza annata
+Il wizard obbligava anche a inserire l'annata del "figlio" (bottiglia). Ma esistono vini senza annata (vino da tavola, spumanti non millesimati). Ora **l'annata è opzionale** in tutti e tre i livelli: validazione step 3 del wizard (`canAdvance` — si blocca solo su anno palesemente invalido, futuro o < 1900), modello Pydantic `BottigliaCreate.ANNATA` (da `Field(..., min_length=1)` a `Optional[str]`), e `create_bottiglia()` nel model (rimosso il `raise ValueError("ANNATA obbligatoria")`). La colonna `vini_bottiglie.ANNATA` era già nullable e le query di lettura ordinano già le bottiglie senza annata in fondo (ce n'erano già 7 nel DB). **Interpretazione confermata da Marco (modello A):** un vino senza annata = 1 madre + 1 bottiglia con annata vuota; non si gestisce nessuna lista annate, la giacenza resta sulla bottiglia come per tutti gli altri vini. Niente modifica al modello dati.
+
 ### File modificati
-`app/services/auth_service.py`, `app/routers/vini_anagrafiche_router.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/components/vini/MagazzinoSubMenu.jsx`, `frontend/src/pages/vini/DashboardVini.jsx`, `frontend/src/pages/vini/v2/NuovoVinoV2.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
+`app/services/auth_service.py`, `app/models/vini_anagrafiche_db.py`, `app/routers/vini_anagrafiche_router.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/components/vini/MagazzinoSubMenu.jsx`, `frontend/src/pages/vini/DashboardVini.jsx`, `frontend/src/pages/vini/v2/NuovoVinoV2.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
 
 ---
 

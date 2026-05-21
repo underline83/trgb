@@ -795,12 +795,14 @@ class BottigliaCreate(BaseModel):
     """
     Payload per creare una bottiglia (annata di un madre) via wizard.
 
-    `madre_id` e `ANNATA` sono gli unici obbligatori; il resto è opzionale.
+    `madre_id` è l'unico obbligatorio; il resto è opzionale.
+    `ANNATA` è OPZIONALE: esistono vini senza annata (vino da tavola, spumanti
+    non millesimati) — la colonna è nullable.
     I campi anagrafici (PRODUTTORE/DESCRIZIONE/REGIONE/...) NON sono nel payload:
     vengono propagati dal madre via cascade sync. Solo `madre_id` lega.
     """
     madre_id: int
-    ANNATA: str = Field(..., min_length=1)
+    ANNATA: Optional[str] = None
     id_excel: Optional[int] = None
 
     FORMATO: Optional[str] = None
@@ -866,7 +868,7 @@ def create_bottiglia(
     chiama il cascade sync per popolare i campi anagrafici ridondanti.
 
     Errori:
-      - 400 se madre_id non esiste o ANNATA manca/empty
+      - 400 se madre_id non esiste
       - 500 su altri errori
     """
     _require_vini_manager(current_user)

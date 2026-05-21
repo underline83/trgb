@@ -1364,16 +1364,19 @@ def create_bottiglia(data: Dict[str, Any]) -> int:
     Args:
         data: dict con i campi annata-specifici. `madre_id` è obbligatorio.
 
+    Nota: ANNATA è OPZIONALE. Esistono vini senza annata (vino da tavola,
+    spumanti non millesimati): la colonna `ANNATA` è nullable e le query di
+    lettura ordinano le bottiglie senza annata in fondo. Vedi anche la
+    validazione "anchor" del wizard frontend.
+
     Raises:
-        ValueError: se madre_id manca o non esiste, o se ANNATA manca.
+        ValueError: se madre_id manca o non esiste.
 
     Returns:
         id della nuova bottiglia.
     """
     if not data.get("madre_id"):
         raise ValueError("madre_id obbligatorio")
-    if not data.get("ANNATA"):
-        raise ValueError("ANNATA obbligatoria")
 
     # Verifica esistenza madre
     madre = get_madre(int(data["madre_id"]))

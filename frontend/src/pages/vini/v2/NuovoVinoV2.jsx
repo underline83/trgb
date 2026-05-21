@@ -204,7 +204,17 @@ export default function NuovoVinoV2() {
   const canAdvance = useMemo(() => {
     if (step === 1) return !!produttore;
     if (step === 2) return !!madre;
-    if (step === 3) return !!(annata.ANNATA || "").toString().trim();
+    if (step === 3) {
+      // Annata OPZIONALE (vini senza annata: vino da tavola, spumanti NV).
+      // Si avanza sempre; si blocca solo se è stato digitato un anno
+      // palesemente invalido (futuro o < 1900).
+      const a = (annata.ANNATA || "").toString().trim();
+      if (!a) return true;
+      const y = parseInt(a, 10);
+      const max = new Date().getFullYear();
+      if (Number.isFinite(y) && (y > max || y < 1900)) return false;
+      return true;
+    }
     if (step === 4) {
       // Almeno una locazione con quantità > 0 (come Cantina classica).
       // QTA_LOC3 viene dalla MATRICE (non da dropdown): conta le celle preselezionate.
@@ -990,7 +1000,7 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
         <div className="p-5 space-y-4">
           {/* Identificazione */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FieldLabel label="Annata" required
+            <FieldLabel label="Annata (opzionale)"
                         hint={(() => {
                           const y = parseInt(annata.ANNATA, 10);
                           const max = new Date().getFullYear();
@@ -1270,7 +1280,7 @@ function PreviewModal({ open, produttore, madre, annata, saving, submitError, su
 
         <PreviewBlock title="📅 Annata (nuova bottiglia)" highlight="DA CREARE">
           <PreviewRow label="📜 Descrizione (auto)" value={descrizioneFinale || null} />
-          <PreviewRow label="Annata · Formato" value={`${annata.ANNATA || "?"} · ${annata.FORMATO || "BT"}`} />
+          <PreviewRow label="Annata · Formato" value={`${(annata.ANNATA || "").toString().trim() || "senza annata"} · ${annata.FORMATO || "BT"}`} />
           <PreviewRow label="Grado alcolico" value={annata.GRADO_ALCOLICO ? `${annata.GRADO_ALCOLICO}%` : null} />
           <PreviewRow label="Listino · Sconto" value={annata.EURO_LISTINO ? `€ ${annata.EURO_LISTINO}${annata.SCONTO ? ` − ${annata.SCONTO}%` : ""}` : null} />
           <PreviewRow label="Prezzo carta" value={annata.PREZZO_CARTA ? `€ ${annata.PREZZO_CARTA}` : null} />
