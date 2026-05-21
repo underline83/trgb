@@ -10,7 +10,8 @@
 - ✅ **M.F Alert engine** (sessione 40) — `app/services/alert_engine.py` + `app/routers/alerts_router.py`. 3 checker: fatture scadenza, dipendenti documenti, vini sottoscorta. Trigger automatico da dashboard, anti-duplicato 12-24h. Genera notifiche via M.A.
 - ✅ **M.I UI primitives** (sessione 2026-04-18) — `frontend/src/components/ui/`: `<Btn>`, `<PageLayout>`, `<StatusBadge>`, `<EmptyState>`. Opt-in per pagine nuove.
 - ✅ **M.E Calendar** (sessione 48, 2026-04-19) — `frontend/src/components/calendar/`: `<CalendarView>` stateless controllato con 3 viste (mese/settimana/giorno), palette brand, tastiera ←/→/T/M/S/G, demo su `/calendario-demo` (admin only). Spec: `docs/mattone_calendar.md`.
-- ⏳ M.D Email service, M.G Permessi, M.H Import engine — DA FARE
+- ⏳ M.G Permessi, M.H Import engine — DA FARE
+- ⏸ **M.D Email service — DA FARE, non prioritario** (decisione PO Marco 2026-05-19 post-audit autonomo). Si riprende quando un workflow specifico (conferme prenotazione / invio preventivi / compleanni / busta paga via email) lo richiede in modo bloccante. Vedi anche `roadmap.md` §M.
 
 **Regola critica:** il PDF della Carta Vini (`carta_vini_service.py` + endpoints `/vini/carta/pdf*`) ha un motore dedicato e NON deve essere sostituito con M.B. Ha requisiti specifici (TOC, layout calici) che giustificano il motore separato.
 
@@ -85,8 +86,9 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 
 ---
 
-### M.D — Email service brand (backend)
+### M.D — Email service brand (backend) ⏸ NON PRIORITARIO
 
+**Stato:** DA FARE — non prioritario (decisione PO Marco 2026-05-19 post-audit autonomo). Si riprende quando un workflow specifico lo richiede in modo bloccante.
 **Cosa:** servizio invio email con template HTML brandizzato.
 **Backend:** `app/services/email.py` → `invia_email(destinatario, oggetto, template, dati)`
 **Config:** SMTP settings in .env, template base HTML con header/footer TRGB

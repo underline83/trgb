@@ -128,9 +128,9 @@ DB ponte per Carta Cliente pubblica (endpoint `/vini/carta-cliente/data` no-auth
 
 ---
 
-## 6. `admin_finance.sqlite3` (Vendite/Selezioni)
+## 6. `admin_finance.sqlite3` (Vendite/Cassa)
 
-Vedi `modulo_selezioni.md` §8 per dettaglio operativo.
+Vedi `modulo_vendite.md` §9 per dettaglio operativo (ex `modulo_selezioni.md`, rinominato 2026-05-19).
 
 | Tabella | Contenuto |
 |---------|-----------|
@@ -280,7 +280,7 @@ In `locali/tregobbi/data/`:
 - `modules.json` — moduli abilitati per locale (sorgente)
 - `modules.runtime.json` — moduli auto-generati (NON modificare a mano, runtime)
 - `modules.runtime.meta.json` — meta runtime
-- `closures_config.json` — giorno chiusura settimanale + giorni chiusi (vedi `modulo_selezioni.md` §10)
+- `closures_config.json` — giorno chiusura settimanale + giorni chiusi (vedi `modulo_vendite.md` §11)
 
 ---
 

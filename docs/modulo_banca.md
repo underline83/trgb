@@ -5,12 +5,12 @@
 **Versione modulo (`versions.jsx`):** banca v1.x · flussi_cassa v1.x
 **Sezione top-level:** `/banca` (e `/flussi-cassa` per Contanti/Mance — modulo affiliato)
 **Backend prefix:** `/banca/*` + `/flussi-cassa/*`
-**DB:** `app/data/cg.sqlite3` (condiviso con Controllo Gestione) + `admin_finance.sqlite3` (condiviso con Vendite/Selezioni)
+**DB:** `app/data/cg.sqlite3` (condiviso con Controllo Gestione) + `admin_finance.sqlite3` (condiviso con Vendite/Cassa)
 **Roadmap:** sezione `B.` di `docs/roadmap.md`
 **Documenti correlati:**
 - `modulo_controllo_gestione.md` — usa Banca come fonte di verità per pagamenti
 - `modulo_acquisti.md` — fatture XML/FIC che generano scadenze
-- `modulo_selezioni.md` — Chiusure turno, contanti come residuo
+- `modulo_vendite.md` — Chiusure turno, contanti come residuo (ex `modulo_selezioni.md`)
 
 ---
 

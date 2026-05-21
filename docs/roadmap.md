@@ -1,6 +1,8 @@
 # TRGB Gestionale — Roadmap (riorganizzata 2026-05-07)
 
-**Ultimo aggiornamento:** 2026-05-07 — riorganizzazione completa modulo per modulo dopo refactor R1-R8 chiuso, R6.5 push 1+2+3 chiuso, sistema sicurezza/backup post-incidente live, PWA Fase 0 completa.
+**Ultimo aggiornamento:** 2026-05-19 — aggiunta sezione "DH — Docs hardening" (post audit autonomo `docs/audit-2026-05-19/`, verdetto adversarial 87/100). Aggiornata V-H.I (non prima 15 giugno) + M.D (non prioritario) + segnati MORT-2 e `/menu/` rinviati. Decisioni PO Marco 2026-05-19.
+
+**Aggiornamento precedente:** 2026-05-07 — riorganizzazione completa modulo per modulo dopo refactor R1-R8 chiuso, R6.5 push 1+2+3 chiuso, sistema sicurezza/backup post-incidente live, PWA Fase 0 completa.
 **Legenda effort:** XS = ~30min · S = ~1h · M = 2-3h · L = 2+ sessioni
 **Convenzioni:** ogni voce ha ID stabile `<lettera>.<numero>` raggruppato per modulo. ✅ FATTO + commit hash + data. ⏸ in pausa = decisione Marco.
 
@@ -28,6 +30,7 @@
 > PR. Prenotazioni
 > CL. Clienti / CRM / Preventivi
 > ST. Statistiche
+> DH. Docs Hardening (post audit autonomo 2026-05-19)
 > T. Tecnici / Platform
 > S. Vendita prodotto / Commerciale
 > U. UX / Brand
@@ -53,7 +56,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 | M.E | Calendar component | M | ✅ FATTO (S48 2026-04-19) | `components/calendar/CalendarView.jsx`, demo `/calendario-demo` |
 | M.F | Alert engine | S | ✅ FATTO (S40) | `app/services/alert_engine.py` + 3 checker (fatture/dipendenti/vini), anti-duplicato 12-24h |
 | M.I | UI primitives | S | ✅ FATTO (2026-04-18) | `components/ui/`: Btn, PageLayout, StatusBadge, EmptyState |
-| **M.D** | **Email service brand** | **M** | **DA FARE — alta futura** | SMTP/Mailgun/Resend + template HTML. Sblocca conferme prenotazioni, invio preventivi, compleanni, busta paga email |
+| **M.D** | **Email service brand** | **M** | **DA FARE — non prioritario (Marco 2026-05-19 post-audit)** | SMTP/Mailgun/Resend + template HTML. Sblocca conferme prenotazioni, invio preventivi, compleanni, busta paga email. Riprendere quando un workflow specifico lo richiede in modo bloccante. |
 | **M.H** | **Import engine generico** | **S** | **DA FARE — media** | Estrazione pattern da `clienti_router.py` TheFork. Sblocca: import TF, Excel vini diff, carta credito, banca PSD2 |
 | **M.G** | **Sistema permessi centralizzato** | **M** | **DA FARE — media** | Sostituisce 30+ check `if (ruolo === ...)` sparsi |
 | **M.J** | **Housekeeping (guardiano del progetto)** | **L** | **DA FARE — media** | 3 livelli: (L1) hook pre-push in `push.sh` blocca pattern sospetti (`__pycache__`, `*.zip` root, `*_dryrun.csv`, `.DS_Store`, mockup in root, TODO fantasma, changelog non aggiornato) + flag `--skip-housekeeping`; (L2) skill `trgb:housekeeping` invocabile on-demand (`/audit`) che riproduce audit completo file-per-file; (L3) scheduled task mensile (primo lunedì 08:00) con report in Bacheca M.A. Razionale: l'audit S51 (20 apr) ha trovato 21.6 MB di rumore + paradoc fantasma; senza un meccanismo automatico il pattern si ripete (eseguito retroattivamente 2026-05-08). Spec dettagliata era in `AUDIT_2026-04-20/mattone_housekeeping.md` (cancellato). Scripts riusabili `scripts/housekeeping/scan_*` per BE/FE/docs/memoria/worktree. |
@@ -102,7 +105,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 | V-H.C | Trailing slash uniformati su route Vini | S | FATTO 2026-05-12 (verificato conforme, no modifiche) |
 | V-H.D | QTA_TOTALE read-only (opzione 1) + audit FE | S | FATTO 2026-05-12 (era già di fatto sicuro + cintura `data.pop` in `update_vino`) |
 | V-H.E | Normalizzazione 4 flag SI/NO → INTEGER 0/1 (CARTA, IPRATICO, BIOLOGICO, VENDITA_CALICE) + rimozione DISCONTINUATO (consolidato in STATO_RIORDINO='X') | M | FATTO 2026-05-12 (mig 124, single shot atomico, backup esplicito) |
-| V-H.I | Cleanup completo file legacy (`vini_model.py` con stub deprecati, DB `vini.sqlite3` se vuoto) | XS | DA VALUTARE (dopo verifica produzione) |
+| V-H.I | Cleanup completo file legacy (`vini_model.py` con stub deprecati, DB `vini.sqlite3` se vuoto, `*_legacy.jsx` archiviati) | XS | DA FARE — **non prima del 15 giugno 2026** (decisione PO Marco 2026-05-19 post-audit). Niente data limite, ma non si tocca prima. |
 | V-H.J | Import/Export Vini v2 (template + import + export, vecchio eliminato) | M | FATTO 2026-05-12 (3 endpoint nuovi, vecchi rimossi, UI Impostazioni rifatta) |
 
 ### V.6+V.7+V.8 — Refactor strutturale anagrafiche vini → **COMPLETATO 2026-05-19**
@@ -498,7 +501,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.P2 | Note allergeni stampate sul PDF | S | MEDIA | |
 | C.P3 | Multi-edizione (menu speciali eventi) | M | BASSA | Schema change |
 | **Selezioni del giorno** (4 scelte + piatti del giorno) ||||
-| C.S1 | Doc `modulo_selezioni.md` (oggi non c'è doc) | XS | BASSA | |
+| ~~C.S1~~ | ~~Doc `modulo_selezioni.md`~~ | XS | ✅ FATTO 2026-05-19 | Stub `docs/modulo_selezioni_giorno.md` creato (DH.1). Da estendere endpoint-by-endpoint in sessione docs futura |
 | C.S2 | Note allergeni per scelta del giorno | S | BASSA | |
 | C.S3 | Foto plate-up per scelta del giorno | S | BASSA | |
 | **Lista spesa Fase 2** (sotto-modulo Cucina, era §R.9-13) ||||
@@ -580,6 +583,37 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | ST.2 | Drill-down: vendite per giorno della settimana | S | BASSA | |
 | ST.3 | Confronto YoY su top prodotti | S | BASSA | |
 | ST.4 | Export PDF/Excel report mensile (M.B) | S | BASSA | |
+
+---
+
+## DH — DOCS HARDENING (post audit autonomo 2026-05-19)
+
+**Fonte:** `docs/audit-2026-05-19/02_GAP_REPORT.md` (5 CRIT + 20 MED + 10 MIN + 5 anomalie strutturali).
+**Verdetto adversarial:** 87/100 (`docs/audit-2026-05-19/VERIFICA_PLAUSIBILITA.md`).
+**Stato:** alcune voci chiuse in commit 2026-05-19 docs hardening, altre rinviate.
+
+> CRIT-3 e CRIT-4 sono stati **declassati a MED** in base alla verifica adversarial (vedi `VERIFICA_PLAUSIBILITA.md` §Test 3): CRIT-3 perché `modulo_vendite.md` §9 copre già il flusso operativo, CRIT-4 perché tasks/HACCP sono documentati in `modulo_cucina.md` ed è solo uno split di file da fare.
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| **DH.1** | NOMEN-1: rinomina `modulo_selezioni.md` → `modulo_vendite.md` + stub `modulo_selezioni_giorno.md` per i 5 router `scelta_*` | S | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening |
+| **DH.2** | CRIT-1: stub `modulo_fatture_in_cloud.md` con 17 endpoint reali | XS | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening. Stub strutturato, da estendere endpoint-by-endpoint |
+| **DH.3** | Disciplina docs in `CLAUDE.md` (raccomandazione 4 executive summary) | XS | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening |
+| DH.4 | CRIT-3 (declassato a MED): estensione `modulo_vendite.md` §9 con mapping endpoint:linea per i 11 endpoint chiusure turno | S | DA FARE — bassa | Sessione docs dedicata |
+| DH.5 | CRIT-4 (declassato a MED): split `modulo_cucina.md` → `modulo_cucina.md` (lista_spesa) + `modulo_task_manager.md` (checklist + tasks + HACCP) | S | DA FARE — media | Sessione docs dedicata, ~1-2h. Non creare da zero: lo split valorizza ciò che già c'è |
+| DH.6 | Tabella Capability standardizzata in cima a ogni `modulo_*.md` (~15 file) | L | DA FARE — bassa | Sessione docs L, distribuibile. Riferimento granulare: `docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md` (416 capability già mappate file:linea) |
+| DH.7 | Estensione `push.sh` (guardiano L1) con warning non-bloccante se diff tocca un router ma non `modulo_*.md` corrispondente | XS | DA FARE — bassa | Sessione tecnica L1 |
+| DH.8 | Verifica spot dei 3 claim del manuale utente: PIN anti-bruteforce 60s (`auth_service.py`), durata JWT (`app/core/security.py`), comportamento `moduli_attivi.json` (hot reload vs restart) | XS | DA FARE — alta | Prima di dare il manuale (`docs/audit-2026-05-19/04_MANUALE_UTENTE.md`) allo staff |
+| DH.9 | Refactor strutturale `docs/{moduli, specs, adr}/` (`docs/audit-2026-05-19/03_DOCS_REFACTORING_PLAN.md`) | L | DA VALUTARE | Investimento ~2 giorni distribuiti. Non urgente, ma più si rinvia più costa |
+| DH.10 | Coprire i 20 gap MED del gap report (FIC sync flow, allergeni, foodcost per ricetta, Mailchimp, ecc.) | M | DA FARE — bassa | Una sessione mirata o opportunistica quando si tocca il modulo |
+| DH.11 | Coprire i 10 gap MIN del gap report (reset-database cantina, recovery import fatture, ecc.) | XS | DA VALUTARE | Opportunistico |
+
+### Decisioni PO Marco 2026-05-19 (post-audit, riferimento)
+1. **NOMEN-1** → DISAMBIGUIAMO (DH.1 fatto).
+2. **V-H.I cleanup `*_legacy.jsx` vini** → "non prima del 15 giugno 2026" (vedi §V).
+3. **Endpoint `/menu/`** → "nel cassetto, poi lo faremo" (vedi `inventario_pulizia.md`).
+4. **MORT-2 turni vecchio + v2** → "lo vediamo quando sistemiamo meglio il modulo Dipendenti" (vedi `controllo_design.md`).
+5. **Mattone email M.D** → "non prioritario" (vedi §M aggiornato).
 
 ---
 

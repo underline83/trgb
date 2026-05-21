@@ -3,6 +3,45 @@
 
 ---
 
+## 2026-05-19 — Docs hardening post audit autonomo `[mixed]`
+
+Sessione di sola documentazione, post audit autonomo (`docs/audit-2026-05-19/`, verdetto adversarial 87/100). Chiusura delle 5 decisioni PO in sospeso.
+
+### Disambiguazione "Selezioni" (NOMEN-1 audit)
+- **Rinominato** `docs/modulo_selezioni.md` → `docs/modulo_vendite.md` (contenuto storico spostato senza perdite).
+- **Vecchio file** `modulo_selezioni.md` ridotto a stub redirect (Marco lo cancella con `git rm` in cleanup futuro).
+- **Nuovo** `docs/modulo_selezioni_giorno.md` per i 5 router gemelli `scelta_*` di cucina (macellaio / salumi / formaggi / pescato / piatti del giorno) — gap CRIT-2 dell'audit.
+- Link interni aggiornati in `modulo_cucina.md`, `modulo_banca.md`, `readme.md`, `database.md`.
+
+### Stub Fatture in Cloud (CRIT-1 audit)
+- **Nuovo** `docs/modulo_fatture_in_cloud.md` con tabella dei **17 endpoint reali** (l'audit dichiarava 12, verifica adversarial ha contato 17 in `fattureincloud_router.py`).
+
+### Decisioni PO Marco (chiuse)
+1. **NOMEN-1** → DISAMBIGUIAMO (fatto sopra).
+2. **V-H.I cleanup `*_legacy.jsx` vini** → "non prima del 15 giugno" — `roadmap.md` §V aggiornato (rimosso vincolo settimanale, niente data limite).
+3. **Endpoint `/menu/`** → "nel cassetto, poi lo faremo" — segnato in `inventario_pulizia.md`.
+4. **MORT-2 turni vecchio + v2** → "lo vediamo quando sistemiamo meglio il modulo Dipendenti" — segnato in `controllo_design.md`.
+5. **Mattone email M.D** → "non prioritario" — segnato in `architettura_mattoni.md` e `roadmap.md` §M.
+
+### Disciplina docs in `CLAUDE.md`
+Nuova sezione: "ogni nuova capability in un router → riga in tabella Capability del relativo `modulo_*.md`". Enforcement zero-cost per il futuro (raccomandazione 4 dell'executive summary).
+
+### File modificati
+**Docs prodotto:** `modulo_vendite.md` (nuovo), `modulo_selezioni.md` (stub redirect), `modulo_selezioni_giorno.md` (nuovo), `modulo_fatture_in_cloud.md` (nuovo), `modulo_cucina.md`, `modulo_banca.md`, `readme.md`, `database.md`.
+
+**Docs di processo:** `sessione.md` (nuova entry), `changelog.md` (questa voce), `roadmap.md` (sezione Docs hardening + V-H.I + M.D), `controllo_design.md` (MORT-2), `inventario_pulizia.md` (/menu/), `architettura_mattoni.md` (M.D).
+
+**Config:** `CLAUDE.md` (sezione Disciplina docs).
+
+### Cosa NON è in questo commit
+- Tabella Capability standardizzata su ogni `modulo_*.md` (4-6h, sessione dedicata)
+- Split `modulo_cucina.md` → `cucina.md` + `task_manager.md` (CRIT-4 declassato, sessione dedicata)
+- Estensione `push.sh` con warning router→docs (sessione tecnica separata)
+- Verifica spot dei 3 claim manuale (PIN 60s, JWT 30min, vini esauriti)
+- Refactor strutturale `docs/{moduli, specs, adr}/`
+
+---
+
 ## 2026-05-19 — Vini 3.47 → 3.53 · F11 Hotfix giornata post-cutover `[core]`
 
 Giornata di test ad osteria chiusa post-cutover refactor anagrafiche. ~10 bug fixati uno alla volta + UI clean-up + 2 feature.

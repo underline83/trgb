@@ -4,7 +4,7 @@
 **Stato:** MVP rilasciato (sessione 43, 2026-04-17). Phase A.2 (livelli) e A.3 (brigata) implementate. Roadmap evolutiva V1+V2 in `roadmap.md` §C.
 **Versione modulo (`versions.jsx`):** cucina v1.0 beta · tasks v1.3
 **Roadmap:** sezione `C.` di `docs/roadmap.md`
-**Documenti correlati:** `modulo_pranzo.md`, `modulo_menu_carta.md`, `modulo_selezioni.md`
+**Documenti correlati:** `modulo_pranzo.md`, `modulo_menu_carta.md`, `modulo_vendite.md` (ex `modulo_selezioni.md`), `modulo_selezioni_giorno.md`
 
 ---
 

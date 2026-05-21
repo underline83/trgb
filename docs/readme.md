@@ -149,9 +149,9 @@ Docs: `docs/modulo_acquisti.md`
 Ingredienti, fornitori, storico prezzi multi-fornitore, ricette con sub-ricette, calcolo food cost ricorsivo con cycle detection, matching fatture XML → ingredienti con Smart Create, conversioni unità personalizzate (3 livelli: custom + standard + chain).
 Docs: `docs/modulo_ricette_foodcost.md`
 
-### Selezioni / Gestione Vendite (v4.x)
+### Vendite / Cassa (v4.x — ex "Selezioni")
 Import Excel corrispettivi, chiusure giornaliere, chiusure turno (pranzo/cena con logica cumulativa + chiusure parziali), pre-conti, spese dinamiche, fondo cassa, dashboard unificata 3 modalità (Mensile/Trimestrale/Annuale), confronto YoY smart. Contanti e Mance spostati in Flussi di Cassa.
-Docs: `docs/modulo_selezioni.md`
+Docs: `docs/modulo_vendite.md` (sub-modulo cucina "Selezioni del Giorno": `docs/modulo_selezioni_giorno.md`)
 
 ### Banca + Flussi di Cassa (v1.x)
 Estratti conto BPM/Sella, movimenti bancari con matching scadenze (manuale + automatico in roadmap), riconciliazione, gestione contanti separata, mance con distribuzione cumulativo.

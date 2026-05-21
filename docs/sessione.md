@@ -1,6 +1,56 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-19 (cont. sera) — **CG/Fatture: modello stati 3D + redesign FattureDettaglio + tab Conto Economico** (fatture 3.0 → **3.1**, controlloGestione 2.16 → **2.17**, sistema 5.15 → **5.16**). Sessione parallela alla F11 vini: chiusura semantica sugli stati pagamento (modello D1/D2/D3 granitico), redesign del dettaglio fattura con 4° tab "Conto Economico" (competenza+spalmatura+categoria editor bidirezionale+impatto P&L), riquadro stato pagamento nel tab Pagamenti, footer ripulito dalla label "STATO:" fuorviante.
+**Ultimo aggiornamento:** 2026-05-19 (cont. notte) — **Audit autonomo Claude Code + riallineamento decisioni PO**. Sessione di sola docs: l'audit autonomo del pomeriggio (committato in `90f1b73` insieme a vini 3.54) ha prodotto 8 file in `docs/audit-2026-05-19/` con verdetto adversarial **87/100**. Marco ha risposto alle 5 decisioni PO. Commit `[mixed]` di docs hardening: rinomina `modulo_selezioni.md` → `modulo_vendite.md`, nuovi stub `modulo_selezioni_giorno.md` (CRIT-2) e `modulo_fatture_in_cloud.md` (CRIT-1, 17 endpoint), disciplina docs in `CLAUDE.md`.
+
+## SESSIONE 2026-05-19 (cont. notte) — Audit autonomo + decisioni PO + docs hardening
+
+### Sintesi
+Marco ha caricato in sessione i deliverable di un audit autonomo che ha fatto fare a Claude Code nel pomeriggio (8 file, 2.655 righe, durata dichiarata ~1.5h). L'audit ha prodotto: inventario stack, audit 416 capability su 14 moduli, gap report (5 CRIT + 20 MED + 10 MIN + 5 anomalie strutturali), refactoring plan docs, manuale utente di ~6.000 parole, executive summary. Una sessione adversarial separata (Claude Code) ha dato verdetto **87/100** (≥85 = "audit affidabile, usabile come deliverable"), con riserva su CRIT-3 e CRIT-4 sovrastimati nella priorità.
+
+### Decisioni PO Marco (5 in sospeso, tutte chiuse)
+1. **NOMEN-1 — "Selezioni"** → **DISAMBIGUIAMO**. Rinomina `docs/modulo_selezioni.md` → `docs/modulo_vendite.md`. Nuovo stub `docs/modulo_selezioni_giorno.md` per i 5 router `scelta_*` di cucina.
+2. **V-H.I cleanup `*_legacy.jsx` vini** → "non prima del 15 giugno" (rimosso vincolo settimanale, niente data limite).
+3. **Endpoint `/menu/`** → "nel cassetto, poi lo faremo" — segnato in `inventario_pulizia.md`.
+4. **MORT-2 turni vecchio + v2** → "lo vediamo quando sistemiamo meglio il modulo Dipendenti" — segnato in `controllo_design.md`.
+5. **Mattone email M.D** → "non prioritario" — segnato in `architettura_mattoni.md`.
+
+### Modifiche docs in questo commit
+- `docs/modulo_vendite.md` (nuovo, contiene tutto il contenuto storico di `modulo_selezioni.md` + sezione 0 disambiguazione)
+- `docs/modulo_selezioni.md` (svuotato → stub redirect verso `modulo_vendite.md` e `modulo_selezioni_giorno.md`)
+- `docs/modulo_selezioni_giorno.md` (nuovo stub: 5 router gemelli, 24 capability, pattern comune)
+- `docs/modulo_fatture_in_cloud.md` (nuovo stub: 17 endpoint reali — audit dichiarava 12)
+- 5 docs con link interni aggiornati: `modulo_cucina.md`, `modulo_banca.md`, `readme.md`, `database.md` (2 occorrenze)
+- `docs/roadmap.md` — nuova sezione "Docs hardening" con i 5 CRIT (CRIT-3 e CRIT-4 declassati a MED) + V-H.I tempistica aggiornata
+- `docs/controllo_design.md` — voce MORT-2 turni rinviata
+- `docs/inventario_pulizia.md` — voce `/menu/` "nel cassetto"
+- `docs/architettura_mattoni.md` — M.D segnato "non prioritario (Marco 2026-05-19)"
+- `CLAUDE.md` — nuova sezione "Disciplina docs": ogni nuova capability in un router → riga in tabella Capability del relativo `modulo_*.md`
+
+### Cosa NON è in questo commit (per evitare scope creep)
+- Tabella Capability standardizzata in cima a ogni `modulo_*.md` (4-6h, sessione dedicata futura)
+- Split `modulo_cucina.md` → `cucina.md` + `task_manager.md` (CRIT-4 declassato, sessione dedicata)
+- Estensione `push.sh` con warning router→docs (enhancement L1 guardiano, sessione tecnica separata)
+- Verifica spot dei 3 claim del manuale (PIN 60s, JWT 30min, vini esauriti) — sessione dedicata
+- Refactor strutturale `docs/{moduli, specs, adr}/` (2 giorni, non urgente)
+
+### Riferimenti chiave
+- Cartella audit: `docs/audit-2026-05-19/` (8 file, già committati in `90f1b73`)
+- Verdetto adversarial: `docs/audit-2026-05-19/VERIFICA_PLAUSIBILITA.md` (87/100)
+- Executive summary: `docs/audit-2026-05-19/05_EXECUTIVE_SUMMARY.md`
+- Manuale utente: `docs/audit-2026-05-19/04_MANUALE_UTENTE.md` (~6.000 parole)
+
+### Verifica post-deploy attesa
+Nessuna verifica runtime (sessione di sola docs). Da verificare manualmente:
+- I link interni nei 5 docs aggiornati puntano correttamente.
+- `modulo_vendite.md` è leggibile end-to-end.
+- `modulo_selezioni.md` (stub redirect) non lascia broken link.
+
+### Prossimi step suggeriti
+- Verifica spot 3 claim manuale prima di darlo allo staff.
+- Tabella Capability standardizzata (sessione docs L, distribuita).
+- Split `modulo_cucina.md` (sessione docs S).
+
+---
 
 ## SESSIONE 2026-05-19 (cont. sera) — CG/Fatture redesign + modello stati 3D
 

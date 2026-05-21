@@ -95,6 +95,21 @@
 
 ---
 
+## 6.bis Turni vecchio (`/dipendenti/turni/calendario/*`) vs v2 (`/turni/foglio/*`) — switch decisione (MORT-2 audit 2026-05-19)
+
+**Stato**: convivenza dei due sistemi. Dall'audit autonomo (`docs/audit-2026-05-19/02_GAP_REPORT.md` MORT-2): non è chiaro se i call site FE del sistema vecchio sono ancora attivi. La v2 (`/turni/foglio/*`) è il sistema canonico nuovo.
+
+**Da decidere**:
+- Switch atomico a v2 + rimozione endpoint vecchi?
+- Mantenere fallback per N tempo come safety?
+- Quali pagine FE chiamano ancora `/dipendenti/turni/calendario/*`? (grep da fare prima)
+
+**Decisione PO Marco 2026-05-19**: "lo vediamo quando sistemiamo meglio il modulo Dipendenti". Rinviato a sessione dedicata refactor Dipendenti/Turni. Niente azione immediata.
+
+**Effort stimato**: S (audit chiamanti + decisione) + S-M (deprecation o rimozione).
+
+---
+
 ## 6. WAL mode esteso a tutti i DB (segnalato S57 cont. 2026-04-25)
 
 **Stato**: WAL già attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Mancano: `bevande`, `clienti`, `tasks`, `settings`, `dipendenti`, `admin_finance` (roadmap 1.11.2).

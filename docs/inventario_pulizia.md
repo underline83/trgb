@@ -43,6 +43,16 @@ Dopo questo cleanup, push: `./push.sh "cleanup S57: PIN admin random + L1 guardi
 - Marco non ricorda se è ancora usato. Probabilmente legacy, candidato per cancellazione.
 - **Decisione pendente**.
 
+### Endpoint `/menu/` — router minimale (1 endpoint) — nel cassetto
+
+**Da audit autonomo 2026-05-19** (`docs/audit-2026-05-19/02_GAP_REPORT.md` MIN-9): `app/routers/menu_router.py` espone 1 solo endpoint `GET /menu/`. L'audit non ha trovato chiamanti FE.
+
+**Decisione PO Marco 2026-05-19**: "è un progetto un po' nel cassetto ma poi lo faremo". Quindi:
+- **NON rimuovere** il file/endpoint.
+- **NON consolidare** in `menu_carta_router.py`.
+- Riprendere quando si riprende il progetto menu legacy (data ignota, non a breve).
+- Se in audit futuri risulta ancora orfano dopo 6+ mesi, riconsiderare.
+
 ### `update_vps.sh` (root) — referenzia script gitignored
 - Usa `run_server_vps.sh` e `run_frontend_vps.sh` che sono in `.gitignore` come "LEGACY/JUNK".
 - Gli script attuali in produzione sono `tools/run/run_backend_prod.sh` e `tools/run/run_frontend_prod.sh`.

@@ -180,3 +180,38 @@ Se non sai a quale dimensione appartiene un valore che vuoi mostrare/scrivere, C
 - Aggiornare `docs/changelog.md` se rilascio significativo.
 - Aggiornare `docs/sessione.md` a fine sessione.
 - Aggiornare `frontend/src/config/versions.jsx` se cambia versione di un modulo.
+
+## Disciplina docs — capability tracciate per modulo (da audit autonomo 2026-05-19)
+
+> **Razionale:** l'audit autonomo del 2026-05-19 (`docs/audit-2026-05-19/`) ha trovato ~40 capability nel codice non documentate in nessun `modulo_*.md` (gap 🆕 nel report `02_GAP_REPORT.md`). Per evitare che il drift si ripeta, ogni capability nuova lascia una traccia.
+
+**Regola:** quando aggiungi/modifichi una **capability utente** (= endpoint pubblico, pagina FE, azione utente significativa) in un router o in una pagina, AGGIUNGI o AGGIORNA la riga corrispondente nella tabella Capability del `modulo_*.md` di quel modulo.
+
+**Tabella Capability** (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md` mostra il formato consolidato):
+- Codice capability (`C-<lettera modulo>-NNN`)
+- Cosa fa (1 riga, lato utente)
+- Riferimento `file:linea` del router/componente
+- Audience (chef / admin / sala / sommelier / ecc.)
+- Stato docs (✅ allineato / ⚠️ parziale / 🆕 nuovo / ❌ obsoleto)
+
+**Modulo → file canonico:**
+- `vini` → `docs/modulo_vini.md`
+- `ricette` → `docs/modulo_ricette_foodcost.md` (+ `docs/modulo_selezioni_giorno.md` per i 5 router scelta_*)
+- `acquisti` → `docs/modulo_acquisti.md` (+ `docs/modulo_fatture_xml.md` per import SDI + `docs/modulo_fatture_in_cloud.md` per FIC)
+- `controllo_gestione` → `docs/modulo_controllo_gestione.md`
+- `banca` → `docs/modulo_banca.md`
+- `dipendenti` → `docs/modulo_dipendenti.md` (+ `docs/modulo_dipendenti_turni.md` per turni)
+- `prenotazioni` → `docs/modulo_prenotazioni.md` (+ `docs/modulo_preventivi.md` per preventivi)
+- `clienti` → `docs/modulo_clienti_crm.md`
+- `cassa` → `docs/modulo_vendite.md` (ex `modulo_selezioni.md`, rinominato 2026-05-19 NOMEN-1)
+- `menu_carta` → `docs/modulo_menu_carta.md` (+ `docs/modulo_pranzo.md` per pranzo)
+- `cucina` → `docs/modulo_cucina.md` (oggi copre anche `task_manager` — split previsto in DH.5 della roadmap)
+- `task_manager` → oggi in `docs/modulo_cucina.md` §3+§4+§9+§10 (split previsto)
+- `statistiche` → `docs/modulo_statistiche.md`
+
+Se non sai a quale `modulo_*.md` appartiene la capability, CHIEDI a Marco prima di scrivere.
+
+**Disambiguazione semantica:**
+- "Selezioni" non è univoco. Se senti questa parola: chiarisci se intendi **Vendite/Cassa** (corrispettivi, chiusure turno → `modulo_vendite.md`) o **Selezioni del Giorno** (macellaio/salumi/formaggi/pescato/piatti → `modulo_selezioni_giorno.md`). Vedi NOMEN-1 nell'audit.
+
+**Enforcement (futuro):** in roadmap DH.7 c'è l'estensione di `push.sh` (guardiano L1) con warning non-bloccante se il diff tocca un router ma non il `modulo_*.md` corrispondente.
