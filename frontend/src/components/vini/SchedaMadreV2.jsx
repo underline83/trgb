@@ -18,6 +18,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { STATO_VENDITA } from "../../config/viniConstants";
+import { isAdminRole } from "../../utils/authHelpers";
+import { MadreEditModal } from "./MadreEditModal";
 
 // ─────────────────────────────────────────────
 // Stile coordinato a SchedaVino classica (riga 57-66)
@@ -77,8 +79,13 @@ function Field({ label, value, mono = false }) {
 // ──────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPALE
 // ──────────────────────────────────────────────────────────
-export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
+export default function SchedaMadreV2({ madre, onOpenAnnata, onClose, onMadreSaved }) {
   const [activeTab, setActiveTab] = useState("anagrafica");
+  // Modifica madre direttamente dalla Cantina (vista raggruppata per madre).
+  // Riusa MadreEditModal del modulo Anagrafiche. Gated: admin/superadmin/sommelier.
+  const [editing, setEditing] = useState(false);
+  const _role = localStorage.getItem("role");
+  const isViniManager = isAdminRole(_role) || _role === "sommelier";
   const [movimenti, setMovimenti] = useState([]);
   const [stats, setStats] = useState(null);
   const [prezziStorico, setPrezziStorico] = useState([]);
@@ -138,12 +145,11 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
     });
   }, [madre.annate]);
 
+  // Altezza fissa a 78vh per coerenza con SchedaVino classica in modalità inline
+  // (vedi pages/vini/SchedaVino.jsx). In questo modo header + TabBar restano
+  // sticky in alto e il contenuto tab scrolla nel suo riquadro interno.
   return (
-    // Altezza fissa a 78vh per coerenza con SchedaVino classica in modalità inline
-    // (vedi pages/vini/SchedaVino.jsx riga 778). In questo modo header + TabBar
-    // restano sticky in alto e il contenuto tab scrolla nel suo riquadro interno,
-    // invece di lasciare la scheda "afflosciata" sul contenuto e far scrollare
-    // tutta la pagina.
+    <>
     <div className="rounded-2xl shadow-lg overflow-hidden border border-neutral-200 bg-white">
       <div className={`flex flex-col border-l-4 ${hdr.accent}`} style={{ height: "78vh" }}>
 
@@ -157,7 +163,9 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-purple-100 text-purple-800 border-purple-200">
                   {madre.n_annate} annat{madre.n_annate === 1 ? "a" : "e"}
                 </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200">🔒 READ-ONLY</span>
+                {!isViniManager && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200">🔒 READ-ONLY</span>
+                )}
               </div>
               <h2 className={`text-base md:text-lg font-bold leading-tight ${hdr.text}`}>
                 🍷 {madre.descrizione}
@@ -166,12 +174,20 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
                 {[madre.produttore_nome, madre.regione, madre.denominazione_display].filter(Boolean).join(" · ") || "—"}
               </p>
             </div>
-            {onClose && (
-              <button type="button" onClick={onClose}
-                className="flex-shrink-0 w-8 h-8 md:w-9 md:h-9 rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 transition text-sm font-semibold">
-                ✕
-              </button>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {isViniManager && (
+                <button type="button" onClick={() => setEditing(true)}
+                  className="px-3 h-8 md:h-9 rounded-lg border border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 transition text-xs font-semibold whitespace-nowrap">
+                  ✎ Modifica
+                </button>
+              )}
+              {onClose && (
+                <button type="button" onClick={onClose}
+                  className="w-8 h-8 md:w-9 md:h-9 rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 transition text-sm font-semibold">
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 3 KPI aggregati */}
@@ -586,5 +602,16 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose }) {
         </div>
       </div>
     </div>
+
+    {/* Modale modifica madre — riusa MadreEditModal del modulo Anagrafiche.
+        Al salvataggio chiude e notifica il parent (CantinaV2 → fetchData). */}
+    {editing && (
+      <MadreEditModal
+        madre={madre}
+        onClose={() => setEditing(false)}
+        onSaved={() => { setEditing(false); onMadreSaved?.(); }}
+      />
+    )}
+    </>
   );
 }

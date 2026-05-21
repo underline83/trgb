@@ -682,6 +682,16 @@ Pattern: `Depends(get_current_user)` + check ruolo nel router. Frontend: la
 Modifica/Duplica/Elimina ai ruoli non-manager; `MagazzinoSubMenu` e
 `DashboardVini` nascondono la voce "Nuovo vino" a `sala`/`viewer`.
 
+**Modifica vino madre — punti d'accesso (vini 3.60).** Il vino madre si può
+modificare da tre punti, tutti con lo stesso modale `MadreEditModal`
+(`frontend/src/components/vini/MadreEditModal.jsx` — estratto da
+`AnagraficheVini.jsx` per il riuso): (1) modulo **Anagrafiche** → tab Madri;
+(2) **wizard Nuovo Vino** (in creazione); (3) **Cantina** → vista raggruppata
+per madre → `SchedaMadreV2` → bottone "✎ Modifica" (gated `is_vini_manager`;
+per gli altri ruoli la scheda madre resta 🔒 read-only). `MadreEditModal` fa
+self-fetch del madre completo via `GET /madre/{id}`, quindi funziona anche
+ricevendo un `madre` parziale (es. da `groupByMadre`).
+
 ---
 
 # 12. Bug noti / debt tecnico

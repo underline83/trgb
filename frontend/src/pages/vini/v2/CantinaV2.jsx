@@ -275,6 +275,7 @@ export default function CantinaV2() {
                   madre={openMadre}
                   onClose={closeAll}
                   onOpenAnnata={handleRowClick}
+                  onMadreSaved={fetchData}
                 />
               </div>
             </div>

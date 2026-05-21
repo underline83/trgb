@@ -24,11 +24,14 @@ Marco ha segnalato che il wizard "Nuovo Vino" obbligava a scegliere una denomina
 ### Anche — bottiglia senza annata (stesso push)
 Marco: "nel figlio potrebbe non esserci annata". Discusso il modello: un vino senza annata = **1 madre + 1 bottiglia con annata vuota** (modello A, confermato da Marco). La giacenza resta sulla bottiglia, nessuna modifica al modello dati — il vincolo era solo una validazione artificiale. Annata resa opzionale su 3 livelli: `canAdvance` step 3 in `NuovoVinoV2.jsx` (blocca solo su anno invalido futuro/<1900), `BottigliaCreate.ANNATA` da `Field(..., min_length=1)` a `Optional[str]`, `create_bottiglia()` (rimosso `raise ValueError`). La colonna `vini_bottiglie.ANNATA` era già nullable (7 bottiglie senza annata già esistenti nel DB). FieldLabel "Annata (opzionale)", preview mostra "senza annata".
 
+### Anche — modifica del vino madre dalla Cantina (stesso push)
+Marco: "ho bisogno di modificare la madre anche dalla cantina, ora si può solo dalla creazione del vino". La scheda madre in Cantina (`SchedaMadreV2`, vista raggruppata) era read-only. Aggiunto bottone **✎ Modifica** gated `is_vini_manager`. Per riuso senza import circolare, `MadreEditModal` + helper `Field` **estratti** da `AnagraficheVini.jsx` nel nuovo file `frontend/src/components/vini/MadreEditModal.jsx` (importato da Anagrafiche e da SchedaMadreV2). Il modale ora fa self-fetch del madre completo via `GET /madre/{id}` (necessario perché da `groupByMadre` il madre arriva senza FK). Al salvataggio `CantinaV2` rifà `fetchData()`.
+
 ### Verifica
-`PY_OK` sui file backend, esbuild OK sui file frontend. Versione vini 3.59 → 3.60.
+`PY_OK` sui file backend; **vite build completo OK** (dist generato, nessun errore, import circolare risolto con l'estrazione). Versione vini 3.59 → 3.60.
 
 ### Commit suggerito
-`./push.sh "[core] vini 3.60 — permessi catalogo al sommelier (is_vini_manager) + denominazione e annata opzionali nel wizard Nuovo Vino"`
+`./push.sh "[core] vini 3.60 — permessi catalogo al sommelier (is_vini_manager) + denominazione/annata opzionali nel wizard + modifica madre dalla Cantina (MadreEditModal estratto)"`
 
 ---
 
