@@ -311,7 +311,7 @@ export default function ViniVendite() {
 
   // PATCH che attiva BOTTIGLIA_APERTA=1 (DATA_APERTURA viene gestita backend)
   const patchAttivaCalice = async (vinoId, extra = {}) => {
-    const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
+    const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/bottiglia-aperta`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ BOTTIGLIA_APERTA: 1, ...extra }),

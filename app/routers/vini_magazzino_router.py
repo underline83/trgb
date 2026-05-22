@@ -844,6 +844,57 @@ def update_vino_magazzino(
     return dict(updated) if updated else {"id": vino_id}
 
 
+# ---------------------------------------------------------
+# ENDPOINT: TOGGLE MESCITA AL CALICE (operativo — accessibile a sala)
+# ---------------------------------------------------------
+class CaliciToggleUpdate(BaseModel):
+    """Payload del toggle "bottiglia in mescita" — azione OPERATIVA di servizio
+    al calice, NON modifica del catalogo. Accetta solo i campi legati al
+    servizio al calice; niente prezzi carta, anagrafica o giacenze."""
+    BOTTIGLIA_APERTA: int = Field(..., ge=0, le=1)
+    VENDITA_CALICE: Optional[int] = Field(None, ge=0, le=1)
+    PREZZO_CALICE: Optional[float] = Field(None, ge=0)
+    PREZZO_CALICE_MANUALE: Optional[int] = Field(None, ge=0, le=1)
+    NOTE: Optional[str] = None
+
+
+@router.patch(
+    "/{vino_id}/bottiglia-aperta",
+    summary="Apri/chiudi una bottiglia per il servizio al calice (operativo: admin/sommelier/sala)",
+)
+def update_bottiglia_aperta(
+    vino_id: int,
+    payload: CaliciToggleUpdate,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Endpoint dedicato al toggle "bottiglia in mescita" usato dal widget Calici,
+    dalla Carta vini e da Vendite. È un'azione OPERATIVA di servizio (non
+    gestione catalogo): perciò è accessibile anche a `sala`, oltre a
+    sommelier/admin. La modifica del catalogo/giacenze resta su `PATCH /{id}`
+    (gatato `is_vini_manager`). `DATA_APERTURA` è gestita in automatico dal
+    layer DB quando `BOTTIGLIA_APERTA` cambia.
+    """
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if not (is_vini_manager(role) or role == "sala"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata ad admin, sommelier e sala.",
+        )
+
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+
+    data = payload.dict(exclude_unset=True)
+    utente = _get_username(current_user)
+    db.update_vino(vino_id, data, utente=utente, origine="CALICI-TOGGLE")
+    updated = db.get_vino_by_id(vino_id)
+    return dict(updated) if updated else {"id": vino_id}
+
 
 # ---------------------------------------------------------
 # ENDPOINT: MOVIMENTI PER VINO

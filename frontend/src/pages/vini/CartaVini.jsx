@@ -97,7 +97,7 @@ function RegiaCaliciPanel({ onApriScheda }) {
     )) return;
     setBusyId(vinoId);
     try {
-      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/bottiglia-aperta`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ BOTTIGLIA_APERTA: 0 }),

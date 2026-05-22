@@ -183,6 +183,9 @@ const SchedaVino = forwardRef(function SchedaVino({
   const isViniManager = isAdminRole(role) || role === "sommelier";
   // readOnly effettivo: o forzato dal parent, o perche' il ruolo non e' manager.
   const roReadOnly = readOnly || !isViniManager;
+  // Toggle mescita al calice = azione operativa: la può fare anche la sala
+  // (oltre a sommelier/admin). Endpoint dedicato /bottiglia-aperta.
+  const canCalici = isViniManager || role === "sala";
   // Stato inline edit data movimento: { id, valore } o null
   const [editingDataMov, setEditingDataMov] = useState(null);
   const [savingDataMov, setSavingDataMov] = useState(false);
@@ -480,7 +483,8 @@ const SchedaVino = forwardRef(function SchedaVino({
     }
     setBottigliaSaving(true);
     try {
-      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
+      // Endpoint dedicato al toggle mescita (operativo: lo può fare anche sala).
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/bottiglia-aperta`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1155,7 +1159,7 @@ const SchedaVino = forwardRef(function SchedaVino({
                               : "Attivando il toggle: il vino entra in carta calici (VENDITA_CALICE=1) E la bottiglia viene marcata come aperta. Ricordati di spegnere quando finisci i calici."}
                         </div>
                       </div>
-                      <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving || roReadOnly}
+                      <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving || !canCalici}
                         className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           aperta ? "bg-amber-500" : "bg-neutral-300"
                         }`}>

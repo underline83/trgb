@@ -30,11 +30,15 @@ Marco: "ho bisogno di modificare la madre anche dalla cantina, ora si può solo 
 ### Anche — controllo annata duplicata nel wizard (stesso push)
 Marco: "se scelgo un madre e creo un figlio con la stessa annata di uno esistente deve dirmelo (idem se lascio vuoto)". `submitWizard` ora, se il madre è esistente, fa `GET /madre/{id}/bottiglie` e se trova un'annata già presente (vuota inclusa) mostra un `confirm` con i dati della bottiglia esistente. Stesso anno + formato diverso è legittimo → avviso, non blocco. Check non bloccante su errore di rete.
 
+### Fix regressione — toggle mescita calici tornato accessibile a sala (stesso push)
+Marco: "il widget dei calici non permette a quelli di sala di cancellare le bottiglie aperte". Causa: gatando `PATCH /vini/magazzino/{id}` a `is_vini_manager` ho gatato anche il toggle "bottiglia in mescita" che passava da lì. Marco ha chiesto la **mappa completa dei permessi del modulo** (vedi `modulo_vini.md` §11, ora dettagliata con colonna enforcement) e ha confermato **opzione 1**: endpoint dedicato. Creato `PATCH /vini/magazzino/{id}/bottiglia-aperta` (gate `is_vini_manager OR sala`), accetta solo i campi del servizio al calice (`BOTTIGLIA_APERTA`, `VENDITA_CALICE`, `PREZZO_CALICE`, `PREZZO_CALICE_MANUALE`, `NOTE`). `PATCH /{id}` resta `is_vini_manager`. Migrati i 4 call site (`CaliciDisponibiliCard`, `CartaVini`, `ViniVendite.patchAttivaCalice`, `SchedaVino.toggleBottigliaAperta` con nuovo `canCalici`).
+**Rimaste aperte 2 domande a Marco** (gruppo E permessi): se gatare gli endpoint vini oggi senza alcun controllo ruolo (settings, `matrice/assegna|rimuovi`, ordine-pending, note — chiunque loggato può usarli, viewer compreso) e se limitare `POST /{id}/movimenti`. Da decidere.
+
 ### Verifica
-`PY_OK` sui file backend; **vite build completo OK** (dist generato, nessun errore, import circolare risolto con l'estrazione). Versione vini 3.59 → 3.60.
+`PY_OK` sui file backend; esbuild OK sui file frontend toccati (build vite completa fatta in precedenza nello stesso push). Versione vini 3.59 → 3.60.
 
 ### Commit suggerito
-`./push.sh "[core] vini 3.60 — permessi catalogo al sommelier (is_vini_manager) + denominazione/annata opzionali + modifica madre dalla Cantina + controllo annata duplicata nel wizard"`
+`./push.sh "[core] vini 3.60 — permessi catalogo al sommelier + denominazione/annata opzionali + modifica madre dalla Cantina + controllo annata duplicata + endpoint dedicato toggle calici (fix regressione sala)"`
 
 ---
 

@@ -664,7 +664,8 @@ Hook PATCH `/vini/magazzino/{id}` registra solo `EURO_LISTINO` per ora; estendib
 | Lettura magazzino + dashboard | tutti tranne viewer | — |
 | CRUD anagrafica vino (produttori, fornitori, denominazioni, vitigni, madre) | admin, superadmin, sommelier | `_require_vini_manager` in `vini_anagrafiche_router.py` |
 | Crea / modifica / duplica / elimina vino-bottiglia | admin, superadmin, sommelier | `is_vini_manager` in `vini_magazzino_router.py` (`create`, `PATCH /{id}`, `duplica`, `delete-vino`) |
-| Modifica giacenze + toggle "bottiglia in mescita" | admin, superadmin, sommelier | `PATCH /vini/magazzino/{id}` → `is_vini_manager` |
+| Modifica giacenze (scheda bottiglia) | admin, superadmin, sommelier | `PATCH /vini/magazzino/{id}` → `is_vini_manager` |
+| Toggle "bottiglia in mescita" / servizio al calice | admin, superadmin, sommelier, **sala** | `PATCH /vini/magazzino/{id}/bottiglia-aperta` (endpoint dedicato — azione operativa, vedi sotto) |
 | Movimenti (add) | admin, superadmin, sommelier, sala | nessun check ruolo su `POST /{id}/movimenti` (azione operativa) |
 | Movimenti (delete) | admin, superadmin, sommelier, sala | check inline in `delete_movimento` |
 | Movimenti (modifica data/ora) | admin only | check inline in `update_movimento_data` |
@@ -681,6 +682,19 @@ Pattern: `Depends(get_current_user)` + check ruolo nel router. Frontend: la
 `SchedaVino` calcola `roReadOnly` da `is_vini_manager` e nasconde i bottoni
 Modifica/Duplica/Elimina ai ruoli non-manager; `MagazzinoSubMenu` e
 `DashboardVini` nascondono la voce "Nuovo vino" a `sala`/`viewer`.
+
+**Toggle mescita al calice — endpoint dedicato (vini 3.60).** Aprire/chiudere
+una bottiglia "in mescita" è un'azione **operativa di servizio**, non gestione
+catalogo: la deve poter fare anche `sala`. Vive su un endpoint dedicato
+`PATCH /vini/magazzino/{id}/bottiglia-aperta` (gate inline: `is_vini_manager`
+OR `sala`) che accetta SOLO i campi del servizio al calice (`BOTTIGLIA_APERTA`,
+`VENDITA_CALICE`, `PREZZO_CALICE`, `PREZZO_CALICE_MANUALE`, `NOTE`). La modifica
+di catalogo/anagrafica/giacenze resta su `PATCH /vini/magazzino/{id}` gatato
+`is_vini_manager`. Lo usano: widget `CaliciDisponibiliCard`, `CartaVini`,
+`ViniVendite` (`patchAttivaCalice`), `SchedaVino` (`toggleBottigliaAperta`).
+Storia: l'endpoint nasce per correggere una regressione introdotta gatando
+`PATCH /{id}` — il toggle ci passava dentro e `sala` non poteva più spegnere
+le bottiglie aperte dal widget Calici.
 
 **Modifica vino madre — punti d'accesso (vini 3.60).** Il vino madre si può
 modificare da tre punti, tutti con lo stesso modale `MadreEditModal`
