@@ -139,6 +139,64 @@ export default function RicetteDettaglio() {
     }
   };
 
+  // ── Stampa scheda cucina (ingredienti + procedimento, senza costi) ──
+  const handlePrint = () => {
+    if (!ricetta) return;
+    const r = ricetta;
+    const w = window.open("", "_blank", "width=820,height=950");
+    if (!w) {
+      alert("Per stampare, consenti le finestre popup per questo sito.");
+      return;
+    }
+    const esc = (s) => String(s ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const steps = (r.procedimento || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    const righe = (r.items || []).map((it) => {
+      const nome = it.sub_recipe_name || it.ingredient_name || "—";
+      const qta = it.unit === "qb" ? "q.b." : `${it.qty} ${it.unit}`;
+      const sub = it.sub_recipe_id ? " (sub-ricetta)" : "";
+      return `<tr><td>${esc(nome)}${sub}</td><td class="q">${esc(qta)}</td><td class="n">${esc(it.note || "")}</td></tr>`;
+    }).join("");
+    const stepsHtml = steps.length
+      ? `<ol>${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`
+      : '<p class="muted">Nessun procedimento.</p>';
+    const meta = [
+      r.category_name,
+      r.is_base ? "Base" : "Piatto",
+      `Resa: ${r.yield_qty} ${r.yield_unit}`,
+      r.prep_time ? `Preparazione: ${r.prep_time} min` : null,
+    ].filter(Boolean).map(esc).join(" · ");
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8">
+<title>${esc(r.name)}</title><style>
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; margin: 32px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .meta { color: #666; font-size: 13px; margin: 0 0 22px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+       color: #b3502a; border-bottom: 1px solid #e0c9b8; padding-bottom: 4px; margin: 24px 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  td.q { white-space: nowrap; font-weight: bold; width: 110px; }
+  td.n { color: #777; font-size: 12px; }
+  ol { padding-left: 22px; font-size: 14px; line-height: 1.7; }
+  ol li { margin-bottom: 6px; }
+  .muted { color: #999; font-style: italic; }
+  .note { font-size: 13px; color: #444; white-space: pre-wrap; }
+  @media print { body { margin: 16px; } }
+</style></head><body>
+<h1>${esc(r.name)}</h1>
+<p class="meta">${meta}</p>
+<h2>Ingredienti</h2>
+<table><tbody>${righe || '<tr><td class="muted">Nessun ingrediente.</td></tr>'}</tbody></table>
+<h2>Procedimento</h2>
+${stepsHtml}
+${r.note ? `<h2>Note</h2><p class="note">${esc(r.note)}</p>` : ""}
+</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
+  };
+
   // ── States di errore/loading ──
   if (loading) {
     return (
@@ -219,6 +277,9 @@ export default function RicetteDettaglio() {
             <div className="flex flex-col gap-1.5 flex-shrink-0">
               <Btn variant="primary" size="sm" onClick={() => navigate(`/ricette/modifica/${r.id}`)}>
                 Modifica
+              </Btn>
+              <Btn variant="secondary" size="sm" onClick={handlePrint}>
+                🖨 Stampa
               </Btn>
               {r.is_active && (
                 <Btn variant="chip" tone="red" size="sm" onClick={handleDisattiva}>
@@ -384,8 +445,8 @@ function CompositionTab({ r, ricalcolaAllergeni, recalcLoading }) {
                           <span className="text-neutral-400 italic">{item.ingredient_name || "—"}</span>
                         )}
                       </td>
-                      <td className="p-3 text-right">{item.qty}</td>
-                      <td className="p-3 text-neutral-600">{item.unit}</td>
+                      <td className="p-3 text-right">{item.unit === "qb" ? "—" : item.qty}</td>
+                      <td className="p-3 text-neutral-600">{item.unit === "qb" ? "q.b." : item.unit}</td>
                       <td className="p-3 text-right text-neutral-600">
                         {item.unit_cost != null ? `${item.unit_cost.toFixed(4)} €` : "—"}
                       </td>
@@ -466,7 +527,11 @@ function ServiziTab({ r }) {
 // TAB: Procedimento (metodo di preparazione)
 // ─────────────────────────────────────────
 function ProcedimentoTab({ r }) {
-  if (!r.procedimento || !r.procedimento.trim()) {
+  const steps = (r.procedimento || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (steps.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 text-center text-sm text-neutral-500">
         Nessun procedimento. Modifica la ricetta per aggiungerlo.
@@ -475,12 +540,19 @@ function ProcedimentoTab({ r }) {
   }
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-      <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-3">
+      <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-4">
         Procedimento di preparazione
       </h2>
-      <p className="text-sm text-neutral-800 whitespace-pre-wrap leading-relaxed">
-        {r.procedimento}
-      </p>
+      <ol className="space-y-3">
+        {steps.map((s, i) => (
+          <li key={i} className="flex gap-3">
+            <span className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-100 text-orange-800 text-sm font-bold flex items-center justify-center">
+              {i + 1}
+            </span>
+            <span className="text-sm text-neutral-800 leading-relaxed pt-0.5">{s}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

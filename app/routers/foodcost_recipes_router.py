@@ -1118,7 +1118,7 @@ class ImportRicetta(BaseModel):
     resa_unita: Optional[str] = None
     prezzo_vendita: Optional[float] = None
     tempo_preparazione_min: Optional[int] = None
-    procedimento: Optional[str] = None       # metodo di preparazione
+    procedimento: Optional[Any] = None       # lista di passi (preferita) o testo
     note: Optional[str] = None               # annotazioni brevi
     voci: List[ImportVoce] = []
 
@@ -1197,6 +1197,21 @@ def _imp_unit(units: List[str]) -> str:
     return Counter(clean).most_common(1)[0][0]
 
 
+def _proc_to_text(proc) -> Optional[str]:
+    """
+    Normalizza il procedimento importato in testo, un passaggio per riga.
+    Accetta una lista di stringhe (formato preferito) o una stringa unica.
+    """
+    if proc is None:
+        return None
+    if isinstance(proc, list):
+        steps = [str(s).strip() for s in proc
+                 if s is not None and str(s).strip()]
+        return "\n".join(steps) if steps else None
+    text = str(proc).strip()
+    return text or None
+
+
 @router.get("/ricette/import/tracciato")
 def import_tracciato_ricette():
     """Tracciato JSON di esempio per l'import ricette (scaricabile dalla UI)."""
@@ -1210,7 +1225,9 @@ def import_tracciato_ricette():
             "importazione. Una sotto-ricetta può essere un'altra ricetta presente in "
             "questo stesso file. "
             "REGOLE IMPORTANTI: (1) Il metodo di preparazione va nel campo "
-            "'procedimento', NON nel campo 'note'. (2) Per gli ingredienti a piacere / "
+            "'procedimento' come LISTA di passaggi: un array di stringhe brevi, un "
+            "passo per elemento (es. \"Tostare il riso\", \"Sfumare col vino\"...). "
+            "NON un testo unico, NON nel campo 'note'. (2) Per gli ingredienti a piacere / "
             "quanto basta (sale, pepe, olio per condire, ecc.) usa \"unita\": \"qb\" e "
             "ometti la 'quantita': verranno elencati nella ricetta ma esclusi dal "
             "calcolo del food cost. (3) Ogni voce è UN SOLO ingrediente con UN SOLO "
@@ -1228,7 +1245,7 @@ def import_tracciato_ricette():
             "resa_unita": "facoltativo — unità pulita: 'porzioni', 'kg', 'L' (default 'porzioni'). NIENTE 'circa' o parole",
             "prezzo_vendita": "facoltativo — prezzo di vendita in euro (solo per i piatti)",
             "tempo_preparazione_min": "facoltativo — minuti di preparazione",
-            "procedimento": "facoltativo — il metodo di preparazione completo, i passaggi. Il testo lungo va QUI",
+            "procedimento": "facoltativo — LISTA di passaggi (array di stringhe), un passo per elemento. NON un testo unico",
             "note": "facoltativo — annotazioni brevi (NON il procedimento)",
             "voci": "obbligatorio — lista degli ingredienti/sotto-ricette",
         },
@@ -1248,12 +1265,13 @@ def import_tracciato_ricette():
                 "resa_unita": "porzioni",
                 "prezzo_vendita": 14.0,
                 "tempo_preparazione_min": 25,
-                "procedimento": (
-                    "Tostare il riso a secco, sfumare con vino bianco. Aggiungere il "
-                    "brodo caldo poco alla volta mescolando. A metà cottura unire lo "
-                    "zafferano sciolto in poco brodo. Mantecare fuori dal fuoco con "
-                    "burro e parmigiano."
-                ),
+                "procedimento": [
+                    "Tostare il riso a secco in casseruola.",
+                    "Sfumare con vino bianco e farlo evaporare.",
+                    "Aggiungere il brodo caldo poco alla volta, mescolando.",
+                    "A metà cottura unire lo zafferano sciolto in poco brodo.",
+                    "Mantecare fuori dal fuoco con burro e parmigiano.",
+                ],
                 "note": "Servire subito, all'onda.",
                 "voci": [
                     {"ingrediente": "Riso Carnaroli", "quantita": 320, "unita": "g"},
@@ -1271,10 +1289,12 @@ def import_tracciato_ricette():
                 "tipo": "base",
                 "resa_quantita": 3,
                 "resa_unita": "L",
-                "procedimento": (
-                    "Mettere ossi e verdure in acqua fredda. Portare a bollore, "
-                    "schiumare, abbassare e cuocere a fuoco lento 3 ore. Filtrare."
-                ),
+                "procedimento": [
+                    "Mettere ossi e verdure in acqua fredda.",
+                    "Portare a bollore e schiumare.",
+                    "Abbassare e cuocere a fuoco lento 3 ore.",
+                    "Filtrare il brodo.",
+                ],
                 "note": "Si conserva 3 giorni in frigo.",
                 "voci": [
                     {"ingrediente": "Ossi di manzo", "quantita": 1, "unita": "kg"},
@@ -1537,10 +1557,11 @@ def import_conferma_ricette(payload: ImportConfermaPayload):
                      r.tempo_preparazione_min, r.note, now, now),
                 )
             rid = cur.lastrowid
-            if has_proc and r.procedimento:
+            proc_text = _proc_to_text(r.procedimento)
+            if has_proc and proc_text:
                 cur.execute(
                     "UPDATE recipes SET procedimento = ? WHERE id = ?",
-                    (r.procedimento, rid),
+                    (proc_text, rid),
                 )
             created_recipes[nome.lower()] = rid
             recipe_ids_in_order.append(rid)

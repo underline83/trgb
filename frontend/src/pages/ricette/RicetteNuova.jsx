@@ -778,13 +778,13 @@ export default function RicetteNuova() {
               {/* ─────────────────────────────────────────
                   5. NOTE
                   ─────────────────────────────────────── */}
-              <Section title={form.is_base ? "4. Procedimento" : "5. Procedimento"} hint="Il metodo di preparazione: i passaggi, le fasi di cottura.">
+              <Section title={form.is_base ? "4. Procedimento" : "5. Procedimento"} hint="Un passaggio per riga: ogni riga diventa un passo numerato.">
                 <textarea
                   value={form.procedimento}
                   onChange={(e) => set("procedimento", e.target.value)}
                   className={inputCls}
-                  rows={6}
-                  placeholder="Descrivi i passaggi della preparazione..."
+                  rows={8}
+                  placeholder={"Tostare il riso a secco.\nSfumare con vino bianco.\nAggiungere il brodo poco alla volta..."}
                 />
               </Section>
 

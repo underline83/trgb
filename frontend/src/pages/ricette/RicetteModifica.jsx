@@ -280,9 +280,10 @@ export default function RicetteModifica() {
 
             <div className="space-y-1">
               <label className="text-sm font-medium text-neutral-700">Procedimento</label>
+              <p className="text-xs text-neutral-500">Un passaggio per riga: ogni riga diventa un passo numerato.</p>
               <textarea value={form.procedimento} onChange={(e) => set("procedimento", e.target.value)}
-                placeholder="Il metodo di preparazione: i passaggi, le fasi di cottura..."
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" rows={6} />
+                placeholder={"Tostare il riso a secco.\nSfumare con vino bianco.\nAggiungere il brodo poco alla volta..."}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" rows={8} />
             </div>
 
             <div className="space-y-1">
