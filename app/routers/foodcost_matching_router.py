@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# @version: v3.0-foodcost-matching-ignore
+# @version: v3.1-foodcost-matching-conversione
+# Modulo: ricette
 # -*- coding: utf-8 -*-
 
 """
@@ -66,6 +67,10 @@ class MatchSuggestion(BaseModel):
     default_unit: str
     confidence: float  # 0-100
     reason: str  # "exact_code", "exact_desc", "fuzzy", "same_supplier"
+    # Fattore di conversione confezione → unità base, indovinato per questa riga.
+    suggested_factor: float = 1.0
+    factor_detail: str = ""
+    factor_safe: bool = True
 
 
 class ConfirmMatchRequest(BaseModel):
@@ -139,45 +144,63 @@ def _fuzzy_score(a: str, b: str) -> float:
     return SequenceMatcher(None, a_clean, b_clean).ratio() * 100
 
 
-def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
-                          riga: dict, fattore_conversione: float) -> None:
+def _compute_unit_price(cur, ingredient_id: int, prezzo_unitario,
+                        unita_misura, fattore_conversione: float):
     """
-    Salva un prezzo in ingredient_prices a partire da una riga fattura.
+    Calcola il prezzo per unità base dell'ingrediente, SENZA salvare nulla.
 
-    Normalizza il prezzo nell'unità base dell'ingrediente usando:
-    1. Il fattore_conversione esplicito dal mapping (se != 1.0)
-    2. La conversione automatica unità fattura → default_unit ingrediente
+    Logica:
+    1. Se è dato un fattore di conversione esplicito (!= 1.0), il prezzo per
+       unità base è prezzo_unitario / fattore.
+       (fattore = quante unità base stanno in 1 unità fattura — es. 1 sacco = 25 kg)
+    2. Se il fattore è 1.0, prova una conversione automatica unità fattura →
+       default_unit dell'ingrediente (rete di sicurezza per g↔kg, ml↔L, e per
+       eventuali conversioni personalizzate dell'ingrediente).
+
+    Ritorna il prezzo per unità base, oppure None se non calcolabile.
     """
     from app.routers.foodcost_recipes_router import convert_qty
 
-    prezzo_unitario = riga.get("prezzo_unitario")
     if prezzo_unitario is None or prezzo_unitario <= 0:
-        return
+        return None
 
-    # Se c'è un fattore di conversione esplicito, usalo
+    # 1. Fattore esplicito
     if fattore_conversione and fattore_conversione != 1.0:
-        unit_price = prezzo_unitario / fattore_conversione
-    else:
-        # Prova conversione automatica unità fattura → default_unit
-        unit_fattura = (riga.get("unita_misura") or "").strip()
-        default_unit = None
-        row = cur.execute(
-            "SELECT default_unit FROM ingredients WHERE id = ?", (ingredient_id,)
-        ).fetchone()
-        if row:
-            default_unit = row["default_unit"]
+        return prezzo_unitario / fattore_conversione
 
-        if unit_fattura and default_unit:
-            # Converti 1 unità fattura in unità ingrediente
-            converted = convert_qty(1.0, unit_fattura, default_unit,
-                                    ingredient_id=ingredient_id, cur=cur)
-            if converted is not None and converted != 0:
-                # prezzo_unitario è €/unità_fattura → €/default_unit
-                unit_price = prezzo_unitario / converted
-            else:
-                unit_price = prezzo_unitario
-        else:
-            unit_price = prezzo_unitario
+    # 2. Conversione automatica unità fattura → default_unit
+    unit_fattura = (unita_misura or "").strip()
+    default_unit = None
+    row = cur.execute(
+        "SELECT default_unit FROM ingredients WHERE id = ?", (ingredient_id,)
+    ).fetchone()
+    if row:
+        default_unit = row["default_unit"]
+
+    if unit_fattura and default_unit:
+        converted = convert_qty(1.0, unit_fattura, default_unit,
+                                ingredient_id=ingredient_id, cur=cur)
+        if converted is not None and converted != 0:
+            return prezzo_unitario / converted
+
+    return prezzo_unitario
+
+
+def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
+                          riga: dict, fattore_conversione: float):
+    """
+    Salva un prezzo in ingredient_prices a partire da una riga fattura.
+
+    Normalizza il prezzo nell'unità base dell'ingrediente (vedi _compute_unit_price).
+    Ritorna il prezzo per unità base salvato (o None se la riga non aveva prezzo).
+    """
+    prezzo_unitario = riga.get("prezzo_unitario")
+    unit_price = _compute_unit_price(
+        cur, ingredient_id, prezzo_unitario,
+        riga.get("unita_misura"), fattore_conversione,
+    )
+    if unit_price is None:
+        return None
 
     now = datetime.utcnow().isoformat()
     cur.execute(
@@ -203,6 +226,7 @@ def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
             now,
         ),
     )
+    return round(unit_price, 6)
 
 
 # ─────────────────────────────────────────────
@@ -353,7 +377,16 @@ def suggest_match(riga_id: int):
     suggestions.sort(key=lambda s: s.confidence, reverse=True)
 
     conn.close()
-    return suggestions[:10]
+
+    # Arricchisci i suggerimenti col fattore di conversione confezione → unità base
+    top = suggestions[:10]
+    for s in top:
+        guess = _guess_conversion_factor(desc, riga["unita_misura"], s.default_unit)
+        s.suggested_factor = guess["factor"]
+        s.factor_detail = guess["detail"]
+        s.factor_safe = guess["safe"]
+
+    return top
 
 
 # ─────────────────────────────────────────────
@@ -398,7 +431,8 @@ def confirm_match(
 
     # Verifica ingrediente
     ing = cur.execute(
-        "SELECT id FROM ingredients WHERE id = ?", (payload.ingredient_id,)
+        "SELECT id, name, default_unit FROM ingredients WHERE id = ?",
+        (payload.ingredient_id,),
     ).fetchone()
     if not ing:
         conn.close()
@@ -442,7 +476,7 @@ def confirm_match(
         )
 
     # Salva prezzo
-    _save_price_from_riga(
+    unit_price = _save_price_from_riga(
         cur,
         payload.ingredient_id,
         supplier_id,
@@ -453,7 +487,14 @@ def confirm_match(
     conn.commit()
     conn.close()
 
-    return {"status": "ok", "detail": "Match confermato e prezzo aggiornato"}
+    return {
+        "status": "ok",
+        "detail": "Match confermato e prezzo aggiornato",
+        "ingredient_name": ing["name"],
+        "default_unit": ing["default_unit"],
+        "unit_price": unit_price,
+        "fattore_conversione": payload.fattore_conversione,
+    }
 
 
 # ─────────────────────────────────────────────
@@ -872,6 +913,158 @@ _UNIT_MAP = {
     "PKG": "pz",
 }
 
+# Unità di misura "reali" (peso/volume) → unità standard. Usate per leggere il
+# contenuto di una confezione dalla descrizione (es. "SACCO 25 KG" → 25 kg).
+_MEASURE_UNITS = {
+    "KG": "kg", "KGM": "kg", "CHILO": "kg", "KILO": "kg",
+    "G": "g", "GR": "g", "GRM": "g", "GRAMMI": "g", "GRAMMO": "g",
+    "LT": "L", "L": "L", "LTR": "L", "LITRI": "L", "LITRO": "L",
+    "ML": "ml", "MLT": "ml",
+    "CL": "cl",
+}
+
+# Codici che indicano una "confezione" (non un'unità di misura): il prezzo è
+# per confezione, e dentro ci stanno N unità base da ricavare dalla descrizione.
+_PACKAGE_UNITS = {
+    "CF", "CONF", "CONFEZIONE", "SC", "SCATOLA", "CT", "CARTONE",
+    "PKG", "COLLO", "BT", "BTL", "BOTTIGLIA", "BOX",
+}
+
+
+def _to_float(s) -> Optional[float]:
+    """Converte una stringa numerica (virgola o punto come decimale) in float."""
+    try:
+        return float(str(s).strip().replace(",", "."))
+    except (ValueError, TypeError):
+        return None
+
+
+# Alternativa regex delle unità di misura (le multi-carattere PRIMA delle
+# singole, così "KG" vince su "G" e "LT" su "L").
+_MEAS_RE = r"KGM|KG|GRAMMI|GRAMMO|GRM|GR|LITRI|LITRO|LTR|LT|MLT|ML|CL|G|L"
+
+
+def _unit_family(u: str) -> Optional[str]:
+    """Famiglia dell'unità: 'peso', 'volume', 'pz' o None."""
+    u = (u or "").strip().lower()
+    if u in ("kg", "g", "mg"):
+        return "peso"
+    if u in ("l", "ml", "cl"):
+        return "volume"
+    if u == "pz":
+        return "pz"
+    return None
+
+
+def _parse_package_content(desc: str, base_unit: str) -> Optional[float]:
+    """
+    Cerca nella descrizione fattura il contenuto di una confezione, espresso
+    nell'unità base dell'ingrediente.
+
+    Esempi:
+    - "FARINA 00 SACCO 25 KG"  + base kg → 25.0
+    - "ACQUA 6 X 1,5 LT"       + base L  → 9.0
+    - "UOVA CONF 6 PZ"         + base pz → 6.0
+
+    Ritorna None se non trova nulla di affidabile.
+    """
+    from app.routers.foodcost_recipes_router import convert_qty
+
+    if not desc:
+        return None
+    d = desc.upper()
+    base = (base_unit or "").strip().lower()
+
+    # 1. Multipack "6 X 500 ML" / "12X1L"
+    m = re.search(rf"(\d+(?:[.,]\d+)?)\s*X\s*(\d+(?:[.,]\d+)?)\s*({_MEAS_RE})\b", d)
+    if m:
+        count = _to_float(m.group(1))
+        size = _to_float(m.group(2))
+        unit = _MEASURE_UNITS.get(m.group(3))
+        if count and size and unit:
+            per = convert_qty(size, unit, base)
+            if per is not None and per > 0:
+                return round(count * per, 6)
+
+    # 2. Numero + unità di misura: "25 KG", "2,5 KG", "0,750 LT"
+    for m in re.finditer(rf"(\d+(?:[.,]\d+)?)\s*({_MEAS_RE})\b", d):
+        val = _to_float(m.group(1))
+        unit = _MEASURE_UNITS.get(m.group(2))
+        if val and unit:
+            conv = convert_qty(val, unit, base)
+            if conv is not None and conv > 0:
+                return round(conv, 6)
+
+    # 3. Unità di misura + numero: "KG 25", "LT 0,750"
+    for m in re.finditer(rf"\b({_MEAS_RE})\s*(\d+(?:[.,]\d+)?)", d):
+        unit = _MEASURE_UNITS.get(m.group(1))
+        val = _to_float(m.group(2))
+        if val and unit:
+            conv = convert_qty(val, unit, base)
+            if conv is not None and conv > 0:
+                return round(conv, 6)
+
+    # 4. Conteggio pezzi: "CONF 6", "DA 6", "X6"
+    if base == "pz":
+        m = re.search(r"(?:CONF\.?|DA|X)\s*(\d{1,3})\b", d) or \
+            re.search(r"\b(\d{1,3})\s*(?:PZ|PEZZI|NR)\b", d)
+        if m:
+            val = _to_float(m.group(1))
+            if val and val > 0:
+                return val
+
+    return None
+
+
+def _guess_conversion_factor(descrizione: str, unita_misura: str,
+                             default_unit: str) -> Dict[str, Any]:
+    """
+    Indovina il fattore di conversione confezione → unità base.
+
+    factor = quante unità base dell'ingrediente stanno in 1 unità fattura.
+    prezzo_per_unita_base = prezzo_fattura / factor.
+
+    Ritorna {"factor": float, "detail": str, "safe": bool}.
+    """
+    from app.routers.foodcost_recipes_router import convert_qty
+
+    base = (default_unit or "").strip().lower()
+    inv_raw = (unita_misura or "").strip().upper()
+
+    if not base:
+        return {"factor": 1.0, "detail": "ingrediente senza unità base", "safe": False}
+
+    is_package = inv_raw in _PACKAGE_UNITS
+
+    # Caso 1: l'unità fattura è una misura reale della STESSA famiglia dell'unità
+    # base (peso↔peso, volume↔volume, pz↔pz) → conversione standard diretta.
+    if not is_package and inv_raw:
+        inv_norm = _MEASURE_UNITS.get(inv_raw) or _UNIT_MAP.get(inv_raw, inv_raw.lower())
+        if _unit_family(inv_norm) and _unit_family(inv_norm) == _unit_family(base):
+            std = convert_qty(1.0, inv_norm, base)
+            if std is not None and std > 0:
+                if abs(std - 1.0) < 1e-9:
+                    return {"factor": 1.0,
+                            "detail": f"unità fattura ({inv_raw}) = unità ingrediente ({base})",
+                            "safe": True}
+                return {"factor": round(std, 6),
+                        "detail": f"1 {inv_raw} = {std:g} {base}",
+                        "safe": True}
+
+    # Caso 2: confezione (o unità non risolvibile) → leggi il contenuto dalla descrizione
+    content = _parse_package_content(descrizione or "", base)
+    if content is not None and content > 0:
+        etichetta = inv_raw or "confezione"
+        return {"factor": round(content, 6),
+                "detail": f"1 {etichetta} ≈ {content:g} {base} (stimato dalla descrizione)",
+                "safe": True}
+
+    # Caso 3: non determinabile
+    return {"factor": 1.0,
+            "detail": "fattore non determinato — verifica a mano",
+            "safe": False}
+
+
 # Keyword → categoria suggerita
 _CATEGORY_HINTS = {
     "carne": ["MANZO", "VITELLO", "MAIALE", "POLLO", "AGNELLO", "CONIGLIO", "ANATRA",
@@ -953,6 +1146,11 @@ class SmartSuggestion(BaseModel):
     existing_match: Optional[Dict[str, Any]] = None  # se esiste già un ingrediente simile
     has_bio: bool = False
     has_dop_igp: bool = False
+    # Fattore di conversione confezione → unità base, indovinato per il gruppo
+    fornitore_unita: Optional[str] = None  # unità fattura più frequente
+    suggested_factor: float = 1.0
+    factor_detail: str = ""
+    factor_safe: bool = True
 
 
 class BulkCreateItem(BaseModel):
@@ -962,6 +1160,8 @@ class BulkCreateItem(BaseModel):
     category_name: Optional[str] = None
     riga_ids: List[int]  # righe da collegare automaticamente
     note: Optional[str] = None
+    # Fattore confezione → unità base. Se None, viene indovinato riga per riga.
+    fattore_conversione: Optional[float] = None
 
 
 class BulkCreateRequest(BaseModel):
@@ -1078,6 +1278,7 @@ def smart_suggest():
     suggestions = []
     for key, g in groups.items():
         # Unità più frequente
+        most_common_unit = None
         if g["units"]:
             from collections import Counter
             unit_counts = Counter(u.strip().upper() for u in g["units"])
@@ -1085,6 +1286,11 @@ def smart_suggest():
             suggested_unit = _guess_unit(most_common_unit)
         else:
             suggested_unit = "kg"
+
+        # Fattore di conversione del gruppo (confezione → unità base).
+        # Usa la descrizione raw più informativa (la più lunga) per la stima.
+        rep_desc = max(g["raw_descs"], key=len) if g["raw_descs"] else ""
+        factor_guess = _guess_conversion_factor(rep_desc, most_common_unit, suggested_unit)
 
         # Categoria
         suggested_cat = _guess_category(key)
@@ -1124,6 +1330,10 @@ def smart_suggest():
             existing_match=existing_match,
             has_bio=g["has_bio"],
             has_dop_igp=g["has_dop_igp"],
+            fornitore_unita=most_common_unit,
+            suggested_factor=factor_guess["factor"],
+            factor_detail=factor_guess["detail"],
+            factor_safe=factor_guess["safe"],
         ))
 
     # Ordina: prima quelli con più righe (più impatto)
@@ -1230,6 +1440,15 @@ def bulk_create_ingredients(
                     cur, riga["fornitore_nome"], riga["fornitore_piva"]
                 )
 
+                # Fattore di conversione: override esplicito dell'item, altrimenti
+                # indovinato riga per riga (le confezioni possono variare).
+                if item.fattore_conversione is not None and item.fattore_conversione > 0:
+                    fattore = item.fattore_conversione
+                else:
+                    fattore = _guess_conversion_factor(
+                        riga["descrizione"], riga["unita_misura"], item.default_unit
+                    )["factor"]
+
                 # Crea mapping se non esiste
                 existing_map = cur.execute(
                     """
@@ -1246,18 +1465,19 @@ def bulk_create_ingredients(
                             ingredient_id, supplier_id, descrizione_fornitore,
                             unita_fornitore, fattore_conversione, is_default,
                             confirmed_by, created_at
-                        ) VALUES (?, ?, ?, ?, 1.0, 0, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
                         """,
                         (
                             ingredient_id, supplier_id,
                             riga["descrizione"],
                             riga["unita_misura"],
+                            fattore,
                             username, now,
                         ),
                     )
 
                 # Salva prezzo
-                _save_price_from_riga(cur, ingredient_id, supplier_id, dict(riga), 1.0)
+                _save_price_from_riga(cur, ingredient_id, supplier_id, dict(riga), fattore)
                 matched += 1
 
         except Exception as e:

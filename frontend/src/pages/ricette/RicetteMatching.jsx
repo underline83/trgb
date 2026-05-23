@@ -12,6 +12,14 @@ import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 
+// Formatta un prezzo: 2 decimali, fino a 4 per i prezzi sotto 1 €
+function fmtPrice(v) {
+  if (v == null || isNaN(v)) return "—";
+  const n = Number(v);
+  const dec = Math.abs(n) < 1 ? 4 : 2;
+  return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: dec });
+}
+
 export default function RicetteMatching() {
   const navigate = useNavigate();
 
@@ -25,6 +33,10 @@ export default function RicetteMatching() {
   const [selectedRiga, setSelectedRiga] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSugg, setLoadingSugg] = useState(false);
+
+  // Bozza di conferma: editor del fattore di conversione prima di confermare
+  const [confirmDraft, setConfirmDraft] = useState(null); // { riga_id, ingredient_id, ... }
+  const [confirmMsg, setConfirmMsg] = useState("");
 
   // Auto-match stats
   const [autoResult, setAutoResult] = useState(null);
@@ -84,6 +96,7 @@ export default function RicetteMatching() {
   const handleSelectRiga = async (riga) => {
     setSelectedRiga(riga);
     setSuggestions([]);
+    setConfirmDraft(null);
     setLoadingSugg(true);
     try {
       const resp = await apiFetch(`${FC}/matching/suggest?riga_id=${riga.riga_id}`);
@@ -95,22 +108,64 @@ export default function RicetteMatching() {
     }
   };
 
-  // Conferma match manuale
-  const handleConfirm = async (rigaId, ingredientId) => {
+  // Apre l'editor del fattore di conversione per un suggerimento
+  const openConfirmDraft = (riga, sugg) => {
+    setConfirmMsg("");
+    setConfirmDraft({
+      riga_id: riga.riga_id,
+      ingredient_id: sugg.ingredient_id,
+      ingredient_name: sugg.ingredient_name,
+      default_unit: sugg.default_unit,
+      unita_fattura: riga.unita_misura || "conf.",
+      prezzo_unitario: riga.prezzo_unitario,
+      factor: String(sugg.suggested_factor ?? 1),
+      factor_detail: sugg.factor_detail || "",
+      factor_safe: sugg.factor_safe !== false,
+    });
+  };
+
+  // Conferma match manuale (con fattore di conversione)
+  const handleConfirm = async () => {
+    if (!confirmDraft) return;
+    const fattore = parseFloat(String(confirmDraft.factor).replace(",", "."));
+    if (!fattore || fattore <= 0) {
+      setError("Il fattore di conversione deve essere un numero maggiore di zero.");
+      return;
+    }
     setError("");
     try {
       const resp = await apiFetch(`${FC}/matching/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ riga_fattura_id: rigaId, ingredient_id: ingredientId }),
+        body: JSON.stringify({
+          riga_fattura_id: confirmDraft.riga_id,
+          ingredient_id: confirmDraft.ingredient_id,
+          fattore_conversione: fattore,
+        }),
       });
       if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      if (data?.unit_price != null) {
+        setConfirmMsg(
+          `${data.ingredient_name}: prezzo registrato a ${fmtPrice(data.unit_price)} €/${data.default_unit}.`
+        );
+      } else {
+        setConfirmMsg("Match confermato.");
+      }
+      setConfirmDraft(null);
       setSelectedRiga(null);
       setSuggestions([]);
       await loadAll();
     } catch (err) {
       setError(`Errore conferma: ${err.message}`);
     }
+  };
+
+  // Prezzo per unità base = prezzo fattura / fattore
+  const previewUnitPrice = (prezzo, factorStr) => {
+    const f = parseFloat(String(factorStr).replace(",", "."));
+    if (prezzo == null || !f || f <= 0) return null;
+    return Number(prezzo) / f;
   };
 
   // Auto-match
@@ -173,6 +228,7 @@ export default function RicetteMatching() {
           unit: suggestion.suggested_unit,
           category: suggestion.suggested_category || "",
           riga_ids: suggestion.riga_ids,
+          factor: String(suggestion.suggested_factor ?? 1),
           selected: true,
         };
       }
@@ -190,13 +246,17 @@ export default function RicetteMatching() {
   const handleBulkCreate = async () => {
     const items = Object.values(smartSelected)
       .filter((s) => s.selected !== false)
-      .map((s) => ({
-        name: s.name,
-        default_unit: s.unit,
-        category_name: s.category || null,
-        riga_ids: s.riga_ids,
-        note: null,
-      }));
+      .map((s) => {
+        const f = parseFloat(String(s.factor ?? "").replace(",", "."));
+        return {
+          name: s.name,
+          default_unit: s.unit,
+          category_name: s.category || null,
+          riga_ids: s.riga_ids,
+          note: null,
+          fattore_conversione: f && f > 0 ? f : null,
+        };
+      });
 
     if (items.length === 0) {
       setError("Seleziona almeno un ingrediente da creare.");
@@ -377,6 +437,12 @@ export default function RicetteMatching() {
           </div>
         )}
 
+        {confirmMsg && (
+          <div className="mb-4 rounded-xl border border-green-300 bg-green-50 text-green-800 px-4 py-3 text-sm">
+            {confirmMsg}
+          </div>
+        )}
+
         {bulkResult && (
           <div className="mb-4 rounded-xl border border-blue-300 bg-blue-50 text-blue-800 px-4 py-3 text-sm">
             Creazione completata: <strong>{bulkResult.created}</strong> ingredienti creati, <strong>{bulkResult.matched}</strong> righe associate.
@@ -499,31 +565,95 @@ export default function RicetteMatching() {
                               Nessun suggerimento. Usa la tab "Smart Create" per creare l'ingrediente automaticamente.
                             </p>
                           ) : (
-                            suggestions.map((s) => (
-                              <div
-                                key={s.ingredient_id}
-                                className="flex items-center justify-between gap-3 bg-white border border-neutral-200 rounded-lg p-3 hover:border-green-300 transition"
-                              >
-                                <div>
-                                  <span className="font-medium text-sm text-neutral-900">
-                                    {s.ingredient_name}
-                                  </span>
-                                  <span className="text-xs text-neutral-500 ml-2">
-                                    ({s.default_unit}) &middot; {s.confidence.toFixed(0)}%
-                                  </span>
-                                  <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                                    s.reason === "exact_desc" ? "bg-green-100 text-green-700"
-                                      : s.reason === "same_supplier" ? "bg-blue-100 text-blue-700"
-                                      : "bg-yellow-100 text-yellow-700"
-                                  }`}>
-                                    {s.reason}
-                                  </span>
+                            suggestions.map((s) => {
+                              const isDraft =
+                                confirmDraft &&
+                                confirmDraft.riga_id === riga.riga_id &&
+                                confirmDraft.ingredient_id === s.ingredient_id;
+                              const prezzoUnit = isDraft
+                                ? previewUnitPrice(confirmDraft.prezzo_unitario, confirmDraft.factor)
+                                : null;
+                              return (
+                                <div
+                                  key={s.ingredient_id}
+                                  className={`bg-white border rounded-lg p-3 transition ${
+                                    isDraft ? "border-green-300 shadow-sm" : "border-neutral-200 hover:border-green-300"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                      <span className="font-medium text-sm text-neutral-900">
+                                        {s.ingredient_name}
+                                      </span>
+                                      <span className="text-xs text-neutral-500 ml-2">
+                                        ({s.default_unit}) &middot; {s.confidence.toFixed(0)}%
+                                      </span>
+                                      <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                                        s.reason === "exact_desc" ? "bg-green-100 text-green-700"
+                                          : s.reason === "same_supplier" ? "bg-blue-100 text-blue-700"
+                                          : "bg-yellow-100 text-yellow-700"
+                                      }`}>
+                                        {s.reason}
+                                      </span>
+                                    </div>
+                                    {!isDraft && (
+                                      <Btn variant="success" size="sm" onClick={() => openConfirmDraft(riga, s)}>
+                                        Conferma
+                                      </Btn>
+                                    )}
+                                  </div>
+
+                                  {/* Editor del fattore di conversione */}
+                                  {isDraft && (
+                                    <div className="mt-3 pt-3 border-t border-neutral-200 space-y-2">
+                                      <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-700">
+                                        <span>1</span>
+                                        <span className="font-medium">{confirmDraft.unita_fattura}</span>
+                                        <span>=</span>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          min="0"
+                                          value={confirmDraft.factor}
+                                          onChange={(e) =>
+                                            setConfirmDraft((d) => ({ ...d, factor: e.target.value }))
+                                          }
+                                          className="w-24 px-2 py-1 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+                                        />
+                                        <span className="font-medium">{confirmDraft.default_unit}</span>
+                                      </div>
+
+                                      {confirmDraft.factor_detail && (
+                                        <div className={`text-xs ${confirmDraft.factor_safe ? "text-neutral-500" : "text-amber-700"}`}>
+                                          {confirmDraft.factor_safe ? "Stima: " : "⚠ "}
+                                          {confirmDraft.factor_detail}
+                                        </div>
+                                      )}
+
+                                      <div className="text-sm">
+                                        Fattura: {confirmDraft.prezzo_unitario != null
+                                          ? `${fmtPrice(confirmDraft.prezzo_unitario)} €/${confirmDraft.unita_fattura}`
+                                          : "prezzo assente"}
+                                        {prezzoUnit != null && (
+                                          <span className="ml-2 font-semibold text-green-800">
+                                            → {fmtPrice(prezzoUnit)} €/{confirmDraft.default_unit}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex gap-2 pt-1">
+                                        <Btn variant="success" size="sm" onClick={handleConfirm}>
+                                          Conferma e registra prezzo
+                                        </Btn>
+                                        <Btn variant="ghost" size="sm" onClick={() => setConfirmDraft(null)}>
+                                          Annulla
+                                        </Btn>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                                <Btn variant="success" size="sm" onClick={() => handleConfirm(riga.riga_id, s.ingredient_id)}>
-                                  Conferma
-                                </Btn>
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       )}
@@ -552,6 +682,7 @@ export default function RicetteMatching() {
                           unit: s.suggested_unit,
                           category: s.suggested_category || "",
                           riga_ids: s.riga_ids,
+                          factor: String(s.suggested_factor ?? 1),
                           selected: true,
                         };
                       }
@@ -674,26 +805,48 @@ export default function RicetteMatching() {
 
                             {/* Edit fields when selected */}
                             {isSelected && (
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                <select
-                                  value={editData.unit}
-                                  onChange={(e) => updateSmartItem(s.suggested_name, "unit", e.target.value)}
-                                  className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-white focus:ring-blue-500"
-                                >
-                                  <option value="kg">kg</option>
-                                  <option value="g">g</option>
-                                  <option value="L">L</option>
-                                  <option value="ml">ml</option>
-                                  <option value="cl">cl</option>
-                                  <option value="pz">pz</option>
-                                </select>
-                                <input
-                                  type="text"
-                                  value={editData.category}
-                                  onChange={(e) => updateSmartItem(s.suggested_name, "category", e.target.value)}
-                                  placeholder="Categoria (opzionale)"
-                                  className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-white flex-1 min-w-[150px] focus:ring-blue-500"
-                                />
+                              <div className="mt-2 space-y-2">
+                                <div className="flex flex-wrap gap-2">
+                                  <select
+                                    value={editData.unit}
+                                    onChange={(e) => updateSmartItem(s.suggested_name, "unit", e.target.value)}
+                                    className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-white focus:ring-blue-500"
+                                  >
+                                    <option value="kg">kg</option>
+                                    <option value="g">g</option>
+                                    <option value="L">L</option>
+                                    <option value="ml">ml</option>
+                                    <option value="cl">cl</option>
+                                    <option value="pz">pz</option>
+                                  </select>
+                                  <input
+                                    type="text"
+                                    value={editData.category}
+                                    onChange={(e) => updateSmartItem(s.suggested_name, "category", e.target.value)}
+                                    placeholder="Categoria (opzionale)"
+                                    className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-white flex-1 min-w-[150px] focus:ring-blue-500"
+                                  />
+                                </div>
+                                {/* Fattore di conversione confezione → unità base */}
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-700">
+                                  <span>Conversione: 1</span>
+                                  <span className="font-medium">{s.fornitore_unita || "conf."}</span>
+                                  <span>=</span>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    value={editData.factor ?? "1"}
+                                    onChange={(e) => updateSmartItem(s.suggested_name, "factor", e.target.value)}
+                                    className="w-20 border border-blue-200 rounded-lg px-2 py-1 bg-white focus:ring-blue-500"
+                                  />
+                                  <span className="font-medium">{editData.unit}</span>
+                                </div>
+                                {s.factor_detail && (
+                                  <div className={`text-xs ${s.factor_safe !== false ? "text-neutral-500" : "text-amber-700"}`}>
+                                    {s.factor_safe !== false ? "Stima: " : "⚠ "}{s.factor_detail}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

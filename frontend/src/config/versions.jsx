@@ -9,7 +9,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   ricette: {
-    version: "3.12",
+    version: "3.13",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
