@@ -484,18 +484,6 @@ def _fetch_ingredient_detail(cur, ingredient_id: int):
     ).fetchone()
 
 
-@router.get("/{ingredient_id}", response_model=IngredientDetail)
-def get_ingredient(ingredient_id: int):
-    """Dettaglio di un singolo ingrediente (incluso il flag placeholder)."""
-    conn = get_cucina_connection()
-    cur = conn.cursor()
-    row = _fetch_ingredient_detail(cur, ingredient_id)
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Ingrediente non trovato")
-    return IngredientDetail(**dict(row))
-
-
 @router.put("/{ingredient_id}", response_model=IngredientDetail)
 def update_ingredient(ingredient_id: int, payload: IngredientUpdate):
     conn = get_cucina_connection()
@@ -625,6 +613,20 @@ def list_suppliers():
     ).fetchall()
     conn.close()
     return [SupplierOut(**dict(r)) for r in rows]
+
+
+# NB: questa rotta con path-param singolo va registrata DOPO tutte le rotte
+# letterali (/units, /categories, /suppliers), altrimenti le intercetta.
+@router.get("/{ingredient_id}", response_model=IngredientDetail)
+def get_ingredient(ingredient_id: int):
+    """Dettaglio di un singolo ingrediente (incluso il flag placeholder)."""
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+    row = _fetch_ingredient_detail(cur, ingredient_id)
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+    return IngredientDetail(**dict(row))
 
 
 # ─────────────────────────────────────────────

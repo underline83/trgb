@@ -1,7 +1,7 @@
-// @version: v3.0 — pagina ingrediente ristrutturata
+// @version: v3.2 — ricerca raggruppata per articolo + collega multi-selezione
 // Modulo: ricette
 // Dettaglio ingrediente: completa/unisci placeholder + storico prezzi + conversioni unità.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
@@ -9,6 +9,7 @@ import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 const ING = `${FC}/ingredients`;
+const MATCH = `${FC}/matching`;
 const UNITA = ["kg", "g", "L", "ml", "cl", "pz"];
 const oggi = () => new Date().toISOString().slice(0, 10);
 
@@ -17,6 +18,33 @@ function fmtPrezzo(v) {
   const n = Number(v);
   const dec = Math.abs(n) < 1 ? 4 : 2;
   return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: dec });
+}
+
+// Raggruppa le righe fattura per ARTICOLO: solo righe IDENTICHE (stesso
+// fornitore + stessa descrizione esatta) finiscono nello stesso gruppo.
+function groupArticoli(rows) {
+  const map = new Map();
+  for (const r of rows || []) {
+    const key = `${r.fornitore_nome || ""}|||${r.descrizione || ""}`;
+    if (!map.has(key)) {
+      map.set(key, { key, fornitore: r.fornitore_nome, descrizione: r.descrizione, righe: [] });
+    }
+    map.get(key).righe.push(r);
+  }
+  return [...map.values()]
+    .map((a) => {
+      const prezzi = a.righe.map((r) => r.prezzo_unitario).filter((p) => p != null);
+      const date = a.righe.map((r) => r.data_fattura).filter(Boolean).sort();
+      return {
+        ...a,
+        n: a.righe.length,
+        rigaIds: a.righe.map((r) => r.riga_id),
+        pmin: prezzi.length ? Math.min(...prezzi) : null,
+        pmax: prezzi.length ? Math.max(...prezzi) : null,
+        ultima: date.length ? date[date.length - 1] : null,
+      };
+    })
+    .sort((a, b) => b.n - a.n);
 }
 
 export default function RicetteIngredientiPrezzi() {
@@ -33,6 +61,15 @@ export default function RicetteIngredientiPrezzi() {
   const [categorie, setCategorie] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [allIngredients, setAllIngredients] = useState([]);
+
+  // collegamenti fattura (un ingrediente può averne più d'uno: uno per fornitore)
+  const [mappings, setMappings] = useState([]);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchDone, setSearchDone] = useState(false);
+  const [selArt, setSelArt] = useState({}); // articoli selezionati (key -> bool)
+  const searchInit = useRef(false);
 
   // form "completa placeholder"
   const [compl, setCompl] = useState({ name: "", category_id: "", default_unit: "kg", allergeni: "" });
@@ -63,22 +100,108 @@ export default function RicetteIngredientiPrezzi() {
         allergeni: d.allergeni || "",
       });
 
-      const [pr, cv, cat, sup, ings] = await Promise.all([
+      const [pr, cv, cat, sup, ings, mp] = await Promise.all([
         apiFetch(`${ING}/${id}/prezzi`),
         apiFetch(`${ING}/${id}/conversions`),
         apiFetch(`${ING}/categories`),
         apiFetch(`${ING}/suppliers`),
         apiFetch(`${ING}/`),
+        apiFetch(`${MATCH}/mappings?ingredient_id=${id}`),
       ]);
       if (pr.ok) setPrezzi(await pr.json());
       if (cv.ok) setConversions(await cv.json());
       if (cat.ok) setCategorie(await cat.json());
       if (sup.ok) setSuppliers(await sup.json());
       if (ings.ok) setAllIngredients(await ings.json());
+      if (mp.ok) setMappings(await mp.json());
+
+      // Prima apertura: precompila la ricerca col nome ingrediente e cerca
+      if (!searchInit.current) {
+        searchInit.current = true;
+        setSearchQ(d.name || "");
+        doSearch(d.name || "");
+      }
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Ricarica solo prezzi + collegamenti (dopo collega/scollega, senza flash)
+  const refreshPrezziMappings = async () => {
+    const [pr, mp] = await Promise.all([
+      apiFetch(`${ING}/${id}/prezzi`),
+      apiFetch(`${MATCH}/mappings?ingredient_id=${id}`),
+    ]);
+    if (pr.ok) setPrezzi(await pr.json());
+    if (mp.ok) setMappings(await mp.json());
+  };
+
+  // Cerca righe fattura non ancora collegate, per descrizione
+  const doSearch = async (q) => {
+    const query = (q || "").trim();
+    if (!query) { setSearchResults([]); setSearchDone(false); return; }
+    setSearching(true);
+    setSearchDone(false);
+    try {
+      const r = await apiFetch(`${MATCH}/pending?q=${encodeURIComponent(query)}`);
+      if (r.ok) setSearchResults(await r.json());
+      else setSearchResults([]);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+      setSearchDone(true);
+    }
+  };
+
+  // Collega gli articoli selezionati a QUESTO ingrediente (aggiunge match,
+  // non sostituisce — un ingrediente può avere più collegamenti)
+  const handleCollegaSelezionati = async (articoli) => {
+    const rigaIds = articoli
+      .filter((a) => selArt[a.key])
+      .flatMap((a) => a.rigaIds);
+    if (rigaIds.length === 0) {
+      setError("Spunta almeno un articolo da collegare.");
+      return;
+    }
+    setError(""); setMsg("");
+    try {
+      const r = await apiFetch(`${MATCH}/collega-multiplo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredient_id: Number(id), riga_ids: rigaIds }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      let range = "";
+      if (data.prezzo_min != null) {
+        range = data.prezzo_min === data.prezzo_max
+          ? `${fmtPrezzo(data.prezzo_min)} €/${data.default_unit}`
+          : `${fmtPrezzo(data.prezzo_min)}–${fmtPrezzo(data.prezzo_max)} €/${data.default_unit}`;
+      }
+      setMsg(
+        `${data.righe_collegate} righe fattura collegate${range ? ` · ${range}` : ""}.`
+      );
+      setSelArt({});
+      await refreshPrezziMappings();
+      await doSearch(searchQ); // gli articoli collegati spariscono dai risultati
+    } catch (e) {
+      setError(`Errore collegamento: ${e.message}`);
+    }
+  };
+
+  // Rimuove un collegamento (i prezzi già registrati restano nello storico)
+  const handleScollega = async (mappingId) => {
+    if (!window.confirm("Rimuovere questo collegamento? I prezzi già registrati restano nello storico.")) return;
+    setError("");
+    try {
+      const r = await apiFetch(`${MATCH}/mappings/${mappingId}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text());
+      await refreshPrezziMappings();
+    } catch (e) {
+      setError(`Errore: ${e.message}`);
     }
   };
 
@@ -201,6 +324,8 @@ export default function RicetteIngredientiPrezzi() {
     ? prezzi.reduce((s, p) => s + (p.unit_price || 0), 0) / prezzi.length
     : null;
   const isPlaceholder = ing && ing.placeholder;
+  const articoli = groupArticoli(searchResults);
+  const selCount = Object.values(selArt).filter(Boolean).length;
 
   if (loading) {
     return (
@@ -334,6 +459,100 @@ export default function RicetteIngredientiPrezzi() {
               {ultimoPrezzo != null ? `${fmtPrezzo(ultimoPrezzo)} €/${ing?.default_unit || ""}` : "—"}
             </div>
           </div>
+        </div>
+
+        {/* ═══ COLLEGAMENTI FATTURA ═══ */}
+        <div className="bg-white border border-neutral-200 rounded-2xl p-5 mb-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-1">
+            Collegamenti fattura
+          </h2>
+          <p className="text-xs text-neutral-500 mb-3">
+            Collega questo ingrediente alle righe delle fatture: il prezzo entra in automatico.
+            Un ingrediente può avere più collegamenti — uno per ogni fornitore.
+          </p>
+
+          {mappings.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {mappings.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-3 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-neutral-900">{m.fornitore_nome || "—"}</span>
+                    <span className="text-xs text-neutral-500 ml-2">{m.descrizione_fornitore}</span>
+                  </div>
+                  <Btn variant="chip" tone="red" size="sm" onClick={() => handleScollega(m.id)}>
+                    Scollega
+                  </Btn>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && doSearch(searchQ)}
+              placeholder="Cerca nelle righe fattura…"
+              className="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+            />
+            <Btn variant="chip" tone="blue" size="md" onClick={() => doSearch(searchQ)} loading={searching}>
+              {searching ? "Cerco…" : "Cerca"}
+            </Btn>
+          </div>
+
+          {searchDone && articoli.length === 0 && (
+            <p className="text-sm text-neutral-400 italic">
+              Nessuna riga fattura non collegata trovata.
+            </p>
+          )}
+          {articoli.length > 0 && (
+            <>
+              <p className="text-xs text-neutral-500 mb-2">
+                Le righe identiche (stesso fornitore + stessa descrizione) sono raggruppate
+                in un articolo. Spunta gli articoli da collegare — anche più d'uno, se sai
+                che sono lo stesso prodotto (es. lotti diversi).
+              </p>
+              <div className="space-y-1.5 max-h-72 overflow-y-auto mb-3">
+                {articoli.map((a) => {
+                  const checked = !!selArt[a.key];
+                  return (
+                    <label
+                      key={a.key}
+                      className={`flex items-center gap-3 border rounded-lg px-3 py-2 cursor-pointer transition ${
+                        checked ? "bg-blue-50 border-blue-300" : "bg-neutral-50 border-neutral-200 hover:border-blue-200"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setSelArt((s) => ({ ...s, [a.key]: !s[a.key] }))}
+                        className="w-4 h-4 flex-shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm text-neutral-900 truncate">{a.descrizione}</div>
+                        <div className="text-xs text-neutral-500">
+                          {a.fornitore || "—"} · {a.n} {a.n === 1 ? "fattura" : "fatture"}
+                          {a.pmin != null && (
+                            ` · ${a.pmin === a.pmax ? fmtPrezzo(a.pmin) : `${fmtPrezzo(a.pmin)}–${fmtPrezzo(a.pmax)}`} €`
+                          )}
+                          {a.ultima && ` · ultima ${a.ultima}`}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              <Btn
+                variant="success"
+                size="md"
+                onClick={() => handleCollegaSelezionati(articoli)}
+                disabled={selCount === 0}
+              >
+                Collega selezionati{selCount > 0 ? ` (${selCount})` : ""}
+              </Btn>
+            </>
+          )}
         </div>
 
         {/* ═══ AGGIUNGI PREZZO ═══ */}

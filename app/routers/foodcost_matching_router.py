@@ -79,7 +79,9 @@ class ConfirmMatchRequest(BaseModel):
     ingredient_id: int
     codice_fornitore: Optional[str] = None
     unita_fornitore: Optional[str] = None
-    fattore_conversione: float = Field(default=1.0, gt=0)
+    # Se None, il fattore viene indovinato dal backend (usato dalla ricerca
+    # lato pagina ingrediente). La pagina Matching lo passa esplicito.
+    fattore_conversione: Optional[float] = None
 
 
 class MappingOut(BaseModel):
@@ -236,10 +238,13 @@ def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
 @router.get("/pending", response_model=List[PendingRow])
 def list_pending_rows(
     fornitore: Optional[str] = None,
+    q: Optional[str] = None,
 ):
     """
     Righe fattura che non hanno ancora un match in ingredient_supplier_map.
     Esclude fornitori marcati come 'escluso' in fe_fornitore_categoria.
+
+    `q`: filtro testo sulla descrizione riga (usato dalla ricerca lato ingrediente).
     """
     conn = get_foodcost_connection()
     cur = conn.cursor()
@@ -247,8 +252,11 @@ def list_pending_rows(
     params = []
     where_extra = ""
     if fornitore:
-        where_extra = "AND f.fornitore_nome LIKE ?"
+        where_extra += " AND f.fornitore_nome LIKE ?"
         params.append(f"%{fornitore}%")
+    if q and q.strip():
+        where_extra += " AND r.descrizione LIKE ?"
+        params.append(f"%{q.strip()}%")
 
     rows = cur.execute(
         f"""
@@ -438,6 +446,14 @@ def confirm_match(
         conn.close()
         raise HTTPException(status_code=404, detail="Ingrediente non trovato")
 
+    # Fattore di conversione: esplicito (pagina Matching) o indovinato
+    # (ricerca dalla pagina ingrediente, che non lo passa)
+    fattore = payload.fattore_conversione
+    if fattore is None or fattore <= 0:
+        fattore = _guess_conversion_factor(
+            riga["descrizione"], riga["unita_misura"], ing["default_unit"]
+        )["factor"]
+
     # Trova/crea supplier
     supplier_id = _get_or_create_supplier(
         cur, riga["fornitore_nome"], riga["fornitore_piva"]
@@ -469,7 +485,7 @@ def confirm_match(
                 payload.codice_fornitore,
                 riga["descrizione"],
                 payload.unita_fornitore or riga["unita_misura"],
-                payload.fattore_conversione,
+                fattore,
                 username,
                 now,
             ),
@@ -481,7 +497,7 @@ def confirm_match(
         payload.ingredient_id,
         supplier_id,
         dict(riga),
-        payload.fattore_conversione,
+        fattore,
     )
 
     conn.commit()
@@ -493,8 +509,128 @@ def confirm_match(
         "ingredient_name": ing["name"],
         "default_unit": ing["default_unit"],
         "unit_price": unit_price,
-        "fattore_conversione": payload.fattore_conversione,
+        "fattore_conversione": fattore,
     }
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: COLLEGA PIÙ RIGHE (articoli) A UN INGREDIENTE
+# ─────────────────────────────────────────────
+
+class CollegaMultiploRequest(BaseModel):
+    """Collega in blocco più righe fattura a un ingrediente."""
+    ingredient_id: int
+    riga_ids: List[int] = []
+
+
+@router.post("/collega-multiplo")
+def collega_multiplo(
+    payload: CollegaMultiploRequest,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Collega più righe fattura a un ingrediente in una sola operazione.
+    Usato dalla pagina ingrediente: l'utente seleziona uno o più articoli
+    (gruppi di righe identiche) e li aggancia tutti insieme.
+    Per ogni riga: crea il mapping fornitore↔ingrediente (se manca) e salva
+    il prezzo. Le righe già a prezzo vengono saltate.
+    """
+    if not payload.riga_ids:
+        raise HTTPException(status_code=400, detail="Nessuna riga selezionata")
+
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+    username = (
+        current_user.get("username") if isinstance(current_user, dict)
+        else getattr(current_user, "username", "system")
+    )
+    try:
+        ing = cur.execute(
+            "SELECT id, name, default_unit FROM ingredients WHERE id = ?",
+            (payload.ingredient_id,),
+        ).fetchone()
+        if not ing:
+            raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+
+        collegate = 0
+        saltate = 0
+        prezzi_norm = []
+        now = datetime.utcnow().isoformat()
+
+        for riga_id in payload.riga_ids:
+            riga = cur.execute(
+                """
+                SELECT r.id AS riga_id, r.fattura_id, r.descrizione, r.quantita,
+                       r.unita_misura, r.prezzo_unitario, r.prezzo_totale,
+                       f.fornitore_nome, f.fornitore_piva, f.numero_fattura, f.data_fattura
+                FROM fe_righe r
+                JOIN fe_fatture f ON f.id = r.fattura_id
+                WHERE r.id = ?
+                """,
+                (riga_id,),
+            ).fetchone()
+            if not riga:
+                saltate += 1
+                continue
+            # già a prezzo? salta (idempotente)
+            if cur.execute(
+                "SELECT 1 FROM ingredient_prices WHERE riga_fattura_id = ?", (riga_id,)
+            ).fetchone():
+                saltate += 1
+                continue
+
+            fattore = _guess_conversion_factor(
+                riga["descrizione"], riga["unita_misura"], ing["default_unit"]
+            )["factor"]
+            supplier_id = _get_or_create_supplier(
+                cur, riga["fornitore_nome"], riga["fornitore_piva"]
+            )
+            existing_map = cur.execute(
+                """
+                SELECT id FROM ingredient_supplier_map
+                WHERE ingredient_id = ? AND supplier_id = ? AND descrizione_fornitore = ?
+                """,
+                (payload.ingredient_id, supplier_id, riga["descrizione"]),
+            ).fetchone()
+            if not existing_map:
+                cur.execute(
+                    """
+                    INSERT INTO ingredient_supplier_map (
+                        ingredient_id, supplier_id, descrizione_fornitore,
+                        unita_fornitore, fattore_conversione, is_default,
+                        confirmed_by, created_at
+                    ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+                    """,
+                    (
+                        payload.ingredient_id, supplier_id, riga["descrizione"],
+                        riga["unita_misura"], fattore, username, now,
+                    ),
+                )
+            up = _save_price_from_riga(
+                cur, payload.ingredient_id, supplier_id, dict(riga), fattore
+            )
+            if up is not None:
+                prezzi_norm.append(up)
+            collegate += 1
+
+        conn.commit()
+        return {
+            "status": "ok",
+            "ingredient_name": ing["name"],
+            "default_unit": ing["default_unit"],
+            "righe_collegate": collegate,
+            "righe_saltate": saltate,
+            "prezzo_min": round(min(prezzi_norm), 4) if prezzi_norm else None,
+            "prezzo_max": round(max(prezzi_norm), 4) if prezzi_norm else None,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore collegamento: {e}") from e
+    finally:
+        conn.close()
 
 
 # ─────────────────────────────────────────────
@@ -598,11 +734,17 @@ def auto_match():
 # ─────────────────────────────────────────────
 
 @router.get("/mappings", response_model=List[MappingOut])
-def list_mappings():
-    """Lista tutti i mapping fornitore→ingrediente."""
+def list_mappings(ingredient_id: Optional[int] = None):
+    """
+    Lista i mapping fornitore→ingrediente.
+    Con `ingredient_id`, solo i mapping di quell'ingrediente (un ingrediente
+    può averne più d'uno: un match per ogni fornitore).
+    """
     conn = get_foodcost_connection()
+    where = "WHERE ism.ingredient_id = ?" if ingredient_id is not None else ""
+    params = (ingredient_id,) if ingredient_id is not None else ()
     rows = conn.execute(
-        """
+        f"""
         SELECT
             ism.id, ism.ingredient_id, i.name AS ingredient_name,
             ism.supplier_id, s.name AS fornitore_nome,
@@ -612,8 +754,10 @@ def list_mappings():
         FROM ingredient_supplier_map ism
         JOIN ingredients i ON i.id = ism.ingredient_id
         LEFT JOIN suppliers s ON s.id = ism.supplier_id
+        {where}
         ORDER BY i.name, s.name
-        """
+        """,
+        params,
     ).fetchall()
     conn.close()
 
