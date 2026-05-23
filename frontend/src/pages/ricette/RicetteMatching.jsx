@@ -20,6 +20,36 @@ function fmtPrice(v) {
   return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: dec });
 }
 
+// Accorpa le righe pending per ARTICOLO: solo righe identiche (stesso
+// fornitore + stessa descrizione esatta) finiscono nello stesso gruppo.
+function groupArticoli(rows) {
+  const map = new Map();
+  for (const r of rows || []) {
+    const key = `${r.fornitore_nome || ""}|||${r.descrizione || ""}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        key, fornitore: r.fornitore_nome, descrizione: r.descrizione,
+        unita: r.unita_misura, righe: [],
+      });
+    }
+    map.get(key).righe.push(r);
+  }
+  return [...map.values()]
+    .map((a) => {
+      const prezzi = a.righe.map((r) => r.prezzo_unitario).filter((p) => p != null);
+      const date = a.righe.map((r) => r.data_fattura).filter(Boolean).sort();
+      return {
+        ...a,
+        n: a.righe.length,
+        rigaIds: a.righe.map((r) => r.riga_id),
+        pmin: prezzi.length ? Math.min(...prezzi) : null,
+        pmax: prezzi.length ? Math.max(...prezzi) : null,
+        ultima: date.length ? date[date.length - 1] : null,
+      };
+    })
+    .sort((a, b) => b.n - a.n);
+}
+
 export default function RicetteMatching() {
   const navigate = useNavigate();
 
@@ -29,8 +59,8 @@ export default function RicetteMatching() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState("pending"); // pending | mappings | smart | fornitori
 
-  // Stato per suggerimenti matching manuale
-  const [selectedRiga, setSelectedRiga] = useState(null);
+  // Stato per suggerimenti matching manuale (per articolo accorpato)
+  const [selectedArt, setSelectedArt] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSugg, setLoadingSugg] = useState(false);
 
@@ -47,6 +77,7 @@ export default function RicetteMatching() {
   const [smartSelected, setSmartSelected] = useState({}); // key: suggestedName → editable fields
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [smartFilter, setSmartFilter] = useState(""); // ricerca nei suggerimenti
 
   // Fornitori state
   const [suppliers, setSuppliers] = useState([]);
@@ -92,14 +123,14 @@ export default function RicetteMatching() {
 
   useEffect(() => { loadAll(); }, []);
 
-  // Suggerimenti per una riga
-  const handleSelectRiga = async (riga) => {
-    setSelectedRiga(riga);
+  // Suggerimenti per un articolo (gruppo di righe identiche)
+  const handleSelectArticle = async (art) => {
+    setSelectedArt(art);
     setSuggestions([]);
     setConfirmDraft(null);
     setLoadingSugg(true);
     try {
-      const resp = await apiFetch(`${FC}/matching/suggest?riga_id=${riga.riga_id}`);
+      const resp = await apiFetch(`${FC}/matching/suggest?riga_id=${art.righe[0].riga_id}`);
       if (resp.ok) setSuggestions(await resp.json());
     } catch (err) {
       console.error(err);
@@ -108,23 +139,26 @@ export default function RicetteMatching() {
     }
   };
 
-  // Apre l'editor del fattore di conversione per un suggerimento
-  const openConfirmDraft = (riga, sugg) => {
+  // Apre l'editor del fattore di conversione per un suggerimento (articolo)
+  const openConfirmDraft = (art, sugg) => {
     setConfirmMsg("");
     setConfirmDraft({
-      riga_id: riga.riga_id,
+      art_key: art.key,
+      riga_ids: art.rigaIds,
+      n: art.n,
       ingredient_id: sugg.ingredient_id,
       ingredient_name: sugg.ingredient_name,
       default_unit: sugg.default_unit,
-      unita_fattura: riga.unita_misura || "conf.",
-      prezzo_unitario: riga.prezzo_unitario,
+      unita_fattura: art.unita || "conf.",
+      pmin: art.pmin,
+      pmax: art.pmax,
       factor: String(sugg.suggested_factor ?? 1),
       factor_detail: sugg.factor_detail || "",
       factor_safe: sugg.factor_safe !== false,
     });
   };
 
-  // Conferma match manuale (con fattore di conversione)
+  // Conferma: collega tutte le righe dell'articolo all'ingrediente scelto
   const handleConfirm = async () => {
     if (!confirmDraft) return;
     const fattore = parseFloat(String(confirmDraft.factor).replace(",", "."));
@@ -134,38 +168,33 @@ export default function RicetteMatching() {
     }
     setError("");
     try {
-      const resp = await apiFetch(`${FC}/matching/confirm`, {
+      const resp = await apiFetch(`${FC}/matching/collega-multiplo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          riga_fattura_id: confirmDraft.riga_id,
           ingredient_id: confirmDraft.ingredient_id,
+          riga_ids: confirmDraft.riga_ids,
           fattore_conversione: fattore,
         }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
-      if (data?.unit_price != null) {
-        setConfirmMsg(
-          `${data.ingredient_name}: prezzo registrato a ${fmtPrice(data.unit_price)} €/${data.default_unit}.`
-        );
-      } else {
-        setConfirmMsg("Match confermato.");
+      let range = "";
+      if (data.prezzo_min != null) {
+        range = data.prezzo_min === data.prezzo_max
+          ? `${fmtPrice(data.prezzo_min)} €/${data.default_unit}`
+          : `${fmtPrice(data.prezzo_min)}–${fmtPrice(data.prezzo_max)} €/${data.default_unit}`;
       }
+      setConfirmMsg(
+        `${data.ingredient_name}: ${data.righe_collegate} righe collegate${range ? ` · ${range}` : ""}.`
+      );
       setConfirmDraft(null);
-      setSelectedRiga(null);
+      setSelectedArt(null);
       setSuggestions([]);
       await loadAll();
     } catch (err) {
       setError(`Errore conferma: ${err.message}`);
     }
-  };
-
-  // Prezzo per unità base = prezzo fattura / fattore
-  const previewUnitPrice = (prezzo, factorStr) => {
-    const f = parseFloat(String(factorStr).replace(",", "."));
-    if (prezzo == null || !f || f <= 0) return null;
-    return Number(prezzo) / f;
   };
 
   // Auto-match
@@ -528,137 +557,145 @@ export default function RicetteMatching() {
                   )}
                 </div>
 
+                <p className="text-xs text-neutral-500 mb-2">
+                  Le righe identiche (stesso fornitore + stessa descrizione) sono
+                  accorpate in un articolo. Apri l'articolo, scegli l'ingrediente:
+                  vengono collegate tutte le sue righe in un colpo.
+                </p>
                 <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                  {filteredPending.map((riga) => (
-                    <div key={riga.riga_id} className="flex flex-col gap-2">
-                      <div
-                        onClick={() => handleSelectRiga(riga)}
-                        className={`flex flex-wrap items-center gap-4 p-4 rounded-xl border cursor-pointer transition ${
-                          selectedRiga?.riga_id === riga.riga_id
-                            ? "bg-orange-50 border-orange-300 shadow"
-                            : "bg-white border-neutral-200 hover:border-orange-200 hover:bg-orange-50/30"
-                        }`}
-                      >
-                        <div className="flex-1 min-w-[200px]">
-                          <div className="font-medium text-neutral-900 text-sm">
-                            {riga.descrizione}
+                  {groupArticoli(filteredPending).map((art) => {
+                    const isSel = selectedArt?.key === art.key;
+                    return (
+                      <div key={art.key} className="flex flex-col gap-2">
+                        <div
+                          onClick={() => handleSelectArticle(art)}
+                          className={`flex flex-wrap items-center gap-4 p-4 rounded-xl border cursor-pointer transition ${
+                            isSel
+                              ? "bg-orange-50 border-orange-300 shadow"
+                              : "bg-white border-neutral-200 hover:border-orange-200 hover:bg-orange-50/30"
+                          }`}
+                        >
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="font-medium text-neutral-900 text-sm">
+                              {art.descrizione}
+                            </div>
+                            <div className="text-xs text-neutral-500 mt-0.5">
+                              {art.fornitore || "—"} &middot; {art.n} {art.n === 1 ? "riga" : "righe"}
+                            </div>
                           </div>
-                          <div className="text-xs text-neutral-500 mt-0.5">
-                            Fornitore: {riga.fornitore_nome || riga.fornitore_piva || "\u2014"}
+                          <div className="text-sm text-neutral-700">
+                            {art.pmin != null
+                              ? (art.pmin === art.pmax
+                                  ? `${fmtPrice(art.pmin)} €`
+                                  : `${fmtPrice(art.pmin)}–${fmtPrice(art.pmax)} €`)
+                              : "—"}
                           </div>
+                          <div className="text-xs text-neutral-400">{art.ultima || ""}</div>
                         </div>
-                        <div className="text-sm text-neutral-700">
-                          {riga.quantita} {riga.unita_misura} &middot; {riga.prezzo_unitario != null ? `${Number(riga.prezzo_unitario).toFixed(2)} \u20AC` : "\u2014"}
-                        </div>
-                        <div className="text-xs text-neutral-400">
-                          {riga.data_fattura}
-                        </div>
-                      </div>
 
-                      {/* Suggerimenti per la riga selezionata */}
-                      {selectedRiga?.riga_id === riga.riga_id && (
-                        <div className="ml-6 border-l-2 border-orange-300 pl-4 pb-2 space-y-1">
-                          {loadingSugg ? (
-                            <p className="text-xs text-neutral-500">Caricamento suggerimenti...</p>
-                          ) : suggestions.length === 0 ? (
-                            <p className="text-xs text-neutral-500">
-                              Nessun suggerimento. Usa la tab "Smart Create" per creare l'ingrediente automaticamente.
-                            </p>
-                          ) : (
-                            suggestions.map((s) => {
-                              const isDraft =
-                                confirmDraft &&
-                                confirmDraft.riga_id === riga.riga_id &&
-                                confirmDraft.ingredient_id === s.ingredient_id;
-                              const prezzoUnit = isDraft
-                                ? previewUnitPrice(confirmDraft.prezzo_unitario, confirmDraft.factor)
-                                : null;
-                              return (
-                                <div
-                                  key={s.ingredient_id}
-                                  className={`bg-white border rounded-lg p-3 transition ${
-                                    isDraft ? "border-green-300 shadow-sm" : "border-neutral-200 hover:border-green-300"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                      <span className="font-medium text-sm text-neutral-900">
-                                        {s.ingredient_name}
-                                      </span>
-                                      <span className="text-xs text-neutral-500 ml-2">
-                                        ({s.default_unit}) &middot; {s.confidence.toFixed(0)}%
-                                      </span>
-                                      <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                                        s.reason === "exact_desc" ? "bg-green-100 text-green-700"
-                                          : s.reason === "same_supplier" ? "bg-blue-100 text-blue-700"
-                                          : "bg-yellow-100 text-yellow-700"
-                                      }`}>
-                                        {s.reason}
-                                      </span>
+                        {isSel && (
+                          <div className="ml-6 border-l-2 border-orange-300 pl-4 pb-2 space-y-1">
+                            {loadingSugg ? (
+                              <p className="text-xs text-neutral-500">Caricamento suggerimenti...</p>
+                            ) : suggestions.length === 0 ? (
+                              <p className="text-xs text-neutral-500">
+                                Nessun suggerimento. Usa la tab "Smart Create" per creare l'ingrediente automaticamente.
+                              </p>
+                            ) : (
+                              suggestions.map((s) => {
+                                const isDraft =
+                                  confirmDraft &&
+                                  confirmDraft.art_key === art.key &&
+                                  confirmDraft.ingredient_id === s.ingredient_id;
+                                const f = isDraft
+                                  ? parseFloat(String(confirmDraft.factor).replace(",", "."))
+                                  : null;
+                                return (
+                                  <div
+                                    key={s.ingredient_id}
+                                    className={`bg-white border rounded-lg p-3 transition ${
+                                      isDraft ? "border-green-300 shadow-sm" : "border-neutral-200 hover:border-green-300"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div>
+                                        <span className="font-medium text-sm text-neutral-900">
+                                          {s.ingredient_name}
+                                        </span>
+                                        <span className="text-xs text-neutral-500 ml-2">
+                                          ({s.default_unit}) &middot; {s.confidence.toFixed(0)}%
+                                        </span>
+                                      </div>
+                                      {!isDraft && (
+                                        <Btn variant="success" size="sm" onClick={() => openConfirmDraft(art, s)}>
+                                          Conferma
+                                        </Btn>
+                                      )}
                                     </div>
-                                    {!isDraft && (
-                                      <Btn variant="success" size="sm" onClick={() => openConfirmDraft(riga, s)}>
-                                        Conferma
-                                      </Btn>
+
+                                    {isDraft && (
+                                      <div className="mt-3 pt-3 border-t border-neutral-200 space-y-2">
+                                        <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-700">
+                                          <span>1</span>
+                                          <span className="font-medium">{confirmDraft.unita_fattura}</span>
+                                          <span>=</span>
+                                          <input
+                                            type="number"
+                                            step="any"
+                                            min="0"
+                                            value={confirmDraft.factor}
+                                            onChange={(e) =>
+                                              setConfirmDraft((d) => ({ ...d, factor: e.target.value }))
+                                            }
+                                            className="w-24 px-2 py-1 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+                                          />
+                                          <span className="font-medium">{confirmDraft.default_unit}</span>
+                                        </div>
+
+                                        {confirmDraft.factor_detail && (
+                                          <div className={`text-xs ${confirmDraft.factor_safe ? "text-neutral-500" : "text-amber-700"}`}>
+                                            {confirmDraft.factor_safe ? "Stima: " : "⚠ "}
+                                            {confirmDraft.factor_detail}
+                                          </div>
+                                        )}
+
+                                        <div className="text-sm">
+                                          {confirmDraft.n} {confirmDraft.n === 1 ? "fattura" : "fatture"} &middot;{" "}
+                                          {confirmDraft.pmin != null
+                                            ? (confirmDraft.pmin === confirmDraft.pmax
+                                                ? `${fmtPrice(confirmDraft.pmin)} €/${confirmDraft.unita_fattura}`
+                                                : `${fmtPrice(confirmDraft.pmin)}–${fmtPrice(confirmDraft.pmax)} €/${confirmDraft.unita_fattura}`)
+                                            : "prezzo assente"}
+                                          {f && f > 0 && confirmDraft.pmin != null && (
+                                            <span className="ml-2 font-semibold text-green-800">
+                                              {"→ "}
+                                              {confirmDraft.pmin === confirmDraft.pmax
+                                                ? fmtPrice(confirmDraft.pmin / f)
+                                                : `${fmtPrice(confirmDraft.pmin / f)}–${fmtPrice(confirmDraft.pmax / f)}`}
+                                              {" €/"}{confirmDraft.default_unit}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex gap-2 pt-1">
+                                          <Btn variant="success" size="sm" onClick={handleConfirm}>
+                                            Collega {confirmDraft.n} {confirmDraft.n === 1 ? "riga" : "righe"}
+                                          </Btn>
+                                          <Btn variant="ghost" size="sm" onClick={() => setConfirmDraft(null)}>
+                                            Annulla
+                                          </Btn>
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
-
-                                  {/* Editor del fattore di conversione */}
-                                  {isDraft && (
-                                    <div className="mt-3 pt-3 border-t border-neutral-200 space-y-2">
-                                      <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-700">
-                                        <span>1</span>
-                                        <span className="font-medium">{confirmDraft.unita_fattura}</span>
-                                        <span>=</span>
-                                        <input
-                                          type="number"
-                                          step="any"
-                                          min="0"
-                                          value={confirmDraft.factor}
-                                          onChange={(e) =>
-                                            setConfirmDraft((d) => ({ ...d, factor: e.target.value }))
-                                          }
-                                          className="w-24 px-2 py-1 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
-                                        />
-                                        <span className="font-medium">{confirmDraft.default_unit}</span>
-                                      </div>
-
-                                      {confirmDraft.factor_detail && (
-                                        <div className={`text-xs ${confirmDraft.factor_safe ? "text-neutral-500" : "text-amber-700"}`}>
-                                          {confirmDraft.factor_safe ? "Stima: " : "⚠ "}
-                                          {confirmDraft.factor_detail}
-                                        </div>
-                                      )}
-
-                                      <div className="text-sm">
-                                        Fattura: {confirmDraft.prezzo_unitario != null
-                                          ? `${fmtPrice(confirmDraft.prezzo_unitario)} €/${confirmDraft.unita_fattura}`
-                                          : "prezzo assente"}
-                                        {prezzoUnit != null && (
-                                          <span className="ml-2 font-semibold text-green-800">
-                                            → {fmtPrice(prezzoUnit)} €/{confirmDraft.default_unit}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <div className="flex gap-2 pt-1">
-                                        <Btn variant="success" size="sm" onClick={handleConfirm}>
-                                          Conferma e registra prezzo
-                                        </Btn>
-                                        <Btn variant="ghost" size="sm" onClick={() => setConfirmDraft(null)}>
-                                          Annulla
-                                        </Btn>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -712,13 +749,30 @@ export default function RicetteMatching() {
               <div className="text-center py-12 text-neutral-500">Analisi in corso...</div>
             ) : (
               <>
-                <p className="text-sm text-neutral-600 mb-4">
+                <p className="text-sm text-neutral-600 mb-3">
                   Trovati <strong>{smartSuggestions.length}</strong> possibili ingredienti.
                   Seleziona quelli da creare, modifica nome/unità/categoria se necessario, poi clicca "Crea".
                 </p>
 
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={smartFilter}
+                    onChange={(e) => setSmartFilter(e.target.value)}
+                    placeholder="Cerca tra i suggerimenti..."
+                    className="w-full sm:w-96 px-4 py-2 border border-neutral-300 rounded-xl text-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {smartFilter && (
+                    <span className="text-xs text-neutral-500 ml-2">
+                      {smartSuggestions.filter((s) => (s.suggested_name || "").toLowerCase().includes(smartFilter.toLowerCase())).length} di {smartSuggestions.length}
+                    </span>
+                  )}
+                </div>
+
                 <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                  {smartSuggestions.map((s) => {
+                  {smartSuggestions
+                    .filter((s) => !smartFilter || (s.suggested_name || "").toLowerCase().includes(smartFilter.toLowerCase()))
+                    .map((s) => {
                     const isSelected = !!smartSelected[s.suggested_name];
                     const editData = smartSelected[s.suggested_name];
                     const hasExisting = !!s.existing_match;

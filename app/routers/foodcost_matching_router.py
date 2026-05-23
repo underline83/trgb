@@ -521,6 +521,9 @@ class CollegaMultiploRequest(BaseModel):
     """Collega in blocco più righe fattura a un ingrediente."""
     ingredient_id: int
     riga_ids: List[int] = []
+    # Se valorizzato, applica questo fattore a tutte le righe; altrimenti
+    # viene indovinato riga per riga.
+    fattore_conversione: Optional[float] = None
 
 
 @router.post("/collega-multiplo")
@@ -579,9 +582,12 @@ def collega_multiplo(
                 saltate += 1
                 continue
 
-            fattore = _guess_conversion_factor(
-                riga["descrizione"], riga["unita_misura"], ing["default_unit"]
-            )["factor"]
+            if payload.fattore_conversione and payload.fattore_conversione > 0:
+                fattore = payload.fattore_conversione
+            else:
+                fattore = _guess_conversion_factor(
+                    riga["descrizione"], riga["unita_misura"], ing["default_unit"]
+                )["factor"]
             supplier_id = _get_or_create_supplier(
                 cur, riga["fornitore_nome"], riga["fornitore_piva"]
             )
