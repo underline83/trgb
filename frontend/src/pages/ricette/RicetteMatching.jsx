@@ -197,6 +197,34 @@ export default function RicetteMatching() {
     }
   };
 
+  // Ignora un articolo: le sue righe spariscono dal matching (trasporti, spese, note)
+  const handleIgnoraArticolo = async (art) => {
+    if (!window.confirm(
+      `Ignorare "${art.descrizione}"?\n\n` +
+      `Le sue ${art.n} righe spariranno dal matching (es. trasporti, spese, note). ` +
+      `Puoi ripristinarle dalla tab "Smart Create".`
+    )) return;
+    setError(""); setConfirmMsg("");
+    try {
+      const resp = await apiFetch(`${FC}/matching/ignore-description`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          descrizione_normalizzata: art.descrizione,
+          riga_ids: art.rigaIds,
+          motivo: "Riga ignorata (non è un ingrediente)",
+          raw_examples: [art.descrizione],
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      setConfirmMsg(`"${art.descrizione}" ignorato — ${art.n} righe rimosse dal matching.`);
+      if (selectedArt?.key === art.key) { setSelectedArt(null); setSuggestions([]); }
+      await loadAll();
+    } catch (err) {
+      setError(`Errore: ${err.message}`);
+    }
+  };
+
   // Auto-match
   const handleAutoMatch = async () => {
     setAutoResult(null);
@@ -591,6 +619,11 @@ export default function RicetteMatching() {
                               : "—"}
                           </div>
                           <div className="text-xs text-neutral-400">{art.ultima || ""}</div>
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <Btn variant="chip" tone="red" size="sm" onClick={() => handleIgnoraArticolo(art)}>
+                              Ignora
+                            </Btn>
+                          </span>
                         </div>
 
                         {isSel && (

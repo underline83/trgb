@@ -285,6 +285,9 @@ def list_pending_rows(
         AND r.id NOT IN (
             SELECT mir.riga_id FROM matching_ignored_righe mir
         )
+        AND UPPER(TRIM(r.descrizione)) NOT IN (
+            SELECT descrizione_normalizzata FROM matching_description_exclusions
+        )
         AND COALESCE(fc.escluso, 0) = 0
         {where_extra}
         ORDER BY f.data_fattura DESC, r.id
