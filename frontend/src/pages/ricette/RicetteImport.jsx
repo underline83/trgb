@@ -1,4 +1,4 @@
-// @version: v1.0-import-ricette
+// @version: v1.1-import-ricette — incolla JSON come testo (oltre al file)
 // Modulo: ricette
 // Importazione ricette da file JSON.
 // Flusso: scarica tracciato → carica file → analisi → conferma (match
@@ -28,6 +28,7 @@ export default function RicetteImport() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSpec, setShowSpec] = useState(false);
+  const [pasteText, setPasteText] = useState(""); // JSON incollato a mano
 
   // ─── Scarica il tracciato JSON ───────────────────────────────
   const handleDownloadTemplate = async () => {
@@ -58,28 +59,42 @@ export default function RicetteImport() {
     return null;
   };
 
-  // ─── Carica e analizza il file ───────────────────────────────
-  const handleFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // ─── Analizza una stringa JSON (da file o incollata) ─────────
+  const startFromText = async (text, sourceLabel) => {
     setError("");
     setResult(null);
-    setFileName(file.name);
     let raw;
     try {
-      raw = JSON.parse(await file.text());
+      raw = JSON.parse(text);
     } catch {
-      setError("Il file non è un JSON valido.");
+      setError("Il JSON non è valido. Controlla di aver incollato il testo completo.");
       return;
     }
     const payload = normalizePayload(raw);
     if (!payload || !payload.ricette.length) {
-      setError("Il file non contiene ricette riconoscibili. Scarica il tracciato per il formato corretto.");
+      setError("Nessuna ricetta riconoscibile. Scarica il tracciato per il formato corretto.");
       return;
     }
     payload.ricette = payload.ricette.filter((r) => r && typeof r === "object");
     setRecipesPayload(payload);
+    setFileName(sourceLabel);
     await analyze(payload);
+  };
+
+  // ─── Carica e analizza il file ───────────────────────────────
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await startFromText(await file.text(), file.name);
+  };
+
+  // ─── Analizza il JSON incollato a mano ───────────────────────
+  const handlePaste = async () => {
+    if (!pasteText.trim()) {
+      setError("Incolla prima il JSON delle ricette.");
+      return;
+    }
+    await startFromText(pasteText, "(JSON incollato)");
   };
 
   const analyze = async (payload) => {
@@ -192,6 +207,7 @@ export default function RicetteImport() {
     setSubResol({});
     setResult(null);
     setError("");
+    setPasteText("");
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -267,24 +283,48 @@ export default function RicetteImport() {
 
         {/* ═══ STEP UPLOAD ═══ */}
         {step === "upload" && (
-          <div className="text-center py-10 border-2 border-dashed border-neutral-300 rounded-2xl">
-            <div className="text-5xl mb-3">📥</div>
-            <p className="text-neutral-600 text-sm mb-4">
-              Seleziona il file JSON delle ricette da importare.
-            </p>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".json,application/json"
-              onChange={handleFile}
-              className="hidden"
-            />
-            <Btn variant="primary" size="lg" onClick={() => fileRef.current?.click()} loading={loading}>
-              {loading ? "Analisi in corso..." : "Scegli file JSON"}
-            </Btn>
-            {fileName && !loading && (
-              <p className="text-xs text-neutral-400 mt-3">{fileName}</p>
-            )}
+          <div className="space-y-4">
+            {/* Incolla il JSON */}
+            <div className="border border-neutral-300 rounded-2xl p-5">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-2">
+                Incolla il JSON
+              </h2>
+              <p className="text-xs text-neutral-500 mb-3">
+                Incolla qui il JSON delle ricette (es. quello prodotto da un assistente AI).
+                Non serve salvarlo come file.
+              </p>
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={10}
+                spellCheck={false}
+                placeholder={'{\n  "ricette": [ ... ]\n}'}
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+              <div className="mt-3">
+                <Btn variant="primary" size="lg" onClick={handlePaste} loading={loading}>
+                  {loading ? "Analisi in corso..." : "Analizza JSON"}
+                </Btn>
+              </div>
+            </div>
+
+            {/* oppure da file */}
+            <div className="text-center text-xs text-neutral-400">— oppure —</div>
+            <div className="text-center border-2 border-dashed border-neutral-300 rounded-2xl py-6">
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleFile}
+                className="hidden"
+              />
+              <Btn variant="secondary" size="md" onClick={() => fileRef.current?.click()} loading={loading}>
+                Carica un file .json
+              </Btn>
+              {fileName && !loading && (
+                <p className="text-xs text-neutral-400 mt-2">{fileName}</p>
+              )}
+            </div>
           </div>
         )}
 
