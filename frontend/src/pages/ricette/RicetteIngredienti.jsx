@@ -414,9 +414,14 @@ export default function RicetteIngredienti() {
               )}
 
               {visibleItems.map((ing) => (
-                <div key={ing.id} className="py-3 text-sm flex flex-col gap-1">
+                <div
+                  key={ing.id}
+                  onClick={() => navigate(`/ricette/ingredienti/${ing.id}/prezzi`)}
+                  className="py-3 px-2 -mx-2 text-sm flex flex-col gap-1 rounded-lg cursor-pointer hover:bg-orange-50 transition"
+                  title="Apri la scheda dell'ingrediente"
+                >
                   <div className="flex justify-between">
-                    <span className="font-medium text-neutral-900">
+                    <span className="font-medium text-orange-900">
                       {ing.name}
                       {ing.placeholder && (
                         <span className="ml-2 text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
