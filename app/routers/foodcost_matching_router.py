@@ -239,12 +239,15 @@ def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
 def list_pending_rows(
     fornitore: Optional[str] = None,
     q: Optional[str] = None,
+    escludi_collegati: int = 0,
 ):
     """
     Righe fattura che non hanno ancora un match in ingredient_supplier_map.
     Esclude fornitori marcati come 'escluso' in fe_fornitore_categoria.
 
     `q`: filtro testo sulla descrizione riga (usato dalla ricerca lato ingrediente).
+    `escludi_collegati=1`: nasconde gli articoli (fornitore + descrizione) che
+    hanno già un collegamento — usato dalla ricerca lato pagina ingrediente.
     """
     conn = get_foodcost_connection()
     cur = conn.cursor()
@@ -257,6 +260,15 @@ def list_pending_rows(
     if q and q.strip():
         where_extra += " AND r.descrizione LIKE ?"
         params.append(f"%{q.strip()}%")
+    if escludi_collegati:
+        where_extra += """
+        AND NOT EXISTS (
+            SELECT 1 FROM ingredient_supplier_map ism
+            JOIN suppliers s ON s.id = ism.supplier_id
+            WHERE UPPER(TRIM(ism.descrizione_fornitore)) = UPPER(TRIM(r.descrizione))
+              AND ((f.fornitore_piva IS NOT NULL AND s.partita_iva = f.fornitore_piva)
+                   OR (f.fornitore_piva IS NULL AND s.name = f.fornitore_nome))
+        )"""
 
     rows = cur.execute(
         f"""

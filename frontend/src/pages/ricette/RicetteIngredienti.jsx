@@ -32,6 +32,7 @@ export default function RicetteIngredienti() {
   const [catFilter, setCatFilter] = useState("");
   const [soloPlaceholder, setSoloPlaceholder] = useState(false);
   const [senzaPrezzo, setSenzaPrezzo] = useState(false);
+  const [mostraDisattivati, setMostraDisattivati] = useState(false);
   const [sortBy, setSortBy] = useState("nome");
 
   // form nuovo ingrediente (in modale)
@@ -48,11 +49,11 @@ export default function RicetteIngredienti() {
   });
 
   // ─── Caricamento dati ────────────────────────────────────────
-  const loadIngredients = async () => {
+  const loadIngredients = async (inattivi) => {
     setLoadingList(true);
     setErrorMsg("");
     try {
-      const resp = await apiFetch(`${ING}/`);
+      const resp = await apiFetch(`${ING}/${inattivi ? "?inattivi=1" : ""}`);
       if (!resp.ok) throw new Error("Errore caricamento ingredienti");
       setItems((await resp.json()) || []);
     } catch (err) {
@@ -78,10 +79,13 @@ export default function RicetteIngredienti() {
   };
 
   useEffect(() => {
-    loadIngredients();
     loadCategories();
     loadSuppliers();
   }, []);
+
+  useEffect(() => {
+    loadIngredients(mostraDisattivati);
+  }, [mostraDisattivati]);
 
   // ─── Salvataggio nuovo ingrediente (+ prezzo opzionale) ──────
   const handleSave = async (e) => {
@@ -122,7 +126,7 @@ export default function RicetteIngredienti() {
 
       resetForm();
       setShowForm(false);
-      await loadIngredients();
+      await loadIngredients(mostraDisattivati);
     } catch (err) {
       console.error("Errore salvataggio:", err);
       setErrorMsg("Errore nel salvataggio dell'ingrediente.");
@@ -233,6 +237,16 @@ export default function RicetteIngredienti() {
               {senzaPrezzo ? "✓ " : ""}Senza prezzo ({nSenzaPrezzo})
             </button>
           )}
+          <button
+            onClick={() => setMostraDisattivati((v) => !v)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+              mostraDisattivati
+                ? "bg-neutral-700 text-white border-neutral-700"
+                : "bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100"
+            }`}
+          >
+            {mostraDisattivati ? "✓ Disattivati" : "Disattivati"}
+          </button>
           <span className="text-xs text-neutral-500 ml-auto">
             {visibleItems.length} {visibleItems.length === 1 ? "ingrediente" : "ingredienti"}
             {visibleItems.length !== items.length && ` di ${items.length}`}

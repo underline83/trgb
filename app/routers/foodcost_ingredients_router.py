@@ -300,14 +300,12 @@ def create_category(payload: CategoryCreate):
 # ─────────────────────────────────────────────
 
 @router.get("/", response_model=List[IngredientListItem])
-def list_ingredients():
+def list_ingredients(inattivi: int = 0):
     """
-    Lista ingredienti attivi con:
-    - name
-    - categoria
-    - default_unit
-    - ultimo prezzo (se esiste)
-    - nome ultimo fornitore
+    Lista ingredienti con name, categoria, default_unit, ultimo prezzo e
+    nome ultimo fornitore.
+
+    `inattivi=1` → restituisce gli ingredienti DISATTIVATI invece degli attivi.
     """
     conn = get_cucina_connection()
     cur = conn.cursor()
@@ -339,9 +337,10 @@ def list_ingredients():
             ) AS last_supplier_name
         FROM ingredients i
         LEFT JOIN ingredient_categories c ON c.id = i.category_id
-        WHERE i.is_active = 1
+        WHERE i.is_active = ?
         ORDER BY i.name COLLATE NOCASE;
-        """
+        """,
+        (0 if inattivi else 1,),
     )
     rows = cur.fetchall()
     conn.close()

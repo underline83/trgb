@@ -145,7 +145,7 @@ export default function RicetteIngredientiPrezzi() {
     setSearching(true);
     setSearchDone(false);
     try {
-      const r = await apiFetch(`${MATCH}/pending?q=${encodeURIComponent(query)}`);
+      const r = await apiFetch(`${MATCH}/pending?q=${encodeURIComponent(query)}&escludi_collegati=1`);
       if (r.ok) setSearchResults(await r.json());
       else setSearchResults([]);
     } catch {
@@ -200,6 +200,29 @@ export default function RicetteIngredientiPrezzi() {
       const r = await apiFetch(`${MATCH}/mappings/${mappingId}`, { method: "DELETE" });
       if (!r.ok) throw new Error(await r.text());
       await refreshPrezziMappings();
+    } catch (e) {
+      setError(`Errore: ${e.message}`);
+    }
+  };
+
+  // Disattiva / riattiva l'ingrediente (resta in archivio, esce dall'uso)
+  const handleToggleAttivo = async () => {
+    if (!ing) return;
+    const nuovo = ing.is_active === 0 ? 1 : 0;
+    if (nuovo === 0 && !window.confirm(
+      `Disattivare "${ing.name}"?\n\nResta nel database (storico e ricette intatti) ` +
+      `ma esce dalla lista ingredienti. Potrai riattivarlo.`
+    )) return;
+    setError(""); setMsg("");
+    try {
+      const r = await apiFetch(`${ING}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: nuovo }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setMsg(nuovo ? "Ingrediente riattivato." : "Ingrediente disattivato.");
+      await load();
     } catch (e) {
       setError(`Errore: ${e.message}`);
     }
@@ -323,7 +346,8 @@ export default function RicetteIngredientiPrezzi() {
   const mediaPrezzo = prezzi.length
     ? prezzi.reduce((s, p) => s + (p.unit_price || 0), 0) / prezzi.length
     : null;
-  const isPlaceholder = ing && ing.placeholder;
+  const isPlaceholder = !!(ing && ing.placeholder);
+  const isAttivo = !ing || ing.is_active !== 0;
   const articoli = groupArticoli(searchResults);
   const selCount = Object.values(selArt).filter(Boolean).length;
 
@@ -348,22 +372,39 @@ export default function RicetteIngredientiPrezzi() {
         </div>
 
         {/* HEADER */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-orange-900 font-playfair">
-              {ing ? ing.name : "Ingrediente"}
-            </h1>
-            {isPlaceholder ? (
-              <span className="text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">
-                da completare
-              </span>
-            ) : null}
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-orange-900 font-playfair">
+                {ing ? ing.name : "Ingrediente"}
+              </h1>
+              {isPlaceholder && (
+                <span className="text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">
+                  da completare
+                </span>
+              )}
+              {!isAttivo && (
+                <span className="text-xs font-semibold bg-neutral-200 text-neutral-600 border border-neutral-300 px-2 py-0.5 rounded">
+                  disattivato
+                </span>
+              )}
+            </div>
+            {ing && (
+              <p className="text-sm text-neutral-600">
+                Unità base: <span className="font-medium">{ing.default_unit}</span>
+                {ing.category_name && <> · Categoria: <span className="font-medium">{ing.category_name}</span></>}
+              </p>
+            )}
           </div>
           {ing && (
-            <p className="text-sm text-neutral-600">
-              Unità base: <span className="font-medium">{ing.default_unit}</span>
-              {ing.category_name && <> · Categoria: <span className="font-medium">{ing.category_name}</span></>}
-            </p>
+            <Btn
+              variant="chip"
+              tone={isAttivo ? "red" : "emerald"}
+              size="sm"
+              onClick={handleToggleAttivo}
+            >
+              {isAttivo ? "Disattiva" : "Riattiva"}
+            </Btn>
           )}
         </div>
 
