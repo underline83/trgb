@@ -499,31 +499,46 @@ def get_ingredient(ingredient_id: int):
 @router.put("/{ingredient_id}", response_model=IngredientDetail)
 def update_ingredient(ingredient_id: int, payload: IngredientUpdate):
     conn = get_cucina_connection()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    existing = cur.execute("SELECT id FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
-    if not existing:
+        existing = cur.execute(
+            "SELECT id FROM ingredients WHERE id = ?", (ingredient_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+
+        # Colonne realmente presenti (la tabella ingredients NON ha updated_at)
+        cols_present = {r[1] for r in cur.execute("PRAGMA table_info(ingredients)").fetchall()}
+
+        updates = []
+        params = []
+        for col in ["name", "default_unit", "category_id", "codice_interno",
+                    "allergeni", "note", "is_active", "placeholder"]:
+            val = getattr(payload, col)
+            if val is not None and col in cols_present:
+                updates.append(f"{col} = ?")
+                params.append(val.strip() if isinstance(val, str) else val)
+
+        if updates:
+            if "updated_at" in cols_present:
+                updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(ingredient_id)
+            cur.execute(
+                f"UPDATE ingredients SET {', '.join(updates)} WHERE id = ?", params
+            )
+            conn.commit()
+
+        row = _fetch_ingredient_detail(cur, ingredient_id)
+        return IngredientDetail(**dict(row))
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore aggiornamento: {e}") from e
+    finally:
         conn.close()
-        raise HTTPException(status_code=404, detail="Ingrediente non trovato")
-
-    updates = []
-    params = []
-    for col in ["name", "default_unit", "category_id", "codice_interno",
-                "allergeni", "note", "is_active", "placeholder"]:
-        val = getattr(payload, col)
-        if val is not None:
-            updates.append(f"{col} = ?")
-            params.append(val.strip() if isinstance(val, str) else val)
-
-    if updates:
-        updates.append("updated_at = CURRENT_TIMESTAMP")
-        params.append(ingredient_id)
-        cur.execute(f"UPDATE ingredients SET {', '.join(updates)} WHERE id = ?", params)
-        conn.commit()
-
-    row = _fetch_ingredient_detail(cur, ingredient_id)
-    conn.close()
-    return IngredientDetail(**dict(row))
 
 
 class IngredientMergeRequest(BaseModel):

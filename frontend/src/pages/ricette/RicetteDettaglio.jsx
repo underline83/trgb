@@ -150,16 +150,17 @@ export default function RicetteDettaglio() {
     }
     const esc = (s) => String(s ?? "")
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const steps = splitProcedimento(r.procedimento);
+    const procSteps = procedimentoSteps(r.procedimento);
+    const procRaw = (r.procedimento || "").trim();
     const righe = (r.items || []).map((it) => {
       const nome = it.sub_recipe_name || it.ingredient_name || "—";
       const qta = it.unit === "qb" ? "q.b." : `${it.qty} ${it.unit}`;
       const sub = it.sub_recipe_id ? " (sub-ricetta)" : "";
       return `<tr><td>${esc(nome)}${sub}</td><td class="q">${esc(qta)}</td><td class="n">${esc(it.note || "")}</td></tr>`;
     }).join("");
-    const stepsHtml = steps.length
-      ? `<ol>${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`
-      : '<p class="muted">Nessun procedimento.</p>';
+    const stepsHtml = procSteps
+      ? `<ol>${procSteps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`
+      : (procRaw ? `<p>${esc(procRaw)}</p>` : '<p class="muted">Nessun procedimento.</p>');
     const meta = [
       r.category_name,
       r.is_base ? "Base" : "Piatto",
@@ -526,18 +527,20 @@ function ServiziTab({ r }) {
 // ─────────────────────────────────────────
 // TAB: Procedimento (metodo di preparazione)
 // ─────────────────────────────────────────
-// Spezza il procedimento in passi: usa gli a-capo se ci sono, altrimenti
-// (procedimento vecchio scritto tutto attaccato) spezza sulle frasi.
-function splitProcedimento(text) {
+// Ritorna i passi del procedimento SOLO se ci sono a-capo espliciti (passi
+// reali, da import a lista o scritti a mano). Un procedimento vecchio scritto
+// tutto attaccato non viene spezzato a caso: ritorna null → mostrato come prosa.
+function procedimentoSteps(text) {
   const raw = (text || "").trim();
-  if (!raw) return [];
-  const norm = raw.includes("\n") ? raw : raw.replace(/([.!?])\s+/g, "$1\n");
-  return norm.split("\n").map((s) => s.trim()).filter(Boolean);
+  if (!raw || !raw.includes("\n")) return null;
+  const steps = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+  return steps.length ? steps : null;
 }
 
 function ProcedimentoTab({ r }) {
-  const steps = splitProcedimento(r.procedimento);
-  if (steps.length === 0) {
+  const raw = (r.procedimento || "").trim();
+  const steps = procedimentoSteps(r.procedimento);
+  if (!raw) {
     return (
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 text-center text-sm text-neutral-500">
         Nessun procedimento. Modifica la ricetta per aggiungerlo.
@@ -549,16 +552,20 @@ function ProcedimentoTab({ r }) {
       <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-4">
         Procedimento di preparazione
       </h2>
-      <ol className="space-y-3">
-        {steps.map((s, i) => (
-          <li key={i} className="flex gap-3">
-            <span className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-100 text-orange-800 text-sm font-bold flex items-center justify-center">
-              {i + 1}
-            </span>
-            <span className="text-sm text-neutral-800 leading-relaxed pt-0.5">{s}</span>
-          </li>
-        ))}
-      </ol>
+      {steps ? (
+        <ol className="space-y-3">
+          {steps.map((s, i) => (
+            <li key={i} className="flex gap-3">
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-100 text-orange-800 text-sm font-bold flex items-center justify-center">
+                {i + 1}
+              </span>
+              <span className="text-sm text-neutral-800 leading-relaxed pt-0.5">{s}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-sm text-neutral-800 leading-relaxed whitespace-pre-wrap">{raw}</p>
+      )}
     </div>
   );
 }
