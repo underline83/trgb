@@ -29,12 +29,22 @@ from app.utils.locale_data import locale_data_dir
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
-# ── Percorsi (locale-aware, post R6.5 push 3) ──
-# Path canonico dei dati = locali/<locale>/data/. La cartella backups/ vive
-# dentro lo stesso path. Niente più fallback ad app/data/.
+# ── Percorsi ──
+# DATA_DIR (locale-aware, post R6.5 push 3): dove vivono i DB LIVE del locale
+# corrente = locali/<locale>/data/. Usato per la discovery dei DB e per il
+# backup "al volo" (/backup/download).
 DATA_DIR = locale_data_dir()
-DAILY_DIR = DATA_DIR / "backups" / "daily"     # cartelle create da backup_db.sh --daily
-HOURLY_DIR = DATA_DIR / "backups" / "hourly"
+# BACKUP_ROOT (cross-locale, fisso): le cartelle snapshot daily/ e hourly/ sono
+# create da scripts/backup_db.sh, che scrive SEMPRE in app/data/backups/
+# indipendentemente dal locale — il backup protegge il VPS, non un singolo
+# locale (vedi backup_db.sh riga BACKUP_DAILY e main.py /system/backup-health).
+# NON usare locale_data_dir() qui: la modifica R6.5 puntava a
+# locali/<locale>/data/backups/, cartella che backup_db.sh non popola mai →
+# /backup/info e /backup/list restituivano vuoto e la UI mostrava il falso
+# allarme "Nessun backup automatico trovato" in contraddizione col box verde.
+_BACKUP_ROOT = Path(__file__).resolve().parents[2] / "app" / "data" / "backups"
+DAILY_DIR = _BACKUP_ROOT / "daily"     # cartelle create da backup_db.sh --daily
+HOURLY_DIR = _BACKUP_ROOT / "hourly"
 
 
 def _discover_databases() -> List[str]:

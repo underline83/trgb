@@ -36,6 +36,7 @@ export default function RicetteModifica() {
     yield_unit: "porzioni",
     selling_price: "",
     prep_time: "",
+    procedimento: "",
     note: "",
     menu_name: "",
     menu_description: "",
@@ -74,6 +75,7 @@ export default function RicetteModifica() {
           yield_unit: r.yield_unit || "porzioni",
           selling_price: r.selling_price != null ? String(r.selling_price) : "",
           prep_time: r.prep_time != null ? String(r.prep_time) : "",
+          procedimento: r.procedimento || "",
           note: r.note || "",
           menu_name: r.menu_name || "",
           menu_description: r.menu_description || "",
@@ -164,6 +166,7 @@ export default function RicetteModifica() {
       yield_unit: form.yield_unit || "porzioni",
       selling_price: form.selling_price ? parseFloat(form.selling_price) : null,
       prep_time: form.prep_time ? parseInt(form.prep_time) : null,
+      procedimento: form.procedimento.trim() || "",
       note: form.note.trim() || null,
       menu_name: form.menu_name?.trim() || null,
       menu_description: form.menu_description?.trim() || null,
@@ -276,8 +279,16 @@ export default function RicetteModifica() {
             </label>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-neutral-700">Note</label>
+              <label className="text-sm font-medium text-neutral-700">Procedimento</label>
+              <textarea value={form.procedimento} onChange={(e) => set("procedimento", e.target.value)}
+                placeholder="Il metodo di preparazione: i passaggi, le fasi di cottura..."
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" rows={6} />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-neutral-700">Note interne</label>
               <textarea value={form.note} onChange={(e) => set("note", e.target.value)}
+                placeholder="Annotazioni brevi (NON il procedimento)"
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" rows={2} />
             </div>
           </div>

@@ -20,6 +20,7 @@ const FC = `${API_BASE}/foodcost`;
 
 const TABS = [
   { key: "composizione", label: "Composizione" },
+  { key: "procedimento", label: "Procedimento" },
   { key: "servizi",      label: "Servizi" },
   { key: "note",         label: "Note" },
   { key: "storico",      label: "Storico" },
@@ -273,6 +274,7 @@ export default function RicetteDettaglio() {
           {activeTab === "composizione" && (
             <CompositionTab r={r} ricalcolaAllergeni={ricalcolaAllergeni} recalcLoading={recalcLoading} />
           )}
+          {activeTab === "procedimento" && <ProcedimentoTab r={r} />}
           {activeTab === "servizi" && <ServiziTab r={r} />}
           {activeTab === "note" && <NoteTab r={r} />}
           {activeTab === "storico" && (
@@ -456,6 +458,29 @@ function ServiziTab({ r }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// TAB: Procedimento (metodo di preparazione)
+// ─────────────────────────────────────────
+function ProcedimentoTab({ r }) {
+  if (!r.procedimento || !r.procedimento.trim()) {
+    return (
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6 text-center text-sm text-neutral-500">
+        Nessun procedimento. Modifica la ricetta per aggiungerlo.
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 p-5">
+      <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-3">
+        Procedimento di preparazione
+      </h2>
+      <p className="text-sm text-neutral-800 whitespace-pre-wrap leading-relaxed">
+        {r.procedimento}
+      </p>
     </div>
   );
 }

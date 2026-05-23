@@ -75,6 +75,7 @@ class RecipeCreate(BaseModel):
     selling_price: Optional[float] = None
     prep_time: Optional[int] = None
     note: Optional[str] = None
+    procedimento: Optional[str] = None       # metodo di preparazione (mig 137)
     # Campi menu/preventivi (mig 074)
     menu_name: Optional[str] = None
     menu_description: Optional[str] = None
@@ -92,6 +93,7 @@ class RecipeUpdate(BaseModel):
     selling_price: Optional[float] = None
     prep_time: Optional[int] = None
     note: Optional[str] = None
+    procedimento: Optional[str] = None       # metodo di preparazione (mig 137)
     # Campi menu/preventivi (mig 074)
     menu_name: Optional[str] = None
     menu_description: Optional[str] = None
@@ -149,6 +151,7 @@ class RecipeOut(BaseModel):
     selling_price: Optional[float] = None
     prep_time: Optional[int] = None
     note: Optional[str] = None
+    procedimento: Optional[str] = None       # metodo di preparazione (mig 137)
     is_active: bool = True
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -597,6 +600,7 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
         selling_price=rec_dict.get("selling_price"),
         prep_time=rec_dict.get("prep_time"),
         note=rec_dict.get("note"),
+        procedimento=rec_dict.get("procedimento"),
         is_active=bool(rec_dict["is_active"]),
         created_at=rec_dict.get("created_at"),
         updated_at=rec_dict.get("updated_at"),
@@ -1036,6 +1040,13 @@ def create_ricetta(payload: RecipeCreate):
             )
         recipe_id = cur.lastrowid
 
+        # Procedimento (mig 137) — UPDATE separata per non toccare la INSERT a rami
+        if "procedimento" in cols and payload.procedimento is not None:
+            cur.execute(
+                "UPDATE recipes SET procedimento = ? WHERE id = ?",
+                (payload.procedimento, recipe_id),
+            )
+
         for idx, item in enumerate(payload.items):
             cur.execute(
                 """
@@ -1107,7 +1118,8 @@ class ImportRicetta(BaseModel):
     resa_unita: Optional[str] = None
     prezzo_vendita: Optional[float] = None
     tempo_preparazione_min: Optional[int] = None
-    note: Optional[str] = None
+    procedimento: Optional[str] = None       # metodo di preparazione
+    note: Optional[str] = None               # annotazioni brevi
     voci: List[ImportVoce] = []
 
 
@@ -1164,10 +1176,22 @@ def _imp_score(a: str, b: str) -> float:
     return round(base, 1)
 
 
+# Unità "quanto basta": l'ingrediente è elencato nella ricetta ma escluso dal
+# food cost (qty 0). Forma canonica salvata: "qb".
+_QB_UNITS = {"qb", "q.b.", "q.b", "qb.", "q b", "quanto basta",
+             "a piacere", "qs", "q.s.", "qbas"}
+
+
+def _is_qb(unita) -> bool:
+    """True se l'unità indica 'quanto basta' / a piacere."""
+    return (unita or "").strip().lower() in _QB_UNITS
+
+
 def _imp_unit(units: List[str]) -> str:
-    """Unità più frequente tra le voci (fallback 'kg')."""
+    """Unità base più frequente tra le voci, ignorando le 'qb' (fallback 'kg')."""
     from collections import Counter
-    clean = [u.strip() for u in (units or []) if u and u.strip()]
+    clean = [u.strip() for u in (units or [])
+             if u and u.strip() and not _is_qb(u)]
     if not clean:
         return "kg"
     return Counter(clean).most_common(1)[0][0]
@@ -1184,26 +1208,36 @@ def import_tracciato_ricette():
             "'sotto_ricetta'), mai entrambi. Riferisci ingredienti e sotto-ricette per "
             "NOME: non servono ID né codici interni, il sistema li abbina in fase di "
             "importazione. Una sotto-ricetta può essere un'altra ricetta presente in "
-            "questo stesso file. Le chiavi che iniziano con '_' sono solo documentazione "
-            "e possono essere rimosse."
+            "questo stesso file. "
+            "REGOLE IMPORTANTI: (1) Il metodo di preparazione va nel campo "
+            "'procedimento', NON nel campo 'note'. (2) Per gli ingredienti a piacere / "
+            "quanto basta (sale, pepe, olio per condire, ecc.) usa \"unita\": \"qb\" e "
+            "ometti la 'quantita': verranno elencati nella ricetta ma esclusi dal "
+            "calcolo del food cost. (3) Ogni voce è UN SOLO ingrediente con UN SOLO "
+            "nome: niente alternative tipo 'aceto bianco o aceto di mele', scegline uno. "
+            "(4) 'resa_unita' è un'unità pulita ('porzioni', 'kg', 'L'): non scrivere "
+            "'circa' o altre parole, eventuali approssimazioni vanno nelle 'note'. "
+            "Le chiavi che iniziano con '_' sono solo documentazione e si possono "
+            "rimuovere."
         ),
         "_campi_ricetta": {
             "nome": "obbligatorio — nome della ricetta",
             "categoria": "facoltativo — una tra: ANTIPASTO, PRIMO, SECONDO, CONTORNO, DOLCE, BASE, SALSA, IMPASTO",
             "tipo": "facoltativo — 'piatto' (default) o 'base' (sotto-ricetta riusabile)",
-            "resa_quantita": "facoltativo — quanto rende la ricetta (default 1)",
-            "resa_unita": "facoltativo — es. 'porzioni', 'kg', 'L' (default 'porzioni')",
+            "resa_quantita": "facoltativo — quanto rende la ricetta, solo numero (default 1)",
+            "resa_unita": "facoltativo — unità pulita: 'porzioni', 'kg', 'L' (default 'porzioni'). NIENTE 'circa' o parole",
             "prezzo_vendita": "facoltativo — prezzo di vendita in euro (solo per i piatti)",
             "tempo_preparazione_min": "facoltativo — minuti di preparazione",
-            "note": "facoltativo",
+            "procedimento": "facoltativo — il metodo di preparazione completo, i passaggi. Il testo lungo va QUI",
+            "note": "facoltativo — annotazioni brevi (NON il procedimento)",
             "voci": "obbligatorio — lista degli ingredienti/sotto-ricette",
         },
         "_campi_voce": {
-            "ingrediente": "nome dell'ingrediente (alternativo a 'sotto_ricetta')",
+            "ingrediente": "nome dell'ingrediente (alternativo a 'sotto_ricetta') — un solo nome, niente 'X o Y'",
             "sotto_ricetta": "nome di un'altra ricetta usata come componente (alternativo a 'ingrediente')",
-            "quantita": "obbligatorio — quantità usata (numero)",
-            "unita": "obbligatorio — es. 'g', 'kg', 'ml', 'L', 'pz'",
-            "note": "facoltativo",
+            "quantita": "numero — obbligatorio, TRANNE per gli ingredienti 'qb' (a piacere) dove va omesso",
+            "unita": "obbligatorio — es. 'g', 'kg', 'ml', 'L', 'pz'. Usa 'qb' per gli ingredienti a piacere/quanto basta",
+            "note": "facoltativo — breve nota sulla voce (es. 'tagliato a cubetti')",
         },
         "ricette": [
             {
@@ -1214,13 +1248,21 @@ def import_tracciato_ricette():
                 "resa_unita": "porzioni",
                 "prezzo_vendita": 14.0,
                 "tempo_preparazione_min": 25,
-                "note": "Mantecare fuori dal fuoco.",
+                "procedimento": (
+                    "Tostare il riso a secco, sfumare con vino bianco. Aggiungere il "
+                    "brodo caldo poco alla volta mescolando. A metà cottura unire lo "
+                    "zafferano sciolto in poco brodo. Mantecare fuori dal fuoco con "
+                    "burro e parmigiano."
+                ),
+                "note": "Servire subito, all'onda.",
                 "voci": [
                     {"ingrediente": "Riso Carnaroli", "quantita": 320, "unita": "g"},
                     {"ingrediente": "Zafferano in pistilli", "quantita": 0.5, "unita": "g"},
                     {"ingrediente": "Burro", "quantita": 40, "unita": "g"},
                     {"ingrediente": "Parmigiano Reggiano", "quantita": 60, "unita": "g"},
                     {"sotto_ricetta": "Brodo di carne", "quantita": 1, "unita": "L"},
+                    {"ingrediente": "Sale", "unita": "qb"},
+                    {"ingrediente": "Pepe", "unita": "qb"},
                 ],
             },
             {
@@ -1229,12 +1271,17 @@ def import_tracciato_ricette():
                 "tipo": "base",
                 "resa_quantita": 3,
                 "resa_unita": "L",
-                "note": "Cottura lenta 3 ore.",
+                "procedimento": (
+                    "Mettere ossi e verdure in acqua fredda. Portare a bollore, "
+                    "schiumare, abbassare e cuocere a fuoco lento 3 ore. Filtrare."
+                ),
+                "note": "Si conserva 3 giorni in frigo.",
                 "voci": [
                     {"ingrediente": "Ossi di manzo", "quantita": 1, "unita": "kg"},
                     {"ingrediente": "Carota", "quantita": 200, "unita": "g"},
                     {"ingrediente": "Sedano", "quantita": 150, "unita": "g"},
                     {"ingrediente": "Cipolla", "quantita": 150, "unita": "g"},
+                    {"ingrediente": "Sale grosso", "unita": "qb"},
                 ],
             },
         ],
@@ -1294,10 +1341,11 @@ def import_analizza_ricette(payload: ImportPayload):
                 if has_ing == has_sub:
                     errori.append(f"Voce {vi+1}: specificare 'ingrediente' OPPURE 'sotto_ricetta'")
                     continue
-                if v.quantita is None or v.quantita <= 0:
-                    errori.append(f"Voce {vi+1}: quantità mancante o non valida")
                 if not (v.unita or "").strip():
                     errori.append(f"Voce {vi+1}: unità mancante")
+                elif not _is_qb(v.unita) and (v.quantita is None or v.quantita <= 0):
+                    # le voci 'qb' non richiedono quantità
+                    errori.append(f"Voce {vi+1}: quantità mancante o non valida")
                 if has_ing:
                     k = v.ingrediente.strip().lower()
                     a = ing_acc.setdefault(k, {"nome": v.ingrediente.strip(), "occorrenze": 0, "unita_voci": []})
@@ -1455,6 +1503,7 @@ def import_conferma_ricette(payload: ImportConfermaPayload):
         # 2. Pass 1 — crea le ricette (solo header)
         rec_cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
         has_menu_cols = "menu_name" in rec_cols and "kind" in rec_cols
+        has_proc = "procedimento" in rec_cols
 
         created_recipes: Dict[str, int] = {}
         recipe_ids_in_order: List[Optional[int]] = []
@@ -1488,6 +1537,11 @@ def import_conferma_ricette(payload: ImportConfermaPayload):
                      r.tempo_preparazione_min, r.note, now, now),
                 )
             rid = cur.lastrowid
+            if has_proc and r.procedimento:
+                cur.execute(
+                    "UPDATE recipes SET procedimento = ? WHERE id = ?",
+                    (r.procedimento, rid),
+                )
             created_recipes[nome.lower()] = rid
             recipe_ids_in_order.append(rid)
 
@@ -1504,10 +1558,18 @@ def import_conferma_ricette(payload: ImportConfermaPayload):
                 if has_ing == has_sub:
                     n_voci_saltate += 1
                     continue
-                if v.quantita is None or v.quantita <= 0 or not (v.unita or "").strip():
+                qb = _is_qb(v.unita)
+                if not (v.unita or "").strip():
                     n_voci_saltate += 1
-                    warnings.append(f"'{r.nome}': voce con quantità/unità mancante — saltata")
+                    warnings.append(f"'{r.nome}': voce con unità mancante — saltata")
                     continue
+                if not qb and (v.quantita is None or v.quantita <= 0):
+                    n_voci_saltate += 1
+                    warnings.append(f"'{r.nome}': voce con quantità mancante — saltata")
+                    continue
+                # Voce 'qb': quantità 0 (esclusa dal food cost), unità canonica "qb"
+                voce_qty = 0.0 if qb else v.quantita
+                voce_unit = "qb" if qb else v.unita.strip()
 
                 ingredient_id = None
                 sub_recipe_id = None
@@ -1538,7 +1600,7 @@ def import_conferma_ricette(payload: ImportConfermaPayload):
                 cur.execute(
                     "INSERT INTO recipe_items (recipe_id, ingredient_id, sub_recipe_id, "
                     "qty, unit, sort_order, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (rid, ingredient_id, sub_recipe_id, v.quantita, v.unita.strip(),
+                    (rid, ingredient_id, sub_recipe_id, voce_qty, voce_unit,
                      sort_order, v.note, now),
                 )
                 n_voci += 1
@@ -1593,6 +1655,7 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
         # Columns esistenti (per UPDATE robusta pre-mig)
         cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
         has_menu_cols = "menu_name" in cols and "kind" in cols
+        has_proc = "procedimento" in cols
 
         # Derivazione kind <-> is_base se uno dei due fornito
         new_kind = None
@@ -1624,6 +1687,8 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
             field_map["menu_name"] = payload.menu_name
             field_map["menu_description"] = payload.menu_description
             field_map["kind"] = new_kind
+        if has_proc:
+            field_map["procedimento"] = payload.procedimento
 
         for col, val in field_map.items():
             if val is not None:

@@ -306,6 +306,7 @@ export default function RicetteNuova() {
     yield_unit: "porzioni",
     selling_price: "",
     prep_time: "",
+    procedimento: "",
     note: "",
     menu_name: "",
     menu_description: "",
@@ -438,6 +439,7 @@ export default function RicetteNuova() {
       yield_unit: (form.yield_unit || "porzioni").trim(),
       selling_price: form.selling_price ? parseFloat(form.selling_price) : null,
       prep_time: form.prep_time ? parseInt(form.prep_time) : null,
+      procedimento: form.procedimento.trim() || null,
       note: form.note.trim() || null,
       menu_name: form.menu_name?.trim() || null,
       menu_description: form.menu_description?.trim() || null,
@@ -776,13 +778,23 @@ export default function RicetteNuova() {
               {/* ─────────────────────────────────────────
                   5. NOTE
                   ─────────────────────────────────────── */}
-              <Section title={form.is_base ? "4. Note interne" : "5. Note interne"} hint="Solo cucina. Tempi forno, allergeni operativi, consigli, ecc.">
+              <Section title={form.is_base ? "4. Procedimento" : "5. Procedimento"} hint="Il metodo di preparazione: i passaggi, le fasi di cottura.">
+                <textarea
+                  value={form.procedimento}
+                  onChange={(e) => set("procedimento", e.target.value)}
+                  className={inputCls}
+                  rows={6}
+                  placeholder="Descrivi i passaggi della preparazione..."
+                />
+              </Section>
+
+              <Section title={form.is_base ? "5. Note interne" : "6. Note interne"} hint="Solo cucina. Annotazioni brevi: consigli, avvertenze, ecc.">
                 <textarea
                   value={form.note}
                   onChange={(e) => set("note", e.target.value)}
                   className={inputCls}
                   rows={3}
-                  placeholder="Note operative, forno, tempi, consigli..."
+                  placeholder="Annotazioni brevi (NON il procedimento)..."
                 />
               </Section>
 
