@@ -1,280 +1,404 @@
-// @version: v2.1-mattoni — M.I primitives (Btn) su back/save/delete/conversioni
-// Storico prezzi ingrediente + conversioni unità personalizzate
-
+// @version: v3.0 — pagina ingrediente ristrutturata
+// Modulo: ricette
+// Dettaglio ingrediente: completa/unisci placeholder + storico prezzi + conversioni unità.
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import { Btn } from "../../components/ui";
 
-const FOODCOST_BASE = `${API_BASE}/foodcost`;
-const FC = FOODCOST_BASE;
+const FC = `${API_BASE}/foodcost`;
+const ING = `${FC}/ingredients`;
+const UNITA = ["kg", "g", "L", "ml", "cl", "pz"];
+const oggi = () => new Date().toISOString().slice(0, 10);
+
+function fmtPrezzo(v) {
+  if (v == null || isNaN(v)) return "—";
+  const n = Number(v);
+  const dec = Math.abs(n) < 1 ? 4 : 2;
+  return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: dec });
+}
 
 export default function RicetteIngredientiPrezzi() {
   const navigate = useNavigate();
-  const { id } = useParams(); // id ingrediente
+  const { id } = useParams();
 
   const [loading, setLoading] = useState(true);
-  const [ingrediente, setIngrediente] = useState(null);
-  const [prezzi, setPrezzi] = useState([]);
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
 
-  const [mediaPrezzo, setMediaPrezzo] = useState(null);
-  const [ultimoPrezzo, setUltimoPrezzo] = useState(null);
+  const [ing, setIng] = useState(null);
+  const [prezzi, setPrezzi] = useState([]);
+  const [conversions, setConversions] = useState([]);
+  const [categorie, setCategorie] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [allIngredients, setAllIngredients] = useState([]);
+
+  // form "completa placeholder"
+  const [compl, setCompl] = useState({ name: "", category_id: "", default_unit: "kg", allergeni: "" });
+  // form "unisci"
+  const [mergeTarget, setMergeTarget] = useState("");
+  const [merging, setMerging] = useState(false);
 
   // form nuovo prezzo
-  const [fornitore, setFornitore] = useState("");
-  const [prezzo, setPrezzo] = useState("");
-  const [data, setData] = useState(
-    new Date().toISOString().slice(0, 10) // yyyy-mm-dd
-  );
-  const [note, setNote] = useState("");
+  const [pForm, setPForm] = useState({ supplier_id: "", unit_price: "", price_date: oggi(), note: "" });
 
-  // Conversioni personalizzate
-  const [conversions, setConversions] = useState([]);
-  const [showConversions, setShowConversions] = useState(false);
-  const [convFromUnit, setConvFromUnit] = useState("pz");
-  const [convToUnit, setConvToUnit] = useState("kg");
-  const [convFactor, setConvFactor] = useState("");
-  const [convNote, setConvNote] = useState("");
+  // conversioni
+  const [showConv, setShowConv] = useState(false);
+  const [conv, setConv] = useState({ from_unit: "pz", to_unit: "kg", factor: "", note: "" });
 
-  const loadPrezzi = async () => {
+  // ─── Caricamento ────────────────────────────────────────────
+  const load = async () => {
     setLoading(true);
-    const r = await apiFetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`);
-    if (!r.ok) {
+    setError("");
+    try {
+      const dResp = await apiFetch(`${ING}/${id}`);
+      if (!dResp.ok) throw new Error("Ingrediente non trovato");
+      const d = await dResp.json();
+      setIng(d);
+      setCompl({
+        name: d.name || "",
+        category_id: d.category_id ? String(d.category_id) : "",
+        default_unit: d.default_unit || "kg",
+        allergeni: d.allergeni || "",
+      });
+
+      const [pr, cv, cat, sup, ings] = await Promise.all([
+        apiFetch(`${ING}/${id}/prezzi`),
+        apiFetch(`${ING}/${id}/conversions`),
+        apiFetch(`${ING}/categories`),
+        apiFetch(`${ING}/suppliers`),
+        apiFetch(`${ING}/`),
+      ]);
+      if (pr.ok) setPrezzi(await pr.json());
+      if (cv.ok) setConversions(await cv.json());
+      if (cat.ok) setCategorie(await cat.json());
+      if (sup.ok) setSuppliers(await sup.json());
+      if (ings.ok) setAllIngredients(await ings.json());
+    } catch (e) {
+      setError(e.message);
+    } finally {
       setLoading(false);
-      return;
     }
-    const dataJson = await r.json();
-
-    setIngrediente(dataJson.ingrediente);
-    setPrezzi(dataJson.prezzi || []);
-    setMediaPrezzo(dataJson.media_prezzo ?? null);
-    setUltimoPrezzo(dataJson.ultimo_prezzo ?? null);
-    setLoading(false);
   };
 
-  useEffect(() => {
-    loadPrezzi();
-  }, [id]);
+  useEffect(() => { load(); }, [id]);
 
-  const addPrezzo = async () => {
-    if (!fornitore.trim() || !prezzo) {
-      alert("Inserisci almeno fornitore e prezzo.");
-      return;
-    }
-
-    await apiFetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fornitore_nome: fornitore,
-        prezzo_unitario: parseFloat(prezzo),
-        data_riferimento: data || null,
-        note: note || null,
-      }),
-    });
-
-    setFornitore("");
-    setPrezzo("");
-    setNote("");
-    await loadPrezzi();
-  };
-
-  const deletePrezzo = async (prezzoId) => {
-    if (!window.confirm("Eliminare questo prezzo dallo storico?")) return;
-
-    await apiFetch(`${FOODCOST_BASE}/prezzi/${prezzoId}`, {
-      method: "DELETE",
-    });
-
-    await loadPrezzi();
-  };
-
-  // ─── CONVERSIONI PERSONALIZZATE ──────────────
-
-  const loadConversions = async () => {
+  // ─── Completa placeholder ───────────────────────────────────
+  const handleCompleta = async () => {
+    setError(""); setMsg("");
+    if (!compl.name.trim()) { setError("Il nome è obbligatorio."); return; }
     try {
-      const resp = await apiFetch(`${FC}/ingredients/${id}/conversions`);
-      if (resp.ok) setConversions(await resp.json());
-    } catch (err) {
-      console.error(err);
+      const resp = await apiFetch(`${ING}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: compl.name.trim(),
+          category_id: compl.category_id ? Number(compl.category_id) : null,
+          default_unit: compl.default_unit,
+          allergeni: compl.allergeni.trim() || null,
+          placeholder: 0,
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      setMsg("Ingrediente completato — non è più un placeholder.");
+      await load();
+    } catch (e) {
+      setError(`Errore: ${e.message}`);
     }
   };
 
-  const addConversion = async () => {
-    if (!convFactor || parseFloat(convFactor) <= 0) {
-      alert("Inserisci un fattore di conversione valido.");
+  // ─── Unisci a un ingrediente esistente ──────────────────────
+  const handleUnisci = async () => {
+    if (!mergeTarget) { setError("Scegli l'ingrediente su cui unire."); return; }
+    const tgt = allIngredients.find((a) => String(a.id) === String(mergeTarget));
+    if (!window.confirm(
+      `Unire "${ing.name}" in "${tgt ? tgt.name : "?"}"?\n\n` +
+      `Le voci ricetta verranno spostate e "${ing.name}" verrà eliminato.`
+    )) return;
+    setMerging(true); setError("");
+    try {
+      const resp = await apiFetch(`${ING}/${id}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: Number(mergeTarget) }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const r = await resp.json();
+      navigate(`/ricette/ingredienti/${r.target_id}/prezzi`);
+    } catch (e) {
+      setError(`Errore unione: ${e.message}`);
+      setMerging(false);
+    }
+  };
+
+  // ─── Prezzi ─────────────────────────────────────────────────
+  const handleAddPrezzo = async () => {
+    setError(""); setMsg("");
+    if (!pForm.supplier_id || !pForm.unit_price) {
+      setError("Scegli il fornitore e inserisci il prezzo.");
       return;
     }
     try {
-      const resp = await apiFetch(`${FC}/ingredients/${id}/conversions`, {
+      const resp = await apiFetch(`${ING}/${id}/prezzi`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          from_unit: convFromUnit,
-          to_unit: convToUnit,
-          factor: parseFloat(convFactor),
-          note: convNote || null,
+          supplier_id: Number(pForm.supplier_id),
+          unit_price: parseFloat(pForm.unit_price),
+          price_date: pForm.price_date || null,
+          note: pForm.note.trim() || null,
         }),
       });
-      if (!resp.ok) {
-        const err = await resp.text();
-        alert(`Errore: ${err}`);
-        return;
-      }
-      setConvFactor("");
-      setConvNote("");
-      await loadConversions();
-    } catch (err) {
-      alert(`Errore: ${err.message}`);
+      if (!resp.ok) throw new Error(await resp.text());
+      setPForm({ supplier_id: "", unit_price: "", price_date: oggi(), note: "" });
+      await load();
+    } catch (e) {
+      setError(`Errore: ${e.message}`);
     }
   };
 
-  const deleteConversion = async (convId) => {
-    if (!window.confirm("Eliminare questa conversione?")) return;
-    await apiFetch(`${FC}/ingredients/conversions/${convId}`, { method: "DELETE" });
-    await loadConversions();
+  const handleDelPrezzo = async (pid) => {
+    if (!window.confirm("Eliminare questo prezzo dallo storico?")) return;
+    await apiFetch(`${ING}/prezzi/${pid}`, { method: "DELETE" });
+    await load();
   };
 
-  useEffect(() => {
-    if (showConversions && conversions.length === 0) loadConversions();
-  }, [showConversions]);
+  // ─── Conversioni ────────────────────────────────────────────
+  const handleAddConv = async () => {
+    if (!conv.factor || parseFloat(conv.factor) <= 0) {
+      setError("Inserisci un fattore di conversione valido.");
+      return;
+    }
+    try {
+      const resp = await apiFetch(`${ING}/${id}/conversions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from_unit: conv.from_unit,
+          to_unit: conv.to_unit,
+          factor: parseFloat(conv.factor),
+          note: conv.note.trim() || null,
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      setConv({ from_unit: "pz", to_unit: "kg", factor: "", note: "" });
+      await load();
+    } catch (e) {
+      setError(`Errore: ${e.message}`);
+    }
+  };
+
+  const handleDelConv = async (cid) => {
+    if (!window.confirm("Eliminare questa conversione?")) return;
+    await apiFetch(`${ING}/conversions/${cid}`, { method: "DELETE" });
+    await load();
+  };
+
+  // ─── Derivati ───────────────────────────────────────────────
+  const ultimoPrezzo = prezzi.length ? prezzi[0].unit_price : null;
+  const mediaPrezzo = prezzi.length
+    ? prezzi.reduce((s, p) => s + (p.unit_price || 0), 0) / prezzi.length
+    : null;
+  const isPlaceholder = ing && ing.placeholder;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-brand-cream">
+        <RicetteNav current="ingredienti" />
+        <div className="text-center py-20 text-neutral-500">Caricamento ingrediente…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <RicetteNav current="ingredienti" />
-      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
+      <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-10 border border-neutral-200 mt-4">
 
-        {/* BACK */}
-        <div className="flex justify-between mb-6">
-          <Btn variant="ghost" size="md" onClick={() => navigate(-1)}>
-            ← Torna a Ingredienti
+        <div className="mb-5">
+          <Btn variant="ghost" size="sm" onClick={() => navigate("/ricette/ingredienti")}>
+            ← Ingredienti
           </Btn>
         </div>
 
         {/* HEADER */}
-        <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-2">
-          💶 Prezzi — {ingrediente ? ingrediente.nome : "Ingrediente"}
-        </h1>
+        <div className="mb-6">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-orange-900 font-playfair">
+              {ing ? ing.name : "Ingrediente"}
+            </h1>
+            {isPlaceholder ? (
+              <span className="text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">
+                da completare
+              </span>
+            ) : null}
+          </div>
+          {ing && (
+            <p className="text-sm text-neutral-600">
+              Unità base: <span className="font-medium">{ing.default_unit}</span>
+              {ing.category_name && <> · Categoria: <span className="font-medium">{ing.category_name}</span></>}
+            </p>
+          )}
+        </div>
 
-        {ingrediente && (
-          <p className="text-neutral-600 mb-6">
-            Unità:{" "}
-            <span className="font-semibold">{ingrediente.unita || "–"}</span>{" "}
-            {ingrediente.categoria && (
-              <>
-                • Categoria:{" "}
-                <span className="font-semibold">{ingrediente.categoria}</span>
-              </>
-            )}
-          </p>
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">{error}</div>
+        )}
+        {msg && (
+          <div className="mb-4 rounded-xl border border-green-300 bg-green-50 text-green-800 px-4 py-3 text-sm">{msg}</div>
         )}
 
-        {/* RIEPILOGO PREZZI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 shadow-inner">
-            <div className="text-sm text-neutral-600 mb-1">
-              Prezzo medio storico
-            </div>
-            <div className="text-2xl font-bold text-orange-900">
-              {mediaPrezzo != null ? `${mediaPrezzo.toFixed(2)} €/unità` : "—"}
+        {/* ═══ PANNELLO PLACEHOLDER ═══ */}
+        {isPlaceholder && (
+          <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50/60 p-5">
+            <h2 className="text-base font-bold text-amber-900 mb-1">Ingrediente da completare</h2>
+            <p className="text-xs text-amber-800 mb-4">
+              Questo ingrediente è stato creato come placeholder durante un import.
+              Puoi completarlo con i dati reali, oppure unirlo a un ingrediente già in archivio se è un doppione.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* COMPLETA */}
+              <div className="bg-white rounded-xl border border-neutral-200 p-4">
+                <h3 className="text-sm font-semibold text-neutral-800 mb-3">Completa l'ingrediente</h3>
+                <div className="space-y-2">
+                  <input
+                    type="text" value={compl.name}
+                    onChange={(e) => setCompl({ ...compl, name: e.target.value })}
+                    placeholder="Nome ingrediente"
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <select
+                    value={compl.category_id}
+                    onChange={(e) => setCompl({ ...compl, category_id: e.target.value })}
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">— Categoria —</option>
+                    {categorie.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <select
+                    value={compl.default_unit}
+                    onChange={(e) => setCompl({ ...compl, default_unit: e.target.value })}
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
+                  >
+                    {UNITA.map((u) => <option key={u} value={u}>Unità base: {u}</option>)}
+                  </select>
+                  <input
+                    type="text" value={compl.allergeni}
+                    onChange={(e) => setCompl({ ...compl, allergeni: e.target.value })}
+                    placeholder="Allergeni (opzionale)"
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <Btn variant="success" size="md" onClick={handleCompleta}>
+                    Completa ingrediente
+                  </Btn>
+                </div>
+              </div>
+
+              {/* UNISCI */}
+              <div className="bg-white rounded-xl border border-neutral-200 p-4">
+                <h3 className="text-sm font-semibold text-neutral-800 mb-3">Unisci a un ingrediente esistente</h3>
+                <p className="text-xs text-neutral-500 mb-2">
+                  Se questo è un doppione, scegli l'ingrediente giusto: le voci ricetta verranno spostate lì.
+                </p>
+                <select
+                  value={mergeTarget}
+                  onChange={(e) => setMergeTarget(e.target.value)}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white mb-2"
+                >
+                  <option value="">— Scegli ingrediente —</option>
+                  {allIngredients
+                    .filter((a) => String(a.id) !== String(id))
+                    .map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+                <Btn variant="secondary" size="md" onClick={handleUnisci} loading={merging} disabled={merging}>
+                  {merging ? "Unione…" : "Unisci"}
+                </Btn>
+              </div>
             </div>
           </div>
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 shadow-inner">
-            <div className="text-sm text-neutral-600 mb-1">
-              Ultimo prezzo registrato
+        )}
+
+        {/* ═══ RIEPILOGO PREZZI ═══ */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4">
+            <div className="text-xs text-neutral-600 mb-1">Prezzo medio storico</div>
+            <div className="text-xl font-bold text-orange-900">
+              {mediaPrezzo != null ? `${fmtPrezzo(mediaPrezzo)} €/${ing?.default_unit || ""}` : "—"}
             </div>
-            <div className="text-2xl font-bold text-green-900">
-              {ultimoPrezzo != null ? `${ultimoPrezzo.toFixed(2)} €/unità` : "—"}
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
+            <div className="text-xs text-neutral-600 mb-1">Ultimo prezzo registrato</div>
+            <div className="text-xl font-bold text-green-900">
+              {ultimoPrezzo != null ? `${fmtPrezzo(ultimoPrezzo)} €/${ing?.default_unit || ""}` : "—"}
             </div>
           </div>
         </div>
 
-        {/* FORM NUOVO PREZZO */}
-        <div className="bg-neutral-50 border border-neutral-300 rounded-2xl p-6 shadow-inner mb-10">
-          <h2 className="text-xl font-semibold font-playfair mb-4">
-            ➕ Aggiungi prezzo
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
+        {/* ═══ AGGIUNGI PREZZO ═══ */}
+        <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 mb-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-3">Aggiungi prezzo</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+            <select
+              value={pForm.supplier_id}
+              onChange={(e) => setPForm({ ...pForm, supplier_id: e.target.value })}
+              className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
+            >
+              <option value="">— Fornitore —</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
             <input
-              type="text"
-              placeholder="Fornitore"
-              className="border p-2 rounded"
-              value={fornitore}
-              onChange={(e) => setFornitore(e.target.value)}
+              type="number" step="0.0001" min="0" placeholder="Prezzo €/unità"
+              value={pForm.unit_price}
+              onChange={(e) => setPForm({ ...pForm, unit_price: e.target.value })}
+              className="border border-neutral-300 rounded-lg px-3 py-2 text-sm"
             />
             <input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Prezzo unitario (€)"
-              className="border p-2 rounded"
-              value={prezzo}
-              onChange={(e) => setPrezzo(e.target.value)}
+              type="date" value={pForm.price_date}
+              onChange={(e) => setPForm({ ...pForm, price_date: e.target.value })}
+              className="border border-neutral-300 rounded-lg px-3 py-2 text-sm"
             />
             <input
-              type="date"
-              className="border p-2 rounded"
-              value={data}
-              onChange={(e) => setData(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Note (opzionale)"
-              className="border p-2 rounded"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
+              type="text" placeholder="Note (opzionale)"
+              value={pForm.note}
+              onChange={(e) => setPForm({ ...pForm, note: e.target.value })}
+              className="border border-neutral-300 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-
-          <Btn variant="chip" tone="amber" size="md" onClick={addPrezzo}>
-            Salva prezzo
-          </Btn>
+          <Btn variant="chip" tone="amber" size="md" onClick={handleAddPrezzo}>Salva prezzo</Btn>
+          {suppliers.length === 0 && (
+            <p className="text-xs text-neutral-400 mt-2">
+              Nessun fornitore disponibile: i fornitori arrivano dalle fatture importate.
+            </p>
+          )}
         </div>
 
-        {/* STORICO PREZZI */}
-        <h2 className="text-2xl font-playfair font-semibold mb-4">
-          📚 Storico prezzi
-        </h2>
-
-        {loading ? (
-          <div className="text-neutral-600 py-8 text-center">
-            Caricamento storico prezzi…
-          </div>
-        ) : prezzi.length === 0 ? (
-          <div className="text-neutral-500 italic">
-            Nessun prezzo registrato per questo ingrediente.
-          </div>
+        {/* ═══ STORICO PREZZI ═══ */}
+        <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-3">Storico prezzi</h2>
+        {prezzi.length === 0 ? (
+          <div className="text-sm text-neutral-500 italic mb-6">Nessun prezzo registrato per questo ingrediente.</div>
         ) : (
-          <div className="border border-neutral-200 rounded-2xl overflow-hidden">
+          <div className="border border-neutral-200 rounded-2xl overflow-hidden mb-6">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-100">
+              <thead className="bg-neutral-100 text-neutral-700">
                 <tr>
-                  <th className="p-3 text-left">Data</th>
-                  <th className="p-3 text-left">Fornitore</th>
-                  <th className="p-3 text-left">Prezzo €/unità</th>
-                  <th className="p-3 text-left">Note</th>
-                  <th className="p-3 text-right">Azioni</th>
+                  <th className="p-3 text-left font-semibold">Data</th>
+                  <th className="p-3 text-left font-semibold">Fornitore</th>
+                  <th className="p-3 text-right font-semibold">Prezzo €/unità</th>
+                  <th className="p-3 text-left font-semibold">Note</th>
+                  <th className="p-3 text-right font-semibold">Azioni</th>
                 </tr>
               </thead>
               <tbody>
                 {prezzi.map((p) => (
-                  <tr key={p.id} className="border-t">
-                    <td className="p-3">
-                      {p.data_riferimento || "—"}
-                    </td>
-                    <td className="p-3">{p.fornitore_nome}</td>
-                    <td className="p-3">
-                      {p.prezzo_unitario != null
-                        ? `${p.prezzo_unitario.toFixed(2)} €`
-                        : "—"}
-                    </td>
-                    <td className="p-3">{p.note || "—"}</td>
+                  <tr key={p.id} className="border-t border-neutral-100">
+                    <td className="p-3">{p.price_date || "—"}</td>
+                    <td className="p-3">{p.supplier_name || "—"}</td>
+                    <td className="p-3 text-right font-medium">{fmtPrezzo(p.unit_price)} €</td>
+                    <td className="p-3 text-neutral-500 text-xs">{p.note || "—"}</td>
                     <td className="p-3 text-right">
-                      <Btn variant="chip" tone="red" size="sm" onClick={() => deletePrezzo(p.id)}>
-                        Elimina
-                      </Btn>
+                      <Btn variant="chip" tone="red" size="sm" onClick={() => handleDelPrezzo(p.id)}>Elimina</Btn>
                     </td>
                   </tr>
                 ))}
@@ -283,118 +407,73 @@ export default function RicetteIngredientiPrezzi() {
           </div>
         )}
 
-        {/* ═══════════ CONVERSIONI PERSONALIZZATE ═══════════ */}
-        <div className="mt-10 border-t border-neutral-200 pt-6">
+        {/* ═══ CONVERSIONI ═══ */}
+        <div className="border-t border-neutral-200 pt-5">
           <button
-            onClick={() => setShowConversions(!showConversions)}
-            className="text-lg font-playfair font-semibold text-orange-900 hover:text-orange-700 flex items-center gap-2"
+            onClick={() => setShowConv((v) => !v)}
+            className="text-sm font-bold uppercase tracking-wider text-orange-700 flex items-center gap-2"
           >
-            <span>{showConversions ? "▾" : "▸"}</span>
+            <span>{showConv ? "▾" : "▸"}</span>
             Conversioni unità personalizzate
             {conversions.length > 0 && (
-              <span className="text-xs font-mono font-normal bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-normal bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
                 {conversions.length}
               </span>
             )}
           </button>
-
-          <p className="text-sm text-neutral-500 mt-1 mb-4">
-            Definisci equivalenze tra unità per questo ingrediente (es. 1 pz = 0.06 kg per le uova, 1 mazzetto = 0.03 kg).
-            Le conversioni standard (kg↔g, L↔ml↔cl) funzionano già automaticamente.
+          <p className="text-xs text-neutral-500 mt-1">
+            Equivalenze tra unità per questo ingrediente (es. 1 pz = 0,06 kg). Le conversioni standard
+            (kg↔g, L↔ml↔cl) funzionano già da sole.
           </p>
 
-          {showConversions && (
-            <div>
-              {/* Form nuova conversione */}
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-4">
-                <h3 className="text-sm font-semibold text-blue-800 mb-3">Aggiungi conversione</h3>
-                <div className="flex flex-wrap items-end gap-3">
-                  <div>
-                    <label className="text-xs text-neutral-600 block mb-1">1 x</label>
-                    <select
-                      value={convFromUnit}
-                      onChange={(e) => setConvFromUnit(e.target.value)}
-                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
-                    >
-                      <option value="pz">pz</option>
-                      <option value="mazzetto">mazzetto</option>
-                      <option value="bottiglia">bottiglia</option>
-                      <option value="lattina">lattina</option>
-                      <option value="confezione">confezione</option>
-                      <option value="kg">kg</option>
-                      <option value="g">g</option>
-                      <option value="L">L</option>
-                      <option value="ml">ml</option>
-                      <option value="cl">cl</option>
-                    </select>
-                  </div>
-                  <div className="text-sm text-neutral-500 pb-2">=</div>
-                  <div>
-                    <label className="text-xs text-neutral-600 block mb-1">Equivale a</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="0.06"
-                      value={convFactor}
-                      onChange={(e) => setConvFactor(e.target.value)}
-                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm w-28 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-600 block mb-1">Unità dest.</label>
-                    <select
-                      value={convToUnit}
-                      onChange={(e) => setConvToUnit(e.target.value)}
-                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
-                    >
-                      <option value="kg">kg</option>
-                      <option value="g">g</option>
-                      <option value="L">L</option>
-                      <option value="ml">ml</option>
-                      <option value="cl">cl</option>
-                      <option value="pz">pz</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-600 block mb-1">Note</label>
-                    <input
-                      type="text"
-                      placeholder="(opzionale)"
-                      value={convNote}
-                      onChange={(e) => setConvNote(e.target.value)}
-                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm w-36 bg-white"
-                    />
-                  </div>
-                  <Btn variant="chip" tone="blue" size="md" onClick={addConversion}>
-                    Aggiungi
-                  </Btn>
+          {showConv && (
+            <div className="mt-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-3 flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="text-xs text-neutral-600 block mb-1">1 ×</label>
+                  <select
+                    value={conv.from_unit}
+                    onChange={(e) => setConv({ ...conv, from_unit: e.target.value })}
+                    className="border border-blue-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    {["pz", "mazzetto", "bottiglia", "lattina", "confezione", "kg", "g", "L", "ml", "cl"]
+                      .map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
                 </div>
+                <span className="text-sm text-neutral-500 pb-2">=</span>
+                <div>
+                  <label className="text-xs text-neutral-600 block mb-1">Quantità</label>
+                  <input
+                    type="number" step="0.001" min="0" placeholder="0,06"
+                    value={conv.factor}
+                    onChange={(e) => setConv({ ...conv, factor: e.target.value })}
+                    className="border border-blue-200 rounded-lg px-2 py-1.5 text-sm w-24 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-600 block mb-1">Unità</label>
+                  <select
+                    value={conv.to_unit}
+                    onChange={(e) => setConv({ ...conv, to_unit: e.target.value })}
+                    className="border border-blue-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                <Btn variant="chip" tone="blue" size="md" onClick={handleAddConv}>Aggiungi</Btn>
               </div>
 
-              {/* Lista conversioni esistenti */}
               {conversions.length === 0 ? (
-                <p className="text-sm text-neutral-400 italic">
-                  Nessuna conversione personalizzata. Le conversioni standard (kg↔g, L↔ml) sono già attive.
-                </p>
+                <p className="text-xs text-neutral-400 italic">Nessuna conversione personalizzata.</p>
               ) : (
                 <div className="space-y-2">
                   {conversions.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-4 py-3"
-                    >
-                      <div>
-                        <span className="font-medium text-sm text-neutral-900">
-                          1 {c.from_unit} = {c.factor} {c.to_unit}
-                        </span>
-                        {c.note && (
-                          <span className="text-xs text-neutral-400 ml-2">({c.note})</span>
-                        )}
-                      </div>
-                      <Btn variant="chip" tone="red" size="sm" onClick={() => deleteConversion(c.id)}>
-                        Elimina
-                      </Btn>
+                    <div key={c.id} className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-4 py-2.5">
+                      <span className="text-sm text-neutral-900">
+                        1 {c.from_unit} = {c.factor} {c.to_unit}
+                        {c.note && <span className="text-xs text-neutral-400 ml-2">({c.note})</span>}
+                      </span>
+                      <Btn variant="chip" tone="red" size="sm" onClick={() => handleDelConv(c.id)}>Elimina</Btn>
                     </div>
                   ))}
                 </div>

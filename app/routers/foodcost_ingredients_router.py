@@ -115,6 +115,7 @@ class IngredientDetail(BaseModel):
     allergeni: Optional[str] = None
     note: Optional[str] = None
     is_active: int = 1
+    placeholder: int = 0  # 1 = creato da import ricette, da completare
     created_at: Optional[str] = None
 
 
@@ -465,6 +466,34 @@ class IngredientUpdate(BaseModel):
     allergeni: Optional[str] = None
     note: Optional[str] = None
     is_active: Optional[int] = None
+    placeholder: Optional[int] = None  # impostare a 0 per "completare" un placeholder
+
+
+def _fetch_ingredient_detail(cur, ingredient_id: int):
+    """Ritorna la Row di dettaglio ingrediente (con categoria e placeholder) o None."""
+    return cur.execute(
+        """
+        SELECT i.id, i.name, i.default_unit, i.codice_interno, i.category_id,
+               i.allergeni, i.note, i.is_active, COALESCE(i.placeholder, 0) AS placeholder,
+               i.created_at, c.name AS category_name
+        FROM ingredients i
+        LEFT JOIN ingredient_categories c ON c.id = i.category_id
+        WHERE i.id = ?
+        """,
+        (ingredient_id,),
+    ).fetchone()
+
+
+@router.get("/{ingredient_id}", response_model=IngredientDetail)
+def get_ingredient(ingredient_id: int):
+    """Dettaglio di un singolo ingrediente (incluso il flag placeholder)."""
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+    row = _fetch_ingredient_detail(cur, ingredient_id)
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+    return IngredientDetail(**dict(row))
 
 
 @router.put("/{ingredient_id}", response_model=IngredientDetail)
@@ -479,7 +508,8 @@ def update_ingredient(ingredient_id: int, payload: IngredientUpdate):
 
     updates = []
     params = []
-    for col in ["name", "default_unit", "category_id", "codice_interno", "allergeni", "note", "is_active"]:
+    for col in ["name", "default_unit", "category_id", "codice_interno",
+                "allergeni", "note", "is_active", "placeholder"]:
         val = getattr(payload, col)
         if val is not None:
             updates.append(f"{col} = ?")
@@ -491,19 +521,73 @@ def update_ingredient(ingredient_id: int, payload: IngredientUpdate):
         cur.execute(f"UPDATE ingredients SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
 
-    row = cur.execute(
-        """
-        SELECT i.id, i.name, i.default_unit, i.codice_interno, i.category_id,
-               i.allergeni, i.note, i.is_active, i.created_at, c.name AS category_name
-        FROM ingredients i
-        LEFT JOIN ingredient_categories c ON c.id = i.category_id
-        WHERE i.id = ?
-        """,
-        (ingredient_id,),
-    ).fetchone()
+    row = _fetch_ingredient_detail(cur, ingredient_id)
     conn.close()
-
     return IngredientDetail(**dict(row))
+
+
+class IngredientMergeRequest(BaseModel):
+    target_id: int  # ingrediente "vero" su cui far confluire questo
+
+
+@router.post("/{ingredient_id}/merge")
+def merge_ingredient(ingredient_id: int, payload: IngredientMergeRequest):
+    """
+    Unisce l'ingrediente {ingredient_id} (tipicamente un placeholder) in un
+    ingrediente esistente: tutte le voci ricetta, i prezzi, i mapping fornitore
+    e le conversioni vengono ripuntati sul target, poi l'ingrediente di
+    partenza viene eliminato.
+    """
+    if payload.target_id == ingredient_id:
+        raise HTTPException(status_code=400, detail="Origine e destinazione coincidono")
+
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+    try:
+        src = cur.execute(
+            "SELECT id, name FROM ingredients WHERE id = ?", (ingredient_id,)
+        ).fetchone()
+        if not src:
+            raise HTTPException(status_code=404, detail="Ingrediente di origine non trovato")
+        tgt = cur.execute(
+            "SELECT id, name FROM ingredients WHERE id = ?", (payload.target_id,)
+        ).fetchone()
+        if not tgt:
+            raise HTTPException(status_code=404, detail="Ingrediente di destinazione non trovato")
+
+        n_voci = cur.execute(
+            "UPDATE recipe_items SET ingredient_id = ? WHERE ingredient_id = ?",
+            (payload.target_id, ingredient_id),
+        ).rowcount
+        cur.execute(
+            "UPDATE ingredient_prices SET ingredient_id = ? WHERE ingredient_id = ?",
+            (payload.target_id, ingredient_id),
+        )
+        cur.execute(
+            "UPDATE ingredient_supplier_map SET ingredient_id = ? WHERE ingredient_id = ?",
+            (payload.target_id, ingredient_id),
+        )
+        cur.execute(
+            "UPDATE ingredient_unit_conversions SET ingredient_id = ? WHERE ingredient_id = ?",
+            (payload.target_id, ingredient_id),
+        )
+        cur.execute("DELETE FROM ingredients WHERE id = ?", (ingredient_id,))
+
+        conn.commit()
+        return {
+            "status": "ok",
+            "target_id": payload.target_id,
+            "target_name": tgt["name"],
+            "voci_spostate": n_voci,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore unione: {e}") from e
+    finally:
+        conn.close()
 
 
 # ─────────────────────────────────────────────

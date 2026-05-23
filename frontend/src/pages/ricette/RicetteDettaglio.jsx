@@ -150,7 +150,7 @@ export default function RicetteDettaglio() {
     }
     const esc = (s) => String(s ?? "")
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const steps = (r.procedimento || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    const steps = splitProcedimento(r.procedimento);
     const righe = (r.items || []).map((it) => {
       const nome = it.sub_recipe_name || it.ingredient_name || "—";
       const qta = it.unit === "qb" ? "q.b." : `${it.qty} ${it.unit}`;
@@ -526,11 +526,17 @@ function ServiziTab({ r }) {
 // ─────────────────────────────────────────
 // TAB: Procedimento (metodo di preparazione)
 // ─────────────────────────────────────────
+// Spezza il procedimento in passi: usa gli a-capo se ci sono, altrimenti
+// (procedimento vecchio scritto tutto attaccato) spezza sulle frasi.
+function splitProcedimento(text) {
+  const raw = (text || "").trim();
+  if (!raw) return [];
+  const norm = raw.includes("\n") ? raw : raw.replace(/([.!?])\s+/g, "$1\n");
+  return norm.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
 function ProcedimentoTab({ r }) {
-  const steps = (r.procedimento || "")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const steps = splitProcedimento(r.procedimento);
   if (steps.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 text-center text-sm text-neutral-500">
