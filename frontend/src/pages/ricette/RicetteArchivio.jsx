@@ -358,6 +358,9 @@ export default function RicetteArchivio() {
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Btn variant="secondary" size="md" onClick={() => navigate("/ricette/import")}>
+              ⬆ Importa ricetta
+            </Btn>
             <Btn variant="primary" size="md" onClick={() => navigate("/ricette/nuova")}>
               + Nuova ricetta
             </Btn>
@@ -524,9 +527,14 @@ export default function RicetteArchivio() {
                 }
                 action={
                   ricette.length === 0 ? (
-                    <Btn variant="primary" size="md" onClick={() => navigate("/ricette/nuova")}>
-                      + Nuova ricetta
-                    </Btn>
+                    <div className="flex gap-2 justify-center flex-wrap">
+                      <Btn variant="primary" size="md" onClick={() => navigate("/ricette/nuova")}>
+                        + Nuova ricetta
+                      </Btn>
+                      <Btn variant="secondary" size="md" onClick={() => navigate("/ricette/import")}>
+                        ⬆ Importa ricetta
+                      </Btn>
+                    </div>
                   ) : (
                     <Btn variant="secondary" size="sm" onClick={resetFiltri}>
                       Reset filtri

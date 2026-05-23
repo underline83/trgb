@@ -70,6 +70,7 @@ class IngredientListItem(BaseModel):
     default_unit: str
     last_price: Optional[float] = None
     last_supplier_name: Optional[str] = None
+    placeholder: bool = False  # creato da import ricette, da completare
 
 
 class IngredientCreate(BaseModel):
@@ -316,6 +317,7 @@ def list_ingredients():
             i.id,
             i.name,
             i.default_unit,
+            COALESCE(i.placeholder, 0) AS placeholder,
             c.name AS category_name,
             -- ultimo prezzo
             (
@@ -351,6 +353,7 @@ def list_ingredients():
             default_unit=row["default_unit"],
             last_price=row["last_price"],
             last_supplier_name=row["last_supplier_name"],
+            placeholder=bool(row["placeholder"]),
         )
         for row in rows
     ]

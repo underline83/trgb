@@ -19,6 +19,7 @@ export default function RicetteIngredienti() {
 
   const [loadingList, setLoadingList] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  const [soloPlaceholder, setSoloPlaceholder] = useState(false);
 
   // Form ingrediente + eventuale primo prezzo
   const [form, setForm] = useState({
@@ -170,6 +171,9 @@ export default function RicetteIngredienti() {
       setErrorMsg("Errore nel salvataggio (vedi console backend).");
     }
   };
+
+  const nPlaceholder = items.filter((i) => i.placeholder).length;
+  const visibleItems = soloPlaceholder ? items.filter((i) => i.placeholder) : items;
 
   return (
     <div className="min-h-screen bg-brand-cream p-6 font-sans">
@@ -389,18 +393,36 @@ export default function RicetteIngredienti() {
               )}
             </div>
 
+            {nPlaceholder > 0 && (
+              <button
+                onClick={() => setSoloPlaceholder((v) => !v)}
+                className={`mb-3 text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                  soloPlaceholder
+                    ? "bg-amber-100 text-amber-900 border-amber-300"
+                    : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                }`}
+              >
+                {soloPlaceholder ? "✓ " : ""}{nPlaceholder} da completare (placeholder)
+              </button>
+            )}
+
             <div className="max-h-[420px] overflow-auto divide-y divide-neutral-200">
-              {items.length === 0 && !loadingList && (
+              {visibleItems.length === 0 && !loadingList && (
                 <div className="py-6 text-sm text-neutral-500 text-center">
-                  Nessun ingrediente presente.
+                  {soloPlaceholder ? "Nessun placeholder da completare." : "Nessun ingrediente presente."}
                 </div>
               )}
 
-              {items.map((ing) => (
+              {visibleItems.map((ing) => (
                 <div key={ing.id} className="py-3 text-sm flex flex-col gap-1">
                   <div className="flex justify-between">
                     <span className="font-medium text-neutral-900">
                       {ing.name}
+                      {ing.placeholder && (
+                        <span className="ml-2 text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                          da completare
+                        </span>
+                      )}
                     </span>
                     {ing.last_price != null && (
                       <span className="text-neutral-700">

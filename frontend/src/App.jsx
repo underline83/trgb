@@ -50,6 +50,7 @@ const RicetteDashboard = lazy(() => import("./pages/ricette/RicetteDashboard"));
 const DashboardCucina = lazy(() => import("./pages/cucina/DashboardCucina"));
 const ListaSpesa = lazy(() => import("./pages/cucina/ListaSpesa"));
 const RicetteSettings = lazy(() => import("./pages/ricette/RicetteSettings"));
+const RicetteImport = lazy(() => import("./pages/ricette/RicetteImport"));
 const MenuCartaElenco = lazy(() => import("./pages/cucina/MenuCartaElenco"));
 const MenuCartaDettaglio = lazy(() => import("./pages/cucina/MenuCartaDettaglio"));
 const PranzoMenu = lazy(() => import("./pages/pranzo/PranzoMenu"));
@@ -292,7 +293,7 @@ export default function App() {
         <Route path="/ricette/matching" element={<ProtectedRoute module="ricette" sub="matching"><RicetteMatching /></ProtectedRoute>} />
         <Route path="/ricette/dashboard" element={<ProtectedRoute module="ricette" sub="dashboard"><RicetteDashboard /></ProtectedRoute>} />
         <Route path="/ricette/settings" element={<ProtectedRoute module="ricette" sub="settings"><RicetteSettings /></ProtectedRoute>} />
-        <Route path="/ricette/import" element={<Navigate to="/ricette/settings" replace />} />
+        <Route path="/ricette/import" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteImport /></ProtectedRoute>} />
 
         {/* --- MENU CARTA (sotto Gestione Cucina, mig 098-100, sessione 57) --- */}
         <Route path="/menu-carta" element={<ProtectedRoute module="ricette" sub="archivio"><MenuCartaElenco /></ProtectedRoute>} />

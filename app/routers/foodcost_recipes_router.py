@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# @version: v2.1-foodcost-recipes-router-allergeni (Modulo C, 2026-04-27)
+# @version: v2.2-foodcost-recipes-router-import (2026-05-23)
+# Modulo: ricette
 # -*- coding: utf-8 -*-
 
 """
@@ -25,6 +26,7 @@ Endpoint:
 """
 
 from datetime import datetime
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -1077,6 +1079,496 @@ def create_ricetta(payload: RecipeCreate):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Errore salvataggio: {e}") from e
+    finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════════
+#   IMPORT RICETTE DA JSON
+#   Tracciato scaricabile + analisi (match ingredienti/sotto-ricette)
+#   + conferma (crea placeholder + ricette in 2 passate).
+# ═══════════════════════════════════════════════════════════════
+
+class ImportVoce(BaseModel):
+    """Una voce di ricetta importata: ingrediente OPPURE sotto-ricetta."""
+    ingrediente: Optional[str] = None
+    sotto_ricetta: Optional[str] = None
+    quantita: Optional[float] = None
+    unita: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ImportRicetta(BaseModel):
+    """Una ricetta nel file di import. Riferimenti per NOME, niente ID."""
+    nome: str = ""
+    categoria: Optional[str] = None
+    tipo: Optional[str] = None  # "piatto" | "base"
+    resa_quantita: Optional[float] = None
+    resa_unita: Optional[str] = None
+    prezzo_vendita: Optional[float] = None
+    tempo_preparazione_min: Optional[int] = None
+    note: Optional[str] = None
+    voci: List[ImportVoce] = []
+
+
+class ImportPayload(BaseModel):
+    ricette: List[ImportRicetta] = []
+
+
+class ImportRisolIngrediente(BaseModel):
+    """Decisione dell'utente su un ingrediente referenziato."""
+    nome: str
+    azione: str = "placeholder"        # "usa" | "placeholder"
+    ingredient_id: Optional[int] = None
+    unita: Optional[str] = None        # per il placeholder
+    categoria: Optional[str] = None    # per il placeholder
+
+
+class ImportRisolSottoRicetta(BaseModel):
+    """Decisione dell'utente su una sotto-ricetta referenziata."""
+    nome: str
+    azione: str = "nel_file"           # "usa" | "nel_file" | "salta"
+    recipe_id: Optional[int] = None
+
+
+class ImportConfermaPayload(BaseModel):
+    ricette: List[ImportRicetta] = []
+    ingredienti: List[ImportRisolIngrediente] = []
+    sotto_ricette: List[ImportRisolSottoRicetta] = []
+
+
+def _imp_tokens(s: str) -> Set[str]:
+    """Insieme delle parole (alfanumeriche) di un nome, minuscole."""
+    import re as _re
+    return set(_re.findall(r"\w+", (s or "").lower()))
+
+
+def _imp_score(a: str, b: str) -> float:
+    """
+    Similarità 0-100 tra due nomi. Oltre alla similarità carattere-per-carattere,
+    dà un bonus quando tutte le parole del nome più corto compaiono nel più lungo
+    (es. "branzi" dentro "Branzi (formaggio bergamasco)").
+    """
+    a = (a or "").strip().lower()
+    b = (b or "").strip().lower()
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 100.0
+    base = SequenceMatcher(None, a, b).ratio() * 100
+    ta, tb = _imp_tokens(a), _imp_tokens(b)
+    if ta and tb:
+        short, long = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+        if short and short.issubset(long):
+            base = max(base, 88.0)
+    return round(base, 1)
+
+
+def _imp_unit(units: List[str]) -> str:
+    """Unità più frequente tra le voci (fallback 'kg')."""
+    from collections import Counter
+    clean = [u.strip() for u in (units or []) if u and u.strip()]
+    if not clean:
+        return "kg"
+    return Counter(clean).most_common(1)[0][0]
+
+
+@router.get("/ricette/import/tracciato")
+def import_tracciato_ricette():
+    """Tracciato JSON di esempio per l'import ricette (scaricabile dalla UI)."""
+    return {
+        "_istruzioni": (
+            "Tracciato per importare ricette in TRGB Gestionale. Compila la lista "
+            "'ricette'. Ogni ricetta ha un 'nome' e una lista 'voci'. Ogni voce è UN "
+            "ingrediente (campo 'ingrediente') OPPURE una sotto-ricetta (campo "
+            "'sotto_ricetta'), mai entrambi. Riferisci ingredienti e sotto-ricette per "
+            "NOME: non servono ID né codici interni, il sistema li abbina in fase di "
+            "importazione. Una sotto-ricetta può essere un'altra ricetta presente in "
+            "questo stesso file. Le chiavi che iniziano con '_' sono solo documentazione "
+            "e possono essere rimosse."
+        ),
+        "_campi_ricetta": {
+            "nome": "obbligatorio — nome della ricetta",
+            "categoria": "facoltativo — una tra: ANTIPASTO, PRIMO, SECONDO, CONTORNO, DOLCE, BASE, SALSA, IMPASTO",
+            "tipo": "facoltativo — 'piatto' (default) o 'base' (sotto-ricetta riusabile)",
+            "resa_quantita": "facoltativo — quanto rende la ricetta (default 1)",
+            "resa_unita": "facoltativo — es. 'porzioni', 'kg', 'L' (default 'porzioni')",
+            "prezzo_vendita": "facoltativo — prezzo di vendita in euro (solo per i piatti)",
+            "tempo_preparazione_min": "facoltativo — minuti di preparazione",
+            "note": "facoltativo",
+            "voci": "obbligatorio — lista degli ingredienti/sotto-ricette",
+        },
+        "_campi_voce": {
+            "ingrediente": "nome dell'ingrediente (alternativo a 'sotto_ricetta')",
+            "sotto_ricetta": "nome di un'altra ricetta usata come componente (alternativo a 'ingrediente')",
+            "quantita": "obbligatorio — quantità usata (numero)",
+            "unita": "obbligatorio — es. 'g', 'kg', 'ml', 'L', 'pz'",
+            "note": "facoltativo",
+        },
+        "ricette": [
+            {
+                "nome": "Risotto allo zafferano",
+                "categoria": "PRIMO",
+                "tipo": "piatto",
+                "resa_quantita": 4,
+                "resa_unita": "porzioni",
+                "prezzo_vendita": 14.0,
+                "tempo_preparazione_min": 25,
+                "note": "Mantecare fuori dal fuoco.",
+                "voci": [
+                    {"ingrediente": "Riso Carnaroli", "quantita": 320, "unita": "g"},
+                    {"ingrediente": "Zafferano in pistilli", "quantita": 0.5, "unita": "g"},
+                    {"ingrediente": "Burro", "quantita": 40, "unita": "g"},
+                    {"ingrediente": "Parmigiano Reggiano", "quantita": 60, "unita": "g"},
+                    {"sotto_ricetta": "Brodo di carne", "quantita": 1, "unita": "L"},
+                ],
+            },
+            {
+                "nome": "Brodo di carne",
+                "categoria": "BASE",
+                "tipo": "base",
+                "resa_quantita": 3,
+                "resa_unita": "L",
+                "note": "Cottura lenta 3 ore.",
+                "voci": [
+                    {"ingrediente": "Ossi di manzo", "quantita": 1, "unita": "kg"},
+                    {"ingrediente": "Carota", "quantita": 200, "unita": "g"},
+                    {"ingrediente": "Sedano", "quantita": 150, "unita": "g"},
+                    {"ingrediente": "Cipolla", "quantita": 150, "unita": "g"},
+                ],
+            },
+        ],
+    }
+
+
+@router.post("/ricette/import/analizza")
+def import_analizza_ricette(payload: ImportPayload):
+    """
+    Analizza un file di import SENZA scrivere nulla.
+
+    Ritorna lo stato di ogni ricetta (validazione) e l'elenco aggregato degli
+    ingredienti e sotto-ricette referenziati, con lo stato di abbinamento
+    (trovato / da confermare / nuovo) per la schermata di conferma.
+    """
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+    try:
+        ing_rows = cur.execute(
+            "SELECT id, name, default_unit FROM ingredients WHERE is_active = 1"
+        ).fetchall()
+        ing_by_key = {r["name"].strip().lower(): r for r in ing_rows}
+
+        rec_rows = cur.execute(
+            "SELECT id, name FROM recipes WHERE is_active = 1"
+        ).fetchall()
+        rec_by_key = {r["name"].strip().lower(): r for r in rec_rows}
+
+        cat_by_key = {
+            r["name"].strip().lower(): r
+            for r in cur.execute("SELECT id, name FROM recipe_categories").fetchall()
+        }
+
+        file_recipe_keys = {
+            (r.nome or "").strip().lower()
+            for r in payload.ricette if (r.nome or "").strip()
+        }
+
+        ricette_out = []
+        ing_acc: Dict[str, dict] = {}
+        sub_acc: Dict[str, dict] = {}
+
+        for idx, r in enumerate(payload.ricette):
+            errori = []
+            nome = (r.nome or "").strip()
+            if not nome:
+                errori.append("Nome ricetta mancante")
+            cat = cat_by_key.get((r.categoria or "").strip().lower()) if r.categoria else None
+            if r.categoria and not cat:
+                errori.append(f"Categoria '{r.categoria}' non riconosciuta — verrà lasciata vuota")
+            if not r.voci:
+                errori.append("Nessuna voce nella ricetta")
+
+            for vi, v in enumerate(r.voci):
+                has_ing = bool((v.ingrediente or "").strip())
+                has_sub = bool((v.sotto_ricetta or "").strip())
+                if has_ing == has_sub:
+                    errori.append(f"Voce {vi+1}: specificare 'ingrediente' OPPURE 'sotto_ricetta'")
+                    continue
+                if v.quantita is None or v.quantita <= 0:
+                    errori.append(f"Voce {vi+1}: quantità mancante o non valida")
+                if not (v.unita or "").strip():
+                    errori.append(f"Voce {vi+1}: unità mancante")
+                if has_ing:
+                    k = v.ingrediente.strip().lower()
+                    a = ing_acc.setdefault(k, {"nome": v.ingrediente.strip(), "occorrenze": 0, "unita_voci": []})
+                    a["occorrenze"] += 1
+                    if (v.unita or "").strip():
+                        a["unita_voci"].append(v.unita.strip())
+                else:
+                    k = v.sotto_ricetta.strip().lower()
+                    a = sub_acc.setdefault(k, {"nome": v.sotto_ricetta.strip(), "occorrenze": 0})
+                    a["occorrenze"] += 1
+
+            nome_esistente = bool(nome) and nome.lower() in rec_by_key
+            if nome_esistente:
+                errori.append("Esiste già una ricetta con questo nome (verrebbe creato un duplicato)")
+
+            ricette_out.append({
+                "indice": idx,
+                "nome": nome,
+                "categoria": r.categoria,
+                "categoria_id": cat["id"] if cat else None,
+                "tipo": (r.tipo or "piatto"),
+                "n_voci": len(r.voci),
+                "nome_esistente": nome_esistente,
+                "errori": errori,
+            })
+
+        ingredienti_out = []
+        for k, a in sorted(ing_acc.items()):
+            ex = ing_by_key.get(k)
+            if ex:
+                ingredienti_out.append({
+                    "nome": a["nome"], "stato": "trovato",
+                    "ingredient_id": ex["id"], "ingredient_nome": ex["name"],
+                    "candidati": [], "occorrenze": a["occorrenze"],
+                    "unita_suggerita": ex["default_unit"] or _imp_unit(a["unita_voci"]),
+                })
+            else:
+                cand = [
+                    {"id": ir["id"], "nome": ir["name"], "score": _imp_score(a["nome"], ir["name"])}
+                    for ir in ing_rows
+                ]
+                cand = sorted((c for c in cand if c["score"] >= 60),
+                              key=lambda c: c["score"], reverse=True)[:5]
+                stato = "da_confermare" if (cand and cand[0]["score"] >= 84) else "nuovo"
+                ingredienti_out.append({
+                    "nome": a["nome"], "stato": stato,
+                    "ingredient_id": None, "ingredient_nome": None,
+                    "candidati": cand, "occorrenze": a["occorrenze"],
+                    "unita_suggerita": _imp_unit(a["unita_voci"]),
+                })
+
+        sub_out = []
+        for k, a in sorted(sub_acc.items()):
+            ex = rec_by_key.get(k)
+            if ex:
+                stato, rid, cand = "trovata", ex["id"], []
+            elif k in file_recipe_keys:
+                stato, rid, cand = "nel_file", None, []
+            else:
+                cand = [
+                    {"id": rr["id"], "nome": rr["name"], "score": _imp_score(a["nome"], rr["name"])}
+                    for rr in rec_rows
+                ]
+                cand = sorted((c for c in cand if c["score"] >= 60),
+                              key=lambda c: c["score"], reverse=True)[:5]
+                stato, rid = "nuova", None
+            sub_out.append({
+                "nome": a["nome"], "stato": stato,
+                "recipe_id": rid, "candidati": cand, "occorrenze": a["occorrenze"],
+            })
+
+        return {
+            "ricette": ricette_out,
+            "ingredienti": ingredienti_out,
+            "sotto_ricette": sub_out,
+            "totali": {
+                "ricette": len(ricette_out),
+                "ricette_con_errori": sum(1 for r in ricette_out if r["errori"]),
+                "ingredienti_totali": len(ingredienti_out),
+                "ingredienti_trovati": sum(1 for i in ingredienti_out if i["stato"] == "trovato"),
+                "ingredienti_da_confermare": sum(1 for i in ingredienti_out if i["stato"] == "da_confermare"),
+                "ingredienti_nuovi": sum(1 for i in ingredienti_out if i["stato"] == "nuovo"),
+                "sotto_ricette_totali": len(sub_out),
+            },
+        }
+    finally:
+        conn.close()
+
+
+@router.post("/ricette/import/conferma")
+def import_conferma_ricette(payload: ImportConfermaPayload):
+    """
+    Esegue l'import: crea gli ingredienti placeholder decisi dall'utente, poi
+    crea le ricette in 2 passate (header + voci) risolvendo le sotto-ricette.
+    """
+    now = datetime.utcnow().isoformat()
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+    warnings: List[str] = []
+    try:
+        ing_resol = {r.nome.strip().lower(): r for r in payload.ingredienti if (r.nome or "").strip()}
+        sub_resol = {r.nome.strip().lower(): r for r in payload.sotto_ricette if (r.nome or "").strip()}
+
+        cat_by_key = {
+            r["name"].strip().lower(): r["id"]
+            for r in cur.execute("SELECT id, name FROM recipe_categories").fetchall()
+        }
+        ing_cat_by_key = {
+            r["name"].strip().lower(): r["id"]
+            for r in cur.execute("SELECT id, name FROM ingredient_categories").fetchall()
+        }
+        existing_rec = {
+            r["name"].strip().lower(): r["id"]
+            for r in cur.execute("SELECT id, name FROM recipes WHERE is_active = 1").fetchall()
+        }
+
+        ing_cols = {row[1] for row in cur.execute("PRAGMA table_info(ingredients)").fetchall()}
+        has_placeholder_col = "placeholder" in ing_cols
+
+        # 1. Risolvi/crea gli ingredienti → nome(lower) -> ingredient_id
+        ing_id_map: Dict[str, int] = {}
+        n_placeholder = 0
+        for k, r in ing_resol.items():
+            if r.azione == "usa" and r.ingredient_id:
+                ing_id_map[k] = r.ingredient_id
+                continue
+            # crea placeholder
+            cat_id = None
+            if r.categoria and r.categoria.strip():
+                ck = r.categoria.strip().lower()
+                cat_id = ing_cat_by_key.get(ck)
+                if not cat_id:
+                    cur.execute("INSERT INTO ingredient_categories (name) VALUES (?)",
+                                (r.categoria.strip().title(),))
+                    cat_id = cur.lastrowid
+                    ing_cat_by_key[ck] = cat_id
+            unita = (r.unita or "kg").strip() or "kg"
+            if has_placeholder_col:
+                cur.execute(
+                    "INSERT INTO ingredients (name, category_id, default_unit, note, "
+                    "is_active, placeholder, created_at) VALUES (?, ?, ?, ?, 1, 1, ?)",
+                    (r.nome.strip(), cat_id, unita,
+                     "Placeholder da import ricette — da completare", now),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO ingredients (name, category_id, default_unit, note, "
+                    "is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+                    (r.nome.strip(), cat_id, unita,
+                     "Placeholder da import ricette — da completare", now),
+                )
+            ing_id_map[k] = cur.lastrowid
+            n_placeholder += 1
+
+        # 2. Pass 1 — crea le ricette (solo header)
+        rec_cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
+        has_menu_cols = "menu_name" in rec_cols and "kind" in rec_cols
+
+        created_recipes: Dict[str, int] = {}
+        recipe_ids_in_order: List[Optional[int]] = []
+        for r in payload.ricette:
+            nome = (r.nome or "").strip()
+            if not nome:
+                warnings.append("Ricetta senza nome — saltata")
+                recipe_ids_in_order.append(None)
+                continue
+            is_base_val = 1 if (r.tipo or "").strip().lower() == "base" else 0
+            kind = "base" if is_base_val else "dish"
+            cat_id = cat_by_key.get((r.categoria or "").strip().lower()) if r.categoria else None
+            if r.categoria and cat_id is None:
+                warnings.append(f"'{nome}': categoria '{r.categoria}' non riconosciuta — lasciata vuota")
+            resa_q = r.resa_quantita if (r.resa_quantita and r.resa_quantita > 0) else 1.0
+            resa_u = (r.resa_unita or "").strip() or ("kg" if is_base_val else "porzioni")
+            if has_menu_cols:
+                cur.execute(
+                    "INSERT INTO recipes (name, category_id, is_base, yield_qty, yield_unit, "
+                    "selling_price, prep_time, note, kind, is_active, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                    (nome, cat_id, is_base_val, resa_q, resa_u, r.prezzo_vendita,
+                     r.tempo_preparazione_min, r.note, kind, now, now),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO recipes (name, category_id, is_base, yield_qty, yield_unit, "
+                    "selling_price, prep_time, note, is_active, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                    (nome, cat_id, is_base_val, resa_q, resa_u, r.prezzo_vendita,
+                     r.tempo_preparazione_min, r.note, now, now),
+                )
+            rid = cur.lastrowid
+            created_recipes[nome.lower()] = rid
+            recipe_ids_in_order.append(rid)
+
+        # 3. Pass 2 — inserisci le voci risolvendo ingredienti e sotto-ricette
+        n_voci = 0
+        n_voci_saltate = 0
+        for r, rid in zip(payload.ricette, recipe_ids_in_order):
+            if rid is None:
+                continue
+            sort_order = 0
+            for v in r.voci:
+                has_ing = bool((v.ingrediente or "").strip())
+                has_sub = bool((v.sotto_ricetta or "").strip())
+                if has_ing == has_sub:
+                    n_voci_saltate += 1
+                    continue
+                if v.quantita is None or v.quantita <= 0 or not (v.unita or "").strip():
+                    n_voci_saltate += 1
+                    warnings.append(f"'{r.nome}': voce con quantità/unità mancante — saltata")
+                    continue
+
+                ingredient_id = None
+                sub_recipe_id = None
+                if has_ing:
+                    ingredient_id = ing_id_map.get(v.ingrediente.strip().lower())
+                    if not ingredient_id:
+                        n_voci_saltate += 1
+                        warnings.append(f"'{r.nome}': ingrediente '{v.ingrediente}' non risolto — voce saltata")
+                        continue
+                else:
+                    sk = v.sotto_ricetta.strip().lower()
+                    res = sub_resol.get(sk)
+                    if res and res.azione == "salta":
+                        n_voci_saltate += 1
+                        continue
+                    if res and res.azione == "usa" and res.recipe_id:
+                        sub_recipe_id = res.recipe_id
+                    elif sk in created_recipes:
+                        sub_recipe_id = created_recipes[sk]
+                    elif sk in existing_rec:
+                        sub_recipe_id = existing_rec[sk]
+                    if not sub_recipe_id:
+                        n_voci_saltate += 1
+                        warnings.append(f"'{r.nome}': sotto-ricetta '{v.sotto_ricetta}' non risolta — voce saltata")
+                        continue
+
+                sort_order += 1
+                cur.execute(
+                    "INSERT INTO recipe_items (recipe_id, ingredient_id, sub_recipe_id, "
+                    "qty, unit, sort_order, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (rid, ingredient_id, sub_recipe_id, v.quantita, v.unita.strip(),
+                     sort_order, v.note, now),
+                )
+                n_voci += 1
+
+        conn.commit()
+
+        # 4. Ricalcolo allergeni (best-effort, dopo il commit dei dati)
+        for rid in recipe_ids_in_order:
+            if rid is None:
+                continue
+            try:
+                update_recipe_allergens_cache(rid, conn=conn)
+            except Exception:
+                pass
+        conn.commit()
+
+        return {
+            "status": "ok",
+            "ricette_create": sum(1 for x in recipe_ids_in_order if x is not None),
+            "ingredienti_placeholder": n_placeholder,
+            "voci_inserite": n_voci,
+            "voci_saltate": n_voci_saltate,
+            "warnings": warnings,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore import: {e}") from e
     finally:
         conn.close()
 
