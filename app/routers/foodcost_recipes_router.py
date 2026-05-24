@@ -943,6 +943,72 @@ def list_ricette(
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: RICETTE CHE USANO UN INGREDIENTE
+#   GET /foodcost/ricette/per-ingrediente/{ingredient_id}
+#   Usato dalla scheda ingrediente (tab "Ricette").
+#   NB: path a 2 segmenti dopo /ricette → non confligge con /ricette/{recipe_id}.
+# ─────────────────────────────────────────────
+
+class RicettaPerIngredienteOut(BaseModel):
+    recipe_id: int
+    recipe_name: str
+    kind: Optional[str] = None
+    is_active: int = 1
+    qty: float
+    unit: str
+    line_cost: Optional[float] = None          # costo della riga (€)
+    recipe_total_cost: Optional[float] = None  # costo totale ricetta (€)
+    incidenza_pct: Optional[float] = None      # quanto incide la riga sul costo ricetta
+
+
+@router.get("/ricette/per-ingrediente/{ingredient_id}",
+            response_model=List[RicettaPerIngredienteOut])
+def ricette_per_ingrediente(ingredient_id: int):
+    """
+    Elenca le ricette che usano un dato ingrediente, con quantità impiegata,
+    costo della riga e incidenza % sul food cost della ricetta.
+    """
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+    try:
+        rows = cur.execute(
+            """
+            SELECT ri.recipe_id, ri.qty, ri.unit,
+                   r.name AS recipe_name, r.kind, r.is_active
+            FROM recipe_items ri
+            JOIN recipes r ON r.id = ri.recipe_id
+            WHERE ri.ingredient_id = ?
+            ORDER BY r.name COLLATE NOCASE
+            """,
+            (ingredient_id,),
+        ).fetchall()
+
+        out = []
+        for row in rows:
+            item = {"ingredient_id": ingredient_id, "sub_recipe_id": None,
+                    "qty": row["qty"], "unit": row["unit"]}
+            line_cost = _calc_item_cost(cur, item, set())
+            total = _calc_recipe_cost(cur, row["recipe_id"])
+            pct = None
+            if line_cost is not None and total and total > 0:
+                pct = round(line_cost / total * 100, 1)
+            out.append(RicettaPerIngredienteOut(
+                recipe_id=row["recipe_id"],
+                recipe_name=row["recipe_name"],
+                kind=row["kind"],
+                is_active=row["is_active"] if row["is_active"] is not None else 1,
+                qty=row["qty"],
+                unit=row["unit"],
+                line_cost=round(line_cost, 4) if line_cost is not None else None,
+                recipe_total_cost=round(total, 4) if total is not None else None,
+                incidenza_pct=pct,
+            ))
+        return out
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: DETTAGLIO RICETTA
 # ─────────────────────────────────────────────
 

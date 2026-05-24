@@ -3,6 +3,24 @@
 
 ---
 
+## 2026-05-24 — Ricette 3.30: scheda ingrediente ridisegnata a tab `[core]`
+
+La pagina di dettaglio ingrediente (`RicetteIngredientiPrezzi.jsx`) è stata ricomposta in stile TRGB sul modello della scheda vino: **testa fissa** (badge categoria/stato, nome, 4 KPI) + **tab bar a 5 linguette** (Prezzi · Collegamenti · Conversioni · Ricette · Anagrafica). Prima era una pagina a scorrimento unico con stile fuori sistema.
+
+### Aggiunto
+- Endpoint `GET /foodcost/ricette/per-ingrediente/{ingredient_id}` (`foodcost_recipes_router.py`): elenca le ricette che usano un ingrediente, con quantità impiegata, costo della riga e **incidenza %** sul food cost della ricetta (riusa `_calc_item_cost` / `_calc_recipe_cost`). Path a 2 segmenti → nessun conflitto con `/ricette/{recipe_id}`.
+- Tab **Prezzi**: grafico Recharts dell'andamento prezzo (media mensile per fornitore) + storico prezzi + form "aggiungi prezzo" a comparsa.
+- Tab **Ricette**: nuova vista — dove è usato l'ingrediente, con incidenza % colorata per soglia (verde <10%, ambra <20%, rosso oltre); riga cliccabile → scheda ricetta.
+- Testa con 4 KPI: prezzo attuale, medio storico, oscillazione min–max, collegamenti (o "da correggere" se ci sono conversioni sospette).
+
+### Modificato
+- Collegamenti fattura ora **raggruppati per fornitore**; le righe con conversione sospetta restano evidenziate in ambra con "Correggi" inline.
+- Tab **Anagrafica** con vista dati + form di modifica completo (nome, categoria, unità base, allergeni, codice interno, note); per i placeholder il pulsante diventa "Completa ingrediente".
+- Tinta della testa derivata dalla categoria (ortaggi→verde, carne→rosso, pesce→blu, latticini→ambra, default arancio).
+- `versions.jsx`: modulo ricette `3.29 → 3.30`.
+
+---
+
 ## 2026-05-21 — Vini 3.60: permessi catalogo aperti al sommelier `[core]`
 
 Marco, loggato come **sommelier**, non riusciva a modificare un vino madre (403 "riservata agli admin"). Il modulo Vini gatava tutta la scrittura del catalogo ai soli admin, mentre la doc `modulo_vini.md §11` prevedeva già il sommelier: drift doc/codice. Ora codice e doc sono allineati.

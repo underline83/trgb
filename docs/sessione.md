@@ -1,6 +1,24 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-21 — **Vini 3.60: permessi catalogo aperti al sommelier** (`[core]`). Marco da utente sommelier non riusciva a modificare un vino madre (403 admin-only). Nuovo helper `is_vini_manager(role)` (admin/superadmin/sommelier); 17 endpoint anagrafiche + create/patch/duplica/delete bottiglia passano da admin-only a vini_manager; `sala`/`viewer` in sola lettura. Merge/migrate/sync restano admin-only. Frontend SchedaVino/SubMenu/Dashboard nascondono i bottoni di modifica ai non-manager. Da pushare.
+**Ultimo aggiornamento:** 2026-05-24 — **Ricette 3.30: scheda ingrediente ridisegnata a tab** (`[core]`). La pagina dettaglio ingrediente è ora in stile TRGB (testa + 4 KPI + 5 tab: Prezzi/Collegamenti/Conversioni/Ricette/Anagrafica) sul modello della scheda vino. Nuovo endpoint `GET /foodcost/ricette/per-ingrediente/{id}` (ricette che usano l'ingrediente + incidenza % food cost). Tab Prezzi con grafico andamento per fornitore. Da pushare insieme al batch precedente non ancora caricato (correggi-conversione, filtri lista ingredienti, consolidamento Menu).
+
+## SESSIONE 2026-05-24 — Ricette 3.30: scheda ingrediente ridisegnata a tab
+
+### Sintesi
+Marco vuole iniziare a usare davvero il modulo Ricette/Food Cost. Dopo aver migliorato matching e lista ingredienti nelle sessioni precedenti, la pagina di **dettaglio ingrediente** era ancora una pagina a scorrimento unico, fuori dallo stile del sistema. Dopo un giro di mockup approvati da Marco, la pagina è stata ricomposta in stile TRGB sul modello della scheda vino.
+
+### Implementazione
+- **Backend** — `foodcost_recipes_router.py`: nuovo endpoint `GET /foodcost/ricette/per-ingrediente/{ingredient_id}` → elenca le ricette che usano un ingrediente con qty impiegata, costo riga e incidenza % sul food cost (riusa `_calc_item_cost`/`_calc_recipe_cost`). Modello `RicettaPerIngredienteOut`. Registrato prima di `/ricette/{recipe_id}` (comunque path a 2 segmenti, nessun conflitto).
+- **Frontend** — `RicetteIngredientiPrezzi.jsx` riscritto (v4.0): testa con badge categoria/stato + nome + 4 KPI, tab bar a 5 linguette (`border-b-2 border-brand-red` sull'attiva, come la scheda vino).
+  - **Prezzi**: grafico Recharts andamento prezzo (media mensile per fornitore), storico, form "aggiungi prezzo" a comparsa.
+  - **Collegamenti**: collegamenti fattura raggruppati per fornitore; sospetti in ambra con "Correggi" inline; ricerca/collega righe.
+  - **Conversioni**: come prima, ora in tab dedicata.
+  - **Ricette**: nuova — incidenza % colorata per soglia, riga → scheda ricetta.
+  - **Anagrafica**: vista dati + form di modifica completo; per i placeholder "Completa ingrediente".
+- `versions.jsx`: ricette `3.29 → 3.30`.
+
+### Note / aperto
+- Marco ha segnalato che la correzione di conversione **"non ricalcola"**: il prezzo medio resta sballato anche dopo "Correggi". Probabile causa: il medio è inquinato dai collegamenti PZ ancora senza conversione (correggerne uno non basta) — o bug in `correggi-conversione`. Da investigare in una sessione dedicata.
 
 ## SESSIONE 2026-05-21 — Vini 3.60: permessi catalogo aperti al sommelier
 
