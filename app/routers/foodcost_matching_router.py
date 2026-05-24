@@ -655,6 +655,43 @@ def collega_multiplo(
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: FATTORE DI CONVERSIONE SUGGERITO
+# ─────────────────────────────────────────────
+
+@router.get("/fattore")
+def fattore_riga(riga_id: int, ingredient_id: int):
+    """
+    Ritorna il fattore di conversione suggerito per collegare una riga fattura
+    (rappresentativa di un articolo) a un ingrediente. `safe=False` significa
+    che il fattore non è determinabile in automatico (es. PZ verso grammi):
+    in quel caso l'utente lo deve impostare a mano.
+    """
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+    try:
+        riga = cur.execute(
+            "SELECT descrizione, unita_misura FROM fe_righe WHERE id = ?", (riga_id,)
+        ).fetchone()
+        ing = cur.execute(
+            "SELECT default_unit FROM ingredients WHERE id = ?", (ingredient_id,)
+        ).fetchone()
+        if not riga or not ing:
+            raise HTTPException(status_code=404, detail="Riga o ingrediente non trovato")
+        g = _guess_conversion_factor(
+            riga["descrizione"], riga["unita_misura"], ing["default_unit"]
+        )
+        return {
+            "factor": g["factor"],
+            "detail": g["detail"],
+            "safe": g["safe"],
+            "unita_fattura": (riga["unita_misura"] or "conf."),
+            "default_unit": ing["default_unit"],
+        }
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: AUTO-MATCH
 # ─────────────────────────────────────────────
 

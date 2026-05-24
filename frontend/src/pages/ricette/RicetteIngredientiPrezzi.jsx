@@ -20,6 +20,23 @@ function fmtPrezzo(v) {
   return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: dec });
 }
 
+// Famiglia dell'unità — per segnalare collegamenti con conversione incerta.
+function unitFamily(u) {
+  const s = (u || "").trim().toLowerCase();
+  if (!s) return null;
+  if (/^(kg|kgm|g|gr|grm|grammi|mg|chilo|kilo)$/.test(s)) return "peso";
+  if (/^(l|lt|ltr|litri|litro|ml|mlt|cl)$/.test(s)) return "volume";
+  if (/^(pz|pezzi|pezzo|nr)$/.test(s)) return "pz";
+  return null; // confezioni / unità non classificabili
+}
+// true se il collegamento usa un'unità che non si converte da sola nell'unità base
+function collegamentoSospetto(unitaFornitore, baseUnit) {
+  const fa = unitFamily(unitaFornitore);
+  const fb = unitFamily(baseUnit);
+  if (!fa || !fb) return false;
+  return fa !== fb;
+}
+
 // Raggruppa le righe fattura per ARTICOLO: solo righe IDENTICHE (stesso
 // fornitore + stessa descrizione esatta) finiscono nello stesso gruppo.
 function groupArticoli(rows) {
@@ -69,6 +86,7 @@ export default function RicetteIngredientiPrezzi() {
   const [searching, setSearching] = useState(false);
   const [searchDone, setSearchDone] = useState(false);
   const [selArt, setSelArt] = useState({}); // articoli selezionati (key -> bool)
+  const [collegaReview, setCollegaReview] = useState(null); // step revisione conversione
   const searchInit = useRef(false);
 
   // form "completa placeholder"
@@ -156,37 +174,68 @@ export default function RicetteIngredientiPrezzi() {
     }
   };
 
-  // Collega gli articoli selezionati a QUESTO ingrediente (aggiunge match,
-  // non sostituisce — un ingrediente può avere più collegamenti)
+  // Step 1: dagli articoli selezionati prepara la revisione conversione
+  // (recupera il fattore consigliato per ognuno)
   const handleCollegaSelezionati = async (articoli) => {
-    const rigaIds = articoli
-      .filter((a) => selArt[a.key])
-      .flatMap((a) => a.rigaIds);
-    if (rigaIds.length === 0) {
+    const sel = articoli.filter((a) => selArt[a.key]);
+    if (sel.length === 0) {
       setError("Spunta almeno un articolo da collegare.");
       return;
     }
+    setError("");
+    const review = [];
+    for (const a of sel) {
+      let g = { factor: 1, detail: "", safe: false };
+      try {
+        const r = await apiFetch(
+          `${MATCH}/fattore?riga_id=${a.righe[0].riga_id}&ingredient_id=${id}`
+        );
+        if (r.ok) g = await r.json();
+      } catch { /* fallback: factor 1 */ }
+      review.push({
+        art: a,
+        unita: g.unita_fattura || a.unita || "conf.",
+        factor: String(g.factor ?? 1),
+        detail: g.detail || "",
+        safe: g.safe !== false,
+      });
+    }
+    setCollegaReview(review);
+  };
+
+  // Step 2: conferma — collega ogni articolo col suo fattore di conversione
+  const handleConfermaCollega = async () => {
+    if (!collegaReview) return;
+    for (const it of collegaReview) {
+      const f = parseFloat(String(it.factor).replace(",", "."));
+      if (!f || f <= 0) {
+        setError(`Imposta un fattore valido per "${it.art.descrizione}".`);
+        return;
+      }
+    }
     setError(""); setMsg("");
     try {
-      const r = await apiFetch(`${MATCH}/collega-multiplo`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredient_id: Number(id), riga_ids: rigaIds }),
-      });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      let range = "";
-      if (data.prezzo_min != null) {
-        range = data.prezzo_min === data.prezzo_max
-          ? `${fmtPrezzo(data.prezzo_min)} €/${data.default_unit}`
-          : `${fmtPrezzo(data.prezzo_min)}–${fmtPrezzo(data.prezzo_max)} €/${data.default_unit}`;
+      let totRighe = 0;
+      for (const it of collegaReview) {
+        const f = parseFloat(String(it.factor).replace(",", "."));
+        const r = await apiFetch(`${MATCH}/collega-multiplo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ingredient_id: Number(id),
+            riga_ids: it.art.rigaIds,
+            fattore_conversione: f,
+          }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        totRighe += data.righe_collegate || 0;
       }
-      setMsg(
-        `${data.righe_collegate} righe fattura collegate${range ? ` · ${range}` : ""}.`
-      );
+      setMsg(`${totRighe} righe fattura collegate.`);
+      setCollegaReview(null);
       setSelArt({});
       await refreshPrezziMappings();
-      await doSearch(searchQ); // gli articoli collegati spariscono dai risultati
+      await doSearch(searchQ);
     } catch (e) {
       setError(`Errore collegamento: ${e.message}`);
     }
@@ -514,20 +563,85 @@ export default function RicetteIngredientiPrezzi() {
 
           {mappings.length > 0 && (
             <div className="space-y-2 mb-4">
-              {mappings.map((m) => (
-                <div key={m.id} className="flex items-center justify-between gap-3 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                  <div className="min-w-0">
-                    <span className="text-sm font-medium text-neutral-900">{m.fornitore_nome || "—"}</span>
-                    <span className="text-xs text-neutral-500 ml-2">{m.descrizione_fornitore}</span>
+              {mappings.map((m) => {
+                const sospetto = collegamentoSospetto(m.unita_fornitore, ing && ing.default_unit);
+                return (
+                  <div
+                    key={m.id}
+                    className={`flex items-center justify-between gap-3 border rounded-xl px-3 py-2 ${
+                      sospetto ? "bg-amber-50 border-amber-300" : "bg-green-50 border-green-200"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div>
+                        <span className="text-sm font-medium text-neutral-900">{m.fornitore_nome || "—"}</span>
+                        <span className="text-xs text-neutral-500 ml-2">{m.descrizione_fornitore}</span>
+                      </div>
+                      {sospetto && (
+                        <div className="text-[11px] text-amber-700 mt-0.5">
+                          ⚠ unità "{m.unita_fornitore}" diversa da "{ing && ing.default_unit}" —
+                          verifica la conversione (scollega e ricollega impostando il fattore)
+                        </div>
+                      )}
+                    </div>
+                    <Btn variant="chip" tone="red" size="sm" onClick={() => handleScollega(m.id)}>
+                      Scollega
+                    </Btn>
                   </div>
-                  <Btn variant="chip" tone="red" size="sm" onClick={() => handleScollega(m.id)}>
-                    Scollega
-                  </Btn>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
+          {collegaReview ? (
+            /* ─── Step revisione conversione ─── */
+            <div>
+              <p className="text-sm text-neutral-700 mb-3">
+                Conferma la conversione per ogni articolo — quante <strong>{ing && ing.default_unit}</strong>
+                {" "}in 1 unità di fattura:
+              </p>
+              <div className="space-y-2 mb-3">
+                {collegaReview.map((it, idx) => (
+                  <div
+                    key={it.art.key}
+                    className={`border rounded-lg px-3 py-2 ${
+                      it.safe ? "bg-neutral-50 border-neutral-200" : "bg-amber-50 border-amber-300"
+                    }`}
+                  >
+                    <div className="text-sm font-medium text-neutral-900">{it.art.descrizione}</div>
+                    <div className="text-xs text-neutral-500 mb-2">
+                      {it.art.fornitore || "—"} · {it.art.n} {it.art.n === 1 ? "riga" : "righe"}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span>1</span>
+                      <span className="font-medium">{it.unita}</span>
+                      <span>=</span>
+                      <input
+                        type="number" step="any" min="0" value={it.factor}
+                        onChange={(e) => setCollegaReview((r) =>
+                          r.map((x, i) => (i === idx ? { ...x, factor: e.target.value } : x)))}
+                        className="w-24 border border-neutral-300 rounded-lg px-2 py-1 text-sm"
+                      />
+                      <span className="font-medium">{ing && ing.default_unit}</span>
+                    </div>
+                    <div className={`text-xs mt-1 ${it.safe ? "text-neutral-500" : "text-amber-700"}`}>
+                      {it.safe ? "Stima: " : "⚠ "}
+                      {it.detail || "unità non convertibile da sola — imposta tu il fattore"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Btn variant="success" size="md" onClick={handleConfermaCollega}>
+                  Conferma collegamento
+                </Btn>
+                <Btn variant="ghost" size="md" onClick={() => setCollegaReview(null)}>
+                  Annulla
+                </Btn>
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="flex gap-2 mb-3">
             <input
               type="text"
@@ -593,6 +707,8 @@ export default function RicetteIngredientiPrezzi() {
                 Collega selezionati{selCount > 0 ? ` (${selCount})` : ""}
               </Btn>
             </>
+          )}
+          </>
           )}
         </div>
 
