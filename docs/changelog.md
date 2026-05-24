@@ -17,6 +17,8 @@ La pagina di dettaglio ingrediente (`RicetteIngredientiPrezzi.jsx`) è stata ric
 - Collegamenti fattura ora **raggruppati per fornitore**; le righe con conversione sospetta restano evidenziate in ambra con "Correggi" inline.
 - Tab **Anagrafica** con vista dati + form di modifica completo (nome, categoria, unità base, allergeni, codice interno, note); per i placeholder il pulsante diventa "Completa ingrediente".
 - Tinta della testa derivata dalla categoria (ortaggi→verde, carne→rosso, pesce→blu, latticini→ambra, default arancio).
+- **Flag conversione sospetta** ora considera il fattore: dopo «Correggi» (fattore ≠ 1) il collegamento — e l'ingrediente nella lista — torna verde. Prima restava giallo anche dopo aver impostato la conversione, dando l'impressione che la correzione non funzionasse. Fix sia frontend (`collegamentoSospetto`) sia backend (`list_ingredients` in `foodcost_ingredients_router.py`). Il messaggio post-correzione mostra anche il nuovo prezzo calcolato.
+- **Lista ingredienti** (`RicetteIngredienti.jsx` v3.0) riallineata al sistema: testa arancio coerente con la scheda, 4 card KPI (totale / da completare / senza prezzo / conversione da verificare) cliccabili come filtro rapido, toolbar con ricerca estesa (nome, categoria, fornitore), ordinamento anche per categoria, «azzera filtri».
 - `versions.jsx`: modulo ricette `3.29 → 3.30`.
 
 ---

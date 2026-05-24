@@ -55,11 +55,17 @@ function unitFamily(u) {
   if (/^(pz|pezzi|pezzo|nr)$/.test(s)) return "pz";
   return null;
 }
-function collegamentoSospetto(unitaFornitore, baseUnit) {
+// Un collegamento è "sospetto" quando l'unità di fattura è di una famiglia
+// diversa dall'unità base (es. PZ vs g) E NON è ancora stato impostato un
+// fattore di conversione reale. Appena l'utente corregge la conversione
+// (fattore ≠ 1) il collegamento smette di essere sospetto.
+function collegamentoSospetto(unitaFornitore, baseUnit, fattore) {
   const fa = unitFamily(unitaFornitore);
   const fb = unitFamily(baseUnit);
   if (!fa || !fb) return false;
-  return fa !== fb;
+  if (fa === fb) return false;
+  const f = Number(fattore);
+  return !(f && f !== 1);
 }
 
 // Raggruppa le righe fattura per ARTICOLO: solo righe IDENTICHE (stesso
@@ -301,7 +307,13 @@ export default function RicetteIngredientiPrezzi() {
       });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
-      setMsg(`Conversione corretta — ${data.prezzi_aggiornati} prezzi ricalcolati.`);
+      const pm = data.prezzo_min, pM = data.prezzo_max;
+      const det = pm != null
+        ? (pm === pM
+            ? ` Nuovo prezzo: ${fmtPrezzo(pm)} €/${baseUnit}.`
+            : ` Nuovi prezzi: ${fmtPrezzo(pm)}–${fmtPrezzo(pM)} €/${baseUnit}.`)
+        : "";
+      setMsg(`Conversione corretta — ${data.prezzi_aggiornati} prezzi ricalcolati.${det}`);
       setCorreggiDraft(null);
       await refreshPrezziMappings();
     } catch (e) {
@@ -455,7 +467,7 @@ export default function RicetteIngredientiPrezzi() {
   const mediaPrezzo = prezziVal.length ? prezziVal.reduce((s, v) => s + v, 0) / prezziVal.length : null;
   const pMin = prezziVal.length ? Math.min(...prezziVal) : null;
   const pMax = prezziVal.length ? Math.max(...prezziVal) : null;
-  const sospettiCount = mappings.filter((m) => collegamentoSospetto(m.unita_fornitore, baseUnit)).length;
+  const sospettiCount = mappings.filter((m) => collegamentoSospetto(m.unita_fornitore, baseUnit, m.fattore_conversione)).length;
   const isPlaceholder = !!(ing && ing.placeholder);
   const isAttivo = !ing || ing.is_active !== 0;
   const articoli = groupArticoli(searchResults);
@@ -802,7 +814,7 @@ export default function RicetteIngredientiPrezzi() {
                       </div>
                       <div className="space-y-2">
                         {righe.map((m) => {
-                          const sospetto = collegamentoSospetto(m.unita_fornitore, baseUnit);
+                          const sospetto = collegamentoSospetto(m.unita_fornitore, baseUnit, m.fattore_conversione);
                           const inCorrezione = correggiDraft && correggiDraft.mapping_id === m.id;
                           return (
                             <div

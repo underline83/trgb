@@ -359,12 +359,16 @@ def list_ingredients(inattivi: int = 0):
 
     # Flag "conversione da verificare": ingredienti che hanno almeno un
     # collegamento fattura con unità di famiglia diversa dall'unità base
-    # (es. un mapping in PZ su un ingrediente in grammi).
+    # (es. un mapping in PZ su un ingrediente in grammi) E senza un fattore
+    # di conversione reale impostato. Appena l'utente corregge la conversione
+    # (fattore != 1) il collegamento non è più sospetto.
     maps_by_ing = {}
     for m in cur.execute(
-        "SELECT ingredient_id, unita_fornitore FROM ingredient_supplier_map"
+        "SELECT ingredient_id, unita_fornitore, fattore_conversione FROM ingredient_supplier_map"
     ).fetchall():
-        maps_by_ing.setdefault(m["ingredient_id"], []).append(m["unita_fornitore"])
+        maps_by_ing.setdefault(m["ingredient_id"], []).append(
+            (m["unita_fornitore"], m["fattore_conversione"])
+        )
     conn.close()
 
     sospetti = set()
@@ -372,9 +376,9 @@ def list_ingredients(inattivi: int = 0):
         fam_base = _unit_family(row["default_unit"])
         if not fam_base:
             continue
-        for u in maps_by_ing.get(row["id"], []):
+        for u, fattore in maps_by_ing.get(row["id"], []):
             fu = _unit_family(u)
-            if fu and fu != fam_base:
+            if fu and fu != fam_base and not (fattore and fattore != 1):
                 sospetti.add(row["id"])
                 break
 
