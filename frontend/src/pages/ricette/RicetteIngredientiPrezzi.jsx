@@ -87,6 +87,7 @@ export default function RicetteIngredientiPrezzi() {
   const [searchDone, setSearchDone] = useState(false);
   const [selArt, setSelArt] = useState({}); // articoli selezionati (key -> bool)
   const [collegaReview, setCollegaReview] = useState(null); // step revisione conversione
+  const [correggiDraft, setCorreggiDraft] = useState(null); // correzione conversione di un collegamento
   const searchInit = useRef(false);
 
   // form "completa placeholder"
@@ -248,6 +249,34 @@ export default function RicetteIngredientiPrezzi() {
     try {
       const r = await apiFetch(`${MATCH}/mappings/${mappingId}`, { method: "DELETE" });
       if (!r.ok) throw new Error(await r.text());
+      await refreshPrezziMappings();
+    } catch (e) {
+      setError(`Errore: ${e.message}`);
+    }
+  };
+
+  // Corregge la conversione di un collegamento → ricalcola i prezzi salvati
+  const handleCorreggi = async () => {
+    if (!correggiDraft) return;
+    const f = parseFloat(String(correggiDraft.factor).replace(",", "."));
+    if (!f || f <= 0) {
+      setError("Il fattore di conversione deve essere maggiore di zero.");
+      return;
+    }
+    setError(""); setMsg("");
+    try {
+      const r = await apiFetch(`${MATCH}/correggi-conversione`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mapping_id: correggiDraft.mapping_id,
+          fattore_conversione: f,
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      setMsg(`Conversione corretta — ${data.prezzi_aggiornati} prezzi ricalcolati.`);
+      setCorreggiDraft(null);
       await refreshPrezziMappings();
     } catch (e) {
       setError(`Errore: ${e.message}`);
@@ -565,28 +594,70 @@ export default function RicetteIngredientiPrezzi() {
             <div className="space-y-2 mb-4">
               {mappings.map((m) => {
                 const sospetto = collegamentoSospetto(m.unita_fornitore, ing && ing.default_unit);
+                const inCorrezione = correggiDraft && correggiDraft.mapping_id === m.id;
                 return (
                   <div
                     key={m.id}
-                    className={`flex items-center justify-between gap-3 border rounded-xl px-3 py-2 ${
+                    className={`border rounded-xl px-3 py-2 ${
                       sospetto ? "bg-amber-50 border-amber-300" : "bg-green-50 border-green-200"
                     }`}
                   >
-                    <div className="min-w-0">
-                      <div>
-                        <span className="text-sm font-medium text-neutral-900">{m.fornitore_nome || "—"}</span>
-                        <span className="text-xs text-neutral-500 ml-2">{m.descrizione_fornitore}</span>
-                      </div>
-                      {sospetto && (
-                        <div className="text-[11px] text-amber-700 mt-0.5">
-                          ⚠ unità "{m.unita_fornitore}" diversa da "{ing && ing.default_unit}" —
-                          verifica la conversione (scollega e ricollega impostando il fattore)
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div>
+                          <span className="text-sm font-medium text-neutral-900">{m.fornitore_nome || "—"}</span>
+                          <span className="text-xs text-neutral-500 ml-2">{m.descrizione_fornitore}</span>
                         </div>
-                      )}
+                        {sospetto && !inCorrezione && (
+                          <div className="text-[11px] text-amber-700 mt-0.5">
+                            ⚠ unità "{m.unita_fornitore}" diversa da "{ing && ing.default_unit}" —
+                            correggi la conversione per sistemare i prezzi
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        {sospetto && !inCorrezione && (
+                          <Btn variant="chip" tone="amber" size="sm" onClick={() => setCorreggiDraft({
+                            mapping_id: m.id,
+                            unita: m.unita_fornitore || "conf.",
+                            factor: String(m.fattore_conversione || 1),
+                          })}>
+                            Correggi
+                          </Btn>
+                        )}
+                        <Btn variant="chip" tone="red" size="sm" onClick={() => handleScollega(m.id)}>
+                          Scollega
+                        </Btn>
+                      </div>
                     </div>
-                    <Btn variant="chip" tone="red" size="sm" onClick={() => handleScollega(m.id)}>
-                      Scollega
-                    </Btn>
+
+                    {inCorrezione && (
+                      <div className="mt-2 pt-2 border-t border-amber-200 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-700">
+                          <span>1</span>
+                          <span className="font-medium">{correggiDraft.unita}</span>
+                          <span>=</span>
+                          <input
+                            type="number" step="any" min="0" value={correggiDraft.factor}
+                            onChange={(e) => setCorreggiDraft((d) => ({ ...d, factor: e.target.value }))}
+                            className="w-24 border border-amber-300 rounded-lg px-2 py-1 text-sm"
+                          />
+                          <span className="font-medium">{ing && ing.default_unit}</span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500">
+                          I prezzi già registrati di questo collegamento verranno ricalcolati
+                          dal prezzo originale di fattura.
+                        </p>
+                        <div className="flex gap-2">
+                          <Btn variant="success" size="sm" onClick={handleCorreggi}>
+                            Salva e ricalcola
+                          </Btn>
+                          <Btn variant="ghost" size="sm" onClick={() => setCorreggiDraft(null)}>
+                            Annulla
+                          </Btn>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

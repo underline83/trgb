@@ -692,6 +692,84 @@ def fattore_riga(riga_id: int, ingredient_id: int):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: CORREGGI LA CONVERSIONE DI UN COLLEGAMENTO
+# ─────────────────────────────────────────────
+
+class CorreggiConversioneRequest(BaseModel):
+    mapping_id: int
+    fattore_conversione: float = Field(..., gt=0)
+
+
+@router.post("/correggi-conversione")
+def correggi_conversione(payload: CorreggiConversioneRequest):
+    """
+    Ricalcola i prezzi già salvati di un collegamento usando un nuovo fattore
+    di conversione. Riparte dal prezzo originale di fattura
+    (`ingredient_prices.original_price`), quindi non serve scollegare e
+    ricollegare: imposti il fattore giusto e i prezzi storici si correggono.
+    """
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+    try:
+        m = cur.execute(
+            """
+            SELECT id, ingredient_id, supplier_id, descrizione_fornitore
+            FROM ingredient_supplier_map WHERE id = ?
+            """,
+            (payload.mapping_id,),
+        ).fetchone()
+        if not m:
+            raise HTTPException(status_code=404, detail="Collegamento non trovato")
+
+        # Prezzi di questo collegamento (stesso ingrediente + fornitore, riga
+        # con la stessa descrizione del mapping)
+        rows = cur.execute(
+            """
+            SELECT ip.id, ip.original_price
+            FROM ingredient_prices ip
+            JOIN fe_righe r ON r.id = ip.riga_fattura_id
+            WHERE ip.ingredient_id = ? AND ip.supplier_id = ?
+              AND UPPER(TRIM(r.descrizione)) = UPPER(TRIM(?))
+            """,
+            (m["ingredient_id"], m["supplier_id"], m["descrizione_fornitore"]),
+        ).fetchall()
+
+        aggiornati = 0
+        prezzi = []
+        for row in rows:
+            op = row["original_price"]
+            if op is None or op <= 0:
+                continue
+            up = round(op / payload.fattore_conversione, 6)
+            cur.execute(
+                "UPDATE ingredient_prices SET unit_price = ? WHERE id = ?",
+                (up, row["id"]),
+            )
+            prezzi.append(up)
+            aggiornati += 1
+
+        cur.execute(
+            "UPDATE ingredient_supplier_map SET fattore_conversione = ? WHERE id = ?",
+            (payload.fattore_conversione, payload.mapping_id),
+        )
+        conn.commit()
+        return {
+            "status": "ok",
+            "prezzi_aggiornati": aggiornati,
+            "prezzo_min": round(min(prezzi), 4) if prezzi else None,
+            "prezzo_max": round(max(prezzi), 4) if prezzi else None,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore correzione: {e}") from e
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: AUTO-MATCH
 # ─────────────────────────────────────────────
 
