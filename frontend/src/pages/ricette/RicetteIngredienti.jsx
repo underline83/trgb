@@ -232,35 +232,6 @@ export default function RicetteIngredienti() {
           </div>
         </div>
 
-        {/* ═══════════ CHIP CATEGORIE (sopra) ═══════════ */}
-        <div className="px-5 sm:px-7 py-3 border-b border-neutral-100 bg-white">
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => setCatFilter("")}
-              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition ${
-                !catFilter
-                  ? "bg-orange-600 text-white border-orange-600"
-                  : "bg-white text-neutral-600 border-neutral-300 hover:bg-orange-50"
-              }`}
-            >
-              Tutte <span className="opacity-70">{items.length}</span>
-            </button>
-            {catChips.map(([cat, n]) => (
-              <button
-                key={cat}
-                onClick={() => setCatFilter((c) => (c === cat ? "" : cat))}
-                className={`text-xs font-medium px-2.5 py-1 rounded-full border transition ${
-                  catFilter === cat
-                    ? "bg-orange-600 text-white border-orange-600"
-                    : "bg-white text-neutral-600 border-neutral-300 hover:bg-orange-50"
-                }`}
-              >
-                {cat} <span className="opacity-70">{n}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* ═══════════ SIDEBAR + CONTENUTO ═══════════ */}
         <div className="flex flex-col md:flex-row">
 
@@ -284,15 +255,30 @@ export default function RicetteIngredienti() {
             />
 
             <div className="mb-4">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Unità base</div>
-              <select
-                value={unitFilter}
-                onChange={(e) => setUnitFilter(e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-              >
-                <option value="">Tutte le unità</option>
-                {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
-              </select>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Categorie</div>
+              <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                <button
+                  onClick={() => setCatFilter("")}
+                  className={`w-full flex items-center justify-between text-sm px-2 py-1 rounded-lg transition ${
+                    !catFilter ? "bg-orange-600 text-white" : "text-neutral-700 hover:bg-orange-50"
+                  }`}
+                >
+                  <span>Tutte</span>
+                  <span className={!catFilter ? "opacity-80" : "text-neutral-400"}>{items.length}</span>
+                </button>
+                {catChips.map(([cat, n]) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCatFilter((c) => (c === cat ? "" : cat))}
+                    className={`w-full flex items-center justify-between gap-2 text-sm px-2 py-1 rounded-lg transition ${
+                      catFilter === cat ? "bg-orange-600 text-white" : "text-neutral-700 hover:bg-orange-50"
+                    }`}
+                  >
+                    <span className="truncate text-left">{cat}</span>
+                    <span className={catFilter === cat ? "opacity-80" : "text-neutral-400"}>{n}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="mb-4">
@@ -309,6 +295,18 @@ export default function RicetteIngredienti() {
                 label="Conversione da verificare" count={nSospetti} tone="rose"
                 checked={fSospetti} onChange={() => setFSospetti((v) => !v)}
               />
+            </div>
+
+            <div className="mb-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Unità base</div>
+              <select
+                value={unitFilter}
+                onChange={(e) => setUnitFilter(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+              >
+                <option value="">Tutte le unità</option>
+                {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
             </div>
 
             <div>
