@@ -1,10 +1,11 @@
-// @version: v3.0 — lista ingredienti in stile TRGB: testa + KPI-filtro + toolbar + lista.
-// Modulo: ricette
+// @version: v4.0 — lista ingredienti stile Cantina: chip categorie sopra,
+// sidebar filtri a sinistra, tabella ordinabile. Modulo: ricette
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import { Btn } from "../../components/ui";
+import useSortableTable from "../../hooks/useSortableTable";
 
 const FC = `${API_BASE}/foodcost`;
 const ING = `${FC}/ingredients`;
@@ -17,24 +18,18 @@ function fmtPrice(v) {
   return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: dec });
 }
 
-// Card KPI cliccabile che fa anche da filtro rapido.
-function StatCard({ label, value, tone, active, onClick }) {
-  const tones = {
-    neutral: { on: "bg-neutral-800 text-white border-neutral-800", off: "bg-white text-neutral-900 border-neutral-200 hover:border-neutral-300" },
-    amber: { on: "bg-amber-500 text-white border-amber-500", off: "bg-amber-50 text-amber-800 border-amber-200 hover:border-amber-300" },
-    blue: { on: "bg-blue-600 text-white border-blue-600", off: "bg-blue-50 text-blue-800 border-blue-200 hover:border-blue-300" },
-    rose: { on: "bg-rose-600 text-white border-rose-600", off: "bg-rose-50 text-rose-800 border-rose-200 hover:border-rose-300" },
-  };
-  const c = tones[tone] || tones.neutral;
+// Checkbox di filtro nella sidebar
+function FilterCheck({ label, count, checked, onChange, tone }) {
+  const dot = {
+    amber: "bg-amber-400", blue: "bg-blue-500", rose: "bg-rose-500", neutral: "bg-neutral-400",
+  }[tone] || "bg-neutral-400";
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-left rounded-2xl border p-3 transition ${active ? c.on : c.off}`}
-    >
-      <div className="text-2xl font-bold leading-none">{value}</div>
-      <div className={`text-[11px] mt-1 ${active ? "opacity-90" : "opacity-80"}`}>{label}</div>
-    </button>
+    <label className="flex items-center gap-2 py-1 cursor-pointer text-sm text-neutral-700 hover:text-neutral-900">
+      <input type="checkbox" checked={checked} onChange={onChange} className="w-4 h-4 rounded" />
+      <span className={`w-2 h-2 rounded-full ${dot}`} />
+      <span className="flex-1">{label}</span>
+      <span className="text-xs text-neutral-400">{count}</span>
+    </label>
   );
 }
 
@@ -42,6 +37,7 @@ export default function RicetteIngredienti() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
   const canMatch = ["admin", "sommelier", "superadmin"].includes(role);
+  const sort = useSortableTable("nome", "asc");
 
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -49,12 +45,14 @@ export default function RicetteIngredienti() {
   const [loadingList, setLoadingList] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // ricerca / filtri / ordinamento
+  // ricerca / filtri
   const [search, setSearch] = useState("");
-  const [catFilter, setCatFilter] = useState("");
-  const [quickFilter, setQuickFilter] = useState(""); // "" | placeholder | senzaPrezzo | sospetti
+  const [catFilter, setCatFilter] = useState("");        // categoria singola, "" = tutte
+  const [unitFilter, setUnitFilter] = useState("");      // unità base, "" = tutte
+  const [fPlaceholder, setFPlaceholder] = useState(false);
+  const [fSenzaPrezzo, setFSenzaPrezzo] = useState(false);
+  const [fSospetti, setFSospetti] = useState(false);
   const [mostraDisattivati, setMostraDisattivati] = useState(false);
-  const [sortBy, setSortBy] = useState("nome");
 
   // form nuovo ingrediente (in modale)
   const [showForm, setShowForm] = useState(false);
@@ -158,6 +156,22 @@ export default function RicetteIngredienti() {
   const nSenzaPrezzo = items.filter((i) => i.last_price == null).length;
   const nSospetti = items.filter((i) => i.conversione_da_verificare).length;
 
+  // Categorie con conteggio (per i chip in cima)
+  const catChips = useMemo(() => {
+    const m = new Map();
+    for (const i of items) {
+      const c = i.category_name || "Senza categoria";
+      m.set(c, (m.get(c) || 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "it"));
+  }, [items]);
+
+  // Unità base presenti (per il select nella sidebar)
+  const unitOptions = useMemo(
+    () => [...new Set(items.map((i) => i.default_unit).filter(Boolean))].sort(),
+    [items]
+  );
+
   // ─── Lista filtrata + ordinata ───────────────────────────────
   const visibleItems = useMemo(() => {
     let v = items;
@@ -169,209 +183,242 @@ export default function RicetteIngredienti() {
         (i.last_supplier_name || "").toLowerCase().includes(q)
       );
     }
-    if (catFilter) v = v.filter((i) => (i.category_name || "") === catFilter);
-    if (quickFilter === "placeholder") v = v.filter((i) => i.placeholder);
-    if (quickFilter === "senzaPrezzo") v = v.filter((i) => i.last_price == null);
-    if (quickFilter === "sospetti") v = v.filter((i) => i.conversione_da_verificare);
-    v = [...v].sort((a, b) => {
-      if (sortBy === "prezzo") {
-        const pa = a.last_price == null ? -1 : a.last_price;
-        const pb = b.last_price == null ? -1 : b.last_price;
-        return pb - pa;
-      }
-      if (sortBy === "categoria") {
-        return (a.category_name || "zzz").localeCompare(b.category_name || "zzz", "it") ||
-          (a.name || "").localeCompare(b.name || "", "it");
-      }
-      return (a.name || "").localeCompare(b.name || "", "it", { sensitivity: "base" });
+    if (catFilter) {
+      v = v.filter((i) => (i.category_name || "Senza categoria") === catFilter);
+    }
+    if (unitFilter) v = v.filter((i) => i.default_unit === unitFilter);
+    if (fPlaceholder) v = v.filter((i) => i.placeholder);
+    if (fSenzaPrezzo) v = v.filter((i) => i.last_price == null);
+    if (fSospetti) v = v.filter((i) => i.conversione_da_verificare);
+    return sort.sortRows(v, {
+      nome: (i) => (i.name || "").toLowerCase(),
+      categoria: (i) => (i.category_name || "zzz").toLowerCase(),
+      unita: (i) => (i.default_unit || "").toLowerCase(),
+      prezzo: (i) => (i.last_price == null ? -1 : i.last_price),
     });
-    return v;
-  }, [items, search, catFilter, quickFilter, sortBy]);
+  }, [items, search, catFilter, unitFilter, fPlaceholder, fSenzaPrezzo, fSospetti, sort]);
 
-  const toggleQuick = (f) => setQuickFilter((cur) => (cur === f ? "" : f));
-  const hasFiltri = search.trim() || catFilter || quickFilter;
+  const hasFiltri = search.trim() || catFilter || unitFilter || fPlaceholder || fSenzaPrezzo || fSospetti;
+  const resetFiltri = () => {
+    setSearch(""); setCatFilter(""); setUnitFilter("");
+    setFPlaceholder(false); setFSenzaPrezzo(false); setFSospetti(false);
+  };
 
   return (
     <div className="min-h-screen bg-brand-cream p-4 sm:p-6 font-sans">
       <RicetteNav current="ingredienti" />
-      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl border border-neutral-200 mt-4 overflow-hidden border-l-4 border-l-orange-400">
+      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl border border-neutral-200 mt-4 overflow-hidden">
 
-        {/* ═══════════ TESTA ═══════════ */}
-        <div className="bg-orange-50 border-b border-neutral-200 px-5 sm:px-8 pt-5 pb-5">
-          <div className="flex flex-col sm:flex-row justify-between gap-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-orange-900 font-playfair leading-tight">
-                Ingredienti
-              </h1>
-              <p className="text-xs text-neutral-600 mt-1">
-                {items.length} {items.length === 1 ? "ingrediente" : "ingredienti"} in archivio
-                {mostraDisattivati && " — vista disattivati"}
-              </p>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {canMatch && (
-                <Btn variant="secondary" size="md" onClick={() => navigate("/ricette/matching")}>
-                  Matching fatture
-                </Btn>
-              )}
-              <Btn variant="primary" size="md" onClick={() => { setForm(emptyForm); setShowForm(true); }}>
-                + Nuovo ingrediente
-              </Btn>
-            </div>
+        {/* ═══════════ HEADER ═══════════ */}
+        <div className="flex flex-col sm:flex-row justify-between gap-3 px-5 sm:px-7 py-4 border-b border-neutral-200 bg-orange-50">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-orange-900 font-playfair leading-tight">
+              Ingredienti
+            </h1>
+            <p className="text-xs text-neutral-600 mt-0.5">
+              {items.length} {items.length === 1 ? "ingrediente" : "ingredienti"} in archivio
+              {mostraDisattivati && " — vista disattivati"}
+            </p>
           </div>
-
-          {/* KPI / filtri rapidi */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
-            <StatCard
-              label="Tutti gli ingredienti" value={items.length} tone="neutral"
-              active={!quickFilter} onClick={() => setQuickFilter("")}
-            />
-            <StatCard
-              label="Da completare" value={nPlaceholder} tone="amber"
-              active={quickFilter === "placeholder"} onClick={() => toggleQuick("placeholder")}
-            />
-            <StatCard
-              label="Senza prezzo" value={nSenzaPrezzo} tone="blue"
-              active={quickFilter === "senzaPrezzo"} onClick={() => toggleQuick("senzaPrezzo")}
-            />
-            <StatCard
-              label="Conversione da verificare" value={nSospetti} tone="rose"
-              active={quickFilter === "sospetti"} onClick={() => toggleQuick("sospetti")}
-            />
+          <div className="flex gap-2 flex-wrap items-start">
+            {canMatch && (
+              <Btn variant="secondary" size="md" onClick={() => navigate("/ricette/matching")}>
+                Matching fatture
+              </Btn>
+            )}
+            <Btn variant="primary" size="md" onClick={() => { setForm(emptyForm); setShowForm(true); }}>
+              + Nuovo ingrediente
+            </Btn>
           </div>
         </div>
 
-        {/* ═══════════ TOOLBAR ═══════════ */}
-        <div className="px-5 sm:px-8 py-4 border-b border-neutral-100 bg-white">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px]">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cerca per nome, categoria o fornitore…"
-                className="w-full border border-neutral-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 text-sm"
-                  aria-label="Pulisci ricerca"
-                >×</button>
-              )}
-            </div>
-            <select
-              value={catFilter}
-              onChange={(e) => setCatFilter(e.target.value)}
-              className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              <option value="">Tutte le categorie</option>
-              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              <option value="nome">Ordina: nome</option>
-              <option value="categoria">Ordina: categoria</option>
-              <option value="prezzo">Ordina: prezzo</option>
-            </select>
+        {/* ═══════════ CHIP CATEGORIE (sopra) ═══════════ */}
+        <div className="px-5 sm:px-7 py-3 border-b border-neutral-100 bg-white">
+          <div className="flex flex-wrap gap-1.5">
             <button
-              onClick={() => setMostraDisattivati((v) => !v)}
-              className={`text-sm font-medium px-3 py-2 rounded-lg border transition ${
-                mostraDisattivati
-                  ? "bg-neutral-800 text-white border-neutral-800"
-                  : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-50"
+              onClick={() => setCatFilter("")}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition ${
+                !catFilter
+                  ? "bg-orange-600 text-white border-orange-600"
+                  : "bg-white text-neutral-600 border-neutral-300 hover:bg-orange-50"
               }`}
             >
-              {mostraDisattivati ? "✓ Disattivati" : "Disattivati"}
+              Tutte <span className="opacity-70">{items.length}</span>
             </button>
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-neutral-500">
-              {visibleItems.length} {visibleItems.length === 1 ? "ingrediente" : "ingredienti"}
-              {visibleItems.length !== items.length && ` di ${items.length}`}
-            </span>
-            {hasFiltri && (
+            {catChips.map(([cat, n]) => (
               <button
-                onClick={() => { setSearch(""); setCatFilter(""); setQuickFilter(""); }}
-                className="text-xs font-medium text-orange-700 hover:underline"
+                key={cat}
+                onClick={() => setCatFilter((c) => (c === cat ? "" : cat))}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border transition ${
+                  catFilter === cat
+                    ? "bg-orange-600 text-white border-orange-600"
+                    : "bg-white text-neutral-600 border-neutral-300 hover:bg-orange-50"
+                }`}
               >
-                Azzera filtri
+                {cat} <span className="opacity-70">{n}</span>
               </button>
-            )}
+            ))}
           </div>
         </div>
 
-        {/* ═══════════ LISTA ═══════════ */}
-        <div className="px-5 sm:px-8 py-5">
-          {errorMsg && (
-            <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">
-              {errorMsg}
-            </div>
-          )}
+        {/* ═══════════ SIDEBAR + CONTENUTO ═══════════ */}
+        <div className="flex flex-col md:flex-row">
 
-          {loadingList ? (
-            <div className="py-12 text-center text-neutral-500 text-sm">Caricamento…</div>
-          ) : visibleItems.length === 0 ? (
-            <div className="py-12 text-center text-neutral-500 text-sm">
-              {items.length === 0
-                ? "Nessun ingrediente in archivio."
-                : "Nessun ingrediente corrisponde ai filtri."}
+          {/* SIDEBAR FILTRI (sinistra) */}
+          <aside className="md:w-56 md:flex-shrink-0 border-b md:border-b-0 md:border-r border-neutral-200 bg-neutral-50 px-4 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Filtri</h2>
+              {hasFiltri && (
+                <button onClick={resetFiltri} className="text-[11px] font-medium text-orange-700 hover:underline">
+                  Azzera
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-2xl overflow-hidden">
-              {visibleItems.map((ing) => (
-                <div
-                  key={ing.id}
-                  onClick={() => navigate(`/ricette/ingredienti/${ing.id}/prezzi`)}
-                  className="px-4 py-3 flex items-center gap-4 cursor-pointer hover:bg-orange-50 transition"
-                  title="Apri la scheda dell'ingrediente"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-neutral-900">{ing.name}</span>
-                      {ing.placeholder && (
-                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
-                          da completare
-                        </span>
-                      )}
-                      {ing.conversione_da_verificare && (
-                        <span className="text-[10px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded">
-                          ⚠ conversione
-                        </span>
-                      )}
-                      {!ing.is_active && (
-                        <span className="text-[10px] font-semibold bg-neutral-200 text-neutral-600 px-1.5 py-0.5 rounded">
-                          disattivato
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      {ing.category_name || "senza categoria"} · unità {ing.default_unit}
-                      {ing.allergeni && <> · allergeni: {ing.allergeni}</>}
-                    </div>
-                  </div>
-                  <div className="text-sm text-right flex-shrink-0">
-                    {ing.last_price != null ? (
-                      <>
-                        <span className="font-semibold text-neutral-900">
-                          {fmtPrice(ing.last_price)} €/{ing.default_unit}
-                        </span>
-                        {ing.last_supplier_name && (
-                          <div className="text-[11px] text-neutral-400">{ing.last_supplier_name}</div>
+
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cerca…"
+              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-300 mb-4"
+            />
+
+            <div className="mb-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Unità base</div>
+              <select
+                value={unitFilter}
+                onChange={(e) => setUnitFilter(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+              >
+                <option value="">Tutte le unità</option>
+                {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Da sistemare</div>
+              <FilterCheck
+                label="Da completare" count={nPlaceholder} tone="amber"
+                checked={fPlaceholder} onChange={() => setFPlaceholder((v) => !v)}
+              />
+              <FilterCheck
+                label="Senza prezzo" count={nSenzaPrezzo} tone="blue"
+                checked={fSenzaPrezzo} onChange={() => setFSenzaPrezzo((v) => !v)}
+              />
+              <FilterCheck
+                label="Conversione da verificare" count={nSospetti} tone="rose"
+                checked={fSospetti} onChange={() => setFSospetti((v) => !v)}
+              />
+            </div>
+
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Archivio</div>
+              <label className="flex items-center gap-2 py-1 cursor-pointer text-sm text-neutral-700">
+                <input
+                  type="checkbox" checked={mostraDisattivati}
+                  onChange={() => setMostraDisattivati((v) => !v)}
+                  className="w-4 h-4 rounded"
+                />
+                <span>Mostra disattivati</span>
+              </label>
+            </div>
+          </aside>
+
+          {/* CONTENUTO */}
+          <div className="flex-1 min-w-0">
+            <div className="px-5 sm:px-7 py-2.5 border-b border-neutral-100 flex items-center justify-between">
+              <span className="text-xs text-neutral-500">
+                {visibleItems.length} {visibleItems.length === 1 ? "ingrediente" : "ingredienti"}
+                {visibleItems.length !== items.length && ` di ${items.length}`}
+              </span>
+            </div>
+
+            {errorMsg && (
+              <div className="m-5 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">
+                {errorMsg}
+              </div>
+            )}
+
+            {loadingList ? (
+              <div className="py-16 text-center text-neutral-500 text-sm">Caricamento…</div>
+            ) : visibleItems.length === 0 ? (
+              <div className="py-16 text-center text-neutral-500 text-sm">
+                {items.length === 0
+                  ? "Nessun ingrediente in archivio."
+                  : "Nessun ingrediente corrisponde ai filtri."}
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-100 text-neutral-600 sticky top-0">
+                  <tr className="text-[11px] uppercase tracking-wide select-none">
+                    <th className="px-4 py-2.5 text-left cursor-pointer hover:text-orange-700" onClick={() => sort.handleSort("nome")}>
+                      Ingrediente <sort.SortIcon col="nome" />
+                    </th>
+                    <th className="px-3 py-2.5 text-left cursor-pointer hover:text-orange-700 hidden sm:table-cell" onClick={() => sort.handleSort("categoria")}>
+                      Categoria <sort.SortIcon col="categoria" />
+                    </th>
+                    <th className="px-3 py-2.5 text-center cursor-pointer hover:text-orange-700 w-20" onClick={() => sort.handleSort("unita")}>
+                      Unità <sort.SortIcon col="unita" />
+                    </th>
+                    <th className="px-4 py-2.5 text-right cursor-pointer hover:text-orange-700 w-36" onClick={() => sort.handleSort("prezzo")}>
+                      Ultimo prezzo <sort.SortIcon col="prezzo" />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleItems.map((ing) => (
+                    <tr
+                      key={ing.id}
+                      onClick={() => navigate(`/ricette/ingredienti/${ing.id}/prezzi`)}
+                      className="border-t border-neutral-100 cursor-pointer hover:bg-orange-50 transition"
+                    >
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-neutral-900">{ing.name}</span>
+                          {ing.placeholder && (
+                            <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                              da completare
+                            </span>
+                          )}
+                          {ing.conversione_da_verificare && (
+                            <span className="text-[10px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded">
+                              ⚠ conversione
+                            </span>
+                          )}
+                          {!ing.is_active && (
+                            <span className="text-[10px] font-semibold bg-neutral-200 text-neutral-600 px-1.5 py-0.5 rounded">
+                              disattivato
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-neutral-400 mt-0.5 sm:hidden">
+                          {ing.category_name || "senza categoria"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-neutral-600 hidden sm:table-cell">
+                        {ing.category_name || <span className="text-neutral-400">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-center text-neutral-500">{ing.default_unit}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {ing.last_price != null ? (
+                          <>
+                            <span className="font-semibold text-neutral-900">
+                              {fmtPrice(ing.last_price)} €/{ing.default_unit}
+                            </span>
+                            {ing.last_supplier_name && (
+                              <div className="text-[11px] text-neutral-400">{ing.last_supplier_name}</div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-neutral-400 italic">senza prezzo</span>
                         )}
-                      </>
-                    ) : (
-                      <span className="text-xs text-neutral-400 italic">senza prezzo</span>
-                    )}
-                  </div>
-                  <span className="text-neutral-300 flex-shrink-0">›</span>
-                </div>
-              ))}
-            </div>
-          )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
 
