@@ -71,6 +71,19 @@ class IngredientListItem(BaseModel):
     last_price: Optional[float] = None
     last_supplier_name: Optional[str] = None
     placeholder: bool = False  # creato da import ricette, da completare
+    conversione_da_verificare: bool = False  # ha un collegamento con unità incompatibile
+
+
+def _unit_family(u):
+    """Famiglia dell'unità: 'peso', 'volume', 'pz' o None."""
+    s = (u or "").strip().lower()
+    if s in ("kg", "g", "gr", "grm", "grammi", "mg", "kgm", "chilo", "kilo"):
+        return "peso"
+    if s in ("l", "lt", "ltr", "litri", "litro", "ml", "mlt", "cl"):
+        return "volume"
+    if s in ("pz", "pezzi", "pezzo", "nr"):
+        return "pz"
+    return None
 
 
 class IngredientCreate(BaseModel):
@@ -343,7 +356,27 @@ def list_ingredients(inattivi: int = 0):
         (0 if inattivi else 1,),
     )
     rows = cur.fetchall()
+
+    # Flag "conversione da verificare": ingredienti che hanno almeno un
+    # collegamento fattura con unità di famiglia diversa dall'unità base
+    # (es. un mapping in PZ su un ingrediente in grammi).
+    maps_by_ing = {}
+    for m in cur.execute(
+        "SELECT ingredient_id, unita_fornitore FROM ingredient_supplier_map"
+    ).fetchall():
+        maps_by_ing.setdefault(m["ingredient_id"], []).append(m["unita_fornitore"])
     conn.close()
+
+    sospetti = set()
+    for row in rows:
+        fam_base = _unit_family(row["default_unit"])
+        if not fam_base:
+            continue
+        for u in maps_by_ing.get(row["id"], []):
+            fu = _unit_family(u)
+            if fu and fu != fam_base:
+                sospetti.add(row["id"])
+                break
 
     return [
         IngredientListItem(
@@ -354,6 +387,7 @@ def list_ingredients(inattivi: int = 0):
             last_price=row["last_price"],
             last_supplier_name=row["last_supplier_name"],
             placeholder=bool(row["placeholder"]),
+            conversione_da_verificare=row["id"] in sospetti,
         )
         for row in rows
     ]

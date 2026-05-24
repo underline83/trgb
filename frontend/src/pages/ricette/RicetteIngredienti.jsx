@@ -32,6 +32,7 @@ export default function RicetteIngredienti() {
   const [catFilter, setCatFilter] = useState("");
   const [soloPlaceholder, setSoloPlaceholder] = useState(false);
   const [senzaPrezzo, setSenzaPrezzo] = useState(false);
+  const [soloSospetti, setSoloSospetti] = useState(false);
   const [mostraDisattivati, setMostraDisattivati] = useState(false);
   const [sortBy, setSortBy] = useState("nome");
 
@@ -138,6 +139,7 @@ export default function RicetteIngredienti() {
   // ─── Lista filtrata + ordinata ───────────────────────────────
   const nPlaceholder = items.filter((i) => i.placeholder).length;
   const nSenzaPrezzo = items.filter((i) => i.last_price == null).length;
+  const nSospetti = items.filter((i) => i.conversione_da_verificare).length;
 
   let visibleItems = items;
   if (search.trim()) {
@@ -147,6 +149,7 @@ export default function RicetteIngredienti() {
   if (catFilter) visibleItems = visibleItems.filter((i) => (i.category_name || "") === catFilter);
   if (soloPlaceholder) visibleItems = visibleItems.filter((i) => i.placeholder);
   if (senzaPrezzo) visibleItems = visibleItems.filter((i) => i.last_price == null);
+  if (soloSospetti) visibleItems = visibleItems.filter((i) => i.conversione_da_verificare);
   visibleItems = [...visibleItems].sort((a, b) => {
     if (sortBy === "prezzo") {
       const pa = a.last_price == null ? -1 : a.last_price;
@@ -237,6 +240,18 @@ export default function RicetteIngredienti() {
               {senzaPrezzo ? "✓ " : ""}Senza prezzo ({nSenzaPrezzo})
             </button>
           )}
+          {nSospetti > 0 && (
+            <button
+              onClick={() => setSoloSospetti((v) => !v)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                soloSospetti
+                  ? "bg-rose-100 text-rose-900 border-rose-300"
+                  : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+              }`}
+            >
+              {soloSospetti ? "✓ " : ""}⚠ Conversione da verificare ({nSospetti})
+            </button>
+          )}
           <button
             onClick={() => setMostraDisattivati((v) => !v)}
             className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
@@ -275,6 +290,11 @@ export default function RicetteIngredienti() {
                     {ing.placeholder && (
                       <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
                         da completare
+                      </span>
+                    )}
+                    {ing.conversione_da_verificare && (
+                      <span className="text-[10px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded">
+                        ⚠ conversione
                       </span>
                     )}
                     {!ing.is_active && (
