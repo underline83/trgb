@@ -20,6 +20,8 @@ function fmtPrice(v) {
 
 export default function RicetteIngredienti() {
   const navigate = useNavigate();
+  const role = localStorage.getItem("role");
+  const canMatch = ["admin", "sommelier", "superadmin"].includes(role);
 
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -175,7 +177,12 @@ export default function RicetteIngredienti() {
               {nPlaceholder > 0 && <> · <span className="text-amber-700">{nPlaceholder} da completare</span></>}
             </p>
           </div>
-          <div>
+          <div className="flex gap-2 flex-wrap">
+            {canMatch && (
+              <Btn variant="secondary" size="md" onClick={() => navigate("/ricette/matching")}>
+                🔗 Matching fatture
+              </Btn>
+            )}
             <Btn variant="primary" size="md" onClick={() => { resetForm(); setShowForm(true); }}>
               + Nuovo ingrediente
             </Btn>

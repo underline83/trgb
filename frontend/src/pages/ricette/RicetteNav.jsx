@@ -9,10 +9,7 @@ const TABS = [
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
   { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },
-  { key: "selezioni", label: "Selezioni", path: "/selezioni/macellaio", icon: "🍽️" },
-  { key: "menu-carta", label: "Menu Carta", path: "/menu-carta", icon: "📜" },
-  { key: "pranzo", label: "Pranzo", path: "/pranzo", icon: "🥙" },
-  { key: "matching", label: "Matching", path: "/ricette/matching", icon: "🔗", roles: ["admin", "sommelier"] },
+  { key: "menu", label: "Menu", path: "/menu-carta", icon: "📋" },
   { key: "dashboard", label: "Food Cost", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },
 ];

@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "../ricette/RicetteNav";
+import MenuToggle from "../ricette/MenuToggle";
 import { Btn, EmptyState } from "../../components/ui";
 
 const STATO_BADGE = {
@@ -50,7 +51,8 @@ export default function MenuCartaElenco() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
-      <RicetteNav current="menu-carta" />
+      <RicetteNav current="menu" />
+      <MenuToggle current="carta" />
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Header pagina */}
         <div className="flex items-center justify-between mb-6">

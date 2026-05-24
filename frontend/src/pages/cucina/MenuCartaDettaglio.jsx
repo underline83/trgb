@@ -66,7 +66,7 @@ export default function MenuCartaDettaglio() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
-      <RicetteNav current="menu-carta" />
+      <RicetteNav current="menu" />
       <div className="max-w-6xl mx-auto">
 
         {/* ═══ TESTA FISSA ═══ */}

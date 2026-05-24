@@ -28,6 +28,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, EmptyState } from "../../components/ui";
 import RicetteNav from "../ricette/RicetteNav";
+import MenuToggle from "../ricette/MenuToggle";
 
 // ─────────────────────────────────────────────────────────────
 // apiFetchSafe — wrapper con 1 retry su TypeError di rete
@@ -578,7 +579,8 @@ export default function PranzoMenu() {
   // ── Render ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-brand-cream">
-      <RicetteNav current="pranzo" />
+      <RicetteNav current="menu" />
+      <MenuToggle current="pranzo" />
       <div className="p-4 sm:p-6">
         <div className="max-w-[1600px] mx-auto">
 
