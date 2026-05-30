@@ -481,8 +481,9 @@ def duplicate_vino_endpoint(
         annata = request_body.get("annata")
         overrides = request_body.get("overrides")
 
+    utente = _get_username(current_user)
     try:
-        new_id = db.duplicate_vino(vino_id, annata=annata, overrides=overrides)
+        new_id = db.duplicate_vino(vino_id, annata=annata, overrides=overrides, utente=utente)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
@@ -513,11 +514,12 @@ def bulk_duplicate_vini(
     if not ids:
         raise HTTPException(status_code=400, detail="Nessun id fornito")
 
+    utente = _get_username(current_user)
     created = []
     errors = []
     for vino_id in ids:
         try:
-            new_id = db.duplicate_vino(vino_id)
+            new_id = db.duplicate_vino(vino_id, utente=utente)
             created.append({"original_id": vino_id, "new_id": new_id})
         except Exception as e:
             errors.append({"id": vino_id, "error": str(e)})

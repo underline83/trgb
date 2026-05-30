@@ -1,6 +1,25 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-24 — **Ricette 3.30: scheda ingrediente ridisegnata a tab** (`[core]`). La pagina dettaglio ingrediente è ora in stile TRGB (testa + 4 KPI + 5 tab: Prezzi/Collegamenti/Conversioni/Ricette/Anagrafica) sul modello della scheda vino. Nuovo endpoint `GET /foodcost/ricette/per-ingrediente/{id}` (ricette che usano l'ingrediente + incidenza % food cost). Tab Prezzi con grafico andamento per fornitore. Da pushare insieme al batch precedente non ancora caricato (correggi-conversione, filtri lista ingredienti, consolidamento Menu).
+**Ultimo aggiornamento:** 2026-05-30 — **Vini 3.61: STATO_RIORDINO si azzera in automatico all'arrivo dello stock** (`[core]`). Auto-reset di `STATO_RIORDINO='0'` (Ordinato) in `registra_movimento` (CARICO sempre + RETTIFICA delta>0) e in `conferma_arrivo_ordine_pending`. Ogni transizione è loggata come MODIFICA con utente/origine. `duplicate_vino` accetta ora `utente` e logga lo stato iniziale. Migration 139 cleanup one-shot dei vini orfani (`STATO_RIORDINO='0'` senza pending). Da pushare.
+
+## SESSIONE 2026-05-30 — Vini 3.61: STATO_RIORDINO auto-reset all'arrivo stock
+
+### Sintesi
+Marco ha segnalato che il widget "vini senza giacenza" della Dashboard Vini non mostrava il vino ID 1239 (Pinot Nero Alto Adige Sogegross, giacenza 0). Diagnosi: il widget esclude per design `STATO_RIORDINO='0'` (Ordinato), ma né i CARICO né la conferma arrivo ordine pending azzeravano mai questo stato — quindi i vini ordinati→arrivati→rivenduti restavano marcati Ordinato per sempre. Marco ha chiesto di gestirlo per bene + di tracciare in archivio chi/quando/perché.
+
+### Implementazione
+- **`registra_movimento`**: aggiunto `STATO_RIORDINO` alla SELECT iniziale; dopo le UPDATE delle qta, se `sr='0'` AND (`tipo='CARICO'` OR (`tipo='RETTIFICA'` AND `delta>0`)) → UPDATE STATO_RIORDINO=NULL + INSERT movimento `MODIFICA` con `origine='AUTO-CARICO' | 'AUTO-RETTIFICA'` e `utente` corrente.
+- **`conferma_arrivo_ordine_pending`**: stesso reset dentro la transazione atomica (tra l'INSERT CARICO e il DELETE pending), `origine='ORDINE_ARRIVO'`.
+- **`duplicate_vino`**: accetta ora `utente` (default `"system"`). Dopo l'INSERT, se la copia ha `STATO_RIORDINO` valorizzato, log `MODIFICA` con `origine='DUPLICATE-NUOVA-ANNATA'`. `duplicate_vino_endpoint` e `bulk_duplicate_vini` aggiornati per passarlo.
+- **Migration 139** `139_reset_stato_riordino_orfani.py`: cleanup one-shot opzione B confermata da Marco — reset `'0' → NULL` per i vini SENZA riga in `vini_ordini_pending`. Ogni reset loggato come `MODIFICA` con `origine='MIG-139-CLEANUP'`. Backup file `.pre-mig139-<ts>`. Idempotente. Sandbox: 14 candidati locale.
+
+### Verifica
+`PY_OK` su `vini_magazzino_db.py`, `vini_magazzino_router.py`, `139_reset_stato_riordino_orfani.py`. esbuild OK su `versions.jsx`. Dry-run mig 139 conferma 14 candidati in locale, query funzionante. Versione vini 3.60 → **3.61**.
+
+### Commit suggerito
+`./push.sh "[core] vini 3.61 — STATO_RIORDINO auto-reset su CARICO/RETTIFICA+ e su conferma arrivo ordine; log MODIFICA per ogni transizione (utente/origine); duplicate_vino con utente; mig 139 cleanup orfani"`
+
+---
 
 ## SESSIONE 2026-05-24 — Ricette 3.30: scheda ingrediente ridisegnata a tab
 

@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-05-30 — Vini 3.61: STATO_RIORDINO si azzera in automatico all'arrivo dello stock `[core]`
+
+Marco ha segnalato che il widget "vini senza giacenza" della Dashboard Vini non mostrava tutti i vini attesi (esempio: ID 1239 Pinot Nero Alto Adige Sogegross, giacenza 0 ma assente dal widget). Causa: il widget esclude per design i vini con `STATO_RIORDINO='0'` (Ordinato — "ordine già piazzato, non urgente alertarlo"), ma né `registra_movimento` né `conferma_arrivo_ordine_pending` azzeravano mai questo stato. Quindi i vini ordinati e poi arrivati e poi rivenduti restavano marcati "Ordinato" per sempre e scomparivano dall'alert.
+
+### Aggiunto
+- **Auto-reset di `STATO_RIORDINO='0'` su arrivo stock** (in `app/models/vini_magazzino_db.py`):
+  - `registra_movimento`: per `tipo='CARICO'` (sempre) e `tipo='RETTIFICA'` con `delta > 0` (rettifica in salita) → `STATO_RIORDINO = NULL`.
+  - `conferma_arrivo_ordine_pending`: stesso reset, dentro la stessa transazione atomica del CARICO + delete pending.
+  Ogni reset genera un movimento `MODIFICA` nello storico del vino con `origine='AUTO-CARICO' | 'AUTO-RETTIFICA' | 'ORDINE_ARRIVO'` e l'`utente` che ha causato il movimento — così resta tracciato chi/quando/perché.
+- **Log dello stato iniziale al duplica**: `duplicate_vino` accetta ora `utente` (passato dal router) e, dopo l'INSERT, se la copia parte con `STATO_RIORDINO` valorizzato (tipicamente `'0'` sul ramo "nuova annata"), scrive un `MODIFICA` con `origine='DUPLICATE-NUOVA-ANNATA'`. Così anche il settaggio implicito da duplica è tracciato (prima non lo era).
+- **Migration 139** `139_reset_stato_riordino_orfani.py` (opzione B confermata da Marco): cleanup one-shot dei vini stantii. Resetta `STATO_RIORDINO='0' → NULL` per tutti i vini che hanno `'0'` ma NON hanno una riga in `vini_ordini_pending` (euristica: "se Ordinato non ha un pending dietro, è quasi certamente stantio"). Ogni reset è loggato come `MODIFICA` con `origine='MIG-139-CLEANUP'`. Backup del DB su `.pre-mig139-<ts>` prima dei UPDATE. Idempotente (rieseguibile, su DB pulito trova 0). Sandbox: 14 vini candidati locale (n. reale in produzione = quello che troverà la mig al boot).
+
+### Modificato
+- `app/routers/vini_magazzino_router.py`: `duplicate_vino_endpoint` e `bulk_duplicate_vini` passano ora `utente=_get_username(current_user)` a `db.duplicate_vino`.
+- `frontend/src/config/versions.jsx`: vini 3.60 → **3.61**.
+
+### Note
+- Reset solo su `'0'` (Ordinato). Gli altri stati distinti (`'D'` Da ordinare, `'A'` Annata esaurita, `'X'` Non ricomprare) non si toccano: hanno semantica diversa.
+- Si applica anche su RETTIFICA solo se la qta sale (`delta > 0`); rettifica in discesa o invariante non azzera (l'ordine non è "arrivato" se stai correggendo verso il basso).
+- Il widget "vini senza giacenza" non è stato toccato: continua a escludere `STATO_RIORDINO='0'` per design. Ora però lo stato si azzera correttamente all'arrivo, quindi il filtro torna ad essere "fresco".
+
+### File modificati
+`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/config/versions.jsx`. Nuovo file: `app/migrations/139_reset_stato_riordino_orfani.py`.
+
+---
+
 ## 2026-05-24 — Ricette 3.30: scheda ingrediente ridisegnata a tab `[core]`
 
 La pagina di dettaglio ingrediente (`RicetteIngredientiPrezzi.jsx`) è stata ricomposta in stile TRGB sul modello della scheda vino: **testa fissa** (badge categoria/stato, nome, 4 KPI) + **tab bar a 5 linguette** (Prezzi · Collegamenti · Conversioni · Ricette · Anagrafica). Prima era una pagina a scorrimento unico con stile fuori sistema.

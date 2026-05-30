@@ -632,6 +632,7 @@ def duplicate_vino(
     vino_id: int,
     annata: Optional[str] = None,
     overrides: Optional[Dict[str, Any]] = None,
+    utente: str = "system",
 ) -> int:
     """
     Duplica un vino esistente: copia tutti i campi anagrafici/prezzo/stato,
@@ -704,6 +705,23 @@ def duplicate_vino(
             list(data.values()),
         )
         new_id = cur.lastrowid
+
+        # vini 3.61 (2026-05-22): log dell'eventuale STATO_RIORDINO iniziale
+        # (tipicamente '0' Ordinato sul ramo "nuova annata") nello storico
+        # modifiche — così resta tracciato chi/quando/origine.
+        sr_init = data.get("STATO_RIORDINO")
+        if sr_init:
+            cur.execute(
+                """INSERT INTO vini_magazzino_movimenti
+                       (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
+                   VALUES (?, ?, 'MODIFICA', 0, NULL, ?, 'DUPLICATE-NUOVA-ANNATA', ?, ?);""",
+                (
+                    new_id, now,
+                    f"STATO_RIORDINO: — → {sr_init} (stato iniziale duplica da vino #{vino_id})",
+                    utente, now,
+                ),
+            )
+
         conn.commit()
         return new_id
     finally:
@@ -1330,13 +1348,14 @@ def registra_movimento(
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
-    # Legge il vino con tutte le QTA
+    # Legge il vino con tutte le QTA + STATO_RIORDINO (per auto-reset Ordinato)
     row = cur.execute(
         """SELECT COALESCE(QTA_TOTALE, 0) AS q,
                   COALESCE(QTA_FRIGO, 0) AS qf,
                   COALESCE(QTA_LOC1, 0) AS q1,
                   COALESCE(QTA_LOC2, 0) AS q2,
-                  COALESCE(QTA_LOC3, 0) AS q3
+                  COALESCE(QTA_LOC3, 0) AS q3,
+                  STATO_RIORDINO AS sr
            FROM vini_bottiglie WHERE id = ?;""",
         (vino_id,),
     ).fetchone()
@@ -1399,6 +1418,29 @@ def registra_movimento(
                 )
             # Ricalcola QTA_LOC3 e LOCAZIONE_3 dalla tabella matrice
             _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
+
+    # vini 3.61 (2026-05-22): auto-reset di STATO_RIORDINO='0' (Ordinato) quando
+    # arriva stock — l'ordine è di fatto arrivato. Scatta su CARICO (sempre) e
+    # su RETTIFICA in salita (delta > 0). La transizione è loggata nello storico
+    # modifiche con un movimento MODIFICA: chi, quando, perché (origine).
+    if row["sr"] == "0" and (tipo == "CARICO" or (tipo == "RETTIFICA" and delta > 0)):
+        cur.execute(
+            "UPDATE vini_bottiglie SET STATO_RIORDINO = NULL, UPDATED_AT = ? WHERE id = ?;",
+            (created_at, vino_id),
+        )
+        cur.execute(
+            """INSERT INTO vini_magazzino_movimenti
+                   (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
+               VALUES (?, ?, 'MODIFICA', 0, NULL, ?, ?, ?, ?);""",
+            (
+                vino_id,
+                created_at,
+                f"STATO_RIORDINO: 0 (Ordinato) → — (auto-reset {tipo})",
+                f"AUTO-{tipo}",
+                utente,
+                created_at,
+            ),
+        )
 
     # Registra movimento solo se c'è effettivamente un delta
     if delta != 0:
@@ -2832,6 +2874,28 @@ def conferma_arrivo_ordine_pending(
             (vino_id, now, qta_ricevuta, note_finale, utente, now),
         )
         movimento_id = cur.lastrowid
+
+        # 5-bis. vini 3.61 (2026-05-22): l'ordine è arrivato → azzero
+        # STATO_RIORDINO se era '0' (Ordinato). Loggo la transizione nello
+        # storico modifiche.
+        sr_row = cur.execute(
+            "SELECT STATO_RIORDINO FROM vini_bottiglie WHERE id = ?;", (vino_id,)
+        ).fetchone()
+        if sr_row and sr_row["STATO_RIORDINO"] == "0":
+            cur.execute(
+                "UPDATE vini_bottiglie SET STATO_RIORDINO = NULL, UPDATED_AT = ? WHERE id = ?;",
+                (now, vino_id),
+            )
+            cur.execute(
+                """INSERT INTO vini_magazzino_movimenti
+                       (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
+                   VALUES (?, ?, 'MODIFICA', 0, NULL, ?, 'ORDINE_ARRIVO', ?, ?);""",
+                (
+                    vino_id, now,
+                    "STATO_RIORDINO: 0 (Ordinato) → — (auto-reset arrivo ordine)",
+                    utente, now,
+                ),
+            )
 
         # 6. Cancella il pending (ultimo step: se qualcosa saltasse prima
         #    rollback → il pending resta, niente inconsistenze)

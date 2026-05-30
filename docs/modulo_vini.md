@@ -317,7 +317,7 @@ Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
   - `2` = VENDERE (default nuovi vini, normale in carta)
   - `3` = SPINGERE (promuovere attivamente in sala)
   - Pre-mig: TEXT con codici N/T/V/F/S/C. Mapping rebuild: V→2, C→1, F→3, S→3, T→1, N→0, NULL→2 (default).
-- `STATO_RIORDINO` TEXT: D/0/A/X (mig 122 — 'O' rimosso)
+- `STATO_RIORDINO` TEXT: D/0/A/X (mig 122 — 'O' rimosso). **Auto-reset (vini 3.61, 2026-05-30):** `'0'` (Ordinato) si azzera a `NULL` automaticamente quando arriva nuovo stock — sia su `CARICO` (sempre) sia su `RETTIFICA` con `delta > 0`, sia dentro `conferma_arrivo_ordine_pending`. Ogni transizione (auto-reset, set manuale via PATCH, settaggio iniziale al duplica) genera un movimento `MODIFICA` nello storico del vino con `origine` parlante (`AUTO-CARICO` / `AUTO-RETTIFICA` / `ORDINE_ARRIVO` / `DUPLICATE-NUOVA-ANNATA` / `GESTIONALE-EDIT` / `MIG-139-CLEANUP`) e l'`utente`. Questo perché il widget "vini senza giacenza" della Dashboard esclude per design i vini con `STATO_RIORDINO='0'` ("ordine già piazzato, non urgente"): senza l'auto-reset, una volta marcato Ordinato il vino restava invisibile all'alert anche dopo l'arrivo e la rivendita. Migration 139 ha fatto il cleanup one-shot degli stati orfani pre-3.61.
 - `STATO_CONSERVAZIONE` TEXT: 1/2/3
 - `NOTE_STATO` TEXT
 
