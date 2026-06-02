@@ -1,6 +1,45 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 — **CC.1+CC.2: backend Carta di Credito in produzione** (`[core]`). Parser PDF Banco BPM (`app/services/carta_pdf_parser.py`), migration 140 (carte_credito, carta_estratti, +8 colonne carta su banca_movimenti), router `app/routers/banca_carta_router.py` con upload PDF + lista carte/estratti/movimenti. Validato sui 5 estratti gen→mag 2026 (127 movimenti, quadratura ai centesimi). Sistema 5.16→5.17, nuovo modulo `cartaCredito v0.2 alpha`. Anche fixato `backup_router.py` (entrato dentro commit ricette di sessione parallela). UI ancora scheletro v0.1 — CC.3 ne farà uno vero.
+**Ultimo aggiornamento:** 2026-06-02 — **CC.3: UI Carta di Credito vera** (`[core]`). `CartaCreditoPage.jsx` da scheletro v0.1 a v1.0: anagrafica carta (multi-carta ready via dropdown), drop-zone upload PDF con feedback specifico per 422/409, lista estratti con riga espandibile, sub-tabella movimenti dentro l'estratto espanso con badge USD per i movimenti esteri, delete estratto. Promosso a `cartaCredito v1.0 beta`. Sistema 5.17→5.18. Manca solo la riconciliazione (CC.4 livello A, CC.5 livello B + riepilogo mensile).
+
+## SESSIONE 2026-06-02 — CC.3: UI Carta di Credito vera
+
+### Sintesi
+Mockup HTML statico costruito e validato con Marco (`claude/cc3_mockup_carta_credito.html`). Layout approvato: anagrafica in alto, drop-zone sotto, lista estratti con riga espandibile che mostra dettaglio movimenti inline. Nessuna tab separata. Nessuna logica di riconciliazione in CC.3 (rinviata a CC.4/CC.5) — la UI mostra solo READ-ONLY lo stato match A/B di ogni movimento/estratto.
+
+### File modificati
+- **`frontend/src/pages/banca/CartaCreditoPage.jsx`** (riscritto, ~450 righe). Componenti interni: `DropZone`, `Stat`, `LegendItem`, `EstrattoRow`, `EstrattoDetail`. Stati: `carte`, `cartaCorrenteId`, `estratti`, `expandedId`, `details` (cache lazy per estratto), `uploading`, `dragOver`, `error`, `info`. Endpoint chiamati: GET `/banca/carta/carte`, GET `/banca/carta/estratti?carta_id=`, GET `/banca/carta/estratti/{id}`, POST `/banca/carta/upload`, DELETE `/banca/carta/estratti/{id}`.
+- **Feedback errori specifici:**
+  - 409 (dup PDF) → "Questo PDF è già stato importato (estratto #N). Per ri-importare, elimina prima l'estratto esistente."
+  - 422 (non quadra) → mostra delta_quadratura + delta_addebito + warnings parser.
+  - Default → `json.detail` o `Errore HTTP {status}`.
+- **Drag&drop nativo**: `onDragOver` / `onDragLeave` / `onDrop`. Visual feedback con bordo blu + bg blu quando `dragOver`. Alternativa "Scegli file" via input nascosto + ref.
+- **Multi-carta**: se >1 carta, la riga anagrafica diventa `<select>` con la lista; se =1 mostra il nickname statico. PK funzionale `codice_posizione`.
+- **Match A/B**: in CC.3 sono **read-only**. Match A non viene mostrato sui singoli movimenti (richiede una JOIN su cg_uscite cross-DB che non c'è nell'endpoint attuale → arriverà in CC.4 con worklist dedicata). Match B mostrato sulla riga estratto come chip success/warning.
+- **Lazy load movimenti**: i movimenti vengono caricati solo all'espansione (`GET /estratti/{id}`), cached in `details[id]` per evitare re-fetch a click successivi.
+
+### Bump versioni
+- `VERSION` 5.17 → 5.18
+- `cartaCredito` 0.2 alpha → **1.0 beta** (UI completa, manca solo riconciliazione)
+- `sistema` 5.17 → 5.18
+
+### Cose volutamente NON in CC.3
+- Auto-match livello A (movimento carta ↔ uscita CG con `metodo='CARTA' AND banca_movimento_id IS NULL`) → **CC.4**.
+- UI di matching manuale singolo movimento ("Cerca uscita") → **CC.4**.
+- Match B (estratto ↔ addebito CC mensile) automatico/manuale → **CC.5**.
+- Riepilogo mensile per categoria + confronto budget → **CC.5**.
+- Filtri / ricerca movimenti / paginazione (se servirà con >100 mov/estratto) → da valutare.
+
+### File toccati in questo push
+- `frontend/src/pages/banca/CartaCreditoPage.jsx`
+- `frontend/src/config/versions.jsx`
+- `VERSION`
+- `docs/modulo_banca.md` (CC.3 → ✅ FATTO)
+- `docs/sessione.md` (questa entry)
+
+---
+
+**Aggiornamento precedente (2026-06-02 mattina):** **CC.1+CC.2: backend Carta di Credito in produzione** (`[core]`). Parser PDF Banco BPM (`app/services/carta_pdf_parser.py`), migration 140 (carte_credito, carta_estratti, +8 colonne carta su banca_movimenti), router `app/routers/banca_carta_router.py` con upload PDF + lista carte/estratti/movimenti. Validato sui 5 estratti gen→mag 2026 (127 movimenti, quadratura ai centesimi). Sistema 5.16→5.17, nuovo modulo `cartaCredito v0.2 alpha`. Anche fixato `backup_router.py` (entrato dentro commit ricette di sessione parallela). UI ancora scheletro v0.1 — CC.3 ne farà uno vero.
 
 ## SESSIONE 2026-06-02 — CC.1+CC.2: backend Carta di Credito
 

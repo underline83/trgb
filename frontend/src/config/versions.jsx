@@ -117,13 +117,15 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   cartaCredito: {
-    // Sub-modulo banca, sessione CC (2026-06-02). Backend CC.2 in produzione
-    // (parser PDF Banco BPM + mig 140 + endpoint /banca/carta/*); UI ancora
-    // scheletro v0.1 con placeholder "Prossimamente". CC.3 rifarà l'UI vera.
-    version: "0.2",
+    // Sub-modulo banca. Sessione CC.3 (2026-06-02): UI completa con
+    // upload PDF, lista carte (multi-carta ready), lista estratti con
+    // riga espandibile + dettaglio movimenti, badge USD per esteri,
+    // delete estratto. Manca solo riconciliazione (CC.4 livello A,
+    // CC.5 livello B + riepilogo mensile) — promossa a beta.
+    version: "1.0",
     label: "Carta di Credito",
-    status: "alpha",
-    color: "orange",
+    status: "beta",
+    color: "blue",
   },
   sistema: {
     // ⚠️ ALLINEAMENTO OBBLIGATORIO con file `VERSION` in root del repo.
@@ -131,7 +133,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.17",
+    version: "5.18",
     label: "Sistema",
     status: "stabile",
     color: "green",
