@@ -51,6 +51,7 @@ from app.routers.turni_router import router as turni_router
 
 # BANCA — movimenti bancari
 from app.routers import banca_router
+from app.routers import banca_carta_router  # sub-area Carta di Credito (CC.2)
 
 # CONTROLLO DI GESTIONE — dashboard unificata cross-modulo
 from app.routers import controllo_gestione_router
@@ -646,6 +647,7 @@ _mount("turni_router", turni_router)
 
 # BANCA
 _mount("banca_router", banca_router.router)
+_mount("banca_carta_router", banca_carta_router.router)
 
 # CONTROLLO DI GESTIONE
 _mount("controllo_gestione_router", controllo_gestione_router.router)
