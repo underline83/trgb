@@ -21,6 +21,7 @@ import FlussiCassaNav from "./FlussiCassaNav";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
+import CercaUscitaModal from "../../components/carta/CercaUscitaModal";
 
 const CARTA = `${API_BASE}/banca/carta`;
 
@@ -83,6 +84,10 @@ export default function CartaCreditoPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
+  // CC.4: modale match livello A
+  // { movimento: {...}, estrattoId: int } | null
+  const [cercaUscita, setCercaUscita] = useState(null);
+
   // ── Caricamento iniziale ────────────────────────────────────
   useEffect(() => {
     loadCarte();
@@ -126,8 +131,8 @@ export default function CartaCreditoPage() {
     }
   }
 
-  async function loadDetail(estrattoId) {
-    if (details[estrattoId]) return; // già in cache
+  async function loadDetail(estrattoId, force = false) {
+    if (details[estrattoId] && !force) return; // già in cache
     setDetailsLoadingId(estrattoId);
     try {
       const res = await apiFetch(`${CARTA}/estratti/${estrattoId}`);
@@ -138,6 +143,29 @@ export default function CartaCreditoPage() {
       setError(e.message || "Errore di rete");
     } finally {
       setDetailsLoadingId(null);
+    }
+  }
+
+  // CC.4: dopo un match/unlink, ricarica il dettaglio per aggiornare i chip
+  async function refreshAfterMatch(estrattoId) {
+    await loadDetail(estrattoId, true);
+  }
+
+  // CC.4: scollega un movimento dalla sua uscita CG (stato → PAGATO_MANUALE)
+  async function unlinkMovimento(movimento_id, estrattoId) {
+    if (!window.confirm("Scollegare questo movimento dalla sua uscita CG? L'uscita tornerà 'Pagato manuale'.")) return;
+    try {
+      const res = await apiFetch(`${CARTA}/movimenti/${movimento_id}/link`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.detail || `Errore HTTP ${res.status}`);
+      }
+      setInfo("Link rimosso. L'uscita CG è tornata in 'Pagato manuale'.");
+      await refreshAfterMatch(estrattoId);
+    } catch (e) {
+      setError(e.message || "Errore di rete");
     }
   }
 
@@ -419,12 +447,27 @@ export default function CartaCreditoPage() {
                           detailLoading={detailsLoadingId === e.id}
                           onToggle={() => toggleExpand(e.id)}
                           onDelete={() => deleteEstratto(e.id)}
+                          onCerca={(mov) => setCercaUscita({ movimento: mov, estrattoId: e.id })}
+                          onUnlink={(movId) => unlinkMovimento(movId, e.id)}
                         />
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
+            )}
+
+            {/* ── MODALE CERCA USCITA (CC.4) ─────────────── */}
+            {cercaUscita && (
+              <CercaUscitaModal
+                movimento={cercaUscita.movimento}
+                onClose={() => setCercaUscita(null)}
+                onMatched={() => {
+                  setInfo(`Movimento riconciliato con uscita CG.`);
+                  refreshAfterMatch(cercaUscita.estrattoId);
+                  setCercaUscita(null);
+                }}
+              />
             )}
 
             {/* ── LEGENDA ──────────────────────────────────── */}
@@ -503,7 +546,7 @@ function DropZone({ onFile, uploading, dragOver, setDragOver, onDrop, fileInputR
   );
 }
 
-function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDelete }) {
+function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDelete, onCerca, onUnlink }) {
   const e = estratto;
   const matchB = e.banca_movimento_id;
 
@@ -557,7 +600,12 @@ function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDe
             ) : !detail ? (
               <div className="text-center text-sm text-neutral-500 py-4">—</div>
             ) : (
-              <EstrattoDetail detail={detail} onDelete={onDelete} />
+              <EstrattoDetail
+                detail={detail}
+                onDelete={onDelete}
+                onCerca={onCerca}
+                onUnlink={onUnlink}
+              />
             )}
           </td>
         </tr>
@@ -566,15 +614,17 @@ function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDe
   );
 }
 
-function EstrattoDetail({ detail, onDelete }) {
+function EstrattoDetail({ detail, onDelete, onCerca, onUnlink }) {
   const m = detail.movimenti || [];
   const nEsteri = m.filter((x) => x.valuta_estera).length;
+  const nMatchati = m.filter((x) => x.match_uscita_id).length;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <span className="text-xs text-neutral-500">
           Dettaglio movimenti · {m.length} righe
+          {nMatchati > 0 ? ` · ${nMatchati} riconciliati` : ""}
           {nEsteri ? ` · ${nEsteri} in valuta estera` : ""}
           {detail.imposta_bollo
             ? ` · bollo ${fmtEUR(detail.imposta_bollo)}`
@@ -603,7 +653,8 @@ function EstrattoDetail({ detail, onDelete }) {
               <th className="text-left px-3 py-2 font-medium">Descrizione</th>
               <th className="text-right px-3 py-2 font-medium w-24">Importo</th>
               <th className="text-center px-3 py-2 font-medium w-24">Estero</th>
-              <th className="text-center px-3 py-2 font-medium w-28">MCC</th>
+              <th className="text-center px-3 py-2 font-medium w-20">MCC</th>
+              <th className="text-center px-3 py-2 font-medium w-44">Match CG (livello A)</th>
             </tr>
           </thead>
           <tbody>
@@ -612,7 +663,7 @@ function EstrattoDetail({ detail, onDelete }) {
                 <td className="px-3 py-2 text-neutral-500 tabular-nums">
                   {fmtDateShort(mov.data_operazione)}
                 </td>
-                <td className="px-3 py-2 truncate max-w-[280px]" title={mov.descrizione}>
+                <td className="px-3 py-2 truncate max-w-[260px]" title={mov.descrizione}>
                   {mov.descrizione}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums font-medium">
@@ -628,7 +679,40 @@ function EstrattoDetail({ detail, onDelete }) {
                   )}
                 </td>
                 <td className="px-3 py-2 text-center text-neutral-400 tabular-nums text-[10px]">
-                  {mov.carta_mcc || "—"}
+                  {mov.carta_mcc ? mov.carta_mcc.substring(0, 4) : "—"}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  {mov.match_uscita_id ? (
+                    <div className="inline-flex items-center gap-1.5">
+                      <span
+                        className="inline-block px-1.5 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 rounded border border-emerald-200 max-w-[140px] truncate"
+                        title={`Uscita CG #${mov.match_uscita_id} · ${mov.match_uscita_fornitore || ""} · ${fmtEUR(mov.match_uscita_totale)}`}
+                      >
+                        ✓ #{mov.match_uscita_id} {mov.match_uscita_fornitore?.slice(0, 14) || ""}
+                      </span>
+                      <button
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          onUnlink?.(mov.id);
+                        }}
+                        className="text-[10px] text-neutral-400 hover:text-red-600 underline"
+                        title="Stacca link (riporta a Pagato manuale)"
+                      >
+                        stacca
+                      </button>
+                    </div>
+                  ) : (
+                    <Btn
+                      size="sm"
+                      variant="ghost"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        onCerca?.(mov);
+                      }}
+                    >
+                      🔍 Cerca
+                    </Btn>
+                  )}
                 </td>
               </tr>
             ))}

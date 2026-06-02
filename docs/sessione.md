@@ -1,6 +1,65 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 — **CC.3: UI Carta di Credito vera** (`[core]`). `CartaCreditoPage.jsx` da scheletro v0.1 a v1.0: anagrafica carta (multi-carta ready via dropdown), drop-zone upload PDF con feedback specifico per 422/409, lista estratti con riga espandibile, sub-tabella movimenti dentro l'estratto espanso con badge USD per i movimenti esteri, delete estratto. Promosso a `cartaCredito v1.0 beta`. Sistema 5.17→5.18. Manca solo la riconciliazione (CC.4 livello A, CC.5 livello B + riepilogo mensile).
+**Ultimo aggiornamento:** 2026-06-02 (sera) — **CC.4 D1: match manuale livello A** (`[core]`). Carta v1.1 beta. Mig 141 (`carta_match_settings` singleton con tolleranze 0,50€/10gg + pesi 50/30/20 + soglia auto 0.85). Nuovo service `app/services/carta_match_service.py` con algoritmo scoring (importo+data+fornitore). 4 nuovi endpoint backend (`/movimenti/{id}/candidati`, POST/DELETE `/link`, GET `/match-settings`). Frontend: nuova `<CercaUscitaModal>` + colonna "Match CG" nella sub-tabella dell'estratto espanso con bottone "🔍 Cerca" e bottone "stacca" sui matchati. Auto-match bulk (CC.4 D2) e UI soglie (CC.4.e) ancora ⏳.
+
+## SESSIONE 2026-06-02 (sera) — CC.4 D1: match manuale livello A
+
+### Ricognizione iniziale
+45 uscite CG già presenti con `metodo_pagamento='CARTA' AND banca_movimento_id IS NULL AND stato='PAGATO_MANUALE'` — sono quelle dove Marco ha già cliccato "Paga con carta" su Fatture. Match temporale corretto: `mov.data_contabile ↔ uscita.data_pagamento` (non `data_scadenza`). Esempi: ARUBA, Coffee Lab, Il Post, Unieuro.
+
+### Decisioni di design
+- **Soglie non hardcoded**: tabella `carta_match_settings` singleton (mig 141) con default in codice + UI in CC.4.e (push successivo). Difesa contro la regola Marco "vietato hardcodare soglie operative".
+- **Score**: 50% importo + 30% data + 20% fornitore (substring case-insensitive).
+- **Pre-filtri**: |importo| < 0,50€, |giorni| < 10 (più ampi = più rumore; più stretti = match persi).
+- **Transizione stato**: link riuscito → `PAGATO_MANUALE → PAGATO`; unlink → torna `PAGATO_MANUALE`.
+- **Soglia auto-apply**: 0.85 (sotto si vede ma checkbox non spuntata — sarà rilevante in CC.4 D2).
+
+### File nuovi
+- `app/migrations/141_carta_match_settings.py` — singleton (id=1 forced via CHECK).
+- `app/services/carta_match_service.py` — `get_match_settings`, `find_candidati`, `apply_link`, `remove_link`, `automatch_dry_run`, `automatch_apply` (già pronto per CC.4 D2).
+- `frontend/src/components/carta/CercaUscitaModal.jsx` — modale con info movimento sorgente, ricerca libera per fornitore, lista candidate ordinate per score, chip score color-coded + breakdown imp/data/forn, bottone "Linka" per ciascun candidato.
+
+### File modificati
+- `app/routers/banca_carta_router.py`:
+  - GET `/banca/carta/movimenti/{id}/candidati?search=&limit=` — wrap su `find_candidati`
+  - POST `/banca/carta/movimenti/{id}/link` body `{uscita_id}` — wrap su `apply_link`, 409 su collisioni
+  - DELETE `/banca/carta/movimenti/{id}/link` — wrap su `remove_link`, idempotente
+  - GET `/banca/carta/match-settings` — espone le settings correnti
+  - GET `/banca/carta/estratti/{id}` esteso con LEFT JOIN su `cg_uscite` per esporre `match_uscita_id`/`match_uscita_fornitore`/`match_uscita_totale`
+  - DELETE `/banca/carta/estratti/{id}` con check anche su `cg_uscite.banca_movimento_id` (oltre a `banca_fatture_link`)
+- `frontend/src/pages/banca/CartaCreditoPage.jsx`:
+  - Stato `cercaUscita: {movimento, estrattoId} | null`
+  - Funzioni `refreshAfterMatch(estrattoId)` e `unlinkMovimento(movId, estrattoId)`
+  - `EstrattoDetail` esteso con colonna "Match CG (livello A)": chip verde `✓ #N {fornitore}` + bottone "stacca" sui matchati; bottone `🔍 Cerca` sui non matchati
+  - `loadDetail` accetta `force=true` per invalidare la cache dopo match/unlink
+
+### Test (DB sintetico)
+- Mig 140 + 141 idempotenti ✓
+- 3 candidati ESSELUNGA/ARUBA/IL POST trovati con score 1.0/0.97/1.0 ✓
+- `apply_link` cambia stato a PAGATO, setta `banca_movimento_id`, `importo_pagato`, popola `data_pagamento` se NULL ✓
+- `remove_link` torna a PAGATO_MANUALE, azzera `banca_movimento_id` ✓
+- `automatch_dry_run` esclude FORNITORE INESISTENTE (score 0) ✓
+- `automatch_apply` linka 3/3, nessuno skipped ✓
+
+### Bump versioni
+- `VERSION` 5.18 → 5.19
+- `cartaCredito` 1.0 beta → 1.1 beta
+- `sistema` 5.18 → 5.19
+
+### File toccati in questo push
+- `app/migrations/141_carta_match_settings.py` (nuovo)
+- `app/services/carta_match_service.py` (nuovo)
+- `app/routers/banca_carta_router.py`
+- `frontend/src/components/carta/CercaUscitaModal.jsx` (nuovo)
+- `frontend/src/pages/banca/CartaCreditoPage.jsx`
+- `frontend/src/config/versions.jsx`
+- `VERSION`
+- `docs/modulo_banca.md`
+- `docs/sessione.md` (questa entry)
+
+---
+
+**Aggiornamento precedente (2026-06-02 pomeriggio):** **CC.3: UI Carta di Credito vera** (`[core]`). `CartaCreditoPage.jsx` da scheletro v0.1 a v1.0: anagrafica carta (multi-carta ready via dropdown), drop-zone upload PDF con feedback specifico per 422/409, lista estratti con riga espandibile, sub-tabella movimenti dentro l'estratto espanso con badge USD per i movimenti esteri, delete estratto. Promosso a `cartaCredito v1.0 beta`. Sistema 5.17→5.18. Manca solo la riconciliazione (CC.4 livello A, CC.5 livello B + riepilogo mensile).
 
 ## SESSIONE 2026-06-02 — CC.3: UI Carta di Credito vera
 

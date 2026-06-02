@@ -14,6 +14,12 @@ Endpoint:
   DELETE /banca/carta/estratti/{id}       — elimina estratto + suoi movimenti
                                             (utile per ri-importare PDF dopo bugfix)
 
+CC.4 — riconciliazione livello A (match movimento carta ↔ uscita CG):
+  GET    /banca/carta/movimenti/{id}/candidati  — lista uscite CG candidate con score
+  POST   /banca/carta/movimenti/{id}/link        — applica link (stato → PAGATO)
+  DELETE /banca/carta/movimenti/{id}/link        — rimuove link (stato → PAGATO_MANUALE)
+  GET    /banca/carta/match-settings             — legge tolleranze/pesi (singleton)
+
 Auth: tutti gli endpoint richiedono utente loggato (admin in produzione, ma
 non blocchiamo i ruoli a livello router — il controllo è delegato a
 useModuleAccess + permessi cc/carta su FE).
@@ -28,10 +34,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 
 from app.services.auth_service import get_current_user
 from app.services.carta_pdf_parser import parse_estratto_carta, to_dict
+from app.services import carta_match_service
 from app.utils.locale_data import locale_data_path
 
 
@@ -377,17 +384,22 @@ def get_estratto(estratto_id: int, current_user: dict = Depends(get_current_user
         if not e:
             raise HTTPException(404, "Estratto non trovato")
 
+        # CC.4: aggiungo info match A (l'uscita CG già linkata, se c'è)
         movs = conn.execute(
-            """SELECT id, data_contabile AS data_operazione,
-                      data_valuta AS data_registrazione,
-                      ABS(importo) AS importo,
-                      descrizione, categoria_banca,
-                      carta_codice_riferimento, carta_mcc,
-                      valuta_estera, importo_estero, cambio_valuta,
-                      magg_circuito, magg_cambio
-               FROM banca_movimenti
-               WHERE carta_estratto_id = ?
-               ORDER BY data_contabile, id""",
+            """SELECT m.id, m.data_contabile AS data_operazione,
+                      m.data_valuta AS data_registrazione,
+                      ABS(m.importo) AS importo,
+                      m.descrizione, m.categoria_banca,
+                      m.carta_codice_riferimento, m.carta_mcc,
+                      m.valuta_estera, m.importo_estero, m.cambio_valuta,
+                      m.magg_circuito, m.magg_cambio,
+                      u.id AS match_uscita_id,
+                      u.fornitore_nome AS match_uscita_fornitore,
+                      u.totale AS match_uscita_totale
+               FROM banca_movimenti m
+               LEFT JOIN cg_uscite u ON u.banca_movimento_id = m.id
+               WHERE m.carta_estratto_id = ?
+               ORDER BY m.data_contabile, m.id""",
             (estratto_id,),
         ).fetchall()
 
@@ -431,6 +443,21 @@ def delete_estratto(estratto_id: int, current_user: dict = Depends(get_current_u
                 "Staccare prima i link e riprovare.",
             )
 
+        # CC.4: verifica che nessun movimento sia linkato a uscite CG (match A)
+        cg_linked = conn.execute(
+            """SELECT COUNT(*) AS n
+               FROM cg_uscite u
+               JOIN banca_movimenti bm ON bm.id = u.banca_movimento_id
+               WHERE bm.carta_estratto_id = ?""",
+            (estratto_id,),
+        ).fetchone()
+        if cg_linked["n"] > 0:
+            raise HTTPException(
+                409,
+                f"Impossibile cancellare: {cg_linked['n']} movimenti sono riconciliati "
+                f"con uscite di Controllo Gestione. Staccare prima i link e riprovare.",
+            )
+
         deleted_movs = conn.execute(
             "DELETE FROM banca_movimenti WHERE carta_estratto_id = ?",
             (estratto_id,),
@@ -438,5 +465,119 @@ def delete_estratto(estratto_id: int, current_user: dict = Depends(get_current_u
         conn.execute("DELETE FROM carta_estratti WHERE id = ?", (estratto_id,))
         conn.commit()
         return {"ok": True, "movimenti_eliminati": deleted_movs}
+    finally:
+        conn.close()
+
+
+# ──────────────────────────────────────────────────────────────
+# CC.4 — Match livello A: movimento carta ↔ uscita CG
+# ──────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/match-settings",
+    summary="Legge tolleranze/pesi del matcher carta (singleton)",
+)
+def get_match_settings_endpoint(current_user: dict = Depends(get_current_user)):
+    """Espone le settings correnti del match service. Modifiche via UI
+    (CC.4.e in roadmap) o SQL diretto. Default in carta_match_service.DEFAULTS."""
+    conn = get_db()
+    try:
+        return carta_match_service.get_match_settings(conn)
+    finally:
+        conn.close()
+
+
+@router.get(
+    "/movimenti/{movimento_id}/candidati",
+    summary="Cerca uscite CG candidate per il match con questo movimento carta",
+)
+def get_candidati(
+    movimento_id: int,
+    search: Optional[str] = Query(None, description="Filtro extra su fornitore_nome (substring)"),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    """Ritorna le uscite CG candidate ordinate per score decrescente.
+
+    Filtri:
+      - cg_uscite.metodo_pagamento = 'CARTA'
+      - cg_uscite.banca_movimento_id IS NULL
+      - |importo_uscita − importo_movimento| < tolerance_importo_eur
+      - |data_pagamento − data_carta| < tolerance_data_days (se data_pagamento presente)
+
+    Score (0–1) pesato: importo + data + fornitore. Vedi carta_match_service.
+    """
+    conn = get_db()
+    try:
+        # Verifica esistenza movimento
+        mov = conn.execute(
+            "SELECT id FROM banca_movimenti WHERE id = ? AND banca LIKE 'CARTA_%'",
+            (movimento_id,),
+        ).fetchone()
+        if not mov:
+            raise HTTPException(404, "Movimento carta non trovato")
+
+        candidati = carta_match_service.find_candidati(
+            conn, movimento_id, limit=limit, search=search
+        )
+        return {"candidati": candidati, "n": len(candidati)}
+    finally:
+        conn.close()
+
+
+@router.post(
+    "/movimenti/{movimento_id}/link",
+    summary="Linka movimento carta a un'uscita CG (stato → PAGATO)",
+)
+def link_movimento(
+    movimento_id: int,
+    payload: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Body: {uscita_id: int}.
+
+    Effetto:
+      cg_uscite.banca_movimento_id = movimento_id
+      cg_uscite.stato = 'PAGATO'
+      cg_uscite.importo_pagato = totale
+      cg_uscite.data_pagamento = COALESCE(data_pagamento, data_carta)
+
+    Errori:
+      400 — uscita_id mancante o invalida
+      409 — movimento già linkato OPPURE uscita già linkata OPPURE
+            uscita ha metodo_pagamento ≠ 'CARTA'
+    """
+    uscita_id = payload.get("uscita_id")
+    if not isinstance(uscita_id, int):
+        raise HTTPException(400, "uscita_id mancante o non int")
+
+    conn = get_db()
+    try:
+        try:
+            return carta_match_service.apply_link(
+                conn, movimento_id, uscita_id, user=current_user.get("username")
+            )
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+    finally:
+        conn.close()
+
+
+@router.delete(
+    "/movimenti/{movimento_id}/link",
+    summary="Rimuove link tra movimento carta e uscita CG (stato → PAGATO_MANUALE)",
+)
+def unlink_movimento(
+    movimento_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Idempotente: se non esiste un link, ritorna {ok: True, uscita_id: None}.
+    Rimette lo stato dell'uscita a PAGATO_MANUALE (se metodo è ancora 'CARTA')."""
+    conn = get_db()
+    try:
+        return carta_match_service.remove_link(
+            conn, movimento_id, user=current_user.get("username")
+        )
     finally:
         conn.close()
