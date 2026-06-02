@@ -1,6 +1,65 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-05-30 — **Vini 3.61: STATO_RIORDINO si azzera in automatico all'arrivo dello stock** (`[core]`). Auto-reset di `STATO_RIORDINO='0'` (Ordinato) in `registra_movimento` (CARICO sempre + RETTIFICA delta>0) e in `conferma_arrivo_ordine_pending`. Ogni transizione è loggata come MODIFICA con utente/origine. `duplicate_vino` accetta ora `utente` e logga lo stato iniziale. Migration 139 cleanup one-shot dei vini orfani (`STATO_RIORDINO='0'` senza pending). Da pushare.
+**Ultimo aggiornamento:** 2026-06-02 — **CC.1+CC.2: backend Carta di Credito in produzione** (`[core]`). Parser PDF Banco BPM (`app/services/carta_pdf_parser.py`), migration 140 (carte_credito, carta_estratti, +8 colonne carta su banca_movimenti), router `app/routers/banca_carta_router.py` con upload PDF + lista carte/estratti/movimenti. Validato sui 5 estratti gen→mag 2026 (127 movimenti, quadratura ai centesimi). Sistema 5.16→5.17, nuovo modulo `cartaCredito v0.2 alpha`. Anche fixato `backup_router.py` (entrato dentro commit ricette di sessione parallela). UI ancora scheletro v0.1 — CC.3 ne farà uno vero.
+
+## SESSIONE 2026-06-02 — CC.1+CC.2: backend Carta di Credito
+
+### Contesto
+Marco vuole riconciliare l'estratto carta di credito Banco BPM (carta corporate Tre Gobbi *623, codice posizione 9000856980) con le uscite del Controllo di Gestione. Decisioni architetturali concordate prima di scrivere codice:
+
+1. **Storage riuso vs nuovo:** riuso `banca_movimenti` con `banca='CARTA_<EMITT>_<ULT3>'` (es. `CARTA_BPM_623`) ed esclusione dal saldo CC via `WHERE banca NOT LIKE 'CARTA_%'`. Scartata nuova tabella `carta_movimenti` per non duplicare parser/dedup/categorizzazione/UI.
+2. **Multi-carta day-1:** anagrafica `carte_credito` con PK funzionale `codice_posizione`. Oggi 1 sola carta, predisposto per N.
+3. **Doppio livello di riconciliazione:**
+   - **Livello A** — movimento singolo carta ↔ uscita CG con `metodo_pagamento='CARTA' AND banca_movimento_id IS NULL`. CC.4.
+   - **Livello B** — estratto mensile ↔ addebito unico sul CC bancario (`carta_estratti.banca_movimento_id`). CC.5.
+
+### CC.1 — Parser PDF (`app/services/carta_pdf_parser.py`, 492 righe)
+Banco BPM produce PDF testuale 4 pagine. Estrazione via `pdftotext -layout` + regex. Header layout colonnare a 3 colonne con barcode/junk frapposto → helper `_find_value_after_label(label, value_re, max_chars, same_line=False)`. Default `same_line=False` salta la riga della label e cerca dalla riga successiva (necessario perché la colonna del valore della label X coincide con la riga della label Y+1).
+
+Regex chiave:
+- **Riga normale:** `^\s*(\d{23})\s+(\d{8})\s+(GG/MM/AAAA)\s+(GG/MM/AAAA)\s+(.+?)\s+(IMPORTO)\s*$`
+- **Riga estera:** stessa + `(IMP_ESTERO)\s+([A-Z]{3})\s+(CAMBIO 5 decimali)\s+(IMP_EUR)`
+- **Riga MAGG:** `MAGG\.\s+CIRCUITO\s+€\s+(X,XX)\s+MAGG\.\s+CAMBIO\s+€\s+(Y,YY)` (riga successiva all'estera)
+
+Validazione: 2 equazioni di chiusura (somma_movimenti == totale_movimenti; addebito_cc == totale_mov + bollo + spese + residuo_prec − addebitato_prec).
+
+**Sanity 5 PDF (gen→mag 2026):** 35+19+20+31+22 = 127 movimenti, **tutti i delta a 0.00**. Codici riferimento 23-cifre: 127 unici (dedup naturale perfetto).
+
+### CC.2 — Schema + endpoint (mig 140 + `banca_carta_router.py`, 442 righe)
+
+**Mig 140** crea:
+- `carte_credito` (id, nickname, emittente, `codice_posizione UNIQUE`, carta_numero_mask, ultime_visibili, intestatario, titolare, codice_titolare, cc_addebito, abi, cab, piva, limite_utilizzo, `banca_tag UNIQUE`, attiva, ...)
+- `carta_estratti` (id, carta_id FK, data_chiusura, data_valuta_addebito, debito_residuo_precedente, totale_addebitato_precedente, totale_movimenti, imposta_bollo, spese_invio, addebito_totale_cc, banca_movimento_id FK NULL (match B), pdf_filename, `pdf_sha256 UNIQUE` (dedup re-upload), n_movimenti, quadra, warnings JSON, imported_at)
+- ALTER `banca_movimenti` ADD: `carta_codice_riferimento` (+ UNIQUE INDEX WHERE NOT NULL), `carta_mcc`, `carta_estratto_id`, `valuta_estera`, `importo_estero`, `cambio_valuta`, `magg_circuito`, `magg_cambio`. Tutte idempotenti via PRAGMA table_info.
+
+**Endpoint `/banca/carta/*`:**
+- `POST /upload` — riceve PDF, parse, find_or_create_carta, insert estratto + movimenti (dedup su codice_riferimento). Rifiuta con 422 se non quadra (delta > 0.02€). Rifiuta con 409 se `pdf_sha256` già visto. Movimenti inseriti con `importo` NEGATIVO (è uscita), `banca=banca_tag` della carta, `rapporto=codice_posizione`, `hashtag=mcc[:4]`.
+- `GET /carte` — lista carte con conteggio estratti/movimenti per carta.
+- `GET /carte/{id}` — dettaglio.
+- `GET /estratti?carta_id=` — lista estratti.
+- `GET /estratti/{id}` — dettaglio + movimenti.
+- `DELETE /estratti/{id}` — rollback (bloccato se ci sono `banca_fatture_link` attivi).
+
+Registrato in `main.py` come `banca_carta_router` accanto a `banca_router`.
+
+### Anomalia tracciabilità (memo per il futuro)
+Commit `cd9f49ba` ha messaggio "fix backup_router.py" ma il payload reale è CC.2 backend (4 file nuovi). Causa: il working tree era già dirty con CC.2 quando Marco ha lanciato push.sh col messaggio del fix backup → `git add -A` ha incluso tutto. Il fix backup vero (1 file) è invece entrato dentro `26d4fb10` (commit ricette di sessione parallela). Nessun problema funzionale, solo tracciabilità: `git blame` sui file CC.2 punterà al commit sbagliato. Lezione: prima di dare il messaggio di un push spezzato, verificare che il working tree contenga SOLO i file di quell'argomento.
+
+### Push successivi previsti
+- Questo (Push B): bump versioni + docs CC.2 (chiude pulito il commit precedente).
+- Push C: CC.3 UI vera (`CartaCreditoPage.jsx` da scheletro v0.1 a v1.0).
+- Push D: CC.4 riconciliazione livello A.
+- Push E: CC.5 riconciliazione livello B + riepilogo mensile.
+
+### File toccati in questo push
+- `VERSION` 5.16 → 5.17
+- `frontend/src/config/versions.jsx` — nuovo `cartaCredito v0.2 alpha`, `sistema` 5.16 → 5.17
+- `docs/modulo_banca.md` — nuova sezione "11.1 Sub-modulo Carta di Credito"
+- `docs/sessione.md` — questa entry
+
+---
+
+**Penultimo aggiornamento:** 2026-05-30 — **Vini 3.61: STATO_RIORDINO si azzera in automatico all'arrivo dello stock** (`[core]`). Auto-reset di `STATO_RIORDINO='0'` (Ordinato) in `registra_movimento` (CARICO sempre + RETTIFICA delta>0) e in `conferma_arrivo_ordine_pending`. Ogni transizione è loggata come MODIFICA con utente/origine. `duplicate_vino` accetta ora `utente` e logga lo stato iniziale. Migration 139 cleanup one-shot dei vini orfani (`STATO_RIORDINO='0'` senza pending). Da pushare.
 
 ## SESSIONE 2026-05-30 — Vini 3.61: STATO_RIORDINO auto-reset all'arrivo stock
 

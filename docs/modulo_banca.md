@@ -276,8 +276,44 @@ frontend/src/pages/flussi-cassa/
 | B.3 | Match manuale movimento ↔ uscita | ✅ FATTO |
 | B.4 | Algoritmo matching automatico | ⏳ |
 | B.5 | Match 1:N (bonifici cumulativi) | ⏳ |
-| B.6 | Import PDF estratto conto (parsing) | ⏳ |
+| B.6 | Import PDF estratto conto (parsing) | ⏳ (vedi CC.* per la carta) |
 | B.7 | Dashboard Banca (saldo, trend, top movimenti) | ⏳ |
 | B.8 | Cross-check POS chiusure turno ↔ accrediti banca | ⏳ |
+
+## 11.1 Sub-modulo Carta di Credito (CC.*)
+
+**Sessione CC, aperta 2026-06-02.** Backend in produzione, UI ancora scheletro.
+
+**Convenzione storage:** i movimenti carta vivono dentro `banca_movimenti` con `banca = 'CARTA_<EMITT>_<ULT3>'` (es. `CARTA_BPM_623`). Vanno **esclusi** dal saldo CC via `WHERE banca NOT LIKE 'CARTA_%'`. Decisione architetturale 2026-06-02: riuso vs nuova tabella `carta_movimenti` → riuso, con colonne carta-specifiche aggiunte via mig 140.
+
+**Nuove tabelle (mig 140):**
+- `carte_credito` — anagrafica multi-carta (oggi 1, predisposto N). PK funzionale: `codice_posizione` (UNIQUE).
+- `carta_estratti` — un record per PDF importato. PK contenuto: `pdf_sha256` (UNIQUE, dedup re-upload).
+
+**Nuove colonne su `banca_movimenti`:**
+`carta_codice_riferimento` (23 cifre BPM, dedup naturale UNIQUE), `carta_mcc` (8 cifre merchant category), `carta_estratto_id` (FK), `valuta_estera`, `importo_estero`, `cambio_valuta`, `magg_circuito`, `magg_cambio`.
+
+**Due livelli di riconciliazione (vedi CC.4, CC.5):**
+- **Livello A** — singolo movimento carta ↔ uscita CG con `metodo_pagamento='CARTA'` e `banca_movimento_id IS NULL`. Quando matchato, l'uscita passa da `PAGATO_MANUALE` a `PAGATO`.
+- **Livello B** — l'estratto carta (mensile) ↔ movimento `banca_movimenti` sul CC bancario che rappresenta l'addebito unico dell'emittente. Match su `addebito_totale_cc` + `data_valuta_addebito`. Si registra in `carta_estratti.banca_movimento_id`.
+
+| ID | Cosa | Stato |
+|----|------|-------|
+| CC.1 | Parser PDF estratto carta Banco BPM | ✅ FATTO (2026-06-02, `app/services/carta_pdf_parser.py`) |
+| CC.2 | Schema DB + endpoint backend carta | ✅ FATTO (2026-06-02, mig 140, `app/routers/banca_carta_router.py`) |
+| CC.3 | UI CartaCreditoPage (lista carte/estratti/movimenti, upload PDF) | ⏳ |
+| CC.4 | Riconciliazione livello A (movimento carta ↔ uscita CG) | ⏳ |
+| CC.5 | Riconciliazione livello B (estratto ↔ addebito CC) + riepilogo mensile | ⏳ |
+
+**Endpoint attivi (`/banca/carta/*`):**
+- `POST /banca/carta/upload` — upload PDF Banco BPM, parse via `carta_pdf_parser`, insert in `carta_estratti` + N righe in `banca_movimenti`. Dedup su `pdf_sha256`. Sanity check quadratura ai centesimi; 422 se non quadra.
+- `GET /banca/carta/carte` — lista carte attive con conteggio estratti/movimenti.
+- `GET /banca/carta/carte/{id}` — dettaglio singola carta.
+- `GET /banca/carta/estratti?carta_id=` — lista estratti.
+- `GET /banca/carta/estratti/{id}` — dettaglio estratto + movimenti.
+- `DELETE /banca/carta/estratti/{id}` — rollback import (bloccato se ci sono `banca_fatture_link` attivi).
+
+**Parser PDF — formato supportato (Banco BPM):**
+PDF testuale 4 pagine. Riga normale: `[cod_rif 23] [mcc 8] [data_op] [data_reg] [descrizione] [importo]`. Movimenti esteri: 2 righe (riga principale con `[imp_estero] [VAL] [cambio]` + riga successiva `MAGG. CIRCUITO € X MAGG. CAMBIO € Y`). Validato sui 5 estratti gen-mag 2026: 127 movimenti, quadratura ai centesimi su totale movimenti e su addebito CC. Dipendenza runtime: `pdftotext` (poppler-utils).
 
 > **Note Marco (Batch 3 roadmap reorganization):** voci B.x specifiche da approfondire al prossimo passaggio. Lasciato segnaposto qui.

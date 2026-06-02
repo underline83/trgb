@@ -116,13 +116,22 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  cartaCredito: {
+    // Sub-modulo banca, sessione CC (2026-06-02). Backend CC.2 in produzione
+    // (parser PDF Banco BPM + mig 140 + endpoint /banca/carta/*); UI ancora
+    // scheletro v0.1 con placeholder "Prossimamente". CC.3 rifarà l'UI vera.
+    version: "0.2",
+    label: "Carta di Credito",
+    status: "alpha",
+    color: "orange",
+  },
   sistema: {
     // ⚠️ ALLINEAMENTO OBBLIGATORIO con file `VERSION` in root del repo.
     // Backend (`main.py`) legge da `VERSION` come single source of truth ed
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.16",
+    version: "5.17",
     label: "Sistema",
     status: "stabile",
     color: "green",
