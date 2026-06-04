@@ -27,6 +27,7 @@ const MENU = [
   { key: "cat-registrazione", label: "Categorie Registrazione", icon: "📋", desc: "Categorie registrazione corrispettivi" },
   { key: "duplicati",         label: "Pulizia Duplicati",       icon: "🧹", desc: "Trova e rimuovi movimenti duplicati" },
   { key: "cash-baseline",     label: "Saldo cassa contanti",    icon: "💰", desc: "Data + valore iniziale per il Flusso contanti" },
+  { key: "carta-match",       label: "Soglie match carta",      icon: "💳", desc: "Tolleranze e pesi per la riconciliazione carta ↔ uscite CG" },
 ];
 
 export default function BancaImpostazioni() {
@@ -38,6 +39,7 @@ export default function BancaImpostazioni() {
     "cat-registrazione": () => <TabCategorieRegistrazione />,
     "duplicati":         () => <TabDuplicati />,
     "cash-baseline":     () => <TabCashBaseline />,
+    "carta-match":       () => <TabCartaMatch />,
   };
 
   return (
@@ -1243,6 +1245,273 @@ function DuplicateGroup({ group, onDelete, deleting, fmtDate }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════
+// TAB SOGLIE MATCH CARTA (CC.4.e)
+// ═══════════════════════════════════════════════════════
+// Form per modificare le settings del matching carta ↔ uscite CG.
+// Endpoint: GET /banca/carta/match-settings · PUT /banca/carta/match-settings
+// La somma dei 3 pesi (importo + data + fornitore) deve essere 1.0.
+
+function TabCartaMatch() {
+  const [settings, setSettings] = useState(null);
+  const [form, setForm] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch(`${API_BASE}/banca/carta/match-settings`);
+      if (!res.ok) throw new Error("Errore nel caricamento");
+      const data = await res.json();
+      setSettings(data);
+      setForm(data);
+    } catch (e) {
+      setError(e.message || "Errore di rete");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function patch(key, val) {
+    setForm((f) => ({ ...f, [key]: val }));
+    setSuccess("");
+  }
+
+  // Somma pesi calcolata live
+  const sommaPesi = form
+    ? Number(form.weight_importo || 0) + Number(form.weight_data || 0) + Number(form.weight_fornitore || 0)
+    : 0;
+  const pesiOk = Math.abs(sommaPesi - 1.0) < 0.01;
+
+  async function save() {
+    if (!pesiOk) {
+      setError(`La somma dei pesi deve essere 1.00 (oggi: ${sommaPesi.toFixed(3)})`);
+      return;
+    }
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const body = {
+        tolerance_importo_eur: Number(form.tolerance_importo_eur),
+        tolerance_data_days: parseInt(form.tolerance_data_days, 10),
+        weight_importo: Number(form.weight_importo),
+        weight_data: Number(form.weight_data),
+        weight_fornitore: Number(form.weight_fornitore),
+        auto_apply_threshold: Number(form.auto_apply_threshold),
+      };
+      const res = await apiFetch(`${API_BASE}/banca/carta/match-settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.detail || `Errore HTTP ${res.status}`);
+      setSettings(j);
+      setForm(j);
+      setSuccess("Settings salvate.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (e) {
+      setError(e.message || "Errore di rete");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function resetToDefaults() {
+    if (!window.confirm("Ripristinare i valori di default consigliati?")) return;
+    setForm({
+      tolerance_importo_eur: 0.50,
+      tolerance_data_days: 10,
+      weight_importo: 0.50,
+      weight_data: 0.30,
+      weight_fornitore: 0.20,
+      auto_apply_threshold: 0.85,
+    });
+  }
+
+  function resetUnsaved() {
+    setForm(settings);
+    setError("");
+    setSuccess("");
+  }
+
+  if (loading) {
+    return <p className="text-center text-neutral-400 py-12">Caricamento...</p>;
+  }
+  if (!form) {
+    return <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-4">{error || "Errore"}</div>;
+  }
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(settings);
+
+  return (
+    <div>
+      <div className="mb-5">
+        <h2 className="text-lg font-bold text-neutral-800">Soglie match carta ↔ uscite CG</h2>
+        <p className="text-sm text-neutral-500 mt-1">
+          Configurazione dell'algoritmo di matching tra movimenti carta di credito e uscite del Controllo Gestione (livello A).
+          Singleton — un solo set di valori. Modifiche immediate, applicate sui prossimi match.
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2 text-sm">⚠ {error}</div>
+      )}
+      {success && (
+        <div className="mb-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-2 text-sm">✓ {success}</div>
+      )}
+
+      {/* PRE-FILTRI */}
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-4">
+        <h3 className="text-sm font-semibold text-neutral-700 mb-3">Tolleranze pre-filtro</h3>
+        <p className="text-xs text-neutral-500 mb-3">
+          Un'uscita CG è considerata candidata solo se l'importo e la data rientrano in queste tolleranze.
+          Sotto questi limiti, il candidato non viene nemmeno valutato dal score.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SettingField
+            label="Tolleranza importo (€)"
+            help="Massimo scarto in euro tra importo movimento e totale uscita. Default: 0,50€."
+            value={form.tolerance_importo_eur}
+            onChange={(v) => patch("tolerance_importo_eur", v)}
+            type="number"
+            step="0.01"
+            min="0.01"
+            max="50"
+          />
+          <SettingField
+            label="Tolleranza data (giorni)"
+            help="Massima differenza in giorni tra data carta e data pagamento uscita. Default: 10 giorni."
+            value={form.tolerance_data_days}
+            onChange={(v) => patch("tolerance_data_days", v)}
+            type="number"
+            step="1"
+            min="0"
+            max="60"
+          />
+        </div>
+      </div>
+
+      {/* PESI */}
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-neutral-700">Pesi del punteggio</h3>
+          <span className={`text-xs font-medium ${pesiOk ? "text-emerald-700" : "text-red-700"}`}>
+            Somma: {sommaPesi.toFixed(2)} / 1.00 {pesiOk ? "✓" : "⚠"}
+          </span>
+        </div>
+        <p className="text-xs text-neutral-500 mb-3">
+          Score = w_importo·imp_score + w_data·data_score + w_fornitore·forn_score. La somma deve essere 1.00.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <SettingField
+            label="Peso importo"
+            help="Quanto pesa la coincidenza dell'importo. Default: 0.50."
+            value={form.weight_importo}
+            onChange={(v) => patch("weight_importo", v)}
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+          />
+          <SettingField
+            label="Peso data"
+            help="Quanto pesa la vicinanza temporale. Default: 0.30."
+            value={form.weight_data}
+            onChange={(v) => patch("weight_data", v)}
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+          />
+          <SettingField
+            label="Peso fornitore"
+            help="Quanto pesa il match testuale fornitore vs descrizione. Default: 0.20."
+            value={form.weight_fornitore}
+            onChange={(v) => patch("weight_fornitore", v)}
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+          />
+        </div>
+      </div>
+
+      {/* SOGLIA AUTO-APPLY */}
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-5">
+        <h3 className="text-sm font-semibold text-neutral-700 mb-3">Soglia auto-apply</h3>
+        <p className="text-xs text-neutral-500 mb-3">
+          Nel modale auto-match, le righe con score ≥ questa soglia hanno la checkbox spuntata di default.
+          Sotto soglia: visibili ma da spuntare manualmente. Default: 0.85.
+        </p>
+        <div className="max-w-xs">
+          <SettingField
+            label="Soglia auto-apply"
+            help="Da 0 (tutto auto-spuntato) a 1 (niente auto-spuntato). Default: 0.85."
+            value={form.auto_apply_threshold}
+            onChange={(v) => patch("auto_apply_threshold", v)}
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+          />
+        </div>
+      </div>
+
+      {/* METADATI */}
+      {settings.updated_at && (
+        <p className="text-[11px] text-neutral-400 mb-3">
+          Ultima modifica: {settings.updated_at}
+          {settings.updated_by ? ` da ${settings.updated_by}` : ""}
+        </p>
+      )}
+
+      {/* AZIONI */}
+      <div className="flex flex-wrap gap-2 items-center pt-3 border-t border-neutral-200">
+        <Btn variant="primary" onClick={save} loading={saving} disabled={!dirty || !pesiOk}>
+          Salva
+        </Btn>
+        {dirty && (
+          <Btn variant="ghost" onClick={resetUnsaved}>
+            Annulla modifiche
+          </Btn>
+        )}
+        <Btn variant="ghost" onClick={resetToDefaults}>
+          Ripristina default
+        </Btn>
+        {dirty && (
+          <span className="text-xs text-amber-700 ml-auto">Ci sono modifiche non salvate</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Riga input compatta: label + numero + help
+function SettingField({ label, help, value, onChange, type = "number", ...rest }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-neutral-700 mb-1">{label}</label>
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? "" : e.target.value)}
+        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 tabular-nums"
+        {...rest}
+      />
+      {help && <p className="text-[11px] text-neutral-400 mt-1 leading-tight">{help}</p>}
     </div>
   );
 }

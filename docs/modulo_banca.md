@@ -304,7 +304,7 @@ frontend/src/pages/flussi-cassa/
 | CC.3 | UI CartaCreditoPage (lista carte/estratti/movimenti, upload PDF) | ✅ FATTO (2026-06-02, v1.0) |
 | CC.4 D1 | Match manuale singolo (modale "Cerca uscita" con scoring backend) | ✅ FATTO (2026-06-02 sera, mig 141, `carta_match_service.py`) |
 | CC.4 D2 | Auto-match bulk con anteprima checkbox | ✅ FATTO (2026-06-02 sera, `AutomatchModal`, endpoint POST `/estratti/{id}/automatch`) |
-| CC.4.e | UI soglie matching in Impostazioni | ⏳ |
+| CC.4.e | UI soglie matching in Impostazioni | ✅ FATTO (2026-06-02 sera, tab "Soglie match carta" in BancaImpostazioni, PUT /banca/carta/match-settings) |
 | CC.5 | Riconciliazione livello B (estratto ↔ addebito CC) + riepilogo mensile | ⏳ |
 
 **Endpoint attivi (`/banca/carta/*`):**

@@ -479,10 +479,102 @@ def delete_estratto(estratto_id: int, current_user: dict = Depends(get_current_u
     summary="Legge tolleranze/pesi del matcher carta (singleton)",
 )
 def get_match_settings_endpoint(current_user: dict = Depends(get_current_user)):
-    """Espone le settings correnti del match service. Modifiche via UI
-    (CC.4.e in roadmap) o SQL diretto. Default in carta_match_service.DEFAULTS."""
+    """Espone le settings correnti del match service. Default in
+    carta_match_service.DEFAULTS se la tabella è vuota."""
     conn = get_db()
     try:
+        return carta_match_service.get_match_settings(conn)
+    finally:
+        conn.close()
+
+
+@router.put(
+    "/match-settings",
+    summary="Aggiorna tolleranze/pesi del matcher carta (singleton)",
+)
+def update_match_settings_endpoint(
+    payload: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Aggiorna la riga singleton `carta_match_settings` (id=1).
+
+    Validazioni:
+      - tolerance_importo_eur > 0
+      - tolerance_data_days >= 0 e <= 60
+      - weight_importo + weight_data + weight_fornitore deve essere ≈ 1.0
+        (tolleranza 0.01 per errori di arrotondamento JS)
+      - 0 <= auto_apply_threshold <= 1
+
+    Body atteso (tutti opzionali, vengono presi solo i campi presenti):
+      {
+        "tolerance_importo_eur": float,
+        "tolerance_data_days": int,
+        "weight_importo": float,
+        "weight_data": float,
+        "weight_fornitore": float,
+        "auto_apply_threshold": float
+      }
+    """
+    valid_keys = {
+        "tolerance_importo_eur",
+        "tolerance_data_days",
+        "weight_importo",
+        "weight_data",
+        "weight_fornitore",
+        "auto_apply_threshold",
+    }
+    updates = {k: v for k, v in (payload or {}).items() if k in valid_keys}
+    if not updates:
+        raise HTTPException(400, "Nessun campo valido nel body")
+
+    # Validazioni
+    if "tolerance_importo_eur" in updates:
+        v = updates["tolerance_importo_eur"]
+        if not isinstance(v, (int, float)) or v <= 0:
+            raise HTTPException(400, "tolerance_importo_eur deve essere > 0")
+    if "tolerance_data_days" in updates:
+        v = updates["tolerance_data_days"]
+        if not isinstance(v, int) or v < 0 or v > 60:
+            raise HTTPException(400, "tolerance_data_days deve essere intero 0–60")
+    for wk in ("weight_importo", "weight_data", "weight_fornitore"):
+        if wk in updates:
+            v = updates[wk]
+            if not isinstance(v, (int, float)) or v < 0 or v > 1:
+                raise HTTPException(400, f"{wk} deve essere in [0, 1]")
+    if "auto_apply_threshold" in updates:
+        v = updates["auto_apply_threshold"]
+        if not isinstance(v, (int, float)) or v < 0 or v > 1:
+            raise HTTPException(400, "auto_apply_threshold deve essere in [0, 1]")
+
+    # Verifica somma pesi (con merge sui valori correnti per pesi non passati)
+    conn = get_db()
+    try:
+        current = carta_match_service.get_match_settings(conn)
+        merged = {**current, **updates}
+        somma = (
+            float(merged["weight_importo"])
+            + float(merged["weight_data"])
+            + float(merged["weight_fornitore"])
+        )
+        if abs(somma - 1.0) > 0.01:
+            raise HTTPException(
+                400,
+                f"La somma dei pesi (importo+data+fornitore) deve essere 1.0, "
+                f"trovato {somma:.3f}.",
+            )
+
+        # Build UPDATE dinamico
+        cols = list(updates.keys())
+        set_clause = ", ".join(f"{c} = ?" for c in cols)
+        params = [updates[c] for c in cols]
+        params.append((current_user.get("username") or "")[:100])
+        conn.execute(
+            f"""UPDATE carta_match_settings
+                SET {set_clause}, updated_at = datetime('now'), updated_by = ?
+                WHERE id = 1""",
+            params,
+        )
+        conn.commit()
         return carta_match_service.get_match_settings(conn)
     finally:
         conn.close()

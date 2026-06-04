@@ -1,6 +1,49 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 (sera) — **CC.4 D2: auto-match bulk** (`[core]`). Carta v1.2 beta, sistema 5.20. Endpoint `POST /banca/carta/estratti/{id}/automatch?dry_run=true|false` (wrap su service `automatch_dry_run`/`automatch_apply` già scritto in D1). Nuova `<AutomatchModal>` con dry_run iniziale, tabella anteprima checkbox (default spuntate ≥85%), azioni rapide "Tutti / Nessuno / Solo ≥85%", apply selettivo solo dei movimenti checkati, breakdown score imp/data/forn per ogni riga. Match A ora **completo end-to-end** (manuale singolo + bulk). Resta CC.4.e (UI soglie) e CC.5 (livello B + riepilogo).
+**Ultimo aggiornamento:** 2026-06-02 (sera) — **CC.4 chiuso: D2 auto-match bulk + .e UI soglie** (`[core]`). Carta v1.3 beta, sistema 5.21. D2: endpoint `POST /banca/carta/estratti/{id}/automatch?dry_run=true|false` + nuova `<AutomatchModal>` con anteprima checkbox (default ≥85%) + bottone "🔗 Auto-match CG (N)" nell'header dettaglio estratto. .e: endpoint `PUT /banca/carta/match-settings` con validazione somma pesi=1.0 + nuovo tab "Soglie match carta" in `BancaImpostazioni` (sidebar) con form 6 campi (tolleranze importo €/giorni, 3 pesi, soglia auto-apply), reset defaults, indicatore live somma pesi. Match A ora **completo end-to-end + configurabile**. Resta solo CC.5 (livello B + riepilogo).
+
+## SESSIONE 2026-06-02 (sera) — CC.4 chiuso: D2 + .e
+
+### D2 — Auto-match bulk
+- Backend già pronto da D1 (`automatch_dry_run`, `automatch_apply` nel service). Wrapper endpoint `POST /banca/carta/estratti/{id}/automatch`:
+  - `?dry_run=true` (default): ritorna `{preview: [{movimento_id, mov_data, mov_descrizione, mov_importo, uscita_id, uscita_fornitore, uscita_totale, uscita_data_pagamento, score, imp_score, data_score, forn_score, auto_select}, ...]}`
+  - `?dry_run=false` + body `{mov_ids: [int]}`: applica solo i match selezionati (re-validation server-side al momento dell'apply per evitare race condition)
+- Frontend: `AutomatchModal.jsx` con 4 fasi (loading/preview/applying/done). Default checkbox = `auto_select` (server marca true se score ≥ soglia da settings). Azioni rapide "Tutti / Nessuno / Solo ≥85%". `skipped` non blocca (es. uscita linkata da altrove nel frattempo).
+- Bottone "🔗 Auto-match CG (N)" appare nel header `EstrattoDetail` solo se `nNonMatchati > 0`.
+
+### .e — UI soglie matching
+- Endpoint `PUT /banca/carta/match-settings` con validazione:
+  - `tolerance_importo_eur > 0`
+  - `0 <= tolerance_data_days <= 60`
+  - `0 <= weight_* <= 1`
+  - **Somma `weight_importo + weight_data + weight_fornitore` ≈ 1.0** (tolleranza 0.01). Merge sui valori correnti per validare anche update parziali.
+  - `0 <= auto_apply_threshold <= 1`
+  - Salva `updated_at` e `updated_by` automaticamente.
+- Frontend: nuova sezione `TabCartaMatch` in `BancaImpostazioni` (voce sidebar "💳 Soglie match carta"). Layout:
+  - Card "Tolleranze pre-filtro" (importo €, giorni)
+  - Card "Pesi del punteggio" con indicatore live somma + chip ✓/⚠
+  - Card "Soglia auto-apply"
+  - Bottoni: Salva (disabled se !dirty o !pesiOk), Annulla modifiche, Ripristina default
+  - Mostra ultima modifica (timestamp + user)
+
+### File nuovi
+- `frontend/src/components/carta/AutomatchModal.jsx`
+
+### File modificati
+- `app/routers/banca_carta_router.py` — POST `/automatch` + PUT `/match-settings`
+- `frontend/src/pages/banca/CartaCreditoPage.jsx` — bottone "🔗 Auto-match CG (N)" + render `AutomatchModal`
+- `frontend/src/pages/banca/BancaImpostazioni.jsx` — nuova voce menu "carta-match" + componente `TabCartaMatch` + helper `SettingField`
+- `VERSION` 5.19 → 5.21 (skip 5.20 perché D2+e combinato in un push)
+- `frontend/src/config/versions.jsx` — cartaCredito 1.1 → 1.3, sistema 5.19 → 5.21
+- `docs/modulo_banca.md` — CC.4 D2 + .e → ✅
+- `docs/sessione.md` (questa entry)
+
+### Cosa resta
+Solo **CC.5** (riconciliazione livello B + riepilogo mensile). Probabilmente 2 sotto-push (match B + riepilogo). Conclude la riga "carta_credito" sulla roadmap.
+
+---
+
+**Aggiornamento precedente (2026-06-02 sera):** **CC.4 D1: match manuale livello A** (`[core]`). Carta v1.1 beta. Mig 141 (`carta_match_settings` singleton con tolleranze 0,50€/10gg + pesi 50/30/20 + soglia auto 0.85). Nuovo service `app/services/carta_match_service.py` con algoritmo scoring (importo+data+fornitore). 4 nuovi endpoint backend (`/movimenti/{id}/candidati`, POST/DELETE `/link`, GET `/match-settings`). Frontend: nuova `<CercaUscitaModal>` + colonna "Match CG" nella sub-tabella dell'estratto espanso con bottone "🔍 Cerca" e bottone "stacca" sui matchati.
 
 ## SESSIONE 2026-06-02 (sera) — CC.4 D2: auto-match bulk
 
