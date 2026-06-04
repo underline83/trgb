@@ -815,3 +815,130 @@ def unlink_estratto_cc(
             raise HTTPException(404, str(e))
     finally:
         conn.close()
+
+
+# ──────────────────────────────────────────────────────────────
+# CC.5.b — Riepilogo mensile spese carta per categoria
+# ──────────────────────────────────────────────────────────────
+
+# Mappa MCC prefix (primi 4 cifre del campo carta_mcc 8-cifre BPM) → categoria.
+# Hardcoded perché stabile e poche voci. Tabella editabile (opzione 2 del
+# design) rinviata a quando serviranno personalizzazioni cliente.
+MCC_TO_CATEGORIA = {
+    # Trasporti / pedaggi / benzinai / car rental
+    "4111": "TRASPORTI", "4112": "TRASPORTI", "4131": "TRASPORTI",
+    "4511": "TRASPORTI", "4789": "TRASPORTI", "4784": "TRASPORTI",  # ASPIT autostrade
+    "4214": "TRASPORTI",
+    "5541": "TRASPORTI", "5542": "TRASPORTI",  # benzinai
+    "7512": "TRASPORTI", "7513": "TRASPORTI",
+    # Alimentari / grocery / liquor
+    "5300": "ALIMENTARI", "5311": "ALIMENTARI",
+    "5411": "ALIMENTARI",  # Esselunga, Cash&Carry
+    "5422": "ALIMENTARI", "5441": "ALIMENTARI", "5451": "ALIMENTARI",
+    "5462": "ALIMENTARI",
+    "5499": "ALIMENTARI",
+    "5921": "ALIMENTARI",
+    # Software / SaaS / digital goods / cloud
+    "5734": "SOFTWARE",    # OpenAI, Claude, Aruba, generic SW
+    "5815": "SOFTWARE",
+    "5816": "SOFTWARE",    # NVIDIA
+    "5817": "SOFTWARE",    # Adobe
+    "5818": "SOFTWARE",    # Apple
+    "5968": "SOFTWARE",    # Mailchimp
+    "7372": "SOFTWARE",    # Backblaze
+    "7379": "SOFTWARE",
+    # Hotel
+    "7011": "ALBERGHI", "7012": "ALBERGHI",
+    # Ristoranti / bar / fast food
+    "5811": "RISTORANTI", "5812": "RISTORANTI", "5813": "RISTORANTI",
+    "5814": "RISTORANTI",
+    # Finanziari / Klarna
+    "6010": "FINANZIARI", "6011": "FINANZIARI", "6012": "FINANZIARI",
+    "6051": "FINANZIARI",
+    # Servizi professionali / servizi vari
+    "7299": "SERVIZI", "7338": "SERVIZI", "7339": "SERVIZI",
+    "7393": "SERVIZI", "7399": "SERVIZI",
+    "8398": "SERVIZI", "8999": "SERVIZI",
+}
+
+_DEFAULT_CATEGORIA = "VARIE"
+
+
+def _mcc_to_categoria(mcc: Optional[str]) -> str:
+    if not mcc:
+        return _DEFAULT_CATEGORIA
+    prefix = mcc[:4] if len(mcc) >= 4 else mcc
+    return MCC_TO_CATEGORIA.get(prefix, _DEFAULT_CATEGORIA)
+
+
+@router.get(
+    "/riepilogo",
+    summary="Riepilogo mensile spese carta per categoria (CC.5.b)",
+)
+def riepilogo_mensile(
+    carta_id: Optional[int] = Query(None, description="Filtra su una sola carta"),
+    date_from: Optional[str] = Query(None, alias="from", description="ISO YYYY-MM-DD inclusivo"),
+    date_to: Optional[str] = Query(None, alias="to", description="ISO YYYY-MM-DD inclusivo"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Aggrega le spese carta per mese (YYYY-MM) e categoria.
+
+    Ritorna:
+      {
+        "mesi": [
+          {
+            "mese": "2026-04",
+            "totale": 1858.92,
+            "n_mov": 31,
+            "per_categoria": { "TRASPORTI": 12.30, "ALIMENTARI": 184.75, ... }
+          }, ...
+        ],
+        "categorie": ["TRASPORTI", "ALIMENTARI", "SOFTWARE", ...]
+      }
+    """
+    conn = get_db()
+    try:
+        where = ["m.banca LIKE 'CARTA_%'"]
+        params: list = []
+        if carta_id is not None:
+            where.append("m.rapporto = (SELECT codice_posizione FROM carte_credito WHERE id = ?)")
+            params.append(carta_id)
+        if date_from:
+            where.append("m.data_contabile >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("m.data_contabile <= ?")
+            params.append(date_to)
+
+        sql = f"""
+            SELECT strftime('%Y-%m', m.data_contabile) AS mese,
+                   m.carta_mcc, ABS(m.importo) AS imp
+            FROM banca_movimenti m
+            WHERE {' AND '.join(where)}
+        """
+        rows = conn.execute(sql, params).fetchall()
+
+        agg: dict = {}
+        cat_totali: dict = {}
+        for r in rows:
+            row = dict(r)
+            mese = row["mese"]
+            imp = float(row["imp"] or 0)
+            cat = _mcc_to_categoria(row.get("carta_mcc"))
+            if mese not in agg:
+                agg[mese] = {"mese": mese, "totale": 0.0, "n_mov": 0, "per_categoria": {}}
+            agg[mese]["totale"] += imp
+            agg[mese]["n_mov"] += 1
+            agg[mese]["per_categoria"][cat] = round(
+                agg[mese]["per_categoria"].get(cat, 0.0) + imp, 2
+            )
+            cat_totali[cat] = cat_totali.get(cat, 0.0) + imp
+
+        mesi = sorted(agg.values(), key=lambda x: x["mese"])
+        for x in mesi:
+            x["totale"] = round(x["totale"], 2)
+
+        categorie = [c for c, _ in sorted(cat_totali.items(), key=lambda kv: -kv[1])]
+        return {"mesi": mesi, "categorie": categorie}
+    finally:
+        conn.close()

@@ -17,6 +17,7 @@
 //   DELETE /banca/carta/estratti/{id}
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import FlussiCassaNav from "./FlussiCassaNav";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
@@ -69,6 +70,7 @@ const periodoLabel = (iso) => {
 // ──────────────────────────────────────────────────────────────
 
 export default function CartaCreditoPage() {
+  const navigate = useNavigate();
   const [carte, setCarte] = useState([]);
   const [cartaCorrenteId, setCartaCorrenteId] = useState(null);
   const [estratti, setEstratti] = useState([]);
@@ -304,13 +306,22 @@ export default function CartaCreditoPage() {
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {/* TITOLO PAGINA */}
-        <div className="mb-4">
-          <h1 className="text-xl sm:text-2xl font-bold text-brand-ink tracking-tight">
-            Carta di Credito
-          </h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Importa l'estratto conto, visualizza i movimenti e riconciliali con le spese del controllo di gestione.
-          </p>
+        <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-brand-ink tracking-tight">
+              Carta di Credito
+            </h1>
+            <p className="text-sm text-neutral-500 mt-1">
+              Importa l'estratto conto, visualizza i movimenti e riconciliali con le spese del controllo di gestione.
+            </p>
+          </div>
+          <Btn
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate("/flussi-cassa/carta/riepilogo")}
+          >
+            📊 Riepilogo mensile
+          </Btn>
         </div>
 
         {/* ALERT */}

@@ -117,13 +117,15 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   cartaCredito: {
-    // Sub-modulo banca. CC.5.a (2026-06-02 notte): match livello B —
-    // estratto carta ↔ movimento CC del bonifico mensile (1:1 esatto, tol
-    // 0.10€ / 3gg). Mig 142 estende settings con tolerance_cc_*. Service
-    // find_candidati_cc / apply_link_cc / remove_link_cc + 3 endpoint. UI
-    // CercaAddebitoCcModal + chip Match B cliccabile. Tolleranze CC nel tab
-    // soglie. Resta CC.5.b (riepilogo mensile per categoria/MCC).
-    version: "1.4",
+    // Sub-modulo banca — sub-modulo COMPLETO end-to-end con CC.5.b
+    // (2026-06-02 notte): vista riepilogo mensile spese carta per categoria.
+    // Endpoint GET /banca/carta/riepilogo con mappa MCC→categoria hardcoded
+    // (ALIMENTARI/TRASPORTI/SOFTWARE/ALBERGHI/RISTORANTI/FINANZIARI/SERVIZI/VARIE).
+    // Nuova pagina CartaRiepilogoPage.jsx con filtri carta+range, 4 stat
+    // card, bar chart stacked per categoria (recharts), tabella mesi×cat
+    // con riga totali. Bottone "📊 Riepilogo mensile" in CartaCreditoPage.
+    // Sub-modulo carta CHIUSO completo.
+    version: "1.5",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",
@@ -134,7 +136,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.22",
+    version: "5.23",
     label: "Sistema",
     status: "stabile",
     color: "green",

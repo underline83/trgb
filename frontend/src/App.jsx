@@ -143,6 +143,7 @@ const BancaCategorie = lazy(() => import("./pages/banca/BancaCategorie"));
 const BancaCrossRef = lazy(() => import("./pages/banca/BancaCrossRef"));
 const BancaImpostazioni = lazy(() => import("./pages/banca/BancaImpostazioni"));
 const CartaCreditoPage = lazy(() => import("./pages/banca/CartaCreditoPage"));
+const CartaRiepilogoPage = lazy(() => import("./pages/banca/CartaRiepilogoPage"));
 const FlussiCassaContanti = lazy(() => import("./pages/banca/FlussiCassaContanti"));
 const FlussiCassaMance = lazy(() => import("./pages/banca/FlussiCassaMance"));
 
@@ -362,6 +363,7 @@ export default function App() {
         <Route path="/flussi-cassa/cc" element={<ProtectedRoute module="flussi-cassa" sub="cc"><BancaMovimenti /></ProtectedRoute>} />
         <Route path="/flussi-cassa/cc/crossref" element={<ProtectedRoute module="flussi-cassa" sub="cc"><BancaCrossRef /></ProtectedRoute>} />
         <Route path="/flussi-cassa/carta" element={<ProtectedRoute module="flussi-cassa" sub="carta"><CartaCreditoPage /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/carta/riepilogo" element={<ProtectedRoute module="flussi-cassa" sub="carta"><CartaRiepilogoPage /></ProtectedRoute>} />
         <Route path="/flussi-cassa/contanti" element={<ProtectedRoute module="flussi-cassa" sub="contanti"><FlussiCassaContanti /></ProtectedRoute>} />
         <Route path="/flussi-cassa/mance" element={<ProtectedRoute module="flussi-cassa" sub="mance"><FlussiCassaMance /></ProtectedRoute>} />
         <Route path="/flussi-cassa/impostazioni" element={<ProtectedRoute module="flussi-cassa" sub="impostazioni"><BancaImpostazioni /></ProtectedRoute>} />

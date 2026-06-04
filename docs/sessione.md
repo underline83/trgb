@@ -1,6 +1,36 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 (notte, post-CC.5.a) — **Hotfix mig 143: safety net per ALTER ADD COLUMN NOT NULL DEFAULT in SQLite** (`[core]`). Post-deploy CC.5.a, il guardiano L1 ha segnalato `CORRUPT foodcost.db` perché `PRAGMA integrity_check` ha trovato NULL nelle 2 colonne `tolerance_cc_*` aggiunte da mig 142 — in SQLite l'`ALTER TABLE ADD COLUMN ... NOT NULL DEFAULT X` su una tabella con righe preesistenti NON popola il default sulle righe vecchie, lascia NULL e viola il vincolo. Fix manuale sul VPS via `UPDATE ... COALESCE(...)` (idempotente). Mig 143 aggiunta come backfill safety net per qualunque deploy futuro (clienti nuovi, staging). Memoria persistente salvata. Nessun bump versione (hotfix infrastrutturale, niente cambia lato UI). DB integrity ripristinata, sanity check tornerà verde al prossimo health check.
+**Ultimo aggiornamento:** 2026-06-02 (notte) — **CC.5.b: riepilogo mensile spese carta per categoria** (`[core]`). Sub-modulo carta CHIUSO end-to-end. Carta v1.5 beta, sistema 5.23. Endpoint `GET /banca/carta/riepilogo?carta_id=&from=&to=` aggrega `banca_movimenti WHERE banca LIKE 'CARTA_%'` per `strftime('%Y-%m', data_contabile)` + categoria (mappa hardcoded MCC[:4] → categoria, 60 voci copre AUTOSTRADE/ALIMENTARI/SOFTWARE/HOTEL/RISTORANTI/FINANZIARI/SERVIZI/VARIE). Nuova pagina `CartaRiepilogoPage.jsx` su route `/flussi-cassa/carta/riepilogo` con filtri (selettore carta + range date, default ultimi 12 mesi), 4 stat card (totale/movimenti/mesi/media), bar chart stacked per categoria via recharts, tabella mesi×categorie con riga totali e righe sticky. Bottone "📊 Riepilogo mensile" in CartaCreditoPage. Mappa MCC hardcoded in `banca_carta_router.py` (opzione 2 tabella editabile rinviata).
+
+## SESSIONE 2026-06-02 (notte) — CC.5.b: riepilogo mensile + chiusura sub-modulo carta
+
+### Backend (`/banca/carta/riepilogo`)
+- Aggregazione Python (la query SQL ritorna mese/MCC/imp grezzi, l'aggregazione per categoria sta in `_mcc_to_categoria()`).
+- Filtri: `carta_id` (join via `rapporto = codice_posizione`), `from`/`to` su `data_contabile`.
+- Risposta: `{mesi: [...], categorie: [...]}` con categorie ordinate per totale globale desc (così le colonne più importanti sono a sinistra in tabella).
+
+### Frontend (`CartaRiepilogoPage.jsx`)
+- Layout: FlussiCassaNav + filtri card + 4 stat card + bar chart stacked + tabella + legenda chip.
+- Bar chart: `<BarChart>` recharts con 1 `<Bar>` per categoria, `stackId="totale"` per stacking, colori coordinati con palette TRGB-02 (emerald alimentari, blue trasporti, violet software, ecc.).
+- Tabella: prima colonna sticky (mese), riga finale "Totale" sticky-bottom logico (no CSS sticky perché dentro overflow-x-auto). Ultima colonna "Mov." con conteggi.
+- Date default: ultimi 12 mesi dalla data odierna (calcolata client-side al mount).
+
+### File toccati in questo push
+- `app/routers/banca_carta_router.py` — sezione CC.5.b: mappa MCC + endpoint
+- `frontend/src/pages/banca/CartaRiepilogoPage.jsx` (nuovo)
+- `frontend/src/pages/banca/CartaCreditoPage.jsx` — import navigate + bottone "📊 Riepilogo mensile"
+- `frontend/src/App.jsx` — lazy import + route `/flussi-cassa/carta/riepilogo`
+- `VERSION` 5.22 → 5.23
+- `frontend/src/config/versions.jsx` — cartaCredito 1.4 → 1.5, sistema 5.22 → 5.23
+- `docs/modulo_banca.md` — CC.5.b → ✅, sub-modulo chiuso
+- `docs/sessione.md` (questa entry)
+
+### Sub-modulo carta — riepilogo end-to-end
+Tutta la riga CC.* è verde: parser PDF (CC.1) + schema/endpoint (CC.2) + UI base (CC.3) + match A manuale (CC.4 D1) + auto-match bulk (CC.4 D2) + UI soglie (CC.4.e) + match B (CC.5.a) + riepilogo (CC.5.b) + hotfix mig 143. Roadmap futura: tabella categorie MCC editabile (rinviata), affinamento score fornitore (tokenizer), spese amministratore non-fatturate (flag/categoria).
+
+---
+
+**Aggiornamento precedente (2026-06-02 notte, post-CC.5.a):** **Hotfix mig 143: safety net per ALTER ADD COLUMN NOT NULL DEFAULT in SQLite** (`[core]`). Post-deploy CC.5.a, il guardiano L1 ha segnalato `CORRUPT foodcost.db` perché `PRAGMA integrity_check` ha trovato NULL nelle 2 colonne `tolerance_cc_*` aggiunte da mig 142 — in SQLite l'`ALTER TABLE ADD COLUMN ... NOT NULL DEFAULT X` su una tabella con righe preesistenti NON popola il default sulle righe vecchie, lascia NULL e viola il vincolo. Fix manuale sul VPS via `UPDATE ... COALESCE(...)` (idempotente). Mig 143 aggiunta come backfill safety net per qualunque deploy futuro (clienti nuovi, staging). Memoria persistente salvata. Nessun bump versione (hotfix infrastrutturale, niente cambia lato UI). DB integrity ripristinata, sanity check tornerà verde al prossimo health check.
 
 ## SESSIONE 2026-06-02 (notte, post-CC.5.a) — Hotfix mig 143
 
