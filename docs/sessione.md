@@ -1,6 +1,30 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 (notte) — **CC.5.a: match livello B (estratto ↔ addebito CC bancario)** (`[core]`). Carta v1.4 beta, sistema 5.22. Mig 142 estende `carta_match_settings` con `tolerance_cc_importo_eur` (default 0.10€) e `tolerance_cc_data_days` (default 3). Service ampliato con `find_candidati_cc` (filtri banca NOT LIKE 'CARTA_%', importo opposto entro tolleranza, data ±tol; score 70% importo + 30% data), `apply_link_cc` (UPDATE `carta_estratti.banca_movimento_id`), `remove_link_cc`. 3 nuovi endpoint `/estratti/{id}/candidati-cc`, POST/DELETE `/estratti/{id}/link-cc`. Frontend: `CercaAddebitoCcModal.jsx`, chip Match B nella riga estratto ora cliccabile per aprire la modale. UI soglie estesa con 2 campi extra (tolleranze CC). Test backend OK su DB sintetico (match esatto, blocchi su mov già usati o su movimenti CARTA). Resta solo **CC.5.b** (riepilogo mensile per categoria/MCC) per chiudere il sub-modulo carta.
+**Ultimo aggiornamento:** 2026-06-02 (notte, post-CC.5.a) — **Hotfix mig 143: safety net per ALTER ADD COLUMN NOT NULL DEFAULT in SQLite** (`[core]`). Post-deploy CC.5.a, il guardiano L1 ha segnalato `CORRUPT foodcost.db` perché `PRAGMA integrity_check` ha trovato NULL nelle 2 colonne `tolerance_cc_*` aggiunte da mig 142 — in SQLite l'`ALTER TABLE ADD COLUMN ... NOT NULL DEFAULT X` su una tabella con righe preesistenti NON popola il default sulle righe vecchie, lascia NULL e viola il vincolo. Fix manuale sul VPS via `UPDATE ... COALESCE(...)` (idempotente). Mig 143 aggiunta come backfill safety net per qualunque deploy futuro (clienti nuovi, staging). Memoria persistente salvata. Nessun bump versione (hotfix infrastrutturale, niente cambia lato UI). DB integrity ripristinata, sanity check tornerà verde al prossimo health check.
+
+## SESSIONE 2026-06-02 (notte, post-CC.5.a) — Hotfix mig 143
+
+### Cosa è successo
+Push CC.5.a → deploy OK → restart backend → mig 142 applicata → `PRAGMA integrity_check` → `NULL value in carta_match_settings.tolerance_cc_importo_eur`. Backend non crashava (il service ha fallback ai DEFAULTS in codice), ma il sanity check di push.sh ha segnalato corruzione.
+
+### Causa esatta
+SQLite, su `ALTER TABLE x ADD COLUMN y REAL NOT NULL DEFAULT 0.10` quando la tabella ha già righe, NON popola le righe esistenti col default. Le lascia NULL, violando il NOT NULL. Quirk noto ma facile da dimenticare.
+
+### Fix
+1. **Sul VPS (manuale, immediato):** `UPDATE carta_match_settings SET tolerance_cc_importo_eur = COALESCE(...), tolerance_cc_data_days = COALESCE(...) WHERE id = 1`. Restituisce subito `integrity_check = ok`.
+2. **Nel codice (safety net):** mig 143 idempotente con COALESCE — no-op sul VPS già fixato, ma copre qualunque altro deploy.
+3. **Memoria persistente:** [feedback_sqlite_alter_add_column_not_null.md](feedback_sqlite_alter_add_column_not_null.md).
+
+### Lezione per le prossime migrazioni
+Mai più `ALTER TABLE ADD COLUMN NOT NULL DEFAULT` su tabella con righe esistenti. Sempre: ADD nullable + UPDATE backfill esplicito.
+
+### File toccati in questo push
+- `app/migrations/143_carta_match_settings_backfill.py` (nuovo)
+- `docs/sessione.md` (questa entry)
+
+---
+
+**Aggiornamento precedente (2026-06-02 notte):** **CC.5.a: match livello B (estratto ↔ addebito CC bancario)** (`[core]`). Carta v1.4 beta, sistema 5.22. Mig 142 estende `carta_match_settings` con `tolerance_cc_importo_eur` (default 0.10€) e `tolerance_cc_data_days` (default 3). Service ampliato con `find_candidati_cc` (filtri banca NOT LIKE 'CARTA_%', importo opposto entro tolleranza, data ±tol; score 70% importo + 30% data), `apply_link_cc` (UPDATE `carta_estratti.banca_movimento_id`), `remove_link_cc`. 3 nuovi endpoint `/estratti/{id}/candidati-cc`, POST/DELETE `/estratti/{id}/link-cc`. Frontend: `CercaAddebitoCcModal.jsx`, chip Match B nella riga estratto ora cliccabile per aprire la modale. UI soglie estesa con 2 campi extra (tolleranze CC). Test backend OK su DB sintetico (match esatto, blocchi su mov già usati o su movimenti CARTA). Resta solo **CC.5.b** (riepilogo mensile per categoria/MCC) per chiudere il sub-modulo carta.
 
 ## SESSIONE 2026-06-02 (notte) — CC.5.a: match livello B
 
