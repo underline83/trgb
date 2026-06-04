@@ -23,6 +23,7 @@ import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import CercaUscitaModal from "../../components/carta/CercaUscitaModal";
 import AutomatchModal from "../../components/carta/AutomatchModal";
+import CercaAddebitoCcModal from "../../components/carta/CercaAddebitoCcModal";
 
 const CARTA = `${API_BASE}/banca/carta`;
 
@@ -91,6 +92,9 @@ export default function CartaCreditoPage() {
 
   // CC.4 D2: modale auto-match bulk (estrattoId in cui aprire)
   const [automatchEstrattoId, setAutomatchEstrattoId] = useState(null);
+
+  // CC.5.a: modale match livello B (estratto su cui aprire — oggetto intero per info sorgente)
+  const [matchBEstratto, setMatchBEstratto] = useState(null);
 
   // ── Caricamento iniziale ────────────────────────────────────
   useEffect(() => {
@@ -454,6 +458,7 @@ export default function CartaCreditoPage() {
                           onCerca={(mov) => setCercaUscita({ movimento: mov, estrattoId: e.id })}
                           onUnlink={(movId) => unlinkMovimento(movId, e.id)}
                           onAutomatch={() => setAutomatchEstrattoId(e.id)}
+                          onMatchB={() => setMatchBEstratto(e)}
                         />
                       ))}
                     </tbody>
@@ -485,6 +490,25 @@ export default function CartaCreditoPage() {
                   setInfo(`Auto-match completato: ${n} link applicati${result?.n_skipped ? `, ${result.n_skipped} scartati` : ""}.`);
                   refreshAfterMatch(automatchEstrattoId);
                   setAutomatchEstrattoId(null);
+                }}
+              />
+            )}
+
+            {/* ── MODALE MATCH LIVELLO B (CC.5.a) ──────────── */}
+            {matchBEstratto && (
+              <CercaAddebitoCcModal
+                estratto={matchBEstratto}
+                onClose={() => setMatchBEstratto(null)}
+                onMatched={() => {
+                  setInfo("Estratto collegato al movimento CC. Match livello B completato.");
+                  // Refresh lista estratti per aggiornare la chip Match B
+                  if (cartaCorrenteId) loadEstratti(cartaCorrenteId);
+                  setMatchBEstratto(null);
+                }}
+                onUnlinked={() => {
+                  setInfo("Estratto scollegato dal movimento CC.");
+                  if (cartaCorrenteId) loadEstratti(cartaCorrenteId);
+                  setMatchBEstratto(null);
                 }}
               />
             )}
@@ -565,7 +589,7 @@ function DropZone({ onFile, uploading, dragOver, setDragOver, onDrop, fileInputR
   );
 }
 
-function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDelete, onCerca, onUnlink, onAutomatch }) {
+function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDelete, onCerca, onUnlink, onAutomatch, onMatchB }) {
   const e = estratto;
   const matchB = e.banca_movimento_id;
 
@@ -600,11 +624,23 @@ function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDe
             <span className="text-amber-600 text-lg leading-none">!</span>
           )}
         </td>
-        <td className="px-3 py-3 text-center">
+        <td
+          className="px-3 py-3 text-center"
+          onClick={(ev) => {
+            // Apri modale match B senza espandere la riga
+            ev.stopPropagation();
+            onMatchB?.();
+          }}
+          title={matchB ? `Match B attivo (mov. CC #${matchB}) — click per gestire` : "Click per cercare l'addebito mensile su CC"}
+        >
           {matchB ? (
-            <StatusBadge tone="success" size="sm">CC #{matchB}</StatusBadge>
+            <StatusBadge tone="success" size="sm" className="cursor-pointer hover:opacity-80">
+              ✓ CC #{matchB}
+            </StatusBadge>
           ) : (
-            <StatusBadge tone="warning" size="sm">Non matchato</StatusBadge>
+            <StatusBadge tone="warning" size="sm" className="cursor-pointer hover:opacity-80">
+              🔍 Cerca
+            </StatusBadge>
           )}
         </td>
       </tr>

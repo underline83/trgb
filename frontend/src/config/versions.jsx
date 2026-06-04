@@ -117,12 +117,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   cartaCredito: {
-    // Sub-modulo banca. CC.4 completo (2026-06-02 sera): D1 match manuale +
-    // D2 auto-match bulk + .e UI soglie editabili in BancaImpostazioni
-    // (tab "Soglie match carta"). Endpoint PUT /banca/carta/match-settings
-    // con validazione somma pesi=1.0. Riconciliazione livello B (estratto ↔
-    // addebito CC) e riepilogo mensile = CC.5 ancora ⏳.
-    version: "1.3",
+    // Sub-modulo banca. CC.5.a (2026-06-02 notte): match livello B —
+    // estratto carta ↔ movimento CC del bonifico mensile (1:1 esatto, tol
+    // 0.10€ / 3gg). Mig 142 estende settings con tolerance_cc_*. Service
+    // find_candidati_cc / apply_link_cc / remove_link_cc + 3 endpoint. UI
+    // CercaAddebitoCcModal + chip Match B cliccabile. Tolleranze CC nel tab
+    // soglie. Resta CC.5.b (riepilogo mensile per categoria/MCC).
+    version: "1.4",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",
@@ -133,7 +134,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.21",
+    version: "5.22",
     label: "Sistema",
     status: "stabile",
     color: "green",

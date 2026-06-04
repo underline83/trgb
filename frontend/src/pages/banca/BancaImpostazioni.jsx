@@ -1310,6 +1310,8 @@ function TabCartaMatch() {
         weight_data: Number(form.weight_data),
         weight_fornitore: Number(form.weight_fornitore),
         auto_apply_threshold: Number(form.auto_apply_threshold),
+        tolerance_cc_importo_eur: Number(form.tolerance_cc_importo_eur),
+        tolerance_cc_data_days: parseInt(form.tolerance_cc_data_days, 10),
       };
       const res = await apiFetch(`${API_BASE}/banca/carta/match-settings`, {
         method: "PUT",
@@ -1338,6 +1340,8 @@ function TabCartaMatch() {
       weight_data: 0.30,
       weight_fornitore: 0.20,
       auto_apply_threshold: 0.85,
+      tolerance_cc_importo_eur: 0.10,
+      tolerance_cc_data_days: 3,
     });
   }
 
@@ -1450,7 +1454,7 @@ function TabCartaMatch() {
       </div>
 
       {/* SOGLIA AUTO-APPLY */}
-      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-5">
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-4">
         <h3 className="text-sm font-semibold text-neutral-700 mb-3">Soglia auto-apply</h3>
         <p className="text-xs text-neutral-500 mb-3">
           Nel modale auto-match, le righe con score ≥ questa soglia hanno la checkbox spuntata di default.
@@ -1466,6 +1470,37 @@ function TabCartaMatch() {
             step="0.05"
             min="0"
             max="1"
+          />
+        </div>
+      </div>
+
+      {/* TOLLERANZE MATCH B (CC.5.a) */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">Match livello B — addebito mensile su CC</h3>
+        <p className="text-xs text-blue-700 mb-3">
+          Tolleranze per il match 1:1 estratto carta ↔ movimento del bonifico mensile sul CC bancario.
+          Più strette di quelle del match A, perché l'addebito è un importo esatto e una data quasi precisa.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SettingField
+            label="Tolleranza importo CC (€)"
+            help="Massimo scarto fra addebito carta e movimento CC. Default: 0,10€ (solo arrotondamenti)."
+            value={form.tolerance_cc_importo_eur}
+            onChange={(v) => patch("tolerance_cc_importo_eur", v)}
+            type="number"
+            step="0.01"
+            min="0.01"
+            max="50"
+          />
+          <SettingField
+            label="Tolleranza data CC (giorni)"
+            help="Differenza giorni fra data valuta addebito e data CC. Default: 3 (il ciclo banca può slittare di 1-2 giorni)."
+            value={form.tolerance_cc_data_days}
+            onChange={(v) => patch("tolerance_cc_data_days", v)}
+            type="number"
+            step="1"
+            min="0"
+            max="30"
           />
         </div>
       </div>

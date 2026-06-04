@@ -305,7 +305,8 @@ frontend/src/pages/flussi-cassa/
 | CC.4 D1 | Match manuale singolo (modale "Cerca uscita" con scoring backend) | ✅ FATTO (2026-06-02 sera, mig 141, `carta_match_service.py`) |
 | CC.4 D2 | Auto-match bulk con anteprima checkbox | ✅ FATTO (2026-06-02 sera, `AutomatchModal`, endpoint POST `/estratti/{id}/automatch`) |
 | CC.4.e | UI soglie matching in Impostazioni | ✅ FATTO (2026-06-02 sera, tab "Soglie match carta" in BancaImpostazioni, PUT /banca/carta/match-settings) |
-| CC.5 | Riconciliazione livello B (estratto ↔ addebito CC) + riepilogo mensile | ⏳ |
+| CC.5.a | Riconciliazione livello B (estratto ↔ addebito CC) | ✅ FATTO (2026-06-02 notte, mig 142, `CercaAddebitoCcModal`) |
+| CC.5.b | Riepilogo mensile spese carta per categoria/MCC | ⏳ |
 
 **Endpoint attivi (`/banca/carta/*`):**
 - `POST /banca/carta/upload` — upload PDF Banco BPM, parse via `carta_pdf_parser`, insert in `carta_estratti` + N righe in `banca_movimenti`. Dedup su `pdf_sha256`. Sanity check quadratura ai centesimi; 422 se non quadra.

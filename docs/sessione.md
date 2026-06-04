@@ -1,6 +1,54 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 (sera) — **CC.4 chiuso: D2 auto-match bulk + .e UI soglie** (`[core]`). Carta v1.3 beta, sistema 5.21. D2: endpoint `POST /banca/carta/estratti/{id}/automatch?dry_run=true|false` + nuova `<AutomatchModal>` con anteprima checkbox (default ≥85%) + bottone "🔗 Auto-match CG (N)" nell'header dettaglio estratto. .e: endpoint `PUT /banca/carta/match-settings` con validazione somma pesi=1.0 + nuovo tab "Soglie match carta" in `BancaImpostazioni` (sidebar) con form 6 campi (tolleranze importo €/giorni, 3 pesi, soglia auto-apply), reset defaults, indicatore live somma pesi. Match A ora **completo end-to-end + configurabile**. Resta solo CC.5 (livello B + riepilogo).
+**Ultimo aggiornamento:** 2026-06-02 (notte) — **CC.5.a: match livello B (estratto ↔ addebito CC bancario)** (`[core]`). Carta v1.4 beta, sistema 5.22. Mig 142 estende `carta_match_settings` con `tolerance_cc_importo_eur` (default 0.10€) e `tolerance_cc_data_days` (default 3). Service ampliato con `find_candidati_cc` (filtri banca NOT LIKE 'CARTA_%', importo opposto entro tolleranza, data ±tol; score 70% importo + 30% data), `apply_link_cc` (UPDATE `carta_estratti.banca_movimento_id`), `remove_link_cc`. 3 nuovi endpoint `/estratti/{id}/candidati-cc`, POST/DELETE `/estratti/{id}/link-cc`. Frontend: `CercaAddebitoCcModal.jsx`, chip Match B nella riga estratto ora cliccabile per aprire la modale. UI soglie estesa con 2 campi extra (tolleranze CC). Test backend OK su DB sintetico (match esatto, blocchi su mov già usati o su movimenti CARTA). Resta solo **CC.5.b** (riepilogo mensile per categoria/MCC) per chiudere il sub-modulo carta.
+
+## SESSIONE 2026-06-02 (notte) — CC.5.a: match livello B
+
+### Concetto
+Ogni estratto carta dichiara `addebito_totale_cc` e `data_valuta_addebito`. Sul CC bancario (banca BPM `000000012200`) c'è UN movimento di uscita che è il bonifico/addebito automatico mensile. Riconciliazione **1:1 esatta**, tolleranze molto strette.
+
+### Decisioni
+- Tolleranze CC: **importo 0.10€** (solo arrotondamenti), **data ±3gg** (banca può slittare 1-2 gg di valuta).
+- **No auto-match all'upload**: il match B è sempre esplicito (click utente). Più sicuro, evita riconciliazioni silenziose sbagliate.
+- Categorizzazione spese: hardcoded in CC.5.b. Tabella editabile in roadmap futura.
+- Score: 70% importo + 30% data (no fornitore_score perché la descrizione "ADDEBITO CARTE BPM" non aggiunge segnale).
+
+### File nuovi
+- `app/migrations/142_carta_match_settings_cc.py` — ALTER carta_match_settings + 2 colonne
+- `frontend/src/components/carta/CercaAddebitoCcModal.jsx` — modale con info estratto sorgente, lista candidate CC, link/unlink
+
+### File modificati
+- `app/services/carta_match_service.py` — `DEFAULTS` esteso, 3 nuove funzioni `_fetch_estratto`, `find_candidati_cc`, `apply_link_cc`, `remove_link_cc`
+- `app/routers/banca_carta_router.py` — 3 nuovi endpoint match B + 2 nuove valid_keys per PUT /match-settings
+- `frontend/src/pages/banca/CartaCreditoPage.jsx` — stato `matchBEstratto`, render `CercaAddebitoCcModal`, chip Match B in riga estratto ora cliccabile (stopPropagation per non espandere) con messaggio diverso linkato/non-linkato
+- `frontend/src/pages/banca/BancaImpostazioni.jsx` — sezione "Match livello B" nel tab Soglie con 2 campi (tolerance_cc_importo_eur / _data_days), body PUT esteso, reset defaults esteso
+- `VERSION` 5.21 → 5.22
+- `frontend/src/config/versions.jsx` — cartaCredito 1.3 → 1.4, sistema 5.21 → 5.22
+- `docs/modulo_banca.md` — CC.5.a → ✅
+- `docs/sessione.md` (questa entry)
+
+### Test backend (DB sintetico)
+- 1 estratto €2958.67 valuta 22/01
+- 4 movimenti CC: 1 candidato perfetto (BPM −2958.67 il 22/01), 1 distrattore stesso giorno ma importo lontano (−500), 1 stesso importo ma data lontana (feb), 1 movimento CARTA (escluso da filtro)
+- `find_candidati_cc` ritorna SOLO il candidato perfetto con score 1.000 ✓
+- `apply_link_cc` salva `banca_movimento_id` ✓
+- Tentativo di linkare mov già usato → ValueError bloccante ✓
+- Tentativo di linkare un movimento CARTA → ValueError bloccante ("non è un addebito sul CC") ✓
+- `remove_link_cc` azzera il link ✓
+
+### Comportamento UI
+1. Click sulla chip "🔍 Cerca" nella colonna "Match B (CC)" di un estratto → modale apre
+2. Backend cerca candidate, mostra info estratto sorgente + tabella
+3. Click "Linka" su una candidata → POST link-cc → chip diventa "✓ CC #N" + toast info
+4. Click sulla chip "✓ CC #N" di un estratto già matchato → modale apre in stato "già linkato" con bottone "🔓 Stacca link"
+5. Stacca → torna chip "🔍 Cerca"
+
+### Cosa resta per chiudere Carta
+**Solo CC.5.b**: riepilogo mensile delle spese carta per categoria (mappa MCC → categoria hardcoded). Backend GET /banca/carta/riepilogo + nuova vista frontend. ~1h di lavoro.
+
+---
+
+**Aggiornamento precedente (2026-06-02 sera):** **CC.4 chiuso: D2 auto-match bulk + .e UI soglie** (`[core]`). Carta v1.3 beta, sistema 5.21. D2: endpoint `POST /banca/carta/estratti/{id}/automatch?dry_run=true|false` + nuova `<AutomatchModal>` con anteprima checkbox (default ≥85%) + bottone "🔗 Auto-match CG (N)" nell'header dettaglio estratto. .e: endpoint `PUT /banca/carta/match-settings` con validazione somma pesi=1.0 + nuovo tab "Soglie match carta" in `BancaImpostazioni` (sidebar) con form 6 campi (tolleranze importo €/giorni, 3 pesi, soglia auto-apply), reset defaults, indicatore live somma pesi. Match A ora **completo end-to-end + configurabile**. Resta solo CC.5 (livello B + riepilogo).
 
 ## SESSIONE 2026-06-02 (sera) — CC.4 chiuso: D2 + .e
 

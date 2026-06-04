@@ -522,6 +522,9 @@ def update_match_settings_endpoint(
         "weight_data",
         "weight_fornitore",
         "auto_apply_threshold",
+        # CC.5.a — tolleranze match B
+        "tolerance_cc_importo_eur",
+        "tolerance_cc_data_days",
     }
     updates = {k: v for k, v in (payload or {}).items() if k in valid_keys}
     if not updates:
@@ -536,6 +539,14 @@ def update_match_settings_endpoint(
         v = updates["tolerance_data_days"]
         if not isinstance(v, int) or v < 0 or v > 60:
             raise HTTPException(400, "tolerance_data_days deve essere intero 0–60")
+    if "tolerance_cc_importo_eur" in updates:
+        v = updates["tolerance_cc_importo_eur"]
+        if not isinstance(v, (int, float)) or v <= 0:
+            raise HTTPException(400, "tolerance_cc_importo_eur deve essere > 0")
+    if "tolerance_cc_data_days" in updates:
+        v = updates["tolerance_cc_data_days"]
+        if not isinstance(v, int) or v < 0 or v > 30:
+            raise HTTPException(400, "tolerance_cc_data_days deve essere intero 0–30")
     for wk in ("weight_importo", "weight_data", "weight_fornitore"):
         if wk in updates:
             v = updates[wk]
@@ -726,5 +737,81 @@ def automatch_estratto(
             conn, estratto_id, movimenti_id=mov_ids, user=current_user.get("username")
         )
         return result
+    finally:
+        conn.close()
+
+
+# ──────────────────────────────────────────────────────────────
+# CC.5.a — Match livello B: estratto carta ↔ addebito mensile sul CC bancario
+# ──────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/estratti/{estratto_id}/candidati-cc",
+    summary="Cerca movimenti CC bancari candidati come addebito mensile dell'estratto",
+)
+def get_candidati_cc(
+    estratto_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    """Filtri: movimenti `banca NOT LIKE 'CARTA_%'`, importo opposto a
+    `addebito_totale_cc` entro `tolerance_cc_importo_eur`, data ± `tolerance_cc_data_days`
+    rispetto a `data_valuta_addebito`. Score 70% importo + 30% data."""
+    conn = get_db()
+    try:
+        # Verifica estratto esista
+        existing = conn.execute(
+            "SELECT id FROM carta_estratti WHERE id = ?", (estratto_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(404, "Estratto non trovato")
+        candidati = carta_match_service.find_candidati_cc(conn, estratto_id, limit=limit)
+        return {"candidati": candidati, "n": len(candidati)}
+    finally:
+        conn.close()
+
+
+@router.post(
+    "/estratti/{estratto_id}/link-cc",
+    summary="Linka estratto al movimento CC che rappresenta il suo addebito mensile",
+)
+def link_estratto_cc(
+    estratto_id: int,
+    payload: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Body: {movimento_cc_id: int}. Salva in `carta_estratti.banca_movimento_id`."""
+    movimento_cc_id = payload.get("movimento_cc_id")
+    if not isinstance(movimento_cc_id, int):
+        raise HTTPException(400, "movimento_cc_id mancante o non int")
+    conn = get_db()
+    try:
+        try:
+            return carta_match_service.apply_link_cc(
+                conn, estratto_id, movimento_cc_id, user=current_user.get("username")
+            )
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+    finally:
+        conn.close()
+
+
+@router.delete(
+    "/estratti/{estratto_id}/link-cc",
+    summary="Scollega l'estratto dal suo addebito CC (azzera banca_movimento_id)",
+)
+def unlink_estratto_cc(
+    estratto_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    conn = get_db()
+    try:
+        try:
+            return carta_match_service.remove_link_cc(
+                conn, estratto_id, user=current_user.get("username")
+            )
+        except ValueError as e:
+            raise HTTPException(404, str(e))
     finally:
         conn.close()

@@ -60,6 +60,9 @@ DEFAULTS = {
     "weight_data": 0.30,
     "weight_fornitore": 0.20,
     "auto_apply_threshold": 0.85,
+    # CC.5.a: tolleranze per match B (estratto ↔ addebito CC, 1:1 esatto)
+    "tolerance_cc_importo_eur": 0.10,
+    "tolerance_cc_data_days": 3,
 }
 
 
@@ -419,3 +422,175 @@ def automatch_apply(
         except ValueError as e:
             skipped.append({"movimento_id": mid, "motivo": str(e)})
     return {"applied": applied, "skipped": skipped, "n_applied": len(applied), "n_skipped": len(skipped)}
+
+
+# ──────────────────────────────────────────────────────────────
+# CC.5.a — Match livello B: estratto carta ↔ addebito mensile sul CC bancario
+# ──────────────────────────────────────────────────────────────
+#
+# L'estratto carta dichiara `addebito_totale_cc` e `data_valuta_addebito`.
+# Sul CC bancario (banca_movimenti con banca NOT LIKE 'CARTA_%') ci sarà UN
+# movimento di uscita (importo negativo) con importo opposto e data vicina.
+# Riconciliazione 1:1, salvata in `carta_estratti.banca_movimento_id`.
+
+
+def _fetch_estratto(conn: sqlite3.Connection, estratto_id: int) -> Optional[dict]:
+    row = conn.execute(
+        """SELECT id, carta_id, data_chiusura, data_valuta_addebito,
+                  addebito_totale_cc, banca_movimento_id
+           FROM carta_estratti WHERE id = ?""",
+        (estratto_id,),
+    ).fetchone()
+    if not row:
+        return None
+    return dict(row) if hasattr(row, "keys") else None
+
+
+def find_candidati_cc(
+    conn: sqlite3.Connection,
+    estratto_id: int,
+    *,
+    settings: Optional[dict] = None,
+    limit: int = 20,
+) -> list[dict]:
+    """Cerca movimenti CC bancari candidati come addebito mensile per un estratto.
+
+    Filtri:
+      - banca NOT LIKE 'CARTA_%' (movimenti CC normali, non carta)
+      - importo NEGATIVO (è una uscita dal CC)
+      - |ABS(importo) − addebito_totale_cc| < tolerance_cc_importo_eur
+      - |data_contabile − data_valuta_addebito| < tolerance_cc_data_days
+      - movimento NON già linkato a un altro estratto (carta_estratti.banca_movimento_id)
+
+    Score: 70% importo + 30% data (no fornitore per match B — è un bonifico,
+    la descrizione è "ADDEBITO CARTE BPM" o simili, non aggiunge segnale).
+    """
+    if settings is None:
+        settings = get_match_settings(conn)
+
+    e = _fetch_estratto(conn, estratto_id)
+    if not e:
+        return []
+    target_imp = float(e["addebito_totale_cc"])
+    target_data = e["data_valuta_addebito"]
+
+    tol_imp = settings.get("tolerance_cc_importo_eur", DEFAULTS["tolerance_cc_importo_eur"])
+    tol_data = settings.get("tolerance_cc_data_days", DEFAULTS["tolerance_cc_data_days"])
+
+    sql = """
+        SELECT m.id, m.data_contabile, m.data_valuta, m.banca, m.rapporto,
+               m.importo, m.descrizione, m.categoria_banca, m.sottocategoria_banca
+        FROM banca_movimenti m
+        WHERE (m.banca IS NULL OR m.banca NOT LIKE 'CARTA_%')
+          AND m.importo < 0
+          AND ABS(ABS(m.importo) - ?) < ?
+          AND m.id NOT IN (
+              SELECT banca_movimento_id FROM carta_estratti
+              WHERE banca_movimento_id IS NOT NULL AND id != ?
+          )
+    """
+    params: list = [target_imp, tol_imp, estratto_id]
+    if target_data:
+        sql += " AND ABS(julianday(m.data_contabile) - julianday(?)) < ?"
+        params.extend([target_data, tol_data])
+    sql += " ORDER BY ABS(julianday(m.data_contabile) - julianday(?)) ASC LIMIT 200"
+    params.append(target_data or e["data_chiusura"])
+
+    rows = conn.execute(sql, params).fetchall()
+    out = []
+    for r in rows:
+        m = dict(r) if hasattr(r, "keys") else None
+        if not m:
+            continue
+        imp_abs = abs(float(m["importo"]))
+        imp_score = max(0.0, 1.0 - abs(imp_abs - target_imp) / max(tol_imp, 0.01))
+        data_score = _data_score(target_data, m["data_contabile"], tol_data) if target_data else 0.0
+        score = 0.7 * imp_score + 0.3 * data_score
+        out.append({
+            **m,
+            "importo_abs": round(imp_abs, 2),
+            "imp_score": round(imp_score, 3),
+            "data_score": round(data_score, 3),
+            "score": round(score, 3),
+        })
+
+    out.sort(key=lambda c: c["score"], reverse=True)
+    return out[:limit]
+
+
+def apply_link_cc(
+    conn: sqlite3.Connection,
+    estratto_id: int,
+    movimento_cc_id: int,
+    *,
+    user: Optional[str] = None,
+) -> dict:
+    """Collega estratto ↔ movimento CC bancario (match B).
+
+    Validazioni:
+      - Estratto esista
+      - Movimento esista, sia un movimento CC normale (NON carta) e di uscita
+      - Movimento non sia già linkato ad altro estratto
+    """
+    cur = conn.cursor()
+    e = _fetch_estratto(conn, estratto_id)
+    if not e:
+        raise ValueError(f"Estratto #{estratto_id} non trovato")
+
+    mov = cur.execute(
+        "SELECT id, banca, importo FROM banca_movimenti WHERE id = ?",
+        (movimento_cc_id,),
+    ).fetchone()
+    if not mov:
+        raise ValueError(f"Movimento #{movimento_cc_id} non trovato")
+    mov_d = dict(mov) if hasattr(mov, "keys") else None
+    if mov_d.get("banca", "").startswith("CARTA_"):
+        raise ValueError(
+            f"Movimento #{movimento_cc_id} è un movimento carta (banca={mov_d['banca']}), "
+            "non un addebito sul CC. Per il match B serve il movimento sul conto bancario."
+        )
+
+    # Verifica che il movimento non sia già linkato ad ALTRO estratto
+    busy = cur.execute(
+        "SELECT id FROM carta_estratti WHERE banca_movimento_id = ? AND id != ?",
+        (movimento_cc_id, estratto_id),
+    ).fetchone()
+    if busy:
+        bid = busy[0] if not hasattr(busy, "keys") else busy["id"]
+        raise ValueError(
+            f"Movimento #{movimento_cc_id} è già linkato all'estratto #{bid}"
+        )
+
+    cur.execute(
+        "UPDATE carta_estratti SET banca_movimento_id = ? WHERE id = ?",
+        (movimento_cc_id, estratto_id),
+    )
+    conn.commit()
+    return {
+        "ok": True,
+        "estratto_id": estratto_id,
+        "movimento_cc_id": movimento_cc_id,
+    }
+
+
+def remove_link_cc(
+    conn: sqlite3.Connection,
+    estratto_id: int,
+    *,
+    user: Optional[str] = None,
+) -> dict:
+    """Scollega l'estratto dal suo addebito CC (azzera banca_movimento_id)."""
+    cur = conn.cursor()
+    e = _fetch_estratto(conn, estratto_id)
+    if not e:
+        raise ValueError(f"Estratto #{estratto_id} non trovato")
+    cur.execute(
+        "UPDATE carta_estratti SET banca_movimento_id = NULL WHERE id = ?",
+        (estratto_id,),
+    )
+    conn.commit()
+    return {
+        "ok": True,
+        "estratto_id": estratto_id,
+        "movimento_cc_id_precedente": e.get("banca_movimento_id"),
+    }
