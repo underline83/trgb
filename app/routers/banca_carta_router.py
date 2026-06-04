@@ -581,3 +581,58 @@ def unlink_movimento(
         )
     finally:
         conn.close()
+
+
+# ──────────────────────────────────────────────────────────────
+# CC.4 D2 — Auto-match bulk con anteprima
+# ──────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/estratti/{estratto_id}/automatch",
+    summary="Auto-match bulk movimenti carta ↔ uscite CG (anteprima / applica)",
+)
+def automatch_estratto(
+    estratto_id: int,
+    dry_run: bool = Query(True, description="True = solo anteprima (default); False = applica i match selezionati"),
+    payload: Optional[dict] = Body(default=None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Per ogni movimento dell'estratto NON ancora linkato, sceglie il
+    miglior candidato. In `dry_run=true` (default) ritorna l'anteprima per UI
+    di conferma. In `dry_run=false` richiede `body.mov_ids = [int]` con
+    l'elenco dei movimenti DA APPLICARE (selezione utente).
+
+    Risposta dry_run:
+        { "preview": [ {movimento_id, mov_descrizione, mov_importo, mov_data,
+                         uscita_id, uscita_fornitore, uscita_totale, uscita_data_pagamento,
+                         score, imp_score, data_score, forn_score, auto_select}, ... ] }
+
+    Risposta apply:
+        { "applied": [...], "skipped": [...], "n_applied": int, "n_skipped": int }
+    """
+    conn = get_db()
+    try:
+        # Verifica estratto esista
+        existing = conn.execute(
+            "SELECT id FROM carta_estratti WHERE id = ?", (estratto_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(404, "Estratto non trovato")
+
+        if dry_run:
+            preview = carta_match_service.automatch_dry_run(conn, estratto_id)
+            return {"preview": preview, "n": len(preview)}
+
+        # apply mode
+        body = payload or {}
+        mov_ids = body.get("mov_ids")
+        if not isinstance(mov_ids, list) or not all(isinstance(x, int) for x in mov_ids):
+            raise HTTPException(400, "body.mov_ids deve essere una lista di interi")
+
+        result = carta_match_service.automatch_apply(
+            conn, estratto_id, movimenti_id=mov_ids, user=current_user.get("username")
+        )
+        return result
+    finally:
+        conn.close()

@@ -117,12 +117,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   cartaCredito: {
-    // Sub-modulo banca. CC.4 push D1 (2026-06-02 sera): match manuale
-    // livello A — modale "Cerca uscita" con algoritmo di scoring backend
-    // (importo+data+fornitore), apply/remove link, settings tolleranze in
-    // tabella carta_match_settings (mig 141). Auto-match bulk (CC.4 D2)
-    // ancora ⏳. Riepilogo mensile (CC.5) ancora ⏳.
-    version: "1.1",
+    // Sub-modulo banca. CC.4 D2 (2026-06-02 sera): auto-match bulk con
+    // modale anteprima checkbox — dry_run mostra candidate per tutti i
+    // movimenti non linkati, utente sceglie quali applicare (default
+    // spuntati ≥85%), apply esegue link bulk. Match A ora completo end-to-end
+    // (manuale singolo + bulk). Riconciliazione livello B (estratto ↔ CC)
+    // e riepilogo mensile = CC.5 ancora ⏳.
+    version: "1.2",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",
@@ -133,7 +134,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.19",
+    version: "5.20",
     label: "Sistema",
     status: "stabile",
     color: "green",

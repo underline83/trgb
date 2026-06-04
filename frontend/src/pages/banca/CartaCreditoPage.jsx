@@ -22,6 +22,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import CercaUscitaModal from "../../components/carta/CercaUscitaModal";
+import AutomatchModal from "../../components/carta/AutomatchModal";
 
 const CARTA = `${API_BASE}/banca/carta`;
 
@@ -87,6 +88,9 @@ export default function CartaCreditoPage() {
   // CC.4: modale match livello A
   // { movimento: {...}, estrattoId: int } | null
   const [cercaUscita, setCercaUscita] = useState(null);
+
+  // CC.4 D2: modale auto-match bulk (estrattoId in cui aprire)
+  const [automatchEstrattoId, setAutomatchEstrattoId] = useState(null);
 
   // ── Caricamento iniziale ────────────────────────────────────
   useEffect(() => {
@@ -449,6 +453,7 @@ export default function CartaCreditoPage() {
                           onDelete={() => deleteEstratto(e.id)}
                           onCerca={(mov) => setCercaUscita({ movimento: mov, estrattoId: e.id })}
                           onUnlink={(movId) => unlinkMovimento(movId, e.id)}
+                          onAutomatch={() => setAutomatchEstrattoId(e.id)}
                         />
                       ))}
                     </tbody>
@@ -457,7 +462,7 @@ export default function CartaCreditoPage() {
               </div>
             )}
 
-            {/* ── MODALE CERCA USCITA (CC.4) ─────────────── */}
+            {/* ── MODALE CERCA USCITA (CC.4 D1) ──────────── */}
             {cercaUscita && (
               <CercaUscitaModal
                 movimento={cercaUscita.movimento}
@@ -466,6 +471,20 @@ export default function CartaCreditoPage() {
                   setInfo(`Movimento riconciliato con uscita CG.`);
                   refreshAfterMatch(cercaUscita.estrattoId);
                   setCercaUscita(null);
+                }}
+              />
+            )}
+
+            {/* ── MODALE AUTO-MATCH (CC.4 D2) ─────────────── */}
+            {automatchEstrattoId != null && (
+              <AutomatchModal
+                estrattoId={automatchEstrattoId}
+                onClose={() => setAutomatchEstrattoId(null)}
+                onApplied={(result) => {
+                  const n = result?.n_applied || 0;
+                  setInfo(`Auto-match completato: ${n} link applicati${result?.n_skipped ? `, ${result.n_skipped} scartati` : ""}.`);
+                  refreshAfterMatch(automatchEstrattoId);
+                  setAutomatchEstrattoId(null);
                 }}
               />
             )}
@@ -546,7 +565,7 @@ function DropZone({ onFile, uploading, dragOver, setDragOver, onDrop, fileInputR
   );
 }
 
-function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDelete, onCerca, onUnlink }) {
+function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDelete, onCerca, onUnlink, onAutomatch }) {
   const e = estratto;
   const matchB = e.banca_movimento_id;
 
@@ -605,6 +624,7 @@ function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDe
                 onDelete={onDelete}
                 onCerca={onCerca}
                 onUnlink={onUnlink}
+                onAutomatch={onAutomatch}
               />
             )}
           </td>
@@ -614,10 +634,11 @@ function EstrattoRow({ estratto, expanded, detail, detailLoading, onToggle, onDe
   );
 }
 
-function EstrattoDetail({ detail, onDelete, onCerca, onUnlink }) {
+function EstrattoDetail({ detail, onDelete, onCerca, onUnlink, onAutomatch }) {
   const m = detail.movimenti || [];
   const nEsteri = m.filter((x) => x.valuta_estera).length;
   const nMatchati = m.filter((x) => x.match_uscita_id).length;
+  const nNonMatchati = m.length - nMatchati;
 
   return (
     <div>
@@ -635,9 +656,14 @@ function EstrattoDetail({ detail, onDelete, onCerca, onUnlink }) {
         </span>
         <div className="flex gap-2 items-center">
           {detail.pdf_filename && (
-            <span className="text-[10px] text-neutral-400 italic truncate max-w-[260px]">
+            <span className="text-[10px] text-neutral-400 italic truncate max-w-[200px]">
               {detail.pdf_filename}
             </span>
+          )}
+          {nNonMatchati > 0 && (
+            <Btn variant="chip" tone="emerald" size="sm" onClick={onAutomatch}>
+              🔗 Auto-match CG ({nNonMatchati})
+            </Btn>
           )}
           <Btn variant="chip" tone="red" size="sm" onClick={onDelete}>
             🗑 Elimina estratto

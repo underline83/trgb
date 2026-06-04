@@ -1,6 +1,50 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 (sera) — **CC.4 D1: match manuale livello A** (`[core]`). Carta v1.1 beta. Mig 141 (`carta_match_settings` singleton con tolleranze 0,50€/10gg + pesi 50/30/20 + soglia auto 0.85). Nuovo service `app/services/carta_match_service.py` con algoritmo scoring (importo+data+fornitore). 4 nuovi endpoint backend (`/movimenti/{id}/candidati`, POST/DELETE `/link`, GET `/match-settings`). Frontend: nuova `<CercaUscitaModal>` + colonna "Match CG" nella sub-tabella dell'estratto espanso con bottone "🔍 Cerca" e bottone "stacca" sui matchati. Auto-match bulk (CC.4 D2) e UI soglie (CC.4.e) ancora ⏳.
+**Ultimo aggiornamento:** 2026-06-02 (sera) — **CC.4 D2: auto-match bulk** (`[core]`). Carta v1.2 beta, sistema 5.20. Endpoint `POST /banca/carta/estratti/{id}/automatch?dry_run=true|false` (wrap su service `automatch_dry_run`/`automatch_apply` già scritto in D1). Nuova `<AutomatchModal>` con dry_run iniziale, tabella anteprima checkbox (default spuntate ≥85%), azioni rapide "Tutti / Nessuno / Solo ≥85%", apply selettivo solo dei movimenti checkati, breakdown score imp/data/forn per ogni riga. Match A ora **completo end-to-end** (manuale singolo + bulk). Resta CC.4.e (UI soglie) e CC.5 (livello B + riepilogo).
+
+## SESSIONE 2026-06-02 (sera) — CC.4 D2: auto-match bulk
+
+### Sintesi
+Backend già pronto da D1 (service aveva `automatch_dry_run` e `automatch_apply`). Push D2 ha:
+- Aggiunto wrapper endpoint `POST /banca/carta/estratti/{id}/automatch` con flag `dry_run` (default true) + body opzionale `{mov_ids: [int]}` per l'apply selettivo
+- Creato nuovo componente frontend `AutomatchModal.jsx` con 4 fasi (loading / preview / applying / done)
+- Inserito bottone "🔗 Auto-match CG (N)" nell'header del dettaglio estratto, visibile solo se ci sono movimenti non matchati. Il counter N mostra quanti
+
+### Comportamento UI
+1. Click su "🔗 Auto-match CG (N)" → modale apre con `dry_run=true`
+2. Backend ritorna lista best-match per ogni movimento non linkato, con score breakdown
+3. Modale mostra tabella: checkbox / score chip + breakdown / movimento sorgente / → / uscita CG candidata
+4. Default: checkbox spuntate per score ≥ 0.85 (`auto_apply_threshold` di settings)
+5. Utente può cambiare selezione (Tutti / Nessuno / Solo ≥85% / manuale)
+6. Click "Applica N match" → POST `dry_run=false` con `mov_ids` selezionati
+7. Backend richiama `apply_link` per ognuno (re-validation), accumula `applied`/`skipped`
+8. Modale phase "done" con riepilogo + dettagli applicati
+9. onClose → refresh detail estratto (per aggiornare chip Match CG)
+
+### Decisioni di design
+- **Re-validation in apply**: l'`automatch_apply` ricalcola il best candidate corrente al momento dell'apply (non si fida del dry_run server-side). Protegge da race condition se nel frattempo qualcosa è cambiato in CG.
+- **Skipped non bloccante**: se un movimento ha ora 0 candidati (es. uscita già linkata da altra azione), viene saltato silenziosamente con motivo, non blocca l'intera operazione.
+- **Selezione manuale possibile sotto soglia**: l'utente può sempre spuntare match a basso score se vuole revisionarli e applicarli.
+- **Bottone visibile solo se serve**: il chip "🔗 Auto-match" appare solo se `nNonMatchati > 0`. Se l'estratto è completamente riconciliato, il bottone non c'è.
+
+### File nuovi
+- `frontend/src/components/carta/AutomatchModal.jsx` (modale anteprima + apply)
+
+### File modificati
+- `app/routers/banca_carta_router.py` — nuovo endpoint POST /automatch
+- `frontend/src/pages/banca/CartaCreditoPage.jsx` — import + stato `automatchEstrattoId` + render modale + prop `onAutomatch` su EstrattoRow/Detail + bottone in header detail
+- `VERSION` 5.19 → 5.20
+- `frontend/src/config/versions.jsx` — cartaCredito 1.1 → 1.2, sistema 5.19 → 5.20
+- `docs/modulo_banca.md` — CC.4 D2 → ✅
+- `docs/sessione.md` (questa entry)
+
+### Cosa manca per chiudere Carta
+- **CC.4.e** UI soglie (15 min, form 6 campi in Impostazioni)
+- **CC.5** match livello B (estratto ↔ addebito mensile su CC) + riepilogo mensile per categoria/MCC
+
+---
+
+**Aggiornamento precedente (2026-06-02 sera):** **CC.4 D1: match manuale livello A** (`[core]`). Carta v1.1 beta. Mig 141 (`carta_match_settings` singleton con tolleranze 0,50€/10gg + pesi 50/30/20 + soglia auto 0.85). Nuovo service `app/services/carta_match_service.py` con algoritmo scoring (importo+data+fornitore). 4 nuovi endpoint backend (`/movimenti/{id}/candidati`, POST/DELETE `/link`, GET `/match-settings`). Frontend: nuova `<CercaUscitaModal>` + colonna "Match CG" nella sub-tabella dell'estratto espanso con bottone "🔍 Cerca" e bottone "stacca" sui matchati.
 
 ## SESSIONE 2026-06-02 (sera) — CC.4 D1: match manuale livello A
 
