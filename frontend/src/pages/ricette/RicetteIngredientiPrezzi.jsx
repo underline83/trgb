@@ -1082,7 +1082,9 @@ export default function RicetteIngredientiPrezzi() {
               <h2 className="text-sm font-bold uppercase tracking-wider text-brand-red mb-1">Conversioni unità</h2>
               <p className="text-xs text-neutral-500 mb-3">
                 Equivalenze tra unità per questo ingrediente (es. 1 pz = 0,06 kg). Le conversioni standard
-                (kg↔g, L↔ml↔cl) funzionano già da sole.
+                (kg↔g, L↔ml↔cl) funzionano già da sole. Per gli ingredienti contati a numero ma pesabili
+                (es. tuorli): aggiungi <strong>1 n = 20 g</strong> e le fatture a peso si convertono da sole
+                (1 kg → 50 n).
               </p>
 
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex flex-wrap items-end gap-3">
@@ -1093,7 +1095,7 @@ export default function RicetteIngredientiPrezzi() {
                     onChange={(e) => setConv({ ...conv, from_unit: e.target.value })}
                     className="border border-blue-200 rounded-lg px-2 py-1.5 text-sm bg-white"
                   >
-                    {["pz", "mazzetto", "bottiglia", "lattina", "confezione", "kg", "g", "L", "ml", "cl"]
+                    {["pz", "n", "mazzetto", "bottiglia", "lattina", "confezione", "kg", "g", "L", "ml", "cl"]
                       .map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>

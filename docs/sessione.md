@@ -74,6 +74,12 @@ Marco: "c'è qualcosa che non quadra nel calcolo prezzo ingrediente" → casi re
 
 **Dettaglio prezzo in conferma collegamento** (richiesta Marco, v4.1): card articolo nel flusso collegaReview mostra prezzo fattura (range min–max se variabile, ultima riga qty × prezzo = totale, data) + anteprima live `prezzo ÷ fattore = €/unità-base` ricalcolata a ogni digitazione del fattore. I dati erano già nel payload `/pending` (prezzo_unitario, quantita, prezzo_totale, data_fattura), solo non mostrati.
 
+**Conversione "peso del pezzo" per ingredienti a numero** (caso Tuorlo d'uovo, base "n"): Marco chiede una seconda conversione tipo "1 n = 20 g" per definire le cose pesabili. Implementato:
+- `_get_custom_conversion`: nuova catena lato DESTINAZIONE (standard prima, custom dopo) — KG→n = std(kg→g)=1000 ÷ custom(n→g)=20 → 50. Copre fatture a peso per ingredienti a numero e ricette dosate in g su ingredienti a numero (e viceversa). pz→n resta non risolvibile automaticamente (corretto: pz è ambiguo) — serve fattore manuale o custom diretta "1 pz = 50 n".
+- `_standard_convert` aveva lo STESSO bug famiglie lasco di convert_qty (pz→peso 1:1) e tramite la nuova catena lo propagava: allineato a famiglie strette + sinonimi + _norm_unit.
+- FE: "n" nelle opzioni from-unit della tab Conversioni, copy aggiornato con l'esempio tuorli.
+- Spiegato a Marco il caso Tuorlo: base "n" perché le ricette contano i tuorli (olandese 4 n, tonnata 2 n); fatture in bottiglie KG.1 → o fattore 50 per collegamento, o conversione "1 n = 20 g" che automatizza tutto.
+
 **Test** (esecuzione diretta delle funzioni via exec, fastapi non disponibile in sandbox): PZ bloccato, KG ok, GR sinonimo, CT+fattore 12000 ok, custom pz=720g ok, unità esotica VS bloccata, g==g passa. JSX bilanciato.
 
 **Bonifica dati esistenti (da fare da UI dopo push):** Capperi → Correggi fattore sui collegamenti PZ (o conversione 1 pz = 720 g) → prezzi si ricalcolano. Sale/Zucchero → Correggi su righe X12/X10 con fattore 12000/10000. Poi "↻ Ricalcola prezzi" su ogni ingrediente per verificare. La diagnosi globale (`claude/diagnosi_prezzi_ingredienti.py`) resta pronta per trovare TUTTI gli ingredienti inquinati appena i DB si sincronizzano col push.

@@ -323,25 +323,66 @@ def _get_custom_conversion(cur, ingredient_id: int, fu: str, tu: str) -> Optiona
                 if std is not None:
                     return intermediate * std
 
+    # Catena lato DESTINAZIONE (fix 2026-06-07, "cose pesabili"):
+    # standard prima, custom dopo. Es. ingrediente a numero con "1 n = 20 g":
+    # KG → n  =  KG → g (standard, 1000)  ×  g → n (custom inversa, 1/20)  =  50.
+    # Copre fatture a peso/volume per ingredienti contati a numero e viceversa.
+    customs_tu = cur.execute(
+        """
+        SELECT from_unit, to_unit, factor FROM ingredient_unit_conversions
+        WHERE ingredient_id = ? AND (LOWER(from_unit) = ? OR LOWER(to_unit) = ?)
+        """,
+        (ingredient_id, tu, tu),
+    ).fetchall()
+
+    for c in customs_tu:
+        c_from = c["from_unit"].strip().lower()
+        c_to = c["to_unit"].strip().lower()
+
+        if c_from == tu and c["factor"] != 0:
+            # from → c_to (standard), poi c_to → tu (custom inversa)
+            std = _standard_convert(fu, c_to)
+            if std is not None:
+                return std / c["factor"]
+        elif c_to == tu:
+            # from → c_from (standard), poi c_from → tu (custom diretta)
+            std = _standard_convert(fu, c_from)
+            if std is not None:
+                return std * c["factor"]
+
     return None
 
 
 def _standard_convert(fu: str, tu: str) -> Optional[float]:
-    """Conversione solo standard (senza custom), usata internamente."""
-    fu = fu.strip().lower()
-    tu = tu.strip().lower()
+    """
+    Conversione solo standard (senza custom), usata internamente.
+    Fix 2026-06-07: famiglie STRETTE come convert_qty (peso↔peso,
+    volume↔volume, pz↔pz) — prima 'pz' convertiva a peso come 1 pz = 1 kg.
+    """
+    fu = _norm_unit(fu)
+    tu = _norm_unit(tu)
     if fu == tu:
         return 1.0
     f_base = UNIT_TO_BASE.get(fu)
     t_base = UNIT_TO_BASE.get(tu)
     if f_base is None or t_base is None:
         return None
-    weight_units = {"kg", "g", "mg"}
-    volume_units = {"l", "ml", "cl"}
-    if (fu in weight_units) != (tu in weight_units) and (fu in volume_units) != (tu in volume_units):
-        if fu == "pz" and tu == "pz":
-            return 1.0
+
+    weight_units = {"kg", "g", "mg", "gr", "hg"}
+    volume_units = {"l", "ml", "cl", "lt", "lit"}
+
+    def _family(u: str) -> Optional[str]:
+        if u in weight_units:
+            return "peso"
+        if u in volume_units:
+            return "volume"
+        if u == "pz":
+            return "pz"
         return None
+
+    if _family(fu) is None or _family(fu) != _family(tu):
+        return None
+
     return f_base / t_base
 
 

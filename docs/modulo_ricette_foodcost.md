@@ -91,6 +91,7 @@ Serve una **tabella di mapping** che collega la descrizione/codice del fornitore
 - `convert_qty`: famiglie STRETTE (peso↔peso, volume↔volume, pz↔pz) — prima `pz` convertiva implicitamente a peso come 1 pz = 1 kg. pz→peso richiede conversione custom.
 - Sinonimi unità fattura: GR, HG, LT, LIT + normalizzazione punti ("KG." → kg) via `_norm_unit`.
 - Scheda ingrediente: fattore visibile e "Correggi" su OGNI collegamento (non solo sospetti) + hint ⚠ multipack se descrizione contiene X12/12x e fattore=1.
+- Ingredienti a numero pesabili (base "n", es. tuorli): conversione custom "1 n = 20 g" → catena standard+custom converte da sola le fatture a peso (1 KG = 50 n) e le ricette a grammi. pz→n resta manuale (ambiguo). Catena lato destinazione in `_get_custom_conversion`, `_standard_convert` allineato a famiglie strette.
 - `GET /foodcost/ricette/categorie` — lista categorie
 - `POST /foodcost/ricette/categorie` — crea categoria
 - `GET /foodcost/ricette/basi` — lista ricette base (per dropdown sub-recipe)
