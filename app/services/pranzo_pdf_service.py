@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v3.1-pranzo-pdf-logo
+# @version: v3.2-pranzo-pdf-no-logo-corpi-grandi
 # -*- coding: utf-8 -*-
 # Modulo: cucina (sub-modulo pranzo)
 """
@@ -26,10 +26,6 @@ from typing import Any, Dict, List, Optional
 BASE_DIR = Path(__file__).resolve().parents[2]
 STATIC_DIR = BASE_DIR / "static"
 CSS_PDF = STATIC_DIR / "css" / "menu_pranzo_pdf.css"
-# Logo wordmark rifilato (v3.1): logo_tregobbi.png originale è un quadrato
-# 5000x5000 con ~60% di aria — la versione _trim contiene solo il wordmark.
-LOGO_TRIM = STATIC_DIR / "img" / "logo_tregobbi_trim.png"
-LOGO_FALLBACK = STATIC_DIR / "img" / "logo_tregobbi.png"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -155,13 +151,8 @@ def _build_html(menu: Dict[str, Any], settings: Dict[str, Any]) -> str:
     piatti_html = _build_piatti_html(menu.get("righe") or [])
     business_html = _build_business_box_html(settings)
 
-    # Logo Osteria Tre Gobbi in testa (v3.1, richiesta Marco)
-    logo_path = LOGO_TRIM if LOGO_TRIM.exists() else LOGO_FALLBACK
-    logo_html = (
-        f'<img class="menu-logo" src="file://{logo_path}" alt="Osteria Tre Gobbi">'
-        if logo_path.exists() else ""
-    )
-
+    # v3.2: logo rimosso (Marco: ridondante — il foglio vive accanto al menu A5
+    # che ha già il wordmark in copertina). Il trim PNG resta in static/img.
     html = f"""<!DOCTYPE html>
     <html>
     <head>
@@ -170,7 +161,6 @@ def _build_html(menu: Dict[str, Any], settings: Dict[str, Any]) -> str:
     </head>
     <body>
         <div class="menu-page">
-            {logo_html}
             <div class="menu-titolo">{escape(titolo)}</div>
             <div class="menu-sottotitolo">{escape(sottotitolo_riga)}</div>
 

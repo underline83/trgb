@@ -93,20 +93,17 @@ File: `app/services/pranzo_pdf_service.py` + `static/css/menu_pranzo_pdf.css`
 vini, che ha palette terra). Sistema verificato dai BaseFont del PDF di
 studio (`menù-A5-primavera-2026-definitivo.pdf`):
 
-- **Sabon LT Pro** — titolo spaziato (30pt, letter-spacing 0.18em), etichette categoria, titolo Business, footer corsivo
-- **Courier Prime Bold** — nomi piatto maiuscoli, righe Business con prezzo nudo (niente €)
-- Bianco/nero essenziale, niente divisori "* * *"
-- **Logo wordmark in testa** (v3.1): `static/img/logo_tregobbi_trim.png` —
-  versione rifilata del logo originale (il PNG 5000×5000 ha ~60% di aria;
-  il trim è stato generato con PIL bbox + 4% padding). Fallback al PNG
-  originale se il trim manca.
+- **Sabon LT Pro** — titolo spaziato (36pt, letter-spacing 0.18em), etichette categoria (12pt), titolo Business (19pt), footer corsivo (12pt)
+- **Courier Prime Bold** — nomi piatto maiuscoli (16pt), righe Business (14pt) con prezzo nudo (niente €)
+- Bianco/nero essenziale, niente divisori "* * *", **niente logo** (v3.2:
+  aggiunto su richiesta, poi tolto perché ridondante — il trim
+  `static/img/logo_tregobbi_trim.png` resta nel repo per usi futuri)
 
 Layout A4 verticale singola pagina (flex, comprime invece di spezzare),
-TUTTO CENTRATO (v2.2, stile pagina Degustazione del menu A5):
-logo (56mm) → titolo "PRANZO" → sottotitolo corsivo "la cucina del mercato
-· settimana dell'8 - 12 giugno 2026" → blocchi categoria (etichetta
-ANTIPASTI/PRIMI/… + piatti, centrati) → MENÙ BUSINESS (3 righe, prezzi
-destra) → footer.
+TUTTO CENTRATO (stile pagina Degustazione del menu A5):
+titolo "PRANZO" → sottotitolo corsivo "la cucina del mercato · settimana
+dell'8 - 12 giugno 2026" → blocchi categoria (etichetta ANTIPASTI/PRIMI/…
++ piatti, centrati) → MENÙ BUSINESS (3 righe, prezzi destra) → footer.
 
 **Font**: `@font-face` con fallback a catena: `static/fonts/` →
 `/usr/local/share/fonts/tre_gobbi/` → Cormorant Garamond → Times.

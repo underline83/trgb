@@ -1,7 +1,8 @@
 /* ============================================================
-   MENU PRANZO — CSS PDF (WeasyPrint) — v2.2 (sessione 2026-06-07)
-   v2.2: tutto centrato (etichette categoria + piatti) — layout convergiuto
-   verso lo stile pagina Degustazione del menu A5. v2.1: logo wordmark.
+   MENU PRANZO — CSS PDF (WeasyPrint) — v2.3 (sessione 2026-06-07)
+   v2.3: logo rimosso (ridondante), corpi aumentati (titolo 36pt,
+   piatti 16pt, business 14pt). v2.2: tutto centrato — layout stile
+   pagina Degustazione del menu A5.
    Brand cliente Osteria Tre Gobbi — coerente con il MENU A5
    stagionale (Sabon LT Pro + Courier Prime), Proposta A
    "Pagina di sezione": titolo serif spaziato, piatti typewriter
@@ -111,20 +112,12 @@ html, body {
 }
 
 /* ============================================================
-   LOGO — wordmark Osteria Tre Gobbi (versione rifilata _trim)
-   ============================================================ */
-.menu-logo {
-    display: block;
-    width: 56mm;
-    margin: 0 auto 9mm;
-}
-
-/* ============================================================
    TESTATA — titolo serif spaziato come le sezioni del menu A5
+   (v2.3: niente logo, corpi aumentati)
    ============================================================ */
 .menu-titolo {
     text-align: center;
-    font-size: 30pt;
+    font-size: 36pt;
     font-weight: 400;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -134,7 +127,7 @@ html, body {
 
 .menu-sottotitolo {
     text-align: center;
-    font-size: 12.5pt;
+    font-size: 14pt;
     font-style: italic;
     color: #333;
     margin: 0 0 12mm;
@@ -152,7 +145,7 @@ html, body {
 }
 
 .categoria-label {
-    font-size: 10.5pt;
+    font-size: 12pt;
     letter-spacing: 0.28em;
     text-transform: uppercase;
     color: #555;
@@ -171,11 +164,11 @@ html, body {
 .piatto {
     font-family: "Courier Prime", "Courier New", monospace;
     font-weight: 700;
-    font-size: 13pt;
+    font-size: 16pt;
     letter-spacing: 0.07em;
     text-transform: uppercase;
     line-height: 1.4;
-    padding: 1.2mm 0;
+    padding: 1.4mm 0;
     text-align: center;
 }
 
@@ -200,7 +193,7 @@ html, body {
 
 .business-titolo {
     text-align: center;
-    font-size: 17pt;
+    font-size: 19pt;
     font-weight: 400;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -212,7 +205,7 @@ html, body {
     justify-content: space-between;
     font-family: "Courier Prime", "Courier New", monospace;
     font-weight: 700;
-    font-size: 12.5pt;
+    font-size: 14pt;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     line-height: 1.9;
@@ -229,7 +222,7 @@ html, body {
     flex-shrink: 0;
     margin-top: 8mm;
     text-align: center;
-    font-size: 11pt;
+    font-size: 12pt;
     color: #444;
     line-height: 1.5;
     font-style: italic;
