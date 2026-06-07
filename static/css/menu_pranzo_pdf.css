@@ -109,6 +109,15 @@ html, body {
 }
 
 /* ============================================================
+   LOGO — wordmark Osteria Tre Gobbi (versione rifilata _trim)
+   ============================================================ */
+.menu-logo {
+    display: block;
+    width: 56mm;
+    margin: 0 auto 9mm;
+}
+
+/* ============================================================
    TESTATA — titolo serif spaziato come le sezioni del menu A5
    ============================================================ */
 .menu-titolo {

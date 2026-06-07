@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.7 — Flusso "Entrambi": "+ pool" su righe ad-hoc, creazione rapida placeholder, ✕ eliminazione intelligente dal pool (2026-06-07)
+// @version: v3.8 — date picker settimana in toolbar + (v3.7) "+ pool", placeholder rapidi, ✕ pool (2026-06-07)
 // Modulo: cucina (sub-modulo pranzo)
 //
 // v3.2 cambiamenti vs v3.1:
@@ -740,7 +740,14 @@ export default function PranzoMenu() {
                   title="Settimana precedente"
                 >◀</button>
                 <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2">
-                  <span className="text-neutral-900">{labelWeekRange(settimana)}</span>
+                  <input
+                    type="date"
+                    value={settimana}
+                    onChange={(e) => e.target.value && setSettimana(e.target.value)}
+                    className="border-0 p-0 text-sm text-neutral-900 bg-transparent focus:outline-none cursor-pointer w-[118px]"
+                    title="Scegli una data qualsiasi: la settimana si aggancia al suo lunedì"
+                  />
+                  <span className="text-neutral-500 hidden sm:inline">{labelWeekRange(settimana)}</span>
                   <span className="text-neutral-400 font-mono text-xs">· {isoWeekOfMonday(settimana)}</span>
                 </div>
                 <button

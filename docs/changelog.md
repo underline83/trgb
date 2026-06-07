@@ -20,6 +20,10 @@ Ripresa del modulo Pranzo (fermo da fine aprile, inutilizzato per estetica PDF i
 - `docs/modulo_pranzo.md` riscritto (era fermo al modello v1.0 giornaliero): v3.0 con schema reale, colonne legacy D2, tabella capability C-P-001..007.
 - `VERSION` 5.23 → **5.24**, pranzo 1.5 → **1.6** (alpha → beta).
 
+## 2026-06-07 (sera) — Pranzo: logo nel PDF + date picker settimana `[mixed]`
+
+Feedback Marco post-push: (1) "non vedo il logo nel pdf" → aggiunto wordmark Osteria Tre Gobbi in testa al PDF (v3.1): creato `static/img/logo_tregobbi_trim.png` (rifilatura PIL del PNG originale 5000×5000 che ha ~60% di aria interna), `<img class="menu-logo">` 56mm centrato sopra il titolo, fallback al PNG originale. (2) "la settimana dovrebbe farmela scegliere" → date picker nella toolbar del compositore (PranzoMenu v3.8): scegli qualsiasi data e la settimana si aggancia al suo lunedì; il PDF e tutte le azioni seguono la settimana selezionata (le frecce ◀▶ e Oggi restano).
+
 ## 2026-05-30 — Vini 3.61: STATO_RIORDINO si azzera in automatico all'arrivo dello stock `[core]`
 
 Marco ha segnalato che il widget "vini senza giacenza" della Dashboard Vini non mostrava tutti i vini attesi (esempio: ID 1239 Pinot Nero Alto Adige Sogegross, giacenza 0 ma assente dal widget). Causa: il widget esclude per design i vini con `STATO_RIORDINO='0'` (Ordinato — "ordine già piazzato, non urgente alertarlo"), ma né `registra_movimento` né `conferma_arrivo_ordine_pending` azzeravano mai questo stato. Quindi i vini ordinati e poi arrivati e poi rivenduti restavano marcati "Ordinato" per sempre e scomparivano dall'alert.

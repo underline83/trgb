@@ -52,6 +52,10 @@ Marco: "manca la possibilità di eliminare una ricetta" (in Ricette esisteva sol
 - Test su copia DB: 409 sub-ricetta ("Fondo al Valcalepio rosso" usata da 5 ricette), 409 pubblicata, delete amatriciana → recipes/items/tags spariti, riga menu pranzo scollegata ma snapshot nome intatto, 404 su id inesistente.
 - Correlato: ✕ "intelligente" nel pool pranzo (untag + disattiva se placeholder vuoto) — vedi sopra. I due livelli convivono: pool = togli dal pranzo; Ricette = elimina dal sistema.
 
+### Aggiunta fine sessione 2 — logo PDF + date picker settimana
+- **Logo nel PDF** (pdf service v3.1 + css v2.1): Marco non vedeva il logo (Proposta A ne era priva by design, ma lo voleva). Creato `static/img/logo_tregobbi_trim.png` con PIL (bbox crop del 5000×5000 originale → 4719×2154 + 4% padding, NUOVO FILE da committare). `.menu-logo` 56mm centrato, margine 9mm sotto. Fallback al PNG originale se il trim manca.
+- **Date picker settimana** (PranzoMenu v3.8): `<input type="date">` dentro il box del label settimana in toolbar; `setSettimana` normalizza già al lunedì ISO. PDF/salva/elimina seguono la settimana selezionata (apriPdf default = state settimana, era già corretto — mancava solo un modo rapido di saltare a settimane future senza cliccare ▶ N volte).
+
 ### Prossimi passi modulo Pranzo
 1. Font in `static/fonts/` + push + stampa di prova del PDF reale.
 2. Mig 103 cleanup schema (sessione dedicata, backup pre-DDL).

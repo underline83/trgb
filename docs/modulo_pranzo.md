@@ -78,7 +78,7 @@ Scritture: ruolo `superadmin | admin | chef` (`_check_admin`).
 ## Frontend
 
 `frontend/src/pages/pranzo/PranzoMenu.jsx` (v3.5) — 2 tab:
-- **Compositore**: nav settimana + card piatti (riordino ▲/▼, ordina per categoria, select categoria, input nome libero) + pool a destra (search + filtro categoria + form **"⚡ Nuova ricetta veloce"** nome+categoria → crea placeholder nel pool senza passare da Ricette, visibile anche a pool vuoto). Azioni: PDF / Copia prec. / Elimina / Salva. Righe ad-hoc con nome → bottone **"+ pool"** (promozione a ricetta, v3.0). Widget **MargineCard** (F.1) sotto la card.
+- **Compositore**: nav settimana (frecce ◀▶ + Oggi + **date picker** v3.8: qualsiasi data si aggancia al lunedì della sua settimana — il PDF segue la settimana selezionata) + card piatti (riordino ▲/▼, ordina per categoria, select categoria, input nome libero) + pool a destra (search + filtro categoria + form **"⚡ Nuova ricetta veloce"** nome+categoria → crea placeholder nel pool senza passare da Ricette, visibile anche a pool vuoto). Azioni: PDF / Copia prec. / Elimina / Salva. Righe ad-hoc con nome → bottone **"+ pool"** (promozione a ricetta, v3.0). Widget **MargineCard** (F.1) sotto la card.
 - **Programmazione**: ultime N settimane affiancate, per non ripetersi.
 
 Resilienza: `apiFetchSafe` (1 retry su network fail), banner errore con Riprova, AbortController 20s, box diagnostica (v3.2-3.4, vedi problemi.md D2).
@@ -95,12 +95,17 @@ studio (`menù-A5-primavera-2026-definitivo.pdf`):
 
 - **Sabon LT Pro** — titolo spaziato (30pt, letter-spacing 0.18em), etichette categoria, titolo Business, footer corsivo
 - **Courier Prime Bold** — nomi piatto maiuscoli, righe Business con prezzo nudo (niente €)
-- Bianco/nero essenziale, niente logo, niente divisori "* * *"
+- Bianco/nero essenziale, niente divisori "* * *"
+- **Logo wordmark in testa** (v3.1): `static/img/logo_tregobbi_trim.png` —
+  versione rifilata del logo originale (il PNG 5000×5000 ha ~60% di aria;
+  il trim è stato generato con PIL bbox + 4% padding). Fallback al PNG
+  originale se il trim manca.
 
 Layout A4 verticale singola pagina (flex, comprime invece di spezzare):
-titolo "PRANZO" → sottotitolo corsivo "la cucina del mercato · settimana
-dell'8 - 12 giugno 2026" → blocchi categoria (etichetta ANTIPASTI/PRIMI/…
-+ piatti, sinistra) → MENÙ BUSINESS (3 righe, prezzi destra) → footer.
+logo (56mm) → titolo "PRANZO" → sottotitolo corsivo "la cucina del mercato
+· settimana dell'8 - 12 giugno 2026" → blocchi categoria (etichetta
+ANTIPASTI/PRIMI/… + piatti, sinistra) → MENÙ BUSINESS (3 righe, prezzi
+destra) → footer.
 
 **Font**: `@font-face` con fallback a catena: `static/fonts/` →
 `/usr/local/share/fonts/tre_gobbi/` → Cormorant Garamond → Times.
