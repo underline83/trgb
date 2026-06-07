@@ -1,5 +1,6 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.4 — Widget margine Menù Business (Modulo F.1, 2026-04-27)
+// @version: v3.5 — Flusso "Entrambi": bottone "+ pool" su righe ad-hoc (2026-06-07)
+// Modulo: cucina (sub-modulo pranzo)
 //
 // v3.2 cambiamenti vs v3.1:
 //   - apiFetchSafe(): wrapper di apiFetch che retrya 1 volta dopo 1.5s su
@@ -564,6 +565,38 @@ export default function PranzoMenu() {
     }
   };
 
+  // Flusso "Entrambi" (2026-06-07): promuove una riga ad-hoc a ricetta
+  // minimale del pool (tag "Pranzo di lavoro"), senza passare da Ricette.
+  const promuoviRiga = async (i) => {
+    const r = righe[i];
+    const nome = (r?.nome || "").trim();
+    if (!nome || r.recipe_id) return;
+    setMsg(null); setRetryFn(null);
+    try {
+      const res = await apiFetchSafe(`${API_BASE}/pranzo/promuovi-ricetta/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, categoria: r.categoria || "altro" }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setMsg({ tipo: "err", text: d.detail || `Salvataggio nel pool fallito (HTTP ${res.status}).` });
+        return;
+      }
+      const d = await res.json();
+      aggiornaRiga(i, { recipe_id: d.recipe_id });
+      loadPool();
+      setMsg({
+        tipo: "ok",
+        text: d.creata
+          ? `"${nome}" salvato nel pool come nuova ricetta.`
+          : `"${nome}" esisteva già in Ricette: collegato al pool.`,
+      });
+    } catch (e) {
+      handleActionError(e, "Salva nel pool", () => promuoviRiga(i));
+    }
+  };
+
   const eliminaSettimana = async (mondayIso) => {
     if (!window.confirm(`Eliminare il menu della settimana ${labelWeekRange(mondayIso)}?`)) return;
     setMsg(null); setRetryFn(null);
@@ -740,11 +773,19 @@ export default function PranzoMenu() {
                           placeholder="Nome piatto"
                           className="flex-1 min-w-[200px] border border-neutral-300 rounded px-2 py-1 text-sm"
                         />
-                        {r.recipe_id && (
+                        {r.recipe_id ? (
                           <span className="text-[10px] uppercase tracking-wide text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
                             ricetta #{r.recipe_id}
                           </span>
-                        )}
+                        ) : (r.nome || "").trim() ? (
+                          <button
+                            onClick={() => promuoviRiga(i)}
+                            className="text-[10px] uppercase tracking-wide text-neutral-600 bg-neutral-100 border border-neutral-300 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 px-1.5 py-0.5 rounded transition-colors"
+                            title='Crea una ricetta minimale e aggiungila al pool "Pranzo di lavoro"'
+                          >
+                            + pool
+                          </button>
+                        ) : null}
                         <button
                           onClick={() => rimuoviRiga(i)}
                           className="text-red-600 hover:text-red-900 text-sm px-2"

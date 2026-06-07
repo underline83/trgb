@@ -1,6 +1,54 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-02 (notte) — **CC.5.b: riepilogo mensile spese carta per categoria** (`[core]`). Sub-modulo carta CHIUSO end-to-end. Carta v1.5 beta, sistema 5.23. Endpoint `GET /banca/carta/riepilogo?carta_id=&from=&to=` aggrega `banca_movimenti WHERE banca LIKE 'CARTA_%'` per `strftime('%Y-%m', data_contabile)` + categoria (mappa hardcoded MCC[:4] → categoria, 60 voci copre AUTOSTRADE/ALIMENTARI/SOFTWARE/HOTEL/RISTORANTI/FINANZIARI/SERVIZI/VARIE). Nuova pagina `CartaRiepilogoPage.jsx` su route `/flussi-cassa/carta/riepilogo` con filtri (selettore carta + range date, default ultimi 12 mesi), 4 stat card (totale/movimenti/mesi/media), bar chart stacked per categoria via recharts, tabella mesi×categorie con riga totali e righe sticky. Bottone "📊 Riepilogo mensile" in CartaCreditoPage. Mappa MCC hardcoded in `banca_carta_router.py` (opzione 2 tabella editabile rinviata).
+**Ultimo aggiornamento:** 2026-06-07 — **Pranzo 1.6: restyle PDF sistema menu A5 + flusso "Entrambi"** (`[mixed]`). Sistema 5.24. Ripresa modulo Pranzo dopo audit (fermo da fine aprile: 4 menu totali, ultimi 2 vuoti, pool di 6 ricette). Cause individuate con Marco: PDF esteticamente incoerente col brand + inserimento piatti troppo rigido. PDF v3.0 "Proposta A — Pagina di sezione" allineato al MENU A5 stagionale (Sabon LT Pro + Courier Prime, verificati dai BaseFont del PDF di studio; fallback Cormorant finché i font non sono in `static/fonts/`). Nuovo `POST /pranzo/promuovi-ricetta/` + bottone "+ pool" sulle righe ad-hoc. Mig 144 default testata ("PRANZO" / "la cucina del mercato"). `docs/modulo_pranzo.md` riscritto da zero (era fermo al v1.0 giornaliero).
+
+## SESSIONE 2026-06-07 — Pranzo 1.6: restyle PDF + flusso piatti
+
+### Audit di apertura (richiesto da Marco)
+- Codice solido ma modulo NON usato: 4 menu (ultimo 18/5), i 2 più recenti con 0 righe. Pool fermo a 6 ricette "Pranzo di lavoro".
+- Debito schema D2 invariato: colonne legacy v1.0 su `pranzo_menu` (`data` NOT NULL UNIQUE ecc.), `pranzo_piatti` viva, riga sporca `settimana_inizio=2026-04-26` (domenica). **Mig 103 recreate-table resta DEFERITA** — backup pre-DDL quando si farà.
+- "Clona settimana" della roadmap era già fatto (bottone "Copia prec.").
+
+### Decisioni di Marco
+1. Riferimento estetico = **menu A5 primavera 2026** (file di studio, font embedded: SabonLTPro Roman/Bold, CourierPrime Regular/Bold, Milliard-Light), NON carta vini.
+2. Proposta **A "Pagina di sezione"** scelta fra 3 mockup. Formato **A4 verticale**.
+3. Flusso piatti: **"Entrambi"** — scrittura libera + promozione riga a ricetta del pool.
+
+### Backend
+- `pranzo_repository.promuovi_riga_a_ricetta(nome, categoria)`: dedup case-insensitive su `name`/`menu_name` di ricette attive; se nuova → INSERT recipes scheletro (kind dish, 1 porzione, category_id da mappa inversa antipasto→Antipasto…) + `INSERT OR IGNORE recipe_service_types`. Test su copia DB: nuovo/dedup/esistente-non-taggata/pool/nome-vuoto/integrità → tutti OK.
+- `pranzo_router`: `POST /promuovi-ricetta/` con `_check_admin`, 400 su ValueError.
+- Mig 144: nuovi default `pranzo_settings` SOLO se ancora uguali ai vecchi (mai personalizzati). Idempotente, testata su copia (run 1 aggiorna, run 2 no-op).
+- Default allineati anche in `_ensure_schema` (CREATE TABLE + backfill) per installazioni fresche.
+
+### PDF v3.0 (`[locale:tregobbi]`)
+- `menu_pranzo_pdf.css` v2.0: @font-face Sabon/Courier con fallback a catena (`static/fonts/` → `/usr/local/share/fonts/tre_gobbi/` → Cormorant → Times). Titolo 30pt spacing 0.18em, etichette categoria 10.5pt spacing 0.28em, piatti Courier Bold 13pt, business 118mm centrato, footer corsivo. Pagina singola A4 flex (eredita anti-overflow v1.1).
+- `pranzo_pdf_service.py` v3.0: `_build_piatti_html` raggruppa per categoria con etichette plurali (LABEL_CATEGORIA, "altro"→"Dal mercato"); `_format_settimana` minuscolo con elisione articolo (dell'8, dell'11); `_format_prezzo` nudo senza € ("15", "14,50"); sottotitolo unico "sottotitolo · settimana…". HTML builder testato (assert su categorie presenti, niente asterischi/OGGI).
+- ⚠ **AZIONE MARCO**: caricare in `static/fonts/` → `SabonLTPro-Roman.ttf/woff2`, `SabonLTPro-Bold`, `SabonLTPro-Italic`, `CourierPrime-Regular`, `CourierPrime-Bold` (idealmente anche sul VPS in `/usr/local/share/fonts/tre_gobbi/`). Senza, il PDF esce in Cormorant (leggibile ma non fedele).
+
+### Frontend
+- `PranzoMenu.jsx` v3.5: handler `promuoviRiga(i)` (apiFetchSafe POST, aggiorna recipe_id in riga, ricarica pool, toast con esito creata/collegata) + bottone "+ pool" sulle righe ad-hoc con nome non vuoto (hover arancione, title esplicativo).
+
+### Versioni e docs
+- `VERSION` + `versions.jsx sistema` 5.23 → 5.24; pranzo 1.5 → 1.6 (alpha → beta).
+- `docs/modulo_pranzo.md` riscritto v3.0 (schema reale + legacy D2 + capability C-P-001..007).
+- `docs/changelog.md` entry 2026-06-07.
+
+### File toccati in questo push
+- `static/css/menu_pranzo_pdf.css` (riscritto)
+- `app/services/pranzo_pdf_service.py` (riscritto)
+- `app/migrations/144_pranzo_settings_restyle.py` (nuovo)
+- `app/repositories/pranzo_repository.py` (promuovi_riga_a_ricetta + default settings)
+- `app/routers/pranzo_router.py` (endpoint promuovi-ricetta)
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` (v3.5)
+- `VERSION`, `frontend/src/config/versions.jsx`
+- `docs/modulo_pranzo.md` (riscritto), `docs/changelog.md`, `docs/sessione.md`
+
+### Prossimi passi modulo Pranzo
+1. Font in `static/fonts/` + push + stampa di prova del PDF reale.
+2. Mig 103 cleanup schema (sessione dedicata, backup pre-DDL).
+3. C.P2 allergeni su PDF, QR pubblico, notifica M.A (roadmap).
+
+---
 
 ## SESSIONE 2026-06-02 (notte) — CC.5.b: riepilogo mensile + chiusura sub-modulo carta
 

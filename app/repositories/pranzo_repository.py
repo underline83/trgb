@@ -174,14 +174,14 @@ def _ensure_schema(conn) -> None:
     cur.execute("""
         CREATE TABLE IF NOT EXISTS pranzo_settings (
             id                   INTEGER PRIMARY KEY CHECK (id = 1),
-            titolo_default       TEXT NOT NULL DEFAULT 'OGGI A PRANZO: LA CUCINA DEL MERCATO',
-            sottotitolo_default  TEXT NOT NULL DEFAULT 'Piatti in base agli acquisti del giorno, soggetti a disponibilità.',
+            titolo_default       TEXT NOT NULL DEFAULT 'PRANZO',
+            sottotitolo_default  TEXT NOT NULL DEFAULT 'la cucina del mercato',
             titolo_business      TEXT NOT NULL DEFAULT 'Menù Business',
             prezzo_1_default     REAL NOT NULL DEFAULT 15.0,
             prezzo_2_default     REAL NOT NULL DEFAULT 25.0,
             prezzo_3_default     REAL NOT NULL DEFAULT 35.0,
-            footer_default       TEXT NOT NULL DEFAULT '*acqua, coperto e servizio inclusi
-**da Lunedì a Venerdì',
+            footer_default       TEXT NOT NULL DEFAULT 'acqua, coperto e servizio inclusi
+da lunedì a venerdì',
             updated_at           TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
     """)
@@ -190,13 +190,13 @@ def _ensure_schema(conn) -> None:
     # Soft-migration colonne settings (se schema vecchio aveva meno campi)
     cols_ps = _cols(cur, "pranzo_settings")
     expected_settings = {
-        "titolo_default":      ("TEXT", "OGGI A PRANZO: LA CUCINA DEL MERCATO"),
-        "sottotitolo_default": ("TEXT", "Piatti in base agli acquisti del giorno, soggetti a disponibilità."),
+        "titolo_default":      ("TEXT", "PRANZO"),
+        "sottotitolo_default": ("TEXT", "la cucina del mercato"),
         "titolo_business":     ("TEXT", "Menù Business"),
         "prezzo_1_default":    ("REAL", "15.0"),
         "prezzo_2_default":    ("REAL", "25.0"),
         "prezzo_3_default":    ("REAL", "35.0"),
-        "footer_default":      ("TEXT", "*acqua, coperto e servizio inclusi"),
+        "footer_default":      ("TEXT", "acqua, coperto e servizio inclusi"),
         "updated_at":          ("TEXT", None),
     }
     for col, (tipo, default) in expected_settings.items():
@@ -519,6 +519,87 @@ def list_piatti_disponibili() -> List[Dict[str, Any]]:
         # ordinamento finale per categoria + nome (gestisce le 'altro' in fondo)
         out.sort(key=lambda p: (ORDINE_CATEGORIA.get(p["categoria"], 99), p["nome"].lower()))
         return out
+    finally:
+        conn.close()
+
+
+# Mappa inversa: categoria pranzo -> nome recipe_categories
+_PRANZO_CAT_TO_RECIPE = {
+    "antipasto": "Antipasto", "primo": "Primo", "secondo": "Secondo",
+    "contorno": "Contorno", "dolce": "Dolce",
+    # "altro" -> nessuna categoria (category_id NULL)
+}
+
+
+def promuovi_riga_a_ricetta(nome: str, categoria: str) -> Dict[str, Any]:
+    """
+    Flusso "Entrambi" (2026-06-07): promuove una riga ad-hoc del compositore
+    a ricetta minimale del pool, senza passare dal modulo Ricette.
+
+    - Se esiste già una ricetta attiva con lo stesso nome (case-insensitive,
+      su name o menu_name): NON duplica, aggiunge solo il tag
+      "Pranzo di lavoro" se manca, e ritorna quella.
+    - Altrimenti crea una ricetta scheletro (kind='dish', yield 1 porzione,
+      senza ingredienti) e la collega al service_type "Pranzo di lavoro".
+      Il food cost si completa dopo, se e quando serve (C.P1).
+
+    Ritorna {recipe_id, nome, categoria, creata: bool}.
+    """
+    nome = (nome or "").strip()
+    if not nome:
+        raise ValueError("Nome piatto vuoto")
+    categoria = (categoria or "altro").strip().lower()
+    if categoria not in CATEGORIE_VALIDE:
+        categoria = "altro"
+
+    conn = get_cucina_connection()
+    try:
+        _ensure_schema(conn)
+
+        st = conn.execute(
+            "SELECT id FROM service_types WHERE name = 'Pranzo di lavoro' AND active = 1"
+        ).fetchone()
+        if not st:
+            raise ValueError("Service type 'Pranzo di lavoro' non trovato o disattivo")
+        st_id = st["id"]
+
+        # Dedup: ricetta attiva con stesso nome (name o menu_name)
+        existing = conn.execute(
+            """SELECT id FROM recipes
+                WHERE is_active = 1
+                  AND (LOWER(TRIM(name)) = LOWER(?) OR LOWER(TRIM(COALESCE(menu_name,''))) = LOWER(?))
+                LIMIT 1""",
+            (nome, nome),
+        ).fetchone()
+
+        creata = False
+        if existing:
+            recipe_id = existing["id"]
+        else:
+            cat_name = _PRANZO_CAT_TO_RECIPE.get(categoria)
+            cat_id = None
+            if cat_name:
+                cat_row = conn.execute(
+                    "SELECT id FROM recipe_categories WHERE LOWER(name) = LOWER(?)",
+                    (cat_name,),
+                ).fetchone()
+                cat_id = cat_row["id"] if cat_row else None
+            cur = conn.execute(
+                """INSERT INTO recipes
+                       (name, category_id, is_base, yield_qty, yield_unit,
+                        is_active, kind, created_at, updated_at)
+                   VALUES (?, ?, 0, 1.0, 'porzioni', 1, 'dish', ?, ?)""",
+                (nome, cat_id, _now(), _now()),
+            )
+            recipe_id = cur.lastrowid
+            creata = True
+
+        conn.execute(
+            "INSERT OR IGNORE INTO recipe_service_types (recipe_id, service_type_id) VALUES (?, ?)",
+            (recipe_id, st_id),
+        )
+        conn.commit()
+        return {"recipe_id": recipe_id, "nome": nome, "categoria": categoria, "creata": creata}
     finally:
         conn.close()
 

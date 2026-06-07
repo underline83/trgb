@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-06-07 — Pranzo 1.6: restyle PDF sistema menu A5 + flusso piatti "Entrambi" `[mixed]`
+
+Ripresa del modulo Pranzo (fermo da fine aprile, inutilizzato per estetica PDF incoerente e pool piatti troppo rigido). Riferimento estetico deciso da Marco: il MENU A5 stagionale dell'osteria (Sabon LT Pro + Courier Prime, bianco/nero), NON la carta vini. Proposta A "Pagina di sezione" approvata, formato A4 verticale.
+
+### Aggiunto
+- **`POST /pranzo/promuovi-ricetta/`** `[core]`: promuove una riga ad-hoc del compositore a ricetta minimale (kind='dish', 1 porzione, senza ingredienti) + tag service_type "Pranzo di lavoro". Dedup per nome (name/menu_name case-insensitive): se la ricetta esiste, aggiunge solo il tag. Testato su copia DB (6 test verdi).
+- **Bottone "+ pool"** su righe ad-hoc con nome in `PranzoMenu.jsx` (v3.5): un click e il piatto del mercato entra nel pool, food cost completabile dopo in Ricette (C.P1).
+- **Migration 144** `[locale:tregobbi]`: nuovi default `pranzo_settings` (titolo "PRANZO", sottotitolo "la cucina del mercato", footer senza asterischi) — solo se mai personalizzati. Idempotente, testata.
+
+### Modificato
+- **`pranzo_pdf_service.py` v3.0 + `menu_pranzo_pdf.css` v2.0** `[locale:tregobbi]`: titolo Sabon spaziato, sottotitolo corsivo unico con settimana ("la cucina del mercato · settimana dell'8 - 12 giugno 2026", articolo elide su 8/11), piatti Courier Prime bold maiuscoli raggruppati per categoria con etichette (ANTIPASTI/PRIMI/…), box Menù Business con prezzi nudi senza €, footer corsivo. Niente logo, niente "* * *". Font con fallback a catena (static/fonts → tre_gobbi → Cormorant). ⚠ Caricare i file Sabon LT Pro e Courier Prime in `static/fonts/`.
+- `docs/modulo_pranzo.md` riscritto (era fermo al modello v1.0 giornaliero): v3.0 con schema reale, colonne legacy D2, tabella capability C-P-001..007.
+- `VERSION` 5.23 → **5.24**, pranzo 1.5 → **1.6** (alpha → beta).
+
 ## 2026-05-30 — Vini 3.61: STATO_RIORDINO si azzera in automatico all'arrivo dello stock `[core]`
 
 Marco ha segnalato che il widget "vini senza giacenza" della Dashboard Vini non mostrava tutti i vini attesi (esempio: ID 1239 Pinot Nero Alto Adige Sogegross, giacenza 0 ma assente dal widget). Causa: il widget esclude per design i vini con `STATO_RIORDINO='0'` (Ordinato — "ordine già piazzato, non urgente alertarlo"), ma né `registra_movimento` né `conferma_arrivo_ordine_pending` azzeravano mai questo stato. Quindi i vini ordinati e poi arrivati e poi rivenduti restavano marcati "Ordinato" per sempre e scomparivano dall'alert.

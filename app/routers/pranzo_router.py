@@ -147,6 +147,29 @@ def list_piatti_disponibili_endpoint():
     return {"piatti": repo.list_piatti_disponibili()}
 
 
+class PromuoviRicettaIn(BaseModel):
+    nome: str = Field(..., min_length=1)
+    categoria: str = Field("altro")
+
+
+@router.post("/promuovi-ricetta/")
+def promuovi_ricetta_endpoint(
+    payload: PromuoviRicettaIn,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Flusso "Entrambi" (2026-06-07): promuove una riga ad-hoc del compositore
+    a ricetta minimale del pool (tag "Pranzo di lavoro"), senza passare dal
+    modulo Ricette. Dedup per nome: se la ricetta esiste già, aggiunge solo
+    il tag e ritorna quella. Il food cost si completa dopo in Ricette (C.P1).
+    """
+    _check_admin(user)
+    try:
+        return repo.promuovi_riga_a_ricetta(payload.nome, payload.categoria)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ─────────────────────────────────────────────────────────────
 # MENU SETTIMANALE
 # ─────────────────────────────────────────────────────────────

@@ -27,10 +27,10 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
-    version: "1.5",
+    version: "1.6",
     label: "Menu Pranzo del Giorno",
-    status: "alpha",
-    color: "orange",
+    status: "beta",
+    color: "blue",
   },
   menuCarta: {
     version: "1.1",
@@ -136,7 +136,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.23",
+    version: "5.24",
     label: "Sistema",
     status: "stabile",
     color: "green",
