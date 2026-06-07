@@ -2193,6 +2193,88 @@ def delete_ricetta(recipe_id: int):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: ELIMINA RICETTA DEFINITIVAMENTE (2026-06-07)
+# ─────────────────────────────────────────────
+
+@router.delete("/ricette/{recipe_id}/hard")
+def delete_ricetta_hard(recipe_id: int):
+    """
+    Eliminazione DEFINITIVA di una ricetta (richiesta Marco 2026-06-07).
+
+    Protezioni di integrità (HTTP 409 con motivo):
+      - usata come sub-ricetta in altre ricette (recipe_items.sub_recipe_id)
+      - pubblicata sul menu carta (menu_dish_publications)
+
+    Cosa elimina/scollega (transazione unica):
+      - recipe_items della ricetta (i suoi ingredienti)
+      - recipe_service_types (tag pool pranzo ecc.)
+      - pranzo_menu_righe.recipe_id → NULL (lo storico menu pranzo resta:
+        nome/categoria sono snapshot)
+      - pranzo_piatti.recipe_id → NULL (tabella legacy v1.0)
+      - la riga in recipes
+
+    NB: i DELETE/UPDATE sono espliciti, non ci si affida alle FK CASCADE
+    (PRAGMA foreign_keys non è garantito ON su ogni connessione).
+    """
+    conn = get_cucina_connection()
+    cur = conn.cursor()
+
+    try:
+        existing = cur.execute(
+            "SELECT id, name FROM recipes WHERE id = ?", (recipe_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Ricetta non trovata")
+
+        # Protezione 1: sub-ricetta di altre ricette
+        usata_in = cur.execute(
+            """SELECT DISTINCT r.name
+                 FROM recipe_items ri JOIN recipes r ON r.id = ri.recipe_id
+                WHERE ri.sub_recipe_id = ?
+                LIMIT 5""",
+            (recipe_id,),
+        ).fetchall()
+        if usata_in:
+            nomi = ", ".join(f'"{u["name"]}"' for u in usata_in)
+            raise HTTPException(
+                status_code=409,
+                detail=f"Non eliminabile: è usata come sub-ricetta in {nomi}. Rimuovila prima da quelle composizioni.",
+            )
+
+        # Protezione 2: pubblicata sul menu carta
+        n_pub = cur.execute(
+            "SELECT COUNT(*) FROM menu_dish_publications WHERE recipe_id = ?",
+            (recipe_id,),
+        ).fetchone()[0]
+        if n_pub:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Non eliminabile: è pubblicata sul menu carta ({n_pub} pubblicazioni). Rimuovila prima dalle edizioni del menu.",
+            )
+
+        # Eliminazione esplicita in transazione
+        cur.execute("DELETE FROM recipe_items WHERE recipe_id = ?", (recipe_id,))
+        cur.execute("DELETE FROM recipe_service_types WHERE recipe_id = ?", (recipe_id,))
+        cur.execute("UPDATE pranzo_menu_righe SET recipe_id = NULL WHERE recipe_id = ?", (recipe_id,))
+        try:
+            # tabella legacy v1.0 — può non esistere su DB nuovi
+            cur.execute("UPDATE pranzo_piatti SET recipe_id = NULL WHERE recipe_id = ?", (recipe_id,))
+        except Exception:
+            pass
+        cur.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+        conn.commit()
+        return {"status": "ok", "detail": f'Ricetta "{existing["name"]}" eliminata definitivamente'}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Eliminazione fallita: {e}")
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: CLONE RICETTA (Modulo L, 2026-04-27)
 # ─────────────────────────────────────────────
 

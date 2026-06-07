@@ -270,6 +270,32 @@ export default function RicetteArchivio() {
     await loadRicette();
   };
 
+  // Eliminazione DEFINITIVA batch (2026-06-07). Il backend protegge con 409
+  // le ricette usate come sub-ricetta o pubblicate sul menu carta.
+  const batchElimina = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(`ELIMINARE DEFINITIVAMENTE ${selected.size} ricette selezionate?\n\nNON reversibile. Le ricette usate come sub-ricetta o sul menu carta verranno saltate.`)) return;
+    setBulkLoading(true);
+    let ok = 0, ko = 0;
+    const motivi = [];
+    for (const id of selected) {
+      try {
+        const r = await apiFetch(`${FC}/ricette/${id}/hard`, { method: "DELETE" });
+        if (r.ok) ok++;
+        else {
+          ko++;
+          const d = await r.json().catch(() => ({}));
+          if (d.detail && motivi.length < 3) motivi.push(d.detail);
+        }
+      } catch { ko++; }
+    }
+    setBulkLoading(false);
+    showBulkMsg(`Eliminate ${ok}/${selected.size}${ko ? ` (${ko} protette o in errore)` : ""}`);
+    if (motivi.length) alert(`Alcune ricette non sono state eliminate:\n\n${motivi.join("\n")}`);
+    clearSelection();
+    await loadRicette();
+  };
+
   const batchClone = async () => {
     if (selected.size === 0) return;
     if (!window.confirm(`Duplicare ${selected.size} ricette? Le copie saranno create con suffisso "(copia)".`)) return;
@@ -673,6 +699,9 @@ export default function RicetteArchivio() {
               </Btn>
               <Btn variant="chip" tone="red" size="sm" onClick={batchDisattiva} loading={bulkLoading}>
                 🚫 Disattiva
+              </Btn>
+              <Btn variant="chip" tone="red" size="sm" onClick={batchElimina} loading={bulkLoading} title="Eliminazione definitiva, non reversibile">
+                🗑 Elimina
               </Btn>
               <Btn variant="ghost" size="sm" onClick={clearSelection}>
                 ✕ Annulla

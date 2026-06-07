@@ -83,6 +83,7 @@ Serve una **tabella di mapping** che collega la descrizione/codice del fornitore
 - `POST /foodcost/ricette` — crea ricetta con items
 - `PUT /foodcost/ricette/{id}` — aggiorna (replace items)
 - `DELETE /foodcost/ricette/{id}` — soft delete (`is_active=0`)
+- `DELETE /foodcost/ricette/{id}/hard` — eliminazione DEFINITIVA (2026-06-07). 409 se usata come sub-ricetta o pubblicata su menu carta. Cancella recipe_items + recipe_service_types, scollega pranzo_menu_righe/pranzo_piatti (snapshot storico intatto), poi DELETE recipes. UI: bottone "🗑 Elimina" in RicetteDettaglio + barra batch RicetteArchivio
 - `GET /foodcost/ricette/categorie` — lista categorie
 - `POST /foodcost/ricette/categorie` — crea categoria
 - `GET /foodcost/ricette/basi` — lista ricette base (per dropdown sub-recipe)

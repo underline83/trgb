@@ -45,6 +45,13 @@
 - `VERSION`, `frontend/src/config/versions.jsx`
 - `docs/modulo_pranzo.md` (riscritto), `docs/changelog.md`, `docs/sessione.md`
 
+### Aggiunta fine sessione — Elimina definitiva in Gestione Ricette (ricette 3.31, `[core]`)
+Marco: "manca la possibilità di eliminare una ricetta" (in Ricette esisteva solo Disattiva = soft delete via `DELETE /ricette/{id}`).
+- Nuovo `DELETE /foodcost/ricette/{id}/hard` in `foodcost_recipes_router.py`: 409 se sub-ricetta altrove (elenca fino a 5 ricette che la usano) o pubblicata su menu carta; altrimenti transazione con DELETE espliciti (recipe_items, recipe_service_types) + scollega `pranzo_menu_righe.recipe_id`/`pranzo_piatti.recipe_id` a NULL (snapshot storico intatto, FK CASCADE non affidabili senza PRAGMA foreign_keys) + DELETE recipes. Rollback su errore.
+- FE: `RicetteDettaglio.jsx` bottone "🗑 Elimina" (confirm forte, alert col detail su 409, navigate ad archivio) + `RicetteArchivio.jsx` `batchElimina` nella barra batch (conta eliminate/protette, alert con i primi 3 motivi di blocco).
+- Test su copia DB: 409 sub-ricetta ("Fondo al Valcalepio rosso" usata da 5 ricette), 409 pubblicata, delete amatriciana → recipes/items/tags spariti, riga menu pranzo scollegata ma snapshot nome intatto, 404 su id inesistente.
+- Correlato: ✕ "intelligente" nel pool pranzo (untag + disattiva se placeholder vuoto) — vedi sopra. I due livelli convivono: pool = togli dal pranzo; Ricette = elimina dal sistema.
+
 ### Prossimi passi modulo Pranzo
 1. Font in `static/fonts/` + push + stampa di prova del PDF reale.
 2. Mig 103 cleanup schema (sessione dedicata, backup pre-DDL).

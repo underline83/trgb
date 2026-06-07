@@ -139,6 +139,24 @@ export default function RicetteDettaglio() {
     }
   };
 
+  // Eliminazione DEFINITIVA (2026-06-07). Il backend blocca con 409 se la
+  // ricetta è sub-ricetta altrove o pubblicata sul menu carta.
+  const handleElimina = async () => {
+    if (!ricetta) return;
+    if (!window.confirm(`ELIMINARE DEFINITIVAMENTE "${ricetta.name}"?\n\nIngredienti e collegamenti verranno cancellati. Lo storico dei menu pranzo resta (snapshot). NON reversibile.`)) return;
+    try {
+      const resp = await apiFetch(`${FC}/ricette/${ricetta.id}/hard`, { method: "DELETE" });
+      if (!resp.ok) {
+        const d = await resp.json().catch(() => ({}));
+        alert(d.detail || `Eliminazione fallita (HTTP ${resp.status}).`);
+        return;
+      }
+      navigate("/ricette/archivio");
+    } catch (err) {
+      alert("Errore di rete nell'eliminazione.");
+    }
+  };
+
   // ── Stampa scheda cucina (ingredienti + procedimento, senza costi) ──
   const handlePrint = () => {
     if (!ricetta) return;
@@ -287,6 +305,9 @@ ${r.note ? `<h2>Note</h2><p class="note">${esc(r.note)}</p>` : ""}
                   Disattiva
                 </Btn>
               )}
+              <Btn variant="chip" tone="red" size="sm" onClick={handleElimina} title="Eliminazione definitiva, non reversibile">
+                🗑 Elimina
+              </Btn>
             </div>
           </div>
 
