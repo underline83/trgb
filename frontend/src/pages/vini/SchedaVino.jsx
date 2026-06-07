@@ -1243,12 +1243,12 @@ const SchedaVino = forwardRef(function SchedaVino({
                   </div>
                 )}
 
-                {/* 📈 Andamento giacenza — ultimi 30 giorni (replay movimenti).
+                {/* 📈 Andamento giacenza — dal primo movimento (replay movimenti).
                     Endpoint: GET /vini/magazzino/{id}/giacenza-storica?days=30.
                     Sempre visibile (sia in read sia in edit). */}
                 <div className="mt-5 bg-white border border-neutral-200 rounded-xl p-4">
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                    <h4 className="text-sm font-semibold text-neutral-800">📈 Andamento giacenza — ultimi 30 giorni</h4>
+                    <h4 className="text-sm font-semibold text-neutral-800">📈 Andamento giacenza — dal primo movimento</h4>
                     <div className="flex items-center gap-2">
                       {giacenzaStorica?.parziale && (
                         <span title={`Il primo movimento storico è del ${giacenzaStorica.primo_movimento || "—"}. Prima di quella data la curva parte da 0.`}
@@ -1256,10 +1256,10 @@ const SchedaVino = forwardRef(function SchedaVino({
                           dati parziali
                         </span>
                       )}
-                      {giacenzaStorica && giacenzaStorica.drift != null && giacenzaStorica.drift !== 0 && (
-                        <span title="La giacenza finale ricostruita dai movimenti non coincide con QTA_TOTALE: significa che la giacenza è stata modificata bypassando i movimenti."
+                      {giacenzaStorica?.ricalibrata && (
+                        <span title={`Il replay dei movimenti dà una giacenza finale diversa da QTA_TOTALE di ${giacenzaStorica.drift > 0 ? "+" : ""}${giacenzaStorica.drift} bt — di solito perché lo storico movimenti non parte da un carico iniziale (il vino esisteva già). Ho ancorato la curva al valore di oggi spostandola di ${giacenzaStorica.offset > 0 ? "+" : ""}${giacenzaStorica.offset} bt: la forma della curva è corretta, ma il livello assoluto è approssimato.`}
                           className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-amber-50 text-amber-800 border-amber-200">
-                          ⚠ drift {giacenzaStorica.drift > 0 ? "+" : ""}{giacenzaStorica.drift}
+                          🔧 ricalibrata {giacenzaStorica.offset > 0 ? "+" : ""}{giacenzaStorica.offset}
                         </span>
                       )}
                     </div>

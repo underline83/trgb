@@ -3,6 +3,46 @@
 
 ---
 
+## 2026-06-07 — Vini 3.62: fix andamento giacenza — finestra adattiva + calibrazione `[core]`
+
+Marco segnala con screenshot del vino #1205 (Lugana DOC Montunal) che la curva "📈 Andamento giacenza" andava in **negativo** (Min −10 bt, Max −7 bt, Oggi 2 bt). Causa: il replay forward partiva da 0 al primo movimento storico (15/03/2026), ma il vino aveva già bottiglie in cantina mai registrate come `CARICO`. Risultato: `drift = −12 bt` tra serie ricostruita e `QTA_TOTALE` attuale, e i punti scendevano sotto zero.
+
+Marco: "devi settare il primo valore alla prima data che abbiamo deciso 15/03 e da li fare i calcoli". Due fix combinati.
+
+### Modificato
+- **Finestra adattiva** in `giacenza_storica_vino()` (`vini_magazzino_db.py`): `days=30` è ora un MINIMO. Se il primo movimento storico è più vecchio di 30 giorni, la finestra si estende all'indietro fino al primo movimento. Per #1205 il chart copre ora 15/03 → 07/06 (~85 giorni) invece di solo 09/05 → 07/06. Vediamo tutta la storia di magazzino del vino.
+- **Calibrazione automatica**: se il replay non torna su `QTA_TOTALE` attuale (drift ≠ 0), la serie viene shiftata di `−drift` così che l'ultimo punto coincida con la giacenza di oggi. La forma della curva resta identica, cambia solo l'ancoraggio. Per #1205: offset `+12` → curva ora va da **12 → 2 bt** (era −7 → −10 nel raw).
+- Risposta endpoint estesa: nuovi campi `offset` e `ricalibrata` accanto a `drift`. Frontend mostra badge `🔧 ricalibrata +12` (tooltip esplicativo) al posto del precedente `⚠ drift`.
+- Titolo del box `📈 Andamento giacenza — dal primo movimento` (era "ultimi 30 giorni" — non più accurato con finestra adattiva).
+
+### Razionale
+- La curva non-negativa è il comportamento intuitivo (le giacenze sono per costruzione ≥ 0).
+- Estendere all'indietro fino al primo movimento dà il quadro completo del singolo vino, anche su orizzonti diversi tra vini.
+- Il flag `ricalibrata` resta come red flag onesto: se è acceso, lo storico movimenti non bilancia il totale attuale (= bottiglie esistenti pre-storico, o rettifiche dirette).
+
+### File modificati
+`app/models/vini_magazzino_db.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
+
+---
+
+## 2026-06-07 (notte) — Ricette 3.32: fix calcolo prezzo ingrediente da fattura `[core]`
+
+Marco segnala prezzi sballati ("Capperi 12,50 €/g", "Sale fino 0,0075 €/g", oscillazioni 4-50x). Diagnosi: tre bug concatenati nella catena fattura→prezzo.
+
+### Corretto
+- **Fallback silenzioso eliminato** (`_compute_unit_price`): se l'unità fattura non è convertibile (PZ, CT, CF, NR, VS…) il prezzo a collo entrava COSÌ COM'ERA come €/unità-base. Ora: prezzo NON salvato, riga segnalata. `collega-multiplo`/`confirm` ritornano `prezzi_saltati` + `unita_da_configurare`, la UI li mostra.
+- **`convert_qty` famiglie strette**: `pz` convertiva implicitamente verso peso/volume come 1 pz = 1 kg/L (check famiglie lasco). Ora peso↔peso, volume↔volume, pz↔pz; pz→peso solo con conversione custom.
+- **Sinonimi unità fattura**: GR, HG, LT, LIT + normalizzazione punti ("KG." → kg). Prima "GR" non era riconosciuto → fallback.
+
+### Aggiunto
+- **`POST /foodcost/matching/ricalcola-prezzi/{ingredient_id}`**: riallinea tutti i prezzi da fattura con le regole correnti (fattore mapping → conversioni → parsing descrizione se safe). Non convertibili lasciati e segnalati. UI: "↻ Ricalcola prezzi" in tab Prezzi.
+- **Fattore visibile/correggibile su OGNI collegamento** (prima solo sui "sospetti" PZ vs g — i multipack "KG1 X12" con unità regolare erano invisibili). Hint ⚠ multipack se descrizione contiene X12/12x e fattore=1.
+- **Dettaglio prezzo fattura nella conferma collegamento** (richiesta Marco): ogni card articolo mostra "💶 Prezzo fattura: X €/PZ · ultima riga: qty × prezzo = totale (data)" + **anteprima live** "2,10 € ÷ 500 = 0,0042 €/g" che si aggiorna mentre digiti il fattore → check visivo immediato se il prezzo è a collo o a pezzo.
+
+### Workflow di bonifica (caso Capperi/Sale)
+1. Scheda ingrediente → Collegamenti → "Correggi" sul collegamento sbagliato (es. 1 CT = 12000 g) → "Salva e ricalcola" sistema i prezzi storici dal prezzo originale di fattura.
+2. Oppure tab Conversioni → aggiungi 1 pz = X g → tab Prezzi → "↻ Ricalcola prezzi".
+
 ## 2026-06-07 — Pranzo 1.6: restyle PDF sistema menu A5 + flusso piatti "Entrambi" `[mixed]`
 
 Ripresa del modulo Pranzo (fermo da fine aprile, inutilizzato per estetica PDF incoerente e pool piatti troppo rigido). Riferimento estetico deciso da Marco: il MENU A5 stagionale dell'osteria (Sabon LT Pro + Courier Prime, bianco/nero), NON la carta vini. Proposta A "Pagina di sezione" approvata, formato A4 verticale.
@@ -98,7 +138,7 @@ Finora il vino madre si poteva modificare solo dal modulo Anagrafiche o durante 
 Nel wizard "Nuovo Vino", se si sceglie un madre **esistente** e si crea un figlio (bottiglia) con un'annata che il madre ha già, `submitWizard` ora avvisa: fa `GET /madre/{id}/bottiglie`, confronta l'annata (vuota inclusa → "senza annata") e mostra un `confirm` con i dati della bottiglia già esistente (#id, annata, formato, giacenza). Stessa annata ma **formato diverso** (0.75 vs Magnum) è legittimo → avviso con conferma, non blocco. Il controllo è non bloccante in caso di errore di rete e non aggiunge passaggi nel caso normale (scatta solo a collisione reale).
 
 ### Anche — andamento giacenza giorno-per-giorno nella scheda vino
-Nuova funzione: nella tab **Giacenze** della scheda vino c'è ora un box "📈 Andamento giacenza — ultimi 30 giorni" con grafico a linea step-after. Backend `giacenza_storica_vino()` in `vini_magazzino_db.py` + endpoint `GET /vini/magazzino/{id}/giacenza-storica?days=30`: replay forward di `vini_magazzino_movimenti` dal primo movimento storico (`CARICO += qta`, `SCARICO/VENDITA -= qta`, `RETTIFICA := qta` assoluto, `MODIFICA` no-op), giacenza a fine giornata di ogni giorno con forward-fill nei giorni senza movimenti. Output: `series` (uno per giorno), `qta_attuale`, `drift` (segnala se la giacenza è stata modificata bypassando i movimenti), `parziale` (True se la finestra precede il primo movimento — la curva del primo segmento parte da 0), `min`/`max`/`primo_movimento`. UI con badge "dati parziali" / "⚠ drift N" quando applicabile, footer Min/Max/Oggi + data primo movimento, palette brand-blue `#2E7BE8`. Il box si aggiorna anche dopo registrazione/eliminazione movimenti, modifica giacenze e modifica data movimento.
+Nuova funzione: nella tab **Giacenze** della scheda vino c'è ora un box "📈 Andamento giacenza — ultimi 30 giorni" con grafico a linea step-after. Backend `giacenza_storica_vino()` in `vini_magazzino_db.py` + endpoint `GET /vini/magazzino/{id}/giacenza-storica?days=30`: replay forward di `vini_magazzino_movimenti` dal primo movimento storico (`CARICO += qta`, `SCARICO/VENDITA -= qta`, `RETTIFICA := qta` assoluto, `MODIFICA` no-op), giacenza a fine giornata di ogni giorno con forward-fill nei giorni senza movimenti. Output: `series` (uno per giorno), `qta_attuale`, `drift`, `offset`, `ricalibrata`, `parziale`, `min`/`max`/`primo_movimento`. **Calibrazione automatica:** se il replay forward non torna su `QTA_TOTALE` attuale (drift ≠ 0 — tipico per vini che esistevano già prima del primo movimento registrato, con bottiglie mai apparse come CARICO), la serie viene shiftata di `−drift` così che l'ultimo punto coincida con la giacenza di oggi; la forma della curva resta identica, cambia solo l'ancoraggio. UI con badge "🔧 ricalibrata ±N" (tooltip esplicativo) e "dati parziali", footer Min/Max/Oggi + data primo movimento, palette brand-blue `#2E7BE8`. Il box si aggiorna anche dopo registrazione/eliminazione movimenti, modifica giacenze e modifica data movimento.
 
 ### Fix regressione — toggle mescita al calice tornato accessibile a sala
 Effetto collaterale del gating di `PATCH /vini/magazzino/{id}` a `is_vini_manager`: il toggle "bottiglia in mescita" passava da quell'endpoint, quindi **il widget Calici non permetteva più a `sala` di spegnere le bottiglie aperte**. Il toggle è un'azione **operativa di servizio**, non gestione catalogo. Soluzione (opzione 1, confermata da Marco): **endpoint dedicato** `PATCH /vini/magazzino/{id}/bottiglia-aperta`, accessibile ad **admin/superadmin/sommelier/sala**, che accetta solo i campi del servizio al calice (`BOTTIGLIA_APERTA`, `VENDITA_CALICE`, `PREZZO_CALICE`, `PREZZO_CALICE_MANUALE`, `NOTE`). `PATCH /{id}` resta gatato `is_vini_manager` per catalogo/giacenze. Migrati al nuovo endpoint i 4 punti che usavano il toggle: widget `CaliciDisponibiliCard`, `CartaVini`, `ViniVendite` (`patchAttivaCalice`), `SchedaVino` (`toggleBottigliaAperta`, ora abilitato anche per sala via `canCalici`).

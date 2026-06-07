@@ -1,4 +1,5 @@
-// @version: v4.0 — scheda ingrediente ridisegnata: testa + KPI + 5 tab (stile scheda vini)
+// @version: v4.1 — fix prezzi 2026-06-07: fattore visibile/correggibile su ogni collegamento, ↻ Ricalcola prezzi, warning prezzi saltati e multipack
+// (v4.0 — scheda ingrediente ridisegnata: testa + KPI + 5 tab, stile scheda vini)
 // Modulo: ricette
 // Scheda ingrediente: Prezzi · Collegamenti · Conversioni · Ricette · Anagrafica.
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -129,6 +130,7 @@ export default function RicetteIngredientiPrezzi() {
   const [selArt, setSelArt] = useState({});
   const [collegaReview, setCollegaReview] = useState(null);
   const [correggiDraft, setCorreggiDraft] = useState(null);
+  const [ricalcolando, setRicalcolando] = useState(false);
   const searchInit = useRef(false);
 
   // form anagrafica / completa placeholder
@@ -254,6 +256,8 @@ export default function RicetteIngredientiPrezzi() {
     setError(""); setMsg("");
     try {
       let totRighe = 0;
+      let totPrezziSaltati = 0;
+      const unitaMancanti = new Set();
       for (const it of collegaReview) {
         const f = parseFloat(String(it.factor).replace(",", "."));
         const r = await apiFetch(`${MATCH}/collega-multiplo`, {
@@ -268,8 +272,14 @@ export default function RicetteIngredientiPrezzi() {
         if (!r.ok) throw new Error(await r.text());
         const data = await r.json();
         totRighe += data.righe_collegate || 0;
+        totPrezziSaltati += data.prezzi_saltati || 0;
+        (data.unita_da_configurare || []).forEach((u) => unitaMancanti.add(u));
       }
-      setMsg(`${totRighe} righe fattura collegate.`);
+      setMsg(
+        totPrezziSaltati > 0
+          ? `${totRighe} righe collegate, ma ${totPrezziSaltati} ${totPrezziSaltati === 1 ? "prezzo NON importato" : "prezzi NON importati"}: unità ${[...unitaMancanti].join(", ") || "?"} non convertibile in ${baseUnit}. Correggi il fattore del collegamento, poi "↻ Ricalcola prezzi".`
+          : `${totRighe} righe fattura collegate.`
+      );
       setCollegaReview(null);
       setSelArt({});
       await refreshPrezziMappings();
@@ -318,6 +328,33 @@ export default function RicetteIngredientiPrezzi() {
       await refreshPrezziMappings();
     } catch (e) {
       setError(`Errore: ${e.message}`);
+    }
+  };
+
+  // Ricalcola TUTTI i prezzi auto dell'ingrediente con le regole correnti
+  // (fattori collegamento + conversioni standard/custom + parsing descrizione).
+  // I prezzi irrecuperabili (vecchio fallback silenzioso) vengono eliminati.
+  const handleRicalcolaPrezzi = async () => {
+    setError(""); setMsg("");
+    setRicalcolando(true);
+    try {
+      const r = await apiFetch(`${MATCH}/ricalcola-prezzi/${id}`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      const parti = [];
+      if (d.aggiornati) parti.push(`${d.aggiornati} aggiornati`);
+      if (d.invariati) parti.push(`${d.invariati} invariati`);
+      if (d.non_convertibili) parti.push(`${d.non_convertibili} non convertibili (lasciati com'erano)`);
+      let extra = "";
+      if (d.non_convertibili && (d.unita_da_configurare || []).length) {
+        extra = ` Per sistemarli: "Correggi" il fattore sui collegamenti con unità ${d.unita_da_configurare.join(", ")} (ricalcola dal prezzo originale di fattura).`;
+      }
+      setMsg(`Ricalcolo prezzi: ${parti.join(", ") || "nessun prezzo da fattura"}.${extra}`);
+      await refreshPrezziMappings();
+    } catch (e) {
+      setError(`Errore ricalcolo: ${e.message}`);
+    } finally {
+      setRicalcolando(false);
     }
   };
 
@@ -672,9 +709,15 @@ export default function RicetteIngredientiPrezzi() {
           {/* ─────────── TAB PREZZI ─────────── */}
           {activeTab === "prezzi" && (
             <div>
-              <h2 className="text-sm font-bold uppercase tracking-wider text-brand-red mb-1">
-                Andamento prezzo
-              </h2>
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-brand-red">
+                  Andamento prezzo
+                </h2>
+                <Btn variant="secondary" size="sm" onClick={handleRicalcolaPrezzi} loading={ricalcolando}
+                  title="Ricalcola tutti i prezzi da fattura con fattori e conversioni correnti. I prezzi non convertibili (entrati col vecchio fallback) vengono eliminati.">
+                  ↻ Ricalcola prezzi
+                </Btn>
+              </div>
               <p className="text-xs text-neutral-500 mb-3">
                 Media mensile del prezzo per unità base, per fornitore.
               </p>
@@ -831,10 +874,18 @@ export default function RicetteIngredientiPrezzi() {
                                       ⚠ unità "{m.unita_fornitore}" diversa da "{baseUnit}" — correggi la conversione
                                     </div>
                                   )}
+                                  {!sospetto && !inCorrezione && (
+                                    <div className="text-[11px] text-neutral-500 mt-0.5">
+                                      fattore: 1 {m.unita_fornitore || "unità"} = {Number(m.fattore_conversione) || 1} {baseUnit}
+                                      {Number(m.fattore_conversione) === 1 && unitFamily(m.unita_fornitore) === unitFamily(baseUnit) && (m.descrizione_fornitore || "").match(/X\s?\d+|\d+\s?x/i) && (
+                                        <span className="text-amber-700"> · ⚠ descrizione multipack: verifica che il prezzo non sia a collo</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="flex gap-1.5 flex-shrink-0">
-                                  {sospetto && !inCorrezione && (
-                                    <Btn variant="chip" tone="amber" size="sm" onClick={() => setCorreggiDraft({
+                                  {!inCorrezione && (
+                                    <Btn variant="chip" tone={sospetto ? "amber" : "neutral"} size="sm" onClick={() => setCorreggiDraft({
                                       mapping_id: m.id,
                                       unita: m.unita_fornitore || "conf.",
                                       factor: String(m.fattore_conversione || 1),
@@ -885,35 +936,66 @@ export default function RicetteIngredientiPrezzi() {
                     Conferma la conversione per ogni articolo — quante <strong>{baseUnit}</strong> in 1 unità di fattura:
                   </p>
                   <div className="space-y-2 mb-3">
-                    {collegaReview.map((it, idx) => (
-                      <div
-                        key={it.art.key}
-                        className={`border rounded-lg px-3 py-2 ${
-                          it.safe ? "bg-neutral-50 border-neutral-200" : "bg-amber-50 border-amber-300"
-                        }`}
-                      >
-                        <div className="text-sm font-medium text-neutral-900">{it.art.descrizione}</div>
-                        <div className="text-xs text-neutral-500 mb-2">
-                          {it.art.fornitore || "—"} · {it.art.n} {it.art.n === 1 ? "riga" : "righe"}
+                    {collegaReview.map((it, idx) => {
+                      // Dettaglio prezzo fattura (check visivo: collo o pezzo?)
+                      const righeOrd = [...it.art.righe].sort((a, b) =>
+                        (a.data_fattura || "").localeCompare(b.data_fattura || ""));
+                      const ult = righeOrd[righeOrd.length - 1] || {};
+                      const fmtEuro = (v) => v != null
+                        ? v.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+                        : "?";
+                      const pm = it.art.pmin, pM = it.art.pmax;
+                      const f = parseFloat(String(it.factor).replace(",", "."));
+                      const preview = ult.prezzo_unitario != null && f > 0
+                        ? ult.prezzo_unitario / f
+                        : null;
+                      return (
+                        <div
+                          key={it.art.key}
+                          className={`border rounded-lg px-3 py-2 ${
+                            it.safe ? "bg-neutral-50 border-neutral-200" : "bg-amber-50 border-amber-300"
+                          }`}
+                        >
+                          <div className="text-sm font-medium text-neutral-900">{it.art.descrizione}</div>
+                          <div className="text-xs text-neutral-500 mb-1">
+                            {it.art.fornitore || "—"} · {it.art.n} {it.art.n === 1 ? "riga" : "righe"}
+                          </div>
+                          <div className="text-xs text-neutral-700 mb-2 bg-white/70 border border-neutral-200 rounded-lg px-2 py-1.5 inline-block">
+                            💶 Prezzo fattura: <span className="font-semibold">
+                              {pm != null && pM != null && pm !== pM
+                                ? `${fmtEuro(pm)}–${fmtEuro(pM)}`
+                                : fmtEuro(ult.prezzo_unitario)} €
+                            </span>
+                            {" "}/ {it.unita || "unità"}
+                            {ult.quantita != null && <> · ultima riga: {ult.quantita} {it.unita || ""} × {fmtEuro(ult.prezzo_unitario)} €{ult.prezzo_totale != null && <> = {fmtEuro(ult.prezzo_totale)} €</>}</>}
+                            {ult.data_fattura && <span className="text-neutral-400"> ({ult.data_fattura})</span>}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span>1</span>
+                            <span className="font-medium">{it.unita}</span>
+                            <span>=</span>
+                            <input
+                              type="number" step="any" min="0" value={it.factor}
+                              onChange={(e) => setCollegaReview((r) =>
+                                r.map((x, i) => (i === idx ? { ...x, factor: e.target.value } : x)))}
+                              className="w-24 border border-neutral-300 rounded-lg px-2 py-1 text-sm"
+                            />
+                            <span className="font-medium">{baseUnit}</span>
+                            {preview != null && (
+                              <span className={`text-xs px-2 py-0.5 rounded-lg border ${
+                                preview > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-neutral-100 border-neutral-200 text-neutral-500"
+                              }`}>
+                                → {fmtEuro(ult.prezzo_unitario)} € ÷ {f} = <strong>{preview.toLocaleString("it-IT", { maximumFractionDigits: 6 })} €/{baseUnit}</strong>
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-xs mt-1 ${it.safe ? "text-neutral-500" : "text-amber-700"}`}>
+                            {it.safe ? "Stima: " : "⚠ "}
+                            {it.detail || "unità non convertibile da sola — imposta tu il fattore"}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-sm">
-                          <span>1</span>
-                          <span className="font-medium">{it.unita}</span>
-                          <span>=</span>
-                          <input
-                            type="number" step="any" min="0" value={it.factor}
-                            onChange={(e) => setCollegaReview((r) =>
-                              r.map((x, i) => (i === idx ? { ...x, factor: e.target.value } : x)))}
-                            className="w-24 border border-neutral-300 rounded-lg px-2 py-1 text-sm"
-                          />
-                          <span className="font-medium">{baseUnit}</span>
-                        </div>
-                        <div className={`text-xs mt-1 ${it.safe ? "text-neutral-500" : "text-amber-700"}`}>
-                          {it.safe ? "Stima: " : "⚠ "}
-                          {it.detail || "unità non convertibile da sola — imposta tu il fattore"}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="flex gap-2">
                     <Btn variant="success" size="md" onClick={handleConfermaCollega}>Conferma collegamento</Btn>

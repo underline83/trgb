@@ -1,6 +1,8 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-07 — **Pranzo 1.6: restyle PDF sistema menu A5 + flusso "Entrambi"** (`[mixed]`). Sistema 5.24. Ripresa modulo Pranzo dopo audit (fermo da fine aprile: 4 menu totali, ultimi 2 vuoti, pool di 6 ricette). Cause individuate con Marco: PDF esteticamente incoerente col brand + inserimento piatti troppo rigido. PDF v3.0 "Proposta A — Pagina di sezione" allineato al MENU A5 stagionale (Sabon LT Pro + Courier Prime, verificati dai BaseFont del PDF di studio; fallback Cormorant finché i font non sono in `static/fonts/`). Nuovo `POST /pranzo/promuovi-ricetta/` + bottone "+ pool" sulle righe ad-hoc. Mig 144 default testata ("PRANZO" / "la cucina del mercato"). `docs/modulo_pranzo.md` riscritto da zero (era fermo al v1.0 giornaliero).
+**Ultimo aggiornamento:** 2026-06-07 — **Vini 3.62: fix andamento giacenza — finestra adattiva + calibrazione** (`[core]`). Marco vede la curva "Andamento giacenza" del #1205 (Lugana Montunal) in NEGATIVO (Min −10, Max −7, Oggi 2 bt). Causa: il vino esisteva prima del primo movimento storico (15/03/2026) — le bottiglie iniziali non sono mai apparse come CARICO → replay forward dà drift −12 e curva sotto zero. Due fix in `giacenza_storica_vino()`. (1) **Finestra adattiva**: `days=30` ora è il minimo; se il primo movimento è più vecchio la finestra si estende fino a lì. Per #1205 chart 15/03→07/06 (85gg) invece di solo 30gg. (2) **Calibrazione**: serie shiftata di `−drift` così che l'ultimo punto = QTA_TOTALE. Per #1205 curva 12→2 bt (era −7→−10 nel raw). Badge `🔧 ricalibrata +12` con tooltip. Titolo box ora "📈 Andamento giacenza — dal primo movimento". Versione vini 3.61 → 3.62. Da pushare.
+
+**Aggiornamento precedente:** 2026-06-07 — **Pranzo 1.6: restyle PDF sistema menu A5 + flusso "Entrambi"** (`[mixed]`). Sistema 5.24. Ripresa modulo Pranzo dopo audit (fermo da fine aprile: 4 menu totali, ultimi 2 vuoti, pool di 6 ricette). Cause individuate con Marco: PDF esteticamente incoerente col brand + inserimento piatti troppo rigido. PDF v3.0 "Proposta A — Pagina di sezione" allineato al MENU A5 stagionale (Sabon LT Pro + Courier Prime, verificati dai BaseFont del PDF di studio; fallback Cormorant finché i font non sono in `static/fonts/`). Nuovo `POST /pranzo/promuovi-ricetta/` + bottone "+ pool" sulle righe ad-hoc. Mig 144 default testata ("PRANZO" / "la cucina del mercato"). `docs/modulo_pranzo.md` riscritto da zero (era fermo al v1.0 giornaliero).
 
 ## SESSIONE 2026-06-07 — Pranzo 1.6: restyle PDF + flusso piatti
 
@@ -55,6 +57,26 @@ Marco: "manca la possibilità di eliminare una ricetta" (in Ricette esisteva sol
 ### Aggiunta fine sessione 2 — logo PDF + date picker settimana
 - **Logo nel PDF** (pdf service v3.1 + css v2.1): Marco non vedeva il logo (Proposta A ne era priva by design, ma lo voleva). Creato `static/img/logo_tregobbi_trim.png` con PIL (bbox crop del 5000×5000 originale → 4719×2154 + 4% padding, NUOVO FILE da committare). `.menu-logo` 56mm centrato, margine 9mm sotto. Fallback al PNG originale se il trim manca.
 - **Date picker settimana** (PranzoMenu v3.8): `<input type="date">` dentro il box del label settimana in toolbar; `setSettimana` normalizza già al lunedì ISO. PDF/salva/elimina seguono la settimana selezionata (apriPdf default = state settimana, era già corretto — mancava solo un modo rapido di saltare a settimane future senza cliccare ▶ N volte).
+
+### Aggiunta fine sessione 3 — fix calcolo prezzo ingrediente (ricette 3.32, `[core]`)
+Marco: "c'è qualcosa che non quadra nel calcolo prezzo ingrediente" → casi reali: Capperi sott'aceto 12,50 €/g, Sale fino 0,0075 €/g (= 7,5 €/kg), Zucchero oscillazione 0,001–0,0159.
+
+**Tre bug concatenati trovati e fixati:**
+1. `_compute_unit_price` (matching router): fallback silenzioso — unità non convertibile → prezzo a collo salvato come €/unità-base. ORA ritorna None (prezzo non salvato) salvo unità == base. Caso Capperi: vasi a 12,50 €/PZ entrati come 12,50 €/g.
+2. `convert_qty` (recipes router): check famiglie lasco — `pz` convertiva a peso come 1 pz = 1 kg (entrambi 1.0 in UNIT_TO_BASE). ORA famiglie strette, pz→peso solo via conversione custom.
+3. Unità fattura non riconosciute: aggiunti sinonimi GR/HG/LT/LIT + `_norm_unit` (toglie punti, "KG." → kg).
+
+**Caso multipack (Sale fino "KG1 X12", Zucchero "KG1 X10"):** unità dichiarata KG regolare ma prezzo a collo → conversione kg→g formalmente corretta, prezzo 12x. Non rilevabile dall'euristica `collegamentoSospetto` (famiglie uguali). Soluzione UI: fattore ora VISIBILE e correggibile su ogni collegamento (prima "Correggi" appariva solo sui sospetti) + hint ⚠ se descrizione matcha /X\s?\d+|\d+\s?x/i con fattore=1.
+
+**Nuovo endpoint** `POST /matching/ricalcola-prezzi/{id}`: per ogni prezzo con riga_fattura: fattore mapping (≠1) → `_compute_unit_price` (standard+custom) → `_guess_conversion_factor` se safe → altrimenti lasciato e contato in `non_convertibili` (prima versione lo eliminava — cambiato: il delete avrebbe impedito il recovery via "Correggi" che ricalcola da original_price). UI: bottone "↻ Ricalcola prezzi" in tab Prezzi (RicetteIngredientiPrezzi v4.1).
+
+**Reporting**: `collega-multiplo` → `prezzi_saltati` + `unita_da_configurare` nel response, msg FE con istruzioni; `confirm` → detail esplicito se prezzo non importato.
+
+**Dettaglio prezzo in conferma collegamento** (richiesta Marco, v4.1): card articolo nel flusso collegaReview mostra prezzo fattura (range min–max se variabile, ultima riga qty × prezzo = totale, data) + anteprima live `prezzo ÷ fattore = €/unità-base` ricalcolata a ogni digitazione del fattore. I dati erano già nel payload `/pending` (prezzo_unitario, quantita, prezzo_totale, data_fattura), solo non mostrati.
+
+**Test** (esecuzione diretta delle funzioni via exec, fastapi non disponibile in sandbox): PZ bloccato, KG ok, GR sinonimo, CT+fattore 12000 ok, custom pz=720g ok, unità esotica VS bloccata, g==g passa. JSX bilanciato.
+
+**Bonifica dati esistenti (da fare da UI dopo push):** Capperi → Correggi fattore sui collegamenti PZ (o conversione 1 pz = 720 g) → prezzi si ricalcolano. Sale/Zucchero → Correggi su righe X12/X10 con fattore 12000/10000. Poi "↻ Ricalcola prezzi" su ogni ingrediente per verificare. La diagnosi globale (`claude/diagnosi_prezzi_ingredienti.py`) resta pronta per trovare TUTTI gli ingredienti inquinati appena i DB si sincronizzano col push.
 
 ### Prossimi passi modulo Pranzo
 1. Font in `static/fonts/` + push + stampa di prova del PDF reale.

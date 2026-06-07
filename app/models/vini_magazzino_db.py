@@ -1632,6 +1632,21 @@ def giacenza_storica_vino(vino_id: int, days: int = 30) -> Dict[str, Any]:
     start = today - timedelta(days=days - 1)
     start_iso = start.isoformat()
 
+    # Pre-pass: trovo la data del primo movimento storico per capire se vale
+    # la pena estendere la finestra all'indietro (decisione Marco 2026-06-07:
+    # "setta il primo valore alla prima data che abbiamo deciso 15/03 e da li
+    # fai i calcoli" — cioè se il vino ha solo N giorni di storia, parti da
+    # N giorni fa anche se sono più di `days`).
+    first_mov_pre = None
+    for row in rows:
+        d_str = (row["data_mov"] or "")[:10]
+        if d_str:
+            first_mov_pre = d_str
+            break  # già ordinati ASC
+    if first_mov_pre and first_mov_pre < start_iso:
+        start = date.fromisoformat(first_mov_pre)
+        start_iso = first_mov_pre
+
     # 1) Forward replay: giacenza end-of-day per ogni giornata con movimenti
     g = 0
     g_by_day: Dict[str, int] = {}
@@ -1671,8 +1686,23 @@ def giacenza_storica_vino(vino_id: int, days: int = 30) -> Dict[str, Any]:
         series.append({"data": iso, "giacenza": int(cur_g)})
         d += timedelta(days=1)
 
-    final_g = series[-1]["giacenza"] if series else None
-    drift = (final_g - qta_now) if final_g is not None else None
+    final_g_raw = series[-1]["giacenza"] if series else None
+    drift = (final_g_raw - qta_now) if final_g_raw is not None else None
+
+    # CALIBRAZIONE: se il replay forward NON torna sul valore attuale di
+    # `QTA_TOTALE` (drift != 0), lo storico movimenti è incompleto — per es.
+    # il vino esisteva già prima del primo movimento registrato, con
+    # bottiglie in cantina mai apparse come CARICO. Risultato senza calibrare:
+    # la curva può scendere sotto zero, confondendo.
+    # Soluzione: shifto ogni punto della serie di `-drift`, così l'ultimo
+    # coincide esattamente con QTA_TOTALE. La FORMA della curva (sali/scendi
+    # dovuti ai movimenti) resta identica — cambia solo l'ancoraggio.
+    ricalibrata = drift is not None and drift != 0
+    offset = -drift if ricalibrata else 0
+    if offset:
+        for p in series:
+            p["giacenza"] = int(p["giacenza"] + offset)
+
     parziale = (first_mov_day is None) or (first_mov_day > start_iso)
     min_g = min((p["giacenza"] for p in series), default=None)
     max_g = max((p["giacenza"] for p in series), default=None)
@@ -1680,7 +1710,9 @@ def giacenza_storica_vino(vino_id: int, days: int = 30) -> Dict[str, Any]:
     return {
         "series": series,
         "qta_attuale": qta_now,
-        "drift": drift,
+        "drift": drift,            # quanto era fuori il replay puro
+        "offset": offset,          # quanto ho shiftato la serie (= -drift)
+        "ricalibrata": ricalibrata,
         "primo_movimento": first_mov_day,
         "parziale": parziale,
         "min": min_g,

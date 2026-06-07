@@ -84,6 +84,13 @@ Serve una **tabella di mapping** che collega la descrizione/codice del fornitore
 - `PUT /foodcost/ricette/{id}` — aggiorna (replace items)
 - `DELETE /foodcost/ricette/{id}` — soft delete (`is_active=0`)
 - `DELETE /foodcost/ricette/{id}/hard` — eliminazione DEFINITIVA (2026-06-07). 409 se usata come sub-ricetta o pubblicata su menu carta. Cancella recipe_items + recipe_service_types, scollega pranzo_menu_righe/pranzo_piatti (snapshot storico intatto), poi DELETE recipes. UI: bottone "🗑 Elimina" in RicetteDettaglio + barra batch RicetteArchivio
+- `POST /foodcost/matching/ricalcola-prezzi/{ingredient_id}` — fix prezzi 2026-06-07: ricalcola tutti i prezzi da fattura con regole correnti (fattore mapping → conversioni standard/custom → parsing descrizione se safe). I non convertibili restano e vengono segnalati con le unità. UI: bottone "↻ Ricalcola prezzi" in tab Prezzi della scheda ingrediente
+
+**Regole conversione prezzi fattura (fix 2026-06-07, caso Capperi 12,50 €/g):**
+- ELIMINATO il fallback silenzioso in `_compute_unit_price`: se l'unità fattura non è convertibile (PZ/CT/CF/NR/VS…) il prezzo NON viene salvato (prima entrava il prezzo a collo come €/unità-base). `collega-multiplo` e `confirm` riportano `prezzi_saltati` + `unita_da_configurare`.
+- `convert_qty`: famiglie STRETTE (peso↔peso, volume↔volume, pz↔pz) — prima `pz` convertiva implicitamente a peso come 1 pz = 1 kg. pz→peso richiede conversione custom.
+- Sinonimi unità fattura: GR, HG, LT, LIT + normalizzazione punti ("KG." → kg) via `_norm_unit`.
+- Scheda ingrediente: fattore visibile e "Correggi" su OGNI collegamento (non solo sospetti) + hint ⚠ multipack se descrizione contiene X12/12x e fattore=1.
 - `GET /foodcost/ricette/categorie` — lista categorie
 - `POST /foodcost/ricette/categorie` — crea categoria
 - `GET /foodcost/ricette/basi` — lista ricette base (per dropdown sub-recipe)

@@ -812,11 +812,11 @@ def ricalcola_prezzi_ingrediente(ingredient_id: int):
     corretto un fattore: lo storico si riallinea senza scollegare nulla.
 
     I prezzi NON ricalcolabili (unità ignota, nessuna conversione, parsing
-    impossibile) vengono ELIMINATI: erano entrati col vecchio fallback
-    silenzioso (prezzo a collo spacciato per €/unità-base) e inquinavano
-    food cost e medie.
+    impossibile) NON vengono toccati: vengono conteggiati e segnalati con le
+    loro unità, così l'utente corregge il fattore del collegamento
+    (che ricalcola da original_price) o elimina la riga a mano dallo storico.
 
-    Ritorna {aggiornati, invariati, eliminati, unita_da_configurare, prezzo_min, prezzo_max}.
+    Ritorna {aggiornati, invariati, non_convertibili, unita_da_configurare, prezzo_min, prezzo_max}.
     """
     conn = get_foodcost_connection()
     cur = conn.cursor()
@@ -842,7 +842,7 @@ def ricalcola_prezzi_ingrediente(ingredient_id: int):
 
         aggiornati = 0
         invariati = 0
-        eliminati = 0
+        non_convertibili = 0
         prezzi = []
         unita_da_configurare = set()
 
@@ -876,9 +876,9 @@ def ricalcola_prezzi_ingrediente(ingredient_id: int):
                     new_up = originale / g["factor"]
 
             if new_up is None:
-                # Irrecuperabile: era il vecchio fallback silenzioso → via.
-                cur.execute("DELETE FROM ingredient_prices WHERE id = ?", (row["price_id"],))
-                eliminati += 1
+                # Non ricalcolabile con le regole correnti (probabile residuo
+                # del vecchio fallback silenzioso). NON toccato: si segnala.
+                non_convertibili += 1
                 if row["unita_misura"]:
                     unita_da_configurare.add(row["unita_misura"].strip().upper())
                 continue
@@ -901,7 +901,7 @@ def ricalcola_prezzi_ingrediente(ingredient_id: int):
             "default_unit": ing["default_unit"],
             "aggiornati": aggiornati,
             "invariati": invariati,
-            "eliminati": eliminati,
+            "non_convertibili": non_convertibili,
             "unita_da_configurare": sorted(unita_da_configurare),
             "prezzo_min": round(min(prezzi), 4) if prezzi else None,
             "prezzo_max": round(max(prezzi), 4) if prezzi else None,

@@ -3,13 +3,13 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.61",
+    version: "3.62",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
   },
   ricette: {
-    version: "3.31",
+    version: "3.32",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
