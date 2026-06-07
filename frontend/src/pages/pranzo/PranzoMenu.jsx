@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.5 — Flusso "Entrambi": bottone "+ pool" su righe ad-hoc (2026-06-07)
+// @version: v3.6 — Flusso "Entrambi": bottone "+ pool" su righe ad-hoc + creazione rapida placeholder nel pool (2026-06-07)
 // Modulo: cucina (sub-modulo pranzo)
 //
 // v3.2 cambiamenti vs v3.1:
@@ -117,9 +117,49 @@ function labelWeekRange(mondayIso) {
 // ─────────────────────────────────────────────────────────────
 // Pool piatti (componente puro: nessun setState del parent)
 // ─────────────────────────────────────────────────────────────
-function PoolPiatti({ pool, onPick }) {
+function PoolPiatti({ pool, onPick, onQuickCreate }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
+
+  // Creazione rapida ricetta placeholder (2026-06-07)
+  const [nuovoNome, setNuovoNome] = useState("");
+  const [nuovaCat, setNuovaCat] = useState("antipasto");
+  const [creating, setCreating] = useState(false);
+
+  const submitQuickCreate = async () => {
+    if (!nuovoNome.trim() || creating || !onQuickCreate) return;
+    setCreating(true);
+    const ok = await onQuickCreate(nuovoNome, nuovaCat);
+    setCreating(false);
+    if (ok) setNuovoNome("");
+  };
+
+  const quickAddForm = onQuickCreate ? (
+    <div className="border-t border-dashed border-neutral-200 pt-3 space-y-2">
+      <div className="text-[11px] uppercase tracking-wide text-neutral-400 font-semibold">⚡ Nuova ricetta veloce</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          value={nuovoNome}
+          onChange={(e) => setNuovoNome(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submitQuickCreate(); }}
+          placeholder="Nome piatto…"
+          className="flex-1 min-w-[130px] border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+        />
+        <select
+          value={nuovaCat}
+          onChange={(e) => setNuovaCat(e.target.value)}
+          className="border border-neutral-300 rounded-lg px-2 py-2 text-sm bg-white"
+        >
+          {CATEGORIE.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+        </select>
+        <Btn variant="secondary" size="sm" loading={creating} onClick={submitQuickCreate}>+ Crea</Btn>
+      </div>
+      <div className="text-[11px] text-neutral-400">
+        Crea una ricetta placeholder nel pool "Pranzo di lavoro". Il food cost si completa dopo in Ricette.
+      </div>
+    </div>
+  ) : null;
 
   const norm = (s) => (s || "").toLowerCase();
 
@@ -148,16 +188,20 @@ function PoolPiatti({ pool, onPick }) {
   }
   if (pool.length === 0) {
     return (
-      <EmptyState
-        icon="🍳"
-        title="Nessuna ricetta nel pool pranzo"
-        description={
-          <>
-            Vai in <a href="/ricette/archivio" className="underline hover:text-orange-700">Gestione Cucina · Ricette</a> e
-            spunta <em>Pranzo di lavoro</em> nei tipi servizio.
-          </>
-        }
-      />
+      <div className="bg-white rounded-xl shadow border border-neutral-200 p-4 space-y-3">
+        <EmptyState
+          icon="🍳"
+          title="Nessuna ricetta nel pool pranzo"
+          description={
+            <>
+              Creane una al volo qui sotto, oppure vai in{" "}
+              <a href="/ricette/archivio" className="underline hover:text-orange-700">Gestione Cucina · Ricette</a> e
+              spunta <em>Pranzo di lavoro</em> nei tipi servizio.
+            </>
+          }
+        />
+        {quickAddForm}
+      </div>
     );
   }
 
@@ -224,6 +268,8 @@ function PoolPiatti({ pool, onPick }) {
           ))}
         </div>
       )}
+
+      {quickAddForm}
     </div>
   );
 }
@@ -597,6 +643,39 @@ export default function PranzoMenu() {
     }
   };
 
+  // Creazione rapida ricetta placeholder direttamente dal pool (2026-06-07).
+  // Stesso endpoint della promozione: ricetta scheletro + tag "Pranzo di lavoro".
+  // Ritorna true se creata/collegata (il form si svuota solo in quel caso).
+  const creaPlaceholder = async (nome, categoria) => {
+    const n = (nome || "").trim();
+    if (!n) return false;
+    setMsg(null); setRetryFn(null);
+    try {
+      const res = await apiFetchSafe(`${API_BASE}/pranzo/promuovi-ricetta/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: n, categoria: categoria || "altro" }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setMsg({ tipo: "err", text: d.detail || `Creazione ricetta fallita (HTTP ${res.status}).` });
+        return false;
+      }
+      const d = await res.json();
+      loadPool();
+      setMsg({
+        tipo: "ok",
+        text: d.creata
+          ? `"${n}" creato nel pool. Cliccalo per aggiungerlo alla settimana.`
+          : `"${n}" esisteva già in Ricette: collegato al pool.`,
+      });
+      return true;
+    } catch (e) {
+      handleActionError(e, "Creazione ricetta veloce", () => creaPlaceholder(nome, categoria));
+      return false;
+    }
+  };
+
   const eliminaSettimana = async (mondayIso) => {
     if (!window.confirm(`Eliminare il menu della settimana ${labelWeekRange(mondayIso)}?`)) return;
     setMsg(null); setRetryFn(null);
@@ -798,7 +877,7 @@ export default function PranzoMenu() {
               </div>
 
               {/* SIDE: pool */}
-              <PoolPiatti pool={piattiPool} onPick={aggiungiRiga} />
+              <PoolPiatti pool={piattiPool} onPick={aggiungiRiga} onQuickCreate={creaPlaceholder} />
             </div>
           )}
 

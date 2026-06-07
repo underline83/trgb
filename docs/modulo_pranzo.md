@@ -77,7 +77,7 @@ Scritture: ruolo `superadmin | admin | chef` (`_check_admin`).
 ## Frontend
 
 `frontend/src/pages/pranzo/PranzoMenu.jsx` (v3.5) — 2 tab:
-- **Compositore**: nav settimana + card piatti (riordino ▲/▼, ordina per categoria, select categoria, input nome libero) + pool a destra (search + filtro categoria). Azioni: PDF / Copia prec. / Elimina / Salva. Righe ad-hoc con nome → bottone **"+ pool"** (promozione a ricetta, v3.0). Widget **MargineCard** (F.1) sotto la card.
+- **Compositore**: nav settimana + card piatti (riordino ▲/▼, ordina per categoria, select categoria, input nome libero) + pool a destra (search + filtro categoria + form **"⚡ Nuova ricetta veloce"** nome+categoria → crea placeholder nel pool senza passare da Ricette, visibile anche a pool vuoto). Azioni: PDF / Copia prec. / Elimina / Salva. Righe ad-hoc con nome → bottone **"+ pool"** (promozione a ricetta, v3.0). Widget **MargineCard** (F.1) sotto la card.
 - **Programmazione**: ultime N settimane affiancate, per non ripetersi.
 
 Resilienza: `apiFetchSafe` (1 retry su network fail), banner errore con Riprova, AbortController 20s, box diagnostica (v3.2-3.4, vedi problemi.md D2).
@@ -117,6 +117,7 @@ mancano, WeasyPrint usa il fallback.
 | C-P-004 | Margine Menù Business (F.1) | `pranzo_router.py /margine` | admin | ✅ |
 | C-P-005 | Copia settimana precedente | `PranzoMenu.jsx copiaSettimanaPrecedente` | chef/admin | ✅ |
 | C-P-006 | Promozione riga ad-hoc a ricetta pool | `pranzo_router.py /promuovi-ricetta/` | chef/admin | ✅ v3.0 |
+| C-P-008 | Creazione rapida ricetta placeholder dal pool | `PranzoMenu.jsx` quickAddForm (stesso endpoint C-P-006) | chef/admin | ✅ v3.0 |
 | C-P-007 | Default testata/prezzi/footer | `PranzoSettingsPanel.jsx` | admin | ✅ |
 
 ## Riferimenti

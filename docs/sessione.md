@@ -26,7 +26,8 @@
 - ⚠ **AZIONE MARCO**: caricare in `static/fonts/` → `SabonLTPro-Roman.ttf/woff2`, `SabonLTPro-Bold`, `SabonLTPro-Italic`, `CourierPrime-Regular`, `CourierPrime-Bold` (idealmente anche sul VPS in `/usr/local/share/fonts/tre_gobbi/`). Senza, il PDF esce in Cormorant (leggibile ma non fedele).
 
 ### Frontend
-- `PranzoMenu.jsx` v3.5: handler `promuoviRiga(i)` (apiFetchSafe POST, aggiorna recipe_id in riga, ricarica pool, toast con esito creata/collegata) + bottone "+ pool" sulle righe ad-hoc con nome non vuoto (hover arancione, title esplicativo).
+- `PranzoMenu.jsx` v3.6: handler `promuoviRiga(i)` (apiFetchSafe POST, aggiorna recipe_id in riga, ricarica pool, toast con esito creata/collegata) + bottone "+ pool" sulle righe ad-hoc con nome non vuoto (hover arancione, title esplicativo).
+- Form "⚡ Nuova ricetta veloce" in `PoolPiatti` (richiesta Marco a fine sessione): input nome (submit con Enter) + select categoria + Btn Crea con loading → `creaPlaceholder` nel root (stesso endpoint promuovi-ricetta, ricarica pool, toast "creato nel pool / esisteva già"). Mostrato in fondo alla card pool E nel ramo pool vuoto (dove serve di più). Il form si svuota solo a successo.
 
 ### Versioni e docs
 - `VERSION` + `versions.jsx sistema` 5.23 → 5.24; pranzo 1.5 → 1.6 (alpha → beta).
