@@ -239,6 +239,8 @@ export default function RicetteIngredientiPrezzi() {
         art: a,
         unita: g.unita_fattura || a.unita || "conf.",
         factor: String(g.factor ?? 1),
+        factorUnit: baseUnit,      // unità in cui l'utente esprime il contenuto
+        factorBase: null,          // fattore convertito in unità base (se factorUnit ≠ base)
         detail: g.detail || "",
         safe: g.safe !== false,
       });
@@ -246,22 +248,68 @@ export default function RicetteIngredientiPrezzi() {
     setCollegaReview(review);
   };
 
+  // Converte "qty unit" nell'unità base dell'ingrediente via backend
+  // (usa conversioni standard + custom, es. 1 kg → 50 n con "1 n = 20 g").
+  const convertiInBase = async (qty, unit) => {
+    try {
+      const r = await apiFetch(`${MATCH}/converti-in-base?ingredient_id=${id}&qty=${qty}&unit=${encodeURIComponent(unit)}`);
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        return { fattore: null, err: d.detail || "Conversione non possibile" };
+      }
+      const d = await r.json();
+      return { fattore: d.fattore, err: null };
+    } catch {
+      return { fattore: null, err: "Errore di rete nella conversione" };
+    }
+  };
+
+  // Aggiorna factorBase di una card review quando fattore o unità cambiano
+  const aggiornaFactorBase = async (idx, factorStr, unit) => {
+    const f = parseFloat(String(factorStr).replace(",", "."));
+    if (!f || f <= 0) {
+      setCollegaReview((r) => r ? r.map((x, i) => (i === idx ? { ...x, factorBase: null } : x)) : r);
+      return;
+    }
+    if (unit === baseUnit) {
+      setCollegaReview((r) => r ? r.map((x, i) => (i === idx ? { ...x, factorBase: f } : x)) : r);
+      return;
+    }
+    const { fattore } = await convertiInBase(f, unit);
+    setCollegaReview((r) => r ? r.map((x, i) => (i === idx ? { ...x, factorBase: fattore } : x)) : r);
+  };
+
   const handleConfermaCollega = async () => {
     if (!collegaReview) return;
+    // Risolvi il fattore in unità base per ogni card (conversione se serve)
+    const fattoriBase = [];
     for (const it of collegaReview) {
       const f = parseFloat(String(it.factor).replace(",", "."));
       if (!f || f <= 0) {
         setError(`Imposta un fattore valido per "${it.art.descrizione}".`);
         return;
       }
+      let fb = f;
+      if ((it.factorUnit || baseUnit) !== baseUnit) {
+        fb = it.factorBase;
+        if (!fb || fb <= 0) {
+          const { fattore, err } = await convertiInBase(f, it.factorUnit);
+          if (!fattore) {
+            setError(`"${it.art.descrizione}": ${err || `non so convertire ${it.factorUnit} in ${baseUnit} — aggiungi la conversione nella tab Conversioni.`}`);
+            return;
+          }
+          fb = fattore;
+        }
+      }
+      fattoriBase.push(fb);
     }
     setError(""); setMsg("");
     try {
       let totRighe = 0;
       let totPrezziSaltati = 0;
       const unitaMancanti = new Set();
-      for (const it of collegaReview) {
-        const f = parseFloat(String(it.factor).replace(",", "."));
+      for (const [ri, it] of collegaReview.entries()) {
+        const f = fattoriBase[ri];
         const r = await apiFetch(`${MATCH}/collega-multiplo`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -310,12 +358,24 @@ export default function RicetteIngredientiPrezzi() {
       setError("Il fattore di conversione deve essere maggiore di zero.");
       return;
     }
+    // Contenuto espresso in un'altra unità (es. "1 conf. = 1 kg" su base n):
+    // il fattore in unità base lo calcola il backend con standard + custom.
+    let fBase = f;
+    const uScelta = correggiDraft.unita_scelta || baseUnit;
+    if (uScelta !== baseUnit) {
+      const { fattore, err } = await convertiInBase(f, uScelta);
+      if (!fattore) {
+        setError(err || `Non so convertire ${uScelta} in ${baseUnit} — aggiungi la conversione nella tab Conversioni.`);
+        return;
+      }
+      fBase = fattore;
+    }
     setError(""); setMsg("");
     try {
       const r = await apiFetch(`${MATCH}/correggi-conversione`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mapping_id: correggiDraft.mapping_id, fattore_conversione: f }),
+        body: JSON.stringify({ mapping_id: correggiDraft.mapping_id, fattore_conversione: fBase }),
       });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
@@ -911,7 +971,16 @@ export default function RicetteIngredientiPrezzi() {
                                       onChange={(e) => setCorreggiDraft((d) => ({ ...d, factor: e.target.value }))}
                                       className="w-24 border border-amber-300 rounded-lg px-2 py-1 text-sm"
                                     />
-                                    <span className="font-medium">{baseUnit}</span>
+                                    <select
+                                      value={correggiDraft.unita_scelta || baseUnit}
+                                      onChange={(e) => setCorreggiDraft((d) => ({ ...d, unita_scelta: e.target.value }))}
+                                      className="border border-amber-300 rounded-lg px-2 py-1 text-sm bg-white"
+                                      title="Esprimi il contenuto nell'unità che preferisci: la conversione in unità base la fa il sistema"
+                                    >
+                                      {[...new Set([baseUnit, "kg", "g", "L", "ml", "cl", "pz", "n"])].map((u) => (
+                                        <option key={u} value={u}>{u}</option>
+                                      ))}
+                                    </select>
                                   </div>
                                   <p className="text-[11px] text-neutral-500">
                                     I prezzi già registrati di questo collegamento verranno ricalcolati
@@ -948,8 +1017,11 @@ export default function RicetteIngredientiPrezzi() {
                         : "?";
                       const pm = it.art.pmin, pM = it.art.pmax;
                       const f = parseFloat(String(it.factor).replace(",", "."));
-                      const preview = ult.prezzo_unitario != null && f > 0
-                        ? ult.prezzo_unitario / f
+                      const fUnit = it.factorUnit || baseUnit;
+                      // fattore effettivo in unità base (convertito se espresso in altra unità)
+                      const fEff = fUnit === baseUnit ? f : it.factorBase;
+                      const preview = ult.prezzo_unitario != null && fEff > 0
+                        ? ult.prezzo_unitario / fEff
                         : null;
                       return (
                         <div
@@ -978,16 +1050,40 @@ export default function RicetteIngredientiPrezzi() {
                             <span>=</span>
                             <input
                               type="number" step="any" min="0" value={it.factor}
-                              onChange={(e) => setCollegaReview((r) =>
-                                r.map((x, i) => (i === idx ? { ...x, factor: e.target.value } : x)))}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setCollegaReview((r) =>
+                                  r.map((x, i) => (i === idx ? { ...x, factor: v, factorBase: null } : x)));
+                                aggiornaFactorBase(idx, v, fUnit);
+                              }}
                               className="w-24 border border-neutral-300 rounded-lg px-2 py-1 text-sm"
                             />
-                            <span className="font-medium">{baseUnit}</span>
+                            <select
+                              value={fUnit}
+                              onChange={(e) => {
+                                const u = e.target.value;
+                                setCollegaReview((r) =>
+                                  r.map((x, i) => (i === idx ? { ...x, factorUnit: u, factorBase: null } : x)));
+                                aggiornaFactorBase(idx, it.factor, u);
+                              }}
+                              className="border border-neutral-300 rounded-lg px-2 py-1 text-sm bg-white"
+                              title="Esprimi il contenuto nell'unità che preferisci: la conversione in unità base la fa il sistema"
+                            >
+                              {[...new Set([baseUnit, "kg", "g", "L", "ml", "cl", "pz", "n"])].map((u) => (
+                                <option key={u} value={u}>{u}</option>
+                              ))}
+                            </select>
+                            {fUnit !== baseUnit && fEff > 0 && (
+                              <span className="text-xs text-neutral-500">= {fEff.toLocaleString("it-IT", { maximumFractionDigits: 4 })} {baseUnit}</span>
+                            )}
+                            {fUnit !== baseUnit && !fEff && f > 0 && (
+                              <span className="text-xs text-amber-700">⚠ conversione {fUnit}→{baseUnit} non definita (tab Conversioni)</span>
+                            )}
                             {preview != null && (
                               <span className={`text-xs px-2 py-0.5 rounded-lg border ${
                                 preview > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-neutral-100 border-neutral-200 text-neutral-500"
                               }`}>
-                                → {fmtEuro(ult.prezzo_unitario)} € ÷ {f} = <strong>{preview.toLocaleString("it-IT", { maximumFractionDigits: 6 })} €/{baseUnit}</strong>
+                                → {fmtEuro(ult.prezzo_unitario)} € ÷ {fEff?.toLocaleString("it-IT", { maximumFractionDigits: 4 })} = <strong>{preview.toLocaleString("it-IT", { maximumFractionDigits: 6 })} €/{baseUnit}</strong>
                               </span>
                             )}
                           </div>

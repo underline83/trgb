@@ -798,6 +798,55 @@ def correggi_conversione(payload: CorreggiConversioneRequest):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: CONVERTI CONTENUTO IN UNITÀ BASE (fix 2026-06-07 bis)
+# ─────────────────────────────────────────────
+
+@router.get("/converti-in-base")
+def converti_in_base(ingredient_id: int, qty: float, unit: str):
+    """
+    Converte un contenuto dichiarato (es. "1 kg") nell'unità base
+    dell'ingrediente, usando conversioni standard + custom.
+
+    Serve a Correggi/Conferma collegamento: l'utente dichiara il contenuto
+    della confezione nell'unità che gli è comoda ("1 conf. = 1 kg") e il
+    fattore in unità base (es. 50 n, via custom '1 n = 20 g') lo calcola
+    il sistema. 400 se la conversione non è possibile (manca la custom).
+    """
+    from app.routers.foodcost_recipes_router import convert_qty
+
+    if qty is None or qty <= 0:
+        raise HTTPException(status_code=400, detail="Quantità non valida")
+
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+    try:
+        ing = cur.execute(
+            "SELECT id, name, default_unit FROM ingredients WHERE id = ?",
+            (ingredient_id,),
+        ).fetchone()
+        if not ing:
+            raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+        base = ing["default_unit"] or ""
+
+        fattore = convert_qty(qty, unit, base, ingredient_id=ingredient_id, cur=cur)
+        if fattore is None or fattore <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Non so convertire '{unit}' in '{base}' per questo ingrediente. "
+                    f"Aggiungi una conversione nella tab Conversioni (es. 1 {base} = X g)."
+                ),
+            )
+        return {
+            "fattore": round(fattore, 6),
+            "base_unit": base,
+            "detail": f"{qty:g} {unit} = {fattore:g} {base}",
+        }
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: RICALCOLA PREZZI INGREDIENTE (fix 2026-06-07)
 # ─────────────────────────────────────────────
 
