@@ -61,6 +61,7 @@ Scritture: ruolo `superadmin | admin | chef` (`_check_admin`).
 |---|---|
 | `GET /pranzo/piatti-disponibili/` | pool ricette "Pranzo di lavoro" |
 | `POST /pranzo/promuovi-ricetta/` | v3.0 — `{nome, categoria}` → crea ricetta scheletro + tag pool. Dedup per nome (name/menu_name case-insensitive): se esiste, tagga e basta. Ritorna `{recipe_id, creata}` |
+| `DELETE /pranzo/pool/{recipe_id}/` | v3.0 — eliminazione "intelligente": untag sempre; se placeholder vuoto (0 items, 0 altri service_types, mai sub-ricetta, mai su menu carta) disattiva anche la ricetta. Ritorna `{rimossa_dal_pool, disattivata}` |
 | `GET /pranzo/menu/` | archivio testate (filtri `data_da`/`data_a`) |
 | `GET /pranzo/menu/corrente/` | settimana corrente |
 | `GET /pranzo/menu/oggi/` | menu di oggi + settings (rich payload) |
@@ -118,6 +119,7 @@ mancano, WeasyPrint usa il fallback.
 | C-P-005 | Copia settimana precedente | `PranzoMenu.jsx copiaSettimanaPrecedente` | chef/admin | ✅ |
 | C-P-006 | Promozione riga ad-hoc a ricetta pool | `pranzo_router.py /promuovi-ricetta/` | chef/admin | ✅ v3.0 |
 | C-P-008 | Creazione rapida ricetta placeholder dal pool | `PranzoMenu.jsx` quickAddForm (stesso endpoint C-P-006) | chef/admin | ✅ v3.0 |
+| C-P-009 | Eliminazione intelligente dal pool (✕ su chip) | `pranzo_router.py DELETE /pool/{id}/` | chef/admin | ✅ v3.0 |
 | C-P-007 | Default testata/prezzi/footer | `PranzoSettingsPanel.jsx` | admin | ✅ |
 
 ## Riferimenti

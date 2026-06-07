@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.6 — Flusso "Entrambi": bottone "+ pool" su righe ad-hoc + creazione rapida placeholder nel pool (2026-06-07)
+// @version: v3.7 — Flusso "Entrambi": "+ pool" su righe ad-hoc, creazione rapida placeholder, ✕ eliminazione intelligente dal pool (2026-06-07)
 // Modulo: cucina (sub-modulo pranzo)
 //
 // v3.2 cambiamenti vs v3.1:
@@ -117,7 +117,7 @@ function labelWeekRange(mondayIso) {
 // ─────────────────────────────────────────────────────────────
 // Pool piatti (componente puro: nessun setState del parent)
 // ─────────────────────────────────────────────────────────────
-function PoolPiatti({ pool, onPick, onQuickCreate }) {
+function PoolPiatti({ pool, onPick, onQuickCreate, onRemove }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
 
@@ -253,15 +253,23 @@ function PoolPiatti({ pool, onPick, onQuickCreate }) {
               </div>
               <div className="space-y-1">
                 {g.items.map((p) => (
-                  <button
-                    key={p.recipe_id}
-                    onClick={() => onPick(p)}
-                    className="w-full flex items-center justify-between gap-3 text-left px-3 py-2 rounded-lg border border-neutral-200 bg-white hover:bg-orange-50 hover:border-orange-300 transition text-sm"
-                    title={p.menu_description || ""}
-                  >
-                    <span className="truncate">{p.nome}</span>
-                    <span className="text-[11px] text-neutral-400 flex-shrink-0">+ aggiungi</span>
-                  </button>
+                  <div key={p.recipe_id} className="flex items-stretch gap-1">
+                    <button
+                      onClick={() => onPick(p)}
+                      className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left px-3 py-2 rounded-lg border border-neutral-200 bg-white hover:bg-orange-50 hover:border-orange-300 transition text-sm"
+                      title={p.menu_description || ""}
+                    >
+                      <span className="truncate">{p.nome}</span>
+                      <span className="text-[11px] text-neutral-400 flex-shrink-0">+ aggiungi</span>
+                    </button>
+                    {onRemove && (
+                      <button
+                        onClick={() => onRemove(p)}
+                        className="px-2 rounded-lg border border-neutral-200 text-neutral-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition text-sm flex-shrink-0"
+                        title="Togli dal pool (se placeholder vuoto, disattiva anche la ricetta)"
+                      >✕</button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -643,6 +651,31 @@ export default function PranzoMenu() {
     }
   };
 
+  // Eliminazione "intelligente" dal pool (2026-06-07): untag sempre;
+  // se placeholder vuoto il backend disattiva anche la ricetta.
+  const rimuoviDalPool = async (p) => {
+    if (!window.confirm(`Togliere "${p.nome}" dal pool pranzo?\nSe è un placeholder vuoto, la ricetta verrà anche disattivata.`)) return;
+    setMsg(null); setRetryFn(null);
+    try {
+      const res = await apiFetchSafe(`${API_BASE}/pranzo/pool/${p.recipe_id}/`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setMsg({ tipo: "err", text: d.detail || `Rimozione fallita (HTTP ${res.status}).` });
+        return;
+      }
+      const d = await res.json();
+      loadPool();
+      setMsg({
+        tipo: "ok",
+        text: d.disattivata
+          ? `"${p.nome}" tolto dal pool e ricetta disattivata (era un placeholder vuoto).`
+          : `"${p.nome}" tolto dal pool. La ricetta resta attiva in Ricette.`,
+      });
+    } catch (e) {
+      handleActionError(e, "Rimozione dal pool", () => rimuoviDalPool(p));
+    }
+  };
+
   // Creazione rapida ricetta placeholder direttamente dal pool (2026-06-07).
   // Stesso endpoint della promozione: ricetta scheletro + tag "Pranzo di lavoro".
   // Ritorna true se creata/collegata (il form si svuota solo in quel caso).
@@ -877,7 +910,7 @@ export default function PranzoMenu() {
               </div>
 
               {/* SIDE: pool */}
-              <PoolPiatti pool={piattiPool} onPick={aggiungiRiga} onQuickCreate={creaPlaceholder} />
+              <PoolPiatti pool={piattiPool} onPick={aggiungiRiga} onQuickCreate={creaPlaceholder} onRemove={rimuoviDalPool} />
             </div>
           )}
 

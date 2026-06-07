@@ -170,6 +170,25 @@ def promuovi_ricetta_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.delete("/pool/{recipe_id}/")
+def rimuovi_dal_pool_endpoint(
+    recipe_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Eliminazione "intelligente" dal pool (2026-06-07): toglie sempre il tag
+    "Pranzo di lavoro"; se la ricetta è un placeholder vuoto (zero
+    ingredienti, zero altri service_types, mai sub-ricetta, mai sul menu
+    carta) la disattiva anche in Ricette. Le righe storiche dei menu
+    settimanali restano intatte (snapshot).
+    """
+    _check_admin(user)
+    try:
+        return repo.rimuovi_ricetta_dal_pool(recipe_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 # ─────────────────────────────────────────────────────────────
 # MENU SETTIMANALE
 # ─────────────────────────────────────────────────────────────

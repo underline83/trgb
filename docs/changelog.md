@@ -11,6 +11,7 @@ Ripresa del modulo Pranzo (fermo da fine aprile, inutilizzato per estetica PDF i
 - **`POST /pranzo/promuovi-ricetta/`** `[core]`: promuove una riga ad-hoc del compositore a ricetta minimale (kind='dish', 1 porzione, senza ingredienti) + tag service_type "Pranzo di lavoro". Dedup per nome (name/menu_name case-insensitive): se la ricetta esiste, aggiunge solo il tag. Testato su copia DB (6 test verdi).
 - **Bottone "+ pool"** su righe ad-hoc con nome in `PranzoMenu.jsx` (v3.6): un click e il piatto del mercato entra nel pool, food cost completabile dopo in Ricette (C.P1).
 - **Form "⚡ Nuova ricetta veloce"** nel pool (richiesta Marco in sessione): nome + categoria + Crea (anche con Enter) → ricetta placeholder nel pool senza passare dal modulo Ricette. Visibile anche a pool vuoto. Stesso endpoint con dedup.
+- **`DELETE /pranzo/pool/{recipe_id}/`** + ✕ su ogni chip del pool: eliminazione "intelligente" (scelta Marco) — toglie sempre il tag "Pranzo di lavoro"; se la ricetta è un placeholder vuoto (0 ingredienti, 0 altri service_types, mai sub-ricetta, mai su menu carta) la disattiva anche in Ricette. Righe storiche dei menu intatte (snapshot). Confirm + toast esplicito sull'esito. Testato su copia DB (ricetta con items NON disattivata, placeholder sì, doppia rimozione innocua).
 - **Migration 144** `[locale:tregobbi]`: nuovi default `pranzo_settings` (titolo "PRANZO", sottotitolo "la cucina del mercato", footer senza asterischi) — solo se mai personalizzati. Idempotente, testata.
 
 ### Modificato

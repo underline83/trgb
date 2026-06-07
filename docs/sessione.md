@@ -28,6 +28,7 @@
 ### Frontend
 - `PranzoMenu.jsx` v3.6: handler `promuoviRiga(i)` (apiFetchSafe POST, aggiorna recipe_id in riga, ricarica pool, toast con esito creata/collegata) + bottone "+ pool" sulle righe ad-hoc con nome non vuoto (hover arancione, title esplicativo).
 - Form "⚡ Nuova ricetta veloce" in `PoolPiatti` (richiesta Marco a fine sessione): input nome (submit con Enter) + select categoria + Btn Crea con loading → `creaPlaceholder` nel root (stesso endpoint promuovi-ricetta, ricarica pool, toast "creato nel pool / esisteva già"). Mostrato in fondo alla card pool E nel ramo pool vuoto (dove serve di più). Il form si svuota solo a successo.
+- Eliminazione dal pool (v3.7, richiesta Marco): ✕ accanto a ogni chip → confirm → `DELETE /pranzo/pool/{id}/`. Backend `rimuovi_ricetta_dal_pool`: untag SEMPRE; disattiva la ricetta SOLO se placeholder vuoto (0 recipe_items + 0 altri service_types + mai sub_recipe_id + mai in menu_dish_publications). Decisione Marco: opzione "intelligente". NB: le 6 ricette pranzo esistenti (id 43-48) hanno 0 ingredienti → se tolte dal pool verrebbero disattivate; il toast lo dice esplicitamente. Test su copia DB: ricetta con items → solo untag; placeholder → untag+disattiva; id inesistente → 404; doppia rimozione → no-op.
 
 ### Versioni e docs
 - `VERSION` + `versions.jsx sistema` 5.23 → 5.24; pranzo 1.5 → 1.6 (alpha → beta).

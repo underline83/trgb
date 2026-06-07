@@ -604,6 +604,72 @@ def promuovi_riga_a_ricetta(nome: str, categoria: str) -> Dict[str, Any]:
         conn.close()
 
 
+def rimuovi_ricetta_dal_pool(recipe_id: int) -> Dict[str, Any]:
+    """
+    Eliminazione "intelligente" dal pool pranzo (decisione Marco 2026-06-07):
+
+    1. Toglie SEMPRE il tag "Pranzo di lavoro" (DELETE recipe_service_types).
+    2. Se la ricetta è un placeholder vuoto — cioè: zero recipe_items, zero
+       altri service_types, mai usata come sub-ricetta, mai pubblicata sul
+       menu carta — la disattiva anche in Ricette (is_active=0, soft delete).
+       Altrimenti la ricetta resta attiva in Ricette.
+
+    Le righe storiche di pranzo_menu_righe non vengono toccate (snapshot
+    nome/categoria; recipe_id resta valido perché il soft delete non
+    cancella la riga di recipes).
+
+    Ritorna {recipe_id, rimossa_dal_pool: bool, disattivata: bool}.
+    """
+    conn = get_cucina_connection()
+    try:
+        _ensure_schema(conn)
+
+        rec = conn.execute(
+            "SELECT id, is_active FROM recipes WHERE id = ?", (recipe_id,)
+        ).fetchone()
+        if not rec:
+            raise ValueError(f"Ricetta {recipe_id} non trovata")
+
+        st = conn.execute(
+            "SELECT id FROM service_types WHERE name = 'Pranzo di lavoro'"
+        ).fetchone()
+        if not st:
+            raise ValueError("Service type 'Pranzo di lavoro' non trovato")
+
+        cur = conn.execute(
+            "DELETE FROM recipe_service_types WHERE recipe_id = ? AND service_type_id = ?",
+            (recipe_id, st["id"]),
+        )
+        rimossa = cur.rowcount > 0
+
+        # Placeholder vuoto? (tutti i contatori a zero)
+        n_items = conn.execute(
+            "SELECT COUNT(*) FROM recipe_items WHERE recipe_id = ?", (recipe_id,)
+        ).fetchone()[0]
+        n_altri_st = conn.execute(
+            "SELECT COUNT(*) FROM recipe_service_types WHERE recipe_id = ?", (recipe_id,)
+        ).fetchone()[0]
+        n_come_sub = conn.execute(
+            "SELECT COUNT(*) FROM recipe_items WHERE sub_recipe_id = ?", (recipe_id,)
+        ).fetchone()[0]
+        n_pubblicazioni = conn.execute(
+            "SELECT COUNT(*) FROM menu_dish_publications WHERE recipe_id = ?", (recipe_id,)
+        ).fetchone()[0]
+
+        disattivata = False
+        if n_items == 0 and n_altri_st == 0 and n_come_sub == 0 and n_pubblicazioni == 0:
+            conn.execute(
+                "UPDATE recipes SET is_active = 0, updated_at = ? WHERE id = ?",
+                (_now(), recipe_id),
+            )
+            disattivata = True
+
+        conn.commit()
+        return {"recipe_id": recipe_id, "rimossa_dal_pool": rimossa, "disattivata": disattivata}
+    finally:
+        conn.close()
+
+
 # ─────────────────────────────────────────────────────────────
 # MENU SETTIMANALE
 # ─────────────────────────────────────────────────────────────
