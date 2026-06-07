@@ -9,7 +9,7 @@ import useSortableTable from "../../hooks/useSortableTable";
 
 const FC = `${API_BASE}/foodcost`;
 const ING = `${FC}/ingredients`;
-const UNITS = ["kg", "g", "L", "ml", "pz", "confezione", "vaschetta", "bottiglia"];
+const UNITS = ["kg", "g", "L", "ml", "pz", "n", "confezione", "vaschetta", "bottiglia"];
 
 function fmtPrice(v) {
   if (v == null || isNaN(v)) return null;

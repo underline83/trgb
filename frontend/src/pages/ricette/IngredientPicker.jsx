@@ -14,7 +14,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
-const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
+const UNITS = ["kg", "g", "L", "ml", "cl", "pz", "n"];
 
 const inputCls =
   "w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500";

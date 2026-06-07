@@ -10,7 +10,7 @@ import RicetteNav from "./RicetteNav";
 import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
-const UNITA = ["kg", "g", "L", "ml", "cl", "pz"];
+const UNITA = ["kg", "g", "L", "ml", "cl", "pz", "n"];
 
 export default function RicetteImport() {
   const navigate = useNavigate();

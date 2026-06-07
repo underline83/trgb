@@ -79,6 +79,7 @@ Marco: "c'è qualcosa che non quadra nel calcolo prezzo ingrediente" → casi re
 - `_standard_convert` aveva lo STESSO bug famiglie lasco di convert_qty (pz→peso 1:1) e tramite la nuova catena lo propagava: allineato a famiglie strette + sinonimi + _norm_unit.
 - FE: "n" nelle opzioni from-unit della tab Conversioni, copy aggiornato con l'esempio tuorli.
 - Spiegato a Marco il caso Tuorlo: base "n" perché le ricette contano i tuorli (olandese 4 n, tonnata 2 n); fatture in bottiglie KG.1 → o fattore 50 per collegamento, o conversione "1 n = 20 g" che automatizza tutto.
+- **Follow-up**: Marco ha cambiato base a "pz" perché "n" mancava dal dropdown Anagrafica → trappola: PZ fattura (collo/bottiglia) == base pz → 1 bottiglia = 1 tuorlo + fattori 1000 legacy sui mapping. Fix: "n" aggiunta a TUTTE le liste unità FE (RicetteIngredientiPrezzi UNITA, IngredientPicker, RicetteImport, RicetteModifica, RicetteNuova, RicetteIngredienti). "n" resta fuori da UNIT_TO_BASE → mai auto-conversione, solo custom/fattore (safe by design). Procedura recovery Tuorlo comunicata: Anagrafica base→n, custom "1 n = 20 g" (eliminare quella su pz), Correggi fattore 50 sui collegamenti KG/conf/PZ.
 
 **Test** (esecuzione diretta delle funzioni via exec, fastapi non disponibile in sandbox): PZ bloccato, KG ok, GR sinonimo, CT+fattore 12000 ok, custom pz=720g ok, unità esotica VS bloccata, g==g passa. JSX bilanciato.
 

@@ -11,7 +11,7 @@ import { Btn } from "../../components/ui";
 import IngredientPicker, { QuickCreateIngrediente } from "./IngredientPicker";
 
 const FC = `${API_BASE}/foodcost`;
-const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
+const UNITS = ["kg", "g", "L", "ml", "cl", "pz", "n"];
 
 export default function RicetteModifica() {
   const { id } = useParams();

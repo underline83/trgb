@@ -14,7 +14,9 @@ import { Btn } from "../../components/ui";
 const FC = `${API_BASE}/foodcost`;
 const ING = `${FC}/ingredients`;
 const MATCH = `${FC}/matching`;
-const UNITA = ["kg", "g", "L", "ml", "cl", "pz"];
+// "n" = a numero (pezzi VERI: tuorli, uova, foglie…) — distinto da "pz" che
+// nelle fatture spesso significa il collo/confezione. Fix 2026-06-07.
+const UNITA = ["kg", "g", "L", "ml", "cl", "pz", "n"];
 const oggi = () => new Date().toISOString().slice(0, 10);
 
 // Colori serie grafico prezzi (palette TRGB-02 + accenti)
