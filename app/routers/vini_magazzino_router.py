@@ -916,6 +916,36 @@ def list_movimenti(
     return [dict(m) for m in movs]
 
 
+@router.get(
+    "/{vino_id}/giacenza-storica",
+    summary="Andamento giacenza giorno-per-giorno (replay movimenti)",
+)
+def get_giacenza_storica(
+    vino_id: int,
+    days: int = Query(30, ge=1, le=3650, description="Ampiezza finestra in giorni"),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Ricostruisce la giacenza giornaliera di una bottiglia replay-ando lo storico
+    di `vini_magazzino_movimenti` dal primo movimento ad oggi e finestrando agli
+    ultimi `days` giorni (default 30).
+
+    Regole replay: CARICO `+= qta`, SCARICO/VENDITA `-= qta`, RETTIFICA `:= qta`
+    (assoluto), MODIFICA no-op. I giorni senza movimenti riportano la giacenza
+    a fine giornata precedente (forward-fill).
+
+    Restituisce `series` con UN punto per ogni giorno della finestra,
+    `qta_attuale` (QTA_TOTALE oggi) e `drift` rispetto alla giacenza finale
+    della serie — un drift ≠ 0 indica che la giacenza è stata modificata
+    bypassando i movimenti. `parziale=True` quando la finestra inizia prima
+    del primo movimento storico (la curva del primo segmento parte da 0).
+    """
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+    return db.giacenza_storica_vino(vino_id, days=days)
+
+
 @router.post("/{vino_id}/movimenti", summary="Registra un movimento di cantina")
 def crea_movimento(
     vino_id: int,

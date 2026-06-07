@@ -203,7 +203,17 @@ UNIT_TO_BASE = {
     "ml": 0.001,
     "cl": 0.01,
     "pz": 1.0,
+    # Sinonimi frequenti nelle fatture elettroniche (fix 2026-06-07)
+    "gr": 0.001,    # grammi scritti "GR"
+    "hg": 0.1,      # ettogrammi
+    "lt": 1.0,      # litri scritti "LT"
+    "lit": 1.0,
 }
+
+
+def _norm_unit(u: str) -> str:
+    """Normalizza un'unità fattura: trim, minuscole, via punti ('KG.' → 'kg')."""
+    return (u or "").strip().lower().replace(".", "")
 
 
 def convert_qty(qty: float, from_unit: str, to_unit: str,
@@ -216,8 +226,8 @@ def convert_qty(qty: float, from_unit: str, to_unit: str,
     2. Altrimenti usa le conversioni standard (kg↔g↔mg, L↔ml↔cl)
     3. Ritorna None se la conversione non è possibile (unità incompatibili).
     """
-    fu = from_unit.strip().lower()
-    tu = to_unit.strip().lower()
+    fu = _norm_unit(from_unit)
+    tu = _norm_unit(to_unit)
 
     if fu == tu:
         return qty
@@ -235,19 +245,24 @@ def convert_qty(qty: float, from_unit: str, to_unit: str,
     if f_base is None or t_base is None:
         return None
 
-    # Verifica compatibilità (peso con peso, volume con volume)
-    weight_units = {"kg", "g", "mg"}
-    volume_units = {"l", "ml", "cl"}
+    # Verifica compatibilità STRETTA per famiglia (fix 2026-06-07):
+    # peso↔peso, volume↔volume, pz↔pz. Prima il check era lasco e 'pz'
+    # convertiva implicitamente verso peso/volume come se 1 pz = 1 kg/L —
+    # fonte di prezzi sballati. pz→peso/volume ora richiede SEMPRE una
+    # conversione personalizzata (gestita sopra, punto 1).
+    weight_units = {"kg", "g", "mg", "gr", "hg"}
+    volume_units = {"l", "ml", "cl", "lt", "lit"}
 
-    fu_is_weight = fu in weight_units
-    fu_is_volume = fu in volume_units
-    tu_is_weight = tu in weight_units
-    tu_is_volume = tu in volume_units
+    def _family(u: str) -> Optional[str]:
+        if u in weight_units:
+            return "peso"
+        if u in volume_units:
+            return "volume"
+        if u == "pz":
+            return "pz"
+        return None
 
-    if fu_is_weight != tu_is_weight and fu_is_volume != tu_is_volume:
-        # pz → pz è ok, peso → volume no
-        if fu == "pz" and tu == "pz":
-            return qty
+    if _family(fu) is None or _family(fu) != _family(tu):
         return None
 
     return qty * f_base / t_base

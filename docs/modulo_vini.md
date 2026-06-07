@@ -683,6 +683,20 @@ Pattern: `Depends(get_current_user)` + check ruolo nel router. Frontend: la
 Modifica/Duplica/Elimina ai ruoli non-manager; `MagazzinoSubMenu` e
 `DashboardVini` nascondono la voce "Nuovo vino" a `sala`/`viewer`.
 
+**Andamento giacenza giorno-per-giorno (vini 3.60).** La tab Giacenze della
+scheda vino ha un box "📈 Andamento giacenza — ultimi 30 giorni" con grafico a
+linea step-after. Dietro c'è `GET /vini/magazzino/{id}/giacenza-storica?days=30`
+che chiama `giacenza_storica_vino()` in `vini_magazzino_db.py`: replay forward
+di `vini_magazzino_movimenti` dal primo storico (`CARICO +`, `SCARICO/VENDITA −`,
+`RETTIFICA :=` assoluto, `MODIFICA` no-op), end-of-day per ogni giornata con
+movimenti, forward-fill nei giorni vuoti. Ritorna `series` (un punto per ogni
+giorno della finestra), `qta_attuale`, `drift` (= series finale − QTA_TOTALE;
+≠ 0 segnala giacenza modificata bypassando i movimenti), `parziale` (True se
+la finestra precede il primo movimento — il primo segmento parte da 0),
+`min`/`max`/`primo_movimento`. Il box ha badge "dati parziali" / "⚠ drift N"
+quando applicabile. Default 30 giorni (decisione Marco), range max 3650 giorni.
+La curva aggregata sul vino madre (somma annate) è prevista come follow-up.
+
 **Toggle mescita al calice — endpoint dedicato (vini 3.60).** Aprire/chiudere
 una bottiglia "in mescita" è un'azione **operativa di servizio**, non gestione
 catalogo: la deve poter fare anche `sala`. Vive su un endpoint dedicato

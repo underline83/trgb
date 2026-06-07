@@ -185,7 +185,16 @@ def _compute_unit_price(cur, ingredient_id: int, prezzo_unitario,
         if converted is not None and converted != 0:
             return prezzo_unitario / converted
 
-    return prezzo_unitario
+    # Fix 2026-06-07 (caso Capperi 12,50 €/g): NIENTE PIÙ FALLBACK SILENZIOSO.
+    # Prima, se l'unità fattura non era convertibile (PZ, CT, CF, NR, VS…),
+    # il prezzo a collo entrava così com'era come €/unità-base, inquinando
+    # food cost e medie. Ora: il prezzo passa solo se l'unità fattura È
+    # già l'unità base dell'ingrediente; altrimenti None (prezzo NON salvato,
+    # il chiamante riporta la riga saltata).
+    from app.routers.foodcost_recipes_router import _norm_unit
+    if _norm_unit(unit_fattura) == _norm_unit(default_unit):
+        return prezzo_unitario
+    return None
 
 
 def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
@@ -518,9 +527,19 @@ def confirm_match(
     conn.commit()
     conn.close()
 
+    if unit_price is None and riga["prezzo_unitario"]:
+        detail = (
+            f"Match confermato ma prezzo NON importato: unità fattura "
+            f"'{riga['unita_misura'] or '?'}' non convertibile in "
+            f"'{ing['default_unit']}'. Imposta il fattore di conversione o "
+            f"una conversione personalizzata, poi ricalcola i prezzi."
+        )
+    else:
+        detail = "Match confermato e prezzo aggiornato"
+
     return {
         "status": "ok",
-        "detail": "Match confermato e prezzo aggiornato",
+        "detail": detail,
         "ingredient_name": ing["name"],
         "default_unit": ing["default_unit"],
         "unit_price": unit_price,
@@ -573,6 +592,8 @@ def collega_multiplo(
         collegate = 0
         saltate = 0
         prezzi_norm = []
+        prezzi_saltati = 0          # righe collegate ma prezzo NON importabile
+        unita_da_configurare = set()  # unità fattura che richiedono conversione
         now = datetime.utcnow().isoformat()
 
         for riga_id in payload.riga_ids:
@@ -632,6 +653,11 @@ def collega_multiplo(
             )
             if up is not None:
                 prezzi_norm.append(up)
+            elif riga["prezzo_unitario"] and riga["prezzo_unitario"] > 0:
+                # Prezzo presente in fattura ma non convertibile (fix 2026-06-07)
+                prezzi_saltati += 1
+                if riga["unita_misura"]:
+                    unita_da_configurare.add(riga["unita_misura"].strip().upper())
             collegate += 1
 
         conn.commit()
@@ -641,6 +667,8 @@ def collega_multiplo(
             "default_unit": ing["default_unit"],
             "righe_collegate": collegate,
             "righe_saltate": saltate,
+            "prezzi_saltati": prezzi_saltati,
+            "unita_da_configurare": sorted(unita_da_configurare),
             "prezzo_min": round(min(prezzi_norm), 4) if prezzi_norm else None,
             "prezzo_max": round(max(prezzi_norm), 4) if prezzi_norm else None,
         }
@@ -765,6 +793,125 @@ def correggi_conversione(payload: CorreggiConversioneRequest):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Errore correzione: {e}") from e
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: RICALCOLA PREZZI INGREDIENTE (fix 2026-06-07)
+# ─────────────────────────────────────────────
+
+@router.post("/ricalcola-prezzi/{ingredient_id}")
+def ricalcola_prezzi_ingrediente(ingredient_id: int):
+    """
+    Ricalcola TUTTI i prezzi auto (da fattura) di un ingrediente con le
+    regole correnti: fattore del collegamento, conversioni standard+custom,
+    parsing del contenuto dalla descrizione (se sicuro).
+
+    Da usare dopo aver aggiunto una conversione (es. 1 pz = 720 g) o
+    corretto un fattore: lo storico si riallinea senza scollegare nulla.
+
+    I prezzi NON ricalcolabili (unità ignota, nessuna conversione, parsing
+    impossibile) vengono ELIMINATI: erano entrati col vecchio fallback
+    silenzioso (prezzo a collo spacciato per €/unità-base) e inquinavano
+    food cost e medie.
+
+    Ritorna {aggiornati, invariati, eliminati, unita_da_configurare, prezzo_min, prezzo_max}.
+    """
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+    try:
+        ing = cur.execute(
+            "SELECT id, name, default_unit FROM ingredients WHERE id = ?",
+            (ingredient_id,),
+        ).fetchone()
+        if not ing:
+            raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+
+        rows = cur.execute(
+            """
+            SELECT ip.id AS price_id, ip.unit_price, ip.original_price,
+                   ip.supplier_id,
+                   r.descrizione, r.unita_misura, r.prezzo_unitario
+            FROM ingredient_prices ip
+            JOIN fe_righe r ON r.id = ip.riga_fattura_id
+            WHERE ip.ingredient_id = ?
+            """,
+            (ingredient_id,),
+        ).fetchall()
+
+        aggiornati = 0
+        invariati = 0
+        eliminati = 0
+        prezzi = []
+        unita_da_configurare = set()
+
+        for row in rows:
+            originale = row["original_price"] or row["prezzo_unitario"]
+            if originale is None or originale <= 0:
+                invariati += 1
+                continue
+
+            # 1. Fattore del collegamento (se esplicito e != 1)
+            mapping = cur.execute(
+                """
+                SELECT fattore_conversione FROM ingredient_supplier_map
+                WHERE ingredient_id = ? AND supplier_id = ?
+                  AND UPPER(TRIM(descrizione_fornitore)) = UPPER(TRIM(?))
+                """,
+                (ingredient_id, row["supplier_id"], row["descrizione"]),
+            ).fetchone()
+            fattore = mapping["fattore_conversione"] if mapping else None
+
+            new_up = _compute_unit_price(
+                cur, ingredient_id, originale, row["unita_misura"], fattore or 1.0
+            )
+
+            # 2. Parsing del contenuto dalla descrizione (solo se sicuro)
+            if new_up is None:
+                g = _guess_conversion_factor(
+                    row["descrizione"], row["unita_misura"], ing["default_unit"]
+                )
+                if g["safe"] and g["factor"]:
+                    new_up = originale / g["factor"]
+
+            if new_up is None:
+                # Irrecuperabile: era il vecchio fallback silenzioso → via.
+                cur.execute("DELETE FROM ingredient_prices WHERE id = ?", (row["price_id"],))
+                eliminati += 1
+                if row["unita_misura"]:
+                    unita_da_configurare.add(row["unita_misura"].strip().upper())
+                continue
+
+            new_up = round(new_up, 6)
+            prezzi.append(new_up)
+            if abs((row["unit_price"] or 0) - new_up) > 1e-9:
+                cur.execute(
+                    "UPDATE ingredient_prices SET unit_price = ? WHERE id = ?",
+                    (new_up, row["price_id"]),
+                )
+                aggiornati += 1
+            else:
+                invariati += 1
+
+        conn.commit()
+        return {
+            "status": "ok",
+            "ingredient_name": ing["name"],
+            "default_unit": ing["default_unit"],
+            "aggiornati": aggiornati,
+            "invariati": invariati,
+            "eliminati": eliminati,
+            "unita_da_configurare": sorted(unita_da_configurare),
+            "prezzo_min": round(min(prezzi), 4) if prezzi else None,
+            "prezzo_max": round(max(prezzi), 4) if prezzi else None,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore ricalcolo: {e}") from e
     finally:
         conn.close()
 

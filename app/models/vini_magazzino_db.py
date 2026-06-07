@@ -1566,6 +1566,128 @@ def list_movimenti_vino(vino_id: int, limit: int = 100) -> List[sqlite3.Row]:
     return list(rows)
 
 
+def giacenza_storica_vino(vino_id: int, days: int = 30) -> Dict[str, Any]:
+    """
+    Ricostruisce la giacenza giorno-per-giorno di una singola bottiglia negli
+    ultimi `days` giorni replay-ando `vini_magazzino_movimenti` dal primo
+    movimento storico in avanti.
+
+    Regole di replay (coerenti con come `update_vino_magazzino` registra i
+    movimenti):
+      - CARICO              → giacenza += qta
+      - SCARICO / VENDITA   → giacenza -= qta
+      - RETTIFICA           → giacenza := qta  (assoluto: rappresenta la
+                              quantità totale POST-rettifica)
+      - MODIFICA            → no-op (modifica anagrafica/note, non giacenza)
+
+    Snapshotting: tengo `g_by_day[d] = g` aggiornato all'ULTIMO movimento del
+    giorno (giacenza a fine giornata). Poi cammino da `today - days + 1` a
+    `today`, riempiendo i giorni senza movimenti col valore precedente
+    (forward-fill).
+
+    Verifica di coerenza: confronto la giacenza finale della serie con
+    `vini_bottiglie.QTA_TOTALE` attuale; un `drift ≠ 0` segnala che la
+    giacenza è stata modificata bypassando i movimenti.
+
+    Args:
+        vino_id: id della bottiglia in `vini_bottiglie`.
+        days: ampiezza finestra in giorni (default 30). Min 1, max 3650.
+
+    Returns:
+        Dict con:
+          - series: [{"data": "YYYY-MM-DD", "giacenza": int}, ...] esattamente
+                    `days` elementi (uno per giorno della finestra).
+          - qta_attuale: int — QTA_TOTALE corrente del vino.
+          - drift: int | None — series[-1].giacenza - qta_attuale.
+          - primo_movimento: "YYYY-MM-DD" | None — data del primo movimento
+                              storico (utile per capire se "parziale").
+          - parziale: bool — True se la finestra inizia prima del primo
+                      movimento (la curva del primo segmento parte da 0).
+          - min, max: int | None — estremi della serie sulla finestra.
+    """
+    from datetime import date, timedelta
+
+    days = max(1, min(int(days or 30), 3650))
+
+    conn = get_magazzino_connection()
+    try:
+        cur = conn.cursor()
+        rows = cur.execute(
+            """
+            SELECT data_mov, tipo, qta
+            FROM vini_magazzino_movimenti
+            WHERE vino_id = ?
+            ORDER BY datetime(data_mov) ASC, id ASC;
+            """,
+            (vino_id,),
+        ).fetchall()
+        r = cur.execute(
+            "SELECT QTA_TOTALE FROM vini_bottiglie WHERE id = ?;", (vino_id,)
+        ).fetchone()
+        qta_now = int(r["QTA_TOTALE"] or 0) if r else 0
+    finally:
+        conn.close()
+
+    today = date.today()
+    start = today - timedelta(days=days - 1)
+    start_iso = start.isoformat()
+
+    # 1) Forward replay: giacenza end-of-day per ogni giornata con movimenti
+    g = 0
+    g_by_day: Dict[str, int] = {}
+    first_mov_day: Optional[str] = None
+    for row in rows:
+        d_str = (row["data_mov"] or "")[:10]
+        if not d_str:
+            continue
+        if first_mov_day is None:
+            first_mov_day = d_str
+        tipo = row["tipo"]
+        qta = int(row["qta"] or 0)
+        if tipo == "CARICO":
+            g += qta
+        elif tipo in ("SCARICO", "VENDITA"):
+            g -= qta
+        elif tipo == "RETTIFICA":
+            g = qta  # assoluto
+        # MODIFICA: no-op
+        g_by_day[d_str] = g
+
+    # 2) Anchor a inizio finestra: ultima giacenza nota < start_iso
+    cur_g = 0
+    for d_str in sorted(g_by_day.keys()):
+        if d_str < start_iso:
+            cur_g = g_by_day[d_str]
+        else:
+            break
+
+    # 3) Walk start → today con forward-fill
+    series: List[Dict[str, Any]] = []
+    d = start
+    while d <= today:
+        iso = d.isoformat()
+        if iso in g_by_day:
+            cur_g = g_by_day[iso]
+        series.append({"data": iso, "giacenza": int(cur_g)})
+        d += timedelta(days=1)
+
+    final_g = series[-1]["giacenza"] if series else None
+    drift = (final_g - qta_now) if final_g is not None else None
+    parziale = (first_mov_day is None) or (first_mov_day > start_iso)
+    min_g = min((p["giacenza"] for p in series), default=None)
+    max_g = max((p["giacenza"] for p in series), default=None)
+
+    return {
+        "series": series,
+        "qta_attuale": qta_now,
+        "drift": drift,
+        "primo_movimento": first_mov_day,
+        "parziale": parziale,
+        "min": min_g,
+        "max": max_g,
+    }
+
+
 def list_movimenti_globali(
     tipo: Optional[str] = None,
     text: Optional[str] = None,

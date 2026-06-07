@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
@@ -253,6 +253,11 @@ const SchedaVino = forwardRef(function SchedaVino({
   const [prezziLoading, setPrezziLoading]       = useState(false);
   const [prezziFiltroCampo, setPrezziFiltroCampo] = useState(""); // "" = tutti
 
+  // ── andamento giacenza ultimi 30gg (replay movimenti) ──────────────
+  // Alimenta il box "📈 Andamento giacenza" dentro la tab Giacenze.
+  const [giacenzaStorica, setGiacenzaStorica]   = useState(null);
+  const [storicaLoading, setStoricaLoading]     = useState(false);
+
   // ── opzioni locazioni ──────────────────────────────
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
@@ -288,6 +293,19 @@ const SchedaVino = forwardRef(function SchedaVino({
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/movimenti`);
       if (r.ok) setMovimenti(await r.json());
     } finally { setMovLoading(false); }
+  };
+
+  // ── fetch andamento giacenza ultimi 30gg ────────────
+  // Backend: GET /vini/magazzino/{id}/giacenza-storica?days=30 → replay
+  // forward dei movimenti. Silenzioso su errore (la sezione mostra empty).
+  const fetchGiacenzaStorica = async () => {
+    setStoricaLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/giacenza-storica?days=30`);
+      if (r.ok) setGiacenzaStorica(await r.json());
+    } catch {
+      // silent
+    } finally { setStoricaLoading(false); }
   };
 
   // ── fetch note ──────────────────────────────────────
@@ -366,11 +384,13 @@ const SchedaVino = forwardRef(function SchedaVino({
     // Reset state when vinoId changes
     setVino(null); setEditMode(false); setGiacenzeEdit(false);
     setMovimenti([]); setNote([]); setPrezziStorico([]); setVinoStats(null);
+    setGiacenzaStorica(null);
     fetchVino();
     fetchMovimenti();
     fetchNote();
     fetchPrezziStorico();
     fetchStats();
+    fetchGiacenzaStorica();
     fetchOpzioniLocazioni();
     fetchTabellaOpts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -679,7 +699,7 @@ const SchedaVino = forwardRef(function SchedaVino({
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
       notifyUpdate(await r.json());
       setEditMode(false); setSaveMsg("✅ Salvato.");
-      fetchMovimenti();  // Ricarica movimenti per mostrare la MODIFICA
+      fetchMovimenti(); fetchGiacenzaStorica();  // Ricarica movimenti + andamento (potenziale MODIFICA / cambio giacenza)
       fetchPrezziStorico();  // Fase 8: ricarica storico se sono cambiati prezzi
       setTimeout(() => setSaveMsg(""), 3000);
     } catch (e) { setSaveMsg(`❌ ${e.message}`); }
@@ -716,7 +736,7 @@ const SchedaVino = forwardRef(function SchedaVino({
       if (!r.ok) throw new Error(`Errore ${r.status}`);
       notifyUpdate(await r.json());
       setGiacenzeEdit(false);
-      fetchMovimenti();
+      fetchMovimenti(); fetchGiacenzaStorica();
     } catch (e) { alert(e.message); }
     finally { setGiacenzeSaving(false); }
   };
@@ -778,6 +798,7 @@ const SchedaVino = forwardRef(function SchedaVino({
       const data = await r.json();
       if (data.vino) notifyUpdate(data.vino);
       if (data.movimenti) setMovimenti(data.movimenti);
+      fetchGiacenzaStorica();  // rifresca andamento (giacenza cambiata)
       setQtaMov(""); setLocMov(""); setNoteMov("");
       setPrezzoMovTouched(false); // riabilita autopop
       setPrezzoMov(suggerisciPrezzoPerTipo(tipoMov, data.vino || vino));
@@ -791,7 +812,7 @@ const SchedaVino = forwardRef(function SchedaVino({
     try {
       const r = await apiFetch(`${API_BASE}/vini/magazzino/movimenti/${movId}`, { method: "DELETE" });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
-      fetchVino(); fetchMovimenti();
+      fetchVino(); fetchMovimenti(); fetchGiacenzaStorica();
     } catch (e) { alert(e.message); }
   };
 
@@ -817,7 +838,7 @@ const SchedaVino = forwardRef(function SchedaVino({
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
       setEditingDataMov(null);
-      fetchMovimenti();
+      fetchMovimenti(); fetchGiacenzaStorica();
     } catch (e) {
       alert(e.message);
     } finally {
@@ -1221,6 +1242,64 @@ const SchedaVino = forwardRef(function SchedaVino({
                     <p className="text-xs text-neutral-500 mt-1">Frigo e Locazioni: modifica e salva. Matrice: le celle si salvano immediatamente al click.</p>
                   </div>
                 )}
+
+                {/* 📈 Andamento giacenza — ultimi 30 giorni (replay movimenti).
+                    Endpoint: GET /vini/magazzino/{id}/giacenza-storica?days=30.
+                    Sempre visibile (sia in read sia in edit). */}
+                <div className="mt-5 bg-white border border-neutral-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-neutral-800">📈 Andamento giacenza — ultimi 30 giorni</h4>
+                    <div className="flex items-center gap-2">
+                      {giacenzaStorica?.parziale && (
+                        <span title={`Il primo movimento storico è del ${giacenzaStorica.primo_movimento || "—"}. Prima di quella data la curva parte da 0.`}
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-neutral-50 text-neutral-600 border-neutral-200">
+                          dati parziali
+                        </span>
+                      )}
+                      {giacenzaStorica && giacenzaStorica.drift != null && giacenzaStorica.drift !== 0 && (
+                        <span title="La giacenza finale ricostruita dai movimenti non coincide con QTA_TOTALE: significa che la giacenza è stata modificata bypassando i movimenti."
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-amber-50 text-amber-800 border-amber-200">
+                          ⚠ drift {giacenzaStorica.drift > 0 ? "+" : ""}{giacenzaStorica.drift}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {storicaLoading && <p className="text-xs text-neutral-500 py-6 text-center">Carico…</p>}
+                  {!storicaLoading && giacenzaStorica?.series?.length > 0 && (
+                    <>
+                      <div style={{ height: 180 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={giacenzaStorica.series} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                            <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" />
+                            <XAxis dataKey="data"
+                              tickFormatter={d => `${d.slice(8,10)}/${d.slice(5,7)}`}
+                              tick={{ fontSize: 10 }}
+                              interval="preserveStartEnd" />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={30} />
+                            <RechartsTooltip
+                              formatter={(v) => [`${v} bt`, "Giacenza"]}
+                              labelFormatter={d => d.split("-").reverse().join("/")} />
+                            <Line type="stepAfter" dataKey="giacenza" stroke="#2E7BE8" strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-600">
+                        <span>Min: <strong className="text-neutral-900 tabular-nums">{giacenzaStorica.min} bt</strong></span>
+                        <span>Max: <strong className="text-neutral-900 tabular-nums">{giacenzaStorica.max} bt</strong></span>
+                        <span>Oggi: <strong className="text-neutral-900 tabular-nums">{giacenzaStorica.qta_attuale} bt</strong></span>
+                        {giacenzaStorica.primo_movimento && (
+                          <span className="text-neutral-500">· Primo movimento storico: <span className="font-mono">{giacenzaStorica.primo_movimento}</span></span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {!storicaLoading && giacenzaStorica && (!giacenzaStorica.series || giacenzaStorica.series.length === 0) && (
+                    <p className="text-xs text-neutral-500 py-4 text-center">Nessun movimento registrato per questo vino.</p>
+                  )}
+                  {!storicaLoading && !giacenzaStorica && (
+                    <p className="text-xs text-neutral-500 py-4 text-center">Dati non disponibili.</p>
+                  )}
+                </div>
               </div>
             </div>
 
