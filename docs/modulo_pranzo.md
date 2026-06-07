@@ -101,10 +101,11 @@ studio (`menù-A5-primavera-2026-definitivo.pdf`):
   il trim è stato generato con PIL bbox + 4% padding). Fallback al PNG
   originale se il trim manca.
 
-Layout A4 verticale singola pagina (flex, comprime invece di spezzare):
+Layout A4 verticale singola pagina (flex, comprime invece di spezzare),
+TUTTO CENTRATO (v2.2, stile pagina Degustazione del menu A5):
 logo (56mm) → titolo "PRANZO" → sottotitolo corsivo "la cucina del mercato
 · settimana dell'8 - 12 giugno 2026" → blocchi categoria (etichetta
-ANTIPASTI/PRIMI/… + piatti, sinistra) → MENÙ BUSINESS (3 righe, prezzi
+ANTIPASTI/PRIMI/… + piatti, centrati) → MENÙ BUSINESS (3 righe, prezzi
 destra) → footer.
 
 **Font**: `@font-face` con fallback a catena: `static/fonts/` →

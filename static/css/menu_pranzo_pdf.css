@@ -1,5 +1,7 @@
 /* ============================================================
-   MENU PRANZO — CSS PDF (WeasyPrint) — v2.0 (sessione 2026-06-07)
+   MENU PRANZO — CSS PDF (WeasyPrint) — v2.2 (sessione 2026-06-07)
+   v2.2: tutto centrato (etichette categoria + piatti) — layout convergiuto
+   verso lo stile pagina Degustazione del menu A5. v2.1: logo wordmark.
    Brand cliente Osteria Tre Gobbi — coerente con il MENU A5
    stagionale (Sabon LT Pro + Courier Prime), Proposta A
    "Pagina di sezione": titolo serif spaziato, piatti typewriter
@@ -155,6 +157,7 @@ html, body {
     text-transform: uppercase;
     color: #555;
     margin: 0 0 2.5mm;
+    text-align: center;
 }
 
 .categoria-blocco + .categoria-label {
@@ -173,6 +176,7 @@ html, body {
     text-transform: uppercase;
     line-height: 1.4;
     padding: 1.2mm 0;
+    text-align: center;
 }
 
 .piatto-vuoto {

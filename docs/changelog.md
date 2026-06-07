@@ -22,7 +22,7 @@ Ripresa del modulo Pranzo (fermo da fine aprile, inutilizzato per estetica PDF i
 
 ## 2026-06-07 (sera) — Pranzo: logo nel PDF + date picker settimana `[mixed]`
 
-Feedback Marco post-push: (1) "non vedo il logo nel pdf" → aggiunto wordmark Osteria Tre Gobbi in testa al PDF (v3.1): creato `static/img/logo_tregobbi_trim.png` (rifilatura PIL del PNG originale 5000×5000 che ha ~60% di aria interna), `<img class="menu-logo">` 56mm centrato sopra il titolo, fallback al PNG originale. (2) "la settimana dovrebbe farmela scegliere" → date picker nella toolbar del compositore (PranzoMenu v3.8): scegli qualsiasi data e la settimana si aggancia al suo lunedì; il PDF e tutte le azioni seguono la settimana selezionata (le frecce ◀▶ e Oggi restano).
+Feedback Marco post-push: (1) "non vedo il logo nel pdf" → aggiunto wordmark Osteria Tre Gobbi in testa al PDF (v3.1): creato `static/img/logo_tregobbi_trim.png` (rifilatura PIL del PNG originale 5000×5000 che ha ~60% di aria interna), `<img class="menu-logo">` 56mm centrato sopra il titolo, fallback al PNG originale. (2) "la settimana dovrebbe farmela scegliere" → date picker nella toolbar del compositore (PranzoMenu v3.8): scegli qualsiasi data e la settimana si aggancia al suo lunedì; il PDF e tutte le azioni seguono la settimana selezionata (le frecce ◀▶ e Oggi restano). (3) "centra le scritte e i nomi dei piatti" → css v2.2: etichette categoria e piatti centrati — il layout converge verso lo stile pagina Degustazione del menu A5 (con in più logo e blocchi categoria).
 
 ## 2026-05-30 — Vini 3.61: STATO_RIORDINO si azzera in automatico all'arrivo dello stock `[core]`
 
