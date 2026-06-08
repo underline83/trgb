@@ -39,7 +39,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
-    version: "4.6",
+    version: "4.7",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",

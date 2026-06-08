@@ -24,7 +24,10 @@ Nuovo campo **`annulli_resi`** sulla chiusura, sottratto dal giustificato (quadr
 Con `annulli_resi=460` sulla cena 8/6: **quadratura saldo 0,00** (era −460) e **contanti da versare 460 → 0**. ✅
 
 ### Da fare dopo deploy
-Marco valorizza `annulli_resi=460` sulla cena 8/6 dal form (ora il 460 è in nota + bonifici). Possibile follow-up: scontrino medio in `stats/daily` non sottrae ancora gli annulli (revenue/coperti) — fuori scope, da valutare.
+Marco valorizza `annulli_resi=460` sulla cena 8/6 dal form. Caso confermato da Marco: scontrino battuto → annullato → **rifatturato** e pagato per bonifico. Quindi i 460 in bonifici sono incasso vero (pagamento della fattura), i 460 in `annulli_resi` tolgono lo scontrino fantasma dall'RT, la fattura (in `fatture`) resta. Tassato una volta sola, quadratura 0. Possibile follow-up: scontrino medio in `stats/daily` non sottrae ancora gli annulli (revenue/coperti) — fuori scope, da valutare.
+
+### Aggiunta (stessa sessione) — PDF commercialista: tabella Note
+Marco: le note delle chiusure devono comparire nel PDF corrispettivi per il commercialista, dopo i riepiloghi IVA, come tabella (se presenti). `build_corrispettivi_pdf` ora raccoglie `note` (già unite P:/C: da `_merge_shift_and_daily`, incluse giorni chiusi) e appende una `<table>` Data | Nota dopo il Riepilogo IVA, con HTML-escape. Verificato su giugno 2026: compare "C: Scontrino annullato 460,00€" dell'8/6. Corrispettivi 4.6 → 4.7. Fix bug crash form fine turno (hint NumberField passato come stringa → `fmt(undefined)`) + self-heal colonna `daily_closures.annulli_resi`.
 
 ---
 

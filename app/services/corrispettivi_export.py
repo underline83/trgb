@@ -421,6 +421,7 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     tot_fatt = tot_gen = 0.0
     giorni_con_incasso = 0
     body_rows = []
+    note_rows = []  # (data_label, testo_nota) per la tabella note in coda
 
     for r in rows:
         try:
@@ -429,6 +430,11 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
             d_obj = None
         data_label = d_obj.strftime("%d/%m/%Y") if d_obj else (r.get("date") or "")
         giorno_label = r.get("weekday") or (_WEEKDAY_IT[d_obj.weekday()] if d_obj else "")
+
+        # Raccogli le note del giorno (incluse quelle dei giorni chiusi)
+        nota = (r.get("note") or "").strip()
+        if nota:
+            note_rows.append((data_label, nota))
 
         corr = float(r.get("corrispettivi") or 0)
         i10 = float(r.get("iva_10") or 0)
@@ -556,10 +562,29 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         f"Giorni con incasso nel mese: {giorni_con_incasso}.</p>"
     )
 
+    # Tabella note — solo se ci sono note nel mese. Va dopo il riepilogo IVA.
+    note_section = ""
+    if note_rows:
+        import html as _html
+        righe_note = "".join(
+            f"<tr><td style='white-space:nowrap'>{d}</td>"
+            f"<td>{_html.escape(n)}</td></tr>"
+            for d, n in note_rows
+        )
+        note_section = (
+            "<h3>Note</h3>"
+            "<table class='brand'>"
+            "<thead><tr><th style='width:18%'>Data</th><th>Nota</th></tr></thead>"
+            f"<tbody>{righe_note}</tbody>"
+            "</table>"
+            "<p class='small'>Note libere registrate nelle chiusure (P = pranzo, "
+            "C = cena).</p>"
+        )
+
     return wrappa_html_brand(
         titolo="Corrispettivi — Controllo Commercialista",
         sottotitolo=f"{_MESI_IT[month]} {year} &mdash; IVA 10%",
-        body_html=summary + tabella + riepilogo,
+        body_html=summary + tabella + riepilogo + note_section,
         orientamento="portrait",
         css_extra=_corrispettivi_pdf_css(),
     )

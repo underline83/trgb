@@ -10,6 +10,7 @@ Caso cena 8/6/2026 (Marco): uno scontrino battuto e poi **annullato** resta nel 
 ### Aggiunto
 - **Migration 146** `146_cassa_annulli_resi.py`: `ADD COLUMN annulli_resi REAL DEFAULT 0` su `shift_closures` e `daily_closures` (admin_finance.sqlite3). Idempotente (PRAGMA check), connessione tenant-aware propria.
 - **Campo "❌ Annulli / Resi"** nel form fine turno (`ChiusuraTurno.jsx`): draft autosave, load, payload, reset; incluso nel calcolo quadratura e mostrato come chip "− annulli" nel breakdown giustificato.
+- **PDF commercialista — tabella Note** (`corrispettivi_export.py`): dopo il Riepilogo IVA, se ci sono note nelle chiusure del mese, una tabella Data | Nota (prefisso P/C per pranzo/cena, HTML-escaped). Corrispettivi 4.6 → 4.7.
 
 ### Modificato
 - `chiusure_turno.py`: `annulli_resi` in CREATE/self-heal, model Pydantic, INSERT/UPDATE, tutte le SELECT, e **quadratura** — `giustificato −= annulli_giorno` (turno corrente + annulli pranzo a cena). Saldo ora al netto.
