@@ -570,8 +570,7 @@ export default function ChiusuraTurno() {
                   value={fatture} onChange={setFatture} icon="📄" />
                 <NumberField
                   label="Annulli / Resi"
-                  value={annulli} onChange={setAnnulli} icon="❌"
-                  hint="Scontrini battuti e annullati (non incassati)" />
+                  value={annulli} onChange={setAnnulli} icon="❌" />
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">{isCena ? "🪑 Coperti Cena" : "🪑 Coperti"}</label>
                   <input type="number" min={0} value={coperti} onChange={e => setCoperti(e.target.value)}

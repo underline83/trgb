@@ -52,7 +52,13 @@ def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
     definito in app.services.corrispettivi_import.ensure_table().
     """
     ensure_table(conn)
-    # In futuro, se servono migrazioni aggiuntive, si gestiscono qui.
+    # Self-heal: colonna annulli_resi (scontrini annullati/resi, mig 146).
+    # Garantisce che esista anche su tabelle create prima della migrazione,
+    # così le SELECT con COALESCE(annulli_resi, 0) non vanno mai in errore.
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(daily_closures)").fetchall()}
+    if "annulli_resi" not in cols:
+        conn.execute("ALTER TABLE daily_closures ADD COLUMN annulli_resi REAL DEFAULT 0")
+        conn.commit()
 
 
 # ---------------------------------------------------------
