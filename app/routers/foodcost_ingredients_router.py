@@ -37,6 +37,19 @@ from app.services.auth_service import get_current_user
 router = APIRouter(prefix="/ingredients", tags=["foodcost-ingredients"], dependencies=[Depends(get_current_user)])
 
 
+def _foodcost_finestra_giorni_ing(cur) -> int:
+    """Finestra (giorni) prezzo corrente da foodcost_settings. Default 90."""
+    try:
+        row = cur.execute(
+            "SELECT prezzo_finestra_giorni FROM foodcost_settings WHERE id = 1"
+        ).fetchone()
+        if row and row["prezzo_finestra_giorni"]:
+            return int(row["prezzo_finestra_giorni"])
+    except Exception:
+        pass
+    return 90
+
+
 # ─────────────────────────────────────────────
 #   COSTANTI / ENUM SEMPLIFICATE
 # ─────────────────────────────────────────────
@@ -369,6 +382,23 @@ def list_ingredients(inattivi: int = 0):
         maps_by_ing.setdefault(m["ingredient_id"], []).append(
             (m["unita_fornitore"], m["fattore_conversione"])
         )
+
+    # Prezzo corrente robusto (mediana finestra, fix Sedano 2026-06-08).
+    # Una sola query per tutti gli ingredienti (no N+1): prendo i prezzi nella
+    # finestra, raggruppo in Python, calcolo la mediana. Dove la finestra è
+    # vuota resta il `last_price` (ultimo prezzo) come fallback.
+    finestra = _foodcost_finestra_giorni_ing(cur)
+    prezzi_finestra: dict = {}
+    for pr in cur.execute(
+        """
+        SELECT ingredient_id, unit_price
+        FROM ingredient_prices
+        WHERE unit_price IS NOT NULL
+          AND date(price_date) >= date('now', ?)
+        """,
+        (f"-{int(finestra)} days",),
+    ).fetchall():
+        prezzi_finestra.setdefault(pr["ingredient_id"], []).append(pr["unit_price"])
     conn.close()
 
     sospetti = set()
@@ -382,19 +412,28 @@ def list_ingredients(inattivi: int = 0):
                 sospetti.add(row["id"])
                 break
 
-    return [
-        IngredientListItem(
+    def _mediana(vals):
+        v = sorted(x for x in vals if x is not None)
+        if not v:
+            return None
+        n = len(v); m = n // 2
+        return float(v[m]) if n % 2 else (float(v[m - 1]) + float(v[m])) / 2.0
+
+    out = []
+    for row in rows:
+        med = _mediana(prezzi_finestra.get(row["id"], []))
+        prezzo_corrente = med if med is not None else row["last_price"]
+        out.append(IngredientListItem(
             id=row["id"],
             name=row["name"],
             category_name=row["category_name"],
             default_unit=row["default_unit"],
-            last_price=row["last_price"],
+            last_price=prezzo_corrente,
             last_supplier_name=row["last_supplier_name"],
             placeholder=bool(row["placeholder"]),
             conversione_da_verificare=row["id"] in sospetti,
-        )
-        for row in rows
-    ]
+        ))
+    return out
 
 
 # ─────────────────────────────────────────────

@@ -85,6 +85,12 @@ Serve una **tabella di mapping** che collega la descrizione/codice del fornitore
 - `DELETE /foodcost/ricette/{id}` — soft delete (`is_active=0`)
 - `DELETE /foodcost/ricette/{id}/hard` — eliminazione DEFINITIVA (2026-06-07). 409 se usata come sub-ricetta o pubblicata su menu carta. Cancella recipe_items + recipe_service_types, scollega pranzo_menu_righe/pranzo_piatti (snapshot storico intatto), poi DELETE recipes. UI: bottone "🗑 Elimina" in RicetteDettaglio + barra batch RicetteArchivio
 - `POST /foodcost/matching/ricalcola-prezzi/{ingredient_id}` — fix prezzi 2026-06-07: ricalcola tutti i prezzi da fattura con regole correnti (fattore mapping → conversioni standard/custom → parsing descrizione se safe). I non convertibili restano e vengono segnalati con le unità. UI: bottone "↻ Ricalcola prezzi" in tab Prezzi della scheda ingrediente
+- `GET/PUT /foodcost/settings` — finestra prezzo corrente (`prezzo_finestra_giorni`, default 90). UI: Impostazioni Cucina · Prezzi & Food Cost
+
+**Prezzo corrente robusto (mediana finestra, fix Sedano 2026-06-08):**
+- Il "prezzo corrente" di un ingrediente = MEDIANA dei `unit_price` registrati negli ultimi N giorni (default 90, da `foodcost_settings`). Neutralizza gli acquisti occasionali/retail fuori prezzo che con la vecchia logica "ultimo prezzo" inquinavano food cost e KPI. Caso Sedano: ultimo 8,27 €/kg (cuore di sedano Esselunga retail) → corrente 2,60 €/kg (Milesi abituale).
+- `prezzo_corrente_ingrediente()` in foodcost_recipes_router; fallback all'ultimo prezzo se la finestra è vuota. `_get_ingredient_unit_cost` (food cost ricorsivo) la usa.
+- KPI scheda ingrediente: "Prezzo corrente · mediana Ngg" (era "Prezzo attuale" = ultimo). "Medio storico" resta la media di tutti i prezzi. Lista ingredienti allineata.
 
 **Regole conversione prezzi fattura (fix 2026-06-07, caso Capperi 12,50 €/g):**
 - ELIMINATO il fallback silenzioso in `_compute_unit_price`: se l'unità fattura non è convertibile (PZ/CT/CF/NR/VS…) il prezzo NON viene salvato (prima entrava il prezzo a collo come €/unità-base). `collega-multiplo` e `confirm` riportano `prezzi_saltati` + `unita_da_configurare`.

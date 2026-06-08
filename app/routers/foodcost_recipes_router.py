@@ -390,19 +390,79 @@ def _standard_convert(fu: str, tu: str) -> Optional[float]:
 #   CALCOLO FOOD COST (ricorsivo)
 # ─────────────────────────────────────────────
 
-def _get_ingredient_unit_cost(cur, ingredient_id: int) -> Optional[float]:
-    """Ritorna l'ultimo prezzo unitario (€/unità_base) di un ingrediente."""
-    row = cur.execute(
+def _foodcost_finestra_giorni(cur) -> int:
+    """
+    Finestra (giorni) per il prezzo corrente, da foodcost_settings (id=1).
+    Default 90 se la tabella/riga non esiste ancora (pre-mig 145).
+    """
+    try:
+        row = cur.execute(
+            "SELECT prezzo_finestra_giorni FROM foodcost_settings WHERE id = 1"
+        ).fetchone()
+        if row and row["prezzo_finestra_giorni"]:
+            return int(row["prezzo_finestra_giorni"])
+    except Exception:
+        pass
+    return 90
+
+
+def prezzo_corrente_ingrediente(cur, ingredient_id: int,
+                                finestra_giorni: Optional[int] = None) -> Optional[float]:
+    """
+    Prezzo corrente robusto (€/unità base) di un ingrediente (fix Sedano 2026-06-08).
+
+    Strategia MEDIANA: mediana dei `unit_price` registrati negli ultimi
+    `finestra_giorni` (default da settings). La mediana ignora gli outlier
+    (acquisti occasionali/retail) che con la vecchia logica "ultimo prezzo"
+    inquinavano food cost e KPI.
+
+    Fallback: se nessun prezzo cade nella finestra (ingrediente comprato di
+    rado), usa l'ULTIMO prezzo disponibile — meglio un dato vecchio che None.
+    """
+    if finestra_giorni is None:
+        finestra_giorni = _foodcost_finestra_giorni(cur)
+
+    rows = cur.execute(
         """
         SELECT unit_price
         FROM ingredient_prices
         WHERE ingredient_id = ?
+          AND unit_price IS NOT NULL
+          AND date(price_date) >= date('now', ?)
+        ORDER BY unit_price
+        """,
+        (ingredient_id, f"-{int(finestra_giorni)} days"),
+    ).fetchall()
+
+    valori = [r["unit_price"] for r in rows if r["unit_price"] is not None]
+    if valori:
+        n = len(valori)
+        mid = n // 2
+        if n % 2:
+            return float(valori[mid])
+        return (float(valori[mid - 1]) + float(valori[mid])) / 2.0
+
+    # Fallback: ultimo prezzo in assoluto
+    row = cur.execute(
+        """
+        SELECT unit_price
+        FROM ingredient_prices
+        WHERE ingredient_id = ? AND unit_price IS NOT NULL
         ORDER BY date(price_date) DESC, id DESC
         LIMIT 1
         """,
         (ingredient_id,),
     ).fetchone()
     return row["unit_price"] if row else None
+
+
+def _get_ingredient_unit_cost(cur, ingredient_id: int) -> Optional[float]:
+    """
+    Costo unitario (€/unità base) usato dal food cost.
+    Dal 2026-06-08 usa il prezzo corrente robusto (mediana finestra), non
+    più l'ultimo prezzo secco.
+    """
+    return prezzo_corrente_ingrediente(cur, ingredient_id)
 
 
 def _get_ingredient_default_unit(cur, ingredient_id: int) -> Optional[str]:
@@ -685,6 +745,77 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
         food_cost_pct=rec_dict.get("food_cost_pct"),
         allergeni_calcolati=rec_dict.get("allergeni_calcolati"),
     )
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: IMPOSTAZIONI FOOD COST (finestra prezzo)
+# ─────────────────────────────────────────────
+
+def _ensure_foodcost_settings(cur) -> None:
+    """Crea la tabella + riga id=1 se mancano (self-heal pre-mig 145)."""
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS foodcost_settings (
+            id                     INTEGER PRIMARY KEY CHECK (id = 1),
+            prezzo_strategia       TEXT    NOT NULL DEFAULT 'mediana',
+            prezzo_finestra_giorni INTEGER NOT NULL DEFAULT 90,
+            updated_at             TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+        """
+    )
+    cur.execute("INSERT OR IGNORE INTO foodcost_settings (id) VALUES (1)")
+
+
+class FoodcostSettingsOut(BaseModel):
+    prezzo_strategia: str = "mediana"
+    prezzo_finestra_giorni: int = 90
+
+
+class FoodcostSettingsUpdate(BaseModel):
+    prezzo_strategia: Optional[str] = None
+    prezzo_finestra_giorni: Optional[int] = Field(None, ge=1, le=730)
+
+
+@router.get("/settings", response_model=FoodcostSettingsOut)
+def get_foodcost_settings():
+    conn = get_cucina_connection()
+    try:
+        cur = conn.cursor()
+        _ensure_foodcost_settings(cur)
+        conn.commit()
+        row = cur.execute("SELECT * FROM foodcost_settings WHERE id = 1").fetchone()
+        return FoodcostSettingsOut(
+            prezzo_strategia=row["prezzo_strategia"],
+            prezzo_finestra_giorni=row["prezzo_finestra_giorni"],
+        )
+    finally:
+        conn.close()
+
+
+@router.put("/settings", response_model=FoodcostSettingsOut)
+def update_foodcost_settings(payload: FoodcostSettingsUpdate):
+    conn = get_cucina_connection()
+    try:
+        cur = conn.cursor()
+        _ensure_foodcost_settings(cur)
+        sets, params = [], []
+        if payload.prezzo_strategia is not None:
+            sets.append("prezzo_strategia = ?")
+            params.append(payload.prezzo_strategia)
+        if payload.prezzo_finestra_giorni is not None:
+            sets.append("prezzo_finestra_giorni = ?")
+            params.append(payload.prezzo_finestra_giorni)
+        if sets:
+            sets.append("updated_at = datetime('now','localtime')")
+            cur.execute(f"UPDATE foodcost_settings SET {', '.join(sets)} WHERE id = 1", params)
+            conn.commit()
+        row = cur.execute("SELECT * FROM foodcost_settings WHERE id = 1").fetchone()
+        return FoodcostSettingsOut(
+            prezzo_strategia=row["prezzo_strategia"],
+            prezzo_finestra_giorni=row["prezzo_finestra_giorni"],
+        )
+    finally:
+        conn.close()
 
 
 # ─────────────────────────────────────────────

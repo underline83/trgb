@@ -8,6 +8,7 @@ import { t } from "../../utils/localeStrings";  // R5: helper stringhe locale-aw
 import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
 import PranzoSettingsPanel from "./PranzoSettingsPanel";
+import FoodcostSettingsPanel from "./FoodcostSettingsPanel";
 import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
@@ -26,6 +27,7 @@ const MENU = [
   { key: "widget-home",  label: "Widget Home",       icon: "🏠", desc: "Cosa mostra la card Selezioni del Giorno" },
   { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
   { key: "pranzo",       label: "Menu Pranzo",       icon: "🥙", desc: "Default titolo, prezzi e footer pranzo del giorno" },
+  { key: "prezzi",       label: "Prezzi & Food Cost", icon: "💶", desc: "Finestra del prezzo corrente (mediana) usato nei food cost" },
   { key: "allergeni",    label: "Allergeni",         icon: "⚠️", desc: "Ricalcolo batch allergeni di tutte le ricette" },
   { key: "qr-menu",      label: "QR Carta Menu",     icon: "📱", desc: "QR Code per i tavoli — link a /carta/menu" },
 ];
@@ -822,6 +824,11 @@ export default function RicetteSettings() {
                 {/* SEZIONE 6: MENU PRANZO (sessione 58)          */}
                 {/* ============================================= */}
                 {activeSection === "pranzo" && <PranzoSettingsPanel />}
+
+                {/* ============================================= */}
+                {/* SEZIONE: PREZZI & FOOD COST (fix Sedano 2026-06-08) */}
+                {/* ============================================= */}
+                {activeSection === "prezzi" && <FoodcostSettingsPanel />}
 
                 {/* ============================================= */}
                 {/* SEZIONI: Scelta Pescato/Salumi/Formaggi      */}

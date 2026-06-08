@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-06-08 — Ricette 3.33: prezzo corrente robusto (mediana finestra) `[core]`
+
+Caso Sedano (Marco 2026-06-07): "prezzo attuale" 8,27 €/kg perché un acquisto occasionale di "cuore di sedano" Esselunga (vaschetta retail) scavalcava per data il fornitore abituale Milesi a 2,60 €/kg — e quel prezzo finiva dritto nel food cost delle ricette (`_get_ingredient_unit_cost` usava l'ultimo prezzo). Scelta Marco: **mediana degli ultimi N giorni** (default 90, configurabile).
+
+### Aggiunto
+- **Migration 145** `foodcost_settings` (riga unica id=1): `prezzo_finestra_giorni` (default 90), `prezzo_strategia` (default 'mediana'). Idempotente + self-heal.
+- **`GET/PUT /foodcost/settings`**: legge/aggiorna la finestra (1–730 gg).
+- **`prezzo_corrente_ingrediente()`** in foodcost_recipes_router: mediana dei `unit_price` negli ultimi N giorni, fallback all'ultimo prezzo se la finestra è vuota. `_get_ingredient_unit_cost` (food cost ricorsivo) ora la usa.
+- **Pannello "Prezzi & Food Cost"** in Impostazioni Cucina (FoodcostSettingsPanel): preset 30/60/90/180/365 + campo libero.
+
+### Modificato
+- Lista ingredienti (`GET /foodcost/ingredients/`): il prezzo in colonna è ora il prezzo corrente (mediana finestra, una sola query aggregata — no N+1), fallback ultimo prezzo.
+- Scheda ingrediente (RicetteIngredientiPrezzi v4.2): KPI "Prezzo attuale" → **"Prezzo corrente"** con sotto-etichetta "mediana Ngg" e tooltip. "Medio storico" resta la media di tutti i prezzi.
+- Verifica su DB reale: Sedano food cost 8,27 → **2,60 €/kg**; mediana stabile a 90/180/365gg.
+
 ## 2026-06-07 — Vini 3.62: fix andamento giacenza — finestra adattiva + calibrazione `[core]`
 
 Marco segnala con screenshot del vino #1205 (Lugana DOC Montunal) che la curva "📈 Andamento giacenza" andava in **negativo** (Min −10 bt, Max −7 bt, Oggi 2 bt). Causa: il replay forward partiva da 0 al primo movimento storico (15/03/2026), ma il vino aveva già bottiglie in cantina mai registrate come `CARICO`. Risultato: `drift = −12 bt` tra serie ricostruita e `QTA_TOTALE` attuale, e i punti scendevano sotto zero.

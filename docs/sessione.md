@@ -1,6 +1,39 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-07 — **Vini 3.62: fix andamento giacenza — finestra adattiva + calibrazione** (`[core]`). Marco vede la curva "Andamento giacenza" del #1205 (Lugana Montunal) in NEGATIVO (Min −10, Max −7, Oggi 2 bt). Causa: il vino esisteva prima del primo movimento storico (15/03/2026) — le bottiglie iniziali non sono mai apparse come CARICO → replay forward dà drift −12 e curva sotto zero. Due fix in `giacenza_storica_vino()`. (1) **Finestra adattiva**: `days=30` ora è il minimo; se il primo movimento è più vecchio la finestra si estende fino a lì. Per #1205 chart 15/03→07/06 (85gg) invece di solo 30gg. (2) **Calibrazione**: serie shiftata di `−drift` così che l'ultimo punto = QTA_TOTALE. Per #1205 curva 12→2 bt (era −7→−10 nel raw). Badge `🔧 ricalibrata +12` con tooltip. Titolo box ora "📈 Andamento giacenza — dal primo movimento". Versione vini 3.61 → 3.62. Da pushare.
+**Ultimo aggiornamento:** 2026-06-08 — **Ricette 3.33: prezzo corrente robusto (mediana finestra)** (`[core]`). Caso Sedano: "prezzo attuale" 8,27 €/kg perché un acquisto occasionale di cuore di sedano Esselunga (retail) scavalcava per DATA il Milesi a 2,60, e quel prezzo entrava nel food cost (`_get_ingredient_unit_cost` usava l'ultimo prezzo). Scelta Marco: **mediana ultimi N giorni** (default 90, configurabile). Mig 145 `foodcost_settings` + `GET/PUT /foodcost/settings`. `prezzo_corrente_ingrediente()` (mediana finestra, fallback ultimo) usata dal food cost ricorsivo. Lista ingredienti + KPI scheda ("Prezzo attuale" → "Prezzo corrente · mediana Ngg") allineati. Pannello "Prezzi & Food Cost" in Impostazioni Cucina (preset 30/60/90/180/365). Verifica DB reale: Sedano food cost 8,27 → 2,60 €/kg. Ricette 3.32 → 3.33. Da pushare.
+
+## SESSIONE 2026-06-08 — Ricette 3.33: prezzo corrente mediana
+
+### Problema (caso Sedano, Marco 2026-06-07)
+KPI "prezzo attuale" e food cost usavano l'ULTIMO prezzo in ordine di data. Un acquisto occasionale Esselunga ("cuore di sedano" vaschetta, 8,27 €/kg, prodotto retail diverso) scavalcava il Milesi abituale (2,60 €/kg). Stesso pattern su Carote. `_get_ingredient_unit_cost` (food cost ricorsivo) e la lista ingredienti erano contaminati.
+
+### Soluzione (scelta Marco: mediana 90gg)
+- **Mig 145** `foodcost_settings` (id=1): `prezzo_finestra_giorni` 90, `prezzo_strategia` 'mediana'. Self-heal `_ensure_foodcost_settings`.
+- **`prezzo_corrente_ingrediente(cur, iid, finestra=None)`** in foodcost_recipes_router: mediana dei `unit_price` con `date(price_date) >= date('now', -Ngg)`; fallback ultimo prezzo se finestra vuota (ingredienti comprati di rado). `_get_ingredient_unit_cost` la richiama.
+- **`GET/PUT /foodcost/settings`** (range 1–730). Helper `_foodcost_finestra_giorni` (recipes) + `_foodcost_finestra_giorni_ing` (ingredients).
+- Lista ingredienti: una sola query aggregata sui prezzi della finestra → mediana per ingrediente in Python (no N+1). `last_price` ora = prezzo corrente, fallback ultimo.
+- FE scheda (v4.2): `prezzoCorrente` = mediana finestra calcolata sui prezzi già caricati (finestra letta da `/foodcost/settings` nel load). KPI "Prezzo attuale" → "Prezzo corrente" + "mediana Ngg" + tooltip. "Medio storico" invariato (media di tutti).
+- `FoodcostSettingsPanel.jsx` in RicetteSettings (voce "💶 Prezzi & Food Cost"): preset + campo libero + spiegazione.
+
+### Test
+- Mig idempotente (2 run, no crash). Mediana Sedano: ULTIMO 8,27 → 90gg/180gg/365gg tutti 2,60 €/kg (l'outlier nella finestra viene neutralizzato dalla mediana, non serve nemmeno escluderlo). Ricetta 49 usa il sedano → food cost corretto.
+
+### File toccati
+- `app/migrations/145_foodcost_settings.py` (nuovo)
+- `app/routers/foodcost_recipes_router.py` (helper mediana + settings endpoints + _get_ingredient_unit_cost)
+- `app/routers/foodcost_ingredients_router.py` (prezzo corrente in lista + helper finestra)
+- `frontend/src/pages/ricette/RicetteIngredientiPrezzi.jsx` (v4.2 KPI + fetch settings)
+- `frontend/src/pages/ricette/FoodcostSettingsPanel.jsx` (nuovo)
+- `frontend/src/pages/ricette/RicetteSettings.jsx` (voce menu + render)
+- `frontend/src/config/versions.jsx` (ricette 3.33)
+- `docs/changelog.md`, `docs/modulo_ricette_foodcost.md`, `docs/sessione.md`
+
+### Nota per Marco (bonifica)
+Il prezzo corrente si sistema da solo (è una mediana, non serve scollegare il cuore di sedano). Se però "cuore di sedano" per te è un ingrediente DIVERSO dal sedano, scollegalo a mano dalla scheda. La finestra è cambiabile in Impostazioni Cucina · Prezzi & Food Cost.
+
+---
+
+**Aggiornamento precedente (2026-06-07):** **Vini 3.62: fix andamento giacenza — finestra adattiva + calibrazione** (`[core]`). Marco vede la curva "Andamento giacenza" del #1205 (Lugana Montunal) in NEGATIVO (Min −10, Max −7, Oggi 2 bt). Causa: il vino esisteva prima del primo movimento storico (15/03/2026) — le bottiglie iniziali non sono mai apparse come CARICO → replay forward dà drift −12 e curva sotto zero. Due fix in `giacenza_storica_vino()`. (1) **Finestra adattiva**: `days=30` ora è il minimo; se il primo movimento è più vecchio la finestra si estende fino a lì. Per #1205 chart 15/03→07/06 (85gg) invece di solo 30gg. (2) **Calibrazione**: serie shiftata di `−drift` così che l'ultimo punto = QTA_TOTALE. Per #1205 curva 12→2 bt (era −7→−10 nel raw). Badge `🔧 ricalibrata +12` con tooltip. Titolo box ora "📈 Andamento giacenza — dal primo movimento". Versione vini 3.61 → 3.62. Da pushare.
 
 **Aggiornamento precedente:** 2026-06-07 — **Pranzo 1.6: restyle PDF sistema menu A5 + flusso "Entrambi"** (`[mixed]`). Sistema 5.24. Ripresa modulo Pranzo dopo audit (fermo da fine aprile: 4 menu totali, ultimi 2 vuoti, pool di 6 ricette). Cause individuate con Marco: PDF esteticamente incoerente col brand + inserimento piatti troppo rigido. PDF v3.0 "Proposta A — Pagina di sezione" allineato al MENU A5 stagionale (Sabon LT Pro + Courier Prime, verificati dai BaseFont del PDF di studio; fallback Cormorant finché i font non sono in `static/fonts/`). Nuovo `POST /pranzo/promuovi-ricetta/` + bottone "+ pool" sulle righe ad-hoc. Mig 144 default testata ("PRANZO" / "la cucina del mercato"). `docs/modulo_pranzo.md` riscritto da zero (era fermo al v1.0 giornaliero).
 

@@ -1,4 +1,5 @@
-// @version: v4.1 — fix prezzi 2026-06-07: fattore visibile/correggibile su ogni collegamento, ↻ Ricalcola prezzi, warning prezzi saltati e multipack
+// @version: v4.2 — prezzo corrente robusto (mediana finestra) nel KPI, da settings (fix Sedano 2026-06-08)
+// (v4.1 — fix prezzi: fattore su ogni collegamento, ↻ Ricalcola prezzi, warning prezzi saltati e multipack)
 // (v4.0 — scheda ingrediente ridisegnata: testa + KPI + 5 tab, stile scheda vini)
 // Modulo: ricette
 // Scheda ingrediente: Prezzi · Collegamenti · Conversioni · Ricette · Anagrafica.
@@ -133,6 +134,7 @@ export default function RicetteIngredientiPrezzi() {
   const [collegaReview, setCollegaReview] = useState(null);
   const [correggiDraft, setCorreggiDraft] = useState(null);
   const [ricalcolando, setRicalcolando] = useState(false);
+  const [finestraGiorni, setFinestraGiorni] = useState(90);
   const searchInit = useRef(false);
 
   // form anagrafica / completa placeholder
@@ -166,7 +168,7 @@ export default function RicetteIngredientiPrezzi() {
         note: d.note || "",
       });
 
-      const [pr, cv, cat, sup, ings, mp, rc] = await Promise.all([
+      const [pr, cv, cat, sup, ings, mp, rc, st] = await Promise.all([
         apiFetch(`${ING}/${id}/prezzi`),
         apiFetch(`${ING}/${id}/conversions`),
         apiFetch(`${ING}/categories`),
@@ -174,6 +176,7 @@ export default function RicetteIngredientiPrezzi() {
         apiFetch(`${ING}/`),
         apiFetch(`${MATCH}/mappings?ingredient_id=${id}`),
         apiFetch(`${FC}/ricette/per-ingrediente/${id}`),
+        apiFetch(`${FC}/settings`),
       ]);
       if (pr.ok) setPrezzi(await pr.json());
       if (cv.ok) setConversions(await cv.json());
@@ -182,6 +185,7 @@ export default function RicetteIngredientiPrezzi() {
       if (ings.ok) setAllIngredients(await ings.json());
       if (mp.ok) setMappings(await mp.json());
       if (rc.ok) setRicette(await rc.json());
+      if (st.ok) { const s = await st.json(); if (s.prezzo_finestra_giorni) setFinestraGiorni(s.prezzo_finestra_giorni); }
 
       if (!searchInit.current) {
         searchInit.current = true;
@@ -566,6 +570,23 @@ export default function RicetteIngredientiPrezzi() {
   const mediaPrezzo = prezziVal.length ? prezziVal.reduce((s, v) => s + v, 0) / prezziVal.length : null;
   const pMin = prezziVal.length ? Math.min(...prezziVal) : null;
   const pMax = prezziVal.length ? Math.max(...prezziVal) : null;
+
+  // Prezzo corrente robusto (mediana finestra, fix Sedano 2026-06-08): stessa
+  // logica del backend food cost. Outlier/acquisti occasionali neutralizzati.
+  const mediana = (vals) => {
+    const v = vals.filter((x) => x != null && !isNaN(x)).sort((a, b) => a - b);
+    if (!v.length) return null;
+    const n = v.length, m = Math.floor(n / 2);
+    return n % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  const prezziFinestra = prezzi
+    .filter((p) => {
+      if (p.unit_price == null || !p.price_date) return false;
+      const giorni = (Date.now() - new Date(p.price_date).getTime()) / 86400000;
+      return giorni <= finestraGiorni;
+    })
+    .map((p) => p.unit_price);
+  const prezzoCorrente = prezziFinestra.length ? mediana(prezziFinestra) : ultimoPrezzo;
   const sospettiCount = mappings.filter((m) => collegamentoSospetto(m.unita_fornitore, baseUnit, m.fattore_conversione)).length;
   const isPlaceholder = !!(ing && ing.placeholder);
   const isAttivo = !ing || ing.is_active !== 0;
@@ -667,13 +688,14 @@ export default function RicetteIngredientiPrezzi() {
 
           {/* KPI */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
-            <div className="bg-white border border-neutral-200 rounded-xl p-3">
-              <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Prezzo attuale</div>
+            <div className="bg-white border border-neutral-200 rounded-xl p-3" title={`Mediana dei prezzi degli ultimi ${finestraGiorni} giorni — usata per il food cost. Ignora gli acquisti occasionali fuori prezzo.`}>
+              <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Prezzo corrente</div>
               <div className="text-lg font-bold text-green-800">
-                {ultimoPrezzo != null ? <>{fmtPrezzo(ultimoPrezzo)}<span className="text-[11px] font-normal text-neutral-500"> €/{baseUnit}</span></> : "—"}
+                {prezzoCorrente != null ? <>{fmtPrezzo(prezzoCorrente)}<span className="text-[11px] font-normal text-neutral-500"> €/{baseUnit}</span></> : "—"}
               </div>
+              <div className="text-[9px] text-neutral-400 uppercase tracking-wide mt-0.5">mediana {finestraGiorni}gg</div>
             </div>
-            <div className="bg-white border border-neutral-200 rounded-xl p-3">
+            <div className="bg-white border border-neutral-200 rounded-xl p-3" title="Media di TUTTI i prezzi storici registrati.">
               <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Medio storico</div>
               <div className="text-lg font-bold text-neutral-900">
                 {mediaPrezzo != null ? <>{fmtPrezzo(mediaPrezzo)}<span className="text-[11px] font-normal text-neutral-500"> €/{baseUnit}</span></> : "—"}
