@@ -1,6 +1,32 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-08 — **Pranzo PDF leggibilità (Proposta 2: filetti categoria)** (`[locale:tregobbi]`). Marco voleva migliorare la lettura del PDF pranzo tenendo lo stile; scelta fra 3 mockup la Proposta 2. `_build_piatti_html` (pranzo_pdf_service v3.3) genera etichetta categoria con `<span class="filetto">` laterali + `<span class="cat-testo">`; css v2.4: `.categoria-label` flex (linea | TESTO 0.3em tracking | linea), +aria tra categorie (9mm), interlinea piatti 1.5. Da pushare. **Nota WeasyPrint:** usa flexbox per i filetti — se in stampa reale i filetti non rendono, fallback a tabella o `::before/::after`. **In coda:** template storia Instagram pranzo (idee proposte, da decidere formato).
+**Ultimo aggiornamento:** 2026-06-09 — **Cassa: scontrini annullati/resi** (`[core]`). Nuovo campo `annulli_resi` sulla chiusura, sottratto da quadratura e contanti fiscali: uno scontrino annullato resta nel totale RT ma non è incassato, generava ammanco fittizio nella quadratura e sovrastima nei versamenti. Mig 146 + chiusure_turno.py + admin_finance.py + ChiusuraTurno/ChiusureTurnoLista. Verificato sul caso reale cena 8/6 (saldo −460 → 0). Da pushare. Vedi sezione sotto.
+
+## SESSIONE 2026-06-09 — Cassa: scontrini annullati/resi (quadratura + versamenti) `[core]`
+
+### Problema (caso cena 8/6/2026, Marco)
+Uno scontrino battuto e poi **annullato** resta nel totale fiscale del registratore (Chiusura RT) ma non viene mai incassato. Conseguenze viste sul DB reale:
+- **Quadratura fine turno** → ammanco fittizio. Cena 8/6: `saldo = −460,00 €` = esattamente lo scontrino annullato (nota chiusura: "Scontrino annullato 460,00€").
+- **Contanti da versare** → sovrastima: `contanti_fiscali = corrispettivi − elettronici` e i corrispettivi includono l'annullato.
+
+### Soluzione (scelta Marco: campo dedicato + fix completo)
+Nuovo campo **`annulli_resi`** sulla chiusura, sottratto dal giustificato (quadratura) e dal corrispettivo RT (contanti fiscali/dashboard). Per-turno (non cumulativo): a cena si somma anche l'annulli del pranzo.
+
+### File toccati
+- **Migration 146** `146_cassa_annulli_resi.py`: ADD COLUMN `annulli_resi REAL DEFAULT 0` su `shift_closures` + `daily_closures` (admin_finance.sqlite3). Idempotente, apre la sua connessione tenant-aware.
+- `app/routers/chiusure_turno.py`: campo in CREATE/self-heal, models Pydantic, INSERT/UPDATE, SELECT, e **quadratura** (`giustificato −= annulli_giorno`, con `pranzo_annulli` a cena).
+- `app/routers/admin_finance.py`: `_aggregate_shift_closures_by_date` e `_contanti_fiscali_by_date` + `cash/daily` → corrispettivo RT **netto** degli annulli.
+- `frontend/src/pages/admin/ChiusuraTurno.jsx`: input "❌ Annulli / Resi", draft/load/payload/reset, `totaleGiustificato −= annulliGiorno`, chip "− annulli" nel breakdown.
+- `frontend/src/pages/admin/ChiusureTurnoLista.jsx`: giustificato giorno + totali periodo al netto degli annulli (saldo già da backend).
+- `versions.jsx`: Gestione Vendite 4.5→4.6, Flussi di Cassa 1.13→1.14.
+
+### Verifica (DB copia, replica codice reale)
+Con `annulli_resi=460` sulla cena 8/6: **quadratura saldo 0,00** (era −460) e **contanti da versare 460 → 0**. ✅
+
+### Da fare dopo deploy
+Marco valorizza `annulli_resi=460` sulla cena 8/6 dal form (ora il 460 è in nota + bonifici). Possibile follow-up: scontrino medio in `stats/daily` non sottrae ancora gli annulli (revenue/coperti) — fuori scope, da valutare.
+
+---
 
 ## SESSIONE 2026-06-08 (cont.) — Pranzo PDF Proposta 2 + idee storia IG
 

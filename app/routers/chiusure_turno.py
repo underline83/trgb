@@ -46,6 +46,7 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
             mance REAL DEFAULT 0,
             preconto REAL DEFAULT 0,
             fatture REAL DEFAULT 0,
+            annulli_resi REAL DEFAULT 0,
             coperti INTEGER DEFAULT 0,
             totale_incassi REAL DEFAULT 0,
             note TEXT,
@@ -93,6 +94,9 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
         cur.execute("ALTER TABLE shift_closures ADD COLUMN fondo_cassa_inizio REAL DEFAULT 0")
     if "fondo_cassa_fine" not in existing_cols:
         cur.execute("ALTER TABLE shift_closures ADD COLUMN fondo_cassa_fine REAL DEFAULT 0")
+    # Modulo: cassa — scontrini annullati/resi (migrazione 146, self-heal)
+    if "annulli_resi" not in existing_cols:
+        cur.execute("ALTER TABLE shift_closures ADD COLUMN annulli_resi REAL DEFAULT 0")
 
     # Table: shift_preconti (tavoli aperti non battuti)
     cur.execute(
@@ -202,6 +206,7 @@ class ShiftClosureBase(BaseModel):
     mance: float = 0
     preconto: float = 0
     fatture: float = 0
+    annulli_resi: float = 0
     coperti: int = 0
     note: Optional[str] = None
 
@@ -781,6 +786,7 @@ async def list_shift_closures(
                 mance,
                 preconto,
                 fatture,
+                annulli_resi,
                 coperti,
                 totale_incassi,
                 note,
@@ -824,7 +830,7 @@ async def list_shift_closures(
     cena_dates = [row["date"] for row in rows if row["turno"] == "cena"]
     for d in cena_dates:
         # Cerca la chiusura pranzo per questa data
-        c3.execute("SELECT id, fatture FROM shift_closures WHERE date = ? AND turno = 'pranzo'", (d,))
+        c3.execute("SELECT id, fatture, annulli_resi FROM shift_closures WHERE date = ? AND turno = 'pranzo'", (d,))
         pranzo_row = c3.fetchone()
         if pranzo_row:
             pranzo_id = pranzo_row["id"]
@@ -840,6 +846,7 @@ async def list_shift_closures(
                 "preconti_tot": preconti_tot,
                 "spese_tot": spese_tot,
                 "fatture": pranzo_row["fatture"] or 0,
+                "annulli_resi": pranzo_row["annulli_resi"] or 0,
             }
     conn3.close()
 
@@ -877,12 +884,17 @@ async def list_shift_closures(
         pranzo_preconti = 0
         pranzo_spese = 0
         pranzo_fatture = 0
+        pranzo_annulli = 0
         if row["turno"] == "cena" and row["date"] in pranzo_by_date:
             pranzo_preconti = pranzo_by_date[row["date"]]["preconti_tot"]
             pranzo_spese = pranzo_by_date[row["date"]]["spese_tot"]
             pranzo_fatture = pranzo_by_date[row["date"]]["fatture"]
+            pranzo_annulli = pranzo_by_date[row["date"]]["annulli_resi"]
 
-        giustificato = (row["preconto"] or 0) + (preconti_sum + pranzo_preconti) + ((row["fatture"] or 0) + pranzo_fatture)
+        # Scontrini annullati/resi: tolti dal giustificato fiscale (RT) perché
+        # battuti sul registratore ma mai incassati (migrazione 146).
+        annulli_giorno = (row["annulli_resi"] or 0) + pranzo_annulli
+        giustificato = (row["preconto"] or 0) + (preconti_sum + pranzo_preconti) + ((row["fatture"] or 0) + pranzo_fatture) - annulli_giorno
         spese_giorno = spese_sum + pranzo_spese
         diff_grezzo = entrate - giustificato
         saldo = diff_grezzo + spese_giorno
@@ -903,6 +915,7 @@ async def list_shift_closures(
                 mance=row["mance"],
                 preconto=row["preconto"],
                 fatture=row["fatture"],
+                annulli_resi=row["annulli_resi"] or 0,
                 coperti=row["coperti"],
                 totale_incassi=row["totale_incassi"],
                 note=row["note"],
@@ -962,6 +975,7 @@ async def get_shift_closure(
                 mance,
                 preconto,
                 fatture,
+                annulli_resi,
                 coperti,
                 totale_incassi,
                 note,
@@ -1073,6 +1087,7 @@ async def get_shift_closure(
         mance=row["mance"],
         preconto=row["preconto"],
         fatture=row["fatture"],
+        annulli_resi=row["annulli_resi"] or 0,
         coperti=row["coperti"],
         totale_incassi=row["totale_incassi"],
         note=row["note"],
@@ -1156,6 +1171,7 @@ async def upsert_shift_closure(
                     mance = ?,
                     preconto = ?,
                     fatture = ?,
+                    annulli_resi = ?,
                     coperti = ?,
                     totale_incassi = ?,
                     note = ?,
@@ -1174,6 +1190,7 @@ async def upsert_shift_closure(
                     payload.mance,
                     payload.preconto,
                     payload.fatture,
+                    payload.annulli_resi,
                     payload.coperti,
                     totale_incassi,
                     payload.note,
@@ -1198,12 +1215,13 @@ async def upsert_shift_closure(
                     mance,
                     preconto,
                     fatture,
+                    annulli_resi,
                     coperti,
                     totale_incassi,
                     note,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_str,
@@ -1219,6 +1237,7 @@ async def upsert_shift_closure(
                     payload.mance,
                     payload.preconto,
                     payload.fatture,
+                    payload.annulli_resi,
                     payload.coperti,
                     totale_incassi,
                     payload.note,
@@ -1315,6 +1334,7 @@ async def upsert_shift_closure(
                 mance,
                 preconto,
                 fatture,
+                annulli_resi,
                 coperti,
                 totale_incassi,
                 note,
@@ -1419,6 +1439,7 @@ async def upsert_shift_closure(
         mance=row["mance"],
         preconto=row["preconto"],
         fatture=row["fatture"],
+        annulli_resi=row["annulli_resi"] or 0,
         coperti=row["coperti"],
         totale_incassi=row["totale_incassi"],
         note=row["note"],

@@ -39,7 +39,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
-    version: "4.5",
+    version: "4.6",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.13",
+    version: "1.14",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",

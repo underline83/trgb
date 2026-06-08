@@ -788,7 +788,7 @@ def _aggregate_shift_closures_by_date(
             sql = f"""
                 SELECT date, turno, preconto, fatture, contanti,
                        pos_bpm, pos_sella, theforkpay, other_e_payments,
-                       bonifici, mance, note
+                       bonifici, mance, COALESCE(annulli_resi, 0) AS annulli_resi, note
                 FROM shift_closures
                 WHERE {' AND '.join(where)}
                 ORDER BY date ASC,
@@ -810,6 +810,7 @@ def _aggregate_shift_closures_by_date(
                     other_e_payments,
                     bonifici,
                     mance,
+                    COALESCE(annulli_resi, 0) AS annulli_resi,
                     note
                 FROM shift_closures
                 WHERE substr(date, 1, 7) = ?
@@ -875,6 +876,17 @@ def _aggregate_shift_closures_by_date(
                 fatture_totali += pranzo["fatture"]
             if cena:
                 fatture_totali += cena["fatture"]
+
+            # Scontrini annullati/resi (pranzo + cena): battuti sul registratore
+            # ma mai incassati → tolti dal corrispettivo RT (migrazione 146).
+            annulli_totali = 0.0
+            if pranzo:
+                annulli_totali += (pranzo["annulli_resi"] or 0)
+            if cena:
+                annulli_totali += (cena["annulli_resi"] or 0)
+
+            # Corrispettivo RT netto degli annulli
+            chiusura_giorno = (chiusura_giorno or 0) - annulli_totali
 
             # Calcoli
             corrispettivi_tot = chiusura_giorno + fatture_totali
@@ -1623,6 +1635,7 @@ async def get_cash_daily(
                 SELECT date, weekday, corrispettivi_tot, contanti_finali,
                        pos_bpm, pos_sella, theforkpay, other_e_payments,
                        bonifici, totale_incassi,
+                       COALESCE(annulli_resi, 0) AS annulli_resi,
                        COALESCE(is_closed, 0) AS is_closed
                 FROM daily_closures
                 WHERE {' AND '.join(where)}
@@ -1635,6 +1648,7 @@ async def get_cash_daily(
                 SELECT date, weekday, corrispettivi_tot, contanti_finali,
                        pos_bpm, pos_sella, theforkpay, other_e_payments,
                        bonifici, totale_incassi,
+                       COALESCE(annulli_resi, 0) AS annulli_resi,
                        COALESCE(is_closed, 0) AS is_closed
                 FROM daily_closures
                 WHERE substr(date, 1, 7) = ?
@@ -1654,7 +1668,8 @@ async def get_cash_daily(
                 merged[ds] = {
                     'date': ds,
                     'weekday': r["weekday"],
-                    'corrispettivi_tot': r["corrispettivi_tot"],
+                    # corrispettivo netto degli scontrini annullati/resi (mig 146)
+                    'corrispettivi_tot': (r["corrispettivi_tot"] or 0) - (r["annulli_resi"] or 0),
                     'pos_bpm': r["pos_bpm"],
                     'pos_sella': r["pos_sella"],
                     'theforkpay': r["theforkpay"],
@@ -1773,7 +1788,8 @@ def _contanti_fiscali_by_date(conn: sqlite3.Connection, date_from: Optional[str]
     cur.execute(f"""
         SELECT date, weekday, corrispettivi_tot,
                pos_bpm, pos_sella, theforkpay, other_e_payments,
-               bonifici, COALESCE(is_closed, 0) AS is_closed
+               bonifici, COALESCE(annulli_resi, 0) AS annulli_resi,
+               COALESCE(is_closed, 0) AS is_closed
         FROM daily_closures
         {wq}
         ORDER BY date ASC
@@ -1788,7 +1804,8 @@ def _contanti_fiscali_by_date(conn: sqlite3.Connection, date_from: Optional[str]
         if ds not in merged:
             merged[ds] = {
                 'date': ds, 'weekday': r["weekday"] or '',
-                'corrispettivi_tot': r["corrispettivi_tot"] or 0,
+                # corrispettivo netto degli annulli/resi (mig 146)
+                'corrispettivi_tot': (r["corrispettivi_tot"] or 0) - (r["annulli_resi"] or 0),
                 'pos_bpm': r["pos_bpm"] or 0, 'pos_sella': r["pos_sella"] or 0,
                 'theforkpay': r["theforkpay"] or 0,
                 'other_e_payments': r["other_e_payments"] or 0,

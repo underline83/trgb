@@ -3,6 +3,25 @@
 
 ---
 
+## 2026-06-09 — Cassa: scontrini annullati/resi (quadratura + versamenti) `[core]`
+
+Caso cena 8/6/2026 (Marco): uno scontrino battuto e poi **annullato** resta nel totale fiscale del registratore (Chiusura RT) ma non viene mai incassato. Risultato sul DB reale: la quadratura del fine turno segnava `saldo = −460,00 €` (= esattamente lo scontrino annullato) e i "contanti da versare" sovrastimavano di 460 € (`contanti_fiscali = corrispettivi − elettronici`, coi corrispettivi che includevano l'annullato). Scelta Marco: campo dedicato + fix su entrambi i sintomi.
+
+### Aggiunto
+- **Migration 146** `146_cassa_annulli_resi.py`: `ADD COLUMN annulli_resi REAL DEFAULT 0` su `shift_closures` e `daily_closures` (admin_finance.sqlite3). Idempotente (PRAGMA check), connessione tenant-aware propria.
+- **Campo "❌ Annulli / Resi"** nel form fine turno (`ChiusuraTurno.jsx`): draft autosave, load, payload, reset; incluso nel calcolo quadratura e mostrato come chip "− annulli" nel breakdown giustificato.
+
+### Modificato
+- `chiusure_turno.py`: `annulli_resi` in CREATE/self-heal, model Pydantic, INSERT/UPDATE, tutte le SELECT, e **quadratura** — `giustificato −= annulli_giorno` (turno corrente + annulli pranzo a cena). Saldo ora al netto.
+- `admin_finance.py`: corrispettivo RT **netto** degli annulli in `_aggregate_shift_closures_by_date`, `_contanti_fiscali_by_date` e `cash/daily` → versamenti/dashboard corretti.
+- `ChiusureTurnoLista.jsx`: giustificato per giorno e totali periodo al netto degli annulli (il saldo per riga arriva già corretto dal backend).
+- `versions.jsx`: Gestione Vendite 4.5 → 4.6, Flussi di Cassa 1.13 → 1.14.
+
+### Verifica
+Replica del codice reale su copia del DB con `annulli_resi=460` sulla cena 8/6: **quadratura saldo 0,00** (era −460) e **contanti da versare 460 → 0**. ✅ Modello per-turno (non cumulativo): a cena si somma anche l'annulli del pranzo.
+
+---
+
 ## 2026-06-08 — Pranzo 1.7: storia Instagram «oggi a pranzo» (canvas client-side) `[locale:tregobbi]`
 
 Marco vuole generare la storia IG del pranzo. Scelta (panel marketing, 7 mockup valutati /100): variante **Antracite** "oggi a pranzo" (86/100), solo grafica/testo (no foto), cadenza giornaliera. Implementata client-side: il browser disegna la storia 1080×1920 su `<canvas>` e la scarica come PNG, zero dipendenze server.

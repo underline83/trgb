@@ -59,6 +59,7 @@ export default function ChiusuraTurno() {
   // Dati numerici
   const [preconto, setPreconto] = useState("");
   const [fatture, setFatture] = useState("");
+  const [annulli, setAnnulli] = useState("");  // scontrini annullati/resi (mig 146)
   const [coperti, setCoperti] = useState("");
 
   // Pagamenti
@@ -105,20 +106,20 @@ export default function ChiusuraTurno() {
   useEffect(() => {
     if (loading) return;
     const timer = setTimeout(() => {
-      const hasData = fondoCassaInizio || fondoCassaFine || preconto || fatture || coperti ||
+      const hasData = fondoCassaInizio || fondoCassaFine || preconto || fatture || annulli || coperti ||
         contanti || posBpm || posSella || theforkpay || otherEpay || bonifici || mance || note ||
         preconti.length > 0 || spese.length > 0;
       if (!hasData) return;
       try {
         localStorage.setItem(draftKey, JSON.stringify({
-          fondoCassaInizio, fondoCassaFine, preconto, fatture, coperti,
+          fondoCassaInizio, fondoCassaFine, preconto, fatture, annulli, coperti,
           contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance,
           note, preconti, spese, checklistState, _ts: Date.now(),
         }));
       } catch { /* quota exceeded — ignora */ }
     }, 800);
     return () => clearTimeout(timer);
-  }, [loading, draftKey, fondoCassaInizio, fondoCassaFine, preconto, fatture, coperti,
+  }, [loading, draftKey, fondoCassaInizio, fondoCassaFine, preconto, fatture, annulli, coperti,
     contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, note, preconti, spese, checklistState]);
 
   // Ripristina draft (solo se il form è vuoto = nessun record salvato sul server)
@@ -136,6 +137,7 @@ export default function ChiusuraTurno() {
       if (d.fondoCassaFine) setFondoCassaFine(d.fondoCassaFine);
       if (d.preconto) setPreconto(d.preconto);
       if (d.fatture) setFatture(d.fatture);
+      if (d.annulli) setAnnulli(d.annulli);
       if (d.coperti) setCoperti(d.coperti);
       if (d.contanti) setContanti(d.contanti);
       if (d.posBpm) setPosBpm(d.posBpm);
@@ -213,6 +215,17 @@ export default function ChiusuraTurno() {
     return pranzoData.fatture || 0;
   }, [isCena, pranzoData]);
 
+  // Scontrini annullati/resi del pranzo (per cena, da togliere al giustificato)
+  const pranzoAnnulli = useMemo(() => {
+    if (!isCena || !pranzoData) return 0;
+    return pranzoData.annulli_resi || 0;
+  }, [isCena, pranzoData]);
+
+  // Annulli/resi totali del giorno (turno corrente + pranzo se cena)
+  const annulliGiorno = useMemo(() =>
+    toNumber(annulli) + pranzoAnnulli
+  , [annulli, pranzoAnnulli]);
+
   const pranzoSpese = useMemo(() => {
     if (!isCena || !pranzoData || !pranzoData.spese) return 0;
     return pranzoData.spese.reduce((sum, s) => sum + (s.importo || 0), 0);
@@ -223,11 +236,14 @@ export default function ChiusuraTurno() {
   // Le SPESE non fanno parte del giustificato: sono la giustificazione della differenza.
   // Formula: ENTRATE - GIUSTIFICATO = differenza, poi le SPESE coprono la differenza.
   // Se differenza + spese ≈ 0 → quadra.
+  // Gli scontrini annullati/resi sono battuti sul registratore (dentro la
+  // Chiusura RT) ma mai incassati → vanno tolti dal giustificato (mig 146).
   const totaleGiustificato = useMemo(() =>
     toNumber(preconto)
     + (totalePreconti + pranzoPrecontiTotale)
     + (toNumber(fatture) + pranzoFatture)
-  , [preconto, totalePreconti, pranzoPrecontiTotale, fatture, pranzoFatture]);
+    - annulliGiorno
+  , [preconto, totalePreconti, pranzoPrecontiTotale, fatture, pranzoFatture, annulliGiorno]);
 
   const speseGiorno = useMemo(() =>
     totaleSpese + pranzoSpese
@@ -248,7 +264,7 @@ export default function ChiusuraTurno() {
   // ── Reset form ──
   const resetForm = () => {
     setFondoCassaInizio(""); setFondoCassaFine("");
-    setPreconto(""); setFatture(""); setCoperti("");
+    setPreconto(""); setFatture(""); setAnnulli(""); setCoperti("");
     setContanti(""); setPosBpm(""); setPosSella("");
     setTheforkpay(""); setOtherEpay(""); setBonifici(""); setMance("");
     setNote(""); setExistingId(null);
@@ -318,6 +334,7 @@ export default function ChiusuraTurno() {
       setFondoCassaFine(data.fondo_cassa_fine?.toString() ?? "");
       setPreconto(data.preconto?.toString() ?? "");
       setFatture(data.fatture?.toString() ?? "");
+      setAnnulli(data.annulli_resi?.toString() ?? "");
       setCoperti(data.coperti?.toString() ?? "");
       setContanti(data.contanti?.toString() ?? "");
       setPosBpm(data.pos_bpm?.toString() ?? "");
@@ -393,6 +410,7 @@ export default function ChiusuraTurno() {
           fondo_cassa_fine: toNumber(fondoCassaFine),
           preconto: toNumber(preconto),
           fatture: toNumber(fatture),
+          annulli_resi: toNumber(annulli),
           coperti: toNumber(coperti),
           contanti: toNumber(contanti),
           pos_bpm: toNumber(posBpm),
@@ -550,6 +568,10 @@ export default function ChiusuraTurno() {
                 <NumberField
                   label={isCena ? "Fatture Cena" : "Totale fatture"}
                   value={fatture} onChange={setFatture} icon="📄" />
+                <NumberField
+                  label="Annulli / Resi"
+                  value={annulli} onChange={setAnnulli} icon="❌"
+                  hint="Scontrini battuti e annullati (non incassati)" />
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">{isCena ? "🪑 Coperti Cena" : "🪑 Coperti"}</label>
                   <input type="number" min={0} value={coperti} onChange={e => setCoperti(e.target.value)}
@@ -777,7 +799,7 @@ export default function ChiusuraTurno() {
               <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-2">
                 Quadratura{isCena && pranzoData ? " giornaliera" : ""}
                 <span className="normal-case font-normal ml-1">
-                  entrate = chiusura RT + pre-conti + fatture − spese
+                  entrate = chiusura RT + pre-conti + fatture − annulli − spese
                 </span>
               </div>
 
@@ -799,6 +821,7 @@ export default function ChiusuraTurno() {
                     chiusura RT
                     {(toNumber(fatture) + pranzoFatture) > 0 ? " + fatture" : ""}
                     {(totalePreconti + pranzoPrecontiTotale) > 0 ? " + pre-conti" : ""}
+                    {annulliGiorno > 0 ? " − annulli" : ""}
                     {isCena && pranzoData ? " (giorno)" : ""}
                   </div>
                 </div>
@@ -820,6 +843,12 @@ export default function ChiusuraTurno() {
                   <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-orange-200 text-xs">
                     <span className="text-orange-400">🍽️ Pre-conti<span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 align-middle" />:</span>
                     <span className="font-semibold text-orange-600">€ {fmt(totalePreconti + pranzoPrecontiTotale)}</span>
+                  </div>
+                )}
+                {annulliGiorno > 0 && (
+                  <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-red-200 text-xs">
+                    <span className="text-red-400">❌ Annulli/resi:</span>
+                    <span className="font-semibold text-red-600">− € {fmt(annulliGiorno)}</span>
                   </div>
                 )}
               </div>

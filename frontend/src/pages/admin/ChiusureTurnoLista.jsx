@@ -132,7 +132,7 @@ export default function ChiusureTurnoLista() {
   // ── Totali periodo ──
   const totals = useMemo(() => {
     let incassi = 0, copertiTot = 0, speseTot = 0, giorniCount = 0;
-    let chiusuraRTtot = 0, fattureTot = 0, precontiTot = 0;
+    let chiusuraRTtot = 0, fattureTot = 0, precontiTot = 0, annulliTot = 0;
     for (const day of days) {
       giorniCount++;
       const best = day.cena || day.pranzo;
@@ -143,13 +143,14 @@ export default function ChiusureTurnoLista() {
       // Fatture: somma pranzo + cena
       if (day.pranzo) { copertiTot += day.pranzo.coperti || 0; fattureTot += day.pranzo.fatture || 0; }
       if (day.cena) { copertiTot += day.cena.coperti || 0; fattureTot += day.cena.fatture || 0; }
-      // Pre-conti: somma pranzo + cena
+      // Pre-conti / spese / annulli: somma pranzo + cena
       for (const t of [day.pranzo, day.cena]) {
         if (t && t.preconti) precontiTot += t.preconti.reduce((s, p) => s + p.importo, 0);
         if (t && t.spese) speseTot += t.spese.reduce((s, sp) => s + sp.importo, 0);
+        if (t) annulliTot += t.annulli_resi || 0;
       }
     }
-    return { incassi, chiusuraRT: chiusuraRTtot, fatture: fattureTot, preconti: precontiTot, coperti: copertiTot, spese: speseTot, giorni: giorniCount };
+    return { incassi, chiusuraRT: chiusuraRTtot, fatture: fattureTot, preconti: precontiTot, annulli: annulliTot, coperti: copertiTot, spese: speseTot, giorni: giorniCount };
   }, [days]);
 
   // ── Nav mese ──
@@ -411,7 +412,7 @@ export default function ChiusureTurnoLista() {
                     <td className="px-3 py-3 font-bold text-orange-600">€ {fmt(totals.preconti)}</td>
                   )}
                   <td className="px-3 py-3 font-bold text-neutral-900">
-                    € {fmt(totals.chiusuraRT + totals.fatture + (isSuperAdmin ? totals.preconti : 0))}
+                    € {fmt(totals.chiusuraRT + totals.fatture + (isSuperAdmin ? totals.preconti : 0) - totals.annulli)}
                   </td>
                   {isSuperAdmin && (
                     <td className="px-3 py-3 font-bold text-neutral-800">€ {fmt(totals.incassi)}</td>
@@ -444,7 +445,8 @@ export default function ChiusureTurnoLista() {
               const dayFatture = (pranzo?.fatture || 0) + (cena?.fatture || 0);
               const dayPreconti = (pranzo?.preconti || []).reduce((s, p) => s + p.importo, 0)
                                + (cena?.preconti || []).reduce((s, p) => s + p.importo, 0);
-              const dayTotale = dayChiusuraRT + dayFatture + (isSuperAdmin ? dayPreconti : 0);
+              const dayAnnulli = (pranzo?.annulli_resi || 0) + (cena?.annulli_resi || 0);
+              const dayTotale = dayChiusuraRT + dayFatture + (isSuperAdmin ? dayPreconti : 0) - dayAnnulli;
               const dayCopertiP = pranzo?.coperti || 0;
               const dayCopertiC = cena?.coperti || 0;
               const dayCoperti = dayCopertiP + dayCopertiC;
