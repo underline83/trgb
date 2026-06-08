@@ -1,8 +1,8 @@
 /* ============================================================
-   MENU PRANZO — CSS PDF (WeasyPrint) — v2.3 (sessione 2026-06-07)
-   v2.3: logo rimosso (ridondante), corpi aumentati (titolo 36pt,
-   piatti 16pt, business 14pt). v2.2: tutto centrato — layout stile
-   pagina Degustazione del menu A5.
+   MENU PRANZO — CSS PDF (WeasyPrint) — v2.4 (sessione 2026-06-08)
+   v2.4: Proposta 2 leggibilità — etichette categoria con filetti
+   laterali, più aria tra categorie, interlinea piatti maggiore.
+   v2.3: logo rimosso, corpi aumentati. v2.2: tutto centrato.
    Brand cliente Osteria Tre Gobbi — coerente con il MENU A5
    stagionale (Sabon LT Pro + Courier Prime), Proposta A
    "Pagina di sezione": titolo serif spaziato, piatti typewriter
@@ -144,17 +144,34 @@ html, body {
     justify-content: center;
 }
 
+/* Etichetta categoria con FILETTI laterali (v2.4 — Proposta 2):
+   linea sottile | TESTO | linea sottile, centrata. */
 .categoria-label {
-    font-size: 12pt;
-    letter-spacing: 0.28em;
-    text-transform: uppercase;
-    color: #555;
-    margin: 0 0 2.5mm;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 5mm;
+    margin: 0 0 4mm;
 }
 
+.categoria-label .filetto {
+    flex: 1 1 auto;
+    height: 0;
+    border-top: 0.4pt solid #c4c4c4;
+}
+
+.categoria-label .cat-testo {
+    flex: 0 0 auto;
+    font-size: 12pt;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #666;
+    /* compensa il tracking che sbilancia a destra */
+    padding-left: 0.3em;
+}
+
+/* Più aria tra una categoria e la successiva */
 .categoria-blocco + .categoria-label {
-    margin-top: 7mm;
+    margin-top: 9mm;
 }
 
 .categoria-blocco {
@@ -165,10 +182,10 @@ html, body {
     font-family: "Courier Prime", "Courier New", monospace;
     font-weight: 700;
     font-size: 16pt;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    line-height: 1.4;
-    padding: 1.4mm 0;
+    line-height: 1.5;
+    padding: 1.8mm 0;
     text-align: center;
 }
 

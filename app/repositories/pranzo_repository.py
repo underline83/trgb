@@ -182,6 +182,8 @@ def _ensure_schema(conn) -> None:
             prezzo_3_default     REAL NOT NULL DEFAULT 35.0,
             footer_default       TEXT NOT NULL DEFAULT 'acqua, coperto e servizio inclusi
 da lunedì a venerdì',
+            ig_telefono          TEXT NOT NULL DEFAULT '',
+            ig_indirizzo         TEXT NOT NULL DEFAULT '',
             updated_at           TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
     """)
@@ -197,6 +199,9 @@ da lunedì a venerdì',
         "prezzo_2_default":    ("REAL", "25.0"),
         "prezzo_3_default":    ("REAL", "35.0"),
         "footer_default":      ("TEXT", "acqua, coperto e servizio inclusi"),
+        # Recapiti per la storia Instagram (CTA in fondo) — 2026-06-08
+        "ig_telefono":         ("TEXT", ""),
+        "ig_indirizzo":        ("TEXT", ""),
         "updated_at":          ("TEXT", None),
     }
     for col, (tipo, default) in expected_settings.items():
@@ -457,7 +462,7 @@ def update_settings(**fields) -> Dict[str, Any]:
     allowed = {
         "titolo_default", "sottotitolo_default", "titolo_business",
         "prezzo_1_default", "prezzo_2_default", "prezzo_3_default",
-        "footer_default",
+        "footer_default", "ig_telefono", "ig_indirizzo",
     }
     set_fields = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not set_fields:

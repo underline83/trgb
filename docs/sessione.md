@@ -1,6 +1,24 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-08 — **Ricette 3.33: prezzo corrente robusto (mediana finestra)** (`[core]`). Caso Sedano: "prezzo attuale" 8,27 €/kg perché un acquisto occasionale di cuore di sedano Esselunga (retail) scavalcava per DATA il Milesi a 2,60, e quel prezzo entrava nel food cost (`_get_ingredient_unit_cost` usava l'ultimo prezzo). Scelta Marco: **mediana ultimi N giorni** (default 90, configurabile). Mig 145 `foodcost_settings` + `GET/PUT /foodcost/settings`. `prezzo_corrente_ingrediente()` (mediana finestra, fallback ultimo) usata dal food cost ricorsivo. Lista ingredienti + KPI scheda ("Prezzo attuale" → "Prezzo corrente · mediana Ngg") allineati. Pannello "Prezzi & Food Cost" in Impostazioni Cucina (preset 30/60/90/180/365). Verifica DB reale: Sedano food cost 8,27 → 2,60 €/kg. Ricette 3.32 → 3.33. Da pushare.
+**Ultimo aggiornamento:** 2026-06-08 — **Pranzo PDF leggibilità (Proposta 2: filetti categoria)** (`[locale:tregobbi]`). Marco voleva migliorare la lettura del PDF pranzo tenendo lo stile; scelta fra 3 mockup la Proposta 2. `_build_piatti_html` (pranzo_pdf_service v3.3) genera etichetta categoria con `<span class="filetto">` laterali + `<span class="cat-testo">`; css v2.4: `.categoria-label` flex (linea | TESTO 0.3em tracking | linea), +aria tra categorie (9mm), interlinea piatti 1.5. Da pushare. **Nota WeasyPrint:** usa flexbox per i filetti — se in stampa reale i filetti non rendono, fallback a tabella o `::before/::after`. **In coda:** template storia Instagram pranzo (idee proposte, da decidere formato).
+
+## SESSIONE 2026-06-08 (cont.) — Pranzo PDF Proposta 2 + idee storia IG
+
+### PDF leggibilità (fatto)
+3 proposte mostrate (minuscolo+aria / filetti / gerarchia 2 pesi). Marco sceglie **filetti** (richiama le pagine interne del menu A5). Implementato in pranzo_pdf_service v3.3 + menu_pranzo_pdf.css v2.4. Test builder: 3 categorie con filetti OK.
+
+### Template storia Instagram pranzo — FATTO (Pranzo 1.7)
+Brand context confermato: solo grafica/testo (no foto), giornaliera "oggi a pranzo", CTA vieni a trovarci + telefono + indirizzo. Panel marketing: 7 mockup valutati /100, scelta variante **Antracite** (86). Implementata **client-side su canvas** (no dipendenze server): `PranzoStoryCanvas.jsx` disegna 1080×1920 e scarica PNG. Bottone "📱 Storia" in toolbar Pranzo. Recapiti in `pranzo_settings.ig_telefono`/`ig_indirizzo` (soft-migration testata) + campi in PranzoSettingsPanel. Font: Playfair (caricato) + monospace sistema. Marco: "proviamo quella anche se non finisce di piacermi" → da provare sul campo. **Roadmap v2:** variante foto+overlay (food appeal più alto), eventuale 2° template (Hero piatto del giorno, 88/100). Pranzo 1.6 → 1.7.
+
+### File toccati (storia IG)
+- `frontend/src/pages/pranzo/PranzoStoryCanvas.jsx` (nuovo)
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` (bottone + fetch settings + render modale)
+- `frontend/src/pages/ricette/PranzoSettingsPanel.jsx` (campi recapiti)
+- `app/repositories/pranzo_repository.py` (colonne ig_telefono/ig_indirizzo + allowed)
+- `app/routers/pranzo_router.py` (SettingsUpdate)
+- `frontend/src/config/versions.jsx` (pranzo 1.7), changelog, sessione
+
+### Aggiornamento precedente stessa giornata — Ricette 3.33: prezzo corrente robusto (mediana finestra) (`[core]`). Caso Sedano: "prezzo attuale" 8,27 €/kg perché un acquisto occasionale di cuore di sedano Esselunga (retail) scavalcava per DATA il Milesi a 2,60, e quel prezzo entrava nel food cost (`_get_ingredient_unit_cost` usava l'ultimo prezzo). Scelta Marco: **mediana ultimi N giorni** (default 90, configurabile). Mig 145 `foodcost_settings` + `GET/PUT /foodcost/settings`. `prezzo_corrente_ingrediente()` (mediana finestra, fallback ultimo) usata dal food cost ricorsivo. Lista ingredienti + KPI scheda ("Prezzo attuale" → "Prezzo corrente · mediana Ngg") allineati. Pannello "Prezzi & Food Cost" in Impostazioni Cucina (preset 30/60/90/180/365). Verifica DB reale: Sedano food cost 8,27 → 2,60 €/kg. Ricette 3.32 → 3.33. Da pushare.
 
 ## SESSIONE 2026-06-08 — Ricette 3.33: prezzo corrente mediana
 

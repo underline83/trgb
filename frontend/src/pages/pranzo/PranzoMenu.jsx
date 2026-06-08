@@ -30,6 +30,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, EmptyState } from "../../components/ui";
 import RicetteNav from "../ricette/RicetteNav";
 import MenuToggle from "../ricette/MenuToggle";
+import PranzoStoryCanvas from "./PranzoStoryCanvas";
 
 // ─────────────────────────────────────────────────────────────
 // apiFetchSafe — wrapper con 1 retry su TypeError di rete
@@ -294,6 +295,8 @@ export default function PranzoMenu() {
   const [piattiPool, setPiattiPool] = useState(null);
   const [menu, setMenu] = useState(null);
   const [righe, setRighe] = useState([]);
+  const [showStory, setShowStory] = useState(false);
+  const [pranzoSettings, setPranzoSettings] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -429,6 +432,14 @@ export default function PranzoMenu() {
 
   // ── Effetti ─────────────────────────────────────────────────
   useEffect(() => { loadPool(); }, [loadPool]);
+
+  // Settings pranzo (prezzi + recapiti) per la storia Instagram
+  useEffect(() => {
+    apiFetch(`${API_BASE}/pranzo/settings/`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => s && setPranzoSettings(s))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (tab === "compositore") {
@@ -858,6 +869,7 @@ export default function PranzoMenu() {
                     <Btn variant="ghost" size="sm" onClick={() => aggiungiRiga(null)}>+ Riga ad-hoc</Btn>
                     <Btn variant="ghost" size="sm" onClick={copiaSettimanaPrecedente}>📋 Copia prec.</Btn>
                     {menu && <Btn variant="secondary" size="sm" onClick={() => apriPdf()}>📄 PDF</Btn>}
+                    {righe.length > 0 && <Btn variant="secondary" size="sm" onClick={() => setShowStory(true)}>📱 Storia</Btn>}
                     {menu && <Btn variant="danger" size="sm" onClick={elimina}>Elimina</Btn>}
                     <Btn variant="success" size="sm" onClick={salva} loading={saving}>
                       {menu ? "Aggiorna" : "Crea menu"}
@@ -1006,6 +1018,14 @@ export default function PranzoMenu() {
           )}
         </div>
       </div>
+
+      {showStory && (
+        <PranzoStoryCanvas
+          menu={{ righe }}
+          settings={pranzoSettings}
+          onClose={() => setShowStory(false)}
+        />
+      )}
     </div>
   );
 }

@@ -132,6 +132,8 @@ class SettingsUpdate(BaseModel):
     prezzo_2_default: Optional[float] = None
     prezzo_3_default: Optional[float] = None
     footer_default: Optional[str] = None
+    ig_telefono: Optional[str] = None
+    ig_indirizzo: Optional[str] = None
 
 
 # ─────────────────────────────────────────────────────────────

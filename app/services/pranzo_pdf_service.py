@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v3.2-pranzo-pdf-no-logo-corpi-grandi
+# @version: v3.3-pranzo-pdf-filetti-categoria
 # -*- coding: utf-8 -*-
 # Modulo: cucina (sub-modulo pranzo)
 """
@@ -118,8 +118,14 @@ def _build_piatti_html(righe: List[Dict[str, Any]]) -> str:
     for cat, nomi in gruppi:
         label = LABEL_CATEGORIA.get(cat, cat.capitalize())
         piatti = "".join(f'<div class="piatto">{escape(n)}</div>' for n in nomi)
+        # v3.3 (Proposta 2): etichetta categoria con filetti laterali, per
+        # raggruppare visivamente le portate (coerente col menu A5).
         blocchi.append(
-            f'<div class="categoria-label">{escape(label)}</div>'
+            '<div class="categoria-label">'
+            '<span class="filetto"></span>'
+            f'<span class="cat-testo">{escape(label)}</span>'
+            '<span class="filetto"></span>'
+            '</div>'
             f'<div class="categoria-blocco">{piatti}</div>'
         )
     return '<div class="menu-piatti">' + "".join(blocchi) + "</div>"

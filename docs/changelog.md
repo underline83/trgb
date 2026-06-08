@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-06-08 — Pranzo 1.7: storia Instagram «oggi a pranzo» (canvas client-side) `[locale:tregobbi]`
+
+Marco vuole generare la storia IG del pranzo. Scelta (panel marketing, 7 mockup valutati /100): variante **Antracite** "oggi a pranzo" (86/100), solo grafica/testo (no foto), cadenza giornaliera. Implementata client-side: il browser disegna la storia 1080×1920 su `<canvas>` e la scarica come PNG, zero dipendenze server.
+
+### Aggiunto
+- `PranzoStoryCanvas.jsx`: canvas 1080×1920, fondo antracite, gobbette (path logo), data odierna + "OGGI A PRANZO", piatti della settimana corrente (font adattivo, fino a 6), menù business coi prezzi da settings, CTA recapiti. Safe zone IG 250px top/bottom rispettate. Download `pranzo-tregobbi-AAAA-MM-GG.png`.
+- Bottone "📱 Storia" nella toolbar compositore Pranzo (quando ci sono piatti).
+- `pranzo_settings.ig_telefono` + `ig_indirizzo` (soft-migration in `_ensure_schema`, testata) + campi in PranzoSettingsPanel ("📱 Recapiti storia Instagram").
+
+### Nota
+Font canvas: Playfair Display (caricato) per titoli/corsivi, monospace di sistema per i piatti. Limite onesto: senza foto il food appeal ha un tetto — la versione "foto + overlay" resta in roadmap come v2.
+
+## 2026-06-08 — Pranzo PDF: leggibilità Proposta 2 (filetti categoria) `[locale:tregobbi]`
+
+Marco: "migliorare la lettura del PDF pranzo, tieni lo stile". Scelta la Proposta 2 fra 3 mockup: etichette categoria (ANTIPASTI/PRIMI/SECONDI) con **filetto sottile ai lati** + più aria tra le categorie + interlinea piatti maggiore. Nomi piatto restano Courier Bold maiuscolo. pranzo_pdf_service v3.3, css v2.4.
+
 ## 2026-06-08 — Ricette 3.33: prezzo corrente robusto (mediana finestra) `[core]`
 
 Caso Sedano (Marco 2026-06-07): "prezzo attuale" 8,27 €/kg perché un acquisto occasionale di "cuore di sedano" Esselunga (vaschetta retail) scavalcava per data il fornitore abituale Milesi a 2,60 €/kg — e quel prezzo finiva dritto nel food cost delle ricette (`_get_ingredient_unit_cost` usava l'ultimo prezzo). Scelta Marco: **mediana degli ultimi N giorni** (default 90, configurabile).

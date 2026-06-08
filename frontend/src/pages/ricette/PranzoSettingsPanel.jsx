@@ -47,6 +47,8 @@ export default function PranzoSettingsPanel() {
           prezzo_2_default: Number(form.prezzo_2_default),
           prezzo_3_default: Number(form.prezzo_3_default),
           footer_default: form.footer_default,
+          ig_telefono: form.ig_telefono || "",
+          ig_indirizzo: form.ig_indirizzo || "",
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -146,6 +148,30 @@ export default function PranzoSettingsPanel() {
         <div className="text-xs text-neutral-500">
           Suggerimento: <code>*</code> per "acqua, coperto e servizio inclusi" e
           <code> **</code> per "da Lunedì a Venerdì". Il PDF preserva i ritorni a capo.
+        </div>
+      </div>
+
+      {/* Recapiti storia Instagram */}
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-3 mb-4">
+        <h3 className="font-semibold text-neutral-800">📱 Recapiti storia Instagram</h3>
+        <p className="text-xs text-neutral-500">Compaiono in fondo alla storia "oggi a pranzo" generata dalla pagina Pranzo.</p>
+        <div>
+          <label className="block text-xs text-neutral-500 mb-1 uppercase tracking-wide">Telefono</label>
+          <input
+            value={form.ig_telefono || ""}
+            onChange={(e) => update("ig_telefono", e.target.value)}
+            placeholder="es. 035 123456"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-neutral-500 mb-1 uppercase tracking-wide">Indirizzo</label>
+          <input
+            value={form.ig_indirizzo || ""}
+            onChange={(e) => update("ig_indirizzo", e.target.value)}
+            placeholder="es. Via … , Bergamo"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+          />
         </div>
       </div>
 
