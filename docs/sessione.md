@@ -1,6 +1,18 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-09 — **Cassa: scontrini annullati/resi** (`[core]`). Nuovo campo `annulli_resi` sulla chiusura, sottratto da quadratura e contanti fiscali: uno scontrino annullato resta nel totale RT ma non è incassato, generava ammanco fittizio nella quadratura e sovrastima nei versamenti. Mig 146 + chiusure_turno.py + admin_finance.py + ChiusuraTurno/ChiusureTurnoLista. Verificato sul caso reale cena 8/6 (saldo −460 → 0). Da pushare. Vedi sezione sotto.
+**Ultimo aggiornamento:** 2026-06-12 — **Audit totale sistema** (`[core]`, solo docs). Audit completo 10 aree (sicurezza, dati, backend, frontend, architettura, infra VPS live, performance, docs delta, readiness prodotto, verifica avversaria) eseguito con 13 subagenti paralleli + verifiche live ssh/curl. Report in `docs/audit-2026-06-12/` (00_EXECUTIVE_SUMMARY → 10_PIANO_AZIONE + 99_VERIFICA_AVVERSARIA). **Voto 63/100 · 110 finding (3 CRIT, 18 HIGH)**. CRIT: modulo Banca SENZA AUTH confermato live (929 movimenti pubblici), mig 047/048 con dati personali non flaggate TRGB_SPECIFIC, SECRET_KEY default per nuove installazioni. Live: backup post-S60-INC1 TUTTI VERDI ✅, ma SSH PermitRootLogin/Password yes e porte 3389/9000/9443 esposte. Health docs 73→72 stabile. Piano in 11 sessioni (~1 sera) in `10_PIANO_AZIONE.md` — Sessione 1 "sicurezza" è effort S e chiude CRIT+2 HIGH. Nessuna modifica a codice/DB. Da pushare.
+
+## SESSIONE 2026-06-12 — Audit totale TRGB v5.24
+
+- **Perimetro:** tutto il sistema (estende l'audit solo-docs del 19/05). Metodo: 9 subagenti di area + verifica live VPS/HTTP dell'orchestratore + subagente avversario indipendente (22 finding ricontrollati, 82% confermati, 1 smentito e rimosso).
+- **Output:** `docs/audit-2026-06-12/` — 12 deliverable + 11 report grezzi + AUDIT_STATE.md.
+- **Voti area:** sicurezza 48 · dati 72 · backend 74 · frontend 78 · architettura 70 · infra 58 · performance 68 · docs 72 · prodotto 55 → **complessivo 63/100** (pesi in 00_EXECUTIVE_SUMMARY).
+- **Da fare subito (Sessione 1 del piano, effort S):** auth su `banca_router` + `ipratico_products_router`, `PermitRootLogin no`+`PasswordAuthentication no`, firewall 3389/9000/9443, flag TRGB_SPECIFIC su mig 047/048 + SECRET_KEY esplicita nel runbook.
+- **Conferme positive live:** backend sano (NRestarts=0, VPS allineato 5.24/1f5f9c17), TLS ok fino 29/08, backup cron 4 job attivi con LKG fresco e health "SANO", integrity check 10/10 DB ok.
+- Nota: `AUDIT_STATE_FULL.md` nella root è scratch di un tentativo precedente, cancellabile.
+
+---
+ Nuovo campo `annulli_resi` sulla chiusura, sottratto da quadratura e contanti fiscali: uno scontrino annullato resta nel totale RT ma non è incassato, generava ammanco fittizio nella quadratura e sovrastima nei versamenti. Mig 146 + chiusure_turno.py + admin_finance.py + ChiusuraTurno/ChiusureTurnoLista. Verificato sul caso reale cena 8/6 (saldo −460 → 0). Da pushare. Vedi sezione sotto.
 
 ## SESSIONE 2026-06-09 — Cassa: scontrini annullati/resi (quadratura + versamenti) `[core]`
 
