@@ -27,16 +27,22 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Body
 from pydantic import BaseModel
 import sqlite3
 
+from app.services.auth_service import get_current_user
 from app.utils.locale_data import locale_data_path
 
 # R6.5 — path tenant-aware. Modulo: banca.
 DB_PATH = locale_data_path("foodcost.db")
 
-router = APIRouter(prefix="/banca", tags=["banca"])
+# Audit 2026-06-12 [A1 CRIT]: auth a livello router — gli endpoint erano pubblici.
+router = APIRouter(
+    prefix="/banca",
+    tags=["banca"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 def get_db():

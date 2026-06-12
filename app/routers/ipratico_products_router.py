@@ -22,12 +22,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List as TList
 
-router = APIRouter(prefix="/vini/ipratico", tags=["ipratico-products"])
+from app.services.auth_service import get_current_user
+
+# Audit 2026-06-12 [A1 CRIT]: auth a livello router — endpoint (incluso upload) erano pubblici.
+router = APIRouter(
+    prefix="/vini/ipratico",
+    tags=["ipratico-products"],
+    dependencies=[Depends(get_current_user)],
+)
 
 from app.utils.locale_data import locale_data_path
 
