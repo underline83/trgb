@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-06-12 — SECURITY: auth su modulo Banca e iPratico + hardening VPS `[core]`
+
+Dall'audit totale 2026-06-12 (`docs/audit-2026-06-12/`, finding CRIT A1): `banca_router` e `ipratico_products_router` erano montati **senza autenticazione** — `GET /banca/movimenti` rispondeva pubblicamente con i movimenti bancari reali, inclusi endpoint di scrittura/cancellazione e upload.
+
+### Sicurezza
+- `banca_router.py` + `ipratico_products_router.py`: `dependencies=[Depends(get_current_user)]` a livello router — tutti gli endpoint ora richiedono JWT. Verificato live post-deploy: 401 senza token. Nessun impatto FE (le pagine usavano già `apiFetch` con Bearer).
+- VPS (fuori repo): sshd `PermitRootLogin no` + `PasswordAuthentication no`; Portainer ribindato su `127.0.0.1` (Docker bypassa ufw); xrdp disabilitato; regole ufw 3389/5900 rimosse. Porte esposte residue: 22/80/443.
+
+---
+
 ## 2026-06-09 — Cassa: scontrini annullati/resi (quadratura + versamenti) `[core]`
 
 Caso cena 8/6/2026 (Marco): uno scontrino battuto e poi **annullato** resta nel totale fiscale del registratore (Chiusura RT) ma non viene mai incassato. Risultato sul DB reale: la quadratura del fine turno segnava `saldo = −460,00 €` (= esattamente lo scontrino annullato) e i "contanti da versare" sovrastimavano di 460 € (`contanti_fiscali = corrispettivi − elettronici`, coi corrispettivi che includevano l'annullato). Scelta Marco: campo dedicato + fix su entrambi i sintomi.
