@@ -305,9 +305,22 @@ async def import_csv(file: UploadFile = File(...)):
         banca = _get_csv_field(row, "Banca", "banca")
         rapporto = _get_csv_field(row, "Rapporto", "rapporto")
         causale = _get_csv_field(row, "Causale", "causale")
-        # Se non c'è Rapporto ma c'è Causale (formato MovimentiCC), salva causale in rapporto
-        if not rapporto and causale:
-            rapporto = causale
+        # CC.8 (2026-06-13): l'export "MovimentiCC_OnLine" recente di BPM ha
+        # 7 colonne (Data contabile, Data valuta, Importo, Divisa, Causale,
+        # Descrizione, Canale) — manca completamente Banca/Rapporto. Il vecchio
+        # codice metteva la `causale` in `rapporto` come pezza, ma è
+        # semanticamente errata (la causale BPM "118" è un codice operazione,
+        # non il numero conto) e ha generato 420 mov con rapporto sbagliato
+        # ("118", "260", ecc.) — vedi mig 144 di backfill.
+        #
+        # Fix: se mancano BOTH banca e rapporto, inietta i default del CC
+        # principale Tre Gobbi (Banco BPM 12200). La causale viene scartata
+        # (informazione non utile a livello di dato banca; resta comunque
+        # dentro alla descrizione). Quando aggiungeremo multi-conto (R8 o
+        # prima) servirà una UI per scegliere su quale conto importare.
+        if not banca and not rapporto:
+            banca = "05034 - BANCO BPM S.P.A."
+            rapporto = "11102 - 400200012200"
         importo = _parse_importo_it(_get_csv_field(row, "Importo", "importo") or "0")
         divisa = _get_csv_field(row, "Divisa", "divisa") or "EUR"
         descrizione = _get_csv_field(row, "Descrizione", "descrizione")

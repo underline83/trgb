@@ -310,6 +310,8 @@ frontend/src/pages/flussi-cassa/
 | CC.6   | Fix coerenza CC bancario ↔ carta (exclude carta da saldo/dashboard/andamento/duplicati; cross-ref con badge "💳 carta", toggle visibilità e chip "Già su CG #N") | ✅ FATTO (2026-06-13) |
 | CC.6.fix | Hotfix duplicazione movimenti multi-link (LEFT JOIN→subquery scalari) + badge "CC *XXXX" multi-conto ready + chip "+M altre" su count>1 | ✅ FATTO (2026-06-13 notte) |
 | CC.7   | Chiudi movimento senza fattura — POST/DELETE `/cross-ref/chiudi-senza-fattura/{id}` crea cg_uscite tipo SPESA_NON_FATTURATA (stato=PAGATO, già fuori scadenzario), reversibile. Bottoni "✕ Senza fattura" su tab senza/parcheggiati + chip "Chiusa senza fattura" + Riapri | ✅ FATTO (2026-06-13 notte) |
+| CC.7.fix | Fix Invalid Date in fmtDate (slice 10 char per datetime SQL) + badge CC sempre presente sui mov non-carta anche se banca='' | ✅ FATTO (2026-06-13 notte) |
+| CC.8   | Parser CSV: nuovo formato BPM Online (7 col senza Banca/Rapporto) — default BPM 12200 + mig 144 backfill 420 mov già sbagliati (TRGB-only) | ✅ FATTO (2026-06-13 notte) |
 
 **Endpoint attivi (`/banca/carta/*`):**
 - `POST /banca/carta/upload` — upload PDF Banco BPM, parse via `carta_pdf_parser`, insert in `carta_estratti` + N righe in `banca_movimenti`. Dedup su `pdf_sha256`. Sanity check quadratura ai centesimi; 422 se non quadra.
