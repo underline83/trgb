@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.17",
+    version: "1.18",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
@@ -152,7 +152,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.26",
+    version: "5.27",
     label: "Sistema",
     status: "stabile",
     color: "green",

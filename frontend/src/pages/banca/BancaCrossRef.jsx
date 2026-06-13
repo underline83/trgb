@@ -19,7 +19,11 @@ const fmt = (n) =>
 const fmtDate = (d) => {
   if (!d) return "—";
   try {
-    const dt = new Date(d + "T00:00:00");
+    // Accetta sia "YYYY-MM-DD" (data sola) sia "YYYY-MM-DD HH:MM:SS" (datetime SQL):
+    // prendo i primi 10 char così evito "Invalid Date" su parcheggiato_at ecc.
+    const dateOnly = String(d).slice(0, 10);
+    const dt = new Date(dateOnly + "T00:00:00");
+    if (isNaN(dt.getTime())) return d;
     return dt.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" });
   } catch { return d; }
 };
@@ -1211,14 +1215,17 @@ export default function BancaCrossRef() {
                                 >
                                   💳 carta
                                 </span>
-                              ) : m.banca ? (
+                              ) : (
+                                /* CC.7.fix: badge "CC" SEMPRE per i mov non-carta, anche se m.banca è vuoto
+                                   (import CSV vecchi senza colonna banca). Se rapporto >= 4 chars mostro
+                                   le ultime 4 cifre per distinguere conti multipli; altrimenti solo "CC". */
                                 <span
                                   className="inline-block text-[9px] font-semibold px-1.5 py-0.5 mr-1.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 align-middle"
-                                  title={`Conto: ${m.banca}${m.rapporto ? ` · ${m.rapporto}` : ""}`}
+                                  title={`Conto: ${m.banca || "—"}${m.rapporto ? ` · ${m.rapporto}` : ""}`}
                                 >
-                                  CC{m.rapporto && m.rapporto.length >= 4 ? ` *${m.rapporto.slice(-4)}` : ""}
+                                  CC{m.rapporto && String(m.rapporto).length >= 4 ? ` *${String(m.rapporto).slice(-4)}` : ""}
                                 </span>
-                              ) : null}
+                              )}
                               {m.descrizione}
                             </div>
                             {m.categoria_banca && (
