@@ -306,7 +306,8 @@ frontend/src/pages/flussi-cassa/
 | CC.4 D2 | Auto-match bulk con anteprima checkbox | ✅ FATTO (2026-06-02 sera, `AutomatchModal`, endpoint POST `/estratti/{id}/automatch`) |
 | CC.4.e | UI soglie matching in Impostazioni | ✅ FATTO (2026-06-02 sera, tab "Soglie match carta" in BancaImpostazioni, PUT /banca/carta/match-settings) |
 | CC.5.a | Riconciliazione livello B (estratto ↔ addebito CC) | ✅ FATTO (2026-06-02 notte, mig 142, `CercaAddebitoCcModal`) |
-| CC.5.b | Riepilogo mensile spese carta per categoria/MCC | ✅ FATTO (2026-06-02 notte, GET `/riepilogo`, `CartaRiepilogoPage.jsx`) — **sub-modulo carta CHIUSO completo** |
+| CC.5.b | Riepilogo mensile spese carta per categoria/MCC | ✅ FATTO (2026-06-02 notte, GET `/riepilogo`, `CartaRiepilogoPage.jsx`) |
+| CC.6   | Fix coerenza CC bancario ↔ carta (exclude carta da saldo/dashboard/andamento/duplicati; cross-ref con badge "💳 carta", toggle visibilità e chip "Già su CG #N") | ✅ FATTO (2026-06-02 notte) |
 
 **Endpoint attivi (`/banca/carta/*`):**
 - `POST /banca/carta/upload` — upload PDF Banco BPM, parse via `carta_pdf_parser`, insert in `carta_estratti` + N righe in `banca_movimenti`. Dedup su `pdf_sha256`. Sanity check quadratura ai centesimi; 422 se non quadra.

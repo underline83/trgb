@@ -118,6 +118,7 @@ const DEFAULT_FILTERS = {
   direzione: "all",    // 'all' | 'uscite' | 'entrate'
   tipoLink: [],        // subset di TIPO_LINK_OPTIONS keys
   searchText: "",
+  mostraCarta: true,   // CC.6: mostra pseudo-movimenti carta (default sì)
 };
 
 // Converte datePreset + custom range in {from, to} YYYY-MM-DD
@@ -270,6 +271,24 @@ function FilterPanel({ filters, update, reset, toggleTipoLink, activeCount, comp
             Deseleziona tutti
           </button>
         )}
+      </div>
+
+      {/* CC.6 — Toggle visibilità pseudo-movimenti carta */}
+      <div className="pt-2 border-t border-neutral-200">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={filters.mostraCarta}
+            onChange={(e) => update({ mostraCarta: e.target.checked })}
+            className="w-3.5 h-3.5 accent-emerald-600"
+          />
+          <span className="text-[11px] text-neutral-600">
+            <span className="font-medium">💳 Mostra movimenti carta</span>
+            <span className="block text-[10px] text-neutral-400 mt-0.5 leading-tight">
+              Spese carta di credito importate dal PDF estratto (non sul CC)
+            </span>
+          </span>
+        </label>
       </div>
     </div>
   );
@@ -646,11 +665,25 @@ export default function BancaCrossRef() {
   // linked = completamente collegato (residuo < 1)
   // partial = ha link ma residuo >= 1 → va nei suggerimenti o senza match
   // parcheggiati = stato "in attesa" persistente (sparisce dagli altri tab)
-  const parcheggiati = useMemo(() => movimenti.filter(m => !!m.parcheggiato), [movimenti]);
-  const linked   = useMemo(() => movimenti.filter(m => !m.parcheggiato && isFullyLinked(m)), [movimenti]);
-  const unlinked = useMemo(() => movimenti.filter(m => !m.parcheggiato && !isFullyLinked(m)), [movimenti]);
+  // CC.6: applica filtro "mostraCarta" lato client prima di splittare in tab.
+  // Se filters.mostraCarta=false, nasconde gli pseudo-movimenti dall'estratto
+  // carta (riconoscibili da m.is_carta=1 / m.banca LIKE 'CARTA_%').
+  const movimentiVisibili = useMemo(
+    () => filters.mostraCarta
+      ? movimenti
+      : movimenti.filter(m => !(m.is_carta || (m.banca || "").startsWith("CARTA_"))),
+    [movimenti, filters.mostraCarta]
+  );
+  const parcheggiati = useMemo(() => movimentiVisibili.filter(m => !!m.parcheggiato), [movimentiVisibili]);
+  const linked   = useMemo(() => movimentiVisibili.filter(m => !m.parcheggiato && isFullyLinked(m)), [movimentiVisibili]);
+  const unlinked = useMemo(() => movimentiVisibili.filter(m => !m.parcheggiato && !isFullyLinked(m)), [movimentiVisibili]);
   const withSugg = useMemo(() => unlinked.filter(m => m.possibili_match?.length > 0 && !dismissed.has(m.id)), [unlinked, dismissed]);
   const noMatch  = useMemo(() => unlinked.filter(m => !m.possibili_match?.length || dismissed.has(m.id)), [unlinked, dismissed]);
+  // Conteggio carta nascosti per il toggle UI
+  const nCartaHidden = useMemo(
+    () => movimenti.filter(m => m.is_carta || (m.banca || "").startsWith("CARTA_")).length,
+    [movimenti]
+  );
 
   const listMap = { collegati: linked, suggerimenti: withSugg, senza: noMatch, parcheggiati: parcheggiati };
   let currentList = listMap[tab] || [];
@@ -1128,10 +1161,23 @@ export default function BancaCrossRef() {
                                 ? "whitespace-normal break-words"
                                 : "truncate"
                             }`}>
+                              {(m.is_carta || (m.banca || "").startsWith("CARTA_")) && (
+                                <span
+                                  className="inline-block text-[9px] font-semibold px-1.5 py-0.5 mr-1.5 rounded bg-amber-100 text-amber-800 border border-amber-200 align-middle"
+                                  title={`Movimento dell'estratto carta (${m.banca || "CARTA"}) — non sul CC bancario`}
+                                >
+                                  💳 carta
+                                </span>
+                              )}
                               {m.descrizione}
                             </div>
                             {m.categoria_banca && (
                               <div className="text-[10px] text-neutral-400">{m.categoria_banca}{m.sottocategoria_banca ? ` — ${m.sottocategoria_banca}` : ""}</div>
+                            )}
+                            {m.match_uscita_id && (
+                              <div className="text-[10px] text-emerald-700 mt-0.5 font-medium" title={`Già riconciliato in Controllo Gestione (uscita #${m.match_uscita_id}) tramite il modulo Carta di Credito`}>
+                                🔗 Già su CG #{m.match_uscita_id}{m.match_uscita_fornitore ? ` — ${m.match_uscita_fornitore}` : ""}
+                              </div>
                             )}
                             {/* Indicatore link parziale nei tab suggerimenti/senza */}
                             {partial && tab !== "collegati" && (

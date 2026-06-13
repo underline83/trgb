@@ -52,6 +52,20 @@ def get_db():
     return conn
 
 
+# ────────────────────────────────────────────────────────────────────
+# CC.6 — Filtro per escludere movimenti carta dalle query "CC bancario"
+# ────────────────────────────────────────────────────────────────────
+# I movimenti carta importati dal PDF estratto vivono in `banca_movimenti`
+# con `banca LIKE 'CARTA_%'` (es. CARTA_BPM_623) per riuso di schema, ma NON
+# sono mai passati dal CC bancario reale — sono singoli acquisti con la
+# carta di credito. Vanno esclusi da: saldo, lista movimenti CC, dashboard,
+# andamento, duplicati. NON vanno esclusi dalla riconciliazione (cross-ref),
+# perché il flusso "categorizza ogni spesa" copre sia CC che carta.
+# Vedi docstring mig 140.
+EXCLUDE_CARTA_SQL = "(m.banca IS NULL OR m.banca NOT LIKE 'CARTA_%')"
+EXCLUDE_CARTA_SQL_NO_ALIAS = "(banca IS NULL OR banca NOT LIKE 'CARTA_%')"
+
+
 # ═══════════════════════════════════════════════════════
 # CATEGORIE REGISTRAZIONE MOVIMENTI
 # ═══════════════════════════════════════════════════════
@@ -435,6 +449,8 @@ def get_movimenti(
     if search:
         where.append("(m.descrizione LIKE ? OR m.categoria_banca LIKE ? OR m.sottocategoria_banca LIKE ?)")
         params.extend([f"%{search}%"] * 3)
+    # CC.6: esclude pseudo-movimenti carta dalla lista movimenti CC
+    where.append(EXCLUDE_CARTA_SQL)
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -502,6 +518,9 @@ def get_dashboard(
     if data_a:
         where.append("data_contabile <= ?")
         params.append(data_a)
+    # CC.6: il saldo CC bancario deve escludere i pseudo-movimenti carta
+    # (banca LIKE 'CARTA_%') che non sono mai passati dal CC reale.
+    where.append(EXCLUDE_CARTA_SQL_NO_ALIAS)
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     # Totali
@@ -773,8 +792,18 @@ def get_cross_ref(
         lim = 500
 
     # ── 1. Carica movimenti ──
+    # CC.6: include flag is_carta (movimento pseudo dal PDF estratto) e
+    # match_uscita_id (= cg_uscite già linkata via match A del modulo carta,
+    # in tal caso il "Registra" della cross-ref deve essere mostrato come
+    # "Già collegato a CG #N" per evitare doppia riconciliazione).
     cur.execute(f"""
-        SELECT m.* FROM banca_movimenti m
+        SELECT m.*,
+               CASE WHEN m.banca LIKE 'CARTA_%' THEN 1 ELSE 0 END AS is_carta,
+               u.id AS match_uscita_id,
+               u.fornitore_nome AS match_uscita_fornitore,
+               u.totale AS match_uscita_totale
+        FROM banca_movimenti m
+        LEFT JOIN cg_uscite u ON u.banca_movimento_id = m.id
         WHERE {" AND ".join(where)}
         ORDER BY m.data_contabile DESC
         LIMIT {lim}
@@ -1894,10 +1923,13 @@ def get_duplicati():
     seen_ids = set()  # evita duplicati tra i due tipi
 
     # ── Tipo 1: duplicati classici (stessa data_contabile) ────────
-    cur.execute("""
+    # CC.6: esclude i pseudo-movimenti carta (hanno codice_riferimento BPM
+    # univoco quindi non potrebbero comunque essere duplicati di CC veri).
+    cur.execute(f"""
         SELECT data_contabile, importo, COUNT(*) AS cnt,
                GROUP_CONCAT(id) AS ids
         FROM banca_movimenti
+        WHERE {EXCLUDE_CARTA_SQL_NO_ALIAS}
         GROUP BY data_contabile, importo
         HAVING cnt > 1
         ORDER BY data_contabile DESC
@@ -1929,10 +1961,11 @@ def get_duplicati():
     # La banca flagga le pre-autorizzazioni con "-da contab" in coda alla descrizione.
     # Quando il pagamento viene contabilizzato, appare un secondo movimento
     # con stessa data_valuta + importo ma senza "-da contab".
-    cur.execute("""
+    cur.execute(f"""
         SELECT id, data_contabile, data_valuta, importo, descrizione
         FROM banca_movimenti
         WHERE LOWER(descrizione) LIKE '%-da contab%'
+          AND {EXCLUDE_CARTA_SQL_NO_ALIAS}
         ORDER BY data_contabile DESC
     """)
     preauth_rows = cur.fetchall()
@@ -2081,6 +2114,8 @@ def get_andamento(
     if data_a:
         where.append("data_contabile <= ?")
         params.append(data_a)
+    # CC.6: serie temporale del CC esclude i pseudo-movimenti carta.
+    where.append(EXCLUDE_CARTA_SQL_NO_ALIAS)
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
     if raggruppamento == "giorno":

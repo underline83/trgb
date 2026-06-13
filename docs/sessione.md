@@ -1,6 +1,53 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-12 (sera) — **Sessione 1 piano audit: sicurezza urgente** `[core]` + hardening VPS. Pushato `1e4a8ac9`: auth router-level su `banca_router` e `ipratico_products_router` (erano PUBBLICI, verificato 401 live post-deploy). Sul VPS (manuale, no commit): sshd `PermitRootLogin no` + `PasswordAuthentication no` (servizio = `ssh`, non `sshd`); Portainer ricreato con bind `127.0.0.1:9000/9443` (Docker scavalca ufw, chiudere via firewall NON basta — accesso futuro via `ssh -L 9443:localhost:9443 trgb`); xrdp disabilitato + regole ufw 3389 e 5900 rimosse. Verifica esterna `nc`: 9443/9000/3389/5900 tutte chiuse. Esposti ora solo 22/80/443. **Restano della Sessione 1:** punto 5 (flag TRGB_SPECIFIC su mig 047/048 + SECRET_KEY default) e analisi log nginx per accessi storici a `/banca/*` nel periodo esposto.
+**Ultimo aggiornamento:** 2026-06-13 (notte) — **CC.6: fix coerenza CC bancario ↔ pseudo-movimenti carta** (`[core]`). Carta v1.6 beta, sistema 5.24, flussiCassa 1.15. Marco ha notato che i movimenti carta importati dal PDF apparivano nella Riconciliazione (BancaCrossRef): è desiderato per il flusso "categorizza ogni spesa", ma serve coerenza visiva e i saldi CC devono escluderli. **Backend**: 4 endpoint banca ora applicano filtro `banca NOT LIKE 'CARTA_%'` via costanti `EXCLUDE_CARTA_SQL` / `EXCLUDE_CARTA_SQL_NO_ALIAS`: `/banca/movimenti`, `/banca/dashboard` (saldo+breakdown+ultimi via where[] condiviso), `/banca/andamento` (serie temporale), `/banca/duplicati` (tipo 1+2). `/banca/cross-ref` mantiene i movimenti carta (utile per registrare come categoria spesa) ma li annota con `is_carta=1` e `match_uscita_id` (LEFT JOIN cg_uscite per dedup col match A). **Frontend** `BancaCrossRef.jsx`: nuovo toggle sidebar "💳 Mostra movimenti carta" (default ON), badge "💳 carta" prima della descrizione delle righe carta, riga "🔗 Già su CG #N — {fornitore}" emerald sotto la descrizione quando il movimento è già riconciliato via match A (evita doppia registrazione).
+
+## SESSIONE 2026-06-13 (notte) — CC.6: fix coerenza carta vs CC
+
+### Contesto
+Post-CC.5.b di 11 giorni fa (2026-06-02), Marco apre `/flussi-cassa/cc/crossref` e vede tra i movimenti CC anche i 127 movimenti dell'estratto carta. Domanda: separarli o lasciarli? Avevo dichiarato nel docstring di mig 140 "vanno esclusi dal saldo CC via WHERE banca NOT LIKE 'CARTA_%'" ma NON avevo applicato il filtro agli endpoint banca esistenti — bug di design originale.
+
+### Decisione presa con Marco
+**Lasciarli visibili nella riconciliazione, escluderli dal saldo CC.** Due piani semantici distinti:
+- **Riconciliare** (= collegare a fattura o categorizzare spesa) → vale per QUALUNQUE movimento, sia CC che carta. Flusso unico.
+- **Saldo CC bancario** → solo movimenti CC veri. Niente pseudo-carta.
+
+### Backend (`app/routers/banca_router.py`)
+Aggiunte costanti riusabili:
+```python
+EXCLUDE_CARTA_SQL = "(m.banca IS NULL OR m.banca NOT LIKE 'CARTA_%')"
+EXCLUDE_CARTA_SQL_NO_ALIAS = "(banca IS NULL OR banca NOT LIKE 'CARTA_%')"
+```
+
+Applicato a 4 endpoint: `/banca/movimenti` (lista CC), `/banca/dashboard` (saldo + breakdown + ultimi via `where[]` condiviso), `/banca/andamento` (serie temporale), `/banca/duplicati` (tipo 1 classico + tipo 2 preautorizzazioni).
+
+`/banca/cross-ref` esteso: query principale ora include LEFT JOIN su cg_uscite per portare `match_uscita_id`/`match_uscita_fornitore`/`match_uscita_totale` + flag `is_carta` derivato da `banca LIKE 'CARTA_%'`.
+
+### Frontend (`frontend/src/pages/banca/BancaCrossRef.jsx`)
+- `mostraCarta: true` aggiunto a `DEFAULT_FILTERS`.
+- Nuovo toggle nella sidebar Filters sotto "Tipo link": checkbox "💳 Mostra movimenti carta" con sottotitolo "Spese carta di credito importate dal PDF estratto (non sul CC)".
+- Memo `movimentiVisibili` derivato da `movimenti` con filtro `is_carta`/`banca LIKE 'CARTA_'` lato client → propagato a `parcheggiati/linked/unlinked/withSugg/noMatch`.
+- Memo `nCartaHidden` per contare i carta nascosti.
+- Badge chip ambra `💳 carta` prima della descrizione su righe carta.
+- Riga aggiuntiva sotto la descrizione: chip emerald `🔗 Già su CG #N — {fornitore}` se `match_uscita_id` presente → segnala dedup col match A senza nascondere gli altri bottoni (backward-compat).
+
+### Bump versioni
+- `VERSION` 5.23 → 5.24
+- `cartaCredito` 1.5 → 1.6
+- `flussiCassa` 1.14 → 1.15
+- `sistema` 5.23 → 5.24
+
+### File toccati in questo push
+- `app/routers/banca_router.py` (costanti + 5 endpoint)
+- `frontend/src/pages/banca/BancaCrossRef.jsx` (toggle + memo filtro + badge + chip)
+- `VERSION`
+- `frontend/src/config/versions.jsx`
+- `docs/modulo_banca.md`
+- `docs/sessione.md` (questa entry)
+
+---
+
+**Aggiornamento precedente (2026-06-12 sera):** **Sessione 1 piano audit: sicurezza urgente** `[core]` + hardening VPS. Pushato `1e4a8ac9`: auth router-level su `banca_router` e `ipratico_products_router` (erano PUBBLICI, verificato 401 live post-deploy). Sul VPS (manuale, no commit): sshd `PermitRootLogin no` + `PasswordAuthentication no` (servizio = `ssh`, non `sshd`); Portainer ricreato con bind `127.0.0.1:9000/9443` (Docker scavalca ufw, chiudere via firewall NON basta — accesso futuro via `ssh -L 9443:localhost:9443 trgb`); xrdp disabilitato + regole ufw 3389 e 5900 rimosse. Verifica esterna `nc`: 9443/9000/3389/5900 tutte chiuse. Esposti ora solo 22/80/443. **Restano della Sessione 1:** punto 5 (flag TRGB_SPECIFIC su mig 047/048 + SECRET_KEY default) e analisi log nginx per accessi storici a `/banca/*` nel periodo esposto.
 
 ## SESSIONE 2026-06-12 (sera) — Sicurezza urgente post-audit `[core]`
 

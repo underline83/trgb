@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.14",
+    version: "1.15",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
@@ -124,8 +124,13 @@ const MODULE_VERSIONS = {
     // Nuova pagina CartaRiepilogoPage.jsx con filtri carta+range, 4 stat
     // card, bar chart stacked per categoria (recharts), tabella mesi×cat
     // con riga totali. Bottone "📊 Riepilogo mensile" in CartaCreditoPage.
-    // Sub-modulo carta CHIUSO completo.
-    version: "1.5",
+    //
+    // CC.6 (2026-06-13): fix coerenza carta vs CC bancario. 4 endpoint
+    // banca escludono pseudo-mov carta dal saldo (filtro EXCLUDE_CARTA_SQL).
+    // /banca/cross-ref include is_carta + match_uscita_id (LEFT JOIN
+    // cg_uscite). BancaCrossRef: toggle "💳 Mostra movimenti carta", badge
+    // "💳 carta" sulle righe carta, chip "🔗 Già su CG #N" se matchato A.
+    version: "1.6",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",
