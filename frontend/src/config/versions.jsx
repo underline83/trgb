@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.15",
+    version: "1.16",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
@@ -130,7 +130,13 @@ const MODULE_VERSIONS = {
     // /banca/cross-ref include is_carta + match_uscita_id (LEFT JOIN
     // cg_uscite). BancaCrossRef: toggle "💳 Mostra movimenti carta", badge
     // "💳 carta" sulle righe carta, chip "🔗 Già su CG #N" se matchato A.
-    version: "1.6",
+    //
+    // CC.6.fix (2026-06-13 notte): hotfix LEFT JOIN duplicava i movimenti
+    // multi-link (es. mov #1416 con 6 uscite CG appariva 6 volte). Sostituito
+    // con subquery scalari LIMIT 1 + GROUP_CONCAT/COUNT per portare aggregato.
+    // Aggiunto badge "🏦 BANCA *XXXX" (multi-conto ready) accanto al badge
+    // carta. Chip "Già su CG" mostra "+M altre" se count > 1.
+    version: "1.7",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",
@@ -141,7 +147,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.24",
+    version: "5.25",
     label: "Sistema",
     status: "stabile",
     color: "green",

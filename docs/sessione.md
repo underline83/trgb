@@ -1,6 +1,58 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-13 (notte) — **CC.6: fix coerenza CC bancario ↔ pseudo-movimenti carta** (`[core]`). Carta v1.6 beta, sistema 5.24, flussiCassa 1.15. Marco ha notato che i movimenti carta importati dal PDF apparivano nella Riconciliazione (BancaCrossRef): è desiderato per il flusso "categorizza ogni spesa", ma serve coerenza visiva e i saldi CC devono escluderli. **Backend**: 4 endpoint banca ora applicano filtro `banca NOT LIKE 'CARTA_%'` via costanti `EXCLUDE_CARTA_SQL` / `EXCLUDE_CARTA_SQL_NO_ALIAS`: `/banca/movimenti`, `/banca/dashboard` (saldo+breakdown+ultimi via where[] condiviso), `/banca/andamento` (serie temporale), `/banca/duplicati` (tipo 1+2). `/banca/cross-ref` mantiene i movimenti carta (utile per registrare come categoria spesa) ma li annota con `is_carta=1` e `match_uscita_id` (LEFT JOIN cg_uscite per dedup col match A). **Frontend** `BancaCrossRef.jsx`: nuovo toggle sidebar "💳 Mostra movimenti carta" (default ON), badge "💳 carta" prima della descrizione delle righe carta, riga "🔗 Già su CG #N — {fornitore}" emerald sotto la descrizione quando il movimento è già riconciliato via match A (evita doppia registrazione).
+**Ultimo aggiornamento:** 2026-06-13 (notte 2) — **CC.6.fix: hotfix duplicazione + badge conto multi-account** (`[core]`). Carta v1.7 beta, sistema 5.25, flussiCassa 1.16. Marco ha segnalato che dopo unlink di un movimento questo appariva DUPLICATO nella riconciliazione. **Bug**: il LEFT JOIN su `cg_uscite` introdotto in CC.6 moltiplica le righe per ogni uscita CG linkata al movimento (es. mov #1416 = bonifico multi-stipendio paga 6 uscite → 6 righe). **Fix**: sostituito con subquery scalari `(SELECT ... FROM cg_uscite WHERE banca_movimento_id=m.id ORDER BY id LIMIT 1)` per i campi rappresentativi + `COUNT(*)` per `match_uscite_count` + `GROUP_CONCAT(id, ',')` per `match_uscite_ids`. Frontend: chip "🔗 Già su CG #N — fornitore" ora mostra "+M altre" se count > 1. **Punto 3 di Marco**: aggiunto badge "🏦 BPM *2200" su movimenti NON carta (multi-conto ready — quando aggiungerà un secondo CC es. Sella, mostrerà "🏦 SELLA *xxxx"). Badge emerald, accanto a "💳 carta" (ambra) per i carta.
+
+## SESSIONE 2026-06-13 (notte 2) — CC.6.fix: duplicazione + badge conto
+
+### Bug riportato
+Screenshot di Marco: mov del 23 mag €-1423,19 appariva 2 volte, una con "🔗 Già su CG #88 — Bugan Farina" e l'altra con "🔗 Già su CG #2330 — Bugan Farina". Aveva fatto unlink di una delle due ma il sistema le mostrava ancora entrambe.
+
+### Diagnosi
+Query DB locale: 6 movimenti bancari hanno >1 cg_uscite linkate:
+- mov #1416 (6 uscite — stipendi Mohammad+altri €9416)
+- mov #1012 (5 uscite — stipendi €4965)
+- mov #1077 (2 uscite — G.B. Marenzi + altra)
+- mov #1414 (2 uscite — stipendi)
+- mov #1023, #1027 (2 uscite ciascuno)
+
+Il LEFT JOIN in CC.6 moltiplicava le righe. Test query VECCHIA su mov #1416 → 6 righe. Test query NUOVA con subquery → 1 riga con count=6.
+
+### Fix backend (`/banca/cross-ref`)
+Sostituito LEFT JOIN cg_uscite con subquery scalari:
+```sql
+SELECT m.*,
+       CASE WHEN m.banca LIKE 'CARTA_%' THEN 1 ELSE 0 END AS is_carta,
+       (SELECT COUNT(*) FROM cg_uscite u WHERE u.banca_movimento_id = m.id) AS match_uscite_count,
+       (SELECT GROUP_CONCAT(u.id, ',') FROM cg_uscite u WHERE u.banca_movimento_id = m.id) AS match_uscite_ids,
+       (SELECT u.id FROM cg_uscite u WHERE u.banca_movimento_id = m.id ORDER BY u.id LIMIT 1) AS match_uscita_id,
+       (SELECT u.fornitore_nome FROM cg_uscite u WHERE u.banca_movimento_id = m.id ORDER BY u.id LIMIT 1) AS match_uscita_fornitore,
+       (SELECT u.totale FROM cg_uscite u WHERE u.banca_movimento_id = m.id ORDER BY u.id LIMIT 1) AS match_uscita_totale
+FROM banca_movimenti m
+```
+
+### Punto 3 di Marco — badge conto multi-account ready
+Aggiunto in `BancaCrossRef.jsx`: accanto al badge "💳 carta" (ambra) sui movimenti carta, ora un badge "🏦 BANCA *ULT4" (emerald) sui movimenti NON carta. Esempio: "🏦 BPM *2200" per il CC Tre Gobbi. Quando un giorno apri Sella, mostrerà "🏦 SELLA *xxxx" automaticamente — il label viene da `m.banca` + ultime 4 di `m.rapporto`. Tooltip completo: "Conto: BPM · 000000012200".
+
+### Chip "Già su CG" esteso per multi-match
+Mostra il PRIMO match + "(+M altre)" se count > 1: es. "🔗 Già su CG #2305 — Mohammad Sab Uddin (+5 altre)". Tooltip mostra tutti gli id concatenati.
+
+### Bump versioni
+- `VERSION` 5.24 → 5.25
+- `cartaCredito` 1.6 → 1.7
+- `flussiCassa` 1.15 → 1.16
+- `sistema` 5.24 → 5.25
+
+### File toccati in questo push
+- `app/routers/banca_router.py` (query /cross-ref con subquery scalari)
+- `frontend/src/pages/banca/BancaCrossRef.jsx` (badge conto + chip multi-match)
+- `VERSION`
+- `frontend/src/config/versions.jsx`
+- `docs/modulo_banca.md`
+- `docs/sessione.md` (questa entry)
+
+---
+
+**Aggiornamento precedente (2026-06-13 notte):** **CC.6: fix coerenza CC bancario ↔ pseudo-movimenti carta** (`[core]`). Carta v1.6 beta, sistema 5.24, flussiCassa 1.15. Marco ha notato che i movimenti carta importati dal PDF apparivano nella Riconciliazione (BancaCrossRef): è desiderato per il flusso "categorizza ogni spesa", ma serve coerenza visiva e i saldi CC devono escluderli. **Backend**: 4 endpoint banca ora applicano filtro `banca NOT LIKE 'CARTA_%'` via costanti `EXCLUDE_CARTA_SQL` / `EXCLUDE_CARTA_SQL_NO_ALIAS`: `/banca/movimenti`, `/banca/dashboard` (saldo+breakdown+ultimi via where[] condiviso), `/banca/andamento` (serie temporale), `/banca/duplicati` (tipo 1+2). `/banca/cross-ref` mantiene i movimenti carta (utile per registrare come categoria spesa) ma li annota con `is_carta=1` e `match_uscita_id` (LEFT JOIN cg_uscite per dedup col match A). **Frontend** `BancaCrossRef.jsx`: nuovo toggle sidebar "💳 Mostra movimenti carta" (default ON), badge "💳 carta" prima della descrizione delle righe carta, riga "🔗 Già su CG #N — {fornitore}" emerald sotto la descrizione quando il movimento è già riconciliato via match A (evita doppia registrazione).
 
 ## SESSIONE 2026-06-13 (notte) — CC.6: fix coerenza carta vs CC
 

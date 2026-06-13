@@ -1161,22 +1161,33 @@ export default function BancaCrossRef() {
                                 ? "whitespace-normal break-words"
                                 : "truncate"
                             }`}>
-                              {(m.is_carta || (m.banca || "").startsWith("CARTA_")) && (
+                              {/* Badge canale: 💳 carta (se mov estratto carta) | 🏦 conto (CC bancario, multi-conto ready) */}
+                              {(m.is_carta || (m.banca || "").startsWith("CARTA_")) ? (
                                 <span
                                   className="inline-block text-[9px] font-semibold px-1.5 py-0.5 mr-1.5 rounded bg-amber-100 text-amber-800 border border-amber-200 align-middle"
                                   title={`Movimento dell'estratto carta (${m.banca || "CARTA"}) — non sul CC bancario`}
                                 >
                                   💳 carta
                                 </span>
-                              )}
+                              ) : m.banca ? (
+                                <span
+                                  className="inline-block text-[9px] font-semibold px-1.5 py-0.5 mr-1.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 align-middle"
+                                  title={`Conto: ${m.banca}${m.rapporto ? ` · ${m.rapporto}` : ""}`}
+                                >
+                                  🏦 {m.banca.length > 10 ? m.banca.slice(0, 10) : m.banca}{m.rapporto && m.rapporto.length > 4 ? ` *${m.rapporto.slice(-4)}` : ""}
+                                </span>
+                              ) : null}
                               {m.descrizione}
                             </div>
                             {m.categoria_banca && (
                               <div className="text-[10px] text-neutral-400">{m.categoria_banca}{m.sottocategoria_banca ? ` — ${m.sottocategoria_banca}` : ""}</div>
                             )}
                             {m.match_uscita_id && (
-                              <div className="text-[10px] text-emerald-700 mt-0.5 font-medium" title={`Già riconciliato in Controllo Gestione (uscita #${m.match_uscita_id}) tramite il modulo Carta di Credito`}>
+                              <div className="text-[10px] text-emerald-700 mt-0.5 font-medium" title={`Già riconciliato in Controllo Gestione (uscita${(m.match_uscite_count || 1) > 1 ? `: ${m.match_uscite_ids}` : ` #${m.match_uscita_id}`})${(m.match_uscite_count || 1) > 1 ? ` — bonifico multi-fattura` : ""}`}>
                                 🔗 Già su CG #{m.match_uscita_id}{m.match_uscita_fornitore ? ` — ${m.match_uscita_fornitore}` : ""}
+                                {(m.match_uscite_count || 1) > 1 && (
+                                  <span className="text-emerald-600 ml-1">(+{m.match_uscite_count - 1} altre)</span>
+                                )}
                               </div>
                             )}
                             {/* Indicatore link parziale nei tab suggerimenti/senza */}

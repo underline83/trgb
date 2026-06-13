@@ -793,17 +793,30 @@ def get_cross_ref(
 
     # ── 1. Carica movimenti ──
     # CC.6: include flag is_carta (movimento pseudo dal PDF estratto) e
-    # match_uscita_id (= cg_uscite già linkata via match A del modulo carta,
-    # in tal caso il "Registra" della cross-ref deve essere mostrato come
-    # "Già collegato a CG #N" per evitare doppia riconciliazione).
+    # info su cg_uscite eventualmente già linkate (per evitare doppia
+    # riconciliazione via match A del modulo carta).
+    #
+    # CC.6.fix (2026-06-13 notte): NON usare LEFT JOIN cg_uscite — un movimento
+    # bancario può avere N uscite CG linkate (es. bonifico multi-fattura: mov
+    # #1416 paga 6 uscite). Il JOIN duplicava le righe. Subquery scalari +
+    # GROUP_CONCAT preservano 1 riga per movimento.
     cur.execute(f"""
         SELECT m.*,
                CASE WHEN m.banca LIKE 'CARTA_%' THEN 1 ELSE 0 END AS is_carta,
-               u.id AS match_uscita_id,
-               u.fornitore_nome AS match_uscita_fornitore,
-               u.totale AS match_uscita_totale
+               (SELECT COUNT(*) FROM cg_uscite u
+                  WHERE u.banca_movimento_id = m.id) AS match_uscite_count,
+               (SELECT GROUP_CONCAT(u.id, ',') FROM cg_uscite u
+                  WHERE u.banca_movimento_id = m.id) AS match_uscite_ids,
+               (SELECT u.id FROM cg_uscite u
+                  WHERE u.banca_movimento_id = m.id
+                  ORDER BY u.id LIMIT 1) AS match_uscita_id,
+               (SELECT u.fornitore_nome FROM cg_uscite u
+                  WHERE u.banca_movimento_id = m.id
+                  ORDER BY u.id LIMIT 1) AS match_uscita_fornitore,
+               (SELECT u.totale FROM cg_uscite u
+                  WHERE u.banca_movimento_id = m.id
+                  ORDER BY u.id LIMIT 1) AS match_uscita_totale
         FROM banca_movimenti m
-        LEFT JOIN cg_uscite u ON u.banca_movimento_id = m.id
         WHERE {" AND ".join(where)}
         ORDER BY m.data_contabile DESC
         LIMIT {lim}
