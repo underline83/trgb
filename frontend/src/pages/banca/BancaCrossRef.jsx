@@ -445,7 +445,13 @@ export default function BancaCrossRef() {
 
   // ── Helpers: un movimento è "completamente collegato" se ha links e residuo < 1 ──
   // oppure se è stato marcato come "riconciliazione chiusa manualmente" (mig 059)
-  const isFullyLinked = (m) => !!m.riconciliazione_chiusa || ((m.links?.length > 0) && Math.abs(m.residuo ?? 0) < 1.0);
+  const isFullyLinked = (m) =>
+    !!m.riconciliazione_chiusa ||
+    ((m.links?.length > 0) && Math.abs(m.residuo ?? 0) < 1.0) ||
+    // CC.8.c — match B: il movimento è l'addebito mensile di un estratto carta
+    !!m.match_b_estratto_id ||
+    // CC.6 — match A su uscite CG (singolo o multi-fattura via subquery)
+    ((m.match_uscite_count || 0) > 0);
   const isPartiallyLinked = (m) => !m.riconciliazione_chiusa && (m.links?.length > 0) && Math.abs(m.residuo ?? 0) >= 1.0;
 
   const handleLink = async (movimentoId, source, sourceId) => {
@@ -1247,6 +1253,12 @@ export default function BancaCrossRef() {
                                   className="text-[9px] text-rose-500 hover:text-rose-700 underline">
                                   Riapri
                                 </button>
+                              </div>
+                            )}
+                            {/* CC.8.c: chip match B — il movimento è l'addebito mensile di un estratto carta */}
+                            {m.match_b_estratto_id && (
+                              <div className="text-[10px] text-purple-700 mt-0.5 font-medium" title={`Addebito mensile carta — Estratto chiuso ${fmtDate(m.match_b_estratto_chiusura)} (€ ${fmt(m.match_b_estratto_addebito)})`}>
+                                💳 Addebito carta — Estratto #{m.match_b_estratto_id} chiuso {fmtDate(m.match_b_estratto_chiusura)}
                               </div>
                             )}
                             {/* Indicatore link parziale nei tab suggerimenti/senza */}

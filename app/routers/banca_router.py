@@ -278,6 +278,39 @@ async def import_csv(file: UploadFile = File(...)):
 
     reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
+    # CC.8.b — Detect formato CSV e warning su header non standard.
+    # BPM cambia periodicamente le colonne esportate; senza un check, un
+    # cambio di formato passa inosservato e si scrivono dati sbagliati
+    # nel DB. Questo check restituisce warnings[] al frontend.
+    headers_norm = {(h or "").strip() for h in (reader.fieldnames or [])}
+    warnings: list[str] = []
+    has_banca = "Banca" in headers_norm or "banca" in headers_norm
+    has_rapporto = "Rapporto" in headers_norm or "rapporto" in headers_norm
+    has_data = "Data contabile" in headers_norm or "data contabile" in headers_norm
+    has_importo = "Importo" in headers_norm or "importo" in headers_norm
+    has_descr = "Descrizione" in headers_norm or "descrizione" in headers_norm
+    has_causale = "Causale" in headers_norm or "causale" in headers_norm
+
+    if has_banca and has_rapporto:
+        formato_csv = "BPM_VECCHIO"  # vecchio export, tutto OK
+    elif has_data and has_importo and has_descr and has_causale and not has_banca:
+        formato_csv = "BPM_ONLINE"   # nuovo export 7-col (no Banca/Rapporto)
+        warnings.append(
+            "Formato CSV rilevato: BPM Online (7 colonne). Mancano 'Banca' e 'Rapporto'. "
+            "I movimenti sono assegnati al CC predefinito (BPM 12200). "
+            "Se hai aperto un secondo conto, verifica la classificazione."
+        )
+    else:
+        # Header non riconosciuto: BPM potrebbe aver cambiato di nuovo
+        formato_csv = "SCONOSCIUTO"
+        attesi = "{Data contabile, Importo, Descrizione, Causale}"
+        warnings.append(
+            f"⚠️ Formato CSV NON RICONOSCIUTO. "
+            f"Header trovato: {sorted(headers_norm)}. "
+            f"Colonne minime attese: {attesi}. "
+            f"L'import procede best-effort ma i dati potrebbero essere incompleti — verifica."
+        )
+
     conn = get_db()
     cur = conn.cursor()
 
@@ -419,6 +452,9 @@ async def import_csv(file: UploadFile = File(...)):
         "duplicates": num_dup,
         "date_from": date_min,
         "date_to": date_max,
+        # CC.8.b — formato CSV rilevato e warning su anomalie
+        "formato_csv": formato_csv,
+        "warnings": warnings,
     }
     if warning:
         result["warning"] = warning
@@ -828,7 +864,17 @@ def get_cross_ref(
                   ORDER BY u.id LIMIT 1) AS match_uscita_fornitore,
                (SELECT u.totale FROM cg_uscite u
                   WHERE u.banca_movimento_id = m.id
-                  ORDER BY u.id LIMIT 1) AS match_uscita_totale
+                  ORDER BY u.id LIMIT 1) AS match_uscita_totale,
+               /* CC.8.c — match B: il movimento CC è l'addebito mensile di un estratto carta */
+               (SELECT e.id FROM carta_estratti e
+                  WHERE e.banca_movimento_id = m.id
+                  LIMIT 1) AS match_b_estratto_id,
+               (SELECT e.data_chiusura FROM carta_estratti e
+                  WHERE e.banca_movimento_id = m.id
+                  LIMIT 1) AS match_b_estratto_chiusura,
+               (SELECT e.addebito_totale_cc FROM carta_estratti e
+                  WHERE e.banca_movimento_id = m.id
+                  LIMIT 1) AS match_b_estratto_addebito
         FROM banca_movimenti m
         WHERE {" AND ".join(where)}
         ORDER BY m.data_contabile DESC

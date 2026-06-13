@@ -312,6 +312,8 @@ frontend/src/pages/flussi-cassa/
 | CC.7   | Chiudi movimento senza fattura — POST/DELETE `/cross-ref/chiudi-senza-fattura/{id}` crea cg_uscite tipo SPESA_NON_FATTURATA (stato=PAGATO, già fuori scadenzario), reversibile. Bottoni "✕ Senza fattura" su tab senza/parcheggiati + chip "Chiusa senza fattura" + Riapri | ✅ FATTO (2026-06-13 notte) |
 | CC.7.fix | Fix Invalid Date in fmtDate (slice 10 char per datetime SQL) + badge CC sempre presente sui mov non-carta anche se banca='' | ✅ FATTO (2026-06-13 notte) |
 | CC.8   | Parser CSV: nuovo formato BPM Online (7 col senza Banca/Rapporto) — default BPM 12200 + mig 144 backfill 420 mov già sbagliati (TRGB-only) | ✅ FATTO (2026-06-13 notte) |
+| CC.8.b | Detect formato CSV + warnings nella response (formato_csv + warnings[]) per accorgersi di future modifiche del formato BPM | ✅ FATTO (2026-06-13 notte) — manca solo UI alert nel TabImport (rimandato) |
+| CC.8.c | Cross-ref banca include match B (carta_estratti.banca_movimento_id) in isFullyLinked + chip "💳 Addebito carta — Estratto #N" | ✅ FATTO (2026-06-13 notte) |
 
 **Endpoint attivi (`/banca/carta/*`):**
 - `POST /banca/carta/upload` — upload PDF Banco BPM, parse via `carta_pdf_parser`, insert in `carta_estratti` + N righe in `banca_movimenti`. Dedup su `pdf_sha256`. Sanity check quadratura ai centesimi; 422 se non quadra.
