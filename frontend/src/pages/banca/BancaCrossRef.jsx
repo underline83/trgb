@@ -342,6 +342,10 @@ export default function BancaCrossRef() {
   const [bulkSelected, setBulkSelected] = useState(new Set());
   const [bulkCat, setBulkCat] = useState("");
   const [bulkRegistering, setBulkRegistering] = useState(false);
+  // CC.7 — Chiusura "senza fattura" (categoria SPESA_NON_FATTURATA)
+  const [senzaFatturaId, setSenzaFatturaId] = useState(null);
+  const [senzaFatturaNote, setSenzaFatturaNote] = useState("");
+  const [senzaFatturaSaving, setSenzaFatturaSaving] = useState(false);
   // S40-13 — descrizioni espanse (tap-to-expand su iPad)
   const [expandedDesc, setExpandedDesc] = useState(() => new Set());
   const toggleDesc = (id) => setExpandedDesc(prev => {
@@ -612,6 +616,44 @@ export default function BancaCrossRef() {
       await loadData();
     } catch (err) { setError(err.message); }
   };
+
+  // ── CC.7: Chiudi senza fattura — crea uscita CG SPESA_NON_FATTURATA + flag riconciliazione_chiusa ──
+  const openSenzaFattura = (movId) => {
+    setSenzaFatturaId(movId);
+    setSenzaFatturaNote("");
+  };
+  const handleSenzaFattura = async () => {
+    if (!senzaFatturaId) return;
+    setSenzaFatturaSaving(true);
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/chiudi-senza-fattura/${senzaFatturaId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: senzaFatturaNote.trim() || undefined }),
+      });
+      const j = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(j?.detail || `HTTP ${resp.status}`);
+      setSenzaFatturaId(null);
+      setSenzaFatturaNote("");
+      await loadData();
+    } catch (err) {
+      setError(err.message || "Errore");
+    } finally {
+      setSenzaFatturaSaving(false);
+    }
+  };
+  // ── CC.7: Riapri chiusura senza fattura — cancella uscita CG e ripristina movimento ──
+  const handleRiapriSenzaFattura = async (movId) => {
+    if (!window.confirm("Riaprire la chiusura senza fattura?\nVerrà cancellata l'uscita CG creata e il movimento tornerà da analizzare.")) return;
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/chiudi-senza-fattura/${movId}`, { method: "DELETE" });
+      const j = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(j?.detail || `HTTP ${resp.status}`);
+      await loadData();
+    } catch (err) { setError(err.message || "Errore"); }
+  };
+  // Helper: vero se il movimento è stato "chiuso senza fattura" (per chip + bottone riapri)
+  const isSenzaFattura = (m) => !!m.riconciliazione_chiusa && (m.riconciliazione_chiusa_note || "").startsWith("Chiuso senza fattura");
 
   useEffect(() => {
     if (bulkSelected.size > 0 && !bulkCat) {
@@ -1174,7 +1216,7 @@ export default function BancaCrossRef() {
                                   className="inline-block text-[9px] font-semibold px-1.5 py-0.5 mr-1.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 align-middle"
                                   title={`Conto: ${m.banca}${m.rapporto ? ` · ${m.rapporto}` : ""}`}
                                 >
-                                  🏦 {m.banca.length > 10 ? m.banca.slice(0, 10) : m.banca}{m.rapporto && m.rapporto.length > 4 ? ` *${m.rapporto.slice(-4)}` : ""}
+                                  CC{m.rapporto && m.rapporto.length >= 4 ? ` *${m.rapporto.slice(-4)}` : ""}
                                 </span>
                               ) : null}
                               {m.descrizione}
@@ -1188,6 +1230,16 @@ export default function BancaCrossRef() {
                                 {(m.match_uscite_count || 1) > 1 && (
                                   <span className="text-emerald-600 ml-1">(+{m.match_uscite_count - 1} altre)</span>
                                 )}
+                              </div>
+                            )}
+                            {/* CC.7: chip "Chiusa senza fattura" + riapri */}
+                            {isSenzaFattura(m) && (
+                              <div className="text-[10px] text-rose-700 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap" title={m.riconciliazione_chiusa_note || "Chiusa senza fattura"}>
+                                <span>✕ Chiusa senza fattura</span>
+                                <button onClick={(e) => { e.stopPropagation(); handleRiapriSenzaFattura(m.id); }}
+                                  className="text-[9px] text-rose-500 hover:text-rose-700 underline">
+                                  Riapri
+                                </button>
                               </div>
                             )}
                             {/* Indicatore link parziale nei tab suggerimenti/senza */}
@@ -1308,13 +1360,27 @@ export default function BancaCrossRef() {
                                 )}
                                 <button onClick={() => {
                                   if (registraId === m.id) { setRegistraId(null); }
-                                  else { openRegistra(m.id); setSearchId(null); }
+                                  else { openRegistra(m.id); setSearchId(null); setSenzaFatturaId(null); }
                                 }}
                                   className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
                                     registraId === m.id ? "bg-indigo-100 border-indigo-300 text-indigo-800" : "border-indigo-200 text-indigo-600 hover:bg-indigo-50"
                                   }`}>
                                   {registraId === m.id ? "Annulla" : "📋 Registra"}
                                 </button>
+                                {/* CC.7: chiudi senza fattura (solo per uscite) */}
+                                {m.importo < 0 && (
+                                  <Tooltip label="Crea uscita CG come 'Spesa non fatturata' (es. autostrade, abbonamenti esteri, spese amministratore)">
+                                    <button onClick={() => {
+                                      if (senzaFatturaId === m.id) { setSenzaFatturaId(null); }
+                                      else { openSenzaFattura(m.id); setSearchId(null); setRegistraId(null); }
+                                    }}
+                                      className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                                        senzaFatturaId === m.id ? "bg-rose-100 border-rose-300 text-rose-800" : "border-rose-200 text-rose-600 hover:bg-rose-50"
+                                      }`}>
+                                      {senzaFatturaId === m.id ? "Annulla" : "✕ Senza fattura"}
+                                    </button>
+                                  </Tooltip>
+                                )}
                                 {dismissed.has(m.id) && (
                                   <Tooltip label="Torna ai suggerimenti automatici">
                                     <button onClick={() => handleUndismiss(m.id)}
@@ -1342,12 +1408,28 @@ export default function BancaCrossRef() {
                                 {m.parcheggiato_at ? fmtDate(m.parcheggiato_at) : "—"}
                               </td>
                               <td className="px-3 py-2.5 text-center">
-                                <Tooltip label="Rimetti il movimento tra quelli da analizzare">
-                                  <button onClick={() => handleDisparcheggia(m.id)}
-                                    className="px-3 py-1 rounded-lg text-xs font-medium border border-amber-300 text-amber-700 hover:bg-amber-50 transition">
-                                    ↩ Disparcheggia
-                                  </button>
-                                </Tooltip>
+                                <div className="flex flex-wrap gap-1.5 justify-center">
+                                  <Tooltip label="Rimetti il movimento tra quelli da analizzare">
+                                    <button onClick={() => handleDisparcheggia(m.id)}
+                                      className="px-3 py-1 rounded-lg text-xs font-medium border border-amber-300 text-amber-700 hover:bg-amber-50 transition">
+                                      ↩ Disparcheggia
+                                    </button>
+                                  </Tooltip>
+                                  {/* CC.7: chiudi senza fattura anche da parcheggio (solo per uscite) */}
+                                  {m.importo < 0 && (
+                                    <Tooltip label="Crea uscita CG 'Spesa non fatturata' (autostrade, abbonamenti esteri, spese amministratore)">
+                                      <button onClick={() => {
+                                        if (senzaFatturaId === m.id) { setSenzaFatturaId(null); }
+                                        else { openSenzaFattura(m.id); setSearchId(null); setRegistraId(null); }
+                                      }}
+                                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                                          senzaFatturaId === m.id ? "bg-rose-100 border-rose-300 text-rose-800" : "border-rose-200 text-rose-600 hover:bg-rose-50"
+                                        }`}>
+                                        {senzaFatturaId === m.id ? "Annulla" : "✕ Senza fattura"}
+                                      </button>
+                                    </Tooltip>
+                                  )}
+                                </div>
                               </td>
                             </>
                           )}
@@ -1441,6 +1523,39 @@ export default function BancaCrossRef() {
                                   {registering ? "..." : `Registra come ${TIPO_LABELS[registraCat] || registraCat}`}
                                 </button>
                                 <button onClick={() => setRegistraId(null)}
+                                  className="px-3 py-2 rounded-lg text-xs text-neutral-500 hover:text-neutral-700">
+                                  Annulla
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* ── CC.7: form chiudi senza fattura ── */}
+                        {senzaFatturaId === m.id && (
+                          <tr>
+                            <td colSpan={colSpan} className="px-3 py-3 bg-rose-50/40">
+                              <div className="text-[10px] font-semibold text-rose-700 uppercase tracking-wide mb-2">
+                                Chiudi senza fattura — categoria "Spesa non fatturata"
+                              </div>
+                              <p className="text-[11px] text-neutral-600 mb-2 leading-snug">
+                                Creo un'uscita di Controllo Gestione (stato <strong>PAGATO</strong>, categoria <code className="bg-white px-1 rounded">SPESA_NON_FATTURATA</code>) per € <strong>{fmt(Math.abs(m.importo))}</strong> del {fmtDate(m.data_contabile)}. Il movimento risulterà riconciliato; potrai riaprire la chiusura se la fattura arriva dopo.
+                              </p>
+                              <textarea
+                                value={senzaFatturaNote}
+                                onChange={(e) => setSenzaFatturaNote(e.target.value)}
+                                placeholder="Note opzionali (es. 'autostrada Bergamo-Milano del 12/05', 'abbonamento Adobe annuale')"
+                                rows={2}
+                                className="w-full px-3 py-2 text-xs border border-rose-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 mb-3"
+                              />
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={handleSenzaFattura}
+                                  disabled={senzaFatturaSaving}
+                                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition disabled:opacity-40">
+                                  {senzaFatturaSaving ? "Chiusura..." : "✕ Conferma chiusura senza fattura"}
+                                </button>
+                                <button onClick={() => { setSenzaFatturaId(null); setSenzaFatturaNote(""); }}
                                   className="px-3 py-2 rounded-lg text-xs text-neutral-500 hover:text-neutral-700">
                                   Annulla
                                 </button>

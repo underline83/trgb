@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.16",
+    version: "1.17",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
@@ -134,9 +134,14 @@ const MODULE_VERSIONS = {
     // CC.6.fix (2026-06-13 notte): hotfix LEFT JOIN duplicava i movimenti
     // multi-link (es. mov #1416 con 6 uscite CG appariva 6 volte). Sostituito
     // con subquery scalari LIMIT 1 + GROUP_CONCAT/COUNT per portare aggregato.
-    // Aggiunto badge "🏦 BANCA *XXXX" (multi-conto ready) accanto al badge
-    // carta. Chip "Già su CG" mostra "+M altre" se count > 1.
-    version: "1.7",
+    // Aggiunto badge "CC *XXXX" (multi-conto ready) accanto al badge carta.
+    // Chip "Già su CG" mostra "+M altre" se count > 1.
+    //
+    // CC.7 (2026-06-13 notte): "Chiudi senza fattura" — bottone nei tab
+    // "senza"/"parcheggiati" che crea cg_uscite (tipo_uscita='SPESA_NON_FATTURATA',
+    // stato='PAGATO') + marca riconciliazione_chiusa. Reversibile via riapri.
+    // 2 endpoint POST/DELETE /cross-ref/chiudi-senza-fattura/{id}.
+    version: "1.8",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",
@@ -147,7 +152,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.25",
+    version: "5.26",
     label: "Sistema",
     status: "stabile",
     color: "green",

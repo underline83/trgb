@@ -1800,6 +1800,129 @@ def registra_bulk(req: RegistraBulkRequest):
     return {"ok": True, "registrati": ok_count, "saltati": skip_count}
 
 
+# ──────────────────────────────────────────────────────────────
+# CC.7 — Chiudi movimento senza fattura
+# ──────────────────────────────────────────────────────────────
+# Marca un movimento bancario (sia CC che carta) come "spesa non fatturata"
+# creando un'uscita CG di tipo 'SPESA_NON_FATTURATA' (categoria generica per
+# autostrade, abbonamenti esteri, spese amministratore). L'uscita ha già
+# stato='PAGATO' quindi NON appare nello scadenzario. Endpoint reversibile.
+
+
+@router.post("/cross-ref/chiudi-senza-fattura/{movimento_id}")
+def chiudi_senza_fattura(movimento_id: int, payload: dict = Body(default=None)):
+    """Crea uscita CG 'SPESA_NON_FATTURATA' + marca riconciliazione_chiusa.
+
+    Body opzionale: {note?: str}.
+
+    Errori:
+      404 — movimento non trovato
+      409 — movimento già chiuso senza fattura (uscita CG esistente)
+    """
+    note = ((payload or {}).get("note") or "").strip()
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        m = cur.execute(
+            "SELECT id, data_contabile, importo, descrizione, banca FROM banca_movimenti WHERE id = ?",
+            (movimento_id,)
+        ).fetchone()
+        if not m:
+            raise HTTPException(404, "Movimento non trovato")
+
+        # Idempotenza: niente doppia chiusura
+        existing = cur.execute(
+            "SELECT id FROM cg_uscite WHERE banca_movimento_id = ? AND tipo_uscita = 'SPESA_NON_FATTURATA'",
+            (movimento_id,)
+        ).fetchone()
+        if existing:
+            raise HTTPException(
+                409,
+                f"Movimento già chiuso senza fattura — uscita CG #{existing['id']}. "
+                f"Riaprila prima di richiuderla."
+            )
+
+        importo = abs(float(m["importo"]))
+        is_carta = (m["banca"] or "").startswith("CARTA_")
+        metodo = "CARTA" if is_carta else "CONTO_CORRENTE"
+        # Fornitore = descrizione del movimento (max 80 char). Marco vedrà la
+        # stringa originaria della banca, che è già la traccia più chiara.
+        fornitore = (m["descrizione"] or "Spesa non fatturata").strip()[:80] or "Spesa non fatturata"
+
+        cur.execute(
+            """INSERT INTO cg_uscite
+                 (fornitore_nome, totale, importo_pagato, data_pagamento,
+                  stato, metodo_pagamento, tipo_uscita, banca_movimento_id,
+                  note, created_at, updated_at)
+               VALUES (?, ?, ?, ?, 'PAGATO', ?, 'SPESA_NON_FATTURATA', ?, ?,
+                       datetime('now'), datetime('now'))""",
+            (fornitore, importo, importo, m["data_contabile"], metodo,
+             movimento_id, note or None),
+        )
+        uscita_id = cur.lastrowid
+
+        # Marca il movimento come riconciliato (riusa il flag mig 059)
+        nota_auto = f"Chiuso senza fattura → uscita CG #{uscita_id}"
+        if note:
+            nota_auto += f" — {note[:200]}"
+        cur.execute(
+            """UPDATE banca_movimenti
+               SET riconciliazione_chiusa = 1,
+                   riconciliazione_chiusa_at = datetime('now'),
+                   riconciliazione_chiusa_note = ?
+               WHERE id = ?""",
+            (nota_auto, movimento_id),
+        )
+
+        conn.commit()
+        return {
+            "ok": True,
+            "uscita_id": uscita_id,
+            "movimento_id": movimento_id,
+            "tipo_uscita": "SPESA_NON_FATTURATA",
+            "metodo_pagamento": metodo,
+            "totale": importo,
+        }
+    finally:
+        conn.close()
+
+
+@router.delete("/cross-ref/chiudi-senza-fattura/{movimento_id}")
+def riapri_chiusura_senza_fattura(movimento_id: int):
+    """Annulla la chiusura senza fattura: cancella l'uscita CG e ripristina
+    il movimento come non riconciliato. Idempotente (404 se non esiste)."""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        uscita = cur.execute(
+            """SELECT id FROM cg_uscite
+               WHERE banca_movimento_id = ? AND tipo_uscita = 'SPESA_NON_FATTURATA'
+               LIMIT 1""",
+            (movimento_id,),
+        ).fetchone()
+        if not uscita:
+            raise HTTPException(404, "Nessuna chiusura senza fattura trovata per questo movimento")
+
+        cur.execute("DELETE FROM cg_uscite WHERE id = ?", (uscita["id"],))
+        cur.execute(
+            """UPDATE banca_movimenti
+               SET riconciliazione_chiusa = 0,
+                   riconciliazione_chiusa_at = NULL,
+                   riconciliazione_chiusa_note = NULL
+               WHERE id = ?""",
+            (movimento_id,),
+        )
+        conn.commit()
+        return {
+            "ok": True,
+            "uscita_cancellata": uscita["id"],
+            "movimento_id": movimento_id,
+        }
+    finally:
+        conn.close()
+
+
 @router.delete("/cross-ref/registra/{movimento_id}")
 def annulla_registrazione(movimento_id: int):
     """Annulla la registrazione di un movimento: scollega dal cg_uscite / cg_entrate.
