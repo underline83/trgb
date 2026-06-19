@@ -825,7 +825,10 @@ def update_vino_magazzino(
         except Exception:
             pass  # Il salvataggio è già avvenuto; il log fallisce silenziosamente
 
-    # Se sono stati toccati campi QTA_*, registra RETTIFICA automatica
+    # Se sono stati toccati campi QTA_*, registra RETTIFICA automatica.
+    # `qta_dopo` è il nuovo QTA_TOTALE (calcolato da `_recalc_qta_totale`
+    # dentro `db.update_vino`); può essere 0 — RETTIFICA accetta 0 (vedi
+    # `registra_movimento`).
     if qta_fields.intersection(data.keys()):
         qta_dopo = int((updated["QTA_TOTALE"] if updated else 0) or 0)
         if qta_dopo != qta_prima:
@@ -833,15 +836,25 @@ def update_vino_magazzino(
                 db.registra_movimento(
                     vino_id=vino_id,
                     tipo="RETTIFICA",
-                    qta=qta_dopo if qta_dopo > 0 else 0,
+                    qta=qta_dopo,
                     utente=utente,
                     note=f"Aggiornamento diretto giacenze (da {qta_prima} a {qta_dopo} bt)",
                     origine="GESTIONALE-EDIT",
                 )
                 # Rilegge dopo la rettifica per avere QTA_TOTALE aggiornata
                 updated = db.get_vino_by_id(vino_id)
-            except Exception:
-                pass
+            except Exception as e:
+                # Vini 3.62: prima era `pass` silenzioso → bug Marco
+                # 2026-06-07: la rettifica a 0 falliva senza dirlo a nessuno
+                # e nessun movimento veniva registrato. Ora almeno logghiamo:
+                # il salvataggio della giacenza resta valido (gli importa),
+                # ma il warning finisce nel journalctl così il problema è
+                # tracciabile.
+                import logging
+                logging.getLogger("vini.magazzino").warning(
+                    "RETTIFICA automatica fallita per vino %s (qta %s→%s): %s",
+                    vino_id, qta_prima, qta_dopo, e,
+                )
 
     return dict(updated) if updated else {"id": vino_id}
 

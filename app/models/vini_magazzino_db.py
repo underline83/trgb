@@ -1328,8 +1328,15 @@ def registra_movimento(
     if tipo not in MOVIMENTI_TIPI_VALIDI:
         raise ValueError(f"Tipo movimento non valido: {tipo}")
 
-    if qta <= 0:
-        raise ValueError("La quantità qta deve essere > 0")
+    # RETTIFICA accetta anche qta=0 (azzeramento giacenza: "ora ho 0 bottiglie"
+    # è una rettifica legittima). Per CARICO/VENDITA/SCARICO/MODIFICA serve >0.
+    # Fix vini 3.62 (2026-06-07): prima qta<=0 era sempre rigettato → la
+    # rettifica a zero falliva silenziosamente in `update_vino_magazzino`
+    # (try/except: pass nel router) e Marco non vedeva il movimento.
+    if qta < 0:
+        raise ValueError("La quantità qta non può essere negativa")
+    if qta == 0 and tipo != "RETTIFICA":
+        raise ValueError(f"Per {tipo} la quantità qta deve essere > 0")
 
     # Normalizza locazione
     loc = locazione.strip().lower() if locazione else None

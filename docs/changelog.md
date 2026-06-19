@@ -81,8 +81,11 @@ Marco: "devi settare il primo valore alla prima data che abbiamo deciso 15/03 e 
 - Estendere all'indietro fino al primo movimento dà il quadro completo del singolo vino, anche su orizzonti diversi tra vini.
 - Il flag `ricalibrata` resta come red flag onesto: se è acceso, lo storico movimenti non bilancia il totale attuale (= bottiglie esistenti pre-storico, o rettifiche dirette).
 
+### Anche — modifica diretta giacenza non registrava il movimento (quando andava a zero)
+Marco: "Dentro un vino, se modifico direttamente la giacenza non viene segnato il movimento". Diagnosi: la validazione `if qta <= 0: raise` in `registra_movimento` rifiutava `qta=0`, ma una RETTIFICA a zero è semanticamente legittima ("ora ho 0 bottiglie"). Quando l'utente azzerava la giacenza dalla SchedaVino, `update_vino_magazzino` (router) chiamava `registra_movimento(tipo="RETTIFICA", qta=0)` → ValueError → catch silenzioso `except: pass` → nessun movimento RETTIFICA registrato. La giacenza si aggiornava, il movimento spariva. Fix: la validazione ora ammette `qta=0` ESCLUSIVAMENTE per RETTIFICA (`qta < 0` resta sempre rifiutato; `qta == 0` resta rifiutato per CARICO/VENDITA/SCARICO/MODIFICA dove non ha senso). Inoltre il `except: pass` del router è ora un log warning (`logging.getLogger("vini.magazzino")`) così errori futuri di registrazione movimento finiscono in `journalctl` invece di sparire.
+
 ### File modificati
-`app/models/vini_magazzino_db.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
+`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/config/versions.jsx`, `docs/modulo_vini.md`.
 
 ---
 
