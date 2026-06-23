@@ -949,8 +949,29 @@ export default function ViniVendite() {
               }
               return;
             }
-            // Caso normale: registra movimento vendita con prezzo custom + motivazione
-            eseguiVendita({ extraNota: nota, prezzoCustom: prezzo });
+            // Caso normale: vendita al calice di un vino NON ancora al calice.
+            // Devo fare DUE cose: registrare la vendita E aprire la bottiglia
+            // in mescita (= settare BOTTIGLIA_APERTA=1 + VENDITA_CALICE=1 se
+            // non già + prezzo calice manuale). Fix 2026-06-24 (Marco #1310):
+            // prima qui c'era solo `eseguiVendita` → il movimento risultava
+            // "Calici" nello storico (badge dalla nota [CALICI]) ma il vino
+            // restava con BOTTIGLIA_APERTA=0 → widget Calici NON lo mostrava.
+            // L'attivazione è best-effort: se fallisce la vendita resta
+            // valida e segnalo il problema nel msg.
+            await eseguiVendita({ extraNota: nota, prezzoCustom: prezzo });
+            try {
+              const extra = {
+                PREZZO_CALICE: prezzo,
+                PREZZO_CALICE_MANUALE: 1,
+              };
+              if (vino.VENDITA_CALICE !== 1) extra.VENDITA_CALICE = 1;
+              await patchAttivaCalice(vino.id, extra);
+            } catch (err) {
+              setSubmitMsg(prev =>
+                `${prev || `✅ Vendita registrata`} ⚠ Attivazione mescita fallita: ${err.message}`
+              );
+              setTimeout(() => setSubmitMsg(""), 7000);
+            }
           }}
         />
       )}
