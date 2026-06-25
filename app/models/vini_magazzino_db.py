@@ -1552,6 +1552,41 @@ def registra_modifica(
     conn.close()
 
 
+def registra_evento(
+    vino_id: int,
+    utente: str,
+    nota: str,
+    origine: str,
+) -> Optional[int]:
+    """
+    Registra un EVENTO opaco (tipo MODIFICA, qta=0, locazione=NULL) con la
+    `nota` e `origine` passate. Pensato per tracciare azioni operative
+    distinte dalle modifiche anagrafiche — es. l'attivazione di una
+    bottiglia per il servizio al calice da residuo (`[CALICI-RESIDUO]`).
+    Ritorna l'id del movimento inserito (utile per logging/test), o None
+    se non è stato possibile inserire.
+    """
+    if not nota:
+        return None
+    now = datetime.now().isoformat(timespec="seconds")
+    conn = get_magazzino_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO vini_magazzino_movimenti
+                (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
+            VALUES (?, ?, 'MODIFICA', 0, NULL, ?, ?, ?, ?);
+            """,
+            (vino_id, now, nota, origine, utente, now),
+        )
+        new_id = cur.lastrowid
+        conn.commit()
+        return new_id
+    finally:
+        conn.close()
+
+
 def list_movimenti_vino(vino_id: int, limit: int = 100) -> List[sqlite3.Row]:
     """
     Restituisce gli ultimi movimenti per un vino.
@@ -1747,8 +1782,20 @@ def list_movimenti_globali(
     params: List[Any] = []
 
     if tipo:
-        where.append("m.tipo = ?")
-        params.append(tipo)
+        # Caso speciale: tipo=VENDITA include anche le ATTIVAZIONI calici da
+        # residuo (MODIFICA con marker [CALICI-RESIDUO]). Sono eventi correlati
+        # al servizio al calice e li vogliamo nello storico vendite anche se
+        # non sono VENDITA propriamente dette (decisione Marco 2026-06-24:
+        # "non crea una vendita ma il movimento è tracciato e si può anche
+        # cancellare").
+        if tipo == "VENDITA":
+            where.append(
+                "(m.tipo = 'VENDITA' "
+                "OR (m.tipo = 'MODIFICA' AND m.note LIKE '%[CALICI-RESIDUO]%'))"
+            )
+        else:
+            where.append("m.tipo = ?")
+            params.append(tipo)
 
     if text:
         where.append(

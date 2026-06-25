@@ -15,8 +15,13 @@ import DecidiPrezzoCalice, { roundToHalf } from "../../components/vini/DecidiPre
 // COSTANTI
 // ─────────────────────────────────────────────────────────────
 const MODALITA = {
-  BOTTIGLIA: { label: "Bottiglia",  icon: "🍾", desc: "Vendita bottiglia intera",  color: "bg-violet-100 text-violet-800 border-violet-300" },
-  CALICI:    { label: "Calici",     icon: "🥂", desc: "Aperta per vendita al calice", color: "bg-rose-100 text-rose-800 border-rose-300" },
+  BOTTIGLIA:   { label: "Bottiglia",   icon: "🍾",  desc: "Vendita bottiglia intera",  color: "bg-violet-100 text-violet-800 border-violet-300" },
+  CALICI:      { label: "Calici",      icon: "🥂",  desc: "Aperta per vendita al calice", color: "bg-rose-100 text-rose-800 border-rose-300" },
+  // ATTIVAZIONE: evento di "apertura bottiglia per servizio al calice da
+  // residuo" — non è una vendita, è un'azione operativa tracciata
+  // (vini 3.63, Marco 2026-06-24). Cancellabile con effetto di chiusura
+  // della bottiglia (vedi delete_movimento backend).
+  ATTIVAZIONE: { label: "Attivazione", icon: "🥂↻", desc: "Bottiglia aperta per servizio al calice (non è una vendita)", color: "bg-amber-50 text-amber-800 border-amber-200" },
 };
 
 function formatDate(isoStr) {
@@ -49,6 +54,9 @@ function buildLocOptions(vino) {
 /** Riconosce la modalità da una nota di movimento */
 function parseModalita(note) {
   if (!note) return null;
+  // L'ordine conta: [CALICI-RESIDUO] include la sottostringa [CALICI] e va
+  // intercettato prima.
+  if (note.includes("[CALICI-RESIDUO]")) return "ATTIVAZIONE";
   if (note.includes("[CALICI]")) return "CALICI";
   if (note.includes("[BOTTIGLIA]")) return "BOTTIGLIA";
   return null;
@@ -306,6 +314,40 @@ export default function ViniVendite() {
       setTimeout(() => setSubmitMsg(""), 5000);
     } finally {
       setAttivandoCaliceId(null);
+    }
+  };
+
+  // ── Annulla attivazione calici da residuo ──
+  // Click dal bottone "↩ Annulla" sulla riga ATTIVAZIONE dello storico vendite.
+  // DELETE del movimento [CALICI-RESIDUO]: il backend in atomico chiude anche
+  // la bottiglia (BOTTIGLIA_APERTA=0). Per "ripristinare" basta ricliccare il
+  // +🥂 sulla VENDITA bottiglia originale (la riga torna BOTTIGLIA dopo
+  // l'annullamento).
+  const [annullandoAttivazioneId, setAnnullandoAttivazioneId] = useState(null);
+  const annullaAttivazione = async (movimento) => {
+    if (!movimento?.id) return;
+    if (!window.confirm(
+      "Annulla l'attivazione calici da residuo?\n\n" +
+      "Il movimento viene cancellato e la bottiglia torna chiusa. Per riattivare " +
+      "ricicca il tasto +🥂 sulla vendita bottiglia originale."
+    )) return;
+    setAnnullandoAttivazioneId(movimento.id);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/movimenti/${movimento.id}`, {
+        method: "DELETE",
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || `Errore ${r.status}`);
+      }
+      setSubmitMsg("✅ Attivazione annullata, bottiglia chiusa.");
+      setTimeout(() => setSubmitMsg(""), 4000);
+      fetchMovimenti(); // ricarica storico
+    } catch (err) {
+      setSubmitMsg(`❌ ${err.message}`);
+      setTimeout(() => setSubmitMsg(""), 5000);
+    } finally {
+      setAnnullandoAttivazioneId(null);
     }
   };
 
@@ -818,8 +860,11 @@ export default function ViniVendite() {
                 {movimentiOrdinati.map((m) => {
                   const mod = parseModalita(m.note);
                   const modInfo = mod ? MODALITA[mod] : null;
-                  // Rimuovi il tag [BOTTIGLIA] o [CALICI] dalla nota visualizzata
-                  const notePulita = (m.note || "").replace(/\[(BOTTIGLIA|CALICI)\]\s*/g, "").trim();
+                  const isAttivazione = mod === "ATTIVAZIONE";
+                  // Rimuovi i tag [BOTTIGLIA] | [CALICI] | [CALICI-RESIDUO] dalla nota visualizzata
+                  const notePulita = (m.note || "")
+                    .replace(/\[(BOTTIGLIA|CALICI-RESIDUO|CALICI)\]\s*/g, "")
+                    .trim();
                   return (
                     <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition">
                       <td className="px-3 py-2.5 text-xs text-neutral-600 whitespace-nowrap">
@@ -837,7 +882,7 @@ export default function ViniVendite() {
                         )}
                       </td>
                       <td className="px-3 py-2.5 text-center font-bold text-neutral-800">
-                        {m.qta}
+                        {isAttivazione ? <span className="text-neutral-300">—</span> : m.qta}
                       </td>
                       <td className="px-3 py-2.5">
                         <button
@@ -875,6 +920,18 @@ export default function ViniVendite() {
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold hover:bg-rose-100 hover:border-rose-300 transition disabled:opacity-50"
                             >
                               {attivandoCaliceId === m.id ? "…" : "+🥂"}
+                            </button>
+                          </Tooltip>
+                        )}
+                        {isAttivazione && (
+                          <Tooltip label="Annulla l'attivazione: cancella questo evento dallo storico e chiude la bottiglia in mescita.">
+                            <button
+                              type="button"
+                              onClick={() => annullaAttivazione(m)}
+                              disabled={annullandoAttivazioneId === m.id}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-50 border border-neutral-300 text-neutral-700 text-[11px] font-semibold hover:bg-neutral-100 hover:border-neutral-400 transition disabled:opacity-50"
+                            >
+                              {annullandoAttivazioneId === m.id ? "…" : "↩ Annulla"}
                             </button>
                           </Tooltip>
                         )}

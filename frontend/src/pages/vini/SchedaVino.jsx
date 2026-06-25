@@ -1385,7 +1385,17 @@ const SchedaVino = forwardRef(function SchedaVino({
                     </thead>
                     <tbody>
                       {movimenti.map(m => {
-                        const t = TIPO_LABELS[m.tipo] ?? { label: m.tipo, cls: "" };
+                        // [CALICI-RESIDUO] = evento "bottiglia aperta per calici da
+                        // residuo" tracciato come MODIFICA (vini 3.63). Badge dedicato.
+                        // Il delete del movimento chiude in atomico la bottiglia.
+                        const isAttivazioneCalici = m.tipo === "MODIFICA"
+                          && (m.note || "").includes("[CALICI-RESIDUO]");
+                        const t = isAttivazioneCalici
+                          ? { label: "🥂↻ Attivazione", cls: "bg-amber-50 text-amber-800 border-amber-200" }
+                          : (TIPO_LABELS[m.tipo] ?? { label: m.tipo, cls: "" });
+                        const noteDisplay = (m.note || "")
+                          .replace(/\[CALICI-RESIDUO\]\s*/g, "")
+                          .trim();
                         const prezzo = m.prezzo_unitario != null ? Number(m.prezzo_unitario) : null;
                         const totale = (prezzo != null && m.qta != null && m.tipo !== "MODIFICA")
                           ? prezzo * Number(m.qta) : null;
@@ -1424,7 +1434,7 @@ const SchedaVino = forwardRef(function SchedaVino({
                               {totale != null ? `${fmtNum(totale)} €` : <span className="text-neutral-300">—</span>}
                             </td>
                             <td className="px-3 py-2 text-xs text-neutral-600">{m.tipo === "MODIFICA" ? "—" : (m.locazione || "—")}</td>
-                            <td className="px-3 py-2 text-xs text-neutral-700" style={{maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis"}}>{m.note || ""}</td>
+                            <td className="px-3 py-2 text-xs text-neutral-700" style={{maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis"}}>{noteDisplay}</td>
                             <td className="px-3 py-2 text-xs text-neutral-500">{m.utente || "—"}</td>
                             {canDelete && <td className="px-3 py-2 text-center"><Tooltip label="Elimina"><button type="button" onClick={() => deleteMovimento(m.id)} className="text-xs text-red-400 hover:text-red-600 transition">🗑</button></Tooltip></td>}
                           </tr>

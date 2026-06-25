@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-06-24 — Vini 3.63: vendita al calice tracciata + attivazione "calici da residuo" reversibile `[core]`
+
+Due bug correlati intorno al servizio al calice, segnalati dal caso del #1310 (Lugana DOC Montunal, Tenimenti Civa).
+
+### Bug 1 — Vendita al calice non apriva la bottiglia in mescita
+**Sintomo**: Claudio registra una vendita dal tab "Calici" del form Vendite su un vino non ancora al calice. Il modale `DecidiPrezzoCalice` chiede il prezzo, lui conferma, la vendita viene registrata con nota `[CALICI]` (e badge "🥂 Calici" nello storico) — ma `BOTTIGLIA_APERTA` resta 0 e il widget Calici non mostra il vino.
+
+**Causa**: nel branch "vendita normale" del modale, dopo la conferma del prezzo veniva chiamato solo `eseguiVendita()`. Il branch "soloAttivazione" chiamava correttamente `patchAttivaCalice()`, quello "vendita normale" lo dimenticava. Risultato: vendita registrata ma il flag `BOTTIGLIA_APERTA` mai acceso.
+
+**Fix** (`frontend/src/pages/vini/ViniVendite.jsx`): dopo `eseguiVendita(...)` nel branch normale, ora viene chiamato anche `patchAttivaCalice(vino.id, extra)` con `PREZZO_CALICE` + `PREZZO_CALICE_MANUALE=1` e `VENDITA_CALICE=1` se non già impostato. Best-effort: se l'attivazione fallisce la vendita resta valida e si segnala l'errore.
+
+### Bug 2 — L'attivazione "calici da residuo" non era tracciata né reversibile
+**Razionale (Marco)**: "questo movimento non è tracciato né nei movimenti né nello storico vendite nella dashboard. Io lo traccerei, in entrambi; non crea una vendita; ma il movimento è tracciato e si può anche cancellare e ripristinare eventualmente."
+
+**Implementazione (zero modifiche schema)**:
+- **Backend** (`vini_magazzino_router.py` + `vini_magazzino_db.py`): quando `update_bottiglia_aperta` registra una transizione `BOTTIGLIA_APERTA` 0→1, inserisce un `MODIFICA` (qta=0, locazione=NULL) con nota `[CALICI-RESIDUO]` e origine `CALICI-RESIDUO`. Nuovo helper `db.registra_evento(vino_id, utente, nota, origine)` per eventi opachi senza delta.
+- **Storico vendite** (`/movimenti-globali`): il filtro `tipo=VENDITA` include automaticamente anche i `MODIFICA` con marker `[CALICI-RESIDUO]`. Compaiono nello storico con badge dedicato (`🥂↻ Attivazione`, ambra) e qta visualizzata come "—" (non concorre ai totali).
+- **Cancellazione = annullamento atomico**: in `delete_movimento`, se il movimento è `MODIFICA` con `[CALICI-RESIDUO]`, oltre al delete viene chiamato `db.update_vino(BOTTIGLIA_APERTA=0)` sul vino → la bottiglia torna chiusa (DATA_APERTURA → NULL via il layer DB). Origine `CALICI-RESIDUO-UNDO`.
+- **Ripristina**: nessun endpoint dedicato. La VENDITA bottiglia originale ricompare con il tasto `+🥂` → ricliccare riattiva. Pattern semplice, niente soft-delete da gestire.
+- **Frontend**:
+  - `ViniVendite.jsx` Storico vendite: badge "🥂↻ Attivazione" + bottone "↩ Annulla" sulla riga ATTIVAZIONE (DELETE con confirm).
+  - `SchedaVino.jsx` tab Movimenti: stesso badge per i `MODIFICA` con `[CALICI-RESIDUO]`, nota visualizzata senza il marker. Il bottone 🗑 esistente sfrutta automaticamente la stessa logica di annullamento atomico.
+
+### File modificati
+`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/pages/vini/ViniVendite.jsx`, `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/config/versions.jsx`, `docs/changelog.md`.
+
+---
+
 ## 2026-06-12 — SECURITY: auth su modulo Banca e iPratico + hardening VPS `[core]`
 
 Dall'audit totale 2026-06-12 (`docs/audit-2026-06-12/`, finding CRIT A1): `banca_router` e `ipratico_products_router` erano montati **senza autenticazione** — `GET /banca/movimenti` rispondeva pubblicamente con i movimenti bancari reali, inclusi endpoint di scrittura/cancellazione e upload.

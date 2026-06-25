@@ -906,7 +906,29 @@ def update_bottiglia_aperta(
 
     data = payload.dict(exclude_unset=True)
     utente = _get_username(current_user)
+    era_aperta = int(row["BOTTIGLIA_APERTA"] or 0)
     db.update_vino(vino_id, data, utente=utente, origine="CALICI-TOGGLE")
+
+    # Traccia l'attivazione 0→1 come MODIFICA con marker [CALICI-RESIDUO].
+    # Scopo (Marco 2026-06-24): rendere visibile nello storico vendite e nei
+    # movimenti del vino il momento in cui una bottiglia entra in mescita,
+    # con la possibilità di annullare l'azione (vedi delete_movimento, che
+    # chiude la bottiglia se cancelli un MODIFICA [CALICI-RESIDUO]).
+    nuovo_flag = int(payload.BOTTIGLIA_APERTA)
+    if era_aperta == 0 and nuovo_flag == 1:
+        try:
+            db.registra_evento(
+                vino_id=vino_id,
+                utente=utente,
+                nota="[CALICI-RESIDUO] Bottiglia aperta per servizio al calice",
+                origine="CALICI-RESIDUO",
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger("vini.magazzino").warning(
+                "Tracking [CALICI-RESIDUO] fallito per vino %s: %s", vino_id, e,
+            )
+
     updated = db.get_vino_by_id(vino_id)
     return dict(updated) if updated else {"id": vino_id}
 
@@ -1020,7 +1042,42 @@ def delete_movimento(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operazione riservata ad admin, sommelier o sala.",
         )
+
+    # Pre-fetch per capire se sto cancellando un'ATTIVAZIONE CALICI DA RESIDUO
+    # (MODIFICA con marker [CALICI-RESIDUO]): in quel caso, oltre a eliminare
+    # il movimento, in atomico chiudo la bottiglia (BOTTIGLIA_APERTA=0) — il
+    # delete è semanticamente "annulla l'attivazione". Vedi update_bottiglia_aperta.
+    is_calici_apertura = False
+    target_vino_id: Optional[int] = None
+    try:
+        _conn = db.get_magazzino_connection()
+        _mov = _conn.cursor().execute(
+            "SELECT vino_id, tipo, note FROM vini_magazzino_movimenti WHERE id = ?",
+            (movimento_id,),
+        ).fetchone()
+        _conn.close()
+        if _mov:
+            target_vino_id = _mov["vino_id"]
+            is_calici_apertura = (
+                _mov["tipo"] == "MODIFICA"
+                and "[CALICI-RESIDUO]" in (_mov["note"] or "")
+            )
+    except Exception:
+        pass  # Se il pre-fetch fallisce procedo col delete senza rollback
+
     db.delete_movimento(movimento_id)
+
+    if is_calici_apertura and target_vino_id is not None:
+        utente = _get_username(current_user)
+        # db.update_vino setta DATA_APERTURA=NULL automaticamente quando
+        # BOTTIGLIA_APERTA va a 0 (vedi vini_magazzino_db.py:930-933).
+        db.update_vino(
+            target_vino_id,
+            {"BOTTIGLIA_APERTA": 0},
+            utente=utente,
+            origine="CALICI-RESIDUO-UNDO",
+        )
+
     return {"status": "ok"}
 
 
