@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-06-24 — Vini 3.66: revert 3.64 — ripristinato bottone "↩ Annulla" sulla riga ATTIVAZIONE `[core]`
+
+Marco chiarisce di aver inteso, in 3.64, "togli la TAB Attivazione dal form" (risolto in 3.65 separando `MODALITA` da `BADGE_TIPI`), non "togli il bottone Annulla sulla riga". Il bottone "↩ Annulla" sulla riga ATTIVAZIONE è effettivamente utile: cancella in atomico il movimento `[CALICI-RESIDUO]` e chiude la bottiglia. Lo rimetto.
+
+### Modificato
+- `frontend/src/pages/vini/ViniVendite.jsx`: ripristinati handler `annullaAttivazione`, state `annullandoAttivazioneId`, bottone "↩ Annulla" sulla riga ATTIVAZIONE (visibile solo quando `mod === "ATTIVAZIONE"`).
+
+### File modificati
+`frontend/src/pages/vini/ViniVendite.jsx`, `frontend/src/config/versions.jsx`, `docs/changelog.md`.
+
+---
+
 ## 2026-06-24 — Vini 3.65: fix regressione 3.63 — terza tab "Attivazione" comparsa nel form Registra vendita `[core]`
 
 Effetto collaterale di 3.63: aggiungendo `ATTIVAZIONE` alla costante `MODALITA` in `ViniVendite.jsx` è apparsa una terza tab "🥂↻ Attivazione" nel form **Registra vendita** (oltre a Bottiglia e Calici), perché la stessa costante è iterata in due posti — `MODALITA[mod]` per i badge della tabella Storico vendite **e** `Object.entries(MODALITA).map(...)` per generare le tab del form. Marco lo ha intercettato sullo screenshot del #1310.
