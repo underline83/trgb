@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-06-24 — Vini 3.65: fix regressione 3.63 — terza tab "Attivazione" comparsa nel form Registra vendita `[core]`
+
+Effetto collaterale di 3.63: aggiungendo `ATTIVAZIONE` alla costante `MODALITA` in `ViniVendite.jsx` è apparsa una terza tab "🥂↻ Attivazione" nel form **Registra vendita** (oltre a Bottiglia e Calici), perché la stessa costante è iterata in due posti — `MODALITA[mod]` per i badge della tabella Storico vendite **e** `Object.entries(MODALITA).map(...)` per generare le tab del form. Marco lo ha intercettato sullo screenshot del #1310.
+
+### Modificato
+- `frontend/src/pages/vini/ViniVendite.jsx`: separate due costanti. `MODALITA` torna a contenere solo BOTTIGLIA + CALICI (usata per le tab del form di registrazione). Nuova `BADGE_TIPI = { ...MODALITA, ATTIVAZIONE }` usata SOLO per il rendering del badge nella tabella Storico vendite. Cambiata la lookup nel render della tabella da `MODALITA[mod]` a `BADGE_TIPI[mod]`. Il form torna a mostrare due tab, lo storico vendite mostra il badge "🥂↻ Attivazione" sui MODIFICA `[CALICI-RESIDUO]` come previsto da 3.63.
+
+### File modificati
+`frontend/src/pages/vini/ViniVendite.jsx`, `frontend/src/config/versions.jsx`, `docs/changelog.md`.
+
+---
+
 ## 2026-06-24 — Vini 3.64: rimosso bottone "↩ Annulla" ridondante sulla riga ATTIVAZIONE `[core]`
 
 Follow-up dopo prova di Marco su 3.63: il bottone "↩ Annulla" sulla riga ATTIVAZIONE nello storico vendite era ridondante. L'annullamento dell'attivazione si fa già dal 🗑 sul movimento (tab Movimenti della scheda vino o ovunque ci sia il delete movimento standard) — e il backend chiude la bottiglia in atomico grazie a `delete_movimento` di 3.63. La riga ATTIVAZIONE resta come traccia visibile (badge "🥂↻ Attivazione", qta "—") ma senza azione doppia.

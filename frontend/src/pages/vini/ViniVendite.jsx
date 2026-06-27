@@ -14,13 +14,20 @@ import DecidiPrezzoCalice, { roundToHalf } from "../../components/vini/DecidiPre
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
 // ─────────────────────────────────────────────────────────────
+// MODALITA: solo le due modalità REGISTRABILI dal form Vendite (tab Bottiglia
+// e Calici). La costante è iterata per generare le tab del form, quindi NON
+// va estesa con eventi non-registrabili (regressione vini 3.63 → fix 3.65).
 const MODALITA = {
   BOTTIGLIA:   { label: "Bottiglia",   icon: "🍾",  desc: "Vendita bottiglia intera",  color: "bg-violet-100 text-violet-800 border-violet-300" },
   CALICI:      { label: "Calici",      icon: "🥂",  desc: "Aperta per vendita al calice", color: "bg-rose-100 text-rose-800 border-rose-300" },
-  // ATTIVAZIONE: evento di "apertura bottiglia per servizio al calice da
-  // residuo" — non è una vendita, è un'azione operativa tracciata
-  // (vini 3.63, Marco 2026-06-24). Cancellabile con effetto di chiusura
-  // della bottiglia (vedi delete_movimento backend).
+};
+
+// BADGE_TIPI: superset di MODALITA usato SOLO per il rendering del badge nella
+// tabella Storico vendite. Include ATTIVAZIONE che è un evento tracciato (non
+// una vendita: deriva da `[CALICI-RESIDUO]` in update_bottiglia_aperta, vini
+// 3.63). Compare nello storico ma non tra le tab di registrazione.
+const BADGE_TIPI = {
+  ...MODALITA,
   ATTIVAZIONE: { label: "Attivazione", icon: "🥂↻", desc: "Bottiglia aperta per servizio al calice (non è una vendita)", color: "bg-amber-50 text-amber-800 border-amber-200" },
 };
 
@@ -826,7 +833,7 @@ export default function ViniVendite() {
 
                 {movimentiOrdinati.map((m) => {
                   const mod = parseModalita(m.note);
-                  const modInfo = mod ? MODALITA[mod] : null;
+                  const modInfo = mod ? BADGE_TIPI[mod] : null;
                   const isAttivazione = mod === "ATTIVAZIONE";
                   // Rimuovi i tag [BOTTIGLIA] | [CALICI] | [CALICI-RESIDUO] dalla nota visualizzata
                   const notePulita = (m.note || "")
