@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-06-24 — Vini 3.64: rimosso bottone "↩ Annulla" ridondante sulla riga ATTIVAZIONE `[core]`
+
+Follow-up dopo prova di Marco su 3.63: il bottone "↩ Annulla" sulla riga ATTIVAZIONE nello storico vendite era ridondante. L'annullamento dell'attivazione si fa già dal 🗑 sul movimento (tab Movimenti della scheda vino o ovunque ci sia il delete movimento standard) — e il backend chiude la bottiglia in atomico grazie a `delete_movimento` di 3.63. La riga ATTIVAZIONE resta come traccia visibile (badge "🥂↻ Attivazione", qta "—") ma senza azione doppia.
+
+### Modificato
+- `frontend/src/pages/vini/ViniVendite.jsx`: rimossi bottone "↩ Annulla", handler `annullaAttivazione`, state `annullandoAttivazioneId`. La cella azione mostra solo "+🥂" sulle righe BOTTIGLIA (come prima).
+
+### File modificati
+`frontend/src/pages/vini/ViniVendite.jsx`, `frontend/src/config/versions.jsx`, `docs/changelog.md`.
+
+---
+
 ## 2026-06-24 — Vini 3.63: vendita al calice tracciata + attivazione "calici da residuo" reversibile `[core]`
 
 Due bug correlati intorno al servizio al calice, segnalati dal caso del #1310 (Lugana DOC Montunal, Tenimenti Civa).

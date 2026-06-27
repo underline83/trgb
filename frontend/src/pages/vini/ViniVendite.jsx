@@ -317,39 +317,6 @@ export default function ViniVendite() {
     }
   };
 
-  // ── Annulla attivazione calici da residuo ──
-  // Click dal bottone "↩ Annulla" sulla riga ATTIVAZIONE dello storico vendite.
-  // DELETE del movimento [CALICI-RESIDUO]: il backend in atomico chiude anche
-  // la bottiglia (BOTTIGLIA_APERTA=0). Per "ripristinare" basta ricliccare il
-  // +🥂 sulla VENDITA bottiglia originale (la riga torna BOTTIGLIA dopo
-  // l'annullamento).
-  const [annullandoAttivazioneId, setAnnullandoAttivazioneId] = useState(null);
-  const annullaAttivazione = async (movimento) => {
-    if (!movimento?.id) return;
-    if (!window.confirm(
-      "Annulla l'attivazione calici da residuo?\n\n" +
-      "Il movimento viene cancellato e la bottiglia torna chiusa. Per riattivare " +
-      "ricicca il tasto +🥂 sulla vendita bottiglia originale."
-    )) return;
-    setAnnullandoAttivazioneId(movimento.id);
-    try {
-      const r = await apiFetch(`${API_BASE}/vini/magazzino/movimenti/${movimento.id}`, {
-        method: "DELETE",
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.detail || `Errore ${r.status}`);
-      }
-      setSubmitMsg("✅ Attivazione annullata, bottiglia chiusa.");
-      setTimeout(() => setSubmitMsg(""), 4000);
-      fetchMovimenti(); // ricarica storico
-    } catch (err) {
-      setSubmitMsg(`❌ ${err.message}`);
-      setTimeout(() => setSubmitMsg(""), 5000);
-    } finally {
-      setAnnullandoAttivazioneId(null);
-    }
-  };
 
   // PATCH che attiva BOTTIGLIA_APERTA=1 (DATA_APERTURA viene gestita backend)
   const patchAttivaCalice = async (vinoId, extra = {}) => {
@@ -923,18 +890,10 @@ export default function ViniVendite() {
                             </button>
                           </Tooltip>
                         )}
-                        {isAttivazione && (
-                          <Tooltip label="Annulla l'attivazione: cancella questo evento dallo storico e chiude la bottiglia in mescita.">
-                            <button
-                              type="button"
-                              onClick={() => annullaAttivazione(m)}
-                              disabled={annullandoAttivazioneId === m.id}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-50 border border-neutral-300 text-neutral-700 text-[11px] font-semibold hover:bg-neutral-100 hover:border-neutral-400 transition disabled:opacity-50"
-                            >
-                              {annullandoAttivazioneId === m.id ? "…" : "↩ Annulla"}
-                            </button>
-                          </Tooltip>
-                        )}
+                        {/* Sulla riga ATTIVAZIONE non c'è azione: per annullare
+                            si cancella il movimento dal tab Movimenti della
+                            scheda vino (🗑), il backend chiude la bottiglia
+                            in atomico. */}
                       </td>
                     </tr>
                   );
