@@ -3566,6 +3566,224 @@ def delete_pagamento_batch(
         conn.close()
 
 
+# ──────────────────────────────────────────────────────────────
+# BP.1 — Rimuovi singola uscita + Auto-close batch
+# ──────────────────────────────────────────────────────────────
+
+
+@router.delete(
+    "/pagamenti-batch/{batch_id}/uscite/{uscita_id}",
+    summary="Rimuove una singola uscita da un batch (senza eliminare il batch)",
+)
+def remove_uscita_from_batch(
+    batch_id: int,
+    uscita_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Scollega un'uscita dal batch:
+      - cg_uscite: pagamento_batch_id=NULL, in_pagamento_at=NULL
+      - cg_pagamenti_batch: ricalcolo n_uscite + totale dalle uscite ancora collegate.
+
+    Errori:
+      404 — batch o uscita non trovata, o uscita non collegata a QUESTO batch
+      409 — l'uscita è già pagata (PAGATO/PAGATO_MANUALE): è ambiguo cosa
+            scollegare, l'utente prima deve sgancia banca_movimento_id.
+    """
+    conn = get_fc_db()
+    try:
+        # Verifica batch esiste
+        b = conn.execute(
+            "SELECT id FROM cg_pagamenti_batch WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if not b:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Batch non trovato")
+
+        # Verifica uscita esiste E è collegata a QUESTO batch
+        u = conn.execute(
+            "SELECT id, stato, pagamento_batch_id FROM cg_uscite WHERE id = ?",
+            (uscita_id,),
+        ).fetchone()
+        if not u:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Uscita non trovata")
+        ud = dict(u)
+        if ud["pagamento_batch_id"] != batch_id:
+            from fastapi import HTTPException
+            raise HTTPException(
+                404,
+                f"Uscita #{uscita_id} non collegata al batch #{batch_id} "
+                f"(pagamento_batch_id={ud['pagamento_batch_id']})"
+            )
+        if ud["stato"] in ("PAGATO", "PAGATO_MANUALE"):
+            from fastapi import HTTPException
+            raise HTTPException(
+                409,
+                f"Uscita #{uscita_id} è in stato {ud['stato']}: "
+                "rimuovi prima la riconciliazione (banca_movimento_id) e riprova."
+            )
+
+        # Scollega l'uscita
+        conn.execute(
+            """UPDATE cg_uscite
+               SET pagamento_batch_id = NULL,
+                   in_pagamento_at = NULL,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (uscita_id,),
+        )
+
+        # Ricalcola n_uscite + totale del batch dalle uscite ancora collegate
+        agg = conn.execute(
+            """SELECT COUNT(*) AS n, COALESCE(SUM(totale - importo_pagato), 0) AS tot
+               FROM cg_uscite
+               WHERE pagamento_batch_id = ?""",
+            (batch_id,),
+        ).fetchone()
+        n_left = agg["n"]
+        tot_left = float(agg["tot"])
+        conn.execute(
+            "UPDATE cg_pagamenti_batch SET n_uscite = ?, totale = ? WHERE id = ?",
+            (n_left, tot_left, batch_id),
+        )
+
+        conn.commit()
+        return {
+            "ok": True,
+            "uscita_rimossa": uscita_id,
+            "batch_id": batch_id,
+            "n_uscite_rimanenti": n_left,
+            "totale_rimanente": round(tot_left, 2),
+            "batch_vuoto": n_left == 0,
+        }
+    finally:
+        conn.close()
+
+
+def _try_auto_close_batch(conn, batch_id: int) -> dict:
+    """Helper: chiude il batch se tutte le sue uscite sono PAGATO/PAGATO_MANUALE
+    e n_uscite > 0. Restituisce {chiuso: bool, n_uscite, n_pagate, motivo}.
+
+    NON solleva eccezioni, NON committa (il chiamante orchestra)."""
+    row = conn.execute(
+        "SELECT id, stato, n_uscite FROM cg_pagamenti_batch WHERE id = ?",
+        (batch_id,),
+    ).fetchone()
+    if not row:
+        return {"chiuso": False, "motivo": "batch non trovato"}
+    b = dict(row)
+    if b["stato"] == "CHIUSO":
+        return {"chiuso": False, "motivo": "già chiuso"}
+
+    # Conta uscite del batch totali vs pagate
+    agg = conn.execute(
+        """SELECT
+              COUNT(*) AS n_tot,
+              SUM(CASE WHEN stato IN ('PAGATO','PAGATO_MANUALE') THEN 1 ELSE 0 END) AS n_pagate
+           FROM cg_uscite
+           WHERE pagamento_batch_id = ?""",
+        (batch_id,),
+    ).fetchone()
+    n_tot = agg["n_tot"] or 0
+    n_pagate = agg["n_pagate"] or 0
+
+    # NOTA: il flag in_pagamento_at viene RESETTATO a NULL dagli endpoint che
+    # marcano PAGATO/PAGATO_MANUALE (mig 104). Questo significa che un'uscita
+    # PAGATO non è più associata al batch via in_pagamento_at — MA `pagamento_batch_id`
+    # resta valorizzato (non viene resettato), quindi possiamo ancora contarla
+    # come "appartenente al batch" qui. Verifico questa assunzione...
+    # Se pagamento_batch_id venisse anch'esso resettato a NULL su pagamento,
+    # questa logica andrebbe rivista (es. archiviare la membership prima).
+    # Verifica nel codice: gli UPDATE che fanno in_pagamento_at=NULL sembrano
+    # azzerare ANCHE pagamento_batch_id. Quindi una uscita pagata RIENTRA come
+    # "non più nel batch" — il batch può apparire come vuoto pur essendo "completato".
+
+    if n_tot == 0:
+        # Batch "svuotato": tutte le uscite sono uscite via PAGATO (pagamento_batch_id=NULL).
+        # Recupero il valore originale di n_uscite dal batch header come riferimento.
+        if b["n_uscite"] and b["n_uscite"] > 0:
+            return {"chiuso_possibile": True, "n_tot": 0, "n_pagate": 0, "motivo": "tutte le uscite pagate (svuotato)"}
+        return {"chiuso": False, "motivo": "batch vuoto / mai usato"}
+
+    if n_pagate == n_tot:
+        return {"chiuso_possibile": True, "n_tot": n_tot, "n_pagate": n_pagate}
+    return {"chiuso": False, "motivo": f"{n_pagate}/{n_tot} uscite pagate"}
+
+
+@router.post(
+    "/pagamenti-batch/{batch_id}/auto-close",
+    summary="Chiude il batch se tutte le sue uscite sono pagate",
+)
+def auto_close_batch(
+    batch_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Chiude il batch se tutte le uscite sono PAGATO/PAGATO_MANUALE."""
+    conn = get_fc_db()
+    try:
+        check = _try_auto_close_batch(conn, batch_id)
+        if not check.get("chiuso_possibile"):
+            return {"ok": False, "chiuso": False, "motivo": check.get("motivo", "—")}
+
+        conn.execute(
+            """UPDATE cg_pagamenti_batch
+               SET stato = 'CHIUSO',
+                   chiuso_at = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (batch_id,),
+        )
+        conn.commit()
+        return {"ok": True, "chiuso": True, "batch_id": batch_id, **{k: v for k, v in check.items() if k != "chiuso_possibile"}}
+    finally:
+        conn.close()
+
+
+@router.post(
+    "/pagamenti-batch/auto-close-all",
+    summary="Bulk: chiude tutti i batch dove tutte le uscite sono pagate",
+)
+def auto_close_all_batches(current_user=Depends(get_current_user)):
+    """Itera tutti i batch IN_PAGAMENTO/INVIATO_CONTABILE e chiude quelli completati.
+
+    Pensato per:
+      - Pulizia retroattiva degli 8 batch storici Tre Gobbi
+      - Uso periodico (bottone in UI o cron futuro)
+    """
+    conn = get_fc_db()
+    try:
+        rows = conn.execute(
+            """SELECT id FROM cg_pagamenti_batch
+               WHERE stato IN ('IN_PAGAMENTO', 'INVIATO_CONTABILE')
+               ORDER BY id"""
+        ).fetchall()
+        chiusi = []
+        skipped = []
+        for r in rows:
+            bid = r["id"]
+            check = _try_auto_close_batch(conn, bid)
+            if check.get("chiuso_possibile"):
+                conn.execute(
+                    """UPDATE cg_pagamenti_batch
+                       SET stato = 'CHIUSO',
+                           chiuso_at = CURRENT_TIMESTAMP
+                       WHERE id = ?""",
+                    (bid,),
+                )
+                chiusi.append({"batch_id": bid, **{k: v for k, v in check.items() if k != "chiuso_possibile"}})
+            else:
+                skipped.append({"batch_id": bid, "motivo": check.get("motivo", "—")})
+        conn.commit()
+        return {
+            "ok": True,
+            "n_chiusi": len(chiusi),
+            "n_skipped": len(skipped),
+            "chiusi": chiusi,
+            "skipped": skipped,
+        }
+    finally:
+        conn.close()
+
+
 # ── Segna pagata singola fattura (da Acquisti) ───────────────────
 @router.put("/uscita/{uscita_id}/stato-pagamento")
 def update_uscita_stato_pagamento(

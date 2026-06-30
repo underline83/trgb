@@ -1,6 +1,45 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-13 (notte 2) — **CC.6.fix: hotfix duplicazione + badge conto multi-account** (`[core]`). Carta v1.7 beta, sistema 5.25, flussiCassa 1.16. Marco ha segnalato che dopo unlink di un movimento questo appariva DUPLICATO nella riconciliazione. **Bug**: il LEFT JOIN su `cg_uscite` introdotto in CC.6 moltiplica le righe per ogni uscita CG linkata al movimento (es. mov #1416 = bonifico multi-stipendio paga 6 uscite → 6 righe). **Fix**: sostituito con subquery scalari `(SELECT ... FROM cg_uscite WHERE banca_movimento_id=m.id ORDER BY id LIMIT 1)` per i campi rappresentativi + `COUNT(*)` per `match_uscite_count` + `GROUP_CONCAT(id, ',')` per `match_uscite_ids`. Frontend: chip "🔗 Già su CG #N — fornitore" ora mostra "+M altre" se count > 1. **Punto 3 di Marco**: aggiunto badge "🏦 BPM *2200" su movimenti NON carta (multi-conto ready — quando aggiungerà un secondo CC es. Sella, mostrerà "🏦 SELLA *xxxx"). Badge emerald, accanto a "💳 carta" (ambra) per i carta.
+**Ultimo aggiornamento:** 2026-06-30 — **BP.1+BP.2+BP.3+BP.4: pagina dedicata "Batch pagamenti"** (`[core]`). controlloGestione v2.18, sistema 5.30. Lo Scadenzario CG creava da sempre `cg_pagamenti_batch` ad ogni "Stampa / Metti in pagamento" ma non c'era pagina per gestirli post-creazione → 8 batch storici per €59k mai chiusi sul VPS Tre Gobbi. **Backend**: 3 endpoint nuovi in `controllo_gestione_router.py` — `DELETE /pagamenti-batch/{id}/uscite/{uid}` (rimuovi singola uscita atomic), `POST /pagamenti-batch/{id}/auto-close` (chiude se tutte le uscite pagate), `POST /pagamenti-batch/auto-close-all` (bulk per pulizia retroattiva). Helper `_try_auto_close_batch` gestisce sia il caso "uscite ancora collegate PAGATO" che "batch svuotato perché mig 104 sgancia pagamento_batch_id al pagamento". **Frontend**: nuovo `ControlloGestioneBatchPagamenti.jsx` su route `/controllo-gestione/batch-pagamenti`, 7° tab "📨 Batch" in `ControlloGestioneNav`. Vista lista con 3 sotto-tab stati + counter, vista dettaglio inline con bottoni Invia/Chiudi/Elimina/Rimuovi singola/Auto-chiudi. Test su DB locale: simulazione `/auto-close-all` chiude 7/8 batch storici, 1 (#13) resta IN_PAGAMENTO con 1 uscita ancora pendente. **BP.5 (PDF brandizzato)** rimandato a Push G2. **Bug Bugan SPOSTATO (#23)** ancora open, in attesa screenshot DevTools.
+
+## SESSIONE 2026-06-30 — BP.1+BP.2+BP.3+BP.4: pagina batch pagamenti
+
+### Contesto
+Marco lavora sui batch pagamenti: oggi capita di voler "modificare un batch, togliere una singola uscita che non doveva starci". Non era possibile — l'unica modifica era DELETE dell'intero batch. Inoltre nessuna pagina per gestire i batch dopo la creazione: 8 batch storici rimasti `IN_PAGAMENTO` (totale €59k) da maggio-giugno, mai marcati `INVIATO_CONTABILE` né `CHIUSO` perché manca UI per farlo.
+
+### Decisioni di design (concordate)
+- **A** Pagina dedicata (no sotto-vista in Scadenzario): nuovo tab in `ControlloGestioneNav`, route propria, vista lista + dettaglio inline
+- **B** PDF: rimandato a BP.5 / Push G2 (M.B `pdf_brand.py`), oggi riuso stampa HTML+Cmd+P esistente
+- **C** Cleanup retroattivo 8 batch storici: tramite bottone "Auto-chiudi batch completati" che Marco preme una volta
+- **D** Auto-close batch: sì, ma solo on-demand via endpoint POST (non automatico/trigger)
+- **E** "Aggiungi uscita a batch esistente": NO, Marco preferisce crearne uno nuovo
+
+### Test su DB locale (snapshot post-push CC.8.c)
+Simulazione `auto-close-all` sui 8 batch IN_PAGAMENTO: 7 si chiudono (uscite originali tutte pagate, `pagamento_batch_id` sgangiato), 1 resta aperto (#13 ha 1 uscita PROGRAMMATO ancora collegata).
+
+### Frontend
+- `ControlloGestioneBatchPagamenti.jsx`: componente unico con stato interno `selectedId` (null = lista, valorizzato = dettaglio inline). Sub-componenti `BatchList`, `BatchDetail`, `Stat`.
+- 3 sotto-tab stato con counter (chiamate parallele a `/pagamenti-batch?stato=X`).
+- Dettaglio: header con stat cards + chip status + bottoni transizione (Invia/Chiudi/Auto-chiudi/Elimina), tabella uscite con bottone "✕ Rimuovi" per riga (nascosto se PAGATO o batch CHIUSO).
+- Helper `_try_auto_close_batch` consultabile via endpoint POST `/auto-close` singolo (mostra motivo "X/Y uscite pagate" se non chiudibile).
+
+### Cose intenzionalmente NON fatte ora
+- BP.5 export PDF brandizzato (Push G2): la stampa HTML esistente in `ControlloGestioneUscite.jsx::apriFinestraStampa` resta utilizzabile dallo Scadenzario; nel dettaglio batch nuovo non l'ho ancora portata (per non duplicare codice — refactor in modulo condiviso da fare quando arriva BP.5).
+- "Aggiungi uscita a batch esistente" (E): Marco preferisce crearne uno nuovo.
+
+### File toccati
+- `app/routers/controllo_gestione_router.py` (+200 righe — 3 endpoint + helper)
+- `frontend/src/pages/controllo-gestione/ControlloGestioneBatchPagamenti.jsx` (nuovo, ~440 righe)
+- `frontend/src/pages/controllo-gestione/ControlloGestioneNav.jsx` (+1 voce)
+- `frontend/src/App.jsx` (+1 lazy import + 1 route)
+- `frontend/src/config/versions.jsx` (controlloGestione 2.17→2.18, sistema 5.29→5.30)
+- `VERSION` (5.29 → 5.30)
+- `docs/modulo_controllo_gestione.md` (sezione AGGIORNAMENTO 2026-06-30 + bump header)
+- `docs/sessione.md` (questa entry)
+
+---
+
+**Aggiornamento precedente (2026-06-13 notte 2):** **CC.6.fix: hotfix duplicazione + badge conto multi-account** (`[core]`). Carta v1.7 beta, sistema 5.25, flussiCassa 1.16. Marco ha segnalato che dopo unlink di un movimento questo appariva DUPLICATO nella riconciliazione. **Bug**: il LEFT JOIN su `cg_uscite` introdotto in CC.6 moltiplica le righe per ogni uscita CG linkata al movimento (es. mov #1416 = bonifico multi-stipendio paga 6 uscite → 6 righe). **Fix**: sostituito con subquery scalari `(SELECT ... FROM cg_uscite WHERE banca_movimento_id=m.id ORDER BY id LIMIT 1)` per i campi rappresentativi + `COUNT(*)` per `match_uscite_count` + `GROUP_CONCAT(id, ',')` per `match_uscite_ids`. Frontend: chip "🔗 Già su CG #N — fornitore" ora mostra "+M altre" se count > 1. **Punto 3 di Marco**: aggiunto badge "🏦 BPM *2200" su movimenti NON carta (multi-conto ready — quando aggiungerà un secondo CC es. Sella, mostrerà "🏦 SELLA *xxxx"). Badge emerald, accanto a "💳 carta" (ambra) per i carta.
 
 ## SESSIONE 2026-06-13 (notte 2) — CC.6.fix: duplicazione + badge conto
 

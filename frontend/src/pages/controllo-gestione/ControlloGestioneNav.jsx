@@ -14,12 +14,13 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
-  { key: "dashboard",       label: "Dashboard",       path: "/controllo-gestione/dashboard",       icon: "📊" },
-  { key: "conto-economico", label: "Conto Economico", path: "/controllo-gestione/conto-economico", icon: "💼" },
-  { key: "uscite",          label: "Scadenzario",     path: "/controllo-gestione/uscite",          icon: "💸" },
-  { key: "calendario",      label: "Calendario",      path: "/controllo-gestione/calendario",      icon: "📅" },
-  { key: "spese-fisse",     label: "Spese Fisse",     path: "/controllo-gestione/spese-fisse",     icon: "📋" },
-  { key: "riconciliazione", label: "Riconciliazione", path: "/controllo-gestione/riconciliazione", icon: "🔗" },
+  { key: "dashboard",        label: "Dashboard",       path: "/controllo-gestione/dashboard",        icon: "📊" },
+  { key: "conto-economico",  label: "Conto Economico", path: "/controllo-gestione/conto-economico",  icon: "💼" },
+  { key: "uscite",           label: "Scadenzario",     path: "/controllo-gestione/uscite",           icon: "💸" },
+  { key: "calendario",       label: "Calendario",      path: "/controllo-gestione/calendario",       icon: "📅" },
+  { key: "spese-fisse",      label: "Spese Fisse",     path: "/controllo-gestione/spese-fisse",      icon: "📋" },
+  { key: "batch-pagamenti",  label: "Batch",           path: "/controllo-gestione/batch-pagamenti",  icon: "📨" },
+  { key: "riconciliazione",  label: "Riconciliazione", path: "/controllo-gestione/riconciliazione",  icon: "🔗" },
 ];
 
 export default function ControlloGestioneNav({ current }) {

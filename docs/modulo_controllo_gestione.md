@@ -1,9 +1,43 @@
 # Modulo Controllo di Gestione — TRGB Gestionale
-**Versione modulo:** 2.17 (`versions.jsx`)
-**Sistema:** 5.16
+**Versione modulo:** 2.18 (`versions.jsx`)
+**Sistema:** 5.30
 **Stato:** Beta
-**Data ultimo aggiornamento:** 2026-05-19
-**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti, Conto Economico
+**Data ultimo aggiornamento:** 2026-06-30
+**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti, Conto Economico, **Batch pagamenti**
+
+---
+
+# 📌 AGGIORNAMENTO 2026-06-30 — Pagina "Batch pagamenti" dedicata (BP.1+BP.2+BP.3+BP.4)
+
+Lo Scadenzario crea da sempre `cg_pagamenti_batch` ogni volta che Marco clicca "Stampa / Metti in pagamento" su un set di uscite, ma fino ad oggi NON c'era una pagina per gestirli post-creazione. I batch restavano `IN_PAGAMENTO` per sempre (mai marcati `INVIATO_CONTABILE` né `CHIUSO`), accumulando 8 batch storici per €59k totali sul VPS Tre Gobbi.
+
+## Endpoint backend nuovi (`controllo_gestione_router.py`)
+
+| Metodo | Path | Cosa fa |
+|---|---|---|
+| DELETE | `/controllo-gestione/pagamenti-batch/{batch_id}/uscite/{uscita_id}` | Rimuove una singola uscita dal batch (scollega `pagamento_batch_id`, `in_pagamento_at`). Ricalcola `n_uscite` e `totale` del batch atomicamente. Rifiuta se l'uscita è già pagata (richiede prima dissocia banca). |
+| POST | `/controllo-gestione/pagamenti-batch/{batch_id}/auto-close` | Chiude il batch se tutte le sue uscite sono PAGATO/PAGATO_MANUALE (oppure se il batch è "svuotato" perché le uscite pagate hanno `pagamento_batch_id=NULL` da mig 104). |
+| POST | `/controllo-gestione/pagamenti-batch/auto-close-all` | Versione bulk: itera tutti i batch IN_PAGAMENTO/INVIATO_CONTABILE e chiude quelli completati. Usato per la pulizia retroattiva degli 8 batch storici Tre Gobbi. |
+
+Helper interno `_try_auto_close_batch(conn, batch_id)` riusabile.
+
+## Frontend (`ControlloGestioneBatchPagamenti.jsx`)
+
+Nuova pagina su route `/controllo-gestione/batch-pagamenti`, tab "📨 Batch" aggiunto in `ControlloGestioneNav` (7° tab, tra Spese Fisse e Riconciliazione).
+
+**Vista lista:** 3 sotto-tab per stato (IN_PAGAMENTO / INVIATO_CONTABILE / CHIUSO) con counter, tabella batch (titolo, data, n. uscite, totale, timestamp inviato/chiuso). Bottone "✓ Auto-chiudi batch completati" in alto a destra chiama `/auto-close-all`.
+
+**Vista dettaglio (click su batch):** header con stat (uscite, totale, X/Y pagate, stato), chip status, note. Bottoni transizione: "📨 Invia al contabile" / "✓ Chiudi batch" / "Auto-chiudi (se completato)" / "🗑 Elimina batch". Tabella uscite con bottone "✕ Rimuovi" per riga (nascosto su uscite già pagate).
+
+## Macchina a stati batch
+
+`IN_PAGAMENTO` → `INVIATO_CONTABILE` → `CHIUSO`. Transizioni manuali via PUT, oppure auto-close.
+
+`in_pagamento_at` e `pagamento_batch_id` su `cg_uscite` si azzerano automaticamente quando l'uscita viene pagata (vedi mig 104), ma l'header `cg_pagamenti_batch.n_uscite` rimane come riferimento storico. L'auto-close gestisce entrambi i casi: "batch ancora popolato con uscite PAGATO" e "batch svuotato perché uscite pagate hanno scollegato il flag".
+
+## Roadmap residua
+
+- **BP.5** (Push G2): export PDF brandizzato Tre Gobbi via M.B (`pdf_brand.py`) — bottone "📄 Esporta PDF" nel dettaglio batch, per allegare a email per commercialista. Oggi c'è solo la stampa HTML+Cmd+P di `apriFinestraStampa` riusata dallo Scadenzario.
 
 ---
 
