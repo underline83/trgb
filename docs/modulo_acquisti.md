@@ -1,7 +1,7 @@
 # Modulo Gestione Acquisti — TRGB Gestionale
 
 **Ultimo aggiornamento:** 2026-05-08 (consolidamento docs + assorbita spec proforme)
-**Stato:** stabile (proforme in pausa — vedi §11)
+**Stato:** stabile · proforme attive end-to-end (creazione + riconciliazione UI, vedi §11)
 **Versione modulo (`versions.jsx`):** acquisti/fatture v2.3
 **Sezione top-level:** `/acquisti`
 **Backend prefix:** `/contabilita/fe/*`
@@ -21,7 +21,7 @@
 8. Backend API
 9. Database
 10. Frontend (file + struttura)
-11. **Pro-forme** (in pausa — spec assorbita 2026-04-13, A.5+A.6 in pausa per priorità)
+11. **Pro-forme** — spec assorbita 2026-04-13, A.5+A.6 ✅ implementate (`FattureProformeElenco.jsx`, route `/acquisti/proforme`)
 12. Changelog
 
 ---
@@ -181,7 +181,7 @@ Barra di navigazione persistente su tutte le pagine modulo: **Dashboard, Elenco,
 /acquisti/impostazioni       — Impostazioni (tab FIC)
 ```
 
-Eventuale tab futuro `/acquisti/proforme` previsto in spec §11 (in pausa).
+Tab `/acquisti/proforme` ATTIVA (vedi §11).
 
 ---
 
@@ -274,9 +274,14 @@ frontend/src/pages/admin/
 
 ---
 
-# 11. Pro-forme — spec assorbita (in pausa)
+# 11. Pro-forme — implementate end-to-end
 
-> **Stato:** SPEC pronta dal 2026-04-13. Voci A.5 (FE proforme creazione) + A.6 (FE proforme riconciliazione) **in PAUSA** (decisione Marco, Batch 3 roadmap reorganization). Lasciate per priorità più alte. Quando si riprende, partire da qui.
+> **Stato:** ✅ ATTIVE in produzione. A.5 (creazione FE) e A.6 (riconciliazione FE) sono entrambe implementate.
+> - Backend: `app/routers/fe_proforme_router.py` (mig 065 `fe_proforme` + 9 endpoint REST sotto `/contabilita/fe/proforme`)
+> - Frontend: `frontend/src/pages/admin/FattureProformeElenco.jsx` → route `/acquisti/proforme` (link in `FattureNav.jsx`)
+> - Modali: creazione "Nuova Proforma" con ricerca fornitore + form completo; "Riconcilia" mostra candidate (GET `/{id}/candidates`) e collega via POST `/{id}/riconcilia` → cancella la riga `cg_uscite` ombra e marca la proforma RICONCILIATA. Reversibile via `/{id}/dissocia`.
+>
+> **Aggiornamento storico:** SPEC pronta dal 2026-04-13, marcata "in PAUSA" durante "Batch 3 roadmap reorganization". L'implementazione è stata fatta in seguito senza aggiornare questo doc fino al 2026-06-30 (correzione retroattiva — vedi lezione in memoria: "i docs vanno aggiornati ad ogni chiusura, sono lo strumento di check ufficiale").
 
 ## 11.1 Contesto
 
