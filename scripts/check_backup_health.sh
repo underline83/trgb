@@ -12,6 +12,13 @@
 #   4. last_known_good/:    contiene tutti i DB con size > 8KB e integrity ok
 #   5. Backup hourly count: almeno N backup recenti per ogni DB
 #
+# v1.2 (2026-07-02): dedupe notifiche. Il check gira ogni 30 min e ri-notificava
+# lo stesso identico problema (es. last_run_failed:1) ad ogni giro finché il run
+# successivo di backup_db.sh non puliva lo status → notifiche doppie/quadruple
+# per un singolo lock transitorio. Ora: notifica solo se il set di issues è
+# CAMBIATO rispetto all'ultima notifica, oppure se sono passate >6h (re-remind
+# per problemi persistenti). Stato in $NOTIFY_STAMP_FILE.
+#
 # v1.1 (2026-05-07): integrity_check ora apre i file LKG con `sqlite3 -readonly`
 # e retry-once dopo 3 secondi se la prima passata fallisce. Motivo: il check
 # girava al minuto :00 in concomitanza con `backup_db.sh` orario, scontrandosi
@@ -33,7 +40,10 @@ HOURLY_DIR="$BACKUP_DIR/hourly"
 STATUS_FILE="$BACKUP_DIR/.last_backup_status.json"
 DRIVE_SYNC_STAMP="$BACKUP_DIR/.last_drive_sync"
 HEALTH_STATUS_FILE="$BACKUP_DIR/.last_health_status.json"
+NOTIFY_STAMP_FILE="$BACKUP_DIR/.last_health_notified"
 VENV_PYTHON="/home/marco/trgb/venv-trgb/bin/python"
+
+RENOTIFY_AFTER_SECONDS=21600  # 6h: re-remind se il problema persiste
 
 MIN_SIZE_BYTES=8192
 HOURLY_MAX_AGE_MIN=70    # backup orario deve essere < 70 min (60+10 grace)
@@ -224,12 +234,30 @@ echo "════════════════════════�
 if [ ${#ISSUES[@]} -eq 0 ]; then
     echo "✅ Sistema di backup SANO"
     echo "{\"status\":\"healthy\",\"timestamp\":\"$(date -Iseconds)\",\"epoch\":$NOW,\"issues\":[]}" > "$HEALTH_STATUS_FILE"
+    # Reset dedupe: alla prossima issue si notifica subito (v1.2)
+    rm -f "$NOTIFY_STAMP_FILE"
 else
     echo "❌ ISSUES RILEVATE: ${#ISSUES[@]}"
     for i in "${ISSUES[@]}"; do echo "  - $i"; done
     ISSUES_JSON=$(printf '"%s",' "${ISSUES[@]}" | sed 's/,$//')
     echo "{\"status\":\"unhealthy\",\"timestamp\":\"$(date -Iseconds)\",\"epoch\":$NOW,\"issues\":[${ISSUES_JSON}]}" > "$HEALTH_STATUS_FILE"
-    notify "alta" "🩺 Backup health check FALLITO (${#ISSUES[@]} issues)" "$(printf '%s\n' "${ISSUES[@]}" | head -10 | tr '\n' ',')"
+
+    # ── Dedupe notifiche (v1.2) ─────────────────────────────────────────────
+    # Firma del problema: issues senza cifre (hourly_stale_73min ≈ 74min = stesso
+    # problema). Notifico solo se la firma è cambiata o se sono passate >6h.
+    ISSUES_SIG=$(printf '%s\n' "${ISSUES[@]}" | tr -d '0-9' | sort | md5sum | awk '{print $1}')
+    LAST_SIG=""
+    LAST_NOTIFY_EPOCH=0
+    if [ -f "$NOTIFY_STAMP_FILE" ]; then
+        read -r LAST_SIG LAST_NOTIFY_EPOCH < "$NOTIFY_STAMP_FILE" || true
+        LAST_NOTIFY_EPOCH=${LAST_NOTIFY_EPOCH:-0}
+    fi
+    if [ "$ISSUES_SIG" != "$LAST_SIG" ] || [ $((NOW - LAST_NOTIFY_EPOCH)) -gt "$RENOTIFY_AFTER_SECONDS" ]; then
+        notify "alta" "🩺 Backup health check FALLITO (${#ISSUES[@]} issues)" "$(printf '%s\n' "${ISSUES[@]}" | head -10 | tr '\n' ',')"
+        echo "$ISSUES_SIG $NOW" > "$NOTIFY_STAMP_FILE"
+    else
+        echo "  (notifica soppressa: stesso problema già notificato $(( (NOW - LAST_NOTIFY_EPOCH) / 60 )) min fa)"
+    fi
 fi
 
 # Exit code per cron monitor

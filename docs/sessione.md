@@ -1,6 +1,26 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-06-30 — **BP.1+BP.2+BP.3+BP.4: pagina dedicata "Batch pagamenti"** (`[core]`). controlloGestione v2.18, sistema 5.30. Lo Scadenzario CG creava da sempre `cg_pagamenti_batch` ad ogni "Stampa / Metti in pagamento" ma non c'era pagina per gestirli post-creazione → 8 batch storici per €59k mai chiusi sul VPS Tre Gobbi. **Backend**: 3 endpoint nuovi in `controllo_gestione_router.py` — `DELETE /pagamenti-batch/{id}/uscite/{uid}` (rimuovi singola uscita atomic), `POST /pagamenti-batch/{id}/auto-close` (chiude se tutte le uscite pagate), `POST /pagamenti-batch/auto-close-all` (bulk per pulizia retroattiva). Helper `_try_auto_close_batch` gestisce sia il caso "uscite ancora collegate PAGATO" che "batch svuotato perché mig 104 sgancia pagamento_batch_id al pagamento". **Frontend**: nuovo `ControlloGestioneBatchPagamenti.jsx` su route `/controllo-gestione/batch-pagamenti`, 7° tab "📨 Batch" in `ControlloGestioneNav`. Vista lista con 3 sotto-tab stati + counter, vista dettaglio inline con bottoni Invia/Chiudi/Elimina/Rimuovi singola/Auto-chiudi. Test su DB locale: simulazione `/auto-close-all` chiude 7/8 batch storici, 1 (#13) resta IN_PAGAMENTO con 1 uscita ancora pendente. **BP.5 (PDF brandizzato)** rimandato a Push G2. **Bug Bugan SPOSTATO (#23)** ancora open, in attesa screenshot DevTools.
+**Ultimo aggiornamento:** 2026-07-02 — **Fix falsi allarmi backup** (`[locale:tregobbi]`). Le notifiche ricorrenti "Backup FALLITO" su `admin_finance.sqlite3` / `bevande.sqlite3` erano falsi positivi da write lock transitorio: `backup_db.sh` faceva `PRAGMA integrity_check` e `.backup` senza `busy_timeout` né retry, e buttava lo stderr in `/dev/null`. **backup_db.sh v2.2**: check sorgente con `-readonly` + busy_timeout 15s + retry-once 3s; `.backup` con busy_timeout 30s + retry-once + stderr loggato. **check_backup_health.sh v1.2**: dedupe notifiche — stessa firma issues (senza cifre) non ri-notificata prima di 6h, stamp in `backups/.last_health_notified`, reset quando torna sano. Prima `last_run_failed:1` veniva ri-notificato ogni 30 min. Doc aggiornata: `docs/sicurezza_backup.md` §2.1 e §2.2. Da pushare; nessun cron da toccare.
+
+## SESSIONE 2026-07-02 — Fix falsi allarmi backup (lock transitori + notifiche duplicate)
+
+### Diagnosi
+- Notifiche viste da Marco: `admin_finance.sqlite3:backup_failed` (daily), `bevande.sqlite3:backup_failed` (daily), `admin_finance.sqlite3:source_corrupted` (hourly), e ripetuti "Backup health check FALLITO — last_run_failed:1".
+- Causa: i DB più scritti dal backend falliscono saltuariamente `integrity_check`/`.backup` per "database is locked" (busy_timeout CLI default = 0). L'errore vero non era diagnosticabile perché stderr di `.backup` andava in `/dev/null`. Il fix retry v1.1 (mag 2026) era stato applicato solo al check LKG, non al backup della sorgente.
+- I backup nel complesso FUNZIONANO: 1 file su ~15 fallisce a intermittenza, LKG preservata. Le notifiche doppie erano il health check ogni 30 min che ri-segnalava lo stesso status file fallito.
+
+### Modifiche
+- `scripts/backup_db.sh` → v2.2: `check_integrity` con `sqlite3 -readonly -cmd "PRAGMA busy_timeout=15000"` + retry-once dopo 3s; `do_backup` con busy_timeout 30s, stderr catturato e loggato, retry-once dopo 3s.
+- `scripts/check_backup_health.sh` → v1.2: firma issues (digits stripped, sort, md5) in `.last_health_notified`; notifica solo se firma cambiata o >6h dall'ultima; reset stamp quando healthy.
+- `docs/sicurezza_backup.md` §2.1/§2.2 aggiornate.
+
+### Verifica
+- `bash -n` OK su entrambi gli script. Logica dedupe testata in sandbox (stessa issue con minuti diversi → soppressa; issue diversa → notifica).
+- Post-push, se ricompaiono fallimenti su admin_finance/bevande ORA nel log ci sarà il motivo vero (`err=...`): a quel punto non è più lock, indagare davvero.
+
+---
+
+**Sessione precedente (2026-06-30):** — **BP.1+BP.2+BP.3+BP.4: pagina dedicata "Batch pagamenti"** (`[core]`). controlloGestione v2.18, sistema 5.30. Lo Scadenzario CG creava da sempre `cg_pagamenti_batch` ad ogni "Stampa / Metti in pagamento" ma non c'era pagina per gestirli post-creazione → 8 batch storici per €59k mai chiusi sul VPS Tre Gobbi. **Backend**: 3 endpoint nuovi in `controllo_gestione_router.py` — `DELETE /pagamenti-batch/{id}/uscite/{uid}` (rimuovi singola uscita atomic), `POST /pagamenti-batch/{id}/auto-close` (chiude se tutte le uscite pagate), `POST /pagamenti-batch/auto-close-all` (bulk per pulizia retroattiva). Helper `_try_auto_close_batch` gestisce sia il caso "uscite ancora collegate PAGATO" che "batch svuotato perché mig 104 sgancia pagamento_batch_id al pagamento". **Frontend**: nuovo `ControlloGestioneBatchPagamenti.jsx` su route `/controllo-gestione/batch-pagamenti`, 7° tab "📨 Batch" in `ControlloGestioneNav`. Vista lista con 3 sotto-tab stati + counter, vista dettaglio inline con bottoni Invia/Chiudi/Elimina/Rimuovi singola/Auto-chiudi. Test su DB locale: simulazione `/auto-close-all` chiude 7/8 batch storici, 1 (#13) resta IN_PAGAMENTO con 1 uscita ancora pendente. **BP.5 (PDF brandizzato)** rimandato a Push G2. **Bug Bugan SPOSTATO (#23)** ancora open, in attesa screenshot DevTools.
 
 ## SESSIONE 2026-06-30 — BP.1+BP.2+BP.3+BP.4: pagina batch pagamenti
 

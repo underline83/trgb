@@ -1,6 +1,14 @@
 #!/bin/bash
 # backup_db.sh — Backup atomico di tutti i database TRGB con verifiche di integrità
 #
+# Versione 2.2 (2026-07-02) — Fix falsi positivi da lock transitorio:
+#  - check_integrity: apre con -readonly + busy_timeout 15s + retry-once dopo 3s.
+#    Prima un write lock del backend su DB vivi (admin_finance, bevande) faceva
+#    fallire il PRAGMA integrity_check → falso "source_corrupted".
+#  - do_backup: busy_timeout 30s + stderr di .backup catturato nel log +
+#    retry-once dopo 3s. Prima l'errore vero finiva in /dev/null e un lock
+#    transitorio diventava un falso "backup_failed".
+#
 # Versione 2.0 — Post-incidente 4 maggio 2026
 # Cambia rispetto v1:
 #  - PRAGMA integrity_check obbligatorio su ogni backup creato
@@ -174,8 +182,15 @@ check_integrity() {
         return 1
     fi
 
-    # PRAGMA integrity_check
-    local result=$(sqlite3 "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
+    # PRAGMA integrity_check — v2.2: -readonly (non lascia -shm/-wal residui),
+    # busy_timeout 15s + retry-once dopo 3s. I DB vivi sono scritti dal backend:
+    # senza timeout un lock transitorio diventava falso "source_corrupted"
+    # (stesso fix già applicato a check_lkg_integrity in check_backup_health v1.1).
+    local result=$(sqlite3 -readonly -cmd "PRAGMA busy_timeout=15000;" "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
+    if [ "$result" != "ok" ]; then
+        sleep 3
+        result=$(sqlite3 -readonly -cmd "PRAGMA busy_timeout=15000;" "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
+    fi
     if [ "$result" != "ok" ]; then
         echo "    ✗ $name: integrity_check fallito → $result"
         return 1
@@ -191,12 +206,25 @@ do_backup() {
     local dest="$2"
     local db_name=$(basename "$src")
 
-    # .backup di sqlite3 è atomico e gestisce WAL correttamente
-    sqlite3 "$src" ".backup '$dest'" 2>/dev/null
+    # .backup di sqlite3 è atomico e gestisce WAL correttamente.
+    # v2.2: busy_timeout 30s + stderr catturato nel log + retry-once dopo 3s.
+    # Senza timeout un write lock transitorio del backend faceva fallire il
+    # .backup ("database is locked", buttato in /dev/null → zero diagnosi)
+    # → falso "backup_failed" su admin_finance/bevande.
+    local err
+    err=$(sqlite3 -cmd "PRAGMA busy_timeout=30000;" "$src" ".backup '$dest'" 2>&1)
     local rc=$?
 
     if [ "$rc" -ne 0 ] || [ ! -f "$dest" ]; then
-        echo "  ❌ $db_name: comando .backup fallito (rc=$rc)"
+        echo "  ⚠️  $db_name: .backup fallito (rc=$rc, err=${err:-n/a}) → retry tra 3s"
+        rm -f "$dest"
+        sleep 3
+        err=$(sqlite3 -cmd "PRAGMA busy_timeout=30000;" "$src" ".backup '$dest'" 2>&1)
+        rc=$?
+    fi
+
+    if [ "$rc" -ne 0 ] || [ ! -f "$dest" ]; then
+        echo "  ❌ $db_name: comando .backup fallito (rc=$rc, err=${err:-n/a})"
         rm -f "$dest"
         return 1
     fi

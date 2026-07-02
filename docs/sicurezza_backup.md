@@ -83,6 +83,13 @@ File: `scripts/backup_db.sh`
 - **Sync Drive separato per `last_known_good/`** (oltre al daily): copia
   separata su `gdrive:TRGB-Backup-lkg` così nemmeno se Drive daily diventa
   corrotto perdiamo l'LKG.
+- **v2.2 (2 lug 2026) — anti falsi positivi da lock**: i check `PRAGMA
+  integrity_check` sulla sorgente ora aprono con `-readonly` + `busy_timeout`
+  15s + retry-once dopo 3s; il comando `.backup` ha `busy_timeout` 30s +
+  retry-once e lo stderr viene loggato (prima finiva in `/dev/null`). Motivo:
+  i DB più scritti (admin_finance, bevande) fallivano saltuariamente il backup
+  per un semplice write lock transitorio del backend, generando falsi
+  `source_corrupted` / `backup_failed` in notifica (giu–lug 2026).
 
 **Politica retention (aggiornata 4 mag 2026 dopo richiesta Marco):**
 - **Hourly** (`backup_db.sh` senza arg) — 10 backup PER DB → ~10 ore di copertura
@@ -132,6 +139,11 @@ File: `scripts/check_backup_health.sh`
   5. Status file `.last_backup_status.json` riporta `failed_count: 0`
 - Scrive esito in `backups/.last_health_status.json`
 - Se 1+ check fallisce → notifica via M.A con urgenza alta a `superadmin`
+- **v1.2 (2 lug 2026) — dedupe notifiche**: notifica solo se il set di issues
+  è cambiato rispetto all'ultima notifica (firma senza cifre in
+  `backups/.last_health_notified`), oppure re-remind dopo 6h se il problema
+  persiste. Quando il sistema torna sano la firma si azzera. Prima lo stesso
+  `last_run_failed:1` veniva ri-notificato ogni 30 min fino al run successivo.
 
 **Perché esiste:**
 backup_db.sh può smettere di girare (cron disabilitato, errore systemd, disco
