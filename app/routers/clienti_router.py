@@ -480,7 +480,10 @@ async def import_thefork(
                             if not cur_str and new_str:
                                 # Campo vuoto nel DB, pieno in TheFork → riempi
                                 always_update[field] = new_val
-                            elif cur_str and new_str and cur_str != new_str:
+                            elif cur_str and new_str and cur_str.lower() != new_str.lower():
+                                # Confronto case-insensitive: "Li Puma" vs "LI PUMA" NON è
+                                # una differenza (il CRM normalizza i testi per scelta,
+                                # TheFork esporta tutto in maiuscolo)
                                 # Campo diverso → salva diff per revisione Marco
                                 conn.execute(
                                     "DELETE FROM clienti_import_diff WHERE cliente_id = ? AND campo = ? AND stato = 'pending'",
