@@ -64,6 +64,25 @@ export default function ControlloGestioneSpeseFisse() {
   const [loading, setLoading] = useState(true);
   const [filtroTipo, setFiltroTipo] = useState("");
   const [mostraInattive, setMostraInattive] = useState(false);
+  // RC.3 — Auto-close rateizzazioni completate
+  const [rcClosing, setRcClosing] = useState(false);
+
+  const handleAutoCloseRateizzazioni = async () => {
+    if (!window.confirm("Chiudo tutte le rateizzazioni dove tutte le rate sono già state pagate?\n\nUscite origine → PAGATO (se tutte le rate riconciliate banca) o PAGATO_MANUALE. Spesa fissa disattivata. Fattura origine sincronizzata.")) return;
+    setRcClosing(true);
+    try {
+      const res = await apiFetch(`${CG}/rateizzazioni/auto-close-all`, { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j.ok === false) throw new Error(j?.detail || j?.error || `HTTP ${res.status}`);
+      const skippedInfo = j.n_skipped > 0 ? ` (${j.n_skipped} saltate — rate parziali)` : "";
+      alert(`Auto-close completato: ${j.n_chiuse} rateizzazioni chiuse${skippedInfo}.`);
+      await fetchData();
+    } catch (e) {
+      alert(`Errore: ${e.message || e}`);
+    } finally {
+      setRcClosing(false);
+    }
+  };
 
   // Form generico (edit + manuale)
   const [showForm, setShowForm] = useState(false);
@@ -984,7 +1003,7 @@ export default function ControlloGestioneSpeseFisse() {
             <h1 className="text-2xl font-bold text-sky-900 font-playfair">Spese Fisse</h1>
             <p className="text-sm text-neutral-500 mt-0.5">Affitti, tasse, stipendi, prestiti, assicurazioni, rateizzazioni</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {fromScadenzario && (
               <Btn variant="chip" tone="emerald" size="sm" onClick={() => navigate("/controllo-gestione/uscite")}>
                 ← Torna allo Scadenzario
@@ -992,6 +1011,17 @@ export default function ControlloGestioneSpeseFisse() {
             )}
             <Btn variant="ghost" size="sm" onClick={() => navigate("/controllo-gestione")}>
               ← Menu
+            </Btn>
+            {/* RC.3: auto-close rateizzazioni completate */}
+            <Btn
+              variant="chip"
+              tone="emerald"
+              size="sm"
+              loading={rcClosing}
+              onClick={handleAutoCloseRateizzazioni}
+              title="Chiude le rateizzazioni le cui rate sono tutte state pagate. Aggiorna la fattura origine a PAGATO/PAGATO_MANUALE, disattiva la spesa fissa."
+            >
+              ✓ Auto-chiudi rateizzazioni completate
             </Btn>
             <Btn variant="chip" tone="blue" size="sm" onClick={() => setShowCreazione(!showCreazione)}>
               + Nuova Spesa

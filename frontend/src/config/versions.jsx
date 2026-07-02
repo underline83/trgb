@@ -75,13 +75,18 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   controlloGestione: {
-    // 2.18 (2026-06-30, BP.1+BP.2+BP.3+BP.4): nuova pagina dedicata
-    // "Batch pagamenti" — gestione end-to-end dei batch creati dallo
-    // Scadenzario. Endpoint backend: DELETE /pagamenti-batch/{id}/uscite/{uid}
-    // (rimuovi singola uscita), POST /auto-close (chiude se completato),
-    // POST /auto-close-all (cleanup retroattivo). UI: lista per stato +
-    // dettaglio con azioni Invia/Chiudi/Elimina/Rimuovi singola uscita.
-    version: "2.18",
+    // 2.18 (2026-06-30, BP.1-4): nuova pagina "Batch pagamenti".
+    // 2.19 (2026-06-30, RC.1+RC.3): auto-close rateizzazioni completate.
+    //   Endpoint POST /rateizzazioni/{sf_id}/auto-close + POST /auto-close-all
+    //   che chiude spese fisse RATEIZZAZIONE con tutte rate pagate, aggiorna
+    //   uscita origine + fe_fatture (via set_stato force=True) applicando la
+    //   Regola A (Marco): forza minima delle rate → PAGATO se tutte le rate
+    //   riconciliate banca, PAGATO_MANUALE se almeno una manuale.
+    //   UI: bottone "✓ Auto-chiudi rateizzazioni completate" in header
+    //   ControlloGestioneSpeseFisse. Sul VPS Tre Gobbi: 7 rateizzazioni
+    //   completate al 100% da chiudere (4 Ristoteam + Ambrogio + Philarmonica
+    //   + Marenzi). RC.2 (hook post-pagamento strutturale) rimandato.
+    version: "2.19",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -158,7 +163,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.30",
+    version: "5.31",
     label: "Sistema",
     status: "stabile",
     color: "green",

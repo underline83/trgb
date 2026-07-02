@@ -3784,6 +3784,197 @@ def auto_close_all_batches(current_user=Depends(get_current_user)):
         conn.close()
 
 
+# ──────────────────────────────────────────────────────────────
+# RC.1 — Auto-close rateizzazioni completate
+# ──────────────────────────────────────────────────────────────
+# Bug storico: quando l'ultima rata di una spesa fissa RATEIZZAZIONE
+# viene pagata, il sistema NON riporta lo stato dell'uscita origine
+# a PAGATO/PAGATO_MANUALE. La fattura resta RATEIZZATO nella VIEW
+# fe_fatture_with_stato → mappato a 'da_pagare' → visibile come non
+# pagata in FattureElenco anche se tutte le rate sono chiuse.
+#
+# Regola stato (concordata con Marco 2026-06-30):
+#   - Tutte le rate PAGATO (riconciliate banca) → origine PAGATO
+#   - Almeno una PAGATO_MANUALE                  → origine PAGATO_MANUALE
+# (la forza dello stato deriva dalla forza minima delle rate)
+
+
+def _auto_close_rateizzazione(fc, spesa_fissa_id: int) -> dict:
+    """Chiude una rateizzazione se tutte le rate sono pagate.
+
+    Non solleva eccezioni, NON committa (il chiamante orchestra).
+    Restituisce dict con {chiuso: bool, motivo?, spesa_fissa_id, fatture_chiuse,
+    n_rate, n_riconciliate, stato_origine, data_pagamento}.
+    """
+    sf = fc.execute(
+        "SELECT id, tipo, attiva, titolo FROM cg_spese_fisse WHERE id = ?",
+        (spesa_fissa_id,),
+    ).fetchone()
+    if not sf:
+        return {"chiuso": False, "motivo": "spesa fissa non trovata"}
+    if sf["tipo"] != "RATEIZZAZIONE":
+        return {"chiuso": False, "motivo": f"tipo={sf['tipo']} (non RATEIZZAZIONE)"}
+    if sf["attiva"] == 0:
+        return {"chiuso": False, "motivo": "già chiusa (attiva=0)"}
+
+    agg = fc.execute("""
+        SELECT COUNT(*) AS n_rate,
+               SUM(CASE WHEN stato IN ('PAGATO','PAGATO_MANUALE') THEN 1 ELSE 0 END) AS n_pagate,
+               SUM(CASE WHEN stato = 'PAGATO' THEN 1 ELSE 0 END) AS n_riconciliate,
+               MAX(data_pagamento) AS max_data_pag
+        FROM cg_uscite
+        WHERE spesa_fissa_id = ? AND tipo_uscita = 'SPESA_FISSA'
+    """, (spesa_fissa_id,)).fetchone()
+
+    n_rate = agg["n_rate"] or 0
+    n_pagate = agg["n_pagate"] or 0
+    n_riconciliate = agg["n_riconciliate"] or 0
+    max_data = agg["max_data_pag"]
+
+    if n_rate == 0:
+        return {"chiuso": False, "motivo": "nessuna rata generata"}
+    if n_pagate < n_rate:
+        return {"chiuso": False, "motivo": f"{n_pagate}/{n_rate} rate pagate"}
+
+    # Regola A (Marco 2026-06-30): forza minima
+    nuovo_stato_origine = "PAGATO" if n_riconciliate == n_rate else "PAGATO_MANUALE"
+    if not max_data:
+        max_data = date.today().isoformat()
+
+    # Raccogli le date delle rate per la nota storica
+    rate_dettaglio = fc.execute("""
+        SELECT numero_rata, periodo_riferimento, data_pagamento, stato
+        FROM cg_uscite
+        WHERE spesa_fissa_id = ? AND tipo_uscita = 'SPESA_FISSA'
+        ORDER BY COALESCE(data_pagamento, periodo_riferimento)
+    """, (spesa_fissa_id,)).fetchall()
+    date_rate_str = [
+        (r["data_pagamento"] or r["periodo_riferimento"] or "?") for r in rate_dettaglio
+    ]
+    date_compatta = ", ".join(date_rate_str) if len(date_rate_str) <= 12 else (
+        ", ".join(date_rate_str[:10]) + f" (+{len(date_rate_str)-10})"
+    )
+    note_auto = (
+        f"[{date.today().isoformat()}] Rateizzazione completata: "
+        f"{n_rate} rate ({n_riconciliate} riconciliate banca, "
+        f"{n_pagate - n_riconciliate} pagato manuale). "
+        f"Date pagamento: {date_compatta}."
+    )
+
+    # Trova TUTTE le fatture origine collegate a questa spesa fissa (multi-fattura
+    # possibile: es. sf#9 METRO copre 30+ fatture; ognuna ha la sua uscita origine)
+    fatture_origine = fc.execute(
+        "SELECT id FROM fe_fatture WHERE rateizzata_in_spesa_fissa_id = ?",
+        (spesa_fissa_id,),
+    ).fetchall()
+
+    fatture_chiuse = []
+    for f in fatture_origine:
+        fid = f["id"]
+        # Update cg_uscite origine (append nota preservando quella esistente)
+        fc.execute("""
+            UPDATE cg_uscite
+               SET stato = ?,
+                   data_pagamento = COALESCE(?, data_pagamento),
+                   importo_pagato = totale,
+                   metodo_pagamento = COALESCE(metodo_pagamento, 'CONTO_CORRENTE'),
+                   in_pagamento_at = NULL,
+                   pagamento_batch_id = NULL,
+                   note = CASE
+                            WHEN note IS NULL OR TRIM(note) = ''
+                              THEN ?
+                            ELSE note || CHAR(10) || CHAR(10) || ?
+                          END,
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE fattura_id = ? AND tipo_uscita = 'FATTURA'
+        """, (nuovo_stato_origine, max_data, note_auto, note_auto, fid))
+
+        # Sincronizza fe_fatture via set_stato (force=True per accettare 'pagato'
+        # e per bypassare l'invariante "solo da riconciliazione bancaria")
+        try:
+            from app.services.fatture_stato_service import set_stato as set_fattura_stato
+            stato_fattura = "pagato" if nuovo_stato_origine == "PAGATO" else "pagato_manuale"
+            set_fattura_stato(fc, fid, stato_fattura, force=True)
+        except Exception as e:
+            import logging
+            logging.getLogger("controllo_gestione").warning(
+                f"[auto-close-rateizzazione] sync fe_fatture #{fid} fallito: {e}"
+            )
+
+        fatture_chiuse.append(fid)
+
+    # Chiudi la spesa fissa (attiva=0) → non genera più rate future
+    fc.execute(
+        "UPDATE cg_spese_fisse SET attiva = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (spesa_fissa_id,),
+    )
+
+    return {
+        "chiuso": True,
+        "spesa_fissa_id": spesa_fissa_id,
+        "titolo": sf["titolo"],
+        "fatture_chiuse": fatture_chiuse,
+        "n_rate": n_rate,
+        "n_riconciliate": n_riconciliate,
+        "n_pagato_manuale": n_pagate - n_riconciliate,
+        "stato_origine": nuovo_stato_origine,
+        "data_pagamento": max_data,
+    }
+
+
+@router.post(
+    "/rateizzazioni/{spesa_fissa_id}/auto-close",
+    summary="Chiude una rateizzazione se tutte le rate sono pagate",
+)
+def auto_close_rateizzazione(
+    spesa_fissa_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Endpoint singolo (usato dal frontend post-pagamento manuale o dalla UI di
+    dettaglio spesa fissa). Idempotente: no-op se già chiusa o incompleta."""
+    fc = get_fc_db()
+    try:
+        result = _auto_close_rateizzazione(fc, spesa_fissa_id)
+        fc.commit()
+        return {"ok": True, **result}
+    finally:
+        fc.close()
+
+
+@router.post(
+    "/rateizzazioni/auto-close-all",
+    summary="Bulk: chiude tutte le rateizzazioni completate (pulizia retroattiva + uso periodico)",
+)
+def auto_close_all_rateizzazioni(current_user=Depends(get_current_user)):
+    """Itera cg_spese_fisse tipo='RATEIZZAZIONE' AND attiva=1 e chiude quelle
+    con tutte le rate pagate. Pensato per la pulizia retroattiva degli storici
+    (7 rateizzazioni Tre Gobbi completate al 100% non ancora chiuse)."""
+    fc = get_fc_db()
+    try:
+        rows = fc.execute(
+            "SELECT id FROM cg_spese_fisse WHERE tipo = 'RATEIZZAZIONE' AND attiva = 1"
+        ).fetchall()
+        chiuse = []
+        skipped = []
+        for r in rows:
+            sfid = r["id"]
+            result = _auto_close_rateizzazione(fc, sfid)
+            if result.get("chiuso"):
+                chiuse.append({k: v for k, v in result.items() if k != "chiuso"})
+            else:
+                skipped.append({"spesa_fissa_id": sfid, "motivo": result.get("motivo", "—")})
+        fc.commit()
+        return {
+            "ok": True,
+            "n_chiuse": len(chiuse),
+            "n_skipped": len(skipped),
+            "chiuse": chiuse,
+            "skipped": skipped,
+        }
+    finally:
+        fc.close()
+
+
 # ── Segna pagata singola fattura (da Acquisti) ───────────────────
 @router.put("/uscita/{uscita_id}/stato-pagamento")
 def update_uscita_stato_pagamento(

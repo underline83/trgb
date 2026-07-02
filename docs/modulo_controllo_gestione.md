@@ -1,9 +1,52 @@
 # Modulo Controllo di Gestione — TRGB Gestionale
-**Versione modulo:** 2.18 (`versions.jsx`)
-**Sistema:** 5.30
+**Versione modulo:** 2.19 (`versions.jsx`)
+**Sistema:** 5.31
 **Stato:** Beta
 **Data ultimo aggiornamento:** 2026-06-30
-**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti, Conto Economico, **Batch pagamenti**
+**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti, Conto Economico, Batch pagamenti, **Auto-close rateizzazioni**
+
+---
+
+# 📌 AGGIORNAMENTO 2026-06-30 (2° push) — Auto-close rateizzazioni completate (RC.1+RC.3)
+
+Bug storico: quando l'ultima rata di una spesa fissa `RATEIZZAZIONE` viene pagata, il sistema NON riporta l'uscita origine (`cg_uscite.stato = 'RATEIZZATO'`) a `PAGATO`/`PAGATO_MANUALE`. La VIEW `fe_fatture_with_stato` mappa `RATEIZZATO → 'da_pagare'`, quindi la fattura risulta ancora "da pagare" in `FattureElenco` anche se completata. Sul VPS Tre Gobbi al 30/06/2026: 7 rateizzazioni al 100% completate ma non chiuse (€32.923 di residuo apparente inesistente).
+
+## Endpoint nuovi (`controllo_gestione_router.py`)
+
+| Metodo | Path | Cosa fa |
+|---|---|---|
+| POST | `/controllo-gestione/rateizzazioni/{spesa_fissa_id}/auto-close` | Chiude una singola rateizzazione se tutte le rate sono pagate. Idempotente. |
+| POST | `/controllo-gestione/rateizzazioni/auto-close-all` | Bulk: itera `cg_spese_fisse WHERE tipo='RATEIZZAZIONE' AND attiva=1` e chiude quelle completate. Per pulizia retroattiva + uso periodico. |
+
+Helper interno `_auto_close_rateizzazione(fc, sf_id)` — non solleva eccezioni, restituisce `{chiuso, motivo?, ...}`.
+
+## Regola stato (Marco 2026-06-30)
+
+Applicata "forza minima" delle rate all'uscita origine:
+- `n_riconciliate == n_rate` → uscita origine `PAGATO` (tutte le rate riconciliate banca)
+- Altrimenti → `PAGATO_MANUALE` (almeno una rata manuale non riconciliata)
+
+Sync `fe_fatture` via `set_stato(fid, 'pagato'|'pagato_manuale', force=True)` (force serve per bypassare l'invariante "pagato solo via banca").
+
+## Cose fatte insieme
+
+- `cg_uscite.data_pagamento` = `MAX(rate.data_pagamento)` (rata più recente pagata)
+- `cg_uscite.importo_pagato = totale` (allineato al totale fattura)
+- `cg_uscite.note` = **append** (non sovrascrittura) di una riga automatica: `[YYYY-MM-DD] Rateizzazione completata: N rate (X riconciliate banca, Y pagato manuale). Date pagamento: ...`
+- `cg_uscite.in_pagamento_at = NULL`, `pagamento_batch_id = NULL` (sgancia da eventuali batch pendenti)
+- `cg_spese_fisse.attiva = 0` (non genera più rate future)
+
+## Frontend
+
+Bottone **"✓ Auto-chiudi rateizzazioni completate"** in header `ControlloGestioneSpeseFisse.jsx`, accanto a "+ Nuova Spesa". Emerald chip, con conferma + spiegazione della semantica.
+
+## Casi multi-fattura
+
+Una spesa fissa RATEIZZAZIONE può coprire N fatture (es. `sf#9 METRO` copre 30+ fatture con la stessa `spesa_fissa_id`). L'endpoint gestisce correttamente: `WHERE rateizzata_in_spesa_fissa_id = ?` restituisce N fatture, ognuna viene aggiornata. La spesa fissa si chiude una sola volta.
+
+## Roadmap residua
+
+- **RC.2** (Push successivo): hook strutturale — quando una rata viene marcata `PAGATO`/`PAGATO_MANUALE` (via cross-ref banca, segna-pagate-bulk, batch-pagamento, /uscita/{id}/stato-pagamento), chiamare `_auto_close_rateizzazione(sf_id)` in coda alla stessa transazione. Silenzioso (log warning se errore). Evita di dover cliccare periodicamente il bottone.
 
 ---
 
