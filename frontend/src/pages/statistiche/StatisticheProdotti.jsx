@@ -38,6 +38,20 @@ export default function StatisticheProdotti() {
   const [q, setQ] = useState("");
   const [offset, setOffset] = useState(0);
 
+  // Trend prodotto (modal)
+  const [trendProdotto, setTrendProdotto] = useState(null); // { prodotto, rows, loading }
+
+  const openTrend = async (prodotto) => {
+    setTrendProdotto({ prodotto, rows: [], loading: true });
+    try {
+      const res = await apiFetch(`${EP}/trend?prodotto=${encodeURIComponent(prodotto)}`);
+      const rows = res.ok ? await res.json() : [];
+      setTrendProdotto({ prodotto, rows, loading: false });
+    } catch (_) {
+      setTrendProdotto({ prodotto, rows: [], loading: false });
+    }
+  };
+
   // Carica categorie per il filtro
   useEffect(() => {
     apiFetch(`${EP}/categorie?anno=${anno}`)
@@ -163,7 +177,12 @@ export default function StatisticheProdotti() {
                 </thead>
                 <tbody>
                   {prodotti.map((p, i) => (
-                    <tr key={i} className="border-b border-neutral-50 hover:bg-neutral-50">
+                    <tr
+                      key={i}
+                      className="border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer"
+                      onClick={() => openTrend(p.prodotto)}
+                      title="Clicca per vedere il trend mensile"
+                    >
                       <td className="py-2 px-2 font-medium">{p.prodotto}</td>
                       <td className="py-2 px-2 text-neutral-500">{p.categoria}</td>
                       <td className="py-2 px-2 text-right">{fmtInt(p.quantita)}</td>
@@ -200,6 +219,56 @@ export default function StatisticheProdotti() {
           </>
         )}
       </div>
+
+      {/* Modal trend prodotto */}
+      {trendProdotto && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setTrendProdotto(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-neutral-800">{trendProdotto.prodotto}</h3>
+                <p className="text-xs text-neutral-400">Trend mensile — tutti gli anni importati</p>
+              </div>
+              <Btn variant="ghost" size="sm" onClick={() => setTrendProdotto(null)}>✕</Btn>
+            </div>
+            {trendProdotto.loading ? (
+              <p className="text-neutral-400 text-sm py-8 text-center">Caricamento…</p>
+            ) : trendProdotto.rows.length === 0 ? (
+              <EmptyState icon="📈" title="Nessun dato" description="Nessuna vendita registrata per questo prodotto." compact />
+            ) : (
+              <>
+                <div className="flex items-end gap-1 h-40 mb-2">
+                  {trendProdotto.rows.map((t, i) => {
+                    const max = Math.max(...trendProdotto.rows.map((x) => x.totale_euro), 1);
+                    const pct = (t.totale_euro / max) * 100;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+                        <div className="text-[10px] text-neutral-500 mb-1 whitespace-nowrap">{fmtInt(t.quantita)} pz</div>
+                        <div
+                          className="w-full bg-rose-400 rounded-t-md min-h-[2px]"
+                          style={{ height: `${Math.max(pct, 1)}%` }}
+                          title={`${t.label}: ${fmt(t.totale_euro)} € (${fmtInt(t.quantita)} pz)`}
+                        />
+                        <div className="text-[10px] text-neutral-500 mt-1">{t.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between text-xs text-neutral-500 border-t border-neutral-100 pt-2">
+                  <span>Totale: <b>{fmt(trendProdotto.rows.reduce((s, t) => s + t.totale_euro, 0))} €</b></span>
+                  <span>{fmtInt(trendProdotto.rows.reduce((s, t) => s + t.quantita, 0))} pezzi in {trendProdotto.rows.length} mesi</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

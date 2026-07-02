@@ -171,6 +171,26 @@ export default function StatisticheCoperti() {
 
   useEffect(() => { fetchData(); }, [year, month]);
 
+  // Spesa per coperto per categoria (incrocio iPratico × coperti, endpoint statistiche)
+  const [coperto, setCoperto] = useState(null);
+  useEffect(() => {
+    apiFetch(`${API_BASE}/statistiche/coperto?anno=${year}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(setCoperto)
+      .catch(() => {});
+  }, [year]);
+
+  const copertoMese = useMemo(
+    () => coperto?.mesi?.find(m => m.mese === month && m.categorie?.length) || null,
+    [coperto, month]
+  );
+  // Mese precedente disponibile nello stesso anno (per il delta €/coperto)
+  const copertoPrev = useMemo(() => {
+    if (!coperto?.mesi) return null;
+    const prevs = coperto.mesi.filter(m => m.mese < month && m.categorie?.length && m.coperti);
+    return prevs.length ? prevs[prevs.length - 1] : null;
+  }, [coperto, month]);
+
   // Totali mese
   const totals = useMemo(() => {
     if (!data.length) return null;
@@ -402,6 +422,60 @@ export default function StatisticheCoperti() {
                 </table>
               </div>
             </div>
+
+            {/* ═══ SPESA PER COPERTO PER CATEGORIA (iPratico) ═══ */}
+            {copertoMese && copertoMese.coperti > 0 && (
+              <div className="bg-white rounded-2xl shadow border border-neutral-200 overflow-hidden">
+                <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">
+                    Cosa consuma un coperto — {MONTHS_IT[month]}
+                  </h2>
+                  <span className="text-[10px] text-neutral-400">
+                    venduto iPratico ÷ {copertoMese.coperti} coperti
+                    {copertoPrev && ` · Δ vs ${MONTHS_IT[copertoPrev.mese]}`}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-200 bg-neutral-50/50">
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-neutral-400 uppercase">Categoria</th>
+                        <th className="px-3 py-2 text-right text-[10px] font-semibold text-neutral-500 uppercase">Venduto €</th>
+                        <th className="px-3 py-2 text-right text-[10px] font-semibold text-neutral-500 uppercase">€ / coperto</th>
+                        <th className="px-3 py-2 text-right text-[10px] font-semibold text-neutral-500 uppercase">Pezzi / coperto</th>
+                        <th className="px-3 py-2 text-right text-[10px] font-semibold text-neutral-400 uppercase">Δ €/cop</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {copertoMese.categorie.map((c) => {
+                        const prev = copertoPrev?.categorie?.find(x => x.categoria === c.categoria);
+                        const delta = prev?.per_coperto != null && c.per_coperto != null
+                          ? c.per_coperto - prev.per_coperto : null;
+                        return (
+                          <tr key={c.categoria} className="hover:bg-neutral-50">
+                            <td className="px-3 py-1.5 font-medium text-neutral-700">{c.categoria}</td>
+                            <td className="px-3 py-1.5 text-right text-neutral-600">€ {fmt(c.totale_euro)}</td>
+                            <td className="px-3 py-1.5 text-right font-semibold text-neutral-800">
+                              {c.per_coperto != null ? `€ ${fmt2(c.per_coperto)}` : "—"}
+                            </td>
+                            <td className="px-3 py-1.5 text-right text-neutral-500">{c.pezzi_per_coperto ?? "—"}</td>
+                            <td className={`px-3 py-1.5 text-right text-xs font-medium ${
+                              delta == null ? "text-neutral-300" : delta >= 0 ? "text-emerald-600" : "text-rose-600"
+                            }`}>
+                              {delta == null ? "—" : `${delta >= 0 ? "+" : ""}${fmt2(delta)}`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="px-5 py-2 text-[10px] text-neutral-400 border-t border-neutral-100">
+                  Il venduto arriva dall'import mensile iPratico, i coperti dalle chiusure turno: se il mese
+                  iPratico non è ancora importato la sezione non compare.
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>

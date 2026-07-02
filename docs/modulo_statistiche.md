@@ -1,23 +1,31 @@
 # Modulo Statistiche — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-15
+**Ultimo aggiornamento:** 2026-07-02
 **Stato:** beta
-**Router:** `app/routers/statistiche_router.py` v1.0
-**DB:** `foodcost.db` (tabelle `ipratico_*`, migration 018)
+**Router:** `app/routers/statistiche_router.py` v1.2
+**DB:** `foodcost.db` (tabelle `ipratico_*`, migration 018) + `admin_finance.sqlite3` in **sola lettura** (daily_closures, shift_closures, shift_preconti)
 
 ---
 
 # 1. Obiettivo del modulo
 
-Il modulo **Statistiche** gestisce l'import e l'analisi dei dati di vendita esportati dal gestionale cassa **iPratico**.
+Il modulo **Statistiche** gestisce l'import e l'analisi dei dati di vendita esportati dal gestionale cassa **iPratico**, e da v1.2 è l'**aggregatore cross-modulo read-only** che unisce vendite iPratico e chiusure di cassa (coperti, incassi storici).
 
 Funzionalita' principali:
 
 - Import mensile degli export iPratico (file .xls che sono in realta' HTML)
-- Dashboard con KPI fatturato, pezzi venduti, categorie
+- Dashboard con KPI fatturato, pezzi venduti, categorie + movimenti prodotti (crescita/calo vs mese precedente)
 - Classifica top prodotti per fatturato
-- Trend mensile a barre
+- Trend mensile a barre; trend per singolo prodotto (click su riga in Prodotti)
 - Dettaglio prodotti con filtri e ricerca testuale
 - Storico import con possibilita' di eliminare un mese
+- **Storico incassi pluriennale** (YoY 2021→oggi) e media per giorno della settimana
+- **Spesa per coperto per categoria** (incrocio venduto iPratico ÷ coperti chiusure turno)
+
+### Lettura cross-modulo (v1.2)
+
+Gli endpoint storico/coperto leggono `admin_finance.sqlite3` (modulo cassa/banca) con connessione SQLite `mode=ro`: qualsiasi scrittura accidentale fallisce. È l'eccezione prevista dalle regole modulari (statistiche = aggregatore read-only).
+
+**Cucitura storica (pre-K.12):** `daily_closures` copre 2021 → cutover, `shift_closures` dal cutover in poi. Il **cutover è dinamico** = `MIN(date)` di shift_closures (oggi 2026-03-01), quindi il codice sopravvive al refactor K.12. Fatturato giornaliero: daily → `corrispettivi_tot`; shift → `preconto + fatture + shift_preconti` (stessa formula di `/admin/finance/shift-closures/stats/daily`). Coperti e split pranzo/cena esistono solo nell'era shift.
 
 ---
 
@@ -62,6 +70,10 @@ Frontend Dashboard / Prodotti
 | 5 | GET | `/statistiche/top-prodotti?anno=&mese=&n=` | auth | Top N prodotti per fatturato |
 | 6 | GET | `/statistiche/trend?anno=&categoria=&prodotto=` | auth | Trend mensile |
 | 7 | DELETE | `/statistiche/mese/{anno}/{mese}` | admin | Elimina dati di un mese |
+| 8 | GET | `/statistiche/storico/yoy` | auth | Storico incassi pluriennale: annuale + matrice mese×anno (v1.2) |
+| 9 | GET | `/statistiche/storico/weekday?anno=` | auth | Media incassi/coperti per giorno settimana, split pranzo/cena (v1.2) |
+| 10 | GET | `/statistiche/coperto?anno=` | auth | €/coperto e pezzi/coperto per categoria iPratico, mese per mese (v1.2) |
+| 11 | GET | `/statistiche/movimenti?anno=&mese=&min_euro=&n=` | auth | Prodotti in crescita/calo/nuovi/spariti vs mese precedente importato (v1.2) |
 
 ### Note sugli endpoint
 
@@ -74,6 +86,14 @@ Frontend Dashboard / Prodotti
 **Top prodotti (5):** come prodotti ma senza paginazione, ordinato per fatturato DESC, limitato a N (default 20).
 
 **Trend (6):** raggruppa per anno+mese. Tre modalita': trend totale, trend per categoria, trend per prodotto specifico.
+
+**Storico YoY (8):** ritorna `cutover`, `annuale[]` (fatturato, giorni aperti, media/giorno, coperti se disponibili) e `mensile[]` (matrice mese×anno). Fonte: daily_closures + shift_closures cuciti al cutover.
+
+**Storico weekday (9):** media fatturato per giorno della settimana calcolata sui giorni aperti; `anno` opzionale (vuoto = tutta la storia). Campi per turno (`coperti_medio`, `fatt_pranzo_medio`, ecc.) calcolati solo sui giorni con fonte shift_closures (`giorni_turni`).
+
+**Coperto (10):** per ogni mese dell'anno: coperti e fatturato da shift_closures, scontrino medio, e per ogni categoria iPratico `per_coperto` (€) e `pezzi_per_coperto`. I mesi senza chiusure turno hanno `coperti: null`.
+
+**Movimenti (11):** confronta (anno, mese) con l'import immediatamente precedente in `ipratico_imports`. Filtra il rumore con `min_euro` (default 50, parametro esposto): considera solo prodotti sopra soglia in almeno uno dei due mesi. Ritorna `up`, `down`, `nuovi`, `spariti`.
 
 ---
 
@@ -151,21 +171,38 @@ iPratico usa encoding variabile per "Quantita'" (a volte UTF-8, a volte Latin-1)
 | Pagina | Path | Componente | Descrizione |
 |--------|------|------------|-------------|
 | Menu | `/statistiche` | `StatisticheMenu.jsx` | Tile colorate: Dashboard, Prodotti, Import |
-| Dashboard | `/statistiche/dashboard` | `StatisticheDashboard.jsx` | KPI, categorie con barre, top 15, trend |
-| Prodotti | `/statistiche/prodotti` | `StatisticheProdotti.jsx` | Tabella filtri + ricerca + paginazione |
+| Dashboard | `/statistiche/dashboard` | `StatisticheDashboard.jsx` | KPI, categorie con barre, top 15, movimenti, trend |
+| Prodotti | `/statistiche/prodotti` | `StatisticheProdotti.jsx` | Tabella filtri + ricerca + paginazione + modal trend prodotto |
+| Coperti | `/statistiche/coperti` | `StatisticheCoperti.jsx` | Coperti & incassi giornalieri + spesa per coperto per categoria |
+| Storico | `/statistiche/storico` | `StatisticheStorico.jsx` | YoY pluriennale + giorno della settimana (v1.2) |
 | Import | `/statistiche/import` | `StatisticheImport.jsx` | Upload .xls + storico + delete |
 
 ### Navigazione
 
-`StatisticheNav.jsx` — tab navigation (Dashboard, Prodotti, Import). Import visibile solo per admin. Tema colore: rose.
+`StatisticheNav.jsx` — tab navigation (Dashboard, Prodotti, Coperti & Incassi, Storico, Import + "soon": Cantina, Personale). Import visibile solo per admin. Tema colore: rose.
 
 ### Dashboard
 
 - **KPI cards:** fatturato totale, pezzi venduti, numero categorie
 - **Categorie:** lista con barra percentuale relativa alla categoria con piu' fatturato
 - **Top 15:** tabella con prodotto, categoria, quantita', totale, prezzo medio
+- **Movimenti (v1.2):** solo in vista Mese — due card "In crescita"/"In calo" vs mese precedente importato (endpoint 11, n=8)
 - **Trend mensile:** barre CSS con altezza proporzionale al fatturato
 - **Filtro periodo:** Anno / Mese / Tutto
+
+### Storico (v1.2)
+
+- **Fatturato per anno:** barre con delta % anno su anno, anno corrente in brand-blue, media €/giorno
+- **Matrice mese×anno:** fatturato per mese con delta % vs stesso mese anno precedente + riga "Parziale" (YTD omogeneo, fino all'ultimo mese completo)
+- **Giorno della settimana:** barre media incassi per weekday con filtro anno; tabella coperti medi e split pranzo/cena (solo era shift_closures)
+
+### Coperti — sezione "Cosa consuma un coperto" (v1.2)
+
+Tabella per categoria iPratico del mese selezionato: venduto €, €/coperto, pezzi/coperto, delta €/coperto vs mese precedente disponibile nello stesso anno. Compare solo se il mese iPratico è importato e ci sono coperti da chiusure turno.
+
+### Prodotti — trend per prodotto (v1.2)
+
+Click su una riga → modal con barre mensili (tutti gli anni importati), quantità e totali. Usa l'endpoint 6 con `prodotto=`.
 
 ### Import
 
@@ -208,8 +245,13 @@ L'import e' idempotente: reimportare lo stesso mese sovrascrive i dati precedent
 | Dashboard categorie + top prodotti | Fatto |
 | Trend mensile bar chart | Fatto |
 | Dettaglio prodotti con filtri | Fatto |
-| Confronto anno su anno | Da fare |
-| Export CSV/Excel dei dati aggregati | Da fare |
+| Confronto anno su anno (incassi, ST.3 parziale) | Fatto 2026-07-02 (v1.2) |
+| Vendite per giorno della settimana su incassi/coperti (ST.2) | Fatto 2026-07-02 (v1.2) |
+| Spesa per coperto per categoria | Fatto 2026-07-02 (v1.2) |
+| Movimenti prodotti mese su mese + trend per prodotto | Fatto 2026-07-02 (v1.2) |
+| Confronto YoY sui singoli prodotti (ST.3 pieno — servono 2 anni di import iPratico) | Da fare |
+| Export CSV/Excel dei dati aggregati (ST.4, mattone M.B) | Da fare |
 | Grafici con libreria (recharts) | Da fare |
 | Matching prodotti iPratico → ingredienti foodcost | Da fare |
 | Margine per prodotto (incrocio con food cost) | Da fare |
+| Post-K.12: rimuovere ramo daily_closures dalla cucitura storico | Da fare (dopo K.12) |

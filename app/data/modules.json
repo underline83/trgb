@@ -108,7 +108,7 @@
     "icon": "📈",
     "roles": ["superadmin", "admin"],
     "sub": [
-      { "key": "dashboard", "label": "Cucina",            "roles": ["superadmin", "admin"] },
+      { "key": "dashboard", "label": "Dashboard",         "roles": ["superadmin", "admin"] },
       { "key": "coperti",   "label": "Coperti & Incassi", "roles": ["superadmin", "admin"] }
     ]
   },

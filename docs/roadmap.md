@@ -612,10 +612,12 @@ Sezione storica/piano qui sotto preservata per riferimento.
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| ST.1 | Doc obiettivo: chiarire scope "solo iPratico, non cross-modulo" | XS | BASSA | Marco: tienilo, da rivedere |
-| ST.2 | Drill-down: vendite per giorno della settimana | S | BASSA | |
-| ST.3 | Confronto YoY su top prodotti | S | BASSA | |
+| ST.1 | Doc obiettivo: scope chiarito — modulo = aggregatore cross-modulo READ-ONLY | XS | ✅ FATTO 2026-07-02 | v1.2: legge admin_finance in mode=ro (eccezione modulare prevista) |
+| ST.2 | Drill-down: vendite per giorno della settimana | S | ✅ FATTO 2026-07-02 | v1.2 tab Storico: su incassi/coperti (iPratico è aggregato mensile, weekday sui prodotti impossibile) |
+| ST.3 | Confronto YoY su top prodotti | S | PARZIALE 2026-07-02 | v1.2: YoY incassi 2021→oggi + movimenti prodotti mese su mese. YoY sui singoli prodotti richiede 2 anni di import iPratico (dal 2027) |
 | ST.4 | Export PDF/Excel report mensile (M.B) | S | BASSA | |
+| ST.5 | Spesa per coperto per categoria (iPratico × chiusure turno) | S | ✅ FATTO 2026-07-02 | v1.2 sezione "Cosa consuma un coperto" in Coperti & Incassi |
+| ST.6 | Post-K.12: rimuovere ramo daily_closures dalla cucitura storico | XS | dopo K.12 | Cutover dinamico = MIN(date) shift_closures: il codice sopravvive da solo |
 
 ---
 

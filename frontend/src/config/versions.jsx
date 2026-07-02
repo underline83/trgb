@@ -69,7 +69,13 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   statistiche: {
-    version: "1.1",
+    // 1.2 (2026-07-02): modulo potenziato — tab Storico (YoY 2021→oggi da
+    //   daily_closures+shift_closures con cutover dinamico, media per giorno
+    //   settimana con split pranzo/cena), "Cosa consuma un coperto" in
+    //   Coperti & Incassi (€/coperto per categoria iPratico), movimenti
+    //   prodotti in Dashboard (crescita/calo vs mese precedente), trend
+    //   mensile per prodotto cliccabile in Prodotti. Endpoint 8-11 nel router.
+    version: "1.2",
     label: "Statistiche",
     status: "beta",
     color: "blue",

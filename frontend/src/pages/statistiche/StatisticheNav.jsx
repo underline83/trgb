@@ -7,6 +7,7 @@ const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/statistiche/dashboard", icon: "📊" },
   { key: "prodotti", label: "Prodotti", path: "/statistiche/prodotti", icon: "🍽️" },
   { key: "coperti", label: "Coperti & Incassi", path: "/statistiche/coperti", icon: "👥" },
+  { key: "storico", label: "Storico", path: "/statistiche/storico", icon: "🕰️" },
   { key: "import", label: "Import iPratico", path: "/statistiche/import", icon: "📥", roles: ["admin"] },
   { key: "cantina", label: "Cantina", icon: "🍷", soon: true },
   { key: "personale", label: "Personale", icon: "👤", soon: true },

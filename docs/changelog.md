@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-07-02 — Statistiche 1.2: modulo potenziato — Storico YoY, giorno settimana, spesa per coperto, movimenti prodotti `[core]`
+
+Il modulo Statistiche era fermo al solo import iPratico mensile. Ora è l'aggregatore cross-modulo read-only: sblocca 6 anni di incassi giornalieri (`daily_closures` 2021→2026 + `shift_closures`, ~3M€) che nessuna pagina mostrava.
+
+### Aggiunto
+- **Backend** (`statistiche_router.py` v1.2, endpoint 8-11):
+  - `GET /statistiche/storico/yoy` — fatturato annuale + matrice mese×anno su tutta la storia. Cucitura daily_closures/shift_closures con **cutover dinamico** = MIN(date) shift_closures (K.12-proof). Lettura `admin_finance.sqlite3` in **mode=ro** (eccezione modulare: statistiche = aggregatore read-only).
+  - `GET /statistiche/storico/weekday?anno=` — media incassi per giorno settimana sui giorni aperti; coperti e split pranzo/cena solo era shift_closures.
+  - `GET /statistiche/coperto?anno=` — €/coperto e pezzi/coperto per categoria iPratico, mese per mese (venduto iPratico ÷ coperti chiusure turno).
+  - `GET /statistiche/movimenti?anno=&mese=&min_euro=&n=` — prodotti in crescita/calo/nuovi/spariti vs mese precedente importato; soglia `min_euro` esposta come parametro API (default 50), non nascosta hardcoded.
+- **Frontend**:
+  - Nuova pagina `StatisticheStorico.jsx` (tab "Storico" 🕰️): barre fatturato per anno con delta %, matrice mese×anno con delta vs stesso mese anno precedente + riga "Parziale" YTD omogeneo, giorno della settimana con filtro anno e tabella turni.
+  - `StatisticheCoperti.jsx`: sezione "Cosa consuma un coperto" — €/coperto per categoria del mese con delta vs mese precedente.
+  - `StatisticheDashboard.jsx`: card "In crescita"/"In calo" (vista Mese) dai movimenti prodotti.
+  - `StatisticheProdotti.jsx`: click su riga → modal trend mensile del prodotto (endpoint trend già esistente, mai usato da UI).
+
+### Corretto
+- Label sub-modulo dashboard Statistiche: era "Cucina" (copy-paste) → "Dashboard" in `modules.json` e `modulesMenu.js`.
+
+### Note
+- iPratico è aggregato mensile: weekday sui singoli prodotti impossibile, l'analisi weekday usa incassi/coperti.
+- Verifica: 4 endpoint testati su DB reale (YoY 2021-2026 coerente con SQL diretto, scontrino medio giugno 68,09€, movimenti giu-vs-mag plausibili). Sintassi FE verificata con @babel/parser su tutti i file toccati.
+
+### File modificati
+`app/routers/statistiche_router.py`, `frontend/src/pages/statistiche/{StatisticheStorico.jsx (nuovo), StatisticheCoperti.jsx, StatisticheDashboard.jsx, StatisticheProdotti.jsx, StatisticheNav.jsx}`, `frontend/src/App.jsx`, `frontend/src/config/{modulesMenu.js, versions.jsx}`, `app/data/modules.json`, `docs/{modulo_statistiche.md, roadmap.md, changelog.md, sessione.md}`.
+
+---
+
 ## 2026-06-24 — Vini 3.66: revert 3.64 — ripristinato bottone "↩ Annulla" sulla riga ATTIVAZIONE `[core]`
 
 Marco chiarisce di aver inteso, in 3.64, "togli la TAB Attivazione dal form" (risolto in 3.65 separando `MODALITA` da `BADGE_TIPI`), non "togli il bottone Annulla sulla riga". Il bottone "↩ Annulla" sulla riga ATTIVAZIONE è effettivamente utile: cancella in atomico il movimento `[CALICI-RESIDUO]` e chiude la bottiglia. Lo rimetto.

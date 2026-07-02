@@ -32,6 +32,7 @@ export default function StatisticheDashboard() {
   const [topProdotti, setTopProdotti] = useState([]);
   const [trend, setTrend] = useState([]);
   const [mesi, setMesi] = useState([]);
+  const [movimenti, setMovimenti] = useState(null);
 
   // Filtro
   const now = new Date();
@@ -68,6 +69,16 @@ export default function StatisticheDashboard() {
       if (trendRes.ok) setTrend(await trendRes.json());
       if (mesiRes.ok) setMesi(await mesiRes.json());
     } catch (_) {}
+
+    // Movimenti prodotti: solo in vista mese (confronto col mese precedente importato)
+    if (modo === "mese") {
+      try {
+        const movRes = await apiFetch(`${EP}/movimenti?anno=${selAnno}&mese=${selMese}&n=8`);
+        setMovimenti(movRes.ok ? await movRes.json() : null);
+      } catch (_) { setMovimenti(null); }
+    } else {
+      setMovimenti(null);
+    }
     setLoading(false);
   };
 
@@ -208,6 +219,49 @@ export default function StatisticheDashboard() {
                 )}
               </div>
             </div>
+
+            {/* Movimenti prodotti — solo vista mese */}
+            {movimenti && movimenti.precedente && (movimenti.up.length > 0 || movimenti.down.length > 0) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {[
+                  { titolo: "In crescita", icona: "📈", items: movimenti.up, colore: "text-emerald-700", segno: "+" },
+                  { titolo: "In calo", icona: "📉", items: movimenti.down, colore: "text-rose-700", segno: "" },
+                ].map((sez) => (
+                  <div key={sez.titolo} className="bg-white rounded-2xl shadow p-6">
+                    <h2 className="text-lg font-bold text-neutral-800 mb-1">
+                      {sez.icona} {sez.titolo}
+                    </h2>
+                    <p className="text-xs text-neutral-400 mb-3">
+                      vs {MESI[movimenti.precedente.mese - 1]} {movimenti.precedente.anno} (prodotti sopra {movimenti.min_euro} €)
+                    </p>
+                    {sez.items.length === 0 ? (
+                      <p className="text-sm text-neutral-400">Nessun prodotto.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {sez.items.map((p, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm border-b border-neutral-50 pb-1.5">
+                            <div className="min-w-0 mr-2">
+                              <div className="font-medium truncate">{p.prodotto}</div>
+                              <div className="text-xs text-neutral-400">
+                                {p.categoria} · {fmtInt(p.precedente_qta)} → {fmtInt(p.attuale_qta)} pz
+                              </div>
+                            </div>
+                            <div className="text-right whitespace-nowrap">
+                              <div className={`font-semibold ${sez.colore}`}>
+                                {p.delta_euro >= 0 ? "+" : ""}{fmt(p.delta_euro)} €
+                              </div>
+                              {p.delta_pct != null && (
+                                <div className="text-[10px] text-neutral-400">{p.delta_pct >= 0 ? "+" : ""}{p.delta_pct}%</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Trend mensile (barra chart semplice CSS) */}
             <div className="bg-white rounded-2xl shadow p-6">

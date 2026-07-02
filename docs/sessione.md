@@ -1,6 +1,30 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-02 — **Fix falsi allarmi backup** (`[locale:tregobbi]`). Le notifiche ricorrenti "Backup FALLITO" su `admin_finance.sqlite3` / `bevande.sqlite3` erano falsi positivi da write lock transitorio: `backup_db.sh` faceva `PRAGMA integrity_check` e `.backup` senza `busy_timeout` né retry, e buttava lo stderr in `/dev/null`. **backup_db.sh v2.2**: check sorgente con `-readonly` + busy_timeout 15s + retry-once 3s; `.backup` con busy_timeout 30s + retry-once + stderr loggato. **check_backup_health.sh v1.2**: dedupe notifiche — stessa firma issues (senza cifre) non ri-notificata prima di 6h, stamp in `backups/.last_health_notified`, reset quando torna sano. Prima `last_run_failed:1` veniva ri-notificato ogni 30 min. Doc aggiornata: `docs/sicurezza_backup.md` §2.1 e §2.2. Da pushare; nessun cron da toccare.
+**Ultimo aggiornamento:** 2026-07-02 (sera) — **Statistiche 1.2: modulo potenziato** (`[core]`). 4 feature nuove decise con Marco (le ha volute tutte): tab **Storico** (YoY 2021→oggi + giorno settimana), **"Cosa consuma un coperto"** in Coperti & Incassi (€/coperto per categoria iPratico), **movimenti prodotti** in Dashboard (crescita/calo vs mese precedente), **trend per prodotto** cliccabile in Prodotti. Endpoint 8-11 in `statistiche_router.py`; lettura cross-modulo `admin_finance.sqlite3` in mode=ro con cucitura daily_closures/shift_closures a cutover dinamico (K.12-proof). Fix label "Cucina"→"Dashboard" in modules.json/modulesMenu. Testato su DB reale post-push (iPratico gen-giu 2026 completi). Da pushare. Dettagli sotto.
+
+## SESSIONE 2026-07-02 (sera) — Statistiche 1.2: Storico YoY, weekday, spesa per coperto, movimenti
+
+### Contesto
+Marco: "modulo un po' abbandonato, ora abbiamo un po' di dati, rendiamolo più utile". Push di Marco a inizio sessione ha portato iPratico maggio+giugno 2026 (ora gen-giu completi, ~354k€). Proposte 4 direzioni, Marco le ha scelte tutte.
+
+### Scoperta chiave sui dati
+- `daily_closures` (admin_finance): 6 anni di corrispettivi giornalieri 2021→2026 (~3M€), MAI usati dal modulo. Si ferma al **2026-03-10**.
+- `shift_closures`: dal 2026-03-01, per turno con coperti. Overlap 1-10 marzo con daily ma valori divergenti (daily incompleta nella transizione).
+- **Decisione cucitura**: cutover dinamico = MIN(date) di shift_closures. Prima daily (`corrispettivi_tot`), dopo shift (`preconto+fatture+shift_preconti`, stessa formula di /stats/daily). Post-K.12 il ramo daily muore da solo. ST.6 in roadmap per il cleanup.
+
+### Cosa è stato fatto
+Vedi changelog 2026-07-02 Statistiche 1.2. In sintesi: endpoint 8-11 (yoy, weekday, coperto, movimenti) + pagina StatisticheStorico + sezioni nuove in Coperti/Dashboard/Prodotti + route/nav/menu + versions 1.2.
+
+### Verifica
+- 4 endpoint eseguiti su DB reale con stub FastAPI: YoY coerente con SQL diretto; weekday sensato (sabato 3.194€ medi vs martedì 1.584€; mercoledì 91 gg = giorno di chiusura storico); scontrino medio giu 68,09€; movimenti giu-vs-mag plausibili (Casoncelli -41%, stagionalità).
+- Sintassi: py_compile OK backend; @babel/parser OK su 7 file FE; modules.json JSON valido.
+
+### Note per prossima sessione
+- ST.3 pieno (YoY sui singoli prodotti) possibile solo dal 2027 (servono 2 anni di import iPratico).
+- Categoria iPratico "BATTUTA SINGOLA" (36k€ in 6 mesi) è un buco di analisi: prodotti battuti a mano in cassa. Da valutare col tempo se ridurla lato operativo.
+- Tab "soon" Cantina/Personale in StatisticheNav restano placeholder.
+
+--- Le notifiche ricorrenti "Backup FALLITO" su `admin_finance.sqlite3` / `bevande.sqlite3` erano falsi positivi da write lock transitorio: `backup_db.sh` faceva `PRAGMA integrity_check` e `.backup` senza `busy_timeout` né retry, e buttava lo stderr in `/dev/null`. **backup_db.sh v2.2**: check sorgente con `-readonly` + busy_timeout 15s + retry-once 3s; `.backup` con busy_timeout 30s + retry-once + stderr loggato. **check_backup_health.sh v1.2**: dedupe notifiche — stessa firma issues (senza cifre) non ri-notificata prima di 6h, stamp in `backups/.last_health_notified`, reset quando torna sano. Prima `last_run_failed:1` veniva ri-notificato ogni 30 min. Doc aggiornata: `docs/sicurezza_backup.md` §2.1 e §2.2. Da pushare; nessun cron da toccare.
 
 ## SESSIONE 2026-07-02 — Fix falsi allarmi backup (lock transitori + notifiche duplicate)
 

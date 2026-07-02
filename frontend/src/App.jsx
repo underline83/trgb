@@ -165,6 +165,7 @@ const StatisticheDashboard = lazy(() => import("./pages/statistiche/StatisticheD
 const StatisticheProdotti = lazy(() => import("./pages/statistiche/StatisticheProdotti"));
 const StatisticheImport = lazy(() => import("./pages/statistiche/StatisticheImport"));
 const StatisticheCoperti = lazy(() => import("./pages/statistiche/StatisticheCoperti"));
+const StatisticheStorico = lazy(() => import("./pages/statistiche/StatisticheStorico"));
 
 // Fallback per Suspense: TrgbLoader centrato nello spazio tra Header e il banner update
 function RouteFallback() {
@@ -412,6 +413,7 @@ export default function App() {
         <Route path="/statistiche/prodotti" element={<ProtectedRoute module="statistiche"><StatisticheProdotti /></ProtectedRoute>} />
         <Route path="/statistiche/import" element={<ProtectedRoute module="statistiche"><StatisticheImport /></ProtectedRoute>} />
         <Route path="/statistiche/coperti" element={<ProtectedRoute module="statistiche" sub="coperti"><StatisticheCoperti /></ProtectedRoute>} />
+        <Route path="/statistiche/storico" element={<ProtectedRoute module="statistiche"><StatisticheStorico /></ProtectedRoute>} />
 
         {/* --- DIPENDENTI (modulo top-level) --- */}
         <Route path="/dipendenti" element={
