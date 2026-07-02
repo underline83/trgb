@@ -86,7 +86,10 @@ const MODULE_VERSIONS = {
     //   ControlloGestioneSpeseFisse. Sul VPS Tre Gobbi: 7 rateizzazioni
     //   completate al 100% da chiudere (4 Ristoteam + Ambrogio + Philarmonica
     //   + Marenzi). RC.2 (hook post-pagamento strutturale) rimandato.
-    version: "2.19",
+    // 2.20 (2026-07-02, RC.1.fix): fix SELECT su cg_uscite — non esiste
+    //   la colonna `numero_rata` (è di cg_piano_rate). Rimosso dalla query
+    //   raccogli-date-rate; usiamo solo periodo_riferimento come identificatore.
+    version: "2.20",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -163,7 +166,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.31",
+    version: "5.32",
     label: "Sistema",
     status: "stabile",
     color: "green",

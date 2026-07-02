@@ -3841,9 +3841,11 @@ def _auto_close_rateizzazione(fc, spesa_fissa_id: int) -> dict:
     if not max_data:
         max_data = date.today().isoformat()
 
-    # Raccogli le date delle rate per la nota storica
+    # Raccogli le date delle rate per la nota storica.
+    # NOTA: cg_uscite NON ha numero_rata (quella colonna è in cg_piano_rate).
+    # Usiamo periodo_riferimento ("YYYY-MM") come identificatore della rata.
     rate_dettaglio = fc.execute("""
-        SELECT numero_rata, periodo_riferimento, data_pagamento, stato
+        SELECT periodo_riferimento, data_pagamento, stato
         FROM cg_uscite
         WHERE spesa_fissa_id = ? AND tipo_uscita = 'SPESA_FISSA'
         ORDER BY COALESCE(data_pagamento, periodo_riferimento)
