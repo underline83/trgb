@@ -25,7 +25,15 @@ Funzionalita' principali:
 
 Gli endpoint storico/coperto leggono `admin_finance.sqlite3` (modulo cassa/banca) con connessione SQLite `mode=ro`: qualsiasi scrittura accidentale fallisce. È l'eccezione prevista dalle regole modulari (statistiche = aggregatore read-only).
 
-**Cucitura storica (pre-K.12):** `daily_closures` copre 2021 → cutover, `shift_closures` dal cutover in poi. Il **cutover è dinamico** = `MIN(date)` di shift_closures (oggi 2026-03-01), quindi il codice sopravvive al refactor K.12. Fatturato giornaliero: daily → `corrispettivi_tot`; shift → `preconto + fatture + shift_preconti` (stessa formula di `/admin/finance/shift-closures/stats/daily`). Coperti e split pranzo/cena esistono solo nell'era shift.
+**Cucitura storica (pre-K.12):** `daily_closures` copre 2021 → cutover, `shift_closures` dal cutover in poi. Il **cutover è dinamico** = `MIN(date)` di shift_closures (oggi 2026-03-01), quindi il codice sopravvive al refactor K.12. Coperti e split pranzo/cena esistono solo nell'era shift.
+
+**⚠️ SEMANTICA CUMULATIVA shift_closures (v1.2.1, verificata sui dati):** la riga CENA contiene la **chiusura RT cumulativa di giornata** (la Z del registratore include il pranzo); la riga PRANZO è il parziale pranzo. Prova: nell'overlap 1-10 marzo 2026 `cena.preconto + fatture(giorno) == daily_closures.corrispettivi_tot` in 8/8 giorni; 0 violazioni `cena<pranzo` su 102 giorni a 2 turni; marzo/giugno coincidono con il venduto iPratico a ±70€. Quindi:
+
+- fatturato giorno = `cena.preconto + SUM(fatture)` — **MAI pranzo+cena** (raddoppia il pranzo, bug v1.2 segnalato da Marco)
+- fatturato pranzo = `pranzo.preconto + pranzo.fatture`; fatturato cena = `(cena.preconto − pranzo.preconto) + cena.fatture`
+- i **coperti sono reali per turno** e si sommano normalmente
+- `shift_preconti` NON si somma: per omogeneità con la metrica daily-era (`corrispettivi_tot` = RT + fatture) i bonifici/preconti gruppo sono esclusi in entrambe le ere
+- **NB:** `/admin/finance/shift-closures/stats/daily` (modulo cassa, pagina Coperti) somma ancora pranzo+cena+preconti nei campi `fatt_*` → stessa doppia conta, da rivedere con Marco (contesto K.12)
 
 ---
 
@@ -74,6 +82,7 @@ Frontend Dashboard / Prodotti
 | 9 | GET | `/statistiche/storico/weekday?anno=` | auth | Media incassi/coperti per giorno settimana, split pranzo/cena (v1.2) |
 | 10 | GET | `/statistiche/coperto?anno=` | auth | €/coperto e pezzi/coperto per categoria iPratico, mese per mese (v1.2) |
 | 11 | GET | `/statistiche/movimenti?anno=&mese=&min_euro=&n=` | auth | Prodotti in crescita/calo/nuovi/spariti vs mese precedente importato (v1.2) |
+| 12 | GET | `/statistiche/storico/giorni?anno=&mese=` | auth | Incassi giornalieri di un mese dalla cucitura daily+shift — fallback pre-cutover per la pagina Coperti (v1.2.1) |
 
 ### Note sugli endpoint
 
@@ -173,7 +182,7 @@ iPratico usa encoding variabile per "Quantita'" (a volte UTF-8, a volte Latin-1)
 | Menu | `/statistiche` | `StatisticheMenu.jsx` | Tile colorate: Dashboard, Prodotti, Import |
 | Dashboard | `/statistiche/dashboard` | `StatisticheDashboard.jsx` | KPI, categorie con barre, top 15, movimenti, trend |
 | Prodotti | `/statistiche/prodotti` | `StatisticheProdotti.jsx` | Tabella filtri + ricerca + paginazione + modal trend prodotto |
-| Coperti | `/statistiche/coperti` | `StatisticheCoperti.jsx` | Coperti & incassi giornalieri + spesa per coperto per categoria |
+| Coperti | `/statistiche/coperti` | `StatisticheCoperti.jsx` | Coperti & incassi giornalieri + spesa per coperto per categoria. Per i mesi pre-cutover (gen/feb 2026 e prima) fallback su endpoint 12: solo incassi giornalieri dal registro corrispettivi, con banner esplicativo (v1.2.1) |
 | Storico | `/statistiche/storico` | `StatisticheStorico.jsx` | YoY pluriennale + giorno della settimana (v1.2) |
 | Import | `/statistiche/import` | `StatisticheImport.jsx` | Upload .xls + storico + delete |
 

@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-07-02 — Statistiche 1.2.1: fix semantica cumulativa shift_closures + fallback pre-cutover in Coperti `[core]`
+
+Due bug segnalati da Marco subito dopo il push di 1.2.
+
+### Corretto
+- **Storico gonfiato (marzo "il doppio")**: la v1.2 sommava `preconto` di pranzo+cena, ma la riga CENA contiene la **chiusura RT cumulativa di giornata** (la Z include il pranzo) → il pranzo veniva contato due volte, più `shift_preconti` sommati a sproposito. Verifica sui dati: overlap 1-10 marzo `cena.preconto + fatture == daily.corrispettivi_tot` in 8/8 giorni; 0 violazioni cena<pranzo su 102 giorni; col fix marzo=71.574€ vs iPratico 71.506€ (+68), giugno 49.370€ vs 49.368€ (+2). Nuova formula in `_storico_daily_rows`: giorno = `cena.preconto + SUM(fatture)`; split pranzo/cena per differenza; coperti (reali per turno) invariati; `shift_preconti` esclusi per omogeneità con la metrica daily-era. Corretti a cascata YoY, weekday, spesa per coperto (scontrino medio giugno: 68→50€, realistico).
+- **Coperti & Incassi muta su gennaio/febbraio**: le chiusure turno esistono solo dal 1/3/2026; per i mesi precedenti la pagina ora fa fallback sul registro corrispettivi (nuovo endpoint 12 `GET /statistiche/storico/giorni`) con banner esplicativo: solo incassi giornalieri, niente coperti/turni.
+
+### Nota aperta (decisione Marco)
+`/admin/finance/shift-closures/stats/daily` (modulo cassa, usato dalla stessa pagina Coperti per i mesi shift) somma ancora pranzo+cena+preconti nei campi `fatt_*` e nei pagamenti → media coperto e fatturati giornalieri gonfiati allo stesso modo. Da sistemare nel modulo cassa (contesto K.12): non toccato perché fuori dal modulo statistiche.
+
+### File modificati
+`app/routers/statistiche_router.py`, `frontend/src/pages/statistiche/StatisticheCoperti.jsx`, `frontend/src/config/versions.jsx`, `docs/{modulo_statistiche.md, changelog.md, sessione.md}`.
+
+---
+
 ## 2026-07-02 — Statistiche 1.2: modulo potenziato — Storico YoY, giorno settimana, spesa per coperto, movimenti prodotti `[core]`
 
 Il modulo Statistiche era fermo al solo import iPratico mensile. Ora è l'aggregatore cross-modulo read-only: sblocca 6 anni di incassi giornalieri (`daily_closures` 2021→2026 + `shift_closures`, ~3M€) che nessuna pagina mostrava.

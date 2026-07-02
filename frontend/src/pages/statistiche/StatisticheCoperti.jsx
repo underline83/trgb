@@ -153,15 +153,29 @@ export default function StatisticheCoperti() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Fallback pre-cutover: incassi giornalieri dal registro corrispettivi
+  // (daily_closures via /statistiche/storico/giorni) — niente coperti/turni
+  const [fallback, setFallback] = useState(null);
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+    setFallback(null);
     try {
       const params = new URLSearchParams({ year, month });
       const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures/stats/daily?${params}`);
       if (!res.ok) throw new Error(`Errore ${res.status}`);
       const json = await res.json();
-      setData(json.days || []);
+      const days = json.days || [];
+      setData(days);
+      if (days.length === 0) {
+        // Nessuna chiusura turno: provo il registro corrispettivi storico
+        const fbRes = await apiFetch(`${API_BASE}/statistiche/storico/giorni?anno=${year}&mese=${month}`);
+        if (fbRes.ok) {
+          const fb = await fbRes.json();
+          if (fb.giorni?.length) setFallback(fb.giorni);
+        }
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -270,11 +284,100 @@ export default function StatisticheCoperti() {
         {loading && <div className="bg-white rounded-2xl p-8 text-center text-neutral-400 animate-pulse">Caricamento...</div>}
         {error && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700">{error}</div>}
 
-        {!loading && !error && data.length === 0 && (
+        {!loading && !error && data.length === 0 && !fallback && (
           <div className="bg-white rounded-2xl shadow p-8 border border-neutral-200 text-center text-neutral-400">
             Nessuna chiusura per {MONTHS_IT[month]} {year}.
           </div>
         )}
+
+        {/* ═══ FALLBACK PRE-CUTOVER: solo incassi dal registro corrispettivi ═══ */}
+        {!loading && !error && data.length === 0 && fallback && (() => {
+          const tot = fallback.reduce((s, d) => s + (d.fatturato || 0), 0);
+          const max = Math.max(...fallback.map((d) => d.fatturato || 0), 1);
+          return (
+            <>
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-xs text-amber-800">
+                Per {MONTHS_IT[month]} {year} non ci sono chiusure turno (registrate dal marzo 2026):
+                questi sono gli incassi giornalieri dal registro corrispettivi. Coperti e pranzo/cena non disponibili.
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="bg-white rounded-2xl shadow p-4 border border-neutral-200 text-center">
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase">Incassato</div>
+                  <div className="text-lg font-bold text-neutral-800">€ {fmt(tot)}</div>
+                </div>
+                <div className="bg-white rounded-2xl shadow p-4 border border-neutral-200 text-center">
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase">Giorni aperti</div>
+                  <div className="text-lg font-bold text-neutral-800">{fallback.length}</div>
+                </div>
+                <div className="bg-white rounded-2xl shadow p-4 border border-neutral-200 text-center">
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase">Media / giorno</div>
+                  <div className="text-lg font-bold text-neutral-800">€ {fmt(tot / fallback.length)}</div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
+                <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-3">
+                  Incassi giornalieri
+                </h2>
+                <div className="flex items-end gap-1 h-44">
+                  {fallback.map((d) => {
+                    const pct = ((d.fatturato || 0) / max) * 100;
+                    const dayName = getDayName(d.date);
+                    const isWeekend = dayName === "Sabato" || dayName === "Domenica";
+                    return (
+                      <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+                        <div
+                          className={`w-full rounded-t-md min-h-[2px] ${isWeekend ? "bg-rose-400" : "bg-neutral-300"}`}
+                          style={{ height: `${Math.max(pct, 1)}%` }}
+                          title={`${getDayShort(d.date)} ${getDay(d.date)}: € ${fmt(d.fatturato)}`}
+                        />
+                        <div className="text-[9px] text-neutral-400 mt-1">{getDay(d.date)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow border border-neutral-200 overflow-hidden">
+                <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50">
+                  <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">Dettaglio giornaliero</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-200 bg-neutral-50/50">
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-neutral-400 uppercase">Data</th>
+                        <th className="px-3 py-2 text-right text-[10px] font-semibold text-neutral-500 uppercase">Incassato</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {fallback.map((d) => {
+                        const dayName = getDayName(d.date);
+                        const isWeekend = dayName === "Sabato" || dayName === "Domenica";
+                        return (
+                          <tr key={d.date} className={`hover:bg-neutral-50 ${isWeekend ? "bg-rose-50/20" : ""}`}>
+                            <td className="px-3 py-1.5 text-neutral-700 text-xs">
+                              <span className="font-medium">{getDay(d.date)}</span>
+                              <span className="text-neutral-400 ml-1">{getDayShort(d.date)}</span>
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-semibold text-neutral-800">€ {fmt(d.fatturato)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-neutral-100 border-t-2 border-neutral-300 font-semibold text-xs">
+                        <td className="px-3 py-2.5"><span className="text-[10px] text-neutral-500 uppercase">Totale</span></td>
+                        <td className="px-3 py-2.5 text-right text-neutral-900">€ {fmt(tot)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </>
+          );
+        })()}
 
         {!loading && !error && data.length > 0 && totals && (
           <>

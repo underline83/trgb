@@ -1,6 +1,11 @@
 #!/bin/bash
 # backup_db.sh — Backup atomico di tutti i database TRGB con verifiche di integrità
 #
+# Versione 2.2.1 (2026-07-02) — HOTFIX: v2.2 usava `-cmd "PRAGMA busy_timeout"`
+#  che stampa il valore come prima riga di output → il check leggeva "15000"
+#  invece di "ok" → tutti i DB flaggati source_corrupted, backup orario saltato.
+#  Ora si usa `.timeout` (dot-command silenzioso).
+#
 # Versione 2.2 (2026-07-02) — Fix falsi positivi da lock transitorio:
 #  - check_integrity: apre con -readonly + busy_timeout 15s + retry-once dopo 3s.
 #    Prima un write lock del backend su DB vivi (admin_finance, bevande) faceva
@@ -183,13 +188,17 @@ check_integrity() {
     fi
 
     # PRAGMA integrity_check — v2.2: -readonly (non lascia -shm/-wal residui),
-    # busy_timeout 15s + retry-once dopo 3s. I DB vivi sono scritti dal backend:
+    # timeout 15s + retry-once dopo 3s. I DB vivi sono scritti dal backend:
     # senza timeout un lock transitorio diventava falso "source_corrupted"
     # (stesso fix già applicato a check_lkg_integrity in check_backup_health v1.1).
-    local result=$(sqlite3 -readonly -cmd "PRAGMA busy_timeout=15000;" "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
+    # v2.2.1: usare `.timeout` (dot-command, silenzioso), NON `-cmd "PRAGMA
+    # busy_timeout=..."`: il PRAGMA stampa il valore ("15000") come prima riga
+    # → head -1 leggeva quella invece di "ok" → TUTTI i DB flaggati
+    # source_corrupted e backup saltato (incidente 2 lug 2026).
+    local result=$(sqlite3 -readonly -cmd ".timeout 15000" "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
     if [ "$result" != "ok" ]; then
         sleep 3
-        result=$(sqlite3 -readonly -cmd "PRAGMA busy_timeout=15000;" "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
+        result=$(sqlite3 -readonly -cmd ".timeout 15000" "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
     fi
     if [ "$result" != "ok" ]; then
         echo "    ✗ $name: integrity_check fallito → $result"
@@ -212,14 +221,14 @@ do_backup() {
     # .backup ("database is locked", buttato in /dev/null → zero diagnosi)
     # → falso "backup_failed" su admin_finance/bevande.
     local err
-    err=$(sqlite3 -cmd "PRAGMA busy_timeout=30000;" "$src" ".backup '$dest'" 2>&1)
+    err=$(sqlite3 -cmd ".timeout 30000" "$src" ".backup '$dest'" 2>&1)
     local rc=$?
 
     if [ "$rc" -ne 0 ] || [ ! -f "$dest" ]; then
         echo "  ⚠️  $db_name: .backup fallito (rc=$rc, err=${err:-n/a}) → retry tra 3s"
         rm -f "$dest"
         sleep 3
-        err=$(sqlite3 -cmd "PRAGMA busy_timeout=30000;" "$src" ".backup '$dest'" 2>&1)
+        err=$(sqlite3 -cmd ".timeout 30000" "$src" ".backup '$dest'" 2>&1)
         rc=$?
     fi
 

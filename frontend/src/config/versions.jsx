@@ -75,7 +75,13 @@ const MODULE_VERSIONS = {
     //   Coperti & Incassi (€/coperto per categoria iPratico), movimenti
     //   prodotti in Dashboard (crescita/calo vs mese precedente), trend
     //   mensile per prodotto cliccabile in Prodotti. Endpoint 8-11 nel router.
-    version: "1.2",
+    // 1.2.1 (2026-07-02): fix semantica cumulativa shift_closures — la riga
+    //   cena contiene la Z DI GIORNATA (include il pranzo): fatturato giorno
+    //   = cena.preconto + fatture, non pranzo+cena (raddoppiava). Esclusi
+    //   shift_preconti per omogeneità con daily-era. Marzo 104k→71.6k
+    //   (iPratico 71.5k). + fallback pre-cutover in Coperti & Incassi
+    //   (gen/feb da registro corrispettivi, endpoint 12 /storico/giorni).
+    version: "1.2.1",
     label: "Statistiche",
     status: "beta",
     color: "blue",

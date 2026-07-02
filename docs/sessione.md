@@ -38,8 +38,14 @@ Vedi changelog 2026-07-02 Statistiche 1.2. In sintesi: endpoint 8-11 (yoy, weekd
 - `scripts/check_backup_health.sh` → v1.2: firma issues (digits stripped, sort, md5) in `.last_health_notified`; notifica solo se firma cambiata o >6h dall'ultima; reset stamp quando healthy.
 - `docs/sicurezza_backup.md` §2.1/§2.2 aggiornate.
 
+### HOTFIX v2.2.1 (stesso giorno, post-push)
+Il primo push v2.2 ha ROTTO il backup orario: `-cmd "PRAGMA busy_timeout=15000"` stampa il valore ("15000") come prima riga → `head -1` leggeva quella invece di "ok" → **tutti e 10 i DB flaggati `source_corrupted`, backup orario saltato** (notifica "Backup hourly: 10 file FALLITI"). Il bug non era emerso in verifica perché il sandbox non ha la CLI sqlite3. Fix: `.timeout 15000/30000` (dot-command, output silenzioso) al posto del PRAGMA, nei 4 punti. Nessun danno: LKG intatta, la finestra senza backup orario è < 1h.
+
+**Lezione**: mai fidarsi di `-cmd "PRAGMA ..."` per il tuning della CLI sqlite3 dentro pipeline che parsano stdout — i PRAGMA di set ritornano una riga. Usare i dot-command (`.timeout`).
+
 ### Verifica
-- `bash -n` OK su entrambi gli script. Logica dedupe testata in sandbox (stessa issue con minuti diversi → soppressa; issue diversa → notifica).
+- `bash -n` OK su entrambi gli script. Logica dedupe testata in sandbox (stessa issue con minuti diversi → soppressa; issue diversa → notifica). PRAGMA-ritorna-riga confermato via python sqlite3.
+- **Test post-push consigliato (VPS)**: `ssh trgb "cd /home/marco/trgb/trgb && ./scripts/backup_db.sh && cat app/data/backups/.last_backup_status.json"` → atteso `failed_count: 0`.
 - Post-push, se ricompaiono fallimenti su admin_finance/bevande ORA nel log ci sarà il motivo vero (`err=...`): a quel punto non è più lock, indagare davvero.
 
 ---

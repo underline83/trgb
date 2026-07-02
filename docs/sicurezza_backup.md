@@ -83,10 +83,13 @@ File: `scripts/backup_db.sh`
 - **Sync Drive separato per `last_known_good/`** (oltre al daily): copia
   separata su `gdrive:TRGB-Backup-lkg` così nemmeno se Drive daily diventa
   corrotto perdiamo l'LKG.
-- **v2.2 (2 lug 2026) — anti falsi positivi da lock**: i check `PRAGMA
-  integrity_check` sulla sorgente ora aprono con `-readonly` + `busy_timeout`
-  15s + retry-once dopo 3s; il comando `.backup` ha `busy_timeout` 30s +
-  retry-once e lo stderr viene loggato (prima finiva in `/dev/null`). Motivo:
+- **v2.2 / v2.2.1 (2 lug 2026) — anti falsi positivi da lock**: i check `PRAGMA
+  integrity_check` sulla sorgente ora aprono con `-readonly` + `.timeout`
+  15s + retry-once dopo 3s; il comando `.backup` ha `.timeout` 30s +
+  retry-once e lo stderr viene loggato (prima finiva in `/dev/null`).
+  ⚠️ v2.2.1: usare SEMPRE il dot-command `.timeout`, MAI `-cmd "PRAGMA
+  busy_timeout=..."` — il PRAGMA stampa il valore in stdout e rompe il parsing
+  del risultato (`head -1`), incidente "10 file FALLITI" del 2 lug. Motivo:
   i DB più scritti (admin_finance, bevande) fallivano saltuariamente il backup
   per un semplice write lock transitorio del backend, generando falsi
   `source_corrupted` / `backup_failed` in notifica (giu–lug 2026).

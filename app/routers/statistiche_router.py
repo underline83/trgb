@@ -1,4 +1,4 @@
-# @version: v1.2-statistiche
+# @version: v1.2.1-statistiche
 # -*- coding: utf-8 -*-
 # Modulo: statistiche
 """
@@ -17,6 +17,7 @@ Endpoint per import dati iPratico e query analytics.
 9. GET  /statistiche/storico/weekday   — Media incassi/coperti per giorno settimana
 10. GET /statistiche/coperto           — Spesa per coperto per categoria (mese per mese)
 11. GET /statistiche/movimenti         — Prodotti in crescita/calo mese su mese
+12. GET /statistiche/storico/giorni    — Incassi giornalieri di un mese (cucitura daily+shift)
 
 NOTA cross-modulo: gli endpoint 8-10 leggono `admin_finance.sqlite3`
 (daily_closures + shift_closures, modulo cassa/banca) in SOLA LETTURA.
@@ -27,9 +28,24 @@ Cucitura storica (pre-K.12): `daily_closures` copre 2021 → cutover,
 `shift_closures` dal cutover in poi. Il cutover è dinamico =
 MIN(date) di shift_closures, quindi il codice sopravvive al refactor
 K.12 (quando daily_closures verrà dismessa il ramo daily restituirà 0 righe).
-Fatturato giornaliero: daily → corrispettivi_tot (RT + fatture);
-shift → preconto + fatture + shift_preconti (stessa formula di
-/admin/finance/shift-closures/stats/daily).
+
+SEMANTICA CUMULATIVA shift_closures (verificata sui dati 2026-07-02):
+la riga CENA contiene la chiusura RT CUMULATIVA DI GIORNATA (la Z del
+registratore include il pranzo), la riga PRANZO il parziale pranzo.
+Provato sull'overlap 1-10 marzo: cena.preconto + fatture(giorno) ==
+daily_closures.corrispettivi_tot in 8 giorni su 8; 0 violazioni
+cena<pranzo su 102 giorni a 2 turni. Quindi:
+  fatturato giorno = cena.preconto + SUM(fatture)      [NON pranzo+cena!]
+  fatturato pranzo = pranzo.preconto + pranzo.fatture
+  fatturato cena   = (cena.preconto - pranzo.preconto) + cena.fatture
+I coperti invece sono REALI per turno (si sommano normalmente).
+shift_preconti NON si somma (per omogeneità col metrica daily-era
+corrispettivi_tot = RT + fatture; i bonifici/preconti gruppo sono
+esclusi in entrambe le ere).
+Fatturato daily-era: corrispettivi_tot (RT + fatture).
+
+NB: /admin/finance/shift-closures/stats/daily (modulo cassa) somma
+ancora pranzo+cena+preconti: da rivedere con Marco (K.12).
 """
 
 from __future__ import annotations
@@ -476,37 +492,41 @@ def _storico_daily_rows(anno: Optional[int] = None) -> tuple[Optional[str], List
             })
 
         # --- Ramo corrente: shift_closures dal cutover in poi ---
+        # ATTENZIONE semantica cumulativa: cena.preconto = Z di GIORNATA
+        # (include il pranzo). Vedi docstring modulo. Aggregazione in Python.
         if cutover:
-            sql_s = """
-                SELECT sc.date,
-                       SUM(COALESCE(sc.preconto,0) + COALESCE(sc.fatture,0) + COALESCE(p.tot,0)) AS fatt,
-                       SUM(COALESCE(sc.coperti,0)) AS cop,
-                       SUM(CASE WHEN sc.turno = 'pranzo'
-                            THEN COALESCE(sc.preconto,0) + COALESCE(sc.fatture,0) + COALESCE(p.tot,0)
-                            ELSE 0 END) AS fatt_pranzo,
-                       SUM(CASE WHEN sc.turno = 'cena'
-                            THEN COALESCE(sc.preconto,0) + COALESCE(sc.fatture,0) + COALESCE(p.tot,0)
-                            ELSE 0 END) AS fatt_cena,
-                       SUM(CASE WHEN sc.turno = 'pranzo' THEN COALESCE(sc.coperti,0) ELSE 0 END) AS cop_pranzo,
-                       SUM(CASE WHEN sc.turno = 'cena' THEN COALESCE(sc.coperti,0) ELSE 0 END) AS cop_cena
-                FROM shift_closures sc
-                LEFT JOIN (
-                    SELECT shift_closure_id, SUM(importo) AS tot
-                    FROM shift_preconti GROUP BY shift_closure_id
-                ) p ON p.shift_closure_id = sc.id
-                WHERE 1=1
-            """
+            sql_s = "SELECT date, turno, COALESCE(preconto,0) AS preconto, COALESCE(fatture,0) AS fatture, COALESCE(coperti,0) AS coperti FROM shift_closures"
             params_s: List[Any] = []
             if anno:
-                sql_s += " AND CAST(substr(sc.date, 1, 4) AS INTEGER) = ?"
+                sql_s += " WHERE CAST(substr(date, 1, 4) AS INTEGER) = ?"
                 params_s.append(anno)
-            sql_s += " GROUP BY sc.date"
+            per_date: Dict[str, Dict[str, Any]] = {}
             for r in conn.execute(sql_s, params_s):
+                d = per_date.setdefault(r["date"], {})
+                d[r["turno"]] = {"preconto": r["preconto"], "fatture": r["fatture"], "coperti": r["coperti"]}
+
+            for date_str in per_date:
+                turni = per_date[date_str]
+                pranzo, cena = turni.get("pranzo"), turni.get("cena")
+                if pranzo and cena:
+                    # cena.preconto è cumulativo di giornata
+                    fatt = cena["preconto"] + pranzo["fatture"] + cena["fatture"]
+                    fatt_pranzo = pranzo["preconto"] + pranzo["fatture"]
+                    fatt_cena = max(cena["preconto"] - pranzo["preconto"], 0) + cena["fatture"]
+                elif cena:
+                    fatt = cena["preconto"] + cena["fatture"]
+                    fatt_pranzo, fatt_cena = 0, fatt
+                elif pranzo:
+                    fatt = pranzo["preconto"] + pranzo["fatture"]
+                    fatt_pranzo, fatt_cena = fatt, 0
+                else:
+                    continue
                 rows.append({
-                    "date": r["date"], "fatturato": r["fatt"] or 0,
-                    "coperti": r["cop"],
-                    "fatt_pranzo": r["fatt_pranzo"], "fatt_cena": r["fatt_cena"],
-                    "coperti_pranzo": r["cop_pranzo"], "coperti_cena": r["cop_cena"],
+                    "date": date_str, "fatturato": fatt,
+                    "coperti": (pranzo["coperti"] if pranzo else 0) + (cena["coperti"] if cena else 0),
+                    "fatt_pranzo": fatt_pranzo, "fatt_cena": fatt_cena,
+                    "coperti_pranzo": pranzo["coperti"] if pranzo else 0,
+                    "coperti_cena": cena["coperti"] if cena else 0,
                 })
 
         rows.sort(key=lambda x: x["date"])
@@ -637,6 +657,38 @@ def storico_weekday(
 
 
 # =============================================================
+# 12. STORICO GIORNI — incassi giornalieri di un mese (fallback pre-cutover)
+# =============================================================
+@router.get("/storico/giorni", summary="Incassi giornalieri di un mese (cucitura daily+shift)")
+def storico_giorni(
+    anno: int = Query(..., description="Anno (es. 2026)"),
+    mese: int = Query(..., ge=1, le=12, description="Mese 1-12"),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Righe giornaliere del mese richiesto dalla cucitura daily/shift.
+    Usato dalla pagina Coperti & Incassi come fallback per i mesi
+    precedenti al cutover chiusure turno (solo incassi, niente coperti).
+    """
+    cutover, rows = _storico_daily_rows(anno)
+    prefix = f"{anno:04d}-{mese:02d}-"
+    giorni = [r for r in rows if r["date"].startswith(prefix)]
+    return {
+        "cutover": cutover,
+        "anno": anno,
+        "mese": mese,
+        "giorni": [
+            {
+                "date": r["date"],
+                "fatturato": round(r["fatturato"], 2),
+                "coperti": r["coperti"],
+            }
+            for r in giorni
+        ],
+    }
+
+
+# =============================================================
 # 10. SPESA PER COPERTO — incrocio iPratico × coperti
 # =============================================================
 @router.get("/coperto", summary="Spesa per coperto per categoria, mese per mese")
@@ -649,29 +701,19 @@ def spesa_per_coperto(
     scontrino medio, e €/coperto per ogni categoria iPratico.
     Disponibile solo per i mesi coperti da shift_closures (da marzo 2026).
     """
-    # Coperti + fatturato mensili da shift_closures (read-only)
-    fin = _get_finance_conn_ro()
-    try:
-        mesi_fin: Dict[int, Dict[str, Any]] = {}
-        sql = """
-            SELECT CAST(substr(sc.date, 6, 2) AS INTEGER) AS mese,
-                   SUM(COALESCE(sc.coperti, 0)) AS coperti,
-                   SUM(COALESCE(sc.preconto,0) + COALESCE(sc.fatture,0) + COALESCE(p.tot,0)) AS fatt,
-                   COUNT(DISTINCT sc.date) AS giorni
-            FROM shift_closures sc
-            LEFT JOIN (
-                SELECT shift_closure_id, SUM(importo) AS tot
-                FROM shift_preconti GROUP BY shift_closure_id
-            ) p ON p.shift_closure_id = sc.id
-            WHERE CAST(substr(sc.date, 1, 4) AS INTEGER) = ?
-            GROUP BY mese
-        """
-        for r in fin.execute(sql, (anno,)):
-            mesi_fin[r["mese"]] = {
-                "coperti": r["coperti"], "fatturato": round(r["fatt"] or 0, 2), "giorni": r["giorni"],
-            }
-    finally:
-        fin.close()
+    # Coperti + fatturato mensili dalla cucitura (semantica cumulativa gestita dal helper)
+    _, day_rows = _storico_daily_rows(anno)
+    mesi_fin: Dict[int, Dict[str, Any]] = {}
+    for r in day_rows:
+        if r["coperti"] is None:
+            continue  # era daily: niente coperti, il mese non è confrontabile
+        m = int(r["date"][5:7])
+        mf = mesi_fin.setdefault(m, {"coperti": 0, "fatturato": 0.0, "giorni": 0})
+        mf["coperti"] += r["coperti"]
+        mf["fatturato"] += r["fatturato"]
+        mf["giorni"] += 1
+    for m in mesi_fin:
+        mesi_fin[m]["fatturato"] = round(mesi_fin[m]["fatturato"], 2)
 
     # Categorie iPratico per mese
     conn = _get_conn()
