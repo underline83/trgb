@@ -8,7 +8,8 @@
 Segnalazione Marco: nella vista Per dipendente non si riusciva a selezionare il mese effettivo (solo 4/8/12 settimane, frecce ±N settimane che derapano dai mesi di calendario).
 
 ### Aggiunto
-- **PerDipendente.jsx v1.4-vista-mese**: quarta opzione "Mese intero" nel select periodo. In modo mese: select Mese+Anno (anno corrente ±2), frecce ◀▶ = ±1 mese vero, "Oggi" = mese corrente. Il FE calcola `settimana_inizio` (settimana ISO del 1° del mese) e `num_settimane` (settimane ISO che intersecano il mese, 4–6) — backend `/turni/dipendente` invariato. Persistenza: `turni_perdip_modo`, `turni_perdip_mese`.
+- **PerDipendente.jsx v1.4.1-vista-mese**: quarta opzione "Mese intero" nel select periodo. In modo mese: select Mese+Anno (anno corrente ±2), frecce ◀▶ = ±1 mese vero, "Oggi" = mese corrente. Il FE calcola `settimana_inizio` (settimana ISO del 1° del mese) e `num_settimane` (settimane ISO che intersecano il mese, 4–6) — backend `/turni/dipendente` invariato. Persistenza: `turni_perdip_modo`, `turni_perdip_mese`.
+- **Totali sul mese esatto (v1.4.1, segnalazione Marco post-prima-versione)**: i totali del backend coprono l'intero range di settimane (incluse le code del mese adiacente, es. 29-30 giu in "Luglio"); in modo mese il FE li ricalcola sui SOLI giorni del mese, riusando i valori per-giorno del payload (somme additive, stessa definizione BE di lavorato/riposo). Le code fuori mese restano visibili ma attenuate (opacity-40 + tooltip "escluso dai totali"); header totali etichettato "(totali del solo mese)". Il semaforo CCNL resta settimanale (corretto così).
 
 ### Corretto
 - **MieiTurni.jsx v1.4-mese-vero**: i bottoni "⏪ mese / mese ⏩" spostavano di ±4 settimane (etichetta ingannevole); ora saltano al mese di calendario precedente/successivo coprendo il mese intero. Validazione `turni_mieituri_n` allargata a 1..12.

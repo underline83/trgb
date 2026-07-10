@@ -16,8 +16,8 @@ Marco: "nella vista mensile per dipendente non riesco a selezionare il mese effe
 - Script node: per tutti i 48 mesi 2024–2027 il range [lunedì settimana del 1°, +N*7-1] contiene l'intero mese, N sempre 4–6. Edge OK: Gen 2027 parte da 2026-W53, Feb 2027 (inizia lunedì) = 4 settimane esatte.
 - @babel/parser OK su entrambi i JSX.
 
-### Note
-- La vista Mese mostra settimane intere: le code di mese adiacente (es. 29-30 giu in "Luglio 2026") restano visibili. Se danno fastidio, attenuarle (opacity) in una prossima sessione.
+### Fix nella stessa sessione (v1.4.1)
+Marco dopo la prima versione: "i calcoli non li fa sul mese". Giusto: i totali BE coprono tutto il range di settimane, code di mese adiacente incluse. Fix FE: in modo mese `totaliMese` (useMemo) ricalcola i totali sui soli giorni `YYYY-MM-*` riusando i per-giorno del payload (ore lorde/nette, is_chiusura, opzionali, assenza; lavorato/riposo con stessa definizione BE). Code fuori mese attenuate (opacity-40 + tooltip), header "(totali del solo mese)". Semaforo CCNL resta settimanale, volutamente.
 
 ---
 

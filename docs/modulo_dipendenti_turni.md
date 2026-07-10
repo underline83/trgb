@@ -392,6 +392,7 @@ modulo Presenze separato. In Turni v2 resta solo:
 - Il select periodo diventa 4 / 8 / 12 settimane / **Mese intero**. In modo mese: select Mese+Anno (anno corrente ±2), frecce ◀▶ scorrono di ±1 mese di calendario, "Oggi" torna al mese corrente.
 - Il backend resta invariato: il FE calcola `settimana_inizio` = settimana ISO che contiene il 1° del mese e `num_settimane` = settimane ISO che intersecano il mese (4–6, verificato su tutti i mesi 2024–2027 incl. cavallo d'anno, es. Gen 2027 → 2026-W53).
 - Persistenza aggiuntiva: `turni_perdip_modo` ("settimane"|"mese"), `turni_perdip_mese` ("YYYY-MM").
+- **v1.4.1 — totali sul mese esatto**: i totali BE coprono l'intero range di settimane; in modo mese il FE li ricalcola sui soli giorni del mese (`totaliMese` useMemo, somme additive sui per-giorno del payload, stessa definizione BE di lavorato/riposo). Giorni fuori mese attenuati (opacity-40 + tooltip) e header totali "(totali del solo mese)". Semaforo CCNL invariato (settimanale per natura).
 - Fix collegato in `MieiTurni.jsx` (v1.4-mese-vero): i bottoni "⏪ mese / mese ⏩" prima spostavano di ±4 settimane (derapando dai mesi reali); ora saltano al mese di calendario precedente/successivo (riferimento = mese del giovedì della settimana corrente, regola ISO) impostando `num_settimane` per coprire il mese intero. Validazione `turni_mieituri_n` allargata a 1..12.
 
 **Link/navigazione:**

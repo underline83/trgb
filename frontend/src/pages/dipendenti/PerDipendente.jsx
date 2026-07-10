@@ -1,6 +1,8 @@
-// @version: v1.4-vista-mese — nuova opzione "Mese intero": mese di calendario
+// @version: v1.4.1-vista-mese — opzione "Mese intero": mese di calendario
 //   esatto (select Mese+Anno, frecce ±1 mese), coperto dalle settimane ISO che
 //   lo intersecano (4–6). Backend invariato (/turni/dipendente).
+//   v1.4.1: totali ricalcolati FE sui SOLI giorni del mese (le code del mese
+//   adiacente sono visibili ma attenuate ed escluse dai conteggi).
 // Vista Per Dipendente Turni v2 — TRGB Gestionale
 //
 // Timeline di un singolo dipendente su N settimane (default 4) per rispondere
@@ -292,6 +294,38 @@ export default function PerDipendente() {
     [reparti, repartoId],
   );
 
+  // In modo mese i totali del backend coprono tutte le settimane del range,
+  // incluse le code del mese adiacente: qui si ricalcolano SOLO sui giorni
+  // del mese selezionato, riusando i valori per-giorno già calcolati dal BE
+  // (ore lorde/nette, is_chiusura, opzionali, assenza — somme additive).
+  const totaliMese = useMemo(() => {
+    if (modo !== "mese" || !vista) return null;
+    const prefix = `${meseSel.anno}-${pad(meseSel.mese)}-`;
+    const tot = {
+      ore_lorde: 0, ore_nette: 0, giorni_lavorati: 0,
+      riposi: 0, chiusure: 0, opzionali: 0, assenze: 0,
+    };
+    for (const sett of vista.settimane) {
+      for (const [iso, g] of Object.entries(sett.per_giorno || {})) {
+        if (!iso.startsWith(prefix)) continue;
+        tot.ore_lorde += g.ore_lorde || 0;
+        tot.ore_nette += g.ore_nette || 0;
+        // Stessa definizione del backend: lavorato = almeno 1 turno attivo
+        // (né OPZIONALE né ANNULLATO); riposo = non chiuso e senza turni attivi.
+        const attivi = (g.turni || []).filter(t => {
+          const s = (t.stato || "CONFERMATO").toUpperCase();
+          return s !== "OPZIONALE" && s !== "ANNULLATO";
+        });
+        if (g.is_chiusura) tot.chiusure += 1;
+        if (attivi.length > 0) tot.giorni_lavorati += 1;
+        else if (!g.is_chiusura) tot.riposi += 1;
+        tot.opzionali += g.opzionali || 0;
+        if (g.assenza) tot.assenze += 1;
+      }
+    }
+    return tot;
+  }, [modo, vista, meseSel]);
+
   // ---- NAVIGAZIONE --------------------------------------------------------
   function vaiOggi() {
     if (modo === "mese") {
@@ -498,8 +532,12 @@ export default function PerDipendente() {
 
         {!loading && vista && (
           <>
-            {/* TOTALI PERIODO */}
-            <TotaliPeriodo vista={vista} />
+            {/* TOTALI PERIODO — in modo mese: ricalcolati solo sui giorni del mese */}
+            <TotaliPeriodo
+              vista={vista}
+              totaliOverride={totaliMese}
+              periodoLabel={modo === "mese" ? `${MESI_LUN[meseSel.mese - 1]} ${meseSel.anno}` : null}
+            />
 
             {/* TIMELINE SETTIMANE */}
             <div className="grid grid-cols-1 gap-4 mt-4 print:gap-2">
@@ -509,6 +547,7 @@ export default function PerDipendente() {
                     settimana={sett}
                     reparto={reparto}
                     dipendente={vista.dipendente}
+                    mesePrefix={modo === "mese" ? `${meseSel.anno}-${pad(meseSel.mese)}-` : null}
                     onApriInFoglio={() => apriSettimanaInFoglio(sett.iso)}
                   />
                 </div>
@@ -524,8 +563,10 @@ export default function PerDipendente() {
 
 
 // ---- TOTALI PERIODO -------------------------------------------------------
-function TotaliPeriodo({ vista }) {
-  const t = vista.totali;
+// totaliOverride: totali ricalcolati sul mese esatto (modo mese), altrimenti
+// si usano quelli del backend sull'intero range di settimane.
+function TotaliPeriodo({ vista, totaliOverride = null, periodoLabel = null }) {
+  const t = totaliOverride || vista.totali;
   const dip = vista.dipendente;
   return (
     <div className="bg-white rounded-xl shadow p-4">
@@ -533,8 +574,17 @@ function TotaliPeriodo({ vista }) {
         <div>
           <div className="text-sm text-neutral-500">Periodo</div>
           <div className="font-semibold">
-            {vista.settimana_inizio} → {vista.settimana_fine}
-            <span className="ml-2 text-neutral-400 text-sm">({vista.num_settimane} sett.)</span>
+            {periodoLabel ? (
+              <>
+                {periodoLabel}
+                <span className="ml-2 text-neutral-400 text-sm">(totali del solo mese)</span>
+              </>
+            ) : (
+              <>
+                {vista.settimana_inizio} → {vista.settimana_fine}
+                <span className="ml-2 text-neutral-400 text-sm">({vista.num_settimane} sett.)</span>
+              </>
+            )}
           </div>
         </div>
         <div>
@@ -576,7 +626,9 @@ function Metric({ label, value, accent = false }) {
 
 
 // ---- CARD SETTIMANA -------------------------------------------------------
-function CardSettimana({ settimana, reparto, dipendente, onApriInFoglio }) {
+// mesePrefix ("YYYY-MM-"): se presente (modo mese), i giorni fuori mese
+// vengono attenuati — sono visibili ma esclusi dai totali del mese.
+function CardSettimana({ settimana, reparto, dipendente, mesePrefix = null, onApriInFoglio }) {
   const sem = SEMAFORO_STYLE[settimana.semaforo] || SEMAFORO_STYLE.verde;
   const oggi = oggiIso();
 
@@ -611,12 +663,14 @@ function CardSettimana({ settimana, reparto, dipendente, onApriInFoglio }) {
         {settimana.giorni.map(iso => {
           const cel = settimana.per_giorno[iso] || { turni: [], ore_lorde: 0, ore_nette: 0, is_chiusura: false, is_riposo: false };
           const isToday = iso === oggi;
+          const fuoriMese = mesePrefix ? !iso.startsWith(mesePrefix) : false;
           return (
             <CellaGiornoTimeline
               key={iso}
               iso={iso}
               dato={cel}
               isToday={isToday}
+              fuoriMese={fuoriMese}
               reparto={reparto}
               dipendente={dipendente}
             />
@@ -629,12 +683,13 @@ function CardSettimana({ settimana, reparto, dipendente, onApriInFoglio }) {
 
 
 // ---- CELLA GIORNO TIMELINE -----------------------------------------------
-function CellaGiornoTimeline({ iso, dato, isToday, reparto, dipendente }) {
+function CellaGiornoTimeline({ iso, dato, isToday, fuoriMese = false, reparto, dipendente }) {
   const chiuso = dato.is_chiusura;
   const riposo = dato.is_riposo;
 
   const bg = chiuso ? "bg-neutral-100" : (isToday ? "bg-brand-blue/5" : "bg-white");
   const borderToday = isToday ? "ring-2 ring-inset ring-brand-blue" : "";
+  const dimFuoriMese = fuoriMese ? "opacity-40" : "";
 
   // Raggruppa per servizio per allineare visivamente pranzo sopra / cena sotto
   // fra tutte le celle della settimana (placeholder invisibile se manca uno dei due).
@@ -654,7 +709,8 @@ function CellaGiornoTimeline({ iso, dato, isToday, reparto, dipendente }) {
   const hasAnyTurno = pranziTurni.length + ceneTurni.length + altriTurni.length > 0;
 
   return (
-    <div className={`${bg} ${borderToday} p-3 min-h-[140px] flex flex-col`}>
+    <div className={`${bg} ${borderToday} ${dimFuoriMese} p-3 min-h-[140px] flex flex-col`}
+      title={fuoriMese ? "Giorno fuori dal mese selezionato — escluso dai totali" : undefined}>
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs font-semibold text-neutral-700">
           {formatDayShort(iso)}
