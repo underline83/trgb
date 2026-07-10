@@ -24,6 +24,13 @@
 - **A6-07** ✅ APPLICATO LIVE 10/07: zona `trgb_login` (5r/m) in nginx.conf + `location = /auth/login` con `limit_req`. Verificato: raffica POST → 422×4 poi 503 (throttle).
 - Sessione 3 **bonifica FK rinviata** (A2-02/A2-04, 1.362 orfani, tocca dati prod) → finestra dedicata con backup/conteggi (decisione Marco).
 
+### 🧹 Sessione 3 BONIFICA FK (2026-07-10, testata su copie — da applicare)
+- **A2-02/A2-03** ipratico_product_map: mig 148 rimuove la FK impossibile → 1264 falsi orfani a 0 (testato).
+- **A2-04** vini_magazzino: script `scripts/bonifica_fk_vini_magazzino.py` ripunta 5 tabelle a vini_bottiglie + cancella 1 cella morta → 161 violazioni a 0 (testato --apply su copia).
+- **A2-10** DROP zombie vini_magazzino + legacy_20260518 (nello script).
+- cg_entrate 65: lasciati (scelta PO). Residuo: fix codice init_magazzino_database rinviato (zombie ricreata vuota al boot, innocua).
+- Deploy: push (mig 148 al boot) + script sul VPS a backend fermo.
+
 ## ✅ AUDIT COMPLETATO — 2026-06-12
 
 - Commit di riferimento: `1f5f9c17` · VERSION 5.24 (VPS allineato, verificato live)

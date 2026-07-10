@@ -1,6 +1,27 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-10 (sera, 2a parte) — **Audit Sessioni 2+3: lockout login + PIN 6 cifre + indice fe_righe + WAL vini** (`[core]`, sistema 5.33). Da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-10 (sera, 3a parte) — **Audit Sessione 3: bonifica FK orfane** (foodcost mig 148 + script vini, testati su copie). Sistema 5.36. Da pushare + script da lanciare sul VPS. Dettagli sotto.
+
+## SESSIONE 2026-07-10 (sera, 3a parte) — Audit Sessione 3: bonifica FK orfane
+
+### Decisioni Marco
+- cg_entrate (65 incassi, €58k, link banca morto): **lasciare invariati** (foreign_key_check li segnalerà ancora, ok).
+- Tabelle morte: **DROP** dopo il re-point.
+
+### Cosa è stato fatto (testato su copie fresche `claude/fresh/`)
+- Forensica read-only sui dati del 10/07 19:38: ipratico 1264 orfani ma tutti i vino_id validi in vini_bottiglie (FK impossibile cross-db); vini_magazzino 161 violazioni (movimenti 113, prezzi 47, matrice 1) tutte rimappabili tranne 1 cella morta; scoperte 2 tabelle extra da ripuntare (ordini_pending, note).
+- **Migrazione 148** (foodcost.db): ricostruisce ipratico_product_map senza la FK impossibile. Testata: orfani 1264→0, dati intatti, idempotente.
+- **scripts/bonifica_fk_vini_magazzino.py**: ripunta 5 tabelle a vini_bottiglie, cancella 1 cella morta, droppa zombie+legacy. Testato --apply su copia: foreign_key_check 161→0, integrity ok, backup+rollback-on-fail.
+- Residuo rinviato: fix di init_magazzino_database (zombie ricreata vuota al boot + FK code verso vini_magazzino) — boot code non testabile qui, la zombie ricompare vuota e innocua.
+
+### Da fare sul VPS (deploy)
+1. push del codice (mig 148 gira al boot su foodcost).
+2. `sudo systemctl stop trgb-backend` → lanciare lo script `--apply` → `start`. Backup automatico + verifica pre-commit.
+
+### Stato audit
+Sessione 3 dati **completata e testata**. Restano: fix codice init_magazzino (rinviato), e le sessioni 4-11.
+
+---
 
 ## SESSIONE 2026-07-10 (sera, 2a parte) — Audit Sessioni 2 "Login robusto" + 3 "Igiene DB"
 

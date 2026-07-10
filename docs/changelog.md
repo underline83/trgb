@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-07-10 (sera) — Audit Sessione 3: bonifica FK orfane (foodcost + vini_magazzino) `[core]`
+
+Chiusura della parte dati di Sessione 3 (audit A2-02/A2-04/A2-10), tutta testata su copie fresche dei DB di produzione prima dell'applicazione. Sistema 5.36.
+
+### foodcost.db (via migrazione 148, al boot)
+- **`ipratico_product_map`**: la FK `vino_id → vini_magazzino(id)` era impossibile (tabella `vini_magazzino` inesistente in foodcost.db; i vini stanno in `vini_bottiglie`, altro file) → foreign_key_check segnalava 1264 falsi orfani su dati sani. Ricostruita la tabella SENZA quella FK. Orfani 1264→0, 1267 righe intatte, indici ricreati, idempotente. `cg_entrate` (65 incassi con link banca morto) lasciata invariata per scelta PO.
+
+### vini_magazzino.sqlite3 (via script one-shot `scripts/bonifica_fk_vini_magazzino.py`, a backend fermo)
+- 5 tabelle ripuntate da `vini_magazzino_legacy_20260518`/`vini_magazzino_old` a `vini_bottiglie`: `vini_magazzino_movimenti` (1133), `vini_prezzi_storico` (162), `matrice_celle` (180, −1 cella morta id=193), `vini_ordini_pending` (2), `vini_magazzino_note` (0).
+- Cancellata 1 cella orfana (vino_id 1288 non più esistente). DROP delle tabelle morte `vini_magazzino_legacy_20260518` e della zombie `vini_magazzino`. foreign_key_check del file: da 161 violazioni → 0.
+- Sicurezza script: backup timestamp + transazione con verifica foreign_key_check+integrity_check PRIMA del commit (rollback automatico se non tornano); default dry-run, serve --apply.
+
+### Residuo noto (rinviato)
+- `init_magazzino_database()` (vini_magazzino_db.py) ricrea ancora la zombie vuota `vini_magazzino` al boot e dichiara le FK verso `vini_magazzino` invece di `vini_bottiglie`: dopo la bonifica la zombie ricompare VUOTA e innocua (nessuno la referenzia). Il fix del codice (per installazioni nuove + stop rigenerazione) è rinviato: tocca una funzione di boot non testabile qui. foreign_key_check di tregobbi resta pulito.
+
+### File
+`app/migrations/148_fk_ipratico_product_map.py` (nuovo), `scripts/bonifica_fk_vini_magazzino.py` (nuovo), `VERSION`, `frontend/src/config/versions.jsx`.
+
+---
+
 ## 2026-07-10 (sera) — HOTFIX login 2: invio automatico per ruolo + atterraggio su Home `[core]`
 
 Rifiniture dopo il fix del pad: (1) rimesso l'**invio automatico** del PIN alla lunghezza attesa per ruolo — 6 cifre per admin/superadmin/contabile, 4 per gli altri — così non serve premere ✓ (che resta come conferma manuale/fallback, con Invio da tastiera); i pallini indicatori si adattano alla lunghezza attesa. (2) Dopo il login si va **sempre alla Home**, non all'ultima pagina aperta (`window.history.replaceState` prima di settare il token). Sistema 5.35, auth 2.2.2. File: `frontend/src/components/LoginForm.jsx`.

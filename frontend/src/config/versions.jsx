@@ -180,7 +180,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.35",
+    version: "5.36",
     label: "Sistema",
     status: "stabile",
     color: "green",
