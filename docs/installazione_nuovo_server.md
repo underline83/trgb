@@ -281,9 +281,15 @@ sudo journalctl -u trgb-backend -f
 > e runbook" del piano audit, insieme al test S.2. Header di sicurezza e protezione
 > `/docs` (sotto) sono invece già allineati alla produzione (fix A6-09/A6-06 del 10/07).
 
-### 6.0 Password per la documentazione API (Swagger)
-Swagger/OpenAPI restano attivi ma protetti da HTTP Basic Auth (audit A6-06 — la
-mappa completa degli endpoint non deve essere pubblica):
+### 6.0 Rate-limit login + password documentazione API
+
+Zona rate-limit per il login (audit A6-07 — complementa il lockout applicativo).
+Va nel blocco `http { }` di `/etc/nginx/nginx.conf`, UNA volta per server:
+```nginx
+limit_req_zone $binary_remote_addr zone=trgb_login:10m rate=5r/m;
+```
+
+Password per Swagger/OpenAPI (audit A6-06) — la mappa endpoint non deve essere pubblica:
 ```bash
 # Crea utente+password (la chiede a schermo, non finisce nella history)
 printf "<USER>:$(openssl passwd -apr1)\n" | sudo tee /etc/nginx/.htpasswd_trgb_docs >/dev/null
@@ -315,6 +321,16 @@ server {
     location ~ ^/(docs|redoc|openapi\.json)$ {
         auth_basic "TRGB API docs";
         auth_basic_user_file /etc/nginx/.htpasswd_trgb_docs;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Rate-limit sul login (audit A6-07) — richiede la zona trgb_login (§6.0)
+    location = /auth/login {
+        limit_req zone=trgb_login burst=3 nodelay;
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

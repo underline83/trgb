@@ -83,6 +83,75 @@ def _save_users(users: dict) -> None:
 # Caricamento iniziale al boot
 USERS: dict = _load_users()
 
+
+# ---------------------------------------------------------------------------
+# LOCKOUT BRUTE-FORCE + POLITICA PIN (audit 2026-06-12 A1-04)
+# ---------------------------------------------------------------------------
+import time as _time
+
+# Soglie configurabili in locali/<locale>/data/auth_settings.json (default sotto).
+# UI in Impostazioni prevista in una fase successiva (per ora file/endpoint).
+AUTH_SETTINGS_FILE = locale_data_path("auth_settings.json")
+_LOCKOUT_DEFAULTS = {
+    "max_tentativi": 5,      # tentativi falliti consecutivi prima del blocco
+    "blocco_base_sec": 30,   # durata del 1o blocco
+    "blocco_max_sec": 900,   # tetto 15 min: la durata raddoppia a ogni fail oltre soglia
+}
+
+def _load_lockout_settings() -> dict:
+    cfg = dict(_LOCKOUT_DEFAULTS)
+    try:
+        if AUTH_SETTINGS_FILE.exists():
+            with open(AUTH_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for k in _LOCKOUT_DEFAULTS:
+                if isinstance(data.get(k), int) and data[k] > 0:
+                    cfg[k] = data[k]
+        else:
+            AUTH_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(AUTH_SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(_LOCKOUT_DEFAULTS, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+    return cfg
+
+LOCKOUT_CFG = _load_lockout_settings()
+
+# Stato in memoria (per-processo): {username: {"fails": int, "locked_until": float}}
+_login_attempts: dict = {}
+
+def _lockout_remaining(username: str) -> int:
+    """Secondi di blocco residui per l'utente (0 se non bloccato)."""
+    rec = _login_attempts.get(username)
+    if not rec:
+        return 0
+    remaining = rec.get("locked_until", 0) - _time.time()
+    return int(remaining) + 1 if remaining > 0 else 0
+
+def _register_login_fail(username: str) -> None:
+    rec = _login_attempts.setdefault(username, {"fails": 0, "locked_until": 0.0})
+    rec["fails"] += 1
+    if rec["fails"] >= LOCKOUT_CFG["max_tentativi"]:
+        over = rec["fails"] - LOCKOUT_CFG["max_tentativi"]  # 0 al primo blocco
+        durata = min(LOCKOUT_CFG["blocco_base_sec"] * (2 ** over),
+                     LOCKOUT_CFG["blocco_max_sec"])
+        rec["locked_until"] = _time.time() + durata
+
+def _register_login_success(username: str) -> None:
+    _login_attempts.pop(username, None)
+
+# Politica PIN: i ruoli che vedono soldi/PII devono avere un PIN piu' lungo.
+STRONG_PIN_ROLES = {"superadmin", "admin", "contabile"}
+MIN_PIN_STRONG = 6
+
+def _validate_pin_policy(password: str, role: str) -> None:
+    if role in STRONG_PIN_ROLES and len(password or "") < MIN_PIN_STRONG:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"I ruoli amministrativi (admin/contabile) richiedono un PIN "
+                    f"di almeno {MIN_PIN_STRONG} cifre."),
+        )
+
 # ---------------------------------------------------------------------------
 # OAuth2 schema (BEARER TOKEN)
 # ---------------------------------------------------------------------------
@@ -92,13 +161,28 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 # LOGIN
 # ---------------------------------------------------------------------------
 def authenticate_user(username: str, password: str):
+    # A1-04: blocco brute-force per-utente (in memoria, per-processo).
+    remaining = _lockout_remaining(username)
+    if remaining > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Troppi tentativi falliti. Riprova tra {remaining} secondi.",
+            headers={"Retry-After": str(remaining)},
+        )
+
     user = USERS.get(username)
 
     if not user or not security.verify_password(password, user["password_hash"]):
+        # Traccio i fallimenti solo per utenti reali: gli username sono gia'
+        # pubblici via /auth/tiles, quindi nessun leak, ma il dict resta limitato.
+        if user:
+            _register_login_fail(username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenziali non valide",
         )
+
+    _register_login_success(username)
 
     from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
     access_token = security.create_access_token(
@@ -221,6 +305,7 @@ def add_user(username: str, password: str, role: str) -> dict:
         raise HTTPException(status_code=400, detail=f"Utente '{username}' già esistente")
     if role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Ruolo non valido. Validi: {VALID_ROLES}")
+    _validate_pin_policy(password, role)  # A1-04: PIN >= 6 per admin/contabile
     hashed = security.get_password_hash(password)
     USERS[username] = {"password_hash": hashed, "role": role}
     _save_users(USERS)
@@ -243,6 +328,7 @@ def change_password(username: str, new_password: str, current_password: str = No
     if current_password is not None:
         if not security.verify_password(current_password, USERS[username]["password_hash"]):
             raise HTTPException(status_code=400, detail="Password attuale non corretta")
+    _validate_pin_policy(new_password, USERS[username]["role"])  # A1-04
     USERS[username]["password_hash"] = security.get_password_hash(new_password)
     _save_users(USERS)
 

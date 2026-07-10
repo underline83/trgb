@@ -31,7 +31,7 @@ export default function CambioPIN() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    fetch(`${API}/auth/users`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/auth/users/`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : [])
       .then(setUsers)
       .catch(() => {});

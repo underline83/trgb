@@ -324,6 +324,13 @@ for db in $DBS; do
   fi
 done
 
+# A2-07 (audit 2026-06-12): rimuovi WAL/SHM/.fuse_hidden orfani locali dopo il
+# download. I .backup sqlite3 scaricati sono file singoli puliti; eventuali
+# -wal/-shm residui sono di client SQLite locali (Mac) e possono disallineare.
+rm -f "$DB_LOCAL"/*.sqlite3-wal "$DB_LOCAL"/*.sqlite3-shm \
+      "$DB_LOCAL"/*.db-wal "$DB_LOCAL"/*.db-shm \
+      "$DB_LOCAL"/.fuse_hidden* 2>/dev/null || true
+
 if [ "$DB_REGRESSED" -gt 0 ]; then
   fail "${DB_REGRESSED} DB regrediti drasticamente sul VPS — possibile corruzione in atto"
   echo -en "  ${BOLD}Continuare il push lo stesso? [y/N]${NC} "

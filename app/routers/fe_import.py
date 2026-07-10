@@ -120,6 +120,12 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # A7-02/A2-03: indice sulla colonna di join più usata (elenco fatture, CE,
+    # matching ricette). Idempotente; copre anche le installazioni nuove.
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_fe_righe_fattura ON fe_righe(fattura_id)"
+    )
+
     conn.commit()
 
 

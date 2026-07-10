@@ -201,6 +201,23 @@ print(f"📦 APP_VERSION: {APP_VERSION}")
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
 
+# A2-13 (audit 2026-06-12): vini.sqlite3 è l'unico DB non in WAL — legacy in
+# scrittura (import v2 l'ha sostituito) ma ancora LETTO da dashboard e alert
+# sottoscorta. Allineiamo i PRAGMA una tantum al boot. Best-effort: qualsiasi
+# errore qui NON deve impedire l'avvio del backend.
+try:
+    import sqlite3 as _sqlite_wal
+    from app.utils.locale_data import locale_data_path as _ldp_wal
+    _vini_db = _ldp_wal("vini.sqlite3")
+    if _vini_db.exists():
+        _cw = _sqlite_wal.connect(str(_vini_db))
+        _cw.execute("PRAGMA journal_mode=WAL")
+        _cw.execute("PRAGMA busy_timeout=5000")
+        _cw.close()
+        print("🍷 vini.sqlite3: journal_mode=WAL garantito")
+except Exception as _e_wal:
+    print(f"⚠️  vini.sqlite3 WAL non impostato (non bloccante): {_e_wal}")
+
 
 # ----------------------------------------
 # APP

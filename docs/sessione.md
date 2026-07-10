@@ -1,6 +1,33 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-10 (sera) — **Audit: ripresa piano 12/06, chiusi i 2 CRIT residui (A9-01+A9-02, pushati `054d1460`) + /docs dietro login + header sicurezza (VPS)**. Docs audit da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-10 (sera, 2a parte) — **Audit Sessioni 2+3: lockout login + PIN 6 cifre + indice fe_righe + WAL vini** (`[core]`, sistema 5.33). Da pushare. Dettagli sotto.
+
+## SESSIONE 2026-07-10 (sera, 2a parte) — Audit Sessioni 2 "Login robusto" + 3 "Igiene DB"
+
+### Decisioni Marco (AskUserQuestion)
+- PIN: **6 cifre per admin/contabile** (non per tutti).
+- Lockout: **soglie in settings con default sensati, UI dopo** (rispetta la regola no-soglie-hardcoded).
+- Sessione 3: **prima solo indice + WAL (rischio zero)**; la bonifica delle 1.362 FK orfane (tocca dati di produzione) in una finestra dedicata con backup/conteggi.
+
+### Cosa è stato fatto
+- **A1-04 lockout**: `auth_service.py` — contatore per-utente in memoria, backoff 5→(30s×2^n cap 900s), 429+Retry-After, reset su successo, soglie in `auth_settings.json`. Testato in isolamento.
+- **A1-04 PIN policy**: validazione backend su add_user/change_password per {superadmin, admin, contabile} ≥6 cifre.
+- **A7-02/A2-03 indice fe_righe**: migrazione 147 (guardata) + self-heal in `fe_import._ensure_tables`.
+- **A2-13 WAL vini.sqlite3**: one-shot difensivo al boot in `main.py` (try/except). vini.sqlite3 è legacy-write ma ancora letto (dashboard widget + alert sottoscorta).
+- **A2-07**: push.sh rimuove wal/shm/.fuse_hidden orfani dopo il download DB.
+- **A4-03**: slash su `/auth/users/` in CambioPIN.
+- **A6-07** (complementare, VPS): conf nginx con `location = /auth/login` + `limit_req` pronta in `claude/nginx/`, runbook §6.0/6.1 aggiornato. Da applicare a parte (serve la zona `trgb_login` in nginx.conf).
+- Bump: `VERSION` 5.33, versions.jsx sistema 5.33 + auth 2.2.
+
+### Note tecniche / decisioni non ovvie
+- **048 NON flaggata** (già dalla parte 1): idem qui, la migrazione 147 è guardata su `sqlite_master` perché fe_righe nasce dal self-heal, non da una migrazione → su fresh install l'indice arriva dal self-heal (evita il pattern drift A2-01).
+- Lockout tracciato **solo per utenti reali** (username già pubblici via /auth/tiles) → nessun leak di enumerazione e dict limitato a ~10 voci.
+- WAL fatto come one-shot al boot e non a ogni connect (evita overhead sull'hot-path dashboard). `try/except` totale: non può impedire l'avvio.
+
+### Stato audit dopo oggi
+0 CRIT. Sessione 1 al 100%. **Sessione 2 sostanzialmente chiusa** (resta solo l'applicazione live di A6-07, opzionale, + eventuale valutazione A1-11 token 8h). **Sessione 3 parte sicura fatta** (indice+WAL+cleanup); resta la bonifica FK (A2-02/A2-04) in finestra dedicata. Prossimo: bonifica FK guardata, oppure Sessione 4 "Module gating".
+
+---
 
 ## SESSIONE 2026-07-10 (sera) — Audit: ricognizione delta + chiusura Sessione 1 al 100%
 

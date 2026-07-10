@@ -17,6 +17,13 @@
 - **A9-02** → `app/core/config.py` fail-loud: in produzione (`TRGB_ENV=production` o path `/home/marco/trgb`) se `SECRET_KEY` non è nell'ambiente il backend **non parte** invece di firmare JWT con la chiave default pubblica. Runbook §5.1 aggiornato. Testato (dev boota / prod-senza-chiave solleva / prod-con-chiave boota). Push 10/07: backend UP post-deploy, nessun errore SECRET_KEY (tregobbi ha `.env`).
 - **➜ 0 CRIT rimasti.** Con A6-06/A6-09 chiusi in serata: **Sessione 1 completata al 100% + 2 MED extra**. Prossimo passo consigliato: indice `fe_righe` (A7-02, 1 riga) e Sessione 3 "Igiene DB", oppure Sessione 2 "Login robusto" (A1-04+A6-07).
 
+### 🔧 Sessioni 2+3 avviate (2026-07-10 sera, da pushare — sistema 5.33)
+- **A1-04** ✅ lockout brute-force login (backoff progressivo, soglie in `auth_settings.json`, 429) + PIN ≥6 per admin/contabile. `auth_service.py`.
+- **A7-02/A2-03** ✅ indice `fe_righe(fattura_id)` (mig 147 + self-heal fe_import).
+- **A2-13** ✅ WAL su vini.sqlite3 (one-shot al boot). **A2-07** ✅ cleanup wal/shm in push.sh. **A4-03** ✅ slash CambioPIN.
+- **A6-07** 🟡 conf pronta (`claude/nginx/`) + runbook; da applicare sul VPS (zona `trgb_login` in nginx.conf + reload).
+- Sessione 3 **bonifica FK rinviata** (A2-02/A2-04, 1.362 orfani, tocca dati prod) → finestra dedicata con backup/conteggi (decisione Marco).
+
 ## ✅ AUDIT COMPLETATO — 2026-06-12
 
 - Commit di riferimento: `1f5f9c17` · VERSION 5.24 (VPS allineato, verificato live)

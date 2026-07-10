@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-07-10 (sera) — Audit Sessioni 2+3: lockout login, PIN 6 cifre, indice fe_righe, WAL vini `[core]`
+
+Ripresa del piano audit — Sessione 2 "Login robusto" + Sessione 3 "Igiene DB" (parte a rischio zero). Sistema 5.32→5.33, auth 2.1→2.2.
+
+### Aggiunto
+- **Lockout brute-force login (A1-04)**: contatore tentativi per-utente in memoria con backoff progressivo (default: 5 tentativi liberi, poi 30s che raddoppiano fino a 15 min). Soglie configurabili in `locali/<locale>/data/auth_settings.json` (create con default al primo avvio); UI in Impostazioni prevista dopo. Login bloccato → HTTP 429 con `Retry-After`. Reset al primo login riuscito. Tracciato solo per utenti reali (le tile sono già pubbliche → nessun leak, dict limitato).
+- **PIN minimo 6 cifre per admin/contabile (A1-04, §3.9)**: validazione backend su `add_user`/`change_password` per i ruoli `superadmin/admin/contabile`. Gli altri ruoli restano 4-6.
+- **Indice `fe_righe(fattura_id)` (A7-02/A2-03)**: migrazione 147 (idempotente, additiva) + creazione anche nel self-heal di `fe_import._ensure_tables` (copre installazioni nuove). Elenco fatture / conto economico / matching ricette non fanno più full-scan di 11.392 righe.
+
+### Corretto / Igiene
+- **WAL su vini.sqlite3 (A2-13)**: one-shot difensivo al boot (`main.py`, try/except non bloccante) — allinea l'unico DB rimasto in rollback mode; è legacy in scrittura ma ancora letto da dashboard/alert.
+- **push.sh cleanup (A2-07)**: dopo il download DB rimuove i `*-wal/-shm/.fuse_hidden` orfani locali che potevano disallineare i file scaricati.
+- **A4-03**: `CambioPIN.jsx` chiamava `/auth/users` senza slash finale (307 con rischio perdita header) → aggiunto slash.
+
+### Infra (VPS, complementare — da applicare a parte)
+- **A6-07**: rate-limit nginx su `/auth/login` (5r/m per IP, complementa il lockout applicativo). Conf pronta in `claude/nginx/` + runbook §6.0/6.1 aggiornato per i clienti nuovi.
+
+### Verifica
+- Logica lockout testata in isolamento (progressione 30→60→120…→900s cap, reset su successo). `py_compile` OK su tutti i file Python, `bash -n push.sh` OK, `@babel/parser` OK su CambioPIN.jsx. Migrazione 147 guardata su esistenza tabella (fresh install → indice dal self-heal).
+
+### File modificati
+`app/migrations/147_fe_righe_index.py` (nuovo), `app/routers/fe_import.py`, `app/services/auth_service.py`, `main.py`, `push.sh`, `frontend/src/pages/CambioPIN.jsx`, `frontend/src/config/versions.jsx`, `VERSION`, `docs/installazione_nuovo_server.md`, `docs/audit-2026-06-12/AUDIT_STATE.md`.
+
+---
+
 ## 2026-07-10 — Audit: ripresa piano 2026-06-12 — chiusi i 2 CRIT residui + /docs protetto + header sicurezza `[core]`
 
 Ricognizione delta sull'audit del 12/06 (fermo da 28 giorni): dei 110 finding risultavano chiusi solo 4. Report in `docs/audit-2026-06-12/11_DELTA_2026-07-10.md`. Nella stessa giornata chiusi i residui della Sessione 1.
