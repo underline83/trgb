@@ -1,4 +1,6 @@
-// @version: v1.3-mattoni — M.I primitives (Btn) su Stampa + Apri settimana
+// @version: v1.4-vista-mese — nuova opzione "Mese intero": mese di calendario
+//   esatto (select Mese+Anno, frecce ±1 mese), coperto dalle settimane ISO che
+//   lo intersecano (4–6). Backend invariato (/turni/dipendente).
 // Vista Per Dipendente Turni v2 — TRGB Gestionale
 //
 // Timeline di un singolo dipendente su N settimane (default 4) per rispondere
@@ -6,7 +8,7 @@
 //
 // - Tab reparti + select dipendente (filtrato sul reparto, con nome+cognome)
 // - Navigatore settimana inizio (← Oggi →)
-// - Select "Settimane": 4 / 8 / 12
+// - Select "Settimane": 4 / 8 / 12 / Mese intero
 // - Per ogni settimana: Lun..Dom con blocchi turno colorati, ore lorde/nette,
 //   semaforo CCNL, giorni lavorati/riposi, badge chiusura/opzionale
 // - Totali periodo in alto (ore, giorni, riposi, chiusure, opzionali)
@@ -26,6 +28,10 @@ function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
 const MESI_ABBR = [
   "gen", "feb", "mar", "apr", "mag", "giu",
   "lug", "ago", "set", "ott", "nov", "dic",
+];
+const MESI_LUN = [
+  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
 const GIORNI_SETT_SHORT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const GIORNI_SETT_FULL = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
@@ -91,6 +97,30 @@ function oggiIso() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// ---- Vista MESE (sess. corrente) -------------------------------------------
+// Il backend ragiona a settimane ISO: per mostrare un mese di calendario
+// esatto si parte dalla settimana ISO che contiene il giorno 1 e si coprono
+// tutte le settimane che intersecano il mese (4–6).
+function shiftMese({ anno, mese }, delta) {
+  const idx = (anno * 12 + (mese - 1)) + delta;
+  return { anno: Math.floor(idx / 12), mese: (idx % 12) + 1 };
+}
+
+// Settimana ISO che contiene il 1° del mese
+function isoWeekPrimoDelMese(anno, mese) {
+  return isoWeek(new Date(anno, mese - 1, 1));
+}
+
+// Numero di settimane ISO (Lun..Dom) che intersecano il mese: 4, 5 o 6
+function numSettimaneDelMese(anno, mese) {
+  const primo = new Date(anno, mese - 1, 1);
+  const dow = (primo.getDay() + 6) % 7;           // 0 = lunedì
+  const lunedi = new Date(anno, mese - 1, 1 - dow); // lunedì della settimana del 1°
+  const ultimo = new Date(anno, mese, 0);           // ultimo giorno del mese
+  const diffGiorni = Math.round((ultimo - lunedi) / 86400000);
+  return Math.floor(diffGiorni / 7) + 1;
+}
+
 function textOn(hex) {
   if (!hex) return "#111";
   const h = hex.replace("#", "");
@@ -139,6 +169,29 @@ export default function PerDipendente() {
     const last = Number(localStorage.getItem("turni_perdip_n"));
     return last && [4, 8, 12].includes(last) ? last : 4;
   });
+
+  // Modo periodo: "settimane" (4/8/12 da settimanaInizio) oppure "mese"
+  // (mese di calendario esatto, coperto dalle settimane ISO che lo intersecano)
+  const [modo, setModo] = useState(() =>
+    localStorage.getItem("turni_perdip_modo") === "mese" ? "mese" : "settimane",
+  );
+  const [meseSel, setMeseSel] = useState(() => {
+    const last = localStorage.getItem("turni_perdip_mese"); // "YYYY-MM"
+    if (last && /^\d{4}-\d{2}$/.test(last)) {
+      const [a, m] = last.split("-").map(Number);
+      return { anno: a, mese: m };
+    }
+    const d = new Date();
+    return { anno: d.getFullYear(), mese: d.getMonth() + 1 };
+  });
+
+  // Parametri effettivi per l'API, derivati dal modo corrente
+  const settimanaEff = modo === "mese"
+    ? isoWeekPrimoDelMese(meseSel.anno, meseSel.mese)
+    : settimanaInizio;
+  const numSettimaneEff = modo === "mese"
+    ? numSettimaneDelMese(meseSel.anno, meseSel.mese)
+    : numSettimane;
 
   const [vista, setVista] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -206,6 +259,12 @@ export default function PerDipendente() {
   useEffect(() => {
     localStorage.setItem("turni_perdip_n", String(numSettimane));
   }, [numSettimane]);
+  useEffect(() => {
+    localStorage.setItem("turni_perdip_modo", modo);
+  }, [modo]);
+  useEffect(() => {
+    localStorage.setItem("turni_perdip_mese", `${meseSel.anno}-${pad(meseSel.mese)}`);
+  }, [meseSel]);
 
   // --- LOAD VISTA ---
   const caricaVista = useCallback(async () => {
@@ -213,8 +272,8 @@ export default function PerDipendente() {
     setLoading(true); setError(null);
     try {
       const url = `${API_BASE}/turni/dipendente?dipendente_id=${dipendenteId}`
-        + `&settimana_inizio=${encodeURIComponent(settimanaInizio)}`
-        + `&num_settimane=${numSettimane}`;
+        + `&settimana_inizio=${encodeURIComponent(settimanaEff)}`
+        + `&num_settimane=${numSettimaneEff}`;
       const res = await apiFetch(url);
       if (!res.ok) throw new Error(`GET /turni/dipendente ${res.status}`);
       setVista(await res.json());
@@ -224,7 +283,7 @@ export default function PerDipendente() {
     } finally {
       setLoading(false);
     }
-  }, [dipendenteId, settimanaInizio, numSettimane]);
+  }, [dipendenteId, settimanaEff, numSettimaneEff]);
 
   useEffect(() => { caricaVista(); }, [caricaVista]);
 
@@ -235,11 +294,21 @@ export default function PerDipendente() {
 
   // ---- NAVIGAZIONE --------------------------------------------------------
   function vaiOggi() {
-    setSettimanaInizio(isoWeek(new Date()));
+    if (modo === "mese") {
+      const d = new Date();
+      setMeseSel({ anno: d.getFullYear(), mese: d.getMonth() + 1 });
+    } else {
+      setSettimanaInizio(isoWeek(new Date()));
+    }
   }
 
-  function shiftSettimane(delta) {
-    setSettimanaInizio(s => shiftIsoWeek(s, delta));
+  // Frecce ◀▶: in modo settimane spostano di ±N settimane, in modo mese di ±1 mese
+  function shiftPeriodo(direzione) {
+    if (modo === "mese") {
+      setMeseSel(m => shiftMese(m, direzione));
+    } else {
+      setSettimanaInizio(s => shiftIsoWeek(s, direzione * numSettimane));
+    }
   }
 
   function apriSettimanaInFoglio(isoSett) {
@@ -264,26 +333,51 @@ export default function PerDipendente() {
             </div>
             <div className="text-sm text-neutral-700">
               {reparto ? `${reparto.icona || ""} ${reparto.nome} · ` : ""}
-              {labelWeekRange(settimanaInizio)} · {numSettimane} settimane
+              {modo === "mese"
+                ? `${MESI_LUN[meseSel.mese - 1]} ${meseSel.anno} (mese intero)`
+                : `${labelWeekRange(settimanaInizio)} · ${numSettimane} settimane`}
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap print:hidden">
-            {/* LEFT: navigazione periodo */}
+            {/* LEFT: navigazione periodo (settimane o mese vero, a seconda del modo) */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => shiftSettimane(-numSettimane)}
+              <button onClick={() => shiftPeriodo(-1)}
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                title="Periodo precedente">◀</button>
-              <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2">
-                <span className="text-neutral-900">{labelWeekRange(settimanaInizio)}</span>
-                <span className="text-neutral-400 font-mono text-xs">· {numSettimane}w</span>
-              </div>
-              <button onClick={() => shiftSettimane(numSettimane)}
+                title={modo === "mese" ? "Mese precedente" : "Periodo precedente"}>◀</button>
+              {modo === "mese" ? (
+                <div className="min-h-[44px] px-2 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-1">
+                  <select
+                    value={meseSel.mese}
+                    onChange={e => setMeseSel(m => ({ ...m, mese: Number(e.target.value) }))}
+                    className="min-h-[36px] bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
+                    title="Seleziona mese">
+                    {MESI_LUN.map((nome, i) => (
+                      <option key={nome} value={i + 1}>{nome}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={meseSel.anno}
+                    onChange={e => setMeseSel(m => ({ ...m, anno: Number(e.target.value) }))}
+                    className="min-h-[36px] bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
+                    title="Seleziona anno">
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(a => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2">
+                  <span className="text-neutral-900">{labelWeekRange(settimanaInizio)}</span>
+                  <span className="text-neutral-400 font-mono text-xs">· {numSettimane}w</span>
+                </div>
+              )}
+              <button onClick={() => shiftPeriodo(1)}
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                title="Periodo successivo">▶</button>
+                title={modo === "mese" ? "Mese successivo" : "Periodo successivo"}>▶</button>
               <button onClick={vaiOggi}
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm text-neutral-700"
-                title="Vai a oggi">Oggi</button>
+                title={modo === "mese" ? "Vai al mese corrente" : "Vai a oggi"}>Oggi</button>
             </div>
 
             {/* CENTER: segmented control viste */}
@@ -312,13 +406,22 @@ export default function PerDipendente() {
             {/* RIGHT: selettore numero settimane + stampa */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <select
-                value={numSettimane}
-                onChange={e => setNumSettimane(Number(e.target.value))}
+                value={modo === "mese" ? "mese" : numSettimane}
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === "mese") {
+                    setModo("mese");
+                  } else {
+                    setModo("settimane");
+                    setNumSettimane(Number(v));
+                  }
+                }}
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50"
-                title="Numero settimane visualizzate">
+                title="Periodo visualizzato">
                 <option value={4}>4 settimane</option>
                 <option value={8}>8 settimane</option>
                 <option value={12}>12 settimane</option>
+                <option value="mese">Mese intero</option>
               </select>
               <Btn variant="secondary" size="md" onClick={() => window.print()}
                 disabled={!vista}

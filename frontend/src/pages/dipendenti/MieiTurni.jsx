@@ -1,4 +1,6 @@
-// @version: v1.3-minimale — variante 3: pill Pranzo/Cena con etichetta + orario, no totali, no semaforo, no ore lorde/nette
+// @version: v1.4-mese-vero — i bottoni ⏪/⏩ mese saltano al mese di calendario
+//   reale (settimana ISO del 1° + settimane che coprono il mese), non più ±4 sett.
+//   (prima: v1.3-minimale — pill Pranzo/Cena, no totali, no semaforo)
 // Pagina "I miei turni" — TRGB Gestionale
 //
 // Vista self-service accessibile a TUTTI i ruoli autenticati:
@@ -76,6 +78,29 @@ function oggiIso() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// ---- Navigazione a mese VERO (fix: prima ⏪/⏩ spostavano di ±4 settimane) ---
+// Lunedì (UTC) della settimana ISO
+function lunediDiIso(iso) {
+  const m = /^(\d{4})-W(\d{2})$/.exec(iso);
+  if (!m) return new Date();
+  const y = Number(m[1]); const w = Number(m[2]);
+  const jan4 = new Date(Date.UTC(y, 0, 4));
+  const jan4day = jan4.getUTCDay() || 7;
+  const mon = new Date(jan4);
+  mon.setUTCDate(jan4.getUTCDate() - (jan4day - 1) + (w - 1) * 7);
+  return mon;
+}
+
+// Numero di settimane ISO (Lun..Dom) che intersecano il mese: 4, 5 o 6
+function numSettimaneDelMese(anno, mese) {
+  const primo = new Date(anno, mese - 1, 1);
+  const dow = (primo.getDay() + 6) % 7;             // 0 = lunedì
+  const lunedi = new Date(anno, mese - 1, 1 - dow); // lunedì della settimana del 1°
+  const ultimo = new Date(anno, mese, 0);           // ultimo giorno del mese
+  const diffGiorni = Math.round((ultimo - lunedi) / 86400000);
+  return Math.floor(diffGiorni / 7) + 1;
+}
+
 // Variante 3: i blocchi turno usano palette PER SERVIZIO (pranzo=amber / cena=indigo),
 // non piu' il colore del dipendente. Il tema resta in linea con Tailwind brand.
 const SERVIZIO_STYLE = {
@@ -113,7 +138,8 @@ export default function MieiTurni() {
   });
   const [numSettimane, setNumSettimane] = useState(() => {
     const last = Number(localStorage.getItem("turni_mieituri_n"));
-    return last && [4, 8, 12].includes(last) ? last : 4;
+    // 1..12 (la nav mese può impostare 5 o 6 settimane per coprire il mese intero)
+    return last && Number.isInteger(last) && last >= 1 && last <= 12 ? last : 4;
   });
 
   const [vista, setVista] = useState(null);
@@ -180,6 +206,18 @@ export default function MieiTurni() {
     setSettimanaInizio(s => shiftIsoWeek(s, delta));
   }
 
+  // Salta al mese di calendario precedente/successivo: settimana ISO del 1°
+  // del mese + num settimane che coprono l'intero mese (4–6).
+  // Mese di riferimento = quello del giovedì della settimana corrente (regola ISO).
+  function vaiMese(delta) {
+    const mon = lunediDiIso(settimanaInizio);
+    const gio = new Date(mon);
+    gio.setUTCDate(mon.getUTCDate() + 3);
+    const target = new Date(gio.getUTCFullYear(), gio.getUTCMonth() + delta, 1);
+    setSettimanaInizio(isoWeek(target));
+    setNumSettimane(numSettimaneDelMese(target.getFullYear(), target.getMonth() + 1));
+  }
+
   function apriInFoglio(isoSett) {
     // Solo admin/superadmin — il click naviga al Foglio Settimana completo
     localStorage.setItem("turni_last_settimana", isoSett);
@@ -217,9 +255,9 @@ export default function MieiTurni() {
           <div className="flex items-center gap-2 flex-wrap print:hidden">
             {/* LEFT: navigazione periodo — doppio scorrimento mese + settimana */}
             <div className="flex items-center gap-1 flex-shrink-0 bg-white border border-neutral-300 rounded-lg p-1">
-              <button onClick={() => shiftSettimane(-4)}
+              <button onClick={() => vaiMese(-1)}
                 className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
-                title="Mese precedente (-4 settimane)">⏪ mese</button>
+                title="Mese di calendario precedente">⏪ mese</button>
               <button onClick={() => shiftSettimane(-1)}
                 className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
                 title="Settimana precedente">◀ sett</button>
@@ -229,9 +267,9 @@ export default function MieiTurni() {
               <button onClick={() => shiftSettimane(1)}
                 className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
                 title="Settimana successiva">sett ▶</button>
-              <button onClick={() => shiftSettimane(4)}
+              <button onClick={() => vaiMese(1)}
                 className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
-                title="Mese successivo (+4 settimane)">mese ⏩</button>
+                title="Mese di calendario successivo">mese ⏩</button>
             </div>
 
             <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2 flex-shrink-0">

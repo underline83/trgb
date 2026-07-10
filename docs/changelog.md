@@ -3,6 +3,24 @@
 
 ---
 
+## 2026-07-10 — Turni: vista "Mese intero" in Per dipendente + fix nav mese in Miei turni `[core]`
+
+Segnalazione Marco: nella vista Per dipendente non si riusciva a selezionare il mese effettivo (solo 4/8/12 settimane, frecce ±N settimane che derapano dai mesi di calendario).
+
+### Aggiunto
+- **PerDipendente.jsx v1.4-vista-mese**: quarta opzione "Mese intero" nel select periodo. In modo mese: select Mese+Anno (anno corrente ±2), frecce ◀▶ = ±1 mese vero, "Oggi" = mese corrente. Il FE calcola `settimana_inizio` (settimana ISO del 1° del mese) e `num_settimane` (settimane ISO che intersecano il mese, 4–6) — backend `/turni/dipendente` invariato. Persistenza: `turni_perdip_modo`, `turni_perdip_mese`.
+
+### Corretto
+- **MieiTurni.jsx v1.4-mese-vero**: i bottoni "⏪ mese / mese ⏩" spostavano di ±4 settimane (etichetta ingannevole); ora saltano al mese di calendario precedente/successivo coprendo il mese intero. Validazione `turni_mieituri_n` allargata a 1..12.
+
+### Verifica
+- Copertura mese testata programmaticamente su tutti i 48 mesi 2024–2027 (0 fail), incl. cavallo d'anno (Gen 2027 → 2026-W53) e Feb 2027 che inizia di lunedì (4 settimane esatte). @babel/parser OK su entrambi i file.
+
+### File modificati
+`frontend/src/pages/dipendenti/{PerDipendente.jsx, MieiTurni.jsx}`, `frontend/src/config/versions.jsx`, `docs/{modulo_dipendenti_turni.md, changelog.md, sessione.md}`.
+
+---
+
 ## 2026-07-02 — Statistiche 1.2.1: fix semantica cumulativa shift_closures + fallback pre-cutover in Coperti `[core]`
 
 Due bug segnalati da Marco subito dopo il push di 1.2.

@@ -1,8 +1,36 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-02 (sera) — **Statistiche 1.2: modulo potenziato** (`[core]`). 4 feature nuove decise con Marco (le ha volute tutte): tab **Storico** (YoY 2021→oggi + giorno settimana), **"Cosa consuma un coperto"** in Coperti & Incassi (€/coperto per categoria iPratico), **movimenti prodotti** in Dashboard (crescita/calo vs mese precedente), **trend per prodotto** cliccabile in Prodotti. Endpoint 8-11 in `statistiche_router.py`; lettura cross-modulo `admin_finance.sqlite3` in mode=ro con cucitura daily_closures/shift_closures a cutover dinamico (K.12-proof). Fix label "Cucina"→"Dashboard" in modules.json/modulesMenu. Testato su DB reale post-push (iPratico gen-giu 2026 completi). Da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-10 — **Turni: vista "Mese intero" in Per dipendente + fix nav mese in Miei turni** (`[core]`). Da pushare. Dettagli sotto.
+
+## SESSIONE 2026-07-10 — Turni: vista Mese intero (Per dipendente) + fix ⏪/⏩ mese (Miei turni)
+
+### Contesto
+Marco: "nella vista mensile per dipendente non riesco a selezionare il mese effettivo". Causa: la vista Per dipendente ragiona solo a settimane ISO (4/8/12 da `settimana_inizio`), frecce ±N settimane → impossibile inquadrare un mese di calendario esatto. Stesso difetto latente in Miei turni, dove "⏪ mese / mese ⏩" spostavano in realtà di ±4 settimane.
+
+### Cosa è stato fatto
+- **PerDipendente.jsx v1.4-vista-mese**: opzione "Mese intero" nel select periodo (accanto a 4/8/12 settimane), scelta confermata da Marco. Select Mese+Anno, frecce ±1 mese, "Oggi"=mese corrente. Backend invariato: FE calcola settimana ISO del 1° + num settimane che coprono il mese (4–6). localStorage: `turni_perdip_modo`, `turni_perdip_mese`.
+- **MieiTurni.jsx v1.4-mese-vero**: `vaiMese(±1)` salta al mese di calendario vero (riferimento = giovedì della settimana corrente, regola ISO); validazione `turni_mieituri_n` 1..12.
+- Bump `versions.jsx` dipendenti 2.28→2.29; doc aggiornato in `modulo_dipendenti_turni.md` (Fase 6, addendum 2026-07-10) + changelog.
+
+### Verifica
+- Script node: per tutti i 48 mesi 2024–2027 il range [lunedì settimana del 1°, +N*7-1] contiene l'intero mese, N sempre 4–6. Edge OK: Gen 2027 parte da 2026-W53, Feb 2027 (inizia lunedì) = 4 settimane esatte.
+- @babel/parser OK su entrambi i JSX.
+
+### Note
+- La vista Mese mostra settimane intere: le code di mese adiacente (es. 29-30 giu in "Luglio 2026") restano visibili. Se danno fastidio, attenuarle (opacity) in una prossima sessione.
+
+---
+
+**Sessione precedente (2026-07-02, sera):** Statistiche 1.2 — 4 feature nuove decise con Marco (le ha volute tutte): tab **Storico** (YoY 2021→oggi + giorno settimana), **"Cosa consuma un coperto"** in Coperti & Incassi (€/coperto per categoria iPratico), **movimenti prodotti** in Dashboard (crescita/calo vs mese precedente), **trend per prodotto** cliccabile in Prodotti. Endpoint 8-11 in `statistiche_router.py`; lettura cross-modulo `admin_finance.sqlite3` in mode=ro con cucitura daily_closures/shift_closures a cutover dinamico (K.12-proof). Fix label "Cucina"→"Dashboard" in modules.json/modulesMenu. Testato su DB reale post-push (iPratico gen-giu 2026 completi).
 
 ## SESSIONE 2026-07-02 (sera) — Statistiche 1.2: Storico YoY, weekday, spesa per coperto, movimenti
+
+### Post-push: fix 1.2.1 (stessa sessione)
+Marco dopo il push di 1.2: (a) Coperti & Incassi muta su gen/feb, (b) Storico marzo "il doppio", apr/mag non quadrano.
+- **(a)** Le chiusure turno partono dal 1/3/2026 → aggiunto endpoint 12 `/statistiche/storico/giorni` + fallback nella pagina Coperti (incassi dal registro corrispettivi, banner, niente coperti).
+- **(b) SCOPERTA IMPORTANTE — semantica cumulativa `shift_closures`:** la riga CENA contiene la **Z di giornata** (chiusura RT cumulativa, pranzo incluso); la riga PRANZO è il parziale. Prova: overlap 1-10 marzo `cena.preconto+fatture == daily.corrispettivi_tot` 8/8; 0 violazioni cena<pranzo su 102 giorni; col fix marzo=71.574 vs iPratico 71.506, giugno 49.370 vs 49.368. La v1.2 sommava i due turni (+preconti) → marzo 104k invece di 71.6k. Fix in `_storico_daily_rows` (aggregazione Python per giorno) + `spesa_per_coperto` riusa il helper. Scontrino medio giugno corretto: 50,12€ (prima 68€ gonfiato).
+- **Nota aperta per Marco:** `/admin/finance/shift-closures/stats/daily` (modulo cassa) ha la stessa doppia conta nei `fatt_*` e nei pagamenti (POS/contanti cena = cumulativi di giornata) → media coperto della pagina Coperti gonfiata nei mesi shift. Non toccato (fuori modulo statistiche), da decidere in contesto K.12.
+- Gap residuo apr/mag vs iPratico (-11k/-6k) = venduto iPratico ≠ incasso fiscale RT (gruppi/banchetti via bonifico senza scontrino). Metrica YoY scelta: RT+fatture, omogenea col 2021-2025.
 
 ### Contesto
 Marco: "modulo un po' abbandonato, ora abbiamo un po' di dati, rendiamolo più utile". Push di Marco a inizio sessione ha portato iPratico maggio+giugno 2026 (ora gen-giu completi, ~354k€). Proposte 4 direzioni, Marco le ha scelte tutte.
