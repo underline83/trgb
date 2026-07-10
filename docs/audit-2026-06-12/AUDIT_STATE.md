@@ -21,7 +21,7 @@
 - **A1-04** ✅ lockout brute-force login (backoff progressivo, soglie in `auth_settings.json`, 429) + PIN ≥6 per admin/contabile. `auth_service.py`.
 - **A7-02/A2-03** ✅ indice `fe_righe(fattura_id)` (mig 147 + self-heal fe_import).
 - **A2-13** ✅ WAL su vini.sqlite3 (one-shot al boot). **A2-07** ✅ cleanup wal/shm in push.sh. **A4-03** ✅ slash CambioPIN.
-- **A6-07** 🟡 conf pronta (`claude/nginx/`) + runbook; da applicare sul VPS (zona `trgb_login` in nginx.conf + reload).
+- **A6-07** ✅ APPLICATO LIVE 10/07: zona `trgb_login` (5r/m) in nginx.conf + `location = /auth/login` con `limit_req`. Verificato: raffica POST → 422×4 poi 503 (throttle).
 - Sessione 3 **bonifica FK rinviata** (A2-02/A2-04, 1.362 orfani, tocca dati prod) → finestra dedicata con backup/conteggi (decisione Marco).
 
 ## ✅ AUDIT COMPLETATO — 2026-06-12
