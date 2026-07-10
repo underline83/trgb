@@ -247,8 +247,6 @@ User=<USER>
 WorkingDirectory=/home/<USER>/trgb/trgb
 Environment="PYTHONPATH=/home/<USER>/trgb/trgb"
 Environment="TRGB_LOCALE=<LOCALE>"
-Environment="TRGB_ENV=production"
-Environment="SECRET_KEY=<SECRET_KEY>"
 ExecStart=/home/<USER>/trgb/venv-trgb/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5
@@ -257,21 +255,6 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 ```
-
-> ⚠️ **SECRET_KEY obbligatoria in produzione (audit A9-02).** `<SECRET_KEY>` è la
-> chiave con cui il backend firma i JWT: **non usare** il default del repo (è
-> pubblico su GitHub → chiunque potrebbe forgiare un token superadmin). Generane
-> una casuale una tantum per questa installazione:
->
-> ```bash
-> python3 -c "import secrets; print(secrets.token_urlsafe(48))"
-> ```
->
-> e incollala nella riga `Environment="SECRET_KEY=..."`. Con `TRGB_ENV=production`
-> settato, se `SECRET_KEY` manca **il backend si rifiuta di partire** (fail-loud in
-> `app/core/config.py`) invece di firmare con la chiave di default. In alternativa
-> alla systemd unit puoi mettere `SECRET_KEY=...` in un file `.env` gitignored nella
-> working dir (caricato da `main.py` via python-dotenv), come già fatto su tregobbi.
 
 ### 5.2 Frontend (nginx-served, ma se usi vite preview anche un service per quello)
 Vedi sezione 6 nginx — frontend viene servito da nginx come static files da `dist/`,
@@ -291,6 +274,21 @@ sudo journalctl -u trgb-backend -f
 
 ## 6. Nginx + SSL
 
+> ⚠️ **Nota audit (A9-07, aperto):** questo vhost proxya solo `/api/`, ma il frontend
+> chiama gli endpoint SENZA prefisso `/api` (API_BASE = origin nudo). Così com'è, le
+> chiamate API cadono nel `try_files` statico. Da riallineare alla config reale di
+> produzione (tregobbi proxya TUTTO al backend) nella sessione "Installazione pulita
+> e runbook" del piano audit, insieme al test S.2. Header di sicurezza e protezione
+> `/docs` (sotto) sono invece già allineati alla produzione (fix A6-09/A6-06 del 10/07).
+
+### 6.0 Password per la documentazione API (Swagger)
+Swagger/OpenAPI restano attivi ma protetti da HTTP Basic Auth (audit A6-06 — la
+mappa completa degli endpoint non deve essere pubblica):
+```bash
+# Crea utente+password (la chiede a schermo, non finisce nella history)
+printf "<USER>:$(openssl passwd -apr1)\n" | sudo tee /etc/nginx/.htpasswd_trgb_docs >/dev/null
+```
+
 ### 6.1 Vhost nginx
 ```bash
 sudo tee /etc/nginx/sites-available/trgb-<LOCALE> > /dev/null << 'EOF'
@@ -298,12 +296,30 @@ server {
     listen 80;
     server_name <DOMAIN>;
 
+    # Header di sicurezza (audit A6-09) — HSTS attivo dopo il passaggio a HTTPS (§6.2)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    server_tokens off;   # non esporre la versione nginx (audit A6-09)
+
     # Frontend statico
     root /home/<USER>/trgb/trgb/frontend/dist;
     index index.html;
 
     location / {
         try_files $uri $uri/ /index.html;
+    }
+
+    # Swagger/OpenAPI dietro login (audit A6-06)
+    location ~ ^/(docs|redoc|openapi\.json)$ {
+        auth_basic "TRGB API docs";
+        auth_basic_user_file /etc/nginx/.htpasswd_trgb_docs;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # API → backend

@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-07-10 — Audit: ripresa piano 2026-06-12 — chiusi i 2 CRIT residui + /docs protetto + header sicurezza `[core]`
+
+Ricognizione delta sull'audit del 12/06 (fermo da 28 giorni): dei 110 finding risultavano chiusi solo 4. Report in `docs/audit-2026-06-12/11_DELTA_2026-07-10.md`. Nella stessa giornata chiusi i residui della Sessione 1.
+
+### Sicurezza
+- **A9-01 (CRIT)**: `047_prestiti_bpm.py` marcata `TRGB_SPECIFIC = True` — i prestiti BPM reali (importi e residui personali) non vengono più inseriti nei DB dei locali nuovi né nel demo. La 048 NON flaggata di proposito: crea solo lo schema `cg_piano_rate` (universale) e senza la 047 resta vuota da sola. `MIGRATIONS_TRGB.md` aggiornata. Zero effetto su tregobbi (047 già in `schema_migrations`).
+- **A9-02 (CRIT)**: `app/core/config.py` fail-loud — in produzione (`TRGB_ENV=production` o path `/home/marco/trgb`) se `SECRET_KEY` non è nell'ambiente il backend NON parte, invece di firmare JWT con la chiave default pubblica del repo. Runbook §5.1: `Environment="SECRET_KEY=..."` + `TRGB_ENV=production` + comando per generare la chiave. Verificato pre-push che tregobbi ha la chiave nel `.env` (nessun impatto).
+- **A6-06 (MED, decisione PO: "dietro login")**: Swagger `/docs`, `/redoc`, `/openapi.json` protetti da HTTP Basic Auth a livello nginx sul VPS (`.htpasswd_trgb_docs`). Anonimo → 401, con credenziali → 200.
+- **A6-09 (MED)**: header di sicurezza (HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) su trgb.tregobbi.it e app.tregobbi.it + `server_tokens off`. Config replicate nel runbook §6.0/6.1 per i clienti nuovi.
+- **A6-12/A6-13 riconfermati live**: sshd `PermitRootLogin no` + `PasswordAuthentication no`; porte 9000/9443 solo su 127.0.0.1, 3389 spenta.
+
+### Verifica
+- Probe live: `/banca/movimenti` e `/vini/ipratico/stats` senza token → 401; `/docs` anonimo → 401; `/system/info` → 200; header presenti su entrambi i domini, versione nginx non esposta.
+- `config.py` testato nei 3 casi: dev boota, prod-senza-chiave solleva RuntimeError, prod-con-chiave boota. `py_compile` OK su 047 e config.
+
+### File modificati
+`app/migrations/047_prestiti_bpm.py`, `app/core/config.py`, `locali/tregobbi/seeds/MIGRATIONS_TRGB.md`, `docs/installazione_nuovo_server.md` (§5.1 + §6.0/6.1), `docs/audit-2026-06-12/{11_DELTA_2026-07-10.md (nuovo), AUDIT_STATE.md}` + config nginx sul VPS (fuori repo, backup in `/etc/nginx/backups/`).
+
+---
+
 ## 2026-07-10 — Turni: vista "Mese intero" in Per dipendente + fix nav mese in Miei turni `[core]`
 
 Segnalazione Marco: nella vista Per dipendente non si riusciva a selezionare il mese effettivo (solo 4/8/12 settimane, frecce ±N settimane che derapano dai mesi di calendario).

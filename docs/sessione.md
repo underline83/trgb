@@ -1,6 +1,29 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-10 — **Turni: vista "Mese intero" in Per dipendente + fix nav mese in Miei turni** (`[core]`). Da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-10 (sera) — **Audit: ripresa piano 12/06, chiusi i 2 CRIT residui (A9-01+A9-02, pushati `054d1460`) + /docs dietro login + header sicurezza (VPS)**. Docs audit da pushare. Dettagli sotto.
+
+## SESSIONE 2026-07-10 (sera) — Audit: ricognizione delta + chiusura Sessione 1 al 100%
+
+### Contesto
+Marco: l'audit profondo fatto con Fable 5 il 12/06 era rimasto fermo (Fable 5 disattivato). Ricognizione delta: dei 110 finding, chiusi solo 4; i 22 commit dal 13/06 erano tutti feature. Report completo in `docs/audit-2026-06-12/11_DELTA_2026-07-10.md`. Decisione Marco: "prima ricognizione delta", poi "parti" sui 2 CRIT residui.
+
+### Cosa è stato fatto
+- **Ricognizione delta** (grep su tutto il repo + probe HTTP live) → `11_DELTA_2026-07-10.md` con stato per finding e priorità riordinate.
+- **A9-01 CRIT chiuso**: `TRGB_SPECIFIC = True` su mig 047 (prestiti BPM reali). 048 non flaggata di proposito (solo schema, si popola dai dati di 047). Pushato da Marco: commit `054d1460`.
+- **A9-02 CRIT chiuso**: fail-loud SECRET_KEY in `config.py` (prod senza chiave → RuntimeError al boot) + runbook §5.1. Verificato prima che tregobbi avesse la chiave nel `.env`. Stesso push.
+- **A6-06 MED chiuso** (decisione PO: tenere Swagger ma dietro login): Basic Auth nginx su `/docs|/redoc|/openapi.json`, utente `marco`, file `/etc/nginx/.htpasswd_trgb_docs`.
+- **A6-09 MED chiuso**: 4 header sicurezza su entrambi i domini + `server_tokens off`. Config nginx caricate via scp da `claude/nginx/*.conf` (Marco odia nano — file completi pronti, niente editor sul server).
+- **A6-12/A6-13 riconfermati live** dopo 28 giorni: sshd no-root/no-password, 9000/9443 su localhost, 3389 spenta.
+- Runbook §6.0/6.1 aggiornato (header + docs-auth per i clienti nuovi) con nota A9-07 ancora aperto.
+
+### Incidenti/note operative
+- Primo `nginx -t` fallito: il backup `.bak` era DENTRO `sites-enabled/` e nginx lo caricava (duplicate listen). Spostato in `/etc/nginx/backups/` → test OK, reload OK, zero downtime (il fail era pre-reload).
+- `git status` dal bridge Cowork ha lasciato un `.git/index.lock` orfano (il bridge non può fare unlink): spostato in `claude/_to_delete/`. **Regola per le prossime sessioni Cowork: niente comandi git che scrivono l'index dal bridge.**
+
+### Stato audit dopo oggi
+**0 CRIT.** Sessione 1 del piano completata al 100% + 2 MED extra (A6-06, A6-09). Prossimo: indice `fe_righe` (A7-02, 1 riga, il ROI più alto dell'audit) e Sessione 3 "Igiene DB", oppure Sessione 2 "Login robusto" (A1-04+A6-07). Attenzione: A3-01 (stati_pagamento SSoT) peggiora a ogni feature CG nuova.
+
+---
 
 ## SESSIONE 2026-07-10 — Turni: vista Mese intero (Per dipendente) + fix ⏪/⏩ mese (Miei turni)
 

@@ -4,14 +4,18 @@
 
 - Ri-verifica dei 110 finding contro il codice attuale: **chiusi 4** (A1-01 CRIT + A1-02/A6-12/A6-13 HIGH), **aperti ~106**. Report in `11_DELTA_2026-07-10.md`.
 - I 22 commit dal 13/06 sono tutti feature (vini, RC/BP CG, Statistiche 1.2, backup hotfix, turni): nessuno tocca l'audit.
-- Residuo Sessione 1: A9-01 (mig 047 TRGB_SPECIFIC) + A9-02 (SECRET_KEY fail-loud) → **FIXATI nel repo il 2026-07-10, in attesa di push di Marco.** Vedi sotto.
+- Live 10/07 (mattina): Banca/iPratico → 401 ✅; Swagger /docs → 200; header assenti.
+- **Sera 10/07: A6-12/A6-13 RICONFERMATI live** (sshd: PermitRootLogin no + PasswordAuthentication no; porte 9000/9443 su 127.0.0.1, 3389 assente).
 
-### ✅ Chiusi in repo il 2026-07-10 (pending push) — i 2 CRIT residui
-- **A9-01** → `047_prestiti_bpm.py` ora `TRGB_SPECIFIC = True` (i prestiti BPM reali non entrano nei locali nuovi). La **048 NON** flaggata di proposito: crea solo lo schema `cg_piano_rate` (universale) e si popola solo dai dati di 047 → vuota senza 047. Doc `MIGRATIONS_TRGB.md` aggiornata. Nessun effetto su tregobbi (già applicata).
-- **A9-02** → `app/core/config.py` fail-loud: in produzione (`TRGB_ENV=production` o path `/home/marco/trgb`) se `SECRET_KEY` non è nell'ambiente il backend **non parte** invece di firmare JWT con la chiave default pubblica. Runbook §5.1 aggiornato (Environment SECRET_KEY + TRGB_ENV + comando genera-chiave). Testato: dev boota, prod-senza-chiave solleva, prod-con-chiave boota.
-- Restano quindi **0 CRIT** dopo il push. Prossimo: riconferma ssh A6-12/13 + A6-06/A6-09, poi indice `fe_righe` (A7-02).
-- Live 10/07: Banca/iPratico → 401 ✅; Swagger /docs → 200 (A6-06 aperto); header sicurezza assenti (A6-09 aperto).
-- A6-12/A6-13 da riconfermare via `ssh trgb` (28 giorni dal fix).
+### ✅ Chiusi il 2026-07-10 (sera) — A6-06 + A6-09, direttamente sul VPS (config nginx, non nel repo)
+- **A6-06** → Swagger `/docs`, `/redoc`, `/openapi.json` dietro HTTP Basic Auth (scelta PO Marco: "tenerlo ma dietro login"). `location ~ ^/(docs|redoc|openapi\.json)$` con `auth_basic` su `/etc/nginx/.htpasswd_trgb_docs` (utente marco). Verificato: anonimo → 401, app → 200.
+- **A6-09** → 4 header di sicurezza (HSTS, XCTO, XFO, Referrer-Policy) su trgb.tregobbi.it e app.tregobbi.it + `server_tokens off` (versione nginx non più esposta). Verificato live con curl.
+- Config replicate nel runbook §6.0/6.1 per i clienti nuovi. Backup pre-modifica in `/etc/nginx/backups/` e `sites-available/*.bak-2026-07-10`. File sorgente usati: `claude/nginx/*.conf` (scratch, gitignored).
+
+### ✅ Chiusi il 2026-07-10 — i 2 CRIT residui (DEPLOYATI, commit `054d1460`)
+- **A9-01** → `047_prestiti_bpm.py` ora `TRGB_SPECIFIC = True`: i prestiti BPM reali non entrano nei DB dei locali nuovi. La **048 NON** flaggata di proposito (crea solo lo schema `cg_piano_rate`, universale; si popola solo dai dati di 047 → resta vuota senza 047; flaggarla = schema drift A2-01). Doc `MIGRATIONS_TRGB.md` aggiornata. Zero effetto su tregobbi (047 già applicata).
+- **A9-02** → `app/core/config.py` fail-loud: in produzione (`TRGB_ENV=production` o path `/home/marco/trgb`) se `SECRET_KEY` non è nell'ambiente il backend **non parte** invece di firmare JWT con la chiave default pubblica. Runbook §5.1 aggiornato. Testato (dev boota / prod-senza-chiave solleva / prod-con-chiave boota). Push 10/07: backend UP post-deploy, nessun errore SECRET_KEY (tregobbi ha `.env`).
+- **➜ 0 CRIT rimasti.** Con A6-06/A6-09 chiusi in serata: **Sessione 1 completata al 100% + 2 MED extra**. Prossimo passo consigliato: indice `fe_righe` (A7-02, 1 riga) e Sessione 3 "Igiene DB", oppure Sessione 2 "Login robusto" (A1-04+A6-07).
 
 ## ✅ AUDIT COMPLETATO — 2026-06-12
 
