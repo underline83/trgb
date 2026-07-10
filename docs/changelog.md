@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-07-10 (sera) — HOTFIX login: PIN pad supporta 4-6 cifre (era bloccato a 4) `[core]`
+
+Regressione emersa subito dopo S2: il PIN pad di `LoginForm.jsx` si auto-inviava a 4 cifre, quindi chi (admin/contabile) aveva impostato un PIN a 6 non riusciva più ad accedere (mandava solo le prime 4 → errore). Fix: niente auto-invio, si accumulano 4-6 cifre e si conferma con tasto ✓ verde (o Invio). Dot indicator portato a 6. Sistema 5.34, auth 2.2.1. File: `frontend/src/components/LoginForm.jsx`.
+
+---
+
 ## 2026-07-10 (sera) — Audit Sessioni 2+3: lockout login, PIN 6 cifre, indice fe_righe, WAL vini `[core]`
 
 Ripresa del piano audit — Sessione 2 "Login robusto" + Sessione 3 "Igiene DB" (parte a rischio zero). Sistema 5.32→5.33, auth 2.1→2.2.

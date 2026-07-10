@@ -100,13 +100,9 @@ export default function LoginForm({ setToken, setRole }) {
     if (!selectedUser) return;
     const handler = (e) => {
       if (e.key >= "0" && e.key <= "9") {
-        setPin((prev) => {
-          const next = prev + e.key;
-          if (next.length >= 4) {
-            setTimeout(() => submitPin(next), 100);
-          }
-          return next.length <= 6 ? next : prev;
-        });
+        setPin((prev) => (prev.length < 6 ? prev + e.key : prev));
+      } else if (e.key === "Enter") {
+        submitPin(pin);
       } else if (e.key === "Backspace") {
         setPin((prev) => prev.slice(0, -1));
       } else if (e.key === "Escape") {
@@ -117,18 +113,12 @@ export default function LoginForm({ setToken, setRole }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedUser, submitPin]);
+  }, [selectedUser, submitPin, pin]);
 
   /* ── Tap su numero del PIN pad ── */
   const handleDigit = (digit) => {
     setError("");
-    setPin((prev) => {
-      const next = prev + digit;
-      if (next.length >= 4) {
-        setTimeout(() => submitPin(next), 100);
-      }
-      return next.length <= 6 ? next : prev;
-    });
+    setPin((prev) => (prev.length < 6 ? prev + digit : prev));
   };
 
   const handleBackspace = () => {
@@ -200,7 +190,7 @@ export default function LoginForm({ setToken, setRole }) {
   /* ══════════════════════════════════════════════
      RENDER: PIN PAD
      ══════════════════════════════════════════════ */
-  const dots = Array.from({ length: 4 }, (_, i) => (
+  const dots = Array.from({ length: 6 }, (_, i) => (
     <div
       key={i}
       className={`
@@ -214,7 +204,7 @@ export default function LoginForm({ setToken, setRole }) {
     ["1", "2", "3"],
     ["4", "5", "6"],
     ["7", "8", "9"],
-    ["", "0", "del"],
+    ["ok", "0", "del"],
   ];
 
   return (
@@ -258,6 +248,23 @@ export default function LoginForm({ setToken, setRole }) {
       <div className="grid grid-cols-3 gap-3 w-full">
         {padButtons.flat().map((btn, idx) => {
           if (btn === "") return <div key={idx} />;
+          if (btn === "ok") {
+            return (
+              <button
+                key={idx}
+                onClick={() => submitPin(pin)}
+                disabled={loading || pin.length < 4}
+                className="h-14 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700
+                           disabled:opacity-40 disabled:cursor-not-allowed
+                           flex items-center justify-center transition-colors"
+                aria-label="Conferma PIN"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+            );
+          }
           if (btn === "del") {
             return (
               <button
