@@ -81,6 +81,8 @@ export default function LoginForm({ setToken, setRole }) {
         localStorage.setItem("role", data.role);
         localStorage.setItem("username", selectedUser.username);
         localStorage.setItem("display_name", data.display_name || selectedUser.display_name);
+        // Dopo il login vai sempre alla Home, non all'ultima pagina aperta.
+        window.history.replaceState(null, "", "/");
         setToken(data.access_token);
         setRole(data.role);
       } catch {
@@ -95,12 +97,23 @@ export default function LoginForm({ setToken, setRole }) {
     [selectedUser, setToken, setRole]
   );
 
+  // Lunghezza PIN attesa per ruolo: admin/contabile 6 cifre, gli altri 4.
+  const expectedLen =
+    selectedUser && ["admin", "superadmin", "contabile"].includes(selectedUser.role)
+      ? 6
+      : 4;
+
   /* ── Gestione tastiera fisica ── */
   useEffect(() => {
     if (!selectedUser) return;
     const handler = (e) => {
       if (e.key >= "0" && e.key <= "9") {
-        setPin((prev) => (prev.length < 6 ? prev + e.key : prev));
+        setPin((prev) => {
+          if (prev.length >= 6) return prev;
+          const next = prev + e.key;
+          if (next.length === expectedLen) setTimeout(() => submitPin(next), 100);
+          return next;
+        });
       } else if (e.key === "Enter") {
         submitPin(pin);
       } else if (e.key === "Backspace") {
@@ -113,12 +126,17 @@ export default function LoginForm({ setToken, setRole }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedUser, submitPin, pin]);
+  }, [selectedUser, submitPin, pin, expectedLen]);
 
   /* ── Tap su numero del PIN pad ── */
   const handleDigit = (digit) => {
     setError("");
-    setPin((prev) => (prev.length < 6 ? prev + digit : prev));
+    setPin((prev) => {
+      if (prev.length >= 6) return prev;
+      const next = prev + digit;
+      if (next.length === expectedLen) setTimeout(() => submitPin(next), 100);
+      return next;
+    });
   };
 
   const handleBackspace = () => {
@@ -190,7 +208,7 @@ export default function LoginForm({ setToken, setRole }) {
   /* ══════════════════════════════════════════════
      RENDER: PIN PAD
      ══════════════════════════════════════════════ */
-  const dots = Array.from({ length: 6 }, (_, i) => (
+  const dots = Array.from({ length: expectedLen }, (_, i) => (
     <div
       key={i}
       className={`

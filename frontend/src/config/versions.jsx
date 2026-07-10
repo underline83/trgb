@@ -65,7 +65,7 @@ const MODULE_VERSIONS = {
   auth: {
     // 2.2 (2026-07-10): lockout brute-force login (A1-04, backoff progressivo,
     // soglie in auth_settings.json) + PIN minimo 6 cifre per admin/contabile.
-    version: "2.2.1",
+    version: "2.2.2",
     label: "Login & Ruoli",
     status: "stabile",
     color: "green",
@@ -180,7 +180,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.34",
+    version: "5.35",
     label: "Sistema",
     status: "stabile",
     color: "green",
