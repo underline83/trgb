@@ -11,6 +11,13 @@ PRESTITO BPM 2: 120 rate, giorno 19, apr 2021 → mar 2031
   Originario: €31.389 — Residuo: €20.295,78
 """
 
+# A9-01 (audit 2026-06-12): dati finanziari REALI di Marco/Tre Gobbi (prestiti BPM
+# con importi e residui personali). NON devono finire nei DB dei locali nuovi.
+# Il migration_runner salta questa migrazione quando TRGB_LOCALE != "tregobbi".
+# NB: la 048 NON è flaggata — crea solo lo schema di cg_piano_rate (universale) e
+# lo popola leggendo i prestiti di questa 047: senza 047 il popolamento è vuoto.
+TRGB_SPECIFIC = True
+
 
 def upgrade(conn):
     cur = conn.cursor()

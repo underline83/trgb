@@ -247,6 +247,8 @@ User=<USER>
 WorkingDirectory=/home/<USER>/trgb/trgb
 Environment="PYTHONPATH=/home/<USER>/trgb/trgb"
 Environment="TRGB_LOCALE=<LOCALE>"
+Environment="TRGB_ENV=production"
+Environment="SECRET_KEY=<SECRET_KEY>"
 ExecStart=/home/<USER>/trgb/venv-trgb/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5
@@ -255,6 +257,21 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 ```
+
+> ⚠️ **SECRET_KEY obbligatoria in produzione (audit A9-02).** `<SECRET_KEY>` è la
+> chiave con cui il backend firma i JWT: **non usare** il default del repo (è
+> pubblico su GitHub → chiunque potrebbe forgiare un token superadmin). Generane
+> una casuale una tantum per questa installazione:
+>
+> ```bash
+> python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+> ```
+>
+> e incollala nella riga `Environment="SECRET_KEY=..."`. Con `TRGB_ENV=production`
+> settato, se `SECRET_KEY` manca **il backend si rifiuta di partire** (fail-loud in
+> `app/core/config.py`) invece di firmare con la chiave di default. In alternativa
+> alla systemd unit puoi mettere `SECRET_KEY=...` in un file `.env` gitignored nella
+> working dir (caricato da `main.py` via python-dotenv), come già fatto su tregobbi.
 
 ### 5.2 Frontend (nginx-served, ma se usi vite preview anche un service per quello)
 Vedi sezione 6 nginx — frontend viene servito da nginx come static files da `dist/`,

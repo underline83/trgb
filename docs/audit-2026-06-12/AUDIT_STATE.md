@@ -1,5 +1,18 @@
 # AUDIT STATE — Audit totale TRGB v5.24 (2026-06-12)
 
+## 🔄 RICOGNIZIONE DELTA — 2026-07-10 (v5.32, commit `ead338ad`)
+
+- Ri-verifica dei 110 finding contro il codice attuale: **chiusi 4** (A1-01 CRIT + A1-02/A6-12/A6-13 HIGH), **aperti ~106**. Report in `11_DELTA_2026-07-10.md`.
+- I 22 commit dal 13/06 sono tutti feature (vini, RC/BP CG, Statistiche 1.2, backup hotfix, turni): nessuno tocca l'audit.
+- Residuo Sessione 1: A9-01 (mig 047 TRGB_SPECIFIC) + A9-02 (SECRET_KEY fail-loud) → **FIXATI nel repo il 2026-07-10, in attesa di push di Marco.** Vedi sotto.
+
+### ✅ Chiusi in repo il 2026-07-10 (pending push) — i 2 CRIT residui
+- **A9-01** → `047_prestiti_bpm.py` ora `TRGB_SPECIFIC = True` (i prestiti BPM reali non entrano nei locali nuovi). La **048 NON** flaggata di proposito: crea solo lo schema `cg_piano_rate` (universale) e si popola solo dai dati di 047 → vuota senza 047. Doc `MIGRATIONS_TRGB.md` aggiornata. Nessun effetto su tregobbi (già applicata).
+- **A9-02** → `app/core/config.py` fail-loud: in produzione (`TRGB_ENV=production` o path `/home/marco/trgb`) se `SECRET_KEY` non è nell'ambiente il backend **non parte** invece di firmare JWT con la chiave default pubblica. Runbook §5.1 aggiornato (Environment SECRET_KEY + TRGB_ENV + comando genera-chiave). Testato: dev boota, prod-senza-chiave solleva, prod-con-chiave boota.
+- Restano quindi **0 CRIT** dopo il push. Prossimo: riconferma ssh A6-12/13 + A6-06/A6-09, poi indice `fe_righe` (A7-02).
+- Live 10/07: Banca/iPratico → 401 ✅; Swagger /docs → 200 (A6-06 aperto); header sicurezza assenti (A6-09 aperto).
+- A6-12/A6-13 da riconfermare via `ssh trgb` (28 giorni dal fix).
+
 ## ✅ AUDIT COMPLETATO — 2026-06-12
 
 - Commit di riferimento: `1f5f9c17` · VERSION 5.24 (VPS allineato, verificato live)
