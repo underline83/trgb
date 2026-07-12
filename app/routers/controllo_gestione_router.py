@@ -397,6 +397,106 @@ def conto_economico(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# CONTO ECONOMICO — EXPORT PDF (G.3.7b, 2026-07-12, mattone M.B)
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/conto-economico/pdf")
+def conto_economico_pdf(
+    anno: int = Query(default=None, ge=2020, le=2100),
+    mese: int = Query(default=None, ge=1, le=12),
+    modalita: str = Query(default="competenza", pattern="^(competenza|cassa)$"),
+    periodo: str = Query(default="mese", pattern="^(mese|trimestre|anno)$"),
+    trimestre: int = Query(default=None, ge=1, le=4),
+    current_user=Depends(get_current_user),
+):
+    """PDF brandizzato del Conto Economico (per il commercialista) — M.B."""
+    from fastapi.responses import StreamingResponse
+
+    pl = conto_economico(
+        anno=anno, mese=mese, modalita=modalita,
+        periodo=periodo, trimestre=trimestre, current_user=current_user,
+    )
+    from app.services.pdf_brand import genera_pdf_html, safe_filename
+    try:
+        pdf_bytes = genera_pdf_html(
+            template="conto_economico.html",
+            dati={"pl": pl},
+            titolo="Conto Economico",
+            sottotitolo=pl.get("periodo_label") or "",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
+    fname = safe_filename(f"conto-economico-{pl.get('periodo_label','')}")
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{fname}"'},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# RIPARTIZIONE VENDITE — mapping categorie iPratico → tipo (C2/G.3.4, 2026-07-12)
+# ═══════════════════════════════════════════════════════════════════
+
+TIPI_VENDITA_VALIDI = {"FOOD", "VINO", "BEVANDE", "COPERTO", "ALTRO", "IGNORA"}
+
+
+@router.get("/ipratico-tipi")
+def get_ipratico_tipi(current_user=Depends(get_current_user)):
+    """Mapping categorie iPratico → tipo + eventuali categorie non ancora mappate."""
+    fc = get_fc_db()
+    try:
+        mapping = [
+            {"categoria": r["categoria"], "tipo": r["tipo"]}
+            for r in fc.execute(
+                "SELECT categoria, tipo FROM ipratico_categoria_tipo ORDER BY categoria"
+            )
+        ]
+        non_mappate = [
+            r["categoria"]
+            for r in fc.execute(
+                """SELECT DISTINCT p.categoria FROM ipratico_prodotti p
+                   LEFT JOIN ipratico_categoria_tipo t ON t.categoria = p.categoria
+                   WHERE t.categoria IS NULL ORDER BY 1"""
+            )
+        ]
+        return {"mapping": mapping, "non_mappate": non_mappate,
+                "tipi_validi": sorted(TIPI_VENDITA_VALIDI)}
+    finally:
+        fc.close()
+
+
+@router.put("/ipratico-tipi")
+def put_ipratico_tipi(
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Upsert del mapping: payload = {"categoria": ..., "tipo": ...}."""
+    categoria = (payload.get("categoria") or "").strip()
+    tipo = (payload.get("tipo") or "").strip().upper()
+    if not categoria:
+        raise HTTPException(status_code=400, detail="categoria obbligatoria")
+    if tipo not in TIPI_VENDITA_VALIDI:
+        raise HTTPException(
+            status_code=400,
+            detail=f"tipo non valido. Validi: {sorted(TIPI_VENDITA_VALIDI)}",
+        )
+    fc = get_fc_db()
+    try:
+        fc.execute(
+            """INSERT INTO ipratico_categoria_tipo (categoria, tipo, updated_at)
+               VALUES (?, ?, datetime('now'))
+               ON CONFLICT(categoria) DO UPDATE SET tipo=excluded.tipo,
+                                                    updated_at=excluded.updated_at""",
+            (categoria, tipo),
+        )
+        fc.commit()
+        return {"ok": True, "categoria": categoria, "tipo": tipo}
+    finally:
+        fc.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
 # CONFRONTO PERIODI — RIMOSSO 2026-05-16 (audit Marco)
 # Endpoint /confronto era stub mai usato (pagina frontend placeholder
 # rimossa dalla nav). Per confronti periodo-periodo usare /conto-economico

@@ -23,6 +23,27 @@ Chiusura della parte dati di Sessione 3 (audit A2-02/A2-04/A2-10), tutta testata
 
 ---
 
+## 2026-07-12 — G.3 Conto Economico: fatture nei ricavi, ripartizione vendite (C2), export PDF + indagine discrepanza iPratico `[core]`
+
+Giornata dedicata a G.3 (priorità TOP). Sistema 5.37, controlloGestione 2.21.
+
+### Indagine discrepanza iPratico vs CE (prerequisito C2 — RISOLTA)
+La "discrepanza €14.930" di aprile confrontava iPratico coi soli corrispettivi. Verificato sui dati: la formula incassi (Z cumulativa cena + fatture) è CORRETTA — marzo quadra con iPratico a +€68, giugno a +€3. Il buco vero è **aprile −€11.210 e maggio −€5.917**, e coincide con un campo `fatture` anomalo in chiusura in quei mesi (apr €3.7k, mag €1.7k vs mar €6.3k, giu €6.0k): quasi certamente **fatture emesse (eventi/banchetti via iPratico) non riportate nella chiusura turno**. Indizio a supporto: dentro BATTUTA SINGOLA di aprile c'è "Acconto cena 17/04 €750". Report dei giorni da verificare in `claude/verifica_fatture_apr_mag.md` (Marco incrocia con iPratico; poi backfill assistito del campo fatture).
+
+### Aggiunto
+- **Ricavi CE = corrispettivi + fatture emesse** (decisione Marco 2026-07-12). Prima solo corrispettivi → su giugno mancavano €5.982 di fatturato dall'utile. Il KPI Ricavi mostra lo split. `conto_economico.py` + payload `ricavi.fatture_emesse`.
+- **C2 / G.3.4 — Composizione del venduto**: mig 149 `ipratico_categoria_tipo` (mapping categoria iPratico → FOOD/VINO/BEVANDE/COPERTO/ALTRO/IGNORA, seed dalle decisioni Marco: Degustazioni→food, vino unico bt+calici, caffè in Bevande, BATTUTA SINGOLA→coperto, Servizio ignorata). Sezione nel CE con barra + drill-down categorie; categorie nuove → DA_CLASSIFICARE con select inline per assegnarle (endpoint GET/PUT `/controllo-gestione/ipratico-tipi`). Test su dati reali: giugno Cucina 68,4% / Coperto 14% / Vino 11,8% / Bevande 5,8%, zero da classificare.
+- **G.3.7b — Export PDF del CE** (mattone M.B): template `conto_economico.html` (KPI, waterfall, breakdown costi, composizione venduto, warning) + endpoint `GET /controllo-gestione/conto-economico/pdf` + bottone 🖨 PDF nella pagina (fetch+blob, niente token in URL — pattern A1-08 compliant).
+
+### Note
+- Il venduto iPratico è lordo IVA e include le fatture: la composizione è una vista di STRUTTURA, non di quadratura col CE (nota esplicita in UI e PDF).
+- Scoperto e documentato: "BATTUTA SINGOLA" è il tasto a prezzo libero (coperto "Servizio, pane e stuzzico" €5 + rari acconti eventi/asporto).
+
+### File modificati
+`app/migrations/149_ipratico_categoria_tipo.py` (nuovo), `app/services/conto_economico.py`, `app/routers/controllo_gestione_router.py`, `app/templates/pdf/conto_economico.html` (nuovo), `frontend/src/pages/controllo-gestione/ControlloGestioneContoEconomico.jsx`, `frontend/src/config/versions.jsx`, `VERSION`, docs.
+
+---
+
 ## 2026-07-10 (sera) — HOTFIX login 2: invio automatico per ruolo + atterraggio su Home `[core]`
 
 Rifiniture dopo il fix del pad: (1) rimesso l'**invio automatico** del PIN alla lunghezza attesa per ruolo — 6 cifre per admin/superadmin/contabile, 4 per gli altri — così non serve premere ✓ (che resta come conferma manuale/fallback, con Invio da tastiera); i pallini indicatori si adattano alla lunghezza attesa. (2) Dopo il login si va **sempre alla Home**, non all'ultima pagina aperta (`window.history.replaceState` prima di settare il token). Sistema 5.35, auth 2.2.2. File: `frontend/src/components/LoginForm.jsx`.

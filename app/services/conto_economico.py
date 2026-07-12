@@ -40,7 +40,7 @@ OUTPUT (dict JSON-serializable):
 {
   "anno": 2026, "mese": 5, "modalita": "competenza",
   "periodo_label": "Mag 2026",
-  "ricavi": { "corrispettivi": 15000.0, "totale": 15000.0 },
+  "ricavi": { "corrispettivi": 15000.0, "fatture_emesse": 900.0, "totale": 15900.0 },
   "costo_merce": {
     "totale": 6000.0,
     "per_categoria": [
@@ -761,6 +761,85 @@ def _build_breakdown(
     return out, round(totale, 2)
 
 
+TIPI_VENDITA_LABEL = {
+    "FOOD": "Cucina", "VINO": "Vino", "BEVANDE": "Bevande",
+    "COPERTO": "Coperto", "ALTRO": "Altro", "DA_CLASSIFICARE": "Da classificare",
+}
+
+
+def _ripartizione_vendite(fc_conn: sqlite3.Connection, periodi_rif: list) -> Optional[dict]:
+    """C2 / G.3.4 — Ripartizione del venduto iPratico per tipo gestionale.
+
+    Aggrega ipratico_prodotti (file mensile, granularità anno/mese) sui periodi
+    del CE usando il mapping ipratico_categoria_tipo (mig 149, editabile).
+    Categorie non mappate → DA_CLASSIFICARE (mai perse in silenzio).
+    IGNORA escluse dal totale. Ritorna None se mancano tabella o dati.
+
+    NB: il venduto iPratico è LORDO IVA e comprende anche le vendite fatturate,
+    quindi non coincide al centesimo coi ricavi del CE (corrispettivi+fatture):
+    è una vista di COMPOSIZIONE, non di quadratura.
+    """
+    try:
+        has = fc_conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ipratico_categoria_tipo'"
+        ).fetchone()
+        if not has:
+            return None
+        mesi = [(int(p[:4]), int(p[5:7])) for p in periodi_rif]
+        placeholders = " OR ".join(["(anno=? AND mese=?)"] * len(mesi))
+        params = [x for coppia in mesi for x in coppia]
+        rows = fc_conn.execute(
+            f"""
+            SELECT COALESCE(t.tipo, 'DA_CLASSIFICARE') AS tipo,
+                   p.categoria,
+                   ROUND(SUM(p.totale_cent) / 100.0, 2) AS totale,
+                   SUM(p.quantita) AS qta
+            FROM ipratico_prodotti p
+            LEFT JOIN ipratico_categoria_tipo t ON t.categoria = p.categoria
+            WHERE {placeholders}
+            GROUP BY 1, 2
+            """,
+            params,
+        ).fetchall()
+        if not rows:
+            return None
+        per_tipo: dict = {}
+        da_classificare = []
+        for tipo, categoria, totale, qta in rows:
+            if tipo == "IGNORA":
+                continue
+            if tipo == "DA_CLASSIFICARE":
+                da_classificare.append(categoria)
+            bucket = per_tipo.setdefault(tipo, {"totale": 0.0, "qta": 0, "categorie": []})
+            bucket["totale"] = round(bucket["totale"] + (totale or 0), 2)
+            bucket["qta"] += int(qta or 0)
+            bucket["categorie"].append({"categoria": categoria, "totale": totale or 0, "qta": int(qta or 0)})
+        venduto_tot = round(sum(b["totale"] for b in per_tipo.values()), 2)
+        tipi_out = []
+        ordine = ["FOOD", "VINO", "BEVANDE", "COPERTO", "ALTRO", "DA_CLASSIFICARE"]
+        for tipo in ordine:
+            if tipo not in per_tipo:
+                continue
+            b = per_tipo[tipo]
+            b["categorie"].sort(key=lambda c: -c["totale"])
+            tipi_out.append({
+                "tipo": tipo,
+                "label": TIPI_VENDITA_LABEL.get(tipo, tipo),
+                "totale": b["totale"],
+                "qta": b["qta"],
+                "pct": round(b["totale"] / venduto_tot * 100, 1) if venduto_tot > 0 else 0,
+                "categorie": b["categorie"],
+            })
+        return {
+            "venduto_totale": venduto_tot,
+            "tipi": tipi_out,
+            "da_classificare": sorted(set(da_classificare)),
+            "nota": "Venduto iPratico lordo IVA, fatture incluse: composizione, non quadratura col CE.",
+        }
+    except Exception:
+        return None
+
+
 def compute_pl(
     fc_conn: sqlite3.Connection,
     vendite_conn: sqlite3.Connection,
@@ -813,12 +892,17 @@ def compute_pl(
         from app.services.vendite_aggregator import totali_periodo
         v = totali_periodo(vendite_conn, primo, ultimo)
         corrispettivi = float(v.get("totale_corrispettivi", 0) or 0)
+        fatture_emesse = float(v.get("totale_fatture_emesse", 0) or 0)
     except Exception as e:
         warnings.append(f"Vendite non disponibili: {e}")
         corrispettivi = 0.0
+        fatture_emesse = 0.0
 
-    ricavi_totale = corrispettivi  # In v1 solo corrispettivi POS.
-                                   # Fatture vendita clienti → TODO v1.x
+    # Decisione Marco 2026-07-12: i ricavi del CE includono ANCHE le fatture
+    # emesse (banchetti/eventi/aziende, emesse via iPratico e registrate nel
+    # campo `fatture` della chiusura turno). Prima contavano solo i
+    # corrispettivi → utile sottostimato di ~3-6k/mese.
+    ricavi_totale = corrispettivi + fatture_emesse
 
     # ─── 2. ACQUISTI righe singole (fatture imponibile) ────────────────
     # Una fattura con righe in N categorie diverse produce N entry: per il
@@ -933,8 +1017,10 @@ def compute_pl(
         "n_mesi": n_mesi,
         "ricavi": {
             "corrispettivi": round(corrispettivi, 2),
+            "fatture_emesse": round(fatture_emesse, 2),
             "totale": round(ricavi_totale, 2),
         },
+        "ripartizione_vendite": _ripartizione_vendite(fc_conn, periodi_rif),
         "costo_merce": {
             "totale": costo_merce_tot,
             "pct_su_ricavi": costo_merce_pct_su_ricavi,

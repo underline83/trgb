@@ -1,6 +1,31 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-10 (sera, 3a parte) — **Audit Sessione 3: bonifica FK orfane** (foodcost mig 148 + script vini, testati su copie). Sistema 5.36. Da pushare + script da lanciare sul VPS. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-12 — **G.3 CE: fatture nei ricavi + ripartizione vendite C2 + export PDF + indagine discrepanza iPratico risolta** (`[core]`, sistema 5.37). Da pushare. Dettagli sotto.
+
+## SESSIONE 2026-07-12 — G.3 Conto Economico: indagine ricavi + C2 + PDF
+
+### Contesto
+Marco: "voglio sfruttare Fable". Scelta G.3 (priorità TOP), risposta "tutto": indagine discrepanza + Fase D + C2 + PDF. NB memoria G.3 era stantia: fasi A-E già fatte a maggio (CE esiste con spalmatura, override competenza, ELAB gen-giu importati).
+
+### Indagine discrepanza (RISOLTA come diagnosi)
+- Formula incassi corretta (Z cumulativa cena + fatture): marzo +68/iPratico, giugno +3. Buco reale: APRILE −11.210, MAGGIO −5.917.
+- Causa quasi certa: fatture emesse (eventi, via iPratico) non riportate nel campo `fatture` delle chiusure di apr/mag (campo anomalo: 3.7k/1.7k vs 6.3k/6.0k dei mesi che quadrano). Prova: "Acconto cena 17/04 €750" dentro BATTUTA SINGOLA.
+- Deliverable: `claude/verifica_fatture_apr_mag.md` con i giorni sospetti (gap pagamenti vs Z+fatture) da incrociare con iPratico. Poi backfill assistito.
+
+### Fatto (codice)
+- **Ricavi CE = corrispettivi + fatture emesse** (decisione Marco) — split visibile nel KPI. Giugno: ricavi 43.388→49.370.
+- **C2**: mig 149 mapping categorie→tipo (decisioni: Degustazioni food, vino unico, caffè in bevande, BATTUTA SINGOLA=coperto, Servizio ignora, Speciali/Pranzo food, Vendita altro) + sezione "Composizione del venduto" nel CE + endpoint GET/PUT ipratico-tipi + select inline per DA_CLASSIFICARE.
+- **G.3.7b**: template PDF conto_economico.html + endpoint /conto-economico/pdf + bottone 🖨 (fetch+blob).
+- Testato su dati reali (copie): CE maggio/giugno con ripartizione corretta, template renderizza, tutti i parse/compile ok.
+
+### Fase D (prospetto commercialista)
+Rimandata a dopo la verifica fatture apr/mag di Marco: validare un mese col buco noto non ha senso. Giugno è il candidato (quadra con iPratico).
+
+### Da fare dopo
+- Marco verifica i giorni del report → backfill campo fatture apr/mag (script assistito).
+- (verificato: il warning ELAB compariva solo nel test senza dip_conn; con la connessione dipendenti il CE di giugno usa il costo personale COMPLETO da consuntivo, warnings=[] — utile netto giugno €5.442,75)
+
+---
 
 ## SESSIONE 2026-07-10 (sera, 3a parte) — Audit Sessione 3: bonifica FK orfane
 

@@ -212,6 +212,26 @@ export default function ControlloGestioneContoEconomico() {
               ))}
             </div>
 
+            {/* G.3.7b — Export PDF (fetch+blob: niente token in URL) */}
+            <button
+              onClick={async () => {
+                try {
+                  const qs = new URLSearchParams({ anno, mese, modalita, periodo });
+                  if (periodo === "trimestre" && trimestre) qs.set("trimestre", trimestre);
+                  const res = await apiFetch(`${CG}/conto-economico/pdf?${qs}`);
+                  if (!res.ok) throw new Error("PDF non generato");
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  window.open(url, "_blank");
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                } catch (e) { alert("Errore generazione PDF: " + e.message); }
+              }}
+              className="px-3 py-1.5 text-xs font-medium bg-white rounded-lg border border-sky-300 text-sky-800 hover:bg-sky-50 transition"
+              title="Scarica il Conto Economico in PDF (per il commercialista)"
+            >
+              🖨 PDF
+            </button>
+
             {/* Toggle modalità */}
             <div className="flex bg-white rounded-lg border border-sky-300 overflow-hidden">
               {["competenza", "cassa"].map((m) => (
@@ -301,7 +321,11 @@ export default function ControlloGestioneContoEconomico() {
           <KpiHero
             label="Ricavi"
             value={fmtEur(ricavi)}
-            sub={`Corrispettivi ${data.periodo_label}`}
+            sub={
+              (data.ricavi?.fatture_emesse || 0) > 0
+                ? `Corrispettivi ${fmtEur(data.ricavi.corrispettivi)} + Fatture ${fmtEur(data.ricavi.fatture_emesse)}`
+                : `Corrispettivi ${data.periodo_label}`
+            }
             color="emerald"
           />
           <KpiHero
@@ -428,6 +452,21 @@ export default function ControlloGestioneContoEconomico() {
           </div>
         )}
 
+        {/* C2 — COMPOSIZIONE DEL VENDUTO (iPratico per tipo) */}
+        <RipartizioneVendite
+          rv={data.ripartizione_vendite}
+          onAssegna={async (categoria, tipo) => {
+            try {
+              await apiFetch(`${CG}/ipratico-tipi`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ categoria, tipo }),
+              });
+              load(); // ricarica il CE con la nuova classificazione
+            } catch (e) { /* errore silenzioso: la select resta */ }
+          }}
+        />
+
         {/* COSTO MERCE: breakdown per categoria/sottocategoria/righe */}
         {costoMerce > 0 && (
           <CategoriaBreakdown
@@ -475,6 +514,87 @@ export default function ControlloGestioneContoEconomico() {
 // ─────────────────────────────────────────────────────────────────
 // SUB-COMPONENT: riga della catena waterfall
 // ─────────────────────────────────────────────────────────────────
+// ── C2/G.3.4 — Composizione del venduto per tipo (iPratico) ─────────────
+const TIPO_COLORE = {
+  FOOD: "bg-emerald-400", VINO: "bg-purple-400", BEVANDE: "bg-sky-400",
+  COPERTO: "bg-amber-400", ALTRO: "bg-neutral-400", DA_CLASSIFICARE: "bg-red-400",
+};
+
+function RipartizioneVendite({ rv, onAssegna }) {
+  const [openTipo, setOpenTipo] = React.useState(null);
+  if (!rv || !rv.tipi?.length) return null;
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+      <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-sm font-bold text-neutral-700 uppercase tracking-wider">
+          Composizione del venduto <span className="normal-case font-normal text-neutral-400">(iPratico, lordo IVA)</span>
+        </h2>
+        <div className="text-sm font-mono text-neutral-700">{fmtEur(rv.venduto_totale)}</div>
+      </div>
+      <div className="px-5 py-4">
+        <div className="flex h-7 rounded-md overflow-hidden border border-neutral-200 mb-3">
+          {rv.tipi.map((t) => (
+            <div key={t.tipo}
+                 className={`${TIPO_COLORE[t.tipo] || "bg-neutral-300"} flex items-center justify-center text-xs font-semibold text-white`}
+                 style={{ width: `${t.pct}%` }}
+                 title={`${t.label}: ${fmtEur(t.totale)} (${t.pct}%)`}>
+              {t.pct >= 8 && `${t.pct.toFixed(0)}%`}
+            </div>
+          ))}
+        </div>
+        <div className="divide-y divide-neutral-100">
+          {rv.tipi.map((t) => (
+            <div key={t.tipo}>
+              <button
+                onClick={() => setOpenTipo(openTipo === t.tipo ? null : t.tipo)}
+                className="w-full flex items-center justify-between py-2 text-sm hover:bg-neutral-50 px-1 rounded"
+              >
+                <span className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-sm inline-block ${TIPO_COLORE[t.tipo] || "bg-neutral-300"}`}></span>
+                  <span className={t.tipo === "DA_CLASSIFICARE" ? "text-red-700 font-semibold" : "text-neutral-700"}>{t.label}</span>
+                  <span className="text-neutral-400 text-xs">({t.pct.toFixed(1)}%)</span>
+                </span>
+                <span className="font-mono text-neutral-800">{fmtEur(t.totale)}</span>
+              </button>
+              {openTipo === t.tipo && (
+                <div className="pb-2 pl-6 space-y-1">
+                  {t.categorie.map((c) => (
+                    <div key={c.categoria} className="flex items-center justify-between text-xs text-neutral-600">
+                      <span className="flex items-center gap-2">
+                        {c.categoria}
+                        {t.tipo === "DA_CLASSIFICARE" && onAssegna && (
+                          <select
+                            defaultValue=""
+                            onChange={(e) => e.target.value && onAssegna(c.categoria, e.target.value)}
+                            className="border border-neutral-300 rounded px-1 py-0.5 text-xs"
+                          >
+                            <option value="">classifica…</option>
+                            {["FOOD","VINO","BEVANDE","COPERTO","ALTRO","IGNORA"].map((v) => (
+                              <option key={v} value={v}>{v}</option>
+                            ))}
+                          </select>
+                        )}
+                      </span>
+                      <span className="font-mono">{fmtEur(c.totale)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {rv.da_classificare?.length > 0 && (
+          <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            ⚠ {rv.da_classificare.length} categorie iPratico non classificate: {rv.da_classificare.join(", ")} — aprile la voce "Da classificare" per assegnarle.
+          </div>
+        )}
+        <div className="text-[11px] text-neutral-400 mt-2">{rv.nota}</div>
+      </div>
+    </div>
+  );
+}
+
+
 function WaterfallRow({ label, value, color, tipo, detail, pct }) {
   const isPositivo = value >= 0;
   const isSubtotale = tipo === "subtotale" || tipo === "totale";

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+  {# ── KPI riassuntivi ── #}
+  <div class="info-grid">
+    <div class="info-cell">
+      <div class="label">Ricavi</div>
+      <div class="value"><strong>€ {{ "%.2f"|format(pl.ricavi.totale)|replace('.', ',') }}</strong></div>
+      <div class="label" style="margin-top:4px;">di cui corrispettivi € {{ "%.2f"|format(pl.ricavi.corrispettivi)|replace('.', ',') }}
+        {% if pl.ricavi.fatture_emesse %} · fatture € {{ "%.2f"|format(pl.ricavi.fatture_emesse)|replace('.', ',') }}{% endif %}</div>
+    </div>
+    <div class="info-cell">
+      <div class="label">Margine lordo</div>
+      <div class="value"><strong>€ {{ "%.2f"|format(pl.margine_lordo)|replace('.', ',') }}</strong>
+        {% if pl.margine_lordo_pct is not none %}<span class="text-muted">({{ pl.margine_lordo_pct }}%)</span>{% endif %}
+      </div>
+    </div>
+    <div class="info-cell">
+      <div class="label">Utile netto</div>
+      <div class="value"><strong>€ {{ "%.2f"|format(pl.utile_netto)|replace('.', ',') }}</strong>
+        {% if pl.utile_netto_pct is not none %}<span class="text-muted">({{ pl.utile_netto_pct }}%)</span>{% endif %}
+      </div>
+      <div class="label" style="margin-top:4px;">modalità {{ pl.modalita }}</div>
+    </div>
+  </div>
+
+  {# ── Waterfall testuale ── #}
+  <h2>Conto economico</h2>
+  <table class="brand">
+    <tbody>
+      <tr><td>Ricavi</td><td class="num"><strong>€ {{ "%.2f"|format(pl.ricavi.totale)|replace('.', ',') }}</strong></td></tr>
+      <tr><td>− Costo merce</td><td class="num">− € {{ "%.2f"|format(pl.costo_merce.totale)|replace('.', ',') }}</td></tr>
+      <tr><td><strong>= Margine lordo</strong></td><td class="num"><strong>€ {{ "%.2f"|format(pl.margine_lordo)|replace('.', ',') }}</strong></td></tr>
+      <tr><td>− Costi operativi</td><td class="num">− € {{ "%.2f"|format(pl.costi_operativi.totale)|replace('.', ',') }}</td></tr>
+      <tr><td><strong>= Utile netto</strong></td><td class="num"><strong>€ {{ "%.2f"|format(pl.utile_netto)|replace('.', ',') }}</strong></td></tr>
+    </tbody>
+  </table>
+
+  {# ── Costo merce per categoria ── #}
+  {% if pl.costo_merce.per_categoria %}
+  <h2>Costo merce</h2>
+  <table class="brand">
+    <thead><tr><th>Categoria</th><th class="num">Importo</th></tr></thead>
+    <tbody>
+      {% for cat in pl.costo_merce.per_categoria %}
+      <tr><td>{{ cat.categoria }}</td><td class="num">€ {{ "%.2f"|format(cat.importo)|replace('.', ',') }}</td></tr>
+        {% for sc in cat.sottocategorie or [] %}
+      <tr><td style="padding-left:18px;" class="text-muted">{{ sc.nome }}</td><td class="num text-muted">€ {{ "%.2f"|format(sc.importo)|replace('.', ',') }}</td></tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {# ── Costi operativi per categoria ── #}
+  {% if pl.costi_operativi.per_categoria %}
+  <h2>Costi operativi</h2>
+  <table class="brand">
+    <thead><tr><th>Categoria</th><th class="num">Importo</th></tr></thead>
+    <tbody>
+      {% for cat in pl.costi_operativi.per_categoria %}
+      <tr><td>{{ cat.categoria }}</td><td class="num">€ {{ "%.2f"|format(cat.importo)|replace('.', ',') }}</td></tr>
+        {% for sc in cat.sottocategorie or [] %}
+      <tr><td style="padding-left:18px;" class="text-muted">{{ sc.nome }}</td><td class="num text-muted">€ {{ "%.2f"|format(sc.importo)|replace('.', ',') }}</td></tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {# ── Composizione del venduto (C2) ── #}
+  {% if pl.ripartizione_vendite and pl.ripartizione_vendite.tipi %}
+  <h2>Composizione del venduto (iPratico, lordo IVA)</h2>
+  <table class="brand">
+    <thead><tr><th>Tipo</th><th class="num">Importo</th><th class="num">%</th></tr></thead>
+    <tbody>
+      {% for t in pl.ripartizione_vendite.tipi %}
+      <tr><td>{{ t.label }}</td><td class="num">€ {{ "%.2f"|format(t.totale)|replace('.', ',') }}</td><td class="num">{{ t.pct }}%</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-muted" style="font-size:8pt;">{{ pl.ripartizione_vendite.nota }}</p>
+  {% endif %}
+
+  {# ── Warning ── #}
+  {% if pl._meta and pl._meta.warnings %}
+  <p class="text-muted" style="font-size:8pt;">
+    Note: {% for w in pl._meta.warnings %}{{ w }}{% if not loop.last %} · {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+
+{% endblock %}

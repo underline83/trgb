@@ -7,6 +7,26 @@
 
 ---
 
+# 📌 AGGIORNAMENTO 2026-07-12 — G.3: fatture nei ricavi + Composizione venduto (C2) + PDF (G.3.7b)
+
+## Ricavi CE (decisione Marco 2026-07-12)
+`ricavi.totale = corrispettivi + fatture_emesse` (prima solo corrispettivi). Fonte: `vendite_aggregator.totali_periodo` — le fatture emesse sono quelle registrate nel campo `fatture` delle chiusure turno (emesse via iPratico). KPI Ricavi mostra lo split. Payload: `ricavi.{corrispettivi, fatture_emesse, totale}`.
+
+## C2 — Composizione del venduto per tipo
+- **Mig 149** `ipratico_categoria_tipo(categoria PK, tipo)` in foodcost.db. Tipi: FOOD/VINO/BEVANDE/COPERTO/ALTRO/IGNORA. Seed: Antipasti/Primi/Secondi/Contorni/Dolci/Speciali/Pranzo/Degustazioni→FOOD; Bottiglie/Calici→VINO; Bevande/Alcolici/Birre→BEVANDE; BATTUTA SINGOLA→COPERTO; Vendita→ALTRO; Servizio→IGNORA.
+- Service: `_ripartizione_vendite(fc_conn, periodi_rif)` → payload `ripartizione_vendite.{venduto_totale, tipi[], da_classificare[]}`. Categorie non mappate = DA_CLASSIFICARE (mai perse). NB venduto iPratico lordo IVA fatture incluse: vista di composizione, non quadratura.
+- Endpoint: `GET/PUT /controllo-gestione/ipratico-tipi` (mapping editabile; PUT upsert {categoria, tipo}).
+- UI: sezione "Composizione del venduto" nel CE (barra % + drill-down; select inline per classificare le nuove).
+- "BATTUTA SINGOLA" = tasto prezzo libero: coperto "Servizio, pane e stuzzico" €5 + rari acconti eventi/asporto (accettato a livello categoria in v1).
+
+## G.3.7b — Export PDF
+Template `app/templates/pdf/conto_economico.html` (M.B): KPI, waterfall, breakdown costi con sottocategorie, composizione venduto, warning. Endpoint `GET /controllo-gestione/conto-economico/pdf` (stessi parametri del CE). Bottone 🖨 PDF in pagina, download via fetch+blob (niente token in query — conforme A1-08).
+
+## Indagine discrepanza iPratico (chiusa come diagnosi)
+Formula incassi corretta (marzo +68, giugno +3 vs iPratico). Apr −11.210 / mag −5.917 = fatture emesse non riportate nelle chiusure di quei mesi (campo `fatture` anomalo; prova: "Acconto cena 17/04 €750" in BATTUTA SINGOLA). Verifica Marco su `claude/verifica_fatture_apr_mag.md`, poi backfill del campo fatture.
+
+---
+
 # 📌 AGGIORNAMENTO 2026-06-30 (2° push) — Auto-close rateizzazioni completate (RC.1+RC.3)
 
 Bug storico: quando l'ultima rata di una spesa fissa `RATEIZZAZIONE` viene pagata, il sistema NON riporta l'uscita origine (`cg_uscite.stato = 'RATEIZZATO'`) a `PAGATO`/`PAGATO_MANUALE`. La VIEW `fe_fatture_with_stato` mappa `RATEIZZATO → 'da_pagare'`, quindi la fattura risulta ancora "da pagare" in `FattureElenco` anche se completata. Sul VPS Tre Gobbi al 30/06/2026: 7 rateizzazioni al 100% completate ma non chiuse (€32.923 di residuo apparente inesistente).
