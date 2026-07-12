@@ -739,7 +739,8 @@ export default function ViniImpostazioni() {
       </div>
       {showCartaPreview && (
         <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-          <iframe src={`${API_BASE}/vini/cantina-tools/carta-cantina`} title="Carta Vini da Cantina"
+          {/* Audit 2026-07-12 (A4): carta-cantina ora richiede auth — token in query come i PDF */}
+          <iframe src={`${API_BASE}/vini/cantina-tools/carta-cantina?token=${localStorage.getItem("token")}`} title="Carta Vini da Cantina"
             className="w-full" style={{ height: "70vh", border: "none" }} />
         </div>
       )}
@@ -2280,7 +2281,8 @@ export default function ViniImpostazioni() {
   return (
     <>
       <ViniNav current="settings" />
-      <div className="min-h-screen bg-neutral-50 font-sans">
+      {/* Audit 2026-07-12 (M7): sfondo pagina a norma palette (era bg-neutral-50) */}
+      <div className="min-h-screen bg-brand-cream font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex gap-6">
 

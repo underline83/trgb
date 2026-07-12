@@ -917,72 +917,22 @@ def sync_all_endpoint(current_user: Any = Depends(get_current_user)):
 
 
 # ============================================================
-# ROLLBACK — drop tabelle _v2 (Fase 7, safety blue-green)
+# ROLLBACK — RIMOSSO (audit vini 2026-07-12, finding A1)
 # ============================================================
-@router.post("/rollback", summary="Rollback: droppa tutte le tabelle _v2 (admin, distruttivo)")
+# L'endpoint POST /rollback nasceva per la finestra blue-green del refactor
+# anagrafiche (Fase 7, max 24h post-swap del 2026-05-18). Dopo il cutover
+# (mig 133) la mappa TABELLE punta ai nomi DEFINITIVI: il rollback avrebbe
+# droppato le tabelle LIVE di produzione (vini_bottiglie, vini_madre, ...).
+# Rimosso: risponde 410 Gone per chi avesse ancora il vecchio URL.
+@router.post("/rollback", summary="[RIMOSSO] Rollback refactor anagrafiche (410 Gone)")
 def rollback_v2_tables(
-    confirm: str = Query(
-        "",
-        description="Per sicurezza, passare confirm=YES_DROP_V2_TABLES per eseguire davvero."
-    ),
     current_user: Any = Depends(get_current_user),
 ):
-    """
-    DISTRUTTIVO: cancella le 6 tabelle `_v2` del refactor anagrafiche
-    (produttori, fornitori, denominazioni, vitigni, madre, bottiglie),
-    riportando il DB allo stato pre-refactor.
-
-    Prima del drop, fa un backup esplicito del file DB con timestamp.
-
-    Da usare SOLO in finestra di rollback (fino a 24h dopo lo swap, vedi
-    docs/refactor_anagrafiche_vini.md §1).
-
-    Richiede confirm=YES_DROP_V2_TABLES per evitare click accidentali.
-    """
     _require_admin(current_user)
-    if confirm != "YES_DROP_V2_TABLES":
-        raise HTTPException(
-            400,
-            "Rollback bloccato: passare ?confirm=YES_DROP_V2_TABLES per confermare."
-        )
-
-    import shutil
-    import sqlite3 as _sqlite3
-    from datetime import datetime
-    from app.models.vini_anagrafiche_db import TABELLE
-    from app.utils.locale_data import locale_data_path
-
-    db_path = locale_data_path("vini_magazzino.sqlite3")
-    if not db_path.exists():
-        raise HTTPException(500, f"DB non trovato: {db_path}")
-
-    # 1) Backup esplicito pre-drop
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup_path = db_path.with_name(db_path.name + f".pre-rollback-{ts}")
-    shutil.copy2(db_path, backup_path)
-
-    # 2) Drop in ordine inverso alle FK (bottiglie -> madre -> resto)
-    drop_order = ["bottiglie", "madre", "vitigni", "denominazioni", "fornitori", "produttori"]
-    droppate = []
-    conn = _sqlite3.connect(db_path)
-    try:
-        cur = conn.cursor()
-        for key in drop_order:
-            tbl = TABELLE[key]
-            cur.execute(f"DROP TABLE IF EXISTS {tbl}")
-            droppate.append(tbl)
-        conn.commit()
-    finally:
-        conn.close()
-
-    return {
-        "status": "ok",
-        "backup": str(backup_path),
-        "tabelle_droppate": droppate,
-        "timestamp": ts,
-        "warning": (
-            "Refactor anagrafiche rollbackato. Per ripartire da zero, "
-            "rilancia le mig 125 + 126 + 127 (boot backend) e re-esegui "
-            "POST /vini/anagrafiche/migrate-from-legacy."
-        ),
-    }
+    raise HTTPException(
+        410,
+        "Endpoint rimosso (audit 2026-07-12): la finestra di rollback del "
+        "refactor anagrafiche è chiusa dal 2026-05-19 e post-cutover il drop "
+        "colpirebbe le tabelle live. Per un ripristino usare i backup file "
+        "(.prev / pre-rollback) o i backup VPS."
+    )

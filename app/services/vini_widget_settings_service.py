@@ -27,6 +27,19 @@ from app.utils.locale_data import locale_data_path
 SETTINGS_DB = locale_data_path("vini_settings.sqlite3")
 
 
+def _connect() -> sqlite3.Connection:
+    """
+    Connessione standard a vini_settings.sqlite3.
+    Audit 2026-07-12 (M2): prima si usava sqlite3.connect() nudo (4 call site)
+    senza WAL/synchronous/busy_timeout — fuori standard del progetto.
+    """
+    conn = sqlite3.connect(SETTINGS_DB, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    return conn
+
+
 # Cache process-local: { key: (raw_value: str, tipo: str) }
 _cache: Dict[str, tuple] = {}
 _cache_loaded: bool = False
@@ -80,7 +93,7 @@ def _load_all() -> None:
         if not SETTINGS_DB.exists():
             _cache_loaded = True
             return
-        conn = sqlite3.connect(SETTINGS_DB)
+        conn = _connect()
         cur = conn.cursor()
         # Verifica esistenza tabella (mig 123 potrebbe non essere ancora applicata)
         row = cur.execute(
@@ -145,7 +158,7 @@ def get_all_widget_settings() -> Dict[str, Dict[str, Any]]:
     if not SETTINGS_DB.exists():
         return {}
     try:
-        conn = sqlite3.connect(SETTINGS_DB)
+        conn = _connect()
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         row = cur.execute(
@@ -185,7 +198,7 @@ def set_widget_setting(key: str, value: Any) -> bool:
     if not SETTINGS_DB.exists():
         return False
     try:
-        conn = sqlite3.connect(SETTINGS_DB)
+        conn = _connect()
         cur = conn.cursor()
         row = cur.execute(
             "SELECT tipo FROM vini_widget_settings WHERE key = ?", (key,)
@@ -221,7 +234,7 @@ def reset_widget_settings() -> int:
     """
     if not SETTINGS_DB.exists():
         return 0
-    conn = sqlite3.connect(SETTINGS_DB)
+    conn = _connect()
     cur = conn.cursor()
     # Assicura tabella esistente (caso edge: reset chiamato prima della mig)
     cur.execute("""

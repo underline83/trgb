@@ -887,7 +887,7 @@ def _controllo_gestione_metrics() -> dict:
             out["food_cost_pct"] = pl_cur["costo_merce"].get("pct_su_ricavi")
             staff_tot = sum(
                 cat["importo"] for cat in pl_cur["costi_operativi"]["per_categoria"]
-                if cat["categoria"] in ("STAFF", "AMMINISTRATORI")
+                if cat["categoria"] in ("DIPENDENTI", "STAFF", "AMMINISTRATORI")  # STAFF legacy
             )
             ricavi = pl_cur["ricavi"]["totale"] or 0
             out["personale_pct"] = round(staff_tot / ricavi * 100, 1) if ricavi > 0 else None

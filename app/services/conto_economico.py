@@ -53,7 +53,7 @@ OUTPUT (dict JSON-serializable):
   "costi_operativi": {
     "totale": 8000.0,
     "per_categoria": [
-      {"categoria": "STAFF", "importo": 4000, "sottocat": [...], "fonte": "stipendi+fatture"},
+      {"categoria": "DIPENDENTI", "importo": 4000, "sottocat": [...], "fonte": "stipendi+fatture"},
       {"categoria": "AFFITTI", "importo": 2500, ..., "fonte": "spese_fisse"},
       ...
     ]
@@ -441,7 +441,7 @@ def _aggregate_stipendi(
        In questo caso un warning segnala il "costo personale parziale".
 
     Schema riga unificato (cfr. _build_breakdown):
-      categoria='STAFF',
+      categoria='DIPENDENTI',
       sottocategoria='STIPENDI' | 'INAIL' (riga sintetica INAIL azienda),
       tipo_riga='costo_consuntivo' | 'stipendio' (fallback),
       ref=cognome_nome dipendente, descrizione=fonte.
@@ -557,16 +557,19 @@ def _aggregate_stipendi(
         """, (anno, mese)).fetchall():
             r = dict(r)
             is_azienda = (r["matricola"] or "").upper() == "AZIENDA"
-            # Categoria CE: AMMINISTRATORI se flag, altrimenti STAFF (default)
-            cat_ce = "AMMINISTRATORI" if r.get("is_amministratore") else "STAFF"
+            # Categoria CE: AMMINISTRATORI se flag, altrimenti DIPENDENTI
+            # (2026-07-12, Marco: allineata al nome reale in fe_categorie id=3 —
+            # prima il codice emetteva la label sintetica 'STAFF' e nel CE
+            # stipendi e fatture dipendenti finivano in DUE categorie separate)
+            cat_ce = "AMMINISTRATORI" if r.get("is_amministratore") else "DIPENDENTI"
 
             if is_azienda:
                 # Riga INAIL azienda — singola sottocategoria INAIL.
                 # NB: l'INAIL azienda è sull'intera ditta, lo lasciamo sempre
-                # sotto STAFF (è un premio assicurativo che copre tutti i
+                # sotto DIPENDENTI (è un premio assicurativo che copre tutti i
                 # subordinati; gli amministratori non hanno INAIL).
                 rows.append({
-                    "categoria": "STAFF",
+                    "categoria": "DIPENDENTI",
                     "sottocategoria": "INAIL",
                     "tipo_riga": "costo_consuntivo",
                     "id": r["id"],
@@ -646,7 +649,7 @@ def _aggregate_stipendi(
     # ── Modalità "fallback netti" (comportamento pre-Fase E) ──
     for r in fc_conn.execute("""
         SELECT
-            'STAFF'                                        AS categoria,
+            'DIPENDENTI'                                   AS categoria,
             'STIPENDI'                                     AS sottocategoria,
             'stipendio'                                    AS tipo_riga,
             id                                             AS id,

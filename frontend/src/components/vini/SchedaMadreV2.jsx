@@ -130,11 +130,13 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose, onMadreSav
     }
   }, [activeTab, madre?.id]); // eslint-disable-line
 
-  if (!madre) return null;
-
-  // Aggregato locazioni per annata (per il tab Anagrafica)
+  // Aggregato locazioni per annata (per il tab Anagrafica).
+  // Audit 2026-07-12 (M8): questo useMemo stava DOPO l'early-return
+  // `if (!madre) return null` → violazione Rules of Hooks (crash
+  // "Rendered fewer hooks" se madre passa null↔valore su componente
+  // montato). Tutti gli hook ora stanno prima del return condizionale.
   const locazioniPerAnnata = useMemo(() => {
-    return (madre.annate || []).map(a => {
+    return (madre?.annate || []).map(a => {
       const slots = [
         { nome: a.FRIGORIFERO, qta: a.QTA_FRIGO },
         { nome: a.LOCAZIONE_1, qta: a.QTA_LOC1 },
@@ -143,7 +145,9 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose, onMadreSav
       ].filter(s => s.nome);
       return { annata: a.ANNATA || "NV", formato: a.FORMATO || "BT", slots, totale: a.QTA_TOTALE || 0, id: a.id };
     });
-  }, [madre.annate]);
+  }, [madre?.annate]);
+
+  if (!madre) return null;
 
   // Altezza fissa a 78vh per coerenza con SchedaVino classica in modalità inline
   // (vedi pages/vini/SchedaVino.jsx). In questo modo header + TabBar restano

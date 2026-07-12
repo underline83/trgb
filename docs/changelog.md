@@ -3,6 +3,35 @@
 
 ---
 
+## 2026-07-12 — Audit completo modulo Vini: hardening backend + fix UI (vini 3.67) `[core]`
+
+Audit completo del modulo (136 endpoint su 7 router, ~34.500 righe BE+FE, 3 agenti paralleli + verifica manuale dei findings gravi), poi fix applicati in giornata. Chiude anche il residuo "init zombie" rinviato dalla sessione del 10/07 sera.
+
+### Sicurezza / robustezza backend
+- **B1 — boot crash su DB vergine**: `init_magazzino_database()` faceva `UPDATE vini_bottiglie` senza guardia, a import-time (prima di `run_migrations()`) → su un locale nuovo il backend non partiva. Ora i bulk-fix girano solo se la tabella esiste. Sblocca le istanze prodotto (`locali/`).
+- **A1 — endpoint `/vini/anagrafiche/rollback` RIMOSSO** (risponde 410 Gone): post-cutover avrebbe droppato le tabelle LIVE (`vini_bottiglie`, `vini_madre`, ...). La finestra di rollback era chiusa dal 19/05.
+- **A2 — backup/restore Impostazioni Vini WAL-safe**: backup via `sqlite3 Connection.backup` (prima `shutil.copy2` del solo file → transazioni nel `-wal` perse); path via `locale_data_path()` (prima `app/data` hardcoded, rotto post-R6.5); restore con `wal_checkpoint(TRUNCATE)` pre-overwrite + rimozione `-wal`/`-shm` residui (un WAL stale rigiocato sul file ripristinato = corruzione, stesso vettore S52-1).
+- **A3+M1 — init riscritto in stile S52-1**: ogni CREATE TABLE/INDEX passa da check esplicito su `sqlite_master` (zero scritture a regime); la zombie `vini_magazzino` NON viene più ricreata al boot (A2-02 audit giugno — la bonifica FK del 10/07 ora resta pulita); probe INSERT/DELETE sostituito da ispezione DDL; FK dei DDL nuovi → `vini_bottiglie(id)`. Smoke-testato su DB vergine e post-cutover (idempotente).
+- **A4 — auth su `/vini/carta/pdf-staff` e `/vini/cantina-tools/carta-cantina`** (header Bearer o `?token=`); l'iframe anteprima in Impostazioni passa il token.
+- **M2 — PRAGMA standard ovunque**: `vini_widget_settings_service` (4 connect nudi → factory WAL/NORMAL/busy 30000); `main.py` A2-13 su vini.sqlite3 allineato (busy 5000→30000 + synchronous NORMAL).
+- **M3 — `/reset-database` svuota anche `matrice_celle`, `vini_ordini_pending`, `vini_prezzi_storico`** (prima lasciava orfani).
+- **M4 — `ensure_settings_defaults()` run-once per processo** (prima scan+UPDATE su vini_bottiglie a OGNI generazione carta, con errori silenziati).
+
+### Fix UI
+- **M7** ViniImpostazioni: sfondo `bg-brand-cream` (era `bg-neutral-50`, unica pagina vini fuori palette).
+- **M8** SchedaMadreV2: useMemo spostato prima dell'early-return (violazione Rules of Hooks latente).
+- **M9** DashboardVini: SR_LABELS/SR_CLS ora derivano da `viniConstants.STATO_RIORDINO` (label/colori divergevano nella stessa pagina).
+- **M11** menu e CartaVini puntano diretti a `/vini/v2/cantina` e `/vini/v2/bottiglia/{id}` (prima doppio redirect S2).
+- Rimosso print di debug al load di vini_router.
+
+### Non fatto (aperti, decisioni PO)
+`/vini/carta/pdf`+`/docx` restano pubblici (servono al QR? da decidere); cleanup `*_legacy.jsx` (V-H.I, finestra aperta dal 15/06) e dedup componenti → R7; token in query per i PDF → R8; TrgbLoader nelle pagine vini.
+
+### File
+`main.py`, `app/models/vini_magazzino_db.py`, `app/models/vini_settings.py`, `app/routers/vini_router.py`, `app/routers/vini_anagrafiche_router.py`, `app/routers/vini_cantina_tools_router.py`, `app/services/vini_widget_settings_service.py`, `frontend/src/pages/vini/{ViniImpostazioni,DashboardVini,CartaVini}.jsx`, `frontend/src/components/vini/SchedaMadreV2.jsx`, `frontend/src/config/{modulesMenu.js,versions.jsx}` (vini 3.66→3.67).
+
+---
+
 ## 2026-07-10 (sera) — Audit Sessione 3: bonifica FK orfane (foodcost + vini_magazzino) `[core]`
 
 Chiusura della parte dati di Sessione 3 (audit A2-02/A2-04/A2-10), tutta testata su copie fresche dei DB di produzione prima dell'applicazione. Sistema 5.36.
@@ -34,6 +63,9 @@ La "discrepanza €14.930" di aprile confrontava iPratico coi soli corrispettivi
 - **Ricavi CE = corrispettivi + fatture emesse** (decisione Marco 2026-07-12). Prima solo corrispettivi → su giugno mancavano €5.982 di fatturato dall'utile. Il KPI Ricavi mostra lo split. `conto_economico.py` + payload `ricavi.fatture_emesse`.
 - **C2 / G.3.4 — Composizione del venduto**: mig 149 `ipratico_categoria_tipo` (mapping categoria iPratico → FOOD/VINO/BEVANDE/COPERTO/ALTRO/IGNORA, seed dalle decisioni Marco: Degustazioni→food, vino unico bt+calici, caffè in Bevande, BATTUTA SINGOLA→coperto, Servizio ignorata). Sezione nel CE con barra + drill-down categorie; categorie nuove → DA_CLASSIFICARE con select inline per assegnarle (endpoint GET/PUT `/controllo-gestione/ipratico-tipi`). Test su dati reali: giugno Cucina 68,4% / Coperto 14% / Vino 11,8% / Bevande 5,8%, zero da classificare.
 - **G.3.7b — Export PDF del CE** (mattone M.B): template `conto_economico.html` (KPI, waterfall, breakdown costi, composizione venduto, warning) + endpoint `GET /controllo-gestione/conto-economico/pdf` + bottone 🖨 PDF nella pagina (fetch+blob, niente token in URL — pattern A1-08 compliant).
+
+### Corretto (richiesta Marco, stessa sessione)
+- **Costi del personale sotto "DIPENDENTI"**: il service etichettava stipendi/consuntivi con la label sintetica `'STAFF'` mentre in `fe_categorie` la categoria si chiama `DIPENDENTI` (id 3) → nel CE comparivano DUE categorie separate. Rename semantico verificato punto-per-punto (`conto_economico.py` ×3 + docstring, `dashboard_router` KPI personale con STAFF legacy in whitelist, color map JSX, tooltip DipendentiAnagrafica; migrazioni storiche NON toccate). Verificato su dati reali: giugno = una sola voce DIPENDENTI €16.610,36 (netti+INPS+F24/ratei/TFR+INAIL), STAFF assente anche nel fallback senza ELAB.
 
 ### Note
 - Il venduto iPratico è lordo IVA e include le fatture: la composizione è una vista di STRUTTURA, non di quadratura col CE (nota esplicita in UI e PDF).

@@ -27,7 +27,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 from weasyprint import HTML, CSS
@@ -41,7 +41,7 @@ from app.services.carta_vini_service import (
     build_calici_section_htmlsafe,
     resolve_regione,
 )
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, decode_access_token
 from app.models.vini_magazzino_db import (
     get_vino_by_id,
     list_movimenti_vino,
@@ -52,7 +52,26 @@ from app.repositories.vini_repository import load_vini_ordinati, load_vini_calic
 
 router = APIRouter(prefix="/vini", tags=["Vini"])
 
-print(">>>>> LOADING VINI_ROUTER v3.0   PATH:", __file__)
+
+def _get_user_flessibile(
+    request: Request,
+    token: Optional[str] = Query(None),
+) -> Any:
+    """
+    Auth flessibile: header Authorization (Bearer) oppure ?token=... in query.
+    Audit 2026-07-12 (A4): protegge gli endpoint interni (pdf-staff) restando
+    compatibile con window.open, dove l'header non si può passare.
+    """
+    auth = request.headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        return decode_access_token(auth.split(" ", 1)[1])
+    if token:
+        return decode_access_token(token)
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Autenticazione richiesta (header Authorization o ?token=...).",
+    )
+
 
 # PATH DI BASE
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -343,10 +362,15 @@ def genera_carta_vini_pdf():
 # PDF STAFF
 # ------------------------------------------------------------
 @router.get("/carta/pdf-staff")
-def genera_carta_vini_pdf_staff():
+def genera_carta_vini_pdf_staff(
+    current_user: Any = Depends(_get_user_flessibile),
+):
     """
     Versione STAFF.
     Per ora identica al PDF cliente, ma con label 'VERSIONE STAFF' nel frontespizio.
+
+    Audit 2026-07-12 (A4): versione INTERNA — ora richiede auth
+    (header Authorization o ?token= per window.open).
     """
     data_oggi = datetime.now().strftime("%d/%m/%Y")
     rows = list(load_vini_ordinati())

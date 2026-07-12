@@ -39,10 +39,11 @@ export default function CartaVini() {
         </ul>
       </div>
 
-      <RegiaCaliciPanel onApriScheda={(v) => navigate(`/vini/magazzino/${v.id}`)} />
+      {/* Audit 2026-07-12 (M11): route dirette v2 (prima passavano dai redirect S2) */}
+      <RegiaCaliciPanel onApriScheda={(v) => navigate(`/vini/v2/bottiglia/${v.id}`)} />
 
       <div className="flex flex-wrap gap-2">
-        <Btn variant="primary" size="md" type="button" onClick={() => navigate("/vini/magazzino")}>
+        <Btn variant="primary" size="md" type="button" onClick={() => navigate("/vini/v2/cantina")}>
           🍷 Vai alla Cantina
         </Btn>
         <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/carta-staff")}>

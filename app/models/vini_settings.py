@@ -168,7 +168,15 @@ def _migrate_tipologie_semplificate(cur) -> None:
     # DB vini (carta Excel) rimosso in v3.0 — solo magazzino
 
 
-def ensure_settings_defaults() -> None:
+# Audit 2026-07-12 (M4): ensure_settings_defaults() è chiamata da
+# _load_ordinamenti()/_load_filtri() a OGNI generazione carta, e nei rami
+# migrazione fa scan+UPDATE su vini_bottiglie. Basta una volta per processo:
+# le migrazioni title-case/tipologie sono idempotenti e i default non
+# cambiano a runtime. Flag process-local, azzerato al riavvio del backend.
+_defaults_ensured = False
+
+
+def ensure_settings_defaults(force: bool = False) -> None:
     """
     Assicura che:
     - tipologia_order sia popolata con le tipologie standard
@@ -178,7 +186,13 @@ def ensure_settings_defaults() -> None:
         min_qta_stampa=1
         mostra_negativi=0
         mostra_senza_prezzo=0   (v2.3)
+
+    Gira UNA volta per processo (audit 2026-07-12, M4); `force=True`
+    per forzare una ri-esecuzione (es. dopo un restore).
     """
+    global _defaults_ensured
+    if _defaults_ensured and not force:
+        return
     init_settings_db()
     conn = get_settings_conn()
     cur = conn.cursor()
@@ -360,3 +374,4 @@ def ensure_settings_defaults() -> None:
 
     conn.commit()
     conn.close()
+    _defaults_ensured = True  # audit 2026-07-12 (M4): run-once per processo

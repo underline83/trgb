@@ -212,7 +212,10 @@ try:
     if _vini_db.exists():
         _cw = _sqlite_wal.connect(str(_vini_db))
         _cw.execute("PRAGMA journal_mode=WAL")
-        _cw.execute("PRAGMA busy_timeout=5000")
+        # Audit 2026-07-12 (M2): allineato allo standard degli altri DB
+        # (prima: busy_timeout=5000 e niente synchronous).
+        _cw.execute("PRAGMA synchronous=NORMAL")
+        _cw.execute("PRAGMA busy_timeout=30000")
         _cw.close()
         print("🍷 vini.sqlite3: journal_mode=WAL garantito")
 except Exception as _e_wal:

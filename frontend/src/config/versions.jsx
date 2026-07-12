@@ -3,7 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.66",
+    version: "3.67",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -103,10 +103,7 @@ const MODULE_VERSIONS = {
     // 2.20 (2026-07-02, RC.1.fix): fix SELECT su cg_uscite — non esiste
     //   la colonna `numero_rata` (è di cg_piano_rate). Rimosso dalla query
     //   raccogli-date-rate; usiamo solo periodo_riferimento come identificatore.
-    // 2.21 (2026-07-12, G.3): ricavi CE = corrispettivi + fatture emesse;
-    //   C2 ripartizione vendite per tipo (mig 149 + editor mapping);
-    //   G.3.7b export PDF del CE (mattone M.B).
-    version: "2.21",
+    version: "2.20",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -183,7 +180,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.37",
+    version: "5.36",
     label: "Sistema",
     status: "stabile",
     color: "green",

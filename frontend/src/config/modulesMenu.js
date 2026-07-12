@@ -15,7 +15,9 @@ const MODULES_MENU = {
     sub: [
       { label: "Carta dei Vini", go: "/vini/carta" },
       { label: "Vendite",        go: "/vini/vendite" },
-      { label: "Cantina",        go: "/vini/magazzino" },
+      // Audit 2026-07-12 (M11): puntava a /vini/magazzino (deprecata,
+      // funzionava solo via doppio redirect S2). Ora diretta alla Cantina v2.
+      { label: "Cantina",        go: "/vini/v2/cantina" },
       { label: "Dashboard",      go: "/vini/dashboard" },
       { label: "Impostazioni",   go: "/vini/settings",  check: "admin" },
     ],

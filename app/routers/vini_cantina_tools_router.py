@@ -102,6 +102,26 @@ def _get_user_from_query_token(token: Optional[str] = Query(None)) -> Any:
     return decode_access_token(token)
 
 
+def _get_user_flessibile(
+    request: Request,
+    token: Optional[str] = Query(None),
+) -> Any:
+    """
+    Auth flessibile: header Authorization (Bearer) oppure ?token=... in query.
+    Audit 2026-07-12 (A4): serve per /carta-cantina, caricata sia via iframe
+    (query token) che potenzialmente via fetch autenticata.
+    """
+    auth = request.headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        return decode_access_token(auth.split(" ", 1)[1])
+    if token:
+        return decode_access_token(token)
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Autenticazione richiesta (header Authorization o ?token=...).",
+    )
+
+
 def _get_username(current_user: Any) -> str:
     if isinstance(current_user, dict):
         return current_user.get("username") or current_user.get("sub") or "unknown"
@@ -168,13 +188,23 @@ def reset_database(
     n_mov = cur.execute("SELECT COUNT(*) FROM vini_magazzino_movimenti").fetchone()[0]
     n_note = cur.execute("SELECT COUNT(*) FROM vini_magazzino_note").fetchone()[0]
 
-    # Svuota le tabelle (ordine: figlie prima, poi padre)
+    # Svuota le tabelle (ordine: figlie prima, poi padre).
+    # Audit 2026-07-12 (M3): incluse anche matrice_celle, vini_ordini_pending
+    # e vini_prezzi_storico — prima restavano righe orfane con vino_id
+    # inesistenti dopo il reset.
     cur.execute("DELETE FROM vini_magazzino_note;")
     cur.execute("DELETE FROM vini_magazzino_movimenti;")
+    cur.execute("DELETE FROM matrice_celle;")
+    cur.execute("DELETE FROM vini_ordini_pending;")
+    cur.execute("DELETE FROM vini_prezzi_storico;")
     cur.execute("DELETE FROM vini_bottiglie;")
 
     # Reset autoincrement
-    cur.execute("DELETE FROM sqlite_sequence WHERE name IN ('vini_bottiglie', 'vini_magazzino_movimenti', 'vini_magazzino_note');")
+    cur.execute(
+        "DELETE FROM sqlite_sequence WHERE name IN "
+        "('vini_bottiglie', 'vini_magazzino_movimenti', 'vini_magazzino_note', "
+        "'matrice_celle', 'vini_ordini_pending', 'vini_prezzi_storico');"
+    )
 
     conn.commit()
     conn.close()
@@ -371,10 +401,16 @@ def cleanup_duplicates(
 # 4. CARTA DA CANTINA — HTML
 # =============================================================
 @router.get("/carta-cantina", summary="Carta vini HTML da DB cantina")
-def carta_cantina_html():
+def carta_cantina_html(
+    current_user: Any = Depends(_get_user_flessibile),
+):
     """
     Genera la carta dei vini leggendo dal DB magazzino.
     Usa load_vini_ordinati() condiviso con /vini/carta.
+
+    Audit 2026-07-12 (A4): vista da tool interno — richiede auth.
+    Accetta sia header Authorization che ?token= (per l'iframe in
+    ViniImpostazioni, stesso pattern dei PDF inventario).
     """
     rows = load_vini_ordinati()
     calici_rows = load_vini_calici()
@@ -1857,6 +1893,7 @@ import glob as _glob
 # K-bis (sessione 2026-05-04): backup runtime tenant-aware via helper.
 # Lookup: <TRGB_UPLOADS_DIR>/backups/vini/ → fallback app/data/backups/
 from app.utils.uploads import tenant_dir_with_legacy_fallback
+from app.utils.locale_data import locale_data_path  # audit 2026-07-12 (A2)
 _BACKUP_DIR = tenant_dir_with_legacy_fallback(
     "backups/vini",
     Path(__file__).resolve().parents[2] / "app" / "data" / "backups",
@@ -1870,22 +1907,44 @@ def _ensure_backup_dir():
     _BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _backup_sqlite_consistente(src: Path, dst: Path) -> None:
+    """
+    Snapshot consistente di un DB SQLite in WAL mode.
+
+    Audit vini 2026-07-12 (finding A2): la vecchia shutil.copy2 del solo file
+    .sqlite3 perdeva le transazioni ancora nel -wal (backup monco) — stessa
+    classe di rischio di S52-1. Si usa l'API sqlite3 Connection.backup, che
+    produce una copia coerente anche a DB caldo, senza toccare il -wal live.
+    """
+    import sqlite3 as _sq
+    src_conn = _sq.connect(str(src))
+    try:
+        dst_conn = _sq.connect(str(dst))
+        try:
+            src_conn.backup(dst_conn)
+        finally:
+            dst_conn.close()
+    finally:
+        src_conn.close()
+
+
 @router.post("/backup/create", summary="Crea un backup dei database")
 def backup_create(current_user=Depends(get_current_user)):
-    """Copia i file .sqlite3 in app/data/backups/ con timestamp."""
+    """Snapshot WAL-safe dei DB vini nella cartella backup del locale."""
     _require_admin(current_user)
     _ensure_backup_dir()
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     created = []
-    data_dir = Path(__file__).resolve().parents[2] / "app" / "data"
 
     for db_file, label in _DB_FILES:
-        src = data_dir / db_file
+        # Audit 2026-07-12 (A2): path tenant-aware via locale_data_path,
+        # non più app/data hardcoded (post R6.5).
+        src = locale_data_path(db_file)
         if not src.exists():
             continue
         dst = _BACKUP_DIR / f"{src.stem}_{ts}{src.suffix}"
-        shutil.copy2(str(src), str(dst))
+        _backup_sqlite_consistente(src, dst)
         size_kb = round(dst.stat().st_size / 1024, 1)
         created.append({"file": dst.name, "label": label, "size_kb": size_kb})
 
@@ -1932,27 +1991,49 @@ def backup_restore(timestamp: str, current_user=Depends(get_current_user)):
     _require_admin(current_user)
     _ensure_backup_dir()
 
-    data_dir = Path(__file__).resolve().parents[2] / "app" / "data"
     backup_files = list(_BACKUP_DIR.glob(f"*_{timestamp}.sqlite3"))
 
     if not backup_files:
         raise HTTPException(status_code=404, detail=f"Nessun backup trovato con timestamp {timestamp}")
 
-    # Prima crea un backup di sicurezza dello stato attuale (pre-restore)
+    # Prima crea un backup di sicurezza dello stato attuale (pre-restore),
+    # anch'esso WAL-safe (audit 2026-07-12, A2).
     pre_ts = datetime.now().strftime("%Y%m%d_%H%M%S") + "_prerestore"
     for db_file, _ in _DB_FILES:
-        src = data_dir / db_file
+        src = locale_data_path(db_file)
         if src.exists():
             dst = _BACKUP_DIR / f"{src.stem}_{pre_ts}{src.suffix}"
-            shutil.copy2(str(src), str(dst))
+            _backup_sqlite_consistente(src, dst)
 
+    import sqlite3 as _sq
     restored = []
     for bf in backup_files:
         # Ricostruisci il nome originale: vini_magazzino_20260316_143000.sqlite3 → vini_magazzino.sqlite3
         parts = bf.stem.rsplit("_", 2)
         original_name = "_".join(parts[:-2]) + bf.suffix
-        dst = data_dir / original_name
+        dst = locale_data_path(original_name)
+
+        # Audit 2026-07-12 (A2): prima di sovrascrivere il DB live,
+        # 1) checkpoint TRUNCATE per svuotare il -wal corrente,
+        # 2) copia del file di backup,
+        # 3) rimozione di -wal/-shm residui: un WAL stale rimasto accanto
+        #    al file ripristinato verrebbe rigiocato alla prima apertura
+        #    → corruzione (stesso vettore di S52-1).
+        if dst.exists():
+            try:
+                _c = _sq.connect(str(dst))
+                _c.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                _c.close()
+            except Exception as e:
+                print(f"⚠️ Checkpoint pre-restore fallito su {original_name}: {e}")
         shutil.copy2(str(bf), str(dst))
+        for suffix in ("-wal", "-shm"):
+            residuo = Path(str(dst) + suffix)
+            if residuo.exists():
+                try:
+                    residuo.unlink()
+                except OSError as e:
+                    print(f"⚠️ Impossibile rimuovere {residuo.name}: {e}")
         restored.append({"file": original_name, "from": bf.name})
 
     return {

@@ -602,7 +602,7 @@ export default function DipendentiAnagrafica() {
                         onChange={e => handleChange("is_amministratore", e.target.checked)}
                         className="rounded border-neutral-300 text-violet-600" />
                       <label htmlFor="is_amministratore" className="text-xs text-neutral-700"
-                        title="Se attivo: il costo di questo dipendente va sotto 'AMMINISTRATORI' nel Conto Economico (compenso non subordinato, senza TFR n\u00E9 ratei). Altrimenti: 'STAFF' (operai/dipendenti).">
+                        title="Se attivo: il costo di questo dipendente va sotto 'AMMINISTRATORI' nel Conto Economico (compenso non subordinato, senza TFR n\u00E9 ratei). Altrimenti: 'DIPENDENTI' (operai/dipendenti subordinati).">
                         {"\uD83D\uDC54"} Amministratore (compenso, non subordinato)
                       </label>
                     </div>

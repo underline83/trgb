@@ -1,29 +1,28 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-12 — **G.3 CE: fatture nei ricavi + ripartizione vendite C2 + export PDF + indagine discrepanza iPratico risolta** (`[core]`, sistema 5.37). Da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-12 — **Audit completo modulo Vini + fix (vini 3.67)**. Hardening init/backup/auth + fix UI, 13 file. Da pushare. Dettagli sotto.
 
-## SESSIONE 2026-07-12 — G.3 Conto Economico: indagine ricavi + C2 + PDF
+## SESSIONE 2026-07-12 — Audit completo modulo Vini + fix (vini 3.67)
 
 ### Contesto
-Marco: "voglio sfruttare Fable". Scelta G.3 (priorità TOP), risposta "tutto": indagine discrepanza + Fase D + C2 + PDF. NB memoria G.3 era stantia: fasi A-E già fatte a maggio (CE esiste con spalmatura, override competenza, ELAB gen-giu importati).
+Marco: "Audit completo modulo vini" → audit read-only (3 agenti paralleli su BE/FE/docs + verifica manuale riga-per-riga dei findings gravi), report consegnato. Poi "sistema" → applicati i fix sicuri; lasciate fuori le decisioni PO.
 
-### Indagine discrepanza (RISOLTA come diagnosi)
-- Formula incassi corretta (Z cumulativa cena + fatture): marzo +68/iPratico, giugno +3. Buco reale: APRILE −11.210, MAGGIO −5.917.
-- Causa quasi certa: fatture emesse (eventi, via iPratico) non riportate nel campo `fatture` delle chiusure di apr/mag (campo anomalo: 3.7k/1.7k vs 6.3k/6.0k dei mesi che quadrano). Prova: "Acconto cena 17/04 €750" dentro BATTUTA SINGOLA.
-- Deliverable: `claude/verifica_fatture_apr_mag.md` con i giorni sospetti (gap pagamenti vs Z+fatture) da incrociare con iPratico. Poi backfill assistito.
+### Cosa è stato fatto
+- **Fix dei findings** (dettaglio nel changelog di oggi): B1 boot-crash DB vergine (guardia sui bulk-fix `vini_bottiglie` nell'init), A1 rollback→410 Gone, A2 backup/restore WAL-safe + tenant-aware, A3+M1 init riscritto S52-1 senza zombie (chiude il residuo rinviato della sessione 10/07 sera-3), A4 auth pdf-staff/carta-cantina, M2 PRAGMA standard, M3 reset senza orfani, M4 ensure_defaults run-once, M7/M8/M9/M11 fix UI, print debug rimosso.
+- **Verifiche**: py_compile su tutti i .py; esbuild su tutti i .jsx/.js; smoke test funzionale dell'init su DB vergine (prima crashava, ora boot OK) e su DB post-cutover (zombie non ricreata, bulk-fix applicato, doppio boot idempotente).
 
-### Fatto (codice)
-- **Ricavi CE = corrispettivi + fatture emesse** (decisione Marco) — split visibile nel KPI. Giugno: ricavi 43.388→49.370.
-- **C2**: mig 149 mapping categorie→tipo (decisioni: Degustazioni food, vino unico, caffè in bevande, BATTUTA SINGOLA=coperto, Servizio ignora, Speciali/Pranzo food, Vendita altro) + sezione "Composizione del venduto" nel CE + endpoint GET/PUT ipratico-tipi + select inline per DA_CLASSIFICARE.
-- **G.3.7b**: template PDF conto_economico.html + endpoint /conto-economico/pdf + bottone 🖨 (fetch+blob).
-- Testato su dati reali (copie): CE maggio/giugno con ripartizione corretta, template renderizza, tutti i parse/compile ok.
+### Findings NON fixati (aperti)
+- `/vini/carta/pdf` e `/docx` senza auth: intenzionale per QR? Se no, chiudere (scrivono anche file in static/ a ogni hit anonima).
+- V-H.I cleanup legacy (4 file `*_legacy.jsx` + MagazzinoSubMenu.jsx, 2.546 righe morte): finestra aperta dal 15/06, farlo in R7.
+- Doppione `/vini/{id}/movimenti` (v1, senza `prezzo_unitario`) vs `/vini/magazzino/{id}/movimenti`: chi passa dal v1 non salva lo snapshot prezzo.
+- Docs in drift: database.md pre-cutover, refactor_anagrafiche_vini.md dichiara ancora "fase 8-10 da fare", sessioni vini 3.63→3.66 mai documentate (fix calici di inizio luglio).
+- Bonifica FK sul VPS (script del 10/07): esecuzione non ancora confermata nei docs — ora che l'init non ricrea più la zombie, dopo lo script il DB resta pulito davvero.
 
-### Fase D (prospetto commercialista)
-Rimandata a dopo la verifica fatture apr/mag di Marco: validare un mese col buco noto non ha senso. Giugno è il candidato (quadra con iPratico).
+### File modificati (13)
+main.py · app/models/vini_magazzino_db.py (init riscritto) · vini_settings.py · routers vini/anagrafiche/cantina-tools · services/vini_widget_settings_service.py · FE: ViniImpostazioni, DashboardVini, CartaVini, SchedaMadreV2, modulesMenu.js, versions.jsx (vini 3.67)
 
-### Da fare dopo
-- Marco verifica i giorni del report → backfill campo fatture apr/mag (script assistito).
-- (verificato: il warning ELAB compariva solo nel test senza dip_conn; con la connessione dipendenti il CE di giugno usa il costo personale COMPLETO da consuntivo, warnings=[] — utile netto giugno €5.442,75)
+### Da fare al push
+`./push.sh` (o /guardiano push) con messaggio proposto: `[core] vini 3.67 — hardening audit: init S52-1 senza zombie + fix boot DB vergine + rollback rimosso + backup WAL-safe + auth pdf-staff/carta-cantina + fix UI`. Post-push: Ctrl+Shift+R e verificare anteprima carta in Impostazioni (iframe ora autenticato), widget Riordini in Dashboard (badge stati), backup/restore da Impostazioni.
 
 ---
 

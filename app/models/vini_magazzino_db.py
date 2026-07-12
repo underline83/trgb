@@ -108,269 +108,278 @@ def _log_prezzi_cambiati_conn(
     return inserted
 
 
+def _sm_exists(cur: sqlite3.Cursor, kind: str, name: str) -> bool:
+    """
+    True se l'oggetto (table/index) esiste già in sqlite_master.
+    Regola S52-1 (sessione 52): a regime NIENTE scritture su sqlite_master
+    al boot — si crea solo se manca davvero.
+    """
+    row = cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type=? AND name=?;", (kind, name)
+    ).fetchone()
+    return row is not None
+
+
+def _ensure_index(cur: sqlite3.Cursor, name: str, ddl: str) -> None:
+    """Crea l'indice solo se manca (check esplicito su sqlite_master, S52-1)."""
+    if not _sm_exists(cur, "index", name):
+        cur.execute(ddl)
+
+
 def init_magazzino_database() -> None:
+    """
+    Init idempotente del DB magazzino vini.
+
+    Riscritto 2026-07-12 (audit modulo vini) per rispettare la regola S52-1:
+    - ogni CREATE TABLE/INDEX passa da un check esplicito su sqlite_master
+      (niente 'IF NOT EXISTS' che tocca sqlite_master a ogni boot);
+    - la tabella legacy `vini_magazzino` NON viene più ricreata dopo il
+      cutover (mig 133): il blocco legacy gira solo se `vini_bottiglie`
+      non esiste ancora (DB pre-cutover o vergine) — chiude A2-02
+      (zombie ricreata a ogni boot, audit 2026-06-12);
+    - i bulk-fix su `vini_bottiglie` girano solo se la tabella esiste:
+      prima l'UPDATE non guardato crashava il boot su DB vergine
+      (finding B1, audit 2026-07-12) — l'init gira a import-time, PRIMA
+      di run_migrations();
+    - il probe INSERT/DELETE per il CHECK 'MODIFICA' è sostituito da
+      un'ispezione del DDL in sqlite_master (niente scritture di probe);
+    - per i DB nuovi le FK delle tabelle satellite puntano a
+      `vini_bottiglie(id)`, allineate a scripts/bonifica_fk_vini_magazzino.py
+      (le FK non sono comunque enforced: PRAGMA foreign_keys mai attivato).
+    """
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
-    # TABELLA PRINCIPALE
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vini_magazzino (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_excel        INTEGER,
+    bottiglie_ok = _sm_exists(cur, "table", "vini_bottiglie")
 
-            -- Anagrafica base
-            TIPOLOGIA       TEXT NOT NULL,
-            NAZIONE         TEXT NOT NULL,
-            CODICE          TEXT,
-            REGIONE         TEXT,
+    # =====================================================
+    # BLOCCO LEGACY — solo DB pre-cutover o vergine.
+    # Post-cutover (mig 133) la tabella live è `vini_bottiglie`:
+    # NON ricreare la zombie `vini_magazzino`.
+    # =====================================================
+    if not bottiglie_ok:
+        if not _sm_exists(cur, "table", "vini_magazzino"):
+            cur.execute(
+                """
+                CREATE TABLE vini_magazzino (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id_excel        INTEGER,
 
-            DESCRIZIONE     TEXT NOT NULL,
-            DENOMINAZIONE   TEXT,
-            ANNATA          TEXT,
-            VITIGNI         TEXT,
-            GRADO_ALCOLICO  REAL,
-            FORMATO         TEXT,   -- es. BT, MG, DM, ecc.
+                    -- Anagrafica base
+                    TIPOLOGIA       TEXT NOT NULL,
+                    NAZIONE         TEXT NOT NULL,
+                    CODICE          TEXT,
+                    REGIONE         TEXT,
 
-            PRODUTTORE      TEXT,
-            DISTRIBUTORE    TEXT,
+                    DESCRIZIONE     TEXT NOT NULL,
+                    DENOMINAZIONE   TEXT,
+                    ANNATA          TEXT,
+                    VITIGNI         TEXT,
+                    GRADO_ALCOLICO  REAL,
+                    FORMATO         TEXT,   -- es. BT, MG, DM, ecc.
 
-            -- Prezzi
-            PREZZO_CARTA    REAL,
-            EURO_LISTINO    REAL,
-            SCONTO          REAL,
-            NOTE_PREZZO     TEXT,
+                    PRODUTTORE      TEXT,
+                    DISTRIBUTORE    TEXT,
 
-            -- Prezzi calice
-            PREZZO_CALICE       REAL,
-            PREZZO_CALICE_MANUALE INTEGER DEFAULT 0,  -- 1 se il prezzo è stato modificato manualmente
+                    -- Prezzi
+                    PREZZO_CARTA    REAL,
+                    EURO_LISTINO    REAL,
+                    SCONTO          REAL,
+                    NOTE_PREZZO     TEXT,
 
-            -- Flag di visibilità / export (sessione 2026-05-12, V-H.E:
-            -- normalizzati da TEXT 'SI'/'NO' a INTEGER 0/1, mig 124).
-            -- DISCONTINUATO rimosso: ridondante con STATO_RIORDINO='X' (Non ricomprare).
-            CARTA           INTEGER,
-            IPRATICO        INTEGER,
-            BIOLOGICO       INTEGER DEFAULT 0,
-            VENDITA_CALICE  INTEGER DEFAULT 0,
+                    -- Prezzi calice
+                    PREZZO_CALICE       REAL,
+                    PREZZO_CALICE_MANUALE INTEGER DEFAULT 0,
 
-            -- Mescita: 1 se la bottiglia e' aperta in mescita (anche con QTA_TOTALE=0
-            -- il vino deve apparire nella carta calici). Sessione 58 (2026-04-25).
-            BOTTIGLIA_APERTA INTEGER DEFAULT 0,
-            -- Data ISO 8601 di quando BOTTIGLIA_APERTA è stato settato a 1
-            -- (sia da auto-VENDITA [CALICI] che da toggle manuale). NULL se mai
-            -- aperta o se è stata chiusa. Usata per alert "aperta da troppo tempo"
-            -- nel widget Calici disponibili. Sessione 2026-05-11.
-            DATA_APERTURA   TEXT,
+                    -- Flag di visibilità / export (INTEGER 0/1, mig 124)
+                    CARTA           INTEGER,
+                    IPRATICO        INTEGER,
+                    BIOLOGICO       INTEGER DEFAULT 0,
+                    VENDITA_CALICE  INTEGER DEFAULT 0,
 
-            -- Abbinamenti consigliati (sessione 2026-05-04). Testo libero,
-            -- mostrato in carta cliente solo per i vini al calice.
-            ABBINAMENTI     TEXT,
+                    BOTTIGLIA_APERTA INTEGER DEFAULT 0,
+                    DATA_APERTURA   TEXT,
+                    ABBINAMENTI     TEXT,
 
-            -- Stato vendite / conservazione / riordino
-            STATO_VENDITA   TEXT,
-            NOTE_STATO      TEXT,
+                    -- Stato vendite / conservazione / riordino
+                    STATO_VENDITA   TEXT,
+                    NOTE_STATO      TEXT,
 
-            -- Magazzino: locazioni e quantità
-            FRIGORIFERO     TEXT,
-            QTA_FRIGO       INTEGER DEFAULT 0,
+                    -- Magazzino: locazioni e quantità
+                    FRIGORIFERO     TEXT,
+                    QTA_FRIGO       INTEGER DEFAULT 0,
 
-            LOCAZIONE_1     TEXT,
-            QTA_LOC1        INTEGER DEFAULT 0,
+                    LOCAZIONE_1     TEXT,
+                    QTA_LOC1        INTEGER DEFAULT 0,
 
-            LOCAZIONE_2     TEXT,
-            QTA_LOC2        INTEGER DEFAULT 0,
+                    LOCAZIONE_2     TEXT,
+                    QTA_LOC2        INTEGER DEFAULT 0,
 
-            LOCAZIONE_3     TEXT,
-            QTA_LOC3        INTEGER DEFAULT 0,
+                    LOCAZIONE_3     TEXT,
+                    QTA_LOC3        INTEGER DEFAULT 0,
 
-            -- Totale (per ora gestito come campo dedicato per filtri veloci)
-            QTA_TOTALE      INTEGER DEFAULT 0,
+                    QTA_TOTALE      INTEGER DEFAULT 0,
 
-            -- Metadati
-            NOTE            TEXT,
-            CREATED_AT      TEXT,
-            UPDATED_AT      TEXT
-        );
-        """
-    )
+                    -- Metadati
+                    NOTE            TEXT,
+                    CREATED_AT      TEXT,
+                    UPDATED_AT      TEXT
+                );
+                """
+            )
 
-    # Indici
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_tipologia "
-        "ON vini_magazzino (TIPOLOGIA);"
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_regione "
-        "ON vini_magazzino (REGIONE);"
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_produttore "
-        "ON vini_magazzino (PRODUTTORE);"
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_descrizione "
-        "ON vini_magazzino (DESCRIZIONE);"
-    )
+        # Indici legacy (check esplicito, S52-1)
+        _ensure_index(cur, "idx_vm_tipologia",
+                      "CREATE INDEX idx_vm_tipologia ON vini_magazzino (TIPOLOGIA);")
+        _ensure_index(cur, "idx_vm_regione",
+                      "CREATE INDEX idx_vm_regione ON vini_magazzino (REGIONE);")
+        _ensure_index(cur, "idx_vm_produttore",
+                      "CREATE INDEX idx_vm_produttore ON vini_magazzino (PRODUTTORE);")
+        _ensure_index(cur, "idx_vm_descrizione",
+                      "CREATE INDEX idx_vm_descrizione ON vini_magazzino (DESCRIZIONE);")
 
-    # Nuove colonne per DB esistenti (ALTER TABLE idempotente).
-    # NOTA (sessione 2026-05-12, V-H.E): BIOLOGICO/VENDITA_CALICE qui sono
-    # dichiarati come INTEGER, ma su DB ESISTENTI erano stati creati come TEXT
-    # da una versione precedente di questo blocco. La mig 124 li ricrea come
-    # INTEGER. Per nuovi DB il CREATE TABLE sopra è già corretto.
-    for col_def in [
-        "PREZZO_CALICE REAL",
-        "PREZZO_CALICE_MANUALE INTEGER DEFAULT 0",
-        "BIOLOGICO INTEGER DEFAULT 0",
-        "VENDITA_CALICE INTEGER DEFAULT 0",
-        # Sessione 2026-05-04: campo testo libero per abbinamenti consigliati,
-        # mostrato in carta cliente solo per vini al calice (VENDITA_CALICE=1
-        # o BOTTIGLIA_APERTA=1).
-        "ABBINAMENTI TEXT",
-    ]:
-        col_name = col_def.split()[0]
-        try:
-            cur.execute(f"ALTER TABLE vini_magazzino ADD COLUMN {col_def}")
-            print(f"  ✅ Colonna {col_name} aggiunta")
-        except sqlite3.OperationalError:
-            pass  # Già esiste
+        # Nuove colonne per DB esistenti (ALTER TABLE idempotente).
+        for col_def in [
+            "PREZZO_CALICE REAL",
+            "PREZZO_CALICE_MANUALE INTEGER DEFAULT 0",
+            "BIOLOGICO INTEGER DEFAULT 0",
+            "VENDITA_CALICE INTEGER DEFAULT 0",
+            "ABBINAMENTI TEXT",
+        ]:
+            col_name = col_def.split()[0]
+            try:
+                cur.execute(f"ALTER TABLE vini_magazzino ADD COLUMN {col_def}")
+                print(f"  ✅ Colonna {col_name} aggiunta")
+            except sqlite3.OperationalError:
+                pass  # Già esiste
 
-    # Indice UNIQUE su id_excel per proteggere l'ID storico (quando non NULL)
-    try:
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_vm_id_excel_unique "
-            "ON vini_magazzino (id_excel);"
-        )
-    except sqlite3.OperationalError as e:
-        # Se esistono già duplicati, l'indice fallisce:
-        # lo segnaliamo a log ma non blocchiamo l'avvio.
-        print("⚠️ Impossibile creare indice UNIQUE su id_excel:", e)
+        # Indice UNIQUE su id_excel per proteggere l'ID storico (quando non NULL)
+        if not _sm_exists(cur, "index", "idx_vm_id_excel_unique"):
+            try:
+                cur.execute(
+                    "CREATE UNIQUE INDEX idx_vm_id_excel_unique "
+                    "ON vini_magazzino (id_excel);"
+                )
+            except sqlite3.OperationalError as e:
+                print("⚠️ Impossibile creare indice UNIQUE su id_excel:", e)
 
-    # -----------------------------------------------------
-    # MIGRAZIONI LEGGERISSIME (non distruttive)
-    # -----------------------------------------------------
-    cur.execute("PRAGMA table_info(vini_magazzino);")
-    cols = [row[1] for row in cur.fetchall()]
-    if "ANNATA" not in cols:
-        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN ANNATA TEXT;")
-    # DISCONTINUATO rimosso 2026-05-12 (V-H.E, mig 124): ridondante con
-    # STATO_RIORDINO='X' (Non ricomprare). I dati sono stati consolidati.
-    if "STATO_RIORDINO" not in cols:
-        # 'O' (Finito/ordina) rimosso 2026-05-11: ridondante con 'D' (mig 122).
-        # Il CHECK qui vale solo per DB nuovi; per DB esistenti il constraint
-        # originale resta in tabella e include ancora 'O', ma non e' un problema
-        # operativo perche' il flusso UI non permette piu' di selezionarlo.
-        cur.execute(
-            "ALTER TABLE vini_magazzino ADD COLUMN STATO_RIORDINO TEXT "
-            "CHECK (STATO_RIORDINO IN ('D','0','A','X') OR STATO_RIORDINO IS NULL);"
-        )
-    if "STATO_CONSERVAZIONE" not in cols:
-        cur.execute(
-            "ALTER TABLE vini_magazzino ADD COLUMN STATO_CONSERVAZIONE TEXT "
-            "CHECK (STATO_CONSERVAZIONE IN ('1','2','3') OR STATO_CONSERVAZIONE IS NULL);"
-        )
-    if "ORIGINE" not in cols:
-        cur.execute(
-            "ALTER TABLE vini_magazzino ADD COLUMN ORIGINE TEXT "
-            "CHECK (ORIGINE IN ('EXCEL','MANUALE') OR ORIGINE IS NULL) "
-            "DEFAULT NULL;"
-        )
-    if "RAPPRESENTANTE" not in cols:
-        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN RAPPRESENTANTE TEXT DEFAULT '';")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_rappresentante ON vini_magazzino (RAPPRESENTANTE);")
-    if "FORZA_PREZZO" not in cols:
-        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN FORZA_PREZZO INTEGER DEFAULT 0;")
-    if "BOTTIGLIA_APERTA" not in cols:
-        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN BOTTIGLIA_APERTA INTEGER DEFAULT 0;")
-    if "DATA_APERTURA" not in cols:
-        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN DATA_APERTURA TEXT;")
-    # Indice su DISTRIBUTORE (se non esiste)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_distributore ON vini_magazzino (DISTRIBUTORE);")
+        # Migrazioni leggerissime (non distruttive) — solo pre-cutover
+        cur.execute("PRAGMA table_info(vini_magazzino);")
+        cols = [row[1] for row in cur.fetchall()]
+        if "ANNATA" not in cols:
+            cur.execute("ALTER TABLE vini_magazzino ADD COLUMN ANNATA TEXT;")
+        if "STATO_RIORDINO" not in cols:
+            # 'O' rimosso 2026-05-11 (mig 122): il CHECK vale solo per DB nuovi.
+            cur.execute(
+                "ALTER TABLE vini_magazzino ADD COLUMN STATO_RIORDINO TEXT "
+                "CHECK (STATO_RIORDINO IN ('D','0','A','X') OR STATO_RIORDINO IS NULL);"
+            )
+        if "STATO_CONSERVAZIONE" not in cols:
+            cur.execute(
+                "ALTER TABLE vini_magazzino ADD COLUMN STATO_CONSERVAZIONE TEXT "
+                "CHECK (STATO_CONSERVAZIONE IN ('1','2','3') OR STATO_CONSERVAZIONE IS NULL);"
+            )
+        if "ORIGINE" not in cols:
+            cur.execute(
+                "ALTER TABLE vini_magazzino ADD COLUMN ORIGINE TEXT "
+                "CHECK (ORIGINE IN ('EXCEL','MANUALE') OR ORIGINE IS NULL) "
+                "DEFAULT NULL;"
+            )
+        if "RAPPRESENTANTE" not in cols:
+            cur.execute("ALTER TABLE vini_magazzino ADD COLUMN RAPPRESENTANTE TEXT DEFAULT '';")
+            _ensure_index(cur, "idx_vm_rappresentante",
+                          "CREATE INDEX idx_vm_rappresentante ON vini_magazzino (RAPPRESENTANTE);")
+        if "FORZA_PREZZO" not in cols:
+            cur.execute("ALTER TABLE vini_magazzino ADD COLUMN FORZA_PREZZO INTEGER DEFAULT 0;")
+        if "BOTTIGLIA_APERTA" not in cols:
+            cur.execute("ALTER TABLE vini_magazzino ADD COLUMN BOTTIGLIA_APERTA INTEGER DEFAULT 0;")
+        if "DATA_APERTURA" not in cols:
+            cur.execute("ALTER TABLE vini_magazzino ADD COLUMN DATA_APERTURA TEXT;")
+        _ensure_index(cur, "idx_vm_distributore",
+                      "CREATE INDEX idx_vm_distributore ON vini_magazzino (DISTRIBUTORE);")
 
-    # Bulk fix: assegna STATO_VENDITA a vini che non ce l'hanno.
+    # =====================================================
+    # BULK-FIX su vini_bottiglie — SOLO se la tabella esiste (B1).
     # Post V-H.F (mig 128) i codici sono INTEGER 0..3:
     #   0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE, 3=SPINGERE
-    # - Con giacenza > 0 → 2 (VENDERE)
-    # - Con giacenza 0  → 1 (CONTROLLARE — fuori catalogo da verificare)
-    cur.execute("""
-        UPDATE vini_bottiglie
-        SET STATO_VENDITA = 2, UPDATED_AT = datetime('now')
-        WHERE STATO_VENDITA IS NULL
-          AND QTA_TOTALE > 0;
-    """)
-    cur.execute("""
-        UPDATE vini_bottiglie
-        SET STATO_VENDITA = 1, UPDATED_AT = datetime('now')
-        WHERE STATO_VENDITA IS NULL
-          AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0);
-    """)
+    # =====================================================
+    if bottiglie_ok:
+        cur.execute("""
+            UPDATE vini_bottiglie
+            SET STATO_VENDITA = 2, UPDATED_AT = datetime('now')
+            WHERE STATO_VENDITA IS NULL
+              AND QTA_TOTALE > 0;
+        """)
+        cur.execute("""
+            UPDATE vini_bottiglie
+            SET STATO_VENDITA = 1, UPDATED_AT = datetime('now')
+            WHERE STATO_VENDITA IS NULL
+              AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0);
+        """)
 
     # -----------------------------------------------------
-    # TABELLA 'vini_magazzino_movimenti'
+    # TABELLE SATELLITE (check esplicito sqlite_master, S52-1).
+    # FK per DB nuovi → vini_bottiglie(id), allineate alla bonifica
+    # 2026-07-10 (scripts/bonifica_fk_vini_magazzino.py). Sui DB
+    # esistenti il DDL storico resta com'è: FK mai enforced.
     # -----------------------------------------------------
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vini_magazzino_movimenti (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            vino_id     INTEGER NOT NULL,
-            data_mov    TEXT NOT NULL,
-            tipo        TEXT NOT NULL CHECK (
-                            tipo IN ('CARICO','SCARICO','VENDITA','RETTIFICA','MODIFICA')
-                        ),
-            qta         INTEGER NOT NULL DEFAULT 0,
-            locazione   TEXT,
-            note        TEXT,
-            origine     TEXT,
-            utente      TEXT,
-            created_at  TEXT NOT NULL,
-            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id)
-        );
-        """
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vmm_vino_data "
-        "ON vini_magazzino_movimenti (vino_id, data_mov);"
-    )
+    if not _sm_exists(cur, "table", "vini_magazzino_movimenti"):
+        cur.execute(
+            """
+            CREATE TABLE vini_magazzino_movimenti (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                vino_id     INTEGER NOT NULL,
+                data_mov    TEXT NOT NULL,
+                tipo        TEXT NOT NULL CHECK (
+                                tipo IN ('CARICO','SCARICO','VENDITA','RETTIFICA','MODIFICA')
+                            ),
+                qta         INTEGER NOT NULL DEFAULT 0,
+                locazione   TEXT,
+                note        TEXT,
+                origine     TEXT,
+                utente      TEXT,
+                created_at  TEXT NOT NULL,
+                FOREIGN KEY (vino_id) REFERENCES vini_bottiglie(id)
+            );
+            """
+        )
+    _ensure_index(cur, "idx_vmm_vino_data",
+                  "CREATE INDEX idx_vmm_vino_data "
+                  "ON vini_magazzino_movimenti (vino_id, data_mov);")
 
-    # -----------------------------------------------------
-    # TABELLA 'vini_magazzino_note'
-    # -----------------------------------------------------
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vini_magazzino_note (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            vino_id     INTEGER NOT NULL,
-            nota        TEXT NOT NULL,
-            autore      TEXT,
-            created_at  TEXT NOT NULL,
-            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id)
-        );
-        """
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vmn_vino "
-        "ON vini_magazzino_note (vino_id);"
-    )
+    if not _sm_exists(cur, "table", "vini_magazzino_note"):
+        cur.execute(
+            """
+            CREATE TABLE vini_magazzino_note (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                vino_id     INTEGER NOT NULL,
+                nota        TEXT NOT NULL,
+                autore      TEXT,
+                created_at  TEXT NOT NULL,
+                FOREIGN KEY (vino_id) REFERENCES vini_bottiglie(id)
+            );
+            """
+        )
+    _ensure_index(cur, "idx_vmn_vino",
+                  "CREATE INDEX idx_vmn_vino ON vini_magazzino_note (vino_id);")
 
-    # -----------------------------------------------------
-    # TABELLA 'locazioni_config'
-    # Configurazione locazioni fisiche (frigoriferi, scaffali, etc.)
-    # -----------------------------------------------------
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS locazioni_config (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            campo       TEXT NOT NULL,
-            nome        TEXT NOT NULL,
-            spazi       TEXT NOT NULL DEFAULT '[]',
-            ordine      INTEGER NOT NULL DEFAULT 0,
-            tipo        TEXT NOT NULL DEFAULT 'standard',
-            righe       INTEGER,
-            colonne     INTEGER,
-            created_at  TEXT NOT NULL,
-            updated_at  TEXT NOT NULL
-        );
-        """
-    )
+    if not _sm_exists(cur, "table", "locazioni_config"):
+        cur.execute(
+            """
+            CREATE TABLE locazioni_config (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                campo       TEXT NOT NULL,
+                nome        TEXT NOT NULL,
+                spazi       TEXT NOT NULL DEFAULT '[]',
+                ordine      INTEGER NOT NULL DEFAULT 0,
+                tipo        TEXT NOT NULL DEFAULT 'standard',
+                righe       INTEGER,
+                colonne     INTEGER,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL
+            );
+            """
+        )
 
     # Migrazione: aggiungi colonne tipo/righe/colonne se mancanti
     cur.execute("PRAGMA table_info(locazioni_config);")
@@ -382,74 +391,44 @@ def init_magazzino_database() -> None:
     if "colonne" not in loc_cols:
         cur.execute("ALTER TABLE locazioni_config ADD COLUMN colonne INTEGER;")
 
-    # -----------------------------------------------------
-    # TABELLA 'matrice_celle'
-    # Ogni cella della matrice contiene esattamente 1 bottiglia.
-    # Il vincolo UNIQUE garantisce che ogni cella sia assegnata a un solo vino.
-    # -----------------------------------------------------
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS matrice_celle (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            vino_id     INTEGER NOT NULL,
-            riga        INTEGER NOT NULL,
-            colonna     INTEGER NOT NULL,
-            created_at  TEXT NOT NULL,
-            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id),
-            UNIQUE(riga, colonna)
-        );
-        """
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_mc_vino "
-        "ON matrice_celle (vino_id);"
-    )
+    if not _sm_exists(cur, "table", "matrice_celle"):
+        cur.execute(
+            """
+            CREATE TABLE matrice_celle (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                vino_id     INTEGER NOT NULL,
+                riga        INTEGER NOT NULL,
+                colonna     INTEGER NOT NULL,
+                created_at  TEXT NOT NULL,
+                FOREIGN KEY (vino_id) REFERENCES vini_bottiglie(id),
+                UNIQUE(riga, colonna)
+            );
+            """
+        )
+    _ensure_index(cur, "idx_mc_vino",
+                  "CREATE INDEX idx_mc_vino ON matrice_celle (vino_id);")
 
-    # -----------------------------------------------------
-    # TABELLA 'vini_ordini_pending'  (Widget Riordini — Fase 3, sessione 2026-04-20)
-    # Un ordine aperto per vino (UNIQUE su vino_id). Popola la colonna
-    # "Riordino" del widget "📦 Riordini per fornitore". Quando arriva la
-    # merce, il record viene cancellato e al suo posto si registra un
-    # normale movimento CARICO (vedi conferma_arrivo_ordine_pending).
-    # Riferimento design: docs/modulo_vini_riordini.md §3.1.
-    # -----------------------------------------------------
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vini_ordini_pending (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            vino_id      INTEGER NOT NULL UNIQUE,
-            qta          INTEGER NOT NULL CHECK (qta > 0),
-            data_ordine  TEXT NOT NULL,
-            note         TEXT,
-            utente       TEXT,
-            created_at   TEXT NOT NULL,
-            updated_at   TEXT NOT NULL,
-            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
-        );
-        """
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vop_vino "
-        "ON vini_ordini_pending (vino_id);"
-    )
+    if not _sm_exists(cur, "table", "vini_ordini_pending"):
+        cur.execute(
+            """
+            CREATE TABLE vini_ordini_pending (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                vino_id      INTEGER NOT NULL UNIQUE,
+                qta          INTEGER NOT NULL CHECK (qta > 0),
+                data_ordine  TEXT NOT NULL,
+                note         TEXT,
+                utente       TEXT,
+                created_at   TEXT NOT NULL,
+                updated_at   TEXT NOT NULL,
+                FOREIGN KEY (vino_id) REFERENCES vini_bottiglie(id) ON DELETE CASCADE
+            );
+            """
+        )
+    _ensure_index(cur, "idx_vop_vino",
+                  "CREATE INDEX idx_vop_vino ON vini_ordini_pending (vino_id);")
 
-    # -----------------------------------------------------
-    # TABELLA 'vini_prezzi_storico'  (Widget Riordini — Fase 6, sessione 2026-04-20)
-    # Tracciamento storico dei cambi prezzo per ogni vino. Una riga per ogni
-    # variazione di EURO_LISTINO / PREZZO_CARTA / PREZZO_CALICE / SCONTO.
-    # Alimentata automaticamente da update_vino / bulk_update_vini /
-    # upsert_vino_from_carta quando il valore cambia davvero (>0.01 delta).
-    # Visibile in tab "Storico" del dettaglio vino (Fase 8).
-    #
-    # Sessione 53 (2026-04-21): invece di `CREATE TABLE IF NOT EXISTS`, che
-    # comunque tocca sqlite_master ad ogni boot, facciamo una SELECT esplicita
-    # e creiamo SOLO se la tabella manca. Riduce la superficie di rischio
-    # corruzione sqlite_master al riavvio post-deploy.
-    # -----------------------------------------------------
-    existing_vps = cur.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='vini_prezzi_storico';"
-    ).fetchone()
-    if not existing_vps:
+    # vini_prezzi_storico — pattern S52-1 già in uso dalla sessione 53
+    if not _sm_exists(cur, "table", "vini_prezzi_storico"):
         cur.execute(
             """
             CREATE TABLE vini_prezzi_storico (
@@ -464,7 +443,7 @@ def init_magazzino_database() -> None:
                 origine       TEXT,
                 note          TEXT,
                 created_at    TEXT NOT NULL,
-                FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
+                FOREIGN KEY (vino_id) REFERENCES vini_bottiglie(id) ON DELETE CASCADE
             );
             """
         )
@@ -473,56 +452,55 @@ def init_magazzino_database() -> None:
             "ON vini_prezzi_storico (vino_id, created_at DESC);"
         )
 
-    # Auto-migrazione: ricalcola LOCAZIONE_3 con formato (col,riga) per tutti i vini con celle matrice
-    vino_ids_rows = cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall()
-    if vino_ids_rows:
-        for row in vino_ids_rows:
-            vid = row[0]
-            celle_rows = cur.execute(
-                "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY colonna, riga",
-                (vid,),
-            ).fetchall()
-            qta = len(celle_rows)
-            loc3_text = ", ".join(f"({r[1]},{r[0]})" for r in celle_rows) if celle_rows else None
-            cur.execute(
-                "UPDATE vini_bottiglie SET LOCAZIONE_3 = ?, QTA_LOC3 = ? WHERE id = ?",
-                (loc3_text, qta, vid),
+    # -----------------------------------------------------
+    # MANUTENZIONI su vini_bottiglie (solo se esiste — B1)
+    # -----------------------------------------------------
+    if bottiglie_ok:
+        # Auto-migrazione: ricalcola LOCAZIONE_3 con formato (col,riga)
+        # per tutti i vini con celle matrice
+        vino_ids_rows = cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall()
+        if vino_ids_rows:
+            for row in vino_ids_rows:
+                vid = row[0]
+                celle_rows = cur.execute(
+                    "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY colonna, riga",
+                    (vid,),
+                ).fetchall()
+                qta = len(celle_rows)
+                loc3_text = ", ".join(f"({r[1]},{r[0]})" for r in celle_rows) if celle_rows else None
+                cur.execute(
+                    "UPDATE vini_bottiglie SET LOCAZIONE_3 = ?, QTA_LOC3 = ? WHERE id = ?",
+                    (loc3_text, qta, vid),
+                )
+            print(f"✅ Matrice: ricalcolate coordinate (col,riga) per {len(vino_ids_rows)} vini")
+
+        # Pulizia: se una locazione ha un testo ma quantità = 0, svuota il testo
+        loc_pairs = [
+            ("FRIGORIFERO", "QTA_FRIGO"),
+            ("LOCAZIONE_1", "QTA_LOC1"),
+            ("LOCAZIONE_2", "QTA_LOC2"),
+            ("LOCAZIONE_3", "QTA_LOC3"),
+        ]
+        cleaned = 0
+        for loc_col, qta_col in loc_pairs:
+            res = cur.execute(
+                f"UPDATE vini_bottiglie SET {loc_col} = NULL "
+                f"WHERE {loc_col} IS NOT NULL AND {loc_col} != '' "
+                f"AND COALESCE({qta_col}, 0) = 0"
             )
-        print(f"✅ Matrice: ricalcolate coordinate (col,riga) per {len(vino_ids_rows)} vini")
+            cleaned += res.rowcount
+        if cleaned:
+            print(f"✅ Pulizia: svuotate {cleaned} locazioni con quantità 0")
 
-    # Pulizia: se una locazione ha un testo ma quantità = 0, svuota il testo
-    loc_pairs = [
-        ("FRIGORIFERO", "QTA_FRIGO"),
-        ("LOCAZIONE_1", "QTA_LOC1"),
-        ("LOCAZIONE_2", "QTA_LOC2"),
-        ("LOCAZIONE_3", "QTA_LOC3"),
-    ]
-    cleaned = 0
-    for loc_col, qta_col in loc_pairs:
-        res = cur.execute(
-            f"UPDATE vini_bottiglie SET {loc_col} = NULL "
-            f"WHERE {loc_col} IS NOT NULL AND {loc_col} != '' "
-            f"AND COALESCE({qta_col}, 0) = 0"
-        )
-        cleaned += res.rowcount
-    if cleaned:
-        print(f"✅ Pulizia: svuotate {cleaned} locazioni con quantità 0")
-
-    # ----- Migration: aggiunge tipo MODIFICA al CHECK constraint -----
-    # SQLite non supporta ALTER CHECK, quindi ricrea la tabella se necessario.
-    try:
-        cur.execute(
-            "INSERT INTO vini_magazzino_movimenti "
-            "(vino_id, data_mov, tipo, qta, origine, utente, created_at) "
-            "VALUES (1, '1970-01-01T00:00:00', 'MODIFICA', 0, 'MIGRATION-TEST', 'system', '1970-01-01T00:00:00')"
-        )
-        # Se riesce, il constraint già accetta MODIFICA → elimina la riga di test
-        cur.execute(
-            "DELETE FROM vini_magazzino_movimenti "
-            "WHERE origine = 'MIGRATION-TEST' AND data_mov = '1970-01-01T00:00:00'"
-        )
-    except sqlite3.IntegrityError:
-        # CHECK fallito → bisogna ricreare la tabella con il nuovo constraint
+    # ----- Migration CHECK 'MODIFICA' — ispezione DDL, niente probe write -----
+    # (prima: INSERT+DELETE di prova a ogni boot; ora si legge il DDL della
+    # tabella da sqlite_master e si ricrea solo se il CHECK non contempla
+    # 'MODIFICA' — caso ormai solo teorico su DB molto vecchi.)
+    vmm_row = cur.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='vini_magazzino_movimenti';"
+    ).fetchone()
+    vmm_sql = (vmm_row[0] or "") if vmm_row else ""
+    if vmm_sql and "'MODIFICA'" not in vmm_sql:
         print("🔄 Migration: aggiunta tipo MODIFICA alla tabella movimenti...")
         cur.execute("ALTER TABLE vini_magazzino_movimenti RENAME TO _vmm_old;")
         cur.execute(
@@ -540,7 +518,7 @@ def init_magazzino_database() -> None:
                 origine     TEXT,
                 utente      TEXT,
                 created_at  TEXT NOT NULL,
-                FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id)
+                FOREIGN KEY (vino_id) REFERENCES vini_bottiglie(id)
             );
             """
         )
@@ -551,10 +529,9 @@ def init_magazzino_database() -> None:
             "FROM _vmm_old;"
         )
         cur.execute("DROP TABLE _vmm_old;")
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_vmm_vino_data "
-            "ON vini_magazzino_movimenti (vino_id, data_mov);"
-        )
+        _ensure_index(cur, "idx_vmm_vino_data",
+                      "CREATE INDEX idx_vmm_vino_data "
+                      "ON vini_magazzino_movimenti (vino_id, data_mov);")
         print("✅ Migration completata: tipo MODIFICA disponibile")
 
     conn.commit()

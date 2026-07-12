@@ -1,8 +1,8 @@
 # Modulo Vini — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-19 (post-cutover refactor anagrafiche V.6+V.7+V.8)
+**Ultimo aggiornamento:** 2026-07-12 (audit completo modulo + hardening: init S52-1 senza zombie, backup WAL-safe, rollback rimosso, auth pdf-staff/carta-cantina — vedi changelog 2026-07-12)
 **Stato:** stabile post-cutover · Cantina "v2" promossa a Cantina unica · Cantina classica deprecata (file `*_legacy.jsx` archiviati nel repo, route redirect a v2)
-**Versione modulo (`versions.jsx`):** **vini 3.53** · sistema **5.15**
+**Versione modulo (`versions.jsx`):** **vini 3.67** · sistema **5.36+** (il corpo del doc è aggiornato al 3.62: le serie 3.63-3.66 — fix calici/mescita di inizio luglio — e 3.67 sono documentate solo nel changelog)
 **Roadmap:** sezione `V.` di `docs/roadmap.md` per priorità e voci aperte
 **Refactor design:** `docs/refactor_anagrafiche_vini.md` per il design originale del refactor V.6+V.7+V.8
 

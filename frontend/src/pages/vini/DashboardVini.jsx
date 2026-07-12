@@ -1325,25 +1325,24 @@ export default function DashboardVini() {
             return Math.floor(diff / 86400000);
           };
 
-          // Sessione 2026-05-11: 'O' (Finito/Ordina) rimosso — ridondante con 'D'.
-          // Mig 122 migra eventuali 'O' residui a 'D'. La mappa lo mantiene
-          // come fallback ma con stessa rappresentazione di D, così se sopravvive
-          // qualche record vecchio viene comunque mostrato.
-          // Esteso con A (Annata esaurita) e X (Non ricomprare) per tracciamento
-          // col fornitore.
+          // Audit 2026-07-12 (M9): SR_LABELS/SR_CLS erano mappe locali che
+          // DIVERGEVANO da viniConstants.STATO_RIORDINO (label e colori
+          // diversi per lo stesso stato nella stessa pagina). Ora derivano
+          // dalla single source of truth. Resta solo l'alias 'O'→'D' per
+          // compat con eventuali record pre-mig 122 sopravvissuti.
           const SR_LABELS = {
-            D: "Da ordinare",
-            O: "Da ordinare",  // alias di D per compat
-            "0": "Ordinato",
-            A: "Chiedere nuova annata",
-            X: "Non ricomprare",
+            D: STATO_RIORDINO.D.label,
+            O: STATO_RIORDINO.D.label, // alias di D per compat pre-mig 122
+            "0": STATO_RIORDINO["0"].label,
+            A: STATO_RIORDINO.A.label,
+            X: STATO_RIORDINO.X.label,
           };
           const SR_CLS = {
-            D: "bg-orange-100 text-orange-800 border-orange-200",
-            O: "bg-orange-100 text-orange-800 border-orange-200",  // alias di D
-            "0": "bg-blue-100 text-blue-800 border-blue-200",
-            A: "bg-purple-100 text-purple-800 border-purple-200",
-            X: "bg-neutral-200 text-neutral-600 border-neutral-300",
+            D: STATO_RIORDINO.D.color,
+            O: STATO_RIORDINO.D.color, // alias di D per compat pre-mig 122
+            "0": STATO_RIORDINO["0"].color,
+            A: STATO_RIORDINO.A.color,
+            X: STATO_RIORDINO.X.color,
           };
 
           return (

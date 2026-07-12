@@ -36,7 +36,8 @@ const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
 
 // Colore semantico per categoria (UI breakdown costi operativi)
 const CATEGORIA_COLORE = {
-  "STAFF":             "purple",
+  "DIPENDENTI":        "purple",
+  "STAFF":             "purple", // legacy
   "AMMINISTRATORI":    "violet",
   "AFFITTI":           "amber",
   "UTENZE":            "yellow",
