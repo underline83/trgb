@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-07-17 — Analisi Utenze U1+U2: parser bollette A2A + serie storica (mig 151) `[core]`
+
+Nuovo sub-modulo di Controllo di Gestione (spec `docs/spec_utenze.md`, approvata da Marco in giornata): upload del PDF bolletta A2A (luce e gas) → parser → serie storica consumi/costi + KPI. Layer di sola analisi: la contabilità resta su `fe_fatture` (zero doppio conteggio nel CE). Validato sui 2 PDF reali di Tre Gobbi (luce giu 2026, gas apr-mag 2026) con zero warnings.
+
+- **Parser** `app/services/utenze_parser.py` (pattern elab_parser: non scrive DB, ritorna dati+warnings+sha256): autodetect LUCE/GAS, scontrino energia (€/kWh–€/Smc, split vendita/rete, quote fisse/potenza, accise), Box Offerta (indice PUN/PSVDA + spread + scadenza condizioni), fasce F1/F2/F3, letture gas rilevate/stimate, cos(φ), **storico 18 mesi** e potenza mensile 12 mesi presenti in ogni bolletta.
+- **Mig 151**: `cg_utenze_forniture` / `cg_utenze_bollette` / `cg_utenze_consumi_mensili` (UNIQUE fornitura+mese+fascia, upsert "vince la bolletta più recente").
+- **Router** `app/routers/cg_utenze_router.py` (`/controllo-gestione/utenze`): `/upload` (preview, archivia PDF in `locali/<id>/data/uploads/utenze/`), `/conferma` (upsert fornitura + insert bolletta + serie + aggancio automatico a `fe_fatture` via numero bolletta, con retro-aggancio dei pregressi), `GET /` dashboard KPI (€/unità all-in, % stimato gas, giorni a scadenza condizioni, potenza max 12m), `GET /consumi`, `GET`/`DELETE /bollette/{id}`.
+- Registrato in `main.py` + `core/moduli/controllo_gestione/module.json` (R8).
+
+Prossime fasi: U3 pagina FE (tab Utenze in CG), U4 checker M.F (rinegoziazione condizioni 30.11.2026, autolettura gas se stimato >30%).
+
+### File
+`app/services/utenze_parser.py`, `app/migrations/151_cg_utenze.py`, `app/routers/cg_utenze_router.py`, `main.py`, `core/moduli/controllo_gestione/module.json`, `docs/spec_utenze.md`.
+
+---
+
+## 2026-07-17 — Cantina v2: le madri mostrano sempre tutte le annate (vini 3.68) `[core]`
+
+Fix segnalazione Marco: bottiglia 1181 (Lugana I Frati 2024, giacenza 0) non compariva sotto la madre M0913, che mostrava solo la 1287 (2025). Il link `madre_id` era corretto: era `groupByMadre` in CantinaV2 che raggruppava le bottiglie già filtrate, e col default "solo giacenza positiva" le annate esaurite sparivano dalla madre.
+
+- **Vista madri**: i filtri sidebar/chip decidono quali madri appaiono (almeno un'annata passa i filtri), ma ogni madre elenca sempre TUTTE le sue annate. Annate a giacenza 0 in `opacity-60`. Contatore annate allineato al renderizzato.
+- **Scheda madre**: `openMadre` cerca nel dataset completo → si apre sempre con tutte le annate; fix anche del deep-link `?openMadre=N` che falliva se i filtri nascondevano l'intera madre.
+
+### File
+`frontend/src/pages/vini/v2/CantinaV2.jsx`, `frontend/src/config/versions.jsx` (vini 3.67→3.68).
+
+---
+
 ## 2026-07-12 — Audit completo modulo Vini: hardening backend + fix UI (vini 3.67) `[core]`
 
 Audit completo del modulo (136 endpoint su 7 router, ~34.500 righe BE+FE, 3 agenti paralleli + verifica manuale dei findings gravi), poi fix applicati in giornata. Chiude anche il residuo "init zombie" rinviato dalla sessione del 10/07 sera.

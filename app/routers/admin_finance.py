@@ -967,12 +967,27 @@ def _is_effectively_closed(row: sqlite3.Row) -> bool:
     """
     Ritorna True se il giorno va considerato chiuso ai fini delle medie/statistiche.
 
-    Regola:
-    - se is_closed == 1 (flag manuale nel DB) -> SEMPRE chiuso (priorità massima)
-    - se ci sono dati reali (corrispettivi > 0 o incassi > 0) -> MAI chiuso
-      (una chiusura turno inserita ha priorità sulle impostazioni)
-    - se la data è nei giorni_chiusi configurati (ferie/festivi) -> chiuso
-    - se è il giorno di chiusura settimanale configurato -> chiuso
+    Regola (V.1 fix dashboard 2026-07-17):
+    - `is_closed == 1` (flag manuale nel DB) → SEMPRE chiuso (priorità massima).
+    - dati reali presenti (`corrispettivi > 0` o `totale_incassi > 0`) → APERTO.
+    - nessun dato reale → CHIUSO DI FATTO, a prescindere dal motivo.
+
+    Motivazione del fix:
+    Prima consideravamo "aperto con €0" i giorni con `corr=0` non presenti né
+    in `giorni_chiusi` né in `giorno_chiusura_settimanale` della config. Questo
+    gonfiava `giorni_con_chiusura` per periodi storici con chiusure prolungate
+    non registrate in config (es. Q2 2025: 16 giorni chiusura per lavori
+    non censiti → gg_aperti = 78 anziché 62 → media €/gg 2025 sotto vera →
+    YoY media/gg sovrastimato).
+
+    Ora "giorno con € 0 di fatturato" = giorno chiuso, coprendo in un colpo:
+    ferie non registrate, ristrutturazioni, chiusure settimanali storiche
+    diverse dalla config attuale, giorni futuri/non ancora registrati. La
+    semantica riflette quella delle medie €/giorno fatturato.
+
+    La config `giorni_chiusi` / `giorno_chiusura_settimanale` resta usata
+    altrove (CalendarView per shading giorni di chiusura previsti) ma non
+    è più necessaria qui: `corr=0` copre tutto.
     """
     keys = set(row.keys())
 
@@ -981,7 +996,7 @@ def _is_effectively_closed(row: sqlite3.Row) -> bool:
     if is_closed_flag:
         return True
 
-    # Se ci sono dati reali, la chiusura turno vince sulle impostazioni
+    # Estrai fatturato del giorno
     if "corrispettivi" in keys:
         corr = row["corrispettivi"] or 0
     elif "corrispettivi_tot" in keys:
@@ -991,25 +1006,13 @@ def _is_effectively_closed(row: sqlite3.Row) -> bool:
 
     tot_inc = (row["totale_incassi"] if "totale_incassi" in keys else 0) or 0
 
+    # Ha dati reali → aperto
     if corr > 0 or tot_inc > 0:
-        return False  # Ha dati reali → aperto, a prescindere dalle impostazioni
+        return False
 
-    config = _get_closures_config()
-
-    # Check data specifica (ferie, festivi) — solo se non ci sono dati
-    date_str = row["date"] if "date" in keys else ""
-    if date_str and date_str in config.get("giorni_chiusi", []):
-        return True
-
-    # Check giorno settimanale di chiusura — solo se non ci sono dati
-    giorno_chiusura = config.get("giorno_chiusura_settimanale")
-    if giorno_chiusura is not None:
-        weekday = row["weekday"] if "weekday" in keys else ""
-        weekday_idx = _WEEKDAY_TO_IDX.get(weekday)
-        if weekday_idx == giorno_chiusura:
-            return True  # Nessun dato + giorno di chiusura → chiuso
-
-    return False
+    # Nessun dato → chiuso di fatto (era erroneamente contato come "aperto
+    # con € 0" prima del fix V.1).
+    return True
     # ---------------------------------------------------------
 # HELPER INTERNO: costruisce PaymentBreakdown da righe SQL
 # ---------------------------------------------------------

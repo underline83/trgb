@@ -55,6 +55,7 @@ from app.routers import banca_carta_router  # sub-area Carta di Credito (CC.2)
 
 # CONTROLLO DI GESTIONE — dashboard unificata cross-modulo
 from app.routers import controllo_gestione_router
+from app.routers import cg_utenze_router  # Analisi Utenze (spec_utenze.md)
 
 # STATISTICHE — import iPratico e analytics vendite
 from app.routers import statistiche_router
@@ -671,6 +672,7 @@ _mount("banca_carta_router", banca_carta_router.router)
 
 # CONTROLLO DI GESTIONE
 _mount("controllo_gestione_router", controllo_gestione_router.router)
+_mount("cg_utenze_router", cg_utenze_router.router)  # Analisi Utenze U1+U2
 
 # STATISTICHE
 _mount("statistiche_router", statistiche_router.router)

@@ -163,7 +163,11 @@ export default function CantinaV2() {
   // ── Pipeline filtri unica (vale per Bottiglie e Madri) ──
   // 1) applyFilters dei filtri sidebar → bottiglieFiltrate
   // 2) applyRiepilogoFilter dei chip in cima → bottiglieVisibili
-  // 3) groupByMadre delle visibili → madriVisibili (solo per vista madri)
+  // 3) vista madri: i filtri decidono QUALI madri appaiono (almeno un'annata
+  //    passa i filtri), ma ogni madre mostra SEMPRE tutte le sue annate.
+  //    Fix 2026-07-17: prima groupByMadre girava sulle bottiglie filtrate e
+  //    un'annata esaurita (giacenza 0 + default "solo giacenza positiva")
+  //    spariva silenziosamente dalla madre — sembrava un link madre_id rotto.
   const bottiglieFiltrate = useMemo(() => f.applyFilters(bottiglie), [f, bottiglie]);
   const bottiglieVisibili = useMemo(() => {
     const filtered = applyRiepilogoFilter(bottiglieFiltrate, riepilogoFilter);
@@ -177,7 +181,16 @@ export default function CantinaV2() {
       prezzo:      v => parseFloat(v.PREZZO_CARTA) || 0,
     });
   }, [bottiglieFiltrate, riepilogoFilter, sort]);
-  const madriVisibili = useMemo(() => groupByMadre(bottiglieVisibili), [bottiglieVisibili]);
+  // Tutte le madri con TUTTE le annate (dataset completo, non filtrato)
+  const madriTutte = useMemo(() => groupByMadre(bottiglie), [bottiglie]);
+  // Madri visibili = quelle con almeno un'annata che passa i filtri,
+  // ma con l'elenco annate COMPLETO preso da madriTutte
+  const madriVisibili = useMemo(() => {
+    const idsVisibili = new Set(
+      bottiglieVisibili.map(b => b.madre_id).filter(id => id != null)
+    );
+    return madriTutte.filter(m => idsVisibili.has(m.id));
+  }, [madriTutte, bottiglieVisibili]);
 
   // ── Apertura scheda inline (sostituisce la lista nel frame centrale) ──
   const handleRowClick = (id) => {
@@ -192,10 +205,12 @@ export default function CantinaV2() {
   };
   const closeAll = () => { setOpenSchedaId(null); setOpenMadreId(null); };
 
-  // Madre attualmente aperta (dati già in memoria via groupByMadre)
+  // Madre attualmente aperta (dati già in memoria via groupByMadre).
+  // Cerco in madriTutte, non in madriVisibili: la scheda madre si apre sempre
+  // (deep-link ?openMadre=N incluso) anche se i filtri correnti la nascondono.
   const openMadre = useMemo(
-    () => (openMadreId ? madriVisibili.find(m => m.id === openMadreId) : null),
-    [openMadreId, madriVisibili]
+    () => (openMadreId ? madriTutte.find(m => m.id === openMadreId) : null),
+    [openMadreId, madriTutte]
   );
 
   // ── Stampa selezione PDF (riusa lo stesso endpoint di Cantina classica) ──
@@ -251,7 +266,7 @@ export default function CantinaV2() {
           setRiepilogoFilter={setRiepilogoFilter}
           rightSummary={vista === "bottiglie"
             ? `${bottiglieVisibili.length} di ${bottiglie.length} bottiglie`
-            : `${madriVisibili.length} madri · ${bottiglieVisibili.length} annate`}
+            : `${madriVisibili.length} madri · ${madriVisibili.reduce((s, m) => s + m.annate.length, 0)} annate`}
         />
 
         {/* Contenuto */}
@@ -485,7 +500,7 @@ export default function CantinaV2() {
                           ].filter(Boolean).join(" · ");
                           return (
                             <tr key={a.id} onClick={() => handleRowClick(a.id)}
-                              className="cursor-pointer border-t border-neutral-100 hover:bg-amber-50/70">
+                              className={`cursor-pointer border-t border-neutral-100 hover:bg-amber-50/70 ${(a.QTA_TOTALE || 0) === 0 ? "opacity-60" : ""}`}>
                               <td className="pl-3 pr-2 py-1 font-semibold w-16 text-right">{a.ANNATA || "NV"}</td>
                               <td className="px-2 py-1 text-neutral-600 w-10 text-center">{a.FORMATO || "BT"}</td>
                               <td className="px-2 py-1 text-right font-semibold w-16 tabular-nums">{fmtEuro(a.PREZZO_CARTA)}</td>

@@ -1767,6 +1767,31 @@ def create_spesa_fissa(
         # (es. TASSA→TASSE E IMPOSTE) oppure "Non categorizzato" nel CE.
         cat_id = payload.get("categoria_id")
         sub_id = payload.get("sottocategoria_id")
+        # 2026-07-12 (mig 150): se la categoria non è indicata, derivala dal
+        # tipo — prima restava NULL e la spesa cadeva in "Non categorizzato"
+        # nel CE (successo con le rateizzazioni create post-mig-129).
+        if cat_id is None:
+            _TIPO_CAT = {  # tenere allineata a mig 129/150
+                "AFFITTO": ("AFFITTI", None),
+                "STIPENDIO": ("DIPENDENTI", "STIPENDI"),
+                "TASSA": ("TASSE E IMPOSTE", None),
+                "RATEIZZAZIONE_TASSE": ("TASSE E IMPOSTE", None),
+                "ASSICURAZIONE": ("ASSICURAZIONI", None),
+                "PRESTITO": ("FINANZIARI", "PRESTITI"),
+                "RATEIZZAZIONE": ("FINANZIARI", "RATEIZZAZIONI"),
+            }
+            nome_cat, nome_sub = _TIPO_CAT.get(tipo, (None, None))
+            if nome_cat:
+                r = fc.execute("SELECT id FROM fe_categorie WHERE nome = ?", (nome_cat,)).fetchone()
+                if r:
+                    cat_id = r[0]
+                    if sub_id is None and nome_sub:
+                        rs = fc.execute(
+                            "SELECT id FROM fe_sottocategorie WHERE categoria_id = ? AND nome = ?",
+                            (cat_id, nome_sub),
+                        ).fetchone()
+                        if rs:
+                            sub_id = rs[0]
         try:
             cat_id = int(cat_id) if cat_id not in (None, "", 0) else None
         except (ValueError, TypeError):

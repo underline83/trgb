@@ -3,7 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.67",
+    version: "3.68",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -39,7 +39,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
-    version: "4.7",
+    // 4.8 (2026-07-17, V.1): fix semantica "giorno chiuso" in
+    //   `_is_effectively_closed()`. Prima: giorno con corr=0 era "aperto
+    //   con €0" se non in config giorni_chiusi/giorno_chiusura_settimanale.
+    //   Ora: nessun dato → chiuso di fatto. Fixa YoY sgonfio: Q2 2025 va da
+    //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
+    //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
+    //   consumer (CalendarView shading). Nessuna migrazione DB.
+    version: "4.8",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
@@ -180,7 +187,7 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.36",
+    version: "5.38",
     label: "Sistema",
     status: "stabile",
     color: "green",

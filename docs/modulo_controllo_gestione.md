@@ -7,6 +7,26 @@
 
 ---
 
+# 📌 AGGIORNAMENTO 2026-07-17 — Analisi Utenze U1+U2 (spec_utenze.md, mig 151)
+
+Nuovo sub-modulo **Analisi Utenze**: upload PDF bollette A2A (luce+gas) → parser → serie storica + KPI. SOLA ANALISI: nessun importo entra nel CE (contabilità su fe_fatture, zero doppio conteggio). Spec completa: `docs/spec_utenze.md`.
+
+## Endpoint nuovi (`cg_utenze_router.py`, prefix `/controllo-gestione/utenze`)
+
+| Capability | Cosa fa | Rif | Audience |
+|---|---|---|---|
+| C-CG-U01 | POST `/upload` — parsa bolletta PDF A2A, preview + archivio (no scrittura tabelle) | cg_utenze_router.py | admin/contabile |
+| C-CG-U02 | POST `/conferma` — scrive bolletta + upsert serie mensile + aggancio fe_fatture via numero (con retro-aggancio) | cg_utenze_router.py | admin/contabile |
+| C-CG-U03 | GET `/` — dashboard forniture + KPI (€/unità all-in, % stimato gas, giorni a scadenza condizioni, potenza max 12m) | cg_utenze_router.py | admin/contabile |
+| C-CG-U04 | GET `/consumi` — serie mensile per grafici (filtri fornitura/range) | cg_utenze_router.py | admin/contabile |
+| C-CG-U05 | GET/DELETE `/bollette/{id}` — dettaglio (parsed completo) / elimina bolletta+serie di cui era fonte | cg_utenze_router.py | admin/contabile |
+
+Stato: 🆕 backend U1+U2. UI (U3) e checker M.F (U4) da fare — vedi spec §8.
+
+DB (mig 151, foodcost.db): `cg_utenze_forniture`, `cg_utenze_bollette`, `cg_utenze_consumi_mensili` (UNIQUE fornitura+mese+fascia; upsert vince la bolletta con emissione più recente). Archivio PDF: `locali/<id>/data/uploads/utenze/`.
+
+---
+
 # 📌 AGGIORNAMENTO 2026-07-12 — G.3: fatture nei ricavi + Composizione venduto (C2) + PDF (G.3.7b)
 
 ## Ricavi CE (decisione Marco 2026-07-12)

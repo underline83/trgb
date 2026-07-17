@@ -1,6 +1,46 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-12 — **Audit completo modulo Vini + fix (vini 3.67)**. Hardening init/backup/auth + fix UI, 13 file. Da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-17 — **Analisi Utenze U1+U2: parser bollette A2A + mig 151 + router** (sessione parallela alla Cantina v2, già pushata). Da pushare. Dettagli sotto.
+
+## SESSIONE 2026-07-17 (bis) — Analisi Utenze U1+U2 (spec_utenze.md)
+
+### Contesto
+Marco: dai dati FIC sulle utenze si ragiona poco → gira i 2 PDF bolletta A2A (luce 526509846068, gas 526509036373). Verificato che il PDF contiene dati decisionali assenti dall'XML SDI (fasce, letture, potenza, spread, scadenza condizioni, storico 18 mesi). Spec scritta e approvata (`docs/spec_utenze.md`), classificazione [core], modulo controllo_gestione.
+
+### Cosa è stato fatto (U1+U2 backend completi)
+- `app/services/utenze_parser.py` — parser A2A luce+gas, pattern elab_parser. Validato sui 2 PDF reali: **zero warnings**, sanity check aritmetici OK (fasce sommano al totale, storico 18/18 mesi, potenza 12 mesi).
+- `app/migrations/151_cg_utenze.py` — 3 tabelle `cg_utenze_*` in foodcost.db, idempotente.
+- `app/routers/cg_utenze_router.py` — upload (preview + archivio PDF), conferma (scrive + aggancia `fe_fatture` via numero bolletta; retro-aggancio pregressi), dashboard KPI, serie consumi, dettaglio/delete bolletta. JWT ovunque.
+- `main.py` + `core/moduli/controllo_gestione/module.json` — router registrato (R8).
+- Test e2e su DB temporaneo: migrazione 2x, conferma entrambe le bollette, doppione→409, upsert protetto (bolletta vecchia non sovrascrive), retro-aggancio verificato. Numero bolletta = `fe_fatture.numero_fattura` confermato su dati reali (gas → id 7032).
+
+### Numeri emersi (bollette Tre Gobbi)
+Luce: 66.499 kWh/anno, €23.089/anno, all-in 0,347 €/kWh, potenza 30 kW vs max 27,3. Gas: 5.106 Smc/anno, €6.016/anno, 45,3% consumo stimato. **Scadenza condizioni 30.11.2026 per entrambi** → alert M.F in U4.
+
+### Da fare al push
+`./push.sh "[core] CG Analisi Utenze U1+U2 — parser bollette A2A luce+gas, mig 151 cg_utenze_*, router upload/conferma/dashboard (spec_utenze.md)"`. Post-push: verificare in /docs FastAPI che gli endpoint `/controllo-gestione/utenze/*` ci siano; la mig 151 gira al boot.
+
+### Prossime fasi
+U3 pagina FE `ControlloGestioneUtenze.jsx` (tab 💡 in nav CG + modulesMenu, upload zone, KPI, grafici fasce/potenza/gas). U4: 2 checker M.F (`utenze_scadenza_condizioni` 60gg, `utenze_consumi_stimati` 30% — soglie in config, NON hardcoded).
+
+---
+
+## SESSIONE 2026-07-17 — Fix Cantina v2: madri con tutte le annate (vini 3.68)
+
+### Contesto
+Marco: "vino id 1181 dovrebbe avere madre m0913; ma sotto quella madre vedo solo la 1287". Verifica su DB: il link c'era (1181 Lugana I Frati 2024, giacenza 0 → madre 913; 1287 = annata 2025, giacenza 3). Il problema era in CantinaV2: `groupByMadre` girava sulle bottiglie GIÀ filtrate, e col default "solo giacenza positiva" un'annata esaurita spariva silenziosamente dalla madre — sembrava un `madre_id` rotto.
+
+### Cosa è stato fatto (`frontend/src/pages/vini/v2/CantinaV2.jsx`)
+- **Vista madri**: i filtri decidono QUALI madri appaiono (almeno un'annata passa i filtri), ma ogni madre mostra SEMPRE tutte le sue annate (`madriTutte` = groupByMadre sul dataset completo; `madriVisibili` = filtro per id). Contatore "N madri · M annate" allineato a ciò che è renderizzato.
+- **Scheda madre** (`openMadre`): lookup su `madriTutte` — si apre sempre con tutte le annate, anche via deep-link `?openMadre=N` da una bottiglia nascosta dai filtri (prima il deep-link falliva silenziosamente se la madre era tutta esaurita).
+- Annate con giacenza 0 rese in `opacity-60` nella card madre (visibili ma riconoscibili come esaurite).
+- Bump vini 3.67 → 3.68 in `versions.jsx`.
+- Verifica: esbuild parse OK.
+
+### Da fare al push
+`./push.sh "[core] vini 3.68 — Cantina v2: vista madri mostra sempre tutte le annate (fix annata esaurita sparita dalla madre col filtro giacenza)"`. Post-push: Ctrl+Shift+R, aprire Cantina v2 → vista Madri → M0913 deve mostrare 2024 (esaurita) + 2025.
+
+---
 
 ## SESSIONE 2026-07-12 — Audit completo modulo Vini + fix (vini 3.67)
 
