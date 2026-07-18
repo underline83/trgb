@@ -1,4 +1,8 @@
-// @version: v1.1-panel — ora pannello interno della shell CartaBevande (sidebar 8 sezioni)
+// @version: v1.2-panel — import testo: incluse le colonne select (es. tipologia
+// distillati/tè). Prima erano filtrate via e il bulk-import creava voci senza tipo,
+// da correggere a mano una per una. Il valore incollato deve combaciare con il
+// `value` delle options (es. "Grappa", "Whisky"); normalizeValues lo passa as-is.
+// v1.1-panel — ora pannello interno della shell CartaBevande (sidebar 8 sezioni)
 // Era una pagina stand-alone con ViniNav e wrapper min-h-screen; ora renderizzato
 // dentro CartaBevande come pannello per le 7 sezioni editabili (non-vini).
 // La sezione corrente e' passata da prop `sezioneKey` (al posto di useParams).
@@ -332,7 +336,7 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
     // Costruisci le colonne dall'ordine dei campi dello schema (textarea escluse: noiose)
     const fields = sezione?.schema_form?.fields || [];
     return fields
-      .filter((f) => f.type !== "textarea" && f.type !== "select")
+      .filter((f) => f.type !== "textarea")
       .slice(0, 6) // massimo 6 colonne
       .map((f) => ({ key: fieldId(f), label: f.label || fieldId(f) }));
   }, [sezione]);
