@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-07-18 — Carta Bevande: Tè e Tisane caricati + import testo con textarea `[core]`
+
+Marco porta la lista del fornitore di tè e tisane (spunte = presenti in casa). Pulita, prezzata e caricata in carta via "📋 Importa da testo".
+
+### 🔧 Migliorato
+- **`CartaSezioneEditor.jsx` v1.3-panel — `importColumns`**: incluse anche le colonne textarea (descrizione/ingredienti/abbinamenti), esclusa solo `note_interne`. Prima l'import testo di tè/tisane perdeva descrizioni e ingredienti (textarea filtrate via — il backend `bulk-import` le accettava già). Colonne birre invariate (le prime 6 restano identiche). ⚠️ Il fix è partito dentro il push `3a8b774c` (audit dropdown) che NON lo cita nel messaggio — annotato qui per tracciabilità.
+
+### 📦 Dati caricati (sezioni Tisane e Tè)
+- **7 tisane** con categoria (anti-stress/digestiva/dopo pasto/calmante) e ingredienti.
+- **12 tè** con tipologia (nero/verde/oolong/rosso), descrizione e paese. Esclusi dalla lista fornitore: English Breakfast e Gyokuro Okabe (non presenti), Nearly Grey (finito); dedup del doppione Sun Rouge. Refusi corretti (Shizuoka, Fukuroi, Tokushima→Tokunoshima).
+- **Prezzo 10 € su tutte le voci** (deciso da Marco). Milky Oolong e Lapsang Souchong senza paese (assente in origine).
+
+### File
+`frontend/src/pages/vini/CartaSezioneEditor.jsx`.
+
+---
+
 ## 2026-07-18 — Dropdown header: audit voci mancanti vs sub-nav dei moduli `[core]`
 
 Marco: "controllo menu a discesa, a me sembra che manchino dei tasti". Audit completo `modulesMenu.js` vs le sub-nav di tutti i 12 moduli e vs le route in `App.jsx`: 5 pagine reali erano raggiungibili dalla nav del modulo ma assenti dal menu a discesa dell'header (e dalla Home, che usa lo stesso config).
@@ -26,7 +43,7 @@ Marco: "controllo menu a discesa, a me sembra che manchino dei tasti". Audit com
 
 ---
 
-## 2026-07-18 — Carta: tabella_4col raggruppata per tipologia, FE+BE allineati (vini 3.69) `[core]`
+## 2026-07-18 — Carta: tabella_4col per tipologia + tipologie Gin/Vodka + prezzo_label nel form distillati (mig 153, vini 3.69) `[core]`
 
 Approvato da Marco dopo il caricamento dei 29 distillati: la pagina React pubblica raggruppava la tabella per REGIONE (gruppi geografici che frammentavano grappe e whisky), mentre il PDF/HTML backend raggruppava già per tipologia ma in ordine alfabetico ("Altro" apriva la carta).
 
@@ -35,8 +52,14 @@ Approvato da Marco dopo il caricamento dei 29 distillati: la pagina React pubbli
 - **`carta_bevande_service.py` v1.2 — `_render_tabella_4col`**: stesso ordine canonico `_TIP_ORDER` al posto dell'alfabetico. ⚠️ Le due costanti vanno tenute allineate tra loro e con le options del seed distillati (`bevande_db.py`).
 - Bump vini 3.68 → 3.69.
 
+### ✨ Aggiunto (stessa giornata, per caricare gin e vodka)
+- **Mig 153** (`153_distillati_gin_vodka_prezzo_label.py`): aggiorna `schema_form` della sezione distillati nel DB vivo — options tipologia +Gin +Vodka (dopo Whisky) e campo `prezzo_label` ("Prezzo in carta", testo) dopo `prezzo_eur`. Idempotente; apre bevande.sqlite3 (pattern mig 152). La colonna DB e la precedenza nei renderer esistevano già: mancava solo dal form.
+- **`bevande_db.py` v1.3**: stesse modifiche nel seed per i DB nuovi.
+- **Ordine gruppi carta**: Grappa → Rum → Whisky → Gin → Vodka → Cognac → Altro (aggiornati `_TIP_ORDER` BE e `TIPOLOGIA_ORDER` FE, da tenere allineati).
+- Con `prezzo_label` l'import testo dei distillati passa a 6 colonne (tipologia, regione, produttore, nome, prezzo €, prezzo in carta) — usato per il doppio prezzo dei gin "liscio 8 · G&T 11".
+
 ### File
-`frontend/src/pages/public/CartaClienti.jsx`, `app/services/carta_bevande_service.py`, `frontend/src/config/versions.jsx`.
+`frontend/src/pages/public/CartaClienti.jsx`, `app/services/carta_bevande_service.py`, `frontend/src/config/versions.jsx`, `app/models/bevande_db.py`, `app/migrations/153_distillati_gin_vodka_prezzo_label.py` (nuova).
 
 ---
 
@@ -53,6 +76,21 @@ Marco apriva "Nuova voce" nella sezione Distillati e la pagina crashava (React e
 
 ### File
 `frontend/src/components/vini/carta/FormDinamico.jsx`, `frontend/src/pages/vini/CartaSezioneEditor.jsx`.
+
+---
+
+## 2026-07-17 — Utenze: fix multi-layout + 4 forniture + ri-analisi (CG 2.21) `[core]`
+
+Marco ha caricato tutte le 16 bollette 2026: emerse **4 forniture** (non 2) — luce ristorante, luce secondaria POD ...128 (3 kW, consumo zero, solo quota fissa), gas cucina, gas secondario — e 2 varianti di layout che il parser non gestiva. Fix validati su tutti e 16 i PDF: **16/16 puliti** (le 3 bollette a consumo zero portano una sola nota esplicativa).
+
+- **Parser**: le sezioni "Informazioni storiche" / letture / Box Offerta si cercano per marker su tutte le pagine, non più a pagina fissa (lo storico gas scivola su p4 nelle bollette lunghe → era il grosso dei "campi non trovati"); riga "Stimata" assente nello storico gas = zeri impliciti, niente warning; bollette a consumo zero → i warnings fisiologici (niente Box Offerta/storico/prezzi) collassano in una nota unica.
+- **Router**: `POST /bollette/{id}/riparse` — ri-analizza il PDF archiviato e aggiorna bolletta+fornitura+serie (per completare gli import fatti col parser vecchio senza cancellare/ricaricare).
+- **FE**: grafici per FORNITURA (etichettati col POD/PDR) invece che per tipo — con 2 luci le serie si sovrascrivevano; bottone 🔄 per bolletta + "🔄 tutte" in testata tabella; ⚠️ con tooltip warnings per riga.
+
+Test e2e in sandbox: 16 conferme, 2 duplicati respinti, riparse su tutte, 4 forniture in dashboard, 192 righe serie, copertura lug 2024 → giu 2026.
+
+### File
+`app/services/utenze_parser.py`, `app/routers/cg_utenze_router.py`, `frontend/src/pages/controllo-gestione/ControlloGestioneUtenze.jsx`.
 
 ---
 

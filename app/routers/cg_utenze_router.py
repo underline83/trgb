@@ -435,6 +435,93 @@ def dettaglio_bolletta(bolletta_id: int, current_user=Depends(get_current_user))
         conn.close()
 
 
+@router.post("/bollette/{bolletta_id}/riparse")
+def riparse_bolletta(bolletta_id: int, current_user=Depends(get_current_user)):
+    """
+    Ri-analizza il PDF archiviato di una bolletta già importata e aggiorna
+    bolletta + fornitura + serie consumi. Serve quando il parser migliora
+    dopo l'import (es. bollette caricate con storico non riconosciuto):
+    niente cancella-e-ricarica, un click e i dati si completano.
+    """
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM cg_utenze_bollette WHERE id = ?", (bolletta_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Bolletta non trovata")
+        pdf_path = _path_archivio(row["pdf_hash"] or "")
+        if pdf_path is None:
+            raise HTTPException(
+                status_code=404,
+                detail="PDF non più in archivio: elimina la bolletta e ricaricala",
+            )
+        try:
+            p = parse_bolletta_a2a(pdf_path)
+        except UnsupportedLayoutError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        fornitura_id = _upsert_fornitura(conn, p)
+        conn.execute(
+            """
+            UPDATE cg_utenze_bollette SET
+                fornitura_id = ?, data_emissione = ?, periodo_da = ?, periodo_a = ?,
+                scadenza_pagamento = ?, unita = ?, consumo_fatturato = ?,
+                consumo_stimato = ?, totale = ?, accise_iva = ?, prezzo_medio = ?,
+                prezzo_energia = ?, prezzo_rete_oneri = ?, quota_fissa_importo = ?,
+                quota_potenza_importo = ?, spread = ?, valori_indice = ?,
+                parsed_json = ?, warnings = ?
+            WHERE id = ?
+            """,
+            (
+                fornitura_id, p.get("data_emissione"), p.get("periodo_da"),
+                p.get("periodo_a"), p.get("scadenza_pagamento"), p.get("unita"),
+                p.get("consumo_fatturato"), p.get("consumo_stimato"),
+                p.get("totale_da_pagare"), p.get("accise_iva"), p.get("prezzo_medio"),
+                p.get("prezzo_energia"), p.get("prezzo_rete_oneri"),
+                p.get("quota_fissa_importo"), p.get("quota_potenza_importo"),
+                p.get("spread"), json.dumps(p.get("valori_indice") or {}),
+                json.dumps(p, ensure_ascii=False), json.dumps(p.get("warnings") or []),
+                bolletta_id,
+            ),
+        )
+        emissione = p.get("data_emissione") or ""
+        n_upsert = 0
+        for r in _consumi_da_parsed(p):
+            conn.execute(
+                """
+                INSERT INTO cg_utenze_consumi_mensili
+                    (fornitura_id, anno_mese, fascia, consumo, unita,
+                     potenza_max_kw, fonte_bolletta_id, fonte_data_emissione)
+                VALUES (?,?,?,?,?,?,?,?)
+                ON CONFLICT (fornitura_id, anno_mese, fascia) DO UPDATE SET
+                    consumo = excluded.consumo,
+                    unita = excluded.unita,
+                    potenza_max_kw = COALESCE(excluded.potenza_max_kw, potenza_max_kw),
+                    fonte_bolletta_id = excluded.fonte_bolletta_id,
+                    fonte_data_emissione = excluded.fonte_data_emissione
+                WHERE excluded.fonte_data_emissione >= COALESCE(fonte_data_emissione, '')
+                """,
+                (fornitura_id, r["anno_mese"], r["fascia"], r["consumo"],
+                 r["unita"], r["potenza_max_kw"], bolletta_id, emissione),
+            )
+            n_upsert += 1
+        conn.execute(
+            """
+            UPDATE cg_utenze_bollette SET fe_fattura_id = (
+                SELECT f.id FROM fe_fatture f
+                WHERE f.numero_fattura = cg_utenze_bollette.numero_bolletta
+                  AND f.fornitore_nome LIKE '%A2A%' LIMIT 1
+            )
+            WHERE fe_fattura_id IS NULL
+            """
+        )
+        conn.commit()
+        return {"ok": True, "consumi_upsert": n_upsert, "warnings": p.get("warnings") or []}
+    finally:
+        conn.close()
+
+
 @router.delete("/bollette/{bolletta_id}")
 def elimina_bolletta(bolletta_id: int, current_user=Depends(get_current_user)):
     """

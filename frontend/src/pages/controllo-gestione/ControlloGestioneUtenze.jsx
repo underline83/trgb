@@ -124,6 +124,36 @@ export default function ControlloGestioneUtenze() {
     }
   };
 
+  const handleRiparse = async (id) => {
+    try {
+      const res = await apiFetch(`${U}/bollette/${id}/riparse`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Errore ri-analisi");
+      flashMsg("ok", `Bolletta ri-analizzata (${data.consumi_upsert} righe serie aggiornate)`);
+      loadAll();
+    } catch (e) {
+      flashMsg("err", e.message);
+    }
+  };
+
+  const [riparsingAll, setRiparsingAll] = useState(false);
+  const handleRiparseAll = async () => {
+    setRiparsingAll(true);
+    let ok = 0, err = 0;
+    for (const b of bollette) {
+      try {
+        const res = await apiFetch(`${U}/bollette/${b.id}/riparse`, { method: "POST" });
+        if (!res.ok) throw new Error();
+        ok += 1;
+      } catch {
+        err += 1;
+      }
+    }
+    setRiparsingAll(false);
+    flashMsg(err ? "err" : "ok", `Ri-analisi completata: ${ok} ok${err ? `, ${err} errori` : ""}`);
+    loadAll();
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm("Eliminare la bolletta e i suoi dati dalla serie?")) return;
     try {
@@ -136,40 +166,31 @@ export default function ControlloGestioneUtenze() {
     }
   };
 
-  // ─── Serie per i grafici ───────────────────────────────────────
-  const fornituraByTipo = useMemo(() => {
-    const map = {};
-    for (const f of forniture) map[f.fornitura.tipo] = f;
-    return map;
-  }, [forniture]);
-
-  const serieLuce = useMemo(() => {
-    const fid = fornituraByTipo.LUCE?.fornitura?.id;
-    if (!fid) return [];
-    const byMese = {};
-    for (const r of consumi.filter((c) => c.fornitura_id === fid)) {
-      byMese[r.anno_mese] = byMese[r.anno_mese] || { mese: r.anno_mese };
-      if (["F1", "F2", "F3"].includes(r.fascia)) byMese[r.anno_mese][r.fascia] = r.consumo;
-      if (r.fascia === "TOT" && r.potenza_max_kw != null) byMese[r.anno_mese].kw = r.potenza_max_kw;
+  // ─── Serie per i grafici — una per FORNITURA (possono esserci più POD
+  //     dello stesso tipo, es. luce ristorante + luce insegna) ─────
+  const serieByFornitura = useMemo(() => {
+    const out = [];
+    for (const { fornitura: f } of forniture) {
+      const righe = consumi.filter((c) => c.fornitura_id === f.id);
+      if (!righe.length) continue;
+      const byMese = {};
+      for (const r of righe) {
+        byMese[r.anno_mese] = byMese[r.anno_mese] || { mese: r.anno_mese };
+        const m = byMese[r.anno_mese];
+        if (["F1", "F2", "F3"].includes(r.fascia)) m[r.fascia] = r.consumo;
+        if (r.fascia === "TOT") {
+          m.tot = r.consumo || 0;
+          if (r.potenza_max_kw != null) m.kw = r.potenza_max_kw;
+        }
+        if (r.fascia === "STIMATA") m.stimata = r.consumo || 0;
+      }
+      const serie = Object.values(byMese)
+        .map((m) => ({ ...m, reale: Math.max(0, (m.tot || 0) - (m.stimata || 0)) }))
+        .sort((a, b) => a.mese.localeCompare(b.mese));
+      if (serie.some((m) => m.tot || m.F1 || m.kw != null)) out.push({ f, serie });
     }
-    return Object.values(byMese).sort((a, b) => a.mese.localeCompare(b.mese));
-  }, [consumi, fornituraByTipo]);
-
-  const serieGas = useMemo(() => {
-    const fid = fornituraByTipo.GAS?.fornitura?.id;
-    if (!fid) return [];
-    const byMese = {};
-    for (const r of consumi.filter((c) => c.fornitura_id === fid)) {
-      byMese[r.anno_mese] = byMese[r.anno_mese] || { mese: r.anno_mese, tot: 0, stimata: 0 };
-      if (r.fascia === "TOT") byMese[r.anno_mese].tot = r.consumo || 0;
-      if (r.fascia === "STIMATA") byMese[r.anno_mese].stimata = r.consumo || 0;
-    }
-    return Object.values(byMese)
-      .map((m) => ({ ...m, reale: Math.max(0, m.tot - m.stimata) }))
-      .sort((a, b) => a.mese.localeCompare(b.mese));
-  }, [consumi, fornituraByTipo]);
-
-  const potenzaImpegnata = fornituraByTipo.LUCE?.fornitura?.potenza_impegnata_kw;
+    return out;
+  }, [consumi, forniture]);
 
   // ─── Render ────────────────────────────────────────────────────
   return (
@@ -297,71 +318,90 @@ export default function ControlloGestioneUtenze() {
             })}
           </div>
 
-          {/* ─── Grafici ─── */}
+          {/* ─── Grafici — per ogni fornitura con dati ─── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {serieLuce.length > 0 && (
-              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
-                <h4 className="text-sm font-semibold text-brand-ink mb-2">💡 Luce — consumi per fascia (kWh)</h4>
-                <ResponsiveContainer width="100%" height={230}>
-                  <BarChart data={serieLuce} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                    <XAxis dataKey="mese" tickFormatter={fmtMese} tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip labelFormatter={fmtMese} formatter={(v, n) => [`${fmtNum(v)} kWh`, n]} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="F1" stackId="f" fill={COL.F1} name="F1 (punta)" />
-                    <Bar dataKey="F2" stackId="f" fill={COL.F2} name="F2 (intermedia)" />
-                    <Bar dataKey="F3" stackId="f" fill={COL.F3} name="F3 (fuori punta)" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            {serieByFornitura.map(({ f, serie }) => (
+              <React.Fragment key={f.id}>
+                {f.tipo === "LUCE" && serie.some((m) => m.F1 != null) && (
+                  <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
+                    <h4 className="text-sm font-semibold text-brand-ink mb-2">
+                      💡 Luce — consumi per fascia (kWh)
+                      <span className="text-neutral-400 font-normal text-xs ml-2">POD {f.pod_pdr}</span>
+                    </h4>
+                    <ResponsiveContainer width="100%" height={230}>
+                      <BarChart data={serie} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                        <XAxis dataKey="mese" tickFormatter={fmtMese} tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip labelFormatter={fmtMese} formatter={(v, n) => [`${fmtNum(v)} kWh`, n]} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Bar dataKey="F1" stackId="f" fill={COL.F1} name="F1 (punta)" />
+                        <Bar dataKey="F2" stackId="f" fill={COL.F2} name="F2 (intermedia)" />
+                        <Bar dataKey="F3" stackId="f" fill={COL.F3} name="F3 (fuori punta)" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
 
-            {serieGas.length > 0 && (
-              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
-                <h4 className="text-sm font-semibold text-brand-ink mb-2">🔥 Gas — consumi mensili (Smc)</h4>
-                <ResponsiveContainer width="100%" height={230}>
-                  <BarChart data={serieGas} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                    <XAxis dataKey="mese" tickFormatter={fmtMese} tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip labelFormatter={fmtMese} formatter={(v, n) => [`${fmtNum(v, 1)} Smc`, n]} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="reale" stackId="g" fill={COL.reale} name="Rilevato" />
-                    <Bar dataKey="stimata" stackId="g" fill={COL.stimata} name="Stimato" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+                {f.tipo === "GAS" && serie.some((m) => m.tot) && (
+                  <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
+                    <h4 className="text-sm font-semibold text-brand-ink mb-2">
+                      🔥 Gas — consumi mensili (Smc)
+                      <span className="text-neutral-400 font-normal text-xs ml-2">PDR {f.pod_pdr}</span>
+                    </h4>
+                    <ResponsiveContainer width="100%" height={230}>
+                      <BarChart data={serie} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                        <XAxis dataKey="mese" tickFormatter={fmtMese} tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip labelFormatter={fmtMese} formatter={(v, n) => [`${fmtNum(v, 1)} Smc`, n]} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Bar dataKey="reale" stackId="g" fill={COL.reale} name="Rilevato" />
+                        <Bar dataKey="stimata" stackId="g" fill={COL.stimata} name="Stimato" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
 
-            {serieLuce.some((m) => m.kw != null) && (
-              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 lg:col-span-2">
-                <h4 className="text-sm font-semibold text-brand-ink mb-2">
-                  ⚡ Potenza massima prelevata vs impegnata (kW)
-                </h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={serieLuce.filter((m) => m.kw != null)} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                    <XAxis dataKey="mese" tickFormatter={fmtMese} tick={{ fontSize: 10 }} />
-                    <YAxis domain={[0, Math.max(potenzaImpegnata || 0, ...serieLuce.map((m) => m.kw || 0)) + 3]} tick={{ fontSize: 10 }} />
-                    <Tooltip labelFormatter={fmtMese} formatter={(v) => [`${fmtEur(v, 1)} kW`, "Potenza max"]} />
-                    {potenzaImpegnata != null && (
-                      <ReferenceLine
-                        y={potenzaImpegnata} stroke={COL.limite} strokeDasharray="6 4"
-                        label={{ value: `impegnata ${fmtEur(potenzaImpegnata, 0)} kW`, fontSize: 10, fill: COL.limite, position: "insideTopRight" }}
-                      />
-                    )}
-                    <Line type="monotone" dataKey="kw" stroke={COL.potenza} strokeWidth={2} dot={{ r: 2.5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+                {f.tipo === "LUCE" && serie.some((m) => m.kw != null) && (
+                  <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
+                    <h4 className="text-sm font-semibold text-brand-ink mb-2">
+                      ⚡ Potenza max vs impegnata (kW)
+                      <span className="text-neutral-400 font-normal text-xs ml-2">POD {f.pod_pdr}</span>
+                    </h4>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={serie.filter((m) => m.kw != null)} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                        <XAxis dataKey="mese" tickFormatter={fmtMese} tick={{ fontSize: 10 }} />
+                        <YAxis domain={[0, Math.max(f.potenza_impegnata_kw || 0, ...serie.map((m) => m.kw || 0)) + 3]} tick={{ fontSize: 10 }} />
+                        <Tooltip labelFormatter={fmtMese} formatter={(v) => [`${fmtEur(v, 1)} kW`, "Potenza max"]} />
+                        {f.potenza_impegnata_kw != null && (
+                          <ReferenceLine
+                            y={f.potenza_impegnata_kw} stroke={COL.limite} strokeDasharray="6 4"
+                            label={{ value: `impegnata ${fmtEur(f.potenza_impegnata_kw, 0)} kW`, fontSize: 10, fill: COL.limite, position: "insideTopRight" }}
+                          />
+                        )}
+                        <Line type="monotone" dataKey="kw" stroke={COL.potenza} strokeWidth={2} dot={{ r: 2.5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
           </div>
 
           {/* ─── Tabella bollette ─── */}
           <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-brand-ink">Bollette caricate ({bollette.length})</h4>
+              <h4 className="text-sm font-semibold text-brand-ink">
+                Bollette caricate ({bollette.length})
+                {bollette.length > 0 && (
+                  <Btn variant="ghost" size="sm" onClick={handleRiparseAll} loading={riparsingAll}
+                       title="Ri-analizza tutti i PDF archiviati (utile dopo un aggiornamento del parser)">
+                    🔄 tutte
+                  </Btn>
+                )}
+              </h4>
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -414,7 +454,13 @@ export default function ControlloGestioneUtenze() {
                         <span className="text-neutral-300 text-xs" title="Fattura non ancora sincronizzata da FIC">—</span>
                       )}
                     </td>
-                    <td className="px-2 py-2 text-right pr-4">
+                    <td className="px-2 py-2 text-right pr-4 whitespace-nowrap">
+                      {(b.warnings || []).length > 0 && (
+                        <span className="text-amber-500 text-xs mr-1" title={b.warnings.join("\n")}>⚠️</span>
+                      )}
+                      <Btn variant="ghost" size="sm" onClick={() => handleRiparse(b.id)} title="Ri-analizza il PDF (dopo un miglioramento del parser)">
+                        🔄
+                      </Btn>
                       <Btn variant="ghost" size="sm" onClick={() => handleDelete(b.id)} title="Elimina bolletta">
                         🗑
                       </Btn>

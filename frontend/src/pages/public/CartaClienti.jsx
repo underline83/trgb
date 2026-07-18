@@ -950,7 +950,7 @@ function SezioneBevande({ sezione, search }) {
 // Ordine canonico dei gruppi tipologia — TENERE ALLINEATO a _TIP_ORDER in
 // app/services/carta_bevande_service.py e alle options del seed distillati
 // (bevande_db.py). Tipologie non in lista vanno in coda, in ordine di apparizione.
-const TIPOLOGIA_ORDER = ["Grappa", "Rum", "Whisky", "Cognac", "Altro"];
+const TIPOLOGIA_ORDER = ["Grappa", "Rum", "Whisky", "Gin", "Vodka", "Cognac", "Altro"];
 
 function BevTabella4Col({ voci }) {
   // v2.4: raggruppa per TIPOLOGIA. Se nessuna voce ha tipologia (es. Amari &

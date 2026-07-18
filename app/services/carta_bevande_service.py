@@ -154,7 +154,7 @@ def _render_tabella_4col(voci: list[dict[str, Any]], staff: bool) -> str:
     # Ordine canonico dei gruppi (allineato alle options del seed distillati in
     # bevande_db.py e a TIPOLOGIA_ORDER in CartaClienti.jsx). Tipologie fuori
     # lista (e "—") in coda. Prima era alfabetico: "Altro" apriva la carta.
-    _TIP_ORDER = ["Grappa", "Rum", "Whisky", "Cognac", "Altro"]
+    _TIP_ORDER = ["Grappa", "Rum", "Whisky", "Gin", "Vodka", "Cognac", "Altro"]
     def k_rank(v):
         t = k_tip(v)
         return _TIP_ORDER.index(t) if t in _TIP_ORDER else len(_TIP_ORDER)

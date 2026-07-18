@@ -1,4 +1,8 @@
-# @version: v1.2-birre-abbinamenti-gf
+# @version: v1.3-gin-vodka-prezzo-label — seed distillati: tipologie Gin e Vodka
+#   nelle options + campo prezzo_label ("Prezzo in carta", per doppi prezzi tipo
+#   "liscio 8 · G&T 11"). Per i DB già esistenti la stessa modifica è applicata
+#   dalla migration 153 (il seed non tocca sezioni esistenti).
+# v1.2-birre-abbinamenti-gf
 # -*- coding: utf-8 -*-
 """
 Database Carta Bevande — TRGB Gestionale (sub-modulo del modulo Vini)
@@ -177,6 +181,8 @@ _SCHEMA_FORM = {
                  {"value": "Grappa",  "label": "Grappa"},
                  {"value": "Rum",     "label": "Rum"},
                  {"value": "Whisky",  "label": "Whisky"},
+                 {"value": "Gin",     "label": "Gin"},
+                 {"value": "Vodka",   "label": "Vodka"},
                  {"value": "Cognac",  "label": "Cognac / Armagnac"},
                  {"value": "Altro",   "label": "Altro distillato"},
              ], "required": True},
@@ -184,6 +190,8 @@ _SCHEMA_FORM = {
             {"key": "produttore",  "label": "Produttore",                  "type": "text"},
             {"key": "nome",        "label": "Nome / Annata",               "type": "text", "required": True},
             {"key": "prezzo_eur",  "label": "Prezzo €",                    "type": "number", "step": 0.5},
+            {"key": "prezzo_label","label": "Prezzo in carta (testo, opz)","type": "text",
+             "help": "Se compilato sostituisce il prezzo € in carta — es. 'liscio 8 · G&T 11'"},
             {"key": "descrizione", "label": "Note (opz)",                  "type": "textarea", "rows": 2},
             {"key": "note_interne","label": "Note interne",                "type": "textarea", "rows": 2},
         ]

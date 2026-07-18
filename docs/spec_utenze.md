@@ -44,6 +44,13 @@ Prototipo eseguito su bolletta luce n. 526509846068 (giugno 2026) e gas n. 52650
 | Potenza prelevata mensile 12 mesi vs impegnata | ✅ (max 27,3 su 30 kW) | n/a | pag. 4 |
 | Cos(φ) / rapporto reattiva (soglia penali 33%) | ✅ (27,7% F1) | n/a | pag. 3 |
 
+Varianti layout gestite (scoperte coi 16 PDF reali, 2026-07-17): le sezioni
+scivolano di pagina (storico gas su p3 O p4 → ricerca per marker, mai indice
+fisso); bollette a consumo zero (POD secondario solo quota fissa) senza Box
+Offerta né storico; riga "Stimata" assente = zeri impliciti. Tre Gobbi ha
+**4 forniture**: luce ristorante + luce secondaria (POD IT001E25733128, 3 kW)
++ gas cucina + gas secondario (210000750924).
+
 Residuo tecnico noto dal prototipo: le righe di dettaglio fasce a pag. 3 e alcune label
 multi-colonna di pag. 1 richiedono parsing posizionale (`extract_table` / coordinate),
 non bastano regex sul testo piatto. Fattibile, è lo stesso lavoro fatto per ELAB.

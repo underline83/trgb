@@ -395,7 +395,13 @@ def _parse_storico(testo: str, tipo: str, out: dict, warnings: list) -> None:
         for label, key in (("Reale", "reale"), ("Stimata", "stimata")):
             m = re.search(rf"^{label}\s+((?:[\d\.,]+\s*)+)$", testo, re.M)
             if not m:
-                warnings.append(f"Campo non trovato: storico gas riga {label}")
+                # La riga "Stimata" può mancare del tutto quando non ci sono
+                # mai state letture stimate → zeri impliciti, nessun warning.
+                if label == "Stimata" and storico:
+                    for mese in storico:
+                        storico[mese].setdefault("stimata", 0.0)
+                else:
+                    warnings.append(f"Campo non trovato: storico gas riga {label}")
                 continue
             valori = [_num(x) for x in m.group(1).split()]
             if mesi_labels and len(valori) >= len(mesi_labels):
@@ -444,22 +450,55 @@ def parse_bolletta_a2a(path: str | Path) -> dict:
         "fonte_hash": fonte_hash,
     }
 
+    def _page_with(marker: str, fallback: str = "") -> str:
+        """Le sezioni scivolano di pagina a seconda della lunghezza della
+        bolletta (es. storico gas su p3 O p4): si cerca per marker, non per
+        indice fisso."""
+        for t in testi:
+            if marker in t:
+                return t
+        return fallback
+
     t1 = testi[0]
     t2 = testi[1] if len(testi) > 1 else ""
-    t3 = testi[2] if len(testi) > 2 else ""
-    t4 = testi[3] if len(testi) > 3 else ""
 
     _parse_pagina1(t1, out, warnings)
     _parse_scontrino(t2, out, warnings)
-    _parse_box_offerta(t2, out, warnings)
+    _parse_box_offerta(_page_with("Box dell'Offerta", t2), out, warnings)
+
+    t_letture = _page_with("Dati relativi a letture", testi[2] if len(testi) > 2 else "")
+    t_storico = _page_with("Informazioni storiche", "")
 
     if tipo == "LUCE":
-        _parse_letture_luce(t3, out, warnings)
-        _parse_storico(t4, tipo, out, warnings)
+        _parse_letture_luce(t_letture, out, warnings)
     else:
-        _parse_letture_gas(t3, out, warnings)
-        _parse_storico(t3, tipo, out, warnings)
+        _parse_letture_gas(t_letture, out, warnings)
+    if t_storico:
+        _parse_storico(t_storico, tipo, out, warnings)
+    else:
+        out["storico_mensile"] = None
+        out["spesa_annua"] = None
+        if tipo == "LUCE":
+            out["potenza_max_mensile"] = None
+        warnings.append("Sezione 'Informazioni storiche' assente dal PDF")
 
     out["unita"] = out.get("unita") or ("kWh" if tipo == "LUCE" else "Smc")
+
+    # Bolletta a consumo zero (es. POD secondario solo quota fissa): l'assenza
+    # di Box Offerta / prezzi / storico è FISIOLOGICA, non un problema di
+    # parsing → warnings sostituiti da una nota unica.
+    if not out.get("consumo_fatturato"):
+        assenze_ok = ("prezzo componente", "indice di riferimento", "spread",
+                      "valori indice", "consumo annuo", "consumo/spesa annua",
+                      "storico", "potenza prelevata", "Informazioni storiche",
+                      "scadenza condizioni", "codice offerta",
+                      "totali fascia periodo")
+        rimasti = [w for w in warnings if not any(k in w for k in assenze_ok)]
+        if len(rimasti) < len(warnings):
+            rimasti.append(
+                "Bolletta a consumo zero (solo quota fissa): dettagli offerta/storico assenti dal PDF, è normale"
+            )
+        warnings = rimasti
+
     out["warnings"] = warnings
     return out

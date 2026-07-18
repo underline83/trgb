@@ -1,6 +1,22 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-18 — **Audit dropdown header: 5 voci mancanti aggiunte (Vini Sommelier+Anagrafiche, Acquisti Pro-forme, CG Batch, Statistiche Prodotti) — DA PUSHARE** insieme a vini 3.69. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-18 — **Tè (12) e Tisane (7) caricati in carta a 10 €; import testo ora con textarea (v1.3, pushato dentro `3a8b774c`)**. Utenze multi-layout ancora da pushare (v. sessione quater). Dettagli sotto.
+
+## SESSIONE 2026-07-18 (ter) — Carta Bevande: caricamento Tè e Tisane
+
+### Contesto
+Marco porta la lista tè+tisane del fornitore (spunta = presente in casa): "sistemami questa lista per poterle caricare in carta".
+
+### Cosa è stato fatto
+- **Lista pulita**: solo voci con spunta → **7 tisane + 12 tè**. Fuori: English Breakfast, Gyokuro Okabe (non presenti), Nearly Grey (FINITO), doppione Sun Rouge. Tolte note magazzino ("1 aperta"…) e numeri pagina; refusi corretti (aromatico, Shizuoka, Fukuroi, Tokushima→Tokunoshima).
+- **Fix import testo (`CartaSezioneEditor.jsx` v1.3-panel)**: `importColumns` include anche le textarea (descrizione/ingredienti), esclusa solo `note_interne` — prima il bulk-import di tè/tisane perdeva le descrizioni (il BE le accettava già). Colonne birre invariate. ⚠️ Partito dentro il push `3a8b774c` (audit dropdown) che non lo cita nel messaggio — v. changelog.
+- **TSV consegnati e importati da Marco**: `tisane_import.tsv` (Nome/Categoria/Ingredienti/Prezzo) e `te_import.tsv` (Nome/tipologia/Descrizione/Paese/Prezzo — tipologia = value del select: nero/verde/oolong/rosso). **Prezzo 10 € su tutte le voci.**
+
+### Note
+- Milky Oolong e Lapsang Souchong senza `paese_origine` (assente nell'originale) — completare a mano se serve in carta.
+- ⚠️ **Conflitto docs tra sessioni parallele**: la sessione Utenze ha riscritto `sessione.md` partendo da una copia stale, cancellando i blocchi del 18/7 (audit dropdown + distillati). Recuperati da git HEAD e rimessi qui sotto. Se si lavora in parallelo: rileggere i docs subito prima di scriverli.
+
+---
 
 ## SESSIONE 2026-07-18 (bis) — Audit menu a discesa header
 
@@ -45,7 +61,21 @@ Dose standard 40 ml → ~17 dosi da bottiglia 700 ml (12 da 500 ml); 30 ml come 
 - **Amari & Liquori**: ricerca prezzi retail per 15 amari di Marco → prezzi carta 4-6 € a dose 40 ml; TSV `import_amari.tsv` consegnato (colonne: nome, produttore, regione, prezzo). Nota: Il Carlina è di Torino (Piazza Carlina), non Cuneo — da verificare su etichetta.
 - **Carta raggruppata per tipologia (vini 3.69, DA PUSHARE)**: `BevTabella4Col` in `CartaClienti.jsx` (v2.4) raggruppava per regione → ora per tipologia con ordine canonico Grappa→Rum→Whisky→Cognac→Altro; senza tipologia (amari) tabella piatta. Backend `carta_bevande_service.py` (v1.2) allineato allo stesso ordine (prima alfabetico, "Altro" apriva la carta). ⚠️ `TIPOLOGIA_ORDER` (FE) e `_TIP_ORDER` (BE) da tenere allineati tra loro e col seed.
 - **Liquori & after-dinner**: prezzati altri 10 liquori (4-6 € a dose; eccezione Nonino GingerSpirit 50%: bottiglia ~115 €/500ml → 12 € a dose). TSV `import_liquori.tsv` consegnato, stessa sezione Amari & Liquori. Note: Limoncello di Capri oggi imbottigliato a 32% (Marco ha scritto 30%, verificare etichetta); Drambuie 6 €.
-- Push da fare: `./push.sh "[core] carta: tabella_4col raggruppata per tipologia FE+BE, ordine canonico (vini 3.69)"` — post-push ricaricare la carta pubblica e verificare gruppi Grappa/Whisky in Distillati e tabella piatta in Amari.
+- **Gin & Vodka (mig 153)**: prezzati 12 gin (liscio 7-9 € / G&T 10-12 €, Sabatini ZERO analcolico G&T 8 €) e 2 vodka (7 €). Per caricarli: mig 153 aggiunge tipologie Gin/Vodka e campo prezzo_label allo schema distillati del DB vivo (+seed v1.3 per DB nuovi); ordine gruppi carta esteso Grappa→Rum→Whisky→Gin→Vodka→Cognac→Altro. Doppio prezzo gin via prezzo_label ("liscio 8 · G&T 11"). TSV `import_gin_vodka.tsv` (6 colonne) consegnato — importare DOPO il push. Nota: Sipsmith è 41,6% (il 46% era refuso); Gin Heart e OriGine introvabili online → prezzo stimato su bottiglia ~35-40 €.
+- Push da fare: `./push.sh "[core] carta: gruppi per tipologia FE+BE + tipologie Gin/Vodka + prezzo_label form distillati (mig 153, vini 3.69)"` — post-push ricaricare la carta pubblica e verificare gruppi Grappa/Whisky in Distillati e tabella piatta in Amari.
+
+---
+
+## SESSIONE 2026-07-17 (quater) — Utenze: fix multi-layout + ri-analisi
+
+### Contesto
+Marco ha caricato le 16 bollette 2026 in pagina: alcune con problemi. Diagnosi sui PDF (girati in chat): 4 forniture reali (luce 210000714820, luce secondaria 210002323473 POD ...128 consumo zero, gas 210000749330, gas secondario 210000750924) e storico gas su pagina variabile (p3 O p4).
+
+### Fix (dettaglio nel changelog)
+Parser per-marker invece che per-pagina-fissa; "Stimata" assente = zeri; consumo zero = nota unica al posto di 13 warnings. `POST /bollette/{id}/riparse` + FE: grafici per fornitura (POD in etichetta), 🔄 singola e "🔄 tutte", ⚠️ tooltip. 16/16 PDF puliti, e2e completo in sandbox (192 righe serie, lug 2024 → giu 2026).
+
+### Da fare al push
+`./push.sh "[core] Utenze: parser multi-layout (storico p3/p4, consumo zero, 4 forniture) + riparse endpoint + grafici per fornitura"`. **Post-push: aprire Utenze → cliccare "🔄 tutte"** per completare le bollette importate col parser vecchio (lo storico mancante arriva da lì). Poi verificare: 4 card KPI, grafici etichettati per POD/PDR, gas secondario con serie.
 
 ---
 
