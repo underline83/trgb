@@ -1,4 +1,7 @@
-// @version: v1.2-panel — import testo: incluse le colonne select (es. tipologia
+// @version: v1.3-panel — import testo: incluse anche le colonne textarea (descrizione,
+// ingredienti, abbinamenti) — esclusa solo note_interne. Prima le textarea erano
+// filtrate e il bulk-import di tè/tisane perdeva descrizioni e ingredienti.
+// v1.2-panel — import testo: incluse le colonne select (es. tipologia
 // distillati/tè). Prima erano filtrate via e il bulk-import creava voci senza tipo,
 // da correggere a mano una per una. Il valore incollato deve combaciare con il
 // `value` delle options (es. "Grappa", "Whisky"); normalizeValues lo passa as-is.
@@ -333,10 +336,12 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
   // Import testo
   // --------------------------------------------------
   const importColumns = useMemo(() => {
-    // Costruisci le colonne dall'ordine dei campi dello schema (textarea escluse: noiose)
+    // Costruisci le colonne dall'ordine dei campi dello schema.
+    // Textarea INCLUSE (v1.3): descrizione/ingredienti sono il cuore di sezioni
+    // come tè e tisane — esclusa solo note_interne (staff-only, mai da import).
     const fields = sezione?.schema_form?.fields || [];
     return fields
-      .filter((f) => f.type !== "textarea")
+      .filter((f) => fieldId(f) !== "note_interne")
       .slice(0, 6) // massimo 6 colonne
       .map((f) => ({ key: fieldId(f), label: f.label || fieldId(f) }));
   }, [sezione]);

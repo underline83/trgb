@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-07-18 — Dropdown header: audit voci mancanti vs sub-nav dei moduli `[core]`
+
+Marco: "controllo menu a discesa, a me sembra che manchino dei tasti". Audit completo `modulesMenu.js` vs le sub-nav di tutti i 12 moduli e vs le route in `App.jsx`: 5 pagine reali erano raggiungibili dalla nav del modulo ma assenti dal menu a discesa dell'header (e dalla Home, che usa lo stesso config).
+
+### 🐞 Risolti (voci mancanti nel dropdown)
+- **Vini**: aggiunte "Sommelier" (`/vini/carta-staff`) e "Anagrafiche" (`/vini/anagrafiche`, solo admin).
+- **Acquisti**: aggiunta "Pro-forme" (`/acquisti/proforme`, solo admin — sub-key già in modules.json).
+- **Controllo Gestione**: aggiunta "Batch" (`/controllo-gestione/batch-pagamenti`) e riallineato l'ordine delle voci a quello di `ControlloGestioneNav` (Utenze → Batch → Riconciliazione).
+- **Statistiche**: aggiunta "Prodotti" (`/statistiche/prodotti`).
+
+### 🔧 Migliorato
+- **`modules.json`**: nuova sub-key `vini.anagrafiche` (superadmin/admin) così la voce non compare a sala/sommelier — la route è comunque protetta da `sub=settings`. Nessun'altra modifica ai permessi.
+
+### Note
+- Nessun bump versione: solo allineamento menu, zero logica.
+- Incoerenza preesistente NON toccata: `ViniNav` mostra "Anagrafiche" anche a sommelier, ma la route `/vini/anagrafiche` è protetta da `sub=settings` (solo admin) → per il sommelier il tasto in nav resta un vicolo cieco. Da decidere con Marco se aprire ai sommelier o nascondere in nav.
+- `modules.json` contiene ancora la sub-key `controllo-gestione.confronto` (pagina rimossa, route ora redirect) — innocua, lasciata.
+
+### File
+`frontend/src/config/modulesMenu.js`, `app/data/modules.json`.
+
+---
+
 ## 2026-07-18 — Carta: tabella_4col raggruppata per tipologia, FE+BE allineati (vini 3.69) `[core]`
 
 Approvato da Marco dopo il caricamento dei 29 distillati: la pagina React pubblica raggruppava la tabella per REGIONE (gruppi geografici che frammentavano grappe e whisky), mentre il PDF/HTML backend raggruppava già per tipologia ma in ordine alfabetico ("Altro" apriva la carta).

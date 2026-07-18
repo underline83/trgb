@@ -14,11 +14,16 @@ const MODULES_MENU = {
     color: "bg-amber-50 border-amber-200 text-amber-900", hoverBg: "hover:bg-amber-50",
     sub: [
       { label: "Carta dei Vini", go: "/vini/carta" },
+      // Audit 2026-07-18: "Sommelier" (carta staff) e "Anagrafiche" erano in
+      // ViniNav ma assenti dal dropdown. Anagrafiche filtrata via modules.json
+      // (sub-key "anagrafiche", solo admin — la route è protetta da sub=settings).
+      { label: "Sommelier",      go: "/vini/carta-staff" },
       { label: "Vendite",        go: "/vini/vendite" },
       // Audit 2026-07-12 (M11): puntava a /vini/magazzino (deprecata,
       // funzionava solo via doppio redirect S2). Ora diretta alla Cantina v2.
       { label: "Cantina",        go: "/vini/v2/cantina" },
       { label: "Dashboard",      go: "/vini/dashboard" },
+      { label: "Anagrafiche",    go: "/vini/anagrafiche", check: "admin" },
       { label: "Impostazioni",   go: "/vini/settings",  check: "admin" },
     ],
   },
@@ -29,6 +34,9 @@ const MODULES_MENU = {
       { label: "Dashboard",    go: "/acquisti/dashboard" },
       { label: "Fatture",      go: "/acquisti/fatture" },
       { label: "Fornitori",    go: "/acquisti/fornitori" },
+      // Audit 2026-07-18: era in FattureNav ma assente dal dropdown.
+      // Visibilità filtrata da modules.json (sub-key "proforme", solo admin).
+      { label: "Pro-forme",    go: "/acquisti/proforme", check: "admin" },
       { label: "Impostazioni", go: "/acquisti/impostazioni", check: "admin" },
     ],
   },
@@ -82,14 +90,17 @@ const MODULES_MENU = {
     // Audit 2026-05-16: rimosse "Liquidit\u00E0" (overlap Flussi Cassa + CE cassa)
     // e "Confronto" (placeholder mai sviluppato). Aggiunto "Conto Economico"
     // (era assente). Stesso ordine della nav del modulo.
+    // Audit 2026-07-18: aggiunto "Batch" (era in ControlloGestioneNav ma
+    // assente dal dropdown) e riallineato l'ordine a quello della nav.
     sub: [
       { label: "Dashboard",       go: "/controllo-gestione/dashboard" },
       { label: "Conto Economico", go: "/controllo-gestione/conto-economico" },
       { label: "Scadenzario",     go: "/controllo-gestione/uscite" },
       { label: "Calendario",      go: "/controllo-gestione/calendario" },
       { label: "Spese Fisse",     go: "/controllo-gestione/spese-fisse" },
-      { label: "Riconciliazione", go: "/controllo-gestione/riconciliazione" },
       { label: "Utenze",          go: "/controllo-gestione/utenze" },
+      { label: "Batch",           go: "/controllo-gestione/batch-pagamenti" },
+      { label: "Riconciliazione", go: "/controllo-gestione/riconciliazione" },
     ],
   },
   statistiche: {
@@ -97,6 +108,8 @@ const MODULES_MENU = {
     color: "bg-rose-50 border-rose-200 text-rose-900", hoverBg: "hover:bg-rose-50",
     sub: [
       { label: "Dashboard",         go: "/statistiche/dashboard" },
+      // Audit 2026-07-18: era in StatisticheNav ma assente dal dropdown.
+      { label: "Prodotti",          go: "/statistiche/prodotti" },
       { label: "Coperti & Incassi", go: "/statistiche/coperti" },
       { label: "Storico",           go: "/statistiche/storico" },
       { label: "Import iPratico",   go: "/statistiche/import", check: "admin" },

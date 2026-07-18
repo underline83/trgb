@@ -10,6 +10,7 @@
       { "key": "vendite",   "label": "Vendite",        "roles": ["superadmin", "admin", "sommelier", "sala"] },
       { "key": "magazzino", "label": "Cantina",        "roles": ["superadmin", "admin", "sommelier", "sala"] },
       { "key": "dashboard", "label": "Dashboard",      "roles": ["superadmin", "admin", "sommelier", "sala"] },
+      { "key": "anagrafiche", "label": "Anagrafiche",  "roles": ["superadmin", "admin"] },
       { "key": "ipratico",  "label": "iPratico Sync",  "roles": ["superadmin", "admin"] },
       { "key": "settings",  "label": "Impostazioni",   "roles": ["superadmin", "admin"] }
     ]

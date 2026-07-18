@@ -1,6 +1,26 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-18 — **Carta Bevande: fix #31 + import con tipologia + 29 distillati caricati + 15 amari prezzati + tabella_4col raggruppata per tipologia (vini 3.69, DA PUSHARE)**. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-18 — **Audit dropdown header: 5 voci mancanti aggiunte (Vini Sommelier+Anagrafiche, Acquisti Pro-forme, CG Batch, Statistiche Prodotti) — DA PUSHARE** insieme a vini 3.69. Dettagli sotto.
+
+## SESSIONE 2026-07-18 (bis) — Audit menu a discesa header
+
+### Contesto
+Marco: "controllo menu a discesa, a me sembra che manchino dei tasti". Confronto sistematico `modulesMenu.js` (config del dropdown header + Home) contro le sub-nav di tutti i moduli e le route di `App.jsx`.
+
+### Cosa è stato fatto
+- **5 voci mancanti aggiunte a `modulesMenu.js`**: Vini → "Sommelier" (/vini/carta-staff) e "Anagrafiche" (/vini/anagrafiche, admin); Acquisti → "Pro-forme" (/acquisti/proforme, admin); Controllo Gestione → "Batch" (/controllo-gestione/batch-pagamenti) + ordine voci riallineato alla nav; Statistiche → "Prodotti" (/statistiche/prodotti).
+- **`modules.json`**: aggiunta sub-key `vini.anagrafiche` (superadmin/admin) — senza, il fallback di `canAccessSub` avrebbe mostrato la voce anche a sala/sommelier che non possono aprire la pagina (route protetta da sub=settings).
+- Verificati e risultati GIÀ allineati: vendite, flussi-cassa, prenotazioni, clienti, dipendenti, tasks, ricette (il dropdown ricette è volutamente più ricco della nav: Selezioni, Menu Pranzo, Matching).
+- Nessun bump versione (solo menu). Sintassi verificata: `node --check` OK, JSON valido.
+
+### Note / decisioni aperte
+- **Incoerenza preesistente da decidere**: `ViniNav` mostra "Anagrafiche" anche a sommelier ma la route è admin-only (sub=settings) → tasto cieco per sommelier. Aprire ai sommelier o togliere dalla nav?
+- `controllo-gestione.confronto` sopravvive in modules.json (pagina rimossa) — innocuo, non toccato.
+
+### Da fare al push
+Entra nel prossimo `./push.sh` insieme a vini 3.69. Post-push: aprire il menu header e verificare le 5 nuove voci (con utente admin si vedono tutte; con sala NON si devono vedere Anagrafiche/Pro-forme).
+
+---
 
 ## SESSIONE 2026-07-18 — Carta Bevande: distillati (fix #31, import select, caricamento whisky+grappe)
 
@@ -24,6 +44,7 @@ Dose standard 40 ml → ~17 dosi da bottiglia 700 ml (12 da 500 ml); 30 ml come 
 ### Aggiunta in giornata (stessa sessione)
 - **Amari & Liquori**: ricerca prezzi retail per 15 amari di Marco → prezzi carta 4-6 € a dose 40 ml; TSV `import_amari.tsv` consegnato (colonne: nome, produttore, regione, prezzo). Nota: Il Carlina è di Torino (Piazza Carlina), non Cuneo — da verificare su etichetta.
 - **Carta raggruppata per tipologia (vini 3.69, DA PUSHARE)**: `BevTabella4Col` in `CartaClienti.jsx` (v2.4) raggruppava per regione → ora per tipologia con ordine canonico Grappa→Rum→Whisky→Cognac→Altro; senza tipologia (amari) tabella piatta. Backend `carta_bevande_service.py` (v1.2) allineato allo stesso ordine (prima alfabetico, "Altro" apriva la carta). ⚠️ `TIPOLOGIA_ORDER` (FE) e `_TIP_ORDER` (BE) da tenere allineati tra loro e col seed.
+- **Liquori & after-dinner**: prezzati altri 10 liquori (4-6 € a dose; eccezione Nonino GingerSpirit 50%: bottiglia ~115 €/500ml → 12 € a dose). TSV `import_liquori.tsv` consegnato, stessa sezione Amari & Liquori. Note: Limoncello di Capri oggi imbottigliato a 32% (Marco ha scritto 30%, verificare etichetta); Drambuie 6 €.
 - Push da fare: `./push.sh "[core] carta: tabella_4col raggruppata per tipologia FE+BE, ordine canonico (vini 3.69)"` — post-push ricaricare la carta pubblica e verificare gruppi Grappa/Whisky in Distillati e tabella piatta in Amari.
 
 ---
