@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-07-17 — Analisi Utenze U3+U4: pagina FE + alert (mig 152, CG 2.21) `[core]`
+
+Completa il modulo Analisi Utenze (spec `docs/spec_utenze.md`): ora ha l'interfaccia e gli alert. Chiude U3+U4.
+
+- **Pagina** `ControlloGestioneUtenze.jsx` (M.I primitives, route `/controllo-gestione/utenze`, tab 💡 in nav CG + voce nel menu moduli): upload/drag&drop PDF → modal preview con campi estratti e warnings → conferma; card KPI per fornitura (€/kWh–€/Smc all-in, consumo e spesa annua, countdown scadenza condizioni rosso sotto 60gg, % stimato gas, potenza max vs impegnata, formula indice+spread); grafici Recharts (luce stacked F1/F2/F3, gas rilevato/stimato, potenza max mensile con ReferenceLine sulla impegnata); tabella bollette con link 🔗 alla fattura in Acquisti.
+- **Backend**: nuovo `GET /controllo-gestione/utenze/bollette` (elenco per la tabella).
+- **Alert M.F** (2 checker in `alert_engine.py`): `utenze_scadenza_condizioni` (preavviso rinegoziazione, default 60gg, urgente sotto 14; include condizioni già scadute) e `utenze_consumi_stimati` (ultima bolletta gas con stimato > soglia %, default 30% → "fai l'autolettura"). Soglie e canali in `alert_config` (Impostazioni → Notifiche), **niente hardcode**; per `utenze_consumi_stimati` il campo `soglia_giorni` è interpretato come percentuale (interpretazione per-checker prevista dallo schema).
+- **Mig 152**: seed `alert_config` per i 2 checker (60 / 30, antidup 168h) — idempotente, apre notifiche.sqlite3.
+- Bump controlloGestione 2.20 → 2.21.
+
+### File
+`frontend/src/pages/controllo-gestione/ControlloGestioneUtenze.jsx` (nuovo), `ControlloGestioneNav.jsx`, `App.jsx`, `modulesMenu.js`, `versions.jsx`, `app/routers/cg_utenze_router.py`, `app/services/alert_engine.py`, `app/migrations/152_alert_config_utenze.py` (nuova).
+
+---
+
 ## 2026-07-17 — Analisi Utenze U1+U2: parser bollette A2A + serie storica (mig 151) `[core]`
 
 Nuovo sub-modulo di Controllo di Gestione (spec `docs/spec_utenze.md`, approvata da Marco in giornata): upload del PDF bolletta A2A (luce e gas) → parser → serie storica consumi/costi + KPI. Layer di sola analisi: la contabilità resta su `fe_fatture` (zero doppio conteggio nel CE). Validato sui 2 PDF reali di Tre Gobbi (luce giu 2026, gas apr-mag 2026) con zero warnings.

@@ -699,3 +699,149 @@ def _check_cg_scadenze_pianificazione(dry_run: bool = False, config: dict = None
         config=cfg,
         dry_run=dry_run,
     )
+
+
+# ═════════════════════════════════════════════
+# CHECKER: Analisi Utenze (U4, spec_utenze.md §7)
+# ═════════════════════════════════════════════
+
+def _utenze_fc_conn():
+    """Connessione a foodcost.db (tabelle cg_utenze_*). Ritorna None se il DB
+    o le tabelle non esistono (modulo utenze mai usato su questo locale)."""
+    import sqlite3 as _sqlite3
+    from app.utils.locale_data import locale_data_path
+    path = locale_data_path("foodcost.db")
+    if not path.exists():
+        return None
+    conn = _sqlite3.connect(str(path))
+    conn.row_factory = _sqlite3.Row
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='cg_utenze_forniture'"
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    return conn
+
+
+@register_checker("utenze_scadenza_condizioni")
+def _check_utenze_scadenza_condizioni(dry_run: bool = False, config: dict = None) -> CheckResult:
+    """
+    Condizioni economiche delle forniture (luce/gas) in scadenza entro
+    `soglia_giorni` (default 60): promemoria rinegoziazione. Include anche
+    condizioni già scadute (rinnovo tacito = momento peggiore per dormirci).
+    Una notifica per fornitura, anti-dup su entity_id=fornitura (default 168h).
+    """
+    cfg = config or _get_config("utenze_scadenza_condizioni")
+    soglia = int(cfg.get("soglia_giorni") or 60)
+    antidup = int(cfg.get("antidup_ore") or 168)
+    result = CheckResult(checker="utenze_scadenza_condizioni")
+
+    conn = _utenze_fc_conn()
+    if conn is None:
+        result.skipped = 1
+        return result
+    try:
+        rows = conn.execute(
+            "SELECT id, tipo, offerta, scadenza_condizioni FROM cg_utenze_forniture "
+            "WHERE attiva = 1 AND scadenza_condizioni IS NOT NULL"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    oggi = date.today()
+    for r in rows:
+        try:
+            scad = date.fromisoformat(r["scadenza_condizioni"])
+        except (TypeError, ValueError):
+            continue
+        giorni = (scad - oggi).days
+        if giorni > soglia:
+            continue
+        result.found += 1
+        if _notifica_recente_esiste("utenze_scadenza_condizioni", ore=antidup, entity_id=r["id"]):
+            result.skipped += 1
+            continue
+        label = "Luce" if r["tipo"] == "LUCE" else "Gas"
+        if giorni >= 0:
+            msg = f"Le condizioni economiche {label} ({r['offerta'] or '—'}) scadono il {scad.strftime('%d/%m/%Y')} (tra {giorni} giorni)."
+        else:
+            msg = f"Le condizioni economiche {label} ({r['offerta'] or '—'}) sono SCADUTE dal {scad.strftime('%d/%m/%Y')}: probabile rinnovo tacito, verifica il prezzo."
+        result.details.append({"fornitura_id": r["id"], "tipo": r["tipo"], "giorni": giorni})
+        if not dry_run:
+            _send_notification(
+                cfg,
+                tipo="utenze_scadenza_condizioni",
+                titolo=f"⚡ Rinegozia la fornitura {label}",
+                messaggio=msg + " Negoziale insieme (stessa scadenza) per avere più leva.",
+                link="/controllo-gestione/utenze",
+                icona="⚡",
+                urgenza="normale" if giorni > 14 else "urgente",
+                modulo="controllo-gestione",
+                entity_id=r["id"],
+            )
+            result.notified += 1
+    return result
+
+
+@register_checker("utenze_consumi_stimati")
+def _check_utenze_consumi_stimati(dry_run: bool = False, config: dict = None) -> CheckResult:
+    """
+    Ultima bolletta GAS con quota di consumo STIMATO sopra soglia percentuale.
+    NB: `soglia_giorni` è interpretata come PERCENTUALE (default 30 = 30%),
+    interpretazione per-checker prevista dallo schema alert_config.
+    Suggerisce l'autolettura (evita conguagli a sorpresa). Anti-dup su
+    entity_id=bolletta → una notifica per bolletta ogni antidup_ore.
+    """
+    cfg = config or _get_config("utenze_consumi_stimati")
+    soglia_pct = float(cfg.get("soglia_giorni") or 30)
+    antidup = int(cfg.get("antidup_ore") or 168)
+    result = CheckResult(checker="utenze_consumi_stimati")
+
+    conn = _utenze_fc_conn()
+    if conn is None:
+        result.skipped = 1
+        return result
+    try:
+        row = conn.execute(
+            """
+            SELECT b.id, b.numero_bolletta, b.consumo_fatturato, b.consumo_stimato,
+                   b.periodo_da, b.periodo_a
+            FROM cg_utenze_bollette b
+            JOIN cg_utenze_forniture f ON f.id = b.fornitura_id
+            WHERE f.tipo = 'GAS' AND f.attiva = 1
+            ORDER BY b.data_emissione DESC, b.id DESC LIMIT 1
+            """
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row or not row["consumo_fatturato"]:
+        return result
+    pct = 100.0 * (row["consumo_stimato"] or 0) / row["consumo_fatturato"]
+    if pct <= soglia_pct:
+        return result
+
+    result.found = 1
+    if _notifica_recente_esiste("utenze_consumi_stimati", ore=antidup, entity_id=row["id"]):
+        result.skipped = 1
+        return result
+    result.details.append({"bolletta_id": row["id"], "pct_stimato": round(pct, 1)})
+    if not dry_run:
+        _send_notification(
+            cfg,
+            tipo="utenze_consumi_stimati",
+            titolo="🔥 Gas: fai l'autolettura",
+            messaggio=(
+                f"L'ultima bolletta gas (n. {row['numero_bolletta']}) ha il "
+                f"{pct:.0f}% di consumo STIMATO: manda l'autolettura ad A2A "
+                f"(app MyA2A o SMS, numero in bolletta) per evitare conguagli."
+            ),
+            link="/controllo-gestione/utenze",
+            icona="🔥",
+            urgenza="normale",
+            modulo="controllo-gestione",
+            entity_id=row["id"],
+        )
+        result.notified = 1
+    return result

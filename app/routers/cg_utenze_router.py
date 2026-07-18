@@ -391,6 +391,32 @@ def serie_consumi(
         conn.close()
 
 
+@router.get("/bollette")
+def elenco_bollette(current_user=Depends(get_current_user)):
+    """Elenco bollette importate (per la tabella in pagina Utenze)."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """
+            SELECT b.id, b.numero_bolletta, b.data_emissione, b.periodo_da,
+                   b.periodo_a, b.unita, b.consumo_fatturato, b.consumo_stimato,
+                   b.totale, b.prezzo_medio, b.fe_fattura_id, b.warnings,
+                   f.tipo, f.numero_fornitura
+            FROM cg_utenze_bollette b
+            JOIN cg_utenze_forniture f ON f.id = b.fornitura_id
+            ORDER BY b.data_emissione DESC, b.id DESC
+            """
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["warnings"] = json.loads(d["warnings"] or "[]")
+            out.append(d)
+        return {"bollette": out}
+    finally:
+        conn.close()
+
+
 @router.get("/bollette/{bolletta_id}")
 def dettaglio_bolletta(bolletta_id: int, current_user=Depends(get_current_user)):
     conn = get_db()

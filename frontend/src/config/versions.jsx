@@ -96,6 +96,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   controlloGestione: {
+    // 2.21 (2026-07-17, U3+U4): pagina Analisi Utenze (upload bollette A2A,
+    //   KPI, grafici fasce/gas/potenza) + 2 checker M.F (rinegoziazione
+    //   condizioni, autolettura gas). Spec docs/spec_utenze.md.
     // 2.18 (2026-06-30, BP.1-4): nuova pagina "Batch pagamenti".
     // 2.19 (2026-06-30, RC.1+RC.3): auto-close rateizzazioni completate.
     //   Endpoint POST /rateizzazioni/{sf_id}/auto-close + POST /auto-close-all
@@ -110,7 +113,7 @@ const MODULE_VERSIONS = {
     // 2.20 (2026-07-02, RC.1.fix): fix SELECT su cg_uscite — non esiste
     //   la colonna `numero_rata` (è di cg_piano_rate). Rimosso dalla query
     //   raccogli-date-rate; usiamo solo periodo_riferimento come identificatore.
-    version: "2.20",
+    version: "2.21",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",

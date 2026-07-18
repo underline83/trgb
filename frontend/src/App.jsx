@@ -157,6 +157,7 @@ const ControlloGestioneCalendarioScadenze = lazy(() => import("./pages/controllo
 const ControlloGestioneSpeseFisse = lazy(() => import("./pages/controllo-gestione/ControlloGestioneSpeseFisse"));
 const ControlloGestioneBatchPagamenti = lazy(() => import("./pages/controllo-gestione/ControlloGestioneBatchPagamenti"));
 const ControlloGestioneRiconciliazione = lazy(() => import("./pages/controllo-gestione/ControlloGestioneRiconciliazione"));
+const ControlloGestioneUtenze = lazy(() => import("./pages/controllo-gestione/ControlloGestioneUtenze"));
 // Audit 2026-05-16: ControlloGestioneLiquidita rimosso (overlap Flussi Cassa + CE cassa).
 // File mantenuto in fs ma non più importato. Route /controllo-gestione/liquidita → redirect Flussi Cassa.
 
@@ -399,6 +400,7 @@ export default function App() {
         <Route path="/controllo-gestione/spese-fisse" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneSpeseFisse /></ProtectedRoute>} />
         <Route path="/controllo-gestione/batch-pagamenti" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneBatchPagamenti /></ProtectedRoute>} />
         <Route path="/controllo-gestione/riconciliazione" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneRiconciliazione /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/utenze" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneUtenze /></ProtectedRoute>} />
 
         {/* --- STATISTICHE --- */}
         <Route path="/statistiche" element={

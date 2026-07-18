@@ -19,6 +19,7 @@ const TABS = [
   { key: "uscite",           label: "Scadenzario",     path: "/controllo-gestione/uscite",           icon: "💸" },
   { key: "calendario",       label: "Calendario",      path: "/controllo-gestione/calendario",       icon: "📅" },
   { key: "spese-fisse",      label: "Spese Fisse",     path: "/controllo-gestione/spese-fisse",      icon: "📋" },
+  { key: "utenze",           label: "Utenze",          path: "/controllo-gestione/utenze",           icon: "💡" },
   { key: "batch-pagamenti",  label: "Batch",           path: "/controllo-gestione/batch-pagamenti",  icon: "📨" },
   { key: "riconciliazione",  label: "Riconciliazione", path: "/controllo-gestione/riconciliazione",  icon: "🔗" },
 ];

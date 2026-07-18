@@ -1,4 +1,9 @@
-// @version: v1.2 — aggiunto type "checkbox" (mig 106 birre: flag gluten_free).
+// @version: v1.3 — fix React error #31: le options di un select possono essere
+// oggetti {value, label} (seed distillati/te in bevande_db.py) oltre che stringhe
+// (schemi legacy). Prima renderizzavo l'oggetto direttamente come child → crash
+// "Objects are not valid as a React child" appena si apriva il form distillati.
+// Ora optValue/optLabel normalizzano entrambi i formati.
+// v1.2 — aggiunto type "checkbox" (mig 106 birre: flag gluten_free).
 // v1.1 — fix: accetta sia `f.name` che `f.key` come identificatore campo.
 // Il seed backend usa `key` (app/models/bevande_db.py); prima il FE leggeva solo
 // `f.name` → tutti i campi condividevano chiave `undefined` nello state e
@@ -14,6 +19,12 @@ import React from "react";
 
 // Helper: identificatore campo — preferisce `name`, cade su `key` (seed DB usa `key`)
 const fieldId = (f) => f?.name ?? f?.key;
+
+// Helper options select: accetta stringa "Grappa" o oggetto {value, label}
+const optValue = (opt) =>
+  opt != null && typeof opt === "object" ? String(opt.value ?? opt.label ?? "") : String(opt ?? "");
+const optLabel = (opt) =>
+  opt != null && typeof opt === "object" ? String(opt.label ?? opt.value ?? "") : String(opt ?? "");
 
 // Riconosce un valore "checked" sia in stato boolean (after click) sia in stato
 // stringa "1"/"0" (after openEdit che fa String(voce.gluten_free)).
@@ -102,8 +113,8 @@ export default function FormDinamico({ schema, values, onChange, errors = {} }) 
               >
                 <option value="">— seleziona —</option>
                 {(f.options || []).map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                  <option key={optValue(opt)} value={optValue(opt)}>
+                    {optLabel(opt)}
                   </option>
                 ))}
               </select>

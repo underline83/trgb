@@ -1,7 +1,7 @@
 # Spec — Analisi Utenze (parser bollette A2A) — TRGB Gestionale
 
 **Creato:** 2026-07-17
-**Stato:** U1+U2 IMPLEMENTATE (2026-07-17, mig 151) — restano U3 (UI) e U4 (checker M.F)
+**Stato:** ✅ COMPLETO U1-U4 (2026-07-17, mig 151+152, CG 2.21). Fuori scope: vedi §9 (form manuale fallback NON implementato)
 **Classificazione:** `[core]` — parser A2A riusabile da qualunque ristorante cliente A2A
 **Modulo:** `controllo_gestione` (tabelle `cg_utenze_*`, prefix `/controllo-gestione/utenze`)
 **Precedenti di riferimento:** `app/services/elab_parser.py` (parser PDF che non scrive DB), `app/services/f24_parser.py`

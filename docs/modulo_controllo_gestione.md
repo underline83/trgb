@@ -21,7 +21,7 @@ Nuovo sub-modulo **Analisi Utenze**: upload PDF bollette A2A (luce+gas) → pars
 | C-CG-U04 | GET `/consumi` — serie mensile per grafici (filtri fornitura/range) | cg_utenze_router.py | admin/contabile |
 | C-CG-U05 | GET/DELETE `/bollette/{id}` — dettaglio (parsed completo) / elimina bolletta+serie di cui era fonte | cg_utenze_router.py | admin/contabile |
 
-Stato: 🆕 backend U1+U2. UI (U3) e checker M.F (U4) da fare — vedi spec §8.
+Stato: ✅ COMPLETO U1-U4 (2026-07-17). UI: `ControlloGestioneUtenze.jsx` (tab 💡, route `/controllo-gestione/utenze`, CG 2.21) + `GET /bollette` (C-CG-U06, elenco). Alert: checker `utenze_scadenza_condizioni` + `utenze_consumi_stimati` in alert_engine (soglie in alert_config, mig 152 seed).
 
 DB (mig 151, foodcost.db): `cg_utenze_forniture`, `cg_utenze_bollette`, `cg_utenze_consumi_mensili` (UNIQUE fornitura+mese+fascia; upsert vince la bolletta con emissione più recente). Archivio PDF: `locali/<id>/data/uploads/utenze/`.
 

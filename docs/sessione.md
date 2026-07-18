@@ -1,6 +1,26 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-17 — **Analisi Utenze U1+U2: parser bollette A2A + mig 151 + router** (sessione parallela alla Cantina v2, già pushata). Da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-17 — **Analisi Utenze COMPLETO: U3 pagina FE + U4 alert (mig 152, CG 2.21)**. U1+U2 già pushate in giornata. Da pushare. Dettagli sotto.
+
+## SESSIONE 2026-07-17 (ter) — Analisi Utenze U3+U4: pagina + alert
+
+### Contesto
+Prosecuzione della sessione utenze: U1+U2 (parser+mig 151+router) pushate e verificate live (endpoint 401 = montati). Marco: "vai" → U3+U4.
+
+### Cosa è stato fatto
+- `ControlloGestioneUtenze.jsx` (nuova, M.I primitives + PageLayout): upload/drag&drop con preview→conferma, KPI cards, 3 grafici Recharts (fasce luce, gas rilevato/stimato, potenza vs impegnata), tabella bollette con link fattura. Route + tab 💡 nav CG + modulesMenu + bump CG 2.21. esbuild parse OK su tutti i file toccati.
+- `GET /utenze/bollette` aggiunto al router (serviva per la tabella).
+- 2 checker M.F in `alert_engine.py`: `utenze_scadenza_condizioni` (60gg default; con le bollette attuali scatterà ~1 ottobre per la scadenza 30.11.2026) e `utenze_consumi_stimati` (30% default; scatterà SUBITO dopo il primo run: ultima gas al 45,3%). Soglie da Impostazioni → Notifiche. Testati in sandbox con DB reale simulato: notifiche e urgenze corrette.
+- Mig 152: seed alert_config (idempotente, INSERT OR IGNORE su notifiche.sqlite3).
+- Nota tecnica: per `utenze_consumi_stimati` la colonna `soglia_giorni` di alert_config è usata come SOGLIA PERCENTUALE (documentato nel docstring e in mig 152).
+
+### Da fare al push
+`./push.sh "[core] CG 2.21 Analisi Utenze U3+U4 — pagina FE (upload+KPI+grafici) + 2 checker M.F + mig 152 seed alert_config"`. Post-push: Ctrl+Shift+R, aprire Controllo Gestione → tab Utenze → caricare le 2 bollette PDF (luce 526509846068 + gas 526509036373) e verificare KPI/grafici/aggancio fattura. Attendersi la notifica 🔥 autolettura gas al primo run dei checker.
+
+### Il modulo Utenze è COMPLETO (U1-U4)
+Fuori scope rimasti (spec §9): parser altri fornitori (fallback form manuale NON ancora implementato — se serve, sessione dedicata), bollette acqua/telefono, confronto offerte automatico.
+
+---
 
 ## SESSIONE 2026-07-17 (bis) — Analisi Utenze U1+U2 (spec_utenze.md)
 

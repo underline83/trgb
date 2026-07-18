@@ -89,6 +89,7 @@ const MODULES_MENU = {
       { label: "Calendario",      go: "/controllo-gestione/calendario" },
       { label: "Spese Fisse",     go: "/controllo-gestione/spese-fisse" },
       { label: "Riconciliazione", go: "/controllo-gestione/riconciliazione" },
+      { label: "Utenze",          go: "/controllo-gestione/utenze" },
     ],
   },
   statistiche: {
