@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-07-18 — Carta: tabella_4col raggruppata per tipologia, FE+BE allineati (vini 3.69) `[core]`
+
+Approvato da Marco dopo il caricamento dei 29 distillati: la pagina React pubblica raggruppava la tabella per REGIONE (gruppi geografici che frammentavano grappe e whisky), mentre il PDF/HTML backend raggruppava già per tipologia ma in ordine alfabetico ("Altro" apriva la carta).
+
+### 🔧 Migliorato
+- **`CartaClienti.jsx` v2.4 — `BevTabella4Col`**: raggruppa per tipologia con ordine canonico `TIPOLOGIA_ORDER` (Grappa → Rum → Whisky → Cognac → Altro); sezioni senza tipologia (Amari & Liquori) → tabella piatta senza header, regione resta come colonna di riga.
+- **`carta_bevande_service.py` v1.2 — `_render_tabella_4col`**: stesso ordine canonico `_TIP_ORDER` al posto dell'alfabetico. ⚠️ Le due costanti vanno tenute allineate tra loro e con le options del seed distillati (`bevande_db.py`).
+- Bump vini 3.68 → 3.69.
+
+### File
+`frontend/src/pages/public/CartaClienti.jsx`, `app/services/carta_bevande_service.py`, `frontend/src/config/versions.jsx`.
+
+---
+
+## 2026-07-18 — Carta Bevande: fix crash form distillati (React #31) + import testo con tipologia `[core]`
+
+Marco apriva "Nuova voce" nella sezione Distillati e la pagina crashava (React error #31).
+
+### 🐞 Risolti
+- **`FormDinamico.jsx` v1.3**: le options dei select possono essere oggetti `{value, label}` (seed distillati/tè in `bevande_db.py`) oltre che stringhe; prima l'oggetto veniva renderizzato come child React → crash. Ora `optValue`/`optLabel` normalizzano entrambi i formati. ⚠️ Fix incluso nel push `695e6270` il cui messaggio di commit non lo cita.
+
+### ✨ Aggiunto
+- **`CartaSezioneEditor.jsx` v1.2-panel** (push `c1930519`): l'import testo include anche le colonne select (es. tipologia) — prima il bulk-import creava voci senza tipo, da correggere una per una. Il valore incollato deve combaciare col `value` delle options.
+- **Contenuti**: caricate via import 29 voci in sezione Distillati (17 whisky + 12 grappe) con prezzi a dose 40 ml da ricerca di mercato (fascia osteria, coeff. ~3-3,5 su retail; ridotto per rarità Moon Import / G&M fuori catalogo).
+
+### File
+`frontend/src/components/vini/carta/FormDinamico.jsx`, `frontend/src/pages/vini/CartaSezioneEditor.jsx`.
+
+---
+
 ## 2026-07-17 — Analisi Utenze U3+U4: pagina FE + alert (mig 152, CG 2.21) `[core]`
 
 Completa il modulo Analisi Utenze (spec `docs/spec_utenze.md`): ora ha l'interfaccia e gli alert. Chiude U3+U4.

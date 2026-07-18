@@ -1,5 +1,9 @@
 // frontend/src/pages/public/CartaClienti.jsx
-// @version: v2.3 — fallback "s.a." (sans année) quando l'annata e' vuota (2026-05-04)
+// @version: v2.4 — BevTabella4Col raggruppa per TIPOLOGIA (Grappa/Whisky/…) e non
+// più per regione: coi 29 distillati caricati (2026-07-18) la carta si frammentava
+// in gruppi geografici. Sezioni senza tipologia (Amari & Liquori) → tabella piatta.
+// Ordine gruppi allineato a _TIP_ORDER di carta_bevande_service.py (PDF/HTML).
+// v2.3 — fallback "s.a." (sans année) quando l'annata e' vuota (2026-05-04)
 // v2.2 — calici: abbinamenti consigliati per i vini al calice (2026-05-04)
 // v2.1 — birre: badge stile + GF + abbinamenti + legenda (mig 106, 2026-05-04)
 // v2.0 — sessione 58 fase 2 iter 4 (2026-04-25)
@@ -943,20 +947,36 @@ function SezioneBevande({ sezione, search }) {
 }
 
 // Pattern A — tabella 4 colonne
+// Ordine canonico dei gruppi tipologia — TENERE ALLINEATO a _TIP_ORDER in
+// app/services/carta_bevande_service.py e alle options del seed distillati
+// (bevande_db.py). Tipologie non in lista vanno in coda, in ordine di apparizione.
+const TIPOLOGIA_ORDER = ["Grappa", "Rum", "Whisky", "Cognac", "Altro"];
+
 function BevTabella4Col({ voci }) {
-  // Raggruppa per regione (o tipologia se manca)
+  // v2.4: raggruppa per TIPOLOGIA. Se nessuna voce ha tipologia (es. Amari &
+  // Liquori) la tabella è piatta, senza header di gruppo; la regione resta
+  // visibile nella colonna di contesto della riga.
+  const hasTip = voci.some(v => v.tipologia);
   const grupOrder = [];
   const grupMap = {};
   voci.forEach(v => {
-    const key = v.regione || v.tipologia || "—";
+    const key = hasTip ? (v.tipologia || "Altro") : "";
     if (!grupMap[key]) { grupMap[key] = []; grupOrder.push(key); }
     grupMap[key].push(v);
+  });
+  grupOrder.sort((a, b) => {
+    const ia = TIPOLOGIA_ORDER.indexOf(a);
+    const ib = TIPOLOGIA_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return 0;   // entrambe sconosciute: ordine di apparizione
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
   });
   return (
     <>
       {grupOrder.map(g => (
-        <div key={g}>
-          <div className="cc-bev-table-group">{g}</div>
+        <div key={g || "flat"}>
+          {g && <div className="cc-bev-table-group">{g}</div>}
           <table className="cc-bev-table">
             <tbody>
               {grupMap[g].map(v => (

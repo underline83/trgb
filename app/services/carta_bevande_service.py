@@ -1,4 +1,7 @@
-# @version: v1.1-birre-abbinamenti-gf
+# @version: v1.2-tip-order — tabella_4col: gruppi tipologia in ordine canonico
+#   _TIP_ORDER (Grappa→Rum→Whisky→Cognac→Altro) invece che alfabetico ("Altro"
+#   non apre più la carta). TENERE ALLINEATO a TIPOLOGIA_ORDER in CartaClienti.jsx.
+# v1.1-birre-abbinamenti-gf
 # -*- coding: utf-8 -*-
 """
 TRGB — Service Carta Bevande
@@ -148,9 +151,17 @@ def _render_tabella_4col(voci: list[dict[str, Any]], staff: bool) -> str:
 
     def k_tip(v): return v.get("tipologia") or "—"
 
+    # Ordine canonico dei gruppi (allineato alle options del seed distillati in
+    # bevande_db.py e a TIPOLOGIA_ORDER in CartaClienti.jsx). Tipologie fuori
+    # lista (e "—") in coda. Prima era alfabetico: "Altro" apriva la carta.
+    _TIP_ORDER = ["Grappa", "Rum", "Whisky", "Cognac", "Altro"]
+    def k_rank(v):
+        t = k_tip(v)
+        return _TIP_ORDER.index(t) if t in _TIP_ORDER else len(_TIP_ORDER)
+
     # Groupby richiede lista ordinata; voci già ordinata per ordine,id → non è
     # la chiave di tipologia, quindi ordino esplicitamente per stabilità.
-    voci_sorted = sorted(voci, key=lambda v: (k_tip(v), v.get("ordine") or 0, v.get("id") or 0))
+    voci_sorted = sorted(voci, key=lambda v: (k_rank(v), k_tip(v), v.get("ordine") or 0, v.get("id") or 0))
 
     out = ["<div class='bev-4col'>"]
     for tip, g in groupby(voci_sorted, k_tip):

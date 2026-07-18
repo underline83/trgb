@@ -1,6 +1,32 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-17 — **Analisi Utenze COMPLETO: U3 pagina FE + U4 alert (mig 152, CG 2.21)**. U1+U2 già pushate in giornata. Da pushare. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-18 — **Carta Bevande: fix #31 + import con tipologia + 29 distillati caricati + 15 amari prezzati + tabella_4col raggruppata per tipologia (vini 3.69, DA PUSHARE)**. Dettagli sotto.
+
+## SESSIONE 2026-07-18 — Carta Bevande: distillati (fix #31, import select, caricamento whisky+grappe)
+
+### Contesto
+Marco apre il form "Nuova voce" nella sezione Distillati della carta e la pagina crasha: "Qualcosa è andato storto — Minified React error #31 … object with keys {value, label}".
+
+### Cosa è stato fatto
+- **Fix crash (`FormDinamico.jsx` v1.3)**: il seed di distillati e tè (`app/models/bevande_db.py`) definisce le options dei select come oggetti `{value, label}`, ma FormDinamico renderizzava `{opt}` direttamente → React #31. Ora `optValue`/`optLabel` normalizzano entrambi i formati (stringa e oggetto). ⚠️ Il fix è partito dentro il push `695e6270` ("RC.1.fix + V.1") che NON lo cita nel messaggio di commit — annotato qui per tracciabilità.
+- **Import testo con tipologia (`CartaSezioneEditor.jsx` v1.2-panel, push `c1930519`)**: `importColumns` non filtra più i campi select — prima il bulk-import creava voci senza tipo, da correggere a mano. Il valore incollato deve combaciare col `value` delle options (es. "Grappa", "Whisky").
+- **Ricerca prezzi di mercato** (web, shop IT/EU + whiskybase) per i 17 whisky di Marco → prezzi a dose 40 ml per fascia osteria (coeff. ~3-3,5 su retail, ridotto per le rarità). Note: gli indie 2006/1997/1998 sono G&M Connoisseurs Choice fuori catalogo (valore di sostituzione); Malt Fusion 1994 e Bowmore 1996 sono Moon Import da collezione (250-400 € bottiglia).
+- **Caricate 29 voci in sezione Distillati** via import testo (TSV 5 colonne: tipologia, regione, produttore, nome, prezzo): 17 whisky (8-35 €) + 12 grappe (6-9 €). Decisioni Marco: As We Get It 14 €, Yushan scambiati (Signature 12, Blended 10), Classic Laddie corretto a 50% (il 47% era refuso), Nonino "8 anni" non "years".
+
+### Dosi di riferimento (per food cost distillati)
+Dose standard 40 ml → ~17 dosi da bottiglia 700 ml (12 da 500 ml); 30 ml come dose degustazione per bottiglie rare (Bowmore '96, Malt Fusion '94: valutare doppia dose in carta).
+
+### Note tecniche
+- L'estensione Claude-in-Chrome non è collegata (Marco usa Safari) e il computer-use su browser è solo read → il paste dell'import l'ha fatto Marco a mano dal file `import_distillati.tsv` preparato in sessione.
+- Prossima volta che si tocca la carta: verificare che anche la sezione Tè (stesso schema options a oggetti) funzioni — il fix #31 la copre già.
+
+
+### Aggiunta in giornata (stessa sessione)
+- **Amari & Liquori**: ricerca prezzi retail per 15 amari di Marco → prezzi carta 4-6 € a dose 40 ml; TSV `import_amari.tsv` consegnato (colonne: nome, produttore, regione, prezzo). Nota: Il Carlina è di Torino (Piazza Carlina), non Cuneo — da verificare su etichetta.
+- **Carta raggruppata per tipologia (vini 3.69, DA PUSHARE)**: `BevTabella4Col` in `CartaClienti.jsx` (v2.4) raggruppava per regione → ora per tipologia con ordine canonico Grappa→Rum→Whisky→Cognac→Altro; senza tipologia (amari) tabella piatta. Backend `carta_bevande_service.py` (v1.2) allineato allo stesso ordine (prima alfabetico, "Altro" apriva la carta). ⚠️ `TIPOLOGIA_ORDER` (FE) e `_TIP_ORDER` (BE) da tenere allineati tra loro e col seed.
+- Push da fare: `./push.sh "[core] carta: tabella_4col raggruppata per tipologia FE+BE, ordine canonico (vini 3.69)"` — post-push ricaricare la carta pubblica e verificare gruppi Grappa/Whisky in Distillati e tabella piatta in Amari.
+
+---
 
 ## SESSIONE 2026-07-17 (ter) — Analisi Utenze U3+U4: pagina + alert
 
