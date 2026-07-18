@@ -274,6 +274,7 @@ def get_carta_cliente_data():
         from app.services.carta_bevande_service import (
             _load_sezioni_attive as _bev_sezioni,
             _load_voci_attive as _bev_voci,
+            tipologie_order_from_sezione as _bev_tip_order,
         )
         VOCE_FIELDS_PUBLIC = (
             "id", "nome", "sottotitolo", "descrizione",
@@ -296,6 +297,9 @@ def get_carta_cliente_data():
                 "nome": s.get("nome"),
                 "intro_html": s.get("intro_html"),
                 "layout": s.get("layout") or "scheda_estesa",
+                # Ordine sotto-categorie (options del select tipologia): usato
+                # da BevTabella4Col in CartaClienti per l'ordine dei gruppi.
+                "tipologie_order": _bev_tip_order(s),
                 "voci": voci,
             })
     except Exception as e:

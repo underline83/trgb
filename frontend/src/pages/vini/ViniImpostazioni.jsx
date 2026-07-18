@@ -1,4 +1,6 @@
-// @version: v3.3-mattoni — M.I primitives (Btn) su access denied (tocco minimo)
+// @version: v3.4-tipologie-bevande — blocco "Sotto-categorie" in Ordinamento Carta:
+// gestione tipologie delle sezioni bevande (Distillati, Tè) via TipologieBevEditor.
+// v3.3-mattoni — M.I primitives (Btn) su access denied (tocco minimo)
 // Impostazioni Modulo Vini — Layout sidebar + contenuto (stile uniformato a ClientiImpostazioni)
 // Visibile solo per admin e sommelier
 
@@ -9,6 +11,7 @@ import { invalidateViniWidgetSettingsCache } from "../../hooks/useViniWidgetSett
 import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
+import TipologieBevEditor from "../../components/vini/TipologieBevEditor";
 import IPraticoSync from "./iPraticoSync";
 // M2.5-arch (2026-05-16): AnagraficheVini promosso a tab di primo livello.
 // La voce "Anagrafiche" qui in Impostazioni è stata rimossa — vive ora in
@@ -778,6 +781,21 @@ export default function ViniImpostazioni() {
                 onReorder={setSezioniBev}
                 uppercase={false}
               />
+            ) : <p className="text-sm text-neutral-400">Caricamento…</p>}
+          </div>
+
+          {/* SOTTO-CATEGORIE CARTA BEVANDE (sessione 2026-07-18) — options del
+              select tipologia delle sezioni che ce l'hanno (Distillati, Tè).
+              L'ordine qui = ordine dei gruppi in carta (FE+BE, zero hardcode). */}
+          <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-4">
+            <h3 className="font-semibold text-neutral-800 mb-1">Sotto-categorie</h3>
+            <p className="text-xs text-neutral-500 mb-3">
+              Sotto-categorie delle sezioni bevande (es. Grappa, Whisky, Gin nei Distillati).
+              L'ordine qui sotto è l'ordine dei gruppi in carta. La rinomina viene propagata
+              alle voci esistenti; l'eliminazione è bloccata se la sotto-categoria è in uso.
+            </p>
+            {sezioniBev.length > 0 ? (
+              <TipologieBevEditor sezioni={sezioniBev} onSaved={fetchSezioniBev} />
             ) : <p className="text-sm text-neutral-400">Caricamento…</p>}
           </div>
 

@@ -1,6 +1,9 @@
-# @version: v1.2-tip-order — tabella_4col: gruppi tipologia in ordine canonico
-#   _TIP_ORDER (Grappa→Rum→Whisky→Cognac→Altro) invece che alfabetico ("Altro"
-#   non apre più la carta). TENERE ALLINEATO a TIPOLOGIA_ORDER in CartaClienti.jsx.
+# @version: v1.3-tip-order-da-schema — l'ordine dei gruppi tabella_4col viene
+#   dalle options del select tipologia nello schema_form della sezione (fonte di
+#   verità unica, gestibile da Impostazioni → Ordinamento Carta). Eliminata la
+#   costante hardcoded _TIP_ORDER introdotta in v1.2 (richiesta Marco 2026-07-18:
+#   "stai facendo modifiche hardcoded"). Helper: tipologie_order_from_sezione().
+# v1.2-tip-order — tabella_4col: gruppi tipologia in ordine canonico (hardcoded, rimosso)
 # v1.1-birre-abbinamenti-gf
 # -*- coding: utf-8 -*-
 """
@@ -80,6 +83,27 @@ def _load_sezioni_attive() -> list[dict[str, Any]]:
     return [_row_to_dict(s) for s in list_sezioni(only_active=True)]
 
 
+def tipologie_order_from_sezione(sezione: dict[str, Any]) -> list[str]:
+    """
+    Ordine delle sotto-categorie di una sezione = ordine delle options del
+    select 'tipologia' nello schema_form. Fonte di verità unica: la si edita
+    da Impostazioni → Ordinamento Carta (PUT /bevande/sezioni/{key}/tipologie).
+    Ritorna [] se la sezione non ha un campo tipologia.
+    """
+    schema = sezione.get("schema_form")
+    if not isinstance(schema, dict):
+        return []
+    for f in schema.get("fields") or []:
+        if (f.get("key") or f.get("name")) == "tipologia" and f.get("type") == "select":
+            out = []
+            for o in f.get("options") or []:
+                v = o.get("value") if isinstance(o, dict) else o
+                if v:
+                    out.append(str(v))
+            return out
+    return []
+
+
 def _load_voci_attive(sezione_key: str) -> list[dict[str, Any]]:
     conn = get_bevande_conn()
     try:
@@ -140,7 +164,7 @@ def _note_staff_block(voce: dict[str, Any], staff: bool) -> str:
 # RENDER — PATTERN A: tabella_4col (distillati, amari_liquori)
 # ────────────────────────────────────────────────────────────
 
-def _render_tabella_4col(voci: list[dict[str, Any]], staff: bool) -> str:
+def _render_tabella_4col(voci: list[dict[str, Any]], staff: bool, tip_order: Optional[list[str]] = None) -> str:
     """
     Tabella compatta: Tipologia (raggruppato) · Produttore · Nome · Prezzo.
     Per distillati uso 'tipologia' (Grappa, Rum, Whisky…); per amari_liquori
@@ -151,17 +175,21 @@ def _render_tabella_4col(voci: list[dict[str, Any]], staff: bool) -> str:
 
     def k_tip(v): return v.get("tipologia") or "—"
 
-    # Ordine canonico dei gruppi (allineato alle options del seed distillati in
-    # bevande_db.py e a TIPOLOGIA_ORDER in CartaClienti.jsx). Tipologie fuori
-    # lista (e "—") in coda. Prima era alfabetico: "Altro" apriva la carta.
-    _TIP_ORDER = ["Grappa", "Rum", "Whisky", "Gin", "Vodka", "Cognac", "Altro"]
+    # Ordine gruppi: dalle options dello schema della sezione (tip_order,
+    # passato da build_section_html via tipologie_order_from_sezione).
+    # Tipologie fuori lista (e "—") in coda, in ordine di prima apparizione.
+    rank = {t: i for i, t in enumerate(tip_order or [])}
+    first_seen: dict[str, int] = {}
+    for i, v in enumerate(voci):
+        first_seen.setdefault(k_tip(v), i)
+
     def k_rank(v):
         t = k_tip(v)
-        return _TIP_ORDER.index(t) if t in _TIP_ORDER else len(_TIP_ORDER)
+        return (rank.get(t, len(rank)), first_seen[t])
 
     # Groupby richiede lista ordinata; voci già ordinata per ordine,id → non è
     # la chiave di tipologia, quindi ordino esplicitamente per stabilità.
-    voci_sorted = sorted(voci, key=lambda v: (k_rank(v), k_tip(v), v.get("ordine") or 0, v.get("id") or 0))
+    voci_sorted = sorted(voci, key=lambda v: (*k_rank(v), v.get("ordine") or 0, v.get("id") or 0))
 
     out = ["<div class='bev-4col'>"]
     for tip, g in groupby(voci_sorted, k_tip):
@@ -405,7 +433,12 @@ def build_section_html(
         return ""
 
     render_fn = _LAYOUT_DISPATCH.get(layout, _render_scheda_estesa)
-    body_html = render_fn(voci, staff=staff)
+    if layout == "tabella_4col":
+        body_html = _render_tabella_4col(
+            voci, staff=staff, tip_order=tipologie_order_from_sezione(sezione)
+        )
+    else:
+        body_html = render_fn(voci, staff=staff)
 
     intro_html = sezione.get("intro_html") or ""
     intro_block = f"<div class='bev-intro'>{intro_html}</div>" if intro_html else ""

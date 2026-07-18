@@ -1,4 +1,7 @@
-# @version: v1.2-birre-abbinamenti-gf
+# @version: v1.3-tipologie-endpoint — PUT /sezioni/{key}/tipologie: gestione
+#   sotto-categorie (options del select tipologia) da Impostazioni. Rename
+#   propagato alle voci, delete bloccato se in uso (lezione rename-stati).
+# v1.2-birre-abbinamenti-gf
 # -*- coding: utf-8 -*-
 """
 Router Carta Bevande — TRGB Gestionale (sub-modulo Vini)
@@ -188,6 +191,22 @@ class VociReorder(BaseModel):
     order: list[int]  # lista di ID in nuovo ordine
 
 
+class TipologiaOpt(BaseModel):
+    value: str
+    label: Optional[str] = None
+
+
+class TipologiaRename(BaseModel):
+    old: str
+    new: str
+
+
+class TipologieUpdate(BaseModel):
+    """Nuova lista completa di options (nell'ordine di carta) + rename espliciti."""
+    options: list[TipologiaOpt]
+    renames: list[TipologiaRename] = []
+
+
 class BulkImportRow(BaseModel):
     nome: str
     sottotitolo: Optional[str] = None
@@ -294,6 +313,107 @@ def reorder_sezioni(items: list[SezioneReorderItem], user: dict = Depends(get_cu
     finally:
         conn.close()
     return {"status": "ok", "count": len(items)}
+
+
+@router.put("/sezioni/{key}/tipologie")
+def update_tipologie_sezione(key: str, payload: TipologieUpdate, user: dict = Depends(get_current_user)):
+    """
+    Gestione sotto-categorie di una sezione (options del select 'tipologia'
+    nello schema_form) da Impostazioni → Ordinamento Carta.
+
+    - L'ordine di `options` è l'ordine dei gruppi in carta (FE+BE lo leggono da qui).
+    - `renames` propaga la rinomina alle voci esistenti (mai lasciare orfani:
+      lezione rename-stati, vedi memoria feedback_rename_semantica).
+    - Eliminare una tipologia usata da voci → 409 con il conteggio.
+    """
+    _require_editor(user)
+    _ensure_db()
+    row = get_sezione_by_key(key)
+    if not row:
+        raise HTTPException(404, f"Sezione '{key}' non trovata")
+
+    sezione = _row_to_dict(row)
+    schema = sezione.get("schema_form")
+    if not isinstance(schema, dict) or not isinstance(schema.get("fields"), list):
+        raise HTTPException(404, f"Sezione '{key}' senza schema_form")
+
+    tip_field = None
+    for f in schema["fields"]:
+        if (f.get("key") or f.get("name")) == "tipologia" and f.get("type") == "select":
+            tip_field = f
+            break
+    if tip_field is None:
+        raise HTTPException(404, f"Sezione '{key}' senza campo tipologia (select)")
+
+    # ── Validazione input ──
+    new_values = [o.value.strip() for o in payload.options]
+    if any(not v for v in new_values):
+        raise HTTPException(422, "Tipologia con nome vuoto")
+    if len(set(new_values)) != len(new_values):
+        raise HTTPException(422, "Tipologie duplicate nella lista")
+
+    def _val(o):
+        return o.get("value") if isinstance(o, dict) else o
+
+    old_values = [str(_val(o)) for o in (tip_field.get("options") or []) if _val(o)]
+
+    renames = [(r.old.strip(), r.new.strip()) for r in payload.renames]
+    for old, new in renames:
+        if old not in old_values:
+            raise HTTPException(422, f"Rename: tipologia '{old}' inesistente")
+        if new not in new_values:
+            raise HTTPException(422, f"Rename: '{new}' non presente nella nuova lista")
+
+    renamed_olds = {old for old, _ in renames}
+
+    conn = get_bevande_conn()
+    try:
+        cur = conn.cursor()
+
+        # ── Guardia delete PRIMA di toccare qualsiasi cosa ──
+        removed = [v for v in old_values if v not in new_values and v not in renamed_olds]
+        for v in removed:
+            cnt = cur.execute(
+                "SELECT COUNT(*) FROM bevande_voci WHERE sezione_key = ? AND tipologia = ?",
+                (key, v),
+            ).fetchone()[0]
+            if cnt:
+                raise HTTPException(
+                    409,
+                    f"Tipologia '{v}' usata da {cnt} voci: rinominala o sposta prima le voci",
+                )
+
+        # ── Rename propagato alle voci ──
+        renamed_count = 0
+        for old, new in renames:
+            cur.execute(
+                "UPDATE bevande_voci SET tipologia = ?, "
+                "updated_at = datetime('now','localtime') "
+                "WHERE sezione_key = ? AND tipologia = ?",
+                (new, key, old),
+            )
+            renamed_count += cur.rowcount
+
+        # ── Scrivi schema aggiornato (preservo eventuali altre prop del campo) ──
+        tip_field["options"] = [
+            {"value": o.value.strip(), "label": (o.label or o.value).strip()}
+            for o in payload.options
+        ]
+        cur.execute(
+            "UPDATE bevande_sezioni SET schema_form = ?, "
+            "updated_at = datetime('now','localtime') WHERE key = ?",
+            (json.dumps(schema, ensure_ascii=False), key),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "status": "ok",
+        "key": key,
+        "options": [o["value"] for o in tip_field["options"]],
+        "voci_rinominate": renamed_count,
+    }
 
 
 # ─────────────────────────────────────────────

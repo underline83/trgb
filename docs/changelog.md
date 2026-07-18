@@ -43,6 +43,24 @@ Marco: "controllo menu a discesa, a me sembra che manchino dei tasti". Audit com
 
 ---
 
+## 2026-07-18 — Sotto-categorie bevande gestibili da Impostazioni, zero hardcode (vini 3.70) `[core]`
+
+Richiesta Marco: "stai facendo queste modifiche hardcoded, forse gestire le sotto-categorie nelle impostazioni avrebbe senso". Fonte di verità unica: le options del select tipologia nello schema_form della sezione — l'ordine delle options È l'ordine dei gruppi in carta.
+
+### ✨ Aggiunto
+- **`PUT /bevande/sezioni/{key}/tipologie`** (bevande_router v1.3): riceve {options, renames}. Rinomina propagata alle voci (`UPDATE bevande_voci`), eliminazione bloccata con 409 se la tipologia è usata (guardia PRIMA di ogni scrittura). Validazioni: no vuoti, no duplicati, rename coerenti.
+- **`TipologieBevEditor.jsx`** (nuovo, components/vini): blocco "Sotto-categorie" in Impostazioni → Ordinamento Carta — riordino ▲▼, rinomina ✏️ (con badge "era: X"), elimina 🗑️, aggiungi; un pannello per ogni sezione con select tipologia (Distillati, Tè). Integrato in ViniImpostazioni v3.4.
+
+### 🔧 Migliorato
+- **`carta_bevande_service.py` v1.3**: `_render_tabella_4col` prende `tip_order` da `tipologie_order_from_sezione()` (nuovo helper) — eliminata la costante `_TIP_ORDER` hardcoded di stamattina.
+- **`CartaClienti.jsx` v2.5**: ordine gruppi da `sezione.tipologie_order` nel payload (aggiunto da vini_router a `/carta-cliente/data`) — eliminata `TIPOLOGIA_ORDER` hardcoded.
+- Bump vini 3.69 → 3.70.
+
+### File
+`app/routers/bevande_router.py`, `app/routers/vini_router.py`, `app/services/carta_bevande_service.py`, `frontend/src/pages/public/CartaClienti.jsx`, `frontend/src/pages/vini/ViniImpostazioni.jsx`, `frontend/src/components/vini/TipologieBevEditor.jsx` (nuovo), `frontend/src/config/versions.jsx`.
+
+---
+
 ## 2026-07-18 — Carta: tabella_4col per tipologia + tipologie Gin/Vodka + prezzo_label nel form distillati (mig 153, vini 3.69) `[core]`
 
 Approvato da Marco dopo il caricamento dei 29 distillati: la pagina React pubblica raggruppava la tabella per REGIONE (gruppi geografici che frammentavano grappe e whisky), mentre il PDF/HTML backend raggruppava già per tipologia ma in ordine alfabetico ("Altro" apriva la carta).

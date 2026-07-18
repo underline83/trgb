@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-18 — **Tè (12) e Tisane (7) caricati in carta a 10 €; import testo ora con textarea (v1.3, pushato dentro `3a8b774c`)**. Utenze multi-layout ancora da pushare (v. sessione quater). Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-18 — **Sotto-categorie bevande gestibili da Impostazioni, zero hardcode (vini 3.70, DA PUSHARE)**; Tè (12) e Tisane (7) caricati a 10 €, import testo con textarea (pushati in `3a8b774c`). Utenze multi-layout ancora da pushare (v. sessione quater). Dettagli sotto.
 
 ## SESSIONE 2026-07-18 (ter) — Carta Bevande: caricamento Tè e Tisane
 
@@ -48,6 +48,11 @@ Marco apre il form "Nuova voce" nella sezione Distillati della carta e la pagina
 - **Import testo con tipologia (`CartaSezioneEditor.jsx` v1.2-panel, push `c1930519`)**: `importColumns` non filtra più i campi select — prima il bulk-import creava voci senza tipo, da correggere a mano. Il valore incollato deve combaciare col `value` delle options (es. "Grappa", "Whisky").
 - **Ricerca prezzi di mercato** (web, shop IT/EU + whiskybase) per i 17 whisky di Marco → prezzi a dose 40 ml per fascia osteria (coeff. ~3-3,5 su retail, ridotto per le rarità). Note: gli indie 2006/1997/1998 sono G&M Connoisseurs Choice fuori catalogo (valore di sostituzione); Malt Fusion 1994 e Bowmore 1996 sono Moon Import da collezione (250-400 € bottiglia).
 - **Caricate 29 voci in sezione Distillati** via import testo (TSV 5 colonne: tipologia, regione, produttore, nome, prezzo): 17 whisky (8-35 €) + 12 grappe (6-9 €). Decisioni Marco: As We Get It 14 €, Yushan scambiati (Signature 12, Blended 10), Classic Laddie corretto a 50% (il 47% era refuso), Nonino "8 anni" non "years".
+
+### Sotto-categorie da Impostazioni (vini 3.70, DA PUSHARE)
+Marco (giustamente): basta hardcode. Fonte di verità = options del select tipologia nello schema_form; l'ordine delle options è l'ordine dei gruppi in carta. Nuovo `PUT /bevande/sezioni/{key}/tipologie` (rename propagato alle voci, delete bloccato con 409 se in uso — lezione rename-stati), helper `tipologie_order_from_sezione()` nel service, `tipologie_order` nel payload pubblico, blocco "Sotto-categorie" in Impostazioni → Ordinamento Carta (`TipologieBevEditor.jsx` nuovo). Rimosse le costanti `_TIP_ORDER`/`TIPOLOGIA_ORDER` introdotte in mattinata.
+Push: `./push.sh "[core] carta bevande: sotto-categorie gestibili da Impostazioni (endpoint tipologie + editor UI), ordine gruppi da schema, zero hardcode (vini 3.70)"`
+Post-push: Impostazioni → Ordinamento Carta → blocco Sotto-categorie (Distillati e Tè); provare riordino e verificare la carta pubblica; provare rinomina su tipologia usata e controllare che le voci seguano. NB sessione parallela: nessun conflitto — verificato con git diff che le modifiche tè/tisane/import-textarea restano intatte.
 
 ### Dosi di riferimento (per food cost distillati)
 Dose standard 40 ml → ~17 dosi da bottiglia 700 ml (12 da 500 ml); 30 ml come dose degustazione per bottiglie rare (Bowmore '96, Malt Fusion '94: valutare doppia dose in carta).

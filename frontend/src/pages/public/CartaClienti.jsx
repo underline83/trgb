@@ -1,8 +1,10 @@
 // frontend/src/pages/public/CartaClienti.jsx
-// @version: v2.4 — BevTabella4Col raggruppa per TIPOLOGIA (Grappa/Whisky/…) e non
+// @version: v2.5 — ordine gruppi tipologia dal payload (sezione.tipologie_order,
+// derivato dalle options dello schema — gestibile da Impostazioni → Ordinamento
+// Carta). Rimossa la costante hardcoded TIPOLOGIA_ORDER della v2.4.
+// v2.4 — BevTabella4Col raggruppa per TIPOLOGIA (Grappa/Whisky/…) e non
 // più per regione: coi 29 distillati caricati (2026-07-18) la carta si frammentava
 // in gruppi geografici. Sezioni senza tipologia (Amari & Liquori) → tabella piatta.
-// Ordine gruppi allineato a _TIP_ORDER di carta_bevande_service.py (PDF/HTML).
 // v2.3 — fallback "s.a." (sans année) quando l'annata e' vuota (2026-05-04)
 // v2.2 — calici: abbinamenti consigliati per i vini al calice (2026-05-04)
 // v2.1 — birre: badge stile + GF + abbinamenti + legenda (mig 106, 2026-05-04)
@@ -939,7 +941,7 @@ function SezioneBevande({ sezione, search }) {
         <div style={{ fontStyle: "italic", color: "#5a4634", textAlign: "center", margin: "0 auto 14px", fontSize: 14 }}
              dangerouslySetInnerHTML={{ __html: sezione.intro_html }} />
       )}
-      {layout === "tabella_4col" && <BevTabella4Col voci={voci} />}
+      {layout === "tabella_4col" && <BevTabella4Col voci={voci} tipOrder={sezione.tipologie_order} />}
       {layout === "scheda_estesa" && <BevSchedaEstesa voci={voci} />}
       {layout === "nome_badge_desc" && <BevNomeBadgeDesc voci={voci} />}
     </section>
@@ -947,15 +949,14 @@ function SezioneBevande({ sezione, search }) {
 }
 
 // Pattern A — tabella 4 colonne
-// Ordine canonico dei gruppi tipologia — TENERE ALLINEATO a _TIP_ORDER in
-// app/services/carta_bevande_service.py e alle options del seed distillati
-// (bevande_db.py). Tipologie non in lista vanno in coda, in ordine di apparizione.
-const TIPOLOGIA_ORDER = ["Grappa", "Rum", "Whisky", "Gin", "Vodka", "Cognac", "Altro"];
-
-function BevTabella4Col({ voci }) {
+function BevTabella4Col({ voci, tipOrder }) {
   // v2.4: raggruppa per TIPOLOGIA. Se nessuna voce ha tipologia (es. Amari &
   // Liquori) la tabella è piatta, senza header di gruppo; la regione resta
   // visibile nella colonna di contesto della riga.
+  // v2.5: l'ordine dei gruppi arriva da `tipOrder` (= sezione.tipologie_order
+  // nel payload, cioè l'ordine delle options in Impostazioni → Ordinamento
+  // Carta). Tipologie fuori lista in coda, in ordine di apparizione.
+  const order = tipOrder || [];
   const hasTip = voci.some(v => v.tipologia);
   const grupOrder = [];
   const grupMap = {};
@@ -965,8 +966,8 @@ function BevTabella4Col({ voci }) {
     grupMap[key].push(v);
   });
   grupOrder.sort((a, b) => {
-    const ia = TIPOLOGIA_ORDER.indexOf(a);
-    const ib = TIPOLOGIA_ORDER.indexOf(b);
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
     if (ia === -1 && ib === -1) return 0;   // entrambe sconosciute: ordine di apparizione
     if (ia === -1) return 1;
     if (ib === -1) return -1;
