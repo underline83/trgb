@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v3.3-pranzo-pdf-filetti-categoria
+# @version: v3.4-pranzo-pdf-variante-esterno
 # -*- coding: utf-8 -*-
 # Modulo: cucina (sub-modulo pranzo)
 """
@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 BASE_DIR = Path(__file__).resolve().parents[2]
 STATIC_DIR = BASE_DIR / "static"
 CSS_PDF = STATIC_DIR / "css" / "menu_pranzo_pdf.css"
+CSS_PDF_ESTERNO = STATIC_DIR / "css" / "menu_pranzo_esterno_pdf.css"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -197,3 +198,40 @@ def genera_pdf_menu_pranzo(menu: Dict[str, Any], settings: Dict[str, Any]) -> by
 def genera_html_menu_pranzo(menu: Dict[str, Any], settings: Dict[str, Any]) -> str:
     """HTML del PDF (per anteprima/test)."""
     return _build_html(menu, settings)
+
+def _build_html_esterno(menu: Dict[str, Any]) -> str:
+    """
+    Variante ESTERNO (v3.4, richiesta Marco 2026-07-19): solo antipasti/
+    primi/secondi, corpo grande, nessun altro dato. Va appesa nella cornice
+    fuori dal locale, che riporta gia' titolo/prezzi/info. Riusa
+    _build_piatti_html (stessi class name), cambia solo lo stylesheet.
+    """
+    categorie_esterno = ("antipasto", "primo", "secondo")
+    righe = [
+        r for r in (menu.get("righe") or [])
+        if (r.get("categoria") or "altro").lower() in categorie_esterno
+    ]
+    piatti_html = _build_piatti_html(righe)
+    return f"""<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <link rel="stylesheet" href="/static/css/menu_pranzo_esterno_pdf.css">
+    </head>
+    <body>
+        <div class="menu-page">
+            {piatti_html}
+        </div>
+    </body>
+    </html>
+    """
+
+
+def genera_pdf_menu_esterno(menu: Dict[str, Any]) -> bytes:
+    """Bytes del PDF variante esterno. `menu` deve avere `righe[]`."""
+    from weasyprint import HTML, CSS  # lazy
+    html = _build_html_esterno(menu)
+    return HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
+        stylesheets=[CSS(filename=str(CSS_PDF_ESTERNO))],
+    )
+

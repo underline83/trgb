@@ -1,0 +1,170 @@
+/* ============================================================
+   MENU PRANZO — CSS PDF (WeasyPrint) — v2.4 (sessione 2026-06-08)
+   v2.4: Proposta 2 leggibilità — etichette categoria con filetti
+   laterali, più aria tra categorie, interlinea piatti maggiore.
+   v2.3: logo rimosso, corpi aumentati. v2.2: tutto centrato.
+   Brand cliente Osteria Tre Gobbi — coerente con il MENU A5
+   stagionale (Sabon LT Pro + Courier Prime), Proposta A
+   "Pagina di sezione": titolo serif spaziato, piatti typewriter
+   bold maiuscolo allineati a sinistra, box Menù Business.
+   NON usa la palette terra della carta vini: il menu cartaceo
+   Tre Gobbi è bianco/nero essenziale.
+   ============================================================ */
+
+/* Sabon LT Pro — font di studio (licenza Underline). Fallback a
+   Cormorant Garamond (già nel repo) finché i file non sono caricati. */
+@font-face {
+    font-family: "Sabon LT Pro";
+    src:
+        url("../fonts/SabonLTPro-Roman.woff2") format("woff2"),
+        url("../fonts/SabonLTPro-Roman.ttf") format("truetype"),
+        url("file:///usr/local/share/fonts/tre_gobbi/SabonLTPro-Roman.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Sabon LT Pro";
+    src:
+        url("../fonts/SabonLTPro-Bold.woff2") format("woff2"),
+        url("../fonts/SabonLTPro-Bold.ttf") format("truetype"),
+        url("file:///usr/local/share/fonts/tre_gobbi/SabonLTPro-Bold.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Sabon LT Pro";
+    src:
+        url("../fonts/SabonLTPro-Italic.woff2") format("woff2"),
+        url("../fonts/SabonLTPro-Italic.ttf") format("truetype"),
+        url("file:///usr/local/share/fonts/tre_gobbi/SabonLTPro-Italic.ttf") format("truetype");
+    font-weight: 400;
+    font-style: italic;
+}
+
+/* Courier Prime — typewriter dei nomi piatto (lo stesso del menu A5) */
+@font-face {
+    font-family: "Courier Prime";
+    src:
+        url("../fonts/CourierPrime-Regular.woff2") format("woff2"),
+        url("../fonts/CourierPrime-Regular.ttf") format("truetype"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CourierPrime-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Courier Prime";
+    src:
+        url("../fonts/CourierPrime-Bold.woff2") format("woff2"),
+        url("../fonts/CourierPrime-Bold.ttf") format("truetype"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CourierPrime-Bold.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+}
+
+/* Fallback serif già presente nel repo (vedi carta vini) */
+@font-face {
+    font-family: "Cormorant Garamond";
+    src:
+        url("../fonts/CormorantGaramond-Regular.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    src:
+        url("../fonts/CormorantGaramond-Medium.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Medium.ttf") format("truetype");
+    font-weight: 500;
+    font-style: normal;
+}
+
+/* ============================================================
+   MENU PRANZO ESTERNO — CSS PDF (WeasyPrint) — v1.0 (2026-07-19)
+   Variante "da bacheca": SOLO antipasti/primi/secondi, corpo grande,
+   nessun altro dato (titolo/prezzi/footer li ha già la cornice fuori).
+   Stessi class name del PDF completo (_build_piatti_html riusato).
+   ============================================================ */
+@page {
+    size: A4;
+    margin: 16mm 18mm;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #1a1a1a;
+    font-family: "Sabon LT Pro", "Cormorant Garamond", "Times New Roman", serif;
+}
+
+.menu-page {
+    height: 265mm;   /* 297 - 16*2 */
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-after: avoid;
+    display: flex;
+    flex-direction: column;
+}
+
+.menu-piatti {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.categoria-label {
+    display: flex;
+    align-items: center;
+    gap: 6mm;
+    margin: 0 0 4mm;
+}
+
+.categoria-label .filetto {
+    flex: 1 1 auto;
+    height: 0;
+    border-top: 0.5pt solid #c4c4c4;
+}
+
+.categoria-label .cat-testo {
+    flex: 0 0 auto;
+    font-size: 15pt;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #666;
+    padding-left: 0.3em;
+}
+
+.categoria-blocco + .categoria-label {
+    margin-top: 9mm;
+}
+
+.categoria-blocco { margin: 0; }
+
+.piatto {
+    font-family: "Courier Prime", "Courier New", monospace;
+    font-weight: 700;
+    font-size: 23pt;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.35;
+    padding: 2mm 0;
+    text-align: center;
+}
+
+.piatto-vuoto {
+    color: #999;
+    font-style: italic;
+    font-family: "Sabon LT Pro", "Cormorant Garamond", serif;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    text-align: center;
+}

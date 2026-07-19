@@ -125,6 +125,8 @@ mancano, WeasyPrint usa il fallback.
 | C-P-009 | Eliminazione intelligente dal pool (✕ su chip) | `pranzo_router.py DELETE /pool/{id}/` | chef/admin | ✅ v3.0 |
 | C-P-007 | Default testata/prezzi/footer | `PranzoSettingsPanel.jsx` | admin | ✅ |
 | C-P-010 | Storie Instagram serie da 2: copertina (logo, claim, Menù Business a righe, recapiti da settings) + menù per categoria, PNG 1080×1920 client-side | `PranzoStoryCanvas.jsx` | chef/admin | ✅ v2.0 (2026-07-19, sostituisce la storia singola antracite 1.7) |
+| C-P-011 | PDF esterno "da bacheca": solo antipasti/primi/secondi a corpo grande (23pt), nessun altro dato — per la cornice fuori dal locale | `pranzo_pdf_service.py genera_pdf_menu_esterno` + `GET /menu/{settimana}/pdf-esterno/` | chef/admin | ✅ 2026-07-19 |
+| C-P-012 | Nome file sensato sui PDF aperti in tab (File nominato, niente più "unknown") | `PranzoMenu.jsx apriPdf` | chef/admin | ✅ v3.9 |
 
 ## Riferimenti
 

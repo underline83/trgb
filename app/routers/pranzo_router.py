@@ -25,6 +25,7 @@ Endpoint:
   POST   /pranzo/menu/                       upsert
   DELETE /pranzo/menu/{settimana}/           elimina menu della settimana
   GET    /pranzo/menu/{settimana}/pdf/       PDF brand cliente per la settimana
+  GET    /pranzo/menu/{settimana}/pdf-esterno/  PDF bacheca: solo antipasti/primi/secondi, corpo grande
 
   ── PROGRAMMAZIONE (vista comparativa) ──
   GET    /pranzo/programmazione/?n=8&fino_a=YYYY-MM-DD   ultime N settimane con righe
@@ -377,6 +378,37 @@ def get_menu_pdf(settimana: str):
         raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
 
     filename = f"menu_pranzo_settimana_{monday}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+@router.get("/menu/{settimana}/pdf-esterno/")
+def get_menu_pdf_esterno(settimana: str):
+    """
+    Variante ESTERNO (2026-07-19): solo antipasti/primi/secondi, corpo
+    grande, nessun altro dato — da appendere nella cornice fuori dal locale
+    che riporta gia' titolo/prezzi/info.
+    """
+    _validate_data(settimana)
+    monday = repo.lunedi_di(settimana)
+    menu = repo.get_menu_by_settimana(monday)
+    if not menu:
+        raise HTTPException(status_code=404, detail=f"Nessun menu per la settimana del {monday}")
+
+    try:
+        from app.services.pranzo_pdf_service import genera_pdf_menu_esterno
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Servizio PDF non disponibile: {e}")
+
+    try:
+        pdf_bytes = genera_pdf_menu_esterno(menu)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
+
+    filename = f"menu_pranzo_esterno_{monday}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

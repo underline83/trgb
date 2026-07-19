@@ -3,7 +3,17 @@
 
 ---
 
-## 2026-07-19 — Pranzo 1.8: storie Instagram serie da 2 `[locale:tregobbi]`
+## 2026-07-19 — Pranzo 1.8: storie Instagram serie da 2 + PDF esterno + fix nome PDF `[locale:tregobbi]`
+
+**PDF esterno "da bacheca"** (richiesta Marco: da appiccicare fuori, nella cornice che riporta già gli altri dati):
+- `pranzo_pdf_service.py` v3.4 — `genera_pdf_menu_esterno()`: solo antipasti/primi/secondi, corpo grande (Courier 23pt), niente titolo/prezzi/footer. Riusa `_build_piatti_html`, stylesheet dedicato `menu_pranzo_esterno_pdf.css`.
+- `pranzo_router.py` — `GET /pranzo/menu/{settimana}/pdf-esterno/` (stesso pattern auth/errori del PDF completo).
+- `PranzoMenu.jsx` v3.9 — bottone "📄 PDF esterno" in toolbar.
+
+**Fix nome "unknown" sui PDF**:
+- `PranzoMenu.jsx apriPdf()` — il blob aperto in tab era anonimo e salvava come "unknown"; ora è avvolto in un `File` col nome convenzione backend (`menu_pranzo_settimana_...pdf` / `menu_pranzo_esterno_...pdf`), che il viewer usa nel tab e nel salvataggio.
+
+### Storie Instagram (dettaglio)
 
 - `PranzoStoryCanvas.jsx` v2.0 riscritto: DUE storie 1080×1920 stile menu A5 bianco carta (Cormorant Garamond + Courier Prime via Google Fonts al primo uso, logo osteria reale `logo-osteria-trim.png` disegnato in multiply).
   - Copertina: logo, claim "oggi a pranzo" + sottotitolo, blocco Menù Business a righe (UNA/DUE/TRE PORTATE con prezzi da settings), note footer + recapiti `ig_indirizzo`/`ig_telefono` (riga nascosta se vuoti — niente dati inventati).

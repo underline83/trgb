@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.8 — date picker settimana in toolbar + (v3.7) "+ pool", placeholder rapidi, ✕ pool (2026-06-07)
+// @version: v3.9 — nome file sensato sui PDF (niente più "unknown") + bottone PDF esterno (2026-07-19)
 // Modulo: cucina (sub-modulo pranzo)
 //
 // v3.2 cambiamenti vs v3.1:
@@ -568,11 +568,13 @@ export default function PranzoMenu() {
     }
   };
 
-  const apriPdf = (mondayIso = settimana) => {
+  // v3.9: `esterno` = variante bacheca (solo antipasti/primi/secondi, corpo
+  // grande, nessun altro dato — la cornice fuori dal locale ha già il resto).
+  const apriPdf = (mondayIso = settimana, esterno = false) => {
     setMsg(null); setRetryFn(null);
     const token = localStorage.getItem("token");
     const doFetch = () =>
-      fetch(`${API_BASE}/pranzo/menu/${mondayIso}/pdf/`, {
+      fetch(`${API_BASE}/pranzo/menu/${mondayIso}/${esterno ? "pdf-esterno" : "pdf"}/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
     // Retry network anche per PDF (stesso pattern di apiFetchSafe)
@@ -590,11 +592,16 @@ export default function PranzoMenu() {
     fetchWithRetry()
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
       .then((blob) => {
-        const url = URL.createObjectURL(blob);
+        // v3.9: un blob URL anonimo fa salvare il PDF come "unknown".
+        // Avvolto in un File col nome giusto (stessa convenzione del
+        // backend), il viewer usa quel nome nel tab e nel salvataggio.
+        const nome = `menu_pranzo_${esterno ? "esterno" : "settimana"}_${mondayIso}.pdf`;
+        const file = new File([blob], nome, { type: "application/pdf" });
+        const url = URL.createObjectURL(file);
         window.open(url, "_blank");
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       })
-      .catch((e) => handleActionError(e, "Apertura PDF", () => apriPdf(mondayIso)));
+      .catch((e) => handleActionError(e, "Apertura PDF", () => apriPdf(mondayIso, esterno)));
   };
 
   const copiaSettimanaPrecedente = async () => {
@@ -869,6 +876,7 @@ export default function PranzoMenu() {
                     <Btn variant="ghost" size="sm" onClick={() => aggiungiRiga(null)}>+ Riga ad-hoc</Btn>
                     <Btn variant="ghost" size="sm" onClick={copiaSettimanaPrecedente}>📋 Copia prec.</Btn>
                     {menu && <Btn variant="secondary" size="sm" onClick={() => apriPdf()}>📄 PDF</Btn>}
+                    {menu && <Btn variant="secondary" size="sm" onClick={() => apriPdf(settimana, true)} title="Solo antipasti/primi/secondi, corpo grande — per la cornice esterna">📄 PDF esterno</Btn>}
                     {righe.length > 0 && <Btn variant="secondary" size="sm" onClick={() => setShowStory(true)}>📱 Storia</Btn>}
                     {menu && <Btn variant="danger" size="sm" onClick={elimina}>Elimina</Btn>}
                     <Btn variant="success" size="sm" onClick={salva} loading={saving}>

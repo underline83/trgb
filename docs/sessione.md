@@ -12,6 +12,10 @@ Marco: la storia IG v1.0 antracite del pranzo "è inguaribile, rivediamo". Verif
 - Nuovo asset `frontend/src/assets/brand/logo-osteria-trim.png`.
 - `versions.jsx` pranzo → 1.8; capability C-P-010 in `modulo_pranzo.md`; changelog aggiornato.
 
+### Aggiunte nella stessa sessione (pomeriggio)
+- **PDF esterno "da bacheca"**: `genera_pdf_menu_esterno()` (service v3.4) + `GET /menu/{settimana}/pdf-esterno/` + CSS `menu_pranzo_esterno_pdf.css` + bottone "📄 PDF esterno". Solo antipasti/primi/secondi a 23pt, una pagina A4, nessun altro dato (verificato con WeasyPrint sui piatti reali: 1 pagina, dolci esclusi).
+- **Fix "unknown"**: i PDF aperti in tab ora hanno nome file sensato (`File` nominato in `apriPdf`, v3.9).
+
 ### DA FARE / attenzione
 - Push insieme agli altri pending. Dopo il push: provare dalla pagina /pranzo col menu vero e compilare `ig_telefono`/`ig_indirizzo` in Impostazioni Cucina · Menu Pranzo (oggi vuoti nel DB) perché la copertina mostri la riga recapiti.
 - I mockup di lavorazione (HTML+PNG) sono rimasti solo nella sessione cloud, non nel repo.
