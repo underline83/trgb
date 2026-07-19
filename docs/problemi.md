@@ -202,6 +202,16 @@ Aperto da analisi 2026-03-14: nessun test unit/integration. >70 endpoint, >80 pa
 
 ## Aperti — Priorità media
 
+### TASKS-1. tasks.sqlite3 ricreato vergine (strascico S60-INC1) — template HACCP/MEP di aprile persi
+**Aperto:** 2026-07-19 (scoperto generando i MEP del menu Estate 2026: 500 su `livello_cucina`)
+**Modulo:** Task Manager / persistenza
+
+Il `tasks.sqlite3` vivo in `locali/tregobbi/data/` è un DB **ricreato da zero da `init_tasks_db()`** con schema pre-088, quasi certamente nel giro dell'incidente S60-INC1 (il file non fu spostato da `app/data/`, che oggi non esiste più). Conseguenze:
+1. **Schema drift** — colonna `livello_cucina` mancante su 3 tabelle: generatore MEP carta e `POST /tasks/templates` in 500 da maggio. **✅ Fixato** con mig 155 + `tasks_db.py` v1.3 (2026-07-19, da pushare).
+2. **Dati persi, NON recuperabili** — 0 template nel DB: spariti i 5 MEP fissi (mig 097, dal docx `Checklist_Cucina_Primavera_2026`) e le eventuali checklist HACCP configurate; backup 48h/7gg fuori retention da mesi. Nessuno se n'è accorto da maggio → il modulo checklist non era in uso attivo.
+
+**Da decidere con Marco:** (a) rigenerare solo i MEP di carta dal bottone dell'edizione Estate 2026 (fatto post-155) e basta; (b) ricreare anche i template HACCP apertura/chiusura a mano da Task Manager → Template; (c) re-import MEP fissi dal docx (la 097 non rigira: servirebbe rilancio manuale della sua logica — ha senso solo se il docx primavera è ancora attuale, improbabile d'estate). Propensione: (a) + eventualmente (b) quando serve.
+
 ### V-DEBT2. Vini — celle matrice e giacenze iniziali nuova annata NON generano movimento
 **Aperto:** 2026-07-18 (emerso durante la diagnosi del fix vini 3.71)
 **Modulo:** Vini / cantina

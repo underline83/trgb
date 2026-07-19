@@ -3,41 +3,39 @@
 
 ---
 
-## 2026-07-19 — Pranzo 1.8: storie Instagram serie da 2 + PDF esterno + fix nome PDF `[locale:tregobbi]`
+## 2026-07-19 — Task Manager: self-heal schema tasks.sqlite3 (mig 155) + init blindato `[core]`
 
-**PDF esterno "da bacheca"** (richiesta Marco: da appiccicare fuori, nella cornice che riporta già gli altri dati):
-- `pranzo_pdf_service.py` v3.4 — `genera_pdf_menu_esterno()`: solo antipasti/primi/secondi, corpo grande (Courier 23pt), niente titolo/prezzi/footer. Riusa `_build_piatti_html`, stylesheet dedicato `menu_pranzo_esterno_pdf.css`.
-- `pranzo_router.py` — `GET /pranzo/menu/{settimana}/pdf-esterno/` (stesso pattern auth/errori del PDF completo).
-- `PranzoMenu.jsx` v3.9 — bottone "📄 PDF esterno" in toolbar.
+Scoperto generando i MEP del menu Estate 2026: il generatore andava in 500 con `table checklist_template has no column named livello_cucina`.
 
-**Fix nome "unknown" sui PDF**:
-- `PranzoMenu.jsx apriPdf()` — il blob aperto in tab era anonimo e salvava come "unknown"; ora è avvolto in un `File` col nome convenzione backend (`menu_pranzo_settimana_...pdf` / `menu_pranzo_esterno_...pdf`), che il viewer usa nel tab e nel salvataggio.
+### 🐞 Risolti
+- **Schema drift su `tasks.sqlite3` di produzione**: il DB vivo in `locali/tregobbi/data/` NON è il file storico passato dalle migrazioni 084→088 — è stato **ricreato da zero da `init_tasks_db()`** (schema pre-088, quasi certamente nel giro dell'incidente S60-INC1 di inizio maggio: il file non fu spostato da `app/data/` e l'init ne creò uno nuovo nel path canonico). La 088 (`livello_cucina`) è marcata applicata → non rigira mai. Ogni INSERT con `livello_cucina` esplodeva: generatore MEP carta **e** creazione template da UI (`POST /tasks/templates`), rotta silenziosamente da maggio.
+- **Migrazione `155_selfheal_tasks_schema.py`** `[core]`: self-heal idempotente (PRAGMA check + ADD COLUMN + indice) di `livello_cucina` su `checklist_template`, `checklist_instance`, `task_singolo` — stessa semantica della 088, sul path canonico.
+- **`tasks_db.py` v1.3**: init difensivo allineato allo schema post-088 (colonne nel CREATE) + blocco self-heal post-CREATE con mappa `HEAL_COLUMNS` — se in futuro l'init ricrea un DB, converge comunque allo schema pieno.
 
-### Storie Instagram (dettaglio)
+### ⚠️ Perdita dati constatata (non recuperabile)
+Il tasks.sqlite3 vivo ha **0 template**: i 5 MEP fissi della mig 097 e le checklist HACCP configurate ad aprile sono persi (retention backup 48h/7gg ampiamente superata). Censito in `problemi.md` TASKS-1. I MEP di carta si rigenerano dal bottone dell'edizione Estate 2026; i MEP fissi/HACCP eventualmente da ricreare a mano o re-importare dal docx.
 
-- `PranzoStoryCanvas.jsx` v2.0 riscritto: DUE storie 1080×1920 stile menu A5 bianco carta (Cormorant Garamond + Courier Prime via Google Fonts al primo uso, logo osteria reale `logo-osteria-trim.png` disegnato in multiply).
-  - Copertina: logo, claim "oggi a pranzo" + sottotitolo, blocco Menù Business a righe (UNA/DUE/TRE PORTATE con prezzi da settings), note footer + recapiti `ig_indirizzo`/`ig_telefono` (riga nascosta se vuoti — niente dati inventati).
-  - Menù: piatti raggruppati per categoria con etichette a filetti stile PDF A5; font adattivo CON a-capo — fix del difetto v1.0 (nomi lunghi su una riga sola sbordavano dal canvas, es. carpaccio 67 caratteri a 26px fuori dai bordi).
-  - Download: 2 PNG (`pranzo-tregobbi-YYYY-MM-DD-1-copertina.png`, `-2-menu.png`).
-- Nuovo asset `frontend/src/assets/brand/logo-osteria-trim.png` (copia di `static/img/logo_tregobbi_trim.png`, bundlato da Vite → canvas mai tainted).
-- `versions.jsx` pranzo 1.7 → 1.8. Capability C-P-010 in `modulo_pranzo.md`.
+### File
+`app/migrations/155_selfheal_tasks_schema.py` (nuova), `app/models/tasks_db.py`.
+
+---
 
 ## 2026-07-19 — Menu Carta: edizione Estate 2026 in carta `[locale:tregobbi]`
 
-Marco ha portato il PDF del menu estivo (`menulugagoset2026web.pdf`, lug-ago-set 2026). Seed completo via migrazione, come per la Primavera 2026.
+Marco ha portato il PDF del menu estivo (`menulugagoset2026web.pdf`, lug-ago-set 2026). Seed completo via migrazione, come per la Primavera 2026. (Sezione riscritta: era stata sovrascritta da una sessione parallela — il codice era già nel push `b8c96816`.)
 
 ### ➕ Aggiunto
 - **Migrazione `154_seed_menu_estate_2026.py`** (`TRGB_SPECIFIC`, idempotente): crea **20 ricette skeleton nuove** (4 antipasti, 5 primi, 5 secondi, 1 contorno, **5 dolci** — solo name/menu_name/descrizione/prezzo, niente recipe_items: le grammature le rifinisce Marco dal modulo Ricette), archivia Primavera 2026, crea edizione **"Estate 2026" `in_carta`** (1/7 → 30/9) con 44 publications (36 da ricetta + 8 documentali) e le 2 degustazioni aggiornate ("Prima volta" 60 con Coniglio o Guancetta a scelta; "Fidati dell'oste" 75 con Battuta, Cozze in blu, Risotto all'albicocca, Anatra).
-- Piatti confermati dalla primavera con ritocchi: Vitello tonnato **20→22**, Ossobuco **24→26**, Tè e tisane **8→10**. Rinominati in carta via `titolo_override` (ricette invariate): "I salumi misti dell'osteria", "Fettuccine all'Alfredo se fosse nato a Bergamo".
+- Prezzi ritoccati: Vitello tonnato **20→22**, Ossobuco **24→26**, Tè e tisane **8→10**. Rinominati in carta via `titolo_override` (ricette invariate): "I salumi misti dell'osteria", "Fettuccine all'Alfredo se fosse nato a Bergamo".
 - Fuori carta (restano in archivio primavera): Tegamino asparagi, Tartare dell'Oste, selezioni formaggi, Risotto Vignarola, Lasagnetta, Pasta mista sarda, Trippa, Faraona, Filetto Donizetti, Brasato, Arrosto di coniglio e agretti.
 
 ### Note
 - ⚠️ Allergeni dei piatti nuovi dichiarati solo dove evidenti — **da verificare da app** (Battuta e Solero lasciati vuoti).
-- Test locale: DB di prova con schema 098 + primavera 100 + 154 eseguita 2 volte (idempotenza) — conteggi, vincolo unico `in_carta`, override e step degustazioni verificati.
+- Verificato in produzione: `/menu-carta/public/today` serve Estate 2026 completa di tutte le sezioni.
 - Docs: `locali/tregobbi/seeds/MIGRATIONS_TRGB.md` aggiornato con la 154.
 
 ### File
-`app/migrations/154_seed_menu_estate_2026.py` (nuovo), `locali/tregobbi/seeds/MIGRATIONS_TRGB.md`, `frontend/src/config/versions.jsx` (menuCarta 1.1 → 1.2).
+`app/migrations/154_seed_menu_estate_2026.py` (nuova), `locali/tregobbi/seeds/MIGRATIONS_TRGB.md`, `frontend/src/config/versions.jsx` (menuCarta 1.1 → 1.2).
 
 ---
 

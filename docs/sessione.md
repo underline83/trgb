@@ -1,48 +1,46 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-19 (sera) — **TUTTO PUSHATO** (verifica 19/7 sera: working tree pulito, `main` allineato a `origin/main`, nessuno stash). Storie IG pranzo v2.0 → `fe0cf9cc`; Menu Carta Estate 2026 + sezione Dolci → `b8c96816` (unico commit [mixed], non 2 come previsto); dentro `b8c96816` sono finiti anche **Vini 3.71** (fix RETTIFICA fantasma) e lo **script rettifica preconti** (senza menzione nel commit message); **utenze multi-layout** dentro `70114b0b` (18/7, idem); sotto-categorie bevande 3.70 → `c6771a1f`. ⚠️ Restano i post-push: Utenze → "🔄 tutte" (ri-analisi bollette col parser nuovo) e compilare `ig_telefono`/`ig_indirizzo` in Impostazioni Cucina · Menu Pranzo. Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-19 sera — **Menu Estate 2026 PUSHATO e in carta** (`b8c96816`); **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
 
-## SESSIONE 2026-07-19 (ter) — Storie Instagram pranzo: serie da 2 (copertina + menù)
+## SESSIONE 2026-07-19 (ter) — Fix schema tasks.sqlite3 (mig 155) — segue menu Estate
 
 ### Contesto
-Marco: la storia IG v1.0 antracite del pranzo "è inguaribile, rivediamo". Verificato coi piatti reali: il font adattivo v1.0 NON andava a capo, coi nomi lunghi (carpaccio 67 caratteri) si fermava a 26px e sbordava comunque dal canvas. Rivista su mockup renderizzati (V0 attuale + 3 proposte): scelta la direzione "bianco carta" stile menu A5, prima in serie da 4, poi ridotta su richiesta a serie da 2.
+Generando i MEP dell'edizione Estate 2026, `POST /menu-carta/editions/{id}/generate-mep` → 500 `table checklist_template has no column named livello_cucina` (journalctl letto da Marco via ssh).
 
-### Cosa è stato fatto
-- **[locale:tregobbi] `PranzoStoryCanvas.jsx` v2.0** riscritto da zero: due canvas (copertina + menù), stile menu A5 (Cormorant Garamond + Courier Prime caricati da Google Fonts al primo uso con fallback, logo trim reale disegnato in composite multiply per far sparire il fondo bianco). Copertina: claim + Menù Business a righe (una/due/tre portate) + note + recapiti da `pranzo_settings` (nascosti se vuoti). Menù: categorie con etichette a filetti, wrapping per parola dei nomi, font adattivo 43→28px sul blocco totale. Download 2 PNG numerati.
-- Nuovo asset `frontend/src/assets/brand/logo-osteria-trim.png`.
-- `versions.jsx` pranzo → 1.8; capability C-P-010 in `modulo_pranzo.md`; changelog aggiornato.
+### Diagnosi
+- Il `tasks.sqlite3` vivo (`locali/tregobbi/data/`, 98KB) è un **DB ricreato da `init_tasks_db()`** con schema pre-088: quasi certamente durante l'incidente S60-INC1 (inizio maggio) il file non fu spostato da `app/data/` (oggi non esiste più) e l'init ne creò uno vergine nel path canonico.
+- La 088 (`livello_cucina` su 3 tabelle) è **marcata applicata** → non rigira. Rotti da maggio, silenziosamente: generatore MEP carta e `POST /tasks/templates` (creazione template da UI).
+- **Perdita dati constatata: 0 template nel DB vivo** — MEP fissi mig 097 e checklist HACCP di aprile persi, backup fuori retention. → `problemi.md` TASKS-1.
 
-### Aggiunte nella stessa sessione (pomeriggio)
-- **PDF esterno "da bacheca"**: `genera_pdf_menu_esterno()` (service v3.4) + `GET /menu/{settimana}/pdf-esterno/` + CSS `menu_pranzo_esterno_pdf.css` + bottone "📄 PDF esterno". Solo antipasti/primi/secondi a 23pt, una pagina A4, nessun altro dato (verificato con WeasyPrint sui piatti reali: 1 pagina, dolci esclusi).
-- **Fix "unknown"**: i PDF aperti in tab ora hanno nome file sensato (`File` nominato in `apriPdf`, v3.9).
+### Fix (2 file, [core])
+- `app/migrations/155_selfheal_tasks_schema.py`: self-heal idempotente `livello_cucina` + indici su checklist_template / checklist_instance / task_singolo (regola: mai modificare una migrazione già girata → nuova migrazione).
+- `app/models/tasks_db.py` v1.3: CREATE difensivi allineati post-088 + mappa `HEAL_COLUMNS` con self-heal post-CREATE. Lezione generalizzata: ogni futura ADD COLUMN su tasks.sqlite3 va replicata nell'init.
 
-### DA FARE / attenzione
-- Push insieme agli altri pending. Dopo il push: provare dalla pagina /pranzo col menu vero e compilare `ig_telefono`/`ig_indirizzo` in Impostazioni Cucina · Menu Pranzo (oggi vuoti nel DB) perché la copertina mostri la riga recapiti.
-- I mockup di lavorazione (HTML+PNG) sono rimasti solo nella sessione cloud, non nel repo.
+### Verifica
+Sandbox: DB ricreato con schema v1.2 identico al prod → 155 run 1 (3 tabelle toccate) + run 2 (0 toccate) → INSERT identico a quello del generatore MEP passa; init v1.3 testato su DB fresco e su DB vecchio (self-heal). py_compile ok.
+
+### Dopo il push
+1. La 155 parte al boot → 2. Marco: Estate 2026 → "⚙ Genera MEP cucina" (ora crea 5 template, partita Dolci compresa) → 3. Task Manager → Template: attivarli. 4. Decidere su TASKS-1 se ricreare i MEP fissi/HACCP di aprile (docx `Checklist_Cucina_Primavera_2026` come riferimento).
 
 ## SESSIONE 2026-07-19 (bis) — Menu Carta: Estate 2026 in carta + sezione Dolci
 
+> (Sezione riscritta: era stata sovrascritta da una sessione parallela. Il codice è nel push `b8c96816` delle 18:07.)
+
 ### Contesto
-Marco: "Gestione cucina/Menu carta dobbiamo inserire il menu estate" + PDF `menulugagoset2026web.pdf` (menu lug-ago-set 2026). Confermato da Marco: formaggi fuori carta, edizione direttamente `in_carta`, sezione Dolci nuova in 2 commit separati.
+Marco: "dobbiamo inserire il menu estate" + PDF `menulugagoset2026web.pdf` (lug-ago-set 2026). Confermato: formaggi fuori carta, edizione direttamente `in_carta`, sezione Dolci nuova.
 
 ### Cosa è stato fatto
-- **[core] Sezione 'dolci'** (il menu estate ha 5 dolci in carta, la sezione non esisteva):
-  - `menu_carta_router.py` v1.2 — `SEZIONI_VALIDE`, 3 CASE SQL di ordinamento, `PDF_SEZIONI_ORDER` (tra Contorni e Bambini), `SEZIONE_TO_PARTITA` ('dolci' → partita "Dolci" per i MEP).
-  - `MenuCartaDettaglio.jsx` v1.4 — 'dolci' in `SEZIONI_ORDER` (tab Sezioni, Anteprima, select modale).
-- **[locale:tregobbi] Migrazione `154_seed_menu_estate_2026.py`** (`TRGB_SPECIFIC`, idempotente, pattern della 100):
-  - 20 ricette skeleton nuove (4 antipasti, 5 primi, 5 secondi, 1 contorno, 5 dolci) — solo anagrafica+prezzo, niente items: Marco le rifinisce dal modulo Ricette.
-  - Archivia Primavera 2026, crea "Estate 2026" `in_carta` (1/7 → 30/9): 44 publications (36 da ricetta + 8 documentali), 2 degustazioni (Prima volta 60 — step "Coniglio o Guancetta a tua scelta" come titolo libero; Fidati dell'oste 75 — Battuta, Cozze in blu, Risotto albicocca, Anatra).
-  - Prezzi ritoccati: Vitello tonnato 20→22, Ossobuco 24→26, Tè 8→10. Rinominati via `titolo_override` (ricette primavera intatte): "I salumi misti dell'osteria", "Fettuccine all'Alfredo se fosse nato a Bergamo". Descrizioni cambiate via `descrizione_override` (vitello, salame, pescato).
-- Docs: `MIGRATIONS_TRGB.md` (+154), changelog (2 sezioni), versions.jsx menuCarta 1.1→1.2.
+- **[core] Sezione 'dolci'**: `menu_carta_router.py` v1.2 (`SEZIONI_VALIDE`, 3 CASE SQL, `PDF_SEZIONI_ORDER`, `SEZIONE_TO_PARTITA` → partita MEP "Dolci") + `MenuCartaDettaglio.jsx` v1.4 (`SEZIONI_ORDER`).
+- **[locale:tregobbi] Migrazione `154_seed_menu_estate_2026.py`** (`TRGB_SPECIFIC`, idempotente, pattern 100): 20 ricette skeleton nuove (di cui 5 dolci, senza items — le rifinisce Marco dal modulo Ricette); archivia Primavera, crea "Estate 2026" `in_carta` (1/7→30/9) con 44 publications e 2 degustazioni. Prezzi: vitello 20→22, ossobuco 24→26, tè 8→10. Rinomine via `titolo_override` ("I salumi misti dell'osteria", "Fettuccine all'Alfredo se fosse nato a Bergamo"), descrizioni cambiate via `descrizione_override`.
+- Docs: `MIGRATIONS_TRGB.md` (+154), changelog, versions menuCarta 1.1→1.2.
 
 ### Verifica
-DB di prova in sandbox: schema minimale recipes + mig 098 + primavera (100) + **154 eseguita 2 volte** — stati edizioni (primavera→archiviata, estate→in_carta, vincolo unique ok), conteggi per sezione (9/7/1/8/7/5/5/2), 20 ricette nuove, degustazioni 4+5 step (5 linkati a publication), primavera intatta (36 pubs). `py_compile` + esbuild ok.
+Sandbox: 098+100+154 due volte (idempotenza, vincolo unique in_carta, conteggi 9/7/1/8/7/5/5/2, primavera intatta). **In produzione**: `/menu-carta/public/today` serve Estate 2026 completa (verificato dopo il push).
 
 ### Da fare / attenzione
-- ⚠️ **Allergeni piatti nuovi**: dichiarati solo quelli evidenti dalla carta; Battuta di manzo e "Ti ricordi il Solero?" lasciati vuoti. Marco/cuochi verificano dalla modale pubblicazione.
-- Le 20 ricette nuove sono senza ingredienti/grammature (food cost non calcolabile finché non popolate).
-- MEP: la partita "Dolci" ora esiste nel mapping — al prossimo generate-mep dell'edizione estate verrà creato anche il template dolci.
-- Push in **2 commit** (prima [core], poi [locale:tregobbi]).
+- ⚠️ Allergeni piatti nuovi solo dove evidenti (Battuta e Solero vuoti) — verificare da app.
+- Ricette nuove senza ingredienti → food cost non calcolabile finché non popolate.
+- MEP estate: bloccato dal 500 di cui sopra → risolto nella sessione (ter).
 
 ## SESSIONE 2026-07-19 — Rettifica preconti marzo–luglio (solo dati, VPS)
 
@@ -84,7 +82,7 @@ Suite locale su DB isolato (stub `locale_data_path` + schema minimale `vini_bott
 - Restano senza movimento per design: celle matrice (QTA_LOC3) e giacenze iniziali di una nuova annata → aggiunto in `problemi.md` come punto aperto da decidere con Marco.
 
 ### File
-`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/config/versions.jsx` (3.70 → 3.71). **PUSHATO** il 19/7 dentro `b8c96816` (commit Menu Carta [mixed], senza messaggio dedicato).
+`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/config/versions.jsx` (3.70 → 3.71). **DA PUSHARE** (insieme a sotto-categorie 3.70).
 
 ---
 
@@ -135,7 +133,7 @@ Marco apre il form "Nuova voce" nella sezione Distillati della carta e la pagina
 - **Ricerca prezzi di mercato** (web, shop IT/EU + whiskybase) per i 17 whisky di Marco → prezzi a dose 40 ml per fascia osteria (coeff. ~3-3,5 su retail, ridotto per le rarità). Note: gli indie 2006/1997/1998 sono G&M Connoisseurs Choice fuori catalogo (valore di sostituzione); Malt Fusion 1994 e Bowmore 1996 sono Moon Import da collezione (250-400 € bottiglia).
 - **Caricate 29 voci in sezione Distillati** via import testo (TSV 5 colonne: tipologia, regione, produttore, nome, prezzo): 17 whisky (8-35 €) + 12 grappe (6-9 €). Decisioni Marco: As We Get It 14 €, Yushan scambiati (Signature 12, Blended 10), Classic Laddie corretto a 50% (il 47% era refuso), Nonino "8 anni" non "years".
 
-### Sotto-categorie da Impostazioni (vini 3.70, pushato `c6771a1f` 18/7)
+### Sotto-categorie da Impostazioni (vini 3.70, DA PUSHARE)
 Marco (giustamente): basta hardcode. Fonte di verità = options del select tipologia nello schema_form; l'ordine delle options è l'ordine dei gruppi in carta. Nuovo `PUT /bevande/sezioni/{key}/tipologie` (rename propagato alle voci, delete bloccato con 409 se in uso — lezione rename-stati), helper `tipologie_order_from_sezione()` nel service, `tipologie_order` nel payload pubblico, blocco "Sotto-categorie" in Impostazioni → Ordinamento Carta (`TipologieBevEditor.jsx` nuovo). Rimosse le costanti `_TIP_ORDER`/`TIPOLOGIA_ORDER` introdotte in mattinata.
 Push: `./push.sh "[core] carta bevande: sotto-categorie gestibili da Impostazioni (endpoint tipologie + editor UI), ordine gruppi da schema, zero hardcode (vini 3.70)"`
 Post-push: Impostazioni → Ordinamento Carta → blocco Sotto-categorie (Distillati e Tè); provare riordino e verificare la carta pubblica; provare rinomina su tipologia usata e controllare che le voci seguano. NB sessione parallela: nessun conflitto — verificato con git diff che le modifiche tè/tisane/import-textarea restano intatte.
@@ -150,7 +148,7 @@ Dose standard 40 ml → ~17 dosi da bottiglia 700 ml (12 da 500 ml); 30 ml come 
 
 ### Aggiunta in giornata (stessa sessione)
 - **Amari & Liquori**: ricerca prezzi retail per 15 amari di Marco → prezzi carta 4-6 € a dose 40 ml; TSV `import_amari.tsv` consegnato (colonne: nome, produttore, regione, prezzo). Nota: Il Carlina è di Torino (Piazza Carlina), non Cuneo — da verificare su etichetta.
-- **Carta raggruppata per tipologia (vini 3.69, pushato `cf2e19a0`/`70114b0b` 18/7)**: `BevTabella4Col` in `CartaClienti.jsx` (v2.4) raggruppava per regione → ora per tipologia con ordine canonico Grappa→Rum→Whisky→Cognac→Altro; senza tipologia (amari) tabella piatta. Backend `carta_bevande_service.py` (v1.2) allineato allo stesso ordine (prima alfabetico, "Altro" apriva la carta). ⚠️ `TIPOLOGIA_ORDER` (FE) e `_TIP_ORDER` (BE) da tenere allineati tra loro e col seed.
+- **Carta raggruppata per tipologia (vini 3.69, DA PUSHARE)**: `BevTabella4Col` in `CartaClienti.jsx` (v2.4) raggruppava per regione → ora per tipologia con ordine canonico Grappa→Rum→Whisky→Cognac→Altro; senza tipologia (amari) tabella piatta. Backend `carta_bevande_service.py` (v1.2) allineato allo stesso ordine (prima alfabetico, "Altro" apriva la carta). ⚠️ `TIPOLOGIA_ORDER` (FE) e `_TIP_ORDER` (BE) da tenere allineati tra loro e col seed.
 - **Liquori & after-dinner**: prezzati altri 10 liquori (4-6 € a dose; eccezione Nonino GingerSpirit 50%: bottiglia ~115 €/500ml → 12 € a dose). TSV `import_liquori.tsv` consegnato, stessa sezione Amari & Liquori. Note: Limoncello di Capri oggi imbottigliato a 32% (Marco ha scritto 30%, verificare etichetta); Drambuie 6 €.
 - **Gin & Vodka (mig 153)**: prezzati 12 gin (liscio 7-9 € / G&T 10-12 €, Sabatini ZERO analcolico G&T 8 €) e 2 vodka (7 €). Per caricarli: mig 153 aggiunge tipologie Gin/Vodka e campo prezzo_label allo schema distillati del DB vivo (+seed v1.3 per DB nuovi); ordine gruppi carta esteso Grappa→Rum→Whisky→Gin→Vodka→Cognac→Altro. Doppio prezzo gin via prezzo_label ("liscio 8 · G&T 11"). TSV `import_gin_vodka.tsv` (6 colonne) consegnato — importare DOPO il push. Nota: Sipsmith è 41,6% (il 46% era refuso); Gin Heart e OriGine introvabili online → prezzo stimato su bottiglia ~35-40 €.
 - Push da fare: `./push.sh "[core] carta: gruppi per tipologia FE+BE + tipologie Gin/Vodka + prezzo_label form distillati (mig 153, vini 3.69)"` — post-push ricaricare la carta pubblica e verificare gruppi Grappa/Whisky in Distillati e tabella piatta in Amari.

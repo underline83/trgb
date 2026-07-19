@@ -1,3 +1,4 @@
+# @version: v1.3-selfheal-livello-cucina (2026-07-19) — init difensivo allineato allo schema post-088 + self-heal colonne
 # @version: v1.2-tasks-wal-protected (ex-cucina, rinominato Phase B sessione 46)
 # -*- coding: utf-8 -*-
 """
@@ -56,6 +57,7 @@ def init_tasks_db() -> None:
             attivo              INTEGER NOT NULL DEFAULT 0,
             note                TEXT,
             created_by          TEXT,
+            livello_cucina      TEXT,
             created_at          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             updated_at          TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
@@ -90,6 +92,7 @@ def init_tasks_db() -> None:
             completato_da       TEXT,
             score_compliance    INTEGER,
             note                TEXT,
+            livello_cucina      TEXT,
             created_at          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (template_id) REFERENCES checklist_template(id) ON DELETE CASCADE,
             UNIQUE(template_id, data_riferimento, turno)
@@ -130,6 +133,7 @@ def init_tasks_db() -> None:
             ref_modulo              TEXT,
             ref_id                  INTEGER,
             created_by              TEXT,
+            livello_cucina          TEXT,
             created_at              TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             updated_at              TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
@@ -149,6 +153,31 @@ def init_tasks_db() -> None:
             FOREIGN KEY (instance_id) REFERENCES checklist_instance(id) ON DELETE SET NULL
         )
     """)
+
+    # ── Self-heal colonne (v1.3, 2026-07-19) ─────────────────────────────
+    # Lezione S60-INC1 + MEP estate: se questo init ricrea un DB da zero
+    # DOPO che le migrazioni ADD COLUMN sono gia' marcate applicate, il file
+    # resta per sempre con lo schema vecchio (la migrazione non rigira).
+    # Quindi: ogni colonna aggiunta da migrazioni successive alla 084 va
+    # dichiarata ANCHE qui, sia nel CREATE sopra sia in questa mappa di heal
+    # per i DB gia' esistenti.
+    HEAL_COLUMNS = {
+        "checklist_template": [("livello_cucina", "TEXT")],
+        "checklist_instance": [("livello_cucina", "TEXT")],
+        "task_singolo":       [("livello_cucina", "TEXT")],
+    }
+    for table, cols in HEAL_COLUMNS.items():
+        existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()}
+        for col, coltype in cols:
+            if col not in existing:
+                try:
+                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
+                    cur.execute(
+                        f"CREATE INDEX IF NOT EXISTS idx_{table}_{col} ON {table}({col})"
+                    )
+                    print(f"[tasks_db] self-heal: aggiunta {table}.{col}")
+                except sqlite3.OperationalError as e:
+                    print(f"[tasks_db] self-heal {table}.{col} fallito: {e}")
 
     # Indici (safety net — la migrazione li crea gia')
     cur.execute("CREATE INDEX IF NOT EXISTS idx_tmpl_attivo ON checklist_template(attivo)")

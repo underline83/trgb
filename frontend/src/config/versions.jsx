@@ -27,16 +27,16 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
-    // 1.8 (2026-07-19): storie IG serie da 2 (copertina + menu), stile
-    //   menu A5 bianco carta, wrapping nomi lunghi [locale:tregobbi]
-    version: "1.8",
+    version: "1.7",
     label: "Menu Pranzo del Giorno",
     status: "beta",
     color: "blue",
   },
   menuCarta: {
     // 1.2 (2026-07-19): sezione 'dolci' [core] (router+FE+PDF+MEP) +
-    //   edizione Estate 2026 in carta via mig 154 [locale:tregobbi]
+    //   edizione Estate 2026 in carta via mig 154 [locale:tregobbi].
+    //   Nel push b8c96816 il bump era stato sovrascritto da una sessione
+    //   parallela — riapplicato.
     version: "1.2",
     label: "Menu Carta",
     status: "beta",
