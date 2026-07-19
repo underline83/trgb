@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# @version: v1.2-sezione-dolci (2026-07-19) — nuova sezione 'dolci' [core]
 # @version: v1.1-menu-carta-router-foto (Modulo D, 2026-04-27)
 # -*- coding: utf-8 -*-
 
@@ -76,7 +77,7 @@ public_router = APIRouter()  # endpoint pubblici senza auth
 
 SEZIONI_VALIDE = {
     "antipasti", "paste_risi_zuppe", "piatti_del_giorno",
-    "secondi", "contorni", "degustazioni", "bambini", "servizio",
+    "secondi", "contorni", "dolci", "degustazioni", "bambini", "servizio",
 }
 STATI_VALIDI = {"bozza", "in_carta", "archiviata"}
 
@@ -253,10 +254,11 @@ def get_edition(edition_id: int):
                 WHEN 'piatti_del_giorno' THEN 3
                 WHEN 'secondi' THEN 4
                 WHEN 'contorni' THEN 5
-                WHEN 'degustazioni' THEN 6
-                WHEN 'bambini' THEN 7
-                WHEN 'servizio' THEN 8
-                ELSE 9 END,
+                WHEN 'dolci' THEN 6
+                WHEN 'degustazioni' THEN 7
+                WHEN 'bambini' THEN 8
+                WHEN 'servizio' THEN 9
+                ELSE 10 END,
               p.sort_order
         """, (edition_id,)).fetchall()
 
@@ -831,6 +833,7 @@ SEZIONE_TO_PARTITA: Dict[str, str] = {
     "paste_risi_zuppe":  "Primi",
     "secondi":           "Secondi",
     "contorni":          "Contorni",
+    "dolci":             "Dolci",
 }
 
 
@@ -1025,6 +1028,7 @@ PDF_SEZIONI_ORDER = [
     ("piatti_del_giorno",  "Piatti del Giorno"),
     ("secondi",            "Secondi"),
     ("contorni",           "Contorni"),
+    ("dolci",              "Dolci"),
     ("bambini",            "Bambini"),
     ("servizio",           "Servizio"),
 ]
@@ -1207,10 +1211,11 @@ def public_menu_today():
                 WHEN 'piatti_del_giorno' THEN 3
                 WHEN 'secondi' THEN 4
                 WHEN 'contorni' THEN 5
-                WHEN 'degustazioni' THEN 6
-                WHEN 'bambini' THEN 7
-                WHEN 'servizio' THEN 8
-                ELSE 9 END,
+                WHEN 'dolci' THEN 6
+                WHEN 'degustazioni' THEN 7
+                WHEN 'bambini' THEN 8
+                WHEN 'servizio' THEN 9
+                ELSE 10 END,
               p.sort_order
         """, (edition["id"],)).fetchall()
 

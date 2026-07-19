@@ -124,6 +124,7 @@ mancano, WeasyPrint usa il fallback.
 | C-P-008 | Creazione rapida ricetta placeholder dal pool | `PranzoMenu.jsx` quickAddForm (stesso endpoint C-P-006) | chef/admin | ✅ v3.0 |
 | C-P-009 | Eliminazione intelligente dal pool (✕ su chip) | `pranzo_router.py DELETE /pool/{id}/` | chef/admin | ✅ v3.0 |
 | C-P-007 | Default testata/prezzi/footer | `PranzoSettingsPanel.jsx` | admin | ✅ |
+| C-P-010 | Storie Instagram serie da 2: copertina (logo, claim, Menù Business a righe, recapiti da settings) + menù per categoria, PNG 1080×1920 client-side | `PranzoStoryCanvas.jsx` | chef/admin | ✅ v2.0 (2026-07-19, sostituisce la storia singola antracite 1.7) |
 
 ## Riferimenti
 

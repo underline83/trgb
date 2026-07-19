@@ -202,6 +202,16 @@ Aperto da analisi 2026-03-14: nessun test unit/integration. >70 endpoint, >80 pa
 
 ## Aperti — Priorità media
 
+### V-DEBT2. Vini — celle matrice e giacenze iniziali nuova annata NON generano movimento
+**Aperto:** 2026-07-18 (emerso durante la diagnosi del fix vini 3.71)
+**Modulo:** Vini / cantina
+
+Due percorsi cambiano la giacenza senza lasciare traccia nello storico movimenti, per design attuale:
+1. **Celle matrice**: `matrice_assegna_cella` / `matrice_rimuovi_cella` / `matrice_set_celle_vino` aggiornano QTA_LOC3 + QTA_TOTALE senza `registra_movimento`. Chi carica/scarica bottiglie cliccando le celle non lascia storico.
+2. **Nuova annata dal wizard** (POST `/vini/anagrafiche/bottiglia/` o legacy POST `/vini/magazzino/`): le giacenze iniziali non generano un CARICO iniziale → lo storico del vino parte vuoto (è il motivo del flag `parziale` in giacenza-storica).
+
+Il replay giacenza-storica maschera entrambi con la calibrazione automatica (badge "ricalibrata"), ma il drift resta reale. **Da decidere con Marco** se: (a) registrare RETTIFICA automatica sulle operazioni matrice, (b) registrare CARICO iniziale alla creazione annata, (c) lasciare così. Effort S-M.
+
 _(S40-1, S40-2, S40-3 risolti Wave 1 — vedi sezione Risolti.)_
 
 _(S40-4, S40-5, S40-6 risolti — vedi sezione Risolti.)_
@@ -263,6 +273,14 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### V-3.71. Vini — modifica giacenze non registra il movimento RETTIFICA (di nuovo) ✅ 2026-07-18
+**Aperto:** 2026-07-18 (Marco: "oggi sono state caricate delle bottiglie tramite la giacenza, ma non crea il movimento..possibile? credevo fosse stato gia corretto questo bug")
+**Chiuso:** 2026-07-18, stessa sessione (vini 3.71, DA PUSHARE al momento della chiusura)
+
+**Non era il bug 3.62 tornato** (quello — ValueError su rettifica a 0 — resta fixato): era un secondo bug sotto, presente dal commit iniziale del DB cantina (dic 2025). Il router PATCH aggiorna prima le giacenze (`update_vino` → `_recalc_qta_totale`) e poi chiama `registra_movimento(RETTIFICA, qta=qta_dopo)`; ma il delta interno viene calcolato contro la giacenza letta dal DB in quel momento — già nuova → `delta=0` → INSERT saltato dal guard `if delta != 0`, senza eccezione (per questo il journalctl era muto: il logging 3.62 copre solo le eccezioni).
+
+**Fix:** param `qta_precedente` in `registra_movimento` (baseline esplicita del delta), passato dal router come `qta_prima`. In più, la qta salvata per RETTIFICA ora è il valore ASSOLUTO nuovo (prima `abs(delta)`, incoerente con replay giacenza-storica e `delete_movimento` che la leggono come assoluta). I movimenti persi prima del fix non sono ricostruibili (mai scritti su DB). Dettagli: changelog 2026-07-18 vini 3.71 + sessione.md (quater). Correlato: V-DEBT2 (matrice e nuova annata restano senza movimento, da decidere).
 
 ### D4. Fatture — bottone "Segna non pagata" mancante + AttributeError backend ✅ 2026-04-27
 **Aperto:** 2026-04-27 (Marco, fattura COL D'ORCIA #6796 segnata pagata per errore)

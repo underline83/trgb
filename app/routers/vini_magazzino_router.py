@@ -840,6 +840,12 @@ def update_vino_magazzino(
                     utente=utente,
                     note=f"Aggiornamento diretto giacenze (da {qta_prima} a {qta_dopo} bt)",
                     origine="GESTIONALE-EDIT",
+                    # vini 3.71: baseline esplicita. Il DB a questo punto ha GIÀ
+                    # la giacenza nuova (update_vino → _recalc_qta_totale), quindi
+                    # senza questa il delta interno veniva 0 e l'INSERT del
+                    # movimento era saltato in silenzio (bug "giacenza salvata,
+                    # nessun movimento" — segnalato da Marco 2026-07-18).
+                    qta_precedente=qta_prima,
                 )
                 # Rilegge dopo la rettifica per avere QTA_TOTALE aggiornata
                 updated = db.get_vino_by_id(vino_id)

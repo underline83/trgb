@@ -1,4 +1,5 @@
 // frontend/src/pages/cucina/MenuCartaDettaglio.jsx
+// @version: v1.4-sezione-dolci — nuova sezione 'dolci' in SEZIONI_ORDER [core] (2026-07-19)
 // @version: v1.3-foto-fix — img key + link diretto fallback per cache-bust difettoso (Modulo D, 2026-04-27)
 //
 // Dettaglio di un'edizione: testa fissa colorata + tab.
@@ -18,6 +19,7 @@ const SEZIONI_ORDER = [
   { key: "piatti_del_giorno",  label: "Piatti del giorno" },
   { key: "secondi",            label: "Secondi" },
   { key: "contorni",           label: "Contorni" },
+  { key: "dolci",              label: "Dolci" },
   { key: "bambini",            label: "Bambini" },
   { key: "servizio",           label: "Servizio" },
 ];

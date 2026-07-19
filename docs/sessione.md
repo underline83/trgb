@@ -1,6 +1,88 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-18 — **Sotto-categorie bevande gestibili da Impostazioni, zero hardcode (vini 3.70, DA PUSHARE)**; Tè (12) e Tisane (7) caricati a 10 €, import testo con textarea (pushati in `3a8b774c`). Utenze multi-layout ancora da pushare (v. sessione quater). Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-19 (ter) — **Storie IG pranzo v2.0 (serie da 2, stile menu A5) DA PUSHARE**; prima (bis): **Menu Carta Estate 2026: sezione 'dolci' [core] + migrazione 154 seed edizione estate [locale:tregobbi], DA PUSHARE in 2 commit**; inoltre rettifica preconti applicata sul VPS (script DA PUSHARE); restano DA PUSHARE: Vini 3.71 (fix RETTIFICA fantasma), sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). Dettagli sotto.
+
+## SESSIONE 2026-07-19 (ter) — Storie Instagram pranzo: serie da 2 (copertina + menù)
+
+### Contesto
+Marco: la storia IG v1.0 antracite del pranzo "è inguaribile, rivediamo". Verificato coi piatti reali: il font adattivo v1.0 NON andava a capo, coi nomi lunghi (carpaccio 67 caratteri) si fermava a 26px e sbordava comunque dal canvas. Rivista su mockup renderizzati (V0 attuale + 3 proposte): scelta la direzione "bianco carta" stile menu A5, prima in serie da 4, poi ridotta su richiesta a serie da 2.
+
+### Cosa è stato fatto
+- **[locale:tregobbi] `PranzoStoryCanvas.jsx` v2.0** riscritto da zero: due canvas (copertina + menù), stile menu A5 (Cormorant Garamond + Courier Prime caricati da Google Fonts al primo uso con fallback, logo trim reale disegnato in composite multiply per far sparire il fondo bianco). Copertina: claim + Menù Business a righe (una/due/tre portate) + note + recapiti da `pranzo_settings` (nascosti se vuoti). Menù: categorie con etichette a filetti, wrapping per parola dei nomi, font adattivo 43→28px sul blocco totale. Download 2 PNG numerati.
+- Nuovo asset `frontend/src/assets/brand/logo-osteria-trim.png`.
+- `versions.jsx` pranzo → 1.8; capability C-P-010 in `modulo_pranzo.md`; changelog aggiornato.
+
+### DA FARE / attenzione
+- Push insieme agli altri pending. Dopo il push: provare dalla pagina /pranzo col menu vero e compilare `ig_telefono`/`ig_indirizzo` in Impostazioni Cucina · Menu Pranzo (oggi vuoti nel DB) perché la copertina mostri la riga recapiti.
+- I mockup di lavorazione (HTML+PNG) sono rimasti solo nella sessione cloud, non nel repo.
+
+## SESSIONE 2026-07-19 (bis) — Menu Carta: Estate 2026 in carta + sezione Dolci
+
+### Contesto
+Marco: "Gestione cucina/Menu carta dobbiamo inserire il menu estate" + PDF `menulugagoset2026web.pdf` (menu lug-ago-set 2026). Confermato da Marco: formaggi fuori carta, edizione direttamente `in_carta`, sezione Dolci nuova in 2 commit separati.
+
+### Cosa è stato fatto
+- **[core] Sezione 'dolci'** (il menu estate ha 5 dolci in carta, la sezione non esisteva):
+  - `menu_carta_router.py` v1.2 — `SEZIONI_VALIDE`, 3 CASE SQL di ordinamento, `PDF_SEZIONI_ORDER` (tra Contorni e Bambini), `SEZIONE_TO_PARTITA` ('dolci' → partita "Dolci" per i MEP).
+  - `MenuCartaDettaglio.jsx` v1.4 — 'dolci' in `SEZIONI_ORDER` (tab Sezioni, Anteprima, select modale).
+- **[locale:tregobbi] Migrazione `154_seed_menu_estate_2026.py`** (`TRGB_SPECIFIC`, idempotente, pattern della 100):
+  - 20 ricette skeleton nuove (4 antipasti, 5 primi, 5 secondi, 1 contorno, 5 dolci) — solo anagrafica+prezzo, niente items: Marco le rifinisce dal modulo Ricette.
+  - Archivia Primavera 2026, crea "Estate 2026" `in_carta` (1/7 → 30/9): 44 publications (36 da ricetta + 8 documentali), 2 degustazioni (Prima volta 60 — step "Coniglio o Guancetta a tua scelta" come titolo libero; Fidati dell'oste 75 — Battuta, Cozze in blu, Risotto albicocca, Anatra).
+  - Prezzi ritoccati: Vitello tonnato 20→22, Ossobuco 24→26, Tè 8→10. Rinominati via `titolo_override` (ricette primavera intatte): "I salumi misti dell'osteria", "Fettuccine all'Alfredo se fosse nato a Bergamo". Descrizioni cambiate via `descrizione_override` (vitello, salame, pescato).
+- Docs: `MIGRATIONS_TRGB.md` (+154), changelog (2 sezioni), versions.jsx menuCarta 1.1→1.2.
+
+### Verifica
+DB di prova in sandbox: schema minimale recipes + mig 098 + primavera (100) + **154 eseguita 2 volte** — stati edizioni (primavera→archiviata, estate→in_carta, vincolo unique ok), conteggi per sezione (9/7/1/8/7/5/5/2), 20 ricette nuove, degustazioni 4+5 step (5 linkati a publication), primavera intatta (36 pubs). `py_compile` + esbuild ok.
+
+### Da fare / attenzione
+- ⚠️ **Allergeni piatti nuovi**: dichiarati solo quelli evidenti dalla carta; Battuta di manzo e "Ti ricordi il Solero?" lasciati vuoti. Marco/cuochi verificano dalla modale pubblicazione.
+- Le 20 ricette nuove sono senza ingredienti/grammature (food cost non calcolabile finché non popolate).
+- MEP: la partita "Dolci" ora esiste nel mapping — al prossimo generate-mep dell'edizione estate verrà creato anche il template dolci.
+- Push in **2 commit** (prima [core], poi [locale:tregobbi]).
+
+## SESSIONE 2026-07-19 — Rettifica preconti marzo–luglio (solo dati, VPS)
+
+### Contesto
+Marco: "ne sono stati fatti troppi" — rettificare/eliminare parte dei preconti **mantenendo le quadrature** (contanti abbassati dello stesso delta).
+
+### Cosa è stato fatto
+- **Export Excel** dei 210 preconti (2/3 → 17/7, €30.406 totali) con colonne ELIMINA / NUOVO IMPORTO; Marco l'ha compilata → 116 rettifiche richieste (0 = elimina riga).
+- **Script `scripts/rettifica_preconti_2026-07.py`** (convenzione bonifiche in `scripts/`): dry-run di default, `--apply` con backup WAL-safe via sqlite backup API, validazione id+importo atteso (abort su mismatch), abort su contanti negativi, transazione unica. Per ogni chiusura coinvolta: preconti ridotti/eliminati e `contanti` + `totale_incassi` abbassati dello stesso delta → differenza di quadratura invariata (verificato su copia locale: 96 chiusure modificate, 0 quadrature alterate).
+- **2 cap** per non mandare i contanti in negativo: 24/4 cena preconto 130→10 (non 0), 11/6 cena 120→30 (non 0) — entrambe chiudono a contanti 0.
+- **1° dry-run VPS fallito su 4 id** (238, 287-289): le chiusure 19/6 cena e 11/7 cena erano state rieditate dalla UI dopo l'ultimo sync — l'update chiusura fa DELETE+reinsert dei preconti → **id rigenerati**. 3 rettifiche risultavano già fatte a mano da Marco → tolte dallo script; il T10 dell'11/7 rimappato sul nuovo id 303.
+- **✅ Applicato sul VPS 2026-07-19 12:27** — 113 preconti su 95 chiusure, riduzione totale **€12.082** (mar 3.426 / apr 2.185 / mag ~3.032 / giu ~2.199 / lug 1.240). Preconti rimasti: 169 per €17.544. Backup: `admin_finance.sqlite3.prev-rettifica-preconti-20260719-122719`.
+
+### Note
+- Solo dati (`admin_finance.sqlite3` sul VPS): nessun restart backend. Il DB locale si riallinea al prossimo push (push.sh scarica i DB dal VPS).
+- ⚠️ Lezione: gli id di `shift_preconti` (e `shift_spese`, `shift_checklist_responses`) sono **volatili** — il salvataggio di una chiusura dalla UI li cancella e reinserisce. Mai costruire rettifiche su id presi da uno snapshot senza rivalidarli sul DB vivo (lo script lo fa: per questo si è fermato).
+
+---
+
+## SESSIONE 2026-07-18 (quater) — Vini 3.71: fix RETTIFICA fantasma da modifica giacenze
+
+### Contesto
+Marco: "oggi sono state caricate delle bottiglie tramite la giacenza, ma non crea il movimento..possibile? credevo fosse stato gia corretto questo bug". Il fix 3.62 (giugno) c'è ed è attivo — questo è un **secondo bug sotto**, presente dal commit iniziale del DB cantina (dic 2025).
+
+### Diagnosi
+- Flusso PATCH giacenze (`update_vino_magazzino` nel router): PRIMA `db.update_vino` aggiorna le QTA e ricalcola QTA_TOTALE, POI chiama `registra_movimento(RETTIFICA, qta=qta_dopo)`. Ma `registra_movimento` calcola `delta = qta - qta_attuale` leggendo la giacenza dal DB **in quel momento** — già aggiornata → `delta = 0` → INSERT saltato dal guard `if delta != 0`. Nessuna eccezione → nessun warning journalctl (il log 3.62 copre solo le eccezioni). Giacenza salvata, storico muto, zero tracce.
+- Bug collegato scoperto durante la diagnosi: l'INSERT salvava `abs(delta)` come qta anche per RETTIFICA, mentre replay giacenza-storica e `delete_movimento` interpretano la qta di una RETTIFICA come **valore assoluto**. Rettifica 10→7 dal form → salvava qta=3 → replay "giacenza := 3".
+
+### Fix (vini 3.71)
+- `registra_movimento`: nuovo param opzionale `qta_precedente` — baseline esplicita del delta per RETTIFICA quando il chiamante ha già aggiornato il DB. Il router PATCH passa `qta_precedente=qta_prima`.
+- INSERT movimento: per RETTIFICA salva `nuova_qta` (assoluto) invece di `abs(delta)`. CARICO/SCARICO/VENDITA invariati (lì coincidono).
+- Bonus ripristinato: l'auto-reset `STATO_RIORDINO` su "RETTIFICA in salita" (vini 3.61) ora scatta anche dal PATCH giacenze (prima mai, delta era sempre 0).
+
+### Verifica
+Suite locale su DB isolato (stub `locale_data_path` + schema minimale `vini_bottiglie`): flusso PATCH completo → RETTIFICA registrata con qta assoluta; rettifica form 10→7 salva 7; no-op non genera movimento; CARICO invariato; azzeramento (caso 3.62) registra qta=0; replay giacenza-storica chiude a drift 0; entrambi i file compilano.
+
+### Note / limiti
+- I movimenti persi oggi non sono ricostruibili (mai scritti): se serve traccia, RETTIFICA manuale dal form.
+- Restano senza movimento per design: celle matrice (QTA_LOC3) e giacenze iniziali di una nuova annata → aggiunto in `problemi.md` come punto aperto da decidere con Marco.
+
+### File
+`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/config/versions.jsx` (3.70 → 3.71). **DA PUSHARE** (insieme a sotto-categorie 3.70).
+
+---
 
 ## SESSIONE 2026-07-18 (ter) — Carta Bevande: caricamento Tè e Tisane
 

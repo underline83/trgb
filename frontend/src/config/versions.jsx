@@ -3,7 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.70",
+    version: "3.71",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -27,13 +27,17 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
-    version: "1.7",
+    // 1.8 (2026-07-19): storie IG serie da 2 (copertina + menu), stile
+    //   menu A5 bianco carta, wrapping nomi lunghi [locale:tregobbi]
+    version: "1.8",
     label: "Menu Pranzo del Giorno",
     status: "beta",
     color: "blue",
   },
   menuCarta: {
-    version: "1.1",
+    // 1.2 (2026-07-19): sezione 'dolci' [core] (router+FE+PDF+MEP) +
+    //   edizione Estate 2026 in carta via mig 154 [locale:tregobbi]
+    version: "1.2",
     label: "Menu Carta",
     status: "beta",
     color: "blue",

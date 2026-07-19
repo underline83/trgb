@@ -1292,6 +1292,7 @@ def registra_movimento(
     data_mov: Optional[str] = None,
     celle_matrice: Optional[List[tuple]] = None,
     prezzo_unitario: Optional[float] = None,  # M2.4-5 (mig 129): snapshot prezzo per movimento
+    qta_precedente: Optional[int] = None,  # vini 3.71: baseline delta per RETTIFICA post-update
 ) -> None:
     """
     Registra un movimento di cantina, aggiorna QTA_TOTALE e — se locazione
@@ -1301,6 +1302,14 @@ def registra_movimento(
     Per VENDITA e SCARICO la locazione è obbligatoria (il frontend la impone).
     Per CARICO è facoltativa (se presente, incrementa la locazione).
     Per RETTIFICA non si usa locazione (è un valore assoluto globale).
+
+    `qta_precedente` (vini 3.71, solo RETTIFICA): giacenza PRIMA della modifica.
+    Serve al chiamante che ha GIÀ aggiornato le QTA sul DB (PATCH giacenze del
+    router: `update_vino` → `_recalc_qta_totale` → poi registra_movimento).
+    In quel caso la lettura dal DB restituisce la giacenza NUOVA, il delta
+    calcolato qui verrebbe sempre 0 e il movimento veniva silenziosamente
+    saltato dal guard `if delta != 0` (bug storico: giacenza aggiornata,
+    nessuna RETTIFICA nello storico, nessun errore loggato).
     """
     if tipo not in MOVIMENTI_TIPI_VALIDI:
         raise ValueError(f"Tipo movimento non valido: {tipo}")
@@ -1359,7 +1368,11 @@ def registra_movimento(
         delta = -qta
     else:  # RETTIFICA: qta = nuovo valore assoluto
         nuova_qta = qta
-        delta = qta - qta_attuale
+        # vini 3.71: se il chiamante ha già scritto le nuove QTA sul DB
+        # (PATCH giacenze), qta_attuale è GIÀ il valore nuovo → usa la
+        # baseline esplicita per non ottenere delta=0 e perdere il movimento.
+        base = qta_precedente if qta_precedente is not None else qta_attuale
+        delta = qta - base
 
     # Aggiorna QTA_TOTALE
     cur.execute(
@@ -1449,13 +1462,21 @@ def registra_movimento(
                     try: prezzo_da_salvare = float(v[0])
                     except (TypeError, ValueError): pass
 
+        # vini 3.71: per RETTIFICA la qta salvata è il valore ASSOLUTO nuovo
+        # (nuova_qta), coerente con tutto il resto del codice che la
+        # interpreta così: replay giacenza_storica (`g = qta`), replay
+        # conservativo in delete_movimento (`qta_tot = q`). Prima veniva
+        # salvato abs(delta): una rettifica 10→7 salvava qta=3 e il replay
+        # la rileggeva come "giacenza := 3". Per CARICO/SCARICO/VENDITA
+        # abs(delta) == qta passata, quindi resta identico.
+        qta_movimento = nuova_qta if tipo == "RETTIFICA" else abs(delta)
         cur.execute(
             """
             INSERT INTO vini_magazzino_movimenti
             (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at, prezzo_unitario)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
-            (vino_id, data_mov, tipo, abs(delta), loc, note, origine, utente, created_at, prezzo_da_salvare),
+            (vino_id, data_mov, tipo, qta_movimento, loc, note, origine, utente, created_at, prezzo_da_salvare),
         )
 
     # Sessione 58 (2026-04-25): auto-on di BOTTIGLIA_APERTA quando si registra
