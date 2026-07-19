@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-19 (ter) — **Storie IG pranzo v2.0 (serie da 2, stile menu A5) DA PUSHARE**; prima (bis): **Menu Carta Estate 2026: sezione 'dolci' [core] + migrazione 154 seed edizione estate [locale:tregobbi], DA PUSHARE in 2 commit**; inoltre rettifica preconti applicata sul VPS (script DA PUSHARE); restano DA PUSHARE: Vini 3.71 (fix RETTIFICA fantasma), sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). Dettagli sotto.
+**Ultimo aggiornamento:** 2026-07-19 (sera) — **TUTTO PUSHATO** (verifica 19/7 sera: working tree pulito, `main` allineato a `origin/main`, nessuno stash). Storie IG pranzo v2.0 → `fe0cf9cc`; Menu Carta Estate 2026 + sezione Dolci → `b8c96816` (unico commit [mixed], non 2 come previsto); dentro `b8c96816` sono finiti anche **Vini 3.71** (fix RETTIFICA fantasma) e lo **script rettifica preconti** (senza menzione nel commit message); **utenze multi-layout** dentro `70114b0b` (18/7, idem); sotto-categorie bevande 3.70 → `c6771a1f`. ⚠️ Restano i post-push: Utenze → "🔄 tutte" (ri-analisi bollette col parser nuovo) e compilare `ig_telefono`/`ig_indirizzo` in Impostazioni Cucina · Menu Pranzo. Dettagli sotto.
 
 ## SESSIONE 2026-07-19 (ter) — Storie Instagram pranzo: serie da 2 (copertina + menù)
 
@@ -84,7 +84,7 @@ Suite locale su DB isolato (stub `locale_data_path` + schema minimale `vini_bott
 - Restano senza movimento per design: celle matrice (QTA_LOC3) e giacenze iniziali di una nuova annata → aggiunto in `problemi.md` come punto aperto da decidere con Marco.
 
 ### File
-`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/config/versions.jsx` (3.70 → 3.71). **DA PUSHARE** (insieme a sotto-categorie 3.70).
+`app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `frontend/src/config/versions.jsx` (3.70 → 3.71). **PUSHATO** il 19/7 dentro `b8c96816` (commit Menu Carta [mixed], senza messaggio dedicato).
 
 ---
 
@@ -135,7 +135,7 @@ Marco apre il form "Nuova voce" nella sezione Distillati della carta e la pagina
 - **Ricerca prezzi di mercato** (web, shop IT/EU + whiskybase) per i 17 whisky di Marco → prezzi a dose 40 ml per fascia osteria (coeff. ~3-3,5 su retail, ridotto per le rarità). Note: gli indie 2006/1997/1998 sono G&M Connoisseurs Choice fuori catalogo (valore di sostituzione); Malt Fusion 1994 e Bowmore 1996 sono Moon Import da collezione (250-400 € bottiglia).
 - **Caricate 29 voci in sezione Distillati** via import testo (TSV 5 colonne: tipologia, regione, produttore, nome, prezzo): 17 whisky (8-35 €) + 12 grappe (6-9 €). Decisioni Marco: As We Get It 14 €, Yushan scambiati (Signature 12, Blended 10), Classic Laddie corretto a 50% (il 47% era refuso), Nonino "8 anni" non "years".
 
-### Sotto-categorie da Impostazioni (vini 3.70, DA PUSHARE)
+### Sotto-categorie da Impostazioni (vini 3.70, pushato `c6771a1f` 18/7)
 Marco (giustamente): basta hardcode. Fonte di verità = options del select tipologia nello schema_form; l'ordine delle options è l'ordine dei gruppi in carta. Nuovo `PUT /bevande/sezioni/{key}/tipologie` (rename propagato alle voci, delete bloccato con 409 se in uso — lezione rename-stati), helper `tipologie_order_from_sezione()` nel service, `tipologie_order` nel payload pubblico, blocco "Sotto-categorie" in Impostazioni → Ordinamento Carta (`TipologieBevEditor.jsx` nuovo). Rimosse le costanti `_TIP_ORDER`/`TIPOLOGIA_ORDER` introdotte in mattinata.
 Push: `./push.sh "[core] carta bevande: sotto-categorie gestibili da Impostazioni (endpoint tipologie + editor UI), ordine gruppi da schema, zero hardcode (vini 3.70)"`
 Post-push: Impostazioni → Ordinamento Carta → blocco Sotto-categorie (Distillati e Tè); provare riordino e verificare la carta pubblica; provare rinomina su tipologia usata e controllare che le voci seguano. NB sessione parallela: nessun conflitto — verificato con git diff che le modifiche tè/tisane/import-textarea restano intatte.
@@ -150,7 +150,7 @@ Dose standard 40 ml → ~17 dosi da bottiglia 700 ml (12 da 500 ml); 30 ml come 
 
 ### Aggiunta in giornata (stessa sessione)
 - **Amari & Liquori**: ricerca prezzi retail per 15 amari di Marco → prezzi carta 4-6 € a dose 40 ml; TSV `import_amari.tsv` consegnato (colonne: nome, produttore, regione, prezzo). Nota: Il Carlina è di Torino (Piazza Carlina), non Cuneo — da verificare su etichetta.
-- **Carta raggruppata per tipologia (vini 3.69, DA PUSHARE)**: `BevTabella4Col` in `CartaClienti.jsx` (v2.4) raggruppava per regione → ora per tipologia con ordine canonico Grappa→Rum→Whisky→Cognac→Altro; senza tipologia (amari) tabella piatta. Backend `carta_bevande_service.py` (v1.2) allineato allo stesso ordine (prima alfabetico, "Altro" apriva la carta). ⚠️ `TIPOLOGIA_ORDER` (FE) e `_TIP_ORDER` (BE) da tenere allineati tra loro e col seed.
+- **Carta raggruppata per tipologia (vini 3.69, pushato `cf2e19a0`/`70114b0b` 18/7)**: `BevTabella4Col` in `CartaClienti.jsx` (v2.4) raggruppava per regione → ora per tipologia con ordine canonico Grappa→Rum→Whisky→Cognac→Altro; senza tipologia (amari) tabella piatta. Backend `carta_bevande_service.py` (v1.2) allineato allo stesso ordine (prima alfabetico, "Altro" apriva la carta). ⚠️ `TIPOLOGIA_ORDER` (FE) e `_TIP_ORDER` (BE) da tenere allineati tra loro e col seed.
 - **Liquori & after-dinner**: prezzati altri 10 liquori (4-6 € a dose; eccezione Nonino GingerSpirit 50%: bottiglia ~115 €/500ml → 12 € a dose). TSV `import_liquori.tsv` consegnato, stessa sezione Amari & Liquori. Note: Limoncello di Capri oggi imbottigliato a 32% (Marco ha scritto 30%, verificare etichetta); Drambuie 6 €.
 - **Gin & Vodka (mig 153)**: prezzati 12 gin (liscio 7-9 € / G&T 10-12 €, Sabatini ZERO analcolico G&T 8 €) e 2 vodka (7 €). Per caricarli: mig 153 aggiunge tipologie Gin/Vodka e campo prezzo_label allo schema distillati del DB vivo (+seed v1.3 per DB nuovi); ordine gruppi carta esteso Grappa→Rum→Whisky→Gin→Vodka→Cognac→Altro. Doppio prezzo gin via prezzo_label ("liscio 8 · G&T 11"). TSV `import_gin_vodka.tsv` (6 colonne) consegnato — importare DOPO il push. Nota: Sipsmith è 41,6% (il 46% era refuso); Gin Heart e OriGine introvabili online → prezzo stimato su bottiglia ~35-40 €.
 - Push da fare: `./push.sh "[core] carta: gruppi per tipologia FE+BE + tipologie Gin/Vodka + prezzo_label form distillati (mig 153, vini 3.69)"` — post-push ricaricare la carta pubblica e verificare gruppi Grappa/Whisky in Distillati e tabella piatta in Amari.
