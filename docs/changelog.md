@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-07-20 — Vini: Vista Sommelier v2.0 "banco di servizio" (V.22) `[core]`
+
+Ripensamento completo di `/vini/carta-staff` (Marco: "rivediamone il senso, così è inutilizzata"): da elenco read-only a pagina operativa del servizio. Chiude il task V.22 / #136 della roadmap.
+
+### ➕ Aggiunto
+- **`CartaStaff.jsx` v2.0** — due modalità:
+  - **Preparazione** (pre-turno): checklist client-side sui dati live — "In carta ma da non proporre" (esauriti + ultima bottiglia), "Calici di stasera" (mescite aperte, chiudibili inline), "Frigo da rifornire" (vini da calice/mescita con frigo ≤ 2 e stock altrove, con indicazione da dove prendere).
+  - **Servizio**: ricerca e filtri come prima, ma ogni riga ha la locazione in evidenza ("📍 prendi da") e azioni one-tap: **Vendi −1** (movimento VENDITA dalla locazione scelta — diretta se unica, picker inline se multiple — annullabile per 10s via toast) e **toggle mescita 🥂**. Nome vino → scheda bottiglia v2.
+- **`vini_magazzino_router.py`** — `GET /carta-staff/`: ogni voce di `locazioni[]` ora include `slot` (frigo|loc1|loc2|loc3), la chiave che il frontend passa a `POST /{id}/movimenti`. Campo additivo, nessun consumer esistente impattato.
+
+### Note tecniche
+- Nessun endpoint nuovo: la pagina riusa movimenti (VENDITA + DELETE per undo, delta inverso già gestito dal 3.62/3.71) e `PATCH /{id}/bottiglia-aperta` (già aperto a sala).
+- **Vendita da loc3/matrice volutamente esclusa** dal one-tap (decrementerebbe QTA_LOC3 senza svuotare `matrice_celle` → drift): se lo stock è solo in matrice il bottone porta alla scheda con MatricePicker.
+- Auto-refresh 60s, in pausa mentre il toast-undo è visibile.
+
+### File
+`frontend/src/pages/vini/CartaStaff.jsx` (riscritto), `app/routers/vini_magazzino_router.py`, `frontend/src/config/versions.jsx` (vini 3.71 → 3.72), `docs/modulo_vini.md`, `docs/roadmap.md` (V.22 chiuso).
+
+---
+
 ## 2026-07-19 — Task Manager: self-heal schema tasks.sqlite3 (mig 155) + init blindato `[core]`
 
 Scoperto generando i MEP del menu Estate 2026: il generatore andava in 500 con `table checklist_template has no column named livello_cucina`.

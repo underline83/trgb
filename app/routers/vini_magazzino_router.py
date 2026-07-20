@@ -630,17 +630,22 @@ def list_carta_staff(current_user: Any = Depends(get_current_user)):
         if prezzo_calice is None or prezzo_calice == 0:
             prezzo_calice = _prezzo_calice_da_carta(d.get("PREZZO_CARTA"))
         is_calice = bool(d.get("VENDITA_CALICE") or 0) or bottiglia_aperta
-        # Locazioni con qta non zero
+        # Locazioni con qta non zero.
+        # vini 3.72 (CartaStaff v2): ogni voce include anche `slot`
+        # (frigo|loc1|loc2|loc3), la chiave locazione che il banco di
+        # servizio passa a POST /{id}/movimenti per la VENDITA one-tap.
+        # Campo additivo: i consumer esistenti che leggono solo nome/qta
+        # non cambiano comportamento.
         loc_list = []
-        for label, q in [
-            (d.get("FRIGORIFERO"), d.get("QTA_FRIGO")),
-            (d.get("LOCAZIONE_1"), d.get("QTA_LOC1")),
-            (d.get("LOCAZIONE_2"), d.get("QTA_LOC2")),
-            (d.get("LOCAZIONE_3"), d.get("QTA_LOC3")),
+        for slot, label, q in [
+            ("frigo", d.get("FRIGORIFERO"), d.get("QTA_FRIGO")),
+            ("loc1", d.get("LOCAZIONE_1"), d.get("QTA_LOC1")),
+            ("loc2", d.get("LOCAZIONE_2"), d.get("QTA_LOC2")),
+            ("loc3", d.get("LOCAZIONE_3"), d.get("QTA_LOC3")),
         ]:
             qn = int(q or 0)
             if qn > 0 and label:
-                loc_list.append({"nome": label, "qta": qn})
+                loc_list.append({"nome": label, "qta": qn, "slot": slot})
         # Status semantico
         if qta_tot == 0 and not bottiglia_aperta:
             status = "esaurita"

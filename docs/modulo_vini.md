@@ -64,7 +64,7 @@ vini_magazzino_note.vino_id      → vini_bottiglie.id
 | 🍷 **Cantina** | `/vini/v2/cantina` | `CantinaV2.jsx` + `GestioneVino2.jsx` | **Era "Cantina 2", ora è LA Cantina.** 3 viste: Bottiglie / Madri / Per Produttore. |
 | 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` + 5 panel | 5 sotto-tab: Produttori, Distributori, Denominazioni, Vitigni, Madri. CRUD admin/sommelier (`is_vini_manager`) + merge duplicati admin-only. |
 | 📜 Carta | `/vini/carta` | `CartaBevande.jsx` | Carta cliente HTML/PDF (vedi §5). |
-| 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | Vista staff per servizio (da rifare completamente — vedi task V.22). |
+| 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | **v2.0 "banco di servizio" (2026-07-20, V.22)**: due modalità — Preparazione (checklist pre-turno: esauriti/ultima bt da non proporre, calici aperti, frigo da rifornire) e Servizio (ricerca + vendita one-tap con undo 10s + toggle mescita). Vendita da loc3/matrice esclusa (rimanda alla scheda). |
 | 🛒 Vendite | `/vini/vendite` | `ViniVendite.jsx` | Registra vendite (bottiglia/calici) + storico + calici disponibili. |
 | ⚙️ Impostazioni | `/vini/settings` | `ViniImpostazioni.jsx` | Locazioni, soglie, import/export, iPratico. |
 
@@ -126,7 +126,7 @@ Tutti gli endpoint puntano ora a `vini_bottiglie` (post sed F11). Usato da Sched
 
 ### `/vini/carta/*` (Carta cliente)
 - `GET /vini/carta/pdf|html` — generazione carta vini cliente
-- `GET /vini/carta-staff` — vista sommelier (`CartaStaff.jsx`)
+- `GET /vini/carta-staff` — vista sommelier (`CartaStaff.jsx` v2.0). Dal 3.72 ogni voce di `locazioni[]` include anche `slot` (frigo|loc1|loc2|loc3) per la vendita one-tap; la pagina riusa `POST /{id}/movimenti` (VENDITA), `DELETE /movimenti/{id}` (undo) e `PATCH /{id}/bottiglia-aperta` (mescita)
 - Vedi §5 per dettaglio sub-module Carta + §6 per Carta Bevande
 
 ### `/vini/pricing/calcola`

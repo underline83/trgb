@@ -3,7 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.71",
+    // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
+    //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
+    //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
+    version: "3.72",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

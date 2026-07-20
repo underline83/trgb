@@ -1,6 +1,26 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-19 sera — **Menu Estate 2026 PUSHATO e in carta** (`b8c96816`); **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-07-20 — **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-07-20 — Vini: Vista Sommelier v2.0 "banco di servizio" (V.22)
+
+### Contesto
+Marco: "Pagina sommelier, da rivedere … rivediamone il senso, così è inutilizzata, che idee abbiamo?". Proposte 3 direzioni con mockup HTML (banco di servizio / strumento di vendita / pre-servizio); Marco: "prova a svilupparlo così" → implementate 1+3 combinate (la 2, abbinamenti/da spingere, rinviata: richiede dati nuovi nel Menu Carta).
+
+### Cosa è stato fatto ([core], modulo vini, chiude V.22/#136)
+- **`CartaStaff.jsx` riscritto (v2.0)** — due modalità con switch in header:
+  - **Preparazione**: checklist pre-turno client-side — da non proporre (0/1 bt), calici aperti (chiusura inline), frigo da rifornire (≤2 in frigo con stock altrove, dice da dove prendere).
+  - **Servizio**: ricerca/filtri invariati + per riga "📍 prendi da" e azioni one-tap: Vendi −1 (VENDITA dalla locazione; picker inline se multiple; undo 10s = DELETE movimento, delta inverso) e toggle mescita (endpoint bottiglia-aperta, già aperto a sala). Nome vino → /vini/v2/bottiglia/:id.
+- **`carta-staff/` endpoint**: `locazioni[]` con campo additivo `slot` (frigo|loc1|loc2|loc3) — serve al FE per indicare la locazione della vendita.
+- **loc3/matrice esclusa dal one-tap** (drift celle): rimanda alla scheda col MatricePicker.
+- Docs: modulo_vini.md (tab + endpoint), roadmap V.22 ✅, changelog, versions vini 3.71→3.72.
+
+### Verifica
+py_compile router OK; parse JSX (esbuild) OK; verificato su codice: ordine movimenti DESC (l'undo aggancia il movimento appena creato), trailing slash solo su carta-staff/ (endpoint root), sub-path senza slash come da backend.
+
+### Da fare / attenzione
+- Provare in servizio vero: soglie (frigo ≤2, ultima bt) sono costanti in testa al file, facili da tarare.
+- Parte "strumento di vendita" (da spingere + abbinamenti piatto→vino dal madre): da valutare come iterazione, richiede campo abbinamenti nel Menu Carta (cross-modulo via servizio platform).
 
 ## SESSIONE 2026-07-19 (ter) — Fix schema tasks.sqlite3 (mig 155) — segue menu Estate
 
