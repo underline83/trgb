@@ -9,10 +9,11 @@ Marco: "Pagina sommelier, da rivedere … rivediamone il senso, così è inutili
 
 ### Cosa è stato fatto ([core], modulo vini, chiude V.22/#136)
 - **`CartaStaff.jsx` riscritto (v2.0)** — due modalità con switch in header:
-  - **Preparazione**: checklist pre-turno client-side — da non proporre (0/1 bt), calici aperti (chiusura inline), frigo da rifornire (≤2 in frigo con stock altrove, dice da dove prendere).
+  - **Preparazione**: checklist pre-turno client-side — ultima bottiglia (qta 1, ancora in carta), calici aperti (chiusura inline), frigo da rifornire (≤2 in frigo con stock altrove, dice da dove prendere).
   - **Servizio**: ricerca/filtri invariati + per riga "📍 prendi da" e azioni one-tap: Vendi −1 (VENDITA dalla locazione; picker inline se multiple; undo 10s = DELETE movimento, delta inverso) e toggle mescita (endpoint bottiglia-aperta, già aperto a sala). Nome vino → /vini/v2/bottiglia/:id.
 - **`carta-staff/` endpoint**: `locazioni[]` con campo additivo `slot` (frigo|loc1|loc2|loc3) — serve al FE per indicare la locazione della vendita.
 - **loc3/matrice esclusa dal one-tap** (drift celle): rimanda alla scheda col MatricePicker.
+- **Semantica esauriti corretta su osservazione di Marco** ("se sono a 0 non sono in carta"): giusto — `load_vini_ordinati` filtra con `min_qta_stampa` (default 1), a 0 bt il vino sparisce da carta/QR da solo. Quindi niente "da non proporre": card ⚠️ solo per l'ultima bottiglia (quella SÌ ancora in carta), card 📦 separata per gli esauriti come promemoria riordino (in mescita = ancora visibile nei calici). Il badge Preparazione conta solo ultime+frigo.
 - Docs: modulo_vini.md (tab + endpoint), roadmap V.22 ✅, changelog, versions vini 3.71→3.72.
 
 ### Verifica

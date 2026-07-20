@@ -64,7 +64,7 @@ vini_magazzino_note.vino_id      → vini_bottiglie.id
 | 🍷 **Cantina** | `/vini/v2/cantina` | `CantinaV2.jsx` + `GestioneVino2.jsx` | **Era "Cantina 2", ora è LA Cantina.** 3 viste: Bottiglie / Madri / Per Produttore. |
 | 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` + 5 panel | 5 sotto-tab: Produttori, Distributori, Denominazioni, Vitigni, Madri. CRUD admin/sommelier (`is_vini_manager`) + merge duplicati admin-only. |
 | 📜 Carta | `/vini/carta` | `CartaBevande.jsx` | Carta cliente HTML/PDF (vedi §5). |
-| 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | **v2.0 "banco di servizio" (2026-07-20, V.22)**: due modalità — Preparazione (checklist pre-turno: esauriti/ultima bt da non proporre, calici aperti, frigo da rifornire) e Servizio (ricerca + vendita one-tap con undo 10s + toggle mescita). Vendita da loc3/matrice esclusa (rimanda alla scheda). |
+| 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | **v2.0 "banco di servizio" (2026-07-20, V.22)**: due modalità — Preparazione (checklist pre-turno: ultima bt ancora in carta, calici aperti, frigo da rifornire, esauriti come promemoria riordino (a 0 bt la carta li nasconde già via min_qta_stampa)) e Servizio (ricerca + vendita one-tap con undo 10s + toggle mescita). Vendita da loc3/matrice esclusa (rimanda alla scheda). |
 | 🛒 Vendite | `/vini/vendite` | `ViniVendite.jsx` | Registra vendite (bottiglia/calici) + storico + calici disponibili. |
 | ⚙️ Impostazioni | `/vini/settings` | `ViniImpostazioni.jsx` | Locazioni, soglie, import/export, iPratico. |
 

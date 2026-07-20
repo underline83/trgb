@@ -9,7 +9,7 @@ Ripensamento completo di `/vini/carta-staff` (Marco: "rivediamone il senso, cos�
 
 ### ➕ Aggiunto
 - **`CartaStaff.jsx` v2.0** — due modalità:
-  - **Preparazione** (pre-turno): checklist client-side sui dati live — "In carta ma da non proporre" (esauriti + ultima bottiglia), "Calici di stasera" (mescite aperte, chiudibili inline), "Frigo da rifornire" (vini da calice/mescita con frigo ≤ 2 e stock altrove, con indicazione da dove prendere).
+  - **Preparazione** (pre-turno): checklist client-side sui dati live — "Ultima bottiglia" (ancora in carta: al primo tavolo finisce), card secondaria "Esauriti — già usciti dalla carta" (a 0 bt il filtro min_qta_stampa li nasconde già da carta/QR → solo promemoria riordino), "Calici di stasera" (mescite aperte, chiudibili inline), "Frigo da rifornire" (vini da calice/mescita con frigo ≤ 2 e stock altrove, con indicazione da dove prendere).
   - **Servizio**: ricerca e filtri come prima, ma ogni riga ha la locazione in evidenza ("📍 prendi da") e azioni one-tap: **Vendi −1** (movimento VENDITA dalla locazione scelta — diretta se unica, picker inline se multiple — annullabile per 10s via toast) e **toggle mescita 🥂**. Nome vino → scheda bottiglia v2.
 - **`vini_magazzino_router.py`** — `GET /carta-staff/`: ogni voce di `locazioni[]` ora include `slot` (frigo|loc1|loc2|loc3), la chiave che il frontend passa a `POST /{id}/movimenti`. Campo additivo, nessun consumer esistente impattato.
 

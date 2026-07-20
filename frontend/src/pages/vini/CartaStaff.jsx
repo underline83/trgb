@@ -7,9 +7,12 @@
 // momenti d'uso:
 //
 //   · PREPARAZIONE (pre-servizio): checklist calcolata client-side dagli
-//     stessi dati — vini in carta ma esauriti/ultima bottiglia da non
-//     proporre al tavolo, calici in mescita stasera, frigo da rifornire
-//     (scorta frigo bassa con stock disponibile altrove).
+//     stessi dati — ultime bottiglie ancora in carta (al primo tavolo
+//     finiscono), calici in mescita stasera, frigo da rifornire (scorta
+//     frigo bassa con stock disponibile altrove) + card secondaria
+//     "esauriti": a 0 bt la carta cliente li nasconde GIÀ da sola
+//     (filtro min_qta_stampa in load_vini_ordinati) → solo promemoria
+//     riordino, non "da non proporre".
 //   · SERVIZIO: ricerca + riga vino con locazione in evidenza ("prendi da")
 //     e azioni one-tap: Vendi −1 (registra movimento VENDITA dalla
 //     locazione scelta, annullabile per 10s) e toggle mescita 🥂.
@@ -445,10 +448,16 @@ export default function CartaStaff() {
 
   // ── Checklist pre-servizio (tutta client-side sugli stessi dati) ──
   const prep = useMemo(() => {
-    // 1. In carta ma da non proporre: esauriti o ultima bottiglia
-    const nonProporre = vini
-      .filter(v => v.qta_totale <= SOGLIA_ULTIMA)
-      .sort((a, b) => a.qta_totale - b.qta_totale);
+    // 1a. Ultima bottiglia: ANCORA visibile in carta (min_qta_stampa default 1)
+    //     → il sommelier deve sapere che al primo tavolo finisce.
+    // 1b. Esauriti: qta 0 → la carta cliente li nasconde già da sola
+    //     (filtro min_qta_stampa in load_vini_ordinati), quindi NON sono
+    //     "da non proporre": sono flag CARTA=1 rimasti senza stock — info
+    //     da riordino, mostrata come card separata e secondaria.
+    const ultime = vini.filter(v => v.qta_totale === SOGLIA_ULTIMA);
+    const esauriti = vini
+      .filter(v => v.qta_totale === 0)
+      .sort((a, b) => (b.in_mescita ? 1 : 0) - (a.in_mescita ? 1 : 0));
     // 2. Calici in mescita stasera
     const calici = vini.filter(v => v.in_mescita);
     // 3. Frigo da rifornire: vino da calice/mescita con frigo sotto soglia
@@ -466,10 +475,12 @@ export default function CartaStaff() {
         x.altre.length > 0
       )
       .sort((a, b) => a.qFrigo - b.qFrigo);
-    return { nonProporre, calici, frigo };
+    return { ultime, esauriti, calici, frigo };
   }, [vini]);
 
-  const prepCount = prep.nonProporre.length + prep.frigo.length;
+  // Il badge conta solo le cose da fare PRIMA del servizio (ultime + frigo):
+  // gli esauriti sono già auto-nascosti dalla carta, non un'azione pre-turno.
+  const prepCount = prep.ultime.length + prep.frigo.length;
 
   // ── Render ────────────────────────────────────────────────
   const apriScheda = (id) => navigate(`/vini/v2/bottiglia/${id}`);
@@ -568,32 +579,28 @@ export default function CartaStaff() {
   }
 
   function renderPrep() {
-    const { nonProporre, calici, frigo } = prep;
+    const { ultime, esauriti, calici, frigo } = prep;
     return (
       <>
-        {/* 1 — da non proporre */}
+        {/* 1 — ultima bottiglia (ancora in carta!) */}
         <div className="cs-prep-card">
           <div className="cs-prep-head">
             <span className="cs-prep-ico">⚠️</span>
             <div className="cs-prep-title">
-              <div className="cs-prep-t1">In carta ma da non proporre</div>
-              <div className="cs-prep-t2">esauriti o ultima bottiglia — meglio saperlo prima del tavolo</div>
+              <div className="cs-prep-t1">Ultima bottiglia</div>
+              <div className="cs-prep-t2">ancora in carta e sul QR: al primo tavolo che la ordina, finisce</div>
             </div>
-            <span className={`cs-prep-stato ${nonProporre.length ? "cs-st-alert" : "cs-st-ok"}`}>
-              {nonProporre.length ? `${nonProporre.length} vini` : "tutto ok"}
+            <span className={`cs-prep-stato ${ultime.length ? "cs-st-alert" : "cs-st-ok"}`}>
+              {ultime.length ? `${ultime.length} vini` : "tutto ok"}
             </span>
           </div>
-          {nonProporre.length === 0 && <div className="cs-prep-empty">Nessun vino in carta sotto scorta.</div>}
-          {nonProporre.map(v => (
+          {ultime.length === 0 && <div className="cs-prep-empty">Nessun vino in carta all'ultima bottiglia.</div>}
+          {ultime.map(v => (
             <div key={v.id} className="cs-prep-riga">
               <span className="cs-prep-nome" onClick={() => apriScheda(v.id)}>
                 {v.descrizione} {v.annata || ""} <span style={{ color: "#8a7a65" }}>— {v.produttore}</span>
               </span>
-              <span className="cs-prep-dett">
-                {v.qta_totale === 0
-                  ? (v.in_mescita ? <><b>0 bt</b> · resta solo la mescita</> : <><b>0 bt</b></>)
-                  : <><b>1 bt</b> · ultima</>}
-              </span>
+              <span className="cs-prep-dett"><b>1 bt</b> · ultima</span>
             </div>
           ))}
         </div>
@@ -652,6 +659,31 @@ export default function CartaStaff() {
             </div>
           ))}
         </div>
+
+        {/* 4 — esauriti: già FUORI dalla carta (min_qta_stampa li nasconde).
+            Non è un'azione pre-servizio: è promemoria riordino / pulizia flag. */}
+        {esauriti.length > 0 && (
+          <div className="cs-prep-card">
+            <div className="cs-prep-head">
+              <span className="cs-prep-ico">📦</span>
+              <div className="cs-prep-title">
+                <div className="cs-prep-t1">Esauriti — già usciti dalla carta</div>
+                <div className="cs-prep-t2">a 0 bt la carta e il QR li nascondono da soli: qui solo come promemoria riordino (o togli il flag carta dalla scheda)</div>
+              </div>
+              <span className="cs-prep-stato cs-st-warn">{esauriti.length} vini</span>
+            </div>
+            {esauriti.map(v => (
+              <div key={v.id} className="cs-prep-riga">
+                <span className="cs-prep-nome" onClick={() => apriScheda(v.id)}>
+                  {v.descrizione} {v.annata || ""} <span style={{ color: "#8a7a65" }}>— {v.produttore}</span>
+                </span>
+                <span className="cs-prep-dett">
+                  {v.in_mescita ? <>in mescita al calice (visibile nei calici)</> : <><b>0 bt</b></>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="cs-footer-note" style={{ border: "1px solid #c5a97a", borderRadius: 6 }}>
           Checklist calcolata sui dati live della cantina · pronta? passa alla modalità Servizio ↑
