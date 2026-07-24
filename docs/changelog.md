@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-07-24 — Docs → wiki: index + convenzioni `[core]`
+
+Solo documentazione, zero codice. Da discussione sul modello "LLM wiki" di Karpathy, adattato a TRGB: il problema dei docs non è l'accumulo ma navigabilità e coerenza.
+
+### ➕ Aggiunto
+- **`docs/index.md`** — home del wiki di progetto: catalogo completo di `docs/` per argomento, una riga per pagina.
+- **`docs/convenzioni_wiki.md`** — 3 tipi di pagina (log / pagina wiki / schema) + 4 regole (home, un fatto una pagina, link relativi, header di stato). Adozione opt-in stile M.I, niente big-bang.
+
+### 🔧 Modificato
+- **`docs/readme.md` §12** — tabella documentazione sostituita da link a `index.md` (regola "un fatto, una pagina").
+
+### File
+`docs/index.md` (nuovo), `docs/convenzioni_wiki.md` (nuovo), `docs/readme.md`, `docs/sessione.md`.
+
+---
+
 ## 2026-07-20 — Vini: Vista Sommelier v2.0 "banco di servizio" (V.22) `[core]`
 
 Ripensamento completo di `/vini/carta-staff` (Marco: "rivediamone il senso, così è inutilizzata"): da elenco read-only a pagina operativa del servizio. Chiude il task V.22 / #136 della roadmap.

@@ -218,26 +218,9 @@ Schema dettagliato → `docs/database.md`
 
 # 12. Documentazione completa
 
-| File | Contenuto |
-|------|-----------|
-| `docs/stack_tecnico.md` | Architettura tecnica completa (ex `architettura.md`) |
-| `docs/architettura_locale.md` | Architettura locale post-R6.5 (path canonico `locali/<id>/data/`) |
-| `docs/architettura_mattoni.md` | Mattoni condivisi M.A-M.I |
-| `docs/architettura_pattern.md` | Pattern ricorrenti (WAL, trailing slash, ecc.) |
-| `docs/database.md` | Schema tutti i database |
-| `docs/deploy.md` | Guida deploy VPS e locale |
-| `docs/sicurezza_backup.md` | Architettura backup post-incidente S60-INC1 |
-| `docs/installazione_nuovo_server.md` | Runbook setup nuovo cliente |
-| `docs/refactor_monorepo.md` | Refactor R1-R8 monorepo (core/ + locali/) |
-| `docs/changelog.md` | Storico rilasci |
-| `docs/roadmap.md` | Task aperti e pianificati (modulo per modulo) |
-| `docs/problemi.md` | Bug aperti e debt tecnico |
-| `docs/sessione.md` | Briefing per sessioni Claude |
-| `docs/GUIDA-RAPIDA.md` | Guida rapida operativa |
-| `docs/inventario_pulizia.md` | Tech debt + cleanup batch (worktree, file morti, WAL TODO) |
-| `docs/controllo_design.md` | Regole UI/UX trasversali |
-| `docs/checklist_visione_insieme.md` | Checklist 6-punti per ogni modifica |
-| `docs/modulo_*.md` | Documentazione per modulo (vini, acquisti, ricette_foodcost, cucina, dipendenti, ecc.) |
+Il catalogo completo di `docs/` vive in **[`docs/index.md`](index.md)** (home del wiki di progetto, organizzato per argomento). Le regole di manutenzione della documentazione sono in [`docs/convenzioni_wiki.md`](convenzioni_wiki.md).
+
+> La tabella che stava qui è stata spostata in `index.md` il 2026-07-24 (regola "un fatto, una pagina").
 
 ---
 

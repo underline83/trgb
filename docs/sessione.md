@@ -1,6 +1,23 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-20 — **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-07-24 — **DA PUSHARE: docs→wiki (index.md + convenzioni_wiki.md nuovi, readme §12 snellito — solo docs, zero codice)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-07-24 — Docs → wiki: index.md + convenzioni_wiki.md (solo docs)
+
+### Contesto
+Marco porta il gist "LLM wiki" di Karpathy e chiede come applicarlo a TRGB. Discussione: per la memoria personale il modello Karpathy completo va bene (lo sta già applicando), per TRGB il problema non è l'accumulo ma **navigabilità e coerenza** dei docs esistenti. Deciso: trasformare `docs/` in un wiki per convenzioni, senza riorganizzazioni.
+
+### Cosa è stato fatto (solo documentazione, zero codice)
+- **`docs/convenzioni_wiki.md` (nuovo, ⚙ schema)** — 3 tipi di pagina (📓 log append-only / 📄 pagina wiki / ⚙ schema) + le 4 regole: (1) home = index.md, (2) un fatto una pagina (le altre linkano, non copiano), (3) link markdown relativi, (4) header di stato su ogni pagina wiki (`Stato: attuale|parziale|storico` + `Ultima verifica`). Adozione **opt-in stile M.I**: pagine nuove conformi da subito, esistenti convertite quando le si tocca. Vietato big-bang di rinomine. Sezione "Lint (futuro)": candidato `/guardiano lint`.
+- **`docs/index.md` (nuovo)** — home del wiki: catalogo completo di `docs/` per argomento (partenza sessione / log / architettura / regole / moduli / deploy / audit / materiali / archivio), una riga per pagina, basato sulla struttura reale al 2026-07-24.
+- **`docs/readme.md` §12** — tabella docs sostituita da link a `index.md` (prima duplicazione sanata con la regola 2).
+
+### Da fare / attenzione
+- Duplicazioni note ancora da sanare al primo tocco (censite in convenzioni_wiki.md §regola 2): palette TRGB-02 (CLAUDE.md ↔ styleguide.md), descrizioni moduli (readme §9 ↔ modulo_*.md).
+- Valutare 1 riga in CLAUDE.md §Ambiente: "docs/index.md è la mappa della documentazione" (CLAUDE.md non toccato: lo decide Marco).
+- `/guardiano lint` resta concept, non implementato.
+
+---
 
 ## SESSIONE 2026-07-20 — Vini: Vista Sommelier v2.0 "banco di servizio" (V.22)
 
