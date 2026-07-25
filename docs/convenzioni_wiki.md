@@ -74,6 +74,12 @@ Stessa filosofia del mattone M.I (UI primitives):
 - **Pagine esistenti:** si convertono **quando le si tocca per altri motivi** — si aggiunge l'header, si trasformano i riferimenti testuali in link, si sana la duplicazione se c'è. Niente sessioni dedicate alla conversione di massa.
 - **Vietato** riorganizzare/rinominare file in blocco per "fare ordine": ogni rinomina rompe riferimenti in skill, memoria e sessioni parallele. Le rinomine si fanno solo con un motivo e aggiornando i link entranti (regola 3).
 
-## Lint (futuro)
+## Lint
 
-Verifica periodica di coerenza del wiki, su richiesta di Marco (candidato sub-comando `/guardiano lint`): link rotti, contraddizioni tra pagine (roadmap FATTO vs problemi aperto), pagine con "Ultima verifica" vecchia su moduli toccati di recente, duplicazioni nuove. Non implementato: per ora il lint è manuale.
+**Meccanico (implementato 2026-07-24):** `scripts/docs_lint.py` (solo stdlib) verifica link markdown relativi rotti in `docs/` + `CLAUDE.md`, pagine attive non elencate in `index.md`, e segnala (info) le pagine ancora senza header di stato. Gira automaticamente a ogni push come warning **non bloccante** (hook nel Guardiano L1 di `push.sh`); a mano: `python3 scripts/docs_lint.py`.
+
+**Semantico (futuro, candidato `/guardiano lint`):** contraddizioni tra pagine (roadmap FATTO vs problemi aperto), pagine con "Ultima verifica" vecchia su moduli toccati di recente, duplicazioni nuove. Per ora manuale.
+
+## Log: regola dei ~3 mesi
+
+`sessione.md` e `changelog.md` tengono vivi solo gli ultimi ~3 mesi; il resto si sposta periodicamente in `archive/` (file `*_archivio_*`, con nota storica in testa e link in coda al file vivo). Prima archiviazione: 2026-07-24.

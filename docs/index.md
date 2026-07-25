@@ -16,8 +16,9 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 
 ## 📓 Log (append-only)
 
-- 📓 [changelog.md](changelog.md) — storico rilasci, formato Keep a Changelog, recenti in alto.
-- 📓 [sessione.md](sessione.md) e [problemi.md](problemi.md) — vedi sopra.
+- 📓 [changelog.md](changelog.md) — storico rilasci, formato Keep a Changelog, recenti in alto. Vivi gli ultimi ~3 mesi; il resto in [archive/changelog_archivio_2026-04.md](archive/changelog_archivio_2026-04.md).
+- 📓 [sessione.md](sessione.md) e [problemi.md](problemi.md) — vedi sopra. Sessioni vecchie in [archive/sessione_archivio_59.md](archive/sessione_archivio_59.md) e [archive/sessione_archivio_39.md](archive/sessione_archivio_39.md).
+- Il lint del wiki (`scripts/docs_lint.py`, warning-only in push.sh) tiene puliti link e index — v. [convenzioni_wiki.md](convenzioni_wiki.md) §Lint.
 
 ## 🏛 Architettura & convenzioni tecniche
 
@@ -81,4 +82,4 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 
 ## 🗄 Archivio
 
-- [archive/](archive/README.md) — materiale storico non più mantenuto: sessioni ≤39, piani v2.0, analisi 2026-03, prompt. Non linkare da pagine attive se non come riferimento storico.
+- [archive/](archive/README.md) — materiale storico non più mantenuto: sessioni ≤39 e 40–59, changelog fino ad aprile 2026, piani v2.0, analisi 2026-03, prompt. Non linkare da pagine attive se non come riferimento storico.

@@ -1,5 +1,8 @@
 # TRGB Gestionale — Roadmap (riorganizzata 2026-05-07)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [problemi.md](problemi.md), [changelog.md](changelog.md), [refactor_monorepo.md](refactor_monorepo.md), [index.md](index.md)
+
 **Ultimo aggiornamento:** 2026-05-19 — aggiunta sezione "DH — Docs hardening" (post audit autonomo `docs/audit-2026-05-19/`, verdetto adversarial 87/100). Aggiornata V-H.I (non prima 15 giugno) + M.D (non prioritario) + segnati MORT-2 e `/menu/` rinviati. Decisioni PO Marco 2026-05-19.
 
 **Aggiornamento precedente:** 2026-05-07 — riorganizzazione completa modulo per modulo dopo refactor R1-R8 chiuso, R6.5 push 1+2+3 chiuso, sistema sicurezza/backup post-incidente live, PWA Fase 0 completa.
@@ -7,16 +10,16 @@
 **Convenzioni:** ogni voce ha ID stabile `<lettera>.<numero>` raggruppato per modulo. ✅ FATTO + commit hash + data. ⏸ in pausa = decisione Marco.
 
 > **Doc canonici di riferimento:**
-> - `architettura_mattoni.md` — mattoni M.A-M.I (servizi condivisi)
-> - `architettura_locale.md` — modello multi-tenant `core/` + `locali/<id>/`
-> - `architettura_pattern.md` — registry pattern di codice (cookbook)
-> - `stack_tecnico.md` — stack tecnico generale (ex `architettura.md`)
-> - `sicurezza_backup.md` — sistema backup post-incidente 4 maggio 2026
-> - `installazione_nuovo_server.md` — runbook nuovo cliente
-> - `refactor_monorepo.md` — piano R1-R8 completo (storico/canonico)
+> - [`architettura_mattoni.md`](architettura_mattoni.md) — mattoni M.A-M.I (servizi condivisi)
+> - [`architettura_locale.md`](architettura_locale.md) — modello multi-tenant `core/` + `locali/<id>/`
+> - [`architettura_pattern.md`](architettura_pattern.md) — registry pattern di codice (cookbook)
+> - [`stack_tecnico.md`](stack_tecnico.md) — stack tecnico generale (ex `architettura.md`)
+> - [`sicurezza_backup.md`](sicurezza_backup.md) — sistema backup post-incidente 4 maggio 2026
+> - [`installazione_nuovo_server.md`](installazione_nuovo_server.md) — runbook nuovo cliente
+> - [`refactor_monorepo.md`](refactor_monorepo.md) — piano R1-R8 completo (storico/canonico)
 
 > **Sezioni roadmap (ordine):**
-> 0. Refactor monorepo — CHIUSO (storico, ref `refactor_monorepo.md` §6)
+> 0. Refactor monorepo — CHIUSO (storico, ref [`refactor_monorepo.md`](refactor_monorepo.md) §6)
 > M. Mattoni (M.A-M.I)
 > V. Vini (cantina + carta vini + carta bevande)
 > R. Ricette / FoodCost
@@ -39,10 +42,10 @@
 
 ## 0 — Refactor monorepo (CHIUSO 2026-05-05)
 
-R1-R8 + R6.5 push 1+2+3 + K-bis tutti completati. Vedere `docs/refactor_monorepo.md` §6 per cronologia commit. Strascichi:
+R1-R8 + R6.5 push 1+2+3 + K-bis tutti completati. Vedere [`docs/refactor_monorepo.md`](refactor_monorepo.md) §6 per cronologia commit. Strascichi:
 - **K-tris** (T.3) — refactor 3 path PDF cedolini in `dipendenti.py:2209` senza rompere `pdf_path` nei record DB. Listato in §T.
 
-Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix git VPS hook (0.1.1 chiuso 2026-05-07 commit `534c88a5`).
+Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.5 push 3 fix git VPS hook (0.1.1 chiuso 2026-05-07 commit `534c88a5`).
 
 ---
 
@@ -89,7 +92,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 | V.16 | Filtri lato server (per dataset > 5000) | M | DA VALUTARE | Solo se scala oltre 1 cliente |
 | V.17 | iPratico test e2e completo | S | DA VALUTARE | Test manuale |
 | V.18 | Widget alert WA lista spesa (punto 7) | M | DA VALUTARE | Bloccato da V.5 + M.B PDF |
-| V.19 | Carta Bevande — TODO da `carta_bevande_todo.md` | M | DA VALUTARE | Cap. dedicato in `modulo_vini.md` (consolidamento) |
+| V.19 | Carta Bevande — TODO da `carta_bevande_todo.md` | M | DA VALUTARE | Cap. dedicato in [`modulo_vini.md`](modulo_vini.md) (consolidamento) |
 
 **Voci CHIUSE dopo il cutover refactor** (storia, lasciate per tracking):
 - ~~V.6~~ — Anagrafiche normalizzate → **FATTO 2026-05-19** (mig 125-131 + cutover mig 133)
@@ -110,7 +113,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in `problemi.md`), R6.5 push 3 fix gi
 
 ### V.6+V.7+V.8 — Refactor strutturale anagrafiche vini → **COMPLETATO 2026-05-19**
 
-Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-green con tabelle `_v2` parallele → cutover atomico mig 133.
+Vedi [`docs/refactor_anagrafiche_vini.md`](refactor_anagrafiche_vini.md) per il design completo. Strategia blue-green con tabelle `_v2` parallele → cutover atomico mig 133.
 
 | Fase | Cosa | Stato |
 |---|---|---|
@@ -139,7 +142,7 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 - V-H.H | Allineamento docs §3.5 + roadmap V | XS | ✅ FATTO 2026-05-12
 
 **Bug/debt:**
-- V-BUG1 — FALSO POSITIVO 2026-05-12: l'endpoint `POST /vini/magazzino/import` citato non esiste. Tutti gli endpoint massivi reali (`/reset-database`, `/import-excel`, `/bulk-update`, `/bulk-duplicate`, `/delete-vino/{id}`) hanno già admin guard. Voce da chiudere in `problemi.md`.
+- V-BUG1 — FALSO POSITIVO 2026-05-12: l'endpoint `POST /vini/magazzino/import` citato non esiste. Tutti gli endpoint massivi reali (`/reset-database`, `/import-excel`, `/bulk-update`, `/bulk-duplicate`, `/delete-vino/{id}`) hanno già admin guard. Voce da chiudere in [`problemi.md`](problemi.md).
 - V-DEBT1 — `app/models/vini_db.py`: file già rimosso. Voce obsoleta, da rimuovere.
 - V-DEBT2 — `app/models/vini_model.py` ridotto a `normalize_dataframe()`. Usato solo da `import_excel_to_cantina`. Valutare se inglobare in `vini_cantina_tools_router.py`.
 
@@ -175,7 +178,7 @@ Vedi `docs/refactor_anagrafiche_vini.md` per il design completo. Strategia blue-
 | A.6 | Auto-pagamento proforma (riconciliazione one-click) | S | ⏸ IN PAUSA | Dipende da A.5 |
 
 **Bug/debt:**
-- A-DEBT1 — Campo `escluso` vs `escluso_acquisti` ambiguo (regola CLAUDE.md fragile)
+- A-DEBT1 — Campo `escluso` vs `escluso_acquisti` ambiguo (regola [CLAUDE.md](../CLAUDE.md) fragile)
 - A-DEBT2 — FIC `is_detailed=false` richiede XML enrichment manuale
 
 ---
@@ -235,7 +238,7 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| B.1 | Bug storni Flussi Cassa (D1 problemi.md) | S | ALTA | Marco serve caso concreto |
+| B.1 | Bug storni Flussi Cassa (D1 [problemi.md](problemi.md)) | S | ALTA | Marco serve caso concreto |
 | B.2 | Annullamento movimenti contanti (manca metà 3.5) | S | ALTA | DB pronto |
 | B.3 | Dashboard grafici Recharts | S | ALTA | Sostituisce barre CSS |
 | B.4 | Multi-conto corrente UI | M | MEDIA | DB ready |
@@ -245,7 +248,7 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 | B.8 | Import automatico movimenti banca (PSD2/CSV) | L | BASSA | Futuro |
 
 **Bug/debt:**
-- B-DEBT1 — Banca senza doc canonico → `modulo_banca.md` da creare in consolidamento Fase 5
+- B-DEBT1 — Banca senza doc canonico → [`modulo_banca.md`](modulo_banca.md) da creare in consolidamento Fase 5
 
 ---
 
@@ -254,13 +257,13 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
 | G.1 | Spese Fisse — implementazione modulo (CRUD + frequenze) | L | ✅ FATTO | In produzione con 22 spese fisse + 274 rate (riassorbito da G.4-G.5: prestiti+rateizzazioni+tasse già operativi). Roadmap aggiornata 2026-05-08 |
-| G.1.5 | **Import CSV piano rate (Abaco/AdE/PagoPA/F24)** | M | ✅ FATTO 2026-05-08 | mig 108 + endpoint `POST /spese-fisse/import-csv` + UI wizard CSV + DELETE warning rate riconciliate. Vedi `modulo_controllo_gestione.md §3.5.1-3.5.2` |
-| G.2.A | Alert scadenze pagamenti (3 livelli) | S | ✅ FATTO 2026-05-09 | Checker `cg_scadenze_imminenti/avvicinamento/pianificazione` su M.F + seed alert_config + label UI. Vedi `modulo_controllo_gestione.md §3.6` |
-| G.2.B | Calendario scadenze (M.E) + widget mini-timeline dashboard | M | ✅ FATTO 2026-05-09 | Endpoint `GET /controllo-gestione/scadenze` + pagina `ControlloGestioneCalendarioScadenze.jsx` + widget timeline in dashboard CG. Vedi `modulo_controllo_gestione.md §3.7` |
-| G.5 | Unificazione stato pagamento fatture | L | ✅ FATTO 2026-05-10 | Mig 111+112: DROP `fe_fatture.pagato` + `.stato_pagamento` + CREATE VIEW `fe_fatture_with_stato`. Source of truth = `cg_uscite.stato`. Service refactored. Vedi `stato_pagamento_unificato.md` |
+| G.1.5 | **Import CSV piano rate (Abaco/AdE/PagoPA/F24)** | M | ✅ FATTO 2026-05-08 | mig 108 + endpoint `POST /spese-fisse/import-csv` + UI wizard CSV + DELETE warning rate riconciliate. Vedi [`modulo_controllo_gestione.md §3.5.1-3.5.2`](modulo_controllo_gestione.md) |
+| G.2.A | Alert scadenze pagamenti (3 livelli) | S | ✅ FATTO 2026-05-09 | Checker `cg_scadenze_imminenti/avvicinamento/pianificazione` su M.F + seed alert_config + label UI. Vedi [`modulo_controllo_gestione.md §3.6`](modulo_controllo_gestione.md) |
+| G.2.B | Calendario scadenze (M.E) + widget mini-timeline dashboard | M | ✅ FATTO 2026-05-09 | Endpoint `GET /controllo-gestione/scadenze` + pagina `ControlloGestioneCalendarioScadenze.jsx` + widget timeline in dashboard CG. Vedi [`modulo_controllo_gestione.md §3.7`](modulo_controllo_gestione.md) |
+| G.5 | Unificazione stato pagamento fatture | L | ✅ FATTO 2026-05-10 | Mig 111+112: DROP `fe_fatture.pagato` + `.stato_pagamento` + CREATE VIEW `fe_fatture_with_stato`. Source of truth = `cg_uscite.stato`. Service refactored. Vedi [`stato_pagamento_unificato.md`](stato_pagamento_unificato.md) |
 | G.6 | Rename stati al maschile + SPOSTATO + col data_scadenza_originale | M | ✅ FATTO 2026-05-10 | Mig 114: rename `DA_PAGARE`→`PROGRAMMATO`, `SCADUTA`→`SCADUTO`, `DA_VERIFICARE`→`VERIFICARE`, `RATEIZZATA`→`RATEIZZATO`, `PAGATA`→`PAGATO`, `PAGATA_MANUALE`→`PAGATO_MANUALE`. Nuovo stato `SPOSTATO`. Refactor ~370 occorrenze backend+frontend. UX "Sposta data" da implementare in G.7 |
-| G.7 | UX "Sposta data" + completamento stato SPOSTATO | M | ✅ FATTO 2026-05-10 | Endpoint `PUT /uscite/{id}/scadenza` esteso (auto-setta SPOSTATO se data ≠ originale) + nuovo `PUT /uscite/{id}/ripristina-data`. FattureDettaglio: 2 sotto-celle "Scadenza iniziale" + "Programmata" + bottone Ripristina. Chip "Spostato" in FattureElenco e ControlloGestioneUscite. Vedi `stato_pagamento_unificato.md §13` |
-| G.8 | Livello macro/sotto stato pagamento (CHIUSO/APERTO) | M | ✅ FATTO 2026-05-11 | Mig 116 ADD COLUMN `cg_uscite.stato_macro` GENERATED VIRTUAL + service `app/services/stati_pagamento.py` con costanti centralizzate + refactor `/uscite/import` con whitelist invariante per costruzione (STATI_DERIVATI_DA_DATA={PROGRAMMATO,SCADUTO}). Mig 115 ripara 138 VERIFICARE perse da bug import preesistente. Vedi `stato_pagamento_unificato.md §14` |
+| G.7 | UX "Sposta data" + completamento stato SPOSTATO | M | ✅ FATTO 2026-05-10 | Endpoint `PUT /uscite/{id}/scadenza` esteso (auto-setta SPOSTATO se data ≠ originale) + nuovo `PUT /uscite/{id}/ripristina-data`. FattureDettaglio: 2 sotto-celle "Scadenza iniziale" + "Programmata" + bottone Ripristina. Chip "Spostato" in FattureElenco e ControlloGestioneUscite. Vedi [`stato_pagamento_unificato.md §13`](stato_pagamento_unificato.md) |
+| G.8 | Livello macro/sotto stato pagamento (CHIUSO/APERTO) | M | ✅ FATTO 2026-05-11 | Mig 116 ADD COLUMN `cg_uscite.stato_macro` GENERATED VIRTUAL + service `app/services/stati_pagamento.py` con costanti centralizzate + refactor `/uscite/import` con whitelist invariante per costruzione (STATI_DERIVATI_DA_DATA={PROGRAMMATO,SCADUTO}). Mig 115 ripara 138 VERIFICARE perse da bug import preesistente. Vedi [`stato_pagamento_unificato.md §14`](stato_pagamento_unificato.md) |
 | G.3 | **Conto Economico Completo (P&L mensile con utile netto)** | L | 🔴 **TOP — PRIORITÀ MASSIMA Marco 2026-05-14** | Allineamento richiesto da Marco: oggi dashboard mostra solo margine LORDO (Vendite − Acquisti), manca aggregazione spese operative (stipendi/affitti/utenze/tasse/assicurazioni) → utile netto fuorviante. Vedi §G.3 dettaglio sotto |
 | G.9 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA → riassorbito in G.3 | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato (era G.8 pre-2026-05-11 rinumerato per evitare collisione con macro/sotto stato) |
 | G.10 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA → riassorbito in G.3 | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite (era G.9, rinumerato) |
@@ -485,8 +488,8 @@ Sezione storica/piano qui sotto preservata per riferimento.
    - Re-spostamento: data_scadenza_originale resta la prima
 
 8. **Documentazione**
-   - Aggiorna `docs/stato_pagamento_unificato.md` con SPOSTATO + nuovo workflow
-   - Sezione in `docs/modulo_controllo_gestione.md` sul "Sposta data"
+   - Aggiorna [`docs/stato_pagamento_unificato.md`](stato_pagamento_unificato.md) con SPOSTATO + nuovo workflow
+   - Sezione in [`docs/modulo_controllo_gestione.md`](modulo_controllo_gestione.md) sul "Sposta data"
 
 **Effort stimato:** 3-4 ore (2 endpoint backend + 1 modal + 2 chip + test + docs).
 
@@ -534,7 +537,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.P2 | Note allergeni stampate sul PDF | S | MEDIA | |
 | C.P3 | Multi-edizione (menu speciali eventi) | M | BASSA | Schema change |
 | **Selezioni del giorno** (4 scelte + piatti del giorno) ||||
-| ~~C.S1~~ | ~~Doc `modulo_selezioni.md`~~ | XS | ✅ FATTO 2026-05-19 | Stub `docs/modulo_selezioni_giorno.md` creato (DH.1). Da estendere endpoint-by-endpoint in sessione docs futura |
+| ~~C.S1~~ | ~~Doc [`modulo_selezioni.md`](modulo_selezioni.md)~~ | XS | ✅ FATTO 2026-05-19 | Stub [`docs/modulo_selezioni_giorno.md`](modulo_selezioni_giorno.md) creato (DH.1). Da estendere endpoint-by-endpoint in sessione docs futura |
 | C.S2 | Note allergeni per scelta del giorno | S | BASSA | |
 | C.S3 | Foto plate-up per scelta del giorno | S | BASSA | |
 | **Lista spesa Fase 2** (sotto-modulo Cucina, era §R.9-13) ||||
@@ -546,7 +549,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.L6 | Notifiche WA arrivo materiale (M.C + M.A) | S | BASSA | |
 
 **Bug/debt:**
-- C-DEBT1 — `modulo_cucina.md` obsoleto (parla di prefix `/cucina/` legacy, rinominato in `/tasks/` con mig 086)
+- C-DEBT1 — [`modulo_cucina.md`](modulo_cucina.md) obsoleto (parla di prefix `/cucina/` legacy, rinominato in `/tasks/` con mig 086)
 - C-DEBT2 — `cucina.sqlite3` referenziato in mig 084/087 (verifica self-heal)
 - C-DEBT3 — `pranzo.recipe_id` schema mai agganciato food cost (= C.P1)
 
@@ -579,7 +582,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | PR.9 | Reminder cliente automatico 24h prima (M.C + scheduler) | S | BASSA | Marco: utile ma non urgente |
 
 **Bug/debt:**
-- PR-DEBT1 — `modulo_prenotazioni.md` "In progettazione" ma codice impl (Fase 1+2 fatte). Da consolidare Fase 5.
+- PR-DEBT1 — [`modulo_prenotazioni.md`](modulo_prenotazioni.md) "In progettazione" ma codice impl (Fase 1+2 fatte). Da consolidare Fase 5.
 - PR-DEBT2 — `prenotazioni_todo.md` da assorbire in modulo principale
 
 ---
@@ -623,31 +626,31 @@ Sezione storica/piano qui sotto preservata per riferimento.
 
 ## DH — DOCS HARDENING (post audit autonomo 2026-05-19)
 
-**Fonte:** `docs/audit-2026-05-19/02_GAP_REPORT.md` (5 CRIT + 20 MED + 10 MIN + 5 anomalie strutturali).
-**Verdetto adversarial:** 87/100 (`docs/audit-2026-05-19/VERIFICA_PLAUSIBILITA.md`).
+**Fonte:** [`docs/audit-2026-05-19/02_GAP_REPORT.md`](audit-2026-05-19/02_GAP_REPORT.md) (5 CRIT + 20 MED + 10 MIN + 5 anomalie strutturali).
+**Verdetto adversarial:** 87/100 ([`docs/audit-2026-05-19/VERIFICA_PLAUSIBILITA.md`](audit-2026-05-19/VERIFICA_PLAUSIBILITA.md)).
 **Stato:** alcune voci chiuse in commit 2026-05-19 docs hardening, altre rinviate.
 
-> CRIT-3 e CRIT-4 sono stati **declassati a MED** in base alla verifica adversarial (vedi `VERIFICA_PLAUSIBILITA.md` §Test 3): CRIT-3 perché `modulo_vendite.md` §9 copre già il flusso operativo, CRIT-4 perché tasks/HACCP sono documentati in `modulo_cucina.md` ed è solo uno split di file da fare.
+> CRIT-3 e CRIT-4 sono stati **declassati a MED** in base alla verifica adversarial (vedi [`VERIFICA_PLAUSIBILITA.md`](audit-2026-05-19/VERIFICA_PLAUSIBILITA.md) §Test 3): CRIT-3 perché [`modulo_vendite.md`](modulo_vendite.md) §9 copre già il flusso operativo, CRIT-4 perché tasks/HACCP sono documentati in [`modulo_cucina.md`](modulo_cucina.md) ed è solo uno split di file da fare.
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| **DH.1** | NOMEN-1: rinomina `modulo_selezioni.md` → `modulo_vendite.md` + stub `modulo_selezioni_giorno.md` per i 5 router `scelta_*` | S | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening |
-| **DH.2** | CRIT-1: stub `modulo_fatture_in_cloud.md` con 17 endpoint reali | XS | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening. Stub strutturato, da estendere endpoint-by-endpoint |
-| **DH.3** | Disciplina docs in `CLAUDE.md` (raccomandazione 4 executive summary) | XS | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening |
-| DH.4 | CRIT-3 (declassato a MED): estensione `modulo_vendite.md` §9 con mapping endpoint:linea per i 11 endpoint chiusure turno | S | DA FARE — bassa | Sessione docs dedicata |
-| DH.5 | CRIT-4 (declassato a MED): split `modulo_cucina.md` → `modulo_cucina.md` (lista_spesa) + `modulo_task_manager.md` (checklist + tasks + HACCP) | S | DA FARE — media | Sessione docs dedicata, ~1-2h. Non creare da zero: lo split valorizza ciò che già c'è |
-| DH.6 | Tabella Capability standardizzata in cima a ogni `modulo_*.md` (~15 file) | L | DA FARE — bassa | Sessione docs L, distribuibile. Riferimento granulare: `docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md` (416 capability già mappate file:linea) |
+| **DH.1** | NOMEN-1: rinomina [`modulo_selezioni.md`](modulo_selezioni.md) → [`modulo_vendite.md`](modulo_vendite.md) + stub [`modulo_selezioni_giorno.md`](modulo_selezioni_giorno.md) per i 5 router `scelta_*` | S | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening |
+| **DH.2** | CRIT-1: stub [`modulo_fatture_in_cloud.md`](modulo_fatture_in_cloud.md) con 17 endpoint reali | XS | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening. Stub strutturato, da estendere endpoint-by-endpoint |
+| **DH.3** | Disciplina docs in [`CLAUDE.md`](../CLAUDE.md) (raccomandazione 4 executive summary) | XS | ✅ FATTO 2026-05-19 | Commit `[mixed]` docs hardening |
+| DH.4 | CRIT-3 (declassato a MED): estensione [`modulo_vendite.md`](modulo_vendite.md) §9 con mapping endpoint:linea per i 11 endpoint chiusure turno | S | DA FARE — bassa | Sessione docs dedicata |
+| DH.5 | CRIT-4 (declassato a MED): split [`modulo_cucina.md`](modulo_cucina.md) → [`modulo_cucina.md`](modulo_cucina.md) (lista_spesa) + `modulo_task_manager.md` (checklist + tasks + HACCP) | S | DA FARE — media | Sessione docs dedicata, ~1-2h. Non creare da zero: lo split valorizza ciò che già c'è |
+| DH.6 | Tabella Capability standardizzata in cima a ogni `modulo_*.md` (~15 file) | L | DA FARE — bassa | Sessione docs L, distribuibile. Riferimento granulare: [`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`](audit-2026-05-19/01_AUDIT_PER_MODULO.md) (416 capability già mappate file:linea) |
 | DH.7 | Estensione `push.sh` (guardiano L1) con warning non-bloccante se diff tocca un router ma non `modulo_*.md` corrispondente | XS | DA FARE — bassa | Sessione tecnica L1 |
-| DH.8 | Verifica spot dei 3 claim del manuale utente: PIN anti-bruteforce 60s (`auth_service.py`), durata JWT (`app/core/security.py`), comportamento `moduli_attivi.json` (hot reload vs restart) | XS | DA FARE — alta | Prima di dare il manuale (`docs/audit-2026-05-19/04_MANUALE_UTENTE.md`) allo staff |
-| DH.9 | Refactor strutturale `docs/{moduli, specs, adr}/` (`docs/audit-2026-05-19/03_DOCS_REFACTORING_PLAN.md`) | L | DA VALUTARE | Investimento ~2 giorni distribuiti. Non urgente, ma più si rinvia più costa |
+| DH.8 | Verifica spot dei 3 claim del manuale utente: PIN anti-bruteforce 60s (`auth_service.py`), durata JWT (`app/core/security.py`), comportamento `moduli_attivi.json` (hot reload vs restart) | XS | DA FARE — alta | Prima di dare il manuale ([`docs/audit-2026-05-19/04_MANUALE_UTENTE.md`](audit-2026-05-19/04_MANUALE_UTENTE.md)) allo staff |
+| DH.9 | Refactor strutturale `docs/{moduli, specs, adr}/` ([`docs/audit-2026-05-19/03_DOCS_REFACTORING_PLAN.md`](audit-2026-05-19/03_DOCS_REFACTORING_PLAN.md)) | L | DA VALUTARE | Investimento ~2 giorni distribuiti. Non urgente, ma più si rinvia più costa |
 | DH.10 | Coprire i 20 gap MED del gap report (FIC sync flow, allergeni, foodcost per ricetta, Mailchimp, ecc.) | M | DA FARE — bassa | Una sessione mirata o opportunistica quando si tocca il modulo |
 | DH.11 | Coprire i 10 gap MIN del gap report (reset-database cantina, recovery import fatture, ecc.) | XS | DA VALUTARE | Opportunistico |
 
 ### Decisioni PO Marco 2026-05-19 (post-audit, riferimento)
 1. **NOMEN-1** → DISAMBIGUIAMO (DH.1 fatto).
 2. **V-H.I cleanup `*_legacy.jsx` vini** → "non prima del 15 giugno 2026" (vedi §V).
-3. **Endpoint `/menu/`** → "nel cassetto, poi lo faremo" (vedi `inventario_pulizia.md`).
-4. **MORT-2 turni vecchio + v2** → "lo vediamo quando sistemiamo meglio il modulo Dipendenti" (vedi `controllo_design.md`).
+3. **Endpoint `/menu/`** → "nel cassetto, poi lo faremo" (vedi [`inventario_pulizia.md`](inventario_pulizia.md)).
+4. **MORT-2 turni vecchio + v2** → "lo vediamo quando sistemiamo meglio il modulo Dipendenti" (vedi [`controllo_design.md`](controllo_design.md)).
 5. **Mattone email M.D** → "non prioritario" (vedi §M aggiornato).
 
 ---
@@ -658,7 +661,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 |----|------|--------|-------|------|
 | T.1 | Health check endpoint /health + UptimeRobot | S | ALTA | Monitor esterno |
 | T.2 | K-tris: 3 path PDF cedolini → tenant_dir() (residuo K-bis) | M | ALTA | Da R6.5 |
-| T.2b | **Frontend statico (Vite dev → build) in produzione** | M | **ALTA** | Vedi `analisi_hardening_vps.md §3.A` + memoria `project_frontend_statico_pianificato`. Sourcemap chiusi, perf migliore, no SPF Vite crash. Pianificato primo mercoledì libero, ~3-4h con fallback Vite per 24h. Pre-requisito Capacitor (Scenario B App Store). |
+| T.2b | **Frontend statico (Vite dev → build) in produzione** | M | **ALTA** | Vedi [`analisi_hardening_vps.md §3.A`](analisi_hardening_vps.md) + memoria `project_frontend_statico_pianificato`. Sourcemap chiusi, perf migliore, no SPF Vite crash. Pianificato primo mercoledì libero, ~3-4h con fallback Vite per 24h. Pre-requisito Capacitor (Scenario B App Store). |
 | T.3 | Banner "nuova versione disponibile" FE (polling BUILD_VERSION) | S | MEDIA | |
 | T.4 | WAL mode coverage 6 DB rimanenti (batch cleanup) | S | MEDIA | |
 | T.5 | Migrazioni unificate ai 9 DB non-foodcost | M | MEDIA | |
@@ -737,5 +740,5 @@ Sezione storica/piano qui sotto preservata per riferimento.
 - **3.10+3.11** Flusso contanti + Flusso spese — ✅ FATTO 2026-04-22
 - **CL.1** Mailchimp sync MVP — ✅ FATTO
 
-Per cronologia completa refactor R1-R8 vedi `docs/refactor_monorepo.md` §6.
-Per incidenti chiusi vedi `docs/problemi.md` sezione "Risolti".
+Per cronologia completa refactor R1-R8 vedi [`docs/refactor_monorepo.md`](refactor_monorepo.md) §6.
+Per incidenti chiusi vedi [`docs/problemi.md`](problemi.md) sezione "Risolti".

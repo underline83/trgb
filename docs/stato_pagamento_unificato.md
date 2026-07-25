@@ -1,5 +1,8 @@
 # Stato pagamento unificato (G.5 + G.6 + G.7 + G.8) — riferimento tecnico
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [modulo_controllo_gestione.md](modulo_controllo_gestione.md), [modulo_acquisti.md](modulo_acquisti.md), [modulo_banca.md](modulo_banca.md), [database.md](database.md)
+
 > Sessione 2026-05-11. Documento canonico per capire come funziona lo stato di pagamento delle fatture passive nel sistema TRGB **post G.5 Livello 3 + G.6 uniformazione naming + G.7 Sposta data + G.8 livello macro/sotto**.
 
 ## 1. Storia del problema
@@ -222,7 +225,7 @@ Prima di G.8 i check semantici "è pagato?" erano sparsi come tuple IN hardcoded
 if ex["stato"] in ("PAGATO", "PAGATO_MANUALE", "PARZIALE"):
 ```
 
-Ogni nuovo sotto-stato (VERIFICARE da G.5, SPOSTATO/RATEIZZATO da G.6/G.7) richiedeva di rivedere TUTTI i punti di check. **Bug di omissione inevitabile**: durante un re-import, 138 fatture VERIFICARE sono state distrutte perché il check su `/uscite/import` non era stato aggiornato (vedi changelog 2026-05-11 e mig 115).
+Ogni nuovo sotto-stato (VERIFICARE da G.5, SPOSTATO/RATEIZZATO da G.6/G.7) richiedeva di rivedere TUTTI i punti di check. **Bug di omissione inevitabile**: durante un re-import, 138 fatture VERIFICARE sono state distrutte perché il check su `/uscite/import` non era stato aggiornato (vedi [changelog](changelog.md) 2026-05-11 e mig 115).
 
 ### Soluzione
 
@@ -375,7 +378,7 @@ I label utente devono **non confondere** le dimensioni. Esempi:
 1. **`StatoPagamentoBadge.jsx`** deve gestire SOLO D1 (pagamento). Se contiene chip D3 (rateizzato, spostato, scaduto come stato), va **scisso** in due componenti separati: `StatoPagamentoBadge` (D1+D2) e `StatoScadenzaBadge` (D3).
 2. **`fatture_stato_service.py`** scrive solo D1+D2 (sui 3 valori legacy + transizione a riconciliato). Le mutazioni di D3 (sposta scadenza, marca rateizzata) **passano da endpoint dedicati**, non da `set_stato`.
 3. **VIEW `fe_fatture_with_stato`** continua a esporre il campo legacy lossy `stato_pagamento` (per consumer vecchi) E il raw `cg_uscite_stato`. I consumer nuovi DEVONO usare `cg_uscite_stato` + derivare D1/D2/D3 in UI.
-4. **CLAUDE.md** ha un richiamo a questo §15 per ogni feature che tocchi "stato".
+4. **[CLAUDE.md](../CLAUDE.md)** ha un richiamo a questo §15 per ogni feature che tocchi "stato".
 
 ### Anti-pattern da evitare
 

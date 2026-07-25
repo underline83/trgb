@@ -1,5 +1,8 @@
 # 🚀 TRGB Gestionale — Guida Deploy (VPS & Locale)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md), [sicurezza_backup.md](sicurezza_backup.md), [installazione_nuovo_server.md](installazione_nuovo_server.md), [stack_tecnico.md](stack_tecnico.md)
+
 Questo documento descrive tutte le procedure di deploy del gestionale TRGB.
 
 ---

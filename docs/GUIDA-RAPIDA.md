@@ -1,5 +1,8 @@
 # TRGB — Guida Rapida Comandi
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [deploy.md](deploy.md), [sicurezza_backup.md](sicurezza_backup.md), [installazione_nuovo_server.md](installazione_nuovo_server.md)
+
 ## Connessione al server
 ```bash
 ssh trgb

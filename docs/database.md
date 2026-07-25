@@ -1,10 +1,13 @@
 # Database — TRGB Gestionale
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [architettura_locale.md](architettura_locale.md), [architettura_pattern.md](architettura_pattern.md), [stack_tecnico.md](stack_tecnico.md), [sicurezza_backup.md](sicurezza_backup.md)
+
 **Ultimo aggiornamento:** 2026-05-08
-**Path canonico:** `locali/tregobbi/data/` (post R6.5 push 2+3, vedi `architettura_locale.md`).
+**Path canonico:** `locali/tregobbi/data/` (post R6.5 push 2+3, vedi [`architettura_locale.md`](architettura_locale.md)).
 **Path legacy:** `app/data/` — mantenuto per dev locale, NON in produzione (R6.5 push 3 ha rimosso il fallback runtime).
-**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (001-114). Gli altri 9 DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in `roadmap.md`).
-**Pattern WAL:** attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Da estendere ai restanti 5 DB (T.4 in `roadmap.md`).
+**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (001-114). Gli altri 9 DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in [`roadmap.md`](roadmap.md)).
+**Pattern WAL:** attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Da estendere ai restanti 5 DB (T.4 in [`roadmap.md`](roadmap.md)).
 
 ---
 
@@ -41,29 +44,29 @@ DB principale, gestito da `migration_runner.py` con tabella `schema_migrations`.
 - Statistiche (import iPratico)
 - Cucina (Pranzo + Menu Carta + Selezioni — con alias `cucina_db.py` post 2026-04-27 in vista split fisico Fase 1)
 
-> **Debt:** lo split DB Cucina è in roadmap (vedi `inventario_pulizia.md` §"Split DB cucina"). Fase 0 fatta (alias), Fase 1 (mig + connessione vera) da fare.
+> **Debt:** lo split DB Cucina è in roadmap (vedi [`inventario_pulizia.md`](inventario_pulizia.md) §"Split DB cucina"). Fase 0 fatta (alias), Fase 1 (mig + connessione vera) da fare.
 
-### 2.1 Tabelle Ricette/FoodCost (vedi `modulo_ricette_foodcost.md` §4)
+### 2.1 Tabelle Ricette/FoodCost (vedi [`modulo_ricette_foodcost.md`](modulo_ricette_foodcost.md) §4)
 - `ingredient_categories`, `ingredients`, `ingredient_prices`
 - `ingredient_supplier_map` ⭐ (chiave matching)
 - `ingredient_unit_conversions`
 - `recipe_categories`, `recipes`, `recipe_items`
 - `matching_description_exclusions`, `matching_ignored_righe`
 
-### 2.2 Tabelle Acquisti / Fatture XML (vedi `modulo_acquisti.md` §9)
+### 2.2 Tabelle Acquisti / Fatture XML (vedi [`modulo_acquisti.md`](modulo_acquisti.md) §9)
 - `suppliers` (anagrafica fornitori, auto-creati da XML)
 - `fe_fatture` (testata fatture + flag pagato denormalizzato + iban + modalità + stato pagamento)
 - `fe_righe` (righe fatture)
 - `fe_categorie`, `fe_fornitore_categoria` (con `escluso` per Ricette + `escluso_acquisti` per Acquisti, **mai mescolare**), `fe_prodotto_categoria`
-- `fe_proforme` (mig 065, **in pausa** — vedi `modulo_acquisti.md` §11)
+- `fe_proforme` (mig 065, **in pausa** — vedi [`modulo_acquisti.md`](modulo_acquisti.md) §11)
 
-### 2.3 Tabelle Banca (vedi `modulo_banca.md`)
+### 2.3 Tabelle Banca (vedi [`modulo_banca.md`](modulo_banca.md))
 - `banca_movimenti` (mig 014 + 059 `riconciliazione_chiusa` + 082 `parcheggiato`)
-- `banca_fatture_link` (N:M movimento ↔ fattura, da estendere con `importo_applicato` per split — vedi `spec_riconciliazione.md`)
+- `banca_fatture_link` (N:M movimento ↔ fattura, da estendere con `importo_applicato` per split — vedi [`spec_riconciliazione.md`](spec_riconciliazione.md))
 - `banca_categorie_map`
 - `banca_import_log`
 
-### 2.4 Tabelle Controllo Gestione (vedi `modulo_controllo_gestione.md`)
+### 2.4 Tabelle Controllo Gestione (vedi [`modulo_controllo_gestione.md`](modulo_controllo_gestione.md))
 - `cg_uscite` — scadenzario unificato. `tipo_uscita` ∈ {FATTURA, SPESA_FISSA, SPESA_BANCARIA, STIPENDIO, IMPOSTA_BOLLO, COMMISSIONE_POS, ALTRO_USCITA, PROFORMA}. FK opzionali: `fattura_id`, `spesa_fissa_id`, `pagamento_batch_id`, `banca_movimento_id`.
 - `cg_spese_fisse` — spese fisse ricorrenti senza fattura (affitti, prestiti, rateizzazioni, tasse, assicurazioni). Già in produzione (22 record). Campi extra: `iban`, `importo_originale`, `spese_legali`. Tipi: AFFITTO/ASSICURAZIONE/PRESTITO/RATEIZZAZIONE/TASSA/STIPENDIO/ALTRO. Frequenze: MENSILE/BIMESTRALE/TRIMESTRALE/SEMESTRALE/ANNUALE/UNA_TANTUM.
 - `cg_piano_rate` (mig 048) — piano ammortamento per rateizzazioni alla francese e prestiti. UNIQUE(spesa_fissa_id, periodo). **Mig 108** (2026-05-08) ha aggiunto:
@@ -76,25 +79,25 @@ DB principale, gestito da `migration_runner.py` con tabella `schema_migrations`.
 - `ipratico_sync_log`
 - `ipratico_export_defaults`
 
-### 2.6 Tabelle Statistiche (vendite iPratico, vedi `modulo_statistiche.md`)
+### 2.6 Tabelle Statistiche (vendite iPratico, vedi [`modulo_statistiche.md`](modulo_statistiche.md))
 - `ipratico_imports` (log import mensile)
 - `ipratico_categorie` (riepilogo per categoria)
 - `ipratico_prodotti` (dettaglio per prodotto)
 
-### 2.7 Tabelle Cucina (alias da split — vedi `modulo_cucina.md`)
+### 2.7 Tabelle Cucina (alias da split — vedi [`modulo_cucina.md`](modulo_cucina.md))
 - `service_types`, `recipe_service_types` (dish kind = "Alla carta"/"Banchetto"/"Pranzo di lavoro"/"Aperitivo")
-- `pranzo_*` (mig 102, modulo Pranzo lavoro — vedi `modulo_pranzo.md`)
-- `menu_carta_*` (mig 098, edizioni + sezioni + pubblicazioni — vedi `modulo_menu_carta.md`)
+- `pranzo_*` (mig 102, modulo Pranzo lavoro — vedi [`modulo_pranzo.md`](modulo_pranzo.md))
+- `menu_carta_*` (mig 098, edizioni + sezioni + pubblicazioni — vedi [`modulo_menu_carta.md`](modulo_menu_carta.md))
 - `lista_spesa_*` (mig 105)
-- `home_actions` (mig 090, configurazione pulsanti rapidi Home per ruolo — vedi `spec_home_per_ruolo.md`)
+- `home_actions` (mig 090, configurazione pulsanti rapidi Home per ruolo — vedi [`spec_home_per_ruolo.md`](spec_home_per_ruolo.md))
 - `scelta_*` (mig 091/092/093/094, selezioni del giorno)
-- `vini_ordini_pending`, `vini_prezzi_storico` (mig 095, widget riordini — vedi `modulo_vini_widget_dashboard.md`)
+- `vini_ordini_pending`, `vini_prezzi_storico` (mig 095, widget riordini — vedi [`modulo_vini_widget_dashboard.md`](modulo_vini_widget_dashboard.md))
 
 ---
 
 ## 3. `vini_magazzino.sqlite3`
 
-Vedi `modulo_vini.md` §3.5 per schema completo.
+Vedi [`modulo_vini.md`](modulo_vini.md) §3.5 per schema completo.
 
 | Tabella | Contenuto |
 |---------|-----------|
@@ -124,13 +127,13 @@ Settings ordinamento e filtri Carta Vini.
 
 DB ponte per Carta Cliente pubblica (endpoint `/vini/carta-cliente/data` no-auth). Contiene snapshot della carta servito al cliente al tavolo. **Resuscitato post-recovery 2026-05-04** (era stato eliminato in v3.0 ma rientrato come ponte).
 
-> **Note:** schema esatto da rivedere — al momento è una proiezione runtime di `vini_magazzino` filtrata per `CARTA='SI'` + sezioni bevande. Vedi `analisi_hardening_vps.md` §1 per i dettagli.
+> **Note:** schema esatto da rivedere — al momento è una proiezione runtime di `vini_magazzino` filtrata per `CARTA='SI'` + sezioni bevande. Vedi [`analisi_hardening_vps.md`](analisi_hardening_vps.md) §1 per i dettagli.
 
 ---
 
 ## 6. `admin_finance.sqlite3` (Vendite/Cassa)
 
-Vedi `modulo_vendite.md` §9 per dettaglio operativo (ex `modulo_selezioni.md`, rinominato 2026-05-19).
+Vedi [`modulo_vendite.md`](modulo_vendite.md) §9 per dettaglio operativo (ex [`modulo_selezioni.md`](modulo_selezioni.md), rinominato 2026-05-19).
 
 | Tabella | Contenuto |
 |---------|-----------|
@@ -145,7 +148,7 @@ Vedi `modulo_vendite.md` §9 per dettaglio operativo (ex `modulo_selezioni.md`, 
 
 ## 7. `dipendenti.sqlite3`
 
-Vedi `modulo_dipendenti.md` §4 per schema completo (corrente + nuove tabelle v2.x in roadmap).
+Vedi [`modulo_dipendenti.md`](modulo_dipendenti.md) §4 per schema completo (corrente + nuove tabelle v2.x in roadmap).
 
 **Schema corrente (v1.x):**
 | Tabella | Contenuto |
@@ -153,11 +156,11 @@ Vedi `modulo_dipendenti.md` §4 per schema completo (corrente + nuove tabelle v2
 | `dipendenti` | Anagrafica completa (codice, nome, cognome, ruolo, IBAN, indirizzo, data_nascita, data_assunzione, is_active, costo_orario, giorno_paga) |
 | `turni_tipi` | Tipologie turno legacy (nome, ora_inizio/fine, ore_lavoro, colore) |
 | `turni_calendario` | Assegnazioni turno legacy (dipendente_id, turno_tipo_id, data, note) |
-| `dipendenti_allegati` | Schema esiste, **endpoint non implementato** (D-DEBT2 problemi.md) |
+| `dipendenti_allegati` | Schema esiste, **endpoint non implementato** (D-DEBT2 [problemi.md](problemi.md)) |
 | `reparti` | Reparti di prima classe (SALA, CUCINA, estendibili) — Turni v2.0 |
 | `dipendenti_costi` | Costi storici dipendente |
 
-**Nuove tabelle previste v2.x** (vedi `modulo_dipendenti.md` §4.3):
+**Nuove tabelle previste v2.x** (vedi [`modulo_dipendenti.md`](modulo_dipendenti.md) §4.3):
 - `buste_paga` (v2.1) — cedolini importati da PDF + scadenza netto in `cg_uscite`
 - `dipendenti_contratti` (v2.5)
 - `dipendenti_scadenze` (v2.2) — HACCP/sicurezza/visite/permessi con alert
@@ -167,7 +170,7 @@ Vedi `modulo_dipendenti.md` §4 per schema completo (corrente + nuove tabelle v2
 
 ## 8. `clienti.sqlite3` (CRM + Prenotazioni + Preventivi)
 
-DB condiviso tra 3 sub-moduli. Vedi `modulo_clienti_crm.md`, `modulo_prenotazioni.md`, `modulo_preventivi.md`.
+DB condiviso tra 3 sub-moduli. Vedi [`modulo_clienti_crm.md`](modulo_clienti_crm.md), [`modulo_prenotazioni.md`](modulo_prenotazioni.md), [`modulo_preventivi.md`](modulo_preventivi.md).
 
 | Tabella | Sub-modulo | Contenuto |
 |---------|-----------|-----------|
@@ -185,7 +188,7 @@ DB condiviso tra 3 sub-moduli. Vedi `modulo_clienti_crm.md`, `modulo_prenotazion
 
 ## 9. `bevande.sqlite3` (Carta Bevande)
 
-Vedi `modulo_vini.md` §6.3 per schema completo.
+Vedi [`modulo_vini.md`](modulo_vini.md) §6.3 per schema completo.
 
 | Tabella | Contenuto |
 |---------|-----------|
@@ -196,7 +199,7 @@ Vedi `modulo_vini.md` §6.3 per schema completo.
 
 ## 10. `tasks.sqlite3` (Cucina checklist + task singoli)
 
-Vedi `modulo_cucina.md` §2 per schema completo.
+Vedi [`modulo_cucina.md`](modulo_cucina.md) §2 per schema completo.
 
 | Tabella | Contenuto |
 |---------|-----------|
@@ -213,12 +216,12 @@ Vedi `modulo_cucina.md` §2 per schema completo.
 
 ## 11. `notifiche.sqlite3` (M.A)
 
-Mattone Notifiche cross-modulo. Vedi `architettura_mattoni.md` §M.A.
+Mattone Notifiche cross-modulo. Vedi [`architettura_mattoni.md`](architettura_mattoni.md) §M.A.
 
 | Tabella | Contenuto |
 |---------|-----------|
 | `notifiche` | Notifiche con `livello`, `categoria`, `letta`, `utente_destinatario`, `dato_collegato` (FK polimorfa) |
-| `alert_config` | Config M.F Alert Engine (mig dedicate, vedi `architettura_mattoni.md` §M.F) |
+| `alert_config` | Config M.F Alert Engine (mig dedicate, vedi [`architettura_mattoni.md`](architettura_mattoni.md) §M.F) |
 | `alert_log` | Log alert generati con anti-duplicato 12-24h |
 
 ---
@@ -238,7 +241,7 @@ Mattone Notifiche cross-modulo. Vedi `architettura_mattoni.md` §M.A.
 - **084** Cucina MVP (DDL 6 tabelle + 3 seed)
 - **088** `livello_cucina` (Phase A.2)
 - **089** Carta Bevande
-- **090** `home_actions` (vedi `spec_home_per_ruolo.md`)
+- **090** `home_actions` (vedi [`spec_home_per_ruolo.md`](spec_home_per_ruolo.md))
 - **091-094** `scelta_*` (selezioni del giorno cucina)
 - **095** `vini_ordini_pending` + `vini_prezzi_storico`
 - **096** repair scadenze stipendio orfane
@@ -256,7 +259,7 @@ Mattone Notifiche cross-modulo. Vedi `architettura_mattoni.md` §M.A.
 - **109** Cleanup non-fatture FIC senza P.IVA (2026-05-09) — Cancella 57 righe da `fe_fatture` (CATTANEO SILVIA 28 + BANA MARIA DOLORES 28 + PONTIGGIA 1) che erano "non-fatture" importate da Fatture in Cloud (bonifici/spese cassa registrate erroneamente come fatture, senza P.IVA né numero). Backup automatico in tabella `fe_fatture_archive_109`. Pulisce anche `cg_uscite_audit_063` per coerenza FK lieve. Le 3 categorie in `fe_fornitore_categoria` con `escluso_acquisti=1` restano come safety net contro futuri re-import accidentali da FIC.
 - **110** Bonifica fatture pendenti audit Marco (2026-05-10) — Risolve il debito storico di fatture mai riconciliate dopo l'analisi manuale di Marco (`claude/audit_fatture_non_pagate.xlsx`). Aggiunge colonna `fe_fatture.note_mig110` (TEXT NULL) per tracciamento audit. Aggiorna 513 fatture in batch: 330 PAGATA-DA-RICONCILIARE pre-30/11/2025 chiuse come PAGATA_MANUALE, 40 POST-30/11/2025 marcate "pagata via cc, da abbinare estratto banca 2026", 120 CONTROLLARE con flag review, 18 RISTO TEAM con flag review, 2 rateizzate agganciate (COL D'ORCIA → spesa fissa #20, NALLES → #21), 2 SISTEMARE riconciliate al 100% con bonifico parziale già in banca (MALOWINE → mov #986, Reepack → mov #112), 1 Compagnia del Vino €0 chiusa per evitare re-import FIC. Backup completo in `fe_fatture_archive_110` + `cg_uscite_archive_110` (513+512 righe). Effetto: card Home Acquisti scende da 555 fatture/€258k a 180 fatture/€99.6k.
 - **111** Preparazione G.5 unificazione stato pagamento (2026-05-10) — Step preparatorio pre-DROP. Aggiunge colonna `fe_fatture.fic_pagato_raw` (INTEGER NULL) per preservare il flag pagato letto da Fatture in Cloud durante l'import API (così non si perde dopo il DROP COLUMN della 112). Crea indice composito `idx_cg_uscite_fattura_stato` su `cg_uscite(fattura_id, stato)` per performance della VIEW. Crea cg_uscite stub per le fatture orfane (senza proiezione cg_uscite). Aggiunge `DA_VERIFICARE` come valore valido in `cg_uscite.stato`.
-- **112** G.5 — DROP fe_fatture.pagato + .stato_pagamento + CREATE VIEW (2026-05-10) — **CAMBIAMENTO STRUTTURALE**: rimuove le 2 colonne ridondanti che duplicavano informazione già presente in `cg_uscite.stato`. `cg_uscite.stato` diventa la **fonte di verità unica** per lo stato di pagamento delle fatture. Crea VIEW `fe_fatture_with_stato` che ricostruisce automaticamente i campi `pagato` (boolean) e `stato_pagamento` (TEXT) via JOIN cg_uscite, mantenendo retrocompatibilità con tutti gli endpoint che leggono. Mappatura: PAGATA→(1,pagato), PAGATA_MANUALE→(1,pagato_manuale), PARZIALE/DA_VERIFICARE→(0,da_verificare), DA_PAGARE/SCADUTA/RATEIZZATA→(0,da_pagare), no cg_uscite→(0,da_pagare). Drop indice `idx_fe_fatture_stato_pagamento`. Vedi `docs/stato_pagamento_unificato.md` per dettagli completi.
+- **112** G.5 — DROP fe_fatture.pagato + .stato_pagamento + CREATE VIEW (2026-05-10) — **CAMBIAMENTO STRUTTURALE**: rimuove le 2 colonne ridondanti che duplicavano informazione già presente in `cg_uscite.stato`. `cg_uscite.stato` diventa la **fonte di verità unica** per lo stato di pagamento delle fatture. Crea VIEW `fe_fatture_with_stato` che ricostruisce automaticamente i campi `pagato` (boolean) e `stato_pagamento` (TEXT) via JOIN cg_uscite, mantenendo retrocompatibilità con tutti gli endpoint che leggono. Mappatura: PAGATA→(1,pagato), PAGATA_MANUALE→(1,pagato_manuale), PARZIALE/DA_VERIFICARE→(0,da_verificare), DA_PAGARE/SCADUTA/RATEIZZATA→(0,da_pagare), no cg_uscite→(0,da_pagare). Drop indice `idx_fe_fatture_stato_pagamento`. Vedi [`docs/stato_pagamento_unificato.md`](stato_pagamento_unificato.md) per dettagli completi.
 - **113** Ripristino DA_VERIFICARE post-G5 (2026-05-10) — Bug cronologico: la mig 110 aveva settato `fe_fatture.stato_pagamento='da_verificare'` per 138 fatture (120 CONTROLLARE + 18 RISTO TEAM) ma NON aveva propagato su `cg_uscite.stato`. Mig 112 ha droppato la colonna → info persa. Questa mig usa le note `fe_fatture.note_mig110` (sopravvissute) per identificare le fatture interessate e setta `cg_uscite.stato='DA_VERIFICARE'` per quelle che erano in `DA_PAGARE`/`SCADUTA`. Idempotente. Effetto: il filtro frontend "Da verificare" (modulo Acquisti → Fatture) torna a mostrare le 138 fatture marcate da Marco.
 - **114** G.6 — Rename stati cg_uscite al maschile + nuovo stato SPOSTATO + col data_scadenza_originale (2026-05-10) — Uniformazione nomi stato per allineamento DB ↔ Label UI. Mappatura: `DA_PAGARE`→`PROGRAMMATO`, `SCADUTA`→`SCADUTO`, `DA_VERIFICARE`→`VERIFICARE`, `RATEIZZATA`→`RATEIZZATO`, `PAGATA`→`PAGATO`, `PAGATA_MANUALE`→`PAGATO_MANUALE`. `PARZIALE` resta. Aggiunto nuovo valore valido `SPOSTATO` (singola data rinegoziata, distinto da `RATEIZZATO` che è piano rate). Aggiunta colonna `cg_uscite.data_scadenza_originale` (TEXT NULL) per ricordare la prima data programmata prima di un eventuale spostamento. VIEW `fe_fatture_with_stato` ricreata con nuova mappatura (PROGRAMMATO+SCADUTO+RATEIZZATO+SPOSTATO → stato_pagamento='da_pagare'; VERIFICARE+PARZIALE → 'da_verificare'; PAGATO_MANUALE → 'pagato_manuale'; PAGATO → 'pagato'). Refactor di ~370 occorrenze nei file backend+frontend del dominio pagamento (services + 8 router + 10 componenti React). File `tasks/dipendenti/haccp` non toccati: usano 'SCADUTA' in altri contesti (documenti dipendenti, task, report HACCP).
 
@@ -267,7 +270,7 @@ Mattone Notifiche cross-modulo. Vedi `architettura_mattoni.md` §M.A.
 - **Prezzi mai sovrascritti**, sempre storicizzati (tabelle `_prices`, `_prezzi_storico`)
 - **Categorie in tabella**, non testo libero
 - **Soft delete**: usare `is_active=0`, non DELETE (per audit/recovery)
-- **WAL mode obbligatorio**: pattern `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=30000;` in ogni `get_xxx_connection()`. Vedi `architettura_pattern.md` §2.
+- **WAL mode obbligatorio**: pattern `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=30000;` in ogni `get_xxx_connection()`. Vedi [`architettura_pattern.md`](architettura_pattern.md) §2.
 - **Path locale-aware**: usare `locale_data_path("nome_file")` da `app/utils/locale_data.py` (post R6.5 push 3 — fail-loud, niente fallback).
 - **Naming tabelle**: prefisso modulo (`vini_*`, `dipendenti_*`, `cg_*`, `pranzo_*`, `menu_carta_*`, `cucina_*`, `lista_spesa_*`, `tasks_*`). Tabelle generiche cross-modulo (`audit_log`, `notifiche`, `users`) in platform.
 
@@ -280,13 +283,13 @@ In `locali/tregobbi/data/`:
 - `modules.json` — moduli abilitati per locale (sorgente)
 - `modules.runtime.json` — moduli auto-generati (NON modificare a mano, runtime)
 - `modules.runtime.meta.json` — meta runtime
-- `closures_config.json` — giorno chiusura settimanale + giorni chiusi (vedi `modulo_vendite.md` §11)
+- `closures_config.json` — giorno chiusura settimanale + giorni chiusi (vedi [`modulo_vendite.md`](modulo_vendite.md) §11)
 
 ---
 
 ## 15. Backup
 
-Sistema completo post-incidente 4 maggio 2026. Vedi `sicurezza_backup.md` per architettura.
+Sistema completo post-incidente 4 maggio 2026. Vedi [`sicurezza_backup.md`](sicurezza_backup.md) per architettura.
 
 - **Hourly:** ogni ora, retention 48h
 - **Daily:** alle 03:30 + 18:00, retention 7gg + sync Drive (`gdrive:TRGB-Backup/db-daily`)

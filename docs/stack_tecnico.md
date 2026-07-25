@@ -1,4 +1,8 @@
 # TRGB Gestionale — Architettura Tecnica
+
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [database.md](database.md), [deploy.md](deploy.md), [architettura_pattern.md](architettura_pattern.md), [refactor_monorepo.md](refactor_monorepo.md)
+
 **Ultimo aggiornamento:** 2026-03-30
 
 ---
@@ -137,7 +141,7 @@ frontend/
 | `admin_finance.sqlite3` | Vendite, Chiusure Turno | daily_closures, shift_closures, shift_preconti, shift_spese |
 | `dipendenti.sqlite3` | Dipendenti & Turni | Creato a runtime da `init_dipendenti_db()` |
 
-Schema dettagliato → `docs/database.md`
+Schema dettagliato → [`docs/database.md`](database.md)
 
 ---
 

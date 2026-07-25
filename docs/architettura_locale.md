@@ -1,8 +1,11 @@
 # Architettura locale (multi-tenant via filesystem)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [refactor_monorepo.md](refactor_monorepo.md), [architettura_pattern.md](architettura_pattern.md), [architettura_mattoni.md](architettura_mattoni.md)
+
 **Data ultimo aggiornamento:** 2026-04-30 (R7 — chiusura prima fase refactor monorepo)
 **Documento canonico per la separazione `core/` vs `locali/<id>/`**
-**Documenti correlati:** `docs/refactor_monorepo.md` · `CLAUDE.md` (sezioni "Refactor monorepo" e "Architettura modulare")
+**Documenti correlati:** [`docs/refactor_monorepo.md`](refactor_monorepo.md) · [`CLAUDE.md`](../CLAUDE.md) (sezioni "Refactor monorepo" e "Architettura modulare")
 
 ---
 
@@ -152,7 +155,7 @@ Se ti trovi a duplicare codice tra due `locali/`, vuol dire che quella logica ap
 
 ## 7. Stato evolutivo dell'architettura locale
 
-Vedi `docs/refactor_monorepo.md` §6 per stato sessione per sessione.
+Vedi [`docs/refactor_monorepo.md`](refactor_monorepo.md) §6 per stato sessione per sessione.
 
 | Fase | Sessioni | Stato |
 |------|----------|-------|
@@ -166,8 +169,8 @@ L'architettura modulare di R8 è ortogonale all'architettura locale: i "moduli" 
 
 ## 8. Vedi anche
 
-- `docs/refactor_monorepo.md` — piano completo refactor R1-R8
-- `CLAUDE.md` sezione "Refactor monorepo — gestione operativa" e "Architettura modulare — disciplina codice DA OGGI"
-- `docs/roadmap.md` §0 — stato sessione per sessione
+- [`docs/refactor_monorepo.md`](refactor_monorepo.md) — piano completo refactor R1-R8
+- [`CLAUDE.md`](../CLAUDE.md) sezione "Refactor monorepo — gestione operativa" e "Architettura modulare — disciplina codice DA OGGI"
+- [`docs/roadmap.md`](roadmap.md) §0 — stato sessione per sessione
 - `locali/README.md` — overview rapida della cartella
 - `locali/<id>/README.md` — documentazione specifica per ogni locale

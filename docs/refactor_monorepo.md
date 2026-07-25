@@ -1,8 +1,11 @@
 # TRGB — Refactor Monorepo (`core/` + `locali/`)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [architettura_locale.md](architettura_locale.md), [architettura_mattoni.md](architettura_mattoni.md), [architettura_pattern.md](architettura_pattern.md), [roadmap.md](roadmap.md)
+
 **Data avvio piano:** 2026-04-28 (sessione 60)
-**Decisione strategica:** vedi `docs/analisi_app_apple.md` §8 (multi-locale prerequisito App Store)
-**Documenti correlati:** `docs/roadmap.md`, `docs/architettura_mattoni.md`, `docs/sessione.md`, `CLAUDE.md`
+**Decisione strategica:** vedi [`docs/analisi_app_apple.md`](analisi_app_apple.md) §8 (multi-locale prerequisito App Store)
+**Documenti correlati:** [`docs/roadmap.md`](roadmap.md), [`docs/architettura_mattoni.md`](architettura_mattoni.md), [`docs/sessione.md`](sessione.md), [`CLAUDE.md`](../CLAUDE.md)
 
 ---
 
@@ -24,7 +27,7 @@ Oggi il codice mescola "logica di prodotto" (gestione vini, ricette, fatture, da
 
 **Stima totale:** 7-10 giornate di lavoro effettivo, distribuite in 8 sessioni "R" (R1-R7 + R8 modulare) deployabili una alla volta. Calendario realistico: 4-5 settimane.
 
-**Beneficio collaterale:** disciplina forzata. Da R1 in poi, ogni feature nuova va classificata come `[core]`, `[locale:tregobbi]` o `[mixed]` e attribuita a un modulo specifico (vedi `CLAUDE.md` sezione "Architettura modulare").
+**Beneficio collaterale:** disciplina forzata. Da R1 in poi, ogni feature nuova va classificata come `[core]`, `[locale:tregobbi]` o `[mixed]` e attribuita a un modulo specifico (vedi [`CLAUDE.md`](../CLAUDE.md) sezione "Architettura modulare").
 
 ---
 
@@ -295,13 +298,13 @@ Ogni sessione: cosa, file toccati, commit message proposto, verifica post-push, 
 - Rimuove gli alias temporanei introdotti in R2 (CSS vars `:root --trgb-*` ridondanti se non più usate).
 - Verifica che `grep -rn "Tre Gobbi\|tregobbi" core/` torni 0 (nessuna contaminazione residua).
 - Completa `locali/_template/` con tutti i file scaffold pronti per il primo cliente nuovo.
-- Crea `docs/architettura_locale.md` con la spiegazione completa del modello.
-- Aggiorna `docs/architettura_pattern.md` con sezione "core/ vs locali/<id>/".
-- Aggiorna `roadmap.md`: chiude R1-R7 in sezione 0, marca R8 come prossimo.
+- Crea [`docs/architettura_locale.md`](architettura_locale.md) con la spiegazione completa del modello.
+- Aggiorna [`docs/architettura_pattern.md`](architettura_pattern.md) con sezione "core/ vs locali/<id>/".
+- Aggiorna [`roadmap.md`](roadmap.md): chiude R1-R7 in sezione 0, marca R8 come prossimo.
 
 **File toccati:**
-- modificati: `frontend/src/index.css`, `docs/roadmap.md`, `docs/architettura_pattern.md`
-- nuovi: `docs/architettura_locale.md`, `locali/_template/*` completati
+- modificati: `frontend/src/index.css`, [`docs/roadmap.md`](roadmap.md), [`docs/architettura_pattern.md`](architettura_pattern.md)
+- nuovi: [`docs/architettura_locale.md`](architettura_locale.md), `locali/_template/*` completati
 
 **Commit:** `[core] R7 — cleanup finale + docs + scaffold locali/_template/`
 
@@ -376,7 +379,7 @@ Marco lavora a sessioni concentrate quando l'osteria glielo permette. Il calenda
 
 ## 5. Regole operative durante il refactor
 
-Vedi `CLAUDE.md` sezione "Refactor monorepo — gestione operativa" e "Architettura modulare". Riassunto:
+Vedi [`CLAUDE.md`](../CLAUDE.md) sezione "Refactor monorepo — gestione operativa" e "Architettura modulare". Riassunto:
 
 1. **Ogni sessione R = un PR-mentale (un push deployabile, indipendente).** Niente "branch refactor lungo".
 2. **Bug fix urgenti hanno SEMPRE precedenza.** Si ferma R, si fixa il bug nel codice corrente, si pusha, si riprende R.
@@ -385,7 +388,7 @@ Vedi `CLAUDE.md` sezione "Refactor monorepo — gestione operativa" e "Architett
 5. **Disciplina modulare.** Da R8 (e già da oggi nelle 5 regole CLAUDE.md), ogni feature appartiene a UN modulo dichiarato. Niente import diretti tra router di moduli diversi.
 6. **Mai rimuovere file in modo distruttivo.** Si copia con alias temporaneo prima, si verifica, poi in R7 si pulisce.
 7. **Migrazioni DB durante R: solo idempotenti, solo additive.** Niente DROP, niente RENAME su DB live.
-8. **`/guardiano push` per ogni sessione R.** Pre-audit + push.sh + post-audit + update docs (sessione.md, changelog.md, refactor_monorepo.md questo file §6).
+8. **`/guardiano push` per ogni sessione R.** Pre-audit + push.sh + post-audit + update docs ([sessione.md](sessione.md), [changelog.md](changelog.md), refactor_monorepo.md questo file §6).
 
 ---
 
@@ -403,7 +406,7 @@ Vedi `CLAUDE.md` sezione "Refactor monorepo — gestione operativa" e "Architett
 | **R6.5 push 2** | ✅ FATTO | 2026-05-04 (sera, post-incidente S60-INC1) | (mv su VPS, no commit codice) | Spostamento fisico dei 7 DB legacy (`foodcost.db`, `admin_finance.sqlite3`, `vini.sqlite3`, `vini_magazzino.sqlite3`, `vini_settings.sqlite3`, `dipendenti.sqlite3`, `clienti.sqlite3`) da `app/data/` a `locali/tregobbi/data/` sul VPS. Eseguito in finestra serale post-incidente seguendo `docs/r6_5_push_2_runbook.md` (9 step con safety backup, WAL checkpoint, mv atomico, verifica integrity, rollback). Stop+start backend ~30s. Verifica post-restart: `📌 Using DB: /home/marco/trgb/trgb/locali/tregobbi/data/foodcost.db` nel log, 14/14 moduli + 46 router caricati, `app.tregobbi.it` UI funzionante (login, vini magazzino 1266 vini, carta `trgb.tregobbi.it/carta`), `backup_db.sh --daily` 15/15 OK trovando i nuovi path via `find_db_source()`. **Stato finale**: 10/10 DB + alcuni JSON config in `locali/tregobbi/data/` (mancano ancora `modules.json`, `modules.runtime.json`, `modules.runtime.meta.json`, `closures_config.json` in `app/data/` — spostamento opzionale, fallback li trova). Fallback `locale_data_path()` LASCIATO ATTIVO come safety net. Rimozione fallback = R6.5 push 3 da fare dopo 7gg di stabilità. |
 | **R6.5 push 3** | ✅ FATTO | 2026-05-05 | (TBD post-push) | Rimosso il fallback runtime in `app/utils/locale_data.py::locale_data_path()`. Path canonico unico: `locali/<TRGB_LOCALE>/data/<filename>`. Aggiunta funzione opzionale `assert_locale_data_exists()` per i caller che richiedono file esistente (FileNotFoundError esplicito). Refactorato `app/routers/modules_router.py` (era hardcoded `Path(__file__).parent.parent / "data"` per modules.json/runtime/meta) per usare `locale_data_path()`. Aggiornato commento in `app/services/auth_service.py`. Pre-deploy: spostati 4 JSON config (`modules.json`, `modules.runtime.json`, `modules.runtime.meta.json`, `closures_config.json`) da `app/data/` a `locali/tregobbi/data/` sul VPS via mv atomico (vedi sezione 9 in r6_5_push_2_runbook.md). R6.5 chiuso definitivamente — nessuna ambiguità di path runtime. |
 | **K-bis** | ✅ FATTO | 2026-05-04 | (TBD post-push) | Cleanup uploads/backups tenant-aware: estesi `app/utils/uploads.py` con `tenant_dir(subname)` + `tenant_dir_with_legacy_fallback(subname, legacy)` (helper graduale, fallback a path storico finché ha file). Sostituite 4 occorrenze: `admin_finance.py:37` UPLOAD_DIR → `admin_finance/uploads`, `ipratico_products_router.py:40` UPLOAD_DIR → `ipratico_uploads`, `dipendenti.py:2209` DOCS_BASE_DIR → `documenti_dipendenti`, `vini_cantina_tools_router.py:2001` _BACKUP_DIR → `backups/vini`. NON toccati i 3 path PDF buste paga (`os.path.join("app","data",pdf_rel)` con `pdf_rel="cedolini/anno/file.pdf"` salvato nel DB) — refactor separato (K-tris) per non rompere record esistenti. Zero downtime: i file esistenti restano leggibili dal path storico finché un mv manuale non li sposta nel nuovo. |
-| R7 | ✅ FATTO | 2026-05-02 | `936a5e6` | Cleanup finale architettura locale: scaffold `locali/_template/` completo (data/seeds/assets gitkeep) + nuovo `docs/architettura_locale.md` (doc canonico modello locale, helper, workflow onboarding cliente nuovo). Verifiche: grep zero stringhe TRGB residue in core (escluse docstring). Sequenza riallineata: R7 ora chiude prima fase refactor, R6.5 e R8 sono evoluzioni successive in sessioni dedicate. |
+| R7 | ✅ FATTO | 2026-05-02 | `936a5e6` | Cleanup finale architettura locale: scaffold `locali/_template/` completo (data/seeds/assets gitkeep) + nuovo [`docs/architettura_locale.md`](architettura_locale.md) (doc canonico modello locale, helper, workflow onboarding cliente nuovo). Verifiche: grep zero stringhe TRGB residue in core (escluse docstring). Sequenza riallineata: R7 ora chiude prima fase refactor, R6.5 e R8 sono evoluzioni successive in sessioni dedicate. |
 | **R8a** | ✅ FATTO | 2026-05-02 | `4704507` | Manifesti dichiarativi: 13 `core/moduli/<id>/module.json` (vini, ricette, acquisti, controllo_gestione, banca, dipendenti, prenotazioni, clienti, cassa, menu_carta, cucina, task_manager, statistiche) + 1 `core/moduli/platform/module.json` (servizi sempre attivi). 46 router mappati ai moduli. `locali/tregobbi/moduli_attivi.json` e `locali/trgb/moduli_attivi.json` = `{"moduli": ["*"]}` backward-compat. Template documentato con esempi. Zero impatto runtime, contratto per R8b/R8c. |
 | **R8b** | ✅ FATTO | 2026-05-02 | `195b074` (insieme a R8c) | Backend `app/platform/module_loader.py` (221 righe): legge `moduli_attivi.json` + 14 module.json al boot, mapping router_file→module_id, espone `is_router_active()`/`get_module_info()`. `main.py` integrato: 47 `app.include_router` wrappati in helper `_mount`. Banner boot + endpoint `GET /system/modules`. Default backward-compat assoluta (wildcard "*" → tutti attivi). Verifica: tregobbi 46/46 montati, test_demo `[vini,cassa]` 18/46 montati. |
 | **R8c** | ✅ FATTO | 2026-05-02 | `195b074` (insieme a R8b) | Frontend `frontend/src/utils/activeModules.js` (139 righe): pattern speculare a localeStrings.js, load in main.jsx parallelo a brand+strings, hook `useActiveModules()` con `isMenuKeyActive`/`filterMenuByActive`. Header.jsx (dropdown nav) e Home.jsx (grid moduli) filtrate per chiave attiva. Allineate chiavi `cassa→vendite` e `task_manager→tasks` in module.json. Default tregobbi: nessun filtro applicato (wildcard). Fallback su errore fetch: wildcard (mostra tutto). |
@@ -441,11 +444,11 @@ Tutte le decisioni di architettura/naming sono chiuse al 2026-04-28:
 
 - Decisione strategica originale: conversazione 2026-04-27 con Claude (memoria `project_strategia_prodotto_vendibile.md`).
 - Audit codebase: questo file §1, basato su scansione 2026-04-28.
-- Roadmap mobile (PWA → Capacitor → eventuale SwiftUI): `docs/analisi_app_apple.md`.
+- Roadmap mobile (PWA → Capacitor → eventuale SwiftUI): [`docs/analisi_app_apple.md`](analisi_app_apple.md).
 - Modulo K (uploads fuori repo, primo passo già fatto): commit `c7aaa4a` (2026-04-27).
-- Architettura mattoni TRGB: `docs/architettura_mattoni.md`.
-- Pattern uniformi codice: `docs/architettura_pattern.md`.
-- Disciplina codice modulare: `CLAUDE.md` sezione "Architettura modulare".
+- Architettura mattoni TRGB: [`docs/architettura_mattoni.md`](architettura_mattoni.md).
+- Pattern uniformi codice: [`docs/architettura_pattern.md`](architettura_pattern.md).
+- Disciplina codice modulare: [`CLAUDE.md`](../CLAUDE.md) sezione "Architettura modulare".
 
 ---
 

@@ -1,5 +1,8 @@
 # Checklist Visione d'Insieme — TRGB
 
+> **Tipo:** ⚙ schema · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [controllo_design.md](controllo_design.md), [inventario_pulizia.md](inventario_pulizia.md), [styleguide.md](styleguide.md)
+
 **Stabilita:** sessione 58 cont. (2026-04-26)
 **Da Marco:** "se aggiungi qualcosa in un modulo devi rispettarne l'insieme — grafica, pulsanti, menu, dropdown, barra menu, docs" e "non perdere mai la visione dell'insieme".
 
@@ -29,9 +32,9 @@ Se la sub-nav non esiste per il modulo, **non crearla d'iniziativa**: chiedi a M
 `frontend/src/config/versions.jsx` — bump del macro-modulo se la modifica e' incrementale, oppure entry dedicata se il sotto-modulo e' grosso (DB nuovo, endpoint nuovi, pagina dedicata).
 
 ### 5. Docs dedicato
-Per ogni sub-modulo nuovo (DB tabelle nuove + endpoint + UI dedicata) deve esistere `docs/modulo_<nome>.md` con: scopo, schema DB, endpoint, frontend, workflow, V1+. Esempi di reference: `docs/modulo_cucina.md`, `docs/modulo_menu_carta.md`, `docs/modulo_pranzo.md`.
+Per ogni sub-modulo nuovo (DB tabelle nuove + endpoint + UI dedicata) deve esistere `docs/modulo_<nome>.md` con: scopo, schema DB, endpoint, frontend, workflow, V1+. Esempi di reference: [`docs/modulo_cucina.md`](modulo_cucina.md), [`docs/modulo_menu_carta.md`](modulo_menu_carta.md), [`docs/modulo_pranzo.md`](modulo_pranzo.md).
 
-Sempre aggiornato anche `docs/sessione.md` con il blocco "SESSIONE N — titolo".
+Sempre aggiornato anche [`docs/sessione.md`](sessione.md) con il blocco "SESSIONE N — titolo".
 
 ### 6. Coerenza visiva (palette + primitive)
 
@@ -68,7 +71,7 @@ Pattern (sessione 58 cont., decisione di Marco):
 | 2 dropdown | `modulesMenu.js` voce "Menu Pranzo" sotto `ricette.sub` |
 | 3 modules.json | `ricette.sub` aggiunto `{ key: "pranzo", label: "Menu Pranzo", roles: [...] }` |
 | 4 versions | `versions.jsx` entry `pranzo: 1.0 alpha` + bump `ricette: 3.5 → 3.6` |
-| 5 docs | `docs/modulo_pranzo.md` + blocco in `docs/sessione.md` |
+| 5 docs | [`docs/modulo_pranzo.md`](modulo_pranzo.md) + blocco in [`docs/sessione.md`](sessione.md) |
 | 6 palette | wrapper RicetteNav + bg-brand-cream + card shadow-2xl rounded-3xl + orange-900 font-playfair, palette neutral interna |
 | 7 settings | `PranzoSettingsPanel.jsx` montato in `RicetteSettings.MENU` voce `pranzo`. Tab Settings rimossa da PranzoMenu |
 
@@ -79,4 +82,4 @@ Pattern (sessione 58 cont., decisione di Marco):
 
 ## Ordine di lettura per il guardiano
 
-Quando il guardiano fa il pre-audit, dopo aver letto `docs/controllo_design.md` e `docs/inventario_pulizia.md`, deve leggere ANCHE questo file e applicare la checklist a ogni file `frontend/src/pages/.../*.jsx` aggiunto dal diff. Le mancanze vanno segnalate nel report con livello WARN o BLOCK come specificato.
+Quando il guardiano fa il pre-audit, dopo aver letto [`docs/controllo_design.md`](controllo_design.md) e [`docs/inventario_pulizia.md`](inventario_pulizia.md), deve leggere ANCHE questo file e applicare la checklist a ogni file `frontend/src/pages/.../*.jsx` aggiunto dal diff. Le mancanze vanno segnalate nel report con livello WARN o BLOCK come specificato.

@@ -10,7 +10,7 @@
 ## Ambiente
 - Niente accesso alla rete: no curl, wget, npm install remoto, pip install remoto, push, fetch.
 - DB SQLite in `app/data/`. Leggibili con sqlite3 per debug, ma i dati locali sono aggiornati solo dopo un push (push.sh scarica i DB dal VPS).
-- Documentazione progetto in `docs/`. Leggi `docs/sessione.md` a inizio sessione.
+- Documentazione progetto in `docs/`. Leggi `docs/sessione.md` a inizio sessione. La mappa della documentazione è `docs/index.md`; le regole di manutenzione docs sono in `docs/convenzioni_wiki.md`.
 
 ## Comunicazione
 - Marco parla in italiano. Rispondi in italiano.
@@ -87,14 +87,7 @@ Se Claude non sa rispondere a "questa feature dove va?", deve CHIEDERE a Marco. 
 - **API calls**: sempre tramite `API_BASE` da `config/api.js`. Mai URL hardcoded. **TRAILING SLASH OBBLIGATORIO** su endpoint root dei router (es. `/vini/magazzino/` non `/vini/magazzino`). FastAPI fa 307 redirect e il browser perde l'header Auth → 401 → crash. Regola: se l'endpoint backend è `@router.get("/")` su un router con prefix, la chiamata FE DEVE avere lo slash finale.
 - **Auth**: JWT con `Depends(get_current_user)` su ogni endpoint.
 - **Pattern UI consolidati**: `SortTh`/`sortRows` per colonne ordinabili, toast per feedback, sidebar filtri a sinistra.
-- **Colori Tailwind — Palette TRGB-02 (sessione 28)**:
-  - `brand-red` (#E8402B) → errori, alert, gobbetta 1
-  - `brand-green` (#2EB872) → successo, conferme, gobbetta 2
-  - `brand-blue` (#2E7BE8) → link, azioni primarie, gobbetta 3
-  - `brand-ink` (#111111) → testo principale
-  - `brand-cream` (#F4F1EC) → sfondo pagine (sostituisce bg-neutral-100 / bg-gray-50)
-  - `brand-night` (#0E0E10) → sfondo dark mode (futuro)
-  - I colori ruolo (amber admin, cyan contabile, purple sommelier, rose sala, emerald chef, slate viewer) restano invariati
+- **Colori Tailwind — Palette TRGB-02 (sessione 28)**: tabella canonica con hex e usi in `docs/styleguide.md` §Palette (un fatto, una pagina). Minimo operativo: token `brand-red/green/blue/ink/cream/night`; sfondo pagine SEMPRE `bg-brand-cream`, MAI `bg-neutral-100`/`bg-gray-50`; colori ruolo invariati.
 - **Logo/brand nel codice**:
   - Header: `import TrgbIcon from "../assets/brand/TRGB-02-icon-transparent.svg"` — icona gobbette+T
   - Wordmark (Home, Login): composto inline con SVG gobbette + `<span>TRGB</span>` in Helvetica Neue 800 — NON usare il file wordmark SVG (ha problemi di viewBox con `<text>`)

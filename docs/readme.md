@@ -137,53 +137,23 @@ Dominio frontend: `https://app.tregobbi.it` → `127.0.0.1:5173`
 
 # 9. Moduli
 
-### Cantina & Vini (v4.x)
-Magazzino vini con locazioni gerarchiche, movimenti, dashboard KPI con widget riordini per fornitore (8 fasi) e widget alert "vini in carta senza giacenza" (6 fasi A-F), vendite bottiglia/calici. Carta Vini con generazione HTML/PDF/DOCX. Carta Bevande sub-module (7 sezioni: aperitivi, birre, amari fatti in casa, amari & liquori, distillati, tisane, tè) con editor + export master. Strumenti cantina: import/export Excel, modifica massiva, filtro unificato, stampa selezionati, SchedaVino con sidebar colorata per tipologia. Sync iPratico per match diretto codici.
-Docs: `docs/modulo_vini.md`, `docs/modulo_vini_widget_dashboard.md`
+Una riga per modulo; la descrizione completa vive nella pagina wiki di ciascuno (regola "un fatto, una pagina" — [convenzioni_wiki.md](convenzioni_wiki.md), sanata 2026-07-24).
 
-### Gestione Acquisti (v2.3)
-Import FatturaPA XML + sync FattureInCloud API v2 con enrichment, dashboard acquisti con drill-down, elenco fornitori con sidebar filtri + dettaglio inline, categorie a 2 livelli, esclusioni fornitori, condizioni di pagamento. Dettaglio fornitore v3.2 con sidebar colorata (teal/amber/slate) e FattureDettaglio inline unificato. Pro-forme spec assorbita (in pausa).
-Docs: `docs/modulo_acquisti.md`
-
-### Ricette & Food Cost (v3.0)
-Ingredienti, fornitori, storico prezzi multi-fornitore, ricette con sub-ricette, calcolo food cost ricorsivo con cycle detection, matching fatture XML → ingredienti con Smart Create, conversioni unità personalizzate (3 livelli: custom + standard + chain).
-Docs: `docs/modulo_ricette_foodcost.md`
-
-### Vendite / Cassa (v4.x — ex "Selezioni")
-Import Excel corrispettivi, chiusure giornaliere, chiusure turno (pranzo/cena con logica cumulativa + chiusure parziali), pre-conti, spese dinamiche, fondo cassa, dashboard unificata 3 modalità (Mensile/Trimestrale/Annuale), confronto YoY smart. Contanti e Mance spostati in Flussi di Cassa.
-Docs: `docs/modulo_vendite.md` (sub-modulo cucina "Selezioni del Giorno": `docs/modulo_selezioni_giorno.md`)
-
-### Banca + Flussi di Cassa (v1.x)
-Estratti conto BPM/Sella, movimenti bancari con matching scadenze (manuale + automatico in roadmap), riconciliazione, gestione contanti separata, mance con distribuzione cumulativo.
-Docs: `docs/modulo_banca.md`
-
-### Controllo Gestione (v2.1c)
-Dashboard unificata vendite/acquisti/banca/margine. CG aggregatore: Scadenzario legge da `fe_fatture` + `cg_spese_fisse` via JOIN, smart dispatcher per edit scadenza/IBAN/modalità pagamento. Rateizzazioni tracciate via `fe_fatture.rateizzata_in_spesa_fissa_id`. FattureDettaglio arricchito con card "Pagamenti & Scadenze". Click-through Scadenzario → FattureDettaglio/SpeseFisse.
-Docs: `docs/modulo_controllo_gestione.md`
-
-### Cucina (MVP + Phase A.2/A.3)
-Checklist ricorrenti HACCP/apertura/chiusura/pulizie, task singoli non ricorrenti, scheduler giornaliero idempotente, score di compliance. Phase A.2 livelli cucina (chef/sous_chef/commis), Phase A.3 brigata cucina ruoli utente reali con filtro auto.
-Docs: `docs/modulo_cucina.md` + `docs/modulo_pranzo.md` + `docs/modulo_menu_carta.md`
-
-### Gestione Clienti / CRM (v1.x)
-CRM completo con DB dedicato `clienti.sqlite3`. Anagrafica con sidebar filtri, scheda cliente con tab (anagrafica, prenotazioni, preventivi, note), tag, segmenti marketing, RFM. Sync Mailchimp con merge fields + tag automatici per segmento.
-Docs: `docs/modulo_clienti_crm.md`
-
-### Prenotazioni (v2.0)
-Modulo prenotazioni basato su `clienti.sqlite3`, obiettivo eliminare TheFork Manager. Planning giornaliero, vista settimanale, autocomplete cliente CRM, mappa tavoli (Fase 2 in roadmap), widget pubblico (Fase 3 in roadmap).
-Docs: `docs/modulo_prenotazioni.md`
-
-### Preventivi
-Aggregare preventivi per eventi privati, cene aziendali, gruppi. Numero progressivo annuale, stati con transizioni, template riutilizzabili, righe editabili con totale live, link a prenotazione confermata.
-Docs: `docs/modulo_preventivi.md`
-
-### Dipendenti & Turni (v2.x)
-Anagrafica + Turni v2 (foglio settimana stile Excel) operativi. In roadmap: Buste paga (PDF parsing → cg_uscite), Presenze, Scadenze documenti (HACCP/sicurezza/visite), Contratti, Dashboard costi.
-Docs: `docs/modulo_dipendenti.md`, `docs/modulo_dipendenti_turni.md`
-
-### Statistiche
-Import iPratico mensile (.xls HTML), dashboard KPI, classifica top prodotti, trend mensile, dettaglio prodotti con filtri, storico import.
-Docs: `docs/modulo_statistiche.md`
+| Modulo | In breve | Pagina wiki |
+|---|---|---|
+| Cantina & Vini | magazzino a locazioni, movimenti, carta vini/bevande, vista sommelier, KPI | [modulo_vini.md](modulo_vini.md) · [widget dashboard](modulo_vini_widget_dashboard.md) |
+| Gestione Acquisti | import FatturaPA XML + FattureInCloud, fornitori, categorie, dashboard | [modulo_acquisti.md](modulo_acquisti.md) · [XML SDI](modulo_fatture_xml.md) · [FIC](modulo_fatture_in_cloud.md) |
+| Ricette & Food Cost | ingredienti, ricette con sub-ricette, food cost ricorsivo, matching fatture | [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) |
+| Vendite / Cassa | corrispettivi, chiusure giornaliere e di turno, preconti, dashboard YoY | [modulo_vendite.md](modulo_vendite.md) · [Selezioni del giorno](modulo_selezioni_giorno.md) |
+| Banca + Flussi di Cassa | estratti conto, riconciliazione, contanti, mance | [modulo_banca.md](modulo_banca.md) |
+| Controllo Gestione | dashboard unificata, scadenzario aggregatore, spese fisse, rateizzazioni | [modulo_controllo_gestione.md](modulo_controllo_gestione.md) |
+| Cucina + Task Manager | checklist HACCP, task, scheduler, compliance, MEP | [modulo_cucina.md](modulo_cucina.md) · [pranzo](modulo_pranzo.md) |
+| Menu Carta | edizioni, sezioni, QR pubblico, generatore MEP | [modulo_menu_carta.md](modulo_menu_carta.md) |
+| Clienti / CRM | anagrafica, tag, segmenti RFM, sync Mailchimp | [modulo_clienti_crm.md](modulo_clienti_crm.md) |
+| Prenotazioni | planning giornaliero/settimanale, autocomplete CRM, mappa tavoli | [modulo_prenotazioni.md](modulo_prenotazioni.md) |
+| Preventivi | eventi privati, numerazione annuale, template, link a prenotazione | [modulo_preventivi.md](modulo_preventivi.md) |
+| Dipendenti & Turni | anagrafica + foglio turni settimanale stile Excel | [modulo_dipendenti.md](modulo_dipendenti.md) · [turni](modulo_dipendenti_turni.md) |
+| Statistiche | import iPratico, KPI, top prodotti, trend | [modulo_statistiche.md](modulo_statistiche.md) |
 
 ---
 

@@ -1,6 +1,30 @@
 # TRGB Gestionale — Styleguide UI
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale (gli snippet di layout precedono la palette TRGB-02, v. nota in §Palette) · **Ultima verifica:** —
+> **Vedi anche:** [controllo_design.md](controllo_design.md), [checklist_visione_insieme.md](checklist_visione_insieme.md), [../CLAUDE.md](../CLAUDE.md)
+
 Riferimento per mantenere coerenza visiva tra i moduli. Tailwind CSS, niente file CSS separati.
+
+---
+
+## Palette brand TRGB-02 (sessione 28) — PAGINA CANONICA
+
+Questa è la fonte canonica della palette brand (prima duplicata in CLAUDE.md, sanata 2026-07-24 con la regola "un fatto, una pagina" di [convenzioni_wiki.md](convenzioni_wiki.md)).
+
+| Token | Hex | Uso |
+|---|---|---|
+| `brand-red` | `#E8402B` | errori, alert, gobbetta 1 |
+| `brand-green` | `#2EB872` | successo, conferme, gobbetta 2 |
+| `brand-blue` | `#2E7BE8` | link, azioni primarie, gobbetta 3 |
+| `brand-ink` | `#111111` | testo principale |
+| `brand-cream` | `#F4F1EC` | sfondo pagine (sostituisce `bg-neutral-100` / `bg-gray-50`) |
+| `brand-night` | `#0E0E10` | sfondo dark mode (futuro) |
+
+- **Sfondo pagine: SEMPRE `bg-brand-cream`, MAI `bg-neutral-100` / `bg-gray-50`.**
+- I colori ruolo (amber admin, cyan contabile, purple sommelier, rose sala, emerald chef, slate viewer) restano invariati.
+- Grafici Recharts: serie anno corrente `#2E7BE8` (brand-blue), serie precedente `#d1d5db`; categorie a partire da red/green/blue brand.
+
+> ⚠️ **Nota storica:** gli snippet di layout nelle sezioni sotto risalgono a prima della TRGB-02 e mostrano ancora `bg-neutral-100`: leggili come `bg-brand-cream`. Si correggono al primo tocco (opt-in).
 
 ---
 

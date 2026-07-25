@@ -1,5 +1,8 @@
 # TRGB — Controllo Design
 
+> **Tipo:** ⚙ schema · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [styleguide.md](styleguide.md), [checklist_visione_insieme.md](checklist_visione_insieme.md), [inventario_pulizia.md](inventario_pulizia.md)
+
 > **Scopo**: registro vivo delle scelte estetiche/UX pendenti, dei ritocchi grafici da fare, e delle parti dell'app che richiedono un passaggio di "design parity" per essere uniformi al resto.
 >
 > **Quando lavorare qui**: ogni volta che si tocca grafica/estetica/UI, controllare se ci sono voci risolvibili in questa sessione.
@@ -91,13 +94,13 @@
 - Wrapper Capacitor attorno alla PWA per pubblicarla su TestFlight/App Store.
 - Decisione: vale i $99/anno per ufficializzare? Marco confermare.
 
-**Phase 2 — decisione SwiftUI nativo** (8-14 mesi, scenari D/E del doc `analisi_app_apple.md`): da valutare a fine 2026 dopo un anno di uso reale della PWA.
+**Phase 2 — decisione SwiftUI nativo** (8-14 mesi, scenari D/E del doc [`analisi_app_apple.md`](analisi_app_apple.md)): da valutare a fine 2026 dopo un anno di uso reale della PWA.
 
 ---
 
 ## 6.bis Turni vecchio (`/dipendenti/turni/calendario/*`) vs v2 (`/turni/foglio/*`) — switch decisione (MORT-2 audit 2026-05-19)
 
-**Stato**: convivenza dei due sistemi. Dall'audit autonomo (`docs/audit-2026-05-19/02_GAP_REPORT.md` MORT-2): non è chiaro se i call site FE del sistema vecchio sono ancora attivi. La v2 (`/turni/foglio/*`) è il sistema canonico nuovo.
+**Stato**: convivenza dei due sistemi. Dall'audit autonomo ([`docs/audit-2026-05-19/02_GAP_REPORT.md`](audit-2026-05-19/02_GAP_REPORT.md) MORT-2): non è chiaro se i call site FE del sistema vecchio sono ancora attivi. La v2 (`/turni/foglio/*`) è il sistema canonico nuovo.
 
 **Da decidere**:
 - Switch atomico a v2 + rimozione endpoint vecchi?
@@ -114,13 +117,13 @@
 
 **Stato**: WAL già attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Mancano: `bevande`, `clienti`, `tasks`, `settings`, `dipendenti`, `admin_finance` (roadmap 1.11.2).
 
-**Da fare**: applicare uniformemente i 3 PRAGMA standard (`journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000`) in ogni `get_xxx_connection()`. Pattern in `docs/architettura_pattern.md` §2.
+**Da fare**: applicare uniformemente i 3 PRAGMA standard (`journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000`) in ogni `get_xxx_connection()`. Pattern in [`docs/architettura_pattern.md`](architettura_pattern.md) §2.
 
 **Why**: protegge da SIGTERM mid-write durante restart `push.sh` (causa delle 5 corruzioni S51-S53).
 
 **Effort**: S. Low-risk perché identico al fix già in produzione. Da fare in batch in una sessione tecnica dedicata oppure opportunisticamente quando si tocca un singolo DB.
 
-**Tracciato anche in**: `docs/inventario_pulizia.md` (sezione "TODO Wave WAL mode 1.11.2") con tabella di coverage.
+**Tracciato anche in**: [`docs/inventario_pulizia.md`](inventario_pulizia.md) (sezione "TODO Wave WAL mode 1.11.2") con tabella di coverage.
 
 ---
 

@@ -1,5 +1,8 @@
 # TRGB — Inventario pulizia
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [controllo_design.md](controllo_design.md), [roadmap.md](roadmap.md), [architettura_pattern.md](architettura_pattern.md)
+
 > **Cosa**: lista viva di codice morto, file orfani, worktree abbandonati, backup forensi, deprecati.
 >
 > **Quando lavorare qui**: a tornata, in un push dedicato "cleanup batch" (1 ogni 1-2 mesi).
@@ -45,7 +48,7 @@ Dopo questo cleanup, push: `./push.sh "cleanup S57: PIN admin random + L1 guardi
 
 ### Endpoint `/menu/` — router minimale (1 endpoint) — nel cassetto
 
-**Da audit autonomo 2026-05-19** (`docs/audit-2026-05-19/02_GAP_REPORT.md` MIN-9): `app/routers/menu_router.py` espone 1 solo endpoint `GET /menu/`. L'audit non ha trovato chiamanti FE.
+**Da audit autonomo 2026-05-19** ([`docs/audit-2026-05-19/02_GAP_REPORT.md`](audit-2026-05-19/02_GAP_REPORT.md) MIN-9): `app/routers/menu_router.py` espone 1 solo endpoint `GET /menu/`. L'audit non ha trovato chiamanti FE.
 
 **Decisione PO Marco 2026-05-19**: "è un progetto un po' nel cassetto ma poi lo faremo". Quindi:
 - **NON rimuovere** il file/endpoint.
@@ -99,7 +102,7 @@ Roadmap 1.11.2: estendere PRAGMA WAL agli altri DB SQLite. Coverage attuale e da
 | `dipendenti.sqlite3` | personale + turni | ⏳ | dipendenti_db.py |
 | `admin_finance.sqlite3` | vendite + chiusure | ⏳ | admin_finance_db.py |
 
-**Pattern da applicare** (vedi `docs/architettura_pattern.md` §2):
+**Pattern da applicare** (vedi [`docs/architettura_pattern.md`](architettura_pattern.md) §2):
 ```python
 def get_xxx_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -152,7 +155,7 @@ cat /srv/git/trgb.git/hooks/post-receive  # o path equivalente
 File misti che restano in foodcost.db (consumer cross-modulo):
 - `foodcost_matching_router.py`, `dashboard_router.py`, `alert_engine.py`, `preventivi_service.py`, `menu_templates_service.py`, `statistiche_router.py`, `home_actions_router.py`
 
-Riferimenti: `roadmap.md` punto 1.5, analisi cluster CUCINA isolato da PRAGMA foreign_key_list.
+Riferimenti: [`roadmap.md`](roadmap.md) punto 1.5, analisi cluster CUCINA isolato da PRAGMA foreign_key_list.
 
 ---
 
@@ -233,4 +236,4 @@ Effort L. Non urgente, ma da pianificare.
 - ✅ S52-1 corruzione vini_magazzino: declassato a chiuso post 4gg stabili.
 - ✅ PIN admin di default cambiato da "0000" a random 6 cifre stampato in console.
 - ✅ Modulo guardiano L1 (push.sh debounce + probe HTTP) implementato.
-- ✅ Documenti `architettura_pattern.md`, `inventario_pulizia.md`, `controllo_design.md` creati.
+- ✅ Documenti [`architettura_pattern.md`](architettura_pattern.md), `inventario_pulizia.md`, [`controllo_design.md`](controllo_design.md) creati.

@@ -118,6 +118,20 @@ echo -e "${CYAN}${BOLD}🏠 Deploy locale:${NC} ${BOLD}$LOCALE${NC}  ${DIM}($DOM
 
 step "Guardiano: pre-push checks"
 
+# ── Docs lint (wiki) — warning-only, MAI bloccante ──────────────────────────
+# Aggiunto 2026-07-24 (docs → wiki): segnala link markdown rotti in docs/ e
+# pagine non elencate in docs/index.md. Regole: docs/convenzioni_wiki.md.
+# Fallisce in silenzio se python3 o lo script mancano. Non blocca mai il push.
+if command -v python3 >/dev/null 2>&1 && [ -f scripts/docs_lint.py ]; then
+    DOCS_LINT_OUT=$(python3 scripts/docs_lint.py --warn-only --quiet 2>/dev/null)
+    if [ -n "$DOCS_LINT_OUT" ]; then
+        warn "Docs lint (non bloccante):"
+        echo "$DOCS_LINT_OUT" | sed 's/^/    /'
+    else
+        $VERBOSE && ok "Docs lint: wiki ok"
+    fi
+fi
+
 # ── DB sanity check sul VPS — bloccante in caso di stub/corruzione ──────────
 # Lancia integrity_check + dimensione minima su ogni DB sul VPS PRIMA del push.
 # Se trova qualcosa di sospetto, mostra l'elenco e chiede conferma esplicita.

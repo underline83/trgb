@@ -1,5 +1,8 @@
 # TRGB — Architettura Pattern (Registry)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
+> **Vedi anche:** [architettura_mattoni.md](architettura_mattoni.md), [architettura_locale.md](architettura_locale.md), [checklist_visione_insieme.md](checklist_visione_insieme.md), [styleguide.md](styleguide.md)
+
 > **Cosa**: registro centrale dei pattern uniformi che TUTTI i nuovi sviluppi devono seguire.
 >
 > **Scopo**: evitare di reinventare la ruota a ogni sessione. Quando si scrive codice nuovo, si controlla qui prima.
@@ -115,7 +118,7 @@ def update_qualcosa(...):
 | **M.A Notifiche** | ✅ FATTO | BE: `from app.services.notifiche_service import crea_notifica`<br>FE: `useNotifiche()` hook |
 | **M.B PDF brand** | ✅ FATTO | BE: `from app.services.pdf_brand import genera_pdf_html, wrappa_html_brand`<br>**ECCEZIONE**: Carta Vini ha motore separato `carta_vini_service.py`, NON usare M.B per `7.3` |
 | **M.C WhatsApp** | ✅ FATTO | FE: `import { openWhatsApp, buildWaLink, fillTemplate, WA_TEMPLATES } from "../utils/whatsapp"`<br>BE: `from app.utils.whatsapp import build_wa_link, normalize_phone, fill_template`<br>**MAI** `wa.me/` a mano, MAI `.replace(" ","")` su telefoni |
-| **M.E Calendar** | ✅ FATTO | FE: `import { CalendarView } from "../../components/calendar"`<br>Vedi `docs/mattone_calendar.md` |
+| **M.E Calendar** | ✅ FATTO | FE: `import { CalendarView } from "../../components/calendar"`<br>Vedi [`docs/mattone_calendar.md`](mattone_calendar.md) |
 | **M.F Alert engine** | ✅ FATTO | BE: `from app.services.alert_engine import run_all_checks, run_check`<br>Decoratore: `@register_checker("nome")` |
 | **M.I UI primitives** | ✅ FATTO + ESPANSO (2026-05-16) | FE: `import { Btn, PageLayout, StatusBadge, EmptyState, FieldLabel, TextInput, Select, Textarea, Card, SectionTitle, Modal, Stepper, Pill, PillGroup } from "../../components/ui"`<br>**Regola operativa**: per qualunque nuovo form/modale/wizard usare le primitive M.I. Vietato inventare mini design system. Vedi §3-bis. |
 | M.D Email service | ⏳ DA FARE | — |
@@ -243,13 +246,13 @@ Tutte in `.gitignore`, cartelle preservate da `push.sh`:
 ## 9. Documentazione di sessione
 
 Dopo ogni sessione:
-- `docs/sessione.md` (sempre): cosa fatto, file toccati, verifiche, da-verificare-dopo-push, commit suggerito.
-- `docs/changelog.md` se rilascio significativo.
+- [`docs/sessione.md`](sessione.md) (sempre): cosa fatto, file toccati, verifiche, da-verificare-dopo-push, commit suggerito.
+- [`docs/changelog.md`](changelog.md) se rilascio significativo.
 - `frontend/src/config/versions.jsx` se cambia versione di un modulo.
-- `docs/problemi.md` se bug trovati o risolti (sposta da Aperti a Risolti con data + commit).
-- `docs/roadmap.md` se un punto chiuso o spostato di stato.
-- `docs/controllo_design.md` se emerge una scelta UX da tracciare.
-- `docs/inventario_pulizia.md` se emerge codice morto/orfano da pulire.
+- [`docs/problemi.md`](problemi.md) se bug trovati o risolti (sposta da Aperti a Risolti con data + commit).
+- [`docs/roadmap.md`](roadmap.md) se un punto chiuso o spostato di stato.
+- [`docs/controllo_design.md`](controllo_design.md) se emerge una scelta UX da tracciare.
+- [`docs/inventario_pulizia.md`](inventario_pulizia.md) se emerge codice morto/orfano da pulire.
 
 ---
 
@@ -260,13 +263,13 @@ Dopo ogni sessione:
 > dell'insieme".
 
 Ogni pagina nuova o sub-modulo aggiunto a un macro-modulo TRGB DEVE rispettare la
-checklist a 7 punti documentata in `docs/checklist_visione_insieme.md`:
+checklist a 7 punti documentata in [`docs/checklist_visione_insieme.md`](checklist_visione_insieme.md):
 
 1. Sub-nav del modulo aggiornata (es. `RicetteNav.jsx` per Gestione Cucina)
 2. Voce nel dropdown header (`frontend/src/config/modulesMenu.js`)
 3. `app/data/modules.json` — sub key + ruoli
 4. `frontend/src/config/versions.jsx` — bump o entry dedicata
-5. `docs/modulo_<nome>.md` per sotto-moduli grossi + blocco in `docs/sessione.md`
+5. `docs/modulo_<nome>.md` per sotto-moduli grossi + blocco in [`docs/sessione.md`](sessione.md)
 6. Coerenza visiva (palette, primitives Btn/EmptyState, wrapper bg-brand-cream + card shadow-2xl rounded-3xl) — MAI inventare un mini-design system
 7. Le impostazioni del sotto-modulo vivono come voce nella sidebar di
    `<Modulo>Settings.jsx` (es. `RicetteSettings.MENU`), NON come tab nella
