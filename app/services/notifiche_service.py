@@ -187,6 +187,7 @@ def get_comunicazioni_attive(ruolo: str, username: str) -> list:
         FROM comunicazioni c
         LEFT JOIN comunicazioni_lettura cl ON cl.comunicazione_id = c.id AND cl.username = ?
         WHERE c.attiva = 1
+          AND COALESCE(c.tipo, 'bacheca') = 'bacheca'
           AND (c.dest_ruolo = 'tutti' OR c.dest_ruolo = ?)
           AND (c.scadenza IS NULL OR c.scadenza >= date('now','localtime'))
         ORDER BY c.urgenza = 'urgente' DESC, c.created_at DESC
@@ -202,6 +203,7 @@ def get_tutte_comunicazioni(limit: int = 100) -> list:
         SELECT id, autore, titolo, messaggio, urgenza, dest_ruolo,
                scadenza, attiva, created_at, updated_at
         FROM comunicazioni
+        WHERE COALESCE(tipo, 'bacheca') = 'bacheca'
         ORDER BY created_at DESC
         LIMIT ?
     """, (limit,)).fetchall()
@@ -278,9 +280,73 @@ def conta_comunicazioni_non_lette(username: str, ruolo: str) -> int:
         FROM comunicazioni c
         LEFT JOIN comunicazioni_lettura cl ON cl.comunicazione_id = c.id AND cl.username = ?
         WHERE c.attiva = 1
+          AND COALESCE(c.tipo, 'bacheca') = 'bacheca'
           AND (c.dest_ruolo = 'tutti' OR c.dest_ruolo = ?)
           AND (c.scadenza IS NULL OR c.scadenza >= date('now','localtime'))
           AND cl.id IS NULL
     """, (username, ruolo)).fetchone()
     conn.close()
     return row["cnt"] if row else 0
+
+
+# ─────────────────────────────────────────────
+# NOTA DI SERVIZIO (Lavagna — Home)
+# ─────────────────────────────────────────────
+# Riga volante scritta dalla Home in un campo solo. Vive un turno e sparisce.
+# Vive nella stessa tabella `comunicazioni` con tipo='nota_servizio', cosi'
+# non serve una tabella nuova e le note restano consultabili a posteriori.
+# Tutte le query della bacheca classica filtrano tipo='bacheca'.
+
+def get_nota_servizio(data_rif: str, turno: str) -> dict | None:
+    """Nota di servizio attiva per (data, turno). None se non c'e'."""
+    conn = get_notifiche_conn()
+    row = conn.execute("""
+        SELECT id, autore, messaggio, created_at
+        FROM comunicazioni
+        WHERE tipo = 'nota_servizio'
+          AND attiva = 1
+          AND data_riferimento = ?
+          AND turno = ?
+        ORDER BY id DESC
+        LIMIT 1
+    """, (data_rif, turno)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def set_nota_servizio(autore: str, messaggio: str, data_rif: str, turno: str) -> int:
+    """
+    Scrive la nota del turno. Se ce n'e' gia' una la archivia (attiva=0)
+    invece di sovrascriverla: lo storico resta.
+    """
+    conn = get_notifiche_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE comunicazioni SET attiva = 0
+        WHERE tipo = 'nota_servizio' AND attiva = 1
+          AND data_riferimento = ? AND turno = ?
+    """, (data_rif, turno))
+    cur.execute("""
+        INSERT INTO comunicazioni
+            (autore, titolo, messaggio, urgenza, dest_ruolo, scadenza,
+             tipo, data_riferimento, turno)
+        VALUES (?, ?, ?, 'normale', 'tutti', ?, 'nota_servizio', ?, ?)
+    """, (autore, f"Nota {turno} {data_rif}", messaggio, data_rif, data_rif, turno))
+    conn.commit()
+    nid = cur.lastrowid
+    conn.close()
+    return nid
+
+
+def elimina_nota_servizio(data_rif: str, turno: str) -> bool:
+    """Toglie la nota dalla Lavagna (archivia, non cancella)."""
+    conn = get_notifiche_conn()
+    cur = conn.execute("""
+        UPDATE comunicazioni SET attiva = 0
+        WHERE tipo = 'nota_servizio' AND attiva = 1
+          AND data_riferimento = ? AND turno = ?
+    """, (data_rif, turno))
+    conn.commit()
+    changed = cur.rowcount > 0
+    conn.close()
+    return changed

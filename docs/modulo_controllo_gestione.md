@@ -1,9 +1,14 @@
 # Modulo Controllo di Gestione — TRGB Gestionale
-**Versione modulo:** 2.19 (`versions.jsx`)
-**Sistema:** 5.31
+
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-07-25 (vs codice)
+> **Vedi anche:** [stato_pagamento_unificato.md](stato_pagamento_unificato.md) · [spec_utenze.md](spec_utenze.md) · [spec_riconciliazione.md](spec_riconciliazione.md) · [modulo_acquisti.md](modulo_acquisti.md) · [modulo_banca.md](modulo_banca.md)
+> **Non verificato (assente dallo snapshot):** route FE in `App.jsx`; file migrazioni DB (mig 031/032/104/108/120/149/151/152); template `app/templates/pdf/conto_economico.html`; seed soglie/antidup in `alert_config` (DB).
+
+**Versione modulo:** 2.21 (`versions.jsx`)
+**Sistema:** 5.38 (file `VERSION` in root)
 **Stato:** Beta
-**Data ultimo aggiornamento:** 2026-06-30
-**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti, Conto Economico, Batch pagamenti, **Auto-close rateizzazioni**
+**Data ultimo aggiornamento:** 2026-07-25 (verifica doc vs codice)
+**Dominio funzionale:** Controllo di gestione, Uscite, Scadenze, Spese ricorrenti, Conto Economico, Batch pagamenti, **Auto-close rateizzazioni**, **Analisi Utenze**
 
 ---
 
@@ -15,11 +20,13 @@ Nuovo sub-modulo **Analisi Utenze**: upload PDF bollette A2A (luce+gas) → pars
 
 | Capability | Cosa fa | Rif | Audience |
 |---|---|---|---|
-| C-CG-U01 | POST `/upload` — parsa bolletta PDF A2A, preview + archivio (no scrittura tabelle) | cg_utenze_router.py | admin/contabile |
-| C-CG-U02 | POST `/conferma` — scrive bolletta + upsert serie mensile + aggancio fe_fatture via numero (con retro-aggancio) | cg_utenze_router.py | admin/contabile |
-| C-CG-U03 | GET `/` — dashboard forniture + KPI (€/unità all-in, % stimato gas, giorni a scadenza condizioni, potenza max 12m) | cg_utenze_router.py | admin/contabile |
-| C-CG-U04 | GET `/consumi` — serie mensile per grafici (filtri fornitura/range) | cg_utenze_router.py | admin/contabile |
-| C-CG-U05 | GET/DELETE `/bollette/{id}` — dettaglio (parsed completo) / elimina bolletta+serie di cui era fonte | cg_utenze_router.py | admin/contabile |
+| C-CG-U01 | POST `/upload` — parsa bolletta PDF A2A, preview + archivio (no scrittura tabelle) | cg_utenze_router.py:61 | admin/contabile |
+| C-CG-U02 | POST `/conferma` — scrive bolletta + upsert serie mensile + aggancio fe_fatture via numero (con retro-aggancio) | cg_utenze_router.py:188 | admin/contabile |
+| C-CG-U03 | GET `/` — dashboard forniture + KPI (€/unità all-in, % stimato gas, giorni a scadenza condizioni, potenza max 12m) | cg_utenze_router.py:309 | admin/contabile |
+| C-CG-U04 | GET `/consumi` — serie mensile per grafici (filtri fornitura/range) | cg_utenze_router.py:366 | admin/contabile |
+| C-CG-U05 | GET/DELETE `/bollette/{id}` — dettaglio (parsed completo) / elimina bolletta+serie di cui era fonte | cg_utenze_router.py:420, :525 | admin/contabile |
+| C-CG-U06 | GET `/bollette` — elenco bollette importate (tabella in pagina Utenze) | cg_utenze_router.py:394 | admin/contabile |
+| C-CG-U07 🆕 | POST `/bollette/{id}/riparse` — ri-analizza il PDF archiviato e aggiorna bolletta+fornitura+serie consumi (parser migliorato post-import) | cg_utenze_router.py:438 | admin/contabile |
 
 Stato: ✅ COMPLETO U1-U4 (2026-07-17). UI: `ControlloGestioneUtenze.jsx` (tab 💡, route `/controllo-gestione/utenze`, CG 2.21) + `GET /bollette` (C-CG-U06, elenco). Alert: checker `utenze_scadenza_condizioni` + `utenze_consumi_stimati` in alert_engine (soglie in alert_config, mig 152 seed).
 
@@ -106,7 +113,7 @@ Helper interno `_try_auto_close_batch(conn, batch_id)` riusabile.
 
 ## Frontend (`ControlloGestioneBatchPagamenti.jsx`)
 
-Nuova pagina su route `/controllo-gestione/batch-pagamenti`, tab "📨 Batch" aggiunto in `ControlloGestioneNav` (7° tab, tra Spese Fisse e Riconciliazione).
+Nuova pagina su route `/controllo-gestione/batch-pagamenti`, tab "📨 Batch" aggiunto in `ControlloGestioneNav` (7° tab, oggi tra Utenze e Riconciliazione — la tab Utenze 💡 si è inserita prima con CG 2.21).
 
 **Vista lista:** 3 sotto-tab per stato (IN_PAGAMENTO / INVIATO_CONTABILE / CHIUSO) con counter, tabella batch (titolo, data, n. uscite, totale, timestamp inviato/chiuso). Bottone "✓ Auto-chiudi batch completati" in alto a destra chiama `/auto-close-all`.
 
@@ -223,15 +230,15 @@ Le uscite sono divise in categorie:
 
 **B) Arretrati (SCADUTE)** — Fatture la cui data di scadenza e' passata e non risultano pagate.
 
-**C) Rateizzazioni** — TODO (fase successiva). Saranno gestite nella sezione Spese Fisse.
+**C) Rateizzazioni** — IMPLEMENTATO in Spese Fisse (tipo `RATEIZZAZIONE`, wizard da fatture, piano rate, auto-close — vedi aggiornamento RC.1+RC.3).
 
-**D) Prestiti** — TODO (fase successiva). Saranno gestiti nella sezione Spese Fisse.
+**D) Prestiti** — IMPLEMENTATO in Spese Fisse (tipo `PRESTITO`, wizard Prestito/Mutuo con piano rate alla francese).
 
 **E) Spese senza fattura** — Affitti, tasse, stipendi e altre spese ricorrenti che non hanno una fattura XML associata. Gestite interamente dentro Controllo Gestione nella sezione Spese Fisse.
 
-**F) Tasse** — TODO. Sezione dedicata dentro Spese Fisse.
+**F) Tasse** — IMPLEMENTATO in Spese Fisse (tipi `TASSA` / `RATEIZZAZIONE_TASSE`, template Tasse/F24, import CSV piani AdE/Abaco/PagoPA).
 
-**G) Stipendi** — TODO. Sezione dedicata dentro Spese Fisse.
+**G) Stipendi** — IMPLEMENTATO in Spese Fisse (tipi `STIPENDIO` / `F24_STIPENDI`; nel CE gli stipendi sono `cg_uscite` tipo `STIPENDIO`).
 
 ## 2.2 Pagamenti
 
@@ -253,35 +260,36 @@ Queste condizioni vengono usate come fallback quando l'XML della fattura non con
 
 # 3. Funzionalita'
 
-## 3.1 Menu Principale (`/controllo-gestione`)
-Hub con 4 tile di accesso rapido: Dashboard, Tabellone Uscite, Confronto Periodi, Spese Fisse (in lavorazione).
+## 3.1 Menu Principale (`/controllo-gestione`) — (rimosso)
+L'hub a tile (`ControlloGestioneMenu.jsx`) non esiste più nel codice. La navigazione del modulo passa da `ControlloGestioneNav` (8 tab, vedi §4); il brand link "🎯 Controllo Gestione" della nav punta a `/controllo-gestione` (ControlloGestioneNav.jsx:36).
 
 ## 3.2 Dashboard (`/controllo-gestione/dashboard`)
 Panorama completo con:
-- **6 KPI cards**: Vendite mese, Acquisti mese, Margine lordo, Saldo banca, Uscite programmate (TODO), Rateizzazioni (TODO)
-- **Andamento annuale**: grafico a barre orizzontali Vendite vs Acquisti per mese con margine
+- **6 KPI cards** (riviste con audit 2026-05-16, coerenti col Conto Economico): Vendite mese, Costo merce, Margine lordo, Costi operativi, Utile netto, Saldo banca (ControlloGestioneDashboard.jsx:149-186). Rimossi i KPI "TODO" mai sviluppati (Uscite programmate / Rateizzazioni).
+- **Widget timeline scadenze**: `WidgetScadenzeTimeline` prossimi 31 giorni (vedi §3.7, ControlloGestioneDashboard.jsx:348)
+- **Andamento annuale**: grafico Vendite vs Acquisti per mese con margine
 - **Top fornitori**: classifica per spesa nel mese selezionato
 - **Categorie acquisti**: distribuzione per categoria nel mese
 
 Filtro anno/mese con selettori. Confronto con mese precedente (variazione %).
 
-## 3.3 Tabellone Uscite (`/controllo-gestione/uscite`)
-Vista tabellare di tutte le uscite (fatture importate) con:
-- **Import da Acquisti**: bottone che importa/aggiorna le fatture da `fe_fatture` → `cg_uscite`
-- **4 KPI cards cliccabili**: Da pagare, Arretrati, Pagate, Senza scadenza (filtro rapido)
-- **Filtri**: stato, fornitore (ricerca testo), ordinamento (scadenza, importo, fornitore, data)
+## 3.3 Scadenzario Uscite (`/controllo-gestione/uscite`)
+Vista tabellare di tutte le uscite (label tab: "Scadenzario") con:
+- **Auto-import da Acquisti**: al caricamento pagina viene chiamato `POST /uscite/import` che importa/aggiorna le fatture da `fe_fatture` → `cg_uscite` (non più bottone manuale — ControlloGestioneUscite.jsx:153-162)
+- **KPI cards cliccabili** in barra alta (filtro rapido, inclusi "Da riconciliare" e "Riconciliate")
+- **Filtri**: stato, fornitore (ricerca testo), ordinamento (scadenza, importo, fornitore, data) + toggle `includi_rateizzate` / `includi_escluse`
 - **Tabella**: Stato, Fornitore, N. Fattura, Data, Importo, Scadenza (con giorni residui), Modalita' pagamento, Pagato, Residuo
-- **Badge scadenza**: indica se la scadenza proviene da XML o da default fornitore
+- **Dettaglio fattura inline** (v2.1 split-pane): click su riga FATTURA apre `FattureDettaglio` dentro lo scadenzario
 - **Badge giorni**: colore variabile (rosso se scaduta, ambra se < 7gg, neutro altrimenti)
 
-## 3.4 Confronto Periodi (`/controllo-gestione/confronto`)
-Confronta due periodi (mesi o anni interi) su: vendite, acquisti, margine, banca entrate/uscite. Calcola variazioni percentuali.
+## 3.4 Confronto Periodi (`/controllo-gestione/confronto`) — (rimosso)
+Rimosso con audit 2026-05-16: l'endpoint `/confronto` era uno stub mai usato e la pagina un placeholder tolto dalla nav (controllo_gestione_router.py:499-505). Per confronti periodo-periodo si usa `GET /conto-economico` con `periodo=mese|trimestre|anno`. Il file `ControlloGestioneConfronto.jsx` esiste ancora come placeholder orfano (non linkato dalla nav).
 
 ## 3.5 Spese Fisse (`/controllo-gestione/spese-fisse`) — IMPLEMENTATO
 
 Sezione per gestire spese ricorrenti senza fattura. Pagina `ControlloGestioneSpeseFisse.jsx`, già in produzione con dati reali (22 spese fisse + 274 rate al 2026-05-08).
 
-- **Tipi**: AFFITTO, TASSA, STIPENDIO, PRESTITO, RATEIZZAZIONE, ASSICURAZIONE, ALTRO
+- **Tipi**: AFFITTO, TASSA, F24_STIPENDI, RATEIZZAZIONE_TASSE, STIPENDIO, PRESTITO, RATEIZZAZIONE, ASSICURAZIONE, ALTRO (`TIPO_SPESA`, controllo_gestione_router.py:1592)
 - **Frequenze**: MENSILE, BIMESTRALE, TRIMESTRALE, SEMESTRALE, ANNUALE, UNA_TANTUM
 - **CRUD completo** con data inizio/fine, giorno scadenza, importo, note, IBAN, importo_originale, spese_legali
 - **Wizard guidati**: Affitto, Prestito/Mutuo, Assicurazione, Tasse/F24 (template), Rateizzazione (da fatture)
@@ -298,7 +306,7 @@ Per piani di rateizzazione **Abaco / Agenzia delle Entrate / PagoPA / F24 rateiz
 **Body multipart:**
 - `file` — CSV con header `Numero,Identificativo,Scadenza,Importo,Stato`
 - `titolo` — string libera (es. "Rateizzazione Abaco — atto 0075330")
-- `tipo` — uno di {AFFITTO, ASSICURAZIONE, PRESTITO, RATEIZZAZIONE, TASSA, ALTRO} — default `TASSA`
+- `tipo` — uno di {AFFITTO, ASSICURAZIONE, PRESTITO, RATEIZZAZIONE, RATEIZZAZIONE_TASSE, TASSA, F24_STIPENDI, ALTRO} — default `RATEIZZAZIONE_TASSE` (controllo_gestione_router.py:2407, 2443)
 - `note` — opzionale
 - `iban` — opzionale
 - `force` — bool, default `false`. Set `true` per bypass duplicate detection.
@@ -310,7 +318,7 @@ Per piani di rateizzazione **Abaco / Agenzia delle Entrate / PagoPA / F24 rateiz
 | `Identificativo` (RAV/IUV/atto) | `cg_piano_rate.codice_pagamento` (mig 108) |
 | `Scadenza` (DD/MM/YYYY) | `cg_piano_rate.data_scadenza_specifica` (mig 108, ISO YYYY-MM-DD) + `cg_piano_rate.periodo` (YYYY-MM) |
 | `Importo` | `cg_piano_rate.importo` |
-| `Stato` (Pagata/Da pagare) | tracciato in `cg_piano_rate.note`. Le `cg_uscite` sono sempre create DA_PAGARE/SCADUTA — la riconciliazione vera dal modulo Banca evita doppia contabilizzazione. |
+| `Stato` (Pagata/Da pagare) | tracciato in `cg_piano_rate.note`. Le `cg_uscite` sono sempre create PROGRAMMATO/SCADUTO — la riconciliazione vera dal modulo Banca evita doppia contabilizzazione. |
 
 **Encoding/delimiter:** auto-detect UTF-8/UTF-8 BOM/cp1252/latin1 + `,` o `;`. Importi accettano formato IT (`211,00`) e EN (`211.00` o `1,234.56`).
 
@@ -320,7 +328,7 @@ Per piani di rateizzazione **Abaco / Agenzia delle Entrate / PagoPA / F24 rateiz
 
 ### 3.5.2 Delete spesa fissa con rate riconciliate (G.1.5)
 
-`DELETE /controllo-gestione/spese-fisse/{id}` ora fa **cascade** su `cg_piano_rate` + `cg_uscite`. Se la spesa ha rate già riconciliate (`banca_movimento_id NOT NULL` o stato PAGATA/PAGATA_MANUALE/PARZIALE), ritorna **409** con conteggio. Solo con `?confirm_riconciliate=true` procede comunque (i movimenti banca tornano "non abbinati"). UI mostra warning esplicito: *"X rate riconciliate, eliminandole la riconciliazione si rompe — continuare?"*
+`DELETE /controllo-gestione/spese-fisse/{id}` ora fa **cascade** su `cg_piano_rate` + `cg_uscite`. Se la spesa ha rate già riconciliate (`banca_movimento_id NOT NULL` o stato PAGATO/PAGATO_MANUALE/PARZIALE — controllo_gestione_router.py:2027-2035), ritorna **409** con conteggio. Solo con `?confirm_riconciliate=true` procede comunque (i movimenti banca tornano "non abbinati"). UI mostra warning esplicito: *"X rate riconciliate, eliminandole la riconciliazione si rompe — continuare?"*
 
 ### 3.5.3 Template CSV scaricabile (G.1.5, 2026-05-09)
 
@@ -346,11 +354,13 @@ Implementati su mattone **M.F Alert engine** (`app/services/alert_engine.py`) e 
 |---|---|---|---|
 | `cg_scadenze_imminenti` | 7 gg | "urgente" (banda rossa) | tutto ciò che è ≤ oggi+7gg, **incluse scadute non riconciliate** |
 | `cg_scadenze_avvicinamento` | 15 gg | "normale" | `> oggi+soglia_imminente` AND `≤ oggi+soglia_avvicinamento` |
-| `cg_scadenze_pianificazione` | 30 gg | "normale" | `> oggi+soglia_avvicinamento` AND `≤ oggi+soglia_pianificazione` |
+| `cg_scadenze_pianificazione` | 30 gg | "info" | `> oggi+soglia_avvicinamento` AND `≤ oggi+soglia_pianificazione` |
 
-**Filtro comune:** `cg_uscite.stato IN ('DA_PAGARE','SCADUTA')` AND `banca_movimento_id IS NULL` AND `data_scadenza NOT NULL`.
+(urgenze: alert_engine.py:640, :667, :697)
 
-**Anti-dup:** una sola notifica AGGREGATA per livello (tipo `alert_cg_scadenze_imminenti` / `_avvicinamento` / `_pianificazione`). Anti-dup di N ore (config `antidup_ore`, default 12/24/48). I tipi distinti permettono notifiche separate quando una rata "transita" tra livelli (es. da pianificazione a avvicinamento col passare del tempo).
+**Filtro comune:** `cg_uscite.stato IN ('PROGRAMMATO','SCADUTO')` AND `banca_movimento_id IS NULL` AND `data_scadenza NOT NULL` (alert_engine.py:487-519).
+
+**Anti-dup:** una sola notifica AGGREGATA per livello (tipo `alert_cg_scadenze_imminenti` / `_avvicinamento` / `_pianificazione`). Anti-dup di N ore (config `antidup_ore` in `alert_config`; fallback nel codice = 24h, alert_engine.py:590 — i seed per-checker 12/24/48 non sono verificabili dallo snapshot). I tipi distinti permettono notifiche separate quando una rata "transita" tra livelli (es. da pianificazione a avvicinamento col passare del tempo).
 
 **Coerenza soglie:** se l'utente imposta avvicinamento ≤ imminente o pianificazione ≤ avvicinamento, il checker affetto ritorna `skipped` con errore esplicito anziché fare query degenerate.
 
@@ -372,14 +382,14 @@ Vista calendario completa dei pagamenti in arrivo (e scaduti non riconciliati), 
 **Endpoint:** `GET /controllo-gestione/scadenze?da=YYYY-MM-DD&a=YYYY-MM-DD` con query params opzionali:
 - `tipo_uscita` — filtra (FATTURA, SPESA_FISSA, STIPENDIO, SPESA_BANCARIA, IMPOSTA_BOLLO, COMMISSIONE_POS, PROFORMA, ALTRO_USCITA)
 - `importo_min` — soglia minima importo (€)
-- `includi_pagate` — bool (default false). Se true include PAGATA/PAGATA_MANUALE/PARZIALE.
+- `includi_pagate` — bool (default false). Se true include anche PAGATO/PAGATO_MANUALE/PARZIALE (controllo_gestione_router.py:1226).
 
 Risposta:
 ```json
 {
   "scadenze": [
     {"id": 123, "data_scadenza": "2026-05-15", "titolo": "Rateizzazione Abaco",
-     "fornitore_nome": "Abaco SpA", "totale": 211.77, "stato": "DA_PAGARE",
+     "fornitore_nome": "Abaco SpA", "totale": 211.77, "stato": "PROGRAMMATO",
      "tipo_uscita": "SPESA_FISSA", "spesa_fissa_id": 42, "fattura_id": null,
      "livello": "urgente"}
   ],
@@ -407,7 +417,7 @@ Mapping livello → colore preset M.E:
 
 **Widget dashboard:** componente `WidgetScadenzeTimeline` (inline in `ControlloGestioneDashboard.jsx`). Mini-timeline orizzontale dei prossimi 31 giorni: pallini colorati sui giorni con scadenze, dimensione proporzionale all'importo aggregato. Tooltip su hover con dettaglio data/conteggio/totale. Click su pallino o "Vai al calendario →" → naviga a `/controllo-gestione/calendario`. Visivamente coerente con la pagina completa.
 
-**Tab sub-nav:** "Calendario" 📅 — `ControlloGestioneNav.jsx` con key `calendario`. Ordine tab: Dashboard / Liquidità / Uscite / **Calendario** / Riconciliazione / Confronto.
+**Tab sub-nav:** "Calendario" 📅 — `ControlloGestioneNav.jsx` con key `calendario`. Ordine tab attuale: Dashboard / Conto Economico / Scadenzario / **Calendario** / Spese Fisse / Utenze / Batch / Riconciliazione (ControlloGestioneNav.jsx:16-25 — Liquidità e Confronto rimossi con audit 2026-05-16).
 
 #### 3.7.1 Polish formattazione (G.2.B-fix, 2026-05-09)
 
@@ -431,7 +441,20 @@ Iterazione successiva: i tile su una sola riga troncavano il nome del fornitore 
 
 # 4. Navigazione
 
-**ControlloGestioneNav** — barra di navigazione persistente con 3 tab: Dashboard, Uscite, Confronto. Brand link "Controllo Gestione" per tornare al menu, link "Home" in alto a destra.
+**ControlloGestioneNav** (v2.1-audit) — barra di navigazione persistente con **8 tab** (ControlloGestioneNav.jsx:16-25):
+
+| # | Tab | Route | Icona |
+|---|-----|-------|-------|
+| 1 | Dashboard | `/controllo-gestione/dashboard` | 📊 |
+| 2 | Conto Economico | `/controllo-gestione/conto-economico` | 💼 |
+| 3 | Scadenzario | `/controllo-gestione/uscite` | 💸 |
+| 4 | Calendario | `/controllo-gestione/calendario` | 📅 |
+| 5 | Spese Fisse | `/controllo-gestione/spese-fisse` | 📋 |
+| 6 | Utenze | `/controllo-gestione/utenze` | 💡 |
+| 7 | Batch | `/controllo-gestione/batch-pagamenti` | 📨 |
+| 8 | Riconciliazione | `/controllo-gestione/riconciliazione` | 🔗 |
+
+Brand link "🎯 Controllo Gestione" naviga a `/controllo-gestione`. Le stesse voci sono nel menu moduli globale (`frontend/src/config/modulesMenu.js:87-103`). Tab rimossi con audit 2026-05-16: "Liquidità" (overlap con Flussi Cassa) e "Confronto" (placeholder mai sviluppato).
 
 ---
 
@@ -445,24 +468,55 @@ Auth: JWT (tutte le route richiedono token)
 
 | Metodo | Path | Descrizione |
 |--------|------|-------------|
-| GET | `/dashboard` | Dashboard unificata (vendite, acquisti, banca, margine, andamento) |
-| GET | `/confronto` | Confronto due periodi |
-| POST | `/uscite/import` | Importa fatture da Acquisti → cg_uscite |
-| GET | `/uscite` | Tabellone uscite con filtri |
-| GET | `/uscite/senza-scadenza` | Fatture senza data scadenza |
-| GET | `/fornitore/{piva}/pagamento` | Condizioni pagamento di un fornitore |
-| PUT | `/fornitore/{piva}/pagamento` | Aggiorna condizioni pagamento fornitore |
-| GET | `/mp-labels` | Mapping codici modalita' pagamento → label |
+| GET | `/dashboard` | Dashboard unificata (vendite, acquisti, banca, margine, andamento) — router:74 |
+| GET | `/conto-economico` 🆕 | Conto Economico completo (anno/mese, `modalita=competenza\|cassa`, `periodo=mese\|trimestre\|anno`, trimestre) — router:334 |
+| GET | `/conto-economico/pdf` 🆕 | Export PDF brandizzato del CE (stessi parametri) — router:403 |
+| GET/PUT | `/ipratico-tipi` 🆕 | Mapping categorie iPratico → tipo vendita (C2) — router:444, :469 |
+| ~~GET~~ | ~~`/confronto`~~ | (rimosso 2026-05-16 — stub mai usato; usare `/conto-economico` con `periodo`) — router:499 |
+| POST | `/uscite/import` | Importa fatture da Acquisti → cg_uscite (chiamato in auto dallo Scadenzario) — router:554 |
+| GET | `/uscite` | Scadenzario uscite con filtri — router:940 |
+| GET | `/scadenze` | Scadenze per calendario/widget (G.2.B) — router:1220 |
+| ~~GET~~ | ~~`/uscite/senza-scadenza`~~ | (rimosso 2026-05-16 — zero chiamate FE) — router:1345 |
+| GET/PUT | `/fornitore/{piva}/pagamento` | Condizioni pagamento di un fornitore (lettura/aggiornamento) — router:1356, :1455 |
+| GET/POST/PUT/DELETE | `/condizioni-pagamento/preset` 🆕 | CRUD preset condizioni di pagamento (`/preset`, `/preset/{id}`) — router:1514-1575 |
+| ~~GET~~ | ~~`/mp-labels`~~ | (rimosso 2026-05-16 — il dict `MP_LABELS` resta interno, router:512) |
+| GET/POST | `/spese-fisse` 🆕 | Lista + creazione spese fisse — router:1596, :1743 |
+| GET | `/spese-fisse/template-csv` 🆕 | Template CSV scaricabile (G.1.5) — router:1688 |
+| GET/PUT/DELETE | `/spese-fisse/{id}` 🆕 | Dettaglio / modifica / delete cascade (409 se rate riconciliate) — router:1732, :1917, :2008 |
+| GET/POST/DELETE | `/spese-fisse/{id}/piano-rate` 🆕 | Piano rate (lista/crea; delete su `/piano-rate/{rata_id}`) — router:2079, :2246, :2344 |
+| POST | `/spese-fisse/import-csv` 🆕 | Import piano rate da CSV (G.1.5) — router:2403 |
+| GET | `/spese-fisse/{id}/storico` 🆕 | Storico addebiti spesa fissa — router:2698 |
+| POST/GET | `/spese-fisse/{id}/adeguamento`, `/adeguamenti` 🆕 | Adeguamento importo (es. ISTAT) + storico in `cg_spese_fisse_adeguamenti` — router:4723, :4806 |
+| GET | `/uscite/{id}/candidati-banca` 🆕 | Candidati movimento banca per riconciliazione — router:2794 |
+| GET | `/uscite/da-riconciliare` 🆕 | Worklist riconciliazione per canale (banca/carta/contanti) — router:2866 |
+| GET | `/uscite/{id}/ricerca-banca` 🆕 | Ricerca libera movimenti banca — router:2955 |
+| PUT | `/uscite/{id}/scadenza`, `/ripristina-data`, `/iban`, `/modalita-pagamento` 🆕 | Mutazioni D3/anagrafica pagamento della singola uscita — router:3034, :3164, :3261, :3327 |
+| POST | `/uscite/segna-pagate-bulk` 🆕 | Marca pagate in bulk — router:3390 |
+| POST | `/uscite/batch-pagamento` 🆕 | Crea `cg_pagamenti_batch` da un set di uscite (Scadenzario "Stampa / Metti in pagamento") — router:3442 |
+| GET/GET/PUT/DELETE | `/pagamenti-batch`, `/pagamenti-batch/{id}` 🆕 | Lista/dettaglio/transizione stato/elimina batch — router:3541, :3568, :3607, :3660 |
+| DELETE | `/pagamenti-batch/{batch_id}/uscite/{uscita_id}` | Rimuove singola uscita dal batch (BP) — router:3699 |
+| POST | `/pagamenti-batch/{id}/auto-close`, `/pagamenti-batch/auto-close-all` | Auto-close batch (BP) — router:3838, :3866 |
+| POST | `/rateizzazioni/{sf_id}/auto-close`, `/rateizzazioni/auto-close-all` | Auto-close rateizzazioni (RC.1+RC.3) — router:4052, :4071 |
+| PUT | `/uscita/{id}/stato-pagamento` 🆕 | Cambio stato D1+D2 via `fatture_stato_service.set_stato` — router:4106 |
+| POST | `/fattura/{fattura_id}/segna-pagata-manuale` 🆕 | Segna pagata manuale a partire dalla fattura — router:4223 |
+| POST/DELETE | `/uscite/{id}/riconcilia` 🆕 | Riconcilia / dissocia movimento banca — router:4298, :4371 |
+| POST | `/uscite/{id}/paga-contanti`, `/cambia-canale`, `/paga-carta` 🆕 | Pagamento per canale (contanti/carta) + riassegnazione canale — router:4416, :4486, :4557 |
+| GET | `/movimenti-contanti` 🆕 | Movimenti contanti — router:4631 |
+| GET | `/uscite-da-pagare` 🆕 | Lista uscite da pagare (consumer esterni) — router:4676 |
+
+(righe "router:N" = `app/routers/controllo_gestione_router.py:N`. Per gli endpoint Utenze vedi la tabella C-CG-U* in cima al doc, prefix `/controllo-gestione/utenze`.)
 
 ### Parametri endpoint `/uscite`
 
 | Param | Tipo | Descrizione |
 |-------|------|-------------|
-| stato | string | Filtro: DA_PAGARE, SCADUTA, PAGATA, PARZIALE |
+| stato | string | Filtro: PROGRAMMATO, SCADUTO, PAGATO, PAGATO_MANUALE, VERIFICARE, SPOSTATO, RATEIZZATO, PARZIALE (router:957) |
 | fornitore | string | Ricerca testo nel nome fornitore |
 | da | string | Data scadenza minima (YYYY-MM-DD) |
 | a | string | Data scadenza massima (YYYY-MM-DD) |
 | ordine | string | scadenza_asc, scadenza_desc, importo_asc, importo_desc, fornitore, data_fattura |
+| includi_rateizzate | bool | Default false: le fatture rateizzate sono nascoste (router:947) |
+| includi_escluse | bool | Default false: nasconde fatture di fornitori con `escluso_acquisti=1` (router:948) |
 
 ### Parametri endpoint `/dashboard`
 
@@ -492,11 +546,13 @@ Uscite importate dalle fatture acquisti.
 | data_scadenza | TEXT | Data scadenza calcolata (YYYY-MM-DD) |
 | importo_pagato | REAL | Importo effettivamente pagato |
 | data_pagamento | TEXT | Data del pagamento |
-| stato | TEXT | DA_PAGARE, SCADUTA, PAGATA, PARZIALE |
-| banca_movimento_id | INTEGER | FK futuro per matching con Banca |
+| stato | TEXT | Enum a 8 valori (v. `app/services/stati_pagamento.py`): PAGATO, PAGATO_MANUALE (macro CHIUSO); PROGRAMMATO, SCADUTO, VERIFICARE, SPOSTATO, RATEIZZATO, PARZIALE (macro APERTO) |
+| banca_movimento_id | INTEGER | FK movimento banca (riconciliazione) |
 | note | TEXT | Note libere |
 
 **Indici**: UNIQUE su fattura_id (una uscita per fattura), stato, data_scadenza.
+
+**Colonne aggiunte da migrazioni successive** (verificate dall'uso nel codice; schema DDL non nello snapshot): `stato_macro` (GENERATED, CHIUSO/APERTO), `tipo_uscita` (FATTURA/SPESA_FISSA/STIPENDIO/SPESA_BANCARIA/...), `spesa_fissa_id`, `periodo_riferimento`, `iban`, `metodo_pagamento`, `in_pagamento_at`, `pagamento_batch_id` (azzerati al pagamento, mig 104).
 
 ### Tabella `cg_spese_fisse` (Migration 032)
 Spese ricorrenti senza fattura.
@@ -504,7 +560,7 @@ Spese ricorrenti senza fattura.
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | INTEGER PK | Auto-increment |
-| tipo | TEXT | AFFITTO, TASSA, STIPENDIO, PRESTITO, RATEIZZAZIONE, ALTRO |
+| tipo | TEXT | AFFITTO, TASSA, F24_STIPENDI, RATEIZZAZIONE_TASSE, STIPENDIO, PRESTITO, RATEIZZAZIONE, ASSICURAZIONE, ALTRO |
 | titolo | TEXT | Titolo della spesa |
 | descrizione | TEXT | Descrizione |
 | importo | REAL | Importo |
@@ -513,6 +569,18 @@ Spese ricorrenti senza fattura.
 | data_inizio | TEXT | Data inizio (YYYY-MM-DD) |
 | data_fine | TEXT | Data fine (YYYY-MM-DD, NULL=indefinita) |
 | attiva | INTEGER | 1=attiva, 0=disattivata |
+
+**Colonne aggiunte da migrazioni successive** (verificate dall'uso nel codice): `iban`, `importo_originale` (totale piano), `spese_legali`.
+
+### Tabelle successive del modulo (schema DDL non nello snapshot, uso verificato nel codice)
+
+| Tabella | Scopo | Rif codice |
+|---|---|---|
+| `cg_piano_rate` | Rate variabili (prestiti alla francese, rateizzazioni con date irregolari); campi citati: `numero_rata`, `codice_pagamento` (mig 108), `data_scadenza_specifica` (mig 108), `periodo`, `importo`, `note` | router:2079+ |
+| `cg_pagamenti_batch` | Batch di pagamento (stati IN_PAGAMENTO → INVIATO_CONTABILE → CHIUSO; `n_uscite`, `totale`, `inviato_contabile_at`, `chiuso_at`) | router:3442-3925 |
+| `cg_spese_fisse_adeguamenti` 🆕 | Storico adeguamenti importo (es. ISTAT) | router:4723, :4806 |
+| `cg_utenze_forniture`, `cg_utenze_bollette`, `cg_utenze_consumi_mensili` | Sub-modulo Analisi Utenze (mig 151) | cg_utenze_router.py |
+| `ipratico_categoria_tipo` | Mapping categoria iPratico → tipo vendita per composizione venduto (mig 149) | conto_economico.py:801 |
 
 ### Tabella `cg_uscite_log` (Migration 032)
 Log di ogni operazione di import per tracciabilita'.
@@ -547,12 +615,20 @@ Log di ogni operazione di import per tracciabilita'.
 
 ```
 frontend/src/pages/controllo-gestione/
-  ControlloGestioneMenu.jsx        — Hub principale (/controllo-gestione)
-  ControlloGestioneDashboard.jsx   — Dashboard unificata (/controllo-gestione/dashboard)
-  ControlloGestioneUscite.jsx      — Tabellone uscite (/controllo-gestione/uscite)
-  ControlloGestioneConfronto.jsx   — Confronto periodi (/controllo-gestione/confronto)
-  ControlloGestioneNav.jsx         — Barra navigazione persistente
+  ControlloGestioneDashboard.jsx          — Dashboard unificata (/controllo-gestione/dashboard)
+  ControlloGestioneContoEconomico.jsx     — Conto Economico (/controllo-gestione/conto-economico)
+  ControlloGestioneUscite.jsx             — Scadenzario uscite (/controllo-gestione/uscite)
+  ControlloGestioneCalendarioScadenze.jsx — Calendario scadenze (/controllo-gestione/calendario)
+  ControlloGestioneSpeseFisse.jsx         — Spese fisse (/controllo-gestione/spese-fisse)
+  ControlloGestioneUtenze.jsx             — Analisi Utenze (/controllo-gestione/utenze)
+  ControlloGestioneBatchPagamenti.jsx     — Batch pagamenti (/controllo-gestione/batch-pagamenti)
+  ControlloGestioneRiconciliazione.jsx    — Workbench riconciliazione (/controllo-gestione/riconciliazione)
+  ControlloGestioneNav.jsx                — Barra navigazione persistente (8 tab)
+  ControlloGestioneConfronto.jsx          — (orfano) placeholder Confronto, non più in nav
+  ControlloGestioneLiquidita.jsx          — (orfano) pagina Liquidità; endpoint /liquidita rimosso lato backend (router:539)
 ```
+
+`ControlloGestioneMenu.jsx` (hub a tile) — **(rimosso)**, non esiste più nel codice.
 
 ### Componente condizioni pagamento (in modulo Acquisti)
 
@@ -567,28 +643,32 @@ In `FattureFornitoriElenco.jsx` (dettaglio fornitore inline) e' stata aggiunta l
 # 8. Routing Frontend
 
 ```
-/controllo-gestione                    — Menu Controllo di Gestione
 /controllo-gestione/dashboard          — Dashboard unificata
-/controllo-gestione/uscite             — Tabellone uscite
-/controllo-gestione/confronto          — Confronto periodi
-/controllo-gestione/spese-fisse        — Spese fisse (TODO)
+/controllo-gestione/conto-economico    — Conto Economico
+/controllo-gestione/uscite             — Scadenzario uscite
+/controllo-gestione/calendario         — Calendario scadenze
+/controllo-gestione/spese-fisse        — Spese fisse
+/controllo-gestione/utenze             — Analisi Utenze
+/controllo-gestione/batch-pagamenti    — Batch pagamenti
+/controllo-gestione/riconciliazione    — Workbench riconciliazione
 ```
+
+Route derivate da `ControlloGestioneNav.jsx` e `config/modulesMenu.js` (il file `App.jsx` non è presente nello snapshot: la registrazione delle route non è verificabile direttamente). La radice `/controllo-gestione` è il target del brand link della nav; l'hub a tile è stato rimosso. Le vecchie route `/controllo-gestione/confronto` e `/controllo-gestione/liquidita` non sono più linkate dalla nav (Liquidità: redirect a `/flussi-cassa/dashboard` secondo il commento in router:539-541).
 
 ---
 
 # 9. Flusso operativo
 
 ## 9.1 Import uscite
-1. Marco va in Controllo Gestione → Tabellone Uscite
-2. Clicca "Importa da Acquisti"
-3. Il sistema legge tutte le fatture da `fe_fatture` (escluse autofatture e note credito)
-4. Per ogni fattura calcola la data di scadenza:
+1. Marco va in Controllo Gestione → Scadenzario: l'import parte **automaticamente** al caricamento pagina (`POST /uscite/import`, ControlloGestioneUscite.jsx:153-162)
+2. Il sistema legge tutte le fatture da `fe_fatture` (escluse autofatture `is_autofattura=1` e note credito TD04)
+3. Per ogni fattura calcola la data di scadenza:
    - Priorita' 1: `fe_fatture.data_scadenza` (estratta da XML al momento dell'import fattura)
    - Priorita' 2: `suppliers.giorni_pagamento` del fornitore → data_fattura + N giorni
    - Se nessuno dei due e' disponibile → la fattura viene importata senza scadenza
-5. Calcola lo stato: SCADUTA se data_scadenza < oggi, DA_PAGARE altrimenti
-6. Fatture gia' importate: aggiorna stato/scadenza se cambiati; non tocca PAGATA/PARZIALE
-7. Mostra riepilogo: N importate, N aggiornate, N saltate, N senza scadenza
+4. Calcola lo stato: SCADUTO se data_scadenza < oggi, PROGRAMMATO altrimenti (anche se senza scadenza); se esiste cross-ref banca → PAGATO
+5. Fatture gia' importate: aggiorna solo gli stati derivati da data (PROGRAMMATO/SCADUTO); gli stati "manuali" (PAGATO, PAGATO_MANUALE, VERIFICARE, SPOSTATO, RATEIZZATO, PARZIALE) sono intoccabili dal sync, con l'eccezione del cross-ref banca nuovo che propaga PAGATO
+6. Mostra riepilogo: N importate, N aggiornate, N saltate, N senza scadenza
 
 ## 9.2 Gestire fatture senza scadenza
 1. Il KPI "Senza scadenza" nel tabellone mostra quante fatture mancano di data scadenza
@@ -596,15 +676,15 @@ In `FattureFornitoriElenco.jsx` (dettaglio fornitore inline) e' stata aggiunta l
 3. Nella sezione "Condizioni di pagamento" impostare i giorni pagamento (es. 30, 60, 90)
 4. Tornare in Controllo Gestione e reimportare → le fatture del fornitore avranno ora la scadenza
 
-## 9.3 Matching pagamenti (FUTURO)
-1. Cross-reference tra movimenti banca (uscite) e fatture in cg_uscite
-2. Match per importo + fornitore/causale
-3. Quando trovato: stato → PAGATA, importo_pagato = importo, data_pagamento = data movimento banca
-4. Match parziali → stato PARZIALE
+## 9.3 Matching pagamenti — IMPLEMENTATO (Workbench Riconciliazione)
+1. Pagina `/controllo-gestione/riconciliazione` (`ControlloGestioneRiconciliazione.jsx`): split-pane per canale (banca/carta/contanti), worklist da `GET /uscite/da-riconciliare?canale=...`
+2. Match banca: candidati automatici (`GET /uscite/{id}/candidati-banca`) + ricerca libera (`GET /uscite/{id}/ricerca-banca`)
+3. Conferma: `POST /uscite/{id}/riconcilia` → stato PAGATO + `banca_movimento_id`; dissocia con DELETE sullo stesso path
+4. Cross-ref banca propagato anche dall'import (vedi 9.1) — dettagli in `docs/spec_riconciliazione.md`
 
-## 9.4 Gestione contanti (FUTURO)
-1. Pagamenti in contanti saranno gestiti tramite il modulo Gestione Contanti
-2. Cross-reference simile al matching banca ma su movimenti cassa
+## 9.4 Gestione contanti / carta
+1. Pagamenti in contanti: `POST /uscite/{id}/paga-contanti` (router:4416) + `GET /movimenti-contanti` (router:4631)
+2. Pagamenti carta: `POST /uscite/{id}/paga-carta` (router:4557); cambio canale via `POST /uscite/{id}/cambia-canale` (router:4486)
 
 ---
 
@@ -633,9 +713,10 @@ Codici completi nel mapping `MP_LABELS` in `controllo_gestione_router.py`.
 |--------|-----------|-----------|
 | Acquisti | Import fatture → cg_uscite | Acquisti → CG |
 | Acquisti | Condizioni pagamento fornitore | CG scrive in suppliers |
-| Banca | Matching pagamenti (futuro) | Banca → CG |
-| Vendite | Lettura corrispettivi per dashboard | Vendite → CG (read-only) |
-| Gestione Contanti | Matching pagamenti cash (futuro) | Contanti → CG |
+| Banca | Matching pagamenti (riconciliazione, IMPLEMENTATO) | Banca → CG |
+| Vendite | Lettura corrispettivi + fatture emesse per dashboard/CE (via `vendite_aggregator`) | Vendite → CG (read-only) |
+| Gestione Contanti | Pagamenti cash (`paga-contanti`, `movimenti-contanti`) | Contanti → CG |
+| Acquisti (fe_fatture) | Aggancio bollette utenze via numero fattura (sola analisi, no importi nel CE) | Acquisti → CG Utenze |
 
 > **IMPORTANTE**: Finanza rimosso — le sue funzionalità sono state integrate in Controllo Gestione.
 
@@ -643,7 +724,9 @@ Codici completi nel mapping `MP_LABELS` in `controllo_gestione_router.py`.
 
 # 12. Roadmap
 
-## v1.0 (attuale) — 2026-03-29
+> Nota verifica 2026-07-25: sezione storica. Il modulo è oggi alla **2.21**; gran parte delle voci "pianificate" qui sotto è stata implementata (matching banca → Riconciliazione; spese fisse, rateizzazioni e prestiti → §3.5; alert scadenze → §3.6; report PDF → CE PDF G.3.7b). Roadmap viva: `docs/roadmap.md`.
+
+## v1.0 (storico) — 2026-03-29
 - Modulo top-level con menu, dashboard, tabellone uscite, confronto periodi
 - Import fatture da Acquisti con calcolo scadenza automatico
 - Estrazione DatiPagamento da XML FatturaPA

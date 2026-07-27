@@ -1,4 +1,6 @@
-// @version: v9.2 — Home v3.5: azioni rapide da DB (useHomeActions) — sessione 49
+// @version: v9.3 — Home v3.6: widget Bacheca sostituito da La Lavagna
+//   (briefing di servizio auto-composto + nota del turno + eventi).
+//   La card Alert e' stata assorbita: gli alert scorrono nello strato eventi.
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -7,9 +9,10 @@ import MODULES_MENU from "../config/modulesMenu";
 import DashboardSala from "./DashboardSala";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
-import useComunicazioni from "../hooks/useComunicazioni";
+import useLavagna from "../hooks/useLavagna";
 import useHomeActions from "../hooks/useHomeActions";
 import SelezioniCard from "../components/widgets/SelezioniCard";
+import Lavagna from "../components/widgets/Lavagna";
 // R8c: filtra Home grid per moduli attivi del locale (feature flags).
 import { useActiveModules } from "../utils/activeModules";
 
@@ -74,29 +77,12 @@ function formatDate() {
   return `${giorni[d.getDay()]} ${d.getDate()} ${mesi[d.getMonth()]}`;
 }
 
-function formatComDate(isoStr) {
-  if (!isoStr) return "";
-  const d = new Date(isoStr);
-  const now = new Date();
-  const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return `Oggi ${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`;
-  if (diffDays === 1) return "Ieri";
-  if (diffDays < 7) return `${diffDays}gg fa`;
-  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
-}
-
 function dotColor(stato) {
   if (["RECORDED", "ARRIVED", "SEATED"].includes(stato)) return "#2EB872";
   if (["BILL", "LEFT"].includes(stato)) return "#a8a49e";
   return "#D4A017";
 }
 
-const URGENZA_STYLE = {
-  urgente:    "bg-red-50 text-red-700 border-red-200",
-  importante: "bg-orange-50 text-orange-700 border-orange-200",
-  normale:    "bg-indigo-50 text-indigo-700 border-indigo-200",
-};
-const URGENZA_LABEL = { urgente: "Urgente", importante: "Importante", normale: "Info" };
 
 
 /* ============================================================
@@ -116,7 +102,13 @@ export default function Home() {
   const [page, setPage] = useState(0);
   const [turnoTab, setTurnoTab] = useState("pranzo");
   const { data: widgets, loading: widgetsLoading } = useHomeWidgets();
-  const { comunicazioni, loading: comLoading, nonLette, segnaLetta } = useComunicazioni();
+  const {
+    lavagna,
+    loading: lavagnaLoading,
+    saving: lavagnaSaving,
+    scriviNota,
+    rimuoviNota,
+  } = useLavagna();
   // Azioni rapide configurate in Impostazioni (con fallback statico se BE down)
   const { actions: homeActions } = useHomeActions();
   // R8c: feature flags moduli per locale (su tregobbi wildcard → no-op).
@@ -324,75 +316,24 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* ═══ COL 2: Alert + Bacheca ═══ */}
+                {/* ═══ COL 2: Selezioni + Lavagna ═══ */}
                 <div className="flex flex-col gap-3.5 lg:min-h-0">
-                  {/* Alert */}
-                  {widgets?.alerts?.length > 0 && (
-                    <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-red-200 flex-shrink-0">
-                      <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">⚠️ Attenzione</span>
-                        <span className="text-[10px] font-bold text-white rounded-full text-center"
-                          style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}>
-                          {widgets.alerts.length}
-                        </span>
-                      </div>
-                      <div className="px-1 pb-2">
-                        {widgets.alerts.map((a, i) => {
-                          const menuEntry = MODULES_MENU[a.modulo];
-                          return (
-                            <div key={i} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-brand-cream rounded-lg transition">
-                              <span className="text-base flex-shrink-0">{menuEntry?.icon || "⚠️"}</span>
-                              <span className="text-[12px] text-brand-ink flex-1 font-medium">{a.testo}</span>
-                              <ChevronRight />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Widget Selezioni del Giorno — 4 mini-blocchi (macellaio/pescato/salumi/formaggi) */}
                   <SelezioniCard data={widgets?.selezioni} />
 
-                  {/* Bacheca comunicazioni */}
-                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden max-h-[420px] lg:max-h-none lg:flex-1 lg:min-h-0">
-                    <div className="flex items-center justify-between px-4 pt-4 pb-2.5 border-b border-[#f0ede8]">
-                      <span className="text-[12px] font-bold uppercase tracking-[1px] text-[#a8a49e]">📋 Bacheca</span>
-                      {nonLette > 0 && (
-                        <span className="text-[10px] font-bold text-white rounded-full text-center"
-                          style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}>
-                          {nonLette}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 overflow-y-auto">
-                      {comunicazioni.length > 0 ? (
-                        comunicazioni.map((c) => (
-                          <div
-                            key={c.id}
-                            className={`px-4 py-4 border-b border-[#f0ede8] cursor-pointer transition ${c.letta ? "opacity-50" : ""}`}
-                            onClick={() => { if (!c.letta) segnaLetta(c.id); }}
-                          >
-                            <div className="flex items-center gap-2.5 mb-1.5">
-                              <span className={`text-[11px] font-bold uppercase tracking-[.6px] px-2 py-1 rounded-md border ${URGENZA_STYLE[c.urgenza] || URGENZA_STYLE.normale}`}>
-                                {URGENZA_LABEL[c.urgenza] || "Info"}
-                              </span>
-                              {!c.letta && <div className="w-2 h-2 rounded-full bg-brand-blue flex-shrink-0" />}
-                            </div>
-                            <div className="text-[15px] font-bold text-brand-ink leading-snug">{c.titolo}</div>
-                            {c.messaggio && <div className="text-[14px] text-[#555] mt-1 leading-relaxed line-clamp-3">{c.messaggio}</div>}
-                            <div className="text-[12px] text-[#a8a49e] mt-2">
-                              {formatComDate(c.created_at)}{c.autore ? ` — ${c.autore}` : ""}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-4 py-8 text-center text-[13px] text-[#a8a49e]">
-                          Nessuna comunicazione
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {/* La Lavagna — briefing di servizio.
+                      Sostituisce il widget Bacheca (restava vuoto: era l'unico
+                      blocco che richiedeva lavoro umano per riempirsi) e assorbe
+                      la vecchia card "⚠️ Attenzione": gli alert dell'engine M.F
+                      ora scorrono nello strato "Successo oggi". */}
+                  <Lavagna
+                    lavagna={lavagna}
+                    loading={lavagnaLoading}
+                    saving={lavagnaSaving}
+                    scriviNota={scriviNota}
+                    rimuoviNota={rimuoviNota}
+                    isAdmin={role === "admin" || role === "superadmin"}
+                  />
                 </div>
 
                 {/* ═══ COL 3: Azioni rapide (config da Impostazioni → Home per ruolo) ═══ */}
@@ -674,10 +615,3 @@ export default function Home() {
 
 /* ── Componenti interni ── */
 
-function ChevronRight() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
-      <path strokeLinecap="round" d="M9 6l6 6-6 6" />
-    </svg>
-  );
-}

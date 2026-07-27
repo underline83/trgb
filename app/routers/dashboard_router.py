@@ -6,7 +6,7 @@
 # @version: v1.0-dashboard-home
 # -*- coding: utf-8 -*-
 """
-Endpoint GET /dashboard/home
+Endpoint GET /dashboard/home + GET /dashboard/lavagna
 
 Restituisce dati aggregati per i widget della Home v3:
 - Prenotazioni oggi (count + pax per turno, lista)
@@ -1530,6 +1530,39 @@ def get_dashboard_home():
         logger.warning(f"Dashboard: tasks scheduler trigger fallito: {e}")
 
     return response
+
+
+# ─────────────────────────────────────────────────────────
+# La Lavagna — briefing di servizio della Home [core]
+# ─────────────────────────────────────────────────────────
+# Sostituisce il widget Bacheca. L'aggregazione vive in
+# app/services/lavagna_service.py (servizio platform): qui il router si limita
+# a passargli selezioni e alert che ha gia' calcolato, cosi' la dipendenza
+# resta router -> service (CLAUDE.md §2, niente import fra router di moduli).
+#
+# Endpoint separato da /dashboard/home di proposito: la Lavagna si ricarica da
+# sola quando si scrive la nota, senza rifare tutta la Home.
+
+@router.get("/lavagna")
+def get_dashboard_lavagna():
+    """Briefing del turno corrente per la Home."""
+    oggi_str = date.today().isoformat()
+
+    macellaio = _macellaio_widget(oggi_str)
+    salumi = _salumi_widget(oggi_str)
+    formaggi = _formaggi_widget(oggi_str)
+    pescato = _pescato_widget(oggi_str)
+    selezioni = SelezioniWidget(
+        macellaio=macellaio, salumi=salumi,
+        formaggi=formaggi, pescato=pescato,
+    )
+
+    from app.services.lavagna_service import build_lavagna
+    return build_lavagna(
+        selezioni=selezioni,
+        alerts=_alerts(oggi_str),
+        oggi=oggi_str,
+    )
 
 
 # ─────────────────────────────────────────────────────────

@@ -190,3 +190,6 @@ locali/*/data/*
 !locali/*/data/.gitkeep
 # Ambiente locale-specific (override env var TRGB_LOCALE per dev/test)
 .env.locale.*
+
+# Obsidian (vault su docs/, preferenze locali)
+docs/.obsidian/

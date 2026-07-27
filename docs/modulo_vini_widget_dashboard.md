@@ -1,6 +1,9 @@
 # Modulo Vini — Storia widget Dashboard (14 fasi)
 
-**Ultimo aggiornamento:** 2026-04-24
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale (doc storico: verificati vs codice endpoint, schema DB, soglie e chiavi il 2026-07-25) · **Ultima verifica:** 2026-07-25 (vs codice)
+> **Vedi anche:** [modulo_vini.md](modulo_vini.md) (stato corrente del modulo)
+
+**Ultimo aggiornamento:** 2026-07-25 (verifica vs codice; contenuto storico 2026-04-24)
 **Stato:** tutte le 14 fasi **FATTE**. Punto 7 alert (lista WhatsApp) differito (dipendenze esterne).
 **Obiettivo doc:** archiviare le decisioni architetturali e iterazioni delle 2 grosse trasformazioni del DashboardVini — il widget "📦 Riordini per fornitore" (8 fasi, sessione 51) e il widget "🚨 Vini in carta senza giacenza" (6 fasi A-F, 2026-04-24).
 **Riferimento operativo:** lo stato corrente del modulo è in `docs/modulo_vini.md`. Questo doc è "storico vivo" (non si tocca, salvo correzioni).
@@ -92,7 +95,7 @@ Tracciato uno qualsiasi dei 3 prezzi, ma per Fase 6 il hook PATCH registra solo 
 
 ### 3.3 Tabella `vini_magazzino_movimenti` — invariata
 
-Non serve aggiungere tipo `'ORDINE'` al CHECK: gli ordini pending vivono nella loro tabella. Quando arriva la merce si registra un normale `CARICO` (con nota "arrivo ordine #N" opzionale).
+Non serve aggiungere tipo `'ORDINE'` al CHECK: gli ordini pending vivono nella loro tabella. Quando arriva la merce si registra un normale `CARICO` (con nota "arrivo ordine #N" opzionale). *(Nota post-storia: in vini 3.61 al CHECK è stato poi aggiunto il tipo `'MODIFICA'` per l'audit trail di `STATO_RIORDINO` — `vini_magazzino_db.py:334`.)*
 
 ## 4. Endpoint nuovi
 
@@ -100,12 +103,12 @@ Tutti su `vini_magazzino_router.py`, prefix `/vini/magazzino`, auth `get_current
 
 | Metodo | Path | Payload | Ritorno |
 |--------|------|---------|---------|
-| `POST` | `/{id}/duplica` | `{annata: str}` | `{id: int}` (nuovo vino) |
+| `POST` | `/{id}/duplica` | `{annata?: str, overrides?: obj}` | riga completa del nuovo vino (fallback `{id: int}`) — `vini_magazzino_router.py:450` |
 | `GET` | `/ordini-pending/` | — | `[{vino_id, qta, data_ordine, ...}]` |
-| `POST` | `/{id}/ordine-pending` | `{qta: int, note?: str}` | `{ok, qta_totale_pending}` |
-| `DELETE` | `/{id}/ordine-pending` | — | `{ok}` |
-| `POST` | `/{id}/ordine-pending/conferma-arrivo` | `{qta: int, locazione: str, note?: str}` | `{ok, movimento_id}` |
-| `GET` | `/{id}/prezzi-storico/` | — | `[{data, campo, valore_old, valore_new, utente}]` |
+| `POST` | `/{id}/ordine-pending` | `{qta: int, note?: str}` | `{status: "ok", ordine: {...}}` — `vini_magazzino_router.py:1145` |
+| `DELETE` | `/{id}/ordine-pending` | — | `{status: "ok"}` |
+| `POST` | `/{id}/ordine-pending/conferma-arrivo` | `{qta_ricevuta: int, note?: str}` (nessun campo `locazione` nel payload attuale) | conferma + movimento CARICO — `vini_magazzino_router.py:1183-1191` |
+| `GET` | `/{id}/prezzi-storico/` | `?campo=&limit=` | `[{data, campo, valore_old, valore_new, utente}]` |
 
 **Hook esistente esteso:** PATCH `/vini/magazzino/{id}` — se `EURO_LISTINO` cambia, insert in `vini_prezzi_storico`. Nessun nuovo endpoint per save inline del listino.
 
@@ -219,7 +222,7 @@ Sessione 2026-04-24, 6 punti (8 nel doc originale, ma 1+2 fusi in Fase A e 7 dif
 **Riuso:** handler `openOrdine(v)` e modale esistenti. Nessun nuovo endpoint.
 
 **Quantità suggerita:**
-- BE (`vini_magazzino_db.py::get_dashboard_stats`): query `alert_carta` estesa con subquery `vendite_60gg` + post-processing Python `qta_suggerita = max(1, round(vendite_60gg / 2))` se > 0, altrimenti `null`. Sempre aggiunti `DISTRIBUTORE` e `RAPPRESENTANTE` al payload (servono per Fase E).
+- BE (`vini_magazzino_db.py::get_dashboard_stats`): query `alert_carta` estesa con subquery `vendite_60gg` + post-processing Python `qta_suggerita = max(1, round(vendite_60gg / 2))` se > 0, altrimenti `null`. Sempre aggiunti `DISTRIBUTORE` e `RAPPRESENTANTE` al payload (servono per Fase E). *(Oggi N e K sono configurabili via widget settings: `qta_suggerita_giorni_storico` default 60, `qta_suggerita_divisore` default 2 — `vini_magazzino_db.py:2128-2129`.)*
 - FE (`DashboardVini.jsx::openOrdine`): priorità input qta: ordine esistente → `qta_suggerita` → stringa vuota. Hint "💡 Suggerito: N bt · storico vendite 60gg ÷ 2" sotto l'input, visibile solo quando non c'è un ordine pending e suggerimento > 0.
 
 **File toccati:** `app/models/vini_magazzino_db.py`, `frontend/src/pages/vini/DashboardVini.jsx` (bump v4.7-alert-widget-faseA).
@@ -358,7 +361,7 @@ Spostate in **Riga 3 dedicata** (prima erano stipate in Riga 2 con il badge ritm
 - Su portrait iPad la tabella riordini diventa scrollable orizzontale (già così pre-refactor).
 
 ## Permessi
-- Tutte le nuove azioni richiedono ruoli che possono già modificare il magazzino (admin, superadmin, sommelier). Pattern `Depends(get_current_user)` sui router estesi.
+- Duplica/bulk sono gated `is_vini_manager`/`is_admin`; gli endpoint ordini-pending e prezzi-storico richiedono solo il login (`Depends(get_current_user)`, nessun check di ruolo aggiuntivo — verificato 2026-07-25 su `vini_magazzino_router.py:1145-1252`).
 
 ## Performance
 - Campi aggiunti (`qta_suggerita`, `ultima_vendita`, `ritmo_vendita`, `qta_ordinata`, `data_ordine`) calcolati nella stessa query di `get_dashboard_stats`. Nessuna chiamata extra al FE.
@@ -390,4 +393,4 @@ Spostate in **Riga 3 dedicata** (prima erano stipate in Riga 2 con il badge ritm
 
 **Autori:** Marco + Claude
 **Sessioni:** 51 (widget riordini, 2026-04-20) + 2026-04-24 (widget alert)
-**Cumulato file frontend:** `frontend/src/pages/vini/DashboardVini.jsx` da v3.14 → v4.14
+**Cumulato file frontend:** `frontend/src/pages/vini/DashboardVini.jsx` da v3.14 → v4.14 (oggi il file è a **v4.15-ritmo-vendita-esteso**: ritmo di vendita esteso a Riordini-per-fornitore e Vini-fermi — `DashboardVini.jsx:2`)

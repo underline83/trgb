@@ -7,6 +7,7 @@ Contiene:
 - Tabella notifiche (notifiche automatiche dal sistema + broadcast admin)
 - Tabella notifiche_lettura (tracciamento lettura per utente)
 - Tabella comunicazioni (bacheca ordini di servizio admin → staff)
+  + righe tipo='nota_servizio' usate dalla Lavagna (Home)
 
 DB separato: app/data/notifiche.sqlite3
 """
@@ -166,6 +167,23 @@ def init_notifiche_db() -> None:
             VALUES (?, ?, ?)
         """, (checker, soglia, antidup))
 
+    # ── SOFT-MIGRATION: campi Lavagna (nota di servizio) ──
+    # La tabella comunicazioni ospita due tipi di riga:
+    #   tipo = 'bacheca'       → comunicazione classica (pagina /comunicazioni)
+    #   tipo = 'nota_servizio' → riga volante della Lavagna, vive un solo turno
+    # ADD COLUMN idempotente: la tabella esiste gia' in produzione, non si
+    # tocca nessuna migrazione gia' girata (vedi docs — schema drift).
+    for _col, _ddl in (
+        ("tipo",             "ALTER TABLE comunicazioni ADD COLUMN tipo TEXT NOT NULL DEFAULT 'bacheca'"),
+        ("data_riferimento", "ALTER TABLE comunicazioni ADD COLUMN data_riferimento TEXT"),
+        ("turno",            "ALTER TABLE comunicazioni ADD COLUMN turno TEXT"),
+    ):
+        try:
+            cur.execute(_ddl)
+        except sqlite3.OperationalError as _e:
+            if "duplicate column" not in str(_e).lower():
+                raise
+
     # ── INDICI ──
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dest_username ON notifiche(dest_username)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dest_ruolo ON notifiche(dest_ruolo)")
@@ -174,6 +192,7 @@ def init_notifiche_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_lettura_user ON notifiche_lettura(username)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_comunicazioni_attiva ON comunicazioni(attiva)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_comunicazioni_lettura_user ON comunicazioni_lettura(username)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_comunicazioni_nota ON comunicazioni(tipo, data_riferimento, turno)")
 
     # ── TRIGGER updated_at ──
     cur.execute("""

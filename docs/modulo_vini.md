@@ -1,8 +1,11 @@
 # Modulo Vini — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-07-12 (audit completo modulo + hardening: init S52-1 senza zombie, backup WAL-safe, rollback rimosso, auth pdf-staff/carta-cantina — vedi changelog 2026-07-12)
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale — verificato tutto vs codice 2026-07-25, tranne: redirect legacy in `App.jsx` e `app/repositories/vini_repository.py` (file non presenti nello snapshot verificato) · **Ultima verifica:** 2026-07-25 (vs codice)
+> **Vedi anche:** [modulo_vini_widget_dashboard.md](modulo_vini_widget_dashboard.md) · `docs/roadmap.md` §V · `docs/refactor_anagrafiche_vini.md`
+
+**Ultimo aggiornamento:** 2026-07-25 (verifica doc vs codice; in precedenza 2026-07-12: audit completo modulo + hardening — init S52-1 senza zombie, backup WAL-safe, rollback rimosso, auth pdf-staff/carta-cantina — vedi changelog 2026-07-12)
 **Stato:** stabile post-cutover · Cantina "v2" promossa a Cantina unica · Cantina classica deprecata (file `*_legacy.jsx` archiviati nel repo, route redirect a v2)
-**Versione modulo (`versions.jsx`):** **vini 3.67** · sistema **5.36+** (il corpo del doc è aggiornato al 3.62: le serie 3.63-3.66 — fix calici/mescita di inizio luglio — e 3.67 sono documentate solo nel changelog)
+**Versione modulo (`versions.jsx`):** **vini 3.72** · sistema **5.38** (verificati su `frontend/src/config/versions.jsx` il 2026-07-25; la 3.72 = CartaStaff v2.0 "banco di servizio", V.22)
 **Roadmap:** sezione `V.` di `docs/roadmap.md` per priorità e voci aperte
 **Refactor design:** `docs/refactor_anagrafiche_vini.md` per il design originale del refactor V.6+V.7+V.8
 
@@ -62,7 +65,7 @@ vini_magazzino_note.vino_id      → vini_bottiglie.id
 |---|---|---|---|
 | 📊 Dashboard | `/vini/dashboard` | `DashboardVini.jsx` | KPI stock + vendite + alert. Invariato. |
 | 🍷 **Cantina** | `/vini/v2/cantina` | `CantinaV2.jsx` + `GestioneVino2.jsx` | **Era "Cantina 2", ora è LA Cantina.** 3 viste: Bottiglie / Madri / Per Produttore. |
-| 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` + 5 panel | 5 sotto-tab: Produttori, Distributori, Denominazioni, Vitigni, Madri. CRUD admin/sommelier (`is_vini_manager`) + merge duplicati admin-only. |
+| 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` (wrapper di `AnagraficheVini.jsx`) | 6 sotto-tab: Stats, Produttori, Distributori, Denominazioni, Vitigni, Madri (panel dedicati in `anagrafiche/` solo per Produttori/Distributori/Vitigni; Denominazioni e Madri inline in `AnagraficheVini.jsx`). CRUD admin/sommelier (`is_vini_manager`) + merge duplicati admin-only. |
 | 📜 Carta | `/vini/carta` | `CartaBevande.jsx` | Carta cliente HTML/PDF (vedi §5). |
 | 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | **v2.0 "banco di servizio" (2026-07-20, V.22)**: due modalità — Preparazione (checklist pre-turno: ultima bt ancora in carta, calici aperti, frigo da rifornire, esauriti come promemoria riordino (a 0 bt la carta li nasconde già via min_qta_stampa)) e Servizio (ricerca + vendita one-tap con undo 10s + toggle mescita). Vendita da loc3/matrice esclusa (rimanda alla scheda). |
 | 🛒 Vendite | `/vini/vendite` | `ViniVendite.jsx` | Registra vendite (bottiglia/calici) + storico + calici disponibili. |
@@ -99,8 +102,10 @@ Submit (`submitWizard`): POST produttore (se `_new`) → POST madre (se `_new`, 
 - `POST /bottiglia/` — creazione bottiglia (usato dal wizard)
 - `POST /produttori/{src}/merge?target_id=N` — fonde 2 produttori (idem fornitori, denominazioni, vitigni)
 - `POST /sync-all` — risincronizza campi anagrafici cache su tutte le bottiglie
-- `POST /rollback?confirm=YES_DROP_V2_TABLES` — emergency drop (storico, post-cutover le `_v2` non esistono più)
+- `POST /rollback` — **(rimosso)** risponde `410 Gone` (`vini_anagrafiche_router.py:927`); l'emergency drop non esiste più post-cutover
 - `POST /migrate-from-legacy?dry_run=true` — ri-clustering one-shot (usato in Fase 5, ora storico)
+- `POST /denominazioni/sync` — sync denominazioni da eAmbrosia + PDF MASAF (admin, `vini_anagrafiche_router.py:543`)
+- `GET /stats/` — conteggi anagrafiche per la dashboard del pannello (`vini_anagrafiche_router.py:246`)
 
 ### `/vini/v2/*` (read-only Cantina, vista per UI)
 - `GET /bottiglie/?limit=&filtri` — lista bottiglie con JOIN su madre/produttore/fornitore/denominazione
@@ -126,14 +131,17 @@ Tutti gli endpoint puntano ora a `vini_bottiglie` (post sed F11). Usato da Sched
 
 ### `/vini/carta/*` (Carta cliente)
 - `GET /vini/carta/pdf|html` — generazione carta vini cliente
-- `GET /vini/carta-staff` — vista sommelier (`CartaStaff.jsx` v2.0). Dal 3.72 ogni voce di `locazioni[]` include anche `slot` (frigo|loc1|loc2|loc3) per la vendita one-tap; la pagina riusa `POST /{id}/movimenti` (VENDITA), `DELETE /movimenti/{id}` (undo) e `PATCH /{id}/bottiglia-aperta` (mescita)
+- `GET /vini/magazzino/carta-staff/` — **endpoint** vista sommelier (la route FE è `/vini/carta-staff` → `CartaStaff.jsx` v2.0; l'endpoint vive su `vini_magazzino_router.py:593`). Dal 3.72 ogni voce di `locazioni[]` include anche `slot` (frigo|loc1|loc2|loc3) per la vendita one-tap; la pagina riusa `POST /{id}/movimenti` (VENDITA), `DELETE /movimenti/{id}` (undo) e `PATCH /{id}/bottiglia-aperta` (mescita)
 - Vedi §5 per dettaglio sub-module Carta + §6 per Carta Bevande
 
-### `/vini/pricing/calcola`
-- `POST {euro_listino}` → `{prezzo_carta}` — usato in `MagazzinoViniNuovo_legacy` e `NuovoVinoV2` wizard
+### `/vini/pricing/*`
+- `POST /calcola` — `{euro_listino}` → `{prezzo_carta}`, usato in `MagazzinoViniNuovo_legacy` e `NuovoVinoV2` wizard (`vini_pricing_router.py:134`)
+- 🆕 `GET|POST /breakpoints` + `POST /breakpoints/reset` — tabella markup personalizzata (`vini_pricing_router.py:103-125`)
+- 🆕 `GET /preview` · `POST /ricalcola-tutti` — anteprima e ricalcolo massivo `PREZZO_CARTA` (`vini_pricing_router.py:154,197`)
+- 🆕 `POST /ricalcola-calici` — ricalcolo massivo `PREZZO_CALICE` (auto = `PREZZO_CARTA / N`, configurabile via widget_settings) (`vini_pricing_router.py:293`)
 
-### `/ipratico/products/*`
-- `GET /missing|match` · `POST /sync` — sync codici 4 cifre nel Name iPratico con `vini_bottiglie.id`
+### `/vini/ipratico/*`
+- `POST /upload|export` · `GET /mappings|missing|stats|sync-log` — sync codici 4 cifre nel Name iPratico con `vini_bottiglie.id` (prefisso reale `/vini/ipratico`, router `ipratico_products_router.py:34`; dettaglio in §7)
 
 ---
 
@@ -196,9 +204,9 @@ DB principale: `vini_magazzino.sqlite3` (unico, vecchio `vini.sqlite3` eliminato
 | `static/css/carta_pdf.css` + `carta_html.css` | Stile preview e PDF (allineati) |
 
 ## File deprecated (ancora presenti)
-- `app/models/vini_db.py` — vecchio schema DB pre-v3.0, non più importato (rimuovere in cleanup V-H.I)
+- `app/models/vini_db.py` — **(rimosso)** non è più presente in `app/models/` (cleanup completato)
 - `app/models/vini_model.py` — V-H.J 2026-05-12: ridotto a stub deprecati con `NotImplementedError`. Costanti `TIPOLOGIA_VALIDE`/`FORMATO_VALIDI` spostate in `app/services/vini_xlsx_v2.py` (single source of truth)
-- `frontend/src/pages/vini/CantinaTools.jsx`, `frontend/src/pages/vini/ViniDatabase.jsx` — non più routate in `App.jsx`, marcate `@version: DEPRECATO`. Cleanup V-H.I
+- `frontend/src/pages/vini/CantinaTools_legacy.jsx`, `frontend/src/pages/vini/ViniDatabase_legacy.jsx` — rinominate con suffisso `_legacy` (S2 cutover), non più routate. Cleanup V-H.I
 
 ---
 
@@ -206,21 +214,25 @@ DB principale: `vini_magazzino.sqlite3` (unico, vecchio `vini.sqlite3` eliminato
 
 ## 3.1 Pagine frontend
 
+> ⚠️ **Tabella storica (pre-cutover 2026-05-18).** Le pagine della Cantina classica sono state archiviate con suffisso `_legacy.jsx` e non sono più routate (route redirect a v2 — vedi "UI post-cutover" in cima al doc, che è la tabella di riferimento attuale). `ViniMenu.jsx` non esiste più nel repo.
+
 | Pagina | Route | Descrizione |
 |--------|-------|-------------|
-| `ViniMenu.jsx` | `/vini` | Hub modulo |
-| `MagazzinoVini.jsx` | `/vini/magazzino` | Lista vini + pannello dettaglio rapido |
-| `MagazzinoViniDettaglio.jsx` | `/vini/magazzino/:id` | Scheda completa (anagrafica, giacenze, movimenti, note) |
-| `MagazzinoViniNuovo.jsx` | `/vini/magazzino/nuovo` | Form creazione nuovo vino |
-| `MagazzinoAdmin.jsx` | `/vini/magazzino/admin` | Tabellona modifica massiva (admin only) |
-| `DashboardVini.jsx` | `/vini/dashboard` | Dashboard operativa (vedi §4) |
-| `RegistroMovimenti.jsx` | `/vini/movimenti` | Storico globale movimenti |
-| `iPraticoSync.jsx` | `/vini/ipratico` | Sync e mapping iPratico |
-| `ViniImpostazioni.jsx` | `/vini/impostazioni` | Settings Carta + locazioni |
+| `ViniMenu.jsx` | `/vini` | Hub modulo **(rimosso — file non più presente)** |
+| `MagazzinoVini_legacy.jsx` | `/vini/magazzino` | Lista vini + pannello dettaglio rapido (archiviata, redirect a `/vini/v2/cantina`) |
+| `MagazzinoViniDettaglio_legacy.jsx` | `/vini/magazzino/:id` | Scheda completa (archiviata, redirect a `/vini/v2/bottiglia/:id`) |
+| `MagazzinoViniNuovo_legacy.jsx` | `/vini/magazzino/nuovo` | Form creazione nuovo vino (archiviata, redirect a `/vini/v2/nuovo`) |
+| `MagazzinoAdmin_legacy.jsx` | `/vini/magazzino/admin` | Tabellona modifica massiva (archiviata) |
+| `DashboardVini.jsx` | `/vini/dashboard` | Dashboard operativa (vedi §4) — **viva** |
+| `RegistroMovimenti_legacy.jsx` | `/vini/movimenti` | Storico globale movimenti (archiviata) |
+| `iPraticoSync.jsx` | `/vini/ipratico` | Sync e mapping iPratico — **viva** |
+| `ViniImpostazioni.jsx` | `/vini/settings` | Settings Carta + locazioni + widget/soglie — **viva** (route attuale `/vini/settings`, non più `/vini/impostazioni`) |
 
-Sub-menu: `MagazzinoSubMenu.jsx` (Magazzino, Dashboard, Import, Impostazioni).
+Sub-menu: il componente vivo è `frontend/src/components/vini/MagazzinoSubMenu.jsx` (v2.0: Lista Vini · Nuovo vino · Admin); `pages/vini/MagazzinoSubMenu_legacy.jsx` è l'archivio della versione a 4 voci.
 
 ## 3.2 Filtri MagazzinoVini (v4.x)
+
+> ⚠️ **Sezione storica:** descrive i filtri della pagina archiviata `MagazzinoVini_legacy.jsx`. La lista viva è `CantinaV2.jsx` (filtri in `components/vini/CantinaFiltri.jsx`). I valori locazione da `locazioni_config` via `/vini/cantina-tools/locazioni-config` restano validi.
 
 **Ricerca testuale:** ID DB, ID Excel (`id_excel`), descrizione, denominazione, produttore, codice, regione/nazione.
 
@@ -234,9 +246,11 @@ Sub-menu: `MagazzinoSubMenu.jsx` (Magazzino, Dashboard, Import, Impostazioni).
 
 Il filtro cerca contemporaneamente in tutte e 4 le colonne DB (`FRIGORIFERO`, `LOCAZIONE_1/2/3`). Senza spazio = tutti i vini in quel contenitore. Con spazio = match esatto su `"nome - spazio"`. Valori da `locazioni_config` via endpoint `/locazioni-config`.
 
-## 3.3 Scheda dettaglio vino — `SchedaVino.jsx` v5.x
+## 3.3 Scheda dettaglio vino — `SchedaVino.jsx` v2.0-tabs
 
-Layout `grid-cols-[260px_1fr]`: sidebar tinta dinamica per TIPOLOGIA + area main scrollabile.
+> Redesign sessione 55 (2026-04-24, `@version: v2.0-tabs` — la numerazione versione del file è ripartita): testa fissa (identità + 4 KPI) + **tab bar a 6 tab** (Anagrafica / Giacenze / Movimenti / Prezzi / Statistiche / Note, `SchedaVino.jsx:79-85`). Il componente resta riusabile ed è parametrizzato con `apiBaseDettaglio="/vini/v2/bottiglie"` in modalità v2.
+
+Layout: sidebar tinta dinamica per TIPOLOGIA + area main scrollabile.
 
 **Sidebar (260px, gradiente per tipologia):**
 - ROSSI → red-700→red-900 · BIANCHI → amber-600→amber-800 · BOLLICINE → yellow · ROSATI → pink · PASSITI → orange · GRANDI FORMATI → purple · ANALCOLICI → teal · fallback → grigio
@@ -258,24 +272,27 @@ Layout `grid-cols-[260px_1fr]`: sidebar tinta dinamica per TIPOLOGIA + area main
 |------|-------|--------|-------------|
 | CARICO | ⬆️ | emerald | Ricezione merce (acquisto/fornitore) |
 | SCARICO | ⬇️ | red | Uscita non commerciale (rottura, consumo interno, degustazione) |
-| VENDITA | 🛒 | violet | Vendita commerciale (inserimento manuale — iPratico non esporta dati) |
+| VENDITA | 🛒 | blue | Vendita commerciale (inserimento manuale — iPratico non esporta dati) |
 | RETTIFICA | ✏️ | amber | Correzione giacenza (inventario, errori) |
+| MODIFICA | 📝 | blue | Audit trail (es. transizioni `STATO_RIORDINO`, vini 3.61) — **non tocca le giacenze**. Nel CHECK della tabella da mig dedicata (`vini_magazzino_db.py:334`) |
 
 **Note modello dati:**
 - Le VENDITE sono inserite manualmente (iPratico non esporta dati dalle vendite in nessun formato)
 - SCARICO ≠ VENDITA: scarico = uscita senza corrispettivo commerciale
 - Ogni modifica giacenza da UI genera automaticamente una RETTIFICA
 
-**Tabella `vini_magazzino_movimenti`:** `id`, `vino_id` (FK), `tipo`, `qta`, `note`, `utente`, `data_mov`. Indice consigliato: `(vino_id, tipo, data_mov)`.
+**Tabella `vini_magazzino_movimenti`:** `id`, `vino_id` (FK → `vini_bottiglie.id`), `data_mov`, `tipo`, `qta`, `locazione`, `note`, `origine`, `utente`, `created_at` (+ `prezzo_unitario` snapshot, mig 129). Indice presente: `idx_vmm_vino_data (vino_id, data_mov)` (`vini_magazzino_db.py:347`); la variante con `tipo` non esiste (vedi §12).
 
 ## 3.5 Tabella `vini_magazzino` — campi
 
 Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
 
+> ⚠️ **Post-cutover (mig 133) la tabella live si chiama `vini_bottiglie`** — `vini_magazzino` è la zombie legacy che NON viene più ricreata (`vini_magazzino_db.py:136-158`). I campi elencati sotto restano validi su `vini_bottiglie`.
+
 **Anagrafica**
 - `id` INTEGER PK — immutabile
 - `id_excel` INTEGER UNIQUE — id di origine se importato da Excel
-- `TIPOLOGIA` TEXT NOT NULL — lista controllata in `vini_model.TIPOLOGIA_VALIDE`
+- `TIPOLOGIA` TEXT NOT NULL — lista controllata in `vini_xlsx_v2.TIPOLOGIA_VALIDE` (spostata da `vini_model` in V-H.J)
 - `NAZIONE` TEXT NOT NULL
 - `REGIONE` TEXT
 - `CODICE` TEXT — campo legacy attualmente non utilizzato (rivedere)
@@ -284,7 +301,7 @@ Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
 - `ANNATA` TEXT — stringa "YYYY", validata FE
 - `VITIGNI` TEXT — testo libero (V.8 prevede normalizzazione)
 - `GRADO_ALCOLICO` REAL
-- `FORMATO` TEXT — lista controllata in `vini_model.FORMATO_VALIDI`
+- `FORMATO` TEXT — lista controllata in `vini_xlsx_v2.FORMATO_VALIDI` (spostata da `vini_model` in V-H.J)
 - `PRODUTTORE`, `DISTRIBUTORE`, `RAPPRESENTANTE` TEXT
 
 **Prezzi e listino**
@@ -343,18 +360,31 @@ Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
 | GET | `/vini/magazzino/{id}/note` | Lista note vino |
 | POST | `/vini/magazzino/{id}/note` | Aggiunge nota |
 | DELETE | `/vini/magazzino/{id}/note/{nota_id}` | Elimina nota |
-| POST | `/vini/magazzino/import` | Import Excel (SAFE / FORCE) |
-| POST | `/vini/magazzino/check-duplicati` | Verifica duplicati pre-import |
+| POST | `/vini/magazzino/import` | **(rimosso)** endpoint mai esistito su questo router — l'import vive su `/vini/cantina-tools/import-v2` (vedi §8; V-BUG1 era un falso positivo) |
+| POST | `/vini/magazzino/check-duplicati` | Verifica duplicati pre-inserimento |
 | POST | `/vini/magazzino/{id}/duplica` | Duplica con nuova annata (Fase 2 widget) |
 | GET | `/vini/magazzino/ordini-pending/` | Lista ordini pending (Fase 3 widget) |
 | POST | `/vini/magazzino/{id}/ordine-pending` | Upsert ordine (Fase 4 widget) |
 | DELETE | `/vini/magazzino/{id}/ordine-pending` | Cancella ordine pending |
 | POST | `/vini/magazzino/{id}/ordine-pending/conferma-arrivo` | Converte ordine → CARICO (Fase 5 widget) |
 | GET | `/vini/magazzino/{id}/prezzi-storico/` | Storico prezzi vino (Fase 6 widget) |
+| 🆕 PATCH | `/vini/magazzino/bulk-update` | Aggiornamento massivo (solo admin) — `vini_magazzino_router.py:424` |
+| 🆕 POST | `/vini/magazzino/bulk-duplicate` | Duplica multipla, giacenze a zero (solo admin) — `vini_magazzino_router.py:495` |
+| 🆕 DELETE | `/vini/magazzino/delete-vino/{id}` | Elimina vino + cascade (admin/sommelier) — `vini_magazzino_router.py:537` |
+| 🆕 GET | `/vini/magazzino/movimenti-globali` | Storico movimenti globale con filtri/paginazione — `vini_magazzino_router.py:561` |
+| 🆕 GET | `/vini/magazzino/autocomplete` | Ricerca vini per autocompletamento — `vini_magazzino_router.py:577` |
+| 🆕 GET | `/vini/magazzino/carta-staff/` | Vini in carta, vista sommelier (dal 3.72 con `slot` nelle locazioni) — `vini_magazzino_router.py:593` |
+| 🆕 GET | `/vini/magazzino/calici-disponibili/` | Vini con bottiglia aperta in mescita — `vini_magazzino_router.py:684` |
+| 🆕 GET | `/vini/magazzino/{id}/stats` | Statistiche di vendita del vino — `vini_magazzino_router.py:739` |
+| 🆕 PATCH | `/vini/magazzino/{id}/bottiglia-aperta` | Toggle mescita/servizio al calice (anche `sala`; vedi §11) — `vini_magazzino_router.py:887` |
+| 🆕 GET | `/vini/magazzino/{id}/giacenza-storica` | Andamento giacenza giorno-per-giorno (vedi §11) — `vini_magazzino_router.py:965` |
+| 🆕 PATCH | `/vini/magazzino/movimenti/{id}/data` | Modifica data/ora movimento (admin-only) — `vini_magazzino_router.py:1099` |
 
 ⚠ **Nota router:** `GET /dashboard` deve essere dichiarato PRIMA di `GET /{vino_id}` per evitare che FastAPI interpreti "dashboard" come `vino_id` intero (genera 422).
 
-## 3.7 Modifica massiva — `MagazzinoAdmin.jsx` v2.0
+## 3.7 Modifica massiva — `MagazzinoAdmin_legacy.jsx` v2.0
+
+> ⚠️ File archiviato (`_legacy`), route redirect post-cutover. Gli endpoint BE `bulk-update`/`bulk-duplicate` restano attivi (vedi §3.6).
 
 Tabellona editabile per admin con tutte le colonne principali:
 - Click sugli header per ordinamento ASC/DESC (▲/▼/⇅)
@@ -364,7 +394,7 @@ Tabellona editabile per admin con tutte le colonne principali:
 
 ---
 
-# 4. Dashboard Vini — `DashboardVini.jsx` v4.x
+# 4. Dashboard Vini — `DashboardVini.jsx` v4.x (attuale: v4.15-ritmo-vendita-esteso)
 
 ## 4.1 KPI Stock (4 tile)
 
@@ -373,7 +403,7 @@ Tabellona editabile per admin con tutte le colonne principali:
 | 🍾 Bottiglie in cantina | `total_bottiglie` su `n` referenze | — |
 | 📋 Vini in carta | `vini_in_carta` con % su catalogo | — |
 | ⚠️ Senza prezzo listino | `vini_senza_listino` | ✅ tabella inline + link a scheda |
-| 💤 Vini fermi (30gg) | giacenza > 0 e nessun movimento in 30gg (include mai movimentati) | ✅ lista espandibile |
+| 💤 Vini fermi (30gg) | giacenza > 0 e nessun movimento in Ngg (include mai movimentati; N = widget setting `vini_fermi_giorni`, default 30 — `vini_magazzino_db.py:2126`) | ✅ lista espandibile |
 
 ## 4.2 KPI Vendite (4 tile)
 - 🛒 Bottiglie vendute ultimi 7gg
@@ -383,12 +413,12 @@ Tabellona editabile per admin con tutte le colonne principali:
 
 ## 4.3 Alert e widget (vedi `modulo_vini_widget_dashboard.md` per il dettaglio delle 14 fasi)
 
-- 🚨 **Vini in carta senza giacenza** (banner alert collassabile, 6 fasi A-F implementate): pill `+ ordina · N` inline con qta suggerita storico 60gg ÷ 2; badge ritmo vendita (top/medio/poco/mai); pill stato riordino (📝 Da ordinare / 📦 Ordinato / 🗓️ Annata esaurita / ⛔ Non ricomprare — 4 stati dopo rimozione 'O' 2026-05-11); chip filtro tipologia (Tutti/Rossi/Bianchi/Bollicine/Rosati/Altri); toggle raggruppa per distributore (persistito in `localStorage`); bottone `✅ Arrivato` inline.
+- 🚨 **Vini in carta senza giacenza** (banner alert collassabile, 6 fasi A-F implementate): pill `+ ordina · N` inline con qta suggerita storico Ngg ÷ K (default 60÷2, configurabile via widget settings `qta_suggerita_*`); badge ritmo vendita (top/medio/poco/mai); pill stato riordino (📝 Da ordinare / 📦 Ordinato / 🗓️ Annata esaurita / ⛔ Non ricomprare — 4 stati dopo rimozione 'O' 2026-05-11); chip filtro tipologia (Tutti/Rossi/Bianchi/Bollicine/Rosati/Altri); toggle raggruppa per distributore (persistito in `localStorage`); bottone `✅ Arrivato` inline.
 - 💤 **Vini fermi** — lista espandibile, "mai movimentato" evidenziato
 - **Vendite recenti** (col sx) + **Movimenti operativi** (col dx)
 - **Top venduti 30gg** (larghezza piena) — ranking a barre, click → scheda vino
 - **Distribuzione tipologie** — barre proporzionali con contatore
-- **📦 Riordini per fornitore** (sezione gestionale completa, 8 fasi 1-8 implementate): tabella raggruppata per distributore con sort produttore, pulsante info dedicato, duplica con nuova annata, colonna riordino + modale qty, bottone arrivato + carico, listino inline editabile con storico, sort multi-colonna.
+- **📦 Riordini per fornitore** (sezione gestionale completa, 8 fasi 1-8 implementate): tabella raggruppata per distributore con sort produttore, pulsante info dedicato, duplica con nuova annata, colonna riordino + modale qty, bottone arrivato + carico, listino inline editabile con storico, sort multi-colonna. 🆕 v4.15: colonna "Ritmo" sortabile (ritmo vendita) anche qui e badge ritmo inline nel widget Vini fermi (`DashboardVini.jsx:2`).
 
 ---
 
@@ -403,12 +433,14 @@ Tabellona editabile per admin con tutte le colonne principali:
 | GET | `/vini/carta/pdf` | PDF cliente |
 | GET | `/vini/carta/pdf-staff` | PDF staff |
 | GET | `/vini/carta/docx` | Documento Word |
+| 🆕 GET | `/vini/carta-cliente/data` | JSON carta vini strutturata per la pagina cliente **pubblica** (no auth) — consumata da `pages/public/CartaClienti.jsx` (route `/carta`) — `vini_router.py:151` |
+| 🆕 GET/POST | `/vini/{vino_id}/movimenti` | Lista/registra movimenti (endpoint storico su questo router, JWT) — `vini_router.py:454,473` |
 
 > Endpoint legacy mantenuti per retro-compat anche dopo l'introduzione della Carta Bevande (vedi §6).
 
 ## 5.2 Flusso dati
 
-1. `load_vini_ordinati()` legge da `vini_magazzino.sqlite3` (WHERE `CARTA='SI'`)
+1. `load_vini_ordinati()` legge da `vini_magazzino.sqlite3` (WHERE `CARTA=1` — flag intero post V-H.E mig 124)
 2. Applica filtri quantità/prezzo da `vini_settings.sqlite3`
 3. Normalizza tipologie (vecchie → nuove) con `_TIPOLOGIA_MAP`
 4. Ordina per tipologia → nazione → regione → produttore → descrizione → annata
@@ -426,10 +458,15 @@ Tipologia (GRANDI FORMATI, BOLLICINE, BIANCHI, ROSATI, ROSSI, PASSITI, ANALCOLIC
 
 ## 5.4 Settings Carta — `vini_settings_router.py`
 
-- Ordine tipologie (lista riordinabile con frecce)
-- Ordine nazioni (riordinabile)
-- Ordine regioni per nazione
-- Filtri carta: quantità minima, mostra negativi, mostra senza prezzo
+Prefisso API reale: **`/settings/vini/*`** (`vini_settings_router.py:32`).
+
+- Ordine tipologie (lista riordinabile con frecce) — `GET|POST /tipologie`
+- Ordine nazioni (riordinabile) — `GET|POST /nazioni`
+- Ordine regioni per nazione — `GET|POST /regioni/{nazione}`
+- Filtri carta: quantità minima, mostra negativi, mostra senza prezzo — `GET|POST /filtri`
+- 🆕 Formati e valori tabellati — `GET|POST /formati`, `GET /valori-tabellati` (`vini_settings_router.py:160-195`)
+- 🆕 Widget settings operativi (soglie calici, `vini_fermi_giorni`, step calice, ecc.) — `GET|PUT /settings/vini/widget/` + `POST /widget/reset` (`vini_settings_router.py:337-365`, tabella `vini_widget_settings`, service `vini_widget_settings_service.py`), UI in `ViniImpostazioni.jsx` sezione "Widget e soglie"
+- 🆕 Reset settings — `POST /settings/vini/reset` (`vini_settings_router.py:302`)
 
 ## 5.5 Voci roadmap aperte (vedi `roadmap.md` §V)
 - PDF con indici cliccabili (TOC con link interni)
@@ -440,31 +477,36 @@ Tipologia (GRANDI FORMATI, BOLLICINE, BIANCHI, ROSATI, ROSSI, PASSITI, ANALCOLIC
 
 # 6. Carta Bevande (sub-module)
 
-> Versione 1.0 — Backend (Fase 1) e Frontend editor (Fase 2) e Export unificato (Fase 3) **completati 2026-04-19**. Manca **Fase 4 popolamento dati Marco**.
+> Versione 1.0 — Backend (Fase 1) e Frontend editor (Fase 2) e Export unificato (Fase 3) **completati 2026-04-19**. UI ridisegnata in **v3.1-no-preview** (sessione 58, 2026-04-25): niente più hub a card né anteprima inline — sidebar sezioni + editor a destra (`CartaBevande.jsx:1-8`).
 
 ## 6.1 Posizionamento UI
 
-Tab **"Carta"** nel sub-menu Vini (nome invariato). La pagina diventa hub con 8 card (Vini come hero span 2 col).
+Tab **"Carta"** nel sub-menu Vini (nome invariato). Dal v3.1 la pagina è un "centro carta": sidebar con le sezioni + editor a destra, header con 4 azioni globali sulla carta intera (PDF cliente · PDF staff · Word · Vedi come cliente).
+
+Ordine seed reale (`bevande_db.py::_SEED_SEZIONI`, campo `ordine` — Vini è in 3ª posizione, non più hero):
 
 | Ordine | Sezione | Emoji | Key |
 |--------|---------|-------|-----|
-| 1 | Vini | 🍷 | `vini` (hero, dati da `vini_magazzino`) |
-| 2 | Aperitivi | 🍸 | `aperitivi` |
-| 3 | Birre | 🍺 | `birre` |
-| 4 | Amari fatti in casa | 🌿 | `amari_casa` |
-| 5 | Amari & Liquori | 🥃 | `amari_liquori` |
-| 6 | Distillati | 🥂 | `distillati` (Grappa/Rum/Whisky via tag tipologia) |
-| 7 | Tisane | 🍵 | `tisane` |
-| 8 | Tè | 🫖 | `te` |
+| 10 | Aperitivi | 🍸 | `aperitivi` |
+| 20 | Birre | 🍺 | `birre` |
+| 30 | Vini | 🍷 | `vini` (layout `vini_dinamico`: il renderer chiama `carta_vini_service`, dati da `vini_magazzino`) |
+| 40 | Amari fatti in casa | 🌿 | `amari_casa` |
+| 50 | Amari & Liquori | 🥃 | `amari_liquori` |
+| 60 | Distillati | 🥃 | `distillati` (Grappa/Rum/Whisky/Gin/Vodka via tag tipologia) |
+| 70 | Tisane | 🌼 | `tisane` |
+| 80 | Tè | 🍵 | `te` |
+
+(L'ordine è editabile dall'UI: il seed non fa UPDATE sulle sezioni esistenti.)
 
 ## 6.2 Rotte
 
 ```
-/vini/carta                       → Hub (CartaBevande.jsx)
-/vini/carta/vini                  → Preview + export Carta Vini (CartaVini.jsx)
-/vini/carta/sezione/:key          → Editor sezione (CartaSezioneEditor.jsx)
-/vini/carta/anteprima             → Preview completa master (CartaAnteprima.jsx)
+/vini/carta                       → redirect a /vini/carta/vini (CartaBevande.jsx)
+/vini/carta/vini                  → Preview + export Carta Vini (CartaVini.jsx, dentro CartaBevande)
+/vini/carta/:sezione              → Editor sezione (CartaSezioneEditor.jsx, dentro CartaBevande)
 ```
+
+**(rimosse)** `/vini/carta/sezione/:key` (ora `/vini/carta/:sezione`) e `/vini/carta/anteprima` — `CartaAnteprima.jsx` non è più referenziata da nessun file (decisione UX "no anteprima inline", sessione 58 iter 7).
 
 ## 6.3 Modello dati — `bevande.sqlite3`
 
@@ -479,6 +521,7 @@ DB isolato (coerente con `notifiche.sqlite3`, `cg.sqlite3`) per backup/restore s
 - **Pattern A — `tabella_4col`** (Distillati, Amari & Liquori): `[REGIONE/PAESE] [PRODUTTORE] [NOME + annata] [€]`. Compatto.
 - **Pattern B — `scheda_estesa`** (Birre, Aperitivi, Amari fatti in casa): nome + sottotitolo + meta line (produttore · stile · formato · grad · IBU) + descrizione + prezzo.
 - **Pattern C — `nome_badge_desc`** (Tisane, Tè): nome + badge tipologia colorato + descrizione/ingredienti + paese origine (solo tè).
+- **Pattern speciale — `vini_dinamico`** (sezione Vini): non legge da `bevande_voci`, delega il render a `carta_vini_service` (`bevande_db.py:230,246`).
 
 Aggiungere un nuovo pattern = aggiungere una funzione Python in `carta_bevande_service.py` + un valore enum. Zero migration.
 
@@ -490,6 +533,7 @@ Aggiungere un nuovo pattern = aggiungere una funzione Python in `carta_bevande_s
 | GET | `/bevande/sezioni/{key}` | Dettaglio + schema_form parsato |
 | PUT | `/bevande/sezioni/{key}` | Aggiorna nome/intro_html/ordine/attivo/layout/schema_form |
 | POST | `/bevande/sezioni/reorder` | Riordino batch |
+| 🆕 PUT | `/bevande/sezioni/{key}/tipologie` | Gestione sotto-categorie (options del select `tipologia` nello schema_form) con rename propagato alle voci; da Impostazioni → Ordinamento Carta — `bevande_router.py:318` |
 | GET | `/bevande/voci/?sezione=&attivo=&q=` | Lista filtrata + ricerca su nome/produttore/descrizione |
 | GET | `/bevande/voci/{id}` | Dettaglio |
 | POST | `/bevande/voci/` | Crea voce (blocca sezione `vini` dinamica) |
@@ -514,11 +558,13 @@ Footer PDF cliente: `Carta delle Bevande — v{YYYY}.{MM}.{DD}` calcolato da `MA
 ## 6.7 Decisioni chiuse (2026-04-19)
 
 1. **Multi-lingua:** NO in MVP. Solo italiano. Da rivalutare in futuro.
-2. **URL pubblico `/carta-bevande`:** NO. Solo staff con JWT.
+2. **URL pubblico `/carta-bevande`:** NO. Solo staff con JWT. *(Superata in parte: oggi esiste la pagina cliente pubblica `/carta` — `pages/public/CartaClienti.jsx` — alimentata da `GET /vini/carta-cliente/data` senza auth, `vini_router.py:151`.)*
 3. **Versioning automatico:** SÌ (vedi §6.6).
 4. **Mattone M.B PDF brand:** non aspettiamo. Pipeline attuale `carta_vini_service` estesa in `carta_bevande_service`. Quando M.B arriverà, migreremo.
 
 ## 6.8 Da fare (Fase 4)
+
+*(Nota verifica 2026-07-25: lo stato del popolamento vive nel DB `bevande.sqlite3`, non verificabile dal codice — stime originali lasciate come storico.)*
 
 Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
 - Aperitivi (~10 min, 5-10 voci)
@@ -555,6 +601,7 @@ Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
 | PUT | `/vini/ipratico/export-defaults/{id}` | Modifica valore default |
 | GET | `/vini/ipratico/sync-log` | Storico sincronizzazioni |
 | GET | `/vini/ipratico/stats` | Riepilogo veloce (matched, unmatched, ignored, missing) |
+| 🆕 GET | `/vini/ipratico/trgb-wines` | Lista vini TRGB per il picker di collegamento manuale — `ipratico_products_router.py:309` |
 
 > ⚠️ **Nota dati vendite:** iPratico NON esporta dati di vendita in nessun formato. Le VENDITE in TRGB vanno inserite manualmente (vedi §3.4).
 
@@ -568,17 +615,24 @@ Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
 | POST | `/vini/cantina-tools/import-v2` | Import dal nuovo formato (skip se ID esistente, INSERT solo nuovi) |
 | GET | `/vini/cantina-tools/export-v2` | Download `.xlsx` con tutti i vini (round-trip identico al template) |
 | GET | `/vini/cantina-tools/locazioni-config` | Locazioni configurate (drop-down filtro) |
+| 🆕 POST | `/vini/cantina-tools/locazioni-config/{campo}` · DELETE `/locazioni-config/{campo}/{item_id}` | Salva/elimina config locazione — `vini_cantina_tools_router.py:1423,1479` |
+| 🆕 GET/POST | `/vini/cantina-tools/locazioni-valori/{campo}` · `/locazioni-normalizza` · `/locazioni-vini/{campo}` · `/locazioni-check-giacenze` · `/locazioni-vino-update` | Utility bonifica/normalizzazione locazioni — `vini_cantina_tools_router.py:1503-1688` |
+| 🆕 GET | `/vini/cantina-tools/inventario/pdf` · `/inventario/giacenza/pdf` · `/inventario/locazioni/pdf` · `/inventario/filtrato/pdf` · `/inventario/filtri-options` | Stampe inventario (vedi §9) — `vini_cantina_tools_router.py:794-1257` |
+| 🆕 POST | `/vini/cantina-tools/inventario/selezione/pdf` | PDF per selezione di ID (vedi §9.1) — `vini_cantina_tools_router.py:1196` |
+| 🆕 GET/POST | `/vini/cantina-tools/matrice/*` (`stato`, `celle/{vid}`, `assegna`, `rimuovi`, `set-celle`, `recalc-preview`, `recalc-all`, `old-values`, `import-old`) | Gestione celle scaffali matrice — `vini_cantina_tools_router.py:1726-1878` |
+| 🆕 POST/GET/DELETE | `/vini/cantina-tools/backup/create` · `/backup/list` · `/backup/restore/{timestamp}` · `/backup/{timestamp}` | Backup/restore DB (WAL-safe, hardening 2026-07-12) — `vini_cantina_tools_router.py:1931-2047` |
+| 🆕 POST | `/vini/cantina-tools/reset-database` | Azzera completamente il DB cantina — `vini_cantina_tools_router.py:173` |
+| 🆕 POST | `/vini/cantina-tools/cleanup-duplicates` | Rimozione vini duplicati — `vini_cantina_tools_router.py:322` |
+| 🆕 GET | `/vini/cantina-tools/carta-cantina` | Carta vini HTML generata dal DB cantina — `vini_cantina_tools_router.py:403` |
 
 > **Rimossi in v3.0:** `/vini/upload` (import vecchio), `/vini/cantina-tools/sync-from-excel` (sync vecchio DB).
 > **Rimossi in V-H.J 2026-05-12:** `POST /vini/cantina-tools/import-excel`, `GET /vini/cantina-tools/export-excel` (vecchio formato Excel con header storico). Sostituiti dai 3 endpoint `v2` sopra.
 
 ## 8.1 Import Excel — modalità
 
-**SAFE (default):** ID DB preservati, aggiorna solo i campi consentiti, magazzino esistente preservato.
+**(sezione superata — V-H.J 2026-05-12)** Le modalità **SAFE/FORCE** appartenevano al vecchio import Excel, rimosso. L'import attuale è solo `POST /vini/cantina-tools/import-v2`: **insert-only** — skip se l'ID esiste già, INSERT solo dei nuovi (`vini_cantina_tools_router.py:246`); non modifica né ricostruisce il magazzino esistente.
 
-**FORCE (solo admin):** riallineamento completo database, modifiche massicce e ricostruzione tabella.
-
-> ⚠️ **Bug aperto V-BUG1 (vedi roadmap.md §V):** controllo ruolo per FORCE non ancora implementato in `vini_magazzino_router.py`. Attualmente chiunque può eseguire FORCE anche senza ruolo admin. Da fixare.
+> ✅ **V-BUG1 chiuso come FALSO POSITIVO (2026-05-12, vedi roadmap.md §V riga 145):** l'endpoint `POST /vini/magazzino/import` citato dal bug non esiste; tutti gli endpoint massivi reali (`/reset-database`, `/bulk-update`, `/bulk-duplicate`, `/delete-vino/{id}`) hanno già i loro guard di ruolo.
 
 ---
 
@@ -671,8 +725,8 @@ Hook PATCH `/vini/magazzino/{id}` registra solo `EURO_LISTINO` per ora; estendib
 | Movimenti (modifica data/ora) | admin only | check inline in `update_movimento_data` |
 | Merge anagrafiche / migrate / sync / sync-all / rollback | admin only | `_require_admin` |
 | Bulk-update / bulk-duplicate vini | admin only | `is_admin` inline |
-| Import Excel SAFE | admin, superadmin, sommelier | — |
-| Import Excel FORCE | admin only **(non ancora controllato — V-BUG1)** | — |
+| Import Excel (`import-v2`, insert-only) | admin, superadmin, sommelier | — |
+| ~~Import Excel FORCE~~ | **(rimosso — modalità inesistente, V-BUG1 chiuso come falso positivo, vedi §8.1)** | — |
 | iPratico mapping/sync | admin, superadmin, sommelier | — |
 | Settings Carta | admin, superadmin, sommelier | — |
 | Carta Bevande — editing | admin, superadmin, sommelier | `_require_editor` |
@@ -736,11 +790,11 @@ ricevendo un `madre` parziale (es. da `groupByMadre`).
 
 # 12. Bug noti / debt tecnico
 
-- **V-BUG1**: FORCE import senza ruolo check → vedi §8.1 e roadmap.md §V
-- **Modelli deprecated** (V-H.J 2026-05-12): `vini_db.py` non importato; `vini_model.py` ridotto a stub deprecati con `NotImplementedError`. Cleanup definitivo in V-H.I.
+- **V-BUG1**: **chiuso — FALSO POSITIVO** (2026-05-12): l'endpoint FORCE import non esiste, guard già presenti sugli endpoint massivi reali → vedi §8.1 e roadmap.md §V
+- **Modelli deprecated** (V-H.J 2026-05-12): `vini_db.py` **rimosso** (non più in `app/models/`); `vini_model.py` ridotto a stub deprecati con `NotImplementedError`. Cleanup definitivo in V-H.I.
 - **`/dashboard` PRIMA di `/{id}`**: regola applicata, ma da non rompere se si rifattora il router
 - **Filtri server-side per dataset grandi**: oggi tutti clientside con `useMemo`, da spostare a server quando il magazzino crescerà oltre ~5000 vini
-- **Indice `(vino_id, tipo, data_mov)` su `vini_magazzino_movimenti`**: verificare se presente, altrimenti aggiungere
+- **Indice `(vino_id, tipo, data_mov)` su `vini_magazzino_movimenti`**: verificato 2026-07-25 — **non presente**; esiste solo `idx_vmm_vino_data (vino_id, data_mov)` (`vini_magazzino_db.py:347`). La variante con `tipo` resta da valutare
 
 ---
 

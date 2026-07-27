@@ -1,6 +1,9 @@
 # Modulo Pranzo settimanale — design + uso
 
-**Versione:** 3.0 (sessione 2026-06-07)
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-07-25 (vs codice — `app/repositories/pranzo_repository.py` e le migrazioni non sono nello snapshot verificato: le loro funzioni sono citate ma non ri-verificate)
+> **Vedi anche:** [modulo_menu_carta.md](modulo_menu_carta.md) · [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) · [modulo_cucina.md](modulo_cucina.md)
+
+**Versione:** 3.0 (sessione 2026-06-07) — ultimi aggiornamenti 2026-07-19 (PDF esterno, storie IG v2, `PranzoMenu.jsx` v3.9). Badge modulo in `frontend/src/config/versions.jsx:32-37`: `pranzo` v1.7 beta, label "Menu Pranzo del Giorno" (etichetta storica, il modello è settimanale)
 **Stato:** beta — restyle PDF sistema menu A5 + flusso piatti "Entrambi"
 **Modulo:** `cucina` (sub-modulo pranzo) — vedi CLAUDE.md disciplina modulare
 
@@ -47,6 +50,7 @@ pranzo_settings (riga unica id=1)
 ├── sottotitolo_default   ('la cucina del mercato' da mig 144)
 ├── titolo_business, prezzo_1/2/3_default (15/25/35)
 ├── footer_default        ('acqua, coperto e servizio inclusi\nda lunedì a venerdì')
+├── ig_telefono, ig_indirizzo   🆕 recapiti per storie Instagram (SettingsUpdate, pranzo_router.py:136-137)
 └── updated_at
 ```
 
@@ -65,19 +69,20 @@ Scritture: ruolo `superadmin | admin | chef` (`_check_admin`).
 | `GET /pranzo/menu/` | archivio testate (filtri `data_da`/`data_a`) |
 | `GET /pranzo/menu/corrente/` | settimana corrente |
 | `GET /pranzo/menu/oggi/` | menu di oggi + settings (rich payload) |
-| `GET /pranzo/menu/by-week/?settimana=` | menu per settimana (query string, workaround Safari) |
-| `GET /pranzo/menu/{settimana}/` | menu per lunedì (con righe) |
+| `GET /pranzo/menu/by-week/?settimana=` | menu per settimana (query string — workaround iter 10 per i 502 sulla variante path-param, cfr. `pranzo_router.py:263-269`) |
+| `GET /pranzo/menu/{settimana}/` | menu per lunedì (con righe; sempre 200, `menu` null se assente) |
 | `POST /pranzo/menu/` | upsert (sostituisce righe) |
 | `DELETE /pranzo/menu/{settimana}/` | elimina |
 | `GET /pranzo/menu/{settimana}/pdf/` | PDF brand cliente |
-| `GET /pranzo/menu/{settimana}/margine` | F.1 — margine Menù Business per livello |
+| `GET /pranzo/menu/{settimana}/pdf-esterno/` | 🆕 PDF bacheca: solo antipasti/primi/secondi, corpo grande (`pranzo_router.py:388`, 2026-07-19) |
+| `GET /pranzo/menu/{settimana}/margine` | F.1 — margine Menù Business per livello (niente trailing slash) |
 | `GET /pranzo/programmazione/?n=8` | ultime N settimane con righe (vista comparativa) |
 | `GET /pranzo/settings/` · `PUT` | default testata/prezzi/footer (PUT admin) |
 | `GET /pranzo/health` · `GET /pranzo/smoke/{s}/` | diagnostica (no auth) |
 
 ## Frontend
 
-`frontend/src/pages/pranzo/PranzoMenu.jsx` (v3.5) — 2 tab:
+`frontend/src/pages/pranzo/PranzoMenu.jsx` (v3.9, 2026-07-19 — nome file PDF sensato + bottone PDF esterno) — 2 tab:
 - **Compositore**: nav settimana (frecce ◀▶ + Oggi + **date picker** v3.8: qualsiasi data si aggancia al lunedì della sua settimana — il PDF segue la settimana selezionata) + card piatti (riordino ▲/▼, ordina per categoria, select categoria, input nome libero) + pool a destra (search + filtro categoria + form **"⚡ Nuova ricetta veloce"** nome+categoria → crea placeholder nel pool senza passare da Ricette, visibile anche a pool vuoto). Azioni: PDF / Copia prec. / Elimina / Salva. Righe ad-hoc con nome → bottone **"+ pool"** (promozione a ricetta, v3.0). Widget **MargineCard** (F.1) sotto la card.
 - **Programmazione**: ultime N settimane affiancate, per non ripetersi.
 
@@ -133,7 +138,7 @@ mancano, WeasyPrint usa il fallback.
 - Router: `app/routers/pranzo_router.py` · Repository: `app/repositories/pranzo_repository.py`
 - Service PDF: `app/services/pranzo_pdf_service.py` · CSS: `static/css/menu_pranzo_pdf.css`
 - Migrazioni: 102 (init, riscritta v2), 144 (default testata restyle)
-- Frontend: `frontend/src/pages/pranzo/PranzoMenu.jsx`, `frontend/src/pages/ricette/PranzoSettingsPanel.jsx`
+- Frontend: `frontend/src/pages/pranzo/PranzoMenu.jsx`, `frontend/src/pages/pranzo/PranzoStoryCanvas.jsx`, `frontend/src/pages/ricette/PranzoSettingsPanel.jsx`
 - Debito schema: problemi.md D2 + inventario_pulizia.md (mig 103 deferita)
 
 ## Cose da fare (roadmap C.P*)

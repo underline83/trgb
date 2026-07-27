@@ -1,6 +1,50 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-24 — **DA PUSHARE: docs→wiki completo (index + convenzioni + 14 pagine convertite con header/link, log archiviati a ~3 mesi, scripts/docs_lint.py + hook warning-only in push.sh, palette canonica in styleguide, CLAUDE.md e readme snelliti)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-07-27 — **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-07-27 — La Lavagna: la Bacheca diventa un briefing di servizio
+
+### Contesto
+Marco: "dai un'occhiata alla bacheca nella homepage… al momento non viene utilizzata, ripensiamo al suo uso". Due risposte hanno cambiato il problema: **la Home non la apre nessuno con regolarità**, e la direzione voluta era la somma di briefing automatico + nota a frizione zero + feed unico.
+
+Diagnosi: la Bacheca era l'unico blocco della Home che si riempiva solo con lavoro umano, circondato da card che si riempiono da sole (Alert, Selezioni, notifiche M.A). Per pubblicare servivano titolo + messaggio + destinatari + urgenza + scadenza in `/comunicazioni` — cinque campi per dire una cosa che in osteria si dice a voce. Vuota → non la guardi → non ci scrivi.
+
+### Cosa è stato fatto (`[core]`)
+Fatto prima un mockup HTML a parte per decidere se tenerla; approvato, poi implementata.
+
+- **`app/services/lavagna_service.py`** — servizio platform che compone il briefing del turno: lede in italiano, tavoli da segnalare (allergie → occasioni → gruppi ≥8 → note, in quest'ordine), selezioni, turni, task, eventi, testo WhatsApp. Selezioni e alert **iniettati dal router**, non ricalcolati: dipendenza router → service, mai il contrario.
+- **Endpoint** `GET /dashboard/lavagna` (separato da `/home` così la nota non ricarica tutto) e `GET/POST/DELETE /comunicazioni/nota`.
+- **Frontend** `Lavagna.jsx` + `useLavagna.js`; innestato in **Home.jsx (v9.3)** e **DashboardSala.jsx (v5.3)**.
+- **Schema:** soft-migration `ADD COLUMN` idempotente su `comunicazioni` (`tipo`, `data_riferimento`, `turno`), nessuna migrazione già girata toccata. Le 3 query della bacheca classica filtrano `tipo='bacheca'`.
+
+### Decisioni prese (Marco ha detto "procedi", quindi le ho prese io — reversibili)
+1. **Dove vive:** servizio platform in `app/services/`, non un modulo nuovo. È un aggregatore cross-modulo come `statistiche`, e CLAUDE.md §2 vuole i dati cross-modulo via servizio platform.
+2. **La card Alert è stata assorbita** nello strato eventi: nella stessa colonna era un doppione concettuale.
+3. **Anche in DashboardSala** — non era richiesto, ma con ruolo `sala` l'utente atterra lì e la Home non la vede mai: mettere il briefing solo nella Home significava non farlo vedere a chi serve. Sola lettura per la sala.
+
+### Da fare / attenzione
+- **`npm run build` non l'ho potuto eseguire**: il `node_modules` ha il binario rollup per macOS e la VM remota è Linux. Sintassi e identificatori verificati con `@babel/parser` sui 4 file (tutti OK), ma **la build va lanciata prima del push**.
+- **Il bottone "Copia" non invia**: `wa.me` non funziona sui gruppi, prepara solo il testo negli appunti. Se si vuole l'invio vero serve un'altra strada (M.D email, o API WhatsApp Business).
+- **Il problema vero resta aperto:** un widget migliore non crea il rituale di aprire la Home. La leva è portare il briefing dove lo staff già sta.
+- Task manager e checklist: le tabelle locali sono vuote, quindi lo strato task non l'ho potuto vedere con dati veri — la query c'è ed è difensiva.
+- Nome "La Lavagna": nativo d'osteria, ma da rivedere se il prodotto deve girare fuori da Tre Gobbi.
+
+## SESSIONE 2026-07-25 — Verifica contenuti docs vs codice — Blocco 1 (vini, CG, menu carta, vendite)
+
+### Contesto
+Marco, primo giro di lettura sul wiki: "mi sembrano pieni di errori e non aggiornati". Vero — la conversione wiki aveva sistemato la struttura, non i contenuti. Avviata la verifica sistematica dei modulo_*.md contro il codice (4 verificatori in parallelo su snapshot fresco del repo). Il codice fa fede, sempre.
+
+### Cosa è stato fatto (6 doc corretti in place, [core])
+- **modulo_vini.md + widget_dashboard** — ~26 problemi: versioni ferme a 3.67 (reale 3.72/sistema 5.38), V-BUG1 dichiarato aperto ma chiuso da maggio, endpoint iPratico e carta-staff con path sbagliati, rotte carta bevande rimosse ancora documentate, ~25 endpoint vivi mai documentati (bulk, matrice, backup, pricing), payload conferma-arrivo sbagliato, pagine _legacy citate come vive.
+- **modulo_controllo_gestione.md** — ~17 problemi: stati pagamento VECCHI ovunque (DA_PAGARE/… al posto dell'enum 8 valori), 3 endpoint rimossi documentati attivi, nav "3 tab" (reali 8), KPI dashboard obsoleti, riconciliazione banca/contanti/carta documentata "FUTURO" ma implementata, ~40 endpoint mancanti aggiunti (adeguamenti ISTAT mai documentati), versione 2.19→2.21.
+- **modulo_menu_carta.md** — IL PEGGIORE: diceva ancora "Stato: PROPOSTA, niente codice" per un modulo in produzione da mesi. Sezione dolci assente, endpoint di fantasia mai esistiti, migrazione init sbagliata (097→098), route FE sbagliata. + modulo_pranzo.md (endpoint pdf-esterno, versioni).
+- **modulo_vendite.md** — prefix chiusure turno sbagliato in tutta la tabella (reale /admin/finance/shift-closures, 11 endpoint riscritti con file:riga — chiude il gap CRIT-3/DH.4), endpoint admin_finance inesistenti, versione "v1.x" (reale corrispettivi 4.8), logica giorni chiusi obsoleta (fix V.1), path config pre-R6.5, nota id preconti volatili.
+- Tutti e 6 con header **"Ultima verifica: 2026-07-25 (vs codice)"**, stato "parziale" dove restano zone non verificabili dallo snapshot (App.jsx, migrazioni, template PDF — dichiarate nell'header).
+
+### Da fare / attenzione
+- **Blocco 2** (prossimi): acquisti+fatture, ricette, banca, cucina/tasks. **Blocco 3**: prenotazioni+preventivi, clienti, dipendenti+turni, statistiche + spec_*.
+- Le sezioni "parziale" si chiudono verificando App.jsx e migrazioni (bastano nel prossimo snapshot).
+- Incoerenza segnalata: CorrispettiviAnnual.jsx presente su disco ma dichiarato rimosso in v4.0 (v. modulo_vendite §10.5) — candidato inventario_pulizia.
 
 ## SESSIONE 2026-07-24 — Docs → wiki completo (index, convenzioni, conversione, lint, archivi)
 

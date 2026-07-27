@@ -1,14 +1,16 @@
 // FILE: frontend/src/pages/DashboardSala.jsx
-// @version: v5.2 — Azioni rapide da DB (useHomeActions, sessione 49)
-// Dashboard per utenti sala — prenotazioni oggi, bacheca comunicazioni, azioni rapide
+// @version: v5.3 — widget Bacheca sostituito da La Lavagna (briefing di servizio,
+//   sola lettura per il ruolo sala). Stesso componente della Home.
+// Dashboard per utenti sala — prenotazioni oggi, La Lavagna (briefing di servizio), azioni rapide
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useHomeWidgets from "../hooks/useHomeWidgets";
-import useComunicazioni from "../hooks/useComunicazioni";
+import useLavagna from "../hooks/useLavagna";
 import useHomeActions from "../hooks/useHomeActions";
 import TrgbLoader from "../components/TrgbLoader";
 import SelezioniCard from "../components/widgets/SelezioniCard";
+import Lavagna from "../components/widgets/Lavagna";
 import CaliciDisponibiliCard from "../components/widgets/CaliciDisponibiliCard";
 import { Btn } from "../components/ui";
 
@@ -35,31 +37,6 @@ function formatDate() {
   return `${giorni[d.getDay()]} ${d.getDate()} ${mesi[d.getMonth()]}`;
 }
 
-/* ── Data relativa per comunicazioni ── */
-function formatComDate(isoStr) {
-  if (!isoStr) return "";
-  const d = new Date(isoStr);
-  const now = new Date();
-  const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) {
-    return `Oggi ${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`;
-  }
-  if (diffDays === 1) return "Ieri";
-  if (diffDays < 7) return `${diffDays}gg fa`;
-  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
-}
-
-/* ── Colori urgenza comunicazione ── */
-const URGENZA_STYLE = {
-  urgente:    "bg-red-50 text-red-700 border-red-200",
-  importante: "bg-orange-50 text-orange-700 border-orange-200",
-  normale:    "bg-indigo-50 text-indigo-700 border-indigo-200",
-};
-const URGENZA_LABEL = {
-  urgente: "Urgente",
-  importante: "Importante",
-  normale: "Info",
-};
 
 /* ── Stato prenotazione dot color ── */
 function dotColor(stato) {
@@ -76,12 +53,18 @@ export default function DashboardSala() {
   const navigate = useNavigate();
   const displayName = localStorage.getItem("display_name") || localStorage.getItem("username") || "Sala";
   const { data: widgets, loading: wLoading } = useHomeWidgets();
-  const { comunicazioni, loading: cLoading, nonLette, segnaLetta } = useComunicazioni();
+  const {
+    lavagna,
+    loading: lavagnaLoading,
+    saving: lavagnaSaving,
+    scriviNota,
+    rimuoviNota,
+  } = useLavagna();
   // Azioni rapide configurate in Impostazioni (con fallback statico se BE down)
   const { actions: salaActions } = useHomeActions("sala");
   const [turnoTab, setTurnoTab] = useState("pranzo"); // pranzo | cena
 
-  const loading = wLoading || cLoading;
+  const loading = wLoading || lavagnaLoading;
   const turno = getTurno();
 
   // Filtra prenotazioni per turno
@@ -201,7 +184,7 @@ export default function DashboardSala() {
             </div>
           </div>
 
-          {/* ═══ COL 2: Selezioni del Giorno + Calici + Bacheca ═══ */}
+          {/* ═══ COL 2: Selezioni del Giorno + Calici + Lavagna ═══ */}
           <div className="flex flex-col gap-3.5 min-h-0">
           <SelezioniCard data={widgets?.selezioni} />
           <CaliciDisponibiliCard
@@ -209,59 +192,18 @@ export default function DashboardSala() {
             compact={true}
             onClick={(v) => navigate(`/vini/magazzino/${v.id}`)}
           />
-          <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden flex-1 min-h-[180px] lg:min-h-0">
-            <div className="flex items-center justify-between px-4 pt-4 pb-2.5 border-b border-[#f0ede8]">
-              <span className="text-[12px] font-bold uppercase tracking-[1px] text-[#a8a49e]">
-                📋 Bacheca
-              </span>
-              {nonLette > 0 && (
-                <span className="text-[10px] font-bold text-white rounded-full text-center"
-                  style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}>
-                  {nonLette}
-                </span>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-              {comunicazioni.length > 0 ? (
-                comunicazioni.map((c) => (
-                  <div
-                    key={c.id}
-                    className={`px-4 py-4 border-b border-[#f0ede8] cursor-pointer transition ${
-                      c.letta ? "opacity-50" : ""
-                    }`}
-                    onClick={() => { if (!c.letta) segnaLetta(c.id); }}
-                  >
-                    <div className="flex items-center gap-2.5 mb-1.5">
-                      <span className={`text-[11px] font-bold uppercase tracking-[.6px] px-2 py-1 rounded-md border ${
-                        URGENZA_STYLE[c.urgenza] || URGENZA_STYLE.normale
-                      }`}>
-                        {URGENZA_LABEL[c.urgenza] || "Info"}
-                      </span>
-                      {!c.letta && (
-                        <div className="w-2 h-2 rounded-full bg-brand-blue flex-shrink-0"></div>
-                      )}
-                    </div>
-                    <div className="text-[15px] font-bold text-brand-ink leading-snug">
-                      {c.titolo}
-                    </div>
-                    {c.messaggio && (
-                      <div className="text-[14px] text-[#555] mt-1 leading-relaxed line-clamp-3">
-                        {c.messaggio}
-                      </div>
-                    )}
-                    <div className="text-[12px] text-[#a8a49e] mt-2">
-                      {formatComDate(c.created_at)}{c.autore ? ` — ${c.autore}` : ""}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="px-4 py-8 text-center text-[13px] text-[#a8a49e]">
-                  Nessuna comunicazione
-                </div>
-              )}
-            </div>
-          </div>
+          {/* La Lavagna — briefing di servizio (stesso widget della Home).
+              Qui conta piu' che altrove: la sala atterra su questa pagina, non
+              sulla Home. Con ruolo "sala" e' in sola lettura (isAdmin=false):
+              briefing e nota si vedono, il campo di scrittura no. */}
+          <Lavagna
+            lavagna={lavagna}
+            loading={lavagnaLoading}
+            saving={lavagnaSaving}
+            scriviNota={scriviNota}
+            rimuoviNota={rimuoviNota}
+            isAdmin={false}
+          />
           </div>
 
           {/* ═══ COL 3: Azioni rapide (config da Impostazioni → Home per ruolo) ═══ */}

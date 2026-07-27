@@ -3,6 +3,47 @@
 
 ---
 
+## 2026-07-27 — La Lavagna: il widget Bacheca diventa un briefing di servizio `[core]`
+
+Marco: "la bacheca non viene utilizzata, ripensiamo al suo uso". Diagnosi: era l'unico blocco della Home che richiedeva lavoro umano per riempirsi, in mezzo a card che si riempiono da sole; per pubblicare servivano 5 campi in `/comunicazioni`. Restava vuota → nessuno la guardava → nessuno ci scriveva. In più Marco ha confermato che **la Home non la apre nessuno con regolarità**, quindi il widget da solo non bastava.
+
+### ➕ Aggiunto
+- **`app/services/lavagna_service.py`** (servizio platform) — compone il briefing del turno corrente: lede in italiano (coperti/tavoli/fascia di picco), tavoli da segnalare (allergie, occasioni, gruppi ≥8, note), selezioni del giorno, chi è in turno, task aperti, eventi di oggi, testo pronto per WhatsApp. Ogni query è difensiva: se un DB non risponde sparisce il blocco, non la Home. **Non ricalcola selezioni e alert: glieli inietta `dashboard_router`**, così la dipendenza resta router → service (CLAUDE.md §2).
+- **`GET /dashboard/lavagna`** — endpoint separato da `/dashboard/home` di proposito: la Lavagna si ricarica da sola quando si scrive la nota, senza rifare tutta la Home.
+- **`GET/POST/DELETE /comunicazioni/nota`** — la "nota di servizio": una riga, niente form. Dichiarate **prima** di `/{com_id}`, altrimenti FastAPI leggerebbe `nota` come id.
+- **`frontend/src/components/widgets/Lavagna.jsx` + `hooks/useLavagna.js`** — tre strati in una card: nota del turno (gialla, in cima), briefing auto, eventi. Bottone "Copia" per il gruppo staff.
+
+### 🔧 Modificato
+- **`Home.jsx` v9.3** — la Lavagna prende il posto della Bacheca; **la card "⚠️ Attenzione" è stata assorbita** (gli alert scorrono nello strato eventi: erano un doppione nella stessa colonna). Rimossi gli helper rimasti orfani.
+- **`DashboardSala.jsx` v5.3** — stessa sostituzione. **Qui conta più che nella Home:** con ruolo `sala` l'utente atterra su questa pagina e la Home non la vede mai. In sola lettura (`isAdmin={false}`): briefing e nota si vedono, il campo di scrittura no.
+- **`notifiche_db.py`** — soft-migration `ADD COLUMN` idempotente su `comunicazioni`: `tipo` ('bacheca' | 'nota_servizio'), `data_riferimento`, `turno`. Nessuna migrazione già girata è stata toccata.
+- **`notifiche_service.py`** — tutte e tre le query della bacheca classica ora filtrano `COALESCE(tipo,'bacheca') = 'bacheca'`, così le note non inquinano `/comunicazioni` né il contatore dei non letti.
+- **`versions.jsx`** — home 3.6 → 3.7.
+
+### ⚠️ Nota onesta
+Il bottone "Copia" **non invia**: i link `wa.me` del mattone M.C non funzionano sui gruppi. Prepara il testo negli appunti, l'invio nel gruppo resta manuale.
+
+### File
+`app/services/lavagna_service.py` (nuovo), `frontend/src/components/widgets/Lavagna.jsx` (nuovo), `frontend/src/hooks/useLavagna.js` (nuovo), `app/models/notifiche_db.py`, `app/services/notifiche_service.py`, `app/routers/dashboard_router.py`, `app/routers/notifiche_router.py`, `frontend/src/pages/Home.jsx`, `frontend/src/pages/DashboardSala.jsx`, `frontend/src/config/versions.jsx`.
+
+---
+
+## 2026-07-25 — Docs: verifica contenuti vs codice, Blocco 1 `[core]`
+
+Primo blocco della verifica sistematica dei doc modulo contro il codice (il codice fa fede). ~60 discrepanze corrette in 6 doc, tutte con riferimento file:riga.
+
+### 🐞 Risolti (nei docs)
+- **modulo_menu_carta.md** dichiarava il modulo "PROPOSTA, niente codice": è in produzione da mesi. Riscritte tabelle endpoint reali, sezione dolci, mig 098, route FE.
+- **modulo_controllo_gestione.md**: stati pagamento pre-refactor ovunque, endpoint rimossi documentati attivi, riconciliazione documentata "FUTURO" ma implementata, ~40 endpoint aggiunti.
+- **modulo_vendite.md**: prefix /admin/finance/shift-closures corretto su 11 endpoint (chiude gap CRIT-3/DH.4), versioni e logica chiusure allineate.
+- **modulo_vini.md (+widget)**: versioni 3.67→3.72, bug chiusi dichiarati aperti, ~25 endpoint mancanti, payload e route corretti. **modulo_pranzo.md**: allineamenti minori.
+- Tutti con "Ultima verifica: 2026-07-25 (vs codice)"; zone non verificabili dichiarate nell'header (stato "parziale").
+
+### File
+6 × `docs/modulo_*.md`, `docs/sessione.md`, `docs/changelog.md`.
+
+---
+
 ## 2026-07-24 — Docs → wiki: index, convenzioni, conversione, lint, archivi `[core]`
 
 Da discussione sul modello "LLM wiki" di Karpathy, adattato: per TRGB il problema dei docs è navigabilità e coerenza, non accumulo.

@@ -156,7 +156,12 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   home: {
-    version: "3.6",
+    // 3.7 (2026-07-27): widget Bacheca sostituito da "La Lavagna" — briefing
+    // di servizio auto-composto (coperti, tavoli da segnalare, selezioni,
+    // turni, task) + nota del turno a frizione zero + strato eventi che
+    // assorbe la vecchia card Alert. Stesso widget anche in DashboardSala,
+    // dove il ruolo sala lo vede in sola lettura.
+    version: "3.7",
     label: "Home",
     status: "beta",
     color: "blue",

@@ -1,7 +1,11 @@
 # Modulo Menu Carta — Design Document
 
-**Data:** 2026-04-25
-**Stato:** PROPOSTA (design doc, niente codice ancora)
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-07-25 (vs codice)
+> **Vedi anche:** [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) · [modulo_pranzo.md](modulo_pranzo.md) · [modulo_cucina.md](modulo_cucina.md) · [architettura_mattoni.md](architettura_mattoni.md)
+> **Non verificato in questo giro:** migrazioni 097/098/154 e contenuto dei seed (dir `app/migrations/` assente dallo snapshot), template `app/templates/pdf/menu_carta.html`, route React (App.jsx assente — verificate via `modulesMenu.js` e i `Link` nelle pagine)
+
+**Data:** 2026-04-25 (design originale) — annotato vs codice il 2026-07-25
+**Stato:** IMPLEMENTATO — modulo `menuCarta` **v1.2 beta** (`frontend/src/config/versions.jsx:38-47`). Router: `app/routers/menu_carta_router.py` (v1.2-sezione-dolci, 2026-07-19), mount `/menu-carta` in `main.py:634-635`. Il testo sotto nasce come design doc (sessioni 56-57): le annotazioni ✅/❌/🆕 marcano cosa è stato davvero realizzato. 🆕 2026-07-19: sezione **'dolci'** (router+FE+PDF+MEP) + edizione **Estate 2026** in carta (mig 154, locale tregobbi).
 **Autore:** brainstorming Marco + Claude
 **Ruoli destinatari:** chef/admin (gestione), sala/sommelier (lettura), viewer
 **Punto di partenza:** menù Primavera 2026 cartaceo (PDF A5 definitivo, 21 piatti + degustazioni)
@@ -13,16 +17,18 @@
 Il "menu carta" non è un modulo nuovo: è il **lato anteriore** di quello che esiste già in `recipes` (campo `menu_name`, `menu_description`, `kind='dish'`) + `service_types` ("Alla carta") + `recipe_service_types`. Quello che manca:
 
 1. La nozione di **edizione/stagione** (Primavera 2026 / Estate 2026 / ...) per versionare la carta nel tempo.
-2. La nozione di **sezione di stampa** (Antipasti / Paste, Risi e Zuppe / Secondi / Contorni / Degustazioni / Bambini / Bevande di servizio) ordinata, distinta dalle `recipe_categories` semantiche.
+2. La nozione di **sezione di stampa** (Antipasti / Paste, Risi e Zuppe / Piatti del giorno / Secondi / Contorni / Dolci 🆕 / Degustazioni / Bambini / Servizio) ordinata, distinta dalle `recipe_categories` semantiche. Elenco vivo: `SEZIONI_VALIDE` in `app/routers/menu_carta_router.py:78-81` ('dolci' aggiunta 2026-07-19).
 3. **Allergeni dichiarati a livello piatto** (oggi gli allergeni stanno a livello `ingredients.allergeni`, non aggregati).
 4. **Prezzo carta per edizione** (lo stesso piatto può essere a 18 in Primavera 2026 e a 19 in Estate 2026).
 5. **Stato del piatto in carta**: bozza / in carta / fuori menu, con storico.
 
-La proposta è **2 tabelle nuove** (`menu_editions`, `menu_dish_publications`) + 3 colonne aggiuntive su `recipes` per allergeni e impiattamento. Niente refactor, niente migrazione distruttiva.
+Realizzato (mig 098) con **4 tabelle nuove** (`menu_editions`, `menu_dish_publications`, `menu_tasting_paths`, `menu_tasting_path_steps`) + 3 colonne aggiuntive su `recipes` per allergeni e impiattamento (cfr. docstring `app/routers/menu_carta_router.py:9-10`). Niente refactor, niente migrazione distruttiva.
 
 ---
 
 ## 1. Stato attuale (sessione 56)
+
+> ⚠️ Fotografia storica pre-implementazione. I "buchi" elencati in § 1.2 sono stati colmati (schema mig 098, router sessione 57, allergeni Modulo C, foto Modulo D). Le tabelle vivono in `foodcost.db`, accedute via `get_cucina_connection()` — alias di `get_foodcost_connection()` (`app/models/cucina_db.py`, Fase 0 split cucina).
 
 ### 1.1 Cosa c'è già nel DB `foodcost.db`
 
@@ -71,11 +77,13 @@ clienti_menu_template / clienti_menu_template_righe (clienti.sqlite3)
 
 - `recipes`, `recipe_items`, `recipe_categories` → schema food cost v2, production-ready, IMPLEMENTATO al 100% (cfr. `docs/modulo_ricette_foodcost.md`). Solo **ADD COLUMN** non distruttive.
 - `clienti_menu_template*` → modulo Preventivi/Banchetti, non c'entra con menu carta. Resta indipendente.
-- `cucina.sqlite3` → modulo Cucina HACCP (checklist), parallelo, non si tocca.
+- DB checklist Cucina HACCP → parallelo, non si tocca. (Nel codice attuale è `tasks.sqlite3`, cfr. `menu_carta_router.py:60-63`; `cucina.sqlite3` come file separato è la futura Fase 1 dello split, cfr. `app/models/cucina_db.py`.)
 
 ---
 
 ## 2. Gap analysis: cosa manca per archiviare il menù Primavera 2026
+
+> ⚠️ Tabella storica (pre-implementazione): tutte le righe ❌/⚠️ sono state coperte dallo schema mig 098 (prezzi a fasce/range/label, edizioni, ordine, allergeni dichiarati, foto, degustazioni, voci servizio, `descrizione_variabile` — cfr. campi in `menu_carta_router.py:110-129`).
 
 | Feature richiesta dal PDF Primavera 2026 | Coperta? | Note |
 |------------------------------------------|----------|------|
@@ -133,9 +141,11 @@ CREATE UNIQUE INDEX idx_menu_editions_in_carta
 
 **Esempio righe:**
 ```
-(1, 'Primavera 2026', 'primavera-2026', 'primavera', 2026, '2026-03-21', '2026-06-20', 'in_carta', ..., 'menù-A5-primavera-2026-definitivo.pdf')
-(2, 'Estate 2026',    'estate-2026',    'estate',    2026, '2026-06-21', '2026-09-22', 'bozza',    ..., NULL)
+(1, 'Primavera 2026', 'primavera-2026', 'primavera', 2026, '2026-03-21', '2026-06-20', 'archiviata', ..., 'menù-A5-primavera-2026-definitivo.pdf')
+(2, 'Estate 2026',    'estate-2026',    'estate',    2026, '2026-06-21', '2026-09-22', 'in_carta',   ..., NULL)
 ```
+
+🆕 L'edizione **Estate 2026** è stata seedata e messa `in_carta` con la mig 154 (2026-07-19, locale tregobbi — cfr. commento in `frontend/src/config/versions.jsx:39-42`; migrazione non presente in questo snapshot, non verificata riga per riga).
 
 #### `menu_dish_publications` — riga di pubblicazione di un piatto in un'edizione
 
@@ -152,7 +162,9 @@ CREATE TABLE menu_dish_publications (
     -- Posizionamento in carta
     sezione         TEXT    NOT NULL,
                     -- 'antipasti'|'paste_risi_zuppe'|'piatti_del_giorno'|
-                    -- 'secondi'|'contorni'|'degustazioni'|'bambini'|'servizio'
+                    -- 'secondi'|'contorni'|'dolci'|'degustazioni'|'bambini'|'servizio'
+                    -- 🆕 'dolci' aggiunta 2026-07-19 (SEZIONI_VALIDE,
+                    -- app/routers/menu_carta_router.py:78-81)
     sort_order      INTEGER NOT NULL DEFAULT 0,
 
     -- Override testuali (di solito NULL → fallback su recipes.menu_name/description)
@@ -270,7 +282,7 @@ recipes (esistenti, modulo food cost v2)
 
 ## 4. Endpoint API previsti
 
-Router nuovo: `app/routers/menu_carta_router.py`. Prefisso `/menu-carta`. Auth: `Depends(get_current_user)` su tutto.
+Router: `app/routers/menu_carta_router.py`. Prefisso `/menu-carta` (mount `main.py:634`). Auth: `Depends(get_current_user)` a livello router (`menu_carta_router.py:70`); in più un `public_router` senza auth (`menu_carta_router.py:71`, mount `main.py:635`).
 
 Trailing slash sui root (regola TRGB: niente 307 redirect).
 
@@ -278,54 +290,58 @@ Trailing slash sui root (regola TRGB: niente 307 redirect).
 
 | Verbo | Path | Scopo |
 |-------|------|-------|
-| GET | `/menu-carta/editions/` | Lista edizioni (filtri: stato) |
-| POST | `/menu-carta/editions/` | Crea nuova edizione (stato='bozza') |
-| GET | `/menu-carta/editions/{id}` | Dettaglio + tutte le pubblicazioni raggruppate per sezione |
-| PUT | `/menu-carta/editions/{id}` | Aggiorna (nome, date, note, pdf_path) |
-| POST | `/menu-carta/editions/{id}/publish` | Promuove `bozza` → `in_carta` (e archivia automaticamente l'edizione `in_carta` precedente) |
-| POST | `/menu-carta/editions/{id}/clone` | Clona un'edizione (copia tutte le pubblicazioni, nuovo stato `bozza`) → punto di partenza per il menu della stagione successiva |
-| POST | `/menu-carta/editions/{id}/archive` | Forza `archiviata` |
-| DELETE | `/menu-carta/editions/{id}` | Solo se `bozza` |
+| GET | `/menu-carta/editions/` | ✅ Lista edizioni (filtri: stato) — `menu_carta_router.py:211` |
+| POST | `/menu-carta/editions/` | ✅ Crea nuova edizione (stato='bozza') — `menu_carta_router.py:328` |
+| GET | `/menu-carta/editions/{id}` | ✅ Dettaglio + pubblicazioni raggruppate per sezione + degustazioni + KPI — `menu_carta_router.py:231` |
+| PUT | `/menu-carta/editions/{id}` | ✅ Aggiorna (nome, date, note, pdf_path) — `menu_carta_router.py:352` |
+| POST | `/menu-carta/editions/{id}/publish` | ✅ Promuove `bozza` → `in_carta` (e archivia automaticamente l'edizione `in_carta` precedente) — `menu_carta_router.py:373` |
+| POST | `/menu-carta/editions/{id}/clone` | ✅ Clona un'edizione (copia pubblicazioni + degustazioni, nuovo stato `bozza`; body `{nome, slug, ...}`) → punto di partenza per il menu della stagione successiva — `menu_carta_router.py:396` |
+| POST | `/menu-carta/editions/{id}/archive` | ✅ Forza `archiviata` — `menu_carta_router.py:482` |
+| DELETE | `/menu-carta/editions/{id}` | ✅ Solo se `bozza` — `menu_carta_router.py:496` |
+| GET | `/menu-carta/editions/{id}/mep-preview` | 🆕 Anteprima JSON dei template MEP generabili (non scrive) — `menu_carta_router.py:840` |
+| POST | `/menu-carta/editions/{id}/generate-mep` | 🆕 Genera/rigenera template MEP "MEP Carta · {partita} · {slug}" in `tasks.sqlite3` (idempotente, `attivo=0`) — `menu_carta_router.py:891` |
 
 ### 4.2 Pubblicazioni piatto
 
 | Verbo | Path | Scopo |
 |-------|------|-------|
-| GET | `/menu-carta/publications/?edition_id=X` | Lista (con join recipe per nome/descrizione fallback) |
-| POST | `/menu-carta/publications/` | Aggiunge piatto a edizione |
-| PUT | `/menu-carta/publications/{id}` | Modifica prezzo/sezione/ordine/allergeni/badge |
-| POST | `/menu-carta/publications/{id}/move` | Cambio sezione + ordine (drag&drop) |
-| DELETE | `/menu-carta/publications/{id}` | Rimuove dalla carta |
+| GET | `/menu-carta/publications/?edition_id=X` | ✅ Lista (con join recipe per nome/descrizione fallback) — `menu_carta_router.py:517` |
+| POST | `/menu-carta/publications/` | ✅ Aggiunge piatto a edizione — `menu_carta_router.py:535` |
+| PUT | `/menu-carta/publications/{id}` | ✅ Modifica prezzo/sezione/ordine/allergeni/badge — `menu_carta_router.py:565` |
+| POST | `/menu-carta/publications/{id}/move` | ❌ (non implementato — cambio sezione/ordine si fa con la PUT; niente drag&drop) |
+| DELETE | `/menu-carta/publications/{id}` | ✅ Rimuove dalla carta (+ cleanup foto orfana) — `menu_carta_router.py:592` |
+| POST | `/menu-carta/publications/{id}/foto` | 🆕 Upload foto piatto (multipart, resize 1200x800, JPEG q85, Modulo D) — `menu_carta_router.py:621` + `app/services/menu_carta_image_service.py` |
+| DELETE | `/menu-carta/publications/{id}/foto` | 🆕 Rimuove foto (file + `foto_path` NULL, Modulo D) — `menu_carta_router.py:669` |
 
 ### 4.3 Degustazioni
 
 | Verbo | Path | Scopo |
 |-------|------|-------|
-| GET/POST | `/menu-carta/tasting-paths/?edition_id=X` | Lista/crea |
-| GET/PUT/DELETE | `/menu-carta/tasting-paths/{id}` | Dettaglio + passi |
-| POST | `/menu-carta/tasting-paths/{id}/steps` | Aggiunge passo |
+| GET/POST | `/menu-carta/tasting-paths/?edition_id=X` | ✅ Lista (con steps) / crea (steps inclusi nel body) — `menu_carta_router.py:704,741` |
+| PUT/DELETE | `/menu-carta/tasting-paths/{id}` | ✅ Modifica (replace completo degli steps) / elimina — `menu_carta_router.py:765,795`. Non esiste la GET singola |
+| POST | `/menu-carta/tasting-paths/{id}/steps` | ❌ (non implementato — gli step si sostituiscono in blocco con la PUT) |
 
 ### 4.4 Stampa / export
 
 | Verbo | Path | Scopo |
 |-------|------|-------|
-| GET | `/menu-carta/editions/{id}/pdf` | Genera PDF stampabile via mattone **M.B PDF brand** (`pdf_brand.py`). Layout A5 simile al PDF cartaceo |
-| GET | `/menu-carta/editions/{id}/print-preview` | HTML preview senza PDF (utile su iPad) |
-| GET | `/menu-carta/editions/{id}/qr-menu` | URL pubblico per QR menu (cfr. § 7) |
+| GET | `/menu-carta/editions/{id}/pdf` | ✅ Genera PDF stampabile via mattone **M.B PDF brand** (`genera_pdf_html`, template `menu_carta.html` + CSS dedicato `_menu_carta_css()`) — `menu_carta_router.py:1094`. Ordine sezioni di stampa: `PDF_SEZIONI_ORDER` (`menu_carta_router.py:1025-1034`, 🆕 include 'dolci') |
+| GET | `/menu-carta/editions/{id}/print-preview` | ❌ (non implementato — la preview HTML è il tab "Anteprima" di `MenuCartaDettaglio.jsx`) |
+| GET | `/menu-carta/editions/{id}/qr-menu` | ❌ (non implementato — il QR si genera da Impostazioni Cucina e punta alla pagina pubblica `/carta/menu`, cfr. `frontend/src/pages/ricette/RicetteSettings.jsx:1020`) |
 
 ### 4.5 Operativo / cucina
 
 | Verbo | Path | Scopo |
 |-------|------|-------|
-| GET | `/menu-carta/in-carta/today` | Endpoint pubblico (no auth) — restituisce il menu attualmente `in_carta` per consumo da app esterne / sito / pagina QR |
-| GET | `/menu-carta/editions/{id}/checklist?partita=primi&data=YYYY-MM-DD` | Mise en place per partita (genera checklist dinamica dai piatti dell'edizione) |
-| GET | `/menu-carta/publications/{id}/scheda-piatto` | Scheda piatto stampabile (PDF) per cuoco → ingredienti, grammature, procedura, impiattamento |
+| GET | `/menu-carta/in-carta/today` | ✅ Implementato come **`GET /menu-carta/public/today`** (no auth, `public_router`) — restituisce il menu attualmente `in_carta` per app esterne / sito / pagina QR — `menu_carta_router.py:1188` |
+| GET | `/menu-carta/editions/{id}/checklist?partita=primi&data=YYYY-MM-DD` | ❌ Sostituito dal generatore MEP: `GET /editions/{id}/mep-preview` + `POST /editions/{id}/generate-mep` (template checklist in `tasks.sqlite3`, mapping `SEZIONE_TO_PARTITA` in `menu_carta_router.py:830-837`, 🆕 include 'dolci' → partita Dolci) |
+| GET | `/menu-carta/publications/{id}/scheda-piatto` | ❌ (non implementato) |
 
 ---
 
 ## 5. Mockup UI
 
-Pagina principale: `/cucina/menu-carta/` (sotto modulo Cucina nel `modulesMenu.js`).
+Pagina principale: **`/menu-carta`** (voce "Menu Carta" sotto "Gestione Cucina" in `frontend/src/config/modulesMenu.js:69` — non `/cucina/menu-carta/` come nel design). Pagine: `frontend/src/pages/cucina/MenuCartaElenco.jsx` (v1.1) e `MenuCartaDettaglio.jsx` (v1.4-sezione-dolci, 2026-07-19 — 🆕 'dolci' in `SEZIONI_ORDER`, riga 22). I mockup sotto sono il design originale; l'implementazione differisce in alcuni punti: tab reali = **Sezioni / Degustazioni / Anteprima / Anagrafica** (`MenuCartaDettaglio.jsx:33-38`, niente tab Servizio/Allergeni/Foto/Stampa separati), niente drag&drop (riordino via campi della modale), modale pubblicazione integrata in `MenuCartaDettaglio.jsx` (nessun file `PubblicazioneModale.jsx`).
 
 ### 5.1 Lista edizioni
 
@@ -435,20 +451,22 @@ Palette: `bg-brand-cream` di sfondo, sezioni con accenti `brand-blue` per attivi
 
 | Modulo | Integrazione |
 |--------|--------------|
-| **Food cost v2** (`recipes`) | Ogni `menu_dish_publication` punta a una `recipes`. Modificare il prezzo carta da menu_carta NON modifica `recipes.selling_price` (che resta il prezzo "default"). La % food cost in carta = costo ricetta / prezzo pubblicazione. |
-| **Cucina HACCP** (`cucina.sqlite3`) | Generatore checklist mise en place: dato `edition_id` corrente + data, crea un'istanza `checklist_template` "Mise en place servizio" con item dinamici (uno per piatto attivo della sezione richiesta). Riusa l'infrastruttura HACCP esistente. |
-| **Preventivi banchetti** (`clienti_menu_template`) | Bottone "Importa da menu carta": clona righe da `menu_dish_publications` come template di banchetto. |
-| **M.A Notifiche** | Quando un piatto viene pubblicato/spostato/messo OOS → notifica a `chef` + `sala` ("Filetto Donizetti spostato nei piatti del giorno"). |
-| **M.B PDF brand** | Endpoint `/editions/{id}/pdf` usa `pdf_brand.py` con un template specifico `menu_carta_a5.html` (ricalca il PDF Primavera 2026). |
-| **M.F Alert engine** | Checker nuovo `@register_checker("menu_publication_costs")`: se food cost % di una pubblicazione supera la soglia configurata (es. 32%) → notifica chef. |
-| **iPratico vendite** | Cross-check: i `menu_dish_publications` di un'edizione `in_carta` dovrebbero corrispondere ai prodotti iPratico mappati. Se manca un mapping → warning. |
-| **Allergeni / `ingredients.allergeni`** | Job di "rigenerazione allergeni calcolati" su `recipes`: scorre gli `ingredients` di tutte le righe (anche sub_recipe annidate), aggrega i CSV, salva su `recipes.allergeni_calcolati`. Schedulato notturno. La dichiarazione finale resta umana (`menu_dish_publications.allergeni_dichiarati`). |
+| **Food cost v2** (`recipes`) | ✅ Ogni `menu_dish_publication` punta a una `recipes` (LEFT JOIN per fallback nome/descrizione/allergeni). Modificare il prezzo carta da menu_carta NON modifica `recipes.selling_price` (che resta il prezzo "default"). |
+| **Cucina HACCP** (`tasks.sqlite3`) | ✅ Implementato come **generatore MEP** (Blocco E, sessione 57): `POST /editions/{id}/generate-mep` crea in `tasks.sqlite3` un `checklist_template` "MEP Carta · {partita} · {slug}" per partita (Antipasti/Primi/Secondi/Contorni/Dolci 🆕), item CHECKBOX uno per piatto, `attivo=0` (attivazione manuale da Impostazioni Cucina) — `menu_carta_router.py:891-1017`. I 5 template MEP fissi della mig 097 restano come fallback. |
+| **Preventivi banchetti** (`clienti_menu_template`) | ❌ Bottone "Importa da menu carta" non implementato (nessun riferimento a menu_carta in `menu_templates_service.py` / `menu_templates_router.py`). |
+| **M.A Notifiche** | ❌ Non implementato (nessuna notifica su publish/sposta piatto nel router). |
+| **M.B PDF brand** | ✅ Endpoint `/editions/{id}/pdf` usa `pdf_brand.genera_pdf_html` con template `menu_carta.html` + CSS dedicato (`menu_carta_router.py:1094-1181`; il nome file template è `menu_carta.html`, non `menu_carta_a5.html`). |
+| **M.F Alert engine** | ❌ Checker `menu_publication_costs` non implementato (nessun `@register_checker` menu-carta in `app/services/alert_engine.py`). |
+| **iPratico vendite** | ❌ Cross-check non implementato. |
+| **Allergeni / `ingredients.allergeni`** | ✅ Implementato (Modulo C, 2026-04-27) ma NON come job notturno: cache ricorsiva `recipes.allergeni_calcolati` ricalcolata automaticamente su POST/PUT ricetta + on-demand via `POST /foodcost/ricette/{id}/ricalcola-allergeni` e `POST /foodcost/ricette/ricalcola-allergeni-tutti` (`app/services/allergeni_service.py`, `app/routers/foodcost_recipes_router.py`). La dichiarazione finale resta umana (`menu_dish_publications.allergeni_dichiarati`). |
 
 ---
 
 ## 7. QR menu cliente (futuro, non in v1)
 
-Una volta che le edizioni sono in DB, generare una pagina pubblica `/m/{slug}` (es. `osteriatregobbi.it/m/primavera-2026`) renderizzata server-side con:
+🆕 Implementato in variante semplificata (Modulo G.1, 2026-04-27): pagina pubblica FE **`/carta/menu`** (`frontend/src/pages/public/CartaMenuPubblica.jsx`) che consuma `GET /menu-carta/public/today` (no auth) e mostra sempre l'edizione `in_carta`; QR generabile da Impostazioni Cucina ("QR Carta Menu", `RicetteSettings.jsx:32,1020`). Il resto del paragrafo (URL per-slug `/m/{slug}`, switch lingua, redirect `/m/today`) resta futuro/non implementato.
+
+Design originale: una volta che le edizioni sono in DB, generare una pagina pubblica `/m/{slug}` (es. `osteriatregobbi.it/m/primavera-2026`) renderizzata server-side con:
 
 - Sezioni come da PDF
 - Allergeni dichiarati (UE 1169/2011 obbligatorio)
@@ -461,6 +479,8 @@ Permette di pubblicare il menu in tempo reale senza ristampe.
 ---
 
 ## 8. Migrazione dati: archiviazione del menu Primavera 2026
+
+> ⚠️ Sezione storica: piano di seed del design doc (eseguito con la mig 098; l'edizione Estate 2026 è arrivata poi con la mig 154, 2026-07-19). Le migrazioni non sono incluse in questo snapshot del repo, quindi il contenuto effettivo dei seed non è ri-verificato riga per riga.
 
 Tutte le voci da archiviare sono nel PDF `menù-A5-primavera-2026-definitivo.pdf`. Vediamo come si traducono.
 
@@ -568,32 +588,32 @@ Ognuna entra come `recipes.kind='base'`, finisce come `sub_recipe_id` nelle righ
 
 Tre fasi minime. Ogni fase è un push.
 
-### Fase 1 — schema + populate (1 sessione)
+### Fase 1 — schema + populate (1 sessione) — ✅ FATTA
 
-1. Migrazione `097_menu_carta_init.py`:
+1. Migrazione **`098_menu_carta_init`** (non 097: la 097 sono i 5 template MEP fissi cucina — cfr. `menu_carta_router.py:9,823-824`):
    - CREATE `menu_editions`, `menu_dish_publications`, `menu_tasting_paths`, `menu_tasting_path_steps`
    - ALTER `recipes` ADD COLUMN `allergeni_calcolati`, `istruzioni_impiattamento`, `tempo_servizio_minuti`
 2. Seed dell'edizione "Primavera 2026" con tutte le 29 voci della § 8.1 in stato `in_carta`. Ricette piatto vuote inizialmente (solo `name`, `menu_name`, `menu_description`, `category_id`, `kind='dish'`).
 3. Seed delle 2 degustazioni con i 10 step (§ 8.2).
 4. Seed delle 5 voci di servizio (§ 8.3) e delle 2 voci bambini (§ 8.4).
 
-### Fase 2 — backend API + UI base (1-2 sessioni)
+### Fase 2 — backend API + UI base (1-2 sessioni) — ✅ FATTA
 
-1. Router `menu_carta_router.py` con endpoint § 4.1 e § 4.2 (CRUD edizioni + pubblicazioni).
+1. ✅ Router `menu_carta_router.py` con endpoint § 4.1 e § 4.2 (CRUD edizioni + pubblicazioni).
 2. Pagine FE:
-   - `frontend/src/pages/cucina/MenuCartaElenco.jsx` (lista edizioni)
-   - `frontend/src/pages/cucina/MenuCartaDettaglio.jsx` (testa + tab + drag&drop sezioni)
-   - `frontend/src/pages/cucina/PubblicazioneModale.jsx` (modale § 5.3)
-3. Voce in `modulesMenu.js`: sotto "Gestione Cucina" → "Menu carta" (icon emoji, color brand).
+   - ✅ `frontend/src/pages/cucina/MenuCartaElenco.jsx` (lista edizioni)
+   - ✅ `frontend/src/pages/cucina/MenuCartaDettaglio.jsx` (testa + tab; niente drag&drop)
+   - ❌ `PubblicazioneModale.jsx` come file separato (rimosso dal piano: la modale § 5.3 è integrata in `MenuCartaDettaglio.jsx`)
+3. ✅ Voce in `modulesMenu.js`: sotto "Gestione Cucina" → "Menu Carta" → `/menu-carta` (`modulesMenu.js:69`).
 
-### Fase 3 — popolamento ricette + integrazioni (N sessioni)
+### Fase 3 — popolamento ricette + integrazioni (N sessioni) — parziale
 
-1. Compilare le 21 ricette piatto + ricette base dalla § 8.5 — lavoro di Marco/cuochi assistito.
-2. Endpoint § 4.4 (PDF stampa via M.B PDF brand).
-3. Endpoint § 4.5 (mise en place via cucina HACCP, schede piatto stampabili).
-4. Cross-check con iPratico (warning prodotti carta non mappati).
-5. Checker M.F per food cost % oltre soglia.
-6. Pagina pubblica `/m/{slug}` per QR (Fase 4 a parte).
+1. Compilare le 21 ricette piatto + ricette base dalla § 8.5 — lavoro di Marco/cuochi assistito (stato dati non verificabile da repo).
+2. ✅ Endpoint § 4.4 (PDF stampa via M.B PDF brand) — `menu_carta_router.py:1094`.
+3. ✅/❌ Endpoint § 4.5: mise en place via generatore MEP (`mep-preview`/`generate-mep`); schede piatto stampabili ❌.
+4. ❌ Cross-check con iPratico (warning prodotti carta non mappati).
+5. ❌ Checker M.F per food cost % oltre soglia.
+6. ✅ (variante) Pagina pubblica `/carta/menu` per QR (Modulo G.1, cfr. § 7); `/m/{slug}` ❌.
 
 ---
 
@@ -601,9 +621,9 @@ Tre fasi minime. Ogni fase è un push.
 
 1. **Stagioni del menu**: 4 fisse (primavera/estate/autunno/inverno) o vuoi più libertà (es. "Tartufo bianco 2026" di nicchia tra autunno e inverno)? *Proposta:* libero — `stagione` è solo etichetta, non vincolo.
 2. **Edizioni concorrenti**: una sola `in_carta` per volta, o vuoi gestire più carte parallele (es. menu pranzo lavoro a parte)? *Proposta:* una sola `in_carta` per service_type. Quindi possono coesistere "Primavera 2026 carta" e "Primavera 2026 pranzo lavoro" se entrambi `in_carta` ma su `service_type` diversi.
-3. **Allergeni**: vuoi una matrice booleana sui 14 allergeni UE (`menu_dish_publications.glutine`, `lattosio`, ...) o un CSV testuale come proposto? *Proposta:* CSV in v1, eventuale normalizzazione a tabella M:N in v2 quando serve.
+3. **Allergeni**: vuoi una matrice booleana sui 14 allergeni UE (`menu_dish_publications.glutine`, `lattosio`, ...) o un CSV testuale come proposto? *Proposta:* CSV in v1, eventuale normalizzazione a tabella M:N in v2 quando serve. → **Risolta: CSV** (Modulo C, `allergeni_service.py` — CSV lowercase ordinato).
 4. **Ricette già esistenti**: in produzione `foodcost.db` ne ha già qualcuna creata da Marco/cuochi? Se sì, prima del seed va fatto un check duplicati su `menu_name`.
-5. **Foto piatto**: dove vivono? `frontend/public/menu_photos/` o un bucket esterno? *Proposta:* `frontend/public/menu_photos/{edition_slug}/{publication_id}.jpg`, generato dal backend.
+5. **Foto piatto**: dove vivono? *Proposta originale:* `frontend/public/menu_photos/...`. → **Risolta diversamente** (Modulo D + Modulo K): upload gestito dal backend, salvataggio **fuori dal repo** in `<UPLOADS_DIR>/menu_carta/<edition_id>/<pub_id>.jpg` (default prod `/home/marco/trgb_uploads/`), path relativo `/uploads/menu_carta/...` in `foto_path`; i path legacy `/static/menu_carta/...` restano serviti (`app/services/menu_carta_image_service.py`, `app/utils/uploads.py`).
 6. **Lingua**: serve già il menu inglese (turisti)? *Proposta:* fuori v1; volendo, in v2 un'altra colonna `menu_name_en` / `menu_description_en` su `menu_dish_publications`.
 7. **Storico prezzi**: quando una pubblicazione cambia prezzo dentro la stessa edizione, va tracciato? *Proposta:* un trigger che scrive un evento in `menu_publication_price_log` (tabella futura, fuori v1).
 
@@ -613,7 +633,11 @@ Tre fasi minime. Ogni fase è un push.
 
 - `docs/modulo_ricette_foodcost.md` — schema food cost v2 (fonte di verità su `recipes`)
 - `docs/modulo_cucina.md` — modulo Cucina HACCP MVP (sessione 43)
+- `docs/modulo_pranzo.md` — sub-modulo Pranzo settimanale (stessa area Gestione Cucina)
 - `docs/architettura_mattoni.md` — mattoni condivisi (M.A, M.B, M.F)
+- `app/routers/menu_carta_router.py` — router implementato (v1.2-sezione-dolci) · `app/services/menu_carta_image_service.py` (foto) · `app/services/allergeni_service.py` (Modulo C)
+- Frontend: `frontend/src/pages/cucina/MenuCartaElenco.jsx` · `MenuCartaDettaglio.jsx` · `frontend/src/pages/public/CartaMenuPubblica.jsx` (route `/menu-carta`, `/menu-carta/:id`, `/carta/menu`)
 - `app/migrations/074_recipes_menu_servizi.py` — estensione `recipes` per menu/servizi (sessione 35)
 - `app/migrations/080_menu_templates.py` — template menu per preventivi banchetto (sessione 39)
+- Migrazioni menu carta: 097 (5 template MEP fissi), 098 (init menu carta), 154 (seed Estate 2026 + dolci, locale tregobbi) — *non presenti in questo snapshot, citate da commenti nel codice*
 - `menù-A5-primavera-2026-definitivo.pdf` — fonte di verità del menu da archiviare

@@ -46,6 +46,9 @@ from app.services.notifiche_service import (
     aggiorna_comunicazione,
     elimina_comunicazione,
     conta_comunicazioni_non_lette,
+    get_nota_servizio,
+    set_nota_servizio,
+    elimina_nota_servizio,
 )
 
 # Inizializza DB al primo import
@@ -62,6 +65,13 @@ class ComunicazioneIn(BaseModel):
     urgenza: str = "normale"
     dest_ruolo: str = "tutti"
     scadenza: Optional[str] = None
+
+class NotaServizioIn(BaseModel):
+    """La riga volante della Lavagna: un campo solo, niente form."""
+    messaggio: str
+    data: Optional[str] = None    # YYYY-MM-DD, default oggi
+    turno: Optional[str] = None   # 'pranzo' | 'cena', default turno corrente
+
 
 class ComunicazioneUpdate(BaseModel):
     titolo: Optional[str] = None
@@ -183,6 +193,70 @@ def api_crea_comunicazione(
         scadenza=body.scadenza,
     )
     return {"ok": True, "id": cid}
+
+
+# ═══════════════════════════════════════════════
+# NOTA DI SERVIZIO (La Lavagna — Home)
+# ═══════════════════════════════════════════════
+# Scorciatoia a frizione zero: una riga scritta dalla Home, vive un turno.
+# Le rotte stanno sotto /comunicazioni perche' i dati sono gli stessi
+# (stessa tabella, tipo='nota_servizio'), ma la bacheca classica le filtra via.
+# Le rotte fisse vanno dichiarate PRIMA di /{com_id}, altrimenti FastAPI
+# proverebbe a interpretare "nota" come un id intero.
+
+def _oggi_turno(data: Optional[str], turno: Optional[str]):
+    from datetime import date as _date
+    from app.services.lavagna_service import turno_corrente
+    d = data or _date.today().isoformat()
+    t = (turno or turno_corrente()).lower()
+    if t not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno deve essere pranzo o cena")
+    return d, t
+
+
+@com_router.get("/nota")
+def api_get_nota_servizio(
+    data: Optional[str] = None,
+    turno: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Nota di servizio del turno (o None)."""
+    d, t = _oggi_turno(data, turno)
+    return {"nota": get_nota_servizio(d, t)}
+
+
+@com_router.post("/nota")
+def api_set_nota_servizio(
+    body: NotaServizioIn,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Appende la riga del turno. Solo admin, come la bacheca."""
+    _require_admin(current_user)
+    testo = (body.messaggio or "").strip()
+    if not testo:
+        raise HTTPException(status_code=400, detail="Messaggio vuoto")
+    if len(testo) > 500:
+        raise HTTPException(status_code=400, detail="Massimo 500 caratteri")
+    d, t = _oggi_turno(body.data, body.turno)
+    nid = set_nota_servizio(
+        autore=current_user["username"],
+        messaggio=testo,
+        data_rif=d,
+        turno=t,
+    )
+    return {"ok": True, "id": nid, "nota": get_nota_servizio(d, t)}
+
+
+@com_router.delete("/nota")
+def api_elimina_nota_servizio(
+    data: Optional[str] = None,
+    turno: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Toglie la riga dalla Lavagna (archivia, non cancella)."""
+    _require_admin(current_user)
+    d, t = _oggi_turno(data, turno)
+    return {"ok": elimina_nota_servizio(d, t)}
 
 
 @com_router.put("/{com_id}")
