@@ -3,13 +3,19 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.74 (2026-08-02): Anagrafiche > Distributori — modalita' contatti
+    //   (O1): edit inline di rappresentante/telefono/email in tabella,
+    //   Invio scende alla riga sotto, barra di completezza, filtro "solo
+    //   senza telefono". Prerequisito dell'invio ordini via WhatsApp
+    //   (v. docs/modulo_vini_ordini.md). Backend: il PATCH fornitore non
+    //   fa piu' il cascade sync se tocca solo campi non denormalizzati.
     // 3.73 (2026-08-02): Carta Bevande — flag `analcolica` sulle voci (mig 157):
     //   badge "0.0" brand-blue accanto al nome + legenda, su HTML web, HTML
     //   preview e DOCX/PDF. Gemello del flag gluten_free (mig 106).
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.73",
+    version: "3.74",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

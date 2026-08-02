@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-08-02 — Ordini vini: piano O1–O7 + contatti distributori `[core]`
+
+Marco: "rivediamo un attimo i riordini per fornitore, devo avere un modo per lavorarci meglio". La ricognizione ha trovato tre buchi: **non esiste il concetto di ordine** (solo una riga pending per vino, `UNIQUE(vino_id)`), **non esiste storico** (`conferma_arrivo_ordine_pending()` cancella il record quando la merce arriva), e **due widget della dashboard fanno lo stesso lavoro**. Piano completo a fasi in [`modulo_vini_ordini.md`](modulo_vini_ordini.md).
+
+Marco ordina in due situazioni, entrambe centrate sul fornitore e non sul vino: col rappresentante davanti, o mandando un messaggio WhatsApp. Da lì l'ordine delle fasi.
+
+### Aggiunto
+- **`docs/modulo_vini_ordini.md`** — doc canonico: diagnosi, ricognizione dati, modello `vini_ordini` + `vini_ordini_righe`, fasi O1–O7, fuori scope dichiarato, 4 domande aperte.
+- **Modalità contatti (O1)** in Anagrafiche > Distributori — `rappresentante_nome`, telefono ed email editabili **inline in tabella**: `Invio` salva e scende alla riga sotto, `Esc` annulla, salvataggio ottimistico con rollback. Barra di completezza e filtro "Solo senza telefono". Serve a riempire i 40 contatti in una seduta.
+
+### Modificato
+- **`app/routers/vini_anagrafiche_router.py`** — `PATCH /fornitori/{id}` non lancia più il cascade sync quando il patch tocca solo campi non denormalizzati sulle bottiglie. Del fornitore solo `nome` (→ `DISTRIBUTORE`) e `rappresentante_nome` (→ `RAPPRESENTANTE`) finiscono sulle bottiglie: patchare un telefono riscriveva comunque tutte le bottiglie di tutti i vini madre di quel distributore. Aggiunto anche il corto circuito sul PATCH a corpo vuoto.
+- **`app/services/vini_anagrafiche_sync.py`** — esportata `FORNITORE_CAMPI_DENORMALIZZATI`, accanto alla funzione che la determina: il router la importa invece di riscriversela.
+- **`versions.jsx`** — vini 3.73 → 3.74. **`docs/index.md`** — riga per la pagina nuova.
+
+### Il dato che ha deciso l'ordine delle fasi
+L'invio ordini via WhatsApp era fermo dal 2026-04-24 come "punto 7 differito" perché mancava il telefono del rappresentante. Il campo **esiste dalla migrazione 125** — ma la ricognizione sul DB dice **0 fornitori su 40 lo hanno compilato**. Non era più un problema di schema, era data entry: da qui O1 come prima fase invece che come rifinitura. Nella stessa ricognizione: 1273 bottiglie su 1275 risolvono `bottiglia → madre → fornitore_id` (99,8%) e tutti e 40 i distributori testuali matchano `vini_fornitori.nome`, quindi nessun lavoro di riconciliazione anagrafica prima di partire.
+
+### Note oneste
+- **`npm run build` non lanciato** (node_modules con binario rollup macOS): la sintassi JSX è stata validata con esbuild, ma il build vero va fatto prima del push.
+- Il telefono si salva **come lo si scrive**, non normalizzato: `buildWaLink()` normalizza già al momento dell'uso, e un numero leggibile vale più di uno canonico. La cella segnala con `⚠️` i numeri che `normalizePhone()` non sa interpretare.
+- O2–O7 non sono iniziate. Le 4 domande aperte in fondo al piano vanno chiuse prima di O4 — in particolare se il totale € dell'ordine va calcolato sul listino o sul netto scontato.
+
+---
+
 ## 2026-07-30 — Intermittenti: le chiamate si comunicano dai turni `[core]`
 
 Marco: "aggiungiamo un flag intermittenti… il mattone email va fatto". Le chiamate dei lavoratori intermittenti **non venivano comunicate a nessuno**: ogni giornata omessa e' una sanzione da 400 a 2.400 EUR, e una giornata passata non e' piu' sanabile perche' la comunicazione e' per definizione preventiva.

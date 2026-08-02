@@ -15,8 +15,14 @@
 //   DELETE /vini/anagrafiche/fornitori/{id}              (admin) — fallisce se has madri
 //   POST   /vini/anagrafiche/fornitori/{src}/merge?target_id={dst}  (admin)
 //   GET    /vini/v2/madri-raggruppate/?fornitore_id={id}  (per drill-down con annate)
+//
+// O1 (2026-08-02) — "Modalità contatti": edit inline di rappresentante/telefono/
+// email direttamente in tabella, senza aprire il modale una riga alla volta.
+// Serve a riempire i contatti dei 40 distributori in una seduta: al 2026-08-02
+// erano 0/40 valorizzati, ed è il prerequisito dell'invio ordini via WhatsApp
+// (piano O5). Vedi `docs/modulo_vini_ordini.md` §O1.
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../../config/api";
 import SchedaMadreV2 from "../../../components/vini/SchedaMadreV2";
 // M2.5.5: helper condivisi.
@@ -24,6 +30,18 @@ import { sortRows, SortTh } from "../../../utils/vini/sortableTable";
 import MergeAnagraficaModal from "../../../components/vini/MergeAnagraficaModal";
 // M2.8: primitive M.I. Palette amber (modulo Vini), no più blue per entità.
 import { Btn, Card, Modal, FieldLabel, TextInput, Textarea } from "../../../components/ui";
+// O1: mattone M.C — validazione telefono con la stessa funzione che poi
+// costruirà il link wa.me. Mai fare .replace a mano sul numero (CLAUDE.md).
+import { normalizePhone } from "../../../utils/whatsapp";
+
+// O1: colonne editabili inline in modalità contatti, nell'ordine di tabulazione.
+const CONTATTO_COLS = [
+  { key: "rappresentante_nome",     label: "Rappresentante", icon: "👤", placeholder: "Nome e cognome", width: "w-56" },
+  { key: "rappresentante_telefono", label: "Telefono",       icon: "📱", placeholder: "348 1234567",    width: "w-44" },
+  { key: "rappresentante_email",    label: "Email",          icon: "✉️", placeholder: "nome@dominio.it", width: "w-64" },
+];
+
+const LS_CONTATTI = "vini_distributori_contatti";
 
 export default function DistributoriPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
@@ -40,6 +58,28 @@ export default function DistributoriPanel() {
   const [editing, setEditing] = useState(null);
   const [detailOf, setDetailOf] = useState(null);
   const [merging, setMerging] = useState(null);
+
+  // ── O1 — Modalità contatti ────────────────────────────────
+  const [contattiMode, setContattiMode] = useState(() => {
+    try { return localStorage.getItem(LS_CONTATTI) === "true"; } catch { return false; }
+  });
+  const [onlySenzaTel, setOnlySenzaTel] = useState(false);
+  // Cella in edit: {id, key} — un solo input aperto alla volta.
+  const [cell, setCell] = useState(null);
+  const [savingCell, setSavingCell] = useState(null);
+  const [cellError, setCellError] = useState(null);
+
+  useEffect(() => {
+    try { localStorage.setItem(LS_CONTATTI, String(contattiMode)); } catch {}
+  }, [contattiMode]);
+
+  // Uscendo dalla modalità contatti chiudo l'eventuale cella aperta (altrimenti
+  // resta un input orfano su una colonna non più renderizzata) e spengo il
+  // filtro "senza telefono": la sua checkbox sparisce, e una lista filtrata da
+  // un controllo invisibile fa sembrare che manchino dei distributori.
+  useEffect(() => {
+    if (!contattiMode) { setCell(null); setCellError(null); setOnlySenzaTel(false); }
+  }, [contattiMode]);
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -60,7 +100,13 @@ export default function DistributoriPanel() {
 
   useEffect(() => { reload(); }, [reload]);
 
-  const sorted = useMemo(() => sortRows(items, sort.key, sort.dir), [items, sort]);
+  // O1: il filtro "senza telefono" è client-side (il backend non lo espone e
+  // non vale un parametro nuovo per 40 righe già tutte in memoria).
+  const visibili = useMemo(
+    () => (onlySenzaTel ? items.filter(f => !hasTel(f)) : items),
+    [items, onlySenzaTel]
+  );
+  const sorted = useMemo(() => sortRows(visibili, sort.key, sort.dir), [visibili, sort]);
 
   // KPI
   const totN = items.length;
@@ -68,6 +114,76 @@ export default function DistributoriPanel() {
   const totBottiglie = items.reduce((s, f) => s + (f.n_bottiglie || 0), 0);
   const totQta = items.reduce((s, f) => s + (f.qta_bottiglie || 0), 0);
   const nOrfani = items.filter(f => (f.n_madre || 0) === 0).length;
+
+  // O1: completezza contatti. Conta solo i distributori "vivi" (con almeno un
+  // vino): un orfano senza telefono non è un buco da riempire, è un residuo.
+  const attivi = useMemo(() => items.filter(f => (f.n_madre || 0) > 0), [items]);
+  const nConTel = attivi.filter(hasTel).length;
+  const nConEmail = attivi.filter(f => !!String(f.rappresentante_email || "").trim()).length;
+  const pctTel = attivi.length ? Math.round((nConTel / attivi.length) * 100) : 0;
+  // Numeri che normalizePhone non riesce a interpretare → wa.me non funzionerà.
+  const nTelInvalidi = attivi.filter(f => hasTel(f) && !normalizePhone(f.rappresentante_telefono)).length;
+
+  /**
+   * O1 — Salva un singolo campo contatto (PATCH parziale) con update ottimistico.
+   * Il backend applica il cascade sync solo su `nome`/`rappresentante_nome`
+   * (vedi `_FORNITORE_CAMPI_CASCADE` nel router), quindi telefono ed email
+   * costano una UPDATE secca.
+   */
+  const saveField = useCallback(async (fornitore, key, rawValue) => {
+    const value = String(rawValue ?? "").trim();
+    const precedente = String(fornitore[key] ?? "");
+    if (value === precedente) return true;          // niente da salvare
+    if (key === "nome" && !value) {                 // il nome è NOT NULL
+      setCellError({ id: fornitore.id, key, msg: "Il nome non può essere vuoto" });
+      return false;
+    }
+
+    setSavingCell({ id: fornitore.id, key });
+    setCellError(null);
+    // Ottimistico: la riga si aggiorna subito, così il ritmo di data entry
+    // non si spezza aspettando la rete.
+    setItems(prev => prev.map(x => (x.id === fornitore.id ? { ...x, [key]: value } : x)));
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/anagrafiche/fornitori/${fornitore.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(err.detail || `HTTP ${r.status}`);
+      }
+      // Il PATCH restituisce già la riga aggiornata: la riallineo, così se il
+      // backend canonicalizza un valore (trim, "" -> NULL) la UI non resta a
+      // mostrare quello che ho scritto io fino al prossimo reload.
+      // `_sync` è diagnostica del cascade, non un campo della riga: fuori.
+      const row = await r.json().catch(() => null);
+      if (row && row.id) {
+        const { _sync, ...pulito } = row;
+        setItems(prev => prev.map(x => (x.id === row.id ? { ...x, ...pulito } : x)));
+      }
+      return true;
+    } catch (e) {
+      // Rollback: rimetto il valore che c'era prima, non lascio la UI a mentire.
+      setItems(prev => prev.map(x => (x.id === fornitore.id ? { ...x, [key]: fornitore[key] } : x)));
+      setCellError({ id: fornitore.id, key, msg: String(e.message || e) });
+      return false;
+    } finally {
+      setSavingCell(null);
+    }
+  }, []);
+
+  // Colonne renderizzate, per il colSpan delle righe "vuoto"/"carico":
+  // ID + Nome + (3 contatti | rappr./città/btg/giac.) + Madri + Azioni.
+  const nColonne = 2 + (contattiMode ? CONTATTO_COLS.length : 4) + 2;
+
+  /** O1 — Enter conferma e scende alla stessa colonna della riga successiva. */
+  const goNextRow = useCallback((currentId, key) => {
+    const idx = sorted.findIndex(f => f.id === currentId);
+    const next = idx >= 0 ? sorted[idx + 1] : null;
+    setCell(next ? { id: next.id, key } : null);
+  }, [sorted]);
 
   return (
     <div className="space-y-3">
@@ -81,6 +197,28 @@ export default function DistributoriPanel() {
             <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
             Solo orfani (0 vini)
           </label>
+          {/* O1 — toggle modalità contatti */}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setContattiMode(v => !v)}
+              aria-pressed={contattiMode}
+              title="Compila rappresentante, telefono ed email direttamente in tabella"
+              className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition min-h-[34px] ${
+                contattiMode
+                  ? "bg-amber-600 text-white border-amber-700 shadow-sm"
+                  : "bg-white text-amber-900 border-amber-300 hover:bg-amber-50"
+              }`}
+            >
+              📱 Contatti
+            </button>
+          )}
+          {contattiMode && (
+            <label className="flex items-center gap-1.5 text-xs text-amber-900 bg-white border border-amber-300 rounded-lg px-2 py-1.5 cursor-pointer">
+              <input type="checkbox" checked={onlySenzaTel} onChange={e => setOnlySenzaTel(e.target.checked)} />
+              Solo senza telefono
+            </label>
+          )}
           {canEdit && (
             <Btn variant="warning" size="sm" onClick={() => setEditing("new")}>
               + Nuovo distributore
@@ -88,6 +226,44 @@ export default function DistributoriPanel() {
           )}
         </div>
       </Card>
+
+      {/* O1 — Barra completezza contatti. Visibile solo in modalità contatti:
+          altrove sarebbe rumore. */}
+      {contattiMode && (
+        <div className="bg-white border border-amber-200 rounded-xl p-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-neutral-700">
+              <strong className="text-sm text-neutral-900 tabular-nums">{nConTel}/{attivi.length}</strong>{" "}
+              distributori attivi hanno il telefono del rappresentante
+              <span className="text-neutral-400"> · {nConEmail} con email</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {nTelInvalidi > 0 && (
+                <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                  ⚠️ {nTelInvalidi} numer{nTelInvalidi === 1 ? "o" : "i"} non valid{nTelInvalidi === 1 ? "o" : "i"}
+                </span>
+              )}
+              <span className={`text-[11px] font-bold tabular-nums rounded-full px-2 py-0.5 border ${
+                pctTel === 100 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : pctTel >= 50 ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-rose-50 text-rose-800 border-rose-200"
+              }`}>
+                {pctTel}%
+              </span>
+            </div>
+          </div>
+          <div className="mt-2 h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${pctTel === 100 ? "bg-emerald-500" : "bg-amber-500"}`}
+              style={{ width: `${pctTel}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
+            Click su una cella per scriverci dentro · <kbd className="font-mono">Invio</kbd> salva e scende alla riga sotto ·
+            {" "}<kbd className="font-mono">Esc</kbd> annulla. Serve per mandare gli ordini su WhatsApp senza riscriverli a mano.
+          </p>
+        </div>
+      )}
 
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
@@ -125,47 +301,120 @@ export default function DistributoriPanel() {
               <tr>
                 <th className="px-3 py-2 text-left w-12">ID</th>
                 <SortTh label="Nome"           sortKey="nome"                sort={sort} setSort={setSort} />
-                <SortTh label="Rappresentante" sortKey="rappresentante_nome" sort={sort} setSort={setSort} />
-                <SortTh label="Città"          sortKey="citta"               sort={sort} setSort={setSort} />
-                <SortTh label="Madri"          sortKey="n_madre"             sort={sort} setSort={setSort} align="right" />
-                <SortTh label="Btg"            sortKey="n_bottiglie"         sort={sort} setSort={setSort} align="right" />
-                <SortTh label="Giac."          sortKey="qta_bottiglie"       sort={sort} setSort={setSort} align="right" />
+                {contattiMode ? (
+                  <>
+                    {/* Colonne contatto NON ordinabili di proposito: ordinare su
+                        una colonna che si sta compilando fa saltare la riga al
+                        suo nuovo posto a ogni Invio, e la lista scappa sotto le
+                        dita. Per isolare i buchi c'è "Solo senza telefono". */}
+                    {CONTATTO_COLS.map(c => (
+                      <th key={c.key} className={`px-3 py-2 text-left ${c.width}`}>
+                        {c.icon} {c.label}
+                      </th>
+                    ))}
+                    <SortTh label="Madri" sortKey="n_madre" sort={sort} setSort={setSort} align="right" />
+                  </>
+                ) : (
+                  /* Ordine colonne invariato rispetto a M2.5.2: la vista
+                     normale non deve cambiare per colpa della modalità contatti. */
+                  <>
+                    <SortTh label="Rappresentante" sortKey="rappresentante_nome" sort={sort} setSort={setSort} />
+                    <SortTh label="Città"          sortKey="citta"               sort={sort} setSort={setSort} />
+                    <SortTh label="Madri"          sortKey="n_madre"             sort={sort} setSort={setSort} align="right" />
+                    <SortTh label="Btg"            sortKey="n_bottiglie"         sort={sort} setSort={setSort} align="right" />
+                    <SortTh label="Giac."          sortKey="qta_bottiglie"       sort={sort} setSort={setSort} align="right" />
+                  </>
+                )}
                 <th className="px-3 py-2 text-right">Azioni</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-neutral-500">Carico…</td></tr>
+                <tr><td colSpan={nColonne} className="px-3 py-8 text-center text-neutral-500">Carico…</td></tr>
               )}
               {!loading && sorted.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-neutral-500">Nessun risultato.</td></tr>
+                <tr>
+                  <td colSpan={nColonne} className="px-3 py-8 text-center text-neutral-500">
+                    {onlySenzaTel && items.length > 0
+                      ? "🎉 Tutti i distributori filtrati hanno il telefono."
+                      : "Nessun risultato."}
+                  </td>
+                </tr>
               )}
               {!loading && sorted.map(f => {
                 const isOrfano = (f.n_madre || 0) === 0;
+                // In modalità contatti la riga NON apre il dettaglio: il click
+                // serve a entrare nella cella, un modale che si apre sotto le
+                // dita mentre si scrive è il modo più rapido per far odiare
+                // questa schermata.
+                const rowClick = contattiMode ? undefined : () => openDetail(f.id);
                 return (
                   <tr key={f.id}
-                      className={`border-t border-neutral-100 hover:bg-amber-50 cursor-pointer transition ${isOrfano ? "bg-rose-50/30" : ""}`}
-                      onClick={() => openDetail(f.id)}>
+                      className={`border-t border-neutral-100 transition ${contattiMode ? "hover:bg-amber-50/40" : "hover:bg-amber-50 cursor-pointer"} ${isOrfano ? "bg-rose-50/30" : ""}`}
+                      onClick={rowClick}>
                     <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{f.id}</td>
-                    <td className="px-3 py-1.5 font-semibold text-neutral-900">{f.nome}</td>
-                    <td className="px-3 py-1.5 text-neutral-700">{f.rappresentante_nome || <span className="text-neutral-400">—</span>}</td>
-                    <td className="px-3 py-1.5 text-neutral-700">{f.citta || <span className="text-neutral-400">—</span>}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums font-medium">{f.n_madre || 0}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{f.n_bottiglie || 0}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{f.qta_bottiglie || 0}</td>
+                    <td className="px-3 py-1.5 font-semibold text-neutral-900">
+                      {contattiMode ? (
+                        <button type="button" onClick={() => openDetail(f.id)}
+                                className="text-left hover:text-amber-800 hover:underline"
+                                title="Apri dettaglio distributore">
+                          {f.nome}
+                        </button>
+                      ) : f.nome}
+                    </td>
+                    {contattiMode ? (
+                      <>
+                        {CONTATTO_COLS.map(c => (
+                          <td key={c.key} className={`px-2 py-1 ${c.width}`}>
+                            <ContattoCell
+                              fornitore={f}
+                              col={c}
+                              editing={cell?.id === f.id && cell?.key === c.key}
+                              saving={savingCell?.id === f.id && savingCell?.key === c.key}
+                              error={cellError?.id === f.id && cellError?.key === c.key ? cellError.msg : null}
+                              readOnly={!canEdit}
+                              onOpen={() => { setCellError(null); setCell({ id: f.id, key: c.key }); }}
+                              onCancel={() => setCell(null)}
+                              onCommit={async (val, andThen) => {
+                                const ok = await saveField(f, c.key, val);
+                                if (!ok) return;                     // resto sulla cella in errore
+                                if (andThen === "next") { goNextRow(f.id, c.key); return; }
+                                // Chiudo solo se nel frattempo l'utente non ha
+                                // già aperto un'altra cella (blur → click su
+                                // un'altra colonna: il blur risolve DOPO).
+                                setCell(prev => (prev && prev.id === f.id && prev.key === c.key ? null : prev));
+                              }}
+                            />
+                          </td>
+                        ))}
+                        <td className="px-3 py-1.5 text-right tabular-nums font-medium">{f.n_madre || 0}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-1.5 text-neutral-700">{f.rappresentante_nome || <span className="text-neutral-400">—</span>}</td>
+                        <td className="px-3 py-1.5 text-neutral-700">{f.citta || <span className="text-neutral-400">—</span>}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-medium">{f.n_madre || 0}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{f.n_bottiglie || 0}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{f.qta_bottiglie || 0}</td>
+                      </>
+                    )}
                     <td className="px-3 py-1.5 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {canEdit && (
                         <>
                           <button onClick={() => setEditing(f)}
                             className="px-2 py-1 text-xs rounded border border-neutral-300 hover:bg-neutral-100 mr-1"
                             title="Modifica anagrafica">✏️</button>
-                          <button onClick={() => setMerging(f)}
-                            className="px-2 py-1 text-xs rounded border border-amber-400 text-amber-800 hover:bg-amber-50 mr-1"
-                            title="Fondi in un altro distributore (duplicati)">🔀</button>
-                          <button onClick={() => handleDelete(f)}
-                            className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50"
-                            disabled={!isOrfano}
-                            title={isOrfano ? "Elimina (nessun vino collegato)" : `Bloccato: ${f.n_madre} vini madre collegati`}>🗑</button>
+                          {!contattiMode && (
+                            <button onClick={() => setMerging(f)}
+                              className="px-2 py-1 text-xs rounded border border-amber-400 text-amber-800 hover:bg-amber-50 mr-1"
+                              title="Fondi in un altro distributore (duplicati)">🔀</button>
+                          )}
+                          {!contattiMode && (
+                            <button onClick={() => handleDelete(f)}
+                              className="px-2 py-1 text-xs rounded border border-red-300 text-red-700 hover:bg-red-50"
+                              disabled={!isOrfano}
+                              title={isOrfano ? "Elimina (nessun vino collegato)" : `Bloccato: ${f.n_madre} vini madre collegati`}>🗑</button>
+                          )}
                         </>
                       )}
                     </td>
@@ -452,3 +701,136 @@ function DistributoreEditModal({ item, isNew, onClose, onSaved }) {
 
 
 // M2.5.5: MergeDistributoriModal sostituito da MergeAnagraficaModal generico.
+
+
+// ════════════════════════════════════════════════════════════════
+// O1 — CELLA CONTATTO EDITABILE INLINE
+// ════════════════════════════════════════════════════════════════
+
+/** true se il distributore ha un telefono valorizzato (anche non normalizzabile). */
+function hasTel(f) {
+  return !!String(f?.rappresentante_telefono || "").trim();
+}
+
+/**
+ * Cella di tabella che passa da testo a input al click.
+ *
+ * Tastiera (è il punto di tutta la fase O1 — 40 righe da riempire di fila):
+ *   Invio → salva e apre la stessa colonna sulla riga sotto
+ *   Tab   → salva e lascia che il browser porti al campo successivo
+ *   Esc   → annulla e ripristina il valore precedente
+ *   blur  → salva (perdere quello che si è scritto cliccando fuori è
+ *           il modo più veloce per far perdere fiducia in una schermata)
+ */
+function ContattoCell({ fornitore, col, editing, saving, error, readOnly, onOpen, onCancel, onCommit }) {
+  const iniziale = String(fornitore[col.key] ?? "");
+  const [draft, setDraft] = useState(iniziale);
+  const inputRef = useRef(null);
+  // `annullato` evita che l'onBlur scatenato da Esc risalvi il valore.
+  const annullato = useRef(false);
+  // `gia_salvato` evita il doppio PATCH: dopo Invio/Tab l'input perde il focus
+  // e l'onBlur richiamerebbe onCommit una seconda volta. Non basta il controllo
+  // "valore invariato" dentro saveField, perché quella closure vede ancora la
+  // riga PRIMA dell'update ottimistico e considererebbe il valore cambiato.
+  const gia_salvato = useRef(false);
+
+  // Dipendenza su `fornitore.id`, NON sull'oggetto `fornitore`: quello viene
+  // ricreato da ogni setItems (update ottimistico e rollback), e con la dep
+  // sull'oggetto l'effetto ripartirebbe A CELLA APERTA sovrascrivendo quello
+  // che l'utente sta scrivendo. Caso concreto: PATCH fallito -> rollback ->
+  // il testo appena digitato spariva proprio mentre la cella resta aperta per
+  // farlo correggere.
+  useEffect(() => {
+    if (editing) {
+      setDraft(String(fornitore[col.key] ?? ""));
+      annullato.current = false;
+      gia_salvato.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, fornitore.id, col.key]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  if (editing && !readOnly) {
+    const isTel = col.key === "rappresentante_telefono";
+    const telNonValido = isTel && draft.trim() && !normalizePhone(draft);
+    return (
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type={col.key === "rappresentante_email" ? "email" : isTel ? "tel" : "text"}
+          inputMode={isTel ? "tel" : undefined}
+          value={draft}
+          placeholder={col.placeholder}
+          /* readOnly e non disabled: un input disabilitato perde il focus, e al
+             termine di un salvataggio fallito la cella resterebbe aperta senza
+             cursore, costringendo a ricliccarci sopra. */
+          readOnly={saving}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (saving) { if (e.key !== "Escape") e.preventDefault(); return; }
+            if (e.key === "Enter") {
+              e.preventDefault(); gia_salvato.current = true; onCommit(draft, "next");
+            } else if (e.key === "Escape") {
+              e.preventDefault(); annullato.current = true; onCancel();
+            } else if (e.key === "Tab") {
+              gia_salvato.current = true; onCommit(draft, "close");
+            }
+          }}
+          onBlur={() => {
+            if (saving || annullato.current || gia_salvato.current) return;
+            onCommit(draft, "close");
+          }}
+          className={`w-full px-2 py-1 rounded-md border text-sm focus:outline-none focus:ring-2 ${
+            telNonValido
+              ? "border-amber-400 focus:ring-amber-400"
+              : "border-amber-500 focus:ring-amber-500"
+          }`}
+          style={{ minHeight: "32px", fontSize: "16px" }}  /* 16px: iOS non zooma */
+        />
+        {telNonValido && (
+          <div className="absolute z-20 mt-0.5 text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 whitespace-nowrap">
+            WhatsApp non riuscirà a usarlo
+          </div>
+        )}
+        {error && (
+          <div className="absolute z-20 mt-0.5 text-[10px] text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 whitespace-nowrap">
+            {error}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const valore = String(fornitore[col.key] ?? "").trim();
+  const telNonValido = col.key === "rappresentante_telefono" && valore && !normalizePhone(valore);
+
+  return (
+    <button
+      type="button"
+      disabled={readOnly}
+      onClick={onOpen}
+      title={readOnly ? "Serve il ruolo admin o sommelier" : `Modifica ${col.label.toLowerCase()}`}
+      className={`w-full text-left px-2 py-1 rounded-md border border-transparent transition min-h-[32px] ${
+        readOnly ? "cursor-default" : "hover:border-amber-300 hover:bg-amber-50/60 cursor-text"
+      }`}
+    >
+      {saving ? (
+        <span className="text-xs text-neutral-400">salvo…</span>
+      ) : valore ? (
+        <span className={`text-sm ${telNonValido ? "text-amber-800" : "text-neutral-800"}`}>
+          {valore}{telNonValido && <span title="Numero non interpretabile da wa.me"> ⚠️</span>}
+        </span>
+      ) : (
+        <span className="text-sm text-neutral-300">{readOnly ? "—" : col.placeholder}</span>
+      )}
+      {/* <span block> e non <div>: dentro un <button> è ammesso solo phrasing content. */}
+      {error && <span className="block text-[10px] text-red-700 mt-0.5">{error}</span>}
+    </button>
+  );
+}

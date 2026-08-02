@@ -1,6 +1,39 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-30 — **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-08-02 — **DA PUSHARE: Ordini vini — piano O1–O7 + modalita' contatti distributori (vini 3.74); lanciare `npm run build` prima del push**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-08-02 — Ordini vini: il piano, e il primo pezzo
+
+### Contesto
+Marco: "dashboard vini, rivediamo un attimo i riordini per fornitore, devo avere un modo per lavorarci meglio, dammi proposte". Alla domanda su dove ordina davvero: **col rappresentante davanti, oppure mandando un messaggio WhatsApp**. Questa risposta ha deciso tutta l'architettura del piano: fornitore-centrico e WhatsApp-first, il vino e' una riga dentro un ordine e non l'unita' di lavoro.
+
+### La ricognizione, prima delle proposte
+Tre buchi nel sistema attuale:
+1. **Non esiste il concetto di ordine.** Solo `vini_ordini_pending` con `UNIQUE(vino_id)`: una riga per vino, nessuna testata, nessuno stato, nessuna data di invio.
+2. **Non esiste storico.** `conferma_arrivo_ordine_pending()` **cancella** il record quando la merce arriva. Impossibile sapere cosa si e' ordinato a un distributore, quando, e quanto ci ha messo ad arrivare.
+3. **Due widget sovrapposti** in DashboardVini: "Riordini per fornitore" e "Vini in carta senza giacenza" hanno entrambi `+ ordina` ed entrambi raggruppano per distributore.
+
+### Il numero che ha ribaltato l'ordine delle fasi
+L'invio WhatsApp era fermo dal 2026-04-24 come "punto 7 differito" perche' mancava il telefono del rappresentante. Query sul DB scaricato dal VPS: il campo **esiste dalla mig 125**, ma e' compilato su **0 fornitori su 40**. Non era piu' un problema di schema, era data entry — quindi O1 diventa "rendere indolore riempire quei 40 contatti", non una rifinitura di fine piano.
+
+Nella stessa ricognizione, due conferme che tolgono rischio: **1273/1275 bottiglie** (99,8%) risolvono `bottiglia -> madre -> fornitore_id`, e **40/40** distributori testuali matchano `vini_fornitori.nome`. Nessuna riconciliazione anagrafica da fare prima di partire.
+
+### Cosa e' stato fatto (`[core]`)
+- **`docs/modulo_vini_ordini.md`** — piano canonico O1–O7 (contatti, quick wins widget, schema ordini, composizione+ricezione, invio WA, pagina `/vini/ordini` fornitore-centrica, condizioni fornitore).
+- **O1 implementato** — modalita' contatti in Anagrafiche > Distributori: edit inline, `Invio` scende alla riga sotto, barra di completezza, filtro "solo senza telefono".
+- **Fix backend fuori piano** — il `PATCH /fornitori/{id}` lanciava il cascade sync a ogni chiamata: su una schermata di data entry sono ~120 riscritture di centinaia di bottiglie che non cambiano un valore. Ora parte solo se il patch tocca `nome` o `rappresentante_nome`, gli unici due campi del fornitore denormalizzati sulle bottiglie.
+
+### Decisioni
+1. **La pagina `/vini/ordini` viene DOPO il modello dati (O6 dopo O3/O4)**, non prima. Farla adesso significherebbe riscriverla.
+2. **Telefono salvato come lo si scrive**, non normalizzato: `buildWaLink()` normalizza gia' all'uso, e un numero leggibile vale piu' di uno canonico. La cella segnala con ⚠️ quelli che `normalizePhone()` non sa interpretare.
+3. **Colonne contatto non ordinabili** in modalita' contatti: ordinare su una colonna che si sta compilando fa saltare la riga a ogni Invio.
+4. La whitelist dei campi che scatenano il cascade vive in `vini_anagrafiche_sync.py`, non copiata nel router: la fonte di verita' e' `_compute_synced_values()`, che sta li'.
+
+### Da fare / attenzione
+- **`npm run build` non lanciato** (node_modules con binario rollup macOS, la VM e' Linux) — obbligatorio prima del push. La sintassi JSX e' stata validata con esbuild.
+- **Prima cosa dopo il push:** Marco riempie i 40 contatti. Senza quelli O5 (invio WhatsApp) non parte.
+- **4 domande aperte** in fondo al piano, da chiudere prima di O4. La piu' pesante: il totale € dell'ordine va sul listino o sul netto scontato? Se i distributori applicano sconti fissi, `sconto_std_pct` va anticipato da O7 a O4.
+- I numeri della ricognizione vengono dalla copia locale del DB: **riverificarli sul VPS** prima di partire con O2.
 
 ## SESSIONE 2026-07-30 — Intermittenti: le chiamate si comunicano dai turni
 

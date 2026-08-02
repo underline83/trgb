@@ -410,9 +410,24 @@ def update_fornitore(fid: int, payload: FornitoreUpdate, current_user: Any = Dep
     _require_vini_manager(current_user)
     if not ana.get_fornitore(fid):
         raise HTTPException(404, "Fornitore non trovato")
-    ana.update_fornitore(fid, payload.dict(exclude_unset=True))
-    # Fase 7: cascade sync su tutti i madre+bottiglie che usano questo fornitore
-    sync_report = ana_sync.sync_bottiglie_from_fornitore(fid)
+    data = payload.dict(exclude_unset=True)
+    if not data:
+        # PATCH a corpo vuoto: niente da scrivere e niente da sincronizzare.
+        return ana.get_fornitore(fid)
+    ana.update_fornitore(fid, data)
+    # Fase 7: cascade sync su tutti i madre+bottiglie che usano questo fornitore.
+    # O1 (2026-08-02): si esegue solo se il PATCH ha toccato un campo davvero
+    # denormalizzato sulle bottiglie. Patchare telefono/email/note non cambia un
+    # solo valore su vini_bottiglie, ma il cascade riscriverebbe comunque tutte
+    # le bottiglie di tutti i madre del fornitore — su una schermata di data
+    # entry sono ~120 cascate inutili di fila. La whitelist vive in
+    # `vini_anagrafiche_sync` accanto alla funzione che la determina.
+    # NB: si guarda alle chiavi INVIATE, non a quelle davvero cambiate: e' il
+    # verso sicuro (al massimo un cascade in piu', mai uno in meno).
+    if ana_sync.FORNITORE_CAMPI_DENORMALIZZATI & set(data.keys()):
+        sync_report = ana_sync.sync_bottiglie_from_fornitore(fid)
+    else:
+        sync_report = {"n_madre": 0, "n_bottiglie": 0, "skipped": "nessun campo denormalizzato"}
     row = ana.get_fornitore(fid)
     row["_sync"] = sync_report
     return row

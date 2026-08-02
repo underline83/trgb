@@ -43,6 +43,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 ## 🧩 Moduli (una pagina per modulo — mappa canonica in `CLAUDE.md` §capability)
 
 - 📄 [modulo_vini.md](modulo_vini.md) — Cantina & Vini: magazzino, carta, carta bevande, vista sommelier. Widget dashboard: [modulo_vini_widget_dashboard.md](modulo_vini_widget_dashboard.md).
+- 📄 [modulo_vini_ordini.md](modulo_vini_ordini.md) — Ordini ai fornitori vini: piano a fasi O1–O7, modello dati ordini, invio WhatsApp al rappresentante.
 - 📄 [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) — Ricette & Food Cost: ingredienti, matching fatture, conversioni. Selezioni del giorno: [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md).
 - 📄 [modulo_acquisti.md](modulo_acquisti.md) — Acquisti: fornitori, categorie, dashboard. Import SDI: [modulo_fatture_xml.md](modulo_fatture_xml.md) · sync FIC: [modulo_fatture_in_cloud.md](modulo_fatture_in_cloud.md).
 - 📄 [modulo_controllo_gestione.md](modulo_controllo_gestione.md) — Controllo Gestione: dashboard, scadenzario, uscite, spese fisse.

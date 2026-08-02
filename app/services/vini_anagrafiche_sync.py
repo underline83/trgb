@@ -57,6 +57,19 @@ SYNCED_FIELDS = [
 ]
 
 
+# Campi DEL FORNITORE che finiscono davvero sulla bottiglia (vedi
+# _compute_synced_values): nome -> DISTRIBUTORE, rappresentante_nome ->
+# RAPPRESENTANTE. Tutto il resto dell'anagrafica fornitore (telefono, email,
+# note, citta/provincia/regione/nazione) non e' denormalizzato da nessuna parte.
+#
+# Esportato perche' il router lo usa per decidere se un PATCH sul fornitore
+# deve far partire il cascade: patchare un telefono non deve riscrivere
+# centinaia di bottiglie. Vive QUI e non nel router perche' la fonte di verita'
+# e' _compute_synced_values, che sta in questo modulo: se un domani si
+# denormalizza un altro campo del fornitore, si aggiorna un posto solo.
+FORNITORE_CAMPI_DENORMALIZZATI = frozenset({"nome", "rappresentante_nome"})
+
+
 # ============================================================
 # Query helper: dati joinati per un madre
 # ============================================================
