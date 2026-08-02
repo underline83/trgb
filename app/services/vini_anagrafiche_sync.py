@@ -70,6 +70,80 @@ SYNCED_FIELDS = [
 FORNITORE_CAMPI_DENORMALIZZATI = frozenset({"nome", "rappresentante_nome"})
 
 
+def propaga_rinomina_fornitore(nome_vecchio: str, nome_nuovo: str) -> Dict[str, int]:
+    """
+    Completa il cascade quando un distributore viene RINOMINATO (tipicamente
+    per correggere un nome sbagliato).
+
+    Il cascade normale (`sync_bottiglie_from_fornitore`) raggiunge le bottiglie
+    solo via `madre_id -> vini_madre.fornitore_id`. Restano fuori due cose, e
+    tutte e due si vedono subito nella pagina Ordini come un fornitore
+    "fantasma" col vecchio nome accanto a quello giusto:
+
+    1. **Bottiglie orfane** — hanno `DISTRIBUTORE` scritto a mano ma nessuna
+       madre agganciata (al 2026-08-02: 2 su 1275). Il cascade non le vede,
+       quindi conservano il nome vecchio.
+    2. **Ordini ancora aperti** — `vini_ordini.fornitore_nome` e' uno snapshot,
+       e la pagina Ordini raggruppa per nome: dopo la rinomina il carrello
+       aperto resterebbe intestato al nome vecchio, separato dai suoi vini.
+
+    Gli ordini CHIUSI e ANNULLATI NON vengono toccati: sono documenti storici,
+    devono restare con il nome che avevano il giorno in cui sono stati fatti.
+    E' la stessa ragione per cui `descrizione` e `prezzo_unit` sono snapshot.
+
+    Ritorna {bottiglie_orfane, ordini_aperti}.
+    """
+    nome_vecchio = (nome_vecchio or "").strip()
+    nome_nuovo = (nome_nuovo or "").strip()
+    if not nome_vecchio or not nome_nuovo or nome_vecchio == nome_nuovo:
+        return {"bottiglie_orfane": 0, "ordini_aperti": 0}
+
+    conn = get_magazzino_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("BEGIN IMMEDIATE;")
+
+        cur.execute(
+            f"""UPDATE {TABELLE['bottiglie']}
+                   SET DISTRIBUTORE = ?
+                 WHERE TRIM(DISTRIBUTORE) = ?
+                   AND (madre_id IS NULL
+                        OR NOT EXISTS (SELECT 1 FROM {TABELLE['madre']} m
+                                        WHERE m.id = madre_id
+                                          AND m.fornitore_id IS NOT NULL))""",
+            (nome_nuovo, nome_vecchio),
+        )
+        n_bot = cur.rowcount
+
+        n_ord = 0
+        if _table_exists(cur, "vini_ordini"):
+            cur.execute(
+                """UPDATE vini_ordini
+                      SET fornitore_nome = ?, updated_at = datetime('now')
+                    WHERE fornitore_nome = ?
+                      AND stato IN ('bozza', 'inviato', 'parziale')""",
+                (nome_nuovo, nome_vecchio),
+            )
+            n_ord = cur.rowcount
+
+        conn.commit()
+        return {"bottiglie_orfane": n_bot, "ordini_aperti": n_ord}
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+def _table_exists(cur: sqlite3.Cursor, name: str) -> bool:
+    return cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+    ).fetchone() is not None
+
+
 # ============================================================
 # Query helper: dati joinati per un madre
 # ============================================================

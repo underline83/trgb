@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-08-02 (quater) — Rinominare un distributore: completare il cascade `[core]`
+
+Marco: *"se modifico in quella tabella, modifico anche le anagrafiche sui singoli vini?"* — chiedendo del caso "nome distributore sbagliato". Sì per `nome` e `rappresentante_nome`, no per tutto il resto. Ma provandolo sono venuti fuori due punti scoperti.
+
+Il cascade (`sync_bottiglie_from_fornitore`) raggiunge le bottiglie **solo** via `madre_id → vini_madre.fornitore_id`. Restavano indietro:
+
+1. **Le bottiglie orfane** — hanno `DISTRIBUTORE` scritto a mano ma nessuna madre agganciata (2 su 1275 al 2026-08-02): conservavano il nome vecchio.
+2. **Gli ordini ancora aperti** — `vini_ordini.fornitore_nome` è uno snapshot e la pagina Ordini raggruppa per nome: dopo la rinomina il carrello restava intestato al nome vecchio, **separato dai suoi vini**, come due distributori distinti in colonna.
+
+### Aggiunto
+- **`vini_anagrafiche_sync.propaga_rinomina_fornitore()`**, chiamata dal `PATCH /fornitori/{id}` quando cambia il `nome`. Sistema le orfane con quel nome e riallinea gli ordini in stato `bozza`/`inviato`/`parziale`.
+
+**Gli ordini `chiuso` e `annullato` NON vengono toccati**: sono documenti storici, devono restare con il nome che avevano il giorno in cui sono stati fatti. È la stessa ragione per cui `descrizione` e `prezzo_unit` sulle righe sono snapshot.
+
+### Disallineamenti trovati nei dati (da sistemare a mano, 2 righe)
+Bottiglie il cui `DISTRIBUTORE` non combacia col fornitore della loro madre — restano fuori da qualsiasi cascade, per costruzione, e producono un gruppo fantasma nella pagina Ordini:
+
+| id | vino | sulla bottiglia | dalla madre |
+|----|------|-----------------|-------------|
+| 1034 | Franciacorta DOCG Blanc de Blanc | `Emanuele Poloni` | `Emanuele Polloni` |
+| 1313 | Salento IGT Calafuria | `SOGEGROSS` | `Emanuele Poloni` |
+
+Il primo è il doppione anagrafico già noto. Il secondo è una scelta che spetta a Marco: la Calafuria si compra da SOGEGROSS o da Poloni? Non la decide il codice.
+
+---
+
 ## 2026-08-02 (ter) — Distributori: flag "attivo" `[core]`
 
 Marco: *"aggiungi un flag in anagrafica sui fornitori «attivo» così posso togliere il flag a quelli inattivi da cui non sto comprando"*. In cantina restano i vini di distributori con cui non si lavora più: le loro bottiglie continuavano a comparire fra i "da ordinare" e a occupare la colonna dei fornitori, che ha 38 nomi.

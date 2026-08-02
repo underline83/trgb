@@ -3,6 +3,9 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.77 (2026-08-02): rinominare un distributore ora propaga anche alle
+    //   bottiglie orfane (senza madre agganciata) e agli ordini ANCORA APERTI.
+    //   Gli ordini chiusi tengono il nome storico: sono documenti.
     // 3.76 (2026-08-02): flag `attivo` sui distributori (mig 160). Interruttore
     //   in Anagrafiche > Distributori; i non attivi spariscono dalla pagina
     //   Ordini (ma restano se hanno un ordine aperto, altrimenti diventerebbe
@@ -26,7 +29,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.76",
+    version: "3.77",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

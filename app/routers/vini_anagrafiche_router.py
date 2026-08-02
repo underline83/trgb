@@ -416,6 +416,9 @@ def update_fornitore(fid: int, payload: FornitoreUpdate, current_user: Any = Dep
     if not data:
         # PATCH a corpo vuoto: niente da scrivere e niente da sincronizzare.
         return ana.get_fornitore(fid)
+    # Nome PRIMA della modifica: serve per completare la rinomina sulle bottiglie
+    # orfane e sugli ordini ancora aperti (v. propaga_rinomina_fornitore).
+    nome_vecchio = (ana.get_fornitore(fid) or {}).get("nome")
     ana.update_fornitore(fid, data)
     # Fase 7: cascade sync su tutti i madre+bottiglie che usano questo fornitore.
     # O1 (2026-08-02): si esegue solo se il PATCH ha toccato un campo davvero
@@ -428,6 +431,15 @@ def update_fornitore(fid: int, payload: FornitoreUpdate, current_user: Any = Dep
     # verso sicuro (al massimo un cascade in piu', mai uno in meno).
     if ana_sync.FORNITORE_CAMPI_DENORMALIZZATI & set(data.keys()):
         sync_report = ana_sync.sync_bottiglie_from_fornitore(fid)
+        # Rinomina: il cascade sopra copre solo le bottiglie agganciate via
+        # madre. Qui si sistemano le orfane e gli ordini ancora aperti, che
+        # altrimenti resterebbero col nome vecchio e comparirebbero nella pagina
+        # Ordini come un fornitore fantasma accanto a quello giusto.
+        nome_nuovo = data.get("nome")
+        if nome_nuovo and nome_vecchio and nome_nuovo.strip() != (nome_vecchio or "").strip():
+            sync_report["_rinomina"] = ana_sync.propaga_rinomina_fornitore(
+                nome_vecchio, nome_nuovo
+            )
     else:
         sync_report = {"n_madre": 0, "n_bottiglie": 0, "skipped": "nessun campo denormalizzato"}
     row = ana.get_fornitore(fid)
