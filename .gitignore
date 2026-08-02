@@ -1,3 +1,11 @@
+# =====================
+#  CESTINO DI LAVORO
+# =====================
+# Cartella usata dagli agenti per parcheggiare file da eliminare
+# (l'ambiente Claude non puo' fare rm sui file montati: sposta qui).
+# Non deve MAI finire in un commit ne' sul VPS.
+_to_delete/
+
 # ==============
 #  MACOS TRASH
 # ==============

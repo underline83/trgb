@@ -845,3 +845,72 @@ def _check_utenze_consumi_stimati(dry_run: bool = False, config: dict = None) ->
         )
         result.notified = 1
     return result
+
+@register_checker("intermittenti_non_comunicati")
+def _check_intermittenti_non_comunicati(dry_run: bool = False, config: dict = None) -> CheckResult:
+    from app.services import uni_intermittenti_service as uni
+
+    cfg = config or _get_config("intermittenti_non_comunicati")
+    result = CheckResult(checker="intermittenti_non_comunicati")
+
+    try:
+        oggi = date.today()
+        fino = oggi + timedelta(days=max(1, int(cfg["soglia_giorni"])))
+        dati = uni.chiamate_da_comunicare(oggi.isoformat(), fino.isoformat())
+
+        # Le anomalie (CF mancante, giornata già passata) contano come problemi:
+        # sono turni che NON si riuscirebbe a comunicare nemmeno volendo.
+        righe = dati["righe"]
+        anomalie = dati["anomalie"]
+        result.found = len(righe) + len(anomalie)
+        if result.found == 0:
+            return result
+
+        for r in righe:
+            result.details.append({
+                "lavoratore": r["nome"], "data_inizio": r["data_inizio"],
+                "data_fine": r.get("data_fine"), "stato": "da_comunicare",
+            })
+        for a in anomalie:
+            result.details.append({
+                "lavoratore": a["nome"], "data_inizio": a["data"],
+                "stato": "bloccato", "problema": a["problema"],
+            })
+
+        if dry_run:
+            result.skipped = result.found
+            return result
+
+        if _notifica_recente_esiste("alert_intermittenti", ore=cfg["antidup_ore"]):
+            result.skipped = result.found
+            return result
+
+        nomi = ", ".join(sorted({d["lavoratore"] for d in result.details})[:5])
+        quante = len(righe)
+        titolo = (
+            f"📨 Chiamate intermittenti da comunicare: {quante}"
+            if quante else "📨 Chiamate intermittenti: righe bloccate"
+        )
+        messaggio = (
+            f"{nomi} — turni entro {fino.strftime('%d/%m')} non ancora comunicati "
+            f"all'Ispettorato. La comunicazione va mandata PRIMA dell'inizio del turno."
+        )
+        if anomalie:
+            messaggio += f" Attenzione: {len(anomalie)} riga/e non inviabili ({anomalie[0]['problema']})."
+
+        _send_notification(cfg,
+            tipo="alert_intermittenti",
+            titolo=titolo,
+            messaggio=messaggio,
+            link="/dipendenti/intermittenti",
+            icona="📨",
+            urgenza="alta",
+            modulo="dipendenti",
+        )
+        result.notified = 1
+        return result
+
+    except Exception as e:
+        result.error = str(e)
+        logger.exception(f"Checker intermittenti_non_comunicati: {e}")
+        return result

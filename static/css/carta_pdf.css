@@ -513,6 +513,19 @@ html, body {
     letter-spacing: 0.06em;
     vertical-align: middle;
 }
+/* Badge 0.0 (analcolica) — mig 157, gemello del GF in brand-blue */
+.bev-scheda-zero {
+    display: inline-block;
+    margin-left: 5pt;
+    padding: 0.5pt 4pt;
+    border-radius: 7pt;
+    background: #2E7BE8;
+    color: #ffffff;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+}
 /* Riga abbinamenti — mig 106 */
 /* Stacco visivo (border-top punteggiato + spazio) per separare il blocco */
 /* nome+descrizione dal suggerimento di abbinamento (richiesta Marco 2026-05-04). */
@@ -549,6 +562,10 @@ html, body {
     font-weight: 700;
     letter-spacing: 0.06em;
     font-style: normal;
+}
+/* Variante blu del tag legenda — mig 157 (0.0 = analcolica) */
+.bev-legenda-tag-zero {
+    background: #2E7BE8;
 }
 
 /* Pattern C — nome + badge + desc */

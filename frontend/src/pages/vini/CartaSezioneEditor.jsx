@@ -23,7 +23,7 @@ import ImportTestoModal from "../../components/vini/carta/ImportTestoModal";
 // Campi numerici da normalizzare prima di POST/PUT
 const NUMERIC_FIELDS = new Set(["gradazione", "ibu", "prezzo_eur"]);
 // Campi boolean (checkbox) → 0/1 al backend (mig 106 birre: gluten_free)
-const BOOLEAN_FIELDS = new Set(["gluten_free"]);
+const BOOLEAN_FIELDS = new Set(["gluten_free", "analcolica"]);
 
 // Helper: identificatore campo — seed BE usa `key`, altri schemi potrebbero usare `name`
 const fieldId = (f) => f?.name ?? f?.key;
@@ -241,6 +241,7 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
         // mig 106
         abbinamenti: voce.abbinamenti,
         gluten_free: voce.gluten_free ? 1 : 0,
+        analcolica: voce.analcolica ? 1 : 0,
       };
       const r = await fetch(`${API_BASE}/bevande/voci/`, {
         method: "POST",

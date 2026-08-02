@@ -256,6 +256,7 @@ def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
         desc = v.get("descrizione") or ""
         abbinamenti = v.get("abbinamenti") or ""
         is_gf = bool(v.get("gluten_free"))
+        is_zero = bool(v.get("analcolica"))
         prezzo = _format_prezzo(v)
 
         # Riga meta: pezzi disponibili, separati da ·
@@ -289,11 +290,16 @@ def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
             "<span class='bev-scheda-gf' title='Senza glutine'>GF</span>"
             if is_gf else ""
         )
+        # Badge 0.0 (analcolica) — mig 157, stesso pattern del GF ma brand-blue.
+        zero_badge = (
+            "<span class='bev-scheda-zero' title='Analcolica'>0.0</span>"
+            if is_zero else ""
+        )
 
         out.append("<div class='bev-scheda-item'>")
         out.append(
             "<div class='bev-scheda-head'>"
-            f"<span class='bev-scheda-nome'>{_esc(nome)}{style_badge}{gf_badge}</span>"
+            f"<span class='bev-scheda-nome'>{_esc(nome)}{style_badge}{gf_badge}{zero_badge}</span>"
             f"<span class='bev-scheda-prezzo'>{_esc(prezzo)}</span>"
             "</div>"
         )
@@ -317,11 +323,20 @@ def _render_scheda_estesa(voci: list[dict[str, Any]], staff: bool) -> str:
     # sezione è gluten free. Pensata per la sezione birre (mig 106) ma il
     # render e' generico: se qualcuno valorizzasse gluten_free in un'altra
     # sezione scheda_estesa la legenda comparirebbe lo stesso.
+    legenda_parts = []
     if any(bool(v.get("gluten_free")) for v in voci):
+        legenda_parts.append(
+            "<span class='bev-legenda-tag'>GF</span> = senza glutine"
+        )
+    if any(bool(v.get("analcolica")) for v in voci):
+        legenda_parts.append(
+            "<span class='bev-legenda-tag bev-legenda-tag-zero'>0.0</span> = analcolica"
+        )
+    if legenda_parts:
         out.append(
             "<div class='bev-legenda'>"
-            "<span class='bev-legenda-tag'>GF</span> = senza glutine"
-            "</div>"
+            + " &nbsp;·&nbsp; ".join(legenda_parts)
+            + "</div>"
         )
     out.append("</div>")
     return "".join(out)
@@ -815,6 +830,12 @@ def build_carta_bevande_docx(logo_path=None, staff: bool = False) -> "Document":
                     rgf.bold = True
                     rgf.font.size = Pt(8)
                     rgf.font.color.rgb = RGBColor(0x2E, 0xB8, 0x72)  # brand-green
+                # Badge 0.0 (mig 157) accanto al nome se analcolica=1
+                if v.get("analcolica"):
+                    rz = p.add_run("  0.0")
+                    rz.bold = True
+                    rz.font.size = Pt(8)
+                    rz.font.color.rgb = RGBColor(0x2E, 0x7B, 0xE8)  # brand-blue
                 prezzo = _format_prezzo(v)
                 if prezzo:
                     p.add_run("   ")
@@ -874,16 +895,33 @@ def build_carta_bevande_docx(logo_path=None, staff: bool = False) -> "Document":
 
             # Legenda GF in coda alla sezione (solo se almeno una voce GF) — mig 106
             if layout != "tabella_4col" and layout != "nome_badge_desc":
-                if any(bool(v.get("gluten_free")) for v in voci):
+                ha_gf = any(bool(v.get("gluten_free")) for v in voci)
+                ha_zero = any(bool(v.get("analcolica")) for v in voci)
+                if ha_gf or ha_zero:
                     pl = doc.add_paragraph()
-                    rt = pl.add_run("GF")
-                    rt.bold = True
-                    rt.font.size = Pt(8)
-                    rt.font.color.rgb = RGBColor(0x2E, 0xB8, 0x72)
-                    rl = pl.add_run(" = senza glutine")
-                    rl.italic = True
-                    rl.font.size = Pt(9)
-                    rl.font.color.rgb = RGBColor(0x5A, 0x46, 0x34)
+                    if ha_gf:
+                        rt = pl.add_run("GF")
+                        rt.bold = True
+                        rt.font.size = Pt(8)
+                        rt.font.color.rgb = RGBColor(0x2E, 0xB8, 0x72)
+                        rl = pl.add_run(" = senza glutine")
+                        rl.italic = True
+                        rl.font.size = Pt(9)
+                        rl.font.color.rgb = RGBColor(0x5A, 0x46, 0x34)
+                    if ha_zero:
+                        if ha_gf:
+                            rsep = pl.add_run("   ·   ")
+                            rsep.italic = True
+                            rsep.font.size = Pt(9)
+                            rsep.font.color.rgb = RGBColor(0x5A, 0x46, 0x34)
+                        rt2 = pl.add_run("0.0")
+                        rt2.bold = True
+                        rt2.font.size = Pt(8)
+                        rt2.font.color.rgb = RGBColor(0x2E, 0x7B, 0xE8)
+                        rl2 = pl.add_run(" = analcolica")
+                        rl2.italic = True
+                        rl2.font.size = Pt(9)
+                        rl2.font.color.rgb = RGBColor(0x5A, 0x46, 0x34)
                     pl.paragraph_format.space_before = Pt(8)
 
     return doc

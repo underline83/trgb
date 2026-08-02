@@ -87,6 +87,7 @@ const DipendentiCosti = lazy(() => import("./pages/dipendenti/DipendentiCosti"))
 const DipendentiBustePaga = lazy(() => import("./pages/dipendenti/DipendentiBustePaga"));
 const DipendentiScadenze = lazy(() => import("./pages/dipendenti/DipendentiScadenze"));
 const DashboardDipendenti = lazy(() => import("./pages/dipendenti/DashboardDipendenti"));
+const Intermittenti = lazy(() => import("./pages/dipendenti/Intermittenti"));
 
 // CLIENTI / CRM
 const ClientiLista = lazy(() => import("./pages/clienti/ClientiLista"));
@@ -432,6 +433,7 @@ export default function App() {
         <Route path="/dipendenti/dashboard" element={<ProtectedRoute module="dipendenti"><DashboardDipendenti /></ProtectedRoute>} />
         <Route path="/dipendenti/anagrafica" element={<ProtectedRoute module="dipendenti"><DipendentiAnagrafica /></ProtectedRoute>} />
         <Route path="/dipendenti/turni" element={<ProtectedRoute module="dipendenti"><FoglioSettimana /></ProtectedRoute>} />
+        <Route path="/dipendenti/intermittenti" element={<ProtectedRoute module="dipendenti"><Intermittenti /></ProtectedRoute>} />
         <Route path="/dipendenti/turni/mese" element={<ProtectedRoute module="dipendenti"><VistaMensile /></ProtectedRoute>} />
         <Route path="/dipendenti/turni/dipendente" element={<ProtectedRoute module="dipendenti"><PerDipendente /></ProtectedRoute>} />
         <Route path="/dipendenti/turni-legacy" element={<ProtectedRoute module="dipendenti"><DipendentiTurni /></ProtectedRoute>} />

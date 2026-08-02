@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-07-30 — Intermittenti: le chiamate si comunicano dai turni `[core]`
+
+Marco: "aggiungiamo un flag intermittenti… il mattone email va fatto". Le chiamate dei lavoratori intermittenti **non venivano comunicate a nessuno**: ogni giornata omessa e' una sanzione da 400 a 2.400 EUR, e una giornata passata non e' piu' sanabile perche' la comunicazione e' per definizione preventiva.
+
+Del tracciato XML del modello UNI-Intermittenti **non esiste alcuna specifica pubblica**: ne' XSD, ne' documentazione. E' stato ricavato dal modulo PDF del commercialista, che e' un XFA Adobe: il bottone "Genera XML e invia via email" fa `<submit format="xml">`, quindi l'allegato che parte e' il packet `datasets` dell'XFA. Struttura, formato date e regole di validazione sono documentati in [`modulo_intermittenti.md`](modulo_intermittenti.md).
+
+### Aggiunto
+- **`app/services/uni_intermittenti_service.py`** — raccoglie le giornate degli intermittenti dai turni CONFERMATO, compatta i giorni **strettamente consecutivi** in periodi (chi lavora lun-mer-ven ha tre righe: un periodo dichiarerebbe come lavorati anche i riposi), spezza in moduli da 10, genera l'XML, valida con le stesse regole del JavaScript interno del modulo, invia, archivia allegato + `.eml` con hash.
+- **`app/services/email_service.py`** — mattone M.D, strato basso: SMTP da `.env`, allegati, esito come dato (non eccezione), `.eml` per la prova, email di prova.
+- **`app/routers/intermittenti_router.py`** (prefix `/intermittenti`) — preview, invio con `dry_run`, registro, download allegato, annullamento, settings, configurazione lavoratori, test email. **Le righe le ricalcola sempre il server dal periodo:** il client dice quale periodo, non cosa dichiarare al Ministero.
+- **`frontend/src/pages/dipendenti/Intermittenti.jsx`** + tab nella nav dipendenti + rotta `/dipendenti/intermittenti`.
+- **Checker M.F `intermittenti_non_comunicati`** — avvisa se un turno di intermittente entro 48h non e' comunicato. E' questo, piu' dell'invio, che protegge dalla sanzione.
+- **Migrazione 156** — `dipendenti.intermittente` (flag NUOVO: `a_chiamata` significa gia' "extra del turismo pagato a ore", riusarlo sarebbe stato semantic drift), `dipendenti.codice_comunicazione`, `dipendenti_uni_comunicazioni` + `_righe`, seed settings e `alert_config`.
+
+### Modificato
+- **`versions.jsx`** — dipendenti 2.29 -> 2.30. **`architettura_mattoni.md`** — M.D da DA FARE a PARZIALE.
+
+### Note oneste
+- Il **formato delle date** (`DD/MM/YYYY`) e' dedotto dal `bind picture` del modulo, non letto in una specifica: resta un setting (`uni_formato_data`). Se il consulente segnala comunicazioni non acquisite, e' il primo sospettato.
+- Il Ministero **non manda ricevute**: l'unico riscontro possibile e' farsi confermare dal consulente che le comunicazioni risultino acquisite. Primo mese in doppio binario.
+- I moduli PDF in circolazione puntano ancora a `intermittenti@mailcert.lavoro.gov.it`, sostituito dal 1/6/2015 da `intermittenti@pec.lavoro.gov.it`. Per questo il destinatario e' configurabile.
+- **Prima dell'uso vero serve la verifica col consulente** che quelle persone abbiano davvero un contratto intermittente: se sono extra del turismo la comunicazione non e' dovuta.
+- Trappola incontrata: il primitivo `TextInput` passa a `onChange` **il valore, non l'evento**, ed e' un input controllato (`defaultValue` non funziona). La pagina e' stata corretta di conseguenza.
+
+---
+
 ## 2026-07-27 — La Lavagna: il widget Bacheca diventa un briefing di servizio `[core]`
 
 Marco: "la bacheca non viene utilizzata, ripensiamo al suo uso". Diagnosi: era l'unico blocco della Home che richiedeva lavoro umano per riempirsi, in mezzo a card che si riempiono da sole; per pubblicare servivano 5 campi in `/comunicazioni`. Restava vuota → nessuno la guardava → nessuno ci scriveva. In più Marco ha confermato che **la Home non la apre nessuno con regolarità**, quindi il widget da solo non bastava.

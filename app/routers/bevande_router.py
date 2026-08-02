@@ -160,6 +160,8 @@ class VoceBase(BaseModel):
     # mig 106 — uso primario sezione 'birre', generico a livello DB
     abbinamenti: Optional[str] = None
     gluten_free: Optional[int] = Field(0, ge=0, le=1)
+    # mig 157
+    analcolica: Optional[int] = Field(0, ge=0, le=1)
 
 
 class VoceUpdate(BaseModel):
@@ -184,6 +186,8 @@ class VoceUpdate(BaseModel):
     # mig 106
     abbinamenti: Optional[str] = None
     gluten_free: Optional[int] = Field(None, ge=0, le=1)
+    # mig 157
+    analcolica: Optional[int] = Field(None, ge=0, le=1)
 
 
 class VociReorder(BaseModel):
@@ -223,6 +227,8 @@ class BulkImportRow(BaseModel):
     # mig 106
     abbinamenti: Optional[str] = None
     gluten_free: Optional[int] = Field(None, ge=0, le=1)
+    # mig 157
+    analcolica: Optional[int] = Field(None, ge=0, le=1)
 
 
 class BulkImport(BaseModel):
@@ -480,6 +486,8 @@ _VOCE_FIELDS = [
     "prezzo_eur", "prezzo_label", "tags", "extra", "ordine", "attivo", "note_interne",
     # mig 106
     "abbinamenti", "gluten_free",
+    # mig 157
+    "analcolica",
 ]
 
 
@@ -646,7 +654,7 @@ def bulk_import_voci(payload: BulkImport, user: dict = Depends(get_current_user)
         cols = [
             "sezione_key", "nome", "sottotitolo", "descrizione", "produttore", "regione",
             "formato", "gradazione", "ibu", "tipologia", "paese_origine",
-            "prezzo_eur", "prezzo_label", "abbinamenti", "gluten_free",
+            "prezzo_eur", "prezzo_label", "abbinamenti", "gluten_free", "analcolica",
             "ordine", "attivo",
         ]
         placeholders = ", ".join("?" for _ in cols)
@@ -666,6 +674,7 @@ def bulk_import_voci(payload: BulkImport, user: dict = Depends(get_current_user)
                     r.prezzo_eur, r.prezzo_label,
                     r.abbinamenti,
                     int(r.gluten_free or 0),
+                    int(r.analcolica or 0),
                     base + i * 10,
                     1,
                 ),

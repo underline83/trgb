@@ -15,7 +15,7 @@
 - ✅ **M.I UI primitives** (sessione 2026-04-18) — `frontend/src/components/ui/`: `<Btn>`, `<PageLayout>`, `<StatusBadge>`, `<EmptyState>`. Opt-in per pagine nuove.
 - ✅ **M.E Calendar** (sessione 48, 2026-04-19) — `frontend/src/components/calendar/`: `<CalendarView>` stateless controllato con 3 viste (mese/settimana/giorno), palette brand, tastiera ←/→/T/M/S/G, demo su `/calendario-demo` (admin only). Spec: [`docs/mattone_calendar.md`](mattone_calendar.md).
 - ⏳ M.G Permessi, M.H Import engine — DA FARE
-- ⏸ **M.D Email service — DA FARE, non prioritario** (decisione PO Marco 2026-05-19 post-audit autonomo). Si riprende quando un workflow specifico (conferme prenotazione / invio preventivi / compleanni / busta paga via email) lo richiede in modo bloccante. Vedi anche [`roadmap.md`](roadmap.md) §M.
+- 🟡 **M.D Email service — PARZIALE** (sessione 2026-07-30): lo strato basso c'è, `app/services/email_service.py` (SMTP da .env, allegati, esito + `.eml` per archivio, email di prova). L'ha sbloccato il primo workflow che lo rendeva bloccante: la comunicazione UNI-Intermittenti si trasmette solo via email. **Manca ancora** il M.D pieno: template HTML brandizzati, coda/retry, invio asincrono. Vedi [`modulo_intermittenti.md`](modulo_intermittenti.md) e [`roadmap.md`](roadmap.md) §M.
 
 **Regola critica:** il PDF della Carta Vini (`carta_vini_service.py` + endpoints `/vini/carta/pdf*`) ha un motore dedicato e NON deve essere sostituito con M.B. Ha requisiti specifici (TOC, layout calici) che giustificano il motore separato.
 
@@ -90,11 +90,11 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 
 ---
 
-### M.D — Email service brand (backend) ⏸ NON PRIORITARIO
+### M.D — Email service brand (backend) 🟡 PARZIALE
 
-**Stato:** DA FARE — non prioritario (decisione PO Marco 2026-05-19 post-audit autonomo). Si riprende quando un workflow specifico lo richiede in modo bloccante.
-**Cosa:** servizio invio email con template HTML brandizzato.
-**Backend:** `app/services/email.py` → `invia_email(destinatario, oggetto, template, dati)`
+**Stato:** strato SMTP FATTO (sessione 2026-07-30), template brand DA FARE. Sbloccato dalla comunicazione UNI-Intermittenti, che si trasmette solo via email.
+**Cosa:** servizio invio email; oggi testo semplice + allegati, in futuro template HTML brandizzato.
+**Backend:** `app/services/email_service.py` → `invia_email(to, subject, body, allegati)`, `invia_test(to)`, `stato()`
 **Config:** SMTP settings in .env, template base HTML con header/footer TRGB
 **Effort:** M (1 sessione — SMTP + template engine + template base)
 **Roadmap:** 8.6 (parziale)

@@ -47,7 +47,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_acquisti.md](modulo_acquisti.md) — Acquisti: fornitori, categorie, dashboard. Import SDI: [modulo_fatture_xml.md](modulo_fatture_xml.md) · sync FIC: [modulo_fatture_in_cloud.md](modulo_fatture_in_cloud.md).
 - 📄 [modulo_controllo_gestione.md](modulo_controllo_gestione.md) — Controllo Gestione: dashboard, scadenzario, uscite, spese fisse.
 - 📄 [modulo_banca.md](modulo_banca.md) — Banca + Flussi di Cassa: estratti conto, riconciliazione, contanti, mance.
-- 📄 [modulo_dipendenti.md](modulo_dipendenti.md) — Dipendenti: anagrafica. Turni v2: [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md).
+- 📄 [modulo_dipendenti.md](modulo_dipendenti.md) — Dipendenti: anagrafica. Turni v2: [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md). Chiamate intermittenti: [modulo_intermittenti.md](modulo_intermittenti.md).
 - 📄 [modulo_prenotazioni.md](modulo_prenotazioni.md) — Prenotazioni: planning, vista settimanale, mappa tavoli. Preventivi: [modulo_preventivi.md](modulo_preventivi.md).
 - 📄 [modulo_clienti_crm.md](modulo_clienti_crm.md) — Clienti / CRM: anagrafica, tag, segmenti, sync Mailchimp.
 - 📄 [modulo_vendite.md](modulo_vendite.md) — Vendite / Cassa (ex "Selezioni", NOMEN-1): corrispettivi, chiusure turno, preconti.

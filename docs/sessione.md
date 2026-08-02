@@ -1,6 +1,32 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-07-27 — **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-07-30 — **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-07-30 — Intermittenti: le chiamate si comunicano dai turni
+
+### Contesto
+Marco chiede il modello per le chiamate degli intermittenti, poi: "vorrei che creassimo il sistema da abbinare al nostro sistema turni". Risposta chiave alle domande di scoping: **oggi quelle chiamate non vengono comunicate a nessuno**. Da qui la priorita' e anche il rischio (400-2.400 EUR per giornata omessa, non sanabile a posteriori).
+
+### Il pezzo difficile: il tracciato
+Del file XML **non esiste alcuna specifica pubblica**. Il campione del commercialista si e' rivelato la chiave: e' un XFA Adobe, e il suo bottone "Genera XML e invia via email" fa `<submit format="xml">`, quindi l'allegato che parte E' il packet `datasets` dell'XFA. Estratto con pikepdf: struttura esatta, e soprattutto il JavaScript interno del modulo, che vale piu' di qualsiasi guida (email obbligatoria con regex propria, `data_inizio >= data_fine` = errore quindi giornata singola con data fine VUOTA, max 10 righe, un modulo per email).
+
+**Formato date `DD/MM/YYYY`**: dedotto dal `<bind><picture>` presente su tutti e 20 i campi data. Lo script del modulo confronta le date come ISO perche' legge `rawValue`, che e' ISO *in memoria*: non e' una contraddizione. Resta comunque un setting, non una costante.
+
+### Cosa e' stato fatto (`[core]`)
+Migrazione 156, `email_service.py` (M.D minimo), `uni_intermittenti_service.py`, `intermittenti_router.py`, pagina `Intermittenti.jsx`, checker M.F, doc `modulo_intermittenti.md`. Logica del generatore testata: sequenza degli elementi XML identica al campione reale, compattazione dei soli giorni consecutivi, split a 10, tutte le regole di validazione del modulo.
+
+### Decisioni
+1. **`intermittente` e' un campo NUOVO**, non un riuso di `a_chiamata` (che Marco ha confermato significare "extra del turismo"). Rinominare la semantica di una colonna viva e' il drift gia' costato caro.
+2. **Invio manuale** in prima battuta (scelta di Marco): l'aggancio automatico a "Pubblica settimana" viene dopo.
+3. **Le righe le ricalcola il server** dal periodo: il client non dichiara nulla al Ministero.
+4. Turni `OPZIONALE` esclusi: comunicarli sarebbe dichiarare prestazioni che potrebbero non esserci.
+
+### Da fare / attenzione
+- **`npm run build` non lanciato** (node_modules con binario rollup macOS) — obbligatorio prima del push.
+- Serve `.env` con SMTP_HOST/PORT/USER/PASS, poi CF azienda + email in pagina, poi la spunta di chi e' intermittente e i codici comunicazione (li ha il consulente).
+- **Verifica col consulente del tipo di contratto reale** prima di usarlo davvero: se sono extra del turismo la comunicazione non e' dovuta.
+- Il Ministero non manda ricevute: primo mese in doppio binario col consulente.
+- Trappola M.I trovata: `TextInput` passa a `onChange` il VALORE, non l'evento, ed e' controllato (`defaultValue` inutile).
 
 ## SESSIONE 2026-07-27 — La Lavagna: la Bacheca diventa un briefing di servizio
 

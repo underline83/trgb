@@ -514,12 +514,12 @@ DB isolato (coerente con `notifiche.sqlite3`, `cg.sqlite3`) per backup/restore s
 
 **Tabella `bevande_sezioni`:** `id` PK, `key` UNIQUE, `nome`, `intro_html`, `ordine`, `attivo`, `layout` (`tabella_4col`/`scheda_estesa`/`nome_badge_desc`), `schema_form` JSON (per editor dinamico), `created_at`, `updated_at`. Seed iniziale: 8 sezioni con `layout` di default.
 
-**Tabella `bevande_voci`:** tutte le voci di tutte le sezioni in tabella piatta. Campi: `id`, `sezione_key`, `nome`, `sottotitolo`, `descrizione`, `produttore`, `regione`, `formato`, `gradazione`, `ibu`, `tipologia`, `paese_origine`, `prezzo_eur`, `prezzo_label` (override testuale), `tags` JSON, `extra` JSON catch-all, `ordine`, `attivo`, `note_interne` (visibili solo PDF-staff), `created_at`, `updated_at`. Indici: `idx_bevande_voci_sezione (sezione_key, ordine)`, `idx_bevande_voci_attivo`.
+**Tabella `bevande_voci`:** tutte le voci di tutte le sezioni in tabella piatta. Campi: `id`, `sezione_key`, `nome`, `sottotitolo`, `descrizione`, `produttore`, `regione`, `formato`, `gradazione`, `ibu`, `tipologia`, `paese_origine`, `prezzo_eur`, `prezzo_label` (override testuale), `tags` JSON, `extra` JSON catch-all, `ordine`, `attivo`, `note_interne` (visibili solo PDF-staff), `abbinamenti` (mig 106), `gluten_free` 0/1 (mig 106), `analcolica` 0/1 (mig 157), `created_at`, `updated_at`. Indici: `idx_bevande_voci_sezione (sezione_key, ordine)`, `idx_bevande_voci_attivo`.
 
 ## 6.4 Pattern di render (3 layout)
 
 - **Pattern A — `tabella_4col`** (Distillati, Amari & Liquori): `[REGIONE/PAESE] [PRODUTTORE] [NOME + annata] [€]`. Compatto.
-- **Pattern B — `scheda_estesa`** (Birre, Aperitivi, Amari fatti in casa): nome + sottotitolo + meta line (produttore · stile · formato · grad · IBU) + descrizione + prezzo.
+- **Pattern B — `scheda_estesa`** (Birre, Aperitivi, Amari fatti in casa): nome + sottotitolo + meta line (produttore · stile · formato · grad · IBU) + descrizione + prezzo. Due badge opzionali accanto al nome: **GF** verde se `gluten_free=1` (mig 106) e **0.0** blu se `analcolica=1` (mig 157); in coda alla sezione compare la legenda con le sole voci effettivamente usate. La riga meta salta la gradazione quando vale 0 → per una analcolica non compare "0,0%", l'informazione la porta il badge.
 - **Pattern C — `nome_badge_desc`** (Tisane, Tè): nome + badge tipologia colorato + descrizione/ingredienti + paese origine (solo tè).
 - **Pattern speciale — `vini_dinamico`** (sezione Vini): non legge da `bevande_voci`, delega il render a `carta_vini_service` (`bevande_db.py:230,246`).
 

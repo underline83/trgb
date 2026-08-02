@@ -101,6 +101,7 @@ def init_bevande_db() -> None:
             note_interne  TEXT,                      -- visibili solo nel PDF-staff
             abbinamenti   TEXT,                      -- (mig 106) suggerimento piatti consigliati (uso primario: birre)
             gluten_free   INTEGER NOT NULL DEFAULT 0,-- (mig 106) flag 0/1 senza glutine (uso primario: birre)
+            analcolica    INTEGER NOT NULL DEFAULT 0,-- (mig 157) flag 0/1 analcolica / 0.0 (uso primario: birre)
             created_at    TEXT DEFAULT (datetime('now','localtime')),
             updated_at    TEXT DEFAULT (datetime('now','localtime'))
         )
@@ -146,6 +147,8 @@ _SCHEMA_FORM = {
             {"key": "ibu",         "label": "IBU",                "type": "number"},
             {"key": "gluten_free", "label": "Gluten free",        "type": "checkbox",
              "help": "Spunta se la birra è senza glutine: comparirà un badge GF in carta."},
+            {"key": "analcolica",  "label": "Analcolica (0 alcool)", "type": "checkbox",
+             "help": "Spunta se la birra è analcolica: comparirà un badge 0.0 in carta."},
             {"key": "descrizione", "label": "Descrizione",        "type": "textarea", "rows": 3},
             {"key": "abbinamenti", "label": "Abbinamenti consigliati",
              "type": "textarea", "rows": 2,

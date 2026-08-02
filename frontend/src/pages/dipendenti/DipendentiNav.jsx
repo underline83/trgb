@@ -10,6 +10,7 @@ const TABS = [
   { key: "anagrafica", label: "Anagrafica", path: "/dipendenti/anagrafica", icon: "🗂️" },
   { key: "buste-paga", label: "Buste Paga", path: "/dipendenti/buste-paga", icon: "📋" },
   { key: "turni", label: "Turni", path: "/dipendenti/turni", icon: "📅" },
+  { key: "intermittenti", label: "Intermittenti", path: "/dipendenti/intermittenti", icon: "📨" },
   { key: "scadenze", label: "Scadenze", path: "/dipendenti/scadenze", icon: "🚨" },
   { key: "costi", label: "Costi", path: "/dipendenti/costi", icon: "💰" },
   { key: "impostazioni", label: "Impostazioni", path: "/dipendenti/impostazioni", icon: "⚙️" },

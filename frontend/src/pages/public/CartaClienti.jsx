@@ -362,6 +362,19 @@ const STYLE = `
   letter-spacing: 0.06em;
   vertical-align: middle;
 }
+/* Badge 0.0 (analcolica) — mig 157, gemello del GF in brand-blue */
+.cc-bev-scheda-zero {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: #2E7BE8;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+}
 /* Riga "Si abbina con: …" sotto la descrizione — allineato al PDF (mig 106) */
 .cc-bev-scheda-abbinamenti {
   font-size: 13px;
@@ -397,6 +410,10 @@ const STYLE = `
   font-weight: 700;
   letter-spacing: 0.06em;
   font-style: normal;
+}
+/* Variante blu del tag legenda — mig 157 (0.0 = analcolica) */
+.cc-bev-legenda-tag-zero {
+  background: #2E7BE8;
 }
 
 /* Pattern C: nome + badge + desc (tisane, te) */
@@ -1013,6 +1030,7 @@ function BevTabella4Col({ voci, tipOrder }) {
 // In coda alla sezione, se c'è almeno una voce GF, una piccola legenda.
 function BevSchedaEstesa({ voci }) {
   const haGF = voci.some(v => !!v.gluten_free);
+  const haZero = voci.some(v => !!v.analcolica);
   return (
     <>
       {voci.map(v => {
@@ -1035,6 +1053,9 @@ function BevSchedaEstesa({ voci }) {
                 {v.gluten_free && (
                   <span className="cc-bev-scheda-gf" title="Senza glutine">GF</span>
                 )}
+                {v.analcolica && (
+                  <span className="cc-bev-scheda-zero" title="Analcolica">0.0</span>
+                )}
               </div>
               {fmtPrezzoBev(v) && <div className="cc-bev-scheda-prezzo">{fmtPrezzoBev(v)}</div>}
             </div>
@@ -1049,9 +1070,15 @@ function BevSchedaEstesa({ voci }) {
           </div>
         );
       })}
-      {haGF && (
+      {(haGF || haZero) && (
         <div className="cc-bev-legenda">
-          <span className="cc-bev-legenda-tag">GF</span> = senza glutine
+          {haGF && (
+            <><span className="cc-bev-legenda-tag">GF</span> = senza glutine</>
+          )}
+          {haGF && haZero && <>{" \u00A0·\u00A0 "}</>}
+          {haZero && (
+            <><span className="cc-bev-legenda-tag cc-bev-legenda-tag-zero">0.0</span> = analcolica</>
+          )}
         </div>
       )}
     </>
