@@ -237,17 +237,20 @@ export default function DashboardVini() {
     }
   }, []);
 
+  // O6 (2026-08-02) — Gli ordini si compongono nella pagina dedicata
+  // /vini/ordini, che lavora sul modello vero (testata + righe + storico).
+  // Questo handler NON apre piu' il vecchio modale one-shot su
+  // `vini_ordini_pending`: tenere due sistemi d'ordine vivi sugli stessi vini
+  // significa poter ordinare due volte la stessa bottiglia senza accorgersene.
+  // Da qui il modale ordine (`ordineVino` e handler collegati) e' CODICE MORTO:
+  // nessuno chiama piu' setOrdineVino. Non lo rimuovo in questo push perche'
+  // sono ~145 righe in mezzo a un file da 1900 e la migrazione 159 (travaso dei
+  // pending) e' gia' un cambiamento strutturale: due in un colpo solo e' la
+  // cosa che `feedback_no_blocchi_accoppiati` vieta. Censito in
+  // docs/inventario_pulizia.md per il prossimo giro.
   const openOrdine = (v) => {
-    const existing = ordiniPending[v.id];
-    setOrdineVino(v);
-    // Priorita' input qta: 1) ordine pending esistente, 2) qta_suggerita (da storico 60gg),
-    // 3) stringa vuota. Cosi' se Marco clicca "+ ordina" su un vino con storico vendite,
-    // trova gia' il numero suggerito e puo' solo confermare o modificare.
-    let defaultQta = "";
-    if (existing?.qta != null) defaultQta = String(existing.qta);
-    else if (typeof v?.qta_suggerita === "number" && v.qta_suggerita > 0) defaultQta = String(v.qta_suggerita);
-    setOrdineQta(defaultQta);
-    setOrdineNote(existing?.note || "");
+    const dist = (v?.DISTRIBUTORE || "").trim();
+    navigate(dist ? `/vini/ordini?fornitore=${encodeURIComponent(dist)}` : "/vini/ordini");
   };
   const closeOrdine = () => {
     if (ordineSaving || ordineDeleting || ordineArriving) return;
@@ -965,8 +968,8 @@ export default function DashboardVini() {
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); openOrdine(v); }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition min-h-[28px]"
-                                title={tip || "Modifica ordine pending"}
-                                aria-label="Modifica ordine pending"
+                                title={tip || "Vai agli ordini di questo fornitore"}
+                                aria-label="Vai agli ordini"
                               >
                                 📦 {ord.qta} bt
                               </button>
@@ -990,7 +993,7 @@ export default function DashboardVini() {
                             onClick={(e) => { e.stopPropagation(); openOrdine(v); }}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-dashed transition min-h-[28px] text-brand-blue border-brand-blue/40 hover:bg-brand-blue/10"
                             title={hasSuggerita ? `Suggerito ${v.qta_suggerita} bt (storico 60gg)` : "Crea ordine per questo vino"}
-                            aria-label="Crea ordine"
+                            aria-label="Vai agli ordini"
                           >
                             + ordina{hasSuggerita ? ` · ${v.qta_suggerita}` : ""}
                           </button>
@@ -1305,6 +1308,11 @@ export default function DashboardVini() {
           </div>
         )}
 
+        {/* ── O6 (2026-08-02) — Il lavoro sugli ordini si fa nella pagina
+             dedicata. Questi due widget restano come vista d'insieme, ma
+             comporre e mandare un ordine si fa di là, dove esiste lo storico. */}
+        <RiepilogoOrdini onVai={() => navigate("/vini/ordini")} />
+
         {/* ── RIORDINI PER DISTRIBUTORE / RAPPRESENTANTE ──── */}
         {stats?.riordini_per_fornitore?.length > 0 && (() => {
           // Raggruppa per distributore + rappresentante
@@ -1491,8 +1499,8 @@ export default function DashboardVini() {
                                           type="button"
                                           onClick={() => openOrdine(v)}
                                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition min-h-[28px]"
-                                          title={tip || "Modifica ordine pending"}
-                                          aria-label="Modifica ordine pending"
+                                          title={tip || "Vai agli ordini di questo fornitore"}
+                                          aria-label="Vai agli ordini"
                                         >
                                           📦 {ord.qta} bt
                                         </button>
@@ -1503,8 +1511,8 @@ export default function DashboardVini() {
                                         type="button"
                                         onClick={() => openOrdine(v)}
                                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-neutral-400 border border-dashed border-neutral-300 hover:text-brand-blue hover:border-brand-blue hover:bg-brand-blue/5 transition min-h-[28px]"
-                                        title="Crea ordine per questo vino"
-                                        aria-label="Crea ordine"
+                                        title="Vai agli ordini di questo fornitore"
+                                        aria-label="Vai agli ordini"
                                       >
                                         + ordina
                                       </button>
@@ -1865,5 +1873,61 @@ export default function DashboardVini() {
         );
       })()}
     </div>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════
+// O6 — RIEPILOGO ORDINI (semaforo che porta alla pagina dedicata)
+// ════════════════════════════════════════════════════════════
+function RiepilogoOrdini({ onVai }) {
+  const [r, setR] = React.useState(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/vini/ordini/riepilogo/`);
+        if (res.ok) setR(await res.json());
+      } catch { /* il banner semplicemente non compare */ }
+    })();
+  }, []);
+
+  if (!r) return null;
+  const niente = !r.bozze && !r.in_viaggio;
+
+  return (
+    <button
+      onClick={onVai}
+      className="w-full text-left bg-white rounded-3xl border border-neutral-200 shadow-sm px-6 py-4 hover:border-amber-300 hover:shadow-md transition"
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">📦 Ordini</span>
+          {niente ? (
+            <span className="text-sm text-neutral-500">Nessun ordine aperto.</span>
+          ) : (
+            <>
+              {r.bozze > 0 && (
+                <span className="text-sm text-neutral-700">
+                  <strong className="text-amber-800 tabular-nums">{r.bozze}</strong> carrell{r.bozze === 1 ? "o" : "i"} da mandare
+                  <span className="text-neutral-400"> ({r.righe_in_bozza} vini)</span>
+                </span>
+              )}
+              {r.in_viaggio > 0 && (
+                <span className="text-sm text-neutral-700">
+                  <strong className="text-sky-800 tabular-nums">{r.in_viaggio}</strong> in arrivo
+                </span>
+              )}
+              {r.fermi > 0 && (
+                <span className="text-sm font-semibold text-red-700">
+                  ⏰ {r.fermi} fermo da oltre {r.soglia_fermo_giorni} giorni
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        <span className="text-xs font-semibold text-amber-700 shrink-0">Vai agli ordini →</span>
+      </div>
+    </button>
   );
 }

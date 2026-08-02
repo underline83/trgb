@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-08-02 (bis) — Ordini ai fornitori: il modello vero, dal carrello al WhatsApp `[core]`
+
+Marco: *"tutto, nell'ordine che ti è più semplice, iniziamo oggi finiamo oggi"*. Fatte O3, O4, O5 e O6 del piano ([modulo_vini_ordini.md](modulo_vini_ordini.md)); O2 assorbito in O6 per non costruire due volte la stessa UI; O7 rimandata su indicazione di Marco.
+
+Da oggi **un ordine esiste come documento**: ha un fornitore, uno stato, una data di invio, delle righe con quantità ordinata e ricevuta, e non sparisce quando la merce arriva. Prima esisteva solo una riga pending per vino, cancellata alla conferma d'arrivo — di quello che era stato ordinato non restava niente.
+
+### Aggiunto
+- **Migrazione 158** — `vini_ordini` (testata: fornitore, stato `bozza/inviato/parziale/chiuso/annullato`, canale, date) + `vini_ordini_righe` (con `qta_ricevuta` per riga, che è l'unico modo di gestire un arrivo parziale). `fornitore_nome` denormalizzato e `descrizione`/`prezzo_unit` come snapshot: un ordine è un documento storico, deve restare leggibile anche se il vino viene cancellato o il listino cambia.
+- **Migrazione 159** — travaso dei pending residui (2 righe) in ordini `inviato` e svuotamento della vecchia tabella. **Anticipata rispetto al piano**: vedi Note oneste.
+- **`app/models/vini_ordini_db.py`** — bozza per fornitore, risoluzione del fornitore con tre livelli di fallback, ricezione atomica (riga + giacenza + movimento `CARICO` + reset `STATO_RIORDINO` + ricalcolo stato testata in una transazione sola).
+- **`app/routers/vini_ordini_router.py`** (prefix `/vini/ordini`) — lettura per chiunque sia loggato, scrittura gated `is_vini_manager`.
+- **Pagina `/vini/ordini`** (`OrdiniVini.jsx`, tab "📦 Ordini") — master-detail fornitore-centrica: a sinistra i distributori con quanto c'è da ordinare, a destra il fornitore scelto con da-ordinare (qta suggerita precompilata, ritmo di vendita, ricerca, filtro tipologia), carrello con totale €, invio WhatsApp, ordini in arrivo con badge "fermo da N giorni", e **storico ordini con il lead time reale** — il dato che prima non esisteva.
+- **Template WhatsApp configurabile** in `vini_widget_settings` (`ordine_wa_template`, `ordine_wa_riga_template`, `ordine_wa_locale`) + soglia `ordine_fermo_alert_giorni`. Il messaggio è modificabile nel modale prima di partire.
+
+### Modificato
+- **`DashboardVini.jsx`** — i due widget sovrapposti non compongono più ordini: `openOrdine` porta alla pagina nuova, sul fornitore giusto (`?fornitore=`). Aggiunto un riepilogo cliccabile in testa. Tenere due sistemi d'ordine vivi sugli stessi vini significava poter ordinare — e caricare — due volte la stessa bottiglia.
+- **`ViniNav.jsx`**, **`App.jsx`**, **`main.py`**, **`core/moduli/vini/module.json`**, **`versions.jsx`** (vini 3.74 → 3.75), **`modulo_vini.md`** (tabella endpoint).
+
+### Note oneste
+- **Il travaso dei pending (159) era pianificato per dopo, l'ho anticipato.** La review avversariale ha mostrato che la convivenza dei due sistemi era il rischio più grosso del blocco: un vino con pending aperto ha `STATO_RIORDINO='0'` e ricompariva nella lista "da ordinare" senza alcun segnale, e confermando l'arrivo da entrambe le parti la giacenza veniva incrementata due volte. Erano 2 righe e 3 bottiglie: rimandare costava più che farlo.
+- **Il codice del vecchio modale ordine in `DashboardVini.jsx` è morto ma è ancora lì** (~145 righe). Toglierlo nello stesso push di due migrazioni sarebbe stato il blocco accoppiato che si è già pagato caro. Censito in [inventario_pulizia.md](inventario_pulizia.md).
+- **Gli endpoint pending sono ancora senza gate di ruolo** e conferma-arrivo tocca la giacenza. La tabella ora è vuota, ma finché esistono restano l'unica scrittura non gated sulle giacenze.
+- **Doppione in anagrafica**: `Emanuele Poloni` e `Emanuele Polloni` sono due fornitori distinti (20 e 27 vini). Il codice ora regge il disallineamento, ma i due vanno fusi.
+- Testato end-to-end su copia del DB di produzione: bozza → invio → arrivo parziale → completamento → chiusura, con giacenze e movimenti verificati. **Nessun build** (il frontend è servito da Vite, non si compila); verifica con `@babel/parser`.
+
+---
+
 ## 2026-08-02 — Ordini vini: piano O1–O7 + contatti distributori `[core]`
 
 Marco: "rivediamo un attimo i riordini per fornitore, devo avere un modo per lavorarci meglio". La ricognizione ha trovato tre buchi: **non esiste il concetto di ordine** (solo una riga pending per vino, `UNIQUE(vino_id)`), **non esiste storico** (`conferma_arrivo_ordine_pending()` cancella il record quando la merce arriva), e **due widget della dashboard fanno lo stesso lavoro**. Piano completo a fasi in [`modulo_vini_ordini.md`](modulo_vini_ordini.md).
@@ -22,7 +49,7 @@ Marco ordina in due situazioni, entrambe centrate sul fornitore e non sul vino: 
 L'invio ordini via WhatsApp era fermo dal 2026-04-24 come "punto 7 differito" perché mancava il telefono del rappresentante. Il campo **esiste dalla migrazione 125** — ma la ricognizione sul DB dice **0 fornitori su 40 lo hanno compilato**. Non era più un problema di schema, era data entry: da qui O1 come prima fase invece che come rifinitura. Nella stessa ricognizione: 1273 bottiglie su 1275 risolvono `bottiglia → madre → fornitore_id` (99,8%) e tutti e 40 i distributori testuali matchano `vini_fornitori.nome`, quindi nessun lavoro di riconciliazione anagrafica prima di partire.
 
 ### Note oneste
-- **`npm run build` non lanciato** (node_modules con binario rollup macOS): la sintassi JSX è stata validata con esbuild, ma il build vero va fatto prima del push.
+- **Nessun build da lanciare**: il frontend in produzione è servito da Vite (`trgb-frontend`), `frontend/dist/` non è tracciato e il post-receive fa `npm install` solo se cambia `package.json`. Verifica fatta con `@babel/parser` (sintassi + identificatori non risolti); un import rotto si vedrebbe comunque solo a runtime nel browser, quindi conviene aprire la pagina Distributori subito dopo il push.
 - Il telefono si salva **come lo si scrive**, non normalizzato: `buildWaLink()` normalizza già al momento dell'uso, e un numero leggibile vale più di uno canonico. La cella segnala con `⚠️` i numeri che `normalizePhone()` non sa interpretare.
 - O2–O7 non sono iniziate. Le 4 domande aperte in fondo al piano vanno chiuse prima di O4 — in particolare se il totale € dell'ordine va calcolato sul listino o sul netto scontato.
 

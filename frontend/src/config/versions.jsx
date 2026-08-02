@@ -3,6 +3,13 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.75 (2026-08-02): Ordini ai fornitori (O3-O6). Migrazioni 158 (tabelle
+    //   vini_ordini + vini_ordini_righe) e 159 (travaso dei pending residui).
+    //   Nuova pagina /vini/ordini master-detail fornitore-centrica: da
+    //   ordinare con qta suggerita e ritmo, carrello con totali, invio
+    //   WhatsApp col template configurabile, ricezione anche parziale,
+    //   storico ordini con lead time. La dashboard diventa un riepilogo che
+    //   linka alla pagina. Doc: docs/modulo_vini_ordini.md.
     // 3.74 (2026-08-02): Anagrafiche > Distributori — modalita' contatti
     //   (O1): edit inline di rappresentante/telefono/email in tabella,
     //   Invio scende alla riga sotto, barra di completezza, filtro "solo
@@ -15,7 +22,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.74",
+    version: "3.75",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

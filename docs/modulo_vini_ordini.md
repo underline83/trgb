@@ -1,6 +1,6 @@
 # Modulo Vini — Ordini ai fornitori (piano O0–O7)
 
-> **Tipo:** 📄 pagina wiki · **Stato:** in corso — **O1 FATTO** (2026-08-02, vini 3.74), O2–O7 da fare · **Ultima verifica:** 2026-08-02 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
+> **Tipo:** 📄 pagina wiki · **Stato:** **O1, O3, O4, O5, O6 FATTI** (2026-08-02, vini 3.75). O2 assorbito in O6. Resta O7. · **Ultima verifica:** 2026-08-02 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
 > **Vedi anche:** [modulo_vini.md](modulo_vini.md) (stato corrente del modulo) · [modulo_vini_widget_dashboard.md](modulo_vini_widget_dashboard.md) (storia dei due widget esistenti) · [roadmap.md](roadmap.md) §V
 
 **Doc canonico** del lavoro sui riordini vini. Nasce dalla sessione 2026-08-02: Marco chiede "devo avere un modo per lavorarci meglio".
@@ -122,12 +122,12 @@ Ogni fase è auto-contenuta e pushabile da sola (memoria `feedback_no_blocchi_ac
 | Fase | Cosa | Taglia | Dipende da | Tocca |
 |------|------|--------|-----------|-------|
 | **O1** | Contatti fornitori — schermata edit rapido | S | — | ✅ **FATTO 2026-08-02** — FE + 1 fix BE |
-| **O2** | Quick wins sul widget attuale | S | — | FE + `get_dashboard_stats` |
-| **O3** | Schema ordini (testata + righe) | M | — | mig 158, BE-only |
-| **O4** | Composizione ordine + ricezione | M | O3 | BE + FE |
-| **O5** | Invio WhatsApp / email | S | O1, O4 | FE + settings |
-| **O6** | Pagina `/vini/ordini` fornitore-centrica | M | O4 | FE |
-| **O7** | Condizioni fornitore + intelligenza | S | O4, O6 | mig + FE |
+| **O2** | Quick wins sul widget attuale | S | — | ⤵️ **ASSORBITO IN O6** — vedi sotto |
+| **O3** | Schema ordini (testata + righe) | M | — | ✅ **FATTO** — mig 158 |
+| **O4** | Composizione ordine + ricezione | M | O3 | ✅ **FATTO** — + mig 159 (travaso pending) |
+| **O5** | Invio WhatsApp / email | S | O1, O4 | ✅ **FATTO** — template configurabile |
+| **O6** | Pagina `/vini/ordini` fornitore-centrica | M | O4 | ✅ **FATTO** — `OrdiniVini.jsx` |
+| **O7** | Condizioni fornitore + intelligenza | S | O4, O6 | ⏳ da fare (Marco: "per ora non preoccupiamocene") |
 
 ### O1 — Contatti fornitori (prerequisito di tutto il WhatsApp)
 
@@ -269,3 +269,68 @@ Piccolo, ma è quello che fa sembrare il gestionale sveglio.
 **Autori:** Marco + Claude
 **Sessione di origine:** 2026-08-02
 **File che verranno toccati:** `app/migrations/158_*.py`, `app/models/vini_magazzino_db.py`, `app/routers/vini_magazzino_router.py`, `app/services/vini_widget_settings_service.py`, `frontend/src/pages/vini/DashboardVini.jsx`, `frontend/src/pages/vini/AnagraficheVini.jsx`, `frontend/src/pages/vini/ViniImpostazioni.jsx`, nuova `frontend/src/pages/vini/OrdiniVini.jsx`, `frontend/src/config/versions.jsx`, `frontend/src/config/modules.json`
+
+
+---
+
+# 9. Esito della sessione 2026-08-02 (O3–O6 in un colpo)
+
+Marco: *"tutto, nell'ordine che ti è più semplice, iniziamo oggi finiamo oggi"*.
+
+## O2 assorbito, non saltato
+I quick wins di O2 (totali €, qta suggerita, ricerca, filtro tipologia, badge
+"ordine fermo da N gg") erano un piano B nel caso non si arrivasse a O6. Andando
+in fondo lo stesso giorno, costruirli sul widget vecchio E poi nella pagina nuova
+avrebbe voluto dire fare due volte la stessa UI. Vivono tutti in `OrdiniVini.jsx`.
+
+## Decisioni prese durante l'implementazione
+
+1. **La chiave di raggruppamento è `DISTRIBUTORE` (il testo sulla bottiglia), non
+   il nome dell'anagrafica.** L'anagrafica dà l'`id`, e quindi il contatto. Se si
+   usasse il nome anagrafico, una bottiglia con `DISTRIBUTORE = "Emanuele Poloni"`
+   la cui madre punta al fornitore `"Emanuele Polloni"` (doppione reale in
+   anagrafica al 2026-08-02, 20 e 27 vini) finirebbe in una bozza intestata al
+   secondo nome, invisibile dal gruppo in cui si è cliccato. **Da sanare in
+   anagrafica:** i due "Poloni/Polloni" vanno fusi.
+2. **La quantità nel carrello si sostituisce, non si somma.** "Di questo ne voglio
+   N", non "aggiungine altri N": sommare renderebbe impossibile correggere un
+   errore di battitura senza cancellare la riga.
+3. **Le quantità in ricezione sono incrementi**, con un tetto al doppio
+   dell'ordinato. Un arrivo in due tranche si registra due volte e si somma; `60`
+   battuto al posto di `6` viene rifiutato invece di gonfiare la giacenza.
+4. **Ricevere una bozza è vietato**: salterebbe lo stato `inviato` e con esso la
+   data di partenza, cioè il lead time. Chi ordina a voce usa prima
+   "🤝 Ordinato a voce".
+5. **Il travaso dei pending (mig 159) è stato anticipato.** Il piano lo rimandava
+   a UI verificata. La review ha mostrato che la convivenza era peggio: un vino
+   con pending aperto ha `STATO_RIORDINO='0'` e ricompariva nella lista "da
+   ordinare" senza segnalazione → doppio ordine, e confermando l'arrivo da
+   entrambi i sistemi la giacenza veniva incrementata due volte. In più, da
+   quando la dashboard rimanda alla pagina nuova, i pending residui non erano più
+   chiudibili da nessuna schermata. Erano 2 righe: il momento giusto era subito.
+
+## Cosa ha trovato la review avversariale (e che è stato corretto)
+
+| Problema | Effetto concreto |
+|---|---|
+| Vino già ordinato riproposto come da ordinare | Appena l'ordine passa a `inviato` il vino tornava in lista pulito: si riordinava la stessa merce. Ora badge `📤 già ordinate N` + conferma esplicita |
+| Convivenza col vecchio pending | Doppio ordine e doppio carico di giacenza. Risolto con la mig 159 |
+| Vino cancellato in ricezione | La riga veniva marcata ricevuta senza caricare niente e senza movimento: l'ordine si chiudeva dichiarando arrivata merce sparita. Ora la riga resta scoperta |
+| Modale ricezione chiudibile a salvataggio in corso | Chiudere con la POST in volo faceva ricliccare "È arrivato" → merce caricata due volte |
+| Carrello non azzerato al cambio fornitore | Il carrello di A restava a schermo sotto il nome di B, con la ✕ attiva: si cancellava la riga sbagliata |
+| Risposte fuori ordine | Cliccando A poi B in fretta, i dati di A restavano sotto l'intestazione di B in modo permanente |
+| `in_viaggio` sovrascritto | Un fornitore con 2 inviati + 1 parziale mostrava "1 in arrivo" |
+| Soglia "ordine fermo" ignorata | Il campo letto non esisteva: cambiare l'impostazione non aveva effetto |
+
+## Cosa resta aperto
+
+- **Codice morto in `DashboardVini.jsx`** — il modale ordine e i suoi handler
+  (~145 righe) non sono più raggiungibili. Censiti in
+  [inventario_pulizia.md](inventario_pulizia.md), da togliere in un push dedicato.
+- **Endpoint pending ancora senza gate di ruolo** — `/{id}/ordine-pending/*` in
+  `vini_magazzino_router.py` hanno solo `Depends(get_current_user)` e
+  conferma-arrivo incrementa la giacenza. Ora la tabella è vuota, ma finché gli
+  endpoint esistono sono l'unica scrittura non gated che tocca le giacenze.
+- **O7** (condizioni fornitore: minimo d'ordine, giorno di consegna, sconti) —
+  Marco 2026-08-02: "per ora non preoccupiamocene".
+- **Doppione anagrafico Poloni/Polloni** da fondere.

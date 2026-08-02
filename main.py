@@ -25,6 +25,7 @@ from app.routers import menu_router
 from app.routers import vini_router
 from app.routers import vini_settings_router
 from app.routers import vini_magazzino_router
+from app.routers import vini_ordini_router
 from app.routers import vini_cantina_tools_router
 from app.routers import vini_anagrafiche_router  # V.6+V.7+V.8 Fase 2
 from app.routers import vini_v2_router  # V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo)
@@ -621,6 +622,7 @@ def _mount(router_file: str, router, **kwargs) -> None:
 _mount("vini_settings_router", vini_settings_router.router)
 _mount("vini_router", vini_router.router)
 _mount("vini_magazzino_router", vini_magazzino_router.router)
+_mount("vini_ordini_router", vini_ordini_router.router)
 _mount("vini_cantina_tools_router", vini_cantina_tools_router.router)
 _mount("vini_anagrafiche_router", vini_anagrafiche_router.router)  # V.6+V.7+V.8 Fase 2
 _mount("vini_v2_router", vini_v2_router.router)  # V.6+V.7+V.8 — Modulo Gestione Vino 2 (test parallelo)

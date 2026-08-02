@@ -1,6 +1,29 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-08-02 — **DA PUSHARE: Ordini vini — piano O1–O7 + modalita' contatti distributori (vini 3.74); lanciare `npm run build` prima del push**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-08-02 — **DA PUSHARE: Ordini ai fornitori O3–O6 — modello ordini vero, pagina /vini/ordini, invio WhatsApp, migrazioni 158+159 (vini 3.75)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-08-02 (bis) — Ordini ai fornitori: O3-O6 in un colpo
+
+### Contesto
+Marco carica i telefoni dei distributori che usa di piu' e dice: "tutto, nell'ordine che ti e' piu' semplice, iniziamo oggi finiamo oggi". Sui prezzi: "il prezzo e' gia' all'interno della madre, se ci sono sconti e' dentro" -> `EURO_LISTINO` e' gia' il netto, niente campo sconto, O7 rimandata.
+
+### Cosa e' stato fatto
+Migrazione 158 (`vini_ordini` + `vini_ordini_righe`), model, router `/vini/ordini`, pagina `OrdiniVini.jsx`, template WhatsApp configurabile, dashboard ridotta a riepilogo. **O2 assorbito in O6**: costruire i quick wins sul widget vecchio e poi rifarli nella pagina nuova lo stesso giorno non aveva senso.
+
+### La cosa che ha cambiato il piano in corsa
+La review avversariale ha trovato il rischio grosso: **i due sistemi d'ordine convivevano**. Un vino con pending aperto ha `STATO_RIORDINO='0'`, quindi ricompariva nella nuova lista "da ordinare" senza segnale -> doppio ordine; e confermando l'arrivo da entrambi i sistemi `QTA_TOTALE` veniva incrementata **due volte**. In piu', da quando la dashboard rimanda alla pagina nuova, i 2 pending residui non erano piu' chiudibili da nessuna schermata: mine pronte a sparare un carico fantasma. Il piano rimandava il travaso a UI verificata; erano 2 righe e 3 bottiglie, quindi ho scritto la **migrazione 159** e l'ho fatto subito.
+
+### Decisioni
+1. **Chiave di raggruppamento = `DISTRIBUTORE`** (testo sulla bottiglia), non il nome dell'anagrafica: c'e' un doppione reale (`Emanuele Poloni` / `Emanuele Polloni`, 20 e 27 vini) che avrebbe mandato le righe in una bozza invisibile dal gruppo in cui si e' cliccato.
+2. **Qta nel carrello si sostituisce**, qta in ricezione sono **incrementi** con tetto al doppio dell'ordinato (60 al posto di 6 viene rifiutato).
+3. **Ricevere una bozza e' vietato**: salterebbe `inviato` e quindi la data di partenza, cioe' il lead time.
+4. **Vino cancellato in ricezione**: la riga NON viene marcata ricevuta. Meglio un ordine che resta `parziale` e si vede, che uno chiuso che dichiara arrivata merce mai caricata.
+
+### Da fare / attenzione
+- **Prima cosa dopo il push:** aprire `/vini/ordini`. I 2 ordini travasati (SOGEGROSS, aprile e maggio) compariranno come **fermi da oltre 30 giorni** — vanno chiusi o annullati, e' merce vecchia.
+- **Fondere `Emanuele Poloni` / `Emanuele Polloni`** in Anagrafiche > Distributori.
+- **Codice morto** in `DashboardVini.jsx` (modale ordine, ~145 righe) e endpoint pending senza gate di ruolo: censiti in `inventario_pulizia.md`, push dedicato.
+- Testato end-to-end su copia del DB di produzione. Niente build (Vite serve i sorgenti), verifica con `@babel/parser`.
 
 ## SESSIONE 2026-08-02 — Ordini vini: il piano, e il primo pezzo
 
@@ -30,7 +53,7 @@ Nella stessa ricognizione, due conferme che tolgono rischio: **1273/1275 bottigl
 4. La whitelist dei campi che scatenano il cascade vive in `vini_anagrafiche_sync.py`, non copiata nel router: la fonte di verita' e' `_compute_synced_values()`, che sta li'.
 
 ### Da fare / attenzione
-- **`npm run build` non lanciato** (node_modules con binario rollup macOS, la VM e' Linux) — obbligatorio prima del push. La sintassi JSX e' stata validata con esbuild.
+- **Niente build da lanciare** (verificato 2026-08-02): `frontend/dist/` non e' tracciato, `push.sh` non compila, il post-receive fa `npm install` solo se cambia `package.json` e riavvia `trgb-frontend`, che serve Vite. Verifica fatta con `@babel/parser` — un import rotto si vedrebbe solo a runtime, quindi aprire la pagina Distributori dopo il push.
 - **Prima cosa dopo il push:** Marco riempie i 40 contatti. Senza quelli O5 (invio WhatsApp) non parte.
 - **4 domande aperte** in fondo al piano, da chiudere prima di O4. La piu' pesante: il totale € dell'ordine va sul listino o sul netto scontato? Se i distributori applicano sconti fissi, `sconto_std_pct` va anticipato da O7 a O4.
 - I numeri della ricognizione vengono dalla copia locale del DB: **riverificarli sul VPS** prima di partire con O2.

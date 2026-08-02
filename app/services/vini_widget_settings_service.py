@@ -58,6 +58,14 @@ WIDGET_DEFAULTS = [
     # Alert "Vini in carta senza giacenza" — qta suggerita
     ("qta_suggerita_giorni_storico",  "60",  "int",     "Giorni: finestra storico vendite per calcolare qta suggerita riordino"),
     ("qta_suggerita_divisore",        "2",   "float",   "Divisore: vendite_60gg / N = qta suggerita (default 2 = metà del venduto)"),
+    # O5 (2026-08-02) — Ordini ai fornitori.
+    ("ordine_fermo_alert_giorni",     "30",  "int",     "Giorni dopo i quali un ordine inviato e non arrivato viene segnalato come fermo"),
+    ("ordine_wa_template",
+     "Ciao {rappresentante}, ordine {locale} del {data}:\n\n{righe}\n\nGrazie!",
+     "text",
+     "Messaggio WhatsApp per l'ordine al rappresentante. Variabili: {rappresentante} {fornitore} {locale} {data} {righe} {totale}"),
+    ("ordine_wa_riga_template",       "• {qta} × {descrizione}", "text", "Come viene resa ogni riga dentro {righe}. Variabili: {qta} {descrizione} {annata} {prezzo}"),
+    ("ordine_wa_locale",              "Osteria Tre Gobbi", "text", "Nome del locale usato in {locale} nel messaggio d'ordine"),
     # Metriche ritmo vendita (vini_metrics.py)
     ("ritmo_soglia_top",              "5",   "float",   "Bottiglie/mese: ≥ N → 'top seller'"),
     ("ritmo_soglia_medio",            "1",   "float",   "Bottiglie/mese: ≥ N → 'medio', sotto = 'poco'"),

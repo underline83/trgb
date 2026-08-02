@@ -33,6 +33,7 @@ const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
 // /vini/magazzino/* vengono redirette a /vini/v2/*. I file restano nel repo
 // con suffisso _legacy come archivio (cancellati post-cutover stabile).
 const DashboardVini = lazy(() => import("./pages/vini/DashboardVini"));
+const OrdiniVini = lazy(() => import("./pages/vini/OrdiniVini"));
 // V.6+V.7+V.8 — Modulo "Cantina 2" (test parallelo read-only sulle tabelle _v2)
 const GestioneVino2 = lazy(() => import("./pages/vini/v2/GestioneVino2"));
 // M2.5-arch — Hub Anagrafiche Vini (produttori, distributori, denominazioni, vitigni, madre)
@@ -256,6 +257,7 @@ export default function App() {
         {/* Carta Bevande — shell unica con sidebar 8 sezioni */}
         <Route path="/vini/carta" element={<Navigate to="/vini/carta/vini" replace />} />
         <Route path="/vini/carta/anteprima" element={<ProtectedRoute module="vini" sub="carta"><CartaAnteprima /></ProtectedRoute>} />
+        <Route path="/vini/ordini" element={<ProtectedRoute module="vini" sub="magazzino"><OrdiniVini /></ProtectedRoute>} />
         <Route path="/vini/carta-staff" element={<ProtectedRoute module="vini" sub="carta"><CartaStaff /></ProtectedRoute>} />
         {/* Redirect legacy: /vini/carta/sezione/:key → /vini/carta/:key */}
         <Route path="/vini/carta/sezione/:key" element={<RedirectLegacySezione />} />

@@ -123,6 +123,24 @@ Tutti gli endpoint puntano ora a `vini_bottiglie` (post sed F11). Usato da Sched
 - `DELETE /delete-vino/{vino_id}` — elimina vino + cascade movimenti/note/celle
 - `POST /{vino_id}/duplica` — duplica vino con giacenze a zero
 
+### `/vini/ordini/*` (ordini ai fornitori — O3/O4/O5, 2026-08-02)
+
+| Metodo | Path | Cosa fa |
+|--------|------|---------|
+| `GET` | `/vini/ordini/` | elenco ordini con totali (filtri: `stato`, `solo_aperti`, `fornitore_nome`) |
+| `GET` | `/vini/ordini/riepilogo/` | numeri per il semaforo in dashboard |
+| `GET` | `/vini/ordini/fornitori/` | fornitori con da-ordinare e ordini aperti (colonna sinistra) |
+| `GET` | `/vini/ordini/da-ordinare/` | vini da riordinare di un fornitore, con qta suggerita e ritmo |
+| `GET` | `/vini/ordini/{id}` | dettaglio con righe, totali e contatto rappresentante |
+| `POST` | `/vini/ordini/riga/` | mette un vino nella bozza del suo fornitore (upsert: sostituisce la qta) |
+| `DELETE` | `/vini/ordini/riga/{id}` | toglie una riga; se la bozza resta vuota viene eliminata |
+| `POST` | `/vini/ordini/{id}/invia` | bozza → inviato, marca data e canale |
+| `POST` | `/vini/ordini/{id}/ricevi` | arrivo anche parziale, in transazione atomica con CARICO |
+| `POST` | `/vini/ordini/{id}/annulla` | annulla; l'ordine resta a storico |
+
+Lettura: qualsiasi utente loggato. Scrittura: `is_vini_manager` (admin/sommelier).
+Dettagli e scelte di schema in [modulo_vini_ordini.md](modulo_vini_ordini.md).
+
 ### `/vini/cantina-tools/*` (utility)
 - `GET /matrice/stato|celle/{vid}` + `POST /matrice/assegna|rimuovi` — gestione celle scaffali
 - `GET /template-v2|export-v2` · `POST /import-v2` — import/export Excel (template ancora "piatto" legacy-style, vedi V.20 per refactor a 3 fogli)

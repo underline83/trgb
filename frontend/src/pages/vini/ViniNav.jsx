@@ -12,6 +12,10 @@ const TABS = [
   // La Cantina classica (`/vini/magazzino`) è deprecata, route in App.jsx
   // redirect a `/vini/v2/cantina`.
   { key: "cantina", label: "Cantina", path: "/vini/v2/cantina", icon: "🍷" },
+  // O6 (2026-08-02): pagina Ordini fornitore-centrica. Sta subito dopo Cantina
+  // perché è lì che si va quando si guarda cosa manca. Vedi
+  // docs/modulo_vini_ordini.md.
+  { key: "ordini", label: "Ordini", path: "/vini/ordini", icon: "📦" },
   // M2.5-arch (2026-05-16): tab "Anagrafiche" — pannello dedicato alle entità master
   // (produttori, distributori, denominazioni, vitigni, vini madre). Promosso dalla
   // sotto-pagina "🧪 Anagrafiche (beta)" che viveva sotto Impostazioni.

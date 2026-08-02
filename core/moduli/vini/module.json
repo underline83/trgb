@@ -4,18 +4,30 @@
   "versione": "1.0",
   "descrizione": "Gestione cantina vini: carta clienti, magazzino, vendite, pricing, import iPratico, carta bevande",
   "vendibile": true,
-  "dipendenze_platform": ["auth", "notifiche", "pdf", "permessi", "ui_primitives"],
-  "dipendenze_opzionali": ["ricette"],
+  "dipendenze_platform": [
+    "auth",
+    "notifiche",
+    "pdf",
+    "permessi",
+    "ui_primitives"
+  ],
+  "dipendenze_opzionali": [
+    "ricette"
+  ],
   "router_files": [
     "vini_router",
     "vini_settings_router",
     "vini_magazzino_router",
+    "vini_ordini_router",
     "vini_cantina_tools_router",
     "vini_pricing_router",
     "ipratico_products_router",
     "bevande_router"
   ],
-  "endpoint_prefix": ["/vini", "/settings/vini"],
+  "endpoint_prefix": [
+    "/vini",
+    "/settings/vini"
+  ],
   "tabelle_db": [
     "vini",
     "vini_movimenti",
@@ -24,6 +36,8 @@
     "vini_magazzino_movimenti",
     "vini_magazzino_note",
     "vini_ordini_pending",
+    "vini_ordini_righe",
+    "vini_ordini",
     "tipologia_order",
     "nazione_order",
     "regione_order",
@@ -31,6 +45,8 @@
     "bevande_sezioni",
     "bevande_voci"
   ],
-  "frontend_route": ["/vini"],
+  "frontend_route": [
+    "/vini"
+  ],
   "frontend_menu_key": "vini"
 }

@@ -37,6 +37,30 @@ Dopo questo cleanup, push: `./push.sh "cleanup S57: PIN admin random + L1 guardi
 
 ---
 
+
+## Ordini vini — residui del vecchio sistema pending (2026-08-02)
+
+Dopo O3–O6 (`docs/modulo_vini_ordini.md`) il modello ordini vero ha sostituito
+`vini_ordini_pending`. La migrazione 159 ha travasato i pending residui (2 righe)
+e svuotato la tabella. Restano da rimuovere, in un push dedicato:
+
+- **`DashboardVini.jsx`** — modale ordine + handler ormai irraggiungibili:
+  `closeOrdine`, `submitOrdine`, `deleteOrdine`, `confermaArrivo`, il blocco JSX
+  `{ordineVino && …}` (~145 righe) e gli stati `ordineVino`/`ordineQta`/
+  `ordineNote`/`ordineSaving`/`ordineDeleting`/`ordineArriving`. `openOrdine` ora
+  naviga a `/vini/ordini`. **NB:** `confermaArrivoRiga` e `ordiniPending` sono
+  ancora referenziati dal widget alert — verificare prima di togliere anche quelli.
+- **`vini_magazzino_router.py`** — endpoint `/{id}/ordine-pending` (upsert, delete,
+  conferma-arrivo) e `/ordini-pending/`. Nota: le tre scritture hanno solo
+  `Depends(get_current_user)`, **nessun gate `is_vini_manager`**, e conferma-arrivo
+  incrementa `QTA_TOTALE`. Finché esistono sono l'unica scrittura non gated che
+  tocca la giacenza: se la rimozione slitta, mettere almeno il gate.
+- **`vini_magazzino_db.py`** — `conferma_arrivo_ordine_pending()`, `upsert/delete`
+  pending, e i campi `qta_ordinata`/`data_ordine` in `get_dashboard_stats`.
+- **Tabella `vini_ordini_pending`** — DROP solo dopo che tutto il resto è via, e
+  dopo aver verificato che sia ancora vuota.
+
+
 ## TODO da gestire più avanti
 
 ### `run_server.py` (root) — script bash legacy
