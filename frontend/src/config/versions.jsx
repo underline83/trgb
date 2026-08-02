@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.76 (2026-08-02): flag `attivo` sui distributori (mig 160). Interruttore
+    //   in Anagrafiche > Distributori; i non attivi spariscono dalla pagina
+    //   Ordini (ma restano se hanno un ordine aperto, altrimenti diventerebbe
+    //   irraggiungibile). I loro vini restano in cantina e nello storico.
     // 3.75 (2026-08-02): Ordini ai fornitori (O3-O6). Migrazioni 158 (tabelle
     //   vini_ordini + vini_ordini_righe) e 159 (travaso dei pending residui).
     //   Nuova pagina /vini/ordini master-detail fornitore-centrica: da
@@ -22,7 +26,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.75",
+    version: "3.76",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

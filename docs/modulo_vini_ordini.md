@@ -127,7 +127,7 @@ Ogni fase è auto-contenuta e pushabile da sola (memoria `feedback_no_blocchi_ac
 | **O4** | Composizione ordine + ricezione | M | O3 | ✅ **FATTO** — + mig 159 (travaso pending) |
 | **O5** | Invio WhatsApp / email | S | O1, O4 | ✅ **FATTO** — template configurabile |
 | **O6** | Pagina `/vini/ordini` fornitore-centrica | M | O4 | ✅ **FATTO** — `OrdiniVini.jsx` |
-| **O7** | Condizioni fornitore + intelligenza | S | O4, O6 | ⏳ da fare (Marco: "per ora non preoccupiamocene") |
+| **O7** | Condizioni fornitore + intelligenza | S | O4, O6 | ⏳ da fare. Fatto solo il flag `attivo` (mig 160, 2026-08-02) |
 
 ### O1 — Contatti fornitori (prerequisito di tutto il WhatsApp)
 
@@ -332,5 +332,7 @@ avrebbe voluto dire fare due volte la stessa UI. Vivono tutti in `OrdiniVini.jsx
   conferma-arrivo incrementa la giacenza. Ora la tabella è vuota, ma finché gli
   endpoint esistono sono l'unica scrittura non gated che tocca le giacenze.
 - **O7** (condizioni fornitore: minimo d'ordine, giorno di consegna, sconti) —
-  Marco 2026-08-02: "per ora non preoccupiamocene".
+  Marco 2026-08-02: "per ora non preoccupiamocene". Di O7 è stato fatto solo il
+  flag `attivo` (mig 160), chiesto a parte: nasconde dalla pagina Ordini i
+  distributori con cui non si lavora più, tranne quelli con un ordine aperto.
 - **Doppione anagrafico Poloni/Polloni** da fondere.

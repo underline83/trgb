@@ -98,8 +98,11 @@ def riepilogo(current_user: Any = Depends(get_current_user)):
 
 
 @router.get("/fornitori/", summary="Fornitori con da-ordinare e ordini aperti")
-def fornitori(current_user: Any = Depends(get_current_user)):
-    return db.fornitori_con_lavoro()
+def fornitori(
+    includi_inattivi: bool = Query(False, description="mostra anche i distributori con attivo=0"),
+    current_user: Any = Depends(get_current_user),
+):
+    return db.fornitori_con_lavoro(includi_inattivi=includi_inattivi)
 
 
 @router.get("/da-ordinare/", summary="Vini da riordinare per un fornitore")

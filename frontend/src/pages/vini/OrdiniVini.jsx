@@ -60,6 +60,9 @@ export default function OrdiniVini() {
   const [sel, setSel] = useState(fornitoreDaUrl || null);   // fornitore_nome selezionato
   const [loadingForn, setLoadingForn] = useState(true);
   const [cercaForn, setCercaForn] = useState("");
+  // mig 160: i distributori con cui non si lavora più sono nascosti. Restano
+  // visibili lo stesso se hanno un ordine aperto (lo dice il backend).
+  const [mostraInattivi, setMostraInattivi] = useState(false);
 
   const [daOrdinare, setDaOrdinare] = useState([]);
   const [ordini, setOrdini] = useState([]);
@@ -78,7 +81,7 @@ export default function OrdiniVini() {
   const caricaFornitori = useCallback(async () => {
     setLoadingForn(true);
     try {
-      const r = await apiFetch(`${API_BASE}/vini/ordini/fornitori/`);
+      const r = await apiFetch(`${API_BASE}/vini/ordini/fornitori/?includi_inattivi=${mostraInattivi}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setFornitori(data);
@@ -95,7 +98,7 @@ export default function OrdiniVini() {
     } finally {
       setLoadingForn(false);
     }
-  }, []);
+  }, [mostraInattivi]);
 
   // Guardia di sequenza: cliccando in fretta A poi B, la risposta di A puo'
   // arrivare dopo quella di B e lasciare i dati di A sotto l'intestazione di B,
@@ -281,6 +284,11 @@ export default function OrdiniVini() {
                 className="w-full px-2 py-1.5 rounded-lg border border-amber-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                 style={{ fontSize: "16px" }}
               />
+              <label className="flex items-center gap-1.5 mt-2 text-[11px] text-amber-900 cursor-pointer select-none">
+                <input type="checkbox" checked={mostraInattivi}
+                       onChange={e => setMostraInattivi(e.target.checked)} />
+                Mostra anche quelli non attivi
+              </label>
             </div>
             <div className="max-h-[70vh] overflow-y-auto divide-y divide-neutral-100">
               {loadingForn && <div className="p-6 text-center text-sm text-neutral-500">Carico…</div>}
@@ -298,7 +306,7 @@ export default function OrdiniVini() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className={`text-sm truncate ${attivo ? "font-bold text-amber-900" : "font-medium text-neutral-800"}`}>
+                      <span className={`text-sm truncate ${attivo ? "font-bold text-amber-900" : "font-medium text-neutral-800"} ${f.attivo === false ? "italic text-neutral-500" : ""}`}>
                         {f.fornitore_nome}
                       </span>
                       {f.da_ordinare > 0 && (
@@ -316,6 +324,11 @@ export default function OrdiniVini() {
                       {f.in_viaggio > 0 && (
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-800">
                           📤 {f.in_viaggio} in arrivo
+                        </span>
+                      )}
+                      {f.attivo === false && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-600">
+                          non attivo
                         </span>
                       )}
                       {!f.ha_telefono && f.fornitore_id && (

@@ -87,6 +87,7 @@ class ProduttoreUpdate(BaseModel):
 # --- Fornitori ---
 class FornitoreBase(BaseModel):
     nome: str = Field(..., min_length=1)
+    attivo: Optional[int] = Field(None, ge=0, le=1, description="0 = non ci compriamo più (mig 160)")
     nazione: Optional[str] = None
     regione: Optional[str] = None
     provincia: Optional[str] = None
@@ -99,6 +100,7 @@ class FornitoreBase(BaseModel):
 
 class FornitoreUpdate(BaseModel):
     nome: Optional[str] = None
+    attivo: Optional[int] = Field(None, ge=0, le=1, description="0 = non ci compriamo più (mig 160)")
     nazione: Optional[str] = None
     regione: Optional[str] = None
     provincia: Optional[str] = None

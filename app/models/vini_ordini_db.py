@@ -282,7 +282,11 @@ def riepilogo() -> Dict[str, Any]:
         conn.close()
 
 
-def fornitori_con_lavoro() -> List[Dict[str, Any]]:
+def _ha_colonna(cur: sqlite3.Cursor, tabella: str, colonna: str) -> bool:
+    return any(r[1] == colonna for r in cur.execute(f"PRAGMA table_info({tabella})").fetchall())
+
+
+def fornitori_con_lavoro(includi_inattivi: bool = False) -> List[Dict[str, Any]]:
     """
     Lista per la colonna sinistra della pagina Ordini: un fornitore per riga,
     con quanto c'e' da ordinare e quanto c'e' gia' in bozza.
@@ -290,6 +294,12 @@ def fornitori_con_lavoro() -> List[Dict[str, Any]]:
     Il raggruppamento e' su `DISTRIBUTORE` (testo sulla bottiglia) perche' e'
     quello che il resto del modulo Vini usa e che al 2026-08-02 combacia 1:1
     con l'anagrafica. L'id del fornitore viene agganciato dopo, per il contatto.
+
+    `attivo = 0` (mig 160) nasconde il distributore: i suoi vini restano in
+    cantina ma non si comprano piu'. UNICA eccezione: se ha un ordine ancora
+    aperto resta visibile comunque, altrimenti quell'ordine non sarebbe piu'
+    raggiungibile da nessuna schermata — lo stesso errore che i pending orfani
+    hanno gia' fatto pagare (v. migrazione 159).
     """
     conn = _conn()
     try:
@@ -327,15 +337,18 @@ def fornitori_con_lavoro() -> List[Dict[str, Any]]:
             k = "bozza" if r["stato"] == "bozza" else "in_viaggio"
             v[k] = v.get(k, 0) + r["n"]
 
-        # Anagrafica: id + contatto, per sapere chi e' contattabile su WhatsApp.
-        for r in cur.execute(
-            "SELECT id, nome, rappresentante_nome, rappresentante_telefono FROM vini_fornitori"
-        ).fetchall():
+        # Anagrafica: id + contatto + flag attivo.
+        col_attivo = _ha_colonna(cur, "vini_fornitori", "attivo")
+        campi = "id, nome, rappresentante_nome, rappresentante_telefono"
+        if col_attivo:
+            campi += ", attivo"
+        for r in cur.execute(f"SELECT {campi} FROM vini_fornitori").fetchall():
             v = mappa.get(r["nome"])
             if v:
                 v["fornitore_id"] = r["id"]
                 v["rappresentante_nome"] = r["rappresentante_nome"]
                 v["ha_telefono"] = bool((r["rappresentante_telefono"] or "").strip())
+                v["attivo"] = bool(r["attivo"]) if col_attivo else True
 
         out = list(mappa.values())
         for v in out:
@@ -344,8 +357,15 @@ def fornitori_con_lavoro() -> List[Dict[str, Any]]:
             v.setdefault("fornitore_id", None)
             v.setdefault("ha_telefono", False)
             v.setdefault("rappresentante_nome", None)
+            # Un nome che sta solo su bottiglie e non in anagrafica non ha un
+            # flag da rispettare: si considera attivo.
+            v.setdefault("attivo", True)
+
+        if not includi_inattivi:
+            out = [v for v in out if v["attivo"] or v["bozza"] or v["in_viaggio"]]
         # Chi ha piu' roba da ordinare in cima; "non assegnato" sempre in fondo.
         out.sort(key=lambda v: (
+            not v["attivo"],
             v["fornitore_nome"] == FORNITORE_NON_ASSEGNATO,
             -(v["da_ordinare"] + v["bozza"] * 100 + v["in_viaggio"] * 10),
             v["fornitore_nome"].lower(),

@@ -287,6 +287,10 @@ FORNITORI_FIELDS = {
     "nome", "nazione", "regione", "provincia", "citta",
     "rappresentante_nome", "rappresentante_telefono", "rappresentante_email",
     "note",
+    # mig 160 (2026-08-02): 0 = distributore con cui non si lavora piu'.
+    # I suoi vini restano collegati (lo storico ordini deve restare leggibile),
+    # ma spariscono dalla pagina Ordini finche' non lo si riattiva.
+    "attivo",
 }
 
 

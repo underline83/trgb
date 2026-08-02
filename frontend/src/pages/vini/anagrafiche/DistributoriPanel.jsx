@@ -64,6 +64,10 @@ export default function DistributoriPanel() {
     try { return localStorage.getItem(LS_CONTATTI) === "true"; } catch { return false; }
   });
   const [onlySenzaTel, setOnlySenzaTel] = useState(false);
+  // mig 160: nascondere i distributori con cui non si lavora più. Di default
+  // si vedono tutti in anagrafica (è l'archivio); il filtro serve a lavorare
+  // solo su quelli vivi.
+  const [nascondiInattivi, setNascondiInattivi] = useState(false);
   // Cella in edit: {id, key} — un solo input aperto alla volta.
   const [cell, setCell] = useState(null);
   const [savingCell, setSavingCell] = useState(null);
@@ -102,10 +106,12 @@ export default function DistributoriPanel() {
 
   // O1: il filtro "senza telefono" è client-side (il backend non lo espone e
   // non vale un parametro nuovo per 40 righe già tutte in memoria).
-  const visibili = useMemo(
-    () => (onlySenzaTel ? items.filter(f => !hasTel(f)) : items),
-    [items, onlySenzaTel]
-  );
+  const visibili = useMemo(() => {
+    let out = items;
+    if (onlySenzaTel) out = out.filter(f => !hasTel(f));
+    if (nascondiInattivi) out = out.filter(f => isAttivo(f));
+    return out;
+  }, [items, onlySenzaTel, nascondiInattivi]);
   const sorted = useMemo(() => sortRows(visibili, sort.key, sort.dir), [visibili, sort]);
 
   // KPI
@@ -114,6 +120,7 @@ export default function DistributoriPanel() {
   const totBottiglie = items.reduce((s, f) => s + (f.n_bottiglie || 0), 0);
   const totQta = items.reduce((s, f) => s + (f.qta_bottiglie || 0), 0);
   const nOrfani = items.filter(f => (f.n_madre || 0) === 0).length;
+  const nInattivi = items.filter(f => !isAttivo(f)).length;
 
   // O1: completezza contatti. Conta solo i distributori "vivi" (con almeno un
   // vino): un orfano senza telefono non è un buco da riempire, è un residuo.
@@ -131,8 +138,13 @@ export default function DistributoriPanel() {
    * costano una UPDATE secca.
    */
   const saveField = useCallback(async (fornitore, key, rawValue) => {
-    const value = String(rawValue ?? "").trim();
-    const precedente = String(fornitore[key] ?? "");
+    // `attivo` è un intero 0/1, non testo: va inviato come numero, altrimenti
+    // il confronto col valore precedente e il payload diventano stringhe.
+    const numerico = key === "attivo";
+    const value = numerico ? Number(rawValue) : String(rawValue ?? "").trim();
+    const precedente = numerico
+      ? (fornitore[key] == null ? 1 : Number(fornitore[key]))
+      : String(fornitore[key] ?? "");
     if (value === precedente) return true;          // niente da salvare
     if (key === "nome" && !value) {                 // il nome è NOT NULL
       setCellError({ id: fornitore.id, key, msg: "Il nome non può essere vuoto" });
@@ -176,7 +188,7 @@ export default function DistributoriPanel() {
 
   // Colonne renderizzate, per il colSpan delle righe "vuoto"/"carico":
   // ID + Nome + (3 contatti | rappr./città/btg/giac.) + Madri + Azioni.
-  const nColonne = 2 + (contattiMode ? CONTATTO_COLS.length : 4) + 2;
+  const nColonne = 3 + (contattiMode ? CONTATTO_COLS.length : 4) + 2;  // +1: colonna Attivo
 
   /** O1 — Enter conferma e scende alla stessa colonna della riga successiva. */
   const goNextRow = useCallback((currentId, key) => {
@@ -196,6 +208,10 @@ export default function DistributoriPanel() {
           <label className="flex items-center gap-1.5 text-xs text-amber-900 bg-white border border-amber-300 rounded-lg px-2 py-1.5 cursor-pointer">
             <input type="checkbox" checked={onlyOrphans} onChange={e => setOnlyOrphans(e.target.checked)} />
             Solo orfani (0 vini)
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-amber-900 bg-white border border-amber-300 rounded-lg px-2 py-1.5 cursor-pointer">
+            <input type="checkbox" checked={nascondiInattivi} onChange={e => setNascondiInattivi(e.target.checked)} />
+            Solo attivi
           </label>
           {/* O1 — toggle modalità contatti */}
           {canEdit && (
@@ -266,7 +282,7 @@ export default function DistributoriPanel() {
       )}
 
       {/* KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
         <div className="bg-white border border-neutral-200 rounded-lg p-2">
           <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Distributori</div>
           <div className="text-lg font-bold text-neutral-900">{totN}</div>
@@ -287,6 +303,10 @@ export default function DistributoriPanel() {
           <div className="text-[10px] text-rose-700 uppercase tracking-wide">Orfani (0 vini)</div>
           <div className="text-lg font-bold text-rose-900">{nOrfani}</div>
         </div>
+        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-2">
+          <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Non attivi</div>
+          <div className="text-lg font-bold text-neutral-700">{nInattivi}</div>
+        </div>
       </div>
 
       {error && (
@@ -301,6 +321,7 @@ export default function DistributoriPanel() {
               <tr>
                 <th className="px-3 py-2 text-left w-12">ID</th>
                 <SortTh label="Nome"           sortKey="nome"                sort={sort} setSort={setSort} />
+                <th className="px-3 py-2 text-center w-20">Attivo</th>
                 {contattiMode ? (
                   <>
                     {/* Colonne contatto NON ordinabili di proposito: ordinare su
@@ -353,7 +374,15 @@ export default function DistributoriPanel() {
                       className={`border-t border-neutral-100 transition ${contattiMode ? "hover:bg-amber-50/40" : "hover:bg-amber-50 cursor-pointer"} ${isOrfano ? "bg-rose-50/30" : ""}`}
                       onClick={rowClick}>
                     <td className="px-3 py-1.5 font-mono text-[11px] text-neutral-500">{f.id}</td>
-                    <td className="px-3 py-1.5 font-semibold text-neutral-900">
+                    <td className="px-2 py-1 text-center">
+                      <InterruttoreAttivo
+                        attivo={isAttivo(f)}
+                        readOnly={!canEdit}
+                        saving={savingCell?.id === f.id && savingCell?.key === "attivo"}
+                        onToggle={() => saveField(f, "attivo", isAttivo(f) ? 0 : 1)}
+                      />
+                    </td>
+                    <td className={`px-3 py-1.5 font-semibold ${isAttivo(f) ? "text-neutral-900" : "text-neutral-400 line-through"}`}>
                       {contattiMode ? (
                         <button type="button" onClick={() => openDetail(f.id)}
                                 className="text-left hover:text-amber-800 hover:underline"
@@ -706,6 +735,36 @@ function DistributoreEditModal({ item, isNew, onClose, onSaved }) {
 // ════════════════════════════════════════════════════════════════
 // O1 — CELLA CONTATTO EDITABILE INLINE
 // ════════════════════════════════════════════════════════════════
+
+/** true se il distributore è attivo. Campo aggiunto dalla mig 160: i record
+ *  serviti da un backend non ancora migrato non hanno la chiave → attivo. */
+function isAttivo(f) {
+  return f?.attivo === undefined || f?.attivo === null ? true : !!f.attivo;
+}
+
+
+/** Interruttore attivo/non attivo. Un click, nessuna conferma: è reversibile. */
+function InterruttoreAttivo({ attivo, readOnly, saving, onToggle }) {
+  return (
+    <button
+      type="button"
+      disabled={readOnly || saving}
+      onClick={onToggle}
+      aria-pressed={attivo}
+      title={readOnly ? "Serve il ruolo admin o sommelier"
+            : attivo ? "Attivo: compare fra i distributori a cui ordinare"
+                     : "Non attivo: nascosto dalla pagina Ordini (i suoi vini restano in cantina)"}
+      className={`relative w-10 h-5 rounded-full transition-colors ${saving ? "opacity-50" : ""} ${
+        attivo ? "bg-emerald-500" : "bg-neutral-300"
+      } ${readOnly ? "cursor-default" : "cursor-pointer"}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+        attivo ? "translate-x-5" : ""
+      }`} />
+    </button>
+  );
+}
+
 
 /** true se il distributore ha un telefono valorizzato (anche non normalizzabile). */
 function hasTel(f) {

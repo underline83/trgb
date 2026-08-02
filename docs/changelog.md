@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-08-02 (ter) — Distributori: flag "attivo" `[core]`
+
+Marco: *"aggiungi un flag in anagrafica sui fornitori «attivo» così posso togliere il flag a quelli inattivi da cui non sto comprando"*. In cantina restano i vini di distributori con cui non si lavora più: le loro bottiglie continuavano a comparire fra i "da ordinare" e a occupare la colonna dei fornitori, che ha 38 nomi.
+
+### Aggiunto
+- **Migrazione 160** — `vini_fornitori.attivo INTEGER NOT NULL DEFAULT 1`. Tutti i distributori esistenti nascono attivi: disattivare è una scelta esplicita, non qualcosa che decide una migrazione.
+- **Interruttore in Anagrafiche → Distributori** — colonna "Attivo", un click, nessuna conferma (è reversibile). Le righe non attive restano in lista in grigio barrato: l'anagrafica è l'archivio. Nuovo KPI "Non attivi" e filtro "Solo attivi".
+- **Pagina Ordini** — i distributori non attivi sono nascosti; checkbox "Mostra anche quelli non attivi" per riaverli.
+
+### Nota di progetto
+Un distributore non attivo **resta visibile nella pagina Ordini se ha un ordine ancora aperto**, in fondo alla lista e in corsivo. Nasconderlo renderebbe quell'ordine irraggiungibile da qualsiasi schermata — esattamente l'errore che i pending orfani hanno appena fatto pagare con la migrazione 159.
+
+Un flag e non una cancellazione: i vini restano collegati al loro distributore (lo storico ordini deve restare leggibile) e riattivarlo è un click. `attivo` non è denormalizzato sulle bottiglie, quindi non fa partire il cascade sync.
+
+---
+
 ## 2026-08-02 (bis) — Ordini ai fornitori: il modello vero, dal carrello al WhatsApp `[core]`
 
 Marco: *"tutto, nell'ordine che ti è più semplice, iniziamo oggi finiamo oggi"*. Fatte O3, O4, O5 e O6 del piano ([modulo_vini_ordini.md](modulo_vini_ordini.md)); O2 assorbito in O6 per non costruire due volte la stessa UI; O7 rimandata su indicazione di Marco.
