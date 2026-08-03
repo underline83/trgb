@@ -451,24 +451,6 @@ function IntermittentiSection() {
     }
   };
 
-  const provaEmail = async () => {
-    const to = window.prompt("Indirizzo a cui mandare l'email di prova:", settings.uni_email_mittente || "");
-    if (!to) return;
-    setSaving(true); setError(null); setOkMsg(null);
-    try {
-      const res = await apiFetch(`${API_BASE}/intermittenti/test-email/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to }),
-      });
-      const d = await res.json();
-      d.ok ? setOkMsg(`Email di prova inviata a ${to}`) : setError(d.errore || "Invio fallito");
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (loading) return <div className="p-8 text-sm text-neutral-500">Caricamento…</div>;
 
@@ -509,19 +491,20 @@ function IntermittentiSection() {
       <div className="mt-6 bg-white border border-neutral-200 rounded-lg p-5">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-neutral-800">Canale email (mattone M.D)</h3>
-          <Btn variant="ghost" size="sm" onClick={provaEmail} disabled={!smtp?.configurato || saving}>
-            Manda email di prova
+          <Btn variant="ghost" size="sm" as="a" href="/impostazioni?tab=email">
+            Configura
           </Btn>
         </div>
         {smtp?.configurato ? (
           <p className="text-sm text-neutral-600">
-            SMTP <strong>{smtp.host}:{smtp.port}</strong>, mittente <strong>{smtp.mittente}</strong>.
+            SMTP <strong>{smtp.host}:{smtp.port}</strong>, mittente <strong>{smtp.mittente}</strong>.{" "}
+            <a href="/impostazioni?tab=email" className="text-brand-blue hover:underline">Cambia</a>
           </p>
         ) : (
           <p className="text-sm text-amber-800">
-            Non configurato: mancano <code>{(smtp?.mancanti || []).join(", ")}</code> nel file
-            <code> .env</code> del server (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS —
-            porta 465 = SSL, 587 = STARTTLS). Senza, la comunicazione non parte.
+            Non configurato: mancano <code>{(smtp?.mancanti || []).join(", ")}</code>. Si imposta in{" "}
+            <a href="/impostazioni?tab=email" className="underline font-medium">Impostazioni Sistema → Email</a>,
+            senza toccare il server. Senza, la comunicazione non parte.
           </p>
         )}
       </div>

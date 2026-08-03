@@ -24,6 +24,12 @@ ministeriale **UNI-Intermittenti**, lo manda via email e conserva la prova.
 | `dipendenti.intermittente` | contratto intermittente ex art. 15 | **sì** |
 | `dipendenti.a_chiamata` | extra del turismo, pagato a ore | no |
 
+**Un solo flag** (migrazione 161, 2026-08-03): il vecchio `trasmissione_telematica`
+in anagrafica significava già "contratto intermittente" nella testa di Marco. Due caselle
+per la stessa cosa divergono e qualcuno sparisce dalle comunicazioni senza accorgersene:
+i dati sono stati travasati su `intermittente` e la casella vecchia non compare più in
+anagrafica. La colonna resta nel DB, non letta da nessuno (niente DDL distruttivo).
+
 ## 2. Capability
 
 | Codice | Cosa fa | Riferimento | Audience | Stato docs |

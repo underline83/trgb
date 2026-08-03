@@ -29,7 +29,6 @@ const EMPTY_FORM = {
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
   note: "", attivo: true,
   reparto_id: null, colore: "", a_chiamata: false,
-  trasmissione_telematica: false,
   // Intermittenti (2026-07-30): il CF serve alla comunicazione UNI, il flag
   // `intermittente` è il contratto ex art. 15 (≠ a_chiamata = extra del turismo).
   codice_fiscale: "", intermittente: false, codice_comunicazione: "",
@@ -152,7 +151,6 @@ export default function DipendentiAnagrafica() {
       note: d.note || "", attivo: d.attivo ?? true,
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
       a_chiamata: !!d.a_chiamata,
-      trasmissione_telematica: !!d.trasmissione_telematica,
       codice_fiscale: d.codice_fiscale || "",
       intermittente: !!d.intermittente,
       codice_comunicazione: d.codice_comunicazione || "",
@@ -193,7 +191,6 @@ export default function DipendentiAnagrafica() {
       reparto_id: form.reparto_id || null,
       colore: form.colore || null,
       a_chiamata: !!form.a_chiamata,
-      trasmissione_telematica: !!form.trasmissione_telematica,
       codice_fiscale: form.codice_fiscale || null,
       intermittente: !!form.intermittente,
       codice_comunicazione: form.codice_comunicazione || null,
@@ -623,14 +620,6 @@ export default function DipendentiAnagrafica() {
                         className="rounded border-neutral-300 text-purple-600" />
                       <label htmlFor="intermittente" className="text-xs text-neutral-700" title="Contratto intermittente ex art. 15 D.Lgs 81/2015: ogni chiamata va comunicata all'Ispettorato PRIMA del turno">
                         {"\uD83D\uDCE8"} Contratto intermittente (le chiamate vanno comunicate)
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input id="trasmissione_telematica" type="checkbox" checked={!!form.trasmissione_telematica}
-                        onChange={e => handleChange("trasmissione_telematica", e.target.checked)}
-                        className="rounded border-neutral-300 text-blue-600" />
-                      <label htmlFor="trasmissione_telematica" className="text-xs text-neutral-700" title="Trasmissione dati telematici">
-                        {"\uD83D\uDCE1"} Trasmissione dati telematici
                       </label>
                     </div>
                     {/* G.3 Fase E (mig 134): flag amministratore per il CE */}

@@ -50,6 +50,7 @@ from app.routers.dipendenti import router as dipendenti_router
 from app.routers.reparti import router as reparti_router
 from app.routers.turni_router import router as turni_router
 from app.routers.intermittenti_router import router as intermittenti_router
+from app.routers.email_router import router as email_router
 
 # BANCA — movimenti bancari
 from app.routers import banca_router
@@ -672,6 +673,7 @@ _mount("dipendenti", dipendenti_router)
 _mount("reparti", reparti_router)
 _mount("turni_router", turni_router)
 _mount("intermittenti_router", intermittenti_router)
+_mount("email_router", email_router)
 
 # BANCA
 _mount("banca_router", banca_router.router)

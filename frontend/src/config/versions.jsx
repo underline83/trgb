@@ -232,14 +232,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
-    // ⚠️ ALLINEAMENTO OBBLIGATORIO con file `VERSION` in root del repo.
-    // Backend (`main.py`) legge da `VERSION` come single source of truth ed
-    // espone in `/system/info` come `version`. Quando bumpi questa stringa
-    // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
-    // Vedi CLAUDE.md sezione "Versioning prodotto".
-    // 5.39 (2026-08-03): mattone M.J Pubblicazione web (FTP) + router
-    //   /pubblicazione/ + componente <PubblicaSulSito>.
-    version: "5.39",
+    // 5.40 (2026-08-03): canale email configurabile dal gestionale
+    //   (Impostazioni Sistema → Email), password cifrata, .env come fallback.
+    version: "5.40",
     label: "Sistema",
     status: "stabile",
     color: "green",

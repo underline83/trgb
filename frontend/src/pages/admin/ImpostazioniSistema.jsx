@@ -22,7 +22,7 @@ const ROLE_LABELS = {
   viewer:    { label: "Viewer",    icon: "👁" },
 };
 const ALL_ROLES = ["admin", "contabile", "chef", "sous_chef", "commis", "sommelier", "sala", "viewer"];
-const VALID_TABS = ["utenti", "moduli", "notifiche", "home-actions", "backup"];
+const VALID_TABS = ["utenti", "moduli", "notifiche", "email", "home-actions", "backup"];
 
 // ---------------------------------------------------------------------------
 // COMPONENTE PRINCIPALE
@@ -67,6 +67,7 @@ export default function ImpostazioniSistema() {
             { key: "utenti",       label: "👤 Utenti" },
             { key: "moduli",       label: "🔐 Moduli & Permessi" },
             { key: "notifiche",    label: "🔔 Notifiche" },
+            { key: "email",        label: "📧 Email" },
             { key: "home-actions", label: "🏠 Home per ruolo" },
             { key: "backup",       label: "💾 Backup" },
           ].map((t) => (
@@ -82,6 +83,7 @@ export default function ImpostazioniSistema() {
         {tab === "utenti" && <TabUtenti currentUsername={currentUsername} />}
         {tab === "moduli" && <TabModuli />}
         {tab === "notifiche" && <NotificheImpostazioni />}
+        {tab === "email" && <TabEmail />}
         {tab === "home-actions" && <TabHomeActions />}
         {tab === "backup" && <TabBackup />}
       </div>
@@ -938,6 +940,173 @@ function MiniCard({ icon, label, badge }) {
       <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${badge.color}`}>
         {badge.text}
       </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TAB EMAIL — canale di invio (mattone M.D)
+// ---------------------------------------------------------------------------
+// Config del locale, non del server: ogni installazione ha la sua casella e la
+// imposta da qui, senza aprire un terminale. Il .env resta come fallback per
+// chi era già configurato così. La password non torna mai dall'API: si vede
+// "impostata" e si può solo sostituire.
+function TabEmail() {
+  const VUOTO = { host: "", port: "465", user: "", from_addr: "", from_name: "", test_to: "" };
+  const [form, setForm] = useState(VUOTO);
+  const [stato, setStato] = useState(null);
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [okMsg, setOkMsg] = useState("");
+
+  const carica = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/email/config/`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || "Errore");
+      setStato(d);
+      setForm({
+        host: d.host || "", port: d.port || "465", user: d.utente || "",
+        from_addr: d.mittente || "", from_name: d.mittente_nome || "", test_to: d.test_to || "",
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { carica(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const salva = async () => {
+    setSaving(true); setError(""); setOkMsg("");
+    try {
+      const body = { ...form };
+      if (password) body.password = password;
+      const res = await apiFetch(`${API_BASE}/email/config/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || "Errore salvataggio");
+      setStato(d.stato); setPassword("");
+      setOkMsg("Salvato. Vale da subito, senza riavviare niente.");
+      setTimeout(() => setOkMsg(""), 5000);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const prova = async () => {
+    setSaving(true); setError(""); setOkMsg("");
+    try {
+      const res = await apiFetch(`${API_BASE}/email/test/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form.test_to ? { to: form.test_to } : {}),
+      });
+      const d = await res.json();
+      if (d.ok) setOkMsg(`Email di prova inviata a ${form.test_to || "destinatario salvato"}.`);
+      else setError(d.errore || d.detail || "Invio fallito");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const campo = (key, label, extra = {}) => (
+    <div>
+      <label className="block text-xs font-semibold text-neutral-600 mb-1">{label}</label>
+      <input
+        value={form[key]}
+        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+        {...extra}
+      />
+    </div>
+  );
+
+  if (loading) return <div className="text-sm text-neutral-500">Caricamento…</div>;
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="text-lg font-bold text-neutral-800 mb-1">📧 Canale email</h2>
+      <p className="text-sm text-neutral-500 mb-5">
+        La casella da cui il gestionale manda le email: comunicazioni agli intermittenti oggi,
+        domani anche il resto. Configurazione <strong>di questo locale</strong> — su un'altra
+        installazione si mette la sua, senza toccare il server.
+      </p>
+
+      {error && <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-800 whitespace-pre-wrap">{error}</div>}
+      {okMsg && <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-green-50 border border-green-200 text-green-800">{okMsg}</div>}
+
+      <div className="mb-5 flex items-center gap-3">
+        <StatusBadge tone={stato?.configurato ? "success" : "warning"} dot>
+          {stato?.configurato ? "Configurato" : "Non configurato"}
+        </StatusBadge>
+        <span className="text-xs text-neutral-500">
+          {stato?.origine === "gestionale"
+            ? "impostato da qui"
+            : "in uso i valori del file .env del server"}
+          {stato?.mancanti?.length ? ` — manca: ${stato.mancanti.join(", ")}` : ""}
+        </span>
+      </div>
+
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-5 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          {campo("host", "Server SMTP", { placeholder: "smtps.aruba.it" })}
+          {campo("port", "Porta", { placeholder: "465" })}
+        </div>
+        <p className="text-[11px] text-neutral-400 -mt-2">
+          Porta 465 = SSL, 587 = STARTTLS. Su Gmail serve una password per app, non quella dell'account.
+        </p>
+
+        {campo("user", "Utente", { placeholder: "trgb@tregobbi.it" })}
+
+        <div>
+          <label className="block text-xs font-semibold text-neutral-600 mb-1">
+            Password {stato?.ha_password && <span className="text-green-700 font-normal">— già impostata, scrivi solo per sostituirla</span>}
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={stato?.ha_password ? "••••••••" : "password della casella"}
+            className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+          />
+          <p className="text-[11px] text-neutral-400 mt-1">
+            Salvata cifrata: i backup escono dalla macchina, e in un backup la password non ci deve
+            essere in chiaro. La chiave di cifratura sta nel <code>.env</code>, quindi nei backup non c'è.
+            {stato && !stato.chiave_cifratura && (
+              <span className="text-amber-700"> Chiave non ancora presente: al primo salvataggio ti dico quale riga aggiungere.</span>
+            )}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {campo("from_addr", "Mittente (From)", { placeholder: "trgb@tregobbi.it" })}
+          {campo("from_name", "Nome mittente", { placeholder: "Osteria Tre Gobbi" })}
+        </div>
+        <p className="text-[11px] text-neutral-400 -mt-2">
+          Il mittente dev'essere una casella vera del dominio: quasi tutti i provider rifiutano
+          indirizzi inventati.
+        </p>
+
+        {campo("test_to", "Destinatario dell'email di prova", { placeholder: "dove mandare la prova" })}
+
+        <div className="flex items-center gap-3 pt-1">
+          <Btn onClick={salva} disabled={saving}>{saving ? "Salvo…" : "Salva"}</Btn>
+          <Btn variant="secondary" onClick={prova} disabled={saving || !stato?.configurato || !form.test_to}>
+            Manda email di prova
+          </Btn>
+        </div>
+      </div>
     </div>
   );
 }

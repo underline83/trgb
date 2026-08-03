@@ -42,6 +42,7 @@ serve una PEC nostra: accettano email ordinarie.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import smtplib
@@ -49,15 +50,17 @@ import ssl
 from dataclasses import dataclass, field
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
+from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
+
+from cryptography.fernet import Fernet     # arriva con python-jose[cryptography]
+
+from app.utils.locale_data import locale_data_dir
 
 logger = logging.getLogger("trgb.email")
 
 # (filename, contenuto, mime_type) — mime nel formato "application/xml"
 Allegato = Tuple[str, bytes, str]
-
-_REQUIRED = ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS")
-
 
 @dataclass
 class EsitoInvio:
@@ -79,24 +82,136 @@ class EsitoInvio:
 
 
 # ─────────────────────────────────────────────
-# CONFIG
+# CONFIG — DB/file del locale, con .env come fallback
 # ─────────────────────────────────────────────
+#
+# Perché NON scriviamo nel .env dall'app (domanda di Marco, 2026-08-03):
+#  1. le variabili d'ambiente si leggono all'avvio del processo: riscrivere il
+#     file non cambia nulla finché non riavvii il backend, e ogni restart è la
+#     finestra in cui i DB SQLite si sono già corrotti in passato;
+#  2. darebbe al processo web il permesso di riscrivere il file che contiene
+#     TUTTI i segreti, non solo questi.
+# Quindi: la configurazione vive in `email_settings.json` nella cartella dati
+# DEL LOCALE (quindi diversa per ogni installazione, senza toccare il server),
+# e il .env resta come fallback per chi l'ha già configurato così.
+#
+# La password è cifrata con Fernet e la chiave sta in .env (`TRGB_SECRET_KEY`):
+# i DB e i file dati finiscono nei backup, e i backup escono dalla macchina
+# (Backblaze). Chi si ritrova un backup in mano non deve trovarci dentro la
+# password della casella. La chiave, restando nel .env, nel backup non c'è.
+
+CONFIG_FILENAME = "email_settings.json"
+_CAMPI_TESTO = ("host", "port", "user", "from_addr", "from_name", "test_to")
+
+
+def _config_file() -> Path:
+    return locale_data_dir() / CONFIG_FILENAME
+
+
+def genera_chiave() -> str:
+    """Chiave Fernet nuova, da incollare in .env come TRGB_SECRET_KEY."""
+    return Fernet.generate_key().decode()
+
+
+def _fernet() -> Optional[Fernet]:
+    raw = (os.getenv("TRGB_SECRET_KEY") or "").strip()
+    if not raw:
+        return None
+    try:
+        return Fernet(raw.encode())
+    except Exception:
+        logger.error("TRGB_SECRET_KEY non è una chiave Fernet valida")
+        return None
+
+
+def _load_file_cfg() -> dict:
+    try:
+        f = _config_file()
+        if not f.exists():
+            return {}
+        return json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("email_settings.json illeggibile — si usa il .env")
+        return {}
+
 
 def _cfg() -> dict:
-    return {
+    """Config effettiva: file del locale se c'è, .env come fallback campo per campo."""
+    f = _load_file_cfg()
+    env = {
         "host": (os.getenv("SMTP_HOST") or "").strip(),
         "port": (os.getenv("SMTP_PORT") or "").strip(),
         "user": (os.getenv("SMTP_USER") or "").strip(),
         "password": os.getenv("SMTP_PASS") or "",
         "from_addr": (os.getenv("SMTP_FROM") or os.getenv("SMTP_USER") or "").strip(),
         "from_name": (os.getenv("SMTP_FROM_NAME") or "").strip(),
-        "timeout": int(os.getenv("SMTP_TIMEOUT") or 20),
+        "test_to": "",
     }
+    out = dict(env)
+    for k in _CAMPI_TESTO:
+        v = (f.get(k) or "").strip()
+        if v:
+            out[k] = v
+    if f.get("password_cifrata"):
+        fer = _fernet()
+        if fer:
+            try:
+                out["password"] = fer.decrypt(f["password_cifrata"].encode()).decode()
+            except Exception:
+                logger.error("password SMTP non decifrabile: TRGB_SECRET_KEY cambiata?")
+        else:
+            logger.error("password SMTP cifrata ma manca TRGB_SECRET_KEY in .env")
+    if not out.get("from_addr"):
+        out["from_addr"] = out.get("user", "")
+    out["timeout"] = int(os.getenv("SMTP_TIMEOUT") or 20)
+    out["_origine"] = "gestionale" if f else "env"
+    return out
+
+
+def salva_config(host=None, port=None, user=None, password=None,
+                 from_addr=None, from_name=None, test_to=None) -> dict:
+    """
+    Salva la config nel file del locale. `password=None` = lascia quella che c'è
+    (la UI non la rilegge mai, quindi non può nemmeno rimandarla indietro).
+    Solleva ValueError se serve la chiave di cifratura e non c'è.
+    """
+    cur = _load_file_cfg()
+    nuovo = dict(cur)
+    for k, v in (("host", host), ("port", port), ("user", user),
+                 ("from_addr", from_addr), ("from_name", from_name), ("test_to", test_to)):
+        if v is not None:
+            nuovo[k] = str(v).strip()
+
+    if password:
+        fer = _fernet()
+        if not fer:
+            raise ValueError(
+                "Per salvare la password serve una chiave di cifratura: aggiungi al .env "
+                f"del server la riga TRGB_SECRET_KEY={genera_chiave()} e riavvia il backend. "
+                "La password non viene salvata in chiaro perché i backup escono dalla macchina."
+            )
+        nuovo["password_cifrata"] = fer.encrypt(password.encode()).decode()
+
+    if nuovo.get("port"):
+        try:
+            int(nuovo["port"])
+        except ValueError:
+            raise ValueError(f"Porta non numerica: {nuovo['port']!r}")
+
+    f = _config_file()
+    f.write_text(json.dumps(nuovo, indent=2, ensure_ascii=False), encoding="utf-8")
+    try:
+        os.chmod(f, 0o600)      # contiene un segreto, anche se cifrato
+    except OSError:
+        pass
+    return stato()
 
 
 def mancanti() -> List[str]:
-    """Variabili .env obbligatorie non impostate."""
-    return [k for k in _REQUIRED if not (os.getenv(k) or "").strip()]
+    """Campi obbligatori non impostati, in nomi leggibili dalla UI."""
+    c = _cfg()
+    etichette = {"host": "server SMTP", "port": "porta", "user": "utente", "password": "password"}
+    return [etichette[k] for k in ("host", "port", "user", "password") if not str(c.get(k) or "").strip()]
 
 
 def is_configured() -> bool:
@@ -104,15 +219,20 @@ def is_configured() -> bool:
 
 
 def stato() -> dict:
-    """Stato SMTP per la UI. Non espone mai la password."""
+    """Stato per la UI. La password non esce mai da qui."""
     c = _cfg()
     return {
         "configurato": is_configured(),
         "mancanti": mancanti(),
+        "origine": c["_origine"],          # 'gestionale' | 'env'
         "host": c["host"] or None,
         "port": c["port"] or None,
+        "utente": c["user"] or None,
         "mittente": c["from_addr"] or None,
         "mittente_nome": c["from_name"] or None,
+        "test_to": c.get("test_to") or None,
+        "ha_password": bool(c.get("password")),
+        "chiave_cifratura": _fernet() is not None,
     }
 
 
@@ -177,7 +297,8 @@ def invia_email(
         return EsitoInvio(
             ok=False,
             destinatari=to,
-            errore=f"SMTP non configurato: manca {', '.join(miss)} in .env",
+            errore=f"Canale email non configurato: manca {', '.join(miss)} "
+                   f"(Impostazioni Sistema → Email, oppure .env del server)",
         )
 
     c = _cfg()
@@ -220,8 +341,11 @@ def invia_email(
     )
 
 
-def invia_test(to: str) -> EsitoInvio:
+def invia_test(to: Optional[str] = None) -> EsitoInvio:
     """Email di prova, per verificare le credenziali senza effetti collaterali."""
+    to = (to or _cfg().get("test_to") or "").strip()
+    if not to:
+        return EsitoInvio(ok=False, errore="Nessun indirizzo di prova impostato")
     return invia_email(
         to,
         subject="TRGB — prova invio email",

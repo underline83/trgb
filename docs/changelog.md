@@ -141,6 +141,30 @@ L'invio ordini via WhatsApp era fermo dal 2026-04-24 come "punto 7 differito" pe
 
 ---
 
+## 2026-08-03 (bis) — Canale email configurabile dal gestionale `[core]`
+
+Marco: «non possiamo configurarli dal gestionale in modo che in altre installazioni possano gestirli dalla configurazione? e scrivere dal gestionale in env?». Sì alla prima parte, no alla seconda.
+
+**Perché non si scrive nel `.env` dall'app:** le variabili d'ambiente si leggono all'avvio, quindi ogni salvataggio richiederebbe un restart del backend — che è la finestra in cui i DB SQLite si sono già corrotti — e daremmo al processo web il permesso di riscrivere il file che contiene *tutti* gli altri segreti.
+
+### Aggiunto
+- **`app/routers/email_router.py`** (`/email/config/`, `/email/test/`, solo admin) + tab **📧 Email** in Impostazioni Sistema. Host, porta, utente, password, mittente, nome mittente e **destinatario dell'email di prova**, con il bottone che la manda davvero.
+- **`email_service`** ora legge la config da `email_settings.json` nella cartella dati **del locale** — quindi ogni installazione ha la sua casella senza toccare il server — con il `.env` come fallback campo per campo: chi era già configurato così continua a funzionare.
+- **Password cifrata** (Fernet, `cryptography` già presente via python-jose). La chiave sta in `TRGB_SECRET_KEY` nel `.env`: i DB e i file dati finiscono nei backup e i backup escono dalla macchina, la chiave no. Se manca, il salvataggio si rifiuta e restituisce la riga pronta da incollare. La password **non torna mai** dall'API: la UI mostra "impostata" e può solo sostituirla.
+
+---
+
+## 2026-08-03 — Un solo flag per gli intermittenti (mig 161) `[core]`
+
+Marco: «in anagrafica avevamo già previsto il flag "trasmissione dati telematici" che era quello che intendevo per contratto intermittente». Due caselle per la stessa cosa prima o poi divergono, e chi resta spuntato solo di là sparisce dalle comunicazioni senza che nessuno se ne accorga.
+
+- **Migrazione 161** — travaso `trasmissione_telematica = 1` → `intermittente = 1` (al momento 4 persone, tutte `a_chiamata` e con CF). La colonna vecchia **non viene rimossa**: niente DDL distruttivo in produzione, semplicemente non la legge né la scrive più nessuno.
+- **`dipendenti.py` e `DipendentiAnagrafica.jsx`** — `trasmissione_telematica` sparisce da modello, query, payload e form. Resta la sola casella "Contratto intermittente".
+
+Sopravvive `intermittente` e non il nome vecchio perché dice cosa *è* (contratto ex art. 15) invece del mezzo con cui lo si comunica, ed è il campo su cui girano service, checker M.F, router e documentazione.
+
+---
+
 ## 2026-07-30 — Intermittenti: le chiamate si comunicano dai turni `[core]`
 
 Marco: "aggiungiamo un flag intermittenti… il mattone email va fatto". Le chiamate dei lavoratori intermittenti **non venivano comunicate a nessuno**: ogni giornata omessa e' una sanzione da 400 a 2.400 EUR, e una giornata passata non e' piu' sanabile perche' la comunicazione e' per definizione preventiva.

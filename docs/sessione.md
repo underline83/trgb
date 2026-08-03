@@ -93,6 +93,16 @@ Nella stessa ricognizione, due conferme che tolgono rischio: **1273/1275 bottigl
 - **4 domande aperte** in fondo al piano, da chiudere prima di O4. La piu' pesante: il totale € dell'ordine va sul listino o sul netto scontato? Se i distributori applicano sconti fissi, `sconto_std_pct` va anticipato da O7 a O4.
 - I numeri della ricognizione vengono dalla copia locale del DB: **riverificarli sul VPS** prima di partire con O2.
 
+## SESSIONE 2026-08-03 — Intermittenti: rifinitura, flag unico, canale email dal gestionale
+
+**Configurazione in Impostazioni, flag in Anagrafica.** I dati del datore sono una sezione della sidebar di `DipendentiImpostazioni.jsx`; flag, CF e codice comunicazione stanno nella scheda del dipendente. Backend: i tre campi in modello/SELECT/INSERT/UPDATE di `dipendenti.py`, con COALESCE su CF e codice comunicazione perche' un form che non li manda non azzeri il CF che arriva dai cedolini. Rimossi `PUT /intermittenti/lavoratori/{id}` e `set_lavoratore()`: un solo scrittore.
+
+**Un solo flag (mig 161).** `trasmissione_telematica` significava gia' "intermittente": dati travasati su `intermittente`, casella vecchia tolta dall'anagrafica, colonna lasciata nel DB (niente DDL distruttivo).
+
+**Canale email dal gestionale.** Config in `email_settings.json` del locale (+ .env fallback), password cifrata con chiave nel .env, tab Email in Impostazioni Sistema con destinatario di prova. Niente scrittura nel .env dall'app: si leggerebbe solo al restart, e il restart e' la finestra di corruzione SQLite.
+
+**Da fare:** `.env` del VPS con `TRGB_SECRET_KEY` (la genera il backend al primo salvataggio con password), poi CF azienda + email datore in Impostazioni Dipendenti, poi la verifica col consulente.
+
 ## SESSIONE 2026-07-30 — Intermittenti: le chiamate si comunicano dai turni
 
 ### Contesto

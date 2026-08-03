@@ -95,7 +95,8 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 
 **Stato:** strato SMTP FATTO (sessione 2026-07-30), template brand DA FARE. Sbloccato dalla comunicazione UNI-Intermittenti, che si trasmette solo via email.
 **Cosa:** servizio invio email; oggi testo semplice + allegati, in futuro template HTML brandizzato.
-**Backend:** `app/services/email_service.py` → `invia_email(to, subject, body, allegati)`, `invia_test(to)`, `stato()`
+**Backend:** `app/services/email_service.py` → `invia_email(to, subject, body, allegati)`, `invia_test(to)`, `stato()`, `salva_config()`
+**Config:** **configurabile dal gestionale** (Impostazioni Sistema → Email, `app/routers/email_router.py`): sta in `email_settings.json` nella cartella dati del locale — quindi diversa per ogni installazione — con password cifrata (Fernet, chiave `TRGB_SECRET_KEY` nel .env, che nei backup non finisce). Il `.env` (SMTP_*) resta come fallback.
 **Config:** SMTP settings in .env, template base HTML con header/footer TRGB
 **Effort:** M (1 sessione — SMTP + template engine + template base)
 **Roadmap:** 8.6 (parziale)
