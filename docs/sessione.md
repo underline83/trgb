@@ -8,7 +8,7 @@
 Marco, dopo la CartaStaff v2.0: "la pagina sommelier dovremmo ottimizzarla anche per un uso della cantina da iphone". Deciso insieme (3 mockup): tre funzioni — 1 trova la bottiglia (sola lettura), 2 correggi giacenze (+/−, = V.9 scritture), 3 conta inventario. Partiti dalla **fase 1**, rischio zero. Casa scelta: **pagina dedicata** `/vini/cantina-mobile` (non terza modalità di sommelier), così cresce con le fasi 2-3 senza gonfiare lo strumento di sala.
 
 ### Cosa è stato fatto ([core], vini 3.80, V.9 fase 1)
-- **`CantinaMobile.jsx`** (nuova): finder mobile-first — modo Cerca (ricerca + chip per locazione) e Per scaffale (vista inversa), scheda mobile read-only con «Dove si trova» + griglia matrice (parsata da `LOCAZIONE_3`), anagrafica, movimenti collassabili. Un solo componente: `useParams().id` → scheda, altrimenti finder.
+- **`CantinaMobile.jsx`** (nuova): finder mobile-first — modo Cerca (ricerca + filtro per categoria: scaffali/frigo/matrice) e Per scaffale (vista inversa), scheda mobile read-only con «Dove si trova» + griglia matrice (parsata da `LOCAZIONE_3`), anagrafica, movimenti collassabili. Un solo componente: `useParams().id` → scheda, altrimenti finder.
 - Route `/vini/cantina-mobile` + `/:id` (sub=magazzino), tab **📱 Cantina mobile** in ViniNav.
 - **Zero backend**: riuso `/vini/v2/bottiglie/?only_positive_stock=true` (tutte le bottiglie in giacenza — verificato: oggi le 380 in giacenza sono comunque tutte carta), dettaglio `/vini/v2/bottiglie/{id}`, movimenti `/vini/magazzino/{id}/movimenti`.
 

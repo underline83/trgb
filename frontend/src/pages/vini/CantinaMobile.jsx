@@ -6,7 +6,8 @@
 // scaffali. Fase 1 (V.9): SOLO CONSULTAZIONE, nessuna scrittura.
 //
 // Due modi + dettaglio:
-//   · CERCA — ricerca testo + chip per locazione ("cosa c'è nello Scaffale 12").
+//   · CERCA — ricerca testo + filtro per categoria di locazione
+//     (Scaffali / Frigo / Matrice / Altro).
 //   · PER SCAFFALE — vista inversa: scegli la locazione, vedi cosa contiene
 //     (comodo quando rimetti a posto o fai il giro di controllo).
 //   · SCHEDA (/:id) — dettaglio read-first: identità, «Dove si trova» in
@@ -57,6 +58,21 @@ function buildLocations(v) {
 }
 
 function isFrigo(nome) { return /frigo/i.test(nome || ""); }
+/** Categoria fisica di una locazione: scaffale | frigo | matrice | altro.
+ *  Usata dal filtro per categoria del finder (Scaffali / Frigo / Matrice). */
+function locCategory(l) {
+  if (l.slot === "loc3") return "matrice";
+  if (isFrigo(l.nome)) return "frigo";
+  if (/scaffal/i.test(l.nome)) return "scaffale";
+  return "altro";
+}
+const CAT_LABEL = { scaffale: "Scaffali", frigo: "Frigo", matrice: "Matrice", altro: "Altro" };
+const CAT_DEFS = [
+  { k: "scaffale", label: "Scaffali", icon: "🗄️" },
+  { k: "frigo", label: "Frigo", icon: "🧊" },
+  { k: "matrice", label: "Matrice", icon: "🔳" },
+  { k: "altro", label: "Altro", icon: "📦" },
+];
 function isMagnum(v) {
   if ((v.TIPOLOGIA || "") === "GRANDI FORMATI") return true;
   return /magnum|jeroboam|litr/i.test(`${v.FORMATO || ""} ${v.DESCRIZIONE || ""}`);
@@ -297,22 +313,26 @@ function Finder() {
 
   const openScheda = (id) => navigate(`/vini/cantina-mobile/${id}`);
 
-  // Chip locazione: le locazioni più frequenti tra i vini caricati
+  // Chip per CATEGORIA di locazione: Scaffali / Frigo / Matrice / Altro.
+  // Conta quante etichette hanno almeno una locazione in quella categoria
+  // (una bottiglia multi-posto può comparire in più categorie).
   const chips = useMemo(() => {
     const counts = {};
-    for (const v of vini) for (const l of buildLocations(v)) {
-      if (l.slot === "loc3") continue; // la matrice ha nomi-coordinate, non è un chip utile
-      counts[l.nome] = (counts[l.nome] || 0) + 1;
+    for (const v of vini) {
+      const cats = new Set(buildLocations(v).map(locCategory));
+      for (const c of cats) counts[c] = (counts[c] || 0) + 1;
     }
-    const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    return [{ k: "tutti", label: "Tutti", n: vini.length }, ...top.map(([nome, n]) => ({ k: nome, label: nome, n }))];
+    return [
+      { k: "tutti", label: "Tutti", icon: "", n: vini.length },
+      ...CAT_DEFS.filter(c => counts[c.k]).map(c => ({ ...c, n: counts[c.k] })),
+    ];
   }, [vini]);
 
   const viniFiltered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return vini.filter(v => {
       if (chip !== "tutti") {
-        const has = buildLocations(v).some(l => l.nome === chip);
+        const has = buildLocations(v).some(l => locCategory(l) === chip);
         if (!has) return false;
       }
       if (q) {
@@ -374,13 +394,13 @@ function Finder() {
             <div className="cm-chips">
               {chips.map(c => (
                 <button key={c.k} className={`cm-chip ${chip === c.k ? "cm-on" : ""}`} onClick={() => setChip(c.k)}>
-                  {c.label}<span className="cm-n">{c.n}</span>
+                  {c.icon ? `${c.icon} ` : ""}{c.label}<span className="cm-n">{c.n}</span>
                 </button>
               ))}
             </div>
             <div className="cm-count">
               {viniFiltered.length} {viniFiltered.length === 1 ? "bottiglia" : "etichette"}
-              {chip !== "tutti" ? ` · ${chip}` : ""}
+              {chip !== "tutti" ? ` · ${CAT_LABEL[chip] || chip}` : ""}
             </div>
             {viniFiltered.length === 0
               ? <div className="cm-hint">Nessuna bottiglia. Prova un altro nome o scaffale.</div>

@@ -37,7 +37,7 @@ const MODULE_VERSIONS = {
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
     // 3.80 (2026-08-03, V.9 fase 1): "Cantina da iPhone" — nuova pagina
     //   mobile-first /vini/cantina-mobile (CantinaMobile.jsx): finder
-    //   «trova la bottiglia» (ricerca + filtro per scaffale + vista per
+    //   «trova la bottiglia» (ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per
     //   scaffale) e scheda mobile read-only. Solo consultazione, zero
     //   modifiche backend (riusa /vini/v2/bottiglie/).
     version: "3.80",

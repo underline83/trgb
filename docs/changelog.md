@@ -8,7 +8,7 @@
 Prima pagina mobile-first del modulo vini, per l'uso col telefono in mano tra gli scaffali (V.9 fase 1). Solo consultazione, nessuna scrittura.
 
 ### ➕ Aggiunto
-- **`CantinaMobile.jsx`** (nuova; route `/vini/cantina-mobile` + `/:id`, ProtectedRoute sub=magazzino): finder «trova la bottiglia» con modo **Cerca** (ricerca testo + chip per locazione, es. "cosa c'è nello Scaffale 12") e modo **Per scaffale** (vista inversa: cosa contiene ogni posto). Le righe aprono una **scheda mobile read-only**: identità, «Dove si trova» in evidenza con **griglia matrice** (posizione parsata da `LOCAZIONE_3`), anagrafica e movimenti collassabili.
+- **`CantinaMobile.jsx`** (nuova; route `/vini/cantina-mobile` + `/:id`, ProtectedRoute sub=magazzino): finder «trova la bottiglia» con modo **Cerca** (ricerca testo + **filtro per categoria di locazione**: Scaffali / Frigo / Matrice) e modo **Per scaffale** (vista inversa: cosa contiene ogni posto). Le righe aprono una **scheda mobile read-only**: identità, «Dove si trova» in evidenza con **griglia matrice** (posizione parsata da `LOCAZIONE_3`), anagrafica e movimenti collassabili.
 - Voce **📱 Cantina mobile** in `ViniNav`.
 
 ### Note tecniche
