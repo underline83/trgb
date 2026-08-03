@@ -640,6 +640,10 @@ def annulla(ordine_id: int, utente: str) -> Dict[str, Any]:
             raise ValueError(f"Ordine id={ordine_id} non trovato")
         if row["stato"] == "chiuso":
             raise ValueError("Un ordine già chiuso non si annulla: la merce è arrivata")
+        if row["stato"] == "annullato":
+            # Senza questo, un secondo annullamento riscriverebbe `data_chiusura`
+            # e lo storico direbbe che è stato annullato oggi invece che allora.
+            raise ValueError("L'ordine è già annullato")
         cur.execute(
             "UPDATE vini_ordini SET stato = 'annullato', data_chiusura = ?, updated_at = ?"
             " WHERE id = ?",

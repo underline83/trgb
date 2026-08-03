@@ -1,5 +1,7 @@
 // Modulo: vini (ordini ai fornitori) — [core]
-// @version: v1.0-O6 (2026-08-02) — Pagina Ordini fornitore-centrica.
+// @version: v1.1-O6 (2026-08-02) — Pagina Ordini fornitore-centrica.
+//   v1.1: bottone "⛔ Annulla" sugli ordini in viaggio. L'endpoint e il modello
+//   c'erano dalla v1.0, mancava solo il modo di premerli.
 //
 // Sostituisce il lavoro che prima si faceva su DUE widget sovrapposti della
 // dashboard ("Riordini per fornitore" e "Vini in carta senza giacenza"), che
@@ -233,6 +235,30 @@ export default function OrdiniVini() {
     }
   };
 
+  const annullaOrdine = async (ordine) => {
+    const gg = giorniDa(ordine.data_invio);
+    if (!window.confirm(
+      `Annullare l'ordine #${ordine.id} a ${sel}?\n\n` +
+      `${ordine.n_righe} vini, ${ordine.qta_totale} bottiglie` +
+      (ordine.data_invio ? `, inviato il ${fmtData(ordine.data_invio)}${gg != null ? ` (${gg} giorni fa)` : ""}` : "") +
+      `.\n\nL'ordine resta nello storico come annullato. Le giacenze non vengono toccate.`
+    )) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/ordini/${ordine.id}/annulla`, { method: "POST" });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(e.detail || `HTTP ${r.status}`);
+      }
+      await ricarica();
+      toast("Ordine annullato", { kind: "success" });
+    } catch (e) {
+      toast(`Non sono riuscito ad annullare: ${e.message}`, { kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const segnaInviato = async (ordineId, canale) => {
     setBusy(true);
     try {
@@ -397,7 +423,9 @@ export default function OrdiniVini() {
                     ordine={o}
                     soglia={sogliaFermo}
                     canEdit={canEdit}
+                    busy={busy}
                     onRicevi={() => setRicevendo(o)}
+                    onAnnulla={() => annullaOrdine(o)}
                   />
                 ))}
 
@@ -692,7 +720,7 @@ function Carrello({ ordine, canEdit, busy, onTogli, onInviaWa, onSegnaInviato, f
 // ════════════════════════════════════════════════════════════
 // ORDINE IN VIAGGIO
 // ════════════════════════════════════════════════════════════
-function OrdineInViaggio({ ordine, soglia, canEdit, onRicevi }) {
+function OrdineInViaggio({ ordine, soglia, canEdit, busy, onRicevi, onAnnulla }) {
   const gg = giorniDa(ordine.data_invio);
   const fermo = gg != null && gg > (soglia || 30);
   const st = STATI[ordine.stato] || STATI.inviato;
@@ -721,7 +749,21 @@ function OrdineInViaggio({ ordine, soglia, canEdit, onRicevi }) {
           </div>
         </div>
         {canEdit && (
-          <Btn variant="success" size="sm" onClick={onRicevi}>📥 È arrivato</Btn>
+          <div className="flex items-center gap-2 shrink-0">
+            <Btn variant="success" size="sm" onClick={onRicevi} disabled={busy}>📥 È arrivato</Btn>
+            {/* Annullare NON tocca le giacenze: la merce non è mai arrivata.
+                L'ordine resta a storico, non si cancella (è il motivo per cui
+                esiste lo stato 'annullato' invece di una DELETE). */}
+            <button
+              type="button"
+              onClick={onAnnulla}
+              disabled={busy}
+              title="Annulla l'ordine: resta nello storico, le giacenze non cambiano"
+              className="px-2 py-1 rounded-lg text-xs font-medium text-neutral-500 border border-neutral-300 hover:text-red-700 hover:border-red-300 hover:bg-red-50 transition disabled:opacity-50"
+            >
+              ⛔ Annulla
+            </button>
+          </div>
         )}
       </div>
     </div>

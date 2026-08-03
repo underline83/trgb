@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-08-03 — Ordini: il bottone per annullare `[core]`
+
+Marco: *"come si annullano gli ordini"*. Non si annullavano: l'endpoint `POST /vini/ordini/{id}/annulla`, la funzione `annulla()` e lo stato `annullato` (disegnato nella mappa STATI e già incluso nel filtro dello storico) c'erano dalla 3.75 — **mancava il bottone**. Gli ordini si potevano solo ricevere, mai disdire, e i due travasati da aprile/maggio restavano lì per sempre.
+
+### Aggiunto
+- **`⛔ Annulla`** sulle card degli ordini in viaggio, accanto a "📥 È arrivato", con conferma che dice cosa succede: l'ordine resta nello storico, **le giacenze non vengono toccate** (la merce non è mai arrivata). Il vino torna disponibile in "da ordinare" senza il badge "già ordinate", perché quello conta solo gli ordini aperti.
+- Guard sul ri-annullamento: senza, un secondo annullamento riscriveva `data_chiusura` e lo storico avrebbe detto che l'ordine è stato annullato oggi invece che allora.
+
+### Lezione
+Endpoint, modello e persino lo stile del badge di stato erano pronti: sembrava fatto. Vale la pena, a fine sessione, ripercorrere ogni stato del modello e chiedersi **da quale click ci si arriva** — `annullato` non era raggiungibile da nessuno.
+
+---
+
 ## 2026-08-02 (quater) — Rinominare un distributore: completare il cascade `[core]`
 
 Marco: *"se modifico in quella tabella, modifico anche le anagrafiche sui singoli vini?"* — chiedendo del caso "nome distributore sbagliato". Sì per `nome` e `rappresentante_nome`, no per tutto il resto. Ma provandolo sono venuti fuori due punti scoperti.

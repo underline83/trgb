@@ -3,6 +3,9 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.78 (2026-08-02): bottone "⛔ Annulla" sugli ordini in viaggio.
+    //   Endpoint e modello c'erano dalla 3.75, mancava il modo di premerli:
+    //   gli ordini si potevano solo ricevere, mai disdire.
     // 3.77 (2026-08-02): rinominare un distributore ora propaga anche alle
     //   bottiglie orfane (senza madre agganciata) e agli ordini ANCORA APERTI.
     //   Gli ordini chiusi tengono il nome storico: sono documenti.
@@ -29,7 +32,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.77",
+    version: "3.78",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
