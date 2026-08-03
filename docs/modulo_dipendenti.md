@@ -1,12 +1,13 @@
 # Modulo Dipendenti — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-08 (consolidato modulo_dipendenti.md + modulo_dipendenti_v2.md)
-**Stato:** Anagrafica + Turni operativi. Buste Paga / Presenze / Scadenze / Contratti / Costi → roadmap (vedi `roadmap.md` §D).
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-05-08
+> **Vedi anche:** [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md) (Turni v2), [modulo_intermittenti.md](modulo_intermittenti.md) (chiamate UNI)
+
+**Stato:** Anagrafica + Turni operativi. Buste Paga / Presenze / Scadenze / Contratti / Costi → roadmap (vedi [roadmap.md](roadmap.md) §D).
 **Versione modulo (`versions.jsx`):** dipendenti v2.x (top-level)
 **Sezione top-level:** `/dipendenti/*`
 **Backend prefix:** `/dipendenti/*`
-**Roadmap:** sezione `D.` di `docs/roadmap.md`
-**Documenti correlati:** `modulo_dipendenti_turni.md` (Turni v2.0 design)
+**Roadmap:** sezione `D.` di [roadmap.md](roadmap.md)
 
 ---
 

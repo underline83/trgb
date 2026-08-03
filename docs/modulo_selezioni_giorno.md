@@ -1,11 +1,12 @@
 # Modulo Selezioni del Giorno — TRGB Gestionale
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale (stub strutturato) · **Ultima verifica:** 2026-05-21
+> **Vedi anche:** [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) (modulo padre), [modulo_vendite.md](modulo_vendite.md) (non confondere — quello è il modulo Cassa)
+
 **Creato:** 2026-05-19 (audit autonomo — gap CRIT-2)
-**Stato doc:** STUB strutturato. Da estendere in sessione docs dedicata.
 **Modulo tecnico:** sub-modulo di `ricette` (per `core/moduli/<id>/module.json`)
 **Backend prefix:** `/macellaio/`, `/salumi/`, `/formaggi/`, `/pescato/`, `/piatti-giorno/`
 **Frontend route:** `/selezioni/*`
-**Doc collegato:** `docs/modulo_ricette_foodcost.md` (modulo padre), `docs/modulo_vendite.md` (non confondere — quello è il modulo Cassa)
 
 ---
 

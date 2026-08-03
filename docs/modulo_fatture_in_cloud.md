@@ -1,10 +1,11 @@
 # Modulo Fatture in Cloud (FIC) — TRGB Gestionale
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale (stub strutturato) · **Ultima verifica:** 2026-05-21
+> **Vedi anche:** [modulo_acquisti.md](modulo_acquisti.md) (modulo padre), [modulo_fatture_xml.md](modulo_fatture_xml.md) (import SDI)
+
 **Creato:** 2026-05-19 (audit autonomo — gap CRIT-1)
-**Stato doc:** STUB strutturato. Da estendere in sessione docs dedicata.
 **Modulo tecnico:** sub-modulo di `acquisti` (per `core/moduli/<id>/module.json`)
 **Backend prefix:** `/contabilita/fic/*` (verificare in router)
-**Doc collegato:** `docs/modulo_acquisti.md` (modulo padre), `docs/modulo_fatture_xml.md` (import SDI)
 
 > Il **conteggio audit dichiarava 12 endpoint** ma la verifica adversarial ha contato **17 endpoint** reali in `app/routers/fattureincloud_router.py`. Conteggio aggiornato a 17.
 

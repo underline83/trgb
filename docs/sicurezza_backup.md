@@ -1,5 +1,8 @@
 # Sicurezza e Backup — TRGB Gestionale
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-07-02
+> **Vedi anche:** [deploy.md](deploy.md), [analisi_hardening_vps.md](analisi_hardening_vps.md), [installazione_nuovo_server.md](installazione_nuovo_server.md)
+
 > **Documento creato**: 4 maggio 2026 dopo l'incidente di corruzione silente DB
 > (R6.5 push 1) che ha causato la perdita di ~36h di dati operativi.
 >

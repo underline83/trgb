@@ -1,6 +1,8 @@
 # Modulo Ricette & Food Cost — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-08 (consolidamento docs)
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-06-08
+> **Vedi anche:** [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md), [modulo_acquisti.md](modulo_acquisti.md) (matching fatture)
+
 **Stato:** stabile, in produzione
 **Versione modulo (`versions.jsx`):** ricette/foodcost v3.0
 **Router:** `foodcost_recipes_router.py`, `foodcost_matching_router.py`, `foodcost_ingredients_router.py`

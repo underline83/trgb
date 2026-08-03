@@ -1,5 +1,8 @@
 # TRGB Gestionale — Analisi: trasformare TRGB in app Apple standalone
 
+> **Tipo:** 📄 pagina wiki · **Stato:** storico (analisi puntuale; la strategia mobile vive in [refactor_monorepo.md](refactor_monorepo.md)) · **Ultima verifica:** 2026-04-11
+> **Vedi anche:** [refactor_monorepo.md](refactor_monorepo.md), [roadmap.md](roadmap.md)
+
 **Autore:** Claude, sessione 26
 **Data:** 2026-04-11
 **Target richiesto da Marco:** iPad (primario) + Mac (secondario) + iPhone versione "lite", distribuzione interna poi App Store pubblico.

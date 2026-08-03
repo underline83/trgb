@@ -1,5 +1,8 @@
 # Modulo Statistiche — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-07-02
+
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-07-02
+> **Vedi anche:** [modulo_vendite.md](modulo_vendite.md) (chiusure turno, corrispettivi)
+
 **Stato:** beta
 **Router:** `app/routers/statistiche_router.py` v1.2
 **DB:** `foodcost.db` (tabelle `ipratico_*`, migration 018) + `admin_finance.sqlite3` in **sola lettura** (daily_closures, shift_closures, shift_preconti)

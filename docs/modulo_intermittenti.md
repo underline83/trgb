@@ -1,5 +1,8 @@
 # Modulo Intermittenti — comunicazione UNI all'Ispettorato
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Vedi anche:** [modulo_dipendenti.md](modulo_dipendenti.md), [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md)
+
 > **Modulo:** `dipendenti` (sotto-area Intermittenti) · **Versione:** 1.0 · **Stato:** implementato, mai usato in produzione
 > **Prima release:** sessione 2026-07-30 · **Migrazione:** 156
 > **Frontend:** `/dipendenti/intermittenti` — `frontend/src/pages/dipendenti/Intermittenti.jsx`

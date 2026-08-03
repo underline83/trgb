@@ -1,5 +1,8 @@
 # Spec — Riconciliazione banca multi-fattura con split importi
 
+> **Tipo:** 📄 pagina wiki · **Stato:** storico (spec di progetto; lo stato attuale della riconciliazione è in [modulo_banca.md](modulo_banca.md)) · **Ultima verifica:** 2026-04-16
+> **Vedi anche:** [modulo_banca.md](modulo_banca.md)
+
 **Versione:** 0.1 (draft, 2026-04-16)
 **Autore:** Marco + Claude
 **Stato:** proposta, da validare prima di P1

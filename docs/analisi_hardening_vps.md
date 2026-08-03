@@ -1,5 +1,8 @@
 # Analisi — Separazione carta vini pubblica + hardening reale del VPS
 
+> **Tipo:** 📄 pagina wiki · **Stato:** storico (pianificazione 2026-04; esiti confluiti nell'audit 2026-06-12 e in [sicurezza_backup.md](sicurezza_backup.md)) · **Ultima verifica:** 2026-05-08
+> **Vedi anche:** [sicurezza_backup.md](sicurezza_backup.md), [deploy.md](deploy.md), [audit-2026-06-12/](audit-2026-06-12/00_EXECUTIVE_SUMMARY.md)
+
 > Documento di pianificazione, non di esecuzione. Scritto il 2026-04-27 dopo
 > ricognizione di `main.py`, `push.sh`, `ISTRUZIONI_SERVER.md`, `docs/deploy.md`,
 > `setup-backup-and-security.sh`, `app/routers/vini_router.py`,

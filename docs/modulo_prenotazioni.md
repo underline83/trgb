@@ -1,4 +1,8 @@
 # Modulo Prenotazioni — TRGB Gestionale
+
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale (il modulo è live, il doc è fermo alla progettazione) · **Ultima verifica:** 2026-05-08
+> **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md)
+
 **Versione target:** 1.0 (Fase 1 — Agenda)
 **Stato:** In progettazione
 **Data creazione:** 2026-04-06

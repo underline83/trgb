@@ -1,5 +1,8 @@
 # Le cose da fare — Installazione nuovo server
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-07-10
+> **Vedi anche:** [deploy.md](deploy.md), [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md), [sicurezza_backup.md](sicurezza_backup.md)
+
 > **Scopo:** runbook passo-passo per installare TRGB Gestionale su un nuovo VPS,
 > dal momento in cui hai un server Linux nudo fino a un'osteria/ristorante che
 > usa il sistema in produzione con backup attivi.

@@ -1,7 +1,10 @@
 # Modulo Dipendenti — Turni v2.0 (Ripensamento)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-08-03
+> **Vedi anche:** [modulo_dipendenti.md](modulo_dipendenti.md), [modulo_intermittenti.md](modulo_intermittenti.md)
+
 **Data:** 2026-04-14
-**Stato:** piano APPROVATO, in corso
+**Stato piano:** APPROVATO, in corso
 
 ## Decisioni prese (2026-04-14)
 

@@ -1,6 +1,8 @@
 # Modulo Gestione Acquisti — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-08 (consolidamento docs + assorbita spec proforme)
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-06-30
+> **Vedi anche:** [modulo_fatture_xml.md](modulo_fatture_xml.md) (import SDI), [modulo_fatture_in_cloud.md](modulo_fatture_in_cloud.md) (sync FIC), [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) (matching)
+
 **Stato:** stabile · proforme attive end-to-end (creazione + riconciliazione UI, vedi §11)
 **Versione modulo (`versions.jsx`):** acquisti/fatture v2.3
 **Sezione top-level:** `/acquisti`

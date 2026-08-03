@@ -1,10 +1,13 @@
 # Modulo Fatture Elettroniche (XML) — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-22
+
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-05-08
+> **Vedi anche:** [modulo_acquisti.md](modulo_acquisti.md) (modulo padre, doc completo), [modulo_fatture_in_cloud.md](modulo_fatture_in_cloud.md)
+
 **Stato:** Operativo (integrato nel modulo Gestione Acquisti v2.1)
 **Data introduzione:** 2025-12-05
 **Dominio funzionale:** Acquisti & Controllo di Gestione
 
-> Questo modulo e' ora parte del modulo **Gestione Acquisti** (v2.0). Per la documentazione completa del modulo Acquisti, vedere `docs/modulo_acquisti.md`.
+> Questo modulo e' ora parte del modulo **Gestione Acquisti** (v2.0). Per la documentazione completa del modulo Acquisti, vedere [modulo_acquisti.md](modulo_acquisti.md).
 
 Il modulo consente di importare file FatturaPA in formato XML e trasformarli in dati strutturati per analisi acquisti, matching ingredienti e controllo di gestione.
 

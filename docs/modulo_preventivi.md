@@ -1,7 +1,10 @@
 # Modulo Preventivi — Specifica Tecnica
+
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-04-13
+> **Vedi anche:** [modulo_prenotazioni.md](modulo_prenotazioni.md), [modulo_clienti_crm.md](modulo_clienti_crm.md)
+
 **Creato:** 2026-04-13 (sessione 31)
 **Roadmap:** sezione 10 (10.1–10.4)
-**Collegato a:** Clienti/CRM, Prenotazioni
 
 ---
 

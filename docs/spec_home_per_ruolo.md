@@ -1,5 +1,8 @@
 # Home per ruolo — punto 8.x Brand/UX
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-05-08
+> **Vedi anche:** [controllo_design.md](controllo_design.md), [styleguide.md](styleguide.md)
+
 **Versione:** v1  
 **Stato:** in costruzione — sessione 49 (2026-04-19)  
 **Obiettivo:** permettere ad admin di configurare da Impostazioni i **pulsanti rapidi** che ogni ruolo vede in Home, senza toccare codice. Sostituisce gli array hardcoded `ADMIN_ACTIONS` (in `Home.jsx`) e `SALA_ACTIONS` (in `DashboardSala.jsx`).

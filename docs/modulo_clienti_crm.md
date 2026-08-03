@@ -1,6 +1,8 @@
 # Modulo Clienti / CRM — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-08 (creato in consolidamento docs Batch 6)
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-05-08
+> **Vedi anche:** [modulo_prenotazioni.md](modulo_prenotazioni.md), [modulo_preventivi.md](modulo_preventivi.md)
+
 **Stato:** Operativo. Sincronizzazione Mailchimp ✅ FATTA (CL.1). Altre voci CL in roadmap.
 **Versione modulo (`versions.jsx`):** clienti v1.x · mailchimp_sync v1.0
 **Sezione top-level:** `/clienti/*`

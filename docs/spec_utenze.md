@@ -1,5 +1,8 @@
 # Spec — Analisi Utenze (parser bollette A2A) — TRGB Gestionale
 
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-07-18
+> **Vedi anche:** [modulo_controllo_gestione.md](modulo_controllo_gestione.md)
+
 **Creato:** 2026-07-17
 **Stato:** ✅ COMPLETO U1-U4 (2026-07-17, mig 151+152, CG 2.21). Fuori scope: vedi §9 (form manuale fallback NON implementato)
 **Classificazione:** `[core]` — parser A2A riusabile da qualunque ristorante cliente A2A

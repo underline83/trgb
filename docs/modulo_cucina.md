@@ -1,10 +1,11 @@
 # Modulo Cucina — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-08 (consolidamento docs)
-**Stato:** MVP rilasciato (sessione 43, 2026-04-17). Phase A.2 (livelli) e A.3 (brigata) implementate. Roadmap evolutiva V1+V2 in `roadmap.md` §C.
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-05-21
+> **Vedi anche:** [modulo_pranzo.md](modulo_pranzo.md), [modulo_menu_carta.md](modulo_menu_carta.md), [modulo_vendite.md](modulo_vendite.md), [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md)
+
+**Stato:** MVP rilasciato (sessione 43, 2026-04-17). Phase A.2 (livelli) e A.3 (brigata) implementate. Roadmap evolutiva V1+V2 in [roadmap.md](roadmap.md) §C.
 **Versione modulo (`versions.jsx`):** cucina v1.0 beta · tasks v1.3
-**Roadmap:** sezione `C.` di `docs/roadmap.md`
-**Documenti correlati:** `modulo_pranzo.md`, `modulo_menu_carta.md`, `modulo_vendite.md` (ex `modulo_selezioni.md`), `modulo_selezioni_giorno.md`
+**Roadmap:** sezione `C.` di [roadmap.md](roadmap.md)
 
 ---
 

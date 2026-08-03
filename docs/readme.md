@@ -1,4 +1,8 @@
 # TRGB Gestionale
+
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale (onboarding; le versioni §13 e alcuni path sono indietro) · **Ultima verifica:** 2026-07-25
+> **Vedi anche:** [index.md](index.md) (home del wiki), [stack_tecnico.md](stack_tecnico.md), [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md)
+
 Sistema gestionale interno dell'Osteria Tre Gobbi (Bergamo)
 **Versione:** 2026.05.08 — Sistema v5.x (vedi `VERSION` in root + `/system/info`)
 
@@ -170,7 +174,7 @@ Una riga per modulo; la descrizione completa vive nella pagina wiki di ciascuno 
 
 # 11. Database
 
-7 file SQLite attivi in `app/data/` (+ 1 eliminato):
+7 file SQLite attivi in `locali/tregobbi/data/` — path canonico da R6.5; `app/data/` è solo fallback legacy con file vuoti (+ 1 eliminato):
 
 | File | Moduli |
 |------|--------|

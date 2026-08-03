@@ -1,5 +1,8 @@
 # Refactor anagrafiche vini (V.6 + V.7 + V.8)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** storico (refactor CHIUSO 2026-05-19 con cutover atomico, mig 133; stato vivo in [modulo_vini.md](modulo_vini.md) §STATO POST-CUTOVER) · **Ultima verifica:** 2026-05-15
+> **Vedi anche:** [modulo_vini.md](modulo_vini.md)
+
 **Stato (aggiornato 2026-05-14):** Fasi 1-7 chiuse. Schema + 6 tabelle `_v2` create, 1287 vini migrati con clustering, UI beta pubblicata, sync runtime operativo, endpoint rollback online. Da fare: Fase 8 (workflow inserimento nuovo vino 3-step), Fase 9 (testing utente esteso, ~2-3 settimane), Fase 10 (cutover atomico).
 
 **Obiettivo:** introdurre il concetto di "vino madre" (etichetta stabile) separato dal "vino bottiglia" (annata specifica), normalizzare anagrafiche produttori/fornitori/denominazioni/vitigni, sostituire i campi TEXT free-form con FK a tabelle dedicate.

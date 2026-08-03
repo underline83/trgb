@@ -1,5 +1,8 @@
 # M.E — Calendar component (frontend)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale (spec; il mattone è implementato — stato vivo in [architettura_mattoni.md](architettura_mattoni.md)) · **Ultima verifica:** 2026-04-19
+> **Vedi anche:** [architettura_mattoni.md](architettura_mattoni.md)
+
 **Stato:** spec v1 (in review con Marco) · **Autore:** Claude · **Data:** 2026-04-19
 
 Mattone riusabile per rendering calendario. Scopo: evitare di reinventare griglia mese / timeline settimana / lista giorno in 3+ moduli diversi (Prenotazioni 2.1, Scadenziario Flussi 3.7, Turni Dipendenti 6.4, Scadenze documenti 6.5).

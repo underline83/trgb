@@ -1,6 +1,8 @@
 # Modulo Banca — TRGB Gestionale
 
-**Ultimo aggiornamento:** 2026-05-08 (creato in consolidamento docs Batch 7)
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-06-13
+> **Vedi anche:** [modulo_controllo_gestione.md](modulo_controllo_gestione.md), [spec_riconciliazione.md](spec_riconciliazione.md)
+
 **Stato:** Operativo. Doc canonico nuovo (prima sparso tra `modulo_controllo_gestione.md` e altri).
 **Versione modulo (`versions.jsx`):** banca v1.x · flussi_cassa v1.x
 **Sezione top-level:** `/banca` (e `/flussi-cassa` per Contanti/Mance — modulo affiliato)

@@ -1,5 +1,8 @@
 # Modulo Selezioni — RINOMINATO (2026-05-19)
 
+> **Tipo:** 📄 pagina wiki · **Stato:** storico (stub puntatore) · **Ultima verifica:** 2026-05-19
+> **Vedi anche:** [modulo_vendite.md](modulo_vendite.md) (Vendite/Cassa), [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md) (Selezioni del Giorno)
+
 > Questo file è stato **rinominato** dopo l'audit autonomo del 2026-05-19 (gap NOMEN-1).
 > Marco lo userà come puntatore finché non lo rimuove con `git rm` in un cleanup futuro.
 
