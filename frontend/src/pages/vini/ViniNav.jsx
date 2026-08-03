@@ -12,6 +12,8 @@ const TABS = [
   // La Cantina classica (`/vini/magazzino`) è deprecata, route in App.jsx
   // redirect a `/vini/v2/cantina`.
   { key: "cantina", label: "Cantina", path: "/vini/v2/cantina", icon: "🍷" },
+  // V.9 fase 1 (2026-08-03): pagina mobile per l'uso col telefono in cantina.
+  { key: "cantina-mobile", label: "Cantina mobile", path: "/vini/cantina-mobile", icon: "📱" },
   // O6 (2026-08-02): pagina Ordini fornitore-centrica. Sta subito dopo Cantina
   // perché è lì che si va quando si guarda cosa manca. Vedi
   // docs/modulo_vini_ordini.md.

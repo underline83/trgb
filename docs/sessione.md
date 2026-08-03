@@ -2,6 +2,22 @@
 
 **Ultimo aggiornamento:** 2026-08-03 — **DA PUSHARE: mattone M.J Pubblicazione web (FTP) — bottone "Pubblica sul sito" su menu pranzo e carta vini, sistema 5.39 (richiede le variabili `FTP_*` in `.env` sul VPS, senza quelle il bottone resta disabilitato)**; **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
 
+## SESSIONE 2026-08-03 — Vini: "Cantina da iPhone" fase 1 «trova la bottiglia»
+
+### Contesto
+Marco, dopo la CartaStaff v2.0: "la pagina sommelier dovremmo ottimizzarla anche per un uso della cantina da iphone". Deciso insieme (3 mockup): tre funzioni — 1 trova la bottiglia (sola lettura), 2 correggi giacenze (+/−, = V.9 scritture), 3 conta inventario. Partiti dalla **fase 1**, rischio zero. Casa scelta: **pagina dedicata** `/vini/cantina-mobile` (non terza modalità di sommelier), così cresce con le fasi 2-3 senza gonfiare lo strumento di sala.
+
+### Cosa è stato fatto ([core], vini 3.80, V.9 fase 1)
+- **`CantinaMobile.jsx`** (nuova): finder mobile-first — modo Cerca (ricerca + chip per locazione) e Per scaffale (vista inversa), scheda mobile read-only con «Dove si trova» + griglia matrice (parsata da `LOCAZIONE_3`), anagrafica, movimenti collassabili. Un solo componente: `useParams().id` → scheda, altrimenti finder.
+- Route `/vini/cantina-mobile` + `/:id` (sub=magazzino), tab **📱 Cantina mobile** in ViniNav.
+- **Zero backend**: riuso `/vini/v2/bottiglie/?only_positive_stock=true` (tutte le bottiglie in giacenza — verificato: oggi le 380 in giacenza sono comunque tutte carta), dettaglio `/vini/v2/bottiglie/{id}`, movimenti `/vini/magazzino/{id}/movimenti`.
+
+### Verifica
+esbuild parse OK. Endpoint verificati sul router v2. Nessuna scrittura in questa fase.
+
+### Da fare
+- Provare sul telefono in cantina; poi valutare **fase 2** (+/− giacenze — attenzione ai movimenti, lezione RETTIFICA fantasma) e **fase 3** (conta inventario). Vendita/scrittura da loc3/matrice resta esclusa.
+
 ## SESSIONE 2026-08-03 — Pubblicare i PDF sul sito dall'app (mattone M.J)
 
 ### Contesto
@@ -100,6 +116,8 @@ Nella stessa ricognizione, due conferme che tolgono rischio: **1273/1275 bottigl
 **Un solo flag (mig 161).** `trasmissione_telematica` significava gia' "intermittente": dati travasati su `intermittente`, casella vecchia tolta dall'anagrafica, colonna lasciata nel DB (niente DDL distruttivo).
 
 **Canale email dal gestionale.** Config in `email_settings.json` del locale (+ .env fallback), password cifrata con chiave nel .env, tab Email in Impostazioni Sistema con destinatario di prova. Niente scrittura nel .env dall'app: si leggerebbe solo al restart, e il restart e' la finestra di corruzione SQLite.
+
+**Multi-reparto (mig 162).** Marco lavora in sala e in cucina: caselle "Lavora anche in" in anagrafica + tabella `dipendenti_reparti`. Il punto vero non era il flag: il foglio mostrava i turni delle PERSONE del reparto, non i turni DEL reparto. Ora filtra per il reparto del TIPO di turno (`turni_tipi.ruolo` = `reparti.codice`), con rete di sicurezza per chi ha un reparto solo. Otto query aggiornate in `turni_service`, test end-to-end su copia del DB.
 
 **Da fare:** `.env` del VPS con `TRGB_SECRET_KEY` (la genera il backend al primo salvataggio con password), poi CF azienda + email datore in Impostazioni Dipendenti, poi la verifica col consulente.
 

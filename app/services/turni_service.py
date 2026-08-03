@@ -33,6 +33,44 @@ import sqlite3
 from app.models.dipendenti_db import get_dipendenti_conn
 
 
+# ============================================================
+# MULTI-REPARTO (mig 162)
+# ============================================================
+# Una persona può lavorare in più reparti: `dipendenti.reparto_id` è il
+# principale, `dipendenti_reparti` tiene gli aggiuntivi.
+#
+# Chi compare nel foglio di un reparto — un solo `?`, ripetuto due volte:
+SQL_DIP_DEL_REPARTO = """(
+    dipendenti.reparto_id = ?
+    OR EXISTS (SELECT 1 FROM dipendenti_reparti dr
+                WHERE dr.dipendente_id = dipendenti.id AND dr.reparto_id = ?)
+)"""
+
+# Idem, quando la tabella dipendenti è aliasata `d`:
+SQL_DIP_D_DEL_REPARTO = """(
+    d.reparto_id = ?
+    OR EXISTS (SELECT 1 FROM dipendenti_reparti dr
+                WHERE dr.dipendente_id = d.id AND dr.reparto_id = ?)
+)"""
+
+# Quali turni finiscono nel foglio di quel reparto. Il turno "sa" il suo reparto
+# attraverso il tipo (turni_tipi.ruolo = SALA/CUCINA = reparti.codice), quindi un
+# turno di sala va nel foglio sala anche se la persona è di cucina.
+# La seconda condizione è la rete di sicurezza per la retrocompatibilità: se il
+# tipo non appartiene a nessun ALTRO reparto della persona, il turno resta dove
+# stava prima. Così a chi ha un reparto solo non sparisce niente dal foglio.
+SQL_TURNO_DEL_REPARTO = """(
+    tt.ruolo = (SELECT codice FROM reparti WHERE id = ?)
+    OR NOT EXISTS (
+        SELECT 1 FROM reparti r2
+         WHERE r2.codice = tt.ruolo
+           AND (r2.id = d.reparto_id
+                OR EXISTS (SELECT 1 FROM dipendenti_reparti dr2
+                            WHERE dr2.dipendente_id = d.id AND dr2.reparto_id = r2.id))
+    )
+)"""
+
+
 def _format_week_range_it(iso: str) -> str:
     """'2026-W16' → '13–19/04/2026' (o '28/04–04/05/2026' se cross-mese)."""
     try:
@@ -408,9 +446,9 @@ def build_foglio_settimana(
             """SELECT id, nome, cognome, nickname, ruolo, colore, reparto_id,
                       COALESCE(a_chiamata, 0) AS a_chiamata
                FROM dipendenti
-               WHERE attivo = 1 AND reparto_id = ?
-               ORDER BY cognome, nome""",
-            (reparto_id,),
+               WHERE attivo = 1 AND %DIP%
+               ORDER BY cognome, nome""".replace("%DIP%", SQL_DIP_DEL_REPARTO),
+            (reparto_id, reparto_id),
         )
         dipendenti = [dict(r) for r in cur.fetchall()]
         for d in dipendenti:
@@ -442,10 +480,11 @@ def build_foglio_settimana(
                 FROM turni_calendario tc
                 JOIN dipendenti d ON d.id = tc.dipendente_id
                 JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
-                WHERE d.reparto_id = ?
+                WHERE %DIP% AND %TUR%
                   AND tc.data BETWEEN ? AND ?
-                ORDER BY tc.data, tc.slot_index, tc.id""",
-            (reparto_id, from_date, to_date),
+                ORDER BY tc.data, tc.slot_index, tc.id"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, from_date, to_date),
         )
         turni = [dict(r) for r in cur.fetchall()]
 
@@ -569,9 +608,9 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
             """SELECT id, nome, cognome, nickname, ruolo, colore, reparto_id,
                       COALESCE(a_chiamata, 0) AS a_chiamata
                FROM dipendenti
-               WHERE attivo = 1 AND reparto_id = ?
-               ORDER BY cognome, nome""",
-            (reparto_id,),
+               WHERE attivo = 1 AND %DIP%
+               ORDER BY cognome, nome""".replace("%DIP%", SQL_DIP_DEL_REPARTO),
+            (reparto_id, reparto_id),
         )
         dipendenti = [dict(r) for r in cur.fetchall()]
         for d in dipendenti:
@@ -598,10 +637,11 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
                 FROM turni_calendario tc
                 JOIN dipendenti d ON d.id = tc.dipendente_id
                 JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
-                WHERE d.reparto_id = ?
+                WHERE %DIP% AND %TUR%
                   AND tc.data BETWEEN ? AND ?
-                ORDER BY tc.data, tc.slot_index, tc.id""",
-            (reparto_id, from_date, to_date),
+                ORDER BY tc.data, tc.slot_index, tc.id"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, from_date, to_date),
         )
         turni = [dict(r) for r in cur.fetchall()]
         for t in turni:
@@ -1048,8 +1088,10 @@ def copia_settimana(
         cur.execute(
             """SELECT COUNT(*) AS n FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
-               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?""",
-            (reparto_id, dst_giorni[0], dst_giorni[-1]),
+               JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+               WHERE %DIP% AND %TUR% AND tc.data BETWEEN ? AND ?"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, dst_giorni[0], dst_giorni[-1]),
         )
         n_dst = cur.fetchone()["n"]
 
@@ -1066,9 +1108,11 @@ def copia_settimana(
                    WHERE id IN (
                      SELECT tc.id FROM turni_calendario tc
                      JOIN dipendenti d ON d.id = tc.dipendente_id
-                     WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?
-                   )""",
-                (reparto_id, dst_giorni[0], dst_giorni[-1]),
+                     JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+                     WHERE %DIP% AND %TUR% AND tc.data BETWEEN ? AND ?
+                   )"""
+                .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+                (reparto_id, reparto_id, reparto_id, dst_giorni[0], dst_giorni[-1]),
             )
             cancellati = cur.rowcount
 
@@ -1077,8 +1121,10 @@ def copia_settimana(
             """SELECT tc.*
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
-               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?""",
-            (reparto_id, src_giorni[0], src_giorni[-1]),
+               JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+               WHERE %DIP% AND %TUR% AND tc.data BETWEEN ? AND ?"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, src_giorni[0], src_giorni[-1]),
         )
         src_rows = [dict(r) for r in cur.fetchall()]
 
@@ -1230,9 +1276,11 @@ def crea_template_da_settimana(
             """SELECT tc.*, d.reparto_id AS dip_reparto
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
-               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?
-                 AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'""",
-            (reparto_id, giorni[0], giorni[-1]),
+               JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+               WHERE %DIP% AND %TUR% AND tc.data BETWEEN ? AND ?
+                 AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, giorni[0], giorni[-1]),
         )
         src_rows = [dict(r) for r in cur.fetchall()]
 
@@ -1375,8 +1423,10 @@ def applica_template(
         cur.execute(
             """SELECT COUNT(*) AS n FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
-               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?""",
-            (reparto_id, giorni[0], giorni[-1]),
+               JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+               WHERE %DIP% AND %TUR% AND tc.data BETWEEN ? AND ?"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, giorni[0], giorni[-1]),
         )
         n_dst = cur.fetchone()["n"]
 
@@ -1392,9 +1442,11 @@ def applica_template(
                    WHERE id IN (
                      SELECT tc.id FROM turni_calendario tc
                      JOIN dipendenti d ON d.id = tc.dipendente_id
-                     WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?
-                   )""",
-                (reparto_id, giorni[0], giorni[-1]),
+                     JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+                     WHERE %DIP% AND %TUR% AND tc.data BETWEEN ? AND ?
+                   )"""
+                .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+                (reparto_id, reparto_id, reparto_id, giorni[0], giorni[-1]),
             )
             cancellati = cur.rowcount
 
@@ -1487,9 +1539,11 @@ def pubblica_settimana(reparto_id: int, settimana_iso: str) -> Dict[str, Any]:
             """SELECT tc.id, tc.dipendente_id
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
-               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?
-                 AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'""",
-            (reparto_id, giorni[0], giorni[-1]),
+               JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+               WHERE %DIP% AND %TUR% AND tc.data BETWEEN ? AND ?
+                 AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, giorni[0], giorni[-1]),
         )
         rows = cur.fetchall()
         n_turni = len(rows)
@@ -1569,11 +1623,12 @@ def riepilogo_settimana_per_dipendenti(
                       d.nome, d.cognome, d.nickname, d.telefono, d.colore
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
-               WHERE d.reparto_id = ? AND d.attivo = 1
+               WHERE %DIP% AND %TUR% AND d.attivo = 1
                  AND tc.data BETWEEN ? AND ?
                  AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'
-               ORDER BY d.cognome, d.nome, tc.data, tc.servizio, tc.slot_index""",
-            (reparto_id, giorni[0], giorni[-1]),
+               ORDER BY d.cognome, d.nome, tc.data, tc.servizio, tc.slot_index"""
+            .replace("%DIP%", SQL_DIP_D_DEL_REPARTO).replace("%TUR%", SQL_TURNO_DEL_REPARTO),
+            (reparto_id, reparto_id, reparto_id, giorni[0], giorni[-1]),
         )
         rows = [dict(r) for r in cur.fetchall()]
     finally:
@@ -1688,9 +1743,9 @@ def assenze_nel_range(
                           d.nickname AS dipendente_nickname, d.colore AS dipendente_colore
                    FROM assenze a
                    JOIN dipendenti d ON d.id = a.dipendente_id
-                   WHERE d.reparto_id = ? AND a.data BETWEEN ? AND ?
-                   ORDER BY a.data""",
-                (reparto_id, da, a),
+                   WHERE %DIP% AND a.data BETWEEN ? AND ?
+                   ORDER BY a.data""".replace("%DIP%", SQL_DIP_D_DEL_REPARTO),
+                (reparto_id, reparto_id, da, a),
             )
         else:
             cur.execute(

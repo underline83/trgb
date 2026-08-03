@@ -587,3 +587,20 @@ Queste scelte determinano forma del codice. Rispondere con mockup di supporto
    - C. Cella neutra con piccolo badge in alto
 
 6. **Prima fase da attaccare**: partiamo dalla Fase 0 sequenziale (consigliato) o preferisci che prepari PR multi-fase?
+
+
+## Multi-reparto (mig 162, 2026-08-03)
+
+`dipendenti.reparto_id` e' il reparto **principale**; `dipendenti_reparti` tiene quelli **in piu'**
+(non duplica il principale). Chi ha reparti aggiuntivi compare nel foglio settimana di ognuno.
+
+**Un turno appartiene al foglio del reparto del suo TIPO**, non della persona: i tipi turno portano
+il reparto in `turni_tipi.ruolo`, che combacia con `reparti.codice`. Le condizioni stanno in due
+costanti SQL in cima a `turni_service.py` (`SQL_DIP_DEL_REPARTO`, `SQL_DIP_D_DEL_REPARTO`,
+`SQL_TURNO_DEL_REPARTO`) e sono applicate a tutte le query che filtravano per `d.reparto_id`.
+
+Rete di sicurezza per la retrocompatibilita': se il tipo del turno non appartiene a nessun **altro**
+reparto della persona, il turno resta dove stava. Chi ha un solo reparto non perde niente dal foglio.
+
+Le pause staff (`pausa_pranzo_min`, `pausa_cena_min`) sono sempre quelle del reparto **del foglio**:
+chi lavora in due reparti ha le ore nette calcolate con le pause giuste in ciascuno.

@@ -28,7 +28,7 @@ const EMPTY_FORM = {
   telefono: "", email: "", iban: "",
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
   note: "", attivo: true,
-  reparto_id: null, colore: "", a_chiamata: false,
+  reparto_id: null, colore: "", a_chiamata: false, reparti_extra: [],
   // Intermittenti (2026-07-30): il CF serve alla comunicazione UNI, il flag
   // `intermittente` è il contratto ex art. 15 (≠ a_chiamata = extra del turismo).
   codice_fiscale: "", intermittente: false, codice_comunicazione: "",
@@ -150,6 +150,7 @@ export default function DipendentiAnagrafica() {
       indirizzo_provincia: d.indirizzo_provincia || "",
       note: d.note || "", attivo: d.attivo ?? true,
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
+      reparti_extra: Array.isArray(d.reparti_extra) ? d.reparti_extra : [],
       a_chiamata: !!d.a_chiamata,
       codice_fiscale: d.codice_fiscale || "",
       intermittente: !!d.intermittente,
@@ -189,6 +190,7 @@ export default function DipendentiAnagrafica() {
       indirizzo_provincia: form.indirizzo_provincia || null,
       note: form.note || null, attivo: !!form.attivo,
       reparto_id: form.reparto_id || null,
+      reparti_extra: (form.reparti_extra || []).filter(id => id !== form.reparto_id),
       colore: form.colore || null,
       a_chiamata: !!form.a_chiamata,
       codice_fiscale: form.codice_fiscale || null,
@@ -471,6 +473,42 @@ export default function DipendentiAnagrafica() {
                     <p className="text-[10px] text-neutral-400 font-medium mb-2 uppercase">
                       Turni — Reparto e colore
                     </p>
+                    {/* Multi-reparto (mig 162): chi lavora anche altrove compare pure
+                        nel foglio di quel reparto, con i suoi orari e le sue pause.
+                        Ogni turno resta nel foglio del reparto del SUO tipo. */}
+                    {reparti.filter(r => r.id !== form.reparto_id).length > 0 && (
+                      <div className="mb-3">
+                        <label className="block text-[10px] text-neutral-500 font-medium mb-1">
+                          Lavora anche in
+                        </label>
+                        <div className="flex flex-wrap gap-3">
+                          {reparti.filter(r => r.id !== form.reparto_id).map(r => {
+                            const attivo = (form.reparti_extra || []).includes(r.id);
+                            return (
+                              <label key={r.id} className="flex items-center gap-1.5 text-xs text-neutral-700">
+                                <input
+                                  type="checkbox"
+                                  checked={attivo}
+                                  onChange={e => handleChange(
+                                    "reparti_extra",
+                                    e.target.checked
+                                      ? [...(form.reparti_extra || []), r.id]
+                                      : (form.reparti_extra || []).filter(id => id !== r.id)
+                                  )}
+                                  className="rounded border-neutral-300 text-purple-600"
+                                />
+                                {r.icona ? `${r.icona} ` : ""}{r.nome}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-neutral-400 mt-1">
+                          Comparirà nel foglio settimana anche di questi reparti. I turni restano
+                          divisi: quelli di sala nel foglio sala, quelli di cucina in quello cucina.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] text-neutral-500 font-medium mb-1">Reparto</label>

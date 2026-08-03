@@ -35,7 +35,12 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.79",
+    // 3.80 (2026-08-03, V.9 fase 1): "Cantina da iPhone" — nuova pagina
+    //   mobile-first /vini/cantina-mobile (CantinaMobile.jsx): finder
+    //   «trova la bottiglia» (ricerca + filtro per scaffale + vista per
+    //   scaffale) e scheda mobile read-only. Solo consultazione, zero
+    //   modifiche backend (riusa /vini/v2/bottiglie/).
+    version: "3.80",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -106,7 +111,9 @@ const MODULE_VERSIONS = {
     // 2.30 (2026-07-30): sotto-area Intermittenti — comunicazione preventiva
     //   UNI-Intermittenti generata dai turni, invio email, registro con prova,
     //   annullamento, checker M.F a 48h. Migrazione 156.
-    version: "2.30",
+    // 2.31 (2026-08-03): multi-reparto — chi lavora in piu' reparti compare in
+    //   ogni foglio, e ogni turno finisce nel foglio del reparto del suo tipo.
+    version: "2.31",
     label: "Dipendenti",
     status: "stabile",
     color: "green",

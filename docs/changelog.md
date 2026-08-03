@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-08-03 — Vini: "Cantina da iPhone" fase 1 «trova la bottiglia» `[core]`
+
+Prima pagina mobile-first del modulo vini, per l'uso col telefono in mano tra gli scaffali (V.9 fase 1). Solo consultazione, nessuna scrittura.
+
+### ➕ Aggiunto
+- **`CantinaMobile.jsx`** (nuova; route `/vini/cantina-mobile` + `/:id`, ProtectedRoute sub=magazzino): finder «trova la bottiglia» con modo **Cerca** (ricerca testo + chip per locazione, es. "cosa c'è nello Scaffale 12") e modo **Per scaffale** (vista inversa: cosa contiene ogni posto). Le righe aprono una **scheda mobile read-only**: identità, «Dove si trova» in evidenza con **griglia matrice** (posizione parsata da `LOCAZIONE_3`), anagrafica e movimenti collassabili.
+- Voce **📱 Cantina mobile** in `ViniNav`.
+
+### Note tecniche
+- **Zero modifiche backend**: riusa `GET /vini/v2/bottiglie/?only_positive_stock=true` (tutte le bottiglie in giacenza, non solo carta), `GET /vini/v2/bottiglie/{id}` e `GET /vini/magazzino/{id}/movimenti`.
+- Solo bottiglie fisicamente presenti (giacenza > 0). Righe → scheda mobile, non quella gestionale densa. Base per le fasi 2 (+/− giacenze) e 3 (conta inventario).
+
+### File
+`frontend/src/pages/vini/CantinaMobile.jsx` (nuova), `frontend/src/App.jsx` (lazy+route), `frontend/src/pages/vini/ViniNav.jsx` (tab), `frontend/src/config/versions.jsx` (vini 3.79→3.80), `docs/modulo_vini.md`, `docs/roadmap.md` (V.9 fase 1).
+
+---
+
 ## 2026-08-03 — Mattone M.J: pubblicare i PDF sul sito senza client FTP `[core]`
 
 Marco: *"se devo aggiornare un menu sul sito possiamo farlo da app?"*. Il sito è un WordPress, ma menu del pranzo e carta vini non stanno nel CMS: sono file statici in `/privata/` sull'hosting Aruba, caricati a mano via FTP. Il PDF lo generava già l'app — mancava solo l'ultimo metro.
@@ -138,6 +155,27 @@ L'invio ordini via WhatsApp era fermo dal 2026-04-24 come "punto 7 differito" pe
 - **Nessun build da lanciare**: il frontend in produzione è servito da Vite (`trgb-frontend`), `frontend/dist/` non è tracciato e il post-receive fa `npm install` solo se cambia `package.json`. Verifica fatta con `@babel/parser` (sintassi + identificatori non risolti); un import rotto si vedrebbe comunque solo a runtime nel browser, quindi conviene aprire la pagina Distributori subito dopo il push.
 - Il telefono si salva **come lo si scrive**, non normalizzato: `buildWaLink()` normalizza già al momento dell'uso, e un numero leggibile vale più di uno canonico. La cella segnala con `⚠️` i numeri che `normalizePhone()` non sa interpretare.
 - O2–O7 non sono iniziate. Le 4 domande aperte in fondo al piano vanno chiuse prima di O4 — in particolare se il totale € dell'ordine va calcolato sul listino o sul netto scontato.
+
+---
+
+## 2026-08-03 (ter) — Multi-reparto: chi lavora in sala e in cucina (mig 162) `[core]`
+
+Marco: «c'è un caso particolare (io) che posso lavorare sia in sala che in cucina — prevedi la possibilità di flaggare da quel menu in modo da utilizzare in entrambi gli orari».
+
+Il flag da solo non bastava, e il motivo è il pezzo interessante: **il foglio di un reparto mostrava i turni delle PERSONE del reparto, non i turni DEL reparto**. Il turno non sapeva dove appartenere, lo si deduceva da chi lo faceva. Con una persona in due reparti sarebbero comparsi tutti i suoi turni in entrambi i fogli, con le ore contate due volte.
+
+La chiave era già nei dati: i tipi turno (`SALA-PRANZO`, `CUCINA-CENA`…) portano il reparto in `turni_tipi.ruolo`, che combacia con `reparti.codice`. Quindi ora il foglio filtra per il reparto **del turno**.
+
+### Aggiunto
+- **Migrazione 162** — tabella `dipendenti_reparti` con i reparti IN PIÙ (`reparto_id` resta il principale: non si duplica, due posti che dicono la stessa cosa divergono).
+- **Anagrafica** — caselle "Lavora anche in", una per reparto diverso dal principale.
+- **`turni_service`** — due costanti SQL condivise (`SQL_DIP_*_DEL_REPARTO`, `SQL_TURNO_DEL_REPARTO`) applicate a tutte le 8 query che dicevano `d.reparto_id = ?`: foglio settimana, vista mese, copia settimana, crea/applica template, pubblica settimana, riepilogo WhatsApp, assenze.
+
+### Retrocompatibilità
+La regola sul turno ha una rete di sicurezza: se il tipo del turno non appartiene a nessun ALTRO reparto della persona, il turno resta dove stava. Così a chi ha un reparto solo non sparisce niente dal foglio, anche se qualcuno gli aveva assegnato un turno di un altro reparto. Verificato sui dati reali: 582 turni cucina e 457 sala, nessun disallineamento.
+
+### Verifica
+Test end-to-end su copia del DB: prima Marco (cucina) con un turno di sala lo vedeva comparire **nel foglio cucina** — sbagliato, ed era così anche prima di questa modifica; dopo, compare in entrambi i fogli e il turno di sala sta nel foglio sala, quello di cucina in cucina, con i conteggi degli altri invariati.
 
 ---
 

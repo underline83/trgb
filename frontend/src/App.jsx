@@ -27,6 +27,8 @@ const CartaClienti = lazy(() => import("./pages/public/CartaClienti"));
 const CartaMenuPubblica = lazy(() => import("./pages/public/CartaMenuPubblica"));
 // STAFF: vista sommelier (loggata) — sessione 58 fase 2 iter 5
 const CartaStaff = lazy(() => import("./pages/vini/CartaStaff"));
+// V.9 fase 1 (2026-08-03): "Cantina da iPhone" — finder mobile + scheda mobile read-only.
+const CantinaMobile = lazy(() => import("./pages/vini/CantinaMobile"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
 const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
 // S2 cutover (2026-05-18): Cantina classica deprecata. Le route legacy
@@ -259,6 +261,9 @@ export default function App() {
         <Route path="/vini/carta/anteprima" element={<ProtectedRoute module="vini" sub="carta"><CartaAnteprima /></ProtectedRoute>} />
         <Route path="/vini/ordini" element={<ProtectedRoute module="vini" sub="magazzino"><OrdiniVini /></ProtectedRoute>} />
         <Route path="/vini/carta-staff" element={<ProtectedRoute module="vini" sub="carta"><CartaStaff /></ProtectedRoute>} />
+        {/* V.9 fase 1: Cantina da iPhone — finder mobile-first + scheda mobile (read-only) */}
+        <Route path="/vini/cantina-mobile" element={<ProtectedRoute module="vini" sub="magazzino"><CantinaMobile /></ProtectedRoute>} />
+        <Route path="/vini/cantina-mobile/:id" element={<ProtectedRoute module="vini" sub="magazzino"><CantinaMobile /></ProtectedRoute>} />
         {/* Redirect legacy: /vini/carta/sezione/:key → /vini/carta/:key */}
         <Route path="/vini/carta/sezione/:key" element={<RedirectLegacySezione />} />
         {/* Shell con :sezione (vini / aperitivi / birre / amari_casa / amari_liquori / distillati / tisane / te) */}

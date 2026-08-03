@@ -144,6 +144,78 @@ class DipendenteBase(BaseModel):
     codice_fiscale: Optional[str] = None
     intermittente: bool = False
     codice_comunicazione: Optional[str] = None   # codice UNILAV del rapporto
+    # Reparti IN PIÙ rispetto a `reparto_id` (mig 162). None = non toccare.
+    reparti_extra: Optional[List[int]] = None
+
+
+# ── Reparti aggiuntivi (mig 162) ────────────────────────────────────────────
+# `reparto_id` resta il reparto PRINCIPALE; `dipendenti_reparti` tiene quelli in
+# più, per chi lavora in due posti (es. Marco: cucina di ruolo, sala quando serve).
+# Non ci si mette dentro il principale: due posti che dicono la stessa cosa
+# divergono, e qui il prezzo sarebbe una persona che sparisce dal suo foglio.
+
+def _reparti_extra(dipendente_id: int) -> List[int]:
+    conn = get_dipendenti_conn()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dipendenti_reparti (
+                dipendente_id INTEGER NOT NULL, reparto_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                PRIMARY KEY (dipendente_id, reparto_id)
+            )
+        """)
+        return [r[0] for r in conn.execute(
+            "SELECT reparto_id FROM dipendenti_reparti WHERE dipendente_id = ? ORDER BY reparto_id",
+            (dipendente_id,),
+        )]
+    finally:
+        conn.close()
+
+
+def _mappa_reparti_extra() -> Dict[int, List[int]]:
+    """Tutti gli abbinamenti in una query sola, per la lista."""
+    conn = get_dipendenti_conn()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dipendenti_reparti (
+                dipendente_id INTEGER NOT NULL, reparto_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                PRIMARY KEY (dipendente_id, reparto_id)
+            )
+        """)
+        out: Dict[int, List[int]] = {}
+        for dip_id, rep_id in conn.execute(
+            "SELECT dipendente_id, reparto_id FROM dipendenti_reparti ORDER BY reparto_id"
+        ):
+            out.setdefault(dip_id, []).append(rep_id)
+        return out
+    finally:
+        conn.close()
+
+
+def _salva_reparti_extra(dipendente_id: int, reparti: Optional[List[int]], principale) -> None:
+    """`None` = campo non inviato, si lascia com'è. Lista = sostituisce tutto."""
+    if reparti is None:
+        return
+    puliti = {int(r) for r in reparti if r and int(r) != (principale or 0)}
+    conn = get_dipendenti_conn()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dipendenti_reparti (
+                dipendente_id INTEGER NOT NULL, reparto_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                PRIMARY KEY (dipendente_id, reparto_id)
+            )
+        """)
+        conn.execute("DELETE FROM dipendenti_reparti WHERE dipendente_id = ?", (dipendente_id,))
+        for rep in sorted(puliti):
+            conn.execute(
+                "INSERT OR IGNORE INTO dipendenti_reparti (dipendente_id, reparto_id) VALUES (?, ?)",
+                (dipendente_id, rep),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 class DipendenteCreate(DipendenteBase):
@@ -296,10 +368,12 @@ def list_dipendenti(
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
 
+    extra = _mappa_reparti_extra()
     for r in rows:
         r["attivo"] = bool(r["attivo"])
         r["a_chiamata"] = bool(r.get("a_chiamata") or 0)
         r["intermittente"] = bool(r.get("intermittente") or 0)
+        r["reparti_extra"] = extra.get(r["id"], [])
         r["is_amministratore"] = bool(r.get("is_amministratore") or 0)
 
     return JSONResponse(content=rows)
@@ -361,6 +435,7 @@ def create_dipendente(
         )
         new_id = cur.lastrowid
         conn.commit()
+        _salva_reparti_extra(new_id, payload.reparti_extra, payload.reparto_id)
     except Exception as e:
         conn.rollback()
         if "UNIQUE constraint failed: dipendenti.codice" in str(e):
@@ -396,6 +471,7 @@ def create_dipendente(
     data["attivo"] = bool(data["attivo"])
     data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
     data["intermittente"] = bool(data.get("intermittente") or 0)
+    data["reparti_extra"] = _reparti_extra(data["id"])
     data["is_amministratore"] = bool(data.get("is_amministratore") or 0)
     return JSONResponse(content=data)
 
@@ -475,6 +551,7 @@ def update_dipendente(
             ),
         )
         conn.commit()
+        _salva_reparti_extra(dipendente_id, payload.reparti_extra, payload.reparto_id)
     except Exception as e:
         conn.rollback()
         if "UNIQUE constraint failed: dipendenti.codice" in str(e):
@@ -510,6 +587,7 @@ def update_dipendente(
     data["attivo"] = bool(data["attivo"])
     data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
     data["intermittente"] = bool(data.get("intermittente") or 0)
+    data["reparti_extra"] = _reparti_extra(data["id"])
     data["is_amministratore"] = bool(data.get("is_amministratore") or 0)
     return JSONResponse(content=data)
 

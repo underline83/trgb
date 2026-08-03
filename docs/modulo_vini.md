@@ -5,7 +5,7 @@
 
 **Ultimo aggiornamento:** 2026-07-25 (verifica doc vs codice; in precedenza 2026-07-12: audit completo modulo + hardening — init S52-1 senza zombie, backup WAL-safe, rollback rimosso, auth pdf-staff/carta-cantina — vedi changelog 2026-07-12)
 **Stato:** stabile post-cutover · Cantina "v2" promossa a Cantina unica · Cantina classica deprecata (file `*_legacy.jsx` archiviati nel repo, route redirect a v2)
-**Versione modulo (`versions.jsx`):** **vini 3.72** · sistema **5.38** (verificati su `frontend/src/config/versions.jsx` il 2026-07-25; la 3.72 = CartaStaff v2.0 "banco di servizio", V.22)
+**Versione modulo (`versions.jsx`):** **vini 3.80** · sistema **5.38** (verificati su `frontend/src/config/versions.jsx` il 2026-07-25; la 3.72 = CartaStaff v2.0 "banco di servizio" V.22; la 3.80 = "Cantina da iPhone" V.9 fase 1)
 **Roadmap:** sezione `V.` di `docs/roadmap.md` per priorità e voci aperte
 **Refactor design:** `docs/refactor_anagrafiche_vini.md` per il design originale del refactor V.6+V.7+V.8
 
@@ -67,6 +67,7 @@ vini_magazzino_note.vino_id      → vini_bottiglie.id
 | 🍷 **Cantina** | `/vini/v2/cantina` | `CantinaV2.jsx` + `GestioneVino2.jsx` | **Era "Cantina 2", ora è LA Cantina.** 3 viste: Bottiglie / Madri / Per Produttore. |
 | 📚 Anagrafiche | `/vini/anagrafiche` | `AnagraficheHub.jsx` (wrapper di `AnagraficheVini.jsx`) | 6 sotto-tab: Stats, Produttori, Distributori, Denominazioni, Vitigni, Madri (panel dedicati in `anagrafiche/` solo per Produttori/Distributori/Vitigni; Denominazioni e Madri inline in `AnagraficheVini.jsx`). CRUD admin/sommelier (`is_vini_manager`) + merge duplicati admin-only. |
 | 📜 Carta | `/vini/carta` | `CartaBevande.jsx` | Carta cliente HTML/PDF (vedi §5). |
+| 📱 Cantina mobile | `/vini/cantina-mobile` | `CantinaMobile.jsx` | **v1.0 "Cantina da iPhone" (2026-08-03, V.9 fase 1)**: pagina mobile-first per il telefono in cantina. Modi Cerca (ricerca + chip per locazione) e Per scaffale, + scheda mobile read-only («Dove si trova» con griglia matrice da `LOCAZIONE_3`). Solo consultazione; fasi 2 (+/− giacenze) e 3 (conta) in arrivo. Dati da `/vini/v2/bottiglie/?only_positive_stock=true`. |
 | 🥂 Sommelier | `/vini/carta-staff` | `CartaStaff.jsx` | **v2.0 "banco di servizio" (2026-07-20, V.22)**: due modalità — Preparazione (checklist pre-turno: ultima bt ancora in carta, calici aperti, frigo da rifornire, esauriti come promemoria riordino (a 0 bt la carta li nasconde già via min_qta_stampa)) e Servizio (ricerca + vendita one-tap con undo 10s + toggle mescita). Vendita da loc3/matrice esclusa (rimanda alla scheda). |
 | 🛒 Vendite | `/vini/vendite` | `ViniVendite.jsx` | Registra vendite (bottiglia/calici) + storico + calici disponibili. |
 | ⚙️ Impostazioni | `/vini/settings` | `ViniImpostazioni.jsx` | Locazioni, soglie, import/export, iPratico. |
