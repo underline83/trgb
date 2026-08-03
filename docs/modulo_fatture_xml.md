@@ -1,9 +1,9 @@
 # Modulo Fatture Elettroniche (XML) — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-05-08
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_acquisti.md](modulo_acquisti.md) (modulo padre, doc completo), [modulo_fatture_in_cloud.md](modulo_fatture_in_cloud.md)
 
-**Stato:** Operativo (integrato nel modulo Gestione Acquisti v2.1)
+**Stato:** Operativo (integrato nel modulo Gestione Acquisti, v3.1 in `versions.jsx`)
 **Data introduzione:** 2025-12-05
 **Dominio funzionale:** Acquisti & Controllo di Gestione
 
@@ -16,45 +16,45 @@ Il modulo consente di importare file FatturaPA in formato XML e trasformarli in 
 # 1. Funzionalita'
 
 ### Implementate
-- Import XML singolo, multiplo o ZIP
-- Parsing intestazione e righe fattura (namespace-agnostic)
-- Anti-duplicazione via hash SHA-256
+- Import XML singolo, multiplo o ZIP (anche ZIP annidati un livello)
+- Parsing intestazione e righe fattura (namespace-agnostic), inclusi anagrafica completa fornitore (`CedentePrestatore`) e blocco `DatiPagamento` (condizioni, modalità MP01-23, scadenza, importo)
+- Anti-duplicazione via hash SHA-256 + dedup cross-fonte con fatture FIC (arricchimento del record FIC con hash/importi/righe XML)
 - Dashboard acquisti con drill-down interattivo
-- Elenco fatture con filtri e paginazione
+- Elenco fatture con filtri (lato client, fetch unico)
 - Elenco fornitori con KPI
 - Categorizzazione a 2 livelli (categorie + sottocategorie)
 - Esclusione fornitori (autofatture, non pertinenti)
 - **Matching ingredienti**: collegamento righe fattura → ingredienti con fuzzy search, auto-match, Smart Create
-- **FattureInCloud (FIC) API v2 Sync** (v2.1): sincronizzazione automatica con XML enrichment (quando FIC API ritorna `is_detailed: false`, il sistema tenta di aggiungere righe da XML importati)
+- **FattureInCloud (FIC) API v2 Sync**: router dedicato `/fic/*` con XML enrichment (quando FIC API ritorna `is_detailed: false`, il sistema recupera le righe dall'XML SDI allegato) — vedi [modulo_fatture_in_cloud.md](modulo_fatture_in_cloud.md)
 
 ### Da fare
-- Gestione Note di Credito XML
+- Gestione Note di Credito XML (oggi il `tipo_documento` TD04 viene salvato ed escluso da alcune query CE/candidates, ma non è gestito come storno con segno)
 - Carichi magazzino automatici da fatture
 
 ---
 
 # 2. Backend
 
-Router: `app/routers/fe_import.py` + `fe_categorie_router.py`
-Prefix: `/contabilita/fe`
-Auth: JWT (tutte le route)
+Router: `app/routers/fe_import.py` (20 endpoint) + `fe_categorie_router.py` (16) + `fe_proforme_router.py` (9)
+Prefix: `/contabilita/fe` (il sync FIC è nel router dedicato `fattureincloud_router.py` con prefix `/fic`)
+Auth: JWT a livello router (tutte le route)
 
-Per la lista completa degli endpoint, vedere `docs/modulo_acquisti.md` sezione 4.
+Per la lista completa degli endpoint, vedere `docs/modulo_acquisti.md` sezione 8.
 
 ---
 
 # 3. Database
 
-Posizione: `app/data/foodcost.db`
+Posizione: `locali/tregobbi/data/foodcost.db` (path tenant-aware, R6.5; `app/data/` è fallback legacy vuoto)
 
 Tabelle principali:
-- `fe_fatture` — fatture importate con hash anti-duplicazione
+- `fe_fatture` — fatture importate con hash anti-duplicazione (+ VIEW `fe_fatture_with_stato` per lo stato pagamento, mig 112)
 - `fe_righe` — righe fattura con descrizione, quantita', prezzi
-- `fe_categorie` / `fe_sottocategorie` — albero categorizzazione
-- `fe_fornitore_categoria` — assegnazione fornitore → categoria
-- `fe_fornitore_esclusione` — esclusioni (autofatture, ecc.)
+- `fe_categorie` / `fe_sottocategorie` — categorizzazione a 2 livelli (due tabelle)
+- `fe_fornitore_categoria` — assegnazione fornitore → categoria; le esclusioni sono le sue colonne `escluso` (Ricette/Matching) ed `escluso_acquisti` (Acquisti) — NON esiste una tabella `fe_fornitore_esclusione`
+- `fe_prodotto_categoria_map` — mapping prodotto → categoria per auto-categorizzazione
 
-Schema dettagliato → `docs/database.md`
+Schema dettagliato → `docs/modulo_acquisti.md` §9 e `docs/database.md`
 
 ---
 
@@ -77,6 +77,6 @@ Il matching collega righe fatture XML agli ingredienti del modulo FoodCost.
 5. Auto-match per le prossime fatture dello stesso fornitore
 
 ### Componenti
-- Router: `foodcost_matching_router.py`
-- Frontend: `RicetteMatching.jsx` (4 tab: Da associare, Smart Create, Mappings, Fornitori)
+- Router: `foodcost_matching_router.py` (18 endpoint, prefix `/matching`, auth JWT a livello router)
+- Frontend: `frontend/src/pages/ricette/RicetteMatching.jsx` (4 tab: pending "Da associare", Smart Create, Mappings, Fornitori)
 - Tabelle: `ingredient_supplier_map`, `matching_description_exclusions`, `matching_ignored_righe`

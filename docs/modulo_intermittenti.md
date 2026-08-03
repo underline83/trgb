@@ -3,8 +3,8 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_dipendenti.md](modulo_dipendenti.md), [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md)
 
-> **Modulo:** `dipendenti` (sotto-area Intermittenti) · **Versione:** 1.0 · **Stato:** implementato, mai usato in produzione
-> **Prima release:** sessione 2026-07-30 · **Migrazione:** 156
+> **Modulo:** `dipendenti` (sotto-area Intermittenti) · **Versione:** 1.0 · **Stato:** implementato, mai usato in produzione (registro invii vuoto al 2026-08-03)
+> **Prima release:** sessione 2026-07-30 · **Migrazioni:** 156 (schema + settings + alert) e 161 (flag unico `intermittente`)
 > **Frontend:** `/dipendenti/intermittenti` — `frontend/src/pages/dipendenti/Intermittenti.jsx`
 > **Backend:** `app/routers/intermittenti_router.py` (prefix `/intermittenti`), `app/services/uni_intermittenti_service.py`
 > **Mattoni:** M.D email (versione minima, nata qui) · M.F alert engine · M.A notifiche · M.I UI primitives
@@ -44,8 +44,8 @@ anagrafica. La colonna resta nel DB, non letta da nessuno (niente DDL distruttiv
 | C-D-205 | Annulla una comunicazione inviata (modulo con flag annullamento) | `POST /intermittenti/comunicazioni/{id}/annulla` | admin | ✅ |
 | C-D-206 | Configura CF datore, email, destinatario, formato data | `GET/PUT /intermittenti/settings/` — UI in **Impostazioni → Intermittenti** | admin | ✅ |
 | C-D-207 | Segna chi è intermittente, con CF e codice comunicazione | **Anagrafica dipendente** (`PUT /dipendenti/{id}`). `GET /intermittenti/lavoratori/` è di sola lettura, per conteggio e diagnostica | admin | ✅ |
-| C-D-208 | Email di prova per validare le credenziali SMTP | `POST /intermittenti/test-email/` | admin | ✅ |
-| C-D-209 | Alert: turni di intermittenti entro 48h non comunicati | `alert_engine.py` checker `intermittenti_non_comunicati` | admin | ✅ |
+| C-D-208 | Email di prova per validare le credenziali SMTP | `POST /intermittenti/test-email/` (attivo, richiede `to`; la UI della prova sta in **Impostazioni Sistema → Email**, che usa il gemello platform `POST /email/test/`) | admin | ✅ |
+| C-D-209 | Alert: turni di intermittenti non comunicati nella finestra `soglia_giorni` (seed mig 156: 2 giorni = 48h, antidup 12h — configurabile in `alert_config`) | `alert_engine.py:849` checker `intermittenti_non_comunicati` | admin | ✅ |
 
 ## 2-bis. Dove si configura
 
@@ -53,6 +53,7 @@ anagrafica. La colonna resta nel DB, non letta da nessuno (niente DDL distruttiv
 |---|---|
 | Chi è intermittente, suo CF, suo codice comunicazione | **Dipendenti → Anagrafica**, sulla scheda del singolo |
 | CF e email del datore, destinatario, oggetto, formato data, stato SMTP | **Dipendenti → Impostazioni → Intermittenti** |
+| Credenziali del canale SMTP (host, porta, utente, password) | **Impostazioni Sistema → Email** (mattone M.D; la sezione Intermittenti mostra lo stato del canale e ci linka) |
 | Preparare e inviare le comunicazioni, registro, annullamenti | **Dipendenti → Intermittenti** |
 
 I campi del lavoratore hanno **un solo scrittore**, l'anagrafica (`PUT /dipendenti/{id}`):
@@ -142,11 +143,26 @@ dipendenti_uni_comunicazioni_righe  una riga per (lavoratore, periodo) — è l'
 Settings in `dipendenti_settings`: `uni_cf_datore`, `uni_email_mittente`, `uni_destinatario`,
 `uni_oggetto`, `uni_formato_data`.
 
-## 6. Configurazione SMTP (mattone M.D minimo)
+## 6. Canale email (mattone M.D minimo)
 
-In `.env`: `SMTP_HOST`, `SMTP_PORT` (465 = SSL, 587 = STARTTLS), `SMTP_USER`, `SMTP_PASS`,
-`SMTP_FROM`, `SMTP_FROM_NAME`. Il pulsante "Manda email di prova" verifica le credenziali
-senza effetti collaterali.
+Dal 2026-08-03 le credenziali SMTP si configurano **dal gestionale**: **Impostazioni
+Sistema → tab Email** (router platform `app/routers/email_router.py`: `GET/PUT /email/config/`
+e `POST /email/test/`, solo admin). La config vive in `email_settings.json` nella cartella
+dati del locale; la **password è cifrata Fernet** con la chiave `TRGB_SECRET_KEY` del `.env`
+(i backup escono dalla macchina: la password non ci finisce in chiaro, e la chiave — restando
+nel `.env` — nel backup non c'è). La password non esce mai dall'API: la UI vede solo
+"impostata / non impostata" e può sostituirla.
+
+Il `.env` resta come **fallback campo per campo** per chi aveva già configurato così:
+`SMTP_HOST`, `SMTP_PORT` (465 = SSL, 587 = STARTTLS), `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`,
+`SMTP_FROM_NAME`, `SMTP_TIMEOUT` (default 20s). `app/services/email_service.py` rilegge la
+config a ogni chiamata e in `stato()` dichiara l'`origine` (`gestionale` | `env`).
+
+L'email di prova (senza effetti collaterali) si manda dalla tab Email (`POST /email/test/`,
+senza `to` usa il destinatario di prova salvato); `POST /intermittenti/test-email/` resta
+attivo per lo stesso scopo ma non ha più una UI che lo chiami. Lo stato del canale
+(configurato / campi mancanti) arriva anche da `GET /intermittenti/settings/` ed è mostrato
+nella pagina Intermittenti e in Impostazioni → Intermittenti.
 
 ## 7. Aperto / da fare
 

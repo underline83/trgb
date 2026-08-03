@@ -1,6 +1,35 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-08-03 — **DA PUSHARE: docs→wiki, conversione COMPLETATA — header di stato sulle ultime 25 pagine, lint a zero warning (solo docs/, nessun codice)**; **DA PUSHARE: mattone M.J Pubblicazione web (FTP) — bottone "Pubblica sul sito" su menu pranzo e carta vini, sistema 5.39 (richiede le variabili `FTP_*` in `.env` sul VPS, senza quelle il bottone resta disabilitato)**; **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-08-04 — **DA PUSHARE: verifica docs TOTALE (Blocco 2) — 13 modulo_*.md verificati endpoint per endpoint vs codice e promossi ad `attuale`; trovati 4 bug REALI nel codice (v. sessione 2026-08-04) + 2 decisioni PO aperte**; **DA PUSHARE: docs→wiki, conversione COMPLETATA — header di stato sulle ultime 25 pagine, lint a zero warning (solo docs/, nessun codice)**; **DA PUSHARE: mattone M.J Pubblicazione web (FTP) — bottone "Pubblica sul sito" su menu pranzo e carta vini, sistema 5.39 (richiede le variabili `FTP_*` in `.env` sul VPS, senza quelle il bottone resta disabilitato)**; **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-08-04 — Verifica docs vs codice TOTALE: tutti i moduli restanti (Blocco 2)
+
+### Contesto
+Marco, dopo la conversione leggera: "vorrei che li facessi tutti 1 ad uno verificando il codice in maniera approfondita e non a campione". Fatto: 13 pagine modulo verificate contro il codice reale (riconciliazione bidirezionale: ogni endpoint/pagina reale → documentato?; ogni claim del doc → ancora vero?), con 8 agenti su domini disgiunti. Il Blocco 1 (vini, CG, menu carta, pranzo, vendite) non è stato rifatto: check drift OK (vini e pranzo aggiornati il 3/8 con cantina mobile e M.J).
+
+### Risultato: 13 doc promossi ad `attuale · 2026-08-03`
+acquisti, fatture_xml, fatture_in_cloud (riscritto: era stub con ~6 fatti falsi), dipendenti, dipendenti_turni, intermittenti, prenotazioni (riscritto: era fermo a "in progettazione", 27 endpoint censiti), preventivi (30 endpoint vs 12 documentati), ricette_foodcost (63 endpoint), selezioni_giorno (da stub a pagina completa, 57 endpoint), banca (riscritto: il vecchio doc citava router e 6 tabelle MAI esistiti), clienti_crm (33 endpoint vs 3 documentati), cucina (path API tutti corretti: `/tasks/*` non `/cucina/*`, DB `tasks.sqlite3`), statistiche (12/12, mode=ro e cutover dinamico confermati).
+
+### 🐛 Bug REALI trovati nel codice durante la verifica (docs li riportano come limiti noti; fix in sessioni dedicate)
+1. **`menu_templates_router.py:34`** — `is_admin(user)` riceve il dict invece del ruolo → **salva/carica template menu = 403 per tutti, admin compreso** (conferma: tabella `clienti_menu_template` vuota).
+2. **`giorno_chiusura` UI↔backend incoerente** — UI 0=nessuno/1=domenica…, backend 0=dom…6=sab: la UI mostra "Martedì" per il mercoledì del backend (`PrenotazioniImpostazioni.jsx:17` vs `prenotazioni_router.py:283-287`).
+3. **Multi-reparto turni, bug latente** — `turni_router.py:215` (assegna) e `:340` (cambio dipendente) validano solo il reparto principale: appena si userà `dipendenti_reparti` (mig 162, oggi vuota), l'assegnazione di un aggiuntivo fallirà con 400.
+4. **"+ Nuovo Cliente" rotto** — `ClientiLista.jsx:267` naviga a `/clienti/nuovo` che non ha route; `POST /clienti/` non ha alcun caller FE. I clienti oggi nascono solo da import TheFork.
+
+(minori: 2 redirect legacy `/cucina/*` parametrici con `:id` letterale in `App.jsx:522-523`; `POST /intermittenti/test-email/` doppione senza UI dopo `/email/test/`; card Home "Flussi di Cassa" legge la legacy `finanza_movimenti`.)
+
+### ✅ Verifiche di sicurezza confermate
+- **CRIT A1 audit 2026-06-12 RISOLTO**: `banca_router.py:41-45` auth a livello router, `banca_carta` per-endpoint — verificato oggi, nessun `/banca/*` raggiungibile senza JWT.
+- Ancora aperto invece: `foodcost_router.py` legacy con 2 GET **senza auth** (`/foodcost/ingredienti`, `/foodcost/ingredient/{id}`) — decisione PO sotto.
+
+### Decisioni PO aperte (per Marco)
+1. A R8 le **Selezioni del Giorno** vanno nel modulo vendibile `ricette` (come dice CLAUDE.md) o `cucina` (come dicono i commenti nel codice)?
+2. `foodcost_router.py` legacy senza auth: proteggere o rimuovere?
+3. Creazione manuale cliente: implementare la route `/clienti/nuovo` o i clienti nascono solo da import?
+4. Roadmap disallineata in 2 punti (non toccata): A.5/A.6 proforme "IN PAUSA" ma implementate; CL.7 note rapide "MEDIA" ma già fatta.
+
+### Nota metodo
+"Ultima verifica: 2026-08-03" nei 13 header = data di inizio verifica (a cavallo di mezzanotte). Lint finale: ✅ zero warning. Solo `docs/` toccato, nessun codice.
 
 ## SESSIONE 2026-08-03 — Docs→wiki: conversione completata (le 25 pagine rimaste)
 

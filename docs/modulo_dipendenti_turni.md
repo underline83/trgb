@@ -1,10 +1,22 @@
 # Modulo Dipendenti — Turni v2.0 (Ripensamento)
 
-> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_dipendenti.md](modulo_dipendenti.md), [modulo_intermittenti.md](modulo_intermittenti.md)
 
-**Data:** 2026-04-14
-**Stato piano:** APPROVATO, in corso
+**Data piano:** 2026-04-14
+**Stato piano:** IMPLEMENTATO — fasi 0-3 e 5-11 completate, Fase 4 rimossa. Questa pagina è nata come piano ("Ripensamento") e conserva le decisioni originali; le divergenze tra piano e codice reale sono annotate nel punto in cui compaiono. Riferimenti rapidi al codice: backend `app/routers/turni_router.py` (prefix **`/turni`**, non `/dipendenti/turni`) + `app/services/turni_service.py`; frontend `frontend/src/pages/dipendenti/FoglioSettimana.jsx` (v1.11) e pagine sorelle.
+
+## Divergenze piano → codice (sintesi, verificata 2026-08-03)
+
+- **`stato='CHIAMATA'` non esiste più**: rinominato **`OPZIONALE`** (mig 073). Gli stati ammessi sono CONFERMATO / OPZIONALE / ANNULLATO. "A chiamata" è diventato un flag del **dipendente** (`dipendenti.a_chiamata` = extra pagato a ore).
+- **Assenze**: la decisione "niente assenze in Turni" è stata superata in sessione 39 — FERIE/MALATTIA/PERMESSO si segnano dal Foglio, tabella dedicata `assenze` (mig 083), CRUD `GET/POST /turni/assenze/` + `DELETE /turni/assenze/{id}` + `GET /turni/assenze/tipi`. Nessun tipo turno RIPOSO/ASSENZA seedato (come da decisione). Il modulo Presenze v2.3 resta non fatto.
+- **Endpoint reali** con prefix `/turni` e nomi diversi dal piano §3 (tabella reale più sotto).
+- **Copertura per giorno/servizio**: MAI implementata (né endpoint né riga nel FE). Dei "totali+copertura" della Fase 2 esiste solo la parte ore nette.
+- **Slot**: aggiunta colonna `turni_calendario.slot_index` (mig 072), non prevista dallo schema del piano.
+- **Struttura FE**: nessuna cartella `components/turni/` — tutto vive in `pages/dipendenti/` (FoglioSettimana.jsx contiene griglia, dialog copia/template/WA, vista mobile).
+- **Soglie semaforo CCNL** 40h/48h: hardcoded in `turni_service.py:778` (e :1019); la UI di configurazione "Soglie CCNL" in Impostazioni Dipendenti è prevista ma non pronta (`ready:false`). Hardcoded anche le fasce del pasto staff che decidono se dedurre la pausa (11:30/12:00 pranzo, 18:30/19:00 cena — costanti `SOGLIA_*` in `turni_service.py:158-161`); configurabili per reparto sono solo i **minuti** di pausa.
+- **Vista self-service**: `GET /turni/miei-turni` + pagina `/miei-turni` (`MieiTurni.jsx`) — l'utente loggato vede i propri turni se `users.json` ha il campo `dipendente_id`; non era nel piano.
+- **Multi-reparto** (mig 162): vedi sezione in fondo.
 
 ## Decisioni prese (2026-04-14)
 
@@ -14,6 +26,7 @@
 - **Assenze:** NON dentro Turni v2 — passano al modulo Presenze v2.3 dedicato.
   Nessun seed RIPOSO/FERIE/MALATTIA/PERMESSO in Turni.
   Workflow Marco: chi non compare nel foglio = è a casa.
+  *(storico, superato in sessione 39: le assenze si segnano dal Foglio, tabella `assenze` — vedi sintesi divergenze in testa)*
 - **6** Flusso copia settimana confermato (intera settimana, casi singoli a mano dopo).
   La copia rispettera' eventuali assenze del modulo Presenze (cross-tabella).
 - **Vista principale = "Foglio settimana" stile Excel di Marco**:
@@ -24,6 +37,7 @@
 - **Slot per servizio**: variabile da 2 a 6 (default 4, configurabile da UI).
 - **Asterisco "*" nel nome = `stato='CHIAMATA'`** (turno tentativo, da confermare).
   Visualizzato con asterisco rosso accanto al nome, badge "DA CONFERMARE".
+  *(storico: rinominato `OPZIONALE` con mig 073, ★ nella UI)*
 - **Colori dipendenti**: ogni dipendente ha `colore` univoco (palette 14 tinte).
   La cella colorata col colore-dipendente, come fa Marco oggi in Excel.
 - **Chiusura settimanale**: NIENTE duplicazione. Si legge da
@@ -114,8 +128,10 @@ NESSUN seed (Marco crea i tipi turno secondo necessità dall'admin).
 | `origine` | TEXT | `'MANUALE'` | `MANUALE` / `COPIA` / `TEMPLATE` |
 | `origine_ref_id` | TEXT | NULL | id settimana sorgente o id template |
 
-**`stato`** resta TEXT libero — accetta `CONFERMATO` (default), `CHIAMATA` (asterisco
-= turno tentativo), `ANNULLATO`.
+**`stato`** resta TEXT libero — accetta `CONFERMATO` (default), `OPZIONALE` (★, turno
+tentativo — il nome `CHIAMATA` del piano è stato rinominato con mig 073), `ANNULLATO`.
+In più rispetto al piano: **`slot_index INTEGER`** (mig 072) — posizione colonna nel
+foglio (0-based), parte della chiave logica reparto+data+servizio+slot.
 
 ### 2.5 Indici
 
@@ -149,9 +165,10 @@ CREATE INDEX idx_tmpl_righe_tmpl ON turni_template_righe(template_id);
 
 ### 2.7 Chiusure settimanali — NIENTE duplicazione
 
-Le chiusure si leggono da `app/data/closures_config.json` (modulo Vendite,
-gestito da `app/routers/closures_config_router.py`). Backend Turni espone una
-funzione di comodo:
+Le chiusure si leggono da `closures_config.json` (modulo Vendite, gestito da
+`app/routers/closures_config_router.py`; dal R6.5 il file vive nella cartella
+dati del locale `locali/<id>/data/`, via `locale_data_path`). Il service Turni
+usa la funzione di comodo:
 
 ```python
 from app.routers.closures_config_router import get_closures_config
@@ -159,62 +176,62 @@ cfg = get_closures_config()
 # cfg = {giorno_chiusura_settimanale: 2, giorni_chiusi: [...], turni_chiusi: [...]}
 ```
 
-Il frontend Turni v2 chiama `GET /settings/closures-config` (endpoint esistente,
-JWT). Le celle dei giorni chiusi appaiono grigio cream, niente turni assegnabili.
+(helper reali: `giorni_chiusi_nella_settimana` / `giorni_chiusi_nel_range` in
+`turni_service.py:701-722`; il router Turni espone anche `GET /turni/chiusure`).
+Il frontend può usare `GET /settings/closures-config/` (JWT). Le celle dei
+giorni chiusi appaiono grigie, niente turni assegnabili.
 
 ---
 
-## 3. Endpoint backend — nuovi
+## 3. Endpoint backend
 
-Esistenti restano. Aggiungiamo:
+> La tabella del piano originale (path `/dipendenti/turni/*`, endpoint `/totali` e `/copertura`,
+> payload copia con date e `skip_assenze_destinazione`) è **storica, superata**: il router v2 è
+> nato con prefix **`/turni`** e nomi diversi. `/copertura` non è mai stato implementato.
+
+### 3.1 Endpoint reali (`app/routers/turni_router.py`, tutti JWT)
 
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
-| POST | `/dipendenti/turni/calendario/copia` | copia una settimana su un'altra |
-| GET | `/dipendenti/turni/totali` | totali ore per dipendente nel periodo |
-| GET | `/dipendenti/turni/copertura` | conteggio turni per giorno e ruolo |
-| GET | `/dipendenti/turni/template/` | lista template |
-| POST | `/dipendenti/turni/template/` | crea template |
-| POST | `/dipendenti/turni/template/{id}/applica` | applica template a una settimana |
-| DELETE | `/dipendenti/turni/template/{id}` | elimina template |
+| GET | `/turni/foglio?reparto_id=X&settimana=YYYY-Www` | foglio settimana completo (reparto, giorni, dipendenti, turni con conflitti, assenze, chiusure, max slot) |
+| POST | `/turni/foglio/assegna` | crea turno in uno slot — body `{reparto_id, dipendente_id, data, servizio, slot_index, ora_inizio?, ora_fine?, stato, note?, turno_tipo_id?}`; se il tipo manca lo trova/crea (`<REPARTO>-<SERVIZIO>`); 409 se slot occupato; risposta con `warnings` + `conflitti_giorno` (Fase 7) |
+| PUT | `/turni/foglio/{turno_id}` | modifica (dipendente, orari, stato, note, slot) — anche qui `warnings` in risposta |
+| DELETE | `/turni/foglio/{turno_id}` | cancella (hard) |
+| GET | `/turni/ore-nette?reparto_id=X&settimana=…` | ore lorde/nette per dipendente nella settimana (il "totali" del piano) |
+| POST | `/turni/copia-settimana` | body `{reparto_id, from_settimana: "YYYY-Www", to_settimana: "YYYY-Www", sovrascrivi}` — niente `skip_assenze_destinazione` |
+| GET | `/turni/chiusure?settimana=…` | date chiuse nella settimana |
+| GET | `/turni/mese?reparto_id=X&anno=&mese=` | vista mensile 6×7 (Fase 5, sola lettura) |
+| GET | `/turni/dipendente?dipendente_id=X&settimana_inizio=&num_settimane=1..12` | timeline per dipendente (Fase 6) |
+| GET | `/turni/miei-turni?settimana_inizio=&num_settimane=` | come sopra ma per l'utente loggato (risolve `users.json.dipendente_id`; 404 con messaggio chiaro se non collegato) |
+| GET | `/turni/conflitti?dipendente_id=X&data=` | check preventivo sovrapposizioni (Fase 7) |
+| GET | `/turni/assenze/tipi` · GET/POST `/turni/assenze/` · DELETE `/turni/assenze/{id}` | assenze FERIE/MALATTIA/PERMESSO (sessione 39) |
+| GET | `/turni/foglio/pdf?reparto_id=X&settimana=…` | PDF A4 landscape WeasyPrint (Fase 8) |
+| GET/POST | `/turni/template` (+ GET/PUT/DELETE `/turni/template/{id}`, POST `/turni/template/{id}/applica`) | template settimana tipo (Fase 10) |
+| POST | `/turni/pubblica` · GET | `/turni/riepilogo-dipendenti?reparto_id=&settimana=` — pubblicazione M.A + testi WhatsApp M.C (Fase 11) |
 
-### 3.1 Payload copia settimana
-```json
-POST /dipendenti/turni/calendario/copia
-{
-  "from_settimana": "2026-04-06",   // lunedi' sorgente
-  "to_settimana": "2026-04-13",     // lunedi' destinazione
-  "skip_assenze_destinazione": true, // non sovrascrivere FERIE/MALATTIA gia' presenti in dest
-  "sovrascrivi": false               // se true, cancella prima i turni in destinazione
-}
-```
+CRUD reparti a parte: router `app/routers/reparti.py`, prefix `/reparti` (GET/POST `/reparti/`, GET/PUT/DELETE `/reparti/{id}` — soft delete bloccato se il reparto ha dipendenti attivi).
 
-Risposta: `{ "creati": N, "saltati_per_assenza": M, "errori": [] }`
-
-### 3.2 Totali
-```json
-GET /dipendenti/turni/totali?from=2026-04-13&to=2026-04-19
--> [
-  { "dipendente_id": 1, "nome": "Mario", "cognome": "Rossi",
-    "ore_totali": 42, "giorni_lavorati": 5, "assenze": 1, "riposi": 1 }
-]
-```
-
-### 3.3 Copertura
-```json
-GET /dipendenti/turni/copertura?from=...&to=...
--> [
-  { "data": "2026-04-13", "ruolo": "Sala", "count_pranzo": 2, "count_cena": 3 },
-  ...
-]
-```
+Restano attivi gli endpoint v1 (`/dipendenti/turni/tipi`, `/dipendenti/turni/calendario` CRUD in `app/routers/dipendenti.py`), usati dalla pagina legacy `/dipendenti/turni-legacy`.
 
 ---
 
 ## 4. Frontend — struttura
 
-File principale: `frontend/src/pages/dipendenti/DipendentiTurni.jsx` (refactor).
-Sotto-componenti in `frontend/src/components/turni/`:
+> **(storico, superato)** — la struttura reale NON usa `components/turni/` (la cartella non esiste)
+> né il refactor di `DipendentiTurni.jsx` (che è rimasto com'era, raggiungibile su
+> `/dipendenti/turni-legacy`). Le pagine reali sono tutte in `frontend/src/pages/dipendenti/`:
+> - **`FoglioSettimana.jsx`** (v1.11) — route `/dipendenti/turni`. Contiene tutto: griglia, popover
+>   assegna/edit, dialog Copia settimana, DialogTemplate, DialogInviaWA, vista immagine, vista giorno
+>   mobile (`useIsNarrow`), gestione assenze, toast conflitti.
+> - **`VistaMensile.jsx`** — route `/dipendenti/turni/mese` (Fase 5)
+> - **`PerDipendente.jsx`** (v1.4.1) — route `/dipendenti/turni/dipendente` (Fase 6)
+> - **`MieiTurni.jsx`** (v1.4) — route `/miei-turni` (self-service)
+> - **`GestioneReparti.jsx`** — route `/dipendenti/reparti`
+>
+> Il piano qui sotto resta come riferimento delle idee originali.
+
+File principale (piano): `frontend/src/pages/dipendenti/DipendentiTurni.jsx` (refactor).
+Sotto-componenti previsti in `frontend/src/components/turni/`:
 
 - **`FoglioSettimana.jsx`** — vista principale (replica Excel di Marco):
   - Tab in alto per reparto (SALA / CUCINA / …)
@@ -249,7 +266,7 @@ Utility:
 Le fasi sono **incrementali**: ogni fase lascia il modulo in uno stato
 funzionante e deployabile. Marco sceglie il punto di stop.
 
-### Fase 0 — Fondamenta
+### Fase 0 — Fondamenta ✅ COMPLETATA (mig 071 + 072; seed assenze NON fatto per decisione successiva)
 *Obiettivo:* preparare DB e docs senza cambiare UI visibile.
 *Dimensione:* piccola, 1 sessione.
 *Rischio:* basso.
@@ -438,7 +455,7 @@ modulo Presenze separato. In Turni v2 resta solo:
 - Riusa `build_foglio_settimana` + `giorni_chiusi_nella_settimana`
 - Template HTML inline (CSS @page A4 landscape, 10mm margini) + WeasyPrint → `StreamingResponse(application/pdf, inline)`
 - Celle colorate per dipendente con contrasto auto (funzione `_text_on`), stato OPZIONALE → prefix ★, ANNULLATO → opacity .4
-- Header: 🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — pill colorata reparto
+- Header: 🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — pill colorata reparto *(da R5 il nome non è più hardcoded: viene da `strings.json` del locale, chiave `pdf.org_name`, fallback "TRGB" — `turni_router.py:776`)*
 - Footer: TRGB Gestionale + data generazione + settimana ISO
 - Filename: `turni_<codice_reparto>_<settimana>.pdf`
 - Anticipo rispetto a M.B PDF brand: template è inline, verrà rifattorizzato quando il mattone sarà pronto
@@ -598,9 +615,17 @@ Queste scelte determinano forma del codice. Rispondere con mockup di supporto
 (non duplica il principale). Chi ha reparti aggiuntivi compare nel foglio settimana di ognuno.
 
 **Un turno appartiene al foglio del reparto del suo TIPO**, non della persona: i tipi turno portano
-il reparto in `turni_tipi.ruolo`, che combacia con `reparti.codice`. Le condizioni stanno in due
-costanti SQL in cima a `turni_service.py` (`SQL_DIP_DEL_REPARTO`, `SQL_DIP_D_DEL_REPARTO`,
-`SQL_TURNO_DEL_REPARTO`) e sono applicate a tutte le query che filtravano per `d.reparto_id`.
+il reparto in `turni_tipi.ruolo`, che combacia con `reparti.codice`. Le condizioni stanno in tre
+costanti SQL in cima a `turni_service.py` (`SQL_DIP_DEL_REPARTO` :43, `SQL_DIP_D_DEL_REPARTO` :50,
+`SQL_TURNO_DEL_REPARTO` :62), applicate a tutte le query del **service** che filtravano per
+`d.reparto_id`.
+
+**Limite verificato (2026-08-03):** le validazioni inline di `turni_router.py` NON sono
+multi-reparto: `POST /turni/foglio/assegna` rifiuta con 400 un dipendente il cui reparto
+**principale** non è quello del foglio (`turni_router.py:215`), e il cambio dipendente in
+`PUT /turni/foglio/{id}` confronta solo i reparti principali (`turni_router.py:340`). Chi ha il
+reparto del foglio solo fra gli AGGIUNTIVI compare quindi nel foglio ma non è assegnabile da lì.
+Al 2026-08-03 `dipendenti_reparti` è vuota sul DB live, quindi il caso non si è ancora presentato.
 
 Rete di sicurezza per la retrocompatibilita': se il tipo del turno non appartiene a nessun **altro**
 reparto della persona, il turno resta dove stava. Chi ha un solo reparto non perde niente dal foglio.
