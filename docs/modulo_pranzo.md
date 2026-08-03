@@ -132,6 +132,7 @@ mancano, WeasyPrint usa il fallback.
 | C-P-010 | Storie Instagram serie da 2: copertina (logo, claim, Menù Business a righe, recapiti da settings) + menù per categoria, PNG 1080×1920 client-side | `PranzoStoryCanvas.jsx` | chef/admin | ✅ v2.0 (2026-07-19, sostituisce la storia singola antracite 1.7) |
 | C-P-011 | PDF esterno "da bacheca": solo antipasti/primi/secondi a corpo grande (23pt), nessun altro dato — per la cornice fuori dal locale | `pranzo_pdf_service.py genera_pdf_menu_esterno` + `GET /menu/{settimana}/pdf-esterno/` | chef/admin | ✅ 2026-07-19 |
 | C-P-012 | Nome file sensato sui PDF aperti in tab (File nominato, niente più "unknown") | `PranzoMenu.jsx apriPdf` | chef/admin | ✅ v3.9 |
+| C-P-013 | Pubblica il menu della settimana sul sito: PDF cliente caricato via FTP sull'hosting con nome fisso (mattone M.J), stato + data ultima pubblicazione in pagina | `pranzo_router.py POST /menu/{settimana}/pubblica/` + `GET /menu/{settimana}/pubblicazione/` · `PubblicaSulSito.jsx` | chef/admin | ✅ 2026-08-03 |
 
 ## Riferimenti
 

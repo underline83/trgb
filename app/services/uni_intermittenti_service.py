@@ -163,37 +163,8 @@ def lavoratori(solo_intermittenti: bool = False) -> List[dict]:
     return [dict(r) for r in rows]
 
 
-def set_lavoratore(dipendente_id: int, **campi) -> dict:
-    """Aggiorna flag intermittente / CF / codice comunicazione di un lavoratore."""
-    ammessi = ("intermittente", "codice_fiscale", "codice_comunicazione")
-    sets, vals = [], []
-    for k in ammessi:
-        if k in campi:
-            v = campi[k]
-            if k == "intermittente":
-                v = 1 if v else 0
-            else:
-                v = (str(v).strip().upper() or None) if v is not None else None
-            sets.append(f"{k} = ?")
-            vals.append(v)
-    if not sets:
-        raise ValueError("Nessun campo da aggiornare")
-    conn = get_dipendenti_conn()
-    try:
-        conn.execute(
-            f"UPDATE dipendenti SET {', '.join(sets)} WHERE id = ?", vals + [dipendente_id]
-        )
-        conn.commit()
-        row = conn.execute("""
-            SELECT id, nome, cognome, codice_fiscale, codice_comunicazione,
-                   COALESCE(intermittente,0) AS intermittente
-            FROM dipendenti WHERE id = ?
-        """, (dipendente_id,)).fetchone()
-    finally:
-        conn.close()
-    if not row:
-        raise ValueError(f"Dipendente {dipendente_id} inesistente")
-    return dict(row)
+# La scrittura di intermittente/codice_fiscale/codice_comunicazione vive in
+# app/routers/dipendenti.py (anagrafica): unico scrittore, nessun doppio form.
 
 
 # ═════════════════════════════════════════════

@@ -42,9 +42,6 @@ export default function Intermittenti() {
   const [flash, setFlash] = useState(null);
   const [xmlAperto, setXmlAperto] = useState(null);
   const [tab, setTab] = useState("da-comunicare");
-  // Bozze dei campi editabili della tabella lavoratori: TextInput è un input
-  // controllato (value={value ?? ""}), quindi defaultValue non funziona.
-  const [bozza, setBozza] = useState({});
 
   const avviso = (tipo, msg) => {
     setFlash({ tipo, msg });
@@ -143,62 +140,13 @@ export default function Intermittenti() {
     }
   };
 
-  const salvaSetting = async (key, value) => {
-    setSettings((s) => ({ ...s, [key]: value }));
-    try {
-      await apiFetch(`${U}/settings/`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: value }),
-      });
-    } catch (e) {
-      avviso("err", e.message);
-    }
-  };
 
-  const salvaLavoratore = async (id, campi) => {
-    setLavoratori((ls) => ls.map((l) => (l.id === id ? { ...l, ...campi } : l)));
-    setBozza((b) => {
-      const { [`cf${id}`]: _cf, [`cc${id}`]: _cc, ...resto } = b;
-      return resto;
-    });
-    try {
-      const r = await apiFetch(`${U}/lavoratori/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(campi),
-      });
-      if (!r.ok) throw new Error("Salvataggio non riuscito");
-      await carica();
-    } catch (e) {
-      avviso("err", e.message);
-    }
-  };
 
-  const provaEmail = async () => {
-    const to = window.prompt("Indirizzo a cui mandare l'email di prova:", settings.uni_email_mittente || "");
-    if (!to) return;
-    setBusy(true);
-    try {
-      const r = await apiFetch(`${U}/test-email/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to }),
-      });
-      const out = await r.json();
-      out.ok ? avviso("ok", `Email di prova inviata a ${to}`) : avviso("err", out.errore || "Invio fallito");
-    } catch (e) {
-      avviso("err", e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   // ─── Render ───────────────────────────────────────────────
   const TABS = [
     { key: "da-comunicare", label: `Da comunicare${preview?.righe?.length ? ` (${preview.righe.length})` : ""}` },
     { key: "registro", label: `Registro invii${registro.length ? ` (${registro.length})` : ""}` },
-    { key: "config", label: "Configurazione" },
   ];
 
   return (
@@ -230,7 +178,8 @@ export default function Intermittenti() {
           {!smtp?.configurato && <>Manca la configurazione SMTP in <code>.env</code> ({(smtp?.mancanti || []).join(", ")}). </>}
           {!settings.uni_cf_datore && <>Manca il codice fiscale del datore. </>}
           {!settings.uni_email_mittente && <>Manca l'email del datore (il modulo la esige). </>}
-          Sistemi tutto nella scheda <b>Configurazione</b>.
+          {!intermittenti.length && <>Nessun dipendente è segnato come intermittente in Anagrafica. </>}
+          Si sistema in <b>Impostazioni → Intermittenti</b>.
         </div>
       )}
 
@@ -262,7 +211,9 @@ export default function Intermittenti() {
               <TextInput type="date" value={al} onChange={setAl} />
             </div>
             <div className="text-xs text-neutral-500 pb-2">
-              {intermittenti.length} lavorator{intermittenti.length === 1 ? "e" : "i"} con contratto intermittente
+              {intermittenti.length} lavorator{intermittenti.length === 1 ? "e" : "i"} con contratto intermittente —
+              si segnano in <a href="/dipendenti/anagrafica" className="text-brand-blue hover:underline">Anagrafica</a>,
+              i dati del datore in <a href="/dipendenti/impostazioni" className="text-brand-blue hover:underline">Impostazioni</a>
             </div>
           </div>
 
@@ -392,126 +343,6 @@ export default function Intermittenti() {
             ))}
           </div>
         )
-      )}
-
-      {/* ═══ CONFIGURAZIONE ═══ */}
-      {tab === "config" && (
-        <div className="space-y-4">
-          <Card>
-            <SectionTitle>Dati del datore di lavoro</SectionTitle>
-            <p className="text-xs text-neutral-500 mb-3">
-              Finiscono dentro il modulo. L'email è obbligatoria per il Ministero e deve passare la
-              validazione del modulo stesso: niente “+” e dominio con TLD di 2 o 3 caratteri.
-            </p>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div>
-                <FieldLabel>Codice fiscale / P.IVA azienda</FieldLabel>
-                <TextInput value={settings.uni_cf_datore || ""}
-                  onChange={(v) => setSettings((s) => ({ ...s, uni_cf_datore: v }))}
-                  onBlur={(e) => salvaSetting("uni_cf_datore", e.target.value)} />
-              </div>
-              <div>
-                <FieldLabel>Email del datore</FieldLabel>
-                <TextInput value={settings.uni_email_mittente || ""}
-                  onChange={(v) => setSettings((s) => ({ ...s, uni_email_mittente: v }))}
-                  onBlur={(e) => salvaSetting("uni_email_mittente", e.target.value)} />
-              </div>
-              <div>
-                <FieldLabel>Destinatario (casella dell'Ispettorato)</FieldLabel>
-                <TextInput value={settings.uni_destinatario || ""}
-                  onChange={(v) => setSettings((s) => ({ ...s, uni_destinatario: v }))}
-                  onBlur={(e) => salvaSetting("uni_destinatario", e.target.value)} />
-                <p className="text-[11px] text-neutral-500 mt-1">
-                  Oggi è <code>intermittenti@pec.lavoro.gov.it</code>. I moduli PDF in circolazione
-                  puntano ancora al vecchio <code>@mailcert.lavoro.gov.it</code>, sostituito nel 2015.
-                </p>
-              </div>
-              <div>
-                <FieldLabel>Formato data nell'XML</FieldLabel>
-                <TextInput value={settings.uni_formato_data || ""}
-                  onChange={(v) => setSettings((s) => ({ ...s, uni_formato_data: v }))}
-                  onBlur={(e) => salvaSetting("uni_formato_data", e.target.value)} />
-                <p className="text-[11px] text-neutral-500 mt-1">
-                  <code>DD/MM/YYYY</code> come il modulo ministeriale. Da toccare solo se si scopre
-                  che il Ministero vuole <code>YYYY-MM-DD</code>.
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center justify-between">
-              <SectionTitle>Canale email (mattone M.D)</SectionTitle>
-              <Btn variant="ghost" size="sm" onClick={provaEmail} disabled={!smtp?.configurato || busy}>
-                Manda email di prova
-              </Btn>
-            </div>
-            {smtp?.configurato ? (
-              <p className="text-sm text-neutral-600">
-                SMTP <b>{smtp.host}:{smtp.port}</b>, mittente <b>{smtp.mittente}</b>.
-              </p>
-            ) : (
-              <p className="text-sm text-amber-800">
-                Non configurato: mancano <code>{(smtp?.mancanti || []).join(", ")}</code> nel file
-                <code> .env</code> del server. Servono <code>SMTP_HOST</code>, <code>SMTP_PORT</code>,
-                <code> SMTP_USER</code>, <code>SMTP_PASS</code> (porta 465 = SSL, 587 = STARTTLS).
-              </p>
-            )}
-          </Card>
-
-          <Card>
-            <SectionTitle>Chi è intermittente</SectionTitle>
-            <p className="text-xs text-neutral-500 mb-3">
-              Spunta solo chi ha un vero <b>contratto intermittente</b>: è quel flag a far scattare la
-              comunicazione. “A chiamata” in anagrafica è un'altra cosa — l'extra del turismo pagato a
-              ore — e non comporta nessun obbligo. Il <b>codice comunicazione</b> è il codice del
-              UNILAV con cui è stato instaurato il rapporto: lo ha il consulente del lavoro.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-neutral-500 border-b border-neutral-200">
-                    <th className="py-2 pr-3">Intermittente</th>
-                    <th className="py-2 pr-3">Lavoratore</th>
-                    <th className="py-2 pr-3">A chiamata</th>
-                    <th className="py-2 pr-3">Codice fiscale</th>
-                    <th className="py-2">Codice comunicazione</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lavoratori.map((l) => (
-                    <tr key={l.id} className="border-b border-neutral-100 last:border-0">
-                      <td className="py-2 pr-3">
-                        <input type="checkbox" className="w-5 h-5 accent-purple-600"
-                          checked={!!l.intermittente}
-                          onChange={(e) => salvaLavoratore(l.id, { intermittente: e.target.checked })} />
-                      </td>
-                      <td className="py-2 pr-3 font-medium">
-                        {l.cognome} {l.nome}
-                        <span className="text-xs text-neutral-400 ml-2">{l.ruolo}</span>
-                      </td>
-                      <td className="py-2 pr-3 text-xs text-neutral-500">{l.a_chiamata ? "sì" : "—"}</td>
-                      <td className="py-2 pr-3">
-                        <TextInput className="font-mono text-xs" placeholder="16 caratteri"
-                          value={bozza[`cf${l.id}`] ?? l.codice_fiscale ?? ""}
-                          onChange={(v) => setBozza((b) => ({ ...b, [`cf${l.id}`]: v }))}
-                          onBlur={(e) => e.target.value !== (l.codice_fiscale || "") &&
-                            salvaLavoratore(l.id, { codice_fiscale: e.target.value })} />
-                      </td>
-                      <td className="py-2">
-                        <TextInput className="font-mono text-xs" placeholder="dal consulente"
-                          value={bozza[`cc${l.id}`] ?? l.codice_comunicazione ?? ""}
-                          onChange={(v) => setBozza((b) => ({ ...b, [`cc${l.id}`]: v }))}
-                          onBlur={(e) => e.target.value !== (l.codice_comunicazione || "") &&
-                            salvaLavoratore(l.id, { codice_comunicazione: e.target.value })} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
       )}
 
       {/* ═══ XML ANTEPRIMA ═══ */}

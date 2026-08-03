@@ -54,23 +54,16 @@ def lavoratori_ep(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Anagrafica per la configurazione. `intermittente` è il flag legale
+    Elenco per la pagina Intermittenti (conteggio e diagnostica). La modifica
+    di flag, CF e codice comunicazione si fa in **Anagrafica** (`/dipendenti/{id}`):
+    un solo posto che scrive quei campi, così i due form non divergono.
+    `intermittente` è il flag legale
     (contratto ex art. 15 D.Lgs 81/2015); `a_chiamata` è un'altra cosa —
     l'extra del turismo pagato a ore — e non fa scattare nessuna comunicazione.
     """
     return {"lavoratori": uni.lavoratori(solo_intermittenti=solo_intermittenti)}
 
 
-@router.put("/lavoratori/{dipendente_id}")
-def set_lavoratore_ep(
-    dipendente_id: int,
-    payload: Dict[str, Any] = Body(...),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    try:
-        return {"ok": True, "lavoratore": uni.set_lavoratore(dipendente_id, **payload)}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ═════════════════════════════════════════════

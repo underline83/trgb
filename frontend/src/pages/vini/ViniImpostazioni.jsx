@@ -20,6 +20,7 @@ import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
 } from "../../config/viniConstants";
 import { Btn } from "../../components/ui";
+import PubblicaSulSito from "../../components/PubblicaSulSito";
 
 // ---------------------------------------------------------------
 // COMPONENTE LISTA RIORDINABILE
@@ -739,6 +740,16 @@ export default function ViniImpostazioni() {
           className="px-5 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow transition">
           Scarica Word
         </button>
+      </div>
+
+      {/* Pubblicazione sul sito (mattone M.J, 2026-08-03) */}
+      <div className="border-t border-neutral-200 pt-4">
+        <PubblicaSulSito
+          statoUrl={`${API_BASE}/vini/carta/pubblicazione/`}
+          pubblicaUrl={`${API_BASE}/vini/carta/pubblica/`}
+          etichetta="Pubblica la carta sul sito"
+          nota="Rigenera la carta CLIENTE e la carica sul sito, sovrascrivendo quella pubblicata. La versione staff resta interna e non viene mai pubblicata."
+        />
       </div>
       {showCartaPreview && (
         <div className="border border-neutral-200 rounded-2xl overflow-hidden">

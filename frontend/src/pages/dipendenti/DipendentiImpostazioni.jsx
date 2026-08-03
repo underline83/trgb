@@ -15,6 +15,7 @@ const SECTIONS = [
   { key: "reparti",          label: "Reparti",           icon: "🏢", desc: "SALA, CUCINA, ... orari standard, pause staff, colore e icona", ready: true  },
   { key: "stipendi",         label: "Stipendi",          icon: "💶", desc: "Default giorno scadenza buste paga (è il giorno del mese successivo all'incasso)", ready: true  },
   { key: "stato_import",     label: "Stato import paghe", icon: "📊", desc: "Quali mesi hanno LUL/ELAB/F24 importati (G.3 Fase E)",         ready: true  },
+  { key: "intermittenti",    label: "Intermittenti",     icon: "📨", desc: "Comunicazione chiamate: CF datore, email, destinatario, canale SMTP", ready: true  },
   { key: "soglie_ccnl",      label: "Soglie CCNL",       icon: "⚡", desc: "Personalizza soglie 40h/48h per semaforo ore",                   ready: false },
   { key: "template_wa",      label: "Template WhatsApp", icon: "📨", desc: "Modifica il testo di default per l'invio turni via WA",         ready: false },
 ];
@@ -86,6 +87,7 @@ export default function DipendentiImpostazioni() {
               {section === "reparti" && <GestioneReparti embedded />}
               {section === "stipendi" && <StipendiSection />}
               {section === "stato_import" && <StatoImportSection />}
+              {section === "intermittenti" && <IntermittentiSection />}
               {section === "soglie_ccnl" && <PlaceholderSection s={currentSection} />}
               {section === "template_wa" && <PlaceholderSection s={currentSection} />}
             </div>
@@ -376,6 +378,158 @@ function StatoImportSection() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════
+// INTERMITTENTI — dati per la comunicazione UNI
+// ═════════════════════════════════════════════
+// Chi è intermittente si segna in Anagrafica (flag sul singolo dipendente):
+// qui stanno solo i dati del datore di lavoro e del canale di invio, che sono
+// gli stessi per tutti. Vedi docs/modulo_intermittenti.md.
+function IntermittentiSection() {
+  const CAMPI = [
+    { key: "uni_cf_datore", label: "Codice fiscale / P.IVA azienda", mono: true,
+      hint: "Finisce nel campo CFdatorelavoro del modulo." },
+    { key: "uni_email_mittente", label: "Email del datore di lavoro",
+      hint: "Obbligatoria per il Ministero. Il modulo la valida con una regex sua: niente “+” e dominio con TLD di 2 o 3 caratteri." },
+    { key: "uni_destinatario", label: "Destinatario (casella dell'Ispettorato)", mono: true,
+      hint: "Oggi è intermittenti@pec.lavoro.gov.it e accetta email ordinarie. I moduli PDF in giro puntano ancora al vecchio @mailcert.lavoro.gov.it, sostituito nel 2015." },
+    { key: "uni_oggetto", label: "Oggetto dell'email",
+      hint: "Il Ministero ne accetta due: “Comunicazione chiamata lavoro intermittente” o “Invio telematico Modulo Intermittenti”." },
+    { key: "uni_formato_data", label: "Formato data nell'XML", mono: true,
+      hint: "DD/MM/YYYY come il modulo ministeriale. Da toccare solo se si scopre che il Ministero vuole YYYY-MM-DD." },
+  ];
+
+  const [settings, setSettings] = useState({});
+  const [originale, setOriginale] = useState({});
+  const [smtp, setSmtp] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [okMsg, setOkMsg] = useState(null);
+
+  const carica = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/intermittenti/settings/`);
+      const d = await res.json();
+      setSettings(d.settings || {});
+      setOriginale(d.settings || {});
+      setSmtp(d.smtp || null);
+    } catch (e) {
+      setError("Errore caricamento: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { carica(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const dirty = CAMPI.some((c) => (settings[c.key] || "") !== (originale[c.key] || ""));
+
+  const save = async () => {
+    setSaving(true); setError(null); setOkMsg(null);
+    try {
+      const body = {};
+      CAMPI.forEach((c) => { body[c.key] = settings[c.key] || ""; });
+      const res = await apiFetch(`${API_BASE}/intermittenti/settings/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json();
+      if (!res.ok || d.ok === false) throw new Error(d.detail || "Errore");
+      setSettings(d.settings || {});
+      setOriginale(d.settings || {});
+      setOkMsg("Salvato.");
+      setTimeout(() => setOkMsg(null), 4000);
+    } catch (e) {
+      setError("Errore salvataggio: " + (e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const provaEmail = async () => {
+    const to = window.prompt("Indirizzo a cui mandare l'email di prova:", settings.uni_email_mittente || "");
+    if (!to) return;
+    setSaving(true); setError(null); setOkMsg(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/intermittenti/test-email/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to }),
+      });
+      const d = await res.json();
+      d.ok ? setOkMsg(`Email di prova inviata a ${to}`) : setError(d.errore || "Invio fallito");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-sm text-neutral-500">Caricamento…</div>;
+
+  return (
+    <div className="p-6 md:p-8 max-w-2xl overflow-y-auto">
+      <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2 mb-1">
+        <span>📨</span> Intermittenti — comunicazione delle chiamate
+      </h2>
+      <p className="text-sm text-neutral-500 mb-6">
+        Dati del datore di lavoro e canale di invio del modello UNI-Intermittenti.
+        <strong> Chi è intermittente si segna in Anagrafica</strong>, sul singolo dipendente,
+        insieme al suo codice comunicazione. Le chiamate si mandano dalla pagina Intermittenti.
+      </p>
+
+      {error && <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-800">{error}</div>}
+      {okMsg && <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-green-50 border border-green-200 text-green-800">{okMsg}</div>}
+
+      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-5 space-y-4">
+        {CAMPI.map((c) => (
+          <div key={c.key}>
+            <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1">
+              {c.label}
+            </label>
+            <input
+              value={settings[c.key] || ""}
+              onChange={(e) => setSettings((s) => ({ ...s, [c.key]: e.target.value }))}
+              className={`w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm ${c.mono ? "font-mono" : ""}`}
+            />
+            <p className="text-[11px] text-neutral-400 mt-1 leading-tight">{c.hint}</p>
+          </div>
+        ))}
+        <div className="flex items-center gap-3 pt-1">
+          <Btn onClick={save} disabled={!dirty || saving}>{saving ? "Salvo…" : "Salva"}</Btn>
+          {dirty && <span className="text-xs text-amber-700">Modifiche non salvate</span>}
+        </div>
+      </div>
+
+      <div className="mt-6 bg-white border border-neutral-200 rounded-lg p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-neutral-800">Canale email (mattone M.D)</h3>
+          <Btn variant="ghost" size="sm" onClick={provaEmail} disabled={!smtp?.configurato || saving}>
+            Manda email di prova
+          </Btn>
+        </div>
+        {smtp?.configurato ? (
+          <p className="text-sm text-neutral-600">
+            SMTP <strong>{smtp.host}:{smtp.port}</strong>, mittente <strong>{smtp.mittente}</strong>.
+          </p>
+        ) : (
+          <p className="text-sm text-amber-800">
+            Non configurato: mancano <code>{(smtp?.mancanti || []).join(", ")}</code> nel file
+            <code> .env</code> del server (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS —
+            porta 465 = SSL, 587 = STARTTLS). Senza, la comunicazione non parte.
+          </p>
+        )}
+      </div>
+
+      <p className="text-[11px] text-neutral-400 mt-4 leading-relaxed">
+        Il Ministero non manda ricevute: la prova dell'adempimento è la copia archiviata di
+        allegato e messaggio, scaricabile dal registro nella pagina Intermittenti.
+      </p>
     </div>
   );
 }

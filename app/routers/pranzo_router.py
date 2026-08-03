@@ -27,6 +27,10 @@ Endpoint:
   GET    /pranzo/menu/{settimana}/pdf/       PDF brand cliente per la settimana
   GET    /pranzo/menu/{settimana}/pdf-esterno/  PDF bacheca: solo antipasti/primi/secondi, corpo grande
 
+  ── PUBBLICAZIONE SUL SITO (mattone M.J, 2026-08-03) ──
+  GET    /pranzo/menu/{settimana}/pubblicazione/  stato FTP + ultima pubblicazione
+  POST   /pranzo/menu/{settimana}/pubblica/       carica il PDF cliente sull'FTP del sito
+
   ── PROGRAMMAZIONE (vista comparativa) ──
   GET    /pranzo/programmazione/?n=8&fino_a=YYYY-MM-DD   ultime N settimane con righe
 
@@ -414,6 +418,67 @@ def get_menu_pdf_esterno(settimana: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# PUBBLICAZIONE SUL SITO (mattone M.J, 2026-08-03)
+# Il PDF cliente finisce sull'FTP dell'hosting, dove il sito lo linka.
+# Il nome remoto e' FISSO (config M.J): il link su WordPress non cambia mai.
+# ─────────────────────────────────────────────────────────────
+
+@router.get("/menu/{settimana}/pubblicazione/")
+def stato_pubblicazione_menu(settimana: str, user=Depends(get_current_user)):
+    """Config FTP (vista minima) + ultima pubblicazione riuscita, per la UI."""
+    from app.services import ftp_publish_service as web
+
+    _validate_data(settimana)
+    return {
+        "abilitato": (user or {}).get("role", "") in ("superadmin", "admin", "chef"),
+        "ftp": web.stato(),
+        "nome_file": web.nome_file_per("menu_pranzo"),
+        "url": web.url_pubblico(web.nome_file_per("menu_pranzo")),
+        "ultima": web.ultima_pubblicazione("menu_pranzo"),
+    }
+
+
+@router.post("/menu/{settimana}/pubblica/")
+def pubblica_menu_sul_sito(settimana: str, user=Depends(get_current_user)):
+    """
+    Genera il PDF cliente della settimana e lo carica sull'FTP del sito.
+    Errore FTP → 502 con il messaggio vero (l'utente deve poter capire se e'
+    la password sbagliata o la cartella che non esiste).
+    """
+    _check_admin(user)
+    _validate_data(settimana)
+    monday = repo.lunedi_di(settimana)
+    menu = repo.get_menu_by_settimana(monday)
+    if not menu:
+        raise HTTPException(status_code=404, detail=f"Nessun menu per la settimana del {monday}")
+
+    settings = repo.get_settings()
+    try:
+        from app.services.pranzo_pdf_service import genera_pdf_menu_pranzo
+        pdf_bytes = genera_pdf_menu_pranzo(menu, settings)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
+
+    from app.services import ftp_publish_service as web
+
+    if not web.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="FTP non configurato: mancano " + ", ".join(web.mancanti()) + " in .env",
+        )
+
+    esito = web.pubblica(
+        chiave="menu_pranzo",
+        nome_file=web.nome_file_per("menu_pranzo"),
+        contenuto=pdf_bytes,
+        descrizione=f"settimana {monday}",
+    )
+    if not esito.ok:
+        raise HTTPException(status_code=502, detail=f"Pubblicazione fallita: {esito.errore}")
+    return esito.to_dict()
 
 
 # ─────────────────────────────────────────────────────────────

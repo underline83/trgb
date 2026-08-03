@@ -3,6 +3,9 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.79 (2026-08-03): "Pubblica la carta sul sito" in Impostazioni > Carta
+    //   (mattone M.J): la carta CLIENTE va da sola sull'FTP dell'hosting, con
+    //   nome fisso. La versione staff resta interna e non e' pubblicabile.
     // 3.78 (2026-08-02): bottone "⛔ Annulla" sugli ordini in viaggio.
     //   Endpoint e modello c'erano dalla 3.75, mancava il modo di premerli:
     //   gli ordini si potevano solo ricevere, mai disdire.
@@ -32,7 +35,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.78",
+    version: "3.79",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -56,7 +59,10 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
-    version: "1.7",
+    // 1.8 (2026-08-03): "Pubblica il menu sul sito" nel compositore (mattone
+    //   M.J): il PDF cliente della settimana finisce da solo sull'FTP
+    //   dell'hosting, nome remoto fisso -> link su WordPress invariato.
+    version: "1.8",
     label: "Menu Pranzo del Giorno",
     status: "beta",
     color: "blue",
@@ -231,7 +237,9 @@ const MODULE_VERSIONS = {
     // espone in `/system/info` come `version`. Quando bumpi questa stringa
     // qui, aggiorna ANCHE `VERSION` in root con lo stesso valore.
     // Vedi CLAUDE.md sezione "Versioning prodotto".
-    version: "5.38",
+    // 5.39 (2026-08-03): mattone M.J Pubblicazione web (FTP) + router
+    //   /pubblicazione/ + componente <PubblicaSulSito>.
+    version: "5.39",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -27,7 +27,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Request, status
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 from weasyprint import HTML, CSS
@@ -319,8 +319,20 @@ def get_carta_cliente_data():
 # ------------------------------------------------------------
 # PDF CLIENTE
 # ------------------------------------------------------------
-@router.get("/carta/pdf")
-def genera_carta_vini_pdf():
+def _render_carta_pdf_cliente() -> bytes:
+    """
+    Genera il PDF cliente della carta vini e ritorna i BYTES.
+
+    Estratto da genera_carta_vini_pdf (2026-08-03) per essere riusato anche
+    dalla pubblicazione sul sito (M.J): un solo posto che sa com'e' fatta la
+    carta cliente.
+
+    Ritorna bytes e non piu' un path su `static/carta_vini.pdf`: quel file era
+    condiviso da tutte le richieste, quindi una generazione concorrente poteva
+    riscriverlo mentre la pubblicazione lo stava leggendo — e finire sul sito
+    un PDF a meta'. In piu' `static/` e' servito senza auth: meno PDF ci
+    restano parcheggiati, meglio e'.
+    """
     data_oggi = datetime.now().strftime("%d/%m/%Y")
     rows = list(load_vini_ordinati())
     calici_rows = list(load_vini_calici())
@@ -352,14 +364,70 @@ def genera_carta_vini_pdf():
     </html>
     """
 
-    out = STATIC_DIR / "carta_vini.pdf"
-
-    HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
-        str(out),
+    return HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
         stylesheets=[CSS(filename=str(CSS_PDF))],
     )
 
-    return FileResponse(out, filename="carta-vini.pdf")
+
+@router.get("/carta/pdf")
+def genera_carta_vini_pdf():
+    return Response(
+        content=_render_carta_pdf_cliente(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="carta-vini.pdf"'},
+    )
+
+
+# ------------------------------------------------------------
+# PUBBLICAZIONE SUL SITO (mattone M.J, 2026-08-03)
+# ATTENZIONE: si pubblica SOLO la carta CLIENTE. La versione staff
+# (/carta/pdf-staff) e' interna e non deve mai finire su un server pubblico.
+# ------------------------------------------------------------
+_RUOLI_PUBBLICAZIONE = ("superadmin", "admin", "sommelier")
+
+
+@router.get("/carta/pubblicazione/")
+def stato_pubblicazione_carta(user=Depends(get_current_user)):
+    """Config FTP (vista minima) + ultima pubblicazione riuscita, per la UI."""
+    from app.services import ftp_publish_service as web
+
+    return {
+        "abilitato": (user or {}).get("role", "") in _RUOLI_PUBBLICAZIONE,
+        "ftp": web.stato(),
+        "nome_file": web.nome_file_per("carta_vini"),
+        "url": web.url_pubblico(web.nome_file_per("carta_vini")),
+        "ultima": web.ultima_pubblicazione("carta_vini"),
+    }
+
+
+@router.post("/carta/pubblica/")
+def pubblica_carta_sul_sito(user=Depends(get_current_user)):
+    """Rigenera la carta vini cliente e la carica sull'FTP del sito."""
+    if (user or {}).get("role", "") not in _RUOLI_PUBBLICAZIONE:
+        raise HTTPException(status_code=403, detail="Operazione riservata ad admin/sommelier")
+
+    try:
+        pdf_bytes = _render_carta_pdf_cliente()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
+
+    from app.services import ftp_publish_service as web
+
+    if not web.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="FTP non configurato: mancano " + ", ".join(web.mancanti()) + " in .env",
+        )
+
+    esito = web.pubblica(
+        chiave="carta_vini",
+        nome_file=web.nome_file_per("carta_vini"),
+        contenuto=pdf_bytes,
+        descrizione=f"carta cliente del {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+    )
+    if not esito.ok:
+        raise HTTPException(status_code=502, detail=f"Pubblicazione fallita: {esito.errore}")
+    return esito.to_dict()
 
 
 # ------------------------------------------------------------
@@ -408,14 +476,18 @@ def genera_carta_vini_pdf_staff(
     </html>
     """
 
-    out = STATIC_DIR / "carta_vini_staff.pdf"
-
-    HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
-        str(out),
+    # 2026-08-03: niente piu' scrittura in `static/carta_vini_staff.pdf`.
+    # `static/` e' servito senza autenticazione: l'audit A4 aveva protetto
+    # l'endpoint, ma il FILE restava scaricabile da chiunque ne indovinasse
+    # l'URL. Ora la versione interna vive solo nella risposta HTTP.
+    pdf_bytes = HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
         stylesheets=[CSS(filename=str(CSS_PDF))],
     )
-
-    return FileResponse(out, filename="carta_vini_staff.pdf")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="carta_vini_staff.pdf"'},
+    )
 
 
 # ------------------------------------------------------------

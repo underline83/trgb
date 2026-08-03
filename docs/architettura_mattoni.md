@@ -15,6 +15,7 @@
 - ✅ **M.I UI primitives** (sessione 2026-04-18) — `frontend/src/components/ui/`: `<Btn>`, `<PageLayout>`, `<StatusBadge>`, `<EmptyState>`. Opt-in per pagine nuove.
 - ✅ **M.E Calendar** (sessione 48, 2026-04-19) — `frontend/src/components/calendar/`: `<CalendarView>` stateless controllato con 3 viste (mese/settimana/giorno), palette brand, tastiera ←/→/T/M/S/G, demo su `/calendario-demo` (admin only). Spec: [`docs/mattone_calendar.md`](mattone_calendar.md).
 - ⏳ M.G Permessi, M.H Import engine — DA FARE
+- ✅ **M.J Pubblicazione web** (sessione 2026-08-03) — `app/services/ftp_publish_service.py` + `app/routers/pubblicazione_router.py` + `frontend/src/components/PubblicaSulSito.jsx`. Carica i PDF pubblici (menu pranzo, carta vini) sull'FTP dell'hosting con nome fisso e upload atomico. Config in `.env` sul VPS.
 - 🟡 **M.D Email service — PARZIALE** (sessione 2026-07-30): lo strato basso c'è, `app/services/email_service.py` (SMTP da .env, allegati, esito + `.eml` per archivio, email di prova). L'ha sbloccato il primo workflow che lo rendeva bloccante: la comunicazione UNI-Intermittenti si trasmette solo via email. **Manca ancora** il M.D pieno: template HTML brandizzati, coda/retry, invio asincrono. Vedi [`modulo_intermittenti.md`](modulo_intermittenti.md) e [`roadmap.md`](roadmap.md) §M.
 
 **Regola critica:** il PDF della Carta Vini (`carta_vini_service.py` + endpoints `/vini/carta/pdf*`) ha un motore dedicato e NON deve essere sostituito con M.B. Ha requisiti specifici (TOC, layout calici) che giustificano il motore separato.
@@ -231,6 +232,56 @@ import { Btn, PageLayout, StatusBadge, EmptyState } from "../../components/ui";
 | Pagine nuove (roadmap) | SEMPRE |
 | Pagine refactorate | opportunistico |
 | Home, Login | già uniformi, no refactor |
+
+---
+
+### M.J — Pubblicazione web (backend + frontend) ✅
+
+**Cosa:** carica un file generato dall'app su un server FTP esterno, tipicamente l'hosting del sito pubblico del locale.
+**Dove:** `app/services/ftp_publish_service.py`, `app/routers/pubblicazione_router.py`, `frontend/src/components/PubblicaSulSito.jsx`
+**Implementato:** 2026-08-03
+
+**Perché esiste:** il sito di Tre Gobbi è un WordPress, ma i PDF che i clienti scaricano (menu del pranzo, carta vini) non stanno nel CMS: sono file statici in `/privata/` sull'hosting Aruba, caricati via FTP. Prima si scaricava il PDF dall'app e lo si ricaricava a mano col client FTP. Ora lo fa l'app.
+
+**Come funziona:**
+- **Nome remoto fisso** (`menu-pranzo.pdf`, `carta-vini.pdf`): il link su WordPress si mette una volta e non si tocca più. Override via `.env` (`FTP_FILE_MENU_PRANZO`, `FTP_FILE_CARTA_VINI`), passato per `basename` — un `../` in `.env` non scrive fuori da `FTP_DIR`.
+- **Upload atomico**: si carica su `<nome>.<pid>.<random>.part` e si fa RENAME solo a trasferimento completo. Se la linea cade, sul sito resta il PDF vecchio integro, mai un file troncato. Il temporaneo è unico per tentativo: due pubblicazioni contemporanee (bottone premuto due volte) non si sovrascrivono a vicenda promuovendo un file misto.
+- **Se il server rifiuta il RENAME su destinazione esistente** (comportamento comune) si entra nel ramo lento: si **scarica in memoria il file attualmente pubblicato**, poi si cancella e si promuove il nuovo; se la promozione fallisce si rimette su il vecchio con uno STOR. Un `.bak` sul server non basterebbe: se il RENAME è vietato per quel nome lo è anche il rename di ripristino, e il sito resterebbe a 404.
+- **Storico** in `web_publish_log` (tabella platform in `notifiche.sqlite3`, creata una volta per processo, nessuna migrazione): alimenta il "Ultima pubblicazione: …" in UI.
+- **Fallimento → notifica M.A** globale (non `dest_ruolo="admin"`: il match è per uguaglianza esatta e Marco è `superadmin` — stesso inciampo già visto in `turni_service.py`).
+- **`POST /pubblicazione/test/` scrive davvero**: carica un file sonda da 4 byte e lo cancella. Login + listing da soli non dicono nulla — un utente FTP in sola lettura li supera e poi fallisce alla prima pubblicazione vera.
+- **`stato()` di default è minimo** (`configurato`, `mancanti`). Host, utente e cartella solo con `completo=True`, riservato agli admin: un cameriere loggato non ha motivo di conoscere l'utenza FTP dell'hosting.
+
+**Config (`.env` sul VPS, riletta a ogni chiamata):**
+```
+FTP_HOST=ftp.tregobbi.it
+FTP_USER=...
+FTP_PASS=...
+FTP_PORT=21
+FTP_DIR=/privata
+FTP_TLS=auto          # auto = prova FTPS e ricade in chiaro | 1 = solo FTPS | 0 = mai
+FTP_TIMEOUT=30
+FTP_PASSIVE=1
+FTP_BASE_URL=https://www.tregobbi.it/privata
+```
+`FTP_TLS=auto` con hosting senza FTPS significa **password in chiaro sulla rete**: scelta consapevole, non un bug. Se Aruba accetta FTPS, mettere `FTP_TLS=1`.
+
+**Endpoint:**
+| Endpoint | Cosa fa |
+|---|---|
+| `GET /pubblicazione/stato/` | config FTP completa (mai la password) + ultime pubblicazioni — **admin** |
+| `POST /pubblicazione/test/` | login + listing + scrittura di una sonda, subito cancellata — **admin** |
+| `GET /pubblicazione/storico/` | ultime N pubblicazioni (contiene gli errori grezzi del server) — **admin** |
+| `POST /pranzo/menu/{settimana}/pubblica/` | menu pranzo cliente → sito (admin/chef) |
+| `POST /vini/carta/pubblica/` | carta vini **cliente** → sito (admin/sommelier) |
+
+**Regola:** ogni modulo pubblica dal proprio router chiamando il servizio platform — niente import tra router di moduli diversi (regola 2 architettura modulare).
+
+**Mai pubblicare:** la carta vini **staff** (`/vini/carta/pdf-staff`) è interna. Non deve finire su un server pubblico. Nello stesso giro è stata chiusa una falla pre-esistente: sia la carta cliente sia la staff scrivevano il PDF in `static/`, che è servito **senza autenticazione** — `https://trgb.tregobbi.it/static/carta_vini_staff.pdf` era scaricabile da chiunque ne indovinasse l'URL (l'audit A4 del 2026-07-12 aveva protetto l'endpoint, non il file). Ora entrambe ritornano bytes in `Response`, niente file parcheggiati. **Da fare sul VPS:** cancellare i due residui `static/carta_vini.pdf` e `static/carta_vini_staff.pdf`.
+
+**Non fa (per ora):** SFTP/SCP, sync di cartelle, cancellazione remota, invalidazione cache CDN, retry asincroni.
+
+**Chi lo userà:** qualunque contenuto che oggi si carica a mano sul sito — menu carta, allergeni, PDF eventi, listino banchetti.
 
 ---
 

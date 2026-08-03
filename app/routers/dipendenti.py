@@ -138,6 +138,13 @@ class DipendenteBase(BaseModel):
     # True → categoria CE 'AMMINISTRATORI' (compenso non subordinato).
     # False (default) → 'STAFF' (operai/dipendenti subordinati con TFR/ratei).
     is_amministratore: bool = False
+    # Intermittenti (mig 156, 2026-07-30). `intermittente` è il contratto
+    # intermittente ex art. 15 D.Lgs 81/2015 e fa scattare la comunicazione
+    # preventiva delle chiamate; `a_chiamata` qui sopra è un'altra cosa
+    # (extra del turismo pagato a ore) e non comporta nessun obbligo.
+    codice_fiscale: Optional[str] = None
+    intermittente: bool = False
+    codice_comunicazione: Optional[str] = None   # codice UNILAV del rapporto
 
 
 class DipendenteCreate(DipendenteBase):
@@ -259,6 +266,9 @@ def list_dipendenti(
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
                    COALESCE(is_amministratore, 0) AS is_amministratore,
+                   codice_fiscale,
+                   COALESCE(intermittente, 0) AS intermittente,
+                   codice_comunicazione,
                    created_at, updated_at
             FROM dipendenti
             ORDER BY cognome, nome;
@@ -276,6 +286,9 @@ def list_dipendenti(
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
                    COALESCE(is_amministratore, 0) AS is_amministratore,
+                   codice_fiscale,
+                   COALESCE(intermittente, 0) AS intermittente,
+                   codice_comunicazione,
                    created_at, updated_at
             FROM dipendenti
             WHERE attivo = 1
@@ -289,6 +302,7 @@ def list_dipendenti(
     for r in rows:
         r["attivo"] = bool(r["attivo"])
         r["a_chiamata"] = bool(r.get("a_chiamata") or 0)
+        r["intermittente"] = bool(r.get("intermittente") or 0)
         r["trasmissione_telematica"] = bool(r.get("trasmissione_telematica") or 0)
         r["is_amministratore"] = bool(r.get("is_amministratore") or 0)
 
@@ -320,8 +334,9 @@ def create_dipendente(
                iban, nickname,
                note, attivo,
                reparto_id, colore, a_chiamata,
-               trasmissione_telematica, is_amministratore)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               trasmissione_telematica, is_amministratore,
+               codice_fiscale, intermittente, codice_comunicazione)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 codice_da_usare,
@@ -344,6 +359,9 @@ def create_dipendente(
                 1 if payload.a_chiamata else 0,
                 1 if payload.trasmissione_telematica else 0,
                 1 if payload.is_amministratore else 0,
+                payload.codice_fiscale.strip().upper() if payload.codice_fiscale else None,
+                1 if payload.intermittente else 0,
+                payload.codice_comunicazione.strip() if payload.codice_comunicazione else None,
             ),
         )
         new_id = cur.lastrowid
@@ -368,6 +386,9 @@ def create_dipendente(
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
                    COALESCE(is_amministratore, 0) AS is_amministratore,
+                   codice_fiscale,
+                   COALESCE(intermittente, 0) AS intermittente,
+                   codice_comunicazione,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;
@@ -380,6 +401,7 @@ def create_dipendente(
     data = dict(row)
     data["attivo"] = bool(data["attivo"])
     data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
+    data["intermittente"] = bool(data.get("intermittente") or 0)
     data["trasmissione_telematica"] = bool(data.get("trasmissione_telematica") or 0)
     data["is_amministratore"] = bool(data.get("is_amministratore") or 0)
     return JSONResponse(content=data)
@@ -428,7 +450,10 @@ def update_dipendente(
                 colore = ?,
                 a_chiamata = ?,
                 trasmissione_telematica = ?,
-                is_amministratore = ?
+                is_amministratore = ?,
+                codice_fiscale = COALESCE(?, codice_fiscale),
+                intermittente = ?,
+                codice_comunicazione = COALESCE(?, codice_comunicazione)
             WHERE id = ?;
             """,
             (
@@ -452,6 +477,9 @@ def update_dipendente(
                 1 if payload.a_chiamata else 0,
                 1 if payload.trasmissione_telematica else 0,
                 1 if payload.is_amministratore else 0,
+                payload.codice_fiscale.strip().upper() if payload.codice_fiscale else None,
+                1 if payload.intermittente else 0,
+                payload.codice_comunicazione.strip() if payload.codice_comunicazione else None,
                 dipendente_id,
             ),
         )
@@ -476,6 +504,9 @@ def update_dipendente(
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
                    COALESCE(is_amministratore, 0) AS is_amministratore,
+                   codice_fiscale,
+                   COALESCE(intermittente, 0) AS intermittente,
+                   codice_comunicazione,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;
@@ -488,6 +519,7 @@ def update_dipendente(
     data = dict(row)
     data["attivo"] = bool(data["attivo"])
     data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
+    data["intermittente"] = bool(data.get("intermittente") or 0)
     data["trasmissione_telematica"] = bool(data.get("trasmissione_telematica") or 0)
     data["is_amministratore"] = bool(data.get("is_amministratore") or 0)
     return JSONResponse(content=data)

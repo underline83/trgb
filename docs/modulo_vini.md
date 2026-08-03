@@ -453,8 +453,12 @@ Tabellona editabile per admin con tutte le colonne principali:
 | GET | `/vini/carta/docx` | Documento Word |
 | 🆕 GET | `/vini/carta-cliente/data` | JSON carta vini strutturata per la pagina cliente **pubblica** (no auth) — consumata da `pages/public/CartaClienti.jsx` (route `/carta`) — `vini_router.py:151` |
 | 🆕 GET/POST | `/vini/{vino_id}/movimenti` | Lista/registra movimenti (endpoint storico su questo router, JWT) — `vini_router.py:454,473` |
+| 🆕 GET | `/vini/carta/pubblicazione/` | Stato FTP + data ultima pubblicazione riuscita della carta sul sito (mattone M.J, 2026-08-03) |
+| 🆕 POST | `/vini/carta/pubblica/` | Rigenera la carta **cliente** e la carica sull'FTP del sito, nome remoto fisso (admin/sommelier) |
 
 > Endpoint legacy mantenuti per retro-compat anche dopo l'introduzione della Carta Bevande (vedi §6).
+
+> **Pubblicazione sul sito (M.J, 2026-08-03).** Bottone "Pubblica la carta sul sito" in `ViniImpostazioni.jsx` → tab Carta. Si pubblica **solo la versione cliente**: `pdf-staff` è interna e non deve mai finire su un server pubblico. La generazione del PDF cliente è stata estratta in `_render_carta_pdf_cliente()` così che download e pubblicazione usino lo stesso identico codice. Config FTP e comportamento: `docs/architettura_mattoni.md` §M.J.
 
 ## 5.2 Flusso dati
 

@@ -3,6 +3,37 @@
 
 ---
 
+## 2026-08-03 — Mattone M.J: pubblicare i PDF sul sito senza client FTP `[core]`
+
+Marco: *"se devo aggiornare un menu sul sito possiamo farlo da app?"*. Il sito è un WordPress, ma menu del pranzo e carta vini non stanno nel CMS: sono file statici in `/privata/` sull'hosting Aruba, caricati a mano via FTP. Il PDF lo generava già l'app — mancava solo l'ultimo metro.
+
+### Aggiunto
+- **`app/services/ftp_publish_service.py`** (mattone M.J): prende dei bytes e li mette sull'FTP. `ftplib` da standard library, zero dipendenze nuove. Config in `.env` sul VPS, riletta a ogni chiamata.
+- **Bottone "Pubblica sul sito"** nel compositore Pranzo e in Impostazioni Vini → Carta, con la data dell'ultima pubblicazione riuscita accanto (`PubblicaSulSito.jsx`, riusabile).
+- **`/pubblicazione/stato|test|storico`** per verificare la connessione senza pubblicare niente.
+
+### Le tre scelte che contano
+1. **Upload atomico**: si carica su un temporaneo e si fa RENAME solo a trasferimento finito. Se cade la linea, sul sito resta il PDF vecchio **integro** — mai un file troncato davanti ai clienti. Testato: con il server FTP irraggiungibile a metà, il file pubblicato resta quello buono.
+2. **Nome remoto fisso** (`menu-pranzo.pdf`, `carta-vini.pdf`): il link su WordPress si mette una volta e non si tocca più. Era la condizione per rendere la cosa davvero automatica.
+3. **Solo la carta CLIENTE è pubblicabile.** `/vini/carta/pdf-staff` è interna e non ha nessun endpoint di pubblicazione: un PDF con i dati interni su un server pubblico non deve poter succedere per distrazione.
+
+### Corretto in review (prima del push)
+Una review avversariale sul codice appena scritto ha trovato due cose che sarebbero diventate incidenti:
+
+- **Il "rollback" cancellava il file vivo.** Se il server rifiutava il RENAME, la prima stesura cancellava la destinazione e ritentava: quando il rifiuto non era "file già esistente" ma permessi o quota, il link del sito restava a **404**, in silenzio. Ora prima di toccare qualsiasi cosa si scarica in memoria il PDF pubblicato, e se la promozione fallisce lo si rimette su. C'è un test che simula esattamente questo server ostile.
+- **`FTP_TLS=auto` poteva rispedire la password in chiaro.** Il fallback copriva anche il login, non solo la negoziazione TLS: una password sbagliata su un server che *supporta* TLS faceva riconnettere in cleartext e ritrasmettere la password vera. Ora il fallback scatta solo sul comando `AUTH`.
+- Inoltre: notifica di fallimento che non sarebbe mai arrivata (`dest_ruolo="admin"` mentre Marco è `superadmin` — stesso inciampo già documentato in `turni_service.py`); `static/carta_vini.pdf` condiviso da tutte le richieste, che una generazione concorrente poteva riscrivere **mentre** la pubblicazione lo leggeva; host e utente FTP visibili a qualsiasi utente loggato; "Prova connessione" che diceva OK anche con un utente FTP in sola lettura (ora scrive una sonda e la cancella).
+
+### Falla pre-esistente chiusa per strada
+`static/` è servito **senza autenticazione**: la carta vini **staff** ci veniva scritta come `carta_vini_staff.pdf` ed era scaricabile da chiunque ne indovinasse l'URL. L'audit A4 del 2026-07-12 aveva protetto l'endpoint, non il file. Ora carta cliente e staff ritornano bytes nella risposta HTTP e non lasciano niente su disco. **Sul VPS vanno cancellati i due file residui** in `static/`.
+
+### Note
+- `FTP_TLS=auto` prova FTPS e, se l'hosting non lo supporta, ricade su FTP in chiaro — **la password viaggia leggibile**. Se Aruba accetta FTPS, mettere `FTP_TLS=1` (con `1` un server senza TLS viene rifiutato invece di ripiegare).
+- Fallimento → notifica M.A agli admin: una pubblicazione fallita in silenzio è peggio di una fallita.
+- Se davanti al sito c'è una cache/CDN, il PDF nuovo può restare invisibile per un po': è fuori dal controllo dell'app.
+
+---
+
 ## 2026-08-03 — Ordini: il bottone per annullare `[core]`
 
 Marco: *"come si annullano gli ordini"*. Non si annullavano: l'endpoint `POST /vini/ordini/{id}/annulla`, la funzione `annulla()` e lo stato `annullato` (disegnato nella mappa STATI e già incluso nel filtro dello storico) c'erano dalla 3.75 — **mancava il bottone**. Gli ordini si potevano solo ricevere, mai disdire, e i due travasati da aprile/maggio restavano lì per sempre.
@@ -125,6 +156,8 @@ Del tracciato XML del modello UNI-Intermittenti **non esiste alcuna specifica pu
 - **Migrazione 156** — `dipendenti.intermittente` (flag NUOVO: `a_chiamata` significa gia' "extra del turismo pagato a ore", riusarlo sarebbe stato semantic drift), `dipendenti.codice_comunicazione`, `dipendenti_uni_comunicazioni` + `_righe`, seed settings e `alert_config`.
 
 ### Modificato
+- **Configurazione spostata in Impostazioni** (richiesta di Marco): i dati del datore, il destinatario e lo stato SMTP stanno in **Impostazioni → Intermittenti** (`DipendentiImpostazioni.jsx`, nuova sezione in sidebar); il **flag intermittente, il codice fiscale e il codice comunicazione sono in Anagrafica**, sulla scheda del dipendente. La pagina Intermittenti resta con due schede: da comunicare e registro.
+- **`app/routers/dipendenti.py`** — il modello e le query dell'anagrafica ora portano `codice_fiscale`, `intermittente`, `codice_comunicazione`. Nell'UPDATE i due campi testo usano `COALESCE(?, colonna)`: un form che non li manda **non deve azzerare** il CF popolato dal parser cedolini. Rimossi `PUT /intermittenti/lavoratori/{id}` e `set_lavoratore()`: quei campi hanno un solo scrittore, l'anagrafica.
 - **`versions.jsx`** — dipendenti 2.29 -> 2.30. **`architettura_mattoni.md`** — M.D da DA FARE a PARZIALE.
 
 ### Note oneste

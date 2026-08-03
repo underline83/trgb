@@ -97,6 +97,9 @@ from app.routers.alerts_router import router as alerts_router
 # HOME PER RUOLO — config pulsanti rapidi Home per ogni ruolo (sessione 49)
 from app.routers.home_actions_router import router as home_actions_router
 
+# PUBBLICAZIONE WEB — mattone M.J: carica i PDF pubblici sull'FTP del sito
+from app.routers.pubblicazione_router import router as pubblicazione_router
+
 # SCELTA DEL MACELLAIO — tagli carne disponibili alla vendita
 from app.routers.scelta_macellaio_router import router as scelta_macellaio_router
 
@@ -715,6 +718,9 @@ _mount("alerts_router", alerts_router)
 
 # HOME ACTIONS (platform)
 _mount("home_actions_router", home_actions_router)
+
+# PUBBLICAZIONE WEB (mattone M.J — platform)
+_mount("pubblicazione_router", pubblicazione_router)
 
 # SELEZIONI DEL GIORNO (modulo ricette)
 _mount("scelta_macellaio_router", scelta_macellaio_router)

@@ -30,6 +30,9 @@ const EMPTY_FORM = {
   note: "", attivo: true,
   reparto_id: null, colore: "", a_chiamata: false,
   trasmissione_telematica: false,
+  // Intermittenti (2026-07-30): il CF serve alla comunicazione UNI, il flag
+  // `intermittente` è il contratto ex art. 15 (≠ a_chiamata = extra del turismo).
+  codice_fiscale: "", intermittente: false, codice_comunicazione: "",
   // G.3 Fase E (2026-05-16): flag amministratore — per il CE va in macro
   // 'AMMINISTRATORI' invece di 'STAFF'. Compenso non subordinato (no TFR, no ratei).
   is_amministratore: false,
@@ -150,6 +153,9 @@ export default function DipendentiAnagrafica() {
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
       a_chiamata: !!d.a_chiamata,
       trasmissione_telematica: !!d.trasmissione_telematica,
+      codice_fiscale: d.codice_fiscale || "",
+      intermittente: !!d.intermittente,
+      codice_comunicazione: d.codice_comunicazione || "",
       is_amministratore: !!d.is_amministratore,
       utente_username: linkedUsername,
     });
@@ -188,6 +194,9 @@ export default function DipendentiAnagrafica() {
       colore: form.colore || null,
       a_chiamata: !!form.a_chiamata,
       trasmissione_telematica: !!form.trasmissione_telematica,
+      codice_fiscale: form.codice_fiscale || null,
+      intermittente: !!form.intermittente,
+      codice_comunicazione: form.codice_comunicazione || null,
       is_amministratore: !!form.is_amministratore,
     };
     const isEdit = !!form.id;
@@ -567,6 +576,26 @@ export default function DipendentiAnagrafica() {
                   </div>
 
                   <div>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="block text-[10px] text-neutral-500 font-medium mb-1">Codice fiscale</label>
+                        <input value={form.codice_fiscale}
+                          onChange={e => handleChange("codice_fiscale", e.target.value.toUpperCase())}
+                          maxLength={16}
+                          className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm font-mono"
+                          placeholder="16 caratteri" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-neutral-500 font-medium mb-1">
+                          Codice comunicazione {form.intermittente ? "" : "(solo intermittenti)"}
+                        </label>
+                        <input value={form.codice_comunicazione}
+                          onChange={e => handleChange("codice_comunicazione", e.target.value)}
+                          disabled={!form.intermittente}
+                          className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm font-mono disabled:bg-neutral-50 disabled:text-neutral-400"
+                          placeholder="codice UNILAV, lo ha il consulente" />
+                      </div>
+                    </div>
                     <label className="block text-[10px] text-neutral-500 font-medium mb-1">Note interne</label>
                     <textarea rows={2} value={form.note} onChange={e => handleChange("note", e.target.value)}
                       className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm resize-none"
@@ -586,6 +615,14 @@ export default function DipendentiAnagrafica() {
                         className="rounded border-neutral-300 text-amber-600" />
                       <label htmlFor="a_chiamata" className="text-xs text-neutral-700" title="Persona pagata a ore, senza contratto fisso 40h">
                         {"\uD83D\uDCDE"} A chiamata (pagata a ore, senza contratto fisso)
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input id="intermittente" type="checkbox" checked={!!form.intermittente}
+                        onChange={e => handleChange("intermittente", e.target.checked)}
+                        className="rounded border-neutral-300 text-purple-600" />
+                      <label htmlFor="intermittente" className="text-xs text-neutral-700" title="Contratto intermittente ex art. 15 D.Lgs 81/2015: ogni chiamata va comunicata all'Ispettorato PRIMA del turno">
+                        {"\uD83D\uDCE8"} Contratto intermittente (le chiamate vanno comunicate)
                       </label>
                     </div>
                     <div className="flex items-center gap-2">

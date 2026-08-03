@@ -1,6 +1,37 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-08-02 — **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-08-03 — **DA PUSHARE: mattone M.J Pubblicazione web (FTP) — bottone "Pubblica sul sito" su menu pranzo e carta vini, sistema 5.39 (richiede le variabili `FTP_*` in `.env` sul VPS, senza quelle il bottone resta disabilitato)**; **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+
+## SESSIONE 2026-08-03 — Pubblicare i PDF sul sito dall'app (mattone M.J)
+
+### Contesto
+Marco: *"riusciamo a incollare un file su un ftp?"*, poi il vero bisogno: *"se devo aggiornare un menu sul sito possiamo farlo da app?"*. Il sito è un WordPress su hosting Aruba, ma i PDF pubblici (menu del pranzo settimanale, carta vini) sono **file statici in `www.tregobbi.it/privata/`**, caricati a mano col client FTP. L'app li generava già: mancava solo l'ultimo metro.
+
+### Cosa è stato fatto
+Mattone **M.J Pubblicazione web**: `ftp_publish_service.py` (backend, `ftplib` da stdlib — nessuna dipendenza nuova), router platform `/pubblicazione/`, componente `<PubblicaSulSito>` riusabile. Endpoint di pubblicazione **dentro i router dei rispettivi moduli** (pranzo, vini) che chiamano il servizio platform: regola 2 dell'architettura modulare, niente import tra router di moduli diversi.
+
+### Le decisioni
+1. **Nome remoto fisso** (`menu-pranzo.pdf`, `carta-vini.pdf`). Marco ha confermato che già oggi sovrascrive con nome fisso: il link su WordPress non va più toccato. Era la condizione perché l'automazione avesse senso.
+2. **Upload atomico** (`.part` + RENAME). Senza, una linea che cade a metà lascia ai clienti un PDF troncato. Con il RENAME rifiutato su destinazione esistente (capita su certi server) si cancella e si ritenta.
+3. **Solo la carta CLIENTE è pubblicabile.** Per `pdf-staff` non esiste endpoint di pubblicazione: la versione interna non deve poter finire su un server pubblico per distrazione. La generazione del PDF cliente è stata estratta in `_render_carta_pdf_cliente()` così download e pubblicazione usano lo stesso codice.
+4. **Config in `.env`, niente hardcode**: host, utente, password, cartella e persino i nomi file sono variabili. Il servizio è `[core]`, i valori sono `[locale:tregobbi]`.
+5. **Storico in `web_publish_log`** creata on-demand in `notifiche.sqlite3`: nessuna migrazione, zero rischio con le sessioni parallele in corso.
+
+### Test
+Tre suite con server FTP finti in sandbox (`claude/test_ftp_publish_mj*.py`): pubblicazione, sovrascrittura, nessun residuo, rifiuto dei file da 0 byte, errore di rete che ritorna esito invece di eccezione, storico, sonda di scrittura, utente in sola lettura smascherato, path traversal nel nome file. I due che contano: **con il server irraggiungibile a metà il PDF già sul sito resta quello buono**, e **con un server che rifiuta il RENAME per permessi il file pubblicato viene ripristinato** invece di sparire.
+
+### Cosa ha trovato la review avversariale (tutto corretto prima del push)
+2 bloccanti: il rollback del rename **cancellava il file vivo** lasciando il sito a 404 quando l'errore non era "destinazione esistente"; e `FTP_TLS=auto` ricadeva in chiaro anche su errore di login, **rispedendo la password vera in cleartext** su un server che invece parla TLS. Più: notifica di fallimento intestata a `dest_ruolo="admin"` che a un `superadmin` non arriva; `static/carta_vini.pdf` condiviso fra tutte le richieste (una generazione concorrente poteva riscriverlo mentre la pubblicazione lo leggeva); host/utente FTP leggibili da qualsiasi utente loggato; "Prova connessione" che passava anche con FTP in sola lettura.
+
+**Falla pre-esistente chiusa per strada:** `static/` è servito senza auth e la carta vini **staff** ci veniva parcheggiata come `carta_vini_staff.pdf` — scaricabile da chiunque indovinasse l'URL (A4 aveva protetto l'endpoint, non il file). Ora cliente e staff ritornano bytes, niente file su disco.
+
+### Da fare / attenzione
+- **Sul VPS: cancellare `static/carta_vini.pdf` e `static/carta_vini_staff.pdf`** — i residui delle generazioni precedenti restano lì e sono pubblici finché non si eliminano.
+- **Decisione aperta per Marco:** `GET /vini/carta/pdf` è tuttora **senza autenticazione** (chiunque scarica la carta cliente completa). Non l'ho toccato perché i bottoni la aprono con `window.open` senza token: metterci l'auth richiede passare da `?token=` come già si fa per `pdf-staff`. Da decidere.
+- **Prima del push serve `npm run build`** (tocca il frontend), e **le variabili `FTP_*` in `.env` sul VPS**: finché mancano, il bottone appare disabilitato con scritto cosa manca. Servono host, utente, password FTP di Aruba e la cartella esatta (`FTP_DIR=/privata` o il path che il client FTP mostra come radice).
+- **Verificare se Aruba accetta FTPS**: se sì, `FTP_TLS=1`. Con `auto` su hosting senza TLS **la password viaggia in chiaro**.
+- Dopo il primo test reale: mettere il link fisso su WordPress (`/privata/menu-pranzo.pdf`, `/privata/carta-vini.pdf`) e non toccarlo più.
+- Possibile passo successivo: pubblicazione automatica del menu quando si salva la settimana (`tasks_scheduler`). Non fatto: prima si guarda che il manuale funzioni.
 
 ## SESSIONE 2026-08-02 (bis) — Ordini ai fornitori: O3-O6 in un colpo
 
@@ -80,6 +111,9 @@ Migrazione 156, `email_service.py` (M.D minimo), `uni_intermittenti_service.py`,
 2. **Invio manuale** in prima battuta (scelta di Marco): l'aggancio automatico a "Pubblica settimana" viene dopo.
 3. **Le righe le ricalcola il server** dal periodo: il client non dichiara nulla al Ministero.
 4. Turni `OPZIONALE` esclusi: comunicarli sarebbe dichiarare prestazioni che potrebbero non esserci.
+
+### Rifinitura (stessa sessione, dopo la prima passata)
+**Configurazione in Impostazioni, flag in Anagrafica** (richiesta di Marco). I dati del datore + stato SMTP sono una sezione nuova della sidebar di `DipendentiImpostazioni.jsx`; flag `intermittente`, CF e codice comunicazione stanno nella scheda del dipendente in Anagrafica. Backend: i tre campi aggiunti a modello/SELECT/INSERT/UPDATE di `dipendenti.py`, con **COALESCE** su CF e codice comunicazione perche' un salvataggio senza quei campi non azzeri il CF che arriva dai cedolini. Rimossi `PUT /intermittenti/lavoratori/{id}` e `set_lavoratore()`: un solo scrittore.
 
 ### Da fare / attenzione
 - **`npm run build` non lanciato** (node_modules con binario rollup macOS) — obbligatorio prima del push.

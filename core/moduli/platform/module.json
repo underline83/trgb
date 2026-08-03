@@ -2,7 +2,7 @@
   "id": "platform",
   "nome": "Platform (sempre inclusa)",
   "versione": "1.0",
-  "descrizione": "Servizi infrastrutturali sempre attivi: auth/utenti/permessi, notifiche (M.A), PDF brand (M.B), WA composer (M.C), email (M.D), calendar (M.E), alert engine (M.F), import (M.H), UI primitives (M.I), dashboard, modules registry, home actions, backup",
+  "descrizione": "Servizi infrastrutturali sempre attivi: auth/utenti/permessi, notifiche (M.A), PDF brand (M.B), WA composer (M.C), email (M.D), calendar (M.E), alert engine (M.F), import (M.H), UI primitives (M.I), dashboard, modules registry, home actions, backup, pubblicazione web (M.J)",
   "vendibile": false,
   "always_active": true,
   "router_files": [
@@ -13,7 +13,8 @@
     "notifiche_router",
     "alerts_router",
     "home_actions_router",
-    "backup_router"
+    "backup_router",
+    "pubblicazione_router"
   ],
   "endpoint_prefix": [
     "/auth",
@@ -26,7 +27,8 @@
     "/settings/home-actions",
     "/backup",
     "/system",
-    "/locale"
+    "/locale",
+    "/pubblicazione"
   ],
   "tabelle_db": [
     "users (users.json)",
@@ -35,17 +37,19 @@
     "comunicazioni",
     "alert_config",
     "schema_migrations",
-    "audit_log"
+    "audit_log",
+    "web_publish_log"
   ],
   "mattoni": {
     "M.A": "notifiche (FATTO, sessione 31)",
     "M.B": "pdf brand (FATTO)",
     "M.C": "wa composer (FATTO, sessione 31)",
-    "M.D": "email service (DA FARE)",
+    "M.D": "email service (PARZIALE, 2026-07-30)",
     "M.E": "calendar component (FATTO)",
     "M.F": "alert engine (FATTO, sessione 40)",
     "M.G": "permessi (DA FARE)",
     "M.H": "import engine (DA FARE)",
-    "M.I": "ui primitives (FATTO, sessione 2026-04-18)"
+    "M.I": "ui primitives (FATTO, sessione 2026-04-18)",
+    "M.J": "pubblicazione web / FTP (FATTO, 2026-08-03)"
   }
 }

@@ -31,6 +31,7 @@ import { Btn, EmptyState } from "../../components/ui";
 import RicetteNav from "../ricette/RicetteNav";
 import MenuToggle from "../ricette/MenuToggle";
 import PranzoStoryCanvas from "./PranzoStoryCanvas";
+import PubblicaSulSito from "../../components/PubblicaSulSito";
 
 // ─────────────────────────────────────────────────────────────
 // apiFetchSafe — wrapper con 1 retry su TypeError di rete
@@ -884,6 +885,20 @@ export default function PranzoMenu() {
                     </Btn>
                   </div>
                 </div>
+
+                {/* Pubblicazione sul sito (mattone M.J, 2026-08-03).
+                    key={settimana}: cambiando settimana lo stato va riletto. */}
+                {menu && (
+                  <div className="mb-3 pb-3 border-b border-neutral-200">
+                    <PubblicaSulSito
+                      key={settimana}
+                      statoUrl={`${API_BASE}/pranzo/menu/${settimana}/pubblicazione/`}
+                      pubblicaUrl={`${API_BASE}/pranzo/menu/${settimana}/pubblica/`}
+                      etichetta="Pubblica il menu sul sito"
+                      nota="Carica il PDF di questa settimana sul sito, al posto di quello precedente. Salva prima le modifiche: si pubblica quello che è salvato."
+                    />
+                  </div>
+                )}
 
                 {righe.length === 0 ? (
                   <div className="text-center text-neutral-500 py-10 italic text-sm">

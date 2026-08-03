@@ -33,10 +33,23 @@ ministeriale **UNI-Intermittenti**, lo manda via email e conserva la prova.
 | C-D-203 | Registro degli invii con esito ed errore | `GET /intermittenti/comunicazioni/` | admin | ✅ |
 | C-D-204 | Scarica l'allegato archiviato (prova dell'adempimento) | `GET /intermittenti/comunicazioni/{id}/allegato` | admin | ✅ |
 | C-D-205 | Annulla una comunicazione inviata (modulo con flag annullamento) | `POST /intermittenti/comunicazioni/{id}/annulla` | admin | ✅ |
-| C-D-206 | Configura CF datore, email, destinatario, formato data | `GET/PUT /intermittenti/settings/` | admin | ✅ |
-| C-D-207 | Segna chi è intermittente e imposta CF + codice comunicazione | `GET /intermittenti/lavoratori/`, `PUT /intermittenti/lavoratori/{id}` | admin | ✅ |
+| C-D-206 | Configura CF datore, email, destinatario, formato data | `GET/PUT /intermittenti/settings/` — UI in **Impostazioni → Intermittenti** | admin | ✅ |
+| C-D-207 | Segna chi è intermittente, con CF e codice comunicazione | **Anagrafica dipendente** (`PUT /dipendenti/{id}`). `GET /intermittenti/lavoratori/` è di sola lettura, per conteggio e diagnostica | admin | ✅ |
 | C-D-208 | Email di prova per validare le credenziali SMTP | `POST /intermittenti/test-email/` | admin | ✅ |
 | C-D-209 | Alert: turni di intermittenti entro 48h non comunicati | `alert_engine.py` checker `intermittenti_non_comunicati` | admin | ✅ |
+
+## 2-bis. Dove si configura
+
+| Cosa | Dove |
+|---|---|
+| Chi è intermittente, suo CF, suo codice comunicazione | **Dipendenti → Anagrafica**, sulla scheda del singolo |
+| CF e email del datore, destinatario, oggetto, formato data, stato SMTP | **Dipendenti → Impostazioni → Intermittenti** |
+| Preparare e inviare le comunicazioni, registro, annullamenti | **Dipendenti → Intermittenti** |
+
+I campi del lavoratore hanno **un solo scrittore**, l'anagrafica (`PUT /dipendenti/{id}`):
+niente secondo form che scrive le stesse colonne e ci diverge. Su `codice_fiscale` e
+`codice_comunicazione` l'update usa `COALESCE(?, colonna)`, così un salvataggio che non porta
+quei campi non cancella il CF che il parser dei cedolini (`parse_lul.py`) ha già popolato.
 
 ## 3. Il tracciato XML (reverse-engineering, non documentazione ufficiale)
 
