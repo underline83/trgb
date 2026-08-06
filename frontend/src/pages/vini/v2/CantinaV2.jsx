@@ -393,16 +393,23 @@ export default function CantinaV2() {
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <span className="inline-flex items-center bg-slate-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded font-mono">#{v.id}</span>
                       </td>
-                      <td className="px-2 py-1.5">
-                        <div className="font-semibold text-neutral-900 truncate max-w-[260px]">
-                          {v.DESCRIZIONE || v.m_descrizione}
-                          {v.ANNATA && <span className="text-neutral-500 font-normal"> · {v.ANNATA}</span>}
-                          {v.FORMATO && <span className="text-neutral-500 font-normal"> · {v.FORMATO}</span>}
+                      {/* colonna elastica: w-full+max-w-0 fa prendere lo spazio residuo e attiva il truncate reale.
+                          Annata e formato stanno FUORI dal truncate → sempre leggibili anche su nomi lunghi. */}
+                      <td className="px-2 py-1.5 w-full max-w-0">
+                        <div className="flex items-baseline gap-1 min-w-0">
+                          <span className="font-semibold text-neutral-900 truncate" title={v.DESCRIZIONE || v.m_descrizione}>
+                            {v.DESCRIZIONE || v.m_descrizione}
+                          </span>
+                          {(v.ANNATA || v.FORMATO) && (
+                            <span className="text-neutral-500 font-normal whitespace-nowrap flex-shrink-0">
+                              {v.ANNATA ? `· ${v.ANNATA}` : ""}{v.FORMATO ? ` · ${v.FORMATO}` : ""}
+                            </span>
+                          )}
                         </div>
-                        {denom && <div className="text-[10px] text-neutral-500 truncate max-w-[260px]">{denom}</div>}
+                        {denom && <div className="text-[10px] text-neutral-500 truncate">{denom}</div>}
                       </td>
-                      <td className="px-2 py-1.5 text-neutral-700 truncate max-w-[100px]">{v.PRODUTTORE || v.p_nome || "—"}</td>
-                      <td className="px-2 py-1.5 text-[10px] text-neutral-600 truncate max-w-[90px]">
+                      <td className="px-2 py-1.5 text-neutral-700 truncate max-w-[160px]" title={v.PRODUTTORE || v.p_nome || ""}>{v.PRODUTTORE || v.p_nome || "—"}</td>
+                      <td className="px-2 py-1.5 text-[10px] text-neutral-600 truncate max-w-[130px]">
                         {v.NAZIONE || v.p_nazione}{(v.REGIONE || v.p_regione) ? ` / ${v.REGIONE || v.p_regione}` : ""}
                       </td>
                       <td className="px-2 py-1.5 text-center font-bold text-neutral-900">{v.QTA_TOTALE || 0}</td>
