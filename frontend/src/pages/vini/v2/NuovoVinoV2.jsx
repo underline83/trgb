@@ -72,27 +72,29 @@ export default function NuovoVinoV2() {
     setSaving(true);
     setSubmitError("");
     try {
-      // 0) Controllo annata duplicata. Se il madre è ESISTENTE, verifico che non
-      //    abbia già un figlio (bottiglia) con la stessa annata — annata vuota
-      //    inclusa ("senza annata"). Stessa annata ma FORMATO diverso è
-      //    legittimo (es. 0.75 vs Magnum) → avviso con conferma, non blocco.
-      //    Check non bloccante in caso di errore di rete.
+      // 0) Controllo duplicato annata+FORMATO. Se il madre è ESISTENTE, verifico che
+      //    non abbia già un figlio (bottiglia) con la stessa annata E lo stesso
+      //    formato — annata vuota inclusa ("senza annata"), formato vuoto = BT.
+      //    Stessa annata ma FORMATO diverso è legittimo (es. BT vs MG) → nessun
+      //    avviso. Check non bloccante in caso di errore di rete.
       if (madre && !madre._new && madre.id) {
         const annataNuova = String(annata.ANNATA || "").trim();
+        const normFmt = f => String(f || "BT").trim().toUpperCase();
+        const formatoNuovo = normFmt(annata.FORMATO);
         try {
           const rc = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}/bottiglie`);
           if (rc.ok) {
             const esistenti = await rc.json();
             const dup = (Array.isArray(esistenti) ? esistenti : []).find(
-              b => String(b.ANNATA || "").trim() === annataNuova
+              b => String(b.ANNATA || "").trim() === annataNuova && normFmt(b.FORMATO) === formatoNuovo
             );
             if (dup) {
               const lbl = annataNuova || "senza annata";
               const proceed = window.confirm(
-                `⚠️ Esiste già una bottiglia "${lbl}" per questo vino madre:\n\n` +
+                `⚠️ Esiste già una bottiglia "${lbl}" in formato ${formatoNuovo} per questo vino madre:\n\n` +
                 `#${dup.id} — ${dup.ANNATA || "senza annata"} · ${dup.FORMATO || "BT"} ` +
                 `(giacenza ${dup.QTA_TOTALE || 0} bt)\n\n` +
-                `Vuoi crearne un'altra comunque? Es. stesso anno ma formato diverso.`
+                `Stessa annata E stesso formato: è un doppione. Vuoi crearla comunque?`
               );
               if (!proceed) { setSaving(false); return; }
             }
