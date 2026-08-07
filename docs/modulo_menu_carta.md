@@ -5,7 +5,7 @@
 > **Non verificato in questo giro:** migrazioni 097/098/154 e contenuto dei seed (dir `app/migrations/` assente dallo snapshot), template `app/templates/pdf/menu_carta.html`, route React (App.jsx assente — verificate via `modulesMenu.js` e i `Link` nelle pagine)
 
 **Data:** 2026-04-25 (design originale) — annotato vs codice il 2026-07-25
-**Stato:** IMPLEMENTATO — modulo `menuCarta` **v1.2 beta** (`frontend/src/config/versions.jsx:38-47`). Router: `app/routers/menu_carta_router.py` (v1.2-sezione-dolci, 2026-07-19), mount `/menu-carta` in `main.py:634-635`. Il testo sotto nasce come design doc (sessioni 56-57): le annotazioni ✅/❌/🆕 marcano cosa è stato davvero realizzato. 🆕 2026-07-19: sezione **'dolci'** (router+FE+PDF+MEP) + edizione **Estate 2026** in carta (mig 154, locale tregobbi).
+**Stato:** IMPLEMENTATO — modulo `menuCarta` **v1.3 beta** (`frontend/src/config/versions.jsx`). Router: `app/routers/menu_carta_router.py` (v1.3-i18n, 2026-08-07), mount `/menu-carta` in `main.py:634-635`. Il testo sotto nasce come design doc (sessioni 56-57): le annotazioni ✅/❌/🆕 marcano cosa è stato davvero realizzato. 🆕 2026-07-19: sezione **'dolci'** (router+FE+PDF+MEP) + edizione **Estate 2026** in carta (mig 154, locale tregobbi). 🆕 2026-08-07: **multilingua** it/en/fr/es/de/uk (mig 163, § 11) + fix sezione 'dolci' mancante nella pagina pubblica.
 **Autore:** brainstorming Marco + Claude
 **Ruoli destinatari:** chef/admin (gestione), sala/sommelier (lettura), viewer
 **Punto di partenza:** menù Primavera 2026 cartaceo (PDF A5 definitivo, 21 piatti + degustazioni)
@@ -624,19 +624,110 @@ Tre fasi minime. Ogni fase è un push.
 3. **Allergeni**: vuoi una matrice booleana sui 14 allergeni UE (`menu_dish_publications.glutine`, `lattosio`, ...) o un CSV testuale come proposto? *Proposta:* CSV in v1, eventuale normalizzazione a tabella M:N in v2 quando serve. → **Risolta: CSV** (Modulo C, `allergeni_service.py` — CSV lowercase ordinato).
 4. **Ricette già esistenti**: in produzione `foodcost.db` ne ha già qualcuna creata da Marco/cuochi? Se sì, prima del seed va fatto un check duplicati su `menu_name`.
 5. **Foto piatto**: dove vivono? *Proposta originale:* `frontend/public/menu_photos/...`. → **Risolta diversamente** (Modulo D + Modulo K): upload gestito dal backend, salvataggio **fuori dal repo** in `<UPLOADS_DIR>/menu_carta/<edition_id>/<pub_id>.jpg` (default prod `/home/marco/trgb_uploads/`), path relativo `/uploads/menu_carta/...` in `foto_path`; i path legacy `/static/menu_carta/...` restano serviti (`app/services/menu_carta_image_service.py`, `app/utils/uploads.py`).
-6. **Lingua**: serve già il menu inglese (turisti)? *Proposta:* fuori v1; volendo, in v2 un'altra colonna `menu_name_en` / `menu_description_en` su `menu_dish_publications`.
+6. **Lingua**: serve già il menu inglese (turisti)? *Proposta:* fuori v1; volendo, in v2 un'altra colonna `menu_name_en` / `menu_description_en` su `menu_dish_publications`. → **Risolta 2026-08-07, ma NON con le colonne**: sei lingue (it/en/fr/es/de/uk) × quattro campi farebbero ventiquattro colonne e un `ALTER TABLE` su DB live a ogni lingua nuova. Realizzato con la tabella di traduzione `menu_translations` (mig 163) — cfr. § 11.
 7. **Storico prezzi**: quando una pubblicazione cambia prezzo dentro la stessa edizione, va tracciato? *Proposta:* un trigger che scrive un evento in `menu_publication_price_log` (tabella futura, fuori v1).
 
 ---
 
-## 11. Riferimenti
+## 11. Multilingua (i18n) — 2026-08-07 🆕
+
+> **Classificazione:** `[core]` — il motore è di prodotto, riusabile da qualsiasi
+> ristorante. I *contenuti* tradotti dell'Osteria Tre Gobbi sono `[locale:tregobbi]`
+> e vivono in una migrazione seed separata.
+
+### 11.1 Il modello
+
+L'italiano è **lingua madre** e non vive nella tabella traduzioni: sta dove è
+sempre stato (`menu_dish_publications.titolo_override` / `descrizione_override`,
+`recipes.menu_name` / `menu_description`, `menu_tasting_paths.sottotitolo` /
+`note`). `menu_translations` (mig 163) contiene **solo** le traduzioni.
+
+| Colonna | Valori |
+|---|---|
+| `entita` | `publication` \| `tasting_path` \| `edition` |
+| `entita_id` | id nella tabella corrispondente (polimorfico → **nessuna FK possibile**) |
+| `lang` | `en` \| `fr` \| `es` \| `de` \| `uk` — mai `it` |
+| `campo` | `titolo` \| `descrizione` \| `prezzo_label` \| `sottotitolo` \| `note` \| `storia` |
+| `valore` | testo tradotto |
+| `rivisto` | `0` = entrato col seed, `1` = approvato da Marco dal backoffice |
+
+Chiave unica `(entita, entita_id, lang, campo)` + indice di lettura
+`(entita, entita_id, lang)`.
+
+**Nome della tabella:** `menu_translations`, non `menu_carta_translations`. Le 4
+tabelle del modulo (mig 098) usano tutte il prefisso `menu_`: quello *è* il
+prefisso reale del modulo `menu_carta`, e a R8 il `module.json` ne dichiarerà
+uno solo. Deciso con Marco il 2026-08-07.
+
+### 11.2 Le due regole che non si toccano
+
+1. **Fallback a cascata: traduzione → italiano.** Verso l'ospite non esce mai
+   una stringa vuota. Se manca la traduzione di un piatto, si legge l'italiano:
+   non è un errore, è il comportamento previsto. Una traduzione salvata vuota
+   viene scartata in lettura e **cancellata** in scrittura.
+2. **Retrocompatibilità di `public/today`.** Le traduzioni si scrivono *dentro*
+   i campi originali (`titolo_override`, …), non in campi paralleli. La forma
+   della risposta non cambia: gli unici campi nuovi sono `lang` e
+   `lingue_disponibili`. Chi chiama senza `?lang=` vede esattamente quello che
+   vedeva prima — verificato per confronto della risposta serializzata.
+
+### 11.3 Cosa NON si traduce
+
+- **`menu_tasting_paths.nome`** — resta sempre italiano: *"Fidati dell'oste"* è
+  la firma della casa, non contenuto. Il sottotitolo, che è discorsivo, viene
+  tradotto e fa il lavoro di spiegare il percorso. Deciso 2026-08-07.
+- **Le etichette di sezione** (Antipasti → *Starters*) — sono struttura di
+  prodotto, non contenuto del ristorante: dizionario statico in
+  `app/services/menu_i18n_service.py` + **gemello** in
+  `frontend/src/config/menuI18n.js`. Se tocchi uno, tocca l'altro.
+- **La Storia dell'oste** — deciso 2026-08-07 che è testo di *locale* (identità,
+  non contenuto stagionale) e andrà in `locali/tregobbi/strings.<lang>.json`.
+  ⚠️ Oggi la pagina Storia **non esiste** né nel frontend pubblico né come
+  colonna su `menu_editions`: l'entità `edition`/campo `storia` è predisposta in
+  `menu_translations` ma non usata. Da fare in sessione dedicata.
+
+### 11.4 Ciclo di vita delle righe
+
+- **Clone edizione** → le traduzioni seguono le mappe di id e vengono clonate
+  (`ON CONFLICT DO NOTHING`), mantenendo `rivisto`. Senza questo, ogni cambio di
+  carta stagionale butterebbe via sei lingue di lavoro sui piatti riportati.
+- **Delete publication / tasting path / edition** → cleanup esplicito degli
+  orfani nel router. `entita_id` è polimorfico, quindi non c'è FK e il cascade
+  di SQLite non li raggiunge; senza cleanup un id riciclato da AUTOINCREMENT si
+  porterebbe dietro le traduzioni di un piatto morto.
+
+### 11.5 Capability
+
+| Codice | Cosa fa | file:linea | Audience | Stato |
+|---|---|---|---|---|
+| **C-MC-011** | Today menu pubblico, ora con `?lang=` (it/en/fr/es/de/uk); lang ignoto o assente → `it` senza errore | `menu_carta_router.py:1465` | cliente esterno | ⚠️ aggiornata |
+| **C-MC-023** | Selettore lingua sulla pagina pubblica `/carta/menu` — sei sigle testuali, niente bandiere; `?lang=` URL → localStorage → `navigator.language` → it; il cambio riscrive l'URL (link condivisibile) | `CartaMenuPubblica.jsx:424` | cliente esterno | 🆕 |
+| **C-MC-024** | Tab **Traduzioni** nel backoffice edizione: italiano a sinistra in sola lettura, lingua a destra editabile, checkbox *Approvata*, filtri (da tradurre / da rivedere / non approvate), salvataggio massivo | `MenuCartaDettaglio.jsx:223` | manager | 🆕 |
+| **C-MC-025** | Lettura righe traducibili di un'edizione con originale IT, traduzione e flag `stale` (italiano modificato dopo l'ultima traduzione) | `GET /menu-carta/translations/` · `menu_carta_router.py:1322` | manager | 🆕 |
+| **C-MC-026** | Upsert massivo traduzioni; valore vuoto = cancella e torna al fallback italiano | `PUT /menu-carta/translations/` · `menu_carta_router.py:1397` | manager | 🆕 |
+| **C-MC-027** | Copertura per lingua sull'edizione (tradotte / approvate / totale / %). Denominatore = campi con italiano non vuoto | `GET /menu-carta/translations/coverage/` · `menu_carta_router.py:1413` | manager | 🆕 |
+| **C-MC-028** | Clone edizione: porta con sé le traduzioni delle publication e delle degustazioni | `POST /editions/{id}/clone` · `menu_carta_router.py:403` | manager | ⚠️ aggiornata |
+
+### 11.6 Fuori perimetro (dichiarato)
+
+- Il **PDF stampabile** (`/menu-carta/editions/{id}/pdf`) resta italiano: il
+  cartaceo in sala è italiano per scelta, il digitale è il canale multilingua.
+- **`CartaClienti`** (vini & bevande) ha la stessa esigenza ma non è stata
+  toccata: sessione separata.
+- Nessuna traduzione automatica a runtime, nessuna chiamata a servizi esterni:
+  le traduzioni sono contenuto rivisto e stanno a DB.
+
+---
+
+## 12. Riferimenti
 
 - `docs/modulo_ricette_foodcost.md` — schema food cost v2 (fonte di verità su `recipes`)
 - `docs/modulo_cucina.md` — modulo Cucina HACCP MVP (sessione 43)
 - `docs/modulo_pranzo.md` — sub-modulo Pranzo settimanale (stessa area Gestione Cucina)
 - `docs/architettura_mattoni.md` — mattoni condivisi (M.A, M.B, M.F)
-- `app/routers/menu_carta_router.py` — router implementato (v1.2-sezione-dolci) · `app/services/menu_carta_image_service.py` (foto) · `app/services/allergeni_service.py` (Modulo C)
-- Frontend: `frontend/src/pages/cucina/MenuCartaElenco.jsx` · `MenuCartaDettaglio.jsx` · `frontend/src/pages/public/CartaMenuPubblica.jsx` (route `/menu-carta`, `/menu-carta/:id`, `/carta/menu`)
+- `app/routers/menu_carta_router.py` — router implementato (v1.3-i18n) · `app/services/menu_carta_image_service.py` (foto) · `app/services/allergeni_service.py` (Modulo C) · `app/services/menu_i18n_service.py` (i18n, § 11)
+- Frontend: `frontend/src/pages/cucina/MenuCartaElenco.jsx` · `MenuCartaDettaglio.jsx` · `frontend/src/pages/public/CartaMenuPubblica.jsx` (route `/menu-carta`, `/menu-carta/:id`, `/carta/menu`) · `frontend/src/config/menuI18n.js` (dizionario lingue, **gemello** di `menu_i18n_service.py`)
+- `app/migrations/163_menu_carta_i18n.py` — tabella `menu_translations` (§ 11)
 - `app/migrations/074_recipes_menu_servizi.py` — estensione `recipes` per menu/servizi (sessione 35)
 - `app/migrations/080_menu_templates.py` — template menu per preventivi banchetto (sessione 39)
 - Migrazioni menu carta: 097 (5 template MEP fissi), 098 (init menu carta), 154 (seed Estate 2026 + dolci, locale tregobbi) — *non presenti in questo snapshot, citate da commenti nel codice*

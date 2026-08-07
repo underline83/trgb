@@ -73,11 +73,17 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   menuCarta: {
+    // 1.3 (2026-08-07): multilingua it/en/fr/es/de/uk [core]. Tabella
+    //   `menu_translations` (mig 163), servizio `menu_i18n_service.py`,
+    //   `?lang=` su /menu-carta/public/today (retrocompatibile), selettore
+    //   lingua sulla pagina pubblica, tab Traduzioni nel backoffice.
+    //   Incluso fix: la sezione 'dolci' non era in SEZIONI_ORDINE della
+    //   pagina pubblica — 5 dolci invisibili al QR da 1.2 (2026-07-19).
     // 1.2 (2026-07-19): sezione 'dolci' [core] (router+FE+PDF+MEP) +
     //   edizione Estate 2026 in carta via mig 154 [locale:tregobbi].
     //   Nel push b8c96816 il bump era stato sovrascritto da una sessione
     //   parallela — riapplicato.
-    version: "1.2",
+    version: "1.3",
     label: "Menu Carta",
     status: "beta",
     color: "blue",

@@ -36,8 +36,13 @@ Endpoint principali:
   PUT    /menu-carta/tasting-paths/{id}           modifica (replace steps)
   DELETE /menu-carta/tasting-paths/{id}           elimina
 
+  ── TRADUZIONI (i18n, mig 163) ──
+  GET    /menu-carta/translations/?edition_id=X&lang=en   righe IT + traduzione
+  PUT    /menu-carta/translations/                        upsert massivo
+  GET    /menu-carta/translations/coverage/?edition_id=X  copertura per lingua
+
   ── PUBBLICO ──
-  GET    /menu-carta/public/today                 menu attualmente in_carta (no auth)
+  GET    /menu-carta/public/today[?lang=en]       menu attualmente in_carta (no auth)
 """
 
 from datetime import datetime
@@ -55,6 +60,7 @@ from app.services.menu_carta_image_service import (
     save_publication_image,
     delete_publication_image,
 )
+from app.services import menu_i18n_service as i18n  # motore traduzioni [core], mig 163
 
 
 # Path al DB tasks.sqlite3 (modulo Cucina HACCP) — usato dal generatore MEP
@@ -451,6 +457,7 @@ def clone_edition(edition_id: int, payload: dict):
             pub_id_map[p["id"]] = cnew.lastrowid
 
         # clona tasting paths e steps
+        path_id_map: Dict[int, int] = {}
         paths = conn.execute("SELECT * FROM menu_tasting_paths WHERE edition_id = ?", (edition_id,)).fetchall()
         for tp in paths:
             cnew = conn.execute("""
@@ -462,6 +469,7 @@ def clone_edition(edition_id: int, payload: dict):
                 tp["note"], tp["sort_order"], tp["is_visible"],
             ))
             new_path_id = cnew.lastrowid
+            path_id_map[tp["id"]] = new_path_id
             steps = conn.execute("SELECT * FROM menu_tasting_path_steps WHERE path_id = ?", (tp["id"],)).fetchall()
             for s in steps:
                 conn.execute("""
@@ -473,8 +481,32 @@ def clone_edition(edition_id: int, payload: dict):
                     pub_id_map.get(s["publication_id"]), s["titolo_libero"], s["note"],
                 ))
 
+        # clona le traduzioni seguendo le mappe di id.
+        # Senza questo, clonare Estate->Autunno perderebbe tutte le traduzioni
+        # anche dei piatti riportati identici: 6 lingue da riscrivere a ogni
+        # cambio di carta. Le righe clonate mantengono `rivisto` — erano gia'
+        # state approvate su un testo italiano identico, che il clone copia.
+        trad_clonate = 0
+        for entita, id_map in (("publication", pub_id_map), ("tasting_path", path_id_map)):
+            for old_id, new_pub_id in id_map.items():
+                for t in conn.execute("""
+                    SELECT lang, campo, valore, rivisto FROM menu_translations
+                    WHERE entita = ? AND entita_id = ?
+                """, (entita, old_id)).fetchall():
+                    conn.execute("""
+                        INSERT INTO menu_translations
+                            (entita, entita_id, lang, campo, valore, rivisto)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (entita, entita_id, lang, campo) DO NOTHING
+                    """, (entita, new_pub_id, t["lang"], t["campo"], t["valore"], t["rivisto"]))
+                    trad_clonate += 1
+
         conn.commit()
-        return {"id": new_id, "nome": nome, "stato": "bozza", "publications_clonate": len(pubs)}
+        return {
+            "id": new_id, "nome": nome, "stato": "bozza",
+            "publications_clonate": len(pubs),
+            "traduzioni_clonate": trad_clonate,
+        }
     finally:
         conn.close()
 
@@ -503,6 +535,26 @@ def delete_edition(edition_id: int):
             raise HTTPException(404, "Edizione non trovata")
         if e["stato"] != "bozza":
             raise HTTPException(400, f"Si possono eliminare solo le edizioni in bozza (questa è '{e['stato']}')")
+
+        # i18n: cleanup orfani PRIMA del cascade, finche' le righe figlie
+        # esistono ancora e si sa quali id appartenevano a questa edizione.
+        conn.execute("""
+            DELETE FROM menu_translations
+            WHERE entita = 'publication' AND entita_id IN (
+                SELECT id FROM menu_dish_publications WHERE edition_id = ?
+            )
+        """, (edition_id,))
+        conn.execute("""
+            DELETE FROM menu_translations
+            WHERE entita = 'tasting_path' AND entita_id IN (
+                SELECT id FROM menu_tasting_paths WHERE edition_id = ?
+            )
+        """, (edition_id,))
+        conn.execute(
+            "DELETE FROM menu_translations WHERE entita = 'edition' AND entita_id = ?",
+            (edition_id,),
+        )
+
         conn.execute("DELETE FROM menu_editions WHERE id = ?", (edition_id,))
         conn.commit()
         return {"ok": True, "deleted": e["nome"]}
@@ -608,6 +660,14 @@ def delete_publication(pub_id: int):
                 import logging
                 logging.getLogger("menu_carta").warning(f"[foto] cleanup fail pub={pub_id}: {e}")
         conn.execute("DELETE FROM menu_dish_publications WHERE id = ?", (pub_id,))
+        # i18n: `menu_translations.entita_id` e' polimorfico, quindi non puo'
+        # avere una FK e non lo raggiunge il cascade. Senza questa riga gli id
+        # riciclati da AUTOINCREMENT si porterebbero dietro le traduzioni di un
+        # piatto morto.
+        conn.execute(
+            "DELETE FROM menu_translations WHERE entita = 'publication' AND entita_id = ?",
+            (pub_id,),
+        )
         conn.commit()
         return {"ok": True}
     finally:
@@ -800,6 +860,11 @@ def delete_tasting_path(path_id: int):
         if not ex:
             raise HTTPException(404, "Degustazione non trovata")
         conn.execute("DELETE FROM menu_tasting_paths WHERE id = ?", (path_id,))
+        # i18n: cleanup orfani (nessuna FK possibile su entita_id polimorfico)
+        conn.execute(
+            "DELETE FROM menu_translations WHERE entita = 'tasting_path' AND entita_id = ?",
+            (path_id,),
+        )
         conn.commit()
         return {"ok": True}
     finally:
@@ -1182,12 +1247,236 @@ def export_edition_pdf(edition_id: int):
 
 
 # ═══════════════════════════════════════════════════════════
+#   TRADUZIONI (i18n) — [core], mig 163
+# ═══════════════════════════════════════════════════════════
+
+def _righe_traducibili(conn, edition_id: int) -> List[Dict[str, Any]]:
+    """
+    Elenco dei campi traducibili dell'edizione, con l'originale italiano.
+
+    E' la SORGENTE DI VERITA' sia per il tab Traduzioni sia per il calcolo di
+    copertura: un campo il cui italiano e' vuoto non entra qui, quindi non
+    finisce nel denominatore. Altrimenti la copertura non arriverebbe mai al
+    100% per colpa di descrizioni che in italiano non esistono.
+    """
+    righe: List[Dict[str, Any]] = []
+
+    pubs = conn.execute("""
+        SELECT p.id, p.sezione, p.sort_order, p.updated_at,
+               p.titolo_override, p.descrizione_override, p.prezzo_label,
+               r.menu_name AS recipe_menu_name,
+               r.menu_description AS recipe_menu_description
+        FROM menu_dish_publications p
+        LEFT JOIN recipes r ON p.recipe_id = r.id
+        WHERE p.edition_id = ?
+        ORDER BY
+          CASE p.sezione
+            WHEN 'antipasti' THEN 1 WHEN 'paste_risi_zuppe' THEN 2
+            WHEN 'piatti_del_giorno' THEN 3 WHEN 'secondi' THEN 4
+            WHEN 'contorni' THEN 5 WHEN 'dolci' THEN 6
+            WHEN 'degustazioni' THEN 7 WHEN 'bambini' THEN 8
+            WHEN 'servizio' THEN 9 ELSE 10 END,
+          p.sort_order
+    """, (edition_id,)).fetchall()
+
+    for p in pubs:
+        originali = {
+            # Stesso fallback della carta: quello che l'ospite legge in
+            # italiano e' quello che il traduttore deve avere davanti.
+            "titolo": p["titolo_override"] or p["recipe_menu_name"],
+            "descrizione": p["descrizione_override"] or p["recipe_menu_description"],
+            "prezzo_label": p["prezzo_label"],
+        }
+        for campo, italiano in originali.items():
+            if italiano and str(italiano).strip():
+                righe.append({
+                    "entita": "publication", "entita_id": p["id"], "campo": campo,
+                    "italiano": italiano, "sezione": p["sezione"],
+                    "sort_order": p["sort_order"],
+                    "italiano_updated_at": p["updated_at"],
+                })
+
+    paths = conn.execute("""
+        SELECT id, nome, sottotitolo, note, sort_order, updated_at
+        FROM menu_tasting_paths WHERE edition_id = ? ORDER BY sort_order, id
+    """, (edition_id,)).fetchall()
+
+    for tp in paths:
+        # `nome` non e' in lista di proposito: resta italiano come firma della
+        # casa (decisione 2026-08-07). Se un giorno cambia idea, basta
+        # aggiungerlo qui e in CAMPI_PER_ENTITA.
+        for campo, italiano in (("sottotitolo", tp["sottotitolo"]), ("note", tp["note"])):
+            if italiano and str(italiano).strip():
+                righe.append({
+                    "entita": "tasting_path", "entita_id": tp["id"], "campo": campo,
+                    "italiano": italiano, "sezione": "degustazioni",
+                    "sort_order": tp["sort_order"],
+                    "italiano_updated_at": tp["updated_at"],
+                    "contesto": tp["nome"],
+                })
+
+    return righe
+
+
+@router.get("/translations/")
+def list_translations(
+    edition_id: int = Query(...),
+    lang: str = Query(...),
+):
+    """
+    Righe traducibili dell'edizione con l'originale italiano e la traduzione
+    corrente, per il tab Traduzioni del backoffice.
+
+    `stale = True` quando l'italiano e' stato modificato DOPO l'ultima
+    traduzione: e' la riga che Marco deve rileggere, perche' la traduzione
+    ora descrive un piatto che non esiste piu' in quella forma.
+    """
+    lang = i18n.normalizza_lang(lang)
+    if lang == i18n.LINGUA_MADRE:
+        raise HTTPException(400, "L'italiano e' la lingua madre: si modifica dal menu, non dalle traduzioni")
+
+    conn = get_cucina_connection()
+    try:
+        ex = conn.execute("SELECT id FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
+        if not ex:
+            raise HTTPException(404, "Edizione non trovata")
+
+        righe = _righe_traducibili(conn, edition_id)
+
+        esistenti: Dict[tuple, Any] = {}
+        for entita in i18n.ENTITA_VALIDE:
+            ids = [r["entita_id"] for r in righe if r["entita"] == entita]
+            if not ids:
+                continue
+            place = ",".join("?" * len(ids))
+            for t in conn.execute(f"""
+                SELECT entita_id, campo, valore, rivisto, updated_at
+                FROM menu_translations
+                WHERE entita = ? AND lang = ? AND entita_id IN ({place})
+            """, [entita, lang, *ids]).fetchall():
+                esistenti[(entita, t["entita_id"], t["campo"])] = t
+
+        out = []
+        for r in righe:
+            t = esistenti.get((r["entita"], r["entita_id"], r["campo"]))
+            trad_at = t["updated_at"] if t else None
+            it_at = r.get("italiano_updated_at")
+            out.append({
+                **r,
+                "lang": lang,
+                "valore": t["valore"] if t else None,
+                "rivisto": bool(t["rivisto"]) if t else False,
+                "updated_at": trad_at,
+                "stale": bool(t and it_at and trad_at and str(it_at) > str(trad_at)),
+            })
+
+        return {
+            "edition_id": edition_id,
+            "lang": lang,
+            "lingue": list(i18n.LINGUE_TRADOTTE),
+            "righe": out,
+        }
+    finally:
+        conn.close()
+
+
+class TranslationRowIn(BaseModel):
+    entita: str
+    entita_id: int
+    lang: str
+    campo: str
+    valore: Optional[str] = None      # vuoto/None = cancella, torna al fallback IT
+    rivisto: bool = False
+
+
+class TranslationsBulkIn(BaseModel):
+    righe: List[TranslationRowIn]
+
+
+@router.put("/translations/")
+def upsert_translations(payload: TranslationsBulkIn):
+    """
+    Upsert massivo: il tab Traduzioni salva tutta la lingua in un colpo.
+
+    Righe con `valore` vuoto vengono CANCELLATE (torna il fallback italiano),
+    non salvate come stringa vuota — una riga vuota sarebbe un buco in carta.
+    """
+    conn = get_cucina_connection()
+    try:
+        esito = i18n.upsert(conn, [r.model_dump() for r in payload.righe])
+        return {"ok": True, **esito}
+    finally:
+        conn.close()
+
+
+@router.get("/translations/coverage/")
+def translations_coverage(edition_id: int = Query(...)):
+    """
+    Copertura per lingua sull'edizione: quante righe traducibili hanno una
+    traduzione, e quante di queste sono state approvate da un umano.
+
+    Denominatore = campi con originale italiano non vuoto (vedi
+    `_righe_traducibili`).
+    """
+    conn = get_cucina_connection()
+    try:
+        ex = conn.execute("SELECT id FROM menu_editions WHERE id = ?", (edition_id,)).fetchone()
+        if not ex:
+            raise HTTPException(404, "Edizione non trovata")
+
+        righe = _righe_traducibili(conn, edition_id)
+        totale = len(righe)
+        chiavi = {(r["entita"], r["entita_id"], r["campo"]) for r in righe}
+
+        out: Dict[str, Any] = {}
+        for lang in i18n.LINGUE_TRADOTTE:
+            tradotte = riviste = 0
+            for t in conn.execute("""
+                SELECT entita, entita_id, campo, rivisto, valore
+                FROM menu_translations WHERE lang = ?
+            """, (lang,)).fetchall():
+                # Filtro in Python e non in SQL perche' la chiave e'
+                # polimorfica su 3 colonne: un IN su tuple non e' esprimibile
+                # in modo portabile, e i volumi sono da menu, non da log.
+                if (t["entita"], t["entita_id"], t["campo"]) not in chiavi:
+                    continue
+                if not (t["valore"] or "").strip():
+                    continue
+                tradotte += 1
+                if t["rivisto"]:
+                    riviste += 1
+            out[lang] = {
+                "tradotte": tradotte,
+                "riviste": riviste,
+                "totale": totale,
+                "percentuale": round(100 * tradotte / totale) if totale else 0,
+            }
+
+        return {"edition_id": edition_id, "totale_campi": totale, "lingue": out}
+    finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════
 #   PUBBLICO (no auth)
 # ═══════════════════════════════════════════════════════════
 
 @public_router.get("/public/today")
-def public_menu_today():
-    """Menu attualmente in_carta. NESSUNA AUTH — pensato per app esterne / sito / QR."""
+def public_menu_today(lang: Optional[str] = Query(None, description="it|en|fr|es|de|uk — default it")):
+    """
+    Menu attualmente in_carta. NESSUNA AUTH — pensato per app esterne / sito / QR.
+
+    Multilingua (2026-08-07). `?lang=` accetta le lingue a sistema; qualsiasi
+    altro valore, o l'assenza del parametro, vale italiano — un QR stampato con
+    un lang sbagliato deve dare il menu, non un 400 a un ospite seduto.
+
+    RETROCOMPATIBILITA': la forma della risposta non cambia. Le traduzioni
+    vengono scritte dentro i campi originali (`titolo_override`,
+    `descrizione_override`, ...), non in campi paralleli: un client che non sa
+    nulla di lingue continua a vedere esattamente quello che vedeva prima.
+    Gli unici campi NUOVI sono `lang` e `lingue_disponibili` in testa.
+    """
+    lang = i18n.normalizza_lang(lang)
     conn = get_cucina_connection()
     try:
         e = conn.execute("SELECT * FROM menu_editions WHERE stato = 'in_carta' LIMIT 1").fetchone()
@@ -1219,14 +1508,30 @@ def public_menu_today():
               p.sort_order
         """, (edition["id"],)).fetchall()
 
+        # ── i18n: due query sole per tutta la pagina, mai una per riga ──
+        trad_pub = i18n.traduci(conn, "publication", [r["id"] for r in pubs], lang)
+
         sezioni: Dict[str, List[Dict[str, Any]]] = {}
         for r in pubs:
-            sezioni.setdefault(r["sezione"], []).append(_row_to_publication(r))
+            pub = _row_to_publication(r)
+            # La traduzione entra nel campo *_override: e' esattamente il suo
+            # ruolo semantico ("il testo da mostrare invece di quello della
+            # ricetta"). Se la traduzione manca, l'override resta l'italiano;
+            # se anche quello e' NULL, il client cade su recipe_menu_name come
+            # ha sempre fatto. Fallback a cascata senza toccare il client.
+            i18n.applica_riga(pub, trad_pub, {
+                "titolo": "titolo_override",
+                "descrizione": "descrizione_override",
+                "prezzo_label": "prezzo_label",
+            })
+            sezioni.setdefault(r["sezione"], []).append(pub)
 
         paths = conn.execute("""
             SELECT * FROM menu_tasting_paths WHERE edition_id = ? AND is_visible = 1
             ORDER BY sort_order, id
         """, (edition["id"],)).fetchall()
+        trad_path = i18n.traduci(conn, "tasting_path", [p["id"] for p in paths], lang)
+
         tasting = []
         for tp in paths:
             steps = conn.execute("""
@@ -1238,13 +1543,32 @@ def public_menu_today():
                 ORDER BY s.sort_order
             """, (tp["id"],)).fetchall()
             tasting.append({
-                "nome": tp["nome"], "sottotitolo": tp["sottotitolo"],
-                "prezzo_persona": tp["prezzo_persona"], "note": tp["note"],
+                # `nome` resta SEMPRE italiano: e' la firma della casa
+                # ("Fidati dell'oste"), non contenuto da tradurre. Deciso con
+                # Marco il 2026-08-07. Il sottotitolo, che e' discorsivo e
+                # spiega il percorso, viene tradotto e fa il lavoro.
+                "nome": tp["nome"],
+                "sottotitolo": i18n.applica(trad_path, tp["id"], "sottotitolo", tp["sottotitolo"]),
+                "prezzo_persona": tp["prezzo_persona"],
+                "note": i18n.applica(trad_path, tp["id"], "note", tp["note"]),
                 "steps": [{
-                    "label": (s["pub_titolo"] or s["recipe_menu_name"] or s["titolo_libero"])
+                    # Lo step eredita il titolo tradotto della publication a
+                    # cui punta: altrimenti la degustazione elencherebbe in
+                    # italiano piatti che due righe sopra sono in inglese.
+                    "label": (
+                        i18n.applica(trad_pub, s["publication_id"], "titolo", s["pub_titolo"])
+                        or s["recipe_menu_name"]
+                        or s["titolo_libero"]
+                    )
                 } for s in steps],
             })
 
-        return {"edition": edition, "sezioni": sezioni, "tasting_paths": tasting}
+        return {
+            "lang": lang,
+            "lingue_disponibili": list(i18n.LINGUE),
+            "edition": edition,
+            "sezioni": sezioni,
+            "tasting_paths": tasting,
+        }
     finally:
         conn.close()

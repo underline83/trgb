@@ -3,6 +3,40 @@
 
 ---
 
+## 2026-08-07 — Menu Carta multilingua: il menù dell'ospite in sei lingue `[core]`
+
+La pagina che il cliente apre col QR al tavolo esisteva solo in italiano. Ora parla **it, en, fr, es, de, uk**, con un solo QR in sala: la lingua la sceglie l'ospite.
+
+### ➕ Aggiunto
+- **`menu_translations`** (mig 163): una tabella sola che traduce qualsiasi riga del modulo — piatti, degustazioni, edizioni. Chiave `(entita, entita_id, lang, campo)`, più `rivisto` per distinguere ciò che Marco ha approvato da ciò che è entrato con un seed.
+- **`app/services/menu_i18n_service.py`**: motore i18n generico (normalizzazione lingua, lettura in blocco, fallback) + dizionario statico delle etichette di sezione, con gemello `frontend/src/config/menuI18n.js`.
+- **`?lang=`** su `GET /menu-carta/public/today`. Sull'endpoint esistente, non su uno parallelo.
+- **Selettore lingua** su `/carta/menu`: sei sigle testuali in header. Lingua iniziale da `?lang=` in URL → `localStorage` → lingua del telefono → italiano.
+- **Tab Traduzioni** nel dettaglio edizione: italiano a sinistra in sola lettura, lingua a destra editabile, copertura per lingua ("EN 48/89"), filtri, checkbox *Approvata*, salvataggio massivo.
+- **`GET/PUT /menu-carta/translations/`** e **`GET /menu-carta/translations/coverage/`**.
+
+### 🐛 Corretto
+- **I dolci non si vedevano dal QR.** `SEZIONI_ORDINE` nella pagina pubblica non era stata aggiornata quando la sezione 'dolci' è nata (2026-07-19): 5 dolci in carta erano invisibili al cliente da tre settimane, mentre backoffice e PDF li mostravano regolarmente. L'ordine sezioni ora è uno solo e vive in `menuI18n.js`.
+
+### Le scelte che contano
+1. **Tabella, non colonne.** Sei lingue × quattro campi sarebbero state 24 colonne su `menu_dish_publications` e un `ALTER TABLE` su DB live a ogni lingua nuova. Con la tabella, aggiungere l'ucraino è un INSERT.
+2. **Fallback a cascata, sempre.** Manca la traduzione di un piatto? L'ospite legge l'italiano. Non è un errore ed è per questo che il motore si può pubblicare prima dei testi. Verso il tavolo non esce mai una riga vuota.
+3. **Retrocompatibilità verificata.** Le traduzioni si scrivono dentro i campi di sempre (`titolo_override`, …), non in campi paralleli: chi chiama `public/today` senza `lang` riceve una risposta **identica** a prima (confronto JSON serializzato), e il frontend non ha dovuto imparare regole nuove.
+4. **Niente bandiere nel selettore.** Una bandiera è uno stato, non una lingua: il francese non è la Francia. Sigle testuali.
+5. **Il nome delle degustazioni resta italiano.** *"Fidati dell'oste"* è la firma della casa; è il sottotitolo, discorsivo, a essere tradotto e a spiegare il percorso.
+6. **Traduzione svuotata = cancellata**, così si torna al fallback italiano invece di stampare una riga bianca.
+
+### Note tecniche
+- Il **clone di un'edizione** porta con sé le traduzioni: senza, ogni cambio di carta stagionale butterebbe via sei lingue di lavoro sui piatti riportati.
+- `entita_id` è polimorfico → nessuna FK possibile → **cleanup orfani esplicito** su delete di publication / degustazione / edizione.
+- `?lang=` non riconosciuto → italiano, mai un errore: un QR stampato male non deve dare 400 a un ospite seduto.
+- Il **PDF stampabile resta italiano** (non toccato). `CartaClienti` (vini & bevande) ha la stessa esigenza: sessione separata.
+
+### File
+`app/migrations/163_menu_carta_i18n.py` (nuova), `app/services/menu_i18n_service.py` (nuovo), `app/routers/menu_carta_router.py`, `frontend/src/config/menuI18n.js` (nuovo), `frontend/src/pages/public/CartaMenuPubblica.jsx`, `frontend/src/pages/cucina/MenuCartaDettaglio.jsx`, `frontend/src/config/versions.jsx` (menuCarta 1.2→1.3), `docs/modulo_menu_carta.md` (§ 11).
+
+---
+
 ## 2026-08-03 — Vini: "Cantina da iPhone" fase 1 «trova la bottiglia» `[core]`
 
 Prima pagina mobile-first del modulo vini, per l'uso col telefono in mano tra gli scaffali (V.9 fase 1). Solo consultazione, nessuna scrittura.

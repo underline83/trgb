@@ -1,17 +1,22 @@
 // frontend/src/pages/cucina/MenuCartaDettaglio.jsx
+// Modulo: menu_carta
+// @version: v1.5-traduzioni — tab Traduzioni multilingua [core] (2026-08-07)
 // @version: v1.4-sezione-dolci — nuova sezione 'dolci' in SEZIONI_ORDER [core] (2026-07-19)
 // @version: v1.3-foto-fix — img key + link diretto fallback per cache-bust difettoso (Modulo D, 2026-04-27)
 //
 // Dettaglio di un'edizione: testa fissa colorata + tab.
-// Tab: Sezioni (lista piatti raggruppata) | Degustazioni | Anteprima | Anagrafica
+// Tab: Sezioni (lista piatti raggruppata) | Degustazioni | Traduzioni | Anteprima | Anagrafica
 //
 // Endpoint: GET /menu-carta/editions/{id}
+//           GET/PUT /menu-carta/translations/ + GET /menu-carta/translations/coverage/
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "../ricette/RicetteNav";
-import { Btn } from "../../components/ui";
+import { Btn, StatusBadge, EmptyState, Textarea } from "../../components/ui";
+import useToast from "../../hooks/useToast";
+import { LINGUE_TRADOTTE, LINGUE_NOME, LINGUE_LABEL, labelSezione } from "../../config/menuI18n";
 
 const SEZIONI_ORDER = [
   { key: "antipasti",          label: "Antipasti" },
@@ -33,6 +38,7 @@ const STATO_BADGE = {
 const TABS = [
   { key: "sezioni",      label: "Sezioni" },
   { key: "degustazioni", label: "Degustazioni" },
+  { key: "traduzioni",   label: "Traduzioni" },
   { key: "anteprima",    label: "Anteprima" },
   { key: "anagrafica",   label: "Anagrafica" },
 ];
@@ -159,6 +165,9 @@ export default function MenuCartaDettaglio() {
           {activeTab === "degustazioni" && (
             <DegustazioniTab paths={tasting_paths} />
           )}
+          {activeTab === "traduzioni" && (
+            <TraduzioniTab editionId={edition.id} />
+          )}
           {activeTab === "anteprima" && (
             <AnteprimaTab edition={edition} sezioni={sezioni} tasting_paths={tasting_paths} />
           )}
@@ -183,6 +192,303 @@ function Kpi({ label, value }) {
     <div className="bg-white border border-neutral-200 rounded-lg px-3 py-2">
       <div className="text-[10px] text-neutral-500 uppercase tracking-wide">{label}</div>
       <div className="text-lg md:text-xl font-bold text-brand-ink">{value}</div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────
+// TAB: Traduzioni (i18n, mig 163) — [core]
+//
+// Italiano a sinistra in sola lettura, lingua scelta a destra editabile.
+// L'italiano NON si tocca da qui: si modifica dal tab Sezioni, dove sta il
+// piatto. Due punti di scrittura sullo stesso testo divergono sempre.
+// ──────────────────────────────────────────────────────
+const CAMPO_LABEL = {
+  titolo: "Titolo",
+  descrizione: "Descrizione",
+  prezzo_label: "Prezzo (testo)",
+  sottotitolo: "Sottotitolo",
+  note: "Note",
+};
+
+const FILTRI = [
+  { key: "tutte",     label: "Tutte" },
+  { key: "mancanti",  label: "Da tradurre" },
+  { key: "rivedere",  label: "Da rivedere" },
+  { key: "non_rivis", label: "Non approvate" },
+];
+
+const chiaveRiga = (r) => `${r.entita}:${r.entita_id}:${r.campo}`;
+
+function TraduzioniTab({ editionId }) {
+  const { toast } = useToast();
+  const [lang, setLang] = useState(LINGUE_TRADOTTE[0]);
+  const [righe, setRighe] = useState([]);
+  const [coverage, setCoverage] = useState(null);
+  const [bozza, setBozza] = useState({});     // chiave -> { valore, rivisto }
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [filtro, setFiltro] = useState("tutte");
+
+  const caricaCoverage = useCallback(async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/menu-carta/translations/coverage/?edition_id=${editionId}`);
+      if (r.ok) setCoverage(await r.json());
+    } catch { /* la copertura è un di più: se non arriva, si traduce lo stesso */ }
+  }, [editionId]);
+
+  const carica = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/menu-carta/translations/?edition_id=${editionId}&lang=${lang}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      setRighe(j.righe || []);
+      setBozza({});   // cambiando lingua si riparte puliti: niente modifiche orfane
+    } catch (e) {
+      toast(`Errore nel caricamento: ${e.message}`, { kind: "error" });
+    } finally {
+      setLoading(false);
+    }
+  }, [editionId, lang, toast]);
+
+  useEffect(() => { carica(); }, [carica]);
+  useEffect(() => { caricaCoverage(); }, [caricaCoverage]);
+
+  const modifica = (r, patch) => {
+    const k = chiaveRiga(r);
+    setBozza(prev => ({
+      ...prev,
+      [k]: {
+        valore:  patch.valore  !== undefined ? patch.valore  : (prev[k]?.valore  ?? r.valore ?? ""),
+        rivisto: patch.rivisto !== undefined ? patch.rivisto : (prev[k]?.rivisto ?? r.rivisto ?? false),
+      },
+    }));
+  };
+
+  const valoreDi  = (r) => bozza[chiaveRiga(r)]?.valore  ?? r.valore ?? "";
+  const rivistoDi = (r) => bozza[chiaveRiga(r)]?.rivisto ?? r.rivisto ?? false;
+
+  const nModificate = Object.keys(bozza).length;
+
+  const salva = async () => {
+    if (nModificate === 0) return;
+    setSalvando(true);
+    try {
+      const payload = Object.entries(bozza).map(([k, v]) => {
+        const [entita, entita_id, campo] = k.split(":");
+        return { entita, entita_id: Number(entita_id), campo, lang, valore: v.valore, rivisto: !!v.rivisto };
+      });
+      const r = await apiFetch(`${API_BASE}/menu-carta/translations/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ righe: payload }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      toast(
+        `${LINGUE_LABEL[lang]}: ${j.scritte} salvate` + (j.cancellate ? `, ${j.cancellate} svuotate` : ""),
+        { kind: "success" },
+      );
+      await carica();
+      await caricaCoverage();
+    } catch (e) {
+      toast(`Salvataggio fallito: ${e.message}`, { kind: "error" });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const righeFiltrate = useMemo(() => righe.filter(r => {
+    if (filtro === "mancanti")  return !valoreDi(r).trim();
+    if (filtro === "rivedere")  return r.stale;
+    if (filtro === "non_rivis") return valoreDi(r).trim() && !rivistoDi(r);
+    return true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [righe, filtro, bozza]);
+
+  // Raggruppa per sezione mantenendo l'ordine canonico già dato dal backend.
+  const gruppi = useMemo(() => {
+    const out = [];
+    for (const r of righeFiltrate) {
+      const ultimo = out[out.length - 1];
+      if (ultimo && ultimo.sezione === r.sezione) ultimo.righe.push(r);
+      else out.push({ sezione: r.sezione, righe: [r] });
+    }
+    return out;
+  }, [righeFiltrate]);
+
+  const cov = coverage?.lingue?.[lang];
+
+  return (
+    <div className="space-y-4">
+      {/* Selettore lingua + copertura */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-4">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {LINGUE_TRADOTTE.map(l => {
+            const c = coverage?.lingue?.[l];
+            const attiva = l === lang;
+            return (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLang(l)}
+                title={LINGUE_NOME[l]}
+                className={`px-3 py-2 min-h-[44px] rounded-lg text-sm font-semibold border transition ${
+                  attiva
+                    ? "bg-orange-600 border-orange-600 text-white"
+                    : "bg-white border-neutral-300 text-neutral-600 hover:border-orange-400"
+                }`}
+              >
+                {LINGUE_LABEL[l]}
+                {c && (
+                  <span className={`ml-2 text-[11px] font-normal ${attiva ? "text-orange-100" : "text-neutral-400"}`}>
+                    {c.tradotte}/{c.totale}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {cov && (
+          <div>
+            <div className="flex items-center justify-between text-xs text-neutral-600 mb-1">
+              <span>
+                <strong className="text-brand-ink">{LINGUE_NOME[lang]}</strong> — {cov.tradotte}/{cov.totale} campi tradotti
+                {cov.tradotte > 0 && <> · {cov.riviste} approvati</>}
+              </span>
+              <span className="font-semibold">{cov.percentuale}%</span>
+            </div>
+            <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 transition-all"
+                style={{ width: `${cov.percentuale}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Filtri + salva */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1">
+          {FILTRI.map(f => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFiltro(f.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                filtro === f.key
+                  ? "bg-neutral-800 border-neutral-800 text-white"
+                  : "bg-white border-neutral-300 text-neutral-600 hover:border-neutral-400"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          {nModificate > 0 && (
+            <span className="text-xs text-neutral-500">{nModificate} da salvare</span>
+          )}
+          <Btn variant="primary" size="md" onClick={salva} loading={salvando} disabled={nModificate === 0}>
+            Salva {LINGUE_LABEL[lang]}
+          </Btn>
+        </div>
+      </div>
+
+      {loading && <div className="text-sm text-neutral-500 py-6">Caricamento traduzioni…</div>}
+
+      {!loading && righeFiltrate.length === 0 && (
+        <EmptyState
+          icon="🌍"
+          title={filtro === "tutte" ? "Niente da tradurre" : "Nessuna riga con questo filtro"}
+          description={
+            filtro === "tutte"
+              ? "Questa edizione non ha ancora testi in italiano da tradurre."
+              : "Prova a cambiare filtro: qui compaiono solo le righe che lo soddisfano."
+          }
+        />
+      )}
+
+      {/* Tabella */}
+      {!loading && gruppi.map((g, gi) => (
+        <div key={`${g.sezione}-${gi}`}>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-2">
+            {labelSezione(g.sezione, "it")}
+            <span className="text-neutral-400 font-normal"> ({g.righe.length})</span>
+          </h3>
+          <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden divide-y divide-neutral-100">
+            {g.righe.map(r => {
+              const k = chiaveRiga(r);
+              const toccata = k in bozza;
+              return (
+                <div
+                  key={k}
+                  className={`p-3 md:p-4 ${r.stale ? "bg-amber-50" : ""} ${toccata ? "ring-1 ring-inset ring-orange-200" : ""}`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      {CAMPO_LABEL[r.campo] || r.campo}
+                    </span>
+                    {r.contesto && (
+                      <span className="text-[10px] text-neutral-400 italic">{r.contesto}</span>
+                    )}
+                    {r.stale && (
+                      // L'italiano è cambiato dopo l'ultima traduzione: questa
+                      // riga descrive un piatto che non è più quello.
+                      <StatusBadge tone="warning" size="sm">Italiano modificato — da rivedere</StatusBadge>
+                    )}
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {/* Italiano — sola lettura */}
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-neutral-400 mb-1">Italiano</div>
+                      <div className="text-sm text-neutral-800 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 whitespace-pre-wrap">
+                        {r.italiano}
+                      </div>
+                    </div>
+
+                    {/* Traduzione — editabile */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] uppercase tracking-wider text-neutral-400">
+                          {LINGUE_NOME[lang]}
+                        </span>
+                        <label className="flex items-center gap-1.5 text-[11px] text-neutral-600 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={rivistoDi(r)}
+                            onChange={(e) => modifica(r, { rivisto: e.target.checked })}
+                            className="w-4 h-4 accent-emerald-600"
+                          />
+                          Approvata
+                        </label>
+                      </div>
+                      {/* M.I Textarea passa il VALORE a onChange, non l'evento. */}
+                      <Textarea
+                        rows={r.campo === "descrizione" || r.campo === "note" ? 3 : 2}
+                        value={valoreDi(r)}
+                        onChange={(v) => modifica(r, { valore: v })}
+                        placeholder={`${LINGUE_NOME[lang]}… (vuoto = resta l'italiano)`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {!loading && righe.length > 0 && (
+        <p className="text-xs text-neutral-500 pt-2">
+          Un campo lasciato vuoto non è un errore: in carta l'ospite vedrà l'italiano.
+          Svuotare una traduzione già salvata la cancella e fa tornare l'italiano.
+        </p>
+      )}
     </div>
   );
 }
