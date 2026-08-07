@@ -71,6 +71,40 @@ SQL_TURNO_DEL_REPARTO = """(
 )"""
 
 
+def dipendente_in_reparto(
+    conn: sqlite3.Connection, dipendente_id: int, reparto_id: Optional[int]
+) -> bool:
+    """True se la persona lavora in quel reparto: principale O aggiuntivo.
+
+    Unica fonte di verita' per "questa persona puo' avere un turno qui?".
+    Chi scrive turni DEVE passare da qui e non confrontare `dipendenti.reparto_id`
+    a mano: il confronto secco ignora `dipendenti_reparti` (mig 162) e blocca
+    chi ha piu' reparti (es. Marco: cucina di ruolo, sala quando serve).
+    """
+    if reparto_id is None:
+        return False
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dipendenti_reparti (
+                dipendente_id INTEGER NOT NULL, reparto_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                PRIMARY KEY (dipendente_id, reparto_id)
+            )
+        """)
+    except Exception:
+        pass
+    row = conn.execute(
+        """SELECT 1 FROM dipendenti
+            WHERE id = ?
+              AND (reparto_id = ?
+                   OR EXISTS (SELECT 1 FROM dipendenti_reparti dr
+                               WHERE dr.dipendente_id = dipendenti.id
+                                 AND dr.reparto_id = ?))""",
+        (dipendente_id, reparto_id, reparto_id),
+    ).fetchone()
+    return row is not None
+
+
 def _format_week_range_it(iso: str) -> str:
     """'2026-W16' → '13–19/04/2026' (o '28/04–04/05/2026' se cross-mese)."""
     try:

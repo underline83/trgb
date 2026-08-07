@@ -2,6 +2,21 @@
 
 **Ultimo aggiornamento:** 2026-08-07 — **DA PUSHARE: Menu Carta multilingua (it/en/fr/es/de/uk) — mig 163 `menu_translations`, `?lang=` su `/menu-carta/public/today` (retrocompatibile), selettore lingua sulla pagina pubblica, tab Traduzioni nel backoffice; menuCarta 1.2→1.3. Include il fix della sezione 'dolci' che non compariva sul QR. Il seed dei testi Tre Gobbi (mig 164) è SOSPESO in attesa di `contenuti.py`. Lanciare `npm run build` prima del push**; **DA PUSHARE: verifica docs TOTALE (Blocco 2) — 13 modulo_*.md verificati endpoint per endpoint vs codice e promossi ad `attuale`; trovati 4 bug REALI nel codice (v. sessione 2026-08-04) + 2 decisioni PO aperte**; **DA PUSHARE: docs→wiki, conversione COMPLETATA — header di stato sulle ultime 25 pagine, lint a zero warning (solo docs/, nessun codice)**; **DA PUSHARE: mattone M.J Pubblicazione web (FTP) — bottone "Pubblica sul sito" su menu pranzo e carta vini, sistema 5.39 (richiede le variabili `FTP_*` in `.env` sul VPS, senza quelle il bottone resta disabilitato)**; **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
 
+## SESSIONE 2026-08-07 — Fix: turni multi-reparto non assegnabili `[core]`
+
+**Sintomo (Marco):** flaggato "Sala" fra i reparti extra in anagrafica, ma assegnando a sé stesso un turno in sala → 400 *"Dipendente non appartiene a questo reparto"*.
+
+**Causa:** mig 162 ha reso multi-reparto le query di lettura (`turni_service.py`, tre costanti SQL), ma le validazioni **inline** di `turni_router.py` confrontavano ancora `dipendenti.reparto_id` secco, ignorando `dipendenti_reparti`. Limite già annotato in `modulo_dipendenti_turni.md` il 03/08 come "non ancora capitato": è capitato appena Marco ha spuntato la casella.
+
+**Fatto:**
+- nuovo helper `turni_service.dipendente_in_reparto(conn, dipendente_id, reparto_id)` — unica fonte di verità per "questa persona può avere un turno qui?" (principale OR aggiuntivo);
+- `POST /turni/foglio/assegna` e `PUT /turni/foglio/{id}` (cambio dipendente) passano dall'helper;
+- **bug latente sistemato di rimbalzo:** il check "slot già occupato" in `assegna` filtrava `d.reparto_id = ?`, quindi non vedeva i turni di chi sta nel reparto come aggiuntivo → due persone potevano finire sullo stesso slot senza 409. Ora usa `SQL_DIP_D_DEL_REPARTO` + `SQL_TURNO_DEL_REPARTO`, gli stessi criteri con cui il foglio decide cosa mostrare.
+
+**Verifica:** su DB in memoria con lo schema minimo — Marco cucina+sala assegnabile in entrambi, senza il flag extra resta rifiutato, dipendente inesistente rifiutato; il suo turno di tipo SALA occupa lo slot del foglio sala e non quello di cucina. Nessuna migrazione (`dipendenti_reparti` esiste da mig 162, l'helper la crea `IF NOT EXISTS` per sicurezza).
+
+**Nota:** solo backend, `npm run build` non serve.
+
 ## SESSIONE 2026-08-07 — Menu Carta multilingua (motore i18n) `[core]`
 
 ### Contesto

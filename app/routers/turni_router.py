@@ -212,7 +212,10 @@ def assegna_turno(
             raise HTTPException(status_code=404, detail="Dipendente non trovato")
         if not bool(d["attivo"]):
             raise HTTPException(status_code=400, detail="Dipendente non attivo")
-        if d["reparto_id"] != payload.reparto_id:
+        # Multi-reparto (mig 162): vale il principale O uno degli aggiuntivi.
+        if not turni_service.dipendente_in_reparto(
+            conn, payload.dipendente_id, payload.reparto_id
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Dipendente non appartiene a questo reparto",
@@ -233,16 +236,24 @@ def assegna_turno(
                 conn, rep["codice"], servizio, ora_ini, ora_fin
             )
 
-        # Verifica che lo slot non sia già occupato (stesso reparto/data/servizio/slot)
+        # Verifica che lo slot non sia già occupato (stesso reparto/data/servizio/slot).
+        # Stessi criteri con cui il foglio decide cosa mostrare (multi-reparto,
+        # mig 162): se guardasse solo `d.reparto_id` non vedrebbe i turni di chi
+        # sta in questo reparto come aggiuntivo, e si sovrascriverebbero a vicenda.
         cur.execute(
             """SELECT tc.id FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
                JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
-               WHERE d.reparto_id = ? AND tc.data = ?
+               WHERE %DIP% AND %TUR% AND tc.data = ?
                  AND UPPER(COALESCE(tt.servizio,'')) = ?
                  AND tc.slot_index = ?
-               LIMIT 1""",
-            (payload.reparto_id, payload.data, servizio, payload.slot_index),
+               LIMIT 1"""
+            .replace("%DIP%", turni_service.SQL_DIP_D_DEL_REPARTO)
+            .replace("%TUR%", turni_service.SQL_TURNO_DEL_REPARTO),
+            (
+                payload.reparto_id, payload.reparto_id, payload.reparto_id,
+                payload.data, servizio, payload.slot_index,
+            ),
         )
         existing = cur.fetchone()
         if existing:
@@ -337,7 +348,11 @@ def modifica_turno(
             nd = cur.fetchone()
             if not nd:
                 raise HTTPException(status_code=404, detail="Dipendente non trovato")
-            if nd["reparto_id"] != row["reparto_id"]:
+            # Multi-reparto (mig 162): basta che il reparto del turno sia uno
+            # di quelli della persona, principale o aggiuntivo.
+            if not turni_service.dipendente_in_reparto(
+                conn, payload.dipendente_id, row["reparto_id"]
+            ):
                 raise HTTPException(status_code=400, detail="Dipendente di reparto diverso")
             updates.append("dipendente_id = ?")
             params.append(payload.dipendente_id)

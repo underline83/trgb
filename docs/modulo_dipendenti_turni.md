@@ -620,12 +620,19 @@ costanti SQL in cima a `turni_service.py` (`SQL_DIP_DEL_REPARTO` :43, `SQL_DIP_D
 `SQL_TURNO_DEL_REPARTO` :62), applicate a tutte le query del **service** che filtravano per
 `d.reparto_id`.
 
-**Limite verificato (2026-08-03):** le validazioni inline di `turni_router.py` NON sono
-multi-reparto: `POST /turni/foglio/assegna` rifiuta con 400 un dipendente il cui reparto
-**principale** non è quello del foglio (`turni_router.py:215`), e il cambio dipendente in
-`PUT /turni/foglio/{id}` confronta solo i reparti principali (`turni_router.py:340`). Chi ha il
-reparto del foglio solo fra gli AGGIUNTIVI compare quindi nel foglio ma non è assegnabile da lì.
-Al 2026-08-03 `dipendenti_reparti` è vuota sul DB live, quindi il caso non si è ancora presentato.
+**Chiuso il 2026-08-07** il limite aperto il 2026-08-03: le validazioni inline di `turni_router.py`
+guardavano solo `dipendenti.reparto_id`, quindi chi aveva il reparto del foglio fra gli AGGIUNTIVI
+compariva nel foglio ma non era assegnabile da lì (400 "Dipendente non appartiene a questo reparto").
+Ora i tre punti di scrittura passano dalle costanti/helper multi-reparto del service:
+
+- `POST /turni/foglio/assegna` → `turni_service.dipendente_in_reparto()`
+- `PUT /turni/foglio/{id}` (cambio dipendente) → stesso helper
+- check "slot già occupato" in `assegna` → `SQL_DIP_D_DEL_REPARTO` + `SQL_TURNO_DEL_REPARTO`,
+  cioè gli stessi criteri con cui il foglio decide cosa mostrare (prima guardava solo
+  `d.reparto_id`: due turni sullo stesso slot potevano coesistere senza conflitto).
+
+**Regola:** chi scrive turni non confronta `dipendenti.reparto_id` a mano — usa
+`dipendente_in_reparto(conn, dipendente_id, reparto_id)` (`turni_service.py`).
 
 Rete di sicurezza per la retrocompatibilita': se il tipo del turno non appartiene a nessun **altro**
 reparto della persona, il turno resta dove stava. Chi ha un solo reparto non perde niente dal foglio.
