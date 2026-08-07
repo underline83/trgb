@@ -718,7 +718,28 @@ Marco, 2026-08-07: bandierine sui pulsanti. Realizzato come **bandiera + sigla**
 
 ⚠️ **`uk` è il codice ISO 639-1 dell'ucraino, non del Regno Unito.** Con la bandiera 🇺🇦 accanto, la sigla "UK" leggerebbe *United Kingdom* a chiunque: sul selettore si mostra **"UA"** (codice paese), mentre il codice interno resta `uk` ovunque (DB, `?lang=`, API). Per non tradire chi ricopia la sigla vista a schermo, `normalizza_lang()` accetta `ua` come alias di `uk` — in entrambi i gemelli, verificato su 13 input.
 
-### 11.7 Fuori perimetro (dichiarato)
+### 11.7 Seed Estate 2026 — `[locale:tregobbi]`, mig 164
+
+Sorgente: `locali/tregobbi/seeds/menu_traduzioni_lug_set_2026.py`, generato da `sorgenti_menu_lug_set_2026/costruisci_seed.py` (italiano + EN/FR/ES + DE/UK). Traduzioni revisionate da madrelingua. **I sorgenti sono conservati accanto al generato: se cambia la carta si rigenera, non si edita a mano.**
+
+**Copertura: 44/44 publications, 2/2 degustazioni, 400 righe (80 per lingua × 5).** Tutte con `rivisto = 0`.
+
+Il matching sul titolo italiano ha richiesto tre accorgimenti, ognuno per una discrepanza reale fra cartaceo e DB:
+
+| Discrepanza | Perché | Come |
+|---|---|---|
+| `(NG)` `(NL)` e traduzioni `(GF)(LF)` `(SG)(SL)` `(БГ)(БЛ)` | Tag dietetici: nel cartaceo fanno parte del titolo, a DB no | Tolti da chiave **e** valore |
+| `(prezzo per 2 persone)` nel titolo | A DB è già in `prezzo_label` + `consigliato_per` | Tolto dal titolo, **riusato** per tradurre `prezzo_label` |
+| `PRIMO PIATTO` vs `Primo piatto bambini` | Il cartaceo abbrevia | Mappa esplicita `MAPPA_BAMBINI` |
+
+Altri due punti non ovvi:
+
+- **`da 14 a 26`** (piatti del giorno) non è nel seed tradotto: lì il prezzo è una stringa sola condivisa fra le lingue. Le traduzioni sono state prese **dai PDF consegnati**, non inventate, e stanno in `PREZZI_LABEL`. Se compare un `prezzo_label` nuovo non coperto, la migrazione lo stampa a video dicendo dove aggiungerlo.
+- **`<i>...</i>`** nei due testi tedeschi (corsivo su *Oste*) viene **strippato**: la pagina pubblica è React e stamperebbe il markup come testo letterale. Aggiungere un renderer HTML a una pagina pubblica senza auth per due corsivi decorativi non vale la superficie di rischio. L'italiano a DB non ha mai contenuto markup.
+
+⚠️ **Debito dichiarato — i tag dietetici.** `(NG)`/`(NL)` significano *senza glutine* / *senza lattosio*: sono un "adatto a", **non** allergeni presenti (*La piantina del tiramisù* è `(NG)` ma ha latte e uova in `allergeni_dichiarati`). A DB non esiste un campo per questa informazione e il titolo italiano non la porta, quindi tenerla solo nelle lingue darebbe due carte diverse. Tolta ovunque: il digitale resta **alla pari con l'italiano di oggi**, ma più povero del cartaceo. Da modellare come campo dedicato — è la cosa più utile da fare dopo, perché un celiaco che legge il QR oggi non trova l'informazione che ha sul menù di carta.
+
+### 11.8 Fuori perimetro (dichiarato)
 
 - Il **PDF stampabile** (`/menu-carta/editions/{id}/pdf`) resta italiano: il
   cartaceo in sala è italiano per scelta, il digitale è il canale multilingua.

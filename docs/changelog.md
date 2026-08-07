@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-08-07 — Menu Estate 2026 tradotto in cinque lingue `[locale:tregobbi]`
+
+Il motore i18n aveva la carta vuota. Ora ha i testi: **EN, FR, ES, DE, UK**, revisionati da madrelingua, per l'edizione lug/ago/set 2026.
+
+### ➕ Aggiunto
+- **Mig 164** (`TRGB_SPECIFIC`): seed di `menu_translations`. **44/44 publications e 2/2 degustazioni abbinate, 400 righe** (80 per lingua). Tutte con `rivisto = 0`, da approvare dal tab Traduzioni.
+- `locali/tregobbi/seeds/menu_traduzioni_lug_set_2026.py` + i **sorgenti** in `sorgenti_menu_lug_set_2026/`: se cambia la carta si rigenera con `costruisci_seed.py`, non si edita a mano.
+
+### Le tre discrepanze fra cartaceo e DB, e come sono state risolte
+1. **Tag dietetici** `(NG)`/`(NL)` e traduzioni: nel cartaceo stanno nel titolo, a DB no. Tolti da chiave e valore.
+2. **`(prezzo per 2 persone)`** nel titolo: a DB è già in `prezzo_label`. Tolto dal titolo e **riusato** per tradurre `prezzo_label` (*45 (price for two)*, *45 (Preis für 2 Personen)*…).
+3. **`PRIMO PIATTO`** vs **`Primo piatto bambini`**: il cartaceo abbrevia. Mappa esplicita.
+
+### Note tecniche
+- **`da 14 a 26`** dei piatti del giorno non era tradotto nel seed (lì il prezzo è una stringa condivisa fra lingue): le versioni sono state prese **dai PDF consegnati**, non inventate. Un `prezzo_label` nuovo non coperto viene segnalato a video dalla migrazione.
+- **`<i>...</i>`** nei due testi tedeschi viene strippato: React stamperebbe il markup come testo. Niente renderer HTML su una pagina pubblica senza auth per due corsivi.
+- `ON CONFLICT DO NOTHING` + `rivisto=0`: rilanciare la migrazione **non** sovrascrive le correzioni fatte a mano dal backoffice — verificato.
+
+### ⚠️ Debito dichiarato
+`(NG)`/`(NL)` vogliono dire *senza glutine* / *senza lattosio*: sono un "adatto a", non allergeni presenti. A DB non c'è un campo per questa informazione e il titolo italiano non la porta, quindi è stata tolta ovunque per non avere due carte diverse. Il digitale resta alla pari con l'italiano di oggi ma **più povero del cartaceo**: un celiaco col QR non trova quello che vede sul menù di carta. Da modellare come campo dedicato.
+
+### File
+`app/migrations/164_seed_menu_traduzioni_tregobbi.py` (nuova), `locali/tregobbi/seeds/menu_traduzioni_lug_set_2026.py` (nuovo) + `sorgenti_menu_lug_set_2026/` (4 file), `docs/modulo_menu_carta.md` (§ 11.7).
+
+---
+
 ## 2026-08-07 — Menu Carta multilingua: il menù dell'ospite in sei lingue `[core]`
 
 La pagina che il cliente apre col QR al tavolo esisteva solo in italiano. Ora parla **it, en, fr, es, de, uk**, con un solo QR in sala: la lingua la sceglie l'ospite.
