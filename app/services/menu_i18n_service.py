@@ -47,11 +47,20 @@ LINGUE: Tuple[str, ...] = ("it", "en", "fr", "es", "de", "uk")
 #: Solo le lingue di traduzione (tutto tranne la madre).
 LINGUE_TRADOTTE: Tuple[str, ...] = tuple(l for l in LINGUE if l != LINGUA_MADRE)
 
-#: Etichetta mostrata nel selettore. Sigle testuali, MAI bandiere: una
-#: bandiera e' uno stato, non una lingua (il francese non e' la Francia,
-#: l'inglese non e' il Regno Unito).
+#: Sigla mostrata nel selettore, sempre accanto alla bandiera e mai sostituita
+#: da essa: le emoji bandiera non renderizzano su Windows e gli screen reader
+#: non le leggono come lingue.
+#: NB "uk" e' il codice ISO 639-1 dell'UCRAINO, non del Regno Unito: la sigla
+#: mostrata e' "UA" apposta, altrimenti accanto alla bandiera ucraina si
+#: leggerebbe United Kingdom. Il codice interno resta "uk" ovunque.
 LINGUE_LABEL: Dict[str, str] = {
-    "it": "IT", "en": "EN", "fr": "FR", "es": "ES", "de": "DE", "uk": "UK",
+    "it": "IT", "en": "EN", "fr": "FR", "es": "ES", "de": "DE", "uk": "UA",
+}
+
+#: Bandiere del selettore (richieste da Marco 2026-08-07). Gemello di
+#: LINGUE_BANDIERA in frontend/src/config/menuI18n.js.
+LINGUE_BANDIERA: Dict[str, str] = {
+    "it": "🇮🇹", "en": "🇬🇧", "fr": "🇫🇷", "es": "🇪🇸", "de": "🇩🇪", "uk": "🇺🇦",
 }
 
 #: Codice per l'attributo HTML `lang=` / `hreflang`. Coincide con la chiave
@@ -70,17 +79,24 @@ CAMPI_PER_ENTITA: Dict[str, Tuple[str, ...]] = {
 ENTITA_VALIDE = tuple(CAMPI_PER_ENTITA.keys())
 
 
+#: Alias tollerati in ingresso. `ua` e' il codice PAESE dell'Ucraina e sul
+#: selettore mostriamo proprio "UA": chi lo ricopia a mano in `?lang=` deve
+#: ottenere l'ucraino, non l'italiano. Il codice canonico resta `uk`.
+LANG_ALIAS: Dict[str, str] = {"ua": "uk"}
+
+
 def normalizza_lang(raw: Optional[str]) -> str:
     """
     Riduce un input qualsiasi a una lingua a sistema. Non solleva MAI.
 
-    Accetta 'EN', 'en-GB', 'fr_FR', ' es ', None. Tutto cio' che non riconosce
-    diventa italiano: un `?lang=` sbagliato in un QR stampato non deve dare
-    500 a un ospite seduto al tavolo, deve dare il menu in italiano.
+    Accetta 'EN', 'en-GB', 'fr_FR', ' es ', 'ua', None. Tutto cio' che non
+    riconosce diventa italiano: un `?lang=` sbagliato in un QR stampato non
+    deve dare 500 a un ospite seduto al tavolo, deve dare il menu in italiano.
     """
     if not raw:
         return LINGUA_MADRE
     code = str(raw).strip().lower().replace("_", "-").split("-")[0]
+    code = LANG_ALIAS.get(code, code)
     return code if code in LINGUE else LINGUA_MADRE
 
 

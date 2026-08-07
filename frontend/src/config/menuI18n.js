@@ -24,11 +24,22 @@ export const LINGUE = ["it", "en", "fr", "es", "de", "uk"];
 // E' l'elenco che vede il backoffice nel tab Traduzioni.
 export const LINGUE_TRADOTTE = LINGUE.filter((l) => l !== LINGUA_MADRE);
 
-// Sigle testuali, MAI bandiere: una bandiera e' uno stato, non una lingua.
-// Il francese non e' la Francia, lo spagnolo non e' la Spagna, e su un menu
-// da osteria una fila di bandierine fa provinciale.
+// Sigla testuale. Resta SEMPRE accanto alla bandiera, mai da sola la bandiera:
+// le emoji bandiera non renderizzano su Windows (mostrano le due lettere del
+// codice paese) e gli screen reader non le leggono come lingue.
+//
+// NB `uk` e' il codice ISO 639-1 dell'UCRAINO, non del Regno Unito. La sigla
+// mostrata e' "UA" (codice paese) apposta: "UK" accanto alla bandiera ucraina
+// leggerebbe United Kingdom a chiunque. Il codice interno resta `uk` ovunque.
 export const LINGUE_LABEL = {
-  it: "IT", en: "EN", fr: "FR", es: "ES", de: "DE", uk: "UK",
+  it: "IT", en: "EN", fr: "FR", es: "ES", de: "DE", uk: "UA",
+};
+
+// Bandiere (richieste da Marco 2026-08-07). Sono scelte di comodo, non di
+// rigore: EN sta sotto la Union Jack perche' e' la piu' riconoscibile, non
+// perche' l'inglese sia del Regno Unito.
+export const LINGUE_BANDIERA = {
+  it: "🇮🇹", en: "🇬🇧", fr: "🇫🇷", es: "🇪🇸", de: "🇩🇪", uk: "🇺🇦",
 };
 
 // Nome della lingua nella lingua stessa — per il `title`/aria-label del
@@ -38,13 +49,19 @@ export const LINGUE_NOME = {
   es: "Español", de: "Deutsch", uk: "Українська",
 };
 
+// Alias tollerati in ingresso. `ua` e' il codice PAESE dell'Ucraina ed e'
+// quello che mostriamo sul selettore: chi lo ricopia in `?lang=` deve
+// ottenere l'ucraino, non l'italiano. Il codice canonico resta `uk`.
+const LANG_ALIAS = { ua: "uk" };
+
 /**
  * Riduce un input qualsiasi a una lingua a sistema. Non lancia mai.
- * Accetta 'EN', 'en-GB', 'fr_FR', ' es '. Sconosciuto o vuoto -> italiano.
+ * Accetta 'EN', 'en-GB', 'fr_FR', ' es ', 'ua'. Sconosciuto o vuoto -> italiano.
  */
 export function normalizzaLang(raw) {
   if (!raw) return LINGUA_MADRE;
-  const code = String(raw).trim().toLowerCase().replace(/_/g, "-").split("-")[0];
+  let code = String(raw).trim().toLowerCase().replace(/_/g, "-").split("-")[0];
+  code = LANG_ALIAS[code] || code;
   return LINGUE.includes(code) ? code : LINGUA_MADRE;
 }
 

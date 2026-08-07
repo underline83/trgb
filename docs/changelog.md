@@ -22,7 +22,7 @@ La pagina che il cliente apre col QR al tavolo esisteva solo in italiano. Ora pa
 1. **Tabella, non colonne.** Sei lingue × quattro campi sarebbero state 24 colonne su `menu_dish_publications` e un `ALTER TABLE` su DB live a ogni lingua nuova. Con la tabella, aggiungere l'ucraino è un INSERT.
 2. **Fallback a cascata, sempre.** Manca la traduzione di un piatto? L'ospite legge l'italiano. Non è un errore ed è per questo che il motore si può pubblicare prima dei testi. Verso il tavolo non esce mai una riga vuota.
 3. **Retrocompatibilità verificata.** Le traduzioni si scrivono dentro i campi di sempre (`titolo_override`, …), non in campi paralleli: chi chiama `public/today` senza `lang` riceve una risposta **identica** a prima (confronto JSON serializzato), e il frontend non ha dovuto imparare regole nuove.
-4. **Niente bandiere nel selettore.** Una bandiera è uno stato, non una lingua: il francese non è la Francia. Sigle testuali.
+4. **Selettore: bandiera + sigla**, mai la bandiera da sola — su Windows le emoji bandiera non renderizzano, e lo screen reader deve leggere *Français*, non "bandiera della Francia". Sul pulsante ucraino la sigla è **UA** e non "UK": accanto a 🇺🇦 chiunque leggerebbe United Kingdom, benché `uk` sia il codice ISO dell'ucraino. Il codice interno resta `uk`; `?lang=ua` è accettato come alias.
 5. **Il nome delle degustazioni resta italiano.** *"Fidati dell'oste"* è la firma della casa; è il sottotitolo, discorsivo, a essere tradotto e a spiegare il percorso.
 6. **Traduzione svuotata = cancellata**, così si torna al fallback italiano invece di stampare una riga bianca.
 

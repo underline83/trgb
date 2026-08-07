@@ -33,7 +33,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 import {
-  LINGUE, LINGUE_LABEL, LINGUE_NOME, SEZIONI_ORDINE,
+  LINGUE, LINGUE_LABEL, LINGUE_NOME, LINGUE_BANDIERA, SEZIONI_ORDINE,
   labelSezione, labelUi, langIniziale, salvaLang, normalizzaLang,
 } from "../../config/menuI18n";
 
@@ -104,19 +104,30 @@ const STYLE = `
   margin-top: 16px;
 }
 .cmp-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.12em;
   padding: 6px 11px;
   min-width: 44px;
-  min-height: 32px;
+  min-height: 36px;
   border: 1px solid #c5a97a;
   border-radius: 14px;
   background: transparent;
   color: #5a4634;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+}
+.cmp-lang-flag {
+  /* Font di sistema: il Cormorant Garamond non ha i glifi bandiera e su
+     alcuni browser le farebbe cadere su un fallback storto. */
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: normal;
 }
 .cmp-lang-btn:hover { background: #f5ead2; }
 .cmp-lang-btn[aria-current="true"] {
@@ -429,10 +440,16 @@ export default function CartaMenuPubblica() {
                 lang={l}
                 onClick={() => cambiaLingua(l)}
                 aria-current={l === lang ? "true" : "false"}
+                aria-label={LINGUE_NOME[l]}
                 title={LINGUE_NOME[l]}
                 className="cmp-lang-btn"
               >
-                {LINGUE_LABEL[l]}
+                {/* La bandiera è decorativa: aria-hidden così lo screen
+                    reader legge "Français", non "bandiera della Francia".
+                    La sigla resta sempre, non è un ripiego: su Windows le
+                    emoji bandiera non renderizzano affatto. */}
+                <span className="cmp-lang-flag" aria-hidden="true">{LINGUE_BANDIERA[l]}</span>
+                <span>{LINGUE_LABEL[l]}</span>
               </button>
             ))}
           </nav>

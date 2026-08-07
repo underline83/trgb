@@ -701,14 +701,24 @@ uno solo. Deciso con Marco il 2026-08-07.
 | Codice | Cosa fa | file:linea | Audience | Stato |
 |---|---|---|---|---|
 | **C-MC-011** | Today menu pubblico, ora con `?lang=` (it/en/fr/es/de/uk); lang ignoto o assente → `it` senza errore | `menu_carta_router.py:1465` | cliente esterno | ⚠️ aggiornata |
-| **C-MC-023** | Selettore lingua sulla pagina pubblica `/carta/menu` — sei sigle testuali, niente bandiere; `?lang=` URL → localStorage → `navigator.language` → it; il cambio riscrive l'URL (link condivisibile) | `CartaMenuPubblica.jsx:424` | cliente esterno | 🆕 |
+| **C-MC-023** | Selettore lingua sulla pagina pubblica `/carta/menu` — bandiera + sigla; `?lang=` URL → localStorage → `navigator.language` → it; il cambio riscrive l'URL (link condivisibile) | `CartaMenuPubblica.jsx:437` | cliente esterno | 🆕 |
 | **C-MC-024** | Tab **Traduzioni** nel backoffice edizione: italiano a sinistra in sola lettura, lingua a destra editabile, checkbox *Approvata*, filtri (da tradurre / da rivedere / non approvate), salvataggio massivo | `MenuCartaDettaglio.jsx:223` | manager | 🆕 |
 | **C-MC-025** | Lettura righe traducibili di un'edizione con originale IT, traduzione e flag `stale` (italiano modificato dopo l'ultima traduzione) | `GET /menu-carta/translations/` · `menu_carta_router.py:1322` | manager | 🆕 |
 | **C-MC-026** | Upsert massivo traduzioni; valore vuoto = cancella e torna al fallback italiano | `PUT /menu-carta/translations/` · `menu_carta_router.py:1397` | manager | 🆕 |
 | **C-MC-027** | Copertura per lingua sull'edizione (tradotte / approvate / totale / %). Denominatore = campi con italiano non vuoto | `GET /menu-carta/translations/coverage/` · `menu_carta_router.py:1413` | manager | 🆕 |
 | **C-MC-028** | Clone edizione: porta con sé le traduzioni delle publication e delle degustazioni | `POST /editions/{id}/clone` · `menu_carta_router.py:403` | manager | ⚠️ aggiornata |
 
-### 11.6 Fuori perimetro (dichiarato)
+### 11.6 Selettore lingua: bandiera + sigla
+
+Marco, 2026-08-07: bandierine sui pulsanti. Realizzato come **bandiera + sigla**, mai bandiera da sola:
+
+- le emoji bandiera **non renderizzano su Windows** (mostrano le due lettere del codice paese), quindi la sigla non è ridondanza ma il vero contenuto del bottone;
+- la bandiera è `aria-hidden`, il bottone ha `aria-label` col nome della lingua nella lingua stessa (*Français*, non *Francese*): lo screen reader legge la lingua, non "bandiera della Francia";
+- font emoji di sistema esplicito sulla bandiera — il Cormorant Garamond non ha quei glifi.
+
+⚠️ **`uk` è il codice ISO 639-1 dell'ucraino, non del Regno Unito.** Con la bandiera 🇺🇦 accanto, la sigla "UK" leggerebbe *United Kingdom* a chiunque: sul selettore si mostra **"UA"** (codice paese), mentre il codice interno resta `uk` ovunque (DB, `?lang=`, API). Per non tradire chi ricopia la sigla vista a schermo, `normalizza_lang()` accetta `ua` come alias di `uk` — in entrambi i gemelli, verificato su 13 input.
+
+### 11.7 Fuori perimetro (dichiarato)
 
 - Il **PDF stampabile** (`/menu-carta/editions/{id}/pdf`) resta italiano: il
   cartaceo in sala è italiano per scelta, il digitale è il canale multilingua.

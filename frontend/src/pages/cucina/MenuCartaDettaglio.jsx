@@ -16,7 +16,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "../ricette/RicetteNav";
 import { Btn, StatusBadge, EmptyState, Textarea } from "../../components/ui";
 import useToast from "../../hooks/useToast";
-import { LINGUE_TRADOTTE, LINGUE_NOME, LINGUE_LABEL, labelSezione } from "../../config/menuI18n";
+import { LINGUE_TRADOTTE, LINGUE_NOME, LINGUE_LABEL, LINGUE_BANDIERA, labelSezione } from "../../config/menuI18n";
 
 const SEZIONI_ORDER = [
   { key: "antipasti",          label: "Antipasti" },
@@ -334,12 +334,13 @@ function TraduzioniTab({ editionId }) {
                 type="button"
                 onClick={() => setLang(l)}
                 title={LINGUE_NOME[l]}
-                className={`px-3 py-2 min-h-[44px] rounded-lg text-sm font-semibold border transition ${
+                className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-sm font-semibold border transition ${
                   attiva
                     ? "bg-orange-600 border-orange-600 text-white"
                     : "bg-white border-neutral-300 text-neutral-600 hover:border-orange-400"
                 }`}
               >
+                <span aria-hidden="true">{LINGUE_BANDIERA[l]}</span>
                 {LINGUE_LABEL[l]}
                 {c && (
                   <span className={`ml-2 text-[11px] font-normal ${attiva ? "text-orange-100" : "text-neutral-400"}`}>
