@@ -29,9 +29,24 @@
 - PDF: `weasyprint` non è installabile nell'ambiente remoto, quindi generazione provata con il motore mockato — verificati HTML e CSS prodotti su 3 casi (valore intero, valore con decimali, esperienza), branding letto davvero da `locali/tregobbi/branding.json`, escaping HTML sulle note, font Cormorant trovati. **Il rendering vero va guardato dopo il push.**
 - Parse JSX con `@babel/parser` su 4 file. `npm run build` **non lanciabile da remoto** — serve prima del push.
 
+### Import storico (CL.16, stessa sessione — Excel arrivato)
+
+`giftcard_import_service.py` (logica pura, testabile senza DB) + `POST /clienti/giftcard/import/excel` + bottone **Importa Excel** con **anteprima obbligatoria** (`dry_run=true` di default).
+
+**Marco:** *«la logica della gift è A1 seguito dall'anno - numero progressivo»*. Questa informazione ha cambiato il taglio dell'import: la serie **A124 è stata aperta a dicembre 2023** per i regali di Natale, quindi 26 buoni hanno data 2023 ma codice 2024. Filtrando per data si sarebbero persi **18 buoni ancora attivi per 3.535 €**. Marco ha scelto di far vincere l'anno del codice.
+
+**5 regole decise da Marco:** anno dal codice (soglia 2024) · importo obbligatorio, dedotto dalla descrizione se la colonna è vuota (`deg 130` → 130 €) · righe senza importo fuori · codici doppi: vince l'importo più alto · importate senza scadenza.
+
+**Esito sul file reale:** 90 importabili (74 attive per **12.825 €**, 16 usate), 84 scartate (46 pre-2024, 35 senza importo, 1 doppio, 1 senza codice, 1 senza anno). Rieseguibile senza doppioni: i codici già a sistema vengono saltati.
+
+**Modifica al modello:** l'importo ora si conserva anche sulle card `tipo='esperienza'` (prima il router lo azzerava). L'Excel dimostra che il caso reale è "2 degustazioni da 210 €": il valore serve al totale in circolazione, è il PDF a non stamparlo.
+
+**Verificato sul file vero:** import applicato su DB temporaneo → 90 inserite, seconda esecuzione 0 inserite e 90 saltate (idempotente), `integrity_check ok`, lookup al banco funzionante su `a125-330`, `A124202`, ` a124-254 `. Parser provato sui casi sporchi: `20/'5/2'23` → 20/05/2023, `29/02/2023` (data inesistente) → scartata con avviso invece di essere inventata.
+
 ### Aperto
-- **Storico Excel non importato** (CL.16): serve il file di Marco. Finché non c'è, un cliente può presentarsi con un codice che il sistema non conosce.
 - Nessun tab Gift Card nella scheda cliente (CL.17).
+- Le 35 righe senza importo (per lo più "BOX" o vuote) restano fuori per scelta di Marco.
+- Le card importate non hanno intestatario: l'Excel non lo registrava.
 - **Trovato di passaggio:** `modules_router.MODULES_SEED_FILE` punta a `locali/<id>/data/modules.json`, ma in git è tracciato solo `app/data/modules.json`. Il sub `giftcard` è stato messo in entrambi per sicurezza, ma va chiarito quale è davvero il seed letto in produzione (§15.6 di `modulo_clienti_crm.md`).
 
 ### Commit

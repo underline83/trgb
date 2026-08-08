@@ -465,7 +465,11 @@ def crea_giftcard(body: GiftCardCreate, current_user: Dict[str, Any] = Depends(g
             (
                 codice,
                 body.tipo,
-                body.importo if body.tipo == "valore" else None,
+                # L'importo si conserva anche sulle esperienze: un buono
+                # "2 degustazioni" ha comunque un valore incassato, che serve
+                # al totale del valore ancora in circolazione. E' il PDF a
+                # non stamparlo, non il DB a non saperlo.
+                body.importo,
                 (body.descrizione or "").strip() or None,
                 body.cliente_id,
                 (body.intestatario_nome or "").strip() or None,
@@ -635,6 +639,125 @@ def riattiva_giftcard(gc_id: int, body: AzioneRequest = AzioneRequest(),
         conn.rollback()
         logger.exception("Errore riattivazione gift card %s", gc_id)
         raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────────────────────
+# Import dallo storico Excel
+# ─────────────────────────────────────────────────────────────
+
+@router.post("/import/excel")
+async def import_excel(
+    file: UploadFile = File(...),
+    dry_run: bool = Query(True, description="True = solo anteprima, non scrive"),
+    anno_minimo: int = Query(2024, description="Esclude le serie precedenti"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Importa il foglio storico delle gift card.
+
+    Di default e' un'ANTEPRIMA (`dry_run=true`): mostra cosa entrerebbe e
+    cosa verrebbe scartato, senza toccare niente. Le regole di scarto e la
+    logica di normalizzazione stanno in `giftcard_import_service`.
+
+    Rieseguibile: i codici gia' presenti a sistema vengono saltati, non
+    duplicati ne' sovrascritti (chi e' gia' dentro puo' essere stato nel
+    frattempo scaricato o corretto a mano, e quel lavoro non si tocca).
+    """
+    if current_user.get("role") not in ("admin", "superadmin"):
+        raise HTTPException(403, "Solo un amministratore puo' importare lo storico")
+
+    try:
+        from app.services.giftcard_import_service import leggi_xlsx, costruisci_piano
+    except ImportError as e:
+        raise HTTPException(500, f"openpyxl non disponibile sul server: {e}")
+
+    contenuto = await file.read()
+    try:
+        righe = leggi_xlsx(contenuto)
+        piano = costruisci_piano(righe, anno_minimo=anno_minimo)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("Errore lettura file import gift card")
+        raise HTTPException(400, f"File non leggibile: {e}")
+
+    conn = get_clienti_conn()
+    try:
+        esistenti = {
+            r["k"] for r in conn.execute(
+                "SELECT REPLACE(REPLACE(UPPER(codice),'-',''),' ','') AS k FROM clienti_giftcard"
+            ).fetchall()
+        }
+
+        da_inserire, gia_presenti = [], []
+        for r in piano.importabili:
+            if _normalizza_codice(r.codice) in esistenti:
+                gia_presenti.append(r.codice)
+            else:
+                da_inserire.append(r)
+
+        inserite = 0
+        if not dry_run and da_inserire:
+            try:
+                for r in da_inserire:
+                    cur = conn.execute(
+                        """
+                        INSERT INTO clienti_giftcard
+                            (codice, tipo, importo, descrizione, intestatario_nome,
+                             stato, data_emissione, data_scadenza, data_utilizzo,
+                             emessa_da, note)
+                        VALUES (?,?,?,?,NULL,?,?,NULL,?,?,?)
+                        """,
+                        (
+                            r.codice, r.tipo, r.importo, r.descrizione,
+                            r.stato, r.data_emissione, r.data_utilizzo,
+                            r.emessa_da, r.note,
+                        ),
+                    )
+                    _log_movimento(
+                        conn, cur.lastrowid, "import", None, r.stato,
+                        current_user["username"],
+                        " · ".join(r.avvisi) if r.avvisi else "Import da Excel storico",
+                    )
+                    inserite += 1
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.exception("Errore scrittura import gift card")
+                raise HTTPException(500, f"Import interrotto, nessuna riga scritta: {e}")
+
+        return {
+            "dry_run": dry_run,
+            "inserite": inserite,
+            "gia_presenti": len(gia_presenti),
+            "codici_gia_presenti": gia_presenti[:50],
+            **piano.riepilogo(),
+            "anteprima": [
+                {
+                    "riga_excel": r.riga_excel,
+                    "codice": r.codice,
+                    "tipo": r.tipo,
+                    "importo": r.importo,
+                    "descrizione": r.descrizione,
+                    "stato": r.stato,
+                    "data_emissione": r.data_emissione,
+                    "data_utilizzo": r.data_utilizzo,
+                    "avvisi": r.avvisi,
+                }
+                for r in da_inserire
+            ],
+            "scartate": [
+                {
+                    "riga_excel": s.riga_excel,
+                    "codice": s.codice,
+                    "motivo": s.motivo,
+                    "dettaglio": s.dettaglio,
+                }
+                for s in piano.scartate
+            ],
+        }
     finally:
         conn.close()
 

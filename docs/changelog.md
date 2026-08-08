@@ -21,7 +21,9 @@ Nuova sezione **Clienti → 🎁 Gift Card**. Sostituisce il file Excel con cui 
 
 **Sulla cassa non tocca niente**, come deciso: né all'emissione né allo scarico. È un registro che dice quanto valore è ancora in giro (`valore_spendibile` nei numeri in testata), i corrispettivi li metti tu dove servono.
 
-⚠️ **Lo storico dell'Excel non è ancora dentro.** Finché non carichi il file, un cliente può presentarsi con un buono vecchio che il sistema non conosce.
+**Lo storico dell'Excel entra con un bottone.** *Importa Excel* mostra prima un'anteprima: cosa entra, cosa viene scartato e perché. Dal tuo file entrano **90 buoni, di cui 74 ancora attivi per 12.825 €**. Restano fuori i 46 precedenti al 2024 e le 35 righe senza importo (le "BOX" e le celle vuote). Rilanciarlo non crea doppioni.
+
+Il taglio segue la **serie del codice, non la data**: `A125-330` è serie 2025 anche se la cella dice un altro anno. Serviva, perché la serie A124 è stata aperta a dicembre 2023 per i regali di Natale — filtrando per data si sarebbero persi 18 buoni ancora validi per 3.535 €. Dove l'importo mancava ma la descrizione diceva `deg 130`, il valore viene dedotto e la cosa resta scritta nello storico della card. Le date scritte a mano vengono interpretate (`20/'5/2'23` → 20/05/2023), tranne quelle impossibili come `29/02/2023`, che vengono segnalate invece che inventate.
 
 Clienti 3.0 → 3.1. Migrazione 166 (solo config alert). Doc: [modulo_clienti_crm.md](modulo_clienti_crm.md) §16.
 

@@ -469,6 +469,7 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 | C-CL-G09 | PDF A5 del buono con identità del locale | `giftcard_pdf_service.py:genera_pdf_giftcard` | admin, sala | ✅ |
 | C-CL-G10 | Alert card in scadenza / scadute non usate | `alert_engine.py:_check_giftcard_scadenza` | admin | ✅ |
 | C-CL-G11 | Pagina unica banco + ufficio | `frontend/src/pages/clienti/ClientiGiftCard.jsx` | admin, sala | ✅ |
+| C-CL-G12 | Import storico da Excel con anteprima obbligatoria e rilancio senza doppioni | `clienti_giftcard_router.py:import_excel` + `giftcard_import_service.py` | admin | ✅ |
 
 ## 16.7 PDF — perché non usa M.B
 
@@ -478,8 +479,27 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 
 Checker `giftcard_scadenza`, seed in mig 166: soglia 30 giorni, `antidup_ore=168` (max una notifica a settimana). **Una sola notifica riepilogativa**, non una per card: sono soldi già incassati, l'azione utile è "chiama questa gente prima che scada", non leggere 12 notifiche. Soglia e destinatari da Impostazioni → Notifiche.
 
-## 16.9 Punti aperti
+## 16.9 Import dallo storico Excel
 
-1. **Storico Excel non ancora importato.** Il file di Marco non è ancora stato caricato: i buoni già in circolazione vanno inseriti (uno per uno dalla UI, o con un import da costruire quando si vede il formato). Fino ad allora un cliente può presentarsi con un codice che il sistema non conosce.
-2. **Nessun tab Gift Card nella scheda cliente.** Le card intestate a un cliente CRM si vedono solo dalla pagina Gift Card filtrando per nome. Da valutare se serve.
-3. **Scadenza calcolata a 30 giorni per mese** in emissione (`mesi × 30`): approssimazione voluta, la data è comunque modificabile a mano.
+`app/services/giftcard_import_service.py` + `POST /clienti/giftcard/import/excel` (solo admin). Bottone **Importa Excel** nella pagina, con **anteprima obbligatoria**: il default è `dry_run=true`, si vede cosa entra e cosa viene scartato prima di scrivere.
+
+Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) è compilato a mano in cinque anni: date impossibili (`29/02/2023`), importi solo dentro la descrizione (`deg 130`), una data scritta `20/'5/2'23`, codici ripetuti, la colonna Utente che a volte è un nome, a volte un telefono, a volte una data.
+
+**Le 5 regole (decise da Marco, 2026-08-08):**
+
+1. **L'anno si legge dal codice.** Formato `<lettera>1<AA>-<progressivo>`: `A125-330` = serie 2025. L'anno del codice **vince sulla colonna Data**, perché la serie A124 è stata aperta a dicembre 2023 per i regali di Natale: 26 buoni hanno data 2023 ma appartengono alla stagione 2024. Sui codici delle serie vecchie (`N###`, `M###`, `A000-*`, `####-####`) si usa la data.
+2. **Soglia 2024**: tutto ciò che è precedente resta nell'Excel.
+3. **Importo obbligatorio**: dalla colonna, oppure dedotto dalla descrizione (`deg 130`, `VALORE 100€`). Se non si deduce la riga non entra — una card senza valore non è verificabile al banco e sporcherebbe il totale in circolazione.
+4. **Codici doppi**: vince l'importo più alto (scelta prudente verso chi si presenta col buono), l'altra riga finisce nelle note e negli scarti.
+5. **Senza scadenza**: le importate entrano con `data_scadenza = NULL`, come erano nell'Excel.
+
+**Rieseguibile**: i codici già a sistema vengono saltati, non sovrascritti (nel frattempo possono essere stati scaricati o corretti a mano). Ogni card importata ha un movimento `import` con gli avvisi (importo dedotto, data incoerente col codice, riga doppia).
+
+**Esito sul file reale:** 90 importabili (74 attive per 12.825 €, 16 usate), 84 scartate — 46 anteriori al 2024, 35 senza importo, 1 codice doppio, 1 senza codice, 1 senza anno determinabile.
+
+## 16.10 Punti aperti
+
+1. **Nessun tab Gift Card nella scheda cliente.** Le card intestate a un cliente CRM si vedono solo dalla pagina Gift Card filtrando per nome. Da valutare se serve (CL.17).
+2. **Le 35 righe senza importo restano fuori** per scelta: sono per lo più "BOX" o celle vuote. Se Marco ritrova gli scontrini, si inseriscono a mano.
+3. **Scadenza calcolata a 30 giorni per mese** in emissione (`mesi × 30`): approssimazione voluta, la data è modificabile a mano.
+4. **Le card importate non hanno intestatario**: l'Excel non lo registrava (la colonna Utente è chi ha venduto, non chi ha ricevuto). Al banco si riconoscono dal codice.
