@@ -409,10 +409,15 @@ def get_dashboard(
     """
     Restituisce in un'unica chiamata:
     - KPI (totale vini, bottiglie, in carta, con giacenza, senza listino)
-    - Alert: vini in carta con giacenza = 0
+    - Monitor riordino: vini in carta esauriti o con copertura sotto soglia
+      (RD.1: `alert_carta_senza_giacenza` + `alert_carta_giorni_copertura`)
     - Ultimi 10 movimenti cross-vino
     - Distribuzione bottiglie per tipologia
-    - Riordini per fornitore (con flag per includere giacenze positive)
+
+    `includi_giacenza_positiva` è **deprecato da RD.6**: alimentava il widget
+    «Riordini per fornitore», assorbito da `/vini/ordini`. Accettato per
+    retrocompatibilità, ignorato. Per "chi ha lavoro in sospeso" usare
+    `GET /vini/ordini/fornitori/`.
     """
     return db.get_dashboard_stats(includi_giacenza_positiva=includi_giacenza_positiva)
 

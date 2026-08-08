@@ -1,6 +1,6 @@
 # Modulo Vini — Ordini ai fornitori (piano O0–O7)
 
-> **Tipo:** 📄 pagina wiki · **Stato:** **O1, O3, O4, O5, O6 FATTI** (2026-08-02, vini 3.75) · **RD.1 FATTO** (2026-08-08, vini 3.81, mig 165) · **RD.1.1** (vini 3.82): il widget elenca solo i non decisi, `D` mette in bozza come `0` · **RD.2** (vini 3.83): contesto annate nel Monitor. O2 assorbito in O6. Resta O7. · **Ultima verifica:** 2026-08-08 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
+> **Tipo:** 📄 pagina wiki · **Stato:** **O1, O3, O4, O5, O6 FATTI** (2026-08-02, vini 3.75) · **RD.1 FATTO** (2026-08-08, vini 3.81, mig 165) · **RD.1.1** (vini 3.82): il widget elenca solo i non decisi, `D` mette in bozza come `0` · **RD.2** (vini 3.83): contesto annate nel Monitor · **RD.6** (vini 3.84): il widget «Riordini per fornitore» è stato assorbito da questa pagina — **B3 chiuso davvero**. O2 assorbito in O6. Resta O7. · **Ultima verifica:** 2026-08-08 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
 > **Vedi anche:** [modulo_vini.md](modulo_vini.md) (stato corrente del modulo) · [modulo_vini_widget_dashboard.md](modulo_vini_widget_dashboard.md) (storia dei due widget esistenti) · [roadmap.md](roadmap.md) §V
 
 **Doc canonico** del lavoro sui riordini vini. Nasce dalla sessione 2026-08-02: Marco chiede "devo avere un modo per lavorarci meglio".
@@ -35,7 +35,7 @@ Cosa c'è oggi:
 |---|------|----------|
 | **B1** | **Non esiste il concetto di ordine.** Esiste solo "riga pending per vino". Nessuna testata, nessuno stato, nessuna data di invio. | `vini_ordini_pending` ha `UNIQUE(vino_id)` |
 | **B2** | **Nessuno storico.** `conferma_arrivo_ordine_pending()` **cancella** il record quando la merce arriva. Impossibile sapere cosa si è ordinato a un fornitore, quando, e quanto ci ha messo. | `vini_magazzino_db.py:3013` — punto 4 della transazione |
-| **B3** | **Due widget sovrapposti.** Riordini-per-fornitore e Alert-senza-giacenza hanno entrambi `+ ordina` ed entrambi raggruppano per distributore. Il lavoro è spalmato su due liste. | `DashboardVini.jsx` righe ~560 e ~1308 |
+| **B3** | **Due widget sovrapposti.** Riordini-per-fornitore e Alert-senza-giacenza hanno entrambi `+ ordina` ed entrambi raggruppano per distributore. Il lavoro è spalmato su due liste. | `DashboardVini.jsx` righe ~560 e ~1308 → **CHIUSO 2026-08-08 con RD.6** (§2-quater): il widget per-fornitore non esiste più, le sue funzioni sono in `/vini/ordini` |
 | **B4** | **Nessun invio.** L'ordine si compone nel gestionale e poi si riscrive a mano su WhatsApp. Era il "punto 7 differito" del doc widget. | [modulo_vini_widget_dashboard.md](modulo_vini_widget_dashboard.md) §9 |
 
 ---
@@ -221,7 +221,7 @@ Layout master-detail:
   3. **Ordini recenti** — ultimi 5 ordini con data, righe, totale, stato. *Questo è ciò che serve quando il rappresentante è lì e chiede "l'ultima volta cosa ti avevo portato?"*
   4. **Contatto** — nome, telefono, condizioni (da O7).
 - La pagina è **una schermata per fornitore**: proiettabile su iPad girato verso il rappresentante senza mostrare i dati degli altri.
-- I due widget vecchi in dashboard si riducono a un riepilogo cliccabile che porta qui.
+- I due widget vecchi in dashboard si riducono a un riepilogo cliccabile che porta qui. **(RD.6, 2026-08-08: completato — il widget per-fornitore è stato rimosso e le sue funzioni migrate qui.)**
 
 ### O7 — Condizioni fornitore + intelligenza
 
@@ -457,6 +457,48 @@ In UI, sulla riga del Monitor:
   tooltip lo dice.
 - Nel banner: «N hanno già l'annata nuova in cantina», per sapere quanti sono
   senza aprire la lista.
+
+### 2-quater. RD.6 — assorbimento del widget «Riordini per fornitore» (2026-08-08, vini 3.84)
+
+Marco: *«il widget riordini per fornitore lo integri con il modulo ordini?
+ragiona su come farli coesistere.»*
+
+**Diagnosi.** Era il buco **B3** (§2), che O6 aveva chiuso solo a metà: la pagina
+`/vini/ordini` e il widget facevano la stessa cosa — elenco per distributore di
+cosa ordinare — sugli stessi dati, ma solo la pagina ha carrello, invio,
+ricezione e storico. Il widget però era l'unico posto con tre funzioni che
+servono davvero *col rappresentante davanti*. Spegnerlo senza migrarle sarebbe
+stata una perdita.
+
+**Scelta (Marco): assorbimento.** Le funzioni migrano, il widget muore.
+
+| Cosa | Prima | Ora |
+|---|---|---|
+| Listino inline editabile (+ storico prezzi automatico) | widget dashboard | riga «Da ordinare» in `/vini/ordini`: click sul prezzo → input, Invio salva, Esc annulla. Il `PATCH EURO_LISTINO` alimenta `vini_prezzi_storico` da solo |
+| Duplica nuova annata | widget dashboard | bottone 🗓️ sulla riga → modale: crea la bottiglia nuova (giacenza 0, fuori carta, `STATO_RIORDINO='0'`) **e la mette subito in bozza** con la qta suggerita |
+| Ordinamenti (ritmo, giacenza, listino, ult. carico, ult. vendita) | colonne sortabili della tabella | barra «Ordina per» sopra la lista, + **Urgenza** (copertura crescente) che prima non c'era |
+| Tracciamento `A`/`X` per fornitore | righe grigie in fondo alla tabella | sezione **«Messi da parte (N)»** chiusa di default, con chip di stato e l'annata che li ha sostituiti. Nuovo endpoint `GET /vini/ordini/archivio/?fornitore_nome=` |
+| Contesto annate (RD.2) | solo nel Monitor | anche qui: chip `➡️ 2023 c'è (30)` sulla riga |
+
+**Cosa è stato rimosso.**
+- `DashboardVini.jsx`: **−536 righe** (widget 328, modale duplica 74, state e
+  handler orfani 134). Il file passa da 2233 a 1697 righe.
+- `vini_magazzino_db.get_dashboard_stats()`: via la query `riordini_per_fornitore`
+  (~940 righe di payload calcolate a ogni apertura della dashboard). Il campo non
+  è più nella risposta.
+- `includi_giacenza_positiva` (query param di `GET /vini/magazzino/dashboard` e
+  argomento di `get_dashboard_stats`) è **deprecato**: resta accettato e ignorato,
+  perché un browser con il JS vecchio in cache lo manderebbe ancora.
+
+**Cosa resta in dashboard.** Due blocchi, con ruoli distinti:
+1. **Monitor** — dove si *decide*, per vino (coda dei non decisi).
+2. **📦 Ordini** — dove si vede lo *stato* e si sceglie con chi lavorare: il
+   semaforo di O6 più, sotto, i **fornitori con lavoro in sospeso** come chip
+   (`nome · N da ordinare · 🛒 carrello · 🚚 in arrivo`, primi 8) presi da
+   `GET /vini/ordini/fornitori/` — 32 fornitori invece di 940 bottiglie. Un click
+   porta in `/vini/ordini?fornitore=<nome>`.
+
+**Misura:** dashboard da 25 ms a **19 ms**, con un payload molto più piccolo.
 
 ### 3. Codice colore (unico su tutte le viste)
 

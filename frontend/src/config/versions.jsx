@@ -3,6 +3,44 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.84 (2026-08-08, RD.6): il widget «Riordini per fornitore» e' stato
+    //   ASSORBITO dalla pagina /vini/ordini (chiude il buco B3 del piano O).
+    //   Migrate di la': listino inline editabile con storico prezzi, duplica
+    //   nuova annata (che mette la bottiglia nuova in bozza), ordinamenti
+    //   (urgenza/ritmo/giacenza/listino/date), tracciamento A/X nella sezione
+    //   "Messi da parte" (nuovo GET /vini/ordini/archivio/).
+    //   Rimossi: 536 righe da DashboardVini.jsx (2233→1697) e la query
+    //   riordini_per_fornitore da get_dashboard_stats (~940 righe di payload,
+    //   dashboard 25→19 ms). `includi_giacenza_positiva` deprecato/ignorato.
+    //   In dashboard il blocco "📦 Ordini" mostra i fornitori con lavoro.
+    // 3.83 (2026-08-08, RD.2): contesto annate nel Monitor riordino. Marco:
+    //   "se un vino ha un'annata nuova dovresti aiutarmi a capirlo per decidere".
+    //   10 righe su 48 erano falsi allarmi: annata finita ma vendemmia dopo gia'
+    //   in cantina. Ogni riga porta ora il chip "➡️ 2023 in cantina · 30 bt"
+    //   (cliccabile) e "📥 comprato ~N mesi fa". Restano in lista per scelta di
+    //   Marco: sparisce quando marca lui "Annata esaurita".
+    //   vini_riordino_service.arricchisci_annate(), 1 query per tutte le righe.
+    // 3.82 (2026-08-08, RD.1.1): il flag "Da ordinare" ora fa quello che dice.
+    //   Marco: "ho flaggato, ma restano li". Il widget elenca SOLO i vini su cui
+    //   non hai ancora deciso: 'D' e 'Ordinato' mettono il vino nella bozza del
+    //   fornitore e lo tolgono dalla lista (prima 'D' era solo un colore e il
+    //   vino restava). Chi decidi resta a schermo come riga verde "Sistemati
+    //   adesso" fino al refresh, con chip "in bozza · fornitore · N bt"; se
+    //   ri-clicchi il flag la riga viene tolta anche dal carrello.
+    // 3.81 (2026-08-08, RD.1): il widget dashboard diventa il primo selettore
+    //   del riordino. Chi entra non e' piu' "giacenza = 0" ma la COPERTURA in
+    //   giorni (giacenza / consumo recente < N gg, default 21): 1 bt di un vino
+    //   che gira e' un alert, 1 bt di un vino fermo no. Logica unica in
+    //   app/services/vini_riordino_service.py, condivisa con /vini/ordini.
+    //   Flag "Ordinato" mette il vino nella bozza del suo fornitore. Righe
+    //   colorate per stato riordino su widget fornitori e pagina Ordini.
+    //   Mig 165: sync chiavi vini_widget_settings (soglia + 4 chiavi O5 che
+    //   erano nel service ma non in tabella, quindi non editabili da UI).
+    // 3.80 (2026-08-03, V.9 fase 1): "Cantina da iPhone" — nuova pagina
+    //   mobile-first /vini/cantina-mobile (CantinaMobile.jsx): finder
+    //   «trova la bottiglia» (ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per
+    //   scaffale) e scheda mobile read-only. Solo consultazione, zero
+    //   modifiche backend (riusa /vini/v2/bottiglie/).
     // 3.79 (2026-08-03): "Pubblica la carta sul sito" in Impostazioni > Carta
     //   (mattone M.J): la carta CLIENTE va da sola sull'FTP dell'hosting, con
     //   nome fisso. La versione staff resta interna e non e' pubblicabile.
@@ -35,35 +73,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    // 3.83 (2026-08-08, RD.2): contesto annate nel Monitor riordino. Marco:
-    //   "se un vino ha un'annata nuova dovresti aiutarmi a capirlo per decidere".
-    //   10 righe su 48 erano falsi allarmi: annata finita ma vendemmia dopo gia'
-    //   in cantina. Ogni riga porta ora il chip "➡️ 2023 in cantina · 30 bt"
-    //   (cliccabile) e "📥 comprato ~N mesi fa". Restano in lista per scelta di
-    //   Marco: sparisce quando marca lui "Annata esaurita".
-    //   vini_riordino_service.arricchisci_annate(), 1 query per tutte le righe.
-    // 3.82 (2026-08-08, RD.1.1): il flag "Da ordinare" ora fa quello che dice.
-    //   Marco: "ho flaggato, ma restano li". Il widget elenca SOLO i vini su cui
-    //   non hai ancora deciso: 'D' e 'Ordinato' mettono il vino nella bozza del
-    //   fornitore e lo tolgono dalla lista (prima 'D' era solo un colore e il
-    //   vino restava). Chi decidi resta a schermo come riga verde "Sistemati
-    //   adesso" fino al refresh, con chip "in bozza · fornitore · N bt"; se
-    //   ri-clicchi il flag la riga viene tolta anche dal carrello.
-    // 3.81 (2026-08-08, RD.1): il widget dashboard diventa il primo selettore
-    //   del riordino. Chi entra non e' piu' "giacenza = 0" ma la COPERTURA in
-    //   giorni (giacenza / consumo recente < N gg, default 21): 1 bt di un vino
-    //   che gira e' un alert, 1 bt di un vino fermo no. Logica unica in
-    //   app/services/vini_riordino_service.py, condivisa con /vini/ordini.
-    //   Flag "Ordinato" mette il vino nella bozza del suo fornitore. Righe
-    //   colorate per stato riordino su widget fornitori e pagina Ordini.
-    //   Mig 165: sync chiavi vini_widget_settings (soglia + 4 chiavi O5 che
-    //   erano nel service ma non in tabella, quindi non editabili da UI).
-    // 3.80 (2026-08-03, V.9 fase 1): "Cantina da iPhone" — nuova pagina
-    //   mobile-first /vini/cantina-mobile (CantinaMobile.jsx): finder
-    //   «trova la bottiglia» (ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per
-    //   scaffale) e scheda mobile read-only. Solo consultazione, zero
-    //   modifiche backend (riusa /vini/v2/bottiglie/).
-    version: "3.83",
+    version: "3.84",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

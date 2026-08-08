@@ -75,7 +75,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.
 | ID | Cosa | Effort | Priorità | Note |
 |----|------|--------|----------|------|
 | V.1 | Flag DISCONTINUATO UI + filtro | S | **PRIORITARIO 1** | DB ready (consolidato in `STATO_RIORDINO='X'` post mig 124), serve solo UI/filtro nella Cantina v2 |
-| V.2 | Alert sottoscorta (M.A + M.F) | S | **PRIORITARIO 2** | Mattoni esistono |
+| V.2 | Alert sottoscorta (M.A + M.F) | S | **🟡 PARZIALE 2026-08-08** | La *logica* c'è: RD.1 ha sostituito "giacenza = 0" con la **copertura in giorni** (`vini_riordino_service.sql_da_riordinare()`, soglia `alert_carta_giorni_copertura`), visibile nel Monitor dashboard e nella pagina Ordini. Resta da fare la **notifica push** (checker M.F + `crea_notifica` M.A) per non dover aprire la dashboard. Vedi §RD sotto |
 | V.3 | Storico prezzi fornitore — grafico Recharts | S | **PRIORITARIO 3** | Dati già in `vini_prezzi_storico` |
 | **V.20** | **Import/Export Vini v3 — template strutturato 3 fogli (Produttori / Madri / Bottiglie)** | L | **DA RIPRIORITIZZARE** | Post-cutover: template attuale è ancora "piatto" legacy, va rifatto per riflettere nuove anagrafiche strutturate. Match FK per ID o nome con auto-creazione. Vedi task interno #2. |
 | **V.21** | **Bulk delete da BulkActionBar Cantina v2 (selezione multipla)** | XS | **DA RIPRIORITIZZARE** | Backend già pronto (DELETE FROM vini_bottiglie WHERE id IN). Manca solo action UI. Task interno #3. |
@@ -140,6 +140,22 @@ Vedi [`docs/refactor_anagrafiche_vini.md`](refactor_anagrafiche_vini.md) per il 
 - V-H.F | Rename STATO_VENDITA codici lettera → parlanti + CHECK constraint | M | ✅ FATTO 2026-05-15 (mig 128 TEXT→INTEGER 0..3)
 - V-H.G | Soglie configurabili (vini_settings + UI Impostazioni Vini) | M | ✅ FATTO 2026-05-12 (mig 123, 12 soglie)
 - V-H.H | Allineamento docs §3.5 + roadmap V | XS | ✅ FATTO 2026-05-12
+
+### RD — Riordino vini (Monitor dashboard + pagina Ordini) — 2026-08-08
+
+Doc canonico: [`modulo_vini_ordini.md`](modulo_vini_ordini.md) §RD.1, §2-bis, §2-ter.
+Segue O1–O6 (2026-08-02): O6 aveva spostato il *lavoro* sulla pagina Ordini, RD dà
+un ruolo al widget — **il Monitor è dove si decide, la pagina è dove si ordina**.
+
+| ID | Cosa | Effort | Stato |
+|----|------|--------|-------|
+| **RD.1** | Copertura in giorni al posto della soglia bottiglie (`vini_riordino_service`, fonte unica per 4 query) + flag `Ordinato` → bozza fornitore + colori per stato + mig 165 sync settings | M | **✅ FATTO 2026-08-08** (vini 3.81, commit `f6f1cfcc`) |
+| **RD.1.1** | Il Monitor è una coda: elenca solo i vini non decisi, `Da ordinare` mette in bozza come `Ordinato`, blocco «Sistemati adesso» con annullo (toglie anche la riga dal carrello) | S | **✅ FATTO 2026-08-08** (vini 3.82) |
+| **RD.2** | Contesto annate: `annata_successiva` + `ultimo_acquisto` via `arricchisci_annate()`, chip «➡️ in cantina» cliccabile, contatore nel banner. Ha smascherato **10 falsi allarmi su 48** | S | **✅ FATTO 2026-08-08** (vini 3.83) |
+| **RD.3** | **Allineare la pagina Ordini al filtro del Monitor** — il Monitor filtra `STATO_VENDITA >= 2`, `fornitori_con_lavoro`/`da_ordinare` no: 918 righe contro 39, **332 solo per «0,75 di Valentino Rossi»**. Disallineamento pre-esistente, ma **da RD.6 è l'unica lista per fornitore che resta**, quindi pesa il doppio. **Decisione PO da prendere:** allineare o tenere la lista larga? | XS | **DA DECIDERE con Marco — priorità alzata** |
+| **RD.4** | ~~Copertura in giorni anche nel widget «Riordini per fornitore»~~ | XS | **DECADUTO 2026-08-08**: il widget non esiste più (RD.6). La copertura c'è nella pagina Ordini |
+| **RD.6** | **Assorbimento del widget «Riordini per fornitore» nella pagina Ordini** — migrate listino inline con storico prezzi, duplica nuova annata (mette in bozza), ordinamenti (+ urgenza), tracciamento `A`/`X` («Messi da parte», nuovo `GET /vini/ordini/archivio/`). Rimosse 536 righe da `DashboardVini.jsx` e la query `riordini_per_fornitore` (~940 righe di payload, dashboard 25→19 ms). **Chiude B3 del piano O** | M | **✅ FATTO 2026-08-08** (vini 3.84) |
+| **RD.5** | Notifica sottoscorta senza aprire la dashboard: checker M.F su `sql_da_riordinare()` + `crea_notifica` M.A. È la parte che resta di **V.2** | S | DA FARE |
 
 **Bug/debt:**
 - V-BUG1 — FALSO POSITIVO 2026-05-12: l'endpoint `POST /vini/magazzino/import` citato non esiste. Tutti gli endpoint massivi reali (`/reset-database`, `/import-excel`, `/bulk-update`, `/bulk-duplicate`, `/delete-vino/{id}`) hanno già admin guard. Voce da chiudere in [`problemi.md`](problemi.md).

@@ -438,7 +438,8 @@ Tabellona editabile per admin con tutte le colonne principali:
 - **Vendite recenti** (col sx) + **Movimenti operativi** (col dx)
 - **Top venduti 30gg** (larghezza piena) — ranking a barre, click → scheda vino
 - **Distribuzione tipologie** — barre proporzionali con contatore
-- **📦 Riordini per fornitore** (sezione gestionale completa, 8 fasi 1-8 implementate): tabella raggruppata per distributore con sort produttore, pulsante info dedicato, duplica con nuova annata, colonna riordino + modale qty, bottone arrivato + carico, listino inline editabile con storico, sort multi-colonna. 🆕 v4.15: colonna "Ritmo" sortabile (ritmo vendita) anche qui e badge ritmo inline nel widget Vini fermi (`DashboardVini.jsx:2`). 🆕 RD.1: righe colorate per `STATO_RIORDINO` (arancione da ordinare, sky ordinato, neutro attenuato per annata esaurita / non ricomprare; rosso o ambra se lo stato non c'è, secondo giacenza) con la stessa palette di `viniConstants.STATO_RIORDINO`.
+- ~~**📦 Riordini per fornitore**~~ — **RIMOSSO 2026-08-08 (RD.6, vini 3.84).** Il widget duplicava la pagina `/vini/ordini` sugli stessi dati (buco B3 del piano O). Le sue funzioni sono state migrate là: listino inline editabile con storico prezzi, duplica nuova annata (che mette la nuova bottiglia in bozza), ordinamenti (ritmo / giacenza / listino / ult. carico / ult. vendita / urgenza), tracciamento `A`/`X` nella sezione «Messi da parte». `get_dashboard_stats` non calcola più `riordini_per_fornitore` (~940 righe di payload in meno, dashboard 25→19 ms) e `includi_giacenza_positiva` è deprecato/ignorato.
+- **📦 Ordini** (blocco che lo sostituisce) — semaforo O6 (`carrelli da mandare · in arrivo · fermi da N gg`) **più** i fornitori con lavoro in sospeso come chip cliccabili (`nome · N da ordinare · 🛒 · 🚚`, primi 8, da `GET /vini/ordini/fornitori/`). Un click porta in `/vini/ordini?fornitore=<nome>`.
 
 ---
 

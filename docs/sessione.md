@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-08-08 — **DA PUSHARE: RD.1 widget vini = selettore riordino (copertura in giorni, flag Ordinato → bozza fornitore, mig 165, vini 3.81) — lanciare `npm run build` prima del push**; **DA PUSHARE: Menu Carta multilingua (it/en/fr/es/de/uk) — mig 163 `menu_translations`, `?lang=` su `/menu-carta/public/today` (retrocompatibile), selettore lingua sulla pagina pubblica, tab Traduzioni nel backoffice; menuCarta 1.2→1.3. Include il fix della sezione 'dolci' che non compariva sul QR. Include il seed testi Tre Gobbi (mig 164): EN/FR/ES/DE/UK, 44/44 piatti, 400 righe. Lanciare `npm run build` prima del push**; **DA PUSHARE: verifica docs TOTALE (Blocco 2) — 13 modulo_*.md verificati endpoint per endpoint vs codice e promossi ad `attuale`; trovati 4 bug REALI nel codice (v. sessione 2026-08-04) + 2 decisioni PO aperte**; **DA PUSHARE: docs→wiki, conversione COMPLETATA — header di stato sulle ultime 25 pagine, lint a zero warning (solo docs/, nessun codice)**; **DA PUSHARE: mattone M.J Pubblicazione web (FTP) — bottone "Pubblica sul sito" su menu pranzo e carta vini, sistema 5.39 (richiede le variabili `FTP_*` in `.env` sul VPS, senza quelle il bottone resta disabilitato)**; **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
+**Ultimo aggiornamento:** 2026-08-08 — **DA PUSHARE: RD.6 assorbimento widget «Riordini per fornitore» nella pagina Ordini (vini 3.84, chiude B3) — lanciare `npm run build` prima del push**; **PUSHATO: RD.1 + RD.1.1 + RD.2 — Monitor riordino su copertura in giorni, flag che mettono in bozza, contesto annate (vini 3.83, mig 165, commit `f6f1cfcc` + `d7774b89`)**; **DA PUSHARE: Menu Carta multilingua (it/en/fr/es/de/uk) — mig 163 `menu_translations`, `?lang=` su `/menu-carta/public/today` (retrocompatibile), selettore lingua sulla pagina pubblica, tab Traduzioni nel backoffice; menuCarta 1.2→1.3. Include il fix della sezione 'dolci' che non compariva sul QR. Include il seed testi Tre Gobbi (mig 164): EN/FR/ES/DE/UK, 44/44 piatti, 400 righe. Lanciare `npm run build` prima del push**; **DA PUSHARE: verifica docs TOTALE (Blocco 2) — 13 modulo_*.md verificati endpoint per endpoint vs codice e promossi ad `attuale`; trovati 4 bug REALI nel codice (v. sessione 2026-08-04) + 2 decisioni PO aperte**; **DA PUSHARE: docs→wiki, conversione COMPLETATA — header di stato sulle ultime 25 pagine, lint a zero warning (solo docs/, nessun codice)**; **DA PUSHARE: mattone M.J Pubblicazione web (FTP) — bottone "Pubblica sul sito" su menu pranzo e carta vini, sistema 5.39 (richiede le variabili `FTP_*` in `.env` sul VPS, senza quelle il bottone resta disabilitato)**; **DA PUSHARE: Ordini ai fornitori O3–O6 + flag attivo sui distributori — pagina /vini/ordini, invio WhatsApp, migrazioni 158+159+160 (vini 3.77)**; **DA PUSHARE: Intermittenti UNI (comunicazione chiamate dai turni) + mattone M.D email, migrazione 156 — lanciare `npm run build` prima del push**; **DA PUSHARE: La Lavagna** (widget Bacheca sostituito da briefing di servizio in Home + DashboardSala; lanciare `npm run build` prima del push); **DA PUSHARE: verifica docs Blocco 1 — 6 modulo_*.md corretti vs codice (vini, CG, menu carta+pranzo, vendite)**; **PUSHATO: docs→wiki completo (index, convenzioni, 14 pagine, lint in push.sh, log archiviati — v. sessione 2026-07-24)**; **DA PUSHARE: Vista Sommelier v2.0 (vini 3.72, V.22 chiuso)**; e inoltre (dal 19/7): **migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte), **DA PUSHARE: migrazione 155 self-heal tasks.sqlite3** (il generatore MEP va in 500 finché non parte — scoperta perdita template HACCP di aprile, v. TASKS-1 in problemi.md); inoltre restano DA PUSHARE: script rettifica preconti, Vini 3.71, sotto-categorie bevande 3.70, utenze multi-layout (v. sessioni 17-18/7). ⚠️ Nota alle sessioni parallele: changelog/sessione/versions sono stati sovrascritti una volta oggi — rileggere il file da disco PRIMA di scriverci.
 
 ## SESSIONE 2026-08-08 — RD.1: il widget vini diventa il selettore del riordino `[core]`
 
@@ -55,12 +55,40 @@ Marco: *«se un vino ha un'annata nuova dovresti aiutarmi a capirlo per decidere
 
 Vini 3.82 → **3.83**. Nessuna migrazione. **Serve `npm run build`.**
 
+### RD.6 (stesso giorno) — il widget «Riordini per fornitore» viene assorbito dalla pagina Ordini
+
+Marco: *«il widget riordini per fornitore lo integri con il modulo ordini? ragiona su come farli coesistere.»* → scelta: **assorbimento**.
+
+Era il buco **B3** del piano O, che O6 aveva chiuso solo a metà: widget e pagina facevano la stessa cosa sugli stessi dati, ma solo la pagina ha carrello, invio, ricezione, storico. Il widget però era l'unico posto con tre funzioni che servono col rappresentante davanti — quindi prima si migrano, poi si spegne.
+
+**Migrato in `/vini/ordini`:**
+- **listino inline editabile** sulla riga da-ordinare (click sul prezzo → input, Invio salva, Esc annulla); il `PATCH EURO_LISTINO` alimenta `vini_prezzi_storico` da solo, niente codice nuovo lato storico;
+- **duplica nuova annata** (bottone 🗓️ + modale): crea la bottiglia nuova (giacenza 0, fuori carta, `STATO_RIORDINO='0'`) **e la mette in bozza** con la qta suggerita;
+- **ordinamenti** (barra «Ordina per»): urgenza (copertura crescente — nuovo), ritmo, giacenza, listino, ult. carico, ult. vendita;
+- **tracciamento `A`/`X`** → sezione **«Messi da parte (N)»** chiusa di default. Nuovi: `GET /vini/ordini/archivio/?fornitore_nome=` + `vini_ordini_db.archivio_fornitore()`;
+- **contesto annate RD.2** anche qui (chip `➡️ 2023 c'è (30)`), e `ultimo_carico` aggiunto a `da_ordinare`.
+
+**Rimosso:**
+- `DashboardVini.jsx` **−536 righe** (widget 328 + modale duplica 74 + state/handler orfani 134): **2233 → 1697**. Rimossi `riordSort`/`toggleRiordSort`, `mostraGiacPositiva`, i tre handler duplica e i tre listino;
+- la query `riordini_per_fornitore` da `get_dashboard_stats` (**~940 righe di payload** a ogni apertura dashboard) e il campo dalla risposta;
+- `includi_giacenza_positiva` **deprecato**: resta accettato e ignorato (firma + query param) perché un browser col JS in cache lo manderebbe ancora. `fetchStats()` non prende più argomenti.
+
+**In dashboard restano due blocchi con ruoli distinti:** Monitor (si decide, per vino) e **📦 Ordini** (si vede lo stato e si sceglie con chi lavorare) — il semaforo di O6 più i **fornitori con lavoro** come chip (`nome · N da ordinare · 🛒 · 🚚`, primi 8) da `GET /vini/ordini/fornitori/`: **32 fornitori invece di 940 bottiglie**.
+
+**Verifica** su copia del DB reale: `riordini_per_fornitore` non è più nel payload; dashboard **25 → 19 ms**; chiamata legacy con `includi_giacenza_positiva=true` non rompe e torna gli stessi dati; `da_ordinare` 332 righe in 11 ms con tutti i campi nuovi (`ultimo_carico`, `copertura_giorni`, `annata_successiva`, `PREZZO_CARTA`); `archivio_fornitore` 7 righe sui primi 6 fornitori. `compileall` + parse JSX su 3 file OK.
+
+**⚠️ Nota che pesa adesso (RD.3):** il Monitor filtra `STATO_VENDITA >= 2`, la pagina Ordini no — «0,75 di Valentino Rossi» mostra **332 righe da ordinare**. Disallineamento pre-esistente, ma da oggi la pagina è l'unica lista per fornitore, quindi va deciso: allinearla al filtro del Monitor o tenerla larga? **Da chiedere a Marco.**
+
+Vini 3.83 → **3.84**. Nessuna migrazione. **Serve `npm run build`.**
+
 ### Suggested commit
 Due push separati, o uno solo se si preferisce (nessuna migrazione in mezzo):
 
 `./push.sh "[core] RD.1.1 — il widget riordino e' una coda: elenca solo i vini non decisi, il flag Da ordinare mette in bozza come Ordinato, blocco verde Sistemati adesso con annullo (toglie anche la riga dal carrello), vini 3.82"`
 
-`./push.sh "[core] RD.2 — contesto annate nel Monitor: annata_successiva + ultimo_acquisto da arricchisci_annate() (1 query), chip 'gia in cantina' cliccabile e contatore nel banner — 10 falsi allarmi su 48 smascherati, vini 3.83"`
+`./push.sh "[core] RD.2 — contesto annate nel Monitor: annata_successiva + ultimo_acquisto da arricchisci_annate() (1 query), chip 'gia in cantina' cliccabile e contatore nel banner — 10 falsi allarmi su 48 smascherati, vini 3.83"` → **PUSHATO** `d7774b89` (insieme a RD.1.1)
+
+`./push.sh "[core] RD.6 — assorbimento widget Riordini per fornitore nella pagina Ordini (chiude B3): listino inline con storico, duplica annata che mette in bozza, ordinamenti, sezione Messi da parte + endpoint archivio; via 536 righe da DashboardVini e la query riordini_per_fornitore (dashboard 25->19ms), includi_giacenza_positiva deprecato, vini 3.84"`
 
 ---
 

@@ -1,10 +1,18 @@
 # Modulo Vini — Storia widget Dashboard (14 fasi)
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale (doc storico: verificati vs codice endpoint, schema DB, soglie e chiavi il 2026-07-25) · **Ultima verifica:** 2026-07-25 (vs codice)
-> **Vedi anche:** [modulo_vini.md](modulo_vini.md) (stato corrente del modulo)
+> **Tipo:** 📄 pagina wiki · **Stato:** **storico — superato in parte** dal 2026-08-08 (RD.1/RD.1.1/RD.2 hanno riprogettato il widget alert: vedi [modulo_vini_ordini.md](modulo_vini_ordini.md) §RD.1). Le 14 fasi qui descritte restano il racconto di come ci si è arrivati · **Ultima verifica:** 2026-08-08
+> **Vedi anche:** [modulo_vini.md](modulo_vini.md) (stato corrente del modulo) · [modulo_vini_ordini.md](modulo_vini_ordini.md) (**stato corrente del riordino**: O1–O6 + RD)
 
-**Ultimo aggiornamento:** 2026-07-25 (verifica vs codice; contenuto storico 2026-04-24)
-**Stato:** tutte le 14 fasi **FATTE**. Punto 7 alert (lista WhatsApp) differito (dipendenze esterne).
+**Ultimo aggiornamento:** 2026-08-08 (nota di superamento in testa; contenuto storico 2026-04-24, verifica vs codice 2026-07-25)
+
+> ⚠️ **Cosa di questo documento non è più vero** (dal 2026-08-08, vini 3.81→3.84):
+> - il widget alert non si chiama più «Vini in carta senza giacenza» ma **«vini in carta da riordinare»**, e non contiene più «solo vini con giacenza 0»: entra chi ha una **copertura sotto N giorni** al ritmo di vendita recente (§RD.1 del doc ordini);
+> - **contiene solo i vini con `STATO_RIORDINO` nullo**: qualunque flag fa uscire il vino (prima uscivano solo `0/A/X`, e `D` restava in lista);
+> - il **punto 7 differito** (§9 qui sotto — export WhatsApp lista della spesa) **è stato fatto** in O5/O6 sulla pagina `/vini/ordini`, non nel widget;
+> - `+ ordina` non apre più un modale: porta alla pagina Ordini (O6), e i flag `D`/`Ordinato` mettono il vino direttamente in bozza;
+> - **il widget «📦 Riordini per fornitore» non esiste più** (RD.6, vini 3.84): le 8 fasi descritte in §7 sono state assorbite dalla pagina `/vini/ordini` — listino inline, duplica annata, ordinamenti e tracciamento `A`/`X` sono di là. In dashboard resta un blocco «📦 Ordini» con i fornitori che hanno lavoro in sospeso.
+
+**Stato (2026-04):** tutte le 14 fasi **FATTE** — poi 8 di queste sono state assorbite dalla pagina Ordini, vedi nota sopra. Punto 7 alert (lista WhatsApp) differito (dipendenze esterne).
 **Obiettivo doc:** archiviare le decisioni architetturali e iterazioni delle 2 grosse trasformazioni del DashboardVini — il widget "📦 Riordini per fornitore" (8 fasi, sessione 51) e il widget "🚨 Vini in carta senza giacenza" (6 fasi A-F, 2026-04-24).
 **Riferimento operativo:** lo stato corrente del modulo è in `docs/modulo_vini.md`. Questo doc è "storico vivo" (non si tocca, salvo correzioni).
 
@@ -195,6 +203,12 @@ Niente librerie nuove (recharts già presente).
 
 - **`📦 Riordini per fornitore`** = tabella completa, raggruppata per distributore, vista "gestionale".
 - **`🚨 Vini in carta senza giacenza`** = alert compatto, solo vini con giacenza 0 e stato vendita attivo (V/F/S/T), vista "sveglia operativa".
+
+> **Aggiornamento 2026-08-08 (RD.1 + RD.6):** la divisione dei ruoli è cambiata, e uno dei due widget non c'è più. Il widget
+> alert è diventato il **Monitor**, cioè il posto dove si *decide* cosa riordinare
+> (coda dei non decisi, con copertura in giorni e contesto annate); la pagina
+> `/vini/ordini` è dove si *ordina*. «Riordini per fornitore» resta come vista
+> d'insieme sul fornitore, ora colorata per stato riordino.
 
 Sessione 2026-04-24, 6 punti (8 nel doc originale, ma 1+2 fusi in Fase A e 7 differito):
 

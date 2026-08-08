@@ -66,11 +66,6 @@ export default function DashboardVini() {
   const [drilldown, setDrilldown] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [alertOpen, setAlertOpen] = useState(false);
-  const [riordSort, setRiordSort] = useState({ key: null, dir: "asc" });
-  const [mostraGiacPositiva, setMostraGiacPositiva] = useState(false);
-  const toggleRiordSort = (key) => setRiordSort(prev =>
-    prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }
-  );
   const [alertExpanded, setAlertExpanded] = useState(false);
   // Fase D — filtro rapido tipologia nel widget alert (reset a ogni refresh pagina).
   // Valori: null = tutti, "ROSSI" | "BIANCHI" | "BOLLICINE" | "ROSATI" | "ALTRI".
@@ -85,50 +80,7 @@ export default function DashboardVini() {
   const [fermiExpanded, setFermiExpanded] = useState(false);
   const FERMI_INITIAL_SHOW = 15;
 
-  // ── Modale "Duplica con nuova annata" (Fase 2) ──────────
   const { toast } = useToast();
-  const [duplicaVino, setDuplicaVino]     = useState(null);  // vino sorgente o null
-  const [duplicaAnnata, setDuplicaAnnata] = useState("");
-  const [duplicaSaving, setDuplicaSaving] = useState(false);
-
-  const openDuplica = (v) => {
-    setDuplicaVino(v);
-    setDuplicaAnnata(v?.ANNATA ? String(v.ANNATA) : "");
-  };
-  const closeDuplica = () => {
-    if (duplicaSaving) return;
-    setDuplicaVino(null);
-    setDuplicaAnnata("");
-  };
-  const submitDuplica = async () => {
-    if (!duplicaVino) return;
-    const ann = (duplicaAnnata || "").trim();
-    if (!ann) {
-      toast("Inserisci un'annata", { kind: "warn" });
-      return;
-    }
-    if (String(ann) === String(duplicaVino.ANNATA ?? "")) {
-      toast("L'annata coincide con quella originale", { kind: "warn" });
-      return;
-    }
-    setDuplicaSaving(true);
-    try {
-      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${duplicaVino.id}/duplica`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ annata: ann }),
-      });
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      toast(`Duplicato — annata ${ann}`, { kind: "success" });
-      setDuplicaVino(null);
-      setDuplicaAnnata("");
-      fetchStats(mostraGiacPositiva);
-    } catch (e) {
-      toast("Errore duplicazione: " + (e?.message || ""), { kind: "error" });
-    } finally {
-      setDuplicaSaving(false);
-    }
-  };
 
   // ── Ordini pending per widget Riordini (Fase 4) ─────────
   // Mappa { [vino_id]: { qta, data_ordine, note, utente, updated_at } }
@@ -147,90 +99,6 @@ export default function DashboardVini() {
   const [ordineSaving, setOrdineSaving]   = useState(false);
   const [ordineDeleting, setOrdineDeleting] = useState(false);
   const [ordineArriving, setOrdineArriving] = useState(false);  // Fase 5: conferma arrivo merce
-
-  // ── Listino inline edit per widget Riordini (Fase 7) ────
-  // listinoEditing = id del vino attualmente in edit (null se nessuno)
-  // listinoDraft   = valore stringa dell'input (consente virgola/punto)
-  // listinoSaving  = flag salvataggio in corso → disabilita input
-  const [listinoEditing, setListinoEditing] = useState(null);
-  const [listinoDraft, setListinoDraft]     = useState("");
-  const [listinoSaving, setListinoSaving]   = useState(false);
-
-  const openListinoEdit = (v) => {
-    setListinoEditing(v.id);
-    setListinoDraft(v.EURO_LISTINO != null ? String(v.EURO_LISTINO).replace(".", ",") : "");
-  };
-  const cancelListinoEdit = () => {
-    if (listinoSaving) return;
-    setListinoEditing(null);
-    setListinoDraft("");
-  };
-  const saveListino = async (v) => {
-    if (listinoSaving) return;
-    const raw = String(listinoDraft).trim().replace(",", ".");
-    // Null allowed (clear the field)
-    let nuovo = null;
-    if (raw !== "") {
-      const n = parseFloat(raw);
-      if (!Number.isFinite(n) || n < 0) {
-        toast("Valore non valido: usa un numero ≥ 0 (es. 12,50)", { kind: "warn" });
-        return;
-      }
-      nuovo = Math.round(n * 100) / 100;
-    }
-    const vecchio = v.EURO_LISTINO != null ? Number(v.EURO_LISTINO) : null;
-    // No-op: stesso valore (tolleranza 0.01)
-    if (
-      (vecchio == null && nuovo == null) ||
-      (vecchio != null && nuovo != null && Math.abs(vecchio - nuovo) < 0.005)
-    ) {
-      cancelListinoEdit();
-      return;
-    }
-    setListinoSaving(true);
-    try {
-      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${v.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ EURO_LISTINO: nuovo }),
-      });
-      if (!resp.ok) {
-        let msg = "HTTP " + resp.status;
-        try { const err = await resp.json(); if (err?.detail) msg = err.detail; } catch {}
-        throw new Error(msg);
-      }
-      const updated = await resp.json();
-      // Patch ottimistica: aggiorno la riga nel widget riordini con tutti i campi
-      // tornati dal BE (include il PREZZO_CARTA ricalcolato automaticamente).
-      setStats((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev };
-        if (Array.isArray(prev.riordini_per_fornitore)) {
-          next.riordini_per_fornitore = prev.riordini_per_fornitore.map((x) =>
-            x.id === v.id ? { ...x, ...updated } : x
-          );
-        }
-        if (Array.isArray(prev.alert_carta_senza_giacenza)) {
-          next.alert_carta_senza_giacenza = prev.alert_carta_senza_giacenza.map((x) =>
-            x.id === v.id ? { ...x, ...updated } : x
-          );
-        }
-        return next;
-      });
-      toast(
-        nuovo == null
-          ? "Listino rimosso"
-          : `Listino aggiornato — ${fmtNum(nuovo)} €`,
-        { kind: "success" }
-      );
-      setListinoEditing(null);
-      setListinoDraft("");
-    } catch (e) {
-      toast("Errore salvataggio listino: " + (e?.message || ""), { kind: "error" });
-    } finally {
-      setListinoSaving(false);
-    }
-  };
 
   const fetchOrdiniPending = useCallback(async () => {
     try {
@@ -383,7 +251,7 @@ export default function DashboardVini() {
       setOrdineQta("");
       setOrdineNote("");
       // La giacenza è cambiata → refresh del dashboard.
-      fetchStats(mostraGiacPositiva);
+      fetchStats();
     } catch (e) {
       toast("Errore conferma arrivo: " + (e?.message || ""), { kind: "error" });
     } finally {
@@ -428,7 +296,7 @@ export default function DashboardVini() {
       toast(`Arrivo confermato — ${qta} bt in giacenza`, { kind: "success" });
       // La giacenza e' cambiata → refresh per rimuovere il vino dall'alert
       // (non e' piu' giacenza=0) e aggiornare KPI.
-      fetchStats(mostraGiacPositiva);
+      fetchStats();
     } catch (e) {
       toast("Errore conferma arrivo: " + (e?.message || ""), { kind: "error" });
     } finally {
@@ -465,19 +333,13 @@ export default function DashboardVini() {
         body: JSON.stringify({ STATO_RIORDINO: target }),
       });
       if (!resp.ok) throw new Error();
-      // Il vino puo' comparire in entrambe le liste: aggiorno tutte e due,
-      // altrimenti il chip colorato nel widget fornitori resta indietro.
-      setStats((prev) => {
-        const patch = (arr) =>
-          Array.isArray(arr)
-            ? arr.map((v) => (v.id === vino.id ? { ...v, STATO_RIORDINO: target } : v))
-            : arr;
-        return {
-          ...prev,
-          alert_carta_senza_giacenza: patch(prev.alert_carta_senza_giacenza),
-          riordini_per_fornitore: patch(prev.riordini_per_fornitore),
-        };
-      });
+      setStats((prev) => ({
+        ...prev,
+        alert_carta_senza_giacenza: Array.isArray(prev.alert_carta_senza_giacenza)
+          ? prev.alert_carta_senza_giacenza.map(
+              (v) => (v.id === vino.id ? { ...v, STATO_RIORDINO: target } : v))
+          : prev.alert_carta_senza_giacenza,
+      }));
 
       if (target === "D" || target === "0") await mettiInBozza(vino);
       else await togliDaBozza(vino);
@@ -556,12 +418,13 @@ export default function DashboardVini() {
     }
   };
 
-  const fetchStats = useCallback(async (giacPositiva) => {
+  // RD.6 — il parametro `includi_giacenza_positiva` serviva solo al widget
+  // «Riordini per fornitore», assorbito dalla pagina Ordini: niente query string.
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const qs = giacPositiva ? "?includi_giacenza_positiva=true" : "";
-      const resp = await apiFetch(`${API_BASE}/vini/magazzino/dashboard${qs}`);
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/dashboard`);
       if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
       const data = await resp.json();
       setStats(data);
@@ -574,8 +437,8 @@ export default function DashboardVini() {
   }, []);
 
   useEffect(() => {
-    fetchStats(mostraGiacPositiva);
-  }, [fetchStats, mostraGiacPositiva]);
+    fetchStats();
+  }, [fetchStats]);
 
   // Fase 4: carico in parallelo la mappa degli ordini pending.
   // Fetch indipendente dal dashboard — non bloccante, non si refetcha al toggle giacenze.
@@ -1538,335 +1401,21 @@ export default function DashboardVini() {
         {/* ── O6 (2026-08-02) — Il lavoro sugli ordini si fa nella pagina
              dedicata. Questi due widget restano come vista d'insieme, ma
              comporre e mandare un ordine si fa di là, dove esiste lo storico. */}
-        <RiepilogoOrdini onVai={() => navigate("/vini/ordini")} refreshKey={ordiniRefresh} />
+        <RiepilogoOrdini
+          onVai={() => navigate("/vini/ordini")}
+          onVaiFornitore={(nome) => navigate(`/vini/ordini?fornitore=${encodeURIComponent(nome)}`)}
+          refreshKey={ordiniRefresh}
+        />
 
-        {/* ── RIORDINI PER DISTRIBUTORE / RAPPRESENTANTE ──── */}
-        {stats?.riordini_per_fornitore?.length > 0 && (() => {
-          // Raggruppa per distributore + rappresentante
-          const grouped = {};
-          stats.riordini_per_fornitore.forEach(v => {
-            const dist = v.DISTRIBUTORE || "—";
-            const rapp = v.RAPPRESENTANTE || "";
-            const key = `${dist}|||${rapp}`;
-            if (!grouped[key]) grouped[key] = { distributore: dist, rappresentante: rapp, vini: [] };
-            grouped[key].vini.push(v);
-          });
-          const groups = Object.values(grouped).sort((a, b) => b.vini.length - a.vini.length);
+{/* ── RD.6 (2026-08-08) — Il widget «Riordini per fornitore» è stato
+             assorbito dalla pagina /vini/ordini, che faceva la stessa cosa
+             (elenco per distributore di cosa ordinare) sugli stessi dati, ma
+             con carrello, invio e storico. Era il buco B3 del piano O, aperto
+             a metà da O6. Le sue tre funzioni utili sono ora di là: listino
+             inline con storico prezzi, duplica nuova annata, ordinamenti.
+             In dashboard resta il Monitor (dove si decide) + il riepilogo
+             ordini qui sopra (dove si vede lo stato). */}
 
-          // Calcola giorni da una data ISO
-          const giorniDa = (iso) => {
-            if (!iso) return null;
-            const diff = Date.now() - new Date(iso).getTime();
-            return Math.floor(diff / 86400000);
-          };
-
-          // Audit 2026-07-12 (M9): SR_LABELS/SR_CLS erano mappe locali che
-          // DIVERGEVANO da viniConstants.STATO_RIORDINO (label e colori
-          // diversi per lo stesso stato nella stessa pagina). Ora derivano
-          // dalla single source of truth. Resta solo l'alias 'O'→'D' per
-          // compat con eventuali record pre-mig 122 sopravvissuti.
-          const SR_LABELS = {
-            D: STATO_RIORDINO.D.label,
-            O: STATO_RIORDINO.D.label, // alias di D per compat pre-mig 122
-            "0": STATO_RIORDINO["0"].label,
-            A: STATO_RIORDINO.A.label,
-            X: STATO_RIORDINO.X.label,
-          };
-          const SR_CLS = {
-            D: STATO_RIORDINO.D.color,
-            O: STATO_RIORDINO.D.color, // alias di D per compat pre-mig 122
-            "0": STATO_RIORDINO["0"].color,
-            A: STATO_RIORDINO.A.color,
-            X: STATO_RIORDINO.X.color,
-          };
-
-          return (
-            <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-neutral-200 bg-orange-50">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-orange-900 uppercase tracking-wide">
-                    📦 Riordini per fornitore
-                  </h2>
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <span className="text-xs text-orange-700">Mostra giacenze positive</span>
-                    <div
-                      onClick={() => setMostraGiacPositiva(p => !p)}
-                      className={`relative w-9 h-5 rounded-full transition-colors ${mostraGiacPositiva ? "bg-orange-500" : "bg-neutral-300"}`}
-                    >
-                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${mostraGiacPositiva ? "translate-x-4" : ""}`} />
-                    </div>
-                  </label>
-                </div>
-                <p className="text-xs text-orange-700 mt-0.5">
-                  {stats.riordini_per_fornitore.length} vini{mostraGiacPositiva ? "" : " da riordinare"}, raggruppati per distributore/rappresentante.
-                </p>
-              </div>
-
-              <div className="divide-y divide-neutral-200">
-                {groups.map(g => (
-                  <details key={`${g.distributore}-${g.rappresentante}`} className="group">
-                    <summary className="px-6 py-3 cursor-pointer hover:bg-orange-50/50 transition flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-lg">📋</span>
-                        <div className="min-w-0">
-                          <span className="font-semibold text-sm text-neutral-900">{g.distributore}</span>
-                          {g.rappresentante && <span className="text-xs text-neutral-500 ml-2">({g.rappresentante})</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-3">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800 border border-orange-200">
-                          {g.vini.length} vini
-                        </span>
-                        <span className="text-neutral-400 text-xs group-open:rotate-180 transition-transform">▼</span>
-                      </div>
-                    </summary>
-                    <div className="border-t border-neutral-100 bg-neutral-50/50">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="text-[10px] text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
-                            {/* Colonna "info" — non sortabile */}
-                            <th className="px-2 py-2 w-8 text-center select-none" aria-label="Apri dettaglio"></th>
-                            {[
-                              { k: "DESCRIZIONE", label: "Vino", align: "text-left" },
-                              { k: "PRODUTTORE", label: "Produttore", align: "text-left" },
-                              { k: "STATO_RIORDINO", label: "Stato", align: "text-center" },
-                              { k: "QTA_TOTALE", label: "Giac.", align: "text-center" },
-                              { k: "ordine_qta", label: "Riordino", align: "text-center" },
-                              { k: "ritmo", label: "Ritmo", align: "text-center" },
-                              { k: "EURO_LISTINO", label: "Listino", align: "text-center" },
-                              { k: "ultimo_carico", label: "Ult. carico", align: "text-center" },
-                              { k: "ultima_vendita", label: "Ult. vendita", align: "text-center" },
-                            ].map(col => (
-                              <th key={col.k} className={`px-3 py-2 ${col.align} cursor-pointer hover:text-orange-700 select-none transition`}
-                                onClick={() => toggleRiordSort(col.k)}>
-                                {col.label} {riordSort.key === col.k ? (riordSort.dir === "asc" ? "▲" : "▼") : ""}
-                              </th>
-                            ))}
-                            {/* Colonna "duplica" — non sortabile */}
-                            <th className="px-2 py-2 w-8 text-center select-none" aria-label="Duplica annata"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-100">
-                          {[...g.vini].sort((a, b) => {
-                            if (!riordSort.key) return 0;
-                            const k = riordSort.key;
-                            let va = a[k] ?? "";
-                            let vb = b[k] ?? "";
-                            if (k === "QTA_TOTALE" || k === "EURO_LISTINO") {
-                              va = Number(va) || 0; vb = Number(vb) || 0;
-                            } else if (k === "ordine_qta") {
-                              // Valore dinamico: quantità ordine pending (0 se nessuno)
-                              va = Number(ordiniPending[a.id]?.qta) || 0;
-                              vb = Number(ordiniPending[b.id]?.qta) || 0;
-                            } else if (k === "ritmo") {
-                              // Ordinamento su bt_mese (null = 0, in coda quando asc)
-                              va = Number(a.ritmo_vendita?.bt_mese ?? 0);
-                              vb = Number(b.ritmo_vendita?.bt_mese ?? 0);
-                            } else if (k === "ultimo_carico" || k === "ultima_vendita") {
-                              va = va || ""; vb = vb || "";
-                            } else {
-                              va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
-                            }
-                            if (va < vb) return riordSort.dir === "asc" ? -1 : 1;
-                            if (va > vb) return riordSort.dir === "asc" ? 1 : -1;
-                            return 0;
-                          }).map(v => {
-                            const ggCarico = giorniDa(v.ultimo_carico);
-                            const ggVendita = giorniDa(v.ultima_vendita);
-                            // RD.1 — la riga si colora per stato riordino, cosi'
-                            // aprendo il fornitore si vede a colpo d'occhio cosa
-                            // e' stato deciso senza leggere colonna per colonna.
-                            // Fallback (nessuno stato): il vino e' qui per la
-                            // giacenza — rosso se finito, ambra se sotto soglia.
-                            const sr = v.STATO_RIORDINO || null;
-                            const rowTone =
-                              sr === "D" || sr === "O" ? "border-l-4 border-orange-400 bg-orange-50/60 hover:bg-orange-100/60"
-                              : sr === "0"             ? "border-l-4 border-sky-400 bg-sky-50/60 hover:bg-sky-100/60"
-                              : sr === "A"             ? "border-l-4 border-neutral-300 bg-neutral-50 text-neutral-500 hover:bg-neutral-100"
-                              : sr === "X"             ? "border-l-4 border-neutral-700 bg-neutral-100/70 text-neutral-400 hover:bg-neutral-200/70"
-                              : (Number(v.QTA_TOTALE) || 0) === 0
-                                                       ? "border-l-4 border-red-300 hover:bg-red-50/50"
-                                                       : "border-l-4 border-amber-200 hover:bg-amber-50/50";
-                            return (
-                              <tr key={v.id} className={`transition ${rowTone}`}>
-                                <td className="px-1 py-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => navigate(`/vini/magazzino/${v.id}`)}
-                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full text-neutral-400 hover:text-brand-blue hover:bg-brand-blue/10 transition"
-                                    title="Apri dettaglio vino"
-                                    aria-label="Apri dettaglio vino"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                      <circle cx="12" cy="12" r="3"></circle>
-                                    </svg>
-                                  </button>
-                                </td>
-                                <td className="px-4 py-2">
-                                  <div className="font-semibold text-neutral-800">{v.DESCRIZIONE}</div>
-                                  <div className="text-[10px] text-neutral-400">
-                                    {v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2 text-neutral-700">
-                                  {v.PRODUTTORE || <span className="text-neutral-300">—</span>}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  {v.STATO_RIORDINO ? (
-                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${SR_CLS[v.STATO_RIORDINO] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
-                                      {SR_LABELS[v.STATO_RIORDINO] || v.STATO_RIORDINO}
-                                    </span>
-                                  ) : (
-                                    <span className="text-red-500 font-semibold text-[10px]">0 bt in carta</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 text-center font-semibold">{v.QTA_TOTALE ?? 0} bt</td>
-                                <td className="px-2 py-2 text-center">
-                                  {(() => {
-                                    const ord = ordiniPending[v.id];
-                                    if (ord) {
-                                      const dataIso = ord.data_ordine || ord.updated_at || "";
-                                      const dataFmt = dataIso
-                                        ? new Date(dataIso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })
-                                        : "";
-                                      const tip = [
-                                        dataFmt ? `Ordinato il ${dataFmt}` : null,
-                                        ord.utente ? `da ${ord.utente}` : null,
-                                        ord.note ? `— ${ord.note}` : null,
-                                      ].filter(Boolean).join(" ");
-                                      return (
-                                        <button
-                                          type="button"
-                                          onClick={() => openOrdine(v)}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition min-h-[28px]"
-                                          title={tip || "Vai agli ordini di questo fornitore"}
-                                          aria-label="Vai agli ordini"
-                                        >
-                                          📦 {ord.qta} bt
-                                        </button>
-                                      );
-                                    }
-                                    return (
-                                      <button
-                                        type="button"
-                                        onClick={() => openOrdine(v)}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-neutral-400 border border-dashed border-neutral-300 hover:text-brand-blue hover:border-brand-blue hover:bg-brand-blue/5 transition min-h-[28px]"
-                                        title="Vai agli ordini di questo fornitore"
-                                        aria-label="Vai agli ordini"
-                                      >
-                                        + ordina
-                                      </button>
-                                    );
-                                  })()}
-                                </td>
-                                <td className="px-2 py-2 text-center">
-                                  {(() => {
-                                    const rv = v.ritmo_vendita || {};
-                                    const tone = rv.color_tone;
-                                    const cls =
-                                      tone === "emerald"      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                      : tone === "amber"       ? "bg-amber-50 text-amber-800 border-amber-200"
-                                      : tone === "neutral-dark" ? "bg-slate-100 text-slate-500 border-slate-300"
-                                      :                           "bg-neutral-100 text-neutral-600 border-neutral-200";
-                                    const short =
-                                      rv.categoria === "top"   ? `${rv.bt_mese?.toFixed(1)}/m`
-                                      : rv.categoria === "medio" ? `${rv.bt_mese?.toFixed(1)}/m`
-                                      : rv.categoria === "poco"  ? "poco"
-                                      :                             "mai";
-                                    return (
-                                      <Tooltip label={rv.label || "—"}>
-                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cls}`}>
-                                          {short}
-                                        </span>
-                                      </Tooltip>
-                                    );
-                                  })()}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  {listinoEditing === v.id ? (
-                                    <div className="flex items-center justify-center gap-1">
-                                      <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        value={listinoDraft}
-                                        onChange={(e) => setListinoDraft(e.target.value)}
-                                        onBlur={() => saveListino(v)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") {
-                                            e.preventDefault();
-                                            saveListino(v);
-                                          } else if (e.key === "Escape") {
-                                            e.preventDefault();
-                                            cancelListinoEdit();
-                                          }
-                                        }}
-                                        disabled={listinoSaving}
-                                        autoFocus
-                                        placeholder="0,00"
-                                        className="w-20 px-2 py-1 border border-brand-blue rounded-md text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                                        style={{ minHeight: "32px", fontSize: "14px" }}
-                                      />
-                                      <span className="text-neutral-500 text-xs">€</span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => openListinoEdit(v)}
-                                      className="group inline-flex items-center gap-1 text-neutral-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded px-2 py-1 transition min-h-[28px]"
-                                      title="Click per modificare il prezzo di listino"
-                                      aria-label="Modifica prezzo listino"
-                                    >
-                                      <span>
-                                        {v.EURO_LISTINO ? `${fmtNum(v.EURO_LISTINO)} €` : <span className="text-neutral-300">—</span>}
-                                      </span>
-                                      <svg className="w-3 h-3 opacity-0 group-hover:opacity-60 transition" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M12 20h9"></path>
-                                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                                      </svg>
-                                    </button>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  {v.ultimo_carico ? (
-                                    <span className={ggCarico > 90 ? "text-red-600 font-semibold" : ggCarico > 30 ? "text-orange-600" : "text-neutral-600"}>
-                                      {ggCarico}gg fa
-                                    </span>
-                                  ) : <span className="text-neutral-300">mai</span>}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  {v.ultima_vendita ? (
-                                    <span className={ggVendita > 90 ? "text-red-600 font-semibold" : ggVendita > 30 ? "text-orange-600" : "text-neutral-600"}>
-                                      {ggVendita}gg fa
-                                    </span>
-                                  ) : <span className="text-neutral-300">mai</span>}
-                                </td>
-                                <td className="px-1 py-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => openDuplica(v)}
-                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full text-neutral-400 hover:text-brand-green hover:bg-brand-green/10 transition"
-                                    title="Duplica con nuova annata"
-                                    aria-label="Duplica con nuova annata"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                    </svg>
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
 
         {/* ── ACCESSO RAPIDO ───────────────────────────────── */}
         <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm px-6 py-5">
@@ -1893,80 +1442,6 @@ export default function DashboardVini() {
         </div>
 
       </div>
-
-      {/* ══════════════════════════════════════════════════════
-          MODALE — Duplica con nuova annata (Fase 2)
-          ══════════════════════════════════════════════════════ */}
-      {duplicaVino && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          onClick={closeDuplica}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-neutral-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-neutral-900 font-playfair">
-                  📋 Duplica con nuova annata
-                </h3>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Crea una copia del vino con la nuova annata indicata. Giacenza a 0, stato <b>Ordinato</b>, fuori carta.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeDuplica}
-                disabled={duplicaSaving}
-                className="text-neutral-400 hover:text-neutral-700 text-xl leading-none ml-2 shrink-0"
-                aria-label="Chiudi"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="bg-neutral-50 rounded-xl p-3 mb-4 border border-neutral-200">
-              <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Vino sorgente</div>
-              <div className="font-semibold text-neutral-900 text-sm">{duplicaVino.DESCRIZIONE}</div>
-              <div className="text-xs text-neutral-500 mt-0.5">
-                {duplicaVino.TIPOLOGIA}
-                {duplicaVino.PRODUTTORE ? ` · ${duplicaVino.PRODUTTORE}` : ""}
-                {duplicaVino.ANNATA ? ` · annata ${duplicaVino.ANNATA}` : ""}
-              </div>
-            </div>
-
-            <label className="block mb-4">
-              <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
-                Nuova annata
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={duplicaAnnata}
-                onChange={(e) => setDuplicaAnnata(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submitDuplica();
-                  if (e.key === "Escape") closeDuplica();
-                }}
-                disabled={duplicaSaving}
-                autoFocus
-                placeholder="es. 2023"
-                className="mt-1 w-full px-3 py-2 border border-neutral-300 rounded-lg text-base font-mono focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-              />
-            </label>
-
-            <div className="flex items-center justify-end gap-2">
-              <Btn variant="secondary" size="md" type="button" onClick={closeDuplica} disabled={duplicaSaving}>
-                Annulla
-              </Btn>
-              <Btn variant="primary" size="md" type="button" onClick={submitDuplica} disabled={duplicaSaving} loading={duplicaSaving}>
-                {duplicaSaving ? "Duplico…" : "Duplica"}
-              </Btn>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════════
           MODALE — Riordino / Ordine pending (Fase 4)
@@ -2121,8 +1596,12 @@ export default function DashboardVini() {
 // ════════════════════════════════════════════════════════════
 // O6 — RIEPILOGO ORDINI (semaforo che porta alla pagina dedicata)
 // ════════════════════════════════════════════════════════════
-function RiepilogoOrdini({ onVai, refreshKey = 0 }) {
+function RiepilogoOrdini({ onVai, onVaiFornitore, refreshKey = 0 }) {
   const [r, setR] = React.useState(null);
+  // RD.6 — al posto della tabella da 942 righe: chi ha lavoro in sospeso, con i
+  // contatori che il backend già calcola (`fornitori_con_lavoro`). Un click e si
+  // è nella pagina Ordini sul fornitore giusto, che è dove si ordina davvero.
+  const [fornitori, setFornitori] = React.useState([]);
 
   React.useEffect(() => {
     (async () => {
@@ -2131,15 +1610,26 @@ function RiepilogoOrdini({ onVai, refreshKey = 0 }) {
         if (res.ok) setR(await res.json());
       } catch { /* il banner semplicemente non compare */ }
     })();
+    (async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/vini/ordini/fornitori/`);
+        if (res.ok) setFornitori(await res.json());
+      } catch { /* la lista fornitori è un extra */ }
+    })();
   }, [refreshKey]);
 
   if (!r) return null;
   const niente = !r.bozze && !r.in_viaggio;
+  // Solo chi ha qualcosa da fare, i primi per volume di lavoro.
+  const conLavoro = fornitori
+    .filter((f) => (f.da_ordinare || 0) + (f.bozza || 0) + (f.in_viaggio || 0) > 0)
+    .slice(0, 8);
 
   return (
+    <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
     <button
       onClick={onVai}
-      className="w-full text-left bg-white rounded-3xl border border-neutral-200 shadow-sm px-6 py-4 hover:border-amber-300 hover:shadow-md transition"
+      className="w-full text-left px-6 py-4 hover:bg-amber-50/40 transition"
     >
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-5 flex-wrap">
@@ -2170,5 +1660,38 @@ function RiepilogoOrdini({ onVai, refreshKey = 0 }) {
         <span className="text-xs font-semibold text-amber-700 shrink-0">Vai agli ordini →</span>
       </div>
     </button>
+
+    {/* RD.6 — i fornitori con lavoro in sospeso, al posto del vecchio widget
+        «Riordini per fornitore». Qui si sceglie con chi lavorare; il resto
+        (righe, quantità, listino, invio) si fa nella pagina. */}
+    {conLavoro.length > 0 && (
+      <div className="border-t border-neutral-200 px-4 py-3 flex flex-wrap gap-2 bg-neutral-50/60">
+        {conLavoro.map((f) => (
+          <button
+            key={f.fornitore_nome}
+            type="button"
+            onClick={() => onVaiFornitore?.(f.fornitore_nome)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border bg-white border-neutral-300 hover:border-amber-400 hover:bg-amber-50 transition"
+            title={`${f.da_ordinare || 0} da ordinare${f.bozza ? ` · ${f.bozza} carrello aperto` : ""}${f.in_viaggio ? ` · ${f.in_viaggio} in arrivo` : ""}`}
+          >
+            <span className="font-semibold text-neutral-800 max-w-[14rem] truncate">{f.fornitore_nome}</span>
+            {(f.da_ordinare || 0) > 0 && (
+              <span className="tabular-nums font-bold text-orange-800 bg-orange-100 border border-orange-200 rounded-full px-1.5">
+                {f.da_ordinare}
+              </span>
+            )}
+            {(f.bozza || 0) > 0 && <span title="carrello aperto">🛒</span>}
+            {(f.in_viaggio || 0) > 0 && <span title="in arrivo">🚚</span>}
+          </button>
+        ))}
+        {fornitori.length > conLavoro.length && (
+          <button type="button" onClick={onVai}
+            className="inline-flex items-center px-3 py-1.5 rounded-full text-xs text-neutral-500 hover:text-amber-800 hover:underline">
+            e altri {fornitori.length - conLavoro.length} →
+          </button>
+        )}
+      </div>
+    )}
+    </div>
   );
 }

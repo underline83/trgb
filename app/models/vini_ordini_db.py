@@ -34,7 +34,9 @@ from typing import Any, Dict, List, Optional
 
 from app.models.vini_magazzino_db import get_magazzino_connection, _now_iso
 from app.services.vini_widget_settings_service import get_widget_setting
-from app.services.vini_riordino_service import sql_da_riordinare, copertura_giorni
+from app.services.vini_riordino_service import (
+    sql_da_riordinare, copertura_giorni, arricchisci_annate,
+)
 from app.utils.vini_metrics import DATA_INIZIO_STORICO, calcola_ritmo_vendita
 
 
@@ -396,6 +398,9 @@ def da_ordinare(fornitore_nome: str) -> List[Dict[str, Any]]:
             f"""
             SELECT v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
                    v.STATO_RIORDINO, v.QTA_TOTALE, v.EURO_LISTINO, v.CARTA,
+                   v.madre_id, v.PREZZO_CARTA,
+                   (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
+                     WHERE m.vino_id = v.id AND m.tipo = 'CARICO') AS ultimo_carico,
                    (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
                      WHERE m.vino_id = v.id AND m.tipo = 'VENDITA') AS ultima_vendita,
                    (SELECT COALESCE(SUM(m.qta), 0) FROM vini_magazzino_movimenti m
@@ -462,6 +467,43 @@ def da_ordinare(fornitore_nome: str) -> List[Dict[str, Any]]:
             d["gia_ordinato"] = gia_ordinato.get(d["id"])
             d["pending_legacy"] = pending.get(d["id"])
             out.append(d)
+        # RD.2/RD.6 — stesso contesto annate del Monitor: col rappresentante
+        # davanti serve sapere se la vendemmia dopo è già in cantina prima di
+        # ordinare quella vecchia.
+        arricchisci_annate(cur, out)
+        return out
+    finally:
+        conn.close()
+
+
+def archivio_fornitore(fornitore_nome: str) -> List[Dict[str, Any]]:
+    """
+    I vini di un fornitore messi da parte: `A` annata esaurita, `X` non
+    ricomprare. RD.6 — arrivano dal widget «Riordini per fornitore» della
+    dashboard, che li mostrava per tracciamento e che questa pagina assorbe.
+
+    Non è una lista di lavoro: è la risposta a «questo perché non lo compro
+    più?» quando il rappresentante lo chiede. Per questo sta in una sezione
+    chiusa, non fra le righe da ordinare.
+    """
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        rows = cur.execute(
+            """
+            SELECT v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
+                   v.STATO_RIORDINO, v.QTA_TOTALE, v.EURO_LISTINO, v.CARTA, v.madre_id,
+                   (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
+                     WHERE m.vino_id = v.id AND m.tipo = 'VENDITA') AS ultima_vendita
+              FROM vini_bottiglie v
+             WHERE COALESCE(NULLIF(TRIM(v.DISTRIBUTORE), ''), ?) = ?
+               AND v.STATO_RIORDINO IN ('A', 'X')
+             ORDER BY v.STATO_RIORDINO, v.DESCRIZIONE COLLATE NOCASE
+            """,
+            (FORNITORE_NON_ASSEGNATO, fornitore_nome),
+        ).fetchall()
+        out = [dict(r) for r in rows]
+        arricchisci_annate(cur, out)
         return out
     finally:
         conn.close()

@@ -2113,6 +2113,11 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     """
     Restituisce statistiche aggregate per la dashboard operativa.
     Tutto in una sola connessione — query leggere su SQLite.
+
+    `includi_giacenza_positiva` è **deprecato da RD.6** (2026-08-08): serviva
+    solo al widget «Riordini per fornitore», assorbito dalla pagina
+    /vini/ordini. Resta nella firma e nel router per non rompere una chiamata
+    con la query string vecchia (browser con JS in cache), ma non ha effetto.
     """
     # Helper ritmo vendita (modulo riutilizzabile). Import a livello funzione
     # per evitare dipendenze circolari a modulo top-level.
@@ -2421,53 +2426,15 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         """
     ).fetchall()
 
-    # Riordini per distributore/rappresentante:
-    # Base: vini da riordinare (STATO_RIORDINO D/0 oppure QTA=0 e in carta)
-    # Con flag: anche tutti i vini con giacenza positiva e fornitore assegnato
-    # 'O' resta nelle IN list come compat per record storici (mig 122 li ha
-    # migrati a 'D' ma teniamo per safety).
-    if includi_giacenza_positiva:
-        riordini_where = """
-            WHERE (v.DISTRIBUTORE IS NOT NULL AND v.DISTRIBUTORE != '')
-               OR (v.RAPPRESENTANTE IS NOT NULL AND v.RAPPRESENTANTE != '')
-               OR v.STATO_RIORDINO IN ('D', 'O', '0')
-               OR (v.QTA_TOTALE > 0 AND v.CARTA = 1)
-        """
-    else:
-        # Sessione 2026-05-11: include anche 'A' (Annata esaurita) e 'X' (Non
-        # ricomprare). Spariscono dall'alert principale, ma compaiono qui per
-        # tracciamento col fornitore (badge "Chiedere nuova annata" / "Non
-        # ricomprare"). Frontend differenzia visivamente.
-        # 'O' rimosso dal flusso UI ma mantenuto in IN (...) per compat coi
-        # vecchi record (la mig 122 li migra a 'D').
-        # RD.1: stessa condizione del widget alert — se un vino entra là come
-        # "in esaurimento" deve comparire anche qui sotto il suo fornitore,
-        # altrimenti lo vedi nell'alert e non lo trovi dove si ordina.
-        riordini_where = f"""
-            WHERE v.STATO_RIORDINO IN ('D', 'O', '0', 'A', 'X')
-               OR ({COND_RIORDINO} AND v.CARTA = 1
-                   AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
-        """
-    riordini_per_fornitore = cur.execute(
-        f"""
-        SELECT
-            v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
-            v.DISTRIBUTORE, v.RAPPRESENTANTE,
-            v.STATO_RIORDINO, v.STATO_VENDITA,
-            v.QTA_TOTALE, v.PREZZO_CARTA, v.EURO_LISTINO,
-            (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
-             WHERE m.vino_id = v.id AND m.tipo = 'CARICO') AS ultimo_carico,
-            (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
-             WHERE m.vino_id = v.id AND m.tipo = 'VENDITA') AS ultima_vendita,
-            (SELECT COALESCE(SUM(m.qta), 0) FROM vini_magazzino_movimenti m
-             WHERE m.vino_id = v.id AND m.tipo = 'VENDITA'
-               AND date(m.data_mov) >= '{DATA_INIZIO_STORICO}'
-            ) AS vendite_totali
-        FROM vini_bottiglie v
-        {riordini_where}
-        ORDER BY v.DISTRIBUTORE, v.RAPPRESENTANTE, v.DESCRIZIONE;
-        """
-    ).fetchall()
+    # RD.6 (2026-08-08) — la query `riordini_per_fornitore` è stata rimossa.
+    # Alimentava il widget omonimo della dashboard, che duplicava la pagina
+    # /vini/ordini sugli stessi dati (buco B3 del piano O). Erano ~940 righe di
+    # payload calcolate a ogni apertura della dashboard per una vista che non
+    # portava a nessuna azione che non si potesse fare meglio di là.
+    # Chi ha lavoro in sospeso ora lo dice `vini_ordini_db.fornitori_con_lavoro()`,
+    # che è già la fonte della pagina Ordini: una lista di 32 fornitori con i
+    # contatori, non 940 righe di bottiglie.
+
 
     # Distribuzione bottiglie per tipologia
     distribuzione = cur.execute(
@@ -2512,7 +2479,6 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         "vini_fermi":                 [_with_ritmo(r) for r in vini_fermi],
         "movimenti_recenti":          [dict(r) for r in movimenti_recenti],
         "distribuzione_tipologie":    [dict(r) for r in distribuzione],
-        "riordini_per_fornitore":     [_with_ritmo(r) for r in riordini_per_fornitore],
     }
 
 

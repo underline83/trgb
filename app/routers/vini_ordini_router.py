@@ -118,6 +118,19 @@ def da_ordinare(
     return db.da_ordinare(fornitore_nome)
 
 
+@router.get("/archivio/", summary="Vini messi da parte per un fornitore (annata esaurita / non ricomprare)")
+def archivio(
+    fornitore_nome: str = Query(..., min_length=1),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    RD.6 — assorbe dal widget «Riordini per fornitore» il tracciamento dei vini
+    archiviati. Serve quando il rappresentante chiede "e questo non lo prendi
+    più?": non è una lista di lavoro, sta in una sezione chiusa della pagina.
+    """
+    return db.archivio_fornitore(fornitore_nome)
+
+
 @router.get("/{ordine_id}", summary="Dettaglio ordine con righe e totali")
 def get_ordine(ordine_id: int, current_user: Any = Depends(get_current_user)):
     ordine = db.get_ordine(ordine_id)

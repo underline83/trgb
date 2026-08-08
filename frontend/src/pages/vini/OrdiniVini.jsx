@@ -86,6 +86,23 @@ export default function OrdiniVini() {
 
   const [cerca, setCerca] = useState("");
   const [tipologia, setTipologia] = useState("tutti");
+  // RD.6 — roba assorbita dal widget «Riordini per fornitore» della dashboard,
+  // che faceva la stessa cosa di questa pagina su dati identici (buco B3 del
+  // piano O). Qui serve davvero: sono le tre cose che si fanno col
+  // rappresentante davanti.
+  const [ordinaPer, setOrdinaPer] = useState("default");   // criterio ordinamento lista
+  const [archivio, setArchivio] = useState([]);        // vini 'A'/'X' del fornitore
+  const [archivioOpen, setArchivioOpen] = useState(false);
+  // Listino editabile inline: il rappresentante dice il prezzo nuovo e lo si
+  // scrive subito, senza aprire la scheda del vino. Il PATCH su EURO_LISTINO
+  // alimenta da solo `vini_prezzi_storico` (hook lato backend).
+  const [listinoEditing, setListinoEditing] = useState(null);
+  const [listinoDraft, setListinoDraft] = useState("");
+  const [listinoSaving, setListinoSaving] = useState(false);
+  // Duplica nuova annata: il produttore non fa più la 2022, arriva la 2023.
+  const [duplicaVino, setDuplicaVino] = useState(null);
+  const [duplicaAnnata, setDuplicaAnnata] = useState("");
+  const [duplicaSaving, setDuplicaSaving] = useState(false);
   const [settings, setSettings] = useState(null);
   const [sogliaFermo, setSogliaFermo] = useState(30);
   const [waOrdine, setWaOrdine] = useState(null);   // ordine per cui è aperto il modale WA
@@ -126,23 +143,27 @@ export default function OrdiniVini() {
     setLoadingDett(true); setErrore("");
     // Svuoto subito: meglio uno scheletro vuoto per mezzo secondo che il
     // carrello del fornitore precedente sotto il nome di quello nuovo.
-    setDaOrdinare([]); setOrdini([]);
+    setDaOrdinare([]); setOrdini([]); setArchivio([]);
     try {
       const q = encodeURIComponent(fornitore);
-      const [rD, rO] = await Promise.all([
+      const [rD, rO, rA] = await Promise.all([
         apiFetch(`${API_BASE}/vini/ordini/da-ordinare/?fornitore_nome=${q}`),
         apiFetch(`${API_BASE}/vini/ordini/?fornitore_nome=${q}&limit=20`),
+        apiFetch(`${API_BASE}/vini/ordini/archivio/?fornitore_nome=${q}`),
       ]);
       if (mio !== reqRef.current) return;          // sorpassata da una più recente
       if (!rD.ok) throw new Error(`HTTP ${rD.status} (da ordinare)`);
       const [dOrd, dOrdini] = [await rD.json(), rO.ok ? await rO.json() : []];
+      // L'archivio è un extra: se non risponde, la pagina funziona comunque.
+      const dArch = rA.ok ? await rA.json() : [];
       if (mio !== reqRef.current) return;
       setDaOrdinare(dOrd);
       setOrdini(dOrdini);
+      setArchivio(dArch);
     } catch (e) {
       if (mio !== reqRef.current) return;
       setErrore(String(e.message || e));
-      setDaOrdinare([]); setOrdini([]);
+      setDaOrdinare([]); setOrdini([]); setArchivio([]);
     } finally {
       if (mio === reqRef.current) setLoadingDett(false);
     }
@@ -200,13 +221,43 @@ export default function OrdiniVini() {
   const daOrdinareFiltrati = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     const tf = TIPOLOGIE.find(t => t.key === tipologia) || TIPOLOGIE[0];
-    return daOrdinare.filter(v =>
+    const out = daOrdinare.filter(v =>
       tf.match(v.TIPOLOGIA) &&
       (!q ||
         (v.DESCRIZIONE || "").toLowerCase().includes(q) ||
         (v.PRODUTTORE || "").toLowerCase().includes(q))
     );
-  }, [daOrdinare, cerca, tipologia]);
+    // RD.6 — ordinamenti che prima esistevano solo nella tabella del widget
+    // dashboard. `default` = come arriva dal backend (alfabetico), che va bene
+    // quando si scorre la lista col rappresentante.
+    const num = (x) => (Number.isFinite(Number(x)) ? Number(x) : null);
+    const cmpNullLast = (a, b, dir = 1) => {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;          // i vuoti sempre in fondo
+      if (b == null) return -1;
+      return (a - b) * dir;
+    };
+    const sorters = {
+      urgenza: (a, b) => cmpNullLast(a.copertura_giorni, b.copertura_giorni, 1),
+      ritmo: (a, b) => cmpNullLast(num(a.ritmo_vendita?.bt_mese), num(b.ritmo_vendita?.bt_mese), -1),
+      giacenza: (a, b) => (Number(a.QTA_TOTALE) || 0) - (Number(b.QTA_TOTALE) || 0),
+      listino: (a, b) => cmpNullLast(num(a.EURO_LISTINO), num(b.EURO_LISTINO), -1),
+      carico: (a, b) => String(a.ultimo_carico || "").localeCompare(String(b.ultimo_carico || "")),
+      vendita: (a, b) => String(b.ultima_vendita || "").localeCompare(String(a.ultima_vendita || "")),
+    };
+    const s = sorters[ordinaPer];
+    return s ? [...out].sort(s) : out;
+  }, [daOrdinare, cerca, tipologia, ordinaPer]);
+
+  const ORDINAMENTI = [
+    { key: "default", label: "A-Z" },
+    { key: "urgenza", label: "Urgenza" },
+    { key: "ritmo", label: "Ritmo" },
+    { key: "giacenza", label: "Giacenza" },
+    { key: "listino", label: "€ listino" },
+    { key: "carico", label: "Ult. carico" },
+    { key: "vendita", label: "Ult. vendita" },
+  ];
 
   // ── Azioni ────────────────────────────────────────────────
   const ricarica = useCallback(async () => {
@@ -232,6 +283,115 @@ export default function OrdiniVini() {
       toast(`Non sono riuscito ad aggiungere: ${e.message}`, { kind: "error" });
     } finally {
       setBusy(false);
+    }
+  };
+
+  // ── RD.6: listino inline ──────────────────────────────────
+  // Assorbito dal widget dashboard. Il PATCH su EURO_LISTINO fa scattare da
+  // solo lo storico prezzi (hook backend su `vini_prezzi_storico`), quindi qui
+  // non serve scrivere niente di più.
+  const openListino = (v) => {
+    setListinoEditing(v.id);
+    setListinoDraft(v.EURO_LISTINO != null ? String(v.EURO_LISTINO).replace(".", ",") : "");
+  };
+  const chiudiListino = () => {
+    if (listinoSaving) return;
+    setListinoEditing(null);
+    setListinoDraft("");
+  };
+  const salvaListino = async (v) => {
+    if (listinoSaving) return;
+    const raw = String(listinoDraft).trim().replace(",", ".");
+    let nuovo = null;
+    if (raw !== "") {
+      const n = parseFloat(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        toast("Valore non valido: usa un numero ≥ 0 (es. 12,50)", { kind: "warn" });
+        return;
+      }
+      nuovo = Math.round(n * 100) / 100;
+    }
+    const vecchio = v.EURO_LISTINO != null ? Number(v.EURO_LISTINO) : null;
+    if ((vecchio == null && nuovo == null) ||
+        (vecchio != null && nuovo != null && Math.abs(vecchio - nuovo) < 0.005)) {
+      chiudiListino();
+      return;
+    }
+    setListinoSaving(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${v.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ EURO_LISTINO: nuovo }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(e.detail || `HTTP ${r.status}`);
+      }
+      // Aggiorno in locale: ricaricare tutto per un prezzo farebbe perdere il
+      // punto della lista dove si era arrivati leggendo col rappresentante.
+      setDaOrdinare(prev => prev.map(x => (x.id === v.id ? { ...x, EURO_LISTINO: nuovo } : x)));
+      setArchivio(prev => prev.map(x => (x.id === v.id ? { ...x, EURO_LISTINO: nuovo } : x)));
+      toast(nuovo == null ? "Listino rimosso" : `Listino: ${fmtEur(nuovo)}`, { kind: "success" });
+      chiudiListino();
+    } catch (e) {
+      toast(`Errore salvataggio listino: ${e.message}`, { kind: "error" });
+    } finally {
+      setListinoSaving(false);
+    }
+  };
+
+  // ── RD.6: duplica nuova annata ────────────────────────────
+  // Il duplicato nasce con STATO_RIORDINO='0' e CARTA=0 (default backend "nuova
+  // annata"): in carta ci va quando arriva. Lo metto subito in bozza, perché
+  // chi duplica da questa pagina lo sta facendo per ordinarlo.
+  const openDuplica = (v) => {
+    setDuplicaVino(v);
+    const anno = parseInt(String(v.ANNATA || "").slice(0, 4), 10);
+    setDuplicaAnnata(Number.isFinite(anno) ? String(anno + 1) : "");
+  };
+  const submitDuplica = async () => {
+    if (!duplicaVino) return;
+    const ann = (duplicaAnnata || "").trim();
+    if (!ann) { toast("Inserisci un'annata", { kind: "warn" }); return; }
+    if (ann === String(duplicaVino.ANNATA ?? "")) {
+      toast("L'annata coincide con quella originale", { kind: "warn" });
+      return;
+    }
+    setDuplicaSaving(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${duplicaVino.id}/duplica`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annata: ann }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(e.detail || `HTTP ${r.status}`);
+      }
+      const nuovo = await r.json();
+      const qta = Number(duplicaVino.qta_suggerita) > 0 ? Number(duplicaVino.qta_suggerita) : 1;
+      let inBozza = false;
+      if (nuovo?.id) {
+        const rr = await apiFetch(`${API_BASE}/vini/ordini/riga/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vino_id: nuovo.id, qta, preserva_qta: true, note: `nuova annata ${ann}` }),
+        });
+        inBozza = rr.ok;
+      }
+      toast(
+        inBozza
+          ? `Annata ${ann} creata e messa in bozza — ${qta} bt`
+          : `Annata ${ann} creata (aggiungila al carrello a mano)`,
+        { kind: inBozza ? "success" : "warn" }
+      );
+      setDuplicaVino(null); setDuplicaAnnata("");
+      await ricarica();
+    } catch (e) {
+      toast(`Errore duplicazione: ${e.message}`, { kind: "error" });
+    } finally {
+      setDuplicaSaving(false);
     }
   };
 
@@ -469,6 +629,24 @@ export default function OrdiniVini() {
                     </div>
                   </div>
 
+                  {/* RD.6 — ordinamenti assorbiti dalla tabella del widget
+                      dashboard. Servono quando la lista è lunga: "urgenza" per
+                      partire da chi finisce prima, "ritmo" per i vini che
+                      girano, "ult. carico" per capire da quanto non si compra. */}
+                  <div className="px-5 py-2 border-b border-neutral-200 bg-neutral-50/70 flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wide text-neutral-500 font-semibold">Ordina per</span>
+                    {ORDINAMENTI.map(o => (
+                      <button key={o.key} onClick={() => setOrdinaPer(o.key)}
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition ${
+                          ordinaPer === o.key
+                            ? "bg-neutral-800 text-white border-neutral-900"
+                            : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-100"
+                        }`}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+
                   {loadingDett && <div className="p-8 text-center text-sm text-neutral-500">Carico…</div>}
                   {!loadingDett && daOrdinareFiltrati.length === 0 && (
                     <div className="p-8 text-center text-sm text-neutral-500">
@@ -487,6 +665,16 @@ export default function OrdiniVini() {
                           busy={busy}
                           onOrdina={(q) => ordina(v, q)}
                           onApri={() => navigate(`/vini/v2/bottiglia/${v.id}`)}
+                          onDuplica={() => openDuplica(v)}
+                          listino={{
+                            editing: listinoEditing === v.id,
+                            draft: listinoDraft,
+                            saving: listinoSaving,
+                            onOpen: () => openListino(v),
+                            onDraft: setListinoDraft,
+                            onSave: () => salvaListino(v),
+                            onCancel: chiudiListino,
+                          }}
                         />
                       ))}
                     </div>
@@ -510,6 +698,59 @@ export default function OrdiniVini() {
                     <div className="divide-y divide-neutral-100">
                       {storico.map(o => <RigaStorico key={o.id} ordine={o} />)}
                     </div>
+                  </div>
+                )}
+
+                {/* ── ARCHIVIO FORNITORE (RD.6) ─────────────
+                    Assorbe dal widget dashboard il tracciamento dei vini messi
+                    da parte. Chiuso di default: non è lavoro, è la risposta a
+                    «e questo non lo prendi più?». */}
+                {!loadingDett && archivio.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                    <button type="button" onClick={() => setArchivioOpen(o => !o)}
+                      className="w-full px-5 py-3 flex items-center justify-between gap-3 hover:bg-neutral-50 transition text-left">
+                      <div>
+                        <h3 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">
+                          Messi da parte ({archivio.length})
+                        </h3>
+                        <p className="text-[11px] text-neutral-500 mt-0.5">
+                          Annata esaurita o non si ricompra — per quando il rappresentante chiede "e questo?"
+                        </p>
+                      </div>
+                      <span className="text-neutral-400 text-xs shrink-0">{archivioOpen ? "▲" : "▼"}</span>
+                    </button>
+                    {archivioOpen && (
+                      <div className="divide-y divide-neutral-100 border-t border-neutral-200 max-h-[40vh] overflow-y-auto">
+                        {archivio.map(v => (
+                          <div key={v.id} className={`px-5 py-2 flex items-center gap-3 flex-wrap ${
+                            v.STATO_RIORDINO === "X" ? "bg-neutral-100/60" : "bg-neutral-50/60"
+                          }`}>
+                            <button onClick={() => navigate(`/vini/v2/bottiglia/${v.id}`)}
+                              className="min-w-0 flex-1 text-left">
+                              <span className="text-sm text-neutral-600 hover:text-amber-800 hover:underline">
+                                {v.DESCRIZIONE}
+                              </span>
+                              {v.ANNATA && <span className="text-xs text-neutral-400 ml-1.5">{v.ANNATA}</span>}
+                              <span className="block text-[11px] text-neutral-400 truncate">{v.PRODUTTORE || "—"}</span>
+                            </button>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                              v.STATO_RIORDINO === "X"
+                                ? "bg-neutral-800 text-white border-neutral-700"
+                                : "bg-neutral-200 text-neutral-700 border-neutral-300"
+                            }`}>
+                              {v.STATO_RIORDINO === "X" ? "⛔ non ricomprare" : "🗓️ annata esaurita"}
+                            </span>
+                            {v.annata_successiva?.qta > 0 && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 whitespace-nowrap"
+                                    title={`Sostituita dall'annata ${v.annata_successiva.annata}`}>
+                                ➡️ {v.annata_successiva.annata} ({v.annata_successiva.qta})
+                              </span>
+                            )}
+                            <span className="text-[10px] text-neutral-400 tabular-nums">{v.QTA_TOTALE || 0} bt</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -538,6 +779,51 @@ export default function OrdiniVini() {
           onErrore={(m) => toast(m, { kind: "error" })}
         />
       )}
+
+      {/* RD.6 — duplica nuova annata (assorbito dal widget dashboard) */}
+      {duplicaVino && (
+        <Modal open onClose={() => { if (!duplicaSaving) { setDuplicaVino(null); setDuplicaAnnata(""); } }}
+               title="Nuova annata">
+          <div className="space-y-4">
+            <div className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
+              <div className="font-semibold text-neutral-900 text-sm">{duplicaVino.DESCRIZIONE}</div>
+              <div className="text-xs text-neutral-500 mt-0.5">
+                {duplicaVino.PRODUTTORE || "—"}
+                {duplicaVino.ANNATA ? ` · annata attuale ${duplicaVino.ANNATA}` : ""}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 mb-1">Annata nuova</label>
+              <input
+                autoFocus
+                value={duplicaAnnata}
+                onChange={(e) => setDuplicaAnnata(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") submitDuplica(); }}
+                disabled={duplicaSaving}
+                placeholder="2025"
+                className="w-28 px-2 py-1.5 rounded-lg border border-neutral-300 text-sm text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-400"
+                style={{ fontSize: "16px" }}
+              />
+              <p className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
+                Crea una bottiglia nuova con la stessa anagrafica, giacenza a zero e
+                fuori carta (ci va quando arriva), e la mette subito nella bozza di
+                questo fornitore. La vecchia annata resta: conviene marcarla
+                <strong> «annata esaurita»</strong> così smette di essere proposta.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Btn variant="secondary" size="md" disabled={duplicaSaving}
+                   onClick={() => { setDuplicaVino(null); setDuplicaAnnata(""); }}>
+                Annulla
+              </Btn>
+              <Btn variant="primary" size="md" loading={duplicaSaving}
+                   disabled={duplicaSaving || !duplicaAnnata.trim()} onClick={submitDuplica}>
+                Crea e metti in bozza
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -546,7 +832,7 @@ export default function OrdiniVini() {
 // ════════════════════════════════════════════════════════════
 // RIGA "DA ORDINARE"
 // ════════════════════════════════════════════════════════════
-function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri }) {
+function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri, onDuplica, listino }) {
   // Precompilo con la quantità suggerita: nel 90% dei casi è quella giusta e
   // si preme solo Invio. Se non c'è storico vendite resta vuoto.
   const [qta, setQta] = useState(v.in_bozza ?? v.qta_suggerita ?? "");
@@ -578,9 +864,45 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri }) {
           </span>
           {v.ANNATA && <span className="text-xs text-neutral-400 ml-1.5">{v.ANNATA}</span>}
         </button>
-        <div className="text-[11px] text-neutral-500 truncate">
-          {v.PRODUTTORE || "—"}
-          {v.EURO_LISTINO ? <span className="text-neutral-400"> · {fmtEur(v.EURO_LISTINO)}</span> : null}
+        <div className="text-[11px] text-neutral-500 truncate flex items-center gap-1.5 flex-wrap">
+          <span className="truncate">{v.PRODUTTORE || "—"}</span>
+          {/* RD.6 — listino editabile inline: il rappresentante dice il prezzo
+              nuovo e lo si scrive qui. Lo storico prezzi si popola da solo. */}
+          {listino?.editing ? (
+            <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                autoFocus
+                value={listino.draft}
+                onChange={(e) => listino.onDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") listino.onSave();
+                  if (e.key === "Escape") listino.onCancel();
+                }}
+                disabled={listino.saving}
+                placeholder="12,50"
+                className="w-20 px-1.5 py-0.5 rounded border border-amber-400 bg-amber-50 text-[11px] text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300"
+                style={{ fontSize: "16px" }}
+              />
+              <button type="button" onClick={listino.onSave} disabled={listino.saving}
+                className="text-emerald-700 font-bold px-1" title="Salva (Invio)">✓</button>
+              <button type="button" onClick={listino.onCancel} disabled={listino.saving}
+                className="text-neutral-400 px-1" title="Annulla (Esc)">✕</button>
+            </span>
+          ) : canEdit ? (
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); listino?.onOpen?.(); }}
+              className="text-neutral-400 hover:text-amber-700 hover:underline decoration-dotted"
+              title="Modifica prezzo di listino (aggiorna anche lo storico prezzi)">
+              · {v.EURO_LISTINO ? fmtEur(v.EURO_LISTINO) : "listino?"} ✎
+            </button>
+          ) : v.EURO_LISTINO ? (
+            <span className="text-neutral-400">· {fmtEur(v.EURO_LISTINO)}</span>
+          ) : null}
+          {v.ultimo_carico && (
+            <span className="text-neutral-400" title={`Ultimo carico di questa annata: ${fmtData(v.ultimo_carico)}`}>
+              · 📥 {fmtData(v.ultimo_carico)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -606,6 +928,15 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri }) {
           ? `${Number(rv.bt_mese).toFixed(1)}/m`
           : rv.categoria === "poco" ? "poco" : "mai"}
       </span>
+
+      {/* RD.2 — la vendemmia dopo è già in cantina: prima di ordinare questa
+          annata, tanto vale saperlo. */}
+      {v.annata_successiva?.qta > 0 && (
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-300 whitespace-nowrap"
+              title={`L'annata ${v.annata_successiva.annata} è già in cantina con ${v.annata_successiva.qta} bt: forse questa riga va archiviata, non ordinata`}>
+          ➡️ {v.annata_successiva.annata} c'è ({v.annata_successiva.qta})
+        </span>
+      )}
 
       {/* Segnale arrivato dal widget dashboard. Serve a distinguere "l'ho
           scelto io" da "ci è finito per la giacenza": sono due liste diverse
@@ -635,6 +966,16 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri }) {
 
       {canEdit && (
         <div className="flex items-center gap-1 shrink-0">
+          {/* RD.6 — «il produttore non fa più la 2022, arriva la 2023»: crea la
+              riga della nuova annata e la mette in bozza, senza sporcare la
+              vecchia (che va archiviata come Annata esaurita). */}
+          {onDuplica && (
+            <button type="button" onClick={onDuplica} disabled={busy}
+              className="px-1.5 py-1 rounded-lg text-[11px] border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 hover:border-amber-400 transition"
+              title="Nuova annata di questo vino (la crea e la mette in bozza)">
+              🗓️
+            </button>
+          )}
           <input
             type="number" min="1" value={qta}
             onChange={e => setQta(e.target.value)}
