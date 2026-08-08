@@ -1,6 +1,6 @@
 # Modulo Vini — Ordini ai fornitori (piano O0–O7)
 
-> **Tipo:** 📄 pagina wiki · **Stato:** **O1, O3, O4, O5, O6 FATTI** (2026-08-02, vini 3.75). O2 assorbito in O6. Resta O7. · **Ultima verifica:** 2026-08-02 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
+> **Tipo:** 📄 pagina wiki · **Stato:** **O1, O3, O4, O5, O6 FATTI** (2026-08-02, vini 3.75) · **RD.1 FATTO** (2026-08-08, vini 3.81, mig 165). O2 assorbito in O6. Resta O7. · **Ultima verifica:** 2026-08-08 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
 > **Vedi anche:** [modulo_vini.md](modulo_vini.md) (stato corrente del modulo) · [modulo_vini_widget_dashboard.md](modulo_vini_widget_dashboard.md) (storia dei due widget esistenti) · [roadmap.md](roadmap.md) §V
 
 **Doc canonico** del lavoro sui riordini vini. Nasce dalla sessione 2026-08-02: Marco chiede "devo avere un modo per lavorarci meglio".
@@ -322,6 +322,104 @@ avrebbe voluto dire fare due volte la stessa UI. Vivono tutti in `OrdiniVini.jsx
 | `in_viaggio` sovrascritto | Un fornitore con 2 inviati + 1 parziale mostrava "1 in arrivo" |
 | Soglia "ordine fermo" ignorata | Il campo letto non esisteva: cambiare l'impostazione non aveva effetto |
 
+## RD.1 — Il widget dashboard diventa il primo selettore del riordino (2026-08-08)
+
+Marco: *«il widget "vini attivi in carta senza giacenza" deve diventare un primo
+selettore sul riordino. Se flaggo da ordinare lo evidenzi, se flaggo ordinato
+dovrebbe già metterlo in ordine che poi vado a riprendere, se flaggo annata
+esaurita o non ricomprare non viene più proposto.»*
+
+O6 aveva spostato il **lavoro** sulla pagina `/vini/ordini`, lasciando il widget
+come vista. RD.1 gli dà un ruolo preciso: **il widget è dove si decide, la pagina
+è dove si ordina.** Le due viste ora condividono la stessa condizione di ingresso.
+
+### 1. Chi entra nel riordino: copertura, non bottiglie
+
+Primo tentativo (scartato): soglia in bottiglie, `QTA_TOTALE <= N`. Marco:
+*«la soglia numerica non mi serve a nulla, ci sono vini importanti che è normale
+avere in una sola bottiglia. Il senso va ragionato sul consumo: se un vino si
+consuma 3 bottiglie al mese e ne ho una è un alert; se ne ho una di un vino
+fermo da mesi no.»*
+
+Criterio adottato — **copertura in giorni**:
+
+```
+consumo_giornaliero = vendite_finestra / giorni_finestra      (finestra = qta_suggerita_giorni_storico, 60gg)
+copertura_giorni    = giacenza * giorni_finestra / vendite_finestra
+entra se: giacenza = 0  OPPURE  copertura_giorni < alert_carta_giorni_copertura
+```
+
+Implementato in aritmetica intera (`giacenza * finestra < copertura * vendite`)
+per non dividere per zero: **chi non ha venduto nella finestra ha lato destro 0 e
+non entra mai**, senza clausole speciali. È esattamente la distinzione che Marco
+chiedeva fra scorta bassa e vino fermo.
+
+**Fonte unica:** `app/services/vini_riordino_service.py` — `sql_da_riordinare()`
+genera la condizione SQL (subquery inline, usabile dentro un `WHERE` senza
+wrapping), `copertura_giorni()` la calcola in Python per l'interfaccia. Usata da
+4 query che prima avevano `QTA_TOTALE = 0` copiato a mano: widget alert e
+`riordini_per_fornitore` (`vini_magazzino_db.get_dashboard_stats`),
+`fornitori_con_lavoro` e `da_ordinare` (`vini_ordini_db`).
+
+**Misura su dati reali** (DB 2026-08-08, 1316 vini in carta, 423 bt vendute/60gg):
+
+| `alert_carta_giorni_copertura` | Righe nel widget | di cui in esaurimento |
+|---|---|---|
+| 0 (solo esauriti) | 55 | — |
+| 14 | 56 | 2 |
+| **21 (default)** | **60** | **6** |
+| 30 | 61 | 7 |
+| 45 | 67 | 13 |
+
+Con 21 giorni entrano p.es. *Alto Adige Pinot Nero 2024* (1 bt, 7 vendute/60gg →
+~9gg di scorta) e restano fuori **116 vini con una sola bottiglia ma fermi**. Una
+soglia in bottiglie a 1 li avrebbe portati dentro tutti (176 righe). Query 0-2 ms.
+
+### 2. Cosa fa ogni flag del picker
+
+| Flag | Effetto |
+|---|---|
+| 📝 **Da ordinare** (`D`) | Segnale visivo: riga arancione nel widget riordini per fornitore e chip «📝 da ordinare» in `/vini/ordini`. Nessuna scrittura sugli ordini |
+| 📦 **Ordinato** (`0`) | `POST /vini/ordini/riga/` con `qta_suggerita` → il vino **entra nella bozza del suo fornitore**, pronto da riprendere in `/vini/ordini`. Toast col nome del fornitore |
+| 🗓️ **Annata esaurita** (`A`) | Esce da widget, `riordini_per_fornitore`, `da_ordinare` (già così pre-RD.1) |
+| ⛔ **Non ricomprare** (`X`) | Idem, e nel widget resta solo come contatore «+ N non da ricomprare» |
+
+`preserva_qta` (nuovo campo di `RigaPayload`, default `false`): se il vino è già
+in bozza l'automatismo **non sovrascrive** la quantità. Una qta in carrello è
+stata scelta a mano guardando il listino; un flag premuto in dashboard non ha
+titolo per cambiarla. L'aggiunta è non bloccante: se fallisce (utente senza
+permesso di scrittura ordini, fornitore non risolvibile) lo stato `Ordinato`
+resta salvato e il toast dice cosa non è successo.
+
+### 3. Codice colore (unico su tutte le viste)
+
+Colori presi da `viniConstants.STATO_RIORDINO`, non reinventati:
+
+| Stato | Barra + sfondo riga |
+|---|---|
+| `D` da ordinare | arancione |
+| `0` ordinato | sky |
+| `A` annata esaurita | neutro chiaro, testo attenuato |
+| `X` non ricomprare | neutro scuro, testo attenuato |
+| nessuno stato, giacenza 0 | rosso |
+| nessuno stato, in esaurimento | ambra |
+
+Nel widget alert il tono del banner segue il contenuto: **rosso se c'è almeno un
+esaurito, ambra se è solo riordino preventivo** — un banner rosso permanente si
+smette di leggere. Ogni riga porta giacenza e copertura (`🍷 2 bt · ~9gg`): sono
+i due numeri che servono per decidere se ordinare adesso.
+
+### 4. Impostazioni
+
+`alert_carta_giorni_copertura` (default 21) in **Impostazioni Vini → Widget e
+soglie → 🛒 Widget riordino**. La migrazione 165 allinea `vini_widget_settings` a
+`WIDGET_DEFAULTS` con `INSERT OR IGNORE`: recupera anche le 4 chiavi ordini di O5
+(`ordine_fermo_alert_giorni`, i 3 `ordine_wa_*`) che erano nel service ma non in
+tabella, quindi leggibili in codice e **non modificabili da UI**
+(`set_widget_setting` rifiuta le chiavi assenti). `ordine_fermo_alert_giorni` ha
+ora il suo gruppo in Impostazioni; i template WhatsApp restano fuori (sono `text`,
+la UI ha solo input numerici).
+
 ## Cosa resta aperto
 
 - **Codice morto in `DashboardVini.jsx`** — il modale ordine e i suoi handler
@@ -336,3 +434,14 @@ avrebbe voluto dire fare due volte la stessa UI. Vivono tutti in `OrdiniVini.jsx
   flag `attivo` (mig 160), chiesto a parte: nasconde dalla pagina Ordini i
   distributori con cui non si lavora più, tranne quelli con un ordine aperto.
 - **Doppione anagrafico Poloni/Polloni** da fondere.
+- **Il widget filtra `STATO_VENDITA >= 2`, la pagina Ordini no** (disallineamento
+  pre-esistente, non introdotto da RD.1, misurato il 2026-08-08): il widget
+  segnala 60 vini, `fornitori_con_lavoro` ne conta **918** e
+  `riordini_per_fornitore` 942, perché prendono qualunque vino in carta a
+  giacenza zero — compresi quelli marcati "non vendere"/"controllare". Su
+  «0,75 di Valentino Rossi» sono 332 righe. Decisione PO: allineare la pagina
+  Ordini al filtro del widget (una riga in `sql_da_riordinare` o nei chiamanti)
+  o tenere la lista larga di proposito? **Da chiedere a Marco.**
+- **`riordini_per_fornitore` non espone `copertura_giorni`**: la sua query non
+  calcola la finestra vendite, quindi la colonna Giac. resta un numero secco e
+  il fallback colore usa solo "giacenza zero sì/no".

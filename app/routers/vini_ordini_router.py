@@ -60,6 +60,11 @@ class RigaPayload(BaseModel):
     vino_id: int
     qta: int = Field(..., gt=0, description="quantità voluta (sostituisce, non somma)")
     note: Optional[str] = None
+    preserva_qta: bool = Field(
+        False,
+        description="se il vino è già in bozza non tocca la qta esistente "
+                    "(usato dalle aggiunte automatiche, es. flag 'Ordinato' dal widget)",
+    )
 
 
 class InvioPayload(BaseModel):
@@ -131,6 +136,7 @@ def aggiungi_riga(payload: RigaPayload, current_user: Any = Depends(get_current_
         return db.aggiungi_riga(
             vino_id=payload.vino_id, qta=payload.qta,
             utente=_username(current_user), note=payload.note,
+            preserva_qta=payload.preserva_qta,
         )
     except ValueError as e:
         msg = str(e)

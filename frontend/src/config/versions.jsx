@@ -35,12 +35,21 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
+    // 3.81 (2026-08-08, RD.1): il widget dashboard diventa il primo selettore
+    //   del riordino. Chi entra non e' piu' "giacenza = 0" ma la COPERTURA in
+    //   giorni (giacenza / consumo recente < N gg, default 21): 1 bt di un vino
+    //   che gira e' un alert, 1 bt di un vino fermo no. Logica unica in
+    //   app/services/vini_riordino_service.py, condivisa con /vini/ordini.
+    //   Flag "Ordinato" mette il vino nella bozza del suo fornitore. Righe
+    //   colorate per stato riordino su widget fornitori e pagina Ordini.
+    //   Mig 165: sync chiavi vini_widget_settings (soglia + 4 chiavi O5 che
+    //   erano nel service ma non in tabella, quindi non editabili da UI).
     // 3.80 (2026-08-03, V.9 fase 1): "Cantina da iPhone" — nuova pagina
     //   mobile-first /vini/cantina-mobile (CantinaMobile.jsx): finder
     //   «trova la bottiglia» (ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per
     //   scaffale) e scheda mobile read-only. Solo consultazione, zero
     //   modifiche backend (riusa /vini/v2/bottiglie/).
-    version: "3.80",
+    version: "3.81",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

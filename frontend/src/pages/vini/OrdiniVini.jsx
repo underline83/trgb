@@ -30,6 +30,19 @@ const STATI = {
   annullato: { label: "Annullato",       icon: "⛔", cls: "bg-neutral-100 text-neutral-500 border-neutral-200" },
 };
 
+// RD.1 (2026-08-08) — Il widget della dashboard e' il primo selettore del
+// riordino: Marco flagga lì e ritrova il segnale qui. Solo i due stati che
+// contano in questa pagina: 'A' e 'X' non arrivano nemmeno (query backend).
+// Colori allineati a viniConstants.STATO_RIORDINO, non reinventati.
+const SEGNALE_RIORDINO = {
+  D: { label: "da ordinare", icon: "📝", chip: "bg-orange-100 text-orange-800 border-orange-200",
+       row: "border-l-4 border-orange-400 bg-orange-50/40" },
+  O: { label: "da ordinare", icon: "📝", chip: "bg-orange-100 text-orange-800 border-orange-200",
+       row: "border-l-4 border-orange-400 bg-orange-50/40" },
+  "0": { label: "segnato ordinato", icon: "📦", chip: "bg-sky-100 text-sky-800 border-sky-200",
+       row: "border-l-4 border-sky-400 bg-sky-50/40" },
+};
+
 const TIPOLOGIE = [
   { key: "tutti",     label: "Tutti",     match: () => true },
   { key: "rossi",     label: "Rossi",     match: t => /ROSS/i.test(t || "") },
@@ -545,8 +558,19 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri }) {
     : rv.color_tone === "amber" ? "bg-amber-50 text-amber-800 border-amber-200"
     : "bg-neutral-100 text-neutral-500 border-neutral-200";
 
+  // RD.1 — tono della riga. Il carrello vince su tutto (è la decisione più
+  // recente), poi il segnale messo dal widget, poi la giacenza.
+  const segnale = SEGNALE_RIORDINO[v.STATO_RIORDINO] || null;
+  const rowTone = v.in_bozza
+    ? "border-l-4 border-amber-400 bg-amber-50/40"
+    : segnale
+      ? `${segnale.row} hover:bg-neutral-50/60`
+      : (Number(v.QTA_TOTALE) || 0) === 0
+        ? "border-l-4 border-red-300 hover:bg-neutral-50"
+        : "border-l-4 border-transparent hover:bg-neutral-50";
+
   return (
-    <div className={`px-5 py-2.5 flex items-center gap-3 flex-wrap transition ${v.in_bozza ? "bg-amber-50/40" : "hover:bg-neutral-50"}`}>
+    <div className={`px-5 py-2.5 flex items-center gap-3 flex-wrap transition ${rowTone}`}>
       <div className="min-w-0 flex-1">
         <button onClick={onApri} className="text-left block max-w-full">
           <span className="text-sm font-semibold text-neutral-800 hover:text-amber-800 hover:underline">
@@ -560,10 +584,21 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri }) {
         </div>
       </div>
 
+      {/* RD.1 — giacenza + copertura: 2 bt di un vino che gira è un buco fra
+          nove giorni, 2 bt di uno fermo non è niente. Il numero da solo non
+          basta a decidere. */}
       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border tabular-nums ${
-        (v.QTA_TOTALE || 0) === 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-neutral-50 text-neutral-600 border-neutral-200"
-      }`}>
+        (v.QTA_TOTALE || 0) === 0 ? "bg-red-50 text-red-700 border-red-200"
+        : v.copertura_giorni != null ? "bg-amber-50 text-amber-800 border-amber-200"
+        : "bg-neutral-50 text-neutral-600 border-neutral-200"
+      }`}
+        title={(v.QTA_TOTALE || 0) === 0
+          ? "Esaurito"
+          : v.copertura_giorni != null
+            ? `Al ritmo attuale finiscono in ~${v.copertura_giorni} giorni`
+            : "Nessuna vendita nel periodo: giacenza ferma"}>
         {v.QTA_TOTALE || 0} bt
+        {(v.QTA_TOTALE || 0) > 0 && v.copertura_giorni != null ? ` · ~${v.copertura_giorni}gg` : ""}
       </span>
 
       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${ritmoCls}`} title={rv.label || ""}>
@@ -571,6 +606,16 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri }) {
           ? `${Number(rv.bt_mese).toFixed(1)}/m`
           : rv.categoria === "poco" ? "poco" : "mai"}
       </span>
+
+      {/* Segnale arrivato dal widget dashboard. Serve a distinguere "l'ho
+          scelto io" da "ci è finito per la giacenza": sono due liste diverse
+          mescolate nella stessa tabella. */}
+      {segnale && !v.in_bozza && (
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${segnale.chip}`}
+              title="Stato riordino impostato dalla dashboard">
+          {segnale.icon} {segnale.label}
+        </span>
+      )}
 
       {/* Difesa contro il doppio ordine: finché la merce non arriva la
           giacenza resta 0, quindi il vino continua a comparire qui. Senza

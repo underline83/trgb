@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-08-08 — Il widget vini diventa il selettore del riordino `[core]`
+
+Il widget «vini attivi in carta senza giacenza» era una lista da guardare. Ora è il punto dove si decide cosa ordinare, e i flag che premi hanno conseguenze.
+
+**Chi entra nella lista non è più "giacenza a zero" ma la copertura in giorni.** La giacenza divisa il consumo delle ultime settimane dice quanti giorni di scorta restano: sotto 21 (configurabile) il vino compare. Una bottiglia sola di un vino che si vende 3 volte al mese è un buco fra dieci giorni ed è un alert; una bottiglia sola di un vino fermo da mesi è la sua giacenza normale e resta fuori. Sui dati del 08/08: 60 vini segnalati, di cui 6 in esaurimento; 116 vini con una bottiglia sola ma fermi correttamente ignorati.
+
+**I flag ora fanno qualcosa.** 📦 *Ordinato* mette il vino nella bozza d'ordine del suo fornitore con la quantità suggerita, pronto da riprendere in `/vini/ordini` (senza sovrascrivere una quantità già scelta a mano). 📝 *Da ordinare* colora la riga nel widget riordini per fornitore e nella pagina Ordini. 🗓️ *Annata esaurita* e ⛔ *Non ricomprare* fanno sparire il vino da tutte le liste di riordino.
+
+**Colori coerenti su tutte le viste** e ogni riga porta i due numeri che servono a decidere: giacenza e copertura (`🍷 2 bt · ~9gg`). Il banner è rosso se c'è un vino esaurito, ambra se è solo riordino preventivo.
+
+Nuova soglia in **Impostazioni Vini → Widget e soglie → 🛒 Widget riordino**. La migrazione 165 rende configurabili anche le 4 impostazioni ordini di O5, che esistevano nel codice ma non comparivano nella UI.
+
+Vini 3.80 → 3.81. Doc: [modulo_vini_ordini.md](modulo_vini_ordini.md) §RD.1.
+
+---
+
 ## 2026-08-07 — Menu Estate 2026 tradotto in cinque lingue `[locale:tregobbi]`
 
 Il motore i18n aveva la carta vuota. Ora ha i testi: **EN, FR, ES, DE, UK**, revisionati da madrelingua, per l'edizione lug/ago/set 2026.

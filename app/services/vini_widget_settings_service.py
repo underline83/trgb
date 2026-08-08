@@ -55,6 +55,13 @@ WIDGET_DEFAULTS = [
     # Dashboard Vini — cutoff temporali
     ("vini_fermi_giorni",             "30",  "int",     "Giorni: vino senza movimenti = 'fermo'"),
     ("top_vendute_giorni",            "30",  "int",     "Giorni: finestra calcolo 'top vendute'"),
+    # Widget "Vini in carta da riordinare" — soglia di COPERTURA, non di
+    # bottiglie (Marco, 2026-08-08: "ci sono vini importanti che è normale
+    # avere in una sola bottiglia"). Un vino entra se la giacenza copre meno
+    # di N giorni al ritmo di vendita delle ultime settimane; chi non vende
+    # non entra mai. Vedi app/services/vini_riordino_service.py.
+    # 0 = solo vini esauriti. 21 = ciclo tipico ordine + consegna.
+    ("alert_carta_giorni_copertura",  "21",  "int",     "Giorni: vino in carta con scorta che copre meno di N giorni di vendite entra nel widget riordino (0 = solo esauriti)"),
     # Alert "Vini in carta senza giacenza" — qta suggerita
     ("qta_suggerita_giorni_storico",  "60",  "int",     "Giorni: finestra storico vendite per calcolare qta suggerita riordino"),
     ("qta_suggerita_divisore",        "2",   "float",   "Divisore: vendite_60gg / N = qta suggerita (default 2 = metà del venduto)"),

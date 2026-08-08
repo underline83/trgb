@@ -2133,6 +2133,17 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         SETTING_QTA_SUGG_GIORNI = 60
         SETTING_QTA_SUGG_DIV = 2.0
 
+    # RD.1 (2026-08-08): il widget non guarda più la giacenza in assoluto ma la
+    # COPERTURA (giorni di vendite che la giacenza residua garantisce). Una
+    # soglia in bottiglie tratterebbe allo stesso modo l'ultima bottiglia di un
+    # vino da 3 bt/mese e quella di un vino fermo da mesi. Logica condivisa con
+    # la pagina Ordini in app/services/vini_riordino_service.py.
+    from app.services.vini_riordino_service import (
+        sql_da_riordinare, parametri_riordino, copertura_giorni,
+    )
+    COND_RIORDINO = sql_da_riordinare("v")
+    _, SETTING_COPERTURA_GG = parametri_riordino()
+
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
@@ -2192,7 +2203,12 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                ) AS ultima_vendita
         FROM vini_bottiglie v
         WHERE v.CARTA = 1
-          AND (v.QTA_TOTALE IS NULL OR v.QTA_TOTALE = 0)
+          -- RD.1 (2026-08-08): esaurito OPPURE scorta che copre meno di
+          -- `alert_carta_giorni_copertura` giorni al ritmo di vendita recente.
+          -- Chi non ha venduto nella finestra non entra: 1 bt di un vino fermo
+          -- è la sua giacenza normale, non un alert. Il FE distingue esaurito
+          -- (rosso) da "in esaurimento" (ambra) e mette gli esauriti in testa.
+          AND {COND_RIORDINO}
           -- Post V-H.F (mig 128): STATO_VENDITA INTEGER 0..3
           --   0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE, 3=SPINGERE
           -- Includo solo i vini "da vendere": livello >= 2.
@@ -2205,8 +2221,11 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
           -- ('O' Finito/Ordina rimosso 2026-05-11, mig 122 ha migrato i dati → 'D')
           AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('0', 'A', 'X'))
         ORDER BY
+            -- Urgenza vera: chi è a zero viene prima di chi ha ancora bottiglie.
+            CASE WHEN COALESCE(v.QTA_TOTALE, 0) = 0 THEN 0 ELSE 1 END,
             -- Priorità decrescente: spingere (3) prima, vendere (2) dopo.
             v.STATO_VENDITA DESC,
+            COALESCE(v.QTA_TOTALE, 0),
             v.TIPOLOGIA, v.DESCRIZIONE;
         """
     ).fetchall()
@@ -2224,6 +2243,12 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             v60 = int(v60)
         except (TypeError, ValueError):
             v60 = 0
+        # RD.1 — la ragione per cui il vino è in lista, in chiaro: 0 = esaurito,
+        # N = giorni di scorta rimasti, None = nessun ritmo (non calcolabile).
+        d["copertura_giorni"] = copertura_giorni(
+            d.get("QTA_TOTALE"), v60, SETTING_QTA_SUGG_GIORNI
+        )
+        d["vendite_finestra"] = v60
         if v60 > 0 and SETTING_QTA_SUGG_DIV > 0:
             d["qta_suggerita"] = max(1, round(v60 / SETTING_QTA_SUGG_DIV))
         else:
@@ -2407,9 +2432,12 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         # ricomprare"). Frontend differenzia visivamente.
         # 'O' rimosso dal flusso UI ma mantenuto in IN (...) per compat coi
         # vecchi record (la mig 122 li migra a 'D').
-        riordini_where = """
+        # RD.1: stessa condizione del widget alert — se un vino entra là come
+        # "in esaurimento" deve comparire anche qui sotto il suo fornitore,
+        # altrimenti lo vedi nell'alert e non lo trovi dove si ordina.
+        riordini_where = f"""
             WHERE v.STATO_RIORDINO IN ('D', 'O', '0', 'A', 'X')
-               OR (v.QTA_TOTALE = 0 AND v.CARTA = 1
+               OR ({COND_RIORDINO} AND v.CARTA = 1
                    AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
         """
     riordini_per_fornitore = cur.execute(
@@ -2459,6 +2487,9 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         "valore_carta":      round(kpi["valore_carta"], 2),
         "alert_carta_senza_giacenza": alert_carta_list,
         "total_alert_carta":          len(alert_carta_list),
+        # RD.1: il FE usa la soglia per il testo del banner ("meno di N giorni
+        # di scorta") senza doverla richiedere a /vini/settings/widget/.
+        "alert_carta_giorni_copertura": SETTING_COPERTURA_GG,
         "total_vini_fermi":           len(vini_fermi),
         "vini_senza_listino_list":    [dict(r) for r in senza_listino],
         "vendute_oggi":               kpi_vendite["vendute_oggi"],

@@ -1636,9 +1636,17 @@ export default function ViniImpostazioni() {
       keys: ["top_vendute_giorni", "vini_fermi_giorni"],
     },
     {
-      titolo: "🛒 Alert riordino (qta suggerita)",
-      desc: "Calcolo della quantità suggerita di riordino: vendite negli ultimi N giorni divise per K.",
-      keys: ["qta_suggerita_giorni_storico", "qta_suggerita_divisore"],
+      titolo: "🛒 Widget riordino",
+      desc: "Chi entra nel widget «vini in carta da riordinare» e con quale quantità suggerita. "
+          + "La soglia NON è in bottiglie ma in giorni di copertura: un vino entra se la scorta "
+          + "residua, al ritmo di vendita delle ultime settimane, dura meno di N giorni. "
+          + "Un vino fermo non entra mai, anche con una bottiglia sola. Vale anche per la pagina Ordini.",
+      keys: ["alert_carta_giorni_copertura", "qta_suggerita_giorni_storico", "qta_suggerita_divisore"],
+    },
+    {
+      titolo: "📦 Ordini ai fornitori",
+      desc: "Dopo quanti giorni un ordine inviato e mai arrivato viene segnalato come fermo.",
+      keys: ["ordine_fermo_alert_giorni"],
     },
     {
       titolo: "📈 Ritmo vendita",
@@ -1720,7 +1728,8 @@ export default function ViniImpostazioni() {
                 const value = editing ? widgetEdits[key] : cfg.value;
                 const unit = cfg.tipo === "percent" ? "%"
                   : (key.endsWith("_hours") ? "ore"
-                  : (key.endsWith("_giorni") || key.endsWith("_giorni_storico") ? "gg"
+                  : (key.endsWith("_giorni") || key.endsWith("_giorni_storico")
+                     || key.endsWith("_giorni_copertura") ? "gg"
                   : ""));
                 return (
                   <div key={key} className="space-y-1">

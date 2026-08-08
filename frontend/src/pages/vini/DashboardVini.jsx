@@ -133,6 +133,9 @@ export default function DashboardVini() {
   // ── Ordini pending per widget Riordini (Fase 4) ─────────
   // Mappa { [vino_id]: { qta, data_ordine, note, utente, updated_at } }
   const [ordiniPending, setOrdiniPending] = useState({});
+  // RD.1 — bumpato quando il widget mette un vino in bozza: fa ricaricare il
+  // semaforo "📦 Ordini" senza refresh di tutta la dashboard.
+  const [ordiniRefresh, setOrdiniRefresh] = useState(0);
   const [ordineVino, setOrdineVino]       = useState(null);  // vino target modale
   const [ordineQta, setOrdineQta]         = useState("");
   const [ordineNote, setOrdineNote]       = useState("");
@@ -434,6 +437,14 @@ export default function DashboardVini() {
   // Fase C — cambia STATO_RIORDINO di un vino dal widget alert.
   // Se clicco lo stato corrente → clear (null). Altrimenti imposta il nuovo valore.
   // Logica "toggle non ricomprare" e' ora un caso d'uso di questa funzione (STATO_RIORDINO='X').
+  //
+  // RD.1 (2026-08-08) — il widget e' il primo selettore del riordino:
+  //   'D' Da ordinare   → resta un segnale: il vino si colora qui, nel widget
+  //                       riordini per fornitore e nella pagina Ordini.
+  //   '0' Ordinato      → mette il vino nella bozza del suo fornitore con la
+  //                       qta suggerita, cosi' lo si ritrova gia' pronto in
+  //                       /vini/ordini invece di doverlo ricercare a mano.
+  //   'A'/'X'           → il vino esce dalle liste di riordino (query backend).
   const setStatoRiordino = async (vino, nuovoStato) => {
     const corrente = vino.STATO_RIORDINO || null;
     const target = (corrente === nuovoStato) ? null : nuovoStato;
@@ -445,16 +456,58 @@ export default function DashboardVini() {
         body: JSON.stringify({ STATO_RIORDINO: target }),
       });
       if (!resp.ok) throw new Error();
-      setStats((prev) => ({
-        ...prev,
-        alert_carta_senza_giacenza: prev.alert_carta_senza_giacenza.map((v) =>
-          v.id === vino.id ? { ...v, STATO_RIORDINO: target } : v
-        ),
-      }));
+      // Il vino puo' comparire in entrambe le liste: aggiorno tutte e due,
+      // altrimenti il chip colorato nel widget fornitori resta indietro.
+      setStats((prev) => {
+        const patch = (arr) =>
+          Array.isArray(arr)
+            ? arr.map((v) => (v.id === vino.id ? { ...v, STATO_RIORDINO: target } : v))
+            : arr;
+        return {
+          ...prev,
+          alert_carta_senza_giacenza: patch(prev.alert_carta_senza_giacenza),
+          riordini_per_fornitore: patch(prev.riordini_per_fornitore),
+        };
+      });
+
+      if (target === "0") await mettiInBozza(vino);
     } catch {
       toast("Errore aggiornamento stato riordino", { kind: "error" });
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  // RD.1 — aggiunta automatica alla bozza d'ordine del fornitore.
+  // Non blocca il cambio di stato: se fallisce (utente senza permesso di
+  // scrittura ordini, vino senza distributore) lo stato 'Ordinato' resta
+  // comunque salvato e il messaggio spiega cosa non e' successo.
+  const mettiInBozza = async (vino) => {
+    const qta = Number(vino.qta_suggerita) > 0 ? Number(vino.qta_suggerita) : 1;
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/ordini/riga/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vino_id: vino.id,
+          qta,
+          // Se una qta e' gia' in bozza l'ha scelta Marco: non la sovrascrivo.
+          preserva_qta: true,
+          note: "da widget riordino",
+        }),
+      });
+      if (!resp.ok) {
+        let msg = "HTTP " + resp.status;
+        try { const err = await resp.json(); if (err?.detail) msg = err.detail; } catch {}
+        toast(`Stato salvato, ma non è finito in bozza: ${msg}`, { kind: "warn" });
+        return;
+      }
+      const ordine = await resp.json();
+      const forn = ordine?.fornitore_nome || "fornitore";
+      toast(`📦 In bozza per ${forn} — ${qta} bt`, { kind: "success" });
+      setOrdiniRefresh((n) => n + 1);
+    } catch (e) {
+      toast(`Stato salvato, ma non è finito in bozza: ${e?.message || ""}`, { kind: "warn" });
     }
   };
 
@@ -565,6 +618,21 @@ export default function DashboardVini() {
   const urgenti = alertAll.filter((v) => v.STATO_RIORDINO !== "X");
   const nonRicomprare = alertAll.filter((v) => v.STATO_RIORDINO === "X");
   const alertCount = urgenti.length;
+  // RD.1 — il widget e' il primo selettore del riordino: dentro convivono due
+  // livelli di urgenza. Esaurito = il cliente lo chiede e non c'e'.
+  // In esaurimento = c'e' ancora, ma al ritmo di vendita attuale finisce entro
+  // i giorni di copertura impostati. Non e' una soglia in bottiglie: una
+  // bottiglia sola di un vino fermo non e' un problema, di un vino che gira si'.
+  const coperturaGg = Number(stats?.alert_carta_giorni_copertura ?? 0);
+  const esauriti = urgenti.filter((v) => !(Number(v.QTA_TOTALE) > 0));
+  const scortaBassa = urgenti.filter((v) => Number(v.QTA_TOTALE) > 0);
+  // Tono del banner: rosso se c'e' almeno un buco vero, ambra se e' solo
+  // riordino preventivo. Un banner rosso permanente si smette di leggere.
+  const alertTone = esauriti.length > 0
+    ? { bg: "bg-red-50", bgHover: "hover:bg-red-100", border: "border-red-200",
+        text: "text-red-800", sub: "text-red-600", chevron: "text-red-400", icon: "🚨" }
+    : { bg: "bg-amber-50", bgHover: "hover:bg-amber-100", border: "border-amber-200",
+        text: "text-amber-900", sub: "text-amber-700", chevron: "text-amber-500", icon: "🟡" };
 
   // ─────────────────────────────────────────────────────────
   // RENDER
@@ -814,25 +882,33 @@ export default function DashboardVini() {
             ALERT — COMPATTATO (collapsed di default, solo stati attivi)
             ══════════════════════════════════════════════════════ */}
         {alertCount > 0 && (
-          <div className="bg-white rounded-3xl border border-red-200 shadow-sm overflow-hidden">
+          <div className={`bg-white rounded-3xl border ${alertTone.border} shadow-sm overflow-hidden`}>
             {/* Banner cliccabile */}
             <button type="button" onClick={() => setAlertOpen(!alertOpen)}
-              className="w-full px-6 py-4 bg-red-50 border-b border-red-200 flex items-center gap-3 hover:bg-red-100 transition text-left">
-              <span className="text-xl">🚨</span>
+              className={`w-full px-6 py-4 ${alertTone.bg} border-b ${alertTone.border} flex items-center gap-3 ${alertTone.bgHover} transition text-left`}>
+              <span className="text-xl">{alertTone.icon}</span>
               <div className="flex-1">
-                <div className="font-semibold text-red-800">
-                  {alertCount} {alertCount === 1 ? "vino attivo" : "vini attivi"} in carta senza giacenza
+                <div className={`font-semibold ${alertTone.text}`}>
+                  {alertCount} {alertCount === 1 ? "vino in carta" : "vini in carta"} da riordinare
                   {nonRicomprare.length > 0 && (
                     <span className="ml-2 text-xs font-normal text-neutral-500">
                       + {nonRicomprare.length} non da ricomprare
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-red-600 mt-0.5">
-                  Solo vini con stato vendita attivo (V/F/S/T). Clicca per {alertOpen ? "nascondere" : "espandere"}.
+                <div className={`text-xs ${alertTone.sub} mt-0.5`}>
+                  {esauriti.length > 0 && (
+                    <span className="font-semibold">{esauriti.length} esaurit{esauriti.length === 1 ? "o" : "i"}</span>
+                  )}
+                  {esauriti.length > 0 && scortaBassa.length > 0 && " · "}
+                  {scortaBassa.length > 0 && (
+                    <span>{scortaBassa.length} in esaurimento (scorta sotto {coperturaGg} giorni di vendite)</span>
+                  )}
+                  {(esauriti.length > 0 || scortaBassa.length > 0) && " — "}
+                  Solo vini da vendere o spingere. Clicca per {alertOpen ? "nascondere" : "espandere"}.
                 </div>
               </div>
-              <span className="text-red-400 text-sm font-semibold shrink-0">
+              <span className={`${alertTone.chevron} text-sm font-semibold shrink-0`}>
                 {alertOpen ? "▲ Chiudi" : "▼ Espandi"}
               </span>
             </button>
@@ -885,8 +961,18 @@ export default function DashboardVini() {
                   : ggFinito === 0 ? "Finito oggi"
                   : ggFinito === 1 ? "Finito ieri"
                   :                  `Finito ~${ggFinito}gg fa`;
+                // RD.1 — due livelli di urgenza nella stessa lista: barra rossa
+                // a sinistra se il vino e' finito, ambra se sta finendo.
+                const qtaRes = Number(v.QTA_TOTALE) || 0;
+                const esaurito = qtaRes <= 0;
+                const copGg = v.copertura_giorni;
+                const rowCls = dimmed
+                  ? "opacity-50 border-l-4 border-neutral-300"
+                  : esaurito
+                    ? "border-l-4 border-red-400 hover:bg-red-50"
+                    : "border-l-4 border-amber-300 bg-amber-50/30 hover:bg-amber-50";
                 return (
-                  <div className={`px-6 py-3 flex items-start justify-between gap-3 transition ${dimmed ? "opacity-50" : "hover:bg-red-50"}`}>
+                  <div className={`px-6 py-3 flex items-start justify-between gap-3 transition ${rowCls}`}>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
                       {/* RIGA 1 — identita' vino */}
                       <div className="flex items-center gap-2 flex-wrap">
@@ -895,6 +981,23 @@ export default function DashboardVini() {
                         {v.ANNATA && <span className="text-xs text-neutral-500">{v.ANNATA}</span>}
                         {v.PRODUTTORE && <span className="text-xs text-neutral-400">— {v.PRODUTTORE}</span>}
                         <span className="text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
+                        {/* Giacenza + copertura: la ragione per cui il vino e'
+                            in questa lista. "2 bt · ~9gg" dice in due numeri
+                            quello che serve per decidere se ordinare adesso. */}
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border tabular-nums ${
+                          esaurito
+                            ? "bg-red-100 text-red-800 border-red-200"
+                            : "bg-amber-100 text-amber-900 border-amber-300"
+                        }`}
+                          title={esaurito
+                            ? "Esaurito"
+                            : copGg != null
+                              ? `Ne restano ${qtaRes}: al ritmo attuale finiscono in ~${copGg} giorni (soglia ${coperturaGg}gg)`
+                              : `Ne restano ${qtaRes}`}>
+                          {esaurito
+                            ? "🍷 esaurito"
+                            : `🍷 ${qtaRes} bt${copGg != null ? ` · ~${copGg}gg` : ""}`}
+                        </span>
                       </div>
                       {/* RIGA 2 — metriche azionabili (ritmo+finito) */}
                       <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -1311,7 +1414,7 @@ export default function DashboardVini() {
         {/* ── O6 (2026-08-02) — Il lavoro sugli ordini si fa nella pagina
              dedicata. Questi due widget restano come vista d'insieme, ma
              comporre e mandare un ordine si fa di là, dove esiste lo storico. */}
-        <RiepilogoOrdini onVai={() => navigate("/vini/ordini")} />
+        <RiepilogoOrdini onVai={() => navigate("/vini/ordini")} refreshKey={ordiniRefresh} />
 
         {/* ── RIORDINI PER DISTRIBUTORE / RAPPRESENTANTE ──── */}
         {stats?.riordini_per_fornitore?.length > 0 && (() => {
@@ -1446,8 +1549,22 @@ export default function DashboardVini() {
                           }).map(v => {
                             const ggCarico = giorniDa(v.ultimo_carico);
                             const ggVendita = giorniDa(v.ultima_vendita);
+                            // RD.1 — la riga si colora per stato riordino, cosi'
+                            // aprendo il fornitore si vede a colpo d'occhio cosa
+                            // e' stato deciso senza leggere colonna per colonna.
+                            // Fallback (nessuno stato): il vino e' qui per la
+                            // giacenza — rosso se finito, ambra se sotto soglia.
+                            const sr = v.STATO_RIORDINO || null;
+                            const rowTone =
+                              sr === "D" || sr === "O" ? "border-l-4 border-orange-400 bg-orange-50/60 hover:bg-orange-100/60"
+                              : sr === "0"             ? "border-l-4 border-sky-400 bg-sky-50/60 hover:bg-sky-100/60"
+                              : sr === "A"             ? "border-l-4 border-neutral-300 bg-neutral-50 text-neutral-500 hover:bg-neutral-100"
+                              : sr === "X"             ? "border-l-4 border-neutral-700 bg-neutral-100/70 text-neutral-400 hover:bg-neutral-200/70"
+                              : (Number(v.QTA_TOTALE) || 0) === 0
+                                                       ? "border-l-4 border-red-300 hover:bg-red-50/50"
+                                                       : "border-l-4 border-amber-200 hover:bg-amber-50/50";
                             return (
-                              <tr key={v.id} className="hover:bg-orange-50/40 transition">
+                              <tr key={v.id} className={`transition ${rowTone}`}>
                                 <td className="px-1 py-2 text-center">
                                   <button
                                     type="button"
@@ -1880,7 +1997,7 @@ export default function DashboardVini() {
 // ════════════════════════════════════════════════════════════
 // O6 — RIEPILOGO ORDINI (semaforo che porta alla pagina dedicata)
 // ════════════════════════════════════════════════════════════
-function RiepilogoOrdini({ onVai }) {
+function RiepilogoOrdini({ onVai, refreshKey = 0 }) {
   const [r, setR] = React.useState(null);
 
   React.useEffect(() => {
@@ -1890,7 +2007,7 @@ function RiepilogoOrdini({ onVai }) {
         if (res.ok) setR(await res.json());
       } catch { /* il banner semplicemente non compare */ }
     })();
-  }, []);
+  }, [refreshKey]);
 
   if (!r) return null;
   const niente = !r.bozze && !r.in_viaggio;

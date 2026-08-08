@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional
 
 from app.models.vini_magazzino_db import get_magazzino_connection, _now_iso
 from app.services.vini_widget_settings_service import get_widget_setting
+from app.services.vini_riordino_service import sql_da_riordinare, copertura_giorni
 from app.utils.vini_metrics import DATA_INIZIO_STORICO, calcola_ritmo_vendita
 
 
@@ -304,13 +305,16 @@ def fornitori_con_lavoro(includi_inattivi: bool = False) -> List[Dict[str, Any]]
     conn = _conn()
     try:
         cur = conn.cursor()
+        # RD.1 — stessa condizione del widget dashboard (copertura in giorni,
+        # non soglia in bottiglie): unica fonte in vini_riordino_service.
+        cond = sql_da_riordinare("v")
         rows = cur.execute(
-            """
+            f"""
             SELECT COALESCE(NULLIF(TRIM(v.DISTRIBUTORE), ''), ?) AS fornitore_nome,
                    COUNT(*)                                      AS da_ordinare
               FROM vini_bottiglie v
              WHERE v.STATO_RIORDINO IN ('D', 'O', '0')
-                OR (v.QTA_TOTALE = 0 AND v.CARTA = 1
+                OR ({cond} AND v.CARTA = 1
                     AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
              GROUP BY fornitore_nome
             """,
@@ -383,11 +387,13 @@ def da_ordinare(fornitore_nome: str) -> List[Dict[str, Any]]:
     giorni = int(get_widget_setting("qta_suggerita_giorni_storico", default=60))
     divisore = float(get_widget_setting("qta_suggerita_divisore", default=2)) or 1.0
 
+    cond = sql_da_riordinare("v")
+
     conn = _conn()
     try:
         cur = conn.cursor()
         rows = cur.execute(
-            """
+            f"""
             SELECT v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
                    v.STATO_RIORDINO, v.QTA_TOTALE, v.EURO_LISTINO, v.CARTA,
                    (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
@@ -401,7 +407,7 @@ def da_ordinare(fornitore_nome: str) -> List[Dict[str, Any]]:
               FROM vini_bottiglie v
              WHERE COALESCE(NULLIF(TRIM(v.DISTRIBUTORE), ''), ?) = ?
                AND (v.STATO_RIORDINO IN ('D', 'O', '0')
-                    OR (v.QTA_TOTALE = 0 AND v.CARTA = 1
+                    OR ({cond} AND v.CARTA = 1
                         AND (v.STATO_RIORDINO IS NULL
                              OR v.STATO_RIORDINO NOT IN ('X', 'A'))))
              ORDER BY v.DESCRIZIONE COLLATE NOCASE
@@ -448,6 +454,9 @@ def da_ordinare(fornitore_nome: str) -> List[Dict[str, Any]]:
             d = dict(r)
             vendite_periodo = int(d.pop("vendite_periodo", 0) or 0)
             d["qta_suggerita"] = max(1, round(vendite_periodo / divisore)) if vendite_periodo else None
+            # RD.1 — giorni di scorta residua: e' la risposta a "questo perche'
+            # me lo stai proponendo?" quando la giacenza non e' zero.
+            d["copertura_giorni"] = copertura_giorni(d.get("QTA_TOTALE"), vendite_periodo, giorni)
             d["ritmo_vendita"] = calcola_ritmo_vendita(int(d.get("vendite_totali") or 0))
             d["in_bozza"] = in_bozza.get(d["id"])
             d["gia_ordinato"] = gia_ordinato.get(d["id"])
@@ -466,6 +475,7 @@ def aggiungi_riga(
     qta: int,
     utente: str,
     note: Optional[str] = None,
+    preserva_qta: bool = False,
 ) -> Dict[str, Any]:
     """
     Mette un vino nella bozza del suo fornitore, creando la bozza se non c'e'.
@@ -474,6 +484,11 @@ def aggiungi_riga(
     sommata: l'utente sta dicendo "di questo ne voglio N", non "aggiungine
     altri N". Sommare renderebbe impossibile correggere un errore di battitura
     senza cancellare la riga.
+
+    `preserva_qta=True` (RD.1, 2026-08-08) e' per le chiamate automatiche: il
+    flag "Ordinato" dal widget dashboard mette il vino in bozza con la qta
+    suggerita, ma se una qta c'e' gia' e' stata scelta a mano guardando il
+    listino, e un automatismo non ha titolo per sovrascriverla.
     """
     qta = int(qta)
     if qta <= 0:
@@ -523,7 +538,9 @@ def aggiungi_riga(
                 (ordine_id, vino_id, descrizione, annata, qta_ordinata, prezzo_unit, note, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ordine_id, vino_id) DO UPDATE SET
-                qta_ordinata = excluded.qta_ordinata,
+                qta_ordinata = CASE WHEN ? = 1
+                                    THEN vini_ordini_righe.qta_ordinata
+                                    ELSE excluded.qta_ordinata END,
                 prezzo_unit  = COALESCE(excluded.prezzo_unit, vini_ordini_righe.prezzo_unit),
                 note         = COALESCE(excluded.note, vini_ordini_righe.note)
             """,
@@ -532,6 +549,7 @@ def aggiungi_riga(
                 (vino["DESCRIZIONE"] if vino else f"Vino #{vino_id}") or f"Vino #{vino_id}",
                 vino["ANNATA"] if vino else None,
                 qta, prezzo, (note or None), now,
+                1 if preserva_qta else 0,
             ),
         )
         conn.commit()
