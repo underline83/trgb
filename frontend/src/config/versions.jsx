@@ -35,6 +35,20 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
+    // 3.83 (2026-08-08, RD.2): contesto annate nel Monitor riordino. Marco:
+    //   "se un vino ha un'annata nuova dovresti aiutarmi a capirlo per decidere".
+    //   10 righe su 48 erano falsi allarmi: annata finita ma vendemmia dopo gia'
+    //   in cantina. Ogni riga porta ora il chip "➡️ 2023 in cantina · 30 bt"
+    //   (cliccabile) e "📥 comprato ~N mesi fa". Restano in lista per scelta di
+    //   Marco: sparisce quando marca lui "Annata esaurita".
+    //   vini_riordino_service.arricchisci_annate(), 1 query per tutte le righe.
+    // 3.82 (2026-08-08, RD.1.1): il flag "Da ordinare" ora fa quello che dice.
+    //   Marco: "ho flaggato, ma restano li". Il widget elenca SOLO i vini su cui
+    //   non hai ancora deciso: 'D' e 'Ordinato' mettono il vino nella bozza del
+    //   fornitore e lo tolgono dalla lista (prima 'D' era solo un colore e il
+    //   vino restava). Chi decidi resta a schermo come riga verde "Sistemati
+    //   adesso" fino al refresh, con chip "in bozza · fornitore · N bt"; se
+    //   ri-clicchi il flag la riga viene tolta anche dal carrello.
     // 3.81 (2026-08-08, RD.1): il widget dashboard diventa il primo selettore
     //   del riordino. Chi entra non e' piu' "giacenza = 0" ma la COPERTURA in
     //   giorni (giacenza / consumo recente < N gg, default 21): 1 bt di un vino
@@ -49,7 +63,7 @@ const MODULE_VERSIONS = {
     //   «trova la bottiglia» (ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per
     //   scaffale) e scheda mobile read-only. Solo consultazione, zero
     //   modifiche backend (riusa /vini/v2/bottiglie/).
-    version: "3.81",
+    version: "3.83",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

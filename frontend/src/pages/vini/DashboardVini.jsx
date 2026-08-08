@@ -136,6 +136,11 @@ export default function DashboardVini() {
   // RD.1 — bumpato quando il widget mette un vino in bozza: fa ricaricare il
   // semaforo "📦 Ordini" senza refresh di tutta la dashboard.
   const [ordiniRefresh, setOrdiniRefresh] = useState(0);
+  // RD.1.1 — vini messi in bozza da questa schermata: { [vinoId]: {rigaId,
+  // fornitore, qta} }. Serve a due cose: mostrare la riga come "fatta" invece
+  // di farla sparire di colpo sotto il dito, e poter annullare l'aggiunta se
+  // Marco ritocca il flag prima di ricaricare la dashboard.
+  const [bozzaRighe, setBozzaRighe] = useState({});
   const [ordineVino, setOrdineVino]       = useState(null);  // vino target modale
   const [ordineQta, setOrdineQta]         = useState("");
   const [ordineNote, setOrdineNote]       = useState("");
@@ -438,13 +443,17 @@ export default function DashboardVini() {
   // Se clicco lo stato corrente → clear (null). Altrimenti imposta il nuovo valore.
   // Logica "toggle non ricomprare" e' ora un caso d'uso di questa funzione (STATO_RIORDINO='X').
   //
-  // RD.1 (2026-08-08) — il widget e' il primo selettore del riordino:
-  //   'D' Da ordinare   → resta un segnale: il vino si colora qui, nel widget
-  //                       riordini per fornitore e nella pagina Ordini.
-  //   '0' Ordinato      → mette il vino nella bozza del suo fornitore con la
-  //                       qta suggerita, cosi' lo si ritrova gia' pronto in
-  //                       /vini/ordini invece di doverlo ricercare a mano.
-  //   'A'/'X'           → il vino esce dalle liste di riordino (query backend).
+  // RD.1 (2026-08-08) — il widget e' il primo selettore del riordino: contiene
+  // solo i vini su cui NON hai ancora deciso. Appena premi un flag il vino esce
+  // di qui (il backend esclude tutti gli stati non nulli) e il lavoro continua
+  // nella pagina Ordini.
+  //   'D' Da ordinare / '0' Ordinato → il vino entra nella bozza del suo
+  //       fornitore con la qta suggerita, pronto da riprendere in /vini/ordini.
+  //       RD.1.1: prima 'D' era solo un segnale e il vino restava in lista —
+  //       Marco flaggava e non vedeva succedere niente.
+  //   'A' Annata esaurita / 'X' Non ricomprare → nessun ordine, e se il vino era
+  //       stato messo in bozza in questa sessione lo si toglie.
+  //   Click sullo stato attivo = annulla: toglie anche la riga dalla bozza.
   const setStatoRiordino = async (vino, nuovoStato) => {
     const corrente = vino.STATO_RIORDINO || null;
     const target = (corrente === nuovoStato) ? null : nuovoStato;
@@ -470,7 +479,8 @@ export default function DashboardVini() {
         };
       });
 
-      if (target === "0") await mettiInBozza(vino);
+      if (target === "D" || target === "0") await mettiInBozza(vino);
+      else await togliDaBozza(vino);
     } catch {
       toast("Errore aggiornamento stato riordino", { kind: "error" });
     } finally {
@@ -480,8 +490,8 @@ export default function DashboardVini() {
 
   // RD.1 — aggiunta automatica alla bozza d'ordine del fornitore.
   // Non blocca il cambio di stato: se fallisce (utente senza permesso di
-  // scrittura ordini, vino senza distributore) lo stato 'Ordinato' resta
-  // comunque salvato e il messaggio spiega cosa non e' successo.
+  // scrittura ordini, vino senza distributore) lo stato resta comunque salvato
+  // e il messaggio spiega cosa non e' successo.
   const mettiInBozza = async (vino) => {
     const qta = Number(vino.qta_suggerita) > 0 ? Number(vino.qta_suggerita) : 1;
     try {
@@ -504,10 +514,45 @@ export default function DashboardVini() {
       }
       const ordine = await resp.json();
       const forn = ordine?.fornitore_nome || "fornitore";
-      toast(`📦 In bozza per ${forn} — ${qta} bt`, { kind: "success" });
+      // Tengo l'id della riga: se Marco annulla il flag subito dopo, il vino
+      // va tolto anche dal carrello, altrimenti resterebbe un ordine fantasma
+      // di qualcosa che ha deciso di non ordinare.
+      const riga = (ordine?.righe || []).find((r) => r.vino_id === vino.id);
+      const qtaFinale = riga?.qta_ordinata ?? qta;
+      setBozzaRighe((prev) => ({
+        ...prev,
+        [vino.id]: { rigaId: riga?.id ?? null, fornitore: forn, qta: qtaFinale },
+      }));
+      toast(`📦 In bozza per ${forn} — ${qtaFinale} bt`, { kind: "success" });
       setOrdiniRefresh((n) => n + 1);
     } catch (e) {
       toast(`Stato salvato, ma non è finito in bozza: ${e?.message || ""}`, { kind: "warn" });
+    }
+  };
+
+  // RD.1.1 — annullo dell'aggiunta automatica. Agisce solo sulle righe messe in
+  // bozza da questa schermata in questa sessione (`bozzaRighe`): non tocca i
+  // carrelli composti a mano in /vini/ordini, che non sono roba di questo widget.
+  const togliDaBozza = async (vino) => {
+    const tracciata = bozzaRighe[vino.id];
+    if (!tracciata?.rigaId) return;
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/ordini/riga/${tracciata.rigaId}`, {
+        method: "DELETE",
+      });
+      if (!resp.ok) {
+        toast(`Stato salvato, ma la riga resta nella bozza di ${tracciata.fornitore}`, { kind: "warn" });
+        return;
+      }
+      setBozzaRighe((prev) => {
+        const next = { ...prev };
+        delete next[vino.id];
+        return next;
+      });
+      toast(`Tolto dalla bozza di ${tracciata.fornitore}`, { kind: "success" });
+      setOrdiniRefresh((n) => n + 1);
+    } catch {
+      toast(`Stato salvato, ma la riga resta nella bozza di ${tracciata.fornitore}`, { kind: "warn" });
     }
   };
 
@@ -615,8 +660,18 @@ export default function DashboardVini() {
 
   // Alert data
   const alertAll = stats?.alert_carta_senza_giacenza ?? [];
-  const urgenti = alertAll.filter((v) => v.STATO_RIORDINO !== "X");
+  // RD.1.1 — il widget elenca solo i vini su cui non hai ancora deciso. Il
+  // backend esclude ogni STATO_RIORDINO non nullo; qui si rifà lo stesso taglio
+  // sullo stato locale, così premere un flag fa scendere il contatore subito
+  // invece di aspettare il prossimo caricamento.
+  const STATI_DECISI = ["D", "O", "0", "A", "X"];
+  const urgenti = alertAll.filter((v) => !STATI_DECISI.includes(v.STATO_RIORDINO));
   const nonRicomprare = alertAll.filter((v) => v.STATO_RIORDINO === "X");
+  // Decisi in questa sessione: restano a schermo come righe "fatte" finché non
+  // si ricarica, per non far sparire la riga sotto il dito e per poter annullare.
+  const decisiOra = alertAll.filter(
+    (v) => v.STATO_RIORDINO === "D" || v.STATO_RIORDINO === "O" || v.STATO_RIORDINO === "0"
+  );
   const alertCount = urgenti.length;
   // RD.1 — il widget e' il primo selettore del riordino: dentro convivono due
   // livelli di urgenza. Esaurito = il cliente lo chiede e non c'e'.
@@ -626,6 +681,9 @@ export default function DashboardVini() {
   const coperturaGg = Number(stats?.alert_carta_giorni_copertura ?? 0);
   const esauriti = urgenti.filter((v) => !(Number(v.QTA_TOTALE) > 0));
   const scortaBassa = urgenti.filter((v) => Number(v.QTA_TOTALE) > 0);
+  // RD.2 — quanti sono lì solo perché è finita l'annata, mentre la vendemmia
+  // dopo è già in cantina: da archiviare («Annata esaurita»), non da ordinare.
+  const conAnnataNuova = urgenti.filter((v) => (v.annata_successiva?.qta || 0) > 0);
   // Tono del banner: rosso se c'e' almeno un buco vero, ambra se e' solo
   // riordino preventivo. Un banner rosso permanente si smette di leggere.
   const alertTone = esauriti.length > 0
@@ -904,6 +962,11 @@ export default function DashboardVini() {
                   {scortaBassa.length > 0 && (
                     <span>{scortaBassa.length} in esaurimento (scorta sotto {coperturaGg} giorni di vendite)</span>
                   )}
+                  {conAnnataNuova.length > 0 && (
+                    <> · <span className="font-semibold text-emerald-700">
+                      {conAnnataNuova.length} {conAnnataNuova.length === 1 ? "ha" : "hanno"} già l'annata nuova in cantina
+                    </span></>
+                  )}
                   {(esauriti.length > 0 || scortaBassa.length > 0) && " — "}
                   Solo vini da vendere o spingere. Clicca per {alertOpen ? "nascondere" : "espandere"}.
                 </div>
@@ -947,7 +1010,7 @@ export default function DashboardVini() {
                 active
                   ? `${codiceInfo.color} border-2 font-semibold shadow-sm`
                   : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-400";
-              const VinoRow = ({ v, dimmed }) => {
+              const VinoRow = ({ v, dimmed, fatto = false }) => {
                 const scInfo = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
                 const srCorrente = v.STATO_RIORDINO || null;
                 // Badge combo ritmo+finito. L'etichetta "Finito ~Xgg" ha senso solo se
@@ -966,11 +1029,19 @@ export default function DashboardVini() {
                 const qtaRes = Number(v.QTA_TOTALE) || 0;
                 const esaurito = qtaRes <= 0;
                 const copGg = v.copertura_giorni;
-                const rowCls = dimmed
-                  ? "opacity-50 border-l-4 border-neutral-300"
-                  : esaurito
-                    ? "border-l-4 border-red-400 hover:bg-red-50"
-                    : "border-l-4 border-amber-300 bg-amber-50/30 hover:bg-amber-50";
+                // RD.1.1 — riga "fatta": deciso in questa sessione, verde e
+                // attenuata. Il flag resta cliccabile per annullare.
+                const inBozza = bozzaRighe[v.id];
+                // RD.2 — contesto annate (vedi vini_riordino_service.arricchisci_annate)
+                const annataSucc = v.annata_successiva || null;
+                const ggAcquisto = giorniDa(v.ultimo_acquisto);
+                const rowCls = fatto
+                  ? "border-l-4 border-emerald-400 bg-emerald-50/40 opacity-80 hover:opacity-100"
+                  : dimmed
+                    ? "opacity-50 border-l-4 border-neutral-300"
+                    : esaurito
+                      ? "border-l-4 border-red-400 hover:bg-red-50"
+                      : "border-l-4 border-amber-300 bg-amber-50/30 hover:bg-amber-50";
                 return (
                   <div className={`px-6 py-3 flex items-start justify-between gap-3 transition ${rowCls}`}>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
@@ -1011,6 +1082,45 @@ export default function DashboardVini() {
                         {scInfo && (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${scInfo.color}`}>
                             <span className={`w-1 h-1 rounded-full ${scInfo.dot}`} />{scInfo.label}
+                          </span>
+                        )}
+                        {/* RD.2 — contesto annate. Il caso che conta: la vendemmia
+                            successiva è già in cantina, quindi questa riga è
+                            esaurita per fine annata e va archiviata, non ordinata.
+                            Cliccando si apre la bottiglia nuova. */}
+                        {annataSucc && annataSucc.qta > 0 && (
+                          <button type="button"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/vini/magazzino/${annataSucc.id}`); }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200 transition"
+                            title={`L'annata ${annataSucc.annata} è già in cantina con ${annataSucc.qta} bt${annataSucc.in_carta ? " e in carta" : ""}. Probabilmente questa riga va marcata «Annata esaurita» invece di riordinarla.`}>
+                            ➡️ {annataSucc.annata} in cantina · {annataSucc.qta} bt
+                          </button>
+                        )}
+                        {annataSucc && annataSucc.qta === 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-neutral-100 text-neutral-500 border-neutral-300"
+                            title={`In anagrafica esiste l'annata ${annataSucc.annata}, ma anche quella è a zero`}>
+                            ➡️ esiste {annataSucc.annata} (0 bt)
+                          </span>
+                        )}
+                        {/* "Da quanto non lo compro": se l'ultimo carico è lontano,
+                            conviene chiedere al rappresentante l'annata nuova
+                            invece di riordinare questa. */}
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border bg-white text-neutral-500 border-neutral-200"
+                          title={ggAcquisto != null
+                            ? `Ultimo carico di questo vino (qualunque annata): ${new Date(v.ultimo_acquisto).toLocaleDateString("it-IT")}`
+                            : "Nessun carico registrato nel gestionale (i carichi si tracciano dal 03/2026): l'acquisto può essere anteriore"}>
+                          📥 {ggAcquisto == null
+                            ? "nessun carico registrato"
+                            : ggAcquisto < 60
+                              ? `comprato ${ggAcquisto}gg fa`
+                              : `comprato ~${Math.round(ggAcquisto / 30)} mesi fa`}
+                        </span>
+                        {/* RD.1.1 — dove è finito il vino dopo il flag. Senza
+                            questa riga il click sembra non aver fatto niente. */}
+                        {inBozza && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-100 text-emerald-800 border-emerald-300"
+                            title="Clicca «Vai agli ordini» per completare e inviare">
+                            📦 in bozza · {inBozza.fornitore} · {inBozza.qta} bt
                           </span>
                         )}
                       </div>
@@ -1265,6 +1375,20 @@ export default function DashboardVini() {
                         )}
                       </>
                     )}
+
+                    {/* RD.1.1 — "Sistemati adesso": i vini decisi in questa
+                        sessione. Il backend non li manderà più al prossimo
+                        caricamento; restano qui perché una riga che sparisce
+                        nell'istante in cui la tocchi non lascia capire se il
+                        click è andato a buon fine, e perché il flag si possa
+                        ancora annullare (ri-cliccandolo si toglie anche dalla
+                        bozza). */}
+                    {decisiOra.length > 0 && (
+                      <div className="px-6 py-1.5 bg-emerald-50 text-[11px] text-emerald-700 uppercase tracking-wide font-semibold">
+                        Sistemati adesso ({decisiOra.length}) — al prossimo aggiornamento non compaiono più
+                      </div>
+                    )}
+                    {decisiOra.map((v) => <VinoRow key={v.id} v={v} dimmed={false} fatto={true} />)}
 
                     {/* Sezione "Non da ricomprare" NON filtrata ne' raggruppata — resta
                         sempre come archivio sotto. */}

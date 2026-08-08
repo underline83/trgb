@@ -1,6 +1,6 @@
 # Modulo Vini — Ordini ai fornitori (piano O0–O7)
 
-> **Tipo:** 📄 pagina wiki · **Stato:** **O1, O3, O4, O5, O6 FATTI** (2026-08-02, vini 3.75) · **RD.1 FATTO** (2026-08-08, vini 3.81, mig 165). O2 assorbito in O6. Resta O7. · **Ultima verifica:** 2026-08-08 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
+> **Tipo:** 📄 pagina wiki · **Stato:** **O1, O3, O4, O5, O6 FATTI** (2026-08-02, vini 3.75) · **RD.1 FATTO** (2026-08-08, vini 3.81, mig 165) · **RD.1.1** (vini 3.82): il widget elenca solo i non decisi, `D` mette in bozza come `0` · **RD.2** (vini 3.83): contesto annate nel Monitor. O2 assorbito in O6. Resta O7. · **Ultima verifica:** 2026-08-08 (vs codice + DB `vini_magazzino.sqlite3` scaricato dal VPS)
 > **Vedi anche:** [modulo_vini.md](modulo_vini.md) (stato corrente del modulo) · [modulo_vini_widget_dashboard.md](modulo_vini_widget_dashboard.md) (storia dei due widget esistenti) · [roadmap.md](roadmap.md) §V
 
 **Doc canonico** del lavoro sui riordini vini. Nasce dalla sessione 2026-08-02: Marco chiede "devo avere un modo per lavorarci meglio".
@@ -377,12 +377,16 @@ soglia in bottiglie a 1 li avrebbe portati dentro tutti (176 righe). Query 0-2 m
 
 ### 2. Cosa fa ogni flag del picker
 
+**Il widget contiene solo i vini con `STATO_RIORDINO` nullo**: è la lista di ciò
+su cui non hai ancora deciso. Qualunque flag fa uscire il vino (RD.1.1, vedi sotto).
+
 | Flag | Effetto |
 |---|---|
-| 📝 **Da ordinare** (`D`) | Segnale visivo: riga arancione nel widget riordini per fornitore e chip «📝 da ordinare» in `/vini/ordini`. Nessuna scrittura sugli ordini |
-| 📦 **Ordinato** (`0`) | `POST /vini/ordini/riga/` con `qta_suggerita` → il vino **entra nella bozza del suo fornitore**, pronto da riprendere in `/vini/ordini`. Toast col nome del fornitore |
-| 🗓️ **Annata esaurita** (`A`) | Esce da widget, `riordini_per_fornitore`, `da_ordinare` (già così pre-RD.1) |
+| 📝 **Da ordinare** (`D`) | Esce dal widget e **entra nella bozza del suo fornitore** con `qta_suggerita` (`POST /vini/ordini/riga/`, `preserva_qta=true`). Riga arancione nel widget riordini per fornitore e chip «📝 da ordinare» in `/vini/ordini` |
+| 📦 **Ordinato** (`0`) | Identico a `D` sul flusso ordini. La differenza resta semantica: `D` = da comprare, `0` = ordine già piazzato (e `0` si auto-resetta a `NULL` all'arrivo merce, v. `modulo_vini.md`) |
+| 🗓️ **Annata esaurita** (`A`) | Esce da widget, `riordini_per_fornitore`, `da_ordinare` (già così pre-RD.1). Se il vino era stato messo in bozza da questa schermata, la riga viene tolta |
 | ⛔ **Non ricomprare** (`X`) | Idem, e nel widget resta solo come contatore «+ N non da ricomprare» |
+| **Click sul flag attivo** | Annulla: stato → `NULL` **e** riga tolta dalla bozza (solo se era stata aggiunta da questa schermata in questa sessione) |
 
 `preserva_qta` (nuovo campo di `RigaPayload`, default `false`): se il vino è già
 in bozza l'automatismo **non sovrascrive** la quantità. Una qta in carrello è
@@ -390,6 +394,69 @@ stata scelta a mano guardando il listino; un flag premuto in dashboard non ha
 titolo per cambiarla. L'aggiunta è non bloccante: se fallisce (utente senza
 permesso di scrittura ordini, fornitore non risolvibile) lo stato `Ordinato`
 resta salvato e il toast dice cosa non è successo.
+
+### 2-bis. RD.1.1 — «ho flaggato, ma restano lì» (stesso giorno)
+
+Nella prima versione `D` era **solo** un colore: il vino restava nel widget.
+Marco ha flaggato una decina di vini e ha visto la lista immutata. Sbagliato per
+due motivi: il widget non era una coda che si smaltisce (nessun feedback di
+avanzamento), e il flag più naturale da premere — *da ordinare* — era l'unico che
+non portava il vino da nessuna parte.
+
+Corretto così:
+
+- il widget **esclude ogni `STATO_RIORDINO` non nullo** (prima escludeva solo
+  `0/A/X`): è la lista dei non decisi, e si accorcia man mano che si lavora;
+- `D` fa la stessa cosa di `0` sul flusso ordini (riga in bozza col fornitore);
+- il vino appena deciso **non sparisce sotto il dito**: passa nel blocco verde
+  «Sistemati adesso (N) — al prossimo aggiornamento non compaiono più», con chip
+  `📦 in bozza · <fornitore> · N bt`. Una riga che svanisce nell'istante del click
+  non permette di capire se è andata a buon fine;
+- il contatore del banner scende subito (il filtro sullo stato locale rifà quello
+  del backend), senza aspettare il ricaricamento;
+- **annullabile**: `bozzaRighe` in `DashboardVini.jsx` tiene `{vinoId → {rigaId,
+  fornitore, qta}}`, così ri-cliccando il flag si fa anche `DELETE
+  /vini/ordini/riga/{id}`. Tocca solo le righe aggiunte da questa schermata: i
+  carrelli composti a mano in `/vini/ordini` non sono roba di questo widget.
+
+### 2-ter. RD.2 — contesto annate nel Monitor (2026-08-08, vini 3.83)
+
+Marco: *«se un vino ha un'annata nuova dovresti aiutarmi a capirlo per decidere
+in questo Monitor.»*
+
+Misurato sul DB del giorno: **10 righe su 48 erano falsi allarmi**. Non mancava
+il vino, era finita *quell'annata* — e la vendemmia dopo era già in cantina, in
+carta, con bottiglie (Valcalepio Lyr 2022 a zero → 2023 con 30 bt; Fiano
+d'Avellino 2017 → 2021 con 5 bt). Quelle righe vanno marcate «Annata esaurita»,
+non ordinate: senza l'informazione si riordina un'annata che il produttore non
+fa più.
+
+`vini_riordino_service.arricchisci_annate(cur, righe)` aggiunge a ogni riga:
+
+| Campo | Cosa dice |
+|---|---|
+| `annata_successiva` | `{id, annata, qta, in_carta}` della bottiglia più recente della stessa `madre_id` con annata > della propria. Ordinamento: prima quelle **con giacenza** (sono il caso che rende inutile il riordino), poi la più recente |
+| `altre_annate` | quante altre bottiglie esistono per la stessa madre |
+| `ultimo_acquisto` | ultimo `CARICO` su **qualunque** annata della madre — risponde a "da quanto non lo compro?", cioè se conviene farsi portare direttamente l'annata nuova |
+
+Una sola query di appoggio per tutte le righe (non una per vino): la dashboard
+completa resta a **25 ms**. Le annate non numeriche (`s.a.`, vuote — 6 righe su
+48, gli spumanti) non partecipano al confronto e restano senza chip.
+
+**Scelta di Marco:** le righe con annata nuova **restano nel Monitor** con
+l'avviso ben visibile, e spariscono solo quando lui preme «Annata esaurita».
+Nessun gruppo separato, nessuna esclusione automatica: la decisione resta sua.
+
+In UI, sulla riga del Monitor:
+- `➡️ 2023 in cantina · 30 bt` (verde, cliccabile → apre la bottiglia nuova) —
+  il caso da archiviare;
+- `➡️ esiste 2023 (0 bt)` (neutro) — l'annata dopo è in anagrafica ma anche
+  quella è a zero: qui il riordino serve, ma sull'annata giusta;
+- `📥 comprato ~14 mesi fa` / `nessun carico registrato` — i carichi sono
+  tracciati dal 03/2026, quindi l'assenza non significa "mai comprato" e il
+  tooltip lo dice.
+- Nel banner: «N hanno già l'annata nuova in cantina», per sapere quanti sono
+  senza aprire la lista.
 
 ### 3. Codice colore (unico su tutte le viste)
 

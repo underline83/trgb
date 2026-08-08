@@ -96,6 +96,92 @@ def sql_da_riordinare(alias: str = "v") -> str:
     )
 
 
+def _anno(annata: Optional[str]) -> Optional[int]:
+    """
+    Anno numerico da una `ANNATA` testuale. None per "s.a." / vuoto / non
+    numerico: gli spumanti senza annata non partecipano al confronto (6 righe
+    su 48 nel monitor del 2026-08-08).
+    """
+    a = (annata or "").strip()
+    return int(a[:4]) if a[:4].isdigit() else None
+
+
+def arricchisci_annate(cur, righe: list) -> list:
+    """
+    Aggiunge a ogni riga il contesto "annate" — RD.2 (Marco, 2026-08-08:
+    «se un vino ha un'annata nuova dovresti aiutarmi a capirlo per decidere»).
+
+    Campi aggiunti:
+      - `annata_successiva`: `{id, annata, qta, in_carta}` della bottiglia più
+        recente della stessa madre, se esiste un'annata > della propria.
+        **È il caso che smaschera i falsi allarmi**: sul DB del 2026-08-08, 10
+        righe su 48 erano esaurite solo perché l'annata era finita e la nuova
+        era già in cantina (es. Valcalepio Lyr 2022 a zero, 2023 con 30 bt).
+        Quelle non vanno ordinate, vanno marcate "Annata esaurita".
+      - `altre_annate`: quante altre bottiglie esistono per la stessa madre.
+      - `ultimo_acquisto`: data dell'ultimo `CARICO` su QUALUNQUE annata della
+        madre (None se non risulta nessun carico da quando esiste il gestionale).
+        Serve a rispondere a "da quanto non lo compro?", cioè se conviene
+        chiedere al rappresentante direttamente l'annata nuova.
+
+    Una sola query di appoggio per tutte le righe (non una per vino), perché
+    questo gira dentro `get_dashboard_stats` che è già la pagina più pesante.
+    """
+    madri = {r.get("madre_id") for r in righe if r.get("madre_id")}
+    for r in righe:
+        r["annata_successiva"] = None
+        r["altre_annate"] = 0
+        r["ultimo_acquisto"] = None
+    if not madri:
+        return righe
+
+    ph = ",".join("?" * len(madri))
+    sorelle: dict = {}
+    for b in cur.execute(
+        f"""
+        SELECT b.id, b.madre_id, b.ANNATA, b.QTA_TOTALE, b.CARTA,
+               (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
+                 WHERE m.vino_id = b.id AND m.tipo = 'CARICO') AS ultimo_carico
+          FROM vini_bottiglie b
+         WHERE b.madre_id IN ({ph})
+        """,
+        tuple(madri),
+    ).fetchall():
+        sorelle.setdefault(b["madre_id"], []).append(dict(b))
+
+    for r in righe:
+        gruppo = sorelle.get(r.get("madre_id")) or []
+        altre = [b for b in gruppo if b["id"] != r["id"]]
+        r["altre_annate"] = len(altre)
+
+        carichi = [b["ultimo_carico"] for b in gruppo if b["ultimo_carico"]]
+        r["ultimo_acquisto"] = max(carichi) if carichi else None
+
+        mio = _anno(r.get("ANNATA"))
+        if mio is None:
+            continue
+        piu_recenti = [
+            b for b in altre
+            if (_anno(b["ANNATA"]) or 0) > mio
+        ]
+        if not piu_recenti:
+            continue
+        # Con giacenza prima (è quella che rende inutile il riordino), poi la
+        # più recente in assoluto.
+        piu_recenti.sort(
+            key=lambda b: ((b["QTA_TOTALE"] or 0) > 0, _anno(b["ANNATA"]) or 0),
+            reverse=True,
+        )
+        b = piu_recenti[0]
+        r["annata_successiva"] = {
+            "id": b["id"],
+            "annata": b["ANNATA"],
+            "qta": b["QTA_TOTALE"] or 0,
+            "in_carta": bool(b["CARTA"]),
+        }
+    return righe
+
+
 def copertura_giorni(qta: Optional[float], vendite_finestra: Optional[float],
                      finestra: Optional[int] = None) -> Optional[int]:
     """

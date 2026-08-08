@@ -24,8 +24,43 @@
 - Il widget `riordini_per_fornitore` non espone `copertura_giorni` (la sua query non calcola la finestra vendite): la colonna Giac. resta un numero secco. Da valutare se serve.
 - Resta il codice morto del vecchio modale ordine in `DashboardVini.jsx` (~145 righe, già censito in `inventario_pulizia.md`).
 
+### Commit
+`[core] RD.1 — widget vini = selettore riordino: copertura in giorni ... vini 3.81` → **PUSHATO** `f6f1cfcc`
+
+### RD.1.1 (stesso giorno, dopo prova in produzione) — «ho flaggato, ma restano lì»
+
+Marco ha flaggato ~10 vini col nuovo widget e la lista non si è mossa: `D` era solo un colore. Il widget non era una coda che si smaltisce e il flag più naturale da premere non portava il vino da nessuna parte.
+
+- Il widget ora esclude **ogni** `STATO_RIORDINO` non nullo (prima solo `0/A/X`): è la lista dei non decisi.
+- `D` fa quello che fa `0`: riga nella bozza del fornitore con `qta_suggerita`.
+- Il vino deciso **non sparisce sotto il dito**: blocco verde «Sistemati adesso (N)» con chip `📦 in bozza · fornitore · N bt`, e sparisce al ricaricamento. Il contatore del banner scende subito (filtro locale allineato al backend).
+- **Annullabile:** `bozzaRighe` tiene `{vinoId → {rigaId, fornitore, qta}}`; ri-cliccando il flag parte anche `DELETE /vini/ordini/riga/{id}`. Tocca solo le righe aggiunte da questo widget, non i carrelli composti a mano.
+
+**Verifica del ciclo completo** su copia del DB reale (locale temporaneo `TRGB_LOCALE`): widget = 48 righe con solo stato `None`; flag `D` su #900 → bozza «Davide Previtali» 1 bt → il vino **esce dal widget** (47) e **compare in `/vini/ordini`** con `in_bozza=1`; annullo (DELETE riga + stato `NULL`) → **torna nel widget**. Cartella temporanea rimossa.
+
+Vini 3.81 → **3.82**. Solo `vini_magazzino_db.py` + `DashboardVini.jsx`: nessuna migrazione, ma **serve `npm run build`**.
+
+### RD.2 (stesso giorno) — contesto annate nel Monitor
+
+Marco: *«se un vino ha un'annata nuova dovresti aiutarmi a capirlo per decidere in questo Monitor.»*
+
+**Il dato che giustifica la feature:** 10 righe su 48 erano falsi allarmi. Non mancava il vino, era finita *quell'annata*, e la vendemmia dopo era già in cantina e in carta (Valcalepio Lyr 2022 a zero → 2023 con 30 bt; Fiano d'Avellino 2017 → 2021 con 5 bt). Quelle vanno marcate «Annata esaurita», non ordinate.
+
+- `vini_riordino_service.arricchisci_annate(cur, righe)`: `annata_successiva` (`{id, annata, qta, in_carta}` della bottiglia più recente della stessa `madre_id`, con giacenza in cima), `altre_annate`, `ultimo_acquisto` (ultimo `CARICO` su qualunque annata della madre). **Una query per tutte le righe**, non una per vino.
+- UI Monitor: chip verde cliccabile `➡️ 2023 in cantina · 30 bt` (apre la bottiglia nuova), chip neutro `➡️ esiste 2023 (0 bt)` quando anche quella è a zero, chip `📥 comprato ~14 mesi fa` / `nessun carico registrato`. Contatore nel banner: «N hanno già l'annata nuova in cantina».
+- **Scelta di Marco:** restano in lista, spariscono solo quando marca lui «Annata esaurita». Niente gruppo separato, niente esclusione automatica.
+- Annate non numeriche (`s.a.`, vuote — 6 righe su 48) non partecipano al confronto: verificato che nessuna riceve `annata_successiva`.
+
+**Verifica** su copia del DB reale: 48 righe monitor in **25 ms** (con la query annate dentro), 11 righe con annata successiva in anagrafica di cui **10 con bottiglie**, `ultimo_acquisto` valorizzato su 12/48 (i carichi sono tracciati dal 03/2026 → per le altre il chip dice "nessun carico registrato", non "mai comprato", e il tooltip spiega perché). Nessun campo mancante su nessuna riga.
+
+Vini 3.82 → **3.83**. Nessuna migrazione. **Serve `npm run build`.**
+
 ### Suggested commit
-`./push.sh "[core] RD.1 — widget vini = selettore riordino: copertura in giorni al posto della soglia bottiglie (vini_riordino_service, fonte unica per 4 query), flag Ordinato mette in bozza fornitore (preserva_qta), colori per stato su widget fornitori + pagina Ordini, mig 165 sync vini_widget_settings, vini 3.81"`
+Due push separati, o uno solo se si preferisce (nessuna migrazione in mezzo):
+
+`./push.sh "[core] RD.1.1 — il widget riordino e' una coda: elenca solo i vini non decisi, il flag Da ordinare mette in bozza come Ordinato, blocco verde Sistemati adesso con annullo (toglie anche la riga dal carrello), vini 3.82"`
+
+`./push.sh "[core] RD.2 — contesto annate nel Monitor: annata_successiva + ultimo_acquisto da arricchisci_annate() (1 query), chip 'gia in cantina' cliccabile e contatore nel banner — 10 falsi allarmi su 48 smascherati, vini 3.83"`
 
 ---
 

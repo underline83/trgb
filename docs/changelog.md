@@ -17,6 +17,10 @@ Nuova soglia in **Impostazioni Vini → Widget e soglie → 🛒 Widget riordino
 
 Vini 3.80 → 3.81. Doc: [modulo_vini_ordini.md](modulo_vini_ordini.md) §RD.1.
 
+**Il Monitor ora ti dice se c'è l'annata nuova (3.83).** Dieci vini su 48 erano falsi allarmi: non mancava il vino, era finita quell'annata — e la vendemmia dopo era già in cantina, in carta, con le bottiglie (il Valcalepio Lyr 2022 a zero, la 2023 con 30 bt). Ora sulla riga compare `➡️ 2023 in cantina · 30 bt`, cliccabile per aprire la bottiglia nuova, più `📥 comprato ~14 mesi fa` per capire se conviene farsi portare direttamente l'annata nuova dal rappresentante. Restano in lista finché non li marchi tu «Annata esaurita».
+
+**Aggiornamento in giornata (3.82):** flaggare «📝 Da ordinare» non lasciava il vino in lista — adesso il widget mostra **solo i vini su cui non hai ancora deciso** e sia *Da ordinare* sia *Ordinato* mettono il vino nella bozza del fornitore. Quello che decidi resta a schermo in verde sotto «Sistemati adesso» col nome del fornitore e le bottiglie, e sparisce al prossimo aggiornamento; se ri-clicchi il flag lo togli anche dal carrello.
+
 ---
 
 ## 2026-08-07 — Menu Estate 2026 tradotto in cinque lingue `[locale:tregobbi]`

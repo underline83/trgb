@@ -2139,7 +2139,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     # vino da 3 bt/mese e quella di un vino fermo da mesi. Logica condivisa con
     # la pagina Ordini in app/services/vini_riordino_service.py.
     from app.services.vini_riordino_service import (
-        sql_da_riordinare, parametri_riordino, copertura_giorni,
+        sql_da_riordinare, parametri_riordino, copertura_giorni, arricchisci_annate,
     )
     COND_RIORDINO = sql_da_riordinare("v")
     _, SETTING_COPERTURA_GG = parametri_riordino()
@@ -2184,7 +2184,7 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         f"""
         SELECT v.id, v.TIPOLOGIA, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.QTA_TOTALE,
                v.STATO_RIORDINO, v.STATO_CONSERVAZIONE, v.STATO_VENDITA,
-               v.DISTRIBUTORE, v.RAPPRESENTANTE,
+               v.DISTRIBUTORE, v.RAPPRESENTANTE, v.madre_id,
                (SELECT COALESCE(SUM(m.qta), 0)
                 FROM vini_magazzino_movimenti m
                 WHERE m.vino_id = v.id
@@ -2213,13 +2213,18 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
           --   0=NON_VENDERE, 1=CONTROLLARE, 2=VENDERE, 3=SPINGERE
           -- Includo solo i vini "da vendere": livello >= 2.
           AND v.STATO_VENDITA >= 2
-          -- Sessione 2026-05-11: escludi stati di riordino "decisi"
+          -- Escludi gli stati di riordino "decisi". Il widget è la lista di ciò
+          -- su cui NON hai ancora deciso: appena decidi, il vino esce di qui e
+          -- il lavoro continua in /vini/ordini.
+          -- 'D' Da ordinare   → deciso, è già nella bozza del fornitore (RD.1.1,
+          --                     2026-08-08: prima restava qui e Marco lo flaggava
+          --                     senza vedere nessun effetto)
           -- '0' Ordinato      → ordine già piazzato, non urgente
           -- 'A' Annata esaur. → non posso riordinare la stessa annata
           -- 'X' Non ricompr.  → decisione esplicita, fuori catalogo
-          -- Restano: NULL/vuoto, 'D' Da ordinare
+          -- Resta solo: NULL/vuoto
           -- ('O' Finito/Ordina rimosso 2026-05-11, mig 122 ha migrato i dati → 'D')
-          AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('0', 'A', 'X'))
+          AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('D', 'O', '0', 'A', 'X'))
         ORDER BY
             -- Urgenza vera: chi è a zero viene prima di chi ha ancora bottiglie.
             CASE WHEN COALESCE(v.QTA_TOTALE, 0) = 0 THEN 0 ELSE 1 END,
@@ -2263,6 +2268,9 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         return d
 
     alert_carta_list = [_enrich(r) for r in alert_carta]
+    # RD.2 — contesto annate: se la vendemmia successiva è già in cantina questa
+    # riga non va ordinata ma archiviata. Una query di appoggio per tutte le righe.
+    arricchisci_annate(cur, alert_carta_list)
 
     # Helper condiviso: estrae `vendite_totali` dal row e aggiunge `ritmo_vendita`.
     # Usato anche per vini_fermi e riordini_per_fornitore (aggiunti in sessione
