@@ -469,7 +469,6 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 | C-CL-G09 | PDF A5 del buono con identità del locale | `giftcard_pdf_service.py:genera_pdf_giftcard` | admin, sala | ✅ |
 | C-CL-G10 | Alert card in scadenza / scadute non usate | `alert_engine.py:_check_giftcard_scadenza` | admin | ✅ |
 | C-CL-G11 | Pagina unica banco + ufficio | `frontend/src/pages/clienti/ClientiGiftCard.jsx` | admin, sala | ✅ |
-| C-CL-G12 | Import storico da Excel con anteprima obbligatoria e rilancio senza doppioni | `clienti_giftcard_router.py:import_excel` + `giftcard_import_service.py` | admin | ✅ |
 
 ## 16.7 PDF — perché non usa M.B
 
@@ -479,11 +478,11 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 
 Checker `giftcard_scadenza`, seed in mig 166: soglia 30 giorni, `antidup_ore=168` (max una notifica a settimana). **Una sola notifica riepilogativa**, non una per card: sono soldi già incassati, l'azione utile è "chiama questa gente prima che scada", non leggere 12 notifiche. Soglia e destinatari da Impostazioni → Notifiche.
 
-## 16.9 Import dallo storico Excel
+## 16.9 Lo storico Excel — travaso one-shot (mig 167)
 
-`app/services/giftcard_import_service.py` + `POST /clienti/giftcard/import/excel` (solo admin). Bottone **Importa Excel** nella pagina, con **anteprima obbligatoria**: il default è `dry_run=true`, si vede cosa entra e cosa viene scartato prima di scrivere.
+**Non esiste una funzione di import nel prodotto**, per scelta di Marco (2026-08-08): era un travaso una tantum, non una feature. Lo storico è entrato con la **migrazione 167** (`TRGB_SPECIFIC`, dati embedded nel file), che gira al deploy e salta i codici già presenti. Un tentativo di import da UI era stato costruito e poi rimosso nello stesso giorno (commit `547f9761`, rimosso subito dopo).
 
-Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) è compilato a mano in cinque anni: date impossibili (`29/02/2023`), importi solo dentro la descrizione (`deg 130`), una data scritta `20/'5/2'23`, codici ripetuti, la colonna Utente che a volte è un nome, a volte un telefono, a volte una data.
+Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato a mano in cinque anni: date impossibili (`29/02/2023`), importi solo dentro la descrizione (`deg 130`), una data scritta `20/'5/2'23`, codici ripetuti, la colonna Utente che a volte è un nome, a volte un telefono, a volte una data.
 
 **Le 5 regole (decise da Marco, 2026-08-08):**
 
@@ -493,9 +492,11 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) è compilato 
 4. **Codici doppi**: vince l'importo più alto (scelta prudente verso chi si presenta col buono), l'altra riga finisce nelle note e negli scarti.
 5. **Senza scadenza**: le importate entrano con `data_scadenza = NULL`, come erano nell'Excel.
 
-**Rieseguibile**: i codici già a sistema vengono saltati, non sovrascritti (nel frattempo possono essere stati scaricati o corretti a mano). Ogni card importata ha un movimento `import` con gli avvisi (importo dedotto, data incoerente col codice, riga doppia).
+**Rieseguibile**: i codici già a sistema vengono saltati, non sovrascritti (nel frattempo possono essere stati scaricati o corretti a mano dalla UI). Ogni card importata ha un movimento `import` con gli avvisi (importo dedotto, data incoerente col codice, riga doppia), così il perché di ogni interpretazione resta leggibile nella scheda.
 
-**Esito sul file reale:** 90 importabili (74 attive per 12.825 €, 16 usate), 84 scartate — 46 anteriori al 2024, 35 senza importo, 1 codice doppio, 1 senza codice, 1 senza anno determinabile.
+**Esito:** 90 card entrate — 74 attive per 12.825 €, 16 già usate. Escluse 84 righe: 46 anteriori al 2024, 35 senza importo, 1 codice doppio, 1 senza codice, 1 (`N191`) senza anno determinabile.
+
+**Se servisse rifarlo** (altro file, righe recuperate): la migrazione 167 è il modello — si genera un nuovo file con i record già normalizzati. Le regole sopra sono la specifica.
 
 ## 16.10 Punti aperti
 

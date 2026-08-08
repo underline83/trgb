@@ -83,11 +83,7 @@ export default function ClientiGiftCard() {
 
   // Modali
   const [modaleNuova, setModaleNuova] = useState(false);
-  const [modaleImport, setModaleImport] = useState(false);
   const [dettaglio, setDettaglio] = useState(null);
-
-  const ruolo = localStorage.getItem("role");
-  const isAdmin = ruolo === "admin" || ruolo === "superadmin";
 
   const mostraToast = (testo, tone = "success") => {
     setToast({ testo, tone });
@@ -213,16 +209,7 @@ export default function ClientiGiftCard() {
         nav={<ClientiNav current="giftcard" />}
         title="Gift Card"
         subtitle={stats ? `${stats.spendibili} spendibili · ${fmtEuro(stats.valore_spendibile)} ancora da onorare` : " "}
-        actions={
-          <div className="flex gap-2">
-            {isAdmin && (
-              <Btn variant="secondary" onClick={() => setModaleImport(true)}>
-                Importa Excel
-              </Btn>
-            )}
-            <Btn onClick={() => setModaleNuova(true)}>+ Nuova gift card</Btn>
-          </div>
-        }
+        actions={<Btn onClick={() => setModaleNuova(true)}>+ Nuova gift card</Btn>}
       >
         {/* ── BANCO: verifica codice ───────────────────────── */}
         <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 mb-5">
@@ -390,18 +377,6 @@ export default function ClientiGiftCard() {
             mostraToast(`Gift card ${gc.codice} emessa`);
             ricarica();
             apriPdf(gc.id);
-          }}
-          onErrore={(m) => mostraToast(m, "danger")}
-        />
-      )}
-
-      {modaleImport && (
-        <ModaleImport
-          onClose={() => setModaleImport(false)}
-          onFatto={(n) => {
-            setModaleImport(false);
-            mostraToast(`${n} gift card importate`);
-            ricarica();
           }}
           onErrore={(m) => mostraToast(m, "danger")}
         />
@@ -605,165 +580,6 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
         <FieldLabel label="Note interne" hint="Non compaiono sul buono se lasciate vuote">
           <Textarea value={note} onChange={setNote} rows={2} />
         </FieldLabel>
-      </div>
-    </Modal>
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// Import dallo storico Excel — anteprima obbligatoria
-// ─────────────────────────────────────────────────────────
-function ModaleImport({ onClose, onFatto, onErrore }) {
-  const [file, setFile] = useState(null);
-  const [anteprima, setAnteprima] = useState(null);
-  const [lavorando, setLavorando] = useState(false);
-  const [mostraScarti, setMostraScarti] = useState(false);
-
-  const chiama = async (dryRun) => {
-    if (!file) return;
-    setLavorando(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const r = await apiFetch(
-        `${API_BASE}/clienti/giftcard/import/excel?dry_run=${dryRun}`,
-        { method: "POST", body: fd }
-      );
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || "Import fallito");
-      if (dryRun) setAnteprima(d);
-      else onFatto(d.inserite);
-    } catch (e) {
-      onErrore(e.message);
-    } finally {
-      setLavorando(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Importa lo storico dall'Excel"
-      subtitle="Prima ti mostro cosa entrerebbe, poi decidi"
-      size="lg"
-      footer={
-        <>
-          <Btn variant="secondary" onClick={onClose}>Chiudi</Btn>
-          {!anteprima ? (
-            <Btn onClick={() => chiama(true)} loading={lavorando} disabled={!file}>
-              Vedi anteprima
-            </Btn>
-          ) : (
-            <Btn
-              variant="success"
-              onClick={() => chiama(false)}
-              loading={lavorando}
-              disabled={!anteprima.anteprima?.length}
-            >
-              Importa {anteprima.anteprima?.length || 0} gift card
-            </Btn>
-          )}
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <FieldLabel label="File Excel" hint="Foglio con le colonne Scontrino, Data, Importo, Descrizione, USATO">
-          <input
-            type="file"
-            accept=".xlsx,.xlsm"
-            onChange={(e) => { setFile(e.target.files?.[0] || null); setAnteprima(null); }}
-            className="block w-full text-sm file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-brand-blue file:text-white"
-          />
-        </FieldLabel>
-
-        {anteprima && (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Riquadro label="Da importare" valore={anteprima.anteprima?.length || 0} colore="border-emerald-200" />
-              <Riquadro label="Attive" valore={anteprima.attive} nota={fmtEuro(anteprima.valore_attive)} colore="border-emerald-200" />
-              <Riquadro label="Già a sistema" valore={anteprima.gia_presenti} nota="saltate" colore="border-neutral-200" />
-              <Riquadro label="Scartate" valore={anteprima.scartate?.length || 0} colore="border-amber-200" />
-            </div>
-
-            {anteprima.scartate_per_motivo && (
-              <div className="text-xs text-neutral-600">
-                <span className="font-semibold">Scartate perché:</span>{" "}
-                {Object.entries(anteprima.scartate_per_motivo)
-                  .map(([m, n]) => `${n} ${m}`)
-                  .join(" · ")}
-                {" — "}
-                <button
-                  type="button"
-                  onClick={() => setMostraScarti((v) => !v)}
-                  className="text-brand-blue underline"
-                >
-                  {mostraScarti ? "nascondi" : "vedi l'elenco"}
-                </button>
-              </div>
-            )}
-
-            {mostraScarti && (
-              <div className="max-h-40 overflow-auto border border-neutral-200 rounded-lg text-xs">
-                {anteprima.scartate.map((s) => (
-                  <div key={s.riga_excel} className="px-2 py-1 border-b border-neutral-100 last:border-0">
-                    <span className="text-neutral-400">riga {s.riga_excel}</span>{" "}
-                    <span className="font-mono">{s.codice || "(senza codice)"}</span>{" "}
-                    <span className="text-neutral-600">— {s.motivo}</span>
-                    {s.dettaglio && <span className="text-neutral-400"> · {s.dettaglio}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {anteprima.con_avvisi > 0 && (
-              <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg p-2 text-amber-900">
-                {anteprima.con_avvisi} righe hanno qualcosa da segnalare (importo dedotto dalla
-                descrizione, data incoerente col codice, codice doppio). L'avviso resta scritto
-                nello storico di ogni card.
-              </div>
-            )}
-
-            <div className="max-h-64 overflow-auto border border-neutral-200 rounded-lg">
-              <table className="w-full text-xs">
-                <thead className="bg-neutral-50 sticky top-0">
-                  <tr className="text-left text-neutral-500">
-                    <th className="px-2 py-1">Codice</th>
-                    <th className="px-2 py-1">Valore</th>
-                    <th className="px-2 py-1">Emessa</th>
-                    <th className="px-2 py-1">Stato</th>
-                    <th className="px-2 py-1">Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {anteprima.anteprima.map((r) => (
-                    <tr key={r.riga_excel} className="border-t border-neutral-100">
-                      <td className="px-2 py-1 font-mono whitespace-nowrap">{r.codice}</td>
-                      <td className="px-2 py-1 whitespace-nowrap">{fmtEuro(r.importo)}</td>
-                      <td className="px-2 py-1 whitespace-nowrap">{fmtData(r.data_emissione)}</td>
-                      <td className="px-2 py-1">
-                        {r.stato === "usata"
-                          ? <StatusBadge tone="neutral">usata</StatusBadge>
-                          : <StatusBadge tone="success">attiva</StatusBadge>}
-                      </td>
-                      <td className="px-2 py-1 text-neutral-500">
-                        {r.descrizione}
-                        {r.avvisi?.length > 0 && (
-                          <div className="text-amber-700">⚠ {r.avvisi.join(" · ")}</div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="text-xs text-neutral-500">
-              Le card importate entrano <strong>senza scadenza</strong>, come erano nell'Excel.
-              Rilanciare l'import non crea doppioni: i codici già a sistema vengono saltati.
-            </div>
-          </>
-        )}
       </div>
     </Modal>
   );

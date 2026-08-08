@@ -29,27 +29,32 @@
 - PDF: `weasyprint` non è installabile nell'ambiente remoto, quindi generazione provata con il motore mockato — verificati HTML e CSS prodotti su 3 casi (valore intero, valore con decimali, esperienza), branding letto davvero da `locali/tregobbi/branding.json`, escaping HTML sulle note, font Cormorant trovati. **Il rendering vero va guardato dopo il push.**
 - Parse JSX con `@babel/parser` su 4 file. `npm run build` **non lanciabile da remoto** — serve prima del push.
 
-### Import storico (CL.16, stessa sessione — Excel arrivato)
+### Storico Excel (CL.16) — prima come feature, poi travaso one-shot
 
-`giftcard_import_service.py` (logica pura, testabile senza DB) + `POST /clienti/giftcard/import/excel` + bottone **Importa Excel** con **anteprima obbligatoria** (`dry_run=true` di default).
+⚠️ **Due commit sullo stesso lavoro, leggere in ordine.** `547f9761` aveva introdotto un import da UI (service + endpoint + modale con anteprima). Marco: *«no no togli l'import da excel»* e poi *«importa tu ora i dati e stop, è solo one shot»*. Il commit successivo **rimuove** service, endpoint e modale, e mette i dati in una **migrazione one-shot 167** (`TRGB_SPECIFIC`, record embedded). Motivo: era un trasloco, non una funzione di prodotto.
+
+Nota operativa: `push.sh` **scarica** i DB dal VPS, non li carica. Scrivere sul `clienti.sqlite3` locale non sarebbe arrivato in produzione: la migrazione è l'unico modo per far entrare i dati al deploy.
+
+Cosa resta della modifica al modello: **l'importo si conserva anche su `tipo='esperienza'`** (era in `547f9761`, mantenuta). Serve proprio a queste card: 85 delle 90 importate sono esperienze con un valore incassato.
 
 **Marco:** *«la logica della gift è A1 seguito dall'anno - numero progressivo»*. Questa informazione ha cambiato il taglio dell'import: la serie **A124 è stata aperta a dicembre 2023** per i regali di Natale, quindi 26 buoni hanno data 2023 ma codice 2024. Filtrando per data si sarebbero persi **18 buoni ancora attivi per 3.535 €**. Marco ha scelto di far vincere l'anno del codice.
 
 **5 regole decise da Marco:** anno dal codice (soglia 2024) · importo obbligatorio, dedotto dalla descrizione se la colonna è vuota (`deg 130` → 130 €) · righe senza importo fuori · codici doppi: vince l'importo più alto · importate senza scadenza.
 
-**Esito sul file reale:** 90 importabili (74 attive per **12.825 €**, 16 usate), 84 scartate (46 pre-2024, 35 senza importo, 1 doppio, 1 senza codice, 1 senza anno). Rieseguibile senza doppioni: i codici già a sistema vengono saltati.
+**Esito:** 90 card entrate (74 attive per **12.825 €**, 16 usate), 84 righe escluse (46 pre-2024, 35 senza importo, 1 doppio, 1 senza codice, 1 senza anno). Ogni card ha un movimento `import` che conserva il perché delle interpretazioni.
 
-**Modifica al modello:** l'importo ora si conserva anche sulle card `tipo='esperienza'` (prima il router lo azzerava). L'Excel dimostra che il caso reale è "2 degustazioni da 210 €": il valore serve al totale in circolazione, è il PDF a non stamparlo.
-
-**Verificato sul file vero:** import applicato su DB temporaneo → 90 inserite, seconda esecuzione 0 inserite e 90 saltate (idempotente), `integrity_check ok`, lookup al banco funzionante su `a125-330`, `A124202`, ` a124-254 `. Parser provato sui casi sporchi: `20/'5/2'23` → 20/05/2023, `29/02/2023` (data inesistente) → scartata con avviso invece di essere inventata.
+**Verificato sulla COPIA del `clienti.sqlite3` reale** (25.008 clienti, 32.513 prenotazioni): run 1 → 90 inserite; run 2 → 0 inserite, 90 saltate (idempotente); `integrity_check ok`; clienti e prenotazioni intatti; lookup al banco funzionante su `a125-330`, `A124202`, `a124-254`. Casi sporchi: `20/'5/2'23` → 20/05/2023, `29/02/2023` (data che non esiste, il 2023 non è bisestile) → segnalata invece che inventata, la card entra con l'anno del codice.
 
 ### Aperto
 - Nessun tab Gift Card nella scheda cliente (CL.17).
-- Le 35 righe senza importo (per lo più "BOX" o vuote) restano fuori per scelta di Marco.
-- Le card importate non hanno intestatario: l'Excel non lo registrava.
+- Le 35 righe senza importo (per lo più "BOX" o vuote) restano fuori per scelta di Marco: se ritrova gli scontrini si inseriscono dalla UI, il campo codice accetta il codice originale.
+- Le card importate non hanno intestatario: l'Excel non lo registrava (la colonna Utente è chi ha venduto). Al banco si riconoscono dal codice.
+- **Da controllare dopo il deploy:** che la mig 167 sia passata (`schema_migrations`) e che la pagina mostri 74 spendibili per 12.825 €.
 - **Trovato di passaggio:** `modules_router.MODULES_SEED_FILE` punta a `locali/<id>/data/modules.json`, ma in git è tracciato solo `app/data/modules.json`. Il sub `giftcard` è stato messo in entrambi per sicurezza, ma va chiarito quale è davvero il seed letto in produzione (§15.6 di `modulo_clienti_crm.md`).
 
 ### Commit
+`[locale:tregobbi] CL.16 storico gift card via mig 167 one-shot + rimozione import da UI` (questo)
+`[core] CL.16 import da Excel` → **547f9761** (poi rimosso, vedi sopra)
 `./push.sh "[core] CL.15 Gift Card — emissione a valore/esperienza, codici leggibili al telefono, verifica al banco e scarico a uso unico, annullo/riattiva tracciati, PDF A5 con identita' del locale, alert scadenza M.F (mig 166), clienti 3.1"`
 
 ---

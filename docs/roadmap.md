@@ -622,7 +622,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.13 | Filtri combinati avanzati per campagne | M | BASSA | Dipende CL.1 |
 | CL.14 | Google Contacts API | M | BASSA | Futuro |
 | CL.15 | Gift Card — emissione, codici, scarico a uso unico, annullo, PDF, alert scadenza | M | ✅ FATTO | 2026-08-08, clienti 3.1. Sostituisce l'Excel. Vedi `modulo_clienti_crm.md` §16 |
-| CL.16 | Import storico gift card dall'Excel di Marco | S | ✅ FATTO | 2026-08-08. 90 righe su 174 importabili (74 attive, 12.825 €); regole di scarto in `modulo_clienti_crm.md` §16.9 |
+| CL.16 | Storico gift card dall'Excel — travaso one-shot | S | ✅ FATTO | 2026-08-08, mig 167 (TRGB_SPECIFIC). 90 card su 174 (74 attive, 12.825 €). **Niente funzione di import nel prodotto**: scelta di Marco, era un travaso. Regole in `modulo_clienti_crm.md` §16.9 |
 | CL.17 | Tab Gift Card nella scheda cliente | S | BASSA | Oggi si filtra dalla pagina Gift Card |
 
 **Bug/debt:**
