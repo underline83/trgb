@@ -526,5 +526,103 @@ def init_clienti_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_numero ON clienti_preventivi(numero)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_righe_prev ON clienti_preventivi_righe(preventivo_id)")
 
+    # ══════════════════════════════════════════════════════════════
+    # GIFT CARD (modulo: clienti) — [core]
+    #
+    # Modello a USO UNICO: una gift card si emette, si scarica in un
+    # colpo solo, oppure si annulla. Nessun saldo residuo parziale.
+    #
+    # NOTA SEMANTICA (stessa lezione di stato_pagamento_unificato §15):
+    # `stato` descrive SOLO il ciclo di vita (attiva/usata/annullata).
+    # La SCADENZA e' una dimensione separata, derivata da
+    # `data_scadenza` a runtime: NON esiste lo stato 'scaduta'.
+    # Una card scaduta resta `stato='attiva'` con `scaduta=true`
+    # calcolato in API. Non mescolare le due cose.
+    # ══════════════════════════════════════════════════════════════
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_giftcard (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            codice            TEXT NOT NULL UNIQUE,
+
+            -- 'valore' = buono in euro | 'esperienza' = prestazione (es. cena per 2)
+            tipo              TEXT NOT NULL DEFAULT 'valore',
+            importo           REAL,
+            descrizione       TEXT,
+
+            -- Intestatario: cliente CRM se esiste, altrimenti nome libero.
+            -- Nullable per permettere l'import dello storico (clienti non in anagrafica)
+            cliente_id        INTEGER REFERENCES clienti(id) ON DELETE SET NULL,
+            intestatario_nome TEXT,
+
+            -- Ciclo di vita, NON la scadenza
+            stato             TEXT NOT NULL DEFAULT 'attiva',
+
+            data_emissione    TEXT NOT NULL DEFAULT (date('now','localtime')),
+            data_scadenza     TEXT,
+            data_utilizzo     TEXT,
+
+            emessa_da         TEXT,
+            utilizzata_da     TEXT,
+            note              TEXT,
+
+            created_at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    # Log append-only di tutto cio' che succede a una card.
+    # Serve a rispondere a "chi l'ha scaricata e quando" senza ambiguita'.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_giftcard_movimenti (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            giftcard_id  INTEGER NOT NULL REFERENCES clienti_giftcard(id) ON DELETE CASCADE,
+
+            -- 'emissione' | 'scarico' | 'annullo' | 'riattivazione' | 'modifica' | 'import'
+            azione       TEXT NOT NULL,
+            stato_prima  TEXT,
+            stato_dopo   TEXT,
+            utente       TEXT,
+            note         TEXT,
+            created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_codice ON clienti_giftcard(codice)")
+    # UNIQUE sulla forma normalizzata: il vincolo UNIQUE sulla colonna e'
+    # case-sensitive, quindi 'TG-1234' e 'tg1234' passerebbero come diversi
+    # pur essendo lo stesso buono in mano al cliente. Qui li blocchiamo a DB,
+    # non solo nel router.
+    try:
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_gc_codice_norm
+            ON clienti_giftcard(REPLACE(REPLACE(UPPER(codice),'-',''),' ',''))
+        """)
+    except sqlite3.OperationalError:
+        # SQLite troppo vecchio per gli indici su espressione: resta il
+        # controllo applicativo nel router.
+        pass
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_stato ON clienti_giftcard(stato)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_cliente ON clienti_giftcard(cliente_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_scadenza ON clienti_giftcard(data_scadenza)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_mov_card ON clienti_giftcard_movimenti(giftcard_id)")
+
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_giftcard_updated
+        AFTER UPDATE ON clienti_giftcard
+        FOR EACH ROW
+        BEGIN
+            UPDATE clienti_giftcard SET updated_at = datetime('now','localtime') WHERE id = NEW.id;
+        END
+    """)
+
+    # Impostazioni gift card — soglie configurabili da UI, mai hardcoded nel codice
+    cur.execute("""
+        INSERT OR IGNORE INTO clienti_impostazioni (chiave, valore, descrizione) VALUES
+        ('giftcard_prefisso',       'TG',  'Prefisso dei codici gift card generati'),
+        ('giftcard_validita_mesi',  '12',  'Mesi di validita di default di una nuova gift card (0 = senza scadenza)'),
+        ('giftcard_alert_giorni',   '30',  'Giorni prima della scadenza in cui far scattare l alert'),
+        ('giftcard_importi_rapidi', '[25,50,100,150,200]', 'Importi proposti come bottoni rapidi in emissione (JSON array)')
+    """)
+
     conn.commit()
     conn.close()

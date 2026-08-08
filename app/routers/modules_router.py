@@ -194,6 +194,7 @@ DEFAULT_MODULES = [
             {"key": "lista",        "label": "Anagrafica",   "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
             {"key": "prenotazioni", "label": "Prenotazioni", "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
             {"key": "preventivi",   "label": "Preventivi",   "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
+            {"key": "giftcard",     "label": "Gift Card",    "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
             {"key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
             {"key": "import",       "label": "Import",       "roles": ["superadmin", "admin"]},
             {"key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"]},

@@ -914,3 +914,129 @@ def _check_intermittenti_non_comunicati(dry_run: bool = False, config: dict = No
         result.error = str(e)
         logger.exception(f"Checker intermittenti_non_comunicati: {e}")
         return result
+
+
+# ═════════════════════════════════════════════
+# CHECKER: Gift Card in scadenza (modulo clienti)
+# ═════════════════════════════════════════════
+
+def _giftcard_conn():
+    """Connessione a clienti.sqlite3. None se il locale non ha gift card."""
+    import sqlite3 as _sqlite3
+    from app.utils.locale_data import locale_data_path
+    path = locale_data_path("clienti.sqlite3")
+    if not path.exists():
+        return None
+    conn = _sqlite3.connect(str(path))
+    conn.row_factory = _sqlite3.Row
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='clienti_giftcard'"
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    return conn
+
+
+@register_checker("giftcard_scadenza")
+def _check_giftcard_scadenza(dry_run: bool = False, config: dict = None) -> CheckResult:
+    """
+    Gift card ancora spendibili che scadono entro `soglia_giorni` (default 30),
+    piu' quelle gia' scadute non utilizzate.
+
+    Perche' una sola notifica riepilogativa e non una per card: sono soldi gia'
+    incassati, l'azione utile e' "chiama questa gente prima che scada", non
+    "leggi 12 notifiche". Anti-dup settimanale (antidup_ore=168).
+
+    NB: filtra su `stato='attiva'` + data. Non esiste stato='scaduta'
+    (vedi clienti_giftcard: ciclo di vita e scadenza sono dimensioni distinte).
+    """
+    cfg = config or _get_config("giftcard_scadenza")
+    soglia = int(cfg.get("soglia_giorni") or 30)
+    antidup = int(cfg.get("antidup_ore") or 168)
+    result = CheckResult(checker="giftcard_scadenza")
+
+    conn = _giftcard_conn()
+    if conn is None:
+        result.skipped = 1
+        return result
+
+    try:
+        oggi = date.today()
+        limite = (oggi + timedelta(days=soglia)).isoformat()
+        rows = conn.execute(
+            """
+            SELECT g.id, g.codice, g.tipo, g.importo, g.descrizione, g.data_scadenza,
+                   COALESCE(g.intestatario_nome, TRIM(COALESCE(c.nome,'') || ' ' || COALESCE(c.cognome,''))) AS intestatario
+            FROM clienti_giftcard g
+            LEFT JOIN clienti c ON c.id = g.cliente_id
+            WHERE g.stato = 'attiva'
+              AND g.data_scadenza IS NOT NULL
+              AND g.data_scadenza <= ?
+            ORDER BY g.data_scadenza
+            """,
+            (limite,),
+        ).fetchall()
+    except Exception as e:
+        result.error = str(e)
+        logger.exception(f"Checker giftcard_scadenza: {e}")
+        return result
+    finally:
+        conn.close()
+
+    if not rows:
+        return result
+
+    in_scadenza, scadute = [], []
+    for r in rows:
+        try:
+            scad = date.fromisoformat(r["data_scadenza"])
+        except (TypeError, ValueError):
+            continue
+        (scadute if scad < oggi else in_scadenza).append((r, (scad - oggi).days))
+
+    result.found = len(in_scadenza) + len(scadute)
+    if result.found == 0:
+        return result
+
+    result.details = [
+        {"id": r["id"], "codice": r["codice"], "giorni": g, "scaduta": g < 0}
+        for r, g in (in_scadenza + scadute)
+    ]
+
+    if _notifica_recente_esiste("giftcard_scadenza", ore=antidup):
+        result.skipped = result.found
+        return result
+
+    def _descrivi(r) -> str:
+        chi = (r["intestatario"] or "").strip() or "senza intestatario"
+        if r["tipo"] == "valore" and r["importo"]:
+            cosa = f"{r['importo']:.0f}€"
+        else:
+            cosa = (r["descrizione"] or "esperienza")
+        return f"{r['codice']} ({cosa}, {chi})"
+
+    pezzi = []
+    if in_scadenza:
+        prime = ", ".join(_descrivi(r) for r, _ in in_scadenza[:3])
+        extra = f" e altre {len(in_scadenza) - 3}" if len(in_scadenza) > 3 else ""
+        pezzi.append(f"{len(in_scadenza)} in scadenza entro {soglia} giorni: {prime}{extra}.")
+    if scadute:
+        prime = ", ".join(_descrivi(r) for r, _ in scadute[:3])
+        extra = f" e altre {len(scadute) - 3}" if len(scadute) > 3 else ""
+        pezzi.append(f"{len(scadute)} gia' scadute e mai usate: {prime}{extra}.")
+
+    if not dry_run:
+        _send_notification(
+            cfg,
+            tipo="giftcard_scadenza",
+            titolo="🎁 Gift card in scadenza",
+            messaggio=" ".join(pezzi) + " Valuta se avvisare i clienti o prorogare la scadenza.",
+            link="/clienti/giftcard",
+            icona="🎁",
+            urgenza="normale",
+            modulo="clienti",
+        )
+        result.notified = 1
+
+    return result

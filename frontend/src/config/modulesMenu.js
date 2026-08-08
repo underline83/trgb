@@ -133,6 +133,7 @@ const MODULES_MENU = {
       { label: "Anagrafica",    go: "/clienti/lista" },
       { label: "Prenotazioni",  go: "/clienti/prenotazioni" },
       { label: "Preventivi",    go: "/clienti/preventivi" },
+      { label: "Gift Card",     go: "/clienti/giftcard" },
       { label: "Dashboard",     go: "/clienti/dashboard" },
       { label: "Impostazioni",  go: "/clienti/impostazioni", check: "admin" },
     ],

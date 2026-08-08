@@ -1,11 +1,11 @@
 # Modulo Clienti / CRM — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-08
 > **Vedi anche:** [modulo_prenotazioni.md](modulo_prenotazioni.md), [modulo_preventivi.md](modulo_preventivi.md), [modulo_statistiche.md](modulo_statistiche.md), [roadmap.md](roadmap.md) §CL
 
 **Stato:** operativo. Sincronizzazione Mailchimp ✅ FATTA (CL.1). Altre voci CL in roadmap.
-**Versione modulo (`versions.jsx`):** clienti **v3.0** · label "Gestione Clienti" · status beta (`frontend/src/config/versions.jsx:170`). Non esiste una voce `mailchimp_sync` separata: il sync Mailchimp è parte del modulo clienti.
-**Sezione top-level:** `/clienti/*` · **Backend prefix:** `/clienti/*` (`app/routers/clienti_router.py`, montato in `main.py:701`)
+**Versione modulo (`versions.jsx`):** clienti **v3.1** · label "Gestione Clienti" · status beta. Non esiste una voce `mailchimp_sync` separata: il sync Mailchimp è parte del modulo clienti.
+**Sezione top-level:** `/clienti/*` · **Backend prefix:** `/clienti/*` (`app/routers/clienti_router.py` + `app/routers/clienti_giftcard_router.py` con prefix `/clienti/giftcard`, montati in `main.py`)
 **DB:** `locali/tregobbi/data/clienti.sqlite3` — path tenant-aware via `locale_data_path` (`app/models/clienti_db.py:20`). Il DB è condiviso con i moduli Prenotazioni e Preventivi.
 **Roadmap:** sezione `CL.` di `docs/roadmap.md` (righe CL.1–CL.14)
 **Documenti correlati:**
@@ -32,6 +32,7 @@
 13. Cross-modulo Prenotazioni
 14. Roadmap CL
 15. Anomalie note / punti aperti
+16. Gift Card (v3.1)
 
 ---
 
@@ -402,3 +403,83 @@ Fatti verificati sul codice al 2026-08-03, da confermare con Marco prima di inte
 3. **Gestione tag senza UI**: `POST /clienti/tag` e `DELETE /clienti/tag/{id}` non hanno interfaccia (i tag si creano solo via API); la UI permette solo di associare/rimuovere tag esistenti.
 4. **`compleanno_entro_giorni`**: parametro di `GET /clienti/` mai usato dal frontend (la dashboard usa `compleanni_prossimi` di `/clienti/dashboard/stats`).
 5. **Soglie `in_calo` hardcoded**: le finestre 6/18 mesi del segmento in_calo sono nel codice (`clienti_router.py:1798-1805,1912-1922`), non in `clienti_impostazioni` come le altre soglie.
+6. **Seed `modules.json` in un path che non esiste in locale**: `modules_router.MODULES_SEED_FILE` punta a `locali/<id>/data/modules.json`, ma in git è tracciato solo `app/data/modules.json`. Se il file non c'è nemmeno sul VPS, il router cade sul fallback `DEFAULT_MODULES` hardcoded e il seed tracciato non viene mai letto. Rilevato aggiungendo il sub `giftcard` (2026-08-08): per sicurezza è stato aggiunto in **entrambi**. **DA VERIFICARE CON MARCO** quale dei due è realmente in uso in produzione.
+
+---
+
+# 16. Gift Card (v3.1, 2026-08-08)
+
+**Cosa fa:** emissione e gestione dei buoni regalo dell'osteria, sostituisce il file Excel usato finora.
+
+## 16.1 Modello — uso unico, due dimensioni separate
+
+**Uso unico** (decisione Marco): una card si emette, si scarica in un colpo solo, o si annulla. **Nessun saldo residuo parziale.** Se in futuro servisse il multi-uso, la tabella `clienti_giftcard_movimenti` è già il posto giusto dove appoggiare gli scarichi parziali.
+
+**Due dimensioni ortogonali** (stessa disciplina di `stato_pagamento_unificato.md` §15, per gli stessi motivi):
+
+| Dimensione | Campo | Valori |
+|---|---|---|
+| **Ciclo di vita** | `stato` | `attiva` / `usata` / `annullata` |
+| **Scadenza** | `data_scadenza` | derivata a runtime in `scaduta` e `giorni_alla_scadenza` |
+
+**Non esiste `stato='scaduta'`.** Una card scaduta resta `attiva` con `scaduta=true`: così è prorogabile senza dover "resuscitare" uno stato, e i filtri sulla scadenza restano query sulla data. Il campo `spendibile` (= attiva AND non scaduta) è calcolato dal backend: la UI non deve rifare quel ragionamento.
+
+**Due tipi:** `valore` (importo in €) e `esperienza` (descrizione, es. "Cena degustazione per due"). Sul buono esperienza l'importo **non compare**: chi lo riceve non deve leggere quanto è stato speso.
+
+## 16.2 Contabilità — registro separato dalla cassa
+
+**Decisione Marco (2026-08-08):** il modulo **non scrive nulla** nei corrispettivi né nelle chiusure turno, né all'emissione né allo scarico. È un registro informativo; i numeri di cassa li inserisce Marco dove servono.
+
+Conseguenza tecnica: nessun import fra `clienti_giftcard_router` e i router del modulo `cassa` (regola 2 della disciplina modulare rispettata senza bisogno di un servizio ponte). Il dato "quanto valore è ancora in giro" sta in `GET /clienti/giftcard/stats` → `valore_spendibile`.
+
+## 16.3 Codici
+
+Formato `TG-4KMP-9XQD`: prefisso configurabile + due blocchi da 4. Alfabeto senza caratteri ambigui (niente `0/O`, `1/I/L`, `5/S`, `8/B`) perché il codice viene letto al telefono e ricopiato a mano. Il lookup normalizza maiuscole, spazi e trattini: `tg4kmp9xqd` trova la stessa card. A DB c'è un `UNIQUE` sulla forma normalizzata, non solo sulla colonna.
+
+Il codice è **inseribile a mano** in emissione: serve per registrare i buoni già in circolazione senza rigenerarli.
+
+## 16.4 Tabelle DB (`clienti.sqlite3`)
+
+- **`clienti_giftcard`** — `codice` (UNIQUE + unique index normalizzato), `tipo`, `importo`, `descrizione`, `cliente_id` (FK nullable) + `intestatario_nome` (testo libero, per chi non è in anagrafica), `stato`, `data_emissione`, `data_scadenza`, `data_utilizzo`, `emessa_da`, `utilizzata_da`, `note`. Trigger `trg_giftcard_updated`.
+- **`clienti_giftcard_movimenti`** — log append-only: `azione` (emissione/scarico/annullo/riattivazione/modifica/import), `stato_prima`, `stato_dopo`, `utente`, `note`. Risponde a "chi l'ha scaricata e quando" senza ambiguità.
+
+Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazione. La mig **166** semina solo la config alert.
+
+## 16.5 Impostazioni (`clienti_impostazioni`)
+
+| Chiave | Default | Cosa |
+|---|---|---|
+| `giftcard_prefisso` | `TG` | Prefisso dei codici generati |
+| `giftcard_validita_mesi` | `12` | Validità di default (0 = senza scadenza) |
+| `giftcard_alert_giorni` | `30` | Preavviso scadenza (allineato ad `alert_config`) |
+| `giftcard_importi_rapidi` | `[25,50,100,150,200]` | Bottoni rapidi in emissione |
+
+## 16.6 Capability
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-CL-G01 | Elenco gift card con filtri (spendibili / in scadenza / usate / annullate / tutte) e ricerca | `clienti_giftcard_router.py:lista_giftcard` | admin, sala | ✅ |
+| C-CL-G02 | Numeri di sintesi, incluso il valore ancora da onorare | `clienti_giftcard_router.py:stats_giftcard` | admin | ✅ |
+| C-CL-G03 | Verifica al banco per codice, tollerante a maiuscole/spazi/trattini | `clienti_giftcard_router.py:lookup_codice` | sala | ✅ |
+| C-CL-G04 | Emissione buono a valore o esperienza, codice generato o manuale | `clienti_giftcard_router.py:crea_giftcard` | admin, sala | ✅ |
+| C-CL-G05 | Scarico a uso unico (rifiuta usate, annullate e scadute) | `clienti_giftcard_router.py:scarica_giftcard` | sala | ✅ |
+| C-CL-G06 | Annullamento buono | `clienti_giftcard_router.py:annulla_giftcard` | admin, sala | ✅ |
+| C-CL-G07 | Riattivazione dopo errore (solo admin), tracciata nei movimenti | `clienti_giftcard_router.py:riattiva_giftcard` | admin | ✅ |
+| C-CL-G08 | Correzione dati card (il codice NON è modificabile: è già stampato) | `clienti_giftcard_router.py:modifica_giftcard` | admin | ✅ |
+| C-CL-G09 | PDF A5 del buono con identità del locale | `giftcard_pdf_service.py:genera_pdf_giftcard` | admin, sala | ✅ |
+| C-CL-G10 | Alert card in scadenza / scadute non usate | `alert_engine.py:_check_giftcard_scadenza` | admin | ✅ |
+| C-CL-G11 | Pagina unica banco + ufficio | `frontend/src/pages/clienti/ClientiGiftCard.jsx` | admin, sala | ✅ |
+
+## 16.7 PDF — perché non usa M.B
+
+`pdf_brand` (M.B) produce documenti **interni** col brand del gestionale (wordmark TRGB, strip gobbette, "generato il..."). Il buono regalo è comunicazione **verso il cliente**: prende l'identità del locale da `locali/<id>/branding.json` → `client_pdf` (stessa logica per cui la carta vini ha un motore suo). Formato A5 orizzontale, leggibile anche fotocopiato in bianco e nero. Font Cormorant Garamond da `static/fonts/`, fallback serif di sistema se mancano.
+
+## 16.8 Alert (M.F)
+
+Checker `giftcard_scadenza`, seed in mig 166: soglia 30 giorni, `antidup_ore=168` (max una notifica a settimana). **Una sola notifica riepilogativa**, non una per card: sono soldi già incassati, l'azione utile è "chiama questa gente prima che scada", non leggere 12 notifiche. Soglia e destinatari da Impostazioni → Notifiche.
+
+## 16.9 Punti aperti
+
+1. **Storico Excel non ancora importato.** Il file di Marco non è ancora stato caricato: i buoni già in circolazione vanno inseriti (uno per uno dalla UI, o con un import da costruire quando si vede il formato). Fino ad allora un cliente può presentarsi con un codice che il sistema non conosce.
+2. **Nessun tab Gift Card nella scheda cliente.** Le card intestate a un cliente CRM si vedono solo dalla pagina Gift Card filtrando per nome. Da valutare se serve.
+3. **Scadenza calcolata a 30 giorni per mese** in emissione (`mesi × 30`): approssimazione voluta, la data è comunque modificabile a mano.

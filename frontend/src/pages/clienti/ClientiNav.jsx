@@ -9,6 +9,7 @@ const TABS = [
   { key: "lista", label: "Anagrafica", path: "/clienti/lista", icon: "📇" },
   { key: "prenotazioni", label: "Prenotazioni", path: "/clienti/prenotazioni", icon: "📅" },
   { key: "preventivi", label: "Preventivi", path: "/clienti/preventivi", icon: "📋" },
+  { key: "giftcard", label: "Gift Card", path: "/clienti/giftcard", icon: "🎁" },
   { key: "dashboard", label: "Dashboard", path: "/clienti/dashboard", icon: "📊" },
   { key: "impostazioni", label: "Impostazioni", path: "/clienti/impostazioni", icon: "⚙️", roles: ["superadmin", "admin"] },
 ];

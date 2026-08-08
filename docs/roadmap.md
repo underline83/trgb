@@ -621,6 +621,9 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.12 | Import clienti da TheFork (M.H) | S | MEDIA | M.H blocca |
 | CL.13 | Filtri combinati avanzati per campagne | M | BASSA | Dipende CL.1 |
 | CL.14 | Google Contacts API | M | BASSA | Futuro |
+| CL.15 | Gift Card — emissione, codici, scarico a uso unico, annullo, PDF, alert scadenza | M | ✅ FATTO | 2026-08-08, clienti 3.1. Sostituisce l'Excel. Vedi `modulo_clienti_crm.md` §16 |
+| CL.16 | Import storico gift card dall'Excel di Marco | S | ALTA | Bloccato: serve il file. Finché non è fatto, i buoni vecchi non sono verificabili a sistema |
+| CL.17 | Tab Gift Card nella scheda cliente | S | BASSA | Oggi si filtra dalla pagina Gift Card |
 
 **Bug/debt:**
 - C-DEBT4 — `clienti_router.py` 2404 righe — refactor opportunistico in moduli (non urgente)

@@ -207,7 +207,12 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
-    version: "3.0",
+    // 3.1 (2026-08-08): Gift Card — emissione (a valore o esperienza), codice
+    //   univoco leggibile, verifica al banco per codice, scarico a uso unico,
+    //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
+    //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
+    //   corrispettivi/chiusure: registro informativo separato dalla cassa.
+    version: "3.1",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

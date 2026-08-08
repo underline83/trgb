@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-08-08 — Gift Card: i buoni regalo escono dall'Excel `[core]`
+
+Nuova sezione **Clienti → 🎁 Gift Card**. Sostituisce il file Excel con cui i buoni venivano tenuti finora.
+
+**Al banco è una cosa sola: digiti il codice e sai.** Campo grande in cima alla pagina, con il focus già dentro. Maiuscole, spazi e trattini non contano: `tg4kmp9xqd` trova `TG-4KMP-9XQD`. Il verdetto è a colori — verde spendibile con importo e intestatario, ambra se c'è qualcosa che non va (già usata il 3/5, scaduta il 12/7), rosso se il codice non esiste. Se è buona, un bottone **Scarica** e il campo si ripulisce da solo pronto per il prossimo, senza dover cliccare.
+
+**Uso unico, come da tua scelta:** una card si emette, si scarica in un colpo, o si annulla. Niente residui parziali da rincorrere. Chi ha sbagliato al banco può farla riattivare da un admin, e l'operazione resta scritta nello storico con nome e ora.
+
+**Due tipi di buono.** A **valore** (l'importo compare grande sul buono) o a **esperienza** ("Cena degustazione per due"), e in quel caso l'importo **non compare**: chi riceve il regalo non deve leggere quanto è stato speso per lui.
+
+**I codici sono fatti per essere letti al telefono.** Formato `TG-4KMP-9XQD`, senza caratteri che si confondono a voce o a mano: niente `0/O`, `1/I/L`, `5/S`, `8/B`. In emissione il codice si può anche scrivere a mano, così i buoni già in circolazione si registrano com'erano.
+
+**Il buono si stampa.** PDF A5 orizzontale con l'identità dell'osteria (non il brand del gestionale: quello resta sui documenti interni), leggibile anche fotocopiato in bianco e nero. Si apre da solo appena emetti la card.
+
+**Un alert quando stanno per scadere**, riepilogativo una volta a settimana: sono soldi già incassati, la cosa utile è chiamare quella gente prima della scadenza, non ricevere dodici notifiche. Soglia (30 giorni) e destinatari da Impostazioni → Notifiche.
+
+**Sulla cassa non tocca niente**, come deciso: né all'emissione né allo scarico. È un registro che dice quanto valore è ancora in giro (`valore_spendibile` nei numeri in testata), i corrispettivi li metti tu dove servono.
+
+⚠️ **Lo storico dell'Excel non è ancora dentro.** Finché non carichi il file, un cliente può presentarsi con un buono vecchio che il sistema non conosce.
+
+Clienti 3.0 → 3.1. Migrazione 166 (solo config alert). Doc: [modulo_clienti_crm.md](modulo_clienti_crm.md) §16.
+
+---
+
 ## 2026-08-08 — Il widget vini diventa il selettore del riordino `[core]`
 
 Il widget «vini attivi in carta senza giacenza» era una lista da guardare. Ora è il punto dove si decide cosa ordinare, e i flag che premi hanno conseguenze.
