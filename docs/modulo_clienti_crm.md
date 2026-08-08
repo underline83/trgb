@@ -482,6 +482,8 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 
 ## 16.7 PDF — perché non usa M.B
 
+⚠️ **Il frontend scarica il PDF via `apiFetch` + blob, mai con `window.open`.** L'endpoint è autenticato (`Depends(get_current_user)`) e una scheda nuova non porta l'header Authorization → `{"detail":"Not authenticated"}`. Preso in produzione il 2026-08-08. Stesso pattern del PDF preventivi; l'alternativa `?token=` usata altrove nel repo mette il JWT nella cronologia del browser, qui evitata.
+
 `pdf_brand` (M.B) produce documenti **interni** col brand del gestionale (wordmark TRGB, strip gobbette, "generato il..."). Il buono regalo è comunicazione **verso il cliente**: prende l'identità del locale da `locali/<id>/branding.json` → `client_pdf` (stessa logica per cui la carta vini ha un motore suo). Formato A5 orizzontale, leggibile anche fotocopiato in bianco e nero. Font Cormorant Garamond da `static/fonts/`, fallback serif di sistema se mancano.
 
 ## 16.8 Alert (M.F)

@@ -190,8 +190,26 @@ export default function ClientiGiftCard() {
     }
   };
 
-  const apriPdf = (gcId) => {
-    window.open(`${API_BASE}/clienti/giftcard/${gcId}/pdf`, "_blank");
+  // Il PDF NON si apre con window.open: sarebbe una richiesta senza header
+  // Authorization → 401 {"detail":"Not authenticated"}. Si scarica via
+  // apiFetch (che il token ce l'ha) e si salva il blob su disco.
+  // Stesso pattern del PDF preventivi, e niente JWT nell'URL.
+  const apriPdf = async (gcId, codice) => {
+    try {
+      const r = await apiFetch(`${API_BASE}/clienti/giftcard/${gcId}/pdf`);
+      if (!r.ok) throw new Error("Errore generazione PDF");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `buono_${(codice || gcId).toString().replace(/\s/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      mostraToast(e.message || "Errore PDF", "danger");
+    }
   };
 
   const apriDettaglio = async (gc) => {
@@ -352,7 +370,7 @@ export default function ClientiGiftCard() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <Btn size="sm" variant="ghost" onClick={() => apriPdf(gc.id)}>PDF</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => apriPdf(gc.id, gc.codice)}>PDF</Btn>
                       <Btn size="sm" variant="secondary" onClick={() => apriDettaglio(gc)}>Apri</Btn>
                     </td>
                   </tr>
@@ -376,7 +394,7 @@ export default function ClientiGiftCard() {
             setModaleNuova(false);
             mostraToast(`Gift card ${gc.codice} emessa`);
             ricarica();
-            apriPdf(gc.id);
+            apriPdf(gc.id, gc.codice);
           }}
           onErrore={(m) => mostraToast(m, "danger")}
         />
@@ -388,7 +406,7 @@ export default function ClientiGiftCard() {
           alertGiorni={alertGiorni}
           onClose={() => setDettaglio(null)}
           onAzione={azione}
-          onPdf={() => apriPdf(dettaglio.id)}
+          onPdf={() => apriPdf(dettaglio.id, dettaglio.codice)}
         />
       )}
 

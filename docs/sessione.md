@@ -51,8 +51,12 @@ Cosa resta della modifica al modello: **l'importo si conserva anche su `tipo='es
 
 **Verificato sulla COPIA del `clienti.sqlite3` reale** (25.008 clienti, 32.513 prenotazioni): mig 167 e 168 eseguite due volte di fila → idempotenti; risultato **18 spendibili (2.285 €), 56 scadute, 16 usate**; `integrity_check ok`; clienti e prenotazioni intatti; lettera di serie `TG → B`; generatore che propone `B126-354` sul DB con lo storico dentro, e `B126-359` dopo un codice manuale fuori sequenza. Casi sporchi: `20/'5/2'23` → 20/05/2023, `29/02/2023` (data che non esiste, il 2023 non è bisestile) → segnalata invece che inventata, la card entra con l'anno del codice.
 
+### Bug preso in produzione — PDF `{"detail":"Not authenticated"}`
+`apriPdf` usava `window.open(${API_BASE}/clienti/giftcard/{id}/pdf)`: una scheda nuova non porta l'header Authorization, quindi l'endpoint autenticato rispondeva 401 in JSON. Rifatto con `apiFetch` + blob + download, come il PDF preventivi. Scartata l'alternativa `?token=` (usata in `RicetteSettings` e `ViniImpostazioni`): mette il JWT nella cronologia del browser.
+
 ### Aperto
 - Nessun tab Gift Card nella scheda cliente (CL.17).
+- Restano nel repo altri `window.open` su endpoint autenticati con `?token=` in URL (`RicetteSettings.jsx:284`, `ViniImpostazioni.jsx:314,327`, `GestioneVino2.jsx:78`, `CantinaTools_legacy.jsx:237`): funzionano, ma è JWT in chiaro nella cronologia. Da valutare se uniformare al pattern blob.
 - Le 35 righe senza importo (per lo più "BOX" o vuote) restano fuori per scelta di Marco: se ritrova gli scontrini si inseriscono dalla UI, il campo codice accetta il codice originale.
 - Le card importate non hanno intestatario: l'Excel non lo registrava (la colonna Utente è chi ha venduto). Al banco si riconoscono dal codice.
 - **`A125-330` da controllare a mano:** serie 2025 ma data 08/12/2024 (la gemella scartata diceva 08/12/2025), quindi è finita fra le scadute. Se è del dicembre 2025 va prorogata dalla scheda.

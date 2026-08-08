@@ -15,7 +15,7 @@ Nuova sezione **Clienti → 🎁 Gift Card**. Sostituisce il file Excel con cui 
 
 **I codici sono fatti per essere letti al telefono.** Formato `TG-4KMP-9XQD`, senza caratteri che si confondono a voce o a mano: niente `0/O`, `1/I/L`, `5/S`, `8/B`. In emissione il codice si può anche scrivere a mano, così i buoni già in circolazione si registrano com'erano.
 
-**Il buono si stampa.** PDF A5 orizzontale con l'identità dell'osteria (non il brand del gestionale: quello resta sui documenti interni), leggibile anche fotocopiato in bianco e nero. Si apre da solo appena emetti la card.
+**Il buono si stampa.** PDF A5 orizzontale con l'identità dell'osteria (non il brand del gestionale: quello resta sui documenti interni), leggibile anche fotocopiato in bianco e nero. Si scarica da solo appena emetti la card, e dall'elenco col bottone PDF.
 
 **Un alert quando stanno per scadere**, riepilogativo una volta a settimana: sono soldi già incassati, la cosa utile è chiamare quella gente prima della scadenza, non ricevere dodici notifiche. Soglia (30 giorni) e destinatari da Impostazioni → Notifiche.
 
