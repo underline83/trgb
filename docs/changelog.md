@@ -21,7 +21,11 @@ Nuova sezione **Clienti → 🎁 Gift Card**. Sostituisce il file Excel con cui 
 
 **Sulla cassa non tocca niente**, come deciso: né all'emissione né allo scarico. È un registro che dice quanto valore è ancora in giro (`valore_spendibile` nei numeri in testata), i corrispettivi li metti tu dove servono.
 
-**Lo storico dell'Excel è già dentro**, travasato una volta sola con la migrazione 167: **90 buoni, di cui 74 ancora attivi per 12.825 €**. Nessuna funzione di import nell'app — era un trasloco, non una feature.
+**I codici seguono la tua serie**: `B126-354`, cioè lettera del bollettario + anno + progressivo. Il progressivo prosegue da dove eri arrivato (353) e non si azzera a Capodanno; la lettera è un'impostazione che cambi tu quando cambi bollettario. In emissione vedi il numero che sta per uscire prima di confermare, e puoi sempre scriverne uno a mano.
+
+**Lo storico dell'Excel è già dentro**, travasato una volta sola con la migrazione 167: **90 buoni**. Nessuna funzione di import nell'app — era un trasloco, non una feature.
+
+**I buoni emessi prima del 2025 risultano scaduti** (scadenza al 31/12/2024): 56 card per 10.540 €. Restano **18 buoni spendibili per 2.285 €**. Se decidi di onorarne uno vecchio, dalla sua scheda sposti la scadenza e torna verde: non sono stati cancellati né annullati, solo messi fuori validità.
 
 Restano fuori i 46 precedenti al 2024 e le 35 righe senza importo (le "BOX" e le celle vuote). Il taglio segue la **serie del codice, non la data**: `A125-330` è serie 2025 anche se la cella dice un altro anno. Serviva, perché la serie A124 è stata aperta a dicembre 2023 per i regali di Natale — filtrando per data si sarebbero persi 18 buoni ancora validi per 3.535 €. Dove l'importo mancava ma la descrizione diceva `deg 130`, il valore è stato dedotto e la cosa resta scritta nello storico della card. Le date scritte a mano sono state interpretate (`20/'5/2'23` → 20/05/2023), tranne quelle impossibili come `29/02/2023`, segnalate invece che inventate.
 

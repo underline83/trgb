@@ -432,11 +432,21 @@ Fatti verificati sul codice al 2026-08-03, da confermare con Marco prima di inte
 
 Conseguenza tecnica: nessun import fra `clienti_giftcard_router` e i router del modulo `cassa` (regola 2 della disciplina modulare rispettata senza bisogno di un servizio ponte). Il dato "quanto valore è ancora in giro" sta in `GET /clienti/giftcard/stats` → `valore_spendibile`.
 
-## 16.3 Codici
+## 16.3 Codici — la serie storica Tre Gobbi
 
-Formato `TG-4KMP-9XQD`: prefisso configurabile + due blocchi da 4. Alfabeto senza caratteri ambigui (niente `0/O`, `1/I/L`, `5/S`, `8/B`) perché il codice viene letto al telefono e ricopiato a mano. Il lookup normalizza maiuscole, spazi e trattini: `tg4kmp9xqd` trova la stessa card. A DB c'è un `UNIQUE` sulla forma normalizzata, non solo sulla colonna.
+Formato **`<lettera>1<AA>-<progressivo>`**, es. `B126-354`:
 
-Il codice è **inseribile a mano** in emissione: serve per registrare i buoni già in circolazione senza rigenerarli.
+- **lettera** = bollettario. `A` fino al 2025, `B` dal 2026. Impostazione `giftcard_prefisso`, la cambia Marco quando cambia bollettario: **il sistema non la tocca mai da solo**.
+- **`1<AA>`** = anno di emissione (`126` = 2026).
+- **progressivo** = contatore **continuo, non si azzera a Capodanno**: 281 nel 2024, 341 nel 2025, 353 nel 2026. Il prossimo è `MAX(progressivo) + 1` calcolato su **tutte** le card, incluse usate e annullate — un numero già stampato su un buono in mano a qualcuno non va mai riassegnato.
+
+Se il codice calcolato risultasse occupato (progressivo scritto a mano fuori sequenza, due emissioni nello stesso istante) si avanza al primo libero. `GET /clienti/giftcard/impostazioni` espone `prossimo_codice`, che l'emissione mostra prima di confermare: se la serie è sfasata te ne accorgi subito.
+
+> **Storia:** la v1 generava codici casuali `TG-4KMP-9XQD` con alfabeto senza caratteri ambigui. Sostituito il 2026-08-08 quando Marco ha spiegato lo schema reale (*«la logica della gift è A1 seguito dall'anno - numero progressivo»*). La mig **168** porta `giftcard_prefisso` da `TG` a `B`, solo se il valore non era già stato cambiato a mano.
+
+Il lookup normalizza maiuscole, spazi e trattini: `b126354` trova `B126-354`. A DB c'è un `UNIQUE` sulla forma normalizzata, non solo sulla colonna.
+
+Il codice è **inseribile a mano** in emissione: serve per registrare buoni fuori sequenza o già in circolazione.
 
 ## 16.4 Tabelle DB (`clienti.sqlite3`)
 
@@ -449,7 +459,7 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 
 | Chiave | Default | Cosa |
 |---|---|---|
-| `giftcard_prefisso` | `TG` | Prefisso dei codici generati |
+| `giftcard_prefisso` | `B` | Lettera di serie dei codici (bollettario). Vedi §16.3 |
 | `giftcard_validita_mesi` | `12` | Validità di default (0 = senza scadenza) |
 | `giftcard_alert_giorni` | `30` | Preavviso scadenza (allineato ad `alert_config`) |
 | `giftcard_importi_rapidi` | `[25,50,100,150,200]` | Bottoni rapidi in emissione |
@@ -494,7 +504,13 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 
 **Rieseguibile**: i codici già a sistema vengono saltati, non sovrascritti (nel frattempo possono essere stati scaricati o corretti a mano dalla UI). Ogni card importata ha un movimento `import` con gli avvisi (importo dedotto, data incoerente col codice, riga doppia), così il perché di ogni interpretazione resta leggibile nella scheda.
 
-**Esito:** 90 card entrate — 74 attive per 12.825 €, 16 già usate. Escluse 84 righe: 46 anteriori al 2024, 35 senza importo, 1 codice doppio, 1 senza codice, 1 (`N191`) senza anno determinabile.
+**Esito:** 90 card entrate — 74 attive e 16 già usate. Escluse 84 righe: 46 anteriori al 2024, 35 senza importo, 1 codice doppio, 1 senza codice, 1 (`N191`) senza anno determinabile.
+
+**Scadenza retroattiva al 31/12/2024** (mig **169**) sulle attive emesse prima del 2025: **56 card per 10.540 €** risultano scadute, **18 per 2.285 €** restano spendibili. Nessuno stato inventato: è una `data_scadenza`, quindi restano `attiva` e prorogabili dalla scheda se Marco decide di onorarle. Le card già usate non ricevono scadenza. Ogni card toccata ha un movimento che lo dice.
+
+> Migrazione separata dalla 167 perché quella era già stata deployata: una migrazione applicata non si rimette in moto, e modificarla è vietato dalle convenzioni.
+
+⚠️ **Un caso da guardare:** `A125-330` ha serie 2025 ma data 08/12/2024 (la riga gemella scartata diceva 08/12/2025). Con la regola sulla data è finita fra le scadute — se è davvero un buono del dicembre 2025, va prorogato a mano.
 
 **Se servisse rifarlo** (altro file, righe recuperate): la migrazione 167 è il modello — si genera un nuovo file con i record già normalizzati. Le regole sopra sono la specifica.
 

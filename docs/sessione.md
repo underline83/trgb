@@ -41,19 +41,26 @@ Cosa resta della modifica al modello: **l'importo si conserva anche su `tipo='es
 
 **5 regole decise da Marco:** anno dal codice (soglia 2024) · importo obbligatorio, dedotto dalla descrizione se la colonna è vuota (`deg 130` → 130 €) · righe senza importo fuori · codici doppi: vince l'importo più alto · importate senza scadenza.
 
-**Esito:** 90 card entrate (74 attive per **12.825 €**, 16 usate), 84 righe escluse (46 pre-2024, 35 senza importo, 1 doppio, 1 senza codice, 1 senza anno). Ogni card ha un movimento `import` che conserva il perché delle interpretazioni.
+**Codici delle card nuove (correzione in corsa).** Marco: *«la creazione di nuove gift segue la logica che ci siamo detti?»* — no: il generatore faceva codici casuali `TG-4KMP-9XQD`. Rifatto sullo schema reale `<lettera>1<AA>-<progressivo>` (`B126-354`): lettera da impostazione (bollettario, la cambia solo Marco), anno corrente, progressivo `MAX+1` su **tutte** le card comprese usate e annullate — un numero gia' stampato non va riassegnato. Il progressivo **non si azzera a Capodanno** (281 nel 2024, 341 nel 2025, 353 nel 2026). Mig **168**: `giftcard_prefisso` da `TG` a `B`, solo se non gia' personalizzato. `GET /impostazioni` espone `prossimo_codice`, mostrato in emissione.
 
-**Verificato sulla COPIA del `clienti.sqlite3` reale** (25.008 clienti, 32.513 prenotazioni): run 1 → 90 inserite; run 2 → 0 inserite, 90 saltate (idempotente); `integrity_check ok`; clienti e prenotazioni intatti; lookup al banco funzionante su `a125-330`, `A124202`, `a124-254`. Casi sporchi: `20/'5/2'23` → 20/05/2023, `29/02/2023` (data che non esiste, il 2023 non è bisestile) → segnalata invece che inventata, la card entra con l'anno del codice.
+**Scadenza retroattiva — mig 169.** Marco: *«flagga come scadute tutte quelle prima del 1/01/2025»* → **non** uno stato inventato (non esiste `stato='scaduta'`), ma `data_scadenza='2024-12-31'` sulle attive emesse prima del 2025: **56 card per 10.540 €** scadute, **18 per 2.285 €** ancora spendibili. Restano `attiva`, quindi prorogabili dalla scheda invece che da resuscitare. Le usate non si toccano.
+
+> **Perché una migrazione separata e non una modifica alla 167:** la 167 era già stata deployata (`510ae547`) quando è arrivata la richiesta. Una migrazione applicata non viene rieseguita, quindi modificarla non avrebbe avuto effetto in produzione — oltre a essere vietato dalle convenzioni. Prima stesura dei dati con la scadenza dentro la 167 → annullata e rifatta come 169.
+
+**Esito:** 90 card entrate (74 attive, 16 usate), 84 righe escluse (46 pre-2024, 35 senza importo, 1 doppio, 1 senza codice, 1 senza anno). Ogni card ha un movimento `import` che conserva il perché delle interpretazioni.
+
+**Verificato sulla COPIA del `clienti.sqlite3` reale** (25.008 clienti, 32.513 prenotazioni): mig 167 e 168 eseguite due volte di fila → idempotenti; risultato **18 spendibili (2.285 €), 56 scadute, 16 usate**; `integrity_check ok`; clienti e prenotazioni intatti; lettera di serie `TG → B`; generatore che propone `B126-354` sul DB con lo storico dentro, e `B126-359` dopo un codice manuale fuori sequenza. Casi sporchi: `20/'5/2'23` → 20/05/2023, `29/02/2023` (data che non esiste, il 2023 non è bisestile) → segnalata invece che inventata, la card entra con l'anno del codice.
 
 ### Aperto
 - Nessun tab Gift Card nella scheda cliente (CL.17).
 - Le 35 righe senza importo (per lo più "BOX" o vuote) restano fuori per scelta di Marco: se ritrova gli scontrini si inseriscono dalla UI, il campo codice accetta il codice originale.
 - Le card importate non hanno intestatario: l'Excel non lo registrava (la colonna Utente è chi ha venduto). Al banco si riconoscono dal codice.
-- **Da controllare dopo il deploy:** che la mig 167 sia passata (`schema_migrations`) e che la pagina mostri 74 spendibili per 12.825 €.
+- **`A125-330` da controllare a mano:** serie 2025 ma data 08/12/2024 (la gemella scartata diceva 08/12/2025), quindi è finita fra le scadute. Se è del dicembre 2025 va prorogata dalla scheda.
+- **Da controllare dopo il deploy:** migrazioni 167 e 168 in `schema_migrations`, pagina che mostra **18 spendibili per 2.285 €** e 56 scadute, e che una card nuova esca `B126-354`.
 - **Trovato di passaggio:** `modules_router.MODULES_SEED_FILE` punta a `locali/<id>/data/modules.json`, ma in git è tracciato solo `app/data/modules.json`. Il sub `giftcard` è stato messo in entrambi per sicurezza, ma va chiarito quale è davvero il seed letto in produzione (§15.6 di `modulo_clienti_crm.md`).
 
 ### Commit
-`[locale:tregobbi] CL.16 storico gift card via mig 167 one-shot + rimozione import da UI` (questo)
+`[mixed] CL.16 storico via mig 167 + scadenza retroattiva + codici di serie (mig 168) + rimozione import da UI` (questo)
 `[core] CL.16 import da Excel` → **547f9761** (poi rimosso, vedi sopra)
 `./push.sh "[core] CL.15 Gift Card — emissione a valore/esperienza, codici leggibili al telefono, verifica al banco e scarico a uso unico, annullo/riattiva tracciati, PDF A5 con identita' del locale, alert scadenza M.F (mig 166), clienti 3.1"`
 

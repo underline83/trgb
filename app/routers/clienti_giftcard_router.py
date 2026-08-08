@@ -41,8 +41,7 @@ from __future__ import annotations
 
 import json
 import logging
-import random
-import string
+import re
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -62,9 +61,11 @@ init_clienti_db()
 STATI_VALIDI = {"attiva", "usata", "annullata"}
 TIPI_VALIDI = {"valore", "esperienza"}
 
-# Alfabeto senza caratteri ambigui: niente 0/O, 1/I/L, 5/S, 8/B.
-# Una gift card viene letta ad alta voce al telefono e ricopiata a mano.
-ALFABETO_CODICE = "234679ACDEFGHJKMNPQRTUVWXYZ"
+# Schema storico dei codici Tre Gobbi: <lettera>1<AA>-<progressivo>.
+# `B126-354` = serie B, anno 2026, progressivo 354.
+# Il progressivo NON riparte da 1 ogni anno: prosegue (281 nel 2024,
+# 341 nel 2025, 353 nel 2026). L'anno sta nel codice, il contatore no.
+RE_CODICE_SERIE = re.compile(r"^([A-Za-z])1(\d{2})-(\d+)$")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -78,22 +79,49 @@ def _get_setting(conn, chiave: str, default: str) -> str:
     return row["valore"] if row else default
 
 
+def _prossimo_progressivo(conn) -> int:
+    """
+    Il progressivo piu' alto in circolazione + 1, contando TUTTE le serie e
+    tutti gli anni: il contatore e' unico e non si azzera a Capodanno.
+    Si guardano anche le card annullate e usate, altrimenti un numero
+    gia' stampato su un buono in mano a qualcuno verrebbe riassegnato.
+    """
+    massimo = 0
+    for (codice,) in conn.execute("SELECT codice FROM clienti_giftcard").fetchall():
+        m = RE_CODICE_SERIE.match((codice or "").strip())
+        if m:
+            massimo = max(massimo, int(m.group(3)))
+    return massimo + 1
+
+
 def _genera_codice(conn) -> str:
     """
-    Codice leggibile del tipo TG-4KMP-9XQD.
-    Ritenta su collisione (il vincolo UNIQUE resta l'autorita' finale).
+    Prossimo codice della serie: `B126-354`.
+
+    - lettera: impostazione `giftcard_prefisso` (cambia quando cambia
+      bollettario — era A fino al 2025, B dal 2026). La decide Marco, il
+      sistema non la tocca mai da solo.
+    - anno: le ultime 2 cifre dell'anno corrente.
+    - progressivo: continuo su tutte le serie (vedi `_prossimo_progressivo`).
+
+    Se il codice risultante esistesse gia' (progressivo scritto a mano fuori
+    sequenza, o due emissioni nello stesso istante) si avanza al primo libero.
     """
-    prefisso = (_get_setting(conn, "giftcard_prefisso", "TG") or "TG").strip().upper()
-    for _ in range(30):
-        blocco1 = "".join(random.choices(ALFABETO_CODICE, k=4))
-        blocco2 = "".join(random.choices(ALFABETO_CODICE, k=4))
-        codice = f"{prefisso}-{blocco1}-{blocco2}"
+    lettera = (_get_setting(conn, "giftcard_prefisso", "B") or "B").strip().upper()[:1] or "B"
+    anno = datetime.now().strftime("%y")
+    progressivo = _prossimo_progressivo(conn)
+
+    for _ in range(50):
+        codice = f"{lettera}1{anno}-{progressivo}"
         esiste = conn.execute(
-            "SELECT 1 FROM clienti_giftcard WHERE codice = ?", (codice,)
+            "SELECT 1 FROM clienti_giftcard "
+            "WHERE REPLACE(REPLACE(UPPER(codice),'-',''),' ','') = ?",
+            (_normalizza_codice(codice),),
         ).fetchone()
         if not esiste:
             return codice
-    raise HTTPException(500, "Impossibile generare un codice univoco, riprova")
+        progressivo += 1
+    raise HTTPException(500, "Impossibile calcolare il prossimo codice libero, riprova")
 
 
 def _normalizza_codice(codice: str) -> str:
@@ -340,10 +368,13 @@ def get_impostazioni(current_user: Dict[str, Any] = Depends(get_current_user)):
         except (json.JSONDecodeError, TypeError):
             importi = [25, 50, 100, 150, 200]
         return {
-            "prefisso": _get_setting(conn, "giftcard_prefisso", "TG"),
+            "prefisso": _get_setting(conn, "giftcard_prefisso", "B"),
             "validita_mesi": int(_get_setting(conn, "giftcard_validita_mesi", "12") or 12),
             "alert_giorni": int(_get_setting(conn, "giftcard_alert_giorni", "30") or 30),
             "importi_rapidi": importi,
+            # Mostrato in emissione: chi emette vede che numero sta per uscire
+            # prima di confermare, e si accorge subito se la serie e' sfasata.
+            "prossimo_codice": _genera_codice(conn),
         }
     finally:
         conn.close()

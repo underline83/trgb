@@ -618,7 +618,7 @@ def init_clienti_db() -> None:
     # Impostazioni gift card — soglie configurabili da UI, mai hardcoded nel codice
     cur.execute("""
         INSERT OR IGNORE INTO clienti_impostazioni (chiave, valore, descrizione) VALUES
-        ('giftcard_prefisso',       'TG',  'Prefisso dei codici gift card generati'),
+        ('giftcard_prefisso',       'B',   'Lettera di serie dei codici gift card (schema <lettera>1<anno>-<progressivo>, es. B126-354). Cambiare quando cambia bollettario'),
         ('giftcard_validita_mesi',  '12',  'Mesi di validita di default di una nuova gift card (0 = senza scadenza)'),
         ('giftcard_alert_giorni',   '30',  'Giorni prima della scadenza in cui far scattare l alert'),
         ('giftcard_importi_rapidi', '[25,50,100,150,200]', 'Importi proposti come bottoni rapidi in emissione (JSON array)')

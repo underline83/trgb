@@ -223,7 +223,7 @@ export default function ClientiGiftCard() {
                 ref={inputBanco}
                 value={codiceBanco}
                 onChange={(e) => setCodiceBanco(e.target.value)}
-                placeholder="TG-4KMP-9XQD"
+                placeholder="B126-354"
                 autoFocus
                 className="w-full px-4 py-3 text-lg font-mono tracking-widest uppercase rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-brand-blue"
               />
@@ -572,8 +572,17 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
               ]}
             />
           </FieldLabel>
-          <FieldLabel label="Codice" hint="Vuoto = generato">
-            <TextInput value={codiceManuale} onChange={setCodiceManuale} placeholder="automatico" />
+          <FieldLabel
+            label="Codice"
+            hint={impostazioni?.prossimo_codice
+              ? `Vuoto = ${impostazioni.prossimo_codice}`
+              : "Vuoto = prossimo della serie"}
+          >
+            <TextInput
+              value={codiceManuale}
+              onChange={setCodiceManuale}
+              placeholder={impostazioni?.prossimo_codice || "automatico"}
+            />
           </FieldLabel>
         </div>
 
