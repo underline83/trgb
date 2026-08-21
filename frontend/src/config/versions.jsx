@@ -3,6 +3,21 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.86 (2026-08-21): Cantina mobile v1.2 — la scheda del vino smette di
+    //   essere sola lettura. Barra azioni fissa in fondo (venduta −1 / carico /
+    //   conta) con toast «Annulla» 8s (DELETE del movimento, stesso pattern di
+    //   CartaStaff), righe di «Dove si trova» toccabili → sheet azioni sul
+    //   singolo posto (vendita, scarico, carico, conta), timeline movimenti
+    //   aperta e raggruppata per giorno con chi/origine/giacenza risultante e
+    //   annulla sull'ultimo, toggle mescita in scheda. Scrittura riservata a
+    //   admin/superadmin/sommelier (nuovo `isViniManagerRole` in authHelpers,
+    //   specchio di is_vini_manager); la sala mantiene il toggle mescita.
+    //   La conta corregge per DELTA sul posto (CARICO/SCARICO con nota
+    //   [CONTA]), MAI con RETTIFICA: quella è assoluta e globale e non tocca
+    //   le QTA per locazione → sfaserebbe totale e somma dei posti. Matrice
+    //   (loc3) resta read-only da mobile: senza griglia celle si sfaserebbero
+    //   QTA_LOC3 e matrice_celle. Tipografia e contrasto alzati per l'uso su
+    //   iPhone in cantina. Nessuna modifica backend.
     // 3.85 (2026-08-21): Cantina mobile, modo «Per scaffale» — filtro per
     //   trovare la locazione da guardare: searchbar sul nome locazione (cerca
     //   anche dentro le etichette contenute) + chip categoria Scaffali/Frigo/
@@ -78,7 +93,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.85",
+    version: "3.86",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

@@ -10,6 +10,18 @@ export function isAdminRole(role) {
 }
 
 /**
+ * True per i ruoli abilitati a GESTIRE il modulo Vini (catalogo e giacenze).
+ * Specchio esatto di `is_vini_manager()` in app/services/auth_service.py:
+ * admin, superadmin, sommelier. Gli altri (sala, cucina, viewer, contabile)
+ * hanno sola lettura — la sala puo' comunque fare le azioni di SERVIZIO
+ * (vendita one-tap dalla carta staff, toggle mescita), che il backend
+ * autorizza a parte.
+ */
+export function isViniManagerRole(role) {
+  return role === "admin" || role === "superadmin" || role === "sommelier";
+}
+
+/**
  * True solo se l'utente è superadmin E ha la modalità gestione attiva.
  * Usare per funzioni riservate come preconti.
  *

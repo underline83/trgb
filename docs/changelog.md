@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-08-21 — Cantina mobile: la bottiglia si muove dal telefono `[core]`
+
+La scheda del vino in **Cantina mobile** non è più solo da guardare. In fondo allo schermo, dove arriva il pollice, ci sono tre tasti: **🍷 venduta −1**, **➕ carico**, **✏️ conta**. Se la bottiglia sta in un posto solo, il tasto fa e basta; se sta in due posti, chiede prima da dove — che è poi la stessa domanda che fa il gestionale.
+
+**Ogni movimento si può annullare per otto secondi.** Compare la striscia scura in basso con «Annulla»: un tocco e il movimento sparisce davvero, non viene compensato con un movimento contrario. Stessa meccanica della vista sommelier al banco.
+
+**I posti sono diventati toccabili.** Nella card «Dove si trova», tocchi «Frigo sala» e ti si apre il menu di quel posto: venduta, scarico (rotta, omaggio, assaggio: esce senza contare come vendita), carico, conta. La conta chiede quante ce ne sono davvero lì e sistema la differenza da sola.
+
+**I movimenti ora si leggono.** Prima erano un pannello chiuso con otto righe minuscole. Adesso sono aperti, divisi per giorno (Oggi, Ieri, lun 18 agosto), con l'ora, chi l'ha fatto, da che parte del sistema arriva il movimento e — la cosa che serve davvero in cantina — **quante bottiglie restavano dopo**. Sull'ultimo movimento c'è «annulla», anche a distanza di giorni.
+
+**🥂 Apri in mescita** si fa dalla scheda, senza passare dalla carta staff.
+
+**Chi può muovere le bottiglie:** tu e il sommelier. La sala vede la scheda in sola lettura, ma può ancora aprire e chiudere la mescita, che è servizio.
+
+**Due cose che il telefono di proposito non fa**, per non sballare i numeri: non usa la rettifica (quella è un valore assoluto sul totale e non tocca i singoli posti: totale e somma degli scaffali finirebbero per non tornare più), e non sposta lo **scaffale a matrice**, che ha bisogno delle celle e quelle si scelgono dal gestionale.
+
+**Testi più grandi e colori più decisi** su tutta la pagina: sotto le luci calde della cantina il grigio chiaro spariva.
+
+---
+
 ## 2026-08-08 — Gift Card: i buoni regalo escono dall'Excel `[core]`
 
 Nuova sezione **Clienti → 🎁 Gift Card**. Sostituisce il file Excel con cui i buoni venivano tenuti finora.
