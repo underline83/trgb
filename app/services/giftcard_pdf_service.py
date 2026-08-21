@@ -72,23 +72,40 @@ def _carica_branding() -> Dict[str, Any]:
 
 
 def _font_face_css() -> str:
-    """Cormorant Garamond se i file ci sono, altrimenti serif di sistema."""
-    regular = FONTS_DIR / "CormorantGaramond-Medium.ttf"
-    bold = FONTS_DIR / "CormorantGaramond-Bold.ttf"
-    if not (regular.exists() and bold.exists()):
-        return ""
-    return f"""
-    @font-face {{
-      font-family: 'CormorantG';
-      src: url('file://{regular}') format('truetype');
-      font-weight: 500;
-    }}
-    @font-face {{
-      font-family: 'CormorantG';
-      src: url('file://{bold}') format('truetype');
-      font-weight: 700;
-    }}
     """
+    Cormorant Garamond (font PDF cliente da branding.json).
+
+    Doppia strada, come fa il CSS del menu pranzo: `@font-face` dai file del
+    repo E il nome della famiglia installata a sistema. Su alcune build di
+    WeasyPrint l'`@font-face` da `file://` viene ignorato in silenzio e il
+    PDF esce in Times senza dirlo: il nome di famiglia in `font-family` fa
+    da rete di sicurezza quando il font e' installato sul server.
+    """
+    facce = []
+    for nome_file, peso, stile in [
+        ("CormorantGaramond-Medium.ttf", 400, "normal"),
+        ("CormorantGaramond-Bold.ttf", 700, "normal"),
+        ("CormorantGaramond-MediumItalic.ttf", 400, "italic"),
+    ]:
+        percorso = FONTS_DIR / nome_file
+        if not percorso.exists():
+            continue
+        facce.append(f"""
+    @font-face {{
+      font-family: 'CormorantG';
+      src: url('file://{percorso}') format('truetype'),
+           url('/usr/local/share/fonts/tre_gobbi/{nome_file}') format('truetype');
+      font-weight: {peso};
+      font-style: {stile};
+    }}""")
+    return "\n".join(facce)
+
+
+# Il primo nome e' la famiglia installata a sistema, il secondo quello
+# definito da @font-face: chi risponde per primo vince, e in ultima
+# istanza si finisce su un serif di sistema (leggibile comunque).
+FONT_TESTO = "'Cormorant Garamond', 'CormorantG', Georgia, 'Times New Roman', serif"
+FONT_CODICE = "'Courier Prime', 'Courier New', Courier, monospace"
 
 
 def _data_lunga(iso: Optional[str]) -> str:
@@ -145,8 +162,9 @@ def genera_pdf_giftcard(gc: Dict[str, Any]) -> bytes:
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Buono regalo</title></head>
 <body>
-  <div class="card">
+  <div class="cornice"><div class="centro">
     <div class="testata">{escape(brand["nome"])}</div>
+    <div class="filetto"></div>
     <div class="titolo">Buono Regalo</div>
     {riga_intestatario}
     {_valore_html(gc)}
@@ -155,55 +173,74 @@ def genera_pdf_giftcard(gc: Dict[str, Any]) -> bytes:
     <div class="codice">{escape(gc.get("codice") or "")}</div>
     {riga_scadenza}
     <div class="piede">Da consegnare al personale al momento del conto. Non convertibile in denaro.</div>
-  </div>
+  </div></div>
 </body></html>"""
 
     css = f"""
     {_font_face_css()}
-    @page {{ size: A5 landscape; margin: 0; }}
+    /* Margine di pagina reale: la cornice ci sta dentro invece di finire
+       tagliata dal bordo foglio (e resta stampabile su qualsiasi stampante,
+       che l'area non stampabile la mangia sempre). */
+    @page {{ size: A5 landscape; margin: 7mm; }}
     * {{ box-sizing: border-box; }}
+    html, body {{ margin: 0; padding: 0; height: 100%; }}
     body {{
-      margin: 0;
-      font-family: 'CormorantG', Georgia, 'Times New Roman', serif;
+      font-family: {FONT_TESTO};
       color: {brand["primary_color"]};
       background: {brand["page_bg"]};
     }}
-    .card {{
-      width: 210mm; height: 148mm;
-      padding: 14mm 16mm;
+    /* Centratura verticale con flexbox. NON usare `display:table` +
+       `vertical-align:middle`: su WeasyPrint la table-cell ignora
+       l'allineamento e sputa tutto in cima alla pagina (misurato: testo a
+       y=22 su 350px invece di y=175). Con flex il centro cade dove deve. */
+    .cornice {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%; height: 134mm;
+      border: 0.5mm double {brand["accent_color"]};
+      padding: 8mm 14mm;
       text-align: center;
-      /* cornice sottile: da' l'idea del buono ritagliabile senza sembrare un coupon */
-      border: 0.6mm solid {brand["accent_color"]};
-      outline: 0.2mm solid {brand["accent_color"]};
-      outline-offset: 2.5mm;
     }}
+    .centro {{ width: 100%; }}
+
     .testata {{
-      font-size: 15pt; letter-spacing: 0.32em; text-transform: uppercase;
-      margin-bottom: 7mm;
+      font-size: 13pt; letter-spacing: 0.34em; text-transform: uppercase;
+    }}
+    .filetto {{
+      width: 22mm; height: 0.3mm; margin: 4mm auto 5mm;
+      background: {brand["accent_color"]};
     }}
     .titolo {{
-      font-size: 27pt; font-weight: 700; letter-spacing: 0.06em;
-      margin-bottom: 2mm;
+      font-size: 30pt; font-weight: 700; letter-spacing: 0.04em;
+      line-height: 1.1;
     }}
-    .per {{ font-size: 13pt; font-style: italic; margin-bottom: 4mm; }}
-    .valore {{ font-size: 48pt; font-weight: 700; margin: 3mm 0 4mm; }}
+    .per {{ font-size: 13pt; font-style: italic; margin-top: 1.5mm; }}
+    /* Cifre allineate (lining): di default Cormorant usa le old-style e
+       "100" viene letto "IOO". Su un buono l'importo e' la cosa che deve
+       leggersi meglio di tutte. Vale anche per le date. */
+    .valore, .scadenza, .codice {{
+      font-feature-settings: "lnum" 1, "onum" 0;
+      font-variant-numeric: lining-nums;
+    }}
+    .valore {{ font-size: 50pt; font-weight: 700; margin: 6mm 0 5mm; line-height: 1; }}
     .esperienza {{
-      font-size: 20pt; font-weight: 700; margin: 5mm auto 5mm;
-      max-width: 150mm; line-height: 1.3;
+      font-size: 18pt; font-weight: 700; margin: 6mm auto 5mm;
+      max-width: 145mm; line-height: 1.35;
     }}
     .nota {{ font-size: 11pt; font-style: italic; margin-bottom: 4mm; }}
     .codice-label {{
-      font-size: 8pt; letter-spacing: 0.28em; text-transform: uppercase;
+      font-size: 7.5pt; letter-spacing: 0.3em; text-transform: uppercase;
       color: {brand["accent_color"]};
     }}
     .codice {{
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 19pt; font-weight: 700; letter-spacing: 0.18em;
-      margin: 1mm 0 5mm;
+      font-family: {FONT_CODICE};
+      font-size: 18pt; font-weight: 700; letter-spacing: 0.16em;
+      margin: 1.5mm 0 4mm;
     }}
-    .scadenza {{ font-size: 11pt; }}
+    .scadenza {{ font-size: 10.5pt; }}
     .piede {{
-      font-size: 8pt; margin-top: 6mm; color: {brand["accent_color"]};
+      font-size: 7.5pt; margin-top: 7mm; color: {brand["accent_color"]};
     }}
     """
 

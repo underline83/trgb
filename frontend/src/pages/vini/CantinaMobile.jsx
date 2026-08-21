@@ -1,5 +1,6 @@
 // frontend/src/pages/vini/CantinaMobile.jsx
 // Modulo: vini
+// @version: v1.1 — filtro locazione nel modo «Per scaffale» (2026-08-21)
 // @version: v1.0 — "Cantina da iPhone" fase 1 «trova la bottiglia» (2026-07-20)
 //
 // Pagina mobile-first, pensata per l'uso col telefono in mano tra gli
@@ -9,7 +10,9 @@
 //   · CERCA — ricerca testo + filtro per categoria di locazione
 //     (Scaffali / Frigo / Matrice / Altro).
 //   · PER SCAFFALE — vista inversa: scegli la locazione, vedi cosa contiene
-//     (comodo quando rimetti a posto o fai il giro di controllo).
+//     (comodo quando rimetti a posto o fai il giro di controllo). Filtro
+//     dedicato: testo sul nome locazione (matcha anche le etichette dentro)
+//     + chip categoria; le locazioni sono un accordion, una aperta per volta.
 //   · SCHEDA (/:id) — dettaglio read-first: identità, «Dove si trova» in
 //     evidenza (con griglia matrice), anagrafica, movimenti collassabili.
 //
@@ -165,8 +168,10 @@ const STYLE = `
 .cm-hint{text-align:center;font-size:12.5px;color:#8a7a65;font-style:italic;padding:12px 20px}
 
 /* per scaffale */
-.cm-shelf-head{background:#2b2118;color:#f5ead3;margin:10px 12px 0;border-radius:11px 11px 0 0;padding:11px 15px;display:flex;justify-content:space-between;align-items:baseline}
+.cm-shelf-head{width:calc(100% - 24px);box-sizing:border-box;font-family:inherit;text-align:left;border:none;cursor:pointer;background:#2b2118;color:#f5ead3;margin:10px 12px 0;border-radius:11px;padding:12px 15px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-height:46px}
+.cm-shelf-head.cm-open{border-radius:11px 11px 0 0}
 .cm-shelf-nome{font-size:16.5px;font-weight:700;letter-spacing:.02em}
+.cm-shelf-caret{display:inline-block;width:16px;opacity:.7;font-size:13px}
 .cm-shelf-n{font-size:12px;font-style:italic;opacity:.8}
 .cm-shelf-body{background:#fff;margin:0 12px 6px;border:1px solid #e2d4b8;border-top:none;border-radius:0 0 11px 11px;overflow:hidden}
 .cm-shelf-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 15px;border-bottom:1px solid #f2e9d6;font-size:15px;cursor:pointer}
@@ -289,6 +294,11 @@ function Finder() {
   const [mode, setMode] = useState("cerca");     // "cerca" | "scaffale"
   const [search, setSearch] = useState("");
   const [chip, setChip] = useState("tutti");
+  // Modo «Per scaffale»: filtro sul nome della locazione + categoria, e
+  // accordion (una locazione aperta per volta) per non srotolare tutto.
+  const [shelfQ, setShelfQ] = useState("");
+  const [shelfCat, setShelfCat] = useState("tutti");
+  const [openShelf, setOpenShelf] = useState(null);
 
   const fetchVini = useCallback(async () => {
     try {
@@ -348,15 +358,40 @@ function Finder() {
     const map = new Map();
     for (const v of vini) for (const l of buildLocations(v)) {
       const key = l.slot === "loc3" ? "Matrice (scaffale a griglia)" : l.nome;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push({ v, qta: l.qta });
+      if (!map.has(key)) map.set(key, { nome: key, cat: locCategory(l), items: [], bt: 0 });
+      const g = map.get(key);
+      g.items.push({ v, qta: l.qta });
+      g.bt += l.qta;
     }
     // ordina: Scaffale…, poi Frigo…, poi il resto, alfabetico dentro i gruppi
     const rank = (nome) => (/^scaffale/i.test(nome) ? 0 : isFrigo(nome) ? 1 : /matrice/i.test(nome) ? 3 : 2);
-    return [...map.entries()]
-      .sort((a, b) => (rank(a[0]) - rank(b[0])) || a[0].localeCompare(b[0], "it"))
-      .map(([nome, items]) => ({ nome, items: items.sort((x, y) => (x.v.DESCRIZIONE || "").localeCompare(y.v.DESCRIZIONE || "", "it")) }));
+    return [...map.values()]
+      .sort((a, b) => (rank(a.nome) - rank(b.nome)) || a.nome.localeCompare(b.nome, "it"))
+      .map(g => ({ ...g, items: g.items.sort((x, y) => (x.v.DESCRIZIONE || "").localeCompare(y.v.DESCRIZIONE || "", "it")) }));
   }, [vini]);
+
+  // Chip categoria per il modo «Per scaffale»: conta le LOCAZIONI, non le etichette.
+  const shelfChips = useMemo(() => {
+    const counts = {};
+    for (const s of shelves) counts[s.cat] = (counts[s.cat] || 0) + 1;
+    return [
+      { k: "tutti", label: "Tutti", icon: "", n: shelves.length },
+      ...CAT_DEFS.filter(c => counts[c.k]).map(c => ({ ...c, n: counts[c.k] })),
+    ];
+  }, [shelves]);
+
+  // Filtro: nome locazione (testo) + categoria. Cerca anche dentro le etichette
+  // contenute, così «barbera» mostra gli scaffali dove sta la barbera.
+  const shelvesFiltered = useMemo(() => {
+    const q = shelfQ.toLowerCase().trim();
+    return shelves.filter(s => {
+      if (shelfCat !== "tutti" && s.cat !== shelfCat) return false;
+      if (!q) return true;
+      if (s.nome.toLowerCase().includes(q)) return true;
+      return s.items.some(({ v }) =>
+        `${v.DESCRIZIONE || ""} ${nomeProduttore(v)}`.toLowerCase().includes(q));
+    });
+  }, [shelves, shelfQ, shelfCat]);
 
   const totBt = useMemo(() => vini.reduce((s, v) => s + num(v.QTA_TOTALE), 0), [vini]);
 
@@ -410,27 +445,62 @@ function Finder() {
 
         {!loading && !error && mode === "scaffale" && (
           <>
-            <div className="cm-hint">Tocca uno scaffale per vedere cosa c'è — comodo quando rimetti a posto o fai il giro di controllo.</div>
-            {shelves.map((s, i) => (
-              <div key={i}>
-                <div className="cm-shelf-head">
-                  <span className="cm-shelf-nome">{s.nome}</span>
-                  <span className="cm-shelf-n">{s.items.length} {s.items.length === 1 ? "etichetta" : "etichette"}</span>
-                </div>
-                <div className="cm-shelf-body">
-                  {s.items.map(({ v, qta }, j) => (
-                    <div key={j} className="cm-shelf-row" onClick={() => openScheda(v.id)}>
-                      <span>
-                        {v.DESCRIZIONE}
-                        {v.ANNATA ? ` ${v.ANNATA}` : ""}
-                        <span className="cm-sr-sub"> — {nomeProduttore(v)}</span>
-                      </span>
-                      <span className="cm-sr-q">{qta} bt</span>
+            <div className="cm-searchbar">
+              <input
+                className="cm-search" type="text" autoComplete="off"
+                placeholder="quale scaffale? (nome locazione o vino)"
+                value={shelfQ} onChange={e => setShelfQ(e.target.value)}
+              />
+            </div>
+            <div className="cm-chips">
+              {shelfChips.map(c => (
+                <button key={c.k} className={`cm-chip ${shelfCat === c.k ? "cm-on" : ""}`} onClick={() => setShelfCat(c.k)}>
+                  {c.icon ? `${c.icon} ` : ""}{c.label}<span className="cm-n">{c.n}</span>
+                </button>
+              ))}
+            </div>
+            <div className="cm-count">
+              {shelvesFiltered.length} {shelvesFiltered.length === 1 ? "locazione" : "locazioni"}
+              {shelfCat !== "tutti" ? ` · ${CAT_LABEL[shelfCat] || shelfCat}` : ""}
+            </div>
+            {shelvesFiltered.length === 0
+              ? <div className="cm-hint">Nessuna locazione con questo nome.</div>
+              : <div className="cm-hint">Tocca uno scaffale per vedere cosa c'è — comodo quando rimetti a posto o fai il giro di controllo.</div>}
+            {shelvesFiltered.map((s, i) => {
+              // una sola locazione a video → già aperta, niente tap in più
+              const isOpen = openShelf === s.nome || shelvesFiltered.length === 1;
+              return (
+                <div key={i}>
+                  <button
+                    type="button"
+                    className={`cm-shelf-head ${isOpen ? "cm-open" : ""}`}
+                    onClick={() => setOpenShelf(isOpen && shelvesFiltered.length > 1 ? null : s.nome)}
+                  >
+                    <span className="cm-shelf-nome">
+                      <span className="cm-shelf-caret">{isOpen ? "▾" : "▸"}</span>
+                      {s.nome}
+                    </span>
+                    <span className="cm-shelf-n">
+                      {s.items.length} {s.items.length === 1 ? "etichetta" : "etichette"} · {s.bt} bt
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="cm-shelf-body">
+                      {s.items.map(({ v, qta }, j) => (
+                        <div key={j} className="cm-shelf-row" onClick={() => openScheda(v.id)}>
+                          <span>
+                            {v.DESCRIZIONE}
+                            {v.ANNATA ? ` ${v.ANNATA}` : ""}
+                            <span className="cm-sr-sub"> — {nomeProduttore(v)}</span>
+                          </span>
+                          <span className="cm-sr-q">{qta} bt</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
       </div>

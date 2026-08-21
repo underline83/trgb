@@ -3,6 +3,11 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.85 (2026-08-21): Cantina mobile, modo «Per scaffale» — filtro per
+    //   trovare la locazione da guardare: searchbar sul nome locazione (cerca
+    //   anche dentro le etichette contenute) + chip categoria Scaffali/Frigo/
+    //   Matrice/Altro + accordion (una locazione aperta per volta, apertura
+    //   automatica se ne resta una sola). Prima srotolava tutta la cantina.
     // 3.84 (2026-08-08, RD.6): il widget «Riordini per fornitore» e' stato
     //   ASSORBITO dalla pagina /vini/ordini (chiude il buco B3 del piano O).
     //   Migrate di la': listino inline editabile con storico prezzi, duplica
@@ -73,7 +78,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.84",
+    version: "3.85",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

@@ -51,6 +51,18 @@ Cosa resta della modifica al modello: **l'importo si conserva anche su `tipo='es
 
 **Verificato sulla COPIA del `clienti.sqlite3` reale** (25.008 clienti, 32.513 prenotazioni): mig 167 e 168 eseguite due volte di fila → idempotenti; risultato **18 spendibili (2.285 €), 56 scadute, 16 usate**; `integrity_check ok`; clienti e prenotazioni intatti; lettera di serie `TG → B`; generatore che propone `B126-354` sul DB con lo storico dentro, e `B126-359` dopo un codice manuale fuori sequenza. Casi sporchi: `20/'5/2'23` → 20/05/2023, `29/02/2023` (data che non esiste, il 2023 non è bisestile) → segnalata invece che inventata, la card entra con l'anno del codice.
 
+### Grafica del PDF — vista davvero e corretta (3 difetti)
+
+Marco: *«com'è la grafica del pdf?»*. Finora il PDF non era mai stato **guardato**: `weasyprint` non era disponibile in ambiente remoto e la verifica era stata fatta col motore mockato (HTML/CSS prodotti, non il risultato). Installato weasyprint nel sandbox e generato per davvero → tre difetti, tutti corretti e verificati sul PDF finale:
+
+1. **Font mai applicato.** `@font-face` da `file://` ignorato in silenzio: `pdffonts` mostrava Liberation Serif, non Cormorant. Rimedio: dichiarare anche la famiglia di sistema in `font-family`, come fa il CSS del menu pranzo con Sabon. Ora `pdffonts` dice `Cormorant-Garamond` + `Bold` + `Italic`.
+2. **Contenuto schiacciato in alto**, un terzo di pagina vuoto: `display:table` + `vertical-align:middle` **non centra** su WeasyPrint (testo a y=22 su 350px). Rifatto con flexbox → centro del testo a y=300 su pagina 320.
+3. **`€ 100` si leggeva `€ IOO`**: Cormorant usa cifre old-style. `font-feature-settings: "lnum" 1` su importo, codice e date.
+
+Sistemata anche la cornice, che con `@page margin:0` + `outline-offset` finiva tagliata dal bordo foglio: ora margine di pagina 7mm e filetto doppio interno.
+
+**Lezione generalizzabile:** un PDF non è verificato finché non lo si è guardato. Il mock del motore di rendering conferma solo che le stringhe sono giuste. Vale per i prossimi PDF del progetto.
+
 ### Bug preso in produzione — PDF `{"detail":"Not authenticated"}`
 `apriPdf` usava `window.open(${API_BASE}/clienti/giftcard/{id}/pdf)`: una scheda nuova non porta l'header Authorization, quindi l'endpoint autenticato rispondeva 401 in JSON. Rifatto con `apiFetch` + blob + download, come il PDF preventivi. Scartata l'alternativa `?token=` (usata in `RicetteSettings` e `ViniImpostazioni`): mette il JWT nella cronologia del browser.
 

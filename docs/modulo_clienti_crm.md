@@ -482,6 +482,16 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 
 ## 16.7 PDF — perché non usa M.B
 
+**Layout:** A5 orizzontale, cornice a filetto doppio dentro un margine di pagina di 7mm (così non viene mangiata dall'area non stampabile), contenuto centrato verticalmente. Nome del locale spaziato in alto, filetto, "Buono Regalo", intestatario in corsivo, poi l'importo grande (o la descrizione dell'esperienza), il codice in monospace, la scadenza e una riga di condizioni.
+
+### Tre trappole trovate rendendo davvero il PDF (2026-08-08)
+
+Il PDF era stato scritto senza poterlo vedere: alla prima generazione reale sono venuti fuori tre difetti, tutti già corretti. Da ricordare per i prossimi PDF:
+
+1. **`@font-face` da `file://` viene ignorato in silenzio.** Il PDF usciva in Liberation Serif invece che in Cormorant, senza un warning. Rimedio: dichiarare **anche** il nome della famiglia installata a sistema (`font-family: 'Cormorant Garamond', 'CormorantG', …`), come fa il CSS del menu pranzo con Sabon. Verifica: `pdffonts file.pdf` deve mostrare il font atteso.
+2. **`display:table` + `vertical-align:middle` NON centra** su WeasyPrint: mette tutto in cima (misurato: testo a y=22 su 350px invece di y=175). Usare **flexbox**.
+3. **Cormorant ha le cifre old-style**: `€ 100` si leggeva `€ IOO`. Rimedio: `font-feature-settings: "lnum" 1` su importo, codice e date.
+
 ⚠️ **Il frontend scarica il PDF via `apiFetch` + blob, mai con `window.open`.** L'endpoint è autenticato (`Depends(get_current_user)`) e una scheda nuova non porta l'header Authorization → `{"detail":"Not authenticated"}`. Preso in produzione il 2026-08-08. Stesso pattern del PDF preventivi; l'alternativa `?token=` usata altrove nel repo mette il JWT nella cronologia del browser, qui evitata.
 
 `pdf_brand` (M.B) produce documenti **interni** col brand del gestionale (wordmark TRGB, strip gobbette, "generato il..."). Il buono regalo è comunicazione **verso il cliente**: prende l'identità del locale da `locali/<id>/branding.json` → `client_pdf` (stessa logica per cui la carta vini ha un motore suo). Formato A5 orizzontale, leggibile anche fotocopiato in bianco e nero. Font Cormorant Garamond da `static/fonts/`, fallback serif di sistema se mancano.

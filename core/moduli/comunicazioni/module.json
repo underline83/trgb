@@ -1,0 +1,29 @@
+{
+  "id": "comunicazioni",
+  "nome": "Comunicazioni",
+  "versione": "1.0",
+  "descrizione": "Newsletter e messaggi ai clienti: lista iscritti con consenso tracciato, campagne email, invio a scaglioni con kill switch, iscrizione pubblica e disiscrizione con un click. Canale WhatsApp predisposto.",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "email", "notifiche", "permessi", "ui_primitives", "wa"],
+  "dipendenze_opzionali": ["clienti"],
+  "router_files": [
+    "comunicazioni_router",
+    "comunicazioni_public_router"
+  ],
+  "endpoint_prefix": [
+    "/comunicazioni"
+  ],
+  "tabelle_db": [
+    "comm_contatti",
+    "comm_consensi_log",
+    "comm_campagne",
+    "comm_invii",
+    "comm_click",
+    "comm_eventi_provider",
+    "comm_impostazioni"
+  ],
+  "db_file": "comunicazioni.sqlite3",
+  "frontend_route": ["/comunicazioni"],
+  "frontend_menu_key": "comunicazioni",
+  "note": "DB separato da clienti.sqlite3 perché il modulo è vendibile senza il CRM. Il legame con l'anagrafica è comm_contatti.cliente_id nullable, senza FK cross-DB: la sincronizzazione passa da un servizio platform, mai da un import diretto del router clienti. comunicazioni_public_router espone gli endpoint senza auth per iscrizione e disiscrizione (i soli del modulo)."
+}
