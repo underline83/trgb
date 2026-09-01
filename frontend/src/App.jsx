@@ -426,30 +426,41 @@ export default function App() {
         <Route path="/statistiche/coperti" element={<ProtectedRoute module="statistiche" sub="coperti"><StatisticheCoperti /></ProtectedRoute>} />
         <Route path="/statistiche/storico" element={<ProtectedRoute module="statistiche"><StatisticheStorico /></ProtectedRoute>} />
 
-        {/* --- DIPENDENTI (modulo top-level) --- */}
+        {/* --- DIPENDENTI (modulo top-level) ---
+             PERMESSI (2026-09-01): fino a oggi queste route dichiaravano solo
+             module="dipendenti", quindi i sotto-permessi gia' scritti in
+             modules.json (buste-paga/anagrafica/scadenze/costi = solo admin)
+             non venivano MAI letti. Chi conosceva l'URL entrava. Ora ogni route
+             passa il suo `sub`, come fa il modulo Vini.
+             Intermittenti e Reparti non hanno un sub proprio in modules.json:
+             usano "impostazioni" (admin), che e' il livello giusto — la
+             comunicazione UNI va al Ministero. */}
         <Route path="/dipendenti" element={
           <ModuleRedirect module="dipendenti" targets={[
-            { path: "/dipendenti/dashboard" },
-            { path: "/dipendenti/turni" },
-            { path: "/dipendenti/anagrafica" },
-            { path: "/dipendenti/buste-paga" },
-            { path: "/dipendenti/scadenze" },
-            { path: "/dipendenti/costi" },
-            { path: "/dipendenti/impostazioni" },
+            { sub: "buste-paga",   path: "/dipendenti/dashboard" },
+            { sub: "turni",        path: "/dipendenti/turni" },
+            { sub: "anagrafica",   path: "/dipendenti/anagrafica" },
+            { sub: "buste-paga",   path: "/dipendenti/buste-paga" },
+            { sub: "scadenze",     path: "/dipendenti/scadenze" },
+            { sub: "costi",        path: "/dipendenti/costi" },
+            { sub: "impostazioni", path: "/dipendenti/impostazioni" },
           ]} />
         } />
-        <Route path="/dipendenti/dashboard" element={<ProtectedRoute module="dipendenti"><DashboardDipendenti /></ProtectedRoute>} />
-        <Route path="/dipendenti/anagrafica" element={<ProtectedRoute module="dipendenti"><DipendentiAnagrafica /></ProtectedRoute>} />
-        <Route path="/dipendenti/turni" element={<ProtectedRoute module="dipendenti"><FoglioSettimana /></ProtectedRoute>} />
-        <Route path="/dipendenti/intermittenti" element={<ProtectedRoute module="dipendenti"><Intermittenti /></ProtectedRoute>} />
-        <Route path="/dipendenti/turni/mese" element={<ProtectedRoute module="dipendenti"><VistaMensile /></ProtectedRoute>} />
-        <Route path="/dipendenti/turni/dipendente" element={<ProtectedRoute module="dipendenti"><PerDipendente /></ProtectedRoute>} />
-        <Route path="/dipendenti/turni-legacy" element={<ProtectedRoute module="dipendenti"><DipendentiTurni /></ProtectedRoute>} />
-        <Route path="/dipendenti/impostazioni" element={<ProtectedRoute module="dipendenti"><DipendentiImpostazioni /></ProtectedRoute>} />
-        <Route path="/dipendenti/reparti" element={<ProtectedRoute module="dipendenti"><GestioneReparti /></ProtectedRoute>} />
-        <Route path="/dipendenti/costi" element={<ProtectedRoute module="dipendenti"><DipendentiCosti /></ProtectedRoute>} />
-        <Route path="/dipendenti/buste-paga" element={<ProtectedRoute module="dipendenti"><DipendentiBustePaga /></ProtectedRoute>} />
-        <Route path="/dipendenti/scadenze" element={<ProtectedRoute module="dipendenti"><DipendentiScadenze /></ProtectedRoute>} />
+        <Route path="/dipendenti/dashboard" element={<ProtectedRoute module="dipendenti" sub="buste-paga"><DashboardDipendenti /></ProtectedRoute>} />
+        <Route path="/dipendenti/anagrafica" element={<ProtectedRoute module="dipendenti" sub="anagrafica"><DipendentiAnagrafica /></ProtectedRoute>} />
+        <Route path="/dipendenti/turni" element={<ProtectedRoute module="dipendenti" sub="turni"><FoglioSettimana /></ProtectedRoute>} />
+        <Route path="/dipendenti/intermittenti" element={<ProtectedRoute module="dipendenti" sub="impostazioni"><Intermittenti /></ProtectedRoute>} />
+        <Route path="/dipendenti/turni/mese" element={<ProtectedRoute module="dipendenti" sub="turni"><VistaMensile /></ProtectedRoute>} />
+        <Route path="/dipendenti/turni/dipendente" element={<ProtectedRoute module="dipendenti" sub="turni"><PerDipendente /></ProtectedRoute>} />
+        {/* turni-legacy: vecchio editor calendario, non linkato da nessun menu.
+            Va ad "impostazioni" (admin) e non a "turni": è un editor a tutti gli
+            effetti e la pagina non ha il gating in sola lettura di FoglioSettimana. */}
+        <Route path="/dipendenti/turni-legacy" element={<ProtectedRoute module="dipendenti" sub="impostazioni"><DipendentiTurni /></ProtectedRoute>} />
+        <Route path="/dipendenti/impostazioni" element={<ProtectedRoute module="dipendenti" sub="impostazioni"><DipendentiImpostazioni /></ProtectedRoute>} />
+        <Route path="/dipendenti/reparti" element={<ProtectedRoute module="dipendenti" sub="impostazioni"><GestioneReparti /></ProtectedRoute>} />
+        <Route path="/dipendenti/costi" element={<ProtectedRoute module="dipendenti" sub="costi"><DipendentiCosti /></ProtectedRoute>} />
+        <Route path="/dipendenti/buste-paga" element={<ProtectedRoute module="dipendenti" sub="buste-paga"><DipendentiBustePaga /></ProtectedRoute>} />
+        <Route path="/dipendenti/scadenze" element={<ProtectedRoute module="dipendenti" sub="scadenze"><DipendentiScadenze /></ProtectedRoute>} />
 
         {/* --- I MIEI TURNI (self-service, accessibile a tutti i ruoli autenticati) --- */}
         <Route path="/miei-turni" element={<MieiTurni />} />

@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { openWhatsApp } from "../../utils/whatsapp";
+import { isTurniWriterRole } from "../../utils/authHelpers";
 import DipendentiNav from "./DipendentiNav";
 import { Btn } from "../../components/ui";
 
@@ -101,6 +102,13 @@ function useIsNarrow(maxPx = 899) {
 // ---- COMPONENTE PRINCIPALE ------------------------------------------------
 export default function FoglioSettimana() {
   const navigate = useNavigate();
+
+  // PERMESSI (2026-09-01): il foglio è LEGGIBILE da tutti i ruoli che vedono il
+  // modulo (sala, sommelier, chef, contabile devono poter guardare i turni
+  // della squadra), ma SCRIVIBILE solo da admin/superadmin — vedi
+  // RUOLI_SCRITTURA_TURNI in turni_router.py. Senza questo flag i bottoni
+  // restavano cliccabili e il backend rispondeva 403 con un alert brutto.
+  const puoModificare = isTurniWriterRole(localStorage.getItem("role") || "");
 
   // Deep-link da VistaMensile: se è stato memorizzato un target, usalo poi puliscilo
   const [settimana, setSettimana] = useState(() => {
@@ -357,6 +365,8 @@ export default function FoglioSettimana() {
 
   // ---- POPOVER HANDLERS ----------------------------------------------------
   function apriCella(data, servizio, slot_index, event) {
+    // Chi non può scrivere guarda e basta: niente popover di assegnazione.
+    if (!puoModificare) return;
     if (chiusi.has(data)) return;
     const turno = matrice[data]?.[servizio]?.[slot_index] || null;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -508,24 +518,38 @@ export default function FoglioSettimana() {
 
             {/* RIGHT: azioni Fase 11 + overflow ⋯ */}
             <div className="flex items-center gap-2 flex-shrink-0 relative" ref={overflowRef}>
-              <Btn
-                variant="success"
-                size="md"
-                onClick={pubblicaSettimana}
-                disabled={pubblicando}
-                loading={pubblicando}
-                title="Pubblica la settimana: crea notifica in-app per lo staff"
-              >
-                {pubblicando ? "Pubblica…" : "📢 Pubblica"}
-              </Btn>
-              <Btn
-                variant="secondary"
-                size="md"
-                onClick={() => setDlgInviaWA(true)}
-                title="Invia il riepilogo turni personale ai dipendenti via WhatsApp"
-              >
-                💬 Invia WA
-              </Btn>
+              {/* Azioni di scrittura: solo admin. "Invia WA" usa
+                  /turni/riepilogo-dipendenti, che restituisce i telefoni. */}
+              {puoModificare && (
+                <>
+                  <Btn
+                    variant="success"
+                    size="md"
+                    onClick={pubblicaSettimana}
+                    disabled={pubblicando}
+                    loading={pubblicando}
+                    title="Pubblica la settimana: crea notifica in-app per lo staff"
+                  >
+                    {pubblicando ? "Pubblica…" : "📢 Pubblica"}
+                  </Btn>
+                  <Btn
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setDlgInviaWA(true)}
+                    title="Invia il riepilogo turni personale ai dipendenti via WhatsApp"
+                  >
+                    💬 Invia WA
+                  </Btn>
+                </>
+              )}
+              {!puoModificare && (
+                <span
+                  className="px-3 py-1.5 rounded-lg bg-neutral-100 border border-neutral-200 text-xs text-neutral-600"
+                  title="Puoi consultare i turni della squadra, ma solo un amministratore li modifica."
+                >
+                  👁️ Sola lettura
+                </span>
+              )}
               <button
                 onClick={() => setOverflowOpen(v => !v)}
                 className="min-h-[44px] min-w-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-lg leading-none"
@@ -539,29 +563,33 @@ export default function FoglioSettimana() {
                 <div
                   className="absolute right-0 top-full mt-2 bg-white border border-neutral-200 rounded-xl shadow-lg z-30 min-w-[240px] p-1.5"
                   role="menu">
-                  <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-neutral-400">Settimana</div>
-                  <button
-                    onClick={() => { setOverflowOpen(false); setDlgCopia(true); }}
-                    className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px]"
-                    role="menuitem">
-                    <span className="text-lg">📋</span>
-                    <div>
-                      <div className="font-medium text-neutral-900">Copia settimana</div>
-                      <div className="text-xs text-neutral-500">Duplica i turni su un'altra settimana</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => { setOverflowOpen(false); setDlgTemplate(true); }}
-                    className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px]"
-                    role="menuitem">
-                    <span className="text-lg">📑</span>
-                    <div>
-                      <div className="font-medium text-neutral-900">Template</div>
-                      <div className="text-xs text-neutral-500">Salva o applica un template ricorrente</div>
-                    </div>
-                  </button>
+                  {puoModificare && (
+                    <>
+                      <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-neutral-400">Settimana</div>
+                      <button
+                        onClick={() => { setOverflowOpen(false); setDlgCopia(true); }}
+                        className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px]"
+                        role="menuitem">
+                        <span className="text-lg">📋</span>
+                        <div>
+                          <div className="font-medium text-neutral-900">Copia settimana</div>
+                          <div className="text-xs text-neutral-500">Duplica i turni su un'altra settimana</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => { setOverflowOpen(false); setDlgTemplate(true); }}
+                        className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px]"
+                        role="menuitem">
+                        <span className="text-lg">📑</span>
+                        <div>
+                          <div className="font-medium text-neutral-900">Template</div>
+                          <div className="text-xs text-neutral-500">Salva o applica un template ricorrente</div>
+                        </div>
+                      </button>
 
-                  <div className="my-1 border-t border-neutral-100"></div>
+                      <div className="my-1 border-t border-neutral-100"></div>
+                    </>
+                  )}
                   <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-neutral-400">Esporta</div>
                   <button
                     onClick={() => { setOverflowOpen(false); scaricaPdf(); }}
@@ -647,10 +675,14 @@ export default function FoglioSettimana() {
             )}
 
             {/* PANNELLO ORE — sempre visibile (su narrow va in fondo, full width) */}
+            {/* Le callback assenze arrivano solo a chi può scrivere: senza
+                questo, i dot della mini-settimana restavano cliccabili e il
+                backend rispondeva 403 con un alert. */}
             <OrePanel
               ore={ore} reparto={reparto}
               giorni={foglio?.giorni || []} assenzeMap={assenzeMap}
-              onCreaAssenza={creaAssenza} onEliminaAssenza={eliminaAssenza}
+              onCreaAssenza={puoModificare ? creaAssenza : null}
+              onEliminaAssenza={puoModificare ? eliminaAssenza : null}
             />
           </div>
         )}
@@ -932,7 +964,12 @@ function OrePanel({ ore, reparto, giorni = [], assenzeMap = {}, onCreaAssenza, o
   const totLordo = sorted.reduce((s, d) => s + d.ore_lorde, 0);
   const totNetto = sorted.reduce((s, d) => s + d.ore_nette, 0);
 
+  // Sola lettura: le callback arrivano a null da FoglioSettimana quando il
+  // ruolo non può scrivere sui turni. Meglio un dot inerte di un alert 403.
+  const puoModificare = Boolean(onCreaAssenza && onEliminaAssenza);
+
   function handleDotClick(dipId, data, e) {
+    if (!puoModificare) return;
     const key = `${dipId}_${data}`;
     const existing = assenzeMap[key];
     if (existing) {
@@ -1000,9 +1037,16 @@ function OrePanel({ ore, reparto, giorni = [], assenzeMap = {}, onCreaAssenza, o
                       <button
                         key={g}
                         type="button"
+                        disabled={!puoModificare}
                         onClick={(e) => handleDotClick(d.dipendente_id, g, e)}
-                        className="flex flex-col items-center w-[30px] rounded hover:bg-neutral-100 transition-colors py-0.5"
-                        title={ass ? `${meta?.emoji || ""} ${meta?.label || ass.tipo} ${giornoNum} — click per rimuovere` : `${MINI_GIORNI[i]} ${giornoNum} — click per segnare assenza`}
+                        className={`flex flex-col items-center w-[30px] rounded transition-colors py-0.5 ${puoModificare ? "hover:bg-neutral-100" : "cursor-default"}`}
+                        title={
+                          !puoModificare
+                            ? (ass ? `${meta?.emoji || ""} ${meta?.label || ass.tipo} ${giornoNum}` : `${MINI_GIORNI[i]} ${giornoNum}`)
+                            : ass
+                              ? `${meta?.emoji || ""} ${meta?.label || ass.tipo} ${giornoNum} — click per rimuovere`
+                              : `${MINI_GIORNI[i]} ${giornoNum} — click per segnare assenza`
+                        }
                       >
                         <span className="text-[8px] text-neutral-400 leading-none">{MINI_GIORNI[i]}</span>
                         {ass ? (

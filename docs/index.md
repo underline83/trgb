@@ -69,6 +69,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 
 ## 🔍 Audit & analisi
 
+- 📄 [audit_permessi_2026-09-01.md](audit_permessi_2026-09-01.md) — permessi di tutti i 56 router: 636 endpoint su 836 aperti a qualsiasi ruolo autenticato, buchi critici ordinati per danno, piano in 7 passi.
 - 📄 [audit-2026-06-12/](audit-2026-06-12/00_EXECUTIVE_SUMMARY.md) — audit completo (sicurezza, dati, backend, frontend, infra, performance, prodotto) + piano azione + delta 2026-07-10.
 - 📄 [audit-2026-05-19/](audit-2026-05-19/05_EXECUTIVE_SUMMARY.md) — audit capability per modulo, gap report (~40 capability non documentate), manuale utente.
 - 📄 [analisi_app_apple.md](analisi_app_apple.md) — analisi per l'app mobile (Capacitor / App Store).

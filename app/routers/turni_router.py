@@ -29,7 +29,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 from app.services import turni_service
 
 
@@ -37,6 +37,46 @@ router = APIRouter(prefix="/turni", tags=["Turni"])
 
 # Inizializza DB alla prima importazione
 init_dipendenti_db()
+
+
+# ============================================================
+# PERMESSI (2026-09-01) — Modulo: dipendenti
+# ============================================================
+# Gemello del blocco in dipendenti.py. Prima, tutti e 24 gli endpoint erano
+# aperti a qualsiasi ruolo autenticato: un commis poteva cancellare il foglio
+# settimana o pubblicare i turni.
+#
+# LETTURA (foglio, vista mese, vista dipendente, PDF, assenze, conflitti,
+# template) -> aperta a tutti i ruoli che vedono il modulo: il personale deve
+# poter guardare i turni della squadra, non solo i propri.
+# SCRITTURA (assegna, modifica, cancella, copia settimana, template, pubblica)
+# -> admin. Se domani il responsabile di sala compila il foglio, aggiungere
+# "sala" qui E in RUOLI_SCRITTURA_TURNI di dipendenti.py.
+#
+# /turni/miei-turni resta self-service per definizione: risolve l'utente loggato
+# sul suo dipendente_id e non puo' leggere quelli degli altri.
+
+RUOLI_SCRITTURA_TURNI = ("admin", "superadmin")
+
+
+def _role_of(user) -> str:
+    return (user or {}).get("role") or ""
+
+
+def _require_turni_write(user) -> None:
+    if _role_of(user) not in RUOLI_SCRITTURA_TURNI:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un amministratore puo' modificare i turni.",
+        )
+
+
+def _require_admin(user, cosa: str = "questa sezione") -> None:
+    if not is_admin(_role_of(user)):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Accesso riservato agli amministratori ({cosa}).",
+        )
 
 
 # ============================================================
@@ -179,6 +219,7 @@ def assegna_turno(
     payload: AssegnaTurnoIn,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_turni_write(current_user)
     _valida_data(payload.data)
     servizio = payload.servizio.upper().strip()
     if servizio not in ("PRANZO", "CENA"):
@@ -321,6 +362,7 @@ def modifica_turno(
     payload: ModificaTurnoIn,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_turni_write(current_user)
     conn = get_dipendenti_conn()
     try:
         cur = conn.cursor()
@@ -427,6 +469,7 @@ def cancella_turno(
     turno_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_turni_write(current_user)
     conn = get_dipendenti_conn()
     try:
         cur = conn.cursor()
@@ -461,6 +504,7 @@ def post_copia_settimana(
     payload: CopiaSettimanaIn,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_turni_write(current_user)
     try:
         out = turni_service.copia_settimana(
             reparto_id=payload.reparto_id,
@@ -638,6 +682,7 @@ def crea_assenza_ep(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Crea o aggiorna un'assenza (upsert su dipendente+data)."""
+    _require_turni_write(current_user)
     _valida_data(payload.data)
     try:
         assenza = turni_service.crea_assenza(
@@ -657,6 +702,7 @@ def elimina_assenza_ep(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Elimina un'assenza per id."""
+    _require_turni_write(current_user)
     ok = turni_service.elimina_assenza(assenza_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Assenza non trovata")
@@ -901,6 +947,7 @@ def crea_template(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Snapshot della settimana corrente → nuovo template."""
+    _require_turni_write(current_user)
     try:
         out = turni_service.crea_template_da_settimana(
             reparto_id=payload.reparto_id,
@@ -920,6 +967,7 @@ def aggiorna_template(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Aggiorna nome/descrizione del template."""
+    _require_turni_write(current_user)
     try:
         out = turni_service.rinomina_template(
             template_id=template_id,
@@ -937,6 +985,7 @@ def rimuovi_template(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Soft-delete del template (attivo=0)."""
+    _require_turni_write(current_user)
     try:
         out = turni_service.elimina_template(template_id)
         return JSONResponse(content={"ok": True, **out})
@@ -951,6 +1000,7 @@ def applica_template_ep(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Applica il template a una settimana destinazione."""
+    _require_turni_write(current_user)
     try:
         out = turni_service.applica_template(
             template_id=template_id,
@@ -979,6 +1029,7 @@ def pubblica_settimana_ep(
     Pubblica la settimana: crea una notifica (M.A) per avvisare lo staff admin
     che i turni di questo reparto sono pronti per la distribuzione.
     """
+    _require_turni_write(current_user)
     try:
         out = turni_service.pubblica_settimana(
             reparto_id=payload.reparto_id,
@@ -999,6 +1050,7 @@ def riepilogo_dipendenti_ep(
     Riepilogo settimana per singolo dipendente: ritorna lista con testo_wa
     pronto per invio WhatsApp (mattone M.C).
     """
+    _require_admin(current_user, "i recapiti del personale")
     try:
         out = turni_service.riepilogo_settimana_per_dipendenti(
             reparto_id=reparto_id,

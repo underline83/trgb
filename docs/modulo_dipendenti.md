@@ -364,3 +364,50 @@ Turni v2 completato in parallelo (vedi `modulo_dipendenti_turni.md`). Aggiunte n
   - documenti allegati: dir tenant-aware `uploads/documenti_dipendenti/<dipendente_id>/` con fallback `app/data/documenti_dipendenti/`
 - **Cross-DB:** due connessioni separate (`get_dipendenti_conn()` + `sqlite3.connect(foodcost)`), join in Python. Niente ATTACH.
 - **Pattern WAL:** FATTO — `get_dipendenti_conn()` imposta WAL + `synchronous=NORMAL` + `busy_timeout=30000` (fix sessione 52).
+
+---
+
+# 9. Permessi (2026-09-01)
+
+**Origine:** Marco, 1 settembre 2026 — *«il sommelier dovrebbe vedere solo i propri turni, in realtà vede tutte le buste paga»*. Era vero, su tre livelli contemporaneamente. Il quadro generale (il problema esiste in quasi tutti i moduli) sta in [audit_permessi_2026-09-01.md](audit_permessi_2026-09-01.md).
+
+## 9.1 Cosa non funzionava
+
+| Livello | Cosa succedeva |
+|---|---|
+| Nav interna | `DipendentiNav` mostrava tutti e 8 i tab a chiunque vedesse il modulo. Il sommelier entrava da «Turni» e trovava «📋 Buste Paga» lì da cliccare — non doveva nemmeno inventarsi l'URL. |
+| Route | Le 12 route dichiaravano `module="dipendenti"` senza `sub`, quindi i sotto-permessi già scritti in `modules.json` (`buste-paga`, `anagrafica`, `scadenze`, `costi` = solo admin) **non venivano mai letti**. |
+| Backend | 60 endpoint fra `dipendenti.py` e `turni_router.py` con solo `Depends(get_current_user)`, cioè qualsiasi ruolo autenticato. `modules.json` è letto solo dal frontend: nasconde la voce di menu, non chiude l'endpoint. |
+
+## 9.2 La regola oggi
+
+| Sezione | Chi | Note |
+|---|---|---|
+| Buste paga, cedolini PDF, costi, scadenze, documenti, impostazioni, Dashboard | **admin + superadmin** | Decisione Marco 2026-09-01: il `contabile` resta fuori. La Dashboard mostra il netto buste paga del mese, quindi eredita quel livello. |
+| Anagrafica (scrittura) | **admin + superadmin** | |
+| Anagrafica (lettura, `GET /dipendenti/`) | tutti i ruoli del modulo, **ridotta** | Le viste turni hanno bisogno dei nomi. Ai non-admin l'endpoint toglie i campi di `CAMPI_ANAGRAFICA_RISERVATI` (iban, codice_fiscale, telefono, email, indirizzi, note, codice_comunicazione, is_amministratore) e ignora `include_inactive`. |
+| Turni — lettura (foglio, mese, per dipendente, PDF, assenze, conflitti) | tutti i ruoli del modulo | Decisione Marco: il personale vede i turni di tutti, non solo i propri. |
+| Turni — scrittura (assegna, modifica, cancella, copia settimana, template, pubblica) | **admin + superadmin** | |
+| `/turni/riepilogo-dipendenti` | **admin + superadmin** | Restituisce i telefoni per l'invio WhatsApp. |
+| `/turni/miei-turni` | qualsiasi ruolo autenticato | Self-service: risolve l'utente loggato sul suo `dipendente_id`, non può leggere quelli degli altri. |
+| Intermittenti (tutti e 9 gli endpoint) | **admin + superadmin** | L'elenco contiene CF e codici comunicazione; `POST /comunica/` manda un atto legale al Ministero. |
+| Reparti — lettura | tutti | Serve ai filtri delle viste turni. |
+| Reparti — scrittura | **admin + superadmin** | Struttura organizzativa su cui poggiano turni e task. |
+
+## 9.3 Dove si cambia
+
+**Il punto di verità è il codice, non `modules.json`.** Se domani il responsabile di sala deve compilare il foglio turni, si aggiunge `"sala"` in **tre** punti, che devono restare allineati:
+
+- `app/routers/turni_router.py` → `RUOLI_SCRITTURA_TURNI`
+- `app/routers/dipendenti.py` → `RUOLI_SCRITTURA_TURNI`
+- `frontend/src/utils/authHelpers.js` → `isTurniWriterRole()`
+
+⚠️ **Non usare `isAdminRole` per i turni:** include `contabile`, che il backend esclude → il bottone comparirebbe e la chiamata tornerebbe 403. È lo stesso motivo per cui esiste `isViniManagerRole`.
+
+⚠️ **Non aggiungere chiavi `sub` nuove a `modules.json` finché il seed non è riparato** (vedi [audit_permessi_2026-09-01.md](audit_permessi_2026-09-01.md) §4.3): il file letto in produzione è `locali/<id>/data/modules.json`, che non esiste, quindi vale il runtime già scritto. Una chiave inesistente fa ricadere `canAccessSub` sui permessi del **modulo** — cioè tutti — e la protezione salta in silenzio. Per questo `/dipendenti/dashboard` usa `sub="buste-paga"` e Intermittenti/Reparti usano `sub="impostazioni"`.
+
+## 9.4 Conseguenze visibili
+
+- **Sommelier / sala / chef / commis:** nel modulo vedono solo il tab «Turni». Il Foglio Settimana si apre in sola lettura (chip «👁️ Sola lettura», celle e dot assenze inerti, niente Pubblica / Invia WA / Copia settimana / Template).
+- **Contabile:** perde l'accesso a buste paga e costi. Il drill-down da Conto Economico → riga stipendi porta a `/dipendenti/buste-paga`, che ora gli rimbalza alla Home: se dà fastidio, o si toglie il click per quel ruolo o si allarga il permesso (serve un predicato dedicato, `is_admin()` esclude il contabile).
+- **`/dipendenti/turni-legacy`:** vecchio editor non linkato da nessun menu, passato ad admin (`sub="impostazioni"`) perché non ha il gating in sola lettura di `FoglioSettimana`.

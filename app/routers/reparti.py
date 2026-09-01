@@ -23,13 +23,27 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 
 
 router = APIRouter(prefix="/reparti", tags=["Reparti"])
 
 # Inizializza DB alla prima importazione (idempotente)
 init_dipendenti_db()
+
+
+# ============================================================
+# PERMESSI (2026-09-01) — Modulo: dipendenti
+# ============================================================
+# LETTURA aperta: le viste turni chiedono i reparti per popolare i filtri.
+# SCRITTURA admin: i reparti sono la struttura organizzativa su cui poggiano
+# turni e task, non un dato da lasciare modificabile a chiunque sia loggato.
+def _require_admin(user, cosa: str = "la gestione reparti") -> None:
+    if not is_admin((user or {}).get("role") or ""):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Accesso riservato agli amministratori ({cosa}).",
+        )
 
 
 # ============================================================
@@ -123,6 +137,7 @@ def create_reparto(
     payload: RepartoCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
     try:
@@ -172,6 +187,7 @@ def update_reparto(
     payload: RepartoUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
     cur.execute("SELECT id FROM reparti WHERE id = ?", (reparto_id,))
@@ -226,6 +242,7 @@ def soft_delete_reparto(
     reparto_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
     cur.execute("SELECT id FROM reparti WHERE id = ?", (reparto_id,))

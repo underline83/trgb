@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 from app.utils.locale_data import locale_data_path
 
 # R6.5 — path tenant-aware per cross-DB query verso foodcost.db
@@ -42,6 +42,76 @@ router = APIRouter(prefix="/dipendenti", tags=["Dipendenti"])
 
 # Inizializza DB alla prima importazione del router
 init_dipendenti_db()
+
+
+# ============================================================
+# PERMESSI (2026-09-01) — Modulo: dipendenti
+# ============================================================
+# PRIMA di questo blocco ogni endpoint aveva solo Depends(get_current_user),
+# cioe' "qualsiasi ruolo autenticato": un sommelier che apriva
+# /dipendenti/buste-paga leggeva i cedolini di tutti, e GET /dipendenti/
+# restituiva IBAN e codice fiscale a chiunque avesse un token valido.
+#
+# La matrice vive in modules.json (sotto-moduli del modulo `dipendenti`):
+#   anagrafica / buste-paga / scadenze / costi / impostazioni -> superadmin+admin
+#   turni                                                     -> anche sala,
+#                                                                sommelier, chef,
+#                                                                contabile
+# Quel file pero' e' letto SOLO dal frontend (useModuleAccess): nasconde la voce
+# di menu, non chiude l'endpoint. Le guardie qui sotto sono la controparte
+# server-side, senza la quale basta conoscere l'URL.
+
+RUOLI_SCRITTURA_TURNI = ("admin", "superadmin")
+# ^ chi puo' assegnare / modificare / cancellare turni e tipi turno.
+#   La LETTURA del foglio resta aperta a tutti i ruoli che vedono il modulo:
+#   il personale deve poter guardare i turni della squadra.
+#   Se domani il responsabile di sala deve compilare il foglio, si aggiunge
+#   "sala" qui e in RUOLI_SCRITTURA_TURNI di turni_router.py: sono gli unici
+#   due punti da toccare.
+
+# Campi dell'anagrafica che non escono MAI verso un ruolo non-admin.
+# GET /dipendenti/ non si puo' chiudere del tutto perche' serve anche alle viste
+# turni (per i nomi), quindi ai non-admin si restituisce la versione ridotta.
+CAMPI_ANAGRAFICA_RISERVATI = (
+    "iban", "codice_fiscale", "telefono", "email",
+    "indirizzo_via", "indirizzo_cap", "indirizzo_citta",
+    "indirizzo_provincia", "indirizzo_paese",
+    "note", "codice_comunicazione", "is_amministratore",
+)
+
+
+def _role_of(user) -> str:
+    return (user or {}).get("role") or ""
+
+
+def _require_admin(user, cosa: str = "questa sezione") -> None:
+    """403 se l'utente non e' admin/superadmin.
+
+    Va su tutto cio' che tocca dati personali o retributivi: anagrafica,
+    buste paga, cedolini PDF, documenti, scadenze, costi, impostazioni.
+    """
+    if not is_admin(_role_of(user)):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Accesso riservato agli amministratori ({cosa}).",
+        )
+
+
+def _require_turni_write(user) -> None:
+    """403 se l'utente non puo' scrivere sui turni. Vedi RUOLI_SCRITTURA_TURNI."""
+    if _role_of(user) not in RUOLI_SCRITTURA_TURNI:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un amministratore puo' modificare i turni.",
+        )
+
+
+def _spoglia_anagrafica(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Toglie i campi riservati dalle righe anagrafica (per i ruoli non-admin)."""
+    return [
+        {k: v for k, v in r.items() if k not in CAMPI_ANAGRAFICA_RISERVATI}
+        for r in rows
+    ]
 
 
 # ============================================================
@@ -67,6 +137,7 @@ def get_dipendenti_settings(current_user: dict = Depends(get_current_user)):
     """Ritorna tutti i settings dipendenti come dict {key: value}.
     Esempio: {'giorno_pagamento_stipendi_default': '15'}.
     Default disponibili sono creati dalla mig 118."""
+    _require_admin(current_user, "le impostazioni del modulo")
     conn = get_dipendenti_conn()
     # Assicura che la tabella esista (idempotente, no-op se già fatto da mig 118)
     conn.execute("""
@@ -87,6 +158,7 @@ def put_dipendenti_setting(
 ):
     """Aggiorna (o crea) un singolo setting. Body: {value: <stringa>}.
     Il valore viene serializzato come stringa; cast a int/etc. è responsabilità del caller."""
+    _require_admin(current_user, "le impostazioni del modulo")
     if "value" not in payload:
         raise HTTPException(400, "Campo 'value' mancante nel body")
     value = str(payload["value"])
@@ -322,6 +394,18 @@ def list_dipendenti(
     include_inactive: bool = Query(False, description="Se true include anche i disattivati"),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """Elenco dipendenti.
+
+    Aperto a tutti i ruoli autenticati perche' le viste turni hanno bisogno dei
+    nomi, ma i non-admin ricevono la versione RIDOTTA: niente IBAN, codice
+    fiscale, telefono, email, indirizzo, note (vedi CAMPI_ANAGRAFICA_RISERVATI).
+    `include_inactive` resta riservato agli admin: l'elenco degli ex dipendenti
+    non serve a chi guarda i turni.
+    """
+    solo_admin = is_admin(_role_of(current_user))
+    if include_inactive and not solo_admin:
+        include_inactive = False
+
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -376,6 +460,9 @@ def list_dipendenti(
         r["reparti_extra"] = extra.get(r["id"], [])
         r["is_amministratore"] = bool(r.get("is_amministratore") or 0)
 
+    if not solo_admin:
+        rows = _spoglia_anagrafica(rows)
+
     return JSONResponse(content=rows)
 
 
@@ -384,6 +471,7 @@ def create_dipendente(
     payload: DipendenteCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user, "l'anagrafica dipendenti")
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -482,6 +570,7 @@ def update_dipendente(
     payload: DipendenteUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user, "l'anagrafica dipendenti")
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -605,6 +694,7 @@ def soft_delete_dipendente(
     sul foglio settimana). Cosi' il colore liberato puo' essere riassegnato a un nuovo
     dipendente senza lasciare un ex-collaboratore inattivo che occupa il posto.
     """
+    _require_admin(current_user, "l'anagrafica dipendenti")
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -673,6 +763,7 @@ def create_turno_tipo(
     payload: TurnoTipoCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_turni_write(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -739,6 +830,7 @@ def update_turno_tipo(
     payload: TurnoTipoUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_turni_write(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -822,6 +914,7 @@ def delete_turno_tipo(
     """
     Soft delete: imposta attivo = 0 per il tipo di turno.
     """
+    _require_turni_write(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -927,6 +1020,7 @@ def create_turno_calendario(
     Crea un nuovo turno per un dipendente in una data.
     Se ora_inizio/ora_fine non sono specificate, usa quelle del tipo di turno.
     """
+    _require_turni_write(current_user)
     data_str = _validate_date_str(payload.data)
 
     conn = get_dipendenti_conn()
@@ -1031,6 +1125,7 @@ def update_turno_calendario(
     """
     Aggiorna un turno esistente (data, tipo, orari, stato, note).
     """
+    _require_turni_write(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -1168,6 +1263,7 @@ def delete_turno_calendario(
     """
     Cancellazione hard del turno (non tocca l'anagrafica).
     """
+    _require_turni_write(current_user)
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
@@ -1229,6 +1325,7 @@ def lista_scadenze(
     current_user=Depends(get_current_user),
 ):
     """Lista scadenze documenti con stato calcolato dinamicamente."""
+    _require_admin(current_user, "le scadenze documenti")
     conn = get_dipendenti_conn()
     query = """
         SELECT s.*, d.nome, d.cognome, d.ruolo
@@ -1293,6 +1390,7 @@ def crea_scadenza(
     current_user=Depends(get_current_user),
 ):
     """Crea una nuova scadenza documento."""
+    _require_admin(current_user, "le scadenze documenti")
     required = ["dipendente_id", "tipo", "data_scadenza"]
     for f in required:
         if not payload.get(f):
@@ -1332,6 +1430,7 @@ def modifica_scadenza(
     current_user=Depends(get_current_user),
 ):
     """Modifica una scadenza documento."""
+    _require_admin(current_user, "le scadenze documenti")
     conn = get_dipendenti_conn()
     existing = conn.execute("SELECT id FROM dipendenti_scadenze WHERE id = ?", [scadenza_id]).fetchone()
     if not existing:
@@ -1362,6 +1461,7 @@ def elimina_scadenza(
     current_user=Depends(get_current_user),
 ):
     """Elimina una scadenza documento."""
+    _require_admin(current_user, "le scadenze documenti")
     conn = get_dipendenti_conn()
     conn.execute("DELETE FROM dipendenti_scadenze WHERE id = ?", [scadenza_id])
     conn.commit()
@@ -1394,6 +1494,7 @@ def lista_buste_paga(
     - `anno`: anno numerico (es. 2026)
     - `mese`: "YYYY-MM" (es. "2026-04") OPPURE numero 1-12 (richiede anche `anno`)
     """
+    _require_admin(current_user, "le buste paga")
     conn = get_dipendenti_conn()
     query = """
         SELECT bp.*, d.nome, d.cognome, d.ruolo, d.giorno_paga, d.telefono
@@ -1468,6 +1569,7 @@ def crea_busta_paga(
             addizionali?, tfr_maturato?, ore_lavorate?, ore_straordinario?,
             note?, genera_scadenza?: bool }
     """
+    _require_admin(current_user, "le buste paga")
     required = ["dipendente_id", "mese", "anno", "netto"]
     for f in required:
         if payload.get(f) is None:
@@ -1649,6 +1751,7 @@ def scadenze_stipendio_mancanti(
     - `uscita_netto_id` punta a un id che non esiste piu' in cg_uscite
       (uscita cancellata manualmente).
     """
+    _require_admin(current_user, "le buste paga")
     import sqlite3 as _sqlite3
     FOODCOST_DB = _FOODCOST_DB  # R6.5 — locale-aware (vedi top-of-file)
 
@@ -1720,6 +1823,7 @@ def rigenera_scadenza_busta_paga(
 
     Response: { ok, uscita_id, data_scadenza }
     """
+    _require_admin(current_user, "le buste paga")
     conn = get_dipendenti_conn()
     try:
         bp = conn.execute(
@@ -1764,6 +1868,7 @@ def elimina_busta_paga(
     current_user=Depends(get_current_user),
 ):
     """Elimina una busta paga."""
+    _require_admin(current_user, "le buste paga")
     conn = get_dipendenti_conn()
     conn.execute("DELETE FROM buste_paga WHERE id = ?", [bp_id])
     conn.commit()
@@ -1780,6 +1885,7 @@ async def test_lul_pdf(
     Endpoint di DEBUG: parsa il PDF e mostra cosa trova senza importare nulla.
     Utile per diagnosticare problemi col parser.
     """
+    _require_admin(current_user, "le buste paga")
     try:
         from app.utils.parse_lul import parse_lul_pdf
         import pdfplumber
@@ -1996,6 +2102,7 @@ async def anteprima_lul_pdf(
         nuovi:      cedolini per dipendenti non trovati (verranno creati in anagrafica)
         conflitti presenti dentro abbinati: campi diversi tra anagrafica e PDF
     """
+    _require_admin(current_user, "le buste paga")
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Il file deve essere un PDF")
 
@@ -2114,6 +2221,7 @@ async def conferma_import_pdf(
     e scrive nel DB solo i cedolini confermati.
     Salva anche il PDF singolo per ogni cedolino nella cartella app/data/cedolini/.
     """
+    _require_admin(current_user, "le buste paga")
     import json as _json
 
     if not file.filename.lower().endswith(".pdf"):
@@ -2370,6 +2478,7 @@ def download_cedolino_pdf(
     current_user=Depends(get_current_user),
 ):
     """Scarica il PDF del singolo cedolino."""
+    _require_admin(current_user, "i cedolini")
     conn = get_dipendenti_conn()
     row = conn.execute(
         "SELECT bp.pdf_path, d.cognome, d.nome, bp.mese, bp.anno "
@@ -2413,6 +2522,7 @@ def lista_documenti(
     current_user=Depends(get_current_user),
 ):
     """Lista documenti allegati a un dipendente, inclusi i cedolini PDF."""
+    _require_admin(current_user, "i documenti del personale")
     conn = get_dipendenti_conn()
 
     # Allegati caricati manualmente
@@ -2463,6 +2573,7 @@ async def upload_documento(
     current_user=Depends(get_current_user),
 ):
     """Carica un documento allegato a un dipendente."""
+    _require_admin(current_user, "i documenti del personale")
     conn = get_dipendenti_conn()
 
     # Verifica dipendente esiste
@@ -2509,6 +2620,7 @@ def elimina_documento(
     current_user=Depends(get_current_user),
 ):
     """Elimina un documento allegato."""
+    _require_admin(current_user, "i documenti del personale")
     conn = get_dipendenti_conn()
     row = conn.execute("SELECT filename FROM dipendenti_allegati WHERE id = ?", [doc_id]).fetchone()
     if not row:
@@ -2534,6 +2646,7 @@ def download_documento(
     current_user=Depends(get_current_user),
 ):
     """Scarica un documento allegato."""
+    _require_admin(current_user, "i documenti del personale")
     conn = get_dipendenti_conn()
     row = conn.execute("SELECT filename, label FROM dipendenti_allegati WHERE id = ?", [doc_id]).fetchone()
     conn.close()
@@ -2895,6 +3008,7 @@ async def import_paghe_pdf(
     NB: chi tocca questo endpoint, ricordi che `dipendenti_costo_consuntivo`
     vive in dipendenti.sqlite3 e `f24_versamenti` in foodcost.db.
     """
+    _require_admin(current_user, "l'import paghe")
     import sqlite3
     from pathlib import Path as _Path
     from app.utils.locale_data import locale_data_path
@@ -3015,6 +3129,7 @@ def costi_mensili(
     Se anno/mese non passati → mese corrente.
     Se per il mese non c'è ELAB → ritorna `costo_consuntivo=null` (UI mostrerà "non importato").
     """
+    _require_admin(current_user, "i costi del personale")
     from datetime import date as _date
     import sqlite3
     from app.utils.locale_data import locale_data_path
@@ -3200,6 +3315,7 @@ def stato_import_mensile_paghe(
       - f24:  numero righe in `f24_versamenti` con `mese_competenza = X` AND `anno_competenza = anno`
     Schema risposta: {anno, mesi: [{mese, lul, elab, elab_inail, f24}, ...]}
     """
+    _require_admin(current_user, "l'import paghe")
     from datetime import date as _date
     from pathlib import Path as _Path
     import sqlite3
@@ -3297,6 +3413,7 @@ def auto_create_dipendenti_mancanti(
 
     Ritorna {creati: [...], record_collegati, ancora_orfani}.
     """
+    _require_admin(current_user, "l'import paghe")
     conn = get_dipendenti_conn()
     creati = []
     record_collegati = 0
@@ -3399,6 +3516,7 @@ def rematch_dipendenti_consuntivo(
     Ritorna {tentati, abbinati_ora, ancora_null}.
     Esclude le righe sintetiche AZIENDA (matricola='AZIENDA', dipendente_id resta NULL).
     """
+    _require_admin(current_user, "l'import paghe")
     conn = get_dipendenti_conn()
     try:
         # Tutti i record orfani (escluse righe sintetiche AZIENDA)

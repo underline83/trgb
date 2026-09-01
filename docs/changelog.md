@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-09-01 — Le buste paga le vede solo chi deve `[core]`
+
+Chi lavora in osteria entrava nel modulo Dipendenti per guardare i turni e si trovava lì, nella barra in alto, il tab **Buste Paga**. Un clic e leggeva i cedolini di tutti. Sotto, l'anagrafica restituiva IBAN e codici fiscali a chiunque fosse loggato, con qualsiasi ruolo.
+
+**Adesso** sommelier, sala, cucina vedono un tab solo: **Turni**. Il foglio settimana si apre in sola lettura — i turni della squadra si guardano, non si toccano — con una targhetta «👁️ Sola lettura» che lo dice chiaro. Buste paga, costi, scadenze documenti, anagrafica e la comunicazione al Ministero per gli intermittenti restano a te.
+
+**La differenza vera è sotto il cofano.** Prima la protezione era solo grafica: nascondeva la voce di menu, ma l'indirizzo web funzionava lo stesso per chiunque lo conoscesse. Ora sono i **57 controlli nel motore** a rifiutare la richiesta, e la pagina nascosta è solo la cortesia in cima. Anche l'elenco del personale, che serve alle viste turni per i nomi, adesso a chi non è amministratore arriva senza IBAN, codice fiscale, telefono, email e indirizzo.
+
+**Una cosa da sapere:** il **contabile** perde l'accesso a buste paga e costi — è la scelta che hai fatto. Se dal Conto Economico clicca la riga stipendi, torna alla Home.
+
+**Controllando il resto della casa** è venuto fuori che il problema non era solo qui: su 836 indirizzi del gestionale, 636 sono ancora aperti a chiunque abbia una password valida, e 3 sono aperti pure senza. Il quadro completo, ordinato per danno, sta in `docs/audit_permessi_2026-09-01.md`.
+
 ## 2026-09-01 — Quando la bottiglia in mescita finisce, il vino esce davvero dalla carta `[core]`
 
 Aprivi un vino per i calici, e finita la bottiglia cliccavi la ✕ sui vini aperti. Spariva il tag **«in mescita»**, ma il vino restava nella sezione **Al calice** della carta. Con un prezzo al calice per un calice che non c'è più.

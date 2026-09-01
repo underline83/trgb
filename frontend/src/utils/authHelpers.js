@@ -22,6 +22,23 @@ export function isViniManagerRole(role) {
 }
 
 /**
+ * True per i ruoli che possono SCRIVERE sui turni (assegnare, modificare,
+ * cancellare, copiare settimana, pubblicare, gestire i template).
+ * Specchio esatto di `RUOLI_SCRITTURA_TURNI` in app/routers/turni_router.py
+ * e app/routers/dipendenti.py: admin, superadmin.
+ *
+ * NON usare `isAdminRole` qui: quella include `contabile`, che il backend
+ * esclude → il bottone comparirebbe e la chiamata tornerebbe 403.
+ * La LETTURA del foglio resta aperta a tutti i ruoli che vedono il modulo.
+ *
+ * Se domani il responsabile di sala deve compilare il foglio, aggiungere
+ * "sala" QUI e nelle due costanti backend: sono i tre punti da toccare.
+ */
+export function isTurniWriterRole(role) {
+  return role === "admin" || role === "superadmin";
+}
+
+/**
  * True solo se l'utente è superadmin E ha la modalità gestione attiva.
  * Usare per funzioni riservate come preconti.
  *

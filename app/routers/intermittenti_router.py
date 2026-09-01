@@ -25,9 +25,25 @@ from fastapi.responses import JSONResponse, Response
 
 from app.services import email_service
 from app.services import uni_intermittenti_service as uni
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 
 router = APIRouter(prefix="/intermittenti", tags=["Intermittenti"])
+
+
+# ============================================================
+# PERMESSI (2026-09-01) — Modulo: dipendenti
+# ============================================================
+# Tutti gli endpoint erano aperti a qualsiasi ruolo autenticato, compreso
+# POST /intermittenti/comunica/ che manda la comunicazione UNI al Ministero:
+# un atto legale a nome dell'azienda, che partiva col token di un commis.
+# Qui e' tutto admin, senza distinzione lettura/scrittura — l'elenco lavoratori
+# contiene codici fiscali e codici comunicazione.
+def _require_admin(user, cosa: str = "le comunicazioni intermittenti") -> None:
+    if not is_admin((user or {}).get("role") or ""):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Accesso riservato agli amministratori ({cosa}).",
+        )
 
 
 # ═════════════════════════════════════════════
@@ -37,6 +53,7 @@ router = APIRouter(prefix="/intermittenti", tags=["Intermittenti"])
 @router.get("/settings/")
 def get_settings_ep(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Parametri di invio + stato del canale email (M.D)."""
+    _require_admin(current_user)
     return {"settings": uni.get_settings(), "smtp": email_service.stato()}
 
 
@@ -45,6 +62,7 @@ def put_settings_ep(
     payload: Dict[str, str] = Body(...),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user)
     return {"ok": True, "settings": uni.set_settings(payload)}
 
 
@@ -61,6 +79,7 @@ def lavoratori_ep(
     (contratto ex art. 15 D.Lgs 81/2015); `a_chiamata` è un'altra cosa —
     l'extra del turismo pagato a ore — e non fa scattare nessuna comunicazione.
     """
+    _require_admin(current_user)
     return {"lavoratori": uni.lavoratori(solo_intermittenti=solo_intermittenti)}
 
 
@@ -78,6 +97,7 @@ def da_comunicare_ep(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Cosa andrebbe comunicato nel periodo, come sarebbe spezzato in moduli, e cosa non torna."""
+    _require_admin(current_user)
     try:
         out = uni.chiamate_da_comunicare(dal, al, reparto_id)
     except ValueError as e:
@@ -102,6 +122,7 @@ def comunica_ep(
     Un modulo per email è un vincolo, non una scelta di stile: con più allegati
     l'invio sembra riuscito ma i moduli non entrano a sistema (INL 8716/2019).
     """
+    _require_admin(current_user)
     dal, al = payload.get("dal"), payload.get("al")
     if not dal or not al:
         raise HTTPException(status_code=400, detail="Servono 'dal' e 'al' (YYYY-MM-DD)")
@@ -141,6 +162,7 @@ def test_email_ep(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Prova le credenziali SMTP mandando un messaggio innocuo a un indirizzo nostro."""
+    _require_admin(current_user)
     to = (payload.get("to") or "").strip()
     if not to:
         raise HTTPException(status_code=400, detail="Serve 'to'")
@@ -156,6 +178,7 @@ def registro_ep(
     limit: int = Query(100, ge=1, le=500),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user)
     return {"comunicazioni": uni.registro(limit=limit)}
 
 
@@ -168,6 +191,7 @@ def allegato_ep(
     Scarica l'XML archiviato. Il Ministero non manda ricevute: questo file, con
     la copia .eml accanto, È la prova di aver adempiuto.
     """
+    _require_admin(current_user)
     try:
         nome, contenuto = uni.allegato(comunicazione_id)
     except ValueError as e:
@@ -186,6 +210,7 @@ def annulla_ep(
     comunicazione_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_admin(current_user)
     try:
         out = uni.annulla(comunicazione_id, utente=(current_user or {}).get("username"))
     except ValueError as e:

@@ -153,7 +153,10 @@ const MODULES_MENU = {
     title: "Dipendenti", icon: "\uD83D\uDC65", go: "/dipendenti",
     color: "bg-purple-50 border-purple-200 text-purple-900", hoverBg: "hover:bg-purple-50",
     sub: [
-      { label: "Dashboard",     go: "/dipendenti/dashboard" },
+      // `sub` esplicito: il path dice "dashboard", che non è un sotto-modulo di
+      // modules.json. La dashboard mostra il netto delle buste paga del mese,
+      // quindi eredita quel permesso (vedi App.jsx).
+      { label: "Dashboard",     go: "/dipendenti/dashboard",     sub: "buste-paga", check: "admin" },
       { label: "Anagrafica",    go: "/dipendenti/anagrafica",    check: "admin" },
       { label: "Buste Paga",    go: "/dipendenti/buste-paga",    check: "admin" },
       { label: "Turni",         go: "/dipendenti/turni" },

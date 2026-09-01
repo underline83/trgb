@@ -129,8 +129,13 @@ export default function Header({ onLogout }) {
       const titleMatch = !q || norm(cfg.title).includes(q);
       // Filtra sub per permessi (canAccessSub)
       const accessibleSubs = (cfg.sub || []).filter(s => {
+        // La chiave del sotto-modulo si deduce dal path (secondo segmento), ma
+        // quando il path non corrisponde a un sub di modules.json la voce
+        // dichiara `sub` esplicito. Senza, `canAccessSub` non trova la chiave e
+        // ricade sui permessi del MODULO: la voce resta visibile a tutti e poi
+        // la route rimbalza a Home. Era il caso di Dipendenti → Dashboard.
         const pathParts = s.go.replace(/\?.*$/, "").split("/").filter(Boolean);
-        const subKey = pathParts.length > 1 ? pathParts[1] : null;
+        const subKey = s.sub || (pathParts.length > 1 ? pathParts[1] : null);
         return subKey ? canAccessSub(key, subKey) : true;
       });
       // Filtra sub per query

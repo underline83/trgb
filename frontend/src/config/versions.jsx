@@ -188,7 +188,11 @@ const MODULE_VERSIONS = {
     //   annullamento, checker M.F a 48h. Migrazione 156.
     // 2.31 (2026-08-03): multi-reparto — chi lavora in piu' reparti compare in
     //   ogni foglio, e ogni turno finisce nel foglio del reparto del suo tipo.
-    version: "2.31",
+    // 2.32 (2026-09-01): permessi. 57 guardie di ruolo sui 4 router del modulo
+    //   (prima: qualsiasi ruolo autenticato leggeva buste paga, IBAN e codici
+    //   fiscali), sub= sulle route, tab filtrati, Foglio Settimana in sola
+    //   lettura per chi non e' admin. Vedi modulo_dipendenti.md §9.
+    version: "2.32",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
