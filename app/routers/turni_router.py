@@ -29,7 +29,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
-from app.services.auth_service import get_current_user, is_admin
+from app.services.auth_service import get_current_user
+from app.services.permessi import verifica_ruoli
 from app.services import turni_service
 
 
@@ -59,24 +60,14 @@ init_dipendenti_db()
 RUOLI_SCRITTURA_TURNI = ("admin", "superadmin")
 
 
-def _role_of(user) -> str:
-    return (user or {}).get("role") or ""
-
-
+# Entrambe delegano a M.G (app/services/permessi.py): un solo posto dove
+# vive la logica del 403, qui restano i nomi parlanti del router.
 def _require_turni_write(user) -> None:
-    if _role_of(user) not in RUOLI_SCRITTURA_TURNI:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo un amministratore puo' modificare i turni.",
-        )
+    verifica_ruoli(user, *RUOLI_SCRITTURA_TURNI, cosa="la modifica dei turni")
 
 
 def _require_admin(user, cosa: str = "questa sezione") -> None:
-    if not is_admin(_role_of(user)):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Accesso riservato agli amministratori ({cosa}).",
-        )
+    verifica_ruoli(user, "admin", cosa=cosa)
 
 
 # ============================================================

@@ -23,7 +23,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
-from app.services.auth_service import get_current_user, is_admin
+from app.services.auth_service import get_current_user
+from app.services.permessi import verifica_ruoli
 
 
 router = APIRouter(prefix="/reparti", tags=["Reparti"])
@@ -39,11 +40,7 @@ init_dipendenti_db()
 # SCRITTURA admin: i reparti sono la struttura organizzativa su cui poggiano
 # turni e task, non un dato da lasciare modificabile a chiunque sia loggato.
 def _require_admin(user, cosa: str = "la gestione reparti") -> None:
-    if not is_admin((user or {}).get("role") or ""):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Accesso riservato agli amministratori ({cosa}).",
-        )
+    verifica_ruoli(user, "admin", cosa=cosa)  # M.G — app/services/permessi.py
 
 
 # ============================================================

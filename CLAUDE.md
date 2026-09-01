@@ -120,6 +120,7 @@ Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste
 - **M.C WA composer** (sessione 31):
   - Frontend: `import { openWhatsApp, buildWaLink, fillTemplate, WA_TEMPLATES } from "../utils/whatsapp"`. MAI costruire `wa.me/` a mano.
   - Backend: `from app.utils.whatsapp import build_wa_link, normalize_phone, fill_template`. MAI fare `.replace(" ","").replace("-","")` sul telefono a mano.
+- **M.G Permessi — fase 1** (2026-09-01): `from app.services.permessi import richiede_ruoli, solo_admin, verifica_ruoli, ha_ruoli`. **Ogni endpoint nuovo dichiara chi puo' chiamarlo.** `Depends(get_current_user)` da solo NON e' un permesso: e' "qualsiasi ruolo autenticato", viewer compreso. Nella firma `user=Depends(richiede_ruoli("admin","contabile"))`, su tutto il router `APIRouter(dependencies=[Depends(solo_admin())])`, nel corpo `verifica_ruoli(user, "admin", cosa="...")`. MAI riscrivere un `if role != "admin"` a mano. `superadmin` e' implicito dove c'e' `admin`; i nomi ruolo sono validati al boot. Se non sai quale ruolo va su un endpoint nuovo, CHIEDI a Marco. Contesto: `docs/audit_permessi_2026-09-01.md`.
 - **M.B PDF brand**: DA FARE. Quando serve generare PDF, attendere questo mattone.
 - **M.D Email service**: DA FARE. Quando serve inviare email, attendere questo mattone.
 - **M.E Calendar component**: DA FARE. Quando serve vista calendario, attendere questo mattone.

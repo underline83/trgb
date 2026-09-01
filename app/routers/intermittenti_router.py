@@ -25,7 +25,8 @@ from fastapi.responses import JSONResponse, Response
 
 from app.services import email_service
 from app.services import uni_intermittenti_service as uni
-from app.services.auth_service import get_current_user, is_admin
+from app.services.auth_service import get_current_user
+from app.services.permessi import verifica_ruoli
 
 router = APIRouter(prefix="/intermittenti", tags=["Intermittenti"])
 
@@ -39,11 +40,7 @@ router = APIRouter(prefix="/intermittenti", tags=["Intermittenti"])
 # Qui e' tutto admin, senza distinzione lettura/scrittura — l'elenco lavoratori
 # contiene codici fiscali e codici comunicazione.
 def _require_admin(user, cosa: str = "le comunicazioni intermittenti") -> None:
-    if not is_admin((user or {}).get("role") or ""):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Accesso riservato agli amministratori ({cosa}).",
-        )
+    verifica_ruoli(user, "admin", cosa=cosa)  # M.G — app/services/permessi.py
 
 
 # ═════════════════════════════════════════════

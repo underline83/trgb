@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-09-01 — Il listino dei costi non è più su internet `[core]`
+
+Due indirizzi del gestionale rispondevano **a chiunque, senza password**: restituivano l'elenco completo degli ingredienti con l'ultimo prezzo pagato a ogni fornitore. Il tuo listino costi, leggibile da un browser qualsiasi. Non li usava nessuno — né il gestionale né tu — erano rimasti aperti da quando il modulo food cost è nato. Chiusi. Un terzo indirizzo, un vecchio menu per ruolo che nessuna pagina apriva più, è chiuso anche lui: l'ho lasciato al suo posto invece di cancellarlo, buttare via un pezzo di codice è una decisione tua.
+
+**E ho costruito il pezzo che mancava.** Fino a ieri, ogni volta che si doveva dire «questo lo fa solo l'amministratore», il controllo si riscriveva a mano nel punto in cui serviva: otto versioni diverse della stessa cosa, sparse per il gestionale, ognuna con la sua possibilità di sbagliare. Adesso c'è un posto solo dove si dichiara chi può fare cosa. Proteggere una funzione è diventata una riga.
+
+Con un dettaglio che vale il lavoro: se qualcuno scrive male il nome di un ruolo — «sommellier» invece di «sommelier» — il gestionale **si rifiuta di partire** e dice dov'è l'errore. Prima un errore così passava inosservato e lasciava la porta aperta, senza che niente lo segnalasse.
+
+Non risolve il resto della casa, che resta da fare modulo per modulo. Ma da qui in avanti il lavoro è applicare una regola, non inventarla ogni volta.
+
 ## 2026-09-01 — Le buste paga le vede solo chi deve `[core]`
 
 Chi lavora in osteria entrava nel modulo Dipendenti per guardare i turni e si trovava lì, nella barra in alto, il tab **Buste Paga**. Un clic e leggeva i cedolini di tutti. Sotto, l'anagrafica restituiva IBAN e codici fiscali a chiunque fosse loggato, con qualsiasi ruolo.

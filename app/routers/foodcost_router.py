@@ -15,17 +15,34 @@ DB: foodcost.db (vedi docs/database-foodcost.md)
 
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.repositories.foodcost_repository import (
     fetch_ingredients_with_last_price,
     fetch_ingredient_cost_summary,
 )
+from app.services.permessi import richiede_ruoli
 
 # N.B.: il prefisso "/foodcost" viene aggiunto in main.py:
 # app.include_router(foodcost_router.router, prefix="/foodcost", tags=["foodcost"])
-router = APIRouter()
+#
+# PERMESSI (2026-09-01, M.G) — Modulo: ricette
+# Questo router era `APIRouter()` nudo: nessun `Depends`, nessuna
+# `dependencies=`, e main.py non ne aggiunge. Risultato: i suoi due endpoint
+# erano PUBBLICI su internet — l'ultimo prezzo pagato di ogni ingrediente
+# attivo, cioe' il listino costi dei fornitori, senza nemmeno un token.
+# Trovati dall'audit 2026-09-01 (docs/audit_permessi_2026-09-01.md §2).
+# Ruoli allineati al sotto-modulo `ricette/ingredienti` di modules.json.
+# Nessun chiamante, ne' frontend ne' backend: chiuderli non rompe niente.
+router = APIRouter(
+    dependencies=[
+        Depends(richiede_ruoli(
+            "admin", "chef", "sous_chef", "commis",
+            cosa="i costi degli ingredienti",
+        ))
+    ]
+)
 
 
 # ─────────────────────────────

@@ -33,9 +33,9 @@ Nessun token richiesto, raggiungibili da internet.
 
 | File:riga | Endpoint | Cosa espone |
 |---|---|---|
-| `foodcost_router.py:65` | `GET /foodcost/ingredienti` | Tutti gli ingredienti attivi con l'ultimo prezzo pagato. È il listino costi fornitori. Il router è un `APIRouter()` nudo, senza `dependencies=`. |
-| `foodcost_router.py:92` | `GET /foodcost/ingredient/{id}` | Ultimo prezzo + medie 30/90 giorni, enumerabile per id. |
-| `menu_router.py:13` | `GET /menu/?role=X` | Dict statico hardcoded con ruoli obsoleti. Codice morto: da cancellare, non da proteggere. |
+| `foodcost_router.py:65` | `GET /foodcost/ingredienti` | Tutti gli ingredienti attivi con l'ultimo prezzo pagato. È il listino costi fornitori. Il router era un `APIRouter()` nudo, senza `dependencies=`. **→ CHIUSO 2026-09-01** (ruoli di `ricette/ingredienti`). |
+| `foodcost_router.py:92` | `GET /foodcost/ingredient/{id}` | Ultimo prezzo + medie 30/90 giorni, enumerabile per id. **→ CHIUSO 2026-09-01.** |
+| `menu_router.py:13` | `GET /menu/?role=X` | Dict statico hardcoded con ruoli obsoleti. Codice morto. **→ CHIUSO ad admin 2026-09-01**, marcato `deprecated`; la cancellazione del file + del mount in `main.py` resta una decisione di Marco. |
 
 Pubblici **per disegno** (corretti così): `/auth/login`, `/auth/tiles`, `/menu-carta/public/today`, le 5 rotte della carta vini cliente da QR, i 2 health di pranzo.
 
@@ -76,7 +76,7 @@ Letture non protette dove la scrittura invece lo è: `preventivi_router` (8/30 �
 2. **La matrice permessi vive solo nel frontend.** `modules.json` nasconde, non chiude.
 3. **Il seed dei permessi è in drift.** `MODULES_SEED_FILE = locale_data_path("modules.json")` punta a `locali/tregobbi/data/modules.json`, che **non esiste**. L'unico file presente è `app/data/modules.json`, ormai orfano: il seed effettivo è `DEFAULT_MODULES` hardcoded in `modules_router.py:65`, che diverge dal file su 13 voci (mancano `ricette/spesa`, `ricette/pranzo`, `ricette/cucina_dashboard`, tutto `tasks`, `vini/anagrafiche`; non conosce `sous_chef`/`commis` su Ricette). **Conseguenza operativa:** aggiungere un sotto-modulo nuovo ad `app/data/modules.json` oggi non ha effetto in produzione. Finché il seed non è riparato, usare solo chiavi `sub` già esistenti.
 4. **Il pattern corretto esiste ma è confinato ai router recenti.** Copertura piena: `tasks_router` (21/21), `bevande_router` (17/17), `users_router`, `backup_router`, `email_router`, `pubblicazione_router`. I router finanziari sono i più vecchi e i più scoperti.
-5. **Otto helper di guardia reinventati in casa** (`_require_admin`, `_solo_admin`, `_check_admin`, `check_admin_role`, `check_allowed_role`, `_require_manager`, `_require_editor`, `_require_admin_or_chef`), uno per router. Manca una dependency riutilizzabile tipo `Depends(require_roles("admin","contabile"))` — è il mattone **M.G permessi**, previsto e mai costruito. È l'unico modo per rendere il default sicuro invece che opt-in.
+5. ~~**Otto helper di guardia reinventati in casa**~~ **→ RISOLTO in fase 1 il 2026-09-01** con `app/services/permessi.py` (M.G). Il testo originale resta come contesto:  **Otto helper di guardia reinventati in casa** (`_require_admin`, `_solo_admin`, `_check_admin`, `check_admin_role`, `check_allowed_role`, `_require_manager`, `_require_editor`, `_require_admin_or_chef`), uno per router. Manca una dependency riutilizzabile tipo `Depends(require_roles("admin","contabile"))` — è il mattone **M.G permessi**, previsto e mai costruito. È l'unico modo per rendere il default sicuro invece che opt-in.
 6. **Asimmetria lettura/scrittura al contrario.** Dove un check esiste, protegge la scrittura e lascia aperta la lettura. Ma i dati con esposizione reale — PII clienti, buste paga, conto corrente — sono un problema in **lettura**.
 
 > Nota storica: `banca_router` e `fe_import` erano già CRIT nell'[audit 2026-06-12](audit-2026-06-12/00_EXECUTIVE_SUMMARY.md) come "pubblici senza auth". L'autenticazione è stata aggiunta a livello router, il ruolo no: il fix di allora si è fermato a metà.
@@ -85,7 +85,19 @@ Letture non protette dove la scrittura invece lo è: `preventivi_router` (8/30 �
 
 # 5. Cosa è stato sistemato il 2026-09-01
 
-Solo il modulo **Dipendenti** (4 router, 59 guardie). Dettaglio in [modulo_dipendenti.md §9](modulo_dipendenti.md).
+## 5.0 M.G fase 1 — la guardia riutilizzabile
+
+`app/services/permessi.py`. Proteggere un endpoint ora è una riga, in quattro forme (dependency nella firma, `dependencies=` sul router, chiamata imperativa nel corpo, `ha_ruoli()` per decidere *cosa* restituire invece che *se*). `superadmin` implicito dove c'è `admin`; nomi ruolo validati all'import, così un typo fa fallire il boot invece di aprire una porta in silenzio. Dettaglio e esempi in [architettura_mattoni.md §M.G](architettura_mattoni.md).
+
+Non rende sicuro niente da solo: toglie la scusa. La fase 2 (matrice configurabile da UI) cambierà l'implementazione, non le chiamate già scritte.
+
+## 5.1 I 3 endpoint pubblici
+
+`foodcost_router` chiuso ai ruoli di `ricette/ingredienti` (admin, superadmin, chef, sous_chef, commis) via `dependencies=` sul router: non aveva chiamanti, né frontend né backend. `menu_router` chiuso ad admin e marcato `deprecated` invece che cancellato — rimuovere un router è una decisione di Marco, non un effetto collaterale di un fix di sicurezza.
+
+## 5.2 Il modulo Dipendenti
+
+4 router, 59 guardie. Dettaglio in [modulo_dipendenti.md §9](modulo_dipendenti.md). I quattro router mantengono i loro `_require_admin()` / `_require_turni_write()` come nomi parlanti, ma il corpo delega a M.G: la logica del 403 vive in un posto solo.
 
 | File | Guardie | Criterio |
 |---|---|---|
@@ -104,8 +116,8 @@ Ordine proposto — per danno, non per fatica.
 
 | # | Cosa | Perché prima |
 |---|---|---|
-| 1 | I 3 pubblici per errore (`foodcost_router` ×2, cancellare `menu_router`) | Non serve nemmeno un account |
-| 2 | Costruire **M.G** — `require_roles()` come dependency FastAPI | Senza, ogni fix successivo è un'altra guardia scritta a mano |
+| 1 | ~~I 3 pubblici per errore~~ ✅ **FATTO 2026-09-01** | Non serviva nemmeno un account |
+| 2 | ~~Costruire **M.G**~~ ✅ **FASE 1 FATTA 2026-09-01** — `app/services/permessi.py` | Senza, ogni fix successivo era un'altra guardia scritta a mano |
 | 3 | `clienti_router` + `prenotazioni_router` | PII di 5.900 persone, GDPR |
 | 4 | `banca_router` + `banca_carta_router` + `controllo_gestione_router` + `cg_utenze_router` | Conto corrente e scrittura IBAN |
 | 5 | `fe_import` + `fattureincloud_router` + `admin_finance` + `chiusure_turno` + `statistiche_router` | Dati fiscali, token FIC, corrispettivi |

@@ -323,9 +323,17 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.41 (2026-09-01): M.G fase 1 — app/services/permessi.py, guardie di
+    //   ruolo riutilizzabili (richiede_ruoli/solo_admin/verifica_ruoli/
+    //   ha_ruoli). superadmin implicito dove c'e' admin, nomi ruolo validati
+    //   all'import (un typo fa fallire il boot, non apre una porta).
+    //   Chiusi i 3 endpoint PUBBLICI trovati dall'audit: /foodcost/ingredienti
+    //   e /foodcost/ingredient/{id} (listino costi fornitori, senza token) +
+    //   /menu/ legacy, ora admin e deprecated. Vedi docs/audit_permessi_2026-09-01.md.
+    //   NB: il file VERSION era rimasto a 5.39 mentre qui c'era 5.40 — riallineati.
     // 5.40 (2026-08-03): canale email configurabile dal gestionale
     //   (Impostazioni Sistema → Email), password cifrata, .env come fallback.
-    version: "5.40",
+    version: "5.41",
     label: "Sistema",
     status: "stabile",
     color: "green",

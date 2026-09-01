@@ -14,7 +14,8 @@
 - ✅ **M.F Alert engine** (sessione 40) — `app/services/alert_engine.py` + `app/routers/alerts_router.py`. 3 checker: fatture scadenza, dipendenti documenti, vini sottoscorta. Trigger automatico da dashboard, anti-duplicato 12-24h. Genera notifiche via M.A.
 - ✅ **M.I UI primitives** (sessione 2026-04-18) — `frontend/src/components/ui/`: `<Btn>`, `<PageLayout>`, `<StatusBadge>`, `<EmptyState>`. Opt-in per pagine nuove.
 - ✅ **M.E Calendar** (sessione 48, 2026-04-19) — `frontend/src/components/calendar/`: `<CalendarView>` stateless controllato con 3 viste (mese/settimana/giorno), palette brand, tastiera ←/→/T/M/S/G, demo su `/calendario-demo` (admin only). Spec: [`docs/mattone_calendar.md`](mattone_calendar.md).
-- ⏳ M.G Permessi, M.H Import engine — DA FARE
+- 🟡 **M.G Permessi — FASE 1 FATTA** (2026-09-01) — `app/services/permessi.py`: `richiede_ruoli()` / `solo_admin()` / `solo_superadmin()` come dependency FastAPI, `verifica_ruoli()` / `ha_ruoli()` in forma imperativa. `superadmin` implicito dove c'è `admin`; i nomi ruolo sono **validati all'import**, così un typo fa fallire il boot invece di aprire una porta in silenzio. Sostituisce gli 8 helper reinventati router per router. **Manca** la fase 2 (matrice ruolo × azione configurabile da UI + `<CanDo>` lato frontend): quando arriverà cambierà l'implementazione, non le chiamate. Nato dall'[audit permessi 2026-09-01](audit_permessi_2026-09-01.md).
+- ⏳ M.H Import engine — DA FARE
 - ✅ **M.J Pubblicazione web** (sessione 2026-08-03) — `app/services/ftp_publish_service.py` + `app/routers/pubblicazione_router.py` + `frontend/src/components/PubblicaSulSito.jsx`. Carica i PDF pubblici (menu pranzo, carta vini) sull'FTP dell'hosting con nome fisso e upload atomico. Config in `.env` sul VPS.
 - 🟡 **M.D Email service — PARZIALE** (sessione 2026-07-30): lo strato basso c'è, `app/services/email_service.py` (SMTP da .env, allegati, esito + `.eml` per archivio, email di prova). L'ha sbloccato il primo workflow che lo rendeva bloccante: la comunicazione UNI-Intermittenti si trasmette solo via email. **Manca ancora** il M.D pieno: template HTML brandizzati, coda/retry, invio asincrono. Vedi [`modulo_intermittenti.md`](modulo_intermittenti.md) e [`roadmap.md`](roadmap.md) §M.
 
@@ -175,13 +176,45 @@ import { CalendarView } from "../../components/calendar";
 
 ### M.G — Sistema permessi (backend + frontend)
 
-**Cosa:** matrice centralizzata ruolo × azione, sostituisce i check hardcoded per componente.
-**Backend:** middleware `check_permission(azione)` + tabella/config matrice permessi
-**Frontend:** hook `usePermissions()` + componente `<CanDo action="modulo.azione">` wrapper
-**Effort:** M (1 sessione)
-**Roadmap:** 8.7
+**Chi lo usa:** TUTTI i moduli.
 
-**Chi lo usa:** TUTTI i moduli. Oggi ogni componente ha il suo `if (ruolo === 'admin')`. Con M.G si centralizza e diventa configurabile senza toccare il codice.
+#### Fase 1 — guardie riutilizzabili ✅ FATTA (2026-09-01)
+
+**File:** `app/services/permessi.py`. **Origine:** [audit permessi 2026-09-01](audit_permessi_2026-09-01.md) — 636 endpoint su 836 fermi a `Depends(get_current_user)` (= qualsiasi ruolo autenticato) e 8 helper di guardia diversi, uno per router.
+
+```python
+from app.services.permessi import richiede_ruoli, solo_admin, verifica_ruoli, ha_ruoli
+
+# 1. Su un endpoint, senza bisogno dell'utente nel corpo
+@router.delete("/{id}", dependencies=[Depends(solo_admin())])
+
+# 2. Nella firma, quando l'utente serve
+def crea(payload: X, user=Depends(richiede_ruoli("admin", "contabile"))):
+
+# 3. Su tutto il router — il default diventa chiuso
+router = APIRouter(prefix="/banca", dependencies=[Depends(solo_admin())])
+
+# 4. Dentro il corpo, quando il permesso dipende da un dato a runtime
+verifica_ruoli(user, "admin", cosa="i costi del personale")
+
+# 5. Per decidere COSA restituire invece che SE (payload ridotto ai non-admin)
+if not ha_ruoli(user, "admin"): righe = spoglia(righe)
+```
+
+Due scelte da conoscere:
+- **`superadmin` è implicito ovunque compaia `admin`** — specchio di `is_admin()` e di `roleMatch()` nel frontend. Dimenticarlo taglierebbe fuori il superadmin.
+- **I nomi ruolo sono validati all'import**, contro `VALID_ROLES`: `richiede_ruoli("sommellier")` fa fallire il boot con un messaggio chiaro. È il vantaggio pratico principale su un `if` scritto a mano, dove un typo diventa un permesso che non matcha mai — o, in un `not in` scritto male, una porta aperta silenziosa.
+
+**Chi lo usa già:** `foodcost_router`, `menu_router`, e i 4 router del modulo Dipendenti (`dipendenti`, `turni_router`, `intermittenti_router`, `reparti`), che mantengono i loro `_require_admin()` come nomi parlanti ma delegano qui la logica del 403.
+
+#### Fase 2 — matrice configurabile ⏳ DA FARE
+
+**Cosa:** matrice ruolo × azione modificabile da UI, senza toccare il codice.
+**Backend:** tabella/config matrice + `check_permission(azione)` che sostituisce l'implementazione della fase 1.
+**Frontend:** hook `usePermissions()` + wrapper `<CanDo action="modulo.azione">`.
+**Effort:** M (1 sessione). **Roadmap:** 8.7.
+
+Le chiamate scritte in fase 1 non cambiano: cambia cosa c'è dentro `verifica_ruoli`.
 
 ---
 

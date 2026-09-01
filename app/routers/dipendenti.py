@@ -30,7 +30,8 @@ from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
-from app.services.auth_service import get_current_user, is_admin
+from app.services.auth_service import get_current_user
+from app.services.permessi import ha_ruoli, verifica_ruoli
 from app.utils.locale_data import locale_data_path
 
 # R6.5 — path tenant-aware per cross-DB query verso foodcost.db
@@ -80,30 +81,20 @@ CAMPI_ANAGRAFICA_RISERVATI = (
 )
 
 
-def _role_of(user) -> str:
-    return (user or {}).get("role") or ""
-
-
 def _require_admin(user, cosa: str = "questa sezione") -> None:
     """403 se l'utente non e' admin/superadmin.
 
     Va su tutto cio' che tocca dati personali o retributivi: anagrafica,
     buste paga, cedolini PDF, documenti, scadenze, costi, impostazioni.
+    Delega a M.G (app/services/permessi.py): la logica del 403 sta in un
+    posto solo, questo resta come nome parlante dentro il router.
     """
-    if not is_admin(_role_of(user)):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Accesso riservato agli amministratori ({cosa}).",
-        )
+    verifica_ruoli(user, "admin", cosa=cosa)
 
 
 def _require_turni_write(user) -> None:
     """403 se l'utente non puo' scrivere sui turni. Vedi RUOLI_SCRITTURA_TURNI."""
-    if _role_of(user) not in RUOLI_SCRITTURA_TURNI:
-        raise HTTPException(
-            status_code=403,
-            detail="Solo un amministratore puo' modificare i turni.",
-        )
+    verifica_ruoli(user, *RUOLI_SCRITTURA_TURNI, cosa="la modifica dei turni")
 
 
 def _spoglia_anagrafica(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -402,7 +393,7 @@ def list_dipendenti(
     `include_inactive` resta riservato agli admin: l'elenco degli ex dipendenti
     non serve a chi guarda i turni.
     """
-    solo_admin = is_admin(_role_of(current_user))
+    solo_admin = ha_ruoli(current_user, "admin")
     if include_inactive and not solo_admin:
         include_inactive = False
 
