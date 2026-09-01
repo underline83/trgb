@@ -387,7 +387,8 @@ Turni v2 completato in parallelo (vedi `modulo_dipendenti_turni.md`). Aggiunte n
 | Anagrafica (scrittura) | **admin + superadmin** | |
 | Anagrafica (lettura, `GET /dipendenti/`) | tutti i ruoli del modulo, **ridotta** | Le viste turni hanno bisogno dei nomi. Ai non-admin l'endpoint toglie i campi di `CAMPI_ANAGRAFICA_RISERVATI` (iban, codice_fiscale, telefono, email, indirizzi, note, codice_comunicazione, is_amministratore) e ignora `include_inactive`. |
 | Turni — lettura (foglio, mese, per dipendente, PDF, assenze, conflitti) | tutti i ruoli del modulo | Decisione Marco: il personale vede i turni di tutti, non solo i propri. |
-| Turni — scrittura (assegna, modifica, cancella, copia settimana, template, pubblica) | **admin + superadmin** | |
+| Turni — scrittura (assegna, modifica, cancella, copia settimana, pubblica) | **admin + superadmin** | |
+| Template settimana tipo — anche le GET | **admin + superadmin** | Strumento di redazione del foglio, non informazione di servizio. |
 | `/turni/riepilogo-dipendenti` | **admin + superadmin** | Restituisce i telefoni per l'invio WhatsApp. |
 | `/turni/miei-turni` | qualsiasi ruolo autenticato | Self-service: risolve l'utente loggato sul suo `dipendente_id`, non può leggere quelli degli altri. |
 | Intermittenti (tutti e 9 gli endpoint) | **admin + superadmin** | L'elenco contiene CF e codici comunicazione; `POST /comunica/` manda un atto legale al Ministero. |

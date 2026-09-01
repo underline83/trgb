@@ -924,7 +924,13 @@ def list_templates(
     reparto_id: Optional[int] = Query(None, ge=1),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Lista template attivi (opzionalmente filtrati per reparto)."""
+    """Lista template attivi (opzionalmente filtrati per reparto).
+
+    Admin come le scritture: i template sono uno strumento di redazione del
+    foglio, non un'informazione di servizio. Chiamati solo dal dialog Template,
+    che e' gia' riservato a chi puo' scrivere.
+    """
+    _require_turni_write(current_user)
     return JSONResponse(content={
         "templates": turni_service.lista_templates(reparto_id=reparto_id),
     })
@@ -935,6 +941,7 @@ def get_template(
     template_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    _require_turni_write(current_user)
     tpl = turni_service.get_template_dettaglio(template_id)
     if not tpl:
         raise HTTPException(status_code=404, detail="Template non trovato")

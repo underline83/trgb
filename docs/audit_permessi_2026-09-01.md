@@ -85,12 +85,12 @@ Letture non protette dove la scrittura invece lo è: `preventivi_router` (8/30 �
 
 # 5. Cosa è stato sistemato il 2026-09-01
 
-Solo il modulo **Dipendenti** (4 router, 57 guardie). Dettaglio in [modulo_dipendenti.md §9](modulo_dipendenti.md).
+Solo il modulo **Dipendenti** (4 router, 59 guardie). Dettaglio in [modulo_dipendenti.md §9](modulo_dipendenti.md).
 
 | File | Guardie | Criterio |
 |---|---|---|
 | `dipendenti.py` | 33 | Admin su anagrafica (scrittura), buste paga, cedolini, documenti, scadenze, costi, impostazioni. Lettura turni aperta. `GET /dipendenti/` restituisce ai non-admin la versione senza IBAN/CF/telefono/email/indirizzi/note. |
-| `turni_router.py` | 12 | Scrittura turni admin; 12 letture aperte; `/riepilogo-dipendenti` admin (contiene i telefoni). `/miei-turni` resta self-service. |
+| `turni_router.py` | 14 | Scrittura turni admin (template compresi); 10 letture aperte; `/riepilogo-dipendenti` admin (contiene i telefoni). `/miei-turni` resta self-service. |
 | `intermittenti_router.py` | 9 | Tutto admin: l'elenco contiene CF e la POST scrive al Ministero. |
 | `reparti.py` | 3 | Lettura aperta (serve ai filtri turni), scrittura admin. |
 

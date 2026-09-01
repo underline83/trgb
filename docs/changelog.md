@@ -9,7 +9,7 @@ Chi lavora in osteria entrava nel modulo Dipendenti per guardare i turni e si tr
 
 **Adesso** sommelier, sala, cucina vedono un tab solo: **Turni**. Il foglio settimana si apre in sola lettura — i turni della squadra si guardano, non si toccano — con una targhetta «👁️ Sola lettura» che lo dice chiaro. Buste paga, costi, scadenze documenti, anagrafica e la comunicazione al Ministero per gli intermittenti restano a te.
 
-**La differenza vera è sotto il cofano.** Prima la protezione era solo grafica: nascondeva la voce di menu, ma l'indirizzo web funzionava lo stesso per chiunque lo conoscesse. Ora sono i **57 controlli nel motore** a rifiutare la richiesta, e la pagina nascosta è solo la cortesia in cima. Anche l'elenco del personale, che serve alle viste turni per i nomi, adesso a chi non è amministratore arriva senza IBAN, codice fiscale, telefono, email e indirizzo.
+**La differenza vera è sotto il cofano.** Prima la protezione era solo grafica: nascondeva la voce di menu, ma l'indirizzo web funzionava lo stesso per chiunque lo conoscesse. Ora sono i **59 controlli nel motore** a rifiutare la richiesta, e la pagina nascosta è solo la cortesia in cima. Anche l'elenco del personale, che serve alle viste turni per i nomi, adesso a chi non è amministratore arriva senza IBAN, codice fiscale, telefono, email e indirizzo.
 
 **Una cosa da sapere:** il **contabile** perde l'accesso a buste paga e costi — è la scelta che hai fatto. Se dal Conto Economico clicca la riga stipendi, torna alla Home.
 
