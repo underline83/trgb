@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-09-01 — Quando la bottiglia in mescita finisce, il vino esce davvero dalla carta `[core]`
+
+Aprivi un vino per i calici, e finita la bottiglia cliccavi la ✕ sui vini aperti. Spariva il tag **«in mescita»**, ma il vino restava nella sezione **Al calice** della carta. Con un prezzo al calice per un calice che non c'è più.
+
+**Perché succedeva.** Aprire una bottiglia accendeva due cose invece di una: lo stato del momento (*c'è una bottiglia stappata adesso*) e il flag di anagrafica (*questo vino sta sempre al calice*). La ✕ spegneva solo il primo. Il secondo restava acceso per sempre, e da solo bastava a tenere il vino in carta finché aveva giacenza.
+
+Il flag di anagrafica non serviva nemmeno: la carta al calice prende sia i vini flaggati sia le bottiglie aperte, quindi l'apertura ci entrava già per conto suo.
+
+**Adesso** aprire e chiudere la mescita tocca solo lo stato del momento. Apri → il vino compare al calice; chiudi → esce. Il flag «sempre al calice» resta una tua scelta esplicita in anagrafica, e nessuna apertura estemporanea te lo cambia più alle spalle.
+
+**Una conseguenza voluta:** alla bottiglia successiva ti richiede di nuovo il prezzo del calice — giusto, è una decisione per apertura — ma te lo propone già scritto uguale all'ultima volta.
+
+**Restano da ripulire a mano** le bottiglie rimaste così dalle aperture vecchie (21 nel database al momento del fix, 16 con giacenza: Blauburgunder, Alpi Retiche, Colle dei Pasta, Cretarium, Ribolla Civa…). Si spengono dalla Regia calici o dalla scheda vino togliendo il flag Calice.
+
 ## 2026-08-21 — Cantina mobile: la bottiglia si muove dal telefono `[core]`
 
 La scheda del vino in **Cantina mobile** non è più solo da guardare. In fondo allo schermo, dove arriva il pollice, ci sono tre tasti: **🍷 venduta −1**, **➕ carico**, **✏️ conta**. Se la bottiglia sta in un posto solo, il tasto fa e basta; se sta in due posti, chiede prima da dove — che è poi la stessa domanda che fa il gestionale.

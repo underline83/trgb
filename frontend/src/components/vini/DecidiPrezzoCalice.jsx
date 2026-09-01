@@ -23,15 +23,19 @@ function roundToHalf(v) {
 export default function DecidiPrezzoCalice({
   vino,
   defaultPrezzo,        // numero, già calcolato dal chiamante (PREZZO_CARTA/5 step 0,50)
+  prezzoIniziale,       // opzionale: valore precompilato nel campo (es. prezzo calice
+                        // già deciso in un'apertura precedente). NON sposta le soglie:
+                        // il riferimento per nota obbligatoria resta `defaultPrezzo`.
   onConfirm,            // ({ prezzo: number, nota: string }) => void
   onCancel,             // () => void
 }) {
-  const [prezzo, setPrezzo] = useState(defaultPrezzo);
+  const iniziale = Number(prezzoIniziale) > 0 ? Number(prezzoIniziale) : defaultPrezzo;
+  const [prezzo, setPrezzo] = useState(iniziale);
   const [nota, setNota] = useState("");
   const { get: getSetting } = useViniWidgetSettings();
 
   // Re-set del prezzo se cambia il vino selezionato
-  useEffect(() => { setPrezzo(defaultPrezzo); setNota(""); }, [defaultPrezzo, vino?.id]);
+  useEffect(() => { setPrezzo(iniziale); setNota(""); }, [iniziale, vino?.id]);
 
   const prezzoNum = Number(prezzo);
   const isValid = Number.isFinite(prezzoNum) && prezzoNum > 0;
@@ -67,9 +71,9 @@ export default function DecidiPrezzoCalice({
            onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-bold text-neutral-900 mb-1">🥂 Apri per calice</h3>
         <p className="text-xs text-neutral-500 mb-4">
-          Questo vino <strong>non</strong> è in carta calici (anagrafica
-          <code className="mx-1 px-1 bg-neutral-100 rounded">VENDITA_CALICE ≠ SI</code>).
-          Scegli tu il prezzo per questa apertura.
+          Questo vino <strong>non</strong> è tra quelli sempre al calice.
+          Scegli tu il prezzo per questa apertura: resterà in carta al calice
+          finché la bottiglia è in mescita, e ne esce quando la chiudi.
         </p>
 
         {vino && (

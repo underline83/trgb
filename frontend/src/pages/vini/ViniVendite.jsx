@@ -31,6 +31,23 @@ const BADGE_TIPI = {
   ATTIVAZIONE: { label: "Attivazione", icon: "🥂↻", desc: "Bottiglia aperta per servizio al calice (non è una vendita)", color: "bg-amber-50 text-amber-800 border-amber-200" },
 };
 
+// Riferimento del modale "Decidi prezzo calice": fallback storico
+// PREZZO_CARTA / 5 arrotondato a 0,50. È il valore su cui il modale calcola
+// le soglie di nota obbligatoria — NON va cambiato.
+function defaultPrezzoCalice(vino) {
+  const carta = Number(vino?.PREZZO_CARTA || 0);
+  return carta > 0 ? roundToHalf(carta / 5) : 0;
+}
+
+// Valore precompilato nel campo: se il vino ha già un PREZZO_CALICE deciso in
+// un'apertura precedente si riparte da lì. 2026-09-01: serve perché
+// l'apertura estemporanea non accende più VENDITA_CALICE, quindi il modale
+// ricompare alla bottiglia successiva e senza questo ripartirebbe da capo.
+function prezzoCaliceSalvato(vino) {
+  const salvato = Number(vino?.PREZZO_CALICE || 0);
+  return salvato > 0 ? salvato : undefined;
+}
+
 function formatDate(isoStr) {
   if (!isoStr) return "—";
   try {
@@ -308,11 +325,10 @@ export default function ViniVendite() {
         return;
       }
       // Altrimenti: apri modale DecidiPrezzoCalice
-      const carta = Number(vino.PREZZO_CARTA || 0);
-      const defaultPrezzo = carta > 0 ? roundToHalf(carta / 5) : 0;
       setDecidiPrezzo({
         vino,
-        defaultPrezzo,
+        defaultPrezzo: defaultPrezzoCalice(vino),
+        prezzoIniziale: prezzoCaliceSalvato(vino),
         // flag interno per indicare "no movimento, solo attivazione"
         soloAttivazione: true,
       });
@@ -462,9 +478,11 @@ export default function ViniVendite() {
       selectedVino.VENDITA_CALICE !== 1 &&
       !selectedVino.BOTTIGLIA_APERTA;
     if (isCaliceNonStd) {
-      const carta = Number(selectedVino.PREZZO_CARTA || 0);
-      const defaultPrezzo = carta > 0 ? roundToHalf(carta / 5) : 0;
-      setDecidiPrezzo({ vino: selectedVino, defaultPrezzo });
+      setDecidiPrezzo({
+        vino: selectedVino,
+        defaultPrezzo: defaultPrezzoCalice(selectedVino),
+        prezzoIniziale: prezzoCaliceSalvato(selectedVino),
+      });
       return; // attende conferma utente nel modale, poi chiama eseguiVendita
     }
 
@@ -985,6 +1003,7 @@ export default function ViniVendite() {
         <DecidiPrezzoCalice
           vino={decidiPrezzo.vino}
           defaultPrezzo={decidiPrezzo.defaultPrezzo}
+          prezzoIniziale={decidiPrezzo.prezzoIniziale}
           onCancel={() => setDecidiPrezzo(null)}
           onConfirm={async ({ prezzo, nota }) => {
             const soloAtt = decidiPrezzo.soloAttivazione;
@@ -1015,11 +1034,16 @@ export default function ViniVendite() {
             }
             // Caso normale: vendita al calice di un vino NON ancora al calice.
             // Devo fare DUE cose: registrare la vendita E aprire la bottiglia
-            // in mescita (= settare BOTTIGLIA_APERTA=1 + VENDITA_CALICE=1 se
-            // non già + prezzo calice manuale). Fix 2026-06-24 (Marco #1310):
-            // prima qui c'era solo `eseguiVendita` → il movimento risultava
-            // "Calici" nello storico (badge dalla nota [CALICI]) ma il vino
-            // restava con BOTTIGLIA_APERTA=0 → widget Calici NON lo mostrava.
+            // in mescita (= BOTTIGLIA_APERTA=1 + prezzo calice manuale).
+            // Fix 2026-06-24 (Marco #1310): prima qui c'era solo
+            // `eseguiVendita` → il movimento risultava "Calici" nello storico
+            // (badge dalla nota [CALICI]) ma il vino restava con
+            // BOTTIGLIA_APERTA=0 → widget Calici NON lo mostrava.
+            // 2026-09-01 (Marco): rimosso il set VENDITA_CALICE=1. Era
+            // ridondante (la carta calici include già BOTTIGLIA_APERTA=1, v.
+            // vini_repository.load_vini_calici) e non reversibile: chiudendo
+            // la mescita il flag di anagrafica restava a 1 e il vino
+            // continuava a comparire al calice senza essere in mescita.
             // L'attivazione è best-effort: se fallisce la vendita resta
             // valida e segnalo il problema nel msg.
             await eseguiVendita({ extraNota: nota, prezzoCustom: prezzo });
@@ -1028,7 +1052,6 @@ export default function ViniVendite() {
                 PREZZO_CALICE: prezzo,
                 PREZZO_CALICE_MANUALE: 1,
               };
-              if (vino.VENDITA_CALICE !== 1) extra.VENDITA_CALICE = 1;
               await patchAttivaCalice(vino.id, extra);
             } catch (err) {
               setSubmitMsg(prev =>

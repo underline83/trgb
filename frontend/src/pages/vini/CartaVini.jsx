@@ -93,8 +93,9 @@ function RegiaCaliciPanel({ onApriScheda }) {
 
   const spegniBottiglia = async (vinoId) => {
     if (!window.confirm(
-      "Spegnere il flag 'bottiglia in mescita'?\n\n" +
-      "Il vino sparirà dalla sezione \"Al calice\" della carta cliente se non ha giacenza."
+      "Bottiglia finita? Spegne il flag 'in mescita'.\n\n" +
+      "Il vino esce dalla sezione \"Al calice\" della carta cliente, a meno che " +
+      "non sia tra quelli sempre al calice (flag Calice in anagrafica)."
     )) return;
     setBusyId(vinoId);
     try {

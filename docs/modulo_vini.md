@@ -801,6 +801,33 @@ Storia: l'endpoint nasce per correggere una regressione introdotta gatando
 `PATCH /{id}` — il toggle ci passava dentro e `sala` non poteva più spegnere
 le bottiglie aperte dal widget Calici.
 
+**`VENDITA_CALICE` e `BOTTIGLIA_APERTA` sono due dimensioni diverse
+(vini 3.87, 2026-09-01) — non confonderle.**
+
+| | Cos'è | Chi la cambia |
+|---|---|---|
+| `VENDITA_CALICE` | **Scelta di catalogo**: "questo vino sta *sempre* al calice". Permanente. | Solo l'anagrafica (flag Calice in scheda vino / import / wizard). |
+| `BOTTIGLIA_APERTA` | **Stato operativo del momento**: c'è una bottiglia stappata in mescita adesso. | Toggle mescita (widget Calici, Regia calici, CartaStaff, Cantina mobile, scheda vino) e auto-on da vendita `[CALICI]`. |
+
+La sezione «Al calice» della carta include l'unione delle due
+(`vini_repository.load_vini_calici`: `VENDITA_CALICE = 1 OR BOTTIGLIA_APERTA = 1`),
+quindi **un'apertura estemporanea entra in carta da sola**: non serve — e non
+si deve — accendere anche il flag di anagrafica.
+
+Fino alla 3.86 due flussi lo facevano (`ViniVendite` alla conferma di
+`DecidiPrezzoCalice`, `SchedaVino.toggleBottigliaAperta`): l'apertura era
+quindi **irreversibile**. Chiudendo la mescita si spegneva solo
+`BOTTIGLIA_APERTA` → spariva il tag "in mescita" ma il vino restava in carta
+al calice finché aveva giacenza (segnalato da Marco il 2026-09-01; 21 vini in
+questo stato nel DB al momento del fix). Dalla 3.87 tutti i flussi di mescita
+scrivono **solo `BOTTIGLIA_APERTA`**.
+
+Conseguenza voluta: alla bottiglia successiva `DecidiPrezzoCalice` ricompare
+(giusto — il prezzo del calice è una decisione per apertura), ma il campo
+arriva precompilato con il `PREZZO_CALICE` già deciso in precedenza (prop
+`prezzoIniziale`, additiva; le soglie di nota obbligatoria restano ancorate a
+`defaultPrezzo` = `PREZZO_CARTA/5`).
+
 **Modifica vino madre — punti d'accesso (vini 3.60).** Il vino madre si può
 modificare da tre punti, tutti con lo stesso modale `MadreEditModal`
 (`frontend/src/components/vini/MadreEditModal.jsx` — estratto da

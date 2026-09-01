@@ -3,6 +3,22 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.87 (2026-09-01): la mescita torna reversibile. Aprire una bottiglia
+    //   per i calici accendeva anche VENDITA_CALICE=1 (flag di ANAGRAFICA,
+    //   permanente) in due flussi: ViniVendite → DecidiPrezzoCalice e
+    //   SchedaVino.toggleBottigliaAperta. Chiudendo la mescita si spegneva
+    //   solo BOTTIGLIA_APERTA → il vino perdeva il tag «in mescita» ma
+    //   restava nella sezione Al calice della carta finche' aveva giacenza
+    //   (21 bottiglie in questo stato al momento del fix). Il set era anche
+    //   inutile: load_vini_calici include gia' `VENDITA_CALICE = 1 OR
+    //   BOTTIGLIA_APERTA = 1`, quindi l'apertura entra in carta da sola.
+    //   Ora tutti i flussi di mescita scrivono SOLO BOTTIGLIA_APERTA;
+    //   VENDITA_CALICE resta la scelta esplicita «sempre al calice» e si
+    //   cambia solo in anagrafica. DecidiPrezzoCalice: nuova prop opzionale
+    //   `prezzoIniziale` (precompila il PREZZO_CALICE gia' deciso in
+    //   un'apertura precedente, senza spostare le soglie di nota
+    //   obbligatoria, che restano su PREZZO_CARTA/5). Testi di conferma
+    //   allineati. Nessuna modifica backend, nessuna migrazione.
     // 3.86 (2026-08-21): Cantina mobile v1.2 — la scheda del vino smette di
     //   essere sola lettura. Barra azioni fissa in fondo (venduta −1 / carico /
     //   conta) con toast «Annulla» 8s (DELETE del movimento, stesso pattern di
@@ -93,7 +109,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.86",
+    version: "3.87",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

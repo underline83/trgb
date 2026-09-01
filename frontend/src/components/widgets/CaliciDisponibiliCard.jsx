@@ -74,7 +74,7 @@ export default function CaliciDisponibiliCard({
 
   const spegniBottiglia = async (vinoId, e) => {
     if (e) e.stopPropagation();
-    if (!window.confirm("Spegnere il flag 'bottiglia in mescita'? Il vino non apparira' piu' nella carta calici se la giacenza e' 0.")) return;
+    if (!window.confirm("Bottiglia finita? Spegne il flag 'in mescita': il vino esce dalla carta al calice, a meno che non sia tra quelli sempre al calice.")) return;
     setBusyId(vinoId);
     try {
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/bottiglia-aperta`, {

@@ -488,19 +488,21 @@ const SchedaVino = forwardRef(function SchedaVino({
   // Aggiorna il flag BOTTIGLIA_APERTA via PATCH; il vino resta visibile
   // nella carta calici anche con QTA_TOTALE=0 finche' il flag e' 1.
   // 2026-05-19: il toggle è ora visibile anche per vini NON al calice
-  // (VENDITA_CALICE !== 1): attivarlo setta sia VENDITA_CALICE=1 sia
-  // BOTTIGLIA_APERTA=1 (caso "eccezione: apro questa bottiglia al calice").
+  // (VENDITA_CALICE !== 1) — caso "eccezione: apro questa bottiglia al calice".
+  //
+  // 2026-09-01 (Marco): il toggle scrive SOLO BOTTIGLIA_APERTA, mai
+  // VENDITA_CALICE. La sezione calici della carta include già i vini con
+  // BOTTIGLIA_APERTA=1 (vini_repository.load_vini_calici: `VENDITA_CALICE = 1
+  // OR BOTTIGLIA_APERTA = 1`), quindi accendere anche il flag di anagrafica
+  // era ridondante — e non reversibile: chiudendo la mescita restava
+  // VENDITA_CALICE=1 e il vino continuava a comparire in carta al calice
+  // senza essere in mescita. VENDITA_CALICE resta la scelta esplicita
+  // "questo vino sta SEMPRE al calice", si cambia in anagrafica.
   const [bottigliaSaving, setBottigliaSaving] = useState(false);
   const toggleBottigliaAperta = async () => {
     if (!vino) return;
     const next = vino.BOTTIGLIA_APERTA ? 0 : 1;
     const payload = { BOTTIGLIA_APERTA: next };
-    // Se sto attivando una bottiglia che NON è al calice → attiva anche la
-    // vendita al calice (eccezione operativa: l'oste apre questa bottiglia
-    // per servire calici, anche se di solito non si vende così).
-    if (next === 1 && vino.VENDITA_CALICE !== 1) {
-      payload.VENDITA_CALICE = 1;
-    }
     setBottigliaSaving(true);
     try {
       // Endpoint dedicato al toggle mescita (operativo: lo può fare anche sala).
@@ -1146,9 +1148,10 @@ const SchedaVino = forwardRef(function SchedaVino({
               <div className="p-5">
                 {/* Toggle "Bottiglia in mescita" — sempre visibile.
                     Per vini al calice (VENDITA_CALICE=1): on/off classico.
-                    Per vini NON al calice (eccezione): attivare il toggle
-                    setta anche VENDITA_CALICE=1, così il vino entra in carta
-                    calici per servire quella specifica bottiglia aperta. */}
+                    Per vini NON al calice (eccezione): il toggle entra in
+                    carta calici da solo, perché la carta include anche le
+                    bottiglie aperte. Il flag di anagrafica NON viene toccato,
+                    così spegnendo il toggle il vino esce davvero dalla carta. */}
                 {(() => {
                   const isCaliceAbilitato = vino.VENDITA_CALICE === 1;
                   const aperta = !!vino.BOTTIGLIA_APERTA;
@@ -1177,7 +1180,7 @@ const SchedaVino = forwardRef(function SchedaVino({
                             ? "Il vino resta nella carta calici anche con giacenza 0. Spegni quando i calici finiscono."
                             : isCaliceAbilitato
                               ? "Quando apri una bottiglia per la mescita, accendi il flag così il vino resta in carta anche se la giacenza va a zero."
-                              : "Attivando il toggle: il vino entra in carta calici (VENDITA_CALICE=1) E la bottiglia viene marcata come aperta. Ricordati di spegnere quando finisci i calici."}
+                              : "Attivando il toggle la bottiglia viene marcata come aperta e il vino compare in carta al calice finché resta accesa. Spegnendolo esce dalla carta: l'anagrafica non viene toccata."}
                         </div>
                       </div>
                       <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving || !canCalici}
