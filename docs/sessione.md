@@ -28,12 +28,19 @@ Non sporcare l'anagrafica: i flussi di mescita scrivono **solo `BOTTIGLIA_APERTA
 ### Verifica
 - Parse `@babel/parser` (jsx) sui 5 file toccati: OK.
 - Grep di controllo: nessuna scrittura residua di `VENDITA_CALICE` fuori dall'edit anagrafica (`SchedaVino` FlagToggle + `saveAnagrafica`, wizard NuovoVinoV2, import xlsx).
-- Query sul DB locale (snapshot ultimo push): **21 bottiglie** con `VENDITA_CALICE=1` e mescita spenta, 16 con giacenza > 0 → sono quelle che Marco vedeva in carta al calice senza calice. 20 su 21 hanno `PREZZO_CALICE_MANUALE=1`, impronta dell'apertura estemporanea; l'unica con `MANUALE=0` (id 1317, Blauburgunder) è probabilmente un calice voluto.
+- Query sul DB locale: **31 bottiglie** con `VENDITA_CALICE=1` e mescita spenta — cioè in carta al calice senza calice. Tutte con `PREZZO_CALICE_MANUALE=1` tranne una (id 1317, Blauburgunder), impronta dell'apertura estemporanea.
+- Script di bonifica provato su copia del DB: dry-run (nessuna scrittura), apply (15 flag spenti, 15 movimenti tracciati, giacenze e bottiglie aperte invariate, `integrity_check ok`), rilancio (0 da fare — idempotente), e tre casi di abort forzati (descrizione diversa, produttore diverso, bottiglia aperta) che escono senza scrivere e senza creare backup.
 
-### Da ripulire a mano (Regia calici / scheda vino → togliere il flag Calice)
-Con giacenza: 1317 Blauburgunder Alto Adige (30 bt), 1294 Alpi Retiche Rosso (20), 107 Colle dei Pasta (19), 1214 Cretarium (6), 1264 Ribolla Civa (6), 1310 Chardonnay Civa (6), 1241 Langhe Nebbiolo Dezzani (5), 1187 Bakkanali KANI (4), 818 Coupè Monte Rossa (4), 1240 Bolgheri Beccaia (3), 1238 Lagrein St. Michael (2), 1250 Barbera d'Alba Fontanafredda (1), 1059 L'insolite Mallard (1), 1303 Bordeaux Lavergne (1), 1316 Champagne Jaffelin (1), 1311 Lugana Montunal (1).
-A zero (già invisibili in carta per `min_qta_stampa`, ma il flag resta): 1185, 1192, 1242, 1251, 1307.
-⚠️ Lista da snapshot locale: riverificare dopo il push.
+⚠️ **Nota di metodo:** a metà sessione il DB locale è stato risincronizzato da un push di un'altra sessione (file riscritto alle 14:30). La prima lista mostrata a Marco era di uno snapshot vecchio: 21 vini invece di 31, con giacenze diverse. **Rileggere il DB al momento di decidere, non fidarsi di una query fatta 20 minuti prima** — vale per qualunque lavoro su dati mentre girano sessioni parallele.
+
+### Bonifica dello storico — `scripts/bonifica_calici_2026-09.py` (DA LANCIARE SUL VPS dopo il push)
+Marco ha rivisto i 31 uno per uno. **15 da spegnere**, 16 restano al calice fissi.
+
+Da spegnere: 1187 Bakkanali KANI · 1238 Lagrein St. Michael · 1303 Bordeaux Lavergne · 1316 Champagne Jaffelin · 1185 Bakkanali ROSA · 1251 Pinot Nero Maculan · 1307 Crémant Limoux · 1318 Chardonnay Festival Merano · 1206 Pinot Grigio Lapis Argentum · 1320 Chardonnay Martina Magri · 559 Pinot Nero Colterenzio · 1285 Côtes du Rhône Pasquiers · 1197 Champagne Brut Tradition · 1312 Vieris Vie di Romans · 1243 Cabernet Franc Brandolini.
+
+Restano al calice: 1317, 1294, 107, 1214, 1264, 1310, 1241, 818, 1240, 1250, 1059, 1242, 1192, 1296, 1222, 1266, 1295, 1313 e gli altri già in mescita. (1311 Lugana Montunal risultava già spento tra i due giri.)
+
+Lo script: dry-run di default, `--apply` per scrivere, backup WAL-safe prima di toccare, validazione id+descrizione+produttore, abort se una bottiglia è aperta in quel momento, traccia in timeline come movimento `MODIFICA` con nota `[BONIFICA-CALICI]`, sanity check finale su `ATTESI_DOPO = 16` (se ne restano di più, il fix 3.87 non è in produzione).
 
 ## SESSIONE 2026-08-21 — Cantina mobile: filtro scaffali + movimentazione in scheda `[core]`
 

@@ -15,7 +15,7 @@ Il flag di anagrafica non serviva nemmeno: la carta al calice prende sia i vini 
 
 **Una conseguenza voluta:** alla bottiglia successiva ti richiede di nuovo il prezzo del calice — giusto, è una decisione per apertura — ma te lo propone già scritto uguale all'ultima volta.
 
-**Restano da ripulire a mano** le bottiglie rimaste così dalle aperture vecchie (21 nel database al momento del fix, 16 con giacenza: Blauburgunder, Alpi Retiche, Colle dei Pasta, Cretarium, Ribolla Civa…). Si spengono dalla Regia calici o dalla scheda vino togliendo il flag Calice.
+**Ripulite anche le bottiglie rimaste così dalle aperture vecchie.** Erano 31: le hai riviste una per una e ne sono state spente 15 (Bakkanali KANI e ROSA, Lagrein, Bordeaux Lavergne, Champagne Jaffelin, Pinot Nero Maculan, Crémant Limoux, Chardonnay Festival, Lapis Argentum, Chardonnay Martina, Pinot Nero Colterenzio, Côtes du Rhône, Champagne Brut Tradition, Vieris, Cabernet Franc). Le altre 16 restano al calice perché è quello che vuoi. La pulizia si fa con `scripts/bonifica_calici_2026-09.py` sul VPS: fa un backup prima di toccare, si rifiuta di lavorare su una bottiglia aperta in quel momento e lascia una riga nella storia di ogni vino.
 
 ## 2026-08-21 — Cantina mobile: la bottiglia si muove dal telefono `[core]`
 
