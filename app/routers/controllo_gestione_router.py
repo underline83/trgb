@@ -22,7 +22,19 @@ from app.services.vendite_aggregator import (
 )
 from app.services.liquidita_service import dashboard_liquidita
 
-router = APIRouter(prefix="/controllo-gestione", tags=["controllo-gestione"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: controllo_gestione
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Era aperto il conto economico, e con esso la PUT che riscrive l'IBAN beneficiario di un pagamento fornitore.
+# Ruoli allineati a modules.json (`controllo-gestione`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/controllo-gestione", tags=["controllo-gestione"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="controllo gestione")),
+    ],
+)
 
 from app.utils.locale_data import locale_data_path
 

@@ -42,7 +42,19 @@ from app.services import carta_match_service
 from app.utils.locale_data import locale_data_path
 
 
-router = APIRouter(prefix="/banca/carta", tags=["banca-carta"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: banca
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Erano aperti gli estratti conto della carta di credito, cancellazione compresa.
+# Ruoli allineati a modules.json (`flussi-cassa/carta`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/banca/carta", tags=["banca-carta"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="banca")),
+    ],
+)
 
 DB_PATH = locale_data_path("foodcost.db")
 

@@ -37,7 +37,17 @@ from app.services.auth_service import get_current_user
 
 logger = logging.getLogger("trgb.clienti")
 
-router = APIRouter(prefix="/clienti", tags=["Clienti"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — clienti
+# Era aperto a qualsiasi ruolo autenticato l'export CSV con nome, email, telefono e compleanno di ~5.900 clienti.
+# Ruoli da modules.json (`clienti`): admin, contabile, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/clienti", tags=["Clienti"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", cosa="clienti")),
+    ],
+)
 
 # Inizializza DB alla prima importazione del router
 init_clienti_db()

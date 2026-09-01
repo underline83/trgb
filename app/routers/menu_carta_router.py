@@ -73,7 +73,15 @@ TASKS_DB = locale_data_path("tasks.sqlite3")
 #   ROUTER
 # ─────────────────────────────────────────────
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — menu carta
+# Era aperta la publish di un'edizione, che ha effetto sull'endpoint pubblico del QR. NB: il modulo `menu_carta` non esiste in modules.json — si usano i ruoli di `ricette/archivio`, da cui le pagine sono raggiunte. `public_router` (QR cliente) NON e' toccato: e' un router separato.
+# Ruoli da modules.json (`ricette/archivio`): admin, chef, sous_chef, commis (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(dependencies=[
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="menu carta")),
+    ])
 public_router = APIRouter()  # endpoint pubblici senza auth
 
 

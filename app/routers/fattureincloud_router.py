@@ -31,10 +31,20 @@ from pydantic import BaseModel, Field
 from app.services.auth_service import get_current_user
 
 # ─── CONFIG ───────────────────────────────────────────────
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: acquisti
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Era aperta la POST /fic/connect, che sovrascrive l'access token di Fatture in Cloud: si poteva puntare il gestionale a un'altra azienda.
+# Ruoli allineati a modules.json (`acquisti/impostazioni`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/fic",
     tags=["fattureincloud"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", cosa="acquisti")),
+    ],
 )
 
 from app.utils.locale_data import locale_data_path

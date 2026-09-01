@@ -30,10 +30,18 @@ from typing import List as TList
 from app.services.auth_service import get_current_user
 
 # Audit 2026-06-12 [A1 CRIT]: auth a livello router — endpoint (incluso upload) erano pubblici.
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — sync iPratico
+# Erano aperti upload, export e mapping prodotti iPratico.
+# Ruoli da modules.json (`vini/ipratico`): admin (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/vini/ipratico",
     tags=["ipratico-products"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", cosa="sync iPratico")),
+    ],
 )
 
 from app.utils.locale_data import locale_data_path

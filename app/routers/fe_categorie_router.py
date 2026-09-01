@@ -17,10 +17,20 @@ from pydantic import BaseModel
 
 from app.services.auth_service import get_current_user
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: acquisti
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Era aperta la categorizzazione che alimenta conto economico e food cost.
+# Ruoli allineati a modules.json (`acquisti`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/contabilita/fe/categorie",
     tags=["contabilita-fe-categorie"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="acquisti")),
+    ],
 )
 
 from app.utils.locale_data import locale_data_path

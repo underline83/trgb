@@ -17,7 +17,19 @@ from app.services.alert_engine import (
 )
 from app.models.notifiche_db import get_notifiche_conn
 
-router = APIRouter(prefix="/alerts", tags=["alerts"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: platform (M.F)
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Erano aperte le GET di dry-run, che restituiscono scadenze e importi nei messaggi.
+# Ruoli allineati a modules.json (`impostazioni`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/alerts", tags=["alerts"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", cosa="platform (M.F)")),
+    ],
+)
 
 
 # ─────────────────────────────────────────────

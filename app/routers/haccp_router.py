@@ -22,10 +22,18 @@ from app.services.haccp_report_service import (
     list_critical_events_recent,
 )
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — report HACCP
+# Report HACCP aperto a qualsiasi ruolo.
+# Ruoli da modules.json (`tasks/haccp`): admin, chef, sous_chef (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/haccp",
     tags=["HACCP"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", cosa="report HACCP")),
+    ],
 )
 
 

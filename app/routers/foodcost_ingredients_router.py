@@ -34,7 +34,15 @@ from app.services.auth_service import get_current_user
 
 
 # N.B.: prefix "/ingredients" sarà aggiunto a "/foodcost" dal main
-router = APIRouter(prefix="/ingredients", tags=["foodcost-ingredients"], dependencies=[Depends(get_current_user)])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — ingredienti e prezzi
+# Erano aperte le scritture sui prezzi che alimentano il food cost e il merge fra ingredienti.
+# Ruoli da modules.json (`ricette/ingredienti`): admin, chef, sous_chef, commis (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/ingredients", tags=["foodcost-ingredients"], dependencies=[
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="ingredienti e prezzi")),
+    ])
 
 
 def _foodcost_finestra_giorni_ing(cur) -> int:

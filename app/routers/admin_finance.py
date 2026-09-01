@@ -26,10 +26,28 @@ from app.services.corrispettivi_export import (
 )
 from app.services.auth_service import get_current_user
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: vendite
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Erano aperti fatturato, export corrispettivi, flusso contanti e versamenti.
+# Ruoli allineati a modules.json (`vendite/dashboard`).
+#
+# DUE PRECISAZIONI, perche' qui e' facile sbagliarsi:
+# 1. La chiusura di cassa serale NON sta in questo file. Sta in `chiusure_turno.py`
+#    (`/admin/finance/shift-closures/*`), che e' un router SEPARATO col prefisso piu'
+#    lungo ed e' rimasto aperto a sala e sommelier: la fanno loro ogni sera
+#    (decisione Marco 2026-09-01). Anche la pagina Mance continua a funzionare.
+# 2. `sala` e `sommelier` perdono `/vendite/chiusure-old` (CorrispettiviGestione),
+#    vecchia pagina corrispettivi non linkata da nessuna nav e raggiungibile solo
+#    digitando l'URL. Regressione formale, impatto operativo nullo.
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/admin/finance",
     tags=["admin-finance"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="vendite")),
+    ],
 )
 
 # K-bis (sessione 2026-05-04): cartella upload utente tenant-aware via helper.

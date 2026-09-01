@@ -54,7 +54,17 @@ from app.services.auth_service import get_current_user
 
 logger = logging.getLogger("trgb.clienti.giftcard")
 
-router = APIRouter(prefix="/clienti/giftcard", tags=["Clienti - Gift Card"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — gift card
+# Erano aperte emissione e scarico delle gift card, cioe' la creazione e il consumo di valore. La sala le usa al banco: resta dentro (decisione Marco 2026-09-01).
+# Ruoli da modules.json (`clienti`): admin, contabile, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/clienti/giftcard", tags=["Clienti - Gift Card"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", cosa="gift card")),
+    ],
+)
 
 init_clienti_db()
 

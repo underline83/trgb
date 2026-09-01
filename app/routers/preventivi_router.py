@@ -40,7 +40,17 @@ from app.services.preventivi_service import (
     riordina_menu,
 )
 
-router = APIRouter(prefix="/preventivi", tags=["Preventivi"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — preventivi
+# Le scritture erano gia' admin-only; le LETTURE no, ed espongono dati cliente e prezzi degli eventi. Qui si chiude la lettura ai soli ruoli del modulo clienti.
+# Ruoli da modules.json (`clienti`): admin, contabile, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/preventivi", tags=["Preventivi"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", cosa="preventivi")),
+    ],
+)
 
 
 # ---------------------------------------------------------------------------

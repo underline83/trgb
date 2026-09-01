@@ -39,7 +39,21 @@ from app.utils.whatsapp import build_wa_link, fill_template
 
 logger = logging.getLogger("trgb.prenotazioni")
 
-router = APIRouter(prefix="/prenotazioni", tags=["Prenotazioni"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — prenotazioni
+# Erano aperti nome e telefono dei prenotati e la DELETE della prenotazione.
+# Ruoli da modules.json (`prenotazioni`): admin, sala, sommelier (+superadmin implicito),
+# PIU' `contabile`: la scheda preventivo (`/clienti/preventivi/:id`, modulo clienti,
+# che include il contabile) chiama `GET /prenotazioni/clienti/search` per la ricerca
+# cliente. Non e' un allargamento reale: il contabile vede gia' gli stessi nominativi
+# e telefoni dal modulo Clienti. Togliendolo si rompe la ricerca dentro il preventivo.
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/prenotazioni", tags=["Prenotazioni"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "sala", "sommelier", "contabile", cosa="prenotazioni")),
+    ],
+)
 
 # Inizializza DB (crea tabelle se mancanti)
 init_clienti_db()

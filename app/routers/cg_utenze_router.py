@@ -30,7 +30,19 @@ from app.services.auth_service import get_current_user
 from app.services.utenze_parser import parse_bolletta_a2a, UnsupportedLayoutError
 from app.utils.locale_data import locale_data_dir, locale_data_path
 
-router = APIRouter(prefix="/controllo-gestione/utenze", tags=["controllo-gestione-utenze"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: controllo_gestione
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Erano aperte le bollette A2A con POD, consumi e importi.
+# Ruoli allineati a modules.json (`controllo-gestione`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/controllo-gestione/utenze", tags=["controllo-gestione-utenze"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="controllo gestione")),
+    ],
+)
 
 FOODCOST_DB = locale_data_path("foodcost.db")
 

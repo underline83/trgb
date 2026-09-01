@@ -52,10 +52,18 @@ from app.services.auth_service import get_current_user
 
 logger = logging.getLogger("trgb.salumi")
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — selezioni del giorno
+# Erano aperte a qualsiasi ruolo, cancellazioni comprese.
+# Ruoli da modules.json (`selezioni`): admin, chef, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/salumi",
     tags=["salumi"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "chef", "sala", "sommelier", cosa="selezioni del giorno")),
+    ],
 )
 
 
@@ -226,7 +234,7 @@ def lista_tagli(stato: str = "attivi"):
         conn.close()
 
 
-@router.post("/", response_model=TaglioOut, status_code=201)
+@router.post("/", response_model=TaglioOut, status_code=201, dependencies=[Depends(richiede_ruoli("admin", "chef", cosa="modificare le selezioni del giorno"))])
 def crea_taglio(data: TaglioIn):
     """Inserisce un nuovo salume."""
     conn = get_cucina_connection()
@@ -253,7 +261,7 @@ def crea_taglio(data: TaglioIn):
         conn.close()
 
 
-@router.put("/{taglio_id}", response_model=TaglioOut)
+@router.put("/{taglio_id}", response_model=TaglioOut, dependencies=[Depends(richiede_ruoli("admin", "chef", cosa="modificare le selezioni del giorno"))])
 def modifica_taglio(taglio_id: int, data: TaglioIn):
     """Modifica un salume esistente."""
     conn = get_cucina_connection()
@@ -339,7 +347,7 @@ def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
         conn.close()
 
 
-@router.delete("/{taglio_id}", status_code=204)
+@router.delete("/{taglio_id}", status_code=204, dependencies=[Depends(richiede_ruoli("admin", "chef", cosa="modificare le selezioni del giorno"))])
 def elimina_taglio(taglio_id: int):
     """Elimina un salume."""
     conn = get_cucina_connection()
@@ -372,7 +380,7 @@ def lista_categorie(solo_attive: bool = True):
         conn.close()
 
 
-@router.post("/categorie/", response_model=CategoriaOut, status_code=201)
+@router.post("/categorie/", response_model=CategoriaOut, status_code=201, dependencies=[Depends(richiede_ruoli("admin", "chef", cosa="modificare le selezioni del giorno"))])
 def crea_categoria(data: CategoriaIn):
     """Crea una nuova categoria salumi."""
     conn = get_cucina_connection()
@@ -395,7 +403,7 @@ def crea_categoria(data: CategoriaIn):
         conn.close()
 
 
-@router.put("/categorie/{cat_id}", response_model=CategoriaOut)
+@router.put("/categorie/{cat_id}", response_model=CategoriaOut, dependencies=[Depends(richiede_ruoli("admin", "chef", cosa="modificare le selezioni del giorno"))])
 def modifica_categoria(cat_id: int, data: CategoriaIn):
     """Modifica categoria salumi (rinomina + propaga nei tagli che la usavano)."""
     conn = get_cucina_connection()
@@ -431,7 +439,7 @@ def modifica_categoria(cat_id: int, data: CategoriaIn):
         conn.close()
 
 
-@router.delete("/categorie/{cat_id}", status_code=204)
+@router.delete("/categorie/{cat_id}", status_code=204, dependencies=[Depends(richiede_ruoli("admin", "chef", cosa="modificare le selezioni del giorno"))])
 def elimina_categoria(cat_id: int):
     """Elimina una categoria salumi solo se non in uso."""
     conn = get_cucina_connection()
@@ -473,7 +481,7 @@ def get_config():
         conn.close()
 
 
-@router.put("/config/", response_model=SalumiConfigOut)
+@router.put("/config/", response_model=SalumiConfigOut, dependencies=[Depends(richiede_ruoli("admin", "chef", cosa="modificare le selezioni del giorno"))])
 def update_config(data: SalumiConfigIn):
     conn = get_cucina_connection()
     try:

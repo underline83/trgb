@@ -38,10 +38,20 @@ from app.utils.locale_data import locale_data_path
 DB_PATH = locale_data_path("foodcost.db")
 
 # Audit 2026-06-12 [A1 CRIT]: auth a livello router — gli endpoint erano pubblici.
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: banca
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Erano leggibili e scrivibili da chiunque i movimenti del conto corrente.
+# Ruoli allineati a modules.json (`flussi-cassa/cc`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/banca",
     tags=["banca"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="banca")),
+    ],
 )
 
 

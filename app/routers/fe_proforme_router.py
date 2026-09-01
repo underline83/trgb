@@ -30,10 +30,20 @@ from pydantic import BaseModel, Field
 
 from app.services.auth_service import get_current_user
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: acquisti
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Erano aperte le pro-forme fornitori. NB: modules.json dice `acquisti/proforme` = solo admin, ma la route in App.jsx non passa il `sub`, quindi oggi il contabile ci entra: qui si tiene il comportamento reale, stringere richiede prima di sistemare la route.
+# Ruoli allineati a modules.json (`acquisti`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/contabilita/fe/proforme",
     tags=["contabilita-fe-proforme"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="acquisti")),
+    ],
 )
 
 from app.utils.locale_data import locale_data_path

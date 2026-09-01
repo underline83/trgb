@@ -28,10 +28,18 @@ from pydantic import BaseModel, Field
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — lista della spesa
+# Era aperta la DELETE che svuota la lista intera.
+# Ruoli da modules.json (`ricette/spesa`): admin, chef, sous_chef, commis (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/lista-spesa",
     tags=["lista-spesa"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="lista della spesa")),
+    ],
 )
 
 

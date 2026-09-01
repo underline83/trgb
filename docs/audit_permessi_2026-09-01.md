@@ -15,9 +15,9 @@
 |---|---|
 | Router analizzati | 56 |
 | Endpoint totali | 836 |
-| Con un check di ruolo esplicito | 200 (24%) |
-| Solo `Depends(get_current_user)` — **qualsiasi ruolo autenticato** | 636 (76%) |
-| Senza alcuna autenticazione | 13 (di cui 3 per errore) |
+| Con un check di ruolo esplicito | 200 (24%) → **613 (73%)** dopo l'intervento del 2026-09-01 |
+| Solo `Depends(get_current_user)` — **qualsiasi ruolo autenticato** | 636 (76%) → **223 (26%)** |
+| Senza alcuna autenticazione | 13 (di cui 3 per errore) → **0 per errore** |
 
 Con 9 ruoli in `VALID_ROLES`, oggi un `viewer` ha gli stessi poteri di un `superadmin` su banca, controllo gestione, clienti, prenotazioni e fatture.
 
@@ -95,7 +95,39 @@ Non rende sicuro niente da solo: toglie la scusa. La fase 2 (matrice configurabi
 
 `foodcost_router` chiuso ai ruoli di `ricette/ingredienti` (admin, superadmin, chef, sous_chef, commis) via `dependencies=` sul router: non aveva chiamanti, né frontend né backend. `menu_router` chiuso ad admin e marcato `deprecated` invece che cancellato — rimuovere un router è una decisione di Marco, non un effetto collaterale di un fix di sicurezza.
 
-## 5.2 Il modulo Dipendenti
+## 5.2 M.G applicato — 25 router (ondata 2026-09-01)
+
+Guardia a livello router (`dependencies=[Depends(richiede_ruoli(...))]`), con i ruoli presi da `modules.json`. Il criterio: **applicare i ruoli del modulo chiude la porta senza cambiare il lavoro di nessuno**, perché un ruolo che non vede il modulo nell'interfaccia non sta già usando quelle pagine oggi.
+
+| Router | Ora ammette |
+|---|---|
+| `banca_router`, `banca_carta_router` | admin, contabile |
+| `controllo_gestione_router`, `cg_utenze_router` | admin, contabile |
+| `fe_import`, `fe_categorie_router`, `fe_proforme_router` | admin, contabile |
+| `admin_finance` | admin, contabile |
+| `fattureincloud_router`, `statistiche_router`, `alerts_router`, `ipratico_products_router` | admin |
+| `clienti_router`, `clienti_giftcard_router`, `preventivi_router` | admin, contabile, sala, sommelier |
+| `prenotazioni_router` | admin, sala, sommelier, contabile* |
+| `lista_spesa_router`, `foodcost_ingredients_router` | admin, chef, sous_chef, commis |
+| `haccp_router` | admin, chef, sous_chef |
+| `menu_carta_router` (non il `public_router`) | admin, chef, sous_chef, commis |
+| `scelta_macellaio/salumi/formaggi/pescato`, `piatti_giorno` | admin, chef, sala, sommelier — **scritture** solo admin+chef |
+
+\* `contabile` su prenotazioni non è un allargamento: la scheda preventivo (modulo clienti, che lo include) chiama `GET /prenotazioni/clienti/search`, e gli stessi nominativi il contabile li vede già dal modulo Clienti.
+
+**Decisioni operative di Marco (2026-09-01)**, che il codice non poteva dedurre:
+- La **chiusura di cassa serale** la fa la sala. Vive in `chiusure_turno.py` (`/admin/finance/shift-closures/*`), router separato da `admin_finance` nonostante il prefisso simile: **non è stato toccato**.
+- **Gift card** (emissione e scarico) e **merge clienti**: restano alla sala.
+- **Preventivi**: la sala legge, non scrive — le scritture erano già admin.
+- **Modulo Vini**: tutto come oggi, sala e sommelier scrivono. Non toccato.
+- **Selezioni del giorno**: le prepara la cucina. Sala e sommelier consultano e segnano venduto/archiviato (azione di servizio), ma non creano, modificano o cancellano. `ZonaPanel.jsx` nasconde i bottoni relativi e mostra «👁️ Sola lettura».
+- **Turni**: il foglio lo fa Marco (già applicato).
+
+**Falso allarme corretto:** l'audit dava comunicazioni e nota della Lavagna come scrivibili da chiunque, guardando le chiamate del frontend. In realtà tutte e cinque le scritture avevano già `_require_admin` nel corpo: **erano già chiuse**. Nessuna modifica, solo un commento che lo documenta.
+
+**Due regressioni trovate in verifica e sistemate:** il contabile perdeva la ricerca cliente dentro il preventivo (risolto ammettendolo su prenotazioni); sala e sommelier perdono `/vendite/chiusure-old`, pagina legacy non linkata da nessuna nav, raggiungibile solo digitando l'URL — impatto operativo nullo, documentato nel router.
+
+## 5.3 Il modulo Dipendenti
 
 4 router, 59 guardie. Dettaglio in [modulo_dipendenti.md §9](modulo_dipendenti.md). I quattro router mantengono i loro `_require_admin()` / `_require_turni_write()` come nomi parlanti, ma il corpo delega a M.G: la logica del 403 vive in un posto solo.
 
@@ -118,10 +150,13 @@ Ordine proposto — per danno, non per fatica.
 |---|---|---|
 | 1 | ~~I 3 pubblici per errore~~ ✅ **FATTO 2026-09-01** | Non serviva nemmeno un account |
 | 2 | ~~Costruire **M.G**~~ ✅ **FASE 1 FATTA 2026-09-01** — `app/services/permessi.py` | Senza, ogni fix successivo era un'altra guardia scritta a mano |
-| 3 | `clienti_router` + `prenotazioni_router` | PII di 5.900 persone, GDPR |
-| 4 | `banca_router` + `banca_carta_router` + `controllo_gestione_router` + `cg_utenze_router` | Conto corrente e scrittura IBAN |
-| 5 | `fe_import` + `fattureincloud_router` + `admin_finance` + `chiusure_turno` + `statistiche_router` | Dati fiscali, token FIC, corrispettivi |
+| 3 | ~~`clienti_router` + `prenotazioni_router`~~ ✅ **FATTO 2026-09-01** | PII di 5.900 persone, GDPR |
+| 4 | ~~banca + carta + CG + utenze~~ ✅ **FATTO 2026-09-01** | Conto corrente e scrittura IBAN |
+| 5 | ~~fe_import + FIC + admin_finance + statistiche~~ ✅ **FATTO 2026-09-01** (`chiusure_turno` volutamente NO: è la chiusura di cassa della sala) | Dati fiscali, token FIC, corrispettivi |
 | 6 | Riparare il seed `modules.json` (punto 4.3) | Prima di aggiungere qualsiasi sotto-modulo nuovo |
-| 7 | Il resto degli ALTI, modulo per modulo | Scritture, non letture sensibili |
+| 7 | Quel che resta: `foodcost_recipes` (28), `foodcost_matching` (18), `menu_templates`, la coda di `tasks`/`bevande` | Servono altre due decisioni: chi legge l'archivio ricette (il composer preventivi lo apre a sala/sommelier) e chi riscrive il matching |
+| 8 | Le route in `App.jsx` che non passano il `sub` | `/prenotazioni/tavoli`, `/prenotazioni/impostazioni`, `/acquisti/proforme`: dichiarate admin, di fatto aperte. Stesso bug di Dipendenti |
+
+**Non toccati per decisione:** tutto il modulo Vini (sala e sommelier scrivono, è il flusso reale), `chiusure_turno` (chiusura di cassa serale della sala), le letture di `dashboard`/`notifiche`/`modules`/`auth` (servono a ogni ruolo su ogni pagina).
 
 **Regola da adottare intanto:** ogni endpoint nuovo dichiara il suo ruolo. Se non è ovvio quale, si chiede a Marco — vale come per la domanda "core o locale?".

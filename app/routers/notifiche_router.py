@@ -160,6 +160,18 @@ def api_elimina_notifica(
 
 com_router = APIRouter(prefix="/comunicazioni", tags=["comunicazioni"])
 
+# PERMESSI — verificato il 2026-09-01, NESSUNA MODIFICA NECESSARIA.
+# L'audit segnalava questa area come "scrivibile da chiunque" guardando le
+# chiamate del frontend (la route /comunicazioni non ha ProtectedRoute e la nota
+# della Lavagna parte dalla Home, che vedono tutti). In realta' tutte e cinque le
+# scritture — POST/PUT/DELETE comunicazione, POST/DELETE nota di servizio — hanno
+# gia' `_require_admin(current_user)` nel corpo: erano gia' chiuse.
+# LETTURA aperta a tutti per necessita': la bacheca sta in Home e DashboardSala e
+# l'Header interroga il contatore su ogni pagina, per ogni ruolo.
+# Se in futuro anche chef e sommelier devono scrivere la nota di servizio, la
+# strada e' sostituire `_require_admin` con
+# `verifica_ruoli(user, "admin", "chef", "sommelier")` sui due endpoint /nota.
+
 
 @com_router.get("")
 def api_comunicazioni_attive(current_user: Dict[str, Any] = Depends(get_current_user)):

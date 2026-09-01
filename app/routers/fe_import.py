@@ -31,10 +31,20 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile, status
 from app.services.auth_service import get_current_user
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: acquisti
+# Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
+# autenticato, `viewer` compreso. Erano aperte le fatture fornitori e la DELETE che le cancella.
+# Ruoli allineati a modules.json (`acquisti`). Verificato che nessuna pagina
+# aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/contabilita/fe",
     tags=["contabilita-fe"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", cosa="acquisti")),
+    ],
 )
 
 # -------------------------------------------------------------------

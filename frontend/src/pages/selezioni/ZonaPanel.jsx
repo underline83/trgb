@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn } from "../../components/ui";
 import { ZONA_CONFIG } from "./zonaConfig";
+import { isCucinaWriterRole } from "../../utils/authHelpers";
 
 function buildEmptyForm(cfg) {
   const base = { nome: "", categoria: "", grammatura_g: "", prezzo_euro: "", note: "" };
@@ -30,6 +31,12 @@ export default function ZonaPanel({ zona }) {
     ? [{ key: "attivi", label: "In carta" }, { key: "archiviati", label: "Archivio" }, { key: "tutti", label: "Tutti" }]
     : [{ key: "disponibili", label: "Disponibili" }, { key: "venduti", label: "Venduti" }, { key: "tutti", label: "Tutti" }];
   const filtroDefault = filtroOptions[0].key;
+
+  // PERMESSI (2026-09-01): le selezioni le SCRIVE la cucina (decisione Marco).
+  // Sala e sommelier restano dentro perche' devono consultarle in servizio e
+  // segnare venduto/archiviato — quelle due azioni restano loro. Creare,
+  // modificare e cancellare no: il backend risponde 403 (scelta_*_router).
+  const puoModificare = isCucinaWriterRole(localStorage.getItem("role") || "");
 
   const EMPTY_FORM = useMemo(() => buildEmptyForm(cfg), [cfg.key]);
 
@@ -194,6 +201,7 @@ export default function ZonaPanel({ zona }) {
           </h2>
           <p className="text-sm text-neutral-500 mt-0.5">{cfg.desc}</p>
         </div>
+        {puoModificare && (
         <Btn
           variant="primary"
           size="md"
@@ -209,6 +217,13 @@ export default function ZonaPanel({ zona }) {
         >
           {showForm && !editId ? "Chiudi" : "+ Nuovo"}
         </Btn>
+        )}
+        {!puoModificare && (
+          <span className="px-3 py-1.5 rounded-lg bg-neutral-100 border border-neutral-200 text-xs text-neutral-600"
+                title="Le selezioni le prepara la cucina. Tu puoi consultarle e segnare lo stato.">
+            👁️ Sola lettura
+          </span>
+        )}
       </div>
 
       {/* FILTRI */}
@@ -387,8 +402,12 @@ export default function ZonaPanel({ zona }) {
                       : (archiv ? "↻ Ripristina" : "✓ Venduto")
                     }
                   </Btn>
-                  <Btn variant="secondary" size="sm" onClick={() => handleEdit(t)}>Modifica</Btn>
-                  <Btn variant="secondary" size="sm" tone="danger" onClick={() => handleDelete(t.id)}>Elimina</Btn>
+                  {puoModificare && (
+                    <>
+                      <Btn variant="secondary" size="sm" onClick={() => handleEdit(t)}>Modifica</Btn>
+                      <Btn variant="secondary" size="sm" tone="danger" onClick={() => handleDelete(t.id)}>Elimina</Btn>
+                    </>
+                  )}
                 </div>
               </td>
             </tr>

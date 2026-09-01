@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-09-01 — Ogni porta ha di nuovo una serratura `[core]`
+
+Il gestionale aveva 836 indirizzi interni. Fino a stamattina, **636 di questi rispondevano a chiunque avesse una password valida** — qualunque password, di qualunque ruolo. Il conto corrente, il conto economico, le fatture, i dati di 5.900 clienti, gli incassi storici: tutto raggiungibile da un account con i permessi più bassi che esistano, bastava conoscere l'indirizzo. Adesso ne restano 223, e sono quasi tutti aperti apposta.
+
+**Non ho applicato le regole alla cieca.** Prima ho mappato cosa fa davvero l'app, e sono saltate fuori trenta situazioni in cui la regola scritta dice una cosa e il lavoro vero ne dice un'altra: la home della sala che legge i calici aperti, la chiusura di cassa della sera, i vini che il sommelier inserisce dal telefono, le gift card al banco. Applicare le regole alla lettera avrebbe bloccato il servizio in trenta punti. Quindi le ho applicate dove non cambiano il lavoro di nessuno, e ti ho chiesto delle altre.
+
+**Cosa cambia per chi lavora:** quasi niente, ed è il punto. La sala continua a chiudere la cassa, a emettere gift card, a muovere le bottiglie, a unire le schede cliente. La cucina continua a fare la sua parte. L'unica differenza visibile è nelle **selezioni del giorno**: le prepara la cucina, e sala e sommelier ora le consultano e segnano il venduto, ma non le modificano più — come avevi deciso. Vedono una targhetta «Sola lettura» al posto dei bottoni.
+
+**Cosa cambia per chi non lavora qui:** un account rubato, o uno vecchio mai disattivato, non apre più il conto corrente.
+
+Il modulo Vini l'ho lasciato esattamente com'era: lì sala e sommelier scrivono davvero, ed è il flusso giusto.
+
+Restano da decidere due cose sull'archivio ricette, e una piccola sorpresa: **le pagine dei tavoli e della configurazione prenotazioni hanno lo stesso identico difetto che avevi trovato tu sulle buste paga** — sono dichiarate riservate ma non lo sono. Aspetto di sapere se la sala deve poter spostare i tavoli prima di toccarle.
+
 ## 2026-09-01 — Il listino dei costi non è più su internet `[core]`
 
 Due indirizzi del gestionale rispondevano **a chiunque, senza password**: restituivano l'elenco completo degli ingredienti con l'ultimo prezzo pagato a ogni fornitore. Il tuo listino costi, leggibile da un browser qualsiasi. Non li usava nessuno — né il gestionale né tu — erano rimasti aperti da quando il modulo food cost è nato. Chiusi. Un terzo indirizzo, un vecchio menu per ruolo che nessuna pagina apriva più, è chiuso anche lui: l'ho lasciato al suo posto invece di cancellarlo, buttare via un pezzo di codice è una decisione tua.

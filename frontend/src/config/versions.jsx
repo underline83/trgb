@@ -323,7 +323,20 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
-    // 5.41 (2026-09-01): M.G fase 1 — app/services/permessi.py, guardie di
+    // 5.41 (2026-09-01): M.G fase 1 + APPLICAZIONE a 25 router. Endpoint con un
+    //   check di ruolo: da 200/836 (24%) a 613/836 (73%); aperti a qualsiasi
+    //   ruolo autenticato da 636 a 223 (e i 223 sono in gran parte voluti).
+    //   Chiusi: banca, banca carta, CG, utenze, admin_finance, fe_import,
+    //   fe_categorie, fe_proforme, FIC, statistiche, alerts, iPratico, clienti,
+    //   gift card, preventivi, prenotazioni, lista spesa, ingredienti, HACCP,
+    //   menu carta, le 4 scelta_* + piatti del giorno.
+    //   NON toccati per decisione di Marco: modulo Vini (sala e sommelier
+    //   scrivono davvero) e chiusure_turno (la chiusura di cassa serale la fa
+    //   la sala — sta in un router SEPARATO da admin_finance nonostante il
+    //   prefisso quasi identico /admin/finance/shift-closures).
+    //   Selezioni: lettura + toggle venduto a sala/sommelier, scritture alla
+    //   cucina; ZonaPanel nasconde i bottoni (nuovo isCucinaWriterRole).
+    //   M.G fase 1 — app/services/permessi.py, guardie di
     //   ruolo riutilizzabili (richiede_ruoli/solo_admin/verifica_ruoli/
     //   ha_ruoli). superadmin implicito dove c'e' admin, nomi ruolo validati
     //   all'import (un typo fa fallire il boot, non apre una porta).

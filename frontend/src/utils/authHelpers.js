@@ -39,6 +39,19 @@ export function isTurniWriterRole(role) {
 }
 
 /**
+ * True per i ruoli che possono SCRIVERE le selezioni del giorno
+ * (macellaio, salumi, formaggi, pescato, piatti del giorno).
+ * Specchio delle guardie nei `scelta_*_router.py`: admin, superadmin, chef.
+ *
+ * Sala e sommelier vedono le selezioni e possono segnare venduto/archiviato —
+ * quello e' un'azione di servizio — ma non creano, modificano o cancellano:
+ * le prepara la cucina (decisione Marco 2026-09-01).
+ */
+export function isCucinaWriterRole(role) {
+  return role === "admin" || role === "superadmin" || role === "chef";
+}
+
+/**
  * True solo se l'utente è superadmin E ha la modalità gestione attiva.
  * Usare per funzioni riservate come preconti.
  *
