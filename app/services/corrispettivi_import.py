@@ -34,6 +34,7 @@ def ensure_table(conn: sqlite3.Connection):
             fatture REAL DEFAULT 0,
             corrispettivi_tot REAL DEFAULT 0,
             annulli_resi REAL DEFAULT 0,
+            omaggi REAL DEFAULT 0,
 
             contanti_finali REAL DEFAULT 0,
             pos_bpm REAL DEFAULT 0,

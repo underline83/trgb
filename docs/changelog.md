@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-09-03 — Gli omaggi tornano nell'imponibile `[core]`
+
+Hai trovato tu lo scarto: il prospetto che mando al commercialista non tornava con quello che l'Agenzia già sapeva. Il 28 agosto il gestionale dichiarava **2.252,73** di imponibile, l'Agenzia ne aveva **2.260,00**. Sette euro e ventisette. La causa: gli omaggi.
+
+**Chi sbagliava era il gestionale, non il registratore.** Quando regali un piatto, quel piatto per l'IVA è venduto lo stesso: l'imposta esiste, semplicemente la paghi tu invece del cliente. Il registratore lo sa e lo scrive («non riscosso omaggio»), e trasmette il numero giusto per conto suo. Il gestionale invece partiva dall'incassato — dove l'omaggio, ovviamente, non c'è — e scorporava da lì.
+
+**Cosa cambia in chiusura turno:** un campo in più, 🎁 **Omaggi**, dove batti la voce «TOTALE GIORNO OMAGGI» che hai già davanti sullo scontrino. Nient'altro da fare.
+
+**Cosa NON cambia:** la quadratura di cassa. Gli omaggi non sono entrati in cassa e non devi giustificarli. È la differenza con gli annulli, che si comportano al contrario: entrambi restano fuori dalla cassa, ma un annullo sparisce anche dall'imponibile, un omaggio no.
+
+Il PDF per il commercialista ora ha una colonna «di cui omaggi», così lo scarto tra imponibile e incassato si legge invece di doverlo spiegare.
+
+**Da sapere:** lo storico non si recupera da solo, il dato non è mai stato registrato. Le chiusure vecchie le correggi tu a mano con lo scontrino in mano, e ristampi i PDF. E se non ti va di pagare l'IVA sugli omaggi, la strada è battere quei piatti come **sconto** invece che come omaggio — cambia il trattamento fiscale, quindi chiedi prima al commercialista.
+
+Nel farlo è saltato fuori un secondo difetto, più vecchio: il PDF **non toglieva gli scontrini annullati** dal corrispettivo, mentre il resto del gestionale lo faceva. Ora anche quello è allineato.
+
 ## 2026-09-01 — Ogni porta ha di nuovo una serratura `[core]`
 
 Il gestionale aveva 836 indirizzi interni. Fino a stamattina, **636 di questi rispondevano a chiunque avesse una password valida** — qualunque password, di qualunque ruolo. Il conto corrente, il conto economico, le fatture, i dati di 5.900 clienti, gli incassi storici: tutto raggiungibile da un account con i permessi più bassi che esistano, bastava conoscere l'indirizzo. Adesso ne restano 223, e sono quasi tutti aperti apposta.

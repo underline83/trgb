@@ -158,6 +158,19 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
+    // 4.9 (2026-09-03): OMAGGI nell'imponibile (mig 170). Campo `omaggi` in
+    //   chiusura turno = voce "TOTALE GIORNO OMAGGI" della chiusura RT.
+    //   Il corrispettivo fiscale diventa una derivata (preconto − annulli +
+    //   omaggi) e il PDF commercialista scorpora su quella, con colonna
+    //   "di cui omaggi". Prima scorporava sull'incassato: sul 28/08/2026
+    //   dichiarava imponibile 2.252,73 invece dei 2.260,00 risultanti all'AdE
+    //   (il <NonRiscossoOmaggio> è incluso nell'ammontare imponibile: la
+    //   cessione gratuita è operazione imponibile, l'IVA la versa l'esercente).
+    //   Omaggi e annulli si comportano in modo opposto: entrambi fuori dalla
+    //   cassa, ma gli annulli si sottraggono dall'imponibile e gli omaggi si
+    //   sommano. Quadratura di cassa invariata. Fix collaterale: il PDF ora
+    //   sottrae gli annulli/resi, che ignorava (admin_finance.py li toglieva
+    //   già, corrispettivi_export.py no). Vedi docs/modulo_vendite.md §9.5.1.
     // 4.8 (2026-07-17, V.1): fix semantica "giorno chiuso" in
     //   `_is_effectively_closed()`. Prima: giorno con corr=0 era "aperto
     //   con €0" se non in config giorni_chiusi/giorno_chiusura_settimanale.
@@ -165,7 +178,7 @@ const MODULE_VERSIONS = {
     //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
     //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
     //   consumer (CalendarView shading). Nessuna migrazione DB.
-    version: "4.8",
+    version: "4.9",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",

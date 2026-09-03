@@ -84,6 +84,16 @@ LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 # ------------------------------------------------------------
 # HTML PREVIEW CARTA
 # ------------------------------------------------------------
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Modulo: vini
+# ATTENZIONE: questo router NON ha una guardia a livello router, ed e' voluto.
+# Contiene i 5 endpoint PUBBLICI della carta vini cliente (QR al tavolo):
+# /carta, /carta/html, /carta-cliente/data, /carta/pdf, /carta/docx.
+# Una dependency sul router li chiuderebbe e il QR smetterebbe di funzionare.
+# Le guardie stanno quindi sui singoli endpoint di servizio (pdf-staff,
+# movimenti, pubblicazione sul sito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 @router.get("/carta", response_class=HTMLResponse)
 def genera_carta_vini_html():
     """
@@ -386,7 +396,7 @@ def genera_carta_vini_pdf():
 _RUOLI_PUBBLICAZIONE = ("superadmin", "admin", "sommelier")
 
 
-@router.get("/carta/pubblicazione/")
+@router.get("/carta/pubblicazione/", dependencies=[Depends(richiede_ruoli("admin", cosa="la pubblicazione della carta sul sito"))])
 def stato_pubblicazione_carta(user=Depends(get_current_user)):
     """Config FTP (vista minima) + ultima pubblicazione riuscita, per la UI."""
     from app.services import ftp_publish_service as web
@@ -400,7 +410,7 @@ def stato_pubblicazione_carta(user=Depends(get_current_user)):
     }
 
 
-@router.post("/carta/pubblica/")
+@router.post("/carta/pubblica/", dependencies=[Depends(richiede_ruoli("admin", cosa="la pubblicazione della carta sul sito"))])
 def pubblica_carta_sul_sito(user=Depends(get_current_user)):
     """Rigenera la carta vini cliente e la carica sull'FTP del sito."""
     if (user or {}).get("role", "") not in _RUOLI_PUBBLICAZIONE:
@@ -433,7 +443,7 @@ def pubblica_carta_sul_sito(user=Depends(get_current_user)):
 # ------------------------------------------------------------
 # PDF STAFF
 # ------------------------------------------------------------
-@router.get("/carta/pdf-staff")
+@router.get("/carta/pdf-staff", dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
 def genera_carta_vini_pdf_staff(
     current_user: Any = Depends(_get_user_flessibile),
 ):
@@ -523,7 +533,7 @@ class MovimentoCreate(BaseModel):
     )
 
 
-@router.get("/{vino_id}/movimenti", response_class=JSONResponse)
+@router.get("/{vino_id}/movimenti", response_class=JSONResponse, dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
 def lista_movimenti_vino(
     vino_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -542,7 +552,7 @@ def lista_movimenti_vino(
     return JSONResponse(content={"vino_id": vino_id, "movimenti": movimenti})
 
 
-@router.post("/{vino_id}/movimenti", response_class=JSONResponse)
+@router.post("/{vino_id}/movimenti", response_class=JSONResponse, dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
 def crea_movimento_vino(
     vino_id: int,
     payload: MovimentoCreate,

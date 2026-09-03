@@ -47,6 +47,7 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
             preconto REAL DEFAULT 0,
             fatture REAL DEFAULT 0,
             annulli_resi REAL DEFAULT 0,
+            omaggi REAL DEFAULT 0,
             coperti INTEGER DEFAULT 0,
             totale_incassi REAL DEFAULT 0,
             note TEXT,
@@ -97,6 +98,11 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
     # Modulo: cassa — scontrini annullati/resi (migrazione 146, self-heal)
     if "annulli_resi" not in existing_cols:
         cur.execute("ALTER TABLE shift_closures ADD COLUMN annulli_resi REAL DEFAULT 0")
+    # Modulo: cassa — omaggi / non riscosso (migrazione 170, self-heal).
+    # Battuti sull'RT ma non incassati: NON entrano negli incassi attesi, ma
+    # SI' nell'imponibile IVA (corrispettivo fiscale = preconto + omaggi).
+    if "omaggi" not in existing_cols:
+        cur.execute("ALTER TABLE shift_closures ADD COLUMN omaggi REAL DEFAULT 0")
 
     # Table: shift_preconti (tavoli aperti non battuti)
     cur.execute(
@@ -207,6 +213,9 @@ class ShiftClosureBase(BaseModel):
     preconto: float = 0
     fatture: float = 0
     annulli_resi: float = 0
+    # Omaggi / non riscosso (migrazione 170): battuti sull'RT, mai incassati.
+    # Non entrano negli incassi attesi; entrano nel corrispettivo fiscale.
+    omaggi: float = 0
     coperti: int = 0
     note: Optional[str] = None
 
@@ -787,6 +796,7 @@ async def list_shift_closures(
                 preconto,
                 fatture,
                 annulli_resi,
+                omaggi,
                 coperti,
                 totale_incassi,
                 note,
@@ -916,6 +926,7 @@ async def list_shift_closures(
                 preconto=row["preconto"],
                 fatture=row["fatture"],
                 annulli_resi=row["annulli_resi"] or 0,
+                omaggi=row["omaggi"] or 0,
                 coperti=row["coperti"],
                 totale_incassi=row["totale_incassi"],
                 note=row["note"],
@@ -976,6 +987,7 @@ async def get_shift_closure(
                 preconto,
                 fatture,
                 annulli_resi,
+                omaggi,
                 coperti,
                 totale_incassi,
                 note,
@@ -1088,6 +1100,7 @@ async def get_shift_closure(
         preconto=row["preconto"],
         fatture=row["fatture"],
         annulli_resi=row["annulli_resi"] or 0,
+        omaggi=row["omaggi"] or 0,
         coperti=row["coperti"],
         totale_incassi=row["totale_incassi"],
         note=row["note"],
@@ -1172,6 +1185,7 @@ async def upsert_shift_closure(
                     preconto = ?,
                     fatture = ?,
                     annulli_resi = ?,
+                    omaggi = ?,
                     coperti = ?,
                     totale_incassi = ?,
                     note = ?,
@@ -1191,6 +1205,7 @@ async def upsert_shift_closure(
                     payload.preconto,
                     payload.fatture,
                     payload.annulli_resi,
+                    payload.omaggi,
                     payload.coperti,
                     totale_incassi,
                     payload.note,
@@ -1216,12 +1231,13 @@ async def upsert_shift_closure(
                     preconto,
                     fatture,
                     annulli_resi,
+                    omaggi,
                     coperti,
                     totale_incassi,
                     note,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_str,
@@ -1238,6 +1254,7 @@ async def upsert_shift_closure(
                     payload.preconto,
                     payload.fatture,
                     payload.annulli_resi,
+                    payload.omaggi,
                     payload.coperti,
                     totale_incassi,
                     payload.note,
@@ -1335,6 +1352,7 @@ async def upsert_shift_closure(
                 preconto,
                 fatture,
                 annulli_resi,
+                omaggi,
                 coperti,
                 totale_incassi,
                 note,
@@ -1440,6 +1458,7 @@ async def upsert_shift_closure(
         preconto=row["preconto"],
         fatture=row["fatture"],
         annulli_resi=row["annulli_resi"] or 0,
+        omaggi=row["omaggi"] or 0,
         coperti=row["coperti"],
         totale_incassi=row["totale_incassi"],
         note=row["note"],

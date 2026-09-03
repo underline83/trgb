@@ -28,9 +28,18 @@ from app.models.vini_magazzino_db import get_magazzino_connection
 from app.models.vini_anagrafiche_db import TABELLE
 
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — Cantina 2
+# Modulo Vini: ruoli invariati rispetto a oggi (decisione Marco 2026-09-01 — sala e sommelier scrivono davvero: carta staff, cantina mobile, vendite, creazione vini). La guardia chiude la porta a chi il modulo non ce l'ha: cucina, contabile, viewer.
+# Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/vini/v2",
     tags=["Vini v2 — Gestione Vino 2 (test parallelo)"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="Cantina 2")),
+    ],
 )
 
 

@@ -3,6 +3,7 @@
 
 from datetime import date as date_type, datetime, timedelta
 from pathlib import Path
+import logging
 import shutil
 import sqlite3
 import uuid
@@ -42,6 +43,9 @@ from app.services.permessi import richiede_ruoli
 #    vecchia pagina corrispettivi non linkata da nessuna nav e raggiungibile solo
 #    digitando l'URL. Regressione formale, impatto operativo nullo.
 # Contesto: docs/audit_permessi_2026-09-01.md
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/admin/finance",
     tags=["admin-finance"],
@@ -74,8 +78,15 @@ def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
     # Garantisce che esista anche su tabelle create prima della migrazione,
     # così le SELECT con COALESCE(annulli_resi, 0) non vanno mai in errore.
     cols = {row[1] for row in conn.execute("PRAGMA table_info(daily_closures)").fetchall()}
+    changed = False
     if "annulli_resi" not in cols:
         conn.execute("ALTER TABLE daily_closures ADD COLUMN annulli_resi REAL DEFAULT 0")
+        changed = True
+    # Self-heal: colonna omaggi (non riscosso omaggio, mig 170).
+    if "omaggi" not in cols:
+        conn.execute("ALTER TABLE daily_closures ADD COLUMN omaggi REAL DEFAULT 0")
+        changed = True
+    if changed:
         conn.commit()
 
 
@@ -812,7 +823,8 @@ def _aggregate_shift_closures_by_date(
             sql = f"""
                 SELECT date, turno, preconto, fatture, contanti,
                        pos_bpm, pos_sella, theforkpay, other_e_payments,
-                       bonifici, mance, COALESCE(annulli_resi, 0) AS annulli_resi, note
+                       bonifici, mance, COALESCE(annulli_resi, 0) AS annulli_resi,
+                       COALESCE(omaggi, 0) AS omaggi, note
                 FROM shift_closures
                 WHERE {' AND '.join(where)}
                 ORDER BY date ASC,
@@ -835,6 +847,7 @@ def _aggregate_shift_closures_by_date(
                     bonifici,
                     mance,
                     COALESCE(annulli_resi, 0) AS annulli_resi,
+                    COALESCE(omaggi, 0) AS omaggi,
                     note
                 FROM shift_closures
                 WHERE substr(date, 1, 7) = ?
@@ -909,6 +922,18 @@ def _aggregate_shift_closures_by_date(
             if cena:
                 annulli_totali += (cena["annulli_resi"] or 0)
 
+            # Omaggi / non riscosso (pranzo + cena): battuti sull'RT, mai
+            # incassati (migrazione 170). A differenza degli annulli NON vanno
+            # tolti dall'imponibile: nel tracciato corrispettivi telematici il
+            # <NonRiscossoOmaggio> è incluso nell'ammontare da assoggettare a
+            # IVA (la cessione gratuita resta operazione imponibile, l'imposta
+            # la versa l'esercente). Restano invece fuori dalla cassa.
+            omaggi_totali = 0.0
+            if pranzo:
+                omaggi_totali += (pranzo["omaggi"] or 0)
+            if cena:
+                omaggi_totali += (cena["omaggi"] or 0)
+
             # Corrispettivo RT netto degli annulli
             chiusura_giorno = (chiusura_giorno or 0) - annulli_totali
 
@@ -916,6 +941,11 @@ def _aggregate_shift_closures_by_date(
             corrispettivi_tot = chiusura_giorno + fatture_totali
             totale_incassi = contanti + pos_bpm + pos_sella + theforkpay + other_e + bonifici
             cash_diff = totale_incassi - corrispettivi_tot
+
+            # Base imponibile lorda per lo scorporo IVA del prospetto fiscale:
+            # include gli omaggi, che la cassa non vede. Tenuta separata da
+            # `corrispettivi` apposta, così cash_diff e quadratura non cambiano.
+            corrispettivi_fiscali = chiusura_giorno + omaggi_totali
 
             # Nota: concatena note da entrambi i turni se presenti
             note_list = []
@@ -928,7 +958,9 @@ def _aggregate_shift_closures_by_date(
             result[date_str] = {
                 'date': date_str,
                 'weekday': weekday_it,
-                'corrispettivi': chiusura_giorno,  # La chiusura RT
+                'corrispettivi': chiusura_giorno,  # La chiusura RT (incassato)
+                'corrispettivi_fiscali': corrispettivi_fiscali,  # + omaggi, per lo scorporo IVA
+                'omaggi': omaggi_totali,
                 'corrispettivi_tot': corrispettivi_tot,
                 'fatture': fatture_totali,
                 'contanti_finali': contanti,
@@ -945,9 +977,16 @@ def _aggregate_shift_closures_by_date(
                 'note': note_combined,
                 'is_closed': False,  # I dati shift_closures indicano giorni aperti
             }
-    except Exception:
-        # Se shift_closures non esiste o c'è errore, ritorna dict vuoto (fallback a daily_closures)
-        pass
+    except Exception as exc:
+        # Se shift_closures non esiste o c'è errore, ritorna dict vuoto (fallback a daily_closures).
+        # ⚠️ Questo except ingoia il MESE INTERO, non il singolo giorno: una
+        # colonna mancante in una SELECT qui sopra fa sparire in silenzio tutti
+        # i corrispettivi del periodo e li fa ripiegare su daily_closures (che
+        # post-cutover è vuota). Succede davvero — perciò almeno si logga.
+        logger.warning(
+            "Aggregazione shift_closures fallita, fallback a daily_closures: %s: %s",
+            type(exc).__name__, exc,
+        )
 
     return result
 

@@ -22,7 +22,17 @@ from pydantic import BaseModel, Field
 from app.models import vini_ordini_db as db
 from app.services.auth_service import get_current_user, is_vini_manager
 
-router = APIRouter(prefix="/vini/ordini", tags=["vini-ordini"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — ordini ai fornitori
+# Modulo Vini: ruoli invariati rispetto a oggi (decisione Marco 2026-09-01 — sala e sommelier scrivono davvero: carta staff, cantina mobile, vendite, creazione vini). La guardia chiude la porta a chi il modulo non ce l'ha: cucina, contabile, viewer.
+# Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/vini/ordini", tags=["vini-ordini"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="ordini ai fornitori")),
+    ],
+)
 
 
 # ============================================================

@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.services.auth_service import get_current_user, is_admin
+from app.services.permessi import richiede_ruoli
 from app.utils.locale_data import locale_data_path
 
 router = APIRouter(prefix="/settings/closures-config", tags=["closures-config"])
@@ -60,7 +61,9 @@ def get_config(current_user: dict = Depends(get_current_user)):
     return ClosuresConfig(**_load())
 
 
-@router.put("/", response_model=ClosuresConfig)
+# La GET resta aperta: la pagina di fine turno (sala, sommelier) legge il
+# calendario chiusure. La PUT no. — M.G 2026-09-01
+@router.put("/", response_model=ClosuresConfig, dependencies=[Depends(richiede_ruoli("admin", cosa="il calendario chiusure"))])
 def update_config(payload: ClosuresConfig, current_user: dict = Depends(get_current_user)):
     if not is_admin(current_user["role"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")

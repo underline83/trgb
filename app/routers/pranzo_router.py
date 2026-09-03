@@ -49,7 +49,15 @@ from pydantic import BaseModel, Field
 from app.repositories import pranzo_repository as repo
 from app.services.auth_service import get_current_user
 
-router = APIRouter(prefix="/pranzo", tags=["pranzo"], dependencies=[Depends(get_current_user)])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — menu pranzo
+# Erano aperti a qualsiasi ruolo il margine e il food cost del menu pranzo. `public_router` (health e smoke) NON e' toccato: e' un router separato.
+# Ruoli da modules.json (`ricette/pranzo`): admin, chef, sous_chef, commis (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/pranzo", tags=["pranzo"], dependencies=[
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="menu pranzo")),
+    ])
 
 # Endpoint pubblico (no auth) per health-check / debug
 public_router = APIRouter(prefix="/pranzo", tags=["pranzo-public"])

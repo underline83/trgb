@@ -29,9 +29,18 @@ from app.services.wine_pricing import calcola_prezzo_carta, _round_to_half
 from app.models import vini_magazzino_db as db
 
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — cantina e magazzino vini
+# Modulo Vini: ruoli invariati rispetto a oggi (decisione Marco 2026-09-01 — sala e sommelier scrivono davvero: carta staff, cantina mobile, vendite, creazione vini). La guardia chiude la porta a chi il modulo non ce l'ha: cucina, contabile, viewer.
+# Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/vini/magazzino",
     tags=["Vini Magazzino"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="cantina e magazzino vini")),
+    ],
 )
 
 

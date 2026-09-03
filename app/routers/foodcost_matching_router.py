@@ -34,10 +34,18 @@ from pydantic import BaseModel, Field
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — matching fatture-ingredienti
+# Erano aperte a chiunque le POST che riscrivono il matching fatture-ingredienti, il toggle escluso sui fornitori e la DELETE dei mapping. Verificato con grep: nessuna pagina fuori da /ricette/matching (admin) lo chiama.
+# Ruoli da modules.json (`ricette/matching`): admin (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/matching",
     tags=["foodcost-matching"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(richiede_ruoli("admin", cosa="matching fatture-ingredienti")),
+    ],
 )
 
 

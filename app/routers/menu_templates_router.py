@@ -27,7 +27,17 @@ from app.services.menu_templates_service import (
     applica_template_a_menu,
 )
 
-router = APIRouter(prefix="/menu-templates", tags=["Menu Templates"])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — template menu
+# Letti dal composer del menu preventivo, che sta nel modulo clienti: da li' ci arrivano sala, sommelier e contabile.
+# Ruoli da modules.json (`clienti`): admin, contabile, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/menu-templates", tags=["Menu Templates"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", cosa="template menu")),
+    ],
+)
 
 
 def _require_admin(user: dict):

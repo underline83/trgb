@@ -119,25 +119,55 @@ def _merge_shift_and_daily(conn, where_sql: str, params: list, ym_prefix: str = 
 
     WEEKDAY_IT = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
 
+    def _cols(table: str) -> set:
+        """Colonne realmente presenti: DB non ancora migrati non devono far
+        esplodere l'export (annulli_resi mig. 146, omaggi mig. 170)."""
+        try:
+            return {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        except sqlite3.Error:
+            return set()
+
+    daily_cols = _cols("daily_closures")
+    shift_cols = _cols("shift_closures")
+
+    def _opt(col: str, cols: set) -> str:
+        return f"COALESCE({col}, 0) AS {col}" if col in cols else f"0 AS {col}"
+
     # 1. Leggi daily_closures
     query = f"""
         SELECT date, weekday,
                corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
                contanti_finali, pos_bpm, pos_sella, theforkpay, other_e_payments,
-               bonifici, mance, note, COALESCE(is_closed, 0) as is_closed
+               bonifici, mance, note, COALESCE(is_closed, 0) as is_closed,
+               {_opt("annulli_resi", daily_cols)},
+               {_opt("omaggi", daily_cols)}
         FROM daily_closures
         {where_sql}
         ORDER BY date ASC
     """
     daily_rows = conn.execute(query, params).fetchall()
-    daily_map = {r["date"]: dict(r) for r in daily_rows}
+    daily_map = {}
+    for r in daily_rows:
+        d = dict(r)
+        # Base imponibile lorda, stessa regola del ramo shift: gli annulli
+        # escono (operazioni mai avvenute), gli omaggi entrano (non riscossi ma
+        # imponibili). `corrispettivi` di daily_closures è lordo di annulli —
+        # gli altri consumatori li sottraggono a loro volta (admin_finance.py).
+        d["corrispettivi_fiscali"] = (
+            (d.get("corrispettivi") or 0)
+            - (d.get("annulli_resi") or 0)
+            + (d.get("omaggi") or 0)
+        )
+        daily_map[d["date"]] = d
 
     # 2. Leggi shift_closures per lo stesso periodo
     shift_where = where_sql.replace("daily_closures", "shift_closures") if "daily_closures" in where_sql else where_sql
     shift_query = f"""
         SELECT date, turno, preconto, fatture, contanti,
                pos_bpm, pos_sella, theforkpay, other_e_payments,
-               bonifici, mance, note
+               bonifici, mance, note,
+               {_opt("annulli_resi", shift_cols)},
+               {_opt("omaggi", shift_cols)}
         FROM shift_closures
         {where_sql}
         ORDER BY date ASC
@@ -164,6 +194,24 @@ def _merge_shift_and_daily(conn, where_sql: str, params: list, ym_prefix: str = 
         base = cena or pranzo
         chiusura = base["preconto"] or 0
         fatture_tot = (pranzo["fatture"] if pranzo else 0) + (cena["fatture"] if cena else 0)
+
+        # Annulli/resi (mig. 146): battuti e poi annullati, mai incassati e
+        # fuori dall'imponibile → si tolgono dalla base fiscale.
+        annulli_tot = ((pranzo["annulli_resi"] if pranzo else 0) or 0) + (
+            (cena["annulli_resi"] if cena else 0) or 0
+        )
+        # Omaggi / non riscosso (mig. 170): mai incassati MA imponibili ai fini
+        # IVA (<NonRiscossoOmaggio> è incluso nell'ammontare da assoggettare).
+        # Quindi restano fuori dalla cassa e dentro la base dello scorporo.
+        omaggi_tot = ((pranzo["omaggi"] if pranzo else 0) or 0) + (
+            (cena["omaggi"] if cena else 0) or 0
+        )
+        # NB: `chiusura` resta il valore grezzo di `preconto`. La rettifica di
+        # annulli e omaggi vive SOLO in `corrispettivi_fiscali`, che è la base
+        # dello scorporo IVA del PDF. Se la si applicasse a `corrispettivi`,
+        # l'export Excel emetterebbe un totale già netto degli annulli e il
+        # reimport in `daily_closures` (che conserva la sua colonna
+        # `annulli_resi`) li farebbe sottrarre una seconda volta a valle.
         contanti = base["contanti"] or 0
         pos_bpm = base["pos_bpm"] or 0
         pos_sella = base["pos_sella"] or 0
@@ -185,6 +233,9 @@ def _merge_shift_and_daily(conn, where_sql: str, params: list, ym_prefix: str = 
             "date": date_str,
             "weekday": weekday,
             "corrispettivi": chiusura,
+            "corrispettivi_fiscali": chiusura - annulli_tot + omaggi_tot,
+            "annulli_resi": annulli_tot,
+            "omaggi": omaggi_tot,
             "iva_10": 0.0,
             "iva_22": 0.0,
             "fatture": fatture_tot,
@@ -419,6 +470,7 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     lordo10 = imp10_tot = iva10_tot = 0.0
     lordo22 = imp22_tot = iva22_tot = 0.0
     tot_fatt = tot_gen = 0.0
+    tot_omaggi = 0.0
     giorni_con_incasso = 0
     body_rows = []
     note_rows = []  # (data_label, testo_nota) per la tabella note in coda
@@ -436,7 +488,15 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         if nota:
             note_rows.append((data_label, nota))
 
-        corr = float(r.get("corrispettivi") or 0)
+        # Base dello scorporo = corrispettivo fiscale, che include gli omaggi
+        # (non riscossi ma imponibili). Fallback al corrispettivo semplice per
+        # righe che non espongono il campo.
+        corr = float(
+            r.get("corrispettivi_fiscali")
+            if r.get("corrispettivi_fiscali") is not None
+            else (r.get("corrispettivi") or 0)
+        )
+        omaggi_giorno = float(r.get("omaggi") or 0)
         i10 = float(r.get("iva_10") or 0)
         i22 = float(r.get("iva_22") or 0)
         fatt = float(r.get("fatture") or 0)
@@ -444,7 +504,7 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         if r.get("is_closed"):
             body_rows.append(
                 f"<tr><td>{data_label}</td><td>{giorno_label}</td>"
-                f"<td colspan='5' class='text-muted' style='text-align:center'>— chiuso —</td></tr>"
+                f"<td colspan='6' class='text-muted' style='text-align:center'>— chiuso —</td></tr>"
             )
             continue
 
@@ -453,6 +513,12 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         # (decisione Marco 2026-05-21).
         if corr > 0 and i10 == 0 and i22 == 0:
             i10 = corr
+        elif omaggi_giorno:
+            # Riga con split IVA esplicito (import Excel): il lordo è la somma
+            # delle due aliquote e non comprende gli omaggi. Vanno aggiunti al
+            # 10% (somministrazione), altrimenti la colonna «di cui omaggi»
+            # mostrerebbe un importo non incluso nel lordo che la affianca.
+            i10 += omaggi_giorno
 
         # Scorporo: dal lordo (IVA inclusa) → imponibile netto + imposta.
         imp10 = _scorpora_imponibile(i10, 10)
@@ -473,12 +539,15 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         iva22_tot += iva22
         tot_fatt += fatt
         tot_gen += day_totale
+        tot_omaggi += omaggi_giorno
         if day_lordo > 0:
             giorni_con_incasso += 1
 
+        omaggi_cell = _fmt_euro_it(omaggi_giorno) if omaggi_giorno else "&mdash;"
         body_rows.append(
             f"<tr><td>{data_label}</td><td>{giorno_label}</td>"
             f"<td class='num'>{_fmt_euro_it(day_lordo)}</td>"
+            f"<td class='num text-muted'>{omaggi_cell}</td>"
             f"<td class='num'>{_fmt_euro_it(day_imponibile)}</td>"
             f"<td class='num'>{_fmt_euro_it(day_imposta)}</td>"
             f"<td class='num'>{_fmt_euro_it(fatt)}</td>"
@@ -493,6 +562,7 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
     body_rows.append(
         f"<tr class='tot-row'><td colspan='2'>TOTALE {_MESI_IT[month].upper()} {year}</td>"
         f"<td class='num'>{_fmt_euro_it(tot_lordo)}</td>"
+        f"<td class='num'>{_fmt_euro_it(tot_omaggi)}</td>"
         f"<td class='num'>{_fmt_euro_it(tot_imponibile)}</td>"
         f"<td class='num'>{_fmt_euro_it(tot_imposta)}</td>"
         f"<td class='num'>{_fmt_euro_it(tot_fatt)}</td>"
@@ -509,7 +579,13 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         f"<div class='value'>&euro; {_fmt_euro_it(tot_imposta)}</div></div>"
         f"<div class='summary-box'><div class='label'>Fatture emesse</div>"
         f"<div class='value'>&euro; {_fmt_euro_it(tot_fatt)}</div></div>"
-        "</div>"
+        + (
+            f"<div class='summary-box'><div class='label'>di cui omaggi</div>"
+            f"<div class='value'>&euro; {_fmt_euro_it(tot_omaggi)}</div></div>"
+            if tot_omaggi
+            else ""
+        )
+        + "</div>"
     )
 
     tabella = (
@@ -517,6 +593,7 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         "<thead><tr>"
         "<th>Data</th><th>Giorno</th>"
         "<th class='num'>Corrispettivo lordo</th>"
+        "<th class='num'>di cui omaggi</th>"
         "<th class='num'>Imponibile 10%</th>"
         "<th class='num'>IVA 10%</th>"
         "<th class='num'>Fatture</th>"
@@ -560,6 +637,17 @@ def build_corrispettivi_pdf(year: int, month: int) -> bytes:
         "= corrispettivo lordo + fatture. Aliquota 10% (somministrazione di alimenti e "
         "bevande); i giorni dalle chiusure turno, privi di split IVA, sono trattati al 10%. "
         f"Giorni con incasso nel mese: {giorni_con_incasso}.</p>"
+        + (
+            "<p class='small'>&laquo;di cui omaggi&raquo;: corrispettivi non riscossi per "
+            "cessioni gratuite (voce <i>non riscosso omaggio</i> della chiusura RT). Sono "
+            "compresi nel corrispettivo lordo e quindi nell&rsquo;imponibile, come previsto "
+            "dal tracciato dei corrispettivi telematici, ma non sono mai entrati in cassa: "
+            "l&rsquo;imposta relativa resta a carico dell&rsquo;esercente. Scarto tra "
+            f"corrispettivo lordo e incassato del mese: &euro; {_fmt_euro_it(tot_omaggi)}. "
+            "Gli scontrini annullati/resi sono invece gi&agrave; esclusi dal corrispettivo.</p>"
+            if tot_omaggi
+            else ""
+        )
     )
 
     # Tabella note — solo se ci sono note nel mese. Va dopo il riepilogo IVA.

@@ -60,6 +60,10 @@ export default function ChiusuraTurno() {
   const [preconto, setPreconto] = useState("");
   const [fatture, setFatture] = useState("");
   const [annulli, setAnnulli] = useState("");  // scontrini annullati/resi (mig 146)
+  // Omaggi / non riscosso (mig 170): battuti sull'RT ma mai incassati.
+  // NON entrano negli incassi attesi; SI' nell'imponibile IVA del prospetto
+  // commercialista (corrispettivo fiscale = chiusura RT + omaggi).
+  const [omaggi, setOmaggi] = useState("");
   const [coperti, setCoperti] = useState("");
 
   // Pagamenti
@@ -106,20 +110,20 @@ export default function ChiusuraTurno() {
   useEffect(() => {
     if (loading) return;
     const timer = setTimeout(() => {
-      const hasData = fondoCassaInizio || fondoCassaFine || preconto || fatture || annulli || coperti ||
+      const hasData = fondoCassaInizio || fondoCassaFine || preconto || fatture || annulli || omaggi || coperti ||
         contanti || posBpm || posSella || theforkpay || otherEpay || bonifici || mance || note ||
         preconti.length > 0 || spese.length > 0;
       if (!hasData) return;
       try {
         localStorage.setItem(draftKey, JSON.stringify({
-          fondoCassaInizio, fondoCassaFine, preconto, fatture, annulli, coperti,
+          fondoCassaInizio, fondoCassaFine, preconto, fatture, annulli, omaggi, coperti,
           contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance,
           note, preconti, spese, checklistState, _ts: Date.now(),
         }));
       } catch { /* quota exceeded — ignora */ }
     }, 800);
     return () => clearTimeout(timer);
-  }, [loading, draftKey, fondoCassaInizio, fondoCassaFine, preconto, fatture, annulli, coperti,
+  }, [loading, draftKey, fondoCassaInizio, fondoCassaFine, preconto, fatture, annulli, omaggi, coperti,
     contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, note, preconti, spese, checklistState]);
 
   // Ripristina draft (solo se il form è vuoto = nessun record salvato sul server)
@@ -138,6 +142,7 @@ export default function ChiusuraTurno() {
       if (d.preconto) setPreconto(d.preconto);
       if (d.fatture) setFatture(d.fatture);
       if (d.annulli) setAnnulli(d.annulli);
+      if (d.omaggi) setOmaggi(d.omaggi);
       if (d.coperti) setCoperti(d.coperti);
       if (d.contanti) setContanti(d.contanti);
       if (d.posBpm) setPosBpm(d.posBpm);
@@ -264,7 +269,7 @@ export default function ChiusuraTurno() {
   // ── Reset form ──
   const resetForm = () => {
     setFondoCassaInizio(""); setFondoCassaFine("");
-    setPreconto(""); setFatture(""); setAnnulli(""); setCoperti("");
+    setPreconto(""); setFatture(""); setAnnulli(""); setOmaggi(""); setCoperti("");
     setContanti(""); setPosBpm(""); setPosSella("");
     setTheforkpay(""); setOtherEpay(""); setBonifici(""); setMance("");
     setNote(""); setExistingId(null);
@@ -335,6 +340,7 @@ export default function ChiusuraTurno() {
       setPreconto(data.preconto?.toString() ?? "");
       setFatture(data.fatture?.toString() ?? "");
       setAnnulli(data.annulli_resi?.toString() ?? "");
+      setOmaggi(data.omaggi?.toString() ?? "");
       setCoperti(data.coperti?.toString() ?? "");
       setContanti(data.contanti?.toString() ?? "");
       setPosBpm(data.pos_bpm?.toString() ?? "");
@@ -411,6 +417,7 @@ export default function ChiusuraTurno() {
           preconto: toNumber(preconto),
           fatture: toNumber(fatture),
           annulli_resi: toNumber(annulli),
+          omaggi: toNumber(omaggi),
           coperti: toNumber(coperti),
           contanti: toNumber(contanti),
           pos_bpm: toNumber(posBpm),
@@ -571,6 +578,10 @@ export default function ChiusuraTurno() {
                 <NumberField
                   label="Annulli / Resi"
                   value={annulli} onChange={setAnnulli} icon="❌" />
+                <NumberField
+                  label="Omaggi"
+                  value={omaggi} onChange={setOmaggi} icon="🎁"
+                  note="Voce «TOTALE GIORNO OMAGGI» dello scontrino di chiusura. Non incassati, ma restano nell'imponibile IVA: non toccano la quadratura." />
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">{isCena ? "🪑 Coperti Cena" : "🪑 Coperti"}</label>
                   <input type="number" min={0} value={coperti} onChange={e => setCoperti(e.target.value)}
@@ -975,7 +986,10 @@ export default function ChiusuraTurno() {
 // ─────────────────────────────────────────────────────────────
 // NumberField — input numerico con label, icona e hint parziale cena
 // ─────────────────────────────────────────────────────────────
-function NumberField({ label, value, onChange, icon, hint }) {
+// `hint` = oggetto {pranzo, parziale} per il calcolo pranzo→cena.
+// `note` = testo libero opzionale sotto al campo (retrocompat: chi non la passa
+// non vede nulla di diverso).
+function NumberField({ label, value, onChange, icon, hint, note }) {
   return (
     <div>
       <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">
@@ -993,6 +1007,9 @@ function NumberField({ label, value, onChange, icon, hint }) {
         <div className="mt-1 text-[10px] text-indigo-500 leading-tight">
           pranzo € {fmt(hint.pranzo)} → <span className={`font-semibold ${hint.parziale < 0 ? "text-red-500" : ""}`}>parz. cena € {fmt(hint.parziale)}</span>
         </div>
+      )}
+      {note && (
+        <div className="mt-1 text-[10px] text-neutral-400 leading-tight">{note}</div>
       )}
     </div>
   );

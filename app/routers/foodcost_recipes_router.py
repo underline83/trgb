@@ -40,7 +40,15 @@ from app.services.allergeni_service import (
 )
 from app.services.foodcost_history_service import compute_recipe_fc_history
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — archivio ricette
+# La LETTURA resta larga per necessita': il composer del menu preventivo (modulo clienti) legge ricette e tipi di servizio, e ci arrivano sala, sommelier e contabile. Le SCRITTURE sono chiuse alla cucina endpoint per endpoint (vedi le dependencies sui singoli decoratori). Fuori resta `viewer`.
+# Ruoli da modules.json (`ricette`): admin, chef, sous_chef, commis, sala, sommelier, contabile (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(dependencies=[
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", "sala", "sommelier", "contabile", cosa="archivio ricette")),
+    ])
 
 
 # ─────────────────────────────────────────────
@@ -792,7 +800,7 @@ def get_foodcost_settings():
         conn.close()
 
 
-@router.put("/settings", response_model=FoodcostSettingsOut)
+@router.put("/settings", response_model=FoodcostSettingsOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def update_foodcost_settings(payload: FoodcostSettingsUpdate):
     conn = get_cucina_connection()
     try:
@@ -832,7 +840,7 @@ def list_recipe_categories():
     return [RecipeCategoryOut(**dict(r)) for r in rows]
 
 
-@router.post("/ricette/categorie", response_model=RecipeCategoryOut)
+@router.post("/ricette/categorie", response_model=RecipeCategoryOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def create_recipe_category(payload: RecipeCategoryCreate):
     conn = get_cucina_connection()
     cur = conn.cursor()
@@ -1212,7 +1220,7 @@ def get_ricetta(recipe_id: int):
 #   ENDPOINT: CREA RICETTA
 # ─────────────────────────────────────────────
 
-@router.post("/ricette", response_model=RecipeOut)
+@router.post("/ricette", response_model=RecipeOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def create_ricetta(payload: RecipeCreate):
     # Validazione items
     for i, item in enumerate(payload.items):
@@ -1561,7 +1569,7 @@ def import_tracciato_ricette():
     }
 
 
-@router.post("/ricette/import/analizza")
+@router.post("/ricette/import/analizza", dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def import_analizza_ricette(payload: ImportPayload):
     """
     Analizza un file di import SENZA scrivere nulla.
@@ -1708,7 +1716,7 @@ def import_analizza_ricette(payload: ImportPayload):
         conn.close()
 
 
-@router.post("/ricette/import/conferma")
+@router.post("/ricette/import/conferma", dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def import_conferma_ricette(payload: ImportConfermaPayload):
     """
     Esegue l'import: crea gli ingredienti placeholder decisi dall'utente, poi
@@ -1913,7 +1921,7 @@ def import_conferma_ricette(payload: ImportConfermaPayload):
 #   ENDPOINT: AGGIORNA RICETTA
 # ─────────────────────────────────────────────
 
-@router.put("/ricette/{recipe_id}", response_model=RecipeOut)
+@router.put("/ricette/{recipe_id}", response_model=RecipeOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def update_ricetta(recipe_id: int, payload: RecipeUpdate):
     now = datetime.utcnow().isoformat()
     conn = get_cucina_connection()
@@ -2050,7 +2058,7 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
 #   Crea un piatto minimal senza items/ricetta — puo' essere arricchito dopo
 # ─────────────────────────────────────────────
 
-@router.post("/ricette/quick", response_model=RecipeOut)
+@router.post("/ricette/quick", response_model=RecipeOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def quick_create_piatto(payload: RecipeQuickCreate):
     """Crea un piatto minimal dal wizard preventivo.
 
@@ -2130,7 +2138,7 @@ class RecipeServiziPayload(BaseModel):
     service_type_ids: List[int] = []
 
 
-@router.put("/ricette/{recipe_id}/servizi", response_model=RecipeOut)
+@router.put("/ricette/{recipe_id}/servizi", response_model=RecipeOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def set_recipe_servizi(recipe_id: int, payload: RecipeServiziPayload):
     """Imposta (sostituisce) la lista dei tipi servizio associati a un piatto."""
     conn = get_cucina_connection()
@@ -2173,7 +2181,7 @@ class AllergeniBatchOut(BaseModel):
     dettaglio: List[Dict[str, Any]] = []
 
 
-@router.post("/ricette/{recipe_id}/ricalcola-allergeni", response_model=AllergeniRecalcOut)
+@router.post("/ricette/{recipe_id}/ricalcola-allergeni", response_model=AllergeniRecalcOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def ricalcola_allergeni_singola(recipe_id: int):
     """
     Ricalcola allergeni di una singola ricetta (cache aggiornata).
@@ -2194,7 +2202,7 @@ def ricalcola_allergeni_singola(recipe_id: int):
         conn.close()
 
 
-@router.post("/ricette/ricalcola-allergeni-tutti", response_model=AllergeniBatchOut)
+@router.post("/ricette/ricalcola-allergeni-tutti", response_model=AllergeniBatchOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def ricalcola_allergeni_tutti(user=Depends(get_current_user)):
     """
     Ricalcola allergeni per TUTTE le ricette attive (batch).
@@ -2257,7 +2265,7 @@ def list_service_types(include_inactive: bool = False):
     ]
 
 
-@router.post("/service-types", response_model=ServiceTypeOut)
+@router.post("/service-types", response_model=ServiceTypeOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def create_service_type(payload: ServiceTypeIn):
     conn = get_cucina_connection()
     cur = conn.cursor()
@@ -2298,7 +2306,7 @@ def create_service_type(payload: ServiceTypeIn):
         conn.close()
 
 
-@router.put("/service-types/{st_id}", response_model=ServiceTypeOut)
+@router.put("/service-types/{st_id}", response_model=ServiceTypeOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def update_service_type(st_id: int, payload: ServiceTypeIn):
     conn = get_cucina_connection()
     cur = conn.cursor()
@@ -2336,7 +2344,7 @@ def update_service_type(st_id: int, payload: ServiceTypeIn):
         conn.close()
 
 
-@router.delete("/service-types/{st_id}")
+@router.delete("/service-types/{st_id}", dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def delete_service_type(st_id: int):
     """Soft delete: imposta active=0. Non cancella associazioni esistenti con piatti."""
     conn = get_cucina_connection()
@@ -2359,7 +2367,7 @@ def delete_service_type(st_id: int):
 #   ENDPOINT: DISATTIVA RICETTA
 # ─────────────────────────────────────────────
 
-@router.delete("/ricette/{recipe_id}")
+@router.delete("/ricette/{recipe_id}", dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def delete_ricetta(recipe_id: int):
     """Soft delete — imposta is_active = 0."""
     conn = get_cucina_connection()
@@ -2383,7 +2391,7 @@ def delete_ricetta(recipe_id: int):
 #   ENDPOINT: ELIMINA RICETTA DEFINITIVAMENTE (2026-06-07)
 # ─────────────────────────────────────────────
 
-@router.delete("/ricette/{recipe_id}/hard")
+@router.delete("/ricette/{recipe_id}/hard", dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def delete_ricetta_hard(recipe_id: int):
     """
     Eliminazione DEFINITIVA di una ricetta (richiesta Marco 2026-06-07).
@@ -2465,7 +2473,7 @@ def delete_ricetta_hard(recipe_id: int):
 #   ENDPOINT: CLONE RICETTA (Modulo L, 2026-04-27)
 # ─────────────────────────────────────────────
 
-@router.post("/ricette/{recipe_id}/clone", response_model=RecipeOut)
+@router.post("/ricette/{recipe_id}/clone", response_model=RecipeOut, dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="modificare le ricette"))])
 def clone_ricetta(recipe_id: int):
     """
     Duplica una ricetta esistente:

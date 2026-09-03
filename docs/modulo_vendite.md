@@ -237,7 +237,7 @@ CREATE TABLE monthly_budget (
 1. Lo staff seleziona data e turno (pranzo/cena)
 2. Inserisce dati di chiusura: contanti, POS BPM, POS Sella, TheForkPay, altri e-payments, bonifici, mance
 3. Inserisce il preconto (etichetta "Chiusura Parziale" a pranzo, "Chiusura (giorno)" a cena — `ChiusuraTurno.jsx:565`)
-4. Inserisce le fatture emesse, i coperti e 🆕 gli **annulli/resi** (scontrini battuti ma mai incassati, migrazione 146 — campo `annulli_resi`, `chiusure_turno.py:49,97-99`)
+4. Inserisce le fatture emesse, i coperti, 🆕 gli **annulli/resi** (scontrini battuti ma mai incassati, migrazione 146 — campo `annulli_resi`, `chiusure_turno.py:49,97-99`) e 🆕 gli **omaggi** (voce «TOTALE GIORNO OMAGGI» della chiusura RT, migrazione 170 — campo `omaggi`, `chiusure_turno.py:50,101-105`)
 5. Aggiunge **pre-conti**: righe dinamiche tavolo + importo per ogni tavolo non battuto
 6. Aggiunge **spese**: righe dinamiche tipo (scontrino/fattura/personale/altro) + descrizione + importo
 7. Inserisce fondo cassa inizio e fine servizio
@@ -259,6 +259,7 @@ Calcolata **lato backend** nella lista chiusure (campi `saldo`, `diff_grezzo`, `
 - `giustificato = chiusura RT (preconto) + Σ pre-conti + fatture − annulli/resi`
 - `diff_grezzo = entrate − giustificato` · `saldo = diff_grezzo + Σ spese`
 - A cena i campi principali sono giornalieri, ma pre-conti, spese, fatture e annulli del **pranzo** vengono sommati separatamente (`chiusure_turno.py:821-897`)
+- ⚠️ Gli **omaggi NON entrano nella quadratura**: non sono mai stati incassati e non vanno giustificati. Entrano solo nell'imponibile fiscale (§9.5.1)
 
 ## 9.4 Backend — `chiusure_turno.py`
 
@@ -287,7 +288,7 @@ Ruoli (dal codice): scrittura superadmin/admin/sommelier/sala (`check_allowed_ro
 ## 9.5 DB — tabelle chiusure turno
 
 In `admin_finance.sqlite3` (DDL in `ensure_shift_closures_tables`, `chiusure_turno.py:25-128`):
-- `shift_closures` — dati chiusura con `fondo_cassa_inizio/fine`, `created_by`, 🆕 `annulli_resi` (mig 146) e `coperti`; UNIQUE(date, turno)
+- `shift_closures` — dati chiusura con `fondo_cassa_inizio/fine`, `created_by`, 🆕 `annulli_resi` (mig 146), 🆕 `omaggi` (mig 170) e `coperti`; UNIQUE(date, turno)
 - `shift_preconti` — pre-conti: tavolo + importo per chiusura
 - `shift_spese` — spese: tipo + descrizione + importo per chiusura
 - `shift_checklist_config` — config checklist (predisposta, non ancora popolata)
@@ -296,6 +297,38 @@ In `admin_finance.sqlite3` (DDL in `ensure_shift_closures_tables`, `chiusure_tur
 > 🆕 **Rettifica pre-conti (luglio 2026) — id volatili:** l'upsert `POST /shift-closures/` fa sempre **DELETE + reinsert** delle righe `shift_preconti` e `shift_spese` della chiusura (`chiusure_turno.py:1283-1315`). Gli `id` di `shift_preconti`/`shift_spese` NON sono quindi stabili tra un salvataggio e l'altro: nessun consumer deve usarli come riferimento persistente (l'endpoint storico `/preconti` infatti non li espone, `:288-320`).
 
 Tabella legacy: `daily_closures` — chiusure giornaliere da import Excel (tuttora supportate; unificazione decisa in roadmap §K.12).
+
+### 9.5.1 🆕 Incassato, corrispettivo, imponibile — 3 grandezze DIVERSE (mig 170, 2026-09-03)
+
+> **Non confonderle.** La chiusura RT stampa numeri diversi che finora il gestionale appiattiva in uno solo. Caso reale 28/08/2026 (segnalato da Marco: il prospetto interno non tornava con quanto risultava all'AdE).
+
+| Voce sullo scontrino RT | 28/08/2026 | Cos'è |
+|---|---:|---|
+| TOTALE GIORNO VENDITE | 2.478,00 | **incassato**: i soldi entrati |
+| TOTALE GIORNO OMAGGI | 8,00 | battuto, mai incassato |
+| CORRISPETTIVO (10%) | 2.486,00 | **corrispettivo fiscale** = vendite + omaggi |
+| AMMONTARE | 2.260,00 | **imponibile**, scorporo del corrispettivo |
+| IMPOSTA | 226,00 | IVA dovuta |
+| NON RISCOSSO OMAGGIO | 7,27 | quota imponibile dell'omaggio (8,00 ÷ 1,10) |
+
+**Regole d'oro:**
+
+- `shift_closures.preconto` contiene il **TOTALE GIORNO VENDITE** (l'incassato), non il corrispettivo. Semantica storica, invariata: non cambiarla, ci sono anni di dati dentro.
+- Il **corrispettivo fiscale è una derivata**: `preconto − annulli_resi + omaggi`. È la base su cui si fa lo scorporo IVA (`corrispettivi_export.py`, campo `corrispettivi_fiscali`).
+- **Omaggi e annulli si comportano in modo OPPOSTO**, ed è il punto in cui è facile sbagliare:
+
+| | in cassa | nell'imponibile IVA |
+|---|---|---|
+| **annulli/resi** | no | **no** — si sottraggono |
+| **omaggi** | no | **sì** — si sommano |
+
+- Il motivo: nel tracciato dei corrispettivi telematici `<NonRiscossoOmaggio>` è **incluso** nell'ammontare da assoggettare a IVA. La cessione gratuita resta operazione imponibile: l'imposta c'è, la versa l'esercente invece del cliente. Un annullo invece è un'operazione che non è mai esistita.
+- Conseguenza pratica: nei giorni con omaggi **imponibile e incassato non tornano**, ed è corretto così. Lo scarto è esattamente l'imponibile degli omaggi.
+- Il PDF commercialista espone la colonna «di cui omaggi» proprio per rendere leggibile quello scarto.
+
+**Prima della mig 170** il PDF scorporava sull'incassato: sul 28/08 dichiarava imponibile 2.252,73 invece di 2.260,00. L'errore era solo nel prospetto interno — il registratore trasmette all'AdE i valori corretti per conto suo. Lo storico ante-170 non è recuperabile dal gestionale (il dato omaggi non veniva registrato): va corretto a mano riaprendo le chiusure con lo scontrino alla mano.
+
+> Se non sai se un valore che stai per mostrare o scrivere è incassato, corrispettivo o imponibile, CHIEDI a Marco. Vietato decidere da soli.
 
 ## 9.6 Pre-conti (superadmin only, 2026-03-23)
 

@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.models.clienti_db import get_clienti_conn
+from app.services.permessi import richiede_ruoli
 from app.models.foodcost_db import get_foodcost_connection
 from app.models.dipendenti_db import get_dipendenti_conn
 from app.services.auth_service import get_current_user
@@ -1569,7 +1570,10 @@ def get_dashboard_lavagna():
 # Modulo H — Dashboard Cucina chef (vista operativa giornaliera)
 # ─────────────────────────────────────────────────────────
 
-@router.get("/cucina")
+# /home e /lavagna restano aperti a QUALSIASI ruolo autenticato: sono la Home e
+# la Lavagna, le vedono tutti. /cucina no: e' la dashboard di brigata
+# (`ricette/cucina_dashboard` in modules.json). — M.G 2026-09-01
+@router.get("/cucina", dependencies=[Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="la dashboard cucina"))])
 def get_dashboard_cucina():
     """
     Dashboard operativa per il chef: cosa serve sapere "adesso".

@@ -29,7 +29,15 @@ from app.models.settings_db import get_settings_conn, init_settings_db
 from app.models.vini_settings import ensure_settings_defaults
 from app.services.auth_service import get_current_user
 
-router = APIRouter(prefix="/settings/vini", tags=["Impostazioni Carta Vini"], dependencies=[Depends(get_current_user)])
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — impostazioni vini
+# Modulo Vini: ruoli invariati rispetto a oggi (decisione Marco 2026-09-01 — sala e sommelier scrivono davvero: carta staff, cantina mobile, vendite, creazione vini). La guardia chiude la porta a chi il modulo non ce l'ha: cucina, contabile, viewer. Le GET widget e valori-tabellati servono al widget Calici nella home di sala e alla scheda vino.
+# Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
+router = APIRouter(prefix="/settings/vini", tags=["Impostazioni Carta Vini"], dependencies=[
+        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="impostazioni vini")),
+    ])
 
 
 def _ensure():

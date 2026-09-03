@@ -60,9 +60,18 @@ from app.repositories.vini_repository import load_vini_ordinati, load_vini_calic
 from app.models.vini_settings import _TIPOLOGIA_MAP
 
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — strumenti cantina
+# Modulo Vini: ruoli invariati rispetto a oggi (decisione Marco 2026-09-01 — sala e sommelier scrivono davvero: carta staff, cantina mobile, vendite, creazione vini). La guardia chiude la porta a chi il modulo non ce l'ha: cucina, contabile, viewer. Restano dentro locazioni, matrice e PDF inventario, usati da sala e sommelier; gli strumenti distruttivi (backup, reset, import/export) hanno gia' guardie admin per endpoint.
+# Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/vini/cantina-tools",
     tags=["Vini Cantina Tools"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="strumenti cantina")),
+    ],
 )
 
 # PATH DI BASE

@@ -24,9 +24,18 @@ from app.models import vini_anagrafiche_db as ana
 from app.services import vini_anagrafiche_sync as ana_sync
 
 
+from app.services.permessi import richiede_ruoli
+
+# PERMESSI (2026-09-01, M.G) — anagrafiche vini
+# Modulo Vini: ruoli invariati rispetto a oggi (decisione Marco 2026-09-01 — sala e sommelier scrivono davvero: carta staff, cantina mobile, vendite, creazione vini). La guardia chiude la porta a chi il modulo non ce l'ha: cucina, contabile, viewer. Le anagrafiche si scrivono anche dal wizard Nuovo Vino di Cantina 2, che sta sotto il sub `magazzino`.
+# Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
+# Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/vini/anagrafiche",
     tags=["Vini Anagrafiche (refactor V.6+V.7+V.8)"],
+    dependencies=[
+        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="anagrafiche vini")),
+    ],
 )
 
 
