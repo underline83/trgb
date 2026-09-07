@@ -46,8 +46,24 @@ Endpoint `/cucina/scorte` + `/cucina/ubicazioni` · schema multi-reparto, UI cuc
 - **Seed Tre Gobbi** `[locale:tregobbi]`: i frigo veri e la loro dotazione. Commit separato, e la dotazione si popola dall'incolla-testo.
 - Due decisioni aperte in `docs/modulo_scorte_cucina.md` §10.2: se una conta a 24 ripiani si può spalmare su più giorni, e la taratura vera di 5/21 dopo qualche settimana d'uso.
 
+### Parte 2 — «Cucina da iPhone» (stessa sessione)
+
+`frontend/src/pages/cucina/CucinaMobile.jsx`, 1.250 righe, gemella di `CantinaMobile.jsx`. Rotte `/cucina/mobile/:tab?/:id?` (i deep link servono al tasto Indietro del telefono), voce **«Cucina da iPhone»** nel dropdown sotto Gestione Cucina.
+
+**Quattro tab, due dei quali su endpoint preesistenti:**
+- **Oggi** → `/tasks/agenda/`. Checklist con tap-to-complete sui singoli item e task del giorno. Le voci TEMPERATURA/NUMERICO **non** si spuntano al volo: senza valore l'endpoint rifiuta, ed è giusto — una temperatura va letta, non spuntata.
+- **Scorte** → `/cucina/scorte/articoli/`. Ricerca con debounce, filtri «da comprare / da verificare / tutti», scheda articolo con azioni rapide precompilate e sheet per la quantità.
+- **Frigo** → `/cucina/ubicazioni/`. **Il giro**: card per posto con temperatura, mancanti e guasti; dentro, i ripiani dall'alto in basso con la destinazione d'uso e i pallini.
+- **Spesa** → `/lista-spesa/items/`, raggruppata per fornitore.
+
+**Prefisso classi `km-`**, non `cm-`: CantinaMobile convive nella stessa app e le regole si sovrascriverebbero. Palette TRGB-02, safe-area iOS su header e tab bar, touch target 38-44px.
+
+**Il rispetto di `stato_dato` è nel codice, non nelle intenzioni:** `fmtGiacenza()` è l'unico posto che decide come si scrive una quantità — `4,2` se fresca, `≈ 4,2` con chip «fermo da N gg» se stantia, `—` se ignota. Se qualcuno la aggira, il modulo torna a mentire.
+
+**Verifica frontend:** `@babel/parser` su tutti i file toccati; `@babel/traverse` per hook condizionali (nessuno) e identificatori non risolti (nessuno); **cross-check delle 13 chiamate HTTP contro le route reali dei 4 router coinvolti — 13/13 esistono**. ⚠️ `esbuild` e il venv nel repo sono binari macOS: non girano nel mio ambiente, quindi **`npm run build` va lanciato da te prima del push**.
+
 ### Suggested commit
-`./push.sh "[core] Scorte & Frigoriferi cucina — infrastruttura a ripiani (mig 171): 11 tabelle cucina_*, service, 2 router (40 endpoint) con guardie M.G, ponte HACCP checklist_item.ubicazione_id, doc + 9 mockup iPhone. Nessuna UI, nessun dato: invisibile all'osteria"`
+`./push.sh "[core] Cucina da iPhone — magazzino a ripiani (mig 171: 11 tabelle cucina_*, 2 router/40 endpoint con guardie M.G, ponte HACCP checklist_item.ubicazione_id) + sotto-app mobile 4 tab su /cucina/mobile. Zero dati: invisibile finche non si configurano i frigo. npm run build prima del push"`
 
 ---
 

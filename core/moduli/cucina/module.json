@@ -1,7 +1,7 @@
 {
   "id": "cucina",
   "nome": "Cucina (Scorte, Frigoriferi, Lista Spesa)",
-  "versione": "2.0",
+  "versione": "2.1",
   "descrizione": "Magazzino di cucina a ripiani: articoli, giacenze, movimenti, conte, lotti e scadenze. Frigoriferi come entita' con soglie, storia e guasti. Lista spesa che si riempie da cio' che viene segnato finito. Dashboard cucina e HACCP vivono in platform/task_manager: le temperature restano li', questo modulo le legge.",
   "vendibile": true,
   "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],

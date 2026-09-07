@@ -56,6 +56,7 @@ const MODULES_MENU = {
     color: "bg-orange-50 border-orange-200 text-orange-900", hoverBg: "hover:bg-orange-50",
     sub: [
       { label: "Dashboard Cucina", go: "/cucina/dashboard" },
+      { label: "Cucina da iPhone", go: "/cucina/mobile" },
       { label: "Lista Spesa",   go: "/cucina/spesa" },
       { label: "Archivio",      go: "/ricette/archivio" },
       { label: "Ingredienti",   go: "/ricette/ingredienti" },

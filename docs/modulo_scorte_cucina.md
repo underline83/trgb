@@ -1,7 +1,8 @@
 # Modulo Scorte & Frigoriferi — Cucina
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale — **backend implementato 2026-09-07 (mig 171), UI da fare** · **Ultima verifica:** 2026-09-07
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — **backend + sotto-app mobile implementati 2026-09-07** · **Ultima verifica:** 2026-09-07
 > **Mockup dei flussi:** [`mockups/cucina_mobile_scorte_frigo.html`](mockups/cucina_mobile_scorte_frigo.html) — 9 schermate iPhone, il giro del frigo è interattivo. **Si valida quello prima di scrivere il backend** (decisione Marco 2026-09-07).
+> **Frontend:** `frontend/src/pages/cucina/CucinaMobile.jsx` — 4 tab su `/cucina/mobile`. Prefisso classi `km-` (NON `cm-`, che è di CantinaMobile: convivono nella stessa app).
 > **Codice:** `app/models/cucina_scorte_db.py` (schema, single source of truth) · `app/services/cucina_scorte_service.py` (logica) · `app/routers/cucina_{scorte,ubicazioni}_router.py` (40 endpoint) · `app/services/{haccp_letture,prezzi_ingredienti}.py` (ponti platform) · `app/migrations/171_cucina_scorte_frigoriferi.py`.
 > ⚠️ In `claude/scorte_cucina_parcheggio/` c'e' una prima stesura **pre-ripiani, superata**: non riusarla, e' li' solo perche' la cartella e' gitignorata.
 > **Vedi anche:** [modulo_cucina.md](modulo_cucina.md) (task + HACCP + lista spesa), [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md), [modulo_vini.md](modulo_vini.md) (Cantina mobile = precedente di riferimento), [architettura_mattoni.md](architettura_mattoni.md), [roadmap.md](roadmap.md) §C

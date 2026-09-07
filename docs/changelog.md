@@ -19,7 +19,14 @@ Come la cantina dal telefono, ma per la cucina. Per ora c'è solo il motore: **n
 
 **Le temperature restano dove sono sempre state**, dentro le checklist HACCP. Non ne ho fatto un secondo registro: due registri prima o poi divergono, e quello sbagliato lo scopri davanti all'ASL.
 
-Il prossimo passo è la parte che si vede: quattro schede sul telefono — Oggi, Scorte, Frigo, Spesa.
+**E la parte che si vede c'è già.** Quattro schede sul telefono, sotto Gestione Cucina → **Cucina da iPhone**:
+
+- **Oggi** — le checklist del giorno e i task, da spuntare col pollice.
+- **Scorte** — cerchi una cosa e la trovi, con dove sta e quanto ne resta.
+- **Frigo** — il giro: apri un frigo, vedi i ripiani dall'alto in basso, spunti cosa manca.
+- **Spesa** — la lista, raggruppata per fornitore.
+
+**Prima di usarla vanno configurati i frigo**: quali sono, quanti ripiani, cosa ci sta dentro. Finché non lo fai le schermate sono vuote, e va bene così — nessuno rischia di trovarsi dati inventati.
 
 ## 2026-09-03 — Gli omaggi tornano nell'imponibile `[core]`
 

@@ -133,13 +133,16 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
-    // 1.0 (2026-09-07): infrastruttura Scorte & Frigoriferi a ripiani (mig 171).
-    //   Solo backend: 11 tabelle cucina_*, 40 endpoint, nessuna UI ancora —
-    //   la sotto-app mobile è la fase successiva. Con zero dati inseriti
-    //   l'osteria non vede alcun cambiamento.
+    // 1.1 (2026-09-07): «Cucina da iPhone» — la sotto-app mobile a 4 tab
+    //   (Oggi / Scorte / Frigo / Spesa) su /cucina/mobile. Oggi e Spesa girano
+    //   su /tasks e /lista-spesa che esistevano già; Scorte e Frigo sulla 171.
+    //   Il gesto principale è il giro del frigo: pallino ciclico verde→giallo→
+    //   rosso, undo 8s, e sul rosso nasce la riga di spesa.
+    // 1.0 (2026-09-07): infrastruttura a ripiani (mig 171). 11 tabelle
+    //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
-    //   Mockup validato: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.0",
+    //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
+    version: "1.1",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

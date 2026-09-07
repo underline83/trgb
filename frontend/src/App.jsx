@@ -52,6 +52,8 @@ const RicetteMatching = lazy(() => import("./pages/ricette/RicetteMatching"));
 const RicetteDashboard = lazy(() => import("./pages/ricette/RicetteDashboard"));
 const DashboardCucina = lazy(() => import("./pages/cucina/DashboardCucina"));
 const ListaSpesa = lazy(() => import("./pages/cucina/ListaSpesa"));
+// «Cucina da iPhone» — 4 tab Oggi/Scorte/Frigo/Spesa (2026-09-07, gemella di CantinaMobile)
+const CucinaMobile = lazy(() => import("./pages/cucina/CucinaMobile"));
 const RicetteSettings = lazy(() => import("./pages/ricette/RicetteSettings"));
 const RicetteImport = lazy(() => import("./pages/ricette/RicetteImport"));
 const MenuCartaElenco = lazy(() => import("./pages/cucina/MenuCartaElenco"));
@@ -320,6 +322,13 @@ export default function App() {
 
         {/* --- LISTA SPESA Cucina (sotto Gestione Cucina, sessione 59 cont. c — Modulo J Fase 1) --- */}
         <Route path="/cucina/spesa" element={<ProtectedRoute module="ricette" sub="spesa"><ListaSpesa /></ProtectedRoute>} />
+
+        {/* --- CUCINA DA IPHONE (2026-09-07) — 4 tab: Oggi / Scorte / Frigo / Spesa.
+             Le rotte con :tab e :tab/:id servono i deep link (un frigo, un articolo)
+             e fanno funzionare il tasto Indietro del telefono come ci si aspetta. --- */}
+        <Route path="/cucina/mobile" element={<ProtectedRoute module="ricette" sub="cucina_dashboard"><CucinaMobile /></ProtectedRoute>} />
+        <Route path="/cucina/mobile/:tab" element={<ProtectedRoute module="ricette" sub="cucina_dashboard"><CucinaMobile /></ProtectedRoute>} />
+        <Route path="/cucina/mobile/:tab/:id" element={<ProtectedRoute module="ricette" sub="cucina_dashboard"><CucinaMobile /></ProtectedRoute>} />
 
         {/* --- AREA AMMINISTRAZIONE (redirect legacy) --- */}
         <Route path="/admin" element={<Navigate to="/impostazioni" replace />} />
