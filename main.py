@@ -129,6 +129,11 @@ from app.routers.haccp_router import router as haccp_router
 # LISTA SPESA CUCINA — Fase 1 MVP (Modulo J sessione 59 cont. c, 2026-04-27)
 from app.routers.lista_spesa_router import router as lista_spesa_router
 
+# SCORTE & FRIGORIFERI CUCINA — infrastruttura a ripiani (2026-09-07, mig 171)
+# Doc: docs/modulo_scorte_cucina.md · mockup: docs/mockups/cucina_mobile_scorte_frigo.html
+from app.routers.cucina_ubicazioni_router import router as cucina_ubicazioni_router
+from app.routers.cucina_scorte_router import router as cucina_scorte_router
+
 # CARTA BEVANDE — sub-modulo del modulo Vini (Aperitivi, Birre, Distillati, Tisane, Tè, Amari)
 from app.routers.bevande_router import router as bevande_router
 
@@ -744,6 +749,19 @@ _mount("haccp_router", haccp_router)
 
 # LISTA SPESA CUCINA — Fase 1 MVP (modulo cucina)
 _mount("lista_spesa_router", lista_spesa_router)
+
+# SCORTE & FRIGORIFERI CUCINA (modulo cucina) — ubicazioni/ripiani + scorte
+# Init schema al boot (stesso pattern di pranzo_db): CREATE IF NOT EXISTS, no-op
+# se la mig 171 è già passata. Serve al locale demo `trgb` e ai fresh install.
+if module_loader.is_router_active("cucina_scorte_router"):
+    try:
+        from app.models.cucina_scorte_db import init_cucina_scorte_db
+        init_cucina_scorte_db()
+        print("[init] cucina_scorte_db OK")
+    except Exception as _e:
+        print(f"[init] cucina_scorte_db WARN: {_e}")
+_mount("cucina_ubicazioni_router", cucina_ubicazioni_router)
+_mount("cucina_scorte_router", cucina_scorte_router)
 
 # CARTA BEVANDE — sub-modulo Vini
 _mount("bevande_router", bevande_router)

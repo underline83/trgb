@@ -84,7 +84,7 @@ LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 # ------------------------------------------------------------
 # HTML PREVIEW CARTA
 # ------------------------------------------------------------
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import richiede_ruoli, richiede_ruoli_con
 
 # PERMESSI (2026-09-01, M.G) — Modulo: vini
 # ATTENZIONE: questo router NON ha una guardia a livello router, ed e' voluto.
@@ -443,7 +443,7 @@ def pubblica_carta_sul_sito(user=Depends(get_current_user)):
 # ------------------------------------------------------------
 # PDF STAFF
 # ------------------------------------------------------------
-@router.get("/carta/pdf-staff", dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
+@router.get("/carta/pdf-staff", dependencies=[Depends(richiede_ruoli_con(_get_user_flessibile, "admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
 def genera_carta_vini_pdf_staff(
     current_user: Any = Depends(_get_user_flessibile),
 ):

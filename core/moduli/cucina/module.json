@@ -1,21 +1,36 @@
 {
   "id": "cucina",
-  "nome": "Cucina (Lista Spesa)",
-  "versione": "1.0",
-  "descrizione": "Lista spesa cucina (richieste cuoco → acquisti). Dashboard cucina e HACCP vivono in platform/task_manager.",
+  "nome": "Cucina (Scorte, Frigoriferi, Lista Spesa)",
+  "versione": "2.0",
+  "descrizione": "Magazzino di cucina a ripiani: articoli, giacenze, movimenti, conte, lotti e scadenze. Frigoriferi come entita' con soglie, storia e guasti. Lista spesa che si riempie da cio' che viene segnato finito. Dashboard cucina e HACCP vivono in platform/task_manager: le temperature restano li', questo modulo le legge.",
   "vendibile": true,
   "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
   "dipendenze_opzionali": ["ricette", "acquisti", "task_manager"],
   "router_files": [
-    "lista_spesa_router"
+    "lista_spesa_router",
+    "cucina_ubicazioni_router",
+    "cucina_scorte_router"
   ],
   "endpoint_prefix": [
-    "/lista-spesa"
+    "/lista-spesa",
+    "/cucina/ubicazioni",
+    "/cucina/scorte"
   ],
   "tabelle_db": [
     "lista_spesa_items",
-    "lista_spesa_righe"
+    "lista_spesa_righe",
+    "cucina_ubicazioni",
+    "cucina_ripiani",
+    "cucina_articoli",
+    "cucina_giacenze",
+    "cucina_movimenti",
+    "cucina_conte",
+    "cucina_conte_ripiani",
+    "cucina_conte_righe",
+    "cucina_lotti",
+    "cucina_manutenzioni",
+    "cucina_scorte_config"
   ],
-  "frontend_route": ["/cucina"],
+  "frontend_route": ["/cucina", "/cucina/mobile"],
   "frontend_menu_key": "cucina"
 }

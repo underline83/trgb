@@ -60,7 +60,7 @@ from app.repositories.vini_repository import load_vini_ordinati, load_vini_calic
 from app.models.vini_settings import _TIPOLOGIA_MAP
 
 
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import richiede_ruoli_con
 
 # PERMESSI (2026-09-01, M.G) — strumenti cantina
 # Modulo Vini: ruoli invariati rispetto a oggi (decisione Marco 2026-09-01 — sala e sommelier scrivono davvero: carta staff, cantina mobile, vendite, creazione vini). La guardia chiude la porta a chi il modulo non ce l'ha: cucina, contabile, viewer. Restano dentro locazioni, matrice e PDF inventario, usati da sala e sommelier; gli strumenti distruttivi (backup, reset, import/export) hanno gia' guardie admin per endpoint.
@@ -69,10 +69,11 @@ from app.services.permessi import richiede_ruoli
 router = APIRouter(
     prefix="/vini/cantina-tools",
     tags=["Vini Cantina Tools"],
-    dependencies=[
-        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="strumenti cantina")),
-    ],
 )
+# La guardia si aggancia piu' sotto, appena definito `_get_user_flessibile`:
+# 7 endpoint di questo router si autenticano con `?token=` in query (stampe
+# aperte con window.open, iframe della carta cantina), dove l'header non
+# esiste. Vedi `richiede_ruoli_con` in app/services/permessi.py.
 
 # PATH DI BASE
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -129,6 +130,17 @@ def _get_user_flessibile(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Autenticazione richiesta (header Authorization o ?token=...).",
     )
+
+# Guardia di ruolo del router — agganciata QUI e non nella APIRouter(...) perche'
+# deve poggiare su `_get_user_flessibile` (header **o** ?token=), non su
+# `get_current_user` che legge solo l'header: con quella, le stampe PDF aperte
+# con window.open andavano in 401 per tutti, admin compreso.
+# Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
+router.dependencies.append(
+    Depends(richiede_ruoli_con(
+        _get_user_flessibile, "admin", "sala", "sommelier", cosa="strumenti cantina",
+    ))
+)
 
 
 def _get_username(current_user: Any) -> str:

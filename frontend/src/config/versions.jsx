@@ -132,6 +132,18 @@ const MODULE_VERSIONS = {
     status: "alpha",
     color: "orange",
   },
+  cucinaScorte: {
+    // 1.0 (2026-09-07): infrastruttura Scorte & Frigoriferi a ripiani (mig 171).
+    //   Solo backend: 11 tabelle cucina_*, 40 endpoint, nessuna UI ancora —
+    //   la sotto-app mobile è la fase successiva. Con zero dati inseriti
+    //   l'osteria non vede alcun cambiamento.
+    //   Doc: docs/modulo_scorte_cucina.md
+    //   Mockup validato: docs/mockups/cucina_mobile_scorte_frigo.html
+    version: "1.0",
+    label: "Scorte & Frigoriferi",
+    status: "alpha",
+    color: "orange",
+  },
   pranzo: {
     // 1.8 (2026-08-03): "Pubblica il menu sul sito" nel compositore (mattone
     //   M.J): il PDF cliente della settimana finisce da solo sull'FTP
@@ -336,9 +348,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
-    // 5.41 (2026-09-01): M.G fase 1 + APPLICAZIONE a 25 router. Endpoint con un
-    //   check di ruolo: da 200/836 (24%) a 613/836 (73%); aperti a qualsiasi
-    //   ruolo autenticato da 636 a 223 (e i 223 sono in gran parte voluti).
+    // 5.41 (2026-09-01): M.G fase 1 + APPLICAZIONE a 37 router. Endpoint con un
+    //   check di ruolo: da 200/836 (24%) a 776/836 (92%); aperti a qualsiasi
+    //   ruolo autenticato da 636 a 60, e tutti e 60 sono voluti (letture di
+    //   servizio, QR pubblico, chiusura cassa sala, notifiche di tutti).
+    //   M.G ha ora anche `richiede_ruoli_con(getter, *ruoli)`: serve dove il
+    //   token arriva in query e non nell'header (stampe con window.open,
+    //   iframe carta cantina). Senza, la guardia di router mandava in 401
+    //   le stampe inventario per TUTTI, admin compreso.
     //   Chiusi: banca, banca carta, CG, utenze, admin_finance, fe_import,
     //   fe_categorie, fe_proforme, FIC, statistiche, alerts, iPratico, clienti,
     //   gift card, preventivi, prenotazioni, lista spesa, ingredienti, HACCP,

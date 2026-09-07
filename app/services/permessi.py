@@ -161,6 +161,49 @@ def richiede_ruoli(*ruoli: str, cosa: str | None = None) -> Callable:
     return _guardia
 
 
+def richiede_ruoli_con(dipendenza_utente: Callable, *ruoli: str, cosa: str | None = None) -> Callable:
+    """Come `richiede_ruoli`, ma con una dependency di autenticazione diversa.
+
+    Serve dove il token NON arriva nell'header. `get_current_user` usa
+    `OAuth2PasswordBearer`, che legge solo `Authorization`: va bene per le
+    chiamate `fetch`, non per i download aperti con `window.open(...?token=)`
+    o per un `<iframe src=...?token=>`, dove l'header non si puo' impostare.
+    Quei router hanno il proprio getter flessibile (header **o** `?token=`):
+    passandolo qui, la guardia di ruolo vale anche su quegli endpoint.
+
+        router = APIRouter(dependencies=[
+            Depends(richiede_ruoli_con(_get_user_flessibile, "admin", "sommelier"))
+        ])
+
+    Trovato il 2026-09-01: una guardia costruita su `get_current_user` messa
+    a livello router su `vini_cantina_tools_router` mandava in 401 le stampe
+    PDF dell'inventario **per tutti**, admin compreso.
+    """
+    consentiti = _normalizza(ruoli)
+
+    def _guardia(current_user: Any = Depends(dipendenza_utente)) -> Any:
+        if _ruolo_flessibile(current_user) not in consentiti:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_messaggio(consentiti, cosa),
+            )
+        return current_user
+
+    _guardia.__doc__ = f"Richiede uno di questi ruoli: {', '.join(sorted(consentiti))}"
+    return _guardia
+
+
+def _ruolo_flessibile(user: Any) -> str:
+    """Legge il ruolo da un dict o da un oggetto con attributo `role`.
+
+    I getter alternativi possono restituire il payload grezzo del JWT invece
+    del dict costruito da `get_current_user`.
+    """
+    if isinstance(user, dict):
+        return user.get("role") or ""
+    return getattr(user, "role", "") or ""
+
+
 def solo_admin(cosa: str | None = None) -> Callable:
     """Scorciatoia per `richiede_ruoli("admin")` — superadmin incluso."""
     return richiede_ruoli("admin", cosa=cosa)

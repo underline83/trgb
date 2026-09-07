@@ -54,6 +54,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_vendite.md](modulo_vendite.md) — Vendite / Cassa (ex "Selezioni", NOMEN-1): corrispettivi, chiusure turno, preconti.
 - 📄 [modulo_menu_carta.md](modulo_menu_carta.md) — Menu Carta: edizioni, sezioni, QR pubblico, generatore MEP. Pranzo: [modulo_pranzo.md](modulo_pranzo.md).
 - 📄 [modulo_cucina.md](modulo_cucina.md) — Cucina: checklist HACCP, task manager (split task_manager previsto, DH.5), MEP.
+- 📄 [modulo_scorte_cucina.md](modulo_scorte_cucina.md) — Scorte & Frigoriferi cucina: **schema proposto, non implementato**. Mockup dei flussi in [`mockups/cucina_mobile_scorte_frigo.html`](mockups/cucina_mobile_scorte_frigo.html).
 - 📄 [modulo_statistiche.md](modulo_statistiche.md) — Statistiche: import iPratico, KPI, top prodotti.
 - 📄 [modulo_selezioni.md](modulo_selezioni.md) — stub storico (rinominato in Vendite, NOMEN-1 2026-05-19).
 
@@ -77,7 +78,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 ## 📦 Materiali & varie
 
 - 📄 [readme.md](readme.md) — panoramica progetto (onboarding umano: struttura cartelle, env, avvio locale).
-- `mockups/` — mockup HTML pre-implementazione (cucina, turni, menu QR, riconciliazione, KPI bar).
+- `mockups/` — mockup HTML pre-implementazione (cucina, scorte/frigo, turni, menu QR, riconciliazione, KPI bar).
 - `operativo/` — output operativi cucina (checklist stampabili docx/pdf).
 - `commerciale_brochure_v5.docx` — brochure commerciale prodotto.
 - `query_cg_uscite_aggregatore.sql` — query di riferimento aggregatore CG uscite.

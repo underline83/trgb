@@ -15,8 +15,8 @@
 |---|---|
 | Router analizzati | 56 |
 | Endpoint totali | 836 |
-| Con un check di ruolo esplicito | 200 (24%) → **613 (73%)** dopo l'intervento del 2026-09-01 |
-| Solo `Depends(get_current_user)` — **qualsiasi ruolo autenticato** | 636 (76%) → **223 (26%)** |
+| Con un check di ruolo esplicito | 200 (24%) → **776 (92%)** dopo l'intervento del 2026-09-01 |
+| Solo `Depends(get_current_user)` — **qualsiasi ruolo autenticato** | 636 (76%) → **60 (7%)**, tutti voluti (§5.4) |
 | Senza alcuna autenticazione | 13 (di cui 3 per errore) → **0 per errore** |
 
 Con 9 ruoli in `VALID_ROLES`, oggi un `viewer` ha gli stessi poteri di un `superadmin` su banca, controllo gestione, clienti, prenotazioni e fatture.
@@ -127,7 +127,34 @@ Guardia a livello router (`dependencies=[Depends(richiede_ruoli(...))]`), con i 
 
 **Due regressioni trovate in verifica e sistemate:** il contabile perdeva la ricerca cliente dentro il preventivo (risolto ammettendolo su prenotazioni); sala e sommelier perdono `/vendite/chiusure-old`, pagina legacy non linkata da nessuna nav, raggiungibile solo digitando l'URL — impatto operativo nullo, documentato nel router.
 
-## 5.3 Il modulo Dipendenti
+## 5.3 Seconda ondata — vini, cucina, ricette
+
+| Router | Ora ammette |
+|---|---|
+| `vini_magazzino`, `vini_anagrafiche`, `vini_cantina_tools`, `vini_settings`, `vini_pricing`, `vini_ordini`, `vini_v2` | admin, sala, sommelier — **ruoli invariati rispetto a oggi**: chiude solo a cucina, contabile e viewer, che il modulo non ce l'hanno |
+| `vini_router` | nessuna guardia di router (contiene i 5 endpoint pubblici del QR), guardie sui singoli endpoint di servizio |
+| `pranzo_router` (non il `public_router`) | admin, chef, sous_chef, commis |
+| `menu_templates_router` | admin, contabile, sala, sommelier |
+| `foodcost_matching_router` | admin |
+| `foodcost_recipes_router` | lettura ai 7 ruoli che ci arrivano (il composer preventivi legge l'archivio), **16 scritture** chiuse alla cucina |
+| `dashboard_router` | solo `GET /cucina` → brigata. `/home` e `/lavagna` restano a tutti |
+| `closures_config_router` | solo `PUT /` → admin. La `GET /` serve alla pagina di fine turno della sala |
+
+### Il bug che questa ondata ha fatto emergere: le guardie header-only
+
+`richiede_ruoli` poggia su `get_current_user`, che usa `OAuth2PasswordBearer` e legge **solo** l'header `Authorization`. Ma sette endpoint di `vini_cantina_tools_router` si autenticano con `?token=` nella query, perché sono aperti con `window.open()` (stampe PDF dell'inventario, export xlsx) o dentro un `<iframe>` (carta cantina): lì un header non si può impostare.
+
+Messa a livello router, quella guardia mandava in **401 tutti, admin compreso**. Non è un problema di permessi: è un endpoint che smette di rispondere.
+
+Il rimedio è in M.G: **`richiede_ruoli_con(dipendenza_utente, *ruoli)`**, che costruisce la stessa guardia sopra un getter di autenticazione diverso. In `vini_cantina_tools_router` la guardia si aggancia con `router.dependencies.append(...)` subito dopo la definizione di `_get_user_flessibile` (header **o** `?token=`) e prima del primo endpoint — l'ordine è verificato da un controllo AST.
+
+**Regola generale:** prima di mettere una guardia a livello router, cercare `Query(None)` con nome `token` e i `Depends(_get_user_*)` nelle firme. Se ci sono, serve `richiede_ruoli_con`.
+
+## 5.4 I 60 endpoint ancora aperti — tutti voluti
+
+`turni` (10: lettura del foglio e `/miei-turni`), `tasks` (9: agenda e spunte, il modulo include ogni ruolo, `viewer` compreso), `bevande` (9: letture della carta), `notifiche` (7: le vede tutto lo staff, l'Header le interroga su ogni pagina), `chiusure_turno` (5: la chiusura di cassa serale della sala), `vini_router` (5: il QR cliente), `auth` (3: login, tile, cambio PIN), più le letture di servizio di `dipendenti`, `reparti`, `pranzo`/`menu_carta` pubblici, `home_actions`, `modules`, `closures_config` e `/dashboard/home`+`/lavagna`.
+
+## 5.5 Il modulo Dipendenti
 
 4 router, 59 guardie. Dettaglio in [modulo_dipendenti.md §9](modulo_dipendenti.md). I quattro router mantengono i loro `_require_admin()` / `_require_turni_write()` come nomi parlanti, ma il corpo delega a M.G: la logica del 403 vive in un posto solo.
 

@@ -3,6 +3,24 @@
 
 ---
 
+## 2026-09-07 — La cucina comincia ad avere un magazzino `[core]`
+
+Come la cantina dal telefono, ma per la cucina. Per ora c'è solo il motore: **nessuna schermata, nessun dato dentro**, quindi in osteria oggi non cambia niente. Serviva prima decidere come funziona.
+
+**I frigoriferi diventano cose vere.** Non più una riga di testo dentro una checklist: un frigo ha i suoi ripiani numerati, le sue soglie di temperatura, i suoi guasti, la sua storia. Un giorno potrà dirti «è la terza volta in dieci giorni che va sotto zero» — una frase che oggi nessuno può dirti.
+
+**Si parte dal posto, non dall'articolo.** Apri il frigo carne, vedi i ripiani dall'alto in basso, spunti cosa manca. La roba finita resta elencata: se sparisse dalla lista quando finisce, la lista nasconderebbe proprio quello che stai cercando.
+
+**Ogni cosa si gestisce come merita.** Il sale ha un pallino verde/giallo/rosso e basta. La dispensa si conta ogni tanto. La carne, se vuoi, si scarica ogni volta. Tre modi diversi che convivono senza pestarsi.
+
+**E quando il dato invecchia, te lo dice.** Se un articolo che dovresti scaricare resta fermo cinque giorni (ventuno per la roba secca), il numero smette di essere scritto secco e diventa «≈ 4,2, da verificare». Perché un numero preciso e sbagliato è peggio di nessun numero: ci prendi decisioni sopra.
+
+**Quello che segni finito finisce nella spesa da solo**, con scritto da che frigo viene. E se lo segni per sbaglio, hai otto secondi per tornare indietro.
+
+**Le temperature restano dove sono sempre state**, dentro le checklist HACCP. Non ne ho fatto un secondo registro: due registri prima o poi divergono, e quello sbagliato lo scopri davanti all'ASL.
+
+Il prossimo passo è la parte che si vede: quattro schede sul telefono — Oggi, Scorte, Frigo, Spesa.
+
 ## 2026-09-03 — Gli omaggi tornano nell'imponibile `[core]`
 
 Hai trovato tu lo scarto: il prospetto che mando al commercialista non tornava con quello che l'Agenzia già sapeva. Il 28 agosto il gestionale dichiarava **2.252,73** di imponibile, l'Agenzia ne aveva **2.260,00**. Sette euro e ventisette. La causa: gli omaggi.
@@ -18,6 +36,16 @@ Il PDF per il commercialista ora ha una colonna «di cui omaggi», così lo scar
 **Da sapere:** lo storico non si recupera da solo, il dato non è mai stato registrato. Le chiusure vecchie le correggi tu a mano con lo scontrino in mano, e ristampi i PDF. E se non ti va di pagare l'IVA sugli omaggi, la strada è battere quei piatti come **sconto** invece che come omaggio — cambia il trattamento fiscale, quindi chiedi prima al commercialista.
 
 Nel farlo è saltato fuori un secondo difetto, più vecchio: il PDF **non toglieva gli scontrini annullati** dal corrispettivo, mentre il resto del gestionale lo faceva. Ora anche quello è allineato.
+
+## 2026-09-03 — Finito il giro, con una toppa da mettere subito `[core]`
+
+Chiuso anche il resto: cantina, ordini, prezzi, anagrafiche vini, menu pranzo, archivio ricette, matching fatture. Su **836 indirizzi interni, 776 ora chiedono chi sei prima di rispondere.** I 60 che restano aperti lo sono apposta: il menu col QR al tavolo, il login, i turni che tutti devono poter guardare, le notifiche, la chiusura di cassa della sala. Nel modulo Vini non cambia niente per chi ci lavora.
+
+**Ma c'è una cosa da sistemare adesso.** Le stampe dell'inventario si aprono in una finestra nuova, e in quel caso la password viaggia dentro l'indirizzo invece che nascosta nella richiesta. La serratura che ho messo guardava solo il posto nascosto: **in questo momento, sul gestionale vero, le stampe dell'inventario e l'export della cantina rispondono "non autorizzato" a tutti, te compreso.** Il rimedio è pronto e aspetta solo di essere caricato — dopo, la serratura sa guardare in entrambi i posti.
+
+Era stata intercettata dal controllo prima del push, ma nel frattempo un caricamento partito da un altro lavoro si era già portato via la versione vecchia.
+
+**Un paio di stranezze che c'erano già.** In alcuni punti della cantina la sala vede la pagina ma il gestionale le dice di no — quando sceglie un prezzo al calice fuori standard, o quando prova a inserire un vino nuovo. Non viene da oggi: o quelle pagine non devono essere aperte alla sala, o la sala deve poterle usare davvero. Dimmi tu.
 
 ## 2026-09-01 — Ogni porta ha di nuovo una serratura `[core]`
 

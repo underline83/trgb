@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Cucina mobile — Scorte &amp; Frigoriferi (mockup TRGB-02)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream:#F4F1EC; --cream-2:#EFEBE3; --ink:#111; --ink-soft:#4b4b4f;
+    --muted:#7a7a80; --hair:#e6e1d8;
+    --red:#E8402B; --red-ink:#9c1f10; --red-50:#fbe6e2;
+    --green:#2EB872; --green-ink:#1a7549; --green-50:#e1f2e8;
+    --blue:#2E7BE8; --blue-50:#e1ecfc; --blue-ink:#1a4d96;
+    --amber:#E8A828; --amber-50:#fdf3dc; --amber-ink:#8a5a00;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; padding:0; background:#111; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px; color:var(--ink); -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column; align-items:center; padding:36px 20px 80px;
+  }
+  .serif { font-family:"Playfair Display",Georgia,serif; }
+
+  /* ── intestazione del foglio ── */
+  .sheet-head { max-width:860px; color:#fff; margin-bottom:34px; }
+  .sheet-head h1 { font-family:"Playfair Display",serif; font-size:30px; margin:0 0 10px; }
+  .sheet-head p { color:#bdb8ae; line-height:1.6; margin:0 0 10px; font-size:14px; }
+  .sheet-head .tagline { color:#8a857c; font-size:13px; }
+  .sheet-head code { background:#222; padding:1px 6px; border-radius:4px; font-size:12px; color:#e8c9a0; }
+  .hint {
+    display:inline-block; margin-top:12px; background:#1e1e1e; border:1px solid #333;
+    border-left:3px solid var(--amber); color:#e8d9b8; padding:10px 14px;
+    border-radius:8px; font-size:13px; line-height:1.5;
+  }
+
+  /* ── griglia dei telefoni ── */
+  .row { display:flex; gap:40px; flex-wrap:wrap; justify-content:center; align-items:flex-start; margin-bottom:20px; }
+  .unit { width:393px; }
+  .device {
+    width:393px; height:852px; background:var(--cream); border-radius:48px;
+    box-shadow:0 30px 80px rgba(0,0,0,.35), 0 0 0 8px #1a1a1a, 0 0 0 12px #2a2a2a;
+    overflow:hidden; position:relative;
+  }
+  .device::before {
+    content:""; position:absolute; top:11px; left:50%; transform:translateX(-50%);
+    width:120px; height:34px; background:#000; border-radius:24px; z-index:50;
+  }
+  .caption { color:#fff; margin-top:16px; }
+  .caption b { display:block; font-family:"Playfair Display",serif; font-size:16px; margin-bottom:5px; }
+  .caption span { display:block; color:#a09b92; font-size:13px; line-height:1.55; }
+  .caption .why {
+    display:block; margin-top:8px; color:#c9a86a; font-size:12.5px; line-height:1.5;
+    border-left:2px solid #4a3f2a; padding-left:10px;
+  }
+
+  .screen { height:100%; width:100%; overflow-y:auto; position:relative; background:var(--cream); }
+  .screen::-webkit-scrollbar { width:0; display:none; }
+
+  .statusbar {
+    height:54px; display:flex; align-items:center; justify-content:space-between;
+    padding:0 24px 0 30px; font-size:15px; font-weight:600;
+    position:sticky; top:0; background:var(--cream); z-index:10;
+  }
+  .statusbar .icons { display:flex; gap:5px; align-items:center; font-size:12px; }
+
+  .app-header {
+    padding:6px 20px 10px; background:var(--cream);
+    border-bottom:1px solid var(--hair); position:sticky; top:54px; z-index:9;
+  }
+  .app-header-top { display:flex; align-items:flex-start; justify-content:space-between; padding:2px 0 6px; gap:10px; }
+  .app-header h1 { margin:0; font-size:26px; font-family:"Playfair Display",serif; font-weight:700; }
+  .app-header .sub { font-size:12.5px; color:var(--muted); margin-top:3px; }
+  .back { background:none; border:0; color:var(--red); font-size:14px; font-weight:600; padding:4px 0; cursor:pointer; }
+
+  .fab-plus {
+    width:40px; height:40px; border-radius:50%; background:var(--red); color:#fff;
+    border:0; font-size:21px; font-weight:600; box-shadow:0 6px 14px rgba(232,64,43,.35);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto;
+  }
+
+  .search {
+    width:100%; padding:10px 14px; border-radius:11px; border:1px solid var(--hair);
+    background:#fff; font-size:14px; color:var(--ink-soft); margin-top:4px;
+  }
+  .filters { display:flex; gap:7px; overflow-x:auto; padding:9px 0 3px; }
+  .filters::-webkit-scrollbar { display:none; }
+  .pill {
+    flex:0 0 auto; padding:7px 13px; border-radius:999px; background:#fff;
+    border:1px solid var(--hair); font-size:12.5px; font-weight:600; color:var(--ink-soft);
+    cursor:pointer; white-space:nowrap;
+  }
+  .pill.on { background:var(--red); color:#fff; border-color:var(--red); }
+  .pill .c { margin-left:4px; opacity:.6; font-weight:500; }
+
+  .body { padding:12px 20px 110px; display:flex; flex-direction:column; gap:11px; }
+  .sec-label {
+    font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--muted); margin:8px 0 -3px;
+  }
+
+  .card {
+    background:#fff; border:1px solid var(--hair); border-radius:14px; padding:13px 14px;
+    box-shadow:0 2px 10px rgba(0,0,0,.05);
+  }
+  .card.warn { border-left:4px solid var(--amber); }
+  .card.bad  { border-left:4px solid var(--red); }
+  .card.good { border-left:4px solid var(--green); }
+  .card-title { font-family:"Playfair Display",serif; font-size:16px; font-weight:700; line-height:1.25; }
+  .card-meta { margin-top:5px; font-size:12px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+
+  .chip {
+    display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px;
+    font-size:11px; font-weight:700; letter-spacing:.01em;
+  }
+  .chip.g { background:var(--green-50); color:var(--green-ink); }
+  .chip.a { background:var(--amber-50); color:var(--amber-ink); }
+  .chip.r { background:var(--red-50);   color:var(--red-ink); }
+  .chip.b { background:var(--blue-50);  color:var(--blue-ink); }
+  .chip.n { background:var(--cream-2);  color:var(--ink-soft); }
+
+  /* ── il giro: card frigo ── */
+  .frigo {
+    background:#fff; border:1px solid var(--hair); border-radius:14px; padding:14px;
+    display:flex; gap:13px; align-items:center; box-shadow:0 2px 10px rgba(0,0,0,.05); cursor:pointer;
+  }
+  .frigo .ico { font-size:27px; width:38px; text-align:center; flex:0 0 auto; }
+  .frigo .grow { flex:1; min-width:0; }
+  .frigo .nm { font-family:"Playfair Display",serif; font-size:17px; font-weight:700; }
+  .frigo .ln { font-size:12px; color:var(--muted); margin-top:4px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .frigo .arrow { color:#c3bdb2; font-size:20px; flex:0 0 auto; }
+  .temp { font-family:"Playfair Display",serif; font-size:19px; font-weight:700; }
+  .temp.ok { color:var(--green-ink); }
+  .temp.ko { color:var(--red); }
+
+  /* ── riga dotazione col pallino ── */
+  .art {
+    background:#fff; border:1px solid var(--hair); border-radius:13px;
+    padding:11px 13px; display:flex; align-items:center; gap:12px;
+    box-shadow:0 1px 6px rgba(0,0,0,.04);
+  }
+  .dot {
+    width:34px; height:34px; border-radius:50%; border:2.5px solid var(--green);
+    background:var(--green); flex:0 0 auto; cursor:pointer; position:relative;
+    transition:transform .12s, background .15s, border-color .15s;
+  }
+  .dot:active { transform:scale(.88); }
+  .dot::after {
+    content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:17px; font-weight:700; line-height:34px; text-align:center;
+  }
+  .dot[data-s="OK"]          { background:var(--green); border-color:var(--green); }
+  .dot[data-s="OK"]::after   { content:"✓"; }
+  .dot[data-s="ESAURIMENTO"] { background:var(--amber); border-color:var(--amber); }
+  .dot[data-s="ESAURIMENTO"]::after { content:"!"; }
+  .dot[data-s="FINITO"]      { background:var(--red); border-color:var(--red); }
+  .dot[data-s="FINITO"]::after { content:"✕"; font-size:15px; }
+  .art .grow { flex:1; min-width:0; }
+  .art .nm { font-size:14.5px; font-weight:600; line-height:1.3; }
+  .art .ln { font-size:11.5px; color:var(--muted); margin-top:3px; display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+  .art.finito .nm { color:var(--red-ink); }
+  .art.finito { background:linear-gradient(90deg,var(--red-50),#fff 55%); }
+  .qta { font-family:"Playfair Display",serif; font-size:15px; font-weight:700; color:var(--ink-soft); flex:0 0 auto; }
+
+  /* ── task / checklist ── */
+  .tick {
+    width:26px; height:26px; border-radius:8px; border:2px solid #cfc9bd; background:#fff;
+    flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    font-size:15px; color:#fff; font-weight:700;
+  }
+  .tick.on { background:var(--green); border-color:var(--green); }
+  .prog { height:6px; border-radius:99px; background:var(--cream-2); overflow:hidden; margin-top:9px; }
+  .prog i { display:block; height:100%; background:var(--green); border-radius:99px; }
+
+  /* ── conta ── */
+  .cnt { display:flex; align-items:center; gap:10px; }
+  .cnt input {
+    width:74px; padding:9px; border-radius:10px; border:1.5px solid var(--hair);
+    text-align:center; font-size:16px; font-weight:700; font-family:"Playfair Display",serif;
+    background:var(--cream-2);
+  }
+  .cnt input.filled { background:#fff; border-color:var(--blue); color:var(--blue-ink); }
+  .delta { font-size:11.5px; font-weight:700; }
+  .delta.neg { color:var(--red); } .delta.pos { color:var(--green-ink); }
+
+  /* ── barra tab in fondo ── */
+  .tabbar {
+    position:absolute; bottom:0; left:0; right:0; height:88px;
+    background:rgba(244,241,236,.94); backdrop-filter:blur(12px);
+    border-top:1px solid var(--hair); display:flex; padding:8px 6px 22px; z-index:40;
+  }
+  .tab {
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; font-size:10.5px; font-weight:600; color:var(--muted); cursor:pointer; position:relative;
+  }
+  .tab .ti { font-size:21px; line-height:1; }
+  .tab.on { color:var(--red); }
+  .tab .badge {
+    position:absolute; top:-2px; right:50%; transform:translateX(26px);
+    background:var(--red); color:#fff; font-size:10px; font-weight:700;
+    min-width:17px; height:17px; border-radius:99px; display:flex;
+    align-items:center; justify-content:center; padding:0 4px;
+  }
+
+  /* ── toast undo ── */
+  .toast {
+    position:absolute; left:16px; right:16px; bottom:100px; z-index:60;
+    background:#1c1c1e; color:#fff; border-radius:13px; padding:13px 15px;
+    display:flex; align-items:center; gap:12px; font-size:13.5px;
+    box-shadow:0 10px 30px rgba(0,0,0,.4); opacity:0; transform:translateY(12px);
+    transition:opacity .2s, transform .2s; pointer-events:none;
+  }
+  .toast.show { opacity:1; transform:translateY(0); pointer-events:auto; }
+  .toast .grow { flex:1; }
+  .toast button { background:none; border:0; color:#ff9a8a; font-weight:700; font-size:13.5px; cursor:pointer; }
+  .toast .bar { position:absolute; left:0; bottom:0; height:3px; background:#ff9a8a; border-radius:0 0 13px 13px; }
+
+  .banner {
+    border-radius:13px; padding:12px 14px; font-size:13px; line-height:1.45;
+    display:flex; gap:10px; align-items:flex-start;
+  }
+  .banner.r { background:var(--red-50); color:var(--red-ink); border:1px solid #f3c9c1; }
+  .banner.a { background:var(--amber-50); color:var(--amber-ink); border:1px solid #f0dcb0; }
+  .banner b { font-weight:700; }
+
+  .bigbtn {
+    width:100%; padding:15px; border-radius:13px; border:0; background:var(--red); color:#fff;
+    font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px rgba(232,64,43,.3);
+  }
+  .bigbtn.ghost { background:#fff; color:var(--ink); border:1px solid var(--hair); box-shadow:none; }
+
+  .tl { display:flex; gap:11px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--cream-2); }
+  .tl:last-child { border-bottom:0; }
+  .tl .bul { width:9px; height:9px; border-radius:50%; margin-top:5px; flex:0 0 auto; }
+  .tl .t1 { font-size:13.5px; font-weight:600; }
+  .tl .t2 { font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .tl .rq { margin-left:auto; font-family:"Playfair Display",serif; font-weight:700; font-size:13.5px; color:var(--ink-soft); flex:0 0 auto; }
+
+  .qa { display:flex; gap:9px; }
+  .qa button {
+    flex:1; padding:12px 6px; border-radius:12px; border:1px solid var(--hair); background:#fff;
+    font-size:12px; font-weight:700; color:var(--ink-soft); cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+  }
+  .qa button .e { font-size:19px; }
+
+  /* ── testata di ripiano ── */
+  .rip {
+    display:flex; align-items:center; gap:9px; margin:14px 0 -2px;
+    padding-bottom:7px; border-bottom:1.5px solid var(--hair);
+  }
+  .rip .num {
+    width:27px; height:27px; border-radius:8px; background:var(--ink); color:var(--cream);
+    font-family:"Playfair Display",serif; font-weight:700; font-size:14px;
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  }
+  .rip .lb { font-size:12.5px; font-weight:700; color:var(--ink-soft); }
+  .rip .rest { margin-left:auto; font-size:11.5px; color:var(--muted); }
+  .dest { padding:2px 8px; border-radius:6px; font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; }
+  .dest.crudo  { background:#fde8e4; color:var(--red-ink); }
+  .dest.cotto  { background:var(--blue-50); color:var(--blue-ink); }
+  .dest.semi   { background:var(--amber-50); color:var(--amber-ink); }
+  .dest.pronti { background:var(--green-50); color:var(--green-ink); }
+  .dest.secco  { background:var(--cream-2); color:var(--ink-soft); }
+  .art.allarme { box-shadow:0 0 0 1.5px var(--amber), 0 1px 6px rgba(0,0,0,.04); }
+  .qta.stima { color:var(--muted); font-weight:600; }
+  .chip.vecchio { background:#efe9dd; color:#8a7a55; }
+
+  /* ── incolla-testo ── */
+  .ta {
+    width:100%; min-height:130px; padding:12px; border-radius:12px; border:1px solid var(--hair);
+    background:#fff; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px;
+    line-height:1.7; color:var(--ink); resize:none;
+  }
+  .parse { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:11px; background:#fff; border:1px solid var(--hair); }
+  .parse .st { width:22px; height:22px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; }
+  .parse .st.ok { background:var(--green); }
+  .parse .st.new { background:var(--blue); }
+  .parse .st.dub { background:var(--amber); }
+
+  .footnote { max-width:860px; color:#8a857c; font-size:13px; line-height:1.7; margin-top:40px; }
+  .footnote h3 { color:#fff; font-family:"Playfair Display",serif; font-size:19px; margin:26px 0 8px; }
+  .footnote ol { padding-left:20px; } .footnote li { margin-bottom:9px; }
+  .footnote b { color:#d8d2c7; }
+  .footnote .q { color:#c9a86a; }
+</style>
+</head>
+<body>
+
+<div class="sheet-head">
+  <h1 class="serif">Cucina mobile — Scorte &amp; Frigoriferi</h1>
+  <p>Mockup dei <b>flussi operativi</b>, non della grafica finale. Serve a rispondere a una domanda sola: <b>questo si riesce a fare davvero, in servizio, con una mano sola?</b> Se un gesto qui sotto ti sembra finto, va cambiato adesso — non dopo che il DB è scritto.</p>
+  <p class="tagline">Palette TRGB-02 · stessa impostazione di <code>cucina_tasks_iphone_mockup.html</code> · schema di riferimento <code>docs/modulo_scorte_cucina.md</code></p>
+  <div class="hint">I <b>pallini</b> del terzo telefono sono veri: toccali. Verde → giallo → rosso, e al rosso parte la riga della spesa con 8 secondi per annullare.</div>
+</div>
+
+<!-- ══════════ RIGA 1 ══════════ -->
+<div class="row">
+
+  <!-- 1 · OGGI -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <div class="app-header-top">
+          <div><h1 class="serif">Oggi</h1><div class="sub">Lunedì 7 settembre · turno cena</div></div>
+          <button class="fab-plus">+</button>
+        </div>
+        <div class="filters">
+          <span class="pill on">Tutto <span class="c">9</span></span>
+          <span class="pill">Da fare <span class="c">5</span></span>
+          <span class="pill">In ritardo <span class="c">1</span></span>
+        </div>
+      </div>
+      <div class="body">
+        <div class="banner r"><span>⚠️</span><div><b>Frigo pesce a −0,5 °C.</b> Fuori soglia da stamattina. Tocca per aprire il guasto.</div></div>
+
+        <div class="sec-label">Checklist</div>
+        <div class="card good">
+          <div class="card-title">Apertura cucina</div>
+          <div class="card-meta"><span class="chip g">6 / 6</span><span>chiusa alle 9:12 · Deni</span></div>
+          <div class="prog"><i style="width:100%"></i></div>
+        </div>
+        <div class="card warn">
+          <div class="card-title">Temperature frigoriferi</div>
+          <div class="card-meta"><span class="chip a">3 / 5</span><span>entro le 11:00</span></div>
+          <div class="prog"><i style="width:60%;background:var(--amber)"></i></div>
+        </div>
+        <div class="card">
+          <div class="card-title">MEP servizio sera</div>
+          <div class="card-meta"><span class="chip n">0 / 8</span><span>entro le 18:00</span></div>
+          <div class="prog"><i style="width:0"></i></div>
+        </div>
+
+        <div class="sec-label">Task</div>
+        <div class="card bad" style="display:flex;gap:12px;align-items:center">
+          <div class="tick"></div>
+          <div style="flex:1">
+            <div class="card-title" style="font-size:15px">Chiamare il pesce per giovedì</div>
+            <div class="card-meta"><span class="chip r">ieri</span><span>Marco</span></div>
+          </div>
+        </div>
+        <div class="card" style="display:flex;gap:12px;align-items:center">
+          <div class="tick on">✓</div>
+          <div style="flex:1;opacity:.6">
+            <div class="card-title" style="font-size:15px;text-decoration:line-through">Scongelare i fondi</div>
+            <div class="card-meta"><span>fatto 8:40 · Deni</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab on"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>1 · Oggi</b>
+      <span>Checklist e task del giorno. Gira su <code style="color:#c9a86a">/tasks</code> e <code style="color:#c9a86a">/haccp</code>, che esistono già: qui non serve backend nuovo.</span>
+      <span class="why">Da decidere: il banner rosso in testa è il posto giusto per un frigo fuori soglia, o lo vuoi solo nel tab Frigo?</span>
+    </div>
+  </div>
+
+  <!-- 2 · IL GIRO -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <div class="app-header-top">
+          <div><h1 class="serif">Frigo</h1><div class="sub">Il giro · 6 posti</div></div>
+          <button class="fab-plus">+</button>
+        </div>
+        <div class="filters">
+          <span class="pill on">Tutti</span><span class="pill">Refrigerati</span><span class="pill">Dispensa</span>
+        </div>
+      </div>
+      <div class="body">
+        <div class="frigo">
+          <div class="ico">🧊</div>
+          <div class="grow">
+            <div class="nm">Frigo carne</div>
+            <div class="ln"><span class="chip r">3 finiti</span><span>4 ripiani · 18 articoli</span></div>
+          </div>
+          <div style="text-align:right"><div class="temp ok">2,4°</div><div style="font-size:10.5px;color:var(--muted)">0 / 4 °C</div></div>
+          <div class="arrow">›</div>
+        </div>
+
+        <div class="frigo" style="border-left:4px solid var(--red)">
+          <div class="ico">🐟</div>
+          <div class="grow">
+            <div class="nm">Frigo pesce</div>
+            <div class="ln"><span class="chip r">fuori soglia</span><span class="chip a">guasto</span><span>3 ripiani</span></div>
+          </div>
+          <div style="text-align:right"><div class="temp ko">−0,5°</div><div style="font-size:10.5px;color:var(--muted)">0 / 2 °C</div></div>
+          <div class="arrow">›</div>
+        </div>
+
+        <div class="frigo">
+          <div class="ico">🥛</div>
+          <div class="grow">
+            <div class="nm">Frigo latticini</div>
+            <div class="ln"><span class="chip a">2 in esaurimento</span><span>3 ripiani · 11 articoli</span></div>
+          </div>
+          <div style="text-align:right"><div class="temp ok">3,1°</div><div style="font-size:10.5px;color:var(--muted)">0 / 4 °C</div></div>
+          <div class="arrow">›</div>
+        </div>
+
+        <div class="frigo">
+          <div class="ico">❄️</div>
+          <div class="grow">
+            <div class="nm">Cella</div>
+            <div class="ln"><span class="chip g">tutto a posto</span><span>5 ripiani · 24 articoli</span></div>
+          </div>
+          <div style="text-align:right"><div class="temp ok">−19,2°</div><div style="font-size:10.5px;color:var(--muted)">−22 / −18 °C</div></div>
+          <div class="arrow">›</div>
+        </div>
+
+        <div class="frigo">
+          <div class="ico">🗄️</div>
+          <div class="grow">
+            <div class="nm">Dispensa secco</div>
+            <div class="ln"><span class="chip a">1 in esaurimento</span><span>7 ripiani · 31 articoli</span></div>
+          </div>
+          <div style="color:var(--muted);font-size:11px;text-align:right">niente<br>sonda</div>
+          <div class="arrow">›</div>
+        </div>
+
+        <div class="frigo">
+          <div class="ico">🔥</div>
+          <div class="grow">
+            <div class="nm">Abbattitore</div>
+            <div class="ln"><span class="chip g">tutto a posto</span><span>2 ripiani · 4 articoli</span></div>
+          </div>
+          <div style="text-align:right"><div class="temp ok">−17,8°</div><div style="font-size:10.5px;color:var(--muted)">≤ −18 °C</div></div>
+          <div class="arrow">›</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab on"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>2 · Il giro</b>
+      <span>Si parte dal posto, non dall'articolo. Ogni riga dice già se vale la pena aprirla: temperatura di oggi, quanti articoli mancano, se c'è un guasto.</span>
+      <span class="why">Da decidere: l'ordine del giro. Qui è fisso (lo decidi tu una volta). Alternativa: prima i frigo che hanno qualcosa che non va.</span>
+    </div>
+  </div>
+
+  <!-- 3 · DENTRO IL FRIGO (interattivo) -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <button class="back">‹ Il giro</button>
+        <div class="app-header-top">
+          <div><h1 class="serif">Frigo carne</h1><div class="sub"><span id="cnt-fin">3</span> da comprare · 4 ripiani · 18 articoli</div></div>
+          <div style="text-align:right"><div class="temp ok">2,4°</div><div style="font-size:10.5px;color:var(--muted)">letta 9:12</div></div>
+        </div>
+        <div class="filters">
+          <span class="pill on">Tutti i ripiani</span><span class="pill">1</span><span class="pill">2</span><span class="pill">3</span><span class="pill">4</span>
+          <span class="pill">Solo mancanti <span class="c">3</span></span>
+        </div>
+      </div>
+      <div class="body" id="dotazione">
+
+        <div class="rip"><div class="num">1</div><div class="lb">Ripiano 1</div><span class="dest pronti">pronti</span><div class="rest">3 articoli</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Brodo di carne</div><div class="ln"><span>5 L</span><span class="chip a">aperto da 2 gg</span></div></div><div class="qta">5</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Coppa di testa</div><div class="ln"><span>1 pezzo</span></div></div><div class="qta">1</div></div>
+        <div class="art finito"><div class="dot" data-s="FINITO"></div><div class="grow"><div class="nm">Fegatini</div><div class="ln"><span class="chip r">finito</span><span>già in spesa</span></div></div><div class="qta">0</div></div>
+
+        <div class="rip"><div class="num">2</div><div class="lb">Ripiano 2</div><span class="dest cotto">cotto</span><div class="rest">2 articoli</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Arrosto porchettato</div><div class="ln"><span>2 pezzi</span><span class="chip a">scade domani</span></div></div><div class="qta">2</div></div>
+        <div class="art allarme"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Ossobuco</div><div class="ln"><span class="chip a">⚠ crudo su ripiano cotto</span></div></div><div class="qta">3</div></div>
+
+        <div class="rip"><div class="num">3</div><div class="lb">Ripiano 3</div><span class="dest crudo">crudo</span><div class="rest">3 articoli</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Costata di manzo</div><div class="ln"><span>4,2 KG</span><span class="chip b">movimenti</span></div></div><div class="qta">4,2</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Petto d'anatra</div><div class="ln"><span class="chip vecchio">fermo da 6 gg</span><span class="chip b">movimenti</span></div></div><div class="qta stima">≈ 6</div></div>
+        <div class="art"><div class="dot" data-s="ESAURIMENTO"></div><div class="grow"><div class="nm">Salsiccia luganega</div><div class="ln"><span>≈ 0,8 KG</span><span class="chip a">agli sgoccioli</span></div></div><div class="qta">0,8</div></div>
+
+        <div class="rip"><div class="num">4</div><div class="lb">Ripiano 4</div><span class="dest semi">semilavorati</span><div class="rest">3 articoli</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Guanciale</div><div class="ln"><span>1 pezzo</span><span class="chip a">scade tra 3 gg</span></div></div><div class="qta">1</div></div>
+        <div class="art finito"><div class="dot" data-s="FINITO"></div><div class="grow"><div class="nm">Pancetta stesa</div><div class="ln"><span class="chip r">finito</span><span>già in spesa</span></div></div><div class="qta">0</div></div>
+        <div class="art finito"><div class="dot" data-s="FINITO"></div><div class="grow"><div class="nm">Lardo</div><div class="ln"><span class="chip r">finito</span><span>già in spesa</span></div></div><div class="qta">0</div></div>
+      </div>
+      <div class="toast" id="toast">
+        <div class="grow"><b id="toast-nome">Pancetta stesa</b> aggiunta alla spesa</div>
+        <button onclick="annulla()">Annulla</button>
+        <div class="bar" id="toast-bar" style="width:100%"></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab on"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge" id="badge-spesa">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>3 · Dentro il frigo — <span style="color:#e8c9a0">provalo</span></b>
+      <span>Raggruppato <b>per ripiano</b>, dall'alto in basso: si legge nell'ordine in cui apri lo sportello. Ogni ripiano dichiara la sua destinazione — e l'ossobuco crudo finito sul ripiano del cotto si vede da solo.</span>
+      <span>La dotazione include <b>la roba finita</b>: se elencassi solo quello che c'è dentro, nasconderei la cosa che stai cercando. Tap sul pallino, 8 secondi per tornare indietro.</span>
+      <span class="why">Da decidere: l'avviso crudo-su-cotto avvisa e basta, o deve impedirti di metterlo lì? In servizio un blocco è un disastro — io lo terrei come segnale.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ RIGA 2 ══════════ -->
+<div class="row">
+
+  <!-- 4 · SCORTE -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <div class="app-header-top">
+          <div><h1 class="serif">Scorte</h1><div class="sub">82 articoli · 4 da comprare</div></div>
+          <button class="fab-plus">+</button>
+        </div>
+        <input class="search" placeholder="🔍  Cerca un articolo…" />
+        <div class="filters">
+          <span class="pill on">Da comprare <span class="c">4</span></span>
+          <span class="pill">In scadenza <span class="c">5</span></span>
+          <span class="pill">Carne</span><span class="pill">Pesce</span><span class="pill">Secco</span>
+        </div>
+      </div>
+      <div class="body">
+        <div class="sec-label">Manca</div>
+        <div class="art finito"><div class="dot" data-s="FINITO"></div><div class="grow"><div class="nm">Pancetta stesa</div><div class="ln"><span>Frigo carne · rip. 4</span><span class="chip r">finito da ieri</span></div></div></div>
+        <div class="art finito"><div class="dot" data-s="FINITO"></div><div class="grow"><div class="nm">Lardo</div><div class="ln"><span>Frigo carne · rip. 4</span><span class="chip r">finito oggi</span></div></div></div>
+        <div class="art finito"><div class="dot" data-s="FINITO"></div><div class="grow"><div class="nm">Farina 00</div><div class="ln"><span>Dispensa · rip. 2</span><span class="chip r">finito oggi</span></div></div></div>
+        <div class="art"><div class="dot" data-s="ESAURIMENTO"></div><div class="grow"><div class="nm">Burro</div><div class="ln"><span>Frigo latticini · rip. 1</span><span class="chip a">sotto scorta minima</span></div></div><div class="qta">2</div></div>
+
+        <div class="sec-label">Scade presto</div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Guanciale</div><div class="ln"><span class="chip a">3 gg</span><span>Frigo carne · rip. 4</span></div></div><div class="qta">1</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Panna fresca</div><div class="ln"><span class="chip r">domani</span><span>Latticini · rip. 1</span></div></div><div class="qta">0,5</div></div>
+
+        <div class="sec-label">Tutto il resto</div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Costata di manzo</div><div class="ln"><span>rip. 3 + cella</span><span class="chip n">2 posti</span></div></div><div class="qta">6,4</div></div>
+        <div class="art"><div class="dot" data-s="OK"></div><div class="grow"><div class="nm">Riso Carnaroli</div><div class="ln"><span>Dispensa · rip. 5</span></div></div><div class="qta">12</div></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab on"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>4 · Scorte</b>
+      <span>La vista per articolo, per quando <b>sai già cosa cerchi</b> e non hai voglia di ricordarti in che frigo sta. Quello che manca sta in cima: la lista non si apre mai su ciò che va bene.</span>
+      <span class="why">Da decidere: «Manca / Scade presto / Tutto il resto» è l'ordine giusto, o preferisci il raggruppamento per frigo anche qui?</span>
+    </div>
+  </div>
+
+  <!-- 5 · SCHEDA ARTICOLO -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <button class="back">‹ Scorte</button>
+        <div class="app-header-top">
+          <div><h1 class="serif">Costata di manzo</h1><div class="sub">Carne · KG · Macelleria Fumagalli</div></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="card" style="text-align:center;padding:18px">
+          <div style="font-family:'Playfair Display',serif;font-size:44px;font-weight:700;line-height:1">6,4</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">KG in totale · su 2 ripiani</div>
+          <div style="margin-top:9px"><span class="chip b">regime: movimenti</span> <span class="chip g">sopra scorta</span> <span class="chip n">natura: crudo</span></div>
+        </div>
+
+        <div class="qa">
+          <button style="border-color:var(--red);color:var(--red)"><span class="e">➖</span>Scarico<span style="font-size:10px;font-weight:600;opacity:.7">1,8 KG</span></button>
+          <button><span class="e">➕</span>Carico<span style="font-size:10px;font-weight:600;opacity:.55">6,0 KG</span></button>
+          <button><span class="e">🗑️</span>Scarto<span style="font-size:10px;font-weight:600;opacity:.55">&nbsp;</span></button>
+        </div>
+        <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:-3px">Le quantità sono quelle dell'ultima volta: un tap e via.<br>Se scaricare costa un modulo, nessuno scarica.</div>
+
+        <div class="sec-label">Dove si trova</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="tl"><div class="bul" style="background:var(--blue)"></div><div><div class="t1">Frigo carne · ripiano 3</div><div class="t2">di casa <span class="dest crudo" style="margin-left:4px">crudo</span></div></div><div class="rq">4,2</div></div>
+          <div class="tl"><div class="bul" style="background:var(--blue)"></div><div><div class="t1">Cella · ripiano 2</div><div class="t2">in dotazione</div></div><div class="rq">2,2</div></div>
+          <div class="tl"><div class="bul" style="background:#d5cfc3"></div><div><div class="t1">Abbattitore · ripiano 1</div><div class="t2">in dotazione · a zero</div></div><div class="rq" style="color:var(--muted)">0</div></div>
+        </div>
+
+        <div class="sec-label">Lotti</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="tl"><div class="bul" style="background:var(--green)"></div><div><div class="t1">Lotto 2411-A</div><div class="t2">arrivato 5/9 · scade 12/9</div></div><div class="rq">2,8</div></div>
+          <div class="tl"><div class="bul" style="background:var(--amber)"></div><div><div class="t1">Lotto 2409-C · aperto</div><div class="t2">aperto il 4/9 · da usare per primo</div></div><div class="rq">1,4</div></div>
+        </div>
+
+        <div class="sec-label">Movimenti</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="tl"><div class="bul" style="background:var(--red)"></div><div><div class="t1">Scarico 1,8 KG</div><div class="t2">oggi 8:30 · Deni · servizio</div></div><div class="rq">4,2</div></div>
+          <div class="tl"><div class="bul" style="background:var(--green)"></div><div><div class="t1">Carico 6,0 KG</div><div class="t2">5/9 · Marco · DDT Fumagalli</div></div><div class="rq">6,0</div></div>
+          <div class="tl"><div class="bul" style="background:var(--amber)"></div><div><div class="t1">Rettifica −0,4 KG</div><div class="t2">31/8 · conta di fine mese</div></div><div class="rq">0,0</div></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab on"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>5 · La scheda</b>
+      <span>Solo per gli articoli a <b>regime «movimenti»</b> — carne, pesce, roba di valore. Su sale e farina questa schermata non esiste: c'è solo il pallino, e va bene così.</span>
+      <span class="why">Tre azioni, non quattro: la conta vive dentro l'inventario a ripiani, non qui. E ognuna porta già la quantità dell'ultima volta.</span>
+    </div>
+  </div>
+
+  <!-- 6 · CONTA -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <button class="back">‹ Annulla</button>
+        <div class="app-header-top">
+          <div><h1 class="serif">Conta</h1><div class="sub">30 settembre · 7 ripiani su 24</div></div>
+        </div>
+        <div class="prog"><i style="width:29%;background:var(--blue)"></i></div>
+      </div>
+      <div class="body">
+        <div class="banner a"><span>💡</span><div>Si conta <b>un ripiano alla volta</b>. Chiudi il ripiano, chiudi lo sportello, passi al prossimo. Puoi fermarti quando vuoi: quelli chiusi restano chiusi.</div></div>
+
+        <div class="sec-label">Frigo carne</div>
+        <div class="art" style="gap:10px"><div class="rip" style="margin:0;border:0;padding:0"><div class="num" style="background:var(--green)">1</div></div><div class="grow"><div class="nm">Ripiano 1 · pronti</div><div class="ln"><span class="chip g">contato</span><span>3 voci · 9:20</span></div></div></div>
+
+        <div class="rip" style="margin-top:10px"><div class="num" style="background:var(--blue)">3</div><div class="lb">Ripiano 3</div><span class="dest crudo">crudo</span><div class="rest">in corso</div></div>
+        <div class="art"><div class="grow"><div class="nm">Costata di manzo</div><div class="ln"><span>attesa 4,2 KG</span><span class="delta neg">−0,4</span></div></div><div class="cnt"><input class="filled" value="3,8"></div></div>
+        <div class="art"><div class="grow"><div class="nm">Petto d'anatra</div><div class="ln"><span>attesa 6 pz</span><span class="delta pos">+1</span></div></div><div class="cnt"><input class="filled" value="7"></div></div>
+        <div class="art"><div class="grow"><div class="nm">Salsiccia luganega</div><div class="ln"><span>attesa 0,8 KG</span></div></div><div class="cnt"><input placeholder="—"></div></div>
+        <button class="bigbtn" style="margin-top:9px">Chiudi il ripiano 3</button>
+
+        <div class="sec-label" style="margin-top:16px">Ancora da fare</div>
+        <div class="art"><div class="rip" style="margin:0;border:0;padding:0"><div class="num" style="background:#cfc9bd;color:#fff">2</div></div><div class="grow"><div class="nm">Ripiano 2 · cotto</div><div class="ln"><span>2 voci</span></div></div><div class="arrow" style="color:#c3bdb2;font-size:20px">›</div></div>
+        <div class="art"><div class="rip" style="margin:0;border:0;padding:0"><div class="num" style="background:#cfc9bd;color:#fff">4</div></div><div class="grow"><div class="nm">Ripiano 4 · semilavorati</div><div class="ln"><span>3 voci</span></div></div><div class="arrow" style="color:#c3bdb2;font-size:20px">›</div></div>
+
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:9px">
+          <button class="bigbtn ghost">Metti in pausa la conta</button>
+          <div style="font-size:11.5px;color:var(--muted);text-align:center;line-height:1.5">Le differenze diventano rettifiche tracciate<br>alla chiusura dell'ultimo ripiano.</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab on"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>6 · La conta, ripiano per ripiano</b>
+      <span>L'inventario a data: è questo che dà il <b>valore del magazzino</b> al Controllo Gestione, il numero che oggi manca al conto economico. L'unità è il ripiano, non il frigo: conti quello che vedi con lo sportello aperto, chiudi, passi oltre. 24 passi corti invece di 6 lunghi.</span>
+      <span class="why">Da decidere: quanto spesso la fai davvero? Se è una volta al mese, i 24 ripiani sono una sessione lunga — forse vuoi poterla spalmare su più giorni.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ RIGA 3 ══════════ -->
+<div class="row">
+  <!-- 7 · SPESA -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <div class="app-header-top">
+          <div><h1 class="serif">Spesa</h1><div class="sub">7 da comprare · 3 fornitori</div></div>
+          <button class="fab-plus">+</button>
+        </div>
+        <div class="filters">
+          <span class="pill on">Da fare <span class="c">7</span></span><span class="pill">Urgenti <span class="c">2</span></span><span class="pill">Fatti</span>
+        </div>
+      </div>
+      <div class="body">
+        <div class="sec-label">Macelleria Fumagalli <span style="color:var(--blue-ink);font-weight:700">· in anagrafica</span></div>
+        <div class="art"><div class="tick"></div><div class="grow"><div class="nm">Pancetta stesa</div><div class="ln"><span class="chip n">dal frigo carne</span><span>ieri</span></div></div></div>
+        <div class="art"><div class="tick"></div><div class="grow"><div class="nm">Lardo</div><div class="ln"><span class="chip n">dal frigo carne</span><span>oggi 9:41</span></div></div></div>
+        <div class="art"><div class="tick"></div><div class="grow"><div class="nm">Fegatini</div><div class="ln"><span class="chip r">urgente</span><span>oggi</span></div></div></div>
+        <div style="margin-top:2px"><button class="bigbtn ghost" style="padding:11px;font-size:13.5px">💬 Manda l'ordine su WhatsApp</button></div>
+
+        <div class="sec-label">Ortofrutta Belotti <span style="color:var(--blue-ink);font-weight:700">· in anagrafica</span></div>
+        <div class="art"><div class="tick"></div><div class="grow"><div class="nm">Farina 00 · 2 sacchi</div><div class="ln"><span class="chip n">dalla dispensa</span></div></div></div>
+        <div class="art"><div class="tick"></div><div class="grow"><div class="nm">Burro</div><div class="ln"><span class="chip a">sotto scorta</span></div></div></div>
+
+        <div class="sec-label">Il pescatore di Lovere <span style="color:var(--amber-ink);font-weight:700">· scritto a mano</span></div>
+        <div class="art"><div class="tick"></div><div class="grow"><div class="nm">Persico · 4 kg</div><div class="ln"><span class="chip a">niente fattura elettronica</span></div></div></div>
+
+        <div class="sec-label">Senza fornitore</div>
+        <div class="art"><div class="tick"></div><div class="grow"><div class="nm">Carta forno</div><div class="ln"><span class="chip n">aggiunto a mano</span></div></div></div>
+        <div class="art"><div class="tick on">✓</div><div class="grow" style="opacity:.55"><div class="nm" style="text-decoration:line-through">Sacchetti sottovuoto</div><div class="ln"><span>preso 6/9 · Marco</span></div></div></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab on"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>7 · Spesa</b>
+      <span>La Lista Spesa che <b>hai già</b>, ma che adesso si riempie da sola: ogni pallino rosso ci finisce dentro, con scritto da dove viene. Raggruppata per fornitore, così l'ordine parte con un tap.</span>
+      <span class="why">Fornitore doppio: <b>tabellato</b> dalle 161 partite IVA che ti fatturano già, <b>libero</b> per il pescatore. I tabellati stanno in alto e mandano l'ordine, i liberi in fondo.</span>
+    </div>
+  </div>
+
+  <!-- 8 · SCHEDA FRIGO -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <button class="back">‹ Il giro</button>
+        <div class="app-header-top">
+          <div><h1 class="serif">Frigo pesce</h1><div class="sub">Liebherr GKv 4360 · 2019</div></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="banner r"><span>🚨</span><div><b>−0,5 °C, sotto la soglia minima.</b> Terza volta in dieci giorni.</div></div>
+
+        <div class="card" style="text-align:center;padding:16px">
+          <div style="font-family:'Playfair Display',serif;font-size:42px;font-weight:700;color:var(--red);line-height:1">−0,5°</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:3px">soglia 0 / 2 °C · letta alle 9:12 da Deni</div>
+        </div>
+
+        <div class="sec-label">Ultime letture</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="tl"><div class="bul" style="background:var(--red)"></div><div><div class="t1">−0,5 °C</div><div class="t2">oggi 9:12 · Deni</div></div><div class="rq" style="color:var(--red)">fuori</div></div>
+          <div class="tl"><div class="bul" style="background:var(--green)"></div><div><div class="t1">1,2 °C</div><div class="t2">ieri 9:05 · Deni</div></div><div class="rq" style="color:var(--green-ink)">ok</div></div>
+          <div class="tl"><div class="bul" style="background:var(--red)"></div><div><div class="t1">−0,8 °C</div><div class="t2">4/9 · Marco</div></div><div class="rq" style="color:var(--red)">fuori</div></div>
+          <div class="tl"><div class="bul" style="background:var(--green)"></div><div><div class="t1">0,9 °C</div><div class="t2">3/9 · Deni</div></div><div class="rq" style="color:var(--green-ink)">ok</div></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:-2px">Le letture arrivano dalla checklist HACCP.<br>Non c'è un secondo registro.</div>
+
+        <div class="sec-label">Manutenzione</div>
+        <div class="card bad">
+          <div class="card-title" style="font-size:15px">Guasto · termostato</div>
+          <div class="card-meta"><span class="chip r">aperto dal 4/9</span><span>task assegnato a Marco</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="font-size:15px">Sanificazione</div>
+          <div class="card-meta"><span class="chip g">chiusa</span><span>12/8 · interna</span></div>
+        </div>
+        <button class="bigbtn ghost" style="margin-top:4px;padding:12px;font-size:13.5px">+ Segnala un guasto</button>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab on"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>8 · La scheda del frigo</b>
+      <span>Il frigorifero smette di essere una riga di testo dentro una checklist e diventa una cosa con una storia: soglie, temperature, guasti. «Terza volta in dieci giorni» è una frase che oggi <b>nessuno può dirti</b>.</span>
+      <span class="why">Da decidere: un guasto apre un task nel Task Manager. Ti va, o preferisci che resti solo qui dentro?</span>
+    </div>
+  </div>
+
+  <!-- 9 · POPOLA IL RIPIANO (incolla-testo) -->
+  <div class="unit">
+    <div class="device"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ ᯤ 🔋</span></div>
+      <div class="app-header">
+        <button class="back">‹ Ripiano 3</button>
+        <div class="app-header-top">
+          <div><h1 class="serif">Cosa ci sta</h1><div class="sub">Frigo carne · ripiano 3 · crudo</div></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="banner a"><span>📋</span><div>Scrivi o incolla <b>una riga per articolo</b>. Il nome basta; se aggiungi quantità e unità le prendo, altrimenti parte da zero.</div></div>
+
+        <textarea class="ta" spellcheck="false">costata di manzo 4,2 kg
+petto d'anatra 6 pz
+salsiccia luganega 0,8 kg
+guanciale
+lonza di maiale 2 pz
+pancetta arrotolata</textarea>
+
+        <div class="sec-label">Anteprima · 6 righe</div>
+        <div class="parse"><div class="st ok">✓</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600">Costata di manzo · 4,2 KG</div><div style="font-size:11px;color:var(--muted)">già in anagrafica · agganciata al food cost</div></div></div>
+        <div class="parse"><div class="st ok">✓</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600">Petto d'anatra · 6 PZ</div><div style="font-size:11px;color:var(--muted)">già in anagrafica</div></div></div>
+        <div class="parse"><div class="st ok">✓</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600">Salsiccia luganega · 0,8 KG</div><div style="font-size:11px;color:var(--muted)">già in anagrafica</div></div></div>
+        <div class="parse"><div class="st ok">✓</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600">Guanciale · 0</div><div style="font-size:11px;color:var(--muted)">già in anagrafica · nessuna quantità, parte a zero</div></div></div>
+        <div class="parse"><div class="st new">+</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600">Lonza di maiale · 2 PZ</div><div style="font-size:11px;color:var(--blue-ink)">articolo nuovo, lo creo io</div></div></div>
+        <div class="parse"><div class="st dub">?</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600">Pancetta arrotolata</div><div style="font-size:11px;color:var(--amber-ink)">assomiglia a «Pancetta stesa» — è la stessa cosa?</div></div></div>
+
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:9px">
+          <button class="bigbtn">Metti le 6 righe sul ripiano 3</button>
+          <div style="font-size:11.5px;color:var(--muted);text-align:center;line-height:1.5">Tutte entrano <b>in dotazione</b>: restano elencate<br>anche quando finiscono.</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="ti">📋</span>Oggi<span class="badge">6</span></div>
+        <div class="tab"><span class="ti">📦</span>Scorte<span class="badge">4</span></div>
+        <div class="tab on"><span class="ti">🧊</span>Frigo</div>
+        <div class="tab"><span class="ti">🛒</span>Spesa<span class="badge">7</span></div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <b>9 · Popolare un ripiano</b>
+      <span>La configurazione iniziale, un ripiano alla volta: scrivi o incolli una lista e basta. Con 24 ripiani, un form riga per riga sarebbe un pomeriggio buttato.</span>
+      <span class="why">L'anteprima è obbligatoria e mostra tre casi: <b>già c'è</b>, <b>lo creo</b>, <b>forse è un doppione</b>. È la stessa cautela dell'import bevande — un'anagrafica sporca il primo giorno resta sporca per anni.</span>
+    </div>
+  </div>
+</div>
+
+<div class="footnote">
+  <h3 class="serif">Le cinque domande, chiuse — e cosa hanno cambiato</h3>
+  <ol>
+    <li><b>Il pallino ciclico regge?</b> Sì, <b>bastano gli 8 secondi</b>. <span class="q">Nessuna conferma sul rosso, nessuna pressione lunga: il gesto resta da un tap.</span></li>
+    <li><b>Chi popola la dotazione?</b> <b>Incolla-testo</b>, un ripiano alla volta. <span class="q">→ nona schermata. Anteprima obbligatoria con tre casi: già c'è, lo creo, forse è un doppione.</span></li>
+    <li><b>Quanti articoli a regime «movimenti»?</b> <b>Tanti, e va fatto.</b> <span class="q">→ la conseguenza più pesante di tutte. Vedi qui sotto.</span></li>
+    <li><b>La conta dove si fa?</b> <b>Dall'iPhone.</b> <span class="q">Quindi a ripiani, in piedi, davanti allo sportello aperto: 24 passi corti invece di 6 lunghi. Niente tabellone da scrivania.</span></li>
+    <li><b>Il fornitore?</b> <b>Tutti e due.</b> <span class="q">Tabellato dalle 161 partite IVA che ti fatturano già, libero per il pescatore. I tabellati in alto, con l'ordine WhatsApp; i liberi in fondo.</span></li>
+  </ol>
+
+  <h3 class="serif">Il prezzo del «tanti, ma va fatto»</h3>
+  <p>Con molti articoli a movimenti la certezza non è <i>se</i> qualcuno smetterà di scaricare, ma <b>quando</b>. Da quel momento il sistema mostra un numero preciso e falso — e un numero falso è peggio di nessun numero, perché ci prendi decisioni sopra.</p>
+  <p>La risposta non è chiedere disciplina: di sabato sera la disciplina non esiste. È che <b>il sistema ammetta di non sapere più</b>. Passata la finestra di freschezza — <b>5 giorni sul fresco, 21 sul secco</b> — <b>4,2</b> diventa <b>≈ 4,2 · fermo da 6 gg</b>: lo vedi sul terzo telefono, sul petto d'anatra, che ha sforato di un giorno.</p>
+  <p>Tre effetti: chi ordina sa quanto fidarsi; gli articoli che restano «fermi» per settimane <b>si autodenunciano</b> (o non girano, e vanno retrocessi a «conta», o nessuno li scarica, ed è un problema di processo); e la conta a ripiani diventa la rete che azzera i dubbi, non un rito di fine anno.</p>
+  <p>Più una regola sul gesto, che vale quanto tutto il resto: <b>scaricare deve costare un tap</b>, con la quantità dell'ultima volta già proposta — come il prezzo al calice precompilato in cantina. Se scaricare costa un modulo da compilare, nessuno scarica e questa pagina è carta.</p>
+
+  <h3 class="serif">Cosa resta aperto</h3>
+  <ol>
+    <li><b>Crudo su ripiano cotto: segnalo o blocco?</b> <span class="q">Nel disegno segnalo. Un blocco in servizio è il modo più rapido per far smettere la gente di usare l'app — ma se l'ASL vuole il blocco, si decide adesso.</span></li>
+    <li><b>Una conta a 24 ripiani si spalma su più giorni?</b> <span class="q">Se sì, le quantità attese dei primi ripiani invecchiano mentre conti gli ultimi. O la sessione scade dopo N giorni, o si dichiara la data riga per riga.</span></li>
+    <li><b>La soglia 5/21 è tarata bene?</b> <span class="q">Si scopre solo usandola: quali articoli avvisano troppo presto (rumore, e impari a ignorare gli avvisi) e quali mentono in silenzio. Da rivedere fra qualche settimana, non da mettere e dimenticare.</span></li>
+  </ol>
+  <p style="margin-top:22px">Lo schema in <code style="background:#222;padding:1px 6px;border-radius:4px;color:#e8c9a0">docs/modulo_scorte_cucina.md</code> è allineato a queste nove schermate. Quando ti convincono, il backend viene dietro senza sorprese.</p>
+</div>
+
+<script>
+  const CICLO = { OK: "ESAURIMENTO", ESAURIMENTO: "FINITO", FINITO: "OK" };
+  let timer = null, ultimo = null;
+
+  // Memorizzo la riga originale: tornando su «verde» deve ricomparire quella,
+  // non una stringa inventata.
+  document.querySelectorAll('#dotazione .art').forEach(a => {
+    a.dataset.lnOrig = a.querySelector('.ln').innerHTML;
+  });
+
+  document.querySelectorAll('#dotazione .dot').forEach(d => {
+    d.addEventListener('click', () => {
+      const prima = d.dataset.s;
+      const dopo  = CICLO[prima];
+      d.dataset.s = dopo;
+      const riga = d.closest('.art');
+      riga.classList.toggle('finito', dopo === 'FINITO');
+      aggiornaRiga(riga, dopo);
+      ricalcola();
+      if (dopo === 'FINITO') mostraToast(riga, d);
+    });
+  });
+
+  function aggiornaRiga(riga, stato) {
+    const ln = riga.querySelector('.ln');
+    if (stato === 'FINITO')           ln.innerHTML = '<span class="chip r">finito</span><span>appena messo in spesa</span>';
+    else if (stato === 'ESAURIMENTO') ln.innerHTML = '<span class="chip a">agli sgoccioli</span>';
+    else                              ln.innerHTML = riga.dataset.lnOrig || '';
+  }
+
+  function ricalcola() {
+    const finiti = document.querySelectorAll('#dotazione .dot[data-s="FINITO"]').length;
+    document.getElementById('cnt-fin').textContent = finiti;
+    document.getElementById('badge-spesa').textContent = 4 + finiti;
+  }
+
+  function mostraToast(riga, dot) {
+    const t = document.getElementById('toast');
+    const bar = document.getElementById('toast-bar');
+    document.getElementById('toast-nome').textContent = riga.querySelector('.nm').textContent;
+    ultimo = dot;
+    t.classList.add('show');
+    bar.style.transition = 'none'; bar.style.width = '100%';
+    requestAnimationFrame(() => {
+      bar.style.transition = 'width 8s linear';
+      bar.style.width = '0%';
+    });
+    clearTimeout(timer);
+    timer = setTimeout(() => { t.classList.remove('show'); ultimo = null; }, 8000);
+  }
+
+  function annulla() {
+    if (ultimo) {
+      ultimo.dataset.s = 'OK';
+      const riga = ultimo.closest('.art');
+      riga.classList.remove('finito');
+      aggiornaRiga(riga, 'OK');
+      ricalcola();
+    }
+    clearTimeout(timer);
+    document.getElementById('toast').classList.remove('show');
+    ultimo = null;
+  }
+</script>
+</body>
+</html>
