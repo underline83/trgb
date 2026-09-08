@@ -100,14 +100,20 @@ const STYLE = `
   --hair:#e6e1d8;--red:#E8402B;--redi:#9c1f10;--red50:#fbe6e2;--green:#2EB872;
   --greeni:#1a7549;--green50:#e1f2e8;--blue:#2E7BE8;--blue50:#e1ecfc;--bluei:#1a4d96;
   --amber:#E8A828;--amber50:#fdf3dc;--amberi:#8a5a00;
-  position:fixed;inset:0;background:var(--cream);color:var(--ink);
+  background:var(--cream);color:var(--ink);min-height:100vh;
   font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;overflow:hidden;}
+  -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;}
 .km-root *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 .km-serif{font-family:"Playfair Display",Georgia,serif;}
 
-.km-head{padding:calc(env(safe-area-inset-top) + 10px) 18px 10px;background:var(--cream);
-  border-bottom:1px solid var(--hair);flex:0 0 auto;}
+/* La pagina SCORRE nel documento, non e' un overlay. L'app monta il suo Header
+   globale (sticky, z-50) su ogni rotta: un root in position fixed a inset 0
+   finirebbe SOTTO quell'header e nasconderebbe la propria intestazione — era
+   il bug del primo giro. Niente backtick in questi commenti: stanno dentro un
+   template literal e lo chiuderebbero.
+   Su desktop la colonna resta stretta come un telefono: e' pensata per quello. */
+.km-head{padding:14px 18px 10px;background:var(--cream);
+  border-bottom:1px solid var(--hair);max-width:640px;margin:0 auto;}
 .km-head h1{margin:0;font:700 26px/1.15 "Playfair Display",Georgia,serif;}
 .km-sub{font-size:12.5px;color:var(--muted);margin-top:3px;}
 .km-htop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
@@ -124,7 +130,7 @@ const STYLE = `
 .km-pill.on{background:var(--red);color:#fff;border-color:var(--red);}
 .km-pill .c{margin-left:4px;opacity:.6;font-weight:500;}
 
-.km-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+.km-body{max-width:640px;margin:0 auto;
   padding:12px 18px calc(env(safe-area-inset-bottom) + 108px);display:flex;flex-direction:column;gap:11px;}
 .km-lbl{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
   color:var(--muted);margin:8px 0 -3px;}
@@ -197,8 +203,13 @@ const STYLE = `
 .km-prog{height:6px;border-radius:99px;background:var(--cream2);overflow:hidden;margin-top:9px;}
 .km-prog i{display:block;height:100%;border-radius:99px;background:var(--green);}
 
-.km-tabbar{position:absolute;bottom:0;left:0;right:0;height:calc(env(safe-area-inset-bottom) + 66px);
-  background:rgba(244,241,236,.94);backdrop-filter:blur(12px);border-top:1px solid var(--hair);
+/* Fissa al fondo della finestra e larga come la colonna: è l'unico modo di
+   spostarsi fra i tab, quindi deve essere raggiungibile sempre, ovunque si sia
+   scrollati. z-index sotto l'header dell'app (50) ma sopra il contenuto. */
+.km-tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:min(640px,100%);height:calc(env(safe-area-inset-bottom) + 66px);
+  background:rgba(244,241,236,.96);backdrop-filter:blur(12px);
+  border-top:1px solid var(--hair);box-shadow:0 -4px 18px rgba(0,0,0,.06);
   display:flex;padding:8px 6px calc(env(safe-area-inset-bottom));z-index:40;}
 .km-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   font-size:10.5px;font-weight:600;color:var(--muted);cursor:pointer;position:relative;
@@ -209,7 +220,8 @@ const STYLE = `
   font-size:10px;font-weight:700;min-width:17px;height:17px;border-radius:99px;display:flex;
   align-items:center;justify-content:center;padding:0 4px;}
 
-.km-toast{position:absolute;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 80px);z-index:60;
+.km-toast{position:fixed;left:50%;transform:translateX(-50%);width:min(608px,calc(100% - 32px));
+  bottom:calc(env(safe-area-inset-bottom) + 80px);z-index:60;
   background:#1c1c1e;color:#fff;border-radius:13px;padding:13px 15px;display:flex;align-items:center;
   gap:12px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.4);overflow:hidden;}
 .km-toast button{background:none;border:0;color:#ff9a8a;font-weight:700;font-size:13.5px;cursor:pointer;}
@@ -244,9 +256,10 @@ const STYLE = `
 .km-err{background:var(--red50);color:var(--redi);border:1px solid #f3c9c1;border-radius:12px;
   padding:12px 14px;font-size:13px;}
 
-.km-sheet{position:absolute;inset:0;z-index:70;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;}
-.km-sheet-in{background:var(--cream);width:100%;border-radius:20px 20px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom) + 18px);
-  max-height:88%;overflow-y:auto;}
+.km-sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.35);
+  display:flex;align-items:flex-end;justify-content:center;}
+.km-sheet-in{background:var(--cream);width:min(640px,100%);border-radius:20px 20px 0 0;
+  padding:18px 18px calc(env(safe-area-inset-bottom) + 18px);max-height:88vh;overflow-y:auto;}
 .km-sheet-in h3{margin:0 0 4px;font:700 20px/1.2 "Playfair Display",Georgia,serif;}
 .km-num{width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--hair);background:#fff;
   text-align:center;font:700 26px/1 "Playfair Display",Georgia,serif;margin:14px 0 10px;}
@@ -474,7 +487,7 @@ function TabOggi({ canWrite, onCount }) {
 
       {istanze.length === 0 && tasks.length === 0 && (
         <Vuoto icona="☕" titolo="Niente in programma"
-               testo="Nessuna checklist generata per oggi e nessun task in scadenza." />
+               testo="Nessuna checklist generata per oggi e nessun task in scadenza. Le altre tre schede sono in fondo allo schermo." />
       )}
 
       {istanze.length > 0 && <div className="km-lbl">Checklist</div>}
