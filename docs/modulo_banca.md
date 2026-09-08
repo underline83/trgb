@@ -215,6 +215,33 @@ La [spec_riconciliazione.md](spec_riconciliazione.md) (draft 2026-04-16) prevede
 
 ---
 
+## 6.6 Rettifiche sui dati storici (2026-09-08)
+
+Due bonifiche una tantum, entrambe conseguenza di come funzionava il modulo prima, non di bug attivi.
+
+### Tre riconciliazioni sbagliate — `scripts/rettifica_riconciliazioni_2026_09_08.py`
+
+Finché non esistevano i parziali né un modo di dire "questo bonifico paga *queste* due fatture", l'unico modo di far quadrare un cumulativo era attaccargli documenti di importo simile e chiudere a mano. Tre casi erano rimasti agganciati male:
+
+| Caso | Com'era | Com'è |
+|---|---|---|
+| **Bugan** (mov 1522, 23/05, 1.423,19) | fatt. 14 + fatt. **40** + una Coffee Lab da 88 = 1.433,91, chiuso a mano | fatt. 14 + fatt. **20** = 1.423,19 esatto, chiusura manuale tolta |
+| **Bugan** (mov 1683, 30/06, 810,09) | senza match | fatt. 40 (la sua RiBa) |
+| **Tris Moka** (mov 1465 e 1685) | RiBa sfasate di un mese | 1092/020 → 1/6, 1388/020 → 30/6 |
+| **Amazon** (mov 959 e 963, 8/04) | fatt. 92,05 sull'addebito da 94,81, chiuso a mano | fatt. 92,05 sull'addebito da 92,04; il 94,81 torna da lavorare (fattura mai importata) |
+
+Effetto principale: la **fattura Bugan 20 da 887,37** risultava ancora da pagare — un debito che non esisteva — ed era l'unica Bugan aperta. La Coffee Lab da 88 € è tornata `PAGATO_MANUALE`, come le altre 30 fatture di quel fornitore.
+
+Lo script è dry-run di default, fa backup, verifica una per una le precondizioni (id, importi, link) e si ferma senza toccare nulla se il DB non è nello stato atteso; commit solo dopo `integrity_check`, `foreign_key_check` e verifica che ogni movimento toccato quadri a residuo zero.
+
+### 65 entrate POS orfane — migrazione 173
+
+Il 31/03/2026 alle 20:40 gli incassi POS di febbraio e marzo sono stati registrati in blocco; alle **21:15** la migrazione 046 ha cancellato i movimenti entrati due volte da un doppio import CSV, spostando `cg_uscite` e `banca_fatture_link` ma **non `cg_entrate`** (tabella nata il giorno prima con la mig 044). Risultato: 65 entrate appese a movimenti inesistenti, 58.433,66 €, tutte **doppioni verificati** di entrate valide. La mig 058 ha poi imparato a gestire il caso, ma il danno era fatto.
+
+Impatto pratico nullo (`cg_entrate` è letta solo da questo modulo, e la worklist parte dai movimenti), ma erano le uniche 65 violazioni di `foreign_key_check` su `foodcost.db`: ora **0**. La 173 cancella solo le orfane che hanno una gemella valida; una senza gemella verrebbe conservata e segnalata.
+
+---
+
 # 7. Carta di Credito (sub-area CC.*)
 
 Sub-area completa end-to-end (sessioni CC 2026-06-02 → 2026-06-13). Pagine: `CartaCreditoPage.jsx` (`/flussi-cassa/carta`) e `CartaRiepilogoPage.jsx` (`/flussi-cassa/carta/riepilogo`).

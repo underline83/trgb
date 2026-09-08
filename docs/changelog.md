@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-09-08 (sera) — Tre bonifici rimessi al posto giusto, e 65 incassi fantasma `[core]`
+
+Con i parziali appena fatti, siamo andati a vedere cosa avevano lasciato indietro gli anni in cui non c'erano.
+
+**Il bonifico Bugan del 23 maggio non pagava quello che sembrava.** 535,82 + 887,37 fa esattamente 1.423,19: quel bonifico saldava le due fatture arretrate, non la fattura di maggio e un caffè da 88 €. Conseguenza: **la fattura da 887,37 risultava ancora da pagare** — un debito che non esisteva — mentre la fattura di maggio veniva data per pagata un mese prima del vero. Il suo bonifico, quello vero del 30 giugno, era lì da due mesi senza nessuno che lo reclamasse.
+
+Cercando lo stesso schema su tutti i movimenti sono saltati fuori altri due casi: le **RiBa di Tris Moka sfasate di un mese**, e una **fattura Amazon** finita sull'addebito da 94,81 invece che su quello da 92,04 che le corrispondeva al centesimo. Tutti e tre rimessi a posto, con i movimenti che ora quadrano da soli senza bisogno di chiuderli a mano.
+
+**E i 65 incassi POS che non erano mai esistiti.** Il 31 marzo, alle 20:40, hai registrato gli incassi di febbraio e marzo. Trentacinque minuti dopo, una pulizia automatica ha cancellato dei movimenti bancari entrati due volte — e si è dimenticata di portarsi dietro gli incassi collegati. Sono rimaste 65 righe appese al nulla per 58.433 €, tutte copie di incassi già registrati correttamente. Non si vedevano da nessuna parte e non falsavano nessun conto, ma erano le uniche 65 crepe nell'integrità del database: **ora sono zero**.
+
+---
+
 ## 2026-09-08 — I pagamenti parziali esistono `[core]`
 
 Fino a ieri, collegare un bonifico a una fattura in Riconciliazione voleva dire una cosa sola: **pagata, tutta**. Anche quando il bonifico era più piccolo della fattura. Il sistema non lo diceva, non lo chiedeva, non lasciava traccia: la fattura risultava saldata e la differenza spariva.

@@ -133,6 +133,14 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.2 (2026-09-08): pannello di SETUP in Impostazioni Cucina → Frigoriferi.
+    //   Finalmente si possono creare i posti, i loro ripiani (codice locale +
+    //   destinazione d'uso) e popolare la dotazione incollando una lista, con
+    //   anteprima obbligatoria ESISTE/NUOVO/SIMILE. Prima l'unico modo era lo
+    //   script di seed sul VPS.
+    //   Fix layout: la pagina mobile scorre nel documento invece di essere un
+    //   overlay fixed che finiva sotto l'Header globale; i tab stanno anche in
+    //   alto in flusso (sotto i 768px resta la barra in fondo, per il pollice).
     // 1.1 (2026-09-07): «Cucina da iPhone» — la sotto-app mobile a 4 tab
     //   (Oggi / Scorte / Frigo / Spesa) su /cucina/mobile. Oggi e Spesa girano
     //   su /tasks e /lista-spesa che esistevano già; Scorte e Frigo sulla 171.
@@ -142,7 +150,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.1",
+    version: "1.2",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

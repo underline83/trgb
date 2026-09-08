@@ -25,6 +25,7 @@
 8. Integrazione con gli altri moduli
 9. Fasi di rilascio
 9-bis. **Come si prova** — seed di demo e checklist
+9-ter. **Come si configura** — il pannello Frigoriferi
 10. Decisioni prese + la sotto-app mobile
 
 ---
@@ -388,6 +389,34 @@ La chiusura conta è ristretta perché è l'atto che scrive un numero nel Contro
 | **S5 — carico da fattura** | riga fattura → movimento di carico | sì |
 
 Seed dei frigoriferi reali di Tre Gobbi: commit separato `[locale:tregobbi]`, dopo S1.
+
+---
+
+# 9-ter. Come si configura (2026-09-08)
+
+**Impostazioni Cucina → 🧊 Frigoriferi** (`RicetteSettings`, sidebar). È il pannello di setup: la sotto-app mobile consuma, questo configura. Sta al computer di proposito — dire cosa c'è su ventiquattro ripiani è lavoro da tastiera, si fa una volta e non si rifà.
+
+Tre passi, nell'ordine in cui vanno fatti:
+
+1. **Il posto.** Nome come lo chiami tu, tipo, soglie di temperatura se è refrigerato, e **quanti ripiani**: nascono numerati 1..N. Se ne aggiunge o toglie dopo.
+2. **I ripiani.** Nome facoltativo e **destinazione d'uso** (crudo / cotto / semilavorati / pronti). Non è decorazione: da lì nasce l'avviso quando il crudo finisce sul ripiano del cotto.
+3. **La dotazione.** Bottone «📋 Cosa ci sta» su ogni ripiano → si incolla una riga per articolo. Il nome basta; quantità e unità, se ci sono, vengono lette.
+
+## L'anteprima non è saltabile, ed è il punto
+
+`POST /cucina/scorte/dotazione/testo` con `conferma: false` classifica ogni riga in tre casi, e il terzo è la ragione per cui esiste:
+
+| | | |
+|---|---|---|
+| 🟢 **ESISTE** | l'articolo è già in anagrafica | si aggancia |
+| 🔵 **NUOVO** | non c'è | lo crea |
+| 🟡 **SIMILE** | assomiglia a uno che c'è (soglia 0.82) | **decide un umano** |
+
+«Pancetta arrotolata» quando in anagrafica c'è «pancetta stesa»: sono la stessa cosa o no? Il sistema non può saperlo, e sbagliare vuol dire o un doppione o due prodotti fusi. Confermando senza correggere, un SIMILE viene trattato come NUOVO — meglio un doppione visibile che una fusione silenziosa.
+
+## Quando togliere i dati di prova
+
+Il seed `[DEMO]` e i posti veri convivono senza darsi fastidio. Quando i frigo reali sono configurati: `python3 scripts/seed_cucina_demo.py --rimuovi` (tocca solo le righe marcate).
 
 ---
 

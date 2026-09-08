@@ -965,10 +965,12 @@ def get_cross_ref(
             # "parziale" = questo movimento non ha coperto tutto il documento.
             # Vale sia quando l'uscita è rimasta PARZIALE, sia quando la quota
             # applicata è inferiore al totale (fattura chiusa da più bonifici).
+            # Il confronto usa la tolleranza, non un centesimo: un addebito da
+            # 92,04 su una fattura da 92,05 è pagato, non parziale.
             "parziale": (
                 d["uscita_stato"] == "PARZIALE"
                 or (d["importo_applicato"] is not None
-                    and abs((d["totale"] or 0) - d["importo_applicato"]) >= 0.01)
+                    and abs((d["totale"] or 0) - d["importo_applicato"]) >= tol_residuo)
             ),
             "source": "fattura", "source_id": d["fattura_id"],
         })

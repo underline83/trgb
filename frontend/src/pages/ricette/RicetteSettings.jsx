@@ -9,6 +9,8 @@ import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
 import PranzoSettingsPanel from "./PranzoSettingsPanel";
 import FoodcostSettingsPanel from "./FoodcostSettingsPanel";
+// Setup magazzino cucina: posti, ripiani, dotazione (2026-09-08)
+import CucinaFrigoriferiPanel from "../cucina/CucinaFrigoriferiPanel";
 import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
@@ -26,6 +28,7 @@ const MENU = [
   { key: "formaggi",     label: "Scelta Formaggi",   icon: "🧀", desc: "Categorie dei formaggi" },
   { key: "widget-home",  label: "Widget Home",       icon: "🏠", desc: "Cosa mostra la card Selezioni del Giorno" },
   { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
+  { key: "frigoriferi",  label: "Frigoriferi",       icon: "🧊", desc: "Posti, ripiani e cosa ci sta di norma — setup del magazzino cucina" },
   { key: "pranzo",       label: "Menu Pranzo",       icon: "🥙", desc: "Default titolo, prezzi e footer pranzo del giorno" },
   { key: "prezzi",       label: "Prezzi & Food Cost", icon: "💶", desc: "Finestra del prezzo corrente (mediana) usato nei food cost" },
   { key: "allergeni",    label: "Allergeni",         icon: "⚠️", desc: "Ricalcolo batch allergeni di tutte le ricette" },
@@ -824,6 +827,13 @@ export default function RicetteSettings() {
                 {/* SEZIONE 6: MENU PRANZO (sessione 58)          */}
                 {/* ============================================= */}
                 {activeSection === "pranzo" && <PranzoSettingsPanel />}
+
+                {/* ============================================= */}
+                {/* SEZIONE: FRIGORIFERI & RIPIANI (2026-09-08)   */}
+                {/* Setup del magazzino cucina. La sotto-app       */}
+                {/* /cucina/mobile consuma, questa configura.      */}
+                {/* ============================================= */}
+                {activeSection === "frigoriferi" && <CucinaFrigoriferiPanel />}
 
                 {/* ============================================= */}
                 {/* SEZIONE: PREZZI & FOOD COST (fix Sedano 2026-06-08) */}
