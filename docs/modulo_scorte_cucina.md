@@ -24,6 +24,7 @@
 7. Permessi (M.G)
 8. Integrazione con gli altri moduli
 9. Fasi di rilascio
+9-bis. **Come si prova** — seed di demo e checklist
 10. Decisioni prese + la sotto-app mobile
 
 ---
@@ -387,6 +388,45 @@ La chiusura conta è ristretta perché è l'atto che scrive un numero nel Contro
 | **S5 — carico da fattura** | riga fattura → movimento di carico | sì |
 
 Seed dei frigoriferi reali di Tre Gobbi: commit separato `[locale:tregobbi]`, dopo S1.
+
+---
+
+# 9-bis. Come si prova (2026-09-07)
+
+A DB vuoto le schermate «Scorte» e «Frigo» non hanno niente da mostrare, quindi il modulo non è giudicabile. `scripts/seed_cucina_demo.py` crea un magazzino finto costruito apposta perché **ogni comportamento particolare si veda con gli occhi**, e lo cancella con un comando.
+
+```bash
+ssh trgb
+cd /home/marco/trgb/trgb
+python3 scripts/seed_cucina_demo.py            # dry-run: dice cosa farebbe
+python3 scripts/seed_cucina_demo.py --crea     # 3 posti, 9 ripiani, 18 articoli
+python3 scripts/seed_cucina_demo.py --rimuovi  # via tutto
+```
+
+Ogni riga creata porta `[DEMO]` nel nome e nelle note; `--rimuovi` cancella **solo** quelle. Dati veri inseriti nel frattempo restano.
+
+## Cosa guardare, e cosa vuol dire se non torna
+
+| # | Dove | Cosa deve succedere | Se non succede |
+|---|---|---|---|
+| 1 | **Frigo** → elenco | 3 posti in ordine; «Frigo carne» con chip rosso «3 finiti», la Dispensa con «niente sonda» | il giro non legge `dotazione`/`ultima_temperatura` |
+| 2 | **Frigo carne** | 4 ripiani dall'alto, ognuno con la destinazione (pronti/cotto/crudo/semilavorati) | i ripiani non arrivano dalla scheda |
+| 3 | stesso posto, ripiano 2 | **Ossobuco** ha il bordo giallo e «⚠ crudo qui»: è crudo su un ripiano dichiarato cotto | `natura`/`destinazione` non si confrontano |
+| 4 | stesso posto, ripiano 3 | **Petto d'anatra** mostra `≈ 6` e il chip «fermo da 9 gg», non `6` secco | la soglia di freschezza (5 gg sul fresco) non si applica |
+| 5 | ripiano 1 | **Coppa di testa** mostra `—`, non `0`: mai movimentata, e il sistema non finge | `stato_dato = IGNOTO` non arriva |
+| 6 | **tocca un pallino verde** | diventa giallo, poi rosso; al rosso compare il toast con Annulla per 8 secondi | la PATCH semaforo non passa (guarda il ruolo) |
+| 7 | dopo il rosso, tab **Spesa** | la riga è comparsa da sola, col fornitore giusto | `aggiungi_a_lista_spesa` non scatta |
+| 8 | premi **Annulla** entro 8 s | il pallino torna com'era **e** la riga di spesa sparisce | l'undo fa solo metà lavoro |
+| 9 | tocca due volte lo stesso rosso | in Spesa resta **una** riga sola | l'anti-doppione non funziona |
+| 10 | **Scorte** → Costata di manzo | giacenza **6,4** su 2 ripiani in 2 posti diversi | qualcuno legge una riga invece della somma |
+| 11 | scheda Costata → **Scarico** | propone la quantità dell'ultima volta; confermi e la timeline si allunga | `azioni_rapide` non arriva |
+| 12 | **Oggi** | checklist e task del giorno; le voci TEMPERATURA dicono «da misurare» e **non** si spuntano | corretto: senza valore l'endpoint rifiuta |
+
+## Cosa NON è ancora provabile
+
+- **La conta.** Gli endpoint ci sono e sono testati sul DB, ma la schermata mobile no: si prova da `/docs` o si rimanda alla fase S3.
+- **Le temperature vere.** Il ponte `checklist_item.ubicazione_id` esiste, ma nessun item di checklist è ancora agganciato a un frigo: finché non lo colleghi, la scheda mostra «—» ed è giusto così.
+- **Il boot di FastAPI in locale.** Il venv nel repo è macOS: la prima esecuzione reale è sempre quella sul VPS dopo il push.
 
 ---
 
