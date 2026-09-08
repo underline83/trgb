@@ -20,8 +20,15 @@ particolare del modulo si veda con gli occhi:
 
 USO (sul VPS, dentro /home/marco/trgb/trgb):
     python3 scripts/seed_cucina_demo.py             # DRY-RUN: dice cosa farebbe
+    python3 scripts/seed_cucina_demo.py --stato     # cosa c'e' adesso nel DB
     python3 scripts/seed_cucina_demo.py --crea      # crea i dati di prova
     python3 scripts/seed_cucina_demo.py --rimuovi   # li cancella tutti
+
+`--stato` serve soprattutto a una cosa: capire se un `--crea` precedente si e'
+fermato a meta'. La guardia di idempotenza controlla solo se esiste il primo
+posto, quindi dopo un giro interrotto `--crea` si rifiuterebbe di ripartire
+lasciandoti dati parziali senza dirtelo. Se i conteggi non tornano: `--rimuovi`
+e poi `--crea`.
 
 SICUREZZA — perche' non puo' toccare dati veri
 Ogni riga creata porta il marcatore «[DEMO]» nel campo `note`, e `--rimuovi`
@@ -246,9 +253,48 @@ def rimuovi(conn, dry):
     print(f"\n  ✔ Rimosso. Giacenze orfane rimaste: {resti} (dev'essere 0)")
 
 
+ATTESI = {
+    "cucina_ubicazioni": 3, "cucina_ripiani": 9, "cucina_articoli": 18,
+    "cucina_giacenze": 19, "cucina_movimenti": 14, "cucina_lotti": 3,
+}
+
+
+def stato(conn):
+    """Cosa c'e' adesso, confrontato con quello che il seed dovrebbe produrre."""
+    cur = conn.cursor()
+    if not cur.execute("SELECT 1 FROM cucina_ubicazioni WHERE nome LIKE ?", (f"{TAG}%",)).fetchone():
+        print("  Nessun dato di prova. Lancia --crea.")
+        return
+    print("  tabella                trovati   attesi")
+    tutto_ok = True
+    for tab, atteso in ATTESI.items():
+        # I DEMO si riconoscono risalendo al posto o all'articolo marcato.
+        if tab in ("cucina_ubicazioni", "cucina_articoli"):
+            col = "nome"
+            n = cur.execute(f"SELECT COUNT(*) FROM {tab} WHERE {col} LIKE ?", (f"{TAG}%",)).fetchone()[0]
+        elif tab == "cucina_ripiani":
+            n = cur.execute(
+                "SELECT COUNT(*) FROM cucina_ripiani r JOIN cucina_ubicazioni u ON u.id = r.ubicazione_id"
+                " WHERE u.nome LIKE ?", (f"{TAG}%",)).fetchone()[0]
+        else:
+            n = cur.execute(
+                f"SELECT COUNT(*) FROM {tab} t JOIN cucina_articoli a ON a.id = t.articolo_id"
+                " WHERE a.nome LIKE ?", (f"{TAG}%",)).fetchone()[0]
+        ok = n == atteso
+        tutto_ok &= ok
+        print(f"  {tab:22} {n:>5}   {atteso:>6}   {'✔' if ok else '✘'}")
+    n_sp = cur.execute("SELECT COUNT(*) FROM lista_spesa_items WHERE titolo LIKE ?", (f"{TAG}%",)).fetchone()[0]
+    print(f"  {'lista_spesa_items':22} {n_sp:>5}   {4:>6}   {'✔' if n_sp >= 4 else '✘'}"
+          "   (puo' salire: i pallini rossi ne aggiungono)")
+    print("\n  " + ("✔ Il seed e' completo." if tutto_ok else
+                    "✘ Seed PARZIALE — un --crea si e' fermato a meta'.\n"
+                    "    Rimedio: --rimuovi e poi --crea."))
+
+
 def main():
     crea_f = "--crea" in sys.argv
     rimuovi_f = "--rimuovi" in sys.argv
+    stato_f = "--stato" in sys.argv
     dry = not (crea_f or rimuovi_f)
 
     print(f"\nSeed cucina — DB: {DB}")
@@ -262,7 +308,9 @@ def main():
         if not tabelle_pronte(conn.cursor()):
             print("  ✘ Le tabelle cucina_* non ci sono: la migrazione 171 non e' passata.")
             sys.exit(1)
-        if rimuovi_f or (dry and "--rimuovi-dry" in sys.argv):
+        if stato_f:
+            stato(conn)
+        elif rimuovi_f or (dry and "--rimuovi-dry" in sys.argv):
             rimuovi(conn, dry)
         else:
             crea(conn, dry)
