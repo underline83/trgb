@@ -63,6 +63,10 @@ DEFAULTS = {
     # CC.5.a: tolleranze per match B (estratto ↔ addebito CC, 1:1 esatto)
     "tolerance_cc_importo_eur": 0.10,
     "tolerance_cc_data_days": 3,
+    # mig 172: soglia del residuo di riconciliazione bancaria (non è del
+    # matcher carta, ma vive nella stessa riga singleton delle soglie banca).
+    # Letta da `banca_router._tolleranza_residuo`.
+    "tolerance_residuo_eur": 1.00,
 }
 
 

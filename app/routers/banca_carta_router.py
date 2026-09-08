@@ -537,6 +537,8 @@ def update_match_settings_endpoint(
         # CC.5.a — tolleranze match B
         "tolerance_cc_importo_eur",
         "tolerance_cc_data_days",
+        # mig 172 — soglia del residuo di riconciliazione bancaria
+        "tolerance_residuo_eur",
     }
     updates = {k: v for k, v in (payload or {}).items() if k in valid_keys}
     if not updates:
@@ -568,6 +570,12 @@ def update_match_settings_endpoint(
         v = updates["auto_apply_threshold"]
         if not isinstance(v, (int, float)) or v < 0 or v > 1:
             raise HTTPException(400, "auto_apply_threshold deve essere in [0, 1]")
+    if "tolerance_residuo_eur" in updates:
+        # Cap a 50 €: oltre, la soglia smetterebbe di essere "arrotondamento"
+        # e nasconderebbe differenze vere fra bonifico e documenti.
+        v = updates["tolerance_residuo_eur"]
+        if not isinstance(v, (int, float)) or v <= 0 or v > 50:
+            raise HTTPException(400, "tolerance_residuo_eur deve essere > 0 e ≤ 50")
 
     # Verifica somma pesi (con merge sui valori correnti per pesi non passati)
     conn = get_db()

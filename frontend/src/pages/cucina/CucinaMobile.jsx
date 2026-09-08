@@ -203,14 +203,32 @@ const STYLE = `
 .km-prog{height:6px;border-radius:99px;background:var(--cream2);overflow:hidden;margin-top:9px;}
 .km-prog i{display:block;height:100%;border-radius:99px;background:var(--green);}
 
-/* Fissa al fondo della finestra e larga come la colonna: è l'unico modo di
-   spostarsi fra i tab, quindi deve essere raggiungibile sempre, ovunque si sia
-   scrollati. z-index sotto l'header dell'app (50) ma sopra il contenuto. */
+/* I TAB STANNO IN DUE POSTI, e non e' un ripensamento.
+   In alto, in flusso: sempre visibili, qualunque sia l'altezza della finestra,
+   e immuni a qualsiasi contenitore che possa rompere il position fixed. E' il
+   selettore che si vede su desktop, stesso pattern del cambio modo in
+   CantinaMobile.
+   In basso, fisso: solo sul telefono, dove il pollice arriva li' e non in cima
+   allo schermo. Sopra i 768px sparisce, cosi' non resta una barra vuota
+   appiccicata al fondo di un monitor. */
+.km-modes{display:flex;gap:6px;background:var(--cream2);border-radius:12px;padding:4px;margin-top:12px;}
+.km-modes button{flex:1;border:0;background:transparent;color:var(--muted);
+  padding:9px 4px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:5px;min-height:44px;position:relative;}
+.km-modes button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08);}
+.km-modes .n{background:var(--red);color:#fff;font-size:10px;font-weight:700;
+  min-width:16px;height:16px;border-radius:99px;display:inline-flex;
+  align-items:center;justify-content:center;padding:0 4px;}
+
 .km-tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);
   width:min(640px,100%);height:calc(env(safe-area-inset-bottom) + 66px);
   background:rgba(244,241,236,.96);backdrop-filter:blur(12px);
   border-top:1px solid var(--hair);box-shadow:0 -4px 18px rgba(0,0,0,.06);
   display:flex;padding:8px 6px calc(env(safe-area-inset-bottom));z-index:40;}
+@media (min-width:769px){
+  .km-tabbar{display:none;}
+  .km-body{padding-bottom:40px;}
+}
 .km-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   font-size:10.5px;font-weight:600;color:var(--muted);cursor:pointer;position:relative;
   background:none;border:0;padding:0;}
@@ -300,6 +318,23 @@ function Toast({ testo, onAnnulla }) {
   );
 }
 
+/** Il selettore in alto, in flusso. È quello che si vede su desktop e non può
+ *  finire fuori schermo qualunque cosa succeda al layout intorno. */
+function Modi({ attivo, badge, vai }) {
+  return (
+    <div className="km-modes" role="tablist">
+      {TABS.map((t) => (
+        <button key={t.k} role="tab" aria-selected={attivo === t.k}
+                className={attivo === t.k ? "on" : ""} onClick={() => vai(t.k)}>
+          <span>{t.icon}</span>{t.label}
+          {badge[t.k] > 0 && <span className="n">{badge[t.k]}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** La barra in fondo: solo sul telefono, dove il pollice arriva lì. */
 function TabBar({ attivo, badge, vai }) {
   return (
     <nav className="km-tabbar">
@@ -566,7 +601,7 @@ function TabOggi({ canWrite, onCount }) {
 // ─────────────────────────────────────────────────────────────
 // TAB 2 · SCORTE — la vista per articolo, per quando sai cosa cerchi
 // ─────────────────────────────────────────────────────────────
-function TabScorte({ canWrite, onCount, apri }) {
+function TabScorte({ canWrite, onCount, apri, modi }) {
   const [dati, setDati] = useState(null);
   const [q, setQ] = useState("");
   const [filtro, setFiltro] = useState("mancanti");
@@ -610,6 +645,7 @@ function TabScorte({ canWrite, onCount, apri }) {
             <div className="km-sub">{articoli.length} articoli · {mancanti.length} da comprare</div>
           </div>
         </div>
+        {modi}
         <input className="km-search" placeholder="🔍  Cerca un articolo…"
                value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="km-pills">
@@ -892,7 +928,7 @@ function SchedaArticolo({ id, canWrite, indietro }) {
 // ─────────────────────────────────────────────────────────────
 // TAB 3 · FRIGO — il giro. È il gesto principale del modulo.
 // ─────────────────────────────────────────────────────────────
-function TabFrigo({ onCount, apri }) {
+function TabFrigo({ onCount, apri, modi }) {
   const [ubi, setUbi] = useState(null);
   const [err, setErr] = useState(null);
 
@@ -923,6 +959,7 @@ function TabFrigo({ onCount, apri }) {
             <div className="km-sub">Il giro · {(ubi || []).length} posti</div>
           </div>
         </div>
+        {modi}
       </div>
       <div className="km-body">
         {err && <div className="km-err">{err}</div>}
@@ -1101,7 +1138,7 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
 // TAB 4 · SPESA — la lista che si riempie da sola.
 // Raggruppata per fornitore: prima chi ha un nome, in fondo il resto.
 // ─────────────────────────────────────────────────────────────
-function TabSpesa({ canWrite, onCount }) {
+function TabSpesa({ canWrite, onCount, modi }) {
   const [dati, setDati] = useState(null);
   const [mostraFatti, setMostraFatti] = useState(false);
   const [err, setErr] = useState(null);
@@ -1159,6 +1196,7 @@ function TabSpesa({ canWrite, onCount }) {
             </div>
           </div>
         </div>
+        {modi}
         <div className="km-pills">
           <button className={`km-pill${!mostraFatti ? " on" : ""}`} onClick={() => setMostraFatti(false)}>Da fare</button>
           <button className={`km-pill${mostraFatti ? " on" : ""}`} onClick={() => setMostraFatti(true)}>Anche i fatti</button>
@@ -1223,17 +1261,19 @@ export default function CucinaMobile() {
   const apriFrigo = useCallback((uid) => navigate(`/cucina/mobile/frigo/${uid}`), [navigate]);
   const apriArticolo = useCallback((aid) => navigate(`/cucina/mobile/scorte/${aid}`), [navigate]);
 
+  const modi = <Modi attivo={attivo} badge={badge} vai={vai} />;
+
   let vista;
   if (attivo === "frigo" && id) {
     vista = <DentroFrigo id={id} canWrite={canWrite} indietro={() => vai("frigo")} apriArticolo={apriArticolo} />;
   } else if (attivo === "scorte" && id) {
     vista = <SchedaArticolo id={id} canWrite={canWrite} indietro={() => vai("scorte")} />;
   } else if (attivo === "scorte") {
-    vista = <TabScorte canWrite={canWrite} onCount={setB("scorte")} apri={apriArticolo} />;
+    vista = <TabScorte canWrite={canWrite} onCount={setB("scorte")} apri={apriArticolo} modi={modi} />;
   } else if (attivo === "frigo") {
-    vista = <TabFrigo onCount={setB("frigo")} apri={apriFrigo} />;
+    vista = <TabFrigo onCount={setB("frigo")} apri={apriFrigo} modi={modi} />;
   } else if (attivo === "spesa") {
-    vista = <TabSpesa canWrite={canWrite} onCount={setB("spesa")} />;
+    vista = <TabSpesa canWrite={canWrite} onCount={setB("spesa")} modi={modi} />;
   } else {
     vista = (
       <>
@@ -1246,6 +1286,7 @@ export default function CucinaMobile() {
               </div>
             </div>
           </div>
+          {modi}
         </div>
         <TabOggi canWrite={canWrite} onCount={setB("oggi")} />
       </>

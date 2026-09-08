@@ -27,7 +27,7 @@ const MENU = [
   { key: "cat-registrazione", label: "Categorie Registrazione", icon: "📋", desc: "Categorie registrazione corrispettivi" },
   { key: "duplicati",         label: "Pulizia Duplicati",       icon: "🧹", desc: "Trova e rimuovi movimenti duplicati" },
   { key: "cash-baseline",     label: "Saldo cassa contanti",    icon: "💰", desc: "Data + valore iniziale per il Flusso contanti" },
-  { key: "carta-match",       label: "Soglie match carta",      icon: "💳", desc: "Tolleranze e pesi per la riconciliazione carta ↔ uscite CG" },
+  { key: "carta-match",       label: "Soglie riconciliazione",  icon: "💳", desc: "Tolleranze e pesi del match carta ↔ uscite CG + soglia del residuo bancario" },
 ];
 
 export default function BancaImpostazioni() {
@@ -1274,6 +1274,10 @@ function TabCartaMatch() {
       const res = await apiFetch(`${API_BASE}/banca/carta/match-settings`);
       if (!res.ok) throw new Error("Errore nel caricamento");
       const data = await res.json();
+      // La soglia residuo può arrivare vuota da un DB su cui la mig 172 non è
+      // ancora girata: senza questo default il campo resterebbe vuoto e il
+      // salvataggio manderebbe un NaN.
+      if (data.tolerance_residuo_eur == null) data.tolerance_residuo_eur = 1.00;
       setSettings(data);
       setForm(data);
     } catch (e) {
@@ -1312,6 +1316,7 @@ function TabCartaMatch() {
         auto_apply_threshold: Number(form.auto_apply_threshold),
         tolerance_cc_importo_eur: Number(form.tolerance_cc_importo_eur),
         tolerance_cc_data_days: parseInt(form.tolerance_cc_data_days, 10),
+        tolerance_residuo_eur: Number(form.tolerance_residuo_eur),
       };
       const res = await apiFetch(`${API_BASE}/banca/carta/match-settings`, {
         method: "PUT",
@@ -1342,6 +1347,7 @@ function TabCartaMatch() {
       auto_apply_threshold: 0.85,
       tolerance_cc_importo_eur: 0.10,
       tolerance_cc_data_days: 3,
+      tolerance_residuo_eur: 1.00,
     });
   }
 
@@ -1501,6 +1507,29 @@ function TabCartaMatch() {
             step="1"
             min="0"
             max="30"
+          />
+        </div>
+      </div>
+
+      {/* SOGLIA RESIDUO RICONCILIAZIONE (mig 172) */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+        <h3 className="text-sm font-semibold text-amber-900 mb-3">Riconciliazione bancaria — soglia del residuo</h3>
+        <p className="text-xs text-amber-800 mb-3">
+          Quanto scarto fra movimento e documenti collegati è ancora "arrotondamento".
+          Sotto questa cifra il movimento risulta riconciliato e la fattura pagata per intero;
+          sopra, resta un residuo da assegnare e il pagamento viene registrato come
+          <strong> parziale</strong> invece che saldato. Vale sia in eccesso che in difetto.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SettingField
+            label="Tolleranza residuo (€)"
+            help="Default: 1,00€ — copre bolli, centesimi e spese banca. Alzarla nasconde differenze vere."
+            value={form.tolerance_residuo_eur}
+            onChange={(v) => patch("tolerance_residuo_eur", v)}
+            type="number"
+            step="0.01"
+            min="0.01"
+            max="50"
           />
         </div>
       </div>

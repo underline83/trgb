@@ -345,6 +345,12 @@ L'enum a 8 valori di `cg_uscite.stato` (post G.6/G.7/G.8) **schiaccia** le 3 dim
 | `PAGATO`           | PAGATA | (riconciliata) | — irrilevante |
 | `PAGATO_MANUALE`   | PAGATA | * non riconciliata | — irrilevante |
 | `PARZIALE`         | PARZIALMENTE PAGATA | — | — (la rata pagata ha la sua data) |
+<!-- 2026-09-08: PARZIALE non è più solo "caso edge". La riconciliazione
+     bancaria lo scrive da sola quando il movimento non copre il documento
+     (`banca_router._alloca_su_uscite`, mig 172): `importo_pagato` = incassato
+     davvero, quota per movimento su `banca_fatture_link.importo_applicato`.
+     Sotto `carta_match_settings.tolerance_residuo_eur` (default 1 €) lo scarto
+     è arrotondamento e resta PAGATO. Vedi modulo_banca.md §6.1 e §6.5. -->
 | `VERIFICARE`       | NON PAGATA | ? da verificare | — |
 | `PROGRAMMATO`      | NON PAGATA | — | IN SCADENZA |
 | `SCADUTO`          | NON PAGATA | — | SCADUTA |

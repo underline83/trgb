@@ -327,6 +327,10 @@ export default function BancaCrossRef() {
   const [movimenti, setMovimenti] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Avviso non-bloccante (banner ambra): serve a dire che un collegamento ha
+  // prodotto un pagamento PARZIALE, cosa che prima avveniva in silenzio
+  // marcando la fattura come saldata per intero.
+  const [avviso, setAvviso] = useState("");
   const [tab, setTab] = useState("suggerimenti");
   const [linking, setLinking] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -443,16 +447,20 @@ export default function BancaCrossRef() {
     } catch (_) {}
   };
 
-  // ── Helpers: un movimento è "completamente collegato" se ha links e residuo < 1 ──
-  // oppure se è stato marcato come "riconciliazione chiusa manualmente" (mig 059)
+  // ── "Completamente collegato" lo decide il backend (campo is_riconciliato) ──
+  // Chiusura manuale (mig 059), match B carta, o scarto entro la tolleranza
+  // configurata (mig 172). Prima la regola era ricostruita qui e includeva
+  // `match_uscite_count > 0`: bastava una cg_uscite agganciata per dichiarare
+  // il movimento riconciliato SENZA guardare gli importi, e un bonifico coperto
+  // a metà finiva in "Collegati" mentre il contatore in fondo alla pagina lo
+  // chiamava parziale. Il fallback serve solo a un backend più vecchio del FE.
   const isFullyLinked = (m) =>
-    !!m.riconciliazione_chiusa ||
-    ((m.links?.length > 0) && Math.abs(m.residuo ?? 0) < 1.0) ||
-    // CC.8.c — match B: il movimento è l'addebito mensile di un estratto carta
-    !!m.match_b_estratto_id ||
-    // CC.6 — match A su uscite CG (singolo o multi-fattura via subquery)
-    ((m.match_uscite_count || 0) > 0);
-  const isPartiallyLinked = (m) => !m.riconciliazione_chiusa && (m.links?.length > 0) && Math.abs(m.residuo ?? 0) >= 1.0;
+    m.is_riconciliato ?? (
+      !!m.riconciliazione_chiusa ||
+      ((m.links?.length > 0) && Math.abs(m.residuo ?? 0) < (m.tolleranza_residuo ?? 1.0)) ||
+      !!m.match_b_estratto_id
+    );
+  const isPartiallyLinked = (m) => (m.links?.length > 0) && !isFullyLinked(m);
 
   const handleLink = async (movimentoId, source, sourceId) => {
     setLinking(movimentoId);
@@ -467,6 +475,19 @@ export default function BancaCrossRef() {
         body: JSON.stringify(body),
       });
       if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e.detail || "Errore collegamento"); }
+      const data = await resp.json().catch(() => ({}));
+      // Pagamento parziale: dirlo subito, non lasciarlo scoprire dal
+      // badge "da verificare" tre schermate più in là.
+      if (data?.parziale) {
+        const a = (data.allocazione || []).find(x => x.stato === "PARZIALE");
+        setAvviso(
+          a
+            ? `Pagamento parziale: coperti € ${fmt(a.allocato)} su € ${fmt(a.totale)} — restano scoperti € ${fmt(a.scoperto)}. L'uscita resta aperta come «parziale», non risulta saldata.`
+            : "Il movimento non copre l'intero documento: registrato come pagamento parziale."
+        );
+      } else {
+        setAvviso("");
+      }
       setSearchId(null); setSearchQuery(""); setSearchResults([]); setExpandedId(null);
       await loadData();
     } catch (err) { setError(err.message); }
@@ -801,7 +822,17 @@ export default function BancaCrossRef() {
         {tipoBadge(lk.tipo)}
         <span className="font-medium text-neutral-800 truncate">{nome}</span>
         <span className="text-neutral-400">{dettaglio}</span>
-        <span className="font-mono font-semibold text-neutral-600">€ {fmt(lk.totale)}</span>
+        {/* Su un'uscita parziale il totale del documento e l'importo davvero
+            coperto da questo movimento sono due numeri diversi: mostrarli
+            entrambi, altrimenti la riga sembra saldata. */}
+        {lk.parziale ? (
+          <span className="font-mono font-semibold text-amber-700 whitespace-nowrap">
+            € {fmt(lk.allocato)}
+            <span className="text-neutral-400 font-normal"> su € {fmt(lk.totale)}</span>
+          </span>
+        ) : (
+          <span className="font-mono font-semibold text-neutral-600">€ {fmt(lk.totale)}</span>
+        )}
         {showUnlink && (
           <button onClick={() => handleUnlink(lk.link_id)}
             className="px-1.5 py-0.5 rounded text-[9px] border border-red-200 text-red-400 hover:bg-red-50 ml-1">
@@ -1049,6 +1080,14 @@ export default function BancaCrossRef() {
             <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">{error}</div>
           )}
 
+          {avviso && (
+            <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm flex items-start justify-between gap-3">
+              <span>⚡ {avviso}</span>
+              <button onClick={() => setAvviso("")}
+                className="text-amber-700 hover:text-amber-900 font-semibold shrink-0">✕</button>
+            </div>
+          )}
+
           {/* ── Barra bulk — tab senza/suggerimenti/parcheggiati ── */}
           {(tab === "senza" || tab === "suggerimenti" || tab === "parcheggiati") && bulkSelected.size > 0 && (
             <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
@@ -1261,11 +1300,20 @@ export default function BancaCrossRef() {
                                 💳 Addebito carta — Estratto #{m.match_b_estratto_id} chiuso {fmtDate(m.match_b_estratto_chiusura)}
                               </div>
                             )}
-                            {/* Indicatore link parziale nei tab suggerimenti/senza */}
+                            {/* Indicatore link parziale nei tab suggerimenti/senza.
+                                Residuo negativo = i documenti agganciati valgono
+                                più del movimento: è un eccesso da togliere, non
+                                un residuo da assegnare. */}
                             {partial && tab !== "collegati" && (
-                              <div className="mt-1 text-[10px] text-amber-600 font-medium">
-                                ⚡ Parziale: € {fmt(m.totale_collegato)} su € {fmt(Math.abs(m.importo))} — residuo € {fmt(m.residuo)}
-                              </div>
+                              (m.residuo ?? 0) < 0 ? (
+                                <div className="mt-1 text-[10px] text-rose-600 font-medium">
+                                  ⚠ Sovra-collegato: € {fmt(m.totale_collegato)} di documenti su € {fmt(Math.abs(m.importo))} usciti — eccedenza € {fmt(Math.abs(m.residuo))}
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-[10px] text-amber-600 font-medium">
+                                  ⚡ Parziale: € {fmt(m.totale_collegato)} su € {fmt(Math.abs(m.importo))} — residuo € {fmt(m.residuo)}
+                                </div>
+                              )
                             )}
                           </td>
 
@@ -1280,7 +1328,18 @@ export default function BancaCrossRef() {
                                       Totale: € {fmt(m.totale_collegato)}
                                     </div>
                                   )}
-                                  {m.riconciliazione_chiusa ? (
+                                  {/* Il movimento è esaurito (niente più da
+                                      assegnare qui), ma il documento resta
+                                      scoperto: dirlo, o il parziale sparisce. */}
+                                  {links.some(l => l.parziale) && (
+                                    <div className="text-[10px] text-amber-700 font-medium mt-1">
+                                      ⚡ Pagamento parziale — il documento resta aperto per la differenza
+                                    </div>
+                                  )}
+                                  {/* `!!`: riconciliazione_chiusa arriva da SQLite
+                                      come 0/1, e `0 && (...)` in JSX stampa uno
+                                      zero in pagina invece di non renderizzare. */}
+                                  {!!m.riconciliazione_chiusa ? (
                                     <div className="mt-1 text-[10px]">
                                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-emerald-300 bg-emerald-50 text-emerald-700 font-medium">
                                         🔒 Chiusa manuale
@@ -1307,7 +1366,9 @@ export default function BancaCrossRef() {
                                       Scollega
                                     </button>
                                   ))}
-                                  {m.riconciliazione_chiusa && (
+                                  {/* `!!` per lo stesso motivo di sopra: lo 0 di
+                                      SQLite finiva stampato sotto "Scollega". */}
+                                  {!!m.riconciliazione_chiusa && (
                                     <Tooltip label="Riapri la riconciliazione manuale">
                                       <button onClick={() => handleRiapriRiconciliazione(m.id)}
                                         className="block px-2 py-1 rounded text-[10px] border border-amber-200 text-amber-600 hover:bg-amber-50 w-full">
@@ -1604,7 +1665,18 @@ export default function BancaCrossRef() {
                 <>
                   <span>•</span>
                   <span className="text-sky-600">
-                    {movimenti.filter(m => isPartiallyLinked(m)).length} parziali
+                    {movimenti.filter(m => isPartiallyLinked(m)).length} da completare
+                  </span>
+                </>
+              )}
+              {/* Movimenti esauriti ma che lasciano un documento scoperto: sono
+                  "collegati" (non c'è più nulla da assegnare al movimento) ma la
+                  fattura resta aperta. Prima questo caso non esisteva proprio. */}
+              {movimenti.some(m => (m.links || []).some(l => l.parziale)) && (
+                <>
+                  <span>•</span>
+                  <span className="text-amber-600">
+                    {movimenti.filter(m => (m.links || []).some(l => l.parziale)).length} con pagamento parziale
                   </span>
                 </>
               )}

@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-09-08 — I pagamenti parziali esistono `[core]`
+
+Fino a ieri, collegare un bonifico a una fattura in Riconciliazione voleva dire una cosa sola: **pagata, tutta**. Anche quando il bonifico era più piccolo della fattura. Il sistema non lo diceva, non lo chiedeva, non lasciava traccia: la fattura risultava saldata e la differenza spariva.
+
+**Ora il collegamento guarda le cifre.** Bonifico da 400 € su una fattura da 500 €: la fattura resta aperta per 100 €, marcata «parziale», e un avviso in giallo te lo dice nel momento in cui colleghi. Se invece ballano pochi centesimi (bolli, spese banca) resta pagata: sotto **1 €** lo scarto è arrotondamento — e quel limite ora si cambia da **Flussi di Cassa → Impostazioni → Soglie riconciliazione**, senza toccare il codice.
+
+**Una fattura si può pagare in due bonifici.** Il primo la lascia a metà, il secondo la chiude. Se ne stacchi uno, torna parziale invece di tornare «da pagare» come se non avessi mai pagato niente.
+
+**Il tab «Collegati» dice la verità.** Bastava che una fattura fosse agganciata a un movimento perché finisse fra i riconciliati, importi o non importi: per questo capitava di leggere «Collegati» in cima e «1 parziale» in fondo alla stessa pagina. Ora la riga resta da lavorare finché i conti non tornano, e chi ha più documenti che soldi usciti viene segnalato come **sovra-collegato** — lì il problema è togliere, non aggiungere.
+
+**Nessun movimento vecchio cambia posto**: i tre casi storici che sarebbero riemersi (i bonifici parziali Reepack e MALOWINE, più un residuo di 112 € accettato a gennaio) sono stati chiusi con la loro nota.
+
+Sistemato anche lo **0 che compariva sotto il pulsante Scollega**: uno zero di troppo, stampato per un dettaglio di come React tratta i numeri.
+
+---
+
 ## 2026-09-07 — La cucina comincia ad avere un magazzino `[core]`
 
 Come la cantina dal telefono, ma per la cucina. Per ora c'è solo il motore: **nessuna schermata, nessun dato dentro**, quindi in osteria oggi non cambia niente. Serviva prima decidere come funziona.

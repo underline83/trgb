@@ -63,6 +63,36 @@ def get_db():
 
 
 # ────────────────────────────────────────────────────────────────────
+# Tolleranza sul residuo di riconciliazione (mig 172)
+# ────────────────────────────────────────────────────────────────────
+# Uno scarto sotto questa soglia è arrotondamento (bollo, centesimi, spese
+# banca): non genera residuo da assegnare né pagamento parziale. Sopra, è
+# una differenza vera e il sistema la dichiara.
+# Vive nella riga singleton `carta_match_settings` (id=1) insieme alle altre
+# tolleranze del modulo banca; si cambia da Flussi di Cassa → Impostazioni.
+TOLLERANZA_RESIDUO_DEFAULT = 1.00
+
+
+def _tolleranza_residuo(conn) -> float:
+    """Legge la soglia dal DB. Fallback al default se la colonna, la riga o
+    la tabella non ci sono ancora (DB nuovo, migrazione non girata)."""
+    try:
+        row = conn.execute(
+            "SELECT tolerance_residuo_eur FROM carta_match_settings WHERE id = 1"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return TOLLERANZA_RESIDUO_DEFAULT
+    if not row:
+        return TOLLERANZA_RESIDUO_DEFAULT
+    val = row["tolerance_residuo_eur"] if hasattr(row, "keys") else row[0]
+    try:
+        val = float(val)
+    except (TypeError, ValueError):
+        return TOLLERANZA_RESIDUO_DEFAULT
+    return val if val > 0 else TOLLERANZA_RESIDUO_DEFAULT
+
+
+# ────────────────────────────────────────────────────────────────────
 # CC.6 — Filtro per escludere movimenti carta dalle query "CC bancario"
 # ────────────────────────────────────────────────────────────────────
 # I movimenti carta importati dal PDF estratto vivono in `banca_movimenti`
@@ -822,6 +852,10 @@ def get_cross_ref(
     conn = get_db()
     cur = conn.cursor()
 
+    # Soglia sotto la quale uno scarto è arrotondamento e non residuo da
+    # lavorare (mig 172, configurabile in Flussi di Cassa → Impostazioni).
+    tol_residuo = _tolleranza_residuo(conn)
+
     where = ["1=1"]
     params = []
     if data_da:
@@ -900,10 +934,17 @@ def get_cross_ref(
     ph = ",".join("?" * len(mov_ids))
 
     # ── 2. Carica TUTTI i link fattura (multipli per movimento) ──
+    # `allocato` = quanto di QUESTO movimento è finito su QUESTA fattura.
+    # Coincide col totale della fattura nel caso normale, ma quando l'uscita è
+    # PARZIALE (il bonifico copre solo una parte, v. create_link) vale
+    # l'importo_pagato: il residuo del movimento e lo scoperto della fattura
+    # sono due grandezze diverse e non vanno confuse.
     cur.execute(f"""
-        SELECT bl.id AS link_id, bl.movimento_id,
+        SELECT bl.id AS link_id, bl.movimento_id, bl.importo_applicato,
                f.id AS fattura_id, f.fornitore_nome, f.numero_fattura,
-               f.data_fattura, f.totale_fattura AS totale
+               f.data_fattura, f.totale_fattura AS totale,
+               (SELECT u.stato FROM cg_uscite u
+                 WHERE u.fattura_id = f.id LIMIT 1) AS uscita_stato
         FROM banca_fatture_link bl
         JOIN fe_fatture f ON bl.fattura_id = f.id
         WHERE bl.movimento_id IN ({ph})
@@ -913,35 +954,63 @@ def get_cross_ref(
     for r in cur.fetchall():
         d = dict(r)
         all_linked_fatt_ids.add(d["fattura_id"])
+        # Link storico (importo_applicato NULL) = pagamento pieno.
+        allocato = d["totale"] if d["importo_applicato"] is None else d["importo_applicato"]
         lk_fattura.setdefault(d["movimento_id"], []).append({
             "link_id": d["link_id"], "tipo": "FATTURA",
             "fornitore_nome": d["fornitore_nome"],
             "numero_fattura": d["numero_fattura"],
             "data": d["data_fattura"], "totale": d["totale"],
+            "allocato": allocato,
+            # "parziale" = questo movimento non ha coperto tutto il documento.
+            # Vale sia quando l'uscita è rimasta PARZIALE, sia quando la quota
+            # applicata è inferiore al totale (fattura chiusa da più bonifici).
+            "parziale": (
+                d["uscita_stato"] == "PARZIALE"
+                or (d["importo_applicato"] is not None
+                    and abs((d["totale"] or 0) - d["importo_applicato"]) >= 0.01)
+            ),
             "source": "fattura", "source_id": d["fattura_id"],
         })
 
-    # ── 3. Carica link uscite dirette (non-fattura) ──
+    # ── 3. Carica link uscite CG ──
+    # Prende TUTTE le uscite agganciate al movimento, non solo quelle senza
+    # fattura: un'uscita con `fattura_id` valorizzata ma senza riga in
+    # `banca_fatture_link` (match A del modulo carta, o propagazione storica)
+    # è a tutti gli effetti un collegamento e deve pesare sul residuo. Prima
+    # veniva ignorata qui e recuperata a valle da `match_uscite_count`, che
+    # dichiarava il movimento riconciliato SENZA guardare gli importi.
+    # Escluse solo quelle già contate come link fattura sullo stesso movimento.
     cur.execute(f"""
         SELECT cu.id, cu.banca_movimento_id AS mov_id,
                cu.fornitore_nome, cu.numero_fattura,
-               cu.data_scadenza, cu.totale,
+               cu.data_scadenza, cu.totale, cu.importo_pagato, cu.stato,
                COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
-               cu.periodo_riferimento
+               cu.periodo_riferimento, cu.fattura_id
         FROM cg_uscite cu
         WHERE cu.banca_movimento_id IN ({ph})
-          AND cu.fattura_id IS NULL
+          AND (cu.fattura_id IS NULL
+               OR NOT EXISTS (
+                    SELECT 1 FROM banca_fatture_link bl
+                     WHERE bl.movimento_id = cu.banca_movimento_id
+                       AND bl.fattura_id = cu.fattura_id))
     """, mov_ids)
     lk_uscita = {}
     for r in cur.fetchall():
         d = dict(r)
+        allocato = d["totale"]
+        if d["stato"] == "PARZIALE" and (d["importo_pagato"] or 0) > 0:
+            allocato = d["importo_pagato"]
         lk_uscita.setdefault(d["mov_id"], []).append({
             "link_id": f"u{d['id']}", "tipo": d["tipo"],
             "fornitore_nome": d["fornitore_nome"],
             "numero_fattura": d.get("numero_fattura"),
             "data": d["data_scadenza"], "totale": d["totale"],
+            "allocato": allocato,
+            "parziale": d["stato"] == "PARZIALE",
             "source": "uscita", "source_id": d["id"],
             "periodo_riferimento": d.get("periodo_riferimento"),
+            "fattura_id": d.get("fattura_id"),
         })
 
     # ── 4. Carica link entrate registrate ──
@@ -976,10 +1045,28 @@ def get_cross_ref(
         links.extend(lk_entrata.get(mid, []))
 
         mov["links"] = links
-        totale_coll = sum(abs(l.get("totale") or 0) for l in links)
+        # Conta l'importo ALLOCATO su questo movimento, non il totale nominale
+        # del documento: su un'uscita PARZIALE i due valori divergono.
+        totale_coll = sum(abs(l.get("allocato", l.get("totale")) or 0) for l in links)
         mov["totale_collegato"] = round(totale_coll, 2)
         residuo = round(abs_imp - totale_coll, 2)
         mov["residuo"] = residuo
+
+        # `is_riconciliato`: unica fonte di verità per il tab "Collegati".
+        # Il frontend NON deve ricostruirla per conto suo (lo faceva, e la
+        # regola divergeva da quella del contatore in fondo alla pagina).
+        # Un movimento è riconciliato se:
+        #   - è stato chiuso a mano (mig 059), oppure
+        #   - è l'addebito mensile di un estratto carta (match B, CC.8.c), oppure
+        #   - ha link e lo scarto rientra nella tolleranza configurata.
+        # Lo scarto conta in valore assoluto: sovra-collegato (più documenti
+        # dell'importo uscito) è un errore quanto sotto-collegato.
+        mov["is_riconciliato"] = bool(
+            mov.get("riconciliazione_chiusa")
+            or mov.get("match_b_estratto_id")
+            or (links and abs(residuo) < tol_residuo)
+        )
+        mov["tolleranza_residuo"] = tol_residuo
 
         # Backward compat: flat link fields dal primo link
         if links:
@@ -994,16 +1081,12 @@ def get_cross_ref(
                 mov["link_periodo"] = f0["periodo_riferimento"]
 
         # Riconciliazione chiusa manualmente (mig 059): il movimento viene
-        # considerato "completamente collegato" anche se residuo > 1€.
+        # considerato "completamente collegato" anche se il residuo non quadra.
         # Serve per note di credito, bonifici multipli, fattura+rata dove
-        # i link sono stati creati ma non quadrano al centesimo.
-        if mov.get("riconciliazione_chiusa"):
-            mov["possibili_match"] = []
-            movimenti.append(mov)
-            continue
-
-        # Completamente collegato (residuo < 1€) → nessun suggerimento
-        if links and abs(residuo) < 1.0:
+        # i link sono stati creati ma non tornano al centesimo.
+        # Riconciliato (per chiusura manuale, match B o residuo in tolleranza)
+        # → nessun suggerimento da cercare.
+        if mov["is_riconciliato"]:
             mov["possibili_match"] = []
             movimenti.append(mov)
             continue
@@ -1017,8 +1100,17 @@ def get_cross_ref(
             movimenti.append(mov)
             continue
 
+        # Sovra-collegato: i documenti agganciati valgono più del movimento.
+        # Non si cercano altri suggerimenti — qui semmai si toglie, non si
+        # aggiunge (tipico: due bonifici parziali sulla stessa fattura, o una
+        # fattura attaccata al movimento sbagliato).
+        if links and residuo < 0:
+            mov["possibili_match"] = []
+            movimenti.append(mov)
+            continue
+
         # ── Cerca suggerimenti per uscite (o parzialmente collegate) ──
-        target = residuo if (links and residuo > 0.5) else abs_imp
+        target = residuo if links else abs_imp
         if target <= 0.5:
             mov["possibili_match"] = []
             if not links:
@@ -1197,12 +1289,120 @@ def get_cross_ref(
     return movimenti
 
 
+def _totale_gia_allocato(cur, movimento_id: int) -> float:
+    """Quanto del movimento è già finito su documenti collegati.
+
+    Stessa aritmetica di `get_cross_ref`: un'uscita PARZIALE pesa per
+    l'importo_pagato, non per il totale del documento.
+    """
+    tot = 0.0
+    row = cur.execute("""
+        SELECT COALESCE(SUM(COALESCE(bl.importo_applicato, f.totale_fattura)), 0)
+        FROM banca_fatture_link bl
+        JOIN fe_fatture f ON f.id = bl.fattura_id
+        WHERE bl.movimento_id = ?
+    """, (movimento_id,)).fetchone()
+    tot += abs(row[0] or 0)
+
+    row = cur.execute("""
+        SELECT COALESCE(SUM(
+            CASE WHEN cu.stato = 'PARZIALE' AND COALESCE(cu.importo_pagato, 0) > 0
+                 THEN cu.importo_pagato ELSE cu.totale END
+        ), 0)
+        FROM cg_uscite cu
+        WHERE cu.banca_movimento_id = ?
+          AND (cu.fattura_id IS NULL
+               OR NOT EXISTS (SELECT 1 FROM banca_fatture_link bl
+                               WHERE bl.movimento_id = cu.banca_movimento_id
+                                 AND bl.fattura_id = cu.fattura_id))
+    """, (movimento_id,)).fetchone()
+    tot += abs(row[0] or 0)
+
+    row = cur.execute(
+        "SELECT COALESCE(SUM(ABS(importo)), 0) FROM cg_entrate WHERE banca_movimento_id = ?",
+        (movimento_id,),
+    ).fetchone()
+    tot += abs(row[0] or 0)
+    return round(tot, 2)
+
+
+def _alloca_su_uscite(cur, movimento_id: int, uscite, disponibile: float,
+                      tol: float, data_mov) -> list:
+    """Distribuisce quel che resta del movimento sulle uscite, in ordine.
+
+    Regola: ogni uscita prende quel che serve fino a capienza del movimento.
+    Se quel che resta scoperto sta sotto la tolleranza è arrotondamento e
+    l'uscita si chiude come PAGATO per l'intero; altrimenti resta PARZIALE
+    con l'importo davvero incassato dalla banca.
+
+    Prima di questa funzione ogni link scriveva `stato='PAGATO',
+    importo_pagato = totale` senza guardare l'importo del movimento: un
+    bonifico da 400 € su una fattura da 500 € la dichiarava saldata.
+
+    `gia_pagato` è quanto l'uscita ha già incassato da ALTRI movimenti (somma
+    delle quote sui link, per le fatture): è ciò che rende possibile pagare
+    una fattura in due bonifici e vederla chiudersi al secondo.
+
+    Ritorna l'elenco delle allocazioni (per il log, per il toast in UI e —
+    sul ramo fattura — per scrivere `banca_fatture_link.importo_applicato`).
+    """
+    esiti = []
+    for u in uscite:
+        u = dict(u)
+        gia = float(u.get("gia_pagato") or 0)
+        totale = float(u.get("totale") or 0)
+        da_coprire = round(totale - gia, 2)
+        if da_coprire < 0:
+            da_coprire = 0.0
+        quota = min(max(disponibile, 0.0), da_coprire)
+        scoperto = round(da_coprire - quota, 2)
+
+        if scoperto < tol:
+            # Coperta (eventuale scarto sotto soglia = arrotondamento)
+            nuovo_stato, nuovo_pagato = "PAGATO", totale
+        else:
+            nuovo_stato, nuovo_pagato = "PARZIALE", round(gia + quota, 2)
+
+        # Bug D5 (2026-04-27): reset in_pagamento_at e pagamento_batch_id quando
+        # arriva la riconciliazione bancaria — il pagamento è concluso, non più
+        # "in pagamento".
+        # `banca_movimento_id` resta al PRIMO movimento che ha pagato: la
+        # colonna è singola, la storia completa sta sui link.
+        cur.execute("""
+            UPDATE cg_uscite
+               SET banca_movimento_id = COALESCE(banca_movimento_id, ?),
+                   stato = ?,
+                   data_pagamento = COALESCE(data_pagamento, ?),
+                   importo_pagato = ?,
+                   in_pagamento_at = NULL,
+                   pagamento_batch_id = NULL,
+                   updated_at = datetime('now')
+             WHERE id = ?
+        """, (movimento_id, nuovo_stato, data_mov, nuovo_pagato, u["id"]))
+
+        disponibile = round(disponibile - quota, 2)
+        esiti.append({
+            "uscita_id": u["id"],
+            "totale": totale,
+            "quota": round(quota, 2),          # quanto ci mette QUESTO movimento
+            "allocato": nuovo_pagato,          # quanto ha incassato in tutto
+            "stato": nuovo_stato,
+            "scoperto": 0.0 if nuovo_stato == "PAGATO" else scoperto,
+        })
+    return esiti
+
+
 @router.post("/cross-ref/link")
 def create_link(req: CrossRefLinkRequest):
     """
     Collega un movimento bancario a una fattura O a un'uscita CG.
     - fattura_id: link via banca_fatture_link + propaga a cg_uscite
     - uscita_id: link diretto su cg_uscite.banca_movimento_id
+    - entrata_id: link su cg_entrate
+
+    L'uscita viene marcata PAGATO solo se il movimento la copre davvero;
+    altrimenti resta PARZIALE con l'importo effettivamente incassato
+    (soglia: `carta_match_settings.tolerance_residuo_eur`, mig 172).
     """
     if not req.fattura_id and not req.uscita_id and not req.entrata_id:
         raise HTTPException(400, "Specificare fattura_id, uscita_id o entrata_id")
@@ -1210,38 +1410,73 @@ def create_link(req: CrossRefLinkRequest):
     conn = get_db()
     cur = conn.cursor()
 
-    mov = cur.execute("SELECT data_contabile FROM banca_movimenti WHERE id = ?", (req.movimento_id,)).fetchone()
-    data_mov = dict(mov)["data_contabile"] if mov else None
+    mov = cur.execute(
+        "SELECT data_contabile, importo FROM banca_movimenti WHERE id = ?",
+        (req.movimento_id,),
+    ).fetchone()
+    if mov is None:
+        conn.close()
+        raise HTTPException(404, "Movimento non trovato")
+    mov = dict(mov)
+    data_mov = mov["data_contabile"]
+    tol = _tolleranza_residuo(conn)
+    allocazione = []
 
     try:
         if req.fattura_id:
             # ── Link fattura ──
+            # Quanto resta di questo movimento, DOPO i documenti già agganciati
+            # (un bonifico cumulativo paga più fatture: la seconda prende ciò
+            # che la prima ha lasciato). Si misura PRIMA di inserire il link,
+            # altrimenti la fattura che stiamo collegando risulterebbe già
+            # allocata e si porterebbe via da sé tutta la capienza.
+            disponibile = round(abs(mov["importo"] or 0) - _totale_gia_allocato(cur, req.movimento_id), 2)
+
             cur.execute("""
                 INSERT INTO banca_fatture_link (movimento_id, fattura_id, note)
                 VALUES (?, ?, ?)
             """, (req.movimento_id, req.fattura_id, req.note))
-            # Propaga a cg_uscite. Bug D5 (2026-04-27): reset in_pagamento_at e
-            # pagamento_batch_id quando arriva la riconciliazione bancaria, perché
-            # il pagamento è effettivamente concluso (non più "in pagamento").
-            cur.execute("""
-                UPDATE cg_uscite
-                SET banca_movimento_id = ?,
-                    stato = 'PAGATO',
-                    data_pagamento = COALESCE(data_pagamento, ?),
-                    importo_pagato = totale,
-                    in_pagamento_at = NULL,
-                    pagamento_batch_id = NULL,
-                    updated_at = datetime('now')
-                WHERE fattura_id = ?
-                  AND banca_movimento_id IS NULL
-            """, (req.movimento_id, data_mov, req.fattura_id))
-            # Modulo M (2026-04-27): hook stato_pagamento → 'pagato' (banca ha ragione)
-            try:
-                from app.services.fatture_stato_service import on_riconciliazione_added
-                on_riconciliazione_added(conn, req.fattura_id)
-            except Exception as _e:
-                import logging
-                logging.getLogger("banca").warning(f"[hook stato_pagamento+] fattura={req.fattura_id}: {_e}")
+            link_id = cur.lastrowid
+
+            # Le rate della fattura ancora scoperte, dalla più vecchia.
+            # Una rata già PARZIALE rientra: è così che una fattura pagata in
+            # due bonifici si chiude al secondo, invece di restare a metà per
+            # sempre (prima il filtro era `banca_movimento_id IS NULL` e il
+            # secondo bonifico non trovava nulla da aggiornare).
+            uscite = [
+                {**dict(r), "gia_pagato": (r["importo_pagato"] or 0) if r["stato"] == "PARZIALE" else 0}
+                for r in cur.execute("""
+                    SELECT id, totale, importo_pagato, stato
+                      FROM cg_uscite
+                     WHERE fattura_id = ?
+                       AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE')
+                     ORDER BY COALESCE(data_scadenza, '9999-12-31'), id
+                """, (req.fattura_id,)).fetchall()
+            ]
+            allocazione = _alloca_su_uscite(
+                cur, req.movimento_id, uscite, disponibile, tol, data_mov
+            )
+
+            # Quota di QUESTO movimento su QUESTA fattura (mig 172): senza,
+            # due bonifici sulla stessa fattura risulterebbero due pagamenti
+            # interi e il residuo del secondo sparirebbe.
+            quota_link = round(sum(a["quota"] for a in allocazione), 2)
+            cur.execute(
+                "UPDATE banca_fatture_link SET importo_applicato = ? WHERE id = ?",
+                (quota_link, link_id),
+            )
+
+            # Modulo M (2026-04-27): hook stato_pagamento → 'pagato'.
+            # Salta se il pagamento è parziale: forzare 'pagato' su una fattura
+            # coperta a metà è esattamente la bugia che questo fix rimuove.
+            # PARZIALE è già mappato a 'da_verificare' dalla VIEW legacy.
+            if not any(a["stato"] == "PARZIALE" for a in allocazione):
+                try:
+                    from app.services.fatture_stato_service import on_riconciliazione_added
+                    on_riconciliazione_added(conn, req.fattura_id)
+                except Exception as _e:
+                    import logging
+                    logging.getLogger("banca").warning(f"[hook stato_pagamento+] fattura={req.fattura_id}: {_e}")
         elif req.entrata_id:
             # ── Link entrata esistente (storno / nota di credito) ──
             cur.execute("""
@@ -1255,29 +1490,43 @@ def create_link(req: CrossRefLinkRequest):
                 raise HTTPException(409, "Entrata già collegata o non trovata")
         else:
             # ── Link uscita diretta (spesa fissa, affitto, tassa…) ──
-            # Bug D5: reset in_pagamento_at + pagamento_batch_id (vedi sopra)
-            cur.execute("""
-                UPDATE cg_uscite
-                SET banca_movimento_id = ?,
-                    stato = 'PAGATO',
-                    data_pagamento = COALESCE(data_pagamento, ?),
-                    importo_pagato = totale,
-                    in_pagamento_at = NULL,
-                    pagamento_batch_id = NULL,
-                    updated_at = datetime('now')
-                WHERE id = ?
-                  AND banca_movimento_id IS NULL
-            """, (req.movimento_id, data_mov, req.uscita_id))
-            if cur.rowcount == 0:
+            rows = cur.execute("""
+                SELECT id, totale, importo_pagato, stato
+                  FROM cg_uscite
+                 WHERE id = ? AND banca_movimento_id IS NULL
+            """, (req.uscita_id,)).fetchall()
+            if not rows:
                 conn.close()
                 raise HTTPException(409, "Uscita già collegata o non trovata")
+            # Un'uscita diretta (senza fattura) è legata a un solo movimento:
+            # `banca_movimento_id` è una colonna sola. Una spesa fissa pagata in
+            # due tranche non è modellabile — limite noto, v. modulo_banca.md §6.5.
+            uscite = [
+                {**dict(r), "gia_pagato": (r["importo_pagato"] or 0) if r["stato"] == "PARZIALE" else 0}
+                for r in rows
+            ]
+            disponibile = round(abs(mov["importo"] or 0) - _totale_gia_allocato(cur, req.movimento_id), 2)
+            allocazione = _alloca_su_uscite(
+                cur, req.movimento_id, uscite, disponibile, tol, data_mov
+            )
 
         conn.commit()
     except sqlite3.IntegrityError:
         conn.close()
         raise HTTPException(409, "Collegamento già esistente")
+
+    residuo_movimento = round(
+        abs(mov["importo"] or 0) - _totale_gia_allocato(cur, req.movimento_id), 2
+    )
     conn.close()
-    return {"ok": True}
+    parziale = any(a["stato"] == "PARZIALE" for a in allocazione)
+    return {
+        "ok": True,
+        "parziale": parziale,
+        "allocazione": allocazione,
+        "residuo_movimento": residuo_movimento,
+        "tolleranza": tol,
+    }
 
 
 @router.delete("/cross-ref/link/{link_id}")
@@ -1338,15 +1587,46 @@ def delete_link(link_id: str):
                 logging.getLogger("banca").warning(f"[hook stato_pagamento-] fattura={dict(link)['fattura_id']}: {_e}")
         if link:
             l = dict(link)
-            cur.execute("""
-                UPDATE cg_uscite
-                SET banca_movimento_id = NULL,
-                    stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTO' ELSE 'PROGRAMMATO' END,
-                    importo_pagato = 0,
-                    data_pagamento = NULL,
-                    updated_at = datetime('now')
-                WHERE fattura_id = ? AND banca_movimento_id = ?
-            """, (l["fattura_id"], l["movimento_id"]))
+            # Restano altri movimenti sulla stessa fattura? Allora l'uscita non
+            # si azzera: si ricalcola su quel che resta (fattura pagata in due
+            # bonifici, ne stacco uno → torna PARZIALE, non "da pagare").
+            row = cur.execute("""
+                SELECT COALESCE(SUM(COALESCE(bl.importo_applicato, f.totale_fattura)), 0)
+                  FROM banca_fatture_link bl
+                  JOIN fe_fatture f ON f.id = bl.fattura_id
+                 WHERE bl.fattura_id = ?
+            """, (l["fattura_id"],)).fetchone()
+            resta = round(float(row[0] or 0), 2)
+            tol = _tolleranza_residuo(conn)
+
+            if resta <= 0:
+                cur.execute("""
+                    UPDATE cg_uscite
+                    SET banca_movimento_id = NULL,
+                        stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTO' ELSE 'PROGRAMMATO' END,
+                        importo_pagato = 0,
+                        data_pagamento = NULL,
+                        updated_at = datetime('now')
+                    WHERE fattura_id = ? AND banca_movimento_id = ?
+                """, (l["fattura_id"], l["movimento_id"]))
+            else:
+                altro_mov = cur.execute("""
+                    SELECT movimento_id FROM banca_fatture_link
+                     WHERE fattura_id = ? ORDER BY id LIMIT 1
+                """, (l["fattura_id"],)).fetchone()
+                altro_mov = dict(altro_mov)["movimento_id"] if altro_mov else None
+                # Il filtro è sulla fattura, non sul movimento staccato:
+                # `banca_movimento_id` punta al PRIMO che ha pagato, che può
+                # non essere quello che stiamo scollegando.
+                cur.execute("""
+                    UPDATE cg_uscite
+                       SET banca_movimento_id = ?,
+                           stato = CASE WHEN totale - ? < ? THEN 'PAGATO' ELSE 'PARZIALE' END,
+                           importo_pagato = MIN(?, totale),
+                           updated_at = datetime('now')
+                     WHERE fattura_id = ?
+                       AND stato NOT IN ('PAGATO_MANUALE')
+                """, (altro_mov, resta, tol, resta, l["fattura_id"]))
 
     conn.commit()
     conn.close()

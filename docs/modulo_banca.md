@@ -149,11 +149,17 @@ Cuore del modulo: pagina `BancaCrossRef.jsx` (`/flussi-cassa/cc/crossref`), work
 
 Un movimento bancario può essere collegato a tre tipi di oggetto:
 
-1. **Fattura** — riga in `banca_fatture_link` (N:M) + propagazione a `cg_uscite` della fattura: `banca_movimento_id`, `stato='PAGATO'`, `importo_pagato=totale`, reset `in_pagamento_at`/`pagamento_batch_id` (bug D5 2026-04-27) — `banca_router.py:1207-1234`.
-2. **Uscita CG diretta** (spesa fissa, tassa, stipendio…) — `cg_uscite.banca_movimento_id` valorizzato direttamente, stesso effetto su stato (`banca_router.py:1246-1263`).
-3. **Entrata** (storno, nota di credito incassata) — `cg_entrate.banca_movimento_id` (`banca_router.py:1235-1245`).
+1. **Fattura** — riga in `banca_fatture_link` (N:M, con `importo_applicato` = quota di quel movimento su quella fattura) + propagazione a `cg_uscite`: `banca_movimento_id`, `importo_pagato` = quanto il movimento copre davvero, `stato` = `PAGATO` o `PARZIALE`, reset `in_pagamento_at`/`pagamento_batch_id` (bug D5 2026-04-27) — `_alloca_su_uscite` + `create_link`, `banca_router.py`.
+2. **Uscita CG diretta** (spesa fissa, tassa, stipendio…) — `cg_uscite.banca_movimento_id` valorizzato direttamente, stessa allocazione.
+3. **Entrata** (storno, nota di credito incassata) — `cg_entrate.banca_movimento_id`.
 
-**Multi-link e residuo:** `GET /banca/cross-ref` assembla per ogni movimento tutti i link e calcola `residuo = |importo| − Σ totali collegati`. Con residuo < 1€ il movimento è "completamente collegato". Un bonifico può pagare N fatture (es. mov #1416 → 6 uscite). **Lo split degli importi per link NON è modellato** (vedi §6.5).
+**Multi-link e residuo:** `GET /banca/cross-ref` assembla per ogni movimento tutti i link e calcola `residuo = |importo| − Σ importi allocati`. Sotto la tolleranza configurata (`tolerance_residuo_eur`, default 1 €) il movimento è riconciliato: il campo `is_riconciliato` in risposta è **l'unica fonte di verità** per il tab "Collegati" — il frontend non ricostruisce più la regola per conto suo. Un bonifico può pagare N fatture (es. mov #1416 → 6 uscite) e una fattura può essere pagata da N bonifici.
+
+**Allocazione (2026-09-08).** Collegare non significa più "pagato per intero". La quota di ogni documento è `min(quel che resta del movimento, quel che manca al documento)`; se lo scoperto residuo sta sotto la tolleranza è arrotondamento e il documento si chiude come `PAGATO`, altrimenti resta `PARZIALE` con l'importo davvero incassato. Conseguenze utili:
+
+- un bonifico da 400 € su una fattura da 500 € **non** la dichiara più saldata (prima lo faceva, sempre e in silenzio);
+- una fattura pagata in due tranche si chiude al secondo bonifico, e staccandone uno torna `PARZIALE` invece di "da pagare";
+- il residuo del **movimento** e lo scoperto della **fattura** sono grandezze distinte: un movimento può essere riconciliato (niente più da assegnare) mentre la fattura resta aperta. In UI il link mostra "€ 400 su € 500" in ambra e la riga porta la nota «pagamento parziale».
 
 ## 6.2 Suggerimenti automatici
 
@@ -189,15 +195,23 @@ Un movimento bancario può essere collegato a tre tipi di oggetto:
 
 La riconciliazione bancaria è **l'unica via** per lo stato `pagato` pieno (D1 PAGATA senza modificatore). Il modificatore D2 `*` = "pagata NON riconciliata" corrisponde a `PAGATO_MANUALE`. Implementazione in `app/services/fatture_stato_service.py`:
 
-- `on_riconciliazione_added(fattura_id)` (riga 225) — chiamato dopo INSERT in `banca_fatture_link`: forza `cg_uscite.stato='PAGATO'` ("la banca ha ragione"). Il `*` sparisce.
+- `on_riconciliazione_added(fattura_id)` (riga 225) — chiamato dopo INSERT in `banca_fatture_link`: forza `cg_uscite.stato='PAGATO'` ("la banca ha ragione"). Il `*` sparisce. **Dal 2026-09-08 l'hook viene saltato se l'allocazione ha prodotto un `PARZIALE`**: forzare "pagata" su una fattura coperta a metà era il modo in cui il parziale spariva. `PARZIALE` è già mappato a `da_verificare` dalla VIEW legacy (`CG_TO_LEGACY`).
 - `on_riconciliazione_removed(fattura_id)` (riga 235) — dopo DELETE del link: se non restano altri link/match torna a `PAGATO_MANUALE` (riappare il `*`, preserva l'intenzione utente; NON resetta a da_pagare).
 - `set_stato()` rifiuta `pagato` manuale senza `force` e rifiuta modifiche a fatture riconciliate finché il link esiste (righe 192-202).
 - Lo scollegamento di **uscite dirette** (non-fattura) riporta invece lo stato a `PROGRAMMATO`/`SCADUTO` in base alla scadenza (`banca_router.py:1295-1309`).
 - La riconciliazione **non tocca mai D3** (scadenza/rateizzazione): quelle mutazioni hanno endpoint dedicati in CG.
 
-## 6.5 Split importi — spec NON implementata
+## 6.5 Split importi — implementato in parte (2026-09-08)
 
-La [spec_riconciliazione.md](spec_riconciliazione.md) (draft 2026-04-16, mig 084 proposta) prevedeva `banca_fatture_link.importo_applicato`, stato `PAGATA_PARZIALE`, `riconciliazione_service.py`, `GET /banca/cross-ref/movimento/{id}/dettaglio` e `GET /fatture/{id}/pagamenti`. **Verificato 2026-08-03: nulla di tutto ciò esiste nel codice** (nessuna colonna importo su `banca_fatture_link`, nessun service, nessuno dei 2 endpoint). Il caso "bonifico che non quadra al centesimo" si gestisce ancora con l'escape hatch `riconciliazione_chiusa` + nota (mig 059).
+La [spec_riconciliazione.md](spec_riconciliazione.md) (draft 2026-04-16) prevedeva `banca_fatture_link.importo_applicato`, stato parziale, `riconciliazione_service.py`, `GET /banca/cross-ref/movimento/{id}/dettaglio` e `GET /fatture/{id}/pagamenti`. Fino al 2026-08-03 non esisteva nulla.
+
+**Fatto** (mig 172): `banca_fatture_link.importo_applicato` (NULL = link storico, vale il totale della fattura) · allocazione al momento del link · `cg_uscite.stato='PARZIALE'` con `importo_pagato` reale · soglia configurabile `carta_match_settings.tolerance_residuo_eur` (UI: Flussi di Cassa → Impostazioni → Soglie riconciliazione).
+
+**Non fatto:** nessun `riconciliazione_service.py` (la logica sta in due funzioni del router, `_totale_gia_allocato` e `_alloca_su_uscite`), nessuno dei 2 endpoint di dettaglio, nessuna UI per rettificare a mano la quota di un link.
+
+**Limiti noti:**
+- `cg_uscite.banca_movimento_id` è una colonna sola e resta al **primo** movimento che ha pagato: la storia completa vive sui link. Per le **uscite dirette** (senza fattura) non esiste tabella di link, quindi una spesa fissa pagata in due tranche non è modellabile.
+- L'escape hatch `riconciliazione_chiusa` + nota (mig 059) resta, e serve ancora per note di credito e chiusure fuori sistema.
 
 ---
 
