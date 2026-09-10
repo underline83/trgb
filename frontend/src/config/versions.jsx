@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.88 (2026-09-10): Cantina mobile, «Per scaffale» → Matrice: le
+    //   etichette seguono la posizione (colonna, poi riga — la prima cella
+    //   del vino) invece dell'ordine alfabetico, e ogni riga mostra le celle
+    //   «(3,6) (3,7)». Senza celle leggibili in fondo. Solo frontend.
     // 3.87 (2026-09-01): la mescita torna reversibile. Aprire una bottiglia
     //   per i calici accendeva anche VENDITA_CALICE=1 (flag di ANAGRAFICA,
     //   permanente) in due flussi: ViniVendite → DecidiPrezzoCalice e
@@ -109,7 +113,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.87",
+    version: "3.88",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

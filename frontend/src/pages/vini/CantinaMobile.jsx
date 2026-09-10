@@ -170,6 +170,21 @@ function parseMatrice(str) {
   return { set, minC, maxC, minR, maxR, n: pairs.length };
 }
 
+/** Celle di LOCAZIONE_3 come coppie [colonna, riga], ordinate per colonna
+ *  poi riga (come su Excel: il primo numero è la colonna). */
+function celleMatrice(str) {
+  if (!str) return [];
+  return [...String(str).matchAll(/\((\d+)\s*,\s*(\d+)\)/g)]
+    .map(m => [Number(m[1]), Number(m[2])])
+    .sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]));
+}
+/** "(3,6)" · "(3,6) (3,7)" · "(3,6) (3,7) (4,1) +2" — max 3 celle a vista. */
+function celleLabel(celle) {
+  if (!celle.length) return "";
+  const vis = celle.slice(0, 3).map(([c, r]) => `(${c},${r})`).join(" ");
+  return celle.length > 3 ? `${vis} +${celle.length - 3}` : vis;
+}
+
 // ─────────────────────────────────────────────────────────────
 // CSS (token osteria)
 // ─────────────────────────────────────────────────────────────
@@ -245,6 +260,7 @@ const STYLE = `
 .cm-shelf-row:last-child{border-bottom:none}
 .cm-shelf-row:active{background:#fbf3e4}
 .cm-shelf-row .cm-sr-sub{font-size:13.5px;color:#6b5c46;font-weight:400}
+.cm-shelf-row .cm-sr-cella{display:inline-block;margin-right:8px;font-size:14px;font-weight:700;color:#8f3800;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cm-shelf-row .cm-sr-q{font-weight:700;color:#8f3800;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:17px}
 
 /* ---------- scheda dettaglio ---------- */
@@ -478,14 +494,23 @@ function Finder() {
       const key = l.slot === "loc3" ? "Matrice (scaffale a griglia)" : l.nome;
       if (!map.has(key)) map.set(key, { nome: key, cat: locCategory(l), items: [], bt: 0 });
       const g = map.get(key);
-      g.items.push({ v, qta: l.qta });
+      g.items.push({ v, qta: l.qta, celle: l.slot === "loc3" ? celleMatrice(l.matrice) : null });
       g.bt += l.qta;
     }
-    // ordina: Scaffale…, poi Frigo…, poi il resto, alfabetico dentro i gruppi
+    // ordina: Scaffale…, poi Frigo…, poi il resto, alfabetico dentro i gruppi.
+    // Eccezione matrice: dentro si va per posizione — colonna, poi riga (la
+    // prima cella occupata dal vino), così la lista segue il giro fisico dello
+    // scaffale. Vini senza celle leggibili in fondo, alfabetici.
     const rank = (nome) => (/^scaffale/i.test(nome) ? 0 : isFrigo(nome) ? 1 : /matrice/i.test(nome) ? 3 : 2);
+    const alfa = (x, y) => (x.v.DESCRIZIONE || "").localeCompare(y.v.DESCRIZIONE || "", "it");
+    const perCella = (x, y) => {
+      const a = x.celle?.[0], b = y.celle?.[0];
+      if (!a || !b) return (a ? -1 : b ? 1 : 0) || alfa(x, y);
+      return (a[0] - b[0]) || (a[1] - b[1]) || alfa(x, y);
+    };
     return [...map.values()]
       .sort((a, b) => (rank(a.nome) - rank(b.nome)) || a.nome.localeCompare(b.nome, "it"))
-      .map(g => ({ ...g, items: g.items.sort((x, y) => (x.v.DESCRIZIONE || "").localeCompare(y.v.DESCRIZIONE || "", "it")) }));
+      .map(g => ({ ...g, items: g.items.sort(g.cat === "matrice" ? perCella : alfa) }));
   }, [vini]);
 
   // Chip categoria per il modo «Per scaffale»: conta le LOCAZIONI, non le etichette.
@@ -604,9 +629,10 @@ function Finder() {
                   </button>
                   {isOpen && (
                     <div className="cm-shelf-body">
-                      {s.items.map(({ v, qta }, j) => (
+                      {s.items.map(({ v, qta, celle }, j) => (
                         <div key={j} className="cm-shelf-row" onClick={() => openScheda(v.id)}>
                           <span>
+                            {celle?.length > 0 && <span className="cm-sr-cella">{celleLabel(celle)}</span>}
                             {v.DESCRIZIONE}
                             {v.ANNATA ? ` ${v.ANNATA}` : ""}
                             <span className="cm-sr-sub"> — {nomeProduttore(v)}</span>

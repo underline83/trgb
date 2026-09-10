@@ -1440,18 +1440,23 @@ def create_link(req: CrossRefLinkRequest):
             """, (req.movimento_id, req.fattura_id, req.note))
             link_id = cur.lastrowid
 
-            # Le rate della fattura ancora scoperte, dalla più vecchia.
-            # Una rata già PARZIALE rientra: è così che una fattura pagata in
-            # due bonifici si chiude al secondo, invece di restare a metà per
-            # sempre (prima il filtro era `banca_movimento_id IS NULL` e il
-            # secondo bonifico non trovava nulla da aggiornare).
+            # Le rate della fattura su cui questo movimento può incidere,
+            # dalla più vecchia. Il criterio è "non ancora pagata DALLA BANCA",
+            # cioè senza `banca_movimento_id` — non "non pagata": una fattura
+            # segnata a mano come pagata (`PAGATO_MANUALE`) è il caso normale
+            # in cui poi arriva la riconciliazione, ed è la banca ad avere
+            # ragione. Filtrarla via lasciava il link senza niente da allocare
+            # e quindi a quota zero (bug 2026-09-08: "Parziale € 0,00 su
+            # € 174,22", riparato dalla mig 174).
+            # Le PARZIALI rientrano anche se già legate a un altro movimento:
+            # è così che una fattura pagata in due bonifici si chiude al secondo.
             uscite = [
                 {**dict(r), "gia_pagato": (r["importo_pagato"] or 0) if r["stato"] == "PARZIALE" else 0}
                 for r in cur.execute("""
                     SELECT id, totale, importo_pagato, stato
                       FROM cg_uscite
                      WHERE fattura_id = ?
-                       AND stato NOT IN ('PAGATO', 'PAGATO_MANUALE')
+                       AND (banca_movimento_id IS NULL OR stato = 'PARZIALE')
                      ORDER BY COALESCE(data_scadenza, '9999-12-31'), id
                 """, (req.fattura_id,)).fetchall()
             ]
@@ -1462,11 +1467,16 @@ def create_link(req: CrossRefLinkRequest):
             # Quota di QUESTO movimento su QUESTA fattura (mig 172): senza,
             # due bonifici sulla stessa fattura risulterebbero due pagamenti
             # interi e il residuo del secondo sparirebbe.
+            # Se non c'era nulla da allocare (fattura senza riga in cg_uscite,
+            # o già tutta riconciliata altrove) la quota resta NULL = "vale il
+            # totale della fattura", come i link storici. Scrivere 0 farebbe
+            # sparire il documento dal conto del movimento.
             quota_link = round(sum(a["quota"] for a in allocazione), 2)
-            cur.execute(
-                "UPDATE banca_fatture_link SET importo_applicato = ? WHERE id = ?",
-                (quota_link, link_id),
-            )
+            if allocazione and quota_link > 0:
+                cur.execute(
+                    "UPDATE banca_fatture_link SET importo_applicato = ? WHERE id = ?",
+                    (quota_link, link_id),
+                )
 
             # Modulo M (2026-04-27): hook stato_pagamento → 'pagato'.
             # Salta se il pagamento è parziale: forzare 'pagato' su una fattura

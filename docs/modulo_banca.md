@@ -215,6 +215,8 @@ La [spec_riconciliazione.md](spec_riconciliazione.md) (draft 2026-04-16) prevede
 
 ---
 
+> ⚠️ **Regressione 2026-09-08, vissuta 8 ore (mig 174).** La prima versione di `create_link` cercava le rate da allocare con `stato NOT IN ('PAGATO','PAGATO_MANUALE')`. Ma `PAGATO_MANUALE` è **il caso normale** in cui la riconciliazione arriva dopo (fattura segnata a mano, poi il movimento conferma): filtrata via, non restava niente da allocare e il link nasceva con `importo_applicato = 0` → il movimento mostrava «⚡ Parziale: € 0,00 su € 174,22» e la fattura non si poteva ricollegare (409, il link c'era già). Il criterio giusto è **"non ancora pagata dalla banca"** — `banca_movimento_id IS NULL` — più le PARZIALI. Regola generale: in questo modulo lo stato dell'uscita dice cosa ha dichiarato l'utente, `banca_movimento_id` dice cosa ha visto la banca; per decidere dove allocare vale il secondo.
+
 ## 6.6 Rettifiche sui dati storici (2026-09-08)
 
 Due bonifiche una tantum, entrambe conseguenza di come funzionava il modulo prima, non di bug attivi.

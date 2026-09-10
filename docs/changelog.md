@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-09-10 — Cantina mobile: la matrice in ordine di posizione `[core]`
+
+In **Cantina mobile → Per scaffale → Matrice** le etichette erano in ordine alfabetico: per fare il giro dello scaffale a griglia bisognava saltare avanti e indietro. Ora seguono la posizione, **colonna per colonna e, dentro la colonna, riga per riga** — la stessa convenzione di sempre, primo numero la colonna e secondo la riga, come su Excel. Un vino che occupa più celle si mette al posto della sua prima cella.
+
+Ogni riga mostra davanti al nome le sue celle, es. **(3,6) (3,7)**; oltre tre si legge «+N». I vini in matrice senza celle leggibili finiscono in fondo, in ordine alfabetico. Gli altri scaffali e il frigo restano alfabetici.
+
+---
+
+## 2026-09-08 (notte) — Fix: i collegamenti che valevano zero `[core]`
+
+Poche ore dopo il rilascio dei parziali, Marco ha visto due bonifici del 30 giugno con scritto **«Parziale: € 0,00 su € 174,22»**: collegati, ma come se il collegamento non contasse niente. E non si potevano rifare, perché il collegamento c'era già.
+
+Colpa di una riga di codice troppo letterale. Per capire quanto di un bonifico assegnare a una fattura, il sistema cercava le fatture "non ancora pagate" — escludendo quelle che avevi già segnato pagate a mano. Ma è proprio quello il caso più comune: segni la fattura come pagata quando la paghi, e la banca lo conferma giorni dopo. Non trovando niente da assegnare, il collegamento nasceva a zero.
+
+Ora il criterio è quello giusto: conta se la fattura è già stata **vista dalla banca**, non se tu l'hai già segnata pagata. Fra i due, sulla riconciliazione, ha ragione la banca.
+
+I collegamenti già nati a zero vengono riparati da soli al primo avvio: tornano a valere l'intera fattura e l'uscita viene agganciata al suo movimento, con la data giusta.
+
+---
+
 ## 2026-09-08 (sera) — Tre bonifici rimessi al posto giusto, e 65 incassi fantasma `[core]`
 
 Con i parziali appena fatti, siamo andati a vedere cosa avevano lasciato indietro gli anni in cui non c'erano.
