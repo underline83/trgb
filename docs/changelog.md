@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-09-10 — Bottiglie fantasma in matrice: non si possono più creare `[core]`
+
+Il Toscana 50 e 50 (#607) risultava con **1 bottiglia** ma frigo, locazioni e matrice erano tutti a zero, e non c'era verso di toglierla: «Modifica giacenze» non tocca la matrice e in griglia non c'era nessuna cella da cliccare. La bottiglia era già stata venduta il 16 maggio; il conteggio era rimasto indietro con il passaggio alla nuova Cantina di maggio, che aveva lasciato fuori di proposito i vini in matrice. Stessa storia per il Sagrantino 25 anni, il Barolo Bric Fiasc e il Gevrey-Chambertin, già sistemati a mano.
+
+Da oggi la **matrice conta solo le celle**: una cella = una bottiglia, sempre.
+
+- **Movimenti in scheda:** scegliendo «Matrice» si toccano le celle — quelle del vino per vendita e scarico, quelle libere (griglia già aperta) per il carico. La quantità è il numero di celle scelte. Senza celle il movimento viene rifiutato con un messaggio chiaro, invece di scalare un numero che poi non torna.
+- **Annullare un movimento** della matrice non inventa più una bottiglia in griglia: la rimette nel totale «senza posizione», e la scheda te lo dice.
+- **Nuovi vini e import Excel:** la matrice nasce dalle celle scritte in LOCAZIONE_3, es. (3,6), (3,7). Se il numero non torna o la cella è già occupata, la riga va in errore.
+- **Vendite:** la griglia si apre solo se il vino ha celle vere; un vino rimasto con la posizione scritta ma senza celle si vende lo stesso, senza restare bloccato.
+- **Se qualcosa non torna, lo vedi:** in **Giacenze** compare il riquadro rosso **«Giacenza da sistemare»** con il motivo (es. «1 bt senza posizione») e il pulsante **Riallinea**, che porta il totale ai posti reali e lascia una rettifica nello storico. In più, una volta al giorno, una notifica ad admin se c'è almeno un vino in queste condizioni (configurabile da Impostazioni → Notifiche → «Giacenze vini da sistemare»).
+
+---
+
+## 2026-09-10 — Cantina mobile ha il suo tasto in Home `[core]`
+
+Fra le azioni rapide della Home adesso c'è **📱 Cantina mobile**, subito dopo Cantina Vini: un tocco e sei nella pagina da telefono per trovare e muovere le bottiglie, senza passare dal menu Vini.
+
+Compare a chi la pagina la può aprire davvero — **admin, superadmin, sommelier e sala** (nella dashboard di sala, dopo Cantina Vini). Cucina, contabile e gli altri ruoli non lo vedono: per loro sarebbe un tasto che porta ad «accesso negato».
+
+Come gli altri tasti si sposta, si rinomina o si spegne da **Impostazioni → Home per ruolo**. Anche «Ripristina default» ora lo include.
+
+---
+
 ## 2026-09-10 — Cantina mobile: la matrice in ordine di posizione `[core]`
 
 In **Cantina mobile → Per scaffale → Matrice** le etichette erano in ordine alfabetico: per fare il giro dello scaffale a griglia bisognava saltare avanti e indietro. Ora seguono la posizione, **colonna per colonna e, dentro la colonna, riga per riga** — la stessa convenzione di sempre, primo numero la colonna e secondo la riga, come su Excel. Un vino che occupa più celle si mette al posto della sua prima cella.

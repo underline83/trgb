@@ -1,5 +1,5 @@
 // src/pages/vini/SchedaVino.jsx
-// @version: v2.0-tabs — Redesign con testa fissa (identita + 4 KPI) + tab bar (anagrafica/giacenze/movimenti/prezzi/stats/note). Sessione 55 (2026-04-24).
+// @version: v2.1-matrice-celle — movimenti su Matrice solo con le celle + banner «Giacenza da sistemare» con Riallinea (vini 3.89, 2026-09-10). v2.0-tabs: sessione 55 (2026-04-24).
 // Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + storico prezzi + statistiche + note)
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 
@@ -239,6 +239,16 @@ const SchedaVino = forwardRef(function SchedaVino({
   const [submitting, setSubmitting]   = useState(false);
   const [submitMsg, setSubmitMsg]     = useState("");
 
+  // ── matrice nei movimenti + coerenza giacenza (vini 3.89, 2026-09-10) ──
+  // loc3 È la matrice: un movimento su loc3 passa sempre dalle celle (una per
+  // bottiglia), mai da un numero — è così che nascevano le bottiglie fantasma
+  // (#607: 1 bt in matrice senza celle, impossibile da togliere).
+  // `celleMie` = celle del vino in griglia, `celleMov` = scelte per il movimento.
+  const [celleMie, setCelleMie]         = useState([]);
+  const [celleMov, setCelleMov]         = useState([]);
+  const [coerenza, setCoerenza]         = useState(null);   // {ok, problemi, …}
+  const [riallineando, setRiallineando] = useState(false);
+
   // ── note ────────────────────────────────────────────
   const [note, setNote]           = useState([]);
   const [notaText, setNotaText]   = useState("");
@@ -306,6 +316,20 @@ const SchedaVino = forwardRef(function SchedaVino({
     } catch {
       // silent
     } finally { setStoricaLoading(false); }
+  };
+
+  // ── celle matrice del vino + coerenza giacenza (vini 3.89) ──
+  const fetchCelleMie = async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/matrice/celle/${vinoId}`);
+      if (r.ok) setCelleMie((await r.json()).celle || []);
+    } catch { /* silenzioso */ }
+  };
+  const fetchCoerenza = async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/coerenza-giacenza`);
+      if (r.ok) setCoerenza(await r.json());
+    } catch { /* silenzioso */ }
   };
 
   // ── fetch note ──────────────────────────────────────
@@ -385,6 +409,7 @@ const SchedaVino = forwardRef(function SchedaVino({
     setVino(null); setEditMode(false); setGiacenzeEdit(false);
     setMovimenti([]); setNote([]); setPrezziStorico([]); setVinoStats(null);
     setGiacenzaStorica(null);
+    setCelleMie([]); setCelleMov([]); setCoerenza(null);
     fetchVino();
     fetchMovimenti();
     fetchNote();
@@ -438,6 +463,51 @@ const SchedaVino = forwardRef(function SchedaVino({
   const notifyUpdate = (updatedVino) => {
     setVino(updatedVino);
     if (onVinoUpdated) onVinoUpdated(updatedVino);
+  };
+
+  // Quando cambiano le quantità (movimento, griglia, modifica giacenze) si
+  // rileggono celle e coerenza: celle proposte e banner restano veri.
+  useEffect(() => {
+    if (!vinoId || !vino) return;
+    fetchCelleMie();
+    fetchCoerenza();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vinoId, vino?.QTA_TOTALE, vino?.QTA_FRIGO, vino?.QTA_LOC1, vino?.QTA_LOC2, vino?.QTA_LOC3, vino?.LOCAZIONE_3]);
+
+  // Movimento sulla Matrice: CARICO sceglie celle libere, SCARICO/VENDITA
+  // sceglie celle del vino. Unico caso senza celle: vino con QTA_LOC3 > 0 ma
+  // nessuna cella (residuo storico) → scarico diretto per poterlo azzerare.
+  const movInMatrice = locMov === "loc3" && (
+    tipoMov === "CARICO"
+    || ((tipoMov === "VENDITA" || tipoMov === "SCARICO") && celleMie.length > 0)
+  );
+  useEffect(() => { setCelleMov([]); }, [tipoMov, locMov, vinoId]);
+  useEffect(() => {
+    if (movInMatrice) setQtaMov(celleMov.length ? String(celleMov.length) : "");
+  }, [movInMatrice, celleMov]);
+  const toggleCellaMov = (c) => setCelleMov(prev =>
+    prev.some(x => x.riga === c.riga && x.colonna === c.colonna)
+      ? prev.filter(x => !(x.riga === c.riga && x.colonna === c.colonna))
+      : [...prev, { riga: c.riga, colonna: c.colonna }]
+  );
+
+  // «Riallinea»: loc3 := celle in griglia, totale := somma dei posti.
+  // Il backend registra una RETTIFICA se il totale cambia (mai silenzioso).
+  const riallineaGiacenza = async () => {
+    if (!window.confirm(
+      "Riallineare la giacenza ai posti reali?\n\n"
+      + "Il totale diventa la somma di frigo, locazioni e celle in griglia. "
+      + "Nello storico resta una rettifica."
+    )) return;
+    setRiallineando(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/riallinea-giacenza`, { method: "POST" });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
+      const d = await r.json();
+      if (d.vino) notifyUpdate(d.vino);
+      fetchMovimenti(); fetchGiacenzaStorica(); fetchCoerenza(); fetchCelleMie();
+    } catch (e) { alert(e.message); }
+    finally { setRiallineando(false); }
   };
 
   // ── dirty check helpers ─────────────────────────────
@@ -769,6 +839,12 @@ const SchedaVino = forwardRef(function SchedaVino({
   }, [tipoMov, vino?.PREZZO_CARTA, vino?.EURO_LISTINO]);
 
   const submitMovimento = async () => {
+    if (movInMatrice && celleMov.length === 0) {
+      alert(tipoMov === "CARICO"
+        ? "Scegli dalla griglia le celle libere dove metti le bottiglie (una per bottiglia)."
+        : "Scegli le celle da svuotare (una per bottiglia).");
+      return;
+    }
     const qtaNum = Number(qtaMov);
     if (!qtaMov || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
     if ((tipoMov === "VENDITA" || tipoMov === "SCARICO") && !locMov) {
@@ -794,6 +870,7 @@ const SchedaVino = forwardRef(function SchedaVino({
           locazione: locMov || null,
           note: noteMov || null,
           prezzo_unitario: prezzoNum,
+          ...(movInMatrice ? { celle_matrice: celleMov.map(c => [c.riga, c.colonna]) } : {}),
         }),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
@@ -801,7 +878,7 @@ const SchedaVino = forwardRef(function SchedaVino({
       if (data.vino) notifyUpdate(data.vino);
       if (data.movimenti) setMovimenti(data.movimenti);
       fetchGiacenzaStorica();  // rifresca andamento (giacenza cambiata)
-      setQtaMov(""); setLocMov(""); setNoteMov("");
+      setQtaMov(""); setLocMov(""); setNoteMov(""); setCelleMov([]);
       setPrezzoMovTouched(false); // riabilita autopop
       setPrezzoMov(suggerisciPrezzoPerTipo(tipoMov, data.vino || vino));
       setSubmitMsg("✅ Registrato."); setTimeout(() => setSubmitMsg(""), 3000);
@@ -1194,6 +1271,26 @@ const SchedaVino = forwardRef(function SchedaVino({
                     </div>
                   );
                 })()}
+                {coerenza && coerenza.ok === false && (
+                  <div className="mb-4 p-3 rounded-xl border border-red-300 bg-red-50 flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-red-800">⚠ Giacenza da sistemare</div>
+                      <ul className="text-xs text-red-700 mt-1 list-disc pl-4 space-y-0.5">
+                        {(coerenza.problemi || []).map(p => <li key={p}>{p}</li>)}
+                      </ul>
+                      <div className="text-xs text-red-700/80 mt-1.5">
+                        Se le bottiglie ci sono, mettile al loro posto con ✎ Modifica (celle comprese).
+                        Se non ci sono, «Riallinea»: il totale diventa quello dei posti reali e nello storico resta una rettifica.
+                      </div>
+                    </div>
+                    {!roReadOnly && (
+                      <Btn variant="danger" size="sm" type="button" onClick={riallineaGiacenza}
+                        disabled={riallineando} loading={riallineando}>
+                        {riallineando ? "Riallineo…" : "Riallinea"}
+                      </Btn>
+                    )}
+                  </div>
+                )}
                 {!giacenzeEdit ? (
                   <div className="divide-y divide-neutral-100">
                     {[
@@ -1336,11 +1433,15 @@ const SchedaVino = forwardRef(function SchedaVino({
                       {!vino?.LOCAZIONE_1 && <option value="loc1">Loc 1 ({vino?.QTA_LOC1 ?? 0} bt)</option>}
                       {vino?.LOCAZIONE_2 && <option value="loc2">{vino.LOCAZIONE_2} ({vino.QTA_LOC2 ?? 0} bt)</option>}
                       {!vino?.LOCAZIONE_2 && <option value="loc2">Loc 2 ({vino?.QTA_LOC2 ?? 0} bt)</option>}
-                      {vino?.LOCAZIONE_3 && <option value="loc3">{/^\(\d+,\d+\)/.test((vino.LOCAZIONE_3||"").trim()) ? "Matrice" : vino.LOCAZIONE_3} ({vino.QTA_LOC3 ?? 0} bt)</option>}
-                      {!vino?.LOCAZIONE_3 && <option value="loc3">Loc 3 ({vino?.QTA_LOC3 ?? 0} bt)</option>}
+                      {/* loc3 = Matrice sempre (vini 3.89): si muove solo scegliendo le celle */}
+                      <option value="loc3">Matrice ({vino?.QTA_LOC3 ?? 0} bt)</option>
                     </select>
                     <input type="number" placeholder="Qtà *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}
-                      className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                      readOnly={movInMatrice}
+                      title={movInMatrice ? "In matrice la quantità è il numero di celle scelte" : undefined}
+                      className={`border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 ${
+                        movInMatrice ? "bg-neutral-100 cursor-not-allowed" : "bg-white"
+                      }`} />
                     {/* Prezzo unitario snapshot (mig 129, 2026-05-16) — VENDITA: PREZZO_CARTA, CARICO: EURO_LISTINO */}
                     <div className="relative">
                       <input
@@ -1367,6 +1468,42 @@ const SchedaVino = forwardRef(function SchedaVino({
                       {submitting ? "Registro…" : "Registra"}
                     </Btn>
                   </div>
+                  {movInMatrice && tipoMov !== "CARICO" && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                      <div className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide mb-2">
+                        Tocca le celle da svuotare — {celleMov.length} di {celleMie.length}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {celleMie.map(c => {
+                          const sel = celleMov.some(x => x.riga === c.riga && x.colonna === c.colonna);
+                          return (
+                            <button key={`${c.riga},${c.colonna}`} type="button" onClick={() => toggleCellaMov(c)}
+                              className={`px-2.5 py-1 rounded-lg border text-xs font-semibold tabular-nums transition ${
+                                sel
+                                  ? "bg-amber-500 border-amber-600 text-white"
+                                  : "bg-white border-amber-200 text-amber-800 hover:bg-amber-100"
+                              }`}>
+                              ({c.colonna},{c.riga})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {movInMatrice && tipoMov === "CARICO" && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                      <div className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide mb-2">
+                        Scegli le celle libere dove metti le bottiglie — una per bottiglia
+                      </div>
+                      <MatricePicker vinoId={null} pendingCells={celleMov} onPendingChange={setCelleMov} defaultExpanded />
+                    </div>
+                  )}
+                  {locMov === "loc3" && (tipoMov === "VENDITA" || tipoMov === "SCARICO")
+                    && celleMie.length === 0 && (vino?.QTA_LOC3 ?? 0) > 0 && (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      Questo vino risulta in matrice ma non ha celle in griglia: lo scarico toglie la bottiglia senza toccare la griglia.
+                    </p>
+                  )}
                   <input type="text" placeholder="Note (opzionali)" value={noteMov} onChange={e => setNoteMov(e.target.value)}
                     className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
                   {submitMsg && <p className="text-sm font-medium">{submitMsg}</p>}

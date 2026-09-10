@@ -1,5 +1,5 @@
 // src/pages/vini/MatricePicker.jsx
-// @version: v1.0
+// @version: v1.1 — prop opzionale defaultExpanded (vini 3.89, carico in matrice dai Movimenti)
 // Griglia visuale per gestire le celle matrice.
 // Ogni cella = 1 bottiglia. Click per assegnare/rimuovere.
 
@@ -24,6 +24,8 @@ import Tooltip from "../../components/Tooltip";
  *   - disabled: boolean
  *   - pendingCells: [{riga, colonna}] — solo draft mode (controllato)
  *   - onPendingChange: (newCells) => void — solo draft mode
+ *   - defaultExpanded: boolean — griglia già aperta (default false). Usato dal
+ *     CARICO su Matrice nei Movimenti della scheda (vini 3.89).
  */
 export default function MatricePicker({
   vinoId,
@@ -31,6 +33,7 @@ export default function MatricePicker({
   disabled = false,
   pendingCells,
   onPendingChange,
+  defaultExpanded = false,
 }) {
   // Draft mode attivo se le 2 prop draft sono passate (e vinoId è null)
   const isDraft = !vinoId && Array.isArray(pendingCells) && typeof onPendingChange === "function";
@@ -40,7 +43,7 @@ export default function MatricePicker({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   // In draft mode, "myCelle" è semplicemente lo stato controllato pendingCells.
   // Sincronizzo localmente per riutilizzare il render esistente senza branching.

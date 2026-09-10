@@ -1,4 +1,4 @@
-# @version: v1.6-wal-protected
+# @version: v1.7-invariante-matrice
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Database Vini (Magazzino)
@@ -17,6 +17,7 @@ In v1.2:
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -588,6 +589,14 @@ def create_vino(data: Dict[str, Any]) -> int:
     data.setdefault("UPDATED_AT", now)
     data.setdefault("ORIGINE", "MANUALE")
 
+    # vini 3.89: la matrice nasce dalle celle scritte in LOCAZIONE_3
+    # ("(3,6), (3,7)"), una per bottiglia. Se non tornano → errore esplicito.
+    try:
+        celle_nuove = _prepara_loc3_creazione(cur, data)
+    except ValueError:
+        conn.close()
+        raise
+
     columns = ", ".join(data.keys())
     placeholders = ", ".join(["?"] * len(data))
     values = list(data.values())
@@ -597,6 +606,14 @@ def create_vino(data: Dict[str, Any]) -> int:
         values,
     )
     vino_id = cur.lastrowid
+
+    for (r, c) in celle_nuove:
+        cur.execute(
+            "INSERT INTO matrice_celle (vino_id, riga, colonna, created_at) VALUES (?, ?, ?, ?)",
+            (vino_id, r, c, now),
+        )
+    if celle_nuove:
+        _sync_loc3_da_matrice(cur, vino_id)
 
     # ricalcola totale se ci sono valori di magazzino
     _recalc_qta_totale(conn, vino_id)
@@ -898,6 +915,13 @@ def update_vino(
     # evitare divergenza DB. Il PATCH router non lo passa mai (non e' nel
     # Pydantic VinoMagazzinoUpdate), questa e' cintura + bretelle.
     data.pop("QTA_TOTALE", None)
+
+    # vini 3.89: stessa cosa per la matrice. QTA_LOC3 e LOCAZIONE_3 sono
+    # derivati da matrice_celle (una cella = una bottiglia): scriverli a mano
+    # è esattamente come nascono le bottiglie fantasma (#607, 2026-09-10).
+    # Si cambiano solo dalla griglia o da un movimento con le celle.
+    data.pop("QTA_LOC3", None)
+    data.pop("LOCAZIONE_3", None)
 
     # Sessione 2026-05-11: gestione DATA_APERTURA quando BOTTIGLIA_APERTA cambia.
     # - Set BOTTIGLIA_APERTA=1 e DATA_APERTURA non passata esplicitamente →
@@ -1300,6 +1324,12 @@ def registra_movimento(
 
     Locazioni valide: frigo, loc1, loc2, loc3
     Per VENDITA e SCARICO la locazione è obbligatoria (il frontend la impone).
+
+    loc3 = MATRICE (vini 3.89): `celle_matrice` [(riga, colonna), …] è
+    obbligatorio per CARICO (celle libere da occupare) e per SCARICO/VENDITA
+    quando il vino ha celle (celle sue da svuotare), una cella per bottiglia.
+    Unica eccezione: vino con QTA_LOC3 > 0 ma zero celle (residuo storico) →
+    scarico diretto ammesso, per poterlo azzerare. Vedi _valida_celle_movimento_loc3.
     Per CARICO è facoltativa (se presente, incrementa la locazione).
     Per RETTIFICA non si usa locazione (è un valore assoluto globale).
 
@@ -1359,6 +1389,17 @@ def registra_movimento(
 
     qta_attuale = row["q"]
 
+    # vini 3.89 — invariante matrice (QTA_LOC3 ≡ celle in matrice_celle).
+    # Validazione PRIMA di scrivere qualunque cosa: se le celle non tornano
+    # il movimento viene rifiutato con un messaggio chiaro, niente a metà.
+    celle_loc3 = None
+    if loc == "loc3" and tipo in ("CARICO", "SCARICO", "VENDITA"):
+        try:
+            celle_loc3 = _valida_celle_movimento_loc3(cur, vino_id, tipo, qta, celle_matrice)
+        except ValueError:
+            conn.close()
+            raise
+
     # Calcolo nuova QTA_TOTALE
     if tipo == "CARICO":
         nuova_qta = qta_attuale + qta
@@ -1381,7 +1422,24 @@ def registra_movimento(
     )
 
     # Aggiorna la colonna locazione se specificata
-    if loc:
+    if loc and celle_loc3 is not None:
+        # Matrice: le celle sono già validate. Si scrivono/svuotano in
+        # matrice_celle e QTA_LOC3/LOCAZIONE_3 si riscrivono DALLE celle
+        # (mai per differenza). QTA_TOTALE resta quello calcolato sopra.
+        if tipo == "CARICO":
+            for (r, c) in celle_loc3:
+                cur.execute(
+                    "INSERT INTO matrice_celle (vino_id, riga, colonna, created_at) VALUES (?, ?, ?, ?)",
+                    (vino_id, r, c, created_at),
+                )
+        else:
+            for (r, c) in celle_loc3:
+                cur.execute(
+                    "DELETE FROM matrice_celle WHERE vino_id = ? AND riga = ? AND colonna = ?",
+                    (vino_id, r, c),
+                )
+        _sync_loc3_da_matrice(cur, vino_id)
+    elif loc:
         col = LOCAZIONE_TO_COLUMN[loc]
         qta_loc_map = {"frigo": row["qf"], "loc1": row["q1"], "loc2": row["q2"], "loc3": row["q3"]}
         qta_loc_attuale = qta_loc_map[loc]
@@ -1406,15 +1464,14 @@ def registra_movimento(
             (nuova_qta_loc, created_at, vino_id),
         )
 
-        # Per SCARICO/VENDITA da loc3 con celle specifiche: rimuove dalla matrice
-        if loc == "loc3" and tipo in ("SCARICO", "VENDITA") and celle_matrice:
-            for (r, c) in celle_matrice:
-                cur.execute(
-                    "DELETE FROM matrice_celle WHERE vino_id = ? AND riga = ? AND colonna = ?",
-                    (vino_id, r, c),
-                )
-            # Ricalcola QTA_LOC3 e LOCAZIONE_3 dalla tabella matrice
-            _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
+        # vini 3.89: loc3 senza celle (residuo storico, es. #607 post-cutover
+        # maggio) — lo scarico diretto è l'unica via d'uscita e lo porta verso
+        # lo zero. Arrivato a zero, via anche le coordinate rimaste nel testo.
+        if loc == "loc3" and nuova_qta_loc <= 0:
+            cur.execute(
+                "UPDATE vini_bottiglie SET LOCAZIONE_3 = NULL WHERE id = ?;",
+                (vino_id,),
+            )
 
     # vini 3.61 (2026-05-22): auto-reset di STATO_RIORDINO='0' (Ordinato) quando
     # arriva stock — l'ordine è di fatto arrivato. Scatta su CARICO (sempre) e
@@ -2005,6 +2062,8 @@ def delete_movimento(movimento_id: int) -> None:
             (qta_tot, qta_locs["frigo"], qta_locs["loc1"],
              qta_locs["loc2"], qta_locs["loc3"], vino_id),
         )
+        # vini 3.89: la matrice è la verità per loc3, non il replay.
+        _sync_loc3_da_matrice(cur, vino_id)
     else:
         # CARICO / SCARICO / VENDITA: inversione del delta
         if tipo == "CARICO":
@@ -2023,8 +2082,15 @@ def delete_movimento(movimento_id: int) -> None:
             (delta_tot, vino_id),
         )
 
-        # Ripristina anche la locazione se specificata
-        if loc and loc in LOCAZIONE_TO_COLUMN:
+        # Ripristina anche la locazione se specificata.
+        # vini 3.89: loc3 NON si tocca per differenza — non sappiamo quali
+        # celle aveva svuotato/occupato il movimento. QTA_LOC3 si riallinea
+        # alle celle reali: annullare una vendita da matrice lascia quindi la
+        # bottiglia "da collocare" (totale > posti), che la scheda segnala e
+        # che si sistema rimettendo la cella in griglia.
+        if loc == "loc3":
+            _sync_loc3_da_matrice(cur, vino_id)
+        elif loc and loc in LOCAZIONE_TO_COLUMN:
             col = LOCAZIONE_TO_COLUMN[loc]
             cur.execute(
                 f"""UPDATE vini_bottiglie
@@ -2859,6 +2925,254 @@ def _recalc_qta_loc3_from_matrice(conn: sqlite3.Connection, cur: sqlite3.Cursor,
         (loc3_text, qta_loc3, _now_iso(), vino_id),
     )
     _recalc_qta_totale(conn, vino_id)
+
+
+# ---------------------------------------------------------
+# INVARIANTE MATRICE + COERENZA GIACENZE (vini 3.89, 2026-09-10)
+#
+# Regola: QTA_LOC3 ≡ numero di righe di matrice_celle per quel vino.
+# loc3 È la matrice (99/99 vini al 2026-09-10): una cella = una bottiglia.
+#
+# Perché: il #607 (Toscana 50 e 50) aveva QTA_LOC3=1 con zero celle — la
+# mig 134 del cutover di maggio aveva saltato di proposito i vini in matrice
+# e nessuno li aveva riallineati. La scheda mostrava posti tutti a zero e
+# totale 1, e non c'era modo di togliere la bottiglia: "Modifica giacenze"
+# non tocca loc3 e la griglia non aveva celle da cliccare.
+#
+# Da qui in poi QTA_LOC3 non si muove mai per differenza: si riscrive dalle
+# celle (movimenti con celle, griglia, creazione, delete movimento). Quello
+# che resta fuori (residui storici, totale ≠ somma dei posti per carichi
+# senza locazione) lo trova verifica_coerenza_giacenze(): banner in scheda
+# con "Riallinea" + checker M.F `vini_giacenze_incoerenti`.
+# ---------------------------------------------------------
+
+_RE_CELLA_LOC3 = re.compile(r"\((\d+)\s*,\s*(\d+)\)")
+
+
+def _fmt_cella(riga: int, colonna: int) -> str:
+    """Formato mostrato ovunque in UI e in LOCAZIONE_3: (colonna,riga)."""
+    return f"({colonna},{riga})"
+
+
+def _celle_da_testo_loc3(testo: Any) -> List[tuple]:
+    """'(3,6), (3,7)' → [(riga, colonna), …]. Il testo è in formato (colonna,riga)."""
+    if not testo:
+        return []
+    out: List[tuple] = []
+    for col, rig in _RE_CELLA_LOC3.findall(str(testo)):
+        t = (int(rig), int(col))
+        if t not in out:
+            out.append(t)
+    return out
+
+
+def _normalizza_celle(celle: Optional[List[Any]]) -> List[tuple]:
+    """[[r, c], (r, c), {riga, colonna}] → [(riga, colonna)] senza doppioni."""
+    out: List[tuple] = []
+    for x in celle or []:
+        if isinstance(x, dict):
+            t = (int(x["riga"]), int(x["colonna"]))
+        else:
+            t = (int(x[0]), int(x[1]))
+        if t not in out:
+            out.append(t)
+    return out
+
+
+def _verifica_celle_libere(cur: sqlite3.Cursor, celle: List[tuple]) -> None:
+    """Solleva ValueError se una cella è fuori griglia o già occupata."""
+    cfg = cur.execute(
+        "SELECT righe, colonne FROM locazioni_config WHERE tipo = 'matrice' LIMIT 1"
+    ).fetchone()
+    if not cfg or not cfg["righe"] or not cfg["colonne"]:
+        raise ValueError("Matrice non configurata (Impostazioni → Locazioni).")
+    righe, colonne = int(cfg["righe"]), int(cfg["colonne"])
+    for (r, c) in celle:
+        if not (1 <= r <= righe and 1 <= c <= colonne):
+            raise ValueError(
+                f"Cella {_fmt_cella(r, c)} fuori dalla matrice ({colonne} colonne × {righe} righe)."
+            )
+        occ = cur.execute(
+            """SELECT mc.vino_id, v.DESCRIZIONE
+               FROM matrice_celle mc LEFT JOIN vini_bottiglie v ON v.id = mc.vino_id
+               WHERE mc.riga = ? AND mc.colonna = ?""",
+            (r, c),
+        ).fetchone()
+        if occ:
+            raise ValueError(
+                f"Cella {_fmt_cella(r, c)} già occupata da: {occ['DESCRIZIONE'] or ('vino #' + str(occ['vino_id']))}"
+            )
+
+
+def _sync_loc3_da_matrice(cur: sqlite3.Cursor, vino_id: int) -> None:
+    """Riscrive QTA_LOC3 e LOCAZIONE_3 dalle celle del vino.
+    A differenza di _recalc_qta_loc3_from_matrice NON tocca QTA_TOTALE e NON
+    committa: lo usa chi gestisce il totale per conto suo (movimenti)."""
+    celle = cur.execute(
+        "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY riga, colonna",
+        (vino_id,),
+    ).fetchall()
+    testo = ", ".join(_fmt_cella(r["riga"], r["colonna"]) for r in celle) or None
+    cur.execute(
+        "UPDATE vini_bottiglie SET LOCAZIONE_3 = ?, QTA_LOC3 = ?, UPDATED_AT = ? WHERE id = ?",
+        (testo, len(celle), _now_iso(), vino_id),
+    )
+
+
+def _valida_celle_movimento_loc3(
+    cur: sqlite3.Cursor, vino_id: int, tipo: str, qta: int, celle_matrice: Optional[List[Any]]
+) -> Optional[List[tuple]]:
+    """Regole di un movimento su loc3 (matrice). Ritorna le celle da
+    occupare (CARICO) / svuotare (SCARICO, VENDITA), oppure None nel solo caso
+    ammesso senza celle: scarico di un vino con QTA_LOC3 > 0 e zero celle."""
+    celle = _normalizza_celle(celle_matrice)
+    mie = {
+        (r["riga"], r["colonna"])
+        for r in cur.execute(
+            "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ?", (vino_id,)
+        ).fetchall()
+    }
+
+    if tipo == "CARICO":
+        if not celle:
+            raise ValueError(
+                "Per caricare in matrice scegli dalla griglia le celle libere (una per bottiglia)."
+            )
+        if len(celle) != qta:
+            raise ValueError(
+                f"Hai scelto {len(celle)} celle ma la quantità è {qta}: una cella per bottiglia."
+            )
+        _verifica_celle_libere(cur, celle)
+        return celle
+
+    # SCARICO / VENDITA
+    if not mie:
+        if celle:
+            raise ValueError("Questo vino non ha celle in matrice: niente da svuotare in griglia.")
+        return None  # residuo senza celle → scarico diretto (il chiamante controlla la qta)
+    if not celle:
+        raise ValueError(
+            f"Questo vino è in matrice ({len(mie)} celle): scegli le celle da svuotare."
+        )
+    if len(celle) != qta:
+        raise ValueError(
+            f"Hai scelto {len(celle)} celle ma la quantità è {qta}: una cella per bottiglia."
+        )
+    estranee = [c for c in celle if c not in mie]
+    if estranee:
+        r, c = estranee[0]
+        raise ValueError(f"La cella {_fmt_cella(r, c)} non è di questo vino.")
+    return celle
+
+
+def _prepara_loc3_creazione(cur: sqlite3.Cursor, data: Dict[str, Any]) -> List[tuple]:
+    """Creazione vino (form, import Excel, wizard): loc3 nasce dalle celle
+    scritte in LOCAZIONE_3. Azzera QTA_LOC3/LOCAZIONE_3 nel dict (li riscrive
+    _sync_loc3_da_matrice dopo l'INSERT) e ritorna le celle da occupare."""
+    celle = _celle_da_testo_loc3(data.get("LOCAZIONE_3"))
+    q = int(data.get("QTA_LOC3") or 0)
+    data["LOCAZIONE_3"] = None
+    data["QTA_LOC3"] = 0
+    if not celle and q == 0:
+        return []
+    if not celle:
+        raise ValueError(
+            f"Matrice: {q} bt senza celle. In LOCAZIONE_3 indica una cella per "
+            "bottiglia, formato (colonna,riga), es. (3,6), (3,7)."
+        )
+    if q and q != len(celle):
+        raise ValueError(
+            f"Matrice: QTA_LOC3 = {q} ma in LOCAZIONE_3 ci sono {len(celle)} celle. "
+            "Una cella per bottiglia."
+        )
+    _verifica_celle_libere(cur, celle)
+    return celle
+
+
+def verifica_coerenza_giacenze(vino_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Vini con giacenza incoerente. Due controlli:
+      - matrice: QTA_LOC3 ≠ celle del vino in matrice_celle
+      - totale:  QTA_TOTALE ≠ frigo + loc1 + loc2 + loc3
+    Ritorna una riga per vino con `problemi` leggibili (lista vuota = tutto ok)."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT b.id, b.DESCRIZIONE, b.ANNATA,
+               COALESCE(b.QTA_TOTALE, 0) AS tot,
+               COALESCE(b.QTA_FRIGO, 0) + COALESCE(b.QTA_LOC1, 0)
+                 + COALESCE(b.QTA_LOC2, 0) + COALESCE(b.QTA_LOC3, 0) AS somma,
+               COALESCE(b.QTA_LOC3, 0) AS loc3,
+               (SELECT COUNT(*) FROM matrice_celle mc WHERE mc.vino_id = b.id) AS celle
+        FROM vini_bottiglie b
+        WHERE (? IS NULL OR b.id = ?)
+        ORDER BY b.id
+        """,
+        (vino_id, vino_id),
+    ).fetchall()
+    conn.close()
+
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        problemi = []
+        if r["loc3"] != r["celle"]:
+            problemi.append(
+                f"matrice: la scheda conta {r['loc3']} bt, in griglia ci sono {r['celle']} celle"
+            )
+        # Il totale va confrontato con i posti "veri" (loc3 = celle).
+        posti = r["somma"] - r["loc3"] + r["celle"]
+        if r["tot"] != posti:
+            diff = r["tot"] - posti
+            if diff > 0:
+                problemi.append(f"{diff} bt senza posizione (totale {r['tot']}, posti {posti})")
+            else:
+                problemi.append(f"i posti contano {-diff} bt in più del totale ({posti} contro {r['tot']})")
+        if problemi:
+            out.append({
+                "id": r["id"],
+                "descrizione": r["DESCRIZIONE"],
+                "annata": r["ANNATA"],
+                "qta_totale": r["tot"],
+                "posti": posti,
+                "qta_loc3": r["loc3"],
+                "celle_matrice": r["celle"],
+                "problemi": problemi,
+            })
+    return out
+
+
+def riallinea_giacenza_vino(vino_id: int, utente: Optional[str] = None) -> Dict[str, Any]:
+    """Rimette in piedi l'invariante su un vino: QTA_LOC3 := celle, poi
+    QTA_TOTALE := somma dei posti. Se il totale cambia, lo storico riceve una
+    RETTIFICA (chi, quando, da → a) — mai modifiche silenziose."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT COALESCE(QTA_TOTALE, 0) AS q FROM vini_bottiglie WHERE id = ?", (vino_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise ValueError(f"Vino id={vino_id} non trovato")
+    prima = int(row["q"])
+    _sync_loc3_da_matrice(cur, vino_id)
+    conn.commit()
+    _recalc_qta_totale(conn, vino_id)  # committa
+    dopo = int(cur.execute(
+        "SELECT COALESCE(QTA_TOTALE, 0) AS q FROM vini_bottiglie WHERE id = ?", (vino_id,)
+    ).fetchone()["q"])
+    conn.close()
+
+    if dopo != prima:
+        registra_movimento(
+            vino_id=vino_id,
+            tipo="RETTIFICA",
+            qta=dopo,
+            utente=utente or "sistema",
+            note=f"Riallineamento giacenza ai posti reali (da {prima} a {dopo} bt)",
+            origine="RIALLINEA",
+            qta_precedente=prima,
+        )
+    return {"prima": prima, "dopo": dopo}
 
 
 # ---------------------------------------------------------

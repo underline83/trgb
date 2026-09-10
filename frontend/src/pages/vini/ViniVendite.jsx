@@ -1,5 +1,5 @@
 // src/pages/vini/ViniVendite.jsx
-// @version: v2.3-mattoni — M.I primitives (Btn) su header, registra, filtri, paginazione
+// @version: v2.4-matrice-celle — vendita da Matrice guidata dalle celle reali, non dal testo LOCAZIONE_3 (vini 3.89). v2.3: M.I primitives
 // Hub Vendite — registrazione vendita bottiglia o calici, storico vendite, KPI
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -63,10 +63,8 @@ function formatDate(isoStr) {
 
 function buildLocOptions(vino) {
   if (!vino) return [];
-  // Se LOCAZIONE_3 contiene coordinate matrice "(col,riga), …" mostra label pulita
-  const loc3Raw = vino.LOCAZIONE_3 || "";
-  const isMatrice = /^\(\d+,\d+\)/.test(loc3Raw.trim());
-  const loc3Label = isMatrice ? "Matrice" : (loc3Raw || "Loc 3");
+  // vini 3.89: loc3 è sempre la Matrice (LOCAZIONE_3 è solo il riassunto celle)
+  const loc3Label = "Matrice";
   return [
     { value: "frigo", label: vino.FRIGORIFERO || "Frigo",  qta: vino.QTA_FRIGO ?? 0 },
     { value: "loc1",  label: vino.LOCAZIONE_1 || "Loc 1",  qta: vino.QTA_LOC1 ?? 0 },
@@ -248,7 +246,12 @@ export default function ViniVendite() {
   };
 
   // ── Matrice: detect se loc3 è matrice e carica griglia ──
-  const isLoc3Matrice = selectedVino && /^\(\d+,\d+\)/.test((selectedVino.LOCAZIONE_3 || "").trim());
+  // vini 3.89: loc3 = Matrice sempre → le celle si caricano sempre. La griglia
+  // (scelta celle obbligatoria) si usa solo se il vino ha celle VERE: prima
+  // decideva il testo di LOCAZIONE_3, e un vino con "(8,3)" nel testo ma zero
+  // celle (#607) restava bloccato — griglia vuota, vendita impossibile.
+  const isLoc3Matrice = !!selectedVino;
+  const usaGriglia = regLoc === "loc3" && myCelleMatrice.length > 0;
 
   const fetchMatriceData = useCallback(async () => {
     if (!selectedVino || !isLoc3Matrice) return;
@@ -289,10 +292,10 @@ export default function ViniVendite() {
 
   // Quando le celle selezionate cambiano, aggiorna la quantità
   useEffect(() => {
-    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length > 0) {
+    if (usaGriglia && selectedCelle.length > 0) {
       setRegQta(String(selectedCelle.length));
     }
-  }, [selectedCelle, regLoc, isLoc3Matrice]);
+  }, [selectedCelle, usaGriglia]);
 
   // ── Registra vendita ──
   // "Attiva calice da bottiglia residua": click dal bottone +🥂 in storico
@@ -431,7 +434,7 @@ export default function ViniVendite() {
         locazione: regLoc,
         note: notaFinale,
       };
-      if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length > 0) {
+      if (usaGriglia && selectedCelle.length > 0) {
         payload.celle_matrice = selectedCelle.map(c => [c.riga, c.colonna]);
       }
 
@@ -466,7 +469,7 @@ export default function ViniVendite() {
     if (!regQta || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
     if (!regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
 
-    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length === 0) {
+    if (usaGriglia && selectedCelle.length === 0) {
       alert("Seleziona dalla griglia le celle da svuotare."); return;
     }
 
@@ -681,10 +684,10 @@ export default function ViniVendite() {
                 value={regQta}
                 min={1}
                 onChange={(e) => setRegQta(e.target.value)}
-                readOnly={regLoc === "loc3" && isLoc3Matrice}
+                readOnly={usaGriglia}
                 placeholder="1"
                 className={`w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 ${
-                  regLoc === "loc3" && isLoc3Matrice ? "bg-neutral-100 cursor-not-allowed" : ""
+                  usaGriglia ? "bg-neutral-100 cursor-not-allowed" : ""
                 }`}
               />
             </div>
@@ -707,7 +710,12 @@ export default function ViniVendite() {
           </div>
 
           {/* Griglia matrice — full width sotto il form */}
-          {regLoc === "loc3" && isLoc3Matrice && (
+          {regLoc === "loc3" && !matriceLoading && myCelleMatrice.length === 0 && (selectedVino?.QTA_LOC3 ?? 0) > 0 && (
+            <p className="mt-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Questo vino risulta in matrice ma non ha celle in griglia: la vendita toglie la bottiglia senza toccare la griglia.
+            </p>
+          )}
+          {regLoc === "loc3" && (matriceLoading || myCelleMatrice.length > 0) && (
             <div className="mt-4">
               {matriceLoading ? (
                 <div className="text-sm text-neutral-400 py-4 text-center">Caricamento griglia…</div>

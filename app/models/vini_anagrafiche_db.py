@@ -1417,6 +1417,24 @@ def create_bottiglia(data: Dict[str, Any]) -> int:
     # INSERT
     conn = get_magazzino_connection()
     cur = conn.cursor()
+
+    # vini 3.89 — invariante matrice: loc3 nasce dalle celle scritte in
+    # LOCAZIONE_3 ("(3,6), (3,7)"), una per bottiglia, mai da un numero a
+    # mano (è così che nascono le bottiglie fantasma). Il wizard passa loc3
+    # vuota e assegna le celle dopo, via /matrice/assegna: resta invariato.
+    from app.models import vini_magazzino_db as _mag
+    try:
+        celle_nuove = _mag._prepara_loc3_creazione(cur, payload)
+    except ValueError:
+        conn.close()
+        raise
+    payload["QTA_TOTALE"] = (
+        int(payload.get("QTA_FRIGO") or 0)
+        + int(payload.get("QTA_LOC1") or 0)
+        + int(payload.get("QTA_LOC2") or 0)
+        + len(celle_nuove)
+    )
+
     cols = ", ".join(payload.keys())
     placeholders = ", ".join(["?"] * len(payload))
     cur.execute(
@@ -1424,6 +1442,13 @@ def create_bottiglia(data: Dict[str, Any]) -> int:
         list(payload.values()),
     )
     new_id = cur.lastrowid
+    for (r, c) in celle_nuove:
+        cur.execute(
+            "INSERT INTO matrice_celle (vino_id, riga, colonna, created_at) VALUES (?, ?, ?, ?)",
+            (new_id, r, c, now),
+        )
+    if celle_nuove:
+        _mag._sync_loc3_da_matrice(cur, new_id)
     conn.commit()
     conn.close()
 

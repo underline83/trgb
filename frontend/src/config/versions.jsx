@@ -3,6 +3,19 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.89 (2026-09-10): invariante Matrice — QTA_LOC3 ≡ celle in griglia.
+    //   Nato dal #607 Toscana 50 e 50: 1 bt in matrice con zero celle
+    //   (residuo della mig 134 del cutover di maggio, che saltava i vini in
+    //   matrice), posti tutti a 0 e totale 1, impossibile da togliere.
+    //   Backend: i movimenti su loc3 passano SOLO dalle celle (CARICO =
+    //   celle libere, SCARICO/VENDITA = celle del vino, una per bottiglia;
+    //   unica eccezione lo scarico di un residuo senza celle); delete di un
+    //   movimento, PATCH, creazione vino e import Excel non scrivono più
+    //   QTA_LOC3 a mano. Nuovi GET /{id}/coerenza-giacenza e POST
+    //   /{id}/riallinea-giacenza (RETTIFICA nello storico) + checker M.F
+    //   `vini_giacenze_incoerenti` (mig 176). Frontend: Movimenti in scheda
+    //   con scelta celle, banner «Giacenza da sistemare» con Riallinea in
+    //   Giacenze, ViniVendite guidata dalle celle vere (non dal testo).
     // 3.88 (2026-09-10): Cantina mobile, «Per scaffale» → Matrice: le
     //   etichette seguono la posizione (colonna, poi riga — la prima cella
     //   del vino) invece dell'ordine alfabetico, e ogni riga mostra le celle
@@ -113,7 +126,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.88",
+    version: "3.89",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

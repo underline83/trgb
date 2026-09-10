@@ -113,6 +113,8 @@ NOTA 2: la route `prenotazioni` attuale include la data di oggi (`/prenotazioni/
 
 Migrazione idempotente: `INSERT OR IGNORE` usando indice unico `(ruolo, key)` o check esistenza prima di insert.
 
+**Aggiunta 2026-09-10 — mig 175, tasto 📱 Cantina mobile** (`cantina-mobile` → `/vini/cantina-mobile`, amber, sub «Trova e muovi bottiglie»): solo per `superadmin`, `admin`, `sommelier`, `sala` — i ruoli che hanno `vini/magazzino` in `modules.json`, cioè quelli che la pagina la aprono davvero. Inserito subito dopo `cantina-vini` (le azioni seguenti scalano di uno), in coda se il ruolo non ce l'ha; se il tasto esiste già non si tocca. Default di reset (`home_actions_defaults.py`, `VINI_ACTIONS_DEFAULTS`) e fallback FE (`homeActionsFallback.js`, `VINI_FALLBACK`) allineati: per sala il tasto va dopo Carta dei Vini.
+
 ---
 
 ## 5. Frontend

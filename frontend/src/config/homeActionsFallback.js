@@ -14,18 +14,25 @@ const ADMIN_FALLBACK = [
   { key: "controllo-gestione", label: "Controllo Gestione", sub: "Dashboard P&L",     emoji: "📊", route: "/controllo-gestione/dashboard", color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
 ];
 
+// Tasto Cantina mobile (mig 175): solo ai ruoli con accesso a vini/magazzino.
+const CANTINA_MOBILE = { key: "cantina-mobile", label: "Cantina mobile", sub: "Trova e muovi bottiglie", emoji: "📱", route: "/vini/cantina-mobile", color: "bg-amber-50 border-amber-200 text-amber-900" };
+
+// admin / superadmin / sommelier: admin + Cantina mobile dopo Cantina Vini
+const VINI_FALLBACK = [...ADMIN_FALLBACK.slice(0, 3), CANTINA_MOBILE, ...ADMIN_FALLBACK.slice(3)];
+
 const SALA_FALLBACK = [
   { key: "chiusura-turno", label: "Chiusura Turno",  sub: "Fine servizio",     emoji: "💵", route: "/vendite/fine-turno", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
   { key: "prenotazioni",   label: "Prenotazioni",    sub: "Planning completo", emoji: "📅", route: "/prenotazioni",       color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
   { key: "carta-vini",     label: "Carta dei Vini",  sub: "Cerca vini",        emoji: "🍷", route: "/vini/carta",         color: "bg-amber-50 border-amber-200 text-amber-900" },
+  CANTINA_MOBILE,
   { key: "mance",          label: "Mance",           sub: "Registra mance",    emoji: "💰", route: "/flussi-cassa/mance", color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
 ];
 
 export const HOME_ACTIONS_FALLBACK = {
-  admin:      ADMIN_FALLBACK,
-  superadmin: ADMIN_FALLBACK,
+  admin:      VINI_FALLBACK,
+  superadmin: VINI_FALLBACK,
   contabile:  ADMIN_FALLBACK,
-  sommelier:  ADMIN_FALLBACK,
+  sommelier:  VINI_FALLBACK,
   chef:       ADMIN_FALLBACK,
   sous_chef:  ADMIN_FALLBACK,
   commis:     ADMIN_FALLBACK,

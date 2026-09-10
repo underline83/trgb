@@ -1,4 +1,4 @@
-# @version: v1.1-alert-engine
+# @version: v1.2-alert-engine
 # -*- coding: utf-8 -*-
 """
 Alert Engine — TRGB Gestionale (mattone M.F)
@@ -465,6 +465,56 @@ def _check_vini_sottoscorta(dry_run: bool = False, config: dict = None) -> Check
     except Exception as e:
         result.error = str(e)
         logger.exception(f"Checker vini_sottoscorta: {e}")
+        return result
+
+
+# ═════════════════════════════════════════════
+# CHECKER: Vini con giacenza incoerente (vini 3.89, 2026-09-10)
+# Modulo: vini — [core]
+#
+# Stesso controllo del banner in scheda vino (verifica_coerenza_giacenze):
+#   - matrice: QTA_LOC3 ≠ celle del vino in matrice_celle
+#   - totale:  QTA_TOTALE ≠ somma dei posti (frigo + loc1 + loc2 + celle)
+# Nato dal #607 Toscana 50 e 50: 1 bt in matrice senza celle, invisibile nei
+# posti e impossibile da togliere. Una notifica aggregata, anti-dup da config.
+# soglia_giorni non usata.
+# ═════════════════════════════════════════════
+
+@register_checker("vini_giacenze_incoerenti")
+def _check_vini_giacenze_incoerenti(dry_run: bool = False, config: dict = None) -> CheckResult:
+    cfg = config or _get_config("vini_giacenze_incoerenti")
+    result = CheckResult(checker="vini_giacenze_incoerenti")
+    try:
+        from app.models import vini_magazzino_db as mag_db
+        righe = mag_db.verifica_coerenza_giacenze()
+        result.found = len(righe)
+        result.details = righe[:50]
+        if result.found == 0:
+            return result
+        if dry_run:
+            result.skipped = result.found
+            return result
+        if _notifica_recente_esiste("alert_vini_giacenze_incoerenti", ore=cfg["antidup_ore"]):
+            result.skipped = result.found
+            return result
+
+        n = result.found
+        _send_notification(cfg,
+            tipo="alert_vini_giacenze_incoerenti",
+            titolo=f"{n} vin{'o' if n == 1 else 'i'} con giacenza da sistemare",
+            messaggio="; ".join(
+                f"#{d['id']} {d['descrizione']}: {d['problemi'][0]}" for d in righe[:5]
+            ) + (" …" if n > 5 else "") + " — apri la scheda, tab Giacenze, «Riallinea».",
+            link=f"/vini/v2/bottiglia/{righe[0]['id']}" if n == 1 else "/vini/v2/cantina",
+            icona="🍷",
+            urgenza="normale",
+            modulo="vini",
+        )
+        result.notified = 1
+        return result
+    except Exception as e:
+        result.error = str(e)
+        logger.exception(f"Checker vini_giacenze_incoerenti: {e}")
         return result
 
 

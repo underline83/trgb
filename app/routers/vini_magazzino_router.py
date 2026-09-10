@@ -1,4 +1,4 @@
-# @version: v1.5-modifica-log
+# @version: v1.6-coerenza-giacenza
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Vini Magazzino
@@ -1004,6 +1004,50 @@ def get_giacenza_storica(
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
     return db.giacenza_storica_vino(vino_id, days=days)
+
+
+@router.get(
+    "/{vino_id}/coerenza-giacenza",
+    summary="Controllo coerenza giacenza: matrice (QTA_LOC3 vs celle) e totale vs posti",
+)
+def coerenza_giacenza(vino_id: int):
+    """vini 3.89. `ok=False` + `problemi` quando la scheda conta bottiglie che
+    i posti non spiegano (o viceversa). La scheda lo mostra come banner con il
+    pulsante "Riallinea". Stesso controllo del checker M.F
+    `vini_giacenze_incoerenti` (app/services/alert_engine.py)."""
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+    righe = db.verifica_coerenza_giacenze(vino_id)
+    if not righe:
+        return {"ok": True, "problemi": []}
+    return {"ok": False, **righe[0]}
+
+
+@router.post(
+    "/{vino_id}/riallinea-giacenza",
+    summary="Riallinea la giacenza ai posti reali (QTA_LOC3 := celle, totale := somma posti)",
+)
+def riallinea_giacenza(
+    vino_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    """vini 3.89. Via d'uscita per le giacenze incoerenti: la matrice diventa
+    la verità per loc3 e il totale la somma dei posti. Se il totale cambia
+    viene registrata una RETTIFICA (origine RIALLINEA) nello storico."""
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+    try:
+        esito = db.riallinea_giacenza_vino(vino_id, utente=_get_username(current_user))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    updated = db.get_vino_by_id(vino_id)
+    return {
+        "vino": dict(updated) if updated else None,
+        "prima": esito["prima"],
+        "dopo": esito["dopo"],
+    }
 
 
 @router.post("/{vino_id}/movimenti", summary="Registra un movimento di cantina")

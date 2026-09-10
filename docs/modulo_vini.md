@@ -56,7 +56,7 @@ vini_magazzino_note.vino_id      → vini_bottiglie.id
 2. **Descrizione composta automatica (M2.9)**: per i madri "composti" (`descrizione_auto=1`), il campo `descrizione` è ricalcolato come `"{denominazione_display} {nome_etichetta} ({vitigni}) {grado}%"`. Per i legacy (`descrizione_auto=0`) la descrizione è testo libero ereditato dall'import Excel originale.
 3. **Madri "📜 OLD" (legacy)**: pre-cutover esistono 995 madri di cui ~963 con `descrizione_auto=0` (legacy). UI mostra badge 📜 OLD su questi: nel wizard "+ Nuovo" Step 3 c'è un bottone "Sistema il madre" che apre il modal di promozione (compili denominazione/nome_etichetta/vitigni/grado → `componi_descrizione` ricostruisce → `descrizione_auto=1`).
 4. **Vitigni "tipici" (madre) vs "effettivi" (bottiglia)**: il madre ha 5 slot vitigno per il blend di riferimento. La bottiglia ha 5 slot per il blend effettivo di quella specifica annata. Possono divergere senza sync (intenzionale).
-5. **Posizione scaffali (matrice)**: `matrice_celle` è una tabella M:N (1 vino può occupare N celle, 1 cella può ospitare 1 solo vino). `QTA_LOC3` sulla bottiglia è auto-ricalcolato come count delle celle assegnate (vedi `_recalc_qta_loc3_from_matrice`). Per questo nel wizard la LocCard "Locazione 3" NON esiste — c'è solo la matrice.
+5. **Posizione scaffali (matrice)**: `matrice_celle` è una tabella M:N (1 vino può occupare N celle, 1 cella può ospitare 1 solo vino). `QTA_LOC3` sulla bottiglia è auto-ricalcolato come count delle celle assegnate (vedi `_recalc_qta_loc3_from_matrice`). Per questo nel wizard la LocCard "Locazione 3" NON esiste — c'è solo la matrice. **Dal 3.89 è un invariante applicato dal backend** (`QTA_LOC3 ≡ celle`, loc3 = matrice sempre): vedi §«Invariante Matrice e coerenza giacenze».
 6. **Carico senza locazione** ("📦 DA POSIZIONARE"): convenzione operativa, NON schema speciale. È una voce nel settings di Locazione 1 che Marco aggiunge a mano. Quando una bottiglia ha `LOCAZIONE_1 = "📦 DA POSIZIONARE"`, vuol dire "caricata ma non ancora collocata fisicamente".
 
 ## UI post-cutover
@@ -397,6 +397,8 @@ Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
 | 🆕 GET | `/vini/magazzino/{id}/stats` | Statistiche di vendita del vino — `vini_magazzino_router.py:739` |
 | 🆕 PATCH | `/vini/magazzino/{id}/bottiglia-aperta` | Toggle mescita/servizio al calice (anche `sala`; vedi §11) — `vini_magazzino_router.py:887` |
 | 🆕 GET | `/vini/magazzino/{id}/giacenza-storica` | Andamento giacenza giorno-per-giorno (vedi §11) — `vini_magazzino_router.py:965` |
+| 🆕 GET | `/vini/magazzino/{id}/coerenza-giacenza` | vini 3.89 — `{ok, problemi, qta_totale, posti, qta_loc3, celle_matrice}`: matrice (QTA_LOC3 vs celle) e totale vs somma posti. Alimenta il banner «Giacenza da sistemare» in scheda |
+| 🆕 POST | `/vini/magazzino/{id}/riallinea-giacenza` | vini 3.89 — QTA_LOC3 := celle, QTA_TOTALE := somma posti; RETTIFICA `origine='RIALLINEA'` se il totale cambia. Ritorna `{vino, prima, dopo}` |
 | 🆕 PATCH | `/vini/magazzino/movimenti/{id}/data` | Modifica data/ora movimento (admin-only) — `vini_magazzino_router.py:1099` |
 
 ⚠ **Nota router:** `GET /dashboard` deve essere dichiarato PRIMA di `GET /{vino_id}` per evitare che FastAPI interpreti "dashboard" come `vino_id` intero (genera 422).
@@ -787,6 +789,47 @@ Risposta: `series` (un punto per giorno della finestra adattiva),
 "🔧 ricalibrata ±N" con tooltip che spiega la natura dello shift quando
 applicabile. La curva aggregata sul vino madre (somma annate) è prevista come
 follow-up.
+
+**Invariante Matrice e coerenza giacenze (vini 3.89, 2026-09-10).**
+Regola: **`QTA_LOC3` ≡ numero di righe di `matrice_celle` del vino**; loc3 è
+sempre la matrice (99/99 vini al 2026-09-10), una cella = una bottiglia.
+
+*Perché:* il #607 (Toscana 50 e 50) aveva `QTA_LOC3=1` con zero celle — la
+mig 134 del cutover di maggio saltava di proposito i vini in matrice e
+nessuno li aveva riallineati. In scheda: posti tutti a 0, totale 1, e nessun
+modo di togliere la bottiglia (Modifica giacenze non tocca loc3, la griglia
+non aveva celle da cliccare). Stessa origine per #675, #1237, #731.
+
+*Dove è applicata* (`vini_magazzino_db.py`, sezione «INVARIANTE MATRICE»):
+- `registra_movimento` su `loc3` → `_valida_celle_movimento_loc3`: CARICO
+  vuole `celle_matrice` libere (dentro griglia, non occupate); SCARICO/VENDITA
+  vuole celle **del vino**; sempre una cella per bottiglia. Unica eccezione:
+  vino con `QTA_LOC3 > 0` e zero celle (residuo) → scarico diretto ammesso, e
+  a zero si pulisce anche `LOCAZIONE_3`. Poi `_sync_loc3_da_matrice` riscrive
+  `QTA_LOC3`/`LOCAZIONE_3` dalle celle **senza toccare `QTA_TOTALE`**.
+- `delete_movimento` su loc3 → non ripristina per differenza (non sa quali
+  celle): riallinea alle celle. Annullare una vendita da matrice lascia la
+  bottiglia «senza posizione» (totale > posti), che la scheda segnala.
+- `update_vino` (PATCH) scarta `QTA_LOC3` e `LOCAZIONE_3` come già `QTA_TOTALE`.
+- `create_vino` / `create_bottiglia` (form, import Excel v2) →
+  `_prepara_loc3_creazione`: loc3 nasce dalle celle scritte in
+  `LOCAZIONE_3` (`(colonna,riga)`), che vengono occupate davvero; se il
+  numero non torna o una cella è occupata → errore di riga, niente fantasmi.
+
+*Rilevazione:* `verifica_coerenza_giacenze(vino_id=None)` — due controlli,
+matrice (`QTA_LOC3 ≠ celle`) e totale (`QTA_TOTALE ≠ frigo+loc1+loc2+celle`,
+che cattura anche i CARICO senza locazione «da collocare»). Esposta da
+`GET /{id}/coerenza-giacenza` (banner rosso in Giacenze con «Riallinea», solo
+manager) e dal checker M.F **`vini_giacenze_incoerenti`** (una notifica
+aggregata ad admin, anti-dup 24h, seed mig 176). `riallinea_giacenza_vino`
+rimette l'invariante e registra la RETTIFICA.
+
+*Frontend:* SchedaVino → Movimenti: con locazione «Matrice» la quantità è il
+numero di celle scelte (chip delle celle del vino per scarico/vendita,
+`MatricePicker` in draft con `defaultExpanded` per il carico). ViniVendite:
+la griglia obbligatoria dipende dalle celle **vere** del vino, non più dal
+testo di `LOCAZIONE_3` (un vino con «(8,3)» nel testo e zero celle restava
+bloccato). CartaStaff e Cantina mobile continuano a escludere loc3.
 
 **Toggle mescita al calice — endpoint dedicato (vini 3.60).** Aprire/chiudere
 una bottiglia "in mescita" è un'azione **operativa di servizio**, non gestione
