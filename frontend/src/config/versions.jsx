@@ -294,7 +294,15 @@ const MODULE_VERSIONS = {
     // 2.20 (2026-07-02, RC.1.fix): fix SELECT su cg_uscite — non esiste
     //   la colonna `numero_rata` (è di cg_piano_rate). Rimosso dalla query
     //   raccogli-date-rate; usiamo solo periodo_riferimento come identificatore.
-    version: "2.21",
+    // 2.22 (2026-09-12, M.4b): la data di scadenza di una rata e' editabile
+    //   anche dal modale "Storico addebiti" delle spese fisse (prima solo dal
+    //   modale "Piano"). Per affitti/utenze lo Storico e' il modale naturale e
+    //   dallo Scadenzario le uscite SPESA_FISSA rimbalzano su questa pagina:
+    //   spostare una rata arretrata era un vicolo cieco. Riusa
+    //   PUT /uscite/{id}/scadenza (G.7 SPOSTATO, periodo_riferimento
+    //   invariato). Aggiunta colonna Stato nello Storico e i badge mancanti
+    //   SPOSTATO/VERIFICARE/RATEIZZATO.
+    version: "2.22",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",

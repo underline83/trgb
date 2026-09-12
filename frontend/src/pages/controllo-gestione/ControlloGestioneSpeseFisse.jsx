@@ -143,6 +143,12 @@ export default function ControlloGestioneSpeseFisse() {
   // Storico spese fisse senza piano rate (affitti, utenze, ...)
   const [storicoModal, setStoricoModal] = useState(null);  // { id, titolo, tipo }
   const [storicoRows, setStoricoRows] = useState([]);
+  const [savingScadStorico, setSavingScadStorico] = useState(null); // uscita_id in salvataggio (M.4b)
+  // M.4b: buffer locale della data in digitazione. Serve perche' l'input e'
+  // controllato e salviamo solo le date complete: senza buffer, digitando da
+  // tastiera i valori intermedi verrebbero riscritti indietro e il campo
+  // risulterebbe bloccato. Chiave = uscita_id, ripulito a salvataggio riuscito.
+  const [scadStoricoDraft, setScadStoricoDraft] = useState({});
   const [storicoRiepilogo, setStoricoRiepilogo] = useState(null);
   const [storicoLoading, setStoricoLoading] = useState(false);
 
@@ -716,6 +722,46 @@ export default function ControlloGestioneSpeseFisse() {
     }
   }, [storicoModal]);
 
+  // ── M.4b (2026-09-12): riprogramma la scadenza di una singola uscita
+  //    direttamente dallo Storico. Prima era editabile solo nel modale Piano:
+  //    per affitti/utenze lo Storico e' il modale naturale, quindi cambiare la
+  //    data di una rata arretrata era un vicolo cieco (Storico read-only,
+  //    "Modifica" non propaga alle uscite gia' generate per le frequenze
+  //    ricorrenti, e dallo Scadenzario le SPESA_FISSA rimbalzano qui).
+  //    Usa lo stesso endpoint del Piano (G.7: traccia data_scadenza_originale
+  //    e porta lo stato a SPOSTATO). `periodo_riferimento` NON cambia: la
+  //    competenza nel Conto Economico resta sul mese originale, si sposta
+  //    solo la scadenza di cassa.
+  const salvaScadenzaStorico = async (u, nuovaData) => {
+    if (!nuovaData || nuovaData === u.uscita_scadenza) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nuovaData)) return; // input date parziale durante la digitazione
+    setSavingScadStorico(u.uscita_id);
+    try {
+      const res = await apiFetch(`${CG}/uscite/${u.uscita_id}/scadenza`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data_scadenza: nuovaData }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.ok === false) {
+        alert(`Errore aggiornamento scadenza: ${d.error || d.detail || res.statusText}`);
+        return;
+      }
+      setScadStoricoDraft(prev => {
+        const next = { ...prev };
+        delete next[u.uscita_id];
+        return next;
+      });
+      await refreshStorico();
+      fetchData();
+    } catch (e) {
+      console.error("Errore modifica scadenza storico:", e);
+      alert("Errore di rete: " + (e.message || e));
+    } finally {
+      setSavingScadStorico(null);
+    }
+  };
+
   // ── Apri modale "Cerca banca" per una uscita (da piano rate o storico) ──
   const openBancaModal = (uscitaId, contextLabel, dataRif, importo) => {
     setBancaModal({ uscita_id: uscitaId, contextLabel, dataRif, importo: Math.abs(importo || 0) });
@@ -744,6 +790,7 @@ export default function ControlloGestioneSpeseFisse() {
   const closeStorico = () => {
     setStoricoModal(null);
     setStoricoRows([]);
+    setScadStoricoDraft({});
     setStoricoRiepilogo(null);
   };
 
@@ -866,6 +913,10 @@ export default function ControlloGestioneSpeseFisse() {
       PARZIALE: { label: "Parziale", cls: "bg-amber-100 text-amber-700 border-amber-200" },
       SCADUTO: { label: "Scaduto", cls: "bg-red-100 text-red-700 border-red-200" },
       PROGRAMMATO: { label: "Programmato", cls: "bg-sky-100 text-sky-700 border-sky-200" },
+      // G.7: scadenza rinegoziata. Stessa palette di ControlloGestioneUscite.STATO_STYLE.
+      SPOSTATO: { label: "Spostato", cls: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200" },
+      VERIFICARE: { label: "Da verificare", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+      RATEIZZATO: { label: "Rateizzato", cls: "bg-violet-100 text-violet-700 border-violet-200" },
     };
     if (!stato) return { label: "—", cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
     return map[stato] || { label: stato, cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
@@ -2703,7 +2754,7 @@ export default function ControlloGestioneSpeseFisse() {
               <div>
                 <h3 className="text-base font-bold text-sky-900">📜 Storico addebiti — {storicoModal.titolo}</h3>
                 <p className="text-[11px] text-sky-700 mt-0.5">
-                  Uscite passate registrate per questa spesa fissa — collega i movimenti bancari mancanti
+                  Uscite registrate per questa spesa fissa — riprogramma le scadenze aperte e collega i movimenti bancari mancanti
                 </p>
               </div>
               <button onClick={closeStorico} className="text-neutral-400 hover:text-neutral-600 text-xl">&times;</button>
@@ -2745,6 +2796,7 @@ export default function ControlloGestioneSpeseFisse() {
                     <tr className="border-b border-neutral-200">
                       <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Periodo</th>
                       <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Scadenza</th>
+                      <th className="px-4 py-2 text-center text-neutral-600 font-semibold">Stato</th>
                       <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Pagamento</th>
                       <th className="px-4 py-2 text-right text-neutral-600 font-semibold">Importo</th>
                       <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Banca</th>
@@ -2753,11 +2805,40 @@ export default function ControlloGestioneSpeseFisse() {
                   <tbody>
                     {storicoRows.map((u) => {
                       const ric = u.riconciliazione_stato || "aperta";
+                      // M.4b: scadenza editabile solo sulle rate ancora aperte.
+                      // Stessa regola del modale Piano (isChiuso + PARZIALE) — il
+                      // backend rifiuta comunque le uscite riconciliate con banca.
+                      const badgeSt = statoBadge(u.uscita_stato);
+                      const scadEditabile = !isChiuso(u.uscita_stato) && u.uscita_stato !== "PARZIALE";
                       return (
                         <tr key={u.uscita_id} className="border-b border-neutral-100 hover:bg-sky-50/30">
                           <td className="px-4 py-1.5 text-neutral-700 font-mono tabular-nums">{u.periodo_riferimento}</td>
-                          <td className="px-4 py-1.5 text-neutral-600 tabular-nums">
-                            {u.uscita_scadenza ? new Date(u.uscita_scadenza + "T00:00:00").toLocaleDateString("it-IT") : "—"}
+                          <td className="px-4 py-1 text-neutral-600 tabular-nums">
+                            {scadEditabile ? (
+                              <input
+                                type="date"
+                                value={scadStoricoDraft[u.uscita_id] ?? (u.uscita_scadenza || "")}
+                                disabled={savingScadStorico === u.uscita_id}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  setScadStoricoDraft(prev => ({ ...prev, [u.uscita_id]: v }));
+                                  salvaScadenzaStorico(u, v);
+                                }}
+                                className="px-2 py-1 rounded border border-neutral-200 tabular-nums text-xs
+                                  focus:border-sky-400 focus:ring-1 focus:ring-sky-200
+                                  disabled:opacity-50 disabled:cursor-wait"
+                                title={`Riprogramma la scadenza di questa rata. La competenza resta su ${u.periodo_riferimento || "—"}.`}
+                              />
+                            ) : (
+                              <span className="text-neutral-500">
+                                {u.uscita_scadenza ? new Date(u.uscita_scadenza + "T00:00:00").toLocaleDateString("it-IT") : "—"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-1.5 text-center">
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${badgeSt.cls}`}>
+                              {badgeSt.label}
+                            </span>
                           </td>
                           <td className="px-4 py-1.5 text-neutral-600 tabular-nums">
                             {u.uscita_data_pagamento ? new Date(u.uscita_data_pagamento + "T00:00:00").toLocaleDateString("it-IT") : "—"}

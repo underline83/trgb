@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-09-12 — Spese fisse: la data di una rata si sposta dallo Storico `[core]`
+
+L'affitto era rimasto indietro di una rata e non c'era modo di spostarne la data: nello **Storico addebiti** la scadenza si poteva solo leggere, e «Modifica» sulla spesa fissa cambia il giorno delle rate future, non quelle già in elenco.
+
+Da adesso, in **Controllo Gestione → Spese Fisse → Storico**, la data di scadenza è un campo: la cambi e si salva subito. Vale per le rate ancora da pagare; quelle già pagate o parziali restano bloccate (per riaprirle c'è «riapri rata» dentro **Piano**).
+
+La rata spostata si marca **Spostato**, come già succede nello Scadenzario, e resta la possibilità di rimetterla alla data originale. Il mese di competenza **non** cambia: una rata di gennaio pagata a ottobre pesa sempre su gennaio nel Conto Economico, si sposta solo la data in cui esce il denaro.
+
+In più lo Storico mostra ora anche la colonna **Stato** (Programmato / Scaduto / Spostato / Pagato), che prima non c'era.
+
+---
+
 ## 2026-09-10 — Bottiglie fantasma in matrice: non si possono più creare `[core]`
 
 Il Toscana 50 e 50 (#607) risultava con **1 bottiglia** ma frigo, locazioni e matrice erano tutti a zero, e non c'era verso di toglierla: «Modifica giacenze» non tocca la matrice e in griglia non c'era nessuna cella da cliccare. La bottiglia era già stata venduta il 16 maggio; il conteggio era rimasto indietro con il passaggio alla nuova Cantina di maggio, che aveva lasciato fuori di proposito i vini in matrice. Stessa storia per il Sagrantino 25 anni, il Barolo Bric Fiasc e il Gevrey-Chambertin, già sistemati a mano.
