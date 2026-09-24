@@ -171,9 +171,10 @@ def lavoratori(solo_intermittenti: bool = False) -> List[dict]:
 # RACCOLTA CHIAMATE DAI TURNI
 # ═════════════════════════════════════════════
 
-def _giorni_comunicati(dal: str, al: str) -> set:
+def _mappa_comunicati(dal: str, al: str) -> Dict[Tuple[int, str], Optional[dict]]:
     """
-    Insieme di (dipendente_id, 'YYYY-MM-DD') già comunicati con esito INVIATA.
+    Mappa (dipendente_id, 'YYYY-MM-DD') → dati dell'invio che copre quel giorno,
+    oppure None se l'ultima parola è un ANNULLAMENTO. Considera solo INVIATA.
     Un ANNULLAMENTO inviato dopo riapre le giornate che copriva: il giorno torna
     da comunicare (è esattamente il senso dell'annullamento).
     Volumi minuscoli (poche centinaia di righe/anno) → si risolve in Python,
@@ -191,7 +192,7 @@ def _giorni_comunicati(dal: str, al: str) -> set:
     finally:
         conn.close()
 
-    stato: Dict[Tuple[int, str], bool] = {}
+    stato: Dict[Tuple[int, str], Optional[dict]] = {}
     for r in rows:
         d1 = r["data_inizio"]
         d2 = r["data_fine"] or r["data_inizio"]
@@ -202,9 +203,17 @@ def _giorni_comunicati(dal: str, al: str) -> set:
         while cur <= end:
             iso = cur.isoformat()
             if dal <= iso <= al:
-                stato[(r["dipendente_id"], iso)] = (r["tipo"] != "ANNULLAMENTO")
+                stato[(r["dipendente_id"], iso)] = (
+                    None if r["tipo"] == "ANNULLAMENTO"
+                    else {"comunicazione_id": r["id"], "inviata_at": r["inviata_at"]}
+                )
             cur += timedelta(days=1)
-    return {k for k, comunicato in stato.items() if comunicato}
+    return stato
+
+
+def _giorni_comunicati(dal: str, al: str) -> set:
+    """Solo le chiavi ancora coperte da un invio valido (wrapper storico)."""
+    return {k for k, v in _mappa_comunicati(dal, al).items() if v}
 
 
 def chiamate_da_comunicare(dal: str, al: str, reparto_id: Optional[int] = None) -> dict:
@@ -636,3 +645,94 @@ def allegato(comunicazione_id: int) -> Tuple[str, bytes]:
     if not p.exists():
         raise FileNotFoundError(f"Allegato archiviato non trovato su disco: {p}")
     return row["allegato_nome"], p.read_bytes()
+
+
+# ═════════════════════════════════════════════
+# RIEPILOGO MESE — lavorato ↔ comunicato
+# ═════════════════════════════════════════════
+
+def riepilogo_mese(anno: int, mese: int) -> dict:
+    """
+    Per ogni intermittente: le giornate lavorate del mese e, per ciascuna, se
+    risulta comunicata all'Ispettorato.
+
+    È la vista che serve a fine mese quando il consulente chiede in quali giorni
+    sono state fatte le chiamate, ed è la difesa in caso di ispezione: le
+    giornate scoperte si vedono subito invece di emergere dopo.
+
+    Differenze volute rispetto a `chiamate_da_comunicare`:
+    - guarda al passato, quindi NON scarta le giornate già trascorse;
+    - include anche chi nel frattempo è stato disattivato (ha comunque lavorato
+      quel mese), segnalandolo con `attivo`;
+    - resta invece la regola sui turni: solo CONFERMATO, e doppio turno nello
+      stesso giorno = una giornata sola.
+    """
+    if mese < 1 or mese > 12:
+        raise ValueError("mese fuori range (1-12)")
+    primo = date(anno, mese, 1)
+    ultimo = date(anno + (mese == 12), (mese % 12) + 1, 1) - timedelta(days=1)
+    dal, al = primo.isoformat(), ultimo.isoformat()
+
+    conn = get_dipendenti_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT t.dipendente_id, t.data,
+                   d.nome, d.cognome, d.codice_fiscale, d.codice_comunicazione,
+                   COALESCE(d.attivo, 1) AS attivo,
+                   GROUP_CONCAT(DISTINCT tt.servizio) AS servizi
+            FROM turni_calendario t
+            JOIN dipendenti d ON d.id = t.dipendente_id
+            LEFT JOIN turni_tipi tt ON tt.id = t.turno_tipo_id
+            WHERE t.data BETWEEN ? AND ?
+              AND COALESCE(t.stato, 'CONFERMATO') = 'CONFERMATO'
+              AND COALESCE(d.intermittente, 0) = 1
+            GROUP BY t.dipendente_id, t.data
+            ORDER BY d.cognome, d.nome, t.data
+            """,
+            [dal, al],
+        ).fetchall()
+    finally:
+        conn.close()
+
+    mappa = _mappa_comunicati(dal, al)
+
+    per_dip: Dict[int, dict] = {}
+    for r in rows:
+        dip = per_dip.setdefault(r["dipendente_id"], {
+            "dipendente_id": r["dipendente_id"],
+            "nome": f"{r['cognome']} {r['nome']}".strip(),
+            "codice_fiscale": r["codice_fiscale"],
+            "codice_comunicazione": r["codice_comunicazione"],
+            "attivo": bool(r["attivo"]),
+            "giornate": [],
+        })
+        invio = mappa.get((r["dipendente_id"], r["data"]))
+        dip["giornate"].append({
+            "data": r["data"],
+            "servizi": sorted(x for x in (r["servizi"] or "").split(",") if x),
+            "comunicata": bool(invio),
+            "comunicazione_id": invio["comunicazione_id"] if invio else None,
+            "inviata_at": invio["inviata_at"] if invio else None,
+        })
+
+    dipendenti = []
+    for dip in per_dip.values():
+        dip["n_giornate"] = len(dip["giornate"])
+        dip["n_comunicate"] = sum(1 for g in dip["giornate"] if g["comunicata"])
+        dip["n_scoperte"] = dip["n_giornate"] - dip["n_comunicate"]
+        dipendenti.append(dip)
+    dipendenti.sort(key=lambda d: d["nome"])
+
+    return {
+        "anno": anno,
+        "mese": mese,
+        "dal": dal,
+        "al": al,
+        "dipendenti": dipendenti,
+        "totali": {
+            "giornate": sum(d["n_giornate"] for d in dipendenti),
+            "comunicate": sum(d["n_comunicate"] for d in dipendenti),
+            "scoperte": sum(d["n_scoperte"] for d in dipendenti),
+        },
+    }

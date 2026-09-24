@@ -42,6 +42,9 @@ export default function Intermittenti() {
   const [flash, setFlash] = useState(null);
   const [xmlAperto, setXmlAperto] = useState(null);
   const [tab, setTab] = useState("da-comunicare");
+  const [meseSel, setMeseSel] = useState(() => new Date().toISOString().slice(0, 7));
+  const [riepilogo, setRiepilogo] = useState(null);
+  const [dipAperto, setDipAperto] = useState(null);
 
   const avviso = (tipo, msg) => {
     setFlash({ tipo, msg });
@@ -73,6 +76,21 @@ export default function Intermittenti() {
   }, [dal, al]);
 
   useEffect(() => { carica(); }, [carica]);
+
+  // Riepilogo mese: si carica solo quando serve (tab aperta), non a ogni render
+  // della pagina — è una query sui turni del mese, non un dato della home.
+  const caricaRiepilogo = useCallback(async () => {
+    const [anno, mese] = meseSel.split("-");
+    try {
+      const r = await apiFetch(`${U}/riepilogo/?anno=${anno}&mese=${Number(mese)}`);
+      if (!r.ok) throw new Error("Errore caricamento riepilogo");
+      setRiepilogo(await r.json());
+    } catch (e) {
+      avviso("err", e.message);
+    }
+  }, [meseSel]);
+
+  useEffect(() => { if (tab === "riepilogo") caricaRiepilogo(); }, [tab, caricaRiepilogo]);
 
   const intermittenti = useMemo(() => lavoratori.filter((l) => l.intermittente), [lavoratori]);
   const pronto = smtp?.configurato && settings.uni_cf_datore && settings.uni_email_mittente;
@@ -143,10 +161,34 @@ export default function Intermittenti() {
 
 
 
+  // Export per il consulente: separatore ";" e BOM, altrimenti Excel italiano
+  // apre tutto in una colonna e mangia gli accenti.
+  const esportaCsv = () => {
+    if (!riepilogo?.dipendenti?.length) return;
+    const righe = [["Dipendente", "Codice fiscale", "Cod. comunicazione", "Data", "Servizi", "Comunicata", "Inviata il"]];
+    riepilogo.dipendenti.forEach((d) =>
+      d.giornate.forEach((g) =>
+        righe.push([
+          d.nome, d.codice_fiscale || "", d.codice_comunicazione || "",
+          g.data, (g.servizi || []).join(" + "),
+          g.comunicata ? "SI" : "NO", g.inviata_at || "",
+        ])
+      )
+    );
+    const csv = "\uFEFF" + righe.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chiamate-intermittenti-${riepilogo.anno}-${String(riepilogo.mese).padStart(2, "0")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // ─── Render ───────────────────────────────────────────────
   const TABS = [
     { key: "da-comunicare", label: `Da comunicare${preview?.righe?.length ? ` (${preview.righe.length})` : ""}` },
     { key: "registro", label: `Registro invii${registro.length ? ` (${registro.length})` : ""}` },
+    { key: "riepilogo", label: "Riepilogo mese" },
   ];
 
   return (
@@ -343,6 +385,119 @@ export default function Intermittenti() {
             ))}
           </div>
         )
+      )}
+
+      {/* ═══ RIEPILOGO MESE ═══ */}
+      {tab === "riepilogo" && (
+        <>
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+              <FieldLabel>Mese</FieldLabel>
+              <TextInput type="month" value={meseSel} onChange={setMeseSel} />
+            </div>
+            <Btn variant="ghost" size="md" onClick={caricaRiepilogo}>Ricalcola</Btn>
+            <Btn variant="ghost" size="md" onClick={esportaCsv} disabled={!riepilogo?.dipendenti?.length}>
+              Scarica CSV
+            </Btn>
+            <div className="text-xs text-neutral-500 pb-2 max-w-md">
+              Giornate prese dal Foglio Settimana (solo turni CONFERMATO, doppio turno = una giornata)
+              e incrociate col registro invii.
+            </div>
+          </div>
+
+          {!riepilogo ? (
+            <div className="text-sm text-neutral-500">Caricamento…</div>
+          ) : !riepilogo.dipendenti.length ? (
+            <EmptyState
+              icon="🗓️"
+              title="Nessuna giornata nel mese"
+              description="Nessun intermittente ha turni confermati in questo mese."
+            />
+          ) : (
+            <>
+              {riepilogo.totali.scoperte > 0 && (
+                <div className="mb-4 px-4 py-3 rounded-xl text-sm bg-red-50 border border-red-200 text-red-900">
+                  <b>{riepilogo.totali.scoperte} giornate su {riepilogo.totali.giornate} non risultano comunicate.</b>{" "}
+                  Le giornate già passate non sono sanabili: la comunicazione è preventiva. Quelle future
+                  si mandano dalla tab «Da comunicare».
+                </div>
+              )}
+
+              <Card>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-neutral-500 border-b border-neutral-200">
+                        <th className="py-2 pr-3">Lavoratore</th>
+                        <th className="py-2 pr-3">Cod. comunicazione</th>
+                        <th className="py-2 pr-3">Giornate</th>
+                        <th className="py-2 pr-3">Comunicate</th>
+                        <th className="py-2 pr-3">Scoperte</th>
+                        <th className="py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {riepilogo.dipendenti.map((d) => (
+                        <React.Fragment key={d.dipendente_id}>
+                          <tr className="border-b border-neutral-100">
+                            <td className="py-2 pr-3 font-medium">
+                              {d.nome}
+                              {!d.attivo && <span className="ml-2 text-xs text-neutral-400">(non più attivo)</span>}
+                            </td>
+                            <td className="py-2 pr-3 font-mono text-xs">
+                              {d.codice_comunicazione || <span className="text-red-600">manca</span>}
+                            </td>
+                            <td className="py-2 pr-3">{d.n_giornate}</td>
+                            <td className="py-2 pr-3">{d.n_comunicate}</td>
+                            <td className="py-2 pr-3">
+                              {d.n_scoperte
+                                ? <StatusBadge tone="danger">{d.n_scoperte}</StatusBadge>
+                                : <StatusBadge tone="success">0</StatusBadge>}
+                            </td>
+                            <td className="py-2 text-right">
+                              <Btn variant="ghost" size="sm"
+                                   onClick={() => setDipAperto(dipAperto === d.dipendente_id ? null : d.dipendente_id)}>
+                                {dipAperto === d.dipendente_id ? "Nascondi" : "Vedi giorni"}
+                              </Btn>
+                            </td>
+                          </tr>
+                          {dipAperto === d.dipendente_id && (
+                            <tr className="border-b border-neutral-100 bg-neutral-50">
+                              <td colSpan={6} className="py-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {d.giornate.map((g) => (
+                                    <span
+                                      key={g.data}
+                                      title={g.comunicata
+                                        ? `Comunicata il ${fmtDataOra(g.inviata_at)} (invio #${g.comunicazione_id})`
+                                        : "Non comunicata"}
+                                      className={`px-2 py-1 rounded-lg text-xs border ${
+                                        g.comunicata
+                                          ? "bg-green-50 border-green-200 text-green-800"
+                                          : "bg-red-50 border-red-200 text-red-800"}`}
+                                    >
+                                      {g.comunicata ? "✓" : "✗"} {fmtData(g.data)}
+                                      {g.servizi?.length ? ` · ${g.servizi.map((x) => x[0]).join("+")}` : ""}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              <p className="text-xs text-neutral-500 mt-3">
+                Sono i turni programmati, non le presenze timbrate: se un turno salta o se ne aggiunge uno
+                fuori foglio, il riepilogo non lo sa. Il CSV è la lista da allegare all'email del consulente.
+              </p>
+            </>
+          )}
+        </>
       )}
 
       {/* ═══ XML ANTEPRIMA ═══ */}

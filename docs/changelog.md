@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-09-20 — Vini: rigenerare il tempo di apertura di una bottiglia al calice `[core]`
+
+Nella card **Calici disponibili** di **Vini → Vendite** ogni bottiglia mostra da quanto è aperta, e diventa gialla e poi rossa col passare delle ore. Finora quel contatore partiva da solo all'apertura e non si poteva correggere: se la bottiglia veniva finita e sostituita con una nuova dello stesso vino, o se l'apertura veniva registrata il giorno dopo, la riga restava rossa «aperta da 4 giorni» con dentro un vino stappato ieri.
+
+Da adesso c'è un pulsante **↻** accanto alla ✕: chiede conferma (ricordando da quanto risulta aperta) e fa ripartire il contatore da adesso. Non cambia giacenze, prezzi, né lo stato «in mescita»: riscrive solo la data.
+
+Il pulsante è **riservato ad admin e superadmin** e compare **solo in Vini → Vendite** — non nella Dashboard Sala, nemmeno per un admin. Aprire e chiudere una bottiglia resta un'azione di servizio che fa anche la sala; rigenerare il timer no, perché vuol dire spegnere l'avviso di bottiglia vecchia.
+
+Ogni reset resta scritto nello storico movimenti del vino come `[CALICI-RESET]`, con l'età che la bottiglia aveva prima.
+
+**Nota:** se la bottiglia non è in mescita non c'è niente da rigenerare — il pulsante non c'è e l'API risponde 409.
+
+---
+
+## 2026-09-18 — Intermittenti: il riepilogo del mese, dipendente per dipendente `[core]`
+
+A fine mese il consulente chiede in quali giorni sono state fatte le chiamate. Fino a ieri bisognava ricostruirlo a mano dal Foglio Settimana, e non c'era modo di sapere quali giornate fossero state davvero comunicate all'Ispettorato.
+
+In **Dipendenti → Intermittenti** c'è ora la tab **Riepilogo mese**: scegli il mese e vedi, per ogni intermittente, quante giornate ha lavorato, quante risultano comunicate e quante no. Aprendo un nome escono i giorni uno per uno, verdi se comunicati (col numero dell'invio e la data) e rossi se scoperti. Se c'è anche una sola giornata scoperta compare un avviso in cima.
+
+Il bottone **Scarica CSV** produce la lista da allegare all'email del consulente: una riga per giornata, con codice comunicazione e comunicata sì/no. Si apre in colonne anche con l'Excel italiano.
+
+Attenzione a cosa sono questi numeri: **turni programmati, non presenze timbrate**. Se un turno salta e il Foglio Settimana non viene aggiornato, il riepilogo conta una giornata che non c'è stata.
+
+Nota: il modulo Intermittenti è entrato davvero in funzione il **17 settembre**, col primo invio reale all'Ispettorato (8 giornate, dal 18 al 27 settembre).
+
+---
+
 ## 2026-09-12 — Spese fisse: la data di una rata si sposta dallo Storico `[core]`
 
 L'affitto era rimasto indietro di una rata e non c'era modo di spostarne la data: nello **Storico addebiti** la scadenza si poteva solo leggere, e «Modifica» sulla spesa fissa cambia il giorno delle rate future, non quelle già in elenco.

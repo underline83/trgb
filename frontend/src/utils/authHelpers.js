@@ -22,6 +22,22 @@ export function isViniManagerRole(role) {
 }
 
 /**
+ * True per i ruoli che possono RIGENERARE il timer di apertura di una
+ * bottiglia in mescita (pulsante ↻ nella card "Calici disponibili").
+ * Specchio esatto di `richiede_ruoli("admin")` su
+ * POST /vini/magazzino/{id}/bottiglia-aperta/rigenera: admin, superadmin.
+ *
+ * NON usare `isViniManagerRole`: quella include `sommelier`, che il backend
+ * esclude qui → il bottone comparirebbe e la chiamata tornerebbe 403.
+ * Sala e sommelier aprono e chiudono la bottiglia; riscrivere la data di
+ * apertura (cioè il dato su cui si basa l'alert "aperta da troppo") resta
+ * ad admin/superadmin — decisione Marco 2026-09-20.
+ */
+export function isViniTimerAdminRole(role) {
+  return role === "admin" || role === "superadmin";
+}
+
+/**
  * True per i ruoli che possono SCRIVERE sui turni (assegnare, modificare,
  * cancellare, copiare settimana, pubblicare, gestire i template).
  * Specchio esatto di `RUOLI_SCRITTURA_TURNI` in app/routers/turni_router.py

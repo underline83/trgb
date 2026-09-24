@@ -3,6 +3,15 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.90 (2026-09-20): Vendite — pulsante ↻ «rigenera tempo di apertura»
+    //   nella card Calici disponibili. POST /vini/magazzino/{id}/
+    //   bottiglia-aperta/rigenera riporta DATA_APERTURA ad adesso (il
+    //   contatore «aperta da» riparte da zero) e traccia un MODIFICA
+    //   [CALICI-RESET] nello storico. Riservato ad admin/superadmin
+    //   (richiede_ruoli("admin") + isViniTimerAdminRole lato FE): sala e
+    //   sommelier aprono/chiudono la bottiglia ma non riscrivono il dato su
+    //   cui si basa l'alert «aperta da troppo». Solo in /vini/vendite
+    //   (prop showResetTimer), non in Dashboard Sala.
     // 3.89 (2026-09-10): invariante Matrice — QTA_LOC3 ≡ celle in griglia.
     //   Nato dal #607 Toscana 50 e 50: 1 bt in matrice con zero celle
     //   (residuo della mig 134 del cutover di maggio, che saltava i vini in
@@ -126,7 +135,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.89",
+    version: "3.90",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -245,7 +254,11 @@ const MODULE_VERSIONS = {
     //   (prima: qualsiasi ruolo autenticato leggeva buste paga, IBAN e codici
     //   fiscali), sub= sulle route, tab filtrati, Foglio Settimana in sola
     //   lettura per chi non e' admin. Vedi modulo_dipendenti.md §9.
-    version: "2.32",
+    // 2.33 (2026-09-18): Intermittenti -> tab "Riepilogo mese": giornate
+    //   lavorate per dipendente incrociate col registro invii (lavorato vs
+    //   comunicato), export CSV per il consulente. Solo lettura, nessuna
+    //   migrazione. Vedi modulo_intermittenti.md C-D-210.
+    version: "2.33",
     label: "Dipendenti",
     status: "stabile",
     color: "green",

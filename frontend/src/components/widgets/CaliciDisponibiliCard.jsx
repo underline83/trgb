@@ -10,15 +10,23 @@
 // v1.1: alert visivo (⚠) se bottiglia aperta da > ALERT_HOURS ore.
 // `data_apertura` arriva dall'endpoint (MAX data_mov movimento VENDITA [CALICI]).
 //
+// v1.2 (2026-09-20): pulsante ↻ "rigenera tempo di apertura" — azzera
+// DATA_APERTURA ad adesso (POST /vini/magazzino/{id}/bottiglia-aperta/rigenera).
+// Opt-in via prop `showResetTimer` (oggi solo ViniVendite) E riservato ad
+// admin/superadmin: in Dashboard Sala non compare mai.
+//
 // Props:
 //   - title (default "🥂 Calici disponibili")
 //   - compact (default false): se true, layout piu' fitto per home/dashboard
 //   - showToggleOff (default true): mostra X per spegnere il flag inline
+//   - showResetTimer (default false): mostra ↻ per rigenerare il tempo di
+//     apertura. Visibile solo se anche il ruolo e' admin/superadmin.
 //   - onClick (opzionale): callback (vino) quando si clicca una riga (es. apri scheda)
 
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import useViniWidgetSettings from "../../hooks/useViniWidgetSettings";
+import { isViniTimerAdminRole } from "../../utils/authHelpers";
 
 // Soglie di età della bottiglia in mescita (in ore).
 // Sessione 2026-05-12 (V-H.G): valori letti da vini_widget_settings.
@@ -51,11 +59,15 @@ export default function CaliciDisponibiliCard({
   title = "🥂 Calici disponibili",
   compact = false,
   showToggleOff = true,
+  showResetTimer = false,
   onClick = null,
 }) {
   const [vini, setVini] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [resetId, setResetId] = useState(null);
+  // Specchio della guardia backend: solo admin/superadmin riscrivono la data.
+  const canResetTimer = showResetTimer && isViniTimerAdminRole(localStorage.getItem("role") || "");
   const { get: getSetting } = useViniWidgetSettings();
   const FRESH_HOURS = Number(getSetting("calici_fresh_hours", 12));
   const ALERT_HOURS = Number(getSetting("calici_alert_hours", 36));
@@ -88,6 +100,36 @@ export default function CaliciDisponibiliCard({
       alert(err.message || "Errore");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // Rigenera il tempo di apertura: DATA_APERTURA = adesso, il contatore
+  // "aperta da Xh" riparte da zero. Non tocca giacenze ne' prezzi.
+  const rigeneraTimer = async (vino, e) => {
+    if (e) e.stopPropagation();
+    const eta = formatAge(hoursSince(vino.data_apertura));
+    if (!window.confirm(
+      `Rigenerare il tempo di apertura di "${vino.DESCRIZIONE}"?\n\n` +
+      (eta ? `Risulta aperta da ${eta}. ` : "") +
+      "Il contatore riparte da adesso (bottiglia nuova, rabboccata o data sbagliata). " +
+      "Giacenze e prezzi non cambiano; l'azione resta nello storico movimenti del vino."
+    )) return;
+    setResetId(vino.id);
+    try {
+      const r = await apiFetch(
+        `${API_BASE}/vini/magazzino/${vino.id}/bottiglia-aperta/rigenera`,
+        { method: "POST" },
+      );
+      if (!r.ok) {
+        let msg = `Errore ${r.status}`;
+        try { const j = await r.json(); if (j?.detail) msg = j.detail; } catch {}
+        throw new Error(msg);
+      }
+      await fetchVini();
+    } catch (err) {
+      alert(err.message || "Errore");
+    } finally {
+      setResetId(null);
     }
   };
 
@@ -170,6 +212,14 @@ export default function CaliciDisponibiliCard({
                   giacenza: {v.QTA_TOTALE ?? 0} bt
                 </div>
               </div>
+              {canResetTimer && (
+                <button type="button" onClick={(e) => rigeneraTimer(v, e)} disabled={resetId === v.id}
+                  title="Rigenera il tempo di apertura: il contatore 'aperta da' riparte da adesso"
+                  aria-label="Rigenera tempo di apertura"
+                  className="shrink-0 w-7 h-7 rounded-full border border-neutral-300 bg-white text-neutral-500 hover:bg-amber-50 hover:border-amber-400 hover:text-amber-700 transition text-xs disabled:opacity-40">
+                  {resetId === v.id ? "…" : "↻"}
+                </button>
+              )}
               {showToggleOff && (
                 <button type="button" onClick={(e) => spegniBottiglia(v.id, e)} disabled={busyId === v.id}
                   title="Spegni flag (la bottiglia non e' piu' in mescita)"

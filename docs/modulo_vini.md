@@ -396,6 +396,7 @@ Aggiornato 2026-05-12 (audit post-sessione 2026-05-11).
 | 🆕 GET | `/vini/magazzino/calici-disponibili/` | Vini con bottiglia aperta in mescita — `vini_magazzino_router.py:684` |
 | 🆕 GET | `/vini/magazzino/{id}/stats` | Statistiche di vendita del vino — `vini_magazzino_router.py:739` |
 | 🆕 PATCH | `/vini/magazzino/{id}/bottiglia-aperta` | Toggle mescita/servizio al calice (anche `sala`; vedi §11) — `vini_magazzino_router.py:887` |
+| 🆕 POST | `/vini/magazzino/{id}/bottiglia-aperta/rigenera` | vini 3.90 — riporta `DATA_APERTURA` ad adesso (il contatore «aperta da» riparte da zero). **admin/superadmin** (`richiede_ruoli("admin")`). 409 se la bottiglia non è in mescita. Traccia un MODIFICA `[CALICI-RESET]` nello storico |
 | 🆕 GET | `/vini/magazzino/{id}/giacenza-storica` | Andamento giacenza giorno-per-giorno (vedi §11) — `vini_magazzino_router.py:965` |
 | 🆕 GET | `/vini/magazzino/{id}/coerenza-giacenza` | vini 3.89 — `{ok, problemi, qta_totale, posti, qta_loc3, celle_matrice}`: matrice (QTA_LOC3 vs celle) e totale vs somma posti. Alimenta il banner «Giacenza da sistemare» in scheda |
 | 🆕 POST | `/vini/magazzino/{id}/riallinea-giacenza` | vini 3.89 — QTA_LOC3 := celle, QTA_TOTALE := somma posti; RETTIFICA `origine='RIALLINEA'` se il totale cambia. Ritorna `{vino, prima, dopo}` |
@@ -747,6 +748,7 @@ Hook PATCH `/vini/magazzino/{id}` registra solo `EURO_LISTINO` per ora; estendib
 | Crea / modifica / duplica / elimina vino-bottiglia | admin, superadmin, sommelier | `is_vini_manager` in `vini_magazzino_router.py` (`create`, `PATCH /{id}`, `duplica`, `delete-vino`) |
 | Modifica giacenze (scheda bottiglia) | admin, superadmin, sommelier | `PATCH /vini/magazzino/{id}` → `is_vini_manager` |
 | Toggle "bottiglia in mescita" / servizio al calice | admin, superadmin, sommelier, **sala** | `PATCH /vini/magazzino/{id}/bottiglia-aperta` (endpoint dedicato — azione operativa, vedi sotto) |
+| Rigenera il tempo di apertura della bottiglia in mescita | admin, superadmin | `POST /vini/magazzino/{id}/bottiglia-aperta/rigenera` → `richiede_ruoli("admin")` (vini 3.90) |
 | Movimenti (add) | admin, superadmin, sommelier, sala | nessun check ruolo su `POST /{id}/movimenti` (azione operativa) |
 | Movimenti (delete) | admin, superadmin, sommelier, sala | check inline in `delete_movimento` |
 | Movimenti (modifica data/ora) | admin only | check inline in `update_movimento_data` |
@@ -843,6 +845,28 @@ di catalogo/anagrafica/giacenze resta su `PATCH /vini/magazzino/{id}` gatato
 Storia: l'endpoint nasce per correggere una regressione introdotta gatando
 `PATCH /{id}` — il toggle ci passava dentro e `sala` non poteva più spegnere
 le bottiglie aperte dal widget Calici.
+
+**Rigenera il tempo di apertura (vini 3.90, 2026-09-20).** `DATA_APERTURA` si
+valorizza da sola all'apertura e torna NULL alla chiusura: fin qui non c'era
+modo di correggerla se la realtà non corrispondeva (bottiglia sostituita con
+una nuova dello stesso vino, apertura registrata in ritardo, mescita
+riattivata su un residuo vecchio) — la riga restava rossa «aperta da 4g» con
+dentro un vino stappato ieri. Il pulsante **↻** nella card «Calici
+disponibili» di `/vini/vendite` chiama
+`POST /vini/magazzino/{id}/bottiglia-aperta/rigenera`, che scrive
+`DATA_APERTURA = adesso` e basta: giacenze, prezzi e `BOTTIGLIA_APERTA` non
+si toccano.
+
+Il permesso è **admin/superadmin** e non `is_vini_manager`: aprire e chiudere
+una bottiglia è servizio (lo fa anche `sala`), ma riscrivere la data è
+riscrivere il dato su cui si basa l'alert di bottiglia vecchia — cioè
+silenziare un allarme. Lato frontend lo specchio è `isViniTimerAdminRole`
+(`utils/authHelpers.js`), **non** `isViniManagerRole`, che includerebbe il
+sommelier e farebbe comparire un bottone da 403. Il pulsante è per di più
+opt-in via prop `showResetTimer` su `CaliciDisponibiliCard`: oggi lo passa
+solo `ViniVendite`, quindi in Dashboard Sala non compare nemmeno a un admin.
+Ogni reset lascia un MODIFICA `[CALICI-RESET]` nello storico movimenti del
+vino, con l'età che la bottiglia aveva prima.
 
 **`VENDITA_CALICE` e `BOTTIGLIA_APERTA` sono due dimensioni diverse
 (vini 3.87, 2026-09-01) — non confonderle.**

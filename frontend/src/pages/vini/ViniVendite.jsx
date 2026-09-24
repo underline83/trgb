@@ -547,6 +547,7 @@ export default function ViniVendite() {
 
         {/* ── CALICI DISPONIBILI (sessione 58) ────────────── */}
         <CaliciDisponibiliCard
+          showResetTimer
           onClick={(v) => navigate(`/vini/magazzino/${v.id}`)}
         />
 

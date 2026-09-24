@@ -19,6 +19,7 @@ API per il nuovo DB di magazzino vini:
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional, List, Any, Dict, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
@@ -956,6 +957,82 @@ def update_bottiglia_aperta(
 
     updated = db.get_vino_by_id(vino_id)
     return dict(updated) if updated else {"id": vino_id}
+
+
+# ---------------------------------------------------------
+# ENDPOINT: RIGENERA TIMER APERTURA (solo admin/superadmin)
+# ---------------------------------------------------------
+@router.post(
+    "/{vino_id}/bottiglia-aperta/rigenera",
+    summary="Rigenera il tempo di apertura di una bottiglia in mescita (solo admin/superadmin)",
+)
+def rigenera_data_apertura(
+    vino_id: int,
+    current_user: Any = Depends(
+        richiede_ruoli("admin", cosa="il timer di apertura delle bottiglie in mescita")
+    ),
+):
+    """
+    Riporta `DATA_APERTURA` ad adesso: il contatore "aperta da Xh" riparte da
+    zero e la riga torna in zona verde nel widget Calici.
+
+    Serve quando la data registrata non corrisponde alla realta': bottiglia
+    rabboccata/sostituita con una nuova dello stesso vino, apertura registrata
+    in ritardo, o mescita riattivata su un residuo vecchio. NON e' una vendita
+    e non tocca giacenze: scrive solo la data.
+
+    Permesso: admin + superadmin (implicito in `richiede_ruoli("admin")`).
+    Sala e sommelier aprono/chiudono la bottiglia ma non riscrivono il timer,
+    che e' il dato su cui si basa l'alert di bottiglia vecchia.
+
+    L'azione e' tracciata come MODIFICA `[CALICI-RESET]` nello storico
+    movimenti del vino, con l'eta' che aveva la bottiglia prima del reset.
+    """
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+
+    if not int(row["BOTTIGLIA_APERTA"] or 0):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La bottiglia non e' in mescita: non c'e' nessun tempo di apertura da rigenerare.",
+        )
+
+    # Eta' precedente, solo per la nota di storico (best effort).
+    eta_txt = "sconosciuta"
+    vecchia = row["DATA_APERTURA"] if "DATA_APERTURA" in row.keys() else None
+    if vecchia:
+        try:
+            delta = datetime.now() - datetime.fromisoformat(str(vecchia))
+            ore = delta.total_seconds() / 3600
+            eta_txt = f"{ore:.0f}h" if ore < 24 else f"{ore / 24:.1f}g"
+        except Exception:
+            pass
+
+    utente = _get_username(current_user)
+    adesso = datetime.now().isoformat(timespec="seconds")
+    db.update_vino(
+        vino_id,
+        {"DATA_APERTURA": adesso},
+        utente=utente,
+        origine="CALICI-RESET",
+    )
+
+    try:
+        db.registra_evento(
+            vino_id=vino_id,
+            utente=utente,
+            nota=f"[CALICI-RESET] Timer apertura rigenerato (era aperta da {eta_txt})",
+            origine="CALICI-RESET",
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger("vini.magazzino").warning(
+            "Tracking [CALICI-RESET] fallito per vino %s: %s", vino_id, e,
+        )
+
+    updated = db.get_vino_by_id(vino_id)
+    return dict(updated) if updated else {"id": vino_id, "DATA_APERTURA": adesso}
 
 
 # ---------------------------------------------------------

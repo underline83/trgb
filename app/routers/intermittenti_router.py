@@ -104,6 +104,24 @@ def da_comunicare_ep(
     return out
 
 
+@router.get("/riepilogo/")
+def riepilogo_ep(
+    anno: int = Query(..., ge=2000, le=2100),
+    mese: int = Query(..., ge=1, le=12),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Giornate lavorate dagli intermittenti nel mese, con l'incrocio su cosa è stato comunicato.
+
+    Serve a fine mese (il consulente chiede in quali giorni sono state fatte le
+    chiamate) e come prova in caso di ispezione: le giornate scoperte si vedono.
+    """
+    _require_admin(current_user, "il riepilogo delle chiamate intermittenti")
+    try:
+        return uni.riepilogo_mese(anno, mese)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/comunica/")
 def comunica_ep(
     payload: Dict[str, Any] = Body(...),

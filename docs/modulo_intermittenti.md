@@ -1,9 +1,9 @@
 # Modulo Intermittenti — comunicazione UNI all'Ispettorato
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-09-18
 > **Vedi anche:** [modulo_dipendenti.md](modulo_dipendenti.md), [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md)
 
-> **Modulo:** `dipendenti` (sotto-area Intermittenti) · **Versione:** 1.0 · **Stato:** implementato, mai usato in produzione (registro invii vuoto al 2026-08-03)
+> **Modulo:** `dipendenti` (sotto-area Intermittenti) · **Versione:** 1.1 · **Stato:** in uso — primo invio reale il 2026-09-17 (8 giornate, 18→27/09, registro riga 1)
 > **Prima release:** sessione 2026-07-30 · **Migrazioni:** 156 (schema + settings + alert) e 161 (flag unico `intermittente`)
 > **Frontend:** `/dipendenti/intermittenti` — `frontend/src/pages/dipendenti/Intermittenti.jsx`
 > **Backend:** `app/routers/intermittenti_router.py` (prefix `/intermittenti`), `app/services/uni_intermittenti_service.py`
@@ -46,6 +46,7 @@ anagrafica. La colonna resta nel DB, non letta da nessuno (niente DDL distruttiv
 | C-D-207 | Segna chi è intermittente, con CF e codice comunicazione | **Anagrafica dipendente** (`PUT /dipendenti/{id}`). `GET /intermittenti/lavoratori/` è di sola lettura, per conteggio e diagnostica | admin | ✅ |
 | C-D-208 | Email di prova per validare le credenziali SMTP | `POST /intermittenti/test-email/` (attivo, richiede `to`; la UI della prova sta in **Impostazioni Sistema → Email**, che usa il gemello platform `POST /email/test/`) | admin | ✅ |
 | C-D-209 | Alert: turni di intermittenti non comunicati nella finestra `soglia_giorni` (seed mig 156: 2 giorni = 48h, antidup 12h — configurabile in `alert_config`) | `alert_engine.py:849` checker `intermittenti_non_comunicati` | admin | ✅ |
+| C-D-210 | Riepilogo del mese per dipendente: giornate lavorate incrociate con quelle comunicate, export CSV | `intermittenti_router.py` `GET /intermittenti/riepilogo/` · UI tab **Riepilogo mese** | admin | ✅ |
 
 ## 2-bis. Dove si configura
 
@@ -168,10 +169,36 @@ nella pagina Intermittenti e in Impostazioni → Intermittenti.
 
 - **Verifica col consulente del lavoro** del tipo di contratto reale delle persone segnate:
   se sono extra del turismo o part-time la comunicazione non è dovuta
-- **Codice comunicazione** da chiedere al consulente per ogni intermittente
+- ~~**Codice comunicazione** da chiedere al consulente per ogni intermittente~~ — fatto il 2026-09-17/18: tutti e 5 gli intermittenti hanno il codice dell'ultimo UNILAV in anagrafica (4 proroghe al 30/09/2026 + assunzione Nicoli)
 - **Primo mese in doppio binario**: il sistema invia, ma si fa confermare dal consulente che
   le comunicazioni risultino acquisite. Non arrivando ricevute, è l'unico riscontro possibile
 - **Aggancio automatico a "Pubblica settimana"**: previsto, non fatto. Per scelta di Marco
   (2026-07-30) si parte con l'invio manuale dalla pagina
 - Il formato data è stato dedotto, non letto in una specifica: se il consulente segnala
   comunicazioni non acquisite, il primo sospettato è `uni_formato_data`
+
+## 8. Riepilogo mese — lavorato ↔ comunicato (2026-09-18)
+
+A fine mese il consulente chiede in quali giorni sono state fatte le chiamate, e in
+caso di ispezione la domanda è la stessa. La tab **Riepilogo mese** risponde a
+entrambe: per ogni intermittente le giornate lavorate del mese, ciascuna marcata
+come comunicata o scoperta, con il numero dell'invio e la data di trasmissione.
+
+`uni.riepilogo_mese(anno, mese)` riusa `_mappa_comunicati()` — la stessa funzione da
+cui `chiamate_da_comunicare()` ricava le giornate già coperte, così le due viste non
+possono divergere (un ANNULLAMENTO riapre la giornata in tutte e due). Differenze
+volute, perché questa guarda al passato:
+
+- le giornate già trascorse **non** vengono scartate (nella preview d'invio sì: lì
+  sono anomalie, qui sono il dato);
+- include chi è stato disattivato dopo aver lavorato nel mese, marcandolo;
+- restano invece identiche le regole sui turni: solo `CONFERMATO`, e doppio turno
+  nello stesso giorno = una giornata sola.
+
+L'export CSV (client-side, `;` e BOM per Excel italiano) è la lista da allegare
+all'email del consulente: una riga per giornata, con codice comunicazione e
+comunicata SI/NO.
+
+**Limite da tenere presente:** sono turni programmati, non presenze timbrate. Se un
+turno salta e nessuno aggiorna il Foglio Settimana, il riepilogo conta una giornata
+che non c'è stata.
