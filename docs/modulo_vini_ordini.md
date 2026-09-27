@@ -500,6 +500,37 @@ stata una perdita.
 
 **Misura:** dashboard da 25 ms a **19 ms**, con un payload molto più piccolo.
 
+### 2-quinquies. Riga «Da ordinare» alla pari della dashboard (2026-09-27, vini 3.91)
+
+Marco: «la dashboard mi porta all'ordine, ma la dashboard è più completa: posso
+flaggare il Non riordino, ho miglior visualizzazione sulle vendite (ultima
+vendita), vedo meglio le disponibilità». I dati c'erano già tutti nella risposta
+di `GET /vini/ordini/da-ordinare/` (`ultima_vendita`, `ultimo_acquisto`,
+`ritmo_vendita`, `copertura_giorni`, `annata_successiva`): mancava la resa.
+
+- **Badge condivisi** — `frontend/src/pages/vini/RiordinoBadges.jsx`
+  (`GiacenzaChip`, `RitmoVenditaBadge`, `UltimoAcquistoBadge`), estratti dal
+  `VinoRow` della dashboard e usati da entrambe le pagine: stessa informazione,
+  una sola grafica.
+- **Riga a tre livelli** — (1) vino + giacenza/copertura in chip grande +
+  annata nuova in cantina + segnali (dashboard, già ordinato, pending);
+  (2) produttore + listino inline; (3) ritmo per esteso con «venduto/finito
+  Xgg fa», «comprato X mesi fa» (qualunque annata, in tooltip anche l'ultimo
+  carico di questa annata), flag.
+- **«finito» vs «venduto»** — il badge dice «finito» solo se la giacenza è a
+  zero. Prima la dashboard scriveva «Finito» anche sui vini in esaurimento con
+  bottiglie ancora in cantina.
+- **Flag sulla riga: solo ⛔ Non ricomprare e 🗓️ Annata esaurita** (decisione
+  Marco). «Da ordinare/Ordinato» qui li fa il carrello. PATCH `STATO_RIORDINO`
+  sul vino: esce dalla lista (il backend esclude A/X) e va in «Messi da parte»;
+  se era nel carrello, la riga viene tolta dalla bozza.
+- **↩︎ ripristina** in «Messi da parte» — azzera `STATO_RIORDINO`; il vino torna
+  in lista solo se rientra nei criteri di riordino. Aggiunta anche la data
+  dell'ultima vendita.
+- Il pulsante «nuova annata» diventa 🗓️➕ per non confondersi col flag 🗓️.
+
+Solo frontend, nessuna migrazione, nessun endpoint nuovo.
+
 ### 3. Codice colore (unico su tutte le viste)
 
 Colori presi da `viniConstants.STATO_RIORDINO`, non reinventati:

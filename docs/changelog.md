@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-09-27 — Vini: la pagina Ordini ha le stesse informazioni della dashboard `[core]`
+
+In **Vini → Ordini**, ogni vino della lista «Da ordinare» ora mostra quello che prima si vedeva solo nell'avviso della dashboard:
+
+- **giacenza e giorni di copertura** in evidenza accanto al nome («🍷 2 bt · ~9gg»), con l'annata nuova se è già in cantina;
+- **vendite**: ritmo per esteso («Vende · 3.2 bt/mese») e quando è uscita l'ultima bottiglia («venduto 4gg fa», oppure «finito» se è a zero);
+- **ultimo acquisto** del vino, su qualunque annata («comprato ~5 mesi fa»).
+
+Sulla riga ci sono anche **⛔ Non ricomprare** e **🗓️ Annata esaurita**: il vino esce dalla lista (e dal carrello, se c'era) e finisce in **Messi da parte**, dove ora c'è **↩︎ ripristina** per tornare indietro. Il pulsante per creare la nuova annata diventa 🗓️➕.
+
+Dashboard e pagina Ordini usano adesso gli stessi badge. Unica differenza visibile in dashboard: «finito» compare solo per i vini a zero bottiglie, per gli altri si legge «venduto».
+
+---
+
 ## 2026-09-20 — Vini: rigenerare il tempo di apertura di una bottiglia al calice `[core]`
 
 Nella card **Calici disponibili** di **Vini → Vendite** ogni bottiglia mostra da quanto è aperta, e diventa gialla e poi rossa col passare delle ore. Finora quel contatore partiva da solo all'apertura e non si poteva correggere: se la bottiglia veniva finita e sostituita con una nuova dello stesso vino, o se l'apertura veniva registrata il giorno dopo, la riga restava rossa «aperta da 4 giorni» con dentro un vino stappato ieri.

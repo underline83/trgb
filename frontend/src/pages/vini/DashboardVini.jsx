@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { STATO_RIORDINO, STATO_CONSERVAZIONE } from "../../config/viniConstants";
 import ViniNav from "./ViniNav";
+import { GiacenzaChip, RitmoVenditaBadge, UltimoAcquistoBadge } from "./RiordinoBadges";
 import { Btn } from "../../components/ui";
 import useToast from "../../hooks/useToast";
 import { isAdminRole } from "../../utils/authHelpers";
@@ -841,21 +842,6 @@ export default function DashboardVini() {
 
             {/* Lista — visibile solo se aperta */}
             {alertOpen && (() => {
-              // Helper: giorni fra una data ISO e oggi (null se iso mancante)
-              const giorniDa = (iso) => {
-                if (!iso) return null;
-                const t = new Date(iso).getTime();
-                if (!Number.isFinite(t)) return null;
-                return Math.floor((Date.now() - t) / 86400000);
-              };
-              // Mappa color_tone -> classi Tailwind per il badge combo.
-              // Mirror delle categorie di app/utils/vini_metrics.py::calcola_ritmo_vendita
-              const RITMO_CLS = {
-                "emerald":      "bg-emerald-50 text-emerald-800 border-emerald-200",
-                "amber":        "bg-amber-50 text-amber-800 border-amber-200",
-                "neutral":      "bg-neutral-100 text-neutral-600 border-neutral-200",
-                "neutral-dark": "bg-slate-100 text-slate-500 border-slate-300",
-              };
               // Fase C iter 2 — picker inline STATO_RIORDINO con emoji + label breve.
               // Le lettere singole D/0/A/X non erano comprensibili se non conoscevi
               // il codice interno. Ora ogni pill e' autoesplicativa.
@@ -876,17 +862,7 @@ export default function DashboardVini() {
               const VinoRow = ({ v, dimmed, fatto = false }) => {
                 const scInfo = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
                 const srCorrente = v.STATO_RIORDINO || null;
-                // Badge combo ritmo+finito. L'etichetta "Finito ~Xgg" ha senso solo se
-                // il vino e' stato venduto almeno una volta (altrimenti e' "Mai venduto").
-                const ritmo = v.ritmo_vendita || {};
-                const ritmoCls = RITMO_CLS[ritmo.color_tone] || RITMO_CLS.neutral;
-                const ggFinito = giorniDa(v.ultima_vendita);
-                const mostraFinito = ritmo.categoria !== "mai" && ggFinito != null;
-                const finitoLbl =
-                  ggFinito == null ? null
-                  : ggFinito === 0 ? "Finito oggi"
-                  : ggFinito === 1 ? "Finito ieri"
-                  :                  `Finito ~${ggFinito}gg fa`;
+                // Badge ritmo/giacenza/acquisto: componenti condivisi con /vini/ordini (RiordinoBadges.jsx).
                 // RD.1 — due livelli di urgenza nella stessa lista: barra rossa
                 // a sinistra se il vino e' finito, ambra se sta finendo.
                 const qtaRes = Number(v.QTA_TOTALE) || 0;
@@ -897,7 +873,6 @@ export default function DashboardVini() {
                 const inBozza = bozzaRighe[v.id];
                 // RD.2 — contesto annate (vedi vini_riordino_service.arricchisci_annate)
                 const annataSucc = v.annata_successiva || null;
-                const ggAcquisto = giorniDa(v.ultimo_acquisto);
                 const rowCls = fatto
                   ? "border-l-4 border-emerald-400 bg-emerald-50/40 opacity-80 hover:opacity-100"
                   : dimmed
@@ -918,30 +893,11 @@ export default function DashboardVini() {
                         {/* Giacenza + copertura: la ragione per cui il vino e'
                             in questa lista. "2 bt · ~9gg" dice in due numeri
                             quello che serve per decidere se ordinare adesso. */}
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border tabular-nums ${
-                          esaurito
-                            ? "bg-red-100 text-red-800 border-red-200"
-                            : "bg-amber-100 text-amber-900 border-amber-300"
-                        }`}
-                          title={esaurito
-                            ? "Esaurito"
-                            : copGg != null
-                              ? `Ne restano ${qtaRes}: al ritmo attuale finiscono in ~${copGg} giorni (soglia ${coperturaGg}gg)`
-                              : `Ne restano ${qtaRes}`}>
-                          {esaurito
-                            ? "🍷 esaurito"
-                            : `🍷 ${qtaRes} bt${copGg != null ? ` · ~${copGg}gg` : ""}`}
-                        </span>
+                        <GiacenzaChip qta={qtaRes} copertura={copGg} sogliaGg={coperturaGg} />
                       </div>
                       {/* RIGA 2 — metriche azionabili (ritmo+finito) */}
                       <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${ritmoCls}`}
-                          title={ritmo.vendite_totali != null ? `${ritmo.vendite_totali} bt vendute in ${ritmo.giorni_storico}gg di storico (dal 01/03/2026)` : ""}>
-                          🛒 {ritmo.label || "—"}
-                          {mostraFinito && (
-                            <span className="font-normal opacity-75">· {finitoLbl}</span>
-                          )}
-                        </span>
+                        <RitmoVenditaBadge ritmo={v.ritmo_vendita} ultimaVendita={v.ultima_vendita} esaurito={esaurito} />
                         {scInfo && (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${scInfo.color}`}>
                             <span className={`w-1 h-1 rounded-full ${scInfo.dot}`} />{scInfo.label}
@@ -968,16 +924,7 @@ export default function DashboardVini() {
                         {/* "Da quanto non lo compro": se l'ultimo carico è lontano,
                             conviene chiedere al rappresentante l'annata nuova
                             invece di riordinare questa. */}
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border bg-white text-neutral-500 border-neutral-200"
-                          title={ggAcquisto != null
-                            ? `Ultimo carico di questo vino (qualunque annata): ${new Date(v.ultimo_acquisto).toLocaleDateString("it-IT")}`
-                            : "Nessun carico registrato nel gestionale (i carichi si tracciano dal 03/2026): l'acquisto può essere anteriore"}>
-                          📥 {ggAcquisto == null
-                            ? "nessun carico registrato"
-                            : ggAcquisto < 60
-                              ? `comprato ${ggAcquisto}gg fa`
-                              : `comprato ~${Math.round(ggAcquisto / 30)} mesi fa`}
-                        </span>
+                        <UltimoAcquistoBadge iso={v.ultimo_acquisto} />
                         {/* RD.1.1 — dove è finito il vino dopo il flag. Senza
                             questa riga il click sembra non aver fatto niente. */}
                         {inBozza && (

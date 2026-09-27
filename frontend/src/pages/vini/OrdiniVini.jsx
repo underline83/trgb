@@ -1,5 +1,9 @@
 // Modulo: vini (ordini ai fornitori) — [core]
-// @version: v1.1-O6 (2026-08-02) — Pagina Ordini fornitore-centrica.
+// @version: v1.2 (2026-09-27) — Pagina Ordini fornitore-centrica.
+//   v1.2: riga «Da ordinare» allineata al widget dashboard (badge condivisi
+//   RiordinoBadges.jsx: giacenza+copertura in evidenza, ritmo + ultima vendita,
+//   ultimo acquisto su qualunque annata) + flag ⛔ Non ricomprare / 🗓️ Annata
+//   esaurita sulla riga, ↩︎ ripristina in «Messi da parte».
 //   v1.1: bottone "⛔ Annulla" sugli ordini in viaggio. L'endpoint e il modello
 //   c'erano dalla v1.0, mancava solo il modo di premerli.
 //
@@ -21,6 +25,7 @@ import ViniNav from "./ViniNav";
 import useToast from "../../hooks/useToast";
 import { Btn, Modal, Textarea } from "../../components/ui";
 import { fillTemplate, buildWaLink, normalizePhone } from "../../utils/whatsapp";
+import { GiacenzaChip, RitmoVenditaBadge, UltimoAcquistoBadge } from "./RiordinoBadges";
 
 const STATI = {
   bozza:     { label: "In preparazione", icon: "📝", cls: "bg-amber-100 text-amber-800 border-amber-200" },
@@ -42,6 +47,16 @@ const SEGNALE_RIORDINO = {
   "0": { label: "segnato ordinato", icon: "📦", chip: "bg-sky-100 text-sky-800 border-sky-200",
        row: "border-l-4 border-sky-400 bg-sky-50/40" },
 };
+
+// v1.2 (2026-09-27) — i due flag che tolgono un vino dalla lista di lavoro.
+// «Da ordinare» / «Ordinato» qui non servono: li fa il carrello. Stessi codici
+// e colori di viniConstants.STATO_RIORDINO (A, X).
+const FLAG_DA_PARTE = [
+  { code: "X", emoji: "⛔", label: "Non ricomprare",
+    title: "Non lo ricompro: esce dalla lista e va in «Messi da parte» (ripristinabile)" },
+  { code: "A", emoji: "🗓️", label: "Annata esaurita",
+    title: "Questa annata non si trova più: esce dalla lista e va in «Messi da parte» (ripristinabile)" },
+];
 
 const TIPOLOGIE = [
   { key: "tutti",     label: "Tutti",     match: () => true },
@@ -408,6 +423,64 @@ export default function OrdiniVini() {
     }
   };
 
+  // v1.2 (2026-09-27) — «Non ricomprare» / «Annata esaurita» direttamente da
+  // qui, senza tornare alla dashboard. Il vino esce dalla lista (il backend
+  // esclude A/X) e finisce in «Messi da parte», da dove si ripristina.
+  // Se era nel carrello ne esce: un vino che non ricompro non deve restare
+  // nell'ordine che sto per mandare.
+  const mettiDaParte = async (vino, code) => {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vino.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ STATO_RIORDINO: code }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(e.detail || `HTTP ${r.status}`);
+      }
+      let tolto = false;
+      // La lista ordini non porta le righe: le prendo dal dettaglio della bozza.
+      let riga = null;
+      if (vino.in_bozza && bozza) {
+        const rb = await apiFetch(`${API_BASE}/vini/ordini/${bozza.id}`);
+        if (rb.ok) riga = ((await rb.json())?.righe || []).find(x => x.vino_id === vino.id) || null;
+      }
+      if (riga) {
+        const d = await apiFetch(`${API_BASE}/vini/ordini/riga/${riga.id}`, { method: "DELETE" });
+        tolto = d.ok;
+        if (!d.ok) toast("Segnato, ma la riga è rimasta nel carrello: toglila a mano", { kind: "warn" });
+      }
+      const lbl = code === "X" ? "non ricomprare" : "annata esaurita";
+      toast(`«${vino.DESCRIZIONE}» → ${lbl}${tolto ? ", tolto dal carrello" : ""}. È in «Messi da parte».`,
+            { kind: "success" });
+      await ricarica();
+    } catch (e) {
+      toast(`Non sono riuscito a salvare: ${e.message}`, { kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ripristina = async (vino) => {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vino.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ STATO_RIORDINO: null }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast(`«${vino.DESCRIZIONE}» ripristinato`, { kind: "success" });
+      await ricarica();
+    } catch (e) {
+      toast(`Non sono riuscito a ripristinare: ${e.message}`, { kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const annullaOrdine = async (ordine) => {
     const gg = giorniDa(ordine.data_invio);
     if (!window.confirm(
@@ -666,6 +739,7 @@ export default function OrdiniVini() {
                           onOrdina={(q) => ordina(v, q)}
                           onApri={() => navigate(`/vini/v2/bottiglia/${v.id}`)}
                           onDuplica={() => openDuplica(v)}
+                          onMettiDaParte={(code) => mettiDaParte(v, code)}
                           listino={{
                             editing: listinoEditing === v.id,
                             draft: listinoDraft,
@@ -747,6 +821,19 @@ export default function OrdiniVini() {
                               </span>
                             )}
                             <span className="text-[10px] text-neutral-400 tabular-nums">{v.QTA_TOTALE || 0} bt</span>
+                            {v.ultima_vendita && (
+                              <span className="text-[10px] text-neutral-400 whitespace-nowrap"
+                                    title={`Ultima vendita: ${fmtData(v.ultima_vendita)}`}>
+                                🛒 {fmtData(v.ultima_vendita)}
+                              </span>
+                            )}
+                            {canEdit && (
+                              <button type="button" disabled={busy} onClick={() => ripristina(v)}
+                                className="text-[11px] px-2 py-0.5 rounded-full border border-neutral-300 bg-white text-neutral-600 hover:border-amber-400 hover:text-amber-800 transition disabled:opacity-50"
+                                title="Togli il flag: se serve riordinarlo torna nella lista «Da ordinare»">
+                                ↩︎ ripristina
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -832,17 +919,14 @@ export default function OrdiniVini() {
 // ════════════════════════════════════════════════════════════
 // RIGA "DA ORDINARE"
 // ════════════════════════════════════════════════════════════
-function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri, onDuplica, listino }) {
+function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri, onDuplica, onMettiDaParte, listino }) {
   // Precompilo con la quantità suggerita: nel 90% dei casi è quella giusta e
   // si preme solo Invio. Se non c'è storico vendite resta vuoto.
   const [qta, setQta] = useState(v.in_bozza ?? v.qta_suggerita ?? "");
   useEffect(() => { setQta(v.in_bozza ?? v.qta_suggerita ?? ""); }, [v.in_bozza, v.qta_suggerita]);
 
-  const rv = v.ritmo_vendita || {};
-  const ritmoCls =
-    rv.color_tone === "emerald" ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-    : rv.color_tone === "amber" ? "bg-amber-50 text-amber-800 border-amber-200"
-    : "bg-neutral-100 text-neutral-500 border-neutral-200";
+  const qtaRes = Number(v.QTA_TOTALE) || 0;
+  const esaurito = qtaRes <= 0;
 
   // RD.1 — tono della riga. Il carrello vince su tutto (è la decisione più
   // recente), poi il segnale messo dal widget, poi la giacenza.
@@ -851,20 +935,69 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri, onDuplica, l
     ? "border-l-4 border-amber-400 bg-amber-50/40"
     : segnale
       ? `${segnale.row} hover:bg-neutral-50/60`
-      : (Number(v.QTA_TOTALE) || 0) === 0
+      : esaurito
         ? "border-l-4 border-red-300 hover:bg-neutral-50"
         : "border-l-4 border-transparent hover:bg-neutral-50";
 
+  // v1.2 (2026-09-27) — layout a tre righe come il widget della dashboard:
+  //   1. vino + giacenza/copertura (il numero su cui si decide) + contesto
+  //   2. produttore · listino inline
+  //   3. vendite (ritmo, ultima vendita), ultimo acquisto, flag «metti da parte»
   return (
-    <div className={`px-5 py-2.5 flex items-center gap-3 flex-wrap transition ${rowTone}`}>
+    <div className={`px-5 py-3 flex items-start gap-3 flex-wrap transition ${rowTone}`}>
       <div className="min-w-0 flex-1">
-        <button onClick={onApri} className="text-left block max-w-full">
-          <span className="text-sm font-semibold text-neutral-800 hover:text-amber-800 hover:underline">
-            {v.DESCRIZIONE}
-          </span>
-          {v.ANNATA && <span className="text-xs text-neutral-400 ml-1.5">{v.ANNATA}</span>}
-        </button>
-        <div className="text-[11px] text-neutral-500 truncate flex items-center gap-1.5 flex-wrap">
+        {/* RIGA 1 — identità + disponibilità */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={onApri} className="text-left min-w-0">
+            <span className="text-sm font-semibold text-neutral-800 hover:text-amber-800 hover:underline">
+              {v.DESCRIZIONE}
+            </span>
+            {v.ANNATA && <span className="text-xs text-neutral-400 ml-1.5">{v.ANNATA}</span>}
+          </button>
+          <GiacenzaChip qta={qtaRes} copertura={v.copertura_giorni} size="lg" />
+
+          {/* RD.2 — la vendemmia dopo è già in cantina: prima di ordinare questa
+              annata, tanto vale saperlo. */}
+          {v.annata_successiva?.qta > 0 && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-300 whitespace-nowrap"
+                  title={`L'annata ${v.annata_successiva.annata} è già in cantina con ${v.annata_successiva.qta} bt${v.annata_successiva.in_carta ? " e in carta" : ""}: forse questa riga va marcata «Annata esaurita», non ordinata`}>
+              ➡️ {v.annata_successiva.annata} in cantina · {v.annata_successiva.qta} bt
+            </span>
+          )}
+          {v.annata_successiva && v.annata_successiva.qta === 0 && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-neutral-100 text-neutral-500 border-neutral-300 whitespace-nowrap"
+                  title={`In anagrafica esiste l'annata ${v.annata_successiva.annata}, ma anche quella è a zero`}>
+              ➡️ esiste {v.annata_successiva.annata} (0 bt)
+            </span>
+          )}
+
+          {/* Segnale arrivato dal widget dashboard. Serve a distinguere "l'ho
+              scelto io" da "ci è finito per la giacenza". */}
+          {segnale && !v.in_bozza && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${segnale.chip}`}
+                  title="Stato riordino impostato dalla dashboard">
+              {segnale.icon} {segnale.label}
+            </span>
+          )}
+
+          {/* Difesa contro il doppio ordine: finché la merce non arriva la
+              giacenza resta 0, quindi il vino continua a comparire qui. */}
+          {v.gia_ordinato && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 whitespace-nowrap"
+                  title={`Ordine #${v.gia_ordinato.ordine_id}${v.gia_ordinato.data_invio ? ` del ${fmtData(v.gia_ordinato.data_invio)}` : ""}`}>
+              📤 già ordinate {v.gia_ordinato.qta}
+            </span>
+          )}
+          {v.pending_legacy && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap"
+                  title="Ordine del vecchio sistema, ancora aperto">
+              ⚠️ pending {v.pending_legacy}
+            </span>
+          )}
+        </div>
+
+        {/* RIGA 2 — produttore + listino */}
+        <div className="text-[11px] text-neutral-500 flex items-center gap-1.5 flex-wrap mt-0.5">
           <span className="truncate">{v.PRODUTTORE || "—"}</span>
           {/* RD.6 — listino editabile inline: il rappresentante dice il prezzo
               nuovo e lo si scrive qui. Lo storico prezzi si popola da solo. */}
@@ -898,74 +1031,26 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri, onDuplica, l
           ) : v.EURO_LISTINO ? (
             <span className="text-neutral-400">· {fmtEur(v.EURO_LISTINO)}</span>
           ) : null}
-          {v.ultimo_carico && (
-            <span className="text-neutral-400" title={`Ultimo carico di questa annata: ${fmtData(v.ultimo_carico)}`}>
-              · 📥 {fmtData(v.ultimo_carico)}
-            </span>
-          )}
+        </div>
+
+        {/* RIGA 3 — vendite, acquisti, flag. Stessi badge della dashboard
+            (RiordinoBadges.jsx). */}
+        <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+          <RitmoVenditaBadge ritmo={v.ritmo_vendita} ultimaVendita={v.ultima_vendita} esaurito={esaurito} />
+          <UltimoAcquistoBadge iso={v.ultimo_acquisto} ultimoCaricoAnnata={v.ultimo_carico} />
+          {canEdit && onMettiDaParte && FLAG_DA_PARTE.map(f => (
+            <button key={f.code} type="button" disabled={busy}
+              onClick={(e) => { e.stopPropagation(); onMettiDaParte(f.code); }}
+              className="inline-flex items-center gap-1 px-2 h-7 rounded-full text-[11px] bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-400 transition disabled:opacity-50"
+              title={f.title}>
+              <span aria-hidden="true">{f.emoji}</span>{f.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* RD.1 — giacenza + copertura: 2 bt di un vino che gira è un buco fra
-          nove giorni, 2 bt di uno fermo non è niente. Il numero da solo non
-          basta a decidere. */}
-      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border tabular-nums ${
-        (v.QTA_TOTALE || 0) === 0 ? "bg-red-50 text-red-700 border-red-200"
-        : v.copertura_giorni != null ? "bg-amber-50 text-amber-800 border-amber-200"
-        : "bg-neutral-50 text-neutral-600 border-neutral-200"
-      }`}
-        title={(v.QTA_TOTALE || 0) === 0
-          ? "Esaurito"
-          : v.copertura_giorni != null
-            ? `Al ritmo attuale finiscono in ~${v.copertura_giorni} giorni`
-            : "Nessuna vendita nel periodo: giacenza ferma"}>
-        {v.QTA_TOTALE || 0} bt
-        {(v.QTA_TOTALE || 0) > 0 && v.copertura_giorni != null ? ` · ~${v.copertura_giorni}gg` : ""}
-      </span>
-
-      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${ritmoCls}`} title={rv.label || ""}>
-        {rv.categoria === "top" || rv.categoria === "medio"
-          ? `${Number(rv.bt_mese).toFixed(1)}/m`
-          : rv.categoria === "poco" ? "poco" : "mai"}
-      </span>
-
-      {/* RD.2 — la vendemmia dopo è già in cantina: prima di ordinare questa
-          annata, tanto vale saperlo. */}
-      {v.annata_successiva?.qta > 0 && (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-300 whitespace-nowrap"
-              title={`L'annata ${v.annata_successiva.annata} è già in cantina con ${v.annata_successiva.qta} bt: forse questa riga va archiviata, non ordinata`}>
-          ➡️ {v.annata_successiva.annata} c'è ({v.annata_successiva.qta})
-        </span>
-      )}
-
-      {/* Segnale arrivato dal widget dashboard. Serve a distinguere "l'ho
-          scelto io" da "ci è finito per la giacenza": sono due liste diverse
-          mescolate nella stessa tabella. */}
-      {segnale && !v.in_bozza && (
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${segnale.chip}`}
-              title="Stato riordino impostato dalla dashboard">
-          {segnale.icon} {segnale.label}
-        </span>
-      )}
-
-      {/* Difesa contro il doppio ordine: finché la merce non arriva la
-          giacenza resta 0, quindi il vino continua a comparire qui. Senza
-          questo badge si riordina la stessa cosa a distanza di giorni. */}
-      {v.gia_ordinato && (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 whitespace-nowrap"
-              title={`Ordine #${v.gia_ordinato.ordine_id}${v.gia_ordinato.data_invio ? ` del ${fmtData(v.gia_ordinato.data_invio)}` : ""}`}>
-          📤 già ordinate {v.gia_ordinato.qta}
-        </span>
-      )}
-      {v.pending_legacy && (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap"
-              title="Ordine del vecchio sistema, ancora aperto">
-          ⚠️ pending {v.pending_legacy}
-        </span>
-      )}
-
       {canEdit && (
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 mt-0.5">
           {/* RD.6 — «il produttore non fa più la 2022, arriva la 2023»: crea la
               riga della nuova annata e la mette in bozza, senza sporcare la
               vecchia (che va archiviata come Annata esaurita). */}
@@ -973,7 +1058,7 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri, onDuplica, l
             <button type="button" onClick={onDuplica} disabled={busy}
               className="px-1.5 py-1 rounded-lg text-[11px] border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 hover:border-amber-400 transition"
               title="Nuova annata di questo vino (la crea e la mette in bozza)">
-              🗓️
+              🗓️➕
             </button>
           )}
           <input

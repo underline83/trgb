@@ -3,6 +3,13 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.91 (2026-09-27): Ordini fornitori — la riga «Da ordinare» ha le
+    //   stesse informazioni del widget alert della dashboard: giacenza +
+    //   copertura in evidenza, ritmo per esteso con «venduto/finito Xgg fa»,
+    //   «comprato X mesi fa» su qualunque annata. Badge estratti in
+    //   pages/vini/RiordinoBadges.jsx e usati da entrambe le pagine. Flag
+    //   ⛔ Non ricomprare / 🗓️ Annata esaurita sulla riga (tolgono il vino
+    //   anche dal carrello) e ↩︎ ripristina in «Messi da parte».
     // 3.90 (2026-09-20): Vendite — pulsante ↻ «rigenera tempo di apertura»
     //   nella card Calici disponibili. POST /vini/magazzino/{id}/
     //   bottiglia-aperta/rigenera riporta DATA_APERTURA ad adesso (il
@@ -135,7 +142,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.90",
+    version: "3.91",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
