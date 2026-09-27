@@ -1,6 +1,8 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.0 — «Cucina da iPhone»: 4 tab Oggi / Scorte / Frigo / Spesa (2026-09-07)
+// @version: v1.1 — scheda articolo: ✏️ Modifica (nome/unità/confezione/regime/natura)
+//            + «correggi quantità» per ripiano (RETTIFICA tracciata) + ritorno al frigo (2026-09-28)
+// v1.0 — «Cucina da iPhone»: 4 tab Oggi / Scorte / Frigo / Spesa (2026-09-07)
 //
 // Doc: docs/modulo_scorte_cucina.md
 // Mockup validato con Marco: docs/mockups/cucina_mobile_scorte_frigo.html
@@ -36,7 +38,7 @@
 // convivono nella stessa app e le regole si sovrascriverebbero.
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isCucinaWriterRole } from "../../utils/authHelpers";
 
@@ -44,6 +46,16 @@ const REFRESH_MS = 90_000;
 /** Finestra dell'«Annulla». Stessa di CantinaMobile: in servizio è il tempo di
  *  accorgersi dell'errore e togliere le dita. Marco 2026-09-07: «basta 8s». */
 const UNDO_MS = 8000;
+
+// Liste chiuse: specchio di app/models/cucina_scorte_db.py (UNITA_MISURA,
+// REGIMI, NATURE_ARTICOLO). Se cambiano là, vanno cambiate qui.
+const UM_OPZ = ["PZ", "CF", "KG", "G", "L", "ML"];
+const REGIME_OPZ = [
+  { k: "SEMAFORO", t: "semaforo", d: "solo c'è / sta finendo / finito" },
+  { k: "CONTA", t: "conta", d: "una quantità, aggiornata quando conti" },
+  { k: "MOVIMENTI", t: "movimenti", d: "ogni carico e scarico, con la storia" },
+];
+const NATURA_OPZ = ["CRUDO", "COTTO", "SEMILAVORATO", "PRONTO", "NON_FOOD"];
 
 const TABS = [
   { k: "oggi", label: "Oggi", icon: "📋" },
@@ -284,6 +296,15 @@ const STYLE = `
 .km-step{display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:12px;}
 .km-step button{width:52px;height:44px;border-radius:12px;border:1px solid var(--hair);background:#fff;
   font-size:20px;font-weight:700;cursor:pointer;}
+.km-pills.wrap{flex-wrap:wrap;overflow:visible;padding-top:4px;}
+.km-in{width:100%;padding:12px 14px;border-radius:11px;border:1px solid var(--hair);background:#fff;
+  font-size:16px;margin:4px 0 2px;}
+.km-flbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  margin-top:12px;}
+.km-edit{background:#fff;border:1px solid var(--hair);border-radius:11px;padding:7px 12px;font-size:14px;
+  font-weight:600;cursor:pointer;flex:0 0 auto;}
+.km-tl.tap{cursor:pointer;}
+.km-tl.tap .rq::after{content:" ✎";font-size:12px;color:var(--muted);}
 `;
 
 // ─────────────────────────────────────────────────────────────
@@ -700,10 +721,12 @@ function TabScorte({ canWrite, onCount, apri, modi }) {
 // Le azioni rapide portano la quantità dell'ultima volta: scaricare
 // deve costare un tap, o nessuno scarica.
 // ─────────────────────────────────────────────────────────────
-function SchedaArticolo({ id, canWrite, indietro }) {
+function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }) {
   const [a, setA] = useState(null);
   const [err, setErr] = useState(null);
   const [sheet, setSheet] = useState(null);   // {tipo, ripiano_id, val}
+  const [mod, setMod] = useState(null);       // bozza anagrafica: {nome, um, confezione, regime, natura}
+  const [corr, setCorr] = useState(null);     // {ripiano_id, dove, prima, val}
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -744,9 +767,60 @@ function SchedaArticolo({ id, canWrite, indietro }) {
     finally { setBusy(false); }
   }
 
+  function apriModifica() {
+    setMod({
+      nome: a.nome || "", um: a.um || "PZ", confezione: a.confezione || "",
+      regime: a.regime || "SEMAFORO", natura: a.natura || null,
+    });
+  }
+
+  async function salvaModifica() {
+    if (!mod || busy || !mod.nome.trim()) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/articoli/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: mod.nome.trim(), um: mod.um, confezione: mod.confezione.trim() || null,
+          regime: mod.regime, natura: mod.natura,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      setMod(null);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  }
+
+  // Correggere una quantità = RETTIFICA col delta, e qta_precedente passata
+  // ESPLICITA (lezione del bug RETTIFICA fantasma dei vini). Così la storia
+  // dice chi ha corretto, da quanto a quanto — non un numero sovrascritto.
+  async function salvaCorrezione() {
+    if (!corr || busy) return;
+    const prima = num(corr.prima);
+    const dopo = num(corr.val);
+    if (dopo === prima && corr.prima != null) { setCorr(null); return; }
+    setBusy(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articolo_id: a.id, ripiano_id: corr.ripiano_id, tipo: "RETTIFICA",
+          qta: dopo - prima, qta_precedente: prima, motivo: "correzione a mano",
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      setCorr(null);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  }
+
   if (err && !a) return (
     <div className="km-body">
-      <button className="km-back" onClick={indietro}>‹ Scorte</button>
+      <button className="km-back" onClick={indietro}>‹ {etichettaIndietro}</button>
       <div className="km-err">{err}</div>
     </div>
   );
@@ -758,14 +832,15 @@ function SchedaArticolo({ id, canWrite, indietro }) {
   return (
     <>
       <div className="km-head">
-        <button className="km-back" onClick={indietro}>‹ Scorte</button>
+        <button className="km-back" onClick={indietro}>‹ {etichettaIndietro}</button>
         <div className="km-htop">
           <div>
             <h1 className="km-serif">{a.nome}</h1>
             <div className="km-sub">
-              {[a.categoria, a.um, a.fornitore_freeform].filter(Boolean).join(" · ") || "—"}
+              {[a.categoria, a.um, a.confezione, a.fornitore_freeform].filter(Boolean).join(" · ") || "—"}
             </div>
           </div>
+          {canWrite && <button className="km-edit" onClick={apriModifica}>✏️ Modifica</button>}
         </div>
       </div>
 
@@ -816,7 +891,11 @@ function SchedaArticolo({ id, canWrite, indietro }) {
             </div>
           )}
           {(a.posti || []).map((p) => (
-            <div key={p.giacenza_id} className="km-tl">
+            <div key={p.giacenza_id} className={`km-tl${canWrite ? " tap" : ""}`}
+                 onClick={() => canWrite && setCorr({
+                   ripiano_id: p.ripiano_id, dove: `${p.ubicazione} · rip. ${p.ripiano}`,
+                   prima: p.qta, val: p.qta ?? 0,
+                 })}>
               <div className="bul" style={{ background: num(p.qta) > 0 ? "var(--blue)" : "#d5cfc3" }} />
               <div>
                 <div className="t1">{p.ubicazione} · rip. {p.ripiano}</div>
@@ -918,6 +997,82 @@ function SchedaArticolo({ id, canWrite, indietro }) {
               {busy ? "Registro…" : `${sheet.tipo === "CARICO" ? "Carica" : sheet.tipo === "SCARTO" ? "Butta" : "Scarica"} ${fmtQta(num(sheet.val))} ${a.um}`}
             </button>
             <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={() => setSheet(null)}>Annulla</button>
+          </div>
+        </div>
+      )}
+
+      {corr && (
+        <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setCorr(null); }}>
+          <div className="km-sheet-in">
+            <h3 className="km-serif">Quanti ce ne sono? · {a.nome}</h3>
+            <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              {corr.dove} · prima: {corr.prima == null ? "—" : `${fmtQta(corr.prima)} ${a.um}`}
+            </div>
+            <input className="km-num" type="number" inputMode="decimal" step="0.1" min="0"
+                   value={corr.val} autoFocus
+                   onChange={(e) => setCorr({ ...corr, val: e.target.value })} />
+            <div className="km-step">
+              <button onClick={() => setCorr({ ...corr, val: Math.max(0, num(corr.val) - 1) })}>−1</button>
+              <button onClick={() => setCorr({ ...corr, val: num(corr.val) + 1 })}>+1</button>
+            </div>
+            <button className="km-btn" disabled={busy || corr.val === "" || num(corr.val) < 0}
+                    onClick={salvaCorrezione}>
+              {busy ? "Salvo…" : `Sono ${fmtQta(num(corr.val))} ${a.um}`}
+            </button>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+              Resta nella storia come rettifica: chi, quando, da quanto a quanto.
+            </div>
+            <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={() => setCorr(null)}>Annulla</button>
+          </div>
+        </div>
+      )}
+
+      {mod && (
+        <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setMod(null); }}>
+          <div className="km-sheet-in">
+            <h3 className="km-serif">Modifica articolo</h3>
+
+            <div className="km-flbl">Nome</div>
+            <input className="km-in" value={mod.nome}
+                   onChange={(e) => setMod({ ...mod, nome: e.target.value })} />
+
+            <div className="km-flbl">Si conta in</div>
+            <div className="km-pills wrap">
+              {UM_OPZ.map((u) => (
+                <button key={u} className={`km-pill${mod.um === u ? " on" : ""}`}
+                        onClick={() => setMod({ ...mod, um: u })}>{u.toLowerCase()}</button>
+              ))}
+            </div>
+
+            <div className="km-flbl">Confezione</div>
+            <input className="km-in" value={mod.confezione} placeholder="vaschetta 500 g, sacchetto, porzione…"
+                   onChange={(e) => setMod({ ...mod, confezione: e.target.value })} />
+
+            <div className="km-flbl">Come lo seguiamo</div>
+            <div className="km-pills wrap">
+              {REGIME_OPZ.map((r) => (
+                <button key={r.k} className={`km-pill${mod.regime === r.k ? " on" : ""}`}
+                        onClick={() => setMod({ ...mod, regime: r.k })}>{r.t}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              {REGIME_OPZ.find((r) => r.k === mod.regime)?.d}
+            </div>
+
+            <div className="km-flbl">Cos'è</div>
+            <div className="km-pills wrap" style={{ marginBottom: 14 }}>
+              {NATURA_OPZ.map((n) => (
+                <button key={n} className={`km-pill${mod.natura === n ? " on" : ""}`}
+                        onClick={() => setMod({ ...mod, natura: mod.natura === n ? null : n })}>
+                  {n.replace("_", "-").toLowerCase()}
+                </button>
+              ))}
+            </div>
+
+            <button className="km-btn" disabled={busy || !mod.nome.trim()} onClick={salvaModifica}>
+              {busy ? "Salvo…" : "Salva"}
+            </button>
+            <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={() => setMod(null)}>Annulla</button>
           </div>
         </div>
       )}
@@ -1123,7 +1278,8 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
               {righe.map((a) => (
                 <RigaArticolo key={a.giacenza_id} a={a} canWrite={canWrite}
                               onTap={(art, stato) => tap(art, stato, r.id)}
-                              onApri={(art) => apriArticolo(art.articolo_id)} />
+                              onApri={(art) => apriArticolo(art.articolo_id,
+                                { path: `/cucina/mobile/frigo/${id}`, label: u.nome })} />
               ))}
             </React.Fragment>
           );
@@ -1250,6 +1406,7 @@ function TabSpesa({ canWrite, onCount, modi }) {
 export default function CucinaMobile() {
   const { tab, id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const attivo = TABS.some((t) => t.k === tab) ? tab : "oggi";
   const role = localStorage.getItem("role");
   const canWrite = isCucinaWriterRole(role) || role === "sous_chef" || role === "commis";
@@ -1259,7 +1416,12 @@ export default function CucinaMobile() {
 
   const vai = useCallback((k) => navigate(`/cucina/mobile/${k}`), [navigate]);
   const apriFrigo = useCallback((uid) => navigate(`/cucina/mobile/frigo/${uid}`), [navigate]);
-  const apriArticolo = useCallback((aid) => navigate(`/cucina/mobile/scorte/${aid}`), [navigate]);
+  // `da` = da dove arrivo ({path, label}): dal frigo si torna al frigo, non alle Scorte.
+  const apriArticolo = useCallback(
+    (aid, da) => navigate(`/cucina/mobile/scorte/${aid}`, da ? { state: { da } } : undefined),
+    [navigate],
+  );
+  const da = location.state?.da;
 
   const modi = <Modi attivo={attivo} badge={badge} vai={vai} />;
 
@@ -1267,7 +1429,9 @@ export default function CucinaMobile() {
   if (attivo === "frigo" && id) {
     vista = <DentroFrigo id={id} canWrite={canWrite} indietro={() => vai("frigo")} apriArticolo={apriArticolo} />;
   } else if (attivo === "scorte" && id) {
-    vista = <SchedaArticolo id={id} canWrite={canWrite} indietro={() => vai("scorte")} />;
+    vista = <SchedaArticolo id={id} canWrite={canWrite}
+                            indietro={() => (da?.path ? navigate(da.path) : vai("scorte"))}
+                            etichettaIndietro={da?.label || "Scorte"} />;
   } else if (attivo === "scorte") {
     vista = <TabScorte canWrite={canWrite} onCount={setB("scorte")} apri={apriArticolo} modi={modi} />;
   } else if (attivo === "frigo") {

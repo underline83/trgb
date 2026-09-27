@@ -1,6 +1,6 @@
 # Modulo Scorte & Frigoriferi — Cucina
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale — **backend + sotto-app mobile implementati 2026-09-07** · **Ultima verifica:** 2026-09-07
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — **backend + sotto-app mobile implementati 2026-09-07; modifica articolo e correzione quantità da telefono 2026-09-28** · **Ultima verifica:** 2026-09-28
 > **Mockup dei flussi:** [`mockups/cucina_mobile_scorte_frigo.html`](mockups/cucina_mobile_scorte_frigo.html) — 9 schermate iPhone, il giro del frigo è interattivo. **Si valida quello prima di scrivere il backend** (decisione Marco 2026-09-07).
 > **Frontend:** `frontend/src/pages/cucina/CucinaMobile.jsx` — 4 tab su `/cucina/mobile`. Prefisso classi `km-` (NON `cm-`, che è di CantinaMobile: convivono nella stessa app).
 > **Codice:** `app/models/cucina_scorte_db.py` (schema, single source of truth) · `app/services/cucina_scorte_service.py` (logica) · `app/routers/cucina_{scorte,ubicazioni}_router.py` (40 endpoint) · `app/services/{haccp_letture,prezzi_ingredienti}.py` (ponti platform) · `app/migrations/171_cucina_scorte_frigoriferi.py`.
@@ -357,7 +357,8 @@ Dichiarati a livello di router, mai con `if role ==` a mano.
 | Ambito | Ruoli |
 |---|---|
 | Router `/scorte` e `/ubicazioni` (lettura + operatività quotidiana: semaforo, movimenti, righe di conta) | `admin`, `chef`, `sous_chef`, `commis` (+`superadmin` implicito) |
-| Anagrafica articoli, anagrafica ubicazioni, **chiusura conta**, manutenzioni | `admin`, `chef` — via `verifica_ruoli(user, "admin", "chef", cosa="…")` nel corpo |
+| **Modifica articolo** (`PATCH /articoli/{id}`: nome, unità, confezione, regime, natura…) | tutta la brigata — decisione Marco 2026-09-28: «le quantità e le modifiche le fanno tutti». Se il payload contiene `attivo`, torna `admin`/`chef` |
+| Creazione/disattivazione articoli, dotazione, anagrafica ubicazioni, **chiusura conta**, manutenzioni | `admin`, `chef` — via `verifica_ruoli(user, "admin", "chef", cosa="…")` nel corpo |
 | `viewer` | sola lettura (già garantita dal `ReadOnlyViewerMiddleware`) |
 
 La chiusura conta è ristretta perché è l'atto che scrive un numero nel Controllo Gestione.
@@ -417,6 +418,26 @@ Tre passi, nell'ordine in cui vanno fatti:
 ## Quando togliere i dati di prova
 
 Il seed `[DEMO]` e i posti veri convivono senza darsi fastidio. Quando i frigo reali sono configurati: `python3 scripts/seed_cucina_demo.py --rimuovi` (tocca solo le righe marcate).
+
+---
+
+# 9-quater. Come si corregge dal telefono (2026-09-28)
+
+Nasce il giorno in cui sono entrati i due congelatori veri (Congelatore 1 e 2, 6 ripiani ciascuno, ~60 articoli caricati dall'inventario cartaceo): aperto il ripiano, non c'era modo di sistemare un nome o una quantità.
+
+Il giro è: **Frigo → posto → tocco il nome dell'articolo → scheda**. Dalla scheda:
+
+| Gesto | Cosa fa | Endpoint |
+|---|---|---|
+| **✏️ Modifica** (in alto a destra) | nome, unità (lista chiusa), confezione libera, regime, natura | `PATCH /cucina/scorte/articoli/{id}` |
+| tocco una riga di **Dove si trova** (ha la ✎) | «Quanti ce ne sono?» — scrivi il numero vero | `POST /cucina/scorte/movimenti/` tipo `RETTIFICA`, `qta` = nuovo − vecchio, `qta_precedente` esplicita, motivo «correzione a mano» |
+| **‹ Congelatore 1** | torna al posto da cui eri entrato (prima tornava sempre alle Scorte) | — |
+
+**Perché la quantità non si sovrascrive:** una correzione è un fatto — chi, quando, da quanto a quanto — e finisce nella timeline come rettifica. Vale per qualunque regime, anche semaforo: sul semaforo il numero serve a sapere quanto c'è e domani a valorizzare, il pallino resta la verità operativa.
+
+**Deciso con Marco (2026-09-28):** prima si gestiscono le **quantità**, le date (lotti con data di congelamento, FIFO) vengono dopo — fase S4. Le preparazioni si contano a **pezzi + confezione** («vaschetta 500 g», «sacchetto»), non a peso.
+
+**Non ancora fatto:** spostare un articolo su un altro ripiano (`TRASFERIMENTO` esiste nel backend, manca il gesto) e la modifica dal pannello al computer.
 
 ---
 

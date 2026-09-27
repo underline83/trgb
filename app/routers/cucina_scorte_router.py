@@ -400,8 +400,14 @@ def create_articolo(payload: ArticoloIn, current_user=Depends(get_current_user))
 @router.patch("/articoli/{articolo_id}")
 def update_articolo(articolo_id: int, payload: ArticoloUpdate,
                     current_user=Depends(get_current_user)):
-    verifica_ruoli(current_user, *GESTIONE, cosa="modificare un articolo di magazzino")
-    d = _normalizza_articolo(payload.dict(exclude_unset=True))
+    # Marco 2026-09-28: «le quantita' e le modifiche le fanno tutti». Nome,
+    # unita', confezione, regime, natura li corregge chi ha il pezzo davanti:
+    # basta la guardia di router (la brigata). Resta di GESTIONE solo spegnere
+    # un articolo, che lo toglie da tutti i ripiani.
+    grezzo = payload.dict(exclude_unset=True)
+    if "attivo" in grezzo:
+        verifica_ruoli(current_user, *GESTIONE, cosa="disattivare un articolo")
+    d = _normalizza_articolo(grezzo)
     if not d:
         raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
     if "attivo" in d:

@@ -166,6 +166,11 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.3 (2026-09-28): si corregge dal telefono. Scheda articolo → ✏️ Modifica
+    //   (nome, unità, confezione, regime, natura) e tap su una riga di «Dove si
+    //   trova» → «quanti ce ne sono?» = RETTIFICA tracciata con qta_precedente.
+    //   PATCH articolo aperto a tutta la brigata (decisione Marco); disattivare
+    //   resta admin/chef. Dalla scheda aperta da un frigo si torna al frigo.
     // 1.2 (2026-09-08): pannello di SETUP in Impostazioni Cucina → Frigoriferi.
     //   Finalmente si possono creare i posti, i loro ripiani (codice locale +
     //   destinazione d'uso) e popolare la dotazione incollando una lista, con
@@ -183,7 +188,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.2",
+    version: "1.3",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

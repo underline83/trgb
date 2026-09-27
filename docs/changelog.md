@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-09-28 — Scorte cucina: si corregge dal telefono `[core]`
+
+Aprendo un congelatore dall'iPhone (Cucina → Frigo) si vedevano gli articoli ma non si poteva sistemare niente. Adesso, toccando il nome di un articolo:
+
+- **✏️ Modifica** in alto: nome, unità (pz, cf, kg, g, l, ml), confezione («vaschetta 500 g»), come lo seguiamo (semaforo / conta / movimenti) e cos'è (crudo, cotto, semilavorato…).
+- **Quanti ce ne sono?** toccando la riga del ripiano in «Dove si trova»: scrivi il numero vero. Non sovrascrive: resta nella storia come rettifica, con chi l'ha fatta e da quanto a quanto.
+- **‹ Congelatore 1**: dalla scheda si torna al congelatore da cui si era entrati, non più alle Scorte.
+
+Le modifiche le può fare tutta la brigata (admin, chef, sous chef, commis). Disattivare un articolo resta ad admin e chef.
+
+Caricati in produzione (dall'app, non da codice) i due congelatori reali: **Congelatore 1** e **Congelatore 2**, 6 ripiani ciascuno, freezer −25/−18 °C, 59 articoli dall'inventario cartaceo.
+
+---
+
 ## 2026-09-27 — Vini: la pagina Ordini ha le stesse informazioni della dashboard `[core]`
 
 In **Vini → Ordini**, ogni vino della lista «Da ordinare» ora mostra quello che prima si vedeva solo nell'avviso della dashboard:
