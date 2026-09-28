@@ -13,6 +13,10 @@ Aprendo un congelatore dall'iPhone (Cucina → Frigo) si vedevano gli articoli m
 
 Le modifiche le può fare tutta la brigata (admin, chef, sous chef, commis). Disattivare un articolo resta ad admin e chef.
 
+**Menu in alto su iPhone.** Il menu a tendina dei moduli (quello al centro dell'intestazione) su iPhone non si riusciva a usare: all'apertura metteva il cursore nella ricerca, si apriva la tastiera sopra la lista e Safari zoomava sul campo. Ora su telefono la ricerca non si attiva da sola (la tastiera esce solo se tocchi il campo, e senza zoom), e il menu è largo quanto lo schermo, agganciato sotto l'intestazione. Su computer non cambia niente.
+
+**Menu delle sezioni su iPhone.** La fila di voci sotto l'intestazione (Vini: Dashboard, Cantina, Ordini…; Dipendenti, Controllo Gestione, Banca, Clienti e le altre) su telefono finiva fuori dallo schermo e le ultime voci non si raggiungevano. Ora sul telefono c'è un solo pulsante con la voce in cui sei («🍷 Cantina ▾»): toccandolo si apre dal basso l'elenco completo, con voci grandi. Su computer e iPad la fila resta com'era (e se non ci sta, scorre di lato). Vale per 11 sezioni; il Task Manager aveva già la sua barra in basso e non cambia.
+
 Caricati in produzione (dall'app, non da codice) i due congelatori reali: **Congelatore 1** e **Congelatore 2**, 6 ripiani ciascuno, freezer −25/−18 °C, 59 articoli dall'inventario cartaceo.
 
 ---

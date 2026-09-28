@@ -10,7 +10,7 @@
 // non ce l'ha. La nav e' il primo dei tre livelli: le route (App.jsx) e i
 // router backend (dipendenti.py / turni_router.py) hanno i loro controlli.
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { ModuleNav } from "../../components/ui";
 import useModuleAccess from "../../hooks/useModuleAccess";
 
 const TABS = [
@@ -29,7 +29,6 @@ const TABS = [
 ];
 
 export default function DipendentiNav({ current }) {
-  const navigate = useNavigate();
   const { canAccessSub, loading } = useModuleAccess();
 
   // Durante il caricamento non mostriamo tab riservati: meglio una nav che si
@@ -39,45 +38,12 @@ export default function DipendentiNav({ current }) {
     : TABS.filter((t) => canAccessSub("dipendenti", t.sub));
 
   return (
-    <div className="bg-white border-b border-neutral-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-12">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => navigate("/dipendenti")}
-              className="text-sm font-bold text-purple-900 font-playfair mr-4 hover:text-purple-700 transition whitespace-nowrap"
-            >
-              👥 Dipendenti
-            </button>
-            <div className="flex gap-0.5 overflow-x-auto">
-              {tabs.map((tab) => {
-                const active = current === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => navigate(tab.path)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
-                      active
-                        ? "bg-purple-100 text-purple-900 shadow-sm"
-                        : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
-                    }`}
-                  >
-                    <span className="mr-1">{tab.icon}</span>
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            onClick={() => navigate("/")}
-            className="text-[11px] text-neutral-400 hover:text-neutral-600 transition hidden sm:block"
-          >
-            ← Home
-          </button>
-        </div>
-      </div>
-    </div>
+    <ModuleNav
+      title="👥 Dipendenti"
+      homePath="/dipendenti"
+      color="purple"
+      tabs={tabs}
+      isActive={(tab) => current === tab.key}
+    />
   );
 }

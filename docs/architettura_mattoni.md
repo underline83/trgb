@@ -249,6 +249,7 @@ Le chiamate scritte in fase 1 non cambiano: cambia cosa c'è dentro `verifica_ru
 | `<PageLayout>` | `title`, `subtitle`, `actions`, `toolbar`, `nav`, `wide`, `background`, `padded` | Wrapper pagina: bg-brand-cream + container max-w-7xl + header standard (h1+subtitle+azioni) + slot opzionali sub-nav e toolbar |
 | `<StatusBadge>` | `tone` (success/warning/danger/info/neutral/brand/violet), `size` (sm/md/lg), `dot` | Badge compatto di stato, sostituisce la scrittura ripetitiva `bg-xxx-100 text-xxx-700 border` |
 | `<EmptyState>` | `icon` (emoji), `title`, `description`, `action`, `watermark`, `compact` | Stato vuoto con watermark gobbette R/G/B sfumate sullo sfondo (roadmap 8.1) |
+| `<ModuleNav>` (2026-09-28) | `title`, `homePath`, `color` (amber/emerald/indigo/orange/purple/rose/sky/teal), `tabs` [{key,label,icon,path,badge?,soon?,mobile?}], `isActive(tab)` | Barra di sezione. Da `sm` in su la fila di tab (scorre se non ci sta); su telefono un pulsante «voce attuale ▾» che apre l'elenco dal basso. `mobile:false` = voce spostata sotto «Meglio dal computer» nel telefono. La usano tutte le *Nav.jsx di sezione tranne `tasks/Nav.jsx` (ha già la sua barra in basso) — ogni Nav resta padrona di QUALI tab e CHI le vede, ModuleNav fa solo la forma |
 
 **Import:**
 ```jsx

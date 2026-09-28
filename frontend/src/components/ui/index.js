@@ -24,3 +24,6 @@ export { default as SectionTitle } from "./SectionTitle";
 export { default as Modal }        from "./Modal";
 export { default as Stepper }      from "./Stepper";
 export { default as Pill, PillGroup } from "./Pill";
+
+// Navigazione di sezione (2026-09-28) — fila di tab su computer, sheet dal basso su iPhone
+export { default as ModuleNav }    from "./ModuleNav";

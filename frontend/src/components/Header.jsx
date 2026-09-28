@@ -66,16 +66,20 @@ export default function Header({ onLogout }) {
     };
   }, [open]);
 
-  // Autofocus su input ricerca all'apertura (desktop)
+  // Autofocus su input ricerca all'apertura — SOLO desktop (mouse).
+  // Su iPhone il focus automatico apriva la tastiera sopra il menu e Safari
+  // zoomava sul campo: il menu diventava invisibile/inutilizzabile (2026-09-28).
+  const puntatoreFine = typeof window !== "undefined" && window.matchMedia
+    && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   useEffect(() => {
-    if (open && searchInputRef.current) {
+    if (open && puntatoreFine && searchInputRef.current) {
       // piccolo delay per evitare layout shift iniziale
       const t = setTimeout(() => {
         if (searchInputRef.current) searchInputRef.current.focus();
       }, 50);
       return () => clearTimeout(t);
     }
-  }, [open]);
+  }, [open, puntatoreFine]);
 
   // Escape = chiudi dropdown
   useEffect(() => {
@@ -184,7 +188,7 @@ export default function Header({ onLogout }) {
         </button>
 
         {/* CENTER — Pulsante menu moduli con modulo corrente */}
-        <div className="relative justify-self-center" ref={dropRef}>
+        <div className="sm:relative justify-self-center" ref={dropRef}>
           <button
             onClick={handleOpen}
             className="flex items-center gap-1.5 cursor-pointer group px-3 py-1.5 rounded-lg hover:bg-white/60 transition"
@@ -206,7 +210,7 @@ export default function Header({ onLogout }) {
           {/* ── Dropdown M1 — lista accordion sempre aperta + ricerca live ── */}
           {open && (
             <div
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[100] w-[380px] max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-neutral-200 overflow-hidden"
+              className="absolute top-full left-3 right-3 mt-1 sm:mt-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-[100] sm:w-[380px] sm:max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-neutral-200 overflow-hidden"
             >
               {/* Search bar sticky */}
               <div className="sticky top-0 bg-white border-b border-neutral-100 p-2.5">
@@ -220,7 +224,7 @@ export default function Header({ onLogout }) {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Cerca modulo o pagina…"
-                    className="w-full pl-9 pr-8 py-2 text-sm bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue/40 focus:bg-white transition"
+                    className="w-full pl-9 pr-8 py-2 text-base sm:text-sm bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue/40 focus:bg-white transition"
                   />
                   {searchQuery && (
                     <button
@@ -237,7 +241,7 @@ export default function Header({ onLogout }) {
               </div>
 
               {/* Lista scrollabile */}
-              <div className="max-h-[calc(100dvh-160px)] overflow-y-auto py-1.5">
+              <div className="max-h-[calc(100dvh-160px)] overflow-y-auto overscroll-contain py-1.5">
                 {/* Home */}
                 {homeMatches && (
                   <button

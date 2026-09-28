@@ -2,7 +2,8 @@
 // Tab navigation per il modulo Clienti CRM
 // Import, Duplicati, Mailchimp spostati dentro Impostazioni (sidebar)
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { ModuleNav } from "../../components/ui";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const TABS = [
@@ -15,7 +16,6 @@ const TABS = [
 ];
 
 export default function ClientiNav({ current, diffCount: externalDiffCount }) {
-  const navigate = useNavigate();
   const location = useLocation();
   const role = localStorage.getItem("role");
   const [diffCount, setDiffCount] = useState(0);
@@ -42,49 +42,12 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
   };
 
   return (
-    <div className="bg-white border-b border-neutral-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-12">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => navigate("/clienti")}
-              className="text-sm font-bold text-teal-900 font-playfair mr-4 hover:text-teal-700 transition whitespace-nowrap"
-            >
-              Clienti
-            </button>
-            <div className="flex gap-0.5">
-              {visibleTabs.map((tab) => {
-                const active = isActive(tab);
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => navigate(tab.path)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
-                      active
-                        ? "bg-teal-100 text-teal-900 shadow-sm"
-                        : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
-                    }`}
-                  >
-                    <span className="mr-1">{tab.icon}</span>
-                    {tab.label}
-                    {tab.key === "impostazioni" && diffCount > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full leading-none">
-                        {diffCount}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <button
-            onClick={() => navigate("/")}
-            className="text-[11px] text-neutral-400 hover:text-neutral-600 transition hidden sm:block"
-          >
-            ← Home
-          </button>
-        </div>
-      </div>
-    </div>
+    <ModuleNav
+      title="Clienti"
+      homePath="/clienti"
+      color="teal"
+      tabs={visibleTabs.map((t) => (t.key === "impostazioni" ? { ...t, badge: diffCount } : t))}
+      isActive={isActive}
+    />
   );
 }
