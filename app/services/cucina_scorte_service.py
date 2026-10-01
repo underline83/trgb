@@ -69,8 +69,11 @@ def soglia_freschezza(conn: sqlite3.Connection, articolo: Dict[str, Any]) -> Opt
         except (TypeError, ValueError):
             pass
     famiglia = (articolo.get("famiglia_freschezza") or "SECCO").upper()
-    chiave = "freschezza_fresco_gg" if famiglia == "FRESCO" else "freschezza_secco_gg"
-    valore = config_int(conn, chiave, 5 if famiglia == "FRESCO" else 21)
+    chiave, fallback = {
+        "FRESCO": ("freschezza_fresco_gg", 5),
+        "CONGELATO": ("freschezza_congelato_gg", 60),
+    }.get(famiglia, ("freschezza_secco_gg", 21))
+    valore = config_int(conn, chiave, fallback)
     return valore if valore > 0 else None
 
 
@@ -342,7 +345,148 @@ def annulla_movimento(conn: sqlite3.Connection, mov_id: int, utente: str) -> Dic
         "UPDATE cucina_movimenti SET annullato_at = ?, annullato_da = ? WHERE id = ?",
         (_ora(), utente, mov_id),
     )
+    # Uno spostamento sono due righe (esce di qua, entra di la'), legate da
+    # ref_modulo='trasferimento'. Annullarne una sola lascerebbe la roba in due
+    # posti, o in nessuno.
+    if mov["tipo"] == "TRASFERIMENTO" and mov["ref_modulo"] == "trasferimento" and mov["ref_id"]:
+        gemello = conn.execute(
+            "SELECT id FROM cucina_movimenti WHERE id = ? AND annullato_at IS NULL", (mov["ref_id"],)
+        ).fetchone()
+        if gemello:
+            annulla_movimento(conn, gemello["id"], utente)
     return {"id": mov_id, "qta_ripristinata": mov["qta_precedente"]}
+
+
+# ─────────────────────────────────────────────────────────────
+# Lotti: la data di quando e' entrato (congelato, arrivato) e di quando scade
+# ─────────────────────────────────────────────────────────────
+#
+# Un lotto e' «quella infornata di ragu' del 3 ottobre, 6 vaschette, scade il
+# 1 aprile». La giacenza del ripiano resta la verita' sul QUANTO; i lotti dicono
+# DA QUANDO. Si consumano FIFO: esce sempre per primo quello che scade prima
+# (a parita', quello entrato prima). Annullare un movimento NON rimette a posto
+# i lotti: e' un limite noto, la correzione si fa dalla scheda.
+
+def crea_lotto(
+    conn: sqlite3.Connection,
+    articolo_id: int,
+    ripiano_id: Optional[int],
+    qta: float,
+    utente: str,
+    data_arrivo: Optional[str] = None,
+    data_scadenza: Optional[str] = None,
+    note: Optional[str] = None,
+) -> int:
+    cur = conn.execute(
+        """
+        INSERT INTO cucina_lotti
+            (articolo_id, ripiano_id, data_arrivo, data_scadenza,
+             qta_iniziale, qta_residua, stato, note, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, 'CHIUSO', ?, ?)
+        """,
+        (articolo_id, ripiano_id, data_arrivo or date.today().isoformat(),
+         data_scadenza or None, qta, qta, note, utente),
+    )
+    return cur.lastrowid
+
+
+def _lotti_fifo(conn: sqlite3.Connection, articolo_id: int, ripiano_id: int) -> List[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT * FROM cucina_lotti
+         WHERE articolo_id = ? AND ripiano_id = ? AND stato IN ('CHIUSO','APERTO')
+           AND COALESCE(qta_residua, 0) > 0
+         ORDER BY data_scadenza IS NULL, data_scadenza, data_arrivo, id
+        """,
+        (articolo_id, ripiano_id),
+    ).fetchall()
+
+
+def consuma_lotti(conn: sqlite3.Connection, articolo_id: int, ripiano_id: Optional[int],
+                  qta: float) -> List[Dict[str, Any]]:
+    """Toglie `qta` dai lotti del ripiano, prima quello che scade prima.
+
+    Se i lotti non bastano (roba caricata senza data) il resto si toglie e
+    basta: la giacenza e' gia' stata aggiornata dal movimento, i lotti sono un
+    di piu'. Ritorna cosa ha toccato, per il log.
+    """
+    if not ripiano_id or qta <= 0:
+        return []
+    resto = float(qta)
+    toccati = []
+    for l in _lotti_fifo(conn, articolo_id, ripiano_id):
+        if resto <= 0:
+            break
+        res = float(l["qta_residua"] or 0)
+        preso = min(res, resto)
+        nuovo = round(res - preso, 6)
+        conn.execute(
+            "UPDATE cucina_lotti SET qta_residua = ?, stato = CASE WHEN ? <= 0 THEN 'ESAURITO' ELSE stato END WHERE id = ?",
+            (nuovo, nuovo, l["id"]),
+        )
+        toccati.append({"lotto_id": l["id"], "preso": preso, "residuo": nuovo})
+        resto -= preso
+    return toccati
+
+
+def trasferisci(
+    conn: sqlite3.Connection,
+    articolo_id: int,
+    da_ripiano_id: int,
+    a_ripiano_id: int,
+    qta: float,
+    utente: str,
+    motivo: Optional[str] = None,
+    origine: str = ORIGINE_MOBILE,
+) -> Dict[str, Any]:
+    """Sposta `qta` da un ripiano a un altro (anche di un altro frigo).
+
+    Due movimenti TRASFERIMENTO legati fra loro (ref_modulo='trasferimento',
+    ref_id = l'altra gamba), cosi' la timeline dice da dove a dove, e l'undo
+    li annulla insieme. I lotti viaggiano con la roba, FIFO: se se ne sposta
+    solo una parte, il lotto si divide e le date restano quelle originali.
+    """
+    if da_ripiano_id == a_ripiano_id:
+        raise ValueError("origine e destinazione sono lo stesso ripiano")
+    if qta <= 0:
+        raise ValueError("quantita' da spostare non valida")
+    src = assicura_giacenza(conn, articolo_id, da_ripiano_id)
+    disponibile = _num(src["qta"])
+    if qta > disponibile + 1e-9:
+        raise ValueError(f"su quel ripiano ce ne sono solo {disponibile:g}")
+    assicura_giacenza(conn, articolo_id, a_ripiano_id)
+
+    esce = registra_movimento(conn, articolo_id, da_ripiano_id, "TRASFERIMENTO", -qta, utente,
+                              motivo=motivo, origine=origine, ripiano_dest_id=a_ripiano_id,
+                              ref_modulo="trasferimento")
+    entra = registra_movimento(conn, articolo_id, a_ripiano_id, "TRASFERIMENTO", qta, utente,
+                               motivo=motivo, origine=origine, ripiano_dest_id=a_ripiano_id,
+                               ref_modulo="trasferimento", ref_id=esce["id"])
+    conn.execute("UPDATE cucina_movimenti SET ref_id = ? WHERE id = ?", (entra["id"], esce["id"]))
+
+    resto = float(qta)
+    for l in _lotti_fifo(conn, articolo_id, da_ripiano_id):
+        if resto <= 0:
+            break
+        res = float(l["qta_residua"] or 0)
+        if res <= resto + 1e-9:
+            conn.execute("UPDATE cucina_lotti SET ripiano_id = ? WHERE id = ?", (a_ripiano_id, l["id"]))
+            resto -= res
+        else:
+            conn.execute("UPDATE cucina_lotti SET qta_residua = ? WHERE id = ?", (round(res - resto, 6), l["id"]))
+            conn.execute(
+                """
+                INSERT INTO cucina_lotti
+                    (articolo_id, ripiano_id, lotto_codice, data_arrivo, data_scadenza, data_apertura,
+                     qta_iniziale, qta_residua, stato, fornitore, ddt_ref, note, created_by)
+                SELECT articolo_id, ?, lotto_codice, data_arrivo, data_scadenza, data_apertura,
+                       ?, ?, stato, fornitore, ddt_ref, note, ?
+                  FROM cucina_lotti WHERE id = ?
+                """,
+                (a_ripiano_id, resto, resto, utente, l["id"]),
+            )
+            resto = 0
+    return {"esce": esce, "entra": entra}
 
 
 def ultimo_movimento(
@@ -647,10 +791,11 @@ def alert_scorte(conn: sqlite3.Connection, reparto: str = "cucina") -> Dict[str,
          WHERE l.stato IN ('CHIUSO','APERTO')
            AND l.data_scadenza IS NOT NULL
            AND a.reparto = ?
-           AND julianday(l.data_scadenza) - julianday('now','localtime') <= 5
+           AND julianday(l.data_scadenza) - julianday('now','localtime') <= ?
+           AND COALESCE(l.qta_residua, 1) > 0
          ORDER BY l.data_scadenza
         """,
-        (reparto,),
+        (reparto, config_int(conn, "scadenza_avviso_gg", 5)),
     ).fetchall()]
 
     aperti_da_troppo = [dict(r) for r in conn.execute(

@@ -6,6 +6,10 @@ import { ModuleNav } from "../../components/ui";
 
 const TABS = [
   { key: "cucina-dashboard", label: "Cucina", path: "/cucina/dashboard", icon: "🍳" },
+  // 2026-09-28: la sotto-app da telefono (Oggi/Scorte/Frigo/Spesa). Stava solo
+  // nel menu moduli in alto; Marco non la trovava nel menu della sezione.
+  // Stessa scelta di ViniNav con «Cantina mobile».
+  { key: "cucina-mobile", label: "Cucina iPhone", path: "/cucina/mobile", icon: "📱" },
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
   { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },

@@ -183,10 +183,26 @@ def _dotazione_ripiano(cur, ripiano_id: int, destinazione: Optional[str]) -> Lis
         """,
         (ripiano_id,),
     ).fetchall()
+    # La scadenza piu' vicina dei lotti su QUESTO ripiano: nel giro del
+    # congelatore si vede subito cosa va usato prima (2026-10-01).
+    scad = {r[0]: (r[1], r[2]) for r in cur.execute(
+        """
+        SELECT articolo_id, MIN(data_scadenza),
+               CAST(julianday(MIN(data_scadenza)) - julianday('now','localtime') AS INTEGER)
+          FROM cucina_lotti
+         WHERE ripiano_id = ? AND stato IN ('CHIUSO','APERTO')
+           AND COALESCE(qta_residua,0) > 0 AND data_scadenza IS NOT NULL
+         GROUP BY articolo_id
+        """,
+        (ripiano_id,),
+    ).fetchall()}
     out = []
     for r in righe:
         d = dict(r)
         d["fuori_posto"] = incompatibile(d.get("natura"), destinazione)
+        s = scad.get(d["articolo_id"])
+        d["prossima_scadenza"] = s[0] if s else None
+        d["giorni_scadenza"] = s[1] if s else None
         out.append(d)
     return out
 

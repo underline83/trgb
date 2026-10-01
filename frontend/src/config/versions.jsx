@@ -166,6 +166,13 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.4 (2026-10-01): congelatori. ↔ Sposta fra ripiani e fra frigo (due
+    //   movimenti TRASFERIMENTO legati, undo insieme, i lotti viaggiano con la
+    //   roba); il Carico chiede «congelato il / scade il» e crea un lotto
+    //   (scadenza proposta da config scadenza_congelato_gg = 180); scarichi e
+    //   rettifiche in meno consumano i lotti FIFO; ＋ Aggiungi su ogni ripiano
+    //   del giro (cerca prima fra gli esistenti); scadenza più vicina nel giro.
+    //   Famiglia freschezza CONGELATO (60 gg). Alert scadenze: soglia da config.
     // 1.3 (2026-09-28): si corregge dal telefono. Scheda articolo → ✏️ Modifica
     //   (nome, unità, confezione, regime, natura) e tap su una riga di «Dove si
     //   trova» → «quanti ce ne sono?» = RETTIFICA tracciata con qta_precedente.
@@ -188,7 +195,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.3",
+    version: "1.4",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

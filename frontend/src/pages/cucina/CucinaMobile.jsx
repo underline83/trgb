@@ -1,6 +1,8 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.1 — scheda articolo: ✏️ Modifica (nome/unità/confezione/regime/natura)
+// @version: v1.2 — congelatori: ↔ Sposta (anche fra frigo), date sul carico (lotto con
+//            «congelato il / scade il», FIFO), ＋ Aggiungi dal ripiano, scadenza nel giro (2026-10-01)
+// v1.1 — scheda articolo: ✏️ Modifica (nome/unità/confezione/regime/natura)
 //            + «correggi quantità» per ripiano (RETTIFICA tracciata) + ritorno al frigo (2026-09-28)
 // v1.0 — «Cucina da iPhone»: 4 tab Oggi / Scorte / Frigo / Spesa (2026-09-07)
 //
@@ -99,6 +101,62 @@ function scadenzaLabel(gg) {
   if (gg === 0) return { txt: "scade oggi", tone: "r" };
   if (gg === 1) return { txt: "scade domani", tone: "r" };
   return { txt: `scade tra ${gg} gg`, tone: "a" };
+}
+
+/** Date: ISO «2026-10-01» ↔ «01/10/26». */
+function oggiIso() {
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+function piuGiorni(iso, n) {
+  if (!iso || !n) return "";
+  const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + Number(n));
+  return d.toISOString().slice(0, 10);
+}
+function fmtData(iso) {
+  if (!iso) return "—";
+  const [y, m, g] = iso.slice(0, 10).split("-");
+  return `${g}/${m}/${y.slice(2)}`;
+}
+/** Dove la roba si CONGELA: lì il carico chiede la data e propone la scadenza. */
+const TIPI_GELO = ["FREEZER", "ABBATTITORE"];
+const eGelo = (tipo) => TIPI_GELO.includes((tipo || "").toUpperCase());
+
+/** Config del modulo (scadenza proposta ecc.): una sola chiamata per sessione. */
+let _cfgPromise = null;
+function useScorteConfig() {
+  const [cfg, setCfg] = useState(null);
+  useEffect(() => {
+    if (!_cfgPromise) {
+      _cfgPromise = apiFetch(`${API_BASE}/cucina/scorte/config/`)
+        .then((r) => (r.ok ? r.json() : { config: {} }))
+        .then((d) => d.config || {})
+        .catch(() => { _cfgPromise = null; return {}; });
+    }
+    _cfgPromise.then(setCfg);
+  }, []);
+  return cfg;
+}
+/** Scadenza proposta per un carico: solo nei congelatori, dalla config. */
+function scadenzaProposta(cfg, tipo, data) {
+  if (!eGelo(tipo)) return "";
+  return piuGiorni(data || oggiIso(), cfg?.scadenza_congelato_gg);
+}
+
+/** I due campi data di un carico. In congelatore «congelato il», altrove «arrivato il». */
+function CampiData({ gelo, data, scad, onChange }) {
+  return (
+    <div className="km-date">
+      <div>
+        <label>{gelo ? "Congelato il" : "Arrivato il"}</label>
+        <input type="date" value={data || ""} onChange={(e) => onChange({ data: e.target.value })} />
+      </div>
+      <div>
+        <label>Scade il{gelo ? "" : " (se c'è)"}</label>
+        <input type="date" value={scad || ""} onChange={(e) => onChange({ scad: e.target.value })} />
+      </div>
+    </div>
+  );
 }
 
 const CICLO = { OK: "ESAURIMENTO", ESAURIMENTO: "FINITO", FINITO: "OK" };
@@ -296,6 +354,17 @@ const STYLE = `
 .km-step{display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:12px;}
 .km-step button{width:52px;height:44px;border-radius:12px;border:1px solid var(--hair);background:#fff;
   font-size:20px;font-weight:700;cursor:pointer;}
+.km-date{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:2px 0 12px;}
+.km-date label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+.km-date input{width:100%;padding:10px 11px;border-radius:11px;border:1px solid var(--hair);background:#fff;
+  font-size:16px;margin-top:3px;}
+.km-add{margin-left:8px;background:#fff;border:1px solid var(--hair);border-radius:9px;padding:4px 10px;
+  font-size:12.5px;font-weight:700;color:var(--red);cursor:pointer;}
+.km-res{display:flex;flex-direction:column;gap:6px;margin:8px 0 4px;}
+.km-res button{text-align:left;padding:11px 13px;border-radius:11px;border:1px solid var(--hair);background:#fff;
+  font-size:14.5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;}
+.km-res button.on{border-color:var(--red);background:var(--red50);}
+.km-res .m{font-size:12px;color:var(--muted);}
 .km-pills.wrap{flex-wrap:wrap;overflow:visible;padding-top:4px;}
 .km-in{width:100%;padding:12px 14px;border-radius:11px;border:1px solid var(--hair);background:#fff;
   font-size:16px;margin:4px 0 2px;}
@@ -384,6 +453,8 @@ function Pallino({ stato, disabled, onClick }) {
 
 /** Riga articolo dentro un ripiano o in elenco. */
 function RigaArticolo({ a, canWrite, onTap, onApri }) {
+  const cfg = useScorteConfig();
+  const avvisoGg = num(cfg?.scadenza_avviso_gg ?? 5);
   const stato = a.stato_semaforo || "OK";
   const sd = a.stato_dato;
   const cls = ["km-art", stato === "FINITO" ? "finito" : "", a.fuori_posto ? "allarme" : ""]
@@ -400,6 +471,12 @@ function RigaArticolo({ a, canWrite, onTap, onApri }) {
           {sd?.stato === "DA_VERIFICARE" && <Chip tone="v">fermo da {sd.giorni} gg</Chip>}
           {a.regime === "MOVIMENTI" && stato === "OK" && !a.fuori_posto && sd?.stato !== "DA_VERIFICARE"
             && <Chip tone="b">movimenti</Chip>}
+          {a.prossima_scadenza && (() => {
+            // Chip colorata solo dentro la finestra d'avviso (config scadenza_avviso_gg,
+            // la stessa dell'alert): oltre, la data e basta.
+            const sc = a.giorni_scadenza != null && a.giorni_scadenza <= avvisoGg ? scadenzaLabel(a.giorni_scadenza) : null;
+            return sc ? <Chip tone={sc.tone}>{sc.txt}</Chip> : <span>scade {fmtData(a.prossima_scadenza)}</span>;
+          })()}
           {a.confezione && <span>{a.confezione}</span>}
         </div>
       </div>
@@ -727,7 +804,10 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
   const [sheet, setSheet] = useState(null);   // {tipo, ripiano_id, val}
   const [mod, setMod] = useState(null);       // bozza anagrafica: {nome, um, confezione, regime, natura}
   const [corr, setCorr] = useState(null);     // {ripiano_id, dove, prima, val}
+  const [sposta, setSposta] = useState(null); // {da, qta, ubiId, a}
+  const [ubis, setUbis] = useState(null);     // posti per lo Sposta: [{id,nome,tipo,ripiani:[]}]
   const [busy, setBusy] = useState(false);
+  const cfg = useScorteConfig();
 
   const load = useCallback(async () => {
     try {
@@ -745,7 +825,48 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
     const casa = (a.posti || []).find((p) => p.e_casa) || (a.posti || [])[0];
     const suggerita = tipo === "SCARICO" ? a.azioni_rapide?.scarico
                     : tipo === "CARICO" ? a.azioni_rapide?.carico : null;
-    setSheet({ tipo, ripiano_id: casa?.ripiano_id, val: suggerita || 1 });
+    const data = oggiIso();
+    setSheet({
+      tipo, ripiano_id: casa?.ripiano_id, val: suggerita || 1,
+      data, scad: tipo === "CARICO" ? scadenzaProposta(cfg, casa?.tipo, data) : "",
+    });
+  }
+
+  async function apriSposta() {
+    const pieni = (a.posti || []).filter((p) => num(p.qta) > 0);
+    const da = (pieni.find((p) => p.e_casa) || pieni[0] || (a.posti || [])[0]);
+    setSposta({ da: da?.ripiano_id, qta: num(da?.qta) || 1, ubiId: null, a: null });
+    if (!ubis) {
+      try {
+        const res = await apiFetch(`${API_BASE}/cucina/ubicazioni/`);
+        const d = await res.json();
+        const lista = await Promise.all((d.ubicazioni || []).map(async (u) => {
+          const r = await apiFetch(`${API_BASE}/cucina/ubicazioni/${u.id}/ripiani`);
+          const rr = r.ok ? await r.json() : { ripiani: [] };
+          return { id: u.id, nome: u.nome, tipo: u.tipo, ripiani: rr.ripiani || [] };
+        }));
+        setUbis(lista);
+      } catch (e) { setErr(e.message); }
+    }
+  }
+
+  async function confermaSposta() {
+    if (!sposta || busy || !sposta.da || !sposta.a) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articolo_id: a.id, tipo: "TRASFERIMENTO", qta: num(sposta.qta),
+          ripiano_id: sposta.da, ripiano_dest_id: sposta.a,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      setSposta(null);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
   }
 
   async function conferma() {
@@ -758,6 +879,11 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
         body: JSON.stringify({
           articolo_id: a.id, ripiano_id: sheet.ripiano_id,
           tipo: sheet.tipo, qta: Number(sheet.val),
+          // Il lotto nasce solo se c'è una scadenza (o siamo in congelatore):
+          // un carico di sale senza date resta un carico e basta.
+          ...(sheet.tipo === "CARICO"
+              && (sheet.scad || eGelo((a.posti || []).find((p) => p.ripiano_id === sheet.ripiano_id)?.tipo))
+            ? { data_lotto: sheet.data || null, data_scadenza: sheet.scad || null } : {}),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -876,6 +1002,7 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
                   <span style={{ fontSize: 10, opacity: .55 }}>{fmtQta(a.azioni_rapide.carico)} {a.um}</span>}
               </button>
               <button onClick={() => apriSheet("SCARTO")}><span className="e">🗑️</span>Scarto</button>
+              <button onClick={apriSposta}><span className="e">↔️</span>Sposta</button>
             </div>
             <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: -3 }}>
               Le quantità sono quelle dell'ultima volta: un tap e via.
@@ -924,9 +1051,10 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
                     <div>
                       <div className="t1">{l.lotto_codice || `Lotto #${l.id}`}{l.stato === "APERTO" ? " · aperto" : ""}</div>
                       <div className="t2">
-                        {l.data_arrivo && `arrivato ${l.data_arrivo}`}
-                        {sc && ` · ${sc.txt}`}
-                        {l.ripiano && ` · rip. ${l.ripiano}`}
+                        {l.data_arrivo && `dentro dal ${fmtData(l.data_arrivo)}`}
+                        {l.data_scadenza && ` · scade ${fmtData(l.data_scadenza)}`}
+                        {sc && (giorniA(l.data_scadenza) ?? 9999) <= num(cfg?.scadenza_avviso_gg ?? 5) && ` · ${sc.txt}`}
+                        {l.ubicazione && ` · ${l.ubicazione}`}{l.ripiano && ` rip. ${l.ripiano}`}
                       </div>
                     </div>
                     <div className="rq">{fmtQta(l.qta_residua)}</div>
@@ -987,16 +1115,78 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
                 {a.posti.map((p) => (
                   <button key={p.giacenza_id}
                           className={`km-pill${sheet.ripiano_id === p.ripiano_id ? " on" : ""}`}
-                          onClick={() => setSheet({ ...sheet, ripiano_id: p.ripiano_id })}>
+                          onClick={() => setSheet({
+                            ...sheet, ripiano_id: p.ripiano_id,
+                            scad: sheet.tipo === "CARICO" ? scadenzaProposta(cfg, p.tipo, sheet.data) : sheet.scad,
+                          })}>
                     {p.ubicazione} · {p.ripiano}
                   </button>
                 ))}
               </div>
             )}
+            {sheet.tipo === "CARICO" && (() => {
+              const gelo = eGelo((a.posti || []).find((p) => p.ripiano_id === sheet.ripiano_id)?.tipo);
+              return (
+                <CampiData gelo={gelo} data={sheet.data} scad={sheet.scad}
+                           onChange={(v) => setSheet({ ...sheet, ...v })} />
+              );
+            })()}
             <button className="km-btn" disabled={busy || num(sheet.val) <= 0} onClick={conferma}>
               {busy ? "Registro…" : `${sheet.tipo === "CARICO" ? "Carica" : sheet.tipo === "SCARTO" ? "Butta" : "Scarica"} ${fmtQta(num(sheet.val))} ${a.um}`}
             </button>
             <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={() => setSheet(null)}>Annulla</button>
+          </div>
+        </div>
+      )}
+
+      {sposta && (
+        <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setSposta(null); }}>
+          <div className="km-sheet-in">
+            <h3 className="km-serif">Sposta · {a.nome}</h3>
+
+            <div className="km-flbl">Da</div>
+            <div className="km-pills wrap">
+              {(a.posti || []).map((p) => (
+                <button key={p.giacenza_id} className={`km-pill${sposta.da === p.ripiano_id ? " on" : ""}`}
+                        onClick={() => setSposta({ ...sposta, da: p.ripiano_id, qta: num(p.qta) || sposta.qta })}>
+                  {p.ubicazione} · {p.ripiano} <span className="c">{fmtQta(p.qta)}</span>
+                </button>
+              ))}
+            </div>
+
+            <input className="km-num" type="number" inputMode="decimal" step="0.1" min="0"
+                   value={sposta.qta} onChange={(e) => setSposta({ ...sposta, qta: e.target.value })} />
+
+            <div className="km-flbl">A</div>
+            {!ubis && <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Carico i posti…</div>}
+            <div className="km-pills wrap">
+              {(ubis || []).map((u) => (
+                <button key={u.id} className={`km-pill${sposta.ubiId === u.id ? " on" : ""}`}
+                        onClick={() => setSposta({ ...sposta, ubiId: u.id, a: u.ripiani.length === 1 ? u.ripiani[0].id : null })}>
+                  {u.nome}
+                </button>
+              ))}
+            </div>
+            {sposta.ubiId && (
+              <div className="km-pills wrap" style={{ marginBottom: 12 }}>
+                {((ubis || []).find((u) => u.id === sposta.ubiId)?.ripiani || []).map((r) => (
+                  <button key={r.id} disabled={r.id === sposta.da}
+                          className={`km-pill${sposta.a === r.id ? " on" : ""}`}
+                          onClick={() => setSposta({ ...sposta, a: r.id })}>
+                    rip. {r.codice}{r.nome ? ` · ${r.nome}` : ""}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button className="km-btn" disabled={busy || !sposta.da || !sposta.a || num(sposta.qta) <= 0}
+                    onClick={confermaSposta}>
+              {busy ? "Sposto…" : `Sposta ${fmtQta(num(sposta.qta))} ${a.um}`}
+            </button>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+              Le date viaggiano con la roba: prima esce quella che scade prima.
+            </div>
+            <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={() => setSposta(null)}>Annulla</button>
           </div>
         </div>
       )}
@@ -1178,6 +1368,7 @@ function TabFrigo({ onCount, apri, modi }) {
 // ─────────────────────────────────────────────────────────────
 function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
   const [u, setU] = useState(null);
+  const [aggiungi, setAggiungi] = useState(null);   // il ripiano su cui aggiungere
   const [err, setErr] = useState(null);
   const [soloMancanti, setSoloMancanti] = useState(false);
 
@@ -1269,6 +1460,7 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
                 <div className="lb">{r.nome || `Ripiano ${r.codice}`}</div>
                 {r.destinazione && <span className={`km-dest ${r.destinazione}`}>{r.destinazione.toLowerCase()}</span>}
                 <div className="rest">{(r.dotazione || []).length} articoli</div>
+                {canWrite && <button className="km-add" onClick={() => setAggiungi(r)}>＋ Aggiungi</button>}
               </div>
               {righe.length === 0 && (
                 <div style={{ fontSize: 12.5, color: "var(--muted)", padding: "6px 2px" }}>
@@ -1286,7 +1478,164 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
         })}
       </div>
       <Toast testo={toast} onAnnulla={annulla} />
+      {aggiungi && (
+        <AggiungiSheet ubicazione={u} ripiano={aggiungi}
+                       onChiudi={() => setAggiungi(null)}
+                       onFatto={() => { setAggiungi(null); load(); }} />
+      )}
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ＋ Aggiungi su un ripiano — dal telefono, senza passare dal computer.
+// Prima cerca fra gli articoli che esistono già: «ragù» deve trovare il
+// Ragù di lepre, non creare un doppione. Solo se non c'è, lo crea.
+// In congelatore il nuovo articolo nasce a regime MOVIMENTI e famiglia
+// CONGELATO (decisione Marco 2026-10-01), e il carico chiede le date.
+// ─────────────────────────────────────────────────────────────
+function AggiungiSheet({ ubicazione, ripiano, onChiudi, onFatto }) {
+  const cfg = useScorteConfig();
+  const gelo = eGelo(ubicazione.tipo);
+  const [q, setQ] = useState("");
+  const [ris, setRis] = useState([]);
+  const [scelto, setScelto] = useState(null);     // articolo esistente
+  const [nuovo, setNuovo] = useState(false);
+  const [um, setUm] = useState("PZ");
+  const [confezione, setConfezione] = useState("");
+  const [qta, setQta] = useState("");
+  const [data, setData] = useState(oggiIso());
+  const [scad, setScad] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => { if (cfg && !scad) setScad(scadenzaProposta(cfg, ubicazione.tipo, data)); }, [cfg]); // eslint-disable-line
+
+  useEffect(() => {
+    const t = q.trim();
+    if (t.length < 2 || scelto) { setRis([]); return; }
+    const h = setTimeout(async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/cucina/scorte/articoli/?q=${encodeURIComponent(t)}&limit=8`);
+        const d = await res.json();
+        setRis((d.articoli || []).filter((x) => !(x.nome || "").startsWith("[DEMO]")));
+      } catch { setRis([]); }
+    }, 250);
+    return () => clearTimeout(h);
+  }, [q, scelto]);
+
+  const esatto = ris.some((x) => (x.nome || "").trim().toLowerCase() === q.trim().toLowerCase());
+  const pronto = scelto || (nuovo && q.trim());
+
+  async function salva() {
+    if (!pronto || busy) return;
+    setBusy(true); setErr(null);
+    const json = { "Content-Type": "application/json" };
+    try {
+      let artId = scelto?.id;
+      if (!artId) {
+        const res = await apiFetch(`${API_BASE}/cucina/scorte/articoli/`, {
+          method: "POST", headers: json,
+          body: JSON.stringify({
+            nome: q.trim(), um, confezione: confezione.trim() || null,
+            regime: gelo ? "MOVIMENTI" : "SEMAFORO",
+            famiglia_freschezza: gelo ? "CONGELATO" : "SECCO",
+            ripiano_casa_id: ripiano.id,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+        artId = (await res.json()).articolo.id;
+      } else {
+        const res = await apiFetch(`${API_BASE}/cucina/scorte/dotazione/`, {
+          method: "POST", headers: json,
+          body: JSON.stringify({ articolo_id: artId, ripiano_id: ripiano.id }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      }
+      if (num(qta) > 0) {
+        const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/`, {
+          method: "POST", headers: json,
+          body: JSON.stringify({
+            articolo_id: artId, ripiano_id: ripiano.id, tipo: "CARICO", qta: num(qta),
+            motivo: "aggiunto dal ripiano",
+            ...(gelo || scad ? { data_lotto: data || null, data_scadenza: scad || null } : {}),
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      }
+      onFatto();
+    } catch (e) { setErr(e.message); setBusy(false); }
+  }
+
+  return (
+    <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div className="km-sheet-in">
+        <h3 className="km-serif">Aggiungi · {ubicazione.nome} rip. {ripiano.codice}</h3>
+        {err && <div className="km-err" style={{ marginTop: 8 }}>{err}</div>}
+
+        <div className="km-flbl">Cosa metti?</div>
+        <input className="km-in" value={q} placeholder="es. ragù di lepre" autoFocus
+               onChange={(e) => { setQ(e.target.value); setScelto(null); setNuovo(false); }} />
+
+        {!scelto && (ris.length > 0 || (q.trim().length >= 2 && !esatto)) && (
+          <div className="km-res">
+            {ris.map((x) => (
+              <button key={x.id} onClick={() => { setScelto(x); setNuovo(false); setQ(x.nome); }}>
+                <span>{x.nome}</span>
+                <span className="m">{x.um}{x.giacenza != null ? ` · ${fmtQta(x.giacenza)} in casa` : ""}</span>
+              </button>
+            ))}
+            {q.trim().length >= 2 && !esatto && (
+              <button className={nuovo ? "on" : ""} onClick={() => setNuovo(true)}>
+                <span>＋ Nuovo: «{q.trim()}»</span><span className="m">non c'è ancora</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {pronto && (
+          <>
+            {nuovo && (
+              <>
+                <div className="km-flbl">Si conta in</div>
+                <div className="km-pills wrap">
+                  {UM_OPZ.map((x) => (
+                    <button key={x} className={`km-pill${um === x ? " on" : ""}`} onClick={() => setUm(x)}>
+                      {x.toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+                <div className="km-flbl">Confezione</div>
+                <input className="km-in" value={confezione} placeholder="vaschetta 500 g, sacchetto…"
+                       onChange={(e) => setConfezione(e.target.value)} />
+              </>
+            )}
+
+            <div className="km-flbl">Quanti ne metti? <span style={{ textTransform: "none", fontWeight: 500 }}>(vuoto = solo «sta qui»)</span></div>
+            <input className="km-num" type="number" inputMode="decimal" step="0.1" min="0"
+                   value={qta} onChange={(e) => setQta(e.target.value)} />
+
+            {num(qta) > 0 && (
+              <CampiData gelo={gelo} data={data} scad={scad}
+                         onChange={(v) => {
+                           if (v.data !== undefined) {
+                             setData(v.data);
+                             if (gelo) setScad(scadenzaProposta(cfg, ubicazione.tipo, v.data));
+                           }
+                           if (v.scad !== undefined) setScad(v.scad);
+                         }} />
+            )}
+          </>
+        )}
+
+        <button className="km-btn" disabled={busy || !pronto} onClick={salva}>
+          {busy ? "Salvo…" : num(qta) > 0
+            ? `Metti ${fmtQta(num(qta))} ${scelto?.um || um} su rip. ${ripiano.codice}`
+            : `Metti su rip. ${ripiano.codice}`}
+        </button>
+        <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={onChiudi}>Annulla</button>
+      </div>
+    </div>
   );
 }
 

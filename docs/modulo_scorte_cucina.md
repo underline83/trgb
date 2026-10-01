@@ -441,6 +441,25 @@ Il giro è: **Frigo → posto → tocco il nome dell'articolo → scheda**. Dall
 
 ---
 
+# 9-quinquies. Congelatori: spostare, date, aggiungere (2026-10-01)
+
+Deciso con Marco: date e scadenze subito, **180 giorni** di scadenza proposta quando si congela, gli articoli dei congelatori a regime **movimenti**.
+
+| Gesto | Dove | Cosa succede |
+|---|---|---|
+| **↔ Sposta** | scheda articolo (regime movimenti) | scegli da quale ripiano, quanti, verso quale posto e ripiano. Due movimenti `TRASFERIMENTO` legati (`ref_modulo='trasferimento'`, `ref_id` = l'altra gamba): l'undo li annulla insieme. Rifiuta se sul ripiano di partenza ce ne sono meno. I lotti si spostano FIFO; se se ne sposta una parte il lotto si divide e tiene le sue date |
+| **Carico con date** | scheda articolo → Carico | in congelatore/abbattitore chiede «congelato il» (oggi) e «scade il» (oggi + `scadenza_congelato_gg`): nasce un lotto. Altrove «scade il» è facoltativo: senza, è un carico e basta |
+| **＋ Aggiungi** | giro del frigo, su ogni ripiano | «cosa metti?» cerca fra gli articoli esistenti (niente doppioni); se non c'è, «＋ Nuovo». Nuovo in congelatore = regime `MOVIMENTI`, famiglia `CONGELATO`. Quantità facoltativa (vuota = «sta qui»), con le date come sopra |
+| **scadenza nel giro** | righe del ripiano | la scadenza più vicina dei lotti su quel ripiano; chip colorata se dentro `scadenza_avviso_gg` |
+
+**Lotti FIFO.** `SCARICO`, `SCARTO` e `RETTIFICA` in meno consumano i lotti del ripiano partendo da quello che scade prima. Roba caricata senza date non ha lotto: si scarica e basta. **Limite noto:** annullare un movimento rimette la giacenza ma non i lotti.
+
+**Permessi.** Creare un articolo (`POST /articoli/`) e metterlo in dotazione (`POST /dotazione/`) passano alla brigata (Marco: «le modifiche le fanno tutti»). Togliere dalla dotazione, disattivare, incolla-testo restano admin/chef.
+
+**Config nuove** (`cucina_scorte_config`, default in `CONFIG_DEFAULT`, nessuna migrazione): `scadenza_congelato_gg` = 180 · `freschezza_congelato_gg` = 60 (famiglia `CONGELATO`: oltre, la giacenza diventa «≈») · `scadenza_avviso_gg` = 5 (prima era un 5 scritto nella query dell'alert).
+
+---
+
 # 9-bis. Come si prova (2026-09-07)
 
 A DB vuoto le schermate «Scorte» e «Frigo» non hanno niente da mostrare, quindi il modulo non è giudicabile. `scripts/seed_cucina_demo.py` crea un magazzino finto costruito apposta perché **ogni comportamento particolare si veda con gli occhi**, e lo cancella con un comando.

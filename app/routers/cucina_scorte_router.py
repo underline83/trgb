@@ -55,6 +55,9 @@ from app.services.cucina_scorte_service import (
     apri_conta,
     assicura_giacenza,
     chiudi_conta,
+    consuma_lotti,
+    crea_lotto,
+    trasferisci,
     chiudi_ripiano,
     foglio_ripiano,
     giacenza_totale,
@@ -156,6 +159,10 @@ class MovimentoIn(BaseModel):
     motivo: Optional[str] = Field(default=None, max_length=300)
     lotto_id: Optional[int] = None
     ripiano_dest_id: Optional[int] = None
+    # Solo sui CARICO: se c'e' almeno una delle due date nasce un lotto.
+    # data_lotto = quando e' entrato (congelato il / arrivato il).
+    data_lotto: Optional[str] = None
+    data_scadenza: Optional[str] = None
 
 
 class ContaIn(BaseModel):
@@ -376,7 +383,8 @@ def get_articolo(articolo_id: int):
 
 @router.post("/articoli/", status_code=201)
 def create_articolo(payload: ArticoloIn, current_user=Depends(get_current_user)):
-    verifica_ruoli(current_user, *GESTIONE, cosa="creare un articolo di magazzino")
+    # Marco 2026-10-01: aggiungere al volo una cosa nuova su un ripiano lo fa
+    # chi la sta mettendo in frigo. Basta la guardia di router (la brigata).
     d = _normalizza_articolo(payload.dict())
     d["nome"] = d["nome"].strip()
     d["created_by"] = _utente(current_user)
@@ -491,7 +499,7 @@ def metti_in_dotazione(payload: DotazioneIn, current_user=Depends(get_current_us
     La riga nasce a quantita' NULL e resta viva anche quando l'articolo finisce:
     e' cosi' che il giro del frigo mostra i buchi invece di nasconderli.
     """
-    verifica_ruoli(current_user, *GESTIONE, cosa="modificare la dotazione di un ripiano")
+    # Mettere in dotazione: la brigata (Marco 2026-10-01). Togliere resta GESTIONE.
     conn = get_foodcost_connection()
     try:
         cur = conn.cursor()
@@ -683,31 +691,51 @@ def post_movimento(payload: MovimentoIn, current_user=Depends(get_current_user))
     `SCARICO` e `SCARTO` tolgono, `CARICO` aggiunge, `RETTIFICA` porta il delta
     cosi' com'e'. Cosi' un client non puo' sbagliare segno e caricare quando
     voleva scaricare.
+
+    `TRASFERIMENTO` (2026-10-01) vuole `ripiano_id` (da) e `ripiano_dest_id`
+    (a): scrive due movimenti legati e sposta i lotti con la roba.
+    Lotti: un `CARICO` con `data_lotto` o `data_scadenza` crea un lotto;
+    `SCARICO`/`SCARTO` e le rettifiche in meno li consumano FIFO.
     """
     tipo = _v(lambda: valida(payload.tipo, TIPI_MOVIMENTO, "tipo"))
     qta = abs(float(payload.qta))
     delta = -qta if tipo in ("SCARICO", "SCARTO") else qta
     if tipo == "RETTIFICA":
         delta = float(payload.qta)
+    utente = _utente(current_user)
 
     conn = get_foodcost_connection()
     try:
         cur = conn.cursor()
         _get_articolo(cur, payload.articolo_id)
         try:
+            if tipo == "TRASFERIMENTO":
+                if not payload.ripiano_id or not payload.ripiano_dest_id:
+                    raise ValueError("per spostare servono il ripiano di partenza e quello di arrivo")
+                res = trasferisci(conn, payload.articolo_id, payload.ripiano_id,
+                                  payload.ripiano_dest_id, qta, utente, motivo=payload.motivo)
+                conn.commit()
+                return {"ok": True, "movimento": res["esce"], "trasferimento": res}
+
             res = registra_movimento(
                 conn,
                 articolo_id=payload.articolo_id,
                 ripiano_id=payload.ripiano_id,
                 tipo=tipo,
                 qta_delta=delta,
-                utente=_utente(current_user),
+                utente=utente,
                 qta_precedente=payload.qta_precedente,
                 motivo=payload.motivo,
                 origine=ORIGINE_MOBILE,
                 lotto_id=payload.lotto_id,
                 ripiano_dest_id=payload.ripiano_dest_id,
             )
+            if tipo == "CARICO" and (payload.data_lotto or payload.data_scadenza):
+                res["lotto_id"] = crea_lotto(conn, payload.articolo_id, payload.ripiano_id, qta,
+                                             utente, data_arrivo=payload.data_lotto,
+                                             data_scadenza=payload.data_scadenza)
+            elif delta < 0:
+                res["lotti"] = consuma_lotti(conn, payload.articolo_id, payload.ripiano_id, -delta)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         conn.commit()

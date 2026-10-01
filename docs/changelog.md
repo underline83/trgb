@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-10-01 — Scorte cucina: congelatori con date, spostamenti e aggiunte dal telefono `[core]`
+
+Tre cose nuove nella Cucina da iPhone:
+
+- **↔ Sposta**: dalla scheda di un articolo lo sposti su un altro ripiano, anche di un altro frigo o congelatore. Scegli da dove, quanti e dove; la storia mostra lo spostamento e l'Annulla lo disfa tutto insieme.
+- **Date e scadenze**: quando carichi qualcosa in congelatore, l'app chiede «congelato il» (oggi) e propone «scade il» a **180 giorni**, che puoi cambiare. Nel giro del congelatore ogni riga mostra la scadenza più vicina, colorata quando mancano 5 giorni o meno. Quando usi o butti qualcosa, esce per prima la roba che scade prima.
+- **＋ Aggiungi** su ogni ripiano: scrivi cosa metti, l'app cerca prima fra gli articoli che ci sono già (niente doppioni), altrimenti lo crea. Puoi mettere subito la quantità e le date.
+
+Creare articoli e metterli su un ripiano ora lo può fare tutta la brigata. Togliere un articolo da un ripiano o disattivarlo resta ad admin e oste/cuoco.
+
+---
+
 ## 2026-09-28 — Scorte cucina: si corregge dal telefono `[core]`
 
 Aprendo un congelatore dall'iPhone (Cucina → Frigo) si vedevano gli articoli ma non si poteva sistemare niente. Adesso, toccando il nome di un articolo:
@@ -16,6 +28,8 @@ Le modifiche le può fare tutta la brigata (admin, chef, sous chef, commis). Dis
 **Menu in alto su iPhone.** Il menu a tendina dei moduli (quello al centro dell'intestazione) su iPhone non si riusciva a usare: all'apertura metteva il cursore nella ricerca, si apriva la tastiera sopra la lista e Safari zoomava sul campo. Ora su telefono la ricerca non si attiva da sola (la tastiera esce solo se tocchi il campo, e senza zoom), e il menu è largo quanto lo schermo, agganciato sotto l'intestazione. Su computer non cambia niente.
 
 **Menu delle sezioni su iPhone.** La fila di voci sotto l'intestazione (Vini: Dashboard, Cantina, Ordini…; Dipendenti, Controllo Gestione, Banca, Clienti e le altre) su telefono finiva fuori dallo schermo e le ultime voci non si raggiungevano. Ora sul telefono c'è un solo pulsante con la voce in cui sei («🍷 Cantina ▾»): toccandolo si apre dal basso l'elenco completo, con voci grandi. Su computer e iPad la fila resta com'era (e se non ci sta, scorre di lato). Vale per 11 sezioni; il Task Manager aveva già la sua barra in basso e non cambia.
+
+Nel menu della sezione **Gestione Cucina** c'è ora la voce **📱 Cucina iPhone**, che porta alla sotto-app da telefono (prima si trovava solo nel menu in alto).
 
 Caricati in produzione (dall'app, non da codice) i due congelatori reali: **Congelatore 1** e **Congelatore 2**, 6 ripiani ciascuno, freezer −25/−18 °C, 59 articoli dall'inventario cartaceo.
 

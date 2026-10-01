@@ -98,7 +98,7 @@ COMPATIBILITA = {
 
 # Famiglia di conservazione: decide quale default di freschezza si applica
 # quando l'articolo non ne dichiara uno suo (doc §3.1).
-FAMIGLIE_FRESCHEZZA = {"FRESCO", "SECCO"}
+FAMIGLIE_FRESCHEZZA = {"FRESCO", "SECCO", "CONGELATO"}
 
 # Unita' di misura: lista chiusa, perche' la conta va valorizzata. Il modo in cui
 # la roba si dice davvero in cucina («una cassetta») vive nel campo libero
@@ -139,6 +139,15 @@ CONFIG_DEFAULT: Dict[str, str] = {
     # in servizio e' il modo piu' rapido per far smettere la gente di usare
     # l'app. Se un giorno l'ASL pretende il blocco, si gira questa chiave.
     "blocca_incompatibilita_ripiano": "0",
+    # Congelatori (Marco 2026-10-01). Scadenza proposta quando si congela una
+    # preparazione: si cambia pezzo per pezzo, questo e' solo il precompilato.
+    "scadenza_congelato_gg": "180",
+    # Famiglia CONGELATO: in congelatore la roba sta ferma per settimane per
+    # definizione, il «≈ da verificare» dopo 21 gg del secco sarebbe rumore.
+    "freschezza_congelato_gg": "60",
+    # Da quanti giorni prima della scadenza un lotto diventa un avviso (alert
+    # M.F e chip colorata nel giro). Era un 5 scritto nella query: ora sta qui.
+    "scadenza_avviso_gg": "5",
 }
 
 
