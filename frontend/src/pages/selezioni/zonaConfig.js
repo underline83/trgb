@@ -13,6 +13,10 @@
 //   { ..., textarea: true }      → textarea
 //   { ..., options: [...] }      → select con elenco fisso (es. paese formaggi)
 
+// Flag opzionali di zona:
+//   ordineServizio: true   → campi posizione / ruolo (base|alternativa) / sostituisce
+//   linkIngrediente: true  → collegamento a un ingrediente Food cost (IngredientPicker)
+
 export const ZONA_CONFIG = {
   macellaio: {
     key: "macellaio",
@@ -68,6 +72,10 @@ export const ZONA_CONFIG = {
     // Raggruppamento gerarchico in tabella: prima per paese (categoria madre),
     // poi per categoria latte (figli condivisi tra paesi).
     raggruppaPer: { campo: "paese", label: "Paese", emojiMap: { "Italia": "🇮🇹", "Francia": "🇫🇷" } },
+    // mig 177: ordine di servizio (posizione) + base/alternativa ("sostituisce il posto di…")
+    ordineServizio: true,
+    // mig 177: collegamento opzionale a un ingrediente del Food cost (costo visibile solo a cucina/admin)
+    linkIngrediente: true,
     campiExtra: [
       { name: "paese",        label: "Paese",        placeholder: "Italia / Francia / altro",
         options: [

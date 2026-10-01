@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-10-01 — Formaggi: ordine di servizio, alternative e collegamento all'ingrediente `[core]`
+
+Nella zona Formaggi di Selezioni del Giorno:
+
+- **Posizione di servizio**: ogni formaggio ha il suo numero, dal più delicato al più intenso. La lista segue quell'ordine, divisa per Italia e Francia.
+- **Base e alternative**: un formaggio può essere «alternativa» di un altro. In elenco compare rientrato sotto il suo posto («↳ alternativa a Gorgonzola DOP piccante») e di solito sta in archivio, pronto da riattivare quando sostituisce il base.
+- **Ingrediente Food cost**: dal form si collega un formaggio al suo ingrediente; da lì arriva il costo al kg, visibile solo a cucina e admin. Si collega quando arriva la prima fattura del fornitore.
+- Nuove categorie: Crosta fiorita, Crosta lavata, Semistagionati.
+
+Caricati (dopo il push, con lo script di import) 7 formaggi francesi e 11 orobici con racconto e gusto per la sala; tolti i 4 vecchi formaggi di prova (Bagoss, Fontina, Formagella, Pecorino di Pienza).
+
+---
+
 ## 2026-10-01 — Scorte cucina: congelatori con date, spostamenti e aggiunte dal telefono `[core]`
 
 Tre cose nuove nella Cucina da iPhone:

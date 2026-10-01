@@ -3,7 +3,8 @@
 # Scelta dei Formaggi — formaggi disponibili alla vendita
 # ============================================================
 
-# @version: v1.1-formaggi — attivo/archiviato (mig 093)
+# @version: v1.2-formaggi — posizione/ruolo/alternativa + link ingrediente (mig 177)
+# Modulo: cucina (selezioni) — [core]
 # -*- coding: utf-8 -*-
 """
 Endpoints modulo "Scelta dei Formaggi"
@@ -18,6 +19,16 @@ Tabelle (foodcost.db):
   - formaggi_config      (mig 092)
 
 Endpoints: come /salumi ma sotto /formaggi.
+
+v1.2 (mig 177, 2026-10-01):
+  - `posizione`         ordine di servizio (piu' delicato → piu' intenso); la
+                        lista ordina per posizione, poi base prima delle alternative.
+  - `ruolo`             'base' | 'alternativa'
+  - `alternativa_di_id` per le alternative: il formaggio base che sostituiscono.
+  - `ingredient_id`     link opzionale a `ingredients` (modulo ricette). Il costo
+                        corrente arriva dal servizio platform `prezzi_ingredienti`
+                        (regola 4: niente import dal router ricette) ed e' esposto
+                        solo a chi scrive le selezioni (admin/chef).
 """
 
 from __future__ import annotations
@@ -34,7 +45,8 @@ from app.services.auth_service import get_current_user
 
 logger = logging.getLogger("trgb.formaggi")
 
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import richiede_ruoli, ha_ruoli
+from app.services.prezzi_ingredienti import prezzo_corrente, finestra_giorni
 
 # PERMESSI (2026-09-01, M.G) — selezioni del giorno
 # Erano aperte a qualsiasi ruolo, cancellazioni comprese.
@@ -65,6 +77,11 @@ class TaglioIn(BaseModel):
     paese: Optional[str] = Field(default=None, max_length=60)
     descrizione: Optional[str] = None
     note: Optional[str] = None
+    # mig 177
+    posizione: Optional[int] = Field(default=None, ge=0, le=999)
+    ruolo: Optional[str] = Field(default="base", pattern="^(base|alternativa)$")
+    alternativa_di_id: Optional[int] = Field(default=None, ge=1)
+    ingredient_id: Optional[int] = Field(default=None, ge=1)
 
 
 class TaglioOut(BaseModel):
@@ -80,6 +97,16 @@ class TaglioOut(BaseModel):
     paese: Optional[str] = None
     descrizione: Optional[str] = None
     note: Optional[str]
+    # mig 177
+    posizione: Optional[int] = None
+    ruolo: Optional[str] = "base"
+    alternativa_di_id: Optional[int] = None
+    alternativa_di_nome: Optional[str] = None
+    ingredient_id: Optional[int] = None
+    ingrediente_nome: Optional[str] = None
+    ingrediente_unita: Optional[str] = None
+    # €/unita' base dell'ingrediente (mediana finestra foodcost). Solo admin/chef.
+    costo_corrente: Optional[float] = None
     attivo: bool = True
     archiviato_at: Optional[str] = None
     # Retrocompat: campi venduto/venduto_at restano nel DB ma la UI nuova usa attivo.
@@ -140,25 +167,100 @@ def _row_taglio(row) -> dict:
     # girata sul DB locale corrente.
     if "paese" not in d:
         d["paese"] = None
+    # mig 177: fallback difensivo
+    for k in ("posizione", "alternativa_di_id", "ingredient_id",
+              "alternativa_di_nome", "ingrediente_nome", "ingrediente_unita",
+              "costo_corrente"):
+        d.setdefault(k, None)
+    if not d.get("ruolo"):
+        d["ruolo"] = "base"
     return d
 
 
-def _has_paese_column(conn) -> bool:
-    """
-    Detect a runtime se la colonna paese esiste su formaggi_tagli (mig 107).
-    Pattern preventivo per evitare INSERT/UPDATE che falliscono se la mig
-    non è ancora stata applicata sul DB attuale.
-    """
+def _colonne(conn) -> set:
+    """Colonne presenti su formaggi_tagli (le mig 107/177 possono mancare in dev)."""
     try:
-        cols = conn.execute("PRAGMA table_info(formaggi_tagli)").fetchall()
-        for c in cols:
-            # PRAGMA table_info colonna 1 = name
-            name = c[1] if not isinstance(c, dict) else c.get("name")
-            if name == "paese":
-                return True
+        return {c[1] for c in conn.execute("PRAGMA table_info(formaggi_tagli)").fetchall()}
     except Exception:
-        pass
-    return False
+        return set()
+
+
+def _valori_taglio(data: "TaglioIn") -> dict:
+    ruolo = data.ruolo or "base"
+    return {
+        "nome": data.nome.strip(),
+        "categoria": _clean(data.categoria),
+        "grammatura_g": data.grammatura_g,
+        "prezzo_euro": data.prezzo_euro,
+        "produttore": _clean(data.produttore),
+        "stagionatura": _clean(data.stagionatura),
+        "latte": _clean(data.latte),
+        "territorio": _clean(data.territorio),
+        "paese": _clean(data.paese),
+        "descrizione": _clean(data.descrizione),
+        "note": _clean(data.note),
+        "posizione": data.posizione,
+        "ruolo": ruolo,
+        # Una base non sostituisce nessuno.
+        "alternativa_di_id": data.alternativa_di_id if ruolo == "alternativa" else None,
+        "ingredient_id": data.ingredient_id,
+    }
+
+
+def _valida_collegamenti(conn, valori: dict, taglio_id: Optional[int] = None):
+    """Controlla alternativa_di_id e ingredient_id prima di scrivere."""
+    if valori.get("ruolo") == "alternativa":
+        alt = valori.get("alternativa_di_id")
+        if not alt:
+            raise HTTPException(422, "Per un'alternativa indica quale formaggio base sostituisce")
+        if taglio_id is not None and alt == taglio_id:
+            raise HTTPException(422, "Un formaggio non puo' essere l'alternativa di se stesso")
+        r = conn.execute(
+            "SELECT id, COALESCE(ruolo, 'base') AS ruolo FROM formaggi_tagli WHERE id = ?", (alt,)
+        ).fetchone()
+        if not r:
+            raise HTTPException(422, "Il formaggio base indicato non esiste")
+        if r["ruolo"] != "base":
+            raise HTTPException(422, "Un'alternativa puo' sostituire solo un formaggio base")
+    ing = valori.get("ingredient_id")
+    if ing:
+        try:
+            r = conn.execute("SELECT id FROM ingredients WHERE id = ?", (ing,)).fetchone()
+        except Exception:
+            r = None
+        if not r:
+            raise HTTPException(422, "Ingrediente non trovato")
+
+
+def _arricchisci(conn, righe: list, con_costi: bool) -> list:
+    """Aggiunge nome del base sostituito, nome/unita' ingrediente e (se ammesso) costo."""
+    if not righe:
+        return righe
+    nomi = {r["id"]: r["nome"] for r in conn.execute("SELECT id, nome FROM formaggi_tagli").fetchall()}
+    ing_ids = sorted({d["ingredient_id"] for d in righe if d.get("ingredient_id")})
+    ing_meta = {}
+    if ing_ids:
+        try:
+            q = "SELECT id, name, default_unit FROM ingredients WHERE id IN (%s)" % ",".join("?" * len(ing_ids))
+            ing_meta = {r["id"]: (r["name"], r["default_unit"]) for r in conn.execute(q, ing_ids).fetchall()}
+        except Exception:
+            ing_meta = {}
+    cur = conn.cursor()
+    finestra = finestra_giorni(cur) if (con_costi and ing_ids) else None
+    for d in righe:
+        if d.get("alternativa_di_id"):
+            d["alternativa_di_nome"] = nomi.get(d["alternativa_di_id"])
+        meta = ing_meta.get(d.get("ingredient_id"))
+        if meta:
+            d["ingrediente_nome"], d["ingrediente_unita"] = meta
+            if con_costi:
+                d["costo_corrente"] = prezzo_corrente(cur, d["ingredient_id"], finestra)
+    return righe
+
+
+def _leggi_taglio(conn, taglio_id: int, con_costi: bool = True) -> dict:
+    row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+    return _arricchisci(conn, [_row_taglio(row)], con_costi)[0]
 
 
 def _row_categoria(row) -> dict:
@@ -212,7 +314,7 @@ def _clean(v: Optional[str]) -> Optional[str]:
 # ─────────────────────────────────────────────────────────
 
 @router.get("/", response_model=List[TaglioOut])
-def lista_tagli(stato: str = "attivi"):
+def lista_tagli(stato: str = "attivi", current_user: dict = Depends(get_current_user)):
     """
     Lista formaggi.
     ?stato=attivi       → in carta (default)
@@ -232,9 +334,18 @@ def lista_tagli(stato: str = "attivi"):
             base += " WHERE attivo = 1"
         elif stato_norm == "archiviati":
             base += " WHERE attivo = 0"
-        base += " ORDER BY attivo DESC, created_at DESC"
+        # Ordine di servizio (mig 177): posizione, poi la base prima delle sue
+        # alternative. Senza posizione in fondo, come prima (piu' recenti prima).
+        if "posizione" in _colonne(conn):
+            base += (" ORDER BY COALESCE(posizione, 9999),"
+                     " CASE WHEN ruolo = 'alternativa' THEN 1 ELSE 0 END,"
+                     " nome COLLATE NOCASE")
+        else:
+            base += " ORDER BY attivo DESC, created_at DESC"
         rows = conn.execute(base).fetchall()
-        return [_row_taglio(r) for r in rows]
+        # Il costo d'acquisto lo vede solo chi scrive le selezioni.
+        con_costi = ha_ruoli(current_user, "admin", "chef")
+        return _arricchisci(conn, [_row_taglio(r) for r in rows], con_costi)
     finally:
         conn.close()
 
@@ -245,40 +356,18 @@ def crea_taglio(data: TaglioIn):
     conn = get_cucina_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
-        if _has_paese_column(conn):
-            cur = conn.execute("""
-                INSERT INTO formaggi_tagli
-                  (nome, categoria, grammatura_g, prezzo_euro,
-                   produttore, stagionatura, latte, territorio, paese,
-                   descrizione, note, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
-                data.prezzo_euro,
-                _clean(data.produttore), _clean(data.stagionatura),
-                _clean(data.latte), _clean(data.territorio), _clean(data.paese),
-                _clean(data.descrizione), _clean(data.note),
-                now, now,
-            ))
-        else:
-            # Fallback se la mig 107 non è ancora stata applicata
-            cur = conn.execute("""
-                INSERT INTO formaggi_tagli
-                  (nome, categoria, grammatura_g, prezzo_euro,
-                   produttore, stagionatura, latte, territorio,
-                   descrizione, note, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
-                data.prezzo_euro,
-                _clean(data.produttore), _clean(data.stagionatura),
-                _clean(data.latte), _clean(data.territorio),
-                _clean(data.descrizione), _clean(data.note),
-                now, now,
-            ))
+        cols = _colonne(conn)
+        valori = {k: v for k, v in _valori_taglio(data).items() if k in cols}
+        _valida_collegamenti(conn, valori)
+        valori["created_at"] = now
+        valori["updated_at"] = now
+        nomi = list(valori.keys())
+        cur = conn.execute(
+            f"INSERT INTO formaggi_tagli ({', '.join(nomi)}) VALUES ({', '.join('?' * len(nomi))})",
+            [valori[k] for k in nomi],
+        )
         conn.commit()
-        row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (cur.lastrowid,)).fetchone()
-        return _row_taglio(row)
+        return _leggi_taglio(conn, cur.lastrowid)
     finally:
         conn.close()
 
@@ -292,39 +381,33 @@ def modifica_taglio(taglio_id: int, data: TaglioIn):
         if not existing:
             raise HTTPException(404, "Formaggio non trovato")
         now = datetime.now().isoformat(timespec="seconds")
-        if _has_paese_column(conn):
-            conn.execute("""
-                UPDATE formaggi_tagli
-                SET nome = ?, categoria = ?, grammatura_g = ?, prezzo_euro = ?,
-                    produttore = ?, stagionatura = ?, latte = ?, territorio = ?, paese = ?,
-                    descrizione = ?, note = ?, updated_at = ?
-                WHERE id = ?
-            """, (
-                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
-                data.prezzo_euro,
-                _clean(data.produttore), _clean(data.stagionatura),
-                _clean(data.latte), _clean(data.territorio), _clean(data.paese),
-                _clean(data.descrizione), _clean(data.note),
-                now, taglio_id,
-            ))
-        else:
-            conn.execute("""
-                UPDATE formaggi_tagli
-                SET nome = ?, categoria = ?, grammatura_g = ?, prezzo_euro = ?,
-                    produttore = ?, stagionatura = ?, latte = ?, territorio = ?,
-                    descrizione = ?, note = ?, updated_at = ?
-                WHERE id = ?
-            """, (
-                data.nome.strip(), _clean(data.categoria), data.grammatura_g,
-                data.prezzo_euro,
-                _clean(data.produttore), _clean(data.stagionatura),
-                _clean(data.latte), _clean(data.territorio),
-                _clean(data.descrizione), _clean(data.note),
-                now, taglio_id,
-            ))
+        cols = _colonne(conn)
+        valori = {k: v for k, v in _valori_taglio(data).items() if k in cols}
+        # I campi della mig 177 si aggiornano solo se il client li manda: un
+        # form che non li conosce non deve azzerare ordine, ruolo e ingrediente.
+        inviati = data.model_fields_set
+        for k in ("posizione", "ingredient_id"):
+            if k not in inviati:
+                valori.pop(k, None)
+        if "ruolo" not in inviati:
+            valori.pop("ruolo", None)
+            valori.pop("alternativa_di_id", None)
+        _valida_collegamenti(conn, valori, taglio_id)
+        if valori.get("ruolo") == "alternativa":
+            # Se diventa alternativa, nessuno puo' piu' sostituire lui.
+            n = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM formaggi_tagli WHERE alternativa_di_id = ?", (taglio_id,)
+            ).fetchone()["cnt"] if "alternativa_di_id" in cols else 0
+            if n:
+                raise HTTPException(422, f"{n} alternative puntano a questo formaggio: non puo' diventare un'alternativa")
+        valori["updated_at"] = now
+        nomi = list(valori.keys())
+        conn.execute(
+            f"UPDATE formaggi_tagli SET {', '.join(f'{k} = ?' for k in nomi)} WHERE id = ?",
+            [valori[k] for k in nomi] + [taglio_id],
+        )
         conn.commit()
-        row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
-        return _row_taglio(row)
+        return _leggi_taglio(conn, taglio_id)
     finally:
         conn.close()
 
@@ -348,8 +431,7 @@ def toggle_attivo(taglio_id: int, body: TaglioAttivoToggle):
             WHERE id = ?
         """, (int(body.attivo), archiviato_at, now, taglio_id))
         conn.commit()
-        row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
-        return _row_taglio(row)
+        return _leggi_taglio(conn, taglio_id, con_costi=False)
     finally:
         conn.close()
 
@@ -378,8 +460,7 @@ def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
               int(body.venduto), (now if body.venduto else None),
               now, taglio_id))
         conn.commit()
-        row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
-        return _row_taglio(row)
+        return _leggi_taglio(conn, taglio_id, con_costi=False)
     finally:
         conn.close()
 
@@ -392,6 +473,12 @@ def elimina_taglio(taglio_id: int):
         existing = conn.execute("SELECT id FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
             raise HTTPException(404, "Formaggio non trovato")
+        if "alternativa_di_id" in _colonne(conn):
+            n = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM formaggi_tagli WHERE alternativa_di_id = ?", (taglio_id,)
+            ).fetchone()["cnt"]
+            if n:
+                raise HTTPException(409, f"{n} alternative sostituiscono questo formaggio: archivialo, oppure modifica prima le alternative")
         conn.execute("DELETE FROM formaggi_tagli WHERE id = ?", (taglio_id,))
         conn.commit()
     finally:

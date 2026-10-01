@@ -8,11 +8,25 @@ import { API_BASE, apiFetch } from "../../config/api";
 import { Btn } from "../../components/ui";
 import { ZONA_CONFIG } from "./zonaConfig";
 import { isCucinaWriterRole } from "../../utils/authHelpers";
+import IngredientPicker from "../ricette/IngredientPicker";
 
 function buildEmptyForm(cfg) {
   const base = { nome: "", categoria: "", grammatura_g: "", prezzo_euro: "", note: "" };
   for (const c of cfg.campiExtra || []) base[c.name] = "";
+  if (cfg.ordineServizio) Object.assign(base, { posizione: "", ruolo: "base", alternativa_di_id: "" });
+  if (cfg.linkIngrediente) base.ingredient_id = "";
   return base;
+}
+
+// Costo corrente dell'ingrediente collegato, in forma leggibile.
+// Il prezzo arriva per unita' base dell'ingrediente: g → mostrato al kg, ml → al litro.
+function formatCosto(costo, unita) {
+  if (costo == null) return null;
+  const u = (unita || "").toLowerCase();
+  const fmt = (v) => v.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (u === "g") return `€ ${fmt(costo * 1000)}/kg`;
+  if (u === "ml") return `€ ${fmt(costo * 1000)}/L`;
+  return `€ ${fmt(costo)}/${unita || "u"}`;
 }
 
 export default function ZonaPanel({ zona }) {
@@ -49,6 +63,10 @@ export default function ZonaPanel({ zona }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  // mig 177 — elenco completo (anche archiviati) per la tendina "Sostituisce"
+  const [tuttiTagli, setTuttiTagli] = useState([]);
+  // mig 177 — ingredienti Food cost per il collegamento (solo chi scrive)
+  const [ingredienti, setIngredienti] = useState([]);
 
   // ── Toast helper ──
   const flash = useCallback((msg, type = "ok") => {
@@ -89,6 +107,31 @@ export default function ZonaPanel({ zona }) {
   useEffect(() => { fetchTagli(); }, [fetchTagli]);
   useEffect(() => { fetchCategorie(); }, [fetchCategorie]);
 
+  // Con il form aperto: elenco completo per "Sostituisce" + ingredienti collegabili
+  useEffect(() => {
+    if (!showForm) return;
+    if (cfg.ordineServizio) {
+      apiFetch(`${API_BASE}${cfg.endpoint}/?stato=tutti`)
+        .then(r => (r.ok ? r.json() : []))
+        .then(setTuttiTagli)
+        .catch(() => setTuttiTagli([]));
+    }
+    if (cfg.linkIngrediente && puoModificare && ingredienti.length === 0) {
+      apiFetch(`${API_BASE}/foodcost/ingredients/`)
+        .then(r => (r.ok ? r.json() : []))
+        .then(setIngredienti)
+        .catch(() => setIngredienti([]));
+    }
+  }, [showForm, cfg.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Basi selezionabili come "sostituito": stesse del paese scelto (se c'e'), mai se stesso
+  const basiSostituibili = useMemo(() => {
+    if (!cfg.ordineServizio) return [];
+    return tuttiTagli
+      .filter(t => (t.ruolo || "base") === "base" && t.id !== editId)
+      .filter(t => !form.paese || !t.paese || t.paese === form.paese);
+  }, [tuttiTagli, editId, form.paese, cfg.ordineServizio]);
+
   // Preseleziona prima categoria in creazione
   useEffect(() => {
     if (!form.categoria && categorie.length > 0 && !editId) {
@@ -113,6 +156,19 @@ export default function ZonaPanel({ zona }) {
         const v = form[c.name];
         payload[c.name] = v && v.toString().trim() !== "" ? v : null;
       }
+      if (cfg.ordineServizio) {
+        payload.posizione = form.posizione !== "" ? parseInt(form.posizione) : null;
+        payload.ruolo = form.ruolo || "base";
+        payload.alternativa_di_id = payload.ruolo === "alternativa" && form.alternativa_di_id
+          ? parseInt(form.alternativa_di_id) : null;
+        if (payload.ruolo === "alternativa" && !payload.alternativa_di_id) {
+          setSaving(false);
+          return flash("Indica quale formaggio base sostituisce", "err");
+        }
+      }
+      if (cfg.linkIngrediente) {
+        payload.ingredient_id = form.ingredient_id ? parseInt(form.ingredient_id) : null;
+      }
       const url = editId ? `${API_BASE}${cfg.endpoint}/${editId}` : `${API_BASE}${cfg.endpoint}/`;
       const method = editId ? "PUT" : "POST";
       const res = await apiFetch(url, {
@@ -120,7 +176,11 @@ export default function ZonaPanel({ zona }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.detail) msg = typeof j.detail === "string" ? j.detail : msg; } catch { /* */ }
+        throw new Error(msg);
+      }
       flash(editId ? "Aggiornato" : "Creato");
       setForm(EMPTY_FORM);
       setEditId(null);
@@ -140,6 +200,7 @@ export default function ZonaPanel({ zona }) {
       if (t[k] !== undefined && t[k] !== null) next[k] = String(t[k]);
       else next[k] = "";
     }
+    if (cfg.ordineServizio && !next.ruolo) next.ruolo = "base";
     setForm(next);
     setEditId(t.id);
     setShowForm(true);
@@ -150,7 +211,11 @@ export default function ZonaPanel({ zona }) {
     if (!window.confirm("Eliminare?")) return;
     try {
       const res = await apiFetch(`${API_BASE}${cfg.endpoint}/${id}`, { method: "DELETE" });
-      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok && res.status !== 204) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (typeof j?.detail === "string") msg = j.detail; } catch { /* */ }
+        throw new Error(msg);
+      }
       flash("Eliminato");
       fetchTagli();
     } catch (e) {
@@ -327,6 +392,77 @@ export default function ZonaPanel({ zona }) {
               </label>
             ))}
 
+            {cfg.ordineServizio && (
+              <>
+                <label className="block">
+                  <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Posizione di servizio</span>
+                  <input
+                    type="number" min="0" max="999"
+                    value={form.posizione}
+                    placeholder="1 = il più delicato"
+                    onChange={e => setForm(f => ({ ...f, posizione: e.target.value }))}
+                    className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-blue focus:border-brand-blue"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Ruolo</span>
+                  <select
+                    value={form.ruolo || "base"}
+                    onChange={e => setForm(f => ({ ...f, ruolo: e.target.value, alternativa_di_id: e.target.value === "base" ? "" : f.alternativa_di_id }))}
+                    className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-brand-blue focus:border-brand-blue"
+                  >
+                    <option value="base">Base — nel tagliere standard</option>
+                    <option value="alternativa">Alternativa — sostituisce un base</option>
+                  </select>
+                </label>
+                {form.ruolo === "alternativa" && (
+                  <label className="block md:col-span-2">
+                    <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Sostituisce *</span>
+                    <select
+                      value={form.alternativa_di_id || ""}
+                      onChange={e => {
+                        const id = e.target.value;
+                        const b = tuttiTagli.find(t => String(t.id) === id);
+                        // Prende il posto del base: se la posizione e' vuota, eredita la sua
+                        setForm(f => ({ ...f, alternativa_di_id: id, posizione: f.posizione === "" && b?.posizione != null ? String(b.posizione) : f.posizione }));
+                      }}
+                      className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-brand-blue focus:border-brand-blue"
+                    >
+                      <option value="">— scegli il formaggio base —</option>
+                      {basiSostituibili.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.posizione != null ? `${b.posizione}. ` : ""}{b.nome}{b.paese ? ` (${b.paese})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </>
+            )}
+
+            {cfg.linkIngrediente && puoModificare && (
+              <div className="block md:col-span-2">
+                <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Ingrediente Food cost</span>
+                <div className="mt-1 flex items-center gap-2">
+                  <div className="flex-1">
+                    <IngredientPicker
+                      ingredienti={ingredienti}
+                      value={form.ingredient_id}
+                      onChange={(id) => setForm(f => ({ ...f, ingredient_id: String(id) }))}
+                    />
+                  </div>
+                  {form.ingredient_id && (
+                    <Btn variant="secondary" size="sm" type="button" onClick={() => setForm(f => ({ ...f, ingredient_id: "" }))}>
+                      Scollega
+                    </Btn>
+                  )}
+                </div>
+                <p className="text-[11px] text-neutral-500 mt-1">
+                  Facoltativo. Si collega quando l'ingrediente esiste (di solito all'arrivo della prima fattura): da lì arriva il costo al kg.
+                </p>
+              </div>
+            )}
+
             <label className="block md:col-span-2">
               <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Note</span>
               <input
@@ -366,8 +502,24 @@ export default function ZonaPanel({ zona }) {
           const archiv = isArchiviato(t);
           return (
             <tr key={t.id} className={archiv ? "bg-neutral-50 opacity-70" : ""}>
-              <td className="px-3 py-2 font-medium text-neutral-800">
+              <td className={`px-3 py-2 font-medium text-neutral-800 ${cfg.ordineServizio && t.ruolo === "alternativa" ? "pl-8" : ""}`}>
+                {cfg.ordineServizio && t.posizione != null && t.ruolo !== "alternativa" && (
+                  <span className="inline-block mr-1.5 text-[11px] font-mono text-neutral-400">{t.posizione}.</span>
+                )}
                 {t.nome}
+                {cfg.ordineServizio && t.ruolo === "alternativa" && (
+                  <div className="text-[11px] font-normal text-amber-700 mt-0.5">
+                    ↳ alternativa{t.alternativa_di_nome ? ` a ${t.alternativa_di_nome}` : ""}
+                  </div>
+                )}
+                {cfg.linkIngrediente && puoModificare && t.ingredient_id && (
+                  <div className="text-[11px] font-normal text-neutral-500 mt-0.5">
+                    🔗 {t.ingrediente_nome || `ingrediente #${t.ingredient_id}`}
+                    {formatCosto(t.costo_corrente, t.ingrediente_unita) && (
+                      <span className="ml-1 font-mono">· {formatCosto(t.costo_corrente, t.ingrediente_unita)}</span>
+                    )}
+                  </div>
+                )}
                 {t.descrizione && (
                   <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">{t.descrizione}</div>
                 )}
