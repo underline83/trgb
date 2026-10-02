@@ -69,7 +69,10 @@ export default function ControlloGestioneUscite() {
   // + Spostato + Verificare. Lo Scadenzario apre la vista "cose da gestire del
   // mese" — senza i PAGATO (rumore, le vedi solo se le cerchi) e includendo
   // SPOSTATO (rinegoziati G.7) e VERIFICARE (dubbi pagamento, audit).
-  const [filtroStato, setFiltroStato] = useState(() => new Set(["PROGRAMMATO", "SCADUTO", "SPOSTATO", "VERIFICARE"]));
+  // 2026-10-02: + PARZIALE — un'uscita pagata in parte ha ancora un residuo
+  // da pagare (es. stipendio diviso in due con saldo a scadenza): è APERTA
+  // (G.8) e nascosta di default spariva dallo scadenzario.
+  const [filtroStato, setFiltroStato] = useState(() => new Set(["PROGRAMMATO", "SCADUTO", "SPOSTATO", "VERIFICARE", "PARZIALE"]));
   const [filtroTipo, setFiltroTipo] = useState(""); // FATTURA | SPESA_FISSA | ""
   // v3.1: DEFAULT periodo = mese corrente (primo giorno → ultimo giorno).
   // Stesso vantaggio: chi apre la pagina ha già la vista "mese" come in Excel.
@@ -252,8 +255,12 @@ export default function ControlloGestioneUscite() {
 
   // ── KPI calcolati sui filtrati ──
   const kpi = useMemo(() => {
-    const dp = filtered.filter(u => u.stato === "PROGRAMMATO");
-    const sc = filtered.filter(u => u.stato === "SCADUTO");
+    // PARZIALE: il residuo conta come "da pagare" o "scaduto" in base alla
+    // scadenza (la quota già pagata resta nel KPI "Pagato").
+    const oggi = new Date().toISOString().slice(0, 10);
+    const parzScaduta = u => u.stato === "PARZIALE" && u.data_scadenza && u.data_scadenza < oggi;
+    const dp = filtered.filter(u => u.stato === "PROGRAMMATO" || (u.stato === "PARZIALE" && !parzScaduta(u)));
+    const sc = filtered.filter(u => u.stato === "SCADUTO" || parzScaduta(u));
     // KPI "Pagato": include PARZIALE (è "in pagamento", non da programmare).
     // Usa costante STATI_PAGATO_KPI da utils/statoPagamento (vs isChiuso che
     // esclude PARZIALE perché PARZIALE è APERTO nella tassonomia G.8).
