@@ -261,7 +261,7 @@ async def upload_estratto_pdf(
                     mov.data_registrazione,      # data_valuta    = data registrazione
                     banca_tag,                   # es. CARTA_BPM_623
                     result.carta.codice_posizione,  # rapporto
-                    -abs(mov.importo),           # importo NEGATIVO (è uscita)
+                    -mov.importo,                # spesa → negativo; storno ("16,44-") → positivo
                     "EUR",
                     mov.descrizione,
                     "CARTA_CREDITO",             # categoria base; futuro: auto-detect via MCC
@@ -400,7 +400,7 @@ def get_estratto(estratto_id: int, current_user: dict = Depends(get_current_user
         movs = conn.execute(
             """SELECT m.id, m.data_contabile AS data_operazione,
                       m.data_valuta AS data_registrazione,
-                      ABS(m.importo) AS importo,
+                      -m.importo AS importo,     -- spesa positiva, storno negativo
                       m.descrizione, m.categoria_banca,
                       m.carta_codice_riferimento, m.carta_mcc,
                       m.valuta_estera, m.importo_estero, m.cambio_valuta,
@@ -932,7 +932,7 @@ def riepilogo_mensile(
 
         sql = f"""
             SELECT strftime('%Y-%m', m.data_contabile) AS mese,
-                   m.carta_mcc, ABS(m.importo) AS imp
+                   m.carta_mcc, -m.importo AS imp   -- storni sottraggono
             FROM banca_movimenti m
             WHERE {' AND '.join(where)}
         """

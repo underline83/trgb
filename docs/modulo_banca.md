@@ -4,7 +4,7 @@
 > **Vedi anche:** [modulo_controllo_gestione.md](modulo_controllo_gestione.md), [spec_riconciliazione.md](spec_riconciliazione.md), [stato_pagamento_unificato.md](stato_pagamento_unificato.md), [modulo_vendite.md](modulo_vendite.md)
 
 **Nome utente:** "Flussi di Cassa" (rinominato da "Banca"; id modulo interno resta `banca`)
-**Versioni (`versions.jsx`):** flussiCassa **v1.20** (beta, `versions.jsx:104`) · cartaCredito **v1.8** (beta, `versions.jsx:211`)
+**Versioni (`versions.jsx`):** flussiCassa **v1.20** (beta, `versions.jsx:104`) · cartaCredito **v1.9** (beta, `versions.jsx:211`)
 **Sezione FE top-level:** `/flussi-cassa/*` — le vecchie route `/banca/*` sono redirect (`App.jsx:381-388`)
 **Backend prefix:** `/banca/*` (`banca_router.py`) + `/banca/carta/*` (`banca_carta_router.py`). **Non esiste** un prefix backend `/flussi-cassa/*`: i tab Contanti e Mance riusano endpoint `/admin/finance/*` e `/controllo-gestione/*` (vedi §8, §9)
 **DB:** `foodcost.db` (tabelle `banca_*`, `carte_credito`, `carta_*`, `cg_uscite`, `cg_entrate`) + `admin_finance.sqlite3` (contanti/mance, condiviso con Vendite/Cassa). Path tenant-aware via `locale_data_path()` → live in `locali/tregobbi/data/`
@@ -250,7 +250,7 @@ Sub-area completa end-to-end (sessioni CC 2026-06-02 → 2026-06-13). Pagine: `C
 
 **Convenzione storage:** i movimenti carta vivono in `banca_movimenti` con `banca = 'CARTA_<EMITT>_<ULT3>'` (es. `CARTA_BPM_623`), `rapporto = codice_posizione`, importo negativo, dedup naturale su `carta_codice_riferimento` (23 cifre BPM, UNIQUE). Esclusi dal saldo CC via `WHERE banca NOT LIKE 'CARTA_%'`. Decisione 2026-06-02: riuso di `banca_movimenti` invece di una tabella `carta_movimenti` (razionale nella docstring di mig 140).
 
-**Parser PDF** (`app/services/carta_pdf_parser.py`, dipendenza runtime `pdftotext`/poppler): estratto Banco BPM testuale; riga normale `[cod_rif 23] [mcc 8] [data_op] [data_reg] [descrizione] [importo]`; movimenti esteri su 2 righe con maggiorazioni circuito/cambio. Sanity check quadratura ai centesimi (totale movimenti e addebito CC): se non quadra l'upload risponde 422.
+**Parser PDF** (`app/services/carta_pdf_parser.py`, dipendenza runtime `pdftotext`/poppler): estratto Banco BPM testuale; riga normale `[cod_rif 23] [mcc 8, opzionale] [data_op] [data_reg] [descrizione] [importo][-]` (MCC assente sulle righe di sistema tipo QUOTA ANNUA; `-` finale = storno, salvato come importo positivo in `banca_movimenti`, escluso dall'automatch, sottratto nel riepilogo — fix 2026-10-02); movimenti esteri su 2 righe con maggiorazioni circuito/cambio. Sanity check quadratura ai centesimi (totale movimenti e addebito CC): se non quadra l'upload risponde 422.
 
 **Due livelli di riconciliazione** (service `app/services/carta_match_service.py`, settings singleton mig 141+142, default riga 56-66: tolleranza importo 0,50€, data 10gg, pesi 0.5/0.3/0.2, soglia auto 0.85; match B: 0,10€ / 3gg):
 

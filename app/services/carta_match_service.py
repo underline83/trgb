@@ -366,6 +366,7 @@ def automatch_dry_run(
     mov_rows = conn.execute(
         """SELECT id FROM banca_movimenti
            WHERE carta_estratto_id = ?
+             AND importo < 0   -- storni (importo > 0) non si abbinano a uscite
              AND id NOT IN (SELECT banca_movimento_id FROM cg_uscite WHERE banca_movimento_id IS NOT NULL)
            ORDER BY data_contabile, id""",
         (estratto_id,),

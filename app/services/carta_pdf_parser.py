@@ -59,14 +59,16 @@ _VAL = r"[A-Z]{3}"
 _DATA = r"\d{2}/\d{2}/\d{4}"
 
 # Riga movimento "normale" (solo EUR)
+# MCC opzionale: le righe di sistema (es. "QUOTA ANNUA") non lo hanno.
+# Importo con "-" finale = storno/accredito (es. "16,44-").
 RIGA_NORMALE = re.compile(
-    rf"^\s*(\d{{23}})\s+(\d{{8}})\s+({_DATA})\s+({_DATA})\s+(.+?)\s+({_IMP})\s*$"
+    rf"^\s*(\d{{23}})\s+(?:(\d{{8}})\s+)?({_DATA})\s+({_DATA})\s+(.+?)\s+({_IMP})(-?)\s*$"
 )
 
 # Riga movimento "estera" (valuta originale + cambio + importo in euro)
 RIGA_ESTERA = re.compile(
     rf"^\s*(\d{{23}})\s+(\d{{8}})\s+({_DATA})\s+({_DATA})\s+"
-    rf"(.+?)\s+({_IMP})\s+({_VAL})\s+({_CAMBIO})\s+({_IMP})\s*$"
+    rf"(.+?)\s+({_IMP})\s+({_VAL})\s+({_CAMBIO})\s+({_IMP})(-?)\s*$"
 )
 
 # Riga "MAGG. CIRCUITO ... MAGG. CAMBIO ..." che segue una riga estera
@@ -144,11 +146,11 @@ class EstrattoHeader:
 @dataclass
 class Movimento:
     codice_riferimento: str             # 23 cifre — dedup naturale
-    mcc: str                            # 8 cifre — merchant category code (interno BPM)
+    mcc: str                            # 8 cifre — merchant category code (interno BPM); "" per righe di sistema (QUOTA ANNUA)
     data_operazione: str                # ISO
     data_registrazione: str             # ISO
     descrizione: str
-    importo: float                      # sempre in EUR, positivo (è una spesa)
+    importo: float                      # EUR: positivo = spesa, negativo = storno/accredito ("16,44-")
     valuta_estera: Optional[str] = None
     importo_estero: Optional[float] = None
     cambio_valuta: Optional[float] = None
@@ -345,7 +347,7 @@ def _parse_movimenti(text: str) -> list[Movimento]:
                 data_operazione=_data_to_iso(m_est.group(3)),
                 data_registrazione=_data_to_iso(m_est.group(4)),
                 descrizione=m_est.group(5).strip(),
-                importo=_imp_to_float(m_est.group(9)),
+                importo=_imp_to_float(m_est.group(9)) * (-1 if m_est.group(10) else 1),
                 importo_estero=_imp_to_float(m_est.group(6)),
                 valuta_estera=m_est.group(7),
                 cambio_valuta=_imp_to_float(m_est.group(8)),
@@ -368,11 +370,11 @@ def _parse_movimenti(text: str) -> list[Movimento]:
         if m_norm:
             mov = Movimento(
                 codice_riferimento=m_norm.group(1),
-                mcc=m_norm.group(2),
+                mcc=m_norm.group(2) or "",
                 data_operazione=_data_to_iso(m_norm.group(3)),
                 data_registrazione=_data_to_iso(m_norm.group(4)),
                 descrizione=m_norm.group(5).strip(),
-                importo=_imp_to_float(m_norm.group(6)),
+                importo=_imp_to_float(m_norm.group(6)) * (-1 if m_norm.group(7) else 1),
             )
             movimenti.append(mov)
         i += 1

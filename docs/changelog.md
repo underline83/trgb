@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-10-02 — Carta di credito: estratti con quota annua e storni `[core]`
+
+Il caricamento dei PDF della carta rifiutava due casi perché l'estratto «non quadrava»:
+
+- **Quota annua** (riga senza codice categoria): ora viene letta come spesa.
+- **Storni e rimborsi** (importo col meno in fondo, es. «16,44-»): ora entrano come accredito, non come spesa. Nel dettaglio estratto compaiono in negativo, nel riepilogo mensile si sottraggono e l'abbinamento automatico alle uscite li salta.
+
+Verificato sugli estratti di giugno, luglio, agosto e settembre 2026: tutti e 4 quadrano al centesimo.
+
+---
+
 ## 2026-10-01 — Formaggi: ordine di servizio, alternative e collegamento all'ingrediente `[core]`
 
 Nella zona Formaggi di Selezioni del Giorno:

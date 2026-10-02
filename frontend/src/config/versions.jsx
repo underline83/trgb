@@ -410,7 +410,8 @@ const MODULE_VERSIONS = {
     // "senza"/"parcheggiati" che crea cg_uscite (tipo_uscita='SPESA_NON_FATTURATA',
     // stato='PAGATO') + marca riconciliazione_chiusa. Reversibile via riapri.
     // 2 endpoint POST/DELETE /cross-ref/chiudi-senza-fattura/{id}.
-    version: "1.8",
+    // v1.9 (2026-10-02): parser PDF accetta righe senza MCC (QUOTA ANNUA) e storni "16,44-" (importo positivo, esclusi da automatch).
+    version: "1.9",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",
