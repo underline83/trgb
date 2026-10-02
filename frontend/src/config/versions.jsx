@@ -344,7 +344,8 @@ const MODULE_VERSIONS = {
     //   PUT /uscite/{id}/scadenza (G.7 SPOSTATO, periodo_riferimento
     //   invariato). Aggiunta colonna Stato nello Storico e i badge mancanti
     //   SPOSTATO/VERIFICARE/RATEIZZATO.
-    version: "2.22",
+    // v2.23 (2026-10-02): proiettore spese fisse rispetta il piano rate — rate "YYYY-MM-rN" generate, mesi senza rata dentro il piano non generati (e residui rimossi); CE competenza su substr(periodo,1,7).
+    version: "2.23",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",

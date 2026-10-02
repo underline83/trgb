@@ -352,7 +352,7 @@ def _aggregate_spese_fisse_per_categoria(
             LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
             LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
             WHERE u.tipo_uscita = 'SPESA_FISSA'
-              AND u.periodo_riferimento = ?
+              AND substr(u.periodo_riferimento, 1, 7) = ?   -- anche rate "YYYY-MM-rN" (2026-10-02)
               AND COALESCE(sf.tipo, '') NOT IN ({placeholders})
               {spalmatura_filter_ramo1}
             ORDER BY u.totale DESC, u.id DESC
@@ -411,7 +411,7 @@ def _aggregate_spese_fisse_per_categoria(
             LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
             LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
             WHERE u.tipo_uscita = 'SPESA_FISSA'
-              AND u.periodo_riferimento = ?
+              AND substr(u.periodo_riferimento, 1, 7) = ?   -- anche rate "YYYY-MM-rN" (2026-10-02)
               AND COALESCE(sf.tipo, '') != 'STIPENDIO'
             ORDER BY u.totale DESC, u.id DESC
         """, (periodo_rif,)).fetchall()

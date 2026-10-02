@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-10-02 — Rateizzazioni: due rate nello stesso mese `[core]`
+
+Quando un piano rate (Abaco, Agenzia Entrate, PagoPA) ha due scadenze nello stesso mese, lo scadenziario ne creava una sola, e nei mesi senza rata inventava un'uscita all'importo medio. Con Abaco succedeva così:
+
+- mancavano le rate del 31/03, 30/06, 30/11 (e le successive dello stesso tipo);
+- c'erano uscite da 211,77 € a gennaio, maggio, ottobre 2026 e gennaio 2027 che non corrispondono a nessuna rata.
+
+Ora lo scadenziario segue il piano: crea tutte le rate, anche due nello stesso mese, e toglie le uscite inventate se non sono mai state pagate né collegate. Gli affitti e le altre spese senza un piano completo non cambiano. Il Conto Economico conta la seconda rata nel suo mese.
+
+Le correzioni si applicano al prossimo aggiornamento dello scadenziario (Controllo Gestione → aggiorna/importa uscite).
+
+---
+
 ## 2026-10-02 — Carta di credito: commissioni PagoPA e casella «Cerca» riparata `[core]`
 
 - **La casella di ricerca nel «Cerca» ora accetta il testo.** Non era mai stato possibile scriverci: ogni tasto andava in errore.

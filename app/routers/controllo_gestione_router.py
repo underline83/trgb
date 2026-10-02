@@ -788,6 +788,7 @@ def import_uscite(
 
     sf_importate = 0
     sf_saltate = 0
+    sf_rimosse = 0  # 2026-10-02: uscite in mesi senza rata del piano
 
     # Genera scadenze per i prossimi 3 mesi + mese corrente + mesi passati dall'inizio
     oggi = date.today()
@@ -846,6 +847,61 @@ def import_uscite(
             if fine_limite > fine_spesa:
                 fine_limite = fine_spesa
 
+        # Piano rate della spesa (se c'è). 2026-10-02: i piani PagoPA/AdE
+        # possono avere due rate nello stesso mese (periodo "YYYY-MM-rN") e
+        # mesi senza rata. Dentro l'intervallo coperto dal piano:
+        #   - un mese senza riga di piano NON genera l'uscita a importo medio;
+        #   - le righe "-rN" generano la loro uscita (periodo_riferimento = periodo piano).
+        # Fuori dall'intervallo (es. affitti con piano auto-popolato fino a oggi)
+        # resta la generazione mensile standard.
+        piano_map = {}
+        try:
+            for pr in fc.execute(
+                "SELECT periodo, importo, note, data_scadenza_specifica FROM cg_piano_rate WHERE spesa_fissa_id = ?",
+                (sf["id"],),
+            ).fetchall():
+                piano_map[pr["periodo"]] = dict(pr)
+        except Exception:
+            piano_map = {}  # Tabella non ancora creata o colonne mig 108 non presenti
+        piano_mesi = sorted(k[:7] for k in piano_map)
+        piano_min = piano_mesi[0] if piano_mesi else None
+        piano_max = piano_mesi[-1] if piano_mesi else None
+
+        def _upsert_uscita_sf(periodo, importo_rata, nota_rata, data_scad):
+            nonlocal sf_importate, sf_saltate
+            existing = fc.execute(
+                "SELECT id, stato FROM cg_uscite WHERE spesa_fissa_id = ? AND periodo_riferimento = ?",
+                (sf["id"], periodo)
+            ).fetchone()
+            if not existing:
+                stato_sf = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
+                fc.execute("""
+                    INSERT INTO cg_uscite (
+                        spesa_fissa_id, tipo_uscita, fornitore_nome,
+                        numero_fattura, totale, data_scadenza,
+                        stato, periodo_riferimento, note, created_at, updated_at
+                    ) VALUES (?, 'SPESA_FISSA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    sf["id"], sf["titolo"],
+                    sf["tipo"], importo_rata, data_scad,
+                    stato_sf, periodo, nota_rata, oggi_str, oggi_str,
+                ))
+                sf_importate += 1
+            else:
+                ex = dict(existing)
+                # G.8 difensivo: sync stato/data solo se lo stato è derivato dalla
+                # data (PROGRAMMATO/SCADUTO). VERIFICARE, SPOSTATO, RATEIZZATO,
+                # PARZIALE e i CHIUSI sono decisioni utente: non toccare.
+                if ex["stato"] in ("PROGRAMMATO", "SCADUTO"):
+                    new_stato = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
+                    # Sync titolo, importo, data_scadenza e stato
+                    # (mig 108: data_scad può essere quella specifica della rata)
+                    fc.execute("""
+                        UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, data_scadenza = ?, stato = ?, updated_at = ?
+                        WHERE id = ?
+                    """, (sf["titolo"], importo_rata, data_scad, new_stato, oggi_str, ex["id"]))
+                sf_saltate += 1
+
         # Genera mesi
         current = date(inizio.year, inizio.month, 1)
         step = 0
@@ -862,55 +918,17 @@ def import_uscite(
                 # altrimenti fisso dalla spesa con calcolo standard.
                 importo_rata = sf["importo"]
                 nota_rata = None
-                try:
-                    pr = fc.execute(
-                        "SELECT importo, note, data_scadenza_specifica FROM cg_piano_rate WHERE spesa_fissa_id = ? AND periodo = ?",
-                        (sf["id"], periodo)
-                    ).fetchone()
-                    if pr:
-                        importo_rata = pr["importo"]
-                        nota_rata = pr["note"]
-                        # mig 108: override data_scadenza con la specifica della rata
-                        # (necessario per piani AdE/PagoPA con date irregolari)
-                        if pr["data_scadenza_specifica"]:
-                            data_scad = pr["data_scadenza_specifica"]
-                except Exception:
-                    pass  # Tabella non ancora creata o colonne mig 108 non presenti
+                pr = piano_map.get(periodo)
+                if pr:
+                    importo_rata = pr["importo"]
+                    nota_rata = pr["note"]
+                    # mig 108: override data_scadenza con la specifica della rata
+                    # (necessario per piani AdE/PagoPA con date irregolari)
+                    if pr["data_scadenza_specifica"]:
+                        data_scad = pr["data_scadenza_specifica"]
 
-                existing = fc.execute(
-                    "SELECT id, stato FROM cg_uscite WHERE spesa_fissa_id = ? AND periodo_riferimento = ?",
-                    (sf["id"], periodo)
-                ).fetchone()
-                if not existing:
-                    stato_sf = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
-                    fc.execute("""
-                        INSERT INTO cg_uscite (
-                            spesa_fissa_id, tipo_uscita, fornitore_nome,
-                            numero_fattura, totale, data_scadenza,
-                            stato, periodo_riferimento, note, created_at, updated_at
-                        ) VALUES (?, 'SPESA_FISSA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        sf["id"], sf["titolo"],
-                        sf["tipo"], importo_rata, data_scad,
-                        stato_sf, periodo, nota_rata, oggi_str, oggi_str,
-                    ))
-                    sf_importate += 1
-                else:
-                    ex = dict(existing)
-                    # G.8 difensivo: sync stato/data solo se lo stato è derivato dalla
-                    # data (PROGRAMMATO/SCADUTO). VERIFICARE, SPOSTATO, RATEIZZATO,
-                    # PARZIALE e i CHIUSI sono decisioni utente: non toccare.
-                    # Stessa logica della whitelist invariante introdotta da G.8
-                    # per le fatture.
-                    if ex["stato"] in ("PROGRAMMATO", "SCADUTO"):
-                        new_stato = "SCADUTO" if data_scad < oggi_str else "PROGRAMMATO"
-                        # Sync titolo, importo, data_scadenza e stato
-                        # (mig 108: data_scad può essere quella specifica della rata)
-                        fc.execute("""
-                            UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, data_scadenza = ?, stato = ?, updated_at = ?
-                            WHERE id = ?
-                        """, (sf["titolo"], importo_rata, data_scad, new_stato, oggi_str, ex["id"]))
-                    sf_saltate += 1
+                if pr or not (piano_min and piano_min <= periodo <= piano_max):
+                    _upsert_uscita_sf(periodo, importo_rata, nota_rata, data_scad)
 
             # Avanza di un mese
             if current.month == 12:
@@ -919,10 +937,41 @@ def import_uscite(
                 current = date(current.year, current.month + 1, 1)
             step += 1
 
+        # Rate in più nello stesso mese (periodo piano "YYYY-MM-rN"), entro la finestra
+        limite_periodo = fine_limite.strftime("%Y-%m")
+        for periodo_p, pr in piano_map.items():
+            if len(periodo_p) == 7 or periodo_p[:7] >= limite_periodo:
+                continue
+            data_scad = pr["data_scadenza_specifica"]
+            if not data_scad:
+                anno_p, mese_p = int(periodo_p[:4]), int(periodo_p[5:7])
+                g = min(sf["giorno_scadenza"] or 1, calendar.monthrange(anno_p, mese_p)[1])
+                data_scad = f"{anno_p}-{mese_p:02d}-{g:02d}"
+            _upsert_uscita_sf(periodo_p, pr["importo"], pr["note"], data_scad)
+
+        # Pulizia: uscite generate in mesi del piano che non hanno rata (residui
+        # della generazione mensile prima del fix). Solo se mai toccate:
+        # stato derivato dalla data, nessun pagamento, nessun collegamento.
+        if piano_map:
+            ph = ",".join("?" * len(piano_map))
+            cur_del = fc.execute(f"""
+                DELETE FROM cg_uscite
+                 WHERE spesa_fissa_id = ?
+                   AND substr(periodo_riferimento, 1, 7) BETWEEN ? AND ?
+                   AND periodo_riferimento NOT IN ({ph})
+                   AND stato IN ('PROGRAMMATO', 'SCADUTO')
+                   AND banca_movimento_id IS NULL
+                   AND COALESCE(importo_pagato, 0) = 0
+                   AND id NOT IN (SELECT cg_uscita_id FROM fe_proforme WHERE cg_uscita_id IS NOT NULL)
+            """, (sf["id"], piano_min, piano_max, *piano_map.keys()))
+            sf_rimosse += cur_del.rowcount or 0
+
     # ── Log import ──
     note_log = f"Senza scadenza: {senza_scadenza}"
     if sf_importate > 0:
         note_log += f", Spese fisse generate: {sf_importate}"
+    if sf_rimosse > 0:
+        note_log += f", Spese fisse rimosse (mesi senza rata): {sf_rimosse}"
     fc.execute("""
         INSERT INTO cg_uscite_log (tipo, fatture_importate, fatture_aggiornate, fatture_saltate, note)
         VALUES (?, ?, ?, ?, ?)
@@ -942,6 +991,7 @@ def import_uscite(
         "totale_fatture": len(fatture),
         "spese_fisse_generate": sf_importate,
         "spese_fisse_saltate": sf_saltate,
+        "spese_fisse_rimosse": sf_rimosse,
     }
 
 
