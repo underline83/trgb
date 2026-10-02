@@ -166,6 +166,11 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.6 (2026-10-02): gate temperature — chi apre per primo la Cucina iPhone
+    //   inserisce le temperature di oggi (voci TEMPERATURA agganciate ai frigo
+    //   via checklist_item.ubicazione_id, scritte nel registro HACCP del Task
+    //   Manager); «Ignora per oggi» solo admin/superadmin/chef, tracciato come
+    //   SALTATA. Congelatori col «−» già messo. Tasks: ubicazione_id negli item.
     // 1.5 (2026-10-02): sugli articoli a MOVIMENTI il pallino segue la quantità
     //   (0 → rosso + spesa se il totale è zero, ≤ scorta minima → giallo, sopra
     //   → verde), riallineato dopo ogni movimento/spostamento/annulla/conta/
@@ -200,7 +205,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.5",
+    version: "1.6",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -417,7 +422,8 @@ const MODULE_VERSIONS = {
     // 2 endpoint POST/DELETE /cross-ref/chiudi-senza-fattura/{id}.
     // v1.9 (2026-10-02): parser PDF accetta righe senza MCC (QUOTA ANNUA) e storni "16,44-" (importo positivo, esclusi da automatch).
     // v1.10 (2026-10-02): ricerca manuale nel modale Cerca senza vincolo metodo=CARTA/tolleranze, anche per importo.
-    version: "1.10",
+    // v1.11 (2026-10-02): fix TextInput ricerca Cerca (onChange riceve il valore); candidati anche uscite NULL non pagate scadute; tolleranza commissione (mig 178) + nota al link.
+    version: "1.11",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",

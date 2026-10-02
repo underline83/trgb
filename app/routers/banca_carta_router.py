@@ -539,6 +539,8 @@ def update_match_settings_endpoint(
         "tolerance_cc_data_days",
         # mig 172 — soglia del residuo di riconciliazione bancaria
         "tolerance_residuo_eur",
+        # mig 178 — commissione in eccesso accettata nel match carta
+        "tolerance_commissione_eur",
     }
     updates = {k: v for k, v in (payload or {}).items() if k in valid_keys}
     if not updates:
@@ -576,6 +578,10 @@ def update_match_settings_endpoint(
         v = updates["tolerance_residuo_eur"]
         if not isinstance(v, (int, float)) or v <= 0 or v > 50:
             raise HTTPException(400, "tolerance_residuo_eur deve essere > 0 e ≤ 50")
+    if "tolerance_commissione_eur" in updates:
+        v = updates["tolerance_commissione_eur"]
+        if not isinstance(v, (int, float)) or v < 0 or v > 20:
+            raise HTTPException(400, "tolerance_commissione_eur deve essere tra 0 e 20")
 
     # Verifica somma pesi (con merge sui valori correnti per pesi non passati)
     conn = get_db()

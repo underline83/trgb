@@ -313,6 +313,16 @@ Effetto collaterale utile: il *fuori soglia* smette di essere un giudizio a occh
 
 ---
 
+## 5-bis. Il gate delle temperature (2026-10-02)
+
+Marco: «il primo che apre deve inserire la temperatura; solo admin, superadmin e chef hanno il tasto ignora».
+
+- **Dove nascono le voci:** un template del Task Manager «Temperature frigo e congelatori» (GIORNALIERA), con una voce `TEMPERATURA` per posto, agganciata col ponte `checklist_item.ubicazione_id` e con le soglie del posto. `ChecklistItemIn` ora accetta `ubicazione_id`; `TemplateEditor` lo conserva quando si salva (non lo edita).
+- **Il gate:** `GET /cucina/ubicazioni/temperature/oggi` (via `haccp_letture.temperature_oggi`, sola lettura) dice se oggi c'è un'istanza APERTA/IN_CORSO con voci senza valore. Se sì, `CucinaMobile` mostra a tutto schermo «🌡 Temperature di oggi» finché non si registra. Scrittura con gli endpoint del Task Manager (`/tasks/execution/item/{id}/check` OK o FAIL se fuori soglia, poi `/tasks/instances/{id}/completa`): il registro HACCP resta uno.
+- **Ignora per oggi:** `POST /cucina/ubicazioni/temperature/oggi/ignora`, solo admin/chef (+superadmin); l'istanza resta SALTATA con nome e motivo.
+- **Congelatori:** se la soglia massima è ≤ 0 il numero nasce col «−» (il tastierino dell'iPhone non ha il meno); tasto ± per cambiarlo.
+- Il gate non blocca mai la cucina per un errore tecnico: se la chiamata fallisce, non compare.
+
 # 6. Endpoint — implementati 2026-09-07 (mig 171)
 
 40 endpoint, due router, entrambi `# Modulo: cucina`. Nessun prefisso `/api/`.

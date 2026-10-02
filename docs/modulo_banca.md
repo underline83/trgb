@@ -4,7 +4,7 @@
 > **Vedi anche:** [modulo_controllo_gestione.md](modulo_controllo_gestione.md), [spec_riconciliazione.md](spec_riconciliazione.md), [stato_pagamento_unificato.md](stato_pagamento_unificato.md), [modulo_vendite.md](modulo_vendite.md)
 
 **Nome utente:** "Flussi di Cassa" (rinominato da "Banca"; id modulo interno resta `banca`)
-**Versioni (`versions.jsx`):** flussiCassa **v1.20** (beta, `versions.jsx:104`) · cartaCredito **v1.10** (beta, `versions.jsx:211`)
+**Versioni (`versions.jsx`):** flussiCassa **v1.20** (beta, `versions.jsx:104`) · cartaCredito **v1.11** (beta, `versions.jsx:211`)
 **Sezione FE top-level:** `/flussi-cassa/*` — le vecchie route `/banca/*` sono redirect (`App.jsx:381-388`)
 **Backend prefix:** `/banca/*` (`banca_router.py`) + `/banca/carta/*` (`banca_carta_router.py`). **Non esiste** un prefix backend `/flussi-cassa/*`: i tab Contanti e Mance riusano endpoint `/admin/finance/*` e `/controllo-gestione/*` (vedi §8, §9)
 **DB:** `foodcost.db` (tabelle `banca_*`, `carte_credito`, `carta_*`, `cg_uscite`, `cg_entrate`) + `admin_finance.sqlite3` (contanti/mance, condiviso con Vendite/Cassa). Path tenant-aware via `locale_data_path()` → live in `locali/tregobbi/data/`
@@ -71,7 +71,7 @@ Il modulo **Flussi di Cassa** è il punto di verità per i soldi che passano dal
 | `banca_fatture_link` | 014 | Link N:M movimento ↔ `fe_fatture` (UNIQUE su coppia). **Senza** colonna importo applicato (vedi §6.5) |
 | `carte_credito` | 140 | Anagrafica multi-carta. PK funzionale `codice_posizione` UNIQUE, `banca_tag` UNIQUE (es. `CARTA_BPM_623`) |
 | `carta_estratti` | 140 (+142) | Un record per PDF importato. Dedup `pdf_sha256` UNIQUE. `banca_movimento_id` = match livello B |
-| `carta_match_settings` | 141 (+142) | Singleton tolleranze/pesi matcher carta (default in `carta_match_service.py:56-66`) |
+| `carta_match_settings` | 141 (+142, +172, +178) | Singleton tolleranze/pesi matcher carta (default in `carta_match_service.py:56-66`) |
 | `cg_uscite`, `cg_entrate` | (modulo CG) | Bersaglio della riconciliazione: `banca_movimento_id` su entrambe |
 
 Colonne aggiunte a `banca_movimenti` nel tempo: `riconciliazione_chiusa/_at/_note` (mig 059), `parcheggiato/_at` (mig 082), campi carta `carta_codice_riferimento` (UNIQUE se non NULL), `carta_mcc`, `carta_estratto_id`, `valuta_estera`, `importo_estero`, `cambio_valuta`, `magg_circuito`, `magg_cambio` (mig 140).
@@ -254,7 +254,7 @@ Sub-area completa end-to-end (sessioni CC 2026-06-02 → 2026-06-13). Pagine: `C
 
 **Due livelli di riconciliazione** (service `app/services/carta_match_service.py`, settings singleton mig 141+142, default riga 56-66: tolleranza importo 0,50€, data 10gg, pesi 0.5/0.3/0.2, soglia auto 0.85; match B: 0,10€ / 3gg):
 
-- **Livello A** — movimento carta ↔ `cg_uscite` con `metodo_pagamento='CARTA'` e `banca_movimento_id IS NULL`. Ricerca manuale (modale Cerca, param `search`, dal 2026-10-02): niente vincolo CARTA né tolleranze, ammesse anche uscite non pagate (`stato NOT LIKE 'PAGATO%'`); cerca fornitore, `numero_fattura` e importo per prefisso. Il link imposta `metodo_pagamento='CARTA'`. Il link porta l'uscita da `PAGATO_MANUALE` a `PAGATO`; l'unlink la riporta a `PAGATO_MANUALE`.
+- **Livello A** — movimento carta ↔ `cg_uscite` con `metodo_pagamento='CARTA'` e `banca_movimento_id IS NULL`. Ricerca manuale (modale Cerca, param `search`, dal 2026-10-02): niente vincolo CARTA né tolleranze, ammesse anche uscite non pagate (`stato NOT LIKE 'PAGATO%'`); cerca fornitore, `numero_fattura` e importo per prefisso. Il link imposta `metodo_pagamento='CARTA'`. Candidati automatici (v1.11): anche uscite `metodo_pagamento IS NULL`, non pagate, con `data_scadenza ≤ data carta + tolerance_data_days`; importo entro `tolerance_importo_eur` oppure in eccesso fino a `tolerance_commissione_eur` (mig 178, default 2,00 €). Con commissione il link lascia `importo_pagato = totale` e appende in `note` «Pagata con carta X € (commissione +Y €)»; i candidati espongono il campo `commissione`. Il link porta l'uscita da `PAGATO_MANUALE` a `PAGATO`; l'unlink la riporta a `PAGATO_MANUALE`.
 - **Livello B** — estratto mensile ↔ movimento `banca_movimenti` del CC che rappresenta l'addebito unico dell'emittente (match su `addebito_totale_cc` + `data_valuta_addebito`, score 70% importo + 30% data). Registrato in `carta_estratti.banca_movimento_id`. Il cross-ref banca lo mostra come chip "Addebito carta — Estratto #N" (CC.8.c).
 
 ## 7.1 Endpoint `/banca/carta/*` (tutti autenticati)

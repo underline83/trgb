@@ -153,7 +153,7 @@ export default function CercaUscitaModal({ movimento, onClose, onMatched }) {
         <div className="flex gap-2">
           <TextInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             onKeyDown={onSearchKey}
             placeholder="Fornitore, n. documento o importo (es. Abaco, 211)"
             className="flex-1"
@@ -175,8 +175,8 @@ export default function CercaUscitaModal({ movimento, onClose, onMatched }) {
           )}
         </div>
         <p className="text-[10px] text-neutral-400 mt-1">
-          Senza ricerca: solo uscite già segnate «carta», entro le tolleranze di importo e data.
-          Con la ricerca: tutte le uscite non ancora pagate o già segnate «carta», senza tolleranze.
+          Senza ricerca: uscite segnate «carta» o non pagate e già scadute, con importo entro tolleranza
+          (o maggiorato da una commissione). Con la ricerca: tutte le uscite non pagate o segnate «carta», senza tolleranze.
         </p>
       </div>
 
@@ -198,8 +198,8 @@ export default function CercaUscitaModal({ movimento, onClose, onMatched }) {
             Nessuna uscita CG candidata trovata
           </p>
           <p className="text-xs">
-            Forse l'uscita non è ancora stata creata da Fatture con "Paga con carta",
-            oppure è fuori tolleranza (importo o data).
+            Forse l'uscita non esiste ancora in Controllo Gestione, non è ancora scaduta,
+            oppure l'importo è fuori tolleranza.
             {!search && " Prova a cercare per fornitore o importo."}
           </p>
         </div>
@@ -236,13 +236,20 @@ export default function CercaUscitaModal({ movimento, onClose, onMatched }) {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">
                     {fmtEUR(c.totale)}
+                    {c.commissione > 0 && (
+                      <p className="text-[10px] font-normal text-amber-700" title="Differenza addebitata in più dalla carta: verrà annotata sull'uscita">
+                        +{fmtEUR(c.commissione)} commissione
+                      </p>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-neutral-600 text-xs">
-                    {fmtDate(c.data_pagamento)}
+                    {c.data_pagamento ? fmtDate(c.data_pagamento) : (
+                      <span title="Data di scadenza (uscita non ancora pagata)">scad. {fmtDate(c.data_scadenza)}</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-[10px]">
                     <StatusBadge tone="neutral" size="sm">
-                      {c.metodo_pagamento}
+                      {c.metodo_pagamento || c.stato || "—"}
                     </StatusBadge>
                   </td>
                   <td className="px-3 py-2 text-right">

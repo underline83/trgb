@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-02 — Carta di credito: commissioni PagoPA e casella «Cerca» riparata `[core]`
+
+- **La casella di ricerca nel «Cerca» ora accetta il testo.** Non era mai stato possibile scriverci: ogni tasto andava in errore.
+- **Proposte automatiche più ampie**: oltre alle uscite segnate «carta», il «Cerca» propone anche le uscite **non pagate e già scadute** senza metodo di pagamento (fatture come Tecnograph, rate Abaco).
+- **Commissioni**: se la carta addebita fino a 2,00 € in più del documento (es. rata 211,00 € pagata 211,95 € via PagoPA), l'uscita viene proposta con «+0,95 € commissione». Collegandola resta pagata per il suo totale, e sull'uscita viene annotato «Pagata con carta 211,95 € (commissione +0,95 €)». La soglia si cambia in Flussi di Cassa → Impostazioni → Commissioni carta (migrazione 178).
+
+---
+
 ## 2026-10-02 — Carta di credito: «Cerca» trova anche le uscite non segnate carta `[core]`
 
 Nella finestra «Cerca» di un movimento carta, la ricerca ora:
@@ -36,6 +44,12 @@ Nella zona Formaggi di Selezioni del Giorno:
 - Nuove categorie: Crosta fiorita, Crosta lavata, Semistagionati.
 
 Caricati (dopo il push, con lo script di import) 7 formaggi francesi e 11 orobici con racconto e gusto per la sala; tolti i 4 vecchi formaggi di prova (Bagoss, Fontina, Formagella, Pecorino di Pienza).
+
+---
+
+## 2026-10-02 — Cucina iPhone: le temperature di oggi all'apertura `[core]`
+
+Il primo che apre la Cucina iPhone nella giornata trova la schermata **🌡 Temperature di oggi**: una riga per ogni frigorifero e congelatore, con la soglia accanto. Si scrivono i gradi (nei congelatori il «−» è già messo) e si preme «Registra». Se una temperatura è fuori soglia la riga diventa rossa: si registra lo stesso e compare l'avviso di chiamare l'oste. Le letture vanno nel registro HACCP di sempre e la scheda di ogni frigo mostra l'ultima. Admin e oste/cuoco hanno anche «Ignora per oggi», che resta scritto nel registro con il loro nome.
 
 ---
 

@@ -1278,6 +1278,7 @@ function TabCartaMatch() {
       // ancora girata: senza questo default il campo resterebbe vuoto e il
       // salvataggio manderebbe un NaN.
       if (data.tolerance_residuo_eur == null) data.tolerance_residuo_eur = 1.00;
+      if (data.tolerance_commissione_eur == null) data.tolerance_commissione_eur = 2.00;
       setSettings(data);
       setForm(data);
     } catch (e) {
@@ -1317,6 +1318,7 @@ function TabCartaMatch() {
         tolerance_cc_importo_eur: Number(form.tolerance_cc_importo_eur),
         tolerance_cc_data_days: parseInt(form.tolerance_cc_data_days, 10),
         tolerance_residuo_eur: Number(form.tolerance_residuo_eur),
+        tolerance_commissione_eur: Number(form.tolerance_commissione_eur),
       };
       const res = await apiFetch(`${API_BASE}/banca/carta/match-settings`, {
         method: "PUT",
@@ -1348,6 +1350,7 @@ function TabCartaMatch() {
       tolerance_cc_importo_eur: 0.10,
       tolerance_cc_data_days: 3,
       tolerance_residuo_eur: 1.00,
+      tolerance_commissione_eur: 2.00,
     });
   }
 
@@ -1476,6 +1479,28 @@ function TabCartaMatch() {
             step="0.05"
             min="0"
             max="1"
+          />
+        </div>
+      </div>
+
+      {/* COMMISSIONI CARTA (mig 178) */}
+      <div className="bg-white border border-neutral-200 rounded-xl p-4 mb-5">
+        <h3 className="text-sm font-semibold text-neutral-800 mb-3">Commissioni carta (PagoPA e simili)</h3>
+        <p className="text-xs text-neutral-600 mb-3">
+          Quando la carta addebita più del documento (es. rata 211,00 € pagata 211,95 € via PagoPA),
+          la differenza fino a questa cifra viene trattata come commissione: l'uscita viene proposta
+          e, collegandola, resta pagata per il suo totale con la commissione annotata.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SettingField
+            label="Commissione massima (€)"
+            help="Default: 2,00€. Solo in eccesso (carta > documento). 0 = disattivata."
+            value={form.tolerance_commissione_eur}
+            onChange={(v) => patch("tolerance_commissione_eur", v)}
+            type="number"
+            step="0.01"
+            min="0"
+            max="20"
           />
         </div>
       </div>

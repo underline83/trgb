@@ -68,7 +68,25 @@ DEFAULTS = {
     # matcher carta, ma vive nella stessa riga singleton delle soglie banca).
     # Letta da `banca_router._tolleranza_residuo`.
     "tolerance_residuo_eur": 1.00,
+    # mig 178: scarto IN ECCESSO (carta > uscita) accettato come commissione
+    # (PagoPA ecc.). Il link annota la commissione sull'uscita.
+    "tolerance_commissione_eur": 2.00,
 }
+
+
+def _commissione(imp_mov: float, totale_uscita: float) -> float:
+    """Differenza in eccesso carta − uscita (0 se la carta non addebita di più)."""
+    d = round(imp_mov - totale_uscita, 2)
+    return d if d > 0.004 else 0.0
+
+
+def _importo_score_comm(imp_mov: float, totale: float, tol_eur: float, tol_comm: float) -> float:
+    """Score importo: tolleranza simmetrica normale, oppure commissione in eccesso."""
+    s = _importo_score(imp_mov, totale, tol_eur)
+    comm = _commissione(imp_mov, totale)
+    if comm and comm <= tol_comm:
+        s = max(s, _importo_score(imp_mov, totale, tol_comm))
+    return s
 
 
 def get_match_settings(conn: sqlite3.Connection) -> dict:
@@ -193,22 +211,32 @@ def find_candidati(
 
     tol_eur = settings["tolerance_importo_eur"]
     tol_days = settings["tolerance_data_days"]
+    tol_comm = settings["tolerance_commissione_eur"]
 
     if search and search.strip():
         return _find_candidati_ricerca(conn, mov, search.strip(), settings, limit)
 
-    # Query base: uscite con metodo='CARTA' non ancora linkate, entro tolleranze
+    # Query base: uscite non ancora linkate, entro tolleranza importo (o con
+    # una commissione in eccesso entro tolerance_commissione_eur). Ammesse:
+    #   - uscite metodo='CARTA' (caso storico: "Paga con carta" da Fatture)
+    #   - uscite senza metodo, non pagate e già scadute alla data della carta
+    #     (rate, tributi PagoPA): dal 2026-10-02
     sql = """
         SELECT u.id, u.fornitore_nome, u.totale, u.data_scadenza, u.data_pagamento,
                u.stato, u.metodo_pagamento, u.periodo_riferimento, u.note,
                u.tipo_uscita, u.fattura_id
         FROM cg_uscite u
-        WHERE u.metodo_pagamento = 'CARTA'
-          AND u.banca_movimento_id IS NULL
+        WHERE u.banca_movimento_id IS NULL
           AND u.totale > 0
-          AND ABS(u.totale - ?) < ?
+          AND (
+                u.metodo_pagamento = 'CARTA'
+             OR (u.metodo_pagamento IS NULL
+                 AND COALESCE(u.stato, '') NOT LIKE 'PAGATO%'
+                 AND u.data_scadenza <= date(?, '+' || ? || ' days'))
+          )
+          AND (ABS(u.totale - ?) < ? OR (? - u.totale > 0 AND ? - u.totale < ?))
     """
-    params: list = [imp_mov, tol_eur]
+    params: list = [data_mov, int(tol_days), imp_mov, tol_eur, imp_mov, imp_mov, tol_comm]
 
     # Pre-filtro su data_pagamento (se presente) con tol_days
     if data_mov:
@@ -224,12 +252,13 @@ def find_candidati(
         u = dict(r) if hasattr(r, "keys") else None
         if u is None:
             continue
-        imp_score = _importo_score(imp_mov, u["totale"], tol_eur)
-        data_score = _data_score(data_mov, u["data_pagamento"], tol_days)
+        imp_score = _importo_score_comm(imp_mov, u["totale"], tol_eur, tol_comm)
+        data_score = _data_score(data_mov, u["data_pagamento"] or u["data_scadenza"], tol_days)
         forn_score = _fornitore_score(desc_mov, u["fornitore_nome"] or "")
         score = _compute_score(imp_score, data_score, forn_score, settings)
         candidati.append({
             **u,
+            "commissione": _commissione(imp_mov, u["totale"]),
             "imp_score": round(imp_score, 3),
             "data_score": round(data_score, 3),
             "forn_score": round(forn_score, 3),
@@ -281,14 +310,16 @@ def _find_candidati_ricerca(
 
     tol_eur = settings["tolerance_importo_eur"]
     tol_days = settings["tolerance_data_days"]
+    tol_comm = settings["tolerance_commissione_eur"]
     out = []
     for r in rows:
         u = dict(r)
-        imp_score = _importo_score(mov["importo"], u["totale"], tol_eur)
+        imp_score = _importo_score_comm(mov["importo"], u["totale"], tol_eur, tol_comm)
         data_score = _data_score(mov["data_contabile"], u["data_pagamento"] or u["data_scadenza"], tol_days)
         forn_score = _fornitore_score(mov["descrizione"] or "", u["fornitore_nome"] or "")
         out.append({
             **u,
+            "commissione": _commissione(mov["importo"], u["totale"]),
             "imp_score": round(imp_score, 3),
             "data_score": round(data_score, 3),
             "forn_score": round(forn_score, 3),
@@ -358,15 +389,31 @@ def apply_link(
             f"Uscita #{uscita_id} è già linkata al movimento #{u_dict['banca_movimento_id']}"
         )
 
+    # Commissione (carta > uscita): l'uscita resta pagata per il suo totale,
+    # la differenza viene annotata (2026-10-02).
+    comm = _commissione(mov["importo"], float(u_dict["totale"] or 0))
+    nota_comm = None
+    if comm:
+        fmt = lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        nota_comm = (
+            f"Pagata con carta {fmt(mov['importo'])} € il {mov['data_contabile']} "
+            f"(commissione +{fmt(comm)} €)"
+        )
+
     cur.execute(
         """UPDATE cg_uscite
            SET banca_movimento_id = ?,
                stato = 'PAGATO',
                metodo_pagamento = 'CARTA',
                importo_pagato = totale,
-               data_pagamento = COALESCE(data_pagamento, ?)
+               data_pagamento = COALESCE(data_pagamento, ?),
+               note = CASE
+                        WHEN ? IS NULL THEN note
+                        WHEN note IS NULL OR note = '' THEN ?
+                        ELSE note || char(10) || ?
+                      END
            WHERE id = ?""",
-        (movimento_id, mov["data_contabile"], uscita_id),
+        (movimento_id, mov["data_contabile"], nota_comm, nota_comm, nota_comm, uscita_id),
     )
     conn.commit()
     return {
@@ -374,6 +421,7 @@ def apply_link(
         "movimento_id": movimento_id,
         "uscita_id": uscita_id,
         "stato_nuovo": "PAGATO",
+        "commissione": comm,
     }
 
 

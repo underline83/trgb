@@ -1,6 +1,8 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.3 — sugli articoli a MOVIMENTI il pallino lo decide la quantità: tocco = «Quanti ce
+// @version: v1.4 — gate temperature: chi apre per primo la Cucina iPhone inserisce le temperature
+//            di oggi; «Ignora per oggi» solo admin/superadmin/chef (2026-10-02)
+// v1.3 — sugli articoli a MOVIMENTI il pallino lo decide la quantità: tocco = «Quanti ce
 //            ne sono?» (CorreggiSheet condiviso); scorta minima da ✏️ Modifica (2026-10-02)
 // v1.2 — congelatori: ↔ Sposta (anche fra frigo), date sul carico (lotto con
 //            «congelato il / scade il», FIFO), ＋ Aggiungi dal ripiano, scadenza nel giro (2026-10-01)
@@ -367,6 +369,20 @@ const STYLE = `
   font-size:14.5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;}
 .km-res button.on{border-color:var(--red);background:var(--red50);}
 .km-res .m{font-size:12px;color:var(--muted);}
+.km-gate{position:fixed;inset:0;z-index:90;background:var(--cream);overflow-y:auto;
+  padding:calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 24px);}
+.km-gate-in{max-width:520px;margin:0 auto;}
+.km-gate h2{margin:0;font:700 26px/1.15 "Playfair Display",Georgia,serif;}
+.km-trow{background:#fff;border:1px solid var(--hair);border-radius:13px;padding:12px 13px;margin-top:10px;}
+.km-trow.ko{border-color:var(--red);background:var(--red50);}
+.km-trow .t{font-size:15px;font-weight:700;}
+.km-trow .s{font-size:12px;color:var(--muted);margin-top:2px;}
+.km-tin{display:flex;gap:8px;align-items:center;margin-top:9px;}
+.km-tin button{width:48px;height:48px;border-radius:12px;border:1px solid var(--hair);background:var(--cream2);
+  font-size:22px;font-weight:700;cursor:pointer;}
+.km-tin input{flex:1;height:48px;border-radius:12px;border:1.5px solid var(--hair);background:#fff;
+  text-align:center;font:700 22px/1 "Playfair Display",Georgia,serif;}
+.km-tin .u{font-size:15px;font-weight:700;color:var(--muted);}
 .km-pills.wrap{flex-wrap:wrap;overflow:visible;padding-top:4px;}
 .km-in{width:100%;padding:12px 14px;border-radius:11px;border:1px solid var(--hair);background:#fff;
   font-size:16px;margin:4px 0 2px;}
@@ -1788,6 +1804,153 @@ function TabSpesa({ canWrite, onCount, modi }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 🌡 Le temperature di oggi — il «gate» (Marco 2026-10-02)
+// «Il primo che apre deve inserire la temperatura; solo admin, superadmin e
+// chef hanno il tasto ignora.» Si chiede al backend se oggi c'è una checklist
+// di temperature aperta (voci TEMPERATURA agganciate a un frigo); se sì, copre
+// tutta la sotto-app finché non è fatta. I valori vanno nel registro HACCP
+// del Task Manager con i suoi endpoint: il registro resta uno solo.
+// Nei congelatori (soglia massima ≤ 0) il numero nasce col «−»: sul tastierino
+// numerico dell'iPhone il meno non c'è, e nessuno deve doverlo cercare.
+// ─────────────────────────────────────────────────────────────
+function TemperatureGate() {
+  const [dati, setDati] = useState(null);
+  const [val, setVal] = useState({});     // item_id → {segno: -1|1, testo}
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [chiuso, setChiuso] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    apiFetch(`${API_BASE}/cucina/ubicazioni/temperature/oggi`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!vivo || !d) return;
+        setDati(d);
+        const init = {};
+        (d.istanze || []).forEach((i) => i.voci.forEach((v) => {
+          init[v.item_id] = { segno: v.max_valore != null && v.max_valore <= 0 ? -1 : 1, testo: "" };
+        }));
+        setVal(init);
+      })
+      .catch(() => {});   // il gate non blocca mai la cucina per un problema tecnico
+    return () => { vivo = false; };
+  }, []);
+
+  if (chiuso || !dati?.da_fare) return null;
+
+  const voci = dati.istanze.flatMap((i) => i.voci.filter((v) => v.valore == null)
+    .map((v) => ({ ...v, instance_id: i.instance_id })));
+  const numero = (id) => {
+    const x = val[id];
+    if (!x || x.testo.trim() === "") return null;
+    const n = Number(x.testo.replace(",", "."));
+    return Number.isFinite(n) ? x.segno * Math.abs(n) : null;
+  };
+  const fuori = (v) => {
+    const n = numero(v.item_id);
+    if (n == null) return false;
+    return (v.min_valore != null && n < v.min_valore) || (v.max_valore != null && n > v.max_valore);
+  };
+  const tutte = voci.every((v) => numero(v.item_id) != null);
+
+  async function registra() {
+    if (!tutte || busy) return;
+    setBusy(true); setErr(null);
+    const json = { "Content-Type": "application/json" };
+    try {
+      for (const v of voci) {
+        const n = numero(v.item_id);
+        const res = await apiFetch(`${API_BASE}/tasks/execution/item/${v.item_id}/check`, {
+          method: "POST", headers: json,
+          body: JSON.stringify({
+            instance_id: v.instance_id, stato: fuori(v) ? "FAIL" : "OK", valore_numerico: n,
+            note: fuori(v) ? "fuori soglia, registrata dalla Cucina iPhone" : null,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      }
+      for (const i of dati.istanze) {
+        await apiFetch(`${API_BASE}/tasks/instances/${i.instance_id}/completa`, { method: "POST" });
+      }
+      setChiuso(true);
+    } catch (e) { setErr(e.message); setBusy(false); }
+  }
+
+  async function ignora() {
+    if (busy) return;
+    setBusy(true); setErr(null);
+    try {
+      for (const i of dati.istanze) {
+        const res = await apiFetch(`${API_BASE}/cucina/ubicazioni/temperature/oggi/ignora`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instance_id: i.instance_id }),
+        });
+        if (!res.ok && res.status !== 409) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      }
+      setChiuso(true);
+    } catch (e) { setErr(e.message); setBusy(false); }
+  }
+
+  const fuoriSoglia = voci.filter(fuori);
+
+  return (
+    <div className="km-gate" role="dialog" aria-label="Temperature di oggi">
+      <div className="km-gate-in">
+        <h2>🌡 Temperature di oggi</h2>
+        <div className="km-sub" style={{ marginTop: 4 }}>
+          Prima di cominciare: leggi il termometro di ogni frigo e congelatore.
+        </div>
+        {err && <div className="km-err" style={{ marginTop: 10 }}>{err}</div>}
+
+        {voci.map((v) => {
+          const x = val[v.item_id] || { segno: 1, testo: "" };
+          return (
+            <div key={v.item_id} className={`km-trow${fuori(v) ? " ko" : ""}`}>
+              <div className="t">{v.titolo}</div>
+              <div className="s">
+                deve stare fra {fmtQta(v.min_valore)} e {fmtQta(v.max_valore)} {v.unita_misura || "°C"}
+                {fuori(v) && " · FUORI SOGLIA"}
+              </div>
+              <div className="km-tin">
+                <button type="button" aria-label="cambia segno"
+                        onClick={() => setVal({ ...val, [v.item_id]: { ...x, segno: -x.segno } })}>
+                  {x.segno < 0 ? "−" : "+"}
+                </button>
+                <input type="text" inputMode="decimal" placeholder="—" value={x.testo}
+                       onChange={(e) => setVal({ ...val, [v.item_id]: { ...x, testo: e.target.value.replace(/[^0-9.,]/g, "") } })} />
+                <span className="u">{v.unita_misura || "°C"}</span>
+              </div>
+            </div>
+          );
+        })}
+
+        {fuoriSoglia.length > 0 && (
+          <div className="km-banner r" style={{ marginTop: 12 }}>
+            <span>🚨</span>
+            <div><b>{fuoriSoglia.map((v) => v.titolo).join(", ")} fuori soglia.</b> Si registra lo stesso: avvisa subito l'oste.</div>
+          </div>
+        )}
+
+        <button className="km-btn" style={{ marginTop: 16 }} disabled={busy || !tutte} onClick={registra}>
+          {busy ? "Registro…" : tutte ? "Registra le temperature" : `Mancano ${voci.filter((v) => numero(v.item_id) == null).length}`}
+        </button>
+        {dati.puo_ignorare && (
+          <button className="km-btn ghost" style={{ marginTop: 9 }} disabled={busy} onClick={ignora}>
+            Ignora per oggi
+          </button>
+        )}
+        {dati.puo_ignorare && (
+          <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+            Ignorare resta scritto nel registro HACCP, con il tuo nome.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Entry point
 //   /cucina/mobile                → tab Oggi
 //   /cucina/mobile/:tab           → oggi | scorte | frigo | spesa
@@ -1852,6 +2015,7 @@ export default function CucinaMobile() {
       <style>{STYLE}</style>
       {vista}
       <TabBar attivo={attivo} badge={badge} vai={vai} />
+      <TemperatureGate />
     </div>
   );
 }
