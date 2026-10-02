@@ -39,6 +39,7 @@ DB_PATH = locale_data_path("foodcost.db")
 
 # Audit 2026-06-12 [A1 CRIT]: auth a livello router — gli endpoint erano pubblici.
 from app.services.permessi import richiede_ruoli
+from app.services.fatture_filtri import escludi_nc
 
 # PERMESSI (2026-09-01, M.G) — Modulo: banca
 # Prima: `dependencies=[Depends(get_current_user)]` = qualsiasi ruolo
@@ -1139,7 +1140,7 @@ def get_cross_ref(
         #    Con filtro importo max ±50%
         #    Esclude fatture di fornitori con escluso_acquisti=1 (es. affitti FIC)
         cur2 = conn.cursor()
-        cur2.execute("""
+        cur2.execute(f"""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
                    f.data_fattura AS data_ref, f.totale_fattura AS totale,
                    'FATTURA' AS tipo
@@ -1153,6 +1154,7 @@ def get_cross_ref(
                        AND COALESCE(f.fornitore_piva, '') = ''
                        AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
+              AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
               AND f.totale_fattura > 0
               AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
             ORDER BY f.data_fattura DESC
@@ -1180,7 +1182,7 @@ def get_cross_ref(
         # 2) Fatture: match per importo simile (±15%) entro ±30 giorni
         #    Esclude fatture di fornitori con escluso_acquisti=1
         cur2b = conn.cursor()
-        cur2b.execute("""
+        cur2b.execute(f"""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
                    f.data_fattura AS data_ref, f.totale_fattura AS totale,
                    'FATTURA' AS tipo
@@ -1194,6 +1196,7 @@ def get_cross_ref(
                        AND COALESCE(f.fornitore_piva, '') = ''
                        AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
+              AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
               AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
               AND ABS(f.totale_fattura - ?) / MAX(?, 0.01) < 0.15
               AND f.data_fattura BETWEEN date(?, '-30 days') AND date(?, '+30 days')
@@ -1806,7 +1809,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
 
     if is_importo:
         # Fatture per importo (uscite) — esclude fornitori con escluso_acquisti=1
-        cur.execute("""
+        cur.execute(f"""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
                    f.data_fattura AS data_ref, f.totale_fattura AS totale,
                    'FATTURA' AS tipo
@@ -1820,6 +1823,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
                        AND COALESCE(f.fornitore_piva, '') = ''
                        AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
+              AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
               AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
               AND ABS(f.totale_fattura - ?) < MAX(? * 0.1, 1.0)
             ORDER BY ABS(f.totale_fattura - ?) ASC
@@ -1868,7 +1872,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
     else:
         term = f"%{q.strip()}%"
         # Fatture per testo — esclude fornitori con escluso_acquisti=1
-        cur.execute("""
+        cur.execute(f"""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
                    f.data_fattura AS data_ref, f.totale_fattura AS totale,
                    'FATTURA' AS tipo
@@ -1882,6 +1886,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
                        AND COALESCE(f.fornitore_piva, '') = ''
                        AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
+              AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
               AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
               AND (f.fornitore_nome LIKE ? OR f.numero_fattura LIKE ?)
             ORDER BY f.data_fattura DESC

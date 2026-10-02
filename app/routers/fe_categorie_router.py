@@ -34,6 +34,7 @@ router = APIRouter(
 )
 
 from app.utils.locale_data import locale_data_path
+from app.services.fatture_filtri import escludi_nc
 
 # R6.5 — path tenant-aware. Modulo: acquisti (categorie fornitori).
 FOODCOST_DB_PATH = locale_data_path("foodcost.db")
@@ -344,12 +345,14 @@ def list_fornitori_categorizzati():
     conn = _get_conn()
     cur = conn.cursor()
 
-    cur.execute("""
+    # Note di credito (A.1 fase 1): restano nel raggruppamento (il fornitore
+    # resta categorizzabile) ma non contano né come fatture né come spesa.
+    cur.execute(f"""
         SELECT
             f.fornitore_nome,
             f.fornitore_piva,
-            COUNT(*) AS n_fatture,
-            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale_spesa,
+            SUM(CASE WHEN {escludi_nc("f")} THEN 1 ELSE 0 END) AS n_fatture,
+            ROUND(SUM(CASE WHEN {escludi_nc("f")} THEN COALESCE(f.totale_fattura, 0) ELSE 0 END), 2) AS totale_spesa,
             fc.categoria_id,
             fc.sottocategoria_id,
             fc.note AS cat_note,
@@ -737,7 +740,7 @@ def stats_per_categoria(year: Optional[int] = None):
     conn = _get_conn()
     cur = conn.cursor()
 
-    where = "WHERE f.data_fattura IS NOT NULL AND COALESCE(fc.escluso, 0) = 0 AND COALESCE(f.is_autofattura, 0) = 0"
+    where = f"WHERE f.data_fattura IS NOT NULL AND {escludi_nc('f')} AND COALESCE(fc.escluso, 0) = 0 AND COALESCE(f.is_autofattura, 0) = 0"
     params = []
     if year:
         where += " AND substr(f.data_fattura, 1, 4) = ?"

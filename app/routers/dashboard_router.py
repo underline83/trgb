@@ -32,6 +32,7 @@ from app.models.foodcost_db import get_foodcost_connection
 from app.models.dipendenti_db import get_dipendenti_conn
 from app.services.auth_service import get_current_user
 from app.services.vendite_aggregator import totali_periodo as vendite_totali_periodo
+from app.services.fatture_filtri import escludi_nc
 
 logger = logging.getLogger("trgb.dashboard")
 
@@ -951,7 +952,7 @@ def _acquisti_metrics() -> dict:
         # NOTA (2026-05-10): RATEIZZATE escluse dal widget perché hanno già un
         # piano (= "riprogrammate", non sono debito da gestire ad-hoc nel widget).
         # Restano filtrabili nel modulo Acquisti → Fatture come stato a sé.
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT
                 COALESCE(u.data_scadenza, f.data_scadenza) AS scad,
                 f.totale_fattura
@@ -961,6 +962,7 @@ def _acquisti_metrics() -> dict:
                 ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva,'') != '')
                 OR (COALESCE(f.fornitore_piva,'') = '' AND c.fornitore_nome = f.fornitore_nome)
             WHERE COALESCE(f.is_autofattura, 0) = 0
+              AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
               AND f.rateizzata_in_spesa_fissa_id IS NULL
               AND COALESCE(f.pagato, 0) = 0
               AND (u.id IS NULL OR u.stato IN ('PROGRAMMATO','SCADUTO'))
@@ -990,13 +992,14 @@ def _acquisti_metrics() -> dict:
         from datetime import date as _date
 
         def _acquisti_del_mese(yyyy_mm: str) -> float:
-            row = conn.execute("""
+            row = conn.execute(f"""
                 SELECT COALESCE(SUM(f.totale_fattura), 0) AS tot
                 FROM fe_fatture f
                 LEFT JOIN fe_fornitore_categoria c
                     ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva,'') != '')
                     OR (COALESCE(f.fornitore_piva,'') = '' AND c.fornitore_nome = f.fornitore_nome)
                 WHERE COALESCE(f.is_autofattura, 0) = 0
+                  AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
                   AND COALESCE(c.escluso_acquisti, 0) = 0
                   AND substr(f.data_fattura, 1, 7) = ?
             """, (yyyy_mm,)).fetchone()
@@ -1086,7 +1089,7 @@ def _fatture_pending() -> FatturePending:
     """
     try:
         conn = get_foodcost_connection()
-        row = conn.execute("""
+        row = conn.execute(f"""
             SELECT COUNT(*) AS cnt,
                    COALESCE(SUM(f.totale_fattura), 0) AS importo
             FROM fe_fatture_with_stato f
@@ -1095,6 +1098,7 @@ def _fatture_pending() -> FatturePending:
                 ON (c.fornitore_piva = f.fornitore_piva AND COALESCE(f.fornitore_piva, '') != '')
                 OR (COALESCE(f.fornitore_piva, '') = '' AND c.fornitore_nome = f.fornitore_nome)
             WHERE COALESCE(f.is_autofattura, 0) = 0
+              AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
               AND f.rateizzata_in_spesa_fissa_id IS NULL
               AND COALESCE(f.pagato, 0) = 0
               AND (u.id IS NULL OR u.stato IN ('PROGRAMMATO', 'SCADUTO'))

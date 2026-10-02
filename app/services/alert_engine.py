@@ -24,6 +24,7 @@ import logging
 from datetime import date, timedelta
 from typing import Callable, Dict, List, Optional
 from dataclasses import dataclass, field, asdict
+from app.services.fatture_filtri import escludi_nc
 
 logger = logging.getLogger("trgb.alert_engine")
 
@@ -220,18 +221,20 @@ def _check_fatture_scadenza(dry_run: bool = False, config: dict = None) -> Check
         conn = get_foodcost_connection()
 
         # Post G.5: legge da fe_fatture_with_stato (pagato derivato da cg_uscite.stato)
-        scadute = conn.execute("""
+        scadute = conn.execute(f"""
             SELECT id, fornitore_nome, totale_fattura, data_scadenza
             FROM fe_fatture_with_stato
             WHERE COALESCE(pagato, 0) = 0
+              AND {escludi_nc("")}  -- note di credito: A.1 fase 1
               AND data_scadenza IS NOT NULL AND data_scadenza != ''
               AND data_scadenza < ?
         """, (oggi,)).fetchall()
 
-        in_scadenza = conn.execute("""
+        in_scadenza = conn.execute(f"""
             SELECT id, fornitore_nome, totale_fattura, data_scadenza
             FROM fe_fatture_with_stato
             WHERE COALESCE(pagato, 0) = 0
+              AND {escludi_nc("")}  -- note di credito: A.1 fase 1
               AND data_scadenza IS NOT NULL AND data_scadenza != ''
               AND data_scadenza >= ? AND data_scadenza <= ?
         """, (oggi, soglia)).fetchall()

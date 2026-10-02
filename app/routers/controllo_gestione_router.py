@@ -37,6 +37,7 @@ router = APIRouter(prefix="/controllo-gestione", tags=["controllo-gestione"],
 )
 
 from app.utils.locale_data import locale_data_path
+from app.services.fatture_filtri import escludi_nc
 
 # R6.5 — path tenant-aware. Modulo: controllo_gestione.
 FOODCOST_DB = locale_data_path("foodcost.db")
@@ -163,7 +164,7 @@ def dashboard(
 
     # ─── 2. ACQUISTI (da foodcost.db — fe_fatture) ───
 
-    acquisti_mese = fc.execute("""
+    acquisti_mese = fc.execute(f"""
         SELECT
             COUNT(*) AS num_fatture,
             COALESCE(SUM(totale_fattura), 0) AS totale_acquisti,
@@ -173,13 +174,15 @@ def dashboard(
         FROM fe_fatture
         WHERE data_fattura >= ? AND data_fattura < ?
         AND is_autofattura = 0
+        AND {escludi_nc("")}  -- note di credito: A.1 fase 1
     """, (primo_giorno, ultimo_giorno)).fetchone()
 
-    acquisti_prev = fc.execute("""
+    acquisti_prev = fc.execute(f"""
         SELECT COALESCE(SUM(totale_fattura), 0) AS totale
         FROM fe_fatture
         WHERE data_fattura >= ? AND data_fattura < ?
         AND is_autofattura = 0
+        AND {escludi_nc("")}  -- note di credito: A.1 fase 1
     """, (prev_primo, prev_ultimo)).fetchone()
 
     a = dict(acquisti_mese)
@@ -262,10 +265,11 @@ def dashboard(
             m_ultimo = f"{anno}-{m + 1:02d}-01"
 
         # Acquisti mese
-        acq = fc.execute("""
+        acq = fc.execute(f"""
             SELECT COALESCE(SUM(totale_fattura), 0) AS tot
             FROM fe_fatture
             WHERE data_fattura >= ? AND data_fattura < ? AND is_autofattura = 0
+              AND {escludi_nc("")}  -- note di credito: A.1 fase 1
         """, (m_primo, m_ultimo)).fetchone()["tot"]
 
         # Banca uscite mese
@@ -301,13 +305,14 @@ def dashboard(
 
     # ─── 7. TOP FORNITORI MESE (da acquisti) ───
 
-    top_forn = fc.execute("""
+    top_forn = fc.execute(f"""
         SELECT fornitore_nome,
                COUNT(*) AS num_fatture,
                COALESCE(SUM(totale_fattura), 0) AS totale
         FROM fe_fatture
         WHERE data_fattura >= ? AND data_fattura < ?
         AND is_autofattura = 0
+        AND {escludi_nc("")}  -- note di credito: A.1 fase 1
         GROUP BY fornitore_piva
         ORDER BY totale DESC
         LIMIT 8
@@ -317,7 +322,7 @@ def dashboard(
 
     # ─── 8. CATEGORIE ACQUISTI MESE ───
 
-    cat_acquisti = fc.execute("""
+    cat_acquisti = fc.execute(f"""
         SELECT
             COALESCE(fc.nome, 'Non categorizzato') AS categoria,
             COUNT(DISTINCT f.id) AS num_fatture,
@@ -327,6 +332,7 @@ def dashboard(
         LEFT JOIN fe_categorie fc ON ffc.categoria_id = fc.id
         WHERE f.data_fattura >= ? AND f.data_fattura < ?
         AND f.is_autofattura = 0
+        AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
         GROUP BY fc.nome
         ORDER BY totale DESC
     """, (primo_giorno, ultimo_giorno)).fetchall()

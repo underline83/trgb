@@ -100,10 +100,19 @@ def _ensure_cg_uscita(conn, fattura_id: int) -> Optional[int]:
     # Stub: leggi i campi base da fe_fatture
     f = conn.execute("""
         SELECT fornitore_nome, fornitore_piva, numero_fattura,
-               data_fattura, totale_fattura, data_scadenza
+               data_fattura, totale_fattura, data_scadenza,
+               COALESCE(tipo_documento, 'TD01') AS tipo_documento
         FROM fe_fatture WHERE id = ?
     """, (fattura_id,)).fetchone()
     if f is None:
+        return None
+
+    # Note di credito (TD04, A.1 fase 1): non sono un debito da pagare, quindi
+    # niente cg_uscite. Il collegamento con la fattura stornata (fase 3)
+    # gestirà il residuo; fino ad allora una nota di credito non tocca il CG.
+    tipo = f["tipo_documento"] if hasattr(f, "keys") else f[6]
+    if tipo == "TD04":
+        logger.info(f"[stato_pagamento] fattura={fattura_id} è nota di credito: nessuna cg_uscite")
         return None
 
     # data_scadenza: fallback su data_fattura se manca

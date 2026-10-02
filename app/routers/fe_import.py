@@ -52,6 +52,7 @@ router = APIRouter(
 # -------------------------------------------------------------------
 
 from app.utils.locale_data import locale_data_path
+from app.services.fatture_filtri import escludi_nc
 
 # R6.5 — path tenant-aware. Modulo: acquisti (fatture elettroniche import).
 FOODCOST_DB_PATH = locale_data_path("foodcost.db")
@@ -1669,7 +1670,7 @@ def stats_fornitori(
     cur = conn.cursor()
 
     params: list = []
-    where_clauses: list[str] = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0"]
+    where_clauses: list[str] = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0", escludi_nc("f")]
 
     if year is not None:
         where_clauses.append("substr(f.data_fattura, 1, 4) = ?")
@@ -1715,7 +1716,7 @@ def stats_fornitori(
     # ── Conteggi righe con/senza categoria per fornitore ──
     # Per ogni fornitore conta: righe_totali, righe con categoria_id assegnata
     cat_params: list = []
-    cat_where = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0"]
+    cat_where = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0", escludi_nc("f")]
     if year is not None:
         cat_where.append("substr(f.data_fattura, 1, 4) = ?")
         cat_params.append(str(year))
@@ -1740,7 +1741,7 @@ def stats_fornitori(
 
     # ── Conteggi dati pagamento per fornitore ──
     pag_params: list = []
-    pag_where = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0"]
+    pag_where = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0", escludi_nc("f")]
     if year is not None:
         pag_where.append("substr(f.data_fattura, 1, 4) = ?")
         pag_params.append(str(year))
@@ -1909,7 +1910,8 @@ _EXCL_JOIN = """
         ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc.fornitore_piva)
         OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
 """
-_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0 AND COALESCE(fc.escluso_acquisti, 0) = 0"
+# note di credito escluse: A.1 fase 1 (app/services/fatture_filtri.py)
+_EXCL_WHERE = f"COALESCE(f.is_autofattura, 0) = 0 AND {escludi_nc('f')} AND COALESCE(fc.escluso_acquisti, 0) = 0"
 
 
 @router.get("/stats/drill", summary="Drill-down fatture filtrate per mese e/o categoria")
@@ -1940,6 +1942,7 @@ def stats_drill(
         where_parts = [
             "f.data_fattura IS NOT NULL",
             "COALESCE(f.is_autofattura, 0) = 0",
+            escludi_nc("f"),
             "COALESCE(fc_excl.escluso_acquisti, 0) = 0",
             "r.descrizione IS NOT NULL",
             "r.descrizione != ''",
@@ -2131,7 +2134,7 @@ def stats_per_categoria_dashboard(
 
     # Legge da fe_righe (categoria assegnata ai prodotti) — più granulare e aggiornato
     # rispetto a fe_fornitore_categoria (categoria del fornitore)
-    where = "f.data_fattura IS NOT NULL AND COALESCE(f.is_autofattura, 0) = 0"
+    where = f"f.data_fattura IS NOT NULL AND COALESCE(f.is_autofattura, 0) = 0 AND {escludi_nc('f')}"
     excl = """LEFT JOIN fe_fornitore_categoria fc_excl
         ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc_excl.fornitore_piva)
         OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc_excl.fornitore_nome AND fc_excl.fornitore_piva IS NULL)"""

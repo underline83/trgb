@@ -127,6 +127,7 @@ class SyncResultItem(BaseModel):
     data: str = ""
     totale: float = 0
     stato: str = ""  # "nuova" | "aggiornata" | "merged_xml"
+    tipo: str = ""   # "" = fattura | "nc" = nota di credito (A.1 fase 1)
 
 class SyncResult(BaseModel):
     nuove: int = 0
@@ -136,6 +137,7 @@ class SyncResult(BaseModel):
     errori: int = 0
     righe_importate: int = 0
     totale_api: int = 0
+    note_credito: int = 0   # note di credito processate (A.1 fase 1)
     note: str = ""
     error_details: list[str] = []
     items: list[SyncResultItem] = []
@@ -294,8 +296,12 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
             xml_dup = conn.execute(
                 """SELECT id FROM fe_fatture
                 WHERE fornitore_piva = ? AND numero_fattura = ? AND data_fattura = ?
-                  AND COALESCE(fonte, 'xml') = 'xml' AND id != ?""",
-                (fornitore_piva, invoice_number, doc_date, fattura_db_id),
+                  AND COALESCE(fonte, 'xml') = 'xml' AND id != ?
+                  -- stesso genere di documento (nota di credito vs fattura, A.1 fase 1)
+                  AND (COALESCE(tipo_documento, 'TD01') = 'TD04') = (
+                      SELECT COALESCE(tipo_documento, 'TD01') = 'TD04'
+                      FROM fe_fatture WHERE id = ?)""",
+                (fornitore_piva, invoice_number, doc_date, fattura_db_id, fattura_db_id),
             ).fetchone()
 
             if xml_dup:
@@ -552,6 +558,16 @@ def fic_sync(
         page = 1
         totale_api = 0
         error_details: list[str] = []
+
+        # A.1 fase 1 (2026-10-02): oltre alle spese (`expense`) scarichiamo le
+        # note di credito (`passive_credit_note`), salvate con
+        # tipo_documento='TD04'. Le query di costo le escludono via
+        # app/services/fatture_filtri.escludi_nc → i numeri non cambiano.
+        DOC_TYPES = ["expense", "passive_credit_note"]
+        type_idx = 0
+        doc_type = DOC_TYPES[type_idx]
+        totale_api_per_tipo: dict[str, int] = {}
+        note_credito = 0
         sync_items: list[dict] = []
 
         # Traccia documenti per cui fetchare il dettaglio (fic_id → fattura_db_id)
@@ -566,7 +582,7 @@ def fic_sync(
         while True:
             try:
                 req_params = {
-                    "type": "expense",
+                    "type": doc_type,
                     "per_page": 50,
                     "page": page,
                 }
@@ -579,7 +595,7 @@ def fic_sync(
                 if page == 1 and anno:
                     try:
                         data = fic_get(token, f"/c/{cid}/received_documents", {
-                            "type": "expense",
+                            "type": doc_type,
                             "per_page": 50,
                             "page": page,
                         })
@@ -593,9 +609,13 @@ def fic_sync(
                     break
 
             items = data.get("data", [])
-            totale_api = data.get("total", len(items))
+            totale_api_per_tipo[doc_type] = data.get("total", len(items))
+            totale_api = sum(totale_api_per_tipo.values())
             last_page = data.get("last_page", page)
             _sync_progress["total"] = totale_api
+            is_nc_doc = (doc_type == "passive_credit_note")
+            tipo_doc_db = "TD04" if is_nc_doc else None
+            tipo_item = "nc" if is_nc_doc else ""
 
             for doc in items:
                 try:
@@ -690,6 +710,14 @@ def fic_sync(
                             or round(cur_row["totale_fattura"] or 0, 2) != round(amount_gross, 2)
                         )
 
+                        if is_nc_doc:
+                            conn.execute(
+                                "UPDATE fe_fatture SET tipo_documento = 'TD04' "
+                                "WHERE id = ? AND COALESCE(tipo_documento, '') != 'TD04'",
+                                (db_id,),
+                            )
+                            note_credito += 1
+
                         if header_changed:
                             if doc_number:
                                 conn.execute(
@@ -726,7 +754,7 @@ def fic_sync(
 
                         if header_changed or needs_detail:
                             aggiornate += 1
-                            sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "aggiornata"})
+                            sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "aggiornata", "tipo": tipo_item})
 
                         continue
 
@@ -739,8 +767,11 @@ def fic_sync(
                               AND numero_fattura = ?
                               AND data_fattura = ?
                               AND COALESCE(fonte, 'xml') = 'xml'
+                              -- stesso genere di documento: una nota di credito
+                              -- può avere lo stesso numero della fattura che storna
+                              AND (COALESCE(tipo_documento, 'TD01') = 'TD04') = ?
                             """,
-                            (fornitore_piva, doc_number, doc_date),
+                            (fornitore_piva, doc_number, doc_date, 1 if is_nc_doc else 0),
                         ).fetchone()
 
                         if existing_xml:
@@ -751,7 +782,9 @@ def fic_sync(
                             # Fetcha dettaglio anche per XML linkate (righe + pagato)
                             docs_to_detail.append((fic_id, existing_xml["id"]))
                             duplicate_xml += 1
-                            sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "merged_xml"})
+                            if is_nc_doc:
+                                note_credito += 1
+                            sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "merged_xml", "tipo": tipo_item})
                             continue
 
                     # 3) Nuova fattura → inserisci
@@ -762,20 +795,22 @@ def fic_sync(
                             fornitore_nome, fornitore_piva,
                             numero_fattura, data_fattura,
                             imponibile_totale, iva_totale, totale_fattura,
-                            valuta, data_import, fonte, fic_id
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'fic', ?)
+                            valuta, data_import, fonte, fic_id, tipo_documento
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'fic', ?, ?)
                         """,
                         (
                             fornitore_nome, fornitore_piva,
                             doc_number, doc_date,
                             amount_net, amount_vat, amount_gross,
-                            "EUR", now, fic_id,
+                            "EUR", now, fic_id, tipo_doc_db,
                         ),
                     )
                     new_db_id = cur2.lastrowid
                     docs_to_detail.append((fic_id, new_db_id))
                     nuove += 1
-                    sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "nuova"})
+                    if is_nc_doc:
+                        note_credito += 1
+                    sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "nuova", "tipo": tipo_item})
 
                 except Exception as e:
                     errori += 1
@@ -791,7 +826,13 @@ def fic_sync(
             conn.commit()
 
             if page >= last_page:
-                break
+                # Finite le pagine di questo tipo: passa al tipo successivo
+                type_idx += 1
+                if type_idx >= len(DOC_TYPES):
+                    break
+                doc_type = DOC_TYPES[type_idx]
+                page = 1
+                continue
             page += 1
 
         # ── FASE 2: DETTAGLIO (righe + pagato + dedup XML) ──
@@ -837,6 +878,7 @@ def fic_sync(
             f"Anno {anno}: {nuove} nuove, {aggiornate} agg, "
             f"{duplicate_xml} già da XML (fase1), {merged_xml} uniti (fase2), "
             f"{skipped_non_fattura} non-fatture skippate, "
+            f"{note_credito} note di credito, "
             f"{righe_importate} righe, totale API: {totale_api}"
         )
         conn.execute(
@@ -862,6 +904,7 @@ def fic_sync(
             errori=errori,
             righe_importate=righe_importate,
             totale_api=totale_api,
+            note_credito=note_credito,
             note=f"Sincronizzazione {anno} completata",
             error_details=error_details[:50],  # max 50 errori dettagliati
             items=[SyncResultItem(**it) for it in sync_items],

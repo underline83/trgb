@@ -35,6 +35,7 @@ from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
 
 from app.services.permessi import richiede_ruoli
+from app.services.fatture_filtri import escludi_nc
 
 # PERMESSI (2026-09-01, M.G) — matching fatture-ingredienti
 # Erano aperte a chiunque le POST che riscrivono il matching fatture-ingredienti, il toggle escluso sui fornitori e la DELETE dei mapping. Verificato con grep: nessuna pagina fuori da /ricette/matching (admin) lo chiama.
@@ -303,6 +304,7 @@ def list_pending_rows(
             r.prezzo_totale
         FROM fe_righe r
         JOIN fe_fatture f ON f.id = r.fattura_id
+          AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
         LEFT JOIN fe_fornitore_categoria fc
             ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
             OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
@@ -991,12 +993,13 @@ def auto_match():
 
     # Righe pendenti
     pending = cur.execute(
-        """
+        f"""
         SELECT r.id AS riga_id, r.fattura_id, r.descrizione, r.quantita,
                r.unita_misura, r.prezzo_unitario, r.prezzo_totale,
                f.fornitore_nome, f.fornitore_piva, f.numero_fattura, f.data_fattura
         FROM fe_righe r
         JOIN fe_fatture f ON f.id = r.fattura_id
+          AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
         WHERE r.id NOT IN (
             SELECT ip.riga_fattura_id
             FROM ingredient_prices ip
@@ -1155,7 +1158,7 @@ def list_suppliers_for_matching():
     cur = conn.cursor()
 
     rows = cur.execute(
-        """
+        f"""
         SELECT
             f.fornitore_nome,
             f.fornitore_piva,
@@ -1165,6 +1168,7 @@ def list_suppliers_for_matching():
             c.nome AS categoria_nome
         FROM fe_righe r
         JOIN fe_fatture f ON f.id = r.fattura_id
+          AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
         LEFT JOIN fe_fornitore_categoria fc
             ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
             OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
@@ -1674,11 +1678,12 @@ def smart_suggest():
 
     # 1. Carica tutte le righe pending (esclude fornitori esclusi + righe ignorate)
     pending = cur.execute(
-        """
+        f"""
         SELECT r.id AS riga_id, r.descrizione, r.unita_misura,
                f.fornitore_nome, f.fornitore_piva
         FROM fe_righe r
         JOIN fe_fatture f ON f.id = r.fattura_id
+          AND {escludi_nc("f")}  -- note di credito: A.1 fase 1
         LEFT JOIN fe_fornitore_categoria fc
             ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
             OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
