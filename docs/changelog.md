@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-10-02 — Scadenzario: chiuso lo storico prima degli estratti bancari `[core]`
+
+Il riquadro «da riconciliare» dello Scadenzario contava circa 1.300 uscite pagate a mano senza movimento bancario: quasi tutte fatture e rate del 2024-2025, precedenti al primo estratto del conto caricato in TRGB, che non si potranno mai collegare. Ora sono **chiuse come pagate**, con la nota «storico anteriore agli estratti bancari» (migrazione 179). La data limite è quella del primo movimento del conto, ricavata dai dati. Restano da riconciliare solo le uscite recenti, circa 70.
+
+---
+
+## 2026-10-02 — Cucina iPhone: la scheda dell'articolo su una pagina sola `[core]`
+
+Niente più «✏️ Modifica» da aprire: la scheda di un articolo si legge scorrendo — in alto quanti ce ne sono, poi i tasti (Scarico, Carico, Scarto, Sposta), dove si trova e i lotti, poi i **dettagli** (nome, unità, confezione, come lo seguiamo, scorta minima, cos'è) già modificabili lì, e in fondo la storia dei movimenti. Se cambi un dettaglio compaiono «Salva modifiche» e «Annulla».
+
+---
+
 ## 2026-10-02 — Riconciliazione: ora si vedono tutti i movimenti `[core]`
 
 La pagina Riconciliazione mostrava solo i **500 movimenti più recenti**, senza avvisare. Il 2 ottobre voleva dire che tutto quello prima del 7 luglio 2026 non compariva: 1.212 movimenti su 1.712, di cui **227 ancora da riconciliare**. Ora la pagina carica tutti i movimenti; i filtri per data e importo funzionano come prima.

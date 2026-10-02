@@ -1,6 +1,8 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.4 — gate temperature: chi apre per primo la Cucina iPhone inserisce le temperature
+// @version: v1.5 — scheda articolo su una pagina sola: quantità, gesti, dove/lotti, DETTAGLI modificabili
+//            in linea (niente più ✏️ Modifica), movimenti in fondo (2026-10-02)
+// v1.4 — gate temperature: chi apre per primo la Cucina iPhone inserisce le temperature
 //            di oggi; «Ignora per oggi» solo admin/superadmin/chef (2026-10-02)
 // v1.3 — sugli articoli a MOVIMENTI il pallino lo decide la quantità: tocco = «Quanti ce
 //            ne sono?» (CorreggiSheet condiviso); scorta minima da ✏️ Modifica (2026-10-02)
@@ -970,13 +972,17 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
     finally { setBusy(false); }
   }
 
-  function apriModifica() {
-    setMod({
-      nome: a.nome || "", um: a.um || "PZ", confezione: a.confezione || "",
-      regime: a.regime || "SEMAFORO", natura: a.natura || null,
-      scorta_minima: a.scorta_minima ?? "",
-    });
-  }
+  // I dettagli stanno sempre in pagina (Marco 2026-10-02: niente «Modifica»
+  // da aprire). La bozza riparte dall'articolo a ogni ricarica; «Salva»
+  // compare solo se qualcosa è cambiato davvero.
+  const daArticolo = (x) => ({
+    nome: x.nome || "", um: x.um || "PZ", confezione: x.confezione || "",
+    regime: x.regime || "SEMAFORO", natura: x.natura || null,
+    scorta_minima: x.scorta_minima ?? "",
+  });
+  useEffect(() => { if (a) setMod(daArticolo(a)); }, [a]);
+  function resetModifica() { if (a) setMod(daArticolo(a)); }
+  const modCambiato = !!(a && mod) && JSON.stringify(mod) !== JSON.stringify(daArticolo(a));
 
   async function salvaModifica() {
     if (!mod || busy || !mod.nome.trim()) return;
@@ -992,7 +998,6 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
-      setMod(null);
       await load();
     } catch (e) { setErr(e.message); }
     finally { setBusy(false); }
@@ -1020,7 +1025,6 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
               {[a.categoria, a.um, a.confezione, a.fornitore_freeform].filter(Boolean).join(" · ") || "—"}
             </div>
           </div>
-          {canWrite && <button className="km-edit" onClick={apriModifica}>✏️ Modifica</button>}
         </div>
       </div>
 
@@ -1116,6 +1120,72 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
                 );
               })}
             </div>
+          </>
+        )}
+
+        {mod && (
+          <>
+            <div className="km-lbl">Dettagli</div>
+            <fieldset className="km-card" disabled={!canWrite}
+                      style={{ padding: "4px 14px 14px", border: "1px solid var(--hair)", margin: 0, minWidth: 0 }}>
+            <div className="km-flbl">Nome</div>
+              <input className="km-in" value={mod.nome}
+                     onChange={(e) => setMod({ ...mod, nome: e.target.value })} />
+
+              <div className="km-flbl">Si conta in</div>
+              <div className="km-pills wrap">
+                {UM_OPZ.map((u) => (
+                  <button key={u} className={`km-pill${mod.um === u ? " on" : ""}`}
+                          onClick={() => setMod({ ...mod, um: u })}>{u.toLowerCase()}</button>
+                ))}
+              </div>
+
+              <div className="km-flbl">Confezione</div>
+              <input className="km-in" value={mod.confezione} placeholder="vaschetta 500 g, sacchetto, porzione…"
+                     onChange={(e) => setMod({ ...mod, confezione: e.target.value })} />
+
+              <div className="km-flbl">Come lo seguiamo</div>
+              <div className="km-pills wrap">
+                {REGIME_OPZ.map((r) => (
+                  <button key={r.k} className={`km-pill${mod.regime === r.k ? " on" : ""}`}
+                          onClick={() => setMod({ ...mod, regime: r.k })}>{r.t}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                {REGIME_OPZ.find((r) => r.k === mod.regime)?.d}
+              </div>
+
+              {mod.regime === "MOVIMENTI" && (
+                <>
+                  <div className="km-flbl">Scorta minima ({(mod.um || "pz").toLowerCase()})</div>
+                  <input className="km-in" type="number" inputMode="decimal" step="0.1" min="0"
+                         value={mod.scorta_minima} placeholder="vuoto = niente giallo"
+                         onChange={(e) => setMod({ ...mod, scorta_minima: e.target.value })} />
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                    Quando in tutto ne restano così pochi il pallino diventa giallo.
+                  </div>
+                </>
+              )}
+
+              <div className="km-flbl">Cos'è</div>
+              <div className="km-pills wrap">
+                {NATURA_OPZ.map((n) => (
+                  <button key={n} className={`km-pill${mod.natura === n ? " on" : ""}`}
+                          onClick={() => setMod({ ...mod, natura: mod.natura === n ? null : n })}>
+                    {n.replace("_", "-").toLowerCase()}
+                  </button>
+                ))}
+              </div>
+
+            </fieldset>
+            {modCambiato && (
+              <div style={{ display: "flex", gap: 9 }}>
+                <button className="km-btn ghost" disabled={busy} onClick={resetModifica}>Annulla</button>
+                <button className="km-btn" disabled={busy || !mod.nome.trim()} onClick={salvaModifica}>
+                  {busy ? "Salvo…" : "Salva modifiche"}
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -1252,67 +1322,6 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
                        onFatto={() => { setCorr(null); load(); }} />
       )}
 
-      {mod && (
-        <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setMod(null); }}>
-          <div className="km-sheet-in">
-            <h3 className="km-serif">Modifica articolo</h3>
-
-            <div className="km-flbl">Nome</div>
-            <input className="km-in" value={mod.nome}
-                   onChange={(e) => setMod({ ...mod, nome: e.target.value })} />
-
-            <div className="km-flbl">Si conta in</div>
-            <div className="km-pills wrap">
-              {UM_OPZ.map((u) => (
-                <button key={u} className={`km-pill${mod.um === u ? " on" : ""}`}
-                        onClick={() => setMod({ ...mod, um: u })}>{u.toLowerCase()}</button>
-              ))}
-            </div>
-
-            <div className="km-flbl">Confezione</div>
-            <input className="km-in" value={mod.confezione} placeholder="vaschetta 500 g, sacchetto, porzione…"
-                   onChange={(e) => setMod({ ...mod, confezione: e.target.value })} />
-
-            <div className="km-flbl">Come lo seguiamo</div>
-            <div className="km-pills wrap">
-              {REGIME_OPZ.map((r) => (
-                <button key={r.k} className={`km-pill${mod.regime === r.k ? " on" : ""}`}
-                        onClick={() => setMod({ ...mod, regime: r.k })}>{r.t}</button>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>
-              {REGIME_OPZ.find((r) => r.k === mod.regime)?.d}
-            </div>
-
-            {mod.regime === "MOVIMENTI" && (
-              <>
-                <div className="km-flbl">Scorta minima ({(mod.um || "pz").toLowerCase()})</div>
-                <input className="km-in" type="number" inputMode="decimal" step="0.1" min="0"
-                       value={mod.scorta_minima} placeholder="vuoto = niente giallo"
-                       onChange={(e) => setMod({ ...mod, scorta_minima: e.target.value })} />
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Quando in tutto ne restano così pochi il pallino diventa giallo.
-                </div>
-              </>
-            )}
-
-            <div className="km-flbl">Cos'è</div>
-            <div className="km-pills wrap" style={{ marginBottom: 14 }}>
-              {NATURA_OPZ.map((n) => (
-                <button key={n} className={`km-pill${mod.natura === n ? " on" : ""}`}
-                        onClick={() => setMod({ ...mod, natura: mod.natura === n ? null : n })}>
-                  {n.replace("_", "-").toLowerCase()}
-                </button>
-              ))}
-            </div>
-
-            <button className="km-btn" disabled={busy || !mod.nome.trim()} onClick={salvaModifica}>
-              {busy ? "Salvo…" : "Salva"}
-            </button>
-            <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={() => setMod(null)}>Annulla</button>
-          </div>
-        </div>
-      )}
     </>
   );
 }

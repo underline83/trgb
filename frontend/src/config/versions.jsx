@@ -166,6 +166,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.7 (2026-10-02): scheda articolo su una pagina a scorrimento — quantità,
+    //   gesti, dove si trova, lotti, DETTAGLI modificabili in linea (sparisce
+    //   ✏️ Modifica; «Salva modifiche» compare solo se cambia qualcosa), movimenti.
     // 1.6 (2026-10-02): gate temperature — chi apre per primo la Cucina iPhone
     //   inserisce le temperature di oggi (voci TEMPERATURA agganciate ai frigo
     //   via checklist_item.ubicazione_id, scritte nel registro HACCP del Task
@@ -205,7 +208,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.6",
+    version: "1.7",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
