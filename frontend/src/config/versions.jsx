@@ -268,7 +268,8 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.21",
+    // v1.22 (2026-10-02): Riconciliazione mostrava solo i 500 movimenti più recenti (default limit backend) — ora tutti.
+    version: "1.22",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",

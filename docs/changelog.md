@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-02 — Riconciliazione: ora si vedono tutti i movimenti `[core]`
+
+La pagina Riconciliazione mostrava solo i **500 movimenti più recenti**, senza avvisare. Il 2 ottobre voleva dire che tutto quello prima del 7 luglio 2026 non compariva: 1.212 movimenti su 1.712, di cui **227 ancora da riconciliare**. Ora la pagina carica tutti i movimenti; i filtri per data e importo funzionano come prima.
+
+---
+
 ## 2026-10-02 — Rateizzazioni: due rate nello stesso mese `[core]`
 
 Quando un piano rate (Abaco, Agenzia Entrate, PagoPA) ha due scadenze nello stesso mese, lo scadenziario ne creava una sola, e nei mesi senza rata inventava un'uscita all'importo medio. Con Abaco succedeva così:
@@ -57,6 +63,12 @@ Nella zona Formaggi di Selezioni del Giorno:
 - Nuove categorie: Crosta fiorita, Crosta lavata, Semistagionati.
 
 Caricati (dopo il push, con lo script di import) 7 formaggi francesi e 11 orobici con racconto e gusto per la sala; tolti i 4 vecchi formaggi di prova (Bagoss, Fontina, Formagella, Pecorino di Pienza).
+
+---
+
+## 2026-10-02 — Fix: le checklist non si potevano spuntare («Failed to fetch») `[core]`
+
+Salvando le temperature dalla Cucina iPhone compariva «Failed to fetch». Non era la rete: il server rispondeva con un errore interno, e lo stesso succedeva a **ogni** spunta, completamento o «salta» di una checklist del Task Manager. Causa: al database delle checklist, ricreato da zero durante l'incidente di maggio, mancava la colonna del reparto sulle istanze. Ora il gestionale la rimette da solo all'avvio (e la riempie dal modello della checklist), insieme alle altre due colonne perse nello stesso modo. Nessun dato perso.
 
 ---
 

@@ -1,4 +1,6 @@
-# @version: v1.3-selfheal-livello-cucina (2026-07-19) — init difensivo allineato allo schema post-088 + self-heal colonne
+# @version: v1.4-selfheal-reparto (2026-10-02) — self-heal anche di checklist_instance.reparto e task_singolo.reparto (mig 085)
+#           e checklist_item.ubicazione_id (mig 171), persi col DB ricreato a maggio: ogni check/completa/salta andava in 500
+# v1.3-selfheal-livello-cucina (2026-07-19) — init difensivo allineato allo schema post-088 + self-heal colonne
 # @version: v1.2-tasks-wal-protected (ex-cucina, rinominato Phase B sessione 46)
 # -*- coding: utf-8 -*-
 """
@@ -93,6 +95,7 @@ def init_tasks_db() -> None:
             score_compliance    INTEGER,
             note                TEXT,
             livello_cucina      TEXT,
+            reparto             TEXT,
             created_at          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (template_id) REFERENCES checklist_template(id) ON DELETE CASCADE,
             UNIQUE(template_id, data_riferimento, turno)
@@ -134,6 +137,7 @@ def init_tasks_db() -> None:
             ref_id                  INTEGER,
             created_by              TEXT,
             livello_cucina          TEXT,
+            reparto                 TEXT,
             created_at              TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             updated_at              TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
@@ -163,8 +167,15 @@ def init_tasks_db() -> None:
     # per i DB gia' esistenti.
     HEAL_COLUMNS = {
         "checklist_template": [("livello_cucina", "TEXT")],
-        "checklist_instance": [("livello_cucina", "TEXT")],
-        "task_singolo":       [("livello_cucina", "TEXT")],
+        # reparto (mig 085) e ubicazione_id (mig 171): persi anche loro col DB
+        # ricreato a maggio. Senza checklist_instance.reparto la guardia
+        # _check_instance_visibility del router esplode: ogni spunta, completa
+        # e salta di checklist rispondeva 500 (scoperto 2026-10-02 col gate
+        # temperature). Nullable apposta: ALTER ... NOT NULL DEFAULT su righe
+        # esistenti non le popola (feedback SQLite) — il backfill e' sotto.
+        "checklist_instance": [("livello_cucina", "TEXT"), ("reparto", "TEXT")],
+        "task_singolo":       [("livello_cucina", "TEXT"), ("reparto", "TEXT")],
+        "checklist_item":     [("ubicazione_id", "INTEGER")],
     }
     for table, cols in HEAL_COLUMNS.items():
         existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()}
@@ -178,6 +189,21 @@ def init_tasks_db() -> None:
                     print(f"[tasks_db] self-heal: aggiunta {table}.{col}")
                 except sqlite3.OperationalError as e:
                     print(f"[tasks_db] self-heal {table}.{col} fallito: {e}")
+
+    # Backfill del reparto: l'istanza eredita quello del suo template (e' cio'
+    # che fa lo scheduler sulle nuove), il task singolo nasce 'cucina' come
+    # da default della 085. Solo dove e' NULL: idempotente.
+    try:
+        cur.execute("""
+            UPDATE checklist_instance
+               SET reparto = COALESCE(
+                   (SELECT LOWER(t.reparto) FROM checklist_template t WHERE t.id = checklist_instance.template_id),
+                   'cucina')
+             WHERE reparto IS NULL
+        """)
+        cur.execute("UPDATE task_singolo SET reparto = 'cucina' WHERE reparto IS NULL")
+    except sqlite3.OperationalError as e:
+        print(f"[tasks_db] backfill reparto fallito: {e}")
 
     # Indici (safety net — la migrazione li crea gia')
     cur.execute("CREATE INDEX IF NOT EXISTS idx_tmpl_attivo ON checklist_template(attivo)")

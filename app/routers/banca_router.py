@@ -836,7 +836,7 @@ def get_cross_ref(
     importo_max: Optional[float] = None,   # |importo| <= importo_max
     direzione: Optional[str] = None,       # 'uscite' | 'entrate' | None
     categoria_banca: Optional[str] = None, # filtra per m.categoria_banca (ILIKE)
-    limit: int = 500,
+    limit: Optional[int] = None,
 ):
     """
     Tutti i movimenti bancari con link multipli e suggerimenti.
@@ -847,7 +847,10 @@ def get_cross_ref(
     - importo_min / importo_max: applicati a ABS(importo)
     - direzione: 'uscite' -> importo<0, 'entrate' -> importo>=0
     - categoria_banca: substring match case-insensitive
-    - limit: default 500 (max 5000)
+    - limit: opzionale (max 5000). Default: nessun limite — fino al 2026-10-02
+      il default era 500 e la pagina Riconciliazione (che non passa limit)
+      nascondeva in silenzio tutto ciò che era più vecchio dei 500 movimenti
+      più recenti (al 02/10: 1.212 movimenti su 1.712, 227 da riconciliare).
     """
     conn = get_db()
     cur = conn.cursor()
@@ -878,11 +881,13 @@ def get_cross_ref(
         where.append("LOWER(COALESCE(m.categoria_banca,'')) LIKE ?")
         params.append(f"%{categoria_banca.lower()}%")
 
-    # Cap sicurezza limit
-    try:
-        lim = max(1, min(int(limit), 5000))
-    except Exception:
-        lim = 500
+    # Limite solo se richiesto esplicitamente (cap 5000)
+    lim_sql = ""
+    if limit is not None:
+        try:
+            lim_sql = f"LIMIT {max(1, min(int(limit), 5000))}"
+        except Exception:
+            lim_sql = ""
 
     # ── 1. Carica movimenti ──
     # CC.6: include flag is_carta (movimento pseudo dal PDF estratto) e
@@ -922,7 +927,7 @@ def get_cross_ref(
         FROM banca_movimenti m
         WHERE {" AND ".join(where)}
         ORDER BY m.data_contabile DESC
-        LIMIT {lim}
+        {lim_sql}
     """, params)
     raw_movimenti = [dict(r) for r in cur.fetchall()]
 

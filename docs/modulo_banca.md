@@ -4,7 +4,7 @@
 > **Vedi anche:** [modulo_controllo_gestione.md](modulo_controllo_gestione.md), [spec_riconciliazione.md](spec_riconciliazione.md), [stato_pagamento_unificato.md](stato_pagamento_unificato.md), [modulo_vendite.md](modulo_vendite.md)
 
 **Nome utente:** "Flussi di Cassa" (rinominato da "Banca"; id modulo interno resta `banca`)
-**Versioni (`versions.jsx`):** flussiCassa **v1.20** (beta, `versions.jsx:104`) · cartaCredito **v1.11** (beta, `versions.jsx:211`)
+**Versioni (`versions.jsx`):** flussiCassa **v1.22** (beta, `versions.jsx:104`) · cartaCredito **v1.11** (beta, `versions.jsx:211`)
 **Sezione FE top-level:** `/flussi-cassa/*` — le vecchie route `/banca/*` sono redirect (`App.jsx:381-388`)
 **Backend prefix:** `/banca/*` (`banca_router.py`) + `/banca/carta/*` (`banca_carta_router.py`). **Non esiste** un prefix backend `/flussi-cassa/*`: i tab Contanti e Mance riusano endpoint `/admin/finance/*` e `/controllo-gestione/*` (vedi §8, §9)
 **DB:** `foodcost.db` (tabelle `banca_*`, `carte_credito`, `carta_*`, `cg_uscite`, `cg_entrate`) + `admin_finance.sqlite3` (contanti/mance, condiviso con Vendite/Cassa). Path tenant-aware via `locale_data_path()` → live in `locali/tregobbi/data/`
@@ -175,7 +175,7 @@ Un movimento bancario può essere collegato a tre tipi di oggetto:
 
 | Metodo | Path | Riga | Cosa fa |
 |--------|------|------|---------|
-| GET | `/banca/cross-ref` | 791 | Worklist movimenti con link, residuo, flag `is_carta`, match A/B carta e suggerimenti |
+| GET | `/banca/cross-ref` | 791 | Worklist movimenti con link, residuo, flag `is_carta`, match A/B carta e suggerimenti. Senza `limit` restituisce **tutti** i movimenti (fino al 2026-10-02 il default era 500 e la pagina, che non passa limit, perdeva in silenzio i movimenti più vecchi) |
 | POST | `/banca/cross-ref/link` | 1190 | Crea link (body: `movimento_id` + uno tra `fattura_id`/`uscita_id`/`entrata_id`, `note`) |
 | DELETE | `/banca/cross-ref/link/{link_id}` | 1273 | Rimuove link. `link_id` numerico = fattura; `uNNN` = uscita; `eNNN` = entrata (l'entrata viene CANCELLATA) |
 | POST | `/banca/cross-ref/chiudi/{movimento_id}` | 1354 | Chiusura manuale (mig 059): marca riconciliato anche con residuo >1€. Richiede ≥1 link |
