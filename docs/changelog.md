@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-10-02 — Carta di credito: «Cerca» trova anche le uscite non segnate carta `[core]`
+
+Nella finestra «Cerca» di un movimento carta, la ricerca ora:
+
+- trova **tutte le uscite non ancora pagate**, non solo quelle già segnate «carta» (es. le rate Abaco pagate con PagoPA);
+- cerca anche per **importo** e numero documento: «211» trova le rate da 211,00, 211,77, 211,95;
+- non applica le tolleranze di importo e data: una rata da 211,00 pagata 211,95 con la commissione si trova lo stesso.
+
+Collegando un'uscita così, diventa pagata con carta. Senza testo di ricerca la lista dei candidati resta quella di prima.
+
+---
+
 ## 2026-10-02 — Carta di credito: estratti con quota annua e storni `[core]`
 
 Il caricamento dei PDF della carta rifiutava due casi perché l'estratto «non quadrava»:
@@ -24,6 +36,12 @@ Nella zona Formaggi di Selezioni del Giorno:
 - Nuove categorie: Crosta fiorita, Crosta lavata, Semistagionati.
 
 Caricati (dopo il push, con lo script di import) 7 formaggi francesi e 11 orobici con racconto e gusto per la sala; tolti i 4 vecchi formaggi di prova (Bagoss, Fontina, Formagella, Pecorino di Pienza).
+
+---
+
+## 2026-10-02 — Scorte cucina: il pallino segue la quantità `[core]`
+
+Sugli articoli che seguiamo «a movimenti» (tutti quelli dei congelatori) il pallino non si cambia più a mano: lo decide il numero. A zero diventa **rosso** e l'articolo va in lista spesa (se non ce n'è più da nessuna parte); sotto la **scorta minima** diventa **giallo**; con un carico torna **verde** da solo. Toccare il pallino apre «Quanti ce ne sono?», con un tasto «finito» per lo zero. La scorta minima si imposta da ✏️ Modifica. Gli articoli a semaforo (sale, carta forno…) restano col tocco a mano.
 
 ---
 

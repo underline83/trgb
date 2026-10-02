@@ -155,7 +155,7 @@ export default function CercaUscitaModal({ movimento, onClose, onMatched }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={onSearchKey}
-            placeholder="Filtra per nome fornitore (es. Esselunga)"
+            placeholder="Fornitore, n. documento o importo (es. Abaco, 211)"
             className="flex-1"
           />
           <Btn size="sm" variant="secondary" onClick={() => loadCandidati(search)}>
@@ -175,8 +175,8 @@ export default function CercaUscitaModal({ movimento, onClose, onMatched }) {
           )}
         </div>
         <p className="text-[10px] text-neutral-400 mt-1">
-          Vengono mostrate solo uscite con <code>metodo='CARTA'</code> non ancora riconciliate,
-          entro le tolleranze configurate (importo ± centesimi, data ± giorni).
+          Senza ricerca: solo uscite già segnate «carta», entro le tolleranze di importo e data.
+          Con la ricerca: tutte le uscite non ancora pagate o già segnate «carta», senza tolleranze.
         </p>
       </div>
 
@@ -200,7 +200,7 @@ export default function CercaUscitaModal({ movimento, onClose, onMatched }) {
           <p className="text-xs">
             Forse l'uscita non è ancora stata creata da Fatture con "Paga con carta",
             oppure è fuori tolleranza (importo o data).
-            {!search && " Prova con la ricerca libera per nome fornitore."}
+            {!search && " Prova a cercare per fornitore o importo."}
           </p>
         </div>
       ) : (

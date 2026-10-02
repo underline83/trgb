@@ -62,6 +62,7 @@ from app.services.cucina_scorte_service import (
     foglio_ripiano,
     giacenza_totale,
     registra_movimento,
+    riallinea_semaforo,
     rimuovi_da_lista_spesa,
     scrivi_riga_conta,
     set_semaforo,
@@ -430,6 +431,7 @@ def update_articolo(articolo_id: int, payload: ArticoloUpdate,
                     [*d.values(), articolo_id])
         if d.get("ripiano_casa_id"):
             assicura_giacenza(conn, articolo_id, d["ripiano_casa_id"])
+        riallinea_semaforo(conn, articolo_id, _utente(current_user))
         conn.commit()
         return {"ok": True, "articolo": _get_articolo(cur, articolo_id)}
     finally:
@@ -466,7 +468,15 @@ def patch_semaforo(articolo_id: int, payload: SemaforoIn,
     conn = get_foodcost_connection()
     try:
         cur = conn.cursor()
-        _get_articolo(cur, articolo_id)
+        art = _get_articolo(cur, articolo_id)
+        # Sugli articoli a MOVIMENTI il colore segue la quantita' (2026-10-02):
+        # cambiarlo a mano farebbe di nuovo dire al pallino una cosa e al
+        # numero un'altra. Il client li manda a «Quanti ce ne sono?».
+        if (art.get("regime") or "").upper() == "MOVIMENTI":
+            raise HTTPException(
+                status_code=409,
+                detail="Per questo articolo il colore lo decide la quantita': correggi quanti ce ne sono",
+            )
         try:
             res = set_semaforo(conn, articolo_id, payload.ripiano_id, stato,
                                _utente(current_user))
@@ -714,6 +724,7 @@ def post_movimento(payload: MovimentoIn, current_user=Depends(get_current_user))
                     raise ValueError("per spostare servono il ripiano di partenza e quello di arrivo")
                 res = trasferisci(conn, payload.articolo_id, payload.ripiano_id,
                                   payload.ripiano_dest_id, qta, utente, motivo=payload.motivo)
+                res["semaforo"] = riallinea_semaforo(conn, payload.articolo_id, utente)
                 conn.commit()
                 return {"ok": True, "movimento": res["esce"], "trasferimento": res}
 
@@ -736,6 +747,7 @@ def post_movimento(payload: MovimentoIn, current_user=Depends(get_current_user))
                                              data_scadenza=payload.data_scadenza)
             elif delta < 0:
                 res["lotti"] = consuma_lotti(conn, payload.articolo_id, payload.ripiano_id, -delta)
+            res["semaforo"] = riallinea_semaforo(conn, payload.articolo_id, utente)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         conn.commit()
@@ -753,6 +765,9 @@ def delete_movimento(mov_id: int, current_user=Depends(get_current_user)):
             res = annulla_movimento(conn, mov_id, _utente(current_user))
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
+        art = conn.execute("SELECT articolo_id FROM cucina_movimenti WHERE id = ?", (mov_id,)).fetchone()
+        if art:
+            riallinea_semaforo(conn, art["articolo_id"], _utente(current_user))
         conn.commit()
         return {"ok": True, **res}
     finally:

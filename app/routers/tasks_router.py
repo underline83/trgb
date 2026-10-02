@@ -168,6 +168,7 @@ def _row_to_item(row) -> ChecklistItemOut:
         max_valore=row["max_valore"],
         unita_misura=row["unita_misura"],
         note=row["note"],
+        ubicazione_id=(row["ubicazione_id"] if "ubicazione_id" in row.keys() else None),
     )
 
 
@@ -206,8 +207,8 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
         conn.execute("""
             INSERT INTO checklist_item
                 (template_id, ordine, titolo, tipo, obbligatorio,
-                 min_valore, max_valore, unita_misura, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 min_valore, max_valore, unita_misura, note, ubicazione_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             template_id,
             it.ordine if it.ordine else idx,
@@ -218,6 +219,7 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
             it.max_valore,
             it.unita_misura,
             it.note,
+            it.ubicazione_id,
         ))
 
 

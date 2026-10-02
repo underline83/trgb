@@ -79,6 +79,9 @@ export default function TemplateEditor() {
           max_valore: it.max_valore,
           unita_misura: it.unita_misura,
           note: it.note,
+          // Ponte col frigo (cucina): non si edita qui, ma va conservato,
+          // altrimenti salvare il template staccherebbe la voce dal frigo.
+          ubicazione_id: it.ubicazione_id ?? null,
         })),
       }))
       .catch(e => setError(e.message))
@@ -144,6 +147,7 @@ export default function TemplateEditor() {
         max_valore: it.max_valore === "" || it.max_valore == null ? null : Number(it.max_valore),
         unita_misura: it.unita_misura?.trim() || null,
         note: it.note?.trim() || null,
+        ubicazione_id: it.ubicazione_id ?? null,
       })),
     };
 

@@ -44,7 +44,9 @@ from app.models.cucina_scorte_db import (
 )
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
-from app.services.haccp_letture import crea_task_guasto, letture_ubicazione, ultima_lettura
+from app.services.haccp_letture import (
+    crea_task_guasto, letture_ubicazione, salta_temperature, temperature_oggi, ultima_lettura,
+)
 from app.services.permessi import richiede_ruoli, verifica_ruoli
 
 # PERMESSI (M.G) — chi puo' toccare i frigoriferi.
@@ -275,6 +277,54 @@ def list_ubicazioni(
         return {"ubicazioni": rows}
     finally:
         conn.close()
+
+
+# ─── Le temperature di oggi (il «gate» della Cucina iPhone) ─────────
+# Dichiarate PRIMA di /{ubicazione_id}: altrimenti «temperature» verrebbe
+# preso per un id e FastAPI risponderebbe 422.
+
+IGNORA_TEMPERATURE = ("admin", "chef")   # + superadmin implicito (M.G)
+
+
+@router.get("/temperature/oggi")
+def get_temperature_oggi(current_user=Depends(get_current_user)):
+    """Le voci di temperatura di oggi ancora da fare.
+
+    `da_fare` = c'e' almeno un'istanza di oggi APERTA o IN_CORSO con voci
+    senza valore. `puo_ignorare` dice al client se mostrare «Ignora per oggi».
+    """
+    istanze = temperature_oggi(date.today().isoformat())
+    aperte = [
+        i for i in istanze
+        if i["stato"] in ("APERTA", "IN_CORSO")
+        and any(v.get("valore") is None for v in i["voci"])
+    ]
+    role = (current_user or {}).get("role")
+    return {
+        "da_fare": bool(aperte),
+        "istanze": aperte,
+        "puo_ignorare": role in ("superadmin", *IGNORA_TEMPERATURE),
+    }
+
+
+class IgnoraIn(BaseModel):
+    instance_id: int
+    motivo: Optional[str] = Field(default=None, max_length=300)
+
+
+@router.post("/temperature/oggi/ignora")
+def ignora_temperature_oggi(payload: IgnoraIn, current_user=Depends(get_current_user)):
+    """«Ignora per oggi» — solo admin e oste/cuoco (Marco 2026-10-02).
+
+    Non e' un modo per nascondere: l'istanza resta nel registro come SALTATA,
+    con chi l'ha saltata e il motivo.
+    """
+    verifica_ruoli(current_user, *IGNORA_TEMPERATURE, cosa="ignorare le temperature di oggi")
+    utente = _utente(current_user)
+    motivo = (payload.motivo or "").strip() or f"Temperature ignorate da {utente} dalla Cucina iPhone"
+    if not salta_temperature(payload.instance_id, utente, motivo):
+        raise HTTPException(status_code=409, detail="Gia' completata o saltata")
+    return {"ok": True}
 
 
 @router.get("/{ubicazione_id}")

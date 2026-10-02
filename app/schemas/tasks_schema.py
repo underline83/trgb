@@ -36,6 +36,8 @@ class ChecklistItemIn(BaseModel):
     max_valore: Optional[float] = None
     unita_misura: Optional[str] = None
     note: Optional[str] = None
+    # Ponte col modulo cucina (mig 171): la voce TEMPERATURA del frigo vero.
+    ubicazione_id: Optional[int] = None
 
 
 class ChecklistItemOut(ChecklistItemIn):

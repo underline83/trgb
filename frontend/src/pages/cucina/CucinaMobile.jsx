@@ -1,6 +1,8 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.2 — congelatori: ↔ Sposta (anche fra frigo), date sul carico (lotto con
+// @version: v1.3 — sugli articoli a MOVIMENTI il pallino lo decide la quantità: tocco = «Quanti ce
+//            ne sono?» (CorreggiSheet condiviso); scorta minima da ✏️ Modifica (2026-10-02)
+// v1.2 — congelatori: ↔ Sposta (anche fra frigo), date sul carico (lotto con
 //            «congelato il / scade il», FIFO), ＋ Aggiungi dal ripiano, scadenza nel giro (2026-10-01)
 // v1.1 — scheda articolo: ✏️ Modifica (nome/unità/confezione/regime/natura)
 //            + «correggi quantità» per ripiano (RETTIFICA tracciata) + ritorno al frigo (2026-09-28)
@@ -794,6 +796,65 @@ function TabScorte({ canWrite, onCount, apri, modi }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// «Quanti ce ne sono?» — la correzione di una quantità su un ripiano.
+// Scrive una RETTIFICA col delta e qta_precedente ESPLICITA (lezione del bug
+// RETTIFICA fantasma dei vini): la storia dice chi, quando, da quanto a quanto.
+// La usano la scheda articolo e il giro del frigo (tocco sul pallino di un
+// articolo a MOVIMENTI: lì il colore lo decide il numero, non il dito).
+// ─────────────────────────────────────────────────────────────
+function CorreggiSheet({ artId, nome, um, ripianoId, dove, prima, onChiudi, onFatto }) {
+  const [val, setVal] = useState(prima ?? 0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function salva() {
+    if (busy) return;
+    const p = num(prima);
+    const d = num(val);
+    if (d === p && prima != null) { onChiudi(); return; }
+    setBusy(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articolo_id: artId, ripiano_id: ripianoId, tipo: "RETTIFICA",
+          qta: d - p, qta_precedente: p, motivo: "correzione a mano",
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      onFatto();
+    } catch (e) { setErr(e.message); setBusy(false); }
+  }
+
+  return (
+    <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div className="km-sheet-in">
+        <h3 className="km-serif">Quanti ce ne sono? · {nome}</h3>
+        <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+          {dove} · prima: {prima == null ? "—" : `${fmtQta(prima)} ${um}`}
+        </div>
+        {err && <div className="km-err" style={{ marginTop: 8 }}>{err}</div>}
+        <input className="km-num" type="number" inputMode="decimal" step="0.1" min="0"
+               value={val} autoFocus onChange={(e) => setVal(e.target.value)} />
+        <div className="km-step">
+          <button onClick={() => setVal(Math.max(0, num(val) - 1))}>−1</button>
+          <button onClick={() => setVal(0)} style={{ width: "auto", padding: "0 14px", fontSize: 14 }}>finito</button>
+          <button onClick={() => setVal(num(val) + 1)}>+1</button>
+        </div>
+        <button className="km-btn" disabled={busy || val === "" || num(val) < 0} onClick={salva}>
+          {busy ? "Salvo…" : `Sono ${fmtQta(num(val))} ${um}`}
+        </button>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+          Resta nella storia come rettifica. A zero il pallino diventa rosso e va in spesa.
+        </div>
+        <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={onChiudi}>Annulla</button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Scheda articolo — solo per il regime MOVIMENTI ha davvero senso.
 // Le azioni rapide portano la quantità dell'ultima volta: scaricare
 // deve costare un tap, o nessuno scarica.
@@ -897,6 +958,7 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
     setMod({
       nome: a.nome || "", um: a.um || "PZ", confezione: a.confezione || "",
       regime: a.regime || "SEMAFORO", natura: a.natura || null,
+      scorta_minima: a.scorta_minima ?? "",
     });
   }
 
@@ -910,35 +972,11 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
         body: JSON.stringify({
           nome: mod.nome.trim(), um: mod.um, confezione: mod.confezione.trim() || null,
           regime: mod.regime, natura: mod.natura,
+          scorta_minima: mod.scorta_minima === "" ? null : num(mod.scorta_minima),
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
       setMod(null);
-      await load();
-    } catch (e) { setErr(e.message); }
-    finally { setBusy(false); }
-  }
-
-  // Correggere una quantità = RETTIFICA col delta, e qta_precedente passata
-  // ESPLICITA (lezione del bug RETTIFICA fantasma dei vini). Così la storia
-  // dice chi ha corretto, da quanto a quanto — non un numero sovrascritto.
-  async function salvaCorrezione() {
-    if (!corr || busy) return;
-    const prima = num(corr.prima);
-    const dopo = num(corr.val);
-    if (dopo === prima && corr.prima != null) { setCorr(null); return; }
-    setBusy(true);
-    try {
-      const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          articolo_id: a.id, ripiano_id: corr.ripiano_id, tipo: "RETTIFICA",
-          qta: dopo - prima, qta_precedente: prima, motivo: "correzione a mano",
-        }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
-      setCorr(null);
       await load();
     } catch (e) { setErr(e.message); }
     finally { setBusy(false); }
@@ -1192,29 +1230,10 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
       )}
 
       {corr && (
-        <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setCorr(null); }}>
-          <div className="km-sheet-in">
-            <h3 className="km-serif">Quanti ce ne sono? · {a.nome}</h3>
-            <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
-              {corr.dove} · prima: {corr.prima == null ? "—" : `${fmtQta(corr.prima)} ${a.um}`}
-            </div>
-            <input className="km-num" type="number" inputMode="decimal" step="0.1" min="0"
-                   value={corr.val} autoFocus
-                   onChange={(e) => setCorr({ ...corr, val: e.target.value })} />
-            <div className="km-step">
-              <button onClick={() => setCorr({ ...corr, val: Math.max(0, num(corr.val) - 1) })}>−1</button>
-              <button onClick={() => setCorr({ ...corr, val: num(corr.val) + 1 })}>+1</button>
-            </div>
-            <button className="km-btn" disabled={busy || corr.val === "" || num(corr.val) < 0}
-                    onClick={salvaCorrezione}>
-              {busy ? "Salvo…" : `Sono ${fmtQta(num(corr.val))} ${a.um}`}
-            </button>
-            <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
-              Resta nella storia come rettifica: chi, quando, da quanto a quanto.
-            </div>
-            <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={() => setCorr(null)}>Annulla</button>
-          </div>
-        </div>
+        <CorreggiSheet artId={a.id} nome={a.nome} um={a.um} ripianoId={corr.ripiano_id}
+                       dove={corr.dove} prima={corr.prima}
+                       onChiudi={() => setCorr(null)}
+                       onFatto={() => { setCorr(null); load(); }} />
       )}
 
       {mod && (
@@ -1248,6 +1267,18 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
             <div style={{ fontSize: 12, color: "var(--muted)" }}>
               {REGIME_OPZ.find((r) => r.k === mod.regime)?.d}
             </div>
+
+            {mod.regime === "MOVIMENTI" && (
+              <>
+                <div className="km-flbl">Scorta minima ({(mod.um || "pz").toLowerCase()})</div>
+                <input className="km-in" type="number" inputMode="decimal" step="0.1" min="0"
+                       value={mod.scorta_minima} placeholder="vuoto = niente giallo"
+                       onChange={(e) => setMod({ ...mod, scorta_minima: e.target.value })} />
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Quando in tutto ne restano così pochi il pallino diventa giallo.
+                </div>
+              </>
+            )}
 
             <div className="km-flbl">Cos'è</div>
             <div className="km-pills wrap" style={{ marginBottom: 14 }}>
@@ -1369,6 +1400,7 @@ function TabFrigo({ onCount, apri, modi }) {
 function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
   const [u, setU] = useState(null);
   const [aggiungi, setAggiungi] = useState(null);   // il ripiano su cui aggiungere
+  const [corr, setCorr] = useState(null);           // correzione da tocco sul pallino (MOVIMENTI)
   const [err, setErr] = useState(null);
   const [soloMancanti, setSoloMancanti] = useState(false);
 
@@ -1469,7 +1501,9 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
               )}
               {righe.map((a) => (
                 <RigaArticolo key={a.giacenza_id} a={a} canWrite={canWrite}
-                              onTap={(art, stato) => tap(art, stato, r.id)}
+                              onTap={(art, stato) => (art.regime === "MOVIMENTI"
+                                ? setCorr({ art, ripiano: r })
+                                : tap(art, stato, r.id))}
                               onApri={(art) => apriArticolo(art.articolo_id,
                                 { path: `/cucina/mobile/frigo/${id}`, label: u.nome })} />
               ))}
@@ -1478,6 +1512,13 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
         })}
       </div>
       <Toast testo={toast} onAnnulla={annulla} />
+      {corr && (
+        <CorreggiSheet artId={corr.art.articolo_id} nome={corr.art.nome} um={corr.art.um}
+                       ripianoId={corr.ripiano.id} dove={`${u.nome} · rip. ${corr.ripiano.codice}`}
+                       prima={corr.art.qta}
+                       onChiudi={() => setCorr(null)}
+                       onFatto={() => { setCorr(null); load(); }} />
+      )}
       {aggiungi && (
         <AggiungiSheet ubicazione={u} ripiano={aggiungi}
                        onChiudi={() => setAggiungi(null)}

@@ -91,6 +91,19 @@ E sopra a tutti e tre:
 
 Il regime è modificabile in qualsiasi momento: si parte con tutto a `SEMAFORO`, che costa zero disciplina, e si promuove a `MOVIMENTI` solo ciò che merita. **Niente big bang.**
 
+## 3.0-bis Il pallino sugli articoli a MOVIMENTI (2026-10-02)
+
+Prima il pallino era manuale per tutti i regimi: su un articolo a movimenti si potevano scaricare le ultime vaschette e il pallino restava verde (e in Spesa non arrivava niente). Ora **su MOVIMENTI il colore è una conseguenza della quantità**, calcolato da `riallinea_semaforo()` dopo ogni gesto completo (movimento, spostamento a due gambe, annulla, chiusura conta, PATCH articolo):
+
+| Condizione (per ripiano) | Colore |
+|---|---|
+| quantità del ripiano ≤ 0 | 🔴 FINITO |
+| totale articolo ≤ `scorta_minima` (se impostata) | 🟡 ESAURIMENTO |
+| altrimenti | 🟢 OK |
+| quantità NULL (mai contata) | invariato |
+
+La riga di Spesa nasce solo se il **totale** è zero: finito su un ripiano ma presente su un altro non è «da comprare». Il tocco sul pallino di questi articoli apre «Quanti ce ne sono?» (rettifica); `PATCH /articoli/{id}/semaforo` risponde 409. SEMAFORO e CONTA restano col pallino a mano. **Non fatto apposta:** annullare uno scarico non toglie la riga di spesa nata nel frattempo, e un carico non spunta la riga di spesa.
+
 ## 3.1 Il dato che invecchia — e lo dice
 
 Marco (2026-09-07), alla domanda «quanti articoli finiranno a regime `MOVIMENTI`?»: **«tanti, ma va fatto»**. Decisione presa, e non si torna indietro sopra. Ma allora il rischio va guardato in faccia, perché è certo: con molti articoli a movimenti, prima o poi qualcuno non scarica, e da quel momento il sistema mostra un numero preciso e **falso**. Un numero falso è peggio di nessun numero: ci prendi decisioni sopra.

@@ -166,6 +166,11 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.5 (2026-10-02): sugli articoli a MOVIMENTI il pallino segue la quantità
+    //   (0 → rosso + spesa se il totale è zero, ≤ scorta minima → giallo, sopra
+    //   → verde), riallineato dopo ogni movimento/spostamento/annulla/conta/
+    //   modifica. Tocco sul pallino = «Quanti ce ne sono?»; PATCH semaforo
+    //   rifiutato (409) su questi articoli. Scorta minima da ✏️ Modifica.
     // 1.4 (2026-10-01): congelatori. ↔ Sposta fra ripiani e fra frigo (due
     //   movimenti TRASFERIMENTO legati, undo insieme, i lotti viaggiano con la
     //   roba); il Carico chiede «congelato il / scade il» e crea un lotto
@@ -195,7 +200,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.4",
+    version: "1.5",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -411,7 +416,8 @@ const MODULE_VERSIONS = {
     // stato='PAGATO') + marca riconciliazione_chiusa. Reversibile via riapri.
     // 2 endpoint POST/DELETE /cross-ref/chiudi-senza-fattura/{id}.
     // v1.9 (2026-10-02): parser PDF accetta righe senza MCC (QUOTA ANNUA) e storni "16,44-" (importo positivo, esclusi da automatch).
-    version: "1.9",
+    // v1.10 (2026-10-02): ricerca manuale nel modale Cerca senza vincolo metodo=CARTA/tolleranze, anche per importo.
+    version: "1.10",
     label: "Carta di Credito",
     status: "beta",
     color: "blue",

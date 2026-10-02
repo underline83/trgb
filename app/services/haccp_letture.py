@@ -169,3 +169,88 @@ def crea_task_guasto(
             conn.close()
     except sqlite3.Error:
         return None
+
+
+# ─────────────────────────────────────────────────────────────
+# Le temperature di OGGI (2026-10-02)
+# ─────────────────────────────────────────────────────────────
+#
+# Marco: «il primo che apre la Cucina iPhone deve inserire la temperatura;
+# solo admin, superadmin e oste/cuoco hanno il tasto ignora». Il client chiede
+# qui se oggi c'e' una checklist di temperature ancora aperta; scrive i valori
+# con i normali endpoint del Task Manager (/tasks/execution/item/{id}/check e
+# /tasks/instances/{id}/completa), cosi' il registro HACCP resta uno solo.
+
+def temperature_oggi(oggi: str) -> List[Dict[str, Any]]:
+    """Istanze di OGGI che contengono voci TEMPERATURA agganciate a un frigo.
+
+    Ritorna [{instance_id, stato, turno, template, voci:[...]}]; lista vuota se
+    non c'e' niente (o se il DB task non e' raggiungibile: il gate non deve
+    mai bloccare la cucina per un problema tecnico).
+    """
+    conn = _conn()
+    if conn is None:
+        return []
+    try:
+        if not _ha_ponte(conn):
+            return []
+        ist = conn.execute(
+            """
+            SELECT DISTINCT ist.id, ist.stato, ist.turno, t.nome
+              FROM checklist_instance ist
+              JOIN checklist_template t ON t.id = ist.template_id
+              JOIN checklist_item i     ON i.template_id = t.id
+             WHERE ist.data_riferimento = ?
+               AND i.tipo = 'TEMPERATURA' AND i.ubicazione_id IS NOT NULL
+             ORDER BY ist.id
+            """,
+            (oggi,),
+        ).fetchall()
+        out = []
+        for r in ist:
+            voci = conn.execute(
+                """
+                SELECT i.id AS item_id, i.titolo, i.ubicazione_id, i.min_valore, i.max_valore,
+                       i.unita_misura, e.stato AS stato_voce, e.valore_numerico AS valore,
+                       e.completato_da
+                  FROM checklist_item i
+                  LEFT JOIN checklist_execution e ON e.item_id = i.id AND e.instance_id = ?
+                 WHERE i.template_id = (SELECT template_id FROM checklist_instance WHERE id = ?)
+                   AND i.tipo = 'TEMPERATURA' AND i.ubicazione_id IS NOT NULL
+                 ORDER BY i.ordine, i.id
+                """,
+                (r["id"], r["id"]),
+            ).fetchall()
+            out.append({"instance_id": r["id"], "stato": r["stato"], "turno": r["turno"],
+                        "template": r["nome"], "voci": [dict(v) for v in voci]})
+        return out
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
+def salta_temperature(instance_id: int, utente: str, motivo: str) -> bool:
+    """Il tasto «ignora»: segna l'istanza SALTATA con chi e perche'.
+
+    Il permesso (admin/chef) lo controlla il router: qui solo la scrittura.
+    Resta nel registro HACCP come saltata, con nome e motivo: ignorare non
+    cancella niente, lo dichiara.
+    """
+    if not TASKS_DB.exists():
+        return False
+    conn = sqlite3.connect(TASKS_DB, timeout=30)
+    try:
+        cur = conn.execute(
+            """
+            UPDATE checklist_instance
+               SET stato = 'SALTATA', completato_at = datetime('now','localtime'),
+                   completato_da = ?, note = ?
+             WHERE id = ? AND stato NOT IN ('COMPLETATA','SALTATA')
+            """,
+            (utente, motivo, instance_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()

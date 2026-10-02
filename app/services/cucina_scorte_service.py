@@ -199,6 +199,59 @@ def set_semaforo(
             "stato": stato, "spesa_id": spesa_id}
 
 
+def riallinea_semaforo(conn: sqlite3.Connection, articolo_id: int, utente: str) -> Dict[str, Any]:
+    """Sugli articoli a MOVIMENTI il colore lo decide la quantita' (Marco 2026-10-02).
+
+    Prima il pallino e il numero andavano ognuno per conto suo: si scaricavano
+    le ultime vaschette, il numero andava a 0 e il pallino restava verde. Ora,
+    per ogni ripiano dell'articolo:
+      · quantita' 0 (o meno)                       → FINITO
+      · totale dell'articolo <= scorta_minima       → ESAURIMENTO
+      · altrimenti                                  → OK
+    Quantita' NULL (mai contata) = non so: il colore resta com'e'.
+    Se il TOTALE e' a zero nasce la riga di spesa (anti-doppione gia' dentro):
+    finito su un ripiano ma presente su un altro non e' «da comprare».
+
+    Va chiamata DOPO un gesto completo (movimento, spostamento a due gambe,
+    annulla, chiusura conta, cambio regime), mai a meta': a meta' di uno
+    spostamento il totale e' falsamente basso.
+    Non tocca aggiornato_at: il colore e' una conseguenza, non un dato nuovo.
+    """
+    art = conn.execute(
+        "SELECT regime, scorta_minima FROM cucina_articoli WHERE id = ?", (articolo_id,)
+    ).fetchone()
+    if not art or (art["regime"] or "").upper() != "MOVIMENTI":
+        return {"riallineato": False}
+    righe = conn.execute(
+        "SELECT ripiano_id, qta, stato_semaforo FROM cucina_giacenze WHERE articolo_id = ?",
+        (articolo_id,),
+    ).fetchall()
+    note = [r for r in righe if r["qta"] is not None]
+    if not note:
+        return {"riallineato": False}
+    totale = sum(_num(r["qta"]) for r in note)
+    minima = art["scorta_minima"]
+    cambi = []
+    for r in note:
+        q = _num(r["qta"])
+        if q <= 0:
+            nuovo = "FINITO"
+        elif minima is not None and _num(minima) > 0 and totale <= _num(minima):
+            nuovo = "ESAURIMENTO"
+        else:
+            nuovo = "OK"
+        if nuovo != (r["stato_semaforo"] or "OK"):
+            conn.execute(
+                "UPDATE cucina_giacenze SET stato_semaforo = ? WHERE articolo_id = ? AND ripiano_id = ?",
+                (nuovo, articolo_id, r["ripiano_id"]),
+            )
+            cambi.append({"ripiano_id": r["ripiano_id"], "stato": nuovo})
+    spesa_id = None
+    if totale <= 0 and any(c["stato"] == "FINITO" for c in cambi):
+        spesa_id = aggiungi_a_lista_spesa(conn, articolo_id, utente)
+    return {"riallineato": True, "cambi": cambi, "totale": totale, "spesa_id": spesa_id}
+
+
 def aggiungi_a_lista_spesa(
     conn: sqlite3.Connection,
     articolo_id: int,
@@ -689,6 +742,8 @@ def chiudi_ripiano(
         """,
         (utente, _ora(), conta_id, ripiano_id),
     )
+    for r in righe:
+        riallinea_semaforo(conn, r["articolo_id"], utente)
     return {"righe": len(righe), "rettifiche": rettifiche}
 
 

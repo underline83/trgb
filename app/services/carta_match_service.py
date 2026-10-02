@@ -44,6 +44,7 @@ Scoring (config in carta_match_settings):
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import datetime
 from typing import Optional
@@ -193,6 +194,9 @@ def find_candidati(
     tol_eur = settings["tolerance_importo_eur"]
     tol_days = settings["tolerance_data_days"]
 
+    if search and search.strip():
+        return _find_candidati_ricerca(conn, mov, search.strip(), settings, limit)
+
     # Query base: uscite con metodo='CARTA' non ancora linkate, entro tolleranze
     sql = """
         SELECT u.id, u.fornitore_nome, u.totale, u.data_scadenza, u.data_pagamento,
@@ -210,10 +214,6 @@ def find_candidati(
     if data_mov:
         sql += " AND (u.data_pagamento IS NULL OR ABS(julianday(u.data_pagamento) - julianday(?)) < ?)"
         params.extend([data_mov, tol_days])
-
-    if search:
-        sql += " AND LOWER(u.fornitore_nome) LIKE ?"
-        params.append(f"%{search.lower()}%")
 
     sql += " ORDER BY u.data_pagamento DESC, u.id DESC LIMIT 200"
 
@@ -238,6 +238,63 @@ def find_candidati(
 
     candidati.sort(key=lambda c: c["score"], reverse=True)
     return candidati[:limit]
+
+
+def _find_candidati_ricerca(
+    conn: sqlite3.Connection, mov: dict, search: str, settings: dict, limit: int
+) -> list[dict]:
+    """Ricerca manuale dal modale "Cerca" (2026-10-02).
+
+    A differenza dei candidati automatici NON richiede metodo='CARTA' né le
+    tolleranze importo/data: serve proprio a trovare le uscite che il matcher
+    non vede (es. rate Abaco pagate via PagoPA con carta: metodo NULL, importo
+    rata 211,00 vs addebito 211,95 per la commissione).
+
+    Uscite ammesse: non linkate, e già marcate CARTA oppure non ancora pagate.
+    Il testo cerca nel fornitore e nel numero documento; se è un numero
+    ("211", "211,95") cerca anche l'importo per prefisso (211 → 211,00/211,77/211,95).
+    """
+    s = search.lower()
+    num = s.replace(" ", "").replace("€", "").replace(",", ".")
+    is_num = bool(re.fullmatch(r"\d+(\.\d{0,2})?", num))
+
+    where_txt = "LOWER(u.fornitore_nome) LIKE ? OR LOWER(COALESCE(u.numero_fattura, '')) LIKE ?"
+    params: list = [f"%{s}%", f"%{s}%"]
+    if is_num:
+        where_txt += " OR printf('%.2f', u.totale) LIKE ?"
+        params.append(f"{num}%")
+
+    sql = f"""
+        SELECT u.id, u.fornitore_nome, u.totale, u.data_scadenza, u.data_pagamento,
+               u.stato, u.metodo_pagamento, u.periodo_riferimento, u.note,
+               u.tipo_uscita, u.fattura_id
+        FROM cg_uscite u
+        WHERE u.banca_movimento_id IS NULL
+          AND u.totale > 0
+          AND (u.metodo_pagamento = 'CARTA' OR COALESCE(u.stato, '') NOT LIKE 'PAGATO%')
+          AND ({where_txt})
+        ORDER BY ABS(julianday(COALESCE(u.data_pagamento, u.data_scadenza)) - julianday(?)) ASC, u.id DESC
+        LIMIT 200
+    """
+    params.append(mov["data_contabile"])
+    rows = conn.execute(sql, params).fetchall()
+
+    tol_eur = settings["tolerance_importo_eur"]
+    tol_days = settings["tolerance_data_days"]
+    out = []
+    for r in rows:
+        u = dict(r)
+        imp_score = _importo_score(mov["importo"], u["totale"], tol_eur)
+        data_score = _data_score(mov["data_contabile"], u["data_pagamento"] or u["data_scadenza"], tol_days)
+        forn_score = _fornitore_score(mov["descrizione"] or "", u["fornitore_nome"] or "")
+        out.append({
+            **u,
+            "imp_score": round(imp_score, 3),
+            "data_score": round(data_score, 3),
+            "forn_score": round(forn_score, 3),
+            "score": round(_compute_score(imp_score, data_score, forn_score, settings), 3),
+        })
+    return out[:limit]
 
 
 # ──────────────────────────────────────────────────────────────
@@ -288,9 +345,13 @@ def apply_link(
     u_dict = dict(u) if hasattr(u, "keys") else {
         "metodo_pagamento": u[1], "banca_movimento_id": u[2], "stato": u[3], "totale": u[4]
     }
-    if u_dict["metodo_pagamento"] != "CARTA":
+    # Dal 2026-10-02 si può collegare anche un'uscita non ancora marcata CARTA
+    # (trovata con la ricerca manuale), purché non risulti già pagata in altro modo.
+    # Il link la marca metodo='CARTA'.
+    if u_dict["metodo_pagamento"] != "CARTA" and str(u_dict["stato"] or "").startswith("PAGATO"):
         raise ValueError(
-            f"Uscita #{uscita_id} ha metodo_pagamento='{u_dict['metodo_pagamento']}', non 'CARTA'"
+            f"Uscita #{uscita_id} risulta già pagata ({u_dict['stato']}) con metodo "
+            f"'{u_dict['metodo_pagamento']}': non la collego alla carta"
         )
     if u_dict["banca_movimento_id"] is not None:
         raise ValueError(
@@ -301,6 +362,7 @@ def apply_link(
         """UPDATE cg_uscite
            SET banca_movimento_id = ?,
                stato = 'PAGATO',
+               metodo_pagamento = 'CARTA',
                importo_pagato = totale,
                data_pagamento = COALESCE(data_pagamento, ?)
            WHERE id = ?""",
