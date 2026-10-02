@@ -16,8 +16,8 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 
 ## 📓 Log (append-only)
 
-- 📓 [changelog.md](changelog.md) — storico rilasci, formato Keep a Changelog, recenti in alto. Vivi gli ultimi ~3 mesi; il resto in [archive/changelog_archivio_2026-04.md](archive/changelog_archivio_2026-04.md).
-- 📓 [sessione.md](sessione.md) e [problemi.md](problemi.md) — vedi sopra. Sessioni vecchie in [archive/sessione_archivio_59.md](archive/sessione_archivio_59.md) e [archive/sessione_archivio_39.md](archive/sessione_archivio_39.md).
+- 📓 [changelog.md](changelog.md) — storico rilasci, formato Keep a Changelog, recenti in alto. Vivi gli ultimi ~3 mesi; il resto in [archive/changelog_archivio_2026-06.md](archive/changelog_archivio_2026-06.md) e [archive/changelog_archivio_2026-04.md](archive/changelog_archivio_2026-04.md).
+- 📓 [sessione.md](sessione.md) e [problemi.md](problemi.md) — vedi sopra. Sessioni vecchie in [archive/sessione_archivio_2026-06.md](archive/sessione_archivio_2026-06.md), [archive/sessione_archivio_59.md](archive/sessione_archivio_59.md) e [archive/sessione_archivio_39.md](archive/sessione_archivio_39.md).
 - Il lint del wiki (`scripts/docs_lint.py`, warning-only in push.sh) tiene puliti link e index — v. [convenzioni_wiki.md](convenzioni_wiki.md) §Lint.
 
 ## 🏛 Architettura & convenzioni tecniche
@@ -58,7 +58,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_statistiche.md](modulo_statistiche.md) — Statistiche: import iPratico, KPI, top prodotti.
 - 📄 [modulo_selezioni.md](modulo_selezioni.md) — stub storico (rinominato in Vendite, NOMEN-1 2026-05-19).
 
-**Spec puntuali:** 📄 [spec_home_per_ruolo.md](spec_home_per_ruolo.md) (home differenziata per ruolo) · 📄 [spec_riconciliazione.md](spec_riconciliazione.md) (riconciliazione bancaria) · 📄 [spec_utenze.md](spec_utenze.md) (utenze multi-layout) · 📄 [refactor_anagrafiche_vini.md](refactor_anagrafiche_vini.md) (refactor anagrafiche vini).
+**Spec puntuali:** 📄 [spec_home_per_ruolo.md](spec_home_per_ruolo.md) (home differenziata per ruolo) · 📄 [spec_riconciliazione.md](spec_riconciliazione.md) (riconciliazione bancaria) · 📄 [spec_utenze.md](spec_utenze.md) (utenze multi-layout) · 📄 [refactor_anagrafiche_vini.md](refactor_anagrafiche_vini.md) (refactor anagrafiche vini). · 📄 [pec_archivio_spec.md](pec_archivio_spec.md) (archivio PEC automatico via IMAP — proposta, da sviluppare)
 
 ## 🚢 Deploy & infrastruttura
 

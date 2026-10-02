@@ -135,6 +135,7 @@ Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste
 - Frontend (`frontend/src/config/versions.jsx` campo `sistema.version`) DEVE restare allineato: quando si bumpa una, si bumpa l'altra ALLO STESSO VALORE.
 - L'endpoint `/system/info` espone anche `commit` (hash short del git HEAD letto al boot) → utile per "quale codice gira ora?" senza SSH.
 - Le versioni dei singoli moduli (vini, ricette, ecc.) restano in `versions.jsx` con bumping indipendente.
+- **Quando si alza la versione di sistema** (minor, es. 5.42 → 5.43): ogni push che contiene una **migrazione nuova**, un **mattone nuovo** o un **modulo/sotto-modulo nuovo**. Più modifiche nello stesso push = un solo bump. Fix e ritocchi senza migrazione alzano solo la versione del modulo. Nel commento sopra `sistema.version` una riga con data e cosa è entrato. (Regola del 2026-10-02: la versione era rimasta a 5.41 per un mese con 10 migrazioni.)
 
 ## Stato pagamento fatture — 3 dimensioni GRANITICHE (NON confondere)
 
@@ -173,7 +174,14 @@ Se non sai a quale dimensione appartiene un valore che vuoi mostrare/scrivere, C
 ## Dopo ogni modifica
 - Aggiornare `docs/changelog.md` se rilascio significativo.
 - Aggiornare `docs/sessione.md` a fine sessione.
-- Aggiornare `frontend/src/config/versions.jsx` se cambia versione di un modulo.
+- Aggiornare `frontend/src/config/versions.jsx` se cambia versione di un modulo; `VERSION` + `sistema.version` se c'è una migrazione nuova (v. Versioning).
+- Aggiornare la riga del modulo in `docs/roadmap.md` quando una voce si chiude (✅ FATTO + data + commit) o nasce una voce nuova.
+
+### Intestazione di `sessione.md` — si TOGLIE, non solo si aggiunge
+La riga «Ultimo aggiornamento» contiene SOLO: cosa è da pushare adesso, cosa va verificato dopo l'ultimo push, le pendenze aperte che contano (~15 righe al massimo). A inizio sessione: `git status` + `git log` → ogni voce «DA PUSHARE» già committata si toglie dall'intestazione (resta nel corpo della sessione). Mai accodare in testa senza ripulire: a ottobre 2026 l'intestazione era arrivata a 15.000 caratteri di «DA PUSHARE» già in produzione da settimane.
+
+### Archivio log
+`sessione.md` e `changelog.md` tengono ~3 mesi (`docs/convenzioni_wiki.md`). Quando la sessione più vecchia supera i 3 mesi, spostare le sessioni/rilasci vecchi in `docs/archive/*_archivio_AAAA-MM.md` e aggiungere il link in `## Storico` e in `docs/index.md`. Ultima archiviazione: 2026-10-02 (fino al 2026-06-30).
 
 ## Disciplina docs — capability tracciate per modulo (da audit autonomo 2026-05-19)
 

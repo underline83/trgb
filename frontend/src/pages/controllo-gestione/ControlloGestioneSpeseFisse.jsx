@@ -433,6 +433,8 @@ export default function ControlloGestioneSpeseFisse() {
       if (data.importo_originale != null) body.importo_originale = parseFloat(data.importo_originale) || 0;
       if (data.spese_legali != null) body.spese_legali = parseFloat(data.spese_legali) || 0;
       if (data.piano_rate && data.piano_rate.length > 0) body.piano_rate = data.piano_rate;
+      // fix 2026-10-02: fatture d'origine della rateizzazione (prima non arrivavano al backend)
+      if (data.fatture_ids && data.fatture_ids.length > 0) body.fatture_ids = data.fatture_ids;
       await apiFetch(`${CG}/spese-fisse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1816,6 +1818,8 @@ export default function ControlloGestioneSpeseFisse() {
                             ? `${wizData.note} | Totale: ${fmt(totale)}, ${nRate} rate`
                             : `Totale: ${fmt(totale)}, ${nRate} rate${spese > 0 ? ` (di cui spese legali ${fmt(spese)})` : ""}`,
                           piano_rate: pianoRate,
+                          // fix 2026-10-02: aggancia le fatture d'origine (prima venivano perse)
+                          fatture_ids: wizData.fonte === "fattura" ? (wizData.fatture_ids || []) : [],
                         });
                       }}
                       className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 disabled:opacity-50">

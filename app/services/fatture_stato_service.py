@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v2.1-3-dimensioni (2026-05-18)
+# @version: v2.2-note-credito (2026-10-02) — nessuna cg_uscite per TD04 (A.1 fase 1)
 # -*- coding: utf-8 -*-
 """
 Servizio gestione stati pagamento fattura — UNIFICATO post G.5.
@@ -216,6 +216,11 @@ def set_stato(conn, fattura_id: int, nuovo_stato: str, *, force: bool = False) -
     # Garantisce esistenza cg_uscite
     uid = _ensure_cg_uscita(conn, fattura_id)
     if uid is None:
+        tipo = conn.execute(
+            "SELECT COALESCE(tipo_documento, 'TD01') FROM fe_fatture WHERE id = ?", (fattura_id,)
+        ).fetchone()
+        if tipo and tipo[0] == "TD04":
+            return {"ok": False, "error": "È una nota di credito: non ha uno stato di pagamento."}
         return {"ok": False, "error": f"Impossibile creare cg_uscite per fattura {fattura_id}"}
 
     cg_stato_target = LEGACY_TO_CG[nuovo_stato]

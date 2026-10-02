@@ -3,9 +3,9 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
 > **Vedi anche:** [problemi.md](problemi.md), [changelog.md](changelog.md), [refactor_monorepo.md](refactor_monorepo.md), [index.md](index.md)
 
-**Ultimo aggiornamento:** 2026-05-19 — aggiunta sezione "DH — Docs hardening" (post audit autonomo `docs/audit-2026-05-19/`, verdetto adversarial 87/100). Aggiornata V-H.I (non prima 15 giugno) + M.D (non prioritario) + segnati MORT-2 e `/menu/` rinviati. Decisioni PO Marco 2026-05-19.
+**Ultimo aggiornamento:** 2026-10-02 — riallineata ai lavori da giugno a ottobre (prima ferma al 19/05): M.G, M.J Pubblicazione web, carta di credito, pagamenti parziali, Intermittenti, Scorte & Frigoriferi + Cucina da iPhone, Cantina mobile, Ordini fornitori, Menu multilingua, omaggi, utenze, formaggi. L'ID M.J era usato due volte: l'Housekeeping diventa **HK**.
 
-**Aggiornamento precedente:** 2026-05-07 — riorganizzazione completa modulo per modulo dopo refactor R1-R8 chiuso, R6.5 push 1+2+3 chiuso, sistema sicurezza/backup post-incidente live, PWA Fase 0 completa.
+**Aggiornamento precedente:** 2026-05-19 — aggiunta sezione "DH — Docs hardening" (post audit autonomo `docs/audit-2026-05-19/`, verdetto adversarial 87/100). Aggiornata V-H.I (non prima 15 giugno) + M.D (non prioritario) + segnati MORT-2 e `/menu/` rinviati. Decisioni PO Marco 2026-05-19.
 **Legenda effort:** XS = ~30min · S = ~1h · M = 2-3h · L = 2+ sessioni
 **Convenzioni:** ogni voce ha ID stabile `<lettera>.<numero>` raggruppato per modulo. ✅ FATTO + commit hash + data. ⏸ in pausa = decisione Marco.
 
@@ -59,10 +59,11 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.
 | M.E | Calendar component | M | ✅ FATTO (S48 2026-04-19) | `components/calendar/CalendarView.jsx`, demo `/calendario-demo` |
 | M.F | Alert engine | S | ✅ FATTO (S40) | `app/services/alert_engine.py` + 3 checker (fatture/dipendenti/vini), anti-duplicato 12-24h |
 | M.I | UI primitives | S | ✅ FATTO (2026-04-18) | `components/ui/`: Btn, PageLayout, StatusBadge, EmptyState |
-| **M.D** | **Email service brand** | **M** | **DA FARE — non prioritario (Marco 2026-05-19 post-audit)** | SMTP/Mailgun/Resend + template HTML. Sblocca conferme prenotazioni, invio preventivi, compleanni, busta paga email. Riprendere quando un workflow specifico lo richiede in modo bloccante. |
+| **M.D** | **Email service brand** | **M** | **🟡 PARZIALE 2026-07-30/08-03** — strato SMTP in `app/services/email_service.py`, canale configurabile da Impostazioni (sistema 5.40). Manca il template HTML brand |  SMTP/Mailgun/Resend + template HTML. Sblocca conferme prenotazioni, invio preventivi, compleanni, busta paga email. Riprendere quando un workflow specifico lo richiede in modo bloccante. |
 | **M.H** | **Import engine generico** | **S** | **DA FARE — media** | Estrazione pattern da `clienti_router.py` TheFork. Sblocca: import TF, Excel vini diff, carta credito, banca PSD2 |
-| **M.G** | **Sistema permessi centralizzato** | **M** | **DA FARE — media** | Sostituisce 30+ check `if (ruolo === ...)` sparsi |
-| **M.J** | **Housekeeping (guardiano del progetto)** | **L** | **DA FARE — media** | 3 livelli: (L1) hook pre-push in `push.sh` blocca pattern sospetti (`__pycache__`, `*.zip` root, `*_dryrun.csv`, `.DS_Store`, mockup in root, TODO fantasma, changelog non aggiornato) + flag `--skip-housekeeping`; (L2) skill `trgb:housekeeping` invocabile on-demand (`/audit`) che riproduce audit completo file-per-file; (L3) scheduled task mensile (primo lunedì 08:00) con report in Bacheca M.A. Razionale: l'audit S51 (20 apr) ha trovato 21.6 MB di rumore + paradoc fantasma; senza un meccanismo automatico il pattern si ripete (eseguito retroattivamente 2026-05-08). Spec dettagliata era in `AUDIT_2026-04-20/mattone_housekeeping.md` (cancellato). Scripts riusabili `scripts/housekeeping/scan_*` per BE/FE/docs/memoria/worktree. |
+| M.G | Sistema permessi centralizzato | M | ✅ FATTO 2026-09-01 (`9a9b9513` + `cc011a4c`) | `app/services/permessi.py`; endpoint con check di ruolo da 200/836 a 776/836 (92%, sistema 5.41). Vini e chiusura cassa esclusi per scelta. Vedi `audit_permessi_2026-09-01.md` | Sostituisce 30+ check `if (ruolo === ...)` sparsi |
+| M.J | Pubblicazione web (FTP) | S | ✅ FATTO 2026-08-03 | `ftp_publish_service.py` + «Pubblica sul sito» su menu pranzo e carta vini (sistema 5.39). Vedi `architettura_mattoni.md` |
+| **HK** (era M.J) | **Housekeeping (guardiano del progetto)** | **L** | **DA FARE — media** | 3 livelli: (L1) hook pre-push in `push.sh` blocca pattern sospetti (`__pycache__`, `*.zip` root, `*_dryrun.csv`, `.DS_Store`, mockup in root, TODO fantasma, changelog non aggiornato) + flag `--skip-housekeeping`; (L2) skill `trgb:housekeeping` invocabile on-demand (`/audit`) che riproduce audit completo file-per-file; (L3) scheduled task mensile (primo lunedì 08:00) con report in Bacheca M.A. Razionale: l'audit S51 (20 apr) ha trovato 21.6 MB di rumore + paradoc fantasma; senza un meccanismo automatico il pattern si ripete (eseguito retroattivamente 2026-05-08). Spec dettagliata era in `AUDIT_2026-04-20/mattone_housekeeping.md` (cancellato). Scripts riusabili `scripts/housekeeping/scan_*` per BE/FE/docs/memoria/worktree. |
 
 ---
 
@@ -82,7 +83,8 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.
 | **V.22** | **Refactor UX Vista Sommelier (CartaStaff)** | M | **✅ FATTO 2026-07-20** | CartaStaff v2.0 "banco di servizio" (vini 3.72): Preparazione (checklist pre-turno) + Servizio (vendita one-tap con undo, toggle mescita, locazione in evidenza), mobile-first. Restano fuori gli abbinamenti dal madre (parte "strumento di vendita", da valutare come iterazione). Task interno #136. |
 | V.5 | Più distributori/rappresentanti per vino | L | **DA RIPRIORITIZZARE** | Tabella `vino_distributori` strutturale. **Parzialmente coperto da refactor (`vini_fornitori` ha 1 rappresentante inline). Da valutare se serve davvero la M:N o 1:1 basta operativamente.** |
 | V.4 | Note degustative cliente (AI-generate + edit + visibili in carta cliente) | M | BASSA | Marco S58. Campo `NOTE_DEGUSTAZIONE`. Declassato 2026-05-12 |
-| V.9 | Inventario rapido da iPad (mobile-first +/- giacenza) | M | **🟡 FASE 1 FATTA 2026-08-03** | Fase 1 «trova la bottiglia» (CantinaMobile.jsx, /vini/cantina-mobile, vini 3.80): ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per scaffale + scheda mobile, **solo lettura**. Restano fase 2 (+/− giacenze da mobile — tocca i movimenti, con cura) e fase 3 (conta inventario). UI touch. |
+| V.O | Ordini ai fornitori (O1–O7) | L | ✅ FATTO 2026-08-02 → 09-27 | pagina /vini/ordini, invio WhatsApp, mig 158–160 (vini 3.75–3.78); riga alla pari della dashboard (3.91). Vedi `modulo_vini_ordini.md` |
+| V.9 | Inventario rapido da iPad (mobile-first +/- giacenza) | M | **🟡 FASE 1 FATTA 2026-08-03** | Fase 1 «trova la bottiglia» (CantinaMobile.jsx, /vini/cantina-mobile, vini 3.80): ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per scaffale + scheda mobile, **solo lettura**. Restano fase 2 (+/− giacenze da mobile — tocca i movimenti, con cura) e fase 3 (conta inventario). **Aggiornamento 2026-08-22 → 09-10:** fase 2 fatta — movimentazione dalla scheda (vini 3.86), filtro scaffali (3.85), matrice in ordine colonna/riga (3.88), invariante celle matrice (3.89, mig 176), tasto in Home (mig 175). Resta la fase 3. UI touch. |
 | V.10 | Carichi automatici da Fatture XML | M | BASSA | Match iPratico → CARICO automatico |
 | V.11 | PDF carta con TOC cliccabile | S | BASSA | Motore `carta_vini_service.py` esistente |
 | V.12 | Import Excel diff interattivo | M | BASSA | Richiede M.H. Probabilmente superato da V.20 quando arriva. |
@@ -186,7 +188,7 @@ un ruolo al widget — **il Monitor è dove si decide, la pagina è dove si ordi
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| A.1 | Note di credito XML (TD04) | M | ALTA | Ultimo punto matching fatture aperto |
+| A.1 | Note di credito (TD04) | M | IN CORSO | **Fase 1 fatta 2026-10-02**: sync FIC scarica `passive_credit_note` → `tipo_documento='TD04'`, filtro unico `app/services/fatture_filtri.escludi_nc` su tutte le query di costo, badge NC in elenco/dettaglio, nessuna `cg_uscite`. Numeri invariati. **Fase 2** (da decidere): NC in negativo nel CE alla data della NC, categoria del fornitore. **Fase 3**: collegamento alla fattura stornata (auto se `DatiFattureCollegate`, altrimenti manuale); NC non collegata = nessun effetto in CG (decisione Marco 2026-10-02) |
 | A.2 | Anomalie acquisti dashboard + alert M.A | S | ALTA | Endpoint `/stats/anomalie` esiste, manca UI + alert |
 | A.3 | Forecast acquisti mensile (proiezione + alert sforo) | M | MEDIA | Storico in DB |
 | A.4 | Carichi automatici vini da fatture XML | M | MEDIA | Cross modulo (V.10) |
@@ -215,6 +217,7 @@ un ruolo al widget — **il Monitor è dove si decide, la pagina è dove si ordi
 | K.10 | Alert variazione drastica chiusura vs media (fraud detection) | M | BASSA | Richiede storico |
 | K.11 | Importazione automatica RT (registratore cassa) | L | BASSA | "Se fattibile" — Marco |
 | K.12 | **Unificare import Excel → `shift_closures` (dismettere `daily_closures`)** | L | 🔴 ALTA — deciso Marco 2026-05-21 | Doppia tabella che si incrocia male. Vedi dettaglio §K.12 |
+| K.14 | Omaggi nell'imponibile IVA + annulli nel PDF commercialista | S | ✅ FATTO 2026-09-03 (`ada50c12`) | mig 170, corrispettivi 4.9 |
 | K.13 | **Import XML corrispettivi telematici dal portale AdE come fonte aggiuntiva** | M | MEDIA — deciso Marco 2026-05-21 | Parser dei file XML 7.0 scaricati da "Fatture e Corrispettivi". Vedi dettaglio §K.13 |
 
 ### K.12 — Unificazione corrispettivi: una tabella sola 🔴 ALTA (deciso 2026-05-21)
@@ -260,11 +263,14 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 | B.4 | Multi-conto corrente UI | M | MEDIA | DB ready |
 | B.5 | Cash flow previsionale 30/60/90gg | M | MEDIA | M.B PDF |
 | B.6 | Cross-ref banca più intelligente | M | MEDIA | |
-| B.7 | Carta credito import + riconciliazione | M | MEDIA | M.H |
+| B.7 | Carta credito import + riconciliazione | M | ✅ FATTO giu 2026 (CC.1–CC.7) | Parser estratti, match livello A/B, riepilogo mensile. 2026-10-02: quota annua, storni, commissioni PagoPA (mig 178), «Cerca» riparato (cartaCredito 1.11) |
 | B.8 | Import automatico movimenti banca (PSD2/CSV) | L | BASSA | Futuro |
+| B.9 | Pagamenti parziali veri in Riconciliazione | M | ✅ FATTO 2026-09-08 (`1e48e6fd`) | mig 172, flussiCassa 1.21; fix quota zero mig 174; bonifica mig 173 |
+| B.10 | Riconciliazione senza tetto dei 500 movimenti | XS | ✅ FATTO 2026-10-02 (`a20ee515`) | flussiCassa 1.22 |
+| B.11 | Storico pre-estratti chiuso come PAGATO | S | ✅ FATTO 2026-10-02 (`c290f944`) | mig 179: 1.236 uscite PAGATO_MANUALE anteriori al primo movimento CC |
 
 **Bug/debt:**
-- B-DEBT1 — Banca senza doc canonico → [`modulo_banca.md`](modulo_banca.md) da creare in consolidamento Fase 5
+- ~~B-DEBT1 — Banca senza doc canonico~~ → risolto, [`modulo_banca.md`](modulo_banca.md) esiste ed è aggiornato
 
 ---
 
@@ -281,6 +287,8 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 | G.7 | UX "Sposta data" + completamento stato SPOSTATO | M | ✅ FATTO 2026-05-10 | Endpoint `PUT /uscite/{id}/scadenza` esteso (auto-setta SPOSTATO se data ≠ originale) + nuovo `PUT /uscite/{id}/ripristina-data`. FattureDettaglio: 2 sotto-celle "Scadenza iniziale" + "Programmata" + bottone Ripristina. Chip "Spostato" in FattureElenco e ControlloGestioneUscite. Vedi [`stato_pagamento_unificato.md §13`](stato_pagamento_unificato.md) |
 | G.8 | Livello macro/sotto stato pagamento (CHIUSO/APERTO) | M | ✅ FATTO 2026-05-11 | Mig 116 ADD COLUMN `cg_uscite.stato_macro` GENERATED VIRTUAL + service `app/services/stati_pagamento.py` con costanti centralizzate + refactor `/uscite/import` con whitelist invariante per costruzione (STATI_DERIVATI_DA_DATA={PROGRAMMATO,SCADUTO}). Mig 115 ripara 138 VERIFICARE perse da bug import preesistente. Vedi [`stato_pagamento_unificato.md §14`](stato_pagamento_unificato.md) |
 | G.3 | **Conto Economico Completo (P&L mensile con utile netto)** | L | 🔴 **TOP — PRIORITÀ MASSIMA Marco 2026-05-14** | Allineamento richiesto da Marco: oggi dashboard mostra solo margine LORDO (Vendite − Acquisti), manca aggregazione spese operative (stipendi/affitti/utenze/tasse/assicurazioni) → utile netto fuorviante. Vedi §G.3 dettaglio sotto |
+| G.11 | Analisi Utenze (bollette luce+gas) U1–U4 | L | ✅ FATTO 2026-07-17 | mig 151, 4 forniture, multi-layout. Vedi `spec_utenze.md` |
+| G.12 | Spese fisse: scadenza rata editabile dallo Storico + mesi senza rata nel piano | S | ✅ FATTO 2026-09-12 / 10-02 | controlloGestione 2.22–2.23 |
 | G.9 | Tasse — sezione dedicata in Spese Fisse | M | MEDIA → riassorbito in G.3 | Già supportato come `tipo='TASSA'`, manca eventualmente template wizard dedicato (era G.8 pre-2026-05-11 rinumerato per evitare collisione con macro/sotto stato) |
 | G.10 | Stipendi — sezione dedicata in Spese Fisse | M | MEDIA → riassorbito in G.3 | `tipo='STIPENDIO'` esistente (26 record). Cross §D: integrazione busta paga PDF → cg_uscite (era G.9, rinumerato) |
 
@@ -528,6 +536,8 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | D.8 | Calendario richieste ferie (dipendente → admin approva) | M | MEDIA | Cross D.5 |
 | D.9 | Contratti CRUD base + alert scadenza determinati (v2.5) | M | BASSA | |
 | D.10 | Allegati PDF generici per dipendente (v2.6) | S | BASSA | Schema esiste |
+| D.11 | Comunicazione UNI-Intermittenti dai turni | M | ✅ FATTO 2026-07-30 → 09-18 | mig 156+161, in produzione dal 17/09; tab «Riepilogo mese» (dipendenti 2.33). Vedi `modulo_intermittenti.md` |
+| D.12 | Permessi modulo Dipendenti (buste paga, IBAN, CF non più visibili a tutti) | M | ✅ FATTO 2026-09-01 (`c9a962c7`) | 59 guardie di ruolo, dipendenti 2.32 |
 
 **Bug/debt:**
 - D-DEBT1 — Consolidamento 4 docs → 2 (Fase 5)
@@ -548,6 +558,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.6 | Dropdown assegnato_user da dipendenti (oggi stringa libera) | S | MEDIA | |
 | C.7 | Notifiche push / WA su checklist in scadenza (M.C + M.A) | S | MEDIA | |
 | C.8 | Export PDF registro mensile HACCP firmabile | S | MEDIA | M.B |
+| C.9 | Scorte & Frigoriferi a ripiani + Cucina da iPhone (/cucina/mobile) | L | ✅ FATTO 2026-09-07 → 10-02 | mig 171, congelatori con lotti FIFO, correzioni dal telefono, temperature dal gate (cucinaScorte 1.7). Vedi `modulo_scorte_cucina.md` |
 | **Pranzo settimanale** ||||
 | C.P1 | Aggancio food cost / margine al menu (recipe_id già in DB) | S | MEDIA | Dati pronti |
 | C.P2 | Note allergeni stampate sul PDF | S | MEDIA | |
@@ -556,6 +567,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | ~~C.S1~~ | ~~Doc [`modulo_selezioni.md`](modulo_selezioni.md)~~ | XS | ✅ FATTO 2026-05-19 | Stub [`docs/modulo_selezioni_giorno.md`](modulo_selezioni_giorno.md) creato (DH.1). Da estendere endpoint-by-endpoint in sessione docs futura |
 | C.S2 | Note allergeni per scelta del giorno | S | BASSA | |
 | C.S3 | Foto plate-up per scelta del giorno | S | BASSA | |
+| C.S4 | Formaggi: ordine di servizio, alternative, link ingrediente | S | ✅ FATTO 2026-10-01 (`8d6642b2`) | mig 177, selezioni 1.2. Resta: collegare gli ingredienti all'arrivo della fattura Real Group |
 | **Lista spesa Fase 2** (sotto-modulo Cucina, era §R.9-13) ||||
 | C.L1 | Link ingrediente + storico prezzi | S | ALTA | |
 | C.L2 | Vista per fornitore + WhatsApp veloce (M.C) | S | ALTA | |
@@ -565,7 +577,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.L6 | Notifiche WA arrivo materiale (M.C + M.A) | S | BASSA | |
 
 **Bug/debt:**
-- C-DEBT1 — [`modulo_cucina.md`](modulo_cucina.md) obsoleto (parla di prefix `/cucina/` legacy, rinominato in `/tasks/` con mig 086)
+- ~~C-DEBT1 — `modulo_cucina.md` obsoleto~~ → risolto con la verifica docs del 2026-08-03
 - C-DEBT2 — `cucina.sqlite3` referenziato in mig 084/087 (verifica self-heal)
 - C-DEBT3 — `pranzo.recipe_id` schema mai agganciato food cost (= C.P1)
 
@@ -580,6 +592,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | MC.3 | Workflow editorial multi-utente (lock edizione) | M | MEDIA | |
 | MC.4 | Versioning visuale carta (diff X vs Y) | M | MEDIA | |
 | MC.5 | Preview cliente in tempo reale durante editing | M | MEDIA | |
+| MC.6 | Menu carta multilingua (it/en/fr/es/de/uk) | M | ✅ FATTO 2026-08-07 | mig 163 (motore) + 164 (testi Tre Gobbi), `?lang=` sulla pagina pubblica, menuCarta 1.3 |
 
 ---
 

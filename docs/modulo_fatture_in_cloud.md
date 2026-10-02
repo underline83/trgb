@@ -72,7 +72,8 @@ Flusso reale (verificato in `fic_connect`, riga 180):
 
 `POST /fic/sync` — query params: **`anno`** (default: anno corrente) e **`force_detail`** (bool, default false: forza il re-fetch dettaglio per tutte, ripara numeri mancanti). Non esistono parametri `data_da`/`data_a`: il filtro è annuale (`q=date >= 'anno-01-01' and date <= 'anno-12-31'`).
 
-**Fase 1 — Lista** (paginata, `per_page=50` su `/c/{cid}/received_documents type=expense`):
+**Fase 1 — Lista** (paginata, `per_page=50` su `/c/{cid}/received_documents`, prima `type=expense` poi `type=passive_credit_note`):
+0. **Note di credito** (A.1 fase 1, 2026-10-02): i documenti `passive_credit_note` sono salvati con `tipo_documento='TD04'` (anche su record già presenti). Il dedup vs XML (fase 1 e fase 2) confronta solo documenti dello **stesso genere** (NC con NC, fattura con fattura): una NC può avere lo stesso numero della fattura che storna (es. Fastweb). Le NC non generano `cg_uscite` (guardia in `fatture_stato_service._ensure_cg_uscita`) e sono escluse da tutte le query di costo via `app/services/fatture_filtri.escludi_nc`. `SyncResult.note_credito` e `items[].tipo='nc'`. Se FIC rifiuta il tipo, la fase lista registra un errore e il sync delle spese resta valido.
 1. **Filtro non-fattura** (mig 061/062): documenti senza numero **e** senza P.IVA (prima nota mascherata: affitti, spese cassa) → skippati e registrati come warning `tipo='non_fattura'` in `fic_sync_warnings` (INSERT OR IGNORE, dedup su UNIQUE `(tipo, fic_document_id)`).
 2. **Dedup per `fic_id`**: se già presente da FIC → update header se cambiato; re-fetch dettaglio solo se mancano numero/righe/scadenza o `force_detail`.
 3. **Dedup vs XML** (`piva+numero+data`): se già presente da XML → aggancia `fic_id` al record XML (conteggiata `duplicate_xml`, stato item `merged_xml`) e fetcha comunque il dettaglio.

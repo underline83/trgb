@@ -4,7 +4,7 @@
 > **Vedi anche:** [stato_pagamento_unificato.md](stato_pagamento_unificato.md) · [spec_utenze.md](spec_utenze.md) · [spec_riconciliazione.md](spec_riconciliazione.md) · [modulo_acquisti.md](modulo_acquisti.md) · [modulo_banca.md](modulo_banca.md)
 > **Non verificato (assente dallo snapshot):** route FE in `App.jsx`; file migrazioni DB (mig 031/032/104/108/120/149/151/152); template `app/templates/pdf/conto_economico.html`; seed soglie/antidup in `alert_config` (DB).
 
-**Versione modulo:** 2.23 (`versions.jsx`)
+**Versione modulo:** 2.24 (`versions.jsx`)
 **Sistema:** 5.38 (file `VERSION` in root)
 **Stato:** Beta
 **Data ultimo aggiornamento:** 2026-07-25 (verifica doc vs codice)
@@ -327,6 +327,10 @@ Per piani di rateizzazione **Abaco / Agenzia delle Entrate / PagoPA / F24 rateiz
 **Date irregolari (chiave AdE/PagoPA):** il proiettore `cg_uscite` (in `import_uscite()`) controlla `cg_piano_rate.data_scadenza_specifica`: se valorizzata, la usa direttamente in `cg_uscite.data_scadenza`. Altrimenti calcolo standard `{anno}-{mese}-{giorno_scadenza}` clampato. Backward-compat totale: rate pre-mig 108 funzionano come prima.
 
 **Due rate nello stesso mese (fix 2026-10-02, controlloGestione 2.23):** l'import CSV salva la seconda rata del mese con periodo `YYYY-MM-rN` (UNIQUE spesa+periodo). Prima del fix il proiettore generava una uscita per mese di calendario: perdeva le rate `-rN` e riempiva i mesi senza rata con l'importo medio della spesa (caso Abaco: rate 4, 7, 12… assenti, uscite da 211,77 € in gennaio/maggio/ottobre). Ora, **dentro l'intervallo coperto dal piano** (min–max mese del piano): i mesi senza riga di piano non generano uscite; le righe `-rN` generano la loro uscita con `periodo_riferimento = 'YYYY-MM-rN'`; le uscite già create in mesi senza rata vengono **eliminate** se mai toccate (stato PROGRAMMATO/SCADUTO, `banca_movimento_id` NULL, `importo_pagato` 0, nessuna proforma). Fuori dall'intervallo (es. affitti con piano auto-popolato fino a oggi) resta la generazione mensile. Il Conto Economico in competenza filtra `substr(periodo_riferimento,1,7)` così le rate `-rN` contano nel loro mese. Risposta di `/uscite/import`: nuovo campo `spese_fisse_rimosse`.
+
+### 3.5.1-bis Aggancio fatture d'origine alle rateizzazioni (fix 2026-10-02)
+
+Il wizard «Rateizza fatture» raccoglieva `fatture_ids` ma non li inviava (né `saveFromWizard` né il backend li gestivano): dalle rateizzazioni create dopo la mig 110/120 la fattura d'origine restava scollegata (`fe_fatture.rateizzata_in_spesa_fissa_id` NULL) e `_auto_close_rateizzazione` non la chiudeva mai (caso Orobica 203567/FTM, SF 24). Ora `POST /spese-fisse` accetta `fatture_ids` e chiama `_collega_fatture_a_rateizzazione()` (aggancio + uscita origine PROGRAMMATO/SCADUTO → RATEIZZATO, come mig 120). Per le rateizzazioni già esistenti: `POST /spese-fisse/{id}/collega-fatture` `{fatture_ids}` → aggancia e tenta l'auto-close.
 
 ### 3.5.2 Delete spesa fissa con rate riconciliate (G.1.5)
 

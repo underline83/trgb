@@ -1,7 +1,7 @@
 # Modulo Cucina & Task Manager — TRGB Gestionale
 
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
-> **Vedi anche:** [modulo_pranzo.md](modulo_pranzo.md), [modulo_menu_carta.md](modulo_menu_carta.md), [modulo_vendite.md](modulo_vendite.md), [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md), [problemi.md](problemi.md) (TASKS-1)
+> **Vedi anche:** [modulo_scorte_cucina.md](modulo_scorte_cucina.md) (frigo/congelatori a ripiani, Cucina da iPhone `/cucina/mobile`, temperature legate alle ubicazioni via `checklist_item.ubicazione_id`), [modulo_pranzo.md](modulo_pranzo.md), [modulo_menu_carta.md](modulo_menu_carta.md), [modulo_vendite.md](modulo_vendite.md), [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md), [problemi.md](problemi.md) (TASKS-1)
 
 **Perimetro pagina.** Questa pagina copre DUE moduli R8 distinti (split docs previsto in roadmap DH.5):
 

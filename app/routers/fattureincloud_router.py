@@ -1,4 +1,4 @@
-# @version: v3.0-righe-pagato
+# @version: v3.1-note-credito (2026-10-02) — sync anche passive_credit_note → TD04 (A.1 fase 1)
 # -*- coding: utf-8 -*-
 """
 Router per integrazione Fatture in Cloud API v2.

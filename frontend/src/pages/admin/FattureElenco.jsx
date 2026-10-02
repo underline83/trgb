@@ -1,4 +1,5 @@
-// @version: v3.3-mattoni — M.I primitives (Btn) su azioni filtri (Pulisci/Ricarica), tocco minimo
+// @version: v3.4-note-credito — note di credito (TD04) visibili con badge NC, fuori da totali e filtri pagamento (A.1 fase 1)
+// Modulo: acquisti
 // Pagina Fatture Elettroniche — Layout Cantina: Filtri SX + Lista DX + Dettaglio inline
 // Il dettaglio inline usa il componente riutilizzabile FattureDettaglio
 // (stesso che gira in /acquisti/dettaglio/:id e in ControlloGestioneUscite),
@@ -9,6 +10,10 @@ import FattureNav from "./FattureNav";
 import FattureDettaglio from "./FattureDettaglio";
 import { Btn } from "../../components/ui";
 import StatoPagamentoBadge, { STATI_PAGAMENTO } from "../../components/StatoPagamentoBadge";
+
+// Nota di credito (TipoDocumento TD04) — roadmap A.1 fase 1.
+// Non è un debito: niente stato pagamento, fuori dai totali e dai filtri pagamento.
+const isNC = (f) => f.tipo_documento === "TD04";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const fmt = (v) =>
@@ -42,7 +47,7 @@ export default function FattureElenco() {
   const [importoMode, setImportoMode] = useState("any");
   const [importoVal1, setImportoVal1] = useState("");
   const [importoVal2, setImportoVal2] = useState("");
-  const [tipoSel, setTipoSel] = useState(""); // "" | "autofattura"
+  const [tipoSel, setTipoSel] = useState(""); // "" | "autofattura" | "nota_credito"
   const [mostraEsclusi, setMostraEsclusi] = useState(false); // S40-8: nascondi fornitori esclusi da acquisti
 
   // ── Ordinamento ──
@@ -142,6 +147,8 @@ export default function FattureElenco() {
   //     "rateizzato"   → rateizzata_in_spesa_fissa_id NOT NULL
   const fattureBase = useMemo(() => {
     let list = [...fattureNoPagamento];
+    // I filtri pagamento riguardano debiti: le note di credito restano fuori
+    if (pagatoSel) list = list.filter(f => !isNC(f));
     if (pagatoSel === "pagato") list = list.filter(f => f.pagato);
     else if (pagatoSel === "non_pagato") list = list.filter(f => !f.pagato);
     else if (pagatoSel === "riconciliato") list = list.filter(f => f.cg_uscite_stato === "PAGATO");
@@ -159,6 +166,7 @@ export default function FattureElenco() {
     let list = fattureBase;
     if (fonteSel) list = list.filter(f => (f.fonte || "xml") === fonteSel);
     if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
+    else if (tipoSel === "nota_credito") list = list.filter(isNC);
     return list;
   }, [fattureBase, fonteSel, tipoSel]);
 
@@ -320,11 +328,12 @@ export default function FattureElenco() {
   // Conteggi fonte: calcolati su fattureBase + filtro tipo attivo
   // Conteggi tipo: calcolati su fattureBase + filtro fonte attivo
   const totFiltrate = fattureFiltrate.length;
-  const totImporto = fattureFiltrate.reduce((s, f) => s + (f.totale_fattura || 0), 0);
+  const totImporto = fattureFiltrate.reduce((s, f) => s + (isNC(f) ? 0 : (f.totale_fattura || 0)), 0);
 
   const baseTipo = useMemo(() => {
     let list = fattureBase;
     if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
+    else if (tipoSel === "nota_credito") list = list.filter(isNC);
     return list;
   }, [fattureBase, tipoSel]);
 
@@ -337,6 +346,7 @@ export default function FattureElenco() {
   const countXml = baseTipo.filter(f => (f.fonte || "xml") === "xml").length;
   const countFic = baseTipo.filter(f => f.fonte === "fic").length;
   const countAutofatture = baseFonte.filter(f => f.is_autofattura).length;
+  const countNC = baseFonte.filter(isNC).length;
 
   const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
@@ -545,6 +555,7 @@ export default function FattureElenco() {
                   {[
                     { value: "",            label: "Tutte" },
                     { value: "autofattura", label: "Autofatture" },
+                    { value: "nota_credito", label: "Note credito" },
                   ].map(o => {
                     const active = tipoSel === o.value;
                     return (
@@ -616,6 +627,18 @@ export default function FattureElenco() {
                     tipoSel === "autofattura" ? "bg-amber-600 text-white ring-1 ring-amber-700" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
                   }`}>
                   Autofatture: {countAutofatture}
+                </button>
+              </>
+            )}
+
+            {countNC > 0 && (
+              <>
+                <span className="text-neutral-300">|</span>
+                <button onClick={() => setTipoSel(tipoSel === "nota_credito" ? "" : "nota_credito")}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                    tipoSel === "nota_credito" ? "bg-sky-600 text-white ring-1 ring-sky-700" : "bg-sky-50 text-sky-700 hover:bg-sky-100"
+                  }`}>
+                  Note credito: {countNC}
                 </button>
               </>
             )}
@@ -701,6 +724,7 @@ export default function FattureElenco() {
                         <td className="px-3 py-2 font-medium text-neutral-900 max-w-[200px] truncate">
                           {f.fornitore_nome || "—"}
                           {f.is_autofattura ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 align-middle">AUTO</span> : null}
+                          {isNC(f) ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-sky-100 text-sky-700 align-middle" title="Nota di credito: non entra nei totali né nello scadenzario">NC</span> : null}
                           {!!f.escluso_acquisti && <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 align-middle uppercase">escluso</span>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
@@ -712,7 +736,9 @@ export default function FattureElenco() {
                             : <span className="text-neutral-300">—</span>}
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <StatoPagamentoBadge stato={f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare")} />
+                          {isNC(f)
+                            ? <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-sky-50 text-sky-700 border border-sky-200">Nota di credito</span>
+                            : <StatoPagamentoBadge stato={f.stato_pagamento || (f.pagato ? "pagato_manuale" : "da_pagare")} />}
                         </td>
                         <td className="px-3 py-2 text-center hidden xl:table-cell">
                           <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${

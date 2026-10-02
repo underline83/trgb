@@ -1,4 +1,5 @@
-// @version: v3.1-3D — Modello 3-dimensioni (2026-05-18, vedi §15)
+// @version: v3.2-note-credito — header NC per TipoDocumento TD04 (2026-10-02, A.1 fase 1)
+// v3.1-3D — Modello 3-dimensioni (2026-05-18, vedi §15)
 // v3.1: zona chip header e tab Pagamenti riscritte secondo modello D1/D2/D3:
 //   - D1+D2 stato pagamento via <StatoPagamentoBadge>
 //   - D3 stato scadenza via <StatoScadenzaBadge> (nuovo componente)
@@ -532,6 +533,8 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   const isRateizzata = fattura.is_rateizzata;
   const uscita = fattura.uscita;
   const statoUscita = uscita?.uscita_stato || (fattura.pagato ? "PAGATO" : null);
+  // Nota di credito (TD04, A.1 fase 1): non è un debito → niente chip pagamento/scadenza
+  const isNotaCredito = fattura.tipo_documento === "TD04";
   const sbc = getFatturaSidebar(statoUscita, isRateizzata);
 
   // ─────────────────────────────────────────────────────────────────────
@@ -615,12 +618,19 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
               */}
               <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                 <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">
-                  FT {fattura.numero_fattura || `#${fattura.id}`}
+                  {isNotaCredito ? "NC" : "FT"} {fattura.numero_fattura || `#${fattura.id}`}
                 </span>
-                {/* D1 + D2 — stato PAGAMENTO */}
-                <StatoPagamentoBadge stato={statoUscita || "da_pagare"} size="md" />
+                {isNotaCredito ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-sky-100 text-sky-800 border-sky-200"
+                    title="Le note di credito non entrano nei totali, nel conto economico né nello scadenzario. Il collegamento alla fattura stornata arriverà più avanti.">
+                    Nota di credito · fuori da totali e scadenzario
+                  </span>
+                ) : (
+                  /* D1 + D2 — stato PAGAMENTO */
+                  <StatoPagamentoBadge stato={statoUscita || "da_pagare"} size="md" />
+                )}
                 {/* D3 — stato SCADENZA (solo se non chiusa) */}
-                {(() => {
+                {!isNotaCredito && (() => {
                   // Priorità: se la fattura è rateizzata in spesa fissa → chip "Rateizzata"
                   // a prescindere dallo stato cg_uscite (può essere PROGRAMMATO sulla madre)
                   if (isRateizzata) {

@@ -265,7 +265,10 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   fatture: {
-    version: "3.1",
+    // v3.2 (2026-10-02): note di credito (TD04) importate da FIC (A.1 fase 1) —
+    //   visibili in Elenco/Dettaglio con badge NC, escluse da totali, filtri
+    //   pagamento, scadenzario, dashboard, statistiche, matching e alert.
+    version: "3.2",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
@@ -349,7 +352,8 @@ const MODULE_VERSIONS = {
     //   invariato). Aggiunta colonna Stato nello Storico e i badge mancanti
     //   SPOSTATO/VERIFICARE/RATEIZZATO.
     // v2.23 (2026-10-02): proiettore spese fisse rispetta il piano rate — rate "YYYY-MM-rN" generate, mesi senza rata dentro il piano non generati (e residui rimossi); CE competenza su substr(periodo,1,7).
-    version: "2.23",
+    // v2.24 (2026-10-02): wizard «Rateizza fatture» invia fatture_ids → fattura origine agganciata + RATEIZZATO; POST /spese-fisse/{id}/collega-fatture (+auto-close).
+    version: "2.24",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -434,6 +438,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.42 (2026-10-02): riallineamento versione di sistema, ferma a 5.41 dal
+    //   01/09 nonostante mig 170→179 e una ventina di rilasci: omaggi
+    //   nell'imponibile (170), Scorte & Frigoriferi + Cucina da iPhone (171),
+    //   pagamenti parziali e bonifica riconciliazione (172-174), Cantina
+    //   mobile in Home e invariante matrice (175-176), formaggi (177),
+    //   commissioni carta (178), storico pre-estratti chiuso (179).
+    //   Nessun codice nuovo in questo bump: solo VERSION + docs.
     // 5.41 (2026-09-01): M.G fase 1 + APPLICAZIONE a 37 router. Endpoint con un
     //   check di ruolo: da 200/836 (24%) a 776/836 (92%); aperti a qualsiasi
     //   ruolo autenticato da 636 a 60, e tutti e 60 sono voluti (letture di
@@ -462,7 +473,7 @@ const MODULE_VERSIONS = {
     //   NB: il file VERSION era rimasto a 5.39 mentre qui c'era 5.40 — riallineati.
     // 5.40 (2026-08-03): canale email configurabile dal gestionale
     //   (Impostazioni Sistema → Email), password cifrata, .env come fallback.
-    version: "5.41",
+    version: "5.42",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -1808,6 +1808,66 @@ def get_spesa_fissa(spesa_id: int, current_user=Depends(get_current_user)):
     return dict(row)
 
 
+def _collega_fatture_a_rateizzazione(fc, spesa_id: int, fatture_ids) -> int:
+    """Aggancia le fatture d'origine a una rateizzazione (2026-10-02).
+
+    - `fe_fatture.rateizzata_in_spesa_fissa_id = spesa_id` (solo se libera o già
+      sua: una fattura non passa da una rateizzazione all'altra in silenzio);
+    - uscita d'origine PROGRAMMATO/SCADUTO → RATEIZZATO (stessa regola di mig 120:
+      le già pagate restano come sono, le chiuderà l'auto-close a rate finite).
+
+    Prima di questo fix il wizard «Rateizza fatture» raccoglieva le fatture ma
+    non le mandava: la fattura restava scollegata e l'auto-close non la chiudeva
+    mai (caso Orobica 203567/FTM, SF 24).
+    """
+    ids = []
+    for x in (fatture_ids or []):
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return 0
+    ph = ",".join("?" * len(ids))
+    cur = fc.execute(f"""
+        UPDATE fe_fatture SET rateizzata_in_spesa_fissa_id = ?
+         WHERE id IN ({ph})
+           AND (rateizzata_in_spesa_fissa_id IS NULL OR rateizzata_in_spesa_fissa_id = ?)
+    """, (spesa_id, *ids, spesa_id))
+    n = cur.rowcount or 0
+    fc.execute(f"""
+        UPDATE cg_uscite SET stato = 'RATEIZZATO', updated_at = CURRENT_TIMESTAMP
+         WHERE fattura_id IN (
+               SELECT id FROM fe_fatture
+                WHERE id IN ({ph}) AND rateizzata_in_spesa_fissa_id = ?)
+           AND stato IN ('PROGRAMMATO', 'SCADUTO')
+    """, (*ids, spesa_id))
+    return n
+
+
+@router.post("/spese-fisse/{spesa_id}/collega-fatture")
+def collega_fatture_rateizzazione(
+    spesa_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Aggancia fatture d'origine a una rateizzazione esistente.
+    Body: { fatture_ids: [int] }. Poi tenta l'auto-close (no-op se rate non finite)."""
+    fc = get_fc_db()
+    try:
+        sf = fc.execute("SELECT id, tipo FROM cg_spese_fisse WHERE id = ?", (spesa_id,)).fetchone()
+        if not sf:
+            raise HTTPException(404, "Spesa fissa non trovata")
+        if sf["tipo"] not in ("RATEIZZAZIONE", "RATEIZZAZIONE_TASSE"):
+            raise HTTPException(400, "La spesa fissa non è una rateizzazione")
+        n = _collega_fatture_a_rateizzazione(fc, spesa_id, (payload or {}).get("fatture_ids"))
+        fc.commit()
+    finally:
+        fc.close()
+    chiusura = auto_close_rateizzazione(spesa_id, current_user)
+    return {"ok": True, "fatture_collegate": n, "auto_close": chiusura}
+
+
 @router.post("/spese-fisse")
 def create_spesa_fissa(
     payload: dict = Body(...),
@@ -1903,6 +1963,10 @@ def create_spesa_fissa(
             spal_data,
         ))
         new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Rateizzazione da fatture: aggancia le fatture d'origine (fix 2026-10-02)
+        if payload.get("fatture_ids"):
+            _collega_fatture_a_rateizzazione(fc, new_id, payload.get("fatture_ids"))
 
         # Se c'è un piano rate, inseriscilo + genera le uscite corrispondenti
         piano_rate = payload.get("piano_rate", [])

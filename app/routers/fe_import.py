@@ -951,7 +951,9 @@ def list_fatture(
 
     # Count totale
     cur.execute(f"""
-        SELECT COUNT(*) AS cnt, ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS tot
+        SELECT COUNT(*) AS cnt,
+               -- note di credito in elenco ma non nel totale (A.1 fase 1)
+               ROUND(SUM(CASE WHEN {escludi_nc("f")} THEN COALESCE(f.totale_fattura, 0) ELSE 0 END), 2) AS tot
         FROM fe_fatture f {cat_join}
         WHERE {where_sql}
     """, params)
@@ -978,6 +980,7 @@ def list_fatture(
             f.data_scadenza, f.modalita_pagamento, f.importo_pagamento,
             (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
             COALESCE(f.is_autofattura, 0) AS is_autofattura,
+            COALESCE(f.tipo_documento, 'TD01') AS tipo_documento,
             f.rateizzata_in_spesa_fissa_id,
             COALESCE(fc_excl.escluso_acquisti, 0) AS escluso_acquisti
         FROM fe_fatture_with_stato f {cat_join} {excl_join}
@@ -1249,6 +1252,7 @@ def get_fattura_detail(fattura_id: int):
             COALESCE(f.pagato, 0) AS pagato,
             COALESCE(f.stato_pagamento, 'da_pagare') AS stato_pagamento,
             f.cg_uscite_stato,
+            COALESCE(f.tipo_documento, 'TD01') AS tipo_documento,
             -- v2.0 campi pianificazione finanziaria (mig 056)
             f.data_scadenza               AS data_scadenza_xml,
             f.modalita_pagamento          AS modalita_pagamento_xml,

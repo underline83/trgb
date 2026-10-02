@@ -1,10 +1,10 @@
 # TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** parziale (onboarding; le versioni §13 e alcuni path sono indietro) · **Ultima verifica:** 2026-07-25
+> **Tipo:** 📄 pagina wiki · **Stato:** parziale (onboarding; §2–§8 path/env e §11 elenco DB da riverificare) · **Ultima verifica:** 2026-10-02 (§1, §9, §13)
 > **Vedi anche:** [index.md](index.md) (home del wiki), [stack_tecnico.md](stack_tecnico.md), [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md)
 
 Sistema gestionale interno dell'Osteria Tre Gobbi (Bergamo)
-**Versione:** 2026.05.08 — Sistema v5.x (vedi `VERSION` in root + `/system/info`)
+**Versione:** Sistema 5.42 al 2026-10-02 — fonte: file `VERSION` in root, esposto da `/system/info`
 
 ---
 
@@ -14,10 +14,10 @@ TRGB Gestionale e' un'applicazione web interna composta da:
 
 - **Backend** FastAPI (Python 3.12) — API REST, autenticazione JWT con PIN, SQLite
 - **Frontend** React 18 + Vite + TailwindCSS
-- **Deploy** VPS Ubuntu 22.04 (Aruba), Nginx, systemd, HTTPS Certbot
+- **Deploy** VPS Ubuntu 24.04 LTS (Aruba, upgrade 2026-04-28), Nginx, systemd, HTTPS Certbot
 - **Deploy automatico** via `./push.sh "msg"` → git push bare repo → post-receive hook su VPS
 
-Moduli attivi: Cantina & Vini (v3.8), Gestione Acquisti (v2.3), Ricette & Food Cost (v3.0), Gestione Vendite (v4.2), Flussi di Cassa (v1.5), Controllo Gestione (v2.1c), Gestione Clienti (v2.0), Prenotazioni (v2.0), Dipendenti (v2.1).
+Moduli attivi: elenco in §9, versioni correnti in `frontend/src/config/versions.jsx` (§13).
 
 ---
 
@@ -145,18 +145,19 @@ Una riga per modulo; la descrizione completa vive nella pagina wiki di ciascuno 
 
 | Modulo | In breve | Pagina wiki |
 |---|---|---|
-| Cantina & Vini | magazzino a locazioni, movimenti, carta vini/bevande, vista sommelier, KPI | [modulo_vini.md](modulo_vini.md) · [widget dashboard](modulo_vini_widget_dashboard.md) |
+| Cantina & Vini | magazzino a locazioni, movimenti, carta vini/bevande, vista sommelier, Cantina mobile, ordini fornitori, KPI | [modulo_vini.md](modulo_vini.md) · [ordini](modulo_vini_ordini.md) · [widget dashboard](modulo_vini_widget_dashboard.md) |
 | Gestione Acquisti | import FatturaPA XML + FattureInCloud, fornitori, categorie, dashboard | [modulo_acquisti.md](modulo_acquisti.md) · [XML SDI](modulo_fatture_xml.md) · [FIC](modulo_fatture_in_cloud.md) |
 | Ricette & Food Cost | ingredienti, ricette con sub-ricette, food cost ricorsivo, matching fatture | [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) |
 | Vendite / Cassa | corrispettivi, chiusure giornaliere e di turno, preconti, dashboard YoY | [modulo_vendite.md](modulo_vendite.md) · [Selezioni del giorno](modulo_selezioni_giorno.md) |
 | Banca + Flussi di Cassa | estratti conto, riconciliazione, contanti, mance | [modulo_banca.md](modulo_banca.md) |
 | Controllo Gestione | dashboard unificata, scadenzario aggregatore, spese fisse, rateizzazioni | [modulo_controllo_gestione.md](modulo_controllo_gestione.md) |
 | Cucina + Task Manager | checklist HACCP, task, scheduler, compliance, MEP | [modulo_cucina.md](modulo_cucina.md) · [pranzo](modulo_pranzo.md) |
-| Menu Carta | edizioni, sezioni, QR pubblico, generatore MEP | [modulo_menu_carta.md](modulo_menu_carta.md) |
-| Clienti / CRM | anagrafica, tag, segmenti RFM, sync Mailchimp | [modulo_clienti_crm.md](modulo_clienti_crm.md) |
+| Scorte & Frigoriferi cucina | frigo/congelatori a ripiani, lotti e scadenze, Cucina da iPhone (/cucina/mobile) | [modulo_scorte_cucina.md](modulo_scorte_cucina.md) |
+| Menu Carta | edizioni, sezioni, QR pubblico multilingua, generatore MEP | [modulo_menu_carta.md](modulo_menu_carta.md) |
+| Clienti / CRM | anagrafica, tag, segmenti RFM, sync Mailchimp, Gift Card | [modulo_clienti_crm.md](modulo_clienti_crm.md) |
 | Prenotazioni | planning giornaliero/settimanale, autocomplete CRM, mappa tavoli | [modulo_prenotazioni.md](modulo_prenotazioni.md) |
 | Preventivi | eventi privati, numerazione annuale, template, link a prenotazione | [modulo_preventivi.md](modulo_preventivi.md) |
-| Dipendenti & Turni | anagrafica + foglio turni settimanale stile Excel | [modulo_dipendenti.md](modulo_dipendenti.md) · [turni](modulo_dipendenti_turni.md) |
+| Dipendenti & Turni | anagrafica + foglio turni settimanale stile Excel, comunicazione Intermittenti | [modulo_dipendenti.md](modulo_dipendenti.md) · [turni](modulo_dipendenti_turni.md) · [intermittenti](modulo_intermittenti.md) |
 | Statistiche | import iPratico, KPI, top prodotti, trend | [modulo_statistiche.md](modulo_statistiche.md) |
 
 ---
@@ -174,7 +175,7 @@ Una riga per modulo; la descrizione completa vive nella pagina wiki di ciascuno 
 
 # 11. Database
 
-7 file SQLite attivi in `locali/tregobbi/data/` — path canonico da R6.5; `app/data/` è solo fallback legacy con file vuoti (+ 1 eliminato):
+File SQLite attivi in `locali/tregobbi/data/` (elenco completo e aggiornato in [database.md](database.md); la tabella sotto è parziale) — path canonico da R6.5; `app/data/` è solo fallback legacy con file vuoti (+ 1 eliminato):
 
 | File | Moduli |
 |------|--------|
@@ -200,22 +201,10 @@ Il catalogo completo di `docs/` vive in **[`docs/index.md`](index.md)** (home de
 
 # 13. Versioni Moduli
 
-Fonte di verita': `frontend/src/config/versions.jsx`
+Non si ricopiano qui (si disallineavano: questa tabella era ferma a Vini 3.8 / Sistema 5.3). Fonti:
 
-| Modulo | Versione | Stato |
-|--------|----------|-------|
-| Cantina & Vini | v3.8 | stabile |
-| Gestione Acquisti | v2.3 | stabile |
-| Ricette & Food Cost | v3.0 | beta |
-| Gestione Vendite | v4.2 | stabile |
-| Statistiche | v1.0 | beta |
-| Flussi di Cassa | v1.5 | beta |
-| Controllo Gestione | v2.1c | beta |
-| Gestione Clienti | v2.0 | beta |
-| Prenotazioni | v2.0 | beta |
-| Dipendenti | v2.1 | stabile |
-| Login & Ruoli | v2.0 | stabile |
-| Sistema | v5.3 | stabile |
+- **Sistema:** file `VERSION` in root (= `sistema.version` in `versions.jsx`), live su `/system/info`.
+- **Moduli:** `frontend/src/config/versions.jsx` — ogni voce ha in commento la storia dei bump. In app: badge versione in testa ai moduli.
 
 ---
 
