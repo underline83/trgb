@@ -180,7 +180,7 @@ Riquadro in cima al tab, prima della grid Scadenza/Modalità/IBAN:
 2. **🏷 Categoria nel Conto Economico** — 2 sotto-sezioni:
    - **Aggregato (read-only)**: tabella `categoria · sottocategoria · righe · importo` derivata dalla gerarchia `fe_righe.categoria_id > fe_fornitore_categoria.categoria_id > "Non categorizzato"`.
    - **Modifica per riga (editabile, BIDIREZIONALE)**: tabella delle singole righe con 2 dropdown (Categoria + Sottocategoria). Riusa lo **stesso endpoint** di `FattureFornitoriElenco`: `POST /contabilita/fe/categorie/fornitori/prodotti/assegna`. Modificare qui aggiorna anche tutte le righe (passate e future) con la stessa descrizione di quel fornitore + il mapping `fe_prodotto_categoria_map` per i futuri import. Toast "Categoria aggiornata (anche su Fornitori)".
-3. **📊 Dove appare nel Conto Economico** — fetch lazy al primo click sul tab, mostra: mese di competenza (label + chip "spalmata"/"override"), importo P&L (per mese se spalmata), categoria principale, % sui ricavi del mese, % sulla categoria. Link "Apri Conto Economico {mese} →" che apre il CE pre-popolato.
+3. **📊 Dove appare nel Conto Economico** (per una nota di credito TD04 l'importo è negativo, dal 2026-10-02) — fetch lazy al primo click sul tab, mostra: mese di competenza (label + chip "spalmata"/"override"), importo P&L (per mese se spalmata), categoria principale, % sui ricavi del mese, % sulla categoria. Link "Apri Conto Economico {mese} →" che apre il CE pre-popolato.
 
 ### B.4 Footer ripulito
 - Rimossa label "STATO:" + i 3 bottoni di cambio stato che erano lì (ora vivono nel tab Pagamenti, vedi B.2). La label era fuorviante: sembrava visualizzazione invece che azione.
@@ -667,7 +667,7 @@ Route derivate da `ControlloGestioneNav.jsx` e `config/modulesMenu.js` (il file 
 
 ## 9.1 Import uscite
 1. Marco va in Controllo Gestione → Scadenzario: l'import parte **automaticamente** al caricamento pagina (`POST /uscite/import`, ControlloGestioneUscite.jsx:153-162)
-2. Il sistema legge tutte le fatture da `fe_fatture` (escluse autofatture `is_autofattura=1` e note credito TD04)
+2. Il sistema legge tutte le fatture da `fe_fatture` (escluse autofatture `is_autofattura=1` e note credito TD04: una nota di credito non è un'uscita da pagare)
 3. Per ogni fattura calcola la data di scadenza:
    - Priorita' 1: `fe_fatture.data_scadenza` (estratta da XML al momento dell'import fattura)
    - Priorita' 2: `suppliers.giorni_pagamento` del fornitore → data_fattura + N giorni

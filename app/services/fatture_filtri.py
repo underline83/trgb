@@ -1,4 +1,4 @@
-# @version: v1.0 — Note di credito fase 1 (2026-10-02)
+# @version: v1.1 — + segno_nc per la fase 2 (2026-10-02)
 # -*- coding: utf-8 -*-
 """
 Filtri SQL condivisi su fe_fatture — "cosa conta come costo".
@@ -47,6 +47,17 @@ def _col(alias: str) -> str:
 def escludi_nc(alias: str = "f") -> str:
     """Clausola SQL: vero se il documento NON è una nota di credito."""
     return f"COALESCE({_col(alias)}, 'TD01') <> '{TIPO_NOTA_CREDITO}'"
+
+
+def segno_nc(alias: str = "f") -> str:
+    """Espressione SQL: -1 per le note di credito, 1 per tutto il resto.
+
+    Fase 2 (A.1, decisa da Marco 2026-10-02): nel conto economico e nei
+    totali che vi si confrontano, la nota di credito riduce il costo della
+    sua categoria, nel mese della sua data (o competenza_anno_mese /
+    spalmatura se impostate), anche se non è collegata a una fattura.
+    """
+    return f"(CASE WHEN {is_nc(alias)} THEN -1 ELSE 1 END)"
 
 
 def is_nc(alias: str = "f") -> str:

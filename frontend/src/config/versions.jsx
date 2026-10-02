@@ -353,7 +353,8 @@ const MODULE_VERSIONS = {
     //   SPOSTATO/VERIFICARE/RATEIZZATO.
     // v2.23 (2026-10-02): proiettore spese fisse rispetta il piano rate — rate "YYYY-MM-rN" generate, mesi senza rata dentro il piano non generati (e residui rimossi); CE competenza su substr(periodo,1,7).
     // v2.24 (2026-10-02): wizard «Rateizza fatture» invia fatture_ids → fattura origine agganciata + RATEIZZATO; POST /spese-fisse/{id}/collega-fatture (+auto-close).
-    version: "2.24",
+    // v2.25 (2026-10-02): note di credito (TD04) nel Conto Economico col segno meno, nel mese della loro data (A.1 fase 2); stesso criterio in «Dove appare nel CE» del dettaglio fattura e nei KPI acquisti della dashboard CG.
+    version: "2.25",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",

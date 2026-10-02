@@ -9,7 +9,9 @@ DECISIONI DI PRODOTTO (Marco 2026-05-14):
   - Calcolo su IMPONIBILE (no IVA, pass-through).
   - V1 stipendi = solo NETTO (cg_uscite.totale dove tipo_uscita='STIPENDIO').
     V1.1 (TODO) aggiungerà lordo + contributi INPS + TFR.
-  - Note credito (TD04): escluse via WHERE.
+  - Note credito (TD04): dal 2026-10-02 (A.1 fase 2) entrano con segno meno
+    nella categoria delle righe/fornitore, nel mese della loro data
+    (competenza_anno_mese e spalmatura valgono come per le fatture).
   - Autofatture (is_autofattura=1): escluse.
   - Escluso acquisti (escluso_acquisti=1): escluse.
   - V1 MODALITÀ COMPETENZA implementata.
@@ -72,6 +74,7 @@ OUTPUT (dict JSON-serializable):
 import sqlite3
 from datetime import date
 from typing import Optional
+from app.services.fatture_filtri import segno_nc
 
 
 # Categorie che concorrono al COSTO MERCE (food cost lordo). Tutto il resto
@@ -152,7 +155,8 @@ def _aggregate_fatture_per_categoria(
     finivano tutti in 'Non categorizzato'. Per Aprile 2026: € 3.408 di costi
     UTENZE/MATERIE PRIME/BEVANDE classificati erroneamente come orfani.
 
-    Esclude: autofatture, note credito TD04, fornitore escluso_acquisti=1.
+    Esclude: autofatture, fornitore escluso_acquisti=1.
+    Note credito TD04: incluse con importo NEGATIVO (A.1 fase 2, 2026-10-02).
 
     Una fattura con righe in N categorie diverse produce N entry (spezzata).
     L'`id` ritornato è f.id (fattura intera) per permettere il deep-link su
@@ -231,7 +235,7 @@ def _aggregate_fatture_per_categoria(
             f.data_fattura                                                AS data,
             COALESCE(f.numero_fattura, '—')                               AS descrizione,
             COALESCE(f.fornitore_nome, '—')                               AS ref,
-            {importo_expr}                                                AS importo
+            {segno_nc("f")} * ({importo_expr})                          AS importo
         FROM fe_fatture f
         JOIN fe_righe r ON r.fattura_id = f.id
         LEFT JOIN fe_fornitore_categoria ffc
@@ -242,7 +246,7 @@ def _aggregate_fatture_per_categoria(
         LEFT JOIN fe_sottocategorie  fsub_forn ON ffc.sottocategoria_id = fsub_forn.id
         WHERE ({competenza_clause})
           AND COALESCE(f.is_autofattura, 0) = 0
-          AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
+          -- note di credito (TD04) incluse col segno meno via segno_nc (A.1 fase 2)
           -- escluso_acquisti vive su fe_fornitore_categoria (CLAUDE.md regola critica),
           -- NON su fe_fatture. Bug fix 2026-05-16 (Marco "load failed" CE).
           AND COALESCE(ffc.escluso_acquisti, 0) = 0
@@ -1002,7 +1006,7 @@ def compute_pl(
         (r for r in costi_op_breakdown if r["categoria"] == "Non categorizzato"),
         None
     )
-    if non_cat and non_cat["importo"] > 0:
+    if non_cat and abs(non_cat["importo"]) >= 0.01:  # anche negativo: NC non categorizzata (A.1 fase 2)
         warnings.append(
             f"Fatture senza categoria: € {non_cat['importo']} "
             f"({sum(s['num'] for s in non_cat['sottocategorie'])} fatture) "

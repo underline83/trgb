@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-02 — Conto economico: le note di credito riducono i costi `[core]`
+
+Le note di credito ora contano nel **Conto Economico** col segno meno, nella categoria del fornitore (o delle righe) e nel **mese della loro data**, come fa il commercialista. Se una va spostata, si usa la competenza della singola nota di credito, come per le fatture. Effetto sul 2026: −929,67 € di costi (gennaio −381,60, febbraio −75,61, luglio −421,97, settembre −50,49). Stesso criterio nel riquadro «Dove appare nel Conto Economico» del dettaglio fattura e nei totali acquisti della dashboard Controllo Gestione.
+
+Le statistiche di Acquisti (per fornitore, per categoria) e lo scadenzario restano come prima.
+
+---
+
 ## 2026-10-02 — Rateizzazioni: la fattura d'origine si aggancia davvero `[core]`
 
 Creando una rateizzazione dal wizard «Rateizza fatture», le fatture scelte non venivano agganciate alla rateizzazione: così, a rate finite, la fattura non si chiudeva mai e restava «pagata a mano» tra le uscite da riconciliare (è successo con Orobica Pesca 203567/FTM, divisa in 2 rate già pagate). Ora la fattura viene agganciata subito e risulta «rateizzata»; quando l'ultima rata è pagata, si chiude da sola. Per le rateizzazioni già create c'è un comando per agganciare le fatture dopo.

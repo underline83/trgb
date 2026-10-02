@@ -52,7 +52,7 @@ router = APIRouter(
 # -------------------------------------------------------------------
 
 from app.utils.locale_data import locale_data_path
-from app.services.fatture_filtri import escludi_nc
+from app.services.fatture_filtri import escludi_nc, segno_nc
 
 # R6.5 — path tenant-aware. Modulo: acquisti (fatture elettroniche import).
 FOODCOST_DB_PATH = locale_data_path("foodcost.db")
@@ -1463,7 +1463,8 @@ def get_fattura_ce_impatto(fattura_id: int):
         # ─── 1. Carica metadati fattura per determinare competenza ───
         f = conn.execute("""
             SELECT id, data_fattura, fornitore_piva,
-                   COALESCE(imponibile_totale, totale_fattura, 0) AS importo_lordo
+                   COALESCE(imponibile_totale, totale_fattura, 0) AS importo_lordo,
+                   COALESCE(tipo_documento, 'TD01') AS tipo_documento
             FROM fe_fatture WHERE id = ?
         """, (fattura_id,)).fetchone()
         if not f:
@@ -1538,6 +1539,9 @@ def get_fattura_ce_impatto(fattura_id: int):
             FROM fe_righe WHERE fattura_id = ?
         """, (fattura_id,)).fetchone()
         tot_righe = float(riga["tot_righe"] or 0)
+        # Nota di credito: riduce il costo del mese (A.1 fase 2), come nel CE
+        if f["tipo_documento"] == "TD04":
+            tot_righe = -tot_righe
         if modalita == "spalmatura":
             importo_pl_per_mese = round(tot_righe / int(spalm_mesi), 2)
         else:
@@ -1578,8 +1582,8 @@ def get_fattura_ce_impatto(fattura_id: int):
         anno_ref, mese_ref = int(mese_riferimento[:4]), int(mese_riferimento[5:7])
         primo_mese = f"{anno_ref:04d}-{mese_ref:02d}-01"
         try:
-            cat_totale_row = conn.execute("""
-                SELECT COALESCE(SUM(r.prezzo_totale), 0) AS tot_cat
+            cat_totale_row = conn.execute(f"""
+                SELECT COALESCE(SUM({segno_nc("f")} * r.prezzo_totale), 0) AS tot_cat
                 FROM fe_righe r
                 JOIN fe_fatture f ON r.fattura_id = f.id
                 LEFT JOIN fe_fornitore_categoria ffc ON f.fornitore_piva = ffc.fornitore_piva
@@ -1588,12 +1592,12 @@ def get_fattura_ce_impatto(fattura_id: int):
                 WHERE COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') = ?
                   AND COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) = ?
                   AND COALESCE(f.is_autofattura, 0) = 0
-                  AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
+                  -- note di credito col segno meno, come nel CE (A.1 fase 2)
                   AND COALESCE(ffc.escluso_acquisti, 0) = 0
             """, (categoria_principale, mese_riferimento)).fetchone()
         except sqlite3.OperationalError:
-            cat_totale_row = conn.execute("""
-                SELECT COALESCE(SUM(r.prezzo_totale), 0) AS tot_cat
+            cat_totale_row = conn.execute(f"""
+                SELECT COALESCE(SUM({segno_nc("f")} * r.prezzo_totale), 0) AS tot_cat
                 FROM fe_righe r
                 JOIN fe_fatture f ON r.fattura_id = f.id
                 LEFT JOIN fe_fornitore_categoria ffc ON f.fornitore_piva = ffc.fornitore_piva
@@ -1602,7 +1606,7 @@ def get_fattura_ce_impatto(fattura_id: int):
                 WHERE COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') = ?
                   AND strftime('%Y-%m', f.data_fattura) = ?
                   AND COALESCE(f.is_autofattura, 0) = 0
-                  AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
+                  -- note di credito col segno meno, come nel CE (A.1 fase 2)
                   AND COALESCE(ffc.escluso_acquisti, 0) = 0
             """, (categoria_principale, mese_riferimento)).fetchone()
         totale_categoria_mese = round(float(cat_totale_row["tot_cat"] or 0), 2)
