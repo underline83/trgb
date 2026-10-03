@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-04 — Scorte a movimenti: zero su un ripiano ma presente altrove = esce `[core]`
+
+Se un articolo a movimenti arriva a 0 su un ripiano ma ce n'è ancora su un altro, la riga vuota esce da sola: non è finito, è solo da un'altra parte. Succede qualunque sia il gesto (correzione a mano, scarico, conta), non solo con lo Sposta. Il caso: il pancotto in Congelatore 1, rip. 2 a 0 e rip. 3 a 7 dopo due correzioni al posto dello Sposta. Quando il totale arriva a 0 resta in rosso e va in Lista spesa, come prima. Annullare un movimento rimette la riga se era uscita.
+
+---
+
 ## 2026-10-04 — Scorte: a regime «conta», finito = esce dal ripiano `[core]`
 
 Gli articoli a regime **conta** che alla conta risultano a **0** non restano sul ripiano in rosso: escono e finiscono nel **registro dei finiti** (cosa, dove, quanto c'era prima, chi e quale conta). Il registro lo vedono chef e sous chef. Semaforo e movimenti non cambiano: lì il finito resta sul ripiano in rosso. Il registro è il terzo tab in ogni frigo/congelatore (**Tutti i ripiani · Solo mancanti · Registro**), visibile a chef e sous chef; ogni riga ha **↩︎ Rimetti**, che riporta l'articolo al suo posto.

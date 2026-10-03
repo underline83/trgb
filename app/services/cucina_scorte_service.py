@@ -230,6 +230,28 @@ def riallinea_semaforo(conn: sqlite3.Connection, articolo_id: int, utente: str) 
     if not note:
         return {"riallineato": False}
     totale = sum(_num(r["qta"]) for r in note)
+
+    # A zero su un ripiano ma presente su un altro = non e' finito, e' solo
+    # altrove: la riga vuota esce (Marco 2026-10-04, pancotto 0 + 7 dopo una
+    # correzione a mano invece dello Sposta). Se il TOTALE e' zero resta in
+    # rosso sull'ultimo posto: e' il buco da vedere e da ricomprare.
+    if totale > 0:
+        rimasti = []
+        for r in note:
+            if _num(r["qta"]) <= 1e-9:
+                lotti = conn.execute(
+                    """SELECT COUNT(*) FROM cucina_lotti
+                        WHERE articolo_id = ? AND ripiano_id = ? AND COALESCE(qta_residua,0) > 0""",
+                    (articolo_id, r["ripiano_id"]),
+                ).fetchone()[0]
+                if not lotti:
+                    conn.execute(
+                        "DELETE FROM cucina_giacenze WHERE articolo_id = ? AND ripiano_id = ?",
+                        (articolo_id, r["ripiano_id"]),
+                    )
+                    continue
+            rimasti.append(r)
+        note = rimasti
     minima = art["scorta_minima"]
     cambi = []
     for r in note:
@@ -386,9 +408,9 @@ def annulla_movimento(conn: sqlite3.Connection, mov_id: int, utente: str) -> Dic
         raise ValueError("movimento gia' annullato")
 
     if mov["ripiano_id"]:
-        if mov["ref_modulo"] == REF_FINITO:
-            # Annullare un «finito» rimette l'articolo sul ripiano.
-            assicura_giacenza(conn, mov["articolo_id"], mov["ripiano_id"])
+        # La riga puo' essere uscita (finito a regime conta, o zero su un
+        # ripiano mentre c'e' altrove): annullare la rimette sul ripiano.
+        assicura_giacenza(conn, mov["articolo_id"], mov["ripiano_id"])
         conn.execute(
             """
             UPDATE cucina_giacenze
