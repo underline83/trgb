@@ -16,6 +16,7 @@ import useLavagna from "../hooks/useLavagna";
 import useHomeActions from "../hooks/useHomeActions";
 import SelezioniCard from "../components/widgets/SelezioniCard";
 import Lavagna from "../components/widgets/Lavagna";
+import TodoPersonale from "../components/widgets/TodoPersonale";
 // R8c: filtra Home grid per moduli attivi del locale (feature flags).
 import { useActiveModules } from "../utils/activeModules";
 
@@ -342,6 +343,8 @@ export default function Home() {
                     rimuoviNota={rimuoviNota}
                     isAdmin={role === "admin" || role === "superadmin"}
                   />
+                  {/* Le mie cose da fare — lista personale (2026-10-03) */}
+                  <TodoPersonale compact />
                 </div>
 
                 {/* ═══ COL 3: Azioni rapide (config da Impostazioni → Home per ruolo) ═══ */}

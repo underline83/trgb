@@ -340,22 +340,9 @@ def _eventi(oggi: str, alerts: Optional[List[Dict[str, Any]]]) -> List[Dict[str,
     try:
         conn = get_clienti_conn()
 
-        # Prenotazioni entrate oggi (per qualsiasi data futura)
-        for r in conn.execute(f"""
-            SELECT p.created_at, p.data_pasto, p.ora_pasto, p.pax,
-                   COALESCE(c.cognome, p.cognome_ospite, c.nome, p.nome_ospite, '') AS chi
-            FROM clienti_prenotazioni p
-            LEFT JOIN clienti c ON p.cliente_id = c.id
-            WHERE DATE(p.created_at) = ?
-              AND p.stato IN ({','.join('?' * len(STATI_ATTIVI))})
-            ORDER BY p.created_at DESC LIMIT 5
-        """, (oggi, *STATI_ATTIVI)).fetchall():
-            quando = "oggi" if r["data_pasto"] == oggi else _quando_breve(r["data_pasto"])
-            eventi.append({
-                "ora": (r["created_at"] or "")[11:16],
-                "icona": "📅",
-                "testo": f'Prenotazione {quando} — {r["chi"] or "senza nome"}, {r["pax"] or 0} pax',
-            })
+        # 2026-10-03 (Marco): tolte dalla Lavagna le «Prenotazione oggi — X, N pax»
+        # (le prenotazioni entrate in giornata). I coperti del turno restano
+        # nella prima riga; le disdette di oggi restano qui sotto.
 
         # Disdette di oggi
         for r in conn.execute("""
@@ -529,7 +516,8 @@ def _selezioni_flat(selezioni: Optional[Any]) -> List[Dict[str, str]]:
                 if nome and nome not in nomi_tagli:
                     nomi_tagli.append(nome)
 
-        scelti = nomi_tagli[:2] or nomi_cat[:2]
+        # Tutte, senza tagliarle (Marco 2026-10-03): prima ne mostrava due.
+        scelti = nomi_tagli or nomi_cat
         if scelti:
             out.append({"label": label, "valore": ", ".join(scelti)})
 

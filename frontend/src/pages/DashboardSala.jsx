@@ -11,6 +11,7 @@ import useHomeActions from "../hooks/useHomeActions";
 import TrgbLoader from "../components/TrgbLoader";
 import SelezioniCard from "../components/widgets/SelezioniCard";
 import Lavagna from "../components/widgets/Lavagna";
+import TodoPersonale from "../components/widgets/TodoPersonale";
 import CaliciDisponibiliCard from "../components/widgets/CaliciDisponibiliCard";
 import { Btn } from "../components/ui";
 
@@ -192,6 +193,7 @@ export default function DashboardSala() {
             compact={true}
             onClick={(v) => navigate(`/vini/magazzino/${v.id}`)}
           />
+          <TodoPersonale compact />
           {/* La Lavagna — briefing di servizio (stesso widget della Home).
               Qui conta piu' che altrove: la sala atterra su questa pagina, non
               sulla Home. Con ruolo "sala" e' in sola lettura (isAdmin=false):

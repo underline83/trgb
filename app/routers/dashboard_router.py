@@ -1576,9 +1576,12 @@ def get_dashboard_lavagna():
     )
 
     from app.services.lavagna_service import build_lavagna
+    # 2026-10-03 (Marco): «fatture da registrare» non e' roba da briefing di
+    # servizio — esce dalla Lavagna (resta nell'alert engine e in Acquisti).
+    alerts = [a for a in _alerts(oggi_str) if getattr(a, "tipo", None) != "fatture"]
     return build_lavagna(
         selezioni=selezioni,
-        alerts=_alerts(oggi_str),
+        alerts=alerts,
         oggi=oggi_str,
     )
 

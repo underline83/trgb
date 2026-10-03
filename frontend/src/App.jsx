@@ -87,6 +87,7 @@ const FoglioSettimana = lazy(() => import("./pages/dipendenti/FoglioSettimana"))
 const VistaMensile = lazy(() => import("./pages/dipendenti/VistaMensile"));
 const PerDipendente = lazy(() => import("./pages/dipendenti/PerDipendente"));
 const MieiTurni = lazy(() => import("./pages/dipendenti/MieiTurni"));
+const TodoBoard = lazy(() => import("./pages/TodoBoard"));
 const GestioneReparti = lazy(() => import("./pages/dipendenti/GestioneReparti"));
 const DipendentiImpostazioni = lazy(() => import("./pages/dipendenti/DipendentiImpostazioni"));
 const DipendentiCosti = lazy(() => import("./pages/dipendenti/DipendentiCosti"));
@@ -475,6 +476,7 @@ export default function App() {
 
         {/* --- I MIEI TURNI (self-service, accessibile a tutti i ruoli autenticati) --- */}
         <Route path="/miei-turni" element={<MieiTurni />} />
+        <Route path="/todo/board" element={<TodoBoard />} />
         {/* Redirect vecchi path admin */}
         <Route path="/admin/dipendenti/*" element={<Navigate to="/dipendenti" replace />} />
 

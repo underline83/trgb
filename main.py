@@ -128,6 +128,7 @@ from app.routers.haccp_router import router as haccp_router
 
 # LISTA SPESA CUCINA — Fase 1 MVP (Modulo J sessione 59 cont. c, 2026-04-27)
 from app.routers.lista_spesa_router import router as lista_spesa_router
+from app.routers.todo_router import router as todo_router  # lista personale cose da fare (2026-10-03)
 
 # SCORTE & FRIGORIFERI CUCINA — infrastruttura a ripiani (2026-09-07, mig 171)
 # Doc: docs/modulo_scorte_cucina.md · mockup: docs/mockups/cucina_mobile_scorte_frigo.html
@@ -749,6 +750,7 @@ _mount("haccp_router", haccp_router)
 
 # LISTA SPESA CUCINA — Fase 1 MVP (modulo cucina)
 _mount("lista_spesa_router", lista_spesa_router)
+_mount("todo_router", todo_router)
 
 # SCORTE & FRIGORIFERI CUCINA (modulo cucina) — ubicazioni/ripiani + scorte
 # Init schema al boot (stesso pattern di pranzo_db): CREATE IF NOT EXISTS, no-op

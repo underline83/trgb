@@ -18,6 +18,7 @@ import { API_BASE, apiFetch } from "../config/api";
 import useLavagna from "../hooks/useLavagna";
 import useHomeActions from "../hooks/useHomeActions";
 import Lavagna from "../components/widgets/Lavagna";
+import TodoPersonale from "../components/widgets/TodoPersonale";
 
 const GIORNI = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
 const MESI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
@@ -151,6 +152,7 @@ export default function HomeCucina() {
           <MieiTurniCard />
           <Lavagna lavagna={lavagna} loading={lavagnaLoading} saving={saving}
                    scriviNota={scriviNota} rimuoviNota={rimuoviNota} isAdmin={false} />
+          <div className="lg:col-span-2"><TodoPersonale /></div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-4">

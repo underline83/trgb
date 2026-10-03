@@ -8,11 +8,13 @@
   "dipendenze_opzionali": ["dipendenti"],
   "router_files": [
     "tasks_router",
-    "haccp_router"
+    "haccp_router",
+    "todo_router"
   ],
   "endpoint_prefix": [
     "/tasks",
-    "/haccp"
+    "/haccp",
+    "/todo"
   ],
   "tabelle_db": [
     "checklist_template",
@@ -21,6 +23,7 @@
     "checklist_execution",
     "task_singolo",
     "task_alert_log",
+    "todo_personali",
     "haccp_*"
   ],
   "frontend_route": ["/tasks", "/haccp"],

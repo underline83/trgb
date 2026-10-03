@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-10-03 — «Le mie cose da fare»: una lista personale in Home `[core]`
+
+Ogni persona ha in Home il riquadro **📝 Le mie cose da fare**: scrive una riga e preme +, la spunta quando è fatta, la cancella con ×, tocca il testo per correggerlo e la sposta su o giù con ▲▼ — ognuno se la organizza come vuole. È personale: ciascuno vede solo la propria. Non sono i compiti del Task Manager (quelli si assegnano e hanno scadenze): è il foglietto in tasca. Le righe chiuse restano visibili una settimana, poi escono dalla vista.
+
+Il superadmin ha in più **«Board di tutti →»**: una pagina con una colonna per persona, quante cose ha da fare e quelle chiuse di recente (sola lettura).
+
+C'è nella Home di tutti: cucina, sala, admin.
+
+---
+
+## 2026-10-03 — La Lavagna più pulita `[core]`
+
+Dalla Lavagna spariscono le righe **«Prenotazione oggi — …»** (le prenotazioni entrate in giornata) e l'avviso **«fatture da registrare»**. Le **Selezioni del giorno** ora si vedono tutte, non più solo le prime due per tipo. Restano i coperti del turno in apertura e le disdette di oggi.
+
+---
+
 ## 2026-10-03 — Aiuto cuochi: solo la lettura dei menu; Lista spesa scrivibile; via i dati di prova `[core]`
 
 - **Commis (aiuto cuoco):** niente più Selezioni del giorno, gestione del Menu Pranzo e del Menu Carta, né dalla Home, né dai menu, né aprendo l'indirizzo a mano (il server risponde «non autorizzato»). Al loro posto due tasti per **leggere** i menu: **Menu del pranzo** (la settimana corrente, solo piatti, senza prezzi né costi) e **Menu alla carta** (la stessa pagina che vede il cliente col QR).

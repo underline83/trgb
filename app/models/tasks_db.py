@@ -143,6 +143,24 @@ def init_tasks_db() -> None:
         )
     """)
 
+    # ── Lista personale «cose da fare» (2026-10-03) ─────────────────────
+    # Ognuno vede e tocca solo le sue righe (username); il superadmin ha la
+    # board con quelle di tutti. Niente FK verso users.json: e' un file, non
+    # una tabella. Cancellare = DELETE vero: e' un foglietto, non un registro.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS todo_personali (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            username    TEXT NOT NULL,
+            testo       TEXT NOT NULL,
+            fatto       INTEGER NOT NULL DEFAULT 0,
+            fatto_at    TEXT,
+            ordine      INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at  TEXT
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_todo_user ON todo_personali(username, fatto)")
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS task_alert_log (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
