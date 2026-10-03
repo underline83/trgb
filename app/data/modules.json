@@ -241,6 +241,8 @@
       "superadmin",
       "admin",
       "chef",
+      "sous_chef",
+      "commis",
       "sala",
       "sommelier"
     ],
@@ -252,6 +254,8 @@
           "superadmin",
           "admin",
           "chef",
+          "sous_chef",
+          "commis",
           "sala",
           "sommelier"
         ]
@@ -263,6 +267,8 @@
           "superadmin",
           "admin",
           "chef",
+          "sous_chef",
+          "commis",
           "sala",
           "sommelier"
         ]
@@ -274,6 +280,8 @@
           "superadmin",
           "admin",
           "chef",
+          "sous_chef",
+          "commis",
           "sala",
           "sommelier"
         ]
@@ -285,6 +293,8 @@
           "superadmin",
           "admin",
           "chef",
+          "sous_chef",
+          "commis",
           "sala",
           "sommelier"
         ]

@@ -87,19 +87,14 @@ SALA_ACTIONS_DEFAULTS: List[Dict] = [
     },
 ]
 
-# Cucina (Marco 2026-10-02): la Home dei cuochi sono turni + Lavagna + questi
-# tasti. Niente cassa, prenotazioni, controllo di gestione. Selezioni del
-# giorno solo allo chef (sous_chef/commis non hanno il modulo).
+# Cucina (Marco 2026-10-03): «per cuochi e aiutocuochi metti i pulsanti:
+# cucina (iPhone), lista spesa, ricette, menu carta, selezioni». Stessa lista
+# per chef, sous_chef e commis (Selezioni aperte in lettura anche a loro).
 CUCINA_ACTIONS_DEFAULTS: List[Dict] = [
     {
-        "key": "cucina-iphone", "label": "Cucina iPhone", "sub": "Oggi, scorte, frigo, spesa",
+        "key": "cucina-iphone", "label": "Cucina", "sub": "Da iPhone: oggi, scorte, frigo",
         "emoji": "📱", "route": "/cucina/mobile",
         "color": "bg-orange-50 border-orange-200 text-orange-900",
-    },
-    {
-        "key": "frigo", "label": "Frigo e congelatori", "sub": "Il giro dei ripiani",
-        "emoji": "🧊", "route": "/cucina/mobile/frigo",
-        "color": "bg-sky-50 border-sky-200 text-sky-900",
     },
     {
         "key": "lista-spesa", "label": "Lista spesa", "sub": "Cosa manca",
@@ -112,18 +107,16 @@ CUCINA_ACTIONS_DEFAULTS: List[Dict] = [
         "color": "bg-orange-50 border-orange-200 text-orange-900",
     },
     {
-        "key": "miei-turni", "label": "I miei turni", "sub": "Le prossime settimane",
-        "emoji": "🗓️", "route": "/miei-turni",
-        "color": "bg-purple-50 border-purple-200 text-purple-900",
+        "key": "menu-carta", "label": "Menu Carta", "sub": "Piatti in carta",
+        "emoji": "📋", "route": "/menu-carta",
+        "color": "bg-amber-50 border-amber-200 text-amber-900",
     },
-]
-CHEF_ACTIONS_DEFAULTS: List[Dict] = CUCINA_ACTIONS_DEFAULTS[:4] + [
     {
-        "key": "selezioni", "label": "Selezioni del giorno", "sub": "Macellaio, pescato, formaggi",
+        "key": "selezioni", "label": "Selezioni", "sub": "Macellaio, pescato, formaggi",
         "emoji": "🥩", "route": "/selezioni",
         "color": "bg-rose-50 border-rose-200 text-rose-900",
     },
-] + CUCINA_ACTIONS_DEFAULTS[4:]
+]
 
 # Mappa ruolo → lista default.
 # Superadmin eredita admin a DB-level (seed replicato), così si puo' differenziare
@@ -133,7 +126,7 @@ DEFAULTS_BY_ROLE: Dict[str, List[Dict]] = {
     "superadmin": VINI_ACTIONS_DEFAULTS,
     "contabile":  ADMIN_ACTIONS_DEFAULTS,
     "sommelier":  VINI_ACTIONS_DEFAULTS,
-    "chef":       CHEF_ACTIONS_DEFAULTS,
+    "chef":       CUCINA_ACTIONS_DEFAULTS,
     "sous_chef":  CUCINA_ACTIONS_DEFAULTS,
     "commis":     CUCINA_ACTIONS_DEFAULTS,
     "viewer":     ADMIN_ACTIONS_DEFAULTS,

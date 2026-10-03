@@ -58,7 +58,7 @@ router = APIRouter(
     prefix="/pescato",
     tags=["pescato"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "chef", "sala", "sommelier", cosa="selezioni del giorno")),
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", "sala", "sommelier", cosa="selezioni del giorno")),
     ],
 )
 

@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-03 — Cucina: i tasti della Home e le Selezioni anche agli aiutocuochi `[core]`
+
+Nella Home della cucina i tasti ora sono cinque, uguali per cuochi e aiutocuochi: **Cucina** (la sotto-app da iPhone), **Lista spesa**, **Ricette**, **Menu Carta**, **Selezioni**. Sous chef e commis possono ora aprire le Selezioni del giorno (macellaio, salumi, formaggi, pescato) in lettura, come la sala; modificarle resta ad admin e chef.
+
+---
+
 ## 2026-10-03 — iPhone: il Logout si raggiunge sempre `[core]`
 
 Su iPhone il tasto Logout in alto a destra poteva finire fuori dallo schermo quando il nome della sezione era lungo. Ora il nome della sezione si accorcia con i puntini e il Logout resta al suo posto; in più **«Esci (logout)»** c'è anche in fondo al menu delle sezioni.
