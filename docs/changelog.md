@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-03 — iPhone: il Logout si raggiunge sempre `[core]`
+
+Su iPhone il tasto Logout in alto a destra poteva finire fuori dallo schermo quando il nome della sezione era lungo. Ora il nome della sezione si accorcia con i puntini e il Logout resta al suo posto; in più **«Esci (logout)»** c'è anche in fondo al menu delle sezioni.
+
+---
+
 ## 2026-10-03 — Home della cucina: turni, Lavagna e tasti `[core]`
 
 Cuochi e aiutocuochi (ruoli chef, sous chef, commis) entrando nel gestionale trovano una Home loro:

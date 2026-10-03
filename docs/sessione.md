@@ -28,6 +28,7 @@ Marco: «lavoriamo sulla sezione cucina per cuochi e aiutocuochi.. quando entran
 - **Tasti default**: `CUCINA_ACTIONS_DEFAULTS` (Cucina iPhone, Frigo e congelatori, Lista spesa, Ricette, I miei turni) per sous_chef/commis, `CHEF_ACTIONS_DEFAULTS` + Selezioni del giorno (solo lo chef ha il modulo). Specchio in `homeActionsFallback.js`.
 - **Lasciato com'è, apposta:** la Lavagna mostra i coperti del turno e i tavoli con allergie — Marco ha detto «la bacheca va bene» e in cucina servono.
 - Babel ok su HomeCucina/Home/fallback; ast ok sui due .py.
+- **Logout irraggiungibile su iPhone** (Marco): `Header.jsx` v6.1 — griglia `auto | minmax(0,1fr) | auto` (prima `1fr` cresceva col titolo e spingeva fuori la colonna destra), titolo modulo `truncate`, colonna destra `flex-shrink-0`; voce «Esci (logout)» in fondo al dropdown moduli (nascosta durante la ricerca).
 
 ## SESSIONE 2026-10-02 — Docs e versioni rimessi in pari `[core]`
 

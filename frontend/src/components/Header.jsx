@@ -1,5 +1,7 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v6.0 — dropdown M1: lista accordion sempre aperta + ricerca live
+// @version: v6.1 — iPhone: colonna centrale minmax(0,1fr) + titolo troncato, destra non si restringe;
+//   «Esci (logout)» anche in fondo al menu moduli (2026-10-03)
+// v6.0 — dropdown M1: lista accordion sempre aperta + ricerca live
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
@@ -163,7 +165,7 @@ export default function Header({ onLogout }) {
           </span>
         </div>
       )}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 grid grid-cols-[auto_1fr_auto] sm:grid-cols-3 items-center gap-2 sm:gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 grid grid-cols-[auto_minmax(0,1fr)_auto] sm:grid-cols-3 items-center gap-2 sm:gap-4">
 
         {/* LEFT — Wordmark TRGB (link alla Home). Su mobile solo gobbette.
             R2 sessione 60: in Home page mostra anche "× <tagline>" del locale
@@ -188,15 +190,15 @@ export default function Header({ onLogout }) {
         </button>
 
         {/* CENTER — Pulsante menu moduli con modulo corrente */}
-        <div className="sm:relative justify-self-center" ref={dropRef}>
+        <div className="sm:relative justify-self-center min-w-0 max-w-full" ref={dropRef}>
           <button
             onClick={handleOpen}
-            className="flex items-center gap-1.5 cursor-pointer group px-3 py-1.5 rounded-lg hover:bg-white/60 transition"
+            className="flex items-center gap-1.5 cursor-pointer group px-3 py-1.5 rounded-lg hover:bg-white/60 transition min-w-0 max-w-full"
           >
             {currentModule && (
               <span className="text-base mr-0.5">{currentModule[1].icon}</span>
             )}
-            <span className="text-sm font-semibold text-brand-ink tracking-wide group-hover:text-brand-ink/80 transition">
+            <span className="text-sm font-semibold text-brand-ink tracking-wide group-hover:text-brand-ink/80 transition truncate">
               {currentModule ? currentModule[1].title : "Menu"}
             </span>
             <svg
@@ -304,6 +306,21 @@ export default function Header({ onLogout }) {
                   );
                 })}
 
+                {/* Esci — anche dal menu: su iPhone stretti la colonna destra
+                    dell'intestazione può finire fuori schermo (2026-10-03) */}
+                {!q && (
+                  <>
+                    <div className="border-t border-neutral-100 my-1.5 mx-2" />
+                    <button
+                      onClick={() => { setOpen(false); onLogout && onLogout(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-neutral-600 hover:bg-red-50 hover:text-red-700 transition"
+                    >
+                      <span className="text-base w-6 text-center">⎋</span>
+                      <span>Esci (logout)</span>
+                    </button>
+                  </>
+                )}
+
                 {/* Empty state */}
                 {noResults && (
                   <div className="px-4 py-8 text-center">
@@ -318,7 +335,7 @@ export default function Header({ onLogout }) {
         </div>
 
         {/* RIGHT — User info + logout */}
-        <div className="flex items-center gap-2 sm:gap-3 justify-self-end min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 justify-self-end flex-shrink-0">
           <div className="text-right hidden sm:block select-none"
             onDoubleClick={(e) => {
               // Triplo click = doubleClick + click ravvicinato
