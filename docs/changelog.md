@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-03 — «Cucina iPhone» diventa «Gestione Frigoriferi e scorte» `[core]`
+
+La sotto-app da telefono ora si chiama **Gestione Frigoriferi e scorte** e in basso ha solo due tab: **Frigo** e **Scorte**. **Oggi** (checklist e compiti del giorno) e **Lista spesa** sono pagine a sé, con il loro tasto nella Home della cucina. I tasti della Home cucina sono: Oggi, Gestione Frigoriferi e scorte, Lista spesa, Ricette, Menu Carta, Selezioni. Anche nel menu di Gestione Cucina le voci sono «Oggi» e «Frigoriferi e scorte».
+
+---
+
 ## 2026-10-03 — Cucina: i tasti della Home e le Selezioni anche agli aiutocuochi `[core]`
 
 Nella Home della cucina i tasti ora sono cinque, uguali per cuochi e aiutocuochi: **Cucina** (la sotto-app da iPhone), **Lista spesa**, **Ricette**, **Menu Carta**, **Selezioni**. Sous chef e commis possono ora aprire le Selezioni del giorno (macellaio, salumi, formaggi, pescato) in lettura, come la sala; modificarle resta ad admin e chef.

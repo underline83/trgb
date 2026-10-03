@@ -87,14 +87,20 @@ SALA_ACTIONS_DEFAULTS: List[Dict] = [
     },
 ]
 
-# Cucina (Marco 2026-10-03): «per cuochi e aiutocuochi metti i pulsanti:
+# Cucina (Marco 2026-10-03, poi «cucina iphone diventa Gestione Frigoriferi e
+# scorte, oggi lo separiamo e anche spesa»): «per cuochi e aiutocuochi metti i pulsanti:
 # cucina (iPhone), lista spesa, ricette, menu carta, selezioni». Stessa lista
 # per chef, sous_chef e commis (Selezioni aperte in lettura anche a loro).
 CUCINA_ACTIONS_DEFAULTS: List[Dict] = [
     {
-        "key": "cucina-iphone", "label": "Cucina", "sub": "Da iPhone: oggi, scorte, frigo",
-        "emoji": "📱", "route": "/cucina/mobile",
-        "color": "bg-orange-50 border-orange-200 text-orange-900",
+        "key": "oggi", "label": "Oggi", "sub": "Checklist e compiti del giorno",
+        "emoji": "📋", "route": "/cucina/mobile/oggi",
+        "color": "bg-indigo-50 border-indigo-200 text-indigo-900",
+    },
+    {
+        "key": "frigo-scorte", "label": "Gestione Frigoriferi e scorte", "sub": "Frigo, congelatori, scorte",
+        "emoji": "🧊", "route": "/cucina/mobile/frigo",
+        "color": "bg-sky-50 border-sky-200 text-sky-900",
     },
     {
         "key": "lista-spesa", "label": "Lista spesa", "sub": "Cosa manca",

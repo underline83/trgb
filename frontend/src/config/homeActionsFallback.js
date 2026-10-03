@@ -30,7 +30,8 @@ const SALA_FALLBACK = [
 
 // Cucina (2026-10-03): specchio di CUCINA_ACTIONS_DEFAULTS nel backend.
 const CUCINA_FALLBACK = [
-  { key: "cucina-iphone", label: "Cucina",      sub: "Da iPhone: oggi, scorte, frigo", emoji: "📱", route: "/cucina/mobile",       color: "bg-orange-50 border-orange-200 text-orange-900" },
+  { key: "oggi",          label: "Oggi",        sub: "Checklist e compiti del giorno", emoji: "📋", route: "/cucina/mobile/oggi", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
+  { key: "frigo-scorte",  label: "Gestione Frigoriferi e scorte", sub: "Frigo, congelatori, scorte", emoji: "🧊", route: "/cucina/mobile/frigo", color: "bg-sky-50 border-sky-200 text-sky-900" },
   { key: "lista-spesa",   label: "Lista spesa", sub: "Cosa manca",                     emoji: "🛒", route: "/cucina/mobile/spesa", color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
   { key: "ricette",       label: "Ricette",     sub: "Archivio",                       emoji: "📚", route: "/ricette/archivio",    color: "bg-orange-50 border-orange-200 text-orange-900" },
   { key: "menu-carta",    label: "Menu Carta",  sub: "Piatti in carta",                emoji: "📋", route: "/menu-carta",          color: "bg-amber-50 border-amber-200 text-amber-900" },

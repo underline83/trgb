@@ -166,6 +166,8 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.8 (2026-10-03): la sotto-app diventa «Gestione Frigoriferi e scorte»
+    //   (barra: Frigo, Scorte); Oggi e Spesa pagine a sé dalla Home cucina.
     // 1.7 (2026-10-02): scheda articolo su una pagina a scorrimento — quantità,
     //   gesti, dove si trova, lotti, DETTAGLI modificabili in linea (sparisce
     //   ✏️ Modifica; «Salva modifiche» compare solo se cambia qualcosa), movimenti.
@@ -208,7 +210,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.7",
+    version: "1.8",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

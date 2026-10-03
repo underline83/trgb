@@ -9,7 +9,9 @@ const TABS = [
   // 2026-09-28: la sotto-app da telefono (Oggi/Scorte/Frigo/Spesa). Stava solo
   // nel menu moduli in alto; Marco non la trovava nel menu della sezione.
   // Stessa scelta di ViniNav con «Cantina mobile».
-  { key: "cucina-mobile", label: "Cucina iPhone", path: "/cucina/mobile", icon: "📱" },
+  // 2026-10-03: la sotto-app è diventata «Frigoriferi e scorte»; Oggi è una pagina a sé.
+  { key: "cucina-oggi", label: "Oggi", path: "/cucina/mobile/oggi", icon: "📋" },
+  { key: "cucina-mobile", label: "Frigoriferi e scorte", path: "/cucina/mobile/frigo", icon: "🧊" },
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
   { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },

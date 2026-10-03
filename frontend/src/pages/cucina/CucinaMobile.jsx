@@ -1,6 +1,8 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.5 — scheda articolo su una pagina sola: quantità, gesti, dove/lotti, DETTAGLI modificabili
+// @version: v1.6 — «Gestione Frigoriferi e scorte»: la barra resta con Frigo e Scorte; Oggi e Spesa
+//            diventano pagine a sé (stesse route, senza barra), aperte dai tasti della Home (2026-10-03)
+// v1.5 — scheda articolo su una pagina sola: quantità, gesti, dove/lotti, DETTAGLI modificabili
 //            in linea (niente più ✏️ Modifica), movimenti in fondo (2026-10-02)
 // v1.4 — gate temperature: chi apre per primo la Cucina iPhone inserisce le temperature
 //            di oggi; «Ignora per oggi» solo admin/superadmin/chef (2026-10-02)
@@ -65,12 +67,15 @@ const REGIME_OPZ = [
 ];
 const NATURA_OPZ = ["CRUDO", "COTTO", "SEMILAVORATO", "PRONTO", "NON_FOOD"];
 
+// La sotto-app è «Gestione Frigoriferi e scorte» (Marco 2026-10-03): nella
+// barra restano solo questi due. Oggi e Spesa vivono alle stesse route
+// (/cucina/mobile/oggi, /cucina/mobile/spesa) ma come pagine a sé, senza
+// barra: ci si arriva dai tasti della Home.
 const TABS = [
-  { k: "oggi", label: "Oggi", icon: "📋" },
-  { k: "scorte", label: "Scorte", icon: "📦" },
   { k: "frigo", label: "Frigo", icon: "🧊" },
-  { k: "spesa", label: "Spesa", icon: "🛒" },
+  { k: "scorte", label: "Scorte", icon: "📦" },
 ];
+const PAGINE_A_SE = ["oggi", "spesa"];
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -385,6 +390,7 @@ const STYLE = `
 .km-tin input{flex:1;height:48px;border-radius:12px;border:1.5px solid var(--hair);background:#fff;
   text-align:center;font:700 22px/1 "Playfair Display",Georgia,serif;}
 .km-tin .u{font-size:15px;font-weight:700;color:var(--muted);}
+.km-root.a-se .km-body{padding-bottom:calc(env(safe-area-inset-bottom) + 32px);}
 .km-pills.wrap{flex-wrap:wrap;overflow:visible;padding-top:4px;}
 .km-in{width:100%;padding:12px 14px;border-radius:11px;border:1px solid var(--hair);background:#fff;
   font-size:16px;margin:4px 0 2px;}
@@ -1969,7 +1975,8 @@ export default function CucinaMobile() {
   const { tab, id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const attivo = TABS.some((t) => t.k === tab) ? tab : "oggi";
+  const aSe = PAGINE_A_SE.includes(tab);
+  const attivo = aSe || TABS.some((t) => t.k === tab) ? tab : "frigo";
   const role = localStorage.getItem("role");
   const canWrite = isCucinaWriterRole(role) || role === "sous_chef" || role === "commis";
 
@@ -1985,7 +1992,7 @@ export default function CucinaMobile() {
   );
   const da = location.state?.da;
 
-  const modi = <Modi attivo={attivo} badge={badge} vai={vai} />;
+  const modi = aSe ? null : <Modi attivo={attivo} badge={badge} vai={vai} />;
 
   let vista;
   if (attivo === "frigo" && id) {
@@ -2020,10 +2027,10 @@ export default function CucinaMobile() {
   }
 
   return (
-    <div className="km-root">
+    <div className={`km-root${aSe ? " a-se" : ""}`}>
       <style>{STYLE}</style>
       {vista}
-      <TabBar attivo={attivo} badge={badge} vai={vai} />
+      {!aSe && <TabBar attivo={attivo} badge={badge} vai={vai} />}
       <TemperatureGate />
     </div>
   );
