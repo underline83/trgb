@@ -1,4 +1,6 @@
-// @version: v9.3 — Home v3.6: widget Bacheca sostituito da La Lavagna
+// @version: v9.4 — ruoli di cucina (chef, sous_chef, commis) → HomeCucina: turni, Lavagna, tasti;
+//   niente incasso/coperti/prenotazioni, nemmeno con ?full=1 (2026-10-02)
+// v9.3 — Home v3.6: widget Bacheca sostituito da La Lavagna
 //   (briefing di servizio auto-composto + nota del turno + eventi).
 //   La card Alert e' stata assorbita: gli alert scorrono nello strato eventi.
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -7,6 +9,7 @@ import { API_BASE, apiFetch } from "../config/api";
 import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
 import MODULES_MENU from "../config/modulesMenu";
 import DashboardSala from "./DashboardSala";
+import HomeCucina from "./HomeCucina";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 import useLavagna from "../hooks/useLavagna";
@@ -159,6 +162,11 @@ export default function Home() {
   // (→ /?full=1) il re-render non cambia il numero di hook (no React #310).
   if (isSalaDashboard) {
     return <DashboardSala />;
+  }
+  // Cucina: la Home è HomeCucina, senza scappatoia «tutti i moduli» — i
+  // numeri di cassa/sala non devono vedersi (il backend li manda vuoti).
+  if (["chef", "sous_chef", "commis"].includes(role)) {
+    return <HomeCucina />;
   }
 
   const loading = modulesLoading || widgetsLoading;

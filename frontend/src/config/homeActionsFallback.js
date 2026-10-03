@@ -28,14 +28,28 @@ const SALA_FALLBACK = [
   { key: "mance",          label: "Mance",           sub: "Registra mance",    emoji: "💰", route: "/flussi-cassa/mance", color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
 ];
 
+// Cucina (2026-10-02): specchio di CUCINA/CHEF_ACTIONS_DEFAULTS nel backend.
+const CUCINA_FALLBACK = [
+  { key: "cucina-iphone", label: "Cucina iPhone",       sub: "Oggi, scorte, frigo, spesa", emoji: "📱", route: "/cucina/mobile",        color: "bg-orange-50 border-orange-200 text-orange-900" },
+  { key: "frigo",         label: "Frigo e congelatori", sub: "Il giro dei ripiani",        emoji: "🧊", route: "/cucina/mobile/frigo",  color: "bg-sky-50 border-sky-200 text-sky-900" },
+  { key: "lista-spesa",   label: "Lista spesa",         sub: "Cosa manca",                 emoji: "🛒", route: "/cucina/mobile/spesa",  color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
+  { key: "ricette",       label: "Ricette",             sub: "Archivio",                   emoji: "📚", route: "/ricette/archivio",     color: "bg-orange-50 border-orange-200 text-orange-900" },
+  { key: "miei-turni",    label: "I miei turni",        sub: "Le prossime settimane",      emoji: "🗓️", route: "/miei-turni",           color: "bg-purple-50 border-purple-200 text-purple-900" },
+];
+const CHEF_FALLBACK = [
+  ...CUCINA_FALLBACK.slice(0, 4),
+  { key: "selezioni", label: "Selezioni del giorno", sub: "Macellaio, pescato, formaggi", emoji: "🥩", route: "/selezioni", color: "bg-rose-50 border-rose-200 text-rose-900" },
+  ...CUCINA_FALLBACK.slice(4),
+];
+
 export const HOME_ACTIONS_FALLBACK = {
   admin:      VINI_FALLBACK,
   superadmin: VINI_FALLBACK,
   contabile:  ADMIN_FALLBACK,
   sommelier:  VINI_FALLBACK,
-  chef:       ADMIN_FALLBACK,
-  sous_chef:  ADMIN_FALLBACK,
-  commis:     ADMIN_FALLBACK,
+  chef:       CHEF_FALLBACK,
+  sous_chef:  CUCINA_FALLBACK,
+  commis:     CUCINA_FALLBACK,
   viewer:     ADMIN_FALLBACK,
   sala:       SALA_FALLBACK,
 };

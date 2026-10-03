@@ -1476,11 +1476,18 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
 # ENDPOINT
 # ─────────────────────────────────────────────────────────
 
+# Ruoli di cucina: la loro Home (HomeCucina.jsx) mostra turni, Lavagna e
+# tasti. Incasso, coperti, prenotazioni e fatture non li vedono (Marco
+# 2026-10-02): qui si tolgono anche dalla risposta, non solo dalla pagina.
+RUOLI_CUCINA = ("chef", "sous_chef", "commis")
+
+
 @router.get("/home", response_model=DashboardHome)
-def get_dashboard_home():
+def get_dashboard_home(current_user=Depends(get_current_user)):
     """
     Endpoint aggregatore per la Home v3.
     Restituisce tutti i dati necessari ai widget in un'unica chiamata.
+    Per i ruoli di cucina i numeri di sala/cassa tornano vuoti.
     """
     oggi = date.today()
     ieri = oggi - timedelta(days=1)
@@ -1497,6 +1504,12 @@ def get_dashboard_home():
     salumi = _salumi_widget(oggi_str)
     formaggi = _formaggi_widget(oggi_str)
     pescato = _pescato_widget(oggi_str)
+
+    if (current_user or {}).get("role") in RUOLI_CUCINA:
+        prenotazioni = PrenotazioniOggi()
+        incasso = IncassoIeri()
+        coperti = CopertiMese()
+        fatture = FatturePending()
 
     response = DashboardHome(
         prenotazioni=prenotazioni,

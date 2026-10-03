@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-10-03 — Home della cucina: turni, Lavagna e tasti `[core]`
+
+Cuochi e aiutocuochi (ruoli chef, sous chef, commis) entrando nel gestionale trovano una Home loro:
+
+- **🗓️ I miei turni** — oggi, domani e i cinque giorni dopo, con gli orari di pranzo e cena (riposo e chiusura scritti chiari); «Tutto il mese →» porta alla pagina completa;
+- **La Lavagna** — il briefing di servizio di sempre, in sola lettura;
+- **i tasti** — Cucina iPhone, Frigo e congelatori, Lista spesa, Ricette, I miei turni (lo chef anche Selezioni del giorno). Si cambiano da Impostazioni → Home per ruolo.
+
+Non vedono più l'incasso del giorno prima, i coperti del mese, la lista delle prenotazioni né le fatture: spariscono dalla pagina e il server non glieli manda proprio.
+
+---
+
 ## 2026-10-02 — Conto economico: le note di credito riducono i costi `[core]`
 
 Le note di credito ora contano nel **Conto Economico** col segno meno, nella categoria del fornitore (o delle righe) e nel **mese della loro data**, come fa il commercialista. Se una va spostata, si usa la competenza della singola nota di credito, come per le fatture. Effetto sul 2026: −929,67 € di costi (gennaio −381,60, febbraio −75,61, luglio −421,97, settembre −50,49). Stesso criterio nel riquadro «Dove appare nel Conto Economico» del dettaglio fattura e nei totali acquisti della dashboard Controllo Gestione.
