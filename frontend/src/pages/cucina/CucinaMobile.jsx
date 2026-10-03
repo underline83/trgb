@@ -1434,7 +1434,11 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
   const [aggiungi, setAggiungi] = useState(null);   // il ripiano su cui aggiungere
   const [corr, setCorr] = useState(null);           // correzione da tocco sul pallino (MOVIMENTI)
   const [err, setErr] = useState(null);
-  const [soloMancanti, setSoloMancanti] = useState(false);
+  // Vista: "tutti" | "mancanti" | "registro" (registro dei finiti, chef/sous chef)
+  const [vista, setVista] = useState("tutti");
+  const soloMancanti = vista === "mancanti";
+  const ruolo = localStorage.getItem("role");
+  const vedeRegistro = ["superadmin", "admin", "chef", "sous_chef"].includes(ruolo);
 
   const load = useCallback(async () => {
     try {
@@ -1482,12 +1486,17 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
           )}
         </div>
         <div className="km-pills">
-          <button className={`km-pill${!soloMancanti ? " on" : ""}`} onClick={() => setSoloMancanti(false)}>
+          <button className={`km-pill${vista === "tutti" ? " on" : ""}`} onClick={() => setVista("tutti")}>
             Tutti i ripiani
           </button>
-          <button className={`km-pill${soloMancanti ? " on" : ""}`} onClick={() => setSoloMancanti(true)}>
+          <button className={`km-pill${vista === "mancanti" ? " on" : ""}`} onClick={() => setVista("mancanti")}>
             Solo mancanti{finiti > 0 && <span className="c">{finiti}</span>}
           </button>
+          {vedeRegistro && (
+            <button className={`km-pill${vista === "registro" ? " on" : ""}`} onClick={() => setVista("registro")}>
+              Registro
+            </button>
+          )}
         </div>
       </div>
 
@@ -1507,12 +1516,14 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
           </div>
         )}
 
-        {(u.ripiani || []).length === 0 && (
+        {vista === "registro" && <RegistroFiniti ubicazioneId={id} onCambio={load} />}
+
+        {vista !== "registro" && (u.ripiani || []).length === 0 && (
           <Vuoto icona="📭" titolo="Nessun ripiano attivo"
                  testo="Ogni posto dovrebbe averne almeno uno." />
         )}
 
-        {(u.ripiani || []).map((r) => {
+        {vista !== "registro" && (u.ripiani || []).map((r) => {
           const righe = soloMancanti
             ? (r.dotazione || []).filter((d) => d.stato_semaforo === "FINITO" || d.stato_semaforo === "ESAURIMENTO")
             : (r.dotazione || []);
@@ -1556,6 +1567,72 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
                        onChiudi={() => setAggiungi(null)}
                        onFatto={() => { setAggiungi(null); load(); }} />
       )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Registro dei finiti (Marco 2026-10-04): gli articoli a regime «conta»
+// contati a zero escono dal ripiano e restano qui. Lo vedono chef e sous
+// chef. «Rimetti» annulla l'uscita e riporta l'articolo sul suo ripiano.
+// ─────────────────────────────────────────────────────────────
+function RegistroFiniti({ ubicazioneId, onCambio }) {
+  const [righe, setRighe] = useState(null);
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/finiti/?ubicazione_id=${ubicazioneId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
+      setRighe(d.finiti || []);
+      setErr(null);
+    } catch (e) { setErr(e.message); }
+  }, [ubicazioneId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function rimetti(r) {
+    setBusy(r.id);
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/${r.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await load();
+      onCambio && onCambio();
+    } catch (e) { setErr(e.message); }
+    setBusy(null);
+  }
+
+  if (err && !righe) return <div className="km-err">{err}</div>;
+  if (!righe) return <Vuoto icona="⏳" titolo="Carico…" />;
+  if (righe.length === 0) return (
+    <Vuoto icona="📒" titolo="Registro vuoto"
+           testo="Qui finiscono gli articoli a regime «conta» che alla conta risultano a zero: escono dal ripiano e resta la traccia." />
+  );
+
+  return (
+    <>
+      {err && <div className="km-err">{err}</div>}
+      {righe.map((r) => (
+        <div key={r.id} className="km-card" style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ minWidth: 0 }}>
+              <b>{r.articolo}</b>
+              <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>
+                rip. {r.ripiano || "—"} · c'erano {fmtQta(num(r.qta_precedente))} {(r.um || "").toLowerCase()}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                {(r.created_at || "").slice(8, 10)}/{(r.created_at || "").slice(5, 7)} {(r.created_at || "").slice(11, 16)}
+                {r.utente ? ` · ${r.utente}` : ""}{r.motivo ? ` · ${r.motivo}` : ""}
+              </div>
+            </div>
+            <button className="km-pill" disabled={busy === r.id} onClick={() => rimetti(r)}>
+              {busy === r.id ? "…" : "↩︎ Rimetti"}
+            </button>
+          </div>
+        </div>
+      ))}
     </>
   );
 }

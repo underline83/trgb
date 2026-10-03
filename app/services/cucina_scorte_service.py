@@ -386,6 +386,9 @@ def annulla_movimento(conn: sqlite3.Connection, mov_id: int, utente: str) -> Dic
         raise ValueError("movimento gia' annullato")
 
     if mov["ripiano_id"]:
+        if mov["ref_modulo"] == REF_FINITO:
+            # Annullare un «finito» rimette l'articolo sul ripiano.
+            assicura_giacenza(conn, mov["articolo_id"], mov["ripiano_id"])
         conn.execute(
             """
             UPDATE cucina_giacenze
@@ -539,6 +542,31 @@ def trasferisci(
                 (a_ripiano_id, resto, resto, utente, l["id"]),
             )
             resto = 0
+
+    # Spostato TUTTO: l'articolo ha cambiato casa. La riga del ripiano di
+    # partenza non resta a zero/FINITO (sembrerebbe "finito li'" e risulterebbe
+    # su due ripiani): si toglie, e la destinazione eredita l'essere "in
+    # dotazione". Spostata solo una parte, e' davvero in due posti e restano
+    # entrambe (Marco 2026-10-03, prova col brasato andata e ritorno).
+    if esce["qta_risultante"] <= 1e-9:
+        lotti_rimasti = conn.execute(
+            """SELECT COUNT(*) FROM cucina_lotti
+                WHERE articolo_id = ? AND ripiano_id = ? AND COALESCE(qta_residua,0) > 0""",
+            (articolo_id, da_ripiano_id),
+        ).fetchone()[0]
+        if not lotti_rimasti:
+            conn.execute(
+                """UPDATE cucina_giacenze
+                      SET in_dotazione = MAX(in_dotazione, COALESCE(
+                          (SELECT in_dotazione FROM cucina_giacenze
+                            WHERE articolo_id = ? AND ripiano_id = ?), 0))
+                    WHERE articolo_id = ? AND ripiano_id = ?""",
+                (articolo_id, da_ripiano_id, articolo_id, a_ripiano_id),
+            )
+            conn.execute(
+                "DELETE FROM cucina_giacenze WHERE articolo_id = ? AND ripiano_id = ?",
+                (articolo_id, da_ripiano_id),
+            )
     return {"esce": esce, "entra": entra}
 
 
@@ -681,6 +709,40 @@ def scrivi_riga_conta(
     return {"qta_attesa": attesa, "qta_contata": contata, "delta": delta}
 
 
+REF_FINITO = "finito"
+
+
+def togli_finito(
+    conn: sqlite3.Connection,
+    articolo_id: int,
+    ripiano_id: int,
+    utente: str,
+    qta_precedente: Optional[float] = None,
+    motivo: Optional[str] = None,
+    ref_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Un articolo a regime CONTA arrivato a zero esce dal ripiano.
+
+    Regola di Marco (2026-10-04): «conta, una volta che e' arrivato a 0,
+    scompare; lascia traccia in un registro che vedono chef e sous chef».
+    Diverso da SEMAFORO e MOVIMENTI, dove il finito resta in dotazione in
+    rosso. La traccia e' un movimento RETTIFICA con ref_modulo='finito'
+    (registro: GET /cucina/scorte/finiti/); la riga giacenza si cancella.
+    """
+    mov = registra_movimento(
+        conn, articolo_id, ripiano_id, "RETTIFICA",
+        qta_delta=-_num(qta_precedente or 0), utente=utente,
+        qta_precedente=qta_precedente, motivo=motivo or "Finito",
+        origine="CONTA", ref_modulo=REF_FINITO, ref_id=ref_id,
+        aggiorna_giacenza=False,
+    )
+    conn.execute(
+        "DELETE FROM cucina_giacenze WHERE articolo_id = ? AND ripiano_id = ?",
+        (articolo_id, ripiano_id),
+    )
+    return mov
+
+
 def chiudi_ripiano(
     conn: sqlite3.Connection, conta_id: int, ripiano_id: int, utente: str
 ) -> Dict[str, Any]:
@@ -723,6 +785,13 @@ def chiudi_ripiano(
                 ref_modulo="cucina",
                 ref_id=conta_id,
             )
+            rettifiche += 1
+        elif (r["regime"] or "").upper() == "CONTA" and contata <= 1e-9:
+            # Regime CONTA contato a zero: esce dal ripiano e resta solo nel
+            # registro dei finiti (Marco 2026-10-04).
+            togli_finito(conn, r["articolo_id"], ripiano_id, utente,
+                         qta_precedente=attesa, motivo=f"Conta #{conta_id}",
+                         ref_id=conta_id)
             rettifiche += 1
         else:
             conn.execute(

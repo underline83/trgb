@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-10-04 — Scorte: a regime «conta», finito = esce dal ripiano `[core]`
+
+Gli articoli a regime **conta** che alla conta risultano a **0** non restano sul ripiano in rosso: escono e finiscono nel **registro dei finiti** (cosa, dove, quanto c'era prima, chi e quale conta). Il registro lo vedono chef e sous chef. Semaforo e movimenti non cambiano: lì il finito resta sul ripiano in rosso. Il registro è il terzo tab in ogni frigo/congelatore (**Tutti i ripiani · Solo mancanti · Registro**), visibile a chef e sous chef; ogni riga ha **↩︎ Rimetti**, che riporta l'articolo al suo posto.
+
+---
+
+## 2026-10-03 — Frigo e congelatori: «Sposta» tutto = cambia ripiano `[core]`
+
+Se con **↔ Sposta** si porta via **tutta** la quantità, l'articolo sparisce dal ripiano di partenza invece di restarci a zero (rosso «finito»). Prima, spostando il brasato e rimettendolo a posto, risultava su tutti e due i ripiani. Se se ne sposta solo una parte, resta su entrambi, con le quantità giuste.
+
+---
+
 ## 2026-10-03 — Lavagna: «In turno» per reparto del turno, via «Nessuna prenotazione» `[core]`
 
 - **In turno:** chi lavora compare sotto il reparto del **turno** di quel giorno (Sala Cena → Sala), non sotto il suo reparto principale. Prima Marco, che ha Cucina come principale, risultava in cucina anche quando era di sala. Anche pranzo/cena si legge dal tipo di turno; l'orario resta solo come ripiego. I turni non di lavoro (ferie, riposo) non compaiono.

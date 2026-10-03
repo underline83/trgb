@@ -50,6 +50,7 @@ from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
 from app.services.cucina_scorte_service import (
     ORIGINE_MOBILE,
+    REF_FINITO,
     alert_scorte,
     annulla_movimento,
     apri_conta,
@@ -810,6 +811,42 @@ def list_movimenti(
             sql += " AND date(m.created_at) <= date(?)"; args.append(al)
         sql += " ORDER BY m.id DESC LIMIT ?"; args.append(limit)
         return {"movimenti": [dict(r) for r in conn.execute(sql, args).fetchall()]}
+    finally:
+        conn.close()
+
+
+@router.get("/finiti/")
+def list_finiti(
+    ubicazione_id: Optional[int] = None,
+    dal: Optional[str] = None,
+    al: Optional[str] = None,
+    limit: int = Query(default=200, ge=1, le=2000),
+    current_user=Depends(get_current_user),
+):
+    """Registro dei finiti: articoli a regime CONTA contati a zero e tolti dal
+    ripiano. Lo vedono chef e sous chef (admin/superadmin compresi)."""
+    verifica_ruoli(current_user, "admin", "chef", "sous_chef", cosa="il registro dei finiti")
+    conn = get_foodcost_connection()
+    try:
+        sql = """
+            SELECT m.id, m.created_at, m.utente, m.qta_precedente, m.motivo, m.ref_id AS conta_id,
+                   a.id AS articolo_id, a.nome AS articolo, a.um,
+                   r.codice AS ripiano, u.nome AS ubicazione
+              FROM cucina_movimenti m
+              JOIN cucina_articoli a        ON a.id = m.articolo_id
+              LEFT JOIN cucina_ripiani r    ON r.id = m.ripiano_id
+              LEFT JOIN cucina_ubicazioni u ON u.id = m.ubicazione_id
+             WHERE m.ref_modulo = ? AND m.annullato_at IS NULL
+        """
+        args: List[Any] = [REF_FINITO]
+        if ubicazione_id:
+            sql += " AND m.ubicazione_id = ?"; args.append(ubicazione_id)
+        if dal:
+            sql += " AND date(m.created_at) >= date(?)"; args.append(dal)
+        if al:
+            sql += " AND date(m.created_at) <= date(?)"; args.append(al)
+        sql += " ORDER BY m.id DESC LIMIT ?"; args.append(limit)
+        return {"finiti": [dict(r) for r in conn.execute(sql, args).fetchall()]}
     finally:
         conn.close()
 

@@ -22,6 +22,8 @@
 ### 2026-10-03 (cont.) — fix Lavagna dopo push 4abd6897
 - `lavagna_service._staff_in_turno`: reparto da `turni_tipi.ruolo` → `reparti.codice` (fallback reparto del dipendente), servizio da `turni_tipi.servizio` (fallback SOGLIA_TURNO), esclusi tipi non LAVORO.
 - `_lede`: stringa vuota se pax=0; `Lavagna.jsx` e `_testo_whatsapp` non mostrano la riga vuota.
+- `cucina_scorte_service.trasferisci`: se l'origine va a 0 e non ha lotti residui, la riga giacenza d'origine si cancella e la destinazione eredita in_dotazione. Testato su copia del DB (andata/ritorno/parziale).
+- Regime CONTA contato a 0 → `togli_finito` (RETTIFICA ref_modulo='finito', riga giacenza cancellata); registro `GET /cucina/scorte/finiti/` (admin/chef/sous_chef); annulla ricrea la riga. Testato su copia DB. Registro = tab «Registro» in DentroFrigo (CucinaMobile, `RegistroFiniti`, ruoli superadmin/admin/chef/sous_chef, filtro ubicazione_id, «Rimetti» = DELETE movimento). UI conta (S3) non esiste ancora.
 - Da pushare.
 
 ## SESSIONE 2026-10-03 — Home della cucina `[core]`
