@@ -59,6 +59,7 @@ const RicetteImport = lazy(() => import("./pages/ricette/RicetteImport"));
 const MenuCartaElenco = lazy(() => import("./pages/cucina/MenuCartaElenco"));
 const MenuCartaDettaglio = lazy(() => import("./pages/cucina/MenuCartaDettaglio"));
 const PranzoMenu = lazy(() => import("./pages/pranzo/PranzoMenu"));
+const PranzoVista = lazy(() => import("./pages/pranzo/PranzoVista"));
 
 // VENDITE
 const ChiusuraTurno = lazy(() => import("./pages/admin/ChiusuraTurno"));
@@ -311,10 +312,11 @@ export default function App() {
         <Route path="/ricette/import" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteImport /></ProtectedRoute>} />
 
         {/* --- MENU CARTA (sotto Gestione Cucina, mig 098-100, sessione 57) --- */}
-        <Route path="/menu-carta" element={<ProtectedRoute module="ricette" sub="archivio"><MenuCartaElenco /></ProtectedRoute>} />
-        <Route path="/menu-carta/:id" element={<ProtectedRoute module="ricette" sub="archivio"><MenuCartaDettaglio /></ProtectedRoute>} />
+        <Route path="/menu-carta" element={<ProtectedRoute module="ricette" sub="archivio" roles={["admin", "chef", "sous_chef"]}><MenuCartaElenco /></ProtectedRoute>} />
+        <Route path="/menu-carta/:id" element={<ProtectedRoute module="ricette" sub="archivio" roles={["admin", "chef", "sous_chef"]}><MenuCartaDettaglio /></ProtectedRoute>} />
 
         {/* --- MENU PRANZO DEL GIORNO (sotto Gestione Cucina, mig 102, sessione 58) --- */}
+        <Route path="/pranzo/vista" element={<ProtectedRoute module="ricette"><PranzoVista /></ProtectedRoute>} />
         <Route path="/pranzo" element={<ProtectedRoute module="ricette" sub="pranzo"><PranzoMenu /></ProtectedRoute>} />
 
         {/* --- DASHBOARD CUCINA chef (sotto Gestione Cucina, sessione 59 — Modulo H) --- */}

@@ -38,6 +38,12 @@ const CUCINA_FALLBACK = [
   { key: "selezioni",     label: "Selezioni",   sub: "Macellaio, pescato, formaggi",   emoji: "🥩", route: "/selezioni",           color: "bg-rose-50 border-rose-200 text-rose-900" },
 ];
 
+const COMMIS_FALLBACK = [
+  ...CUCINA_FALLBACK.slice(0, 4),
+  { key: "vedi-pranzo", label: "Menu del pranzo", sub: "Da leggere",              emoji: "🍽️", route: "/pranzo/vista", color: "bg-amber-50 border-amber-200 text-amber-900" },
+  { key: "vedi-carta",  label: "Menu alla carta", sub: "Come lo vede il cliente", emoji: "📖", route: "/carta/menu",   color: "bg-amber-50 border-amber-200 text-amber-900" },
+];
+
 export const HOME_ACTIONS_FALLBACK = {
   admin:      VINI_FALLBACK,
   superadmin: VINI_FALLBACK,
@@ -45,7 +51,7 @@ export const HOME_ACTIONS_FALLBACK = {
   sommelier:  VINI_FALLBACK,
   chef:       CUCINA_FALLBACK,
   sous_chef:  CUCINA_FALLBACK,
-  commis:     CUCINA_FALLBACK,
+  commis:     COMMIS_FALLBACK,
   viewer:     ADMIN_FALLBACK,
   sala:       SALA_FALLBACK,
 };

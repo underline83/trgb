@@ -135,6 +135,10 @@ export default function Header({ onLogout }) {
       const titleMatch = !q || norm(cfg.title).includes(q);
       // Filtra sub per permessi (canAccessSub)
       const accessibleSubs = (cfg.sub || []).filter(s => {
+        // `roles` sulla voce (2026-10-03): restringe una voce di menu a
+        // ruoli precisi anche dentro un modulo che il ruolo vede (es. i commis
+        // vedono Gestione Cucina ma non Menu Carta/Pranzo/Selezioni).
+        if (s.roles && !(s.roles.includes(role) || (role === "superadmin" && s.roles.includes("admin")))) return false;
         // La chiave del sotto-modulo si deduce dal path (secondo segmento), ma
         // quando il path non corrisponde a un sub di modules.json la voce
         // dichiara `sub` esplicito. Senza, `canAccessSub` non trova la chiave e

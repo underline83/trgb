@@ -80,7 +80,9 @@ from app.services.permessi import richiede_ruoli
 # Ruoli da modules.json (`ricette/archivio`): admin, chef, sous_chef, commis (+superadmin implicito).
 # Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(dependencies=[
-        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="menu carta")),
+        # 2026-10-03 (Marco): ai commis niente menu carta in gestione — vedono
+        # solo la pagina pubblica /carta/menu (public_router, senza login).
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", cosa="menu carta")),
     ])
 public_router = APIRouter()  # endpoint pubblici senza auth
 

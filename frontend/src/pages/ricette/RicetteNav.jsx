@@ -15,7 +15,7 @@ const TABS = [
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
   { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },
-  { key: "menu", label: "Menu", path: "/menu-carta", icon: "📋" },
+  { key: "menu", label: "Menu", path: "/menu-carta", icon: "📋", roles: ["admin", "chef", "sous_chef"] },
   { key: "dashboard", label: "Food Cost", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },
 ];

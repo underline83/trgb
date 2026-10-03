@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-03 — Aiuto cuochi: solo la lettura dei menu; Lista spesa scrivibile; via i dati di prova `[core]`
+
+- **Commis (aiuto cuoco):** niente più Selezioni del giorno, gestione del Menu Pranzo e del Menu Carta, né dalla Home, né dai menu, né aprendo l'indirizzo a mano (il server risponde «non autorizzato»). Al loro posto due tasti per **leggere** i menu: **Menu del pranzo** (la settimana corrente, solo piatti, senza prezzi né costi) e **Menu alla carta** (la stessa pagina che vede il cliente col QR).
+- **Lista spesa:** in cima c'è un campo per scrivere a mano cosa serve, con quantità facoltativa e «⚡ urgente».
+- **Dati di prova tolti:** la «[DEMO] Dispensa secco», i 18 articoli [DEMO] e le loro righe in lista spesa.
+
+---
+
 ## 2026-10-03 — «Cucina iPhone» diventa «Gestione Frigoriferi e scorte» `[core]`
 
 La sotto-app da telefono ora si chiama **Gestione Frigoriferi e scorte** e in basso ha solo due tab: **Frigo** e **Scorte**. **Oggi** (checklist e compiti del giorno) e **Lista spesa** sono pagine a sé, con il loro tasto nella Home della cucina. I tasti della Home cucina sono: Oggi, Gestione Frigoriferi e scorte, Lista spesa, Ricette, Menu Carta, Selezioni. Anche nel menu di Gestione Cucina le voci sono «Oggi» e «Frigoriferi e scorte».

@@ -155,7 +155,12 @@ export default function HomeCucina() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-4">
           {actions.map((a) => (
-            <button key={a.id ?? a.key} type="button" onClick={() => navigate(a.route)}
+            <button key={a.id ?? a.key} type="button"
+                    onClick={() => (a.route.startsWith("/carta")
+                      // /carta/* è la pagina pubblica (fuori dal router del gestionale):
+                      // serve un caricamento pieno, non una navigazione interna.
+                      ? window.location.assign(a.route)
+                      : navigate(a.route))}
                     className={`rounded-[14px] border text-left active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 min-h-[64px] ${a.color || "bg-white border-neutral-200"}`}
                     style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}>
               <span className="text-2xl leading-none">{a.emoji}</span>

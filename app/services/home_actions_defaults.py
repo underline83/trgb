@@ -124,6 +124,21 @@ CUCINA_ACTIONS_DEFAULTS: List[Dict] = [
     },
 ]
 
+# Commis (Marco 2026-10-03): niente Selezioni, niente gestione menu pranzo
+# e carta; al loro posto due link che i menu li FANNO VEDERE e basta.
+COMMIS_ACTIONS_DEFAULTS: List[Dict] = CUCINA_ACTIONS_DEFAULTS[:4] + [
+    {
+        "key": "vedi-pranzo", "label": "Menu del pranzo", "sub": "Da leggere",
+        "emoji": "🍽️", "route": "/pranzo/vista",
+        "color": "bg-amber-50 border-amber-200 text-amber-900",
+    },
+    {
+        "key": "vedi-carta", "label": "Menu alla carta", "sub": "Come lo vede il cliente",
+        "emoji": "📖", "route": "/carta/menu",
+        "color": "bg-amber-50 border-amber-200 text-amber-900",
+    },
+]
+
 # Mappa ruolo → lista default.
 # Superadmin eredita admin a DB-level (seed replicato), così si puo' differenziare
 # dalla UI se un giorno serve.
@@ -134,7 +149,7 @@ DEFAULTS_BY_ROLE: Dict[str, List[Dict]] = {
     "sommelier":  VINI_ACTIONS_DEFAULTS,
     "chef":       CUCINA_ACTIONS_DEFAULTS,
     "sous_chef":  CUCINA_ACTIONS_DEFAULTS,
-    "commis":     CUCINA_ACTIONS_DEFAULTS,
+    "commis":     COMMIS_ACTIONS_DEFAULTS,
     "viewer":     ADMIN_ACTIONS_DEFAULTS,
     "sala":       SALA_ACTIONS_DEFAULTS,
 }

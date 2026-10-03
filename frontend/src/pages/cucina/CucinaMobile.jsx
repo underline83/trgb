@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.6 — «Gestione Frigoriferi e scorte»: la barra resta con Frigo e Scorte; Oggi e Spesa
+// @version: v1.7 — Spesa: si scrive a mano cosa serve (riga libera + quantità + urgente) (2026-10-03)
+// v1.6 — «Gestione Frigoriferi e scorte»: la barra resta con Frigo e Scorte; Oggi e Spesa
 //            diventano pagine a sé (stesse route, senza barra), aperte dai tasti della Home (2026-10-03)
 // v1.5 — scheda articolo su una pagina sola: quantità, gesti, dove/lotti, DETTAGLI modificabili
 //            in linea (niente più ✏️ Modifica), movimenti in fondo (2026-10-02)
@@ -1720,6 +1721,8 @@ function TabSpesa({ canWrite, onCount, modi }) {
   const [mostraFatti, setMostraFatti] = useState(false);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(null);
+  // Riga scritta a mano (Marco 2026-10-03): non tutto passa dal frigo.
+  const [nuova, setNuova] = useState({ titolo: "", qta: "", urgente: false });
 
   const load = useCallback(async () => {
     try {
@@ -1745,6 +1748,26 @@ function TabSpesa({ canWrite, onCount, modi }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await load();
     } catch (e) { setErr(e.message); }
+    finally { setBusy(null); }
+  }
+
+  async function aggiungi(e) {
+    e && e.preventDefault();
+    const titolo = nuova.titolo.trim();
+    if (!canWrite || !titolo || busy) return;
+    setBusy("nuova");
+    try {
+      const res = await apiFetch(`${API_BASE}/lista-spesa/items/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titolo, quantita_libera: nuova.qta.trim() || null, urgente: nuova.urgente,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      setNuova({ titolo: "", qta: "", urgente: false });
+      await load();
+    } catch (e2) { setErr(e2.message); }
     finally { setBusy(null); }
   }
 
@@ -1778,6 +1801,24 @@ function TabSpesa({ canWrite, onCount, modi }) {
           <button className={`km-pill${!mostraFatti ? " on" : ""}`} onClick={() => setMostraFatti(false)}>Da fare</button>
           <button className={`km-pill${mostraFatti ? " on" : ""}`} onClick={() => setMostraFatti(true)}>Anche i fatti</button>
         </div>
+        {canWrite && (
+          <form onSubmit={aggiungi} style={{ marginTop: 10 }}>
+            <input className="km-search" style={{ marginTop: 0 }} placeholder="✏️  Cosa serve? (es. limoni)"
+                   value={nuova.titolo} onChange={(e) => setNuova({ ...nuova, titolo: e.target.value })}
+                   enterKeyHint="done" />
+            {nuova.titolo.trim() && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                <input className="km-search" style={{ marginTop: 0, flex: 1 }} placeholder="Quanto? (facoltativo)"
+                       value={nuova.qta} onChange={(e) => setNuova({ ...nuova, qta: e.target.value })} />
+                <button type="button" className={`km-pill${nuova.urgente ? " on" : ""}`}
+                        onClick={() => setNuova({ ...nuova, urgente: !nuova.urgente })}>⚡ urgente</button>
+                <button type="submit" className="km-pill on" disabled={busy === "nuova"}>
+                  {busy === "nuova" ? "…" : "Aggiungi"}
+                </button>
+              </div>
+            )}
+          </form>
+        )}
       </div>
 
       <div className="km-body">
@@ -1785,7 +1826,7 @@ function TabSpesa({ canWrite, onCount, modi }) {
         {!dati && <Vuoto icona="⏳" titolo="Carico…" />}
         {dati && (dati.items || []).length === 0 && (
           <Vuoto icona="🛒" titolo="Lista vuota"
-                 testo="Quello che segni finito nel tab Frigo finisce qui da solo." />
+                 testo="Scrivi qui sopra cosa serve, oppure segna finito un articolo nel Frigo: arriva qui da solo." />
         )}
 
         {gruppi.map(([forn, items]) => (

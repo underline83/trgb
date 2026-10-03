@@ -55,6 +55,11 @@ from app.services.permessi import richiede_ruoli
 # Erano aperti a qualsiasi ruolo il margine e il food cost del menu pranzo. `public_router` (health e smoke) NON e' toccato: e' un router separato.
 # Ruoli da modules.json (`ricette/pranzo`): admin, chef, sous_chef, commis (+superadmin implicito).
 # Contesto: docs/audit_permessi_2026-09-01.md
+# 2026-10-03 (Marco): i commis il menu pranzo lo VEDONO e basta (pagina
+# /pranzo/vista). Router aperto in lettura ai commis; scritture, pubblicazione
+# e margine/food cost richiedono GESTIONE_PRANZO sul singolo endpoint.
+GESTIONE_PRANZO = Depends(richiede_ruoli("admin", "chef", "sous_chef", cosa="modificare il menu pranzo"))
+
 router = APIRouter(prefix="/pranzo", tags=["pranzo"], dependencies=[
         Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", cosa="menu pranzo")),
     ])
@@ -167,7 +172,7 @@ class PromuoviRicettaIn(BaseModel):
     categoria: str = Field("altro")
 
 
-@router.post("/promuovi-ricetta/")
+@router.post("/promuovi-ricetta/", dependencies=[GESTIONE_PRANZO])
 def promuovi_ricetta_endpoint(
     payload: PromuoviRicettaIn,
     user: Dict[str, Any] = Depends(get_current_user),
@@ -185,7 +190,7 @@ def promuovi_ricetta_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/pool/{recipe_id}/")
+@router.delete("/pool/{recipe_id}/", dependencies=[GESTIONE_PRANZO])
 def rimuovi_dal_pool_endpoint(
     recipe_id: int,
     user: Dict[str, Any] = Depends(get_current_user),
@@ -321,7 +326,7 @@ def get_menu_endpoint(settimana: str):
         return {"settimana_inizio": None, "menu": None, "error": str(e)}
 
 
-@router.post("/menu/")
+@router.post("/menu/", dependencies=[GESTIONE_PRANZO])
 def upsert_menu_endpoint(payload: MenuIn, user=Depends(get_current_user)):
     """
     Iter v2.1 (Modulo B+ diagnosi D2): logging dettagliato + try/except esterno
@@ -359,7 +364,7 @@ def upsert_menu_endpoint(payload: MenuIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Errore salvataggio menu: {type(e).__name__}: {e}")
 
 
-@router.delete("/menu/{settimana}/")
+@router.delete("/menu/{settimana}/", dependencies=[GESTIONE_PRANZO])
 def delete_menu_endpoint(settimana: str, user=Depends(get_current_user)):
     _check_admin(user)
     _validate_data(settimana)
@@ -449,7 +454,7 @@ def stato_pubblicazione_menu(settimana: str, user=Depends(get_current_user)):
     }
 
 
-@router.post("/menu/{settimana}/pubblica/")
+@router.post("/menu/{settimana}/pubblica/", dependencies=[GESTIONE_PRANZO])
 def pubblica_menu_sul_sito(settimana: str, user=Depends(get_current_user)):
     """
     Genera il PDF cliente della settimana e lo carica sull'FTP del sito.
@@ -492,7 +497,7 @@ def pubblica_menu_sul_sito(settimana: str, user=Depends(get_current_user)):
 # ─────────────────────────────────────────────────────────────
 # MARGINE MENÙ BUSINESS (Modulo F.1, 2026-04-27)
 # ─────────────────────────────────────────────────────────────
-@router.get("/menu/{settimana}/margine")
+@router.get("/menu/{settimana}/margine", dependencies=[GESTIONE_PRANZO])
 def get_margine_settimana(settimana: str):
     """
     Calcola il margine atteso del Menù Business per la settimana.
@@ -541,7 +546,7 @@ def get_settings_endpoint():
     return repo.get_settings()
 
 
-@router.put("/settings/")
+@router.put("/settings/", dependencies=[GESTIONE_PRANZO])
 def update_settings_endpoint(payload: SettingsUpdate, user=Depends(get_current_user)):
     _check_admin(user)
     return repo.update_settings(**payload.dict(exclude_unset=True))

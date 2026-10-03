@@ -107,12 +107,12 @@ DEFAULT_MODULES = [
         # Sostituisce le sub omonime sotto `ricette` (sessione 50, refactor pagina unica /selezioni).
         "key": "selezioni", "label": "Selezioni del Giorno", "icon": "\U0001f37d\ufe0f",
         "description": "Macellaio, salumi, formaggi e pescato del giorno per la sala",
-        "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"],
+        "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"],
         "sub": [
-            {"key": "macellaio", "label": "Macellaio", "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"]},
-            {"key": "salumi",    "label": "Salumi",    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"]},
-            {"key": "formaggi",  "label": "Formaggi",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"]},
-            {"key": "pescato",   "label": "Pescato",   "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"]},
+            {"key": "macellaio", "label": "Macellaio", "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
+            {"key": "salumi",    "label": "Salumi",    "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
+            {"key": "formaggi",  "label": "Formaggi",  "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
+            {"key": "pescato",   "label": "Pescato",   "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
         ],
     },
     {
