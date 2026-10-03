@@ -7,6 +7,8 @@
 
 Se un articolo a movimenti arriva a 0 su un ripiano ma ce n'è ancora su un altro, la riga vuota esce da sola: non è finito, è solo da un'altra parte. Succede qualunque sia il gesto (correzione a mano, scarico, conta), non solo con lo Sposta. Il caso: il pancotto in Congelatore 1, rip. 2 a 0 e rip. 3 a 7 dopo due correzioni al posto dello Sposta. Quando il totale arriva a 0 resta in rosso e va in Lista spesa, come prima. Annullare un movimento rimette la riga se era uscita.
 
+Nella correzione a mano («Quanti ce ne sono?»), confermare **0 quando era già 0** ora viene registrato (prima la finestra si chiudeva senza salvare). Così una riga vuota rimasta da prima si toglie con un tocco.
+
 ---
 
 ## 2026-10-04 — Scorte: a regime «conta», finito = esce dal ripiano `[core]`

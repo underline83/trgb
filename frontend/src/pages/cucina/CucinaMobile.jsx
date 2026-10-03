@@ -836,7 +836,10 @@ function CorreggiSheet({ artId, nome, um, ripianoId, dove, prima, onChiudi, onFa
     if (busy) return;
     const p = num(prima);
     const d = num(val);
-    if (d === p && prima != null) { onChiudi(); return; }
+    // Numero invariato: si chiude senza scrivere — tranne a zero, dove
+    // confermare «finito» e' un fatto (e fa uscire la riga vuota se
+    // l'articolo c'e' su un altro ripiano, Marco 2026-10-04).
+    if (d === p && prima != null && d !== 0) { onChiudi(); return; }
     setBusy(true);
     try {
       const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/`, {
