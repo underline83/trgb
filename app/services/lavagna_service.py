@@ -257,14 +257,21 @@ def _staff_in_turno(oggi: str, turno: str) -> List[Dict[str, str]]:
         conn = get_dipendenti_conn()
         rows = conn.execute("""
             SELECT t.ora_inizio,
+                   UPPER(COALESCE(tt.servizio, '')) AS servizio,
                    COALESCE(NULLIF(d.nickname, ''), d.nome) AS nome,
-                   COALESCE(r.nome, '') AS reparto
+                   COALESCE(rt.nome, rd.nome, '') AS reparto
             FROM turni_calendario t
             JOIN dipendenti d ON d.id = t.dipendente_id
-            LEFT JOIN reparti r ON r.id = d.reparto_id
+            LEFT JOIN turni_tipi tt ON tt.id = t.turno_tipo_id
+            -- Il reparto e' quello del TURNO (tipo Sala Cena -> Sala), non il
+            -- reparto principale del dipendente: chi fa cucina e sala
+            -- compare dove lavora quel giorno (Marco 2026-10-03).
+            LEFT JOIN reparti rt ON UPPER(rt.codice) = UPPER(tt.ruolo)
+            LEFT JOIN reparti rd ON rd.id = d.reparto_id
             WHERE t.data = ?
               AND COALESCE(t.stato, 'CONFERMATO') = 'CONFERMATO'
-            ORDER BY r.ordine, d.nome
+              AND COALESCE(tt.categoria, 'LAVORO') = 'LAVORO'
+            ORDER BY COALESCE(rt.ordine, rd.ordine), d.nome
         """, (oggi,)).fetchall()
         conn.close()
     except Exception as e:
@@ -273,8 +280,13 @@ def _staff_in_turno(oggi: str, turno: str) -> List[Dict[str, str]]:
 
     per_reparto: Dict[str, List[str]] = {}
     for r in rows:
-        ora = (r["ora_inizio"] or "12:00")[:5]
-        if ("pranzo" if ora < SOGLIA_TURNO else "cena") != turno:
+        servizio = (r["servizio"] or "").lower()
+        if servizio in ("pranzo", "cena"):
+            del_turno = servizio
+        else:
+            ora = (r["ora_inizio"] or "12:00")[:5]
+            del_turno = "pranzo" if ora < SOGLIA_TURNO else "cena"
+        if del_turno != turno:
             continue
         rep = r["reparto"] or "Staff"
         nome = (r["nome"] or "").strip()
@@ -320,7 +332,9 @@ def _lede(pren: Dict[str, Any], turno: str) -> str:
     """La frase di apertura, in italiano, non una tabella di numeri."""
     pax, tavoli, picco = pren["pax"], pren["tavoli"], pren["picco"]
     if pax == 0:
-        return f"Nessuna prenotazione per {'il pranzo' if turno == 'pranzo' else 'la cena'}."
+        # Niente frase "Nessuna prenotazione": spesso le prenotazioni non sono
+        # ancora inserite e la riga confonde (Marco 2026-10-03).
+        return ""
     frase = (f"{pax} copert{_plur(pax, 'o', 'i')} "
              f"su {tavoli} tavol{_plur(tavoli, 'o', 'i')}.")
     if picco and tavoli > 1:
@@ -395,7 +409,7 @@ def _testo_whatsapp(lav: Dict[str, Any], intestazione: str = "") -> str:
     quindi il frontend si limita a copiare negli appunti.
     """
     testa = f"*{intestazione} — " if intestazione else "*"
-    righe = [f"{testa}{lav['data_label']}*", "", lav["lede"]]
+    righe = [f"{testa}{lav['data_label']}*", ""] + ([lav["lede"]] if lav["lede"] else [])
 
     if lav["notevoli"]:
         righe.append("")

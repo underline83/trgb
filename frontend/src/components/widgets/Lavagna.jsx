@@ -148,7 +148,7 @@ export default function Lavagna({ lavagna, loading, saving, scriviNota, rimuoviN
             </span>
           </div>
 
-          <p className="text-[15px] leading-relaxed text-brand-ink mb-2.5">{lede}</p>
+          {lede && <p className="text-[15px] leading-relaxed text-brand-ink mb-2.5">{lede}</p>}
 
           <div className="-mx-1">
             {notevoli.map((n, i) => (

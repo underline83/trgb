@@ -18,6 +18,12 @@
 - `ModuleNav`: lista voce per voce `mobile: false` da decidere con Marco.
 - Uscite rimaste dopo mig 179: 73 PAGATO_MANUALE + BLC/FZ/Lara in VERIFICARE.
 
+
+### 2026-10-03 (cont.) — fix Lavagna dopo push 4abd6897
+- `lavagna_service._staff_in_turno`: reparto da `turni_tipi.ruolo` → `reparti.codice` (fallback reparto del dipendente), servizio da `turni_tipi.servizio` (fallback SOGLIA_TURNO), esclusi tipi non LAVORO.
+- `_lede`: stringa vuota se pax=0; `Lavagna.jsx` e `_testo_whatsapp` non mostrano la riga vuota.
+- Da pushare.
+
 ## SESSIONE 2026-10-03 — Home della cucina `[core]`
 
 Marco: «lavoriamo sulla sezione cucina per cuochi e aiutocuochi.. quando entrano vedono la bacheca va bene, non devono vedere il fatturato del giorno prima né i coperti né le prenotazioni.. facciamo un widget con i turni del dipendente, la lavagna e sotto i tasti che useranno».

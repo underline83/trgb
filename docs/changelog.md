@@ -3,6 +3,13 @@
 
 ---
 
+## 2026-10-03 — Lavagna: «In turno» per reparto del turno, via «Nessuna prenotazione» `[core]`
+
+- **In turno:** chi lavora compare sotto il reparto del **turno** di quel giorno (Sala Cena → Sala), non sotto il suo reparto principale. Prima Marco, che ha Cucina come principale, risultava in cucina anche quando era di sala. Anche pranzo/cena si legge dal tipo di turno; l'orario resta solo come ripiego. I turni non di lavoro (ferie, riposo) non compaiono.
+- **Apertura:** quando non ci sono prenotazioni la riga «Nessuna prenotazione per la cena» non compare più (anche nel testo WhatsApp).
+
+---
+
 ## 2026-10-03 — «Le mie cose da fare»: una lista personale in Home `[core]`
 
 Ogni persona ha in Home il riquadro **📝 Le mie cose da fare**: scrive una riga e preme +, la spunta quando è fatta, la cancella con ×, tocca il testo per correggerlo e la sposta su o giù con ▲▼ — ognuno se la organizza come vuole. È personale: ciascuno vede solo la propria. Non sono i compiti del Task Manager (quelli si assegnano e hanno scadenze): è il foglietto in tasca. Le righe chiuse restano visibili una settimana, poi escono dalla vista.
