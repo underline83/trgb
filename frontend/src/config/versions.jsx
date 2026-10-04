@@ -477,7 +477,10 @@ const MODULE_VERSIONS = {
     //   NB: il file VERSION era rimasto a 5.39 mentre qui c'era 5.40 — riallineati.
     // 5.40 (2026-08-03): canale email configurabile dal gestionale
     //   (Impostazioni Sistema → Email), password cifrata, .env come fallback.
-    version: "5.42",
+    // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
+    //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
+    //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
+    version: "5.43",
     label: "Sistema",
     status: "stabile",
     color: "green",

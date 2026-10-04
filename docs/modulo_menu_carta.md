@@ -5,7 +5,7 @@
 > **Non verificato in questo giro:** migrazioni 097/098/154 e contenuto dei seed (dir `app/migrations/` assente dallo snapshot), template `app/templates/pdf/menu_carta.html`, route React (App.jsx assente — verificate via `modulesMenu.js` e i `Link` nelle pagine)
 
 **Data:** 2026-04-25 (design originale) — annotato vs codice il 2026-07-25
-**Stato:** IMPLEMENTATO — modulo `menuCarta` **v1.3 beta** (`frontend/src/config/versions.jsx`). Router: `app/routers/menu_carta_router.py` (v1.3-i18n, 2026-08-07), mount `/menu-carta` in `main.py:634-635`. Il testo sotto nasce come design doc (sessioni 56-57): le annotazioni ✅/❌/🆕 marcano cosa è stato davvero realizzato. 🆕 2026-07-19: sezione **'dolci'** (router+FE+PDF+MEP) + edizione **Estate 2026** in carta (mig 154, locale tregobbi). 🆕 2026-08-07: **multilingua** it/en/fr/es/de/uk (mig 163, § 11) + fix sezione 'dolci' mancante nella pagina pubblica.
+**Stato:** IMPLEMENTATO — modulo `menuCarta` **v1.3 beta** (`frontend/src/config/versions.jsx`). Router: `app/routers/menu_carta_router.py` (v1.3-i18n, 2026-08-07), mount `/menu-carta` in `main.py:634-635`. Il testo sotto nasce come design doc (sessioni 56-57): le annotazioni ✅/❌/🆕 marcano cosa è stato davvero realizzato. 🆕 2026-07-19: sezione **'dolci'** (router+FE+PDF+MEP) + edizione **Estate 2026** in carta (mig 154, locale tregobbi). 🆕 2026-08-07: **multilingua** it/en/fr/es/de/uk (mig 163, § 11) + fix sezione 'dolci' mancante nella pagina pubblica. 🆕 2026-10-04: edizione **Autunno 2026** (ott-nov-dic) in carta, mig 180 (locale tregobbi), Estate archiviata; traduzioni copiate per le voci invariate.
 **Autore:** brainstorming Marco + Claude
 **Ruoli destinatari:** chef/admin (gestione), sala/sommelier (lettura), viewer
 **Punto di partenza:** menù Primavera 2026 cartaceo (PDF A5 definitivo, 21 piatti + degustazioni)
@@ -750,6 +750,12 @@ Altri due punti non ovvi:
 
 ---
 
+
+### 11.9 Seed Autunno 2026 (mig 181) — 2026-10-04 🆕
+
+Sorgente: `locali/tregobbi/seeds/menu_traduzioni_ott_dic_2026.py`, generato da `sorgenti_menu_ott_dic_2026/costruisci_seed.py`. Le voci rimaste dall'Estate riusano il testo revisionato (e la 180 copia comunque le loro righe dall'edizione estiva); le 13 voci nuove sono tradotte il 2026-10-04 e **da rivedere**. Edizione cercata per slug `autunno-2026`, non per stato. Formaggi: una voce nel cartaceo, due publication a DB → mappa `FORMAGGI` nella migrazione, con `prezzo_label` tradotto. Risultato su copia DB: 46/46 publications, 140 righe nuove, idempotente.
+
+**Tag dietetici:** da questa edizione il seed li porta come dato a parte (`tag` per piatto, codici IT `V VG NG NL ONL OV OVG ONG`, legenda tradotta in `TESTI["legenda"]`), non più dentro i titoli. A DB non entrano ancora: il debito del § 11.7 resta, ma il dato è pronto per il campo dedicato.
 ## 12. Riferimenti
 
 - `docs/modulo_ricette_foodcost.md` — schema food cost v2 (fonte di verità su `recipes`)
