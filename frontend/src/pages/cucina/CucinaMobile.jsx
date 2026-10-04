@@ -539,7 +539,7 @@ function useSemaforo(ricarica) {
       clearTimeout(timerRef.current);
       undoRef.current = { artId, ripianoId, statoPrima: statoCorrente || "OK", spesaId: data.spesa_id };
       setToast(nuovo === "FINITO"
-        ? `${articolo.nome} → in lista spesa`
+        ? (data.uscito ? `${articolo.nome} finito → tolto dal ripiano, in lista spesa` : `${articolo.nome} → in lista spesa`)
         : `${articolo.nome} · ${nuovo === "ESAURIMENTO" ? "agli sgoccioli" : "a posto"}`);
       timerRef.current = setTimeout(() => { setToast(null); undoRef.current = null; }, UNDO_MS);
       ricarica();

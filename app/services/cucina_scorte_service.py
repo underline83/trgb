@@ -181,6 +181,33 @@ def set_semaforo(
     traduce in un nuovo `set_semaforo` verso lo stato precedente piu' la
     rimozione della riga di spesa appena creata (`spesa_id` nel ritorno).
     """
+    art = conn.execute("SELECT regime FROM cucina_articoli WHERE id = ?", (articolo_id,)).fetchone()
+    a_conta = bool(art) and (art["regime"] or "").upper() == "CONTA"
+
+    if a_conta and stato == "FINITO":
+        # Regime CONTA a zero: esce dal ripiano e va nel registro dei finiti
+        # (Marco 2026-10-04), e in Lista spesa come ogni rosso.
+        riga = assicura_giacenza(conn, articolo_id, ripiano_id)
+        togli_finito(conn, articolo_id, ripiano_id, utente,
+                     qta_precedente=riga["qta"], motivo="Finito")
+        spesa_id = aggiungi_a_lista_spesa(conn, articolo_id, utente)
+        return {"articolo_id": articolo_id, "ripiano_id": ripiano_id,
+                "stato": stato, "spesa_id": spesa_id, "uscito": True}
+
+    if a_conta:
+        # L'annulla a 8 secondi di un «finito» arriva qui col colore di prima:
+        # si annulla l'uscita (la riga torna, il registro la segna annullata).
+        rec = conn.execute(
+            """SELECT id FROM cucina_movimenti
+                WHERE articolo_id = ? AND ripiano_id = ? AND ref_modulo = ?
+                  AND annullato_at IS NULL
+                  AND created_at >= datetime('now','localtime','-2 minutes')
+                ORDER BY id DESC LIMIT 1""",
+            (articolo_id, ripiano_id, REF_FINITO),
+        ).fetchone()
+        if rec:
+            annulla_movimento(conn, rec["id"], utente)
+
     assicura_giacenza(conn, articolo_id, ripiano_id)
     conn.execute(
         """

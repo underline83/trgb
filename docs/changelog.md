@@ -13,7 +13,7 @@ Nella correzione a mano («Quanti ce ne sono?»), confermare **0 quando era già
 
 ## 2026-10-04 — Scorte: a regime «conta», finito = esce dal ripiano `[core]`
 
-Gli articoli a regime **conta** che alla conta risultano a **0** non restano sul ripiano in rosso: escono e finiscono nel **registro dei finiti** (cosa, dove, quanto c'era prima, chi e quale conta). Il registro lo vedono chef e sous chef. Semaforo e movimenti non cambiano: lì il finito resta sul ripiano in rosso. Il registro è il terzo tab in ogni frigo/congelatore (**Tutti i ripiani · Solo mancanti · Registro**), visibile a chef e sous chef; ogni riga ha **↩︎ Rimetti**, che riporta l'articolo al suo posto.
+Gli articoli a regime **conta** che alla conta risultano a **0** non restano sul ripiano in rosso: escono e finiscono nel **registro dei finiti** (cosa, dove, quanto c'era prima, chi e quale conta). Il registro lo vedono chef e sous chef. Semaforo e movimenti non cambiano: lì il finito resta sul ripiano in rosso. Vale anche per il **pallino**: portare a rosso un articolo a regime conta lo toglie dal ripiano, lo scrive nel registro e lo mette in Lista spesa (con l'annulla a 8 secondi che lo rimette). Il registro è il terzo tab in ogni frigo/congelatore (**Tutti i ripiani · Solo mancanti · Registro**), visibile a chef e sous chef; ogni riga ha **↩︎ Rimetti**, che riporta l'articolo al suo posto.
 
 ---
 

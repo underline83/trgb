@@ -25,6 +25,7 @@
 - `cucina_scorte_service.trasferisci`: se l'origine va a 0 e non ha lotti residui, la riga giacenza d'origine si cancella e la destinazione eredita in_dotazione. Testato su copia del DB (andata/ritorno/parziale).
 - Regime CONTA contato a 0 → `togli_finito` (RETTIFICA ref_modulo='finito', riga giacenza cancellata); registro `GET /cucina/scorte/finiti/` (admin/chef/sous_chef); annulla ricrea la riga. Testato su copia DB. Registro = tab «Registro» in DentroFrigo (CucinaMobile, `RegistroFiniti`, ruoli superadmin/admin/chef/sous_chef, filtro ubicazione_id, «Rimetti» = DELETE movimento). UI conta (S3) non esiste ancora.
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
+- `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
 ## SESSIONE 2026-10-03 — Home della cucina `[core]`
