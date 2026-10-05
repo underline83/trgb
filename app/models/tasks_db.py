@@ -77,6 +77,8 @@ def init_tasks_db() -> None:
             max_valore      REAL,
             unita_misura    TEXT,
             note            TEXT,
+            ubicazione_id   INTEGER,
+            gruppo          TEXT,
             FOREIGN KEY (template_id) REFERENCES checklist_template(id) ON DELETE CASCADE
         )
     """)
@@ -193,7 +195,8 @@ def init_tasks_db() -> None:
         # esistenti non le popola (feedback SQLite) — il backfill e' sotto.
         "checklist_instance": [("livello_cucina", "TEXT"), ("reparto", "TEXT")],
         "task_singolo":       [("livello_cucina", "TEXT"), ("reparto", "TEXT")],
-        "checklist_item":     [("ubicazione_id", "INTEGER")],
+        # gruppo (mig 182, 2026-10-04): voce "padre" che raggruppa le sotto-voci.
+        "checklist_item":     [("ubicazione_id", "INTEGER"), ("gruppo", "TEXT")],
     }
     for table, cols in HEAL_COLUMNS.items():
         existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()}

@@ -1,6 +1,6 @@
 # Modulo Cucina & Task Manager — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-04
 > **Vedi anche:** [modulo_scorte_cucina.md](modulo_scorte_cucina.md) (frigo/congelatori a ripiani, Cucina da iPhone `/cucina/mobile`, temperature legate alle ubicazioni via `checklist_item.ubicazione_id`), [modulo_pranzo.md](modulo_pranzo.md), [modulo_menu_carta.md](modulo_menu_carta.md), [modulo_vendite.md](modulo_vendite.md), [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md), [problemi.md](problemi.md) (TASKS-1)
 
 **Perimetro pagina.** Questa pagina copre DUE moduli R8 distinti (split docs previsto in roadmap DH.5):
@@ -76,7 +76,7 @@
 | Tabella | Scopo |
 |---------|-------|
 | `checklist_template` | Definizione ricorrente (nome, reparto, turno, `ora_scadenza_entro`, attivo, `livello_cucina`) |
-| `checklist_item` | Voci del template ordinate (CHECKBOX / NUMERICO / TEMPERATURA / TESTO) |
+| `checklist_item` | Voci del template ordinate (CHECKBOX / NUMERICO / TEMPERATURA / TESTO); 🆕 `gruppo` (mig 182) = voce padre, v. §11.2-bis |
 | `checklist_instance` | Istanza generata dallo scheduler per un giorno (UNIQUE su `template+data+turno`; copia denormalizzata di `reparto` e `livello_cucina`) |
 | `checklist_execution` | Esito singola voce (OK / FAIL / SKIPPED / PENDING), UNIQUE su `instance+item`, upsert |
 | `task_singolo` | Task non ricorrente con priorità, reparto, assegnato, scadenza, `livello_cucina`, `origine`/`ref_modulo`/`ref_id` |
@@ -417,6 +417,21 @@ Implementato come da mockup `docs/mockups/cucina_instance_mockup.html`: modali b
 - `TaskNuovo.jsx`: full-screen mobile / modale sm+, footer sticky safe-area.
 - `components/tasks/TaskSheet.jsx`: sheet dettaglio con azioni e sub-sheet note completamento.
 
+## 11.2-bis ✅ FATTO — Voci padre con sotto-voci (2026-10-04, mig 182, tasks 1.5)
+
+Richiesta di Marco per le checklist di linea («Linea Antipasti · Pranzo/Sera»): un padre per piatto («Rosa di zucca») con sotto le verifiche di linea e scorta.
+
+- **Modello**: `checklist_item.gruppo TEXT NULL`. Le voci *consecutive* con lo stesso `gruppo` sono le sotto-voci di quel padre. Il padre non è una voce: niente execution, non conta nello score; è «fatto» quando tutte le figlie sono OK. `gruppo` NULL = voce semplice (nessun template esistente cambia).
+- **API**: `gruppo` in `ChecklistItemIn/Out` (POST/PUT template), `item_gruppo` in ogni voce di istanza/agenda (`tasks_router.py` `_fetch_instance`). `duplica` copia `gruppo` e `ubicazione_id` (prima perdeva il ponte col frigo).
+- **UI**: `TemplateEditor` campo «Voce padre» (datalist dei padri già usati; la voce nuova eredita il padre dell'ultima). `InstanceDetail` → `GruppoCard`; Cucina iPhone tab Oggi → blocchi in `TabOggi`. Tocco sul padre: spunta OK le CHECKBOX mancanti, se erano tutte OK le toglie (N.A.); numeri/testi restano a mano. Gruppo completo si chiude da solo, tocco sul nome apre/chiude.
+- **Oggi (iPhone)**: le istanze SCADUTA non mostrano più le spunte (prima: tap → HTTP 400 muto); gli errori mostrano il `detail` del backend.
+- Schema doppio binario: colonna anche in `tasks_db.py` (CREATE + `HEAL_COLUMNS`).
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-T-182a | Raggruppare voci checklist sotto una voce padre | `TemplateEditor.jsx` campo «Voce padre» | admin/chef | 🆕 |
+| C-T-182b | Spuntare tutte le sotto-voci dal padre | `InstanceDetail.jsx` `GruppoCard`, `CucinaMobile.jsx` `TabOggi` | brigata | 🆕 |
+
 ## 11.3 ❌ APERTO — P2: gerarchia urgenza in TasksHome
 
 `TasksHome.jsx` usa ancora lo `StatoBadge` inline con APERTA → `bg-brand-cream` (uguale allo sfondo, l'urgente "sparisce") — `TasksHome.jsx:276`. Il componente condiviso `StatoBadge` per stati checklist con APERTA amber + pallino pulse NON esiste (quello in `pages/prenotazioni/components/` è di un altro modulo). KPI cards e raggruppamento per turno restano nella versione MVP.
@@ -456,7 +471,7 @@ Implementato come da mockup `docs/mockups/cucina_instance_mockup.html`: modali b
 - `app/services/tasks_scheduler.py` — generazione istanze + check scadenze + score
 - `app/services/haccp_report_service.py` — aggregati report mensile + eventi critici recenti
 - `app/services/auth_service.py` — `VALID_ROLES` + `is_cucina_brigade()`
-- Migrazioni: `084_cucina_mvp` (DDL+seed), `085_reparto_task` (multi-reparto), `086_rename_cucina_to_tasks` (rename DB+tabella), `087_tasks_db_self_heal` (fix incidente 18/04), `088_livello_cucina` (A.2), `097_import_mep_templates` (MEP fissi, TRGB-specific), `105_lista_spesa` (foodcost.db), `155_selfheal_tasks_schema` (post TASKS-1)
+- Migrazioni: `084_cucina_mvp` (DDL+seed), `085_reparto_task` (multi-reparto), `086_rename_cucina_to_tasks` (rename DB+tabella), `087_tasks_db_self_heal` (fix incidente 18/04), `088_livello_cucina` (A.2), `097_import_mep_templates` (MEP fissi, TRGB-specific), `105_lista_spesa` (foodcost.db), `155_selfheal_tasks_schema` (post TASKS-1), `182_checklist_item_gruppo` (voci padre)
 
 I file `app/routers/cucina_router.py`, `app/services/cucina_scheduler.py`, `app/schemas/cucina_schema.py`, `app/models/cucina_db.py` **non esistono più** (rinominati `tasks_*` in Phase B).
 

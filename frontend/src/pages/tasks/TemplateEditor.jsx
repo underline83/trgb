@@ -22,6 +22,7 @@ const EMPTY_ITEM = {
   max_valore: null,
   unita_misura: null,
   note: null,
+  gruppo: "",
 };
 
 function emptyTemplate() {
@@ -82,6 +83,7 @@ export default function TemplateEditor() {
           // Ponte col frigo (cucina): non si edita qui, ma va conservato,
           // altrimenti salvare il template staccherebbe la voce dal frigo.
           ubicazione_id: it.ubicazione_id ?? null,
+          gruppo: it.gruppo || "",
         })),
       }))
       .catch(e => setError(e.message))
@@ -90,7 +92,11 @@ export default function TemplateEditor() {
 
   const setField = (k, v) => setTpl(t => ({ ...t, [k]: v }));
 
-  const addItem = () => setTpl(t => ({ ...t, items: [...t.items, { ...EMPTY_ITEM }] }));
+  // La voce nuova eredita il gruppo dell'ultima: le sotto-voci si scrivono di fila.
+  const addItem = () => setTpl(t => ({
+    ...t,
+    items: [...t.items, { ...EMPTY_ITEM, gruppo: t.items[t.items.length - 1]?.gruppo || "" }],
+  }));
   const removeItem = (idx) => setTpl(t => ({ ...t, items: t.items.filter((_, i) => i !== idx) }));
   const moveItem = (idx, dir) => setTpl(t => {
     const newIdx = idx + dir;
@@ -148,6 +154,7 @@ export default function TemplateEditor() {
         unita_misura: it.unita_misura?.trim() || null,
         note: it.note?.trim() || null,
         ubicazione_id: it.ubicazione_id ?? null,
+        gruppo: it.gruppo?.trim() || null,
       })),
     };
 
@@ -331,6 +338,17 @@ export default function TemplateEditor() {
             </div>
           )}
 
+          <p className="text-xs text-neutral-500 mb-3">
+            <b>Voce padre</b>: le voci di fila con la stessa voce padre (es. «Rosa di zucca»)
+            diventano sotto-voci; in checklist il padre si spunta da solo quando sono tutte fatte,
+            e toccandolo le spunti tutte. Vuoto = voce semplice.
+          </p>
+          <datalist id="tpl-gruppi">
+            {[...new Set(tpl.items.map(i => (i.gruppo || "").trim()).filter(Boolean))].map(g => (
+              <option key={g} value={g} />
+            ))}
+          </datalist>
+
           <div className="space-y-3">
             {tpl.items.map((it, idx) => (
               <ItemRow
@@ -416,6 +434,14 @@ function ItemRow({ idx, total, item, onUpdate, onRemove, onMove }) {
             onChange={e => onUpdate("titolo", e.target.value)}
             placeholder="Titolo item (es. Controllo temperatura frigo)"
             className="w-full border rounded-lg px-3 py-2 min-h-[44px] font-medium"
+          />
+          <input
+            type="text"
+            list="tpl-gruppi"
+            value={item.gruppo || ""}
+            onChange={e => onUpdate("gruppo", e.target.value)}
+            placeholder="Voce padre (opzionale, es. Rosa di zucca)"
+            className="w-full border rounded-lg px-3 py-2 min-h-[44px] text-sm"
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">

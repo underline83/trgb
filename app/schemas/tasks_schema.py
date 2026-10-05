@@ -38,6 +38,9 @@ class ChecklistItemIn(BaseModel):
     note: Optional[str] = None
     # Ponte col modulo cucina (mig 171): la voce TEMPERATURA del frigo vero.
     ubicazione_id: Optional[int] = None
+    # Voce padre (mig 182): le voci consecutive con lo stesso gruppo si
+    # mostrano come sotto-voci di un'unica riga padre. NULL = voce semplice.
+    gruppo: Optional[str] = None
 
 
 class ChecklistItemOut(ChecklistItemIn):
@@ -133,6 +136,7 @@ class ChecklistExecutionOut(BaseModel):
     item_min: Optional[float] = None
     item_max: Optional[float] = None
     item_unita: Optional[str] = None
+    item_gruppo: Optional[str] = None
 
 
 class ChecklistInstanceOut(BaseModel):

@@ -34,6 +34,18 @@ function rangeLabel(item) {
   return `${item.item_min ?? "-"}${sep} — ${item.item_max ?? "-"}${sep} ${u}`.trim();
 }
 
+// Voci consecutive con lo stesso item_gruppo = sotto-voci di un padre (mig 182)
+function bloccaPerGruppo(items) {
+  const out = [];
+  for (const it of items || []) {
+    const g = it.item_gruppo || null;
+    const last = out[out.length - 1];
+    if (g && last && last.gruppo === g) last.items.push(it);
+    else out.push({ gruppo: g, items: [it] });
+  }
+  return out;
+}
+
 function initialOf(name) {
   if (!name) return "?";
   return name.trim().charAt(0).toUpperCase();
@@ -215,6 +227,22 @@ export default function InstanceDetail() {
     } catch { /* already toasted */ }
   };
 
+  // Tocco sul padre di un gruppo (mig 182): tutte OK → le toglie (N.A.),
+  // altrimenti spunta OK le CHECKBOX che mancano. Numeri e testi restano a mano.
+  const handleGruppo = async (blocco) => {
+    if (isViewer) { toast("Sola lettura", { kind: "info" }); return; }
+    if (!editable || saving) return;
+    const tutteOk = blocco.items.every(i => i.stato === "OK");
+    const target = tutteOk ? "SKIPPED" : "OK";
+    const daFare = blocco.items.filter(i =>
+      i.item_tipo === "CHECKBOX" && (tutteOk || i.stato !== "OK"));
+    try {
+      for (const it of daFare) await doCheck(it.item_id, target);
+      toast(tutteOk ? `${blocco.gruppo}: tolte le spunte` : `✓ ${blocco.gruppo}`,
+            { kind: tutteOk ? "info" : "success" });
+    } catch { /* already toasted */ }
+  };
+
   // Submit numpad
   const handleNumSubmit = async (valore) => {
     if (!numModal) return;
@@ -347,7 +375,27 @@ export default function InstanceDetail() {
 
         {/* Lista items */}
         <div className="flex flex-col gap-2.5">
-          {inst.items.map(item => (
+          {bloccaPerGruppo(inst.items).map((b, bi) => b.gruppo ? (
+            <GruppoCard
+              key={`g${bi}`}
+              blocco={b}
+              editable={editable}
+              saving={saving}
+              isViewer={isViewer}
+              onGruppo={handleGruppo}
+            >
+              {b.items.map(item => (
+                <ItemCard
+                  key={item.item_id}
+                  item={item}
+                  editable={editable}
+                  saving={saving}
+                  isViewer={isViewer}
+                  onAction={handleItemAction}
+                />
+              ))}
+            </GruppoCard>
+          ) : b.items.map(item => (
             <ItemCard
               key={item.item_id}
               item={item}
@@ -356,7 +404,7 @@ export default function InstanceDetail() {
               isViewer={isViewer}
               onAction={handleItemAction}
             />
-          ))}
+          )))}
         </div>
       </div>
 
@@ -792,6 +840,43 @@ function ItemCard({ item, editable, saving, isViewer, onAction }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function GruppoCard({ blocco, editable, saving, isViewer, onGruppo, children }) {
+  const ok = blocco.items.filter(i => i.stato === "OK").length;
+  const tot = blocco.items.length;
+  const tutte = ok === tot;
+  const [aperto, setAperto] = useState(!tutte);
+  useEffect(() => { if (tutte) setAperto(false); }, [tutte]);
+  return (
+    <div className={`rounded-xl border ${tutte ? "border-green-200 bg-green-50/40" : "border-neutral-200 bg-white"}`}>
+      <div className="flex items-center gap-3 px-3 min-h-[52px]">
+        <button
+          type="button"
+          disabled={!editable || saving || isViewer}
+          onClick={() => onGruppo(blocco)}
+          className={`w-11 h-11 shrink-0 rounded-xl border-2 text-lg font-bold flex items-center justify-center
+            ${tutte ? "bg-green-600 border-green-600 text-white"
+                    : ok > 0 ? "border-amber-400 text-amber-600 bg-amber-50"
+                             : "border-neutral-300 text-neutral-400 bg-white"}
+            disabled:opacity-50`}
+          aria-label={tutte ? `Togli le spunte di ${blocco.gruppo}` : `Spunta tutto ${blocco.gruppo}`}
+        >
+          {tutte ? "✓" : ok > 0 ? "–" : ""}
+        </button>
+        <button type="button" onClick={() => setAperto(a => !a)}
+                className="flex-1 flex items-center justify-between text-left min-h-[44px]">
+          <span className={`font-playfair font-bold text-brand-ink ${tutte ? "opacity-60" : ""}`}>{blocco.gruppo}</span>
+          <span className="text-xs text-neutral-500">{ok}/{tot} {aperto ? "▾" : "▸"}</span>
+        </button>
+      </div>
+      {aperto && (
+        <div className="flex flex-col gap-2 pb-3 pl-6 pr-3 border-t border-neutral-100 pt-2">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

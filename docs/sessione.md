@@ -1,16 +1,20 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-04 — **DA PUSHARE: mig 180 Menu Carta «Autunno 2026» (in_carta, archivia Estate) + mig 181 traduzioni autunno (5 lingue) + sistema 5.43.. Dopo il push: aprire /carta/menu (provare ?lang=en/de), verificare allergeni dei 9 piatti nuovi, rivedere e approvare le traduzioni delle voci nuove (tab Traduzioni, filtro «non approvate»)**; 2026-10-03 — **DA PUSHARE: Home cucina (`pages/HomeCucina.jsx` nuovo, Home.jsx v9.4) per chef/sous_chef/commis + `/dashboard/home` svuota prenotazioni/incasso/coperti/fatture per quei ruoli + default tasti cucina (`home_actions_defaults.py`, `homeActionsFallback.js`). DOPO IL PUSH: Claude fa `POST /settings/home-actions/reset/` per chef, sous_chef, commis (le righe DB sono ancora il seed admin)**; 2026-10-02 — **DA PUSHARE: note di credito nel CE, A.1 fase 2 (controlloGestione 2.25) — `segno_nc` in `fatture_filtri`, CE `_aggregate_fatture_per_categoria` con NC negative (TD04 non più escluso), warning «senza categoria» anche se negativo, `ce-impatto` del dettaglio fattura e KPI acquisti dashboard CG al netto. Provato su copia DB con NC Fastweb simulata: UTENZE luglio 3.122,65 → 2.843,48, compute_pl ok. Nessuna migrazione, nessun build. Mocit (derattizzazione) senza categoria: Marco la assegna da UI (SERVIZI, sottocategoria DERATTIZZAZIONE da creare)**; **DA PUSHARE: note di credito da FIC, roadmap A.1 fase 1 (fatture 3.2) — sync anche `passive_credit_note` → `tipo_documento='TD04'`, nuovo `app/services/fatture_filtri.py` (`escludi_nc`) applicato a dashboard, CG, alert, banca (candidati), matching, categorie, fe_import; nessuna `cg_uscite` per NC; badge NC in FattureElenco/FattureDettaglio. Numeri invariati. Nessuna migrazione, nessun build. Dopo il push: Sincronizza 2026 → devono entrare 8 note di credito (verificare che il tipo `passive_credit_note` sia accettato: se il risultato mostra un errore «Fase1 API», va corretto il nome del tipo)**. — Ultimo deploy `c290f944` (mig 179). Intestazione ripulita il 02/10: la versione precedente, accumulata da luglio con decine di «DA PUSHARE» già in produzione, è in [archive/sessione_archivio_2026-06.md](archive/sessione_archivio_2026-06.md).
+**Ultimo aggiornamento:** 2026-10-04 — **DA PUSHARE: checklist con voci padre (mig 182, Task Manager 1.5, sistema 5.44)** — `tasks_db.py`, `tasks_schema.py`, `tasks_router.py`, `CucinaMobile.jsx` (Oggi), `InstanceDetail.jsx`, `TemplateEditor.jsx`. **Dopo il push:** Claude riscrive le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) con i padri (payload in `claude/linea_antipasti_gruppi.json`); provare Oggi su iPhone. Ultimo deploy `3f80c1c3` (mig 180-181). Intestazione ripulita il 04/10: le voci DA PUSHARE del 02-04/10 sono tutte in produzione.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.43 · **Migrazione più recente:** 181
+**Sistema:** 5.44 (da pushare) · **Migrazione più recente:** 182 (da pushare)
 
 **Da verificare dopo gli ultimi push**
+- Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
+- Home cucina: `POST /settings/home-actions/reset/` per chef, sous_chef, commis (se non già fatto).
 - Cucina iPhone: salvataggio temperature dal gate e spunta nel tab Oggi (fix `tasks_db.py` 1.4).
 - iPhone: menu moduli e `<ModuleNav>` su Vini, Dipendenti, Clienti, Statistiche.
 
 **Aperto**
+- Linea Primi / Linea Secondi: proposta inviata a Marco, attendo quantità. Vecchi template «MEP Carta · … · estate-2026» ancora attivi: chiedere se disattivarli.
+- Formaggi/salumi in checklist collegati alle Selezioni: idea di Marco, design proposto, 2 domande aperte (disattivare in Selezioni su «finito»? alternative anche per i salumi?).
 - Abaco 5155: rate 7–10 + piano 5155 r1 pagate con carta il 02/10 → collegare con l'estratto carta di ottobre.
 - Pregis: mastrino chiesto il 02/10 (85 fatture aperte 2024-25, 17.321 €). Risto Team: mastrino da chiedere (RiBa 30/04 1.266,56 non collegata) + uscita doppia 896/V marzo 2026 da eliminare a mano.
 - Fatture mancanti: Amazon 20,48 (marzo ×2), Il Post mar–ago 2026, Aruba settembre.

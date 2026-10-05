@@ -386,7 +386,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   tasks: {
-    version: "1.4",
+    // 1.5 (2026-10-04): voci padre con sotto-voci (mig 182, campo «Voce padre»
+    //   nel TemplateEditor); il padre si spunta da solo, toccarlo spunta tutte.
+    //   Oggi (Cucina iPhone): scadute non più spuntabili (prima HTTP 400 muto),
+    //   errori col messaggio del backend. Duplica copia anche ubicazione_id.
+    version: "1.5",
     label: "Task Manager",
     status: "beta",
     color: "blue",
@@ -477,10 +481,12 @@ const MODULE_VERSIONS = {
     //   NB: il file VERSION era rimasto a 5.39 mentre qui c'era 5.40 — riallineati.
     // 5.40 (2026-08-03): canale email configurabile dal gestionale
     //   (Impostazioni Sistema → Email), password cifrata, .env come fallback.
+    // 5.44 (2026-10-04): mig 182 — checklist_item.gruppo: voce padre con
+    //   sotto-voci nelle checklist (Task Manager 1.5, Linea Antipasti).
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.43",
+    version: "5.44",
     label: "Sistema",
     status: "stabile",
     color: "green",

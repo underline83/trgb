@@ -169,6 +169,7 @@ def _row_to_item(row) -> ChecklistItemOut:
         unita_misura=row["unita_misura"],
         note=row["note"],
         ubicazione_id=(row["ubicazione_id"] if "ubicazione_id" in row.keys() else None),
+        gruppo=(row["gruppo"] if "gruppo" in row.keys() else None),
     )
 
 
@@ -207,8 +208,8 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
         conn.execute("""
             INSERT INTO checklist_item
                 (template_id, ordine, titolo, tipo, obbligatorio,
-                 min_valore, max_valore, unita_misura, note, ubicazione_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             template_id,
             it.ordine if it.ordine else idx,
@@ -220,6 +221,7 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
             it.unita_misura,
             it.note,
             it.ubicazione_id,
+            (it.gruppo or "").strip() or None,
         ))
 
 
@@ -470,8 +472,8 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
             conn.execute("""
                 INSERT INTO checklist_item
                     (template_id, ordine, titolo, tipo, obbligatorio,
-                     min_valore, max_valore, unita_misura, note)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 new_tid,
                 it["ordine"],
@@ -482,6 +484,8 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
                 it["max_valore"],
                 it["unita_misura"],
                 it["note"],
+                it["ubicazione_id"] if "ubicazione_id" in it.keys() else None,
+                it["gruppo"] if "gruppo" in it.keys() else None,
             ))
 
         conn.commit()
@@ -517,6 +521,7 @@ def _row_to_execution(row, item_row=None) -> dict:
         item_min=row["item_min"],
         item_max=row["item_max"],
         item_unita=row["item_unita"],
+        item_gruppo=(row["item_gruppo"] if "item_gruppo" in row.keys() else None),
     )
     return out.model_dump()
 
@@ -545,6 +550,7 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
             it.min_valore   AS item_min,
             it.max_valore   AS item_max,
             it.unita_misura AS item_unita,
+            it.gruppo       AS item_gruppo,
             ex.id           AS exec_id,
             ex.stato        AS exec_stato,
             ex.valore_numerico,

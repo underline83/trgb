@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-04 — Checklist: voci padre con sotto-voci `[core]`
+
+Task Manager 1.5, mig 182, sistema 5.44. Nelle checklist una voce può avere una **voce padre** (es. «Rosa di zucca» → «6 rose scongelate in linea», «scorta gelo min 18», …): il padre si spunta da solo quando le sotto-voci sono tutte fatte, toccandolo le spunti tutte (o le togli). Campo «Voce padre» nel TemplateEditor; raggruppamento in dettaglio checklist e nel tab Oggi della Cucina iPhone. Oggi: le checklist scadute non si possono più spuntare (prima davano «HTTP 400» senza spiegazione). Duplica template ora copia anche il collegamento al frigo. Provato su copia del DB (crea, duplica, genera istanza). Nuovi template «Linea Antipasti · Pranzo» (entro 12:30) e «· Sera» (entro 23:59) creati da UI.
+
+---
+
 ## 2026-10-04 — Menu Carta «Autunno 2026» in carta `[locale:tregobbi]`
 
 Caricato il menu ottobre-novembre-dicembre dal PDF `menu-ott-nov-dic-2026-web.pdf` (mig 180, sistema 5.43). «Estate 2026» archiviata. 46 voci + 2 degustazioni (Prima volta 60, Fidati dell'oste 75). Nuovi: Rosa di zucca, Battuta porcini e nocciola, Risotto stracchino all'antica e mela Kissabel, Pasta mista e fagioli gialèt, Pipe rigate e bisque, Anatra barbabietola rosa canina e caffè, Rognone trifolato, «Lucia di Lammermoor», Torta di nocciole. Rientrano formaggi italiani/francesi, Lasagnetta (al ragù bianco dei Tre Gobbi), Filetto alla Donizetti (nuova ricetta in carta). Ossobuco 26 → 28. Le traduzioni delle voci rimaste identiche sono copiate dall'Estate; quelle delle voci nuove le carica la **mig 181** (EN/FR/ES/DE/UK, 140 righe, `rivisto = 0`, da rivedere e approvare dal tab Traduzioni): sorgenti in `locali/tregobbi/seeds/sorgenti_menu_ott_dic_2026/`, seed generato `menu_traduzioni_ott_dic_2026.py`. Provate 180+181 su copia del DB: 46/46 voci tradotte in tutte le lingue, rilancio della 181 = 0 righe. I tag dietetici del cartaceo (8 codici, legenda tradotta) stanno ora nel seed come dato separato (`tag`), pronti per il campo dedicato. Allergeni dei piatti nuovi da verificare.

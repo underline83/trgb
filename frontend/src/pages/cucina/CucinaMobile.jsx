@@ -575,10 +575,33 @@ function useSemaforo(ricarica) {
 // ─────────────────────────────────────────────────────────────
 // TAB 1 · OGGI — checklist e task. Gira su /tasks, che esisteva già.
 // ─────────────────────────────────────────────────────────────
+// Voci consecutive con lo stesso `item_gruppo` = sotto-voci di un padre
+// (mig 182). Il padre non e' una voce: e' «fatto» quando tutte le figlie
+// sono OK. Restituisce blocchi { gruppo, items } in ordine; gruppo null =
+// voce semplice.
+function bloccaPerGruppo(items) {
+  const out = [];
+  for (const it of items) {
+    const g = it.item_gruppo || null;
+    const last = out[out.length - 1];
+    if (g && last && last.gruppo === g) last.items.push(it);
+    else out.push({ gruppo: g, items: [it] });
+  }
+  return out;
+}
+
+async function erroreDa(res) {
+  const body = await res.json().catch(() => ({}));
+  return new Error(body.detail || `HTTP ${res.status}`);
+}
+
 function TabOggi({ canWrite, onCount }) {
   const [agenda, setAgenda] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(null);
+  // Gruppi aperti/chiusi a mano: chiave `${instId}:${gruppo}`. Default:
+  // aperto finche' non e' tutto OK, poi si chiude da solo.
+  const [aperti, setAperti] = useState({});
 
   const load = useCallback(async () => {
     try {
@@ -619,10 +642,33 @@ function TabOggi({ canWrite, onCount }) {
           stato: item.stato === "OK" ? "SKIPPED" : "OK",
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw await erroreDa(res);
       await load();
     } catch (e) { setErr(e.message); }
     finally { setBusy(null); }
+  }
+
+  // Tocco sul padre: se tutte le figlie sono OK le toglie, altrimenti spunta
+  // quelle che mancano. Le voci con un numero restano da misurare a mano.
+  async function spuntaGruppo(inst, blocco) {
+    if (!canWrite || busy) return;
+    const spuntabili = blocco.items.filter(
+      (i) => i.item_tipo !== "TEMPERATURA" && i.item_tipo !== "NUMERICO");
+    const tutteOk = blocco.items.every((i) => i.stato === "OK");
+    const target = tutteOk ? "SKIPPED" : "OK";
+    const daFare = spuntabili.filter((i) => (tutteOk ? true : i.stato !== "OK"));
+    setBusy(`g${inst.id}:${blocco.gruppo}`);
+    try {
+      for (const it of daFare) {
+        const res = await apiFetch(`${API_BASE}/tasks/execution/item/${it.item_id}/check`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instance_id: inst.id, stato: target }),
+        });
+        if (!res.ok) throw await erroreDa(res);
+      }
+    } catch (e) { setErr(e.message); }
+    finally { await load(); setBusy(null); }
   }
 
   async function completaTask(t) {
@@ -669,27 +715,52 @@ function TabOggi({ canWrite, onCount }) {
             <div className="km-prog">
               <i style={{ width: `${pct}%`, background: chiusa ? "var(--green)" : "var(--amber)" }} />
             </div>
-            {!chiusa && items.length > 0 && (
+            {inst.stato === "SCADUTA" && (
+              <div className="km-cm" style={{ marginTop: 8 }}>
+                Scaduta alle {inst.scadenza_at?.slice(11, 16)}: non si può più spuntare.
+              </div>
+            )}
+            {!chiusa && inst.stato !== "SCADUTA" && items.length > 0 && (
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 7 }}>
-                {items.map((it) => (
-                  <div key={it.item_id} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <button className={`km-tick${it.stato === "OK" ? " on" : it.stato === "FAIL" ? " fail" : ""}`}
-                            disabled={!canWrite || busy === it.item_id}
-                            onClick={() => spuntaItem(inst, it)}>
-                      {it.stato === "OK" ? "✓" : it.stato === "FAIL" ? "✕" : ""}
-                    </button>
-                    <div style={{ flex: 1, fontSize: 14, opacity: it.stato === "OK" ? 0.55 : 1 }}>
-                      {it.item_titolo}
-                      {(it.item_tipo === "TEMPERATURA" || it.item_tipo === "NUMERICO") && (
-                        <span style={{ marginLeft: 6 }}>
-                          <Chip tone="b">{it.valore_numerico != null
-                            ? `${fmtQta(it.valore_numerico)}${it.item_unita || ""}`
-                            : "da misurare"}</Chip>
-                        </span>
+                {bloccaPerGruppo(items).map((b, bi) => {
+                  if (!b.gruppo) return b.items.map((it) => (
+                    <VoceOggi key={it.item_id} it={it} canWrite={canWrite}
+                              busy={busy === it.item_id} onTap={() => spuntaItem(inst, it)} />
+                  ));
+                  const ok = b.items.filter((i) => i.stato === "OK").length;
+                  const tutte = ok === b.items.length;
+                  const chiave = `${inst.id}:${b.gruppo}`;
+                  const aperto = aperti[chiave] ?? !tutte;
+                  return (
+                    <div key={`g${bi}`}>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <button className={`km-tick${tutte ? " on" : ""}`}
+                                disabled={!canWrite || busy === `g${chiave}`}
+                                onClick={() => spuntaGruppo(inst, b)}>
+                          {tutte ? "✓" : ok > 0 ? "–" : ""}
+                        </button>
+                        <div onClick={() => setAperti((a) => ({ ...a, [chiave]: !aperto }))}
+                             style={{ flex: 1, fontSize: 15, fontWeight: 700, cursor: "pointer",
+                                      opacity: tutte ? 0.55 : 1 }}>
+                          {b.gruppo}
+                          <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 13, color: "var(--muted)" }}>
+                            {ok}/{b.items.length} {aperto ? "▾" : "▸"}
+                          </span>
+                        </div>
+                      </div>
+                      {aperto && (
+                        <div style={{ marginTop: 7, marginLeft: 22, paddingLeft: 12,
+                                      borderLeft: "2px solid var(--line, #e5e5e5)",
+                                      display: "flex", flexDirection: "column", gap: 7 }}>
+                          {b.items.map((it) => (
+                            <VoceOggi key={it.item_id} it={it} canWrite={canWrite}
+                                      busy={busy === it.item_id} onTap={() => spuntaItem(inst, it)} />
+                          ))}
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -719,6 +790,27 @@ function TabOggi({ canWrite, onCount }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function VoceOggi({ it, canWrite, busy, onTap }) {
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <button className={`km-tick${it.stato === "OK" ? " on" : it.stato === "FAIL" ? " fail" : ""}`}
+              disabled={!canWrite || busy} onClick={onTap}>
+        {it.stato === "OK" ? "✓" : it.stato === "FAIL" ? "✕" : ""}
+      </button>
+      <div style={{ flex: 1, fontSize: 14, opacity: it.stato === "OK" ? 0.55 : 1 }}>
+        {it.item_titolo}
+        {(it.item_tipo === "TEMPERATURA" || it.item_tipo === "NUMERICO") && (
+          <span style={{ marginLeft: 6 }}>
+            <Chip tone="b">{it.valore_numerico != null
+              ? `${fmtQta(it.valore_numerico)}${it.item_unita || ""}`
+              : "da misurare"}</Chip>
+          </span>
+        )}
+      </div>
     </div>
   );
 }
