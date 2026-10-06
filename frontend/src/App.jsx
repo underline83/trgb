@@ -29,6 +29,8 @@ const CartaMenuPubblica = lazy(() => import("./pages/public/CartaMenuPubblica"))
 const CartaStaff = lazy(() => import("./pages/vini/CartaStaff"));
 // V.9 fase 1 (2026-08-03): "Cantina da iPhone" — finder mobile + scheda mobile read-only.
 const CantinaMobile = lazy(() => import("./pages/vini/CantinaMobile"));
+// Etichette QR bottiglie per Brother QL-820NWB (2026-10-06)
+const EtichetteVini = lazy(() => import("./pages/vini/EtichetteVini"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
 const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
 // S2 cutover (2026-05-18): Cantina classica deprecata. Le route legacy
@@ -269,6 +271,7 @@ export default function App() {
         {/* V.9 fase 1: Cantina da iPhone — finder mobile-first + scheda mobile (read-only) */}
         <Route path="/vini/cantina-mobile" element={<ProtectedRoute module="vini" sub="magazzino"><CantinaMobile /></ProtectedRoute>} />
         <Route path="/vini/cantina-mobile/:id" element={<ProtectedRoute module="vini" sub="magazzino"><CantinaMobile /></ProtectedRoute>} />
+        <Route path="/vini/etichette" element={<ProtectedRoute module="vini" sub="magazzino"><EtichetteVini /></ProtectedRoute>} />
         {/* Redirect legacy: /vini/carta/sezione/:key → /vini/carta/:key */}
         <Route path="/vini/carta/sezione/:key" element={<RedirectLegacySezione />} />
         {/* Shell con :sezione (vini / aperitivi / birre / amari_casa / amari_liquori / distillati / tisane / te) */}

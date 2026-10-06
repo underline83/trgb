@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-06 — Vini: etichette QR per le bottiglie `[core]`
+
+Vini 3.92. Nuova pagina **🏷️ Etichette QR** (`/vini/etichette`) per la Brother QL-820NWB: ogni etichetta ha un QR che apre la scheda mobile della bottiglia (`/vini/cantina-mobile/{id}`), più denominazione, nome, produttore, annata e #id. Due formati: 29×62 fustellata (DK-11209) e 62 continuo × 40 mm (DK-22205). Si apre dalla scheda mobile («Stampa etichetta QR») o dalla scheda gestionale («Etichetta QR»); nella pagina si cercano altri vini per stampare un lotto, con le copie per vino (anche una per bottiglia in giacenza). QR generato in locale, nessun servizio esterno, nessuna modifica backend. Prima parte di V.13 (inventario con QR).
+
+---
+
 ## 2026-10-04 — Checklist: voci padre con sotto-voci `[core]`
 
 Task Manager 1.5, mig 182, sistema 5.44. Nelle checklist una voce può avere una **voce padre** (es. «Rosa di zucca» → «6 rose scongelate in linea», «scorta gelo min 18», …): il padre si spunta da solo quando le sotto-voci sono tutte fatte, toccandolo le spunti tutte (o le togli). Campo «Voce padre» nel TemplateEditor; raggruppamento in dettaglio checklist e nel tab Oggi della Cucina iPhone. Oggi: le checklist scadute non si possono più spuntare (prima davano «HTTP 400» senza spiegazione). Duplica template ora copia anche il collegamento al frigo. Provato su copia del DB (crea, duplica, genera istanza). Nuovi template «Linea Antipasti · Pranzo» (entro 12:30) e «· Sera» (entro 23:59) creati da UI.

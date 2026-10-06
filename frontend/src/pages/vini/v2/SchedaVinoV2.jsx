@@ -28,6 +28,10 @@ export default function SchedaVinoV2() {
           ← Cantina v2
         </button>
         <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">#{id}</span>
+        <button onClick={() => navigate(`/vini/etichette?ids=${id}`)}
+          className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-50 transition shadow-sm">
+          🏷️ Etichetta QR
+        </button>
       </div>
 
       <SchedaVino

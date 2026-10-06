@@ -1,5 +1,6 @@
 // frontend/src/pages/vini/CantinaMobile.jsx
 // Modulo: vini
+// @version: v1.3 — bottone «Stampa etichetta QR» in scheda (2026-10-06)
 // @version: v1.2 — fase 2 «muovi la bottiglia»: movimentazione in scheda (2026-08-21)
 // @version: v1.1 — filtro locazione nel modo «Per scaffale» (2026-08-21)
 // @version: v1.0 — "Cantina da iPhone" fase 1 «trova la bottiglia» (2026-07-20)
@@ -1091,6 +1092,11 @@ function Scheda({ id }) {
               );
             })}
         </div>
+
+        {/* Etichetta QR da stampare (Brother QL) — il QR riporta qui */}
+        <button className="cm-openfull" onClick={() => navigate(`/vini/etichette?ids=${v.id}`)}>
+          🏷️ Stampa etichetta QR
+        </button>
 
         {/* Link alla scheda gestionale completa (desktop) */}
         <button className="cm-openfull" onClick={() => navigate(`/vini/v2/bottiglia/${v.id}`)}>

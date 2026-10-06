@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-04 — **DA PUSHARE: checklist con voci padre (mig 182, Task Manager 1.5, sistema 5.44)** — `tasks_db.py`, `tasks_schema.py`, `tasks_router.py`, `CucinaMobile.jsx` (Oggi), `InstanceDetail.jsx`, `TemplateEditor.jsx`. **Dopo il push:** Claude riscrive le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) con i padri (payload in `claude/linea_antipasti_gruppi.json`); provare Oggi su iPhone. Ultimo deploy `3f80c1c3` (mig 180-181). Intestazione ripulita il 04/10: le voci DA PUSHARE del 02-04/10 sono tutte in produzione.
+**Ultimo aggiornamento:** 2026-10-06 — **DA PUSHARE: etichette QR vini (vini 3.92)** — `EtichetteVini.jsx` (nuovo), `utils/vendor/qrcode.js` (nuovo), `App.jsx`, `CantinaMobile.jsx`, `SchedaVinoV2.jsx`. **Dopo il push:** stampa di prova su QL-820NWB in entrambi i formati e scansione con iPhone. Checklist voci padre (mig 182) in produzione con `d83ba7a4`: restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.44 (da pushare) · **Migrazione più recente:** 182 (da pushare)
+**Sistema:** 5.44 · **Migrazione più recente:** 182
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,14 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-06 — Etichette QR per le bottiglie `[core]`
+
+Marco ha collegato la Brother QL-820NWB (rotoli in prova: DK-11209 29×62 e DK-22205 62 continuo) e vuole partire dal QR per le bottiglie. Il QR punta alla scheda mobile esistente (`/vini/cantina-mobile/{id}`), così la scansione porta dritta a vendita/carico/conta: è la prima parte di V.13. Pagina `/vini/etichette`, stampa da browser con `@page` alla misura dell'etichetta (provata in Chromium: PDF 62×29 e 62×40 mm, una etichetta per pagina). QR in locale con qrcode-generator 1.4.4 copiato in `frontend/src/utils/vendor/` (niente npm install, niente api.qrserver.com). Da fare dopo: conta a tappeto da scansione; eventuali altre etichette (preparazioni cucina) quando Marco le chiede.
+
+Commit: `./push.sh "[core] Vini: etichette QR bottiglie per Brother QL-820NWB (vini 3.92)"`
+
+---
 
 ## SESSIONE 2026-10-03 — Home della cucina `[core]`
 

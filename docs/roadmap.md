@@ -88,7 +88,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.
 | V.10 | Carichi automatici da Fatture XML | M | BASSA | Match iPratico → CARICO automatico |
 | V.11 | PDF carta con TOC cliccabile | S | BASSA | Motore `carta_vini_service.py` esistente |
 | V.12 | Import Excel diff interattivo | M | BASSA | Richiede M.H. Probabilmente superato da V.20 quando arriva. |
-| V.13 | Inventario fisico mobile con QR/barcode | L | DA VALUTARE | QR generation per vino |
+| V.13 | Inventario fisico mobile con QR/barcode | L | IN CORSO | ✅ parte 1 etichette QR → scheda mobile (2026-10-06, `EtichetteVini.jsx`). Resta: conta a tappeto da scansione |
 | V.14 | Carta vini multi-template (eventi, degustazioni) | M | DA VALUTARE | Motore esistente |
 | V.15 | Audit log scheda vino | S | DA VALUTARE | Tabella audit |
 | V.16 | Filtri lato server (per dataset > 5000) | M | DA VALUTARE | Solo se scala oltre 1 cliente |
