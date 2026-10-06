@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-06 — **DA PUSHARE: etichette QR vini (vini 3.92)** — `EtichetteVini.jsx` (nuovo), `utils/vendor/qrcode.js` (nuovo), `App.jsx`, `CantinaMobile.jsx`, `SchedaVinoV2.jsx`. **Dopo il push:** stampa di prova su QL-820NWB in entrambi i formati e scansione con iPhone. Checklist voci padre (mig 182) in produzione con `d83ba7a4`: restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
+**Ultimo aggiornamento:** 2026-10-06 — **DA PUSHARE: scansione QR in Vendite (vini 3.93)** — `components/QrScanner.jsx` (nuovo), `utils/vendor/jsqr.js` (nuovo), `ViniVendite.jsx`. **Dopo il push:** su iPhone, Vendite → 📷 Scansiona QR (consentire la fotocamera) su un'etichetta stampata; stampa di prova delle etichette su QL-820NWB nei due formati (etichette QR in produzione con `71caca67`). Checklist voci padre (mig 182) in produzione: restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -31,6 +31,14 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-06 (2) — Scarico da fotocamera in Vendite `[core]`
+
+Marco: «aggiungi la possibilità di usare la fotocamera per scaricare nella sezione vendite». Bottone «📷 Scansiona QR» nel box Registra vendita: legge l'etichetta (`…/vini/cantina-mobile/{id}` o solo il numero), carica il vino con `GET /vini/magazzino/{id}`, lo seleziona e preimposta la locazione se è unica. Non registra da solo: la conferma resta su «Registra» (scelta celle Matrice e calici invariati). Scanner riusabile `components/QrScanner.jsx` + jsQR 1.4.0 (Apache-2.0) in `utils/vendor/`, perché Safari non ha BarcodeDetector. Prova end-to-end in Chromium con fotocamera finta che inquadra un'etichetta: lettura ok via jsQR.
+
+Commit: `./push.sh "[core] Vini: Vendite, scansione QR etichetta con la fotocamera (vini 3.93)"`
+
+---
 
 ## SESSIONE 2026-10-06 — Etichette QR per le bottiglie `[core]`
 

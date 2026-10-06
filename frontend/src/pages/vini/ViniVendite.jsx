@@ -1,4 +1,6 @@
 // src/pages/vini/ViniVendite.jsx
+// Modulo: vini
+// @version: v2.5-scanner-qr — 📷 Scansiona QR etichetta → vino selezionato (vini 3.93)
 // @version: v2.4-matrice-celle — vendita da Matrice guidata dalle celle reali, non dal testo LOCAZIONE_3 (vini 3.89). v2.3: M.I primitives
 // Hub Vendite — registrazione vendita bottiglia o calici, storico vendite, KPI
 
@@ -10,6 +12,7 @@ import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 import CaliciDisponibiliCard from "../../components/widgets/CaliciDisponibiliCard";
 import DecidiPrezzoCalice, { roundToHalf } from "../../components/vini/DecidiPrezzoCalice";
+import QrScanner from "../../components/QrScanner";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -109,6 +112,8 @@ export default function ViniVendite() {
   // Sessione 2026-05-11.
   const [decidiPrezzo, setDecidiPrezzo] = useState(null); // null o { vino, defaultPrezzo }
   const searchRef = useRef(null);
+  const formRef = useRef(null);
+  const [scanOpen, setScanOpen] = useState(false);
   const suggestionsRef = useRef(null);
 
   // ── Matrice (selezione celle per vendita da loc3) ──
@@ -233,6 +238,37 @@ export default function ViniVendite() {
     setShowSuggestions(false);
     setSuggestions([]);
     setRegLoc("");
+  };
+
+  // ── Scansione QR etichetta (vini 3.93) ──
+  // Le etichette di /vini/etichette puntano a …/vini/cantina-mobile/{id}.
+  // Accetta anche un QR col solo numero. Seleziona il vino e, se è in un
+  // solo posto, preimposta la locazione: resta da premere «Registra».
+  const onScan = async (testo) => {
+    setScanOpen(false);
+    const t = String(testo || "").trim();
+    const m = t.match(/\/cantina-mobile\/(\d+)/) || t.match(/^#?(\d+)$/);
+    if (!m) {
+      setSubmitMsg("❌ QR non riconosciuto: non è un'etichetta vino TRGB.");
+      setTimeout(() => setSubmitMsg(""), 5000);
+      return;
+    }
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${m[1]}`);
+      if (!r.ok) throw new Error(`Vino #${m[1]} non trovato`);
+      const vino = await r.json();
+      selectVino(vino);
+      const posti = buildLocOptions(vino).filter((o) => Number(o.qta) > 0);
+      if (posti.length === 1) setRegLoc(posti[0].value);
+      if (modalita === "BOTTIGLIA" && !Number(vino.QTA_TOTALE)) {
+        setSubmitMsg(`❌ ${vino.DESCRIZIONE}: giacenza 0, niente da scaricare.`);
+        setTimeout(() => setSubmitMsg(""), 5000);
+      }
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      setSubmitMsg(`❌ ${err.message}`);
+      setTimeout(() => setSubmitMsg(""), 5000);
+    }
   };
 
   // ── Deseleziona ──
@@ -552,10 +588,19 @@ export default function ViniVendite() {
         />
 
         {/* ── REGISTRAZIONE VENDITA ───────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-xl p-6 border border-neutral-200">
-          <h2 className="text-lg font-bold text-neutral-800 mb-4">
-            Registra vendita
-          </h2>
+        <div ref={formRef} className="bg-white rounded-3xl shadow-xl p-6 border border-neutral-200 scroll-mt-4">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-lg font-bold text-neutral-800">
+              Registra vendita
+            </h2>
+            <Btn variant="secondary" size="md" type="button" onClick={() => setScanOpen(true)}
+              title="Inquadra l'etichetta QR della bottiglia">
+              📷 Scansiona QR
+            </Btn>
+          </div>
+          {scanOpen && (
+            <QrScanner title="Inquadra l'etichetta della bottiglia" onResult={onScan} onClose={() => setScanOpen(false)} />
+          )}
 
           {/* Toggle Bottiglia / Calici */}
           <div className="flex gap-3 mb-5">

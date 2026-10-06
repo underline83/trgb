@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.93 (2026-10-06): Vendite — «📷 Scansiona QR» legge l'etichetta e
+    //   seleziona il vino (components/QrScanner.jsx, jsQR vendorizzato).
     // 3.92 (2026-10-06): Etichette QR bottiglie (/vini/etichette) per Brother
     //   QL-820NWB — 29×62 e 62 continuo, QR verso la scheda mobile.
     // 3.91 (2026-09-27): Ordini fornitori — la riga «Da ordinare» ha le
@@ -144,7 +146,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.92",
+    version: "3.93",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

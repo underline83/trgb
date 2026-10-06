@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-06 — Vini: scarico da fotocamera in Vendite `[core]`
+
+Vini 3.93. In **Vendite → Registra vendita** c'è «📷 Scansiona QR»: si apre la fotocamera posteriore, si inquadra l'etichetta della bottiglia e il vino è selezionato; se la bottiglia è in un solo posto la locazione è già impostata, resta da premere «Registra». QR non TRGB o vino inesistente → messaggio d'errore; giacenza 0 → avviso. Lo scanner è un componente riusabile (`components/QrScanner.jsx`): BarcodeDetector dove il browser lo ha, altrimenti jsQR copiato in repo (iPhone/Safari). Provato in Chromium con fotocamera simulata.
+
+---
+
 ## 2026-10-06 — Vini: etichette QR per le bottiglie `[core]`
 
 Vini 3.92. Nuova pagina **🏷️ Etichette QR** (`/vini/etichette`) per la Brother QL-820NWB: ogni etichetta ha un QR che apre la scheda mobile della bottiglia (`/vini/cantina-mobile/{id}`), più denominazione, nome, produttore, annata e #id. Due formati: 29×62 fustellata (DK-11209) e 62 continuo × 40 mm (DK-22205). Si apre dalla scheda mobile («Stampa etichetta QR») o dalla scheda gestionale («Etichetta QR»); nella pagina si cercano altri vini per stampare un lotto, con le copie per vino (anche una per bottiglia in giacenza). QR generato in locale, nessun servizio esterno, nessuna modifica backend. Prima parte di V.13 (inventario con QR).
