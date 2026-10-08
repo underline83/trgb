@@ -422,7 +422,9 @@ def aggiungi_passo(
             stato_da, stato_nuovo = p["stato"], stato_a
             upd["stato"] = stato_a
             if stato_a == "chiusa":
-                esito = _testo(esito, "Esito (obbligatorio per chiudere)")
+                if not (esito or "").strip():
+                    raise PraticaErrore("Per chiudere serve l'esito")
+                esito = esito.strip()
                 upd["esito"] = esito
                 upd["chiusa_il"] = data
             elif p["stato"] == "chiusa":
@@ -467,7 +469,9 @@ def aggiungi_passo(
 
 def chiudi(pratica_id: int, esito: str, testo: Optional[str] = None, data: Optional[str] = None,
            autore: Optional[str] = None, oggi: Optional[date] = None) -> Dict[str, Any]:
-    esito = _testo(esito, "Esito (obbligatorio per chiudere)")
+    if not (esito or "").strip():
+        raise PraticaErrore("Per chiudere serve l'esito")
+    esito = esito.strip()
     return aggiungi_passo(pratica_id, testo or f"Chiusa: {esito}", data=data,
                           stato_a="chiusa", esito=esito, autore=autore, oggi=oggi)
 

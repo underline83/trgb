@@ -64,6 +64,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.
 | **M.H** | **Import engine generico** | **S** | **DA FARE — media** | Estrazione pattern da `clienti_router.py` TheFork. Sblocca: import TF, Excel vini diff, carta credito, banca PSD2 |
 | M.G | Sistema permessi centralizzato | M | ✅ FATTO 2026-09-01 (`9a9b9513` + `cc011a4c`) | `app/services/permessi.py`; endpoint con check di ruolo da 200/836 a 776/836 (92%, sistema 5.41). Vini e chiusura cassa esclusi per scelta. Vedi `audit_permessi_2026-09-01.md` | Sostituisce 30+ check `if (ruolo === ...)` sparsi |
 | M.J | Pubblicazione web (FTP) | S | ✅ FATTO 2026-08-03 | `ftp_publish_service.py` + «Pubblica sul sito» su menu pranzo e carta vini (sistema 5.39). Vedi `architettura_mattoni.md` |
+| M.K | Connettore MCP di claude.ai (`/mcp`, OAuth utente+PIN, solo admin) | M | ✅ FATTO 2026-10-08 | `app/connettore/`, sistema 5.46. Primi strumenti: pratiche. Vedi `connettore_mcp.md` |
 | **HK** (era M.J) | **Housekeeping (guardiano del progetto)** | **L** | **DA FARE — media** | 3 livelli: (L1) hook pre-push in `push.sh` blocca pattern sospetti (`__pycache__`, `*.zip` root, `*_dryrun.csv`, `.DS_Store`, mockup in root, TODO fantasma, changelog non aggiornato) + flag `--skip-housekeeping`; (L2) skill `trgb:housekeeping` invocabile on-demand (`/audit`) che riproduce audit completo file-per-file; (L3) scheduled task mensile (primo lunedì 08:00) con report in Bacheca M.A. Razionale: l'audit S51 (20 apr) ha trovato 21.6 MB di rumore + paradoc fantasma; senza un meccanismo automatico il pattern si ripete (eseguito retroattivamente 2026-05-08). Spec dettagliata era in `AUDIT_2026-04-20/mattone_housekeeping.md` (cancellato). Scripts riusabili `scripts/housekeeping/scan_*` per BE/FE/docs/memoria/worktree. |
 
 ---
@@ -653,7 +654,7 @@ Doc: [`modulo_pratiche.md`](modulo_pratiche.md). Modello deciso con Marco il 202
 | PRT.1 | Modulo Pratiche: tre stati, termine, passi solo aggiunte, allegati, collegamenti, avviso `pratiche_termini`, card Home | L | ✅ FATTO | 2026-10-08, `d5db69d6`, pratiche 1.0, sistema 5.45 |
 | PRT.2 | Le 6 pratiche aperte di sb inserite a mano dalla UI (Col d'Orcia, Comune di Milano, Fondo Est, Metro/Cerved, TIM, Cordnet) | S | DA FARE | Marco, dopo il push. Dati `[locale:tregobbi]`, niente seed |
 | PRT.3 | Skill sb: una pratica va in TRGB, in sb resta una riga di diario | XS | DA FARE | `pratiche-aperte.md` diventa un rimando |
-| PRT.4 | Connettore MCP di TRGB: `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea` sopra `pratiche_service` | M | DA FARE | Con un suo documento |
+| PRT.4 | Connettore MCP di TRGB: `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea` sopra `pratiche_service` | M | ✅ FATTO | 2026-10-08, mattone M.K (sistema 5.46). Da provare da claude.ai dopo il push. Doc `connettore_mcp.md` |
 | PRT.5 | Selettore per tipo nei collegamenti (cerca un'uscita o un dipendente) | S | BASSA | Solo se il collegamento a mano non basta |
 | PRT.6 | Passo che punta a una PEC dell'archivio invece di tenerne una copia | S | BASSA | Quando esiste l'archivio PEC ([`pec_archivio_spec.md`](pec_archivio_spec.md)) |
 

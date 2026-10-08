@@ -243,7 +243,23 @@ except Exception as _e_wal:
 # ----------------------------------------
 # APP
 # ----------------------------------------
-app = FastAPI(title="TRGB Gestionale Web", version=APP_VERSION)
+# Lifespan: serve al connettore MCP (mattone M.K, costruito in fondo al file), che
+# deve tenere aperto il suo gestore di sessioni finché il backend gira.
+from contextlib import asynccontextmanager
+
+_mcp = None
+
+
+@asynccontextmanager
+async def _vita(_app):
+    if _mcp is None:
+        yield
+        return
+    async with _mcp.session_manager.run():
+        yield
+
+
+app = FastAPI(title="TRGB Gestionale Web", version=APP_VERSION, lifespan=_vita)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -780,6 +796,33 @@ _mount("pratiche_router", pratiche_router)
 print(f"🧩 {module_loader.boot_banner()}")
 if _mount_log_skipped:
     print(f"   ↳ skipped: {','.join(_mount_log_skipped)}")
+
+
+# ----------------------------------------
+# CONNETTORE MCP di claude.ai (mattone M.K, 2026-10-08) — /mcp con OAuth
+# ----------------------------------------
+# Doc: docs/connettore_mcp.md. Smista è il middleware più esterno: /mcp, /oauth/pin e le
+# rotte OAuth vanno al server MCP, il resto alla FastAPI come prima. Indirizzo pubblico:
+# TRGB_PUBLIC_URL, altrimenti https://<dominio> da locali/<id>/locale.json.
+# Se il pacchetto `mcp` manca (pip install non ancora fatto) o il connettore ha un errore,
+# il backend parte lo stesso, senza /mcp.
+try:
+    from app.connettore import server as _connettore
+    from app.models.connettore_db import init_connettore_db
+    init_connettore_db()
+    try:
+        _locale_info = json.loads((Path(__file__).parent / "locali" / TRGB_LOCALE / "locale.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        _locale_info = {}
+    _public_url = (os.environ.get("TRGB_PUBLIC_URL", "").strip()
+                   or f"https://{_locale_info.get('dominio', 'localhost')}").rstrip("/")
+    _mcp = _connettore.costruisci(_public_url, _locale_info.get("nome", TRGB_LOCALE), APP_VERSION)
+    app.add_middleware(_connettore.Smista, mcp_app=_mcp.streamable_http_app(
+        streamable_http_path="/mcp", transport_security=_connettore.sicurezza(_public_url)))
+    print(f"🔌 Connettore MCP attivo su {_public_url}/mcp")
+except Exception as _e:  # il connettore non deve mai fermare il gestionale
+    _mcp = None
+    print(f"⚠️  Connettore MCP non attivo: {type(_e).__name__}: {_e}")
 
 
 # ----------------------------------------

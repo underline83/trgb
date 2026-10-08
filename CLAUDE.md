@@ -63,7 +63,7 @@ TRGB è strutturato come **monolite modulare con feature flags per locale**. Cli
 
 `vini`, `ricette`, `acquisti`, `controllo_gestione`, `banca`, `dipendenti`, `prenotazioni`, `clienti`, `cassa`, `menu_carta`, `cucina`, `task_manager`, `statistiche`, `pratiche` (dal 2026-10-08).
 
-**Platform** (sempre inclusa, non vendibile da sola): auth + utenti + M.A notifiche + M.B PDF + M.C WA + M.D email + M.E calendar + M.F alert + M.G permessi + M.H import + M.I UI primitives.
+**Platform** (sempre inclusa, non vendibile da sola): auth + utenti + M.A notifiche + M.B PDF + M.C WA + M.D email + M.E calendar + M.F alert + M.G permessi + M.H import + M.I UI primitives + M.K connettore MCP.
 
 ### Le 5 regole di disciplina codice
 
@@ -121,6 +121,7 @@ Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste
   - Frontend: `import { openWhatsApp, buildWaLink, fillTemplate, WA_TEMPLATES } from "../utils/whatsapp"`. MAI costruire `wa.me/` a mano.
   - Backend: `from app.utils.whatsapp import build_wa_link, normalize_phone, fill_template`. MAI fare `.replace(" ","").replace("-","")` sul telefono a mano.
 - **M.G Permessi — fase 1** (2026-09-01): `from app.services.permessi import richiede_ruoli, solo_admin, verifica_ruoli, ha_ruoli`. **Ogni endpoint nuovo dichiara chi puo' chiamarlo.** `Depends(get_current_user)` da solo NON e' un permesso: e' "qualsiasi ruolo autenticato", viewer compreso. Nella firma `user=Depends(richiede_ruoli("admin","contabile"))`, su tutto il router `APIRouter(dependencies=[Depends(solo_admin())])`, nel corpo `verifica_ruoli(user, "admin", cosa="...")`. MAI riscrivere un `if role != "admin"` a mano. `superadmin` e' implicito dove c'e' `admin`; i nomi ruolo sono validati al boot. Se non sai quale ruolo va su un endpoint nuovo, CHIEDI a Marco. Contesto: `docs/audit_permessi_2026-09-01.md`.
+- **M.K Connettore MCP** (2026-10-08): `app/connettore/server.py` + `oauth.py`, `/mcp` per claude.ai. Uno strumento nuovo chiama una funzione del service del modulo (mai logica propria), dichiara i ruoli con `_utente()` + M.G, e si registra solo se il modulo è attivo. Doc: `docs/connettore_mcp.md`.
 - **M.B PDF brand**: DA FARE. Quando serve generare PDF, attendere questo mattone.
 - **M.D Email service**: DA FARE. Quando serve inviare email, attendere questo mattone.
 - **M.E Calendar component**: DA FARE. Quando serve vista calendario, attendere questo mattone.

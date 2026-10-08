@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-08 — niente da pushare. **Pratiche in produzione** (`d5db69d6`, sistema 5.45): da admin aprire `/pratiche` dopo Ctrl+Shift+R (card 📂 in Home e voce nel menu devono comparire da sole), inserire a mano le 6 pratiche di sb (§6 del doc) provando la UI su iPhone, controllare in Impostazioni → Notifiche la riga «Pratiche» con soglia 3. Al prossimo push la sync dei DB dovrebbe contare 11 file (`pratiche.sqlite3`). **Ancora da verificare:** su iPhone, Vendite → 📷 Scansiona QR su un'etichetta stampata; stampa di prova delle etichette QR su QL-820NWB nei due formati. Checklist voci padre (mig 182): restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
+**Ultimo aggiornamento:** 2026-10-08 — **DA PUSHARE: connettore MCP (mattone M.K, sistema 5.46)** — `app/connettore/`, `connettore_db.py`, `scripts/connettore.py`, `main.py` (lifespan + `/mcp`), `requirements.txt` (`mcp==2.3.0`: il hook fa il pip install). **Dopo il push:** nel log «🔌 Connettore MCP attivo»; claude.ai → Connettori → aggiungi `https://trgb.tregobbi.it/mcp`, autorizza con utente e PIN; prova «che pratiche ho aperte?» e un passo vero (`connettore_mcp.md` §9). **Pratiche** (`d5db69d6`): da admin aprire `/pratiche` (card 📂 e voce di menu), inserire le 6 pratiche di sb, Impostazioni → Notifiche «Pratiche» soglia 3. **Ancora da verificare:** su iPhone, Vendite → 📷 Scansiona QR; stampa di prova etichette QR su QL-820NWB. Checklist voci padre (mig 182): riscrivere «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.45 · **Migrazione più recente:** 182
+**Sistema:** 5.46 · **Migrazione più recente:** 182
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,20 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-08 (2) — Connettore MCP di claude.ai, mattone M.K `[core]`
+
+Marco: «partirei dal 4.. creiamo il connettore, testiamo il passaggio da te a pratiche». Documento `docs/connettore_mcp.md` scritto sul modello del connettore del brain (`~/brain/app/connettore.py`, `oauth.py`), poi decisioni: `[core]` platform M.K (sistema 5.46), autorizzano solo admin/superadmin, autore dei passi `claude (<utente>)`, conferma prima di creare/chiudere e passo semplice senza chiedere.
+
+- **Codice:** `app/connettore/server.py` (4 strumenti sopra `pratiche_service`, istruzioni, `Smista`, `sicurezza`), `app/connettore/oauth.py` (fornitore OAuth adattato dal brain: utente+PIN con `auth_service.authenticate_user`, utente riletto a ogni chiamata), `app/models/connettore_db.py` (`connettore.sqlite3`), `scripts/connettore.py` (elenca/revoca), `main.py` (`lifespan=_vita`, connettore costruito in fondo, mai bloccante), `requirements.txt` (`mcp==2.3.0`), manifesto platform.
+- **Pratiche 1.1:** «Per chiudere serve l'esito» invece di «Esito (obbligatorio per chiudere) obbligatorio».
+- **Prove** (pacchetti `mcp` copiati dalla venv del brain nel scratchpad, niente rete, locale temporaneo): OAuth completo (19 controlli, compresi riuso del codice e del rinnovo e utente declassato), strumenti (8 controlli), avvio di `main.py` su copia dei DB con e senza `mcp`; prove di service e router di Pratiche ancora verdi. Non provato il giro da claude.ai vero.
+- **Nota:** la venv locale non ha `email_validator` (già prima): per far partire `main.py` in locale serve un finto pacchetto, solo per le prove.
+- **Push dal worktree:** questa volta prima `git merge --ff-only main` nel worktree, poi a fine lavoro `merge --ff-only` su `main` e `push.sh` dalla cartella principale.
+
+Commit: `./push.sh "[core] Connettore MCP di claude.ai: /mcp con OAuth utente+PIN, strumenti pratiche (mattone M.K, sistema 5.46)"`
+
+---
 
 ## SESSIONE 2026-10-08 — Modulo Pratiche `[core]`
 

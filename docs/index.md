@@ -30,6 +30,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [database.md](database.md) — schema di tutti i DB SQLite.
 - 📄 [stato_pagamento_unificato.md](stato_pagamento_unificato.md) — semantica stati pagamento fatture, 3 dimensioni D1/D2/D3 (§15 canonico).
 - 📄 [mattone_calendar.md](mattone_calendar.md) — spec del mattone M.E Calendar.
+- 📄 [connettore_mcp.md](connettore_mcp.md) — mattone M.K: TRGB come connettore MCP di claude.ai (`/mcp`, OAuth con utente e PIN, strumenti delle pratiche).
 - 📄 `../MIGRATIONS_TRGB.md` (root) — registro migrazioni `TRGB_SPECIFIC` (seed/dati tenant Tre Gobbi).
 
 ## ⚙ Regole trasversali (schema)

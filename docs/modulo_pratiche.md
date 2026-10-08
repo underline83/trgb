@@ -181,7 +181,7 @@ Route `/pratiche` e `/pratiche/:id`, voce `pratiche` in `modulesMenu.js` (emoji 
      - le tre voci della rete diventano **task**;
      - Heres e le rate Fondo Est sono **uscite**, già pagate (Marco, 08/10).
 2. **Cambia la skill sb:** una pratica va in TRGB, e in sb resta una riga di diario. `pratiche-aperte.md` diventa un rimando.
-3. **Poi il connettore MCP**, con un suo documento. I primi strumenti sono `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea`, sopra `pratiche_service`.
+3. **Poi il connettore MCP** — fatto il 2026-10-08, mattone M.K: [connettore_mcp.md](connettore_mcp.md). Strumenti `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea`, sopra `pratiche_service`; i passi scritti dalla chat hanno autore `claude (<utente>)`.
 
 ---
 

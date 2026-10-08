@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-08 — Connettore MCP di claude.ai (mattone M.K) `[core]`
+
+Sistema 5.46, pratiche 1.1. TRGB diventa un **connettore personalizzato di claude.ai** su `https://<dominio>/mcp`: da qualsiasi chat (web, desktop, iPhone) Claude legge e scrive le pratiche. Si entra con OAuth 2.1, la pagina di autorizzazione chiede utente e PIN di TRGB (stesso blocco dopo i tentativi sbagliati del login) e accetta solo admin e superadmin. Accesso di un'ora, rinnovo di trenta giorni che ruota; un codice o un rinnovo riusato chiude l'autorizzazione. Se l'utente viene tolto o perde il ruolo, il token smette di funzionare alla chiamata dopo. Quattro strumenti: `pratiche_elenco`, `pratica_leggi`, `pratica_crea`, `pratica_passo`, che chiamano `pratiche_service` (nessuna logica copiata); i passi scritti dalla chat hanno autore `claude (<utente>)`. Prima di creare o chiudere Claude chiede conferma. Stesso processo del backend, DB `connettore.sqlite3` con schema al boot, dipendenza nuova `mcp==2.3.0`; se il pacchetto manca il gestionale parte lo stesso, senza `/mcp`. Revoca: `scripts/connettore.py`. Modello: il connettore del brain. Doc: [`connettore_mcp.md`](connettore_mcp.md).
+
+---
+
 ## 2026-10-08 — Pratiche: modulo nuovo `[core]`
 
 Pratiche 1.0, sistema 5.45. Nuovo modulo **📂 Pratiche** (`/pratiche`, solo admin e superadmin) per gli scambi formali con enti, fornitori, studi e creditori che aspettano un esito. Tre stati: **tocca a me**, **tocca a loro**, **chiusa** (con esito obbligatorio). Un termine facoltativo: oltre il termine la pratica si mostra «scaduta» ma resta nel suo stato; senza termine e senza passi da 30 giorni è «ferma». La storia è fatta di **passi** che non si modificano né si cancellano: ogni cambio di stato o di termine è un passo datato, anche retrodatato, con un allegato facoltativo (PDF o immagine, max 20 MB). Collegamenti a mano verso altri moduli (uscite, fatture, dipendenti…). Elenco in tre gruppi (Scadute / Tocca a me / Tocca a loro) più le chiuse con ricerca; scheda con riquadro «Nuovo passo» pensata per l'iPhone. Avviso M.F `pratiche_termini` (scadute + in scadenza entro 3 giorni + ferme, una notifica sola, anti-doppione 24 ore) e card in Home «N aperte · M scadute». DB separato `pratiche.sqlite3`, schema creato al boot: nessuna migrazione numerata. Logica tutta in `pratiche_service.py`, pronta per il connettore MCP. Provato su DB temporaneo (service e router). Doc: [`modulo_pratiche.md`](modulo_pratiche.md).

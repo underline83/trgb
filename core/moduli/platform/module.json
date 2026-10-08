@@ -28,7 +28,10 @@
     "/backup",
     "/system",
     "/locale",
-    "/pubblicazione"
+    "/pubblicazione",
+    "/mcp",
+    "/oauth/pin",
+    "/.well-known/oauth-*"
   ],
   "tabelle_db": [
     "users (users.json)",
@@ -38,7 +41,10 @@
     "alert_config",
     "schema_migrations",
     "audit_log",
-    "web_publish_log"
+    "web_publish_log",
+    "connettore_oauth_clienti",
+    "connettore_oauth_codici",
+    "connettore_oauth_token"
   ],
   "mattoni": {
     "M.A": "notifiche (FATTO, sessione 31)",
@@ -50,6 +56,7 @@
     "M.G": "permessi (DA FARE)",
     "M.H": "import engine (DA FARE)",
     "M.I": "ui primitives (FATTO, sessione 2026-04-18)",
-    "M.J": "pubblicazione web / FTP (FATTO, 2026-08-03)"
+    "M.J": "pubblicazione web / FTP (FATTO, 2026-08-03)",
+    "M.K": "connettore MCP di claude.ai (FATTO, 2026-10-08)"
   }
 }

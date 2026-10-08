@@ -37,3 +37,7 @@ python-dotenv
 httpx
 
 #Grafici
+
+# Connettore MCP di claude.ai su /mcp, con OAuth 2.1 (mattone M.K, 2026-10-08).
+# Si porta dietro httpx2, sse-starlette, PyJWT, jsonschema, opentelemetry-api.
+mcp==2.3.0
