@@ -650,7 +650,7 @@ Doc: [`modulo_pratiche.md`](modulo_pratiche.md). Modello deciso con Marco il 202
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| PRT.1 | Modulo Pratiche: tre stati, termine, passi solo aggiunte, allegati, collegamenti, avviso `pratiche_termini`, card Home | L | ✅ FATTO | 2026-10-08, pratiche 1.0, sistema 5.45 — commit da compilare dopo il push |
+| PRT.1 | Modulo Pratiche: tre stati, termine, passi solo aggiunte, allegati, collegamenti, avviso `pratiche_termini`, card Home | L | ✅ FATTO | 2026-10-08, `d5db69d6`, pratiche 1.0, sistema 5.45 |
 | PRT.2 | Le 6 pratiche aperte di sb inserite a mano dalla UI (Col d'Orcia, Comune di Milano, Fondo Est, Metro/Cerved, TIM, Cordnet) | S | DA FARE | Marco, dopo il push. Dati `[locale:tregobbi]`, niente seed |
 | PRT.3 | Skill sb: una pratica va in TRGB, in sb resta una riga di diario | XS | DA FARE | `pratiche-aperte.md` diventa un rimando |
 | PRT.4 | Connettore MCP di TRGB: `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea` sopra `pratiche_service` | M | DA FARE | Con un suo documento |

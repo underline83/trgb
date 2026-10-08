@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-08 — **DA PUSHARE: modulo Pratiche (pratiche 1.0, sistema 5.45)** — `pratiche_db.py`, `pratiche_service.py`, `pratiche_router.py`, checker `pratiche_termini`, card Home, `pages/pratiche/`, `core/moduli/pratiche/module.json`. **Dopo il push:** aprire `/pratiche` da admin (la voce compare da sola in Home e nel menu: `modules_router` la aggiunge al runtime); inserire a mano le 6 pratiche di sb (§6 del doc); Impostazioni → Notifiche: c'è «Pratiche» con soglia 3. **Ancora da verificare:** su iPhone, Vendite → 📷 Scansiona QR su un'etichetta stampata; stampa di prova delle etichette QR su QL-820NWB nei due formati. Checklist voci padre (mig 182): restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
+**Ultimo aggiornamento:** 2026-10-08 — niente da pushare. **Pratiche in produzione** (`d5db69d6`, sistema 5.45): da admin aprire `/pratiche` dopo Ctrl+Shift+R (card 📂 in Home e voce nel menu devono comparire da sole), inserire a mano le 6 pratiche di sb (§6 del doc) provando la UI su iPhone, controllare in Impostazioni → Notifiche la riga «Pratiche» con soglia 3. Al prossimo push la sync dei DB dovrebbe contare 11 file (`pratiche.sqlite3`). **Ancora da verificare:** su iPhone, Vendite → 📷 Scansiona QR su un'etichetta stampata; stampa di prova delle etichette QR su QL-820NWB nei due formati. Checklist voci padre (mig 182): restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -45,7 +45,7 @@ Marco: implementare il modulo `pratiche` seguendo `docs/modulo_pratiche.md` (mod
 - **Prove:** service su DB temporaneo (31 casi: scaduta/ferma calcolate, tre gruppi del checker, errori, chiusura/riapertura, backfill, collegamenti); router con TestClient (multipart, download, 400/404, 403 per contabile/viewer/sala, superadmin ok); checker in dry-run; build Vite ok. UI non provata nel browser.
 - **Nessun dato inserito:** le 6 pratiche aperte le mette Marco dalla UI.
 
-Commit: `./push.sh "[core] Pratiche: modulo nuovo — stati, termini, passi, allegati, avviso e card Home (pratiche 1.0, sistema 5.45)"`
+Commit: `d5db69d6` — in produzione il 2026-10-08 22:15. NB: il primo `push.sh` lanciato dal worktree aveva committato sul ramo del worktree e non su `main` («Già aggiornato»); risolto con `merge --ff-only` su `main` e nuovo push dalla cartella principale.
 
 ---
 
