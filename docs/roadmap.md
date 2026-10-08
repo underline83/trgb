@@ -32,6 +32,7 @@
 > MC. Menu Carta (cliente-facing)
 > PR. Prenotazioni
 > CL. Clienti / CRM / Preventivi
+> PRT. Pratiche
 > ST. Statistiche
 > DH. Docs Hardening (post audit autonomo 2026-05-19)
 > T. Tecnici / Platform
@@ -640,6 +641,21 @@ Sezione storica/piano qui sotto preservata per riferimento.
 
 **Bug/debt:**
 - C-DEBT4 — `clienti_router.py` 2404 righe — refactor opportunistico in moduli (non urgente)
+
+---
+
+## PRT — PRATICHE (enti, fornitori, studi, creditori)
+
+Doc: [`modulo_pratiche.md`](modulo_pratiche.md). Modello deciso con Marco il 2026-10-08.
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| PRT.1 | Modulo Pratiche: tre stati, termine, passi solo aggiunte, allegati, collegamenti, avviso `pratiche_termini`, card Home | L | ✅ FATTO | 2026-10-08, pratiche 1.0, sistema 5.45 — commit da compilare dopo il push |
+| PRT.2 | Le 6 pratiche aperte di sb inserite a mano dalla UI (Col d'Orcia, Comune di Milano, Fondo Est, Metro/Cerved, TIM, Cordnet) | S | DA FARE | Marco, dopo il push. Dati `[locale:tregobbi]`, niente seed |
+| PRT.3 | Skill sb: una pratica va in TRGB, in sb resta una riga di diario | XS | DA FARE | `pratiche-aperte.md` diventa un rimando |
+| PRT.4 | Connettore MCP di TRGB: `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea` sopra `pratiche_service` | M | DA FARE | Con un suo documento |
+| PRT.5 | Selettore per tipo nei collegamenti (cerca un'uscita o un dipendente) | S | BASSA | Solo se il collegamento a mano non basta |
+| PRT.6 | Passo che punta a una PEC dell'archivio invece di tenerne una copia | S | BASSA | Quando esiste l'archivio PEC ([`pec_archivio_spec.md`](pec_archivio_spec.md)) |
 
 ---
 

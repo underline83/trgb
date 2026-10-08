@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-06 — **DA PUSHARE: scansione QR in Vendite (vini 3.93)** — `components/QrScanner.jsx` (nuovo), `utils/vendor/jsqr.js` (nuovo), `ViniVendite.jsx`. **Dopo il push:** su iPhone, Vendite → 📷 Scansiona QR (consentire la fotocamera) su un'etichetta stampata; stampa di prova delle etichette su QL-820NWB nei due formati (etichette QR in produzione con `71caca67`). Checklist voci padre (mig 182) in produzione: restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
+**Ultimo aggiornamento:** 2026-10-08 — **DA PUSHARE: modulo Pratiche (pratiche 1.0, sistema 5.45)** — `pratiche_db.py`, `pratiche_service.py`, `pratiche_router.py`, checker `pratiche_termini`, card Home, `pages/pratiche/`, `core/moduli/pratiche/module.json`. **Dopo il push:** aprire `/pratiche` da admin (la voce compare da sola in Home e nel menu: `modules_router` la aggiunge al runtime); inserire a mano le 6 pratiche di sb (§6 del doc); Impostazioni → Notifiche: c'è «Pratiche» con soglia 3. **Ancora da verificare:** su iPhone, Vendite → 📷 Scansiona QR su un'etichetta stampata; stampa di prova delle etichette QR su QL-820NWB nei due formati. Checklist voci padre (mig 182): restano da riscrivere le voci di «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.44 · **Migrazione più recente:** 182
+**Sistema:** 5.45 · **Migrazione più recente:** 182
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,23 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-08 — Modulo Pratiche `[core]`
+
+Marco: implementare il modulo `pratiche` seguendo `docs/modulo_pratiche.md` (modello deciso il 2026-10-08). Punti aperti del §7 confermati: «vai coi default» (termine solo da passo, preavviso 3 giorni, riapertura possibile, un allegato per passo max 20 MB PDF/immagini).
+
+- **Backend:** `app/models/pratiche_db.py` (`pratiche.sqlite3`, schema al boot), `app/services/pratiche_service.py` (tutta la logica, senza Request: `crea_pratica`, `aggiungi_passo`, `chiudi`, `riapri`, `sposta_termine`, `collega`, `scollega`, `elenco`, `leggi`, più `aggiorna_testata`, `percorso_allegato`, `contatori`, `termini_da_avvisare`), `app/routers/pratiche_router.py` (prefix `/pratiche`, `solo_admin` su tutto il router, manifesto in testa), montato in `main.py` con `_mount`.
+- **Avviso:** checker `pratiche_termini` in `alert_engine.py`; riga `alert_config` (3 giorni, 24 ore) creata da `init_notifiche_db` con INSERT OR IGNORE; etichetta in `alerts_router.CHECKER_LABELS` e in `NotificheImpostazioni.jsx`.
+- **Home:** `dashboard_router._pratiche_summary` aggiunto a `moduli[]` solo per admin.
+- **Permessi FE:** `pratiche` in `DEFAULT_MODULES` e nel seed `app/data/modules.json`; `modules_router._aggiungi_moduli_nuovi` lo aggiunge al runtime del VPS se manca (il seed sul VPS non è in git). Route con `roles={["admin"]}`.
+- **Frontend:** `pages/pratiche/PraticheElenco.jsx`, `PraticaScheda.jsx`, `praticheUtils.js`; voce 📂 in `modulesMenu.js`; fallback card in `Home.jsx`.
+- **Versioni:** `VERSION` e `sistema.version` 5.45, voce `pratiche` 1.0. Manifesto `core/moduli/pratiche/module.json`. Docs: Capability C-P-001…012 in `modulo_pratiche.md`, `index.md`, `roadmap.md` (sezione PRT), `changelog.md`, `CLAUDE.md` (14 moduli), `refactor_monorepo.md` (tabella R8).
+- **Prove:** service su DB temporaneo (31 casi: scaduta/ferma calcolate, tre gruppi del checker, errori, chiusura/riapertura, backfill, collegamenti); router con TestClient (multipart, download, 400/404, 403 per contabile/viewer/sala, superadmin ok); checker in dry-run; build Vite ok. UI non provata nel browser.
+- **Nessun dato inserito:** le 6 pratiche aperte le mette Marco dalla UI.
+
+Commit: `./push.sh "[core] Pratiche: modulo nuovo — stati, termini, passi, allegati, avviso e card Home (pratiche 1.0, sistema 5.45)"`
+
+---
 
 ## SESSIONE 2026-10-06 (2) — Scarico da fotocamera in Vendite `[core]`
 

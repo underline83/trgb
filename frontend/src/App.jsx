@@ -90,6 +90,9 @@ const VistaMensile = lazy(() => import("./pages/dipendenti/VistaMensile"));
 const PerDipendente = lazy(() => import("./pages/dipendenti/PerDipendente"));
 const MieiTurni = lazy(() => import("./pages/dipendenti/MieiTurni"));
 const TodoBoard = lazy(() => import("./pages/TodoBoard"));
+// PRATICHE — modulo pratiche (2026-10-08), solo admin/superadmin
+const PraticheElenco = lazy(() => import("./pages/pratiche/PraticheElenco"));
+const PraticaScheda = lazy(() => import("./pages/pratiche/PraticaScheda"));
 const GestioneReparti = lazy(() => import("./pages/dipendenti/GestioneReparti"));
 const DipendentiImpostazioni = lazy(() => import("./pages/dipendenti/DipendentiImpostazioni"));
 const DipendentiCosti = lazy(() => import("./pages/dipendenti/DipendentiCosti"));
@@ -482,6 +485,10 @@ export default function App() {
         <Route path="/todo/board" element={<TodoBoard />} />
         {/* Redirect vecchi path admin */}
         <Route path="/admin/dipendenti/*" element={<Navigate to="/dipendenti" replace />} />
+
+        {/* --- PRATICHE (enti, fornitori, studi, creditori) — solo admin --- */}
+        <Route path="/pratiche" element={<ProtectedRoute module="pratiche" roles={["admin"]}><PraticheElenco /></ProtectedRoute>} />
+        <Route path="/pratiche/:id" element={<ProtectedRoute module="pratiche" roles={["admin"]}><PraticaScheda /></ProtectedRoute>} />
 
         {/* --- GESTIONE CLIENTI CRM --- */}
         <Route path="/clienti" element={

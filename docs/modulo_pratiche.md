@@ -1,6 +1,6 @@
 # Modulo Pratiche — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** proposta, non implementato — modello deciso con Marco il 2026-10-08, da approvare prima del codice · **Ultima verifica:** 2026-10-08
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (pratiche 1.0, sistema 5.45) · **Ultima verifica:** 2026-10-08
 > **Vedi anche:** [architettura_mattoni.md](architettura_mattoni.md) (M.A notifiche, M.F alert, M.G permessi, M.I UI), [modulo_preventivi.md](modulo_preventivi.md), [modulo_controllo_gestione.md](modulo_controllo_gestione.md), [pec_archivio_spec.md](pec_archivio_spec.md), [refactor_monorepo.md](refactor_monorepo.md)
 
 **Classificazione:** `[core]`. Ogni ristorante ha pratiche aperte con enti, fornitori, studi e creditori. I contenuti di Tre Gobbi sono dati del locale, non codice.
@@ -105,8 +105,8 @@ Togliere un collegamento cancella la riga e lascia un passo automatico («scolle
 | GET | `/pratiche/` | elenco; filtri `stato`, `scadute`, `ferme`, `q` (titolo e controparte), `chiuse` (default no) |
 | POST | `/pratiche/` | nuova pratica: titolo, controparte, contatto, stato iniziale, termine, `aperta_il`, testo del primo passo e allegato facoltativo |
 | GET | `/pratiche/{id}` | pratica con i passi (dal più recente) e i collegamenti |
-| PATCH | `/pratiche/{id}` | corregge titolo, controparte e contatto. Il termine non si cambia qui, ma con un passo, così resta nella storia |
-| POST | `/pratiche/{id}/passi` | il gesto di tutti i giorni (multipart): `testo`, `data`, `stato_a` facoltativo, `termine_a` facoltativo (anche «nessun termine»), `esito` (obbligatorio se `stato_a = chiusa`), `allegato` facoltativo. Chiudere e riaprire passano da qui |
+| PATCH | `/pratiche/{id}` | corregge titolo, controparte e contatto. Il termine non si cambia qui, ma con un passo, così resta nella storia (campi in più nel corpo sono ignorati) |
+| POST | `/pratiche/{id}/passi` | il gesto di tutti i giorni (multipart): `testo`, `data`, `stato_a` facoltativo, `termine_a` facoltativo, `togli_termine=true` per «nessun termine», `esito` (obbligatorio se `stato_a = chiusa`), `allegato` facoltativo. Chiudere e riaprire passano da qui |
 | GET | `/pratiche/{id}/passi/{passo_id}/allegato` | scarica l'allegato |
 | POST | `/pratiche/{id}/collegamenti` | aggiunge un collegamento |
 | DELETE | `/pratiche/{id}/collegamenti/{cid}` | lo toglie e lascia un passo automatico |
@@ -127,7 +127,16 @@ Raccoglie tre gruppi:
 
 Manda una notifica sola, con la stessa forma del checker `dipendenti_scadenze`. Esempio: «Pratiche: 1 scaduta + 1 ferma», nel messaggio i primi 5 titoli con la controparte, link `/pratiche`, icona 📂.
 
-Per rispettare la regola 2 di `CLAUDE.md`, il checker legge `pratiche.sqlite3` attraverso una funzione del service del modulo, non importando il router.
+Per rispettare la regola 2 di `CLAUDE.md`, il checker legge `pratiche.sqlite3` attraverso una funzione del service del modulo (`termini_da_avvisare`), non importando il router. La riga di `alert_config` (soglia 3, anti-doppione 24 ore) la crea `init_notifiche_db` al boot, con `INSERT OR IGNORE`: niente migrazione numerata.
+
+### Come è fatto il codice (2026-10-08)
+
+- **Funzioni del service:** oltre alle nove del doc ci sono `aggiorna_testata` (PATCH), `percorso_allegato` (download), `contatori` (Home) e `termini_da_avvisare` (checker). Gli errori sono `PraticaErrore` (→ 400) e `PraticaNonTrovata` (→ 404). Ogni funzione accetta `oggi=` per i test.
+- **Validazioni nel service, non nella UI:** una pratica nasce solo «tocca a me» o «tocca a loro»; date in `AAAA-MM-GG`; `aperta_il` e la data di un passo non possono essere nel futuro; chiudere senza esito è un errore; il link di un collegamento deve iniziare con `/`.
+- **`ultimo_passo_il`** è la data più recente fra i passi, non quella dell'ultimo inserito: un passo retrodatato («PEC del 06/08») non sblocca una pratica ferma.
+- **Allegati** in `tenant_dir("pratiche")/<pratica_id>/<8 caratteri>_<nome>`; il download controlla che il file stia dentro quella cartella.
+- **Permessi frontend:** la voce `pratiche` di `modules.json` (solo admin e superadmin) entra nel runtime del VPS da sola: `modules_router._aggiungi_moduli_nuovi` aggiunge i moduli di `MODULI_DA_AGGIUNGERE` che mancano, senza toccare quelli presenti. Le route hanno anche `roles={["admin"]}`, così una modifica da Impostazioni non le apre a nessun altro: il backend resta comunque `solo_admin`.
+- **Home:** la card arriva in `moduli[]` solo se chi chiede è admin; badge rosso = numero di scadute.
 
 ---
 
@@ -176,10 +185,30 @@ Route `/pratiche` e `/pratiche/:id`, voce `pratiche` in `modulesMenu.js` (emoji 
 
 ---
 
-## 7. Punti ancora aperti
+## 7. Punti decisi al momento del codice
 
-Sono piccoli e hanno un default proposto: si decidono quando si scrive il codice.
+Marco, 2026-10-08: «vai coi default».
 
-- La soglia di preavviso è **3 giorni** (si cambia da `alert_config`, senza codice).
+- Il termine si sposta solo con un passo, mai dalla testata (PATCH).
+- La soglia di preavviso è **3 giorni** (si cambia da Impostazioni → Notifiche, senza codice).
 - È possibile riaprire una pratica chiusa: un passo con `stato_a` diverso da `chiusa` cancella `chiusa_il` ed `esito` dalla testata. La storia li conserva nei passi.
-- Allegati: solo un file per passo (per più file, più passi), massimo 20 MB, solo PDF e immagini.
+- Allegati: solo un file per passo (per più file, più passi), massimo 20 MB, solo PDF e immagini (jpg, png, heic, webp, gif).
+
+---
+
+## 8. Capability
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-P-001 | Elenco delle aperte in tre gruppi (Scadute / Tocca a me / Tocca a loro), per termine, con segno «ferma» | `pratiche_router.py:elenco_pratiche`, `PraticheElenco.jsx` | admin | ✅ |
+| C-P-002 | Elenco delle chiuse con ricerca per titolo e controparte | `pratiche_router.py:elenco_pratiche` (`stato=chiusa&q=`), `PraticheElenco.jsx` | admin | ✅ |
+| C-P-003 | Nuova pratica con primo passo, data di apertura anche passata, termine e allegato | `pratiche_router.py:nuova_pratica`, `pratiche_service.py:crea_pratica` | admin | ✅ |
+| C-P-004 | Scheda: testata con contatto tappabile (mail/tel), storia dei passi dal più recente | `pratiche_router.py:leggi_pratica`, `PraticaScheda.jsx` | admin | ✅ |
+| C-P-005 | Correzione di titolo, controparte e contatto (non stato né termine) | `pratiche_router.py:correggi_testata`, `pratiche_service.py:aggiorna_testata` | admin | ✅ |
+| C-P-006 | Nuovo passo: testo, data, cambio stato, nuovo termine o nessun termine, allegato | `pratiche_router.py:nuovo_passo`, `pratiche_service.py:aggiungi_passo` | admin | ✅ |
+| C-P-007 | Chiusura con esito obbligatorio e riapertura (testata pulita, storia intatta) | `pratiche_service.py:aggiungi_passo` / `chiudi` / `riapri` | admin | ✅ |
+| C-P-008 | Download dell'allegato di un passo | `pratiche_router.py:scarica_allegato` | admin | ✅ |
+| C-P-009 | Collegamento manuale a un oggetto di un altro modulo (modulo, tipo, id, etichetta, link) | `pratiche_router.py:nuovo_collegamento`, `pratiche_service.py:collega` | admin | ✅ |
+| C-P-010 | Scollegamento con passo automatico «Scollegata: …» | `pratiche_router.py:togli_collegamento`, `pratiche_service.py:scollega` | admin | ✅ |
+| C-P-011 | Avviso unico: scadute + in scadenza entro 3 giorni + ferme da 30 giorni senza termine | `alert_engine.py:_check_pratiche_termini` | admin | ✅ |
+| C-P-012 | Card Home «N aperte · M scadute», badge rosso sulle scadute | `dashboard_router.py:_pratiche_summary`, `Home.jsx` | admin | ✅ |

@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.models.clienti_db import get_clienti_conn
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import ha_ruoli, richiede_ruoli
 from app.models.foodcost_db import get_foodcost_connection
 from app.models.dipendenti_db import get_dipendenti_conn
 from app.services.auth_service import get_current_user
@@ -1472,6 +1472,30 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     return summaries
 
 
+def _pratiche_summary() -> ModuloSummary:
+    """Card Pratiche: «N aperte · M scadute», badge rosso sulle scadute.
+    Legge via service del modulo (regola 4 di CLAUDE.md). Solo admin la riceve."""
+    try:
+        from app.services.pratiche_service import contatori
+        c = contatori()
+        line1 = f"{c['aperte']} apert{'a' if c['aperte'] == 1 else 'e'}"
+        if c["scadute"]:
+            line1 += f" · {c['scadute']} scadut{'a' if c['scadute'] == 1 else 'e'}"
+        parti = []
+        if c["tocca_a_me"]:
+            parti.append(f"{c['tocca_a_me']} tocca a me")
+        if c["ferme"]:
+            parti.append(f"{c['ferme']} ferm{'a' if c['ferme'] == 1 else 'e'}")
+        return ModuloSummary(
+            key="pratiche", line1=line1,
+            line2=" · ".join(parti) if parti else "Enti, fornitori, studi, creditori",
+            badge=c["scadute"],
+        )
+    except Exception as e:
+        logger.warning(f"Dashboard: contatori pratiche non disponibili: {e}")
+        return ModuloSummary(key="pratiche", line1="Pratiche", line2="")
+
+
 # ─────────────────────────────────────────────────────────
 # ENDPOINT
 # ─────────────────────────────────────────────────────────
@@ -1529,6 +1553,9 @@ def get_dashboard_home(current_user=Depends(get_current_user)):
         alerts=_alerts(oggi_str),
         moduli=_moduli_summary(oggi_str, prenotazioni, incasso, fatture, coperti),
     )
+    # Pratiche: contenuti riservati (pignoramenti, contenziosi) → solo admin.
+    if ha_ruoli(current_user, "admin"):
+        response.moduli.append(_pratiche_summary())
 
     # ── Trigger Alert Engine M.F (fire-and-forget) ──
     # Esegue i checker e crea notifiche se necessario.

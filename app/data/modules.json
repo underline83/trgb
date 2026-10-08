@@ -790,6 +790,16 @@
     ]
   },
   {
+    "key": "pratiche",
+    "label": "Pratiche",
+    "description": "Pratiche aperte con enti, fornitori, studi e creditori",
+    "icon": "📂",
+    "roles": [
+      "superadmin",
+      "admin"
+    ]
+  },
+  {
     "key": "impostazioni",
     "label": "Impostazioni",
     "description": "Utenti, ruoli, configurazione sistema",

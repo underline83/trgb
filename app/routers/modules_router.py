@@ -201,11 +201,39 @@ DEFAULT_MODULES = [
         ],
     },
     {
+        # Modulo pratiche (2026-10-08): pignoramenti, creditori, contenziosi → solo admin.
+        "key": "pratiche", "label": "Pratiche", "icon": "\U0001f4c2",
+        "description": "Pratiche aperte con enti, fornitori, studi e creditori",
+        "roles": ["superadmin", "admin"],
+    },
+    {
         "key": "impostazioni", "label": "Impostazioni", "icon": "\u2699\ufe0f",
         "description": "Utenti, ruoli, configurazione sistema",
         "roles": ["superadmin", "admin"],
     },
 ]
+
+
+# Moduli nati dopo il primo deploy: se il runtime (o il seed sul VPS, che non
+# e' in git) non li ha, _load() li aggiunge da DEFAULT_MODULES. Si aggiungono
+# soltanto: una voce gia' presente non si tocca, i ruoli scelti da UI restano.
+MODULI_DA_AGGIUNGERE = ("pratiche",)
+
+
+def _aggiungi_moduli_nuovi(data: list) -> bool:
+    """Aggiunge a `data` (prima di «impostazioni») i moduli mancanti. True se ha cambiato qualcosa."""
+    presenti = {m.get("key") for m in data}
+    cambiato = False
+    for key in MODULI_DA_AGGIUNGERE:
+        if key in presenti:
+            continue
+        nuovo = next((dict(m) for m in DEFAULT_MODULES if m["key"] == key), None)
+        if not nuovo:
+            continue
+        idx = next((i for i, m in enumerate(data) if m.get("key") == "impostazioni"), len(data))
+        data.insert(idx, nuovo)
+        cambiato = True
+    return cambiato
 
 
 def _load() -> list:
@@ -236,6 +264,7 @@ def _load() -> list:
                 seed = json.load(f)
         except Exception:
             seed = DEFAULT_MODULES
+        _aggiungi_moduli_nuovi(seed)
         _save(seed)
         _write_applied_hash(seed_h)
         return seed
@@ -243,7 +272,10 @@ def _load() -> list:
     # Caso 2: runtime esiste e seed non e' cambiato → usa runtime
     if MODULES_FILE.exists():
         with open(MODULES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        if _aggiungi_moduli_nuovi(data):
+            _save(data)
+        return data
 
     # Caso 3: niente runtime ne' seed → fallback hardcoded
     _save(DEFAULT_MODULES)

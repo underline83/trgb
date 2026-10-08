@@ -161,6 +161,8 @@ def init_notifiche_db() -> None:
         ("cg_scadenze_imminenti", 7, 12, "Pagamenti urgenti (≤7gg)"),
         ("cg_scadenze_avvicinamento", 15, 24, "Pagamenti in avvicinamento (≤15gg)"),
         ("cg_scadenze_pianificazione", 30, 48, "Pagamenti in pianificazione (≤30gg)"),
+        # Modulo pratiche (2026-10-08): preavviso di 3 giorni sul termine.
+        ("pratiche_termini", 3, 24, "Pratiche: termini e ferme"),
     ]:
         cur.execute("""
             INSERT OR IGNORE INTO alert_config (checker, soglia_giorni, antidup_ore)

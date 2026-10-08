@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-08 — Pratiche: modulo nuovo `[core]`
+
+Pratiche 1.0, sistema 5.45. Nuovo modulo **📂 Pratiche** (`/pratiche`, solo admin e superadmin) per gli scambi formali con enti, fornitori, studi e creditori che aspettano un esito. Tre stati: **tocca a me**, **tocca a loro**, **chiusa** (con esito obbligatorio). Un termine facoltativo: oltre il termine la pratica si mostra «scaduta» ma resta nel suo stato; senza termine e senza passi da 30 giorni è «ferma». La storia è fatta di **passi** che non si modificano né si cancellano: ogni cambio di stato o di termine è un passo datato, anche retrodatato, con un allegato facoltativo (PDF o immagine, max 20 MB). Collegamenti a mano verso altri moduli (uscite, fatture, dipendenti…). Elenco in tre gruppi (Scadute / Tocca a me / Tocca a loro) più le chiuse con ricerca; scheda con riquadro «Nuovo passo» pensata per l'iPhone. Avviso M.F `pratiche_termini` (scadute + in scadenza entro 3 giorni + ferme, una notifica sola, anti-doppione 24 ore) e card in Home «N aperte · M scadute». DB separato `pratiche.sqlite3`, schema creato al boot: nessuna migrazione numerata. Logica tutta in `pratiche_service.py`, pronta per il connettore MCP. Provato su DB temporaneo (service e router). Doc: [`modulo_pratiche.md`](modulo_pratiche.md).
+
+---
+
 ## 2026-10-06 — Vini: scarico da fotocamera in Vendite `[core]`
 
 Vini 3.93. In **Vendite → Registra vendita** c'è «📷 Scansiona QR»: si apre la fotocamera posteriore, si inquadra l'etichetta della bottiglia e il vino è selezionato; se la bottiglia è in un solo posto la locazione è già impostata, resta da premere «Registra». QR non TRGB o vino inesistente → messaggio d'errore; giacenza 0 → avviso. Lo scanner è un componente riusabile (`components/QrScanner.jsx`): BarcodeDetector dove il browser lo ha, altrimenti jsQR copiato in repo (iPhone/Safari). Provato in Chromium con fotocamera simulata.

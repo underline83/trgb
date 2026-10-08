@@ -138,6 +138,10 @@ from app.routers.cucina_scorte_router import router as cucina_scorte_router
 # CARTA BEVANDE — sub-modulo del modulo Vini (Aperitivi, Birre, Distillati, Tisane, Tè, Amari)
 from app.routers.bevande_router import router as bevande_router
 
+# PRATICHE — pratiche aperte con enti, fornitori, studi e creditori (2026-10-08)
+# Doc: docs/modulo_pratiche.md
+from app.routers.pratiche_router import router as pratiche_router
+
 # R8b — module loader: feature flags per locale.
 # Legge locali/<TRGB_LOCALE>/moduli_attivi.json + core/moduli/<id>/module.json
 # per decidere quali router montare. Default backward-compat: tutti attivi.
@@ -767,6 +771,9 @@ _mount("cucina_scorte_router", cucina_scorte_router)
 
 # CARTA BEVANDE — sub-modulo Vini
 _mount("bevande_router", bevande_router)
+
+# PRATICHE (modulo pratiche) — schema creato all'import del router (init_pratiche_db)
+_mount("pratiche_router", pratiche_router)
 
 
 # Banner finale del module loader

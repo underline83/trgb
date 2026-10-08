@@ -1,0 +1,22 @@
+{
+  "id": "pratiche",
+  "nome": "Pratiche",
+  "versione": "1.0",
+  "descrizione": "Pratiche aperte con enti, fornitori, studi e creditori: stato, termine, storia dei passi, allegati, avvisi",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "notifiche", "alert", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["controllo_gestione", "dipendenti", "clienti", "acquisti"],
+  "router_files": [
+    "pratiche_router"
+  ],
+  "endpoint_prefix": [
+    "/pratiche"
+  ],
+  "tabelle_db": [
+    "pratiche",
+    "pratiche_passi",
+    "pratiche_collegamenti"
+  ],
+  "frontend_route": ["/pratiche"],
+  "frontend_menu_key": "pratiche"
+}

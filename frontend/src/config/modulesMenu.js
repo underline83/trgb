@@ -169,6 +169,12 @@ const MODULES_MENU = {
       { label: "Impostazioni",  go: "/dipendenti/impostazioni",  check: "admin" },
     ],
   },
+  // Pratiche (2026-10-08): enti, fornitori, studi, creditori. Solo admin.
+  pratiche: {
+    title: "Pratiche", icon: "\uD83D\uDCC2", go: "/pratiche", check: "admin",
+    color: "bg-yellow-50 border-yellow-200 text-yellow-900", hoverBg: "hover:bg-yellow-50",
+    sub: [],
+  },
   impostazioni: {
     title: "Impostazioni", icon: "\u2699\uFE0F", go: "/impostazioni",
     color: "bg-neutral-50 border-neutral-300 text-neutral-800", hoverBg: "hover:bg-neutral-100",

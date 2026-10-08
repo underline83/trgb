@@ -399,6 +399,15 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  pratiche: {
+    // 1.0 (2026-10-08): nascita. Elenco Scadute / Tocca a me / Tocca a loro,
+    //   scheda con storia dei passi, nuovo passo (stato, termine, allegato),
+    //   collegamenti manuali ad altri moduli, avviso pratiche_termini.
+    version: "1.0",
+    label: "Pratiche",
+    status: "beta",
+    color: "blue",
+  },
   haccp: {
     version: "1.0",
     label: "Report HACCP",
@@ -485,12 +494,15 @@ const MODULE_VERSIONS = {
     //   NB: il file VERSION era rimasto a 5.39 mentre qui c'era 5.40 — riallineati.
     // 5.40 (2026-08-03): canale email configurabile dal gestionale
     //   (Impostazioni Sistema → Email), password cifrata, .env come fallback.
+    // 5.45 (2026-10-08): modulo nuovo «pratiche» — pratiche.sqlite3 (schema al
+    //   boot, niente migrazione numerata), router /pratiche (solo admin),
+    //   checker M.F pratiche_termini, card Home. Doc: docs/modulo_pratiche.md.
     // 5.44 (2026-10-04): mig 182 — checklist_item.gruppo: voce padre con
     //   sotto-voci nelle checklist (Task Manager 1.5, Linea Antipasti).
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.44",
+    version: "5.45",
     label: "Sistema",
     status: "stabile",
     color: "green",

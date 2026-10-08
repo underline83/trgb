@@ -59,9 +59,9 @@ TRGB è strutturato come **monolite modulare con feature flags per locale**. Cli
 
 ### I moduli vendibili (mappa attuale)
 
-13 moduli + platform. Vedi tabella in `docs/refactor_monorepo.md` §3 R8 per dettagli (id, nome utente, tabelle DB, endpoint prefix):
+14 moduli + platform. Vedi tabella in `docs/refactor_monorepo.md` §3 R8 per dettagli (id, nome utente, tabelle DB, endpoint prefix):
 
-`vini`, `ricette`, `acquisti`, `controllo_gestione`, `banca`, `dipendenti`, `prenotazioni`, `clienti`, `cassa`, `menu_carta`, `cucina`, `task_manager`, `statistiche`.
+`vini`, `ricette`, `acquisti`, `controllo_gestione`, `banca`, `dipendenti`, `prenotazioni`, `clienti`, `cassa`, `menu_carta`, `cucina`, `task_manager`, `statistiche`, `pratiche` (dal 2026-10-08).
 
 **Platform** (sempre inclusa, non vendibile da sola): auth + utenti + M.A notifiche + M.B PDF + M.C WA + M.D email + M.E calendar + M.F alert + M.G permessi + M.H import + M.I UI primitives.
 
@@ -71,7 +71,7 @@ Da rispettare per OGNI feature nuova, anche prima di R8:
 
 1. **Ogni feature appartiene a UN modulo dichiarato.** All'inizio del file backend o del componente frontend, dichiarare in commento: `# Modulo: vini` o `// Modulo: cucina`. Se non sai a quale modulo appartiene, CHIEDI a Marco prima di scrivere.
 2. **Niente import diretti tra router di moduli diversi.** `app/routers/vini_router.py` non importa da `app/routers/foodcost_router.py`. Se serve dato cross-modulo, passare via servizio platform (`app/services/`) o via evento.
-3. **Tabelle DB iniziano col prefisso del modulo.** `vini_*`, `dipendenti_*`, `cg_*` (Controllo Gestione), `pranzo_*`, `menu_carta_*`, `cucina_*`, `lista_spesa_*`, `tasks_*`. Tabelle generiche cross-modulo (es. `audit_log`, `notifiche`, `users`) vivono in platform.
+3. **Tabelle DB iniziano col prefisso del modulo.** `vini_*`, `dipendenti_*`, `cg_*` (Controllo Gestione), `pranzo_*`, `menu_carta_*`, `cucina_*`, `lista_spesa_*`, `tasks_*`, `pratiche*`. Tabelle generiche cross-modulo (es. `audit_log`, `notifiche`, `users`) vivono in platform.
 4. **Comunicazione cross-modulo via servizi platform o eventi.** Se modulo A ha bisogno di dato del modulo B, NON chiamare direttamente l'altro modulo: o si passa via un servizio platform condiviso, o via evento (`crea_notifica`, `import_engine`, ecc.). Eccezione: il modulo cross-aggregatore `statistiche` può leggere dati di altri moduli read-only.
 5. **Ogni modulo ha (o avrà a R8) un `module.json` di manifesto** con: id, nome, versione, dipendenze platform, dipendenze opzionali, tabelle DB, endpoint prefix, frontend route. Pre-R8: scrivere queste informazioni in commento all'inizio del router principale del modulo, così a R8 si raccolgono in un sol colpo.
 
@@ -210,6 +210,7 @@ La riga «Ultimo aggiornamento» contiene SOLO: cosa è da pushare adesso, cosa 
 - `cucina` → `docs/modulo_cucina.md` (oggi copre anche `task_manager` — split previsto in DH.5 della roadmap)
 - `task_manager` → oggi in `docs/modulo_cucina.md` §3+§4+§9+§10 (split previsto)
 - `statistiche` → `docs/modulo_statistiche.md`
+- `pratiche` → `docs/modulo_pratiche.md`
 
 Se non sai a quale `modulo_*.md` appartiene la capability, CHIEDI a Marco prima di scrivere.
 

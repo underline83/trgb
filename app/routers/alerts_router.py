@@ -102,6 +102,7 @@ CHECKER_LABELS = {
     "cg_scadenze_imminenti":      {"label": "Pagamenti urgenti",        "icon": "🔴", "desc": "Rate scadute non riconciliate + scadenze entro la soglia (default 7gg)"},
     "cg_scadenze_avvicinamento":  {"label": "Pagamenti in avvicinamento", "icon": "🟡", "desc": "Range esclusivo: oltre soglia 'urgenti', entro soglia avvicinamento (default 15gg)"},
     "cg_scadenze_pianificazione": {"label": "Pagamenti in pianificazione", "icon": "🔵", "desc": "Vista lunga: oltre soglia 'avvicinamento', entro soglia pianificazione (default 30gg)"},
+    "pratiche_termini": {"label": "Pratiche", "icon": "📂", "desc": "Pratiche scadute, in scadenza entro la soglia (default 3gg) e ferme da 30 giorni senza termine"},
 }
 
 

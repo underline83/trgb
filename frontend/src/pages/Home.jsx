@@ -33,6 +33,7 @@ const MODULE_FALLBACK = {
   prenotazioni:        { sub1: "Planning, mappa tavoli, settimana", sub2: "" },
   clienti:             { sub1: "Anagrafica, CRM, dashboard", sub2: "" },
   dipendenti:          { sub1: "Buste paga, turni, scadenze", sub2: "" },
+  pratiche:            { sub1: "Enti, fornitori, studi, creditori", sub2: "" },
   impostazioni:        { sub1: "Utenti, moduli, backup", sub2: "" },
 };
 

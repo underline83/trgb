@@ -258,6 +258,7 @@ function CheckerCard({ cfg, users, saving, onUpdate, onSave, onRun }) {
                 {cfg.checker === "cg_scadenze_imminenti" && "Pagamenti urgenti: scadenza ≤ N giorni + scadute non riconciliate"}
                 {cfg.checker === "cg_scadenze_avvicinamento" && "Pagamenti in avvicinamento: range esclusivo > soglia 'urgenti', ≤ N giorni"}
                 {cfg.checker === "cg_scadenze_pianificazione" && "Pagamenti in pianificazione: range esclusivo > soglia 'avvicinamento', ≤ N giorni"}
+                {cfg.checker === "pratiche_termini" && "Giorni di preavviso sul termine di una pratica (le scadute e le ferme si segnalano sempre)"}
               </p>
             </div>
             <div>

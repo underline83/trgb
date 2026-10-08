@@ -1093,3 +1093,74 @@ def _check_giftcard_scadenza(dry_run: bool = False, config: dict = None) -> Chec
         result.notified = 1
 
     return result
+
+
+# ═════════════════════════════════════════════
+# CHECKER: Pratiche scadute, in scadenza, ferme (modulo pratiche, 2026-10-08)
+# ═════════════════════════════════════════════
+
+@register_checker("pratiche_termini")
+def _check_pratiche_termini(dry_run: bool = False, config: dict = None) -> CheckResult:
+    """
+    Tre gruppi in una notifica sola (forma di `dipendenti_scadenze`):
+      1. scadute (termine passato, pratica aperta) → urgenza alta;
+      2. in scadenza entro `soglia_giorni` (default 3);
+      3. ferme: aperte, senza termine, senza passi da 30 giorni.
+    Il tempo non cambia lo stato della pratica: qui si avvisa e basta.
+    Legge pratiche.sqlite3 attraverso il service del modulo, non dal router
+    (regola 2 di CLAUDE.md). Doc: docs/modulo_pratiche.md §3.
+    """
+    from app.services.pratiche_service import termini_da_avvisare
+    cfg = config or _get_config("pratiche_termini")
+    soglia = int(cfg.get("soglia_giorni") if cfg.get("soglia_giorni") is not None else 3)
+    result = CheckResult(checker="pratiche_termini")
+
+    try:
+        gruppi = termini_da_avvisare(soglia_giorni=soglia)
+    except Exception as e:
+        result.error = str(e)
+        logger.exception(f"Checker pratiche_termini: {e}")
+        return result
+
+    scadute, in_scadenza, ferme = gruppi["scadute"], gruppi["in_scadenza"], gruppi["ferme"]
+    tutte = scadute + in_scadenza + ferme
+    result.found = len(tutte)
+    if result.found == 0:
+        return result
+
+    for nome, lista in (("scaduta", scadute), ("in_scadenza", in_scadenza), ("ferma", ferme)):
+        for p in lista:
+            result.details.append({
+                "id": p["id"], "titolo": p["titolo"], "controparte": p["controparte"],
+                "termine": p["termine"], "stato": nome,
+            })
+
+    if dry_run:
+        result.skipped = result.found
+        return result
+
+    if _notifica_recente_esiste("alert_pratiche_termini", ore=cfg["antidup_ore"]):
+        result.skipped = result.found
+        return result
+
+    parti = []
+    if scadute:
+        parti.append(f"{len(scadute)} scadut{'a' if len(scadute) == 1 else 'e'}")
+    if in_scadenza:
+        parti.append(f"{len(in_scadenza)} in scadenza")
+    if ferme:
+        parti.append(f"{len(ferme)} ferm{'a' if len(ferme) == 1 else 'e'}")
+
+    _send_notification(cfg,
+        tipo="alert_pratiche_termini",
+        titolo=f"Pratiche: {' + '.join(parti)}",
+        messaggio=", ".join(
+            f"{p['titolo']} ({p['controparte']})" for p in tutte[:5]
+        ) + ("..." if len(tutte) > 5 else ""),
+        link="/pratiche",
+        icona="📂",
+        urgenza="alta" if scadute else "normale",
+        modulo="pratiche",
+    )
+    result.notified = 1
+    return result
