@@ -116,11 +116,12 @@ export default function DipendentiAnagrafica() {
   }, []);
   useEffect(() => { loadUtenti(); }, [loadUtenti]);
 
-  // Colori già in uso (per segnalare conflitti)
+  // Colori già in uso (per segnalare conflitti) — solo dipendenti ATTIVI:
+  // un inattivo non occupa il colore, che torna libero per i nuovi.
   const coloriUsati = React.useMemo(() => {
     const map = new Map();
     dipendenti.forEach(d => {
-      if (d.colore && d.id !== form.id) map.set(d.colore.toUpperCase(), d);
+      if (d.attivo && d.colore && d.id !== form.id) map.set(d.colore.toUpperCase(), d);
     });
     return map;
   }, [dipendenti, form.id]);
@@ -263,8 +264,8 @@ export default function DipendentiAnagrafica() {
     if (!confirm("Disattivare questo dipendente?")) return;
     try {
       await apiFetch(`${API_BASE}/dipendenti/${id}`, { method: "DELETE" });
-      setDipendenti(p => p.map(d => d.id === id ? { ...d, attivo: false } : d));
-      if (form.id === id) setForm(p => ({ ...p, attivo: false }));
+      setDipendenti(p => p.map(d => d.id === id ? { ...d, attivo: false, colore: null } : d));
+      if (form.id === id) setForm(p => ({ ...p, attivo: false, colore: "" }));
     } catch (e) { setError(e.message); }
   };
 

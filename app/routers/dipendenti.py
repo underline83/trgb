@@ -504,7 +504,8 @@ def create_dipendente(
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
                 payload.reparto_id,
-                payload.colore.strip() if payload.colore else None,
+                # Inattivo = colore liberato (come nel DELETE), cosi' si puo' riassegnare.
+                (payload.colore.strip() if payload.colore else None) if payload.attivo else None,
                 1 if payload.a_chiamata else 0,
                 1 if payload.is_amministratore else 0,
                 payload.codice_fiscale.strip().upper() if payload.codice_fiscale else None,
@@ -621,7 +622,8 @@ def update_dipendente(
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
                 payload.reparto_id,
-                payload.colore.strip() if payload.colore else None,
+                # Inattivo = colore liberato (come nel DELETE), cosi' si puo' riassegnare.
+                (payload.colore.strip() if payload.colore else None) if payload.attivo else None,
                 1 if payload.a_chiamata else 0,
                 1 if payload.is_amministratore else 0,
                 payload.codice_fiscale.strip().upper() if payload.codice_fiscale else None,

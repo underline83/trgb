@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-09 — Dipendenti: l'inattivo libera il colore `[core]`
+
+Dipendenti 2.34. Disattivare un dipendente dalla scheda (spunta «Dipendente attivo» tolta + Salva) ora azzera il colore come già faceva il tasto Disattiva: prima il colore restava occupato. Nella palette dell'anagrafica i colori degli inattivi non risultano più «già usati», quindi si possono riassegnare subito (vale anche per i 6 inattivi che oggi in DB hanno ancora un colore). Nessuna migrazione.
+
+---
+
 ## 2026-10-08 — Connettore MCP di claude.ai (mattone M.K) `[core]`
 
 Sistema 5.46, pratiche 1.1. TRGB diventa un **connettore personalizzato di claude.ai** su `https://<dominio>/mcp`: da qualsiasi chat (web, desktop, iPhone) Claude legge e scrive le pratiche. Si entra con OAuth 2.1, la pagina di autorizzazione chiede utente e PIN di TRGB (stesso blocco dopo i tentativi sbagliati del login) e accetta solo admin e superadmin. Accesso di un'ora, rinnovo di trenta giorni che ruota; un codice o un rinnovo riusato chiude l'autorizzazione. Se l'utente viene tolto o perde il ruolo, il token smette di funzionare alla chiamata dopo. Quattro strumenti: `pratiche_elenco`, `pratica_leggi`, `pratica_crea`, `pratica_passo`, che chiamano `pratiche_service` (nessuna logica copiata); i passi scritti dalla chat hanno autore `claude (<utente>)`. Prima di creare o chiudere Claude chiede conferma. Stesso processo del backend, DB `connettore.sqlite3` con schema al boot, dipendenza nuova `mcp==2.3.0`; se il pacchetto manca il gestionale parte lo stesso, senza `/mcp`. Revoca: `scripts/connettore.py`. Modello: il connettore del brain. Doc: [`connettore_mcp.md`](connettore_mcp.md).

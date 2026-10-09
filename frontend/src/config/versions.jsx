@@ -300,7 +300,10 @@ const MODULE_VERSIONS = {
     //   lavorate per dipendente incrociate col registro invii (lavorato vs
     //   comunicato), export CSV per il consulente. Solo lettura, nessuna
     //   migrazione. Vedi modulo_intermittenti.md C-D-210.
-    version: "2.33",
+    // 2.34 (2026-10-09): un dipendente INATTIVO libera il colore anche quando
+    //   lo si disattiva dalla scheda (salva), non solo col tasto Disattiva; la
+    //   palette non conta piu' come "gia' usati" i colori degli inattivi.
+    version: "2.34",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
