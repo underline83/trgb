@@ -1,4 +1,6 @@
-// @version: v1.5-accisa — campo accisa_bottiglia (mig 184) nel riquadro calcolo.
+// @version: v1.6 — pulsante «🧮 Parametri prezzo» su tutte le sezioni editabili
+//   (prima solo dove calcolo_prezzo esisteva già): il calcolo si accende da UI.
+// v1.5-accisa — campo accisa_bottiglia (mig 184) nel riquadro calcolo.
 // v1.4-calcolo-prezzo — riquadro «Calcolo prezzo» nel form voce
 // (costo bottiglia IVA esclusa, formato, dose → costo a dose, prezzo suggerito,
 // incidenza), colonna costo/incidenza in tabella, filtro «sopra obiettivo»,
@@ -454,7 +456,7 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
           </Btn>
           {!isViniSection && (
             <>
-              {isEditor && sezione.calcolo_prezzo && (
+              {isEditor && (
                 <Btn variant="secondary" size="md" onClick={() => setParamOpen(true)}>
                   🧮 Parametri prezzo
                 </Btn>

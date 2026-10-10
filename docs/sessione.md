@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: campo accisa nel calcolo prezzo (mig 184, sistema 5.48, vini 3.95)** — mig 184, `bevande_prezzi_service.py` 1.1, `bevande_router.py` 1.5, `bevande_db.py` 1.5, `CalcoloPrezzoBox.jsx` 1.1, `CartaSezioneEditor.jsx` 1.5. **Dopo il push:** riaprire le due grappe Marolo e separare l'accisa (12 anni 40,86 + 3,67 · 9 anni 37,49 + 3,68); impostare il costo tonica del G&T in «🧮 Parametri prezzo».
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: calcolo prezzo su Amari & Liquori (mig 185, sistema 5.49, vini 3.96)** — mig 185, `CartaSezioneEditor.jsx` 1.6. **Dopo il push:** riaprire le due grappe Marolo e separare l'accisa (12 anni 40,86 + 3,67 · 9 anni 37,49 + 3,68); costo tonica del G&T in «🧮 Parametri prezzo» dei Distillati; controllare dose amari (4 cl di default).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.48 · **Migrazione più recente:** 184
+**Sistema:** 5.49 · **Migrazione più recente:** 185
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,18 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-10 (3) — Calcolo prezzo su Amari & Liquori `[core]`
+
+Marco: «mettimi la gestione del prezzo anche per la sezione amari e liquori».
+
+- Mig 185: `calcolo_prezzo` attivo su `amari_liquori` con i default dei distillati, senza miscelati (la sezione non ha tipologia). Solo se vuoto.
+- `CartaSezioneEditor` 1.6: «🧮 Parametri prezzo» visibile ad admin/sommelier in ogni sezione editabile, così le prossime si accendono da UI.
+- Prove su copia del DB: mig 183→185, calcolo e costo su una voce amari, 185 rieseguita senza effetti; JSX esbuild ok.
+
+Commit: `./push.sh "[core] Carta Bevande: calcolo prezzo anche su Amari & Liquori, parametri prezzo su tutte le sezioni (mig 185, vini 3.96, sistema 5.49)"`
+
+---
 
 ## SESSIONE 2026-10-10 (2) — Carta Bevande: campo accisa `[core]`
 

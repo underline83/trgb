@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-10 — Carta Bevande: calcolo prezzo anche su Amari & Liquori `[core]`
+
+Vini 3.96, sistema 5.49, mig 185. Il riquadro «🧮 Calcolo prezzo» (costo, accisa, formato, dose → suggerito e incidenza) c'è anche nella sezione **Amari & Liquori**, con gli stessi default dei distillati (25%, 70 cl, 4 cl). Il pulsante «🧮 Parametri prezzo» ora compare in tutte le sezioni per admin e sommelier: il calcolo si accende da lì su qualsiasi altra sezione, senza codice.
+
+---
+
 ## 2026-10-10 — Carta Bevande: campo accisa nel calcolo prezzo `[core]`
 
 Vini 3.95, sistema 5.48, mig 184. Nel riquadro «🧮 Calcolo prezzo» c'è il campo **Accisa €** accanto al costo bottiglia: il fornitore la mette su una riga a parte della fattura e ora si inserisce così com'è, il calcolo somma da solo bottiglia + accisa (il totale compare sotto il costo a dose). Riservata come il costo: admin, sommelier e sala, mai in carta. Provato su copia del DB.
