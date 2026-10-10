@@ -9,6 +9,12 @@ Dal connettore MCP (8/10) ogni push restava fermo circa un minuto e mezzo a «Pu
 
 ---
 
+## 2026-10-10 — Vini su iPratico: codice anche nello SKU `[core]`
+
+Vini 4.0. Il numero del vino resta in testa al nome (in sala lo leggono), ma l'export lo scrive anche nella colonna **SKU** (`0123`). Upload ed export riconoscono il vino prima dallo SKU, poi dal nome: se qualcuno ritocca a mano il nome in iPratico il collegamento resta e TRGB rimette il nome giusto. Chip «SKU agg.» nell'esito. Provato sull'export iPratico delle 14:53: al primo giro cambia solo lo SKU dei 1.391 vini abbinati, bevande invariate. Nessuna migrazione.
+
+---
+
 ## 2026-10-10 — Bevande su iPratico: codice nello SKU `[core]`
 
 Vini 3.99. Il codice delle bevande (B0123) non sta più nel nome del prodotto iPratico ma nella colonna **SKU**: sul tablet resta solo «produttore nome». I prodotti già importati con il codice nel nome vengono riconosciuti, ripuliti e lo SKU compilato (provato sull'export iPratico delle 14:44: 98 bevande, cambiano solo Name e SKU, stessi Id, nessuna riga nuova). Se iPratico perdesse lo SKU, le bevande si riconoscono dal nome nelle loro categorie. Nessuna migrazione.

@@ -1,5 +1,6 @@
 // @version: v2.1-embeddable — aggiunta prop `embedded` per usarlo dentro ViniImpostazioni (sessione 39)
 // Pagina sincronizzazione iPratico — workflow lineare senza tab
+// v2.2 (2026-10-10): chip «SKU agg.» — anche i vini hanno il codice nello SKU.
 // v2.1 (2026-10-10): riquadro «Carta Bevande su iPratico» (categorie per sezione,
 //   anteprima voci) + conteggi bevande nell'esito dell'export (header X-Bevande-Sync).
 //   Le voci bevande hanno il codice B0123 nella colonna SKU (v2.2: non più nel nome);
@@ -609,6 +610,7 @@ function ExportSection() {
         name: resp.headers.get("X-Updated-Name") || "0",
         matched: resp.headers.get("X-Total-Matched") || "0",
         added: resp.headers.get("X-Added-Missing") || "0",
+        sku: resp.headers.get("X-Updated-Sku") || "0",
         bev: (() => { try { return JSON.parse(resp.headers.get("X-Bevande-Sync") || "null"); } catch { return null; } })(),
       });
       fileRef.current.value = "";
@@ -649,6 +651,7 @@ function ExportSection() {
           <StatChip label="Nomi agg." val={result.name} color="text-violet-700" />
           <StatChip label="Prezzi agg." val={result.price} color="text-amber-700" />
           <StatChip label="Vini aggiunti" val={result.added} color="text-rose-600" />
+          <StatChip label="SKU agg." val={result.sku} color="text-neutral-600" />
           <span className="text-emerald-600 font-medium self-center">✓ Scaricato</span>
         </div>
       )}

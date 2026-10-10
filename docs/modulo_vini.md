@@ -618,11 +618,11 @@ Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
 
 ---
 
-# 7. Sincronizzazione iPratico — `ipratico_products_router.py` v2.1
+# 7. Sincronizzazione iPratico — `ipratico_products_router.py` v2.2
 
 ## 7.1 Logica chiave
 
-- Il codice 4 cifre nel campo Name iPratico = `vini_magazzino.id` (match diretto, ~99.7%)
+- Il codice 4 cifre nel campo Name iPratico = `vini_magazzino.id` (match diretto, ~99.7%). Dal 2026-10-10 (v2.2) lo stesso codice sta anche nella colonna **SKU** (`0123`): il riconoscimento prova prima lo SKU e poi il nome, così un nome ritoccato a mano in iPratico non perde il collegamento. Il numero nel nome resta perché in sala lo leggono.
 - TRGB ha priorità: se un vino cambia su TRGB, l'export aggiorna nome/giacenza/prezzo su iPratico
 - L'export aggiunge automaticamente vini TRGB mancanti con campi default configurabili (Family, reparti, listini, prezzi)
 

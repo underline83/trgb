@@ -1,4 +1,6 @@
-# @version: v2.1-bevande — anche le voci della Carta Bevande vanno su iPratico
+# @version: v2.2-sku-vini — anche i vini hanno il codice nello SKU (0123), oltre che in
+#   testa al nome (lo leggono i ragazzi): il riconoscimento prova prima lo SKU, poi il nome.
+# v2.1-bevande — anche le voci della Carta Bevande vanno su iPratico
 #   (codice «B0123» nella colonna SKU — v1.1 del service —, categorie per sezione): stesso export dei vini,
 #   logica in app/services/ipratico_bevande_service.py. GET/PUT /bevande/ (mig 186).
 # v2.0-ipratico-trgb-priority
@@ -94,6 +96,27 @@ def _load_export_defaults() -> dict[str, str]:
         fc.close()
 
 
+_RE_SKU_VINO = re.compile(r"^\s*(\d{1,4})(?:\.0)?\s*$")
+
+
+def _wine_id_da_sku(sku) -> Optional[int]:
+    """SKU del vino: «0123» (o 123 se il foglio lo ha letto come numero)."""
+    if sku is None:
+        return None
+    if isinstance(sku, float):
+        if sku != sku:  # NaN da pandas
+            return None
+        sku = int(sku)
+    m = _RE_SKU_VINO.match(str(sku))
+    return int(m.group(1)) if m else None
+
+
+def _wine_id_da_riga(sku, name) -> Optional[int]:
+    """Prima lo SKU (resiste a un nome ritoccato a mano in iPratico), poi il nome."""
+    wid = _wine_id_da_sku(sku)
+    return wid if wid is not None else _extract_wine_id(str(name or ""))
+
+
 def _extract_wine_id(name: str) -> Optional[int]:
     """Estrae il codice 4 cifre dal campo Name iPratico → corrisponde a vini_magazzino.id."""
     m = _RE_ID.match(name.strip())
@@ -184,9 +207,9 @@ async def upload_ipratico_export(file: UploadFile = File(...)):
     for _, row in bottiglie.iterrows():
         ipratico_uuid = str(row.get("Id", ""))
         name = str(row.get("Name", ""))
-        wine_id = _extract_wine_id(name)
+        wine_id = _wine_id_da_riga(row.get("SKU"), name)
 
-        # Match diretto: wine_id = vini_magazzino.id
+        # Match diretto: wine_id = vini_magazzino.id (SKU, poi codice nel nome)
         vino_id = wine_id if wine_id and wine_id in mag_ids else None
         status = "auto" if vino_id else "unmatched"
 
@@ -372,6 +395,7 @@ async def export_ipratico(file: UploadFile = File(...)):
     name_col = headers.get("Name")
     cat_col = headers.get("Category")
     qty_col = headers.get("Warehouse_quantity")
+    sku_col = headers.get("SKU")
 
     if not name_col or not cat_col:
         raise HTTPException(400, "Colonne Name/Category non trovate")
@@ -395,6 +419,7 @@ async def export_ipratico(file: UploadFile = File(...)):
     n_updated_qty = 0
     n_updated_price = 0
     n_updated_name = 0
+    n_updated_sku = 0
     n_matched = 0
     existing_wine_ids = set()  # Track wine IDs already in the file
 
@@ -404,7 +429,8 @@ async def export_ipratico(file: UploadFile = File(...)):
             continue
 
         name = str(ws.cell(row=row_idx, column=name_col).value or "")
-        wine_id = _extract_wine_id(name)
+        sku_val = ws.cell(row=row_idx, column=sku_col).value if sku_col else None
+        wine_id = _wine_id_da_riga(sku_val, name)
         if wine_id:
             existing_wine_ids.add(wine_id)
 
@@ -413,6 +439,11 @@ async def export_ipratico(file: UploadFile = File(...)):
 
         n_matched += 1
         trgb = mag_data[wine_id]
+
+        # 0. SKU = id a 4 cifre (chiave stabile, il nome lo leggono i ragazzi)
+        if sku_col and str(sku_val or "") != str(wine_id).zfill(4):
+            ws.cell(row=row_idx, column=sku_col).value = str(wine_id).zfill(4)
+            n_updated_sku += 1
 
         # 1. Update Name (TRGB priority — ricostruisci da TRGB)
         new_name = _build_ipratico_name(trgb)
@@ -459,6 +490,8 @@ async def export_ipratico(file: UploadFile = File(...)):
         # Campi obbligatori fissi
         ws.cell(row=new_row, column=cat_col).value = "Bottiglie"
         ws.cell(row=new_row, column=name_col).value = _build_ipratico_name(trgb)
+        if sku_col:
+            ws.cell(row=new_row, column=sku_col).value = str(wine_id).zfill(4)
 
         # Campi default dalla tabella configurabile
         for field_name, field_value in defaults.items():
@@ -512,6 +545,7 @@ async def export_ipratico(file: UploadFile = File(...)):
             "X-Updated-Name": str(n_updated_name),
             "X-Total-Matched": str(n_matched),
             "X-Added-Missing": str(n_added),
+            "X-Updated-Sku": str(n_updated_sku),
             "X-Bevande-Sync": bev_header,
         },
     )

@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: solo docs (override systemd del backend, push lento — sessione 7).** **Dopo il push bb3a8820 (bevande SKU, vini 3.99):** export dall'export iPratico più recente → import → riesportare da iPratico e verificare che lo SKU «B0123» sia rimasto (se sparisce, si riconosce dal nome, ma va saputo). Poi: IVA 10 nei Parametri prezzo, accisa grappe Marolo, costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: SKU anche sui vini iPratico (vini 4.0, nessuna migrazione)** — `ipratico_products_router.py` 2.2, `main.py` (expose `X-Updated-Sku`), `iPraticoSync.jsx`. Bevande su iPratico verificate (export 14:53: SKU conservato, nomi senza codice, stessi Id). **Dopo il push:** export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -32,6 +32,16 @@
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+## SESSIONE 2026-10-10 (7) — Vini iPratico: codice anche nello SKU `[core]`
+
+Marco: «per i vini lascialo anche nel nome (aiuta i ragazzi a riconoscerlo) però direi di metterlo anche in SKU».
+- `ipratico_products_router` 2.2: `_wine_id_da_sku` (accetta «0123» e 123 numerico), `_wine_id_da_riga` (SKU poi nome) usato da upload ed export; export scrive SKU sui vini abbinati e sui nuovi, header `X-Updated-Sku` (esposto in `main.py`). `iPraticoSync.jsx`: chip «SKU agg.».
+- Prove su copia DB con l'export delle 14:53 (`claude/export_ipratico_20261010_1453.xlsx`): 1.391 SKU scritti e nient'altro; secondo giro con un nome ritoccato a mano e SKU numerico → riconosciuto, nome rimesso, SKU riscritto come testo; upload 1.391 abbinati.
+
+Commit: `./push.sh "[core] iPratico: codice dei vini anche nella colonna SKU, riconoscimento SKU poi nome (vini 4.0)"`
+
+---
+
 ## SESSIONE 2026-10-10 (7) — Push lento: override systemd backend `[locale:tregobbi]`
 
 Marco: «Push → VPS» fermo quasi un minuto. Causa: `systemctl restart trgb-backend` nel post-receive aspettava che uvicorn chiudesse il flusso `/mcp` aperto da claude.ai (journal: 14:47:02 «Waiting for connections to close» → 14:48:28 shutdown). Fix applicato da Marco sul VPS: `/etc/systemd/system/trgb-backend.service.d/override.conf` con `--timeout-graceful-shutdown 5` + `TimeoutStopSec=15`. Docs: `deploy.md` §5 (canonico), `installazione_nuovo_server.md` §5.1 (template), `connettore_mcp.md` §2, `problemi.md` INFRA-1, `changelog.md`. Solo docs da pushare.
@@ -42,7 +52,7 @@ Marco ha importato in iPratico il file della 3.98 (98 bevande con «B0123 …» 
 - `ipratico_bevande_service` 1.1: codice nella colonna SKU (vuota su tutto l'export), nome solo «produttore nome». Riconoscimento SKU → codice nel nome (legacy, ripulito) → nome identico nelle categorie bevande. Contatori nuovi `per_nome`, `doppi`; errore chiaro se manca la colonna SKU.
 - `iPraticoSync.jsx`: colonna SKU nell'anteprima, chip «Riconosciute dal nome» / «Doppioni».
 - Prove su copia DB: export originale (98 aggiunte con SKU, 0 nomi con codice), seconda passata, file 3.98, export iPratico reale delle 14:44 (`claude/export_ipratico_20261010_1444.xlsx`: cambiano solo Name e SKU sulle 98, stessi Id), SKU persi (98 riconosciute dal nome).
-- Da verificare: che iPratico conservi lo SKU dopo l'import.
+- Verificato sull'export iPratico delle 14:53: SKU conservato su tutte le 98 bevande, nessun nome con codice, nessun Id nuovo o sparito.
 
 Commit: `./push.sh "[core] Bevande su iPratico: codice B nella colonna SKU, nome senza codice (vini 3.99)"`
 
