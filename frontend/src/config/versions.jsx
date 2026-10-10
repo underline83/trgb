@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.97 (2026-10-10): calcolo prezzo bevande — IVA di default 10%
+    //   (somministrazione), era 22% per errore.
     // 3.96 (2026-10-10): calcolo prezzo attivo anche su «Amari & Liquori» (mig 185);
     //   «🧮 Parametri prezzo» su tutte le sezioni, il calcolo si accende da UI.
     // 3.95 (2026-10-10): Carta Bevande — campo «Accisa €» nel calcolo prezzo,
@@ -153,7 +155,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.96",
+    version: "3.97",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

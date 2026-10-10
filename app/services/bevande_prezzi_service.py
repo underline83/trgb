@@ -1,5 +1,7 @@
 # Modulo: vini (sub-modulo carta bevande) — [core]
-# @version: v1.1 — accisa a parte: costo = costo_bottiglia + accisa_bottiglia (mig 184)
+# @version: v1.2 — IVA di default 10% (somministrazione al tavolo, reparto iPratico
+#   «Rep. 1 (10%)»), prima 22% per errore. Sezioni già attive: si cambia da UI.
+# v1.1 — accisa a parte: costo = costo_bottiglia + accisa_bottiglia (mig 184)
 # v1.0 — calcolo prezzo a dose dal costo della bottiglia (mig 183, 2026-10-10)
 # -*- coding: utf-8 -*-
 """
@@ -44,7 +46,7 @@ CAMPI_COSTO = ("costo_bottiglia", "accisa_bottiglia")
 PARAMETRI_DEFAULT: dict[str, Any] = {
     "attivo": True,
     "incidenza_pct": 25.0,        # quota del prezzo (IVA esclusa) che va in costo
-    "iva_pct": 22.0,
+    "iva_pct": 10.0,              # somministrazione al tavolo (alcolici compresi)
     "arrotondamento": 0.5,
     "bottiglia_cl": 70.0,
     "dose_cl": 4.0,

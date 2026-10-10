@@ -24,7 +24,7 @@ export default function CalcoloPrezzoParametri({ sezione, onClose, onSaved, auth
   const [p, setP] = useState({
     attivo: init.attivo ?? true,
     incidenza_pct: init.incidenza_pct ?? 25,
-    iva_pct: init.iva_pct ?? 22,
+    iva_pct: init.iva_pct ?? 10,
     arrotondamento: init.arrotondamento ?? 0.5,
     bottiglia_cl: init.bottiglia_cl ?? 70,
     dose_cl: init.dose_cl ?? 4,
@@ -102,7 +102,7 @@ export default function CalcoloPrezzoParametri({ sezione, onClose, onSaved, auth
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {num("Incidenza obiettivo %", "incidenza_pct", "Quota del prezzo (IVA esclusa) che va in costo.")}
-            {num("IVA % sul prezzo in carta", "iva_pct")}
+            {num("IVA % sul prezzo in carta", "iva_pct", "Somministrazione al tavolo: 10%, alcolici compresi.")}
             {num("Arrotondamento €", "arrotondamento", "0,5 = al mezzo euro più vicino.")}
             {num("Bottiglia di default (cl)", "bottiglia_cl")}
             {num("Dose di default (cl)", "dose_cl")}

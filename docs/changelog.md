@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-10 — Carta Bevande: IVA del calcolo prezzo al 10% `[core]`
+
+Vini 3.97. Il calcolo prezzo usava di default l'IVA al 22%, ma la somministrazione al tavolo è al 10% anche per gli alcolici (in iPratico tutto è in «Rep. 1 (10%)»): il default ora è 10. Distillati e Amari & Liquori, già attivati da mig 183/185 con 22, si correggono da «🧮 Parametri prezzo». Nessuna migrazione.
+
+---
+
 ## 2026-10-10 — Carta Bevande: calcolo prezzo anche su Amari & Liquori `[core]`
 
 Vini 3.96, sistema 5.49, mig 185. Il riquadro «🧮 Calcolo prezzo» (costo, accisa, formato, dose → suggerito e incidenza) c'è anche nella sezione **Amari & Liquori**, con gli stessi default dei distillati (25%, 70 cl, 4 cl). Il pulsante «🧮 Parametri prezzo» ora compare in tutte le sezioni per admin e sommelier: il calcolo si accende da lì su qualsiasi altra sezione, senza codice.

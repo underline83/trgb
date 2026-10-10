@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: calcolo prezzo su Amari & Liquori (mig 185, sistema 5.49, vini 3.96)** — mig 185, `CartaSezioneEditor.jsx` 1.6. **Dopo il push:** riaprire le due grappe Marolo e separare l'accisa (12 anni 40,86 + 3,67 · 9 anni 37,49 + 3,68); costo tonica del G&T in «🧮 Parametri prezzo» dei Distillati; controllare dose amari (4 cl di default).
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: IVA 10% di default nel calcolo prezzo bevande (vini 3.97, nessuna migrazione)** — `bevande_prezzi_service.py` 1.2, `CalcoloPrezzoParametri.jsx`. **Dopo il push:** in Distillati e Amari & Liquori «🧮 Parametri prezzo» → IVA 10 → Salva; separare l'accisa sulle due grappe Marolo; costo tonica G&T. **In discussione:** collegamento prodotti bevande ↔ iPratico (analisi in corso, nessun codice).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -31,6 +31,15 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-10 (4) — IVA calcolo prezzo + analisi iPratico bevande
+
+- Errore della sessione (1): IVA di default 22%, ma la somministrazione al tavolo è al 10% (export iPratico: tutto «Rep. 1 (10%)»). Default → 10 in `bevande_prezzi_service` 1.2 e nel modale parametri. Sezioni già attive da correggere da UI. Vini 3.97.
+- Analisi export prodotti iPratico (10/10, 2.652 righe) per collegare le bevande come i vini: proposta inviata a Marco, decisioni aperte.
+
+Commit: `./push.sh "[core] Carta Bevande: IVA di default 10% nel calcolo prezzo (vini 3.97)"`
+
+---
 
 ## SESSIONE 2026-10-10 (3) — Calcolo prezzo su Amari & Liquori `[core]`
 
