@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.98 (2026-10-10): Carta Bevande su iPratico — voci con codice B0123,
+    //   categorie per sezione/tipologia, stesso export dei vini (mig 186).
     // 3.97 (2026-10-10): calcolo prezzo bevande — IVA di default 10%
     //   (somministrazione), era 22% per errore.
     // 3.96 (2026-10-10): calcolo prezzo attivo anche su «Amari & Liquori» (mig 185);
@@ -155,7 +157,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.97",
+    version: "3.98",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -511,6 +513,7 @@ const MODULE_VERSIONS = {
     // 5.46 (2026-10-08): mattone M.K — connettore MCP di claude.ai su /mcp
     //   (OAuth 2.1 con utente e PIN TRGB, solo admin), strumenti pratiche,
     //   connettore.sqlite3 (schema al boot). Doc: docs/connettore_mcp.md.
+    // 5.50 (2026-10-10): mig 186 — bevande_sezioni.ipratico, Carta Bevande su iPratico (vini 3.98).
     // 5.49 (2026-10-10): mig 185 — calcolo prezzo su amari_liquori (vini 3.96).
     // 5.48 (2026-10-10): mig 184 — bevande_voci.accisa_bottiglia (vini 3.95).
     // 5.47 (2026-10-10): mig 183 — carta bevande: costo_bottiglia/bottiglia_cl/
@@ -523,7 +526,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.49",
+    version: "5.50",
     label: "Sistema",
     status: "stabile",
     color: "green",

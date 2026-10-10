@@ -1,5 +1,8 @@
 // @version: v2.1-embeddable — aggiunta prop `embedded` per usarlo dentro ViniImpostazioni (sessione 39)
 // Pagina sincronizzazione iPratico — workflow lineare senza tab
+// v2.1 (2026-10-10): riquadro «Carta Bevande su iPratico» (categorie per sezione,
+//   anteprima voci) + conteggi bevande nell'esito dell'export (header X-Bevande-Sync).
+//   Le voci bevande hanno il codice B0123 nel nome; «Alcolici» resta ai generici.
 // Importa → Verifica → Esporta (giacenze + testi TRGB + vini mancanti)
 //
 // Uso:
@@ -85,6 +88,9 @@ export default function IPraticoSync({ embedded = false }) {
           </div>
         )}
 
+        {/* ── Carta Bevande ───────────────────────────── */}
+        <BevandeSection />
+
         {/* ── Export ──────────────────────────────────── */}
         {hasData && <ExportSection />}
 
@@ -99,6 +105,147 @@ export default function IPraticoSync({ embedded = false }) {
     <div className="min-h-screen bg-brand-cream font-sans">
       <ViniNav current="settings" />
       {body}
+    </div>
+  );
+}
+
+/* ─── Carta Bevande su iPratico (mig 186) ──────────────────────── */
+function BevandeSection() {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({});
+  const [saving, setSaving] = useState("");
+  const [msg, setMsg] = useState("");
+  const [showVoci, setShowVoci] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await apiFetch(`${EP}/bevande/`);
+      if (!r.ok) return;
+      const d = await r.json();
+      setData(d);
+      const dr = {};
+      for (const s of d.sezioni) dr[s.key] = JSON.parse(JSON.stringify(s.ipratico));
+      setDraft(dr);
+    } catch (_) {}
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (key) => {
+    setSaving(key); setMsg("");
+    try {
+      const r = await apiFetch(`${EP}/bevande/${key}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft[key]),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.detail || `HTTP ${r.status}`);
+      }
+      setMsg("Salvato");
+      load();
+    } catch (e) { setMsg(`Errore: ${e.message}`); }
+    setSaving("");
+  };
+
+  if (!data) return null;
+  const perCategoria = {};
+  for (const v of data.voci) perCategoria[v.categoria] = (perCategoria[v.categoria] || 0) + 1;
+  const setD = (key, patch) => setDraft((d) => ({ ...d, [key]: { ...d[key], ...patch } }));
+  const setTip = (key, tip, val) => setDraft((d) => ({
+    ...d, [key]: { ...d[key], per_tipologia: { ...(d[key].per_tipologia || {}), [tip]: val } },
+  }));
+  const inp = "px-2 py-1.5 border border-neutral-300 rounded-lg text-xs bg-white min-h-[36px] w-full";
+
+  return (
+    <div className="bg-white shadow rounded-2xl p-5 border border-neutral-200">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-amber-900">🥃 Carta Bevande su iPratico</h2>
+          <p className="text-[11px] text-neutral-400 mt-0.5">
+            {data.voci.length} voci con codice B0123 nel nome · vanno su iPratico con lo stesso export dei vini.
+            «Alcolici» resta ai prodotti generici.
+          </p>
+        </div>
+        <button onClick={() => setOpen((o) => !o)}
+          className="px-3 py-2 rounded-xl text-xs font-semibold border border-neutral-300 hover:bg-neutral-50 min-h-[40px]">
+          {open ? "Chiudi" : "Categorie"}
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+        {Object.entries(perCategoria).map(([c, n]) => (
+          <span key={c} className="px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900">{c} · {n}</span>
+        ))}
+      </div>
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          {data.sezioni.map((s) => {
+            const d = draft[s.key] || {};
+            return (
+              <div key={s.key} className="border border-neutral-200 rounded-xl p-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-neutral-800 min-w-[180px]">
+                    <input type="checkbox" className="w-4 h-4" checked={!!d.attivo}
+                      onChange={(e) => setD(s.key, { attivo: e.target.checked })} />
+                    {s.nome}
+                    <span className="text-neutral-400 font-normal">{s.voci_attive} voci</span>
+                  </label>
+                  <div className="flex-1 min-w-[160px]">
+                    <input className={inp} value={d.categoria || ""} placeholder="Categoria iPratico"
+                      onChange={(e) => setD(s.key, { categoria: e.target.value })} />
+                  </div>
+                  <button onClick={() => save(s.key)} disabled={saving === s.key}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 min-h-[36px]">
+                    {saving === s.key ? "…" : "Salva"}
+                  </button>
+                </div>
+                {s.voci_senza_prezzo > 0 && (
+                  <div className="mt-1 text-[11px] text-red-600">
+                    {s.voci_senza_prezzo} voci senza prezzo €: non vengono aggiunte su iPratico.
+                  </div>
+                )}
+                {s.tipologie.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {s.tipologie.map((t) => (
+                      <div key={t}>
+                        <div className="text-[10px] text-neutral-500">{t}</div>
+                        <input className={inp} placeholder={d.categoria || ""}
+                          value={(d.per_tipologia || {})[t] || ""} onChange={(e) => setTip(s.key, t, e.target.value)} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {msg && <div className={`text-xs ${msg.startsWith("Errore") ? "text-red-700" : "text-emerald-700"}`}>{msg}</div>}
+
+          <button onClick={() => setShowVoci((v) => !v)} className="text-xs text-amber-800 underline min-h-[32px]">
+            {showVoci ? "Nascondi" : "Mostra"} i nomi che andranno su iPratico
+          </button>
+          {showVoci && (
+            <div className="max-h-80 overflow-auto border border-neutral-200 rounded-xl">
+              <table className="w-full text-xs">
+                <thead className="bg-neutral-50 sticky top-0">
+                  <tr><th className="text-left px-2 py-1">Categoria</th><th className="text-left px-2 py-1">Nome iPratico</th><th className="text-right px-2 py-1">€</th></tr>
+                </thead>
+                <tbody>
+                  {data.voci.map((v) => (
+                    <tr key={v.id} className="border-t border-neutral-100">
+                      <td className="px-2 py-1 text-neutral-500">{v.categoria}</td>
+                      <td className="px-2 py-1">{v.nome_ipratico}</td>
+                      <td className="px-2 py-1 text-right font-mono">{v.prezzo_eur ?? <span className="text-red-600">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -460,6 +607,7 @@ function ExportSection() {
         name: resp.headers.get("X-Updated-Name") || "0",
         matched: resp.headers.get("X-Total-Matched") || "0",
         added: resp.headers.get("X-Added-Missing") || "0",
+        bev: (() => { try { return JSON.parse(resp.headers.get("X-Bevande-Sync") || "null"); } catch { return null; } })(),
       });
       fileRef.current.value = "";
     } catch (e) { setError(e.message); }
@@ -472,7 +620,7 @@ function ExportSection() {
         <div>
           <h2 className="text-sm font-bold text-emerald-800">Esporta per iPratico</h2>
           <p className="text-[11px] text-neutral-400 mt-0.5">
-            Carica lo stesso file export — aggiorna giacenze, testi (priorità TRGB), prezzi e aggiunge i vini mancanti.
+            Carica lo stesso file export — aggiorna giacenze, testi (priorità TRGB), prezzi e aggiunge i vini mancanti. Nello stesso file sincronizza anche la Carta Bevande.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -501,6 +649,21 @@ function ExportSection() {
           <StatChip label="Vini aggiunti" val={result.added} color="text-rose-600" />
           <span className="text-emerald-600 font-medium self-center">✓ Scaricato</span>
         </div>
+      )}
+      {result?.bev && !result.bev.errore && (
+        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+          <span className="self-center font-semibold text-neutral-600">Bevande:</span>
+          <StatChip label="Abbinate" val={result.bev.abbinati} color="text-emerald-700" />
+          <StatChip label="Aggiunte" val={result.bev.aggiunti} color="text-rose-600" />
+          <StatChip label="Nomi agg." val={result.bev.nomi} color="text-violet-700" />
+          <StatChip label="Categorie agg." val={result.bev.categorie} color="text-sky-700" />
+          <StatChip label="Prezzi agg." val={result.bev.prezzi} color="text-amber-700" />
+          <StatChip label="Nascoste" val={result.bev.nascosti} color="text-neutral-500" />
+          {result.bev.senza_prezzo > 0 && <StatChip label="Senza prezzo (saltate)" val={result.bev.senza_prezzo} color="text-red-600" />}
+        </div>
+      )}
+      {result?.bev?.errore && (
+        <div className="mt-2 text-xs text-red-700">Bevande non sincronizzate: {result.bev.errore}</div>
       )}
 
       <DefaultsConfig />

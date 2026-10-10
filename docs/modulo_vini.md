@@ -618,13 +618,20 @@ Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
 
 ---
 
-# 7. Sincronizzazione iPratico — `ipratico_products_router.py` v2.0
+# 7. Sincronizzazione iPratico — `ipratico_products_router.py` v2.1
 
 ## 7.1 Logica chiave
 
 - Il codice 4 cifre nel campo Name iPratico = `vini_magazzino.id` (match diretto, ~99.7%)
 - TRGB ha priorità: se un vino cambia su TRGB, l'export aggiorna nome/giacenza/prezzo su iPratico
 - L'export aggiunge automaticamente vini TRGB mancanti con campi default configurabili (Family, reparti, listini, prezzi)
+
+### 7.1.1 Carta Bevande su iPratico (mig 186, 2026-10-10)
+
+- Ogni voce attiva della Carta Bevande è un prodotto iPratico con il codice **`B` + `bevande_voci.id` a 4 cifre** nel Name: `B0123 produttore nome` (corto per il tablet: senza formato, dal produttore si tolgono località tra parentesi e «Birrificio»). I vini (4 cifre senza lettera) non collidono. Il match è solo sul codice: i prodotti senza codice, compresi i generici della categoria **«Alcolici»** («Distillato 10€», «Amaro / Liquore»…), restano intatti.
+- Stesso export dei vini (`POST /vini/ipratico/export`, passo 5, `ipratico_bevande_service.sincronizza_foglio`): sui prodotti con codice aggiorna Name, Category, `Price_table_1` (listino Ristorante) e Hidden (Si se la voce è disattivata, la sezione è spenta o la voce non esiste più); aggiunge le voci mancanti con i default della tabella `ipratico_export_defaults` e tutti i 12 prezzi = `prezzo_eur`. Le voci senza `prezzo_eur` (solo prezzo testuale) non si aggiungono e si contano. Esito nell'header `X-Bevande-Sync` (JSON).
+- Categorie per sezione in `bevande_sezioni.ipratico` (JSON `attivo`, `categoria`, `per_tipologia`): seed Aperitivi, Birre, Amari della casa, Amari e liquori, Tisane, Tè; Distillati divisi per tipologia (Grappe, Whisky, Rum, Gin, Vodka, Cognac e Armagnac, Distillati). «Alcolici» e «Bottiglie» rifiutate. Si cambiano da iPratico Sync → «🥃 Carta Bevande su iPratico».
+- Gin: un solo prodotto (prezzo liscio); il G&T resta sul generico in «Alcolici».
 
 ## 7.2 Endpoint
 
@@ -640,6 +647,8 @@ Marco deve popolare le 7 sezioni dall'editor. Tempi stimati:
 | PUT | `/vini/ipratico/export-defaults/{id}` | Modifica valore default |
 | GET | `/vini/ipratico/sync-log` | Storico sincronizzazioni |
 | GET | `/vini/ipratico/stats` | Riepilogo veloce (matched, unmatched, ignored, missing) |
+| 🆕 GET | `/vini/ipratico/bevande/` | Carta Bevande: categorie per sezione + voci che vanno su iPratico (mig 186) |
+| 🆕 PUT | `/vini/ipratico/bevande/{sezione_key}` | Carta Bevande: categoria iPratico della sezione (mig 186) |
 | 🆕 GET | `/vini/ipratico/trgb-wines` | Lista vini TRGB per il picker di collegamento manuale — `ipratico_products_router.py:309` |
 
 > ⚠️ **Nota dati vendite:** iPratico NON esporta dati di vendita in nessun formato. Le VENDITE in TRGB vanno inserite manualmente (vedi §3.4).

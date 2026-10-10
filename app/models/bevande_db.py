@@ -1,4 +1,5 @@
-# @version: v1.5-accisa — colonna accisa_bottiglia su bevande_voci (mig 184).
+# @version: v1.6-ipratico — bevande_sezioni.ipratico (mig 186).
+# v1.5-accisa — colonna accisa_bottiglia su bevande_voci (mig 184).
 # v1.4-calcolo-prezzo — colonne costo_bottiglia/bottiglia_cl/dose_cl
 #   su bevande_voci e calcolo_prezzo (JSON parametri) su bevande_sezioni (mig 183).
 # v1.3-gin-vodka-prezzo-label — seed distillati: tipologie Gin e Vodka
@@ -73,6 +74,7 @@ def init_bevande_db() -> None:
                                                      -- 'tabella_4col' | 'scheda_estesa' | 'nome_badge_desc'
             schema_form  TEXT,                       -- JSON: elenco campi form per SezioneEditor dinamico
             calcolo_prezzo TEXT,                     -- (mig 183) JSON parametri calcolo prezzo da costo bottiglia
+            ipratico     TEXT,                       -- (mig 186) JSON categorie iPratico della sezione
             created_at   TEXT DEFAULT (datetime('now','localtime')),
             updated_at   TEXT DEFAULT (datetime('now','localtime'))
         )

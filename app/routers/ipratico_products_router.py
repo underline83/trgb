@@ -1,4 +1,7 @@
-# @version: v2.0-ipratico-trgb-priority
+# @version: v2.1-bevande — anche le voci della Carta Bevande vanno su iPratico
+#   (codice «B0123» nel nome, categorie per sezione): stesso export dei vini,
+#   logica in app/services/ipratico_bevande_service.py. GET/PUT /bevande/ (mig 186).
+# v2.0-ipratico-trgb-priority
 # Router iPratico Products — import/export Excel prodotti, mapping ↔ vini TRGB
 # Il codice 4 cifre nel Name iPratico corrisponde DIRETTAMENTE a vini_magazzino.id
 # TRGB ha priorità: se i dati cambiano su TRGB, l'export aggiorna iPratico.
@@ -12,10 +15,13 @@ Endpoints:
   GET  /vini/ipratico/missing         Vini TRGB non presenti nell'export iPratico (da aggiungere)
   GET  /vini/ipratico/sync-log        Storico sincronizzazioni
   GET  /vini/ipratico/stats           Riepilogo veloce
+  GET  /vini/ipratico/bevande/        Carta Bevande: categorie per sezione + voci che vanno su iPratico
+  PUT  /vini/ipratico/bevande/{key}   Carta Bevande: categoria iPratico di una sezione
 """
 from __future__ import annotations
 
 import io
+import json
 import re
 import sqlite3
 from datetime import datetime
@@ -28,6 +34,7 @@ from pydantic import BaseModel
 from typing import List as TList
 
 from app.services.auth_service import get_current_user
+from app.services import ipratico_bevande_service as bev_ipr
 
 # Audit 2026-06-12 [A1 CRIT]: auth a livello router — endpoint (incluso upload) erano pubblici.
 from app.services.permessi import richiede_ruoli
@@ -468,6 +475,16 @@ async def export_ipratico(file: UploadFile = File(...)):
         if qty_col:
             ws.cell(row=new_row, column=qty_col).value = trgb.get("QTA_TOTALE", 0) or 0
 
+    # 5. Carta Bevande (codice B0123): nomi, categorie, prezzi, nascosti, mancanti
+    try:
+        bev = bev_ipr.sincronizza_foglio(ws, headers, defaults)
+    except Exception as e:  # le bevande non devono bloccare l'export dei vini
+        print(f"[ipratico export] bevande non sincronizzate: {e}")
+        bev = {"errore": str(e)}
+    bev_header = json.dumps({
+        k: (len(v) if isinstance(v, list) else v) for k, v in bev.items()
+    })
+
     # Log
     fc = _fc_conn()
     fc.execute(
@@ -495,6 +512,7 @@ async def export_ipratico(file: UploadFile = File(...)):
             "X-Updated-Name": str(n_updated_name),
             "X-Total-Matched": str(n_matched),
             "X-Added-Missing": str(n_added),
+            "X-Bevande-Sync": bev_header,
         },
     )
 
@@ -633,3 +651,21 @@ def update_export_default(default_id: int, body: DefaultUpdate):
     fc.commit()
     fc.close()
     return {"ok": True, "id": default_id, "field_value": body.field_value}
+
+
+# ─── Carta Bevande → iPratico (mig 186) ───────────────────────────
+@router.get("/bevande/")
+def get_bevande_ipratico():
+    """Categorie iPratico per sezione e voci che l'export porterà su iPratico."""
+    return bev_ipr.anteprima()
+
+
+@router.put("/bevande/{sezione_key}")
+def update_bevande_ipratico(sezione_key: str, body: dict):
+    """Categoria iPratico (e eccezioni per tipologia) di una sezione bevande."""
+    try:
+        return {"status": "ok", "ipratico": bev_ipr.salva_config(sezione_key, body)}
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))

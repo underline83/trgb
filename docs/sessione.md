@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: IVA 10% di default nel calcolo prezzo bevande (vini 3.97, nessuna migrazione)** — `bevande_prezzi_service.py` 1.2, `CalcoloPrezzoParametri.jsx`. **Dopo il push:** in Distillati e Amari & Liquori «🧮 Parametri prezzo» → IVA 10 → Salva; separare l'accisa sulle due grappe Marolo; costo tonica G&T. **In discussione:** collegamento prodotti bevande ↔ iPratico (analisi in corso, nessun codice).
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: Carta Bevande su iPratico (mig 186, sistema 5.50, vini 3.98)** — `ipratico_bevande_service.py`, `ipratico_products_router.py` 2.1, `main.py` (expose `X-Bevande-Sync`), `bevande_db.py` 1.6, mig 186, `iPraticoSync.jsx`. **Dopo il push:** iPratico Sync → controllare categorie → export → import in iPratico → verificare sul tablet; Parametri prezzo IVA 10 su Distillati e Amari (se non fatto); accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.49 · **Migrazione più recente:** 185
+**Sistema:** 5.50 · **Migrazione più recente:** 186
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,21 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-10 (5) — Carta Bevande su iPratico `[core]`
+
+Marco: «sistemerei tutte le sezioni, e le dividerei; lascia alcolici con i generici, e costruiamo le altre categorie per quelle nuove» + «faremo passare tutto da iPraticoSync». G&T non deciso: un prodotto per gin (liscio), G&T sul generico.
+
+- Mig 186: `bevande_sezioni.ipratico` (JSON), seed categorie (Distillati per tipologia).
+- `app/services/ipratico_bevande_service.py`: codice `B` + id, nome, categoria, `sincronizza_foglio` (passo 5 dell'export), `anteprima`, `salva_config` (rifiuta «Alcolici»/«Bottiglie»).
+- `ipratico_products_router` 2.1: passo 5 nell'export (errori bevande non bloccano i vini), header `X-Bevande-Sync`, `GET /vini/ipratico/bevande/`, `PUT /vini/ipratico/bevande/{key}`. `main.py`: header esposto in CORS.
+- `iPraticoSync.jsx`: riquadro «🥃 Carta Bevande su iPratico» (categorie, eccezioni per tipologia, anteprima nomi) + esito bevande nell'export.
+- Prove su copia dei DB con l'export reale (`claude/export_ipratico_20261010.xlsx`): 98 aggiunte con reparto 10% e Family beverage, seconda passata 98 abbinate / 0 aggiunte, 18 Alcolici intatti, «Alcolici» rifiutata come categoria. JSX esbuild ok, UI non provata nel browser.
+- Nomi accorciati su richiesta di Marco («abbrevia, metti solo produttore-nome»): niente formato, produttore senza località tra parentesi e senza «Birrificio».
+
+Commit: `./push.sh "[core] Carta Bevande su iPratico: voci con codice B, categorie per sezione, stesso export dei vini (mig 186, vini 3.98, sistema 5.50)"`
+
+---
 
 ## SESSIONE 2026-10-10 (4) — IVA calcolo prezzo + analisi iPratico bevande
 

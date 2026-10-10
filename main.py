@@ -557,6 +557,7 @@ app.add_middleware(
         "X-Updated-Name",
         "X-Total-Matched",
         "X-Added-Missing",
+        "X-Bevande-Sync",
     ],
 )
 
