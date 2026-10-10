@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: calcolo prezzo distillati (mig 183, sistema 5.47, vini 3.94)** — `bevande_prezzi_service.py`, `bevande_router.py`, `bevande_db.py`, mig 183, `CalcoloPrezzoBox.jsx`, `CalcoloPrezzoParametri.jsx`, `CartaSezioneEditor.jsx`. **Dopo il push:** /vini/carta/distillati → «🧮 Parametri prezzo» impostare il costo tonica del G&T; provare il form voce da iPhone. (Il connettore MCP 5.46 è già in produzione, commit aeb67aec.)
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: campo accisa nel calcolo prezzo (mig 184, sistema 5.48, vini 3.95)** — mig 184, `bevande_prezzi_service.py` 1.1, `bevande_router.py` 1.5, `bevande_db.py` 1.5, `CalcoloPrezzoBox.jsx` 1.1, `CartaSezioneEditor.jsx` 1.5. **Dopo il push:** riaprire le due grappe Marolo e separare l'accisa (12 anni 40,86 + 3,67 · 9 anni 37,49 + 3,68); impostare il costo tonica del G&T in «🧮 Parametri prezzo».
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.47 · **Migrazione più recente:** 183
+**Sistema:** 5.48 · **Migrazione più recente:** 184
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,19 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-10 (2) — Carta Bevande: campo accisa `[core]`
+
+Marco (dopo il push di b7596aa8 e due grappe inserite, bolla Marolo con l'accisa su riga a parte): «mettimi il campo accisa, così non sto a sommare a mano, me la danno sempre staccata».
+
+- Mig 184: `bevande_voci.accisa_bottiglia REAL` (solo ADD COLUMN). Seed `bevande_db.py` 1.5.
+- `bevande_prezzi_service` 1.1: costo = costo_bottiglia + accisa; `calcolo` espone `accisa` e `costo_bottiglia_totale`; l'accisa è tolta ai ruoli fuori da `RUOLI_COSTI` come il costo.
+- Router 1.5 (campo su create/update/anteprima), `CalcoloPrezzoBox` 1.1 (campo «Accisa €»), `CartaSezioneEditor` 1.5 (normalizza e duplica il campo).
+- Prove su copia del DB: migrazioni 183+184 (184 due volte), somma (40,86 + 3,67 → 44,53, 2,54 a dose), chef non vede accisa né costo, anteprima sala; JSX esbuild ok.
+
+Commit: `./push.sh "[core] Carta Bevande: campo accisa nel calcolo prezzo, sommato al costo bottiglia (mig 184, vini 3.95, sistema 5.48)"`
+
+---
 
 ## SESSIONE 2026-10-10 — Carta Bevande: calcolo prezzo distillati `[core]`
 

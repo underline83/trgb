@@ -1,5 +1,6 @@
 # Modulo: vini (sub-modulo carta bevande) — [core]
-# @version: v1.0 — calcolo prezzo a dose dal costo della bottiglia (mig 183, 2026-10-10)
+# @version: v1.1 — accisa a parte: costo = costo_bottiglia + accisa_bottiglia (mig 184)
+# v1.0 — calcolo prezzo a dose dal costo della bottiglia (mig 183, 2026-10-10)
 # -*- coding: utf-8 -*-
 """
 Calcolo prezzo a dose — Carta Bevande
@@ -8,12 +9,13 @@ Per le sezioni vendute a dose (distillati, e in futuro amari/liquori) suggerisce
 il prezzo in carta partendo dal costo della bottiglia.
 
     dosi            = bottiglia_cl / dose_cl
-    costo_dose      = costo_bottiglia / dosi                 (IVA esclusa)
+    costo_totale    = costo_bottiglia + accisa_bottiglia     (IVA esclusa)
+    costo_dose      = costo_totale / dosi
     prezzo_sugg.    = costo_dose / incidenza × (1 + IVA)     arrotondato a `arrotondamento`
     incidenza reale = costo_dose / (prezzo_eur / (1 + IVA))  (il prezzo in carta è IVA inclusa)
 
-Il costo bottiglia è IVA esclusa e comprende l'accisa (già dentro il prezzo del
-fornitore). Il prezzo resta una scelta di chi gestisce la carta: qui si
+Il costo bottiglia è IVA esclusa. L'accisa, che il fornitore mette su una riga
+separata della fattura, va nel suo campo e si somma al costo. Il prezzo resta una scelta di chi gestisce la carta: qui si
 suggerisce, non si scrive.
 
 I parametri vivono per sezione in `bevande_sezioni.calcolo_prezzo` (JSON),
@@ -37,7 +39,7 @@ from app.services.permessi import ha_ruoli
 # ai ruoli editor della carta bevande (admin/sommelier, _require_editor).
 RUOLI_COSTI = ("admin", "sommelier", "sala")
 
-CAMPI_COSTO = ("costo_bottiglia",)
+CAMPI_COSTO = ("costo_bottiglia", "accisa_bottiglia")
 
 PARAMETRI_DEFAULT: dict[str, Any] = {
     "attivo": True,
@@ -167,11 +169,17 @@ def calcola(voce: dict[str, Any], p: dict[str, Any] | None) -> Optional[dict[str
     if bottiglia_cl <= 0 or dose_cl <= 0:
         return None
 
-    costo_cl = costo_bt / bottiglia_cl
+    accisa = _num(voce.get("accisa_bottiglia")) or 0.0
+    if accisa < 0:
+        accisa = 0.0
+    costo_tot = costo_bt + accisa
+    costo_cl = costo_tot / bottiglia_cl
     costo_dose = costo_cl * dose_cl
     iva = 1 + p["iva_pct"] / 100.0
 
     out: dict[str, Any] = {
+        "costo_bottiglia_totale": round(costo_tot, 2),
+        "accisa": round(accisa, 2),
         "bottiglia_cl": bottiglia_cl,
         "dose_cl": dose_cl,
         "dosi": round(bottiglia_cl / dose_cl, 1),

@@ -1,4 +1,5 @@
-# @version: v1.4-calcolo-prezzo — colonne costo_bottiglia/bottiglia_cl/dose_cl
+# @version: v1.5-accisa — colonna accisa_bottiglia su bevande_voci (mig 184).
+# v1.4-calcolo-prezzo — colonne costo_bottiglia/bottiglia_cl/dose_cl
 #   su bevande_voci e calcolo_prezzo (JSON parametri) su bevande_sezioni (mig 183).
 # v1.3-gin-vodka-prezzo-label — seed distillati: tipologie Gin e Vodka
 #   nelle options + campo prezzo_label ("Prezzo in carta", per doppi prezzi tipo
@@ -108,6 +109,7 @@ def init_bevande_db() -> None:
             costo_bottiglia REAL,                    -- (mig 183) costo bottiglia € IVA esclusa — riservato, mai in carta
             bottiglia_cl  REAL,                      -- (mig 183) contenuto bottiglia in cl (NULL = default sezione)
             dose_cl       REAL,                      -- (mig 183) dose servita in cl (NULL = default tipologia/sezione)
+            accisa_bottiglia REAL,                   -- (mig 184) accisa € della bottiglia (riga separata in fattura) — riservata
             created_at    TEXT DEFAULT (datetime('now','localtime')),
             updated_at    TEXT DEFAULT (datetime('now','localtime'))
         )

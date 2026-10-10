@@ -1,4 +1,5 @@
-// @version: v1.4-calcolo-prezzo — riquadro «Calcolo prezzo» nel form voce
+// @version: v1.5-accisa — campo accisa_bottiglia (mig 184) nel riquadro calcolo.
+// v1.4-calcolo-prezzo — riquadro «Calcolo prezzo» nel form voce
 // (costo bottiglia IVA esclusa, formato, dose → costo a dose, prezzo suggerito,
 // incidenza), colonna costo/incidenza in tabella, filtro «sopra obiettivo»,
 // modale parametri per admin/sommelier. Solo sezioni con calcolo_prezzo.attivo
@@ -29,9 +30,9 @@ import CalcoloPrezzoBox from "../../components/vini/carta/CalcoloPrezzoBox";
 import CalcoloPrezzoParametri from "../../components/vini/carta/CalcoloPrezzoParametri";
 
 // Campi numerici da normalizzare prima di POST/PUT
-const NUMERIC_FIELDS = new Set(["gradazione", "ibu", "prezzo_eur", "costo_bottiglia", "bottiglia_cl", "dose_cl"]);
+const NUMERIC_FIELDS = new Set(["gradazione", "ibu", "prezzo_eur", "costo_bottiglia", "bottiglia_cl", "dose_cl", "accisa_bottiglia"]);
 // Campi del calcolo prezzo (mig 183): fuori dallo schema_form, gestiti da CalcoloPrezzoBox
-const COST_FIELDS = ["costo_bottiglia", "bottiglia_cl", "dose_cl"];
+const COST_FIELDS = ["costo_bottiglia", "accisa_bottiglia", "bottiglia_cl", "dose_cl"];
 // Ruoli (allineati al backend): chi vede i costi / chi modifica la carta
 const ROLES_COSTI = ["admin", "superadmin", "sommelier", "sala"];
 const ROLES_EDITOR = ["admin", "superadmin", "sommelier"];
@@ -273,6 +274,7 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
         ...(voce.costo_bottiglia != null ? { costo_bottiglia: voce.costo_bottiglia } : {}),
         ...(voce.bottiglia_cl != null ? { bottiglia_cl: voce.bottiglia_cl } : {}),
         ...(voce.dose_cl != null ? { dose_cl: voce.dose_cl } : {}),
+        ...(voce.accisa_bottiglia != null ? { accisa_bottiglia: voce.accisa_bottiglia } : {}),
       };
       const r = await fetch(`${API_BASE}/bevande/voci/`, {
         method: "POST",

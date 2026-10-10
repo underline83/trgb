@@ -1,4 +1,5 @@
-# @version: v1.4-calcolo-prezzo — costo bottiglia + calcolo prezzo a dose (mig 183):
+# @version: v1.5-accisa — campo accisa_bottiglia (mig 184) sommato al costo nel calcolo.
+# v1.4-calcolo-prezzo — costo bottiglia + calcolo prezzo a dose (mig 183):
 #   campi costo_bottiglia/bottiglia_cl/dose_cl sulle voci, `calcolo` nelle letture
 #   (solo admin/sommelier/sala, agli altri il costo viene tolto), PUT
 #   /sezioni/{key}/calcolo-prezzo (parametri), POST /calcolo-prezzo/anteprima.
@@ -183,6 +184,8 @@ class VoceBase(BaseModel):
     costo_bottiglia: Optional[float] = Field(None, ge=0)
     bottiglia_cl: Optional[float] = Field(None, gt=0)
     dose_cl: Optional[float] = Field(None, gt=0)
+    # mig 184
+    accisa_bottiglia: Optional[float] = Field(None, ge=0)
 
 
 class VoceUpdate(BaseModel):
@@ -213,12 +216,15 @@ class VoceUpdate(BaseModel):
     costo_bottiglia: Optional[float] = Field(None, ge=0)
     bottiglia_cl: Optional[float] = Field(None, gt=0)
     dose_cl: Optional[float] = Field(None, gt=0)
+    # mig 184
+    accisa_bottiglia: Optional[float] = Field(None, ge=0)
 
 
 class CalcoloPrezzoAnteprima(BaseModel):
     sezione_key: str
     tipologia: Optional[str] = None
     costo_bottiglia: Optional[float] = None
+    accisa_bottiglia: Optional[float] = None
     bottiglia_cl: Optional[float] = None
     dose_cl: Optional[float] = None
     prezzo_eur: Optional[float] = None
@@ -571,6 +577,8 @@ _VOCE_FIELDS = [
     "analcolica",
     # mig 183
     "costo_bottiglia", "bottiglia_cl", "dose_cl",
+    # mig 184
+    "accisa_bottiglia",
 ]
 
 

@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.95 (2026-10-10): Carta Bevande — campo «Accisa €» nel calcolo prezzo,
+    //   sommato al costo bottiglia (in fattura è su una riga a parte). Mig 184.
     // 3.94 (2026-10-10): Carta Bevande — calcolo prezzo a dose dal costo
     //   bottiglia (Distillati): riquadro nel form voce, colonna costo/incidenza,
     //   filtro «sopra obiettivo», parametri per sezione. Mig 183.
@@ -149,7 +151,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.94",
+    version: "3.95",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -505,6 +507,7 @@ const MODULE_VERSIONS = {
     // 5.46 (2026-10-08): mattone M.K — connettore MCP di claude.ai su /mcp
     //   (OAuth 2.1 con utente e PIN TRGB, solo admin), strumenti pratiche,
     //   connettore.sqlite3 (schema al boot). Doc: docs/connettore_mcp.md.
+    // 5.48 (2026-10-10): mig 184 — bevande_voci.accisa_bottiglia (vini 3.95).
     // 5.47 (2026-10-10): mig 183 — carta bevande: costo_bottiglia/bottiglia_cl/
     //   dose_cl sulle voci e calcolo_prezzo sulle sezioni (vini 3.94).
     // 5.45 (2026-10-08): modulo nuovo «pratiche» — pratiche.sqlite3 (schema al
@@ -515,7 +518,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.47",
+    version: "5.48",
     label: "Sistema",
     status: "stabile",
     color: "green",

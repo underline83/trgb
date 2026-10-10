@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-10 — Carta Bevande: campo accisa nel calcolo prezzo `[core]`
+
+Vini 3.95, sistema 5.48, mig 184. Nel riquadro «🧮 Calcolo prezzo» c'è il campo **Accisa €** accanto al costo bottiglia: il fornitore la mette su una riga a parte della fattura e ora si inserisce così com'è, il calcolo somma da solo bottiglia + accisa (il totale compare sotto il costo a dose). Riservata come il costo: admin, sommelier e sala, mai in carta. Provato su copia del DB.
+
+---
+
 ## 2026-10-10 — Carta Bevande: calcolo prezzo dei distillati dal costo bottiglia `[core]`
 
 Vini 3.94, sistema 5.47, mig 183. Nella sezione **Distillati** il form voce ha il riquadro «🧮 Calcolo prezzo»: si inserisce il costo della bottiglia IVA esclusa (accisa compresa), il formato e la dose (vuoti = 70 cl e 4 cl, o la dose della tipologia) e si vedono costo a dose, prezzo suggerito, incidenza del prezzo attuale e margine; «Usa questo prezzo» lo copia nel campo. Il suggerito rispetta un'incidenza obiettivo (25% di default) sul prezzo IVA esclusa, arrotondato a 0,50. Per il Gin c'è anche il suggerito del G&T (5 cl + costo tonica, da impostare). In tabella colonna «Costo dose» rossa sopra obiettivo e filtro «Sopra obiettivo». Parametri per sezione dal pulsante «🧮 Parametri prezzo» (admin/sommelier). Il costo lo vedono admin, sommelier e sala; agli altri ruoli la API lo toglie, e non va mai in carta. Logica in `bevande_prezzi_service.py`. Provato su copia del DB (migrazione due volte, calcolo, permessi per ruolo). UI non provata nel browser.
