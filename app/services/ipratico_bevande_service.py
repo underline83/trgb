@@ -1,23 +1,30 @@
 # Modulo: vini (sub-moduli carta bevande + ipratico) — [core]
-# @version: v1.0 — voci Carta Bevande ↔ prodotti iPratico (mig 186, 2026-10-10)
+# @version: v1.1 — codice B0123 nella colonna SKU, non più nel nome (Marco 2026-10-10)
+# v1.0 — voci Carta Bevande ↔ prodotti iPratico (mig 186, 2026-10-10)
 # -*- coding: utf-8 -*-
 """
 Sincronizzazione Carta Bevande → iPratico
 
 Stesso principio dei vini (ipratico_products_router): TRGB comanda. Ogni voce
-della Carta Bevande è un prodotto iPratico col codice nel nome:
+della Carta Bevande è un prodotto iPratico; il codice sta nella colonna SKU
+(vuota su tutti gli altri prodotti), il nome resta pulito:
 
-    B0123 Benromach 10 years 43%        (B + bevande_voci.id a 4 cifre)
+    SKU  B0123                          (B + bevande_voci.id a 4 cifre)
+    Name Benromach 10 years 43%         (produttore abbreviato + nome)
 
-Nome corto per il tablet: codice + produttore abbreviato + nome. Niente formato;
-dal produttore si tolgono le parti tra parentesi (località) e «Birrificio».
+Dal produttore si tolgono le parti tra parentesi (località) e «Birrificio».
 
-Il codice dei vini è 4 cifre senza lettera: nessuna collisione. Il riconoscimento
-avviene SOLO sul codice, mai sulla categoria: i prodotti generici in «Alcolici»
-(«Distillato 10€» ecc.) e qualunque altro prodotto senza codice restano intatti.
+Riconoscimento di una riga, in ordine:
+1. SKU «B0123»;
+2. codice in testa al nome «B0123 …» (export generati con la v1.0) → il nome
+   viene ripulito e il codice passa nello SKU;
+3. nome identico a quello che TRGB genera, solo nelle categorie bevande (righe
+   importate in iPratico dove lo SKU fosse andato perso).
+Mai sulla sola categoria: i generici in «Alcolici» («Distillato 10€» ecc.) e i
+prodotti senza codice restano intatti.
 
 Sull'export che arriva da iPratico:
-- prodotto con codice e voce esistente → Name, Category, Price_table_1
+- prodotto riconosciuto e voce esistente → Name, Category, Price_table_1
   (listino Ristorante, come per i vini), Hidden = No se la voce è attiva in una
   sezione sincronizzata, altrimenti Si.
 - prodotto con codice ma voce sparita da TRGB → Hidden = Si.
@@ -144,7 +151,16 @@ def codice(voce_id: int) -> str:
 
 
 def estrai_codice(name: Any) -> Optional[int]:
+    """Codice in testa al nome (formato v1.0)."""
     m = _RE_CODICE.match(str(name or ""))
+    return int(m.group(1)) if m else None
+
+
+_RE_SKU = re.compile(r"^\s*B(\d{4})\s*$")
+
+
+def codice_da_sku(sku: Any) -> Optional[int]:
+    m = _RE_SKU.match(str(sku or ""))
     return int(m.group(1)) if m else None
 
 
@@ -160,10 +176,10 @@ def produttore_corto(prod: Any) -> str:
 
 
 def nome_ipratico(voce: dict[str, Any]) -> str:
-    """B0123 produttore nome — il produttore si salta se è già nel nome."""
+    """produttore nome — il produttore si salta se è già nel nome. Niente codice."""
     nome = " ".join((voce.get("nome") or "").split())
     prod = produttore_corto(voce.get("produttore"))
-    parts = [codice(voce["id"])]
+    parts = []
     if prod and prod.lower() not in nome.lower():
         parts.append(prod)
     if nome:
@@ -199,8 +215,11 @@ def sincronizza_foglio(ws, headers: dict[str, int], defaults: dict[str, str]) ->
     cat_col = headers.get("Category")
     hid_col = headers.get("Hidden")
     p1_col = headers.get("Price_table_1")
+    sku_col = headers.get("SKU")
     if not name_col or not cat_col:
         return {"errore": "colonne Name/Category assenti"}
+    if not sku_col:
+        return {"errore": "colonna SKU assente: serve per il codice delle bevande"}
 
     voci, sezioni = _voci_e_config()
 
@@ -211,15 +230,37 @@ def sincronizza_foglio(ws, headers: dict[str, int], defaults: dict[str, str]) ->
         return s["ipratico"]
 
     st = {"abbinati": 0, "nomi": 0, "prezzi": 0, "categorie": 0, "nascosti": 0,
-          "aggiunti": 0, "senza_prezzo": [], "orfani": 0}
+          "aggiunti": 0, "senza_prezzo": [], "orfani": 0, "per_nome": 0, "doppi": 0}
     presenti: set[int] = set()
     last_row = ws.max_row
 
+    # Per il riconoscimento di ripiego (3): nomi generati, solo categorie bevande
+    per_nome: dict[str, int] = {}
+    categorie_bev: set[str] = set()
+    for vid_, v_ in voci.items():
+        c_ = sincronizzata(v_)
+        if c_:
+            per_nome.setdefault(nome_ipratico(v_).lower(), vid_)
+            categorie_bev.add(categoria_ipratico(v_, c_))
+
     for row in range(2, last_row + 1):
-        vid = estrai_codice(ws.cell(row=row, column=name_col).value)
+        name_val = ws.cell(row=row, column=name_col).value
+        vid = codice_da_sku(ws.cell(row=row, column=sku_col).value)
+        if vid is None:
+            vid = estrai_codice(name_val)
+        if vid is None and not ws.cell(row=row, column=sku_col).value:
+            if ws.cell(row=row, column=cat_col).value in categorie_bev:
+                vid = per_nome.get(" ".join(str(name_val or "").split()).lower())
+                if vid is not None:
+                    st["per_nome"] += 1
         if vid is None:
             continue
+        if vid in presenti:
+            st["doppi"] += 1  # seconda riga per la stessa voce: non si tocca
+            continue
         presenti.add(vid)
+        if ws.cell(row=row, column=sku_col).value != codice(vid):
+            ws.cell(row=row, column=sku_col).value = codice(vid)
         v = voci.get(vid)
         conf = sincronizzata(v) if v else None
         visibile = bool(v and v["attivo"] and conf)
@@ -267,6 +308,7 @@ def sincronizza_foglio(ws, headers: dict[str, int], defaults: dict[str, str]) ->
                 ws.cell(row=r, column=col).value = value
         ws.cell(row=r, column=cat_col).value = categoria_ipratico(v, conf)
         ws.cell(row=r, column=name_col).value = nome_ipratico(v)
+        ws.cell(row=r, column=sku_col).value = codice(vid)
         if hid_col:
             ws.cell(row=r, column=hid_col).value = "No"
         for f in PRICE_FIELDS:
@@ -287,6 +329,7 @@ def anteprima() -> dict[str, Any]:
             continue
         righe.append({
             "id": v["id"],
+            "codice": codice(v["id"]),
             "sezione_key": v["sezione_key"],
             "nome_ipratico": nome_ipratico(v),
             "categoria": categoria_ipratico(v, s["ipratico"]),

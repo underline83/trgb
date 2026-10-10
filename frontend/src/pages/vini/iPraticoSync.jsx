@@ -2,7 +2,8 @@
 // Pagina sincronizzazione iPratico — workflow lineare senza tab
 // v2.1 (2026-10-10): riquadro «Carta Bevande su iPratico» (categorie per sezione,
 //   anteprima voci) + conteggi bevande nell'esito dell'export (header X-Bevande-Sync).
-//   Le voci bevande hanno il codice B0123 nel nome; «Alcolici» resta ai generici.
+//   Le voci bevande hanno il codice B0123 nella colonna SKU (v2.2: non più nel nome);
+//   «Alcolici» resta ai generici.
 // Importa → Verifica → Esporta (giacenze + testi TRGB + vini mancanti)
 //
 // Uso:
@@ -164,7 +165,7 @@ function BevandeSection() {
         <div>
           <h2 className="text-sm font-bold text-amber-900">🥃 Carta Bevande su iPratico</h2>
           <p className="text-[11px] text-neutral-400 mt-0.5">
-            {data.voci.length} voci con codice B0123 nel nome · vanno su iPratico con lo stesso export dei vini.
+            {data.voci.length} voci, riconosciute dal codice B0123 nella colonna SKU · vanno su iPratico con lo stesso export dei vini.
             «Alcolici» resta ai prodotti generici.
           </p>
         </div>
@@ -230,11 +231,12 @@ function BevandeSection() {
             <div className="max-h-80 overflow-auto border border-neutral-200 rounded-xl">
               <table className="w-full text-xs">
                 <thead className="bg-neutral-50 sticky top-0">
-                  <tr><th className="text-left px-2 py-1">Categoria</th><th className="text-left px-2 py-1">Nome iPratico</th><th className="text-right px-2 py-1">€</th></tr>
+                  <tr><th className="text-left px-2 py-1">SKU</th><th className="text-left px-2 py-1">Categoria</th><th className="text-left px-2 py-1">Nome iPratico</th><th className="text-right px-2 py-1">€</th></tr>
                 </thead>
                 <tbody>
                   {data.voci.map((v) => (
                     <tr key={v.id} className="border-t border-neutral-100">
+                      <td className="px-2 py-1 font-mono text-neutral-400">{v.codice}</td>
                       <td className="px-2 py-1 text-neutral-500">{v.categoria}</td>
                       <td className="px-2 py-1">{v.nome_ipratico}</td>
                       <td className="px-2 py-1 text-right font-mono">{v.prezzo_eur ?? <span className="text-red-600">—</span>}</td>
@@ -659,6 +661,8 @@ function ExportSection() {
           <StatChip label="Categorie agg." val={result.bev.categorie} color="text-sky-700" />
           <StatChip label="Prezzi agg." val={result.bev.prezzi} color="text-amber-700" />
           <StatChip label="Nascoste" val={result.bev.nascosti} color="text-neutral-500" />
+          {result.bev.per_nome > 0 && <StatChip label="Riconosciute dal nome" val={result.bev.per_nome} color="text-amber-700" />}
+          {result.bev.doppi > 0 && <StatChip label="Doppioni (non toccati)" val={result.bev.doppi} color="text-red-600" />}
           {result.bev.senza_prezzo > 0 && <StatChip label="Senza prezzo (saltate)" val={result.bev.senza_prezzo} color="text-red-600" />}
         </div>
       )}

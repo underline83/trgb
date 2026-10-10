@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-10 — Bevande su iPratico: codice nello SKU `[core]`
+
+Vini 3.99. Il codice delle bevande (B0123) non sta più nel nome del prodotto iPratico ma nella colonna **SKU**: sul tablet resta solo «produttore nome». I prodotti già importati con il codice nel nome vengono riconosciuti, ripuliti e lo SKU compilato (provato sull'export iPratico delle 14:44: 98 bevande, cambiano solo Name e SKU, stessi Id, nessuna riga nuova). Se iPratico perdesse lo SKU, le bevande si riconoscono dal nome nelle loro categorie. Nessuna migrazione.
+
+---
+
 ## 2026-10-10 — Carta Bevande su iPratico `[core]`
 
 Vini 3.98, sistema 5.50, mig 186. Le voci della Carta Bevande diventano prodotti iPratico uno a uno, come i vini: codice **B0123** davanti al nome, corto per il tablet: solo produttore e nome (`B0108 Marolo Grappa di Barolo 9 anni`, `B0001 Beer In PERU PISTUM`). Passa tutto da **iPratico Sync**: con lo stesso export dei vini TRGB aggiorna nome, categoria, prezzo Ristorante e visibilità delle bevande e aggiunge quelle mancanti. Categorie nuove per sezione (Aperitivi, Birre, Amari della casa, Amari e liquori, Tisane, Tè) e i Distillati divisi per tipo (Grappe, Whisky, Rum, Gin, Vodka, Cognac e Armagnac); si rinominano dal riquadro «🥃 Carta Bevande su iPratico». La categoria «Alcolici» coi generici a fascia di prezzo non si tocca. Voce disattivata in carta → nascosta su iPratico. Provato sull'export reale del 10/10: 98 voci aggiunte, seconda passata 98 abbinate e 0 aggiunte, Alcolici intatti.

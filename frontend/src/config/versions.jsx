@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 3.99 (2026-10-10): bevande su iPratico — codice B0123 nella colonna SKU,
+    //   nome senza codice; riconosce anche i nomi «B0123 …» della 3.98 e li ripulisce.
     // 3.98 (2026-10-10): Carta Bevande su iPratico — voci con codice B0123,
     //   categorie per sezione/tipologia, stesso export dei vini (mig 186).
     // 3.97 (2026-10-10): calcolo prezzo bevande — IVA di default 10%
@@ -157,7 +159,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "3.98",
+    version: "3.99",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

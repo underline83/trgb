@@ -1,5 +1,5 @@
 # @version: v2.1-bevande — anche le voci della Carta Bevande vanno su iPratico
-#   (codice «B0123» nel nome, categorie per sezione): stesso export dei vini,
+#   (codice «B0123» nella colonna SKU — v1.1 del service —, categorie per sezione): stesso export dei vini,
 #   logica in app/services/ipratico_bevande_service.py. GET/PUT /bevande/ (mig 186).
 # v2.0-ipratico-trgb-priority
 # Router iPratico Products — import/export Excel prodotti, mapping ↔ vini TRGB

@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: Carta Bevande su iPratico (mig 186, sistema 5.50, vini 3.98)** — `ipratico_bevande_service.py`, `ipratico_products_router.py` 2.1, `main.py` (expose `X-Bevande-Sync`), `bevande_db.py` 1.6, mig 186, `iPraticoSync.jsx`. **Dopo il push:** iPratico Sync → controllare categorie → export → import in iPratico → verificare sul tablet; Parametri prezzo IVA 10 su Distillati e Amari (se non fatto); accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: bevande iPratico con codice nello SKU (vini 3.99, nessuna migrazione)** — `ipratico_bevande_service.py` 1.1, `iPraticoSync.jsx`. **Dopo il push:** export dall'export iPratico più recente → import → riesportare da iPratico e verificare che lo SKU «B0123» sia rimasto (se sparisce, si riconosce dal nome, ma va saputo). Poi: IVA 10 nei Parametri prezzo, accisa grappe Marolo, costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -31,6 +31,18 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-10 (6) — Bevande iPratico: codice nello SKU `[core]`
+
+Marco ha importato in iPratico il file della 3.98 (98 bevande con «B0123 …» nel nome) e chiede «togliamo il codice nel nome».
+- `ipratico_bevande_service` 1.1: codice nella colonna SKU (vuota su tutto l'export), nome solo «produttore nome». Riconoscimento SKU → codice nel nome (legacy, ripulito) → nome identico nelle categorie bevande. Contatori nuovi `per_nome`, `doppi`; errore chiaro se manca la colonna SKU.
+- `iPraticoSync.jsx`: colonna SKU nell'anteprima, chip «Riconosciute dal nome» / «Doppioni».
+- Prove su copia DB: export originale (98 aggiunte con SKU, 0 nomi con codice), seconda passata, file 3.98, export iPratico reale delle 14:44 (`claude/export_ipratico_20261010_1444.xlsx`: cambiano solo Name e SKU sulle 98, stessi Id), SKU persi (98 riconosciute dal nome).
+- Da verificare: che iPratico conservi lo SKU dopo l'import.
+
+Commit: `./push.sh "[core] Bevande su iPratico: codice B nella colonna SKU, nome senza codice (vini 3.99)"`
+
+---
 
 ## SESSIONE 2026-10-10 (5) — Carta Bevande su iPratico `[core]`
 
