@@ -3,7 +3,9 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
 > **Vedi anche:** [problemi.md](problemi.md), [changelog.md](changelog.md), [refactor_monorepo.md](refactor_monorepo.md), [index.md](index.md)
 
-**Ultimo aggiornamento:** 2026-10-02 — riallineata ai lavori da giugno a ottobre (prima ferma al 19/05): M.G, M.J Pubblicazione web, carta di credito, pagamenti parziali, Intermittenti, Scorte & Frigoriferi + Cucina da iPhone, Cantina mobile, Ordini fornitori, Menu multilingua, omaggi, utenze, formaggi. L'ID M.J era usato due volte: l'Housekeeping diventa **HK**.
+**Ultimo aggiornamento:** 2026-10-10 — nuove sezioni **MK — Altri strumenti nel connettore MCP** (dipendenti per primi) e **ML — Posta nel connettore MCP** (fase 1 PEC, fase 2 caselle @tregobbi.it), dentro PRT.
+
+**Aggiornamento precedente:** 2026-10-02 — riallineata ai lavori da giugno a ottobre (prima ferma al 19/05): M.G, M.J Pubblicazione web, carta di credito, pagamenti parziali, Intermittenti, Scorte & Frigoriferi + Cucina da iPhone, Cantina mobile, Ordini fornitori, Menu multilingua, omaggi, utenze, formaggi. L'ID M.J era usato due volte: l'Housekeeping diventa **HK**.
 
 **Aggiornamento precedente:** 2026-05-19 — aggiunta sezione "DH — Docs hardening" (post audit autonomo `docs/audit-2026-05-19/`, verdetto adversarial 87/100). Aggiornata V-H.I (non prima 15 giugno) + M.D (non prioritario) + segnati MORT-2 e `/menu/` rinviati. Decisioni PO Marco 2026-05-19.
 **Legenda effort:** XS = ~30min · S = ~1h · M = 2-3h · L = 2+ sessioni
@@ -32,7 +34,7 @@
 > MC. Menu Carta (cliente-facing)
 > PR. Prenotazioni
 > CL. Clienti / CRM / Preventivi
-> PRT. Pratiche
+> PRT. Pratiche (+ MK. Altri strumenti connettore, ML. Posta nel connettore MCP)
 > ST. Statistiche
 > DH. Docs Hardening (post audit autonomo 2026-05-19)
 > T. Tecnici / Platform
@@ -656,7 +658,35 @@ Doc: [`modulo_pratiche.md`](modulo_pratiche.md). Modello deciso con Marco il 202
 | PRT.3 | Skill sb: una pratica va in TRGB, in sb resta una riga di diario | XS | DA FARE | `pratiche-aperte.md` diventa un rimando |
 | PRT.4 | Connettore MCP di TRGB: `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea` sopra `pratiche_service` | M | ✅ FATTO | 2026-10-08, mattone M.K (sistema 5.46). Da provare da claude.ai dopo il push. Doc `connettore_mcp.md` |
 | PRT.5 | Selettore per tipo nei collegamenti (cerca un'uscita o un dipendente) | S | BASSA | Solo se il collegamento a mano non basta |
-| PRT.6 | Passo che punta a una PEC dell'archivio invece di tenerne una copia | S | BASSA | Quando esiste l'archivio PEC ([`pec_archivio_spec.md`](pec_archivio_spec.md)) |
+| PRT.6 | Passo che punta a una PEC dell'archivio invece di tenerne una copia | S | → ML.2 | Assorbito da ML.2 (`pec_collega_pratica`), vedi sotto |
+
+### MK — Altri strumenti nel connettore MCP (chiesto da Marco 2026-10-10)
+
+Oggi il connettore (M.K) espone solo le pratiche: per tutto il resto Claude deve «navigare» la UI di TRGB nel browser (lento, fragile). Estendere il connettore con strumenti mirati sopra i service esistenti, stesse regole di M.K (OAuth+PIN, solo admin, conferma di Marco prima di creare/modificare dati importanti, log).
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| **MK.1** | **Dipendenti**: `dipendenti_elenco`, `dipendente_leggi`, `dipendente_aggiorna` (anagrafica, contatti, indirizzo, contratto/date), `dipendente_crea` | M | DA FARE — **prima** | Caso d'uso 2026-10-10: assunzione Giulia Spuri fatta navigando. Niente numeri di documenti d'identità via connettore; allegati restano dalla UI |
+| MK.2 | Scadenze / Controllo Gestione: elenco scadenze e rate, segna pagata, crea spesa una tantum | M | DA FARE | Allinea sb e TRGB (rate Fondo Est, Cerved, ecc.) |
+| MK.3 | Preventivi / eventi: elenco, leggi, crea bozza preventivo, segna caparra | M | DA FARE | Cene di gruppo (Tenaris, lauree…) |
+| MK.4 | Fornitori e fatture: cerca fornitore, fatture aperte/non pagate | S | DA FARE | Solo lettura all'inizio |
+| MK.5 | Turni / chiamate intermittenti: leggi turni, registra chiamata | M | DA VALUTARE | |
+
+### ML — Posta nel connettore MCP (deciso con Marco 2026-10-10)
+
+Obiettivo: Claude legge la posta dell'osteria dal connettore di TRGB (M.K) senza passare da Mail sul Mac, e la collega alle pratiche. **Solo caselle dell'osteria**: la posta personale di Marco resta fuori da TRGB (separazione osteria/vita privata).
+Regole valide per tutte le fasi: password in `.env` sul VPS (password per app, mai quelle principali), nessuna cancellazione sul server, log senza contenuti; il testo delle mail è **non fidato** (possibile prompt injection) → nessun invio senza conferma esplicita di Marco; allegati salvati in TRGB, al connettore passano solo metadati e link.
+Ordine dentro ogni fase: prima sola lettura → poi bozze (finiscono nelle Bozze della casella, invia Marco) → invio diretto solo eventuale e sempre con conferma.
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| **ML.1** | **Fase 1 — PEC.** Archivio PEC sul VPS (IMAP Aruba, `pec_messaggi`, indice) secondo [`pec_archivio_spec.md`](pec_archivio_spec.md) | M | DA FARE — **fase 1** | Prerequisito di ML.2. Dry-run 1 settimana a confronto con la regola Mail, poi attivazione |
+| **ML.2** | Fase 1 — strumenti MCP PEC in sola lettura: `pec_cerca`, `pec_leggi` (testo, mittente, daticert, elenco allegati), `pec_collega_pratica` (crea un passo che punta alla PEC = PRT.6) | M | DA FARE — fase 1 | Ricerca sull'indice locale, non via IMAP SEARCH. Assorbe PRT.6 |
+| **ML.3** | Fase 1 — `pec_bozza`: risposta/nuova PEC salvata nelle Bozze della casella Aruba, la invia Marco | S | DA FARE — fase 1 | Invio diretto PEC da connettore: **no** per ora (valore legale) |
+| **ML.4** | **Fase 2 — caselle @tregobbi.it.** Motore IMAP generalizzato multi-casella (stesso motore della PEC, `[core]`; elenco caselle `[locale:tregobbi]`), indice + allegati in TRGB | M | DA FARE — **fase 2** | Dopo rodaggio fase 1. Quali caselle: da definire con Marco |
+| **ML.5** | Fase 2 — strumenti MCP: `mail_cerca`, `mail_leggi`, `mail_collega_pratica`, `mail_bozza` (Bozze via IMAP APPEND) | M | DA FARE — fase 2 | Stesse regole della fase 1 |
+| ML.6 | Fase 2 — `mail_invia` con conferma esplicita + eventuale whitelist destinatari, via SMTP di M.D | S | DA VALUTARE | Solo se le bozze non bastano |
+
 
 ---
 

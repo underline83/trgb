@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-10 — Carta Bevande: calcolo prezzo dei distillati dal costo bottiglia `[core]`
+
+Vini 3.94, sistema 5.47, mig 183. Nella sezione **Distillati** il form voce ha il riquadro «🧮 Calcolo prezzo»: si inserisce il costo della bottiglia IVA esclusa (accisa compresa), il formato e la dose (vuoti = 70 cl e 4 cl, o la dose della tipologia) e si vedono costo a dose, prezzo suggerito, incidenza del prezzo attuale e margine; «Usa questo prezzo» lo copia nel campo. Il suggerito rispetta un'incidenza obiettivo (25% di default) sul prezzo IVA esclusa, arrotondato a 0,50. Per il Gin c'è anche il suggerito del G&T (5 cl + costo tonica, da impostare). In tabella colonna «Costo dose» rossa sopra obiettivo e filtro «Sopra obiettivo». Parametri per sezione dal pulsante «🧮 Parametri prezzo» (admin/sommelier). Il costo lo vedono admin, sommelier e sala; agli altri ruoli la API lo toglie, e non va mai in carta. Logica in `bevande_prezzi_service.py`. Provato su copia del DB (migrazione due volte, calcolo, permessi per ruolo). UI non provata nel browser.
+
+---
+
 ## 2026-10-09 — Dipendenti: l'inattivo libera il colore `[core]`
 
 Dipendenti 2.34. Disattivare un dipendente dalla scheda (spunta «Dipendente attivo» tolta + Salva) ora azzera il colore come già faceva il tasto Disattiva: prima il colore restava occupato. Nella palette dell'anagrafica i colori degli inattivi non risultano più «già usati», quindi si possono riassegnare subito (vale anche per i 6 inattivi che oggi in DB hanno ancora un colore). Nessuna migrazione.

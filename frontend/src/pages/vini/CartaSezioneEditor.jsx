@@ -1,4 +1,10 @@
-// @version: v1.3-panel — import testo: incluse anche le colonne textarea (descrizione,
+// @version: v1.4-calcolo-prezzo — riquadro «Calcolo prezzo» nel form voce
+// (costo bottiglia IVA esclusa, formato, dose → costo a dose, prezzo suggerito,
+// incidenza), colonna costo/incidenza in tabella, filtro «sopra obiettivo»,
+// modale parametri per admin/sommelier. Solo sezioni con calcolo_prezzo.attivo
+// (mig 183: distillati). Costo visibile ad admin/sommelier/sala (il backend lo
+// toglie agli altri ruoli).
+// v1.3-panel — import testo: incluse anche le colonne textarea (descrizione,
 // ingredienti, abbinamenti) — esclusa solo note_interne. Prima le textarea erano
 // filtrate e il bulk-import di tè/tisane perdeva descrizioni e ingredienti.
 // v1.2-panel — import testo: incluse le colonne select (es. tipologia
@@ -19,9 +25,16 @@ import TrgbLoader from "../../components/TrgbLoader";
 import useToast from "../../hooks/useToast";
 import FormDinamico from "../../components/vini/carta/FormDinamico";
 import ImportTestoModal from "../../components/vini/carta/ImportTestoModal";
+import CalcoloPrezzoBox from "../../components/vini/carta/CalcoloPrezzoBox";
+import CalcoloPrezzoParametri from "../../components/vini/carta/CalcoloPrezzoParametri";
 
 // Campi numerici da normalizzare prima di POST/PUT
-const NUMERIC_FIELDS = new Set(["gradazione", "ibu", "prezzo_eur"]);
+const NUMERIC_FIELDS = new Set(["gradazione", "ibu", "prezzo_eur", "costo_bottiglia", "bottiglia_cl", "dose_cl"]);
+// Campi del calcolo prezzo (mig 183): fuori dallo schema_form, gestiti da CalcoloPrezzoBox
+const COST_FIELDS = ["costo_bottiglia", "bottiglia_cl", "dose_cl"];
+// Ruoli (allineati al backend): chi vede i costi / chi modifica la carta
+const ROLES_COSTI = ["admin", "superadmin", "sommelier", "sala"];
+const ROLES_EDITOR = ["admin", "superadmin", "sommelier"];
 // Campi boolean (checkbox) → 0/1 al backend (mig 106 birre: gluten_free)
 const BOOLEAN_FIELDS = new Set(["gluten_free", "analcolica"]);
 
@@ -92,6 +105,12 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   const [importOpen, setImportOpen] = useState(false);
+  const [paramOpen, setParamOpen] = useState(false);
+  const [soloSopra, setSoloSopra] = useState(false);
+
+  const role = useMemo(() => localStorage.getItem("role") || "", []);
+  const vedeCosti = ROLES_COSTI.includes(role);
+  const isEditor = ROLES_EDITOR.includes(role);
 
   const authHeader = useMemo(
     () => ({ Authorization: `Bearer ${token}` }),
@@ -133,18 +152,25 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
     const q = filter.trim().toLowerCase();
     return voci.filter((v) => {
       if (showOnlyActive && !v.attivo) return false;
+      if (soloSopra && !v.calcolo?.sopra_obiettivo) return false;
       if (!q) return true;
       const hay = `${v.nome || ""} ${v.produttore || ""} ${v.descrizione || ""} ${v.tipologia || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [voci, filter, showOnlyActive]);
+  }, [voci, filter, showOnlyActive, soloSopra]);
+
+  // Calcolo prezzo attivo per questa sezione e visibile a questo ruolo
+  const calcoloAttivo = !!sezione?.calcolo_prezzo?.attivo && vedeCosti;
+  const nSopra = useMemo(() => voci.filter((v) => v.attivo && v.calcolo?.sopra_obiettivo).length, [voci]);
 
   // --------------------------------------------------
   // Modal nuovo/edit
   // --------------------------------------------------
   const openNew = () => {
     setEditingId(null);
-    setFormValues(emptyFromSchema(sezione?.schema_form));
+    const values = emptyFromSchema(sezione?.schema_form);
+    if (calcoloAttivo) for (const k of COST_FIELDS) values[k] = "";
+    setFormValues(values);
     setFormErrors({});
     setModalOpen(true);
   };
@@ -153,6 +179,7 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
     setEditingId(voce.id);
     // Riempi i campi noti dallo schema; i valori null diventano stringhe vuote
     const values = emptyFromSchema(sezione?.schema_form);
+    if (calcoloAttivo) for (const k of COST_FIELDS) values[k] = "";
     for (const k of Object.keys(values)) {
       values[k] = voce[k] != null ? String(voce[k]) : "";
     }
@@ -242,6 +269,10 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
         abbinamenti: voce.abbinamenti,
         gluten_free: voce.gluten_free ? 1 : 0,
         analcolica: voce.analcolica ? 1 : 0,
+        // mig 183 (presenti solo per i ruoli che vedono i costi)
+        ...(voce.costo_bottiglia != null ? { costo_bottiglia: voce.costo_bottiglia } : {}),
+        ...(voce.bottiglia_cl != null ? { bottiglia_cl: voce.bottiglia_cl } : {}),
+        ...(voce.dose_cl != null ? { dose_cl: voce.dose_cl } : {}),
       };
       const r = await fetch(`${API_BASE}/bevande/voci/`, {
         method: "POST",
@@ -421,6 +452,11 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
           </Btn>
           {!isViniSection && (
             <>
+              {isEditor && sezione.calcolo_prezzo && (
+                <Btn variant="secondary" size="md" onClick={() => setParamOpen(true)}>
+                  🧮 Parametri prezzo
+                </Btn>
+              )}
               <Btn variant="secondary" size="md" onClick={() => setImportOpen(true)}>
                 📋 Import testo
               </Btn>
@@ -465,6 +501,17 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
               />
               Solo attive
             </label>
+            {calcoloAttivo && (
+              <label className="flex items-center gap-2 text-sm text-neutral-700 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={soloSopra}
+                  onChange={(e) => setSoloSopra(e.target.checked)}
+                  className="w-4 h-4 accent-red-600"
+                />
+                Sopra obiettivo{nSopra > 0 && <span className="text-red-600 font-semibold">({nSopra})</span>}
+              </label>
+            )}
           </div>
         )}
 
@@ -490,6 +537,11 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
                       <th className="px-3 py-2 text-left font-semibold text-neutral-600 text-xs uppercase">Nome</th>
                       <th className="px-3 py-2 text-left font-semibold text-neutral-600 text-xs uppercase hidden md:table-cell">Meta</th>
                       <th className="px-3 py-2 text-right font-semibold text-neutral-600 text-xs uppercase">Prezzo</th>
+                      {calcoloAttivo && (
+                        <th className="px-3 py-2 text-right font-semibold text-neutral-600 text-xs uppercase hidden sm:table-cell" title="Costo a dose · incidenza sul prezzo IVA esclusa · prezzo suggerito">
+                          Costo dose
+                        </th>
+                      )}
                       <th className="px-3 py-2 text-center font-semibold text-neutral-600 text-xs uppercase">Attivo</th>
                       <th className="px-3 py-2 text-right font-semibold text-neutral-600 text-xs uppercase">Azioni</th>
                     </tr>
@@ -536,6 +588,21 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
                               ? `€ ${Number(v.prezzo_eur).toFixed(2)}`
                               : v.prezzo_label || <span className="text-neutral-400">—</span>}
                           </td>
+                          {calcoloAttivo && (
+                            <td className="px-3 py-2 text-right text-xs hidden sm:table-cell whitespace-nowrap">
+                              {v.calcolo ? (
+                                <>
+                                  <div className="font-mono">€ {Number(v.calcolo.costo_dose).toFixed(2)}</div>
+                                  <div className={v.calcolo.sopra_obiettivo ? "text-red-600 font-semibold" : "text-neutral-500"}>
+                                    {v.calcolo.incidenza_reale != null ? `${v.calcolo.incidenza_reale}%` : "—"}
+                                    {" · sugg. "}€ {Number(v.calcolo.prezzo_suggerito).toFixed(2)}
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-neutral-400 italic">senza costo</span>
+                              )}
+                            </td>
+                          )}
                           <td className="px-3 py-2 text-center">
                             <button
                               onClick={() => toggleAttivo(v)}
@@ -620,6 +687,16 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
                 onChange={setFormValues}
                 errors={formErrors}
               />
+              {calcoloAttivo && (
+                <CalcoloPrezzoBox
+                  sezioneKey={key}
+                  parametri={sezione.calcolo_prezzo}
+                  values={formValues}
+                  onChange={setFormValues}
+                  canEdit={isEditor}
+                  authHeader={authHeader}
+                />
+              )}
             </div>
             <div className="px-5 py-3 border-t border-neutral-200 flex justify-end gap-2">
               <Btn variant="secondary" size="md" onClick={closeModal}>
@@ -631,6 +708,17 @@ export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL PARAMETRI CALCOLO PREZZO */}
+      {paramOpen && (
+        <CalcoloPrezzoParametri
+          sezione={sezione}
+          onClose={() => setParamOpen(false)}
+          onSaved={loadAll}
+          authHeader={authHeader}
+          toast={toast}
+        />
       )}
 
       {/* MODAL IMPORT TESTO */}

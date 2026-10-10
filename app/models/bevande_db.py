@@ -1,4 +1,6 @@
-# @version: v1.3-gin-vodka-prezzo-label — seed distillati: tipologie Gin e Vodka
+# @version: v1.4-calcolo-prezzo — colonne costo_bottiglia/bottiglia_cl/dose_cl
+#   su bevande_voci e calcolo_prezzo (JSON parametri) su bevande_sezioni (mig 183).
+# v1.3-gin-vodka-prezzo-label — seed distillati: tipologie Gin e Vodka
 #   nelle options + campo prezzo_label ("Prezzo in carta", per doppi prezzi tipo
 #   "liscio 8 · G&T 11"). Per i DB già esistenti la stessa modifica è applicata
 #   dalla migration 153 (il seed non tocca sezioni esistenti).
@@ -69,6 +71,7 @@ def init_bevande_db() -> None:
             layout       TEXT    NOT NULL DEFAULT 'scheda_estesa',
                                                      -- 'tabella_4col' | 'scheda_estesa' | 'nome_badge_desc'
             schema_form  TEXT,                       -- JSON: elenco campi form per SezioneEditor dinamico
+            calcolo_prezzo TEXT,                     -- (mig 183) JSON parametri calcolo prezzo da costo bottiglia
             created_at   TEXT DEFAULT (datetime('now','localtime')),
             updated_at   TEXT DEFAULT (datetime('now','localtime'))
         )
@@ -102,6 +105,9 @@ def init_bevande_db() -> None:
             abbinamenti   TEXT,                      -- (mig 106) suggerimento piatti consigliati (uso primario: birre)
             gluten_free   INTEGER NOT NULL DEFAULT 0,-- (mig 106) flag 0/1 senza glutine (uso primario: birre)
             analcolica    INTEGER NOT NULL DEFAULT 0,-- (mig 157) flag 0/1 analcolica / 0.0 (uso primario: birre)
+            costo_bottiglia REAL,                    -- (mig 183) costo bottiglia € IVA esclusa — riservato, mai in carta
+            bottiglia_cl  REAL,                      -- (mig 183) contenuto bottiglia in cl (NULL = default sezione)
+            dose_cl       REAL,                      -- (mig 183) dose servita in cl (NULL = default tipologia/sezione)
             created_at    TEXT DEFAULT (datetime('now','localtime')),
             updated_at    TEXT DEFAULT (datetime('now','localtime'))
         )

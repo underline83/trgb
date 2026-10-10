@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-08 — **DA PUSHARE: connettore MCP (mattone M.K, sistema 5.46)** — `app/connettore/`, `connettore_db.py`, `scripts/connettore.py`, `main.py` (lifespan + `/mcp`), `requirements.txt` (`mcp==2.3.0`: il hook fa il pip install). **Dopo il push:** nel log «🔌 Connettore MCP attivo»; claude.ai → Connettori → aggiungi `https://trgb.tregobbi.it/mcp`, autorizza con utente e PIN; prova «che pratiche ho aperte?» e un passo vero (`connettore_mcp.md` §9). **Pratiche** (`d5db69d6`): da admin aprire `/pratiche` (card 📂 e voce di menu), inserire le 6 pratiche di sb, Impostazioni → Notifiche «Pratiche» soglia 3. **Ancora da verificare:** su iPhone, Vendite → 📷 Scansiona QR; stampa di prova etichette QR su QL-820NWB. Checklist voci padre (mig 182): riscrivere «Linea Antipasti · Pranzo» (id 7) e «· Sera» (id 8) coi padri (`claude/linea_antipasti_gruppi.json`).
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: calcolo prezzo distillati (mig 183, sistema 5.47, vini 3.94)** — `bevande_prezzi_service.py`, `bevande_router.py`, `bevande_db.py`, mig 183, `CalcoloPrezzoBox.jsx`, `CalcoloPrezzoParametri.jsx`, `CartaSezioneEditor.jsx`. **Dopo il push:** /vini/carta/distillati → «🧮 Parametri prezzo» impostare il costo tonica del G&T; provare il form voce da iPhone. (Il connettore MCP 5.46 è già in produzione, commit aeb67aec.)
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.46 · **Migrazione più recente:** 182
+**Sistema:** 5.47 · **Migrazione più recente:** 183
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,21 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-10 — Carta Bevande: calcolo prezzo distillati `[core]`
+
+Marco: «sezione carta, distillati, mettimi la possibilità di inserire il prezzo della bottiglia, così riusciamo a calcolare meglio il prezzo». Decisioni: formula a incidenza obiettivo (proposta Claude), costo IVA esclusa, costi visibili anche alla sala, modifica da sommelier in su.
+
+- **DB (mig 183, solo ADD COLUMN):** `bevande_voci.costo_bottiglia/bottiglia_cl/dose_cl`, `bevande_sezioni.calcolo_prezzo` (JSON). Distillati attivati con 25% / IVA 22 / 0,50 / 70 cl / 4 cl, G&T sul Gin 5 cl + costo extra 0 (da impostare). Seed `bevande_db.py` v1.4 allineato.
+- **Service:** `app/services/bevande_prezzi_service.py` — parametri, validazione, `calcola`, `arricchisci_voci` (toglie costo e calcolo ai ruoli fuori da `RUOLI_COSTI` = admin/sommelier/sala, via M.G `ha_ruoli`).
+- **Router `bevande_router` v1.4:** campi nuovi su create/update, `calcolo` nelle letture, `PUT /bevande/sezioni/{key}/calcolo-prezzo` (admin/sommelier), `POST /bevande/calcolo-prezzo/anteprima` (RUOLI_COSTI).
+- **FE:** riquadro «🧮 Calcolo prezzo» nel form voce (anteprima dal backend con debounce, «Usa questo prezzo»), colonna «Costo dose», filtro «Sopra obiettivo», modale «🧮 Parametri prezzo».
+- **Prove:** su copia del DB (migrazione due volte, calcolo, miscelato, permessi admin/sommelier/superadmin/sala/chef/contabile, validazione parametri); sintassi JSX con esbuild. UI non provata nel browser.
+- **Nota:** `docs/roadmap.md` era già modificato da un'altra sessione (sezione ML — Posta nel connettore MCP), non toccato da questa.
+
+Commit: `./push.sh "[core] Carta Bevande: calcolo prezzo distillati dal costo bottiglia (mig 183, vini 3.94, sistema 5.47)"`
+
+---
 
 ## SESSIONE 2026-10-08 (2) — Connettore MCP di claude.ai, mattone M.K `[core]`
 

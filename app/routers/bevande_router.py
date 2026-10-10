@@ -1,4 +1,8 @@
-# @version: v1.3-tipologie-endpoint — PUT /sezioni/{key}/tipologie: gestione
+# @version: v1.4-calcolo-prezzo — costo bottiglia + calcolo prezzo a dose (mig 183):
+#   campi costo_bottiglia/bottiglia_cl/dose_cl sulle voci, `calcolo` nelle letture
+#   (solo admin/sommelier/sala, agli altri il costo viene tolto), PUT
+#   /sezioni/{key}/calcolo-prezzo (parametri), POST /calcolo-prezzo/anteprima.
+# v1.3-tipologie-endpoint — PUT /sezioni/{key}/tipologie: gestione
 #   sotto-categorie (options del select tipologia) da Impostazioni. Rename
 #   propagato alle voci, delete bloccato se in uso (lezione rename-stati).
 # v1.2-birre-abbinamenti-gf
@@ -46,6 +50,14 @@ from app.models.bevande_db import (
     list_sezioni,
 )
 from app.services.auth_service import get_current_user
+from app.services.bevande_prezzi_service import (
+    RUOLI_COSTI,
+    arricchisci_voci,
+    calcola as calcola_prezzo_dose,
+    parametri_da_sezione,
+    valida_parametri,
+)
+from app.services.permessi import richiede_ruoli
 from app.services.carta_bevande_service import (
     build_carta_bevande_docx,
     build_carta_bevande_html,
@@ -107,7 +119,7 @@ def _row_to_dict(row) -> dict[str, Any]:
         return {}
     d = dict(row)
     # Parse JSON fields
-    for field in ("schema_form", "tags", "extra"):
+    for field in ("schema_form", "tags", "extra", "calcolo_prezzo"):
         if field in d and d[field]:
             try:
                 d[field] = json.loads(d[field])
@@ -118,6 +130,11 @@ def _row_to_dict(row) -> dict[str, Any]:
 
 def _sezione_exists(key: str) -> bool:
     return get_sezione_by_key(key) is not None
+
+
+def _sezioni_per_key() -> dict[str, dict[str, Any]]:
+    """{key: sezione} — serve al calcolo prezzo per leggere i parametri."""
+    return {s["key"]: _row_to_dict(s) for s in list_sezioni()}
 
 
 # ─────────────────────────────────────────────
@@ -162,6 +179,10 @@ class VoceBase(BaseModel):
     gluten_free: Optional[int] = Field(0, ge=0, le=1)
     # mig 157
     analcolica: Optional[int] = Field(0, ge=0, le=1)
+    # mig 183 — calcolo prezzo a dose
+    costo_bottiglia: Optional[float] = Field(None, ge=0)
+    bottiglia_cl: Optional[float] = Field(None, gt=0)
+    dose_cl: Optional[float] = Field(None, gt=0)
 
 
 class VoceUpdate(BaseModel):
@@ -188,6 +209,19 @@ class VoceUpdate(BaseModel):
     gluten_free: Optional[int] = Field(None, ge=0, le=1)
     # mig 157
     analcolica: Optional[int] = Field(None, ge=0, le=1)
+    # mig 183 — calcolo prezzo a dose
+    costo_bottiglia: Optional[float] = Field(None, ge=0)
+    bottiglia_cl: Optional[float] = Field(None, gt=0)
+    dose_cl: Optional[float] = Field(None, gt=0)
+
+
+class CalcoloPrezzoAnteprima(BaseModel):
+    sezione_key: str
+    tipologia: Optional[str] = None
+    costo_bottiglia: Optional[float] = None
+    bottiglia_cl: Optional[float] = None
+    dose_cl: Optional[float] = None
+    prezzo_eur: Optional[float] = None
 
 
 class VociReorder(BaseModel):
@@ -423,6 +457,51 @@ def update_tipologie_sezione(key: str, payload: TipologieUpdate, user: dict = De
 
 
 # ─────────────────────────────────────────────
+# CALCOLO PREZZO A DOSE (mig 183)
+# ─────────────────────────────────────────────
+
+@router.put("/sezioni/{key}/calcolo-prezzo")
+def update_calcolo_prezzo(
+    key: str,
+    payload: dict,
+    user: dict = Depends(richiede_ruoli("admin", "sommelier", cosa="i parametri del calcolo prezzo")),
+):
+    """Salva i parametri del calcolo prezzo della sezione (incidenza, IVA, dosi…)."""
+    _ensure_db()
+    _validate_sezione_or_404(key)
+    try:
+        parametri = valida_parametri(payload)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    conn = get_bevande_conn()
+    try:
+        conn.execute(
+            "UPDATE bevande_sezioni SET calcolo_prezzo = ?, updated_at = datetime('now','localtime') WHERE key = ?",
+            (json.dumps(parametri, ensure_ascii=False), key),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"status": "ok", "calcolo_prezzo": parametri}
+
+
+@router.post("/calcolo-prezzo/anteprima")
+def anteprima_calcolo_prezzo(
+    payload: CalcoloPrezzoAnteprima,
+    user: dict = Depends(richiede_ruoli(*RUOLI_COSTI, cosa="il calcolo prezzo")),
+):
+    """Calcolo al volo per il form voce (niente salvataggio)."""
+    _ensure_db()
+    sez = get_sezione_by_key(payload.sezione_key)
+    if not sez:
+        raise HTTPException(404, f"Sezione '{payload.sezione_key}' non trovata")
+    parametri = parametri_da_sezione(_row_to_dict(sez))
+    if not parametri:
+        return {"calcolo": None, "attivo": False}
+    return {"calcolo": calcola_prezzo_dose(payload.model_dump(), parametri), "attivo": True}
+
+
+# ─────────────────────────────────────────────
 # VOCI — LIST / GET
 # ─────────────────────────────────────────────
 
@@ -456,9 +535,10 @@ def list_voci(
     conn = get_bevande_conn()
     try:
         rows = conn.execute(sql, params).fetchall()
-        return [_row_to_dict(r) for r in rows]
+        voci = [_row_to_dict(r) for r in rows]
     finally:
         conn.close()
+    return arricchisci_voci(voci, _sezioni_per_key(), user)
 
 
 @router.get("/voci/{voce_id}")
@@ -471,9 +551,10 @@ def get_voce(voce_id: int, user: dict = Depends(get_current_user)):
         row = conn.execute("SELECT * FROM bevande_voci WHERE id = ?", (voce_id,)).fetchone()
         if not row:
             raise HTTPException(404, f"Voce {voce_id} non trovata")
-        return _row_to_dict(row)
+        voce = _row_to_dict(row)
     finally:
         conn.close()
+    return arricchisci_voci([voce], _sezioni_per_key(), user)[0]
 
 
 # ─────────────────────────────────────────────
@@ -488,6 +569,8 @@ _VOCE_FIELDS = [
     "abbinamenti", "gluten_free",
     # mig 157
     "analcolica",
+    # mig 183
+    "costo_bottiglia", "bottiglia_cl", "dose_cl",
 ]
 
 
