@@ -1,6 +1,6 @@
 # Connettore MCP di TRGB — Claude dentro il gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (mattone M.K, sistema 5.46) · **Ultima verifica:** 2026-10-08
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (mattone M.K, sistema 5.46) · **Ultima verifica:** 2026-10-10
 > **Vedi anche:** [modulo_pratiche.md](modulo_pratiche.md), [architettura_mattoni.md](architettura_mattoni.md) (M.G permessi), [refactor_monorepo.md](refactor_monorepo.md)
 
 **Classificazione:** `[core]`, platform, mattone **M.K** (Marco, 2026-10-08). Ogni locale che compra TRGB può collegare Claude al suo gestionale; quali strumenti vede dipende dai moduli attivi e dal ruolo di chi autorizza.
@@ -27,6 +27,7 @@ TRGB diventa un **connettore personalizzato di claude.ai**. Da qualsiasi chat (w
 - **Mai un blocco del gestionale:** se `mcp` non è installato o il connettore dà un errore all'avvio, il backend parte lo stesso e `/mcp` risponde 404. Nel log c'è «⚠️ Connettore MCP non attivo».
 - **Moduli:** gli strumenti di un modulo esistono solo se il modulo è attivo per il locale (`module_loader`).
 - **Dipendenza nuova:** `mcp==2.3.0` in `requirements.txt` (si porta dietro httpx2, sse-starlette, PyJWT, jsonschema, opentelemetry-api). Il hook del VPS fa `pip install` da solo quando `requirements.txt` cambia; `push.sh … -f` lo forza.
+- **Riavvio del backend (2026-10-10):** claude.ai tiene sempre aperto un flusso su `/mcp`, e uvicorn al restart aspettava che si chiudesse (~90 s di push bloccato e gestionale giù). Sul VPS la unit ha ora `--timeout-graceful-shutdown 5` + `TimeoutStopSec=15`: dopo 5 s il flusso si chiude e claude.ai si riconnette. Dettagli in [deploy.md §5](deploy.md#backend-trgb-backendservice). Ogni nuova installazione con il connettore attivo ne ha bisogno.
 - **nginx sul VPS:** `trgb.tregobbi.it` passa già tutto al backend, quindi `/mcp` dovrebbe arrivarci senza toccare niente. Se le risposte di Claude arrivano a scatti o in ritardo, si aggiunge un `location /mcp` con `proxy_buffering off`, come per il brain.
 
 ## 3. Accesso

@@ -250,7 +250,8 @@ User=<USER>
 WorkingDirectory=/home/<USER>/trgb/trgb
 Environment="PYTHONPATH=/home/<USER>/trgb/trgb"
 Environment="TRGB_LOCALE=<LOCALE>"
-ExecStart=/home/<USER>/trgb/venv-trgb/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=/home/<USER>/trgb/venv-trgb/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 5
+TimeoutStopSec=15
 Restart=on-failure
 RestartSec=5
 
@@ -258,6 +259,8 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 ```
+
+`--timeout-graceful-shutdown 5` + `TimeoutStopSec=15` sono obbligatori dal connettore MCP (2026-10-10): senza, ogni restart aspetta che claude.ai chiuda il flusso `/mcp` (~90 s di backend giù). Perché e diagnosi: [deploy.md §5](deploy.md#backend-trgb-backendservice).
 
 ### 5.2 Frontend (nginx-served, ma se usi vite preview anche un service per quello)
 Vedi sezione 6 nginx — frontend viene servito da nginx come static files da `dist/`,

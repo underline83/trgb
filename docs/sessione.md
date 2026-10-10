@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: bevande iPratico con codice nello SKU (vini 3.99, nessuna migrazione)** — `ipratico_bevande_service.py` 1.1, `iPraticoSync.jsx`. **Dopo il push:** export dall'export iPratico più recente → import → riesportare da iPratico e verificare che lo SKU «B0123» sia rimasto (se sparisce, si riconosce dal nome, ma va saputo). Poi: IVA 10 nei Parametri prezzo, accisa grappe Marolo, costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: solo docs (override systemd del backend, push lento — sessione 7).** **Dopo il push bb3a8820 (bevande SKU, vini 3.99):** export dall'export iPratico più recente → import → riesportare da iPratico e verificare che lo SKU «B0123» sia rimasto (se sparisce, si riconosce dal nome, ma va saputo). Poi: IVA 10 nei Parametri prezzo, accisa grappe Marolo, costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -31,6 +31,10 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-10 (7) — Push lento: override systemd backend `[locale:tregobbi]`
+
+Marco: «Push → VPS» fermo quasi un minuto. Causa: `systemctl restart trgb-backend` nel post-receive aspettava che uvicorn chiudesse il flusso `/mcp` aperto da claude.ai (journal: 14:47:02 «Waiting for connections to close» → 14:48:28 shutdown). Fix applicato da Marco sul VPS: `/etc/systemd/system/trgb-backend.service.d/override.conf` con `--timeout-graceful-shutdown 5` + `TimeoutStopSec=15`. Docs: `deploy.md` §5 (canonico), `installazione_nuovo_server.md` §5.1 (template), `connettore_mcp.md` §2, `problemi.md` INFRA-1, `changelog.md`. Solo docs da pushare.
 
 ## SESSIONE 2026-10-10 (6) — Bevande iPratico: codice nello SKU `[core]`
 

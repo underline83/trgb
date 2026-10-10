@@ -1,7 +1,7 @@
 # 🚀 TRGB Gestionale — Guida Deploy (VPS & Locale)
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
-> **Vedi anche:** [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md), [sicurezza_backup.md](sicurezza_backup.md), [installazione_nuovo_server.md](installazione_nuovo_server.md), [stack_tecnico.md](stack_tecnico.md)
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-10 (§5 override systemd)
+> **Vedi anche:** [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md), [sicurezza_backup.md](sicurezza_backup.md), [installazione_nuovo_server.md](installazione_nuovo_server.md), [stack_tecnico.md](stack_tecnico.md), [connettore_mcp.md](connettore_mcp.md)
 
 Questo documento descrive tutte le procedure di deploy del gestionale TRGB.
 
@@ -205,6 +205,22 @@ cd /home/marco/trgb/trgb
 # 5. Servizi systemd
 
 ## Backend (`trgb-backend.service`)
+
+**Override attivo sul VPS (dal 2026-10-10)** — `/etc/systemd/system/trgb-backend.service.d/override.conf`:
+```
+[Service]
+ExecStart=
+ExecStart=/home/marco/trgb/venv-trgb/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --timeout-graceful-shutdown 5
+TimeoutStopSec=15
+```
+Il file `trgb-backend.service` originale resta intatto; per vedere la unit effettiva: `systemctl cat trgb-backend`.
+
+**Perché:** il connettore MCP ([connettore_mcp.md](connettore_mcp.md)) tiene aperto con claude.ai un flusso `/mcp` che non si chiude mai. Senza limite, al `restart` uvicorn resta in «Waiting for connections to close» finché il flusso non cade: ~90 s a ogni push (fermo a «Push → VPS») e **gestionale giù per tutto quel tempo**, perché durante lo spegnimento uvicorn non accetta più richieste (nginx dà 502). Con `--timeout-graceful-shutdown 5` le richieste vere finiscono normalmente, dopo 5 s si chiude solo il flusso inattivo e claude.ai si riconnette da solo. `TimeoutStopSec=15` è la rete di sicurezza se uvicorn si pianta.
+
+**Diagnosi se il push torna lento:** `journalctl -u trgb-backend --since "-1h" --no-pager | grep -iE "waiting for|stopping|timed out"` — un salto lungo tra «Waiting for connections to close» e «Waiting for application shutdown» è questo problema.
+
+**Per tornare indietro:** `sudo rm /etc/systemd/system/trgb-backend.service.d/override.conf && sudo systemctl daemon-reload && sudo systemctl restart trgb-backend`.
+
 ```
 sudo systemctl start trgb-backend
 sudo systemctl stop trgb-backend

@@ -285,6 +285,13 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 
 ## Risolti
 
+### INFRA-1. Push lento: «Push → VPS» fermo ~1 minuto ✅ 2026-10-10
+**Aperto/chiuso:** 2026-10-10 (Marco: «è diventato molto lento a pushare… a quel punto si blocca quasi un minuto»). Iniziato con il connettore MCP (2026-10-08).
+
+**Causa:** il post-receive fa `systemctl restart trgb-backend`; uvicorn, senza `timeout_graceful_shutdown`, aspettava la chiusura del flusso `/mcp` tenuto aperto da claude.ai. Journal del 10/10: «Waiting for connections to close» alle 14:47:02 → shutdown alle 14:48:28 (86 s); il restart delle 14:34, senza connettore aperto, 6 s. In quei secondi il gestionale era giù (uvicorn in spegnimento non accetta richieste).
+
+**Fix (solo VPS, nessun codice):** override systemd `trgb-backend.service.d/override.conf` con `--timeout-graceful-shutdown 5` e `TimeoutStopSec=15`. Pagina canonica: [deploy.md §5](deploy.md#backend-trgb-backendservice). Aggiornato anche il template in [installazione_nuovo_server.md §5.1](installazione_nuovo_server.md).
+
 ### V-3.71. Vini — modifica giacenze non registra il movimento RETTIFICA (di nuovo) ✅ 2026-07-18
 **Aperto:** 2026-07-18 (Marco: "oggi sono state caricate delle bottiglie tramite la giacenza, ma non crea il movimento..possibile? credevo fosse stato gia corretto questo bug")
 **Chiuso:** 2026-07-18, stessa sessione (vini 3.71, DA PUSHARE al momento della chiusura)

@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-10 — Push di nuovo veloce: riavvio backend con limite di 5 s `[locale:tregobbi]`
+
+Dal connettore MCP (8/10) ogni push restava fermo circa un minuto e mezzo a «Push → VPS», con il gestionale irraggiungibile nel frattempo: al riavvio il backend aspettava che claude.ai chiudesse il collegamento `/mcp`, che resta sempre aperto. Sul VPS il servizio ora chiude il collegamento dopo 5 secondi (claude.ai si ricollega da solo). Solo configurazione del server, nessun codice: [deploy.md §5](deploy.md#backend-trgb-backendservice).
+
+---
+
 ## 2026-10-10 — Bevande su iPratico: codice nello SKU `[core]`
 
 Vini 3.99. Il codice delle bevande (B0123) non sta più nel nome del prodotto iPratico ma nella colonna **SKU**: sul tablet resta solo «produttore nome». I prodotti già importati con il codice nel nome vengono riconosciuti, ripuliti e lo SKU compilato (provato sull'export iPratico delle 14:44: 98 bevande, cambiano solo Name e SKU, stessi Id, nessuna riga nuova). Se iPratico perdesse lo SKU, le bevande si riconoscono dal nome nelle loro categorie. Nessuna migrazione.
