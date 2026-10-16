@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-10 — **DA PUSHARE: SKU anche sui vini iPratico (vini 4.0, nessuna migrazione)** — `ipratico_products_router.py` 2.2, `main.py` (expose `X-Updated-Sku`), `iPraticoSync.jsx`. Bevande su iPratico verificate (export 14:53: SKU conservato, nomi senza codice, stessi Id). **Dopo il push:** export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: la chiave di Q nel connettore MCP** (`oauth.py` 1.1, `server.py` 1.1, nessuna migrazione; dopo il push Q entra in TRGB come «Q»). Prima, 2026-10-10 — **DA PUSHARE: SKU anche sui vini iPratico (vini 4.0, nessuna migrazione)** — `ipratico_products_router.py` 2.2, `main.py` (expose `X-Updated-Sku`), `iPraticoSync.jsx`. Bevande su iPratico verificate (export 14:53: SKU conservato, nomi senza codice, stessi Id). **Dopo il push:** export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -31,6 +31,15 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-16 — La chiave di Q nel connettore MCP `[core]`
+
+Marco (progetto Q, la sua memoria personale su q.carminati.org): Q deve poter leggere e scrivere in TRGB con le regole di TRGB. Scelta sua: «direi Q così ci rendiamo conto, lo teniamo come superadmin, non c'è un utente visualizzabile ma si connette direttamente».
+- `app/connettore/oauth.py` 1.1: `chiave_q()` da `TRGB_CHIAVE_Q` (≥ 32 caratteri), `load_access_token` la riconosce prima dei token OAuth (soggetto `q:servizio`), `utente_attivo` la traduce in `{"username": "Q", "role": "superadmin"}` solo se la chiave è configurata.
+- `app/connettore/server.py` 1.1: i passi scritti da Q hanno autore `Q` (gli altri restano `claude (<utente>)`).
+- Doc: `docs/connettore_mcp.md` §3, §7.5, prove.
+- Prove su copia dei dati locali (cancellata): 8 unitarie + giro completo da Q verso il solo connettore. La chiave sul VPS è già nel `.env` (non in git); serve solo il push.
+- Nota a margine: `requirements.txt` non elenca `email-validator`, che il backend richiede (sul VPS c'è, 2.3.0): un'installazione nuova da zero si fermerebbe.
 
 ## SESSIONE 2026-10-10 (7) — Vini iPratico: codice anche nello SKU `[core]`
 

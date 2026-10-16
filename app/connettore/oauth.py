@@ -1,4 +1,4 @@
-# @version: v1.0 (2026-10-08) — nascita del connettore MCP (mattone M.K)
+# @version: v1.1 (2026-10-16) — la chiave di Q: ingresso da server a server (identità «Q», superadmin)
 # -*- coding: utf-8 -*-
 """
 oauth.py — chi può usare il connettore MCP di TRGB, e come ci entra. Modulo: platform (M.K).
@@ -21,6 +21,12 @@ quello che è nostro:
 
 Ogni codice e token porta lo username di chi ha autorizzato. A ogni chiamata si rilegge
 l'utente in users.json: se non c'è più o non è più admin, il token non apre niente.
+
+La chiave di Q (dal 2026-10-16, decisione di Marco): Q, la memoria personale di Marco
+(q.carminati.org), parla a TRGB da server a server con una chiave sua, TRGB_CHIAVE_Q nel
+.env del locale (almeno 32 caratteri). Niente PIN né rinnovi. Entra come identità «Q»,
+superadmin, che NON è un utente di users.json: non compare negli elenchi e non fa login.
+Senza la variabile la porta non esiste; per chiuderla basta toglierla e riavviare.
 """
 from __future__ import annotations
 
@@ -30,6 +36,8 @@ import json
 import secrets
 import time
 import hashlib
+import hmac
+import os
 from datetime import datetime
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
@@ -77,8 +85,19 @@ def ritorno_ammesso(uri: str) -> bool:
     return u.scheme == "http" and u.hostname in LOCALI
 
 
+SOGGETTO_Q = "q:servizio"     # il soggetto dei token di Q: i due punti non stanno negli username
+
+
+def chiave_q() -> str:
+    """La chiave di Q dal .env, solo se lunga abbastanza da non indovinarla."""
+    k = os.environ.get("TRGB_CHIAVE_Q", "")
+    return k if len(k) >= 32 and k.isascii() else ""
+
+
 def utente_attivo(username: Optional[str]) -> Optional[dict]:
     """L'utente come lo vede il resto di TRGB, se esiste ancora ed è autorizzato."""
+    if username == SOGGETTO_Q:
+        return {"username": "Q", "role": "superadmin"} if chiave_q() else None
     info = auth_service.USERS.get(username or "")
     if not info:
         return None
@@ -296,6 +315,10 @@ class Fornitore:
 
     # ── gli accessi: a ogni chiamata a /mcp ──
     async def load_access_token(self, token: str) -> AccessToken | None:
+        k = chiave_q()
+        if k and token.isascii() and hmac.compare_digest(token, k):
+            return AccessToken(token=token, client_id="q", scopes=[SCOPE], expires_at=None,
+                               resource=self.risorsa, subject=SOGGETTO_Q)
         c = self.con()
         try:
             r = c.execute("""SELECT * FROM connettore_oauth_token WHERE hash = ? AND tipo = 'accesso'

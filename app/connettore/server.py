@@ -1,4 +1,4 @@
-# @version: v1.0 (2026-10-08) — nascita del connettore MCP (mattone M.K)
+# @version: v1.1 (2026-10-16) — Q scrive firmando «Q» (la chiave di Q, vedi oauth.py)
 # -*- coding: utf-8 -*-
 """
 server.py — TRGB come connettore MCP di claude.ai, su /mcp. Modulo: platform (M.K).
@@ -126,7 +126,8 @@ def _strumenti_pratiche(mcp: MCPServer) -> None:
     strumento = functools.partial(_strumento, mcp)
 
     def autore() -> str:
-        return f"claude ({_utente()['username']})"
+        nome = _utente()["username"]
+        return "Q" if nome == "Q" else f"claude ({nome})"
 
     @strumento(SOLA_LETTURA)
     def pratiche_elenco(

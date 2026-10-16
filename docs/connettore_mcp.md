@@ -36,6 +36,7 @@ TRGB diventa un **connettore personalizzato di claude.ai**. Da qualsiasi chat (w
 - **Indirizzi di ritorno ammessi:** solo claude.ai / claude.com e localhost (per l'MCP Inspector).
 - **La pagina di autorizzazione** chiede utente e PIN e li controlla con `authenticate_user` di `auth_service`: stesso blocco dopo i tentativi sbagliati, stessa politica PIN del login.
 - **Chi può autorizzare:** solo admin e superadmin, perché oggi gli strumenti sono soltanto pratiche. Il token porta con sé l'utente: ogni strumento rifà il controllo dei ruoli con M.G (`verifica_ruoli`), come il router. Se domani il connettore apre altri moduli, ogni strumento dichiara i suoi ruoli.
+- **La chiave di Q** (dal 2026-10-16): Q, la memoria personale di Marco (`q.carminati.org`), entra da server a server con `TRGB_CHIAVE_Q` nel `.env` del locale (almeno 32 caratteri, generata sul VPS e mai stampata; la stessa sta come `Q_TRGB_CHIAVE` nell'env di Q). Niente PIN né rinnovi. Identità **«Q», superadmin**, che non è un utente di `users.json`: non compare negli elenchi e non fa login. I passi scritti da Q hanno autore `Q`. Per chiudere la porta: togliere la riga dal `.env` e riavviare.
 - **Revoca:** `scripts/connettore.py --revoca` sul VPS. Togliere un utente o cambiargli ruolo blocca anche i suoi token alla chiamata successiva, perché ruolo e stato dell'utente si rileggono a ogni chiamata.
 
 ## 4. Strumenti (prima versione: solo pratiche)
@@ -84,6 +85,8 @@ Fuori dalla prima versione, apposta:
 3. Autore dei passi: `claude (<utente>)`, per esempio `claude (marco)`.
 4. Prima di creare o chiudere una pratica Claude chiede conferma; un passo semplice lo scrive e lo dice dopo.
 
+5. (2026-10-16) Q entra con la sua chiave come «Q», superadmin, senza utente visibile; firma i passi «Q».
+
 ## 8. Prove fatte (2026-10-08)
 
 In locale, con `mcp` 2.3.0 (pacchetti presi dalla venv del brain, senza rete) e un locale temporaneo:
@@ -92,6 +95,8 @@ In locale, con `mcp` 2.3.0 (pacchetti presi dalla venv del brain, senza rete) e 
 - avvio di `main.py` su una copia dei DB: con `mcp` il connettore è attivo e il resto risponde come prima; senza `mcp` il backend parte e `/mcp` dà 404.
 
 Non provato: il giro da claude.ai vero, che si fa dopo il push.
+
+Prove della chiave di Q (2026-10-16), su una copia dei dati locali poi cancellata: la chiave apre come Q superadmin; chiave quasi giusta, token a caso, testo non ASCII, chiave corta o variabile assente non aprono niente; gli utenti veri restano com'erano. Da Q, contro il solo connettore: i 4 strumenti con le regole, `pratiche_elenco`, `pratica_crea` con autore `Q`, errore di validazione leggibile, chiave sbagliata 401.
 
 ## 9. Dopo il push (Marco)
 
