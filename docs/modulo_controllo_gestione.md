@@ -28,6 +28,8 @@ Decisioni Marco 16/10/2026. Spesa fissa **«F24 paghe»** (`tipo='F24_STIPENDI'`
 | C-CG-F01 🆕 | Rate F24 paghe nello Scadenzario dall'import F24 (una per pagina con saldo > 0) | `f24_scadenzario_service.registra_f24`; `dipendenti.py` `import_paghe_pdf` | admin | 🆕 2026-10-16 |
 | C-CG-F02 🆕 | «📄 PDF» sulla riga dello Scadenzario (`cg_uscite.allegato_url`, fetch autenticato) | `ControlloGestioneUscite.jsx` `apriAllegato`; `GET /dipendenti/buste-paga/f24/{hash}/pdf` | admin/contabile | 🆕 2026-10-16 |
 | C-CG-F03 🆕 | CE cassa: F24 paghe nel mese del pagamento effettivo | `conto_economico.py` ramo cassa | admin/contabile | 🆕 2026-10-16 |
+| C-CG-MCP1 🆕 | Strumento MCP `scadenziario` (sola lettura): uscite aperte del periodo con totali, scadute di qualsiasi data, quante da verificare; niente IBAN | `app/connettore/server.py` `_strumenti_scadenziario` → `get_uscite` | admin/contabile (Q / claude.ai) | 🆕 2026-10-16 |
+| C-CG-MCP2 🆕 | Strumento MCP `uscita_segna_pagata`: come «Segna pagate» (CONTANTI → PAGATO, altri → PAGATO_MANUALE); solo PROGRAMMATO/SCADUTO/PARZIALE/PAGATO_MANUALE | `server.py` → `segna_pagate_bulk` | admin/contabile (Q / claude.ai) | 🆕 2026-10-16 |
 
 # 📌 AGGIORNAMENTO 2026-10-16 — Spalmatura di default per categoria (mig 191, CG 2.28)
 

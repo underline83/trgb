@@ -670,7 +670,9 @@ Oggi il connettore (M.K) espone solo le pratiche: per tutto il resto Claude deve
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
 | **MK.1** | **Dipendenti**: `dipendenti_elenco`, `dipendente_leggi`, `dipendente_aggiorna` (anagrafica, contatti, indirizzo, contratto/date), `dipendente_crea` | M | DA FARE — **prima** | Caso d'uso 2026-10-10: assunzione Giulia Spuri fatta navigando. Niente numeri di documenti d'identità via connettore; allegati restano dalla UI |
-| MK.2 | Scadenze / Controllo Gestione: elenco scadenze e rate, segna pagata, crea spesa una tantum | M | DA FARE | Allinea sb e TRGB (rate Fondo Est, Cerved, ecc.) |
+| MK.2 | Scadenze / Controllo Gestione: elenco scadenze e rate, segna pagata, crea spesa una tantum | M | 🟡 PARZIALE 2026-10-16 (da pushare) | Fatti `scadenziario` (lettura) e `uscita_segna_pagata`; restano spesa una tantum, spese fisse e piani rate. Allinea sb e TRGB (rate Fondo Est, Cerved, ecc.) |
+| MK.6 | Scadenze documenti dipendenti: `scadenze_dipendenti_elenco`, `scadenza_dipendente_crea`, `scadenza_dipendente_aggiorna` | S | ✅ FATTO 2026-10-16 (da pushare) | Server 1.3. Niente cancellazione. `connettore_mcp.md` §4 |
+| MK.7 | Prenotazioni: `prenotazioni_giorno`, `prenotazioni_periodo`, `prenotazione_crea` (non manda niente al cliente) | S | ✅ FATTO 2026-10-16 (da pushare) | Restano modifica, cambio stato, cancellazione |
 | MK.3 | Preventivi / eventi: elenco, leggi, crea bozza preventivo, segna caparra | M | DA FARE | Cene di gruppo (Tenaris, lauree…). Esporre anche i campi a corpo del menu (`pricing_mode`, `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `prezzo_corpo_scelta`), `menu_scelto_id`, stagione dei template e `testo_cliente()` (mig 187, già nel service) |
 | MK.4 | Fornitori e fatture: cerca fornitore, fatture aperte/non pagate | S | DA FARE | Solo lettura all'inizio |
 | MK.5 | Turni / chiamate intermittenti: leggi turni, registra chiamata | M | DA VALUTARE | |

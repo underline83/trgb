@@ -293,6 +293,8 @@ Il vecchio Turni v1 (griglia per data su `turni_calendario` senza slot, endpoint
 
 **Endpoint:** `GET /dipendenti/scadenze` (filtri `dipendente_id`, `tipo`, `stato`; ritorna `stato_calc` dinamico + riepilogo scaduti/in scadenza/validi), `POST /dipendenti/scadenze`, `PUT /dipendenti/scadenze/{id}`, `DELETE /dipendenti/scadenze/{id}` (hard). UI: `DipendentiScadenze.jsx`. L'upload del PDF certificato NON è implementato (colonne `pdf_*` inutilizzate).
 
+**Connettore MCP** (2026-10-16, `server.py` 1.3, solo admin come la rotta): `scadenze_dipendenti_elenco` (filtri dipendente per id o nome, `entro_giorni`, stato, tipo), `scadenza_dipendente_crea`, `scadenza_dipendente_aggiorna` (anche `aggiungi_nota` datata). Chiamano `lista_scadenze` / `crea_scadenza` / `modifica_scadenza` della rotta. Niente cancellazione. Dettagli in [connettore_mcp.md](connettore_mcp.md) §4.
+
 **Alert M.F:** checker `dipendenti_scadenze` registrato in `app/services/alert_engine.py:301` — rispetta l'`alert_giorni` del singolo documento (la `soglia_giorni` di config è solo fallback), antidup su `alert_dipendenti_scadenze`.
 
 **Tipi predefiniti (ristorazione):**
@@ -363,6 +365,7 @@ UI: sezione documenti nella scheda del dipendente in Anagrafica.
 | C-D-306 | Elimina candidato e CV (privacy) | `DELETE /{id}` | admin | 🆕 2026-10-16 |
 | C-D-307 | Strumenti MCP `candidati_elenco`, `candidato_crea`, `candidato_aggiorna` | `app/connettore/server.py` `_strumenti_candidati` | admin (Q / claude.ai) | 🆕 2026-10-16 |
 | C-D-308 | Import delle candidature del second brain | `scripts/importa_candidati_sb.py` | admin (a mano) | 🆕 2026-10-16 |
+| C-D-309 | Strumenti MCP scadenze documenti: `scadenze_dipendenti_elenco`, `scadenza_dipendente_crea`, `scadenza_dipendente_aggiorna` (§5.5) | `app/connettore/server.py` `_strumenti_scadenze_dipendenti` | admin (Q / claude.ai) | 🆕 2026-10-16 |
 
 ---
 

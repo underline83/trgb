@@ -1,4 +1,5 @@
-# @version: v1.2 (2026-10-16) — strumenti candidati (modulo dipendenti)
+# @version: v1.3 (2026-10-16) — scadenze dipendenti, scadenziario CG, prenotazioni
+# v1.2 (2026-10-16) — strumenti candidati (modulo dipendenti)
 # v1.1 (2026-10-16) — Q scrive firmando «Q» (la chiave di Q, vedi oauth.py)
 # -*- coding: utf-8 -*-
 """
@@ -7,8 +8,10 @@ Doc: docs/connettore_mcp.md. Modello: ~/brain/app/connettore.py.
 
 Claude lo usa da qualsiasi chat (web, desktop, iPhone): entra con OAuth (oauth.py),
 poi chiama gli strumenti qui sotto. Gli strumenti NON hanno regole proprie: chiamano
-le stesse funzioni dei service che usano i router (`pratiche_service`, `candidati_service`). Un errore
-del service arriva a Claude come errore dello strumento, con lo stesso messaggio.
+le stesse funzioni dei service che usano i router (`pratiche_service`, `candidati_service`) o,
+dove la logica sta ancora nella rotta (scadenze dipendenti, scadenziario, prenotazioni), la
+funzione della rotta stessa chiamata con l'utente del token. Un errore del service o della
+rotta (HTTPException) arriva a Claude come errore dello strumento, con lo stesso messaggio.
 
 Ogni strumento:
   · esiste solo se il suo modulo è attivo per il locale (module_loader);
@@ -40,7 +43,9 @@ Stato = Literal["tocca_a_me", "tocca_a_loro", "chiusa"]
 SOLA_LETTURA = ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False)
 SCRIVE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
 
-ISTRUZIONI = """TRGB, il gestionale del ristorante. Oggi da qui si gestiscono le PRATICHE.
+ISTRUZIONI = """TRGB, il gestionale del ristorante. Da qui si gestiscono le PRATICHE, i CANDIDATI,
+le SCADENZE dei dipendenti, si legge lo SCADENZIARIO dei pagamenti e si leggono e
+creano le PRENOTAZIONI (ogni gruppo c'è solo se il suo modulo è attivo).
 
 Una pratica è uno scambio formale con qualcuno di esterno (ente, fornitore, studio,
 creditore) che aspetta un esito: una PEC, un reclamo, un pignoramento, un contenzioso.
@@ -60,7 +65,11 @@ Regole che valgono sempre:
   suo sì. Un passo semplice («è arrivata la PEC», «ho telefonato») si scrive e si
   conferma dopo, dicendo cosa hai scritto.
 - Gli allegati si caricano dalla pagina /pratiche del gestionale, non da qui.
-- CANDIDATI (CV ricevuti): prima di crearne uno cerca con candidati_elenco (nome/telefono/email); dati di terzi: niente dati sanitari né documenti d'identità; il CV si carica dalla pagina."""
+- CANDIDATI (CV ricevuti): prima di crearne uno cerca con candidati_elenco (nome/telefono/email); dati di terzi: niente dati sanitari né documenti d'identità; il CV si carica dalla pagina.
+- Date sempre AAAA-MM-GG. Mai IBAN nelle risposte; niente dati sanitari (salvo le allergie dichiarate di una prenotazione).
+- SCADENZE DIPENDENTI: cerca con scadenze_dipendenti_elenco prima di crearne una; prima di creare o cambiare riepiloga a Marco e aspetta il sì; non si cancellano da qui.
+- SCADENZIARIO: sola lettura; uscita_segna_pagata solo dopo il sì di Marco (fornitore, importo, data, metodo); spese fisse e rate si fanno dalla pagina.
+- PRENOTAZIONI: prima di crearne una controlla il giorno con prenotazioni_giorno, riepiloga a Marco (giorno, ora, coperti, nome, note, allergie) e aspetta il sì; prenotazione_crea non manda niente al cliente."""
 
 
 def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
@@ -89,6 +98,11 @@ def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
         _strumenti_pratiche(mcp)
     if module_loader.is_module_active("dipendenti"):
         _strumenti_candidati(mcp)
+        _strumenti_scadenze_dipendenti(mcp)
+    if module_loader.is_module_active("controllo_gestione"):
+        _strumenti_scadenziario(mcp)
+    if module_loader.is_module_active("prenotazioni"):
+        _strumenti_prenotazioni(mcp)
     return mcp
 
 
@@ -104,6 +118,8 @@ def _utente() -> dict:
 def _strumento(mcp: MCPServer, annotazioni: ToolAnnotations):
     """Registra uno strumento: gli errori del service diventano errori leggibili, le
     liste un oggetto solo che dice anche quanti sono."""
+    from fastapi import HTTPException
+    from pydantic import ValidationError
     from app.services.candidati_service import CandidatoErrore, CandidatoNonTrovato
     from app.services.pratiche_service import PraticaErrore, PraticaNonTrovata
 
@@ -116,6 +132,11 @@ def _strumento(mcp: MCPServer, annotazioni: ToolAnnotations):
                 raise ToolError(f"{e} (404)") from None
             except (PraticaErrore, CandidatoErrore) as e:
                 raise ToolError(f"{e} (400)") from None
+            except HTTPException as e:
+                # strumenti che chiamano la funzione della rotta: stesso messaggio dell'API
+                raise ToolError(f"{e.detail} ({e.status_code})") from None
+            except ValidationError as e:
+                raise ToolError(f"Dati non validi: {e.errors()[0].get('msg')} (400)") from None
             if isinstance(esito, list):
                 esito = {"quante": len(esito), "risultati": esito}
             # una volta in JSON: date e None restano come le vede l'API
@@ -129,6 +150,21 @@ def _strumento(mcp: MCPServer, annotazioni: ToolAnnotations):
 def _autore() -> str:
     nome = _utente()["username"]
     return "Q" if nome == "Q" else f"claude ({nome})"
+
+
+def _ruoli(*ruoli: str, cosa: str) -> dict:
+    """L'utente del token, se ha uno dei ruoli (M.G, superadmin implicito dove c'è admin);
+    altrimenti 403 leggibile. Stessi ruoli del router corrispondente."""
+    from app.services.permessi import ha_ruoli
+    user = _utente()
+    if not ha_ruoli(user, *ruoli):
+        raise ToolError(f"{cosa[:1].upper()}{cosa[1:]}: riservato a {', '.join(ruoli)}. (403)")
+    return user
+
+
+def _oggi() -> str:
+    from datetime import date
+    return date.today().isoformat()
 
 
 def _strumenti_pratiche(mcp: MCPServer) -> None:
@@ -302,6 +338,455 @@ def _strumenti_candidati(mcp: MCPServer) -> None:
             c = svc.cambia_stato(id, stato or c["stato"], colloquio_at=colloquio_at if stato else None,
                                  nota=nota)
         return c
+
+
+def _senza_vuoti(d: dict) -> dict:
+    return {k: v for k, v in d.items() if v not in (None, "", [])}
+
+
+# ── Dipendenti › Scadenze documenti ──────────────────────────────────────────
+
+TipoScadenza = Literal["HACCP", "SICUREZZA_GENERALE", "SICUREZZA_SPECIFICA", "ANTINCENDIO",
+                       "PRIMO_SOCCORSO", "VISITA_MEDICA", "PERMESSO_SOGGIORNO", "ALTRO"]
+StatoScadenza = Literal["VALIDO", "IN_SCADENZA", "SCADUTO"]
+
+
+def _strumenti_scadenze_dipendenti(mcp: MCPServer) -> None:
+    """Scadenze documenti dei dipendenti (modulo dipendenti): solo admin, come
+    /dipendenti/scadenze. La logica sta nelle funzioni della rotta (lista_scadenze,
+    crea_scadenza, modifica_scadenza): gli strumenti le chiamano così come sono."""
+    from datetime import date, timedelta
+    from app.models.dipendenti_db import get_dipendenti_conn
+    from app.routers import dipendenti as rotte
+    strumento = functools.partial(_strumento, mcp)
+
+    def admin() -> dict:
+        return _ruoli("admin", cosa="le scadenze dei dipendenti")
+
+    def dipendente_id(dipendente: str | None) -> int | None:
+        """id, oppure nome / cognome / soprannome (tutte le parole devono esserci) → id.
+        Errore leggibile se non c'è o se è ambiguo."""
+        if dipendente is None or not str(dipendente).strip():
+            return None
+        conn = get_dipendenti_conn()
+        try:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT id, nome, cognome, nickname, attivo FROM dipendenti").fetchall()]
+        finally:
+            conn.close()
+        testo = str(dipendente).strip()
+        if testo.isdigit():
+            r = next((r for r in rows if r["id"] == int(testo)), None)
+            if not r:
+                raise ToolError(f"Dipendente {testo} non trovato. (404)")
+            return r["id"]
+        parole = testo.lower().split()
+
+        def nome(r):
+            return f"{r['nome'] or ''} {r['cognome'] or ''}".strip()
+
+        def combacia(r):
+            campo = f"{nome(r)} {r.get('nickname') or ''}".lower()
+            return all(p in campo for p in parole)
+
+        attivi = [r for r in rows if r["attivo"] and combacia(r)]
+        esatti = [r for r in attivi if testo.lower() in (nome(r).lower(),
+                  f"{r['cognome'] or ''} {r['nome'] or ''}".strip().lower())]
+        if len(esatti) == 1:
+            return esatti[0]["id"]
+        if len(attivi) == 1:
+            return attivi[0]["id"]
+        if not attivi:
+            spenti = [r for r in rows if not r["attivo"] and combacia(r)]
+            extra = (" Tra i non attivi: " + ", ".join(f"{nome(r)} (id {r['id']})" for r in spenti)
+                     + " — le loro scadenze non si vedono.") if spenti else ""
+            raise ToolError(f"Nessun dipendente attivo per «{testo}».{extra} (404)")
+        elenco = ", ".join(f"{nome(r)} (id {r['id']})" for r in attivi)
+        raise ToolError(f"«{testo}» è ambiguo: {elenco}. Passa l'id o nome e cognome. (400)")
+
+    def voce(r: dict) -> dict:
+        try:
+            giorni = (date.fromisoformat(r["data_scadenza"]) - date.today()).days
+        except (TypeError, ValueError):
+            giorni = None
+        return _senza_vuoti({
+            "id": r["id"], "dipendente_id": r["dipendente_id"],
+            "dipendente": f"{r.get('nome') or ''} {r.get('cognome') or ''}".strip(),
+            "tipo": r["tipo"], "tipo_label": r.get("tipo_label"),
+            "descrizione": r.get("descrizione"), "data_rilascio": r.get("data_rilascio"),
+            "data_scadenza": r["data_scadenza"], "giorni_alla_scadenza": giorni,
+            "stato": r.get("stato_calc"), "alert_giorni": r.get("alert_giorni"),
+            "ente_rilascio": r.get("ente_rilascio"), "note": r.get("note")})
+
+    def elenco(user: dict, did: int | None = None, tipo=None, stato=None) -> list[dict]:
+        return rotte.lista_scadenze(dipendente_id=did, tipo=tipo, stato=stato,
+                                    current_user=user)["scadenze"]
+
+    def una(user: dict, id: int) -> dict:
+        r = next((r for r in elenco(user) if r["id"] == id), None)
+        if not r:
+            raise ToolError(f"Scadenza {id} non trovata (o il dipendente non è più attivo). (404)")
+        return r
+
+    @strumento(SOLA_LETTURA)
+    def scadenze_dipendenti_elenco(
+        dipendente: Annotated[str | None, Field(description="id del dipendente, oppure nome e/o cognome")] = None,
+        entro_giorni: Annotated[int | None, Field(ge=0, le=3650, description="Solo quelle che scadono entro N giorni da oggi (le già scadute comprese)")] = None,
+        stato: Annotated[StatoScadenza | None, Field(description="VALIDO, IN_SCADENZA (dentro i giorni di avviso), SCADUTO")] = None,
+        tipo: TipoScadenza | None = None,
+    ) -> dict:
+        """Le scadenze dei documenti dei dipendenti attivi (HACCP, corsi sicurezza,
+        antincendio, primo soccorso, visite mediche, permessi di soggiorno, fine contratto o
+        proroga come ALTRO), dalla più vicina. Lo stato è calcolato: SCADUTO, IN_SCADENZA
+        (entro alert_giorni), VALIDO. Usalo prima di crearne una per non fare doppioni."""
+        user = admin()
+        voci = elenco(user, dipendente_id(dipendente), tipo, stato)
+        if entro_giorni is not None:
+            limite = (date.today() + timedelta(days=entro_giorni)).isoformat()
+            voci = [r for r in voci if r["data_scadenza"] <= limite]
+        voci = [voce(r) for r in voci]
+        conta = {s: sum(1 for v in voci if v.get("stato") == s) for s in ("SCADUTO", "IN_SCADENZA", "VALIDO")}
+        return {"quante": len(voci), "riepilogo": conta, "scadenze": voci}
+
+    @strumento(SCRIVE)
+    def scadenza_dipendente_crea(
+        dipendente: Annotated[str, Field(min_length=1, description="id del dipendente, oppure nome e/o cognome (se è ambiguo l'errore elenca i candidati)")],
+        tipo: TipoScadenza,
+        data_scadenza: Giorno,
+        descrizione: Annotated[str | None, Field(description="«Fine proroga contratto intermittente», «Corso HACCP base»")] = None,
+        alert_giorni: Annotated[int | None, Field(ge=1, le=365, description="Giorni di preavviso. Se manca: quello del tipo (HACCP 30, sicurezza 60, permesso 90…)")] = None,
+        note: str | None = None,
+    ) -> dict:
+        """Una scadenza nuova per un dipendente (documento, corso, visita, permesso, fine
+        contratto come ALTRO). PRIMA cerca con scadenze_dipendenti_elenco se c'è già e
+        riepiloga a Marco cosa scrivi (dipendente, tipo, data, preavviso): crea solo dopo il
+        suo sì. Date AAAA-MM-GG. Niente dati sanitari (di una visita medica solo che
+        scade), niente numeri di documenti d'identità, niente IBAN."""
+        user = admin()
+        did = dipendente_id(dipendente)
+        r = rotte.crea_scadenza({"dipendente_id": did, "tipo": tipo, "data_scadenza": data_scadenza,
+                                 "descrizione": descrizione, "alert_giorni": alert_giorni,
+                                 "note": note}, current_user=user)
+        return voce(una(user, r["id"]))
+
+    @strumento(SCRIVE)
+    def scadenza_dipendente_aggiorna(
+        id: Id,
+        tipo: TipoScadenza | None = None,
+        descrizione: str | None = None,
+        data_scadenza: Annotated[Giorno | None, Field(description="Nuova data (per un rinnovo: la nuova scadenza)")] = None,
+        alert_giorni: Annotated[int | None, Field(ge=1, le=365)] = None,
+        note: Annotated[str | None, Field(description="SOSTITUISCE le note")] = None,
+        aggiungi_nota: Annotated[str | None, Field(description="Riga da AGGIUNGERE alle note, con la data di oggi")] = None,
+    ) -> dict:
+        """Corregge una scadenza esistente (id da scadenze_dipendenti_elenco): i campi non
+        passati restano com'erano. Per un rinnovo si sposta data_scadenza. Riepiloga a Marco
+        cosa cambi e aspetta il suo sì. Non si cancella da qui. Niente dati sanitari, niente
+        numeri di documenti, niente IBAN."""
+        user = admin()
+        if note is not None and aggiungi_nota:
+            raise ToolError("Passa note oppure aggiungi_nota, non tutti e due. (400)")
+        attuale = una(user, id)
+        campi = {k: v for k, v in dict(tipo=tipo, descrizione=descrizione, data_scadenza=data_scadenza,
+                                       alert_giorni=alert_giorni, note=note).items() if v is not None}
+        if aggiungi_nota:
+            riga = f"[{_oggi()}] {aggiungi_nota.strip()}"
+            campi["note"] = f"{attuale['note']}\n{riga}" if attuale.get("note") else riga
+        if not campi:
+            raise ToolError("Niente da cambiare. (400)")
+        rotte.modifica_scadenza(scadenza_id=id, payload=campi, current_user=user)
+        return voce(una(user, id))
+
+
+# ── Controllo di gestione › Scadenziario ─────────────────────────────────────
+
+# Come il filtro di default della pagina Scadenzario (ControlloGestioneUscite.jsx).
+STATI_APERTI = ("PROGRAMMATO", "SCADUTO", "SPOSTATO", "VERIFICARE", "PARZIALE")
+# Quelli che «Segna pagate» della pagina accetta (segna_pagate_bulk).
+STATI_SEGNABILI = ("PROGRAMMATO", "SCADUTO", "PARZIALE", "PAGATO_MANUALE")
+MetodoPagamento = Literal["CONTO_CORRENTE", "CARTA", "CONTANTI", "ASSEGNO", "BONIFICO"]
+
+
+def _strumenti_scadenziario(mcp: MCPServer) -> None:
+    """Scadenziario (modulo controllo_gestione): admin e contabile, come il router. Legge
+    con get_uscite (la stessa funzione della pagina Scadenzario) e segna pagato con
+    segna_pagate_bulk (il bottone «Segna pagate»). Niente spese fisse né piani rate."""
+    from datetime import date, timedelta
+    from app.routers import controllo_gestione_router as cg
+    strumento = functools.partial(_strumento, mcp)
+
+    def contabile() -> dict:
+        return _ruoli("admin", "contabile", cosa="lo scadenziario")
+
+    def uscite(user: dict, a: str, fornitore: str | None) -> list[dict]:
+        return cg.get_uscite(stato=None, fornitore=fornitore, da=None, a=a, ordine="scadenza_asc",
+                             includi_rateizzate=False, includi_escluse=False,
+                             current_user=user)["uscite"]
+
+    def residuo(u: dict) -> float:
+        return round((u.get("totale") or 0) - (u.get("importo_pagato") or 0), 2)
+
+    def voce(u: dict) -> dict:
+        # niente IBAN: get_uscite li porta, qui non escono
+        return _senza_vuoti({
+            "id": u["id"], "data_scadenza": u.get("data_scadenza"),
+            "titolo": u.get("sf_titolo") or u.get("fornitore_nome"),
+            "fornitore": u.get("fornitore_nome"),
+            "tipo": u.get("sf_tipo_label") or u.get("tipo_uscita"),
+            "numero_fattura": u.get("numero_fattura"), "data_fattura": u.get("data_fattura"),
+            "totale": u.get("totale"), "da_pagare": residuo(u), "stato": u.get("stato"),
+            "modalita_pagamento": u.get("modalita_pagamento_label"),
+            "data_pagamento": u.get("data_pagamento"),
+            "metodo_pagamento": u.get("metodo_pagamento_label"),
+            "periodo": u.get("periodo_riferimento"),
+            "scadenza_originale": u.get("data_scadenza_originale") if u.get("stato") == "SPOSTATO" else None,
+            "in_distinta": u.get("batch_titolo"), "note": u.get("note")})
+
+    def totali(voci: list[dict]) -> dict:
+        per_stato: dict = {}
+        for v in voci:
+            s = per_stato.setdefault(v["stato"], {"quante": 0, "importo": 0.0})
+            s["quante"] += 1
+            s["importo"] = round(s["importo"] + (v.get("da_pagare") or 0), 2)
+        return {"quante": len(voci), "da_pagare": round(sum(v.get("da_pagare") or 0 for v in voci), 2),
+                "per_stato": per_stato}
+
+    @strumento(SOLA_LETTURA)
+    def scadenziario(
+        da: Annotated[Giorno | None, Field(description="Inizio periodo. Oggi se manca")] = None,
+        a: Annotated[Giorno | None, Field(description="Fine periodo, compresa. Oggi + 30 giorni se manca")] = None,
+        fornitore: Annotated[str | None, Field(description="Cerca nel nome del fornitore / della spesa")] = None,
+        includi_pagate: Annotated[bool, Field(description="true = nel periodo anche le già pagate")] = False,
+        max_voci: Annotated[int, Field(ge=1, le=500)] = 100,
+    ) -> dict:
+        """Lo scadenziario dei pagamenti (fatture, spese fisse, rate, stipendi, F24), come la
+        pagina Scadenzario: le uscite da pagare nel periodo con i totali, più le SCADUTE
+        (non pagate con scadenza passata, di qualsiasi data) e quante sono «da verificare».
+        Stati: PROGRAMMATO, SCADUTO, SPOSTATO (data rinegoziata, non pagata), PARZIALE,
+        VERIFICARE (forse pagata, da controllare); PAGATO = riconciliata in banca,
+        PAGATO_MANUALE = segnata pagata a mano. Le rateizzate compaiono come rate.
+        Sola lettura. Niente IBAN nelle risposte."""
+        user = contabile()
+        oggi = _oggi()
+        da = da or oggi
+        a = a or (date.today() + timedelta(days=30)).isoformat()
+        if a < da:
+            raise ToolError("Periodo non valido: «a» è prima di «da». (400)")
+        tutte = uscite(user, a, fornitore)
+        aperte = [u for u in tutte if u.get("stato") in STATI_APERTI]
+        nel_periodo = [voce(u) for u in (tutte if includi_pagate else aperte)
+                       if u.get("data_scadenza") and u["data_scadenza"] >= da]
+        scadute = [voce(u) for u in aperte if u.get("stato") != "VERIFICARE"
+                   and u.get("data_scadenza") and u["data_scadenza"] < oggi]
+        verificare = [voce(u) for u in aperte if u.get("stato") == "VERIFICARE"]
+        return {
+            "oggi": oggi, "periodo": {"da": da, "a": a},
+            "nel_periodo": {**totali(nel_periodo), "voci": nel_periodo[:max_voci],
+                            "altre": max(0, len(nel_periodo) - max_voci)},
+            "scadute": {**totali(scadute), "voci": scadute[-max_voci:],
+                        "altre_piu_vecchie": max(0, len(scadute) - max_voci)},
+            "da_verificare": {"quante": len(verificare),
+                              "importo": round(sum(v.get("da_pagare") or 0 for v in verificare), 2)},
+        }
+
+    @strumento(SCRIVE)
+    def uscita_segna_pagata(
+        id: Annotated[int, Field(ge=1, description="id dell'uscita, da scadenziario")],
+        data_pagamento: Annotated[Giorno | None, Field(description="Quando è stata pagata (mai futura). Oggi se manca")] = None,
+        metodo: Annotated[MetodoPagamento, Field(description="CONTANTI = pagata e chiusa; gli altri = PAGATO_MANUALE, da riconciliare con la banca")] = "CONTO_CORRENTE",
+    ) -> dict:
+        """Segna pagata un'uscita dello scadenziario, come «Segna pagate» della pagina:
+        con CONTANTI diventa PAGATO, con gli altri metodi PAGATO_MANUALE (resta da
+        riconciliare con il movimento di banca). Vale per PROGRAMMATO, SCADUTO, PARZIALE (e
+        per correggere data o metodo di una PAGATO_MANUALE); SPOSTATO, VERIFICARE e
+        RATEIZZATO si sistemano dalla pagina. PRIMA riepiloga a Marco quale uscita (fornitore,
+        importo, scadenza), data e metodo, e aspetta il suo sì."""
+        user = contabile()
+        quando = data_pagamento or _oggi()
+        if quando > _oggi():
+            raise ToolError("La data di pagamento non può essere futura. (400)")
+        conn = cg.get_fc_db()
+        try:
+            r = conn.execute("SELECT id, fornitore_nome, totale, stato, data_scadenza FROM cg_uscite "
+                             "WHERE id = ?", (id,)).fetchone()
+        finally:
+            conn.close()
+        if not r:
+            raise ToolError(f"Uscita {id} non trovata. (404)")
+        if r["stato"] not in STATI_SEGNABILI:
+            perche = {"PAGATO": "è già pagata e riconciliata con la banca",
+                      "RATEIZZATO": "è rateizzata: si pagano le rate"}.get(
+                r["stato"], "si sistema dalla pagina Scadenzario")
+            raise ToolError(f"Uscita {id} ({r['fornitore_nome']}) in stato {r['stato']}: {perche}. (409)")
+        esito = cg.segna_pagate_bulk(payload={"ids": [id], "metodo_pagamento": metodo,
+                                              "data_pagamento": quando}, current_user=user)
+        if not esito.get("ok"):
+            raise ToolError(f"{esito.get('error') or 'Non segnata'} (400)")
+        dopo = next((u for u in uscite(user, "9999-12-31", None) if u["id"] == id), None)
+        return voce(dopo) if dopo else {"id": id, "ok": True}
+
+
+# ── Prenotazioni ─────────────────────────────────────────────────────────────
+
+Turno = Literal["pranzo", "cena"]
+Ora = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", description="HH:MM")]
+GIORNI = ("lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica")
+STATI_FUORI = ("CANCELED", "NO_SHOW", "REFUSED")
+
+
+def _strumenti_prenotazioni(mcp: MCPServer) -> None:
+    """Prenotazioni (modulo prenotazioni): admin, sala, sommelier, contabile, come il router.
+    Legge con get_planning (la pagina Planning) e crea con crea_prenotazione (il «+ Nuova»
+    della pagina), che non manda niente al cliente: niente email, WhatsApp o notifiche."""
+    import re
+    from datetime import date, timedelta
+    from app.models.clienti_db import get_clienti_conn
+    from app.routers import prenotazioni_router as rotte
+    strumento = functools.partial(_strumento, mcp)
+
+    def sala() -> dict:
+        return _ruoli("admin", "sala", "sommelier", "contabile", cosa="le prenotazioni")
+
+    def voce(p: dict) -> dict:
+        # niente telefono/email, preferenze o restrizioni: solo le allergie dichiarate
+        return _senza_vuoti({
+            "id": p["id"], "data": p.get("data_pasto"), "ora": (p.get("ora_pasto") or "")[:5],
+            "turno": p.get("turno"), "coperti": p.get("pax"),
+            "nome": f"{p.get('nome') or ''} {p.get('cognome') or ''}".strip(),
+            "stato": p.get("stato"), "tavolo": p.get("tavolo"), "fonte": p.get("fonte"),
+            "canale": p.get("canale"), "occasione": p.get("occasione"),
+            "note": p.get("nota_ristorante"), "richiesta_cliente": p.get("nota_cliente"),
+            "allergie": p.get("allergie_segnalate"), "allergie_cliente": p.get("allergie"),
+            "seggioloni": p.get("seggioloni"), "vip": p.get("vip") or None,
+            "cliente_id": p.get("cliente_id"), "visite_precedenti": p.get("visite_precedenti"),
+            "no_show_passati": p.get("no_show_totali") or None, "creata_da": p.get("creato_da"),
+            "possibili_doppioni": [d.get("id") for d in p.get("possibili_doppioni") or []]})
+
+    def giorno(user: dict, data: str, turno, cancellate: bool, dettaglio: bool = True) -> dict:
+        pl = rotte.get_planning(data=data, user=user)
+        tutte = [p for t in ("pranzo", "cena") if turno in (None, t) for p in pl[t]]
+        attive = [p for p in tutte if p["stato"] not in STATI_FUORI]
+        out = {"data": data, "giorno": GIORNI[date.fromisoformat(data).weekday()]}
+        for t in ("pranzo", "cena"):
+            if turno in (None, t):
+                quelle = [p for p in attive if p.get("turno") == t]
+                out[t] = {"prenotazioni": len(quelle), "coperti": sum(p.get("pax") or 0 for p in quelle),
+                          "capienza": pl["contatori"].get(f"capienza_{t}")}
+        if dettaglio:
+            out["prenotazioni"] = [voce(p) for p in (tutte if cancellate else attive)]
+        return out
+
+    @strumento(SOLA_LETTURA)
+    def prenotazioni_giorno(
+        data: Giorno,
+        turno: Turno | None = None,
+        cancellate: Annotated[bool, Field(description="true = anche cancellate, no-show e rifiutate")] = False,
+    ) -> dict:
+        """Le prenotazioni di un giorno, per ora: coperti, nome, stato, tavolo, note,
+        richiesta del cliente, allergie, fonte (thefork, widget, manuale), con i totali di
+        pranzo e cena. Stati: RECORDED (prenotata), REQUESTED (da confermare), ARRIVED,
+        SEATED (al tavolo), BILL, LEFT (andati), CANCELED, NO_SHOW, REFUSED.
+        possibili_doppioni = id della stessa prenotazione segnata a mano e in TheFork."""
+        return giorno(sala(), data, turno, cancellate)
+
+    @strumento(SOLA_LETTURA)
+    def prenotazioni_periodo(
+        da: Giorno,
+        a: Annotated[Giorno, Field(description="Compreso. Al massimo 31 giorni dopo «da»")],
+        turno: Turno | None = None,
+        solo_totali: Annotated[bool, Field(description="true = per ogni giorno solo prenotazioni e coperti")] = False,
+        cancellate: bool = False,
+    ) -> dict:
+        """Le prenotazioni di più giorni (al massimo 31), giorno per giorno, con i totali di
+        pranzo e cena; solo_totali=true per un colpo d'occhio sul carico della settimana.
+        Stessi campi e stati di prenotazioni_giorno."""
+        user = sala()
+        d0, d1 = date.fromisoformat(da), date.fromisoformat(a)
+        if d1 < d0:
+            raise ToolError("Periodo non valido: «a» è prima di «da». (400)")
+        if (d1 - d0).days > 30:
+            raise ToolError("Al massimo 31 giorni per volta. (400)")
+        giorni = [giorno(user, (d0 + timedelta(days=i)).isoformat(), turno, cancellate, not solo_totali)
+                  for i in range((d1 - d0).days + 1)]
+        tot = {t: {"prenotazioni": sum(g[t]["prenotazioni"] for g in giorni),
+                   "coperti": sum(g[t]["coperti"] for g in giorni)}
+               for t in ("pranzo", "cena") if turno in (None, t)}
+        return {"da": da, "a": a, "totali": tot, "giorni": giorni}
+
+    def cerca(user: dict, q: str) -> list[dict]:
+        return rotte.search_clienti(q=q, user=user)["clienti"]
+
+    def descrivi(c: dict) -> str:
+        tel = re.sub(r"\D", "", c.get("telefono") or "")
+        chi = " ".join(x for x in (c.get("nome"), c.get("cognome")) if x)
+        return (f"id {c['id']} {chi}".rstrip()
+                + (f" (tel. …{tel[-4:]})" if tel else "") + f", {c.get('visite_totali') or 0} visite")
+
+    @strumento(SCRIVE)
+    def prenotazione_crea(
+        data: Giorno,
+        ora: Ora,
+        coperti: Annotated[int, Field(ge=1, le=50)],
+        cognome: Annotated[str | None, Field(description="Del cliente. Serve se non passi cliente_id")] = None,
+        nome: str | None = None,
+        telefono: Annotated[str | None, Field(description="Serve a ritrovare il cliente se c'è già")] = None,
+        email: str | None = None,
+        cliente_id: Annotated[int | None, Field(ge=1, description="Cliente già in TRGB (dall'errore che elenca i possibili)")] = None,
+        nuovo_cliente: Annotated[bool, Field(description="true = crea comunque un cliente nuovo, anche se ce n'è uno con lo stesso nome")] = False,
+        note: Annotated[str | None, Field(description="Nota interna del ristorante")] = None,
+        richiesta_cliente: Annotated[str | None, Field(description="Cosa ha chiesto il cliente («tavolo vicino alla finestra»)")] = None,
+        allergie: Annotated[str | None, Field(description="Solo le allergie/intolleranze dichiarate dal cliente")] = None,
+        occasione: Annotated[str | None, Field(description="«compleanno», «anniversario»…")] = None,
+        seggioloni: str | None = None,
+        canale: Annotated[str, Field(description="Come è arrivata: Telefono, WhatsApp, Email, Di persona…")] = "Telefono",
+    ) -> dict:
+        """Una prenotazione nuova, come il «+ Nuova» del Planning (fonte «manuale», stato
+        RECORDED, creata da Q / claude). Non manda NIENTE al cliente (niente email, WhatsApp,
+        notifiche): la conferma la dà Marco. Il cliente: cliente_id se lo sai; altrimenti
+        lo cerco per telefono (uno solo → è lui) e per nome; se ce ne sono di possibili
+        l'errore li elenca: richiama con cliente_id o con nuovo_cliente=true. PRIMA
+        riepiloga a Marco giorno, ora, coperti, nome, note e allergie, e aspetta il suo sì;
+        controlla anche con prenotazioni_giorno che non ci sia già. Date AAAA-MM-GG, ora
+        HH:MM. Mai dati sanitari oltre alle allergie dichiarate."""
+        user = sala()
+        if data < _oggi():
+            raise ToolError("La data è passata: le prenotazioni si creano da oggi in avanti. (400)")
+        trovato = None
+        if cliente_id:
+            conn = get_clienti_conn()
+            try:
+                c = conn.execute("SELECT id FROM clienti WHERE id = ?", (cliente_id,)).fetchone()
+            finally:
+                conn.close()
+            if not c:
+                raise ToolError(f"Cliente {cliente_id} non trovato. (404)")
+            trovato = cliente_id
+        elif not nuovo_cliente:
+            cifre = re.sub(r"\D", "", telefono or "")[-9:]
+            per_tel = cerca(user, cifre) if len(cifre) >= 6 else []
+            if len(per_tel) == 1:
+                trovato = per_tel[0]["id"]
+            else:
+                possibili = per_tel or (cerca(user, f"{cognome} {nome or ''}".strip()) if cognome else [])
+                if possibili:
+                    raise ToolError(
+                        "Ci sono clienti che potrebbero essere lui: "
+                        + "; ".join(descrivi(c) for c in possibili[:8])
+                        + ". Richiama con cliente_id, oppure nuovo_cliente=true. (409)")
+        if not trovato and not (cognome or "").strip():
+            raise ToolError("Serve il cognome del cliente (o cliente_id). (400)")
+        req = rotte.PrenotazioneCreate(
+            cliente_id=trovato, data_pasto=data, ora_pasto=ora, pax=coperti, canale=canale,
+            nota_ristorante=note, nota_cliente=richiesta_cliente, occasione=occasione,
+            allergie_segnalate=allergie, seggioloni=seggioloni,
+            nuovo_nome=None if trovato else nome, nuovo_cognome=None if trovato else cognome.strip(),
+            nuovo_telefono=None if trovato else telefono, nuovo_email=None if trovato else email)
+        r = rotte.crea_prenotazione(req=req, user={**user, "username": _autore()})
+        pl = rotte.get_planning(data=data, user=user)
+        p = next((p for t in ("pranzo", "cena") for p in pl[t] if p["id"] == r["id"]), None)
+        out = voce(p) if p else {"id": r["id"]}
+        out["cliente"] = "esistente" if trovato else "nuovo"
+        return out
 
 
 class Smista:

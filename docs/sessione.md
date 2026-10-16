@@ -9,6 +9,11 @@
 **DA PUSHARE — Spalmatura anche sulle spese fisse non mensili** (controlloGestione 2.29, nessuna migrazione; la spalmatura per fatture è live da 2bfc275a, regole VINO 3 / ALCOLICI 6 / SPESE CONDOMINIALI 12 dal 2026-01 verificate in produzione)
 - Dopo il push: Conto Economico aprile e settembre 2026 → SPESE CONDOMINIALI in «(quota k/12)». Da fare a mano: «Spese condominiali rata 2» (395 €) non ha sottocategoria → assegnare SPESE CONDOMINIALI in Spese Fisse.
 
+**DA PUSHARE — Connettore MCP 1.3: scadenze dipendenti, scadenziario, prenotazioni** (nessuna migrazione). Dopo il push, da claude.ai o da Q: «che scadenze dei dipendenti ho nei prossimi 90 giorni?», «cosa devo pagare questo mese?», «chi c'è a cena sabato?».
+
+**DA PUSHARE — Spalmatura di default per categoria** (mig 191, sistema 5.55, fatture 3.3, controlloGestione 2.28)
+- Dopo il push: Acquisti › Impostazioni › Categorie › BEVANDE › VINO › chip 📆 → 3 mesi, dal 2026-01 (decisione Marco). Poi Conto Economico: le fatture col vino mostrano «(quota k/3)»; nel dettaglio di una fattura Sogegross il gruppo VINO ha il badge «📆 3 mesi».
+
 **TheFork webhook** (live: b29003e4 + 4fa71e02; URL già mandato a Régis il 16/10)
 - Fix orario pushato (e1791c48): rilanciare Recupera 09/10→16/10 «pasto», poi oggi→31/12 «pasto».
 - Pushato 26257fbc: doppioni, bollino, timeline, collegamento clienti (mig 192, 5.56). Da verificare nel Planning.
@@ -67,6 +72,16 @@ Verifica in produzione (5.57, 2bfc275a): VINO e ALCOLICI spalmati correttamente;
 - Prenotazioni 2.13 è uscita dentro il commit 2bfc275a (spalmatura) di un'altra sessione: già in produzione.
 - Prenotazioni 2.14, mig 197: recensioni TheFork (`thefork_recensioni_service.py`, `recensioni_router`, `PrenotazioniRecensioni.jsx`, `RecensioneCard.jsx`, tab in ClientiScheda; merge clienti sposta le recensioni). Testato su copia DB con TheFork finto (collegamento cliente/prenotazione, notifica sotto soglia, giro solo_nuove, risposta, permessi sala/admin/viewer). Da verificare dal vero: scope di lettura recensioni e di scrittura reply.
 - Direzione decisa da Marco: TRGB diventa il gestionale delle prenotazioni; su TheFork resteranno 3-4 tavoli. Si copiano e migliorano le funzioni di TheFork Manager; quello che l'API non permette si fa solo in TRGB. Da valutare: POST /v1/restaurants/{id}/reservations, PATCH /v1/reservations/{id}, PATCH …/cancel (scrivere su TheFork le prenotazioni prese in TRGB), recensioni (GET /v1/reviews, PUT reply), riconoscimento chiamante (customers/phone, callRecognitions).
+
+## SESSIONE 2026-10-16 (11) — Connettore MCP: scadenze dipendenti, scadenziario, prenotazioni `[core]`
+
+Richiesta: Q e Claude da claude.ai devono fare via MCP ciò che la skill /sb chiedeva a Marco di fare a mano. Lavoro su un worktree mentre su `main` andavano prenotazioni e preventivi: nessuna rotta toccata.
+- `app/connettore/server.py` 1.3: 8 strumenti nuovi. Scadenze dipendenti (admin): `scadenze_dipendenti_elenco`, `scadenza_dipendente_crea`, `scadenza_dipendente_aggiorna`. Scadenziario (admin, contabile): `scadenziario` (sola lettura), `uscita_segna_pagata`. Prenotazioni (admin, sala, sommelier, contabile): `prenotazioni_giorno`, `prenotazioni_periodo`, `prenotazione_crea`. Una riga per famiglia nelle ISTRUZIONI.
+- La logica di questi moduli sta ancora negli handler: gli strumenti chiamano la funzione della rotta (`lista_scadenze`, `crea_scadenza`, `modifica_scadenza`, `get_uscite`, `segna_pagate_bulk`, `get_planning`, `search_clienti`, `crea_prenotazione`) con l'utente del token; `_strumento` traduce `HTTPException` in errore leggibile. Nessuna estrazione: rotte identiche.
+- `crea_prenotazione` non manda email, WhatsApp né notifiche: non è servito un parametro per spegnerle. `creato_da`/`prenotato_da` = autore (`Q` o `claude (utente)`), fonte `manuale`, canale `Telefono` se non detto.
+- Decisioni prese da me: segna pagata con `segna_pagate_bulk` (il bottone «Segna pagate» della pagina, sceglie data e metodo) e non con `stato-pagamento`; scadenziario = stati aperti del filtro di default della pagina, VERIFICARE a parte; prenotazioni solo da oggi in avanti; cliente ritrovato solo dal telefono (per nome → errore con l'elenco); risposte senza telefono/email/preferenze dei clienti e senza IBAN; scadenze: nessun campo autore (la tabella non l'ha), `aggiungi_nota` datata; non si vedono le scadenze dei dipendenti non attivi (come la pagina); niente bump di sistema (nessuna migrazione, come la chiave di Q).
+- Prove su copia dei DB locali (locale temporaneo, poi cancellato): 79 controlli in-process, 17 sulle rotte HTTP, giro via HTTP contro il solo connettore con la chiave di Q. Dettagli in `connettore_mcp.md` §8.
+- Docs: `connettore_mcp.md` §3, §4, §8; `modulo_dipendenti.md` §5.5 + C-D-309; `modulo_controllo_gestione.md` C-CG-MCP1/2; `modulo_prenotazioni.md` C-P-MCP1/2; roadmap MK.2 (parziale), MK.6, MK.7; changelog.
 
 ## SESSIONE 2026-10-16 (9) — Spalmatura di default per categoria `[core]`
 

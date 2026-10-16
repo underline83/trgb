@@ -35,11 +35,11 @@ TRGB diventa un **connettore personalizzato di claude.ai**. Da qualsiasi chat (w
 - **OAuth 2.1** come il brain: metadata `.well-known`, registrazione dinamica, PKCE S256, accesso di **1 ora**, rinnovo di **30 giorni** che ruota.
 - **Indirizzi di ritorno ammessi:** solo claude.ai / claude.com e localhost (per l'MCP Inspector).
 - **La pagina di autorizzazione** chiede utente e PIN e li controlla con `authenticate_user` di `auth_service`: stesso blocco dopo i tentativi sbagliati, stessa politica PIN del login.
-- **Chi può autorizzare:** solo admin e superadmin, perché oggi gli strumenti sono soltanto pratiche. Il token porta con sé l'utente: ogni strumento rifà il controllo dei ruoli con M.G (`verifica_ruoli`), come il router. Se domani il connettore apre altri moduli, ogni strumento dichiara i suoi ruoli.
+- **Chi può autorizzare:** solo admin e superadmin (nata con le sole pratiche; resta così anche con prenotazioni e scadenziario, che nel router ammettono altri ruoli: allargarla è una decisione di Marco). Il token porta con sé l'utente: ogni strumento rifà il controllo dei ruoli con M.G (`verifica_ruoli`), come il router. Se domani il connettore apre altri moduli, ogni strumento dichiara i suoi ruoli.
 - **La chiave di Q** (dal 2026-10-16): Q, la memoria personale di Marco (`q.carminati.org`), entra da server a server con `TRGB_CHIAVE_Q` nel `.env` del locale (almeno 32 caratteri, generata sul VPS e mai stampata; la stessa sta come `Q_TRGB_CHIAVE` nell'env di Q). Niente PIN né rinnovi. Identità **«Q», superadmin**, che non è un utente di `users.json`: non compare negli elenchi e non fa login. I passi scritti da Q hanno autore `Q`. Per chiudere la porta: togliere la riga dal `.env` e riavviare.
 - **Revoca:** `scripts/connettore.py --revoca` sul VPS. Togliere un utente o cambiargli ruolo blocca anche i suoi token alla chiamata successiva, perché ruolo e stato dell'utente si rileggono a ogni chiamata.
 
-## 4. Strumenti (prima versione: solo pratiche)
+## 4. Strumenti
 
 | Strumento | Cosa fa | Funzione del service | Tipo |
 |---|---|---|---|
@@ -58,6 +58,21 @@ TRGB diventa un **connettore personalizzato di claude.ai**. Da qualsiasi chat (w
 
 Autore `Q` o `claude (<utente>)`, fonte `q`/`claude` se non detta. Regole nelle descrizioni: cercare prima se esiste (nome/telefono/email); dati di terzi, niente dati sanitari né documenti d'identità. Il file del CV si carica solo dalla pagina.
 
+**Scadenze dipendenti, scadenziario, prenotazioni** (2026-10-16, server 1.3). Qui la logica sta ancora nelle rotte: gli strumenti chiamano **la funzione della rotta** con l'utente del token (nessuna rotta cambiata, nessuna estrazione), e un `HTTPException` arriva a Claude come errore con lo stesso messaggio e codice. Ogni gruppo si registra solo se il suo modulo è attivo; i ruoli sono quelli del router (rifatti con M.G nello strumento, `_ruoli`).
+
+| Strumento | Cosa fa | Funzione | Ruoli | Tipo |
+|---|---|---|---|---|
+| `scadenze_dipendenti_elenco` | scadenze documenti dei dipendenti attivi, filtri `dipendente` (id o nome/cognome/soprannome), `entro_giorni` (scadute comprese), `stato` (VALIDO / IN_SCADENZA / SCADUTO), `tipo`; riepilogo per stato | `dipendenti.lista_scadenze` | admin | sola lettura |
+| `scadenza_dipendente_crea` | nuova scadenza: dipendente (id o nome; se ambiguo l'errore elenca i candidati), tipo, `data_scadenza`, descrizione, `alert_giorni` (default del tipo), note | `dipendenti.crea_scadenza` | admin | scrive |
+| `scadenza_dipendente_aggiorna` | corregge i campi passati (rinnovo = nuova data); `note` sostituisce, `aggiungi_nota` aggiunge una riga datata. Niente cancellazione | `dipendenti.modifica_scadenza` | admin | scrive |
+| `scadenziario` | uscite aperte (PROGRAMMATO, SCADUTO, SPOSTATO, VERIFICARE, PARZIALE: il filtro di default della pagina) nel periodo (default oggi → +30 giorni) con totali per stato; scadute di qualsiasi data; quante e quanto «da verificare». Filtro fornitore, `includi_pagate`. Niente IBAN | `controllo_gestione_router.get_uscite` | admin, contabile | sola lettura |
+| `uscita_segna_pagata` | come «Segna pagate» della pagina: CONTANTI → PAGATO, altri metodi → PAGATO_MANUALE (da riconciliare); solo PROGRAMMATO, SCADUTO, PARZIALE, PAGATO_MANUALE; data mai futura | `controllo_gestione_router.segna_pagate_bulk` | admin, contabile | scrive |
+| `prenotazioni_giorno` | prenotazioni di un giorno (filtro turno, `cancellate`): ora, coperti, nome, stato, tavolo, fonte, canale, occasione, note, richiesta del cliente, allergie (della prenotazione e del cliente), no-show passati, possibili doppioni; totali pranzo/cena con capienza | `prenotazioni_router.get_planning` | admin, sala, sommelier, contabile | sola lettura |
+| `prenotazioni_periodo` | lo stesso per più giorni (max 31), `solo_totali` per il carico della settimana | `get_planning` giorno per giorno | come sopra | sola lettura |
+| `prenotazione_crea` | come «+ Nuova» del Planning: stato RECORDED, fonte `manuale`, canale `Telefono` se non detto, `creato_da` e `prenotato_da` = `Q` / `claude (<utente>)`. Cliente: `cliente_id`, oppure ritrovato dal telefono (un solo cliente → è lui), altrimenti se ci sono possibili per telefono o nome errore 409 con l'elenco → si richiama con `cliente_id` o `nuovo_cliente=true`. Solo da oggi in avanti | `prenotazioni_router.crea_prenotazione` (+ `search_clienti`) | come sopra | scrive |
+
+Notifiche: `crea_prenotazione` non manda niente (niente email, WhatsApp, notifiche M.A): verificato, quindi non è servito un parametro per spegnerle. Le risposte non portano telefono, email, preferenze o restrizioni del cliente, né IBAN delle uscite. Fuori apposta: spese fisse e piani rate, cancellazione di scadenze e prenotazioni, modifica e cambio stato delle prenotazioni.
+
 Fuori dalla prima versione, apposta:
 - **allegati**: si caricano dalla UI; dalla chat non c'è un file da passare in modo pulito;
 - **collegamenti** e **correzione della testata**: rari, si fanno dalla UI;
@@ -75,6 +90,7 @@ Fuori dalla prima versione, apposta:
 - Prima di **creare** o **chiudere**, riepiloga a Marco cosa scriverai e aspetta il suo sì. Un passo semplice («è arrivata la PEC») si scrive e si conferma dopo.
 - Le date dei passi sono quelle vere dei fatti, anche passate.
 - Candidati: prima di crearne uno cerca con `candidati_elenco`; dati di terzi, niente dati sanitari né documenti d'identità; il CV si carica dalla pagina (una riga, 2026-10-16).
+- (2026-10-16, server 1.3) Date AAAA-MM-GG, mai IBAN, niente dati sanitari salvo le allergie dichiarate. Scadenze dipendenti: cercare prima, riepilogo e sì prima di creare o cambiare, niente cancellazioni. Scadenziario: sola lettura, `uscita_segna_pagata` solo dopo il sì. Prenotazioni: controllare il giorno, riepilogo e sì prima di creare; non si manda niente al cliente.
 
 ## 5. Prove previste
 
@@ -106,6 +122,8 @@ In locale, con `mcp` 2.3.0 (pacchetti presi dalla venv del brain, senza rete) e 
 - avvio di `main.py` su una copia dei DB: con `mcp` il connettore è attivo e il resto risponde come prima; senza `mcp` il backend parte e `/mcp` dà 404.
 
 Non provato: il giro da claude.ai vero, che si fa dopo il push.
+
+Prove di scadenze dipendenti, scadenziario e prenotazioni (2026-10-16), su una copia dei DB locali poi cancellata: 79 controlli in-process (strumenti, filtri, errori leggibili 400/404/409, autore Q e claude (marco), cliente nuovo / ritrovato dal telefono / ambiguo, nessuna notifica né email né chiamata esterna, niente IBAN né telefoni nelle risposte, 403 per sala/contabile/viewer/chef dove il router li esclude, pratiche e candidati ancora presenti); 17 controlli sulle rotte HTTP (scadenze, uscite, planning, POST prenotazione dalla pagina invariati; 403 come prima; `/mcp` senza token 401); giro via HTTP contro il solo connettore con la chiave di Q (15 strumenti, letture, `prenotazione_crea` con autore Q, errore di validazione leggibile, chiave sbagliata rifiutata).
 
 Prove della chiave di Q (2026-10-16), su una copia dei dati locali poi cancellata: la chiave apre come Q superadmin; chiave quasi giusta, token a caso, testo non ASCII, chiave corta o variabile assente non aprono niente; gli utenti veri restano com'erano. Da Q, contro il solo connettore: i 4 strumenti con le regole, `pratiche_elenco`, `pratica_crea` con autore `Q`, errore di validazione leggibile, chiave sbagliata 401.
 
