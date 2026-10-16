@@ -1751,13 +1751,16 @@ def lista_clienti(
             params.append(rank)
 
         if q:
-            where.append(
-                "(c.nome LIKE ? OR c.cognome LIKE ? OR c.email LIKE ? OR c.telefono LIKE ?"
-                " OR c.note_thefork LIKE ? OR c.allergie LIKE ? OR c.pref_cibo LIKE ? OR c.pref_bevande LIKE ?"
-                " OR c.nome2 LIKE ? OR c.cognome2 LIKE ?)"
-            )
-            like = f"%{q}%"
-            params.extend([like] * 10)
+            # Ogni parola deve trovarsi in almeno un campo: «christina petersen»
+            # o «christina da» trovano nome + cognome (prima si cercava la frase
+            # intera dentro un solo campo e non trovava niente).
+            for parola in q.split()[:6]:
+                where.append(
+                    "(c.nome LIKE ? OR c.cognome LIKE ? OR c.email LIKE ? OR c.telefono LIKE ?"
+                    " OR c.note_thefork LIKE ? OR c.allergie LIKE ? OR c.pref_cibo LIKE ? OR c.pref_bevande LIKE ?"
+                    " OR c.nome2 LIKE ? OR c.cognome2 LIKE ?)"
+                )
+                params.extend([f"%{parola}%"] * 10)
 
         if tag_id:
             where.append("c.id IN (SELECT cliente_id FROM clienti_tag_assoc WHERE tag_id = ?)")

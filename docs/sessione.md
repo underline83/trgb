@@ -12,7 +12,7 @@
 **TheFork webhook** (live: b29003e4 + 4fa71e02; URL già mandato a Régis il 16/10)
 - Fix orario pushato (e1791c48): rilanciare Recupera 09/10→16/10 «pasto», poi oggi→31/12 «pasto».
 - Pushato 26257fbc: doppioni, bollino, timeline, collegamento clienti (mig 192, 5.56). Da verificare nel Planning.
-- DA PUSHARE: recupero automatico TheFork ogni ora (prenotazioni 2.6). Dopo il push: dopo 5 minuti, Impostazioni → TheFork → «Recupero automatico: ultimo … controllate».
+- Pushato 94285ba3: recupero automatico (ogni ora). DA PUSHARE: default 15 minuti, scheda cliente inline nel Planning, ricerca clienti per parole (clienti 3.4). Dopo il push: dopo 5 minuti, Impostazioni → TheFork → «Recupero automatico: ultimo … controllate».
 - Da fare SUBITO: `THEFORK_WEBHOOK_TOKEN` nel `.env` del VPS + riavvio (oggi risponde 503 = spento). Verifica: `POST /prenotazioni/thefork/webhook?token=sbagliato` → 401.
 - All'arrivo delle credenziali: `THEFORK_CLIENT_ID`/`THEFORK_CLIENT_SECRET` (+ `THEFORK_RESTAURANT_UUID`) → riavvio → Impostazioni Prenotazioni › 🍴 TheFork: «Prova connessione», «Rielabora in sospeso», «Recupera un periodo».
 

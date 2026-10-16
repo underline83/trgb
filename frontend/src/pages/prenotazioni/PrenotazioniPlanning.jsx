@@ -1,8 +1,8 @@
-// @version: v1.3-timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.4-scheda-inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import PrenotazioniForm from "./PrenotazioniForm";
@@ -10,6 +10,7 @@ import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
 import CanaleBadge from "./components/CanaleBadge";
 import Tooltip from "../../components/Tooltip";
+import ClientiScheda from "../clienti/ClientiScheda";
 import { Btn } from "../../components/ui";
 
 const oggi = () => new Date().toISOString().slice(0, 10);
@@ -53,7 +54,7 @@ function rigaClasses(pren) {
 // ============================================================
 // COMPONENTE RIGA PRENOTAZIONE
 // ============================================================
-function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
+function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente }) {
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -80,13 +81,13 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
           <div className="flex items-center gap-1.5">
             <CanaleBadge canale={pren.canale} fonte={pren.fonte} />
             {pren.cliente_id ? (
-              <Link
-                to={`/clienti/${pren.cliente_id}`}
-                onClick={(e) => e.stopPropagation()}
-                className="text-sm font-medium text-indigo-700 hover:underline"
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onApriCliente && onApriCliente(pren.cliente_id); }}
+                className="text-sm font-medium text-indigo-700 hover:underline text-left"
               >
                 {nome}
-              </Link>
+              </button>
             ) : (
               <span className="text-sm text-neutral-600">{nome}</span>
             )}
@@ -289,7 +290,7 @@ function TimelineSala({ slot, capienza }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, onApriCliente }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -336,6 +337,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                   onStatoChange={onStatoChange}
                   onExpand={onExpand}
                   expanded={expandedId === p.id}
+                  onApriCliente={onApriCliente}
                 />
               ))}
               {cancellate.length > 0 && (
@@ -352,6 +354,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                       onStatoChange={onStatoChange}
                       onExpand={onExpand}
                       expanded={expandedId === p.id}
+                      onApriCliente={onApriCliente}
                     />
                   ))}
                 </>
@@ -378,6 +381,9 @@ export default function PrenotazioniPlanning() {
   const [showForm, setShowForm] = useState(false);
   const [showCalendario, setShowCalendario] = useState(false);
   const [toast, setToast] = useState(null);
+  // Scheda cliente aperta dentro la pagina (come fatture e vini), senza lasciare il Planning
+  const [clienteAperto, setClienteAperto] = useState(null);
+  const apriCliente = (id) => { setClienteAperto(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   const loadPlanning = useCallback(() => {
     setLoading(true);
@@ -481,7 +487,23 @@ export default function PrenotazioniPlanning() {
           </div>
         )}
 
-        {loading ? (
+        {clienteAperto ? (
+          <div>
+            <button
+              onClick={() => { setClienteAperto(null); loadPlanning(); }}
+              className="mb-3 text-sm text-indigo-700 hover:text-indigo-900 font-medium min-h-[44px]"
+            >
+              ← Torna al planning
+            </button>
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <ClientiScheda
+                clienteId={clienteAperto}
+                embedded
+                onClose={() => { setClienteAperto(null); loadPlanning(); }}
+              />
+            </div>
+          </div>
+        ) : loading ? (
           <div className="text-center py-12 text-neutral-400">Caricamento...</div>
         ) : planning ? (
           <>
@@ -496,6 +518,7 @@ export default function PrenotazioniPlanning() {
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}
+              onApriCliente={apriCliente}
             />
 
             {/* Tabella cena */}
@@ -509,6 +532,7 @@ export default function PrenotazioniPlanning() {
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}
+              onApriCliente={apriCliente}
             />
 
             {/* Riepilogo */}

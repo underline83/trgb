@@ -700,7 +700,7 @@ def elenco_eventi(stato: Optional[str] = None, limite: int = 100) -> List[Dict[s
 # RECUPERO AUTOMATICO PERIODICO
 # ============================================================
 # TheFork non rimanda un avviso perso (TRGB spento per un push o un riavvio).
-# Ogni THEFORK_RECUPERO_MINUTI (default 60, 0 = spento) si rileggono le
+# Ogni THEFORK_RECUPERO_MINUTI (default 15, 0 = spento) si rileggono le
 # prenotazioni modificate su TheFork ieri e oggi e si sistemano solo quelle
 # diverse da TRGB. Nel registro finiscono solo quelle corrette davvero.
 
@@ -768,7 +768,7 @@ def recupero_automatico() -> Dict[str, Any]:
 def avvia_recupero_periodico() -> None:
     """Thread di sfondo nel processo del backend (un solo worker uvicorn)."""
     try:
-        minuti = int(_env("THEFORK_RECUPERO_MINUTI", "60") or 0)
+        minuti = int(_env("THEFORK_RECUPERO_MINUTI", "15") or 0)
     except ValueError:
         minuti = 60
     if minuti <= 0 or _stato_recupero.get("avviato"):
