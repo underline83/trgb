@@ -58,6 +58,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-031 | Affidabilità cliente nel Planning: no-show e cancellazioni passate (badge «N no-show», dettaglio nella riga) | `GET /prenotazioni/planning/{data}` → `no_show_totali`, `cancellate_totali` | sala | 🆕 |
 | C-P-032 | Riconferma WhatsApp dal Planning (template «reminder»), segnata come inviata; contatore «da riconfermare» per turno | `GET /prenotazioni/{id}/wa-link?tipo=reminder` + `POST /prenotazioni/{id}/inviato?tipo=reminder` | sala | 🆕 |
 | C-P-033 | Doppione TheFork / a mano: «Tieni quella TheFork, elimina questa» (copia nota staff, allergie, tavolo, cliente mancanti; elimina senza contarla come cancellazione) | `POST /prenotazioni/{id}/unisci-in/{altra_id}` | sala | 🆕 |
+| C-P-034 | Mappa serale: clic su un tavolo libero → «Aggiungi una prenotazione» (form con tavolo e turno già scelti) / «Blocca questo tavolo» per giorno e turno (motivo facoltativo, sblocco dallo stesso menu); i tavoli bloccati non si assegnano | `POST /prenotazioni/tavoli/blocchi`, `DELETE /prenotazioni/tavoli/blocchi/{id}`; `bloccato`/`blocco` in `tavoli/disponibili` e `tavoli/mappa` | sala, sommelier, admin | 🆕 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 
@@ -189,6 +190,10 @@ Migrazioni dedicate: `050_prenotazioni_durata_turni.py` (chiavi durata_pranzo/du
 ## 8.1 Piantina (prenotazioni 2.7, mig 193)
 
 La **sala** è `tavoli.zona` (testo libero; le sale si ordinano col minimo `ordine` dei loro tavoli). `tavoli.forma`: `rect` | `circle` | `diamond`. Gli elementi che non si prenotano stanno in **`tavoli_elementi`** (zona, forma rect/circle, posizione, misure, colore, etichetta) e non compaiono mai nei menu di assegnazione. Componenti condivisi in `frontend/src/pages/prenotazioni/components/Piantina.jsx` (`FormaTavolo`, `FormaElemento`, `SchedeSale`, tela 1000×600). La piantina dell'osteria (31 tavoli, 23 elementi, copiata dagli screenshot di TheFork Manager il 16/10/2026) è in `locali/tregobbi/seeds/piantina_tavoli.json` e si carica da Editor Tavoli → «Importa piantina». Fix collegato: `GET /prenotazioni/tavoli` non restituiva posizione/misure/forma, quindi l'Editor non poteva disegnare i tavoli esistenti.
+
+## 8.2 Tavoli bloccati (prenotazioni 2.10, mig 194)
+
+`tavoli_blocchi` (data_pasto, turno, tavolo_id, motivo, creato_da; UNIQUE per giorno+turno+tavolo). Il tavolo resta sulla mappa, grigio tratteggiato con «🚫 bloccato», e non si assegna né compare come scelta nel form. Vale solo in TRGB: l'API TheFork non blocca i singoli tavoli, quindi la disponibilità online si governa con la chiusura delle fasce (vedi §12).
 
 # 9. Limiti noti e incoerenze
 

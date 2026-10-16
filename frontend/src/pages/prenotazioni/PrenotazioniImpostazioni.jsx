@@ -343,6 +343,32 @@ function CapienzaSection({ config, update }) {
         <p className="text-[11px] text-neutral-400 mt-2">Utile per Fase 2 (mappa tavoli) — stima rotazione</p>
       </div>
 
+      {/* Limiti per fascia oraria (default del turno; il singolo giorno si cambia dal Planning) */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-5">
+        <h4 className="font-semibold text-neutral-700 mb-3 text-sm">Limiti per fascia oraria</h4>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            ["fascia_max_coperti_pranzo", "Coperti per fascia, pranzo"],
+            ["fascia_max_online_pranzo", "Online per fascia, pranzo"],
+            ["fascia_max_coperti_cena", "Coperti per fascia, cena"],
+            ["fascia_max_online_cena", "Online per fascia, cena"],
+          ].map(([k, label]) => (
+            <div key={k}>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">{label}</label>
+              <input
+                type="number"
+                value={config[k] ?? ""}
+                onChange={(e) => update(k, e.target.value)}
+                placeholder="nessun limite"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                min={0}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-neutral-400 mt-2">Coperti che arrivano in ciascuna fascia (come «Andamento per fascia oraria» di TheFork). Vuoto = nessun limite. Per un giorno preciso: Planning → «🕒 Fasce». I limiti valgono in TRGB; su TheFork si può solo aprire o chiudere l'online.</p>
+      </div>
+
       {/* Bollino cliente nel Planning */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5">
         <h4 className="font-semibold text-neutral-700 mb-3 text-sm">Bollino cliente</h4>

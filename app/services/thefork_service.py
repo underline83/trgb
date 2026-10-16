@@ -178,15 +178,18 @@ def _token() -> str:
         return _richiedi_token()
 
 
-def api_get(percorso: str, params: Optional[Dict[str, Any]] = None, _riprova: bool = True) -> Optional[Dict[str, Any]]:
-    """GET sull'API TheFork. None se 404 (entità non trovata)."""
+def _richiesta(metodo: str, percorso: str, params: Optional[Dict[str, Any]] = None,
+               corpo: Optional[Dict[str, Any]] = None, _riprova: bool = True) -> Optional[Any]:
+    """Chiamata all'API TheFork. None se 404 (entità non trovata)."""
     url = _env("THEFORK_API_URL", _API_URL_DEFAULT).rstrip("/") + percorso
     if params:
         url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
-    req = urllib.request.Request(url, headers={
-        "Authorization": f"Bearer {_token()}",
-        "Accept": "application/json",
-    })
+    headers = {"Authorization": f"Bearer {_token()}", "Accept": "application/json"}
+    dati = None
+    if corpo is not None:
+        dati = json.dumps(corpo).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=dati, headers=headers, method=metodo)
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
             return json.loads(r.read().decode("utf-8") or "null")
@@ -196,10 +199,53 @@ def api_get(percorso: str, params: Optional[Dict[str, Any]] = None, _riprova: bo
         if e.code == 401 and _riprova:
             # Token revocato o scaduto prima del previsto: uno nuovo, una volta sola
             _token_cache["token"] = None
-            return api_get(percorso, params, _riprova=False)
+            return _richiesta(metodo, percorso, params, corpo, _riprova=False)
         raise TheForkErroreAPI(e.code, e.read().decode("utf-8", "replace")[:300])
     except urllib.error.URLError as e:
         raise TheForkErroreAPI(0, str(e.reason))
+
+
+def api_get(percorso: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
+    """GET sull'API TheFork. None se 404 (entità non trovata)."""
+    return _richiesta("GET", percorso, params)
+
+
+def api_put(percorso: str, corpo: Dict[str, Any]) -> Optional[Any]:
+    """PUT sull'API TheFork. None se 404."""
+    return _richiesta("PUT", percorso, corpo=corpo)
+
+
+# ── Disponibilità online (fasce orarie) ──
+
+def imposta_online(data: str, ora_inizio: str, ora_fine: Optional[str], aperta: bool) -> Dict[str, Any]:
+    """
+    Apre o chiude alle prenotazioni online le fasce da ora_inizio a ora_fine
+    comprese (orari locali HH:MM). TheFork scrive un'eccezione sul pacing online
+    del servizio: chiudere = pacing 0, aprire = torna al default del servizio.
+    Se nessun servizio copre l'orario TheFork risponde 200 senza cambiare niente.
+    """
+    if not credenziali_presenti():
+        raise TheForkNonConfigurato("credenziali B2B API non configurate")
+    uuid = _restaurant_uuid_atteso()
+    if not uuid:
+        raise TheForkNonConfigurato("THEFORK_RESTAURANT_UUID non configurato")
+    corpo: Dict[str, Any] = {"date": data, "startTime": ora_inizio, "isOpen": bool(aperta)}
+    if ora_fine and ora_fine != ora_inizio:
+        corpo["endTime"] = ora_fine
+    return api_put(f"/v1/restaurants/{uuid}/availabilities/override", corpo) or {}
+
+
+def fasce_prenotabili_online(data: str, coperti: int = 2) -> List[str]:
+    """Orari (HH:MM) prenotabili online su TheFork in quella data per N persone."""
+    uuid = _restaurant_uuid_atteso()
+    if not credenziali_presenti() or not uuid:
+        raise TheForkNonConfigurato("credenziali B2B API non configurate")
+    righe = api_get(f"/v1/restaurants/{uuid}/timeslots", {"date": data, "partySize": coperti}) or []
+    out = []
+    for r in righe:
+        if r.get("hasNormalStock") and r.get("datetime"):
+            out.append(str(r["datetime"])[11:16])  # già in ora locale
+    return sorted(set(out))
 
 
 def prova_connessione() -> Dict[str, Any]:

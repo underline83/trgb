@@ -49,6 +49,12 @@
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+## SESSIONE 2026-10-16 (10) — Prenotazioni: doppione TheFork/a mano, menu tavolo in mappa `[core]`
+
+- Prenotazioni 2.9 (pushata, b8b6099a): `POST /prenotazioni/{id}/unisci-in/{altra_id}` + bottone «Tieni quella TheFork, elimina questa» nel Planning. Unire i clienti non unisce le prenotazioni (caso Petersen 32514 → 32524). Testato su copia DB.
+- Prenotazioni 2.10, mig 194 `tavoli_blocchi`: menu al clic su tavolo libero nella mappa (aggiungi prenotazione / blocca / sblocca). `PrenotazioniForm` accetta `defaultTavolo`, `defaultTurno`. Ruoli blocco: admin, sala, sommelier. Testato su copia DB (blocco, doppio blocco = aggiorna motivo, mappa, disponibili, sblocco, viewer 403).
+- Aperto: chiusura fasce online via API TheFork (override isOpen per data/orario) — i limiti coperti per fascia restano in TheFork Manager.
+
 ## SESSIONE 2026-10-16 (9) — Spalmatura di default per categoria `[core]`
 
 Marco: «il vino lo setterei di base a 3 mesi». Prima la spalmatura si metteva solo a mano su fattura/spesa fissa. Dai dati 2026: 72 fatture con righe VINO, solo 37 da fornitori «Vino» → Marco ha scelto la regola **per riga** (opzione 2).

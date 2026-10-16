@@ -522,7 +522,10 @@ export default function App() {
             { path: "/prenotazioni/impostazioni" },
           ]} />
         } />
+        {/* Senza data = oggi (i tab Planning/Settimana puntano qui; prima finivano sulla Home) */}
+        <Route path="/prenotazioni/planning" element={<ProtectedRoute module="prenotazioni"><PrenotazioniPlanning /></ProtectedRoute>} />
         <Route path="/prenotazioni/planning/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniPlanning /></ProtectedRoute>} />
+        <Route path="/prenotazioni/settimana" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/impostazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniImpostazioni /></ProtectedRoute>} />
         <Route path="/prenotazioni/tavoli" element={<ProtectedRoute module="prenotazioni"><TavoliEditor /></ProtectedRoute>} />

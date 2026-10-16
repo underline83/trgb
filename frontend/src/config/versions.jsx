@@ -417,7 +417,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
-    version: "2.9",
+    version: "2.10",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -500,6 +500,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.58 (2026-10-16): mig 194 — tavoli_blocchi: «Blocca questo tavolo» per giorno e
+    //   turno dalla mappa serale (prenotazioni 2.10).
     // 5.57 (2026-10-16): mig 193 — tavoli_elementi: piantina per sale (Osteria/Dehor/
     //   Veranda) copiata da TheFork Manager, rombo, elementi non prenotabili, import (prenotazioni 2.7).
     // 5.56 (2026-10-16): mig 192 — prenotazioni_config.cliente_frequente_visite: bollino
@@ -569,7 +571,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.57",
+    version: "5.58",
     label: "Sistema",
     status: "stabile",
     color: "green",

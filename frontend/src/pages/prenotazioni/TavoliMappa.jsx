@@ -1,4 +1,4 @@
-// @version: v2.0-sale — schede per sala, rombo, elementi non prenotabili (piantina da TheFork Manager)
+// @version: v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -6,6 +6,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import StatoBadge from "./components/StatoBadge";
+import PrenotazioniForm from "./PrenotazioniForm";
 import { Btn } from "../../components/ui";
 import { CANVAS_W, CANVAS_H, COLORE_TAVOLO, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
 
@@ -19,6 +20,7 @@ const COLORI_STATO = {
   NO_SHOW:   { fill: "#fecaca", stroke: "#ef4444", text: "#7f1d1d" }, // red
   CANCELED:  { fill: "#e5e7eb", stroke: "#9ca3af", text: "#6b7280" }, // gray
   REQUESTED: { fill: "#ddd6fe", stroke: "#8b5cf6", text: "#4c1d95" }, // violet
+  BLOCCATO:  { fill: "#e5e7eb", stroke: "#6b7280", text: "#6b7280" }, // grigio tratteggiato
 };
 
 export default function TavoliMappa() {
@@ -35,6 +37,8 @@ export default function TavoliMappa() {
   const [assegnando, setAssegnando] = useState(null); // pren_id da assegnare
   const [toast, setToast] = useState(null);
   const [sala, setSala] = useState(null);
+  const [menuTavolo, setMenuTavolo] = useState(null);   // tavolo libero/bloccato cliccato
+  const [formTavolo, setFormTavolo] = useState(null);   // nome tavolo per nuova prenotazione
   const svgRef = useRef(null);
   const refreshTimer = useRef(null);
 
@@ -100,6 +104,35 @@ export default function TavoliMappa() {
         const err = await r.json();
         flash("err", err.detail || "Errore");
       }
+    } catch {
+      flash("err", "Errore di connessione");
+    }
+  };
+
+  // ── Blocca / sblocca tavolo per questo turno ──
+  const bloccaTavolo = async (t) => {
+    const motivo = window.prompt(`Blocco il tavolo ${t.nome} per ${turno} del ${data.split("-").reverse().join("/")}.\nMotivo (facoltativo):`, "");
+    if (motivo === null) return;
+    setMenuTavolo(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/blocchi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data, turno, tavolo_id: t.id, motivo }),
+      });
+      const d = await r.json();
+      if (r.ok) { flash("ok", d.message); loadMappa(); } else flash("err", d.detail || "Errore");
+    } catch {
+      flash("err", "Errore di connessione");
+    }
+  };
+
+  const sbloccaTavolo = async (t) => {
+    setMenuTavolo(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/blocchi/${t.blocco.id}`, { method: "DELETE" });
+      const d = await r.json();
+      if (r.ok) { flash("ok", `Tavolo ${t.nome} di nuovo disponibile`); loadMappa(); } else flash("err", d.detail || "Errore");
     } catch {
       flash("err", "Errore di connessione");
     }
@@ -206,6 +239,7 @@ export default function TavoliMappa() {
                 const colori = COLORI_STATO[stato] || COLORI_STATO.LIBERO;
                 const pren = t.prenotazione;
                 const isClickable = assegnando && stato === "LIBERO";
+                const bloccato = stato === "BLOCCATO";
 
                 return (
                   <g
@@ -214,16 +248,29 @@ export default function TavoliMappa() {
                       if (assegnando && stato === "LIBERO") {
                         assegnaTavolo(assegnando, t.nome);
                       } else if (pren) {
+                        setMenuTavolo(null);
                         setSelectedPren(pren);
                         setSelectedTavolo(t);
+                      } else if (!assegnando) {
+                        setMenuTavolo(menuTavolo?.id === t.id ? null : t);
                       }
                     }}
-                    style={{ cursor: isClickable ? "crosshair" : pren ? "pointer" : "default" }}
+                    style={{ cursor: isClickable ? "crosshair" : assegnando && !isClickable ? "not-allowed" : "pointer" }}
                   >
                     <FormaTavolo t={t} fill={colori.fill}
                       stroke={isClickable ? "#f59e0b" : colori.stroke}
-                      strokeWidth={isClickable ? 3 : 1.5}
-                      dash={isClickable ? "4 2" : "none"} />
+                      strokeWidth={isClickable || menuTavolo?.id === t.id ? 3 : 1.5}
+                      dash={isClickable || bloccato ? "4 2" : "none"} />
+                    {bloccato && (
+                      <text
+                        x={t.posizione_x + t.larghezza / 2}
+                        y={t.posizione_y + t.altezza / 2 + 12}
+                        textAnchor="middle" dominantBaseline="middle" fontSize="8"
+                        fill={colori.text} className="select-none pointer-events-none"
+                      >
+                        🚫 bloccato
+                      </text>
+                    )}
                     {/* Nome tavolo */}
                     <text
                       x={t.posizione_x + t.larghezza / 2}
@@ -270,6 +317,40 @@ export default function TavoliMappa() {
               })}
             </svg>
 
+            {/* Menu del tavolo (come TheFork Manager) */}
+            {menuTavolo && (
+              <div
+                className="absolute z-10 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 text-sm min-w-[200px]"
+                style={{
+                  left: `${((menuTavolo.posizione_x + menuTavolo.larghezza / 2) / CANVAS_W) * 100}%`,
+                  top: `${((menuTavolo.posizione_y + menuTavolo.altezza) / CANVAS_H) * 100}%`,
+                  transform: "translate(-50%, 6px)",
+                }}
+              >
+                <div className="px-3 py-1 text-[11px] text-neutral-400 flex justify-between">
+                  <span>Tavolo {menuTavolo.nome} · {menuTavolo.posti_min}-{menuTavolo.posti_max}p</span>
+                  <button onClick={() => setMenuTavolo(null)} className="hover:text-neutral-600">✕</button>
+                </div>
+                {menuTavolo.blocco ? (
+                  <>
+                    <div className="px-3 py-1 text-xs text-neutral-500">
+                      🚫 Bloccato{menuTavolo.blocco.motivo ? `: ${menuTavolo.blocco.motivo}` : ""}
+                      {menuTavolo.blocco.creato_da ? ` (${menuTavolo.blocco.creato_da})` : ""}
+                    </div>
+                    <button onClick={() => sbloccaTavolo(menuTavolo)}
+                      className="w-full text-left px-3 py-2 hover:bg-neutral-50">✅ Sblocca questo tavolo</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { setFormTavolo(menuTavolo.nome); setMenuTavolo(null); }}
+                      className="w-full text-left px-3 py-2 hover:bg-neutral-50">➕ Aggiungi una prenotazione</button>
+                    <button onClick={() => bloccaTavolo(menuTavolo)}
+                      className="w-full text-left px-3 py-2 hover:bg-neutral-50">🚫 Blocca questo tavolo</button>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Legenda */}
             <div className="absolute bottom-2 left-2 flex gap-2 text-[10px]">
               {[
@@ -278,6 +359,7 @@ export default function TavoliMappa() {
                 { label: "Arrivato", color: "#fde68a" },
                 { label: "Seduto", color: "#a7f3d0" },
                 { label: "No-show", color: "#fecaca" },
+                { label: "Bloccato", color: "#e5e7eb" },
               ].map(l => (
                 <div key={l.label} className="flex items-center gap-1">
                   <div className="w-3 h-3 rounded" style={{ backgroundColor: l.color }}></div>
@@ -395,7 +477,7 @@ export default function TavoliMappa() {
                   <div className="text-neutral-500">Occupati</div>
                 </div>
                 <div className="text-center p-2 bg-neutral-50 rounded">
-                  <div className="text-lg font-bold text-neutral-800">{tavoli.filter(t => !t.occupato).length}</div>
+                  <div className="text-lg font-bold text-neutral-800">{tavoli.filter(t => !t.occupato && !t.blocco).length}</div>
                   <div className="text-neutral-500">Liberi</div>
                 </div>
                 <div className="text-center p-2 bg-neutral-50 rounded">
@@ -411,6 +493,16 @@ export default function TavoliMappa() {
           </div>
         </div>
       </div>
+
+      {formTavolo && (
+        <PrenotazioniForm
+          defaultData={data}
+          defaultTurno={turno}
+          defaultTavolo={formTavolo}
+          onClose={() => setFormTavolo(null)}
+          onSuccess={() => { setFormTavolo(null); flash("ok", "Prenotazione inserita"); loadMappa(); }}
+        />
+      )}
     </div>
   );
 }

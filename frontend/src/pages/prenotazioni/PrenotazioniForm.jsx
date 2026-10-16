@@ -1,4 +1,4 @@
-// @version: v1.0-prenotazioni-form
+// @version: v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -6,13 +6,13 @@ import { API_BASE, apiFetch } from "../../config/api";
 const CANALI = ["Telefono", "WhatsApp", "Walk-in", "Email", "Altro"];
 const OCCASIONI = ["", "Compleanno", "Anniversario", "Laurea", "Cresima", "Battesimo", "Cena aziendale", "Altro"];
 
-export default function PrenotazioniForm({ defaultData, onClose, onSuccess }) {
+export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, onClose, onSuccess }) {
   const [form, setForm] = useState({
     data_pasto: defaultData || new Date().toISOString().slice(0, 10),
     ora_pasto: "20:00",
     pax: 2,
     canale: "Telefono",
-    tavolo: "",
+    tavolo: defaultTavolo || "",
     nota_ristorante: "",
     nota_cliente: "",
     occasione: "",
@@ -48,6 +48,12 @@ export default function PrenotazioniForm({ defaultData, onClose, onSuccess }) {
         try { setSlotPranzo(JSON.parse(cfg.slot_pranzo || "[]")); } catch { setSlotPranzo([]); }
         try { setSlotCena(JSON.parse(cfg.slot_cena || "[]")); } catch { setSlotCena([]); }
         setSoglia(cfg.soglia_pranzo_cena || "15:00");
+        // Aperto dalla mappa: primo orario del turno scelto
+        if (defaultTurno) {
+          let slots = [];
+          try { slots = JSON.parse((defaultTurno === "pranzo" ? cfg.slot_pranzo : cfg.slot_cena) || "[]"); } catch { slots = []; }
+          if (slots.length) setForm((f) => ({ ...f, ora_pasto: slots[0] }));
+        }
       })
       .catch(() => {});
   }, []);
@@ -317,8 +323,8 @@ export default function PrenotazioniForm({ defaultData, onClose, onSuccess }) {
               >
                 <option value="">— Assegna dopo —</option>
                 {tavoli.map((t) => (
-                  <option key={t.id} value={t.nome} disabled={t.occupato}>
-                    {t.nome} ({t.zona}, {t.posti_min}-{t.posti_max}p){t.occupato ? " — OCCUPATO" : ""}
+                  <option key={t.id} value={t.nome} disabled={t.occupato || t.bloccato}>
+                    {t.nome} ({t.zona}, {t.posti_min}-{t.posti_max}p){t.occupato ? " — OCCUPATO" : t.bloccato ? " — BLOCCATO" : ""}
                   </option>
                 ))}
               </select>

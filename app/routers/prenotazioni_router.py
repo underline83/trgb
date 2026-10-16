@@ -37,6 +37,7 @@ from app.models.clienti_db import get_clienti_conn, init_clienti_db
 from app.services.auth_service import get_current_user
 from app.utils.whatsapp import build_wa_link, fill_template
 from app.services.prenotazioni_doppioni_service import doppioni_del_giorno
+from app.services import prenotazioni_fasce_service as fasce_srv
 
 logger = logging.getLogger("trgb.prenotazioni")
 
@@ -345,6 +346,10 @@ def get_planning(
             "timeline": {
                 "pranzo": _timeline_turno(pranzo, config, "pranzo"),
                 "cena": _timeline_turno(cena, config, "cena"),
+            },
+            "fasce": {
+                "pranzo": fasce_srv.fasce_giorno(conn, data, "pranzo", config)["fasce"],
+                "cena": fasce_srv.fasce_giorno(conn, data, "cena", config)["fasce"],
             },
             "contatori": {
                 "pranzo_count": len([p for p in pranzo if p["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED")]),
@@ -691,11 +696,13 @@ def get_tavoli_disponibili(
             else:
                 tavoli_occupati.add(r["tavolo"].strip())
 
+        blocchi = _blocchi_turno(conn, data, turno)
         result = []
         for t in tavoli:
             result.append({
                 **dict(t),
                 "occupato": t["nome"] in tavoli_occupati,
+                "bloccato": t["id"] in blocchi,
             })
 
         return {"tavoli": result, "data": data, "turno": turno}
@@ -865,6 +872,128 @@ def disattiva_tavolo(
         conn.execute("UPDATE tavoli SET attivo = 0 WHERE id = ?", (tavolo_id,))
         conn.commit()
         return {"message": "Tavolo disattivato", "id": tavolo_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# FASCE ORARIE DEL SERVIZIO (2026-10-16, mig 195)
+# ============================================================
+# «Modifica servizio › Andamento per fascia oraria» di TheFork Manager, deciso
+# in TRGB: apertura e limiti per fascia; la vendita online va anche su TheFork.
+
+RUOLI_FASCE = ("admin", "sala")
+
+
+def _turno_valido(turno: str) -> str:
+    if turno not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno: pranzo o cena")
+    return turno
+
+
+@router.get("/fasce/{data}/{turno}")
+def get_fasce(data: str, turno: str, user: dict = Depends(get_current_user)):
+    conn = get_clienti_conn()
+    try:
+        out = fasce_srv.fasce_giorno(conn, data, _turno_valido(turno))
+        out["registro"] = fasce_srv.registro(conn, data)
+        return out
+    finally:
+        conn.close()
+
+
+@router.put("/fasce/{data}/{turno}")
+async def put_fasce(data: str, turno: str, request: Request, user: dict = Depends(get_current_user)):
+    """
+    Body: {"ore": ["20:00", ...], e uno o più fra "aperta", "online_aperta" (bool),
+    "max_coperti", "max_online" (intero, null = default del turno)}.
+    """
+    verifica_ruoli(user, *RUOLI_FASCE, cosa="la gestione delle fasce orarie")
+    corpo = await request.json()
+    ore = corpo.pop("ore", None) or []
+    conn = get_clienti_conn()
+    try:
+        out = fasce_srv.imposta_fasce(conn, data, _turno_valido(turno), ore, corpo, user.get("username"))
+        out["registro"] = fasce_srv.registro(conn, data)
+        return out
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.get("/fasce/{data}/{turno}/thefork")
+def get_fasce_thefork(data: str, turno: str, coperti: int = Query(default=2, ge=1, le=50),
+                      user: dict = Depends(get_current_user)):
+    """Cosa vede oggi un cliente su TheFork: gli orari prenotabili online per N persone."""
+    verifica_ruoli(user, *RUOLI_FASCE, cosa="la gestione delle fasce orarie")
+    _turno_valido(turno)
+    from app.services import thefork_service as tf
+    try:
+        return {"data": data, "coperti": coperti, "prenotabili": tf.fasce_prenotabili_online(data, coperti)}
+    except tf.TheForkNonConfigurato as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except tf.TheForkErroreAPI as e:
+        raise HTTPException(status_code=502, detail=f"TheFork: {e}")
+
+
+# ============================================================
+# TAVOLI BLOCCATI per giorno e turno (2026-10-16, mig 194)
+# ============================================================
+# «Blocca questo tavolo» come in TheFork Manager: il tavolo resta sulla mappa
+# ma non si assegna per quel turno. Solo in TRGB (l'API TheFork non lo prevede).
+
+RUOLI_BLOCCO_TAVOLI = ("admin", "sala", "sommelier")
+
+
+def _blocchi_turno(conn, data: str, turno: str) -> Dict[int, Dict[str, Any]]:
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tavoli_blocchi WHERE data_pasto = ? AND turno = ?", (data, turno)
+        ).fetchall()
+    except Exception:  # mig 194 non ancora passata
+        return {}
+    return {r["tavolo_id"]: dict(r) for r in rows}
+
+
+class BloccoTavolo(BaseModel):
+    data: str
+    turno: str
+    tavolo_id: int
+    motivo: Optional[str] = None
+
+
+@router.post("/tavoli/blocchi")
+def blocca_tavolo(req: BloccoTavolo, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="il blocco dei tavoli")
+    if req.turno not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno: pranzo o cena")
+    conn = get_clienti_conn()
+    try:
+        t = conn.execute("SELECT nome FROM tavoli WHERE id = ?", (req.tavolo_id,)).fetchone()
+        if not t:
+            raise HTTPException(status_code=404, detail="Tavolo non trovato")
+        conn.execute("""
+            INSERT INTO tavoli_blocchi (data_pasto, turno, tavolo_id, motivo, creato_da)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(data_pasto, turno, tavolo_id) DO UPDATE SET motivo = excluded.motivo
+        """, (req.data, req.turno, req.tavolo_id, (req.motivo or "").strip() or None, user.get("username")))
+        conn.commit()
+        return {"message": f"Tavolo {t['nome']} bloccato", "tavolo_id": req.tavolo_id}
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/blocchi/{blocco_id}")
+def sblocca_tavolo(blocco_id: int, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="il blocco dei tavoli")
+    conn = get_clienti_conn()
+    try:
+        cur = conn.execute("DELETE FROM tavoli_blocchi WHERE id = ?", (blocco_id,))
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Blocco non trovato")
+        return {"message": "Tavolo sbloccato"}
     finally:
         conn.close()
 
@@ -1272,13 +1401,15 @@ def get_mappa_tavoli(
                 senza_tavolo.append(pdict)
 
         # Arricchisci tavoli con info prenotazione
+        blocchi = _blocchi_turno(conn, data, turno)
         tavoli_result = []
         for t in tavoli:
             td = dict(t)
             pren = tavolo_pren.get(td["nome"])
             td["prenotazione"] = pren
             td["occupato"] = pren is not None
-            td["stato_tavolo"] = pren["stato"] if pren else "LIBERO"
+            td["blocco"] = blocchi.get(td["id"])
+            td["stato_tavolo"] = pren["stato"] if pren else ("BLOCCATO" if td["blocco"] else "LIBERO")
             tavoli_result.append(td)
 
         # Combinazioni attive

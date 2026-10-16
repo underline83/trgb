@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-16 — Mappa tavoli: aggiungi prenotazione e blocca tavolo `[core]`
+
+Prenotazioni 2.10, sistema 5.58, mig 194. Nella mappa serale il clic su un tavolo libero apre il menu come in TheFork Manager: «➕ **Aggiungi una prenotazione**» apre il form col tavolo e il primo orario del turno già scelti; «🚫 **Blocca questo tavolo**» lo rende non disponibile per quel giorno e turno (motivo facoltativo). Il tavolo bloccato resta in grigio tratteggiato, non si assegna e nel form compare «BLOCCATO»; si sblocca dallo stesso menu. Possono bloccare sala, sommelier e admin. Il blocco vale solo in TRGB. Fix: i tab «Planning» e «Settimana» rimandavano alla Home (mancava la rotta senza data); ora aprono la giornata/settimana di oggi.
+
 ## 2026-10-16 — Prenotazioni: risolvere il doppione TheFork / a mano `[core]`
 
 Prenotazioni 2.9, nessuna migrazione. Unire due clienti non unisce le loro prenotazioni: nella riga aperta della prenotazione inserita a mano, sotto «⚠️ Possibile doppione», c'è il bottone «**Tieni quella TheFork, elimina questa**». Copia sulla prenotazione TheFork la nota staff (in coda), le allergie, il tavolo, il cliente, l'occasione e i seggioloni se lì mancano, poi elimina quella a mano (senza annullarla, così non conta come cancellazione del cliente).
