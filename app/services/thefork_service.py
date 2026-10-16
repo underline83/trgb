@@ -44,8 +44,11 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.models.clienti_db import get_clienti_conn
+from app.services.notifiche_service import crea_notifica
+from app.services.prenotazioni_doppioni_service import doppioni_di
 from app.services.clienti_thefork_service import (
     aggiorna_tag_vip,
+    collega_cliente_esistente,
     pulisci_telefono,
     trova_cliente_id,
     upsert_cliente,
@@ -451,7 +454,10 @@ def _sincronizza_prenotazione(conn, uuid: str) -> str:
         c = api_get(f"/v1/customers/{cust_uuid}")
         if c:
             crec = mappa_cliente(c)
+            collegato = collega_cliente_esistente(conn, crec)
             esito_c, cliente_id, n_diff = upsert_cliente(conn, crec)
+            if collegato:
+                esito_c = "già in TRGB, collegato"
             aggiorna_tag_vip(conn)
             rec["nome_ospite"] = crec["nome"] or None
             rec["cognome_ospite"] = crec["cognome"] or None
@@ -471,15 +477,45 @@ def _sincronizza_prenotazione(conn, uuid: str) -> str:
 
     esito, pid = upsert_prenotazione(conn, rec)
     conn.commit()
-    return (f"prenotazione {esito} #{pid}: {rec['data_pasto']} {str(rec.get('ora_pasto') or '')[:5]}, "
-            f"{rec['pax']} pax, {rec['stato']}{note_cliente}")
+    testo = (f"prenotazione {esito} #{pid}: {rec['data_pasto']} {str(rec.get('ora_pasto') or '')[:5]}, "
+             f"{rec['pax']} pax, {rec['stato']}{note_cliente}")
+
+    # Già segnata a mano in TRGB? Si segnala, non si unisce.
+    try:
+        doppi = doppioni_di(conn, pid)
+    except Exception as e:  # il controllo non deve mai bloccare la sincronizzazione
+        logger.warning("controllo doppioni #%s: %s", pid, e)
+        doppi = []
+    if doppi:
+        d = doppi[0]
+        testo += f" — ⚠️ possibile doppione di #{d['id']} {d['ora']} {d['nome']} ({', '.join(d['motivi'])})"
+        if esito == "inserita":
+            try:
+                crea_notifica(
+                    tipo="prenotazioni",
+                    titolo=f"Possibile doppione: {d['nome']} {rec['data_pasto']}",
+                    messaggio=(f"Da TheFork è arrivata una prenotazione che sembra già inserita a mano "
+                               f"({d['ora']}, {d['pax']} pax; uguale: {', '.join(d['motivi'])})."),
+                    link=f"/prenotazioni/planning/{rec['data_pasto']}",
+                    icona="⚠️",
+                    modulo="prenotazioni",
+                    entity_id=pid,
+                    dest_ruolo="admin",
+                )
+            except Exception as e:
+                logger.warning("notifica doppione #%s: %s", pid, e)
+    return testo
 
 
 def _sincronizza_cliente(conn, uuid: str) -> str:
     c = api_get(f"/v1/customers/{uuid}")
     if c is None:
         return "IGNORATO: cliente non trovato su TheFork (404)"
-    esito, cid, n_diff = upsert_cliente(conn, mappa_cliente(c))
+    crec = mappa_cliente(c)
+    collegato = collega_cliente_esistente(conn, crec)
+    esito, cid, n_diff = upsert_cliente(conn, crec)
+    if collegato:
+        esito = "già in TRGB, collegato"
     aggiorna_tag_vip(conn)
     conn.commit()
     return f"cliente {esito} #{cid}" + (f" ({n_diff} differenze da rivedere)" if n_diff else "")

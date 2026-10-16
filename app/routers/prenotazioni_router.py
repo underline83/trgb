@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 from app.models.clienti_db import get_clienti_conn, init_clienti_db
 from app.services.auth_service import get_current_user
 from app.utils.whatsapp import build_wa_link, fill_template
+from app.services.prenotazioni_doppioni_service import doppioni_del_giorno
 
 logger = logging.getLogger("trgb.prenotazioni")
 
@@ -136,6 +137,61 @@ def _backfill_turno_fonte(conn, soglia: str = "15:00"):
     conn.commit()
 
 
+def _bollino_cliente(item: Dict[str, Any], soglia_frequente: int) -> Optional[str]:
+    """Come TheFork Manager: prima visita / occasionale / frequente (visite PRIMA di quel giorno)."""
+    if not item.get("cliente_id"):
+        return None
+    v = item.get("visite_precedenti") or 0
+    if v == 0:
+        return "prima"
+    return "frequente" if v >= soglia_frequente else "occasionale"
+
+
+def _minuti(hhmm: Optional[str]) -> Optional[int]:
+    try:
+        h, m = str(hhmm)[:5].split(":")
+        return int(h) * 60 + int(m)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _timeline_turno(prenotazioni: List[Dict[str, Any]], config: Dict[str, str], turno: str) -> List[Dict[str, Any]]:
+    """
+    Occupazione della sala per orario (come la barra in alto di TheFork Manager):
+    per ogni slot, coperti e tavoli delle prenotazioni attive in sala in quel
+    momento (dall'ora di arrivo per la durata media del turno, da config).
+    Slot = quelli in config + gli orari di arrivo reali.
+    """
+    try:
+        durata = int(config.get(f"durata_{turno}") or config.get("durata_media_tavolo_min") or 90)
+    except ValueError:
+        durata = 90
+    try:
+        slot_cfg = json.loads(config.get(f"slot_{turno}") or "[]")
+    except ValueError:
+        slot_cfg = []
+    attive = [p for p in prenotazioni if p.get("stato") not in ("CANCELED", "NO_SHOW", "REFUSED")
+              and _minuti(p.get("ora_pasto")) is not None]
+    orari = {m for m in (_minuti(x) for x in slot_cfg) if m is not None}
+    orari |= {_minuti(p["ora_pasto"]) // 15 * 15 for p in attive}  # arrivi sul quarto d'ora
+    out = []
+    for m in sorted(orari):
+        in_sala = [p for p in attive if _minuti(p["ora_pasto"]) <= m < _minuti(p["ora_pasto"]) + durata]
+        tavoli = set()
+        for p in in_sala:
+            for t in str(p.get("tavolo") or "").replace(",", "+").split("+"):
+                if t.strip():
+                    tavoli.add(t.strip())
+        out.append({
+            "ora": f"{m // 60:02d}:{m % 60:02d}",
+            "coperti": sum(p.get("pax") or 0 for p in in_sala),
+            "prenotazioni": len(in_sala),
+            "tavoli": len(tavoli),
+            "arrivi": sum(p.get("pax") or 0 for p in attive if _minuti(p["ora_pasto"]) == m),
+        })
+    return out
+
+
 # ============================================================
 # PYDANTIC MODELS
 # ============================================================
@@ -219,7 +275,11 @@ def get_planning(
                 c.pref_cibo, c.restrizioni_dietetiche, c.protetto,
                 (SELECT COUNT(*) FROM clienti_prenotazioni
                  WHERE cliente_id = c.id AND stato IN ('SEATED','LEFT','ARRIVED','BILL'))
-                    as visite_totali
+                    as visite_totali,
+                (SELECT COUNT(*) FROM clienti_prenotazioni p2
+                 WHERE p2.cliente_id = c.id AND p2.data_pasto < p.data_pasto
+                   AND p2.stato IN ('SEATED','LEFT','ARRIVED','BILL'))
+                    as visite_precedenti
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON p.cliente_id = c.id
             WHERE p.data_pasto = ?
@@ -231,9 +291,17 @@ def get_planning(
         pax_pranzo = 0
         pax_cena = 0
         senza_tavolo = 0
+        # Stessa prenotazione segnata a mano e in TheFork (nome / telefono / email)
+        doppioni = doppioni_del_giorno(conn, data)
+        try:
+            soglia_frequente = int(config.get("cliente_frequente_visite") or 5)
+        except ValueError:
+            soglia_frequente = 5
 
         for r in rows:
             item = dict(r)
+            item["possibili_doppioni"] = doppioni.get(item["id"], [])
+            item["bollino"] = _bollino_cliente(item, soglia_frequente)
             turno = item.get("turno") or _calcola_turno(item.get("ora_pasto"), soglia)
             item["turno"] = turno
 
@@ -266,6 +334,10 @@ def get_planning(
             "data": data,
             "pranzo": pranzo,
             "cena": cena,
+            "timeline": {
+                "pranzo": _timeline_turno(pranzo, config, "pranzo"),
+                "cena": _timeline_turno(cena, config, "cena"),
+            },
             "contatori": {
                 "pranzo_count": len([p for p in pranzo if p["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED")]),
                 "cena_count": len([c for c in cena if c["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED")]),

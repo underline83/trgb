@@ -1,4 +1,5 @@
-// @version: v1.1-mattoni — M.I primitives (Btn) su nav data + nuova prenotazione
+// @version: v1.3-timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -90,6 +91,13 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
               <span className="text-sm text-neutral-600">{nome}</span>
             )}
             {pren.vip === 1 && <Tooltip label="VIP"><span>⭐</span></Tooltip>}
+            {pren.bollino && BOLLINI[pren.bollino] && (
+              <Tooltip label={`${pren.visite_precedenti || 0} visite prima di oggi`}>
+                <span className={`px-1.5 py-0.5 border text-[10px] font-medium rounded-full ${BOLLINI[pren.bollino].cls}`}>
+                  {BOLLINI[pren.bollino].label}
+                </span>
+              </Tooltip>
+            )}
             {(pren.allergie || pren.allergie_segnalate) && (
               <Tooltip label={pren.allergie || pren.allergie_segnalate}>
                 <span className="text-red-500 text-xs">⚠️</span>
@@ -97,6 +105,11 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
             )}
             {pren.stato === "REQUESTED" && (
               <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full">NUOVA</span>
+            )}
+            {pren.possibili_doppioni && pren.possibili_doppioni.length > 0 && (
+              <Tooltip label={pren.possibili_doppioni.map((d) => `Uguale a ${d.ora} ${d.nome} (${d.pax} pax${d.thefork ? ", TheFork" : ", a mano"}): ${d.motivi.join(", ")}`).join(" · ")}>
+                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold rounded-full">DOPPIONE?</span>
+              </Tooltip>
             )}
           </div>
         </td>
@@ -154,6 +167,11 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
                 {pren.restrizioni_dietetiche && <div>🥗 {pren.restrizioni_dietetiche}</div>}
                 {pren.pref_cibo && <div>🍽️ {pren.pref_cibo}</div>}
                 {pren.occasione && <div>🎉 {pren.occasione}</div>}
+                {(pren.possibili_doppioni || []).map((d) => (
+                  <div key={d.id} className="text-amber-700">
+                    ⚠️ Possibile doppione: {d.ora} {d.nome}, {d.pax} pax ({d.thefork ? "da TheFork" : "inserita a mano"}) — uguale: {d.motivi.join(", ")}
+                  </div>
+                ))}
                 {pren.nota_ristorante && <div className="mt-1">📝 Nota staff: {pren.nota_ristorante}</div>}
                 {pren.nota_cliente && <div>💬 Nota cliente: {pren.nota_cliente}</div>}
                 {pren.menu_preset && <div>🍴 Menu: {pren.menu_preset}</div>}
@@ -240,7 +258,38 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
 // ============================================================
 // TABELLA TURNO (pranzo o cena)
 // ============================================================
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand }) {
+// Bollino cliente come in TheFork Manager (visite fatte PRIMA di quel giorno; soglia in config)
+const BOLLINI = {
+  prima:       { label: "Prima visita", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+  occasionale: { label: "Occasionale",  cls: "bg-neutral-50 text-neutral-600 border-neutral-200" },
+  frequente:   { label: "Frequente",    cls: "bg-amber-50 text-amber-800 border-amber-300" },
+};
+
+// Timeline sala: coperti in sala per orario (arrivo + durata media del turno)
+function TimelineSala({ slot, capienza }) {
+  if (!slot || slot.length === 0) return null;
+  return (
+    <div className="flex gap-1 overflow-x-auto px-3 py-2 bg-white border-x border-indigo-200">
+      {slot.map((s) => {
+        const pct = capienza > 0 ? s.coperti / capienza : 0;
+        const colore = pct > 0.9 ? "bg-red-500" : pct > 0.7 ? "bg-amber-500" : "bg-emerald-500";
+        return (
+          <Tooltip key={s.ora} label={`${s.ora}: ${s.coperti} coperti in sala, ${s.prenotazioni} prenotazioni, ${s.tavoli} tavoli · arrivano ${s.arrivi}`}>
+            <div className="flex-shrink-0 w-14 text-center">
+              <div className="text-[11px] font-semibold text-neutral-700">{s.ora}</div>
+              <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden my-0.5">
+                <div className={`h-full ${colore}`} style={{ width: `${Math.min(100, Math.round(pct * 100))}%` }} />
+              </div>
+              <div className="text-[10px] text-neutral-500">{s.coperti}/{capienza}</div>
+            </div>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
+
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -260,6 +309,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
           </span>
         </div>
       </div>
+      {attive.length > 0 && <TimelineSala slot={timeline} capienza={capienza} />}
 
       {attive.length === 0 && cancellate.length === 0 ? (
         <div className="border border-t-0 border-neutral-200 rounded-b-lg p-6 text-center text-neutral-400">
@@ -442,6 +492,7 @@ export default function PrenotazioniPlanning() {
               conteggio={c.pranzo_count}
               pax={c.pranzo_pax}
               capienza={c.capienza_pranzo}
+              timeline={planning.timeline?.pranzo}
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}
@@ -454,6 +505,7 @@ export default function PrenotazioniPlanning() {
               conteggio={c.cena_count}
               pax={c.cena_pax}
               capienza={c.capienza_cena}
+              timeline={planning.timeline?.cena}
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}

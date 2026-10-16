@@ -3,7 +3,7 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
-**Versione modulo (`versions.jsx`):** prenotazioni v2.4
+**Versione modulo (`versions.jsx`):** prenotazioni v2.5
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)
 **Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`; integrazione TheFork in `app/routers/prenotazioni_thefork_router.py` + `app/services/thefork_service.py` (§12)
 **DB:** `clienti.sqlite3` (condiviso col CRM, path live `locali/tregobbi/data/`)
@@ -49,6 +49,9 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-022 | Riprova un avviso / rielabora tutti quelli in sospeso | `POST /prenotazioni/thefork/eventi/{id}/riprova`, `POST /prenotazioni/thefork/elabora` | admin | 🆕 |
 | C-P-023 | Prova connessione API TheFork (token + permessi) | `POST /prenotazioni/thefork/prova-connessione` | admin | 🆕 |
 | C-P-024 | Recupera un periodo da TheFork (per data modifica o data pasto) | `POST /prenotazioni/thefork/sincronizza` | admin | 🆕 |
+| C-P-025 | Bollino cliente nel Planning (Prima visita / Occasionale / Frequente, soglia `cliente_frequente_visite`) | `GET /prenotazioni/planning/{data}` → `bollino`, `visite_precedenti` | sala | 🆕 |
+| C-P-026 | Timeline sala: coperti e tavoli in sala per orario (arrivo + durata media del turno) | `GET /prenotazioni/planning/{data}` → `timeline.pranzo/cena` | sala | 🆕 |
+| C-P-027 | Possibili doppioni TheFork ↔ inserite a mano (nome, telefono, email) | `GET /prenotazioni/planning/{data}` → `possibili_doppioni` | sala | 🆕 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 
@@ -150,7 +153,7 @@ Etichette UI (`StatoBadge`): RECORDED = "Confermata", REQUESTED = "Da confermare
 
 # 6. Configurazione (`prenotazioni_config`)
 
-Chiavi seed (da `init_clienti_db()` + migr. 050): `capienza_pranzo` (35), `capienza_cena` (50), `slot_pranzo` / `slot_cena` (JSON array orari), `soglia_pranzo_cena` (15:00 — prima = pranzo, dopo = cena), `giorni_anticipo_max` (60), `giorni_anticipo_min_ore` (2), `giorno_chiusura` (3), `durata_media_tavolo_min` (90, legacy), `durata_pranzo` (90) e `durata_cena` (120) (migr. 050), `widget_attivo` (0), `widget_messaggio_pieno`, `template_wa_conferma`, `template_wa_reminder`.
+Chiavi seed (da `init_clienti_db()` + migr. 050): `capienza_pranzo` (35), `capienza_cena` (50), `slot_pranzo` / `slot_cena` (JSON array orari), `soglia_pranzo_cena` (15:00 — prima = pranzo, dopo = cena), `giorni_anticipo_max` (60), `giorni_anticipo_min_ore` (2), `giorno_chiusura` (3), `durata_media_tavolo_min` (90, legacy), `durata_pranzo` (90) e `durata_cena` (120) (migr. 050), `widget_attivo` (0), `widget_messaggio_pieno`, `template_wa_conferma`, `template_wa_reminder`. Dalla mig 192: `cliente_frequente_visite` (5) — soglia del bollino «Frequente» (Impostazioni → Capienza & Turni → Bollino cliente).
 
 UI: `/prenotazioni/impostazioni`, sidebar a 4 sezioni — **Capienza & Turni** (capienze, soglia, giorno chiusura, durate medie), **Slot Orari** (chips add/remove con anteprima), **Template Messaggi** (WA conferma/reminder con variabili e anteprima), **Widget Pubblico** (placeholder "In arrivo — Fase 3", checkbox disabilitata).
 
@@ -229,6 +232,10 @@ TheFork ha dato all'osteria l'accesso alla B2B API (incluso nel piano Enterprise
 | cliente | `clienti` con le regole dell'import: protetto → solo campi TheFork + vuoti + differenze in revisione; non protetto → sovrascrive. Tag VIP automatico. Data di nascita `dd/mm/yyyy`, paese per esteso, allergie/restrizioni unite con « \| » |
 
 Solo all'inserimento: `fonte` (`widget` se canale «Booking Module», altrimenti `thefork`), `prenotato_da` (TheFork / Booking Module), `creato_da = 'thefork-api'`. Non toccati: `occasione`, `yums`, `waiting_list`, `sconto`, `spending_behaviour` (l'API non li dà o li dà in altra forma).
+
+**Possibili doppioni** (prenotazioni 2.5, `app/services/prenotazioni_doppioni_service.py`). Una prenotazione TheFork e una senza id TheFork (inserita a mano), stesso giorno, entrambe attive, sono segnalate se coincide il **telefono** (anche il secondo numero), l'**email** o il **nome** (stesso primo nome + una parola del cognome in comune; se un nome manca, basta il cognome con gli stessi coperti). Calcolato al momento, niente stato salvato: badge «DOPPIONE?» nel Planning su tutte e due le righe (dettagli nella riga espansa), riga «⚠️ possibile doppione di #…» nell'esito dell'evento e notifica M.A agli admin quando la prenotazione TheFork è nuova. Non unisce niente: si cancella a mano quella in più. Sullo storico 2025-26 segnala una sola coppia (Petersen, 16/10/2026).
+
+**Clienti inseriti a mano** (prenotazioni 2.5, `collega_cliente_esistente`). Se da TheFork arriva un cliente che TRGB non conosce per id, ma nel CRM c'è **un solo** cliente senza id TheFork con lo stesso telefono o la stessa email, gli si assegna l'id TheFork e viene aggiornato (regole dei protetti) invece di crearne un altro. Con più candidati non si collega niente. Telefoni dall'API: se arrivano già internazionali («+45…») si tengono così (prima `normalize_phone` metteva «39» davanti anche ai numeri esteri).
 
 **Stati dell'evento.** `fatto` (con esito: «prenotazione inserita #id…»), `ignorato` (recensioni, altro ristorante, 404 su TheFork), `in_attesa` (credenziali mancanti), `errore` (API giù, 429…: TheFork non riprova dopo il nostro 200, si riprova dalle Impostazioni).
 

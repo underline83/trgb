@@ -416,7 +416,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
-    version: "2.4",
+    version: "2.5",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -499,6 +499,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.56 (2026-10-16): mig 192 — prenotazioni_config.cliente_frequente_visite: bollino
+    //   cliente nel Planning, timeline sala, doppioni TheFork/a mano, clienti TheFork
+    //   collegati a quelli inseriti a mano (prenotazioni 2.5).
     // 5.42 (2026-10-02): riallineamento versione di sistema, ferma a 5.41 dal
     //   01/09 nonostante mig 170→179 e una ventina di rilasci: omaggi
     //   nell'imponibile (170), Scorte & Frigoriferi + Cucina da iPhone (171),
@@ -563,7 +566,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.55",
+    version: "5.56",
     label: "Sistema",
     status: "stabile",
     color: "green",

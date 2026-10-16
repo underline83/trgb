@@ -1,4 +1,4 @@
-// @version: v2.2-thefork — sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -341,6 +341,25 @@ function CapienzaSection({ config, update }) {
           </div>
         </div>
         <p className="text-[11px] text-neutral-400 mt-2">Utile per Fase 2 (mappa tavoli) — stima rotazione</p>
+      </div>
+
+      {/* Bollino cliente nel Planning */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-5">
+        <h4 className="font-semibold text-neutral-700 mb-3 text-sm">Bollino cliente</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">«Frequente» da (visite)</label>
+            <input
+              type="number"
+              value={config.cliente_frequente_visite || "5"}
+              onChange={(e) => update("cliente_frequente_visite", e.target.value)}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+              min={2}
+              max={100}
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-neutral-400 mt-2">Visite fatte prima di quel giorno: 0 = Prima visita, sotto la soglia = Occasionale, dalla soglia in su = Frequente. Durate medie sopra = timeline della sala nel Planning.</p>
       </div>
     </div>
   );

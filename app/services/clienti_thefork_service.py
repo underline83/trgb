@@ -54,10 +54,18 @@ def pulisci_telefono(tel: Optional[str]) -> Optional[str]:
     """Telefono dall'API TheFork → formato del CRM («+39…»). None se placeholder."""
     if not tel:
         return None
-    norm = normalize_phone(str(tel))
-    if not norm:
-        return None
-    out = "+" + norm
+    grezzo = re.sub(r"[^\d+]", "", str(tel))
+    if grezzo.startswith("00"):
+        grezzo = "+" + grezzo[2:]
+    if grezzo.startswith("+"):
+        # Già internazionale (TheFork di solito manda E.164): si tiene com'è.
+        # normalize_phone metterebbe «39» davanti anche a un numero danese.
+        out = "+" + re.sub(r"\D", "", grezzo)
+    else:
+        norm = normalize_phone(grezzo)
+        if not norm:
+            return None
+        out = "+" + norm
     return out if telefono_valido(out) else None
 
 
@@ -76,6 +84,51 @@ def trova_cliente_id(conn: sqlite3.Connection, thefork_id: Optional[str]) -> Opt
         if row:
             return row["id"]
     return None
+
+
+def collega_cliente_esistente(conn: sqlite3.Connection, record: Dict[str, Any]) -> Optional[int]:
+    """
+    Cliente TheFork nuovo per TRGB: se nel CRM c'è UN cliente inserito a mano
+    (senza id TheFork) con lo stesso telefono o la stessa email, gli si assegna
+    l'id TheFork e l'upsert successivo lo aggiorna invece di crearne un altro.
+    Con più candidati non si collega niente (meglio un doppione che un'unione
+    sbagliata). Ritorna l'id del cliente collegato, o None.
+    """
+    tf_id = record.get("thefork_id")
+    if not tf_id or trova_cliente_id(conn, tf_id):
+        return None
+
+    email = (record.get("email") or "").strip().lower()
+    telefoni = {normalize_phone(t) for t in (record.get("telefono"), record.get("telefono2")) if t}
+    telefoni.discard(None)
+    if not email and not telefoni:
+        return None
+
+    filtri, args = [], []
+    if email:
+        filtri.append("LOWER(TRIM(email)) = ?")
+        args.append(email)
+    for t in telefoni:
+        coda = t[-9:]  # ultime 9 cifre: il numero senza prefisso, qualunque formato abbia nel CRM
+        filtri.append("REPLACE(REPLACE(telefono,' ',''),'-','') LIKE ?")
+        args.append(f"%{coda}")
+        filtri.append("REPLACE(REPLACE(telefono2,' ',''),'-','') LIKE ?")
+        args.append(f"%{coda}")
+    righe = conn.execute(
+        f"""SELECT id, email, telefono, telefono2 FROM clienti
+            WHERE thefork_id IS NULL AND COALESCE(attivo, 1) = 1 AND ({' OR '.join(filtri)})""",
+        args,
+    ).fetchall()
+
+    candidati = []
+    for r in righe:
+        tel_r = {normalize_phone(t) for t in (r["telefono"], r["telefono2"]) if t}
+        if (email and (r["email"] or "").strip().lower() == email) or (telefoni & tel_r):
+            candidati.append(r["id"])
+    if len(candidati) != 1:
+        return None
+    conn.execute("UPDATE clienti SET thefork_id = ? WHERE id = ? AND thefork_id IS NULL", (tf_id, candidati[0]))
+    return candidati[0]
 
 
 def upsert_cliente(conn: sqlite3.Connection, record: Dict[str, Any]) -> Tuple[str, int, int]:

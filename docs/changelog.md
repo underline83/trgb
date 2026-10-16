@@ -11,6 +11,17 @@ Sistema 5.55, mig 191, fatture 3.3, controlloGestione 2.28. In Acquisti › Cate
 
 Sistema 5.54, mig 190, controlloGestione 2.27, dipendenti 2.36. L'import «ELAB / F24» (Dipendenti › Buste paga) ora mette gli F24 paghe nello Scadenzario: una rata della spesa fissa «F24 paghe» per ogni pagina con saldo finale > 0, alla data stampata sul modello, col PDF apribile dalla riga (📄). Le pagine a saldo 0 sono compensazioni e non generano rate; un F24 tutto compensato lascia una rata da 0 € chiusa. Gli F24 non paghe (IVA, ravvedimenti, rate ADER) restano da inserire a mano in Spese Fisse. Il parser F24 legge debito e credito dalla colonna del modulo e il saldo finale dal riquadro EURO: prima alcuni crediti (1631, 1701) erano contati come debiti e i totali per sezione in Costi mensili erano sbagliati. Nel Conto Economico l'F24 paghe resta fuori dalla competenza (è già nel costo ELAB) e in cassa conta solo quando è pagato.
 
+## 2026-10-16 — Prenotazioni: bollino cliente, timeline della sala, doppioni TheFork / a mano `[core]`
+
+Prenotazioni 2.5, sistema 5.56, mig 192. Idee prese da TheFork Manager:
+- **Bollino cliente** accanto al nome nel Planning: «Prima visita», «Occasionale», «Frequente», contando le visite fatte prima di quel giorno. La soglia di «Frequente» (5) si cambia in Impostazioni → Capienza & Turni.
+- **Timeline della sala** sopra ogni turno: per ogni orario, coperti in sala sul totale (con colore verde/arancio/rosso), tavoli e arrivi. Usa le durate medie di pranzo e cena.
+- **Clienti TheFork collegati a quelli inseriti a mano**: se un cliente nuovo da TheFork ha lo stesso telefono o la stessa email di un solo cliente del CRM senza id TheFork, viene collegato a quello invece di crearne un doppione. I numeri esteri arrivati da TheFork non prendono più un «39» davanti.
+
+Doppioni: Quando la stessa prenotazione è segnata a mano in TRGB e anche in TheFork Manager, il Planning mostra «DOPPIONE?» su tutte e due (stesso giorno e stesso telefono, email o nome). Se arriva dal webhook una prenotazione nuova che sembra già inserita a mano, gli admin ricevono una notifica. Niente viene unito o cancellato da solo.
+
+---
+
 ## 2026-10-16 — TheFork: orario delle prenotazioni corretto `[core]`
 
 Prenotazioni 2.4, nessuna migrazione. TheFork manda l'ora del pasto in UTC, non nell'ora del ristorante come dice la sua documentazione: la prima sincronizzazione (pasti dal 09 al 16/10) aveva salvato le prenotazioni 2 ore prima (19:30 → 17:30). Ora l'ora si converte sempre nel fuso del locale. Le prenotazioni già scritte si sistemano rilanciando «Recupera un periodo» sullo stesso intervallo.
