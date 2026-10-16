@@ -434,7 +434,13 @@ def _restaurant_uuid_atteso() -> Optional[str]:
     return _env("THEFORK_RESTAURANT_UUID") or None
 
 
-def _sincronizza_prenotazione(conn, uuid: str) -> str:
+def _uguale(a: Any, b: Any) -> bool:
+    if a in (None, "") and b in (None, ""):
+        return True
+    return str(a) == str(b)
+
+
+def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> str:
     r = api_get(f"/v1/reservations/{uuid}", {"include": "tables,creditCardGuaranteeDetails"})
     if r is None:
         return "IGNORATO: prenotazione non trovata su TheFork (404)"
@@ -446,6 +452,15 @@ def _sincronizza_prenotazione(conn, uuid: str) -> str:
     rec = mappa_prenotazione(r, _soglia_turno(conn))
     if not rec.get("data_pasto"):
         raise ValueError("prenotazione senza mealDate")
+
+    if solo_se_cambia:
+        # Recupero periodico: se in TRGB è già tutto uguale non si tocca niente
+        # (e non si chiede nemmeno il cliente a TheFork).
+        gia = conn.execute(
+            "SELECT * FROM clienti_prenotazioni WHERE thefork_booking_id = ?", (rec["thefork_booking_id"],)
+        ).fetchone()
+        if gia and all(_uguale(gia[k], v) for k, v in rec.items() if k != "updated_at" and k in gia.keys()):
+            return "INVARIATA"
 
     cliente_id = None
     note_cliente = ""
@@ -645,7 +660,8 @@ def stato_integrazione() -> Dict[str, Any]:
         ).fetchone()
         ultimo_webhook = conn.execute(
             """SELECT ricevuto_at FROM prenotazioni_thefork_eventi
-               WHERE event_type IS NULL OR event_type != 'sincronizzazione' ORDER BY id DESC LIMIT 1"""
+               WHERE event_type IS NULL OR event_type NOT IN ('sincronizzazione', 'recupero_automatico')
+               ORDER BY id DESC LIMIT 1"""
         ).fetchone()
     finally:
         conn.close()
@@ -659,6 +675,7 @@ def stato_integrazione() -> Dict[str, Any]:
         "eventi_per_stato": per_stato,
         "ultimo_evento_at": ultimo["ricevuto_at"] if ultimo else None,
         "ultimo_webhook_at": ultimo_webhook["ricevuto_at"] if ultimo_webhook else None,
+        "recupero_automatico": {k: v for k, v in _stato_recupero.items() if k != "avviato"},
     }
 
 
@@ -677,3 +694,99 @@ def elenco_eventi(stato: Optional[str] = None, limite: int = 100) -> List[Dict[s
         return [dict(r) for r in conn.execute(sql, args).fetchall()]
     finally:
         conn.close()
+
+
+# ============================================================
+# RECUPERO AUTOMATICO PERIODICO
+# ============================================================
+# TheFork non rimanda un avviso perso (TRGB spento per un push o un riavvio).
+# Ogni THEFORK_RECUPERO_MINUTI (default 60, 0 = spento) si rileggono le
+# prenotazioni modificate su TheFork ieri e oggi e si sistemano solo quelle
+# diverse da TRGB. Nel registro finiscono solo quelle corrette davvero.
+
+_stato_recupero: Dict[str, Any] = {}
+
+
+def recupero_automatico() -> Dict[str, Any]:
+    if not credenziali_presenti():
+        return {"saltato": "credenziali mancanti"}
+    ristorante = _restaurant_uuid_atteso()
+    if not ristorante:
+        return {"saltato": "THEFORK_RESTAURANT_UUID mancante"}
+
+    oggi = date.today()
+    dal = date.fromordinal(oggi.toordinal() - 1).isoformat()
+    uuids: List[str] = []
+    pagina = 1
+    while len(uuids) < 2000:
+        dati = api_get("/v1/reservations", {
+            "restaurantUuid": ristorante, "startDate": dal, "endDate": oggi.isoformat(),
+            "filterBy": "updatedDate", "limit": 100, "page": pagina,
+        }) or {}
+        blocco = dati.get("data") or []
+        uuids.extend(blocco)
+        if not blocco or len(uuids) >= int(dati.get("totalCount") or 0):
+            break
+        pagina += 1
+
+    corrette, errori = 0, 0
+    for u in uuids:
+        with _lock_elabora:
+            conn = get_clienti_conn()
+            try:
+                try:
+                    esito = _sincronizza_prenotazione(conn, u, solo_se_cambia=True)
+                    stato, errore = "fatto", None
+                except Exception as e:
+                    conn.rollback()
+                    esito, stato, errore = None, "errore", str(e)[:500]
+                    errori += 1
+                if esito == "INVARIATA":
+                    continue
+                if esito and esito.startswith("IGNORATO: "):
+                    stato, esito = "ignorato", esito[len("IGNORATO: "):]
+                elif stato == "fatto":
+                    corrette += 1
+                conn.execute(
+                    """INSERT INTO prenotazioni_thefork_eventi
+                       (event_type, entity_type, uuid, restaurant_uuid, payload, stato, tentativi,
+                        esito, ultimo_errore, elaborato_at)
+                       VALUES ('recupero_automatico', 'reservation', ?, ?, '{}', ?, 1, ?, ?, datetime('now','localtime'))""",
+                    (u, ristorante, stato, esito, errore),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    _stato_recupero.update({
+        "ultimo": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "controllate": len(uuids), "corrette": corrette, "errori": errori,
+    })
+    return dict(_stato_recupero)
+
+
+def avvia_recupero_periodico() -> None:
+    """Thread di sfondo nel processo del backend (un solo worker uvicorn)."""
+    try:
+        minuti = int(_env("THEFORK_RECUPERO_MINUTI", "60") or 0)
+    except ValueError:
+        minuti = 60
+    if minuti <= 0 or _stato_recupero.get("avviato"):
+        return
+    _stato_recupero["avviato"] = True
+    _stato_recupero["ogni_minuti"] = minuti
+
+    def _giro():
+        time.sleep(300)  # lascia finire l'avvio del backend
+        while True:
+            try:
+                if credenziali_presenti():
+                    r = recupero_automatico()
+                    logger.info("TheFork recupero automatico: %s", r)
+            except Exception as e:
+                logger.warning("TheFork recupero automatico: %s", e)
+                _stato_recupero.update({"ultimo": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        "errore": str(e)[:300]})
+            time.sleep(minuti * 60)
+
+    threading.Thread(target=_giro, name="thefork-recupero", daemon=True).start()

@@ -11,6 +11,12 @@ Sistema 5.55, mig 191, fatture 3.3, controlloGestione 2.28. In Acquisti › Cate
 
 Sistema 5.54, mig 190, controlloGestione 2.27, dipendenti 2.36. L'import «ELAB / F24» (Dipendenti › Buste paga) ora mette gli F24 paghe nello Scadenzario: una rata della spesa fissa «F24 paghe» per ogni pagina con saldo finale > 0, alla data stampata sul modello, col PDF apribile dalla riga (📄). Le pagine a saldo 0 sono compensazioni e non generano rate; un F24 tutto compensato lascia una rata da 0 € chiusa. Gli F24 non paghe (IVA, ravvedimenti, rate ADER) restano da inserire a mano in Spese Fisse. Il parser F24 legge debito e credito dalla colonna del modulo e il saldo finale dal riquadro EURO: prima alcuni crediti (1631, 1701) erano contati come debiti e i totali per sezione in Costi mensili erano sbagliati. Nel Conto Economico l'F24 paghe resta fuori dalla competenza (è già nel costo ELAB) e in cassa conta solo quando è pagato.
 
+## 2026-10-16 — TheFork: recupero automatico ogni ora `[core]`
+
+Prenotazioni 2.6, nessuna migrazione. Oltre agli avvisi in tempo reale, ogni ora TRGB rilegge da TheFork le prenotazioni modificate ieri e oggi e corregge solo quelle diverse: un avviso perso mentre il backend si riavvia (TheFork non lo rimanda) si sistema da solo entro un'ora. Intervallo da `.env` (`THEFORK_RECUPERO_MINUTI`, 0 = spento). In Impostazioni → TheFork si vede l'ultimo giro: quante controllate e quante corrette.
+
+---
+
 ## 2026-10-16 — Prenotazioni: bollino cliente, timeline della sala, doppioni TheFork / a mano `[core]`
 
 Prenotazioni 2.5, sistema 5.56, mig 192. Idee prese da TheFork Manager:

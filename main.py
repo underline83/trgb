@@ -749,6 +749,10 @@ _mount("clienti_giftcard_router", clienti_giftcard_router)
 # che ha rotte /{pren_id}
 _mount("prenotazioni_thefork_router", prenotazioni_thefork_public_router)
 _mount("prenotazioni_thefork_router", prenotazioni_thefork_router)
+if module_loader.is_router_active("prenotazioni_thefork_router"):
+    # Recupero orario degli avvisi TheFork persi (THEFORK_RECUPERO_MINUTI, 0 = spento)
+    from app.services.thefork_service import avvia_recupero_periodico as _tf_recupero
+    _tf_recupero()
 _mount("prenotazioni_router", prenotazioni_router)
 
 # PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)

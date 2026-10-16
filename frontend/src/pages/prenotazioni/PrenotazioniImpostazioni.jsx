@@ -635,6 +635,16 @@ function TheForkSection() {
               <dd className="font-mono text-xs break-all text-neutral-800">{stato.restaurant_uuid || "—"}</dd>
               <dt className="text-neutral-500">Ultimo avviso</dt>
               <dd className="text-neutral-800">{stato.ultimo_webhook_at || "nessuno finora"}</dd>
+              <dt className="text-neutral-500">Recupero automatico</dt>
+              <dd className="text-neutral-800">
+                {stato.recupero_automatico?.ogni_minuti
+                  ? `ogni ${stato.recupero_automatico.ogni_minuti} min · ` +
+                    (stato.recupero_automatico.ultimo
+                      ? `ultimo ${stato.recupero_automatico.ultimo}: ${stato.recupero_automatico.controllate ?? 0} controllate, ${stato.recupero_automatico.corrette ?? 0} corrette` +
+                        (stato.recupero_automatico.errore ? ` — errore: ${stato.recupero_automatico.errore}` : "")
+                      : "primo giro 5 minuti dopo l'avvio")
+                  : "spento"}
+              </dd>
             </dl>
             <div className="flex flex-wrap gap-2 pt-1">
               <Btn variant="secondary" size="md" onClick={() => azione("prova", "/prenotazioni/thefork/prova-connessione")}

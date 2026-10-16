@@ -3,7 +3,7 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
-**Versione modulo (`versions.jsx`):** prenotazioni v2.5
+**Versione modulo (`versions.jsx`):** prenotazioni v2.6
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)
 **Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`; integrazione TheFork in `app/routers/prenotazioni_thefork_router.py` + `app/services/thefork_service.py` (§12)
 **DB:** `clienti.sqlite3` (condiviso col CRM, path live `locali/tregobbi/data/`)
@@ -236,6 +236,8 @@ Solo all'inserimento: `fonte` (`widget` se canale «Booking Module», altrimenti
 **Possibili doppioni** (prenotazioni 2.5, `app/services/prenotazioni_doppioni_service.py`). Una prenotazione TheFork e una senza id TheFork (inserita a mano), stesso giorno, entrambe attive, sono segnalate se coincide il **telefono** (anche il secondo numero), l'**email** o il **nome** (stesso primo nome + una parola del cognome in comune; se un nome manca, basta il cognome con gli stessi coperti). Calcolato al momento, niente stato salvato: badge «DOPPIONE?» nel Planning su tutte e due le righe (dettagli nella riga espansa), riga «⚠️ possibile doppione di #…» nell'esito dell'evento e notifica M.A agli admin quando la prenotazione TheFork è nuova. Non unisce niente: si cancella a mano quella in più. Sullo storico 2025-26 segnala una sola coppia (Petersen, 16/10/2026).
 
 **Clienti inseriti a mano** (prenotazioni 2.5, `collega_cliente_esistente`). Se da TheFork arriva un cliente che TRGB non conosce per id, ma nel CRM c'è **un solo** cliente senza id TheFork con lo stesso telefono o la stessa email, gli si assegna l'id TheFork e viene aggiornato (regole dei protetti) invece di crearne un altro. Con più candidati non si collega niente. Telefoni dall'API: se arrivano già internazionali («+45…») si tengono così (prima `normalize_phone` metteva «39» davanti anche ai numeri esteri).
+
+**Recupero automatico** (prenotazioni 2.6). Thread di sfondo nel backend (`avvia_recupero_periodico`, avviato da `main.py` se il modulo è attivo): ogni `THEFORK_RECUPERO_MINUTI` (default 60, `0` = spento; primo giro 5 minuti dopo l'avvio) rilegge le prenotazioni **modificate su TheFork ieri e oggi** e sistema solo quelle diverse da TRGB (`solo_se_cambia`: se i campi coincidono non chiede nemmeno il cliente). Nel registro finiscono solo quelle corrette, come `recupero_automatico`. Serve perché TheFork non rimanda un avviso perso (TRGB spento per push o riavvio). Stato e ultimo giro in Impostazioni → TheFork.
 
 **Stati dell'evento.** `fatto` (con esito: «prenotazione inserita #id…»), `ignorato` (recensioni, altro ristorante, 404 su TheFork), `in_attesa` (credenziali mancanti), `errore` (API giù, 429…: TheFork non riprova dopo il nostro 200, si riprova dalle Impostazioni).
 
