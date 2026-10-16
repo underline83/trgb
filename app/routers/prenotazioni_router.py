@@ -40,7 +40,7 @@ from app.services.prenotazioni_doppioni_service import doppioni_del_giorno
 
 logger = logging.getLogger("trgb.prenotazioni")
 
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import richiede_ruoli, verifica_ruoli
 
 # PERMESSI (2026-09-01, M.G) — prenotazioni
 # Erano aperti nome e telefono dei prenotati e la DELETE della prenotazione.
@@ -618,7 +618,8 @@ def get_tavoli(user: dict = Depends(get_current_user)):
     conn = get_clienti_conn()
     try:
         rows = conn.execute("""
-            SELECT id, nome, zona, posti_min, posti_max, combinabile, attivo, note, ordine
+            SELECT id, nome, zona, posti_min, posti_max, combinabile, attivo, note, ordine,
+                   posizione_x, posizione_y, larghezza, altezza, forma
             FROM tavoli
             WHERE attivo = 1
             ORDER BY ordine, zona, nome
@@ -633,6 +634,8 @@ def get_tavoli(user: dict = Depends(get_current_user)):
         return {
             "tavoli": [dict(r) for r in rows],
             "combinazioni": [dict(r) for r in combinazioni],
+            "elementi": _elementi_piantina(conn),
+            "sale": _sale(conn),
         }
     finally:
         conn.close()
@@ -829,6 +832,14 @@ async def aggiorna_posizioni_batch(
                 tid,
             ))
             count += 1
+        for e in data.get("elementi", []):
+            if not e.get("id"):
+                continue
+            conn.execute("""
+                UPDATE tavoli_elementi SET posizione_x = ?, posizione_y = ?, larghezza = ?, altezza = ?
+                WHERE id = ?
+            """, (e.get("posizione_x", 0), e.get("posizione_y", 0),
+                  e.get("larghezza", 60), e.get("altezza", 60), e["id"]))
         conn.commit()
         return {"message": f"{count} tavoli aggiornati"}
     finally:
@@ -846,6 +857,178 @@ def disattiva_tavolo(
         conn.execute("UPDATE tavoli SET attivo = 0 WHERE id = ?", (tavolo_id,))
         conn.commit()
         return {"message": "Tavolo disattivato", "id": tavolo_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# PIANTINA: sale, elementi non prenotabili, import (2026-10-16, mig 193)
+# ============================================================
+# La sala è tavoli.zona (testo libero: Osteria, Veranda, Dehor…). Le sale si
+# ordinano col minimo «ordine» dei loro tavoli. Gli elementi (bancone, colonne,
+# scale, fioriere) stanno in tavoli_elementi e non si prenotano mai.
+
+FORME_TAVOLO = {"rect", "circle", "diamond"}
+FORME_ELEMENTO = {"rect", "circle"}
+
+
+def _elementi_piantina(conn) -> List[Dict[str, Any]]:
+    try:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM tavoli_elementi ORDER BY zona, ordine, id"
+        ).fetchall()]
+    except Exception:  # mig 193 non ancora passata
+        return []
+
+
+def _sale(conn) -> List[str]:
+    rows = conn.execute("""
+        SELECT zona, MIN(ordine) AS o FROM tavoli WHERE attivo = 1 GROUP BY zona ORDER BY o, zona
+    """).fetchall()
+    sale = [r["zona"] for r in rows if r["zona"]]
+    for e in _elementi_piantina(conn):
+        if e["zona"] and e["zona"] not in sale:
+            sale.append(e["zona"])
+    return sale
+
+
+class ElementoPiantina(BaseModel):
+    zona: str
+    forma: str = "rect"
+    posizione_x: float = 0
+    posizione_y: float = 0
+    larghezza: float = 60
+    altezza: float = 60
+    colore: Optional[str] = None
+    etichetta: Optional[str] = None
+    ordine: int = 0
+
+
+@router.post("/tavoli/elementi")
+def crea_elemento(req: ElementoPiantina, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, "admin", cosa="piantina")
+    if req.forma not in FORME_ELEMENTO:
+        raise HTTPException(400, "forma elemento: rect o circle")
+    conn = get_clienti_conn()
+    try:
+        cur = conn.execute("""
+            INSERT INTO tavoli_elementi (zona, forma, posizione_x, posizione_y, larghezza, altezza, colore, etichetta, ordine)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (req.zona, req.forma, req.posizione_x, req.posizione_y, req.larghezza, req.altezza,
+              req.colore, req.etichetta, req.ordine))
+        conn.commit()
+        return {"id": cur.lastrowid}
+    finally:
+        conn.close()
+
+
+@router.put("/tavoli/elementi/{elemento_id}")
+async def modifica_elemento(elemento_id: int, request: Request, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, "admin", cosa="piantina")
+    data = await request.json()
+    campi = {k: v for k, v in data.items()
+             if k in ("zona", "forma", "posizione_x", "posizione_y", "larghezza", "altezza", "colore", "etichetta", "ordine")}
+    if campi.get("forma") and campi["forma"] not in FORME_ELEMENTO:
+        raise HTTPException(400, "forma elemento: rect o circle")
+    if not campi:
+        return {"message": "Nessuna modifica"}
+    conn = get_clienti_conn()
+    try:
+        conn.execute(
+            f"UPDATE tavoli_elementi SET {', '.join(f'{k} = ?' for k in campi)} WHERE id = ?",
+            [*campi.values(), elemento_id],
+        )
+        conn.commit()
+        return {"id": elemento_id}
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/elementi/{elemento_id}")
+def elimina_elemento(elemento_id: int, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, "admin", cosa="piantina")
+    conn = get_clienti_conn()
+    try:
+        conn.execute("DELETE FROM tavoli_elementi WHERE id = ?", (elemento_id,))
+        conn.commit()
+        return {"id": elemento_id}
+    finally:
+        conn.close()
+
+
+@router.post("/tavoli/importa")
+async def importa_piantina(request: Request, user: dict = Depends(get_current_user)):
+    """
+    Importa una piantina da JSON: {"sostituisci": true, "tavoli": [...], "elementi": [...]}.
+    Tavoli per nome: se esiste (anche disattivato) si aggiorna e riattiva, se no si crea.
+    sostituisci=true: prima disattiva tutti i tavoli e cancella gli elementi (le
+    prenotazioni non si toccano: il tavolo è un testo sulla prenotazione).
+    """
+    verifica_ruoli(user, "admin", cosa="piantina")
+    data = await request.json()
+    tavoli_in = data.get("tavoli") or []
+    elementi_in = data.get("elementi") or []
+    if not isinstance(tavoli_in, list) or not isinstance(elementi_in, list):
+        raise HTTPException(400, "formato: {tavoli: [...], elementi: [...]}")
+    for t in tavoli_in:
+        if not str(t.get("nome") or "").strip():
+            raise HTTPException(400, "ogni tavolo deve avere un nome")
+        if (t.get("forma") or "rect") not in FORME_TAVOLO:
+            raise HTTPException(400, f"tavolo {t.get('nome')}: forma rect, circle o diamond")
+    conn = get_clienti_conn()
+    try:
+        if data.get("sostituisci"):
+            conn.execute("UPDATE tavoli SET attivo = 0")
+            conn.execute("DELETE FROM tavoli_elementi")
+        creati = aggiornati = 0
+        for i, t in enumerate(tavoli_in):
+            nome = str(t["nome"]).strip()
+            valori = {
+                "zona": t.get("zona") or "sala",
+                "posti_min": int(t.get("posti_min") or 1),
+                "posti_max": int(t.get("posti_max") or t.get("posti_min") or 2),
+                "combinabile": int(t.get("combinabile", 1)),
+                "posizione_x": float(t.get("posizione_x") or 0),
+                "posizione_y": float(t.get("posizione_y") or 0),
+                "larghezza": float(t.get("larghezza") or 60),
+                "altezza": float(t.get("altezza") or 60),
+                "forma": t.get("forma") or "rect",
+                "ordine": int(t.get("ordine", i)),
+                "note": t.get("note"),
+            }
+            esiste = conn.execute("SELECT id FROM tavoli WHERE nome = ?", (nome,)).fetchone()
+            if esiste:
+                conn.execute(
+                    f"UPDATE tavoli SET {', '.join(f'{k} = ?' for k in valori)}, attivo = 1 WHERE id = ?",
+                    [*valori.values(), esiste["id"]],
+                )
+                aggiornati += 1
+            else:
+                cols = ["nome", *valori.keys()]
+                conn.execute(
+                    f"INSERT INTO tavoli ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                    [nome, *valori.values()],
+                )
+                creati += 1
+        n_el = 0
+        for i, e in enumerate(elementi_in):
+            forma = e.get("forma") or "rect"
+            if forma not in FORME_ELEMENTO:
+                forma = "rect"
+            conn.execute("""
+                INSERT INTO tavoli_elementi (zona, forma, posizione_x, posizione_y, larghezza, altezza, colore, etichetta, ordine)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (e.get("zona") or "sala", forma, float(e.get("posizione_x") or 0), float(e.get("posizione_y") or 0),
+                  float(e.get("larghezza") or 60), float(e.get("altezza") or 60),
+                  e.get("colore"), e.get("etichetta"), int(e.get("ordine", i))))
+            n_el += 1
+        conn.commit()
+        return {"tavoli_creati": creati, "tavoli_aggiornati": aggiornati, "elementi": n_el, "sale": _sale(conn)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, str(e))
     finally:
         conn.close()
 
@@ -1107,6 +1290,8 @@ def get_mappa_tavoli(
             "senza_tavolo": senza_tavolo,
             "combinazioni": [dict(c) for c in combinazioni],
             "layout_attivo": dict(layout_attivo) if layout_attivo else None,
+            "elementi": _elementi_piantina(conn),
+            "sale": _sale(conn),
         }
     finally:
         conn.close()

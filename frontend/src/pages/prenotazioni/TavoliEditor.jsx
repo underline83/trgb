@@ -1,22 +1,15 @@
-// @version: v1.1-mattoni — M.I primitives (Btn) su CTA + form + layout sidebar
+// @version: v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
+// Modulo: prenotazioni
 // Editor piantina tavoli — drag & drop SVG, Fase 2 Prenotazioni
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import { Btn } from "../../components/ui";
+import { CANVAS_W, CANVAS_H, COLORE_TAVOLO, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
 
-const ZONE = ["sala", "bottiglieria", "esterno", "privata"];
-const FORME = ["rect", "circle"];
+const FORME = ["rect", "circle", "diamond"];
+const NOMI_FORME = { rect: "Rettangolo", circle: "Cerchio", diamond: "Rombo" };
 const GRID = 10; // snap-to-grid
-const CANVAS_W = 900;
-const CANVAS_H = 600;
-
-const ZONE_COLORI = {
-  sala: "#e0e7ff",        // indigo-100
-  bottiglieria: "#fef3c7", // amber-100
-  esterno: "#d1fae5",     // emerald-100
-  privata: "#fce7f3",     // pink-100
-};
 
 function snap(val) {
   return Math.round(val / GRID) * GRID;
@@ -24,6 +17,11 @@ function snap(val) {
 
 export default function TavoliEditor() {
   const [tavoli, setTavoli] = useState([]);
+  const [elementi, setElementi] = useState([]);
+  const [sale, setSale] = useState([]);
+  const [sala, setSala] = useState(null);
+  const [selectedEl, setSelectedEl] = useState(null);
+  const fileRef = useRef(null);
   const [combinazioni, setCombinazioni] = useState([]);
   const [layouts, setLayouts] = useState([]);
   const [layoutAttivo, setLayoutAttivo] = useState(null);
@@ -39,7 +37,7 @@ export default function TavoliEditor() {
   // Nuovo tavolo form
   const [showNuovo, setShowNuovo] = useState(false);
   const [nuovoForm, setNuovoForm] = useState({
-    nome: "", zona: "sala", posti_min: 2, posti_max: 4, forma: "rect",
+    nome: "", zona: "", posti_min: 2, posti_max: 4, forma: "rect",
   });
 
   // Layout form
@@ -59,6 +57,10 @@ export default function TavoliEditor() {
         apiFetch(`${API_BASE}/prenotazioni/tavoli/layout`).then(r => r.json()),
       ]);
       setTavoli(tRes.tavoli || []);
+      setElementi(tRes.elementi || []);
+      const s = tRes.sale && tRes.sale.length ? tRes.sale : ["sala"];
+      setSale(s);
+      setSala((cur) => (cur && s.includes(cur) ? cur : s[0]));
       setCombinazioni(tRes.combinazioni || []);
       setLayouts(lRes.layout || []);
       const att = (lRes.layout || []).find(l => l.attivo === 1);
@@ -83,27 +85,27 @@ export default function TavoliEditor() {
     return { x: svgP.x, y: svgP.y };
   };
 
-  const onMouseDown = (e, tavolo) => {
+  const onMouseDown = (e, obj, tipo = "t") => {
     e.preventDefault();
     e.stopPropagation();
-    setSelected(tavolo.id);
+    if (tipo === "t") { setSelected(obj.id); setSelectedEl(null); }
+    else { setSelectedEl(obj.id); setSelected(null); }
     const pt = getSVGPoint(e);
-    setDragOffset({ x: pt.x - tavolo.posizione_x, y: pt.y - tavolo.posizione_y });
-    setDragging(tavolo.id);
+    setDragOffset({ x: pt.x - obj.posizione_x, y: pt.y - obj.posizione_y });
+    setDragging({ tipo, id: obj.id });
   };
 
   const onMouseMove = useCallback((e) => {
     if (!dragging) return;
     e.preventDefault();
     const pt = getSVGPoint(e);
-    setTavoli(prev => prev.map(t => {
-      if (t.id !== dragging) return t;
-      return {
-        ...t,
-        posizione_x: snap(Math.max(0, Math.min(CANVAS_W - t.larghezza, pt.x - dragOffset.x))),
-        posizione_y: snap(Math.max(0, Math.min(CANVAS_H - t.altezza, pt.y - dragOffset.y))),
-      };
-    }));
+    const sposta = (t) => ({
+      ...t,
+      posizione_x: snap(Math.max(0, Math.min(CANVAS_W - t.larghezza, pt.x - dragOffset.x))),
+      posizione_y: snap(Math.max(0, Math.min(CANVAS_H - t.altezza, pt.y - dragOffset.y))),
+    });
+    if (dragging.tipo === "e") setElementi(prev => prev.map(x => (x.id === dragging.id ? sposta(x) : x)));
+    else setTavoli(prev => prev.map(t => (t.id === dragging.id ? sposta(t) : t)));
   }, [dragging, dragOffset]);
 
   const onMouseUp = useCallback(() => {
@@ -121,6 +123,10 @@ export default function TavoliEditor() {
           posizione_y: t.posizione_y,
           larghezza: t.larghezza,
           altezza: t.altezza,
+        })),
+        elementi: elementi.map(x => ({
+          id: x.id, posizione_x: x.posizione_x, posizione_y: x.posizione_y,
+          larghezza: x.larghezza, altezza: x.altezza,
         })),
       };
       const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/batch/posizioni`, {
@@ -145,6 +151,7 @@ export default function TavoliEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...nuovoForm,
+          zona: nuovoForm.zona || sala || "sala",
           posizione_x: 50 + Math.random() * 200,
           posizione_y: 50 + Math.random() * 200,
         }),
@@ -152,7 +159,7 @@ export default function TavoliEditor() {
       if (r.ok) {
         flash("ok", `Tavolo '${nuovoForm.nome}' creato`);
         setShowNuovo(false);
-        setNuovoForm({ nome: "", zona: "sala", posti_min: 2, posti_max: 4, forma: "rect" });
+        setNuovoForm({ nome: "", zona: "", posti_min: 2, posti_max: 4, forma: "rect" });
         loadAll();
       } else {
         const err = await r.json();
@@ -187,6 +194,72 @@ export default function TavoliEditor() {
     } catch {
       flash("err", "Errore");
     }
+  };
+
+  // ── Elementi non prenotabili (bancone, colonne, scale…) ──
+  const creaElemento = async (forma) => {
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/elementi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zona: sala || "sala", forma, posizione_x: 40, posizione_y: 40,
+                               larghezza: forma === "circle" ? 30 : 120, altezza: 30 }),
+      });
+      if (r.ok) { flash("ok", "Elemento aggiunto: trascinalo dove serve"); loadAll(); }
+      else flash("err", (await r.json()).detail || "Errore");
+    } catch { flash("err", "Errore di connessione"); }
+  };
+
+  const updateElemento = async (field, value) => {
+    if (!selectedEl) return;
+    setElementi(prev => prev.map(x => (x.id === selectedEl ? { ...x, [field]: value } : x)));
+    try {
+      await apiFetch(`${API_BASE}/prenotazioni/tavoli/elementi/${selectedEl}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+    } catch { /* riprova */ }
+  };
+
+  const eliminaElemento = async (id) => {
+    if (!confirm("Eliminare questo elemento?")) return;
+    await apiFetch(`${API_BASE}/prenotazioni/tavoli/elementi/${id}`, { method: "DELETE" });
+    setSelectedEl(null);
+    loadAll();
+  };
+
+  // ── Importa piantina da file JSON ──
+  const importaPiantina = async (file) => {
+    if (!file) return;
+    let dati;
+    try { dati = JSON.parse(await file.text()); }
+    catch { flash("err", "Il file non è un JSON valido"); return; }
+    const nT = (dati.tavoli || []).length, nE = (dati.elementi || []).length;
+    const msg = dati.sostituisci
+      ? `Importare ${nT} tavoli e ${nE} elementi?\n\nI tavoli attuali verranno DISATTIVATI e gli elementi sostituiti. Le prenotazioni non cambiano.`
+      : `Importare ${nT} tavoli e ${nE} elementi (aggiunti a quelli esistenti)?`;
+    if (!confirm(msg)) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/importa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dati),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        flash("ok", `Piantina importata: ${d.tavoli_creati} tavoli nuovi, ${d.tavoli_aggiornati} aggiornati, ${d.elementi} elementi`);
+        setSala(null);
+        loadAll();
+      } else flash("err", d.detail || "Errore import");
+    } catch { flash("err", "Errore di connessione"); }
+  };
+
+  const nuovaSala = () => {
+    const nome = (prompt("Nome della nuova sala (es. Dehor)") || "").trim();
+    if (!nome) return;
+    setSale(prev => (prev.includes(nome) ? prev : [...prev, nome]));
+    setSala(nome);
   };
 
   // ── Layout ──
@@ -245,6 +318,10 @@ export default function TavoliEditor() {
   };
 
   const selectedTavolo = tavoli.find(t => t.id === selected);
+  const selectedElemento = elementi.find(x => x.id === selectedEl);
+  const tavoliSala = tavoli.filter(t => (t.zona || "sala") === sala);
+  const elementiSala = elementi.filter(x => (x.zona || "sala") === sala);
+  const conteggiSale = Object.fromEntries(sale.map(s => [s, tavoli.filter(t => (t.zona || "sala") === s).length]));
 
   if (loading) return (
     <div className="min-h-screen bg-neutral-50">
@@ -276,6 +353,12 @@ export default function TavoliEditor() {
           </div>
           <div className="flex items-center gap-2">
             <Btn variant="chip" tone="violet" size="sm" onClick={() => setShowNuovo(!showNuovo)}>+ Tavolo</Btn>
+            <Btn variant="secondary" size="sm" onClick={() => creaElemento("rect")}>+ Elemento</Btn>
+            <Btn variant="secondary" size="sm" onClick={() => creaElemento("circle")}>+ Colonna</Btn>
+            <Btn variant="secondary" size="sm" onClick={nuovaSala}>+ Sala</Btn>
+            <Btn variant="secondary" size="sm" onClick={() => fileRef.current && fileRef.current.click()}>Importa piantina</Btn>
+            <input ref={fileRef} type="file" accept="application/json,.json" className="hidden"
+              onChange={(e) => { importaPiantina(e.target.files[0]); e.target.value = ""; }} />
             <Btn variant="dark" size="sm" onClick={() => setShowLayoutForm(!showLayoutForm)}>Salva layout</Btn>
             <Btn variant="success" size="sm" onClick={salvaPosizioni} disabled={saving} loading={saving}>
               {saving ? "..." : "Salva posizioni"}
@@ -299,10 +382,10 @@ export default function TavoliEditor() {
                 className="px-2 py-1.5 border rounded-lg text-sm w-20" placeholder="T1" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1">Zona</label>
-              <select value={nuovoForm.zona} onChange={e => setNuovoForm({ ...nuovoForm, zona: e.target.value })}
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Sala</label>
+              <select value={nuovoForm.zona || sala || ""} onChange={e => setNuovoForm({ ...nuovoForm, zona: e.target.value })}
                 className="px-2 py-1.5 border rounded-lg text-sm">
-                {ZONE.map(z => <option key={z} value={z}>{z}</option>)}
+                {sale.map(z => <option key={z} value={z}>{z}</option>)}
               </select>
             </div>
             <div>
@@ -321,7 +404,7 @@ export default function TavoliEditor() {
               <label className="block text-xs font-medium text-neutral-600 mb-1">Forma</label>
               <select value={nuovoForm.forma} onChange={e => setNuovoForm({ ...nuovoForm, forma: e.target.value })}
                 className="px-2 py-1.5 border rounded-lg text-sm">
-                {FORME.map(f => <option key={f} value={f}>{f === "rect" ? "Rettangolo" : "Cerchio"}</option>)}
+                {FORME.map(f => <option key={f} value={f}>{NOMI_FORME[f]}</option>)}
               </select>
             </div>
             <Btn variant="chip" tone="violet" size="md" onClick={creaTavolo}>Crea</Btn>
@@ -347,6 +430,8 @@ export default function TavoliEditor() {
           </div>
         )}
 
+        <SchedeSale sale={sale} attiva={sala} onChange={(s) => { setSala(s); setSelected(null); setSelectedEl(null); }} conteggi={conteggiSale} />
+
         <div className="flex gap-4">
           {/* ── Canvas SVG ── */}
           <div className="flex-1 bg-white rounded-xl border border-neutral-200 overflow-hidden">
@@ -360,7 +445,7 @@ export default function TavoliEditor() {
               onMouseLeave={onMouseUp}
               onTouchMove={onMouseMove}
               onTouchEnd={onMouseUp}
-              onClick={() => setSelected(null)}
+              onClick={() => { setSelected(null); setSelectedEl(null); }}
             >
               {/* Griglia */}
               <defs>
@@ -370,12 +455,23 @@ export default function TavoliEditor() {
               </defs>
               <rect width={CANVAS_W} height={CANVAS_H} fill="url(#grid)" />
 
+              {/* Elementi non prenotabili */}
+              {elementiSala.map(x => (
+                <g key={`e${x.id}`}
+                  onMouseDown={(e) => onMouseDown(e, x, "e")}
+                  onTouchStart={(e) => onMouseDown(e, x, "e")}
+                  onClick={(e) => { e.stopPropagation(); setSelectedEl(x.id); setSelected(null); }}
+                  style={{ cursor: "grab" }}>
+                  <FormaElemento e={x} stroke={selectedEl === x.id ? "#4f46e5" : "none"} strokeWidth={selectedEl === x.id ? 2 : 0} />
+                </g>
+              ))}
+
               {/* Tavoli */}
-              {tavoli.map(t => {
+              {tavoliSala.map(t => {
                 const isSelected = selected === t.id;
-                const fillColor = ZONE_COLORI[t.zona] || "#f3f4f6";
-                const strokeColor = isSelected ? "#4f46e5" : "#9ca3af";
-                const strokeWidth = isSelected ? 2.5 : 1;
+                const fillColor = COLORE_TAVOLO;
+                const strokeColor = isSelected ? "#4f46e5" : "none";
+                const strokeWidth = isSelected ? 2.5 : 0;
 
                 return (
                   <g
@@ -385,28 +481,7 @@ export default function TavoliEditor() {
                     onClick={(e) => { e.stopPropagation(); setSelected(t.id); }}
                     style={{ cursor: "grab" }}
                   >
-                    {t.forma === "circle" ? (
-                      <ellipse
-                        cx={t.posizione_x + t.larghezza / 2}
-                        cy={t.posizione_y + t.altezza / 2}
-                        rx={t.larghezza / 2}
-                        ry={t.altezza / 2}
-                        fill={fillColor}
-                        stroke={strokeColor}
-                        strokeWidth={strokeWidth}
-                      />
-                    ) : (
-                      <rect
-                        x={t.posizione_x}
-                        y={t.posizione_y}
-                        width={t.larghezza}
-                        height={t.altezza}
-                        rx={6}
-                        fill={fillColor}
-                        stroke={strokeColor}
-                        strokeWidth={strokeWidth}
-                      />
-                    )}
+                    <FormaTavolo t={t} fill={fillColor} stroke={strokeColor} strokeWidth={strokeWidth} />
                     <text
                       x={t.posizione_x + t.larghezza / 2}
                       y={t.posizione_y + t.altezza / 2 - 4}
@@ -449,11 +524,11 @@ export default function TavoliEditor() {
                     className="w-full px-2 py-1.5 border rounded-lg text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-neutral-600 mb-1">Zona</label>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">Sala</label>
                   <select value={selectedTavolo.zona}
                     onChange={e => updateSelected("zona", e.target.value)}
                     className="w-full px-2 py-1.5 border rounded-lg text-sm">
-                    {ZONE.map(z => <option key={z} value={z}>{z}</option>)}
+                    {sale.map(z => <option key={z} value={z}>{z}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -495,16 +570,50 @@ export default function TavoliEditor() {
                   <select value={selectedTavolo.forma}
                     onChange={e => updateSelected("forma", e.target.value)}
                     className="w-full px-2 py-1.5 border rounded-lg text-sm">
-                    {FORME.map(f => <option key={f} value={f}>{f === "rect" ? "Rettangolo" : "Cerchio"}</option>)}
+                    {FORME.map(f => <option key={f} value={f}>{NOMI_FORME[f]}</option>)}
                   </select>
                 </div>
                 <Btn variant="chip" tone="red" size="sm" onClick={() => disattivaTavolo(selectedTavolo.id)} className="w-full">
                   Disattiva tavolo
                 </Btn>
               </div>
+            ) : selectedElemento ? (
+              <div className="bg-white rounded-xl border border-indigo-200 p-4 space-y-3">
+                <h3 className="font-semibold text-indigo-900 text-sm">Elemento (non prenotabile)</h3>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">Etichetta</label>
+                  <input type="text" value={selectedElemento.etichetta || ""} placeholder="Bancone, colonna…"
+                    onChange={e => updateElemento("etichetta", e.target.value)}
+                    className="w-full px-2 py-1.5 border rounded-lg text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-600 mb-1">Largh.</label>
+                    <input type="number" min={5} max={1000} step={5} value={selectedElemento.larghezza}
+                      onChange={e => { const v = +e.target.value; setElementi(prev => prev.map(x => x.id === selectedEl ? { ...x, larghezza: v } : x)); }}
+                      className="w-full px-2 py-1.5 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-600 mb-1">Altez.</label>
+                    <input type="number" min={5} max={600} step={5} value={selectedElemento.altezza}
+                      onChange={e => { const v = +e.target.value; setElementi(prev => prev.map(x => x.id === selectedEl ? { ...x, altezza: v } : x)); }}
+                      className="w-full px-2 py-1.5 border rounded-lg text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">Colore</label>
+                  <input type="color" value={selectedElemento.colore || "#e2e2e2"}
+                    onChange={e => updateElemento("colore", e.target.value)}
+                    className="w-full h-9 border rounded-lg" />
+                </div>
+                <p className="text-[11px] text-neutral-400">Posizione e misure si salvano con «Salva posizioni».</p>
+                <Btn variant="chip" tone="red" size="sm" onClick={() => eliminaElemento(selectedElemento.id)} className="w-full">
+                  Elimina elemento
+                </Btn>
+              </div>
             ) : (
               <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 text-center text-sm text-neutral-400">
-                Clicca un tavolo per modificarlo
+                Clicca un tavolo o un elemento per modificarlo
               </div>
             )}
 
@@ -541,15 +650,14 @@ export default function TavoliEditor() {
               )}
             </div>
 
-            {/* Legenda zone */}
+            {/* Sale */}
             <div className="bg-white rounded-xl border border-neutral-200 p-4">
-              <h3 className="font-semibold text-neutral-800 text-sm mb-2">Zone</h3>
+              <h3 className="font-semibold text-neutral-800 text-sm mb-2">Sale</h3>
               <div className="space-y-1">
-                {ZONE.map(z => (
+                {sale.map(z => (
                   <div key={z} className="flex items-center gap-2 text-xs">
-                    <div className="w-4 h-4 rounded" style={{ backgroundColor: ZONE_COLORI[z] }}></div>
-                    <span className="capitalize text-neutral-700">{z}</span>
-                    <span className="text-neutral-400 ml-auto">{tavoli.filter(t => t.zona === z).length}</span>
+                    <span className="text-neutral-700">{z}</span>
+                    <span className="text-neutral-400 ml-auto">{conteggiSale[z] || 0} tavoli · {tavoli.filter(t => t.zona === z).reduce((a, t) => a + (t.posti_max || 0), 0)} posti</span>
                   </div>
                 ))}
               </div>

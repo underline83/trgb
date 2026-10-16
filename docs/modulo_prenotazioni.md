@@ -3,7 +3,7 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
-**Versione modulo (`versions.jsx`):** prenotazioni v2.6
+**Versione modulo (`versions.jsx`):** prenotazioni v2.7
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)
 **Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`; integrazione TheFork in `app/routers/prenotazioni_thefork_router.py` + `app/services/thefork_service.py` (§12)
 **DB:** `clienti.sqlite3` (condiviso col CRM, path live `locali/tregobbi/data/`)
@@ -52,6 +52,9 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-025 | Bollino cliente nel Planning (Prima visita / Occasionale / Frequente, soglia `cliente_frequente_visite`) | `GET /prenotazioni/planning/{data}` → `bollino`, `visite_precedenti` | sala | 🆕 |
 | C-P-026 | Timeline sala: coperti e tavoli in sala per orario (arrivo + durata media del turno) | `GET /prenotazioni/planning/{data}` → `timeline.pranzo/cena` | sala | 🆕 |
 | C-P-027 | Possibili doppioni TheFork ↔ inserite a mano (nome, telefono, email) | `GET /prenotazioni/planning/{data}` → `possibili_doppioni` | sala | 🆕 |
+| C-P-028 | Piantina per sale (schede Osteria / Dehor / Veranda), tavoli rettangolo / cerchio / rombo | `GET /prenotazioni/tavoli` → `sale`, `elementi`; `TavoliEditor`, `TavoliMappa` | admin / sala | 🆕 |
+| C-P-029 | Elementi non prenotabili (bancone, colonne, scale, fioriere): crea, modifica, elimina | `POST/PUT/DELETE /prenotazioni/tavoli/elementi[/{id}]` | admin | 🆕 |
+| C-P-030 | Importa piantina da file JSON (tavoli per nome + elementi, «sostituisci» disattiva i vecchi) | `POST /prenotazioni/tavoli/importa` | admin | 🆕 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 
@@ -179,6 +182,10 @@ Migrazioni dedicate: `050_prenotazioni_durata_turni.py` (chiavi durata_pranzo/du
 - **Widget Home / DashboardSala** — `GET /dashboard/home` include `prenotazioni` (count+pax pranzo/cena, lista con ora/nome/pax/nota/stato/turno, stati attivi RECORDED/SEATED/LEFT/ARRIVED/BILL) e la card modulo (line1 "N pax oggi", badge = n. prenotazioni). `DashboardSala.jsx` mostra la stessa lista filtrata per turno. Nota: il turno nel widget usa soglia fissa "15:00", non legge la config.
 - **Import TheFork** — vive nel modulo Clienti (import XLSX `tfm-search-results`); il planning si limita a leggerne i dati e a backfillare `turno`/`fonte`.
 - **Webhook TheFork (B2B API)** — §12. Scrive con le stesse funzioni dell'import XLSX (`app/services/clienti_thefork_service.py`), stessi id (uuid): niente doppioni con lo storico.
+
+## 8.1 Piantina (prenotazioni 2.7, mig 193)
+
+La **sala** è `tavoli.zona` (testo libero; le sale si ordinano col minimo `ordine` dei loro tavoli). `tavoli.forma`: `rect` | `circle` | `diamond`. Gli elementi che non si prenotano stanno in **`tavoli_elementi`** (zona, forma rect/circle, posizione, misure, colore, etichetta) e non compaiono mai nei menu di assegnazione. Componenti condivisi in `frontend/src/pages/prenotazioni/components/Piantina.jsx` (`FormaTavolo`, `FormaElemento`, `SchedeSale`, tela 1000×600). La piantina dell'osteria (31 tavoli, 23 elementi, copiata dagli screenshot di TheFork Manager il 16/10/2026) è in `locali/tregobbi/seeds/piantina_tavoli.json` e si carica da Editor Tavoli → «Importa piantina». Fix collegato: `GET /prenotazioni/tavoli` non restituiva posizione/misure/forma, quindi l'Editor non poteva disegnare i tavoli esistenti.
 
 # 9. Limiti noti e incoerenze
 

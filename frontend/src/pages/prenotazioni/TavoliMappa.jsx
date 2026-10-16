@@ -1,4 +1,5 @@
-// @version: v1.1-mattoni — M.I primitives (Btn) su nav data
+// @version: v2.0-sale — schede per sala, rombo, elementi non prenotabili (piantina da TheFork Manager)
+// Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -6,12 +7,10 @@ import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import StatoBadge from "./components/StatoBadge";
 import { Btn } from "../../components/ui";
-
-const CANVAS_W = 900;
-const CANVAS_H = 600;
+import { CANVAS_W, CANVAS_H, COLORE_TAVOLO, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
 
 const COLORI_STATO = {
-  LIBERO:    { fill: "#e5e7eb", stroke: "#9ca3af", text: "#6b7280" }, // gray
+  LIBERO:    { fill: COLORE_TAVOLO, stroke: "#9fbfba", text: "#1f2937" }, // verde salvia (come TheFork)
   RECORDED:  { fill: "#c7d2fe", stroke: "#6366f1", text: "#312e81" }, // indigo (prenotato)
   ARRIVED:   { fill: "#fde68a", stroke: "#f59e0b", text: "#78350f" }, // amber
   SEATED:    { fill: "#a7f3d0", stroke: "#10b981", text: "#064e3b" }, // emerald
@@ -35,6 +34,7 @@ export default function TavoliMappa() {
   const [selectedPren, setSelectedPren] = useState(null);
   const [assegnando, setAssegnando] = useState(null); // pren_id da assegnare
   const [toast, setToast] = useState(null);
+  const [sala, setSala] = useState(null);
   const svgRef = useRef(null);
   const refreshTimer = useRef(null);
 
@@ -122,7 +122,12 @@ export default function TavoliMappa() {
     setData(d.toISOString().slice(0, 10));
   };
 
-  const tavoli = mappaData?.tavoli || [];
+  const tuttiTavoli = mappaData?.tavoli || [];
+  const sale = mappaData?.sale?.length ? mappaData.sale : [...new Set(tuttiTavoli.map(t => t.zona || "sala"))];
+  const salaAttiva = sala && sale.includes(sala) ? sala : sale[0];
+  const tavoli = tuttiTavoli.filter(t => (t.zona || "sala") === salaAttiva);
+  const elementi = (mappaData?.elementi || []).filter(e => (e.zona || "sala") === salaAttiva);
+  const occupatiPerSala = Object.fromEntries(sale.map(s => [s, `${tuttiTavoli.filter(t => (t.zona || "sala") === s && t.occupato).length}/${tuttiTavoli.filter(t => (t.zona || "sala") === s).length}`]));
   const senzaTavolo = mappaData?.senza_tavolo || [];
 
   if (loading && !mappaData) return (
@@ -178,6 +183,8 @@ export default function TavoliMappa() {
           )}
         </div>
 
+        <SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} conteggi={occupatiPerSala} />
+
         <div className="flex gap-4">
           {/* ── Canvas Mappa ── */}
           <div className="flex-1 bg-white rounded-xl border border-neutral-200 overflow-hidden relative">
@@ -189,6 +196,9 @@ export default function TavoliMappa() {
             >
               {/* Sfondo */}
               <rect width={CANVAS_W} height={CANVAS_H} fill="#fafafa" />
+
+              {/* Elementi non prenotabili */}
+              {elementi.map(e => <FormaElemento key={`e${e.id}`} e={e} />)}
 
               {/* Tavoli */}
               {tavoli.map(t => {
@@ -210,30 +220,10 @@ export default function TavoliMappa() {
                     }}
                     style={{ cursor: isClickable ? "crosshair" : pren ? "pointer" : "default" }}
                   >
-                    {t.forma === "circle" ? (
-                      <ellipse
-                        cx={t.posizione_x + t.larghezza / 2}
-                        cy={t.posizione_y + t.altezza / 2}
-                        rx={t.larghezza / 2}
-                        ry={t.altezza / 2}
-                        fill={colori.fill}
-                        stroke={isClickable ? "#f59e0b" : colori.stroke}
-                        strokeWidth={isClickable ? 3 : 1.5}
-                        strokeDasharray={isClickable ? "4 2" : "none"}
-                      />
-                    ) : (
-                      <rect
-                        x={t.posizione_x}
-                        y={t.posizione_y}
-                        width={t.larghezza}
-                        height={t.altezza}
-                        rx={6}
-                        fill={colori.fill}
-                        stroke={isClickable ? "#f59e0b" : colori.stroke}
-                        strokeWidth={isClickable ? 3 : 1.5}
-                        strokeDasharray={isClickable ? "4 2" : "none"}
-                      />
-                    )}
+                    <FormaTavolo t={t} fill={colori.fill}
+                      stroke={isClickable ? "#f59e0b" : colori.stroke}
+                      strokeWidth={isClickable ? 3 : 1.5}
+                      dash={isClickable ? "4 2" : "none"} />
                     {/* Nome tavolo */}
                     <text
                       x={t.posizione_x + t.larghezza / 2}
@@ -283,7 +273,7 @@ export default function TavoliMappa() {
             {/* Legenda */}
             <div className="absolute bottom-2 left-2 flex gap-2 text-[10px]">
               {[
-                { label: "Libero", color: "#e5e7eb" },
+                { label: "Libero", color: COLORE_TAVOLO },
                 { label: "Prenotato", color: "#c7d2fe" },
                 { label: "Arrivato", color: "#fde68a" },
                 { label: "Seduto", color: "#a7f3d0" },
@@ -414,7 +404,7 @@ export default function TavoliMappa() {
                 </div>
                 <div className="text-center p-2 bg-neutral-50 rounded">
                   <div className="text-lg font-bold text-neutral-800">{tavoli.length}</div>
-                  <div className="text-neutral-500">Tavoli totali</div>
+                  <div className="text-neutral-500">Tavoli in {salaAttiva}</div>
                 </div>
               </div>
             </div>
