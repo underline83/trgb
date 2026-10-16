@@ -3,7 +3,7 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
-**Versione modulo (`versions.jsx`):** prenotazioni v2.3
+**Versione modulo (`versions.jsx`):** prenotazioni v2.4
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)
 **Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`; integrazione TheFork in `app/routers/prenotazioni_thefork_router.py` + `app/services/thefork_service.py` (§12)
 **DB:** `clienti.sqlite3` (condiviso col CRM, path live `locali/tregobbi/data/`)
@@ -217,7 +217,7 @@ TheFork ha dato all'osteria l'accesso alla B2B API (incluso nel piano Enterprise
 | TheFork API | TRGB |
 |---|---|
 | `reservationUuid` / `customerUuid` | `thefork_booking_id` / `thefork_customer_id` (gli stessi uuid dell'export XLSX) |
-| `mealDate` (con offset del ristorante) | `data_pasto` `YYYY-MM-DD`, `ora_pasto` `HH:MM:SS`, `turno` dalla soglia in config |
+| `mealDate` | convertito nell'ora del locale (`locale.json` → `timezone`) → `data_pasto` `YYYY-MM-DD`, `ora_pasto` `HH:MM:SS`, `turno` dalla soglia in config. **Attenzione:** la documentazione dice «con l'offset del ristorante», ma in produzione arriva in UTC (16/10/2026: prima versione salvava le cene 2 ore prima; corretto in prenotazioni 2.4) |
 | `status` + `mealStatus` | `stato`: CANCELED/NO_SHOW/REFUSED/REQUESTED da `status`, altrimenti l'avanzamento in sala (`mealStatus`) se c'è, altrimenti `status` — come la colonna unica «Status» dell'XLSX |
 | `partySize`, `reservationChannel`, `restaurantNote`, `customerNote` | `pax`, `canale`, `nota_ristorante`, `nota_cliente` |
 | `createdAt` | `data_prenotazione` nell'ora del locale (`locale.json` → `timezone`) |

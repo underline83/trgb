@@ -10,6 +10,7 @@
 - Dopo il push: Acquisti › Categorie › Impostazioni Categorie › BEVANDE › VINO › chip 📆 → 3 mesi, dal mese da cui vuoi che valga. Poi Conto Economico: le fatture col vino mostrano «(quota k/3)»; nel dettaglio di una fattura Sogegross il gruppo VINO ha il badge «📆 3 mesi».
 
 **TheFork webhook** (live: b29003e4 + 4fa71e02; URL già mandato a Régis il 16/10)
+- DA PUSHARE: fix orario (`mealDate` arriva in UTC, non con l'offset del ristorante → cene salvate 2 ore prima), prenotazioni 2.4. Dopo il push: Recupera un periodo 09/10→16/10 «pasto» per correggere le 131 già scritte, poi oggi→31/12 «pasto».
 - Da fare SUBITO: `THEFORK_WEBHOOK_TOKEN` nel `.env` del VPS + riavvio (oggi risponde 503 = spento). Verifica: `POST /prenotazioni/thefork/webhook?token=sbagliato` → 401.
 - All'arrivo delle credenziali: `THEFORK_CLIENT_ID`/`THEFORK_CLIENT_SECRET` (+ `THEFORK_RESTAURANT_UUID`) → riavvio → Impostazioni Prenotazioni › 🍴 TheFork: «Prova connessione», «Rielabora in sospeso», «Recupera un periodo».
 

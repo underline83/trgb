@@ -332,9 +332,17 @@ def _campi_personalizzati(custom: Any) -> Dict[str, Any]:
 
 def mappa_prenotazione(r: Dict[str, Any], soglia: str) -> Dict[str, Any]:
     """Prenotazione API → record `clienti_prenotazioni` (senza cliente_id/nome ospite)."""
-    meal = str(r.get("mealDate") or "")
-    data_pasto = meal[:10] or None
-    ora_pasto = meal[11:19] or None  # ora del ristorante, già con il suo offset
+    # mealDate: la documentazione dice «con l'offset del ristorante», ma in
+    # produzione arriva in UTC (2026-10-16: tutte le cene 2 ore prima). Si
+    # converte sempre nell'ora del locale: giusto in tutti e due i casi.
+    meal_dt = _ora_locale(r.get("mealDate"))
+    if meal_dt:
+        data_pasto = meal_dt.strftime("%Y-%m-%d")
+        ora_pasto = meal_dt.strftime("%H:%M:%S")
+    else:
+        meal = str(r.get("mealDate") or "")
+        data_pasto = meal[:10] or None
+        ora_pasto = meal[11:19] or None
 
     status = r.get("status")
     meal_status = r.get("mealStatus")

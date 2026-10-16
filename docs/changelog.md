@@ -11,6 +11,12 @@ Sistema 5.55, mig 191, fatture 3.3, controlloGestione 2.28. In Acquisti › Cate
 
 Sistema 5.54, mig 190, controlloGestione 2.27, dipendenti 2.36. L'import «ELAB / F24» (Dipendenti › Buste paga) ora mette gli F24 paghe nello Scadenzario: una rata della spesa fissa «F24 paghe» per ogni pagina con saldo finale > 0, alla data stampata sul modello, col PDF apribile dalla riga (📄). Le pagine a saldo 0 sono compensazioni e non generano rate; un F24 tutto compensato lascia una rata da 0 € chiusa. Gli F24 non paghe (IVA, ravvedimenti, rate ADER) restano da inserire a mano in Spese Fisse. Il parser F24 legge debito e credito dalla colonna del modulo e il saldo finale dal riquadro EURO: prima alcuni crediti (1631, 1701) erano contati come debiti e i totali per sezione in Costi mensili erano sbagliati. Nel Conto Economico l'F24 paghe resta fuori dalla competenza (è già nel costo ELAB) e in cassa conta solo quando è pagato.
 
+## 2026-10-16 — TheFork: orario delle prenotazioni corretto `[core]`
+
+Prenotazioni 2.4, nessuna migrazione. TheFork manda l'ora del pasto in UTC, non nell'ora del ristorante come dice la sua documentazione: la prima sincronizzazione (pasti dal 09 al 16/10) aveva salvato le prenotazioni 2 ore prima (19:30 → 17:30). Ora l'ora si converte sempre nel fuso del locale. Le prenotazioni già scritte si sistemano rilanciando «Recupera un periodo» sullo stesso intervallo.
+
+---
+
 ## 2026-10-16 — Prenotazioni TheFork in tempo reale (webhook B2B API) `[core]`
 
 Prenotazioni 2.3, sistema 5.53, mig 189. TheFork Manager avvisa TRGB a ogni prenotazione o cliente creato o modificato (`POST /prenotazioni/thefork/webhook?token=…`): TRGB rilegge i dettagli dall'API B2B e aggiorna agenda e CRM con le stesse regole dell'import Excel (clienti protetti, differenze in revisione, tag VIP) e gli stessi id, quindi nessun doppione con lo storico. Ogni avviso finisce in un registro (`prenotazioni_thefork_eventi`); se l'API non risponde o le credenziali non ci sono ancora, l'avviso resta in sospeso e si rielabora da **Impostazioni Prenotazioni → 🍴 TheFork**, dove ci sono anche «Prova connessione» e «Recupera un periodo». Token e credenziali solo nel `.env` del server; finché manca il token il webhook risponde 503. La logica di scrittura dell'import XLSX è passata in `app/services/clienti_thefork_service.py`, condivisa: import provato identico al precedente. Dettagli in `modulo_prenotazioni.md` §12.
