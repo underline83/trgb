@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-16 — Preventivi: menu «a corpo» e menu gruppi di stagione `[core]`
+
+Clienti 3.2, sistema 5.51, mig 187. Ogni menu di un preventivo ha la modalità di prezzo **Somma piatti** (come prima, default per tutti i menu esistenti) o **A corpo**: prezzo a persona scritto a mano, con **doppio prezzo** opzionale vino escluso / vino incluso (es. 50/55) e la scelta di quale dei due entra nel totale. A corpo i piatti restano come portate: niente prezzo, al suo posto la portata (Antipasto, Primo, Secondo, Dolce). Con più menu si segna **quello scelto dal cliente**; finché non sceglie, scheda, PDF e messaggio mostrano il totale **«da X a Y €»**. I **menu template** salvano anche modalità e prezzi a corpo e hanno una **stagione** («Autunno-Inverno 2026») con filtro; in «Carica template» se ne spuntano più d'uno e diventano menu alternativi, uno per tab. Nuovi «💬 WhatsApp» e «📋 Copia testo» in scheda: menu, portate e prezzo a persona, mai i prezzi dei singoli piatti. Corretti due bug che rendevano la libreria template inutilizzabile (403 a tutti sulle scritture, 500 sulle letture). Provato su copia del DB: PRE-2026-001 e PRE-2026-002 invariati, preventivo con 2 menu a corpo doppio prezzo + 1 extra e PDF.
+
+---
+
 ## 2026-10-10 — Push di nuovo veloce: riavvio backend con limite di 5 s `[locale:tregobbi]`
 
 Dal connettore MCP (8/10) ogni push restava fermo circa un minuto e mezzo a «Push → VPS», con il gestionale irraggiungibile nel frattempo: al riavvio il backend aspettava che claude.ai chiudesse il collegamento `/mcp`, che resta sempre aperto. Sul VPS il servizio ora chiude il collegamento dopo 5 secondi (claude.ai si ricollega da solo). Solo configurazione del server, nessun codice: [deploy.md §5](deploy.md#backend-trgb-backendservice).

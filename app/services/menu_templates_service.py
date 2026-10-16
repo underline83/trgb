@@ -13,6 +13,10 @@ non toccano i preventivi gia' compilati.
 Tabelle (clienti.sqlite3, mig 080):
 - clienti_menu_template (id, nome, descrizione, service_type_id, prezzo_persona, sconto, ...)
 - clienti_menu_template_righe (id, template_id, recipe_id, sort_order, category_name, name, description, price)
+
+Mig 187: il template salva anche la modalita' di prezzo (pricing_mode 'somma' |
+'corpo', prezzo_corpo, prezzo_corpo_vino, doppio_prezzo) e una «stagione» libera
+(es. «Autunno-Inverno 2026») per tenere in libreria le proposte di ogni stagione.
 """
 from __future__ import annotations
 
@@ -36,12 +40,54 @@ def _get_service_types_map() -> dict[int, dict]:
     imporre join cross-db."""
     fconn = get_foodcost_connection()
     try:
+        # service_types (mig 074) non ha una colonna `code`: prima la SELECT falliva
+        # e ogni lettura di template andava in 500 (fix 2026-10-16). code = name.
         rows = fconn.execute(
-            "SELECT id, code, name FROM service_types ORDER BY sort_order, name"
+            "SELECT id, name FROM service_types ORDER BY sort_order, name"
         ).fetchall()
-        return {int(r["id"]): {"id": int(r["id"]), "code": r["code"], "name": r["name"]} for r in rows}
+        return {int(r["id"]): {"id": int(r["id"]), "code": r["name"], "name": r["name"]} for r in rows}
     finally:
         fconn.close()
+
+
+# Campi mig 187 sul template (oltre a quelli di mig 080)
+CAMPI_187 = ("pricing_mode", "prezzo_corpo", "prezzo_corpo_vino", "doppio_prezzo", "stagione")
+
+
+def _cols_187(conn) -> bool:
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(clienti_menu_template)").fetchall()}
+    return "stagione" in cols
+
+
+def _set_campi_187(conn, template_id: int, data: dict) -> None:
+    """Scrive modalita' di prezzo e stagione presenti in `data`."""
+    if not _cols_187(conn):
+        return
+    from app.services.preventivi_service import normalizza_corpo
+    vals = normalizza_corpo(data or {})
+    vals.pop("prezzo_corpo_scelta", None)  # la scelta vino vale per il preventivo, non per il template
+    if "stagione" in (data or {}):
+        vals["stagione"] = (data.get("stagione") or "").strip() or None
+    if vals:
+        conn.execute(
+            f"UPDATE clienti_menu_template SET {', '.join(f'{k} = ?' for k in vals)} WHERE id = ?",
+            (*vals.values(), template_id),
+        )
+
+
+def lista_stagioni() -> list[str]:
+    """Stagioni gia' usate nei template, per il filtro e i suggerimenti."""
+    conn = get_clienti_conn()
+    try:
+        if not _template_tables_exist(conn) or not _cols_187(conn):
+            return []
+        rows = conn.execute(
+            "SELECT DISTINCT stagione FROM clienti_menu_template "
+            "WHERE stagione IS NOT NULL AND stagione != '' ORDER BY stagione COLLATE NOCASE"
+        ).fetchall()
+        return [r["stagione"] for r in rows]
+    finally:
+        conn.close()
 
 
 def _row_to_dict(row) -> dict:
@@ -69,8 +115,10 @@ def _enrich_with_service_type(item: dict, st_map: dict) -> dict:
 # CRUD template
 # ──────────────────────────────────────────────────────────────────────────
 
-def lista_templates(service_type_id: int | None = None, q: str | None = None) -> list:
-    """Lista template con filtri opzionali.
+def lista_templates(
+    service_type_id: int | None = None, q: str | None = None, stagione: str | None = None
+) -> list:
+    """Lista template con filtri opzionali (stagione: mig 187).
     Ogni item include anche conteggio righe (n_righe) e service_type_name."""
     conn = get_clienti_conn()
     try:
@@ -86,6 +134,9 @@ def lista_templates(service_type_id: int | None = None, q: str | None = None) ->
             like = f"%{q}%"
             where.append("(t.nome LIKE ? OR t.descrizione LIKE ?)")
             params.extend([like, like])
+        if stagione and _cols_187(conn):
+            where.append("t.stagione = ?")
+            params.append(stagione)
 
         where_sql = " AND ".join(where)
         rows = conn.execute(f"""
@@ -132,7 +183,8 @@ def get_template(template_id: int) -> dict | None:
 def crea_template(data: dict, righe: list[dict] | None = None) -> dict | None:
     """Crea un template vuoto (o con righe iniziali).
 
-    data: {nome (required), descrizione, service_type_id, prezzo_persona, sconto}
+    data: {nome (required), descrizione, service_type_id, prezzo_persona, sconto,
+           pricing_mode, prezzo_corpo, prezzo_corpo_vino, doppio_prezzo, stagione (mig 187)}
     righe: [{name, description, price, category_name, recipe_id, sort_order}, ...]
     """
     nome = (data.get("nome") or "").strip()
@@ -157,6 +209,7 @@ def crea_template(data: dict, righe: list[dict] | None = None) -> dict | None:
             ),
         )
         template_id = cur.lastrowid
+        _set_campi_187(conn, template_id, data)
 
         if righe:
             for idx, r in enumerate(righe):
@@ -212,7 +265,8 @@ def aggiorna_template(template_id: int, data: dict) -> dict | None:
                 f"UPDATE clienti_menu_template SET {', '.join(campi)} WHERE id = ?",
                 params,
             )
-            conn.commit()
+        _set_campi_187(conn, template_id, data)
+        conn.commit()
         return get_template(template_id)
     finally:
         conn.close()
@@ -263,6 +317,8 @@ def duplica_template(template_id: int, nuovo_nome: str | None = None) -> dict | 
             ),
         )
         new_id = cur.lastrowid
+        if _cols_187(conn):
+            _set_campi_187(conn, new_id, {k: src[k] for k in CAMPI_187})
         conn.execute("""
             INSERT INTO clienti_menu_template_righe
               (template_id, recipe_id, sort_order, category_name, name, description, price)
@@ -365,11 +421,13 @@ def salva_menu_come_template(
     nome: str,
     descrizione: str | None = None,
     service_type_id: int | None = None,
+    stagione: str | None = None,
 ) -> dict | None:
     """Salva le righe + metadati di un menu di preventivo come nuovo template.
 
     Snapshot delle righe: copio name/description/price/category_name/recipe_id
-    dal menu esistente al nuovo template.
+    dal menu esistente al nuovo template. Mig 187: anche modalita' di prezzo,
+    prezzi a corpo e stagione.
     """
     nome = (nome or "").strip()
     if not nome:
@@ -382,7 +440,7 @@ def salva_menu_come_template(
 
         # Verifica ownership menu → preventivo
         owner = conn.execute(
-            "SELECT preventivo_id, sconto, prezzo_persona FROM clienti_preventivi_menu WHERE id = ?",
+            "SELECT * FROM clienti_preventivi_menu WHERE id = ?",
             (menu_id,),
         ).fetchone()
         if not owner or int(owner["preventivo_id"]) != int(preventivo_id):
@@ -402,6 +460,10 @@ def salva_menu_come_template(
             ),
         )
         template_id = cur.lastrowid
+        extra = {"stagione": stagione}
+        if "pricing_mode" in owner.keys():
+            extra.update({k: owner[k] for k in ("pricing_mode", "prezzo_corpo", "prezzo_corpo_vino", "doppio_prezzo")})
+        _set_campi_187(conn, template_id, extra)
 
         # Copia righe (snapshot)
         conn.execute("""
@@ -433,6 +495,7 @@ def applica_template_a_menu(
     - sostituisci_righe=False: appende le righe del template in coda
     - aggiorna_nome=True: sovrascrive menu.nome con template.nome
     - aggiorna_prezzo=True: sovrascrive menu.prezzo_persona e menu.sconto dal template
+      e (mig 187) la modalita' di prezzo con i prezzi a corpo
 
     Dopo l'applicazione richiama _ricalcola_menu_e_totale sul menu.
     Ritorna il menu aggiornato (dict) oppure None.
@@ -515,6 +578,8 @@ def applica_template_a_menu(
                 f"UPDATE clienti_preventivi_menu SET {', '.join(updates)} WHERE id = ?",
                 params,
             )
+        if aggiorna_prezzo and _cols_187(conn):
+            ps._set_corpo(conn, menu_id, {k: template[k] for k in ps.CORPO_CAMPI})
 
         # Ricalcolo subtotale/prezzo_persona del menu e totale preventivo
         # sulla stessa connessione per consistenza transazionale.
@@ -531,3 +596,42 @@ def applica_template_a_menu(
         if int(m["id"]) == int(menu_id):
             return m
     return None
+
+
+def crea_menu_da_templates(preventivo_id: int, template_ids: list[int]) -> list | None:
+    """Mig 187: aggiunge al preventivo un menu alternativo per ogni template
+    (es. i 5 menu gruppi come 5 tab). Ogni menu prende nome, righe, sconto e
+    modalita' di prezzo del template. Un primo menu vuoto e senza nome
+    (il «Menu» creato in automatico) viene riusato invece di lasciarlo vuoto.
+    Ritorna la menu_list aggiornata, None se il preventivo non esiste."""
+    from app.services import preventivi_service as ps
+
+    ids = [int(t) for t in template_ids or []]
+    if not ids:
+        return []
+    conn = get_clienti_conn()
+    try:
+        if not conn.execute("SELECT id FROM clienti_preventivi WHERE id = ?", (preventivo_id,)).fetchone():
+            return None
+        vuoto = conn.execute("""
+            SELECT m.id FROM clienti_preventivi_menu m
+            WHERE m.preventivo_id = ?
+              AND NOT EXISTS (SELECT 1 FROM clienti_preventivi_menu_righe r WHERE r.menu_id = m.id)
+            ORDER BY m.sort_order, m.id
+        """, (preventivo_id,)).fetchall()
+        n_menu = ps._conta_menu(conn, preventivo_id)
+    finally:
+        conn.close()
+
+    riusa = vuoto[0]["id"] if (n_menu == 1 and vuoto) else None
+    for i, tid in enumerate(ids):
+        if i == 0 and riusa:
+            menu_id = riusa
+        else:
+            nuovo = ps.crea_menu(preventivo_id, {"nome": "Menu"})
+            if not nuovo:
+                return None
+            menu_id = nuovo["id"]
+        applica_template_a_menu(preventivo_id, menu_id, tid,
+                                sostituisci_righe=True, aggiorna_nome=True, aggiorna_prezzo=True)
+    return ps.lista_menu(preventivo_id)

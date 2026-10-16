@@ -15,6 +15,21 @@
 {# Etichette A, B, C... per i menu alternativi #}
 {% set opt_labels = ['A','B','C','D','E','F','G','H','I','J'] %}
 
+{# Prezzo a persona di un menu (mig 187). A corpo con doppio prezzo:
+   «€ 50,00 / 55,00» vino escluso / incluso, al netto dello sconto menu.
+   Mai i prezzi dei singoli piatti. #}
+{% macro prezzo_persona(m) -%}
+    {%- if m.pricing_mode == 'corpo' and m.doppio_prezzo -%}
+        {%- set sc = m.sconto or 0 -%}
+        € {{ '{:,.2f}'.format([0, (m.prezzo_corpo or 0) - sc]|max) }} / {{ '{:,.2f}'.format([0, (m.prezzo_corpo_vino or 0) - sc]|max) }}
+    {%- else -%}
+        € {{ '{:,.2f}'.format(m.prezzo_persona or 0) }}
+    {%- endif -%}
+{%- endmacro %}
+{% macro nota_vino(m) -%}
+    {%- if m.pricing_mode == 'corpo' and m.doppio_prezzo %} (vino escluso / vino incluso){% endif -%}
+{%- endmacro %}
+
 {% block content %}
 
     {# Info cliente + evento #}
@@ -65,6 +80,10 @@
        Prezzi a corpo: mai prezzi per singolo piatto, solo prezzo a persona. #}
     {% set menus = menus or [] %}
     {% set menus_con_righe = menus | selectattr('righe') | list if menus else [] %}
+    {# Mig 187: se il cliente ha scelto, il PDF mostra solo il menu scelto #}
+    {% if prev.menu_scelto_id and menus_con_righe|length > 1 %}
+        {% set menus_con_righe = menus_con_righe | selectattr('id', 'equalto', prev.menu_scelto_id) | list %}
+    {% endif %}
 
     {% if menus_con_righe|length > 1 %}
         {# Piu' menu: intestazione unica con spiegazione #}
@@ -107,8 +126,8 @@
             <table class="brand" style="margin-top:6px; margin-bottom:6px;">
                 <tbody>
                     <tr class="tot-row">
-                        <td>Opzione {{ opt }} — prezzo a persona</td>
-                        <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(m.prezzo_persona or 0) }}</td>
+                        <td>Opzione {{ opt }} — prezzo a persona{{ nota_vino(m) }}</td>
+                        <td class="num" style="width:30%;">{{ prezzo_persona(m) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -148,11 +167,11 @@
             <tbody>
                 {% if prev.n_persone and (m.prezzo_persona or 0) > 0 %}
                     <tr class="tot-row">
-                        <td>Menu a persona ({{ prev.n_persone }} coperti)</td>
-                        <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(m.prezzo_persona or 0) }}</td>
+                        <td>Menu a persona{{ nota_vino(m) }} ({{ prev.n_persone }} coperti)</td>
+                        <td class="num" style="width:30%;">{{ prezzo_persona(m) }}</td>
                     </tr>
                     <tr>
-                        <td class="small text-muted">Totale menu</td>
+                        <td class="small text-muted">Totale menu{% if m.pricing_mode == 'corpo' and m.doppio_prezzo %} (vino {{ 'incluso' if m.prezzo_corpo_scelta == 'incluso' else 'escluso' }}){% endif %}</td>
                         <td class="num small text-muted">€ {{ '{:,.2f}'.format(menu_tot) }}</td>
                     </tr>
                 {% else %}
@@ -247,9 +266,18 @@
             <tbody>
                 <tr class="tot-row">
                     <td>TOTALE PREVENTIVO</td>
+                    {% if prev.totale_min is not none and prev.totale_min != prev.totale_max %}
+                    <td class="num" style="width:40%;">
+                        da € {{ '{:,.2f}'.format(prev.totale_min) }} a € {{ '{:,.2f}'.format(prev.totale_max) }}
+                        <div class="small text-muted" style="font-weight:normal;">secondo il menu scelto</div>
+                    </td>
+                    {% elif prev.totale_min is not none %}
+                    <td class="num" style="width:40%;">€ {{ '{:,.2f}'.format(prev.totale_min) }}</td>
+                    {% else %}
                     <td class="num" style="width:40%; font-style:italic; font-weight:normal; font-size:9.5pt;">
                         da definire in base al menu scelto
                     </td>
+                    {% endif %}
                 </tr>
             </tbody>
         </table>

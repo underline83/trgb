@@ -52,19 +52,124 @@ def _conta_menu(conn, preventivo_id: int) -> int:
     return int(row[0] or 0)
 
 
+# ---------------------------------------------------------------------------
+# Prezzo «a corpo» (mig 187)
+# ---------------------------------------------------------------------------
+
+# Campi del menu che descrivono la modalità di prezzo (stessi nomi sul template).
+CORPO_CAMPI = ("pricing_mode", "prezzo_corpo", "prezzo_corpo_vino", "doppio_prezzo")
+
+
+def _corpo_cols_exist(conn) -> bool:
+    """Colonne pricing_mode & co. su clienti_preventivi_menu (mig 187)."""
+    if not _menu_table_exists(conn):
+        return False
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(clienti_preventivi_menu)").fetchall()}
+    return "pricing_mode" in cols
+
+
+def _menu_scelto_col_exists(conn) -> bool:
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(clienti_preventivi)").fetchall()}
+    return "menu_scelto_id" in cols
+
+
+def normalizza_corpo(data: dict) -> dict:
+    """Normalizza i campi a corpo presenti in `data` (solo quelli passati).
+    pricing_mode: 'somma' | 'corpo'; prezzi >= 0; doppio_prezzo 0/1;
+    prezzo_corpo_scelta: 'escluso' | 'incluso'."""
+    out = {}
+    if "pricing_mode" in data:
+        out["pricing_mode"] = "corpo" if data["pricing_mode"] == "corpo" else "somma"
+    for k in ("prezzo_corpo", "prezzo_corpo_vino"):
+        if k in data:
+            out[k] = round(max(0.0, float(data[k] or 0)), 2)
+    if "doppio_prezzo" in data:
+        out["doppio_prezzo"] = 1 if data["doppio_prezzo"] else 0
+    if "prezzo_corpo_scelta" in data:
+        out["prezzo_corpo_scelta"] = "incluso" if data["prezzo_corpo_scelta"] == "incluso" else "escluso"
+    return out
+
+
+def _euro(v: float) -> str:
+    """50 → «50», 52.5 → «52,50» (per testi al cliente)."""
+    v = round(float(v or 0), 2)
+    if v == int(v):
+        return f"{int(v):,}".replace(",", ".")
+    return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def etichetta_prezzo(menu: dict) -> str:
+    """Prezzo a persona come lo legge il cliente, già al netto dello sconto menu.
+    Somma piatti / a corpo singolo: «50 € a persona».
+    A corpo doppio: «50 / 55 € a persona (vino escluso / incluso)»."""
+    sconto = float(menu.get("sconto") or 0)
+    if menu.get("pricing_mode") == "corpo" and menu.get("doppio_prezzo"):
+        esc = max(0.0, float(menu.get("prezzo_corpo") or 0) - sconto)
+        inc = max(0.0, float(menu.get("prezzo_corpo_vino") or 0) - sconto)
+        return f"{_euro(esc)} / {_euro(inc)} € a persona (vino escluso / incluso)"
+    return f"{_euro(menu.get('prezzo_persona') or 0)} € a persona"
+
+
+def _totale_extra(conn, preventivo_id: int) -> float:
+    tot = 0.0
+    for r in conn.execute(
+        "SELECT qta, prezzo_unitario, tipo_riga FROM clienti_preventivi_righe WHERE preventivo_id = ?",
+        (preventivo_id,),
+    ).fetchall():
+        sub = (r["qta"] or 0) * (r["prezzo_unitario"] or 0)
+        tot += -abs(sub) if r["tipo_riga"] == "sconto" else sub
+    return tot
+
+
+def _menu_scelto_id(conn, preventivo_id: int) -> int | None:
+    """menu_scelto_id della testata se valido (esiste e appartiene al preventivo)."""
+    if not _menu_scelto_col_exists(conn):
+        return None
+    row = conn.execute(
+        "SELECT menu_scelto_id FROM clienti_preventivi WHERE id = ?", (preventivo_id,)
+    ).fetchone()
+    mid = row["menu_scelto_id"] if row else None
+    if mid and _menu_appartiene_a(conn, int(mid), preventivo_id):
+        return int(mid)
+    return None
+
+
+def _forbice_totale(conn, preventivo_id: int) -> tuple[float, float] | None:
+    """Con >= 2 menu e nessuna scelta: (min, max) del totale = prezzo × pax + extra."""
+    if _conta_menu(conn, preventivo_id) < 2 or _menu_scelto_id(conn, preventivo_id):
+        return None
+    testata = conn.execute(
+        "SELECT n_persone FROM clienti_preventivi WHERE id = ?", (preventivo_id,)
+    ).fetchone()
+    n_pers = int(testata["n_persone"] or 0) if testata else 0
+    prezzi = [
+        float(r["prezzo_persona"] or 0)
+        for r in conn.execute(
+            "SELECT prezzo_persona FROM clienti_preventivi_menu WHERE preventivo_id = ?",
+            (preventivo_id,),
+        ).fetchall()
+    ]
+    extra = _totale_extra(conn, preventivo_id)
+    return (round(min(prezzi) * n_pers + extra, 2), round(max(prezzi) * n_pers + extra, 2))
+
+
 def _ricalcola_totale(conn, preventivo_id: int) -> float:
     """
     Ricalcola totale_calcolato in base al numero di menu alternativi (mig 079):
       0 menu  → totale = solo righe extra
       1 menu  → totale = (menu.prezzo_persona × n_persone) + righe extra
-      >= 2    → totale = 0 (alternative al cliente, niente aggregato)
+      >= 2    → se il cliente ha scelto (menu_scelto_id, mig 187) come 1 menu
+                con quello scelto; altrimenti 0 (la UI mostra la forbice «da X a Y»)
 
+    prezzo_persona del menu e' gia' quello giusto per la modalita' (somma piatti
+    o a corpo, mig 187), al netto dello sconto menu.
     Le righe extra restano per elementi liberi (noleggio, tovagliato, supplementi).
     """
     n_menu = _conta_menu(conn, preventivo_id)
+    scelto = _menu_scelto_id(conn, preventivo_id) if n_menu >= 2 else None
 
-    # >= 2 menu: niente totale aggregato (il cliente sceglie uno dei menu)
-    if n_menu >= 2:
+    # >= 2 menu senza scelta: niente totale aggregato (il cliente sceglie uno dei menu)
+    if n_menu >= 2 and not scelto:
         conn.execute(
             "UPDATE clienti_preventivi SET totale_calcolato = 0 WHERE id = ?",
             (preventivo_id,),
@@ -73,19 +178,24 @@ def _ricalcola_totale(conn, preventivo_id: int) -> float:
 
     totale = 0.0
 
-    # 1 menu: prende prezzo_persona del menu (non dalla testata cache, che potrebbe
-    # essere stale). 0 menu: tot = solo righe.
-    if n_menu == 1:
+    # 1 menu (o menu scelto): prende prezzo_persona del menu (non dalla testata
+    # cache, che potrebbe essere stale). 0 menu: tot = solo righe.
+    if n_menu >= 1:
         testata = conn.execute(
             "SELECT n_persone FROM clienti_preventivi WHERE id = ?",
             (preventivo_id,),
         ).fetchone()
         n_pers = int(testata["n_persone"] or 0) if testata else 0
-        m = conn.execute(
-            "SELECT prezzo_persona FROM clienti_preventivi_menu "
-            "WHERE preventivo_id = ? ORDER BY sort_order, id LIMIT 1",
-            (preventivo_id,),
-        ).fetchone()
+        if scelto:
+            m = conn.execute(
+                "SELECT prezzo_persona FROM clienti_preventivi_menu WHERE id = ?", (scelto,)
+            ).fetchone()
+        else:
+            m = conn.execute(
+                "SELECT prezzo_persona FROM clienti_preventivi_menu "
+                "WHERE preventivo_id = ? ORDER BY sort_order, id LIMIT 1",
+                (preventivo_id,),
+            ).fetchone()
         prezzo_p = float(m["prezzo_persona"] or 0) if m else 0.0
         totale += prezzo_p * n_pers
     elif n_menu == 0 and not _menu_table_exists(conn):
@@ -100,16 +210,7 @@ def _ricalcola_totale(conn, preventivo_id: int) -> float:
             totale += float(prezzo_p) * float(n_pers)
 
     # Righe extra
-    rows = conn.execute(
-        "SELECT qta, prezzo_unitario, tipo_riga FROM clienti_preventivi_righe WHERE preventivo_id = ?",
-        (preventivo_id,),
-    ).fetchall()
-    for r in rows:
-        sub = (r["qta"] or 0) * (r["prezzo_unitario"] or 0)
-        if r["tipo_riga"] == "sconto":
-            totale -= abs(sub)
-        else:
-            totale += sub
+    totale += _totale_extra(conn, preventivo_id)
 
     conn.execute(
         "UPDATE clienti_preventivi SET totale_calcolato = ? WHERE id = ?",
@@ -157,21 +258,30 @@ def _ricalcola_menu_singolo(conn, menu_id: int) -> dict | None:
     Ricalcola subtotale e prezzo_persona del SINGOLO menu (mig 079):
     subtotale = SUM(price) delle righe del menu,
     prezzo_persona = max(0, subtotale - sconto).
+    A corpo (mig 187): subtotale = prezzo a corpo scelto (vino escluso, o incluso
+    se doppio_prezzo e scelta 'incluso'); i prezzi dei piatti non contano.
     Ritorna dict con nuovi valori, None se il menu non esiste.
     """
     m = conn.execute(
-        "SELECT preventivo_id, sconto FROM clienti_preventivi_menu WHERE id = ?",
+        "SELECT * FROM clienti_preventivi_menu WHERE id = ?",
         (menu_id,),
     ).fetchone()
     if not m:
         return None
+    m = dict(m)
     sconto = float(m["sconto"] or 0)
 
-    row = conn.execute(
-        "SELECT COALESCE(SUM(price), 0) AS s FROM clienti_preventivi_menu_righe WHERE menu_id = ?",
-        (menu_id,),
-    ).fetchone()
-    subtotale = float(row["s"] or 0)
+    if m.get("pricing_mode") == "corpo":
+        if m.get("doppio_prezzo") and m.get("prezzo_corpo_scelta") == "incluso":
+            subtotale = float(m.get("prezzo_corpo_vino") or 0)
+        else:
+            subtotale = float(m.get("prezzo_corpo") or 0)
+    else:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(price), 0) AS s FROM clienti_preventivi_menu_righe WHERE menu_id = ?",
+            (menu_id,),
+        ).fetchone()
+        subtotale = float(row["s"] or 0)
     prezzo_pers = round(max(0.0, subtotale - sconto), 2)
 
     conn.execute(
@@ -346,8 +456,31 @@ def lista_menu(preventivo_id: int) -> list:
         conn.close()
 
 
+def _set_corpo(conn, menu_id: int, data: dict) -> None:
+    """Scrive sul menu i campi a corpo presenti in `data` (mig 187)."""
+    if not _corpo_cols_exist(conn):
+        return
+    vals = normalizza_corpo(data or {})
+    if vals:
+        conn.execute(
+            f"UPDATE clienti_preventivi_menu SET {', '.join(f'{k} = ?' for k in vals)} WHERE id = ?",
+            (*vals.values(), menu_id),
+        )
+
+
+def _copia_corpo(conn, src_menu_id: int, dst_menu_id: int) -> None:
+    """Copia modalita' di prezzo e prezzi a corpo da un menu a un altro."""
+    if not _corpo_cols_exist(conn):
+        return
+    src = conn.execute("SELECT * FROM clienti_preventivi_menu WHERE id = ?", (src_menu_id,)).fetchone()
+    if src:
+        _set_corpo(conn, dst_menu_id, {k: src[k] for k in (*CORPO_CAMPI, "prezzo_corpo_scelta")})
+
+
 def crea_menu(preventivo_id: int, data: dict | None = None) -> dict | None:
-    """Crea un nuovo menu alternativo. `data` puo' contenere nome/sconto."""
+    """Crea un nuovo menu alternativo. `data` puo' contenere nome/sconto e i
+    campi a corpo (pricing_mode, prezzo_corpo, prezzo_corpo_vino, doppio_prezzo,
+    prezzo_corpo_scelta — mig 187)."""
     data = data or {}
     conn = get_clienti_conn()
     try:
@@ -370,6 +503,8 @@ def crea_menu(preventivo_id: int, data: dict | None = None) -> dict | None:
             (preventivo_id, nome, int(max_order) + 1, round(sconto, 2)),
         )
         menu_id = cur.lastrowid
+        _set_corpo(conn, menu_id, data)
+        _ricalcola_menu_singolo(conn, menu_id)
         _sync_testata_menu_cache(conn, preventivo_id)
         _ricalcola_totale(conn, preventivo_id)
         conn.commit()
@@ -386,7 +521,7 @@ def crea_menu(preventivo_id: int, data: dict | None = None) -> dict | None:
 
 
 def aggiorna_menu(preventivo_id: int, menu_id: int, data: dict) -> dict | None:
-    """Aggiorna nome / sort_order / sconto di un menu."""
+    """Aggiorna nome / sort_order / sconto / campi a corpo (mig 187) di un menu."""
     conn = get_clienti_conn()
     try:
         if not _menu_appartiene_a(conn, menu_id, preventivo_id):
@@ -408,7 +543,8 @@ def aggiorna_menu(preventivo_id: int, menu_id: int, data: dict) -> dict | None:
                 f"UPDATE clienti_preventivi_menu SET {', '.join(campi)} WHERE id = ?",
                 params,
             )
-        # se lo sconto e' cambiato il prezzo_persona va ricalcolato
+        _set_corpo(conn, menu_id, data)
+        # se lo sconto o il prezzo a corpo sono cambiati il prezzo_persona va ricalcolato
         _ricalcola_menu_singolo(conn, menu_id)
         _sync_testata_menu_cache(conn, preventivo_id)
         _ricalcola_totale(conn, preventivo_id)
@@ -435,6 +571,11 @@ def elimina_menu(preventivo_id: int, menu_id: int) -> bool:
             "DELETE FROM clienti_preventivi_menu WHERE id = ? AND preventivo_id = ?",
             (menu_id, preventivo_id),
         )
+        if _menu_scelto_col_exists(conn):
+            conn.execute(
+                "UPDATE clienti_preventivi SET menu_scelto_id = NULL WHERE id = ? AND menu_scelto_id = ?",
+                (preventivo_id, menu_id),
+            )
         _sync_testata_menu_cache(conn, preventivo_id)
         _ricalcola_totale(conn, preventivo_id)
         conn.commit()
@@ -474,6 +615,7 @@ def duplica_menu(preventivo_id: int, menu_id: int, nuovo_nome: str | None = None
             ),
         )
         new_menu_id = cur.lastrowid
+        _copia_corpo(conn, menu_id, new_menu_id)
 
         # copia righe snapshot
         righe = conn.execute(
@@ -944,8 +1086,14 @@ def get_preventivo(preventivo_id: int) -> dict | None:
             ).fetchall()
             primary_righe = [dict(r) for r in mrows]
 
+        for d in menu_list:
+            d["prezzo_etichetta"] = etichetta_prezzo(d)
         prev["menu_list"] = menu_list
         prev["n_menu"] = len(menu_list)
+        # Mig 187: menu scelto valido + forbice «da X a Y» se il cliente non ha scelto
+        prev["menu_scelto_id"] = _menu_scelto_id(conn, preventivo_id) if menu_list else None
+        forbice = _forbice_totale(conn, preventivo_id) if menu_list else None
+        prev["totale_min"], prev["totale_max"] = forbice if forbice else (None, None)
         prev["menu_righe"] = primary_righe  # retro-compat client vecchi
 
         return prev
@@ -1112,6 +1260,14 @@ def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = Non
                     val = 1 if val else 0
                 params.append(val)
 
+        if "menu_scelto_id" in data and _menu_scelto_col_exists(conn):
+            # Menu scelto dal cliente (mig 187): None = non ha ancora scelto
+            mid = data["menu_scelto_id"]
+            if mid and not _menu_appartiene_a(conn, int(mid), preventivo_id):
+                raise ValueError("menu_scelto_id non appartiene al preventivo")
+            campi.append("menu_scelto_id = ?")
+            params.append(int(mid) if mid else None)
+
         if campi:
             params.append(preventivo_id)
             conn.execute(
@@ -1255,6 +1411,12 @@ def duplica_preventivo(preventivo_id: int, username: str) -> dict | None:
                     ),
                 )
                 new_menu_id = cur_m.lastrowid
+                _copia_corpo(conn, m["id"], new_menu_id)
+                if orig.get("menu_scelto_id") == m["id"] and _menu_scelto_col_exists(conn):
+                    conn.execute(
+                        "UPDATE clienti_preventivi SET menu_scelto_id = ? WHERE id = ?",
+                        (new_menu_id, nuovo_id),
+                    )
                 righe_menu = conn.execute(
                     "SELECT * FROM clienti_preventivi_menu_righe WHERE menu_id = ? ORDER BY sort_order, id",
                     (m["id"],),
@@ -1282,6 +1444,92 @@ def duplica_preventivo(preventivo_id: int, username: str) -> dict | None:
         return get_preventivo(nuovo_id)
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Testo per il cliente (WhatsApp / email) — mig 187
+# ---------------------------------------------------------------------------
+
+OPZIONI = "ABCDEFGHIJ"
+
+
+def _data_it(iso: str | None) -> str:
+    try:
+        return datetime.strptime(iso, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except (TypeError, ValueError):
+        return iso or ""
+
+
+def testo_cliente(preventivo_id: int) -> str | None:
+    """Messaggio pronto da incollare su WhatsApp o in una email.
+    Menu: nome, portate in ordine e prezzo a persona (singolo o doppio vino
+    escluso/incluso). MAI i prezzi dei singoli piatti. Extra con importo.
+    Totale: importo, o «da X a Y €» se ci sono alternative non ancora scelte."""
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        return None
+    out: list[str] = []
+    out.append(f"Preventivo {prev.get('numero') or ''} — {prev.get('titolo') or ''}".strip(" —"))
+    info = []
+    if prev.get("data_evento"):
+        d = _data_it(prev["data_evento"])
+        info.append(f"{d} ore {prev['ora_evento']}" if prev.get("ora_evento") else d)
+    if prev.get("n_persone"):
+        info.append(f"{prev['n_persone']} persone")
+    if prev.get("luogo"):
+        info.append(prev["luogo"])
+    if info:
+        out.append(" · ".join(info))
+
+    menus = [m for m in prev.get("menu_list") or [] if m.get("righe")]
+    scelto = prev.get("menu_scelto_id")
+    if len(menus) > 1 and not scelto:
+        out += ["", f"Vi proponiamo {len(menus)} menu, a scelta:"]
+    for i, m in enumerate(menus):
+        if len(menus) > 1 and scelto and m["id"] != scelto:
+            continue
+        nome = m.get("nome") if m.get("nome") and m.get("nome") != "Menu" else ""
+        if len(menus) > 1:
+            titolo = f"Opzione {OPZIONI[i] if i < len(OPZIONI) else i + 1}" + (f" — {nome}" if nome else "")
+        else:
+            titolo = "Menu" + (f" — {nome}" if nome else "")
+        out += ["", f"*{titolo}*"]
+        cat_corrente = None
+        for r in m["righe"]:
+            cat = r.get("category_name")
+            if cat and cat != cat_corrente:
+                out.append(f"_{cat}_")
+                cat_corrente = cat
+            out.append(f"• {r['name']}")
+        out.append(etichetta_prezzo(m))
+
+    extra = [r for r in prev.get("righe") or [] if (r.get("descrizione") or "").strip()]
+    if extra:
+        out += ["", "*Extra*"]
+        for r in extra:
+            if r.get("tipo_riga") == "nota":
+                out.append(f"• {r['descrizione']}")
+                continue
+            qta = float(r.get("qta") or 0)
+            pu = float(r.get("prezzo_unitario") or 0)
+            segno = "−" if r.get("tipo_riga") == "sconto" else ""
+            if qta != 1:
+                q = int(qta) if qta == int(qta) else qta
+                out.append(f"• {r['descrizione']}: {q} × {_euro(pu)} € = {segno}{_euro(qta * pu)} €")
+            else:
+                out.append(f"• {r['descrizione']}: {segno}{_euro(pu)} €")
+
+    out.append("")
+    if prev.get("totale_min") is not None:
+        lo, hi = prev["totale_min"], prev["totale_max"]
+        out.append(f"*Totale: {'da ' + _euro(lo) + ' a ' + _euro(hi) if lo != hi else _euro(lo)} €* secondo il menu scelto")
+    elif prev.get("totale_calcolato"):
+        out.append(f"*Totale: {_euro(prev['totale_calcolato'])} €*")
+
+    for campo in ("note_cliente", "condizioni"):
+        if (prev.get(campo) or "").strip():
+            out += ["", prev[campo].strip()]
+    return "\n".join(out).strip()
 
 
 # ---------------------------------------------------------------------------

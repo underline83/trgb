@@ -82,6 +82,8 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [readme.md](readme.md) — panoramica progetto (onboarding umano: struttura cartelle, env, avvio locale).
 - `mockups/` — mockup HTML pre-implementazione (cucina, scorte/frigo, turni, menu QR, riconciliazione, KPI bar).
 - `operativo/` — output operativi cucina (checklist stampabili docx/pdf).
+- [operativo/rete.md](operativo/rete.md) — la rete dell'osteria: indirizzi, stampanti, Wi-Fi, linea (leggere prima di toccare qualsiasi cosa). Dal second brain, 2026-10-16.
+- [operativo/rete-questioni-aperte.md](operativo/rete-questioni-aperte.md) — cosa resta da capire e verificare sulla rete.
 - `commerciale_brochure_v5.docx` — brochure commerciale prodotto.
 - `query_cg_uscite_aggregatore.sql` — query di riferimento aggregatore CG uscite.
 

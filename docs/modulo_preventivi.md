@@ -1,6 +1,6 @@
 # Modulo Preventivi — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-16
 > **Vedi anche:** [modulo_prenotazioni.md](modulo_prenotazioni.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md), [architettura_mattoni.md](architettura_mattoni.md)
 
 **Nato:** spec sessione 31 (2026-04-13), implementato nelle sessioni 31-39
@@ -38,7 +38,12 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`, so
 | C-P-028 | PDF brandizzato (M.B, template `preventivo.html`) | `GET /preventivi/{id}/pdf?inline=` — `:504` | tutti | ✅ |
 | C-P-029 | Libreria menu template: CRUD | `GET/POST/PUT/DELETE /menu-templates[/{id}]` — `menu_templates_router.py:92-:139` | admin (scritture) | ✅ |
 | C-P-030 | Duplica menu template | `POST /menu-templates/{id}/duplica` — `:142` | admin | ✅ |
-| C-P-031 | Righe template (aggiungi, elimina, riordina) + bridge salva/carica su menu preventivo | `POST/DELETE /menu-templates/{id}/righe[/{rid}]`, `PUT /righe-ordine`; `POST /preventivi/{id}/menu/{mid}/salva-come-template` e `/carica-template` — `:159-:251` | admin | ⚠️ vedi §12.1 |
+| C-P-031 | Righe template (aggiungi, elimina, riordina) + bridge salva/carica su menu preventivo | `POST/DELETE /menu-templates/{id}/righe[/{rid}]`, `PUT /righe-ordine`; `POST /preventivi/{id}/menu/{mid}/salva-come-template` e `/carica-template` — `menu_templates_router.py` | admin | ✅ (fix 2026-10-16, §12.1) |
+| C-P-032 | Prezzo «a corpo» per menu: prezzo a persona a mano, doppio prezzo vino escluso/incluso, scelta del prezzo per il totale | `PUT /preventivi/{id}/menu/{mid}` (campi `pricing_mode`, `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `prezzo_corpo_scelta`) — `preventivi_router.py` + `PreventivoMenuComposer.jsx` | admin | 🆕 2026-10-16 |
+| C-P-033 | Menu scelto dal cliente tra le alternative; finché non sceglie totale «da X a Y» | `PUT /preventivi/{id}` (`menu_scelto_id`, 0 = nessuno); `GET /preventivi/{id}` espone `totale_min/totale_max` | admin | 🆕 2026-10-16 |
+| C-P-034 | Testo per il cliente (WhatsApp con M.C / copia per email): menu, portate, prezzo a persona, extra, totale; mai i prezzi dei piatti | `GET /preventivi/{id}/testo` → `{testo, telefono}` — `preventivi_service.testo_cliente`; bottoni «💬 WhatsApp» / «📋 Copia testo» in scheda | tutti i ruoli del modulo | 🆕 2026-10-16 |
+| C-P-035 | Stagione dei menu template: campo, filtro, elenco stagioni | `GET /menu-templates/?stagione=`, `GET /menu-templates/stagioni` | ruoli del modulo (lettura), admin (scrittura) | 🆕 2026-10-16 |
+| C-P-036 | Carica più template in un colpo come menu alternativi (un tab per template) | `POST /preventivi/{id}/menu/da-template` `{template_ids}` — `menu_templates_service.crea_menu_da_templates` | admin | 🆕 2026-10-16 |
 
 **Auth:** tutte le route richiedono JWT; le letture sono aperte a ogni utente loggato, le scritture (e `GET /stats`) richiedono admin/superadmin via `is_admin()`.
 
@@ -75,7 +80,16 @@ Un preventivo è: **testata** + **0..N menu alternativi** (ognuno con righe snap
 
 ## 4.1 Menu multipli alternativi (migr. 079)
 
-Il cliente riceve alternative ("Opzione A carne 55€/pax, Opzione B pesce 65€/pax") e ne sceglie una. Ogni menu ha nome, sort_order, sconto in euro, subtotale (somma prezzi righe) e `prezzo_persona = max(0, subtotale − sconto)` ricalcolato server-side a ogni modifica.
+Il cliente riceve alternative ("Opzione A carne 55€/pax, Opzione B pesce 65€/pax") e ne sceglie una. Ogni menu ha nome, sort_order, sconto in euro **a persona**, subtotale e `prezzo_persona = max(0, subtotale − sconto)` ricalcolato server-side a ogni modifica.
+
+**Modalità di prezzo** (migr. 187, `pricing_mode` sul menu):
+
+| Modalità | `subtotale` | Piatti |
+|---|---|---|
+| `somma` (default, anche per i menu esistenti) | somma dei prezzi delle righe | prezzo visibile in UI, mai sul PDF/testo |
+| `corpo` | `prezzo_corpo`, oppure `prezzo_corpo_vino` se `doppio_prezzo=1` e `prezzo_corpo_scelta='incluso'` | composizione per portata: prezzo ignorato (può essere 0), in UI al posto del prezzo la **portata** (Antipasto, Primo, Secondo, Contorno, Dolce) |
+
+Con il doppio prezzo il cliente vede entrambi i prezzi («50 / 55 € a persona (vino escluso / incluso)», al netto dello sconto); il totale usa quello scelto in `prezzo_corpo_scelta`. Etichetta in `preventivi_service.etichetta_prezzo` (campo `prezzo_etichetta` di ogni menu in `GET /preventivi/{id}`).
 
 **Regola del totale** (`_ricalcola_totale`):
 
@@ -83,7 +97,10 @@ Il cliente riceve alternative ("Opzione A carne 55€/pax, Opzione B pesce 65€
 |---|---|
 | 0 | solo righe extra |
 | 1 | `prezzo_persona × n_persone` + righe extra |
-| ≥ 2 | **0** — niente totale aggregato (la lista mostra il badge "N alternative") |
+| ≥ 2, cliente ha scelto (`menu_scelto_id`, migr. 187) | come 1 menu, con quello scelto |
+| ≥ 2, non ha scelto | **0** (la lista mostra il badge "N alternative"); scheda, PDF e testo mostrano la forbice **«da X a Y €»** = min/max di `prezzo_persona × n_persone` + extra (`totale_min/totale_max` in `GET /preventivi/{id}`) |
+
+Con `menu_scelto_id` il PDF e il testo mostrano solo il menu scelto. Eliminando il menu scelto la scelta si azzera.
 
 I campi denormalizzati `menu_subtotale/menu_sconto/menu_prezzo_persona` sulla testata restano come cache del primo menu (retro-compat per lista/stats).
 
@@ -102,7 +119,9 @@ Campi `menu_nome / menu_prezzo_persona / menu_descrizione` sulla testata: testo 
 # 5. Template: due sistemi distinti
 
 1. **Template di testata** (`clienti_preventivi_template`, Fase B): righe extra precompilate (JSON) + condizioni default. Applicato dalla scheda ("Carica da template"); CRUD nella sezione **Impostazioni CRM → Template Preventivi**. Eliminazione = soft (attivo=0).
-2. **Libreria Menu Template** (`clienti_menu_template` + righe, migr. 080): menu ricorrenti (banchetti, pranzi di lavoro) come snapshot di righe + prezzo/sconto suggeriti, organizzati per tipo servizio (soft FK verso `service_types` di foodcost.db). Dal composer: "💾 Salva come template" e "📂 Carica template" (con opzioni sostituisci righe / aggiorna nome / aggiorna prezzo — il caricamento COPIA le righe, i preventivi non seguono le modifiche future del template). CRUD anche in **Impostazioni CRM → Menu Template**. ⚠️ Vedi §12.1.
+2. **Libreria Menu Template** (`clienti_menu_template` + righe, migr. 080): menu ricorrenti (banchetti, pranzi di lavoro) come snapshot di righe + prezzo/sconto suggeriti, organizzati per tipo servizio (soft FK verso `service_types` di foodcost.db). Dal composer: "💾 Salva come template" e "📂 Carica template" (con opzioni sostituisci righe / aggiorna nome / aggiorna prezzo — il caricamento COPIA le righe, i preventivi non seguono le modifiche future del template). CRUD anche in **Impostazioni CRM → Menu Template**.
+   - Migr. 187: il template salva anche **modalità di prezzo e prezzi a corpo** (non la scelta vino, che è del preventivo) e una **stagione** libera («Autunno-Inverno 2026»), con filtro in «Carica template» e in Impostazioni: la libreria tiene le proposte di ogni stagione.
+   - In «Carica template» si possono **spuntare più template** e aggiungerli come menu alternativi, uno per tab (es. i 5 menu gruppi Quadri/Picche/Fiori/Cuori/Jolly). Un primo menu vuoto creato in automatico viene riusato.
 
 # 6. Luoghi configurabili
 
@@ -114,7 +133,9 @@ Il composer menu funziona anche su `/clienti/preventivi/nuovo` prima del salvata
 
 # 8. PDF (mattone M.B)
 
-`GET /preventivi/{id}/pdf?inline=false` genera il PDF brandizzato via `pdf_brand.genera_pdf_html` con template `app/templates/pdf/preventivo.html` (dati: testata, righe extra, lista menu). Download dal pulsante "📥 Scarica PDF" in scheda. L'invio al cliente resta manuale (allegato WA/email fuori da TRGB).
+`GET /preventivi/{id}/pdf?inline=false` genera il PDF brandizzato via `pdf_brand.genera_pdf_html` con template `app/templates/pdf/preventivo.html` (dati: testata, righe extra, lista menu). Download dal pulsante "📥 Scarica PDF" in scheda. Il PDF mostra per ogni menu nome, portate e prezzo a persona (doppio se a corpo con vino escluso/incluso), **mai i prezzi dei singoli piatti**; con alternative non scelte il totale è «da X a Y».
+
+**Testo per il cliente** (migr. 187): `GET /preventivi/{id}/testo` costruisce lo stesso contenuto come messaggio (formattazione WhatsApp `*grassetto*` / `_corsivo_`). In scheda «💬 WhatsApp» apre WA sul telefono del cliente via M.C (`openWhatsApp`); senza telefono copia il testo. «📋 Copia testo» per l'email (M.D non c'è ancora). Usa i dati **salvati**: prima salvare testata, extra e note.
 
 # 9. Frontend
 
@@ -133,8 +154,10 @@ Il composer menu funziona anche su `/clienti/preventivi/nuovo` prima del salvata
 | `clienti_preventivi_righe` | righe extra: ordine, descrizione, qta, prezzo_unitario, totale_riga, tipo_riga; CASCADE | init |
 | `clienti_preventivi_template` | template testata: nome, tipo, righe_json, condizioni_default, attivo | init |
 | `clienti_preventivi_menu_righe` | snapshot piatti: preventivo_id (CASCADE), menu_id (079), recipe_id (soft ref), sort_order, category_name, name, description, price | migr. 075 + 079 |
-| `clienti_preventivi_menu` | menu alternativi: preventivo_id (CASCADE), nome, sort_order, sconto, subtotale, prezzo_persona | migr. 079 (con backfill di un menu "Menu" per i preventivi pre-esistenti) |
-| `clienti_menu_template` / `clienti_menu_template_righe` | libreria menu riutilizzabili: nome, descrizione, service_type_id (soft FK foodcost), prezzo_persona, sconto + righe snapshot | migr. 080 |
+| `clienti_preventivi_menu` | menu alternativi: preventivo_id (CASCADE), nome, sort_order, sconto, subtotale, prezzo_persona; `pricing_mode` ('somma'/'corpo'), `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `prezzo_corpo_scelta` ('escluso'/'incluso') | migr. 079 (con backfill di un menu "Menu" per i preventivi pre-esistenti) + 187 |
+| `clienti_menu_template` / `clienti_menu_template_righe` | libreria menu riutilizzabili: nome, descrizione, service_type_id (soft FK foodcost), prezzo_persona, sconto, `pricing_mode`, `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `stagione` + righe snapshot | migr. 080 + 187 |
+
+Migr. 187 aggiunge anche `clienti_preventivi.menu_scelto_id` (NULL = il cliente non ha ancora scelto). Solo ADD COLUMN con default neutri: i preventivi esistenti restano in modalità `somma` con gli stessi totali (verificato su copia del DB: PRE-2026-001 450 €, PRE-2026-002 0 € con forbice 800–2.400 €).
 
 Migrazione correttiva: `078_preventivi_menu_prezzo_persona_fix.py` — backfill dopo il bugfix "prezzo/persona = subtotale − sconto" (le righe menu sono già prezzi per 1 coperto, non da dividere per pax).
 
@@ -151,9 +174,11 @@ Il service è difensivo: se le tabelle 075/079 mancano (DB legacy non migrato) d
 
 # 12. Limiti noti
 
-## 12.1 Check admin rotto su libreria menu template (bug)
+## 12.1 Libreria menu template inutilizzabile — ✅ RISOLTO 2026-10-16
 
-`menu_templates_router.py:34` chiama `is_admin(user)` passando l'intero dict utente, ma `auth_service.is_admin(role: str)` si aspetta la stringa ruolo → il confronto è sempre False e `_require_admin` **risponde 403 a chiunque, admin compreso**, su tutte le scritture `/menu-templates/*` e sui due bridge salva-come-template / carica-template. Coerente col DB live: `clienti_menu_template` ha 0 righe. Le letture (GET) funzionano. Fix: `is_admin(user.get("role"))` come fa `preventivi_router.py:193`.
+Due bug insieme, per questo `clienti_menu_template` aveva 0 righe:
+- `_require_admin` chiamava `is_admin(user)` col dict intero → **403 a chiunque**, admin compreso, su tutte le scritture e sui bridge salva/carica. Ora `verifica_ruoli(user, "admin")` (M.G).
+- `_get_service_types_map` leggeva `service_types.code`, colonna che non esiste (migr. 074) → **500 su ogni lettura** di template. Ora legge `id, name`.
 
 ## 12.2 Altri
 

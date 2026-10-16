@@ -38,6 +38,8 @@ from app.services.preventivi_service import (
     elimina_menu,
     duplica_menu,
     riordina_menu,
+    # Prezzo a corpo + testo cliente (mig 187)
+    testo_cliente,
 )
 
 from app.services.permessi import richiede_ruoli
@@ -122,6 +124,8 @@ class PreventivoUpdate(BaseModel):
     # Permette al frontend di "promuovere" una bozza auto a bozza normale su
     # salvataggio esplicito (is_bozza_auto=0).
     is_bozza_auto: Optional[int] = None
+    # Mig 187: menu scelto dal cliente tra le alternative. 0 = non ha ancora scelto.
+    menu_scelto_id: Optional[int] = None
 
 
 class LuoghiIn(BaseModel):
@@ -182,12 +186,23 @@ class MenuScontoIn(BaseModel):
 class MenuCreateIn(BaseModel):
     nome: Optional[str] = None
     sconto: Optional[float] = 0
+    # Mig 187 — prezzo a corpo
+    pricing_mode: Optional[str] = None          # 'somma' | 'corpo'
+    prezzo_corpo: Optional[float] = None        # vino escluso (o prezzo unico)
+    prezzo_corpo_vino: Optional[float] = None   # vino incluso
+    doppio_prezzo: Optional[bool] = None
+    prezzo_corpo_scelta: Optional[str] = None   # 'escluso' | 'incluso' per il totale
 
 
 class MenuUpdateIn(BaseModel):
     nome: Optional[str] = None
     sort_order: Optional[int] = None
     sconto: Optional[float] = None
+    pricing_mode: Optional[str] = None
+    prezzo_corpo: Optional[float] = None
+    prezzo_corpo_vino: Optional[float] = None
+    doppio_prezzo: Optional[bool] = None
+    prezzo_corpo_scelta: Optional[str] = None
 
 
 class MenuDuplicaIn(BaseModel):
@@ -311,7 +326,10 @@ def api_aggiorna_preventivo(preventivo_id: int, body: PreventivoUpdate, user: di
     data = body.dict(exclude={"righe", "nuovo_cliente"}, exclude_none=True)
     righe = [r.dict() for r in body.righe] if body.righe is not None else None
     nuovo_cliente = body.nuovo_cliente.dict() if body.nuovo_cliente else None
-    result = aggiorna_preventivo(preventivo_id, data, righe, nuovo_cliente=nuovo_cliente)
+    try:
+        result = aggiorna_preventivo(preventivo_id, data, righe, nuovo_cliente=nuovo_cliente)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result
@@ -505,6 +523,21 @@ def api_riordina_menu_righe_per_menu(
 ):
     _require_admin(user)
     return {"items": riordina_menu_righe(preventivo_id, body.ordered_ids, menu_id=menu_id)}
+
+
+# ---------------------------------------------------------------------------
+# Testo per il cliente (WhatsApp / email) — mig 187
+# ---------------------------------------------------------------------------
+
+@router.get("/{preventivo_id}/testo")
+def api_testo_preventivo(preventivo_id: int, user: dict = Depends(get_current_user)):
+    """Messaggio pronto da copiare o mandare su WhatsApp: menu con portate e
+    prezzo a persona (mai i prezzi dei singoli piatti), extra, totale."""
+    testo = testo_cliente(preventivo_id)
+    if testo is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    prev = get_preventivo(preventivo_id) or {}
+    return {"testo": testo, "telefono": prev.get("cliente_telefono")}
 
 
 # ---------------------------------------------------------------------------

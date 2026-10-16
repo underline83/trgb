@@ -1,4 +1,5 @@
-// @version: v2.2-mattoni — M.I primitives (Btn) su CTA header + dialog template
+// @version: v2.3 — prezzo «a corpo» per menu, doppio prezzo vino, stagione template, carica piu' template (mig 187)
+// Modulo: clienti (sub-modulo preventivi)
 // Pannello "Componi menu" per preventivi con supporto N menu alternativi.
 // Un preventivo puo' avere 1..N menu che il cliente sceglie: i prezzi sono
 // sempre a persona; il backend decide il totale (0 menu → solo extra,
@@ -10,6 +11,10 @@
 // v1.1 (sess 36): supporto preventivoId=null con onEnsureSaved() → bozza auto.
 // v2.0 (sess 39): refactor completo per menu multipli.
 // v2.1 (sess 39): "💾 Salva come template" + "📂 Carica template" (mig 080).
+// v2.3 (2026-10-16, mig 187): ogni menu ha la modalita' di prezzo «Somma piatti» o
+//   «A corpo» (prezzo a persona a mano, doppio prezzo vino escluso/incluso opzionale);
+//   a corpo i piatti mostrano la portata al posto del prezzo. Con piu' menu si segna
+//   quello scelto dal cliente. Template con stagione, filtro e caricamento multiplo.
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -17,16 +22,33 @@ import { Btn } from "../../components/ui";
 
 const RIGA_QUICK_VUOTA = { name: "", description: "", price: 0, category_name: "" };
 
+// Portate proposte nei menu a corpo (testo libero ammesso)
+const PORTATE = ["Antipasto", "Primo", "Secondo", "Contorno", "Dolce"];
+
+const euro = (v) => (parseFloat(v) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Etichetta corta del prezzo per tab e lista template
+function prezzoBreve(m) {
+  if (m?.pricing_mode === "corpo" && m?.doppio_prezzo) {
+    return `€${parseFloat(m.prezzo_corpo || 0)}/${parseFloat(m.prezzo_corpo_vino || 0)}`;
+  }
+  return parseFloat(m?.prezzo_persona || 0) > 0 ? `€${parseFloat(m.prezzo_persona)}` : "";
+}
+
 export default function PreventivoMenuComposer({
   preventivoId,
   nPersone,
   onEnsureSaved,       // async () => pid | null
-  onTotaleMenuChange,  // callback({menu_subtotale, menu_sconto, menu_prezzo_persona, n_menu})
+  onTotaleMenuChange,  // callback({menu_subtotale, menu_sconto, menu_prezzo_persona, n_menu, menus, menu_scelto_id})
   onToast,
 }) {
   // ── Stato menu multipli ──
   const [menus, setMenus] = useState([]); // [{id, nome, sort_order, sconto, subtotale, prezzo_persona, righe:[...]}]
   const [activeMenuId, setActiveMenuId] = useState(null);
+  // Ref per leggere il tab attivo dentro loadWithId (callback stabile): prima
+  // sconto e prezzi locali si riallineavano sempre al primo menu dopo un reload.
+  const activeMenuIdRef = useRef(null);
+  useEffect(() => { activeMenuIdRef.current = activeMenuId; }, [activeMenuId]);
   const [loading, setLoading] = useState(true);
 
   // ── Editing nome tab ──
@@ -35,6 +57,11 @@ export default function PreventivoMenuComposer({
   // ── Sconto local (per menu attivo) ──
   const [scontoLocal, setScontoLocal] = useState(0);
   const scontoTimer = useRef(null);
+
+  // ── Prezzo a corpo local (mig 187) ──
+  const [corpoLocal, setCorpoLocal] = useState({ prezzo_corpo: 0, prezzo_corpo_vino: 0 });
+  const corpoTimer = useRef(null);
+  const [menuSceltoId, setMenuSceltoId] = useState(null);
 
   // Picker piatti
   const [showPicker, setShowPicker] = useState(false);
@@ -56,6 +83,8 @@ export default function PreventivoMenuComposer({
   const [saveTplNome, setSaveTplNome] = useState("");
   const [saveTplDescrizione, setSaveTplDescrizione] = useState("");
   const [saveTplServiceId, setSaveTplServiceId] = useState("");
+  const [saveTplStagione, setSaveTplStagione] = useState("");
+  const [stagioni, setStagioni] = useState([]);
 
   // ── Dialog Carica template ──
   const [showLoadTpl, setShowLoadTpl] = useState(false);
@@ -64,6 +93,8 @@ export default function PreventivoMenuComposer({
   const [tplFilterServiceId, setTplFilterServiceId] = useState("");
   const [tplSearchText, setTplSearchText] = useState("");
   const [tplSostituisci, setTplSostituisci] = useState(true);
+  const [tplFilterStagione, setTplFilterStagione] = useState("");
+  const [tplSelezionati, setTplSelezionati] = useState([]); // id template spuntati
 
   // ── Refs parent callbacks ──
   const onToastRef = useRef(onToast);
@@ -84,10 +115,15 @@ export default function PreventivoMenuComposer({
   }, [menus, activeMenuId]);
 
   const righe = useMemo(() => (activeMenu?.righe || []), [activeMenu]);
-  const subtotale = parseFloat(activeMenu?.subtotale || 0);
+  const isCorpo = activeMenu?.pricing_mode === "corpo";
+  const isDoppio = isCorpo && !!activeMenu?.doppio_prezzo;
+  const corpoBase = isDoppio && activeMenu?.prezzo_corpo_scelta === "incluso"
+    ? parseFloat(corpoLocal.prezzo_corpo_vino) || 0
+    : parseFloat(corpoLocal.prezzo_corpo) || 0;
+  const subtotale = isCorpo ? corpoBase : parseFloat(activeMenu?.subtotale || 0);
   const prezzoPersona = Math.max(0, subtotale - (parseFloat(scontoLocal) || 0));
 
-  const notifyParent = useCallback((menusList) => {
+  const notifyParent = useCallback((menusList, sceltoId = null) => {
     const primary = (menusList || [])[0];
     if (onTotaleMenuChangeRef.current) {
       onTotaleMenuChangeRef.current({
@@ -97,7 +133,9 @@ export default function PreventivoMenuComposer({
         menu_prezzo_persona: primary ? parseFloat(primary.prezzo_persona || 0) : 0,
         menus: (menusList || []).map((m) => ({
           id: m.id, nome: m.nome, prezzo_persona: parseFloat(m.prezzo_persona || 0),
+          pricing_mode: m.pricing_mode, prezzo_etichetta: m.prezzo_etichetta,
         })),
+        menu_scelto_id: sceltoId,
       });
     }
   }, []);
@@ -115,10 +153,15 @@ export default function PreventivoMenuComposer({
         if (curr && list.find((m) => m.id === curr)) return curr;
         return list[0]?.id || null;
       });
-      // Allinea sconto locale col menu attivo (o primo)
-      const current = list.find((m) => m.id === activeMenuId) || list[0];
+      // Allinea sconto e prezzi a corpo locali col menu attivo (o primo)
+      const current = list.find((m) => m.id === activeMenuIdRef.current) || list[0];
       setScontoLocal(parseFloat(current?.sconto || 0));
-      notifyParent(list);
+      setCorpoLocal({
+        prezzo_corpo: parseFloat(current?.prezzo_corpo || 0),
+        prezzo_corpo_vino: parseFloat(current?.prezzo_corpo_vino || 0),
+      });
+      setMenuSceltoId(rPrev?.menu_scelto_id || null);
+      notifyParent(list, rPrev?.menu_scelto_id || null);
     } catch {
       toast("Errore caricamento menu", true);
     } finally {
@@ -135,7 +178,12 @@ export default function PreventivoMenuComposer({
 
   // Sincronizza scontoLocal quando cambia il menu attivo (via click tab)
   useEffect(() => {
-    if (activeMenu) setScontoLocal(parseFloat(activeMenu.sconto || 0));
+    if (!activeMenu) return;
+    setScontoLocal(parseFloat(activeMenu.sconto || 0));
+    setCorpoLocal({
+      prezzo_corpo: parseFloat(activeMenu.prezzo_corpo || 0),
+      prezzo_corpo_vino: parseFloat(activeMenu.prezzo_corpo_vino || 0),
+    });
   }, [activeMenuId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Risolvi pid (con eventuale bozza auto) ──
@@ -281,6 +329,7 @@ export default function PreventivoMenuComposer({
     setSaveTplNome(defaultName);
     setSaveTplDescrizione("");
     setSaveTplServiceId("");
+    setSaveTplStagione(stagioni[0] || "");
     setShowSaveTpl(true);
   };
 
@@ -301,19 +350,30 @@ export default function PreventivoMenuComposer({
             nome,
             descrizione: (saveTplDescrizione || "").trim() || null,
             service_type_id: saveTplServiceId ? parseInt(saveTplServiceId, 10) : null,
+            stagione: (saveTplStagione || "").trim() || null,
           }),
         },
       );
       if (!res.ok) throw new Error("Errore salvataggio template");
       const t = await res.json();
       setShowSaveTpl(false);
+      loadStagioni();
       toast(`💾 Template salvato: ${t.nome}`);
     } catch (e) {
       toast(e.message || "Errore salvataggio template", true);
     }
   };
 
+  const loadStagioni = useCallback(() => {
+    apiFetch(`${API_BASE}/menu-templates/stagioni`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => setStagioni(Array.isArray(d?.items) ? d.items : []))
+      .catch(() => setStagioni([]));
+  }, []);
+  useEffect(() => { loadStagioni(); }, [loadStagioni]);
+
   const openLoadTplDialog = async () => {
+    setTplSelezionati([]);
     setShowLoadTpl(true);
     await reloadTplList();
   };
@@ -324,6 +384,7 @@ export default function PreventivoMenuComposer({
       const qs = new URLSearchParams();
       if (tplFilterServiceId) qs.set("service_type_id", tplFilterServiceId);
       if (tplSearchText) qs.set("q", tplSearchText);
+      if (tplFilterStagione) qs.set("stagione", tplFilterStagione);
       const url = `${API_BASE}/menu-templates/${qs.toString() ? "?" + qs.toString() : ""}`;
       const res = await apiFetch(url);
       if (!res.ok) throw new Error("Errore caricamento template");
@@ -342,7 +403,7 @@ export default function PreventivoMenuComposer({
     const t = setTimeout(() => { reloadTplList(); }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tplFilterServiceId, tplSearchText, showLoadTpl]);
+  }, [tplFilterServiceId, tplSearchText, tplFilterStagione, showLoadTpl]);
 
   const applyTpl = async (templateId) => {
     const pid = await resolvePid();
@@ -370,6 +431,90 @@ export default function PreventivoMenuComposer({
       toast(tplSostituisci ? "📂 Template caricato" : "➕ Righe template aggiunte");
     } catch (e) {
       toast(e.message || "Errore applicazione template", true);
+    }
+  };
+
+  // Piu' template in un colpo: un menu alternativo per ognuno (mig 187)
+  const applyTplMulti = async () => {
+    if (tplSelezionati.length === 0) return;
+    const pid = await resolvePid();
+    if (!pid) { toast("Impossibile creare bozza", true); return; }
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu/da-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template_ids: tplSelezionati }),
+      });
+      if (!res.ok) throw new Error("Errore caricamento template");
+      await loadWithId(pid);
+      setShowLoadTpl(false);
+      toast(`📂 ${tplSelezionati.length} menu aggiunti come alternative`);
+      setTplSelezionati([]);
+    } catch (e) {
+      toast(e.message || "Errore caricamento template", true);
+    }
+  };
+
+  const toggleTplSel = (id) => {
+    setTplSelezionati((curr) => (curr.includes(id) ? curr.filter((x) => x !== id) : [...curr, id]));
+  };
+
+  // ── Modalita' di prezzo del menu attivo (mig 187) ──
+  const putMenu = async (fields) => {
+    const pid = await resolvePid();
+    if (!pid || !activeMenu) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu/${activeMenu.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio prezzo");
+      await loadWithId(pid);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+
+  const pushCorpo = (campo, val) => {
+    setCorpoLocal((c) => ({ ...c, [campo]: val }));
+    if (corpoTimer.current) clearTimeout(corpoTimer.current);
+    corpoTimer.current = setTimeout(() => {
+      putMenu({ [campo]: parseFloat(val) || 0 });
+    }, 400);
+  };
+
+  // Menu scelto dal cliente tra le alternative (null = non ha ancora scelto)
+  const setScelto = async (menuId) => {
+    const pid = await resolvePid();
+    if (!pid) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ menu_scelto_id: menuId || 0 }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio scelta");
+      await loadWithId(pid);
+      toast(menuId ? "✓ Menu scelto dal cliente" : "Scelta tolta: il cliente sceglie ancora");
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+
+  // ── Portata (categoria) di una riga — usata nei menu a corpo ──
+  const updateCategoria = async (riga, cat) => {
+    if (!preventivoId) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-righe/${riga.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category_name: (cat || "").trim() || null }),
+      });
+      if (!res.ok) throw new Error("Errore aggiornamento portata");
+      await loadWithId(preventivoId);
+    } catch (e) {
+      toast(e.message, true);
     }
   };
 
@@ -585,10 +730,16 @@ export default function PreventivoMenuComposer({
                   onDoubleClick={() => setEditingNameId(m.id)}
                   title={isActive ? "Doppio click per rinominare" : "Clicca per selezionare"}
                   className={`text-sm px-3 py-1.5 font-medium whitespace-nowrap ${isActive ? "text-neutral-900" : ""}`}>
+                  {menuSceltoId === m.id && <span className="mr-1 text-emerald-600" title="Scelto dal cliente">✓</span>}
                   {m.nome || "Menu"}
                   {(m.righe || []).length > 0 && (
                     <span className={`ml-1.5 text-[10px] ${isActive ? "text-indigo-600" : "text-neutral-400"}`}>
                       {(m.righe || []).length}
+                    </span>
+                  )}
+                  {prezzoBreve(m) && (
+                    <span className={`ml-1.5 text-[10px] ${isActive ? "text-neutral-500" : "text-neutral-400"}`}>
+                      {m.pricing_mode === "corpo" ? "🏷️" : ""}{prezzoBreve(m)}
                     </span>
                   )}
                 </button>
@@ -675,9 +826,11 @@ export default function PreventivoMenuComposer({
                     <div className="text-[10px] text-neutral-400 uppercase tracking-wide mt-0.5">{p.category_name}</div>
                   )}
                 </div>
-                <div className="text-sm font-semibold text-indigo-700 whitespace-nowrap">
-                  €{(parseFloat(p.selling_price) || 0).toFixed(2)}
-                </div>
+                {!isCorpo && (
+                  <div className="text-sm font-semibold text-indigo-700 whitespace-nowrap">
+                    €{(parseFloat(p.selling_price) || 0).toFixed(2)}
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -687,19 +840,21 @@ export default function PreventivoMenuComposer({
       {/* ── Dialog piatto veloce ── */}
       {showQuick && (
         <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3 space-y-2">
-          <div className="grid grid-cols-[1fr_140px_120px] gap-2">
+          <div className={`grid gap-2 ${isCorpo ? "grid-cols-[1fr_160px]" : "grid-cols-[1fr_140px_120px]"}`}>
             <input type="text" value={quick.name}
               onChange={(e) => setQuick({ ...quick, name: e.target.value })}
               placeholder="Nome piatto *"
               className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white" />
-            <input type="text" value={quick.category_name}
+            <input type="text" value={quick.category_name} list="preventivo-portate"
               onChange={(e) => setQuick({ ...quick, category_name: e.target.value })}
-              placeholder="Categoria"
+              placeholder={isCorpo ? "Portata" : "Categoria"}
               className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white" />
-            <input type="number" min="0" step="0.5" value={quick.price}
-              onChange={(e) => setQuick({ ...quick, price: e.target.value })}
-              placeholder="Prezzo €"
-              className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white text-right" />
+            {!isCorpo && (
+              <input type="number" min="0" step="0.5" value={quick.price}
+                onChange={(e) => setQuick({ ...quick, price: e.target.value })}
+                placeholder="Prezzo €"
+                className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white text-right" />
+            )}
           </div>
           <textarea value={quick.description}
             onChange={(e) => setQuick({ ...quick, description: e.target.value })}
@@ -751,6 +906,16 @@ export default function PreventivoMenuComposer({
                         <span className="inline-block text-[9px] uppercase tracking-wider text-neutral-400 mt-0.5">⚡ veloce</span>
                       )}
                     </div>
+                    {isCorpo ? (
+                      <select value={r.category_name || ""} title="Portata"
+                        onChange={(e) => updateCategoria(r, e.target.value)}
+                        className="w-28 border border-neutral-200 rounded px-1.5 py-1 text-xs bg-white text-neutral-700">
+                        <option value="">— Portata —</option>
+                        {[...PORTATE, ...(r.category_name && !PORTATE.includes(r.category_name) ? [r.category_name] : [])].map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    ) : (
                     <div className="w-20 text-right">
                       {editingPrice === r.id ? (
                         <input type="number" min="0" step="0.5" defaultValue={r.price}
@@ -765,6 +930,7 @@ export default function PreventivoMenuComposer({
                         </button>
                       )}
                     </div>
+                    )}
                     <div className="flex items-center gap-0.5 w-16 justify-end">
                       <button type="button" onClick={() => sposta(idxGlobal, -1)} disabled={idxGlobal === 0}
                         className="text-neutral-300 hover:text-neutral-500 disabled:opacity-30 text-sm px-1">▲</button>
@@ -781,26 +947,97 @@ export default function PreventivoMenuComposer({
         </div>
       )}
 
+      <datalist id="preventivo-portate">
+        {PORTATE.map((c) => <option key={c} value={c} />)}
+      </datalist>
+
       {/* ── Riepilogo prezzi (menu attivo) ── */}
       {activeMenu && (
-        <div className="pt-3 border-t border-neutral-200 space-y-1 text-sm">
-          <div className="flex justify-between text-neutral-600">
-            <span>Subtotale "{activeMenu.nome}" ({righe.length} {righe.length === 1 ? "piatto" : "piatti"}, per 1 persona)</span>
-            <span className="font-medium">€{subtotale.toFixed(2)}</span>
+        <div className="pt-3 border-t border-neutral-200 space-y-2 text-sm">
+          {/* Modalita' di prezzo (mig 187) */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-neutral-600">Prezzo di "{activeMenu.nome}"</span>
+            <div className="inline-flex rounded-lg border border-neutral-300 overflow-hidden">
+              {[["somma", "Somma piatti"], ["corpo", "A corpo"]].map(([val, label]) => (
+                <button key={val} type="button"
+                  onClick={() => { if ((activeMenu.pricing_mode || "somma") !== val) putMenu({ pricing_mode: val }); }}
+                  className={`px-3 py-1.5 text-xs font-medium min-h-[36px] ${(activeMenu.pricing_mode || "somma") === val
+                    ? "bg-indigo-600 text-white" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {isCorpo ? (
+            <div className="bg-indigo-50/40 border border-indigo-200 rounded-lg p-3 space-y-2">
+              <div className="flex justify-between items-center gap-2">
+                <label className="text-neutral-700">
+                  Prezzo a persona (€){isDoppio && <span className="text-neutral-500"> — vino escluso</span>}
+                </label>
+                <input type="number" min="0" step="0.5" value={corpoLocal.prezzo_corpo}
+                  onChange={(e) => pushCorpo("prezzo_corpo", e.target.value)}
+                  className="w-28 border border-neutral-300 rounded-lg px-2 py-1 text-sm text-right bg-white" />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-neutral-700">
+                <input type="checkbox" checked={isDoppio}
+                  onChange={(e) => putMenu({ doppio_prezzo: e.target.checked })} />
+                Doppio prezzo: vino escluso / vino incluso
+              </label>
+              {isDoppio && (
+                <>
+                  <div className="flex justify-between items-center gap-2">
+                    <label className="text-neutral-700">Prezzo a persona (€) — <span className="text-neutral-500">vino incluso</span></label>
+                    <input type="number" min="0" step="0.5" value={corpoLocal.prezzo_corpo_vino}
+                      onChange={(e) => pushCorpo("prezzo_corpo_vino", e.target.value)}
+                      className="w-28 border border-neutral-300 rounded-lg px-2 py-1 text-sm text-right bg-white" />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-neutral-600">Nel totale uso il prezzo</span>
+                    <div className="inline-flex rounded-lg border border-neutral-300 overflow-hidden">
+                      {[["escluso", "vino escluso"], ["incluso", "vino incluso"]].map(([val, label]) => (
+                        <button key={val} type="button"
+                          onClick={() => { if ((activeMenu.prezzo_corpo_scelta || "escluso") !== val) putMenu({ prezzo_corpo_scelta: val }); }}
+                          className={`px-2.5 py-1 font-medium min-h-[32px] ${(activeMenu.prezzo_corpo_scelta || "escluso") === val
+                            ? "bg-indigo-600 text-white" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              <p className="text-[11px] text-neutral-500">
+                I piatti restano come portate: il loro prezzo non conta e al cliente non si mostra.
+              </p>
+            </div>
+          ) : (
+            <div className="flex justify-between text-neutral-600">
+              <span>Subtotale "{activeMenu.nome}" ({righe.length} {righe.length === 1 ? "piatto" : "piatti"}, per 1 persona)</span>
+              <span className="font-medium">€{subtotale.toFixed(2)}</span>
+            </div>
+          )}
+
           <div className="flex justify-between items-center">
-            <label className="text-neutral-600">Sconto menu (€)</label>
+            <label className="text-neutral-600">Sconto menu a persona (€)</label>
             <input type="number" min="0" step="0.5" value={scontoLocal}
               onChange={(e) => pushSconto(e.target.value)}
               className="w-28 border border-neutral-300 rounded-lg px-2 py-1 text-sm text-right" />
           </div>
           <div className="flex justify-between text-base font-semibold text-neutral-900 pt-1 border-t border-neutral-100">
             <span>Prezzo "{activeMenu.nome}" a persona</span>
-            <span className="text-indigo-700">€{prezzoPersona.toFixed(2)}</span>
+            <span className="text-indigo-700">
+              {isDoppio
+                ? `€${euro(Math.max(0, (parseFloat(corpoLocal.prezzo_corpo) || 0) - (parseFloat(scontoLocal) || 0)))} / €${euro(Math.max(0, (parseFloat(corpoLocal.prezzo_corpo_vino) || 0) - (parseFloat(scontoLocal) || 0)))}`
+                : `€${prezzoPersona.toFixed(2)}`}
+            </span>
           </div>
           {nPersone ? (
             <div className="flex justify-between text-sm font-semibold text-neutral-900 pt-1">
-              <span>Totale "{activeMenu.nome}" × {nPersone} coperti</span>
+              <span>
+                Totale "{activeMenu.nome}" × {nPersone} coperti
+                {isDoppio && <span className="font-normal text-neutral-500"> (vino {activeMenu.prezzo_corpo_scelta === "incluso" ? "incluso" : "escluso"})</span>}
+              </span>
               <span className="text-indigo-700">€{(prezzoPersona * Number(nPersone)).toFixed(2)}</span>
             </div>
           ) : (
@@ -809,10 +1046,20 @@ export default function PreventivoMenuComposer({
             </p>
           )}
           {hasMultipleMenus && (
-            <p className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1 mt-1">
-              Con {menus.length} menu alternativi il totale del preventivo non viene sommato:
-              sul PDF compaiono le opzioni A, B, C… e il cliente sceglie quella che preferisce.
-            </p>
+            <div className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1.5 mt-1 flex items-center justify-between gap-2 flex-wrap">
+              <span>
+                {menuSceltoId
+                  ? <>Il cliente ha scelto <strong>{menus.find((m) => m.id === menuSceltoId)?.nome}</strong>: il totale del preventivo usa quel menu.</>
+                  : <>{menus.length} menu alternativi: finché il cliente non sceglie, il totale si mostra «da … a …». Sul PDF compaiono le opzioni A, B, C…</>}
+              </span>
+              {menuSceltoId === activeMenu.id ? (
+                <Btn variant="ghost" size="sm" type="button" onClick={() => setScelto(null)}>Togli scelta</Btn>
+              ) : (
+                <Btn variant="chip" tone="emerald" size="sm" type="button" onClick={() => setScelto(activeMenu.id)}>
+                  ✓ Scelto dal cliente
+                </Btn>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -849,6 +1096,19 @@ export default function PreventivoMenuComposer({
                   <option key={st.id} value={st.id}>{st.name}</option>
                 ))}
               </select>
+              <label className="block text-xs font-medium text-neutral-700 mt-2">Stagione</label>
+              <input type="text" value={saveTplStagione} list="menu-template-stagioni"
+                onChange={(e) => setSaveTplStagione(e.target.value)}
+                placeholder="Es. Autunno-Inverno 2026"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+              <datalist id="menu-template-stagioni">
+                {stagioni.map((st) => <option key={st} value={st} />)}
+              </datalist>
+              {isCorpo && (
+                <p className="text-[11px] text-neutral-500">
+                  Salvo anche il prezzo a corpo ({activeMenu?.prezzo_etichetta}) e le portate.
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Btn variant="ghost" size="sm" type="button" onClick={() => setShowSaveTpl(false)}>
@@ -870,15 +1130,15 @@ export default function PreventivoMenuComposer({
               <div>
                 <h3 className="text-base font-semibold text-neutral-900">📂 Carica template</h3>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Scegli un menu dalla libreria. Le righe verranno copiate come snapshot nel menu
-                  "{activeMenu?.nome || "corrente"}".
+                  «Applica» copia un template nel menu "{activeMenu?.nome || "corrente"}".
+                  Oppure spunta più template e aggiungili come menu alternativi, uno per tab.
                 </p>
               </div>
               <button type="button" onClick={() => setShowLoadTpl(false)}
                 className="text-sm px-2 py-1 rounded hover:bg-neutral-100">✕</button>
             </div>
 
-            <div className="grid grid-cols-[1fr_220px] gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px_180px] gap-2">
               <input type="search" value={tplSearchText}
                 onChange={(e) => setTplSearchText(e.target.value)}
                 placeholder="Cerca per nome o descrizione…"
@@ -890,6 +1150,12 @@ export default function PreventivoMenuComposer({
                 {serviceTypes.filter((st) => st.active).map((st) => (
                   <option key={st.id} value={st.id}>{st.name}</option>
                 ))}
+              </select>
+              <select value={tplFilterStagione}
+                onChange={(e) => setTplFilterStagione(e.target.value)}
+                className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                <option value="">Tutte le stagioni</option>
+                {stagioni.map((st) => <option key={st} value={st}>{st}</option>)}
               </select>
             </div>
 
@@ -912,17 +1178,24 @@ export default function PreventivoMenuComposer({
               ) : (
                 <ul className="divide-y divide-neutral-100">
                   {tplList.map((t) => (
-                    <li key={t.id}>
+                    <li key={t.id} className={`flex items-stretch ${tplSelezionati.includes(t.id) ? "bg-amber-50/70" : ""}`}>
+                      <label className="flex items-center px-3 cursor-pointer" title="Seleziona per aggiungere come alternativa">
+                        <input type="checkbox" checked={tplSelezionati.includes(t.id)}
+                          onChange={() => toggleTplSel(t.id)} className="w-4 h-4" />
+                      </label>
                       <button type="button" onClick={() => applyTpl(t.id)}
-                        className="w-full text-left px-3 py-2.5 hover:bg-amber-50 transition flex items-start gap-3">
+                        className="flex-1 text-left pr-3 py-2.5 hover:bg-amber-50 transition flex items-start gap-3 min-h-[44px]">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-neutral-900 truncate">{t.nome}</div>
                           <div className="text-xs text-neutral-500 flex flex-wrap gap-x-2">
                             {t.service_type_name && (
                               <span className="text-amber-700">🍽️ {t.service_type_name}</span>
                             )}
+                            {t.stagione && <span className="text-indigo-700">🗓️ {t.stagione}</span>}
                             <span>{t.n_righe || 0} righ{t.n_righe === 1 ? "a" : "e"}</span>
-                            {t.prezzo_persona > 0 && (
+                            {t.pricing_mode === "corpo" ? (
+                              <span>🏷️ a corpo {prezzoBreve(t)}/pax{t.doppio_prezzo ? " (vino escl./incl.)" : ""}</span>
+                            ) : t.prezzo_persona > 0 && (
                               <span>€ {parseFloat(t.prezzo_persona).toFixed(2)}/pax</span>
                             )}
                           </div>
@@ -936,6 +1209,16 @@ export default function PreventivoMenuComposer({
                   ))}
                 </ul>
               )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-xs text-neutral-500">
+                {tplSelezionati.length > 0 ? `${tplSelezionati.length} selezionati` : "Nessun template selezionato"}
+              </span>
+              <Btn variant="chip" tone="amber" size="md" type="button"
+                disabled={tplSelezionati.length === 0} onClick={applyTplMulti}>
+                ➕ Aggiungi come alternative
+              </Btn>
             </div>
           </div>
         </div>

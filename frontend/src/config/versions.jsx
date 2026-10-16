@@ -385,12 +385,17 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.2 (2026-10-16): Preventivi — prezzo «a corpo» per menu (anche doppio vino
+    //   escluso/incluso), portate al posto dei prezzi dei piatti, menu scelto dal
+    //   cliente e totale «da X a Y» finche' non sceglie, template con stagione e
+    //   caricamento di piu' template come alternative, testo per WhatsApp/email.
+    //   Fix: libreria menu template (403 a tutti + 500 su service_types.code).
     // 3.1 (2026-08-08): Gift Card — emissione (a valore o esperienza), codice
     //   univoco leggibile, verifica al banco per codice, scarico a uso unico,
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.1",
+    version: "3.2",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -517,6 +522,8 @@ const MODULE_VERSIONS = {
     // 5.46 (2026-10-08): mattone M.K — connettore MCP di claude.ai su /mcp
     //   (OAuth 2.1 con utente e PIN TRGB, solo admin), strumenti pratiche,
     //   connettore.sqlite3 (schema al boot). Doc: docs/connettore_mcp.md.
+    // 5.51 (2026-10-16): mig 187 — preventivi: prezzo «a corpo» per menu (doppio vino
+    //   escluso/incluso), menu scelto dal cliente, stagione sui menu template (clienti 3.2).
     // 5.50 (2026-10-10): mig 186 — bevande_sezioni.ipratico, Carta Bevande su iPratico (vini 3.98).
     // 5.49 (2026-10-10): mig 185 — calcolo prezzo su amari_liquori (vini 3.96).
     // 5.48 (2026-10-10): mig 184 — bevande_voci.accisa_bottiglia (vini 3.95).
@@ -530,7 +537,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.50",
+    version: "5.51",
     label: "Sistema",
     status: "stabile",
     color: "green",

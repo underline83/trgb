@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
 
-from app.services.auth_service import get_current_user, is_admin
+from app.services.auth_service import get_current_user
 from app.services.menu_templates_service import (
     lista_templates,
     get_template,
@@ -25,9 +25,11 @@ from app.services.menu_templates_service import (
     riordina_righe_template,
     salva_menu_come_template,
     applica_template_a_menu,
+    crea_menu_da_templates,
+    lista_stagioni,
 )
 
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import richiede_ruoli, verifica_ruoli
 
 # PERMESSI (2026-09-01, M.G) — template menu
 # Letti dal composer del menu preventivo, che sta nel modulo clienti: da li' ci arrivano sala, sommelier e contabile.
@@ -41,8 +43,9 @@ router = APIRouter(prefix="/menu-templates", tags=["Menu Templates"],
 
 
 def _require_admin(user: dict):
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Solo admin")
+    # Fix 2026-10-16: prima chiamava is_admin(user) col dict intero → 403 a tutti,
+    # admin compreso (modulo_preventivi.md §12.1). Ora M.G, superadmin implicito.
+    verifica_ruoli(user, "admin", cosa="libreria menu template")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -63,6 +66,12 @@ class MenuTemplateCreateIn(BaseModel):
     service_type_id: Optional[int] = None
     prezzo_persona: Optional[float] = 0
     sconto: Optional[float] = 0
+    # Mig 187
+    pricing_mode: Optional[str] = None
+    prezzo_corpo: Optional[float] = None
+    prezzo_corpo_vino: Optional[float] = None
+    doppio_prezzo: Optional[bool] = None
+    stagione: Optional[str] = None
     righe: Optional[List[MenuTemplateRigaIn]] = None
 
 
@@ -72,6 +81,11 @@ class MenuTemplateUpdateIn(BaseModel):
     service_type_id: Optional[int] = None
     prezzo_persona: Optional[float] = None
     sconto: Optional[float] = None
+    pricing_mode: Optional[str] = None
+    prezzo_corpo: Optional[float] = None
+    prezzo_corpo_vino: Optional[float] = None
+    doppio_prezzo: Optional[bool] = None
+    stagione: Optional[str] = None   # stringa vuota = togli la stagione
 
 
 class MenuTemplateDuplicaIn(BaseModel):
@@ -86,6 +100,12 @@ class SalvaMenuComeTemplateIn(BaseModel):
     nome: str
     descrizione: Optional[str] = None
     service_type_id: Optional[int] = None
+    stagione: Optional[str] = None   # mig 187
+
+
+class CaricaTemplatesIn(BaseModel):
+    """Mig 187: piu' template in un colpo, ognuno diventa un menu alternativo."""
+    template_ids: List[int]
 
 
 class ApplicaTemplateIn(BaseModel):
@@ -103,9 +123,16 @@ class ApplicaTemplateIn(BaseModel):
 def api_lista_templates(
     service_type_id: Optional[int] = Query(None),
     q: Optional[str] = Query(None),
+    stagione: Optional[str] = Query(None),
     user: dict = Depends(get_current_user),
 ):
-    return {"items": lista_templates(service_type_id=service_type_id, q=q)}
+    return {"items": lista_templates(service_type_id=service_type_id, q=q, stagione=stagione)}
+
+
+@router.get("/stagioni")
+def api_lista_stagioni(user: dict = Depends(get_current_user)):
+    """Stagioni gia' usate nei template (mig 187), per filtro e suggerimenti."""
+    return {"items": lista_stagioni()}
 
 
 @router.get("/{template_id}")
@@ -228,6 +255,7 @@ def api_salva_come_template(
         nome=body.nome,
         descrizione=body.descrizione,
         service_type_id=body.service_type_id,
+        stagione=body.stagione,
     )
     if not t:
         raise HTTPException(
@@ -259,3 +287,17 @@ def api_carica_template(
             detail="Template o menu non trovato, oppure ownership non valida",
         )
     return m
+
+
+@preventivi_bridge_router.post("/{preventivo_id}/menu/da-template")
+def api_menu_da_templates(
+    preventivo_id: int,
+    body: CaricaTemplatesIn,
+    user: dict = Depends(get_current_user),
+):
+    """Mig 187: un menu alternativo per ogni template (es. i 5 menu gruppi)."""
+    _require_admin(user)
+    items = crea_menu_da_templates(preventivo_id, body.template_ids)
+    if items is None:
+        raise HTTPException(status_code=404, detail="Preventivo o template non trovato")
+    return {"items": items}

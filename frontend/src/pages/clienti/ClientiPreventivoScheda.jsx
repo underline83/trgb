@@ -1,15 +1,22 @@
-// @version: v1.4-mattoni — M.I primitives (Btn) su CTA principali (Salva/PDF/Duplica/Elimina/cambio stato)
+// @version: v1.5 — totale «da X a Y» con menu alternativi, testo cliente copia/WhatsApp (mig 187)
+// Modulo: clienti (sub-modulo preventivi)
 // Scheda singolo preventivo: testata + componi menu (snapshot da Cucina) + menu testuale + extra + totale
 // v1.1 (sessione 32): sezione Menu Proposto, cliente cerca/crea inline, luoghi configurabili
 // v1.2 (sessione 36): wizard "Componi menu" che pesca piatti dal Ricettario con snapshot immutabile
 // v1.3 (sessione 36, Opzione A): auto-save silenzioso (is_bozza_auto) quando si usa il
 // composer su URL /nuovo, cosi' il pannello funziona anche prima del salvataggio esplicito.
+// v1.5 (2026-10-16): con >= 2 menu e nessuna scelta il totale e' una forbice min–max;
+// col menu scelto dal cliente usa quello. «📋 Copia testo» e «💬 WhatsApp» (M.C) col
+// messaggio di GET /preventivi/{id}/testo (mai i prezzi dei singoli piatti).
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import PreventivoMenuComposer from "./PreventivoMenuComposer";
 import { Btn } from "../../components/ui";
+import { openWhatsApp } from "../../utils/whatsapp";
+
+const fmtEuro = (v) => (parseFloat(v) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const STATI_COLORI = {
   bozza:      "bg-neutral-100 text-neutral-600",
@@ -99,6 +106,8 @@ export default function ClientiPreventivoScheda() {
 
   // Menu snapshot (mig 075) — contatore per sapere se il prezzo/persona e' auto-calcolato
   const [menuSnapshot, setMenuSnapshot] = useState({ n_righe: 0, menu_subtotale: 0, menu_sconto: 0, menu_prezzo_persona: 0 });
+  // Menu alternativi (mig 187): elenco prezzi a persona + menu scelto dal cliente
+  const [menuAlt, setMenuAlt] = useState({ menus: [], menu_scelto_id: null });
 
   // Cliente: toggle cerca / crea nuovo
   const [clienteMode, setClienteMode] = useState("cerca"); // "cerca" | "nuovo"
@@ -286,6 +295,7 @@ export default function ClientiPreventivoScheda() {
     }));
     // Sincronizza il campo testata per il riepilogo "Subtotale menu"
     setForm((f) => ({ ...f, menu_prezzo_persona: parseFloat(data?.menu_prezzo_persona || 0) }));
+    setMenuAlt({ menus: data?.menus || [], menu_scelto_id: data?.menu_scelto_id || null });
   }, []);
 
   // Ricarico count righe dopo cambi nel composer (il composer ritorna solo totali, non n_righe)
@@ -301,13 +311,24 @@ export default function ClientiPreventivoScheda() {
 
   useEffect(() => { refreshMenuCount(); }, [refreshMenuCount]);
 
-  // Totale live: menu × pax + somma righe extra
-  const menuTot = (parseFloat(form.menu_prezzo_persona) || 0) * (parseFloat(form.n_persone) || 0);
+  // Totale live: menu × pax + somma righe extra.
+  // Con >= 2 menu: col menu scelto dal cliente usa quello, altrimenti forbice min–max (mig 187).
+  const pax = parseFloat(form.n_persone) || 0;
+  const menuScelto = menuAlt.menus.find((m) => m.id === menuAlt.menu_scelto_id);
+  const alternative = menuAlt.menus.length >= 2 && !menuScelto;
+  const prezzoMenuTot = menuScelto ? menuScelto.prezzo_persona : (parseFloat(form.menu_prezzo_persona) || 0);
+  const menuTot = prezzoMenuTot * pax;
+  const prezziAlt = menuAlt.menus.map((m) => m.prezzo_persona || 0);
+  const menuTotMin = alternative ? Math.min(...prezziAlt) * pax : menuTot;
+  const menuTotMax = alternative ? Math.max(...prezziAlt) * pax : menuTot;
   const extraTot = righe.reduce((sum, r) => {
     const sub = (parseFloat(r.qta) || 0) * (parseFloat(r.prezzo_unitario) || 0);
     return r.tipo_riga === "sconto" ? sum - Math.abs(sub) : sum + sub;
   }, 0);
   const totaleLive = menuTot + extraTot;
+  const totaleTesto = alternative && menuTotMin !== menuTotMax
+    ? `da €${fmtEuro(menuTotMin + extraTot)} a €${fmtEuro(menuTotMax + extraTot)}`
+    : `€${fmtEuro(alternative ? menuTotMin + extraTot : totaleLive)}`;
 
   // ── Salva ──
   const handleSalva = async () => {
@@ -418,6 +439,35 @@ export default function ClientiPreventivoScheda() {
   };
 
   // ── Scarica PDF (mattone M.B) ──
+  // Testo per il cliente (mig 187): stesso contenuto del PDF, dai dati salvati
+  const fetchTesto = async () => {
+    const res = await apiFetch(`${API_BASE}/preventivi/${prevId}/testo`);
+    if (!res.ok) throw new Error("Errore preparazione testo");
+    return res.json();
+  };
+
+  const handleCopiaTesto = async () => {
+    try {
+      const { testo } = await fetchTesto();
+      await navigator.clipboard.writeText(testo);
+      showToast("📋 Testo copiato (dati salvati)");
+    } catch (err) {
+      showToast(err.message || "Copia non riuscita", true);
+    }
+  };
+
+  const handleWhatsApp = async () => {
+    try {
+      const { testo, telefono } = await fetchTesto();
+      if (!openWhatsApp(telefono, testo)) {
+        await navigator.clipboard.writeText(testo);
+        showToast("Cliente senza telefono: testo copiato, incollalo tu", true);
+      }
+    } catch (err) {
+      showToast(err.message || "Errore WhatsApp", true);
+    }
+  };
+
   const handlePDF = async () => {
     try {
       const res = await apiFetch(`${API_BASE}/preventivi/${prevId}/pdf`);
@@ -738,10 +788,14 @@ export default function ClientiPreventivoScheda() {
 
                 <div className="flex items-baseline justify-between pt-2 border-t border-neutral-100">
                   <span className="text-xs text-neutral-500">
-                    {form.n_persone ? `${form.n_persone} coperti × €${(parseFloat(form.menu_prezzo_persona) || 0).toFixed(2)}` : "Imposta N. persone per calcolare"}
+                    {!form.n_persone ? "Imposta N. persone per calcolare"
+                      : alternative ? `${form.n_persone} coperti × ${menuAlt.menus.length} menu alternativi`
+                      : `${form.n_persone} coperti × €${prezzoMenuTot.toFixed(2)}${menuScelto ? ` (${menuScelto.nome})` : ""}`}
                   </span>
                   <span className="text-sm font-semibold text-neutral-900">
-                    Subtotale menu: €{menuTot.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    Subtotale menu: {alternative && menuTotMin !== menuTotMax
+                      ? `da €${fmtEuro(menuTotMin)} a €${fmtEuro(menuTotMax)}`
+                      : `€${fmtEuro(menuTotMin)}`}
                   </span>
                 </div>
               </div>
@@ -822,9 +876,7 @@ export default function ClientiPreventivoScheda() {
                   )}
                   <div className="flex justify-end items-baseline">
                     <span className="text-xs text-neutral-500 mr-3">TOTALE</span>
-                    <span className="text-xl font-bold text-indigo-700">
-                      €{totaleLive.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
+                    <span className="text-xl font-bold text-indigo-700">{totaleTesto}</span>
                   </div>
                 </div>
               </div>
@@ -892,6 +944,16 @@ export default function ClientiPreventivoScheda() {
                       📥 Scarica PDF
                     </Btn>
 
+                    <Btn variant="chip" tone="emerald" size="sm" onClick={handleWhatsApp} className="w-full justify-start"
+                      title="Apre WhatsApp sul telefono del cliente col testo del preventivo (dati salvati)">
+                      💬 WhatsApp
+                    </Btn>
+
+                    <Btn variant="ghost" size="sm" onClick={handleCopiaTesto} className="w-full justify-start"
+                      title="Copia il testo del preventivo, per email o altro (dati salvati)">
+                      📋 Copia testo
+                    </Btn>
+
                     <Btn variant="ghost" size="sm" onClick={handleDuplica} className="w-full justify-start">
                       📄 Duplica
                     </Btn>
@@ -915,6 +977,12 @@ export default function ClientiPreventivoScheda() {
               <button onClick={() => handleCambiaStato(transizioniDisp[0])}
                 className="px-4 py-2.5 border border-neutral-300 rounded-lg text-sm">
                 → {STATI_LABEL[transizioniDisp[0]]}
+              </button>
+            )}
+            {!isNew && (
+              <button onClick={handleWhatsApp} title="WhatsApp al cliente"
+                className="px-4 py-2.5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-sm">
+                💬
               </button>
             )}
           </div>

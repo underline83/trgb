@@ -627,7 +627,8 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.1 | Mailchimp sync MVP | M | ✅ FATTO | Endpoint /clienti/mailchimp/status + /sync. Vedi `ClientiMailchimp.jsx` v1.1 |
 | CL.2 | Mailchimp v2 (sync bidirezionale + webhook + filtri pre-sync + log audit) | M-L | MEDIA | Da valutare se serve davvero |
 | CL.3 | Compleanni WA/email automatici (M.C + M.D) | S | ALTA | M.D blocca |
-| CL.4 | Preventivi Fase C — invio email + WA (M.C + M.D) | M | ALTA | M.D blocca |
+| CL.4 | Preventivi Fase C — invio email + WA (M.C + M.D) | M | 🟡 PARZIALE 2026-10-16 | Testo pronto (`GET /preventivi/{id}/testo`) + «💬 WhatsApp» via M.C + «📋 Copia testo». Manca l'invio email (M.D) e il PDF allegato |
+| CL.15 | Preventivi: prezzo «a corpo» per menu (doppio vino escluso/incluso), menu scelto + totale «da X a Y», stagione e caricamento multiplo dei menu template | M | ✅ FATTO 2026-10-16 | Mig 187, clienti 3.2, sistema 5.51. Fix libreria template (403 + 500) |
 | CL.5 | Preventivi Fase D — versioning + collegamento prenotazione | S | ALTA | M.A |
 | CL.6 | WA link rapido scheda cliente (migrare a M.C) | S | MEDIA | |
 | CL.7 | Note rapide inline da lista clienti | S | MEDIA | Popup |
@@ -668,7 +669,7 @@ Oggi il connettore (M.K) espone solo le pratiche: per tutto il resto Claude deve
 |----|------|--------|-------|------|
 | **MK.1** | **Dipendenti**: `dipendenti_elenco`, `dipendente_leggi`, `dipendente_aggiorna` (anagrafica, contatti, indirizzo, contratto/date), `dipendente_crea` | M | DA FARE — **prima** | Caso d'uso 2026-10-10: assunzione Giulia Spuri fatta navigando. Niente numeri di documenti d'identità via connettore; allegati restano dalla UI |
 | MK.2 | Scadenze / Controllo Gestione: elenco scadenze e rate, segna pagata, crea spesa una tantum | M | DA FARE | Allinea sb e TRGB (rate Fondo Est, Cerved, ecc.) |
-| MK.3 | Preventivi / eventi: elenco, leggi, crea bozza preventivo, segna caparra | M | DA FARE | Cene di gruppo (Tenaris, lauree…) |
+| MK.3 | Preventivi / eventi: elenco, leggi, crea bozza preventivo, segna caparra | M | DA FARE | Cene di gruppo (Tenaris, lauree…). Esporre anche i campi a corpo del menu (`pricing_mode`, `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `prezzo_corpo_scelta`), `menu_scelto_id`, stagione dei template e `testo_cliente()` (mig 187, già nel service) |
 | MK.4 | Fornitori e fatture: cerca fornitore, fatture aperte/non pagate | S | DA FARE | Solo lettura all'inizio |
 | MK.5 | Turni / chiamate intermittenti: leggi turni, registra chiamata | M | DA VALUTARE | |
 

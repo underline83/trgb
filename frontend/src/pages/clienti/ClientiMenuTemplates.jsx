@@ -1,4 +1,5 @@
-// @version: v1.1-mattoni — M.I primitives (Btn) su CTA + duplica + picker + quick
+// @version: v1.2 — stagione + prezzo a corpo (doppio vino escluso/incluso) sul template (mig 187)
+// Modulo: clienti (sub-modulo preventivi)
 // Libreria Menu Template — pagina CRUD riutilizzabile dal composer preventivi.
 // Lista a sinistra, dettaglio (metadati + righe) a destra. Le righe si
 // modificano con add/remove/sort; il prezzo_persona e sconto sono metadati
@@ -20,6 +21,8 @@ export default function ClientiMenuTemplates({ embedded = false }) {
   const [serviceTypes, setServiceTypes] = useState([]);
   const [filterServiceId, setFilterServiceId] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [filterStagione, setFilterStagione] = useState("");
+  const [stagioni, setStagioni] = useState([]);
   const [toast, setToast] = useState(null);
 
   // Aggiunta riga (picker dal ricettario o quick)
@@ -47,7 +50,7 @@ export default function ClientiMenuTemplates({ embedded = false }) {
     const t = setTimeout(() => loadList(), 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterServiceId, searchText]);
+  }, [filterServiceId, searchText, filterStagione]);
 
   useEffect(() => {
     if (selectedId) loadDetail(selectedId);
@@ -71,10 +74,15 @@ export default function ClientiMenuTemplates({ embedded = false }) {
       const qs = new URLSearchParams();
       if (filterServiceId) qs.set("service_type_id", filterServiceId);
       if (searchText) qs.set("q", searchText);
+      if (filterStagione) qs.set("stagione", filterStagione);
       const res = await apiFetch(`${API_BASE}/menu-templates/${qs.toString() ? "?" + qs.toString() : ""}`);
       if (!res.ok) throw new Error("Errore caricamento lista");
       const data = await res.json();
       setList(data.items || []);
+      apiFetch(`${API_BASE}/menu-templates/stagioni`)
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((d) => setStagioni(d.items || []))
+        .catch(() => {});
     } catch (e) {
       showToast(e.message || "Errore", "error");
     } finally {
@@ -327,6 +335,12 @@ export default function ClientiMenuTemplates({ embedded = false }) {
                 <option key={st.id} value={st.id}>{st.name}</option>
               ))}
             </select>
+            <select value={filterStagione}
+              onChange={(e) => setFilterStagione(e.target.value)}
+              className="w-full border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+              <option value="">Tutte le stagioni</option>
+              {stagioni.map((st) => <option key={st} value={st}>{st}</option>)}
+            </select>
           </div>
           <div className="flex-1 overflow-auto">
             {loading ? (
@@ -349,8 +363,11 @@ export default function ClientiMenuTemplates({ embedded = false }) {
                       <div className="text-sm font-medium text-neutral-900 truncate">{t.nome}</div>
                       <div className="text-xs text-neutral-500 flex flex-wrap gap-x-2 mt-0.5">
                         {t.service_type_name && <span className="text-amber-700">🍽️ {t.service_type_name}</span>}
+                        {t.stagione && <span className="text-indigo-700">🗓️ {t.stagione}</span>}
                         <span>{t.n_righe || 0} righ{t.n_righe === 1 ? "a" : "e"}</span>
-                        {t.prezzo_persona > 0 && <span>€ {parseFloat(t.prezzo_persona).toFixed(2)}/pax</span>}
+                        {t.pricing_mode === "corpo" ? (
+                          <span>🏷️ a corpo €{parseFloat(t.prezzo_corpo || 0)}{t.doppio_prezzo ? `/${parseFloat(t.prezzo_corpo_vino || 0)}` : ""}/pax</span>
+                        ) : t.prezzo_persona > 0 && <span>€ {parseFloat(t.prezzo_persona).toFixed(2)}/pax</span>}
                       </div>
                     </button>
                   </li>
@@ -416,6 +433,55 @@ export default function ClientiMenuTemplates({ embedded = false }) {
                       className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm text-right" />
                   </div>
                 </div>
+                {/* Stagione + prezzo a corpo (mig 187) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">Stagione</label>
+                    <input type="text" list="tpl-stagioni" defaultValue={detail.stagione || ""} key={`st-${detail.id}`}
+                      placeholder="Es. Autunno-Inverno 2026"
+                      onBlur={(e) => { if ((e.target.value || "") !== (detail.stagione || "")) updateDetailField("stagione", e.target.value); }}
+                      className="w-full border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
+                    <datalist id="tpl-stagioni">
+                      {stagioni.map((st) => <option key={st} value={st} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">Prezzo</label>
+                    <select value={detail.pricing_mode || "somma"}
+                      onChange={(e) => updateDetailField("pricing_mode", e.target.value)}
+                      className="w-full border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                      <option value="somma">Somma piatti (€/persona sopra)</option>
+                      <option value="corpo">A corpo</option>
+                    </select>
+                  </div>
+                </div>
+                {detail.pricing_mode === "corpo" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end bg-indigo-50/40 border border-indigo-200 rounded-lg p-3">
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-700 mb-1">
+                        A corpo €/persona{detail.doppio_prezzo ? " — vino escluso" : ""}
+                      </label>
+                      <input type="number" min="0" step="0.5"
+                        defaultValue={detail.prezzo_corpo || 0} key={`pc-${detail.id}`}
+                        onBlur={(e) => updateDetailField("prezzo_corpo", parseFloat(e.target.value) || 0)}
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm text-right bg-white" />
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-neutral-700 min-h-[36px]">
+                      <input type="checkbox" checked={!!detail.doppio_prezzo}
+                        onChange={(e) => updateDetailField("doppio_prezzo", e.target.checked)} />
+                      Doppio prezzo vino escluso / incluso
+                    </label>
+                    {!!detail.doppio_prezzo && (
+                      <div>
+                        <label className="block text-xs font-medium text-neutral-700 mb-1">€/persona — vino incluso</label>
+                        <input type="number" min="0" step="0.5"
+                          defaultValue={detail.prezzo_corpo_vino || 0} key={`pv-${detail.id}`}
+                          onBlur={(e) => updateDetailField("prezzo_corpo_vino", parseFloat(e.target.value) || 0)}
+                          className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm text-right bg-white" />
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-2 pt-1">
                   <Btn variant="ghost" size="sm" type="button" onClick={() => duplicate(detail.id)}>⎘ Duplica</Btn>
                   <Btn variant="chip" tone="red" size="sm" type="button" onClick={() => remove(detail.id, detail.nome)}>🗑 Elimina</Btn>

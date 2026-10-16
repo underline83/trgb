@@ -1,10 +1,10 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: la chiave di Q nel connettore MCP** (`oauth.py` 1.1, `server.py` 1.1, nessuna migrazione; dopo il push Q entra in TRGB come «Q»). Prima, 2026-10-10 — **DA PUSHARE: SKU anche sui vini iPratico (vini 4.0, nessuna migrazione)** — `ipratico_products_router.py` 2.2, `main.py` (expose `X-Updated-Sku`), `iPraticoSync.jsx`. Bevande su iPratico verificate (export 14:53: SKU conservato, nomi senza codice, stessi Id). **Dopo il push:** export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: preventivi «a corpo» (mig 187, clienti 3.2, sistema 5.51)** — service/router preventivi e menu template, composer, scheda, Impostazioni Menu Template, PDF. **Dopo il push:** controllare in `/system/info` che la mig 187 sia passata, aprire PRE-2026-001 (450 €) e PRE-2026-002 (forbice 800–2.400 €), salvare il primo template di stagione. **DA PUSHARE anche: docs della rete** (`docs/operativo/rete*.md`, dal second brain). Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): **dopo** export + import in iPratico, controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.50 · **Migrazione più recente:** 186
+**Sistema:** 5.51 · **Migrazione più recente:** 187
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -31,6 +31,26 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-16 (3) — Preventivi: menu «a corpo» e menu gruppi di stagione `[core]`
+
+Richiesta di Marco: per i menu gruppi dell'osteria serve il prezzo a corpo, indipendente dai piatti. Piano approvato (sconto menu resta a persona, `menu_scelto_id` sulla testata, testo WA/copia, MK.3 rinviato).
+- Mig 187 (solo ADD COLUMN, default neutri): `clienti_preventivi_menu.pricing_mode/prezzo_corpo/prezzo_corpo_vino/doppio_prezzo/prezzo_corpo_scelta`, gli stessi (meno la scelta) + `stagione` su `clienti_menu_template`, `clienti_preventivi.menu_scelto_id`.
+- `preventivi_service`: a corpo il subtotale è il prezzo a corpo scelto; con ≥ 2 menu totale del menu scelto, altrimenti 0 + forbice `totale_min/totale_max`; `etichetta_prezzo`, `testo_cliente`. `menu_templates_service`: stagione, campi a corpo, `crea_menu_da_templates`. Nuovi endpoint `GET /preventivi/{id}/testo`, `GET /menu-templates/stagioni`, `POST /preventivi/{id}/menu/da-template`.
+- Fix libreria template: 403 a tutti (`is_admin(dict)` → M.G) e 500 su ogni lettura (`service_types.code` non esiste).
+- Fix composer: dopo ogni ricarica sconto (e ora prezzi a corpo) si riallineavano al primo menu invece del tab attivo.
+- Frontend: composer v2.3 (Somma piatti / A corpo, doppio prezzo, portata al posto del prezzo, ✓ scelto dal cliente, stagione, multi-carica), scheda v1.5 (totale «da X a Y», 💬 WhatsApp, 📋 Copia testo), Impostazioni Menu Template v1.2. Build Vite ok.
+- Provato su copia del DB: migrazione idempotente, PRE-2026-001/002 invariati; preventivo con 2 menu a corpo doppio prezzo + extra «Menù bambini 2 × 25» → forbice 1.400–1.610, scelta Picche (vino incluso) 1.610; template con stagione, caricamento di 2 template come alternative, duplica; PDF alternative e menu scelto controllati. Non provato nel browser.
+- Docs: `modulo_preventivi.md` (C-P-032…036, §4.1, §5, §8, §10, §12.1), changelog, roadmap (CL.15, CL.4 parziale, MK.3).
+
+## SESSIONE 2026-10-16 (2) — Il second brain dell'osteria entra in TRGB `[locale:tregobbi]`
+
+Decisione di Marco: il second brain (OneDrive `12-SecondBrain`) si sposta in TRGB e si gestisce da Q; candidature → sezione «Candidati» in Dipendenti (da progettare); diario e storia della casa → Q.
+- Già in TRGB: le 14 pratiche, scadenze Mirla e Spuri, prenotazioni Petersen/Osterhaus/Siikanen, rate (spese fisse).
+- Scritte nel DB di produzione (backup `dipendenti.sqlite3.pre-q-20261016_140614`): 5 scadenze in `dipendenti_scadenze` — Nicoli fine contratto 31/12/2026; fine proroga intermittenti 31/01/2027 per Lentini, Albuquerque, Gamuvka, Vasilevskaya.
+- `docs/operativo/rete.md` e `rete-questioni-aperte.md` copiati dal second brain (niente password), in `index.md`.
+- Scam SRL (assistenza Pacojet) non entra: Acquisti elenca solo fornitori con fatture → sta in Q.
+- Aperto: Tenaris 15/10 e Poli 19/10 (in attesa di conferma nel SB, non in TRGB); sezione Candidati (5 CV).
 
 ## SESSIONE 2026-10-16 — La chiave di Q nel connettore MCP `[core]`
 
