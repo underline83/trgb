@@ -7,6 +7,7 @@
   "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "calendar", "wa", "pdf"],
   "dipendenze_opzionali": ["clienti", "menu_carta"],
   "router_files": [
+    "prenotazioni_thefork_router",
     "prenotazioni_router",
     "preventivi_router",
     "menu_templates_router"
@@ -23,7 +24,8 @@
     "menu_templates",
     "tavoli",
     "tavoli_layout",
-    "tavoli_combinazioni"
+    "tavoli_combinazioni",
+    "prenotazioni_thefork_eventi"
   ],
   "frontend_route": ["/prenotazioni", "/preventivi"],
   "frontend_menu_key": "prenotazioni"

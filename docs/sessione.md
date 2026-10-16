@@ -1,13 +1,14 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: lista preventivi con filtri visibili, default «Prossimi» e bozze «non salvata» in lista (clienti 3.3, nessuna migrazione).** Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: chiusura di /uploads (pubblico solo menu_carta) + i commit già fatti ma non pushati: Candidati (e9124d7a, mig 188, sistema 5.52) e bozze preventivi in lista (4c06c2eb, clienti 3.3).** Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
 **Sistema:** 5.51 · **Migrazione più recente:** 187 (in produzione) — 5.52 / mig 188 nel push dei Candidati
 
 **DA PUSHARE**
-- Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), sul ramo `worktree-agent-a2ffdc8033a58e5e8`: dalla cartella principale `git merge --ff-only worktree-agent-a2ffdc8033a58e5e8`, poi `./push.sh`. Dopo il push: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
+- /uploads chiuso tranne `menu_carta` (solo `main.py`). Dopo il push: `curl -s -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/uploads/menu_carta/0/0.jpg` → 404 (non 500); un documento dipendente si apre ancora da Anagrafica › Documenti (admin).
+- Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), già su `main` (e9124d7a). Dopo il push: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -34,6 +35,14 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-16 (6) — /uploads pubblico solo per menu_carta `[core]`
+
+Emerso coi Candidati: `app.mount("/uploads", StaticFiles(UPLOADS_DIR))` serviva senza login tutta `/home/marco/trgb_uploads` (sul VPS: `admin_finance/` vuota, `documenti_dipendenti/` 9 file con nomi `<id>/<AAAAMMGG>_<nome>`, `ipratico_uploads/` 6 export; in arrivo `candidati_cv/`, `pratiche/`, eventualmente `backups/vini/`). `locali/tregobbi/data/uploads` (intermittenti, utenze) non era servita. Elencate solo le cartelle, nessun file aperto, nessuna richiesta HTTP sui nomi reali.
+- Frontend: nessun link diretto a `/uploads` tranne `foto_path` della carta (`CartaMenuPubblica.jsx`, `MenuCartaDettaglio.jsx`). Documenti, CV e pratiche hanno già endpoint di download autenticati (documenti e CV solo admin).
+- Scelta di Marco: pubblico solo `/uploads/menu_carta/`. `main.py`: mount su `UPLOADS_DIR/menu_carta`, creata al boot (senza, StaticFiles dà 500 invece di 404). Path nel DB invariati.
+- Prove su copia (locale temporaneo `prova_uploads` + cartella upload finta, poi cancellati; `email-validator` installato solo in scratch perché manca nel venv locale): foto carta 200; documenti/iPratico/CV/`/uploads/`/`..`/`%2e%2e` 404; upload + download documento da superadmin 200, senza login 401, da sala 403; link diretto al documento appena caricato 404; foto creata dopo l'avvio 200.
+- Docs: `deploy.md` (mount + probe), changelog.
 
 ## SESSIONE 2026-10-16 (5) — Candidati `[core]`
 

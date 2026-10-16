@@ -79,6 +79,10 @@ from app.routers.clienti_giftcard_router import router as clienti_giftcard_route
 
 # PRENOTAZIONI
 from app.routers.prenotazioni_router import router as prenotazioni_router
+from app.routers.prenotazioni_thefork_router import (  # integrazione TheFork B2B API
+    router as prenotazioni_thefork_router,
+    public_router as prenotazioni_thefork_public_router,
+)
 
 # PREVENTIVI — modulo 10 (gestione preventivi eventi)
 from app.routers.preventivi_router import router as preventivi_router
@@ -618,14 +622,21 @@ app.mount(
 # /uploads → directory upload utente FUORI dal repo (Modulo K)
 # Default prod: /home/marco/trgb_uploads · dev: <repo>/static/uploads_dev
 # Override via env TRGB_UPLOADS_DIR=/path/desiderato
+#
+# Pubblico SOLO /uploads/menu_carta/ (foto dei piatti della carta pubblica).
+# Il resto della cartella (documenti_dipendenti, candidati_cv, pratiche,
+# ipratico_uploads, backups…) NON è servito: si scarica solo dagli endpoint
+# autenticati dei singoli moduli (2026-10-16).
 # ──────────────────────────────────────────────────────────────
 from app.utils.uploads import get_uploads_dir as _get_uploads_dir
 UPLOADS_DIR = _get_uploads_dir()
 print(f"📁 Upload utente: {UPLOADS_DIR}")
+# Creata al boot: se manca, StaticFiles risponde 500 invece di 404.
+(UPLOADS_DIR / "menu_carta").mkdir(parents=True, exist_ok=True)
 app.mount(
-    "/uploads",
-    StaticFiles(directory=str(UPLOADS_DIR), check_dir=False),
-    name="uploads",
+    "/uploads/menu_carta",
+    StaticFiles(directory=str(UPLOADS_DIR / "menu_carta"), check_dir=False),
+    name="uploads_menu_carta",
 )
 
 
@@ -734,6 +745,10 @@ _mount("clienti_router", clienti_router)
 _mount("clienti_giftcard_router", clienti_giftcard_router)
 
 # PRENOTAZIONI
+# TheFork (webhook pubblico + strumenti admin) PRIMA del router principale,
+# che ha rotte /{pren_id}
+_mount("prenotazioni_thefork_router", prenotazioni_thefork_public_router)
+_mount("prenotazioni_thefork_router", prenotazioni_thefork_router)
 _mount("prenotazioni_router", prenotazioni_router)
 
 # PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)

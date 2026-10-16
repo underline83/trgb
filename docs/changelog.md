@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-16 — Sicurezza: /uploads pubblico solo per le foto della carta `[core]`
+
+Nessuna migrazione, nessun cambio di versione. Fino a oggi l'indirizzo `/uploads/…` del backend serviva **senza login** tutta la cartella degli upload: documenti dei dipendenti (nomi prevedibili `documenti_dipendenti/<id>/<AAAAMMGG>_<nome>`), export iPratico e, appena usati, CV dei candidati e allegati delle pratiche. Ora è pubblico solo `/uploads/menu_carta/` (foto dei piatti nella carta pubblica); il resto risponde 404 e si scarica solo dagli endpoint col login, che c'erano già (documenti e CV solo admin). Nessuna pagina del frontend usava link diretti, quindi niente cambia per chi usa il gestionale. Provato su copia dei dati: foto carta 200, documenti/CV/export/«..» 404, download documento da admin 200, senza login 401, da sala 403.
+
+---
+
 ## 2026-10-16 — Dipendenti: sezione Candidati `[core]`
 
 Dipendenti 2.35, sistema 5.52, mig 188. Nuovo tab **📝 Candidati** (solo admin) per i CV ricevuti: riquadri Nuovi / Da sentire / Colloquio / In prova che filtrano, ricerca anche per telefono, reparto, archivio di scartati e assunti. Su computer tabella e scheda a destra, su telefono card con «📞 Chiama» e «→ stato successivo». «📎 Carica CV» apre il nuovo candidato con il file già allegato. **Assumi → Anagrafica** crea il dipendente con i dati già noti e copia il CV nei suoi documenti. Un candidato fermo da più di 12 mesi ha il bollino «CV di 12 mesi»; nessuna cancellazione automatica, «Elimina» toglie record e file. Q e claude.ai vedono e scrivono i candidati dal connettore (`candidati_elenco`, `candidato_crea`, `candidato_aggiorna`). Script `scripts/importa_candidati_sb.py` per i 5 CV del second brain (prova a vuoto di default). Provato su copia dei dati: API, assunzione, permessi, strumenti MCP, build e pagina nel browser.

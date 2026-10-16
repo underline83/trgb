@@ -144,8 +144,9 @@ problematico dal service worker (vedi bug D3, ora risolto).
 - **Sviluppo (Mac/sandbox)**: `<repo>/static/uploads_dev/` (gitignored)
 - **Override**: `export TRGB_UPLOADS_DIR=/path/desiderato` (env var letta al boot).
 
-**Mount**: FastAPI monta `/uploads` → `<TRGB_UPLOADS_DIR>/` separato da `/static`.
+**Mount**: FastAPI monta SOLO `/uploads/menu_carta/` → `<TRGB_UPLOADS_DIR>/menu_carta/` (foto della carta pubblica).
 Path nel DB: `/uploads/menu_carta/<edition_id>/<pub_id>.jpg`.
+Tutte le altre sottocartelle (`documenti_dipendenti`, `candidati_cv`, `pratiche`, `ipratico_uploads`, `admin_finance`, `backups`) NON sono servite: si scaricano solo dagli endpoint autenticati dei moduli (dal 2026-10-16; prima tutta la cartella era pubblica senza login).
 
 ### Setup VPS (una tantum)
 ```bash
@@ -610,6 +611,7 @@ Probe HTTP per confermare backend + endpoint critici:
 ```bash
 curl -sI -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/                              # 405 atteso
 curl -s  -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/uploads/inesistente.jpg       # 404 atteso
+curl -s  -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/uploads/menu_carta/0/0.jpg    # 404 atteso (mount carta vivo, file inesistente)
 curl -s  -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/lista-spesa/items/             # 401 atteso
 curl -s  -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/dashboard/cucina               # 401 atteso
 ```

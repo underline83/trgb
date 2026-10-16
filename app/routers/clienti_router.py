@@ -34,6 +34,12 @@ from pydantic import BaseModel, Field
 
 from app.models.clienti_db import get_clienti_conn, init_clienti_db
 from app.services.auth_service import get_current_user
+from app.services.clienti_thefork_service import (
+    aggiorna_tag_vip,
+    trova_cliente_id,
+    upsert_cliente,
+    upsert_prenotazione,
+)
 
 logger = logging.getLogger("trgb.clienti")
 
@@ -442,94 +448,13 @@ async def import_thefork(
                     "thefork_updated": val(row, "Last update date"),
                 }
 
-                # Upsert: cerca per thefork_id diretto O tramite alias (merge)
-                existing = None
-                if tf_id:
-                    # 1. Cerca nel campo thefork_id principale
-                    existing = conn.execute(
-                        "SELECT id, protetto FROM clienti WHERE thefork_id = ?", (tf_id,)
-                    ).fetchone()
-                    # 2. Se non trovato, cerca negli alias (clienti mergati)
-                    if not existing:
-                        alias_row = conn.execute(
-                            "SELECT cliente_id FROM clienti_alias WHERE thefork_id = ?", (tf_id,)
-                        ).fetchone()
-                        if alias_row:
-                            existing = conn.execute(
-                                "SELECT id, protetto FROM clienti WHERE id = ?", (alias_row["cliente_id"],)
-                            ).fetchone()
-
-                if existing:
-                    if existing["protetto"]:
-                        # Cliente protetto: aggiorna sempre i campi TheFork-specifici
-                        # + riempi campi vuoti + salva DIFFERENZE nella coda revisione
-                        always_update = {
-                            "rank": record["rank"],
-                            "risk_level": record["risk_level"],
-                            "spending_behaviour": record["spending_behaviour"],
-                            "thefork_updated": record["thefork_updated"],
-                        }
-                        # Campi confrontabili: vuoto→riempi, diverso→salva diff
-                        diffable = [
-                            "email", "telefono", "telefono2", "data_nascita",
-                            "indirizzo", "cap", "citta", "paese",
-                            "pref_cibo", "pref_bevande", "pref_posto",
-                            "restrizioni_dietetiche", "allergie", "note_thefork",
-                            "nome", "cognome", "titolo", "lingua",
-                        ]
-                        current = conn.execute(
-                            f"SELECT {', '.join(diffable)} FROM clienti WHERE id = ?",
-                            (existing["id"],),
-                        ).fetchone()
-                        for field in diffable:
-                            cur_val = current[field] if current else None
-                            new_val = record.get(field)
-                            cur_str = str(cur_val).strip() if cur_val else ""
-                            new_str = str(new_val).strip() if new_val else ""
-
-                            if not cur_str and new_str:
-                                # Campo vuoto nel DB, pieno in TheFork → riempi
-                                always_update[field] = new_val
-                            elif cur_str and new_str and cur_str.lower() != new_str.lower():
-                                # Confronto case-insensitive: "Li Puma" vs "LI PUMA" NON è
-                                # una differenza (il CRM normalizza i testi per scelta,
-                                # TheFork esporta tutto in maiuscolo)
-                                # Campo diverso → salva diff per revisione Marco
-                                conn.execute(
-                                    "DELETE FROM clienti_import_diff WHERE cliente_id = ? AND campo = ? AND stato = 'pending'",
-                                    (existing["id"], field),
-                                )
-                                conn.execute(
-                                    """INSERT INTO clienti_import_diff
-                                       (cliente_id, campo, valore_crm, valore_thefork)
-                                       VALUES (?, ?, ?, ?)""",
-                                    (existing["id"], field, cur_str, new_str),
-                                )
-                                diff_trovati += 1
-
-                        set_clause = ", ".join(f"{k}=?" for k in always_update)
-                        conn.execute(
-                            f"UPDATE clienti SET {set_clause} WHERE id = ?",
-                            list(always_update.values()) + [existing["id"]],
-                        )
-                    else:
-                        # Cliente non protetto: TheFork sovrascrive tutto
-                        skip = {"thefork_id", "protetto"}
-                        set_clause = ", ".join(f"{k}=?" for k in record if k not in skip)
-                        values = [v for k, v in record.items() if k not in skip]
-                        conn.execute(
-                            f"UPDATE clienti SET {set_clause} WHERE id = ?",
-                            values + [existing["id"]],
-                        )
-                    aggiornati += 1
-                else:
-                    cols = ", ".join(record.keys())
-                    placeholders = ", ".join("?" for _ in record)
-                    conn.execute(
-                        f"INSERT INTO clienti ({cols}) VALUES ({placeholders})",
-                        list(record.values()),
-                    )
+                # Upsert (logica condivisa col webhook TheFork: clienti_thefork_service)
+                esito, _cid, n_diff = upsert_cliente(conn, record)
+                diff_trovati += n_diff
+                if esito == "inserito":
                     inseriti += 1
+                else:
+                    aggiornati += 1
 
             except Exception as row_err:
                 logger.warning(f"Errore riga import TheFork: {row_err}")
@@ -537,21 +462,8 @@ async def import_thefork(
 
         conn.commit()
 
-        # Auto-tag VIP (auto=1 → tag automatico, rimovibile dall'import successivo)
-        # Non tocca i tag manuali (auto=0) assegnati nel CRM
-        conn.execute("""
-            INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id, auto)
-            SELECT c.id, t.id, 1
-            FROM clienti c, clienti_tag t
-            WHERE c.vip = 1 AND t.nome = 'VIP'
-        """)
-        # Rimuovi auto-tag VIP da chi non è più VIP in TheFork
-        # (solo se il tag era automatico, non se aggiunto manualmente)
-        conn.execute("""
-            DELETE FROM clienti_tag_assoc
-            WHERE auto = 1 AND tag_id = (SELECT id FROM clienti_tag WHERE nome = 'VIP')
-            AND cliente_id NOT IN (SELECT id FROM clienti WHERE vip = 1)
-        """)
+        # Auto-tag VIP (auto=1, rimovibile dall'import successivo)
+        aggiorna_tag_vip(conn)
         conn.commit()
 
         return JSONResponse({
@@ -695,23 +607,9 @@ async def import_prenotazioni(
                 segg = str(segg_raw).strip() if segg_raw else None
 
                 # Trova cliente_id interno dal thefork_id (o alias se mergato)
-                cliente_id = None
-                if customer_id:
-                    cli_row = conn.execute(
-                        "SELECT id FROM clienti WHERE thefork_id = ?", (customer_id,)
-                    ).fetchone()
-                    if not cli_row:
-                        # Cerca negli alias (clienti mergati)
-                        alias_row = conn.execute(
-                            "SELECT cliente_id FROM clienti_alias WHERE thefork_id = ?", (customer_id,)
-                        ).fetchone()
-                        if alias_row:
-                            cli_row = conn.execute(
-                                "SELECT id FROM clienti WHERE id = ?", (alias_row["cliente_id"],)
-                            ).fetchone()
-                    if cli_row:
-                        cliente_id = cli_row["id"]
-                        collegati += 1
+                cliente_id = trova_cliente_id(conn, customer_id)
+                if cliente_id:
+                    collegati += 1
 
                 record = {
                     "cliente_id": cliente_id,
@@ -744,30 +642,12 @@ async def import_prenotazioni(
                     "cognome_ospite": cognome_ospite,
                 }
 
-                # Upsert su booking_id
-                existing = None
-                if booking_id:
-                    existing = conn.execute(
-                        "SELECT id FROM clienti_prenotazioni WHERE thefork_booking_id = ?",
-                        (booking_id,),
-                    ).fetchone()
-
-                if existing:
-                    set_clause = ", ".join(f"{k}=?" for k in record if k != "thefork_booking_id")
-                    values = [v for k, v in record.items() if k != "thefork_booking_id"]
-                    conn.execute(
-                        f"UPDATE clienti_prenotazioni SET {set_clause} WHERE thefork_booking_id = ?",
-                        values + [booking_id],
-                    )
-                    aggiornati += 1
-                else:
-                    cols = ", ".join(record.keys())
-                    placeholders = ", ".join("?" for _ in record)
-                    conn.execute(
-                        f"INSERT INTO clienti_prenotazioni ({cols}) VALUES ({placeholders})",
-                        list(record.values()),
-                    )
+                # Upsert su booking_id (logica condivisa col webhook TheFork)
+                esito, _pid = upsert_prenotazione(conn, record)
+                if esito == "inserita":
                     inseriti += 1
+                else:
+                    aggiornati += 1
 
             except Exception as row_err:
                 logger.warning(f"Errore riga import prenotazioni: {row_err}")
