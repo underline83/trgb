@@ -4,7 +4,8 @@
 // v1.2 (2026-10-16): la sidebar filtri era `hidden lg:block` (invisibile su iPad
 //   verticale e telefono) e l'anno corrente era sempre attivo: gli eventi del 2027
 //   sparivano. Ora «Periodo» parte da «Prossimi» (eventi da oggi + senza data) e
-//   sotto lg i filtri stanno sopra la tabella.
+//   sotto lg i filtri stanno sopra la tabella. Le bozze automatiche con un titolo
+//   vero compaiono col badge «non salvata» (manca solo «Crea preventivo»).
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -290,8 +291,16 @@ export default function ClientiPreventivi() {
                               <td className="px-3 py-2.5 font-mono text-xs text-neutral-500 whitespace-nowrap">
                                 {p.numero}
                               </td>
-                              <td className="px-3 py-2.5 font-medium text-neutral-900 max-w-[200px] truncate">
-                                {p.titolo}
+                              <td className="px-3 py-2.5 font-medium text-neutral-900 max-w-[260px]">
+                                <div className="truncate">{p.titolo}</div>
+                                {!!p.is_bozza_auto && (
+                                  <span
+                                    className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 border border-orange-200"
+                                    title="Compilato ma mai salvato: aprilo e premi «Salva modifiche»"
+                                  >
+                                    non salvata
+                                  </span>
+                                )}
                               </td>
                               <td className="px-3 py-2.5">
                                 {p.cliente_id ? (

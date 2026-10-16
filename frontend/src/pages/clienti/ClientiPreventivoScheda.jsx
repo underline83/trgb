@@ -108,6 +108,8 @@ export default function ClientiPreventivoScheda() {
   const [menuSnapshot, setMenuSnapshot] = useState({ n_righe: 0, menu_subtotale: 0, menu_sconto: 0, menu_prezzo_persona: 0 });
   // Menu alternativi (mig 187): elenco prezzi a persona + menu scelto dal cliente
   const [menuAlt, setMenuAlt] = useState({ menus: [], menu_scelto_id: null });
+  // Bozza automatica mai salvata aperta dalla lista (badge «non salvata»)
+  const [bozzaAuto, setBozzaAuto] = useState(false);
 
   // Cliente: toggle cerca / crea nuovo
   const [clienteMode, setClienteMode] = useState("cerca"); // "cerca" | "nuovo"
@@ -153,6 +155,7 @@ export default function ClientiPreventivoScheda() {
           setStato(data.stato);
           setNumero(data.numero);
           setPrevId(data.id);
+          setBozzaAuto(!!data.is_bozza_auto);
           setRighe(Array.isArray(data.righe) ? data.righe : []);
           setMenuSnapshot({
             n_righe: Array.isArray(data.menu_righe) ? data.menu_righe.length : 0,
@@ -392,6 +395,7 @@ export default function ClientiPreventivoScheda() {
 
       const data = await res.json();
       showToast("Preventivo salvato");
+      setBozzaAuto(false);
 
       if (isNew) {
         navigate(`/clienti/preventivi/${data.id}`, { replace: true });
@@ -738,6 +742,12 @@ export default function ClientiPreventivoScheda() {
                 }}
                 onToast={showToast}
               />
+              {!isNew && bozzaAuto && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-800">
+                  ⚠️ Preventivo <span className="font-semibold">non salvato</span>: è stato compilato ma non è mai stato confermato.
+                  Controlla i dati e premi <span className="font-semibold">«Salva modifiche»</span> per tenerlo.
+                </div>
+              )}
               {isNew && prevId && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
                   ⏳ Bozza in compilazione — ricorda di cliccare <span className="font-semibold">"{isNew ? "Crea preventivo" : "Salva"}"</span> per finalizzarla.

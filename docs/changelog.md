@@ -5,7 +5,7 @@
 
 ## 2026-10-16 — Lista preventivi: filtri visibili, default «Prossimi» `[core]`
 
-Clienti 3.3, nessuna migrazione. In Clienti › Preventivi i filtri ora si vedono anche su iPad in verticale e telefono (prima la sidebar spariva sotto i 1024 px) e il periodo parte da **«Prossimi»**: eventi da oggi in poi più i preventivi senza data. Prima il filtro fisso sull'anno corrente nascondeva gli eventi del 2027. «Tutti» o un anno si scelgono dal menu Periodo; il mese si sceglie solo con un anno. L'API senza `periodo` funziona come prima (tab Preventivi della scheda cliente invariato).
+Clienti 3.3, nessuna migrazione. In Clienti › Preventivi i filtri ora si vedono anche su iPad in verticale e telefono (prima la sidebar spariva sotto i 1024 px) e il periodo parte da **«Prossimi»**: eventi da oggi in poi più i preventivi senza data. Prima il filtro fisso sull'anno corrente nascondeva gli eventi del 2027. «Tutti» o un anno si scelgono dal menu Periodo; il mese si sceglie solo con un anno. L'API senza `periodo` funziona come prima (tab Preventivi della scheda cliente invariato). I preventivi compilati ma mai confermati con «Crea preventivo» (bozze automatiche con un titolo vero) ora compaiono in lista col badge **«non salvata»** e, aperti, avvisano di premere «Salva modifiche»; prima erano invisibili.
 
 ---
 

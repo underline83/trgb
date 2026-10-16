@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: lista preventivi con filtri visibili e default «Prossimi» (clienti 3.3, nessuna migrazione).** Aperto: PRE-2026-003 (Comunione Calvi 4/4/2027) è ancora bozza automatica, invisibile in lista. Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: lista preventivi con filtri visibili, default «Prossimi» e bozze «non salvata» in lista (clienti 3.3, nessuna migrazione).** Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -37,7 +37,7 @@
 - Causa: sidebar filtri `hidden lg:block` (invisibile sotto 1024 px) + anno corrente fisso → eventi 2027 fuori elenco.
 - `lista_preventivi(periodo='prossimi')`: `data_evento` vuota o `>= date('now','localtime')`; `GET /preventivi?periodo=prossimi`. Senza parametro invariato.
 - `ClientiPreventivi.jsx` v1.2: «Periodo» (Prossimi / Tutti / anno corrente ±1 / −2), mese solo con anno, barra compatta + «Altri filtri» sotto lg, vuoto con «Mostra tutti». Clienti 3.3. Build Vite ok, non provato nel browser.
-- Trovato: PRE-2026-003 «Prima Comunione Calvi — pranzo 4/4/2027» è ancora `is_bozza_auto=1` (mai premuto «Crea preventivo») → resta nascosto dalla lista a prescindere dai filtri. Da decidere con Marco.
+- Trovato: PRE-2026-003 «Prima Comunione Calvi — pranzo 4/4/2027» era `is_bozza_auto=1` (mai premuto «Crea preventivo») → invisibile in lista. Nel frattempo risalvato come PRE-2026-005. Scelta di Marco: in lista si vedono le bozze automatiche con titolo vero (non `BOZZA_AUTO_TITOLO`), badge «non salvata»; in scheda avviso arancio, «Salva modifiche» le promuove. Stats invariate (le escludono). Provato su copia DB: titolo vero visibile, placeholder nascosto.
 
 ## SESSIONE 2026-10-16 (3) — Preventivi: menu «a corpo» e menu gruppi di stagione `[core]`
 

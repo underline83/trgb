@@ -387,6 +387,7 @@ const MODULE_VERSIONS = {
   clienti: {
     // 3.3 (2026-10-16): lista Preventivi — filtri visibili anche su iPad/telefono,
     //   periodo «Prossimi» (eventi da oggi + senza data) al posto dell'anno corrente.
+    //   Bozze automatiche con titolo vero visibili col badge «non salvata».
     // 3.2 (2026-10-16): Preventivi — prezzo «a corpo» per menu (anche doppio vino
     //   escluso/incluso), portate al posto dei prezzi dei piatti, menu scelto dal
     //   cliente e totale «da X a Y» finche' non sceglie, template con stagione e
