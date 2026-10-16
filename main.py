@@ -50,6 +50,7 @@ from app.routers.dipendenti import router as dipendenti_router
 from app.routers.reparti import router as reparti_router
 from app.routers.turni_router import router as turni_router
 from app.routers.intermittenti_router import router as intermittenti_router
+from app.routers.candidati_router import router as candidati_router  # Candidati (mig 188, 2026-10-16)
 from app.routers.email_router import router as email_router
 
 # BANCA — movimenti bancari
@@ -698,6 +699,8 @@ _mount("fe_categorie_router", fe_categorie_router.router)
 _mount("fe_proforme_router", fe_proforme_router.router)
 
 # DIPENDENTI & TURNI
+# candidati prima di dipendenti: /dipendenti/candidati/... non deve finire nei /{dipendente_id}
+_mount("candidati_router", candidati_router)
 _mount("dipendenti", dipendenti_router)
 _mount("reparti", reparti_router)
 _mount("turni_router", turni_router)

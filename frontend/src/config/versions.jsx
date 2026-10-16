@@ -318,7 +318,11 @@ const MODULE_VERSIONS = {
     // 2.34 (2026-10-09): un dipendente INATTIVO libera il colore anche quando
     //   lo si disattiva dalla scheda (salva), non solo col tasto Disattiva; la
     //   palette non conta piu' come "gia' usati" i colori degli inattivi.
-    version: "2.34",
+    // 2.35 (2026-10-16): sezione Candidati — CV ricevuti, stati Nuovo → Da
+    //   sentire → Colloquio → In prova → Assunto/Scartato, «Assumi → Anagrafica»
+    //   (crea il dipendente e copia il CV negli allegati), CV di 12 mesi
+    //   segnalato. Mig 188. Vedi modulo_dipendenti.md §5.9.
+    version: "2.35",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -525,6 +529,8 @@ const MODULE_VERSIONS = {
     // 5.46 (2026-10-08): mattone M.K — connettore MCP di claude.ai su /mcp
     //   (OAuth 2.1 con utente e PIN TRGB, solo admin), strumenti pratiche,
     //   connettore.sqlite3 (schema al boot). Doc: docs/connettore_mcp.md.
+    // 5.52 (2026-10-16): mig 188 — dipendenti_candidati, sotto-modulo Candidati
+    //   (/dipendenti/candidati, solo admin), strumenti MCP candidati (dipendenti 2.35).
     // 5.51 (2026-10-16): mig 187 — preventivi: prezzo «a corpo» per menu (doppio vino
     //   escluso/incluso), menu scelto dal cliente, stagione sui menu template (clienti 3.2).
     // 5.50 (2026-10-10): mig 186 — bevande_sezioni.ipratico, Carta Bevande su iPratico (vini 3.98).
@@ -540,7 +546,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.51",
+    version: "5.52",
     label: "Sistema",
     status: "stabile",
     color: "green",

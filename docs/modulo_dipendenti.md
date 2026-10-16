@@ -1,12 +1,12 @@
 # Modulo Dipendenti — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-16
 > **Vedi anche:** [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md) (Turni v2), [modulo_intermittenti.md](modulo_intermittenti.md) (chiamate UNI)
 
-**Stato:** operativi Anagrafica (con multi-reparto), Turni v2, Buste Paga (import LUL + ELAB + F24), Scadenze documenti, Costi consuntivi, Allegati, Intermittenti. NON implementati: Presenze (griglia mensile) e Contratti — solo schema DB predisposto.
-**Versione modulo (`versions.jsx`):** dipendenti v2.31 (2026-08-03)
+**Stato:** operativi Anagrafica (con multi-reparto), Turni v2, Buste Paga (import LUL + ELAB + F24), Scadenze documenti, Candidati (2026-10-16), Costi consuntivi, Allegati, Intermittenti. NON implementati: Presenze (griglia mensile) e Contratti — solo schema DB predisposto.
+**Versione modulo (`versions.jsx`):** dipendenti v2.35 (2026-10-16)
 **Sezione top-level:** `/dipendenti/*`
-**Backend:** 4 router — `dipendenti.py` (prefix `/dipendenti`), `turni_router.py` (prefix `/turni`), `reparti.py` (prefix `/reparti`), `intermittenti_router.py` (prefix `/intermittenti`). Tutti JWT.
+**Backend:** 5 router — `dipendenti.py` (prefix `/dipendenti`), `candidati_router.py` (prefix `/dipendenti/candidati`, logica in `candidati_service.py`), `turni_router.py` (prefix `/turni`), `reparti.py` (prefix `/reparti`), `intermittenti_router.py` (prefix `/intermittenti`). Tutti JWT.
 **Roadmap:** sezione `D.` di [roadmap.md](roadmap.md)
 
 ---
@@ -47,6 +47,7 @@ Il modulo **Dipendenti** è stato promosso a **modulo top-level** (non più sott
 | Turni v2 (Foglio Settimana) | ✅ operativo | fasi 0-3 e 5-11 fatte, vedi `modulo_dipendenti_turni.md`. Il vecchio Turni v1 sopravvive su `/dipendenti/turni-legacy` |
 | Buste Paga | ✅ operativa | import LUL 2-step + ELAB/F24 (G.3 Fase E) + inserimento manuale, scadenze in CG |
 | Scadenze documenti | ✅ operativa | CRUD + semaforo + checker M.F `dipendenti_scadenze` (`alert_engine.py:301`) |
+| Candidati | ✅ operativa (2026-10-16) | CV ricevuti, stati, «Assumi → Anagrafica», CV di 12 mesi, strumenti MCP — §5.9, mig 188 |
 | Costi consuntivi | ✅ operativa | `GET /dipendenti/costi-mensili` (ELAB + F24 + crosscheck DM10), UI `DipendentiCosti.jsx` v2.0 |
 | Allegati anagrafica | ✅ operativi | upload/lista/download/delete (`dipendenti.py:2410-2548`) |
 | Intermittenti (UNI) | ✅ operativa | vedi `modulo_intermittenti.md` |
@@ -71,6 +72,7 @@ Il modulo **Dipendenti** è stato promosso a **modulo top-level** (non più sott
 /dipendenti/turni-legacy           → Vecchia griglia turni v1 (DipendentiTurni, ancora raggiungibile)
 /dipendenti/intermittenti          → Comunicazione chiamate UNI (Intermittenti.jsx)
 /dipendenti/scadenze               → Documenti con scadenza: HACCP, corsi, visite, permessi
+/dipendenti/candidati              → CV ricevuti e selezione (DipendentiCandidati, solo admin, §5.9)
 /dipendenti/costi                  → Costi mensili consuntivi ELAB + F24 (DipendentiCosti)
 /dipendenti/reparti                → CRUD reparti (GestioneReparti)
 /dipendenti/impostazioni           → Impostazioni modulo (sezioni: Reparti, Stipendi, Stato import paghe, Intermittenti; previste ma non pronte: Soglie CCNL, Template WA)
@@ -78,7 +80,7 @@ Il modulo **Dipendenti** è stato promosso a **modulo top-level** (non più sott
 /admin/dipendenti/*                → redirect a /dipendenti
 ```
 
-Il "menu hub" a tile previsto all'inizio è stato eliminato (sessione 39): la navigazione è la tab-bar `DipendentiNav.jsx` (Dashboard, Anagrafica, Buste Paga, Turni, Intermittenti, Scadenze, Costi, Impostazioni). Le route `/dipendenti/presenze` e `/dipendenti/contratti` NON esistono. La vecchia tile Amministrazione è stata eliminata come previsto; la gestione utenti vive in `ImpostazioniSistema` (`/impostazioni`).
+Il "menu hub" a tile previsto all'inizio è stato eliminato (sessione 39): la navigazione è la tab-bar `DipendentiNav.jsx` (Dashboard, Anagrafica, Buste Paga, Turni, Intermittenti, Scadenze, Candidati, Costi, Impostazioni). Le route `/dipendenti/presenze` e `/dipendenti/contratti` NON esistono. La vecchia tile Amministrazione è stata eliminata come previsto; la gestione utenti vive in `ImpostazioniSistema` (`/impostazioni`).
 
 ---
 
@@ -86,7 +88,7 @@ Il "menu hub" a tile previsto all'inizio è stato eliminato (sessione 39): la na
 
 ## 4.1 DB dedicato
 
-`locali/<id>/data/dipendenti.sqlite3` (path tenant-aware da R6.5, via `locale_data_path`) — schema base creato a runtime da `init_dipendenti_db()` (`app/models/dipendenti_db.py`), esteso dalle migrazioni numerate che lavorano cross-DB (071, 072, 073, 077, 081, 083, 118, 132, 134, 156, 161, 162). WAL + busy_timeout attivi su ogni connessione (`get_dipendenti_conn`, fix sessione 52).
+`locali/<id>/data/dipendenti.sqlite3` (path tenant-aware da R6.5, via `locale_data_path`) — schema base creato a runtime da `init_dipendenti_db()` (`app/models/dipendenti_db.py`), esteso dalle migrazioni numerate che lavorano cross-DB (071, 072, 073, 077, 081, 083, 118, 132, 134, 156, 161, 162, 188). WAL + busy_timeout attivi su ogni connessione (`get_dipendenti_conn`, fix sessione 52).
 
 ## 4.2 Tabelle correnti
 
@@ -165,6 +167,9 @@ CREATE TABLE IF NOT EXISTS buste_paga (
 ### `dipendenti_scadenze` — Documenti/certificazioni con scadenza (ATTIVA, v2.2 fatta)
 
 Campi: `dipendente_id`, `tipo` (HACCP, SICUREZZA_GENERALE, SICUREZZA_SPECIFICA, ANTINCENDIO, PRIMO_SOCCORSO, VISITA_MEDICA, PERMESSO_SOGGIORNO, ALTRO), `descrizione`, `data_rilascio`, `data_scadenza`, `ente_rilascio`, `pdf_filename/path` (non usati dagli endpoint attuali), `stato`, `alert_giorni` (default per tipo, es. HACCP 30, sicurezza 60, permesso soggiorno 90), `note`. Lo stato VALIDO/IN_SCADENZA/SCADUTO è **calcolato dinamicamente** in lettura (`stato_calc`), non dal campo `stato`.
+
+### `dipendenti_candidati` — CV ricevuti (mig 188, 2026-10-16)
+`nome` (obbligatorio), `cognome`, `ruolo_cercato` (testo libero, «Barista jr · sala»), `reparto_id` (FK `reparti`, facoltativo), `stato` (NUOVO / DA_SENTIRE / COLLOQUIO / IN_PROVA / ASSUNTO / SCARTATO, con CHECK), `telefono`, `email`, `disponibilita`, `lingue`, `documenti`, `note`, `colloquio_at` (`AAAA-MM-GG HH:MM`), `ricevuto_il`, `cv_filename` / `cv_path` (path relativo a `uploads/candidati_cv/`), `dipendente_id` (quando assunto), `fonte` («pagina», «second brain», «q», «claude», «mail»…), `created_at`, `updated_at`, `creato_da`. Vedi §5.9.
 
 ## 4.3 Tabelle predisposte ma NON attive (schema-only)
 
@@ -325,6 +330,39 @@ Endpoint attivi (`dipendenti.py:2410-2548`):
 
 UI: sezione documenti nella scheda del dipendente in Anagrafica.
 
+## 5.9 Candidati — FATTA (2026-10-16)
+
+**Origine:** le candidature stavano nel second brain dell'osteria (`wiki/liste/candidature.md`); con il trasloco del second brain in TRGB (sessione 2026-10-16 (2)) diventano una sezione di Dipendenti. Mockup approvato da Marco.
+
+**Chi:** solo admin e superadmin (dati personali di persone esterne). Backend: `solo_admin` su tutto `candidati_router`. Frontend: sub `candidati` in `modules.json` + `roles={["admin"]}` sulla route + tab nascosto ai non-admin in `DipendentiNav`. La sub arriva anche al runtime del VPS (`modules_router.SUB_DA_AGGIUNGERE`): senza, `canAccessSub` ricadrebbe sui ruoli del modulo intero (anche sala/chef/sommelier) — vedi §9.3.
+
+**Stati:** NUOVO → DA_SENTIRE → COLLOQUIO → IN_PROVA → ASSUNTO, oppure SCARTATO. ASSUNTO solo da «Assumi», e da lì lo stato non cambia più; uno scartato si rimette in gioco con «Cambia stato». Il cambio stato può fissare il colloquio e accodare alle note una riga datata («16/10/2026 — Colloquio: …»).
+
+**Assumi → Anagrafica** (`POST /dipendenti/candidati/{id}/assumi`): crea il dipendente con `create_dipendente` di `dipendenti.py` (la stessa funzione del «+ Nuovo dipendente», codice `DIPNNN` automatico) con nome, cognome (o «—»), ruolo = ruolo cercato (o «—»), telefono, email, reparto; nelle note disponibilità, lingue, documenti e data di ricezione. Un'email scritta male non blocca: il dipendente nasce senza e torna un avviso. Il CV viene **copiato** negli allegati del dipendente (`dipendenti_allegati`, etichetta «CV — Nome Cognome», categoria CV); il candidato resta come ASSUNTO con `dipendente_id`. IBAN, CF e contratto si completano dall'anagrafica.
+
+**Privacy:** un candidato non assunto fermo da più di 12 mesi (la data più recente fra `ricevuto_il` e `updated_at`) ha il bollino rosso «CV di 12 mesi» (campo calcolato `cv_vecchio`, contatore `cv_vecchi`). Nessuna cancellazione automatica: «Elimina candidato e CV» cancella record e file (il CV già copiato a un assunto resta nei suoi allegati). CV solo PDF o immagini, max 20 MB, in `uploads/candidati_cv/<id>/<uuid>_<nome>` (nome imprevedibile: la cartella uploads è servita su `/uploads`).
+
+**Elenco:** di default solo i candidati in corsa; la casella «Scartati e assunti» mostra anche l'archivio. Ordine: data di ricezione, dal più recente.
+
+**UI** (`DipendentiCandidati.jsx` v1.0, tab 📝 in `DipendentiNav` con badge = NUOVI): sotto-header con «📎 Carica CV» (sceglie il file e apre il form del nuovo candidato con il CV già allegato) e «+ Nuovo candidato»; riquadri per stato (Nuovi sky, Da sentire amber, Colloquio violet, In prova emerald) che filtrano; ricerca (anche per cifre del telefono), reparto, «Scartati e assunti». Computer: tabella + scheda a destra (contatti, disponibilità, lingue, documenti, colloquio, note, CV con «Apri»/«Sostituisci», «Assumi → Anagrafica», «Cambia stato», «Scarta», «Elimina»). Telefono: card con «📞 Chiama» e «→ stato successivo»; un tocco sulla card apre la scheda in una modale. Form e cambio stato in `Modal`.
+
+**Connettore MCP** (M.K, `app/connettore/server.py` 1.2): `candidati_elenco` (sola lettura), `candidato_crea`, `candidato_aggiorna` (cambio stato tranne ASSUNTO, colloquio, nota datata, campi). Autore «Q» o «claude (utente)», fonte «q»/«claude» se non indicata. Regole nelle descrizioni: prima cercare se il candidato esiste (nome/telefono/email); niente dati sanitari né documenti d'identità nei campi. Il file del CV si carica solo dalla pagina. Strumenti registrati solo se il modulo `dipendenti` è attivo.
+
+**Import dal second brain:** `scripts/importa_candidati_sb.py` legge la tabella di `candidature.md` (prova a vuoto di default, `--scrivi` per scrivere, `--db` per lavorare su una copia). Nome = prima parola, cognome il resto; reparto dal ruolo (cucina/cuoco/lavapiatti → Cucina, sala/barista/cameriere/banco/servizio → Sala, entrambi → vuoto); note divise per virgola (non dentro le parentesi) in documenti / lingue / disponibilità / note; DA_SENTIRE se c'è qualcosa «da verificare», altrimenti NUOVO; il CV `.md` del second brain resta come riferimento nelle note; doppioni (telefono, email, nome+cognome) saltati.
+
+### Capability
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-D-301 | Elenco candidati con filtri (stato, reparto, ricerca, archivio) + contatori per stato e CV di 12 mesi | `candidati_router.py` `GET /dipendenti/candidati/`, `GET /contatori` | admin | 🆕 2026-10-16 |
+| C-D-302 | Nuovo candidato / modifica campi, con avviso di possibili doppioni | `POST /dipendenti/candidati/`, `PATCH /{id}`, `GET /doppioni` | admin | 🆕 2026-10-16 |
+| C-D-303 | Cambio stato (colloquio, nota datata), scarta | `POST /{id}/stato`, `POST /{id}/scarta` | admin | 🆕 2026-10-16 |
+| C-D-304 | Carica / sostituisci / apri il CV (PDF o immagine) | `POST/GET /{id}/cv` | admin | 🆕 2026-10-16 |
+| C-D-305 | Assumi → Anagrafica: crea il dipendente e copia il CV negli allegati | `POST /{id}/assumi` | admin | 🆕 2026-10-16 |
+| C-D-306 | Elimina candidato e CV (privacy) | `DELETE /{id}` | admin | 🆕 2026-10-16 |
+| C-D-307 | Strumenti MCP `candidati_elenco`, `candidato_crea`, `candidato_aggiorna` | `app/connettore/server.py` `_strumenti_candidati` | admin (Q / claude.ai) | 🆕 2026-10-16 |
+| C-D-308 | Import delle candidature del second brain | `scripts/importa_candidati_sb.py` | admin (a mano) | 🆕 2026-10-16 |
+
 ---
 
 # 6. Fasi implementative v2
@@ -383,7 +421,7 @@ Turni v2 completato in parallelo (vedi `modulo_dipendenti_turni.md`). Aggiunte n
 
 | Sezione | Chi | Note |
 |---|---|---|
-| Buste paga, cedolini PDF, costi, scadenze, documenti, impostazioni, Dashboard | **admin + superadmin** | Decisione Marco 2026-09-01: il `contabile` resta fuori. La Dashboard mostra il netto buste paga del mese, quindi eredita quel livello. |
+| Buste paga, cedolini PDF, costi, scadenze, documenti, candidati, impostazioni, Dashboard | **admin + superadmin** | Decisione Marco 2026-09-01: il `contabile` resta fuori. La Dashboard mostra il netto buste paga del mese, quindi eredita quel livello. |
 | Anagrafica (scrittura) | **admin + superadmin** | |
 | Anagrafica (lettura, `GET /dipendenti/`) | tutti i ruoli del modulo, **ridotta** | Le viste turni hanno bisogno dei nomi. Ai non-admin l'endpoint toglie i campi di `CAMPI_ANAGRAFICA_RISERVATI` (iban, codice_fiscale, telefono, email, indirizzi, note, codice_comunicazione, is_amministratore) e ignora `include_inactive`. |
 | Turni — lettura (foglio, mese, per dipendente, PDF, assenze, conflitti) | tutti i ruoli del modulo | Decisione Marco: il personale vede i turni di tutti, non solo i propri. |
@@ -405,7 +443,7 @@ Turni v2 completato in parallelo (vedi `modulo_dipendenti_turni.md`). Aggiunte n
 
 ⚠️ **Non usare `isAdminRole` per i turni:** include `contabile`, che il backend esclude → il bottone comparirebbe e la chiamata tornerebbe 403. È lo stesso motivo per cui esiste `isViniManagerRole`.
 
-⚠️ **Non aggiungere chiavi `sub` nuove a `modules.json` finché il seed non è riparato** (vedi [audit_permessi_2026-09-01.md](audit_permessi_2026-09-01.md) §4.3): il file letto in produzione è `locali/<id>/data/modules.json`, che non esiste, quindi vale il runtime già scritto. Una chiave inesistente fa ricadere `canAccessSub` sui permessi del **modulo** — cioè tutti — e la protezione salta in silenzio. Per questo `/dipendenti/dashboard` usa `sub="buste-paga"` e Intermittenti/Reparti usano `sub="impostazioni"`.
+⚠️ **Non aggiungere chiavi `sub` nuove a `modules.json` finché il seed non è riparato** (vedi [audit_permessi_2026-09-01.md](audit_permessi_2026-09-01.md) §4.3): il file letto in produzione è `locali/<id>/data/modules.json`, che non esiste, quindi vale il runtime già scritto. Una chiave inesistente fa ricadere `canAccessSub` sui permessi del **modulo** — cioè tutti — e la protezione salta in silenzio. Per questo `/dipendenti/dashboard` usa `sub="buste-paga"` e Intermittenti/Reparti usano `sub="impostazioni"`. **Eccezione (2026-10-16):** una sub nuova si può aggiungere se la si mette anche in `modules_router.SUB_DA_AGGIUNGERE`, che la scrive nel runtime del VPS al primo caricamento (è così che è nata `candidati`); per sicurezza la route ha anche `roles=` e il tab un controllo di ruolo.
 
 ## 9.4 Conseguenze visibili
 

@@ -98,6 +98,7 @@ const DipendentiImpostazioni = lazy(() => import("./pages/dipendenti/DipendentiI
 const DipendentiCosti = lazy(() => import("./pages/dipendenti/DipendentiCosti"));
 const DipendentiBustePaga = lazy(() => import("./pages/dipendenti/DipendentiBustePaga"));
 const DipendentiScadenze = lazy(() => import("./pages/dipendenti/DipendentiScadenze"));
+const DipendentiCandidati = lazy(() => import("./pages/dipendenti/DipendentiCandidati"));
 const DashboardDipendenti = lazy(() => import("./pages/dipendenti/DashboardDipendenti"));
 const Intermittenti = lazy(() => import("./pages/dipendenti/Intermittenti"));
 
@@ -479,6 +480,8 @@ export default function App() {
         <Route path="/dipendenti/costi" element={<ProtectedRoute module="dipendenti" sub="costi"><DipendentiCosti /></ProtectedRoute>} />
         <Route path="/dipendenti/buste-paga" element={<ProtectedRoute module="dipendenti" sub="buste-paga"><DipendentiBustePaga /></ProtectedRoute>} />
         <Route path="/dipendenti/scadenze" element={<ProtectedRoute module="dipendenti" sub="scadenze"><DipendentiScadenze /></ProtectedRoute>} />
+        {/* Candidati (2026-10-16): CV di persone esterne, solo admin anche se la sub mancasse nel runtime */}
+        <Route path="/dipendenti/candidati" element={<ProtectedRoute module="dipendenti" sub="candidati" roles={["admin"]}><DipendentiCandidati /></ProtectedRoute>} />
 
         {/* --- I MIEI TURNI (self-service, accessibile a tutti i ruoli autenticati) --- */}
         <Route path="/miei-turni" element={<MieiTurni />} />

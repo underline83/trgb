@@ -1,6 +1,6 @@
 # Connettore MCP di TRGB — Claude dentro il gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (mattone M.K, sistema 5.46) · **Ultima verifica:** 2026-10-10
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (mattone M.K, sistema 5.46) · **Ultima verifica:** 2026-10-16
 > **Vedi anche:** [modulo_pratiche.md](modulo_pratiche.md), [architettura_mattoni.md](architettura_mattoni.md) (M.G permessi), [refactor_monorepo.md](refactor_monorepo.md)
 
 **Classificazione:** `[core]`, platform, mattone **M.K** (Marco, 2026-10-08). Ogni locale che compra TRGB può collegare Claude al suo gestionale; quali strumenti vede dipende dai moduli attivi e dal ruolo di chi autorizza.
@@ -48,6 +48,16 @@ TRGB diventa un **connettore personalizzato di claude.ai**. Da qualsiasi chat (w
 | `pratica_crea` | nuova pratica con il primo passo (data di apertura anche passata, termine facoltativo) | `crea_pratica` | scrive |
 | `pratica_passo` | il gesto di tutti i giorni: testo, data, cambio di stato (anche chiudere con esito o riaprire), nuovo termine o nessun termine | `aggiungi_passo` | scrive |
 
+**Candidati** (2026-10-16, server 1.2, modulo `dipendenti`, solo admin — [modulo_dipendenti.md](modulo_dipendenti.md) §5.9):
+
+| Strumento | Cosa fa | Funzione del service | Tipo |
+|---|---|---|---|
+| `candidati_elenco` | in corsa (o anche scartati e assunti), filtri `q`, `stato`, `reparto` (nome o codice) | `candidati_service.elenco` | sola lettura |
+| `candidato_crea` | nuovo candidato, stato NUOVO o DA_SENTIRE; torna anche i possibili doppioni | `crea` + `cerca_doppioni` | scrive |
+| `candidato_aggiorna` | cambio stato (non ASSUNTO: si assume dalla pagina), colloquio, nota datata, campi | `aggiorna` / `cambia_stato` | scrive |
+
+Autore `Q` o `claude (<utente>)`, fonte `q`/`claude` se non detta. Regole nelle descrizioni: cercare prima se esiste (nome/telefono/email); dati di terzi, niente dati sanitari né documenti d'identità. Il file del CV si carica solo dalla pagina.
+
 Fuori dalla prima versione, apposta:
 - **allegati**: si caricano dalla UI; dalla chat non c'è un file da passare in modo pulito;
 - **collegamenti** e **correzione della testata**: rari, si fanno dalla UI;
@@ -64,6 +74,7 @@ Fuori dalla prima versione, apposta:
 - Prima di creare una pratica cerca con `pratiche_elenco` se esiste già.
 - Prima di **creare** o **chiudere**, riepiloga a Marco cosa scriverai e aspetta il suo sì. Un passo semplice («è arrivata la PEC») si scrive e si conferma dopo.
 - Le date dei passi sono quelle vere dei fatti, anche passate.
+- Candidati: prima di crearne uno cerca con `candidati_elenco`; dati di terzi, niente dati sanitari né documenti d'identità; il CV si carica dalla pagina (una riga, 2026-10-16).
 
 ## 5. Prove previste
 

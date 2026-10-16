@@ -9,7 +9,8 @@
   "router_files": [
     "dipendenti",
     "reparti",
-    "turni_router"
+    "turni_router",
+    "candidati_router"
   ],
   "endpoint_prefix": [
     "/dipendenti",
@@ -26,7 +27,8 @@
     "turni_tipi",
     "turni_calendario",
     "turni_template_*",
-    "reparti"
+    "reparti",
+    "dipendenti_candidati"
   ],
   "frontend_route": ["/dipendenti", "/turni"],
   "frontend_menu_key": "dipendenti"

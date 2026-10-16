@@ -4,7 +4,10 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.51 · **Migrazione più recente:** 187
+**Sistema:** 5.51 · **Migrazione più recente:** 187 (in produzione) — 5.52 / mig 188 nel push dei Candidati
+
+**DA PUSHARE**
+- Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), sul ramo `worktree-agent-a2ffdc8033a58e5e8`: dalla cartella principale `git merge --ff-only worktree-agent-a2ffdc8033a58e5e8`, poi `./push.sh`. Dopo il push: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -32,6 +35,19 @@
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+## SESSIONE 2026-10-16 (5) — Candidati `[core]`
+
+Marco: le candidature del second brain diventano la sezione «Candidati» dentro Dipendenti, come da mockup approvato. Lavoro su un worktree (ramo `worktree-agent-a2ffdc8033a58e5e8`) mentre su `main` andavano i preventivi: migrazione 188 (la 187 è dei preventivi).
+- Mig 188: tabella `dipendenti_candidati` in `dipendenti.sqlite3` (solo CREATE IF NOT EXISTS).
+- `app/services/candidati_service.py` (tutta la logica: elenco/contatori/doppioni, crea, aggiorna, cambia_stato, scarta, CV, elimina; CV di 12 mesi calcolato), `app/routers/candidati_router.py` (prefix `/dipendenti/candidati`, `solo_admin` su tutto; «assumi» riusa `create_dipendente` e copia il CV negli allegati), montato in `main.py` prima di `dipendenti`; manifesto `core/moduli/dipendenti/module.json`.
+- Permessi: sub `candidati` (admin) in `modules.json` e `DEFAULT_MODULES`; nuovo `modules_router.SUB_DA_AGGIUNGERE` che la scrive nel runtime del VPS (il seed di produzione non è in git); route con `roles={["admin"]}`, tab nascosto ai non-admin.
+- Connettore MCP 1.2: `candidati_elenco`, `candidato_crea`, `candidato_aggiorna` (autore Q / claude (utente)), una riga nelle istruzioni.
+- Frontend: `DipendentiCandidati.jsx` v1.0, tab 📝 Candidati con badge dei nuovi (`DipendentiNav` 1.3), route in `App.jsx`.
+- `scripts/importa_candidati_sb.py`: import di `candidature.md` (prova a vuoto di default, `--scrivi`, `--db`).
+- Decisioni prese da me (le più semplici): l'elenco di default nasconde scartati E assunti (casella «Scartati e assunti»); assumere copia il CV (non lo sposta); un'email non valida non blocca l'assunzione; reparto e stato dell'import dedotti dal testo; il CV `.md` del second brain resta come riferimento nelle note.
+- Prove su copia dei dati locali (locale temporaneo, poi cancellato): migrazione applicata e rieseguita; import a vuoto, `--scrivi`, secondo giro con 5 doppioni saltati; API con TestClient (63 controlli, compreso «assumi» con CV e con email rotta, 403 per sala/chef/sommelier/contabile/viewer, sub nel runtime); strumenti MCP (19 controlli); build Vite ok; pagina vista nel browser in locale (computer e telefono, cambio stato riuscito).
+- Docs: `modulo_dipendenti.md` (§2, §3, §4.2, §5.9 con C-D-301…308, §9), `connettore_mcp.md` §4, roadmap D.13, changelog.
+
 ## SESSIONE 2026-10-16 (4) — Lista preventivi: filtri visibili, default «Prossimi» `[core]`
 
 - Causa: sidebar filtri `hidden lg:block` (invisibile sotto 1024 px) + anno corrente fisso → eventi 2027 fuori elenco.
@@ -58,7 +74,7 @@ Decisione di Marco: il second brain (OneDrive `12-SecondBrain`) si sposta in TRG
 - Scritte nel DB di produzione (backup `dipendenti.sqlite3.pre-q-20261016_140614`): 5 scadenze in `dipendenti_scadenze` — Nicoli fine contratto 31/12/2026; fine proroga intermittenti 31/01/2027 per Lentini, Albuquerque, Gamuvka, Vasilevskaya.
 - `docs/operativo/rete.md` e `rete-questioni-aperte.md` copiati dal second brain (niente password), in `index.md`.
 - Scam SRL (assistenza Pacojet) non entra: Acquisti elenca solo fornitori con fatture → sta in Q.
-- Aperto: Tenaris 15/10 e Poli 19/10 (in attesa di conferma nel SB, non in TRGB); sezione Candidati (5 CV).
+- Aperto: Tenaris 15/10 e Poli 19/10 (in attesa di conferma nel SB, non in TRGB); sezione Candidati (5 CV) → fatta nella sessione (5), da pushare.
 
 ## SESSIONE 2026-10-16 — La chiave di Q nel connettore MCP `[core]`
 

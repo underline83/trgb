@@ -170,6 +170,8 @@ DEFAULT_MODULES = [
             {"key": "buste-paga",   "label": "Buste Paga",   "roles": ["superadmin", "admin"]},
             {"key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"]},
             {"key": "scadenze",     "label": "Scadenze",     "roles": ["superadmin", "admin"]},
+            # Candidati (2026-10-16): CV di persone esterne → solo admin.
+            {"key": "candidati",    "label": "Candidati",    "roles": ["superadmin", "admin"]},
             {"key": "costi",        "label": "Costi",        "roles": ["superadmin", "admin"]},
             {"key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"]},
         ],
@@ -219,9 +221,38 @@ DEFAULT_MODULES = [
 # soltanto: una voce gia' presente non si tocca, i ruoli scelti da UI restano.
 MODULI_DA_AGGIUNGERE = ("pratiche",)
 
+# Stessa cosa per i sotto-moduli nati dopo (modulo, sub). Va aggiunto anche al
+# runtime: una sub che manca fa ricadere canAccessSub sui ruoli del MODULO
+# (per dipendenti: anche sala, chef, sommelier...) e la protezione salta.
+SUB_DA_AGGIUNGERE = (("dipendenti", "candidati"),)
+
+
+def _aggiungi_sub_nuove(data: list) -> bool:
+    cambiato = False
+    for mod_key, sub_key in SUB_DA_AGGIUNGERE:
+        mod = next((m for m in data if m.get("key") == mod_key), None)
+        default = next((m for m in DEFAULT_MODULES if m["key"] == mod_key), None)
+        if not mod or not default or not isinstance(mod.get("sub"), list):
+            continue
+        if any(s.get("key") == sub_key for s in mod["sub"]):
+            continue
+        nuova = next((dict(s) for s in default.get("sub", []) if s["key"] == sub_key), None)
+        if not nuova:
+            continue
+        # al suo posto nell'ordine del default, se il vicino precedente c'è
+        chiavi_def = [s["key"] for s in default["sub"]]
+        prima = chiavi_def[:chiavi_def.index(sub_key)]
+        idx = len(mod["sub"])
+        for i, s in enumerate(mod["sub"]):
+            if s.get("key") in prima:
+                idx = i + 1
+        mod["sub"].insert(idx, nuova)
+        cambiato = True
+    return cambiato
+
 
 def _aggiungi_moduli_nuovi(data: list) -> bool:
-    """Aggiunge a `data` (prima di «impostazioni») i moduli mancanti. True se ha cambiato qualcosa."""
+    """Aggiunge a `data` (prima di «impostazioni») i moduli e le sub mancanti. True se ha cambiato qualcosa."""
     presenti = {m.get("key") for m in data}
     cambiato = False
     for key in MODULI_DA_AGGIUNGERE:
@@ -232,6 +263,8 @@ def _aggiungi_moduli_nuovi(data: list) -> bool:
             continue
         idx = next((i for i, m in enumerate(data) if m.get("key") == "impostazioni"), len(data))
         data.insert(idx, nuovo)
+        cambiato = True
+    if _aggiungi_sub_nuove(data):
         cambiato = True
     return cambiato
 

@@ -626,6 +626,14 @@
         ]
       },
       {
+        "key": "candidati",
+        "label": "Candidati",
+        "roles": [
+          "superadmin",
+          "admin"
+        ]
+      },
+      {
         "key": "costi",
         "label": "Costi",
         "roles": [

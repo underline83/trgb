@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-16 — Dipendenti: sezione Candidati `[core]`
+
+Dipendenti 2.35, sistema 5.52, mig 188. Nuovo tab **📝 Candidati** (solo admin) per i CV ricevuti: riquadri Nuovi / Da sentire / Colloquio / In prova che filtrano, ricerca anche per telefono, reparto, archivio di scartati e assunti. Su computer tabella e scheda a destra, su telefono card con «📞 Chiama» e «→ stato successivo». «📎 Carica CV» apre il nuovo candidato con il file già allegato. **Assumi → Anagrafica** crea il dipendente con i dati già noti e copia il CV nei suoi documenti. Un candidato fermo da più di 12 mesi ha il bollino «CV di 12 mesi»; nessuna cancellazione automatica, «Elimina» toglie record e file. Q e claude.ai vedono e scrivono i candidati dal connettore (`candidati_elenco`, `candidato_crea`, `candidato_aggiorna`). Script `scripts/importa_candidati_sb.py` per i 5 CV del second brain (prova a vuoto di default). Provato su copia dei dati: API, assunzione, permessi, strumenti MCP, build e pagina nel browser.
+
+---
+
 ## 2026-10-16 — Lista preventivi: filtri visibili, default «Prossimi» `[core]`
 
 Clienti 3.3, nessuna migrazione. In Clienti › Preventivi i filtri ora si vedono anche su iPad in verticale e telefono (prima la sidebar spariva sotto i 1024 px) e il periodo parte da **«Prossimi»**: eventi da oggi in poi più i preventivi senza data. Prima il filtro fisso sull'anno corrente nascondeva gli eventi del 2027. «Tutti» o un anno si scelgono dal menu Periodo; il mese si sceglie solo con un anno. L'API senza `periodo` funziona come prima (tab Preventivi della scheda cliente invariato). I preventivi compilati ma mai confermati con «Crea preventivo» (bozze automatiche con un titolo vero) ora compaiono in lista col badge **«non salvata»** e, aperti, avvisano di premere «Salva modifiche»; prima erano invisibili.

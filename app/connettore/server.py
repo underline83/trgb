@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-10-16) — Q scrive firmando «Q» (la chiave di Q, vedi oauth.py)
+# @version: v1.2 (2026-10-16) — strumenti candidati (modulo dipendenti)
+# v1.1 (2026-10-16) — Q scrive firmando «Q» (la chiave di Q, vedi oauth.py)
 # -*- coding: utf-8 -*-
 """
 server.py — TRGB come connettore MCP di claude.ai, su /mcp. Modulo: platform (M.K).
@@ -6,7 +7,7 @@ Doc: docs/connettore_mcp.md. Modello: ~/brain/app/connettore.py.
 
 Claude lo usa da qualsiasi chat (web, desktop, iPhone): entra con OAuth (oauth.py),
 poi chiama gli strumenti qui sotto. Gli strumenti NON hanno regole proprie: chiamano
-le stesse funzioni dei service che usano i router (oggi `pratiche_service`). Un errore
+le stesse funzioni dei service che usano i router (`pratiche_service`, `candidati_service`). Un errore
 del service arriva a Claude come errore dello strumento, con lo stesso messaggio.
 
 Ogni strumento:
@@ -58,7 +59,8 @@ Regole che valgono sempre:
 - Prima di CREARE o CHIUDERE una pratica riepiloga a Marco cosa scriverai e aspetta il
   suo sì. Un passo semplice («è arrivata la PEC», «ho telefonato») si scrive e si
   conferma dopo, dicendo cosa hai scritto.
-- Gli allegati si caricano dalla pagina /pratiche del gestionale, non da qui."""
+- Gli allegati si caricano dalla pagina /pratiche del gestionale, non da qui.
+- CANDIDATI (CV ricevuti): prima di crearne uno cerca con candidati_elenco (nome/telefono/email); dati di terzi: niente dati sanitari né documenti d'identità; il CV si carica dalla pagina."""
 
 
 def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
@@ -85,6 +87,8 @@ def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
 
     if module_loader.is_module_active("pratiche"):
         _strumenti_pratiche(mcp)
+    if module_loader.is_module_active("dipendenti"):
+        _strumenti_candidati(mcp)
     return mcp
 
 
@@ -100,6 +104,7 @@ def _utente() -> dict:
 def _strumento(mcp: MCPServer, annotazioni: ToolAnnotations):
     """Registra uno strumento: gli errori del service diventano errori leggibili, le
     liste un oggetto solo che dice anche quanti sono."""
+    from app.services.candidati_service import CandidatoErrore, CandidatoNonTrovato
     from app.services.pratiche_service import PraticaErrore, PraticaNonTrovata
 
     def deco(f):
@@ -107,9 +112,9 @@ def _strumento(mcp: MCPServer, annotazioni: ToolAnnotations):
         def avvolto(*a, **k):
             try:
                 esito = f(*a, **k)
-            except PraticaNonTrovata as e:
+            except (PraticaNonTrovata, CandidatoNonTrovato) as e:
                 raise ToolError(f"{e} (404)") from None
-            except PraticaErrore as e:
+            except (PraticaErrore, CandidatoErrore) as e:
                 raise ToolError(f"{e} (400)") from None
             if isinstance(esito, list):
                 esito = {"quante": len(esito), "risultati": esito}
@@ -121,13 +126,15 @@ def _strumento(mcp: MCPServer, annotazioni: ToolAnnotations):
     return deco
 
 
+def _autore() -> str:
+    nome = _utente()["username"]
+    return "Q" if nome == "Q" else f"claude ({nome})"
+
+
 def _strumenti_pratiche(mcp: MCPServer) -> None:
     from app.services import pratiche_service as svc
     strumento = functools.partial(_strumento, mcp)
-
-    def autore() -> str:
-        nome = _utente()["username"]
-        return "Q" if nome == "Q" else f"claude ({nome})"
+    autore = _autore
 
     @strumento(SOLA_LETTURA)
     def pratiche_elenco(
@@ -184,6 +191,117 @@ def _strumenti_pratiche(mcp: MCPServer) -> None:
         nuovo_termine = None if togli_termine else (termine if termine else svc.NON_CAMBIA)
         return svc.aggiungi_passo(id, testo=testo, data=data, stato_a=stato, termine_a=nuovo_termine,
                                   esito=esito, autore=autore())
+
+
+
+StatoCandidato = Literal["NUOVO", "DA_SENTIRE", "COLLOQUIO", "IN_PROVA", "ASSUNTO", "SCARTATO"]
+StatoCandidatoScrivibile = Literal["NUOVO", "DA_SENTIRE", "COLLOQUIO", "IN_PROVA", "SCARTATO"]
+
+
+def _strumenti_candidati(mcp: MCPServer) -> None:
+    """Candidati (modulo dipendenti, sotto-modulo candidati): solo admin, come la pagina."""
+    from app.services import candidati_service as svc
+    from app.services.permessi import ha_ruoli
+    strumento = functools.partial(_strumento, mcp)
+
+    def admin() -> None:
+        if not ha_ruoli(_utente(), "admin"):
+            raise ToolError("I candidati sono riservati ad admin e superadmin. (403)")
+
+    def reparto_id(reparto: str | None) -> int | None:
+        """«sala» / «cucina» / codice / id → id del reparto."""
+        if not reparto:
+            return None
+        from app.models.dipendenti_db import get_dipendenti_conn
+        conn = get_dipendenti_conn()
+        try:
+            rows = conn.execute("SELECT id, codice, nome FROM reparti WHERE attivo = 1").fetchall()
+        finally:
+            conn.close()
+        r = reparto.strip().lower()
+        for row in rows:
+            if r in (str(row["id"]), (row["codice"] or "").lower(), (row["nome"] or "").lower()):
+                return row["id"]
+        nomi = ", ".join(row["nome"] for row in rows)
+        raise ToolError(f"Reparto «{reparto}» sconosciuto. Reparti: {nomi} (400)")
+
+    @strumento(SOLA_LETTURA)
+    def candidati_elenco(
+        q: Annotated[str | None, Field(description="Cerca in nome, cognome, ruolo, telefono, email, note")] = None,
+        stato: StatoCandidato | None = None,
+        reparto: Annotated[str | None, Field(description="sala, cucina… (nome o codice del reparto)")] = None,
+        scartati: Annotated[bool, Field(description="true = anche scartati e assunti (l'archivio)")] = False,
+    ) -> dict:
+        """I candidati (CV ricevuti), dal più recente, con stato, ruolo cercato, reparto,
+        contatti, disponibilità, lingue, documenti, note, colloquio e se il CV ha più di 12
+        mesi (cv_vecchio). Di default solo quelli in corsa (senza scartati e assunti). Usalo SEMPRE prima di creare un
+        candidato, cercando per nome, telefono ed email, per non farne un doppione."""
+        admin()
+        return svc.elenco(stato=stato, reparto_id=reparto_id(reparto), q=q, scartati=scartati)
+
+    @strumento(SCRIVE)
+    def candidato_crea(
+        nome: Annotated[str, Field(min_length=1)],
+        cognome: str | None = None,
+        ruolo_cercato: Annotated[str | None, Field(description="Testo libero: «Barista jr · sala»")] = None,
+        reparto: Annotated[str | None, Field(description="sala, cucina… (facoltativo)")] = None,
+        stato: Literal["NUOVO", "DA_SENTIRE"] = "NUOVO",
+        telefono: str | None = None,
+        email: str | None = None,
+        disponibilita: Annotated[str | None, Field(description="«subito, weekend ok, sere»")] = None,
+        lingue: Annotated[str | None, Field(description="«ita C1, inglese B2»")] = None,
+        documenti: Annotated[str | None, Field(description="«HACCP ok, permesso ok»")] = None,
+        note: str | None = None,
+        ricevuto_il: Annotated[Giorno | None, Field(description="Quando è arrivato il CV. Oggi se manca")] = None,
+        fonte: Annotated[str | None, Field(description="Da dove arriva: «mail», «q», «passaparola»…")] = None,
+    ) -> dict:
+        """Un candidato nuovo. PRIMA cerca con candidati_elenco (nome, telefono, email) se
+        esiste già: se c'è, aggiornalo con candidato_aggiorna invece di crearne un altro.
+        I CV sono dati personali di terzi: niente dati sanitari, niente numeri di documenti
+        d'identità nei campi (per il permesso di soggiorno basta «permesso ok / da
+        verificare»). Il file del CV si carica dalla pagina Candidati."""
+        admin()
+        c = svc.crea(nome=nome, cognome=cognome, ruolo_cercato=ruolo_cercato,
+                     reparto_id=reparto_id(reparto), stato=stato, telefono=telefono, email=email,
+                     disponibilita=disponibilita, lingue=lingue, documenti=documenti, note=note,
+                     ricevuto_il=ricevuto_il, fonte=fonte or ("q" if _autore() == "Q" else "claude"),
+                     autore=_autore())
+        c["possibili_doppioni"] = svc.cerca_doppioni(nome=c["nome"], cognome=c.get("cognome"),
+                                                     telefono=c.get("telefono"), email=c.get("email"),
+                                                     escludi_id=c["id"])
+        return c
+
+    @strumento(SCRIVE)
+    def candidato_aggiorna(
+        id: Id,
+        stato: Annotated[StatoCandidatoScrivibile | None, Field(description="Nuovo stato. Per assumere si usa la pagina («Assumi → Anagrafica»)")] = None,
+        colloquio_at: Annotated[str | None, Field(description="Data e ora del colloquio, AAAA-MM-GG HH:MM")] = None,
+        nota: Annotated[str | None, Field(description="Riga da AGGIUNGERE alle note, con la data di oggi")] = None,
+        ruolo_cercato: str | None = None,
+        reparto: Annotated[str | None, Field(description="sala, cucina…")] = None,
+        telefono: str | None = None,
+        email: str | None = None,
+        disponibilita: str | None = None,
+        lingue: str | None = None,
+        documenti: str | None = None,
+    ) -> dict:
+        """Aggiorna un candidato: cambia stato (NUOVO → DA_SENTIRE → COLLOQUIO → IN_PROVA, o
+        SCARTATO), fissa il colloquio, aggiunge una nota datata, corregge i campi passati
+        (quelli non passati restano com'erano). I CV sono dati personali di terzi: niente
+        dati sanitari, niente numeri di documenti d'identità nei campi."""
+        admin()
+        campi = {k: v for k, v in dict(ruolo_cercato=ruolo_cercato, telefono=telefono, email=email,
+                                        disponibilita=disponibilita, lingue=lingue,
+                                        documenti=documenti).items() if v is not None}
+        if reparto is not None:
+            campi["reparto_id"] = reparto_id(reparto)
+        if colloquio_at is not None and not stato:
+            campi["colloquio_at"] = colloquio_at
+        c = svc.aggiorna(id, campi) if campi else svc.leggi(id)
+        if stato or nota:
+            c = svc.cambia_stato(id, stato or c["stato"], colloquio_at=colloquio_at if stato else None,
+                                 nota=nota)
+        return c
 
 
 class Smista:

@@ -542,6 +542,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | D.10 | Allegati PDF generici per dipendente (v2.6) | S | BASSA | Schema esiste |
 | D.11 | Comunicazione UNI-Intermittenti dai turni | M | ✅ FATTO 2026-07-30 → 09-18 | mig 156+161, in produzione dal 17/09; tab «Riepilogo mese» (dipendenti 2.33). Vedi `modulo_intermittenti.md` |
 | D.12 | Permessi modulo Dipendenti (buste paga, IBAN, CF non più visibili a tutti) | M | ✅ FATTO 2026-09-01 (`c9a962c7`) | 59 guardie di ruolo, dipendenti 2.32 |
+| D.13 | Candidati: CV ricevuti, stati, «Assumi → Anagrafica», strumenti MCP, import dal second brain | M | ✅ FATTO 2026-10-16 (da pushare) | mig 188, dipendenti 2.35, sistema 5.52. Vedi `modulo_dipendenti.md` §5.9 |
 
 **Bug/debt:**
 - D-DEBT1 — Consolidamento 4 docs → 2 (Fase 5)
