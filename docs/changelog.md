@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-16 — Lista preventivi: filtri visibili, default «Prossimi» `[core]`
+
+Clienti 3.3, nessuna migrazione. In Clienti › Preventivi i filtri ora si vedono anche su iPad in verticale e telefono (prima la sidebar spariva sotto i 1024 px) e il periodo parte da **«Prossimi»**: eventi da oggi in poi più i preventivi senza data. Prima il filtro fisso sull'anno corrente nascondeva gli eventi del 2027. «Tutti» o un anno si scelgono dal menu Periodo; il mese si sceglie solo con un anno. L'API senza `periodo` funziona come prima (tab Preventivi della scheda cliente invariato).
+
+---
+
 ## 2026-10-16 — Preventivi: menu «a corpo» e menu gruppi di stagione `[core]`
 
 Clienti 3.2, sistema 5.51, mig 187. Ogni menu di un preventivo ha la modalità di prezzo **Somma piatti** (come prima, default per tutti i menu esistenti) o **A corpo**: prezzo a persona scritto a mano, con **doppio prezzo** opzionale vino escluso / vino incluso (es. 50/55) e la scelta di quale dei due entra nel totale. A corpo i piatti restano come portate: niente prezzo, al suo posto la portata (Antipasto, Primo, Secondo, Dolce). Con più menu si segna **quello scelto dal cliente**; finché non sceglie, scheda, PDF e messaggio mostrano il totale **«da X a Y €»**. I **menu template** salvano anche modalità e prezzi a corpo e hanno una **stagione** («Autunno-Inverno 2026») con filtro; in «Carica template» se ne spuntano più d'uno e diventano menu alternativi, uno per tab. Nuovi «💬 WhatsApp» e «📋 Copia testo» in scheda: menu, portate e prezzo a persona, mai i prezzi dei singoli piatti. Corretti due bug che rendevano la libreria template inutilizzabile (403 a tutti sulle scritture, 500 sulle letture). Provato su copia del DB: PRE-2026-001 e PRE-2026-002 invariati, preventivo con 2 menu a corpo doppio prezzo + 1 extra e PDF.

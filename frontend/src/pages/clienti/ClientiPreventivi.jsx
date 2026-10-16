@@ -1,5 +1,10 @@
-// @version: v1.1-mattoni — M.I primitives (Btn) su Nuovo preventivo, Resetta filtri, paginazione
+// @version: v1.2 — filtri visibili anche sotto lg, periodo «Prossimi» di default
+// Modulo: clienti (sub-modulo preventivi)
 // Lista preventivi con filtri, stats, paginazione — Fase A (10.1)
+// v1.2 (2026-10-16): la sidebar filtri era `hidden lg:block` (invisibile su iPad
+//   verticale e telefono) e l'anno corrente era sempre attivo: gli eventi del 2027
+//   sparivano. Ora «Periodo» parte da «Prossimi» (eventi da oggi + senza data) e
+//   sotto lg i filtri stanno sopra la tabella.
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -32,6 +37,11 @@ const STATI_LABEL = {
   scaduto:    "Scaduto",
 };
 
+// Periodo: «prossimi» (default), «» = tutti, oppure un anno (abilita il mese)
+const PERIODO_DEFAULT = "prossimi";
+const ANNO_CORRENTE = new Date().getFullYear();
+const ANNI = [ANNO_CORRENTE + 1, ANNO_CORRENTE, ANNO_CORRENTE - 1, ANNO_CORRENTE - 2].map(String);
+
 const TIPI_LABEL = {
   cena_privata: "Cena privata",
   aperitivo:    "Aperitivo",
@@ -52,8 +62,19 @@ export default function ClientiPreventivi() {
   const [q, setQ] = useState("");
   const [stato, setStato] = useState("");
   const [tipo, setTipo] = useState("");
-  const [anno, setAnno] = useState(new Date().getFullYear().toString());
+  const [periodo, setPeriodo] = useState(PERIODO_DEFAULT);
   const [mese, setMese] = useState("");
+  const [filtriAperti, setFiltriAperti] = useState(false); // solo sotto lg
+  const anno = /^\d{4}$/.test(periodo) ? periodo : "";
+  const nFiltriAttivi = [q, stato, tipo, periodo !== PERIODO_DEFAULT ? periodo || "tutti" : "", anno && mese]
+    .filter(Boolean).length;
+
+  // Il mese ha senso solo con un anno: tornando a Prossimi/Tutti si azzera
+  useEffect(() => { if (!anno) setMese(""); }, [anno]);
+
+  const resetFiltri = () => {
+    setQ(""); setStato(""); setTipo(""); setPeriodo(PERIODO_DEFAULT); setMese("");
+  };
 
   const fetchPreventivi = useCallback(async () => {
     setLoading(true);
@@ -62,8 +83,9 @@ export default function ClientiPreventivi() {
       if (q) params.set("q", q);
       if (stato) params.set("stato", stato);
       if (tipo) params.set("tipo", tipo);
+      if (periodo === "prossimi") params.set("periodo", "prossimi");
       if (anno) params.set("anno", anno);
-      if (mese) params.set("mese", mese);
+      if (anno && mese) params.set("mese", mese);
       params.set("limit", PAGE_SIZE);
       params.set("offset", offset);
 
@@ -76,7 +98,7 @@ export default function ClientiPreventivi() {
     } finally {
       setLoading(false);
     }
-  }, [q, stato, tipo, anno, mese, offset]);
+  }, [q, stato, tipo, periodo, anno, mese, offset]);
 
   useEffect(() => { fetchPreventivi(); }, [fetchPreventivi]);
 
@@ -87,7 +109,7 @@ export default function ClientiPreventivi() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => { setOffset(0); }, [q, stato, tipo, anno, mese]);
+  useEffect(() => { setOffset(0); }, [q, stato, tipo, periodo, mese]);
 
   const pagina = Math.floor(offset / PAGE_SIZE) + 1;
   const totalePagine = Math.ceil(totale / PAGE_SIZE);
@@ -138,13 +160,37 @@ export default function ClientiPreventivi() {
             </div>
           </div>
 
-          <div className="flex gap-6">
-            {/* SIDEBAR FILTRI */}
-            <div className="w-56 flex-shrink-0 hidden lg:block">
-              <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm space-y-4">
-                <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Filtri</h3>
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+            {/* FILTRI: sidebar da lg in su, pannello sopra la tabella sotto lg */}
+            <div className="w-full lg:w-56 flex-shrink-0">
+              {/* Barra compatta sotto lg: cerca + periodo sempre visibili */}
+              <div className="lg:hidden bg-white rounded-xl border border-neutral-200 p-3 shadow-sm space-y-2">
+                <div className="flex gap-2">
+                  <input type="text" value={q} onChange={(e) => setQ(e.target.value)}
+                    placeholder="Cerca titolo, numero, cliente..."
+                    className="flex-1 min-w-0 border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
+                  <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}
+                    className="w-32 border border-neutral-300 rounded-lg px-2 py-2 text-sm bg-white">
+                    <option value="prossimi">Prossimi</option>
+                    <option value="">Tutti</option>
+                    {ANNI.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <button type="button" onClick={() => setFiltriAperti((v) => !v)}
+                    className="text-xs font-medium text-indigo-700 px-2 py-2 min-h-[44px]">
+                    {filtriAperti ? "▲ Meno filtri" : "▼ Altri filtri"}{nFiltriAttivi > 0 ? ` (${nFiltriAttivi} attivi)` : ""}
+                  </button>
+                  {nFiltriAttivi > 0 && (
+                    <Btn variant="ghost" size="sm" onClick={resetFiltri}>Resetta</Btn>
+                  )}
+                </div>
+              </div>
 
-                <div>
+              <div className={`${filtriAperti ? "block mt-2" : "hidden"} lg:block lg:mt-0 bg-white rounded-xl border border-neutral-200 p-4 shadow-sm space-y-4`}>
+                <h3 className="hidden lg:block text-xs font-semibold text-neutral-500 uppercase tracking-wider">Filtri</h3>
+
+                <div className="hidden lg:block">
                   <label className="text-xs text-neutral-600 font-medium">Cerca</label>
                   <input type="text" value={q} onChange={(e) => setQ(e.target.value)}
                     placeholder="Titolo, numero, cliente..."
@@ -173,20 +219,21 @@ export default function ClientiPreventivi() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-xs text-neutral-600 font-medium">Anno</label>
-                  <select value={anno} onChange={(e) => setAnno(e.target.value)}
+                <div className="hidden lg:block">
+                  <label className="text-xs text-neutral-600 font-medium">Periodo evento</label>
+                  <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}
                     className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm">
+                    <option value="prossimi">Prossimi (da oggi + senza data)</option>
                     <option value="">Tutti</option>
-                    <option value="2026">2026</option>
-                    <option value="2025">2025</option>
+                    {ANNI.map((a) => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
 
                 <div>
                   <label className="text-xs text-neutral-600 font-medium">Mese</label>
-                  <select value={mese} onChange={(e) => setMese(e.target.value)}
-                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm">
+                  <select value={mese} onChange={(e) => setMese(e.target.value)} disabled={!anno}
+                    title={anno ? "" : "Scegli prima un anno in Periodo"}
+                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm disabled:bg-neutral-50 disabled:text-neutral-400">
                     <option value="">Tutti</option>
                     {["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"].map((m, i) => (
                       <option key={i+1} value={i+1}>{m}</option>
@@ -194,7 +241,7 @@ export default function ClientiPreventivi() {
                   </select>
                 </div>
 
-                <Btn variant="ghost" size="sm" onClick={() => { setQ(""); setStato(""); setTipo(""); setAnno(new Date().getFullYear().toString()); setMese(""); }} className="w-full">
+                <Btn variant="ghost" size="sm" onClick={resetFiltri} className="w-full hidden lg:inline-flex">
                   Resetta filtri
                 </Btn>
               </div>
@@ -207,7 +254,15 @@ export default function ClientiPreventivi() {
                   <div className="p-12 text-center text-neutral-400">Caricamento...</div>
                 ) : preventivi.length === 0 ? (
                   <div className="p-12 text-center text-neutral-400">
-                    Nessun preventivo trovato. Crea il primo!
+                    {nFiltriAttivi > 0 || periodo === "prossimi" ? (
+                      <>
+                        Nessun preventivo con questi filtri.
+                        {periodo === "prossimi" && " Gli eventi passati sono in «Tutti»."}
+                        <div className="mt-3">
+                          <Btn variant="ghost" size="sm" onClick={() => { resetFiltri(); setPeriodo(""); }}>Mostra tutti</Btn>
+                        </div>
+                      </>
+                    ) : "Nessun preventivo trovato. Crea il primo!"}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">

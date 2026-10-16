@@ -234,6 +234,7 @@ def api_lista_preventivi(
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
     includi_bozze_auto: bool = False,
+    periodo: Optional[str] = Query(None, description="'prossimi' = eventi da oggi + senza data"),
     user: dict = Depends(get_current_user),
 ):
     return lista_preventivi(
@@ -241,6 +242,7 @@ def api_lista_preventivi(
         cliente_id=cliente_id, tipo=tipo, q=q,
         limit=limit, offset=offset,
         includi_bozze_auto=includi_bozze_auto,
+        periodo=periodo,
     )
 
 

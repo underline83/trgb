@@ -26,7 +26,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`, so
 
 | Codice | Cosa fa | Riferimento | Audience | Stato docs |
 |---|---|---|---|---|
-| C-P-019 | Lista preventivi con filtri + KPI (in ballo, confermati, valore mese) | `GET /preventivi` + `GET /preventivi/stats` — `preventivi_router.py:201, :222` | admin (stats), tutti (lista) | ✅ |
+| C-P-019 | Lista preventivi con filtri + KPI (in ballo, confermati, valore mese). Default «Prossimi»: eventi da oggi + senza data (`periodo=prossimi`, 2026-10-16) | `GET /preventivi` + `GET /preventivi/stats` — `preventivi_router.py` | admin (stats), tutti (lista) | ✅ |
 | C-P-020 | Luoghi evento configurabili | `GET/PUT /preventivi/config/luoghi` — `:232, :237` | admin (PUT) | ✅ |
 | C-P-021 | Template di testata (righe extra + condizioni precompilate) | `GET /preventivi/template/lista` + `POST/PUT/DELETE /template[/{id}]` — `:247-:268` | admin | ✅ |
 | C-P-022 | CRUD preventivo (numero automatico, cliente inline, righe in blocco) | `GET/POST/PUT/DELETE /preventivi[/{id}]` — `:281, :289, :298, :310` | admin (scritture) | ✅ |
@@ -139,7 +139,7 @@ Il composer menu funziona anche su `/clienti/preventivi/nuovo` prima del salvata
 
 # 9. Frontend
 
-- **Lista** (`ClientiPreventivi.jsx`, `/clienti/preventivi`): sidebar filtri (ricerca su titolo/numero/cliente, stato, tipo, anno, mese), KPI in header (in ballo / confermati mese / valore mese, da `/stats`), tabella con numero, titolo, cliente, data evento, pax, totale (o badge "N alternative"), stato colorato, scadenza in giorni; paginazione 50; click riga → scheda.
+- **Lista** (`ClientiPreventivi.jsx`, `/clienti/preventivi`): filtri (ricerca su titolo/numero/cliente, stato, tipo, periodo, mese) — sidebar da `lg` in su, sotto `lg` barra compatta sopra la tabella (cerca + periodo, «Altri filtri» a scomparsa). **Periodo** di default «Prossimi» (eventi da oggi + preventivi senza data), poi «Tutti» o un anno (anno corrente ±); il mese si sceglie solo con un anno. Prima il default era l'anno corrente e la sidebar era nascosta sotto `lg`: gli eventi dell'anno dopo sparivano senza modo di vederli. Le bozze automatiche (§7) restano escluse; KPI in header (in ballo / confermati mese / valore mese, da `/stats`), tabella con numero, titolo, cliente, data evento, pax, totale (o badge "N alternative"), stato colorato, scadenza in giorni; paginazione 50; click riga → scheda.
 - **Scheda** (`ClientiPreventivoScheda.jsx`, `/clienti/preventivi/:id|nuovo`): testata (titolo, tipo cena_privata/aperitivo/degustazione/catering/altro, canale whatsapp/email/telefono/di_persona/sito, data/ora/pax, luogo, scadenza conferma); cliente con toggle "🔍 Esistente" (autocomplete che riusa `GET /prenotazioni/clienti/search`) / "＋ Nuovo" (creato nel CRM al salvataggio con `origine='preventivo'`); **composer menu** (sotto); menu proposto testuale; extra con tipi e riordino; totale live; note su 3 tab (interne staff / per il cliente / condizioni); sidebar azioni: Salva, transizioni di stato disponibili, Scarica PDF, Duplica, Elimina; barra azioni mobile.
 - **Composer** (`PreventivoMenuComposer.jsx`): tab per ogni menu (nome editabile inline, ▲▼ riordino, ✕ elimina, + aggiungi, duplica), sconto per menu, picker piatti dal Ricettario (filtro tipo servizio + ricerca), "piatto veloce", edit inline prezzo riga, riordino righe, salva/carica template libreria.
 - **Tab "Preventivi" nella scheda cliente** (`ClientiScheda.jsx`): storico preventivi del cliente (`GET /preventivi?cliente_id=`) + "Nuovo preventivo".

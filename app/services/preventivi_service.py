@@ -983,7 +983,7 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
         # Titolo placeholder per auto-bozza (cosi' la colonna NOT-NULL e' sempre valida)
         titolo = (data.get("titolo") or "").strip()
         if not titolo:
-            titolo = "Preventivo in compilazione" if is_bozza_auto else ""
+            titolo = BOZZA_AUTO_TITOLO if is_bozza_auto else ""
 
         numero = _prossimo_numero(conn)
         conn.execute("""
@@ -1101,6 +1101,10 @@ def get_preventivo(preventivo_id: int) -> dict | None:
         conn.close()
 
 
+# Titolo segnaposto delle bozze automatiche senza titolo: in lista non si mostrano
+BOZZA_AUTO_TITOLO = "Preventivo in compilazione"
+
+
 def _bozza_auto_colonna_esiste(conn) -> bool:
     """La colonna is_bozza_auto viene introdotta dalla mig 076.
     Se e' assente (DB legacy non migrato) i filtri/stats si comportano come se
@@ -1119,24 +1123,40 @@ def lista_preventivi(
     limit: int = 50,
     offset: int = 0,
     includi_bozze_auto: bool = False,
+    periodo: str | None = None,
 ) -> dict:
     """Lista preventivi con filtri. Ritorna {items, total}.
+
+    periodo='prossimi' (2026-10-16): eventi da oggi in poi + preventivi senza
+    data evento (le bozze appena aperte). Default della pagina lista: prima il
+    filtro anno corrente faceva sparire gli eventi dell'anno dopo.
 
     Per default le bozze automatiche (is_bozza_auto=1) sono ESCLUSE: sono
     preventivi creati in modo silenzioso dal composer menu su /nuovo e non
     confermati dall'utente. Usare includi_bozze_auto=True per vederle (uso
-    amministrativo/debug)."""
+    amministrativo/debug).
+    Eccezione (2026-10-16): le bozze automatiche con un titolo vero (non il
+    placeholder BOZZA_AUTO_TITOLO) si vedono, la UI le marca «non salvata»:
+    sono preventivi compilati a cui e' mancato solo «Crea preventivo»."""
     conn = get_clienti_conn()
     try:
         where = ["1=1"]
         params = []
 
         if not includi_bozze_auto and _bozza_auto_colonna_esiste(conn):
-            where.append("COALESCE(p.is_bozza_auto, 0) = 0")
+            where.append(
+                "(COALESCE(p.is_bozza_auto, 0) = 0"
+                " OR (TRIM(COALESCE(p.titolo, '')) != '' AND p.titolo != ?))"
+            )
+            params.append(BOZZA_AUTO_TITOLO)
 
         if stato:
             where.append("p.stato = ?")
             params.append(stato)
+        if periodo == "prossimi":
+            where.append(
+                "(COALESCE(p.data_evento, '') = '' OR date(p.data_evento) >= date('now', 'localtime'))"
+            )
         if mese and anno:
             where.append("strftime('%m', p.data_evento) = ? AND strftime('%Y', p.data_evento) = ?")
             params.extend([f"{mese:02d}", str(anno)])

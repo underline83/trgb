@@ -385,6 +385,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.3 (2026-10-16): lista Preventivi — filtri visibili anche su iPad/telefono,
+    //   periodo «Prossimi» (eventi da oggi + senza data) al posto dell'anno corrente.
     // 3.2 (2026-10-16): Preventivi — prezzo «a corpo» per menu (anche doppio vino
     //   escluso/incluso), portate al posto dei prezzi dei piatti, menu scelto dal
     //   cliente e totale «da X a Y» finche' non sceglie, template con stagione e
@@ -395,7 +397,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.2",
+    version: "3.3",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
