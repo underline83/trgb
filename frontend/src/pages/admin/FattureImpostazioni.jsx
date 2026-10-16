@@ -1,10 +1,11 @@
-// @version: v2.4-mattoni — M.I primitives (Btn) su CTA principali (Importa XML / Unisci duplicati / Svuota DB / Nuova Categoria), tocco minimo su file 1671 righe
+// @version: v2.5-spalmatura-default (chip 📆 in Categorie, mig 191) · v2.4-mattoni — M.I primitives (Btn) su CTA principali (Importa XML / Unisci duplicati / Svuota DB / Nuova Categoria), tocco minimo su file 1671 righe
 // Pagina Impostazioni Acquisti — Layout sidebar uniformato a ClientiImpostazioni
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
+import SpalmaturaDefaultChip from "./SpalmaturaDefaultChip";
 
 const FC = `${API_BASE}/fic`;
 const FE = `${API_BASE}/contabilita/fe`;
@@ -1374,7 +1375,12 @@ function CategorieManager({ categorie, loading, onRefresh }) {
   return (
     <div>
       <h2 className="text-lg font-bold text-teal-900 mb-1">Gestione Categorie</h2>
-      <p className="text-sm text-neutral-500 mb-4">Crea, modifica e organizza le categorie e sotto-categorie per fornitori e prodotti.</p>
+      <p className="text-sm text-neutral-500 mb-2">Crea, modifica e organizza le categorie e sotto-categorie per fornitori e prodotti.</p>
+      <p className="text-xs text-neutral-500 mb-4">
+        📆 <b>Spalmatura</b>: nel Conto Economico le righe di quella categoria si dividono su N mesi a partire dal mese della fattura
+        (es. VINO → 3 mesi), anche quando la fattura contiene altro. Vale per le fatture dal mese indicato in poi.
+        La sottocategoria vince sulla categoria; «1 mese» = non spalmare. La spalmatura messa a mano su una fattura vince sempre.
+      </p>
 
       <div className="space-y-4">
         {categorie.map(cat => (
@@ -1392,6 +1398,7 @@ function CategorieManager({ categorie, loading, onRefresh }) {
                 <>
                   <span className="text-base font-bold text-teal-900">{cat.nome}</span>
                   <span className="text-[10px] text-neutral-400">({cat.sottocategorie?.length || 0} sub)</span>
+                  <SpalmaturaDefaultChip url={`${CAT_BASE}/${cat.id}/spalmatura`} item={cat} onSaved={onRefresh} />
                   <button onClick={() => setEditCat({ id: cat.id, nome: cat.nome })} className="text-xs px-2 py-0.5 text-blue-700 hover:bg-blue-50 rounded-lg">✏️</button>
                   <button onClick={() => deleteCat(cat.id, cat.nome)} className="text-xs px-2 py-0.5 text-red-600 hover:bg-red-50 rounded-lg">🗑️</button>
                 </>
@@ -1423,6 +1430,8 @@ function CategorieManager({ categorie, loading, onRefresh }) {
                   ) : (
                     <>
                       <span className="text-sm">{sub.nome}</span>
+                      <SpalmaturaDefaultChip url={`${CAT_BASE}/sotto/${sub.id}/spalmatura`} item={sub} onSaved={onRefresh}
+                        ereditata={cat.spalmatura_mesi_default} />
                       <button onClick={() => setEditSub({ id: sub.id, nome: sub.nome })} className="text-[10px] px-1.5 py-0.5 text-blue-600 hover:bg-blue-50 rounded">✏️</button>
                       <Tooltip label="Sposta in un'altra categoria">
                         <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}

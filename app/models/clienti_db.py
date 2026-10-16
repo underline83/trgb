@@ -369,7 +369,7 @@ def init_clienti_db() -> None:
         ('soglia_pranzo_cena',      '15:00', 'Ora che separa pranzo da cena'),
         ('giorni_anticipo_max',     '60',    'Max giorni in avanti per widget'),
         ('giorni_anticipo_min_ore', '2',     'Min ore prima per widget'),
-        ('giorno_chiusura',         '3',     'Giorno chiuso (0=dom, 3=mer)'),
+        ('giorno_chiusura',         '3',     'Giorno chiuso (0=dom … 6=sab, 3=mer, -1=nessuno)'),
         ('durata_media_tavolo_min', '90',    'Durata media permanenza minuti'),
         ('widget_attivo',           '0',     'Widget pubblico attivo (0/1)'),
         ('widget_messaggio_pieno',  'Siamo al completo per questa data. Contattaci telefonicamente per verificare disponibilita.', 'Messaggio widget pieno'),

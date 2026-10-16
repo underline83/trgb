@@ -1,4 +1,4 @@
-// @version: v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -16,15 +16,17 @@ const SECTIONS = [
   { key: "thefork",  label: "TheFork",           icon: "🍴", desc: "Prenotazioni in tempo reale da TheFork Manager" },
 ];
 
+// Stessa codifica del backend (prenotazioni_router.get_settimana): 0=domenica … 6=sabato, -1=nessuno.
+// Prima la select usava 0=nessuno, 1=domenica…: con il valore 3 (mercoledì) mostrava «Martedì».
 const GIORNI_CHIUSURA = [
-  { v: "0", l: "Nessuno (aperto tutti i giorni)" },
-  { v: "1", l: "Domenica" },
-  { v: "2", l: "Lunedì" },
-  { v: "3", l: "Martedì" },
-  { v: "4", l: "Mercoledì" },
-  { v: "5", l: "Giovedì" },
-  { v: "6", l: "Venerdì" },
-  { v: "7", l: "Sabato" },
+  { v: "-1", l: "Nessuno (aperto tutti i giorni)" },
+  { v: "1", l: "Lunedì" },
+  { v: "2", l: "Martedì" },
+  { v: "3", l: "Mercoledì" },
+  { v: "4", l: "Giovedì" },
+  { v: "5", l: "Venerdì" },
+  { v: "6", l: "Sabato" },
+  { v: "0", l: "Domenica" },
 ];
 
 // ── Componente SlotManager ──
@@ -298,7 +300,7 @@ function CapienzaSection({ config, update }) {
           <div>
             <label className="block text-xs font-medium text-neutral-600 mb-1">Giorno di chiusura</label>
             <select
-              value={config.giorno_chiusura || "4"}
+              value={config.giorno_chiusura ?? "3"}
               onChange={(e) => update("giorno_chiusura", e.target.value)}
               className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
             >

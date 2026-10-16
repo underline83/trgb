@@ -7,7 +7,7 @@
 **Sistema:** 5.54 in produzione (4fa71e02) · 5.55 da pushare · **Migrazione più recente:** 191 (da pushare; 190 in produzione)
 
 **DA PUSHARE — Spalmatura di default per categoria** (mig 191, sistema 5.55, fatture 3.3, controlloGestione 2.28)
-- Dopo il push: Acquisti › Categorie › Impostazioni Categorie › BEVANDE › VINO › chip 📆 → 3 mesi, dal mese da cui vuoi che valga. Poi Conto Economico: le fatture col vino mostrano «(quota k/3)»; nel dettaglio di una fattura Sogegross il gruppo VINO ha il badge «📆 3 mesi».
+- Dopo il push: Acquisti › Impostazioni › Categorie › BEVANDE › VINO › chip 📆 → 3 mesi, dal 2026-01 (decisione Marco). Poi Conto Economico: le fatture col vino mostrano «(quota k/3)»; nel dettaglio di una fattura Sogegross il gruppo VINO ha il badge «📆 3 mesi».
 
 **TheFork webhook** (live: b29003e4 + 4fa71e02; URL già mandato a Régis il 16/10)
 - Fix orario pushato (e1791c48): rilanciare Recupera 09/10→16/10 «pasto», poi oggi→31/12 «pasto».
@@ -55,6 +55,7 @@
 - Prenotazioni 2.10, mig 194 `tavoli_blocchi`: menu al clic su tavolo libero nella mappa (aggiungi prenotazione / blocca / sblocca). `PrenotazioniForm` accetta `defaultTavolo`, `defaultTurno`. Ruoli blocco: admin, sala, sommelier. Testato su copia DB (blocco, doppio blocco = aggiorna motivo, mappa, disponibili, sblocco, viewer 403).
 - Prenotazioni 2.11, mig 195: fasce orarie del servizio (`prenotazioni_fasce_service.py`, `FasceTurno.jsx`, override online su TheFork). ATTENZIONE: il backend (mig 195, router, service, thefork_service `_richiesta`/`api_put`) è finito nel commit c2517dbb della 2.10 perché Marco ha pushato a metà lavoro; il frontend arriva con la 2.11. Testato su copia DB con TheFork finto (gruppi contigui, errore 403 conservato sulla fascia, ritorno al default, viewer 403). Da verificare dal vero: che il token B2B abbia lo scope di scrittura (override).
 - Prenotazioni 2.12, mig 196: tavoli dividibili (flag in Editor, «✂️ Dividi in due» / «🔗 Riunisci» dalla mappa, metà A/B virtuali per turno). Testato su copia DB (non dividibile → 400, divisione, metà in mappa e disponibili, riunisci rifiutato con prenotazione su 10A, riunisci ok).
+- Prenotazioni 2.13: fix limiti noti §9.1 (giorno_chiusura UI → codifica backend, -1 = nessuno) e §9.2 (solo_admin su PUT /config, CRUD tavoli, layout, combinazioni). Testato su copia DB con TestClient (sala 403, admin/superadmin 200, settimana con 3 → mercoledì chiuso, -1 e vuoto → nessuno).
 - Direzione decisa da Marco: TRGB diventa il gestionale delle prenotazioni; su TheFork resteranno 3-4 tavoli. Si copiano e migliorano le funzioni di TheFork Manager; quello che l'API non permette si fa solo in TRGB. Da valutare: POST /v1/restaurants/{id}/reservations, PATCH /v1/reservations/{id}, PATCH …/cancel (scrivere su TheFork le prenotazioni prese in TRGB), recensioni (GET /v1/reviews, PUT reply), riconoscimento chiamante (customers/phone, callRecognitions).
 
 ## SESSIONE 2026-10-16 (9) — Spalmatura di default per categoria `[core]`
@@ -64,7 +65,7 @@ Marco: «il vino lo setterei di base a 3 mesi». Prima la spalmatura si metteva 
 - `app/services/spalmatura_regole.py` (nuovo): carica regole, priorità manuale > sottocategoria > categoria.
 - `conto_economico._aggregate_fatture_con_regole`: usato solo se c'è almeno una regola; quote dal mese di competenza, descrizione «(quota k/N)».
 - `fe_categorie_router` v1.3: `PUT /{id}/spalmatura`, `PUT /sotto/{id}/spalmatura` + campi nella lista. `fe_import` dettaglio: `spalmatura_regola_mesi` per gruppo.
-- FE: `FattureCategorie.jsx` chip 📆 (v2.1), `FattureDettaglio.jsx` badge + card «Automatica».
+- FE: `SpalmaturaDefaultChip.jsx` (nuovo) nel `CategorieManager` di `FattureImpostazioni.jsx` (v2.5; `FattureCategorie.jsx` è morta, /acquisti/categorie fa redirect), `FattureDettaglio.jsx` badge + card «Automatica».
 - Test su copia DB (`~/scratch` della VM): senza regole output identico; VINO 3 mesi dal 2026-01 → totale gen26–gen27 invariato 222.991,24 €; regola 1 = identico; endpoint 200/400/404 ok. Permessi: router già admin+contabile.
 - Docs: modulo_controllo_gestione (C-CG-SP01, C-A-SP01/02), modulo_acquisti §2.7/§8.2/§9, roadmap G.3.2, changelog.
 

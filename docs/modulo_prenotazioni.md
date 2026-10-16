@@ -209,8 +209,8 @@ Cosa arriva a TheFork: solo apri/chiudi online (`PUT /v1/restaurants/{id}/availa
 
 # 9. Limiti noti e incoerenze
 
-1. **`giorno_chiusura`: mapping UI ≠ backend.** La select in `PrenotazioniImpostazioni.jsx:17` usa 0=nessuno, 1=domenica … 7=sabato; il backend (`prenotazioni_router.py:283-287`) interpreta 0=dom … 6=sab (seed `'3'` = mercoledì, corretto per l'osteria). Con valore 3 la UI mostra "Martedì" ma la settimana marca chiuso il mercoledì; salvare "Mercoledì" dalla UI scriverebbe 4 = giovedì per il backend. Bug di visualizzazione/scrittura da fixare.
-2. **Restrizione admin solo frontend.** Editor Tavoli e Impostazioni sono nascosti ai non-admin solo dalla UI (`PrenotazioniNav`); gli endpoint config/tavoli/layout accettano qualsiasi utente loggato.
+1. ~~**`giorno_chiusura`: mapping UI ≠ backend.**~~ Risolto in 2.13: la select usa la codifica del backend (0=domenica … 6=sabato, -1=nessuno); il valore in produzione era già corretto (3 = mercoledì).
+2. ~~**Restrizione admin solo frontend.**~~ Risolto in 2.13: `PUT /config`, CRUD tavoli (`POST/PUT/DELETE /tavoli`, `PUT /tavoli/batch/posizioni`), layout e combinazioni richiedono admin lato server (M.G `solo_admin`). Le letture e l'assegnazione dei tavoli restano aperte a chi è loggato.
 3. **Combinazioni tavoli senza UI.** Endpoint CRUD presenti (C-P-016) ma nessuna pagina li usa: `TavoliEditor` carica le combinazioni e non le mostra; si gestiscono solo via API. In compenso mappa e disponibilità spacchettano le combinazioni scritte a mano nel campo `tavolo` ("4+5").
 4. **Campi Fase 4 inerti.** `token_cancellazione` viene generato a ogni POST ma mai consumato; `reminder_inviato` è usato dalla riconferma WhatsApp (2.8), `conferma_inviata` ancora no; `prenotazioni_email_log` mai scritta. Serviranno con widget + M.D Email.
 5. **REQUESTED senza produttore.** La UI lo gestisce (badge NUOVA, conferma/rifiuta) ma oggi nessun flusso lo crea (widget assente).

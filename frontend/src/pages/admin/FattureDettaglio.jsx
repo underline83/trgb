@@ -1279,7 +1279,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                               .filter(c => c.spalmatura_regola_mesi)
                               .map(c => `${c.sottocategoria !== "—" ? c.sottocategoria : c.categoria} su ${c.spalmatura_regola_mesi} mesi`)
                               .join(" · ")}
-                            {" "}— regola di categoria (Categorie → Impostazioni Categorie)
+                            {" "}— regola di categoria (Impostazioni › Categorie)
                           </div>
                         </>
                       ) : (

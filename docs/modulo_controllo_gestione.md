@@ -33,7 +33,7 @@ Decisioni Marco 16/10/2026. Spesa fissa **«F24 paghe»** (`tipo='F24_STIPENDI'`
 
 Marco 16/10: «il vino lo setterei di base a 3 mesi». Decisione (opzione 2 su 2): la regola vale **per riga**, non per fattura — nel 2026 metà delle fatture con vino vengono da fornitori misti (Sogegross, Marenzi…).
 
-- Dove si imposta: Acquisti → Categorie → Impostazioni Categorie, chip 📆 accanto a categoria/sottocategoria (`fe_categorie_router` `PUT /{id}/spalmatura`, `PUT /sotto/{id}/spalmatura`).
+- Dove si imposta: Acquisti → Impostazioni → Categorie, chip 📆 accanto a categoria/sottocategoria (`fe_categorie_router` `PUT /{id}/spalmatura`, `PUT /sotto/{id}/spalmatura`).
 - Calcolo: `conto_economico._aggregate_fatture_con_regole` (attivo solo se esiste almeno una regola; senza regole resta la query di prima). Categoria effettiva = stessa gerarchia del CE (riga → fornitore). Quote dal mese di competenza (`competenza_anno_mese` o `data_fattura`), descrizione «N° (quota k/N)».
 - Priorità: spalmatura manuale della fattura > regola sottocategoria > regola categoria > mese di competenza. `mesi=1` sulla sottocategoria = esclusa dalla regola della categoria.
 - `valida_dal`: la regola tocca solo le fatture con competenza da quel mese in poi → i mesi già chiusi non cambiano (mettendo una data passata si ricalcola lo storico).
@@ -43,7 +43,7 @@ Marco 16/10: «il vino lo setterei di base a 3 mesi». Decisione (opzione 2 su 2
 | Codice | Cosa fa | Riferimento | Audience | Stato docs |
 |---|---|---|---|---|
 | C-CG-SP01 🆕 | CE: righe di fattura spalmate su N mesi secondo la regola della loro (sotto)categoria | `conto_economico.py` `_aggregate_fatture_con_regole` | admin/contabile | 🆕 2026-10-16 |
-| C-A-SP01 🆕 | Imposta/togli la spalmatura di default di categoria e sottocategoria | `fe_categorie_router.py` `_salva_spalmatura`; `FattureCategorie.jsx` `SpalmaturaChip` | admin/contabile | 🆕 2026-10-16 |
+| C-A-SP01 🆕 | Imposta/togli la spalmatura di default di categoria e sottocategoria | `fe_categorie_router.py` `_salva_spalmatura`; `SpalmaturaDefaultChip.jsx` in `FattureImpostazioni.jsx` `CategorieManager` | admin/contabile | 🆕 2026-10-16 |
 | C-A-SP02 🆕 | Dettaglio fattura: quale regola si applica a ogni gruppo categoria | `fe_import.py` dettaglio (`spalmatura_regola_mesi`); `FattureDettaglio.jsx` | admin/contabile | 🆕 2026-10-16 |
 
 # 📌 AGGIORNAMENTO 2026-07-17 — Analisi Utenze U1+U2 (spec_utenze.md, mig 151)

@@ -41,7 +41,7 @@ from app.services import prenotazioni_fasce_service as fasce_srv
 
 logger = logging.getLogger("trgb.prenotazioni")
 
-from app.services.permessi import richiede_ruoli, verifica_ruoli
+from app.services.permessi import richiede_ruoli, solo_admin, verifica_ruoli
 
 # PERMESSI (2026-09-01, M.G) — prenotazioni
 # Erano aperti nome e telefono dei prenotati e la DELETE della prenotazione.
@@ -379,8 +379,11 @@ def get_settimana(
     try:
         config = _get_config(conn)
         soglia = config.get("soglia_pranzo_cena", "15:00")
-        giorno_chiusura = int(config.get("giorno_chiusura", 3))
-        # Config: 0=dom, 1=lun, 2=mar, 3=mer, 4=gio, 5=ven, 6=sab
+        try:
+            giorno_chiusura = int(config.get("giorno_chiusura", 3))
+        except (TypeError, ValueError):
+            giorno_chiusura = -1
+        # Config: 0=dom, 1=lun, 2=mar, 3=mer, 4=gio, 5=ven, 6=sab, -1 (o vuoto) = nessuno
         # Python weekday(): 0=lun, 1=mar, 2=mer, 3=gio, 4=ven, 5=sab, 6=dom
         _chiusura_map = {0: 6, 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5}
         weekday_chiuso = _chiusura_map.get(giorno_chiusura, -1)
@@ -563,7 +566,7 @@ def get_config(user: dict = Depends(get_current_user)):
         conn.close()
 
 
-@router.put("/config")
+@router.put("/config", dependencies=[Depends(solo_admin(cosa="la configurazione delle prenotazioni"))])
 async def update_config(
     request: Request,
     user: dict = Depends(get_current_user),
@@ -759,7 +762,7 @@ class LayoutSave(BaseModel):
     posizioni: Optional[str] = None  # JSON dict {id: {x,y,w,h}}
 
 
-@router.post("/tavoli")
+@router.post("/tavoli", dependencies=[Depends(solo_admin(cosa="l'editor tavoli"))])
 def crea_tavolo(
     req: TavoloCreate,
     user: dict = Depends(get_current_user),
@@ -787,7 +790,7 @@ def crea_tavolo(
         conn.close()
 
 
-@router.put("/tavoli/{tavolo_id}")
+@router.put("/tavoli/{tavolo_id}", dependencies=[Depends(solo_admin(cosa="l'editor tavoli"))])
 def modifica_tavolo(
     tavolo_id: int,
     req: TavoloUpdate,
@@ -821,7 +824,7 @@ def modifica_tavolo(
         conn.close()
 
 
-@router.put("/tavoli/batch/posizioni")
+@router.put("/tavoli/batch/posizioni", dependencies=[Depends(solo_admin(cosa="l'editor tavoli"))])
 async def aggiorna_posizioni_batch(
     request: Request,
     user: dict = Depends(get_current_user),
@@ -860,7 +863,7 @@ async def aggiorna_posizioni_batch(
         conn.close()
 
 
-@router.delete("/tavoli/{tavolo_id}")
+@router.delete("/tavoli/{tavolo_id}", dependencies=[Depends(solo_admin(cosa="l'editor tavoli"))])
 def disattiva_tavolo(
     tavolo_id: int,
     user: dict = Depends(get_current_user),
@@ -1309,7 +1312,7 @@ def get_layouts(user: dict = Depends(get_current_user)):
         conn.close()
 
 
-@router.post("/tavoli/layout")
+@router.post("/tavoli/layout", dependencies=[Depends(solo_admin(cosa="i layout della sala"))])
 def crea_layout(
     req: LayoutSave,
     user: dict = Depends(get_current_user),
@@ -1331,7 +1334,7 @@ def crea_layout(
         conn.close()
 
 
-@router.put("/tavoli/layout/{layout_id}")
+@router.put("/tavoli/layout/{layout_id}", dependencies=[Depends(solo_admin(cosa="i layout della sala"))])
 def aggiorna_layout(
     layout_id: int,
     req: LayoutSave,
@@ -1351,7 +1354,7 @@ def aggiorna_layout(
         conn.close()
 
 
-@router.put("/tavoli/layout/{layout_id}/attiva")
+@router.put("/tavoli/layout/{layout_id}/attiva", dependencies=[Depends(solo_admin(cosa="i layout della sala"))])
 def attiva_layout(
     layout_id: int,
     user: dict = Depends(get_current_user),
@@ -1396,7 +1399,7 @@ def attiva_layout(
         conn.close()
 
 
-@router.delete("/tavoli/layout/{layout_id}")
+@router.delete("/tavoli/layout/{layout_id}", dependencies=[Depends(solo_admin(cosa="i layout della sala"))])
 def elimina_layout(
     layout_id: int,
     user: dict = Depends(get_current_user),
@@ -1428,7 +1431,7 @@ def get_combinazioni(user: dict = Depends(get_current_user)):
         conn.close()
 
 
-@router.post("/tavoli/combinazioni")
+@router.post("/tavoli/combinazioni", dependencies=[Depends(solo_admin(cosa="le combinazioni di tavoli"))])
 def crea_combinazione(
     req: CombinazioneCreate,
     user: dict = Depends(get_current_user),
@@ -1446,7 +1449,7 @@ def crea_combinazione(
         conn.close()
 
 
-@router.delete("/tavoli/combinazioni/{combo_id}")
+@router.delete("/tavoli/combinazioni/{combo_id}", dependencies=[Depends(solo_admin(cosa="le combinazioni di tavoli"))])
 def elimina_combinazione(
     combo_id: int,
     user: dict = Depends(get_current_user),

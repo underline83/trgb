@@ -290,7 +290,7 @@ const MODULE_VERSIONS = {
     //   visibili in Elenco/Dettaglio con badge NC, escluse da totali, filtri
     //   pagamento, scadenzario, dashboard, statistiche, matching e alert.
     // v3.3 (2026-10-16): spalmatura di default per categoria/sottocategoria
-    //   (Categorie → Impostazioni Categorie, chip 📆) e badge «📆 N mesi» nel
+    //   (Impostazioni › Categorie, chip 📆) e badge «📆 N mesi» nel
     //   dettaglio fattura (mig 191).
     version: "3.3",
     label: "Gestione Acquisti",
@@ -417,7 +417,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
-    version: "2.12",
+    version: "2.13",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

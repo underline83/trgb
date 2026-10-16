@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-16 — Prenotazioni: giorno di chiusura e permessi admin `[core]`
+
+Prenotazioni 2.13, nessuna migrazione. In Impostazioni il giorno di chiusura mostrava «Martedì» per il mercoledì, e salvarlo dalla pagina avrebbe scritto giovedì: ora la select usa la stessa codifica del server (ed esiste davvero «Nessuno»). Il valore in uso era già giusto. Configurazione, Editor Tavoli, layout e combinazioni erano riservati agli admin solo nell'interfaccia: ora il server rifiuta (403) chi non è admin.
+
 ## 2026-10-16 — Mappa tavoli: tavoli dividibili `[core]`
 
 Prenotazioni 2.12, sistema 5.60, mig 196. In Editor Tavoli un tavolo si segna «Dividibile in due» (all'osteria il 4 e il 10). Nella mappa serale, cliccandolo, oltre ad «Aggiungi» e «Blocca» c'è «✂️ **Dividi in due**»: per quel turno il tavolo diventa 10A e 10B, metà posti ciascuno, e si assegnano due prenotazioni. Cliccando una metà libera c'è «🔗 Riunisci», che funziona solo se le due metà sono libere. TheFork non ha questa funzione: è solo di TRGB.
@@ -21,7 +25,7 @@ Prenotazioni 2.9, nessuna migrazione. Unire due clienti non unisce le loro preno
 
 ## 2026-10-16 — Spalmatura di default per categoria `[core]`
 
-Sistema 5.55, mig 191, fatture 3.3, controlloGestione 2.28. In Acquisti › Categorie › Impostazioni Categorie ogni categoria e sottocategoria ha un chip 📆 per dire «nel Conto Economico spalma su N mesi» (es. VINO → 3 mesi), valido per le fatture da un mese scelto in poi, così i mesi già chiusi non cambiano. La regola vale per riga: in una fattura Sogegross si spalma solo la parte di vino, il resto resta nel suo mese. La sottocategoria vince sulla categoria («1 mese» = non spalmare) e la spalmatura messa a mano sulla fattura vince sempre. Nel dettaglio fattura il gruppo di categoria interessato mostra «📆 N mesi».
+Sistema 5.55, mig 191, fatture 3.3, controlloGestione 2.28. In Acquisti › Impostazioni › Categorie ogni categoria e sottocategoria ha un chip 📆 per dire «nel Conto Economico spalma su N mesi» (es. VINO → 3 mesi), valido per le fatture da un mese scelto in poi, così i mesi già chiusi non cambiano. La regola vale per riga: in una fattura Sogegross si spalma solo la parte di vino, il resto resta nel suo mese. La sottocategoria vince sulla categoria («1 mese» = non spalmare) e la spalmatura messa a mano sulla fattura vince sempre. Nel dettaglio fattura il gruppo di categoria interessato mostra «📆 N mesi».
 
 ## 2026-10-16 — F24 paghe nello Scadenzario `[core]`
 
