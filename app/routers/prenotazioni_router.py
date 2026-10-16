@@ -1476,6 +1476,54 @@ def cancella_prenotazione(
 # ENDPOINT: LINK WHATSAPP
 # ============================================================
 
+@router.post("/{pren_id}/unisci-in/{altra_id}")
+def unisci_prenotazione_doppia(
+    pren_id: int,
+    altra_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Doppione TheFork / a mano: la prenotazione inserita a mano (`pren_id`, senza id
+    TheFork) confluisce in quella TheFork (`altra_id`) e poi si elimina. Si copiano
+    sulla TheFork la nota staff (in coda), le allergie, il tavolo e il cliente se lì
+    mancano. Non si annulla (conterebbe come cancellazione del cliente).
+    """
+    conn = get_clienti_conn()
+    try:
+        a = conn.execute("SELECT * FROM clienti_prenotazioni WHERE id = ?", (pren_id,)).fetchone()
+        b = conn.execute("SELECT * FROM clienti_prenotazioni WHERE id = ?", (altra_id,)).fetchone()
+        if not a or not b:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
+        if a["thefork_booking_id"]:
+            raise HTTPException(status_code=400, detail="Si elimina solo la prenotazione inserita a mano, non quella TheFork")
+        if a["data_pasto"] != b["data_pasto"]:
+            raise HTTPException(status_code=400, detail="Le due prenotazioni sono in giorni diversi")
+        upd = {}
+        if a["nota_ristorante"] and (a["nota_ristorante"] not in (b["nota_ristorante"] or "")):
+            upd["nota_ristorante"] = " · ".join(x for x in (b["nota_ristorante"], a["nota_ristorante"]) if x)
+        for campo in ("allergie_segnalate", "tavolo", "cliente_id", "occasione", "seggioloni"):
+            if a[campo] and not b[campo]:
+                upd[campo] = a[campo]
+        if a["reminder_inviato"] and not b["reminder_inviato"]:
+            upd["reminder_inviato"] = 1
+        if upd:
+            conn.execute(
+                f"UPDATE clienti_prenotazioni SET {', '.join(f'{k} = ?' for k in upd)}, "
+                "updated_at = datetime('now','localtime') WHERE id = ?",
+                [*upd.values(), altra_id],
+            )
+        conn.execute("DELETE FROM clienti_prenotazioni WHERE id = ?", (pren_id,))
+        conn.commit()
+        return {"tenuta": altra_id, "eliminata": pren_id, "copiati": list(upd.keys())}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
 @router.post("/{pren_id}/inviato")
 def segna_messaggio_inviato(
     pren_id: int,

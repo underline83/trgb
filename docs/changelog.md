@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-16 — Prenotazioni: risolvere il doppione TheFork / a mano `[core]`
+
+Prenotazioni 2.9, nessuna migrazione. Unire due clienti non unisce le loro prenotazioni: nella riga aperta della prenotazione inserita a mano, sotto «⚠️ Possibile doppione», c'è il bottone «**Tieni quella TheFork, elimina questa**». Copia sulla prenotazione TheFork la nota staff (in coda), le allergie, il tavolo, il cliente, l'occasione e i seggioloni se lì mancano, poi elimina quella a mano (senza annullarla, così non conta come cancellazione del cliente).
+
 ## 2026-10-16 — Spalmatura di default per categoria `[core]`
 
 Sistema 5.55, mig 191, fatture 3.3, controlloGestione 2.28. In Acquisti › Categorie › Impostazioni Categorie ogni categoria e sottocategoria ha un chip 📆 per dire «nel Conto Economico spalma su N mesi» (es. VINO → 3 mesi), valido per le fatture da un mese scelto in poi, così i mesi già chiusi non cambiano. La regola vale per riga: in una fattura Sogegross si spalma solo la parte di vino, il resto resta nel suo mese. La sottocategoria vince sulla categoria («1 mese» = non spalmare) e la spalmatura messa a mano sulla fattura vince sempre. Nel dettaglio fattura il gruppo di categoria interessato mostra «📆 N mesi».

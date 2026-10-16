@@ -57,6 +57,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-030 | Importa piantina da file JSON (tavoli per nome + elementi, «sostituisci» disattiva i vecchi) | `POST /prenotazioni/tavoli/importa` | admin | 🆕 |
 | C-P-031 | Affidabilità cliente nel Planning: no-show e cancellazioni passate (badge «N no-show», dettaglio nella riga) | `GET /prenotazioni/planning/{data}` → `no_show_totali`, `cancellate_totali` | sala | 🆕 |
 | C-P-032 | Riconferma WhatsApp dal Planning (template «reminder»), segnata come inviata; contatore «da riconfermare» per turno | `GET /prenotazioni/{id}/wa-link?tipo=reminder` + `POST /prenotazioni/{id}/inviato?tipo=reminder` | sala | 🆕 |
+| C-P-033 | Doppione TheFork / a mano: «Tieni quella TheFork, elimina questa» (copia nota staff, allergie, tavolo, cliente mancanti; elimina senza contarla come cancellazione) | `POST /prenotazioni/{id}/unisci-in/{altra_id}` | sala | 🆕 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 

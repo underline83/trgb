@@ -54,7 +54,7 @@ function rigaClasses(pren) {
 // ============================================================
 // COMPONENTE RIGA PRENOTAZIONE
 // ============================================================
-function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma }) {
+function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione }) {
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -186,6 +186,14 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
                 {(pren.possibili_doppioni || []).map((d) => (
                   <div key={d.id} className="text-amber-700">
                     ⚠️ Possibile doppione: {d.ora} {d.nome}, {d.pax} pax ({d.thefork ? "da TheFork" : "inserita a mano"}) — uguale: {d.motivi.join(", ")}
+                    {d.thefork && !pren.thefork_booking_id && onUnisciDoppione && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onUnisciDoppione(pren, d); }}
+                        className="ml-2 px-2 py-0.5 rounded border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium"
+                      >
+                        Tieni quella TheFork, elimina questa
+                      </button>
+                    )}
                   </div>
                 ))}
                 {pren.nota_ristorante && <div className="mt-1">📝 Nota staff: {pren.nota_ristorante}</div>}
@@ -317,7 +325,7 @@ function TimelineSala({ slot, capienza }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, onApriCliente, onRiconferma }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, onApriCliente, onRiconferma, onUnisciDoppione }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -374,6 +382,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                   expanded={expandedId === p.id}
                   onApriCliente={onApriCliente}
                   onRiconferma={onRiconferma}
+                  onUnisciDoppione={onUnisciDoppione}
                 />
               ))}
               {cancellate.length > 0 && (
@@ -392,6 +401,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                       expanded={expandedId === p.id}
                       onApriCliente={onApriCliente}
                       onRiconferma={onRiconferma}
+                      onUnisciDoppione={onUnisciDoppione}
                     />
                   ))}
                 </>
@@ -436,6 +446,24 @@ export default function PrenotazioniPlanning() {
       loadPlanning();
     } catch {
       finestra && finestra.close();
+      setToast({ type: "err", text: "Errore di connessione" });
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Doppione: la prenotazione inserita a mano confluisce in quella TheFork e si elimina.
+  const unisciDoppione = async (pren, d) => {
+    if (!window.confirm(`Tengo la prenotazione TheFork delle ${d.ora} ed elimino questa inserita a mano?\nNote, allergie e tavolo mancanti vengono copiati su quella TheFork.`)) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/${pren.id}/unisci-in/${d.id}`, { method: "POST" });
+      const res = await r.json();
+      if (!r.ok) setToast({ type: "err", text: res.detail || "Errore" });
+      else {
+        setToast({ type: "ok", text: `Doppione eliminato${res.copiati?.length ? ` (copiati: ${res.copiati.join(", ")})` : ""}` });
+        setExpandedId(null);
+        loadPlanning();
+      }
+    } catch {
       setToast({ type: "err", text: "Errore di connessione" });
     }
     setTimeout(() => setToast(null), 3000);
@@ -576,6 +604,7 @@ export default function PrenotazioniPlanning() {
               onExpand={handleExpand}
               onApriCliente={apriCliente}
               onRiconferma={riconferma}
+              onUnisciDoppione={unisciDoppione}
             />
 
             {/* Tabella cena */}
@@ -591,6 +620,7 @@ export default function PrenotazioniPlanning() {
               onExpand={handleExpand}
               onApriCliente={apriCliente}
               onRiconferma={riconferma}
+              onUnisciDoppione={unisciDoppione}
             />
 
             {/* Riepilogo */}
