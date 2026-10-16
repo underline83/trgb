@@ -3,9 +3,9 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
-**Versione modulo (`versions.jsx`):** prenotazioni v2.2
+**Versione modulo (`versions.jsx`):** prenotazioni v2.3
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)
-**Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`
+**Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`; integrazione TheFork in `app/routers/prenotazioni_thefork_router.py` + `app/services/thefork_service.py` (§12)
 **DB:** `clienti.sqlite3` (condiviso col CRM, path live `locali/tregobbi/data/`)
 **Roadmap:** sezione `PR.` di [roadmap.md](roadmap.md)
 
@@ -43,6 +43,12 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-016 | Combinazioni tavoli (API senza UI, vedi §9) | `GET/POST/DELETE /tavoli/combinazioni[/{id}]` — `:890, :903, :921` | — | ⚠️ |
 | C-P-017 | Mappa serale: stato tavoli + prenotazioni senza tavolo | `GET /prenotazioni/tavoli/mappa/{data}/{turno}` — `:940` | sala | ✅ |
 | C-P-018 | Assegna/rimuovi tavolo a una prenotazione | `PUT /prenotazioni/tavoli/assegna/{pren_id}` — `:1029` | sala | ✅ |
+| C-P-019 | Webhook TheFork: riceve gli avvisi (prenotazione/cliente creato o modificato), li registra e li elabora in background | `POST /prenotazioni/thefork/webhook?token=` — `prenotazioni_thefork_router.py:webhook_thefork` | TheFork (pubblico, token) | 🆕 |
+| C-P-020 | Stato integrazione (webhook, credenziali, ristorante, ultimo avviso) | `GET /prenotazioni/thefork/stato` | admin | 🆕 |
+| C-P-021 | Registro avvisi TheFork con filtro per stato | `GET /prenotazioni/thefork/eventi` | admin | 🆕 |
+| C-P-022 | Riprova un avviso / rielabora tutti quelli in sospeso | `POST /prenotazioni/thefork/eventi/{id}/riprova`, `POST /prenotazioni/thefork/elabora` | admin | 🆕 |
+| C-P-023 | Prova connessione API TheFork (token + permessi) | `POST /prenotazioni/thefork/prova-connessione` | admin | 🆕 |
+| C-P-024 | Recupera un periodo da TheFork (per data modifica o data pasto) | `POST /prenotazioni/thefork/sincronizza` | admin | 🆕 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 
@@ -158,6 +164,7 @@ Tabelle create idempotentemente da `init_clienti_db()` in `app/models/clienti_db
 - **`tavoli_layout`** — nome UNIQUE, `tavoli_attivi` JSON, `posizioni` JSON, attivo.
 - **`prenotazioni_config`** — chiave/valore/descrizione (§6).
 - **`prenotazioni_email_log`** — predisposta per la Fase 4, **mai scritta da nessun codice** (0 righe).
+- **`prenotazioni_thefork_eventi`** (mig 189) — registro degli avvisi TheFork: tipo, uuid, payload grezzo, `stato` (ricevuto/fatto/ignorato/in_attesa/errore), tentativi, esito, ultimo errore (§12).
 
 Migrazioni dedicate: `050_prenotazioni_durata_turni.py` (chiavi durata_pranzo/durata_cena), `068_prenotazioni_nome_ospite.py` (snapshot nome ospite, ~22% delle righe import senza Customer ID).
 
@@ -168,6 +175,7 @@ Migrazioni dedicate: `050_prenotazioni_durata_turni.py` (chiavi durata_pranzo/du
 - **M.B PDF / M.D Email / M.F Alert** — non usati (niente PDF, niente email, nessun checker prenotazioni in `alert_engine`).
 - **Widget Home / DashboardSala** — `GET /dashboard/home` include `prenotazioni` (count+pax pranzo/cena, lista con ora/nome/pax/nota/stato/turno, stati attivi RECORDED/SEATED/LEFT/ARRIVED/BILL) e la card modulo (line1 "N pax oggi", badge = n. prenotazioni). `DashboardSala.jsx` mostra la stessa lista filtrata per turno. Nota: il turno nel widget usa soglia fissa "15:00", non legge la config.
 - **Import TheFork** — vive nel modulo Clienti (import XLSX `tfm-search-results`); il planning si limita a leggerne i dati e a backfillare `turno`/`fonte`.
+- **Webhook TheFork (B2B API)** — §12. Scrive con le stesse funzioni dell'import XLSX (`app/services/clienti_thefork_service.py`), stessi id (uuid): niente doppioni con lo storico.
 
 # 9. Limiti noti e incoerenze
 
@@ -182,7 +190,7 @@ Migrazioni dedicate: `050_prenotazioni_durata_turni.py` (chiavi durata_pranzo/du
 
 - **Widget pubblico `/prenota`** (Fase 3): nessun endpoint `/public/prenotazioni/*`, pagina pubblica, CAPTCHA o rate limiting. → PR.1
 - **Email transazionali** (Fase 4): conferma/reminder/cancellazione richiedono il mattone M.D. → PR.2 (il lato WA manuale c'è già: C-P-010)
-- **Distacco TheFork Manager** (Fase 5). → PR.5
+- **Distacco TheFork Manager** (Fase 5). → PR.5. Dal 2026-10-16 le prenotazioni di TFM arrivano in tempo reale (§12): l'import XLSX non serve più per tenerle aggiornate, TFM resta il canale d'inserimento.
 - No-show tracking su scheda CRM (PR.3), dashboard "stasera" (PR.4), lista d'attesa (PR.6), reminder automatico 24h (PR.9).
 
 # 11. Storico — spec originale (2026-04-06), sintesi
@@ -193,3 +201,39 @@ La progettazione completa (721 righe) è nella history git di questo file (pre 2
 - **Dati del locale (analisi DB, aprile 2026):** ~450-540 prenotazioni/mese in alta stagione, 64% cena, 56% da 2 pax; canali storici: 60% offline, 24% portale TheFork, 7,5% walk-in, 7% widget TF; no-show 0,7%, cancellazioni 12,5% (niente anti-no-show aggressivo); 14 tavoli interni + 20 esterni stagionali + ~20 combinazioni; orari di punta 20:00-20:30 e 13:00.
 - **Fasi:** 1 Agenda ✅ · 2 Mappa tavoli ✅ · 3 Widget pubblico ⏳ (slot precisi a cena, fascia libera a pranzo; disponibilità = capienza turno − coperti prenotati; stato `REQUESTED` da confermare; Cloudflare Turnstile + rate limiting; finestra min 2h / max 60gg) · 4 Conferme ⏳ (email via M.D con log in `prenotazioni_email_log`; WA prima manuale poi eventuale Business API) · 5 Distacco TFM ⏳ (import XLSX giornaliero, 2 settimane di parallelo, disdetta).
 - **Decisioni prese (2026-04-06):** tutto in `clienti.sqlite3`, stessa tabella del CRM; tema indigo; conferme email + link WA manuale; layout salvabili obbligatori perché la sala cambia spesso.
+
+# 12. Integrazione TheFork — webhook B2B API (2026-10-16)
+
+TheFork ha dato all'osteria l'accesso alla B2B API (incluso nel piano Enterprise di TheFork Manager). TheFork avvisa TRGB a ogni prenotazione o cliente creato/modificato; TRGB rilegge i dettagli dall'API e aggiorna agenda e CRM.
+
+**Flusso.** `POST https://trgb.tregobbi.it/prenotazioni/thefork/webhook?token=<THEFORK_WEBHOOK_TOKEN>` → controllo token (confronto a tempo costante) → riga in `prenotazioni_thefork_eventi` → risposta `{}` 200 subito → in background: token OAuth2 (client credentials, `https://auth.thefork.io/oauth/token`, audience `https://api.thefork.io`, valido 8600 s, in cache in memoria) → `GET /v1/reservations/{uuid}?include=tables,creditCardGuaranteeDetails` + `GET /v1/customers/{uuid}` su `https://api.thefork.io/manager` → `upsert_cliente` + `upsert_prenotazione`. Un'elaborazione alla volta (lock), per non avere doppi INSERT quando «creata» e «aggiornata» arrivano insieme.
+
+**Sicurezza.** TheFork **non firma** i messaggi (niente HMAC nella documentazione): l'unica prova è il token nell'URL, scelto da noi e comunicato a TheFork una volta. Token sbagliato o assente → 401; token non configurato → 503 (webhook spento). Il payload contiene solo tipo e uuid: i dati veri arrivano sempre dall'API con le nostre credenziali, quindi un avviso falso non può scrivere dati inventati. Il token compare nei log di accesso di nginx (è nella query).
+
+**Configurazione** (`.env` sul VPS, mai nel codice né nel DB): `THEFORK_WEBHOOK_TOKEN`, `THEFORK_CLIENT_ID`, `THEFORK_CLIENT_SECRET`; facoltativi `THEFORK_RESTAURANT_UUID` (scarta eventi di altri ristoranti del gruppo, serve al recupero periodo; se manca si usa l'ultimo visto), `THEFORK_API_URL`, `THEFORK_AUTH_URL`. Senza credenziali gli avvisi restano `in_attesa` e si rielaborano dopo con «Rielabora in sospeso».
+
+**Mappatura** (stessi formati dell'import XLSX):
+
+| TheFork API | TRGB |
+|---|---|
+| `reservationUuid` / `customerUuid` | `thefork_booking_id` / `thefork_customer_id` (gli stessi uuid dell'export XLSX) |
+| `mealDate` (con offset del ristorante) | `data_pasto` `YYYY-MM-DD`, `ora_pasto` `HH:MM:SS`, `turno` dalla soglia in config |
+| `status` + `mealStatus` | `stato`: CANCELED/NO_SHOW/REFUSED/REQUESTED da `status`, altrimenti l'avanzamento in sala (`mealStatus`) se c'è, altrimenti `status` — come la colonna unica «Status» dell'XLSX |
+| `partySize`, `reservationChannel`, `restaurantNote`, `customerNote` | `pax`, `canale`, `nota_ristorante`, `nota_cliente` |
+| `createdAt` | `data_prenotazione` nell'ora del locale (`locale.json` → `timezone`) |
+| `tables[].name` | `tavolo` «4+5» — **solo se TheFork ne ha assegnati**: non cancella il tavolo dato in TRGB |
+| `billAmount` | `importo_conto` «182.5 EUR» |
+| `offerDetails` | `menu_preset` (menu preimpostato, nome it_IT) / `offerta_speciale` (promozione) |
+| `creditCardGuaranteeDetails` | `imprint`, `importo_imprint` |
+| `customFields` | `degustazione`, `allergie_segnalate`, `tavolo_esterno`, `seggioloni` (match sull'etichetta, come l'XLSX) |
+| cliente | `clienti` con le regole dell'import: protetto → solo campi TheFork + vuoti + differenze in revisione; non protetto → sovrascrive. Tag VIP automatico. Data di nascita `dd/mm/yyyy`, paese per esteso, allergie/restrizioni unite con « \| » |
+
+Solo all'inserimento: `fonte` (`widget` se canale «Booking Module», altrimenti `thefork`), `prenotato_da` (TheFork / Booking Module), `creato_da = 'thefork-api'`. Non toccati: `occasione`, `yums`, `waiting_list`, `sconto`, `spending_behaviour` (l'API non li dà o li dà in altra forma).
+
+**Stati dell'evento.** `fatto` (con esito: «prenotazione inserita #id…»), `ignorato` (recensioni, altro ristorante, 404 su TheFork), `in_attesa` (credenziali mancanti), `errore` (API giù, 429…: TheFork non riprova dopo il nostro 200, si riprova dalle Impostazioni).
+
+**UI.** Impostazioni Prenotazioni → **🍴 TheFork** (solo admin): stato collegamento, indirizzo webhook (token mascherato), «Prova connessione», «Rielabora in sospeso», «Recupera un periodo» (per data modifica o data pasto, max un anno / 2.000 prenotazioni), registro avvisi con «Riprova».
+
+**Non fatto (di proposito).** Recensioni (gli avvisi arrivano e si ignorano); scrittura verso TheFork (creare/modificare prenotazioni da TRGB: l'API lo consente, scope `tfm-restaurant:reservations`); notifica M.A allo staff a ogni prenotazione nuova.
+
+**Provato** su copia del DB con un finto server TheFork: token errato/assente 401, non configurato 503, JSON rotto 400; evento senza credenziali → in_attesa → rielaborato; prenotazione già importata da XLSX aggiornata senza doppioni (cliente collegato); prenotazione + cliente nuovi; cancellazione; recensione ignorata; 404; altro ristorante; recupero periodo; API irraggiungibile → errore → riprova; un solo token per tutta la prova; ruolo sala → 403; integrity_check ok. Import XLSX clienti e prenotazioni: risultati identici byte per byte fra codice vecchio e nuovo.

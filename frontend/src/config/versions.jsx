@@ -322,7 +322,10 @@ const MODULE_VERSIONS = {
     //   sentire → Colloquio → In prova → Assunto/Scartato, «Assumi → Anagrafica»
     //   (crea il dipendente e copia il CV negli allegati), CV di 12 mesi
     //   segnalato. Mig 188. Vedi modulo_dipendenti.md §5.9.
-    version: "2.35",
+    // 2.36 (2026-10-16): import ELAB / F24 — parser F24 v1.1 (debito/credito per
+    //   colonna, saldo finale dal riquadro EURO), PDF conservato, rate F24 paghe
+    //   nello Scadenzario CG (una per pagina con saldo > 0). Mig 190.
+    version: "2.36",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -383,7 +386,8 @@ const MODULE_VERSIONS = {
     // v2.24 (2026-10-02): wizard «Rateizza fatture» invia fatture_ids → fattura origine agganciata + RATEIZZATO; POST /spese-fisse/{id}/collega-fatture (+auto-close).
     // v2.25 (2026-10-02): note di credito (TD04) nel Conto Economico col segno meno, nel mese della loro data (A.1 fase 2); stesso criterio in «Dove appare nel CE» del dettaglio fattura e nei KPI acquisti della dashboard CG.
     // v2.26 (2026-10-02): Scadenzario mostra di default anche i PARZIALE (residuo da pagare, es. saldo stipendio); residuo nei KPI «Da pagare»/«Scaduto» in base alla scadenza.
-    version: "2.26",
+    // v2.27 (2026-10-16): F24 paghe nello Scadenzario — spesa fissa «F24 paghe» (F24_STIPENDI) con rate scritte dall'import F24, nota delega + 📄 PDF (cg_uscite.allegato_url, mig 190); CE cassa conta l'F24 paghe solo quando è pagato (data_pagamento).
+    version: "2.27",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -408,7 +412,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
-    version: "2.2",
+    version: "2.3",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -529,6 +533,12 @@ const MODULE_VERSIONS = {
     // 5.46 (2026-10-08): mattone M.K — connettore MCP di claude.ai su /mcp
     //   (OAuth 2.1 con utente e PIN TRGB, solo admin), strumenti pratiche,
     //   connettore.sqlite3 (schema al boot). Doc: docs/connettore_mcp.md.
+    // 5.54 (2026-10-16): mig 190 — f24_deleghe + cg_uscite.allegato_url: F24 paghe
+    //   nello Scadenzario (rate dall'import ELAB / F24), parser F24 v1.1
+    //   (controlloGestione 2.27, dipendenti 2.36).
+    // 5.53 (2026-10-16): mig 189 — prenotazioni_thefork_eventi, integrazione TheFork
+    //   B2B API: webhook pubblico /prenotazioni/thefork/webhook?token=…, registro
+    //   eventi, sezione TheFork in Impostazioni Prenotazioni (prenotazioni 2.3).
     // 5.52 (2026-10-16): mig 188 — dipendenti_candidati, sotto-modulo Candidati
     //   (/dipendenti/candidati, solo admin), strumenti MCP candidati (dipendenti 2.35).
     // 5.51 (2026-10-16): mig 187 — preventivi: prezzo «a corpo» per menu (doppio vino
@@ -546,7 +556,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.52",
+    version: "5.54",
     label: "Sistema",
     status: "stabile",
     color: "green",

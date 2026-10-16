@@ -41,6 +41,7 @@ import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.models.clienti_db import get_clienti_conn
 from app.services.clienti_thefork_service import (
@@ -101,21 +102,34 @@ def verifica_token_webhook(token: Optional[str]) -> bool:
     return hmac.compare_digest(token.encode("utf-8"), atteso.encode("utf-8"))
 
 
+def _locale_info() -> Dict[str, Any]:
+    locale = _env("TRGB_LOCALE", "tregobbi") or "tregobbi"
+    try:
+        return json.loads(
+            (Path(__file__).resolve().parents[2] / "locali" / locale / "locale.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return {}
+
+
 def _url_pubblico() -> str:
     """Indirizzo pubblico del backend: TRGB_PUBLIC_URL o il dominio del locale."""
     url = _env("TRGB_PUBLIC_URL")
     if url:
         return url.rstrip("/")
-    locale = _env("TRGB_LOCALE", "tregobbi") or "tregobbi"
-    try:
-        info = json.loads(
-            (Path(__file__).resolve().parents[2] / "locali" / locale / "locale.json").read_text(encoding="utf-8")
-        )
-        if info.get("dominio"):
-            return f"https://{info['dominio']}"
-    except (OSError, ValueError):
-        pass
-    return ""
+    dominio = _locale_info().get("dominio")
+    return f"https://{dominio}" if dominio else ""
+
+
+def _fuso_locale():
+    """Fuso del locale (locale.json «timezone»); se manca, quello del server."""
+    nome = _locale_info().get("timezone")
+    if nome:
+        try:
+            return ZoneInfo(nome)
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+    return None
 
 
 # ============================================================
@@ -205,14 +219,14 @@ _PAESI = {
 
 
 def _ora_locale(iso: Optional[str]) -> Optional[datetime]:
-    """ISO 8601 (anche con Z) → datetime nell'ora locale del server (come datetime('now','localtime'))."""
+    """ISO 8601 (anche con Z) → ora del locale (come nell'export XLSX di TheFork Manager)."""
     if not iso:
         return None
     try:
         dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
     except ValueError:
         return None
-    return dt.astimezone() if dt.tzinfo else dt
+    return dt.astimezone(_fuso_locale()) if dt.tzinfo else dt
 
 
 def _fmt(dt: Optional[datetime], formato: str) -> Optional[str]:
@@ -412,7 +426,7 @@ def _restaurant_uuid_atteso() -> Optional[str]:
 def _sincronizza_prenotazione(conn, uuid: str) -> str:
     r = api_get(f"/v1/reservations/{uuid}", {"include": "tables,creditCardGuaranteeDetails"})
     if r is None:
-        return "prenotazione non trovata su TheFork (404)"
+        return "IGNORATO: prenotazione non trovata su TheFork (404)"
 
     atteso = _restaurant_uuid_atteso()
     if atteso and r.get("restaurantUuid") and r["restaurantUuid"] != atteso:
@@ -456,7 +470,7 @@ def _sincronizza_prenotazione(conn, uuid: str) -> str:
 def _sincronizza_cliente(conn, uuid: str) -> str:
     c = api_get(f"/v1/customers/{uuid}")
     if c is None:
-        return "cliente non trovato su TheFork (404)"
+        return "IGNORATO: cliente non trovato su TheFork (404)"
     esito, cid, n_diff = upsert_cliente(conn, mappa_cliente(c))
     aggiorna_tag_vip(conn)
     conn.commit()

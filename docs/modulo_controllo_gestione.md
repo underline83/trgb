@@ -12,6 +12,23 @@
 
 ---
 
+# 📌 AGGIORNAMENTO 2026-10-16 — F24 paghe nello Scadenzario (mig 190)
+
+Decisioni Marco 16/10/2026. Spesa fissa **«F24 paghe»** (`tipo='F24_STIPENDI'`, mensile) creata dal primo import F24. Le rate le scrive `app/services/f24_scadenzario_service.py`, chiamato dall'import «ELAB / F24» del modulo Dipendenti:
+- una rata (`cg_piano_rate` + `cg_uscite` SPESA_FISSA) per ogni **pagina** del PDF con SALDO FINALE > 0; periodo = mese della scadenza, `-r2`/`-r3` se più deleghe nello stesso mese; data = quella stampata; nota «Paghe <mese> · pag. x/y»; `allegato_url` → PDF.
+- pagine a saldo 0 = compensazioni, nessuna rata; F24 tutto compensato → rata 0 € `PAGATO_MANUALE`.
+- importo della spesa fissa = saldo dell'ultimo F24 paghe: è la **stima** che il generatore proietta nei mesi dopo l'ultima rata del piano.
+- F24 non paghe (IVA, ravvedimenti, rate ADER): a mano in Spese Fisse (`TASSA` / `RATEIZZAZIONE_TASSE`).
+- Ricarico dello stesso PDF: aggiorna le stesse rate; rate già chiuse non toccate (avviso nel risultato import).
+
+**CE:** competenza invariata (`F24_STIPENDI` escluso: contributi e ritenute sono già nel costo ELAB). **Cassa:** `F24_STIPENDI` conta solo se pagato, nel mese di `data_pagamento` (`conto_economico._aggregate_spese_fisse_per_categoria`).
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-CG-F01 🆕 | Rate F24 paghe nello Scadenzario dall'import F24 (una per pagina con saldo > 0) | `f24_scadenzario_service.registra_f24`; `dipendenti.py` `import_paghe_pdf` | admin | 🆕 2026-10-16 |
+| C-CG-F02 🆕 | «📄 PDF» sulla riga dello Scadenzario (`cg_uscite.allegato_url`, fetch autenticato) | `ControlloGestioneUscite.jsx` `apriAllegato`; `GET /dipendenti/buste-paga/f24/{hash}/pdf` | admin/contabile | 🆕 2026-10-16 |
+| C-CG-F03 🆕 | CE cassa: F24 paghe nel mese del pagamento effettivo | `conto_economico.py` ramo cassa | admin/contabile | 🆕 2026-10-16 |
+
 # 📌 AGGIORNAMENTO 2026-07-17 — Analisi Utenze U1+U2 (spec_utenze.md, mig 151)
 
 Nuovo sub-modulo **Analisi Utenze**: upload PDF bollette A2A (luce+gas) → parser → serie storica + KPI. SOLA ANALISI: nessun importo entra nel CE (contabilità su fe_fatture, zero doppio conteggio). Spec completa: `docs/spec_utenze.md`.

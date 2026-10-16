@@ -1095,6 +1095,7 @@ def get_uscite(
             u.data_scadenza_originale,
             u.pagamento_batch_id,
             u.in_pagamento_at,
+            u.allegato_url,                 -- mig 190: PDF collegato (oggi F24)
 
             -- campi JOIN tradizionali
             f.modalita_pagamento            AS mp_xml,

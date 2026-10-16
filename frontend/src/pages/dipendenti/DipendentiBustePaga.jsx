@@ -1,4 +1,5 @@
-// @version: v2.3-mattoni — M.I primitives (Btn) su CTA header, anteprima, form manuale
+// @version: v2.4 — import F24: rate create nello Scadenzario CG (mig 190, 2026-10-16)
+// v2.3-mattoni — M.I primitives (Btn) su CTA header, anteprima, form manuale
 // Buste Paga: lista cedolini, inserimento manuale, upload PDF LUL 2-step (anteprima + conferma)
 // v2.2: bottone WA accanto a PDF per condividere cedolino via WhatsApp (problemi.md C1)
 import React, { useState, useEffect, useCallback, useMemo } from "react";
@@ -519,6 +520,27 @@ export default function DipendentiBustePaga() {
                   <div className="text-blue-800 mt-1">
                     {r.deleghe} deleghe ({r.righe_inserite} righe tributo){" "}
                     {r.righe_riemesse > 0 && <span className="text-amber-700">· {r.righe_riemesse} righe precedenti riemesse (re-import)</span>}
+                    {r.saldo_da_pagare != null && (
+                      <span> · da pagare <strong>€ {Number(r.saldo_da_pagare).toLocaleString("it-IT", { minimumFractionDigits: 2 })}</strong></span>
+                    )}
+                  </div>
+                )}
+                {r.tipo === "F24" && r.scadenzario && (
+                  <div className="text-blue-900 mt-1">
+                    {r.scadenzario.tipo_f24 === "PAGHE" ? (
+                      <>
+                        📅 Scadenzario: {r.scadenzario.rate_create} rate nuove, {r.scadenzario.rate_aggiornate} aggiornate
+                        {r.scadenzario.rate_non_toccate > 0 && <>, {r.scadenzario.rate_non_toccate} già pagate (non toccate)</>}
+                        {(r.scadenzario.rate || []).map((x, k) => (
+                          <div key={k} className="ml-4 text-[11px]">
+                            {x.scadenza} · pag. {x.pagina} · € {Number(x.importo).toLocaleString("it-IT", { minimumFractionDigits: 2 })} · {x.stato}
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <>📅 F24 non paghe: nessuna rata creata</>
+                    )}
+                    {(r.scadenzario.avvisi || []).map((w, j) => <div key={j} className="text-amber-700">⚠ {w}</div>)}
                   </div>
                 )}
                 {r.note && <div className="text-neutral-600 mt-1 italic">{r.note}</div>}

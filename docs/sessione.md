@@ -1,14 +1,19 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: chiusura di /uploads (pubblico solo menu_carta) + i commit già fatti ma non pushati: Candidati (e9124d7a, mig 188, sistema 5.52) e bozze preventivi in lista (4c06c2eb, clienti 3.3).** Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-16 — **Pushati (b29003e4):** /uploads pubblico solo per menu_carta (verificato in produzione: 404 sui link diretti, 401 senza login, download da admin confermato da Marco), Candidati (mig 188, sistema 5.52), bozze preventivi in lista (clienti 3.3), e — entrato nello stesso commit — il lavoro TheFork di un'altra sessione (mig 189 applicata). Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.51 · **Migrazione più recente:** 187 (in produzione) — 5.52 / mig 188 nel push dei Candidati
+**Sistema:** 5.52 in produzione (5.53 TheFork + 5.54 F24 da pushare) · **Migrazione più recente:** 190 (da pushare; 189 in produzione, b29003e4)
 
-**DA PUSHARE**
-- /uploads chiuso tranne `menu_carta` (solo `main.py`). Dopo il push: `curl -s -o /dev/null -w "%{http_code}\n" https://trgb.tregobbi.it/uploads/menu_carta/0/0.jpg` → 404 (non 500); un documento dipendente si apre ancora da Anagrafica › Documenti (admin).
-- Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), già su `main` (e9124d7a). Dopo il push: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
+**DA PUSHARE — TheFork webhook, parte 2** (la parte 1 è già live in b29003e4: webhook spento, risponde 503 finché manca il token)
+- Sezione 🍴 TheFork in Impostazioni Prenotazioni, fuso orario del locale su `data_prenotazione`, 404 → «ignorato», VERSION 5.53 / prenotazioni 2.3, docs. Dopo il push: mettere nel `.env` del VPS `THEFORK_WEBHOOK_TOKEN` (quello comunicato a TheFork) e riavviare → `POST /prenotazioni/thefork/webhook?token=sbagliato` deve dare 401. All'arrivo delle credenziali: `THEFORK_CLIENT_ID`/`THEFORK_CLIENT_SECRET` (+ `THEFORK_RESTAURANT_UUID`) → «Prova connessione» → «Rielabora in sospeso» → «Recupera un periodo».
+
+**DA PUSHARE — F24 paghe nello Scadenzario** (mig 190, sistema 5.54, controlloGestione 2.27, dipendenti 2.36)
+- Dopo il push: Dipendenti › Buste paga › «Carica ELAB / F24» → ricaricare gli F24 2026 (giu-ott pronti; **gen-apr: riaprire OneDrive sul Mac**, sono «solo online»). Settembre deve dare 1 rata € 6.638,12 al 16/10/2026. Poi Spese Fisse › «F24 paghe» → mettere la categoria TASSE E IMPOSTE. Le pagine pagate con I24 su BPM (es. 209,77 del 20/08) vanno collegate al movimento dalla riconciliazione.
+
+**DA FARE DOPO IL PUSH**
+- Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), pushato in b29003e4. Da fare: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
 
 **Da verificare dopo gli ultimi push**
 - Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
@@ -35,6 +40,29 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-16 (8) — F24 paghe nello Scadenzario `[core]`
+
+Richiesta: gli F24 (paghe e no) non comparivano in Scadenzario né nel saldo previsto. Decisioni di Marco (16/10): spesa fissa «F24 paghe» tipo `F24_STIPENDI` con stima per i mesi futuri; **una rata per ogni pagina con SALDO FINALE > 0** (le deleghe si pagano separatamente: la pag. 1 di luglio, 209,77, è uscita da sola con I24 su BPM il 20/08); F24 tutto a zero → rata 0 € chiusa; F24 non paghe a mano dalle Spese Fisse; caricare tutto da gennaio. Le pagine grosse (DM10/1001) degli F24 2026 **non sono pagate** (Marco): restano SCADUTO.
+- `f24_parser.py` v1.1: debito/credito decisi dalla **colonna** (posizione x della parola), non più dal codice. Prima 1631, 1701 a credito finivano a debito (set: righe 7.699,84 vs 6.638,12 vero). Aggiunti 3796/3797 (rimborsi addizionali, mese facoltativo). Saldo finale letto accanto a «EURO» («000» = 0). Controllo righe = saldo stampato, altrimenti warning. Nuovi `tipo_f24` (PAGHE se DM10 o 1001) e `saldo_da_pagare`. Verificato su mag-set 2026: tutte le pagine quadrano al centesimo.
+- Mig 190: `f24_deleghe` (una riga per pagina: saldo finale, file, rata collegata) + `cg_uscite.allegato_url`.
+- `app/services/f24_scadenzario_service.py` (nuovo, platform): crea la spesa fissa se manca, rata nel piano (`cg_piano_rate`, periodo = mese della scadenza, `-r2` per la seconda delega dello stesso mese, data specifica = quella stampata) + uscita SPESA_FISSA con nota «Paghe <mese> · pag. x/y» e link al PDF. Re-import stesso hash = aggiorna; rate già chiuse non toccate (avviso). Importo della spesa fissa = saldo dell'ultimo F24 (stima che il generatore proietta dopo l'ultima rata).
+- `dipendenti.py`: l'import F24 salva il PDF in `uploads/f24/<anno>/` e chiama il servizio; `GET /dipendenti/buste-paga/f24/{hash}/pdf` (admin, contabile).
+- `conto_economico.py`: in **cassa** l'F24_STIPENDI conta solo se pagato, nel mese di `data_pagamento` (prima: nel mese di scadenza anche se non pagato). Competenza invariata (escluso: già nell'ELAB).
+- FE: Scadenzario mostra nota delega + «📄 PDF» (fetch autenticato); risultato import F24 elenca le rate create.
+- Test su copia del DB (giu-ott): 6 rate (agosto 2: 209,77 + 5.642,40 su `2026-08-r2`), re-import idempotente, rata pagata non toccata, CE cassa agosto = 209,77 solo dopo il pagamento simulato. Generatore spese fisse non eseguito (manca fastapi nella VM): verificare dopo il push che Nov/Dic compaiano come stima 6.638,12.
+
+## SESSIONE 2026-10-16 (7) — Prenotazioni TheFork in tempo reale (webhook B2B API) `[core]`
+
+Richiesta di Marco: TheFork (Régis Pezous, 12/10) dà l'accesso B2B API, incluso nel piano Enterprise; vuole l'indirizzo del webhook. Modulo: prenotazioni (+ servizio clienti).
+- Mig 189: `prenotazioni_thefork_eventi` in clienti.sqlite3 (registro avvisi, stati ricevuto/fatto/ignorato/in_attesa/errore).
+- `app/services/clienti_thefork_service.py` (modulo clienti): `upsert_cliente`, `upsert_prenotazione`, `trova_cliente_id`, `aggiorna_tag_vip`, `pulisci_telefono` — spostati dall'import XLSX di `clienti_router` (nessun cambio di comportamento: import provato identico, hash delle tabelle uguali fra vecchio e nuovo codice).
+- `app/services/thefork_service.py`: client OAuth2 (urllib, token in cache), mappature API → TRGB, registro eventi, elaborazione con lock, recupero periodo, stato. `app/routers/prenotazioni_thefork_router.py`: webhook pubblico (token in query, 401/503/400) + 6 endpoint admin. Montato prima di `prenotazioni_router`. module.json aggiornato.
+- Frontend: `PrenotazioniImpostazioni.jsx` v2.2, sezione 🍴 TheFork. Sintassi verificata con esbuild, non provato nel browser.
+- Schema API letto dall'OpenAPI di docs.thefork.io (base `https://api.thefork.io/manager`, token `https://auth.thefork.io/oauth/token`). TheFork NON firma i webhook: niente verifica HMAC possibile, solo token nell'URL.
+- Provato su copia del DB con un finto server TheFork (vedi `modulo_prenotazioni.md` §12).
+- Incidente: il push b29003e4 dell'altra sessione ha preso dentro i file TheFork a metà (push.sh aggiunge tutto). Effetto in produzione: mig 189 applicata, webhook spento (503), import XLSX sul servizio nuovo (provato identico). Nessun danno.
+- Bozza risposta a Régis preparata, non inviata.
 
 ## SESSIONE 2026-10-16 (6) — /uploads pubblico solo per menu_carta `[core]`
 

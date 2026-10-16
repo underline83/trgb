@@ -393,7 +393,7 @@ def _aggregate_spese_fisse_per_categoria(
             """, (periodo_rif, periodo_rif, periodo_rif, *tipi_esclusi_competenza)).fetchall()
             rows.extend(rows_spalmate)
     else:
-        # Modalità cassa: esclude solo STIPENDIO da cg_spese_fisse perché
+        # Modalità cassa: esclude STIPENDIO da cg_spese_fisse perché
         # i netti reali vengono dal flow stipendi (cg_uscite STIPENDIO o
         # dipendenti_costo_consuntivo). F24_STIPENDI invece RESTA visibile
         # perché è il pagamento reale del 16 del mese successivo.
@@ -416,7 +416,33 @@ def _aggregate_spese_fisse_per_categoria(
             LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
             WHERE u.tipo_uscita = 'SPESA_FISSA'
               AND substr(u.periodo_riferimento, 1, 7) = ?   -- anche rate "YYYY-MM-rN" (2026-10-02)
-              AND COALESCE(sf.tipo, '') != 'STIPENDIO'
+              AND COALESCE(sf.tipo, '') NOT IN ('STIPENDIO', 'F24_STIPENDI')
+            ORDER BY u.totale DESC, u.id DESC
+        """, (periodo_rif,)).fetchall()
+        # F24_STIPENDI in cassa (2026-10-16, decisione Marco): conta nel mese in
+        # cui è PAGATO davvero (data_pagamento), non nel mese di scadenza. Gli
+        # F24 paghe 2026 sono in gran parte scaduti e non pagati: contarli alla
+        # scadenza falserebbe la cassa di decine di migliaia di euro.
+        rows = list(rows) + fc_conn.execute("""
+            SELECT
+                COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
+                COALESCE(fsub.nome, '—')                   AS sottocategoria,
+                'spesa_fissa'                              AS tipo_riga,
+                u.id                                       AS id,
+                u.spesa_fissa_id                           AS spesa_fissa_id,
+                u.data_pagamento                           AS data,
+                COALESCE(sf.titolo, u.numero_fattura, '—') AS descrizione,
+                sf.tipo                                    AS ref,
+                COALESCE(NULLIF(u.importo_pagato, 0), u.totale, 0) AS importo
+            FROM cg_uscite u
+            JOIN cg_spese_fisse          sf   ON u.spesa_fissa_id     = sf.id
+            LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
+            LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
+            WHERE u.tipo_uscita = 'SPESA_FISSA'
+              AND sf.tipo = 'F24_STIPENDI'
+              AND u.stato IN ('PAGATO', 'PAGATO_MANUALE', 'PARZIALE')
+              AND substr(u.data_pagamento, 1, 7) = ?
+              AND COALESCE(u.totale, 0) > 0
             ORDER BY u.totale DESC, u.id DESC
         """, (periodo_rif,)).fetchall()
     return [dict(r) for r in rows]

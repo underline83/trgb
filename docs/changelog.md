@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-16 — F24 paghe nello Scadenzario `[core]`
+
+Sistema 5.54, mig 190, controlloGestione 2.27, dipendenti 2.36. L'import «ELAB / F24» (Dipendenti › Buste paga) ora mette gli F24 paghe nello Scadenzario: una rata della spesa fissa «F24 paghe» per ogni pagina con saldo finale > 0, alla data stampata sul modello, col PDF apribile dalla riga (📄). Le pagine a saldo 0 sono compensazioni e non generano rate; un F24 tutto compensato lascia una rata da 0 € chiusa. Gli F24 non paghe (IVA, ravvedimenti, rate ADER) restano da inserire a mano in Spese Fisse. Il parser F24 legge debito e credito dalla colonna del modulo e il saldo finale dal riquadro EURO: prima alcuni crediti (1631, 1701) erano contati come debiti e i totali per sezione in Costi mensili erano sbagliati. Nel Conto Economico l'F24 paghe resta fuori dalla competenza (è già nel costo ELAB) e in cassa conta solo quando è pagato.
+
+## 2026-10-16 — Prenotazioni TheFork in tempo reale (webhook B2B API) `[core]`
+
+Prenotazioni 2.3, sistema 5.53, mig 189. TheFork Manager avvisa TRGB a ogni prenotazione o cliente creato o modificato (`POST /prenotazioni/thefork/webhook?token=…`): TRGB rilegge i dettagli dall'API B2B e aggiorna agenda e CRM con le stesse regole dell'import Excel (clienti protetti, differenze in revisione, tag VIP) e gli stessi id, quindi nessun doppione con lo storico. Ogni avviso finisce in un registro (`prenotazioni_thefork_eventi`); se l'API non risponde o le credenziali non ci sono ancora, l'avviso resta in sospeso e si rielabora da **Impostazioni Prenotazioni → 🍴 TheFork**, dove ci sono anche «Prova connessione» e «Recupera un periodo». Token e credenziali solo nel `.env` del server; finché manca il token il webhook risponde 503. La logica di scrittura dell'import XLSX è passata in `app/services/clienti_thefork_service.py`, condivisa: import provato identico al precedente. Dettagli in `modulo_prenotazioni.md` §12.
+
 ## 2026-10-16 — Sicurezza: /uploads pubblico solo per le foto della carta `[core]`
 
 Nessuna migrazione, nessun cambio di versione. Fino a oggi l'indirizzo `/uploads/…` del backend serviva **senza login** tutta la cartella degli upload: documenti dei dipendenti (nomi prevedibili `documenti_dipendenti/<id>/<AAAAMMGG>_<nome>`), export iPratico e, appena usati, CV dei candidati e allegati delle pratiche. Ora è pubblico solo `/uploads/menu_carta/` (foto dei piatti nella carta pubblica); il resto risponde 404 e si scarica solo dagli endpoint col login, che c'erano già (documenti e CV solo admin). Nessuna pagina del frontend usava link diretti, quindi niente cambia per chi usa il gestionale. Provato su copia dei dati: foto carta 200, documenti/CV/export/«..» 404, download documento da admin 200, senza login 401, da sala 403.

@@ -2978,6 +2978,44 @@ def _import_f24_to_db(parsed: dict, fc_conn) -> dict:
     }
 
 
+def _salva_pdf_f24(content: bytes, filename: str, parsed: dict) -> Optional[str]:
+    """Conserva il PDF F24 negli upload del locale: f24/<anno>/<hash12>_<nome>.
+    Fuori da /uploads pubblico (aperto solo per menu_carta): si scarica dal
+    endpoint autenticato /dipendenti/buste-paga/f24/{hash}/pdf."""
+    try:
+        from app.utils.uploads import ensure_subdir
+        scad = next((d.get("data_scadenza") for d in parsed.get("deleghe", []) if d.get("data_scadenza")), None)
+        anno = (scad or date.today().isoformat())[:4]
+        safe = re.sub(r"[^A-Za-z0-9._-]+", "_", filename or "f24.pdf")
+        dest = ensure_subdir("f24", anno) / f"{parsed['fonte_hash'][:12]}_{safe}"
+        if not dest.exists():
+            dest.write_bytes(content)
+        return str(dest)
+    except Exception as exc:  # il PDF è un di più: l'import non si ferma
+        print(f"[F24] PDF non salvato: {exc}")
+        return None
+
+
+@router.get("/buste-paga/f24/{fonte_hash}/pdf")
+def scarica_pdf_f24(fonte_hash: str, current_user=Depends(get_current_user)):
+    """PDF dell'F24 importato (link 📄 delle rate F24 nello Scadenzario).
+    Admin e contabile: è il documento di un pagamento, non dati personali."""
+    verifica_ruoli(current_user, "admin", "contabile", cosa="il PDF dell'F24")
+    if not re.fullmatch(r"[0-9a-f]{64}", fonte_hash or ""):
+        raise HTTPException(400, "Riferimento F24 non valido")
+    import sqlite3 as _sq
+    conn = _sq.connect(_FOODCOST_DB)
+    try:
+        row = conn.execute(
+            "SELECT file_path, fonte_pdf FROM f24_deleghe WHERE fonte_hash = ? AND file_path IS NOT NULL LIMIT 1",
+            (fonte_hash,)).fetchone()
+    finally:
+        conn.close()
+    if not row or not os.path.isfile(row[0]):
+        raise HTTPException(404, "PDF dell'F24 non trovato: ricaricalo dall'import ELAB / F24")
+    return FileResponse(row[0], filename=row[1] or "F24.pdf", media_type="application/pdf")
+
+
 @router.post("/buste-paga/import-paghe-pdf")
 async def import_paghe_pdf(
     files: list[UploadFile] = File(...),
@@ -3063,6 +3101,17 @@ async def import_paghe_pdf(
                         parsed["fonte_pdf"] = filename
                         r = _import_f24_to_db(parsed, fc_conn)
                         r["file"] = filename
+                        r["tipo_f24"] = parsed.get("tipo_f24")
+                        r["saldo_da_pagare"] = parsed.get("saldo_da_pagare")
+                        # 2026-10-16: PDF conservato + rate nello Scadenzario CG
+                        # (servizio platform, regola 4: niente scritture cg_* qui)
+                        file_path = _salva_pdf_f24(content, filename, parsed)
+                        from app.services.f24_scadenzario_service import registra_f24
+                        r["scadenzario"] = registra_f24(
+                            fc_conn, parsed, file_path,
+                            f"/dipendenti/buste-paga/f24/{parsed['fonte_hash']}/pdf",
+                        )
+                        fc_conn.commit()
                         results.append(r)
                         tot_ok += 1
                     finally:

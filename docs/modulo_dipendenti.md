@@ -251,6 +251,7 @@ Il form anagrafica (`DipendentiAnagrafica.jsx`) gestisce anche: reparto principa
 | GET | `/dipendenti/buste-paga/scadenze-mancanti` | Diagnostica: buste senza uscita CG (mai generata o cancellata) — nato dal bug "Iryna marzo 2026" |
 | POST | `/dipendenti/buste-paga/{bp_id}/rigenera-scadenza` | Rigenera l'uscita CG |
 | POST | `/dipendenti/buste-paga/import-paghe-pdf` | G.3 Fase E: 1-N PDF ELAB/F24 anche misti, detect tipo automatico → `dipendenti_costo_consuntivo` / `f24_versamenti` (anti-doppione: UNIQUE per ELAB, DELETE+INSERT per hash per F24) |
+| GET | `/dipendenti/buste-paga/f24/{fonte_hash}/pdf` | 🆕 2026-10-16: PDF dell'F24 importato (salvato in `uploads/f24/<anno>/`), admin/contabile. L'import F24 ora crea anche le rate «F24 paghe» nello Scadenzario CG (una per pagina con saldo > 0) via `f24_scadenzario_service` e registra le pagine in `f24_deleghe` (mig 190). Parser F24 v1.1: debito/credito per colonna, saldo finale dal riquadro EURO. |
 | GET | `/dipendenti/buste-paga/stato-import-mensile` | Per ogni mese dell'anno: conteggi LUL / ELAB / ELAB-INAIL / F24 (UI in Impostazioni → Stato import paghe) |
 | POST | `/dipendenti/buste-paga/auto-create-mancanti` | Placeholder anagrafica per righe ELAB orfane (`DIP-ELAB-<matricola>`, attivo=0) |
 | POST | `/dipendenti/buste-paga/rematch-consuntivo` | Re-match righe ELAB con `dipendente_id IS NULL` |

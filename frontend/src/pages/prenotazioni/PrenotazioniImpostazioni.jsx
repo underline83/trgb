@@ -1,10 +1,11 @@
-// @version: v2.1-mattoni — refactor leggero con M.I primitives (Btn, EmptyState), bg brand-cream
-// Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget)
+// @version: v2.2-thefork — sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// Modulo: prenotazioni
+// Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import Tooltip from "../../components/Tooltip";
-import { Btn, EmptyState } from "../../components/ui";
+import { Btn, EmptyState, StatusBadge } from "../../components/ui";
 
 // ── Sidebar items ──
 const SECTIONS = [
@@ -12,6 +13,7 @@ const SECTIONS = [
   { key: "slot",     label: "Slot Orari",       icon: "🕐", desc: "Orari prenotabili pranzo e cena" },
   { key: "template", label: "Template Messaggi", icon: "💬", desc: "WhatsApp conferma e reminder" },
   { key: "widget",   label: "Widget Pubblico",   icon: "🌐", desc: "Prenotazioni dal sito (Fase 3)" },
+  { key: "thefork",  label: "TheFork",           icon: "🍴", desc: "Prenotazioni in tempo reale da TheFork Manager" },
 ];
 
 const GIORNI_CHIUSURA = [
@@ -231,6 +233,7 @@ export default function PrenotazioniImpostazioni() {
             {section === "widget" && (
               <WidgetSection config={config} update={update} />
             )}
+            {section === "thefork" && <TheForkSection />}
           </div>
         </div>
       </div>
@@ -496,6 +499,212 @@ function WidgetSection({ config, update }) {
             Widget attivo
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sezione TheFork (webhook B2B API) ──
+// Le credenziali e il token del webhook stanno nel .env del server, non qui:
+// la pagina mostra lo stato, il registro eventi e i comandi di recupero.
+const TF_STATI = {
+  fatto:     { tone: "success", label: "Fatto" },
+  ignorato:  { tone: "neutral", label: "Ignorato" },
+  in_attesa: { tone: "warning", label: "In attesa" },
+  errore:    { tone: "danger",  label: "Errore" },
+  ricevuto:  { tone: "info",    label: "Ricevuto" },
+};
+
+function oggiIso(deltaGiorni = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + deltaGiorni);
+  return d.toISOString().slice(0, 10);
+}
+
+function TheForkSection() {
+  const [stato, setStato] = useState(null);
+  const [eventi, setEventi] = useState([]);
+  const [filtro, setFiltro] = useState("");
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [dal, setDal] = useState(oggiIso(-7));
+  const [al, setAl] = useState(oggiIso(0));
+  const [filtroData, setFiltroData] = useState("updatedDate");
+
+  const carica = async () => {
+    try {
+      const [rs, re] = await Promise.all([
+        apiFetch(`${API_BASE}/prenotazioni/thefork/stato`),
+        apiFetch(`${API_BASE}/prenotazioni/thefork/eventi?limite=100${filtro ? `&stato=${filtro}` : ""}`),
+      ]);
+      if (rs.ok) setStato(await rs.json());
+      if (re.ok) setEventi((await re.json()).eventi || []);
+    } catch {
+      setMsg({ type: "err", text: "Errore di connessione" });
+    }
+  };
+
+  useEffect(() => { carica(); }, [filtro]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const azione = async (chiave, url, body) => {
+    setBusy(chiave);
+    setMsg(null);
+    try {
+      const r = await apiFetch(`${API_BASE}${url}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setMsg({ type: "err", text: d.detail || `Errore ${r.status}` });
+      } else if (chiave === "prova") {
+        setMsg({ type: "ok", text: `Connessione ok — permessi: ${d.scope || "—"}` });
+      } else if (chiave === "elabora") {
+        setMsg({ type: "ok", text: `Rielaborati ${d.elaborati} eventi` });
+      } else if (chiave === "sync") {
+        setMsg({ type: "ok", text: `In coda ${d.accodate} prenotazioni su ${d.totale_su_thefork}${d.troncato ? " (troncato)" : ""} — si aggiornano in pochi minuti` });
+      } else {
+        setMsg({ type: "ok", text: d.esito || d.ultimo_errore || "Fatto" });
+      }
+    } catch {
+      setMsg({ type: "err", text: "Errore di connessione" });
+    }
+    setBusy("");
+    carica();
+  };
+
+  const conteggi = stato?.eventi_per_stato || {};
+  const inSospeso = (conteggi.in_attesa || 0) + (conteggi.errore || 0) + (conteggi.ricevuto || 0);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-neutral-800 mb-1">TheFork</h3>
+        <p className="text-sm text-neutral-500 mb-4">
+          TheFork Manager avvisa TRGB a ogni prenotazione o cliente nuovo o modificato: la prenotazione
+          entra in agenda da sola, con gli stessi dati dell'import Excel. Credenziali e token stanno nel
+          file <code className="text-xs">.env</code> del server.
+        </p>
+      </div>
+
+      {msg && (
+        <div className={`px-4 py-2 rounded-lg text-sm font-medium ${
+          msg.type === "ok" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+        }`}>{msg.text}</div>
+      )}
+
+      {/* Stato collegamento */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+        <h4 className="font-semibold text-neutral-700 text-sm">Collegamento</h4>
+        {!stato ? (
+          <div className="text-sm text-neutral-400">Caricamento…</div>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge tone={stato.token_webhook_configurato ? "success" : "danger"} dot>
+                Webhook {stato.token_webhook_configurato ? "attivo" : "spento (manca il token)"}
+              </StatusBadge>
+              <StatusBadge tone={stato.credenziali_presenti ? "success" : "warning"} dot>
+                Credenziali API {stato.credenziali_presenti ? "presenti" : "non ancora arrivate"}
+              </StatusBadge>
+            </div>
+            <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-x-4 gap-y-1 text-sm">
+              <dt className="text-neutral-500">Indirizzo webhook</dt>
+              <dd className="font-mono text-xs break-all text-neutral-800">{stato.webhook_url}</dd>
+              <dt className="text-neutral-500">Ristorante TheFork</dt>
+              <dd className="font-mono text-xs break-all text-neutral-800">{stato.restaurant_uuid || "—"}</dd>
+              <dt className="text-neutral-500">Ultimo avviso</dt>
+              <dd className="text-neutral-800">{stato.ultimo_webhook_at || "nessuno finora"}</dd>
+            </dl>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Btn variant="secondary" size="md" onClick={() => azione("prova", "/prenotazioni/thefork/prova-connessione")}
+                   loading={busy === "prova"} disabled={!!busy || !stato.credenziali_presenti}>
+                Prova connessione
+              </Btn>
+              <Btn variant="secondary" size="md" onClick={() => azione("elabora", "/prenotazioni/thefork/elabora")}
+                   loading={busy === "elabora"} disabled={!!busy || !stato.credenziali_presenti || inSospeso === 0}>
+                Rielabora in sospeso ({inSospeso})
+              </Btn>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Recupero periodo */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+        <h4 className="font-semibold text-neutral-700 text-sm">Recupera un periodo</h4>
+        <p className="text-[11px] text-neutral-400">
+          Se TRGB è rimasto spento o un avviso è andato perso (TheFork non lo rimanda), rilegge da TheFork
+          le prenotazioni del periodo. Serve anche per il primo allineamento.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Dal</label>
+            <input type="date" value={dal} onChange={(e) => setDal(e.target.value)}
+                   className="px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Al</label>
+            <input type="date" value={al} onChange={(e) => setAl(e.target.value)}
+                   className="px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Date di</label>
+            <select value={filtroData} onChange={(e) => setFiltroData(e.target.value)}
+                    className="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+              <option value="updatedDate">modifica su TheFork</option>
+              <option value="mealDate">pasto</option>
+            </select>
+          </div>
+          <Btn variant="primary" size="md" loading={busy === "sync"}
+               disabled={!!busy || !stato?.credenziali_presenti || !dal || !al}
+               onClick={() => azione("sync", "/prenotazioni/thefork/sincronizza", { dal, al, filtro: filtroData })}>
+            Recupera
+          </Btn>
+        </div>
+      </div>
+
+      {/* Registro eventi */}
+      <div className="bg-white rounded-xl border border-neutral-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-neutral-100">
+          <h4 className="font-semibold text-neutral-700 text-sm">Registro avvisi</h4>
+          <div className="flex items-center gap-2">
+            <select value={filtro} onChange={(e) => setFiltro(e.target.value)}
+                    className="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+              <option value="">Tutti</option>
+              {Object.entries(TF_STATI).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}{conteggi[k] ? ` (${conteggi[k]})` : ""}</option>
+              ))}
+            </select>
+            <Btn variant="ghost" size="md" onClick={carica}>↻</Btn>
+          </div>
+        </div>
+        {eventi.length === 0 ? (
+          <EmptyState icon="🍴" title="Nessun avviso" description="Gli avvisi di TheFork compariranno qui appena arrivano." />
+        ) : (
+          <ul className="divide-y divide-neutral-100">
+            {eventi.map((e) => {
+              const st = TF_STATI[e.stato] || { tone: "neutral", label: e.stato };
+              return (
+                <li key={e.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm min-h-[44px]">
+                  <span className="text-xs text-neutral-400 sm:w-36 flex-shrink-0">{e.ricevuto_at}</span>
+                  <span className="sm:w-44 flex-shrink-0 text-neutral-700">{e.event_type}</span>
+                  <span className="flex-shrink-0"><StatusBadge tone={st.tone}>{st.label}</StatusBadge></span>
+                  <span className="flex-1 min-w-0 text-neutral-600 break-words">
+                    {e.esito || e.ultimo_errore || ""}
+                  </span>
+                  {(e.stato === "errore" || e.stato === "in_attesa") && (
+                    <Btn variant="secondary" size="sm" loading={busy === `ev${e.id}`} disabled={!!busy}
+                         onClick={() => azione(`ev${e.id}`, `/prenotazioni/thefork/eventi/${e.id}/riprova`)}>
+                      Riprova
+                    </Btn>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );

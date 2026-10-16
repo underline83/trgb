@@ -399,7 +399,7 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 | E.3 | Parser pdfplumber: `app/services/f24_parser.py` (legge tutte le sezioni) | codici tributo: 1001/1040 erario, DM10/EBTU/EST1 INPS, 3802/3847/3848 add, INAIL 13100 |
 | E.4 | UI Dipendenti > "Carica buste paga del mese": dropzone 3 file (LUL+ELAB+F24) | feedback strutturato: cosa è stato parsato, cosa manca, conferma prima del commit DB |
 | E.5 | Refactor `_aggregate_stipendi` in `conto_economico.py`: legge da `dipendenti_costo_consuntivo` se record presente, fallback netti + warning | Anti-regressione su mesi senza ELAB |
-| E.6 | Nuovo tipo `F24_STIPENDI` su `cg_spese_fisse`: escluso in competenza (già nel costo aziendale), incluso in cassa | Anti-doppio conteggio quando Marco inserirà F24 manualmente in futuro |
+| E.6 | Nuovo tipo `F24_STIPENDI` su `cg_spese_fisse`: escluso in competenza (già nel costo aziendale), incluso in cassa | ✅ FATTO 2026-10-16 (mig 190): rate F24 paghe create dall'import (una per pagina con saldo > 0), PDF collegato; in cassa solo se pagato |
 | E.7 | Mig 133 retro: import ELAB+F24 gen-apr 2026 da PDF già archiviati | Marco fornisce 8 PDF (4 ELAB + 4 F24) |
 | E.8 | Tab "Costi mensili" sotto modulo Dipendenti: vista lista import + dettaglio per dipendente per mese | UI di trasparenza, non solo CE |
 | E.9 | Rimuovere warning banner CE "costo personale parziale" | Solo dopo verifica Marco su dati corretti |
@@ -614,6 +614,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | PR.7 | Report coperti previsti (prenotati + stima walk-in) | S | MEDIA | Dati pronti |
 | PR.8 | Allergie/preferenze cliente in planning (display) | S | MEDIA | Campo esiste in CRM |
 | PR.9 | Reminder cliente automatico 24h prima (M.C + scheduler) | S | BASSA | Marco: utile ma non urgente |
+| PR.10 | Prenotazioni TheFork in tempo reale (webhook B2B API) | M | 🟡 CODICE PRONTO 2026-10-16 | mig 189, prenotazioni 2.3, sistema 5.53. Attivo quando sul VPS ci sono `THEFORK_WEBHOOK_TOKEN` + credenziali (in arrivo da TheFork). Vedi `modulo_prenotazioni.md` §12. Avvicina PR.5 |
 
 **Bug/debt:**
 - PR-DEBT1 — [`modulo_prenotazioni.md`](modulo_prenotazioni.md) "In progettazione" ma codice impl (Fase 1+2 fatte). Da consolidare Fase 5.

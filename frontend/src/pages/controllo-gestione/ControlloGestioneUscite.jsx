@@ -1,4 +1,4 @@
-// @version: v3.3-mattoni — M.I primitives (Btn) su CTA modali + header action
+// @version: v3.4 — F24 paghe: nota delega + 📄 PDF collegato (mig 190, 2026-10-16)
 // Scadenzario Uscite — layout Cantina: filtri SX, KPI in alto, tabella sticky sortable
 // + Riconciliazione Banca: match uscite ↔ movimenti bancari
 // v3.2 (sessione 40 Wave 3):
@@ -14,6 +14,21 @@ import Tooltip from "../../components/Tooltip";
 import ControlloGestioneNav from "./ControlloGestioneNav";
 import { Btn } from "../../components/ui";
 import { isChiuso, isAperto, isPagatoKpi } from "../../utils/statoPagamento";
+
+// mig 190 (2026-10-16): documento collegato all'uscita (oggi il PDF dell'F24).
+// fetch autenticato + blob: niente token nell'URL.
+async function apriAllegato(path) {
+  try {
+    const res = await apiFetch(`${API_BASE}${path}`);
+    if (!res.ok) throw new Error(res.status === 404 ? "PDF non trovato" : `errore ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    alert("Impossibile aprire il PDF: " + e.message);
+  }
+}
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
@@ -1274,6 +1289,17 @@ export default function ControlloGestioneUscite() {
                             <span className="text-neutral-500 italic">
                               {u.periodo_riferimento || "&mdash;"}
                               {u.sf_frequenza && <span className="ml-1 text-[9px] text-neutral-400">({u.sf_frequenza.toLowerCase()})</span>}
+                              {u.sf_tipo === "F24_STIPENDI" && u.note && (
+                                <span className="block not-italic text-[10px] text-neutral-500">{u.note}</span>
+                              )}
+                              {u.allegato_url && (
+                                <button type="button"
+                                  onClick={(e) => { e.stopPropagation(); apriAllegato(u.allegato_url); }}
+                                  title="Apri il PDF"
+                                  className="ml-1 not-italic text-[11px] text-sky-700 hover:underline">
+                                  📄 PDF
+                                </button>
+                              )}
                             </span>
                           ) : isStipendio ? (
                             <span className="text-violet-600 italic">

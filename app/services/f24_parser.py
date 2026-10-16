@@ -55,6 +55,19 @@ USO:
     # }
 
 NB: il parser non scrive su DB. Lo fa il chiamante.
+
+v1.1 (2026-10-16) — colonne per POSIZIONE, saldo finale dal riquadro EURO:
+  - Un importo solo su una riga (es. "1631 2025 40683") era sempre letto come
+    debito salvo i codici in CODICI_CREDITO: il 1631 (rimborsi 730) e il 1701
+    a credito finivano a debito (F24 set 2026: righe = 7.699,84, vero 6.638,12).
+    Ora debito/credito si decide dalla colonna in cui sta l'importo nel PDF
+    (bordo destro della parola: debito ~404, credito ~491, saldo ~577 pt).
+  - Il SALDO FINALE di ogni delega si legge accanto a "EURO" (anche "000" = 0).
+    Le pagine a saldo 0 sono compensazioni: non si pagano.
+  - Controllo: somma dei saldi delle righe = saldo finale stampato, altrimenti
+    warning (la lettura non è affidabile per quella pagina).
+  - parse_f24_pdf ritorna anche tipo_f24 ("PAGHE" se c'è DM10 o 1001) e
+    saldo_da_pagare (somma dei saldi finali > 0).
 """
 
 import hashlib
@@ -83,6 +96,15 @@ CODICI_CREDITO = {
 }
 
 
+# Colonne importi del modello F24 Entratel (coordinate PDF in punti, bordo
+# destro della parola). Costanti di LAYOUT del modulo ministeriale, non soglie
+# di business: misurate sui PDF del consulente mag-set 2026.
+_X0_MIN_IMPORTI = 330    # a sinistra: codici, mesi, anni, matricole
+_X1_MAX_DEBITO = 430     # importi a debito versati   (~404)
+_X1_MAX_CREDITO = 520    # importi a credito compensati (~491); oltre = saldo (~577)
+_RE_IMPORTO = re.compile(r"^[\d.]+[-+]?$")
+
+
 # Mapping codice tributo → descrizione human-readable
 CODICI_TRIBUTO_LABEL = {
     # Erario
@@ -99,6 +121,10 @@ CODICI_TRIBUTO_LABEL = {
     # Comuni
     "3847": "Addizionale comunale acconto",
     "3848": "Addizionale comunale saldo",
+    "3796": "Rimborso addizionale regionale (credito)",
+    "3797": "Rimborso addizionale comunale (credito)",
+    "1631": "Rimborsi da assistenza fiscale (credito)",
+    "1701": "Credito del sostituto d'imposta (compensato)",
     # INPS (codici causale)
     "DM10": "INPS dipendenti (DM10)",
     "C10": "INPS collaboratori/amministratori",
@@ -171,13 +197,13 @@ RE_INPS = re.compile(
 # Sezione Regioni: "10 3802 04 2025 11665"
 #                  cod_regione cod_tributo mese anno importo
 RE_REGIONI = re.compile(
-    r"^(?P<cod_regione>\d{1,2})\s+(?P<codice>\d{4})\s+(?P<mese_rif>\d{2})\s+(?P<anno_rif>\d{4})\s+(?P<importo>[\d.]+)$"
+    r"^(?P<cod_regione>\d{1,2})\s+(?P<codice>\d{4})\s+(?:(?P<mese_rif>\d{2})\s+)?(?P<anno_rif>\d{4})\s+(?P<importo>[\d.]+)-?$"
 )
 
 # Sezione Comuni: "A794 3847 04 2026 1430"
 #                 cod_catastale cod_tributo mese anno importo
 RE_COMUNI = re.compile(
-    r"^(?P<cod_comune>[A-Z]\d{3})\s+(?P<codice>\d{4})\s+(?P<mese_rif>\d{2})\s+(?P<anno_rif>\d{4})\s+(?P<importo>[\d.]+)$"
+    r"^(?P<cod_comune>[A-Z]\d{3})\s+(?P<codice>\d{4})\s+(?:(?P<mese_rif>\d{2})\s+)?(?P<anno_rif>\d{4})\s+(?P<importo>[\d.]+)-?$"
 )
 
 # Sezione INAIL: "13100 19667632 27 902026 P 20835"
@@ -296,7 +322,8 @@ def _parse_riga_regioni(line: str) -> Optional[dict]:
         return None
     g = m.groupdict()
     # Filtro: codice_tributo deve essere ~regionale (3802) e codice regione 1-20
-    if g["codice"] not in ("3802",):
+    # 3796 = rimborso addizionale regionale trattenuto (in colonna credito, v1.1)
+    if g["codice"] not in ("3802", "3796"):
         return None
     if not (1 <= int(g["cod_regione"]) <= 20):
         return None
@@ -307,7 +334,7 @@ def _parse_riga_regioni(line: str) -> Optional[dict]:
         "descrizione_tributo": CODICI_TRIBUTO_LABEL.get(g["codice"]),
         "codice_regione": g["cod_regione"],
         "periodo_rif_anno": int(g["anno_rif"]),
-        "periodo_rif_mese": int(g["mese_rif"]),
+        "periodo_rif_mese": int(g["mese_rif"]) if g["mese_rif"] else None,
         "importo_debito": importo,
         "importo_credito": 0.0,
         "saldo": importo,
@@ -322,7 +349,8 @@ def _parse_riga_comuni(line: str) -> Optional[dict]:
     if not m:
         return None
     g = m.groupdict()
-    if g["codice"] not in ("3847", "3848"):
+    # 3797 = rimborso addizionale comunale trattenuto (in colonna credito, v1.1)
+    if g["codice"] not in ("3847", "3848", "3797"):
         return None
     importo = _entratel_to_euro(g["importo"]) or 0.0
     return {
@@ -331,7 +359,7 @@ def _parse_riga_comuni(line: str) -> Optional[dict]:
         "descrizione_tributo": CODICI_TRIBUTO_LABEL.get(g["codice"]),
         "codice_comune": g["cod_comune"],
         "periodo_rif_anno": int(g["anno_rif"]),
-        "periodo_rif_mese": int(g["mese_rif"]),
+        "periodo_rif_mese": int(g["mese_rif"]) if g["mese_rif"] else None,
         "importo_debito": importo,
         "importo_credito": 0.0,
         "saldo": importo,
@@ -367,10 +395,55 @@ def _parse_riga_inail(line: str) -> Optional[dict]:
 # PARSING PAGINA
 # ─────────────────────────────────────────────────────────────
 
-def _parse_pagina(text: str, pagina_n: int) -> Optional[dict]:
+def _word_queue(words: list) -> dict:
+    """Parole della pagina indicizzate per testo, in ordine di lettura
+    (dall'alto, poi da sinistra). Servono a ritrovare la posizione dei token
+    delle righe di extract_text(), che escono nello stesso ordine."""
+    q: dict = {}
+    for w in sorted(words, key=lambda w: (round(w["top"]), w["x0"])):
+        q.setdefault(w["text"], []).append(w)
+    return q
+
+
+def _saldo_finale_da_words(words: list) -> Optional[float]:
+    """Il SALDO FINALE della delega è l'importo stampato a destra di "EURO",
+    sulla stessa riga. "000" = zero (delega tutta compensata)."""
+    euro = [w for w in words if w["text"] == "EURO"]
+    if not euro:
+        return None
+    e = euro[-1]
+    cand = [w for w in words
+            if abs(w["top"] - e["top"]) < 10 and w["x0"] > e["x1"]
+            and re.match(r"^[\d.]+$", w["text"])]
+    if not cand:
+        return None
+    cand.sort(key=lambda w: w["x0"])
+    return _entratel_to_euro(cand[-1]["text"])
+
+
+def _importi_per_posizione(posizioni: list) -> tuple[list, list]:
+    """Da [(token, word|None)] → (importi a debito, importi a credito) in euro,
+    decidendo la colonna dalla posizione. La colonna saldo è ignorata."""
+    deb, cred = [], []
+    for tok, w in posizioni:
+        if w is None or w["x0"] < _X0_MIN_IMPORTI or not _RE_IMPORTO.match(tok):
+            continue
+        val = _entratel_to_euro(tok.rstrip("+")) or 0.0
+        val = abs(val)
+        if w["x1"] <= _X1_MAX_DEBITO:
+            deb.append(val)
+        elif w["x1"] <= _X1_MAX_CREDITO:
+            cred.append(val)
+    return deb, cred
+
+
+def _parse_pagina(text: str, pagina_n: int, words: Optional[list] = None) -> Optional[dict]:
     """Estrae una singola delega F24 da una pagina.
-    Ritorna None se la pagina non contiene dati (template vuoto)."""
+    Ritorna None se la pagina non contiene dati (template vuoto).
+    Con `words` (page.extract_words()) debito/credito si decidono dalla
+    colonna e il saldo finale si legge accanto a "EURO" (v1.1)."""
     data_scadenza = _parse_data_scadenza(text)
+    wq = _word_queue(words) if words else None
 
     righe = []
     saldo_finale_pagina = None
@@ -390,6 +463,14 @@ def _parse_pagina(text: str, pagina_n: int) -> Optional[dict]:
             break
         if not in_data_section:
             continue
+
+        # Posizione dei token (consumati in ordine di lettura)
+        posizioni = None
+        if wq is not None:
+            posizioni = []
+            for tok in line.split():
+                lst = wq.get(tok)
+                posizioni.append((tok, lst.pop(0) if lst else None))
 
         # Skip righe template / spurie
         if not line:
@@ -424,12 +505,24 @@ def _parse_pagina(text: str, pagina_n: int) -> Optional[dict]:
                        _parse_riga_inail]:
             r = parser(line)
             if r is not None:
+                if posizioni:
+                    deb, cred = _importi_per_posizione(posizioni)
+                    if deb or cred:
+                        r["importo_debito"] = round(sum(deb), 2)
+                        r["importo_credito"] = round(sum(cred), 2)
+                        r["saldo"] = round(sum(deb) - sum(cred), 2)
                 r["pagina_pdf"] = pagina_n
                 righe.append(r)
                 break
 
     if not righe:
         return None  # pagina template senza dati
+
+    # v1.1: saldo finale dal riquadro EURO (più affidabile del "numero più grande")
+    if words:
+        sf = _saldo_finale_da_words(words)
+        if sf is not None:
+            saldo_finale_pagina = sf
 
     # Saldo come somma dei saldi delle righe
     saldo_calc = round(sum(r.get("saldo", 0) or 0 for r in righe), 2)
@@ -484,11 +577,33 @@ def parse_f24_pdf(pdf_path: str | Path) -> dict:
     with pdfplumber.open(pdf_path) as pdf:
         for i, page in enumerate(pdf.pages, 1):
             text = page.extract_text() or ""
-            delega = _parse_pagina(text, i)
+            try:
+                words = page.extract_words()
+            except Exception:
+                words = None
+            delega = _parse_pagina(text, i, words)
             if delega is not None:
                 result["deleghe"].append(delega)
 
     if not result["deleghe"]:
         result["warnings"].append("nessuna delega F24 con dati trovata nel PDF")
+
+    # v1.1: controllo di coerenza + saldo da pagare + tipo
+    saldo_da_pagare = 0.0
+    for d in result["deleghe"]:
+        sf, sc = d.get("saldo_finale"), d.get("saldo_calcolato")
+        if sf is None:
+            result["warnings"].append(
+                f"pag. {d['pagina_pdf']}: saldo finale non letto, uso la somma delle righe ({sc:.2f})")
+            d["saldo_finale"] = sf = max(sc or 0.0, 0.0)
+        elif sc is not None and abs(sf - sc) > 0.01:
+            result["warnings"].append(
+                f"pag. {d['pagina_pdf']}: righe {sc:.2f} ≠ saldo finale stampato {sf:.2f} — "
+                "il dettaglio per tributo di questa pagina va controllato")
+        if sf > 0:
+            saldo_da_pagare += sf
+    result["saldo_da_pagare"] = round(saldo_da_pagare, 2)
+    codici = {r.get("codice_tributo") for d in result["deleghe"] for r in d.get("righe", [])}
+    result["tipo_f24"] = "PAGHE" if ("DM10" in codici or "1001" in codici) else "ALTRO"
 
     return result
