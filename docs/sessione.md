@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-16 — **DA PUSHARE: preventivi «a corpo» (mig 187, clienti 3.2, sistema 5.51)** — service/router preventivi e menu template, composer, scheda, Impostazioni Menu Template, PDF. **Dopo il push:** controllare in `/system/info` che la mig 187 sia passata, aprire PRE-2026-001 (450 €) e PRE-2026-002 (forbice 800–2.400 €), salvare il primo template di stagione. **DA PUSHARE anche: docs della rete** (`docs/operativo/rete*.md`, dal second brain). Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): **dopo** export + import in iPratico, controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-16 — Preventivi «a corpo» pushati (680eb06c, mig 187, clienti 3.2, sistema 5.51), insieme ai docs della rete. **Da verificare:** `/system/info` → 5.51 e mig 187; PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -42,6 +42,7 @@ Richiesta di Marco: per i menu gruppi dell'osteria serve il prezzo a corpo, indi
 - Frontend: composer v2.3 (Somma piatti / A corpo, doppio prezzo, portata al posto del prezzo, ✓ scelto dal cliente, stagione, multi-carica), scheda v1.5 (totale «da X a Y», 💬 WhatsApp, 📋 Copia testo), Impostazioni Menu Template v1.2. Build Vite ok.
 - Provato su copia del DB: migrazione idempotente, PRE-2026-001/002 invariati; preventivo con 2 menu a corpo doppio prezzo + extra «Menù bambini 2 × 25» → forbice 1.400–1.610, scelta Picche (vino incluso) 1.610; template con stagione, caricamento di 2 template come alternative, duplica; PDF alternative e menu scelto controllati. Non provato nel browser.
 - Docs: `modulo_preventivi.md` (C-P-032…036, §4.1, §5, §8, §10, §12.1), changelog, roadmap (CL.15, CL.4 parziale, MK.3).
+- Pushato: commit 680eb06c (deploy ok, backend UP, nessun errore nei log nei primi 30 s).
 
 ## SESSIONE 2026-10-16 (2) — Il second brain dell'osteria entra in TRGB `[locale:tregobbi]`
 
