@@ -75,6 +75,9 @@ import sqlite3
 from datetime import date
 from typing import Optional
 from app.services.fatture_filtri import segno_nc
+from app.services.spalmatura_regole import (
+    carica_regole, regola_attiva, mesi_tra, sposta_mese,
+)
 
 
 # Categorie che concorrono al COSTO MERCE (food cost lordo). Tutto il resto
@@ -225,6 +228,13 @@ def _aggregate_fatture_per_categoria(
     else:
         importo_expr = "COALESCE(SUM(r.prezzo_totale), 0)"
 
+    # Mig 191 (Marco 2026-10-16): regole di spalmatura di default per
+    # (sotto)categoria, applicate per RIGA. Se ci sono regole si passa dal
+    # calcolo in Python; senza regole resta la query di sempre.
+    regole = carica_regole(fc_conn)
+    if (regole["cat"] or regole["sub"]) and has_spalmatura_col and has_competenza_col:
+        return _aggregate_fatture_con_regole(fc_conn, periodo_rif, regole)
+
     rows = fc_conn.execute(f"""
         SELECT
             COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
@@ -256,6 +266,103 @@ def _aggregate_fatture_per_categoria(
         ORDER BY f.data_fattura DESC, importo DESC, f.id DESC
     """, params).fetchall()
     return [dict(r) for r in rows]
+
+
+def _aggregate_fatture_con_regole(
+    fc_conn: sqlite3.Connection, periodo_rif: str, regole: dict
+) -> list[dict]:
+    """Come la query di _aggregate_fatture_per_categoria, più le regole di
+    spalmatura per (sotto)categoria (mig 191).
+
+    Per ogni gruppo (fattura, categoria, sottocategoria):
+      1. spalmatura manuale sulla fattura → vince, come prima (fattura intera);
+      2. altrimenti regola della sottocategoria, poi della categoria: le righe
+         del gruppo si dividono in N quote a partire dal mese di competenza
+         (competenza_anno_mese o data_fattura), se quel mese è >= valida_dal;
+      3. altrimenti tutto nel mese di competenza.
+    Categoria/sottocategoria effettive: stessa gerarchia (riga → fornitore).
+    """
+    max_n = max(
+        [m for m, _ in regole["cat"].values()] + [m for m, _ in regole["sub"].values()] + [1]
+    )
+    mese_min = sposta_mese(periodo_rif, -(max_n - 1))
+
+    rows = fc_conn.execute(f"""
+        SELECT
+            COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
+            COALESCE(fsub_riga.nome, fsub_forn.nome, '—')                 AS sottocategoria,
+            COALESCE(fcat_riga.id, fcat_forn.id)                          AS cat_id,
+            COALESCE(fsub_riga.id, fsub_forn.id)                          AS sub_id,
+            f.id                                                          AS id,
+            f.data_fattura                                                AS data,
+            COALESCE(f.numero_fattura, '—')                               AS descrizione,
+            COALESCE(f.fornitore_nome, '—')                               AS ref,
+            COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) AS mese_comp,
+            f.spalmatura_mesi                                             AS spal_mesi,
+            f.spalmatura_data_inizio                                      AS spal_inizio,
+            {segno_nc("f")} * COALESCE(SUM(r.prezzo_totale), 0)           AS totale
+        FROM fe_fatture f
+        JOIN fe_righe r ON r.fattura_id = f.id
+        LEFT JOIN fe_fornitore_categoria ffc
+               ON f.fornitore_piva = ffc.fornitore_piva
+        LEFT JOIN fe_categorie       fcat_riga ON r.categoria_id     = fcat_riga.id
+        LEFT JOIN fe_sottocategorie  fsub_riga ON r.sottocategoria_id = fsub_riga.id
+        LEFT JOIN fe_categorie       fcat_forn ON ffc.categoria_id   = fcat_forn.id
+        LEFT JOIN fe_sottocategorie  fsub_forn ON ffc.sottocategoria_id = fsub_forn.id
+        WHERE (
+                (
+                  f.spalmatura_mesi IS NOT NULL AND f.spalmatura_mesi > 0
+                  AND f.spalmatura_data_inizio IS NOT NULL
+                  AND f.spalmatura_data_inizio <= ? || '-01'
+                  AND strftime('%Y-%m', date(f.spalmatura_data_inizio, '+' || f.spalmatura_mesi || ' months', '-1 day')) >= ?
+                )
+                OR (
+                  (f.spalmatura_mesi IS NULL OR f.spalmatura_mesi = 0)
+                  AND COALESCE(f.competenza_anno_mese, strftime('%Y-%m', f.data_fattura)) BETWEEN ? AND ?
+                )
+              )
+          AND COALESCE(f.is_autofattura, 0) = 0
+          AND COALESCE(ffc.escluso_acquisti, 0) = 0
+        GROUP BY f.id,
+                 COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato'),
+                 COALESCE(fsub_riga.nome, fsub_forn.nome, '—'),
+                 COALESCE(fcat_riga.id, fcat_forn.id),
+                 COALESCE(fsub_riga.id, fsub_forn.id)
+    """, (periodo_rif, periodo_rif, mese_min, periodo_rif)).fetchall()
+
+    out = []
+    for r in rows:
+        r = dict(r)
+        descrizione = r["descrizione"]
+        if r["spal_mesi"] and r["spal_mesi"] > 0 and r["spal_inizio"]:
+            # spalmatura manuale: la WHERE garantisce che copre il mese
+            importo = r["totale"] / float(r["spal_mesi"])
+        else:
+            mese_comp = r["mese_comp"]
+            n = regola_attiva(regole, r["cat_id"], r["sub_id"], mese_comp) if mese_comp else None
+            if n:
+                k = mesi_tra(mese_comp, periodo_rif)
+                if not (0 <= k < n):
+                    continue
+                importo = r["totale"] / float(n)
+                descrizione = f"{descrizione} (quota {k + 1}/{n})"
+            elif mese_comp == periodo_rif:
+                importo = r["totale"]
+            else:
+                continue
+        out.append({
+            "categoria": r["categoria"],
+            "sottocategoria": r["sottocategoria"],
+            "tipo_riga": "fattura",
+            "id": r["id"],
+            "spesa_fissa_id": None,
+            "data": r["data"],
+            "descrizione": descrizione,
+            "ref": r["ref"],
+            "importo": importo,
+        })
+    out.sort(key=lambda x: (x["data"] or "", x["importo"], x["id"]), reverse=True)
+    return out
 
 
 def _aggregate_spese_fisse_per_categoria(

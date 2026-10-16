@@ -1,4 +1,4 @@
-# @version: v1.2-sposta-sottocategorie
+# @version: v1.3-spalmatura-default
 # -*- coding: utf-8 -*-
 """
 Router per gestione categorie fornitori fatture elettroniche.
@@ -143,16 +143,19 @@ def list_categorie():
     conn = _get_conn()
     cur = conn.cursor()
 
-    cur.execute("""
-        SELECT id, nome, ordine, attiva
+    # Mig 191: regola di spalmatura di default (solo se la colonna c'è)
+    spal = _spal_select(cur)
+
+    cur.execute(f"""
+        SELECT id, nome, ordine, attiva{spal}
         FROM fe_categorie
         ORDER BY ordine ASC, nome ASC
     """)
     cats = [dict(r) for r in cur.fetchall()]
 
     for cat in cats:
-        cur.execute("""
-            SELECT id, nome, ordine, attiva
+        cur.execute(f"""
+            SELECT id, nome, ordine, attiva{spal}
             FROM fe_sottocategorie
             WHERE categoria_id = ?
             ORDER BY ordine ASC, nome ASC
@@ -276,6 +279,65 @@ def delete_sottocategoria(sub_id: int):
     conn.commit()
     conn.close()
     return {"ok": True}
+
+
+# ─── SPALMATURA DI DEFAULT (mig 191, 2026-10-16) ────────────────
+# Regola per il Conto Economico: le righe di fattura di questa (sotto)categoria
+# si spalmano su N mesi dal loro mese di competenza, per le fatture da
+# `valida_dal` in avanti. Logica e priorità in app/services/spalmatura_regole.py.
+
+def _spal_select(cur) -> str:
+    cols = {r[1] for r in cur.execute("PRAGMA table_info(fe_categorie)").fetchall()}
+    if "spalmatura_mesi_default" not in cols:
+        return ""
+    return ", spalmatura_mesi_default, spalmatura_valida_dal"
+
+
+class SpalmaturaDefault(BaseModel):
+    mesi: Optional[int] = None        # None = nessuna regola; 1 = «non spalmare»; 2..36
+    valida_dal: Optional[str] = None  # 'YYYY-MM' (o 'YYYY-MM-DD'); obbligatoria se mesi > 1
+
+
+def _salva_spalmatura(tabella: str, row_id: int, body: SpalmaturaDefault) -> dict:
+    conn = _get_conn()
+    try:
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({tabella})").fetchall()}
+        if "spalmatura_mesi_default" not in cols:
+            raise HTTPException(503, "Spalmatura di default non disponibile (mig 191 non applicata)")
+        if not conn.execute(f"SELECT id FROM {tabella} WHERE id = ?", (row_id,)).fetchone():
+            raise HTTPException(404, "Categoria non trovata")
+
+        mesi = body.mesi
+        valida_dal = None
+        if mesi is not None:
+            if mesi < 1 or mesi > 36:
+                raise HTTPException(400, "I mesi vanno da 1 a 36")
+            if mesi > 1:
+                v = (body.valida_dal or "").strip()[:7]
+                if len(v) != 7 or v[4] != "-" or not (v[:4].isdigit() and v[5:].isdigit()) \
+                        or not (1 <= int(v[5:]) <= 12):
+                    raise HTTPException(400, "Indica da quale mese vale la regola (YYYY-MM)")
+                valida_dal = f"{v}-01"
+        conn.execute(
+            f"UPDATE {tabella} SET spalmatura_mesi_default = ?, spalmatura_valida_dal = ? WHERE id = ?",
+            (mesi, valida_dal, row_id),
+        )
+        conn.commit()
+        return {"id": row_id, "spalmatura_mesi_default": mesi, "spalmatura_valida_dal": valida_dal}
+    finally:
+        conn.close()
+
+
+@router.put("/{cat_id}/spalmatura",
+            summary="Imposta o toglie la spalmatura di default di una categoria (mig 191)")
+def set_spalmatura_categoria(cat_id: int, body: SpalmaturaDefault):
+    return _salva_spalmatura("fe_categorie", cat_id, body)
+
+
+@router.put("/sotto/{sub_id}/spalmatura",
+            summary="Imposta o toglie la spalmatura di default di una sottocategoria (mig 191)")
+def set_spalmatura_sottocategoria(sub_id: int, body: SpalmaturaDefault):
+    return _salva_spalmatura("fe_sottocategorie", sub_id, body)
 
 
 class SpostaSottocategoria(BaseModel):

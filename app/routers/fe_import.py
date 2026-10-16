@@ -53,6 +53,7 @@ router = APIRouter(
 
 from app.utils.locale_data import locale_data_path
 from app.services.fatture_filtri import escludi_nc, segno_nc
+from app.services.spalmatura_regole import carica_regole, regola_attiva
 
 # R6.5 — path tenant-aware. Modulo: acquisti (fatture elettroniche import).
 FOODCOST_DB_PATH = locale_data_path("foodcost.db")
@@ -1386,7 +1387,9 @@ def get_fattura_detail(fattura_id: int):
                 COALESCE(fcat_riga.nome, fcat_forn.nome, 'Non categorizzato') AS categoria,
                 COALESCE(fsub_riga.nome, fsub_forn.nome, '—')                 AS sottocategoria,
                 COUNT(r.id)                                                   AS righe_count,
-                COALESCE(SUM(r.prezzo_totale), 0)                             AS importo
+                COALESCE(SUM(r.prezzo_totale), 0)                             AS importo,
+                COALESCE(fcat_riga.id, fcat_forn.id)                          AS cat_id,
+                COALESCE(fsub_riga.id, fsub_forn.id)                          AS sub_id
             FROM fe_righe r
             LEFT JOIN fe_fatture f ON r.fattura_id = f.id
             LEFT JOIN fe_fornitore_categoria ffc
@@ -1401,6 +1404,16 @@ def get_fattura_detail(fattura_id: int):
             ORDER BY importo DESC
         """, (fattura_id,)).fetchall()
         categoria_aggregata = [dict(r) for r in categorie_rows]
+
+        # Mig 191: quale regola di spalmatura di default si applica a ogni
+        # gruppo (solo se la fattura non ha una spalmatura manuale, che vince).
+        regole = carica_regole(conn_ce)
+        mese_comp = (competenza_override
+                     or (fattura_dict.get("data_fattura") or "")[:7])
+        for g in categoria_aggregata:
+            g["spalmatura_regola_mesi"] = None
+            if (regole["cat"] or regole["sub"]) and not spalmatura_mesi and mese_comp:
+                g["spalmatura_regola_mesi"] = regola_attiva(regole, g["cat_id"], g["sub_id"], mese_comp)
 
         escl_row = conn_ce.execute("""
             SELECT COALESCE(ffc.escluso_acquisti, 0) AS escluso_acquisti

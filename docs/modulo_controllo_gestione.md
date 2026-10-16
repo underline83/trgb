@@ -29,6 +29,23 @@ Decisioni Marco 16/10/2026. Spesa fissa **«F24 paghe»** (`tipo='F24_STIPENDI'`
 | C-CG-F02 🆕 | «📄 PDF» sulla riga dello Scadenzario (`cg_uscite.allegato_url`, fetch autenticato) | `ControlloGestioneUscite.jsx` `apriAllegato`; `GET /dipendenti/buste-paga/f24/{hash}/pdf` | admin/contabile | 🆕 2026-10-16 |
 | C-CG-F03 🆕 | CE cassa: F24 paghe nel mese del pagamento effettivo | `conto_economico.py` ramo cassa | admin/contabile | 🆕 2026-10-16 |
 
+# 📌 AGGIORNAMENTO 2026-10-16 — Spalmatura di default per categoria (mig 191, CG 2.28)
+
+Marco 16/10: «il vino lo setterei di base a 3 mesi». Decisione (opzione 2 su 2): la regola vale **per riga**, non per fattura — nel 2026 metà delle fatture con vino vengono da fornitori misti (Sogegross, Marenzi…).
+
+- Dove si imposta: Acquisti → Categorie → Impostazioni Categorie, chip 📆 accanto a categoria/sottocategoria (`fe_categorie_router` `PUT /{id}/spalmatura`, `PUT /sotto/{id}/spalmatura`).
+- Calcolo: `conto_economico._aggregate_fatture_con_regole` (attivo solo se esiste almeno una regola; senza regole resta la query di prima). Categoria effettiva = stessa gerarchia del CE (riga → fornitore). Quote dal mese di competenza (`competenza_anno_mese` o `data_fattura`), descrizione «N° (quota k/N)».
+- Priorità: spalmatura manuale della fattura > regola sottocategoria > regola categoria > mese di competenza. `mesi=1` sulla sottocategoria = esclusa dalla regola della categoria.
+- `valida_dal`: la regola tocca solo le fatture con competenza da quel mese in poi → i mesi già chiusi non cambiano (mettendo una data passata si ricalcola lo storico).
+- Regole in `app/services/spalmatura_regole.py` (usato anche dal dettaglio fattura: badge «📆 N mesi» per gruppo categoria).
+- Verifica su copia DB: con VINO 3 mesi dal 2026-01 il totale gen 2026–gen 2027 resta identico (222.991,24 €), cambia solo la distribuzione mensile.
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-CG-SP01 🆕 | CE: righe di fattura spalmate su N mesi secondo la regola della loro (sotto)categoria | `conto_economico.py` `_aggregate_fatture_con_regole` | admin/contabile | 🆕 2026-10-16 |
+| C-A-SP01 🆕 | Imposta/togli la spalmatura di default di categoria e sottocategoria | `fe_categorie_router.py` `_salva_spalmatura`; `FattureCategorie.jsx` `SpalmaturaChip` | admin/contabile | 🆕 2026-10-16 |
+| C-A-SP02 🆕 | Dettaglio fattura: quale regola si applica a ogni gruppo categoria | `fe_import.py` dettaglio (`spalmatura_regola_mesi`); `FattureDettaglio.jsx` | admin/contabile | 🆕 2026-10-16 |
+
 # 📌 AGGIORNAMENTO 2026-07-17 — Analisi Utenze U1+U2 (spec_utenze.md, mig 151)
 
 Nuovo sub-modulo **Analisi Utenze**: upload PDF bollette A2A (luce+gas) → parser → serie storica + KPI. SOLA ANALISI: nessun importo entra nel CE (contabilità su fe_fatture, zero doppio conteggio). Spec completa: `docs/spec_utenze.md`.

@@ -289,7 +289,10 @@ const MODULE_VERSIONS = {
     // v3.2 (2026-10-02): note di credito (TD04) importate da FIC (A.1 fase 1) —
     //   visibili in Elenco/Dettaglio con badge NC, escluse da totali, filtri
     //   pagamento, scadenzario, dashboard, statistiche, matching e alert.
-    version: "3.2",
+    // v3.3 (2026-10-16): spalmatura di default per categoria/sottocategoria
+    //   (Categorie → Impostazioni Categorie, chip 📆) e badge «📆 N mesi» nel
+    //   dettaglio fattura (mig 191).
+    version: "3.3",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
@@ -387,7 +390,8 @@ const MODULE_VERSIONS = {
     // v2.25 (2026-10-02): note di credito (TD04) nel Conto Economico col segno meno, nel mese della loro data (A.1 fase 2); stesso criterio in «Dove appare nel CE» del dettaglio fattura e nei KPI acquisti della dashboard CG.
     // v2.26 (2026-10-02): Scadenzario mostra di default anche i PARZIALE (residuo da pagare, es. saldo stipendio); residuo nei KPI «Da pagare»/«Scaduto» in base alla scadenza.
     // v2.27 (2026-10-16): F24 paghe nello Scadenzario — spesa fissa «F24 paghe» (F24_STIPENDI) con rate scritte dall'import F24, nota delega + 📄 PDF (cg_uscite.allegato_url, mig 190); CE cassa conta l'F24 paghe solo quando è pagato (data_pagamento).
-    version: "2.27",
+    // v2.28 (2026-10-16): Conto Economico — regole di spalmatura per (sotto)categoria applicate per RIGA (es. VINO 3 mesi): quote «(quota k/N)» dal mese di competenza, solo fatture dal mese di validità; spalmatura manuale della fattura vince (mig 191).
+    version: "2.28",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -533,6 +537,9 @@ const MODULE_VERSIONS = {
     // 5.46 (2026-10-08): mattone M.K — connettore MCP di claude.ai su /mcp
     //   (OAuth 2.1 con utente e PIN TRGB, solo admin), strumenti pratiche,
     //   connettore.sqlite3 (schema al boot). Doc: docs/connettore_mcp.md.
+    // 5.55 (2026-10-16): mig 191 — fe_categorie/fe_sottocategorie.spalmatura_mesi_default
+    //   + spalmatura_valida_dal: spalmatura di default per categoria nel CE
+    //   (fatture 3.3, controlloGestione 2.28).
     // 5.54 (2026-10-16): mig 190 — f24_deleghe + cg_uscite.allegato_url: F24 paghe
     //   nello Scadenzario (rate dall'import ELAB / F24), parser F24 v1.1
     //   (controlloGestione 2.27, dipendenti 2.36).
@@ -556,7 +563,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.54",
+    version: "5.55",
     label: "Sistema",
     status: "stabile",
     color: "green",

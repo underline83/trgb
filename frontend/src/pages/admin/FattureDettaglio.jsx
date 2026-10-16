@@ -1271,10 +1271,25 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                     </>
                   ) : (
                     <>
-                      <div className="text-base font-bold text-neutral-400">Non attiva</div>
-                      <div className="text-[10px] text-neutral-500 mt-0.5">
-                        es. assicurazione annuale → 12 mesi
-                      </div>
+                      {(fattura.categoria_aggregata || []).some(c => c.spalmatura_regola_mesi) ? (
+                        <>
+                          <div className="text-base font-bold text-violet-900">Automatica</div>
+                          <div className="text-[10px] text-violet-600 mt-0.5">
+                            {(fattura.categoria_aggregata || [])
+                              .filter(c => c.spalmatura_regola_mesi)
+                              .map(c => `${c.sottocategoria !== "—" ? c.sottocategoria : c.categoria} su ${c.spalmatura_regola_mesi} mesi`)
+                              .join(" · ")}
+                            {" "}— regola di categoria (Categorie → Impostazioni Categorie)
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-base font-bold text-neutral-400">Non attiva</div>
+                          <div className="text-[10px] text-neutral-500 mt-0.5">
+                            es. assicurazione annuale → 12 mesi
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                   <Btn variant="secondary" size="sm" type="button"
@@ -1310,7 +1325,15 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                         {fattura.categoria_aggregata.map((c, i) => (
                           <tr key={i} className="border-b border-neutral-50">
                             <td className="py-1.5 font-semibold text-neutral-800">{c.categoria}</td>
-                            <td className="py-1.5 text-neutral-600">{c.sottocategoria}</td>
+                            <td className="py-1.5 text-neutral-600">
+                              {c.sottocategoria}
+                              {c.spalmatura_regola_mesi ? (
+                                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200"
+                                      title="Regola di categoria: nel Conto Economico queste righe si dividono sui mesi indicati">
+                                  📆 {c.spalmatura_regola_mesi} mesi
+                                </span>
+                              ) : null}
+                            </td>
                             <td className="py-1.5 text-right text-neutral-500 tabular-nums">{c.righe_count}</td>
                             <td className="py-1.5 text-right font-semibold text-neutral-900 tabular-nums">€ {fmt(c.importo)}</td>
                           </tr>

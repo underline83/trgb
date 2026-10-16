@@ -4,13 +4,16 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.52 in produzione (5.53 TheFork + 5.54 F24 da pushare) · **Migrazione più recente:** 190 (da pushare; 189 in produzione, b29003e4)
+**Sistema:** 5.54 in produzione (4fa71e02) · 5.55 da pushare · **Migrazione più recente:** 191 (da pushare; 190 in produzione)
 
-**DA PUSHARE — TheFork webhook, parte 2** (la parte 1 è già live in b29003e4: webhook spento, risponde 503 finché manca il token)
-- Sezione 🍴 TheFork in Impostazioni Prenotazioni, fuso orario del locale su `data_prenotazione`, 404 → «ignorato», VERSION 5.53 / prenotazioni 2.3, docs. Dopo il push: mettere nel `.env` del VPS `THEFORK_WEBHOOK_TOKEN` (quello comunicato a TheFork) e riavviare → `POST /prenotazioni/thefork/webhook?token=sbagliato` deve dare 401. All'arrivo delle credenziali: `THEFORK_CLIENT_ID`/`THEFORK_CLIENT_SECRET` (+ `THEFORK_RESTAURANT_UUID`) → «Prova connessione» → «Rielabora in sospeso» → «Recupera un periodo».
+**DA PUSHARE — Spalmatura di default per categoria** (mig 191, sistema 5.55, fatture 3.3, controlloGestione 2.28)
+- Dopo il push: Acquisti › Categorie › Impostazioni Categorie › BEVANDE › VINO › chip 📆 → 3 mesi, dal mese da cui vuoi che valga. Poi Conto Economico: le fatture col vino mostrano «(quota k/3)»; nel dettaglio di una fattura Sogegross il gruppo VINO ha il badge «📆 3 mesi».
 
-**DA PUSHARE — F24 paghe nello Scadenzario** (mig 190, sistema 5.54, controlloGestione 2.27, dipendenti 2.36)
-- Dopo il push: Dipendenti › Buste paga › «Carica ELAB / F24» → ricaricare gli F24 2026 (giu-ott pronti; **gen-apr: riaprire OneDrive sul Mac**, sono «solo online»). Settembre deve dare 1 rata € 6.638,12 al 16/10/2026. Poi Spese Fisse › «F24 paghe» → mettere la categoria TASSE E IMPOSTE. Le pagine pagate con I24 su BPM (es. 209,77 del 20/08) vanno collegate al movimento dalla riconciliazione.
+**TheFork webhook** (live: b29003e4 + 4fa71e02; URL già mandato a Régis il 16/10)
+- Da fare SUBITO: `THEFORK_WEBHOOK_TOKEN` nel `.env` del VPS + riavvio (oggi risponde 503 = spento). Verifica: `POST /prenotazioni/thefork/webhook?token=sbagliato` → 401.
+- All'arrivo delle credenziali: `THEFORK_CLIENT_ID`/`THEFORK_CLIENT_SECRET` (+ `THEFORK_RESTAURANT_UUID`) → riavvio → Impostazioni Prenotazioni › 🍴 TheFork: «Prova connessione», «Rielabora in sospeso», «Recupera un periodo».
+
+**F24 paghe nello Scadenzario** — pushato (4fa71e02, sistema 5.54, mig 190). Caricati mag–set 2026: 6 rate (set € 6.638,12 al 16/10), PDF ok, categoria TASSE E IMPOSTE messa. Rata 209,77 collegata al movimento I24 1868 (PAGATO); stime nov 2026–gen 2027 a 6.638,12 presenti. Resta: F24 gen–apr (OneDrive «solo online»). Copie dei PDF in `claude/f24_da_caricare/` (si possono cancellare).
 
 **DA FARE DOPO IL PUSH**
 - Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), pushato in b29003e4. Da fare: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
@@ -40,6 +43,17 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-16 (9) — Spalmatura di default per categoria `[core]`
+
+Marco: «il vino lo setterei di base a 3 mesi». Prima la spalmatura si metteva solo a mano su fattura/spesa fissa. Dai dati 2026: 72 fatture con righe VINO, solo 37 da fornitori «Vino» → Marco ha scelto la regola **per riga** (opzione 2).
+- Mig 191: `fe_categorie`/`fe_sottocategorie` + `spalmatura_mesi_default` (NULL eredita, 1 = non spalmare, N>1) e `spalmatura_valida_dal`.
+- `app/services/spalmatura_regole.py` (nuovo): carica regole, priorità manuale > sottocategoria > categoria.
+- `conto_economico._aggregate_fatture_con_regole`: usato solo se c'è almeno una regola; quote dal mese di competenza, descrizione «(quota k/N)».
+- `fe_categorie_router` v1.3: `PUT /{id}/spalmatura`, `PUT /sotto/{id}/spalmatura` + campi nella lista. `fe_import` dettaglio: `spalmatura_regola_mesi` per gruppo.
+- FE: `FattureCategorie.jsx` chip 📆 (v2.1), `FattureDettaglio.jsx` badge + card «Automatica».
+- Test su copia DB (`~/scratch` della VM): senza regole output identico; VINO 3 mesi dal 2026-01 → totale gen26–gen27 invariato 222.991,24 €; regola 1 = identico; endpoint 200/400/404 ok. Permessi: router già admin+contabile.
+- Docs: modulo_controllo_gestione (C-CG-SP01, C-A-SP01/02), modulo_acquisti §2.7/§8.2/§9, roadmap G.3.2, changelog.
 
 ## SESSIONE 2026-10-16 (8) — F24 paghe nello Scadenzario `[core]`
 

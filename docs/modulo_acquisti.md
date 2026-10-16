@@ -64,7 +64,7 @@ Lavora **in tandem con Ricette/Matching** che legge `fe_righe` per agganciare pr
 La vecchia route `/acquisti/import` è ora un **redirect a `/acquisti/impostazioni`**: l'import vive nella pagina Impostazioni (`FattureImpostazioni.jsx`, sezione `xml`). Drag & drop o selezione di XML multipli **e ZIP** (anche ZIP annidati un livello). Anti-duplicazione SHA-256 (`xml_hash` UNIQUE su `fe_fatture`). Limiti infrastruttura: upload max 100 MB (nginx), timeout 10 min (AbortController FE). Endpoint: `POST /contabilita/fe/import`.
 
 ## 2.7 Categorie (Impostazioni → sezione "Categorie")
-La vecchia route `/acquisti/categorie` è ora un **redirect a `/acquisti/impostazioni`** (sezione `categorie`): CRUD categorie/sottocategorie (due tabelle `fe_categorie` + `fe_sottocategorie`, vedi §5), rinomina, elimina, sposta sottocategoria sotto un'altra categoria. L'assegnazione fornitore→categoria e le esclusioni si fanno dalle pagine Fornitori.
+La vecchia route `/acquisti/categorie` è ora un **redirect a `/acquisti/impostazioni`** (sezione `categorie`): CRUD categorie/sottocategorie (due tabelle `fe_categorie` + `fe_sottocategorie`, vedi §5), rinomina, elimina, sposta sottocategoria sotto un'altra categoria, **spalmatura di default** (chip 📆 accanto a categoria e sottocategoria, mig 191 — es. VINO 3 mesi: nel Conto Economico le righe di quella sottocategoria si dividono su N mesi dal mese della fattura, per le fatture dal mese indicato; vedi `modulo_controllo_gestione.md`). L'assegnazione fornitore→categoria e le esclusioni si fanno dalle pagine Fornitori.
 
 ## 2.8 Impostazioni (`/acquisti/impostazioni`)
 `FattureImpostazioni.jsx` (v2.4) — pagina admin con sidebar a 6 sezioni: **Import XML** (§2.6), **Fatture in Cloud** (connessione token, sync, debug dettaglio, recupero righe da XML singolo/bulk — vedi §6 e `modulo_fatture_in_cloud.md`), **Categorie** (§2.7), **Cond. Pagamento** (preset condizioni via `/controllo-gestione/condizioni-pagamento/preset`), **Stato Database** (conteggi import), **Manutenzione** (merge duplicati FIC+XML, svuota DB fatture).
@@ -218,7 +218,7 @@ Auth: JWT a livello router (`dependencies=[Depends(get_current_user)]`, riga 37)
 | PUT | `/fatture/{id}/spalmatura` | Imposta/cancella spalmatura competenza su N mesi (C1/G.3.2, mig 135) | 2394 |
 | PUT | `/fatture/{id}/competenza` | Imposta/cancella competenza P&L override YYYY-MM (G.3.1b, mig 133) | 2481 |
 
-## 8.2 Router categorie — 16 endpoint
+## 8.2 Router categorie — 18 endpoint
 
 File: `app/routers/fe_categorie_router.py`
 Prefix: `/contabilita/fe/categorie` · Auth: JWT a livello router
@@ -233,6 +233,8 @@ Prefix: `/contabilita/fe/categorie` · Auth: JWT a livello router
 | PUT | `/sotto/{sub_id}` | Modifica sottocategoria | 235 |
 | DELETE | `/sotto/{sub_id}` | Elimina sottocategoria | 260 |
 | POST | `/sotto/{sub_id}/sposta` | Sposta sottocategoria sotto altra categoria (aggiorna mapping fornitori, prodotti, righe) | 273 |
+| PUT | `/{cat_id}/spalmatura` | 🆕 Spalmatura di default della categoria nel CE: `{mesi, valida_dal 'YYYY-MM'}`, `mesi=null` toglie (C-A-SP01, mig 191) | — |
+| PUT | `/sotto/{sub_id}/spalmatura` | 🆕 Idem per sottocategoria; `mesi=1` = «non spalmare» anche se la categoria ha regola (C-A-SP01) | — |
 | GET | `/fornitori` | Lista fornitori con assegnazioni | 328 |
 | POST | `/fornitori/assegna` | Assegna categoria a fornitore + propagazione alle righe senza categoria | 368 |
 | POST | `/fornitori/escludi` | Toggle `escluso` (SOLO Ricette/Matching) | 433 |
@@ -273,7 +275,7 @@ Posizione: `locali/tregobbi/data/foodcost.db` (path tenant-aware via `locale_dat
 `id`, `fornitore_piva`, `fornitore_nome`, `descrizione_norm`, `categoria_id`, `sottocategoria_id`.
 
 ### `fe_categorie` / `fe_sottocategorie`
-`fe_categorie(id, nome, ordine, attiva)` + `fe_sottocategorie(id, categoria_id, nome, ordine, attiva)` — vedi §5.1.
+`fe_categorie(id, nome, ordine, attiva)` + `fe_sottocategorie(id, categoria_id, nome, ordine, attiva)` — vedi §5.1. Mig 191: entrambe hanno `spalmatura_mesi_default` (NULL = nessuna regola/eredita, 1 = non spalmare, N>1) e `spalmatura_valida_dal` ('YYYY-MM-01').
 
 ### `fe_proforme`
 Vedi §11.3 (mig 065 + `iban` da mig 066).
@@ -292,7 +294,7 @@ VIEW `fe_fatture_with_stato` (mig 112/116); `fe_fatture_archive_109` / `fe_fattu
 - **055/056**: rateizzata + campi pianificazione pagamento · **061/062**: filtro non-fatture FIC + `fic_sync_warnings`
 - **065/066**: `fe_proforme` + colonna `iban` — vedi §11
 - **103, 109-117**: saga unificazione stato pagamento (G.5/G.6) fino a DROP `pagato`/`stato_pagamento` + VIEW (112) — doc canonico `stato_pagamento_unificato.md`
-- **133** (`133_fe_fatture_competenza_override`): `competenza_anno_mese` · **135**: spalmatura · **147**: indice `fe_righe(fattura_id)`
+- **133** (`133_fe_fatture_competenza_override`): `competenza_anno_mese` · **135**: spalmatura · **147**: indice `fe_righe(fattura_id)` · **191**: spalmatura di default su `fe_categorie`/`fe_sottocategorie`
 
 ---
 
