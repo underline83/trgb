@@ -607,13 +607,13 @@ Sezione storica/piano qui sotto preservata per riferimento.
 |----|------|--------|-------|------|
 | PR.1 | Widget pubblico /prenota (sostituisce TheFork Booking) — Fase 3 | L | ALTA | CAPTCHA Turnstile. ROI commissioni TheFork |
 | PR.2 | Conferme automatiche email + WA — Fase 4 (M.C + M.D) | M | ALTA | M.D blocca |
-| PR.3 | No-show tracking + alert scheda CRM (M.A + M.F) | S | ALTA | Mattoni esistono |
+| PR.3 | No-show tracking + alert scheda CRM (M.A + M.F) | S | 🟡 PARZIALE 2026-10-16 | Badge «N no-show» + affidabilità nel Planning (prenotazioni 2.8). Resta: scheda CRM e alert M.F |
 | PR.4 | Dashboard "stasera" (coperti + tavoli + cancellazioni) | S | ALTA | Dati pronti |
 | PR.5 | Distacco TheFork Manager — Fase 5 (M.H) | M-L | MEDIA | M.H blocca |
 | PR.6 | Lista d'attesa con notifica WA (M.C + M.A) | S | MEDIA | |
 | PR.7 | Report coperti previsti (prenotati + stima walk-in) | S | MEDIA | Dati pronti |
 | PR.8 | Allergie/preferenze cliente in planning (display) | S | MEDIA | Campo esiste in CRM |
-| PR.9 | Reminder cliente automatico 24h prima (M.C + scheduler) | S | BASSA | Marco: utile ma non urgente |
+| PR.9 | Reminder cliente automatico 24h prima (M.C + scheduler) | S | 🟡 PARZIALE 2026-10-16 | Riconferma WhatsApp manuale dal Planning con «inviata» e contatore (prenotazioni 2.8). Resta l'invio automatico |
 | PR.10 | Prenotazioni TheFork in tempo reale (webhook B2B API) | M | 🟡 CODICE PRONTO 2026-10-16 | mig 189, prenotazioni 2.3, sistema 5.53. Attivo quando sul VPS ci sono `THEFORK_WEBHOOK_TOKEN` + credenziali (in arrivo da TheFork). Vedi `modulo_prenotazioni.md` §12. Avvicina PR.5 |
 
 **Bug/debt:**

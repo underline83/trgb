@@ -13,7 +13,8 @@
 - Fix orario pushato (e1791c48): rilanciare Recupera 09/10→16/10 «pasto», poi oggi→31/12 «pasto».
 - Pushato 26257fbc: doppioni, bollino, timeline, collegamento clienti (mig 192, 5.56). Da verificare nel Planning.
 - Pushato 94285ba3: recupero automatico (ogni ora). Pushato 7b47ec2e: default 15 minuti, scheda inline, ricerca per parole.
-- DA PUSHARE: piantina come TheFork (mig 193, sistema 5.57, prenotazioni 2.7). Dopo il push: Editor Tavoli → «Importa piantina» → `locali/tregobbi/seeds/piantina_tavoli.json` (conferma: disattiva i 3 tavoli di prova) → controllare Mappa Tavoli del 17/10 (tavoli occupati come in TheFork). Dopo il push: dopo 5 minuti, Impostazioni → TheFork → «Recupero automatico: ultimo … controllate».
+- Pushato dea8dbd6: piantina come TheFork (mig 193, sistema 5.57, prenotazioni 2.7). Dopo il push: Editor Tavoli → «Importa piantina» → `locali/tregobbi/seeds/piantina_tavoli.json` (conferma: disattiva i 3 tavoli di prova) → controllare Mappa Tavoli del 17/10 (tavoli occupati come in TheFork). Dopo il push: dopo 5 minuti, Impostazioni → TheFork → «Recupero automatico: ultimo … controllate».
+- DA PUSHARE: affidabilità cliente (badge no-show) + riconferma WhatsApp dal Planning (prenotazioni 2.8).
 - Da fare SUBITO: `THEFORK_WEBHOOK_TOKEN` nel `.env` del VPS + riavvio (oggi risponde 503 = spento). Verifica: `POST /prenotazioni/thefork/webhook?token=sbagliato` → 401.
 - All'arrivo delle credenziali: `THEFORK_CLIENT_ID`/`THEFORK_CLIENT_SECRET` (+ `THEFORK_RESTAURANT_UUID`) → riavvio → Impostazioni Prenotazioni › 🍴 TheFork: «Prova connessione», «Rielabora in sospeso», «Recupera un periodo».
 

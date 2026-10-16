@@ -11,6 +11,12 @@ Sistema 5.55, mig 191, fatture 3.3, controlloGestione 2.28. In Acquisti › Cate
 
 Sistema 5.54, mig 190, controlloGestione 2.27, dipendenti 2.36. L'import «ELAB / F24» (Dipendenti › Buste paga) ora mette gli F24 paghe nello Scadenzario: una rata della spesa fissa «F24 paghe» per ogni pagina con saldo finale > 0, alla data stampata sul modello, col PDF apribile dalla riga (📄). Le pagine a saldo 0 sono compensazioni e non generano rate; un F24 tutto compensato lascia una rata da 0 € chiusa. Gli F24 non paghe (IVA, ravvedimenti, rate ADER) restano da inserire a mano in Spese Fisse. Il parser F24 legge debito e credito dalla colonna del modulo e il saldo finale dal riquadro EURO: prima alcuni crediti (1631, 1701) erano contati come debiti e i totali per sezione in Costi mensili erano sbagliati. Nel Conto Economico l'F24 paghe resta fuori dalla competenza (è già nel costo ELAB) e in cassa conta solo quando è pagato.
 
+## 2026-10-16 — Prenotazioni: affidabilità del cliente e riconferma WhatsApp `[core]`
+
+Prenotazioni 2.8, nessuna migrazione. Nel Planning, accanto al nome, il badge rosso «**N no-show**» se il cliente ne ha già fatti (nella riga aperta anche le cancellazioni). Nella riga aperta, «💬 **Riconferma su WhatsApp**» apre il messaggio del template «reminder» (Impostazioni → Template Messaggi) e segna la prenotazione come riconfermata (✓💬); l'intestazione del turno conta quelle «da riconfermare». La data nei messaggi WhatsApp ora è gg/mm/aaaa.
+
+---
+
 ## 2026-10-16 — Piantina dei tavoli come TheFork Manager `[mixed]`
 
 Prenotazioni 2.7, sistema 5.57, mig 193. Editor Tavoli e Mappa Tavoli hanno le **sale come schede** (Osteria, Dehor, Veranda), il tavolo a **rombo** e gli **elementi non prenotabili** (bancone, colonne, scale, fioriere) da aggiungere, spostare, colorare. Nuovo «**Importa piantina**» da file JSON: la piantina dell'osteria copiata da TheFork Manager (31 tavoli, 23 elementi) è in `locali/tregobbi/seeds/piantina_tavoli.json`; importata, disattiva i 3 tavoli di prova. I tavoli liberi sono verde salvia come in TheFork. Corretto anche l'Editor, che non riceveva posizione e misure dei tavoli.

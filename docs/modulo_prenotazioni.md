@@ -3,7 +3,7 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
-**Versione modulo (`versions.jsx`):** prenotazioni v2.7
+**Versione modulo (`versions.jsx`):** prenotazioni v2.8
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)
 **Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`; integrazione TheFork in `app/routers/prenotazioni_thefork_router.py` + `app/services/thefork_service.py` (§12)
 **DB:** `clienti.sqlite3` (condiviso col CRM, path live `locali/tregobbi/data/`)
@@ -55,6 +55,8 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-028 | Piantina per sale (schede Osteria / Dehor / Veranda), tavoli rettangolo / cerchio / rombo | `GET /prenotazioni/tavoli` → `sale`, `elementi`; `TavoliEditor`, `TavoliMappa` | admin / sala | 🆕 |
 | C-P-029 | Elementi non prenotabili (bancone, colonne, scale, fioriere): crea, modifica, elimina | `POST/PUT/DELETE /prenotazioni/tavoli/elementi[/{id}]` | admin | 🆕 |
 | C-P-030 | Importa piantina da file JSON (tavoli per nome + elementi, «sostituisci» disattiva i vecchi) | `POST /prenotazioni/tavoli/importa` | admin | 🆕 |
+| C-P-031 | Affidabilità cliente nel Planning: no-show e cancellazioni passate (badge «N no-show», dettaglio nella riga) | `GET /prenotazioni/planning/{data}` → `no_show_totali`, `cancellate_totali` | sala | 🆕 |
+| C-P-032 | Riconferma WhatsApp dal Planning (template «reminder»), segnata come inviata; contatore «da riconfermare» per turno | `GET /prenotazioni/{id}/wa-link?tipo=reminder` + `POST /prenotazioni/{id}/inviato?tipo=reminder` | sala | 🆕 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 
@@ -192,7 +194,7 @@ La **sala** è `tavoli.zona` (testo libero; le sale si ordinano col minimo `ordi
 1. **`giorno_chiusura`: mapping UI ≠ backend.** La select in `PrenotazioniImpostazioni.jsx:17` usa 0=nessuno, 1=domenica … 7=sabato; il backend (`prenotazioni_router.py:283-287`) interpreta 0=dom … 6=sab (seed `'3'` = mercoledì, corretto per l'osteria). Con valore 3 la UI mostra "Martedì" ma la settimana marca chiuso il mercoledì; salvare "Mercoledì" dalla UI scriverebbe 4 = giovedì per il backend. Bug di visualizzazione/scrittura da fixare.
 2. **Restrizione admin solo frontend.** Editor Tavoli e Impostazioni sono nascosti ai non-admin solo dalla UI (`PrenotazioniNav`); gli endpoint config/tavoli/layout accettano qualsiasi utente loggato.
 3. **Combinazioni tavoli senza UI.** Endpoint CRUD presenti (C-P-016) ma nessuna pagina li usa: `TavoliEditor` carica le combinazioni e non le mostra; si gestiscono solo via API. In compenso mappa e disponibilità spacchettano le combinazioni scritte a mano nel campo `tavolo` ("4+5").
-4. **Campi Fase 4 inerti.** `token_cancellazione` viene generato a ogni POST ma mai consumato; `conferma_inviata`/`reminder_inviato` mai aggiornati; `prenotazioni_email_log` mai scritta. Serviranno con widget + M.D Email.
+4. **Campi Fase 4 inerti.** `token_cancellazione` viene generato a ogni POST ma mai consumato; `reminder_inviato` è usato dalla riconferma WhatsApp (2.8), `conferma_inviata` ancora no; `prenotazioni_email_log` mai scritta. Serviranno con widget + M.D Email.
 5. **REQUESTED senza produttore.** La UI lo gestisce (badge NUOVA, conferma/rifiuta) ma oggi nessun flusso lo crea (widget assente).
 6. Il widget Home calcola il turno con soglia hardcoded "15:00" invece della config (vedi §8).
 

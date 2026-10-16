@@ -1,4 +1,4 @@
-// @version: v1.4-scheda-inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -54,7 +54,7 @@ function rigaClasses(pren) {
 // ============================================================
 // COMPONENTE RIGA PRENOTAZIONE
 // ============================================================
-function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente }) {
+function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma }) {
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -92,6 +92,16 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
               <span className="text-sm text-neutral-600">{nome}</span>
             )}
             {pren.vip === 1 && <Tooltip label="VIP"><span>⭐</span></Tooltip>}
+            {pren.no_show_totali > 0 && (
+              <Tooltip label={`Affidabilità: ${pren.no_show_totali} no-show e ${pren.cancellate_totali || 0} cancellazioni in passato`}>
+                <span className="px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-200 text-[10px] font-semibold rounded-full">
+                  {pren.no_show_totali} no-show
+                </span>
+              </Tooltip>
+            )}
+            {pren.reminder_inviato === 1 && (
+              <Tooltip label="Riconferma WhatsApp inviata"><span className="text-emerald-600 text-xs">✓💬</span></Tooltip>
+            )}
             {pren.bollino && BOLLINI[pren.bollino] && (
               <Tooltip label={`${pren.visite_precedenti || 0} visite prima di oggi`}>
                 <span className={`px-1.5 py-0.5 border text-[10px] font-medium rounded-full ${BOLLINI[pren.bollino].cls}`}>
@@ -149,6 +159,11 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
                 {pren.telefono && <div>📞 {pren.telefono}</div>}
                 {pren.email && <div>✉️ {pren.email}</div>}
                 {pren.visite_totali > 0 && <div>📊 {pren.visite_totali} visite totali</div>}
+                {pren.cliente_id && (pren.no_show_totali > 0 || pren.cancellate_totali > 0) && (
+                  <div className={pren.no_show_totali > 0 ? "text-red-600" : "text-neutral-500"}>
+                    ⚖️ Affidabilità: {pren.no_show_totali || 0} no-show, {pren.cancellate_totali || 0} cancellazioni
+                  </div>
+                )}
                 {pren.tags && pren.tags.length > 0 && (
                   <div className="flex gap-1 mt-1 flex-wrap">
                     {pren.tags.map((t) => (
@@ -182,6 +197,18 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
               {/* Colonna 3: azioni */}
               <div>
                 <div className="font-semibold text-neutral-700 mb-2">Azioni</div>
+                {pren.telefono && ["RECORDED", "REQUESTED"].includes(pren.stato) && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRiconferma && onRiconferma(pren); }}
+                    className={`mb-2 px-3 py-1.5 text-xs rounded min-h-[36px] ${
+                      pren.reminder_inviato === 1
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-emerald-600 text-white hover:bg-emerald-700"
+                    }`}
+                  >
+                    💬 {pren.reminder_inviato === 1 ? "Riconferma inviata — reinvia" : "Riconferma su WhatsApp"}
+                  </button>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {["RECORDED", "REQUESTED"].includes(pren.stato) && (
                     <>
@@ -290,7 +317,7 @@ function TimelineSala({ slot, capienza }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, onApriCliente }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, onApriCliente, onRiconferma }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -303,6 +330,14 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
         <div className="flex items-center gap-2">
           <span className="font-semibold text-indigo-900">{titolo}</span>
           <span className="text-sm text-indigo-600">{conteggio} prenotazioni</span>
+          {(() => {
+            const daRic = prenotazioni.filter((p) => p.stato === "RECORDED" && p.telefono && p.reminder_inviato !== 1).length;
+            return daRic > 0 ? (
+              <Tooltip label="Prenotazioni con telefono non ancora riconfermate su WhatsApp (apri la riga per inviare)">
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">💬 {daRic} da riconfermare</span>
+              </Tooltip>
+            ) : null;
+          })()}
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className={`font-medium ${coloreCapienza}`}>
@@ -338,6 +373,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                   onExpand={onExpand}
                   expanded={expandedId === p.id}
                   onApriCliente={onApriCliente}
+                  onRiconferma={onRiconferma}
                 />
               ))}
               {cancellate.length > 0 && (
@@ -355,6 +391,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                       onExpand={onExpand}
                       expanded={expandedId === p.id}
                       onApriCliente={onApriCliente}
+                      onRiconferma={onRiconferma}
                     />
                   ))}
                 </>
@@ -384,6 +421,25 @@ export default function PrenotazioniPlanning() {
   // Scheda cliente aperta dentro la pagina (come fatture e vini), senza lasciare il Planning
   const [clienteAperto, setClienteAperto] = useState(null);
   const apriCliente = (id) => { setClienteAperto(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+
+  // Riconferma WhatsApp (template «reminder» in Impostazioni): apre WhatsApp e segna inviata.
+  // La finestra si apre subito (prima delle chiamate) per non farla bloccare dal browser.
+  const riconferma = async (pren) => {
+    const finestra = window.open("", "_blank");
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/${pren.id}/wa-link?tipo=reminder`);
+      const d = await r.json();
+      if (!r.ok) { finestra && finestra.close(); setToast({ type: "err", text: d.detail || "Errore" }); return; }
+      if (finestra) finestra.location.href = d.link; else window.open(d.link, "_blank");
+      await apiFetch(`${API_BASE}/prenotazioni/${pren.id}/inviato?tipo=reminder`, { method: "POST" });
+      setToast({ type: "ok", text: `Riconferma aperta su WhatsApp per ${pren.nome || ""} ${pren.cognome || ""}` });
+      loadPlanning();
+    } catch {
+      finestra && finestra.close();
+      setToast({ type: "err", text: "Errore di connessione" });
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const loadPlanning = useCallback(() => {
     setLoading(true);
@@ -519,6 +575,7 @@ export default function PrenotazioniPlanning() {
               expandedId={expandedId}
               onExpand={handleExpand}
               onApriCliente={apriCliente}
+              onRiconferma={riconferma}
             />
 
             {/* Tabella cena */}
@@ -533,6 +590,7 @@ export default function PrenotazioniPlanning() {
               expandedId={expandedId}
               onExpand={handleExpand}
               onApriCliente={apriCliente}
+              onRiconferma={riconferma}
             />
 
             {/* Riepilogo */}

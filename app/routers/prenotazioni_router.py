@@ -279,7 +279,15 @@ def get_planning(
                 (SELECT COUNT(*) FROM clienti_prenotazioni p2
                  WHERE p2.cliente_id = c.id AND p2.data_pasto < p.data_pasto
                    AND p2.stato IN ('SEATED','LEFT','ARRIVED','BILL'))
-                    as visite_precedenti
+                    as visite_precedenti,
+                -- Affidabilita' (come TheFork Manager): storico no-show e cancellazioni del cliente
+                (SELECT COUNT(*) FROM clienti_prenotazioni p3
+                 WHERE p3.cliente_id = c.id AND p3.id != p.id AND p3.stato = 'NO_SHOW')
+                    as no_show_totali,
+                (SELECT COUNT(*) FROM clienti_prenotazioni p4
+                 WHERE p4.cliente_id = c.id AND p4.id != p.id AND p4.stato = 'CANCELED')
+                    as cancellate_totali,
+                p.reminder_inviato, p.conferma_inviata
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON p.cliente_id = c.id
             WHERE p.data_pasto = ?
@@ -1468,6 +1476,30 @@ def cancella_prenotazione(
 # ENDPOINT: LINK WHATSAPP
 # ============================================================
 
+@router.post("/{pren_id}/inviato")
+def segna_messaggio_inviato(
+    pren_id: int,
+    tipo: str = Query(default="reminder"),
+    user: dict = Depends(get_current_user),
+):
+    """Segna come inviato il messaggio WhatsApp di riconferma (reminder) o di conferma."""
+    colonna = {"reminder": "reminder_inviato", "conferma": "conferma_inviata"}.get(tipo)
+    if not colonna:
+        raise HTTPException(status_code=400, detail="tipo: reminder o conferma")
+    conn = get_clienti_conn()
+    try:
+        cur = conn.execute(
+            f"UPDATE clienti_prenotazioni SET {colonna} = 1, updated_at = datetime('now','localtime') WHERE id = ?",
+            (pren_id,),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
+        return {"id": pren_id, colonna: 1}
+    finally:
+        conn.close()
+
+
 @router.get("/{pren_id}/wa-link")
 def get_wa_link(
     pren_id: int,
@@ -1495,11 +1527,15 @@ def get_wa_link(
         template_key = f"template_wa_{tipo}"
         template = config.get(template_key, "Ciao {nome}, confermiamo la prenotazione per {pax} persone il {data} alle {ora}.")
 
+        try:
+            data_txt = datetime.strptime(row["data_pasto"], "%Y-%m-%d").strftime("%d/%m/%Y")
+        except (TypeError, ValueError):
+            data_txt = row["data_pasto"]
         messaggio = fill_template(template,
             nome=row["nome"] or "",
             cognome=row["cognome"] or "",
             pax=row["pax"],
-            data=row["data_pasto"],
+            data=data_txt,
             ora=(row["ora_pasto"] or "")[:5],
         )
 
