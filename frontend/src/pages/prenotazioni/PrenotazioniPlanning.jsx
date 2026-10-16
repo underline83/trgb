@@ -1,4 +1,4 @@
-// @version: v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -9,6 +9,7 @@ import PrenotazioniForm from "./PrenotazioniForm";
 import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
 import CanaleBadge from "./components/CanaleBadge";
+import FasceTurno from "./components/FasceTurno";
 import Tooltip from "../../components/Tooltip";
 import ClientiScheda from "../clienti/ClientiScheda";
 import { Btn } from "../../components/ui";
@@ -302,17 +303,23 @@ const BOLLINI = {
 };
 
 // Timeline sala: coperti in sala per orario (arrivo + durata media del turno)
-function TimelineSala({ slot, capienza }) {
+function TimelineSala({ slot, capienza, fasce, onFasce }) {
   if (!slot || slot.length === 0) return null;
+  const perOra = Object.fromEntries((fasce || []).map((f) => [f.ora, f]));
   return (
     <div className="flex gap-1 overflow-x-auto px-3 py-2 bg-white border-x border-indigo-200">
       {slot.map((s) => {
         const pct = capienza > 0 ? s.coperti / capienza : 0;
         const colore = pct > 0.9 ? "bg-red-500" : pct > 0.7 ? "bg-amber-500" : "bg-emerald-500";
+        const f = perOra[s.ora];
+        const statoFascia = !f ? "" : !f.aperta ? " · fascia CHIUSA" : !f.online_aperta ? " · online chiuso" : f.piena ? " · fascia piena" : "";
         return (
-          <Tooltip key={s.ora} label={`${s.ora}: ${s.coperti} coperti in sala, ${s.prenotazioni} prenotazioni, ${s.tavoli} tavoli · arrivano ${s.arrivi}`}>
-            <div className="flex-shrink-0 w-14 text-center">
-              <div className="text-[11px] font-semibold text-neutral-700">{s.ora}</div>
+          <Tooltip key={s.ora} label={`${s.ora}: ${s.coperti} coperti in sala, ${s.prenotazioni} prenotazioni, ${s.tavoli} tavoli · arrivano ${s.arrivi}${statoFascia}`}>
+            <div className={`flex-shrink-0 w-14 text-center rounded ${onFasce ? "cursor-pointer hover:bg-indigo-50" : ""} ${f && !f.aperta ? "opacity-50" : ""}`}
+              onClick={onFasce}>
+              <div className={`text-[11px] font-semibold ${f && !f.aperta ? "line-through text-neutral-400" : "text-neutral-700"}`}>
+                {s.ora}{f && f.aperta && !f.online_aperta && <span className="ml-0.5 text-red-500" title="online chiuso">⊘</span>}
+              </div>
               <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden my-0.5">
                 <div className={`h-full ${colore}`} style={{ width: `${Math.min(100, Math.round(pct * 100))}%` }} />
               </div>
@@ -325,7 +332,7 @@ function TimelineSala({ slot, capienza }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, onApriCliente, onRiconferma, onUnisciDoppione }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, onApriCliente, onRiconferma, onUnisciDoppione }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -348,12 +355,23 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
           })()}
         </div>
         <div className="flex items-center gap-3 text-sm">
+          {(() => {
+            const chiuse = (fasce || []).filter((f) => !f.aperta).length;
+            const offline = (fasce || []).filter((f) => f.aperta && !f.online_aperta).length;
+            const errori = (fasce || []).some((f) => String(f.thefork_esito || "").startsWith("errore"));
+            return (
+              <button onClick={onFasce} title="Fasce orarie: apertura, limiti, vendita online (anche su TheFork)"
+                className="text-xs px-2 py-0.5 rounded-full border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100">
+                🕒 Fasce{chiuse > 0 && ` · ${chiuse} chiuse`}{offline > 0 && ` · 🌐✕ ${offline}`}{errori && " ⚠️"}
+              </button>
+            );
+          })()}
           <span className={`font-medium ${coloreCapienza}`}>
             {pax} / {capienza} pax ({percentuale}%)
           </span>
         </div>
       </div>
-      {attive.length > 0 && <TimelineSala slot={timeline} capienza={capienza} />}
+      {attive.length > 0 && <TimelineSala slot={timeline} capienza={capienza} fasce={fasce} onFasce={onFasce} />}
 
       {attive.length === 0 && cancellate.length === 0 ? (
         <div className="border border-t-0 border-neutral-200 rounded-b-lg p-6 text-center text-neutral-400">
@@ -426,6 +444,7 @@ export default function PrenotazioniPlanning() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [fasceTurno, setFasceTurno] = useState(null); // pannello fasce aperto per pranzo/cena
   const [showCalendario, setShowCalendario] = useState(false);
   const [toast, setToast] = useState(null);
   // Scheda cliente aperta dentro la pagina (come fatture e vini), senza lasciare il Planning
@@ -599,6 +618,8 @@ export default function PrenotazioniPlanning() {
               pax={c.pranzo_pax}
               capienza={c.capienza_pranzo}
               timeline={planning.timeline?.pranzo}
+              fasce={planning.fasce?.pranzo}
+              onFasce={() => setFasceTurno("pranzo")}
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}
@@ -615,6 +636,8 @@ export default function PrenotazioniPlanning() {
               pax={c.cena_pax}
               capienza={c.capienza_cena}
               timeline={planning.timeline?.cena}
+              fasce={planning.fasce?.cena}
+              onFasce={() => setFasceTurno("cena")}
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}
@@ -640,6 +663,10 @@ export default function PrenotazioniPlanning() {
           <div className="text-center py-12 text-neutral-400">Errore nel caricamento</div>
         )}
       </div>
+
+      {fasceTurno && (
+        <FasceTurno data={data} turno={fasceTurno} onClose={() => setFasceTurno(null)} onChange={loadPlanning} />
+      )}
 
       {/* Modal form nuova prenotazione */}
       {showForm && (

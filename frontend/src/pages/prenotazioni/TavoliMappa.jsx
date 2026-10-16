@@ -1,4 +1,4 @@
-// @version: v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -133,6 +133,33 @@ export default function TavoliMappa() {
       const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/blocchi/${t.blocco.id}`, { method: "DELETE" });
       const d = await r.json();
       if (r.ok) { flash("ok", `Tavolo ${t.nome} di nuovo disponibile`); loadMappa(); } else flash("err", d.detail || "Errore");
+    } catch {
+      flash("err", "Errore di connessione");
+    }
+  };
+
+  // ── Dividi / riunisci tavolo per questo turno ──
+  const dividiTavolo = async (t) => {
+    setMenuTavolo(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/divisioni`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data, turno, tavolo_id: t.id }),
+      });
+      const d = await r.json();
+      if (r.ok) { flash("ok", d.message); loadMappa(); } else flash("err", d.detail || "Errore");
+    } catch {
+      flash("err", "Errore di connessione");
+    }
+  };
+
+  const riunisciTavolo = async (t) => {
+    setMenuTavolo(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/divisioni/${t.divisione_id}`, { method: "DELETE" });
+      const d = await r.json();
+      if (r.ok) { flash("ok", d.message); loadMappa(); } else flash("err", d.detail || "Errore");
     } catch {
       flash("err", "Errore di connessione");
     }
@@ -344,8 +371,19 @@ export default function TavoliMappa() {
                   <>
                     <button onClick={() => { setFormTavolo(menuTavolo.nome); setMenuTavolo(null); }}
                       className="w-full text-left px-3 py-2 hover:bg-neutral-50">➕ Aggiungi una prenotazione</button>
-                    <button onClick={() => bloccaTavolo(menuTavolo)}
-                      className="w-full text-left px-3 py-2 hover:bg-neutral-50">🚫 Blocca questo tavolo</button>
+                    {menuTavolo.diviso_da ? (
+                      <button onClick={() => riunisciTavolo(menuTavolo)}
+                        className="w-full text-left px-3 py-2 hover:bg-neutral-50">🔗 Riunisci il tavolo {String(menuTavolo.nome).slice(0, -1)}</button>
+                    ) : (
+                      <>
+                        {menuTavolo.dividibile === 1 && (
+                          <button onClick={() => dividiTavolo(menuTavolo)}
+                            className="w-full text-left px-3 py-2 hover:bg-neutral-50">✂️ Dividi in due ({menuTavolo.nome}A + {menuTavolo.nome}B)</button>
+                        )}
+                        <button onClick={() => bloccaTavolo(menuTavolo)}
+                          className="w-full text-left px-3 py-2 hover:bg-neutral-50">🚫 Blocca questo tavolo</button>
+                      </>
+                    )}
                   </>
                 )}
               </div>

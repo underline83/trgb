@@ -417,7 +417,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
-    version: "2.10",
+    version: "2.12",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -500,6 +500,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.60 (2026-10-16): mig 196 — tavoli.dividibile + tavoli_divisioni: tavolo spezzato in
+    //   A/B per un turno dalla mappa (prenotazioni 2.12).
+    // 5.59 (2026-10-16): mig 195 — prenotazioni_fasce (+ _log): fasce orarie del servizio
+    //   per giorno, vendita online scritta su TheFork (prenotazioni 2.11).
     // 5.58 (2026-10-16): mig 194 — tavoli_blocchi: «Blocca questo tavolo» per giorno e
     //   turno dalla mappa serale (prenotazioni 2.10).
     // 5.57 (2026-10-16): mig 193 — tavoli_elementi: piantina per sale (Osteria/Dehor/
@@ -571,7 +575,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.58",
+    version: "5.60",
     label: "Sistema",
     status: "stabile",
     color: "green",

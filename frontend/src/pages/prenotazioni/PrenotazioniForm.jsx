@@ -1,4 +1,4 @@
-// @version: v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -80,6 +80,26 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   }, [searchQ]);
 
   const turnoCorrente = form.ora_pasto < soglia ? "pranzo" : "cena";
+
+  // Fasce del giorno (aperta, limiti): avvisano, non bloccano — decide chi prende la prenotazione
+  const [fasce, setFasce] = useState([]);
+  useEffect(() => {
+    apiFetch(`${API_BASE}/prenotazioni/fasce/${form.data_pasto}/${turnoCorrente}`)
+      .then((r) => (r.ok ? r.json() : { fasce: [] }))
+      .then((d) => setFasce(d.fasce || []))
+      .catch(() => setFasce([]));
+  }, [form.data_pasto, turnoCorrente]);
+  const fasciaDi = (ora) => {
+    let scelta = null;
+    for (const f of fasce) if (f.ora <= ora) scelta = f;
+    return scelta || fasce[0] || null;
+  };
+  const fasciaScelta = fasciaDi(form.ora_pasto);
+  const avvisoFascia = !fasciaScelta ? null
+    : !fasciaScelta.aperta ? `La fascia delle ${fasciaScelta.ora} è chiusa`
+    : fasciaScelta.max_coperti != null && fasciaScelta.coperti + form.pax > fasciaScelta.max_coperti
+      ? `Fascia delle ${fasciaScelta.ora}: ${fasciaScelta.coperti} coperti già prenotati su ${fasciaScelta.max_coperti}, con questa diventano ${fasciaScelta.coperti + form.pax}`
+    : null;
   const slotCorrente = turnoCorrente === "pranzo" ? slotPranzo : slotCena;
 
   const selezionaCliente = (c) => {
@@ -149,20 +169,28 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 Ora <span className="text-neutral-400">({turnoCorrente})</span>
               </label>
               <div className="flex gap-1 flex-wrap">
-                {slotCorrente.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setForm({ ...form, ora_pasto: s })}
-                    className={`px-2 py-1 text-xs rounded border transition ${
-                      form.ora_pasto === s
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-50"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+                {slotCorrente.map((s) => {
+                  const f = fasce.find((x) => x.ora === s);
+                  const chiusa = f && !f.aperta;
+                  const piena = f && f.piena;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      title={chiusa ? "Fascia chiusa" : piena ? `Fascia piena (${f.coperti}/${f.max_coperti})` : ""}
+                      onClick={() => setForm({ ...form, ora_pasto: s })}
+                      className={`px-2 py-1 text-xs rounded border transition ${
+                        form.ora_pasto === s
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : chiusa ? "bg-neutral-100 text-neutral-400 border-neutral-200 line-through"
+                          : piena ? "bg-red-50 text-red-700 border-red-200"
+                          : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-50"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
                 <input
                   type="time"
                   value={form.ora_pasto}
@@ -172,6 +200,10 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               </div>
             </div>
           </div>
+
+          {avvisoFascia && (
+            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">⚠️ {avvisoFascia}. Puoi inserirla lo stesso.</div>
+          )}
 
           {/* Pax e Canale */}
           <div className="grid grid-cols-2 gap-3">

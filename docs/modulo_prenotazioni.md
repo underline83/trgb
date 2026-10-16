@@ -59,6 +59,8 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-032 | Riconferma WhatsApp dal Planning (template «reminder»), segnata come inviata; contatore «da riconfermare» per turno | `GET /prenotazioni/{id}/wa-link?tipo=reminder` + `POST /prenotazioni/{id}/inviato?tipo=reminder` | sala | 🆕 |
 | C-P-033 | Doppione TheFork / a mano: «Tieni quella TheFork, elimina questa» (copia nota staff, allergie, tavolo, cliente mancanti; elimina senza contarla come cancellazione) | `POST /prenotazioni/{id}/unisci-in/{altra_id}` | sala | 🆕 |
 | C-P-034 | Mappa serale: clic su un tavolo libero → «Aggiungi una prenotazione» (form con tavolo e turno già scelti) / «Blocca questo tavolo» per giorno e turno (motivo facoltativo, sblocco dallo stesso menu); i tavoli bloccati non si assegnano | `POST /prenotazioni/tavoli/blocchi`, `DELETE /prenotazioni/tavoli/blocchi/{id}`; `bloccato`/`blocco` in `tavoli/disponibili` e `tavoli/mappa` | sala, sommelier, admin | 🆕 |
+| C-P-035 | Fasce orarie del servizio per giorno (copia di «Andamento per fascia oraria» di TheFork Manager): fascia aperta/chiusa, coperti max, vendita online (scritta su TheFork con override availability), online max, «cosa vede il cliente su TheFork», registro; default dei limiti in Impostazioni; avviso nel form su fascia chiusa/piena | `GET/PUT /prenotazioni/fasce/{data}/{turno}`, `GET /prenotazioni/fasce/{data}/{turno}/thefork`; `fasce` nel planning | sala, admin (lettura: tutti) | 🆕 |
+| C-P-036 | Tavoli dividibili: flag nell'Editor; dalla mappa «✂️ Dividi in due» spezza il tavolo per quel turno in «<nome>A» e «<nome>B» (metà posti e metà sagoma), assegnabili a due prenotazioni; «🔗 Riunisci» se le metà sono libere. Solo TRGB | `POST /prenotazioni/tavoli/divisioni`, `DELETE /prenotazioni/tavoli/divisioni/{id}`; metà in `tavoli/mappa` e `tavoli/disponibili` | sala, sommelier, admin | 🆕 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 
@@ -194,6 +196,16 @@ La **sala** è `tavoli.zona` (testo libero; le sale si ordinano col minimo `ordi
 ## 8.2 Tavoli bloccati (prenotazioni 2.10, mig 194)
 
 `tavoli_blocchi` (data_pasto, turno, tavolo_id, motivo, creato_da; UNIQUE per giorno+turno+tavolo). Il tavolo resta sulla mappa, grigio tratteggiato con «🚫 bloccato», e non si assegna né compare come scelta nel form. Vale solo in TRGB: l'API TheFork non blocca i singoli tavoli, quindi la disponibilità online si governa con la chiusura delle fasce (vedi §12).
+
+## 8.2b Tavoli dividibili (prenotazioni 2.12, mig 196)
+
+`tavoli.dividibile` (0/1, dall'Editor) e `tavoli_divisioni` (data_pasto, turno, tavolo_id). Per quel turno mappa e disponibilità sostituiscono il tavolo con due metà virtuali: id `"<id>A"`/`"<id>B"`, nome `<nome>A`/`<nome>B`, posti_max divisi (A arrotonda per eccesso), sagoma tagliata sul lato lungo, `diviso_da`, `divisione_id`. Le prenotazioni si assegnano col nome della metà. Non si divide un tavolo assegnato o bloccato, né se esiste già un tavolo vero chiamato come una metà; non si riunisce se una metà ha una prenotazione. Le metà non si bloccano.
+
+## 8.3 Fasce orarie del servizio (prenotazioni 2.11, mig 195)
+
+TRGB decide il servizio, TheFork è un canale. Le fasce sono gli slot di `slot_pranzo`/`slot_cena`; una prenotazione conta nella fascia dell'ultimo slot non successivo al suo orario (coperti = persone che arrivano). `prenotazioni_fasce` tiene solo le eccezioni del giorno (aperta, online_aperta, max_coperti, max_online, thefork_esito); default dei limiti in `prenotazioni_config.fascia_max_{coperti|online}_{pranzo|cena}` (vuoto = nessun limite). Ogni modifica va in `prenotazioni_fasce_log`. Service: `app/services/prenotazioni_fasce_service.py`.
+
+Cosa arriva a TheFork: solo apri/chiudi online (`PUT /v1/restaurants/{id}/availabilities/override`, orari consecutivi a 15' in una chiamata). Chiudere la fascia in TRGB chiude anche l'online. I limiti per fascia valgono solo in TRGB (l'API non espone il pacing) e oggi **avvisano** nel form, non bloccano. Verifica: `GET /v1/restaurants/{id}/timeslots?date&partySize=2` (orari prenotabili online). Un errore TheFork resta scritto sulla fascia (⚠️) e nel registro.
 
 # 9. Limiti noti e incoerenze
 

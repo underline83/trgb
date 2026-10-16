@@ -1,4 +1,4 @@
-// @version: v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
+// @version: v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
 // Modulo: prenotazioni
 // Editor piantina tavoli — drag & drop SVG, Fase 2 Prenotazioni
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -573,6 +573,12 @@ export default function TavoliEditor() {
                     {FORME.map(f => <option key={f} value={f}>{NOMI_FORME[f]}</option>)}
                   </select>
                 </div>
+                <label className="flex items-center gap-2 text-sm text-neutral-700">
+                  <input type="checkbox" checked={selectedTavolo.dividibile === 1}
+                    onChange={e => updateSelected("dividibile", e.target.checked ? 1 : 0)} />
+                  Dividibile in due
+                  <span className="text-[11px] text-neutral-400">(dalla mappa: ✂️ Dividi → {selectedTavolo.nome}A + {selectedTavolo.nome}B)</span>
+                </label>
                 <Btn variant="chip" tone="red" size="sm" onClick={() => disattivaTavolo(selectedTavolo.id)} className="w-full">
                   Disattiva tavolo
                 </Btn>

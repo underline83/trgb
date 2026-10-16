@@ -631,8 +631,7 @@ def get_tavoli(user: dict = Depends(get_current_user)):
     conn = get_clienti_conn()
     try:
         rows = conn.execute("""
-            SELECT id, nome, zona, posti_min, posti_max, combinabile, attivo, note, ordine,
-                   posizione_x, posizione_y, larghezza, altezza, forma
+            SELECT *
             FROM tavoli
             WHERE attivo = 1
             ORDER BY ordine, zona, nome
@@ -671,11 +670,10 @@ def get_tavoli_disponibili(
     conn = get_clienti_conn()
     try:
         # Tavoli attivi
-        tavoli = conn.execute("""
-            SELECT id, nome, zona, posti_min, posti_max
-            FROM tavoli WHERE attivo = 1
+        tavoli = _tavoli_del_turno(conn, data, turno, conn.execute("""
+            SELECT * FROM tavoli WHERE attivo = 1
             ORDER BY ordine, zona, nome
-        """).fetchall()
+        """).fetchall())
 
         # Prenotazioni con tavolo assegnato per questa data/turno
         occupati = conn.execute("""
@@ -700,7 +698,7 @@ def get_tavoli_disponibili(
         result = []
         for t in tavoli:
             result.append({
-                **dict(t),
+                **{k: t.get(k) for k in ("id", "nome", "zona", "posti_min", "posti_max", "diviso_da")},
                 "occupato": t["nome"] in tavoli_occupati,
                 "bloccato": t["id"] in blocchi,
             })
@@ -743,6 +741,7 @@ class TavoloUpdate(BaseModel):
     attivo: Optional[int] = None
     note: Optional[str] = None
     ordine: Optional[int] = None
+    dividibile: Optional[int] = None
 
 
 class CombinazioneCreate(BaseModel):
@@ -994,6 +993,129 @@ def sblocca_tavolo(blocco_id: int, user: dict = Depends(get_current_user)):
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Blocco non trovato")
         return {"message": "Tavolo sbloccato"}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# TAVOLI DIVISI per giorno e turno (2026-10-16, mig 196) — solo TRGB
+# ============================================================
+# Un tavolo flaggato «dividibile» si spezza per un turno in «<nome>A» e «<nome>B»
+# (metà posti ciascuno, metà della sagoma) e si assegnano due prenotazioni.
+
+def _divisioni_turno(conn, data: str, turno: str) -> Dict[int, Dict[str, Any]]:
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tavoli_divisioni WHERE data_pasto = ? AND turno = ?", (data, turno)
+        ).fetchall()
+    except Exception:  # mig 196 non ancora passata
+        return {}
+    return {r["tavolo_id"]: dict(r) for r in rows}
+
+
+def _meta_tavolo(t: Dict[str, Any], lato: str, divisione_id: int) -> Dict[str, Any]:
+    """Metà A (sinistra/sopra) o B (destra/sotto) di un tavolo diviso."""
+    m = dict(t)
+    x, y = t.get("posizione_x") or 0, t.get("posizione_y") or 0
+    w, h = t.get("larghezza") or 60, t.get("altezza") or 60
+    spazio = 4
+    if w >= h:
+        w2 = (w - spazio) / 2
+        m.update(posizione_x=x if lato == "A" else x + w2 + spazio, larghezza=w2)
+    else:
+        h2 = (h - spazio) / 2
+        m.update(posizione_y=y if lato == "A" else y + h2 + spazio, altezza=h2)
+    posti = t.get("posti_max") or 2
+    m.update(
+        id=f"{t['id']}{lato}",
+        nome=f"{t['nome']}{lato}",
+        posti_min=1,
+        posti_max=(posti + 1) // 2 if lato == "A" else max(1, posti // 2),
+        forma="rect" if t.get("forma") == "diamond" else t.get("forma"),
+        diviso_da=t["id"],
+        divisione_id=divisione_id,
+    )
+    return m
+
+
+def _tavoli_del_turno(conn, data: str, turno: str, rows) -> List[Dict[str, Any]]:
+    """I tavoli attivi così come sono quel turno: i divisi diventano le due metà."""
+    divisioni = _divisioni_turno(conn, data, turno)
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        t = dict(r)
+        d = divisioni.get(t["id"])
+        if d:
+            out += [_meta_tavolo(t, "A", d["id"]), _meta_tavolo(t, "B", d["id"])]
+        else:
+            out.append(t)
+    return out
+
+
+def _nomi_occupati(conn, data: str, turno: str) -> set:
+    nomi = set()
+    for r in conn.execute("""
+        SELECT tavolo FROM clienti_prenotazioni
+        WHERE data_pasto = ? AND turno = ? AND stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+          AND tavolo IS NOT NULL AND tavolo != ''
+    """, (data, turno)):
+        for n in str(r["tavolo"]).replace(",", "+").split("+"):
+            if n.strip():
+                nomi.add(n.strip())
+    return nomi
+
+
+class DivisioneTavolo(BaseModel):
+    data: str
+    turno: str
+    tavolo_id: int
+
+
+@router.post("/tavoli/divisioni")
+def dividi_tavolo(req: DivisioneTavolo, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="la divisione dei tavoli")
+    if req.turno not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno: pranzo o cena")
+    conn = get_clienti_conn()
+    try:
+        t = conn.execute("SELECT * FROM tavoli WHERE id = ? AND attivo = 1", (req.tavolo_id,)).fetchone()
+        if not t:
+            raise HTTPException(status_code=404, detail="Tavolo non trovato")
+        if not t["dividibile"]:
+            raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} non è segnato come dividibile (Editor Tavoli)")
+        if t["nome"] in _nomi_occupati(conn, req.data, req.turno):
+            raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è assegnato a una prenotazione: liberalo prima di dividerlo")
+        if req.tavolo_id in _blocchi_turno(conn, req.data, req.turno):
+            raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è bloccato: sbloccalo prima")
+        doppi = conn.execute("SELECT nome FROM tavoli WHERE nome IN (?, ?) AND attivo = 1",
+                             (f"{t['nome']}A", f"{t['nome']}B")).fetchall()
+        if doppi:
+            raise HTTPException(status_code=400, detail=f"Esiste già un tavolo {doppi[0]['nome']}: non posso chiamare così le due metà")
+        conn.execute("""
+            INSERT OR IGNORE INTO tavoli_divisioni (data_pasto, turno, tavolo_id, creato_da) VALUES (?, ?, ?, ?)
+        """, (req.data, req.turno, req.tavolo_id, user.get("username")))
+        conn.commit()
+        return {"message": f"Tavolo {t['nome']} diviso in {t['nome']}A e {t['nome']}B"}
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/divisioni/{divisione_id}")
+def riunisci_tavolo(divisione_id: int, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="la divisione dei tavoli")
+    conn = get_clienti_conn()
+    try:
+        d = conn.execute("""
+            SELECT d.*, t.nome FROM tavoli_divisioni d JOIN tavoli t ON t.id = d.tavolo_id WHERE d.id = ?
+        """, (divisione_id,)).fetchone()
+        if not d:
+            raise HTTPException(status_code=404, detail="Divisione non trovata")
+        occupate = {f"{d['nome']}A", f"{d['nome']}B"} & _nomi_occupati(conn, d["data_pasto"], d["turno"])
+        if occupate:
+            raise HTTPException(status_code=400, detail=f"{', '.join(sorted(occupate))} ha una prenotazione: spostala prima di riunire")
+        conn.execute("DELETE FROM tavoli_divisioni WHERE id = ?", (divisione_id,))
+        conn.commit()
+        return {"message": f"Tavolo {d['nome']} riunito"}
     finally:
         conn.close()
 
@@ -1356,12 +1478,10 @@ def get_mappa_tavoli(
     conn = get_clienti_conn()
     try:
         # Tutti i tavoli attivi con posizioni
-        tavoli = conn.execute("""
-            SELECT id, nome, zona, posti_min, posti_max, combinabile,
-                   posizione_x, posizione_y, larghezza, altezza, forma, ordine
-            FROM tavoli WHERE attivo = 1
+        tavoli = _tavoli_del_turno(conn, data, turno, conn.execute("""
+            SELECT * FROM tavoli WHERE attivo = 1
             ORDER BY ordine, zona, nome
-        """).fetchall()
+        """).fetchall())
 
         # Prenotazioni del turno (non cancellate)
         # COALESCE: preferisci nome CRM, fallback a snapshot TheFork (migraz. 068)

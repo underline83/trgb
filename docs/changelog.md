@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-16 — Mappa tavoli: tavoli dividibili `[core]`
+
+Prenotazioni 2.12, sistema 5.60, mig 196. In Editor Tavoli un tavolo si segna «Dividibile in due» (all'osteria il 4 e il 10). Nella mappa serale, cliccandolo, oltre ad «Aggiungi» e «Blocca» c'è «✂️ **Dividi in due**»: per quel turno il tavolo diventa 10A e 10B, metà posti ciascuno, e si assegnano due prenotazioni. Cliccando una metà libera c'è «🔗 Riunisci», che funziona solo se le due metà sono libere. TheFork non ha questa funzione: è solo di TRGB.
+
+## 2026-10-16 — Prenotazioni: fasce orarie del servizio, online anche su TheFork `[core]`
+
+Prenotazioni 2.11, sistema 5.59, mig 195 (backend già andato col push della 2.10). Nel Planning, «🕒 **Fasce**» sull'intestazione di ogni turno (o clic sulla timeline) apre la copia di «Andamento per fascia oraria» di TheFork Manager, per quel giorno: interruttore per chiudere la fascia (anche al telefono), coperti arrivati / massimo, «🌐 **Disattiva online**» che chiude la fascia anche su TheFork, online arrivati / massimo, tasti per chiudere o riaprire l'online di tutto il turno, «🔍 Cosa vede il cliente su TheFork» e il registro di chi ha cambiato cosa. I default dei limiti per fascia stanno in Impostazioni. Nel form di nuova prenotazione gli orari chiusi sono barrati, quelli pieni in rosso, e compare un avviso se la fascia è chiusa o si supera il limite (non blocca). I limiti valgono in TRGB: l'API TheFork permette solo di aprire o chiudere l'online.
+
 ## 2026-10-16 — Mappa tavoli: aggiungi prenotazione e blocca tavolo `[core]`
 
 Prenotazioni 2.10, sistema 5.58, mig 194. Nella mappa serale il clic su un tavolo libero apre il menu come in TheFork Manager: «➕ **Aggiungi una prenotazione**» apre il form col tavolo e il primo orario del turno già scelti; «🚫 **Blocca questo tavolo**» lo rende non disponibile per quel giorno e turno (motivo facoltativo). Il tavolo bloccato resta in grigio tratteggiato, non si assegna e nel form compare «BLOCCATO»; si sblocca dallo stesso menu. Possono bloccare sala, sommelier e admin. Il blocco vale solo in TRGB. Fix: i tab «Planning» e «Settimana» rimandavano alla Home (mancava la rotta senza data); ora aprono la giornata/settimana di oggi.

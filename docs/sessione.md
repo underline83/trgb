@@ -53,7 +53,9 @@
 
 - Prenotazioni 2.9 (pushata, b8b6099a): `POST /prenotazioni/{id}/unisci-in/{altra_id}` + bottone «Tieni quella TheFork, elimina questa» nel Planning. Unire i clienti non unisce le prenotazioni (caso Petersen 32514 → 32524). Testato su copia DB.
 - Prenotazioni 2.10, mig 194 `tavoli_blocchi`: menu al clic su tavolo libero nella mappa (aggiungi prenotazione / blocca / sblocca). `PrenotazioniForm` accetta `defaultTavolo`, `defaultTurno`. Ruoli blocco: admin, sala, sommelier. Testato su copia DB (blocco, doppio blocco = aggiorna motivo, mappa, disponibili, sblocco, viewer 403).
-- Aperto: chiusura fasce online via API TheFork (override isOpen per data/orario) — i limiti coperti per fascia restano in TheFork Manager.
+- Prenotazioni 2.11, mig 195: fasce orarie del servizio (`prenotazioni_fasce_service.py`, `FasceTurno.jsx`, override online su TheFork). ATTENZIONE: il backend (mig 195, router, service, thefork_service `_richiesta`/`api_put`) è finito nel commit c2517dbb della 2.10 perché Marco ha pushato a metà lavoro; il frontend arriva con la 2.11. Testato su copia DB con TheFork finto (gruppi contigui, errore 403 conservato sulla fascia, ritorno al default, viewer 403). Da verificare dal vero: che il token B2B abbia lo scope di scrittura (override).
+- Prenotazioni 2.12, mig 196: tavoli dividibili (flag in Editor, «✂️ Dividi in due» / «🔗 Riunisci» dalla mappa, metà A/B virtuali per turno). Testato su copia DB (non dividibile → 400, divisione, metà in mappa e disponibili, riunisci rifiutato con prenotazione su 10A, riunisci ok).
+- Direzione decisa da Marco: TRGB diventa il gestionale delle prenotazioni; su TheFork resteranno 3-4 tavoli. Si copiano e migliorano le funzioni di TheFork Manager; quello che l'API non permette si fa solo in TRGB. Da valutare: POST /v1/restaurants/{id}/reservations, PATCH /v1/reservations/{id}, PATCH …/cancel (scrivere su TheFork le prenotazioni prese in TRGB), recensioni (GET /v1/reviews, PUT reply), riconoscimento chiamante (customers/phone, callRecognitions).
 
 ## SESSIONE 2026-10-16 (9) — Spalmatura di default per categoria `[core]`
 
