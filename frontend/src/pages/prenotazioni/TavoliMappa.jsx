@@ -1,4 +1,4 @@
-// @version: v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -348,11 +348,19 @@ export default function TavoliMappa() {
             {menuTavolo && (
               <div
                 className="absolute z-10 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 text-sm min-w-[200px]"
-                style={{
-                  left: `${((menuTavolo.posizione_x + menuTavolo.larghezza / 2) / CANVAS_W) * 100}%`,
-                  top: `${((menuTavolo.posizione_y + menuTavolo.altezza) / CANVAS_H) * 100}%`,
-                  transform: "translate(-50%, 6px)",
-                }}
+                style={(() => {
+                  // Il menu resta dentro la mappa: ai bordi si allinea al tavolo invece di centrarsi
+                  const t = menuTavolo;
+                  const centro = (t.posizione_x + t.larghezza / 2) / CANVAS_W;
+                  const sotto = (t.posizione_y + t.altezza) / CANVAS_H;
+                  const pct = (v) => `${v * 100}%`;
+                  const [left, tx] = centro < 0.3 ? [pct(t.posizione_x / CANVAS_W), "0"]
+                    : centro > 0.7 ? [pct((t.posizione_x + t.larghezza) / CANVAS_W), "-100%"]
+                    : [pct(centro), "-50%"];
+                  const [top, ty] = sotto > 0.65 ? [pct(t.posizione_y / CANVAS_H), "calc(-100% - 6px)"]
+                    : [pct(sotto), "6px"];
+                  return { left, top, transform: `translate(${tx}, ${ty})` };
+                })()}
               >
                 <div className="px-3 py-1 text-[11px] text-neutral-400 flex justify-between">
                   <span>Tavolo {menuTavolo.nome} · {menuTavolo.posti_min}-{menuTavolo.posti_max}p</span>
