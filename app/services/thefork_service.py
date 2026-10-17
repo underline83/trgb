@@ -597,7 +597,7 @@ def elabora_evento(evento_id: int) -> Dict[str, Any]:
 
             entita = (ev["entity_type"] or "").lower()
             atteso = _restaurant_uuid_atteso()
-            if entita not in ("reservation", "customer"):
+            if entita not in ("reservation", "customer", "review"):
                 _chiudi_evento(conn, evento_id, "ignorato", f"tipo {ev['entity_type']} / {ev['event_type']} non gestito")
             elif not ev["uuid"]:
                 _chiudi_evento(conn, evento_id, "errore", errore="payload senza uuid")
@@ -609,6 +609,9 @@ def elabora_evento(evento_id: int) -> Dict[str, Any]:
                 try:
                     if entita == "reservation":
                         esito = _sincronizza_prenotazione(conn, ev["uuid"])
+                    elif entita == "review":
+                        from app.services import thefork_recensioni_service as recensioni
+                        esito = recensioni.sincronizza_una(ev["uuid"])
                     else:
                         esito = _sincronizza_cliente(conn, ev["uuid"])
                     if esito.startswith("IGNORATO: "):
@@ -829,6 +832,13 @@ def avvia_recupero_periodico() -> None:
                 if credenziali_presenti():
                     r = recupero_automatico()
                     logger.info("TheFork recupero automatico: %s", r)
+                    try:
+                        from app.services import thefork_recensioni_service as recensioni
+                        rr = recensioni.giro_periodico()  # al massimo una volta l'ora
+                        if rr:
+                            logger.info("TheFork recensioni: %s", rr)
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("TheFork recensioni: %s", e)
             except Exception as e:
                 logger.warning("TheFork recupero automatico: %s", e)
                 _stato_recupero.update({"ultimo": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

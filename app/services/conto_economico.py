@@ -470,6 +470,19 @@ def _aggregate_spese_fisse_per_categoria(
         """, (periodo_rif, *tipi_esclusi_competenza)).fetchall()
         rows = list(rows_normali)
 
+        # Mig 191 esteso (Marco 2026-10-17): la regola di spalmatura della
+        # (sotto)categoria vale anche per le spese fisse NON mensili (una
+        # tantum, trimestrali, annuali…: es. spese condominiali). Esclusi i
+        # mensili (sono già quote), i prestiti e i tipi già esclusi sopra; la
+        # spalmatura manuale della spesa fissa (ramo 2) vince. Ogni pagamento
+        # (cg_uscite) si divide in N quote dal suo mese di riferimento.
+        regole = carica_regole(fc_conn)
+        if regole["cat"] or regole["sub"]:
+            rows = _spese_fisse_con_regole(
+                fc_conn, periodo_rif, regole, rows, tipi_esclusi_competenza,
+                spalmatura_filter_ramo1,
+            )
+
         # Ramo 2: spese fisse SPALMATE attive il cui range copre periodo_rif
         if has_spalmatura_sf:
             rows_spalmate = fc_conn.execute(f"""
@@ -553,6 +566,80 @@ def _aggregate_spese_fisse_per_categoria(
             ORDER BY u.totale DESC, u.id DESC
         """, (periodo_rif,)).fetchall()
     return [dict(r) for r in rows]
+
+
+# Tipi di spesa fissa a cui la regola di categoria NON si applica mai, oltre a
+# quelli già esclusi dalla competenza: le rate di un prestito sono già quote.
+TIPI_SF_SENZA_REGOLA = ("PRESTITO",)
+
+
+def _spese_fisse_con_regole(
+    fc_conn: sqlite3.Connection, periodo_rif: str, regole: dict,
+    rows_normali: list, tipi_esclusi: tuple, spalmatura_filter: str,
+) -> list:
+    """Applica le regole di spalmatura per (sotto)categoria alle uscite delle
+    spese fisse non mensili. Ritorna le righe del mese al posto di rows_normali.
+
+    - uscita di una spesa fissa candidata (frequenza != MENSILE, tipo non
+      escluso, senza spalmatura manuale) con regola attiva → esce da
+      rows_normali e torna come quota «(quota k/N)» nei mesi coperti;
+    - tutto il resto resta com'era.
+    """
+    max_n = max(
+        [m for m, _ in regole["cat"].values()] + [m for m, _ in regole["sub"].values()] + [1]
+    )
+    mese_min = sposta_mese(periodo_rif, -(max_n - 1))
+    esclusi = tuple(tipi_esclusi) + TIPI_SF_SENZA_REGOLA
+    ph = ",".join(["?"] * len(esclusi))
+    candidati = fc_conn.execute(f"""
+        SELECT
+            COALESCE(fcat.nome, 'Non categorizzato')   AS categoria,
+            COALESCE(fsub.nome, '—')                   AS sottocategoria,
+            sf.categoria_id                            AS cat_id,
+            sf.sottocategoria_id                       AS sub_id,
+            u.id                                       AS id,
+            u.spesa_fissa_id                           AS spesa_fissa_id,
+            COALESCE(u.data_pagamento, u.data_scadenza, u.data_fattura) AS data,
+            COALESCE(sf.titolo, u.numero_fattura, '—') AS descrizione,
+            COALESCE(sf.tipo, '—')                     AS ref,
+            COALESCE(u.totale, 0)                      AS totale,
+            substr(u.periodo_riferimento, 1, 7)        AS mese_rif
+        FROM cg_uscite u
+        JOIN cg_spese_fisse          sf   ON u.spesa_fissa_id     = sf.id
+        LEFT JOIN fe_categorie       fcat ON sf.categoria_id      = fcat.id
+        LEFT JOIN fe_sottocategorie  fsub ON sf.sottocategoria_id = fsub.id
+        WHERE u.tipo_uscita = 'SPESA_FISSA'
+          AND substr(u.periodo_riferimento, 1, 7) BETWEEN ? AND ?
+          AND COALESCE(sf.frequenza, 'MENSILE') <> 'MENSILE'
+          AND COALESCE(sf.tipo, '') NOT IN ({ph})
+          {spalmatura_filter}
+    """, (mese_min, periodo_rif, *esclusi)).fetchall()
+
+    tolti = set()   # id uscite del mese che diventano quote
+    quote = []
+    for r in candidati:
+        r = dict(r)
+        n = regola_attiva(regole, r["cat_id"], r["sub_id"], r["mese_rif"])
+        if not n:
+            continue
+        if r["mese_rif"] == periodo_rif:
+            tolti.add(r["id"])
+        k = mesi_tra(r["mese_rif"], periodo_rif)
+        if not (0 <= k < n):
+            continue
+        quote.append({
+            "categoria": r["categoria"],
+            "sottocategoria": r["sottocategoria"],
+            "tipo_riga": "spesa_fissa",
+            "id": r["id"],
+            "spesa_fissa_id": r["spesa_fissa_id"],
+            "data": r["data"],
+            "descrizione": f"{r['descrizione']} (quota {k + 1}/{n})",
+            "ref": r["ref"],
+            "importo": r["totale"] / float(n),
+        })
+    out = [r for r in rows_normali if dict(r)["id"] not in tolti] + quote
+    return out
 
 
 def _aggregate_stipendi(

@@ -6,8 +6,8 @@
 
 **Sistema:** 5.54 in produzione (4fa71e02) · 5.55 da pushare · **Migrazione più recente:** 191 (da pushare; 190 in produzione)
 
-**DA PUSHARE — Spalmatura di default per categoria** (mig 191, sistema 5.55, fatture 3.3, controlloGestione 2.28)
-- Dopo il push: Acquisti › Impostazioni › Categorie › BEVANDE › VINO › chip 📆 → 3 mesi, dal 2026-01 (decisione Marco). Poi Conto Economico: le fatture col vino mostrano «(quota k/3)»; nel dettaglio di una fattura Sogegross il gruppo VINO ha il badge «📆 3 mesi».
+**DA PUSHARE — Spalmatura anche sulle spese fisse non mensili** (controlloGestione 2.29, nessuna migrazione; la spalmatura per fatture è live da 2bfc275a, regole VINO 3 / ALCOLICI 6 / SPESE CONDOMINIALI 12 dal 2026-01 verificate in produzione)
+- Dopo il push: Conto Economico aprile e settembre 2026 → SPESE CONDOMINIALI in «(quota k/12)». Da fare a mano: «Spese condominiali rata 2» (395 €) non ha sottocategoria → assegnare SPESE CONDOMINIALI in Spese Fisse.
 
 **TheFork webhook** (live: b29003e4 + 4fa71e02; URL già mandato a Régis il 16/10)
 - Fix orario pushato (e1791c48): rilanciare Recupera 09/10→16/10 «pasto», poi oggi→31/12 «pasto».
@@ -49,6 +49,14 @@
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+## SESSIONE 2026-10-17 (1) — Spalmatura per categoria anche sulle spese fisse `[core]`
+
+Verifica in produzione (5.57, 2bfc275a): VINO e ALCOLICI spalmati correttamente; SPESE CONDOMINIALI no, perché arrivano da spese fisse. Marco: estendere la regola alle spese fisse, ma solo non mensili.
+- `conto_economico._spese_fisse_con_regole`: uscite di spese fisse con frequenza ≠ MENSILE, tipo non PRESTITO/RATEIZZAZIONE/RATEIZZAZIONE_TASSE/STIPENDIO/F24_STIPENDI, senza spalmatura manuale → N quote dal mese di `periodo_riferimento`.
+- Test su copia DB: totale 2026–2027 invariato (100.058,25 €), cambiano solo le righe SPESE CONDOMINIALI.
+- Discusso con Marco (non fatto): cosa ha senso spalmare (gas bimestrale, detergenza, TARI/IMU/SIAE) e cosa no (attrezzature = ammortamento; cartella ADER e avviso bonario IVA 2025 = pregressi, andrebbero esclusi dal CE come RATEIZZAZIONE_TASSE).
+- controlloGestione 2.29, docs modulo_controllo_gestione (C-CG-SP02), changelog.
+
 ## SESSIONE 2026-10-16 (10) — Prenotazioni: doppione TheFork/a mano, menu tavolo in mappa `[core]`
 
 - Prenotazioni 2.9 (pushata, b8b6099a): `POST /prenotazioni/{id}/unisci-in/{altra_id}` + bottone «Tieni quella TheFork, elimina questa» nel Planning. Unire i clienti non unisce le prenotazioni (caso Petersen 32514 → 32524). Testato su copia DB.
@@ -56,6 +64,8 @@
 - Prenotazioni 2.11, mig 195: fasce orarie del servizio (`prenotazioni_fasce_service.py`, `FasceTurno.jsx`, override online su TheFork). ATTENZIONE: il backend (mig 195, router, service, thefork_service `_richiesta`/`api_put`) è finito nel commit c2517dbb della 2.10 perché Marco ha pushato a metà lavoro; il frontend arriva con la 2.11. Testato su copia DB con TheFork finto (gruppi contigui, errore 403 conservato sulla fascia, ritorno al default, viewer 403). Da verificare dal vero: che il token B2B abbia lo scope di scrittura (override).
 - Prenotazioni 2.12, mig 196: tavoli dividibili (flag in Editor, «✂️ Dividi in due» / «🔗 Riunisci» dalla mappa, metà A/B virtuali per turno). Testato su copia DB (non dividibile → 400, divisione, metà in mappa e disponibili, riunisci rifiutato con prenotazione su 10A, riunisci ok).
 - Prenotazioni 2.13: fix limiti noti §9.1 (giorno_chiusura UI → codifica backend, -1 = nessuno) e §9.2 (solo_admin su PUT /config, CRUD tavoli, layout, combinazioni). Testato su copia DB con TestClient (sala 403, admin/superadmin 200, settimana con 3 → mercoledì chiuso, -1 e vuoto → nessuno).
+- Prenotazioni 2.13 è uscita dentro il commit 2bfc275a (spalmatura) di un'altra sessione: già in produzione.
+- Prenotazioni 2.14, mig 197: recensioni TheFork (`thefork_recensioni_service.py`, `recensioni_router`, `PrenotazioniRecensioni.jsx`, `RecensioneCard.jsx`, tab in ClientiScheda; merge clienti sposta le recensioni). Testato su copia DB con TheFork finto (collegamento cliente/prenotazione, notifica sotto soglia, giro solo_nuove, risposta, permessi sala/admin/viewer). Da verificare dal vero: scope di lettura recensioni e di scrittura reply.
 - Direzione decisa da Marco: TRGB diventa il gestionale delle prenotazioni; su TheFork resteranno 3-4 tavoli. Si copiano e migliorano le funzioni di TheFork Manager; quello che l'API non permette si fa solo in TRGB. Da valutare: POST /v1/restaurants/{id}/reservations, PATCH /v1/reservations/{id}, PATCH …/cancel (scrivere su TheFork le prenotazioni prese in TRGB), recensioni (GET /v1/reviews, PUT reply), riconoscimento chiamante (customers/phone, callRecognitions).
 
 ## SESSIONE 2026-10-16 (9) — Spalmatura di default per categoria `[core]`

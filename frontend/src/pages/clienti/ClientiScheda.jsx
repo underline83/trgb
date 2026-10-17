@@ -1,8 +1,9 @@
-// @version: v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
+// @version: v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import RecensioneCard from "../prenotazioni/components/RecensioneCard";
 import ClientiNav from "./ClientiNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
@@ -277,6 +278,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
     { key: "note", label: `Note (${cliente.note?.length || 0})` },
     { key: "prenotazioni", label: `Prenotazioni (${stats.totale || 0})` },
     { key: "preventivi", label: "Preventivi" },
+    { key: "recensioni", label: "Recensioni" },
   ];
 
   return (
@@ -752,6 +754,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
               )}
 
               {/* PREVENTIVI */}
+              {tab === "recensioni" && <RecensioniTab clienteId={cliente.id} />}
               {tab === "preventivi" && (
                 <PreventiviTab clienteId={cliente.id} navigate={navigate} />
               )}
@@ -772,6 +775,29 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   );
 }
 
+
+// ── Tab Recensioni TheFork dentro scheda cliente (mig 197) ──
+function RecensioniTab({ clienteId }) {
+  const [lista, setLista] = useState(null);
+  const role = localStorage.getItem("role");
+  const admin = role === "admin" || role === "superadmin";
+  useEffect(() => {
+    apiFetch(`${API_BASE}/prenotazioni/recensioni/?cliente_id=${clienteId}&limite=50`)
+      .then((r) => (r.ok ? r.json() : { recensioni: [] }))
+      .then((d) => setLista(d.recensioni || []))
+      .catch(() => setLista([]));
+  }, [clienteId]);
+  if (lista === null) return <div className="text-sm text-neutral-400 py-4">Caricamento…</div>;
+  if (!lista.length) return <div className="text-sm text-neutral-400 py-4">Nessuna recensione TheFork di questo cliente.</div>;
+  return (
+    <div className="space-y-3">
+      {lista.map((r) => (
+        <RecensioneCard key={r.review_uuid} r={r} compatta puoRispondere={admin}
+          onAggiornata={(n) => setLista((l) => l.map((x) => (x.review_uuid === n.review_uuid ? { ...x, ...n } : x)))} />
+      ))}
+    </div>
+  );
+}
 
 // ── Tab Preventivi dentro scheda cliente ──
 function PreventiviTab({ clienteId, navigate }) {

@@ -128,3 +128,95 @@ def sincronizza(req: SincronizzaReq, background: BackgroundTasks):
     if res["accodate"]:
         background.add_task(tf.elabora_in_sospeso)
     return res
+
+
+# ── Recensioni TheFork (mig 197) ─────────────────────────────
+# Lettura: admin e sala. Risposta e scaricamento: admin.
+from app.models.clienti_db import get_clienti_conn  # noqa: E402
+from app.services import thefork_recensioni_service as recensioni  # noqa: E402
+from app.services.permessi import richiede_ruoli  # noqa: E402
+
+recensioni_router = APIRouter(
+    prefix="/prenotazioni/recensioni",
+    tags=["Prenotazioni · Recensioni TheFork"],
+    dependencies=[Depends(richiede_ruoli("admin", "sala", cosa="le recensioni"))],
+)
+
+
+@recensioni_router.get("/")
+def lista_recensioni(
+    filtro: str = Query("tutte"),  # tutte | da_rispondere | non_lette | basse
+    q: Optional[str] = Query(None),
+    cliente_id: Optional[int] = Query(None),
+    limite: int = Query(50, ge=1, le=200),
+    pagina: int = Query(1, ge=1),
+):
+    conn = get_clienti_conn()
+    try:
+        out = recensioni.elenco(conn, filtro, q, cliente_id, limite, pagina)
+        out["riepilogo"] = recensioni.riepilogo(conn)
+        return out
+    finally:
+        conn.close()
+
+
+@recensioni_router.post("/{review_uuid}/letta")
+def segna_letta(review_uuid: str, letta: bool = Query(True)):
+    conn = get_clienti_conn()
+    try:
+        conn.execute("UPDATE thefork_recensioni SET letta = ? WHERE review_uuid = ?", (1 if letta else 0, review_uuid))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@recensioni_router.post("/letta-tutte")
+def segna_tutte_lette():
+    conn = get_clienti_conn()
+    try:
+        n = conn.execute("UPDATE thefork_recensioni SET letta = 1 WHERE letta = 0").rowcount
+        conn.commit()
+        return {"lette": n}
+    finally:
+        conn.close()
+
+
+class RispostaReq(BaseModel):
+    testo: str
+    lingua: Optional[str] = None
+
+
+@recensioni_router.put("/{review_uuid}/risposta")
+def rispondi_recensione(review_uuid: str, req: RispostaReq,
+                        user: dict = Depends(richiede_ruoli("admin", cosa="la risposta alle recensioni"))):
+    try:
+        return recensioni.rispondi(review_uuid, req.testo, req.lingua, user.get("username"))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except tf.TheForkNonConfigurato as e:
+        raise HTTPException(409, str(e))
+    except tf.TheForkErroreAPI as e:
+        raise HTTPException(502, f"TheFork: {e}")
+
+
+class ScaricaRecensioniReq(BaseModel):
+    dal: date
+    al: date
+
+
+@recensioni_router.post("/sincronizza",
+                        dependencies=[Depends(solo_admin(cosa="lo scaricamento delle recensioni"))])
+def scarica_recensioni(req: ScaricaRecensioniReq):
+    if req.al < req.dal:
+        raise HTTPException(400, "«al» prima di «dal»")
+    if (req.al - req.dal) > timedelta(days=800):
+        raise HTTPException(400, "periodo massimo due anni")
+    try:
+        return recensioni.sincronizza(req.dal.isoformat(), req.al.isoformat())
+    except tf.TheForkNonConfigurato as e:
+        raise HTTPException(409, str(e))
+    except tf.TheForkErroreAPI as e:
+        raise HTTPException(502, f"TheFork: {e}")

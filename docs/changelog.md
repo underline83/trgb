@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-17 — Spalmatura per categoria anche sulle spese fisse `[core]`
+
+controlloGestione 2.29, nessuna migrazione. Le regole 📆 di Impostazioni › Categorie valgono ora anche per le spese fisse non mensili (una tantum, trimestrali, annuali): ogni pagamento si divide in N quote dal suo mese, come le fatture. Esempio: spese condominiali a 12 mesi. Restano fuori le spese mensili, i prestiti, le rateizzazioni, gli stipendi e gli F24 paghe; la spalmatura messa a mano sulla spesa fissa vince sempre.
+
+## 2026-10-17 — Recensioni TheFork in TRGB `[core]`
+
+Prenotazioni 2.14, clienti 3.5, sistema 5.61, mig 197. Nuovo tab «⭐ **Recensioni**» in Prenotazioni (admin e sala): medie degli ultimi 30 e 90 giorni (globale, cibo, servizio, ambiente), filtri «da rispondere», «nuove», «voto basso», ricerca per nome o parola. Ogni recensione mostra voti, prezzo/attesa/rumore, il commento e la prenotazione collegata (ora, pax, tavolo); il nome apre la scheda cliente, che ora ha anche il tab «Recensioni». Gli admin rispondono da TRGB e la risposta va su TheFork (passa dalla loro moderazione; se ne vede lo stato). Le nuove arrivano da sole ogni ora; lo storico si scarica dalla pagina. Una recensione nuova sotto il voto impostato in Impostazioni (default 8/10) manda una notifica agli admin.
+
 ## 2026-10-16 — Prenotazioni: giorno di chiusura e permessi admin `[core]`
 
 Prenotazioni 2.13, nessuna migrazione. In Impostazioni il giorno di chiusura mostrava «Martedì» per il mercoledì, e salvarlo dalla pagina avrebbe scritto giovedì: ora la select usa la stessa codifica del server (ed esiste davvero «Nessuno»). Il valore in uso era già giusto. Configurazione, Editor Tavoli, layout e combinazioni erano riservati agli admin solo nell'interfaccia: ora il server rifiuta (403) chi non è admin.

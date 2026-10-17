@@ -119,6 +119,7 @@ const ClientiImpostazioni = lazy(() => import("./pages/clienti/ClientiImpostazio
 const PrenotazioniPlanning = lazy(() => import("./pages/prenotazioni/PrenotazioniPlanning"));
 const PrenotazioniSettimana = lazy(() => import("./pages/prenotazioni/PrenotazioniSettimana"));
 const PrenotazioniImpostazioni = lazy(() => import("./pages/prenotazioni/PrenotazioniImpostazioni"));
+const PrenotazioniRecensioni = lazy(() => import("./pages/prenotazioni/PrenotazioniRecensioni"));
 const TavoliEditor = lazy(() => import("./pages/prenotazioni/TavoliEditor"));
 const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
 
@@ -528,6 +529,7 @@ export default function App() {
         <Route path="/prenotazioni/settimana" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/impostazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniImpostazioni /></ProtectedRoute>} />
+        <Route path="/prenotazioni/recensioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniRecensioni /></ProtectedRoute>} />
         <Route path="/prenotazioni/tavoli" element={<ProtectedRoute module="prenotazioni"><TavoliEditor /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />

@@ -1,4 +1,4 @@
-// @version: v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -384,6 +384,19 @@ function CapienzaSection({ config, update }) {
               className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
               min={2}
               max={100}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Avviso recensioni sotto (voto su 10)</label>
+            <input
+              type="number"
+              value={config.recensioni_soglia_avviso ?? "8"}
+              onChange={(e) => update("recensioni_soglia_avviso", e.target.value)}
+              placeholder="nessun avviso"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+              min={0}
+              max={10}
+              step={0.5}
             />
           </div>
         </div>

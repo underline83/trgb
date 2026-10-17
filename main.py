@@ -82,6 +82,7 @@ from app.routers.prenotazioni_router import router as prenotazioni_router
 from app.routers.prenotazioni_thefork_router import (  # integrazione TheFork B2B API
     router as prenotazioni_thefork_router,
     public_router as prenotazioni_thefork_public_router,
+    recensioni_router as prenotazioni_recensioni_router,
 )
 
 # PREVENTIVI — modulo 10 (gestione preventivi eventi)
@@ -749,6 +750,7 @@ _mount("clienti_giftcard_router", clienti_giftcard_router)
 # che ha rotte /{pren_id}
 _mount("prenotazioni_thefork_router", prenotazioni_thefork_public_router)
 _mount("prenotazioni_thefork_router", prenotazioni_thefork_router)
+_mount("prenotazioni_thefork_router", prenotazioni_recensioni_router)
 if module_loader.is_router_active("prenotazioni_thefork_router"):
     # Recupero orario degli avvisi TheFork persi (THEFORK_RECUPERO_MINUTI, 0 = spento)
     from app.services.thefork_service import avvia_recupero_periodico as _tf_recupero

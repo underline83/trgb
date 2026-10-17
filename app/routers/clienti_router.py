@@ -713,6 +713,11 @@ def merge_clienti(
             "UPDATE clienti_prenotazioni SET cliente_id = ? WHERE cliente_id = ?",
             (req.principale_id, req.secondario_id),
         )
+        try:  # recensioni TheFork (mig 197)
+            conn.execute("UPDATE thefork_recensioni SET cliente_id = ? WHERE cliente_id = ?",
+                         (req.principale_id, req.secondario_id))
+        except Exception:
+            pass
 
         # 2. Sposta note
         conn.execute(
@@ -969,6 +974,10 @@ def auto_merge_execute(
                         continue
 
                     conn.execute("UPDATE clienti_prenotazioni SET cliente_id = ? WHERE cliente_id = ?", (pid, sid))
+                    try:  # recensioni TheFork (mig 197)
+                        conn.execute("UPDATE thefork_recensioni SET cliente_id = ? WHERE cliente_id = ?", (pid, sid))
+                    except Exception:
+                        pass
                     conn.execute("UPDATE clienti_note SET cliente_id = ? WHERE cliente_id = ?", (pid, sid))
                     conn.execute("""
                         INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id, auto)

@@ -391,12 +391,14 @@ const MODULE_VERSIONS = {
     // v2.26 (2026-10-02): Scadenzario mostra di default anche i PARZIALE (residuo da pagare, es. saldo stipendio); residuo nei KPI «Da pagare»/«Scaduto» in base alla scadenza.
     // v2.27 (2026-10-16): F24 paghe nello Scadenzario — spesa fissa «F24 paghe» (F24_STIPENDI) con rate scritte dall'import F24, nota delega + 📄 PDF (cg_uscite.allegato_url, mig 190); CE cassa conta l'F24 paghe solo quando è pagato (data_pagamento).
     // v2.28 (2026-10-16): Conto Economico — regole di spalmatura per (sotto)categoria applicate per RIGA (es. VINO 3 mesi): quote «(quota k/N)» dal mese di competenza, solo fatture dal mese di validità; spalmatura manuale della fattura vince (mig 191).
-    version: "2.28",
+    // v2.29 (2026-10-17): le regole di spalmatura per (sotto)categoria valgono anche per le spese fisse NON mensili (una tantum/trimestrali/annuali, es. spese condominiali): ogni pagamento in N quote dal mese di riferimento; esclusi mensili, prestiti, rateizzazioni, stipendi, F24; spalmatura manuale della spesa fissa vince.
+    version: "2.29",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
   },
   clienti: {
+    // 3.5 (2026-10-17): tab Recensioni TheFork nella scheda; il merge sposta anche le recensioni.
     // 3.4 (2026-10-16): ricerca clienti per parole (nome + cognome insieme).
     // 3.3 (2026-10-16): lista Preventivi — filtri visibili anche su iPad/telefono,
     //   periodo «Prossimi» (eventi da oggi + senza data) al posto dell'anno corrente.
@@ -411,13 +413,13 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.4",
+    version: "3.5",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
-    version: "2.13",
+    version: "2.14",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -500,6 +502,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.61 (2026-10-17): mig 197 — thefork_recensioni: recensioni TheFork in TRGB con
+    //   risposta pubblica (prenotazioni 2.14).
     // 5.60 (2026-10-16): mig 196 — tavoli.dividibile + tavoli_divisioni: tavolo spezzato in
     //   A/B per un turno dalla mappa (prenotazioni 2.12).
     // 5.59 (2026-10-16): mig 195 — prenotazioni_fasce (+ _log): fasce orarie del servizio
@@ -575,7 +579,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.60",
+    version: "5.61",
     label: "Sistema",
     status: "stabile",
     color: "green",
