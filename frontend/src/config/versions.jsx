@@ -331,7 +331,10 @@ const MODULE_VERSIONS = {
     // 2.37 (2026-10-18): «📄 Le mie buste paga» (/mie-buste-paga) — il dipendente
     //   collegato vede e scarica solo le sue; il primo download la segna letta,
     //   chip «✓ letta / non letta» in Buste Paga admin. Mig 198.
-    version: "2.37",
+    // 2.38 (2026-10-18): blocco PIN — entrando in Dipendenti (e Le mie buste paga)
+    //   si ridigita il PIN dell'utente loggato; si richiude uscendo o dopo N minuti
+    //   (Impostazioni › 🔒 Blocco PIN, default 5). Mig 199.
+    version: "2.38",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -505,6 +508,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.63 (2026-10-18): mig 199 — dipendenti_settings.pin_sezione_minuti: blocco PIN
+    //   della sezione Dipendenti (SezionePinGate + POST /auth/verifica-pin + PinPad
+    //   condiviso con il login). dipendenti 2.38.
     // 5.62 (2026-10-18): mig 198 — buste_paga.letta_il/letta_da: «Le mie buste paga»
     //   self-service, primo download del dipendente = letta (dipendenti 2.37).
     //   NB: VERSION era rimasto a 5.57 mentre qui si era a 5.61 → riallineati entrambi a 5.62.
@@ -585,7 +591,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.62",
+    version: "5.63",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import PinPad from "./PinPad";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 /* ── Colori ruolo per bordo tile ── */
@@ -50,10 +51,8 @@ function getInitials(name) {
 export default function LoginForm({ setToken, setRole }) {
   const [users, setUsers]             = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [pin, setPin]                 = useState("");
   const [error, setError]             = useState("");
   const [loading, setLoading]         = useState(false);
-  const [shake, setShake]             = useState(false);
 
   /* Carica tile utenti */
   useEffect(() => {
@@ -66,7 +65,7 @@ export default function LoginForm({ setToken, setRole }) {
   /* ── Invio PIN ── */
   const submitPin = useCallback(
     async (currentPin) => {
-      if (!selectedUser || currentPin.length < 4) return;
+      if (!selectedUser || currentPin.length < 4) return false;
       setLoading(true);
       setError("");
       try {
@@ -85,11 +84,10 @@ export default function LoginForm({ setToken, setRole }) {
         window.history.replaceState(null, "", "/");
         setToken(data.access_token);
         setRole(data.role);
+        return true;
       } catch {
         setError("PIN errato");
-        setPin("");
-        setShake(true);
-        setTimeout(() => setShake(false), 500);
+        return false;
       } finally {
         setLoading(false);
       }
@@ -102,47 +100,6 @@ export default function LoginForm({ setToken, setRole }) {
     selectedUser && ["admin", "superadmin", "contabile"].includes(selectedUser.role)
       ? 6
       : 4;
-
-  /* ── Gestione tastiera fisica ── */
-  useEffect(() => {
-    if (!selectedUser) return;
-    const handler = (e) => {
-      if (e.key >= "0" && e.key <= "9") {
-        setPin((prev) => {
-          if (prev.length >= 6) return prev;
-          const next = prev + e.key;
-          if (next.length === expectedLen) setTimeout(() => submitPin(next), 100);
-          return next;
-        });
-      } else if (e.key === "Enter") {
-        submitPin(pin);
-      } else if (e.key === "Backspace") {
-        setPin((prev) => prev.slice(0, -1));
-      } else if (e.key === "Escape") {
-        setSelectedUser(null);
-        setPin("");
-        setError("");
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [selectedUser, submitPin, pin, expectedLen]);
-
-  /* ── Tap su numero del PIN pad ── */
-  const handleDigit = (digit) => {
-    setError("");
-    setPin((prev) => {
-      if (prev.length >= 6) return prev;
-      const next = prev + digit;
-      if (next.length === expectedLen) setTimeout(() => submitPin(next), 100);
-      return next;
-    });
-  };
-
-  const handleBackspace = () => {
-    setPin((prev) => prev.slice(0, -1));
-    setError("");
-  };
 
   /* ══════════════════════════════════════════════
      RENDER: SELEZIONE UTENTE (tile)
@@ -172,7 +129,7 @@ export default function LoginForm({ setToken, setRole }) {
           {users.map((u) => (
             <button
               key={u.username}
-              onClick={() => { setSelectedUser(u); setPin(""); setError(""); }}
+              onClick={() => { setSelectedUser(u); setError(""); }}
               className={`
                 flex flex-col items-center gap-3 p-6 rounded-2xl border-2
                 ${ROLE_COLORS[u.role] || "border-slate-300"}
@@ -208,28 +165,11 @@ export default function LoginForm({ setToken, setRole }) {
   /* ══════════════════════════════════════════════
      RENDER: PIN PAD
      ══════════════════════════════════════════════ */
-  const dots = Array.from({ length: expectedLen }, (_, i) => (
-    <div
-      key={i}
-      className={`
-        w-4 h-4 rounded-full transition-all duration-150
-        ${i < pin.length ? "bg-slate-800 scale-110" : "bg-slate-300"}
-      `}
-    />
-  ));
-
-  const padButtons = [
-    ["1", "2", "3"],
-    ["4", "5", "6"],
-    ["7", "8", "9"],
-    ["ok", "0", "del"],
-  ];
-
   return (
-    <div className={`flex flex-col items-center gap-6 w-full max-w-xs ${shake ? "animate-shake" : ""}`}>
+    <div className="flex flex-col items-center gap-6 w-full max-w-xs">
       {/* Header utente selezionato */}
       <button
-        onClick={() => { setSelectedUser(null); setPin(""); setError(""); }}
+        onClick={() => { setSelectedUser(null); setError(""); }}
         className="flex items-center gap-2 text-slate-500 hover:text-slate-700 text-sm self-start"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -256,64 +196,16 @@ export default function LoginForm({ setToken, setRole }) {
         <p className="text-slate-500 text-sm">Inserisci il PIN</p>
       </div>
 
-      {/* Dot indicators */}
-      <div className="flex gap-3">{dots}</div>
-
-      {/* Errore */}
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-
-      {/* PIN Pad */}
-      <div className="grid grid-cols-3 gap-3 w-full">
-        {padButtons.flat().map((btn, idx) => {
-          if (btn === "") return <div key={idx} />;
-          if (btn === "ok") {
-            return (
-              <button
-                key={idx}
-                onClick={() => submitPin(pin)}
-                disabled={loading || pin.length < 4}
-                className="h-14 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700
-                           disabled:opacity-40 disabled:cursor-not-allowed
-                           flex items-center justify-center transition-colors"
-                aria-label="Conferma PIN"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
-            );
-          }
-          if (btn === "del") {
-            return (
-              <button
-                key={idx}
-                onClick={handleBackspace}
-                disabled={loading}
-                className="h-14 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300
-                           flex items-center justify-center transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414-6.414a2 2 0 011.414-.586H19a2 2 0 012 2v10a2 2 0 01-2 2h-8.172a2 2 0 01-1.414-.586L3 12z" />
-                </svg>
-              </button>
-            );
-          }
-          return (
-            <button
-              key={idx}
-              onClick={() => handleDigit(btn)}
-              disabled={loading}
-              className="h-14 rounded-xl bg-white border border-slate-200
-                         hover:bg-slate-50 active:bg-slate-100
-                         text-xl font-semibold text-slate-800
-                         transition-colors shadow-sm"
-            >
-              {btn}
-            </button>
-          );
-        })}
-      </div>
+      {/* PIN pad condiviso (components/PinPad.jsx) — key: azzera il PIN al cambio utente */}
+      <PinPad
+        key={selectedUser.username}
+        length={expectedLen}
+        onSubmit={submitPin}
+        loading={loading}
+        error={error}
+        onInput={() => setError("")}
+        onEscape={() => { setSelectedUser(null); setError(""); }}
+      />
     </div>
   );
 }

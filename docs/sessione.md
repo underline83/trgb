@@ -4,9 +4,12 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.61 in produzione (573e272a) · 5.62 da pushare · **Migrazione più recente:** 198 (da pushare; 197 in produzione)
+**Sistema:** 5.62 in produzione (33feff13) · 5.63 da pushare · **Migrazione più recente:** 199 (da pushare; 198 in produzione)
 
-**DA PUSHARE — Le mie buste paga** (mig 198, sistema 5.62, dipendenti 2.37) `[core]`
+**DA PUSHARE — Dipendenti protetta dal PIN** (mig 199, sistema 5.63, dipendenti 2.38) `[core]`
+- Dopo il push: dall'iPad aprire Dipendenti → chiede il PIN; navigare fra Turni/Buste paga senza richiesta; tornare alla Home e rientrare → lo richiede; PIN sbagliato → «PIN errato» senza logout. Provare anche il login (tastierino ora condiviso, `PinPad.jsx`). Impostazioni › 🔒 Blocco PIN: default 5 minuti.
+
+**Pushato (33feff13), da verificare — Le mie buste paga** (mig 198, sistema 5.62, dipendenti 2.37) `[core]`
 - Dopo il push: entrare con l'utente di un dipendente collegato → «I miei turni» › «📄 Le mie buste paga» → Scarica. Poi da admin, Dipendenti › Buste Paga: quel cedolino ha «✓ letta» con data e ora nel tooltip. Verificare che un utente NON collegato veda «Utente non collegato».
 
 **Pushato, da verificare — Spalmatura anche sulle spese fisse non mensili** (controlloGestione 2.29, nessuna migrazione; la spalmatura per fatture è live da 2bfc275a, regole VINO 3 / ALCOLICI 6 / SPESE CONDOMINIALI 12 dal 2026-01 verificate in produzione)
@@ -66,6 +69,7 @@ Richiesta di Marco: nella pagina del dipendente, il dipendente loggato vede il p
 - **Frontend**: nuova `MieBustePaga.jsx` su `/mie-buste-paga` (fuori dal guard modulo, come MieiTurni), bottone in «I miei turni» e link «📄 Buste paga» nel widget turni di Home Cucina. In `DipendentiBustePaga.jsx` chip «✓ letta» / «non letta».
 - Versioni: dipendenti 2.37, sistema 5.62. `VERSION` era rimasto a 5.57 contro 5.61 di `versions.jsx`: riallineati a 5.62.
 - Docs: `modulo_dipendenti.md` (C-D-310, C-D-311, route, tabella permessi), changelog.
+- **Blocco PIN sezione** (seconda richiesta, dopo il push 33feff13; sistema 5.63, dipendenti 2.38): `SezionePinGate.jsx` attorno alle `<Routes>` (un gate unico: dentro la sezione niente PIN a ogni pagina), prefissi `/dipendenti`, `/mie-buste-paga`. Sblocco solo in memoria; si richiude uscendo, ricaricando o dopo `pin_sezione_minuti` (mig 199, default 5, UI in Impostazioni › 🔒 Blocco PIN). Backend `POST /auth/verifica-pin` (`auth_service.verifica_pin`, contatori di lockout condivisi col login, errore 403 e non 401 perché `apiFetch` su 401 fa logout). Tastierino estratto da `LoginForm` in `components/PinPad.jsx` e riusato. È un blocco d'uso sul dispositivo: i permessi degli endpoint restano M.G.
 
 ## SESSIONE 2026-10-17 (1) — Spalmatura per categoria anche sulle spese fisse `[core]`
 

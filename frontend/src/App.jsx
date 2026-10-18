@@ -11,6 +11,7 @@ import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ModuleRedirect from "./components/ModuleRedirect";
 import ErrorBoundary from "./components/ErrorBoundary";
+import SezionePinGate from "./components/SezionePinGate";
 import TrgbLoader from "./components/TrgbLoader";
 import { ToastProvider } from "./components/Toast";
 import useUpdateChecker from "./hooks/useUpdateChecker";
@@ -255,6 +256,9 @@ export default function App() {
       <Header onLogout={handleLogout} />
       <ErrorBoundary>
       <Suspense fallback={<RouteFallback />}>
+      {/* Blocco PIN di sezione (Dipendenti, Le mie buste paga): un solo gate attorno
+          alle Routes, così dentro la sezione non si richiede il PIN a ogni pagina */}
+      <SezionePinGate>
       <Routes>
         {/* HOME */}
         <Route path="/" element={<Home />} />
@@ -585,6 +589,7 @@ export default function App() {
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </SezionePinGate>
       </Suspense>
       </ErrorBoundary>
 

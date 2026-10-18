@@ -14,6 +14,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 const SECTIONS = [
   { key: "reparti",          label: "Reparti",           icon: "🏢", desc: "SALA, CUCINA, ... orari standard, pause staff, colore e icona", ready: true  },
   { key: "stipendi",         label: "Stipendi",          icon: "💶", desc: "Default giorno scadenza buste paga (è il giorno del mese successivo all'incasso)", ready: true  },
+  { key: "pin",              label: "Blocco PIN",        icon: "🔒", desc: "Dopo quanti minuti senza toccare lo schermo la sezione Dipendenti richiede di nuovo il PIN", ready: true  },
   { key: "stato_import",     label: "Stato import paghe", icon: "📊", desc: "Quali mesi hanno LUL/ELAB/F24 importati (G.3 Fase E)",         ready: true  },
   { key: "intermittenti",    label: "Intermittenti",     icon: "📨", desc: "Comunicazione chiamate: CF datore, email, destinatario, canale SMTP", ready: true  },
   { key: "soglie_ccnl",      label: "Soglie CCNL",       icon: "⚡", desc: "Personalizza soglie 40h/48h per semaforo ore",                   ready: false },
@@ -86,6 +87,7 @@ export default function DipendentiImpostazioni() {
             <div className="flex-1 min-w-0 bg-white shadow-sm rounded-xl border border-neutral-200 overflow-hidden flex flex-col">
               {section === "reparti" && <GestioneReparti embedded />}
               {section === "stipendi" && <StipendiSection />}
+              {section === "pin" && <PinSezioneSection />}
               {section === "stato_import" && <StatoImportSection />}
               {section === "intermittenti" && <IntermittentiSection />}
               {section === "soglie_ccnl" && <PlaceholderSection s={currentSection} />}
@@ -118,6 +120,96 @@ function PlaceholderSection({ s }) {
 // Vale come default; l'anagrafica del singolo dipendente può sovrascriverlo
 // con un proprio `giorno_paga`.
 // ──────────────────────────────────────────────────────────────────────
+function PinSezioneSection() {
+  // mig 199 — dipendenti_settings.pin_sezione_minuti, letto da components/SezionePinGate.jsx
+  const KEY = "pin_sezione_minuti";
+  const [minuti, setMinuti] = useState("");
+  const [originale, setOriginale] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [okMsg, setOkMsg] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/dipendenti/settings/`);
+        const data = await res.json();
+        if (cancelled) return;
+        const val = data[KEY] ?? "";
+        setMinuti(val);
+        setOriginale(val);
+      } catch (e) {
+        if (!cancelled) setError("Errore caricamento settings: " + e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const dirty = originale != null && minuti !== originale;
+  const n = parseInt(minuti, 10);
+  const isValid = !Number.isNaN(n) && n >= 0 && n <= 240;
+
+  const save = async () => {
+    if (!isValid) { setError("Un numero di minuti tra 0 e 240"); return; }
+    setSaving(true); setError(null); setOkMsg(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/dipendenti/settings/${KEY}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: String(n) }),
+      });
+      const d = await res.json();
+      if (!res.ok || d.ok === false) throw new Error(d.detail || d.error || "Errore");
+      setOriginale(String(n)); setMinuti(String(n));
+      setOkMsg("Salvato. Vale dalla prossima volta che si entra nella sezione.");
+      setTimeout(() => setOkMsg(null), 4000);
+    } catch (e) {
+      setError("Errore salvataggio: " + (e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-sm text-neutral-500">Caricamento…</div>;
+
+  return (
+    <div className="p-6 md:p-8 max-w-2xl">
+      <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2 mb-1">
+        <span>🔒</span> Blocco PIN della sezione
+      </h2>
+      <p className="text-sm text-neutral-500 mb-6">
+        Per entrare in <strong>Dipendenti</strong> (e in «Le mie buste paga») va ridigitato il PIN
+        dell'utente loggato, anche se l'app è già aperta. La sezione si richiude quando si esce,
+        quando si ricarica la pagina e dopo i minuti qui sotto senza toccare lo schermo.
+      </p>
+      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-5">
+        <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-2">
+          Minuti di inattività
+        </label>
+        <div className="flex items-center gap-3">
+          <input type="number" min={0} max={240} step={1} value={minuti}
+            onChange={(e) => setMinuti(e.target.value)}
+            className="w-24 px-3 py-2 border border-neutral-300 rounded-lg text-center text-lg font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-blue/40" />
+          <span className="text-sm text-neutral-500">minuti</span>
+        </div>
+        <p className="text-[11px] text-neutral-400 mt-2">0 = si richiude solo uscendo dalla sezione</p>
+        <div className="mt-4 flex items-center gap-3">
+          <Btn variant="primary" size="md" onClick={save} disabled={!dirty || !isValid || saving} loading={saving}>Salva</Btn>
+          {dirty && (
+            <Btn variant="secondary" size="md" onClick={() => { setMinuti(originale); setError(null); }} disabled={saving}>Annulla</Btn>
+          )}
+          {okMsg && <span className="text-xs text-emerald-700">{okMsg}</span>}
+          {error && <span className="text-xs text-red-700">{error}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StipendiSection() {
   const [giorno, setGiorno] = useState("");
   const [originale, setOriginale] = useState(null);

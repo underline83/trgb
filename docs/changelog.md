@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-18 — Dipendenti protetta dal PIN `[core]`
+
+Dipendenti 2.38, sistema 5.63, mig 199. Sull'iPad del ristorante l'app resta loggata: ora chi entra nella sezione **Dipendenti** (tutte le pagine `/dipendenti/*`, e anche «Le mie buste paga») deve ridigitare il PIN dell'utente loggato. Dentro la sezione si naviga senza richiederlo; si richiude uscendo, ricaricando la pagina o dopo 5 minuti senza toccare lo schermo (Impostazioni › 🔒 Blocco PIN, 0 = solo uscendo). Il PIN lo controlla il backend (`POST /auth/verifica-pin`, stesso blocco anti-tentativi del login, PIN errato = 403 così non butta fuori). Il tastierino del login è diventato un componente condiviso (`components/PinPad.jsx`), usato da login e blocco. «I miei turni» resta libero.
+
 ## 2026-10-18 — Le mie buste paga: archivio self-service + presa visione `[core]`
 
 Dipendenti 2.37, sistema 5.62, mig 198. Nuova pagina «📄 **Le mie buste paga**» (`/mie-buste-paga`, bottone in «I miei turni» e nel widget turni di Home Cucina): il dipendente collegato al proprio utente vede le SUE buste per anno, con il netto, e scarica il PDF. Il backend risolve l'utente loggato sul suo `dipendente_id` (come `/turni/miei-turni`): le buste degli altri non si vedono né si scaricano (404). Al **primo** download del dipendente la busta si segna letta (`buste_paga.letta_il`, `letta_da`); in Dipendenti › Buste Paga ogni cedolino ha il chip «✓ letta» (data e ora nel tooltip) o «non letta». I download dell'admin non segnano nulla. Riallineato `VERSION` (era fermo a 5.57) con `sistema.version`.

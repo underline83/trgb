@@ -14,6 +14,9 @@ Endpoint:
 
 (Agenda, instance, execution, task, scheduler negli Step 3-4.)
 
+  Registro (admin/chef/sous_chef):
+    GET    /tasks/registro/             — chi ha fatto cosa e quando (sola lettura)
+
 Autenticazione: JWT su tutti gli endpoint.
 """
 
@@ -26,6 +29,7 @@ from datetime import date, datetime, timedelta
 
 from app.models.tasks_db import get_tasks_conn, init_tasks_db
 from app.services.auth_service import get_current_user
+from app.services.permessi import richiede_ruoli
 from app.services import tasks_scheduler
 from app.schemas.tasks_schema import (
     FREQUENZE, REPARTI, TURNI, ITEM_TIPI, LIVELLI_CUCINA,
@@ -1320,3 +1324,204 @@ def delete_task(tid: int, user: dict = Depends(get_current_user)):
         return {"ok": True, "deleted_id": tid}
     finally:
         conn.close()
+
+
+# ─── GET /tasks/registro/ — chi ha fatto cosa e quando (2026-10-18) ────
+#
+# Sola lettura. Mette in fila tutto ciò che è stato fatto nel periodo,
+# ordinato per ora: le singole voci spuntate delle checklist, le checklist
+# chiuse (completate o saltate) e i task singoli completati. I dati c'erano
+# già (completato_da / completato_at su execution, instance, task_singolo):
+# questo endpoint li legge e basta, nessuna migrazione.
+# Permessi: come il Report HACCP (admin, chef, sous_chef; superadmin implicito).
+# sous_chef vede le cose di cucina solo del suo livello (stessa regola dell'agenda).
+
+
+REGISTRO_MAX_GIORNI = 92
+REGISTRO_TIPI = ("voce", "checklist", "task")
+
+
+@router.get("/registro/")
+def registro_attivita(
+    data_da: Optional[str] = Query(None, description="YYYY-MM-DD, default: 6 giorni fa"),
+    data_a: Optional[str] = Query(None, description="YYYY-MM-DD, default: oggi"),
+    utente: Optional[str] = Query(None, description="username di chi ha fatto"),
+    reparto: Optional[str] = Query(None),
+    tipo: Optional[str] = Query(None, description="voce | checklist | task"),
+    user: dict = Depends(richiede_ruoli("admin", "chef", "sous_chef", cosa="registro attività")),
+):
+    try:
+        d_a = date.fromisoformat(data_a) if data_a else date.today()
+        d_da = date.fromisoformat(data_da) if data_da else d_a - timedelta(days=6)
+    except ValueError:
+        raise HTTPException(400, "Date non valide (formato YYYY-MM-DD)")
+    if d_a < d_da:
+        raise HTTPException(400, "data_a precedente a data_da")
+    if (d_a - d_da).days + 1 > REGISTRO_MAX_GIORNI:
+        raise HTTPException(400, f"Periodo massimo {REGISTRO_MAX_GIORNI} giorni")
+    if tipo and tipo not in REGISTRO_TIPI:
+        raise HTTPException(400, f"tipo non valido. Valori: {list(REGISTRO_TIPI)}")
+    reparto_f = _normalize_reparto(reparto)
+    allowed = _allowed_livelli_for_role(user["role"])
+    da_s, a_s = d_da.isoformat(), d_a.isoformat()
+
+    def _visibile(rep, livello) -> bool:
+        if reparto_f and rep != reparto_f:
+            return False
+        if allowed is not None and rep == "cucina" and livello not in allowed:
+            return False
+        return True
+
+    eventi = []
+    conn = get_tasks_conn()
+    try:
+        # 1) Voci di checklist spuntate
+        if tipo in (None, "voce"):
+            rows = conn.execute("""
+                SELECT e.id, e.instance_id, e.stato, e.valore_numerico, e.valore_testo,
+                       e.completato_at, e.completato_da, e.note,
+                       it.titolo AS item_titolo, it.tipo AS item_tipo, it.gruppo,
+                       it.min_valore, it.max_valore, it.unita_misura,
+                       i.data_riferimento, i.turno,
+                       t.nome AS checklist,
+                       COALESCE(i.reparto, t.reparto) AS rep,
+                       COALESCE(i.livello_cucina, t.livello_cucina) AS livello
+                  FROM checklist_execution e
+                  JOIN checklist_instance i ON i.id = e.instance_id
+                  JOIN checklist_template t ON t.id = i.template_id
+                  LEFT JOIN checklist_item it ON it.id = e.item_id
+                 WHERE e.completato_at IS NOT NULL
+                   AND e.stato != 'PENDING'
+                   AND date(e.completato_at) BETWEEN ? AND ?
+            """, (da_s, a_s)).fetchall()
+            for r in rows:
+                rep = _normalize_reparto(r["rep"])
+                if not _visibile(rep, r["livello"]):
+                    continue
+                v = r["valore_numerico"]
+                fuori = (
+                    v is not None and (
+                        (r["min_valore"] is not None and v < r["min_valore"])
+                        or (r["max_valore"] is not None and v > r["max_valore"])
+                    )
+                )
+                eventi.append({
+                    "tipo": "voce",
+                    "id": r["id"],
+                    "quando": r["completato_at"],
+                    "chi": r["completato_da"],
+                    "cosa": r["item_titolo"] or "(voce eliminata dal template)",
+                    "gruppo": r["gruppo"],
+                    "checklist": r["checklist"],
+                    "instance_id": r["instance_id"],
+                    "data_riferimento": r["data_riferimento"],
+                    "turno": r["turno"],
+                    "reparto": rep,
+                    "esito": r["stato"],
+                    "valore_numerico": v,
+                    "valore_testo": r["valore_testo"],
+                    "unita": r["unita_misura"],
+                    "fuori_soglia": bool(fuori),
+                    "note": r["note"],
+                })
+
+        # 2) Checklist chiuse (completate o saltate)
+        if tipo in (None, "checklist"):
+            rows = conn.execute("""
+                SELECT i.id, i.stato, i.completato_at, i.completato_da, i.score_compliance,
+                       i.note, i.data_riferimento, i.turno, i.assegnato_user,
+                       t.nome AS checklist,
+                       COALESCE(i.reparto, t.reparto) AS rep,
+                       COALESCE(i.livello_cucina, t.livello_cucina) AS livello
+                  FROM checklist_instance i
+                  JOIN checklist_template t ON t.id = i.template_id
+                 WHERE i.stato IN ('COMPLETATA', 'SALTATA')
+                   AND i.completato_at IS NOT NULL
+                   AND date(i.completato_at) BETWEEN ? AND ?
+            """, (da_s, a_s)).fetchall()
+            for r in rows:
+                rep = _normalize_reparto(r["rep"])
+                if not _visibile(rep, r["livello"]):
+                    continue
+                eventi.append({
+                    "tipo": "checklist",
+                    "id": r["id"],
+                    "quando": r["completato_at"],
+                    "chi": r["completato_da"],
+                    "cosa": r["checklist"],
+                    "checklist": r["checklist"],
+                    "instance_id": r["id"],
+                    "data_riferimento": r["data_riferimento"],
+                    "turno": r["turno"],
+                    "reparto": rep,
+                    "esito": r["stato"],
+                    "score": r["score_compliance"],
+                    "assegnato_a": r["assegnato_user"],
+                    "note": r["note"],
+                })
+
+        # 3) Task singoli completati
+        if tipo in (None, "task"):
+            rows = conn.execute("""
+                SELECT id, titolo, completato_at, completato_da, note_completamento,
+                       data_scadenza, assegnato_user, reparto, livello_cucina
+                  FROM task_singolo
+                 WHERE stato = 'COMPLETATO'
+                   AND completato_at IS NOT NULL
+                   AND date(completato_at) BETWEEN ? AND ?
+            """, (da_s, a_s)).fetchall()
+            for r in rows:
+                rep = _normalize_reparto(r["reparto"])
+                if not _visibile(rep, r["livello_cucina"]):
+                    continue
+                eventi.append({
+                    "tipo": "task",
+                    "id": r["id"],
+                    "quando": r["completato_at"],
+                    "chi": r["completato_da"],
+                    "cosa": r["titolo"],
+                    "data_riferimento": r["data_scadenza"],
+                    "reparto": rep,
+                    "esito": "COMPLETATO",
+                    "assegnato_a": r["assegnato_user"],
+                    "note": r["note_completamento"],
+                })
+    finally:
+        conn.close()
+
+    # Elenco persone del periodo (per il filtro), calcolato prima del filtro utente
+    utenti = sorted({e["chi"] for e in eventi if e.get("chi")})
+    if utente:
+        eventi = [e for e in eventi if e.get("chi") == utente]
+
+    eventi.sort(key=lambda e: e["quando"] or "", reverse=True)
+
+    # Riepilogo per persona
+    per = {}
+    for e in eventi:
+        k = e.get("chi") or "—"
+        p = per.setdefault(k, {"utente": k, "voci": 0, "checklist": 0, "task": 0,
+                               "fail": 0, "primo": None, "ultimo": None})
+        if e["tipo"] == "voce":
+            p["voci"] += 1
+            if e["esito"] == "FAIL" or e.get("fuori_soglia"):
+                p["fail"] += 1
+        elif e["tipo"] == "checklist":
+            p["checklist"] += 1
+        else:
+            p["task"] += 1
+        q = e["quando"]
+        if q and (p["primo"] is None or q < p["primo"]):
+            p["primo"] = q
+        if q and (p["ultimo"] is None or q > p["ultimo"]):
+            p["ultimo"] = q
+    per_utente = sorted(per.values(), key=lambda p: -(p["voci"] + p["checklist"] + p["task"]))
+
+    return {
+        "data_da": da_s,
+        "data_a": a_s,
+        "totale": len(eventi),
+        "utenti": utenti,
+        "per_utente": per_utente,
+        "eventi": eventi,
+    }

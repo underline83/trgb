@@ -198,6 +198,31 @@ def authenticate_user(username: str, password: str):
     }
 
 # ---------------------------------------------------------------------------
+# RI-VERIFICA PIN (blocco PIN di sezione, 2026-10-18)
+# ---------------------------------------------------------------------------
+def verifica_pin(username: str, pin: str) -> None:
+    """Ricontrolla il PIN dell'utente GIA' loggato (es. per entrare in Dipendenti
+    da un iPad lasciato aperto). Stessi contatori di blocco del login: chi prova
+    PIN a caso qui finisce bloccato anche al login.
+
+    PIN errato -> 403 (NON 401: il frontend su 401 butta fuori l'utente).
+    """
+    remaining = _lockout_remaining(username)
+    if remaining > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Troppi tentativi falliti. Riprova tra {remaining} secondi.",
+            headers={"Retry-After": str(remaining)},
+        )
+    user = USERS.get(username)
+    if not user or not security.verify_password(pin or "", user["password_hash"]):
+        if user:
+            _register_login_fail(username)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="PIN errato")
+    _register_login_success(username)
+
+
+# ---------------------------------------------------------------------------
 # DECODE TOKEN
 # ---------------------------------------------------------------------------
 def decode_access_token(token: str):

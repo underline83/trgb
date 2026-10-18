@@ -1,7 +1,7 @@
 from typing import List
 from datetime import timedelta
 from fastapi import APIRouter, Depends
-from app.schemas.user_schema import LoginRequest, TokenResponse, UserTile
+from app.schemas.user_schema import LoginRequest, TokenResponse, UserTile, VerificaPinRequest
 from app.services import auth_service
 from app.core import security, config
 
@@ -40,3 +40,13 @@ def refresh_token(current_user: dict = Depends(auth_service.get_current_user)):
         "role": role,
         "display_name": user.get("display_name", username.capitalize()),
     }
+
+
+@router.post("/verifica-pin", summary="Ricontrolla il PIN dell'utente loggato (blocco di sezione)")
+def verifica_pin(data: VerificaPinRequest, current_user: dict = Depends(auth_service.get_current_user)):
+    """Usato dal blocco PIN di sezione (SezionePinGate): chi entra in Dipendenti
+    deve ridigitare il PIN dell'utente con cui il dispositivo e' loggato.
+    Qualsiasi ruolo autenticato: verifica solo il PROPRIO PIN.
+    200 {ok: true} · 403 PIN errato · 429 troppi tentativi (stesso blocco del login)."""
+    auth_service.verifica_pin(current_user["username"], data.pin)
+    return {"ok": True}

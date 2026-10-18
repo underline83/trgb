@@ -368,6 +368,8 @@ UI: sezione documenti nella scheda del dipendente in Anagrafica.
 | C-D-308 | Import delle candidature del second brain | `scripts/importa_candidati_sb.py` | admin (a mano) | 🆕 2026-10-16 |
 | C-D-310 | «📄 Le mie buste paga»: il dipendente collegato al proprio utente vede l'archivio delle SUE buste (per anno, netto) e scarica il PDF; al primo download la busta si segna letta (`letta_il`, `letta_da`, mig 198) | `dipendenti.py` `GET /dipendenti/mie-buste-paga/`, `GET /mie-buste-paga/{id}/pdf` · `MieBustePaga.jsx` | tutti i ruoli (solo i propri dati) | 🆕 2026-10-18 |
 | C-D-311 | Chip «✓ letta / non letta» per cedolino in Buste Paga, con data e ora del primo download del dipendente; i download dell'admin non contano | `DipendentiBustePaga.jsx` | admin | 🆕 2026-10-18 |
+| C-D-312 | Blocco PIN della sezione: entrando in `/dipendenti/*` o `/mie-buste-paga` si ridigita il PIN dell'utente loggato (iPad lasciato aperto); si richiude uscendo, ricaricando o dopo `pin_sezione_minuti` di inattività (mig 199) | `components/SezionePinGate.jsx` (attorno alle Routes in `App.jsx`), `components/PinPad.jsx`, `auth_router.py` `POST /auth/verifica-pin` | tutti i ruoli che entrano nella sezione | 🆕 2026-10-18 |
+| C-D-313 | Impostazioni › 🔒 Blocco PIN: minuti di inattività prima che la sezione si richiuda (0 = solo uscendo) | `DipendentiImpostazioni.jsx` `PinSezioneSection` · `PUT /dipendenti/settings/pin_sezione_minuti` | admin | 🆕 2026-10-18 |
 | C-D-309 | Strumenti MCP scadenze documenti: `scadenze_dipendenti_elenco`, `scadenza_dipendente_crea`, `scadenza_dipendente_aggiorna` (§5.5) | `app/connettore/server.py` `_strumenti_scadenze_dipendenti` | admin (Q / claude.ai) | 🆕 2026-10-16 |
 
 ---
