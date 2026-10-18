@@ -97,6 +97,8 @@ Le prenotazioni TheFork arrivano anche in iPratico (`/reservations`, 231 da giug
 
 ## 5. Cosa ci può fare TRGB
 
+> In roadmap come sezione **IP** (IP.1-IP.10), con effort e priorità proposte.
+
 1. **Scheda cliente → «cosa ha mangiato e speso»** (la richiesta di partenza). Import notturno dei conti del giorno, abbinamento con la prenotazione, storico nella scheda: piatti, vini, spesa, durata, portate. Si recuperano anche i due anni passati (da settembre 2024). Apre la strada a: spesa media e totale del cliente (la M di RFM che oggi manca, CL.10), «ultima volta ha preso…», vini preferiti, i piatti che riordina.
 2. **Statistiche senza import a mano.** Oggi si carica un `.xls` mensile aggregato. Con l'API: vendite per giorno, turno, ora, tavolo, cameriere e portata. Si sblocca anche ST.2 (giorno della settimana sui prodotti, oggi impossibile).
 3. **Chiusura turno precompilata.** Z, coperti, incasso, IVA e categorie arrivano da `/statistics/closures`. Da valutare col refactor corrispettivi K.12.

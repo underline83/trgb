@@ -1,4 +1,4 @@
-// @version: v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
+// @version: v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -277,6 +277,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
     { key: "preferenze", label: "Preferenze" },
     { key: "note", label: `Note (${cliente.note?.length || 0})` },
     { key: "prenotazioni", label: `Prenotazioni (${stats.totale || 0})` },
+    { key: "consumi", label: "Cosa ha mangiato" },
     { key: "preventivi", label: "Preventivi" },
     { key: "recensioni", label: "Recensioni" },
   ];
@@ -754,6 +755,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
               )}
 
               {/* PREVENTIVI */}
+              {tab === "consumi" && <ConsumiTab clienteId={cliente.id} />}
               {tab === "recensioni" && <RecensioniTab clienteId={cliente.id} />}
               {tab === "preventivi" && (
                 <PreventiviTab clienteId={cliente.id} navigate={navigate} />
@@ -777,6 +779,105 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
 
 
 // ── Tab Recensioni TheFork dentro scheda cliente (mig 197) ──
+// ── Tab «Cosa ha mangiato»: conti di cassa abbinati al cliente (2026-10-18) ──
+// Dati: GET /clienti/{id}/consumi (servizio platform abbinamento_conti_service).
+const _euro = (n) => (n == null ? "—" : n.toLocaleString("it-IT", { style: "currency", currency: "EUR" }));
+const _data = (d) => (d ? new Date(d + "T12:00:00").toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "—");
+
+function ConsumiTab({ clienteId }) {
+  const [d, setD] = useState(null);
+  const [aperto, setAperto] = useState(null);
+  useEffect(() => {
+    apiFetch(`${API_BASE}/clienti/${clienteId}/consumi`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setD)
+      .catch(() => setD({ visite: 0, conti: [] }));
+  }, [clienteId]);
+  if (d === null) return <div className="text-sm text-neutral-400 py-4">Caricamento…</div>;
+  if (!d.visite) {
+    return (
+      <div className="text-sm text-neutral-400 py-4">
+        Nessun conto di cassa collegato a questo cliente. I conti si collegano alla Chiusura turno
+        (card «🧾 Conti del servizio») o da Vendite › Impostazioni › iPratico Cloud.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          ["Visite con conto", d.visite],
+          ["Spesa totale", _euro(d.spesa_totale)],
+          ["Media a visita", _euro(d.spesa_media_visita)],
+          ["Media a coperto", _euro(d.spesa_media_coperto)],
+        ].map(([l, v]) => (
+          <div key={l} className="rounded-xl border border-neutral-200 bg-white p-3">
+            <div className="text-[11px] uppercase text-neutral-400 font-semibold">{l}</div>
+            <div className="text-lg font-bold text-neutral-800">{v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="text-xs text-neutral-500">Dal {_data(d.prima)} al {_data(d.ultima)}</div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">🍽️ Piatti che prende</div>
+          <ul className="text-sm space-y-0.5">
+            {d.piatti_preferiti.map((p) => (
+              <li key={p.nome} className="flex gap-2">
+                <span className="flex-1">{p.nome}<span className="text-neutral-400"> · {p.categoria || "—"}</span></span>
+                <span className="text-neutral-600">{p.volte}×</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">🍷 Da bere</div>
+          <ul className="text-sm space-y-0.5">
+            {d.da_bere.map((p) => (
+              <li key={p.nome} className="flex gap-2">
+                <span className="flex-1">{p.nome}<span className="text-neutral-400"> · {p.volte}×</span></span>
+                <span className="text-neutral-600">{_euro(p.spesa)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Visite</div>
+        <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-xl bg-white">
+          {d.conti.map((c) => (
+            <div key={c.id}>
+              <button type="button" onClick={() => setAperto(aperto === c.id ? null : c.id)}
+                className="w-full text-left px-3 py-2.5 min-h-[44px] flex flex-wrap items-center gap-x-4 gap-y-1 hover:bg-neutral-50">
+                <span className="w-28 font-medium">{_data(c.data_rif)}</span>
+                <span className="w-16 text-neutral-500">{c.turno || ""}</span>
+                <span className="w-24">{c.tavolo || "—"}</span>
+                <span className="w-16 text-neutral-600">{c.coperti ? `${c.coperti} cop.` : ""}</span>
+                <span className="w-20 font-semibold">{_euro(c.totale)}</span>
+                {c.abbinamento === "proposto" && <span className="text-xs text-amber-700">da confermare</span>}
+              </button>
+              {aperto === c.id && (
+                <ul className="px-3 pb-3 pl-8 text-sm text-neutral-700 space-y-0.5">
+                  {c.righe.map((r, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="w-10 text-right">{r.quantita}×</span>
+                      <span className="flex-1">{r.nome}</span>
+                      <span className="w-20 text-right text-neutral-500">{_euro(r.totale)}</span>
+                    </li>
+                  ))}
+                  {c.romana ? <li className="text-neutral-400 text-xs">pagato alla romana</li> : null}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecensioniTab({ clienteId }) {
   const [lista, setLista] = useState(null);
   const role = localStorage.getItem("role");

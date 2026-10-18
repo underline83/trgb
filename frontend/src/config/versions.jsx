@@ -408,6 +408,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.6 (2026-10-18): tab «Cosa ha mangiato» nella scheda (conti di cassa iPratico abbinati:
+    //   visite, spesa media, piatti che prende, da bere); il merge sposta anche i conti.
     // 3.5 (2026-10-17): tab Recensioni TheFork nella scheda; il merge sposta anche le recensioni.
     // 3.4 (2026-10-16): ricerca clienti per parole (nome + cognome insieme).
     // 3.3 (2026-10-16): lista Preventivi — filtri visibili anche su iPad/telefono,
@@ -423,7 +425,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.5",
+    version: "3.6",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

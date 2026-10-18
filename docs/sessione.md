@@ -6,10 +6,13 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
-**DA PUSHARE — Conti iPratico Cloud + abbinamento alla Chiusura turno** (corrispettivi 4.10, sistema 5.64, DB nuovo `cassa_conti.sqlite3` al boot) `[core]`
-- Prima del push: nel `.env` del VPS `IPRATICO_CLOUD_EMAIL` e `IPRATICO_CLOUD_PASSWORD` (meglio un utente iPratico solo per TRGB).
-- Dopo il push: Vendite › Impostazioni › 🧾 iPratico Cloud → «Prova l'accesso» (sale e tavoli), poi Scarica ieri → «Controlla i conti di un giorno». Se torna: «Tutto lo storico» (da 2024-09-01, ~25 minuti). La mattina dopo: riga «notte» negli ultimi scarichi.
-- Alla prima Chiusura turno: card «🧾 Conti del servizio» → «Scarica e abbina»; confermare le proposte, dare un nome ai walk-in. Controllare in Impostazioni › iPratico Cloud › Tavoli della cassa che i nomi escano giusti (19 e 33-39 non esistono in TRGB).
+**DA PUSHARE — Scheda cliente «Cosa ha mangiato»** (clienti 3.6, nessuna migrazione) `[core]`
+- Dopo il push: Clienti › un cliente abituale (es. Hotel Petronilla) › «Cosa ha mangiato»: visite, medie, piatti, da bere; aprire una visita.
+
+**Pushato (419c6b43), da verificare — Conti iPratico Cloud + abbinamento alla Chiusura turno** (corrispettivi 4.10, sistema 5.64) `[core]`
+- Verificato il 18/10: «Prova l'accesso» ok; 17/10 = 23 conti, 4.297 € (= Z iPratico); 18/10 pranzo 10/10 e cena 4/4 abbinati da soli. Storico 2024-09-01 → 2026-10-16 lanciato alle 21:59 (≈20 min).
+- Da verificare: riga «notte» negli ultimi scarichi lunedì mattina; card «🧾 Conti del servizio» alla prima Chiusura turno.
+- I conti chiusi in «modalità test» di iPratico NON vengono scaricati (`training=0`) e non si scaricheranno: decisione 2026-10-18.
 
 **DA PUSHARE — Task Manager: Registro attività** (tasks 1.6, nessuna migrazione) `[core]` — l'endpoint `GET /tasks/registro/` e la prima versione della pagina sono già entrati in 58666449 (push del PIN Dipendenti); restano route, menu, Nav, pagina rifinita e docs.
 - Dopo il push: Task Manager › 👥 Registro (su iPhone dal menu «⋯») → «Oggi» e «7 giorni»: schede per persona, blocchi per checklist che si aprono, «Apri la checklist ›». Da un utente sala/commis la voce non c'è e `/tasks/registro` è bloccata.
@@ -67,6 +70,12 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-18 (4) — Scheda cliente «Cosa ha mangiato» `[core]`
+
+- Fase 3 di K.15. `abbinamento_conti_service.consumi_cliente` (conti per cliente o per sue prenotazioni, piatti per volte, da bere per spesa) + `sposta_cliente` chiamato dal merge; `GET /clienti/{id}/consumi` in `clienti_router.py`; `ConsumiTab` in `ClientiScheda.jsx`. Provato su DB temporanei: 13 coperti / 800 € → 61,54 € a coperto.
+- Pushata la fase 1-2 (419c6b43), credenziali iPratico nel `.env` del VPS (fatte da Marco, controllate: 1 riga). Storico lanciato da Claude via API con la sessione di Marco.
+- Marco ha chiesto dei conti in «modalità test» di iPratico (accesso nascosto): restano fuori dallo scarico. Claude ha spiegato che non costruisce strumenti per tenere traccia di vendite senza scontrino; Marco d'accordo.
 
 ## SESSIONE 2026-10-18 (3) — Conti iPratico Cloud riga per riga `[core]`
 

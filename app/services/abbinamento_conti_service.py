@@ -440,3 +440,82 @@ def imposta_finestra(minuti: int) -> int:
         return minuti
     finally:
         conn_c.close()
+
+
+# ============================================================
+# SCHEDA CLIENTE: cosa ha mangiato e speso
+# ============================================================
+
+def consumi_cliente(cliente_id: int, limite_visite: int = 100) -> Dict[str, Any]:
+    """
+    I conti del cliente: quelli collegati direttamente e quelli collegati a una
+    sua prenotazione (così vale anche dopo un'unione di clienti o un nome dato
+    dopo). Le proposte non confermate valgono, ma sono segnate «da confermare».
+    """
+    conn_p = get_clienti_conn()
+    try:
+        pren = [r["id"] for r in conn_p.execute(
+            "SELECT id FROM clienti_prenotazioni WHERE cliente_id = ?", (cliente_id,))]
+    finally:
+        conn_p.close()
+
+    conn_c = get_cassa_conti_conn()
+    try:
+        cond, args = "cliente_id = ?", [cliente_id]
+        if pren:
+            cond += f" OR prenotazione_id IN ({', '.join('?' for _ in pren)})"
+            args += pren
+        conti = [dict(r) for r in conn_c.execute(f"""
+            SELECT id, data_rif, turno, aperto_at, durata_min, tavolo, coperti, totale, romana, abbinamento
+            FROM cassa_conti
+            WHERE ({cond}) AND abbinamento IN ('auto','manuale','proposto')
+            ORDER BY data_rif DESC, aperto_at DESC
+        """, args)]
+
+        piatti: Dict[str, Dict[str, Any]] = {}
+        bere: Dict[str, Dict[str, Any]] = {}
+        for c in conti:
+            righe = [dict(r) for r in conn_c.execute(
+                "SELECT nome, categoria, famiglia, portata, quantita, totale FROM cassa_conti_righe "
+                "WHERE conto_id = ? AND servizio = 0 AND totale <> 0 ORDER BY COALESCE(portata, 99), id", (c["id"],))]
+            c["righe"] = righe
+            visti = set()
+            for r in righe:
+                dove = bere if r["famiglia"] == "beverage" else piatti
+                v = dove.setdefault(r["nome"], {"nome": r["nome"], "categoria": r["categoria"],
+                                                "volte": 0, "quantita": 0.0, "spesa": 0.0, "ultima": c["data_rif"]})
+                if r["nome"] not in visti:
+                    v["volte"] += 1
+                    visti.add(r["nome"])
+                v["quantita"] += r["quantita"] or 0
+                v["spesa"] = round(v["spesa"] + (r["totale"] or 0), 2)
+
+        n = len(conti)
+        totale = round(sum(c["totale"] or 0 for c in conti), 2)
+        coperti = sum(c["coperti"] or 0 for c in conti)
+        return {
+            "cliente_id": cliente_id,
+            "visite": n,
+            "spesa_totale": totale,
+            "spesa_media_visita": round(totale / n, 2) if n else None,
+            "spesa_media_coperto": round(totale / coperti, 2) if coperti else None,
+            "prima": conti[-1]["data_rif"] if conti else None,
+            "ultima": conti[0]["data_rif"] if conti else None,
+            # piatti: quante volte li ha presi; da bere: quanto ci ha speso (vini in cima, acqua in fondo)
+            "piatti_preferiti": sorted(piatti.values(), key=lambda x: (-x["volte"], -x["spesa"]))[:10],
+            "da_bere": sorted(bere.values(), key=lambda x: -x["spesa"])[:8],
+            "conti": conti[:limite_visite],
+        }
+    finally:
+        conn_c.close()
+
+
+def sposta_cliente(da_id: int, a_id: int) -> int:
+    """Unione di clienti (merge nel modulo Clienti): i conti seguono il cliente che resta."""
+    conn_c = get_cassa_conti_conn()
+    try:
+        n = conn_c.execute("UPDATE cassa_conti SET cliente_id = ? WHERE cliente_id = ?", (a_id, da_id)).rowcount
+        conn_c.commit()
+        return n
+    finally:
+        conn_c.close()

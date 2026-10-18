@@ -89,7 +89,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.
 | V.4 | Note degustative cliente (AI-generate + edit + visibili in carta cliente) | M | BASSA | Marco S58. Campo `NOTE_DEGUSTAZIONE`. Declassato 2026-05-12 |
 | V.O | Ordini ai fornitori (O1–O7) | L | ✅ FATTO 2026-08-02 → 09-27 | pagina /vini/ordini, invio WhatsApp, mig 158–160 (vini 3.75–3.78); riga alla pari della dashboard (3.91). Vedi `modulo_vini_ordini.md` |
 | V.9 | Inventario rapido da iPad (mobile-first +/- giacenza) | M | **🟡 FASE 1 FATTA 2026-08-03** | Fase 1 «trova la bottiglia» (CantinaMobile.jsx, /vini/cantina-mobile, vini 3.80): ricerca + filtro per categoria (scaffali/frigo/matrice) + vista per scaffale + scheda mobile, **solo lettura**. Restano fase 2 (+/− giacenze da mobile — tocca i movimenti, con cura) e fase 3 (conta inventario). **Aggiornamento 2026-08-22 → 09-10:** fase 2 fatta — movimentazione dalla scheda (vini 3.86), filtro scaffali (3.85), matrice in ordine colonna/riga (3.88), invariante celle matrice (3.89, mig 176), tasto in Home (mig 175). Resta la fase 3. UI touch. |
-| V.10 | Carichi automatici da Fatture XML | M | BASSA | Match iPratico → CARICO automatico |
+| V.10 | Carichi automatici da Fatture XML | M | BASSA | Match iPratico → CARICO automatico. Lato vendite: IP.2 |
 | V.11 | PDF carta con TOC cliccabile | S | BASSA | Motore `carta_vini_service.py` esistente |
 | V.12 | Import Excel diff interattivo | M | BASSA | Richiede M.H. Probabilmente superato da V.20 quando arriva. |
 | V.13 | Inventario fisico mobile con QR/barcode | L | IN CORSO | ✅ parte 1 etichette QR → scheda mobile (2026-10-06, `EtichetteVini.jsx`). ✅ scansione in Vendite (2026-10-06, `QrScanner.jsx`). Resta: conta a tappeto da scansione |
@@ -223,7 +223,7 @@ un ruolo al widget — **il Monitor è dove si decide, la pagina è dove si ordi
 | K.12 | **Unificare import Excel → `shift_closures` (dismettere `daily_closures`)** | L | 🔴 ALTA — deciso Marco 2026-05-21 | Doppia tabella che si incrocia male. Vedi dettaglio §K.12 |
 | K.14 | Omaggi nell'imponibile IVA + annulli nel PDF commercialista | S | ✅ FATTO 2026-09-03 (`ada50c12`) | mig 170, corrispettivi 4.9 |
 | K.13 | **Import XML corrispettivi telematici dal portale AdE come fonte aggiuntiva** | M | MEDIA — deciso Marco 2026-05-21 | Parser dei file XML 7.0 scaricati da "Fatture e Corrispettivi". Vedi dettaglio §K.13 |
-| K.15 | **Conti iPratico Cloud riga per riga** (tavolo, coperti, orari, righe) — base per «cosa ha mangiato e speso il cliente» | M | 🟡 FASI 1-2 FATTE 2026-10-18 (da pushare) | Scarico notturno + storico da 09/2024, DB `cassa_conti.sqlite3`; abbinamento conto ↔ prenotazione alla Chiusura turno (idea di Marco) + da Impostazioni. Fase 3: scheda cliente «Cosa ha mangiato». Vedi `analisi_ipratico_cloud.md` |
+| K.15 | **Conti iPratico Cloud riga per riga** (tavolo, coperti, orari, righe) — base per «cosa ha mangiato e speso il cliente» | M | ✅ FASI 1-3 FATTE 2026-10-18 (1-2 pushate 419c6b43, 3 da pushare) | Scarico notturno + storico da 09/2024, DB `cassa_conti.sqlite3`; abbinamento conto ↔ prenotazione alla Chiusura turno (idea di Marco) + da Impostazioni. Fase 3: scheda cliente «Cosa ha mangiato» (clienti 3.6). Vedi `analisi_ipratico_cloud.md` |
 
 ### K.12 — Unificazione corrispettivi: una tabella sola 🔴 ALTA (deciso 2026-05-21)
 
@@ -257,6 +257,24 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 - NON va riprodotto il tracciato XML in uscita (è un formato di trasmissione macchina-a-macchina) — qui si parla solo di **leggerlo in ingresso**.
 
 ---
+
+## IP — iPRATICO CLOUD (dati dalla cassa, riga per riga)
+
+> Nate dall'analisi del 2026-10-18 (`analisi_ipratico_cloud.md` §5). La base c'è già: K.15 (conti per tavolo con le righe, scarico notturno, storico da 09/2024, abbinamento ai clienti). Fonte: API interna del back office iPratico, non ufficiale — se cambia, queste funzioni si fermano finché non si adegua lo scarico. I conti in «modalità test» restano fuori (decisione 2026-10-18).
+> **Priorità = proposta di Claude, da decidere con Marco.**
+
+| # | Cosa | Effort | Priorità (proposta) | Note |
+|---|---|---|---|---|
+| IP.1 | **Statistiche dai conti, senza import `.xls`** — vendite per giorno, turno, fascia oraria, tavolo, cameriere, portata | M | ALTA | Sostituisce l'import mensile aggregato di Statistiche. Sblocca ST.2 sui singoli prodotti e ST.3 YoY (lo storico parte da 09/2024). Modulo `statistiche` (aggregatore read-only) |
+| IP.2 | **Scarico cantina dai vini venduti** — bottiglie e calici battuti in cassa → movimento di scarico automatico | M | ALTA | È V.10 dal lato vendite. Serve la corrispondenza prodotto iPratico ↔ vino TRGB (lo SKU vini iPratico esiste già). Prima in modalità «proposta da confermare», poi automatico |
+| IP.3 | **Food cost reale per conto e per piatto** — prodotto iPratico ↔ ricetta TRGB | M | MEDIA | Margine per piatto venduto, per servizio, per cliente. Tabella di corrispondenza come per i tavoli |
+| IP.4 | **Chiusura turno precompilata** — coperti, incasso, IVA, categorie dalla chiusura Z (`/statistics/closures`) | M | MEDIA | Da fare insieme a K.12 (una tabella sola dei corrispettivi). Contanti/POS restano da inserire a mano (in cassa risultano quasi tutti «carta») |
+| IP.5 | **Controllo cassa con M.F** — righe tolte, tavoli svuotati, cassetto aperto senza vendita, ristampe (`/business-member-operations`) | S | MEDIA | 236 righe tolte e 35 tavoli svuotati in 6 settimane (set-ott 2026): avviso settimanale, non allarme per ogni riga. Soglie configurabili |
+| IP.6 | **Sala in tempo reale** — mappa serale con tavoli aperti in cassa, coperti seduti, portata in corso, minuti dall'ultimo invio; stato prenotazione SEATED/BILL automatico | L | MEDIA | `/statistics/orders` + `/tables`, lettura ogni 1-2 minuti solo durante il servizio |
+| IP.7 | **Ritmo della cucina** — tempi tra antipasto, primo, secondo, dolce per servizio, giorno, coperti | S | BASSA | Dai campi `portata` e `inviata_at` già salvati in `cassa_conti_righe`: niente scarico nuovo |
+| IP.8 | **Allergeni** — confronto allergeni dei prodotti iPratico ↔ carta TRGB, segnala le differenze | S | BASSA | `/products` → `allergenIds` |
+| IP.9 | **Segmentazione clienti per valore** — la «M» di RFM dalla spesa reale | S | MEDIA | È CL.10: i dati ci sono (`/clienti/{id}/consumi`). Segmenti in Impostazioni Clienti |
+| IP.10 | **Abbinamento: richiesta del cliente in cassa** — se il cameriere associa il cliente al conto in iPratico, usarlo come abbinamento sicuro | XS | BASSA | Oggi succede quasi solo per le fatture (`cliente_cassa_id`) |
 
 ## B — BANCA (flussi + riconciliazione)
 
@@ -637,7 +655,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.7 | Note rapide inline da lista clienti | S | MEDIA | Popup |
 | CL.8 | Preview merge side-by-side | M | MEDIA | UX upgrade |
 | CL.9 | Audit log modifiche CRM | S | MEDIA | Tabella nuova |
-| CL.10 | Segmentazione RFM automatica | M | MEDIA | Da storico |
+| CL.10 | Segmentazione RFM automatica | M | MEDIA | Da storico. La M (spesa) ora c'è: `/clienti/{id}/consumi` (K.15, 2026-10-18) |
 | CL.11 | Timeline cliente unificata (prenotazioni + note + email + no-show) | S | MEDIA | Marco: tienilo, da rivedere |
 | CL.12 | Import clienti da TheFork (M.H) | S | MEDIA | M.H blocca |
 | CL.13 | Filtri combinati avanzati per campagne | M | BASSA | Dipende CL.1 |

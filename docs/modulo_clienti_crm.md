@@ -109,6 +109,7 @@ Router unico con prefix `/clienti`, tag "Clienti". **Tutti gli endpoint richiedo
 | Metodo | Path | Cosa fa | Riga |
 |---|---|---|---|
 | GET | `/clienti/` | Lista con filtri: `q` (full-text su 10 campi: nome, cognome, nome2, cognome2, email, telefono, note_thefork, allergie, pref_cibo, pref_bevande), `vip`, `tag_id`, `rank`, `segmento`, `attivo`, `compleanno_entro_giorni`, `con_email`, `con_telefono`, `ordine` (9 ordinamenti), paginazione `limit`/`offset`. Ogni riga esce con `tags`, `n_prenotazioni`, `ultima_visita`, `prima_visita`, `visite_periodo` e `segmento` calcolato | :1824 |
+| GET | `/clienti/{cliente_id}/consumi` | 🆕 2026-10-18 — Cosa ha mangiato e speso: conti di cassa iPratico collegati al cliente (direttamente o tramite le sue prenotazioni), visite, spesa totale/media a visita/a coperto, piatti più presi, da bere per spesa. Via servizio platform `abbinamento_conti_service.consumi_cliente` (dati nel modulo cassa, `modulo_vendite.md` §12) | `clienti_router.py:get_cliente_consumi` |
 | GET | `/clienti/{cliente_id}` | Dettaglio con tag, note, ultime 50 prenotazioni e `prenotazioni_stats` (totale, completate, no_show, cancellate, pax medio, prima/ultima visita) | :2028 |
 | POST | `/clienti/` | Crea cliente (default `origine='manuale'`) | :2099 |
 | PUT | `/clienti/{cliente_id}` | Modifica cliente; imposta **sempre `protetto=1`** (i dati editati a mano non vengono più sovrascritti dall'import) | :2139 |
@@ -216,7 +217,8 @@ File in `frontend/src/pages/clienti/`. Route in `frontend/src/App.jsx:458-475`. 
 ## 5.3 Scheda cliente (`ClientiScheda.jsx`)
 
 - **Sidebar** colorata per rank TheFork (Gold/Silver/Bronze/Caution, default teal) con dati principali, tag toggle, stats visite.
-- **Tab**: `anagrafica` | `preferenze` | `note` (conteggio) | `prenotazioni` (conteggio) | `preventivi` (`ClientiScheda.jsx:274-280`).
+- **Tab**: `anagrafica` | `preferenze` | `note` (conteggio) | `prenotazioni` (conteggio) | `consumi` «Cosa ha mangiato» (🆕 2026-10-18: visite con conto, medie, piatti, da bere, ogni conto apribile; i conti «proposti» non confermati sono segnati «da confermare») | `preventivi` | `recensioni` (`ClientiScheda.jsx`).
+- **Merge**: sposta anche i conti di cassa collegati (`abbinamento_conti_service.sposta_cliente`).
 - **Tab Preventivi**: fetch `GET /preventivi?cliente_id=` (router preventivi) + CTA "Nuovo preventivo" → `/clienti/preventivi/nuovo` (`ClientiScheda.jsx:782,807`).
 - **Merge manuale** dal pannello scheda: ricerca del duplicato, preview, opzione **"merge come coppia"** che salva nome/cognome del secondario come `nome2`/`cognome2` del principale (`ClientiScheda.jsx:92-247`).
 - Tipi nota: nota 📝, telefonata 📞, evento 🎉, reclamo ⚠️, preferenza 🍽️.
@@ -254,7 +256,7 @@ Le soglie vivono in `clienti_impostazioni` (`seg_abituale_min`, `seg_occasionale
 
 - **Lista clienti**: filtro `segmento` + badge colorato per riga (config UI in `ClientiLista.jsx:22-29`), conteggi per segmento in sidebar da `/clienti/segmenti/conteggi`.
 - **Mailchimp**: il segmento va nel merge field `SEGMENTO` e nel tag `segmento:<nome>` (§11).
-- **RFM**: Recency e Frequency sì; Monetary non disponibile (iPratico non esporta vendite per cliente; `importo_conto` TheFork è parziale). Segmentazione RFM automatica = CL.10 in roadmap, ⏳ da fare.
+- **RFM**: Recency e Frequency sì; Monetary ora disponibile dai conti di cassa abbinati (`/clienti/{id}/consumi`, dal 2026-10-18; storico iPratico da settembre 2024). Segmentazione RFM automatica = CL.10 in roadmap, ⏳ da fare.
 
 ---
 

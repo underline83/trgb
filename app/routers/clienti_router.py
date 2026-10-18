@@ -719,6 +719,13 @@ def merge_clienti(
         except Exception:
             pass
 
+        # 1b. Conti di cassa collegati (servizio platform: il DB è del modulo cassa)
+        try:
+            from app.services.abbinamento_conti_service import sposta_cliente
+            sposta_cliente(req.secondario_id, req.principale_id)
+        except Exception as e:  # noqa: BLE001 — l'unione dei clienti non deve fallire per questo
+            logging.getLogger("trgb.clienti").warning("merge: conti di cassa non spostati: %s", e)
+
         # 2. Sposta note
         conn.execute(
             "UPDATE clienti_note SET cliente_id = ? WHERE cliente_id = ?",
@@ -1922,6 +1929,22 @@ def lista_clienti(
         raise HTTPException(500, str(e))
     finally:
         conn.close()
+
+
+# ============================================================
+# ENDPOINT: COSA HA MANGIATO E SPESO (conti di cassa abbinati — 2026-10-18)
+# Dati dal modulo cassa via servizio platform abbinamento_conti_service (regola 4).
+# ============================================================
+@router.get("/{cliente_id}/consumi")
+def get_cliente_consumi(cliente_id: int):
+    from app.services.abbinamento_conti_service import consumi_cliente
+    try:
+        return consumi_cliente(cliente_id)
+    except Exception as e:  # noqa: BLE001 — DB cassa assente su un locale senza il modulo
+        logging.getLogger("trgb.clienti").warning("consumi cliente %s: %s", cliente_id, e)
+        return {"cliente_id": cliente_id, "visite": 0, "conti": [], "piatti_preferiti": [], "da_bere": [],
+                "spesa_totale": 0, "spesa_media_visita": None, "spesa_media_coperto": None,
+                "prima": None, "ultima": None}
 
 
 # ============================================================
