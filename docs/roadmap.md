@@ -223,6 +223,7 @@ un ruolo al widget — **il Monitor è dove si decide, la pagina è dove si ordi
 | K.12 | **Unificare import Excel → `shift_closures` (dismettere `daily_closures`)** | L | 🔴 ALTA — deciso Marco 2026-05-21 | Doppia tabella che si incrocia male. Vedi dettaglio §K.12 |
 | K.14 | Omaggi nell'imponibile IVA + annulli nel PDF commercialista | S | ✅ FATTO 2026-09-03 (`ada50c12`) | mig 170, corrispettivi 4.9 |
 | K.13 | **Import XML corrispettivi telematici dal portale AdE come fonte aggiuntiva** | M | MEDIA — deciso Marco 2026-05-21 | Parser dei file XML 7.0 scaricati da "Fatture e Corrispettivi". Vedi dettaglio §K.13 |
+| K.15 | **Conti iPratico Cloud riga per riga** (tavolo, coperti, orari, righe) — base per «cosa ha mangiato e speso il cliente» | M | 🟡 FASI 1-2 FATTE 2026-10-18 (da pushare) | Scarico notturno + storico da 09/2024, DB `cassa_conti.sqlite3`; abbinamento conto ↔ prenotazione alla Chiusura turno (idea di Marco) + da Impostazioni. Fase 3: scheda cliente «Cosa ha mangiato». Vedi `analisi_ipratico_cloud.md` |
 
 ### K.12 — Unificazione corrispettivi: una tabella sola 🔴 ALTA (deciso 2026-05-21)
 

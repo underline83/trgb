@@ -260,6 +260,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
+    // 4.10 (2026-10-18): Impostazioni › 🧾 iPratico Cloud — scarico notturno e storico dei
+    //   conti chiusi dalla cassa (tavolo, coperti, orari, righe), controllo per giorno.
+    //   Chiusura turno › 🧾 Conti del servizio: abbinamento conti ↔ prenotazioni/clienti.
+    //   DB cassa_conti.sqlite3, router /cassa/ipratico. Doc: docs/analisi_ipratico_cloud.md.
     // 4.9 (2026-09-03): OMAGGI nell'imponibile (mig 170). Campo `omaggi` in
     //   chiusura turno = voce "TOTALE GIORNO OMAGGI" della chiusura RT.
     //   Il corrispettivo fiscale diventa una derivata (preconto − annulli +
@@ -280,7 +284,7 @@ const MODULE_VERSIONS = {
     //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
     //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
     //   consumer (CalendarView shading). Nessuna migrazione DB.
-    version: "4.9",
+    version: "4.10",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
@@ -511,6 +515,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.64 (2026-10-18): DB nuovo cassa_conti.sqlite3 (schema al boot, nessuna migrazione
+    //   numerata) — conti chiusi da iPratico Cloud riga per riga, scarico notturno
+    //   (corrispettivi 4.10).
     // 5.63 (2026-10-18): mig 199 — dipendenti_settings.pin_sezione_minuti: blocco PIN
     //   della sezione Dipendenti (SezionePinGate + POST /auth/verifica-pin + PinPad
     //   condiviso con il login). dipendenti 2.38.
@@ -594,7 +601,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.63",
+    version: "5.64",
     label: "Sistema",
     status: "stabile",
     color: "green",

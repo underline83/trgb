@@ -76,6 +76,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [audit-2026-06-12/](audit-2026-06-12/00_EXECUTIVE_SUMMARY.md) — audit completo (sicurezza, dati, backend, frontend, infra, performance, prodotto) + piano azione + delta 2026-07-10.
 - 📄 [audit-2026-05-19/](audit-2026-05-19/05_EXECUTIVE_SUMMARY.md) — audit capability per modulo, gap report (~40 capability non documentate), manuale utente.
 - 📄 [analisi_app_apple.md](analisi_app_apple.md) — analisi per l'app mobile (Capacitor / App Store).
+- 📄 [analisi_ipratico_cloud.md](analisi_ipratico_cloud.md) — API interna del back office iPratico: conti per tavolo con righe, collegamento ai clienti, idee per TRGB (2026-10-18).
 
 ## 📦 Materiali & varie
 

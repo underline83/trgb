@@ -148,6 +148,9 @@ from app.routers.bevande_router import router as bevande_router
 # Doc: docs/modulo_pratiche.md
 from app.routers.pratiche_router import router as pratiche_router
 
+# CASSA — conti chiusi letti da iPratico Cloud (2026-10-18). Doc: docs/analisi_ipratico_cloud.md
+from app.routers.cassa_ipratico_router import router as cassa_ipratico_router
+
 # R8b — module loader: feature flags per locale.
 # Legge locali/<TRGB_LOCALE>/moduli_attivi.json + core/moduli/<id>/module.json
 # per decidere quali router montare. Default backward-compat: tutti attivi.
@@ -816,6 +819,13 @@ _mount("bevande_router", bevande_router)
 
 # PRATICHE (modulo pratiche) — schema creato all'import del router (init_pratiche_db)
 _mount("pratiche_router", pratiche_router)
+
+# CASSA (modulo cassa) — conti iPratico Cloud; schema al boot (init_cassa_conti_db)
+_mount("cassa_ipratico_router", cassa_ipratico_router)
+if module_loader.is_router_active("cassa_ipratico_router"):
+    # Scarico notturno dei conti (IPRATICO_CLOUD_ORA, default 05:30; IPRATICO_CLOUD_NOTTE=0 = spento)
+    from app.services.ipratico_cloud_service import avvia_scarico_notturno as _ipratico_notte
+    _ipratico_notte()
 
 
 # Banner finale del module loader

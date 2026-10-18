@@ -1,5 +1,5 @@
 // src/pages/admin/ChiusuraTurno.jsx
-// @version: v2.1-mattoni — M.I primitives (Btn) su CTA Salva chiusura (tocco minimo, file 976 righe)
+// @version: v2.2 — card «Conti del servizio» (abbinamento conti iPratico ↔ clienti, 2026-10-18) · v2.1-mattoni — M.I primitives (Btn) su CTA Salva chiusura (tocco minimo, file 976 righe)
 // Form fine turno pranzo/cena — per responsabili sala/sommelier
 // A cena i valori sono giornalieri (cumulativi pranzo+cena), i parziali vengono calcolati automaticamente
 
@@ -8,6 +8,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
 import { Btn } from "../../components/ui";
+import ContiServizio from "../../components/cassa/ContiServizio";
 
 const API = import.meta.env.VITE_API_BASE_URL;
 
@@ -950,6 +951,9 @@ export default function ChiusuraTurno() {
                 </div>
               </div>
             )}
+
+            {/* CONTI DEL SERVIZIO (iPratico ↔ prenotazioni) — facoltativo, non blocca il salvataggio */}
+            <ContiServizio data={date} turno={turno} />
 
             {/* NOTE */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">

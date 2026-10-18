@@ -1,9 +1,10 @@
-// @version: v5.0-mattoni — refactor con M.I UI primitives (Btn), bg brand-cream, focus ring
+// @version: v5.1 — sezione iPratico Cloud (2026-10-18) · v5.0-mattoni — refactor con M.I UI primitives (Btn), bg brand-cream, focus ring
 // Impostazioni Vendite — Layout sidebar uniformato a ClientiImpostazioni
 // Nota: NON usa PageLayout (sidebar full-height custom).
 import React, { useState } from "react";
 import VenditeNav from "./VenditeNav";
 import CalendarioChiusure from "./CalendarioChiusure";
+import IpraticoCloudSezione from "./IpraticoCloudSezione";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn } from "../../components/ui";
 
@@ -18,6 +19,7 @@ const MONTH_NAMES = [
 const MENU = [
   { key: "chiusure",     label: "Calendario Chiusure", icon: "📅", desc: "Chiusura settimanale e ferie" },
   { key: "importexport", label: "Import / Export",     icon: "📤", desc: "Excel corrispettivi, template, export" },
+  { key: "ipratico",     label: "iPratico Cloud",      icon: "🧾", desc: "Conti chiusi riga per riga dalla cassa" },
 ];
 
 // ---------------------------------------------------------------
@@ -251,6 +253,7 @@ export default function CorrispettiviImport() {
   const sectionRenderers = {
     chiusure: () => <SezioneChiusure />,
     importexport: () => <SezioneImportExport />,
+    ipratico: () => <IpraticoCloudSezione />,
   };
 
   return (

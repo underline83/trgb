@@ -6,6 +6,11 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
+**DA PUSHARE — Conti iPratico Cloud + abbinamento alla Chiusura turno** (corrispettivi 4.10, sistema 5.64, DB nuovo `cassa_conti.sqlite3` al boot) `[core]`
+- Prima del push: nel `.env` del VPS `IPRATICO_CLOUD_EMAIL` e `IPRATICO_CLOUD_PASSWORD` (meglio un utente iPratico solo per TRGB).
+- Dopo il push: Vendite › Impostazioni › 🧾 iPratico Cloud → «Prova l'accesso» (sale e tavoli), poi Scarica ieri → «Controlla i conti di un giorno». Se torna: «Tutto lo storico» (da 2024-09-01, ~25 minuti). La mattina dopo: riga «notte» negli ultimi scarichi.
+- Alla prima Chiusura turno: card «🧾 Conti del servizio» → «Scarica e abbina»; confermare le proposte, dare un nome ai walk-in. Controllare in Impostazioni › iPratico Cloud › Tavoli della cassa che i nomi escano giusti (19 e 33-39 non esistono in TRGB).
+
 **DA PUSHARE — Task Manager: Registro attività** (tasks 1.6, nessuna migrazione) `[core]` — l'endpoint `GET /tasks/registro/` e la prima versione della pagina sono già entrati in 58666449 (push del PIN Dipendenti); restano route, menu, Nav, pagina rifinita e docs.
 - Dopo il push: Task Manager › 👥 Registro (su iPhone dal menu «⋯») → «Oggi» e «7 giorni»: schede per persona, blocchi per checklist che si aprono, «Apri la checklist ›». Da un utente sala/commis la voce non c'è e `/tasks/registro` è bloccata.
 
@@ -62,6 +67,13 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-18 (3) — Conti iPratico Cloud riga per riga `[core]`
+
+- **Perché:** Marco vuole sapere cosa ha mangiato e speso ogni cliente («Marco, tavolo 10, ha mangiato X, Y, Z e ha speso N €»). L'export `.xls` di iPratico è aggregato. Analizzato insieme il back office `ipraticocloud.com`: le pagine leggono un'API interna con ogni conto chiuso, riga per riga → `analisi_ipratico_cloud.md`. Verificato: basta il token; il token cambia a ogni login → il server fa il login da solo (modulo semplice, niente captcha). Prova su 17/10: i conti si abbinano alle prenotazioni TRGB per tavolo, ora e coperti.
+- **Fatto (fase 1 di K.15):** `app/models/cassa_conti_db.py`, `app/services/ipratico_cloud_service.py`, `app/routers/cassa_ipratico_router.py` (montato in `main.py` + scarico notturno), `core/moduli/cassa/module.json`, `IpraticoCloudSezione.jsx` in Impostazioni Vendite. Provato in locale con dati finti (raggruppamento alla romana, orari UTC→Italia, idempotenza, errori nel log, login con server finto, router con TestClient). Non provato contro iPratico vero dal server: va fatto dopo il push con «Prova l'accesso».
+- **Fase 2 (idea di Marco: farla alla Chiusura turno, quando chi chiude ha il servizio in testa):** `app/services/abbinamento_conti_service.py` (platform, ponte cassa ↔ prenotazioni/clienti), endpoint servizio/abbina/da-sistemare/tavoli/finestra, `components/cassa/ContiServizio.jsx` nella Chiusura turno e in Impostazioni. Sala vede anche gli importi (decisione Marco). Provato sui dati veri del 17/10 (copia locale del DB clienti): 15/23 da soli, 4 proposte, 3 walk-in, 1 banco. Verificato dal vivo che iPratico ha i conti ~40 s dopo il pagamento, prima della Z.
+- **Prossimo:** fase 3 — scheda cliente «Cosa ha mangiato» (visite con piatti, vini, spesa; spesa media/totale, preferiti).
 
 ## SESSIONE 2026-10-18 (2) — Connettore MCP: incassi per Q `[core]`
 

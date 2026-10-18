@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-18 — Conti iPratico Cloud riga per riga + abbinamento ai clienti alla Chiusura turno `[core]`
+
+Corrispettivi 4.10, sistema 5.64, nessuna migrazione numerata (DB nuovo `cassa_conti.sqlite3` creato al boot). TRGB scarica dalla cassa iPratico i **conti chiusi**: tavolo, sala, coperti, ora di apertura e chiusura, totale, pagamenti e ogni riga (piatto, categoria, portata, prezzo, invio in cucina). I conti alla romana diventano un conto solo con tutti i piatti. Scarico ogni notte (default 05:30, ultimi 2 giorni) e storico a richiesta (iPratico lo ha da settembre 2024). Pagina **Impostazioni Vendite › 🧾 iPratico Cloud** (solo admin): stato, «Prova l'accesso», «Scarica» un periodo con avanzamento, ultimi scarichi, controllo dei conti di un giorno. Legge l'API interna del back office iPratico (non ufficiale): credenziali solo nel `.env`. **Abbinamento ai clienti alla Chiusura turno:** nuova card «🧾 Conti del servizio» (sala, sommelier, admin): scarica i conti del turno appena finito e li collega da sola alle prenotazioni per tavolo, ora e coperti (anche tavoli uniti e conti alla romana). Chi chiude vede solo cosa resta: ❓ proposte da confermare con un tocco, 👤 conti senza prenotazione («Chi era?»: prenotazione libera, cliente cercato, nuovo cliente, di passaggio), walk-in senza nome. Facoltativa, non blocca il salvataggio; quello che resta si sistema da Impostazioni › iPratico Cloud, dove ci sono anche i tavoli della cassa (alias) e la tolleranza sull'ora. Provato sui dati veri di sabato 17/10: 15 conti su 23 abbinati da soli, 4 proposte, 3 walk-in, 1 al banco (K.15). Doc: [`analisi_ipratico_cloud.md`](analisi_ipratico_cloud.md), `modulo_vendite.md` §12.
+
 ## 2026-10-18 — Connettore MCP: incassi `[core]`
 
 Connettore 1.4, nessuna migrazione. Strumento `incassi_riepilogo` (sola lettura, admin e contabile): ieri con la variazione % sulla media dello stesso giorno della settimana (come la Home), mese in corso dal 1° a ieri con la variazione % sugli stessi giorni dell'anno prima. Lo usa la pagina di Q (q.carminati.org) nel brief dell'osteria.

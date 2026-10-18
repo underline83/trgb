@@ -510,3 +510,28 @@ Tutti i file vivono in `frontend/src/pages/admin/` (verifica 2026-07-25; route c
 - P&L semplificato (vendite − acquisti, Fase 5 — vedi anche roadmap §G.3)
 - 🆕 Unificare import Excel → `shift_closures` e dismettere `daily_closures` (K.12 — 🔴 ALTA, deciso Marco 2026-05-21)
 - 🆕 Import XML corrispettivi telematici AdE come fonte aggiuntiva (K.13 — MEDIA)
+- 🆕 Conti iPratico Cloud riga per riga (K.15) — §12
+
+---
+
+## 12. Conti iPratico Cloud (2026-10-18, corrispettivi 4.10)
+
+Lo scarico legge dall'API interna del back office iPratico i **conti chiusi**: tavolo, sala, coperti, orari, totale, pagamenti e ogni riga battuta (piatto, categoria, portata, prezzo, invio in cucina). Analisi dell'API e limiti: [`analisi_ipratico_cloud.md`](analisi_ipratico_cloud.md).
+
+- **Backend:** `app/models/cassa_conti_db.py` (DB `cassa_conti.sqlite3`, schema al boot, nessuna migrazione numerata), `app/services/ipratico_cloud_service.py` (login, chiamate, traduzione conti, scarico, notte), `app/routers/cassa_ipratico_router.py` (prefix `/cassa/ipratico`, solo admin).
+- **Tabelle:** `cassa_conti` (un conto = un ordine di cassa; gli scontrini alla romana con lo stesso `order_id` diventano un conto solo; colonne di abbinamento `turno`, `abbinamento`, `prenotazione_id`, `cliente_id`), `cassa_conti_righe`, `cassa_import_log`, `cassa_tavoli_alias`, `cassa_config` (`abbinamento_finestra_minuti`, default 150). Orari in ora italiana.
+- **Abbinamento ai clienti** (`app/services/abbinamento_conti_service.py`, servizio **platform**: ponte cassa ↔ prenotazioni/clienti, regola 4): stesso giorno e turno, tavolo del conto tra i tavoli della prenotazione (`Tavolo 04C` = `4C`, `7+9+8+10` accetta `Tavolo 10`), ora di apertura entro la tolleranza. «Sicuro» (`auto`) solo se conto e prenotazione si scelgono a vicenda in modo unico, altrimenti `proposto` da confermare. Le scelte di una persona (`manuale`, `passaggio`) non vengono mai riscritte. Se un conto collegato a una prenotazione senza cliente (walk-in) riceve un cliente, il cliente si scrive anche sulla prenotazione. Gira dopo ogni scarico e alla Chiusura turno.
+- **Configurazione** (`.env` del VPS): `IPRATICO_CLOUD_EMAIL`, `IPRATICO_CLOUD_PASSWORD`; facoltativi `IPRATICO_CLOUD_LOCALE` (es. `lct_10254`), `IPRATICO_CLOUD_ORA` (default `05:30`), `IPRATICO_CLOUD_GIORNI` (default 2), `IPRATICO_CLOUD_NOTTE=0` per spegnere.
+- **Regole:** riscaricare non crea doppioni (upsert per `order_id`, righe riscritte); niente cancellazioni automatiche; ogni scarico lascia una riga nel log, anche se fallisce.
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-K-IP1 | Stato: credenziali, conti salvati, ultimi scarichi, periodo in corso, prossimo scarico notturno | `GET /cassa/ipratico/stato/` — `cassa_ipratico_router.py` | admin | 🆕 |
+| C-K-IP2 | Prova l'accesso (login + sale e tavoli) senza salvare | `POST /cassa/ipratico/prova/` | admin | 🆕 |
+| C-K-IP3 | Scarica un periodo (anche tutto lo storico) in background | `POST /cassa/ipratico/scarica/` | admin | 🆕 |
+| C-K-IP4 | Conti di un giorno con le righe (controllo) | `GET /cassa/ipratico/conti/?data=` | admin | 🆕 |
+| C-K-IP5 | Scarico notturno degli ultimi giorni | `avvia_scarico_notturno()` in `main.py` | — | 🆕 |
+| C-K-IP6 | Pagina Impostazioni Vendite › 🧾 iPratico Cloud: stato, scarico, conti da abbinare, tavoli della cassa, tolleranza | `frontend/src/pages/admin/IpraticoCloudSezione.jsx` | admin | 🆕 |
+| C-K-IP7 | Chiusura turno › 🧾 Conti del servizio: scarica + abbina, conferma proposte, «chi era?» (prenotazione libera, cliente, nuovo, di passaggio) | `POST /cassa/ipratico/servizio/{data}/{turno}/prepara/`, `GET …/servizio/{data}/{turno}/`, `POST /cassa/ipratico/conti/{id}/abbina/` — `components/cassa/ContiServizio.jsx` | admin, sommelier, sala (vedono anche gli importi, decisione Marco 2026-10-18) | 🆕 |
+| C-K-IP8 | Giorni/turni con conti ancora da abbinare | `GET /cassa/ipratico/da-sistemare/` | admin, sommelier, sala | 🆕 |
+| C-K-IP9 | Tavoli della cassa → tavoli TRGB (alias) e tolleranza in minuti | `GET/PUT /cassa/ipratico/tavoli/`, `PUT /cassa/ipratico/finestra/` | admin | 🆕 |

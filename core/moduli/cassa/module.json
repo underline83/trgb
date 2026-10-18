@@ -2,26 +2,44 @@
   "id": "cassa",
   "nome": "Cassa / Chiusure",
   "versione": "1.0",
-  "descrizione": "Chiusure turno, daily closures, corrispettivi, gestione contanti, configurazione giorni chiusura",
+  "descrizione": "Chiusure turno, daily closures, corrispettivi, gestione contanti, configurazione giorni chiusura, conti chiusi riga per riga da iPratico Cloud",
   "vendibile": true,
-  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives"],
-  "dipendenze_opzionali": ["banca", "controllo_gestione"],
+  "dipendenze_platform": [
+    "auth",
+    "notifiche",
+    "permessi",
+    "ui_primitives"
+  ],
+  "dipendenze_opzionali": [
+    "banca",
+    "controllo_gestione"
+  ],
   "router_files": [
     "admin_finance",
     "chiusure_turno",
-    "closures_config_router"
+    "closures_config_router",
+    "cassa_ipratico_router"
   ],
   "endpoint_prefix": [
     "/admin/finance",
     "/admin/finance/shift-closures",
-    "/settings/closures-config"
+    "/settings/closures-config",
+    "/cassa/ipratico"
   ],
   "tabelle_db": [
     "daily_closures",
     "shift_closures",
     "cash_deposits",
-    "corrispettivi"
+    "corrispettivi",
+    "cassa_conti",
+    "cassa_conti_righe",
+    "cassa_import_log",
+    "cassa_tavoli_alias",
+    "cassa_config"
   ],
-  "frontend_route": ["/vendite", "/cassa"],
+  "frontend_route": [
+    "/vendite",
+    "/cassa"
+  ],
   "frontend_menu_key": "vendite"
 }
