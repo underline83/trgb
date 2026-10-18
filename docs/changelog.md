@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-18 — Connettore MCP: incassi `[core]`
+
+Connettore 1.4, nessuna migrazione. Strumento `incassi_riepilogo` (sola lettura, admin e contabile): ieri con la variazione % sulla media dello stesso giorno della settimana (come la Home), mese in corso dal 1° a ieri con la variazione % sugli stessi giorni dell'anno prima. Lo usa la pagina di Q (q.carminati.org) nel brief dell'osteria.
+
 ## 2026-10-18 — Task Manager: Registro attività `[core]`
 
 Tasks 1.6, nessuna migrazione. Nuova pagina «👥 **Registro attività**» (Task Manager › Registro, `/tasks/registro`) per vedere chi ha fatto cosa e quando: in alto una scheda per persona (quante voci, checklist e task, dalle-alle; tocco = filtra), sotto l'elenco per giorno con ora, persona, voce, esito e valore (temperature fuori soglia in rosso). In «Tutto» le voci della stessa checklist spuntate dalla stessa persona diventano un blocco («17 voci di Linea Antipasti · Sera, alle 19:17») che si apre; «Voci», «Checklist chiuse» e «Task» filtrano. Periodo: oggi, ieri, 7 o 30 giorni o date a scelta (max 92). Legge `completato_da`/`completato_at` che TRGB salvava già. Ruoli come il Report HACCP: admin, chef, sous_chef.

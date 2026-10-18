@@ -63,6 +63,13 @@
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+## SESSIONE 2026-10-18 (2) — Connettore MCP: incassi per Q `[core]`
+
+Marco vuole nel brief dell'osteria di Q il fatturato di ieri e del mese in corso con la percentuale. Confronti decisi da lui: ieri contro la media dello stesso giorno della settimana nelle ultime 8 settimane (come la Home), mese dal 1° a ieri contro gli stessi giorni dell'anno prima.
+- `app/connettore/server.py` 1.4: `incassi_riepilogo` (modulo cassa, admin e contabile), chiama `dashboard_router._incasso_ieri` e `vendite_aggregator.totali_periodo`. Una riga nelle ISTRUZIONI.
+- Provato su copia dei DB (admin_finance copiato dal VPS, poi cancellato): ieri 17/10 4.757 €, 75 coperti, +16,1%; ottobre 1-17 40.122,99 € contro 29.621 € del 2025, +35,5%; il primo del mese dice che non c'è niente da contare.
+- Docs: `connettore_mcp.md` §4, changelog.
+
 ## SESSIONE 2026-10-18 (1) — Le mie buste paga: archivio self-service e presa visione `[core]`
 
 Richiesta di Marco: nella pagina del dipendente, il dipendente loggato vede il proprio archivio delle buste paga e le scarica; al primo download la busta risulta «letta» anche all'admin.

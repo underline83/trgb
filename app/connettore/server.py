@@ -1,4 +1,4 @@
-# @version: v1.3 (2026-10-16) — scadenze dipendenti, scadenziario CG, prenotazioni
+# @version: v1.4 (2026-10-18) — incassi (ieri e mese in corso, con le percentuali)
 # v1.2 (2026-10-16) — strumenti candidati (modulo dipendenti)
 # v1.1 (2026-10-16) — Q scrive firmando «Q» (la chiave di Q, vedi oauth.py)
 # -*- coding: utf-8 -*-
@@ -69,7 +69,8 @@ Regole che valgono sempre:
 - Date sempre AAAA-MM-GG. Mai IBAN nelle risposte; niente dati sanitari (salvo le allergie dichiarate di una prenotazione).
 - SCADENZE DIPENDENTI: cerca con scadenze_dipendenti_elenco prima di crearne una; prima di creare o cambiare riepiloga a Marco e aspetta il sì; non si cancellano da qui.
 - SCADENZIARIO: sola lettura; uscita_segna_pagata solo dopo il sì di Marco (fornitore, importo, data, metodo); spese fisse e rate si fanno dalla pagina.
-- PRENOTAZIONI: prima di crearne una controlla il giorno con prenotazioni_giorno, riepiloga a Marco (giorno, ora, coperti, nome, note, allergie) e aspetta il sì; prenotazione_crea non manda niente al cliente."""
+- PRENOTAZIONI: prima di crearne una controlla il giorno con prenotazioni_giorno, riepiloga a Marco (giorno, ora, coperti, nome, note, allergie) e aspetta il sì; prenotazione_crea non manda niente al cliente.
+- INCASSI: incassi_riepilogo, sola lettura (ieri contro la media dello stesso giorno della settimana, mese in corso contro lo stesso periodo dell'anno prima)."""
 
 
 def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
@@ -103,6 +104,8 @@ def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
         _strumenti_scadenziario(mcp)
     if module_loader.is_module_active("prenotazioni"):
         _strumenti_prenotazioni(mcp)
+    if module_loader.is_module_active("cassa"):
+        _strumenti_incassi(mcp)
     return mcp
 
 
@@ -813,3 +816,56 @@ def sicurezza(url: str) -> TransportSecuritySettings:
         allowed_hosts=[u.netloc, "127.0.0.1:*", "localhost:*", "[::1]:*"],
         allowed_origins=[f"{u.scheme}://{u.netloc}", "https://claude.ai", "https://claude.com",
                          "http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"])
+
+
+def _strumenti_incassi(mcp: MCPServer) -> None:
+    """Incassi (modulo cassa): admin e contabile. Ieri con la stessa funzione della Home
+    (dashboard_router._incasso_ieri: delta % contro la media dello stesso giorno della settimana
+    nelle ultime 8 settimane); il mese con vendite_aggregator.totali_periodo (le KPI «Vendite
+    mese»), dal 1° a ieri compreso, contro gli stessi giorni dell'anno prima. Decisione di Marco
+    del 2026-10-18."""
+    from datetime import date, timedelta
+    from app.routers import dashboard_router as dash
+    from app.services.vendite_aggregator import get_vendite_db, totali_periodo
+    strumento = functools.partial(_strumento, mcp)
+
+    def un_anno_prima(d: date) -> date:
+        try:
+            return d.replace(year=d.year - 1)
+        except ValueError:                           # 29 febbraio
+            return d.replace(year=d.year - 1, day=28)
+
+    def pct(ora: float, prima: float):
+        return round((ora - prima) / prima * 100, 1) if prima else None
+
+    @strumento(SOLA_LETTURA)
+    def incassi_riepilogo(
+        giorno: Annotated[Giorno | None, Field(description="Il giorno «oggi» da cui contare. Oggi se manca")] = None,
+    ) -> dict:
+        """Gli incassi in breve: IERI (totale, coperti, variazione % contro la media dello
+        stesso giorno della settimana nelle ultime 8 settimane, come la Home di TRGB) e il MESE
+        IN CORSO dal 1° a ieri (totale, giorni di apertura, variazione % contro gli stessi giorni
+        dell'anno prima). Totale = corrispettivi + fatture emesse."""
+        _ruoli("admin", "contabile", cosa="gli incassi")
+        oggi = date.fromisoformat(giorno) if giorno else date.today()
+        ieri = oggi - timedelta(days=1)
+        i = dash._incasso_ieri(ieri.isoformat(), int(ieri.strftime("%w")))
+        primo = oggi.replace(day=1)
+        out = {"ieri": {"data": ieri.isoformat(), "totale": i.totale, "coperti": i.coperti,
+                        "variazione_pct": i.delta_pct, "confronto": "media stesso giorno della settimana, ultime 8 settimane"}}
+        if primo < oggi:
+            conn = get_vendite_db()
+            try:
+                ora = totali_periodo(conn, primo.isoformat(), oggi.isoformat())
+                prima = totali_periodo(conn, un_anno_prima(primo).isoformat(), un_anno_prima(oggi).isoformat())
+            finally:
+                conn.close()
+            t_ora, t_prima = float(ora.get("totale_incassi") or 0), float(prima.get("totale_incassi") or 0)
+            out["mese"] = {"da": primo.isoformat(), "a": ieri.isoformat(), "totale": round(t_ora, 2),
+                           "giorni_apertura": ora.get("giorni_apertura"),
+                           "anno_prima": {"da": un_anno_prima(primo).isoformat(), "a": un_anno_prima(ieri).isoformat(),
+                                          "totale": round(t_prima, 2)},
+                           "variazione_pct": pct(t_ora, t_prima)}
+        else:
+            out["mese"] = {"da": primo.isoformat(), "nota": "oggi è il primo del mese: niente da contare ancora"}
+        return out
