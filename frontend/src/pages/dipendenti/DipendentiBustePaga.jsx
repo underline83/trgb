@@ -1,4 +1,5 @@
-// @version: v2.4 — import F24: rate create nello Scadenzario CG (mig 190, 2026-10-16)
+// @version: v2.5 — chip «✓ letta / non letta»: presa visione del dipendente (mig 198, 2026-10-18)
+// v2.4 — import F24: rate create nello Scadenzario CG (mig 190, 2026-10-16)
 // v2.3-mattoni — M.I primitives (Btn) su CTA header, anteprima, form manuale
 // Buste Paga: lista cedolini, inserimento manuale, upload PDF LUL 2-step (anteprima + conferma)
 // v2.2: bottone WA accanto a PDF per condividere cedolino via WhatsApp (problemi.md C1)
@@ -994,6 +995,16 @@ export default function DipendentiBustePaga() {
                               <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono">PDF</span>
                             )
                           )}
+                          {/* mig 198: presa visione dal dipendente («Le mie buste paga») */}
+                          {b.pdf_path && (b.letta_il ? (
+                            <Tooltip label={`Scaricata dal dipendente il ${b.letta_il.slice(8,10)}/${b.letta_il.slice(5,7)}/${b.letta_il.slice(0,4)} alle ${b.letta_il.slice(11,16)}${b.letta_da ? ` (${b.letta_da})` : ""}`}>
+                              <span className="ml-1 text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-semibold">{"\u2713"} letta</span>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip label="Il dipendente non l'ha ancora scaricata da «Le mie buste paga»">
+                              <span className="ml-1 text-[9px] bg-neutral-100 text-neutral-500 px-1 rounded">non letta</span>
+                            </Tooltip>
+                          ))}
                         </td>
                         <td className="px-4 py-2 text-right font-semibold text-purple-800">{"\u20AC"} {fmt(b.netto)}</td>
                         <td className="px-4 py-2 text-right text-neutral-600">{b.lordo ? `\u20AC ${fmt(b.lordo)}` : "\u2014"}</td>

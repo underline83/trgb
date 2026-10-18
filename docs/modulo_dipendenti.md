@@ -77,6 +77,7 @@ Il modulo **Dipendenti** è stato promosso a **modulo top-level** (non più sott
 /dipendenti/reparti                → CRUD reparti (GestioneReparti)
 /dipendenti/impostazioni           → Impostazioni modulo (sezioni: Reparti, Stipendi, Stato import paghe, Intermittenti; previste ma non pronte: Soglie CCNL, Template WA)
 /miei-turni                        → Timeline self-service dell'utente loggato (MieiTurni, fuori dal guard modulo)
+/mie-buste-paga                    → Archivio self-service delle proprie buste paga, download PDF (MieBustePaga, fuori dal guard modulo)
 /admin/dipendenti/*                → redirect a /dipendenti
 ```
 
@@ -365,6 +366,8 @@ UI: sezione documenti nella scheda del dipendente in Anagrafica.
 | C-D-306 | Elimina candidato e CV (privacy) | `DELETE /{id}` | admin | 🆕 2026-10-16 |
 | C-D-307 | Strumenti MCP `candidati_elenco`, `candidato_crea`, `candidato_aggiorna` | `app/connettore/server.py` `_strumenti_candidati` | admin (Q / claude.ai) | 🆕 2026-10-16 |
 | C-D-308 | Import delle candidature del second brain | `scripts/importa_candidati_sb.py` | admin (a mano) | 🆕 2026-10-16 |
+| C-D-310 | «📄 Le mie buste paga»: il dipendente collegato al proprio utente vede l'archivio delle SUE buste (per anno, netto) e scarica il PDF; al primo download la busta si segna letta (`letta_il`, `letta_da`, mig 198) | `dipendenti.py` `GET /dipendenti/mie-buste-paga/`, `GET /mie-buste-paga/{id}/pdf` · `MieBustePaga.jsx` | tutti i ruoli (solo i propri dati) | 🆕 2026-10-18 |
+| C-D-311 | Chip «✓ letta / non letta» per cedolino in Buste Paga, con data e ora del primo download del dipendente; i download dell'admin non contano | `DipendentiBustePaga.jsx` | admin | 🆕 2026-10-18 |
 | C-D-309 | Strumenti MCP scadenze documenti: `scadenze_dipendenti_elenco`, `scadenza_dipendente_crea`, `scadenza_dipendente_aggiorna` (§5.5) | `app/connettore/server.py` `_strumenti_scadenze_dipendenti` | admin (Q / claude.ai) | 🆕 2026-10-16 |
 
 ---
@@ -432,6 +435,7 @@ Turni v2 completato in parallelo (vedi `modulo_dipendenti_turni.md`). Aggiunte n
 | Turni — scrittura (assegna, modifica, cancella, copia settimana, pubblica) | **admin + superadmin** | |
 | Template settimana tipo — anche le GET | **admin + superadmin** | Strumento di redazione del foglio, non informazione di servizio. |
 | `/turni/riepilogo-dipendenti` | **admin + superadmin** | Restituisce i telefoni per l'invio WhatsApp. |
+| `/dipendenti/mie-buste-paga/` (+ `/{id}/pdf`) | qualsiasi ruolo autenticato | Self-service: risolve l'utente loggato sul suo `dipendente_id`; busta di un altro = 404. Il primo download segna `letta_il`. |
 | `/turni/miei-turni` | qualsiasi ruolo autenticato | Self-service: risolve l'utente loggato sul suo `dipendente_id`, non può leggere quelli degli altri. |
 | Intermittenti (tutti e 9 gli endpoint) | **admin + superadmin** | L'elenco contiene CF e codici comunicazione; `POST /comunica/` manda un atto legale al Ministero. |
 | Reparti — lettura | tutti | Serve ai filtri delle viste turni. |

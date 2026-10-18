@@ -89,6 +89,7 @@ const FoglioSettimana = lazy(() => import("./pages/dipendenti/FoglioSettimana"))
 const VistaMensile = lazy(() => import("./pages/dipendenti/VistaMensile"));
 const PerDipendente = lazy(() => import("./pages/dipendenti/PerDipendente"));
 const MieiTurni = lazy(() => import("./pages/dipendenti/MieiTurni"));
+const MieBustePaga = lazy(() => import("./pages/dipendenti/MieBustePaga"));
 const TodoBoard = lazy(() => import("./pages/TodoBoard"));
 // PRATICHE — modulo pratiche (2026-10-08), solo admin/superadmin
 const PraticheElenco = lazy(() => import("./pages/pratiche/PraticheElenco"));
@@ -486,6 +487,8 @@ export default function App() {
 
         {/* --- I MIEI TURNI (self-service, accessibile a tutti i ruoli autenticati) --- */}
         <Route path="/miei-turni" element={<MieiTurni />} />
+        {/* --- LE MIE BUSTE PAGA (self-service, mig 198): solo le proprie, il backend risolve l'utente --- */}
+        <Route path="/mie-buste-paga" element={<MieBustePaga />} />
         <Route path="/todo/board" element={<TodoBoard />} />
         {/* Redirect vecchi path admin */}
         <Route path="/admin/dipendenti/*" element={<Navigate to="/dipendenti" replace />} />

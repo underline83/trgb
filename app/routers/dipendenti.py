@@ -2492,6 +2492,102 @@ def download_cedolino_pdf(
 
 
 # ============================================================
+# LE MIE BUSTE PAGA — self-service del dipendente (mig 198, 2026-10-18)
+# ============================================================
+# Come /turni/miei-turni: qualsiasi ruolo autenticato, ma il backend risolve
+# l'utente loggato sul SUO dipendente_id (users.json) e non accetta id dal
+# client. Il dipendente vede solo le proprie buste; mai quelle degli altri.
+# Al PRIMO download fatto da lui si scrivono letta_il / letta_da: l'admin lo
+# vede in Dipendenti › Buste Paga. I download dell'admin non segnano nulla.
+
+def _mio_dipendente_id(user) -> int:
+    dip_id = user.get("dipendente_id")
+    if not dip_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Il tuo utente non è collegato a un dipendente. Contatta l'amministratore.",
+        )
+    return int(dip_id)
+
+
+@router.get("/mie-buste-paga/")
+def mie_buste_paga(current_user=Depends(get_current_user)):
+    """Archivio delle buste paga dell'utente loggato (solo le sue)."""
+    dip_id = _mio_dipendente_id(current_user)
+    conn = get_dipendenti_conn()
+    try:
+        dip = conn.execute(
+            "SELECT id, nome, cognome FROM dipendenti WHERE id = ?", [dip_id]
+        ).fetchone()
+        if not dip:
+            raise HTTPException(404, "Dipendente collegato non trovato in anagrafica.")
+        rows = conn.execute("""
+            SELECT id, mese, anno, netto, lordo, pdf_path, letta_il
+            FROM buste_paga
+            WHERE dipendente_id = ?
+            ORDER BY anno DESC, mese DESC
+        """, [dip_id]).fetchall()
+    finally:
+        conn.close()
+
+    buste = []
+    for r in rows:
+        r = dict(r)
+        m = r["mese"] or 0
+        buste.append({
+            "id": r["id"],
+            "mese": r["mese"],
+            "anno": r["anno"],
+            "mese_label": MESI_IT[m] if 1 <= m <= 12 else str(m),
+            "netto": r["netto"],
+            "lordo": r["lordo"],
+            "ha_pdf": bool(r["pdf_path"]),
+            "letta_il": r["letta_il"],
+        })
+    return {
+        "dipendente": {"id": dip["id"], "nome": dip["nome"], "cognome": dip["cognome"]},
+        "buste_paga": buste,
+    }
+
+
+@router.get("/mie-buste-paga/{bp_id}/pdf")
+def scarica_mia_busta_paga(bp_id: int, current_user=Depends(get_current_user)):
+    """Scarica il PDF di UNA propria busta paga; al primo download la segna letta."""
+    dip_id = _mio_dipendente_id(current_user)
+    conn = get_dipendenti_conn()
+    try:
+        row = conn.execute(
+            "SELECT bp.id, bp.dipendente_id, bp.pdf_path, bp.letta_il, bp.mese, bp.anno, "
+            "d.cognome, d.nome "
+            "FROM buste_paga bp JOIN dipendenti d ON d.id = bp.dipendente_id "
+            "WHERE bp.id = ?", [bp_id]
+        ).fetchone()
+        # Busta di un altro = 404, non 403: non si conferma nemmeno che esista.
+        if not row or row["dipendente_id"] != dip_id:
+            raise HTTPException(404, "Busta paga non trovata")
+        if not row["pdf_path"]:
+            raise HTTPException(404, "PDF non disponibile per questa busta paga")
+
+        pdf_abs = os.path.join("app", "data", row["pdf_path"])
+        if not os.path.isfile(pdf_abs):
+            raise HTTPException(404, "File PDF non trovato su disco")
+
+        if not row["letta_il"]:
+            # «AND letta_il IS NULL»: due download in parallelo non spostano la data
+            conn.execute(
+                "UPDATE buste_paga SET letta_il = datetime('now','localtime'), letta_da = ? "
+                "WHERE id = ? AND letta_il IS NULL",
+                [current_user.get("username"), bp_id],
+            )
+            conn.commit()
+    finally:
+        conn.close()
+
+    filename = f"Cedolino_{row['cognome']}_{row['nome']}_{row['anno']}_{row['mese']:02d}.pdf"
+    return FileResponse(pdf_abs, filename=filename, media_type="application/pdf")
+
+
+# ============================================================
 # DOCUMENTI DIPENDENTE — CRUD allegati
 # ============================================================
 

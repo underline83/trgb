@@ -1,4 +1,5 @@
-// @version: v1.4-mese-vero — i bottoni ⏪/⏩ mese saltano al mese di calendario
+// @version: v1.5 — bottone «📄 Le mie buste paga» (2026-10-18)
+// v1.4-mese-vero — i bottoni ⏪/⏩ mese saltano al mese di calendario
 //   reale (settimana ISO del 1° + settimane che coprono il mese), non più ±4 sett.
 //   (prima: v1.3-minimale — pill Pranzo/Cena, no totali, no semaforo)
 // Pagina "I miei turni" — TRGB Gestionale
@@ -289,6 +290,14 @@ export default function MieiTurni() {
                 title="Stampa i tuoi turni (usa il dialog nativo del browser per PDF/stampante)"
               >
                 🖨️ Stampa
+              </Btn>
+              <Btn
+                variant="secondary"
+                size="md"
+                onClick={() => navigate("/mie-buste-paga")}
+                title="Il tuo archivio delle buste paga, da scaricare"
+              >
+                📄 Le mie buste paga
               </Btn>
               {isAdmin && (
                 <Btn

@@ -91,9 +91,14 @@ function MieiTurniCard() {
     <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
         <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">🗓️ I miei turni</span>
-        <button onClick={() => navigate("/miei-turni")} className="text-[11px] font-semibold text-brand-blue">
-          Tutto il mese →
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/mie-buste-paga")} className="text-[11px] font-semibold text-brand-blue">
+            📄 Buste paga
+          </button>
+          <button onClick={() => navigate("/miei-turni")} className="text-[11px] font-semibold text-brand-blue">
+            Tutto il mese →
+          </button>
+        </div>
       </div>
       {msg && <div className="px-4 pb-4 text-[13px] text-[#a8a49e]">{msg}</div>}
       {!msg && !giorni && <div className="px-4 pb-4 text-[13px] text-[#a8a49e]">Carico…</div>}

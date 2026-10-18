@@ -328,7 +328,10 @@ const MODULE_VERSIONS = {
     // 2.36 (2026-10-16): import ELAB / F24 — parser F24 v1.1 (debito/credito per
     //   colonna, saldo finale dal riquadro EURO), PDF conservato, rate F24 paghe
     //   nello Scadenzario CG (una per pagina con saldo > 0). Mig 190.
-    version: "2.36",
+    // 2.37 (2026-10-18): «📄 Le mie buste paga» (/mie-buste-paga) — il dipendente
+    //   collegato vede e scarica solo le sue; il primo download la segna letta,
+    //   chip «✓ letta / non letta» in Buste Paga admin. Mig 198.
+    version: "2.37",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -502,6 +505,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.62 (2026-10-18): mig 198 — buste_paga.letta_il/letta_da: «Le mie buste paga»
+    //   self-service, primo download del dipendente = letta (dipendenti 2.37).
+    //   NB: VERSION era rimasto a 5.57 mentre qui si era a 5.61 → riallineati entrambi a 5.62.
     // 5.61 (2026-10-17): mig 197 — thefork_recensioni: recensioni TheFork in TRGB con
     //   risposta pubblica (prenotazioni 2.14).
     // 5.60 (2026-10-16): mig 196 — tavoli.dividibile + tavoli_divisioni: tavolo spezzato in
@@ -579,7 +585,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.61",
+    version: "5.62",
     label: "Sistema",
     status: "stabile",
     color: "green",

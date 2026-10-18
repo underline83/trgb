@@ -4,14 +4,17 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.54 in produzione (4fa71e02) · 5.55 da pushare · **Migrazione più recente:** 191 (da pushare; 190 in produzione)
+**Sistema:** 5.61 in produzione (573e272a) · 5.62 da pushare · **Migrazione più recente:** 198 (da pushare; 197 in produzione)
 
-**DA PUSHARE — Spalmatura anche sulle spese fisse non mensili** (controlloGestione 2.29, nessuna migrazione; la spalmatura per fatture è live da 2bfc275a, regole VINO 3 / ALCOLICI 6 / SPESE CONDOMINIALI 12 dal 2026-01 verificate in produzione)
+**DA PUSHARE — Le mie buste paga** (mig 198, sistema 5.62, dipendenti 2.37) `[core]`
+- Dopo il push: entrare con l'utente di un dipendente collegato → «I miei turni» › «📄 Le mie buste paga» → Scarica. Poi da admin, Dipendenti › Buste Paga: quel cedolino ha «✓ letta» con data e ora nel tooltip. Verificare che un utente NON collegato veda «Utente non collegato».
+
+**Pushato, da verificare — Spalmatura anche sulle spese fisse non mensili** (controlloGestione 2.29, nessuna migrazione; la spalmatura per fatture è live da 2bfc275a, regole VINO 3 / ALCOLICI 6 / SPESE CONDOMINIALI 12 dal 2026-01 verificate in produzione)
 - Dopo il push: Conto Economico aprile e settembre 2026 → SPESE CONDOMINIALI in «(quota k/12)». Da fare a mano: «Spese condominiali rata 2» (395 €) non ha sottocategoria → assegnare SPESE CONDOMINIALI in Spese Fisse.
 
-**DA PUSHARE — Connettore MCP 1.3: scadenze dipendenti, scadenziario, prenotazioni** (nessuna migrazione). Dopo il push, da claude.ai o da Q: «che scadenze dei dipendenti ho nei prossimi 90 giorni?», «cosa devo pagare questo mese?», «chi c'è a cena sabato?».
+**Pushato, da verificare — Connettore MCP 1.3: scadenze dipendenti, scadenziario, prenotazioni** (nessuna migrazione). Dopo il push, da claude.ai o da Q: «che scadenze dei dipendenti ho nei prossimi 90 giorni?», «cosa devo pagare questo mese?», «chi c'è a cena sabato?».
 
-**DA PUSHARE — Spalmatura di default per categoria** (mig 191, sistema 5.55, fatture 3.3, controlloGestione 2.28)
+**Pushato, da verificare — Spalmatura di default per categoria** (mig 191, sistema 5.55, fatture 3.3, controlloGestione 2.28)
 - Dopo il push: Acquisti › Impostazioni › Categorie › BEVANDE › VINO › chip 📆 → 3 mesi, dal 2026-01 (decisione Marco). Poi Conto Economico: le fatture col vino mostrano «(quota k/3)»; nel dettaglio di una fattura Sogegross il gruppo VINO ha il badge «📆 3 mesi».
 
 **TheFork webhook** (live: b29003e4 + 4fa71e02; URL già mandato a Régis il 16/10)
@@ -53,6 +56,16 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-18 (1) — Le mie buste paga: archivio self-service e presa visione `[core]`
+
+Richiesta di Marco: nella pagina del dipendente, il dipendente loggato vede il proprio archivio delle buste paga e le scarica; al primo download la busta risulta «letta» anche all'admin.
+
+- **Backend** (`dipendenti.py`): `GET /dipendenti/mie-buste-paga/` e `GET /dipendenti/mie-buste-paga/{id}/pdf`, aperti a tutti i ruoli ma risolti sul `dipendente_id` dell'utente loggato (stesso schema di `/turni/miei-turni`); busta di un altro → 404. Il primo download scrive `letta_il` + `letta_da` (`UPDATE … WHERE letta_il IS NULL`, la data non si sposta più). I download admin da `/buste-paga/{id}/pdf` non segnano nulla.
+- **Mig 198**: `buste_paga.letta_il`, `letta_da` (ADD COLUMN idempotente; aggiunte anche alla lista difensiva di `init_dipendenti_db`).
+- **Frontend**: nuova `MieBustePaga.jsx` su `/mie-buste-paga` (fuori dal guard modulo, come MieiTurni), bottone in «I miei turni» e link «📄 Buste paga» nel widget turni di Home Cucina. In `DipendentiBustePaga.jsx` chip «✓ letta» / «non letta».
+- Versioni: dipendenti 2.37, sistema 5.62. `VERSION` era rimasto a 5.57 contro 5.61 di `versions.jsx`: riallineati a 5.62.
+- Docs: `modulo_dipendenti.md` (C-D-310, C-D-311, route, tabella permessi), changelog.
 
 ## SESSIONE 2026-10-17 (1) — Spalmatura per categoria anche sulle spese fisse `[core]`
 

@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-18 — Le mie buste paga: archivio self-service + presa visione `[core]`
+
+Dipendenti 2.37, sistema 5.62, mig 198. Nuova pagina «📄 **Le mie buste paga**» (`/mie-buste-paga`, bottone in «I miei turni» e nel widget turni di Home Cucina): il dipendente collegato al proprio utente vede le SUE buste per anno, con il netto, e scarica il PDF. Il backend risolve l'utente loggato sul suo `dipendente_id` (come `/turni/miei-turni`): le buste degli altri non si vedono né si scaricano (404). Al **primo** download del dipendente la busta si segna letta (`buste_paga.letta_il`, `letta_da`); in Dipendenti › Buste Paga ogni cedolino ha il chip «✓ letta» (data e ora nel tooltip) o «non letta». I download dell'admin non segnano nulla. Riallineato `VERSION` (era fermo a 5.57) con `sistema.version`.
+
 ## 2026-10-17 — Spalmatura per categoria anche sulle spese fisse `[core]`
 
 controlloGestione 2.29, nessuna migrazione. Le regole 📆 di Impostazioni › Categorie valgono ora anche per le spese fisse non mensili (una tantum, trimestrali, annuali): ogni pagamento si divide in N quote dal suo mese, come le fatture. Esempio: spese condominiali a 12 mesi. Restano fuori le spese mensili, i prestiti, le rateizzazioni, gli stipendi e gli F24 paghe; la spalmatura messa a mano sulla spesa fissa vince sempre.

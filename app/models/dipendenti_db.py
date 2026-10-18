@@ -231,6 +231,9 @@ def init_dipendenti_db() -> None:
     # Aggiungi colonna fonte se non esiste (v2.1)
     for col_def in [
         "fonte TEXT DEFAULT 'MANUALE'",
+        # mig 198 (2026-10-18): presa visione del dipendente («Le mie buste paga»)
+        "letta_il TEXT",
+        "letta_da TEXT",
     ]:
         try:
             cur.execute(f"ALTER TABLE buste_paga ADD COLUMN {col_def}")
