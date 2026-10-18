@@ -189,6 +189,14 @@ Tutti richiedono JWT. Prefissi reali: **`/tasks`** (non più `/cucina`), `/haccp
 
 Service: `app/services/haccp_report_service.py` — legge `tasks.sqlite3`. Il PDF firmabile (WeasyPrint) è previsto come iterazione I.4, non implementato.
 
+## 4.6-bis Registro attività (`tasks_router.py`, 2026-10-18, tasks 1.6)
+
+| Metodo | Path | Ruoli | Note |
+|--------|------|-------|------|
+| GET | `/tasks/registro/` | admin, chef, sous_chef (M.G `richiede_ruoli`) | `data_da`, `data_a` (default ultimi 7 giorni, max 92), `utente`, `reparto`, `tipo` = `voce`/`checklist`/`task`. Ritorna `{data_da, data_a, totale, utenti[], per_utente[], eventi[]}`. Eventi ordinati per ora decrescente, filtrati sul giorno in cui la cosa è stata FATTA (`completato_at`), non sul giorno della checklist. sous_chef: cose di cucina solo del suo livello (stessa regola dell'agenda) |
+
+Sola lettura su campi che esistevano già: `checklist_execution.completato_da/at` (voci, PENDING escluse), `checklist_instance.completato_da/at` (checklist COMPLETATA/SALTATA), `task_singolo.completato_da/at` (task COMPLETATO). Nessuna migrazione. `fuori_soglia` calcolato su `min_valore`/`max_valore` della voce.
+
 ## 4.7 Lista Spesa (`lista_spesa_router.py`, Modulo J Fase 1 sessione 59 cont. c)
 
 | Metodo | Path | Ruoli | Note |
@@ -229,6 +237,7 @@ Route protette con `module="tasks"` (`App.jsx:504-513`):
 | `TemplateList.jsx` | `/tasks/templates` | `templates` | Lista template (admin/chef) |
 | `TemplateEditor.jsx` | `/tasks/templates/nuovo` e `/:id` | `templates` | Editor items ▲▼ (solo admin per salvare) |
 | `ReportHACCP.jsx` | `/tasks/haccp` | `haccp` | Report mensile: compliance, eventi critici, top FAIL, gap (Modulo I) |
+| `RegistroAttivita.jsx` | `/tasks/registro` | `haccp` | Chi ha fatto cosa e quando: riepilogo per persona (tap = filtra), elenco per giorno; in «Tutto» le voci della stessa checklist e persona sono un blocco apribile. Voce in Nav (top) e nel menu «⋯» su iPhone solo per admin/chef/sous_chef |
 
 Componente condiviso: `frontend/src/components/tasks/TaskSheet.jsx` — bottom-sheet dettaglio/completamento task.
 
@@ -431,6 +440,14 @@ Richiesta di Marco per le checklist di linea («Linea Antipasti · Pranzo/Sera»
 |---|---|---|---|---|
 | C-T-182a | Raggruppare voci checklist sotto una voce padre | `TemplateEditor.jsx` campo «Voce padre» | admin/chef | 🆕 |
 | C-T-182b | Spuntare tutte le sotto-voci dal padre | `InstanceDetail.jsx` `GruppoCard`, `CucinaMobile.jsx` `TabOggi` | brigata | 🆕 |
+
+## 11.2-ter ✅ FATTO — Registro attività (2026-10-18, tasks 1.6)
+
+Domanda di Marco: «come posso vedere chi fa cosa e quando?». Il dato c'era (utente e ora su ogni voce, checklist e task), ma si vedeva solo aprendo una checklist alla volta. Pagina `/tasks/registro` + endpoint `GET /tasks/registro/` (§4.6-bis), nessuna migrazione.
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-T-REG1 | Vedere chi ha spuntato/chiuso/completato cosa e a che ora, per periodo e persona | `RegistroAttivita.jsx`, `tasks_router.py` `registro_attivita` | admin/chef/sous_chef | 🆕 |
 
 ## 11.3 ❌ APERTO — P2: gerarchia urgenza in TasksHome
 

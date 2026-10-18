@@ -437,11 +437,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   tasks: {
+    // 1.6 (2026-10-18): Registro attività (/tasks/registro) — chi ha fatto cosa
+    //   e quando: voci spuntate, checklist chiuse, task completati. Sola lettura,
+    //   nessuna migrazione. Ruoli come Report HACCP.
     // 1.5 (2026-10-04): voci padre con sotto-voci (mig 182, campo «Voce padre»
     //   nel TemplateEditor); il padre si spunta da solo, toccarlo spunta tutte.
     //   Oggi (Cucina iPhone): scadute non più spuntabili (prima HTTP 400 muto),
     //   errori col messaggio del backend. Duplica copia anche ubicazione_id.
-    version: "1.5",
+    version: "1.6",
     label: "Task Manager",
     status: "beta",
     color: "blue",

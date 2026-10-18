@@ -150,6 +150,7 @@ const MODULES_MENU = {
       { label: "Agenda settimana",   go: "/tasks/agenda/settimana" },
       { label: "Task",               go: "/tasks/tasks" },
       { label: "Report HACCP",       go: "/tasks/haccp" },
+      { label: "Registro attività",  go: "/tasks/registro" },
       { label: "Template",           go: "/tasks/templates", check: "admin" },
     ],
   },

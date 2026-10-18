@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-18 — Task Manager: Registro attività `[core]`
+
+Tasks 1.6, nessuna migrazione. Nuova pagina «👥 **Registro attività**» (Task Manager › Registro, `/tasks/registro`) per vedere chi ha fatto cosa e quando: in alto una scheda per persona (quante voci, checklist e task, dalle-alle; tocco = filtra), sotto l'elenco per giorno con ora, persona, voce, esito e valore (temperature fuori soglia in rosso). In «Tutto» le voci della stessa checklist spuntate dalla stessa persona diventano un blocco («17 voci di Linea Antipasti · Sera, alle 19:17») che si apre; «Voci», «Checklist chiuse» e «Task» filtrano. Periodo: oggi, ieri, 7 o 30 giorni o date a scelta (max 92). Legge `completato_da`/`completato_at` che TRGB salvava già. Ruoli come il Report HACCP: admin, chef, sous_chef.
+
 ## 2026-10-18 — Dipendenti protetta dal PIN `[core]`
 
 Dipendenti 2.38, sistema 5.63, mig 199. Sull'iPad del ristorante l'app resta loggata: ora chi entra nella sezione **Dipendenti** (tutte le pagine `/dipendenti/*`, e anche «Le mie buste paga») deve ridigitare il PIN dell'utente loggato. Dentro la sezione si naviga senza richiederlo; si richiude uscendo, ricaricando la pagina o dopo 5 minuti senza toccare lo schermo (Impostazioni › 🔒 Blocco PIN, 0 = solo uscendo). Il PIN lo controlla il backend (`POST /auth/verifica-pin`, stesso blocco anti-tentativi del login, PIN errato = 403 così non butta fuori). Il tastierino del login è diventato un componente condiviso (`components/PinPad.jsx`), usato da login e blocco. «I miei turni» resta libero.

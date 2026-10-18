@@ -4,9 +4,12 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.62 in produzione (33feff13) · 5.63 da pushare · **Migrazione più recente:** 199 (da pushare; 198 in produzione)
+**Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
-**DA PUSHARE — Dipendenti protetta dal PIN** (mig 199, sistema 5.63, dipendenti 2.38) `[core]`
+**DA PUSHARE — Task Manager: Registro attività** (tasks 1.6, nessuna migrazione) `[core]` — l'endpoint `GET /tasks/registro/` e la prima versione della pagina sono già entrati in 58666449 (push del PIN Dipendenti); restano route, menu, Nav, pagina rifinita e docs.
+- Dopo il push: Task Manager › 👥 Registro (su iPhone dal menu «⋯») → «Oggi» e «7 giorni»: schede per persona, blocchi per checklist che si aprono, «Apri la checklist ›». Da un utente sala/commis la voce non c'è e `/tasks/registro` è bloccata.
+
+**Pushato (58666449), da verificare — Dipendenti protetta dal PIN** (mig 199, sistema 5.63, dipendenti 2.38) `[core]`
 - Dopo il push: dall'iPad aprire Dipendenti → chiede il PIN; navigare fra Turni/Buste paga senza richiesta; tornare alla Home e rientrare → lo richiede; PIN sbagliato → «PIN errato» senza logout. Provare anche il login (tastierino ora condiviso, `PinPad.jsx`). Impostazioni › 🔒 Blocco PIN: default 5 minuti.
 
 **Pushato (33feff13), da verificare — Le mie buste paga** (mig 198, sistema 5.62, dipendenti 2.37) `[core]`

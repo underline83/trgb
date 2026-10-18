@@ -139,6 +139,7 @@ const SelezioniDelGiorno = lazy(() => import("./pages/selezioni/SelezioniDelGior
 const TasksHome = lazy(() => import("./pages/tasks/TasksHome"));
 const TasksAgendaGiornaliera = lazy(() => import("./pages/tasks/AgendaGiornaliera"));
 const TasksReportHACCP = lazy(() => import("./pages/tasks/ReportHACCP"));
+const TasksRegistro = lazy(() => import("./pages/tasks/RegistroAttivita"));
 const TasksAgendaSettimana = lazy(() => import("./pages/tasks/AgendaSettimana"));
 const TasksInstanceDetail = lazy(() => import("./pages/tasks/InstanceDetail"));
 const TasksTemplateList = lazy(() => import("./pages/tasks/TemplateList"));
@@ -562,6 +563,8 @@ export default function App() {
         <Route path="/tasks/tasks" element={<ProtectedRoute module="tasks" sub="tasks"><TasksTaskList /></ProtectedRoute>} />
         {/* Modulo I — Report HACCP mensile (sessione 59 cont.) */}
         <Route path="/tasks/haccp" element={<ProtectedRoute module="tasks" sub="haccp"><TasksReportHACCP /></ProtectedRoute>} />
+        {/* Registro attività — chi ha fatto cosa e quando (2026-10-18). Stessi ruoli del Report HACCP. */}
+        <Route path="/tasks/registro" element={<ProtectedRoute module="tasks" sub="haccp"><TasksRegistro /></ProtectedRoute>} />
 
         {/* Redirect legacy /cucina/* → /tasks/* (bookmark utenti) */}
         <Route path="/cucina"                  element={<Navigate to="/tasks"                  replace />} />

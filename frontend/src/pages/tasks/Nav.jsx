@@ -20,6 +20,7 @@ const ITEMS_TOP = [
   { key: "settimana", label: "Settimana", to: "/tasks/agenda/settimana",  icon: "🗓️" },
   { key: "tasks",     label: "Task",      to: "/tasks/tasks",             icon: "✅" },
   { key: "haccp",     label: "Report HACCP", to: "/tasks/haccp",          icon: "📊" },
+  { key: "registro",  label: "Registro",  to: "/tasks/registro",          icon: "👥", registro: true },
   { key: "templates", label: "Template",  to: "/tasks/templates",         icon: "🧩", adminOnly: true },
 ];
 
@@ -41,7 +42,9 @@ export default function Nav({ current = "home" }) {
   const role = typeof localStorage !== "undefined" ? localStorage.getItem("role") || "" : "";
   const admin = isAdminLike(role);
 
-  const items = ITEMS_TOP.filter(i => !i.adminOnly || admin);
+  // Registro attività: stessi ruoli del Report HACCP (sub "haccp")
+  const registro = ["admin", "superadmin", "chef", "sous_chef"].includes(role);
+  const items = ITEMS_TOP.filter(i => (!i.adminOnly || admin) && (!i.registro || registro));
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Auto-detect current tab per la bottom-bar (ignora la prop "current"
@@ -154,6 +157,7 @@ export default function Nav({ current = "home" }) {
       {menuOpen && (
         <MenuSheet
           admin={admin}
+          registro={registro}
           onClose={() => setMenuOpen(false)}
           onNavigate={(to) => { setMenuOpen(false); navigate(to); }}
         />
@@ -168,6 +172,7 @@ function autoActive(pathname, fallback) {
   if (pathname.startsWith("/tasks/agenda"))               return "agenda";
   if (pathname.startsWith("/tasks/instances"))            return "agenda";
   if (pathname.startsWith("/tasks/haccp"))                return "haccp";
+  if (pathname.startsWith("/tasks/registro"))             return "menu";
   if (pathname.startsWith("/tasks/templates"))            return "menu";
   if (pathname === "/tasks")                              return fallback === "home" ? null : fallback;
   return fallback;
@@ -175,7 +180,7 @@ function autoActive(pathname, fallback) {
 
 // ── Menu sheet (mobile) — Template + Home ────────────────────────
 
-function MenuSheet({ admin, onClose, onNavigate }) {
+function MenuSheet({ admin, registro, onClose, onNavigate }) {
   return (
     <div
       className="sm:hidden fixed inset-0 z-[80] flex items-end"
@@ -199,6 +204,9 @@ function MenuSheet({ admin, onClose, onNavigate }) {
         </div>
         <div className="px-4 pt-3 flex flex-col gap-2">
           <MenuItem icon="🍳" label="Home Task Manager" onClick={() => onNavigate("/tasks")} />
+          {registro && (
+            <MenuItem icon="👥" label="Registro attività" onClick={() => onNavigate("/tasks/registro")} />
+          )}
           {admin && (
             <MenuItem icon="🧩" label="Template checklist" onClick={() => onNavigate("/tasks/templates")} />
           )}

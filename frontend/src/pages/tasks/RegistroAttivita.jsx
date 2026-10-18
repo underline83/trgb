@@ -29,8 +29,12 @@ function addDays(d, n) {
 function fmtGiorno(iso) {
   try {
     const d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+    const s = d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
   } catch { return iso; }
+}
+function plur(n, uno, tanti) {
+  return `${n} ${n === 1 ? uno : tanti}`;
 }
 function fmtGiornoBreve(iso) {
   if (!iso) return "";
@@ -146,16 +150,32 @@ export default function RegistroAttivita() {
     return utente ? ev.filter(e => e.chi === utente) : ev;
   }, [dati, utente]);
 
-  // Raggruppo per giorno (giorno in cui è stato fatto)
+  // Raggruppo per giorno (giorno in cui è stato fatto). In "Tutto" le voci
+  // della stessa checklist spuntate dalla stessa persona diventano un blocco
+  // unico ("22 voci di Linea Primi"), apribile; con "Voci" restano in fila.
   const perGiorno = useMemo(() => {
     const m = new Map();
     for (const e of eventi) {
       const g = (e.quando || "").slice(0, 10);
-      if (!m.has(g)) m.set(g, []);
-      m.get(g).push(e);
+      if (!m.has(g)) m.set(g, { righe: [], blocchi: new Map() });
+      const day = m.get(g);
+      if (tipo === "" && e.tipo === "voce" && e.instance_id) {
+        const k = `${e.instance_id}|${e.chi}`;
+        let b = day.blocchi.get(k);
+        if (!b) {
+          b = { blocco: true, key: `g-${k}`, chi: e.chi, checklist: e.checklist,
+                instance_id: e.instance_id, data_riferimento: e.data_riferimento, voci: [] };
+          day.blocchi.set(k, b);
+          day.righe.push(b);   // posizione = voce più recente (eventi già in ordine decrescente)
+        }
+        b.voci.push(e);
+      } else {
+        day.righe.push(e);
+      }
     }
-    return [...m.entries()];
-  }, [eventi]);
+    // un blocco da una voce sola torna riga semplice
+    return [...m.entries()].map(([g, d]) => [g, d.righe.map(r => (r.blocco && r.voci.length === 1) ? r.voci[0] : r)]);
+  }, [eventi, tipo]);
 
   const persone = dati?.per_utente || [];
 
@@ -177,7 +197,7 @@ export default function RegistroAttivita() {
         {/* ═══ Filtri ═══ */}
         <div className="bg-white rounded-[14px] border border-neutral-200 p-3 mb-4 flex flex-col gap-3" style={SHADOW}>
           <div className="flex flex-wrap items-center gap-2">
-            <PillGroup value={periodo} onChange={setPeriodo} options={PERIODI} tone="rose" size="lg" />
+            <PillGroup value={periodo} onChange={setPeriodo} options={PERIODI} tone="rose" size="lg" className="flex-wrap" />
             {periodo === "custom" && (
               <div className="flex items-center gap-2 text-sm">
                 <input type="date" value={custom[0]} max={custom[1]}
@@ -191,7 +211,7 @@ export default function RegistroAttivita() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <PillGroup value={tipo} onChange={setTipo} tone="rose" size="md" options={[
+            <PillGroup value={tipo} onChange={setTipo} tone="rose" size="md" className="flex-wrap" options={[
               { value: "",          label: "Tutto" },
               { value: "voce",      label: "☑️ Voci" },
               { value: "checklist", label: "📋 Checklist chiuse" },
@@ -234,7 +254,7 @@ export default function RegistroAttivita() {
                       <span className="font-semibold text-brand-ink truncate">@{p.utente}</span>
                     </div>
                     <div className="mt-2 text-xs text-neutral-600 leading-relaxed">
-                      <b className="text-brand-ink">{p.voci}</b> voci
+                      <b className="text-brand-ink">{p.voci}</b> {p.voci === 1 ? "voce" : "voci"}
                       {p.checklist > 0 && <> · <b className="text-brand-ink">{p.checklist}</b> checklist</>}
                       {p.task > 0 && <> · <b className="text-brand-ink">{p.task}</b> task</>}
                       {p.fail > 0 && <> · <b className="text-brand-red">{p.fail}</b> non OK</>}
@@ -254,11 +274,13 @@ export default function RegistroAttivita() {
               <EmptyState icon="👤" title={`Niente da @${utente} in questo periodo`} />
             ) : perGiorno.map(([giorno, lista]) => (
               <div key={giorno} className="mb-5">
-                <div className="text-xs font-bold uppercase tracking-wide text-neutral-500 mb-2 capitalize">
-                  {fmtGiorno(giorno)} <span className="font-normal normal-case">· {lista.length}</span>
+                <div className="text-xs font-bold tracking-wide text-neutral-500 mb-2">
+                  {fmtGiorno(giorno)} <span className="font-normal normal-case">· {plur(lista.reduce((n, x) => n + (x.blocco ? x.voci.length : 1), 0), "cosa", "cose")}</span>
                 </div>
                 <div className="bg-white rounded-[14px] border border-neutral-200 divide-y divide-neutral-100 overflow-hidden" style={SHADOW}>
-                  {lista.map(e => (
+                  {lista.map(e => e.blocco ? (
+                    <Blocco key={e.key} b={e} onOpen={() => navigate(`/tasks/instances/${e.instance_id}`)} />
+                  ) : (
                     <Riga key={`${e.tipo}-${e.id}`} e={e}
                       onOpen={e.instance_id ? () => navigate(`/tasks/instances/${e.instance_id}`) : null} />
                   ))}
@@ -277,7 +299,7 @@ function Riga({ e, onOpen }) {
   const fuori = e.fuori_soglia;
   const contesto = e.tipo === "task"
     ? "Task"
-    : [e.tipo === "voce" ? e.checklist : null, e.gruppo, e.turno?.toLowerCase(),
+    : [e.tipo === "voce" && !e.nascondiChecklist ? e.checklist : null, e.gruppo,
        e.data_riferimento && e.data_riferimento !== (e.quando || "").slice(0, 10)
          ? `del ${fmtGiornoBreve(e.data_riferimento)}` : null]
         .filter(Boolean).join(" · ");
@@ -314,5 +336,50 @@ function Riga({ e, onOpen }) {
         </span>
       </div>
     </Tag>
+  );
+}
+
+// Blocco: tutte le voci di una checklist spuntate da una persona nella giornata
+function Blocco({ b, onOpen }) {
+  const [aperto, setAperto] = useState(false);
+  const v = b.voci;                       // ordine decrescente
+  const dalle = ora(v[v.length - 1].quando);
+  const alle = ora(v[0].quando);
+  const nonOk = v.filter(x => x.esito === "FAIL" || x.fuori_soglia).length;
+  const saltate = v.filter(x => x.esito === "SKIPPED").length;
+  const altroGiorno = b.data_riferimento && b.data_riferimento !== (v[0].quando || "").slice(0, 10);
+  return (
+    <div>
+      <button type="button" onClick={() => setAperto(!aperto)}
+        className="w-full text-left flex items-start gap-3 px-3 py-2.5 min-h-[44px] hover:bg-[#F7F4EF]">
+        <span className="font-mono text-xs text-neutral-500 tabular-nums pt-1 w-10 shrink-0">{alle}</span>
+        <Avatar name={b.chi} size={24} />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-brand-ink leading-snug">
+            ☑️ <b>{plur(v.length, "voce", "voci")}</b> di «{b.checklist}»
+          </div>
+          <div className="text-[11px] text-neutral-500 mt-0.5">
+            <span className="font-semibold text-neutral-600">@{b.chi || "?"}</span>
+            {dalle !== alle ? <> · dalle {dalle} alle {alle}</> : <> · alle {alle}</>}
+            {altroGiorno && <> · del {fmtGiornoBreve(b.data_riferimento)}</>}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {nonOk > 0 && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-red-50 text-red-800 border-red-200">{nonOk} non OK</span>}
+          {saltate > 0 && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-neutral-100 text-neutral-600 border-neutral-200">{plur(saltate, "saltata", "saltate")}</span>}
+          {nonOk === 0 && saltate === 0 && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">tutte OK</span>}
+          <span className="text-neutral-400 text-xs">{aperto ? "▲" : "▼"}</span>
+        </div>
+      </button>
+      {aperto && (
+        <div className="bg-[#FBF9F5] border-t border-neutral-100 divide-y divide-neutral-100">
+          {v.map(e => <Riga key={`voce-${e.id}`} e={{ ...e, nascondiChecklist: true }} />)}
+          <button type="button" onClick={onOpen}
+            className="w-full min-h-[44px] text-sm font-semibold text-brand-red hover:bg-[#F7F4EF]">
+            Apri la checklist ›
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
