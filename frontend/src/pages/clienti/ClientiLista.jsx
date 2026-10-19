@@ -367,10 +367,7 @@ export default function ClientiLista() {
                 </div>
               )}
 
-              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 px-3 text-xs font-bold uppercase tracking-wide text-neutral-500">
-                <span>Cliente</span><span className="text-right">Visite</span><span className="text-right">Ultima</span>
-              </div>
-              <div className="grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 px-3 pl-4 mt-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+              <div className="grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 px-3 pl-4 mt-3 text-xs font-bold uppercase tracking-wide text-neutral-500">
                 {[["cognome", "Cliente", "text-left"], ["n_prenotazioni", "Visite", "text-right"], ["ultima_visita", "Ultima", "text-right"]].map(([k, label, al]) => (
                   <button key={k} type="button" onClick={() => ordinaPer(k)}
                     className={`min-h-[36px] ${al} uppercase ${sortKey === k ? "text-teal-800" : "hover:text-neutral-800"}`}

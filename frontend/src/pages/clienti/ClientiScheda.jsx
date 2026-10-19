@@ -1,4 +1,4 @@
-// @version: v3.1 — scontrino delle visite diviso in Mangiato/Bevuto per tipo, «Prende di solito» per tipo (2026-10-19) · v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
+// @version: v3.2 — linguetta Altro uniformata: card come «Da sapere in sala», campi con la stessa etichetta, indirizzo su una riga, etichette a pillola · v3.1 — scontrino delle visite diviso in Mangiato/Bevuto per tipo, «Prende di solito» per tipo (2026-10-19) · v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -10,33 +10,63 @@ import { Btn } from "../../components/ui";
 import PrenotazioniForm from "../prenotazioni/PrenotazioniForm";
 import { openWhatsApp } from "../../utils/whatsapp";
 
-function Field({ label, value }) {
+const LINGUE = { it_IT: "Italiano", en_GB: "Inglese", en_US: "Inglese", de_DE: "Tedesco", fr_FR: "Francese", es_ES: "Spagnolo", nl_NL: "Olandese", pt_PT: "Portoghese" };
+const PAESI = { Italy: "Italia", Germany: "Germania", France: "Francia", Spain: "Spagna", Switzerland: "Svizzera", "United Kingdom": "Regno Unito", "United States": "Stati Uniti", Netherlands: "Paesi Bassi", Austria: "Austria", Belgium: "Belgio", Norway: "Norvegia" };
+
+// Campi della scheda: stessa etichetta delle card «Da sapere in sala» (piccola, in grassetto, non maiuscola)
+const ETICHETTA = "block text-xs font-bold text-neutral-500 mb-1";
+const CAMPO = "w-full min-h-[44px] border border-neutral-300 rounded-xl px-3 py-2 text-base bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
+
+function Field({ label, value, className = "" }) {
+  const vuoto = value == null || String(value).trim() === "";
   return (
-    <div>
-      <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">{label}</div>
-      <div className="text-sm text-neutral-800">{value || "—"}</div>
+    <div className={`min-w-0 ${className}`}>
+      <div className={ETICHETTA}>{label}</div>
+      <div className={`text-[15px] break-words ${vuoto ? "text-neutral-300" : "text-neutral-900"}`}>{vuoto ? "—" : value}</div>
     </div>
   );
 }
 
-function Input({ label, name, value, onChange, type = "text" }) {
+function Input({ label, name, value, onChange, type = "text", className = "" }) {
   return (
-    <div>
-      <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">{label}</label>
-      <input type={type} name={name} value={value ?? ""} onChange={onChange}
-        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-300" />
+    <div className={`min-w-0 ${className}`}>
+      <label className={ETICHETTA}>{label}</label>
+      <input type={type} name={name} value={value ?? ""} onChange={onChange} className={CAMPO} />
     </div>
   );
 }
 
-function TextArea({ label, name, value, onChange, rows = 2 }) {
+function TextArea({ label, name, value, onChange, rows = 2, className = "" }) {
   return (
-    <div>
-      <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">{label}</label>
-      <textarea name={name} value={value ?? ""} onChange={onChange} rows={rows}
-        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-300" />
+    <div className={`min-w-0 ${className}`}>
+      <label className={ETICHETTA}>{label}</label>
+      <textarea name={name} value={value ?? ""} onChange={onChange} rows={rows} className={CAMPO} />
     </div>
   );
+}
+
+// Una sezione della linguetta Altro: card bianca con titolo come «Da sapere in sala»
+function Sezione({ titolo, azione, children }) {
+  return (
+    <section className="rounded-2xl bg-white border border-neutral-200 p-4">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="text-xs font-bold tracking-wider uppercase text-neutral-500">{titolo}</div>
+        {azione}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// Pillola uguale a quelle della lista clienti
+function Pillola({ children, tono = "neutro" }) {
+  const t = {
+    neutro: "bg-neutral-100 text-neutral-700 border-neutral-200",
+    teal: "bg-teal-50 text-teal-800 border-teal-200",
+    oro: "bg-yellow-100 text-yellow-900 border-yellow-300",
+    rosso: "bg-red-100 text-red-700 border-red-300",
+  }[tono];
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-xs font-semibold ${t}`}>{children}</span>;
 }
 
 const TIPI_NOTA = [
@@ -259,6 +289,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   const prossime = prenotazioni
     .filter((p) => p.data_pasto >= oggi && ["RECORDED", "REQUESTED", "ARRIVED", "SEATED"].includes(p.stato))
     .sort((a, b) => `${a.data_pasto}${a.ora_pasto || ""}`.localeCompare(`${b.data_pasto}${b.ora_pasto || ""}`));
+  const GRIGLIA = `grid gap-x-4 gap-y-4 ${embedded ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3"}`;
   const nomeCompleto = `${cliente.nome || ""}${cliente.nome2 ? ` & ${cliente.nome2}` : ""} ${cliente.cognome2 && cliente.cognome2 !== cliente.cognome ? `${cliente.cognome} / ${cliente.cognome2}` : (cliente.cognome || "")}`.trim();
   const iniziali = ((cliente.nome || "").trim()[0] || "") + ((cliente.cognome || "").trim()[0] || "") || "?";
   const annoDal = (stats.prima_visita || cliente.thefork_created || "").slice(0, 4);
@@ -501,136 +532,119 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
 
             {/* ALTRO: anagrafica, preferenze, etichette, recensioni, unione doppioni */}
             {tab === "altro" && (
-              <div className="space-y-6">
-                <section>
-                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Anagrafica</h2>
-                  <div className="space-y-5">
+              <div className="space-y-3">
+                <Sezione titolo="Anagrafica">
                   {editMode ? (
-                    <>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="space-y-4">
+                      <div className={GRIGLIA}>
                         <Input label="Nome" name="nome" value={form.nome} onChange={onChange} />
                         <Input label="Cognome" name="cognome" value={form.cognome} onChange={onChange} />
                         <Input label="Titolo" name="titolo" value={form.titolo} onChange={onChange} />
                         <Input label="Nome 2 (coppia)" name="nome2" value={form.nome2} onChange={onChange} />
                         <Input label="Cognome 2 (coppia)" name="cognome2" value={form.cognome2} onChange={onChange} />
-                        <Input label="Telefono" name="telefono" value={form.telefono} onChange={onChange} />
-                        <Input label="Telefono 2" name="telefono2" value={form.telefono2} onChange={onChange} />
-                        <Input label="Email" name="email" value={form.email} onChange={onChange} type="email" />
                         <Input label="Data di nascita" name="data_nascita" value={form.data_nascita} onChange={onChange} />
+                      </div>
+                      <div className={GRIGLIA}>
+                        <Input label="Telefono" name="telefono" value={form.telefono} onChange={onChange} type="tel" />
+                        <Input label="Telefono 2" name="telefono2" value={form.telefono2} onChange={onChange} type="tel" />
+                        <Input label="Email" name="email" value={form.email} onChange={onChange} type="email" />
                         <Input label="Lingua" name="lingua" value={form.lingua} onChange={onChange} />
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <Input label="Indirizzo" name="indirizzo" value={form.indirizzo} onChange={onChange} />
+                      <div className={GRIGLIA}>
+                        <Input label="Indirizzo" name="indirizzo" value={form.indirizzo} onChange={onChange} className="col-span-2" />
                         <Input label="CAP" name="cap" value={form.cap} onChange={onChange} />
                         <Input label="Città" name="citta" value={form.citta} onChange={onChange} />
                         <Input label="Paese" name="paese" value={form.paese} onChange={onChange} />
                       </div>
-                      <div className="flex items-center gap-4 pt-2">
-                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                          <input type="checkbox" checked={!!form.vip}
-                            onChange={(e) => setForm(prev => ({ ...prev, vip: e.target.checked }))}
-                            className="rounded border-neutral-300 text-teal-600" />
-                          VIP
-                        </label>
-                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                          <input type="checkbox" checked={!!form.newsletter}
-                            onChange={(e) => setForm(prev => ({ ...prev, newsletter: e.target.checked }))}
-                            className="rounded border-neutral-300 text-teal-600" />
-                          Newsletter
-                        </label>
-                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                          <input type="checkbox" checked={!!form.attivo}
-                            onChange={(e) => setForm(prev => ({ ...prev, attivo: e.target.checked }))}
-                            className="rounded border-neutral-300 text-teal-600" />
-                          Attivo
-                        </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[["vip", "VIP"], ["newsletter", "Newsletter"], ["attivo", "Attivo"]].map(([k, label]) => (
+                          <label key={k} className={`inline-flex items-center gap-2 min-h-[40px] px-3 rounded-full border text-sm font-semibold cursor-pointer ${form[k] ? "bg-teal-700 border-teal-700 text-white" : "bg-white border-neutral-300 text-neutral-600"}`}>
+                            <input type="checkbox" checked={!!form[k]} className="sr-only"
+                              onChange={(e) => setForm((prev) => ({ ...prev, [k]: e.target.checked }))} />
+                            {form[k] ? "✓ " : ""}{label}
+                          </label>
+                        ))}
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="space-y-4">
+                      <div className={GRIGLIA}>
                         <Field label="Nome" value={cliente.nome} />
                         <Field label="Cognome" value={cliente.cognome} />
                         <Field label="Titolo" value={cliente.titolo} />
                         {(cliente.nome2 || cliente.cognome2) && <Field label="Nome 2 (coppia)" value={cliente.nome2} />}
                         {(cliente.nome2 || cliente.cognome2) && <Field label="Cognome 2 (coppia)" value={cliente.cognome2} />}
+                        <Field label="Data di nascita" value={cliente.data_nascita ? dataLunga(cliente.data_nascita) : ""} />
+                      </div>
+                      <div className={`${GRIGLIA} border-t border-neutral-100 pt-4`}>
                         <Field label="Telefono" value={cliente.telefono} />
                         <Field label="Telefono 2" value={cliente.telefono2} />
                         <Field label="Email" value={cliente.email} />
-                        <Field label="Data di nascita" value={cliente.data_nascita} />
-                        <Field label="Lingua" value={cliente.lingua} />
+                        <Field label="Lingua" value={LINGUE[cliente.lingua] || cliente.lingua} />
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <Field label="Indirizzo" value={cliente.indirizzo} />
-                        <Field label="CAP" value={cliente.cap} />
-                        <Field label="Città" value={cliente.citta} />
-                        <Field label="Paese" value={cliente.paese} />
+                      <div className={`${GRIGLIA} border-t border-neutral-100 pt-4`}>
+                        <Field label="Indirizzo" className="col-span-2"
+                          value={[cliente.indirizzo, [cliente.cap, cliente.citta].filter(Boolean).join(" ")].filter((x) => x && x.trim()).join(", ")} />
+                        <Field label="Paese" value={PAESI[cliente.paese] || cliente.paese} />
                       </div>
-                      <div className="flex gap-4 text-sm text-neutral-600 pt-2">
-                        <span>{cliente.vip ? "⭐ VIP" : ""}</span>
-                        <span>{cliente.newsletter ? "📧 Newsletter" : ""}</span>
-                        <span>{cliente.attivo ? "🟢 Attivo" : "🔴 Inattivo"}</span>
+                      <div className="flex flex-wrap gap-1.5 border-t border-neutral-100 pt-4">
+                        {cliente.vip ? <Pillola tono="oro">VIP</Pillola> : null}
+                        {cliente.newsletter ? <Pillola tono="teal">Newsletter</Pillola> : null}
+                        {cliente.attivo ? <Pillola tono="teal">Attivo</Pillola> : <Pillola tono="rosso">Inattivo</Pillola>}
                       </div>
-                    </>
+                    </div>
                   )}
-
-                  {/* Info sistema */}
-                  <div className="border-t border-neutral-100 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-neutral-400">
-                    <div>Origine: <span className="text-neutral-600">{cliente.origine}</span></div>
-                    <div>Risk: <span className="text-neutral-600">{cliente.risk_level || "—"}</span></div>
-                    <div>Creato TF: <span className="text-neutral-600">{cliente.thefork_created || "—"}</span></div>
-                    <div>Aggiornato: <span className="text-neutral-600">{cliente.updated_at || "—"}</span></div>
+                  <div className="mt-4 text-xs text-neutral-400">
+                    {[cliente.origine === "thefork" ? "Da TheFork" : cliente.origine ? `Origine: ${cliente.origine}` : null,
+                      cliente.thefork_created ? `creato ${dataLunga(cliente.thefork_created)}` : null,
+                      cliente.updated_at ? `aggiornato ${dataLunga(cliente.updated_at)}` : null,
+                      cliente.risk_level ? `rischio: ${cliente.risk_level}` : null].filter(Boolean).join(" · ")}
                   </div>
-                </div>
-                </section>
-                <section>
-                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Preferenze e allergie</h2>
-                  <div className="space-y-4">
+                </Sezione>
+
+                <Sezione titolo="Preferenze e allergie">
                   {editMode ? (
-                    <>
+                    <div className={`grid gap-4 ${embedded ? "" : "md:grid-cols-2"}`}>
+                      <Input label="Allergie e intolleranze" name="allergie" value={form.allergie} onChange={onChange} />
+                      <Input label="Restrizioni dietetiche" name="restrizioni_dietetiche" value={form.restrizioni_dietetiche} onChange={onChange} />
                       <TextArea label="Preferenze cibo" name="pref_cibo" value={form.pref_cibo} onChange={onChange} />
                       <TextArea label="Preferenze bevande" name="pref_bevande" value={form.pref_bevande} onChange={onChange} />
                       <Input label="Posto preferito" name="pref_posto" value={form.pref_posto} onChange={onChange} />
-                      <Input label="Restrizioni dietetiche" name="restrizioni_dietetiche" value={form.restrizioni_dietetiche} onChange={onChange} />
-                      <Input label="Allergie e intolleranze" name="allergie" value={form.allergie} onChange={onChange} />
                       <TextArea label="Note TheFork" name="note_thefork" value={form.note_thefork} onChange={onChange} rows={3} />
-                    </>
+                    </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className={`grid gap-4 ${embedded ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3"}`}>
+                      <Field label="Allergie e intolleranze" value={cliente.allergie} />
+                      <Field label="Restrizioni dietetiche" value={cliente.restrizioni_dietetiche} />
+                      <Field label="Posto preferito" value={cliente.pref_posto} />
                       <Field label="Preferenze cibo" value={cliente.pref_cibo} />
                       <Field label="Preferenze bevande" value={cliente.pref_bevande} />
-                      <Field label="Posto preferito" value={cliente.pref_posto} />
-                      <Field label="Restrizioni dietetiche" value={cliente.restrizioni_dietetiche} />
-                      <Field label="Allergie e intolleranze" value={cliente.allergie} />
                       <Field label="Note TheFork" value={cliente.note_thefork} />
                     </div>
                   )}
-                </div>
-                </section>
-                <section>
-                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Etichette</h2>
+                </Sezione>
+
+                <Sezione titolo="Etichette">
                   <div className="flex flex-wrap gap-2">
                     {allTags.map((tag) => {
                       const active = cliente.tags?.some((t) => t.id === tag.id);
                       return (
                         <button key={tag.id} type="button" onClick={() => toggleTag(tag.id)} aria-pressed={active}
-                          className={`min-h-[40px] px-3 rounded-full border text-sm font-medium transition ${active ? "border-teal-600 bg-teal-50 text-teal-800" : "border-neutral-300 bg-white text-neutral-500 hover:border-teal-400"}`}>
-                          {active ? "✓ " : ""}{tag.nome}
+                          className={`min-h-[40px] px-3.5 rounded-full border text-sm font-semibold transition ${active ? "bg-teal-700 border-teal-700 text-white" : "bg-white border-neutral-300 text-neutral-600 hover:border-teal-500"}`}>
+                          {active ? "✓ " : "+ "}{tag.nome}
                         </button>
                       );
                     })}
                   </div>
-                </section>
-                <section>
-                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Spesa e piatti</h2>
+                  <div className="mt-2 text-xs text-neutral-400">Tocca per mettere o togliere un'etichetta.</div>
+                </Sezione>
+                <Sezione titolo="Spesa e piatti">
                   <ConsumiTab clienteId={cliente.id} />
-                </section>
-                <section>
-                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Recensioni TheFork</h2>
+                </Sezione>
+                <Sezione titolo="Recensioni TheFork">
                   <RecensioniTab clienteId={cliente.id} />
-                </section>
-                <section>
-                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Doppioni</h2>
+                </Sezione>
+                <Sezione titolo="Doppioni">
                   {!showMerge && (
                     <Btn variant="secondary" size="md" onClick={() => setShowMerge(true)}>Unisci con un altro cliente…</Btn>
                   )}
@@ -755,7 +769,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                     )}
                   </div>
                 )}
-                </section>
+                </Sezione>
               </div>
             )}
           </div>
@@ -792,8 +806,14 @@ function dataBreve(iso, conGiorno = false) {
   const anno = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
   return `${conGiorno ? _GIORNI[d.getDay()] + " " : ""}${base}${anno}`;
 }
+// Accetta anche «29/05/2019 02:00:00» (date TheFork) oltre ad AAAA-MM-GG
+function _iso(x) {
+  const m = String(x || "").match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : String(x || "");
+}
 function dataLunga(iso) {
-  if (!iso) return "—";
+  iso = _iso(iso);
+  if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso || "—";
   const d = new Date(iso.slice(0, 10) + "T12:00:00");
   const s = d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined });
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -918,12 +938,9 @@ function PrendeDiSolito({ consumi, dueColonne }) {
 // ── Tab Recensioni TheFork dentro scheda cliente (mig 197) ──
 // ── Tab «Cosa ha mangiato»: conti di cassa abbinati al cliente (2026-10-18) ──
 // Dati: GET /clienti/{id}/consumi (servizio platform abbinamento_conti_service).
-const _euro = (n) => (n == null ? "—" : n.toLocaleString("it-IT", { style: "currency", currency: "EUR" }));
-const _data = (d) => (d ? new Date(d + "T12:00:00").toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 function ConsumiTab({ clienteId }) {
   const [d, setD] = useState(null);
-  const [aperto, setAperto] = useState(null);
   useEffect(() => {
     apiFetch(`${API_BASE}/clienti/${clienteId}/consumi`)
       .then((r) => (r.ok ? r.json() : null))
@@ -939,77 +956,37 @@ function ConsumiTab({ clienteId }) {
       </div>
     );
   }
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          ["Visite con conto", d.visite],
-          ["Spesa totale", _euro(d.spesa_totale)],
-          ["Media a visita", _euro(d.spesa_media_visita)],
-          ["Media a coperto", _euro(d.spesa_media_coperto)],
-        ].map(([l, v]) => (
-          <div key={l} className="rounded-xl border border-neutral-200 bg-white p-3">
-            <div className="text-[11px] uppercase text-neutral-400 font-semibold">{l}</div>
-            <div className="text-lg font-bold text-neutral-800">{v}</div>
-          </div>
+  const Numero = ({ label, v, sotto }) => (
+    <div className="rounded-xl bg-neutral-50 border border-neutral-200 px-3 py-2.5">
+      <div className="text-xs font-bold text-neutral-500">{label}</div>
+      <div className="text-xl font-bold text-neutral-900 tabular-nums">{v}</div>
+      {sotto && <div className="text-xs text-neutral-500">{sotto}</div>}
+    </div>
+  );
+  const Lista = ({ titolo, voci, destra }) => (
+    <div className="min-w-0">
+      <div className="text-xs font-bold text-neutral-500 mb-1">{titolo}</div>
+      <ul className="divide-y divide-neutral-100">
+        {voci.map((p) => (
+          <li key={p.nome} className="flex gap-3 py-1.5 text-[15px]">
+            <span className="flex-1 min-w-0">{nomeVoce(p.nome)}<span className="text-neutral-400 text-xs"> · {p.categoria || "—"}</span></span>
+            <span className="shrink-0 tabular-nums text-neutral-600">{destra(p)}</span>
+          </li>
         ))}
+      </ul>
+    </div>
+  );
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <Numero label="Visite con conto" v={d.visite} sotto={`dal ${dataBreve(d.prima)}`} />
+        <Numero label="Spesa totale" v={euro(d.spesa_totale)} />
+        <Numero label="A visita" v={euro(d.spesa_media_visita)} />
+        <Numero label="A coperto" v={euro(d.spesa_media_coperto)} />
       </div>
-      <div className="text-xs text-neutral-500">Dal {_data(d.prima)} al {_data(d.ultima)}</div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">🍽️ Piatti che prende</div>
-          <ul className="text-sm space-y-0.5">
-            {d.piatti_preferiti.slice(0, 15).map((p) => (
-              <li key={p.nome} className="flex gap-2">
-                <span className="flex-1">{p.nome}<span className="text-neutral-400"> · {p.categoria || "—"}</span></span>
-                <span className="text-neutral-600">{p.volte}×</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">🍷 Da bere</div>
-          <ul className="text-sm space-y-0.5">
-            {d.da_bere.slice(0, 10).map((p) => (
-              <li key={p.nome} className="flex gap-2">
-                <span className="flex-1">{p.nome}<span className="text-neutral-400"> · {p.volte}×</span></span>
-                <span className="text-neutral-600">{_euro(p.spesa)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div>
-        <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Visite</div>
-        <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-xl bg-white">
-          {d.conti.map((c) => (
-            <div key={c.id}>
-              <button type="button" onClick={() => setAperto(aperto === c.id ? null : c.id)}
-                className="w-full text-left px-3 py-2.5 min-h-[44px] flex flex-wrap items-center gap-x-4 gap-y-1 hover:bg-neutral-50">
-                <span className="w-28 font-medium">{_data(c.data_rif)}</span>
-                <span className="w-16 text-neutral-500">{c.turno || ""}</span>
-                <span className="w-24">{c.tavolo || "—"}</span>
-                <span className="w-16 text-neutral-600">{c.coperti ? `${c.coperti} cop.` : ""}</span>
-                <span className="w-20 font-semibold">{_euro(c.totale)}</span>
-                {c.abbinamento === "proposto" && <span className="text-xs text-amber-700">da confermare</span>}
-              </button>
-              {aperto === c.id && (
-                <ul className="px-3 pb-3 pl-8 text-sm text-neutral-700 space-y-0.5">
-                  {c.righe.map((r, i) => (
-                    <li key={i} className="flex gap-3">
-                      <span className="w-10 text-right">{r.quantita}×</span>
-                      <span className="flex-1">{r.nome === "no_name" ? <span className="text-neutral-400">voce senza nome</span> : r.nome}</span>
-                      <span className="w-20 text-right text-neutral-500">{_euro(r.totale)}</span>
-                    </li>
-                  ))}
-                  {c.romana ? <li className="text-neutral-400 text-xs">pagato alla romana</li> : null}
-                </ul>
-              )}
-            </div>
-          ))}
-        </div>
+        <Lista titolo="Piatti, quante volte" voci={d.piatti_preferiti.filter(vocePiatto).slice(0, 12)} destra={(p) => `${p.volte}×`} />
+        <Lista titolo="Da bere, quanto ha speso" voci={d.da_bere.filter(vocePiatto).slice(0, 10)} destra={(p) => euro(p.spesa)} />
       </div>
     </div>
   );

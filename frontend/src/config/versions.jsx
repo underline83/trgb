@@ -418,7 +418,7 @@ const MODULE_VERSIONS = {
     //   (ora Prenotazioni › Archivio). Rank Gold/Silver/Bronze e frequenza come pillole colorate;
     //   ordine toccando Cliente/Visite/Ultima. Scheda: scontrino delle visite diviso in Mangiato
     //   (antipasti, primi…) e Bevuto (vini, birre, acqua e caffè) con i prezzi; «Prende di solito»
-    //   per tipo, bottiglie prima dei calici.
+    //   per tipo, bottiglie prima dei calici. Linguetta Altro uniformata (card, campi, etichette a pillola).
     // 3.7 (2026-10-19): scheda cliente rifatta (bozzetto A del redesign): fascia verde petrolio con
     //   iniziali e 3 numeri, Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle
     //   visite con il conto, linguette Visite/Note/Preventivi/Altro. «Ultima visita» non conta più
