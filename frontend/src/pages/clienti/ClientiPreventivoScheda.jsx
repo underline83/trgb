@@ -1,4 +1,4 @@
-// @version: v1.5 — totale «da X a Y» con menu alternativi, testo cliente copia/WhatsApp (mig 187)
+// @version: v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
 // Scheda singolo preventivo: testata + componi menu (snapshot da Cucina) + menu testuale + extra + totale
 // v1.1 (sessione 32): sezione Menu Proposto, cliente cerca/crea inline, luoghi configurabili
@@ -8,13 +8,15 @@
 // v1.5 (2026-10-16): con >= 2 menu e nessuna scelta il totale e' una forbice min–max;
 // col menu scelto dal cliente usa quello. «📋 Copia testo» e «💬 WhatsApp» (M.C) col
 // messaggio di GET /preventivi/{id}/testo (mai i prezzi dei singoli piatti).
+// v1.6 (2026-10-19): «📨 Invia al cliente» salva e apre PreventivoInvioModal
+// (WhatsApp con PDF vero via condivisione, email col PDF allegato, registro invii).
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import PreventivoMenuComposer from "./PreventivoMenuComposer";
 import { Btn } from "../../components/ui";
-import { openWhatsApp } from "../../utils/whatsapp";
+import PreventivoInvioModal from "./PreventivoInvioModal";
 
 const fmtEuro = (v) => (parseFloat(v) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -127,6 +129,9 @@ export default function ClientiPreventivoScheda() {
 
   // Tab note
   const [noteTab, setNoteTab] = useState("interne");
+
+  // Pannello invio al cliente (mig 200)
+  const [invioOpen, setInvioOpen] = useState(false);
 
   // ── Caricamento ──
   useEffect(() => {
@@ -335,14 +340,14 @@ export default function ClientiPreventivoScheda() {
 
   // ── Salva ──
   const handleSalva = async () => {
-    if (!form.titolo.trim()) { showToast("Il titolo è obbligatorio", true); return; }
+    if (!form.titolo.trim()) { showToast("Il titolo è obbligatorio", true); return false; }
 
     // Validazione cliente "nuovo"
     let nuovoClientePayload = null;
     if (clienteMode === "nuovo" && !form.cliente_id) {
       const n = (nuovoCliente.nome || "").trim();
       const c = (nuovoCliente.cognome || "").trim();
-      if (!n && !c) { showToast("Indicare almeno nome o cognome del nuovo cliente", true); return; }
+      if (!n && !c) { showToast("Indicare almeno nome o cognome del nuovo cliente", true); return false; }
       nuovoClientePayload = { ...nuovoCliente };
     }
 
@@ -415,8 +420,10 @@ export default function ClientiPreventivoScheda() {
           setNuovoCliente({ nome: "", cognome: "", telefono: "", email: "" });
         }
       }
+      return true;
     } catch (err) {
       showToast(err.message || "Errore salvataggio", true);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -460,16 +467,10 @@ export default function ClientiPreventivoScheda() {
     }
   };
 
-  const handleWhatsApp = async () => {
-    try {
-      const { testo, telefono } = await fetchTesto();
-      if (!openWhatsApp(telefono, testo)) {
-        await navigator.clipboard.writeText(testo);
-        showToast("Cliente senza telefono: testo copiato, incollalo tu", true);
-      }
-    } catch (err) {
-      showToast(err.message || "Errore WhatsApp", true);
-    }
+  // Invio al cliente: prima si salva (testo e PDF usano i dati salvati), poi il pannello
+  const handleApriInvio = async () => {
+    const ok = await handleSalva();
+    if (ok) setInvioOpen(true);
   };
 
   const handlePDF = async () => {
@@ -954,9 +955,9 @@ export default function ClientiPreventivoScheda() {
                       📥 Scarica PDF
                     </Btn>
 
-                    <Btn variant="chip" tone="emerald" size="sm" onClick={handleWhatsApp} className="w-full justify-start"
-                      title="Apre WhatsApp sul telefono del cliente col testo del preventivo (dati salvati)">
-                      💬 WhatsApp
+                    <Btn variant="chip" tone="emerald" size="sm" onClick={handleApriInvio} className="w-full justify-start"
+                      title="Salva e apre l'invio: WhatsApp (testo completo + PDF) o email col PDF allegato">
+                      📨 Invia al cliente
                     </Btn>
 
                     <Btn variant="ghost" size="sm" onClick={handleCopiaTesto} className="w-full justify-start"
@@ -990,14 +991,25 @@ export default function ClientiPreventivoScheda() {
               </button>
             )}
             {!isNew && (
-              <button onClick={handleWhatsApp} title="WhatsApp al cliente"
+              <button onClick={handleApriInvio} title="Invia al cliente (WhatsApp / email)"
                 className="px-4 py-2.5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-sm">
-                💬
+                📨
               </button>
             )}
           </div>
         </div>
       </div>
+
+      {invioOpen && prevId && (
+        <PreventivoInvioModal
+          prevId={prevId}
+          numero={numero}
+          clienteNome={clienteNome}
+          onClose={() => setInvioOpen(false)}
+          onInviato={(s) => s && setStato(s)}
+          showToast={showToast}
+        />
+      )}
 
       {/* TOAST */}
       {toast && (

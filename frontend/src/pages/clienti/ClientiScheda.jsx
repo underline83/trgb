@@ -1,4 +1,4 @@
-// @version: v3.3 — linguette subito sotto i bottoni: Anagrafica (con «Da sapere in sala»), Visite, Acquisti, Preventivi, Note · v3.2 — linguetta Altro uniformata: card come «Da sapere in sala», campi con la stessa etichetta, indirizzo su una riga, etichette a pillola · v3.1 — scontrino delle visite diviso in Mangiato/Bevuto per tipo, «Prende di solito» per tipo (2026-10-19) · v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
+// @version: v3.3 — linguette subito sotto i bottoni: Anagrafica (con «Da sapere in sala»), Visite, Acquisti, Preventivi, Note, Recensioni · v3.2 — linguetta Altro uniformata: card come «Da sapere in sala», campi con la stessa etichetta, indirizzo su una riga, etichette a pillola · v3.1 — scontrino delle visite diviso in Mangiato/Bevuto per tipo, «Prende di solito» per tipo (2026-10-19) · v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -318,6 +318,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
     { key: "acquisti", label: "Acquisti" },
     { key: "preventivi", label: "Preventivi" },
     { key: "note", label: `Note${cliente.note?.length ? ` (${cliente.note.length})` : ""}` },
+    { key: "recensioni", label: "Recensioni" },
   ];
   const RANK_CHIP = {
     Gold: "bg-yellow-200 text-yellow-900", Silver: "bg-neutral-200 text-neutral-700",
@@ -499,11 +500,6 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                       </div>
                     ))}
                   </div>
-                  <div className="mt-6">
-                    <Sezione titolo="Recensioni TheFork">
-                      <RecensioniTab clienteId={cliente.id} />
-                    </Sezione>
-                  </div>
                 </div>
               )}
 
@@ -516,6 +512,9 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                 </Sezione>
               </div>
             )}
+
+            {/* RECENSIONI TheFork */}
+            {tab === "recensioni" && <RecensioniTab clienteId={cliente.id} />}
 
             {/* PREVENTIVI */}
             {tab === "preventivi" && <PreventiviTab clienteId={cliente.id} navigate={navigate} />}

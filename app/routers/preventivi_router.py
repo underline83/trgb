@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from app.services.auth_service import get_current_user, is_admin
-from app.services.pdf_brand import genera_pdf_html, safe_filename
+
 from app.services.preventivi_service import (
     crea_preventivo,
     get_preventivo,
@@ -40,6 +40,12 @@ from app.services.preventivi_service import (
     riordina_menu,
     # Prezzo a corpo + testo cliente (mig 187)
     testo_cliente,
+    # Invio al cliente + registro invii (mig 200)
+    genera_pdf,
+    lista_invii,
+    registra_invio,
+    bozza_email,
+    invia_email_preventivo,
 )
 
 from app.services.permessi import richiede_ruoli
@@ -552,32 +558,83 @@ def api_pdf_preventivo(
     inline: bool = Query(False, description="Se True apre inline nel browser, altrimenti download"),
     user: dict = Depends(get_current_user),
 ):
-    """
-    Genera il PDF brandizzato di un preventivo usando il mattone M.B (pdf_brand).
-    """
-    prev = get_preventivo(preventivo_id)
-    if not prev:
-        raise HTTPException(status_code=404, detail="Preventivo non trovato")
-
-    righe = prev.get("righe") or []
-    menus = prev.get("menu_list") or []
-    numero = prev.get("numero") or f"preventivo_{preventivo_id}"
-
+    """Genera il PDF brandizzato di un preventivo usando il mattone M.B (pdf_brand)."""
     try:
-        pdf_bytes = genera_pdf_html(
-            template="preventivo.html",
-            dati={"prev": prev, "righe": righe, "menus": menus},
-            titolo=f"Preventivo {numero}",
-            sottotitolo=prev.get("titolo") or None,
-            orientamento="portrait",
-        )
+        gen = genera_pdf(preventivo_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
-
-    filename = safe_filename(numero.replace("-", "_").lower(), ext="pdf")
+    if gen is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    pdf_bytes, filename = gen
     disposition = "inline" if inline else "attachment"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Invio al cliente: registro invii, WhatsApp, email con PDF (mig 200)
+# ---------------------------------------------------------------------------
+
+class InvioIn(BaseModel):
+    canale: str = "whatsapp"          # l'email passa da /invia-email
+    destinatario: Optional[str] = None
+
+
+class EmailIn(BaseModel):
+    to: str                            # uno o più indirizzi separati da virgola
+    oggetto: str
+    corpo: str = ""
+
+
+@router.get("/{preventivo_id}/invii")
+def api_lista_invii(preventivo_id: int, user: dict = Depends(get_current_user)):
+    return lista_invii(preventivo_id)
+
+
+@router.post("/{preventivo_id}/invii")
+def api_registra_invio(preventivo_id: int, body: InvioIn, user: dict = Depends(get_current_user)):
+    """Registra un invio fatto dal dispositivo (WhatsApp: condivisione PDF+testo
+    o apertura chat). Il primo invio porta «bozza» → «inviato»."""
+    _require_admin(user)
+    if body.canale != "whatsapp":
+        raise HTTPException(status_code=400, detail="Da qui si registra solo WhatsApp; l'email si manda con /invia-email")
+    try:
+        res = registra_invio(preventivo_id, "whatsapp", body.destinatario, user["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res
+
+
+@router.get("/{preventivo_id}/email-bozza")
+def api_email_bozza(preventivo_id: int, user: dict = Depends(get_current_user)):
+    """Destinatario, oggetto e testo proposti; più se la casella è configurata."""
+    res = bozza_email(preventivo_id)
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res
+
+
+@router.post("/{preventivo_id}/invia-email")
+def api_invia_email(preventivo_id: int, body: EmailIn, user: dict = Depends(get_current_user)):
+    """Manda il preventivo via email col PDF allegato (M.D). L'esito, anche se
+    negativo, finisce nel registro invii; un errore SMTP torna come ok=false."""
+    _require_admin(user)
+    to = [t.strip() for t in body.to.replace(";", ",").split(",") if t.strip()]
+    if not to or any("@" not in t for t in to):
+        raise HTTPException(status_code=400, detail="Indirizzo email non valido")
+    if not body.oggetto.strip():
+        raise HTTPException(status_code=400, detail="Oggetto vuoto")
+    try:
+        res = invia_email_preventivo(preventivo_id, to, body.oggetto.strip(), body.corpo, user["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore invio: {e}")
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res

@@ -1,6 +1,6 @@
 # Modulo Preventivi — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-16
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-19
 > **Vedi anche:** [modulo_prenotazioni.md](modulo_prenotazioni.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md), [architettura_mattoni.md](architettura_mattoni.md)
 
 **Nato:** spec sessione 31 (2026-04-13), implementato nelle sessioni 31-39
@@ -16,9 +16,9 @@
 
 Gestione dei preventivi per eventi (cene private, aziendali, gruppi): prima sparsi tra WhatsApp, email e telefono, ora tracciati con numero progressivo, stato, menu proposti e PDF brandizzato. Collegato al CRM (cliente esistente o creato al volo) e al Ricettario (i piatti dei menu sono snapshot delle ricette di Cucina).
 
-Flusso tipico: Marco crea il preventivo (titolo, cliente, data/pax/luogo) → compone uno o più **menu alternativi** pescando piatti dal Ricettario o scrivendoli al volo → aggiunge eventuali **extra** (noleggi, supplementi, sconti) → scarica il **PDF** (mattone M.B) e lo manda al cliente per WA/email a mano → aggiorna lo **stato** man mano (inviato → confermato → prenotato → completato → fatturato).
+Flusso tipico: Marco crea il preventivo (titolo, cliente, data/pax/luogo) → compone uno o più **menu alternativi** pescando piatti dal Ricettario o scrivendoli al volo → aggiunge eventuali **extra** (noleggi, supplementi, sconti) → lo manda al cliente da **«📨 Invia al cliente»** (WhatsApp con testo completo + PDF, oppure email col PDF allegato; l'invio resta nel registro e porta bozza → inviato) → aggiorna lo **stato** man mano (inviato → confermato → prenotato → completato → fatturato).
 
-Le Fasi A (CRUD) e B (template/righe/totale) della spec sono implementate, la C parzialmente (PDF sì, invio WA/email no), la D no (versioning e collegamento automatico alla prenotazione mancano — vedi §11).
+Le Fasi A (CRUD), B (template/righe/totale) e C (PDF + invio WA/email, dal 2026-10-19) della spec sono implementate, la D no (versioning e collegamento automatico alla prenotazione mancano — vedi §11).
 
 # 2. Capability
 
@@ -44,6 +44,9 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`, so
 | C-P-034 | Testo per il cliente (WhatsApp con M.C / copia per email): menu, portate, prezzo a persona, extra, totale; mai i prezzi dei piatti | `GET /preventivi/{id}/testo` → `{testo, telefono}` — `preventivi_service.testo_cliente`; bottoni «💬 WhatsApp» / «📋 Copia testo» in scheda | tutti i ruoli del modulo | 🆕 2026-10-16 |
 | C-P-035 | Stagione dei menu template: campo, filtro, elenco stagioni | `GET /menu-templates/?stagione=`, `GET /menu-templates/stagioni` | ruoli del modulo (lettura), admin (scrittura) | 🆕 2026-10-16 |
 | C-P-036 | Carica più template in un colpo come menu alternativi (un tab per template) | `POST /preventivi/{id}/menu/da-template` `{template_ids}` — `menu_templates_service.crea_menu_da_templates` | admin | 🆕 2026-10-16 |
+| C-P-037 | Pannello «📨 Invia al cliente»: salva, prepara testo + PDF, WhatsApp (condivisione PDF+testo o chat col testo + PDF da scaricare), email | `PreventivoInvioModal.jsx` + scheda | admin (invio) | 🆕 2026-10-19 |
+| C-P-038 | Email al cliente col PDF allegato (M.D), destinatario/oggetto/testo proposti e modificabili | `GET /preventivi/{id}/email-bozza`, `POST /preventivi/{id}/invia-email` — `preventivi_service.bozza_email / invia_email_preventivo` | admin | 🆕 2026-10-19 |
+| C-P-039 | Registro invii (canale, a chi, quando, chi, esito); il primo invio riuscito porta bozza → inviato | `GET/POST /preventivi/{id}/invii` — `preventivi_service.registra_invio / lista_invii` | lettura ruoli modulo, scrittura admin | 🆕 2026-10-19 |
 
 **Auth:** tutte le route richiedono JWT; le letture sono aperte a ogni utente loggato, le scritture (e `GET /stats`) richiedono admin/superadmin via `is_admin()`.
 
@@ -137,7 +140,16 @@ Il composer menu funziona anche su `/clienti/preventivi/nuovo` prima del salvata
 
 `GET /preventivi/{id}/pdf?inline=false` genera il PDF brandizzato via `pdf_brand.genera_pdf_html` con template `app/templates/pdf/preventivo.html` (dati: testata, righe extra, lista menu). Download dal pulsante "📥 Scarica PDF" in scheda. Il PDF mostra per ogni menu nome, portate e prezzo a persona (doppio se a corpo con vino escluso/incluso), **mai i prezzi dei singoli piatti**; con alternative non scelte il totale è «da X a Y».
 
-**Testo per il cliente** (migr. 187): `GET /preventivi/{id}/testo` costruisce lo stesso contenuto come messaggio (formattazione WhatsApp `*grassetto*` / `_corsivo_`). In scheda «💬 WhatsApp» apre WA sul telefono del cliente via M.C (`openWhatsApp`); senza telefono copia il testo. «📋 Copia testo» per l'email (M.D non c'è ancora). Usa i dati **salvati**: prima salvare testata, extra e note.
+**Testo per il cliente** (migr. 187): `GET /preventivi/{id}/testo` costruisce lo stesso contenuto come messaggio (formattazione WhatsApp `*grassetto*` / `_corsivo_`). Lo usa il pannello d'invio (§8.1); «📋 Copia testo» resta in scheda per incollarlo altrove. Usa i dati **salvati**. L'email usa `testo_cliente(id, formato="email")` (senza `*` e `_`).
+
+## 8.1 Invio al cliente (mig 200, 2026-10-19)
+
+«📨 Invia al cliente» (sidebar e barra mobile) **salva** il preventivo e apre `PreventivoInvioModal`, che scarica subito testo, PDF e bozza email (così la condivisione parte dentro il tocco, come vuole Safari).
+
+- **WhatsApp — testo completo + PDF.** `wa.me` non può allegare file, quindi: «📤 Condividi PDF + testo» usa la Web Share API (`navigator.share({files, text})`) — c'è su iPhone/iPad e sui browser che la supportano; in WhatsApp si sceglie la chat del cliente. Il testo viene anche copiato negli appunti, se WA tiene solo il PDF. Dove la condivisione non c'è (tipicamente Mac): «💬 Apri chat col testo» (chat del cliente via M.C con il testo completo) + «📥 Scarica PDF» da trascinare nella chat. Il telefono è modificabile nel pannello.
+- **Email** — casella del locale (mattone M.D, `email_service.invia_email`), PDF allegato, destinatario (email del cliente), oggetto e testo proposti da `GET /email-bozza` e modificabili. Firma = nome mittente della casella (nessun testo del locale nel codice). Se la casella non è configurata il pannello lo dice e non invia. Un errore SMTP non è un 500: torna `ok=false` e finisce nel registro come «non partita».
+- **Registro** `clienti_preventivi_invii`: ogni invio WhatsApp (una riga per apertura del pannello, al primo «Condividi» riuscito o «Apri chat») e ogni email (anche fallita). Il primo invio riuscito porta **bozza → inviato** (ed esce dalle bozze automatiche) e compila `canale` se vuoto. Storico in fondo al pannello.
+- WhatsApp «inviato» vuol dire «aperto/condiviso da TRGB»: che il messaggio sia partito davvero lo sa solo WhatsApp.
 
 # 9. Frontend
 
@@ -159,6 +171,8 @@ Il composer menu funziona anche su `/clienti/preventivi/nuovo` prima del salvata
 | `clienti_preventivi_menu` | menu alternativi: preventivo_id (CASCADE), nome, sort_order, sconto, subtotale, prezzo_persona; `pricing_mode` ('somma'/'corpo'), `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `prezzo_corpo_scelta` ('escluso'/'incluso') | migr. 079 (con backfill di un menu "Menu" per i preventivi pre-esistenti) + 187 |
 | `clienti_menu_template` / `clienti_menu_template_righe` | libreria menu riutilizzabili: nome, descrizione, service_type_id (soft FK foodcost), prezzo_persona, sconto, `pricing_mode`, `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `stagione` + righe snapshot | migr. 080 + 187 |
 
+Migr. 200 aggiunge `clienti_preventivi_invii` (preventivo_id CASCADE, canale whatsapp/email, destinatario, oggetto, esito ok/errore, errore, message_id, inviato_da, created_at).
+
 Migr. 187 aggiunge anche `clienti_preventivi.menu_scelto_id` (NULL = il cliente non ha ancora scelto). Solo ADD COLUMN con default neutri: i preventivi esistenti restano in modalità `somma` con gli stessi totali (verificato su copia del DB: PRE-2026-001 450 €, PRE-2026-002 0 € con forbice 800–2.400 €).
 
 Migrazione correttiva: `078_preventivi_menu_prezzo_persona_fix.py` — backfill dopo il bugfix "prezzo/persona = subtotale − sconto" (le righe menu sono già prezzi per 1 coperto, non da dividere per pax).
@@ -171,8 +185,8 @@ Il service è difensivo: se le tabelle 075/079 mancano (DB legacy non migrato) d
 - **Notifiche staff (M.A)**: la spec prevedeva `crea_notifica` sui preventivi confermati; non c'è alcuna chiamata al mattone.
 - **`scaduto` automatico**: la spec lo prevedeva allo scadere di `scadenza_conferma`; oggi è solo transizione manuale (nessun job/checker M.F). La lista evidenzia le scadenze imminenti come promemoria visivo.
 - **Versioning (Fase D)**: campo `versione` fermo a 1, nessuna logica.
-- **Invio WA/email dal preventivo (Fase C)**: solo download PDF; l'invio è manuale (M.D Email non esiste ancora; nessun uso di M.C qui).
-- Roadmap correlata: `CL.4` (invio preventivi, bloccato da M.D) in [roadmap.md](roadmap.md).
+- **Invio WA/email (Fase C)**: ✅ dal 2026-10-19 (§8.1). Restano fuori: link pubblico al PDF (deciso: no), tracking aperture email, copia dell'email nella cartella «Inviata» della casella (SMTP non la salva).
+- Roadmap correlata: `CL.4` in [roadmap.md](roadmap.md).
 
 # 12. Limiti noti
 

@@ -1480,14 +1480,18 @@ def _data_it(iso: str | None) -> str:
         return iso or ""
 
 
-def testo_cliente(preventivo_id: int) -> str | None:
+def testo_cliente(preventivo_id: int, formato: str = "whatsapp") -> str | None:
     """Messaggio pronto da incollare su WhatsApp o in una email.
     Menu: nome, portate in ordine e prezzo a persona (singolo o doppio vino
     escluso/incluso). MAI i prezzi dei singoli piatti. Extra con importo.
-    Totale: importo, o «da X a Y €» se ci sono alternative non ancora scelte."""
+    Totale: importo, o «da X a Y €» se ci sono alternative non ancora scelte.
+    formato='whatsapp' usa *grassetto* / _corsivo_; formato='email' testo semplice."""
     prev = get_preventivo(preventivo_id)
     if not prev:
         return None
+    wa = formato != "email"
+    B = (lambda t: f"*{t}*") if wa else (lambda t: t)
+    I = (lambda t: f"_{t}_") if wa else (lambda t: f"{t}:")
     out: list[str] = []
     out.append(f"Preventivo {prev.get('numero') or ''} — {prev.get('titolo') or ''}".strip(" —"))
     info = []
@@ -1513,19 +1517,19 @@ def testo_cliente(preventivo_id: int) -> str | None:
             titolo = f"Opzione {OPZIONI[i] if i < len(OPZIONI) else i + 1}" + (f" — {nome}" if nome else "")
         else:
             titolo = "Menu" + (f" — {nome}" if nome else "")
-        out += ["", f"*{titolo}*"]
+        out += ["", B(titolo)]
         cat_corrente = None
         for r in m["righe"]:
             cat = r.get("category_name")
             if cat and cat != cat_corrente:
-                out.append(f"_{cat}_")
+                out.append(I(cat))
                 cat_corrente = cat
             out.append(f"• {r['name']}")
         out.append(etichetta_prezzo(m))
 
     extra = [r for r in prev.get("righe") or [] if (r.get("descrizione") or "").strip()]
     if extra:
-        out += ["", "*Extra*"]
+        out += ["", B("Extra")]
         for r in extra:
             if r.get("tipo_riga") == "nota":
                 out.append(f"• {r['descrizione']}")
@@ -1542,14 +1546,147 @@ def testo_cliente(preventivo_id: int) -> str | None:
     out.append("")
     if prev.get("totale_min") is not None:
         lo, hi = prev["totale_min"], prev["totale_max"]
-        out.append(f"*Totale: {'da ' + _euro(lo) + ' a ' + _euro(hi) if lo != hi else _euro(lo)} €* secondo il menu scelto")
+        out.append(B(f"Totale: {'da ' + _euro(lo) + ' a ' + _euro(hi) if lo != hi else _euro(lo)} €") + " secondo il menu scelto")
     elif prev.get("totale_calcolato"):
-        out.append(f"*Totale: {_euro(prev['totale_calcolato'])} €*")
+        out.append(B(f"Totale: {_euro(prev['totale_calcolato'])} €"))
 
     for campo in ("note_cliente", "condizioni"):
         if (prev.get(campo) or "").strip():
             out += ["", prev[campo].strip()]
     return "\n".join(out).strip()
+
+
+# ---------------------------------------------------------------------------
+# PDF + invio al cliente (WhatsApp / email) + registro invii — mig 200
+# ---------------------------------------------------------------------------
+
+def genera_pdf(preventivo_id: int) -> tuple[bytes, str] | None:
+    """PDF brandizzato (mattone M.B) e nome file. None se il preventivo non c'è."""
+    from app.services.pdf_brand import genera_pdf_html, safe_filename
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        return None
+    numero = prev.get("numero") or f"preventivo_{preventivo_id}"
+    pdf = genera_pdf_html(
+        template="preventivo.html",
+        dati={"prev": prev, "righe": prev.get("righe") or [], "menus": prev.get("menu_list") or []},
+        titolo=f"Preventivo {numero}",
+        sottotitolo=prev.get("titolo") or None,
+        orientamento="portrait",
+    )
+    return pdf, safe_filename(numero.replace("-", "_").lower(), ext="pdf")
+
+
+def _invii_table_exists(conn) -> bool:
+    return bool(conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='clienti_preventivi_invii'"
+    ).fetchone())
+
+
+def lista_invii(preventivo_id: int) -> list:
+    conn = get_clienti_conn()
+    try:
+        if not _invii_table_exists(conn):
+            return []
+        rows = conn.execute(
+            "SELECT * FROM clienti_preventivi_invii WHERE preventivo_id = ? ORDER BY id DESC",
+            (preventivo_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, username: str,
+                   oggetto: str | None = None, esito: str = "ok",
+                   errore: str | None = None, message_id: str | None = None) -> dict | None:
+    """Scrive l'invio nel registro. Se riuscito e il preventivo è in «bozza»
+    lo porta a «inviato» (ed esce dalle bozze automatiche: è stato mandato)."""
+    if canale not in ("whatsapp", "email"):
+        raise ValueError(f"Canale non valido: {canale}")
+    conn = get_clienti_conn()
+    try:
+        row = conn.execute(
+            "SELECT stato, canale FROM clienti_preventivi WHERE id = ?", (preventivo_id,)
+        ).fetchone()
+        if not row:
+            return None
+        if not _invii_table_exists(conn):
+            raise ValueError("Registro invii non disponibile (migrazione 200 non applicata)")
+        cur = conn.execute(
+            """INSERT INTO clienti_preventivi_invii
+               (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, inviato_da)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, username),
+        )
+        stato = row["stato"]
+        if esito == "ok":
+            if stato == "bozza":
+                stato = "inviato"
+                conn.execute(
+                    "UPDATE clienti_preventivi SET stato = 'inviato', is_bozza_auto = 0 WHERE id = ?",
+                    (preventivo_id,),
+                )
+            if not row["canale"]:
+                conn.execute(
+                    "UPDATE clienti_preventivi SET canale = ? WHERE id = ?", (canale, preventivo_id)
+                )
+        conn.commit()
+        invio = conn.execute(
+            "SELECT * FROM clienti_preventivi_invii WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+        return {"invio": dict(invio), "stato": stato}
+    finally:
+        conn.close()
+
+
+def bozza_email(preventivo_id: int) -> dict | None:
+    """Destinatario, oggetto e testo proposti per l'email (modificabili in UI).
+    La firma è il nome mittente della casella del locale (M.D), non un testo fisso."""
+    from app.services import email_service
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        return None
+    st = email_service.stato()
+    firma = st.get("mittente_nome") or ""
+    nome = (prev.get("cliente_nome") or "").strip()
+    titolo = (prev.get("titolo") or "").strip()
+    corpo = [f"Buongiorno {nome}," if nome else "Buongiorno,", ""]
+    corpo.append("in allegato trovate la nostra proposta" + (f" per {titolo}" if titolo else "") + ".")
+    corpo += ["", testo_cliente(preventivo_id, formato="email") or "", ""]
+    corpo.append("Restiamo a disposizione per qualsiasi domanda.")
+    corpo += ["", "Un saluto,"]
+    if firma:
+        corpo.append(firma)
+    oggetto = "Proposta " + (prev.get("numero") or "") + (f" — {titolo}" if titolo else "")
+    if firma:
+        oggetto += f" · {firma}"
+    return {
+        "to": prev.get("cliente_email") or "",
+        "oggetto": oggetto.strip(),
+        "corpo": "\n".join(corpo),
+        "email_configurata": st.get("configurato", False),
+        "email_mancanti": st.get("mancanti") or [],
+    }
+
+
+def invia_email_preventivo(preventivo_id: int, to: list[str], oggetto: str, corpo: str,
+                           username: str) -> dict | None:
+    """Manda l'email col PDF allegato (M.D) e la registra, anche se fallisce."""
+    from app.services import email_service
+    gen = genera_pdf(preventivo_id)
+    if gen is None:
+        return None
+    pdf, filename = gen
+    esito = email_service.invia_email(
+        to=to, subject=oggetto, body=corpo,
+        allegati=[(filename, pdf, "application/pdf")],
+    )
+    reg = registra_invio(
+        preventivo_id, "email", ", ".join(to), username, oggetto=oggetto,
+        esito="ok" if esito.ok else "errore", errore=esito.errore, message_id=esito.message_id,
+    )
+    return {"ok": esito.ok, "errore": esito.errore, **(reg or {})}
 
 
 # ---------------------------------------------------------------------------

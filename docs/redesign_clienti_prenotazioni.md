@@ -49,4 +49,4 @@ Richiesta di Marco: lo scontrino scritto in fila «è poco funzionale». Ora ogn
 
 ## Linguette della scheda (2026-10-19, Marco)
 
-Subito sotto i tre bottoni: Anagrafica · Visite · Acquisti · Preventivi · Note. Si apre su Anagrafica, che parte con «Da sapere in sala» (allergie, in arrivo, preferenze, ultima nota). Acquisti = «Prende di solito» + spesa e piatti. Recensioni TheFork in fondo a Note.
+Subito sotto i tre bottoni: Anagrafica · Visite · Acquisti · Preventivi · Note · Recensioni. Si apre su Anagrafica, che parte con «Da sapere in sala» (allergie, in arrivo, preferenze, ultima nota). Acquisti = «Prende di solito» + spesa e piatti. Ultima linguetta: Recensioni (TheFork).

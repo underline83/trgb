@@ -6,6 +6,9 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
+**DA PUSHARE — Preventivi: «📨 Invia al cliente»** (mig 200, sistema 5.65, clienti 3.9) `[core]`
+- Dopo il push: verificare nel log del boot «+ [200] clienti_preventivi_invii». Da iPhone/iPad: un preventivo › «📨 Invia al cliente» › «Condividi PDF + testo» → WhatsApp → controllare che arrivino PDF e testo (se arriva solo il PDF, incollare il testo copiato). Da Mac: «Apri chat» + «Scarica PDF». Email: prova verso la propria casella; nello storico la riga ✉️; stato bozza → inviato.
+
 **DA PUSHARE — Login: tastierino con la lunghezza vera del PIN + fix verifica PIN attuale** (auth, nessuna migrazione) `[core]`
 - Dopo il push: il dipendente col PIN a 6 cifre digita le 6 cifre e preme il tasto verde (la prima volta niente invio automatico); dal login dopo vede 6 pallini. Provare Cambio PIN da non-admin con PIN attuale sbagliato → deve dare errore.
 

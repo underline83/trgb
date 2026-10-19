@@ -648,7 +648,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.1 | Mailchimp sync MVP | M | ✅ FATTO | Endpoint /clienti/mailchimp/status + /sync. Vedi `ClientiMailchimp.jsx` v1.1 |
 | CL.2 | Mailchimp v2 (sync bidirezionale + webhook + filtri pre-sync + log audit) | M-L | MEDIA | Da valutare se serve davvero |
 | CL.3 | Compleanni WA/email automatici (M.C + M.D) | S | ALTA | M.D blocca |
-| CL.4 | Preventivi Fase C — invio email + WA (M.C + M.D) | M | 🟡 PARZIALE 2026-10-16 | Testo pronto (`GET /preventivi/{id}/testo`) + «💬 WhatsApp» via M.C + «📋 Copia testo». Manca l'invio email (M.D) e il PDF allegato |
+| CL.4 | Preventivi Fase C — invio email + WA (M.C + M.D) | M | ✅ FATTO 2026-10-19 (da pushare) | «📨 Invia al cliente»: WhatsApp testo completo + PDF (condivisione o chat + PDF), email col PDF allegato via M.D, registro invii e bozza → inviato (mig 200, clienti 3.9) |
 | CL.15 | Preventivi: prezzo «a corpo» per menu (doppio vino escluso/incluso), menu scelto + totale «da X a Y», stagione e caricamento multiplo dei menu template | M | ✅ FATTO 2026-10-16 | Mig 187, clienti 3.2, sistema 5.51, commit 680eb06c. Fix libreria template (403 + 500) |
 | CL.5 | Preventivi Fase D — versioning + collegamento prenotazione | S | ALTA | M.A |
 | CL.6 | WA link rapido scheda cliente (migrare a M.C) | S | MEDIA | |

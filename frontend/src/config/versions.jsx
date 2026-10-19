@@ -410,6 +410,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.9 (2026-10-19): preventivi «📨 Invia al cliente» — WhatsApp con testo completo + PDF
+    //   (condivisione), email col PDF allegato (M.D), registro invii; il primo invio porta
+    //   bozza → inviato (mig 200).
     // 3.8 (2026-10-19): lista clienti rifatta (bozzetto A del redesign): ricerca grande, filtri
     //   rapidi a bottoni (Abituali, VIP, Nuovi, In calo, Persi) con i numeri, «Altri filtri» chiusi,
     //   righe compatte, anteprima della scheda a destra su iPad/Mac (su iPhone apre la scheda);
@@ -440,7 +443,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.8",
+    version: "3.9",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -535,6 +538,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.65 (2026-10-19): mig 200 clienti_preventivi_invii — invio preventivi al cliente
+    //   (WhatsApp testo + PDF, email col PDF) e registro invii (clienti 3.9).
     // 5.64 (2026-10-18): DB nuovo cassa_conti.sqlite3 (schema al boot, nessuna migrazione
     //   numerata) — conti chiusi da iPratico Cloud riga per riga, scarico notturno
     //   (corrispettivi 4.10).
@@ -621,7 +626,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.64",
+    version: "5.65",
     label: "Sistema",
     status: "stabile",
     color: "green",
