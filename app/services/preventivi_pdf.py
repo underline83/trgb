@@ -19,7 +19,9 @@ menù stampato si scrivono dal gestionale senza toccare il codice):
     # TITOLO          → nuova pagina con quel titolo
     ## VOCE           → riga maiuscola spaziata (come un piatto); le righe
                         subito sotto, senza riga vuota, sono la sua descrizione
-    @dolci_carta      → i dolci della carta in corso (Menu Carta), uno per riga
+    @dolci_carta      → i dolci della carta in corso (Menu Carta), uno per riga;
+    @dolci_carta | Lucia di Lammermoor  → con la descrizione breve sotto i dolci
+                        nominati (prima frase della descrizione di carta)
     == 25 | nota      → prezzo grande con la nota sotto
     **grassetto**     → grassetto
     riga vuota        → nuovo paragrafo
@@ -78,12 +80,17 @@ def _inline(testo: str) -> str:
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t)
 
 
+def _chiave(s: str) -> str:
+    """Per confrontare i nomi: minuscolo, senza virgolette né spazi doppi."""
+    return re.sub(r"\s+", " ", re.sub(r"[\"“”«»'’]", "", s or "")).strip().lower()
+
+
 def _pagine_testo(testo: str | None, titolo_default: str = "",
-                  dolci_carta: list[str] | None = None) -> list[dict]:
+                  dolci_carta: list[dict] | None = None) -> list[dict]:
     """Mini-markup → pagine [{titolo, blocchi:[{tipo, html|num|nota, dettagli}]}].
     Le righe semplici subito sotto una «## VOCE» (senza riga vuota in mezzo)
     sono la sua descrizione. «@dolci_carta» diventa l'elenco dei dolci della
-    carta in corso (una voce per dolce)."""
+    carta in corso (una voce per dolce); dopo «|» i dolci da spiegare."""
     if not (testo or "").strip():
         return []
     pagine: list[dict] = []
@@ -111,10 +118,16 @@ def _pagine_testo(testo: str | None, titolo_default: str = "",
             chiudi_par()
             voce(_inline(riga[3:].strip()))
             voce_aperta = True
-        elif riga == "@dolci_carta":
+        elif riga.startswith("@dolci_carta"):
+            # «@dolci_carta | Lucia di Lammermoor, Solero» → la descrizione breve
+            # sotto i dolci nominati dopo «|» (gli altri solo col nome)
             chiudi_par()
-            for nome in dolci_carta or []:
-                voce(html.escape(nome))
+            _, _, chi = riga.partition("|")
+            spiega = [_chiave(x) for x in chi.split(",") if x.strip()]
+            for d in dolci_carta or []:
+                voce(html.escape(d["nome"]))
+                if d.get("breve") and any(k and k in _chiave(d["nome"]) for k in spiega):
+                    cur["blocchi"][-1]["dettagli"].append(html.escape(d["breve"]))
             voce_aperta = False
         elif riga.startswith("=="):
             chiudi_par()
@@ -146,7 +159,7 @@ def _logo_svg() -> str | None:
     return None
 
 
-def dati_pdf_menu(prev: dict, dolci_carta: list[str] | None = None) -> dict:
+def dati_pdf_menu(prev: dict, dolci_carta: list[dict] | None = None) -> dict:
     """Dati già pronti per il template preventivo_menu.html.
     dolci_carta: nomi dei dolci della carta in corso, per «@dolci_carta»."""
     d = _data(prev.get("data_evento"))
@@ -293,7 +306,7 @@ def css_pdf_menu() -> str:
     """
 
 
-def genera_pdf_menu(prev: dict, dolci_carta: list[str] | None = None) -> bytes:
+def genera_pdf_menu(prev: dict, dolci_carta: list[dict] | None = None) -> bytes:
     from app.services.pdf_brand import genera_pdf_html
     return genera_pdf_html(
         template="preventivo_menu.html",

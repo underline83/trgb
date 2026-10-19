@@ -25,9 +25,21 @@ def _virgolette(s: str) -> str:
     return re.sub(r'"([^"]+)"', "“\\1”", s)
 
 
-def piatti_sezione(sezione: str) -> list[str]:
-    """Nomi dei piatti visibili di una sezione della carta in_carta, in ordine.
-    Lista vuota se non c'è una carta in corso o la sezione è vuota."""
+def _breve(desc: str | None) -> str:
+    """Prima frase della descrizione di carta, in minuscolo e senza punto finale:
+    «Semifreddo alla vaniglia, … e amaretti. Per l'opera…» → «semifreddo alla
+    vaniglia, … e amaretti» (come nel menù gruppi stampato)."""
+    d = (desc or "").strip()
+    if not d:
+        return ""
+    frase = re.split(r"(?<=[.!?])\s", d, maxsplit=1)[0].rstrip(".")
+    return frase[:1].lower() + frase[1:]
+
+
+def piatti_sezione(sezione: str) -> list[dict]:
+    """Piatti visibili di una sezione della carta in_carta, in ordine:
+    [{nome, breve}] (breve = prima frase della descrizione). Lista vuota se
+    non c'è una carta in corso o la sezione è vuota."""
     try:
         conn = get_foodcost_connection()
     except Exception:                               # noqa: BLE001
@@ -40,14 +52,16 @@ def piatti_sezione(sezione: str) -> list[str]:
         if not ed:
             return []
         rows = conn.execute(
-            """SELECT COALESCE(NULLIF(TRIM(p.titolo_override), ''), r.menu_name) AS nome
+            """SELECT COALESCE(NULLIF(TRIM(p.titolo_override), ''), r.menu_name) AS nome,
+                      COALESCE(NULLIF(TRIM(p.descrizione_override), ''), r.menu_description) AS descr
                FROM menu_dish_publications p
                LEFT JOIN recipes r ON r.id = p.recipe_id
                WHERE p.edition_id = ? AND p.sezione = ? AND p.is_visible = 1
                ORDER BY p.sort_order, p.id""",
             (ed[0], sezione),
         ).fetchall()
-        return [_virgolette(r[0].strip()) for r in rows if r[0] and r[0].strip()]
+        return [{"nome": _virgolette(r[0].strip()), "breve": _breve(r[1])}
+                for r in rows if r[0] and r[0].strip()]
     except Exception:                               # noqa: BLE001 — tabelle assenti su DB vecchi
         logger.exception("Lettura carta in corso fallita")
         return []
@@ -55,5 +69,5 @@ def piatti_sezione(sezione: str) -> list[str]:
         conn.close()
 
 
-def dolci_in_carta() -> list[str]:
+def dolci_in_carta() -> list[dict]:
     return piatti_sezione("dolci")
