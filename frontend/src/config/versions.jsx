@@ -338,7 +338,9 @@ const MODULE_VERSIONS = {
     // 2.38 (2026-10-18): blocco PIN — entrando in Dipendenti (e Le mie buste paga)
     //   si ridigita il PIN dell'utente loggato; si richiude uscendo o dopo N minuti
     //   (Impostazioni › 🔒 Blocco PIN, default 5). Mig 199.
-    version: "2.38",
+    // 2.39 (2026-10-19): tab «🗓️ I miei turni» e «📄 Le mie buste paga» nella nav
+    //   della sezione per ogni ruolo (un dipendente vedeva solo «Turni»).
+    version: "2.39",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -408,6 +410,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.7 (2026-10-19): scheda cliente rifatta (bozzetto A del redesign): fascia verde petrolio con
+    //   iniziali e 3 numeri, Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle
+    //   visite con il conto, linguette Visite/Note/Preventivi/Altro. «Ultima visita» non conta più
+    //   le prenotazioni future. Piatti preferiti senza le righe «no_name».
     // 3.6 (2026-10-18): tab «Cosa ha mangiato» nella scheda (conti di cassa iPratico abbinati:
     //   visite, spesa media, piatti che prende, da bere); il merge sposta anche i conti.
     // 3.5 (2026-10-17): tab Recensioni TheFork nella scheda; il merge sposta anche le recensioni.
@@ -425,13 +431,14 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.6",
+    version: "3.7",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
-    version: "2.14",
+    // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
+    version: "2.15",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

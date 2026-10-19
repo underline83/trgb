@@ -1,4 +1,4 @@
-// @version: v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
+// @version: v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -7,27 +7,8 @@ import RecensioneCard from "../prenotazioni/components/RecensioneCard";
 import ClientiNav from "./ClientiNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
-
-// ── Colori sidebar per rank ──────────────────────────────
-const RANK_SIDEBAR = {
-  Gold:    { bg: "bg-gradient-to-b from-yellow-600 to-yellow-800", text: "text-yellow-100" },
-  Silver:  { bg: "bg-gradient-to-b from-neutral-500 to-neutral-700", text: "text-neutral-100" },
-  Bronze:  { bg: "bg-gradient-to-b from-orange-600 to-orange-800", text: "text-orange-100" },
-  Caution: { bg: "bg-gradient-to-b from-red-600 to-red-800", text: "text-red-100" },
-};
-
-function getSidebarColors(rank) {
-  return RANK_SIDEBAR[rank] || { bg: "bg-gradient-to-b from-teal-700 to-teal-900", text: "text-teal-100" };
-}
-
-function SectionHeader({ title, children }) {
-  return (
-    <div className="flex items-center justify-between px-5 py-3 bg-neutral-50 border-b border-neutral-200">
-      <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">{title}</h2>
-      <div className="flex gap-2 items-center">{children}</div>
-    </div>
-  );
-}
+import PrenotazioniForm from "../prenotazioni/PrenotazioniForm";
+import { openWhatsApp } from "../../utils/whatsapp";
 
 function Field({ label, value }) {
   return (
@@ -66,12 +47,6 @@ const TIPI_NOTA = [
   { value: "preferenza", label: "Preferenza", icon: "🍽️" },
 ];
 
-const STATUS_COLORS = {
-  SEATED: "bg-emerald-100 text-emerald-700", ARRIVED: "bg-emerald-100 text-emerald-700",
-  BILL: "bg-emerald-100 text-emerald-700", LEFT: "bg-neutral-100 text-neutral-600",
-  RECORDED: "bg-sky-100 text-sky-700", CANCELED: "bg-red-100 text-red-600",
-  NO_SHOW: "bg-amber-100 text-amber-700", REFUSED: "bg-red-100 text-red-600",
-};
 
 export default function ClientiScheda({ clienteId: propId, onClose, embedded = false }) {
   const params = useParams();
@@ -86,7 +61,9 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [tab, setTab] = useState("anagrafica"); // anagrafica | preferenze | note | prenotazioni
+  const [tab, setTab] = useState("visite"); // visite | note | preventivi | altro (redesign 2026-10-19)
+  const [consumi, setConsumi] = useState(null);   // conti di cassa (GET /clienti/{id}/consumi)
+  const [showPrenota, setShowPrenota] = useState(false);
 
   const [nuovaNota, setNuovaNota] = useState({ tipo: "nota", testo: "" });
 
@@ -198,7 +175,12 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   // Reset stati quando cambia id (per embedded mode)
   useEffect(() => {
     setEditMode(false);
-    setTab("anagrafica");
+    setTab("visite");
+    setConsumi(null);
+    apiFetch(`${API_BASE}/clienti/${id}/consumi`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setConsumi)
+      .catch(() => setConsumi(null));
     setShowMerge(false);
     setMergeTarget(null);
     setMergeQuery("");
@@ -269,103 +251,410 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
     </>
   );
 
-  const sidebar = getSidebarColors(cliente.rank);
+  // ── Dati derivati (redesign 2026-10-19, bozzetto A) ──
   const stats = cliente.prenotazioni_stats || {};
+  const oggi = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+  const STATI_FATTI = ["SEATED", "ARRIVED", "BILL", "LEFT", "PARTIALLY_ARRIVED"];
+  const prenotazioni = cliente.prenotazioni || [];
+  const prossime = prenotazioni
+    .filter((p) => p.data_pasto >= oggi && ["RECORDED", "REQUESTED", "ARRIVED", "SEATED"].includes(p.stato))
+    .sort((a, b) => `${a.data_pasto}${a.ora_pasto || ""}`.localeCompare(`${b.data_pasto}${b.ora_pasto || ""}`));
+  const nomeCompleto = `${cliente.nome || ""}${cliente.nome2 ? ` & ${cliente.nome2}` : ""} ${cliente.cognome2 && cliente.cognome2 !== cliente.cognome ? `${cliente.cognome} / ${cliente.cognome2}` : (cliente.cognome || "")}`.trim();
+  const iniziali = ((cliente.nome || "").trim()[0] || "") + ((cliente.cognome || "").trim()[0] || "") || "?";
+  const annoDal = (stats.prima_visita || cliente.thefork_created || "").slice(0, 4);
+  const allergie = [cliente.allergie, cliente.restrizioni_dietetiche].filter((x) => x && String(x).trim()).join(" · ");
+  const preferenze = [cliente.pref_cibo, cliente.pref_bevande, cliente.pref_posto].filter((x) => x && String(x).trim()).join(" · ");
+  const ultimaNota = cliente.note?.[0];
+  const piatti = (consumi?.piatti_preferiti || []).slice(0, 3);
+  const bere = (consumi?.da_bere || [])[0];
+
+  // Storia: prenotazioni passate + conti di cassa (collegati per prenotazione_id)
+  const contiPerPren = {};
+  const contiSoli = [];
+  (consumi?.conti || []).forEach((c) => { if (c.prenotazione_id) contiPerPren[c.prenotazione_id] = c; else contiSoli.push(c); });
+  const storia = [
+    ...prenotazioni.filter((p) => !prossime.includes(p)).map((p) => ({
+      key: `p${p.id}`, data: p.data_pasto, ora: (p.ora_pasto || "").slice(0, 5), turno: p.turno,
+      tavolo: p.tavolo, pax: p.pax, stato: p.stato, nota: p.nota_ristorante || p.nota_cliente, conto: contiPerPren[p.id],
+    })),
+    ...contiSoli.map((c) => ({
+      key: `c${c.id}`, data: c.data_rif, ora: (c.aperto_at || "").slice(11, 16), turno: c.turno,
+      tavolo: c.tavolo, pax: c.coperti, stato: "SEATED", conto: c,
+    })),
+  ].sort((a, b) => `${b.data}${b.ora}`.localeCompare(`${a.data}${a.ora}`));
 
   const TABS = [
-    { key: "anagrafica", label: "Anagrafica" },
-    { key: "preferenze", label: "Preferenze" },
-    { key: "note", label: `Note (${cliente.note?.length || 0})` },
-    { key: "prenotazioni", label: `Prenotazioni (${stats.totale || 0})` },
-    { key: "consumi", label: "Cosa ha mangiato" },
+    { key: "visite", label: "Visite" },
+    { key: "note", label: `Note${cliente.note?.length ? ` (${cliente.note.length})` : ""}` },
     { key: "preventivi", label: "Preventivi" },
-    { key: "recensioni", label: "Recensioni" },
+    { key: "altro", label: "Altro" },
   ];
+  const RANK_CHIP = {
+    Gold: "bg-yellow-200 text-yellow-900", Silver: "bg-neutral-200 text-neutral-700",
+    Bronze: "bg-orange-200 text-orange-900", Caution: "bg-red-200 text-red-900",
+  };
 
   return (
     <>
       {!embedded && <ClientiNav current="lista" />}
       <div className={`${embedded ? "" : "min-h-screen bg-brand-cream"} font-sans`}>
-        <div className={embedded ? "" : "max-w-4xl mx-auto p-4 sm:p-6"}>
+        <div className={embedded ? "" : "max-w-3xl mx-auto sm:p-6"}>
 
-          {/* ── CARD PRINCIPALE con sidebar colorata ── */}
-          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-
-            {/* ── HEADER: sidebar + info + azioni ── */}
-            <div className="flex">
-              {/* Sidebar colorata */}
-              <div className={`w-2 sm:w-3 flex-shrink-0 ${sidebar.bg}`} />
-
-              <div className="flex-1 px-5 py-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    {/* Torna alla lista */}
-                    <button onClick={handleBack}
-                      className="text-xs text-neutral-400 hover:text-neutral-600 transition mb-1 inline-block">
-                      ← Anagrafica
+          {/* ── TESTATA: fascia verde petrolio ── */}
+          <div className={`bg-teal-800 text-white px-4 pt-2 pb-8 ${embedded ? "rounded-2xl" : "sm:rounded-2xl"}`}>
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={handleBack}
+                className="min-h-[44px] flex items-center gap-1 text-[15px] font-semibold text-white/95 hover:text-white">
+                <span aria-hidden="true" className="text-xl leading-none">‹</span> Clienti
+              </button>
+              <div className="flex gap-2">
+                {editMode ? (
+                  <>
+                    <button type="button" onClick={() => { setEditMode(false); setForm(cliente); }}
+                      className="min-h-[44px] px-3 text-[15px] font-semibold text-white/90">Annulla</button>
+                    <button type="button" onClick={handleSave} disabled={saving}
+                      className="min-h-[44px] px-4 rounded-xl bg-white text-teal-800 text-[15px] font-bold disabled:opacity-60">
+                      {saving ? "Salvo…" : "Salva"}
                     </button>
-                    <h1 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
-                      {cliente.vip ? "⭐ " : ""}{cliente.nome}{cliente.nome2 ? ` & ${cliente.nome2}` : ""} {cliente.cognome2 && cliente.cognome2 !== cliente.cognome ? `${cliente.cognome} / ${cliente.cognome2}` : cliente.cognome}
-                      {cliente.protetto === 1 && (
-                        <Tooltip label="Protetto da import TheFork">
-                          <span className="text-xs text-teal-500">🛡</span>
-                        </Tooltip>
-                      )}
-                    </h1>
-                    <div className="flex items-center gap-2 mt-1">
-                      {cliente.rank && (
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
-                          RANK_SIDEBAR[cliente.rank] ? {
-                            Gold: "bg-yellow-100 text-yellow-700 border-yellow-300",
-                            Silver: "bg-neutral-200 text-neutral-600 border-neutral-300",
-                            Bronze: "bg-orange-100 text-orange-700 border-orange-300",
-                            Caution: "bg-red-100 text-red-600 border-red-300",
-                          }[cliente.rank] : "bg-neutral-100 text-neutral-600 border-neutral-200"
-                        }`}>
-                          {cliente.rank}
-                        </span>
-                      )}
-                      {cliente.origine && (
-                        <span className="text-[11px] text-neutral-400">{cliente.origine}</span>
-                      )}
-                      {cliente.lingua && cliente.lingua !== "it_IT" && (
-                        <span className="text-[11px] bg-neutral-100 text-neutral-500 px-1.5 py-0.5 rounded">{cliente.lingua}</span>
-                      )}
+                  </>
+                ) : (
+                  <button type="button" onClick={() => { setEditMode(true); setTab("altro"); }}
+                    className="min-h-[44px] px-3 text-[15px] font-semibold text-white/95 hover:text-white">Modifica</button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 mt-2">
+              <div aria-hidden="true"
+                className={`w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center font-playfair text-2xl font-bold ${cliente.rank === "Gold" ? "bg-yellow-200 text-yellow-900" : "bg-white/15 text-white"}`}>
+                {iniziali.toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-playfair text-[28px] leading-tight font-bold break-words">
+                  {cliente.vip ? "★ " : ""}{nomeCompleto || "Senza nome"}
+                </h1>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[13px]">
+                  {cliente.rank && <span className={`px-2 py-0.5 rounded-full font-bold ${RANK_CHIP[cliente.rank] || "bg-white/15"}`}>{cliente.rank}</span>}
+                  {(cliente.tags || []).slice(0, 2).map((t) => (
+                    <span key={t.id} className="px-2 py-0.5 rounded-full bg-white/15">{t.nome}</span>
+                  ))}
+                  {annoDal && <span className="text-teal-100">dal {annoDal}</span>}
+                  {cliente.protetto === 1 && (
+                    <Tooltip label="Protetto da import TheFork"><span className="text-teal-100" aria-label="Protetto da import TheFork">🛡</span></Tooltip>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              <div>
+                <div className="text-2xl font-bold">{stats.completate || 0}</div>
+                <div className="text-xs text-teal-100">visite</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{consumi?.spesa_media_visita != null ? `${Math.round(consumi.spesa_media_visita)} €` : "—"}</div>
+                <div className="text-xs text-teal-100">a visita{consumi?.spesa_media_coperto ? ` · ${Math.round(consumi.spesa_media_coperto)} € a cop.` : ""}</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{stats.ultima_visita ? dataBreve(stats.ultima_visita) : "—"}</div>
+                <div className="text-xs text-teal-100">ultima volta</div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── AZIONI: sospese sul bordo della fascia ── */}
+          <div className="grid grid-cols-3 gap-2 -mt-5 px-4 relative">
+            {cliente.telefono ? (
+              <a href={`tel:${cliente.telefono}`}
+                className="min-h-[52px] rounded-2xl bg-white shadow-md text-teal-800 font-bold text-[15px] flex items-center justify-center">Chiama</a>
+            ) : (
+              <span className="min-h-[52px] rounded-2xl bg-white/80 shadow text-neutral-400 font-bold text-[15px] flex items-center justify-center">Chiama</span>
+            )}
+            <button type="button" disabled={!cliente.telefono} onClick={() => openWhatsApp(cliente.telefono)}
+              className="min-h-[52px] rounded-2xl bg-white shadow-md text-teal-800 font-bold text-[15px] disabled:text-neutral-400">WhatsApp</button>
+            <button type="button" onClick={() => setShowPrenota(true)}
+              className="min-h-[52px] rounded-2xl bg-white shadow-md text-teal-800 font-bold text-[15px]">Prenota</button>
+          </div>
+
+          {/* ── DA SAPERE IN SALA ── */}
+          <div className="px-4 pt-5 space-y-2.5">
+            <div className="text-xs font-bold tracking-wider uppercase text-neutral-500">Da sapere in sala</div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className={`rounded-xl px-3 py-2.5 ${allergie ? "bg-red-50 border border-red-200" : "bg-emerald-50"}`}>
+                <div className={`text-xs font-bold ${allergie ? "text-red-800" : "text-emerald-800"}`}>Allergie</div>
+                <div className={`text-[15px] mt-0.5 ${allergie ? "text-red-900 font-semibold" : "text-neutral-800"}`}>{allergie || "Nessuna segnalata"}</div>
+              </div>
+              <div className="rounded-xl px-3 py-2.5 bg-white border border-neutral-200">
+                <div className="text-xs font-bold text-neutral-500">In arrivo</div>
+                <div className="text-[15px] mt-0.5 text-neutral-800">
+                  {prossime[0]
+                    ? `${dataBreve(prossime[0].data_pasto, true)} · ${(prossime[0].ora_pasto || "").slice(0, 5)} · ${prossime[0].pax}p`
+                    : "Nessuna prenotazione"}
+                </div>
+              </div>
+            </div>
+            {(piatti.length > 0 || bere) && (
+              <div className="rounded-xl p-3 bg-white border border-neutral-200">
+                <div className="text-xs font-bold text-neutral-500 mb-2">Prende di solito</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {piatti.map((p) => (
+                    <span key={p.nome} className="px-2.5 py-1 rounded-full bg-neutral-100 text-sm">{p.nome} <b>{p.volte}</b></span>
+                  ))}
+                  {bere && <span className="px-2.5 py-1 rounded-full bg-neutral-100 text-sm">{bere.nome}</span>}
+                </div>
+              </div>
+            )}
+            {(preferenze || ultimaNota) && (
+              <div className="rounded-xl p-3 bg-white border border-neutral-200 space-y-1 text-[15px]">
+                {preferenze && <div><span className="text-xs font-bold text-neutral-500 mr-2">Preferenze</span>{preferenze}</div>}
+                {ultimaNota && <div><span className="text-xs font-bold text-neutral-500 mr-2">Ultima nota</span>{ultimaNota.testo} <span className="text-neutral-400 text-xs">· {ultimaNota.data}</span></div>}
+              </div>
+            )}
+          </div>
+
+          {/* ── LINGUETTE ── */}
+          <div role="tablist" aria-label="Sezioni della scheda" className="mx-4 mt-5 flex gap-6 border-b border-neutral-200 overflow-x-auto">
+            {TABS.map((t) => (
+              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+                className={`min-h-[44px] whitespace-nowrap text-[15px] border-b-[3px] -mb-px ${tab === t.key ? "border-teal-700 font-bold text-neutral-900" : "border-transparent font-semibold text-neutral-500 hover:text-neutral-800"}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="px-4 py-4">
+
+            {/* VISITE: linea del tempo (prenotazione + conto insieme) */}
+            {tab === "visite" && (
+              <div>
+                {prossime.length > 1 && (
+                  <div className="mb-4 text-sm text-neutral-600">
+                    Altre prenotazioni in arrivo: {prossime.slice(1).map((p) => `${dataBreve(p.data_pasto, true)} ${(p.ora_pasto || "").slice(0, 5)}`).join(" · ")}
+                  </div>
+                )}
+                {storia.length === 0 && <p className="text-sm text-neutral-400 py-6 text-center">Nessuna visita registrata.</p>}
+                {storia.map((v) => {
+                  const fatta = STATI_FATTI.includes(v.stato);
+                  const etichetta = v.stato === "NO_SHOW" ? "no-show" : v.stato === "CANCELED" ? "annullata" : v.stato === "REFUSED" ? "rifiutata" : null;
+                  return (
+                    <div key={v.key} className="flex gap-3">
+                      <div className="w-3.5 flex flex-col items-center">
+                        <div className={`w-3 h-3 rounded-full mt-1.5 ${fatta ? "bg-teal-700" : v.stato === "NO_SHOW" ? "bg-amber-500" : "bg-neutral-300"}`} />
+                        <div className="flex-1 w-0.5 bg-neutral-200" />
+                      </div>
+                      <div className={`flex-1 min-w-0 pb-4 ${fatta ? "" : "opacity-70"}`}>
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-[15px] font-bold">{dataLunga(v.data)}{v.turno ? ` · ${v.turno}` : ""}</span>
+                          {v.conto && <span className="text-base font-bold">{euro(v.conto.totale)}</span>}
+                        </div>
+                        <div className="text-[13px] text-neutral-500">
+                          {[v.ora, v.tavolo ? `tavolo ${v.tavolo}` : null, v.pax ? `${v.pax} persone` : null, v.conto?.durata_min ? `${v.conto.durata_min} min` : null].filter(Boolean).join(" · ")}
+                          {etichetta && <span className="ml-1 font-semibold text-amber-700">· {etichetta}</span>}
+                        </div>
+                        {v.conto?.righe?.length > 0 && (
+                          <div className="text-sm leading-snug text-neutral-800 mt-1">
+                            {v.conto.righe.filter((r) => r.nome && r.nome !== "no_name").map((r) => (r.quantita > 1 ? `${r.nome} ×${r.quantita}` : r.nome)).join(" · ")}
+                          </div>
+                        )}
+                        {v.nota && <div className="text-sm text-neutral-500 mt-0.5 italic">{v.nota}</div>}
+                        {v.conto?.abbinamento === "proposto" && (
+                          <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">conto da confermare</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* NOTE / DIARIO */}
+            {tab === "note" && (
+                <div>
+                  {/* Form nuova nota */}
+                  <div className="bg-neutral-50 rounded-lg p-3 mb-4 border border-neutral-200">
+                    <div className="flex gap-2 mb-2">
+                      <select value={nuovaNota.tipo}
+                        onChange={(e) => setNuovaNota(prev => ({ ...prev, tipo: e.target.value }))}
+                        className="border border-neutral-300 rounded-lg px-2 py-1 text-sm bg-white">
+                        {TIPI_NOTA.map((t) => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" value={nuovaNota.testo}
+                        onChange={(e) => setNuovaNota(prev => ({ ...prev, testo: e.target.value }))}
+                        placeholder="Scrivi una nota..."
+                        className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+                        onKeyDown={(e) => e.key === "Enter" && aggiungiNota()} />
+                      <Btn variant="chip" tone="emerald" size="sm" onClick={aggiungiNota}>
+                        Aggiungi
+                      </Btn>
                     </div>
                   </div>
 
-                  {/* Pulsanti azione */}
-                  <div className="flex gap-2">
-                    {editMode ? (
-                      <>
-                        <Btn variant="ghost" size="sm" onClick={() => { setEditMode(false); setForm(cliente); }}>
-                          Annulla
-                        </Btn>
-                        <Btn variant="chip" tone="emerald" size="sm" onClick={handleSave} disabled={saving} loading={saving}>
-                          {saving ? "Salvo..." : "Salva"}
-                        </Btn>
-                      </>
-                    ) : (
-                      <>
-                        {showMerge ? (
-                          <Btn variant="chip" tone="amber" size="sm" onClick={() => setShowMerge(!showMerge)}>
-                            Chiudi merge
-                          </Btn>
-                        ) : (
-                          <Btn variant="ghost" size="sm" onClick={() => setShowMerge(!showMerge)}>
-                            Unisci con...
-                          </Btn>
-                        )}
-                        <Btn variant="chip" tone="emerald" size="sm" onClick={() => setEditMode(true)}>
-                          Modifica
-                        </Btn>
-                      </>
-                    )}
+                  {cliente.note?.length === 0 && (
+                    <p className="text-sm text-neutral-400 text-center py-8">Nessuna nota</p>
+                  )}
+                  <div className="space-y-1">
+                    {cliente.note?.map((n) => (
+                      <div key={n.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-neutral-50 transition">
+                        <span className="text-base mt-0.5">
+                          {TIPI_NOTA.find((t) => t.value === n.tipo)?.icon || "📝"}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-neutral-800">{n.testo}</p>
+                          <p className="text-[11px] text-neutral-400 mt-0.5">{n.data} · {n.autore || "sistema"}</p>
+                        </div>
+                        <button onClick={() => eliminaNota(n.id)}
+                          className="text-xs text-neutral-300 hover:text-red-500 transition">✕</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {/* ── PANNELLO MERGE MANUALE ── */}
-                {showMerge && (
+            {/* PREVENTIVI */}
+            {tab === "preventivi" && <PreventiviTab clienteId={cliente.id} navigate={navigate} />}
+
+            {/* ALTRO: anagrafica, preferenze, etichette, recensioni, unione doppioni */}
+            {tab === "altro" && (
+              <div className="space-y-6">
+                <section>
+                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Anagrafica</h2>
+                  <div className="space-y-5">
+                  {editMode ? (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <Input label="Nome" name="nome" value={form.nome} onChange={onChange} />
+                        <Input label="Cognome" name="cognome" value={form.cognome} onChange={onChange} />
+                        <Input label="Titolo" name="titolo" value={form.titolo} onChange={onChange} />
+                        <Input label="Nome 2 (coppia)" name="nome2" value={form.nome2} onChange={onChange} />
+                        <Input label="Cognome 2 (coppia)" name="cognome2" value={form.cognome2} onChange={onChange} />
+                        <Input label="Telefono" name="telefono" value={form.telefono} onChange={onChange} />
+                        <Input label="Telefono 2" name="telefono2" value={form.telefono2} onChange={onChange} />
+                        <Input label="Email" name="email" value={form.email} onChange={onChange} type="email" />
+                        <Input label="Data di nascita" name="data_nascita" value={form.data_nascita} onChange={onChange} />
+                        <Input label="Lingua" name="lingua" value={form.lingua} onChange={onChange} />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <Input label="Indirizzo" name="indirizzo" value={form.indirizzo} onChange={onChange} />
+                        <Input label="CAP" name="cap" value={form.cap} onChange={onChange} />
+                        <Input label="Città" name="citta" value={form.citta} onChange={onChange} />
+                        <Input label="Paese" name="paese" value={form.paese} onChange={onChange} />
+                      </div>
+                      <div className="flex items-center gap-4 pt-2">
+                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="checkbox" checked={!!form.vip}
+                            onChange={(e) => setForm(prev => ({ ...prev, vip: e.target.checked }))}
+                            className="rounded border-neutral-300 text-teal-600" />
+                          VIP
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="checkbox" checked={!!form.newsletter}
+                            onChange={(e) => setForm(prev => ({ ...prev, newsletter: e.target.checked }))}
+                            className="rounded border-neutral-300 text-teal-600" />
+                          Newsletter
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="checkbox" checked={!!form.attivo}
+                            onChange={(e) => setForm(prev => ({ ...prev, attivo: e.target.checked }))}
+                            className="rounded border-neutral-300 text-teal-600" />
+                          Attivo
+                        </label>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <Field label="Nome" value={cliente.nome} />
+                        <Field label="Cognome" value={cliente.cognome} />
+                        <Field label="Titolo" value={cliente.titolo} />
+                        {(cliente.nome2 || cliente.cognome2) && <Field label="Nome 2 (coppia)" value={cliente.nome2} />}
+                        {(cliente.nome2 || cliente.cognome2) && <Field label="Cognome 2 (coppia)" value={cliente.cognome2} />}
+                        <Field label="Telefono" value={cliente.telefono} />
+                        <Field label="Telefono 2" value={cliente.telefono2} />
+                        <Field label="Email" value={cliente.email} />
+                        <Field label="Data di nascita" value={cliente.data_nascita} />
+                        <Field label="Lingua" value={cliente.lingua} />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <Field label="Indirizzo" value={cliente.indirizzo} />
+                        <Field label="CAP" value={cliente.cap} />
+                        <Field label="Città" value={cliente.citta} />
+                        <Field label="Paese" value={cliente.paese} />
+                      </div>
+                      <div className="flex gap-4 text-sm text-neutral-600 pt-2">
+                        <span>{cliente.vip ? "⭐ VIP" : ""}</span>
+                        <span>{cliente.newsletter ? "📧 Newsletter" : ""}</span>
+                        <span>{cliente.attivo ? "🟢 Attivo" : "🔴 Inattivo"}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Info sistema */}
+                  <div className="border-t border-neutral-100 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-neutral-400">
+                    <div>Origine: <span className="text-neutral-600">{cliente.origine}</span></div>
+                    <div>Risk: <span className="text-neutral-600">{cliente.risk_level || "—"}</span></div>
+                    <div>Creato TF: <span className="text-neutral-600">{cliente.thefork_created || "—"}</span></div>
+                    <div>Aggiornato: <span className="text-neutral-600">{cliente.updated_at || "—"}</span></div>
+                  </div>
+                </div>
+                </section>
+                <section>
+                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Preferenze e allergie</h2>
+                  <div className="space-y-4">
+                  {editMode ? (
+                    <>
+                      <TextArea label="Preferenze cibo" name="pref_cibo" value={form.pref_cibo} onChange={onChange} />
+                      <TextArea label="Preferenze bevande" name="pref_bevande" value={form.pref_bevande} onChange={onChange} />
+                      <Input label="Posto preferito" name="pref_posto" value={form.pref_posto} onChange={onChange} />
+                      <Input label="Restrizioni dietetiche" name="restrizioni_dietetiche" value={form.restrizioni_dietetiche} onChange={onChange} />
+                      <Input label="Allergie e intolleranze" name="allergie" value={form.allergie} onChange={onChange} />
+                      <TextArea label="Note TheFork" name="note_thefork" value={form.note_thefork} onChange={onChange} rows={3} />
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Field label="Preferenze cibo" value={cliente.pref_cibo} />
+                      <Field label="Preferenze bevande" value={cliente.pref_bevande} />
+                      <Field label="Posto preferito" value={cliente.pref_posto} />
+                      <Field label="Restrizioni dietetiche" value={cliente.restrizioni_dietetiche} />
+                      <Field label="Allergie e intolleranze" value={cliente.allergie} />
+                      <Field label="Note TheFork" value={cliente.note_thefork} />
+                    </div>
+                  )}
+                </div>
+                </section>
+                <section>
+                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Etichette</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {allTags.map((tag) => {
+                      const active = cliente.tags?.some((t) => t.id === tag.id);
+                      return (
+                        <button key={tag.id} type="button" onClick={() => toggleTag(tag.id)} aria-pressed={active}
+                          className={`min-h-[40px] px-3 rounded-full border text-sm font-medium transition ${active ? "border-teal-600 bg-teal-50 text-teal-800" : "border-neutral-300 bg-white text-neutral-500 hover:border-teal-400"}`}>
+                          {active ? "✓ " : ""}{tag.nome}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+                <section>
+                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Spesa e piatti</h2>
+                  <ConsumiTab clienteId={cliente.id} />
+                </section>
+                <section>
+                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Recensioni TheFork</h2>
+                  <RecensioniTab clienteId={cliente.id} />
+                </section>
+                <section>
+                  <h2 className="text-xs font-bold tracking-wider uppercase text-neutral-500 mb-3">Doppioni</h2>
+                  {!showMerge && (
+                    <Btn variant="secondary" size="md" onClick={() => setShowMerge(true)}>Unisci con un altro cliente…</Btn>
+                  )}
+                  {showMerge && (
+                    <button type="button" onClick={() => { setShowMerge(false); setMergeTarget(null); setMergeQuery(""); setMergeResults([]); }}
+                      className="min-h-[40px] text-sm font-semibold text-neutral-500 hover:text-neutral-800">Chiudi</button>
+                  )}
+                  {showMerge && (
                   <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                     <div className="text-xs font-semibold text-amber-800 mb-2">
                       Cerca il cliente da assorbire in questo:
@@ -482,288 +771,20 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                     )}
                   </div>
                 )}
-
-                {/* ── KPI rapidi (come stats in SchedaVino) ── */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4">
-                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
-                    <div className="text-lg font-bold text-neutral-800">{stats.totale || 0}</div>
-                    <div className="text-[10px] text-neutral-500 uppercase">Prenotazioni</div>
-                  </div>
-                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
-                    <div className="text-lg font-bold text-teal-700">{stats.completate || 0}</div>
-                    <div className="text-[10px] text-neutral-500 uppercase">Completate</div>
-                  </div>
-                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
-                    <div className="text-lg font-bold text-neutral-600">{stats.pax_medio || "—"}</div>
-                    <div className="text-[10px] text-neutral-500 uppercase">Pax medio</div>
-                  </div>
-                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
-                    <div className="text-xs font-medium text-neutral-700 mt-0.5">{stats.prima_visita || "—"}</div>
-                    <div className="text-[10px] text-neutral-500 uppercase">Prima visita</div>
-                  </div>
-                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
-                    <div className="text-xs font-medium text-neutral-700 mt-0.5">{stats.ultima_visita || "—"}</div>
-                    <div className="text-[10px] text-neutral-500 uppercase">Ultima visita</div>
-                  </div>
-                </div>
-
-                {/* ── Tag (toggle rapido) ── */}
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {allTags.map((tag) => {
-                    const active = cliente.tags?.some((t) => t.id === tag.id);
-                    return (
-                      <button key={tag.id} onClick={() => toggleTag(tag.id)}
-                        className={`text-[11px] px-2 py-0.5 rounded-full border transition font-medium ${
-                          active
-                            ? "border-teal-400 bg-teal-100 text-teal-800"
-                            : "border-neutral-300 bg-white text-neutral-400 hover:border-teal-300 hover:text-neutral-600"
-                        }`}>
-                        {active ? "✓ " : ""}{tag.nome}
-                      </button>
-                    );
-                  })}
-                </div>
+                </section>
               </div>
-            </div>
-
-            {/* ── TABS ── */}
-            <div className="flex border-t border-neutral-200 bg-neutral-50">
-              {TABS.map((t) => (
-                <button key={t.key} onClick={() => setTab(t.key)}
-                  className={`flex-1 text-center py-2.5 text-xs font-semibold uppercase tracking-wide transition border-b-2 ${
-                    tab === t.key
-                      ? "border-teal-600 text-teal-700 bg-white"
-                      : "border-transparent text-neutral-500 hover:text-neutral-700 hover:bg-white/60"
-                  }`}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {/* ── TAB CONTENT ── */}
-            <div className="px-5 py-5">
-
-              {/* ANAGRAFICA */}
-              {tab === "anagrafica" && (
-                <div className="space-y-5">
-                  {editMode ? (
-                    <>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                        <Input label="Nome" name="nome" value={form.nome} onChange={onChange} />
-                        <Input label="Cognome" name="cognome" value={form.cognome} onChange={onChange} />
-                        <Input label="Titolo" name="titolo" value={form.titolo} onChange={onChange} />
-                        <Input label="Nome 2 (coppia)" name="nome2" value={form.nome2} onChange={onChange} />
-                        <Input label="Cognome 2 (coppia)" name="cognome2" value={form.cognome2} onChange={onChange} />
-                        <Input label="Telefono" name="telefono" value={form.telefono} onChange={onChange} />
-                        <Input label="Telefono 2" name="telefono2" value={form.telefono2} onChange={onChange} />
-                        <Input label="Email" name="email" value={form.email} onChange={onChange} type="email" />
-                        <Input label="Data di nascita" name="data_nascita" value={form.data_nascita} onChange={onChange} />
-                        <Input label="Lingua" name="lingua" value={form.lingua} onChange={onChange} />
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <Input label="Indirizzo" name="indirizzo" value={form.indirizzo} onChange={onChange} />
-                        <Input label="CAP" name="cap" value={form.cap} onChange={onChange} />
-                        <Input label="Città" name="citta" value={form.citta} onChange={onChange} />
-                        <Input label="Paese" name="paese" value={form.paese} onChange={onChange} />
-                      </div>
-                      <div className="flex items-center gap-4 pt-2">
-                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                          <input type="checkbox" checked={!!form.vip}
-                            onChange={(e) => setForm(prev => ({ ...prev, vip: e.target.checked }))}
-                            className="rounded border-neutral-300 text-teal-600" />
-                          VIP
-                        </label>
-                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                          <input type="checkbox" checked={!!form.newsletter}
-                            onChange={(e) => setForm(prev => ({ ...prev, newsletter: e.target.checked }))}
-                            className="rounded border-neutral-300 text-teal-600" />
-                          Newsletter
-                        </label>
-                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                          <input type="checkbox" checked={!!form.attivo}
-                            onChange={(e) => setForm(prev => ({ ...prev, attivo: e.target.checked }))}
-                            className="rounded border-neutral-300 text-teal-600" />
-                          Attivo
-                        </label>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                        <Field label="Nome" value={cliente.nome} />
-                        <Field label="Cognome" value={cliente.cognome} />
-                        <Field label="Titolo" value={cliente.titolo} />
-                        {(cliente.nome2 || cliente.cognome2) && <Field label="Nome 2 (coppia)" value={cliente.nome2} />}
-                        {(cliente.nome2 || cliente.cognome2) && <Field label="Cognome 2 (coppia)" value={cliente.cognome2} />}
-                        <Field label="Telefono" value={cliente.telefono} />
-                        <Field label="Telefono 2" value={cliente.telefono2} />
-                        <Field label="Email" value={cliente.email} />
-                        <Field label="Data di nascita" value={cliente.data_nascita} />
-                        <Field label="Lingua" value={cliente.lingua} />
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <Field label="Indirizzo" value={cliente.indirizzo} />
-                        <Field label="CAP" value={cliente.cap} />
-                        <Field label="Città" value={cliente.citta} />
-                        <Field label="Paese" value={cliente.paese} />
-                      </div>
-                      <div className="flex gap-4 text-sm text-neutral-600 pt-2">
-                        <span>{cliente.vip ? "⭐ VIP" : ""}</span>
-                        <span>{cliente.newsletter ? "📧 Newsletter" : ""}</span>
-                        <span>{cliente.attivo ? "🟢 Attivo" : "🔴 Inattivo"}</span>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Info sistema */}
-                  <div className="border-t border-neutral-100 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-neutral-400">
-                    <div>Origine: <span className="text-neutral-600">{cliente.origine}</span></div>
-                    <div>Risk: <span className="text-neutral-600">{cliente.risk_level || "—"}</span></div>
-                    <div>Creato TF: <span className="text-neutral-600">{cliente.thefork_created || "—"}</span></div>
-                    <div>Aggiornato: <span className="text-neutral-600">{cliente.updated_at || "—"}</span></div>
-                  </div>
-                </div>
-              )}
-
-              {/* PREFERENZE */}
-              {tab === "preferenze" && (
-                <div className="space-y-4">
-                  {editMode ? (
-                    <>
-                      <TextArea label="Preferenze cibo" name="pref_cibo" value={form.pref_cibo} onChange={onChange} />
-                      <TextArea label="Preferenze bevande" name="pref_bevande" value={form.pref_bevande} onChange={onChange} />
-                      <Input label="Posto preferito" name="pref_posto" value={form.pref_posto} onChange={onChange} />
-                      <Input label="Restrizioni dietetiche" name="restrizioni_dietetiche" value={form.restrizioni_dietetiche} onChange={onChange} />
-                      <Input label="Allergie e intolleranze" name="allergie" value={form.allergie} onChange={onChange} />
-                      <TextArea label="Note TheFork" name="note_thefork" value={form.note_thefork} onChange={onChange} rows={3} />
-                    </>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Field label="Preferenze cibo" value={cliente.pref_cibo} />
-                      <Field label="Preferenze bevande" value={cliente.pref_bevande} />
-                      <Field label="Posto preferito" value={cliente.pref_posto} />
-                      <Field label="Restrizioni dietetiche" value={cliente.restrizioni_dietetiche} />
-                      <Field label="Allergie e intolleranze" value={cliente.allergie} />
-                      <Field label="Note TheFork" value={cliente.note_thefork} />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* NOTE / DIARIO */}
-              {tab === "note" && (
-                <div>
-                  {/* Form nuova nota */}
-                  <div className="bg-neutral-50 rounded-lg p-3 mb-4 border border-neutral-200">
-                    <div className="flex gap-2 mb-2">
-                      <select value={nuovaNota.tipo}
-                        onChange={(e) => setNuovaNota(prev => ({ ...prev, tipo: e.target.value }))}
-                        className="border border-neutral-300 rounded-lg px-2 py-1 text-sm bg-white">
-                        {TIPI_NOTA.map((t) => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex gap-2">
-                      <input type="text" value={nuovaNota.testo}
-                        onChange={(e) => setNuovaNota(prev => ({ ...prev, testo: e.target.value }))}
-                        placeholder="Scrivi una nota..."
-                        className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
-                        onKeyDown={(e) => e.key === "Enter" && aggiungiNota()} />
-                      <Btn variant="chip" tone="emerald" size="sm" onClick={aggiungiNota}>
-                        Aggiungi
-                      </Btn>
-                    </div>
-                  </div>
-
-                  {cliente.note?.length === 0 && (
-                    <p className="text-sm text-neutral-400 text-center py-8">Nessuna nota</p>
-                  )}
-                  <div className="space-y-1">
-                    {cliente.note?.map((n) => (
-                      <div key={n.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-neutral-50 transition">
-                        <span className="text-base mt-0.5">
-                          {TIPI_NOTA.find((t) => t.value === n.tipo)?.icon || "📝"}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-neutral-800">{n.testo}</p>
-                          <p className="text-[11px] text-neutral-400 mt-0.5">{n.data} · {n.autore || "sistema"}</p>
-                        </div>
-                        <button onClick={() => eliminaNota(n.id)}
-                          className="text-xs text-neutral-300 hover:text-red-500 transition">✕</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* PRENOTAZIONI */}
-              {tab === "prenotazioni" && (
-                <div>
-                  {stats.totale > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                      {stats.no_show > 0 && (
-                        <div className="bg-amber-50 rounded-lg px-3 py-2 text-center border border-amber-200">
-                          <div className="text-lg font-bold text-amber-700">{stats.no_show}</div>
-                          <div className="text-[10px] text-amber-600 uppercase">No-show</div>
-                        </div>
-                      )}
-                      {stats.cancellate > 0 && (
-                        <div className="bg-red-50 rounded-lg px-3 py-2 text-center border border-red-200">
-                          <div className="text-lg font-bold text-red-600">{stats.cancellate}</div>
-                          <div className="text-[10px] text-red-500 uppercase">Cancellate</div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {!cliente.prenotazioni?.length ? (
-                    <p className="text-sm text-neutral-400 text-center py-8">Nessuna prenotazione</p>
-                  ) : (
-                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-                      <table className="w-full text-xs">
-                        <thead className="bg-neutral-50 sticky top-0 text-[10px] font-semibold text-neutral-500 uppercase">
-                          <tr>
-                            <th className="px-2 py-2 text-left">Data</th>
-                            <th className="px-2 py-2 text-left">Ora</th>
-                            <th className="px-2 py-2 text-center">Pax</th>
-                            <th className="px-2 py-2 text-left">Stato</th>
-                            <th className="px-2 py-2 text-left">Canale</th>
-                            <th className="px-2 py-2 text-left">Note</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-100">
-                          {cliente.prenotazioni.map((p) => (
-                            <tr key={p.id} className="hover:bg-neutral-50">
-                              <td className="px-2 py-1.5 font-medium text-neutral-800">{p.data_pasto}</td>
-                              <td className="px-2 py-1.5 text-neutral-600">{p.ora_pasto ? p.ora_pasto.substring(0, 5) : "—"}</td>
-                              <td className="px-2 py-1.5 text-center font-medium">{p.pax}</td>
-                              <td className="px-2 py-1.5">
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[p.stato] || "bg-neutral-100 text-neutral-600"}`}>
-                                  {p.stato}
-                                </span>
-                              </td>
-                              <td className="px-2 py-1.5 text-neutral-500">{p.canale || "—"}</td>
-                              <td className="px-2 py-1.5 text-neutral-500 max-w-[200px] truncate">
-                                {p.nota_ristorante || p.nota_cliente || ""}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* PREVENTIVI */}
-              {tab === "consumi" && <ConsumiTab clienteId={cliente.id} />}
-              {tab === "recensioni" && <RecensioniTab clienteId={cliente.id} />}
-              {tab === "preventivi" && (
-                <PreventiviTab clienteId={cliente.id} navigate={navigate} />
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>
+
+      {showPrenota && (
+        <PrenotazioniForm
+          defaultCliente={cliente}
+          onClose={() => setShowPrenota(false)}
+          onSuccess={() => { setShowPrenota(false); showToast("Prenotazione creata"); fetchCliente(); }}
+        />
+      )}
 
       {/* Toast */}
       {toast && (
@@ -777,6 +798,25 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   );
 }
 
+// ── Formati data/euro della scheda ──
+const _MESI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
+const _GIORNI = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"];
+function dataBreve(iso, conGiorno = false) {
+  if (!iso) return "—";
+  const d = new Date(iso.slice(0, 10) + "T12:00:00");
+  const base = `${d.getDate()} ${_MESI[d.getMonth()]}`;
+  const anno = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
+  return `${conGiorno ? _GIORNI[d.getDay()] + " " : ""}${base}${anno}`;
+}
+function dataLunga(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso.slice(0, 10) + "T12:00:00");
+  const s = d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+function euro(n) {
+  return n == null ? "—" : `${Math.round(n * 100) / 100 % 1 ? n.toFixed(2).replace(".", ",") : Math.round(n)} €`;
+}
 
 // ── Tab Recensioni TheFork dentro scheda cliente (mig 197) ──
 // ── Tab «Cosa ha mangiato»: conti di cassa abbinati al cliente (2026-10-18) ──
@@ -863,7 +903,7 @@ function ConsumiTab({ clienteId }) {
                   {c.righe.map((r, i) => (
                     <li key={i} className="flex gap-3">
                       <span className="w-10 text-right">{r.quantita}×</span>
-                      <span className="flex-1">{r.nome}</span>
+                      <span className="flex-1">{r.nome === "no_name" ? <span className="text-neutral-400">voce senza nome</span> : r.nome}</span>
                       <span className="w-20 text-right text-neutral-500">{_euro(r.totale)}</span>
                     </li>
                   ))}

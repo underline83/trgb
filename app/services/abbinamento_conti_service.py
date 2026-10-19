@@ -34,6 +34,8 @@ from app.models.clienti_db import get_clienti_conn
 STATI_PRESENTI = ("SEATED", "LEFT", "BILL", "ARRIVED", "PARTIALLY_ARRIVED")
 DECISI = ("manuale", "passaggio")          # scelte di una persona: mai riscritte in automatico
 FINESTRA_DEFAULT = 150
+# Nomi che iPratico dà alle righe senza prodotto (prezzo libero, varianti): non sono piatti
+NOMI_SENZA_PIATTO = {"no_name", "no name", ""}
 
 
 # ============================================================
@@ -466,7 +468,7 @@ def consumi_cliente(cliente_id: int, limite_visite: int = 100) -> Dict[str, Any]
             cond += f" OR prenotazione_id IN ({', '.join('?' for _ in pren)})"
             args += pren
         conti = [dict(r) for r in conn_c.execute(f"""
-            SELECT id, data_rif, turno, aperto_at, durata_min, tavolo, coperti, totale, romana, abbinamento
+            SELECT id, data_rif, turno, aperto_at, durata_min, tavolo, coperti, totale, romana, abbinamento, prenotazione_id
             FROM cassa_conti
             WHERE ({cond}) AND abbinamento IN ('auto','manuale','proposto')
             ORDER BY data_rif DESC, aperto_at DESC
@@ -481,6 +483,8 @@ def consumi_cliente(cliente_id: int, limite_visite: int = 100) -> Dict[str, Any]
             c["righe"] = righe
             visti = set()
             for r in righe:
+                if not r["nome"] or r["nome"].strip().lower() in NOMI_SENZA_PIATTO:
+                    continue  # righe senza nome (prezzo libero, varianti): nel conto sì, tra i preferiti no
                 dove = bere if r["famiglia"] == "beverage" else piatti
                 v = dove.setdefault(r["nome"], {"nome": r["nome"], "categoria": r["categoria"],
                                                 "volte": 0, "quantita": 0.0, "spesa": 0.0, "ultima": c["data_rif"]})

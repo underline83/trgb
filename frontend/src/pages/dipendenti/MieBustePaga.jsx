@@ -1,5 +1,6 @@
 // Modulo: dipendenti (sotto-modulo buste-paga) — [core]
-// @version: v1.0 — Le mie buste paga (mig 198, 2026-10-18)
+// @version: v1.1 — dentro la nav della sezione Dipendenti (2026-10-19)
+// v1.0 — Le mie buste paga (mig 198, 2026-10-18)
 // Pagina "Le mie buste paga" — TRGB Gestionale
 //
 // Vista self-service accessibile a TUTTI i ruoli autenticati, come /miei-turni:
@@ -11,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, EmptyState } from "../../components/ui";
+import DipendentiNav from "./DipendentiNav";
 
 const fmtEuro = (v) =>
   v == null ? "—" : `€ ${Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -83,8 +85,9 @@ export default function MieBustePaga() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-brand-cream">
+      <DipendentiNav current="mie-buste-paga" />
+      <div className="max-w-3xl mx-auto p-4 sm:p-6">
         <div className="mb-4">
           <button onClick={() => navigate("/")} className="text-sm text-neutral-500 hover:text-neutral-700">← Home</button>
           <h1 className="text-2xl sm:text-3xl font-bold mt-1" style={{ fontFamily: "'Playfair Display', serif" }}>

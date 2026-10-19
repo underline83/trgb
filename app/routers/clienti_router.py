@@ -2001,8 +2001,9 @@ def get_cliente(
                  SUM(CASE WHEN stato = 'NO_SHOW' THEN 1 ELSE 0 END) as no_show,
                  SUM(CASE WHEN stato = 'CANCELED' THEN 1 ELSE 0 END) as cancellate,
                  ROUND(AVG(pax), 1) as pax_medio,
-                 MIN(data_pasto) as prima_visita,
-                 MAX(data_pasto) as ultima_visita
+                 MIN(CASE WHEN stato IN ('SEATED','ARRIVED','BILL','LEFT') THEN data_pasto END) as prima_visita,
+                 MAX(CASE WHEN stato IN ('SEATED','ARRIVED','BILL','LEFT') AND data_pasto <= date('now','localtime')
+                          THEN data_pasto END) as ultima_visita
                FROM clienti_prenotazioni WHERE cliente_id = ?""",
             (cliente_id,),
         ).fetchone()

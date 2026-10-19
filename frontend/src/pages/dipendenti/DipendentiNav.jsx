@@ -1,4 +1,5 @@
-// @version: v1.3-candidati — tab Candidati con badge dei nuovi (2026-10-16)
+// @version: v1.4-self-service — tab «I miei turni» e «Le mie buste paga» per tutti (2026-10-19)
+// v1.3-candidati — tab Candidati con badge dei nuovi (2026-10-16)
 // v1.2-permessi — i tab si filtrano per ruolo (2026-09-01)
 // Tab navigation persistente per la sezione Dipendenti (pattern ViniNav).
 // Colore modulo: viola (amber = admin, viola = dipendenti). Si mostra in tutte
@@ -23,6 +24,10 @@ const TABS = [
   { key: "anagrafica", label: "Anagrafica", path: "/dipendenti/anagrafica", icon: "🗂️", sub: "anagrafica" },
   { key: "buste-paga", label: "Buste Paga", path: "/dipendenti/buste-paga", icon: "📋", sub: "buste-paga" },
   { key: "turni", label: "Turni", path: "/dipendenti/turni", icon: "📅", sub: "turni" },
+  // Self-service (sub: null = ogni ruolo): il backend risolve l'utente loggato
+  // sul SUO dipendente, quindi ognuno vede solo i propri dati.
+  { key: "miei-turni", label: "I miei turni", path: "/miei-turni", icon: "🗓️", sub: null },
+  { key: "mie-buste-paga", label: "Le mie buste paga", path: "/mie-buste-paga", icon: "📄", sub: null },
   // Intermittenti invia la comunicazione UNI al Ministero: admin.
   { key: "intermittenti", label: "Intermittenti", path: "/dipendenti/intermittenti", icon: "📨", sub: "impostazioni" },
   { key: "scadenze", label: "Scadenze", path: "/dipendenti/scadenze", icon: "🚨", sub: "scadenze" },
@@ -53,8 +58,8 @@ export default function DipendentiNav({ current }) {
   // Durante il caricamento non mostriamo tab riservati: meglio una nav che si
   // popola in ritardo che una che lampeggia "Buste Paga" a chi non deve vederlo.
   const tabs = loading
-    ? TABS.filter((t) => t.sub === "turni")
-    : TABS.filter((t) => (t.key === "candidati" ? vedeCandidati : canAccessSub("dipendenti", t.sub)))
+    ? TABS.filter((t) => t.sub === "turni" || t.sub === null)
+    : TABS.filter((t) => (t.key === "candidati" ? vedeCandidati : t.sub === null || canAccessSub("dipendenti", t.sub)))
         .map((t) => (t.key === "candidati" ? { ...t, badge: nuovi } : t));
 
   return (

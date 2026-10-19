@@ -216,8 +216,9 @@ File in `frontend/src/pages/clienti/`. Route in `frontend/src/App.jsx:458-475`. 
 
 ## 5.3 Scheda cliente (`ClientiScheda.jsx`)
 
-- **Sidebar** colorata per rank TheFork (Gold/Silver/Bronze/Caution, default teal) con dati principali, tag toggle, stats visite.
-- **Tab**: `anagrafica` | `preferenze` | `note` (conteggio) | `prenotazioni` (conteggio) | `consumi` «Cosa ha mangiato» (🆕 2026-10-18: visite con conto, medie, piatti, da bere, ogni conto apribile; i conti «proposti» non confermati sono segnati «da confermare») | `preventivi` | `recensioni` (`ClientiScheda.jsx`).
+- 🆕 **v3.7 (2026-10-19, redesign bozzetto A — `redesign_clienti_prenotazioni.md`)**: fascia verde petrolio con iniziali, nome, rank, 2 etichette, «dal anno»; 3 numeri (visite = prenotazioni completate, spesa media a visita e a coperto dai conti di cassa, ultima volta); azioni Chiama (`tel:`), WhatsApp (M.C `openWhatsApp`), Prenota (apre `PrenotazioniForm` con `defaultCliente`); «Da sapere in sala» (allergie+restrizioni in rosso se presenti, prossima prenotazione, piatti/vino che prende, preferenze, ultima nota).
+- **Linguette**: `visite` (linea del tempo: prenotazioni passate + conti di cassa collegati per `prenotazione_id`, piatti del conto, «conto da confermare») | `note` | `preventivi` | `altro` (anagrafica e preferenze con modifica, etichette, spesa e piatti, recensioni TheFork, unione doppioni).
+- «Modifica» in testata porta su Altro in modalità modifica; Salva/Annulla in testata.
 - **Merge**: sposta anche i conti di cassa collegati (`abbinamento_conti_service.sposta_cliente`).
 - **Tab Preventivi**: fetch `GET /preventivi?cliente_id=` (router preventivi) + CTA "Nuovo preventivo" → `/clienti/preventivi/nuovo` (`ClientiScheda.jsx:782,807`).
 - **Merge manuale** dal pannello scheda: ricerca del duplicato, preview, opzione **"merge come coppia"** che salva nome/cognome del secondario come `nome2`/`cognome2` del principale (`ClientiScheda.jsx:92-247`).

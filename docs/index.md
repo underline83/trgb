@@ -77,6 +77,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [audit-2026-05-19/](audit-2026-05-19/05_EXECUTIVE_SUMMARY.md) — audit capability per modulo, gap report (~40 capability non documentate), manuale utente.
 - 📄 [analisi_app_apple.md](analisi_app_apple.md) — analisi per l'app mobile (Capacitor / App Store).
 - 📄 [analisi_ipratico_cloud.md](analisi_ipratico_cloud.md) — API interna del back office iPratico: conti per tavolo con righe, collegamento ai clienti, idee per TRGB (2026-10-18).
+- 📄 [redesign_clienti_prenotazioni.md](redesign_clienti_prenotazioni.md) — redesign grafico di Clienti e Prenotazioni: audit, organizzazione, bozzetti scelti, avanzamento (dal 2026-10-19).
 
 ## 📦 Materiali & varie
 

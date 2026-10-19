@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-19 — Scheda cliente rifatta (redesign, bozzetto A) `[core]`
+
+Clienti 3.7, prenotazioni 2.15, nessuna migrazione. Primo passo del redesign di Clienti e Prenotazioni ([`redesign_clienti_prenotazioni.md`](redesign_clienti_prenotazioni.md)). La scheda cliente ha una fascia verde petrolio con iniziali, nome e tre numeri (visite, spesa media, ultima volta); sotto, tre bottoni grandi **Chiama**, **WhatsApp**, **Prenota** (apre il form prenotazione col cliente già scelto); poi **«Da sapere in sala»**: allergie (in rosso se ci sono), prossima prenotazione, piatti e vino che prende, preferenze, ultima nota. Quattro linguette che stanno su iPhone: **Visite** (linea del tempo con prenotazione e conto insieme, piatti compresi), Note, Preventivi, **Altro** (anagrafica, preferenze, etichette, spesa e piatti, recensioni, unione doppioni). Fix: «ultima visita» non conta più le prenotazioni future; i piatti preferiti non mostrano più le righe «no_name» della cassa.
+
 ## 2026-10-18 — Scheda cliente: «Cosa ha mangiato» `[core]`
 
 Clienti 3.6, nessuna migrazione. Nella scheda cliente nuova scheda **«Cosa ha mangiato»**: visite con conto, spesa totale, media a visita e a coperto, dal-al; **piatti che prende** (quante volte) e **da bere** (per spesa, così i vini vengono prima dell'acqua); ogni visita si apre con i piatti e gli importi. Legge i conti di cassa collegati al cliente o alle sue prenotazioni (`GET /clienti/{id}/consumi`, servizio platform). Le proposte non confermate valgono ma sono segnate «da confermare». L'unione di due clienti sposta anche i conti. Storico da settembre 2024 (scaricato il 18/10).
@@ -18,6 +22,10 @@ Connettore 1.4, nessuna migrazione. Strumento `incassi_riepilogo` (sola lettura,
 ## 2026-10-18 — Task Manager: Registro attività `[core]`
 
 Tasks 1.6, nessuna migrazione. Nuova pagina «👥 **Registro attività**» (Task Manager › Registro, `/tasks/registro`) per vedere chi ha fatto cosa e quando: in alto una scheda per persona (quante voci, checklist e task, dalle-alle; tocco = filtra), sotto l'elenco per giorno con ora, persona, voce, esito e valore (temperature fuori soglia in rosso). In «Tutto» le voci della stessa checklist spuntate dalla stessa persona diventano un blocco («17 voci di Linea Antipasti · Sera, alle 19:17») che si apre; «Voci», «Checklist chiuse» e «Task» filtrano. Periodo: oggi, ieri, 7 o 30 giorni o date a scelta (max 92). Legge `completato_da`/`completato_at` che TRGB salvava già. Ruoli come il Report HACCP: admin, chef, sous_chef.
+
+## 2026-10-19 — Dipendenti: «Le mie buste paga» nella nav della sezione `[core]`
+
+Dipendenti 2.39, nessuna migrazione. Entrando in Dipendenti un dipendente vedeva solo il tab «Turni»: le sue buste paga erano raggiungibili solo da «I miei turni». Ora la nav della sezione ha per ogni ruolo i tab «🗓️ I miei turni» e «📄 Le mie buste paga», e la pagina delle buste paga ha la nav della sezione in testa. Gli altri tab restano filtrati per ruolo come prima.
 
 ## 2026-10-18 — Dipendenti protetta dal PIN `[core]`
 

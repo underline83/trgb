@@ -6,8 +6,11 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
-**DA PUSHARE — Scheda cliente «Cosa ha mangiato»** (clienti 3.6, nessuna migrazione) `[core]`
-- Dopo il push: Clienti › un cliente abituale (es. Hotel Petronilla) › «Cosa ha mangiato»: visite, medie, piatti, da bere; aprire una visita.
+**DA PUSHARE — Dipendenti: «Le mie buste paga» nella nav** (dipendenti 2.39, nessuna migrazione) `[core]`
+- Dopo il push: entrare con un dipendente → Dipendenti → PIN → tab «📄 Le mie buste paga» e «🗓️ I miei turni» accanto a «Turni».
+
+**DA PUSHARE — Scheda cliente rifatta** (clienti 3.7, prenotazioni 2.15, nessuna migrazione) `[core]` — redesign passo 1 (`redesign_clienti_prenotazioni.md`)
+- Dopo il push, da iPhone e da iPad: Clienti › Hotel Petronilla → fascia verde, 3 numeri (ultima volta = una data passata), Chiama/WhatsApp/Prenota (Prenota apre il form col cliente già scelto), «Da sapere in sala», Visite con piatti e totali, Altro › Modifica/Salva. Provare anche la scheda dentro la lista (iPad) e dal Planning.
 
 **Pushato (419c6b43), da verificare — Conti iPratico Cloud + abbinamento alla Chiusura turno** (corrispettivi 4.10, sistema 5.64) `[core]`
 - Verificato il 18/10: «Prova l'accesso» ok; 17/10 = 23 conti, 4.297 € (= Z iPratico); 18/10 pranzo 10/10 e cena 4/4 abbinati da soli. Storico 2024-09-01 → 2026-10-16 lanciato alle 21:59 (≈20 min).
@@ -70,6 +73,16 @@
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-19 — «Le mie buste paga» nella nav di Dipendenti `[core]`
+
+Segnalazione di Marco: entrando con un dipendente, nella sezione Dipendenti si vedeva solo «Turni». `DipendentiNav` filtra i tab per sotto-modulo e i tab self-service non c'erano. Aggiunti «🗓️ I miei turni» (`/miei-turni`) e «📄 Le mie buste paga» (`/mie-buste-paga`) con `sub: null` = ogni ruolo (il backend già risolve l'utente sul proprio dipendente). `MieBustePaga.jsx` ora monta la nav della sezione. Dipendenti 2.39.
+
+## SESSIONE 2026-10-19 (1) — Redesign Clienti e Prenotazioni: bozzetti e scheda cliente `[core]`
+
+- Audit su iPad/iPhone → organizzazione nuova approvata (Prenotazioni = sala, Clienti = CRM che si apre sulla ricerca, colore per modulo). Bozzetti su canvas (3 versioni per schermata): Marco ha scelto A per tutte. Tutto in `docs/redesign_clienti_prenotazioni.md`.
+- Scritto il passo 1: `ClientiScheda.jsx` v3.0 (render nuovo; logica, modifica, note, merge invariati, riusati dentro le linguette), `PrenotazioniForm` `defaultCliente`, `get_cliente` prima/ultima visita solo su prenotazioni completate e passate, `consumi_cliente` con `prenotazione_id`. Sintassi verificata con esbuild; non provata nel browser (si guarda dopo il push).
+- Prossimo: passo 2, lista clienti iPad con anteprima + Clienti che si apre sulla ricerca + menu senza «Prenotazioni».
 
 ## SESSIONE 2026-10-18 (4) — Scheda cliente «Cosa ha mangiato» `[core]`
 

@@ -1,4 +1,4 @@
-// @version: v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -6,7 +6,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 const CANALI = ["Telefono", "WhatsApp", "Walk-in", "Email", "Altro"];
 const OCCASIONI = ["", "Compleanno", "Anniversario", "Laurea", "Cresima", "Battesimo", "Cena aziendale", "Altro"];
 
-export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, onClose, onSuccess }) {
+export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, defaultCliente, onClose, onSuccess }) {
   const [form, setForm] = useState({
     data_pasto: defaultData || new Date().toISOString().slice(0, 10),
     ora_pasto: "20:00",
@@ -19,7 +19,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     allergie_segnalate: "",
     tavolo_esterno: 0,
     seggioloni: "",
-    cliente_id: null,
+    cliente_id: defaultCliente?.id ?? null,
     nuovo_nome: "",
     nuovo_cognome: "",
     nuovo_telefono: "",
@@ -29,9 +29,9 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   const [slotPranzo, setSlotPranzo] = useState([]);
   const [slotCena, setSlotCena] = useState([]);
   const [soglia, setSoglia] = useState("15:00");
-  const [searchQ, setSearchQ] = useState("");
+  const [searchQ, setSearchQ] = useState(defaultCliente ? `${defaultCliente.nome || ""} ${defaultCliente.cognome || ""}`.trim() : "");
   const [searchResults, setSearchResults] = useState([]);
-  const [selectedCliente, setSelectedCliente] = useState(null);
+  const [selectedCliente, setSelectedCliente] = useState(defaultCliente || null);
   const [showNuovo, setShowNuovo] = useState(false);
   const [tavoli, setTavoli] = useState([]);
   const [submitting, setSubmitting] = useState(false);
