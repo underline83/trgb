@@ -485,7 +485,9 @@ def consumi_cliente(cliente_id: int, limite_visite: int = 100) -> Dict[str, Any]
             for r in righe:
                 if not r["nome"] or r["nome"].strip().lower() in NOMI_SENZA_PIATTO:
                     continue  # righe senza nome (prezzo libero, varianti): nel conto sì, tra i preferiti no
-                dove = bere if r["famiglia"] == "beverage" else piatti
+                # «Vino» a prezzo libero non ha categoria in cassa: è da bere
+                e_bere = r["famiglia"] == "beverage" or r["nome"].strip().lower().startswith("vino")
+                dove = bere if e_bere else piatti
                 v = dove.setdefault(r["nome"], {"nome": r["nome"], "categoria": r["categoria"],
                                                 "volte": 0, "quantita": 0.0, "spesa": 0.0, "ultima": c["data_rif"]})
                 if r["nome"] not in visti:
@@ -505,9 +507,10 @@ def consumi_cliente(cliente_id: int, limite_visite: int = 100) -> Dict[str, Any]
             "spesa_media_coperto": round(totale / coperti, 2) if coperti else None,
             "prima": conti[-1]["data_rif"] if conti else None,
             "ultima": conti[0]["data_rif"] if conti else None,
-            # piatti: quante volte li ha presi; da bere: quanto ci ha speso (vini in cima, acqua in fondo)
-            "piatti_preferiti": sorted(piatti.values(), key=lambda x: (-x["volte"], -x["spesa"]))[:10],
-            "da_bere": sorted(bere.values(), key=lambda x: -x["spesa"])[:8],
+            # piatti: quante volte li ha presi; da bere: quanto ci ha speso (vini in cima, acqua in fondo).
+            # Lista lunga: la scheda li raggruppa per tipo (antipasti, primi, vini…) e ne mostra i primi.
+            "piatti_preferiti": sorted(piatti.values(), key=lambda x: (-x["volte"], -x["spesa"]))[:80],
+            "da_bere": sorted(bere.values(), key=lambda x: -x["spesa"])[:40],
             "conti": conti[:limite_visite],
         }
     finally:

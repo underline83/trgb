@@ -1,4 +1,4 @@
-// @version: v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
+// @version: v3.1 — scontrino delle visite diviso in Mangiato/Bevuto per tipo, «Prende di solito» per tipo (2026-10-19) · v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -265,8 +265,6 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   const allergie = [cliente.allergie, cliente.restrizioni_dietetiche].filter((x) => x && String(x).trim()).join(" · ");
   const preferenze = [cliente.pref_cibo, cliente.pref_bevande, cliente.pref_posto].filter((x) => x && String(x).trim()).join(" · ");
   const ultimaNota = cliente.note?.[0];
-  const piatti = (consumi?.piatti_preferiti || []).slice(0, 3);
-  const bere = (consumi?.da_bere || [])[0];
 
   // Storia: prenotazioni passate + conti di cassa (collegati per prenotazione_id)
   const contiPerPren = {};
@@ -393,17 +391,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                 </div>
               </div>
             </div>
-            {(piatti.length > 0 || bere) && (
-              <div className="rounded-xl p-3 bg-white border border-neutral-200">
-                <div className="text-xs font-bold text-neutral-500 mb-2">Prende di solito</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {piatti.map((p) => (
-                    <span key={p.nome} className="px-2.5 py-1 rounded-full bg-neutral-100 text-sm">{p.nome} <b>{p.volte}</b></span>
-                  ))}
-                  {bere && <span className="px-2.5 py-1 rounded-full bg-neutral-100 text-sm">{bere.nome}</span>}
-                </div>
-              </div>
-            )}
+            <PrendeDiSolito consumi={consumi} dueColonne={!embedded} />
             {(preferenze || ultimaNota) && (
               <div className="rounded-xl p-3 bg-white border border-neutral-200 space-y-1 text-[15px]">
                 {preferenze && <div><span className="text-xs font-bold text-neutral-500 mr-2">Preferenze</span>{preferenze}</div>}
@@ -451,11 +439,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                           {[v.ora, v.tavolo ? `tavolo ${v.tavolo}` : null, v.pax ? `${v.pax} persone` : null, v.conto?.durata_min ? `${v.conto.durata_min} min` : null].filter(Boolean).join(" · ")}
                           {etichetta && <span className="ml-1 font-semibold text-amber-700">· {etichetta}</span>}
                         </div>
-                        {v.conto?.righe?.length > 0 && (
-                          <div className="text-sm leading-snug text-neutral-800 mt-1">
-                            {v.conto.righe.filter((r) => r.nome && r.nome !== "no_name").map((r) => (r.quantita > 1 ? `${r.nome} ×${r.quantita}` : r.nome)).join(" · ")}
-                          </div>
-                        )}
+                        {v.conto?.righe?.length > 0 && <Scontrino conto={v.conto} dueColonne={!embedded} />}
                         {v.nota && <div className="text-sm text-neutral-500 mt-0.5 italic">{v.nota}</div>}
                         {v.conto?.abbinamento === "proposto" && (
                           <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">conto da confermare</span>
@@ -818,6 +802,119 @@ function euro(n) {
   return n == null ? "—" : `${Math.round(n * 100) / 100 % 1 ? n.toFixed(2).replace(".", ",") : Math.round(n)} €`;
 }
 
+// ── Piatti e bere per tipo (scontrino nelle visite, «Prende di solito») ──
+// Le categorie sono quelle della cassa iPratico (cassa_conti_righe.categoria).
+const TIPI_CIBO = [
+  ["Degustazioni", "Degustazione"], ["Pranzo", "Pranzo"], ["Antipasti", "Antipasti"], ["Primi", "Primi"],
+  ["Secondi", "Secondi"], ["Contorni", "Contorni"], ["Dolci", "Dolci"], ["Speciali", "Fuori carta"],
+];
+const TIPI_BERE = [["vini", "Vini"], ["birre", "Birre"], ["alcolici", "Amari e distillati"], ["analcolici", "Acqua, bibite e caffè"]];
+const eBere = (r) => r.famiglia === "beverage" || /^vino\b/i.test((r.nome || "").trim());
+function tipoCibo(r) {
+  return TIPI_CIBO.some(([c]) => c === r.categoria) ? r.categoria : "altro";
+}
+function tipoBere(r) {
+  const c = r.categoria || "";
+  if (c === "Bottiglie" || c === "Calici" || /^vino\b/i.test((r.nome || "").trim())) return "vini";
+  if (c === "Birre") return "birre";
+  if (["Alcolici", "Bev Alcoliche", "Grappe"].includes(c)) return "alcolici";
+  return "analcolici";
+}
+// «0999 Champagne …» → «Champagne …» (il numero è il codice di cantina)
+const nomeVoce = (n) => (n || "").replace(/^\d{3,4}\s+/, "").trim();
+const vocePiatto = (r) => r.nome && r.nome.trim().toLowerCase() !== "no_name";
+
+// Raggruppa voci per tipo, nell'ordine dei tipi. ordine: [[chiave, etichetta]], tipo: voce → chiave
+function perTipo(voci, ordine, tipo) {
+  const g = {};
+  voci.forEach((v) => { (g[tipo(v)] = g[tipo(v)] || []).push(v); });
+  const out = ordine.filter(([k]) => g[k]).map(([k, label]) => ({ k, label, voci: g[k] }));
+  if (g.altro) out.push({ k: "altro", label: "Altro", voci: g.altro });
+  return out;
+}
+
+// Le righe dello stesso piatto battute in momenti diversi diventano una riga sola
+function unisciRighe(righe) {
+  const m = new Map();
+  righe.filter(vocePiatto).forEach((r) => {
+    const k = r.nome.trim();
+    const v = m.get(k) || { ...r, quantita: 0, totale: 0 };
+    v.quantita += r.quantita || 0;
+    v.totale = Math.round((v.totale + (r.totale || 0)) * 100) / 100;
+    m.set(k, v);
+  });
+  return [...m.values()];
+}
+
+function Scontrino({ conto, dueColonne }) {
+  const righe = unisciRighe(conto.righe || []);
+  const cibo = perTipo(righe.filter((r) => !eBere(r)), TIPI_CIBO, tipoCibo);
+  const bere = perTipo(righe.filter(eBere), TIPI_BERE, tipoBere);
+  const somma = (gr) => gr.reduce((t, g) => t + g.voci.reduce((a, v) => a + (v.totale || 0), 0), 0);
+  const Colonna = ({ titolo, gruppi }) => (
+    <div className="min-w-0">
+      <div className="flex justify-between text-[11px] font-bold uppercase tracking-wide text-neutral-500 border-b border-neutral-200 pb-1 mb-1">
+        <span>{titolo}</span><span className="tabular-nums">{euro(somma(gruppi))}</span>
+      </div>
+      {gruppi.map((g) => (
+        <div key={g.k} className="mt-1.5">
+          <div className="text-[11px] font-semibold text-teal-800">{g.label}</div>
+          {g.voci.map((v) => (
+            <div key={v.nome} className="flex gap-2 text-sm leading-snug py-0.5">
+              <span className="w-7 shrink-0 text-right tabular-nums text-neutral-500">{v.quantita > 1 ? `${v.quantita}×` : ""}</span>
+              <span className="flex-1 min-w-0">{nomeVoce(v.nome)}</span>
+              <span className="shrink-0 tabular-nums text-neutral-600">{euro(v.totale)}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+  if (!cibo.length && !bere.length) return null;
+  return (
+    <div className={`mt-2 rounded-xl bg-white border border-neutral-200 p-3 grid gap-4 ${dueColonne ? "md:grid-cols-2" : ""}`}>
+      {cibo.length > 0 && <Colonna titolo="Mangiato" gruppi={cibo} />}
+      {bere.length > 0 && <Colonna titolo="Bevuto" gruppi={bere} />}
+    </div>
+  );
+}
+
+// «Prende di solito»: i piatti per tipo (3 per tipo) e il bere (vini prima)
+function PrendeDiSolito({ consumi, dueColonne }) {
+  const piatti = perTipo((consumi?.piatti_preferiti || []).filter(vocePiatto), TIPI_CIBO, tipoCibo);
+  const bere = perTipo((consumi?.da_bere || []).filter(vocePiatto), TIPI_BERE, tipoBere);
+  // tra i vini prima le bottiglie (dicono che vino), poi i calici, poi «Vino» a prezzo libero
+  const pesoVino = (v) => (v.categoria === "Bottiglie" ? 0 : v.categoria === "Calici" ? 1 : 2);
+  bere.forEach((g) => { if (g.k === "vini") g.voci = [...g.voci].sort((a, b) => pesoVino(a) - pesoVino(b) || b.volte - a.volte); });
+  if (!piatti.length && !bere.length) return null;
+  const Blocco = ({ titolo, gruppi, quanti }) => (
+    <div className="min-w-0">
+      <div className="text-xs font-bold text-neutral-500 mb-1">{titolo}</div>
+      {gruppi.map((g) => (
+        <div key={g.k} className="flex gap-3 py-1.5 border-t border-neutral-100 first:border-0">
+          <span className="w-24 shrink-0 text-[12px] font-semibold text-teal-800 pt-1">{g.label}</span>
+          <div className="flex flex-wrap gap-1.5 min-w-0">
+            {g.voci.slice(0, quanti(g.k)).map((v) => (
+              <span key={v.nome} className="px-2.5 py-1 rounded-full bg-neutral-100 text-sm">
+                {nomeVoce(v.nome)} <b className="tabular-nums">{v.volte}</b>
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div className="rounded-xl p-3 bg-white border border-neutral-200">
+      <div className="text-xs font-bold text-neutral-500 mb-2">Prende di solito <span className="font-normal text-neutral-400">· il numero è quante volte</span></div>
+      <div className={`grid gap-4 ${dueColonne ? "md:grid-cols-2" : ""}`}>
+        {piatti.length > 0 && <Blocco titolo="Piatti" gruppi={piatti} quanti={() => 3} />}
+        {bere.length > 0 && <Blocco titolo="Da bere" gruppi={bere} quanti={(k) => (k === "vini" ? 4 : 2)} />}
+      </div>
+    </div>
+  );
+}
+
 // ── Tab Recensioni TheFork dentro scheda cliente (mig 197) ──
 // ── Tab «Cosa ha mangiato»: conti di cassa abbinati al cliente (2026-10-18) ──
 // Dati: GET /clienti/{id}/consumi (servizio platform abbinamento_conti_service).
@@ -863,7 +960,7 @@ function ConsumiTab({ clienteId }) {
         <div>
           <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">🍽️ Piatti che prende</div>
           <ul className="text-sm space-y-0.5">
-            {d.piatti_preferiti.map((p) => (
+            {d.piatti_preferiti.slice(0, 15).map((p) => (
               <li key={p.nome} className="flex gap-2">
                 <span className="flex-1">{p.nome}<span className="text-neutral-400"> · {p.categoria || "—"}</span></span>
                 <span className="text-neutral-600">{p.volte}×</span>
@@ -874,7 +971,7 @@ function ConsumiTab({ clienteId }) {
         <div>
           <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">🍷 Da bere</div>
           <ul className="text-sm space-y-0.5">
-            {d.da_bere.map((p) => (
+            {d.da_bere.slice(0, 10).map((p) => (
               <li key={p.nome} className="flex gap-2">
                 <span className="flex-1">{p.nome}<span className="text-neutral-400"> · {p.volte}×</span></span>
                 <span className="text-neutral-600">{_euro(p.spesa)}</span>

@@ -37,8 +37,12 @@ Scartate (per memoria): scheda B «carta dell'osteria» e C «cruscotto»; Oggi 
 | Passo | Stato |
 |---|---|
 | 1. Scheda cliente (A) | ✅ pushata 2026-10-19 (c249a4b8, clienti 3.7) |
-| 2. Lista clienti iPad (A) + Clienti si apre sulla ricerca + menu rinominato | ✅ scritta 2026-10-19 (clienti 3.8), da pushare. La linguetta «Prenotazioni» resta in Clienti finché non si decide il passo 4 (l'archivio legge l'API `/clienti/prenotazioni/*`: spostarlo in Prenotazioni lega i due moduli) |
+| 2. Lista clienti iPad (A) + Clienti si apre sulla lista + menu rinominato + rank/frequenza colorati + ordine dalle intestazioni | ✅ scritta 2026-10-19 (clienti 3.8), da pushare |
 | 3. Prenotazioni › Oggi (A) + barra in basso su iPhone | da fare |
-| 4. Archivio prenotazioni dentro Prenotazioni (Cerca) | da fare |
+| 4. Archivio prenotazioni dentro Prenotazioni | ✅ scritto 2026-10-19 (prenotazioni 2.16, `GET /prenotazioni/archivio/`), da pushare. Decisione di Marco: in Clienti lo storico sta nella scheda, la lista di tutte le prenotazioni sta in Prenotazioni |
 | 5. Sala (mappa) a tutto schermo su iPad | da fare |
 | 6. Pulizia stile (date, colori, emoji) nelle pagine restanti | da fare |
+
+## Scontrino nella scheda (2026-10-19)
+
+Richiesta di Marco: lo scontrino scritto in fila «è poco funzionale». Ora ogni visita mostra **Mangiato** e **Bevuto** (affiancati su schermo largo, uno sotto l'altro su iPhone e nell'anteprima della lista), ciascuno diviso per tipo con quantità, prezzo e totale. I tipi vengono dalla categoria della cassa iPratico: Degustazioni, Pranzo, Antipasti, Primi, Secondi, Contorni, Dolci, Speciali («Fuori carta»), il resto «Altro»; da bere: Vini (Bottiglie, Calici, «Vino» a prezzo libero), Birre, Amari e distillati (Alcolici, Bev Alcoliche, Grappe), Acqua bibite e caffè (il resto). Le voci a 0 € (portate della degustazione, pane, stuzzico) non compaiono; la riga «no_name» della cassa (totale con sconto) non è un piatto. «Prende di solito» usa gli stessi tipi.

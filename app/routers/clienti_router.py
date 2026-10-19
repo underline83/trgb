@@ -1863,7 +1863,7 @@ def lista_clienti(
             "n_prenotazioni_desc": "n_prenotazioni DESC, c.cognome ASC",
             "n_prenotazioni_asc": "n_prenotazioni ASC, c.cognome ASC",
             "ultima_visita_desc": "ultima_visita DESC",
-            "ultima_visita_asc": "ultima_visita ASC",
+            "ultima_visita_asc": "ultima_visita IS NULL, ultima_visita ASC",  # chi non è mai venuto in fondo
         }
         order_sql = order_map.get(ordine, "c.cognome ASC, c.nome ASC")
 

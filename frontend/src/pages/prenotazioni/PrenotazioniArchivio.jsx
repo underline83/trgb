@@ -1,9 +1,9 @@
-// @version: v1.1-mattoni — M.I primitives (Btn/StatusBadge/EmptyState) + bg-brand-cream
-// Vista globale prenotazioni con filtri, ricerca, paginazione
+// @version: v2.0 — spostato da Clienti a Prenotazioni › Archivio (redesign 2026-10-19), API /prenotazioni/archivio/ · v1.1-mattoni
+// Archivio prenotazioni: tutte, con filtri, ricerca, paginazione
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import ClientiNav from "./ClientiNav";
+import PrenotazioniNav from "./PrenotazioniNav";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 const PAGE_SIZE = 50;
@@ -34,7 +34,7 @@ const STATI_LABEL = {
   PARTIALLY_ARRIVED: "Parziale",
 };
 
-export default function ClientiPrenotazioni() {
+export default function PrenotazioniArchivio() {
   const navigate = useNavigate();
   const [prenotazioni, setPrenotazioni] = useState([]);
   const [totale, setTotale] = useState(0);
@@ -61,7 +61,7 @@ export default function ClientiPrenotazioni() {
       params.set("limit", PAGE_SIZE);
       params.set("offset", offset);
 
-      const res = await apiFetch(`${API_BASE}/clienti/prenotazioni/lista?${params}`);
+      const res = await apiFetch(`${API_BASE}/prenotazioni/archivio/?${params}`);
       const data = await res.json();
       setPrenotazioni(data.prenotazioni || []);
       setTotale(data.totale || 0);
@@ -75,7 +75,7 @@ export default function ClientiPrenotazioni() {
   useEffect(() => { fetchPrenotazioni(); }, [fetchPrenotazioni]);
 
   useEffect(() => {
-    apiFetch(`${API_BASE}/clienti/prenotazioni/stats`)
+    apiFetch(`${API_BASE}/prenotazioni/archivio/riepilogo/`)
       .then((r) => r.json())
       .then((data) => setStats(data))
       .catch(() => {});
@@ -89,13 +89,13 @@ export default function ClientiPrenotazioni() {
 
   return (
     <>
-      <ClientiNav current="prenotazioni" />
+      <PrenotazioniNav current="archivio" />
       <div className="min-h-screen bg-brand-cream">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           {/* Header + KPI */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-neutral-900">📅 Prenotazioni</h1>
+              <h1 className="text-2xl font-bold text-neutral-900">Archivio prenotazioni</h1>
               <p className="text-sm text-neutral-500 mt-1">
                 {totale.toLocaleString("it-IT")} prenotazion{totale === 1 ? "e" : "i"} trovat{totale === 1 ? "a" : "e"}
               </p>

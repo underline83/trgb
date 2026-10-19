@@ -126,6 +126,7 @@ const MODULES_MENU = {
       { label: "Planning",      go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10) },
       { label: "Mappa Tavoli",  go: "/prenotazioni/mappa" },
       { label: "Settimana",     go: "/prenotazioni/settimana/" + new Date().toISOString().slice(0, 10) },
+      { label: "Archivio",      go: "/prenotazioni/archivio" },
       { label: "Editor Tavoli", go: "/prenotazioni/tavoli", check: "admin" },
       { label: "Impostazioni",  go: "/prenotazioni/impostazioni", check: "admin" },
     ],
@@ -135,7 +136,6 @@ const MODULES_MENU = {
     color: "bg-teal-50 border-teal-200 text-teal-900", hoverBg: "hover:bg-teal-50",
     sub: [
       { label: "Clienti",       go: "/clienti/lista" },
-      { label: "Prenotazioni",  go: "/clienti/prenotazioni" },
       { label: "Preventivi",    go: "/clienti/preventivi" },
       { label: "Gift Card",     go: "/clienti/giftcard" },
       { label: "Statistiche",   go: "/clienti/dashboard" },

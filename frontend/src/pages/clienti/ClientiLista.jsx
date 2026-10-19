@@ -1,4 +1,4 @@
-// @version: v4.0 — redesign bozzetto A (2026-10-19): ricerca grande, filtri rapidi, lista compatta + anteprima a destra; azioni di massa in «Esporta e contatta»; via le voci senza nome · v3.4-mattoni — M.I primitives (Btn) su CTA + barra marketing + paginazione + nota rapida
+// @version: v4.1 — rank (Gold/Silver/Bronze) e frequenza (abituale, in calo…) come pillole colorate, filo colorato del rank; ordine toccando Cliente/Visite/Ultima · v4.0 — redesign bozzetto A (2026-10-19): ricerca grande, filtri rapidi, lista compatta + anteprima a destra; azioni di massa in «Esporta e contatta»; via le voci senza nome · v3.4-mattoni — M.I primitives (Btn) su CTA + barra marketing + paginazione + nota rapida
 // Lista clienti — ricerca, filtri rapidi, lista compatta, anteprima scheda a destra, pannello Esporta e contatta
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,14 @@ const SEGMENTO_CONFIG = {
   in_calo:     { label: "In calo",     icon: "📉", badge: "bg-amber-100 text-amber-800 border-amber-300", dot: "bg-amber-500" },
   perso:       { label: "Perso",       icon: "💤", badge: "bg-red-100 text-red-700 border-red-300", dot: "bg-red-400" },
   mai_venuto:  { label: "Mai venuto",  icon: "👻", badge: "bg-neutral-100 text-neutral-500 border-neutral-300", dot: "bg-neutral-400" },
+};
+
+// ── Rank (Gold/Silver/Bronze/Caution): pillola + filo colorato a sinistra della riga ──
+const RANK_STILE = {
+  Gold:    { pill: "bg-yellow-100 text-yellow-900 border-yellow-300", filo: "border-l-yellow-400" },
+  Silver:  { pill: "bg-slate-100 text-slate-700 border-slate-300", filo: "border-l-slate-400" },
+  Bronze:  { pill: "bg-orange-100 text-orange-800 border-orange-300", filo: "border-l-orange-400" },
+  Caution: { pill: "bg-red-100 text-red-700 border-red-300", filo: "border-l-red-400" },
 };
 
 const PAGE_SIZE = 50;
@@ -55,6 +63,13 @@ export default function ClientiLista() {
   // Ordinamento — server-side
   const [sortKey, setSortKey] = useState("cognome");
   const [sortDir, setSortDir] = useState("asc");
+
+  // Tocco sull'intestazione: stessa colonna = inverte, colonna nuova = verso naturale
+  const ordinaPer = (key) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir(key === "cognome" ? "asc" : "desc"); }
+    setOffset(0);
+  };
 
   // Fetch segmenti conteggi
   useEffect(() => {
@@ -334,8 +349,11 @@ export default function ClientiLista() {
                     <label className={lbl} htmlFor="f-ord">Ordina per</label>
                     <select id="f-ord" value={`${sortKey}_${sortDir}`} onChange={(e) => { const v = e.target.value; const i = v.lastIndexOf("_"); setSortKey(v.slice(0, i)); setSortDir(v.slice(i + 1)); setOffset(0); }} className={sel}>
                       <option value="cognome_asc">Cognome A→Z</option>
-                      <option value="ultima_visita_desc">Ultima visita</option>
+                      <option value="cognome_desc">Cognome Z→A</option>
+                      <option value="ultima_visita_desc">Ultima visita, recenti prima</option>
+                      <option value="ultima_visita_asc">Ultima visita, vecchie prima</option>
                       <option value="n_prenotazioni_desc">Più visite</option>
+                      <option value="n_prenotazioni_asc">Meno visite</option>
                     </select>
                   </div>
                   <div className="flex flex-col justify-end gap-1 text-sm text-neutral-700">
@@ -352,21 +370,38 @@ export default function ClientiLista() {
               <div className="mt-3 grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 px-3 text-xs font-bold uppercase tracking-wide text-neutral-500">
                 <span>Cliente</span><span className="text-right">Visite</span><span className="text-right">Ultima</span>
               </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 px-3 pl-4 mt-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+                {[["cognome", "Cliente", "text-left"], ["n_prenotazioni", "Visite", "text-right"], ["ultima_visita", "Ultima", "text-right"]].map(([k, label, al]) => (
+                  <button key={k} type="button" onClick={() => ordinaPer(k)}
+                    className={`min-h-[36px] ${al} uppercase ${sortKey === k ? "text-teal-800" : "hover:text-neutral-800"}`}
+                    aria-label={`Ordina per ${label.toLowerCase()}`}>
+                    {label}{sortKey === k ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+                  </button>
+                ))}
+              </div>
               <div className="mt-1 space-y-1">
                 {loading && clienti.length === 0 && <div className="py-12 text-center text-sm text-neutral-400">Caricamento…</div>}
                 {!loading && clienti.length === 0 && <div className="py-12 text-center text-sm text-neutral-400">Nessun cliente trovato.</div>}
                 {clienti.map((c) => {
                   const scelto = selectedId === c.id;
                   const seg = SEGMENTO_CONFIG[c.segmento];
-                  const sotto = [c.rank, seg && c.segmento !== "mai_venuto" ? seg.label : null, ...(c.tags ? c.tags.split(", ").filter(Boolean).slice(0, 2) : [])].filter(Boolean).join(" · ");
+                  const rk = RANK_STILE[c.rank];
+                  const mostraSeg = seg && c.segmento !== "mai_venuto";
+                  const etichette = c.tags ? c.tags.split(", ").filter(Boolean).slice(0, 2).join(" · ") : "";
                   return (
                     <button key={c.id} type="button" onClick={() => apri(c)}
-                      className={`w-full text-left min-h-[56px] px-3 rounded-xl border grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 items-center transition ${scelto ? "bg-teal-50 border-teal-300" : "bg-white border-neutral-200 hover:border-teal-300"} ${!c.attivo ? "opacity-50" : ""}`}>
+                      className={`w-full text-left min-h-[56px] px-3 py-1.5 rounded-xl border border-l-4 ${rk ? rk.filo : "border-l-transparent"} grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 items-center transition ${scelto ? "bg-teal-50 border-teal-300" : "bg-white border-neutral-200 hover:border-teal-300"} ${!c.attivo ? "opacity-50" : ""}`}>
                       <span className="min-w-0">
                         <span className="block text-[15px] font-semibold text-neutral-900 truncate">
                           {c.vip ? "★ " : ""}{c.cognome}{c.cognome2 && c.cognome2 !== c.cognome ? ` / ${c.cognome2}` : ""} <span className="font-normal text-neutral-700">{c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
                         </span>
-                        {sotto && <span className="block text-xs text-neutral-500 truncate">{sotto}</span>}
+                        {(rk || mostraSeg || etichette) && (
+                          <span className="mt-0.5 flex items-center gap-1 min-w-0 overflow-hidden">
+                            {rk && <span className={`shrink-0 px-1.5 py-px rounded-full border text-[11px] font-bold ${rk.pill}`}>{c.rank}</span>}
+                            {mostraSeg && <span className={`shrink-0 px-1.5 py-px rounded-full border text-[11px] font-semibold ${seg.badge}`}>{seg.label}</span>}
+                            {etichette && <span className="text-xs text-neutral-500 truncate">{etichette}</span>}
+                          </span>
+                        )}
                       </span>
                       <span className="text-right text-[15px] tabular-nums">{c.n_prenotazioni || "—"}</span>
                       <span className="text-right text-sm text-neutral-600">{quando(c.ultima_visita)}</span>

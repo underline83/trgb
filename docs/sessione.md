@@ -12,10 +12,10 @@
 **DA PUSHARE — Dipendenti: «Le mie buste paga» nella nav** (dipendenti 2.39, nessuna migrazione) `[core]`
 - Dopo il push: entrare con un dipendente → Dipendenti → PIN → tab «📄 Le mie buste paga» e «🗓️ I miei turni» accanto a «Turni».
 
-**DA PUSHARE — Lista clienti rifatta** (clienti 3.8, nessuna migrazione) `[core]` — redesign passo 2 (`redesign_clienti_prenotazioni.md`)
-- Dopo il push, da iPad/Mac: Clienti si apre sulla lista; i bottoni Abituali/VIP/… filtrano e mostrano i numeri; tocco su un cliente = scheda a destra; «Esporta e contatta» copia/CSV/WhatsApp. Da iPhone: il tocco apre la scheda. Le voci senza nome non compaiono più.
-- Scheda cliente (passo 1) pushata in c249a4b8: verificarla da iPhone (fascia, Chiama/WhatsApp/Prenota, Visite con i conti).
-- Da decidere: l'archivio prenotazioni passa in Prenotazioni? (legge l'API dei clienti).
+**DA PUSHARE — Lista clienti rifatta + scontrino per tipo + archivio in Prenotazioni** (clienti 3.8, prenotazioni 2.16, nessuna migrazione) `[core]` — redesign passi 2 e 4 (`redesign_clienti_prenotazioni.md`)
+- Dopo il push, da iPad/Mac: Clienti si apre sulla lista; pillole Gold/Silver/Bronze e Abituale/In calo…; tocco su Cliente/Visite/Ultima ordina; tocco su un cliente = scheda a destra; «Esporta e contatta». Da iPhone il tocco apre la scheda.
+- Scheda Hotel Petronilla › Visite: scontrino Mangiato/Bevuto per tipo con i prezzi; «Prende di solito» per tipo.
+- Prenotazioni › Archivio (nuova linguetta): filtri e ricerca; in Clienti la linguetta Prenotazioni non c'è più, `/clienti/prenotazioni` rimanda.
 
 **Pushato (419c6b43), da verificare — Conti iPratico Cloud + abbinamento alla Chiusura turno** (corrispettivi 4.10, sistema 5.64) `[core]`
 - Verificato il 18/10: «Prova l'accesso» ok; 17/10 = 23 conti, 4.297 € (= Z iPratico); 18/10 pranzo 10/10 e cena 4/4 abbinati da soli. Storico 2024-09-01 → 2026-10-16 lanciato alle 21:59 (≈20 min).

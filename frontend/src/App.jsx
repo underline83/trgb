@@ -108,7 +108,6 @@ const Intermittenti = lazy(() => import("./pages/dipendenti/Intermittenti"));
 const ClientiLista = lazy(() => import("./pages/clienti/ClientiLista"));
 const ClientiScheda = lazy(() => import("./pages/clienti/ClientiScheda"));
 const ClientiDashboard = lazy(() => import("./pages/clienti/ClientiDashboard"));
-const ClientiPrenotazioni = lazy(() => import("./pages/clienti/ClientiPrenotazioni"));
 const ClientiPreventivi = lazy(() => import("./pages/clienti/ClientiPreventivi"));
 const ClientiPreventivoScheda = lazy(() => import("./pages/clienti/ClientiPreventivoScheda"));
 const ClientiGiftCard = lazy(() => import("./pages/clienti/ClientiGiftCard"));
@@ -121,6 +120,7 @@ const ClientiImpostazioni = lazy(() => import("./pages/clienti/ClientiImpostazio
 const PrenotazioniPlanning = lazy(() => import("./pages/prenotazioni/PrenotazioniPlanning"));
 const PrenotazioniSettimana = lazy(() => import("./pages/prenotazioni/PrenotazioniSettimana"));
 const PrenotazioniImpostazioni = lazy(() => import("./pages/prenotazioni/PrenotazioniImpostazioni"));
+const PrenotazioniArchivio = lazy(() => import("./pages/prenotazioni/PrenotazioniArchivio"));
 const PrenotazioniRecensioni = lazy(() => import("./pages/prenotazioni/PrenotazioniRecensioni"));
 const TavoliEditor = lazy(() => import("./pages/prenotazioni/TavoliEditor"));
 const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
@@ -508,13 +508,12 @@ export default function App() {
           <ModuleRedirect module="clienti" targets={[
             { sub: "lista",     path: "/clienti/lista" },
             { sub: "dashboard", path: "/clienti/dashboard" },
-            { path: "/clienti/prenotazioni" },
             { path: "/clienti/preventivi" },
             { sub: "import",    path: "/clienti/impostazioni" },
           ]} />
         } />
         <Route path="/clienti/lista" element={<ProtectedRoute module="clienti" sub="lista"><ClientiLista /></ProtectedRoute>} />
-        <Route path="/clienti/prenotazioni" element={<ProtectedRoute module="clienti"><ClientiPrenotazioni /></ProtectedRoute>} />
+        <Route path="/clienti/prenotazioni" element={<Navigate to="/prenotazioni/archivio" replace />} />
         <Route path="/clienti/preventivi" element={<ProtectedRoute module="clienti"><ClientiPreventivi /></ProtectedRoute>} />
         <Route path="/clienti/preventivi/:id" element={<ProtectedRoute module="clienti"><ClientiPreventivoScheda /></ProtectedRoute>} />
         <Route path="/clienti/giftcard" element={<ProtectedRoute module="clienti"><ClientiGiftCard /></ProtectedRoute>} />
@@ -538,6 +537,7 @@ export default function App() {
         <Route path="/prenotazioni/settimana" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/impostazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniImpostazioni /></ProtectedRoute>} />
+        <Route path="/prenotazioni/archivio" element={<ProtectedRoute module="prenotazioni"><PrenotazioniArchivio /></ProtectedRoute>} />
         <Route path="/prenotazioni/recensioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniRecensioni /></ProtectedRoute>} />
         <Route path="/prenotazioni/tavoli" element={<ProtectedRoute module="prenotazioni"><TavoliEditor /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />

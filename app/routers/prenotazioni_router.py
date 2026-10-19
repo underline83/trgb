@@ -1848,3 +1848,65 @@ def get_wa_link(
         return {"link": link, "messaggio": messaggio, "telefono": telefono}
     finally:
         conn.close()
+
+
+# ============================================================
+# ARCHIVIO: tutte le prenotazioni con filtri (redesign 2026-10-19)
+# Prima stava in Clienti (/clienti/prenotazioni/lista); la tabella è del modulo
+# Prenotazioni, quindi l'archivio vive qui. Il nome cliente arriva dal LEFT JOIN
+# come nel Planning.
+# ============================================================
+@router.get("/archivio/")
+def archivio_prenotazioni(
+    q: Optional[str] = None,
+    stato: Optional[str] = None,
+    canale: Optional[str] = None,
+    data_da: Optional[str] = None,
+    data_a: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    conn = get_clienti_conn()
+    try:
+        where, params = [], []
+        if stato:
+            where.append("p.stato = ?"); params.append(stato)
+        if canale:
+            where.append("p.canale = ?"); params.append(canale)
+        if data_da:
+            where.append("p.data_pasto >= ?"); params.append(data_da)
+        if data_a:
+            where.append("p.data_pasto <= ?"); params.append(data_a)
+        if q:
+            where.append("(c.nome LIKE ? OR c.cognome LIKE ? OR c.nome2 LIKE ? OR c.cognome2 LIKE ? "
+                         "OR p.nota_ristorante LIKE ? OR p.nota_cliente LIKE ?)")
+            params.extend([f"%{q}%"] * 6)
+        where_sql = " AND ".join(where) if where else "1=1"
+        totale = conn.execute(
+            f"SELECT COUNT(*) FROM clienti_prenotazioni p LEFT JOIN clienti c ON c.id = p.cliente_id WHERE {where_sql}",
+            params).fetchone()[0]
+        rows = conn.execute(f"""
+            SELECT p.*, c.nome AS cliente_nome, c.cognome AS cliente_cognome,
+                   c.telefono AS cliente_telefono, c.vip AS cliente_vip
+            FROM clienti_prenotazioni p
+            LEFT JOIN clienti c ON c.id = p.cliente_id
+            WHERE {where_sql}
+            ORDER BY p.data_pasto DESC, p.ora_pasto DESC
+            LIMIT ? OFFSET ?""", params + [limit, offset]).fetchall()
+        return {"prenotazioni": [dict(r) for r in rows], "totale": totale, "limit": limit, "offset": offset}
+    finally:
+        conn.close()
+
+
+@router.get("/archivio/riepilogo/")
+def archivio_riepilogo():
+    """I tre numeri in testa all'archivio: prenotazioni, no-show, persone medie a tavolo."""
+    conn = get_clienti_conn()
+    try:
+        tot = conn.execute("SELECT COUNT(*) FROM clienti_prenotazioni").fetchone()[0]
+        no_show = conn.execute("SELECT COUNT(*) FROM clienti_prenotazioni WHERE stato = 'NO_SHOW'").fetchone()[0]
+        pax = conn.execute("SELECT AVG(pax) FROM clienti_prenotazioni "
+                           "WHERE stato IN ('SEATED','ARRIVED','BILL','LEFT')").fetchone()[0]
+        return {"totale": tot, "no_show": no_show, "pax_medio": round(pax, 1) if pax else 0}
+    finally:
+        conn.close()

@@ -414,7 +414,11 @@ const MODULE_VERSIONS = {
     //   rapidi a bottoni (Abituali, VIP, Nuovi, In calo, Persi) con i numeri, «Altri filtri» chiusi,
     //   righe compatte, anteprima della scheda a destra su iPad/Mac (su iPhone apre la scheda);
     //   azioni di massa in «Esporta e contatta». Nascoste le voci senza nome. Clienti si apre sulla
-    //   lista; menu: «Anagrafica» → «Clienti», «Dashboard» → «Statistiche».
+    //   lista; menu: «Anagrafica» → «Clienti», «Dashboard» → «Statistiche», via «Prenotazioni»
+    //   (ora Prenotazioni › Archivio). Rank Gold/Silver/Bronze e frequenza come pillole colorate;
+    //   ordine toccando Cliente/Visite/Ultima. Scheda: scontrino delle visite diviso in Mangiato
+    //   (antipasti, primi…) e Bevuto (vini, birre, acqua e caffè) con i prezzi; «Prende di solito»
+    //   per tipo, bottiglie prima dei calici.
     // 3.7 (2026-10-19): scheda cliente rifatta (bozzetto A del redesign): fascia verde petrolio con
     //   iniziali e 3 numeri, Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle
     //   visite con il conto, linguette Visite/Note/Preventivi/Altro. «Ultima visita» non conta più
@@ -442,8 +446,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
+    //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.15",
+    version: "2.16",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
