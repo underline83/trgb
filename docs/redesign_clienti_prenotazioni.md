@@ -46,3 +46,7 @@ Scartate (per memoria): scheda B «carta dell'osteria» e C «cruscotto»; Oggi 
 ## Scontrino nella scheda (2026-10-19)
 
 Richiesta di Marco: lo scontrino scritto in fila «è poco funzionale». Ora ogni visita mostra **Mangiato** e **Bevuto** (affiancati su schermo largo, uno sotto l'altro su iPhone e nell'anteprima della lista), ciascuno diviso per tipo con quantità, prezzo e totale. I tipi vengono dalla categoria della cassa iPratico: Degustazioni, Pranzo, Antipasti, Primi, Secondi, Contorni, Dolci, Speciali («Fuori carta»), il resto «Altro»; da bere: Vini (Bottiglie, Calici, «Vino» a prezzo libero), Birre, Amari e distillati (Alcolici, Bev Alcoliche, Grappe), Acqua bibite e caffè (il resto). Le voci a 0 € (portate della degustazione, pane, stuzzico) non compaiono; la riga «no_name» della cassa (totale con sconto) non è un piatto. «Prende di solito» usa gli stessi tipi.
+
+## Linguette della scheda (2026-10-19, Marco)
+
+Subito sotto i tre bottoni: Anagrafica · Visite · Acquisti · Preventivi · Note. Si apre su Anagrafica, che parte con «Da sapere in sala» (allergie, in arrivo, preferenze, ultima nota). Acquisti = «Prende di solito» + spesa e piatti. Recensioni TheFork in fondo a Note.

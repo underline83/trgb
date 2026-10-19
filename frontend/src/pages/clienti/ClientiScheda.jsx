@@ -1,4 +1,4 @@
-// @version: v3.2 — linguetta Altro uniformata: card come «Da sapere in sala», campi con la stessa etichetta, indirizzo su una riga, etichette a pillola · v3.1 — scontrino delle visite diviso in Mangiato/Bevuto per tipo, «Prende di solito» per tipo (2026-10-19) · v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
+// @version: v3.3 — linguette subito sotto i bottoni: Anagrafica (con «Da sapere in sala»), Visite, Acquisti, Preventivi, Note · v3.2 — linguetta Altro uniformata: card come «Da sapere in sala», campi con la stessa etichetta, indirizzo su una riga, etichette a pillola · v3.1 — scontrino delle visite diviso in Mangiato/Bevuto per tipo, «Prende di solito» per tipo (2026-10-19) · v3.0 — redesign bozzetto A (2026-10-19): fascia verde petrolio, azioni Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle visite con i conti, linguette Visite/Note/Preventivi/Altro · v2.4 — tab «Cosa ha mangiato» (conti di cassa, 2026-10-18); v2.3-recensioni — tab Recensioni TheFork; v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -91,7 +91,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [tab, setTab] = useState("visite"); // visite | note | preventivi | altro (redesign 2026-10-19)
+  const [tab, setTab] = useState("anagrafica"); // anagrafica | visite | acquisti | preventivi | note (redesign 2026-10-19)
   const [consumi, setConsumi] = useState(null);   // conti di cassa (GET /clienti/{id}/consumi)
   const [showPrenota, setShowPrenota] = useState(false);
 
@@ -205,7 +205,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   // Reset stati quando cambia id (per embedded mode)
   useEffect(() => {
     setEditMode(false);
-    setTab("visite");
+    setTab("anagrafica");
     setConsumi(null);
     apiFetch(`${API_BASE}/clienti/${id}/consumi`)
       .then((r) => (r.ok ? r.json() : null))
@@ -313,10 +313,11 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   ].sort((a, b) => `${b.data}${b.ora}`.localeCompare(`${a.data}${a.ora}`));
 
   const TABS = [
+    { key: "anagrafica", label: "Anagrafica" },
     { key: "visite", label: "Visite" },
-    { key: "note", label: `Note${cliente.note?.length ? ` (${cliente.note.length})` : ""}` },
+    { key: "acquisti", label: "Acquisti" },
     { key: "preventivi", label: "Preventivi" },
-    { key: "altro", label: "Altro" },
+    { key: "note", label: `Note${cliente.note?.length ? ` (${cliente.note.length})` : ""}` },
   ];
   const RANK_CHIP = {
     Gold: "bg-yellow-200 text-yellow-900", Silver: "bg-neutral-200 text-neutral-700",
@@ -347,7 +348,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                     </button>
                   </>
                 ) : (
-                  <button type="button" onClick={() => { setEditMode(true); setTab("altro"); }}
+                  <button type="button" onClick={() => { setEditMode(true); setTab("anagrafica"); }}
                     className="min-h-[44px] px-3 text-[15px] font-semibold text-white/95 hover:text-white">Modifica</button>
                 )}
               </div>
@@ -405,34 +406,8 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
               className="min-h-[52px] rounded-2xl bg-white shadow-md text-teal-800 font-bold text-[15px]">Prenota</button>
           </div>
 
-          {/* ── DA SAPERE IN SALA ── */}
-          <div className="px-4 pt-5 space-y-2.5">
-            <div className="text-xs font-bold tracking-wider uppercase text-neutral-500">Da sapere in sala</div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className={`rounded-xl px-3 py-2.5 ${allergie ? "bg-red-50 border border-red-200" : "bg-emerald-50"}`}>
-                <div className={`text-xs font-bold ${allergie ? "text-red-800" : "text-emerald-800"}`}>Allergie</div>
-                <div className={`text-[15px] mt-0.5 ${allergie ? "text-red-900 font-semibold" : "text-neutral-800"}`}>{allergie || "Nessuna segnalata"}</div>
-              </div>
-              <div className="rounded-xl px-3 py-2.5 bg-white border border-neutral-200">
-                <div className="text-xs font-bold text-neutral-500">In arrivo</div>
-                <div className="text-[15px] mt-0.5 text-neutral-800">
-                  {prossime[0]
-                    ? `${dataBreve(prossime[0].data_pasto, true)} · ${(prossime[0].ora_pasto || "").slice(0, 5)} · ${prossime[0].pax}p`
-                    : "Nessuna prenotazione"}
-                </div>
-              </div>
-            </div>
-            <PrendeDiSolito consumi={consumi} dueColonne={!embedded} />
-            {(preferenze || ultimaNota) && (
-              <div className="rounded-xl p-3 bg-white border border-neutral-200 space-y-1 text-[15px]">
-                {preferenze && <div><span className="text-xs font-bold text-neutral-500 mr-2">Preferenze</span>{preferenze}</div>}
-                {ultimaNota && <div><span className="text-xs font-bold text-neutral-500 mr-2">Ultima nota</span>{ultimaNota.testo} <span className="text-neutral-400 text-xs">· {ultimaNota.data}</span></div>}
-              </div>
-            )}
-          </div>
-
           {/* ── LINGUETTE ── */}
-          <div role="tablist" aria-label="Sezioni della scheda" className="mx-4 mt-5 flex gap-6 border-b border-neutral-200 overflow-x-auto">
+          <div role="tablist" aria-label="Sezioni della scheda" className="mx-4 mt-4 flex gap-6 border-b border-neutral-200 overflow-x-auto">
             {TABS.map((t) => (
               <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
                 className={`min-h-[44px] whitespace-nowrap text-[15px] border-b-[3px] -mb-px ${tab === t.key ? "border-teal-700 font-bold text-neutral-900" : "border-transparent font-semibold text-neutral-500 hover:text-neutral-800"}`}>
@@ -524,15 +499,54 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                       </div>
                     ))}
                   </div>
+                  <div className="mt-6">
+                    <Sezione titolo="Recensioni TheFork">
+                      <RecensioniTab clienteId={cliente.id} />
+                    </Sezione>
+                  </div>
                 </div>
               )}
+
+            {/* ACQUISTI: cosa prende e quanto spende (conti di cassa iPratico) */}
+            {tab === "acquisti" && (
+              <div className="space-y-3">
+                <PrendeDiSolito consumi={consumi} dueColonne={!embedded} />
+                <Sezione titolo="Spesa e piatti">
+                  <ConsumiTab clienteId={cliente.id} />
+                </Sezione>
+              </div>
+            )}
 
             {/* PREVENTIVI */}
             {tab === "preventivi" && <PreventiviTab clienteId={cliente.id} navigate={navigate} />}
 
-            {/* ALTRO: anagrafica, preferenze, etichette, recensioni, unione doppioni */}
-            {tab === "altro" && (
+            {/* ANAGRAFICA: da sapere in sala, dati, preferenze, etichette, unione doppioni */}
+            {tab === "anagrafica" && (
               <div className="space-y-3">
+              {/* ── DA SAPERE IN SALA ── */}
+              <div className="space-y-2.5">
+                <div className="text-xs font-bold tracking-wider uppercase text-neutral-500">Da sapere in sala</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={`rounded-xl px-3 py-2.5 ${allergie ? "bg-red-50 border border-red-200" : "bg-emerald-50"}`}>
+                    <div className={`text-xs font-bold ${allergie ? "text-red-800" : "text-emerald-800"}`}>Allergie</div>
+                    <div className={`text-[15px] mt-0.5 ${allergie ? "text-red-900 font-semibold" : "text-neutral-800"}`}>{allergie || "Nessuna segnalata"}</div>
+                  </div>
+                  <div className="rounded-xl px-3 py-2.5 bg-white border border-neutral-200">
+                    <div className="text-xs font-bold text-neutral-500">In arrivo</div>
+                    <div className="text-[15px] mt-0.5 text-neutral-800">
+                      {prossime[0]
+                        ? `${dataBreve(prossime[0].data_pasto, true)} · ${(prossime[0].ora_pasto || "").slice(0, 5)} · ${prossime[0].pax}p`
+                        : "Nessuna prenotazione"}
+                    </div>
+                  </div>
+                </div>
+                {(preferenze || ultimaNota) && (
+                  <div className="rounded-xl p-3 bg-white border border-neutral-200 space-y-1 text-[15px]">
+                    {preferenze && <div><span className="text-xs font-bold text-neutral-500 mr-2">Preferenze</span>{preferenze}</div>}
+                    {ultimaNota && <div><span className="text-xs font-bold text-neutral-500 mr-2">Ultima nota</span>{ultimaNota.testo} <span className="text-neutral-400 text-xs">· {ultimaNota.data}</span></div>}
+                  </div>
+                )}
+              </div>
                 <Sezione titolo="Anagrafica">
                   {editMode ? (
                     <div className="space-y-4">
@@ -637,12 +651,6 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                     })}
                   </div>
                   <div className="mt-2 text-xs text-neutral-400">Tocca per mettere o togliere un'etichetta.</div>
-                </Sezione>
-                <Sezione titolo="Spesa e piatti">
-                  <ConsumiTab clienteId={cliente.id} />
-                </Sezione>
-                <Sezione titolo="Recensioni TheFork">
-                  <RecensioniTab clienteId={cliente.id} />
                 </Sezione>
                 <Sezione titolo="Doppioni">
                   {!showMerge && (
