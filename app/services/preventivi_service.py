@@ -1484,7 +1484,7 @@ def testo_cliente(preventivo_id: int, formato: str = "whatsapp") -> str | None:
     """Messaggio pronto da incollare su WhatsApp o in una email.
     Menu: nome, portate in ordine e prezzo a persona (singolo o doppio vino
     escluso/incluso). MAI i prezzi dei singoli piatti. Extra con importo.
-    Totale: importo, o «da X a Y €» se ci sono alternative non ancora scelte.
+    Niente totale (decisione 2026-10-19): resta solo in scheda.
     formato='whatsapp' usa *grassetto* / _corsivo_; formato='email' testo semplice."""
     prev = get_preventivo(preventivo_id)
     if not prev:
@@ -1512,7 +1512,8 @@ def testo_cliente(preventivo_id: int, formato: str = "whatsapp") -> str | None:
     for i, m in enumerate(menus):
         if len(menus) > 1 and scelto and m["id"] != scelto:
             continue
-        nome = m.get("nome") if m.get("nome") and m.get("nome") != "Menu" else ""
+        from app.services.preventivi_pdf import _nome_menu
+        nome = _nome_menu(m.get("nome"))      # «Menù gruppi Quadri» → «Quadri»
         if len(menus) > 1:
             titolo = f"Opzione {OPZIONI[i] if i < len(OPZIONI) else i + 1}" + (f" — {nome}" if nome else "")
         else:
@@ -1543,12 +1544,8 @@ def testo_cliente(preventivo_id: int, formato: str = "whatsapp") -> str | None:
             else:
                 out.append(f"• {r['descrizione']}: {segno}{_euro(pu)} €")
 
-    out.append("")
-    if prev.get("totale_min") is not None:
-        lo, hi = prev["totale_min"], prev["totale_max"]
-        out.append(B(f"Totale: {'da ' + _euro(lo) + ' a ' + _euro(hi) if lo != hi else _euro(lo)} €") + " secondo il menu scelto")
-    elif prev.get("totale_calcolato"):
-        out.append(B(f"Totale: {_euro(prev['totale_calcolato'])} €"))
+    # Niente totale nel messaggio (Marco, 2026-10-19): il cliente legge il
+    # prezzo a persona di ogni menu; il totale resta solo in scheda.
 
     for campo in ("note_cliente", "condizioni"):
         if (prev.get(campo) or "").strip():
@@ -1560,20 +1557,29 @@ def testo_cliente(preventivo_id: int, formato: str = "whatsapp") -> str | None:
 # PDF + invio al cliente (WhatsApp / email) + registro invii — mig 200
 # ---------------------------------------------------------------------------
 
-def genera_pdf(preventivo_id: int) -> tuple[bytes, str] | None:
-    """PDF brandizzato (mattone M.B) e nome file. None se il preventivo non c'è."""
+def genera_pdf(preventivo_id: int, stile: str = "menu") -> tuple[bytes, str] | None:
+    """PDF del preventivo (mattone M.B) e nome file. None se il preventivo non c'è.
+    stile='menu' (default, 2026-10-19): A5 nello stile del menù gruppi stampato,
+    è quello che va al cliente (preventivi_pdf.py). stile='scheda': il vecchio
+    foglio A4 con intestazione TRGB, stato e tabelle."""
     from app.services.pdf_brand import genera_pdf_html, safe_filename
     prev = get_preventivo(preventivo_id)
     if not prev:
         return None
     numero = prev.get("numero") or f"preventivo_{preventivo_id}"
-    pdf = genera_pdf_html(
-        template="preventivo.html",
-        dati={"prev": prev, "righe": prev.get("righe") or [], "menus": prev.get("menu_list") or []},
-        titolo=f"Preventivo {numero}",
-        sottotitolo=prev.get("titolo") or None,
-        orientamento="portrait",
-    )
+    if stile == "scheda":
+        pdf = genera_pdf_html(
+            template="preventivo.html",
+            dati={"prev": prev, "righe": prev.get("righe") or [], "menus": prev.get("menu_list") or []},
+            titolo=f"Preventivo {numero}",
+            sottotitolo=prev.get("titolo") or None,
+            orientamento="portrait",
+        )
+    else:
+        from app.services.preventivi_pdf import genera_pdf_menu
+        from app.services.carta_in_corso_service import dolci_in_carta
+        dolci = dolci_in_carta() if "@dolci_carta" in (prev.get("condizioni") or "") else None
+        pdf = genera_pdf_menu(prev, dolci)
     return pdf, safe_filename(numero.replace("-", "_").lower(), ext="pdf")
 
 

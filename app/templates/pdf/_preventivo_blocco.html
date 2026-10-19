@@ -1,0 +1,6 @@
+{# Un blocco di testo delle pagine del preventivo (preventivi_pdf._pagine_testo).
+   tipo: voce (maiuscolo spaziato + descrizione sotto) | p (paragrafo, **grassetto** già in html) | prezzo #}
+{% if b.tipo == 'voce' %}<div class="voce"><div class="voce-nome">{{ b.html|safe }}</div>{% for d in b.dettagli %}<div class="voce-det">{{ d|safe }}</div>{% endfor %}</div>
+{% elif b.tipo == 'prezzo' %}<div class="prezzo-inline"><div class="prezzo-num">{{ b.num }}</div>{% if b.nota %}<div class="prezzo-nota">{{ b.nota }}</div>{% endif %}</div>
+{% else %}<p class="par">{{ b.html|safe }}</p>
+{% endif %}

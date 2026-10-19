@@ -260,6 +260,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
+    // 4.11 (2026-10-19): Conti del servizio — «🚶 Walk-in, senza nome» sui conti collegati a un
+    //   walk-in TheFork (chiude il «Dai un nome»); le prenotazioni mai segnate arrivate (RECORDED)
+    //   si collegano a mano dal «Scegli» e diventano «andati» (LEFT). Nessuna migrazione.
     // 4.10 (2026-10-18): Impostazioni › 🧾 iPratico Cloud — scarico notturno e storico dei
     //   conti chiusi dalla cassa (tavolo, coperti, orari, righe), controllo per giorno.
     //   Chiusura turno › 🧾 Conti del servizio: abbinamento conti ↔ prenotazioni/clienti.
@@ -284,7 +287,7 @@ const MODULE_VERSIONS = {
     //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
     //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
     //   consumer (CalendarView shading). Nessuna migrazione DB.
-    version: "4.10",
+    version: "4.11",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
@@ -410,6 +413,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.10 (2026-10-19): PDF del preventivo nello stile del menù gruppi stampato (A5, Bodoni Moda +
+    //   Courier Prime, copertina col logo, una pagina per menù, riepilogo, pagine di testo da
+    //   condizioni/note con mini-markup); vecchio foglio A4 con ?stile=scheda.
     // 3.9 (2026-10-19): preventivi «📨 Invia al cliente» — WhatsApp con testo completo + PDF
     //   (condivisione), email col PDF allegato (M.D), registro invii; il primo invio porta
     //   bozza → inviato (mig 200).
@@ -443,7 +449,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.9",
+    version: "3.10",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

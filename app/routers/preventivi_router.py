@@ -556,11 +556,12 @@ def api_testo_preventivo(preventivo_id: int, user: dict = Depends(get_current_us
 def api_pdf_preventivo(
     preventivo_id: int,
     inline: bool = Query(False, description="Se True apre inline nel browser, altrimenti download"),
+    stile: str = Query("menu", description="menu = A5 stile menù gruppi (cliente); scheda = foglio A4 TRGB"),
     user: dict = Depends(get_current_user),
 ):
-    """Genera il PDF brandizzato di un preventivo usando il mattone M.B (pdf_brand)."""
+    """Genera il PDF del preventivo (mattone M.B): di default quello per il cliente."""
     try:
-        gen = genera_pdf(preventivo_id)
+        gen = genera_pdf(preventivo_id, stile=stile)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
     if gen is None:

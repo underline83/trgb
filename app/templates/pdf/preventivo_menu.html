@@ -1,0 +1,92 @@
+{# ============================================================
+   Preventivo per il cliente — stile «menù gruppi» (A5)
+   Modulo: clienti (sub-modulo preventivi) — [core]
+
+   Ricalca il PDF stampato dell'osteria (menù gruppi autunno-inverno 2026):
+   copertina col logo, una pagina per menù (nome grande in Bodoni Moda,
+   piatti in Courier Prime maiuscolo spaziato, prezzo a persona in fondo),
+   extra se ci sono (niente totale), pagine di testo (condizioni / note),
+   retro col logo. NON estende base.html: niente intestazione TRGB, è un
+   documento del locale per il cliente.
+
+   Variabili (preventivi_pdf.dati_pdf_menu): cover, menus, extra,
+   pagine_testo, logo_svg (markup SVG del locale o None), org_nome.
+============================================================ #}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>{{ titolo }}</title>
+<style>{{ css_font|safe }}</style>
+</head>
+<body>
+
+{# ── COPERTINA ── #}
+<section class="pg cover">
+  <div class="cover-logo">
+    {% if logo_svg %}{{ logo_svg|safe }}{% else %}<div class="logo-testo">{{ org_nome }}</div>{% endif %}
+  </div>
+  <div class="cover-title">
+    {% for riga in cover.titolo %}<div>{{ riga }}</div>{% endfor %}
+  </div>
+  {% if cover.per %}<div class="cover-per">{{ cover.per }}</div>{% endif %}
+  {% if cover.data %}<div class="cover-data">{{ cover.data }}</div>{% endif %}
+  {% if cover.info %}<div class="cover-info">{{ cover.info }}</div>{% endif %}
+  <div class="cover-numero">{{ cover.numero }}</div>
+</section>
+
+{# ── UNA PAGINA PER MENÙ ── #}
+{% for m in menus %}
+<section class="pg menu">
+  <div class="menu-head">
+    <div class="menu-kicker">{{ m.kicker }}</div>
+    {% if m.nome %}<div class="menu-nome">{{ m.nome }}</div>{% endif %}
+  </div>
+  <div class="menu-piatti">
+    {% for p in m.piatti %}
+      <div class="piatto">
+        <div class="piatto-nome">{{ p.nome }}</div>
+        {% for d in p.dettagli %}<div class="piatto-det">{{ d }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+  <div class="prezzo">
+    <div class="prezzo-num">{{ m.prezzo }}</div>
+    {% if m.prezzo_nota %}<div class="prezzo-nota">{{ m.prezzo_nota }}</div>{% endif %}
+  </div>
+</section>
+{% endfor %}
+
+{# ── EXTRA (solo se ci sono; niente totale) ── #}
+{% if extra %}
+<section class="pg testo">
+  <div class="testo-titolo">Extra</div>
+  <div class="testo-corpo">
+    <div class="extra">
+      {% for e in extra %}
+        <div class="extra-riga"><span>{{ e.descrizione }}</span>{% if e.importo %}<span class="extra-imp">{{ e.importo }}</span>{% endif %}</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ── PAGINE DI TESTO (condizioni, dolci, note…) ── #}
+{% for pg in pagine_testo %}
+<section class="pg testo">
+  {% if pg.titolo %}<div class="testo-titolo">{{ pg.titolo }}</div>{% endif %}
+  <div class="testo-corpo">
+    {% for b in pg.blocchi %}{% include "_preventivo_blocco.html" %}{% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+{# ── RETRO ── #}
+<section class="pg retro">
+  <div class="cover-logo">
+    {% if logo_svg %}{{ logo_svg|safe }}{% else %}<div class="logo-testo">{{ org_nome }}</div>{% endif %}
+  </div>
+</section>
+
+</body>
+</html>

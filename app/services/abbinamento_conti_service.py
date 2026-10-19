@@ -32,6 +32,10 @@ from app.models.cassa_conti_db import get_cassa_conti_conn
 from app.models.clienti_db import get_clienti_conn
 
 STATI_PRESENTI = ("SEATED", "LEFT", "BILL", "ARRIVED", "PARTIALLY_ARRIVED")
+# Prenotate ma mai segnate arrivate in sala: fuori dall'automatico, si collegano solo a mano
+# e il collegamento le segna «andati» (decisione Marco 2026-10-19)
+STATI_NON_SEGNATE = ("RECORDED",)
+STATO_DOPO_COLLEGAMENTO = "LEFT"
 DECISI = ("manuale", "passaggio")          # scelte di una persona: mai riscritte in automatico
 FINESTRA_DEFAULT = 150
 # Nomi che iPratico dà alle righe senza prodotto (prezzo libero, varianti): non sono piatti
@@ -127,8 +131,8 @@ def _minuti_ora(ora: Optional[str]) -> Optional[int]:
 # ABBINAMENTO
 # ============================================================
 
-def _prenotazioni(conn_cli, data: str, turno: str) -> List[Dict[str, Any]]:
-    segn = ", ".join("?" for _ in STATI_PRESENTI)
+def _prenotazioni(conn_cli, data: str, turno: str, stati: Tuple[str, ...] = STATI_PRESENTI) -> List[Dict[str, Any]]:
+    segn = ", ".join("?" for _ in stati)
     righe = conn_cli.execute(f"""
         SELECT p.id, p.ora_pasto, p.pax, p.tavolo, p.stato, p.cliente_id, p.fonte, p.canale,
                p.nome_ospite, p.cognome_ospite,
@@ -137,7 +141,7 @@ def _prenotazioni(conn_cli, data: str, turno: str) -> List[Dict[str, Any]]:
         LEFT JOIN clienti c ON c.id = p.cliente_id
         WHERE p.data_pasto = ? AND p.turno = ? AND p.stato IN ({segn})
         ORDER BY p.ora_pasto, p.id
-    """, (data, turno, *STATI_PRESENTI)).fetchall()
+    """, (data, turno, *stati)).fetchall()
     out = []
     for r in righe:
         d = dict(r)
@@ -273,12 +277,17 @@ def vista_servizio(data: str, turno: str) -> Dict[str, Any]:
         libere = [{"id": p["id"], "ora": (p["ora_pasto"] or "")[:5], "pax": p["pax"], "tavolo": p["tavolo"],
                    "nome": p["nome_visibile"], "cliente_id": p["cliente_id"]}
                   for p in prenot if p["id"] not in usate]
+        # prenotate ma mai segnate arrivate: si possono collegare a mano
+        non_arrivate = [{"id": p["id"], "ora": (p["ora_pasto"] or "")[:5], "pax": p["pax"], "tavolo": p["tavolo"],
+                         "nome": p["nome_visibile"], "cliente_id": p["cliente_id"], "stato": p["stato"]}
+                        for p in _prenotazioni(conn_p, data, turno, STATI_NON_SEGNATE) if p["id"] not in usate]
 
         conta = {k: sum(1 for c in conti if c["abbinamento"] == k)
                  for k in ("auto", "proposto", "manuale", "passaggio", "da_fare", "banco")}
         conta["senza_nome"] = sum(1 for c in conti
                                   if c["abbinamento"] in ("auto", "manuale", "proposto") and not c["cliente_id"])
-        return {"data": data, "turno": turno, "conti": conti, "prenotazioni_libere": libere, "conteggi": conta}
+        return {"data": data, "turno": turno, "conti": conti, "prenotazioni_libere": libere,
+                "prenotazioni_non_arrivate": non_arrivate, "conteggi": conta}
     finally:
         conn_c.close()
         conn_p.close()
@@ -304,10 +313,12 @@ def decidi(conto_id: int, scelta: Dict[str, Any], autore: str) -> Dict[str, Any]
       'prenotazione'  → questo conto è la prenotazione `prenotazione_id`
       'cliente'       → è il cliente `cliente_id` (senza prenotazione, o per dare un nome a un walk-in)
       'nuovo_cliente' → crea il cliente (`cognome` obbligatorio, `nome`, `telefono`) e lo collega
-      'passaggio'     → cliente di passaggio, nessun nome
+      'passaggio'     → cliente di passaggio / walk-in senza nome: nessun cliente; se il conto
+                        è collegato a una prenotazione (walk-in di TheFork) il collegamento resta
       'riapri'        → torna da sistemare
     Se il conto è collegato a una prenotazione senza cliente (walk-in), il cliente
     scelto si scrive anche sulla prenotazione: così conta come visita.
+    Una prenotazione mai segnata arrivata (RECORDED) collegata a mano diventa «andati» (LEFT).
     """
     tipo = (scelta.get("tipo") or "").strip()
     conn_c = get_cassa_conti_conn()
@@ -325,7 +336,7 @@ def decidi(conto_id: int, scelta: Dict[str, Any], autore: str) -> Dict[str, Any]
             stato = "manuale"
         elif tipo == "prenotazione":
             pren_id = int(scelta.get("prenotazione_id") or 0)
-            p = conn_p.execute("SELECT id, cliente_id FROM clienti_prenotazioni WHERE id = ?", (pren_id,)).fetchone()
+            p = conn_p.execute("SELECT id, cliente_id, stato FROM clienti_prenotazioni WHERE id = ?", (pren_id,)).fetchone()
             if not p:
                 raise ValueError("prenotazione non trovata")
             altro = conn_c.execute(
@@ -337,6 +348,9 @@ def decidi(conto_id: int, scelta: Dict[str, Any], autore: str) -> Dict[str, Any]
             conn_c.execute("UPDATE cassa_conti SET abbinamento = 'da_fare', prenotazione_id = NULL, cliente_id = NULL "
                            "WHERE prenotazione_id = ? AND id != ?", (pren_id, conto_id))
             cliente_id = p["cliente_id"]
+            if p["stato"] in STATI_NON_SEGNATE:
+                conn_p.execute("UPDATE clienti_prenotazioni SET stato = ? WHERE id = ? AND stato = ?",
+                               (STATO_DOPO_COLLEGAMENTO, pren_id, p["stato"]))
             stato = "manuale"
         elif tipo == "cliente":
             cliente_id = int(scelta.get("cliente_id") or 0)
@@ -351,7 +365,7 @@ def decidi(conto_id: int, scelta: Dict[str, Any], autore: str) -> Dict[str, Any]
                                        (scelta.get("telefono") or "").strip())
             stato = "manuale"
         elif tipo == "passaggio":
-            pren_id, cliente_id, stato = None, None, "passaggio"
+            cliente_id, stato = None, "passaggio"   # pren_id resta: walk-in senza nome
         elif tipo == "riapri":
             pren_id, cliente_id, stato = None, None, "da_fare"
         else:

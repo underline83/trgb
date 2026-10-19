@@ -6,8 +6,13 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
-**DA PUSHARE — Preventivi: «📨 Invia al cliente»** (mig 200, sistema 5.65, clienti 3.9) `[core]`
-- Dopo il push: verificare nel log del boot «+ [200] clienti_preventivi_invii». Da iPhone/iPad: un preventivo › «📨 Invia al cliente» › «Condividi PDF + testo» → WhatsApp → controllare che arrivino PDF e testo (se arriva solo il PDF, incollare il testo copiato). Da Mac: «Apri chat» + «Scarica PDF». Email: prova verso la propria casella; nello storico la riga ✉️; stato bozza → inviato.
+**DA PUSHARE — Preventivi: PDF nello stile del menù gruppi** (clienti 3.10, nessuna migrazione) `[mixed]`
+- Dopo il push: PRE-2026-006 (Locatelli) › Scarica PDF → A5 con copertina, 5 pagine menù, Dolci (i 6 della carta Autunno 2026), Menù bambini, Note, retro (niente riepilogo né totale; anche il messaggio WA senza totale). Controllare i font (Bodoni/Courier, non Times). Ricontrollare anche il PDF del pranzo: ora trova Courier Prime vero.
+
+**DA PUSHARE — Conti del servizio: walk-in senza nome + prenotazioni mai segnate arrivate** (corrispettivi 4.11, nessuna migrazione) `[core]`
+- Dopo il push: Chiusura turno 19/10 cena › Tavolo 08 «Dai un nome» → «🚶 Walk-in, senza nome»; Tavolo 00 «Scegli» → «Mai segnate arrivate» → Bellistrì; la prenotazione diventa «andati».
+
+**Pushato (db6e0a4d), da verificare — Preventivi «📨 Invia al cliente»** (mig 200, sistema 5.65): da iPhone «Condividi PDF + testo» → arrivano PDF e testo? Prova email verso la propria casella.
 
 **DA PUSHARE — Login: tastierino con la lunghezza vera del PIN + fix verifica PIN attuale** (auth, nessuna migrazione) `[core]`
 - Dopo il push: il dipendente col PIN a 6 cifre digita le 6 cifre e preme il tasto verde (la prima volta niente invio automatico); dal login dopo vede 6 pallini. Provare Cambio PIN da non-admin con PIN attuale sbagliato → deve dare errore.

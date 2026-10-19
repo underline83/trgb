@@ -1,4 +1,5 @@
-// @version: v1.0 — Conti del servizio: abbinamento conti iPratico ↔ prenotazioni/clienti (2026-10-18)
+// @version: v1.1 — walk-in senza nome + prenotazioni mai segnate arrivate collegabili a mano (2026-10-19)
+// v1.0 — Conti del servizio: abbinamento conti iPratico ↔ prenotazioni/clienti (2026-10-18)
 // Modulo: cassa (ponte platform verso prenotazioni/clienti, vedi abbinamento_conti_service.py)
 // Usato nella Chiusura turno e in Impostazioni Vendite › iPratico Cloud (giorni da sistemare).
 // Non blocca mai la chiusura: se iPratico non risponde mostra un avviso e si va avanti.
@@ -24,7 +25,7 @@ function nomeConto(c) {
 }
 
 // ── Pannello «chi era?» ──────────────────────────────────────────────────
-function SceltaCliente({ conto, libere, onScelta, onChiudi }) {
+function SceltaCliente({ conto, libere, nonArrivate = [], onScelta, onChiudi }) {
   const [q, setQ] = useState("");
   const [trovati, setTrovati] = useState([]);
   const [nuovo, setNuovo] = useState(null); // {nome, cognome, telefono}
@@ -41,6 +42,7 @@ function SceltaCliente({ conto, libere, onScelta, onChiudi }) {
   }, [q]);
 
   const conPrenotazione = !!conto.prenotazione;
+  const walkinSenzaNome = conPrenotazione && !conto.cliente_id && !conto.prenotazione?.nome;
 
   return (
     <div className="mt-2 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 space-y-3 text-sm">
@@ -51,6 +53,22 @@ function SceltaCliente({ conto, libere, onScelta, onChiudi }) {
             {libere.map((p) => (
               <button key={p.id} type="button" onClick={() => onScelta({ tipo: "prenotazione", prenotazione_id: p.id })}
                 className="min-h-[44px] px-3 rounded-lg border border-neutral-300 bg-white hover:border-indigo-400 text-left">
+                <span className="font-medium">{p.nome || "senza nome"}</span>
+                <span className="text-neutral-500"> · {p.ora} · tav {p.tavolo || "—"} · {p.pax}p</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!conPrenotazione && nonArrivate.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Mai segnate arrivate</div>
+          <p className="text-xs text-neutral-500 mb-1">Collegandola, la prenotazione viene segnata «andati».</p>
+          <div className="flex flex-wrap gap-2">
+            {nonArrivate.map((p) => (
+              <button key={p.id} type="button" onClick={() => onScelta({ tipo: "prenotazione", prenotazione_id: p.id })}
+                className="min-h-[44px] px-3 rounded-lg border border-dashed border-amber-400 bg-white hover:border-indigo-400 text-left">
                 <span className="font-medium">{p.nome || "senza nome"}</span>
                 <span className="text-neutral-500"> · {p.ora} · tav {p.tavolo || "—"} · {p.pax}p</span>
               </button>
@@ -95,6 +113,7 @@ function SceltaCliente({ conto, libere, onScelta, onChiudi }) {
         <div className="flex flex-wrap gap-2">
           <Btn size="md" variant="secondary" onClick={() => setNuovo({ nome: "", cognome: "", telefono: "" })}>➕ Nuovo cliente</Btn>
           {!conPrenotazione && <Btn size="md" variant="secondary" onClick={() => onScelta({ tipo: "passaggio" })}>🚶 Di passaggio</Btn>}
+          {walkinSenzaNome && <Btn size="md" variant="secondary" onClick={() => onScelta({ tipo: "passaggio" })}>🚶 Walk-in, senza nome</Btn>}
           {conPrenotazione && <Btn size="md" variant="ghost" onClick={() => onScelta({ tipo: "riapri" })}>Non è questa prenotazione</Btn>}
           <Btn size="md" variant="ghost" onClick={onChiudi}>Chiudi</Btn>
         </div>
@@ -164,7 +183,9 @@ export default function ContiServizio({ data, turno, compatto = false }) {
               ? <>✅ <b>{nome}</b>{c.prenotazione && <span className="text-neutral-500"> · {c.prenotazione.ora} · {c.prenotazione.pax}p</span>}</>
               : <>✅ <span className="text-amber-700">prenotazione senza nome</span>{c.prenotazione && <span className="text-neutral-500"> · {c.prenotazione.ora}</span>}</>)}
             {c.abbinamento === "da_fare" && <span className="text-amber-700">👤 Chi era?</span>}
-            {c.abbinamento === "passaggio" && <span className="text-neutral-500">🚶 di passaggio</span>}
+            {c.abbinamento === "passaggio" && (c.prenotazione
+              ? <span className="text-neutral-500">🚶 walk-in senza nome · {c.prenotazione.ora} · {c.prenotazione.pax}p</span>
+              : <span className="text-neutral-500">🚶 di passaggio</span>)}
             {c.abbinamento === "banco" && <span className="text-neutral-400">al banco</span>}
           </span>
           <span className="flex gap-2">
@@ -184,7 +205,7 @@ export default function ContiServizio({ data, turno, compatto = false }) {
           </ul>
         )}
         {aperto === c.id && (
-          <SceltaCliente conto={c} libere={vista.prenotazioni_libere} onScelta={(s) => scegli(c, s)} onChiudi={() => setAperto(null)} />
+          <SceltaCliente conto={c} libere={vista.prenotazioni_libere} nonArrivate={vista.prenotazioni_non_arrivate || []} onScelta={(s) => scegli(c, s)} onChiudi={() => setAperto(null)} />
         )}
       </div>
     );
@@ -216,7 +237,7 @@ export default function ContiServizio({ data, turno, compatto = false }) {
             {k.proposto > 0 && <StatusBadge tone="info">{k.proposto} da confermare</StatusBadge>}
             {k.da_fare > 0 && <StatusBadge tone="warning">{k.da_fare} senza prenotazione</StatusBadge>}
             {k.senza_nome > 0 && <StatusBadge tone="warning">{k.senza_nome} senza nome</StatusBadge>}
-            {k.passaggio > 0 && <StatusBadge tone="neutral">{k.passaggio} di passaggio</StatusBadge>}
+            {k.passaggio > 0 && <StatusBadge tone="neutral">{k.passaggio} walk-in / di passaggio</StatusBadge>}
           </div>
           {daGuardare.length === 0 && <p className="text-sm text-emerald-700 mb-1">Tutto allineato 👍</p>}
           <div className="divide-y divide-neutral-100">{daGuardare.map(riga)}</div>
@@ -228,9 +249,12 @@ export default function ContiServizio({ data, turno, compatto = false }) {
               {mostraOk && <div className="divide-y divide-neutral-100">{aPosto.map(riga)}</div>}
             </div>
           )}
-          {vista.prenotazioni_libere?.length > 0 && (
+          {(vista.prenotazioni_libere?.length > 0 || vista.prenotazioni_non_arrivate?.length > 0) && (
             <p className="mt-2 text-xs text-neutral-500">
-              Prenotazioni senza conto: {vista.prenotazioni_libere.map((p) => `${p.nome || "senza nome"} (${p.ora}, tav ${p.tavolo || "—"})`).join(" · ")}
+              Prenotazioni senza conto: {[
+                ...(vista.prenotazioni_libere || []).map((p) => `${p.nome || "senza nome"} (${p.ora}, tav ${p.tavolo || "—"})`),
+                ...(vista.prenotazioni_non_arrivate || []).map((p) => `${p.nome || "senza nome"} (${p.ora}, tav ${p.tavolo || "—"}, mai segnata arrivata)`),
+              ].join(" · ")}
             </p>
           )}
         </>
