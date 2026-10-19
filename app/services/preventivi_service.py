@@ -1547,9 +1547,18 @@ def testo_cliente(preventivo_id: int, formato: str = "whatsapp") -> str | None:
     # Niente totale nel messaggio (Marco, 2026-10-19): il cliente legge il
     # prezzo a persona di ogni menu; il totale resta solo in scheda.
 
+    # Note e condizioni sono scritte col mini-markup del PDF (# TITOLO, ## voce,
+    # @dolci_carta, == prezzo, **grassetto**): nel messaggio vanno tradotte.
+    from app.services.preventivi_pdf import testo_da_markup
+    dolci = None
     for campo in ("note_cliente", "condizioni"):
-        if (prev.get(campo) or "").strip():
-            out += ["", prev[campo].strip()]
+        t = (prev.get(campo) or "").strip()
+        if not t:
+            continue
+        if "@dolci_carta" in t and dolci is None:
+            from app.services.carta_in_corso_service import dolci_in_carta
+            dolci = dolci_in_carta()
+        out += ["", testo_da_markup(t, formato, dolci)]
     return "\n".join(out).strip()
 
 
@@ -1646,30 +1655,71 @@ def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, us
         conn.close()
 
 
+_NUMERI = ["", "Un", "Due", "Tre", "Quattro", "Cinque", "Sei", "Sette", "Otto", "Nove", "Dieci"]
+
+
 def bozza_email(preventivo_id: int) -> dict | None:
     """Destinatario, oggetto e testo proposti per l'email (modificabili in UI).
-    La firma è il nome mittente della casella del locale (M.D), non un testo fisso."""
+    Testo corto (Marco, 2026-10-19): saluto, una riga sull'evento, i menù con
+    il prezzo a persona, «il resto è nel PDF». Portate, dolci e condizioni
+    stanno nel PDF allegato. La firma è il nome mittente della casella del
+    locale (M.D), non un testo fisso."""
     from app.services import email_service
+    from app.services.preventivi_pdf import GIORNI, MESI, _nome_menu, _prezzo_menu
     prev = get_preventivo(preventivo_id)
     if not prev:
         return None
     st = email_service.stato()
     firma = st.get("mittente_nome") or ""
     nome = (prev.get("cliente_nome") or "").strip()
-    titolo = (prev.get("titolo") or "").strip()
-    corpo = [f"Buongiorno {nome}," if nome else "Buongiorno,", ""]
-    corpo.append("in allegato trovate la nostra proposta" + (f" per {titolo}" if titolo else "") + ".")
-    corpo += ["", testo_cliente(preventivo_id, formato="email") or "", ""]
-    corpo.append("Restiamo a disposizione per qualsiasi domanda.")
-    corpo += ["", "Un saluto,"]
+
+    try:
+        d = datetime.strptime(prev.get("data_evento") or "", "%Y-%m-%d")
+        quando = f"{GIORNI[d.weekday()]} {d.day} {MESI[d.month - 1]}"
+    except ValueError:
+        quando = ""
+    evento = []
+    if prev.get("n_persone"):
+        evento.append(f"{prev['n_persone']} persone")
+    if prev.get("ora_evento"):
+        evento.append(f"alle {prev['ora_evento']}")
+    riga_evento = "vi mandiamo la nostra proposta"
+    if quando:
+        riga_evento += f" per {quando}"
+    if evento:
+        riga_evento += (", " if quando else " per ") + " ".join(evento)
+    riga_evento += "."
+
+    menus = [m for m in prev.get("menu_list") or [] if m.get("righe")]
+    scelto = prev.get("menu_scelto_id")
+    if scelto and len(menus) > 1:
+        menus = [m for m in menus if m["id"] == scelto]
+
+    corpo = [f"Buongiorno {nome}," if nome else "Buongiorno,", "", riga_evento]
+    if menus:
+        corpo.append("")
+        if len(menus) > 1:
+            n = len(menus)
+            corpo += [f"{_NUMERI[n] if n < len(_NUMERI) else n} menù tra cui scegliere:", ""]
+        doppio = False
+        for i, m in enumerate(menus):
+            prezzo, nota = _prezzo_menu(m)
+            doppio = doppio or nota.startswith("vino")
+            prezzo = prezzo.replace("/", " / ") + " €"
+            nm = _nome_menu(m.get("nome")) or (f"Opzione {OPZIONI[i]}" if len(menus) > 1 else "Il menù")
+            corpo.append(f"   {nm} — {prezzo}")
+        corpo.append("   a persona" + (", vino escluso / incluso" if doppio else ""))
+    corpo += ["", "Nel PDF allegato trovate le portate e tutti i dettagli.", "",
+              "Restiamo a disposizione.", "Un saluto,"]
     if firma:
         corpo.append(firma)
-    oggetto = "Proposta " + (prev.get("numero") or "") + (f" — {titolo}" if titolo else "")
+
+    oggetto = "Proposta menù" + (f" — {quando}" if quando else "")
     if firma:
         oggetto += f" · {firma}"
     return {
         "to": prev.get("cliente_email") or "",
-        "oggetto": oggetto.strip(),
+        "oggetto": oggetto,
         "corpo": "\n".join(corpo),
         "email_configurata": st.get("configurato", False),
         "email_mancanti": st.get("mancanti") or [],

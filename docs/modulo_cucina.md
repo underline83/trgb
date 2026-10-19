@@ -449,6 +449,20 @@ Domanda di Marco: «come posso vedere chi fa cosa e quando?». Il dato c'era (ut
 |---|---|---|---|---|
 | C-T-REG1 | Vedere chi ha spuntato/chiuso/completato cosa e a che ora, per periodo e persona | `RegistroAttivita.jsx`, `tasks_router.py` `registro_attivita` | admin/chef/sous_chef | 🆕 |
 
+## 11.2-ter ✅ FATTO — Voci collegate alle ricette (2026-10-19, mig 201, tasks 1.7)
+
+Richiesta di Marco: «ogni cosa dovrebbe avere una ricetta». Ogni voce di checklist può puntare a una ricetta (base o piatto) di foodcost.db.
+- **Modello**: `checklist_item.recipe_id INTEGER NULL`, riferimento logico (DB diverso, niente FK). Anche in `tasks_db.py` (CREATE + HEAL_COLUMNS).
+- **Spunta condivisa**: in `check_item`, se la voce è CHECKBOX con ricetta, `_propaga_spunta_ricetta` replica lo stato sulle voci CHECKBOX con la stessa ricetta nelle istanze dello **stesso giorno e stesso turno** non chiuse (rispetta `_check_instance_visibility`). Pranzo e sera restano separati.
+- **Lettura nome**: `app/services/ricette_lookup.py` (platform, sola lettura) → `item_recipe_nome` nelle voci di istanza/agenda. Nessun import tra router.
+- **UI**: TemplateEditor campo «Ricetta collegata» (datalist da `GET /foodcost/ricette`, giallo se il nome non corrisponde); InstanceDetail chip «📖 ricetta» → `/ricette/{id}`; Cucina iPhone Oggi 📖 accanto alla voce. Nota: chi non ha accesso al modulo ricette vede il link ma non la pagina.
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-T-201a | Collegare una voce di checklist a una ricetta | `TemplateEditor.jsx` campo «Ricetta collegata» | admin/chef | 🆕 |
+| C-T-201b | Spunta condivisa tra checklist dello stesso giorno/turno | `tasks_router.py` `_propaga_spunta_ricetta` | brigata | 🆕 |
+| C-T-201c | Aprire la ricetta dalla voce | `InstanceDetail.jsx`, `CucinaMobile.jsx` `VoceOggi` | brigata | 🆕 |
+
 ## 11.3 ❌ APERTO — P2: gerarchia urgenza in TasksHome
 
 `TasksHome.jsx` usa ancora lo `StatoBadge` inline con APERTA → `bg-brand-cream` (uguale allo sfondo, l'urgente "sparisce") — `TasksHome.jsx:276`. Il componente condiviso `StatoBadge` per stati checklist con APERTA amber + pallino pulse NON esiste (quello in `pages/prenotazioni/components/` è di un altro modulo). KPI cards e raggruppamento per turno restano nella versione MVP.
@@ -488,7 +502,7 @@ Domanda di Marco: «come posso vedere chi fa cosa e quando?». Il dato c'era (ut
 - `app/services/tasks_scheduler.py` — generazione istanze + check scadenze + score
 - `app/services/haccp_report_service.py` — aggregati report mensile + eventi critici recenti
 - `app/services/auth_service.py` — `VALID_ROLES` + `is_cucina_brigade()`
-- Migrazioni: `084_cucina_mvp` (DDL+seed), `085_reparto_task` (multi-reparto), `086_rename_cucina_to_tasks` (rename DB+tabella), `087_tasks_db_self_heal` (fix incidente 18/04), `088_livello_cucina` (A.2), `097_import_mep_templates` (MEP fissi, TRGB-specific), `105_lista_spesa` (foodcost.db), `155_selfheal_tasks_schema` (post TASKS-1), `182_checklist_item_gruppo` (voci padre)
+- Migrazioni: `084_cucina_mvp` (DDL+seed), `085_reparto_task` (multi-reparto), `086_rename_cucina_to_tasks` (rename DB+tabella), `087_tasks_db_self_heal` (fix incidente 18/04), `088_livello_cucina` (A.2), `097_import_mep_templates` (MEP fissi, TRGB-specific), `105_lista_spesa` (foodcost.db), `155_selfheal_tasks_schema` (post TASKS-1), `182_checklist_item_gruppo` (voci padre), `201_checklist_item_recipe` (voci collegate alle ricette)
 
 I file `app/routers/cucina_router.py`, `app/services/cucina_scheduler.py`, `app/schemas/cucina_schema.py`, `app/models/cucina_db.py` **non esistono più** (rinominati `tasks_*` in Phase B).
 

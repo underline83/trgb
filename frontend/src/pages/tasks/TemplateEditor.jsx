@@ -23,6 +23,7 @@ const EMPTY_ITEM = {
   unita_misura: null,
   note: null,
   gruppo: "",
+  recipe_id: null,
 };
 
 function emptyTemplate() {
@@ -56,6 +57,15 @@ export default function TemplateEditor() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Ricette per il collegamento voce→ricetta (mig 201). Lettura dal modulo
+  // ricette: se non risponde, il campo resta vuoto e il resto funziona.
+  const [ricette, setRicette] = useState([]);
+  useEffect(() => {
+    apiFetch(`${API_BASE}/foodcost/ricette`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(rows => setRicette((rows || []).map(r => ({ id: r.id, name: r.name }))))
+      .catch(() => setRicette([]));
+  }, []);
 
   useEffect(() => {
     if (isNew) return;
@@ -84,6 +94,7 @@ export default function TemplateEditor() {
           // altrimenti salvare il template staccherebbe la voce dal frigo.
           ubicazione_id: it.ubicazione_id ?? null,
           gruppo: it.gruppo || "",
+          recipe_id: it.recipe_id ?? null,
         })),
       }))
       .catch(e => setError(e.message))
@@ -155,6 +166,7 @@ export default function TemplateEditor() {
         note: it.note?.trim() || null,
         ubicazione_id: it.ubicazione_id ?? null,
         gruppo: it.gruppo?.trim() || null,
+        recipe_id: it.recipe_id ?? null,
       })),
     };
 
@@ -343,6 +355,9 @@ export default function TemplateEditor() {
             diventano sotto-voci; in checklist il padre si spunta da solo quando sono tutte fatte,
             e toccandolo le spunti tutte. Vuoto = voce semplice.
           </p>
+          <datalist id="tpl-ricette">
+            {ricette.map(r => <option key={r.id} value={r.name} />)}
+          </datalist>
           <datalist id="tpl-gruppi">
             {[...new Set(tpl.items.map(i => (i.gruppo || "").trim()).filter(Boolean))].map(g => (
               <option key={g} value={g} />
@@ -356,6 +371,7 @@ export default function TemplateEditor() {
                 idx={idx}
                 total={tpl.items.length}
                 item={it}
+                ricette={ricette}
                 onUpdate={(k, v) => updateItem(idx, k, v)}
                 onRemove={() => removeItem(idx)}
                 onMove={(dir) => moveItem(idx, dir)}
@@ -389,7 +405,13 @@ function Field({ label, children }) {
   );
 }
 
-function ItemRow({ idx, total, item, onUpdate, onRemove, onMove }) {
+function ItemRow({ idx, total, item, ricette = [], onUpdate, onRemove, onMove }) {
+  const nomeRicetta = item._ricetta ?? (ricette.find(r => r.id === item.recipe_id)?.name || "");
+  const handleRicetta = (txt) => {
+    onUpdate("_ricetta", txt);
+    const hit = ricette.find(r => r.name.toLowerCase() === txt.trim().toLowerCase());
+    onUpdate("recipe_id", hit ? hit.id : null);
+  };
   const needsRange = item.tipo === "NUMERICO" || item.tipo === "TEMPERATURA";
 
   // Auto-riempimento range per TEMPERATURA (primo set)
@@ -442,6 +464,16 @@ function ItemRow({ idx, total, item, onUpdate, onRemove, onMove }) {
             onChange={e => onUpdate("gruppo", e.target.value)}
             placeholder="Voce padre (opzionale, es. Rosa di zucca)"
             className="w-full border rounded-lg px-3 py-2 min-h-[44px] text-sm"
+          />
+          <input
+            type="text"
+            list="tpl-ricette"
+            value={nomeRicetta}
+            onChange={e => handleRicetta(e.target.value)}
+            placeholder="Ricetta collegata (opzionale): stessa ricetta = spunta condivisa"
+            className={`w-full border rounded-lg px-3 py-2 min-h-[44px] text-sm ${
+              nomeRicetta && !item.recipe_id ? "border-amber-400 bg-amber-50" : ""}`}
+            title={nomeRicetta && !item.recipe_id ? "Ricetta non trovata: scegli un nome dalla lista" : ""}
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">

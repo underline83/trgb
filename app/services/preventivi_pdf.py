@@ -147,6 +147,40 @@ def _pagine_testo(testo: str | None, titolo_default: str = "",
     return pagine
 
 
+def testo_da_markup(testo: str, formato: str = "whatsapp",
+                    dolci_carta: list[dict] | None = None) -> str:
+    """Lo stesso mini-markup tradotto per il messaggio (WhatsApp o email):
+    # TITOLO → titolo in grassetto, ## voce → «• voce», @dolci_carta → i dolci
+    della carta, == 25 | nota → «25 € nota», **x** → *x* (WA) o x (email)."""
+    wa = formato != "email"
+    B = (lambda t: f"*{t}*") if wa else (lambda t: t.upper())
+    bold = (lambda t: re.sub(r"\*\*(.+?)\*\*", r"*\1*", t)) if wa else \
+           (lambda t: re.sub(r"\*\*(.+?)\*\*", r"\1", t))
+    out: list[str] = []
+    for raw in testo.replace("\r\n", "\n").split("\n"):
+        riga = raw.strip()
+        if riga.startswith("# "):
+            if out and out[-1] != "":
+                out.append("")
+            out.append(B(riga[2:].strip()))
+        elif riga.startswith("## "):
+            out.append(f"• {bold(riga[3:].strip())}")
+        elif riga.startswith("@dolci_carta"):
+            _, _, chi = riga.partition("|")
+            spiega = [_chiave(x) for x in chi.split(",") if x.strip()]
+            for d in dolci_carta or []:
+                riga_d = f"• {d['nome']}"
+                if d.get("breve") and any(k and k in _chiave(d["nome"]) for k in spiega):
+                    riga_d += f" ({d['breve']})"
+                out.append(riga_d)
+        elif riga.startswith("=="):
+            num, _, nota = riga[2:].partition("|")
+            out.append(f"{num.strip()} € {nota.strip()}".strip())
+        else:
+            out.append(bold(riga))
+    return "\n".join(out).strip()
+
+
 def _logo_svg() -> str | None:
     try:
         from app.utils.locale_data import locale_data_dir

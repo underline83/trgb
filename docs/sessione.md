@@ -6,11 +6,10 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
+**DA PUSHARE — Checklist collegate alle ricette** (mig 201, Task Manager 1.7, sistema 5.66) `[core]` — `tasks_router.py`, `tasks_db.py`, `tasks_schema.py`, nuovo `services/ricette_lookup.py`, `TemplateEditor.jsx`, `InstanceDetail.jsx`, `CucinaMobile.jsx`. Dopo il push: Claude collega le voci delle 6 Linee (antipasti/primi/secondi) alle ricette (base create oggi da UI: id 193-217, bozze da completare). Contorni (polenta/purè/patate fatti, spadellata e insalata da fare) e Dolci ancora da fare; vecchi «MEP Carta · Contorni/Dolci» ancora attivi.
+
 **DA PUSHARE — Preventivi: PDF nello stile del menù gruppi** (clienti 3.10, nessuna migrazione) `[mixed]`
 - Dopo il push: PRE-2026-006 (Locatelli) › Scarica PDF → A5 con copertina, 5 pagine menù, Dolci (i 6 della carta Autunno 2026), Menù bambini, Note, retro (niente riepilogo né totale; anche il messaggio WA senza totale). Controllare i font (Bodoni/Courier, non Times). Ricontrollare anche il PDF del pranzo: ora trova Courier Prime vero.
-
-**DA PUSHARE — Conti del servizio: walk-in senza nome + prenotazioni mai segnate arrivate** (corrispettivi 4.11, nessuna migrazione) `[core]`
-- Dopo il push: Chiusura turno 19/10 cena › Tavolo 08 «Dai un nome» → «🚶 Walk-in, senza nome»; Tavolo 00 «Scegli» → «Mai segnate arrivate» → Bellistrì; la prenotazione diventa «andati».
 
 **Pushato (db6e0a4d), da verificare — Preventivi «📨 Invia al cliente»** (mig 200, sistema 5.65): da iPhone «Condividi PDF + testo» → arrivano PDF e testo? Prova email verso la propria casella.
 
@@ -77,6 +76,10 @@
 - `ModuleNav`: lista voce per voce `mobile: false` da decidere con Marco.
 - Uscite rimaste dopo mig 179: 73 PAGATO_MANUALE + BLC/FZ/Lara in VERIFICARE.
 
+
+### 2026-10-19 — Conti del servizio: walk-in senza nome + prenotazioni mai segnate arrivate (c134d8e8) — PUSHATO E VERIFICATO
+
+Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome, Tavolo 00 collegato a Bellistrì (mai segnata seduta → «andati»). Verificato da Marco in produzione.
 
 ### 2026-10-03 (cont.) — fix Lavagna dopo push 4abd6897
 - `lavagna_service._staff_in_turno`: reparto da `turni_tipi.ruolo` → `reparti.codice` (fallback reparto del dipendente), servizio da `turni_tipi.servizio` (fallback SOGLIA_TURNO), esclusi tipi non LAVORO.

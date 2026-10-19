@@ -79,6 +79,7 @@ def init_tasks_db() -> None:
             note            TEXT,
             ubicazione_id   INTEGER,
             gruppo          TEXT,
+            recipe_id       INTEGER,
             FOREIGN KEY (template_id) REFERENCES checklist_template(id) ON DELETE CASCADE
         )
     """)
@@ -196,7 +197,9 @@ def init_tasks_db() -> None:
         "checklist_instance": [("livello_cucina", "TEXT"), ("reparto", "TEXT")],
         "task_singolo":       [("livello_cucina", "TEXT"), ("reparto", "TEXT")],
         # gruppo (mig 182, 2026-10-04): voce "padre" che raggruppa le sotto-voci.
-        "checklist_item":     [("ubicazione_id", "INTEGER"), ("gruppo", "TEXT")],
+        "checklist_item":     [("ubicazione_id", "INTEGER"), ("gruppo", "TEXT"),
+                              # recipe_id (mig 201): voce collegata a una ricetta (foodcost.db, logico)
+                              ("recipe_id", "INTEGER")],
     }
     for table, cols in HEAL_COLUMNS.items():
         existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()}

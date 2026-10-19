@@ -695,6 +695,13 @@ function ItemCard({ item, editable, saving, isViewer, onAction }) {
           }>
             {item.item_titolo}
           </span>
+          {item.item_recipe_id && (
+            <Link to={`/ricette/${item.item_recipe_id}`}
+                  title={item.item_recipe_nome ? `Ricetta: ${item.item_recipe_nome}` : "Apri la ricetta"}
+                  className="text-xs px-2 py-0.5 rounded-full border border-brand-blue/30 text-brand-blue bg-white hover:bg-brand-blue/5">
+              📖 ricetta
+            </Link>
+          )}
           <TipoChip tipo={item.item_tipo} />
           {item.item_obbligatorio && (
             <span className="text-[10px] uppercase font-bold tracking-wide px-2 py-0.5 rounded-full border bg-[#fbe6e2] text-[#9c1f10] border-[#f2c9c1]">

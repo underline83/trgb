@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import date, datetime, timedelta
 
 from app.models.tasks_db import get_tasks_conn, init_tasks_db
+from app.services.ricette_lookup import nomi_ricette
 from app.services.auth_service import get_current_user
 from app.services.permessi import richiede_ruoli
 from app.services import tasks_scheduler
@@ -174,6 +175,7 @@ def _row_to_item(row) -> ChecklistItemOut:
         note=row["note"],
         ubicazione_id=(row["ubicazione_id"] if "ubicazione_id" in row.keys() else None),
         gruppo=(row["gruppo"] if "gruppo" in row.keys() else None),
+        recipe_id=(row["recipe_id"] if "recipe_id" in row.keys() else None),
     )
 
 
@@ -212,8 +214,8 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
         conn.execute("""
             INSERT INTO checklist_item
                 (template_id, ordine, titolo, tipo, obbligatorio,
-                 min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo, recipe_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             template_id,
             it.ordine if it.ordine else idx,
@@ -226,6 +228,7 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
             it.note,
             it.ubicazione_id,
             (it.gruppo or "").strip() or None,
+            it.recipe_id or None,
         ))
 
 
@@ -476,8 +479,8 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
             conn.execute("""
                 INSERT INTO checklist_item
                     (template_id, ordine, titolo, tipo, obbligatorio,
-                     min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo, recipe_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 new_tid,
                 it["ordine"],
@@ -490,6 +493,7 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
                 it["note"],
                 it["ubicazione_id"] if "ubicazione_id" in it.keys() else None,
                 it["gruppo"] if "gruppo" in it.keys() else None,
+                it["recipe_id"] if "recipe_id" in it.keys() else None,
             ))
 
         conn.commit()
@@ -526,6 +530,7 @@ def _row_to_execution(row, item_row=None) -> dict:
         item_max=row["item_max"],
         item_unita=row["item_unita"],
         item_gruppo=(row["item_gruppo"] if "item_gruppo" in row.keys() else None),
+        item_recipe_id=(row["item_recipe_id"] if "item_recipe_id" in row.keys() else None),
     )
     return out.model_dump()
 
@@ -555,6 +560,7 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
             it.max_valore   AS item_max,
             it.unita_misura AS item_unita,
             it.gruppo       AS item_gruppo,
+            it.recipe_id    AS item_recipe_id,
             ex.id           AS exec_id,
             ex.stato        AS exec_stato,
             ex.valore_numerico,
@@ -570,6 +576,11 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
     """, (instance_id, instance_id, inst["template_id"])).fetchall()
 
     items = [_row_to_execution(r) for r in rows]
+    # Nome della ricetta collegata (mig 201) via servizio platform read-only.
+    nomi = nomi_ricette(i.get("item_recipe_id") for i in items)
+    for i in items:
+        if i.get("item_recipe_id"):
+            i["item_recipe_nome"] = nomi.get(i["item_recipe_id"])
 
     # Reparto: prefer instance (post-085), fallback al template (record legacy).
     inst_reparto = None
@@ -914,6 +925,50 @@ def salta_instance(
 
 # ─── POST /tasks/execution/item/{item_id}/check ───────────────────────
 
+def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, note, now):
+    """Replica la spunta sulle voci CHECKBOX con la stessa ricetta nelle istanze
+    dello stesso giorno+turno (altre checklist, non chiuse). Rispetta la
+    visibilita' per livello: dove l'utente non puo' scrivere, salta."""
+    src = conn.execute(
+        "SELECT data_riferimento, turno FROM checklist_instance WHERE id = ?",
+        (instance_id,),
+    ).fetchone()
+    if not src:
+        return
+    rows = conn.execute("""
+        SELECT i.id AS iid, it.id AS item_id, i.stato AS istato
+          FROM checklist_item it
+          JOIN checklist_instance i ON i.template_id = it.template_id
+         WHERE it.recipe_id = ?
+           AND it.tipo = 'CHECKBOX'
+           AND i.data_riferimento = ?
+           AND COALESCE(i.turno, '') = COALESCE(?, '')
+           AND i.stato NOT IN ('COMPLETATA', 'SALTATA', 'SCADUTA')
+           AND NOT (i.id = ? AND it.id = ?)
+    """, (recipe_id, src["data_riferimento"], src["turno"], instance_id, item_id)).fetchall()
+    for r in rows:
+        try:
+            _check_instance_visibility(conn, user["role"], r["iid"])
+        except HTTPException:
+            continue
+        conn.execute("""
+            INSERT INTO checklist_execution
+                (instance_id, item_id, stato, valore_numerico, valore_testo, note,
+                 completato_at, completato_da)
+            VALUES (?, ?, ?, NULL, NULL, ?, ?, ?)
+            ON CONFLICT(instance_id, item_id) DO UPDATE SET
+                stato = excluded.stato,
+                note = excluded.note,
+                completato_at = excluded.completato_at,
+                completato_da = excluded.completato_da
+        """, (r["iid"], r["item_id"], stato, note, now, user["username"]))
+        if r["istato"] == "APERTA":
+            conn.execute(
+                "UPDATE checklist_instance SET stato = 'IN_CORSO' WHERE id = ?",
+                (r["iid"],),
+            )
+
+
 @router.post("/execution/item/{item_id}/check")
 def check_item(
     item_id: int,
@@ -938,7 +993,7 @@ def check_item(
             raise HTTPException(400, f"Istanza {inst['stato']}: non modificabile")
 
         item = conn.execute(
-            "SELECT id, template_id, tipo, min_valore, max_valore FROM checklist_item WHERE id = ?",
+            "SELECT * FROM checklist_item WHERE id = ?",
             (item_id,),
         ).fetchone()
         if not item:
@@ -978,6 +1033,13 @@ def check_item(
                 "UPDATE checklist_instance SET stato = 'IN_CORSO' WHERE id = ?",
                 (payload.instance_id,),
             )
+
+        # Spunta condivisa (mig 201): stessa ricetta, stesso giorno e turno,
+        # in altre checklist ancora aperte. Solo CHECKBOX (numeri/testi a mano).
+        rid = item["recipe_id"] if "recipe_id" in item.keys() else None
+        if rid and item["tipo"] == "CHECKBOX":
+            _propaga_spunta_ricetta(conn, user, payload.instance_id, item_id, rid,
+                                    payload.stato, payload.note, now)
 
         conn.commit()
         return _fetch_instance(conn, payload.instance_id)

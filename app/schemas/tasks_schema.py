@@ -41,6 +41,9 @@ class ChecklistItemIn(BaseModel):
     # Voce padre (mig 182): le voci consecutive con lo stesso gruppo si
     # mostrano come sotto-voci di un'unica riga padre. NULL = voce semplice.
     gruppo: Optional[str] = None
+    # Ricetta collegata (mig 201): id in foodcost.db.recipes. Stessa ricetta
+    # nello stesso giorno+turno = spunta condivisa tra checklist.
+    recipe_id: Optional[int] = None
 
 
 class ChecklistItemOut(ChecklistItemIn):
@@ -137,6 +140,8 @@ class ChecklistExecutionOut(BaseModel):
     item_max: Optional[float] = None
     item_unita: Optional[str] = None
     item_gruppo: Optional[str] = None
+    item_recipe_id: Optional[int] = None
+    item_recipe_nome: Optional[str] = None
 
 
 class ChecklistInstanceOut(BaseModel):

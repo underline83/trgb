@@ -3,9 +3,19 @@
 
 ---
 
+## 2026-10-19 — Checklist: voci collegate alle ricette, spunta condivisa `[core]`
+
+Task Manager 1.7, mig 201, sistema 5.66. Ogni voce di checklist può avere una «Ricetta collegata» (campo nell'editor dei template). Se due checklist dello stesso giorno e servizio hanno voci con la stessa ricetta (gremolada di ossobuco e rognone, taragna di antipasti e contorni), spuntarne una spunta anche l'altra; togliere la spunta la toglie da entrambe. Dalla voce 📖 apre la scheda ricetta. Il nome arriva da un servizio platform di sola lettura (`ricette_lookup`). Provato su copia del DB. Create da UI 25 ricette base del menu Autunno 2026 (bozze, `is_base`, resa segnaposto 1).
+
+---
+
 ## 2026-10-19 — Conti del servizio: walk-in senza nome + prenotazioni mai segnate arrivate `[core]`
 
 Corrispettivi 4.11, nessuna migrazione. Alla Chiusura turno › 🧾 Conti del servizio: (1) un conto abbinato a un walk-in di TheFork senza nome ha il bottone «🚶 Walk-in, senza nome» — resta collegato alla prenotazione, nessun cliente, esce da «senza nome»; (2) nel «Scegli» compare «Mai segnate arrivate» con le prenotazioni RECORDED del turno: collegandone una la prenotazione diventa «andati» (LEFT); in fondo, «Prenotazioni senza conto» le mostra con «mai segnata arrivata». L'abbinamento automatico resta solo sulle prenotazioni arrivate/sedute. Caso reale: cena 19/10, Bellistrì (tav 2) non segnata seduta, conto finito su Tavolo 00. File: `app/services/abbinamento_conti_service.py`, `frontend/src/components/cassa/ContiServizio.jsx`.
+
+## 2026-10-19 — Preventivi: messaggio WhatsApp senza mini-markup + email corta `[core]`
+
+Clienti 3.10, nessuna migrazione. Il testo per WhatsApp ed email riportava le condizioni così come scritte (`# DOLCI`, `@dolci_carta | …`, `== 25 | …`, `**…**`). Ora vengono tradotte (`preventivi_pdf.testo_da_markup`): titoli in grassetto, voci a punto elenco, i dolci della carta con la spiegazione di quelli indicati, prezzo «25 € menù bambini». Trovato provando l'invio email del preventivo di prova PRE-2026-007. **Email più corta:** il testo proposto ora è saluto, una riga sull'evento, l'elenco dei menù col prezzo a persona e «nel PDF allegato trovate le portate e tutti i dettagli»; oggetto «Proposta menù — sabato 24 ottobre · Osteria Tre Gobbi» (niente più numero e titolo interno).
 
 ## 2026-10-19 — Preventivi: PDF nello stile del menù gruppi `[mixed]`
 

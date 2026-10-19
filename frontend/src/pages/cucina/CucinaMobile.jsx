@@ -803,6 +803,11 @@ function VoceOggi({ it, canWrite, busy, onTap }) {
       </button>
       <div style={{ flex: 1, fontSize: 14, opacity: it.stato === "OK" ? 0.55 : 1 }}>
         {it.item_titolo}
+        {it.item_recipe_id && (
+          <a href={`/ricette/${it.item_recipe_id}`} onClick={(e) => e.stopPropagation()}
+             title={it.item_recipe_nome || "Apri la ricetta"}
+             style={{ marginLeft: 6, fontSize: 12, textDecoration: "none" }}>📖</a>
+        )}
         {(it.item_tipo === "TEMPERATURA" || it.item_tipo === "NUMERICO") && (
           <span style={{ marginLeft: 6 }}>
             <Chip tone="b">{it.valore_numerico != null

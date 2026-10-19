@@ -470,6 +470,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   tasks: {
+    // 1.7 (2026-10-19): voce di checklist collegata a una ricetta (mig 201,
+    //   campo «Ricetta collegata» nel TemplateEditor). Stessa ricetta nello
+    //   stesso giorno e turno = spunta condivisa tra checklist (es. gremolada
+    //   ossobuco/rognone). 📖 sulla voce apre /ricette/{id}. Nome via
+    //   services/ricette_lookup.py (platform, read-only).
     // 1.6 (2026-10-18): Registro attività (/tasks/registro) — chi ha fatto cosa
     //   e quando: voci spuntate, checklist chiuse, task completati. Sola lettura,
     //   nessuna migrazione. Ruoli come Report HACCP.
@@ -477,7 +482,7 @@ const MODULE_VERSIONS = {
     //   nel TemplateEditor); il padre si spunta da solo, toccarlo spunta tutte.
     //   Oggi (Cucina iPhone): scadute non più spuntabili (prima HTTP 400 muto),
     //   errori col messaggio del backend. Duplica copia anche ubicazione_id.
-    version: "1.6",
+    version: "1.7",
     label: "Task Manager",
     status: "beta",
     color: "blue",
@@ -544,6 +549,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.66 (2026-10-19): mig 201 — checklist_item.recipe_id: voci di checklist
+    //   collegate alle ricette, spunta condivisa (Task Manager 1.7).
     // 5.65 (2026-10-19): mig 200 clienti_preventivi_invii — invio preventivi al cliente
     //   (WhatsApp testo + PDF, email col PDF) e registro invii (clienti 3.9).
     // 5.64 (2026-10-18): DB nuovo cassa_conti.sqlite3 (schema al boot, nessuna migrazione
@@ -632,7 +639,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.65",
+    version: "5.66",
     label: "Sistema",
     status: "stabile",
     color: "green",
