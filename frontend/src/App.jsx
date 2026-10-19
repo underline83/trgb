@@ -506,8 +506,8 @@ export default function App() {
         {/* --- GESTIONE CLIENTI CRM --- */}
         <Route path="/clienti" element={
           <ModuleRedirect module="clienti" targets={[
-            { sub: "dashboard", path: "/clienti/dashboard" },
             { sub: "lista",     path: "/clienti/lista" },
+            { sub: "dashboard", path: "/clienti/dashboard" },
             { path: "/clienti/prenotazioni" },
             { path: "/clienti/preventivi" },
             { sub: "import",    path: "/clienti/impostazioni" },

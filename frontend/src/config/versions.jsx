@@ -410,6 +410,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.8 (2026-10-19): lista clienti rifatta (bozzetto A del redesign): ricerca grande, filtri
+    //   rapidi a bottoni (Abituali, VIP, Nuovi, In calo, Persi) con i numeri, «Altri filtri» chiusi,
+    //   righe compatte, anteprima della scheda a destra su iPad/Mac (su iPhone apre la scheda);
+    //   azioni di massa in «Esporta e contatta». Nascoste le voci senza nome. Clienti si apre sulla
+    //   lista; menu: «Anagrafica» → «Clienti», «Dashboard» → «Statistiche».
     // 3.7 (2026-10-19): scheda cliente rifatta (bozzetto A del redesign): fascia verde petrolio con
     //   iniziali e 3 numeri, Chiama/WhatsApp/Prenota, «Da sapere in sala», linea del tempo delle
     //   visite con il conto, linguette Visite/Note/Preventivi/Altro. «Ultima visita» non conta più
@@ -431,7 +436,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.7",
+    version: "3.8",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

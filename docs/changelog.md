@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-19 — Lista clienti rifatta (redesign, bozzetto A) `[core]`
+
+Clienti 3.8, nessuna migrazione. Secondo passo del redesign ([`redesign_clienti_prenotazioni.md`](redesign_clienti_prenotazioni.md)). La lista clienti ha una ricerca grande in alto, i filtri rapidi a bottoni con i numeri (Tutti, Abituali, VIP, Nuovi, In calo, Persi) e «Altri filtri» chiusi (rank, etichetta, ordine, con email/telefono, inattivi). Le righe sono compatte (nome, visite, ultima volta); su iPad e Mac il tocco apre la scheda a destra senza lasciare la lista, su iPhone apre la scheda. Copia email/telefoni, CSV e WhatsApp uno per uno stanno in «Esporta e contatta». Nascoste le voci senza nome (`GET /clienti/?con_nome=true`). Clienti si apre sulla lista; nel menu «Anagrafica» diventa «Clienti» e «Dashboard» diventa «Statistiche».
+
 ## 2026-10-19 — Login: il tastierino usa la lunghezza vera del PIN `[core]`
 
 Platform/auth, nessuna migrazione. Il tastierino di login decideva le cifre dal ruolo (admin/contabile 6, altri 4) e inviava da solo alla 4ª cifra: un dipendente con PIN a 6 cifre non riusciva più a entrare. Ora `users.json` salva `pin_len` (la lunghezza, non il PIN) al cambio PIN, alla creazione utente e a ogni login riuscito; `/auth/tiles` la espone e il tastierino mostra quei pallini. Se non è ancora nota (utenti vecchi) stima dal ruolo **senza invio automatico**: si arriva fino a 6 cifre e si conferma col tasto verde. Stessa cosa nel blocco PIN di sezione (`SezionePinGate`, lunghezza salvata al login). **Fix sicurezza:** `PUT /auth/users/{u}/password` usava `is_admin` (la funzione, sempre vera) invece di `is_admin_user` → per i non-admin il PIN attuale non veniva mai verificato; ora sì.

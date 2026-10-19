@@ -1,4 +1,4 @@
-// @version: v1.2-clienti-nav
+// @version: v1.3 — redesign: «Anagrafica» diventa «Clienti», «Dashboard» diventa «Statistiche» · v1.2-clienti-nav
 // Tab navigation per il modulo Clienti CRM
 // Import, Duplicati, Mailchimp spostati dentro Impostazioni (sidebar)
 import React, { useState, useEffect } from "react";
@@ -7,11 +7,11 @@ import { ModuleNav } from "../../components/ui";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const TABS = [
-  { key: "lista", label: "Anagrafica", path: "/clienti/lista", icon: "📇" },
+  { key: "lista", label: "Clienti", path: "/clienti/lista", icon: "📇" },
   { key: "prenotazioni", label: "Prenotazioni", path: "/clienti/prenotazioni", icon: "📅" },
   { key: "preventivi", label: "Preventivi", path: "/clienti/preventivi", icon: "📋" },
   { key: "giftcard", label: "Gift Card", path: "/clienti/giftcard", icon: "🎁" },
-  { key: "dashboard", label: "Dashboard", path: "/clienti/dashboard", icon: "📊" },
+  { key: "dashboard", label: "Statistiche", path: "/clienti/dashboard", icon: "📊" },
   { key: "impostazioni", label: "Impostazioni", path: "/clienti/impostazioni", icon: "⚙️", roles: ["superadmin", "admin"] },
 ];
 

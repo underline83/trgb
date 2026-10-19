@@ -134,11 +134,11 @@ const MODULES_MENU = {
     title: "Gestione Clienti", icon: "\uD83E\uDD1D", go: "/clienti",
     color: "bg-teal-50 border-teal-200 text-teal-900", hoverBg: "hover:bg-teal-50",
     sub: [
-      { label: "Anagrafica",    go: "/clienti/lista" },
+      { label: "Clienti",       go: "/clienti/lista" },
       { label: "Prenotazioni",  go: "/clienti/prenotazioni" },
       { label: "Preventivi",    go: "/clienti/preventivi" },
       { label: "Gift Card",     go: "/clienti/giftcard" },
-      { label: "Dashboard",     go: "/clienti/dashboard" },
+      { label: "Statistiche",   go: "/clienti/dashboard" },
       { label: "Impostazioni",  go: "/clienti/impostazioni", check: "admin" },
     ],
   },

@@ -36,8 +36,8 @@ Scartate (per memoria): scheda B «carta dell'osteria» e C «cruscotto»; Oggi 
 
 | Passo | Stato |
 |---|---|
-| 1. Scheda cliente (A) | ✅ scritta 2026-10-19 (clienti 3.7), da pushare |
-| 2. Lista clienti iPad (A) + Clienti si apre sulla ricerca + menu Clienti senza «Prenotazioni» | da fare |
+| 1. Scheda cliente (A) | ✅ pushata 2026-10-19 (c249a4b8, clienti 3.7) |
+| 2. Lista clienti iPad (A) + Clienti si apre sulla ricerca + menu rinominato | ✅ scritta 2026-10-19 (clienti 3.8), da pushare. La linguetta «Prenotazioni» resta in Clienti finché non si decide il passo 4 (l'archivio legge l'API `/clienti/prenotazioni/*`: spostarlo in Prenotazioni lega i due moduli) |
 | 3. Prenotazioni › Oggi (A) + barra in basso su iPhone | da fare |
 | 4. Archivio prenotazioni dentro Prenotazioni (Cerca) | da fare |
 | 5. Sala (mappa) a tutto schermo su iPad | da fare |

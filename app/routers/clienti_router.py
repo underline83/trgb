@@ -1738,6 +1738,7 @@ def lista_clienti(
     compleanno_entro_giorni: Optional[int] = None,
     con_email: Optional[bool] = None,
     con_telefono: Optional[bool] = None,
+    con_nome: Optional[bool] = None,
     limit: int = Query(100, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     ordine: str = Query("cognome_asc"),
@@ -1745,6 +1746,7 @@ def lista_clienti(
 ):
     """
     Lista clienti con filtri marketing.
+    con_nome=true: solo chi ha almeno una lettera in nome o cognome (via le voci «?», «.» degli import).
     segmento: abituale | occasionale | nuovo | in_calo | perso | mai_venuto
     """
     conn = get_clienti_conn()
@@ -1845,6 +1847,9 @@ def lista_clienti(
             }
             if segmento in seg_map:
                 where.append(seg_map[segmento])
+
+        if con_nome:
+            where.append("(COALESCE(c.nome,'') || COALESCE(c.cognome,'')) GLOB '*[A-Za-z]*'")
 
         where_sql = " AND ".join(where) if where else "1=1"
 

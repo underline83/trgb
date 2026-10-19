@@ -1,22 +1,12 @@
-// @version: v3.4-mattoni — M.I primitives (Btn) su CTA + barra marketing + paginazione + nota rapida
-// Lista clienti — sidebar filtri, dettaglio inline, note rapide, barra marketing (copia email/tel, export CSV)
+// @version: v4.0 — redesign bozzetto A (2026-10-19): ricerca grande, filtri rapidi, lista compatta + anteprima a destra; azioni di massa in «Esporta e contatta»; via le voci senza nome · v3.4-mattoni — M.I primitives (Btn) su CTA + barra marketing + paginazione + nota rapida
+// Lista clienti — ricerca, filtri rapidi, lista compatta, anteprima scheda a destra, pannello Esporta e contatta
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import ClientiScheda from "./ClientiScheda";
-import Tooltip from "../../components/Tooltip";
 import { buildWaLink, fillTemplate, WA_TEMPLATES } from "../../utils/whatsapp";
 import { Btn } from "../../components/ui";
-
-// ── Colori rank ──────────────────────────────────────────
-const RANK_COLORS = {
-  Gold:    { row: "bg-yellow-50/60", badge: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-  Silver:  { row: "bg-neutral-50/60", badge: "bg-neutral-200 text-neutral-700 border-neutral-300" },
-  Bronze:  { row: "bg-orange-50/60", badge: "bg-orange-100 text-orange-700 border-orange-300" },
-  Caution: { row: "bg-red-50/60", badge: "bg-red-100 text-red-700 border-red-300" },
-};
-const rankBadge = (rank) => RANK_COLORS[rank]?.badge || "bg-neutral-100 text-neutral-600 border-neutral-200";
 
 // ── Segmenti marketing ──────────────────────────────────
 const SEGMENTO_CONFIG = {
@@ -27,11 +17,6 @@ const SEGMENTO_CONFIG = {
   perso:       { label: "Perso",       icon: "💤", badge: "bg-red-100 text-red-700 border-red-300", dot: "bg-red-400" },
   mai_venuto:  { label: "Mai venuto",  icon: "👻", badge: "bg-neutral-100 text-neutral-500 border-neutral-300", dot: "bg-neutral-400" },
 };
-
-function SortIcon({ col, sortKey, sortDir }) {
-  if (sortKey !== col) return <span className="text-neutral-300 ml-0.5">↕</span>;
-  return <span className="text-teal-600 ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span>;
-}
 
 const PAGE_SIZE = 50;
 
@@ -54,13 +39,11 @@ export default function ClientiLista() {
   const [mostraInattivi, setMostraInattivi] = useState(false);
   const [offset, setOffset] = useState(0);
 
-  // Dettaglio inline
+  // Dettaglio inline (anteprima a destra su schermo largo)
   const [selectedId, setSelectedId] = useState(null);
+  const [showFiltri, setShowFiltri] = useState(false);
+  const [showAzioni, setShowAzioni] = useState(false);
 
-  // Nota rapida
-  const [notaClienteId, setNotaClienteId] = useState(null);
-  const [notaTesto, setNotaTesto] = useState("");
-  const [notaSaving, setNotaSaving] = useState(false);
   const [toast, setToast] = useState(null);
 
   // WhatsApp broadcast panel
@@ -69,38 +52,9 @@ export default function ClientiLista() {
   const [waTemplate, setWaTemplate] = useState(WA_TEMPLATES.broadcast_clienti);
   const [waLoading, setWaLoading] = useState(false);
 
-  const salvaNotaRapida = async () => {
-    if (!notaTesto.trim() || !notaClienteId) return;
-    setNotaSaving(true);
-    try {
-      const res = await apiFetch(`${API_BASE}/clienti/${notaClienteId}/note`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "nota", testo: notaTesto.trim() }),
-      });
-      if (!res.ok) throw new Error("Errore");
-      setToast("Nota salvata");
-      setTimeout(() => setToast(null), 2500);
-      setNotaClienteId(null);
-      setNotaTesto("");
-    } catch {
-      setToast("Errore salvataggio nota");
-      setTimeout(() => setToast(null), 2500);
-    } finally { setNotaSaving(false); }
-  };
-
   // Ordinamento — server-side
   const [sortKey, setSortKey] = useState("cognome");
   const [sortDir, setSortDir] = useState("asc");
-  const handleSort = (key) => {
-    if (sortKey === key) {
-      setSortDir(prev => prev === "asc" ? "desc" : "asc");
-    } else {
-      setSortKey(key);
-      setSortDir(key === "n_prenotazioni" || key === "ultima_visita" ? "desc" : "asc");
-    }
-    setOffset(0); // torna a pagina 1 quando cambia l'ordinamento
-  };
 
   // Fetch segmenti conteggi
   useEffect(() => {
@@ -122,6 +76,7 @@ export default function ClientiLista() {
       if (conEmail) params.set("con_email", "true");
       if (conTelefono) params.set("con_telefono", "true");
       if (!mostraInattivi) params.set("attivo", "true");
+      params.set("con_nome", "true");
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(offset));
       params.set("ordine", `${sortKey}_${sortDir}`);
@@ -146,7 +101,7 @@ export default function ClientiLista() {
       .catch(() => {});
   }, []);
 
-  // Reset offset quando cambiano filtri (ma non sort, già gestito in handleSort)
+  // Reset offset quando cambiano filtri (il cambio di ordine azzera da solo)
   useEffect(() => { setOffset(0); }, [q, vipOnly, tagFiltro, rankFiltro, segmentoFiltro, conEmail, conTelefono, mostraInattivi]);
 
   const pagina = Math.floor(offset / PAGE_SIZE) + 1;
@@ -171,6 +126,7 @@ export default function ClientiLista() {
     if (conEmail) p.set("con_email", "true");
     if (conTelefono) p.set("con_telefono", "true");
     if (!mostraInattivi) p.set("attivo", "true");
+    p.set("con_nome", "true");
     p.set("limit", "5000");
     p.set("offset", "0");
     return p;
@@ -246,366 +202,209 @@ export default function ClientiLista() {
     nome: client.nome, cognome: client.cognome, nome2: client.nome2 || "",
   });
 
-  const sel = "w-full border border-neutral-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
-  const lbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
+  // ── Redesign 2026-10-19 (bozzetto A): lista a sinistra, anteprima a destra (iPad/Mac); su telefono la scheda si apre a pagina intera ──
+  const CHIPS = [
+    { key: "", label: "Tutti" },
+    { key: "abituale", label: "Abituali" },
+    { key: "vip", label: "VIP" },
+    { key: "nuovo", label: "Nuovi" },
+    { key: "in_calo", label: "In calo" },
+    { key: "perso", label: "Persi" },
+  ];
+  const chipAttivo = (k) => (k === "vip" ? vipOnly : !vipOnly && segmentoFiltro === k);
+  const scegliChip = (k) => {
+    if (k === "vip") { setVipOnly(!vipOnly); setSegmentoFiltro(""); }
+    else { setVipOnly(false); setSegmentoFiltro(k); }
+  };
+  const apri = (c) => {
+    if (window.matchMedia && window.matchMedia("(min-width: 1024px)").matches) setSelectedId(c.id);
+    else navigate(`/clienti/${c.id}`);
+  };
+  const MESI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
+  const quando = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso.slice(0, 10) + "T12:00:00");
+    return `${d.getDate()} ${MESI[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? ` ${String(d.getFullYear()).slice(2)}` : ""}`;
+  };
+  const sel = "w-full border border-neutral-300 rounded-lg px-3 py-2 min-h-[44px] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
+  const lbl = "block text-xs font-semibold text-neutral-500 mb-1";
 
   return (
     <>
       <ClientiNav current="lista" />
       <div className="min-h-screen bg-brand-cream font-sans">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
 
-          {/* ── HEADER ── */}
-          <div className="flex items-center justify-between mb-4">
+          {/* ── TESTATA ── */}
+          <div className="flex items-center justify-between gap-3 mb-4">
             <div>
-              <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Anagrafica Clienti</h1>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                {totale.toLocaleString("it-IT")} client{totale === 1 ? "e" : "i"}
-                {segmentoFiltro && ` — ${SEGMENTO_CONFIG[segmentoFiltro]?.icon} ${SEGMENTO_CONFIG[segmentoFiltro]?.label}`}
-              </p>
+              <h1 className="font-playfair text-[28px] font-bold text-neutral-900 leading-tight">Clienti</h1>
+              <p className="text-sm text-neutral-500">{totale.toLocaleString("it-IT")} client{totale === 1 ? "e" : "i"}{filtriAttivi > 0 ? " con questi filtri" : ""}</p>
             </div>
-            <Btn variant="chip" tone="emerald" size="md" onClick={() => navigate("/clienti/nuovo")}>+ Nuovo Cliente</Btn>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowAzioni(!showAzioni)}
+                className="min-h-[44px] px-4 rounded-xl border border-neutral-300 bg-white text-sm font-semibold text-neutral-700 hover:border-teal-400">
+                Esporta e contatta
+              </button>
+              <button type="button" onClick={() => navigate("/clienti/nuovo")}
+                className="min-h-[44px] px-4 rounded-xl bg-teal-800 text-white text-sm font-bold hover:bg-teal-900">
+                + Nuovo cliente
+              </button>
+            </div>
           </div>
 
-          {/* ── BARRA AZIONI MARKETING ── */}
-          <div className="flex items-center gap-2 mb-4 bg-white border border-neutral-200 rounded-xl px-4 py-2.5 shadow-sm">
-            <span className="text-xs text-neutral-500 font-medium mr-1">Azioni:</span>
-            <Btn variant="chip" tone="sky" size="sm" onClick={copiaEmail}>Copia email ({totale})</Btn>
-            <Btn variant="chip" tone="emerald" size="sm" onClick={copiaTelefoni}>Copia telefoni ({totale})</Btn>
-            <Btn variant="chip" tone="amber" size="sm" onClick={esportaCsv}>Esporta CSV</Btn>
-            {showWaPanel ? (
-              <Btn variant="success" size="sm" onClick={apriWaPanel} disabled={waLoading} loading={waLoading}>
-                {waLoading ? "..." : "WhatsApp lista"}
-              </Btn>
-            ) : (
-              <Btn variant="chip" tone="emerald" size="sm" onClick={apriWaPanel} disabled={waLoading} loading={waLoading}>
-                {waLoading ? "..." : "WhatsApp lista"}
-              </Btn>
-            )}
-            {filtriAttivi > 0 && (
-              <span className="text-[10px] text-neutral-400 ml-2">
-                Filtri attivi: {filtriAttivi} — esporta solo i {totale.toLocaleString("it-IT")} risultati filtrati
-              </span>
-            )}
-          </div>
-
-          {/* ── PANNELLO WHATSAPP BROADCAST ── */}
-          {showWaPanel && (
-            <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-emerald-800">
-                  WhatsApp — {waClients.length} clienti con telefono
-                </h3>
-                <button onClick={() => setShowWaPanel(false)} className="text-xs text-neutral-400 hover:text-neutral-600">✕</button>
+          {/* ── AZIONI DI MASSA (nascoste finché non servono) ── */}
+          {showAzioni && (
+            <div className="mb-4 bg-white border border-neutral-200 rounded-2xl p-4 space-y-3">
+              <p className="text-sm text-neutral-600">Valgono per i {totale.toLocaleString("it-IT")} clienti della lista qui sotto, con i filtri attivi.</p>
+              <div className="flex flex-wrap gap-2">
+                <Btn variant="secondary" size="md" onClick={copiaEmail}>Copia le email</Btn>
+                <Btn variant="secondary" size="md" onClick={copiaTelefoni}>Copia i telefoni</Btn>
+                <Btn variant="secondary" size="md" onClick={esportaCsv}>Scarica CSV</Btn>
+                <Btn variant={showWaPanel ? "success" : "secondary"} size="md" onClick={apriWaPanel} disabled={waLoading} loading={waLoading}>WhatsApp uno per uno</Btn>
               </div>
-              <div className="mb-3">
-                <label className="block text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">
-                  Template messaggio (usa {"{nome}"} e {"{cognome}"} per personalizzare)
-                </label>
-                <textarea
-                  value={waTemplate}
-                  onChange={(e) => setWaTemplate(e.target.value)}
-                  rows={2}
-                  className="w-full border border-emerald-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
-                />
-                <p className="text-[10px] text-emerald-600 mt-1">
-                  Anteprima: "{fillTemplate(waTemplate, { nome: "Mario", cognome: "Rossi" })}"
-                </p>
-              </div>
-              <div className="max-h-64 overflow-y-auto border border-emerald-200 rounded-lg bg-white divide-y divide-emerald-100">
-                {waClients.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between px-3 py-2 hover:bg-emerald-50/50">
-                    <div className="text-sm">
-                      <span className="font-medium text-neutral-800">{c.cognome} {c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
-                      <span className="text-xs text-neutral-400 ml-2">{c.telefono}</span>
-                    </div>
-                    <a href={getWaLink(c)} target="_blank" rel="noopener noreferrer"
-                      className="px-3 py-1 text-xs font-semibold bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition shadow-sm">
-                      Invia WA
-                    </a>
+              {showWaPanel && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                  <label className="block text-xs font-semibold text-emerald-800 mb-1">
+                    Messaggio ({"{nome}"} e {"{cognome}"} si riempiono da soli) — {waClients.length} clienti con telefono
+                  </label>
+                  <textarea value={waTemplate} onChange={(e) => setWaTemplate(e.target.value)} rows={2}
+                    className="w-full border border-emerald-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+                  <p className="text-xs text-emerald-700 mt-1">Anteprima: «{fillTemplate(waTemplate, { nome: "Mario", cognome: "Rossi" })}»</p>
+                  <div className="mt-2 max-h-64 overflow-y-auto bg-white border border-emerald-200 rounded-lg divide-y divide-emerald-100">
+                    {waClients.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between px-3 min-h-[44px]">
+                        <span className="text-sm"><b>{c.cognome} {c.nome}</b> <span className="text-neutral-400">{c.telefono}</span></span>
+                        <a href={getWaLink(c)} target="_blank" rel="noopener noreferrer"
+                          className="px-3 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Invia</a>
+                      </div>
+                    ))}
+                    {waClients.length === 0 && <p className="text-sm text-neutral-400 text-center py-4">Nessun cliente con telefono.</p>}
                   </div>
-                ))}
-              </div>
-              {waClients.length === 0 && (
-                <p className="text-sm text-neutral-400 text-center py-4">Nessun cliente con telefono nei risultati filtrati</p>
+                </div>
               )}
             </div>
           )}
 
-          <div className="flex gap-5">
-            {/* ══════════════════════════════════════════
-                SIDEBAR SINISTRA — Filtri + Segmenti
-               ══════════════════════════════════════════ */}
-            <div className="w-56 flex-shrink-0 hidden lg:block space-y-3">
+          <div className="flex gap-5 items-start">
 
-              {/* Segmenti marketing */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-3 shadow-sm">
-                <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Segmenti Marketing</h3>
-                <div className="space-y-1">
-                  {Object.entries(SEGMENTO_CONFIG).map(([key, cfg]) => {
-                    const count = segmentiCount[key] || 0;
-                    const active = segmentoFiltro === key;
-                    return (
-                      <button key={key}
-                        onClick={() => setSegmentoFiltro(active ? "" : key)}
-                        className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition ${
-                          active ? cfg.badge + " border shadow-sm" : "hover:bg-neutral-50 text-neutral-600"
-                        }`}>
-                        <span className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                          {cfg.label}
-                        </span>
-                        <span className={`text-[10px] font-medium ${active ? "" : "text-neutral-400"}`}>
-                          {count.toLocaleString("it-IT")}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {/* Mini stats */}
-                <div className="border-t border-neutral-100 mt-2 pt-2 space-y-0.5 text-[10px] text-neutral-400">
-                  <div className="flex justify-between">
-                    <span>Con email</span>
-                    <span className="text-neutral-600 font-medium">{(segmentiCount.con_email || 0).toLocaleString("it-IT")}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Con telefono</span>
-                    <span className="text-neutral-600 font-medium">{(segmentiCount.con_telefono || 0).toLocaleString("it-IT")}</span>
-                  </div>
-                </div>
+            {/* ══ LISTA ══ */}
+            <div className="w-full lg:w-[460px] lg:flex-shrink-0">
+              <label className="flex items-center gap-2 h-12 px-4 bg-white border border-neutral-300 rounded-xl focus-within:ring-2 focus-within:ring-teal-300">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5C574F" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
+                <span className="sr-only">Cerca cliente</span>
+                <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome, cognome o telefono"
+                  className="flex-1 bg-transparent outline-none text-base" />
+              </label>
+
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {CHIPS.map((ch) => {
+                  const on = chipAttivo(ch.key);
+                  const n = ch.key && ch.key !== "vip" ? segmentiCount[ch.key] : null;
+                  return (
+                    <button key={ch.key || "tutti"} type="button" aria-pressed={on} onClick={() => scegliChip(ch.key)}
+                      className={`min-h-[36px] px-3 rounded-full text-sm font-semibold border transition ${on ? "bg-teal-800 border-teal-800 text-white" : "bg-white border-neutral-300 text-neutral-700 hover:border-teal-400"}`}>
+                      {ch.label}{n ? <span className={`ml-1 font-normal ${on ? "text-teal-100" : "text-neutral-400"}`}>{n.toLocaleString("it-IT")}</span> : null}
+                    </button>
+                  );
+                })}
+                <button type="button" onClick={() => setShowFiltri(!showFiltri)} aria-expanded={showFiltri}
+                  className="min-h-[36px] px-3 rounded-full text-sm font-semibold text-teal-800 hover:underline">
+                  {showFiltri ? "Meno filtri" : "Altri filtri"}{filtriAttivi > 0 ? ` (${filtriAttivi})` : ""}
+                </button>
               </div>
 
-              {/* Filtri classici */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-3 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Filtri</h3>
+              {showFiltri && (
+                <div className="mt-3 bg-white border border-neutral-200 rounded-xl p-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={lbl} htmlFor="f-rank">Rank TheFork</label>
+                    <select id="f-rank" value={rankFiltro} onChange={(e) => setRankFiltro(e.target.value)} className={sel}>
+                      <option value="">Tutti</option><option value="Gold">Gold</option><option value="Silver">Silver</option>
+                      <option value="Bronze">Bronze</option><option value="Caution">Caution</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl} htmlFor="f-tag">Etichetta</label>
+                    <select id="f-tag" value={tagFiltro} onChange={(e) => setTagFiltro(e.target.value)} className={sel}>
+                      <option value="">Tutte</option>
+                      {tags.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl} htmlFor="f-ord">Ordina per</label>
+                    <select id="f-ord" value={`${sortKey}_${sortDir}`} onChange={(e) => { const v = e.target.value; const i = v.lastIndexOf("_"); setSortKey(v.slice(0, i)); setSortDir(v.slice(i + 1)); setOffset(0); }} className={sel}>
+                      <option value="cognome_asc">Cognome A→Z</option>
+                      <option value="ultima_visita_desc">Ultima visita</option>
+                      <option value="n_prenotazioni_desc">Più visite</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col justify-end gap-1 text-sm text-neutral-700">
+                    <label className="flex items-center gap-2 min-h-[32px]"><input type="checkbox" checked={conTelefono} onChange={(e) => setConTelefono(e.target.checked)} className="w-4 h-4 accent-teal-700" />Con telefono</label>
+                    <label className="flex items-center gap-2 min-h-[32px]"><input type="checkbox" checked={conEmail} onChange={(e) => setConEmail(e.target.checked)} className="w-4 h-4 accent-teal-700" />Con email</label>
+                    <label className="flex items-center gap-2 min-h-[32px]"><input type="checkbox" checked={mostraInattivi} onChange={(e) => setMostraInattivi(e.target.checked)} className="w-4 h-4 accent-teal-700" />Anche inattivi</label>
+                  </div>
                   {filtriAttivi > 0 && (
-                    <button onClick={resetFiltri} className="text-[10px] text-teal-600 hover:text-teal-700">
-                      Resetta ({filtriAttivi})
-                    </button>
+                    <button type="button" onClick={resetFiltri} className="col-span-2 text-left text-sm font-semibold text-teal-800 min-h-[36px]">Azzera i filtri</button>
                   )}
                 </div>
+              )}
 
-                <div>
-                  <label className={lbl}>Cerca</label>
-                  <input type="text" value={q} onChange={(e) => setQ(e.target.value)}
-                    placeholder="Nome, tel, allergie..."
-                    className={sel} />
-                </div>
-
-                <div>
-                  <label className={lbl}>Rank</label>
-                  <select value={rankFiltro} onChange={(e) => setRankFiltro(e.target.value)} className={sel}>
-                    <option value="">Tutti</option>
-                    <option value="Gold">Gold</option>
-                    <option value="Silver">Silver</option>
-                    <option value="Bronze">Bronze</option>
-                    <option value="Caution">Caution</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={lbl}>Tag</label>
-                  <select value={tagFiltro} onChange={(e) => setTagFiltro(e.target.value)} className={sel}>
-                    <option value="">Tutti</option>
-                    {tags.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-                    <input type="checkbox" checked={vipOnly} onChange={(e) => setVipOnly(e.target.checked)}
-                      className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500" />
-                    Solo VIP ⭐
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-                    <input type="checkbox" checked={conEmail} onChange={(e) => setConEmail(e.target.checked)}
-                      className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500" />
-                    Con email
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-                    <input type="checkbox" checked={conTelefono} onChange={(e) => setConTelefono(e.target.checked)}
-                      className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500" />
-                    Con telefono
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-                    <input type="checkbox" checked={mostraInattivi} onChange={(e) => setMostraInattivi(e.target.checked)}
-                      className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500" />
-                    Mostra inattivi
-                  </label>
-                </div>
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 px-3 text-xs font-bold uppercase tracking-wide text-neutral-500">
+                <span>Cliente</span><span className="text-right">Visite</span><span className="text-right">Ultima</span>
               </div>
+              <div className="mt-1 space-y-1">
+                {loading && clienti.length === 0 && <div className="py-12 text-center text-sm text-neutral-400">Caricamento…</div>}
+                {!loading && clienti.length === 0 && <div className="py-12 text-center text-sm text-neutral-400">Nessun cliente trovato.</div>}
+                {clienti.map((c) => {
+                  const scelto = selectedId === c.id;
+                  const seg = SEGMENTO_CONFIG[c.segmento];
+                  const sotto = [c.rank, seg && c.segmento !== "mai_venuto" ? seg.label : null, ...(c.tags ? c.tags.split(", ").filter(Boolean).slice(0, 2) : [])].filter(Boolean).join(" · ");
+                  return (
+                    <button key={c.id} type="button" onClick={() => apri(c)}
+                      className={`w-full text-left min-h-[56px] px-3 rounded-xl border grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 items-center transition ${scelto ? "bg-teal-50 border-teal-300" : "bg-white border-neutral-200 hover:border-teal-300"} ${!c.attivo ? "opacity-50" : ""}`}>
+                      <span className="min-w-0">
+                        <span className="block text-[15px] font-semibold text-neutral-900 truncate">
+                          {c.vip ? "★ " : ""}{c.cognome}{c.cognome2 && c.cognome2 !== c.cognome ? ` / ${c.cognome2}` : ""} <span className="font-normal text-neutral-700">{c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
+                        </span>
+                        {sotto && <span className="block text-xs text-neutral-500 truncate">{sotto}</span>}
+                      </span>
+                      <span className="text-right text-[15px] tabular-nums">{c.n_prenotazioni || "—"}</span>
+                      <span className="text-right text-sm text-neutral-600">{quando(c.ultima_visita)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {offset + PAGE_SIZE < totale && (
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <Btn variant="secondary" size="md" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>← Indietro</Btn>
+                  <span className="text-sm text-neutral-500">{pagina} di {totalePagine}</span>
+                  <Btn variant="secondary" size="md" onClick={() => setOffset(offset + PAGE_SIZE)}>Avanti →</Btn>
+                </div>
+              )}
+              {offset > 0 && offset + PAGE_SIZE >= totale && (
+                <div className="mt-3"><Btn variant="secondary" size="md" onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>← Indietro</Btn></div>
+              )}
             </div>
 
-            {/* ══════════════════════════════════════════
-                CONTENUTO PRINCIPALE — tabella o dettaglio inline
-               ══════════════════════════════════════════ */}
-            <div className="flex-1 min-w-0">
-
-              {/* ── DETTAGLIO INLINE (quando selezionato) ── */}
+            {/* ══ ANTEPRIMA (iPad orizzontale e computer) ══ */}
+            <div className="hidden lg:block flex-1 min-w-0 lg:sticky lg:top-4">
               {selectedId ? (
-                <ClientiScheda
-                  clienteId={selectedId}
-                  onClose={() => { setSelectedId(null); fetchClienti(); }}
-                  embedded
-                />
+                <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+                  <ClientiScheda clienteId={selectedId} embedded onClose={() => { setSelectedId(null); fetchClienti(); }} />
+                </div>
               ) : (
-              <>
-              {/* Filtri mobile */}
-              <div className="lg:hidden mb-3">
-                <input type="text" value={q} onChange={(e) => setQ(e.target.value)}
-                  placeholder="Cerca clienti..."
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-
-              <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-                {loading ? (
-                  <div className="p-16 text-center text-neutral-400 text-sm">Caricamento...</div>
-                ) : clienti.length === 0 ? (
-                  <div className="p-16 text-center text-neutral-400 text-sm">Nessun cliente trovato.</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-neutral-50 border-b border-neutral-200 text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
-                          <th className="px-3 py-2.5 text-left cursor-pointer select-none hover:text-teal-700" onClick={() => handleSort("cognome")}>
-                            Cliente <SortIcon col="cognome" sortKey={sortKey} sortDir={sortDir} />
-                          </th>
-                          <th className="px-3 py-2.5 text-left">Telefono</th>
-                          <th className="px-3 py-2.5 text-left hidden md:table-cell">Email</th>
-                          <th className="px-3 py-2.5 text-left hidden lg:table-cell">Tag</th>
-                          <th className="px-3 py-2.5 text-center w-20">Segmento</th>
-                          <th className="px-3 py-2.5 text-center cursor-pointer select-none hover:text-teal-700 w-14" onClick={() => handleSort("n_prenotazioni")}>
-                            Vis. <SortIcon col="n_prenotazioni" sortKey={sortKey} sortDir={sortDir} />
-                          </th>
-                          <th className="px-3 py-2.5 text-left hidden xl:table-cell cursor-pointer select-none hover:text-teal-700" onClick={() => handleSort("ultima_visita")}>
-                            Ultima <SortIcon col="ultima_visita" sortKey={sortKey} sortDir={sortDir} />
-                          </th>
-                          <th className="px-3 py-2.5 text-center w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {clienti.map((c) => {
-                          const rowColor = c.rank ? (RANK_COLORS[c.rank]?.row || "") : "";
-                          const seg = SEGMENTO_CONFIG[c.segmento] || SEGMENTO_CONFIG.mai_venuto;
-                          return (
-                            <React.Fragment key={c.id}>
-                            <tr
-                              onClick={() => setSelectedId(c.id)}
-                              className={`cursor-pointer hover:bg-teal-50/80 transition ${rowColor} ${!c.attivo ? "opacity-40" : ""}`}>
-                              <td className="px-3 py-2.5">
-                                <div className="flex items-center gap-1.5">
-                                  <div>
-                                    <span className="font-semibold text-neutral-900">{c.cognome}{c.cognome2 && c.cognome2 !== c.cognome ? ` / ${c.cognome2}` : ""}</span>
-                                    <span className="text-neutral-600 ml-1">{c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
-                                  </div>
-                                  {c.vip ? <span className="text-xs">⭐</span> : null}
-                                  {c.rank && (
-                                    <span className={`text-[9px] px-1 py-0.5 rounded-full border font-medium ${rankBadge(c.rank)}`}>
-                                      {c.rank}
-                                    </span>
-                                  )}
-                                  {c.protetto === 1 && <Tooltip label="Protetto"><span className="text-[10px] text-teal-500">🛡</span></Tooltip>}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2.5 text-neutral-600 font-mono text-xs whitespace-nowrap">{c.telefono || "—"}</td>
-                              <td className="px-3 py-2.5 text-neutral-500 text-xs max-w-[160px] truncate hidden md:table-cell">{c.email || "—"}</td>
-                              <td className="px-3 py-2.5 hidden lg:table-cell">
-                                {c.tags && c.tags.split(", ").filter(Boolean).map((tag) => (
-                                  <span key={tag} className="inline-block text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full mr-0.5 mb-0.5 border border-teal-200">
-                                    {tag}
-                                  </span>
-                                ))}
-                              </td>
-                              <td className="px-3 py-2.5 text-center">
-                                <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${seg.badge}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${seg.dot}`} />
-                                  {seg.label}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2.5 text-center">
-                                {c.n_prenotazioni > 0 ? (
-                                  <span className={`text-xs font-bold ${
-                                    c.n_prenotazioni >= 10 ? "text-teal-700" :
-                                    c.n_prenotazioni >= 3 ? "text-neutral-700" :
-                                    "text-neutral-400"
-                                  }`}>
-                                    {c.n_prenotazioni}
-                                  </span>
-                                ) : (
-                                  <span className="text-neutral-300 text-xs">—</span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2.5 text-xs text-neutral-500 hidden xl:table-cell whitespace-nowrap">
-                                {c.ultima_visita || "—"}
-                              </td>
-                              <td className="px-3 py-2.5 text-center">
-                                <Tooltip label="Nota rapida">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setNotaClienteId(notaClienteId === c.id ? null : c.id); setNotaTesto(""); }}
-                                    className={`text-sm hover:scale-110 transition ${notaClienteId === c.id ? "opacity-100" : "opacity-40 hover:opacity-70"}`}>
-                                    📝
-                                  </button>
-                                </Tooltip>
-                              </td>
-                            </tr>
-                            {notaClienteId === c.id && (
-                              <tr className="bg-amber-50/80">
-                                <td colSpan={8} className="px-3 py-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-amber-700 font-medium whitespace-nowrap">Nota per {c.cognome}:</span>
-                                    <input
-                                      type="text"
-                                      value={notaTesto}
-                                      onChange={(e) => setNotaTesto(e.target.value)}
-                                      onKeyDown={(e) => e.key === "Enter" && salvaNotaRapida()}
-                                      onClick={(e) => e.stopPropagation()}
-                                      placeholder="Scrivi e premi Invio..."
-                                      className="flex-1 border border-amber-300 rounded-lg px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                                      autoFocus
-                                    />
-                                    <Btn variant="chip" tone="amber" size="sm" onClick={(e) => { e.stopPropagation(); salvaNotaRapida(); }}
-                                      disabled={notaSaving || !notaTesto.trim()} loading={notaSaving}>
-                                      {notaSaving ? "..." : "Salva"}
-                                    </Btn>
-                                    <button onClick={(e) => { e.stopPropagation(); setNotaClienteId(null); }}
-                                      className="text-xs text-neutral-400 hover:text-neutral-600">✕</button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* ── PAGINAZIONE ── */}
-                {totalePagine > 1 && (
-                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-neutral-200 bg-neutral-50">
-                    <Btn variant="secondary" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
-                      ← Precedente
-                    </Btn>
-                    <span className="text-xs text-neutral-500">Pagina {pagina} di {totalePagine}</span>
-                    <Btn variant="secondary" size="sm" disabled={offset + PAGE_SIZE >= totale} onClick={() => setOffset(offset + PAGE_SIZE)}>
-                      Successiva →
-                    </Btn>
-                  </div>
-                )}
-              </div>
-              </>
+                <div className="rounded-2xl border border-dashed border-neutral-300 p-12 text-center text-neutral-500">
+                  <div className="font-playfair text-xl text-neutral-700 mb-1">Scegli un cliente</div>
+                  <p className="text-sm">La sua scheda si apre qui, senza lasciare la lista.</p>
+                </div>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Toast nota rapida */}
       {toast && (
-        <div className="fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 bg-emerald-600 text-white"
-          onClick={() => setToast(null)}>
+        <div className="fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 bg-emerald-600 text-white" onClick={() => setToast(null)}>
           {toast}
         </div>
       )}
