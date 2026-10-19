@@ -5,6 +5,8 @@
 //
 // Props:
 //   length    cifre attese (4 o 6) — invio automatico quando raggiunte
+//   autoSubmit default true; false = lunghezza solo stimata: niente invio
+//             automatico, si conferma col tasto verde (4-6 cifre)
 //   onSubmit  async (pin) => boolean   true = accettato, false = errato
 //   loading   disabilita i tasti
 //   error     messaggio sotto i pallini
@@ -12,7 +14,7 @@
 //   onInput   facoltativo, chiamato a ogni cifra (per pulire l'errore)
 import React, { useCallback, useEffect, useState } from "react";
 
-export default function PinPad({ length = 4, onSubmit, loading = false, error = "", onEscape, onInput }) {
+export default function PinPad({ length = 4, autoSubmit = true, onSubmit, loading = false, error = "", onEscape, onInput }) {
   const [pin, setPin] = useState("");
   const [shake, setShake] = useState(false);
 
@@ -31,10 +33,10 @@ export default function PinPad({ length = 4, onSubmit, loading = false, error = 
     setPin((prev) => {
       if (prev.length >= 6) return prev;
       const next = prev + digit;
-      if (next.length === length) setTimeout(() => submit(next), 100);
+      if (autoSubmit && next.length === length) setTimeout(() => submit(next), 100);
       return next;
     });
-  }, [length, submit, onInput]);
+  }, [length, autoSubmit, submit, onInput]);
 
   const backspace = useCallback(() => {
     if (onInput) onInput();
@@ -52,7 +54,9 @@ export default function PinPad({ length = 4, onSubmit, loading = false, error = 
     return () => window.removeEventListener("keydown", handler);
   }, [addDigit, backspace, submit, pin, onEscape]);
 
-  const dots = Array.from({ length }, (_, i) => (
+  // Senza invio automatico il PIN puo' superare `length` (max 6): i pallini crescono.
+  const nDots = autoSubmit ? length : Math.max(length, pin.length);
+  const dots = Array.from({ length: nDots }, (_, i) => (
     <div
       key={i}
       className={`

@@ -6,6 +6,9 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
+**DA PUSHARE — Login: tastierino con la lunghezza vera del PIN + fix verifica PIN attuale** (auth, nessuna migrazione) `[core]`
+- Dopo il push: il dipendente col PIN a 6 cifre digita le 6 cifre e preme il tasto verde (la prima volta niente invio automatico); dal login dopo vede 6 pallini. Provare Cambio PIN da non-admin con PIN attuale sbagliato → deve dare errore.
+
 **DA PUSHARE — Dipendenti: «Le mie buste paga» nella nav** (dipendenti 2.39, nessuna migrazione) `[core]`
 - Dopo il push: entrare con un dipendente → Dipendenti → PIN → tab «📄 Le mie buste paga» e «🗓️ I miei turni» accanto a «Turni».
 

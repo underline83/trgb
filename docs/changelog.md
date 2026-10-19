@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-19 — Login: il tastierino usa la lunghezza vera del PIN `[core]`
+
+Platform/auth, nessuna migrazione. Il tastierino di login decideva le cifre dal ruolo (admin/contabile 6, altri 4) e inviava da solo alla 4ª cifra: un dipendente con PIN a 6 cifre non riusciva più a entrare. Ora `users.json` salva `pin_len` (la lunghezza, non il PIN) al cambio PIN, alla creazione utente e a ogni login riuscito; `/auth/tiles` la espone e il tastierino mostra quei pallini. Se non è ancora nota (utenti vecchi) stima dal ruolo **senza invio automatico**: si arriva fino a 6 cifre e si conferma col tasto verde. Stessa cosa nel blocco PIN di sezione (`SezionePinGate`, lunghezza salvata al login). **Fix sicurezza:** `PUT /auth/users/{u}/password` usava `is_admin` (la funzione, sempre vera) invece di `is_admin_user` → per i non-admin il PIN attuale non veniva mai verificato; ora sì.
+
 ## 2026-10-19 — Scheda cliente rifatta (redesign, bozzetto A) `[core]`
 
 Clienti 3.7, prenotazioni 2.15, nessuna migrazione. Primo passo del redesign di Clienti e Prenotazioni ([`redesign_clienti_prenotazioni.md`](redesign_clienti_prenotazioni.md)). La scheda cliente ha una fascia verde petrolio con iniziali, nome e tre numeri (visite, spesa media, ultima volta); sotto, tre bottoni grandi **Chiama**, **WhatsApp**, **Prenota** (apre il form prenotazione col cliente già scelto); poi **«Da sapere in sala»**: allergie (in rosso se ci sono), prossima prenotazione, piatti e vino che prende, preferenze, ultima nota. Quattro linguette che stanno su iPhone: **Visite** (linea del tempo con prenotazione e conto insieme, piatti compresi), Note, Preventivi, **Altro** (anagrafica, preferenze, etichette, spesa e piatti, recensioni, unione doppioni). Fix: «ultima visita» non conta più le prenotazioni future; i piatti preferiti non mostrano più le righe «no_name» della cassa.

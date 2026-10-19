@@ -22,3 +22,4 @@ class UserTile(BaseModel):
     username: str
     display_name: str
     role: str
+    pin_len: Optional[int] = None  # cifre del PIN, per il tastierino di login

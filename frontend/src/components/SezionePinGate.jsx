@@ -116,7 +116,10 @@ export default function SezionePinGate({ children }) {
 
   const role = localStorage.getItem("role") || "";
   const nome = localStorage.getItem("display_name") || localStorage.getItem("username") || "";
-  const lunghezza = ["admin", "superadmin", "contabile"].includes(role) ? 6 : 4;
+  // Lunghezza reale del PIN salvata al login; se manca (sessione aperta prima del
+  // 2026-10-19) stima dal ruolo senza invio automatico.
+  const pinLenNoto = parseInt(localStorage.getItem("pin_len") || "", 10) || null;
+  const lunghezza = pinLenNoto || (["admin", "superadmin", "contabile"].includes(role) ? 6 : 4);
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-brand-cream flex items-start sm:items-center justify-center p-4 pt-10">
@@ -133,6 +136,7 @@ export default function SezionePinGate({ children }) {
         <PinPad
           key={sezione.id}
           length={lunghezza}
+          autoSubmit={!!pinLenNoto}
           onSubmit={verifica}
           loading={loading}
           error={error}

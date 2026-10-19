@@ -93,8 +93,10 @@ def update_password(username: str, data: ChangePasswordRequest, current_user: di
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso negato")
 
     # Non-admin deve fornire la password corrente
-    current_pw = None if is_admin else data.current_password
-    if not is_admin and not current_pw:
+    # Fix 2026-10-19: prima usava `is_admin` (la funzione, sempre vera) al posto di
+    # `is_admin_user` -> il PIN attuale non veniva MAI verificato per i non-admin.
+    current_pw = None if is_admin_user else data.current_password
+    if not is_admin_user and not current_pw:
         raise HTTPException(status_code=400, detail="Fornisci la password attuale")
 
     change_password(username, data.new_password, current_pw)

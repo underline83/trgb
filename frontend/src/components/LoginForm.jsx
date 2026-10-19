@@ -79,6 +79,7 @@ export default function LoginForm({ setToken, setRole }) {
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("role", data.role);
         localStorage.setItem("username", selectedUser.username);
+        localStorage.setItem("pin_len", String(currentPin.length)); // per SezionePinGate
         localStorage.setItem("display_name", data.display_name || selectedUser.display_name);
         // Dopo il login vai sempre alla Home, non all'ultima pagina aperta.
         window.history.replaceState(null, "", "/");
@@ -95,11 +96,13 @@ export default function LoginForm({ setToken, setRole }) {
     [selectedUser, setToken, setRole]
   );
 
-  // Lunghezza PIN attesa per ruolo: admin/contabile 6 cifre, gli altri 4.
+  // Lunghezza PIN: quella reale salvata dal backend (pin_len, da /auth/tiles).
+  // Se non e' ancora nota (utente mai loggato dopo il 2026-10-19) si stima dal
+  // ruolo ma SENZA invio automatico: si conferma col tasto verde, fino a 6 cifre.
+  const knownLen = selectedUser?.pin_len || null;
   const expectedLen =
-    selectedUser && ["admin", "superadmin", "contabile"].includes(selectedUser.role)
-      ? 6
-      : 4;
+    knownLen ||
+    (selectedUser && ["admin", "superadmin", "contabile"].includes(selectedUser.role) ? 6 : 4);
 
   /* ══════════════════════════════════════════════
      RENDER: SELEZIONE UTENTE (tile)
@@ -200,6 +203,7 @@ export default function LoginForm({ setToken, setRole }) {
       <PinPad
         key={selectedUser.username}
         length={expectedLen}
+        autoSubmit={!!knownLen}
         onSubmit={submitPin}
         loading={loading}
         error={error}

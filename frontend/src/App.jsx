@@ -247,6 +247,7 @@ export default function App() {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("username");
+    localStorage.removeItem("pin_len");
     setToken(null);
     setRole(null);
   }

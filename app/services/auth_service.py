@@ -57,6 +57,9 @@ def _load_users() -> dict:
             "role": u["role"],
             "display_name": u.get("display_name", u["username"].capitalize()),
             "dipendente_id": u.get("dipendente_id"),
+            # Lunghezza del PIN (non il PIN): serve al tastierino di login per sapere
+            # quante cifre mostrare. Assente per utenti vecchi -> si impara al 1o login.
+            "pin_len": u.get("pin_len"),
         }
         for u in data
     }
@@ -74,6 +77,8 @@ def _save_users(users: dict) -> None:
         }
         if v.get("dipendente_id") is not None:
             row["dipendente_id"] = v["dipendente_id"]
+        if v.get("pin_len"):
+            row["pin_len"] = v["pin_len"]
         data.append(row)
     USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(USERS_FILE, "w", encoding="utf-8") as f:
@@ -183,6 +188,12 @@ def authenticate_user(username: str, password: str):
         )
 
     _register_login_success(username)
+
+    # Memorizza la lunghezza del PIN se non la conosciamo ancora (utenti creati
+    # prima del 2026-10-19) o se e' cambiata: il tastierino la usa al prossimo login.
+    if user.get("pin_len") != len(password):
+        user["pin_len"] = len(password)
+        _save_users(USERS)
 
     from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
     access_token = security.create_access_token(
@@ -332,7 +343,7 @@ def add_user(username: str, password: str, role: str) -> dict:
         raise HTTPException(status_code=400, detail=f"Ruolo non valido. Validi: {VALID_ROLES}")
     _validate_pin_policy(password, role)  # A1-04: PIN >= 6 per admin/contabile
     hashed = security.get_password_hash(password)
-    USERS[username] = {"password_hash": hashed, "role": role}
+    USERS[username] = {"password_hash": hashed, "role": role, "pin_len": len(password)}
     _save_users(USERS)
     return {"username": username, "role": role}
 
@@ -355,6 +366,7 @@ def change_password(username: str, new_password: str, current_password: str = No
             raise HTTPException(status_code=400, detail="Password attuale non corretta")
     _validate_pin_policy(new_password, USERS[username]["role"])  # A1-04
     USERS[username]["password_hash"] = security.get_password_hash(new_password)
+    USERS[username]["pin_len"] = len(new_password)
     _save_users(USERS)
 
 
@@ -365,6 +377,7 @@ def list_tiles() -> list:
             "username": k,
             "display_name": v.get("display_name", k.capitalize()),
             "role": v["role"],
+            "pin_len": v.get("pin_len"),
         }
         for k, v in USERS.items()
     ]

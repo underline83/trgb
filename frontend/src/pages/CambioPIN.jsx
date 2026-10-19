@@ -69,6 +69,7 @@ export default function CambioPIN() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Errore ${res.status}`);
       }
+      localStorage.setItem("pin_len", String(newPin.length)); // tastierino blocco sezione
       setMessage({ type: "ok", text: "PIN cambiato con successo!" });
       setCurrentPin(""); setNewPin(""); setConfirmPin("");
     } catch (err) {
