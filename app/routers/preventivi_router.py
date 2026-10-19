@@ -46,6 +46,7 @@ from app.services.preventivi_service import (
     registra_invio,
     bozza_email,
     invia_email_preventivo,
+    testo_breve,
 )
 
 from app.services.permessi import richiede_ruoli
@@ -538,10 +539,15 @@ def api_riordina_menu_righe_per_menu(
 # ---------------------------------------------------------------------------
 
 @router.get("/{preventivo_id}/testo")
-def api_testo_preventivo(preventivo_id: int, user: dict = Depends(get_current_user)):
-    """Messaggio pronto da copiare o mandare su WhatsApp: menu con portate e
-    prezzo a persona (mai i prezzi dei singoli piatti), extra, totale."""
-    testo = testo_cliente(preventivo_id)
+def api_testo_preventivo(
+    preventivo_id: int,
+    tipo: str = Query("breve", description="breve = messaggio asciutto (menù e prezzi, il resto nel PDF); completo = con portate e condizioni"),
+    user: dict = Depends(get_current_user),
+):
+    """Messaggio per WhatsApp (o da copiare). Di default asciutto (2026-10-19):
+    saluto, evento, menù col prezzo a persona, «il resto è nel PDF». Mai i
+    prezzi dei singoli piatti. È modificabile nel pannello d'invio."""
+    testo = testo_cliente(preventivo_id) if tipo == "completo" else testo_breve(preventivo_id)
     if testo is None:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     prev = get_preventivo(preventivo_id) or {}

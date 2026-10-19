@@ -1655,22 +1655,12 @@ def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, us
         conn.close()
 
 
-_NUMERI = ["", "Un", "Due", "Tre", "Quattro", "Cinque", "Sei", "Sette", "Otto", "Nove", "Dieci"]
-
-
-def bozza_email(preventivo_id: int) -> dict | None:
-    """Destinatario, oggetto e testo proposti per l'email (modificabili in UI).
-    Testo corto (Marco, 2026-10-19): saluto, una riga sull'evento, i menù con
-    il prezzo a persona, «il resto è nel PDF». Portate, dolci e condizioni
-    stanno nel PDF allegato. La firma è il nome mittente della casella del
-    locale (M.D), non un testo fisso."""
-    from app.services import email_service
+def messaggio_breve(prev: dict, formato: str = "whatsapp", firma: str = "") -> str:
+    """Messaggio asciutto (Marco, 2026-10-19), per WhatsApp e email: saluto, una
+    riga sull'evento, i menù col prezzo a persona, «il resto è nel PDF», firma.
+    Portate, dolci e condizioni stanno nel PDF allegato."""
     from app.services.preventivi_pdf import GIORNI, MESI, _nome_menu, _prezzo_menu
-    prev = get_preventivo(preventivo_id)
-    if not prev:
-        return None
-    st = email_service.stato()
-    firma = st.get("mittente_nome") or ""
+    wa = formato != "email"
     nome = (prev.get("cliente_nome") or "").strip()
 
     try:
@@ -1695,32 +1685,67 @@ def bozza_email(preventivo_id: int) -> dict | None:
     if scelto and len(menus) > 1:
         menus = [m for m in menus if m["id"] == scelto]
 
-    corpo = [f"Buongiorno {nome}," if nome else "Buongiorno,", "", riga_evento]
+    out = [f"Buongiorno {nome}," if nome else "Buongiorno,", "", riga_evento]
     if menus:
-        corpo.append("")
+        out.append("")
         if len(menus) > 1:
             n = len(menus)
-            corpo += [f"{_NUMERI[n] if n < len(_NUMERI) else n} menù tra cui scegliere:", ""]
+            out += [f"{_NUMERI[n] if n < len(_NUMERI) else n} menù tra cui scegliere:", ""]
         doppio = False
         for i, m in enumerate(menus):
             prezzo, nota = _prezzo_menu(m)
             doppio = doppio or nota.startswith("vino")
             prezzo = prezzo.replace("/", " / ") + " €"
             nm = _nome_menu(m.get("nome")) or (f"Opzione {OPZIONI[i]}" if len(menus) > 1 else "Il menù")
-            corpo.append(f"   {nm} — {prezzo}")
-        corpo.append("   a persona" + (", vino escluso / incluso" if doppio else ""))
-    corpo += ["", "Nel PDF allegato trovate le portate e tutti i dettagli.", "",
-              "Restiamo a disposizione.", "Un saluto,"]
+            out.append(f"• *{nm}* — {prezzo}" if wa else f"   {nm} — {prezzo}")
+        nota = "a persona" + (", vino escluso / incluso" if doppio else "")
+        out.append(f"_{nota}_" if wa else f"   {nota}")
+    out += ["", "Nel PDF allegato trovate le portate e tutti i dettagli.", "",
+            "Restiamo a disposizione.", "Un saluto,"]
     if firma:
-        corpo.append(firma)
+        out.append(firma)
+    return "\n".join(out)
 
+
+def _firma_locale() -> str:
+    """Nome mittente della casella del locale (M.D): firma di email e WhatsApp."""
+    from app.services import email_service
+    return email_service.stato().get("mittente_nome") or ""
+
+
+def testo_breve(preventivo_id: int, formato: str = "whatsapp") -> str | None:
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        return None
+    return messaggio_breve(prev, formato, _firma_locale())
+
+
+_NUMERI = ["", "Un", "Due", "Tre", "Quattro", "Cinque", "Sei", "Sette", "Otto", "Nove", "Dieci"]
+
+
+def bozza_email(preventivo_id: int) -> dict | None:
+    """Destinatario, oggetto e testo proposti per l'email (modificabili in UI):
+    il messaggio asciutto (messaggio_breve). La firma è il nome mittente della
+    casella del locale (M.D), non un testo fisso."""
+    from app.services import email_service
+    from app.services.preventivi_pdf import GIORNI, MESI
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        return None
+    st = email_service.stato()
+    firma = st.get("mittente_nome") or ""
+    try:
+        d = datetime.strptime(prev.get("data_evento") or "", "%Y-%m-%d")
+        quando = f"{GIORNI[d.weekday()]} {d.day} {MESI[d.month - 1]}"
+    except ValueError:
+        quando = ""
     oggetto = "Proposta menù" + (f" — {quando}" if quando else "")
     if firma:
         oggetto += f" · {firma}"
     return {
         "to": prev.get("cliente_email") or "",
         "oggetto": oggetto,
-        "corpo": "\n".join(corpo),
+        "corpo": messaggio_breve(prev, "email", firma),
         "email_configurata": st.get("configurato", False),
         "email_mancanti": st.get("mancanti") or [],
     }

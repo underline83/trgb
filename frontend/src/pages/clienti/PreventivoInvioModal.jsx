@@ -1,4 +1,5 @@
-// @version: v1.0 — invio preventivo al cliente: WhatsApp (testo completo + PDF), email col PDF, storico invii (mig 200)
+// @version: v1.1 — messaggio WhatsApp asciutto e modificabile (2026-10-19)
+// v1.0 — invio preventivo al cliente: WhatsApp (testo + PDF), email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
 //
 // WhatsApp da link (wa.me) non può allegare file. Quindi:
@@ -31,6 +32,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
   // Materiale pronto PRIMA del tocco: Safari vuole navigator.share dentro il gesto,
   // senza attese di rete in mezzo.
   const [testo, setTesto] = useState("");
+  const [testoProposto, setTestoProposto] = useState("");
   const [telefono, setTelefono] = useState("");
   const [pdfFile, setPdfFile] = useState(null);
   const [puoCondividere, setPuoCondividere] = useState(false);
@@ -64,6 +66,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
         const nomeFile = `preventivo_${(numero || prevId).toString().toLowerCase().replace(/-/g, "_")}.pdf`;
         const file = new File([blob], nomeFile, { type: "application/pdf" });
         setTesto(t.testo || "");
+        setTestoProposto(t.testo || "");
         setTelefono(t.telefono || "");
         setPdfFile(file);
         setPuoCondividere(!!(navigator.canShare && navigator.canShare({ files: [file] })));
@@ -215,10 +218,17 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
                   : "Da qui WhatsApp non può ricevere allegati: apri la chat col testo, poi trascina il PDF scaricato nella chat."}
               </p>
 
-              <details className="border border-neutral-200 rounded-lg">
-                <summary className="px-3 py-2 text-xs text-neutral-600 cursor-pointer">Anteprima del testo</summary>
-                <pre className="px-3 pb-3 text-xs whitespace-pre-wrap font-sans text-neutral-700">{testo}</pre>
-              </details>
+              <label className="block">
+                <span className="flex items-center justify-between text-xs text-neutral-500">
+                  <span>Messaggio (modificabile; *grassetto* e _corsivo_ come in WhatsApp)</span>
+                  {testo !== testoProposto && (
+                    <button type="button" onClick={() => setTesto(testoProposto)}
+                      className="text-indigo-600 hover:underline px-1 min-h-[32px]">↺ Testo proposto</button>
+                  )}
+                </span>
+                <textarea rows={12} value={testo} onChange={(e) => setTesto(e.target.value)}
+                  className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm font-sans" />
+              </label>
             </div>
           )}
 
