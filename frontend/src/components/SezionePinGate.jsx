@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 import PinPad from "./PinPad";
+import { menuTitle } from "../config/modulesMenu";
 
 // Sezioni protette. `minutiKey` = dove sta il timeout di inattività.
 const SEZIONI_PROTETTE = [
@@ -127,7 +128,7 @@ export default function SezionePinGate({ children }) {
         <div className="text-center">
           <div className="text-4xl mb-1">🔒</div>
           <h2 className="text-xl font-bold text-brand-ink" style={{ fontFamily: "'Playfair Display', serif" }}>
-            {sezione.label}
+            {menuTitle(sezione.id, role) || sezione.label}
           </h2>
           <p className="text-sm text-neutral-500 mt-1">
             Sezione protetta: digita il PIN{nome ? <> di <strong>{nome}</strong></> : ""}

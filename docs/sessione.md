@@ -6,7 +6,9 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
-**DA PUSHARE — Checklist collegate alle ricette** (mig 201, Task Manager 1.7, sistema 5.66) `[core]` — `tasks_router.py`, `tasks_db.py`, `tasks_schema.py`, nuovo `services/ricette_lookup.py`, `TemplateEditor.jsx`, `InstanceDetail.jsx`, `CucinaMobile.jsx`. Dopo il push: Claude collega le voci delle 6 Linee (antipasti/primi/secondi) alle ricette (base create oggi da UI: id 193-217, bozze da completare). Contorni (polenta/purè/patate fatti, spadellata e insalata da fare) e Dolci ancora da fare; vecchi «MEP Carta · Contorni/Dolci» ancora attivi.
+**DA PUSHARE — Vini: tolta la pagina «Sommelier»** (vini 4.1, nessuna migrazione) `[core]` — `ViniNav.jsx`, `modulesMenu.js`, `CartaVini.jsx`, `App.jsx` (redirect `/vini/carta-staff` → Carta), `versions.jsx`. Dopo il push: la tab Sommelier non c'è più, il vecchio link apre la Carta.
+
+**DA PUSHARE — Linea cucina L1** (mig 202, cucinaScorte 1.9, sistema 5.67) `[core]` — `cucina_scorte_db.py`, `cucina_scorte_router.py` (endpoint `/cucina/scorte/linea/…`), `ricette_lookup.py` (+`righe_ricetta`), nuovo `pages/ricette/LineaTab.jsx` + tab «Linea» in `RicetteDettaglio.jsx`. Spec `docs/spec_linea_cucina.md`. Dopo il push: ricetta base (es. Crema Hokkaido) › Linea › Crea articolo, minimi, + Linea. Travaso dei parametri delle 8 Linee rinviato da Marco. I piatti d'autunno non hanno righe di ricetta: la scheda Linea dei piatti resta vuota finché non si compila la Composizione (oggi vuole qty > 0 — da decidere insieme alle grammature). (La «Checklist collegate alle ricette», mig 201, è in produzione dal 19/10: 5.66.)
 
 **DA PUSHARE — Preventivi: PDF nello stile del menù gruppi** (clienti 3.10, nessuna migrazione) `[mixed]`
 - Dopo il push: PRE-2026-006 (Locatelli) › Scarica PDF → A5 con copertina, 5 pagine menù, Dolci (i 6 della carta Autunno 2026), Menù bambini, Note, retro (niente riepilogo né totale; anche il messaggio WA senza totale). Controllare i font (Bodoni/Courier, non Times). Ricontrollare anche il PDF del pranzo: ora trova Courier Prime vero.
@@ -15,6 +17,9 @@
 
 **DA PUSHARE — Login: tastierino con la lunghezza vera del PIN + fix verifica PIN attuale** (auth, nessuna migrazione) `[core]`
 - Dopo il push: il dipendente col PIN a 6 cifre digita le 6 cifre e preme il tasto verde (la prima volta niente invio automatico); dal login dopo vede 6 pallini. Provare Cambio PIN da non-admin con PIN attuale sbagliato → deve dare errore.
+
+**DA PUSHARE — Dipendenti → «Area personale» per i ruoli non admin/contabile** (dipendenti 2.40, nessuna migrazione) `[core]` — `modulesMenu.js` (`titleStaff` + `menuTitle()`/`menuFor()`), `Header.jsx`, `Home.jsx`, `DipendentiNav.jsx`, `SezionePinGate.jsx`, `versions.jsx`. Route invariate (`/dipendenti`).
+- Dopo il push: da sala/cucina la card in Home, il menu in alto, la nav e il PIN dicono «Area personale»; da admin/contabile resta «Dipendenti».
 
 **DA PUSHARE — Dipendenti: «Le mie buste paga» nella nav** (dipendenti 2.39, nessuna migrazione) `[core]`
 - Dopo il push: entrare con un dipendente → Dipendenti → PIN → tab «📄 Le mie buste paga» e «🗓️ I miei turni» accanto a «Turni».

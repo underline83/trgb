@@ -4,7 +4,7 @@
 // v6.0 — dropdown M1: lista accordion sempre aperta + ricerca live
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import MODULES_MENU from "../config/modulesMenu";
+import MODULES_MENU, { menuTitle } from "../config/modulesMenu";
 import useModuleAccess from "../hooks/useModuleAccess";
 import Tooltip from "./Tooltip";
 import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../utils/authHelpers";
@@ -132,7 +132,7 @@ export default function Header({ onLogout }) {
   const filteredGroups = visibleKeys
     .map(key => {
       const cfg = MODULES_MENU[key];
-      const titleMatch = !q || norm(cfg.title).includes(q);
+      const titleMatch = !q || norm(menuTitle(key, role)).includes(q);
       // Filtra sub per permessi (canAccessSub)
       const accessibleSubs = (cfg.sub || []).filter(s => {
         // `roles` sulla voce (2026-10-03): restringe una voce di menu a
@@ -203,7 +203,7 @@ export default function Header({ onLogout }) {
               <span className="text-base mr-0.5">{currentModule[1].icon}</span>
             )}
             <span className="text-sm font-semibold text-brand-ink tracking-wide group-hover:text-brand-ink/80 transition truncate">
-              {currentModule ? currentModule[1].title : "Menu"}
+              {currentModule ? menuTitle(currentModule[0], role) : "Menu"}
             </span>
             <svg
               className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
@@ -278,7 +278,7 @@ export default function Header({ onLogout }) {
                         style={{ width: "calc(100% - 16px)" }}
                       >
                         <span className="text-base">{cfg.icon}</span>
-                        <span className="flex-1">{cfg.title}</span>
+                        <span className="flex-1">{menuTitle(key, role)}</span>
                         {isActive && (
                           <span className="text-[10px] uppercase tracking-wider font-bold opacity-60">attivo</span>
                         )}

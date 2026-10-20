@@ -46,9 +46,6 @@ export default function CartaVini() {
         <Btn variant="primary" size="md" type="button" onClick={() => navigate("/vini/v2/cantina")}>
           🍷 Vai alla Cantina
         </Btn>
-        <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/carta-staff")}>
-          🥂 Vista sommelier
-        </Btn>
         <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/settings")}>
           ⚙️ Ordinamento
         </Btn>

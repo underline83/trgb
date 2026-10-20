@@ -14,6 +14,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
+import LineaTab from "./LineaTab";
 import { Btn, StatusBadge } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
@@ -22,6 +23,7 @@ const TABS = [
   { key: "composizione", label: "Composizione" },
   { key: "procedimento", label: "Procedimento" },
   { key: "servizi",      label: "Servizi" },
+  { key: "linea",        label: "Linea" },
   { key: "note",         label: "Note" },
   { key: "storico",      label: "Storico" },
 ];
@@ -359,6 +361,7 @@ ${r.note ? `<h2>Note</h2><p class="note">${esc(r.note)}</p>` : ""}
           )}
           {activeTab === "procedimento" && <ProcedimentoTab r={r} />}
           {activeTab === "servizi" && <ServiziTab r={r} />}
+          {activeTab === "linea" && <LineaTab r={r} />}
           {activeTab === "note" && <NoteTab r={r} />}
           {activeTab === "storico" && (
             <StoricoTab

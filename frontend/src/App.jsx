@@ -27,7 +27,7 @@ const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
 const CartaClienti = lazy(() => import("./pages/public/CartaClienti"));
 const CartaMenuPubblica = lazy(() => import("./pages/public/CartaMenuPubblica"));
 // STAFF: vista sommelier (loggata) — sessione 58 fase 2 iter 5
-const CartaStaff = lazy(() => import("./pages/vini/CartaStaff"));
+// 2026-10-20: CartaStaff (vista sommelier) tolta dal modulo Vini — file archiviato, route → Carta.
 // V.9 fase 1 (2026-08-03): "Cantina da iPhone" — finder mobile + scheda mobile read-only.
 const CantinaMobile = lazy(() => import("./pages/vini/CantinaMobile"));
 // Etichette QR bottiglie per Brother QL-820NWB (2026-10-06)
@@ -279,7 +279,7 @@ export default function App() {
         <Route path="/vini/carta" element={<Navigate to="/vini/carta/vini" replace />} />
         <Route path="/vini/carta/anteprima" element={<ProtectedRoute module="vini" sub="carta"><CartaAnteprima /></ProtectedRoute>} />
         <Route path="/vini/ordini" element={<ProtectedRoute module="vini" sub="magazzino"><OrdiniVini /></ProtectedRoute>} />
-        <Route path="/vini/carta-staff" element={<ProtectedRoute module="vini" sub="carta"><CartaStaff /></ProtectedRoute>} />
+        <Route path="/vini/carta-staff" element={<Navigate to="/vini/carta/vini" replace />} />
         {/* V.9 fase 1: Cantina da iPhone — finder mobile-first + scheda mobile (read-only) */}
         <Route path="/vini/cantina-mobile" element={<ProtectedRoute module="vini" sub="magazzino"><CantinaMobile /></ProtectedRoute>} />
         <Route path="/vini/cantina-mobile/:id" element={<ProtectedRoute module="vini" sub="magazzino"><CantinaMobile /></ProtectedRoute>} />

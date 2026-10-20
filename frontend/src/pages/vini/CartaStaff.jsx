@@ -1,4 +1,6 @@
 // frontend/src/pages/vini/CartaStaff.jsx
+// ARCHIVIATA 2026-10-20: pagina tolta dal modulo Vini (non usata). Nessuna route
+// la importa più; /vini/carta-staff redirige alla Carta. Da eliminare in R7.
 // Modulo: vini
 // @version: v2.0 — "banco di servizio" (2026-07-20)
 //

@@ -1,7 +1,7 @@
 // @version: v3.0 — S2 cutover (2026-05-18): Cantina 2 promossa a "Cantina".
 // La Cantina classica viene spenta (i file restano in _legacy.jsx come archivio).
 // Tab navigation persistente per la sezione vini.
-// Ordine: Dashboard, Cantina, Anagrafiche, Carta, Sommelier, Vendite, Impostazioni
+// Ordine: Dashboard, Cantina, Cantina mobile, Ordini, Anagrafiche, Carta, Vendite, Impostazioni
 // Impostazioni visibile solo per admin e sommelier
 import React from "react";
 import { ModuleNav } from "../../components/ui";
@@ -23,7 +23,7 @@ const TABS = [
   // sotto-pagina "🧪 Anagrafiche (beta)" che viveva sotto Impostazioni.
   { key: "anagrafiche", label: "Anagrafiche", path: "/vini/anagrafiche", icon: "📚", roles: ["admin", "sommelier"] },
   { key: "carta", label: "Carta", path: "/vini/carta", icon: "📜" },
-  { key: "carta-staff", label: "Sommelier", path: "/vini/carta-staff", icon: "🥂" },
+  // 2026-10-20: tab "Sommelier" (/vini/carta-staff) tolta — non usata (Marco).
   { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
   { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️", roles: ["admin", "sommelier"] },
 ];

@@ -60,7 +60,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_statistiche.md](modulo_statistiche.md) — Statistiche: import iPratico, KPI, top prodotti.
 - 📄 [modulo_selezioni.md](modulo_selezioni.md) — stub storico (rinominato in Vendite, NOMEN-1 2026-05-19).
 
-**Spec puntuali:** 📄 [spec_home_per_ruolo.md](spec_home_per_ruolo.md) (home differenziata per ruolo) · 📄 [spec_riconciliazione.md](spec_riconciliazione.md) (riconciliazione bancaria) · 📄 [spec_utenze.md](spec_utenze.md) (utenze multi-layout) · 📄 [refactor_anagrafiche_vini.md](refactor_anagrafiche_vini.md) (refactor anagrafiche vini). · 📄 [pec_archivio_spec.md](pec_archivio_spec.md) (archivio PEC automatico via IMAP — proposta, da sviluppare)
+**Spec puntuali:** 📄 [spec_home_per_ruolo.md](spec_home_per_ruolo.md) (home differenziata per ruolo) · 📄 [spec_riconciliazione.md](spec_riconciliazione.md) (riconciliazione bancaria) · 📄 [spec_utenze.md](spec_utenze.md) (utenze multi-layout) · 📄 [spec_linea_cucina.md](spec_linea_cucina.md) (linea cucina: dal menu alla checklist agli ordini — proposta) · 📄 [refactor_anagrafiche_vini.md](refactor_anagrafiche_vini.md) (refactor anagrafiche vini). · 📄 [pec_archivio_spec.md](pec_archivio_spec.md) (archivio PEC automatico via IMAP — proposta, da sviluppare)
 
 ## 🚢 Deploy & infrastruttura
 

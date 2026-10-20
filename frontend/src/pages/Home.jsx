@@ -7,7 +7,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
-import MODULES_MENU from "../config/modulesMenu";
+import MODULES_MENU, { menuFor } from "../config/modulesMenu";
 import DashboardSala from "./DashboardSala";
 import HomeCucina from "./HomeCucina";
 import TrgbLoader from "../components/TrgbLoader";
@@ -395,7 +395,7 @@ export default function Home() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
                     {/* ── Hero: Prenotazioni (span 2 col) ── */}
                     {heroModule && (() => {
-                      const menu = MODULES_MENU[heroModule.key];
+                      const menu = menuFor(heroModule.key, role);
                       if (!menu) return null;
                       const fb = MODULE_FALLBACK[heroModule.key] || {};
                       const summary = widgets?.moduli?.find((s) => s.key === heroModule.key);
@@ -427,7 +427,7 @@ export default function Home() {
 
                     {/* ── Card moduli ── */}
                     {restModules.map((m) => {
-                      const menu = MODULES_MENU[m.key];
+                      const menu = menuFor(m.key, role);
                       if (!menu) return null;
                       const fb = MODULE_FALLBACK[m.key] || {};
                       const summary = widgets?.moduli?.find((s) => s.key === m.key);

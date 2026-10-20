@@ -1,0 +1,139 @@
+# Spec — Linea cucina: dal menu alla checklist, dalla checklist agli ordini — TRGB Gestionale
+
+> **Tipo:** 📄 pagina wiki · **Stato:** L1 punti 1-2 sviluppati il 2026-10-20 (mig 202, da pushare); travaso dei parametri rinviato (Marco: «ci sono altre considerazioni da fare») · **Ultima verifica:** 2026-10-20
+> **Vedi anche:** [modulo_cucina.md](modulo_cucina.md) · [modulo_scorte_cucina.md](modulo_scorte_cucina.md) · [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) · [modulo_menu_carta.md](modulo_menu_carta.md) · [modulo_pranzo.md](modulo_pranzo.md) · [modulo_acquisti.md](modulo_acquisti.md)
+
+**Creato:** 2026-10-20
+**Classificazione:** `[core]` — vale per qualunque ristorante con menu, ricette e frigoriferi mappati
+**Modulo:** `cucina` (decisione Marco 2026-10-20). Legge menu, ricette e acquisti tramite servizi platform di sola lettura; non li modifica.
+
+---
+
+## 1. Perché
+
+Oggi le checklist di linea (8 template «Linea Antipasti/Primi/Secondi/Contorni · Pranzo/Sera», ottobre 2026) sono scritte a mano: se cambia un piatto, qualcuno deve ricordarsi di cambiare la checklist; se una scorta è sotto il minimo, la checklist lo registra ma non succede niente.
+
+Il sistema va **capovolto** (Marco, 2026-10-20):
+
+> Si parte dal menu in corso (carta e pranzo). Ogni piatto ha una ricetta; la ricetta è composta da **preparazioni** (altre ricette) e **componenti** (ingredienti, legati ai fornitori). Tutte le parti della ricetta costruiscono la checklist, ognuna con controllo su linea, scorta, scorta gelo e quantità di riordino. Dalla checklist partono gli avvisi per gli ordini e i task da fare.
+
+## 2. La catena
+
+```
+Menu in corso (carta in_carta + pranzo del giorno)
+  └─ Piatto = ricetta (kind=dish)
+       └─ Elementi = righe della ricetta, esplose ricorsivamente
+            ├─ Preparazione (sub_recipe_id)  → si PRODUCE  → task con la ricetta
+            └─ Componente   (ingredient_id)  → si ORDINA   → lista spesa col fornitore
+                 └─ Articolo in Frigoriferi e scorte (cucina_articoli)
+                      └─ giacenze per ripiano (frigo / congelatore), lotti, scadenze
+```
+
+Un **elemento** è unico anche se lo usano più piatti (il fondo bruno è uno). La checklist lo mostra **una volta per partita e servizio**.
+
+## 3. Cosa esiste già (si riusa, non si riscrive)
+
+| Pezzo | Dove | Note |
+|---|---|---|
+| Carta in corso | `menu_editions` (stato in_carta) + `menu_dish_publications.recipe_id` | |
+| Pranzo del giorno | `pranzo_menu` + `pranzo_menu_righe.recipe_id` | |
+| Albero ricetta | `recipes` + `recipe_items` (`ingredient_id` **o** `sub_recipe_id`) | 25 basi Autunno 2026 create il 2026-10-19 come bozze (id 193-219) |
+| Componente → fornitore | `ingredients` + `ingredient_supplier_map` (default, conversioni) + `ingredient_prices` | |
+| Frigo, gelo, giacenze | `cucina_ubicazioni` (FRIGO / FREEZER / DISPENSA), `cucina_ripiani`, `cucina_articoli`, `cucina_giacenze`, `cucina_lotti`, `cucina_movimenti` | regime SEMAFORO / CONTA / MOVIMENTI per articolo |
+| Lavori e avvisi | `task_singolo`, `lista_spesa_items`, M.A notifiche, M.F alert engine | |
+| Checklist | `checklist_template/item/instance/execution`, voci padre (mig 182), voce→ricetta (mig 201) | |
+
+## 4. Cosa manca (modello dati)
+
+### 4.1 Su `cucina_articoli` (esiste) — 4 colonne nuove, ADD COLUMN idempotenti
+| Campo | Tipo | Perché |
+|---|---|---|
+| `recipe_id` | INTEGER NULL | la preparazione che questo articolo **è** (es. articolo «Crema Hokkaido» = ricetta 193). Oggi c'è solo `ingredient_id` |
+| `scorta_min_frigo` | REAL NULL | minimo sui ripiani di ubicazioni FRIGO |
+| `scorta_min_gelo` | REAL NULL | minimo sui ripiani di ubicazioni FREEZER (NULL = non si tiene a gelo) |
+| `qta_riordino` | REAL NULL | quanto produrre / ordinare quando si scende sotto il minimo |
+
+`scorta_minima` esistente resta per compatibilità (= minimo totale). Le soglie stanno nel DB, mai nel codice. In una fase successiva il minimo potrà essere espresso in **giorni di copertura** dal consumo (venduto cassa × grammature ricetta) — campo `giorni_copertura` già esistente.
+
+### 4.2 Nuova `cucina_linea_elementi` — la linea, per articolo **e** partita
+| Campo | Tipo | Note |
+|---|---|---|
+| `id` | PK | |
+| `articolo_id` | FK cucina_articoli | |
+| `partita` | TEXT | antipasti / primi / secondi / contorni / dolci / generale |
+| `linea_qta` | TEXT | come si dice in cucina: «GN 1/9 + 1 pentolino», «6 monoporzioni», «1 biberon» |
+| `linea_note` | TEXT NULL | «arrivati a metà, scongelarne un altro» |
+| `ordine`, `attivo` | | |
+
+Serve per partita perché lo stesso articolo può stare in due linee con dotazioni diverse (fondo bruno: GN 1/9 in antipasti, GN 1/9 + pentolino nei secondi).
+
+**Elementi che non sono articoli** (pentole in bollore, padelle pronte, salvia sul pass, pescato del giorno): restano voci libere per partita in `cucina_linea_voci_extra` (testo + partita), sempre presenti.
+
+## 5. La checklist generata
+
+Ogni giorno, per ogni partita e servizio (Pranzo entro 12:30, Sera entro 23:59 — orari in config, non hardcoded):
+
+1. legge i piatti in corso (carta + pranzo del giorno);
+2. esplode le ricette fino agli elementi;
+3. per ogni elemento con `cucina_linea_elementi` della partita crea la voce, **sotto il piatto come voce padre**; gli elementi usati da più piatti finiscono una volta sola, nel primo piatto o in «Generale»;
+4. aggiunge le voci extra della partita.
+
+Le 8 Linee scritte a mano si **disattivano** quando la generata è pronta; i parametri che Marco ha dettato (linea, scorte, gelo) si travasano negli articoli e in `cucina_linea_elementi` — non si riscrivono.
+
+### 5.1 Tre controlli per elemento
+
+| Livello | Come si controlla | Regole |
+|---|---|---|
+| **Linea** | **semaforo**: 🟢 ok · 🟡 quasi finito · 🔴 finito (decisione Marco 2026-10-20, «proviamo») | manuale |
+| **Scorta frigo** | il gestionale **legge e propone** la giacenza dai ripiani FRIGO; il cuoco **conferma** o **corregge** | mai compilata da sola: senza conferma la voce resta aperta |
+| **Scorta gelo** | come frigo, sui ripiani FREEZER (solo se `scorta_min_gelo` è valorizzato) | idem |
+
+- **Correzione = movimento in Scorte** (RETTIFICA, con utente e ora, annullabile): checklist e frigoriferi dicono sempre lo stesso numero. Se l'articolo sta su più ripiani, la voce mostra un numero per ripiano e si corregge quello giusto.
+- Articoli a regime **SEMAFORO** (senza quantità): si propone e si conferma lo stato OK / ESAURIMENTO / FINITO invece del numero.
+- **Dato vecchio** (oltre `giorni_dato_fresco`): niente proposta, la voce chiede di contare.
+- **Lotti**: se ci sono buste in scadenza la voce lo dice («2 buste scadono domani: usare prima quelle»).
+- **Spunta condivisa** (mig 201) resta: stesso elemento, stesso giorno e servizio, una sola conferma (decisione Marco 2026-10-20). Olio al rosmarino, fondo bruno e funghi trifolati sono condivisi tra partite.
+
+## 6. Dagli esiti al lavoro
+
+Solo su esiti **confermati**:
+
+| Esito | Preparazione | Componente |
+|---|---|---|
+| Linea 🟡 | task «rifornire linea da scorta» (normale) | idem |
+| Linea 🔴 | task urgente «rifornire subito» | idem |
+| Scorta frigo < min | task «produrre X» con link ricetta e `qta_riordino` | riga lista spesa con fornitore di default e `qta_riordino` |
+| Scorta gelo < min | task «produrre e abbattere X» | riga lista spesa |
+
+- I task vanno alla partita (reparto cucina, livello), con scadenza; si chiudono da soli quando la giacenza torna sopra il minimo.
+- **Gli ordini non partono da soli**: la lista spesa si raggruppa per fornitore e la confermano Marco, lo chef o il sous chef (ruoli admin/chef/sous_chef via M.G).
+- Niente doppioni: se c'è già un task/riga aperta per lo stesso articolo, si aggiorna quella.
+- Notifica (M.A) a chef/sous chef per gli urgenti.
+
+## 7. Fasi
+
+| Fase | Contenuto | Migrazioni |
+|---|---|---|
+| **L1** | ✅ colonne su `cucina_articoli`, `cucina_linea_elementi`, voci extra, endpoint `/cucina/scorte/linea/…`, scheda «Linea» nella ricetta (mig 202, 2026-10-20) · ⏸ scheda Linea nell'articolo (Cucina iPhone) · ⏸ **travaso** dei parametri delle 8 Linee attuali — rinviato, prima altre considerazioni con Marco | sì |
+| **L2** | generatore checklist dal menu in corso (carta + pranzo); semaforo linea; proposta/conferma/correzione scorte con scrittura in Scorte | forse (stato semaforo su execution) |
+| **L3** | esiti → task, lista spesa per fornitore, notifiche; chiusura automatica dei task | no |
+| **L4** | minimi in giorni di copertura dal consumo (vendite × grammature) | sì |
+
+Prerequisito di dati (lavoro una tantum, si fa da UI o lo fa Claude via API): ogni elemento dei piatti in corso deve avere il suo articolo in Scorte con ripiano di casa; le ricette dei piatti devono avere le righe (preparazioni e componenti). **Le grammature per porzione non servono per L1-L3**: si completano in seconda fase (food cost e L4).
+
+## 8. Decisioni
+
+| Data | Decisione |
+|---|---|
+| 2026-10-20 | Il sistema parte dal menu e dalle ricette; la checklist è una conseguenza |
+| 2026-10-20 | Tutto nel modulo **cucina** |
+| 2026-10-20 | Linea a **semaforo** (da provare) |
+| 2026-10-20 | Scorta frigo/gelo **proposta e confermata**, mai compilata da sola; la correzione aggiorna anche frigorifero/congelatore |
+| 2026-10-20 | Spunta condivisa tra voci dello stesso elemento: resta |
+| 2026-10-20 | Grammature per porzione: seconda fase (non bloccano checklist ed esiti) |
+| 2026-10-20 | La lista spesa la confermano Marco, lo chef o il sous chef |
+| 2026-10-20 | I dolci entrano nello stesso giro (partita «dolci») |
+
+## 9. Domande aperte
+
+Nessuna al 2026-10-20. Prossimo passo: fase L1.

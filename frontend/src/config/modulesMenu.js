@@ -8,6 +8,8 @@
 // voce top-level nel dropdown Header. Vive come sotto-voce di "Gestione Cucina" (ricette).
 // Il widget SelezioniCard sulla Home pagina 1 resta (widget di servizio).
 
+import { isAdminRole } from "../utils/authHelpers";
+
 const MODULES_MENU = {
   vini: {
     title: "Gestione Vini", icon: "\uD83C\uDF77", go: "/vini",
@@ -17,7 +19,7 @@ const MODULES_MENU = {
       // Audit 2026-07-18: "Sommelier" (carta staff) e "Anagrafiche" erano in
       // ViniNav ma assenti dal dropdown. Anagrafiche filtrata via modules.json
       // (sub-key "anagrafiche", solo admin — la route è protetta da sub=settings).
-      { label: "Sommelier",      go: "/vini/carta-staff" },
+      // 2026-10-20: "Sommelier" (/vini/carta-staff) tolta — pagina non usata.
       { label: "Vendite",        go: "/vini/vendite" },
       // Audit 2026-07-12 (M11): puntava a /vini/magazzino (deprecata,
       // funzionava solo via doppio redirect S2). Ora diretta alla Cantina v2.
@@ -155,7 +157,10 @@ const MODULES_MENU = {
     ],
   },
   dipendenti: {
-    title: "Dipendenti", icon: "\uD83D\uDC65", go: "/dipendenti",
+    // 2026-10-20: «Dipendenti» solo per chi gestisce il personale (admin,
+    // contabile, superadmin). Per gli altri ruoli la sezione contiene solo
+    // le cose proprie (turni, buste paga) → «Area personale». Vedi menuTitle().
+    title: "Dipendenti", titleStaff: "Area personale", icon: "\uD83D\uDC65", go: "/dipendenti",
     color: "bg-purple-50 border-purple-200 text-purple-900", hoverBg: "hover:bg-purple-50",
     sub: [
       // `sub` esplicito: il path dice "dashboard", che non è un sotto-modulo di
@@ -186,5 +191,21 @@ const MODULES_MENU = {
     ],
   },
 };
+
+/**
+ * Titolo del modulo visto dal ruolo. Un modulo può dichiarare `titleStaff`:
+ * lo vedono i ruoli che NON sono admin/contabile/superadmin (isAdminRole).
+ */
+export function menuTitle(key, role) {
+  const cfg = MODULES_MENU[key];
+  if (!cfg) return "";
+  return cfg.titleStaff && !isAdminRole(role) ? cfg.titleStaff : cfg.title;
+}
+
+/** La config del modulo con `title` già risolto per il ruolo. */
+export function menuFor(key, role) {
+  const cfg = MODULES_MENU[key];
+  return cfg ? { ...cfg, title: menuTitle(key, role) } : undefined;
+}
 
 export default MODULES_MENU;

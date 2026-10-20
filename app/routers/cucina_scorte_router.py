@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 from app.models.cucina_scorte_db import (
     FAMIGLIE_FRESCHEZZA,
     NATURE_ARTICOLO,
+    PARTITE,
     REGIMI,
     REPARTI,
     STATI_LOTTO,
@@ -71,6 +72,7 @@ from app.services.cucina_scorte_service import (
     ultimo_movimento,
 )
 from app.services.permessi import richiede_ruoli, verifica_ruoli
+from app.services.ricette_lookup import nomi_ricette, righe_ricetta
 
 # PERMESSI (M.G) — chi puo' toccare le scorte.
 # Router: la brigata al completo. Il semaforo, i movimenti e le righe di conta
@@ -88,6 +90,8 @@ router = APIRouter(
 )
 
 GESTIONE = ("admin", "chef")
+# Linea (mig 202): la dotazione di linea la decidono cucina e sous chef.
+LINEA_SCRITTURA = ("admin", "chef", "sous_chef")
 
 
 # ─── Schemi ────────────────────────────────────────────────
@@ -110,6 +114,11 @@ class ArticoloIn(BaseModel):
     fornitore_freeform: Optional[str] = Field(default=None, max_length=120)
     shelf_life_aperto_gg: Optional[int] = None
     note: Optional[str] = Field(default=None, max_length=500)
+    # Linea cucina (mig 202, spec_linea_cucina.md §4.1)
+    recipe_id: Optional[int] = None
+    scorta_min_frigo: Optional[float] = None
+    scorta_min_gelo: Optional[float] = None
+    qta_riordino: Optional[float] = None
 
 
 class ArticoloUpdate(BaseModel):
@@ -131,6 +140,41 @@ class ArticoloUpdate(BaseModel):
     shelf_life_aperto_gg: Optional[int] = None
     attivo: Optional[bool] = None
     note: Optional[str] = Field(default=None, max_length=500)
+    recipe_id: Optional[int] = None
+    scorta_min_frigo: Optional[float] = None
+    scorta_min_gelo: Optional[float] = None
+    qta_riordino: Optional[float] = None
+
+
+class LineaElementoIn(BaseModel):
+    articolo_id: int
+    partita: str
+    linea_qta: Optional[str] = Field(default=None, max_length=120)
+    linea_note: Optional[str] = Field(default=None, max_length=300)
+    ordine: int = 0
+
+
+class LineaElementoUpdate(BaseModel):
+    partita: Optional[str] = None
+    linea_qta: Optional[str] = Field(default=None, max_length=120)
+    linea_note: Optional[str] = Field(default=None, max_length=300)
+    ordine: Optional[int] = None
+    attivo: Optional[bool] = None
+
+
+class VoceExtraIn(BaseModel):
+    partita: str
+    titolo: str = Field(..., min_length=1, max_length=160)
+    note: Optional[str] = Field(default=None, max_length=300)
+    ordine: int = 0
+
+
+class VoceExtraUpdate(BaseModel):
+    partita: Optional[str] = None
+    titolo: Optional[str] = Field(default=None, min_length=1, max_length=160)
+    note: Optional[str] = Field(default=None, max_length=300)
+    ordine: Optional[int] = None
+    attivo: Optional[bool] = None
 
 
 class SemaforoIn(BaseModel):
@@ -253,6 +297,8 @@ def list_articoli(
     ripiano_id: Optional[int] = None,
     solo_mancanti: bool = False,
     q: Optional[str] = Query(default=None, description="Ricerca sul nome"),
+    recipe_id: Optional[int] = None,
+    ingredient_id: Optional[int] = None,
     solo_attivi: bool = True,
     limit: int = Query(default=500, ge=1, le=5000),
 ):
@@ -293,6 +339,12 @@ def list_articoli(
         if q:
             sql += " AND a.nome LIKE ?"
             args.append(f"%{q.strip()}%")
+        if recipe_id:
+            sql += " AND a.recipe_id = ?"
+            args.append(recipe_id)
+        if ingredient_id:
+            sql += " AND a.ingredient_id = ?"
+            args.append(ingredient_id)
         if ripiano_id:
             sql += " AND EXISTS (SELECT 1 FROM cucina_giacenze g WHERE g.articolo_id = a.id AND g.ripiano_id = ?)"
             args.append(ripiano_id)
@@ -1135,5 +1187,213 @@ def put_config(payload: ConfigIn, current_user=Depends(get_current_user)):
         )
         conn.commit()
         return {"ok": True, "config": leggi_config(conn)}
+    finally:
+        conn.close()
+
+
+# ─── Linea (spec_linea_cucina.md, fase L1 — mig 202) ───────
+
+def _partita(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    t = str(v).strip().lower()
+    if t not in PARTITE:
+        raise HTTPException(status_code=422,
+                            detail=f"partita non valida: {v!r}. Valori: {sorted(PARTITE)}")
+    return t
+
+
+def _articoli_linea(conn, where: str, args: list) -> List[Dict[str, Any]]:
+    """Articoli con parametri di linea, giacenze frigo/gelo e righe di linea."""
+    rows = conn.execute(f"""
+        SELECT a.id, a.nome, a.um, a.regime, a.natura, a.recipe_id, a.ingredient_id,
+               a.scorta_minima, a.scorta_min_frigo, a.scorta_min_gelo, a.qta_riordino,
+               a.ripiano_casa_id,
+               (SELECT SUM(g.qta) FROM cucina_giacenze g JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
+                 WHERE g.articolo_id = a.id AND u.tipo IN ('FRIGO','CELLA'))  AS giacenza_frigo,
+               (SELECT SUM(g.qta) FROM cucina_giacenze g JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
+                 WHERE g.articolo_id = a.id AND u.tipo = 'FREEZER')           AS giacenza_gelo
+          FROM cucina_articoli a
+         WHERE a.attivo = 1 AND {where}
+         ORDER BY a.nome
+    """, args).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["linea"] = [dict(x) for x in conn.execute(
+            """SELECT id, partita, linea_qta, linea_note, ordine, attivo
+                 FROM cucina_linea_elementi
+                WHERE articolo_id = ? AND attivo = 1
+                ORDER BY partita, ordine, id""", (d["id"],)).fetchall()]
+        out.append(d)
+    return out
+
+
+@router.get("/linea/partite")
+def linea_partite():
+    return {"partite": sorted(PARTITE)}
+
+
+@router.get("/linea/ricetta/{recipe_id}")
+def linea_per_ricetta(recipe_id: int):
+    """La scheda «Linea» di una ricetta: l'articolo che la ricetta E' (se e'
+    una preparazione tenuta in frigo/gelo) e, per ogni riga della ricetta
+    (preparazioni e componenti), il suo articolo in Scorte se c'e'.
+    Le righe della ricetta arrivano dal servizio platform ricette_lookup."""
+    conn = get_foodcost_connection()
+    try:
+        se_stessa = _articoli_linea(conn, "a.recipe_id = ?", [recipe_id])
+        elementi = []
+        for riga in righe_ricetta(recipe_id):
+            if riga["tipo"] == "preparazione":
+                art = _articoli_linea(conn, "a.recipe_id = ?", [riga["recipe_id"]])
+            else:
+                art = _articoli_linea(conn, "a.ingredient_id = ?", [riga["ingredient_id"]])
+            elementi.append({**riga, "articoli": art})
+        nome = nomi_ricette([recipe_id]).get(recipe_id)
+        return {"recipe_id": recipe_id, "nome": nome,
+                "articoli": se_stessa, "elementi": elementi}
+    finally:
+        conn.close()
+
+
+@router.get("/linea/")
+def linea_list(partita: Optional[str] = None, articolo_id: Optional[int] = None):
+    conn = get_foodcost_connection()
+    try:
+        sql = """SELECT e.*, a.nome AS articolo, a.recipe_id, a.ingredient_id
+                   FROM cucina_linea_elementi e
+                   JOIN cucina_articoli a ON a.id = e.articolo_id
+                  WHERE e.attivo = 1"""
+        args: List[Any] = []
+        if partita:
+            sql += " AND e.partita = ?"
+            args.append(_partita(partita))
+        if articolo_id:
+            sql += " AND e.articolo_id = ?"
+            args.append(articolo_id)
+        sql += " ORDER BY e.partita, e.ordine, a.nome"
+        return {"elementi": [dict(r) for r in conn.execute(sql, args).fetchall()]}
+    finally:
+        conn.close()
+
+
+@router.post("/linea/", status_code=201)
+def linea_create(payload: LineaElementoIn, current_user=Depends(get_current_user)):
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="modificare la linea")
+    partita = _partita(payload.partita)
+    conn = get_foodcost_connection()
+    try:
+        cur = conn.cursor()
+        _get_articolo(cur, payload.articolo_id)
+        cur.execute(
+            """INSERT INTO cucina_linea_elementi (articolo_id, partita, linea_qta, linea_note, ordine)
+               VALUES (?, ?, ?, ?, ?)""",
+            (payload.articolo_id, partita, (payload.linea_qta or "").strip() or None,
+             (payload.linea_note or "").strip() or None, payload.ordine),
+        )
+        new_id = cur.lastrowid
+        conn.commit()
+        return {"ok": True, "elemento": dict(cur.execute(
+            "SELECT * FROM cucina_linea_elementi WHERE id = ?", (new_id,)).fetchone())}
+    finally:
+        conn.close()
+
+
+@router.patch("/linea/{elemento_id}")
+def linea_update(elemento_id: int, payload: LineaElementoUpdate,
+                 current_user=Depends(get_current_user)):
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="modificare la linea")
+    d = payload.dict(exclude_unset=True)
+    if "partita" in d:
+        d["partita"] = _partita(d["partita"])
+    if "attivo" in d:
+        d["attivo"] = 1 if d["attivo"] else 0
+    if not d:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    conn = get_foodcost_connection()
+    try:
+        cur = conn.cursor()
+        if not cur.execute("SELECT 1 FROM cucina_linea_elementi WHERE id = ?", (elemento_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Elemento di linea non trovato")
+        sets = ", ".join(f"{k} = ?" for k in d)
+        cur.execute(f"UPDATE cucina_linea_elementi SET {sets}, updated_at = datetime('now','localtime') WHERE id = ?",
+                    [*d.values(), elemento_id])
+        conn.commit()
+        return {"ok": True, "elemento": dict(cur.execute(
+            "SELECT * FROM cucina_linea_elementi WHERE id = ?", (elemento_id,)).fetchone())}
+    finally:
+        conn.close()
+
+
+@router.delete("/linea/{elemento_id}")
+def linea_delete(elemento_id: int, current_user=Depends(get_current_user)):
+    """Toglie l'articolo da quella linea (soft: attivo = 0)."""
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="modificare la linea")
+    conn = get_foodcost_connection()
+    try:
+        conn.execute("UPDATE cucina_linea_elementi SET attivo = 0, updated_at = datetime('now','localtime') WHERE id = ?",
+                     (elemento_id,))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.get("/linea/extra/")
+def linea_extra_list(partita: Optional[str] = None):
+    conn = get_foodcost_connection()
+    try:
+        sql = "SELECT * FROM cucina_linea_voci_extra WHERE attivo = 1"
+        args: List[Any] = []
+        if partita:
+            sql += " AND partita = ?"
+            args.append(_partita(partita))
+        sql += " ORDER BY partita, ordine, id"
+        return {"voci": [dict(r) for r in conn.execute(sql, args).fetchall()]}
+    finally:
+        conn.close()
+
+
+@router.post("/linea/extra/", status_code=201)
+def linea_extra_create(payload: VoceExtraIn, current_user=Depends(get_current_user)):
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="modificare la linea")
+    conn = get_foodcost_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO cucina_linea_voci_extra (partita, titolo, note, ordine) VALUES (?, ?, ?, ?)",
+                    (_partita(payload.partita), payload.titolo.strip(),
+                     (payload.note or "").strip() or None, payload.ordine))
+        new_id = cur.lastrowid
+        conn.commit()
+        return {"ok": True, "voce": dict(cur.execute(
+            "SELECT * FROM cucina_linea_voci_extra WHERE id = ?", (new_id,)).fetchone())}
+    finally:
+        conn.close()
+
+
+@router.patch("/linea/extra/{voce_id}")
+def linea_extra_update(voce_id: int, payload: VoceExtraUpdate,
+                       current_user=Depends(get_current_user)):
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="modificare la linea")
+    d = payload.dict(exclude_unset=True)
+    if "partita" in d:
+        d["partita"] = _partita(d["partita"])
+    if "titolo" in d and d["titolo"]:
+        d["titolo"] = d["titolo"].strip()
+    if "attivo" in d:
+        d["attivo"] = 1 if d["attivo"] else 0
+    if not d:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    conn = get_foodcost_connection()
+    try:
+        cur = conn.cursor()
+        if not cur.execute("SELECT 1 FROM cucina_linea_voci_extra WHERE id = ?", (voce_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Voce non trovata")
+        sets = ", ".join(f"{k} = ?" for k in d)
+        cur.execute(f"UPDATE cucina_linea_voci_extra SET {sets} WHERE id = ?", [*d.values(), voce_id])
+        conn.commit()
+        return {"ok": True, "voce": dict(cur.execute(
+            "SELECT * FROM cucina_linea_voci_extra WHERE id = ?", (voce_id,)).fetchone())}
     finally:
         conn.close()

@@ -566,3 +566,22 @@ Due tab su quattro girano su endpoint che esistono già: il lavoro backend di S1
 - **Quanto dura una conta a 24 ripiani.** Fatta dall'iPhone e a ripiani, si puo' spalmare su piu' giorni; ma allora le quantita' attese dei ripiani contati per primi invecchiano mentre conti gli ultimi. Due strade: la sessione scade dopo N giorni, oppure si accetta e si dichiara la data di conta riga per riga.
 - **`fe_fornitore_categoria` non e' un'anagrafica fornitori.** E' la mappa fornitore→categoria delle fatture elettroniche, usata di fatto come registro. Funziona (161 righe con partita IVA), ma il giorno che serve un'anagrafica vera — contatti, WhatsApp per l'ordine, giorni di consegna — va promossa a tabella sua. Attenzione al filtro: per le scorte il flag rilevante e' `escluso_acquisti`, **mai** `escluso` (che e' del modulo Ricette).
 - **La soglia per articolo va tarata sull'uso vero.** I default 5/21 sono il punto di partenza; dopo qualche settimana di uso si vedra' quali articoli generano rumore (avviso troppo presto) e quali mentono in silenzio (avviso troppo tardi). E' un parametro da rivedere, non da mettere e dimenticare.
+
+---
+
+## Linea cucina — fase L1 (2026-10-20, mig 202, cucinaScorte 1.9)
+
+> Spec: [spec_linea_cucina.md](spec_linea_cucina.md). Le checklist di linea si costruiranno dal menu e dalle ricette; qui vivono i parametri.
+
+- `cucina_articoli` + `recipe_id` (la preparazione che l'articolo è; logico verso `recipes.id`), `scorta_min_frigo` (ripiani FRIGO/CELLA), `scorta_min_gelo` (FREEZER), `qta_riordino`. Risanate anche da `apply_schema()` via `HEAL_COLUMNS`.
+- `cucina_linea_elementi` (articolo × partita: `linea_qta`, `linea_note`, `ordine`, `attivo`) e `cucina_linea_voci_extra` (partita, titolo: voci che non sono articoli). Partite: `PARTITE` in `cucina_scorte_db.py`.
+- Le righe della ricetta si leggono via `app/services/ricette_lookup.righe_ricetta()` (platform, sola lettura): niente import dal router ricette.
+- Scritture linea: admin/chef/sous_chef (`LINEA_SCRITTURA`); lettura: la brigata (guardia di router).
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-K-202a | Scheda «Linea» della ricetta: articolo, minimi frigo/gelo, riordino, dotazione per partita | `pages/ricette/LineaTab.jsx`, `GET /cucina/scorte/linea/ricetta/{id}` | admin/chef/sous chef | 🆕 |
+| C-K-202b | Aggiungere/modificare/togliere un elemento da una linea | `POST/PATCH/DELETE /cucina/scorte/linea/` | admin/chef/sous chef | 🆕 |
+| C-K-202c | Voci extra di linea (pentole, pass, pescato) | `/cucina/scorte/linea/extra/` (solo API, UI in L2) | admin/chef/sous chef | 🆕 |
+| C-K-202d | Filtrare gli articoli per ricetta o ingrediente | `GET /cucina/scorte/articoli/?recipe_id=&ingredient_id=` | brigata | 🆕 |
+

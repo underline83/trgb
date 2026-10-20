@@ -3,6 +3,9 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.1 (2026-10-20): tolta la pagina «Sommelier» (/vini/carta-staff, CartaStaff)
+    //   — non usata. Tab, voce di menu e bottone in Carta rimossi; la route
+    //   redirige alla Carta. Endpoint GET /vini/magazzino/carta-staff/ lasciato.
     // 4.0 (2026-10-10): iPratico — anche i vini hanno il codice nello SKU (0123),
     //   oltre che in testa al nome; si riconoscono prima dallo SKU (dopo 3.99).
     // 3.99 (2026-10-10): bevande su iPratico — codice B0123 nella colonna SKU,
@@ -161,7 +164,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.0",
+    version: "4.1",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -185,6 +188,10 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.9 (2026-10-20): linea cucina fase L1 (mig 202, spec_linea_cucina.md) —
+    //   articolo con ricetta collegata, minimo frigo/gelo, qta riordino;
+    //   dotazione in linea per partita (cucina_linea_elementi) e voci extra;
+    //   scheda «Linea» nella ricetta (RicetteDettaglio › LineaTab).
     // 1.8 (2026-10-03): la sotto-app diventa «Gestione Frigoriferi e scorte»
     //   (barra: Frigo, Scorte); Oggi e Spesa pagine a sé dalla Home cucina.
     // 1.7 (2026-10-02): scheda articolo su una pagina a scorrimento — quantità,
@@ -229,7 +236,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.8",
+    version: "1.9",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -343,7 +350,9 @@ const MODULE_VERSIONS = {
     //   (Impostazioni › 🔒 Blocco PIN, default 5). Mig 199.
     // 2.39 (2026-10-19): tab «🗓️ I miei turni» e «📄 Le mie buste paga» nella nav
     //   della sezione per ogni ruolo (un dipendente vedeva solo «Turni»).
-    version: "2.39",
+    // 2.40 (2026-10-20): per i ruoli non admin/contabile la sezione si chiama
+    //   «Area personale» (Home, menu, nav, blocco PIN). Route invariate.
+    version: "2.40",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -551,6 +560,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.67 (2026-10-20): mig 202 — linea cucina L1: cucina_articoli + recipe_id,
+    //   scorta_min_frigo/gelo, qta_riordino; cucina_linea_elementi e voci extra.
     // 5.66 (2026-10-19): mig 201 — checklist_item.recipe_id: voci di checklist
     //   collegate alle ricette, spunta condivisa (Task Manager 1.7).
     // 5.65 (2026-10-19): mig 200 clienti_preventivi_invii — invio preventivi al cliente
@@ -641,7 +652,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.66",
+    version: "5.67",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -3,6 +3,13 @@
 
 ---
 
+## 2026-10-20 — Linea cucina, fase L1: parametri di linea su articoli e ricette `[core]`
+
+cucinaScorte 1.9, mig 202, sistema 5.67. Primo pezzo del nuovo sistema «dal menu alla checklist agli ordini» ([spec_linea_cucina.md](spec_linea_cucina.md)). Gli articoli di Frigoriferi e scorte possono essere collegati alla ricetta che sono, e hanno minimo frigo, minimo gelo e quantità da produrre/ordinare. Nuova dotazione «in linea» per partita (stesso articolo in due linee con dotazioni diverse) e voci di linea che non sono articoli. Nella ricetta, nuova scheda «Linea»: l'articolo della ricetta e quelli dei suoi elementi, con giacenze frigo/gelo lette da Scorte e «Crea articolo» dove manca. Nessun travaso dei dati delle checklist attuali (rinviato). Provato su copia del DB.
+
+## 2026-10-20 — Vini: tolta la pagina «Sommelier» `[core]`
+Marco: la vista sommelier (`/vini/carta-staff`, `CartaStaff.jsx` v2.0) non è usata e non le abbiamo dato il senso giusto. Tolta tab in `ViniNav`, voce in `modulesMenu.js`, bottone «🥂 Vista sommelier» in `CartaVini.jsx`; la route redirige a `/vini/carta/vini`. `CartaStaff.jsx` resta su disco non importato (eliminazione in R7); endpoint `GET /vini/magazzino/carta-staff/` lasciato, senza chiamanti FE. Vini 4.0 → 4.1, nessuna migrazione.
+
 ## 2026-10-19 — Checklist: voci collegate alle ricette, spunta condivisa `[core]`
 
 Task Manager 1.7, mig 201, sistema 5.66. Ogni voce di checklist può avere una «Ricetta collegata» (campo nell'editor dei template). Se due checklist dello stesso giorno e servizio hanno voci con la stessa ricetta (gremolada di ossobuco e rognone, taragna di antipasti e contorni), spuntarne una spunta anche l'altra; togliere la spunta la toglie da entrambe. Dalla voce 📖 apre la scheda ricetta. Il nome arriva da un servizio platform di sola lettura (`ricette_lookup`). Provato su copia del DB. Create da UI 25 ricette base del menu Autunno 2026 (bozze, `is_base`, resa segnaposto 1).

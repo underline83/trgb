@@ -1,4 +1,5 @@
-// @version: v1.4-self-service — tab «I miei turni» e «Le mie buste paga» per tutti (2026-10-19)
+// @version: v1.5-area-personale — titolo «Area personale» per i ruoli non admin/contabile (2026-10-20)
+// v1.4-self-service — tab «I miei turni» e «Le mie buste paga» per tutti (2026-10-19)
 // v1.3-candidati — tab Candidati con badge dei nuovi (2026-10-16)
 // v1.2-permessi — i tab si filtrano per ruolo (2026-09-01)
 // Tab navigation persistente per la sezione Dipendenti (pattern ViniNav).
@@ -15,6 +16,7 @@ import React, { useState, useEffect } from "react";
 import { ModuleNav } from "../../components/ui";
 import useModuleAccess from "../../hooks/useModuleAccess";
 import { API_BASE, apiFetch } from "../../config/api";
+import { menuTitle } from "../../config/modulesMenu";
 
 const TABS = [
   // `sub` = chiave del sotto-modulo in modules.json che autorizza il tab.
@@ -64,7 +66,7 @@ export default function DipendentiNav({ current }) {
 
   return (
     <ModuleNav
-      title="👥 Dipendenti"
+      title={`👥 ${menuTitle("dipendenti", role)}`}
       homePath="/dipendenti"
       color="purple"
       tabs={tabs}

@@ -70,6 +70,9 @@ REGIMI = {"SEMAFORO", "CONTA", "MOVIMENTI"}
 # Stato del semaforo (D1 «manca qualcosa?»).
 STATI_SEMAFORO = {"OK", "ESAURIMENTO", "FINITO"}
 
+# Partite della linea (spec_linea_cucina.md §4.2). Lista di dominio, non soglia.
+PARTITE = {"antipasti", "primi", "secondi", "contorni", "dolci", "generale"}
+
 TIPI_UBICAZIONE = {
     "FRIGO", "CELLA", "FREEZER", "ABBATTITORE",
     "DISPENSA", "SCAFFALE", "BANCO", "ALTRO",
@@ -229,6 +232,10 @@ SCHEMA_SQL: tuple[str, ...] = (
         note                    TEXT,
         created_at              TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
         created_by              TEXT,
+        recipe_id               INTEGER,
+        scorta_min_frigo        REAL,
+        scorta_min_gelo         REAL,
+        qta_riordino            REAL,
         FOREIGN KEY (ingredient_id)   REFERENCES ingredients(id)     ON DELETE SET NULL,
         FOREIGN KEY (ripiano_casa_id) REFERENCES cucina_ripiani(id)  ON DELETE SET NULL
     )
@@ -409,6 +416,39 @@ SCHEMA_SQL: tuple[str, ...] = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_cuc_manut_ubic ON cucina_manutenzioni(ubicazione_id, stato, data DESC)",
 
+    # ── Linea (spec_linea_cucina.md §4.2, mig 202): la dotazione IN LINEA di
+    #    un articolo, per partita. Stesso articolo in due linee = due righe
+    #    (fondo bruno: GN 1/9 negli antipasti, GN 1/9 + pentolino nei secondi).
+    """
+    CREATE TABLE IF NOT EXISTS cucina_linea_elementi (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        articolo_id INTEGER NOT NULL,
+        partita     TEXT    NOT NULL,
+        linea_qta   TEXT,
+        linea_note  TEXT,
+        ordine      INTEGER NOT NULL DEFAULT 0,
+        attivo      INTEGER NOT NULL DEFAULT 1,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+        updated_at  TEXT,
+        FOREIGN KEY (articolo_id) REFERENCES cucina_articoli(id) ON DELETE CASCADE
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_cuc_linea_art ON cucina_linea_elementi(articolo_id, partita)",
+    # Voci della linea che non sono articoli (pentole in bollore, salvia sul
+    # pass, pescato del giorno): sempre presenti nella checklist della partita.
+    """
+    CREATE TABLE IF NOT EXISTS cucina_linea_voci_extra (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        partita     TEXT    NOT NULL,
+        titolo      TEXT    NOT NULL,
+        note        TEXT,
+        ordine      INTEGER NOT NULL DEFAULT 0,
+        attivo      INTEGER NOT NULL DEFAULT 1,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_cuc_linea_extra ON cucina_linea_voci_extra(partita, attivo)",
+
     # ── Config di modulo, stesso pattern di macellaio_config & co.
     """
     CREATE TABLE IF NOT EXISTS cucina_scorte_config (
@@ -431,7 +471,20 @@ TABELLE = (
     "cucina_lotti",
     "cucina_manutenzioni",
     "cucina_scorte_config",
+    "cucina_linea_elementi",
+    "cucina_linea_voci_extra",
 )
+
+# Colonne aggiunte dopo la 171: il CREATE sopra le ha per gli ambienti freschi,
+# qui si risanano i DB esistenti (ADD COLUMN nullable, idempotente).
+HEAL_COLUMNS = {
+    "cucina_articoli": [
+        ("recipe_id", "INTEGER"),        # mig 202: la preparazione che l'articolo E'
+        ("scorta_min_frigo", "REAL"),    # mig 202: minimo sui ripiani FRIGO/CELLA
+        ("scorta_min_gelo", "REAL"),     # mig 202: minimo sui ripiani FREEZER
+        ("qta_riordino", "REAL"),        # mig 202: quanto produrre/ordinare
+    ],
+}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -448,6 +501,12 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     for stmt in SCHEMA_SQL:
         cur.execute(stmt)
+    for tab, cols in HEAL_COLUMNS.items():
+        presenti = {r[1] for r in cur.execute(f"PRAGMA table_info({tab})")}
+        for col, tipo in cols:
+            if col not in presenti:
+                cur.execute(f"ALTER TABLE {tab} ADD COLUMN {col} {tipo}")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_cuc_art_recipe ON cucina_articoli(recipe_id)")
     # Seed non distruttivo: se Marco ha gia' cambiato una soglia da
     # Impostazioni, INSERT OR IGNORE non gliela riporta al default.
     for chiave, valore in CONFIG_DEFAULT.items():
