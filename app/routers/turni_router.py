@@ -17,6 +17,9 @@ Prefisso: /turni
 - GET  /turni/ore-nette?reparto_id=X&settimana=YYYY-Www
 - POST /turni/copia-settimana
 - GET  /turni/chiusure?settimana=YYYY-Www
+- GET  /turni/miei-turni/calendario/          (self-service) link calendario personale
+- POST /turni/miei-turni/calendario/rigenera  (self-service) nuovo link
+- GET  /turni/calendario/{token}.ics          PUBBLICO (token) feed iCalendar
 """
 
 from __future__ import annotations
@@ -25,13 +28,14 @@ from datetime import date, datetime
 import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
 from app.services.auth_service import get_current_user
 from app.services.permessi import verifica_ruoli
 from app.services import turni_service
+from app.services import turni_calendario_service
 
 
 router = APIRouter(prefix="/turni", tags=["Turni"])
@@ -611,6 +615,62 @@ def get_miei_turni(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return JSONResponse(content=vista)
+
+
+# ============================================================
+# CALENDARIO PERSONALE (.ics) — mig 203, 2026-10-20
+# ============================================================
+# «I miei turni» › Aggiungi al calendario. Due endpoint self-service (JWT,
+# risolvono l'utente loggato sul SUO dipendente come /miei-turni) danno il
+# link personale; il feed /turni/calendario/{token}.ics è PUBBLICO perché il
+# calendario del telefono non sa mandare il JWT: l'autenticazione è il token.
+# Logica in app/services/turni_calendario_service.py.
+
+def _mio_dipendente_id(current_user: Dict[str, Any]) -> int:
+    dip_id = current_user.get("dipendente_id")
+    if not dip_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Il tuo utente non è collegato a un dipendente. Contatta l'amministratore.",
+        )
+    return int(dip_id)
+
+
+@router.get("/miei-turni/calendario/")
+def get_mio_calendario_link(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Self-service: il token del calendario personale (lo crea al primo uso)."""
+    dip_id = _mio_dipendente_id(current_user)
+    token = turni_calendario_service.token_dipendente(dip_id, current_user.get("username") or "")
+    return {"token": token, "path": f"/turni/calendario/{token}.ics"}
+
+
+@router.post("/miei-turni/calendario/rigenera")
+def rigenera_mio_calendario_link(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Self-service: nuovo token; il link vecchio smette di funzionare."""
+    dip_id = _mio_dipendente_id(current_user)
+    token = turni_calendario_service.token_dipendente(
+        dip_id, current_user.get("username") or "", rigenera=True
+    )
+    return {"token": token, "path": f"/turni/calendario/{token}.ics"}
+
+
+@router.get("/calendario/{token}.ics")
+def feed_calendario(token: str, scarica: int = Query(0, ge=0, le=1)):
+    """PUBBLICO (token nell'URL): i turni del dipendente in formato iCalendar.
+    scarica=1 → allegato da salvare (file), altrimenti feed per l'abbonamento."""
+    dip_id = turni_calendario_service.dipendente_da_token(token)
+    if not dip_id:
+        raise HTTPException(status_code=404, detail="Calendario non trovato")
+    testo = turni_calendario_service.genera_ics(dip_id)
+    disp = "attachment" if scarica else "inline"
+    return Response(
+        content=testo.encode("utf-8"),
+        media_type="text/calendar; charset=utf-8",
+        headers={
+            "Content-Disposition": f'{disp}; filename="turni.ics"',
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+    )
 
 
 # ============================================================

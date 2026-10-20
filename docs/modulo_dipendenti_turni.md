@@ -203,6 +203,8 @@ giorni chiusi appaiono grigie, niente turni assegnabili.
 | GET | `/turni/mese?reparto_id=X&anno=&mese=` | vista mensile 6×7 (Fase 5, sola lettura) |
 | GET | `/turni/dipendente?dipendente_id=X&settimana_inizio=&num_settimane=1..12` | timeline per dipendente (Fase 6) |
 | GET | `/turni/miei-turni?settimana_inizio=&num_settimane=` | come sopra ma per l'utente loggato (risolve `users.json.dipendente_id`; 404 con messaggio chiaro se non collegato) |
+| GET · POST | `/turni/miei-turni/calendario/` · `/turni/miei-turni/calendario/rigenera` | link personale del calendario (.ics) dell'utente loggato; rigenera = nuovo token (mig 203, 2026-10-20) |
+| GET | `/turni/calendario/{token}.ics[?scarica=1]` | **pubblico (token)**: feed iCalendar dei turni (no ANNULLATI, OPZIONALI come «da confermare»/TENTATIVE) + FERIE/PERMESSO tutto il giorno; ore in UTC dal fuso di `locale.json` |
 | GET | `/turni/conflitti?dipendente_id=X&data=` | check preventivo sovrapposizioni (Fase 7) |
 | GET | `/turni/assenze/tipi` · GET/POST `/turni/assenze/` · DELETE `/turni/assenze/{id}` | assenze FERIE/MALATTIA/PERMESSO (sessione 39) |
 | GET | `/turni/foglio/pdf?reparto_id=X&settimana=…` | PDF A4 landscape WeasyPrint (Fase 8) |

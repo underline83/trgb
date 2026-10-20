@@ -370,6 +370,7 @@ UI: sezione documenti nella scheda del dipendente in Anagrafica.
 | C-D-311 | Chip «✓ letta / non letta» per cedolino in Buste Paga, con data e ora del primo download del dipendente; i download dell'admin non contano | `DipendentiBustePaga.jsx` | admin | 🆕 2026-10-18 |
 | C-D-312 | Blocco PIN della sezione: entrando in `/dipendenti/*` o `/mie-buste-paga` si ridigita il PIN dell'utente loggato (iPad lasciato aperto); si richiude uscendo, ricaricando o dopo `pin_sezione_minuti` di inattività (mig 199) | `components/SezionePinGate.jsx` (attorno alle Routes in `App.jsx`), `components/PinPad.jsx`, `auth_router.py` `POST /auth/verifica-pin` | tutti i ruoli che entrano nella sezione | 🆕 2026-10-18 |
 | C-D-313 | Impostazioni › 🔒 Blocco PIN: minuti di inattività prima che la sezione si richiuda (0 = solo uscendo) | `DipendentiImpostazioni.jsx` `PinSezioneSection` · `PUT /dipendenti/settings/pin_sezione_minuti` | admin | 🆕 2026-10-18 |
+| C-D-314 | «📅 Calendario» in I miei turni: i propri turni (e ferie/permessi; non la malattia) nel calendario del telefono — abbonamento iPhone (`webcal://`) o Google Calendar, file `.ics` da scaricare, copia link, «Cambia link» (il vecchio smette di funzionare). Finestra `calendario_giorni_indietro`/`_avanti` (30/90) in `dipendenti_settings`. Mig 203 | `turni_router.py` `GET /turni/miei-turni/calendario/`, `POST …/rigenera`, `GET /turni/calendario/{token}.ics` · `turni_calendario_service.py` · `CalendarioTelefono.jsx` | tutti (self-service) | 🆕 2026-10-20 |
 | C-D-309 | Strumenti MCP scadenze documenti: `scadenze_dipendenti_elenco`, `scadenza_dipendente_crea`, `scadenza_dipendente_aggiorna` (§5.5) | `app/connettore/server.py` `_strumenti_scadenze_dipendenti` | admin (Q / claude.ai) | 🆕 2026-10-16 |
 
 ---
@@ -439,6 +440,8 @@ Turni v2 completato in parallelo (vedi `modulo_dipendenti_turni.md`). Aggiunte n
 | `/turni/riepilogo-dipendenti` | **admin + superadmin** | Restituisce i telefoni per l'invio WhatsApp. |
 | `/dipendenti/mie-buste-paga/` (+ `/{id}/pdf`) | qualsiasi ruolo autenticato | Self-service: risolve l'utente loggato sul suo `dipendente_id`; busta di un altro = 404. Il primo download segna `letta_il`. |
 | `/turni/miei-turni` | qualsiasi ruolo autenticato | Self-service: risolve l'utente loggato sul suo `dipendente_id`, non può leggere quelli degli altri. |
+| `/turni/miei-turni/calendario/` (+ `/rigenera`) | qualsiasi ruolo autenticato | Self-service: dà (o rigenera) il link del calendario del SUO dipendente. |
+| `/turni/calendario/{token}.ics` | **pubblico, token nell'URL** | Il calendario del telefono non manda il JWT. Token 32 byte, uno per dipendente, rigenerabile; token sbagliato = 404. Contiene solo turni + ferie/permessi (niente malattia). |
 | Intermittenti (tutti e 9 gli endpoint) | **admin + superadmin** | L'elenco contiene CF e codici comunicazione; `POST /comunica/` manda un atto legale al Ministero. |
 | Reparti — lettura | tutti | Serve ai filtri delle viste turni. |
 | Reparti — scrittura | **admin + superadmin** | Struttura organizzativa su cui poggiano turni e task. |

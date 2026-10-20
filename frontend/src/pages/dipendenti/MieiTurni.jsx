@@ -1,4 +1,5 @@
-// @version: v1.5 — bottone «📄 Le mie buste paga» (2026-10-18)
+// @version: v1.6 — «📅 Calendario» sul telefono: abbonamento iPhone/Android + file .ics (mig 203, 2026-10-20)
+// v1.5 — bottone «📄 Le mie buste paga» (2026-10-18)
 // v1.4-mese-vero — i bottoni ⏪/⏩ mese saltano al mese di calendario
 //   reale (settimana ISO del 1° + settimane che coprono il mese), non più ±4 sett.
 //   (prima: v1.3-minimale — pill Pranzo/Cena, no totali, no semaforo)
@@ -18,6 +19,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn } from "../../components/ui";
+import CalendarioTelefono from "./CalendarioTelefono";
 
 // ---- UTIL DATE ------------------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -147,6 +149,7 @@ export default function MieiTurni() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notLinked, setNotLinked] = useState(false);
+  const [calendarioAperto, setCalendarioAperto] = useState(false);
 
   // Persistenza
   useEffect(() => {
@@ -292,6 +295,15 @@ export default function MieiTurni() {
                 🖨️ Stampa
               </Btn>
               <Btn
+                variant={calendarioAperto ? "primary" : "secondary"}
+                size="md"
+                onClick={() => setCalendarioAperto(v => !v)}
+                disabled={notLinked}
+                title="Metti i tuoi turni nel calendario di iPhone o Android"
+              >
+                📅 Calendario
+              </Btn>
+              <Btn
                 variant="secondary"
                 size="md"
                 onClick={() => navigate("/mie-buste-paga")}
@@ -312,6 +324,10 @@ export default function MieiTurni() {
             </div>
           </div>
         </div>
+
+        {calendarioAperto && !notLinked && (
+          <CalendarioTelefono onClose={() => setCalendarioAperto(false)} />
+        )}
 
         {/* UTENTE NON COLLEGATO A DIPENDENTE */}
         {notLinked && !loading && (

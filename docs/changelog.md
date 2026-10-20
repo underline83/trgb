@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-20 — I miei turni: calendario sul telefono `[core]`
+
+Dipendenti 2.41, mig 203, sistema 5.68. In «I miei turni» il bottone «📅 Calendario» apre un pannello: iPhone (abbonamento `webcal://`, si aggiorna da solo), Android (Google Calendar «aggiungi da URL», aggiorna con qualche ora di ritardo), «Scarica file .ics» (fotografia, non si aggiorna), «Copia link», «Cambia link». Il feed `GET /turni/calendario/{token}.ics` è pubblico con token segreto per dipendente (tabella `dipendenti_calendario_feed`); contiene turni confermati e opzionali («da confermare») e ferie/permessi, non la malattia. Finestra 30 giorni indietro / 90 avanti (`dipendenti_settings`). Nuovo helper platform `locale_info()` / `locale_timezone()` in `app/utils/locale_data.py`. Provato su copia del DB (69 eventi, orari giusti in UTC).
+
+## 2026-10-20 — Dipendenti → «Area personale» per i ruoli non admin/contabile `[core]`
+
+Dipendenti 2.40, nessuna migrazione. Il titolo del modulo dipende dal ruolo (`titleStaff` + `menuTitle()`/`menuFor()` in `modulesMenu.js`): Home, menu, nav di sezione e blocco PIN. Route invariate.
+
 ## 2026-10-20 — Linea cucina, fase L1: parametri di linea su articoli e ricette `[core]`
 
 cucinaScorte 1.9, mig 202, sistema 5.67. Primo pezzo del nuovo sistema «dal menu alla checklist agli ordini» ([spec_linea_cucina.md](spec_linea_cucina.md)). Gli articoli di Frigoriferi e scorte possono essere collegati alla ricetta che sono, e hanno minimo frigo, minimo gelo e quantità da produrre/ordinare. Nuova dotazione «in linea» per partita (stesso articolo in due linee con dotazioni diverse) e voci di linea che non sono articoli. Nella ricetta, nuova scheda «Linea»: l'articolo della ricetta e quelli dei suoi elementi, con giacenze frigo/gelo lette da Scorte e «Crea articolo» dove manca. Nessun travaso dei dati delle checklist attuali (rinviato). Provato su copia del DB.

@@ -118,3 +118,24 @@ def assert_locale_data_exists(filename: str) -> Path:
             f"Vedi docs/r6_5_push_2_runbook.md."
         )
     return p
+
+
+def locale_info() -> dict:
+    """Contenuto di `locali/<TRGB_LOCALE>/locale.json` (nome, timezone, lingua…).
+    Dizionario vuoto se il file manca o non si legge."""
+    import json
+    try:
+        p = _REPO_ROOT / "locali" / _current_locale() / "locale.json"
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def locale_timezone():
+    """ZoneInfo del locale (locale.json «timezone»); ripiego Europe/Rome."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    tz = locale_info().get("timezone") or "Europe/Rome"
+    try:
+        return ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        return ZoneInfo("Europe/Rome")

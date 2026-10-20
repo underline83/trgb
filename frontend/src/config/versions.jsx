@@ -352,7 +352,9 @@ const MODULE_VERSIONS = {
     //   della sezione per ogni ruolo (un dipendente vedeva solo «Turni»).
     // 2.40 (2026-10-20): per i ruoli non admin/contabile la sezione si chiama
     //   «Area personale» (Home, menu, nav, blocco PIN). Route invariate.
-    version: "2.40",
+    // 2.41 (2026-10-20): «📅 Calendario» in I miei turni — abbonamento iPhone
+    //   (webcal) / Google Calendar e file .ics; link personale rigenerabile. Mig 203.
+    version: "2.41",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -560,6 +562,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.68 (2026-10-20): mig 203 — dipendenti_calendario_feed: calendario personale
+    //   dei turni (.ics) per iPhone/Android, abbonamento con link segreto + file.
     // 5.67 (2026-10-20): mig 202 — linea cucina L1: cucina_articoli + recipe_id,
     //   scorta_min_frigo/gelo, qta_riordino; cucina_linea_elementi e voci extra.
     // 5.66 (2026-10-19): mig 201 — checklist_item.recipe_id: voci di checklist
@@ -652,7 +656,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.67",
+    version: "5.68",
     label: "Sistema",
     status: "stabile",
     color: "green",
