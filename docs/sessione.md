@@ -18,7 +18,9 @@
 **DA PUSHARE — Login: tastierino con la lunghezza vera del PIN + fix verifica PIN attuale** (auth, nessuna migrazione) `[core]`
 - Dopo il push: il dipendente col PIN a 6 cifre digita le 6 cifre e preme il tasto verde (la prima volta niente invio automatico); dal login dopo vede 6 pallini. Provare Cambio PIN da non-admin con PIN attuale sbagliato → deve dare errore.
 
-**DA PUSHARE — I miei turni: «📅 Calendario» sul telefono** (mig 203, dipendenti 2.41, sistema 5.68) `[core]` — `turni_router.py`, nuovo `services/turni_calendario_service.py`, `utils/locale_data.py` (`locale_info`/`locale_timezone`), `CalendarioTelefono.jsx`, `MieiTurni.jsx`.
+**DA PUSHARE — Header: «🔑 Cambia PIN» nel menu** (nessuna migrazione) `[core]` — `Header.jsx`. Su telefono la 🔑 dell'intestazione è nascosta (sm:): ora c'è la voce nel menu ☰ sopra «Esci». Dopo il push: da iPhone aprire il menu → «Cambia PIN».
+
+**Pushato (208a49ed), da verificare — I miei turni: «📅 Calendario» sul telefono** (mig 203, dipendenti 2.41, sistema 5.68) `[core]` — `turni_router.py`, nuovo `services/turni_calendario_service.py`, `utils/locale_data.py` (`locale_info`/`locale_timezone`), `CalendarioTelefono.jsx`, `MieiTurni.jsx`.
 - Dopo il push: da iPhone «I miei turni» › 📅 Calendario › iPhone → «Abbonati», controllare orari e che un cambio turno arrivi; da Android lo stesso con Google; «Scarica file .ics». Verificare che `https://trgb.tregobbi.it/turni/calendario/xxx.ics` dia 404.
 
 **DA PUSHARE — Dipendenti: «Le mie buste paga» nella nav** (dipendenti 2.39, nessuna migrazione) `[core]`

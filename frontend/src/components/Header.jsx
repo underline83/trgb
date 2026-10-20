@@ -158,7 +158,8 @@ export default function Header({ onLogout }) {
     .filter(g => g.visible);
 
   const totalResults = (homeMatches ? 1 : 0) + filteredGroups.reduce((acc, g) => acc + 1 + g.subs.length, 0);
-  const noResults = q && totalResults === 0;
+  const pinMatches = !q || "cambia pin".includes(q);
+  const noResults = q && totalResults === 0 && !pinMatches;
 
   return (
     <header className="sticky top-0 z-50 bg-brand-cream border-b border-neutral-200 shadow-sm">
@@ -310,11 +311,23 @@ export default function Header({ onLogout }) {
                   );
                 })}
 
-                {/* Esci — anche dal menu: su iPhone stretti la colonna destra
-                    dell'intestazione può finire fuori schermo (2026-10-03) */}
-                {!q && (
+                {/* Cambia PIN + Esci — anche dal menu: su telefono la 🔑
+                    dell'intestazione è nascosta (sm:) e la colonna destra può
+                    finire fuori schermo (2026-10-03; Cambia PIN 2026-10-20) */}
+                {pinMatches && (
                   <>
                     <div className="border-t border-neutral-100 my-1.5 mx-2" />
+                    <button
+                      onClick={() => goTo("/cambio-pin")}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 min-h-[44px] text-left text-sm text-neutral-600 hover:bg-amber-50 hover:text-amber-700 transition"
+                    >
+                      <span className="text-base w-6 text-center">🔑</span>
+                      <span>Cambia PIN</span>
+                    </button>
+                  </>
+                )}
+                {!q && (
+                  <>
                     <button
                       onClick={() => { setOpen(false); onLogout && onLogout(); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-neutral-600 hover:bg-red-50 hover:text-red-700 transition"
