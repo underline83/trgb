@@ -424,6 +424,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.12 (2026-10-20): preventivi, WhatsApp in due passi — 1) apri la chat del numero col
+    //   messaggio, 2) allega il PDF (il cliente nuovo non compariva tra le chat della condivisione).
     // 3.11 (2026-10-19): preventivi, messaggio WhatsApp asciutto (menù e prezzi, il resto nel PDF)
     //   e modificabile nel pannello d'invio; il testo completo resta con /testo?tipo=completo.
     // 3.10 (2026-10-19): PDF del preventivo nello stile del menù gruppi stampato (A5, Bodoni Moda +
@@ -462,7 +464,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.11",
+    version: "3.12",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

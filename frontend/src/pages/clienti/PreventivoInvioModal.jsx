@@ -1,14 +1,15 @@
-// @version: v1.1 — messaggio WhatsApp asciutto e modificabile (2026-10-19)
+// @version: v1.2 — WhatsApp in due passi: 1) apri la chat del numero col messaggio, 2) allega il PDF (2026-10-20)
+// v1.1 — messaggio WhatsApp asciutto e modificabile (2026-10-19)
 // v1.0 — invio preventivo al cliente: WhatsApp (testo + PDF), email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
 //
-// WhatsApp da link (wa.me) non può allegare file. Quindi:
-//  - «📤 Condividi PDF + testo»: Web Share API col PDF vero e il testo completo
-//    (iPhone/iPad, e i browser desktop che la supportano). In WhatsApp si sceglie
-//    la chat del cliente. Il testo viene anche copiato: se WA tiene solo il PDF,
-//    si incolla.
-//  - «💬 Apri chat col testo» + «📥 Scarica PDF»: chat del cliente già aperta col
-//    testo; il PDF si trascina nella chat (Mac).
+// WhatsApp da link (wa.me) apre la chat di un NUMERO ma non allega file; la
+// condivisione allega il file ma fa scegliere tra le chat esistenti, e un cliente
+// nuovo lì non c'è (prova di Marco dall'iPad, 2026-10-20). Quindi due passi:
+//  1. «Apri la chat»: wa.me col numero e il messaggio → si invia in WhatsApp.
+//     Così la chat esiste ed è in cima alle recenti.
+//  2. «Allega il PDF»: Web Share col solo PDF (iPhone/iPad) → si sceglie quella
+//     chat in cima; dove la condivisione non c'è (Mac) si scarica e si trascina.
 // Email: casella del locale (M.D), PDF allegato, oggetto e testo modificabili.
 // Ogni invio va nel registro (GET/POST /preventivi/{id}/invii); il primo invio
 // riuscito porta «bozza» → «inviato» (lo fa il backend).
@@ -42,6 +43,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
   const [inviando, setInviando] = useState(false);
 
   const [invii, setInvii] = useState([]);
+  const [passo, setPasso] = useState(1);      // WhatsApp: 1 = apri chat, 2 = allega PDF
   const waRegistrato = useRef(false);
 
   const caricaInvii = useCallback(async () => {
@@ -102,29 +104,25 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
     }
   };
 
-  const copiaTesto = () => {
-    try { navigator.clipboard?.writeText(testo); } catch { /* niente */ }
-  };
-
-  const handleCondividi = () => {
-    if (!pdfFile) return;
-    copiaTesto();
-    navigator
-      .share({ files: [pdfFile], text: testo, title: `Preventivo ${numero || ""}`.trim() })
-      .then(() => {
-        showToast("📤 Condiviso — se WhatsApp ha mandato solo il PDF, il testo è copiato: incollalo");
-        registraWA();
-      })
-      .catch((e) => {
-        if (e?.name !== "AbortError") showToast("Condivisione non riuscita: usa «Apri chat» + «Scarica PDF»", true);
-      });
-  };
-
+  // Passo 1: chat del numero col messaggio (wa.me apre l'app WhatsApp del dispositivo)
   const handleApriChat = () => {
     const url = buildWaLink(telefono, testo);
     if (!url) { showToast("Telefono non valido", true); return; }
     window.open(url, "_blank", "noopener");
     registraWA();
+    setPasso(2);
+  };
+
+  // Passo 2: il PDF nella stessa chat (ora è in cima alle «Chat recenti»)
+  const handleAllegaPDF = () => {
+    if (!pdfFile) return;
+    if (!puoCondividere) { handleScaricaPDF(); showToast("PDF scaricato: trascinalo nella chat del cliente"); return; }
+    navigator
+      .share({ files: [pdfFile] })
+      .then(() => showToast("📎 PDF condiviso"))
+      .catch((e) => {
+        if (e?.name !== "AbortError") showToast("Condivisione non riuscita: scarica il PDF e allegalo a mano", true);
+      });
   };
 
   const handleScaricaPDF = () => {
@@ -197,27 +195,6 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
                   className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" placeholder="es. 340 1234567" />
               </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {puoCondividere && (
-                  <Btn variant="chip" tone="emerald" size="md" onClick={handleCondividi} className="w-full sm:col-span-2">
-                    📤 Condividi PDF + testo su WhatsApp
-                  </Btn>
-                )}
-                <Btn variant="chip" tone="emerald" size="md" onClick={handleApriChat} disabled={!telOk} className="w-full"
-                  title="Apre la chat del cliente col testo completo">
-                  💬 Apri chat col testo
-                </Btn>
-                <Btn variant="chip" tone="blue" size="md" onClick={handleScaricaPDF} className="w-full"
-                  title="Scarica il PDF da trascinare nella chat">
-                  📥 Scarica PDF
-                </Btn>
-              </div>
-              <p className="text-xs text-neutral-500">
-                {puoCondividere
-                  ? "«Condividi» allega il PDF vero: in WhatsApp scegli la chat del cliente. Il testo viene anche copiato, se serve incollarlo."
-                  : "Da qui WhatsApp non può ricevere allegati: apri la chat col testo, poi trascina il PDF scaricato nella chat."}
-              </p>
-
               <label className="block">
                 <span className="flex items-center justify-between text-xs text-neutral-500">
                   <span>Messaggio (modificabile; *grassetto* e _corsivo_ come in WhatsApp)</span>
@@ -226,9 +203,29 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
                       className="text-indigo-600 hover:underline px-1 min-h-[32px]">↺ Testo proposto</button>
                   )}
                 </span>
-                <textarea rows={12} value={testo} onChange={(e) => setTesto(e.target.value)}
+                <textarea rows={8} value={testo} onChange={(e) => setTesto(e.target.value)}
                   className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm font-sans" />
               </label>
+
+              <div className="space-y-2">
+                <Btn variant="chip" tone="emerald" size="lg" onClick={handleApriChat} disabled={!telOk}
+                  className={`w-full justify-start ${passo === 1 ? "ring-2 ring-emerald-400" : ""}`}
+                  title="Apre WhatsApp sulla chat di questo numero col messaggio">
+                  1 · 💬 Apri la chat {telOk ? `di ${telefono}` : ""} col messaggio
+                </Btn>
+                <p className="text-xs text-neutral-500 pl-1">In WhatsApp premi invia, poi torna qui.</p>
+                <Btn variant="chip" tone="blue" size="lg" onClick={handleAllegaPDF}
+                  className={`w-full justify-start ${passo === 2 ? "ring-2 ring-blue-400" : ""}`}
+                  title={puoCondividere ? "Condivide il PDF: in WhatsApp la chat del cliente è in cima alle recenti" : "Scarica il PDF da trascinare nella chat"}>
+                  2 · 📎 {puoCondividere ? "Allega il PDF" : "Scarica il PDF"}
+                </Btn>
+                <p className="text-xs text-neutral-500 pl-1">
+                  {puoCondividere
+                    ? "Scegli WhatsApp, poi la chat del cliente: dopo il passo 1 è la prima delle «Chat recenti»."
+                    : "Trascina il PDF scaricato nella chat aperta al passo 1."}
+                </p>
+              </div>
+
             </div>
           )}
 

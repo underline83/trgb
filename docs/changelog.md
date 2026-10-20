@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-20 — Preventivi: WhatsApp in due passi `[core]`
+
+Clienti 3.12, nessuna migrazione. Provando dall'iPad col WhatsApp dell'osteria, la condivisione «PDF + testo» faceva scegliere solo tra le chat esistenti: il numero di un cliente nuovo non c'era, e il testo non partiva col PDF. Ora nel pannello «📨 Invia al cliente» › WhatsApp: **1 · Apri la chat di {numero} col messaggio** (wa.me, si preme invia in WhatsApp) e poi **2 · Allega il PDF** (condivisione del solo PDF: la chat del cliente è la prima delle recenti; sul Mac «Scarica il PDF» da trascinare). Il messaggio resta modificabile sopra i due tasti.
+
 ## 2026-10-20 — I miei turni: calendario sul telefono `[core]`
 
 Dipendenti 2.41, mig 203, sistema 5.68. In «I miei turni» il bottone «📅 Calendario» apre un pannello: iPhone (abbonamento `webcal://`, si aggiorna da solo), Android (Google Calendar «aggiungi da URL», aggiorna con qualche ora di ritardo), «Scarica file .ics» (fotografia, non si aggiorna), «Copia link», «Cambia link». Il feed `GET /turni/calendario/{token}.ics` è pubblico con token segreto per dipendente (tabella `dipendenti_calendario_feed`); contiene turni confermati e opzionali («da confermare») e ferie/permessi, non la malattia. Finestra 30 giorni indietro / 90 avanti (`dipendenti_settings`). Nuovo helper platform `locale_info()` / `locale_timezone()` in `app/utils/locale_data.py`. Provato su copia del DB (69 eventi, orari giusti in UTC).
