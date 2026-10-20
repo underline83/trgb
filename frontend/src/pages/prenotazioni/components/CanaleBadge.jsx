@@ -1,4 +1,4 @@
-// @version: v1.0
+// @version: v1.1 — fonte «sito» (prenotazioni dal nostro sito)
 // Icona canale prenotazione (TheFork, telefono, WA, walk-in, widget)
 import React from "react";
 import Tooltip from "../../../components/Tooltip";
@@ -11,12 +11,13 @@ const CANALI = {
   "Walk-in": { icon: "🚶", tip: "Walk-in" },
   "Booking Module": { icon: "🌐", tip: "Widget TheFork" },
   Email:     { icon: "✉️", tip: "Email" },
-  widget:    { icon: "🌐", tip: "Widget TRGB" },
+  widget:    { icon: "🌐", tip: "Booking Module TheFork (storico)" },
+  sito:      { icon: "🏠", tip: "Dal nostro sito" },
 };
 
 export default function CanaleBadge({ canale, fonte }) {
   // Priorita': se fonte=thefork mostra icona TheFork
-  const key = fonte === "thefork" ? "TheFork" : fonte === "widget" ? "widget" : canale;
+  const key = fonte === "thefork" ? "TheFork" : fonte === "widget" ? "widget" : fonte === "sito" ? "sito" : canale;
   const c = CANALI[key] || { icon: "📋", tip: canale || "—" };
   return (
     <Tooltip label={c.tip}>

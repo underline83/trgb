@@ -474,6 +474,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.20 (2026-10-20): prenotazioni dal sito — pagina pubblica /prenota (anche in iframe), email al cliente, richieste per i gruppi.
     // 2.19 (2026-10-20): nome cliente mostrato anche quando c'è solo il cognome (prima «—»).
     // 2.18 (2026-10-20): Planning, menù dell'evento confermato (🍽️ nella riga, menù nella riga aperta).
     // 2.17 (2026-10-20): Planning, tasto «📋 Preventivo» nella riga aperta (solo per chi può
@@ -481,7 +482,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.19",
+    version: "2.20",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -572,6 +573,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.70 (2026-10-20): mig 205 — config prenotazioni dal sito, router pubblico /public/prenota (prenotazioni 2.20).
     // 5.69 (2026-10-20): mig 204 clienti_prenotazioni.menu_evento/preventivo_id — conferma dei
     //   preventivi con prenotazione aggiornata e avvisi a sala e cucina (clienti 3.14, prenotazioni 2.18).
     // 5.68 (2026-10-20): mig 203 — dipendenti_calendario_feed: calendario personale
@@ -668,7 +670,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.69",
+    version: "5.70",
     label: "Sistema",
     status: "stabile",
     color: "green",

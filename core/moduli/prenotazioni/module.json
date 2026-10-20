@@ -4,10 +4,22 @@
   "versione": "1.0",
   "descrizione": "Planning sala, prenotazioni TheFork, preventivi eventi, template menu eventi",
   "vendibile": true,
-  "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "calendar", "wa", "pdf"],
-  "dipendenze_opzionali": ["clienti", "menu_carta"],
+  "dipendenze_platform": [
+    "auth",
+    "notifiche",
+    "permessi",
+    "ui_primitives",
+    "calendar",
+    "wa",
+    "pdf"
+  ],
+  "dipendenze_opzionali": [
+    "clienti",
+    "menu_carta"
+  ],
   "router_files": [
     "prenotazioni_thefork_router",
+    "prenotazioni_pubblico_router",
     "prenotazioni_router",
     "preventivi_router",
     "menu_templates_router"
@@ -15,7 +27,8 @@
   "endpoint_prefix": [
     "/prenotazioni",
     "/preventivi",
-    "/menu-templates"
+    "/menu-templates",
+    "/public/prenota"
   ],
   "tabelle_db": [
     "clienti_prenotazioni",
@@ -25,8 +38,19 @@
     "tavoli",
     "tavoli_layout",
     "tavoli_combinazioni",
-    "prenotazioni_thefork_eventi"
+    "prenotazioni_thefork_eventi",
+    "prenotazioni_fasce",
+    "prenotazioni_fasce_log",
+    "tavoli_blocchi",
+    "tavoli_divisioni",
+    "tavoli_elementi",
+    "thefork_recensioni",
+    "prenotazioni_email_log"
   ],
-  "frontend_route": ["/prenotazioni", "/preventivi"],
+  "frontend_route": [
+    "/prenotazioni",
+    "/preventivi",
+    "/prenota"
+  ],
   "frontend_menu_key": "prenotazioni"
 }

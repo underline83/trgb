@@ -1687,6 +1687,11 @@ def cambio_stato(
             (req.stato, pren_id),
         )
         conn.commit()
+        try:  # richiesta dal sito accettata/rifiutata → email al cliente
+            from app.services.prenotazioni_sito_service import dopo_cambio_stato
+            dopo_cambio_stato(pren_id, stato_attuale, req.stato)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("email cambio stato #%s: %s", pren_id, e)
 
         return {"message": f"Stato aggiornato: {stato_attuale} → {req.stato}", "id": pren_id}
     except HTTPException:

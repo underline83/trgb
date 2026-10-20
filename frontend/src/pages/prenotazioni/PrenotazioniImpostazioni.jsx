@@ -1,4 +1,4 @@
-// @version: v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -12,7 +12,7 @@ const SECTIONS = [
   { key: "capienza", label: "Capienza & Turni", icon: "🪑", desc: "Coperti max, soglia turni, chiusura" },
   { key: "slot",     label: "Slot Orari",       icon: "🕐", desc: "Orari prenotabili pranzo e cena" },
   { key: "template", label: "Template Messaggi", icon: "💬", desc: "WhatsApp conferma e reminder" },
-  { key: "widget",   label: "Widget Pubblico",   icon: "🌐", desc: "Prenotazioni dal sito (Fase 3)" },
+  { key: "widget",   label: "Dal sito",          icon: "🌐", desc: "Prenotazioni dal sito: regole, email, codice da incollare" },
   { key: "thefork",  label: "TheFork",           icon: "🍴", desc: "Prenotazioni in tempo reale da TheFork Manager" },
 ];
 
@@ -537,28 +537,77 @@ function TemplateSection({ config, update }) {
 
 // ── Sezione Widget (placeholder Fase 3) ──
 function WidgetSection({ config, update }) {
+  const base = (config.widget_url_pubblico || window.location.origin).replace(/\/$/, "");
+  const url = `${base}/prenota`;
+  const snippet = `<iframe id="trgb-prenota" src="${url}" style="width:100%;border:0;min-height:720px" title="Prenota"></iframe>
+<script>
+window.addEventListener("message", function (e) {
+  if (e.data && e.data.type === "trgb-prenota-altezza")
+    document.getElementById("trgb-prenota").style.height = e.data.altezza + "px";
+});
+</script>`;
+  const [copiato, setCopiato] = useState(false);
+  const campo = (k, label, props = {}) => (
+    <div>
+      <label className="block text-xs font-medium text-neutral-600 mb-1">{label}</label>
+      <input value={config[k] ?? ""} onChange={(e) => update(k, e.target.value)}
+        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" {...props} />
+    </div>
+  );
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-neutral-800 mb-1">Widget Pubblico</h3>
+        <h3 className="text-lg font-bold text-neutral-800 mb-1">Prenotazioni dal sito</h3>
         <p className="text-sm text-neutral-500 mb-4">
-          Il widget di prenotazione integrabile nel sito web dell'osteria.
+          La pagina pubblica dove i clienti prenotano da soli: vedono solo i giorni e gli orari liberi
+          (fasce aperte online, limiti per fascia, capienza del turno, chiusure del calendario).
         </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-neutral-200">
-        <EmptyState
-          icon="🚧"
-          title="In arrivo — Fase 3"
-          description="Il widget pubblico permettera' ai clienti di prenotare direttamente dal sito. Qui potrai configurare aspetto, orari disponibili, e campi del form."
-          watermark
-        />
-        <div className="flex justify-center pb-6 -mt-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-500">
-            <input type="checkbox" checked={config.widget_attivo === "1"} disabled className="rounded" />
-            Widget attivo
-          </div>
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
+          <input type="checkbox" checked={config.widget_attivo === "1"} onChange={(e) => update("widget_attivo", e.target.checked ? "1" : "0")} />
+          Prenotazioni dal sito attive
+        </label>
+        <p className="text-[11px] text-neutral-500">Finché è spento la pagina dice «non attive»; tu, entrato nel gestionale, la vedi in anteprima e puoi provarla.</p>
+        <a href={url} target="_blank" rel="noreferrer" className="inline-block text-sm text-indigo-700 hover:underline">Apri la pagina ↗ {url}</a>
+      </div>
+
+      <div className="bg-white rounded-xl border border-neutral-200 p-5">
+        <h4 className="font-semibold text-neutral-700 mb-3 text-sm">Regole</h4>
+        <div className="grid grid-cols-2 gap-4">
+          {campo("widget_max_automatica", "Confermate subito fino a (persone)", { type: "number", min: 1 })}
+          {campo("widget_max_richiesta", "Richiesta da accettare fino a (persone)", { type: "number", min: 1 })}
+          {campo("giorni_anticipo_max", "Prenotabili fino a (giorni avanti)", { type: "number", min: 1 })}
+          {campo("giorni_anticipo_min_ore", "Almeno (ore prima)", { type: "number", min: 0 })}
         </div>
+        <p className="text-[11px] text-neutral-400 mt-2">
+          Oltre il primo numero la prenotazione arriva nel Planning come «NUOVA» da confermare o rifiutare (il cliente riceve l'email).
+          Oltre il secondo la pagina chiede di telefonare. Gli orari sono le fasce di «Slot Orari»; chiusure e limiti per fascia valgono anche qui.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-neutral-200 p-5">
+        <h4 className="font-semibold text-neutral-700 mb-3 text-sm">Testi e email</h4>
+        <div className="grid grid-cols-2 gap-4">
+          {campo("widget_telefono", "Telefono mostrato", { placeholder: "035 …" })}
+          {campo("widget_ora_promemoria", "Promemoria il giorno prima alle", { placeholder: "10:00 (vuoto = niente)" })}
+        </div>
+        <div className="mt-3">{campo("widget_nota", "Nota sopra il modulo", { placeholder: "Es. «Il tavolo resta a disposizione due ore»" })}</div>
+        <div className="mt-3">{campo("widget_messaggio_pieno", "Messaggio quando un giorno è pieno")}</div>
+        <label className="flex items-center gap-2 text-sm mt-3">
+          <input type="checkbox" checked={(config.widget_email_attive ?? "1") === "1"} onChange={(e) => update("widget_email_attive", e.target.checked ? "1" : "0")} />
+          Email automatiche ai clienti (conferma, richiesta, accettata/rifiutata, promemoria, annullamento) in italiano o inglese
+        </label>
+        <div className="mt-3">{campo("widget_url_pubblico", "Indirizzo del gestionale nei link delle email")}</div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-2">
+        <h4 className="font-semibold text-neutral-700 text-sm">Nel sito</h4>
+        <p className="text-xs text-neutral-500">Il modo più semplice è un bottone «Prenota» che apre <code>{url}</code>. Per averlo dentro la pagina del sito, incolla questo codice (l'altezza si adatta da sola):</p>
+        <pre className="text-[11px] bg-neutral-50 border border-neutral-200 rounded p-2 overflow-x-auto whitespace-pre">{snippet}</pre>
+        <button onClick={() => { navigator.clipboard?.writeText(snippet); setCopiato(true); setTimeout(() => setCopiato(false), 2000); }}
+          className="text-xs px-2.5 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">{copiato ? "Copiato ✓" : "Copia il codice"}</button>
       </div>
     </div>
   );

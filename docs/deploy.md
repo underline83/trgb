@@ -632,3 +632,24 @@ rm ~/backups/pre-upgrade-*.tar.gz   # solo se confermato pinato anche su gdrive
 ---
 
 # Fine DEPLOY.md
+
+
+## Iframe prenotazioni dal sito (2026-10-20)
+
+`app.tregobbi.it` manda `X-Frame-Options: SAMEORIGIN`, quindi il sito non può mostrare `/prenota` in un iframe. Nel file nginx di app.tregobbi.it, dentro il blocco `server` HTTPS, si aggiunge una `location` solo per `/prenota` (in nginx gli `add_header` di una location sostituiscono quelli del server, per questo si ripetono gli altri):
+
+```nginx
+location /prenota {
+    proxy_pass http://127.0.0.1:5173;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "frame-ancestors 'self' https://tregobbi.it https://www.tregobbi.it" always;
+}
+```
+
+poi `sudo nginx -t && sudo systemctl reload nginx`. Con il solo bottone «Prenota» che apre la pagina non serve.

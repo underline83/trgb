@@ -90,7 +90,7 @@ def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] =
     ore = sorted(set(_slot(config, turno)) | set(eccezioni), key=_minuti)
 
     pren = conn.execute(f"""
-        SELECT ora_pasto, pax, thefork_booking_id FROM clienti_prenotazioni
+        SELECT ora_pasto, pax, thefork_booking_id, fonte FROM clienti_prenotazioni
         WHERE data_pasto = ? AND turno = ? AND stato NOT IN ({','.join('?' * len(STATI_ESCLUSI))})
     """, (data, turno, *STATI_ESCLUSI)).fetchall()
 
@@ -107,7 +107,7 @@ def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] =
         c = conti[fascia]
         c["coperti"] += p["pax"] or 0
         c["prenotazioni"] += 1
-        if p["thefork_booking_id"]:
+        if p["thefork_booking_id"] or p["fonte"] == "sito":  # online = TheFork + il nostro sito
             c["online"] += p["pax"] or 0
 
     fasce = []

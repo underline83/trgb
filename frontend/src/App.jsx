@@ -26,6 +26,7 @@ const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
 // PUBBLICA: pagina cliente accessibile da QR — sessione 58 fase 2
 const CartaClienti = lazy(() => import("./pages/public/CartaClienti"));
 const CartaMenuPubblica = lazy(() => import("./pages/public/CartaMenuPubblica"));
+const Prenota = lazy(() => import("./pages/public/Prenota"));
 // STAFF: vista sommelier (loggata) — sessione 58 fase 2 iter 5
 // 2026-10-20: CartaStaff (vista sommelier) tolta dal modulo Vini — file archiviato, route → Carta.
 // V.9 fase 1 (2026-08-03): "Cantina da iPhone" — finder mobile + scheda mobile read-only.
@@ -224,6 +225,21 @@ export default function App() {
   // ToastProvider, useUpdateChecker (cose interne al gestionale).
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const isPublicCarta = path === "/carta" || path.startsWith("/carta?") || path.startsWith("/carta/");
+  // Prenotazioni dal sito (2026-10-20): pagina pubblica, anche in iframe nel sito
+  const isPublicPrenota = path === "/prenota" || path.startsWith("/prenota/");
+  if (isPublicPrenota) {
+    return (
+      <BrowserRouter>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/prenota" element={<Prenota />} />
+            <Route path="/prenota/annulla/:token" element={<Prenota annulla />} />
+            <Route path="/prenota/*" element={<Prenota />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    );
+  }
   if (isPublicCarta) {
     return (
       <BrowserRouter>

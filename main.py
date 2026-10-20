@@ -79,6 +79,7 @@ from app.routers.clienti_giftcard_router import router as clienti_giftcard_route
 
 # PRENOTAZIONI
 from app.routers.prenotazioni_router import router as prenotazioni_router
+from app.routers.prenotazioni_pubblico_router import router as prenotazioni_pubblico_router  # prenotazioni dal sito
 from app.routers.prenotazioni_thefork_router import (  # integrazione TheFork B2B API
     router as prenotazioni_thefork_router,
     public_router as prenotazioni_thefork_public_router,
@@ -758,6 +759,11 @@ if module_loader.is_router_active("prenotazioni_thefork_router"):
     # Recupero orario degli avvisi TheFork persi (THEFORK_RECUPERO_MINUTI, 0 = spento)
     from app.services.thefork_service import avvia_recupero_periodico as _tf_recupero
     _tf_recupero()
+_mount("prenotazioni_pubblico_router", prenotazioni_pubblico_router)
+if module_loader.is_router_active("prenotazioni_pubblico_router"):
+    # Email di promemoria del giorno prima alle prenotazioni dal sito
+    from app.services.prenotazioni_sito_service import avvia_promemoria_periodico as _promemoria_sito
+    _promemoria_sito()
 _mount("prenotazioni_router", prenotazioni_router)
 
 # PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)

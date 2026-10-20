@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-20 — Prenotazioni dal sito `[core]`
+
+Prenotazioni 2.20, sistema 5.70, mig 205. Nuova pagina pubblica **/prenota** (italiano e inglese), da linkare col bottone «Prenota» del sito o da incollare dentro il sito (codice in Impostazioni › Dal sito). Il cliente sceglie persone, giorno (il calendario mostra solo i giorni liberi; chiusi e pieni non si scelgono) e orario (le fasce aperte online e non piene, tenendo conto di TheFork e della capienza), poi lascia nome, telefono, email, allergie e note. Fino a 6 persone la prenotazione è confermata subito; da 7 a 35 arriva nel Planning come «NUOVA» da accettare o rifiutare; oltre si chiede di telefonare. Il cliente riceve le email (conferma, richiesta, accettata o rifiutata, promemoria il giorno prima, annullamento) con il link per annullare da solo. Sala e admin ricevono un avviso per ogni prenotazione, richiesta e annullamento; nel Planning le prenotazioni dal sito hanno l'icona 🏠. Il cliente viene riconosciuto dal telefono o dall'email. Finché le prenotazioni dal sito sono spente in Impostazioni la pagina dice «non attive», ma chi è entrato nel gestionale come admin la vede in anteprima e può provarla.
+
 ## 2026-10-20 — Prenotazioni: nome col solo cognome `[core]`
 
 Prenotazioni 2.19. Nel Planning alcune prenotazioni TheFork comparivano come «—» anche se avevano un nome: il cliente aveva solo il cognome (TheFork Manager spesso salva «Agazzi», «Locatelli» senza nome) e la riga si costruiva partendo dal nome. Ora basta il cognome o il solo nome; lato server un nome vuoto del cliente non copre più quello della prenotazione (`NULLIF` nel planning, nella mappa e nei doppioni).
