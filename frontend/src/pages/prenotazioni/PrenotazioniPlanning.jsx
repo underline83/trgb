@@ -1,4 +1,4 @@
-// @version: v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -104,6 +104,9 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
             {pren.reminder_inviato === 1 && (
               <Tooltip label="Riconferma WhatsApp inviata"><span className="text-emerald-600 text-xs">✓💬</span></Tooltip>
             )}
+            {pren.menu_evento && (
+              <Tooltip label="Evento confermato: menù nella riga aperta"><span className="text-xs">🍽️</span></Tooltip>
+            )}
             {pren.bollino && BOLLINI[pren.bollino] && (
               <Tooltip label={`${pren.visite_precedenti || 0} visite prima di oggi`}>
                 <span className={`px-1.5 py-0.5 border text-[10px] font-medium rounded-full ${BOLLINI[pren.bollino].cls}`}>
@@ -201,6 +204,11 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
                 {pren.nota_ristorante && <div className="mt-1">📝 Nota staff: {pren.nota_ristorante}</div>}
                 {pren.nota_cliente && <div>💬 Nota cliente: {pren.nota_cliente}</div>}
                 {pren.menu_preset && <div>🍴 Menu: {pren.menu_preset}</div>}
+                {pren.menu_evento && (
+                  <div className="mt-1 p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 whitespace-pre-line">
+                    🍽️ <b>Evento confermato</b>{"\n"}{pren.menu_evento}
+                  </div>
+                )}
                 {pren.degustazione && <div>🍷 Degustazione: {pren.degustazione}</div>}
               </div>
 

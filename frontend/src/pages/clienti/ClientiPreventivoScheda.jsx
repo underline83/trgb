@@ -1,4 +1,5 @@
-// @version: v1.7 — nuovo preventivo da una prenotazione (tasto «📋 Preventivo» nel Planning), collegato con prenotazione_id (2026-10-20)
+// @version: v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
+// v1.7 — nuovo preventivo da una prenotazione (tasto «📋 Preventivo» nel Planning), collegato con prenotazione_id (2026-10-20)
 // v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
 // Scheda singolo preventivo: testata + componi menu (snapshot da Cucina) + menu testuale + extra + totale
@@ -18,6 +19,7 @@ import ClientiNav from "./ClientiNav";
 import PreventivoMenuComposer from "./PreventivoMenuComposer";
 import { Btn } from "../../components/ui";
 import PreventivoInvioModal from "./PreventivoInvioModal";
+import PreventivoAvvisoStaff from "./PreventivoAvvisoStaff";
 
 const fmtEuro = (v) => (parseFloat(v) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -136,6 +138,10 @@ export default function ClientiPreventivoScheda() {
 
   // Pannello invio al cliente (mig 200)
   const [invioOpen, setInvioOpen] = useState(false);
+  // Conferma evento (2026-10-20): scelta del menù se ce ne sono più d'uno, poi esito + avviso gruppi
+  const [sceltaMenuOpen, setSceltaMenuOpen] = useState(false);
+  const [esitoConferma, setEsitoConferma] = useState(null);
+  const [confermando, setConfermando] = useState(false);
 
   // ── Nuovo preventivo da una prenotazione (2026-10-20) ──
   // Se per quella prenotazione c'è già un preventivo, si apre quello; altrimenti
@@ -486,7 +492,38 @@ export default function ClientiPreventivoScheda() {
   };
 
   // ── Cambia stato ──
+  // ── Conferma evento: POST /conferma (prenotazione col menù + campanello + messaggio gruppi) ──
+  const eseguiConferma = async (menuId = null) => {
+    setConfermando(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${prevId}/conferma`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ menu_scelto_id: menuId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Errore conferma");
+      setStato(data.stato);
+      if (data.prenotazione?.prenotazione_id) setForm((f) => ({ ...f, prenotazione_id: data.prenotazione.prenotazione_id }));
+      if (menuId) setMenuAlt((a) => ({ ...a, menu_scelto_id: menuId }));
+      setSceltaMenuOpen(false);
+      setEsitoConferma(data);
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      setConfermando(false);
+    }
+  };
+
+  const handleConferma = async () => {
+    const ok = await handleSalva();
+    if (!ok) return;
+    if (menuAlt.menus.length >= 2 && !menuAlt.menu_scelto_id) { setSceltaMenuOpen(true); return; }
+    eseguiConferma(null);
+  };
+
   const handleCambiaStato = async (nuovoStato) => {
+    if (nuovoStato === "confermato") return handleConferma();
     try {
       const res = await apiFetch(`${API_BASE}/preventivi/${prevId}/stato`, {
         method: "POST",
@@ -1012,6 +1049,13 @@ export default function ClientiPreventivoScheda() {
                       </div>
                     )}
 
+                    {["confermato", "prenotato"].includes(stato) && (
+                      <Btn variant="chip" tone="emerald" size="sm" onClick={() => eseguiConferma(null)} disabled={confermando}
+                        className="w-full justify-start" title="Riscrive il menù sulla prenotazione, riavvisa sala e cucina e prepara il messaggio per i gruppi">
+                        📣 Avvisa sala e cucina
+                      </Btn>
+                    )}
+
                     <hr className="border-neutral-200" />
 
                     <Btn variant="chip" tone="blue" size="sm" onClick={handlePDF} className="w-full justify-start">
@@ -1072,6 +1116,28 @@ export default function ClientiPreventivoScheda() {
           onInviato={(s) => s && setStato(s)}
           showToast={showToast}
         />
+      )}
+
+      {sceltaMenuOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSceltaMenuOpen(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-neutral-900">Quale menù ha scelto?</h3>
+            <p className="text-xs text-neutral-500">Va sulla prenotazione e nel messaggio a sala e cucina.</p>
+            <div className="space-y-2">
+              {menuAlt.menus.map((m) => (
+                <button key={m.id} onClick={() => eseguiConferma(m.id)} disabled={confermando}
+                  className="w-full text-left px-4 min-h-[48px] rounded-lg border border-neutral-200 hover:bg-emerald-50 hover:border-emerald-300 text-sm flex justify-between items-center">
+                  <span>{m.nome}</span><span className="text-neutral-500">€{fmtEuro(m.prezzo_persona)}</span>
+                </button>
+              ))}
+            </div>
+            <Btn variant="ghost" size="md" onClick={() => setSceltaMenuOpen(false)} className="w-full">Annulla</Btn>
+          </div>
+        </div>
+      )}
+
+      {esitoConferma && (
+        <PreventivoAvvisoStaff esito={esitoConferma} onClose={() => setEsitoConferma(null)} showToast={showToast} />
       )}
 
       {/* TOAST */}

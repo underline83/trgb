@@ -47,6 +47,8 @@ from app.services.preventivi_service import (
     bozza_email,
     invia_email_preventivo,
     testo_breve,
+    # Conferma evento: prenotazione + avvisi (2026-10-20)
+    conferma_evento,
 )
 
 from app.services.permessi import richiede_ruoli
@@ -368,6 +370,25 @@ def api_cambia_stato(preventivo_id: int, body: StatoIn, user: dict = Depends(get
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result
+
+
+class ConfermaIn(BaseModel):
+    menu_scelto_id: Optional[int] = None
+
+
+@router.post("/{preventivo_id}/conferma")
+def api_conferma_evento(preventivo_id: int, body: ConfermaIn, user: dict = Depends(get_current_user)):
+    """Conferma (2026-10-20): stato confermato → prenotazione trovata o creata col
+    menù scelto (poi «prenotato»), avviso a sala e cucina nel campanello, messaggio
+    pronto per i gruppi WhatsApp. Rilanciabile: riscrive il menù e riavvisa."""
+    _require_admin(user)
+    try:
+        res = conferma_evento(preventivo_id, user["username"], body.menu_scelto_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res
 
 
 @router.post("/{preventivo_id}/duplica")

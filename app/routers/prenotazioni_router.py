@@ -267,6 +267,7 @@ def get_planning(
                 p.data_prenotazione, p.prenotato_da, p.turno, p.fonte,
                 p.allergie_segnalate, p.tavolo_esterno, p.seggioloni,
                 p.menu_preset, p.degustazione, p.offerta_speciale, p.yums,
+                p.menu_evento, p.preventivo_id,
                 p.thefork_booking_id, p.creato_da,
                 p.nome_ospite, p.cognome_ospite,
                 COALESCE(c.nome, p.nome_ospite) AS nome,

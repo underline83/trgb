@@ -48,6 +48,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`, so
 | C-P-038 | Email al cliente col PDF allegato (M.D), destinatario/oggetto/testo proposti e modificabili | `GET /preventivi/{id}/email-bozza`, `POST /preventivi/{id}/invia-email` — `preventivi_service.bozza_email / invia_email_preventivo` | admin | 🆕 2026-10-19 |
 | C-P-039 | Registro invii (canale, a chi, quando, chi, esito); il primo invio riuscito porta bozza → inviato | `GET/POST /preventivi/{id}/invii` — `preventivi_service.registra_invio / lista_invii` | lettura ruoli modulo, scrittura admin | 🆕 2026-10-19 |
 | C-P-040 | Nuovo preventivo da una prenotazione: dal Planning «📋 Preventivo» apre `/clienti/preventivi/nuovo` con cliente (o cliente nuovo coi dati dell'ospite), titolo, data, ora, coperti e note (allergie, note) già compilati; scrive `prenotazione_id`; se la prenotazione ha già un preventivo apre quello; in scheda il riquadro «📅 Nato dalla prenotazione…» riporta al Planning | `POST/PUT /preventivi` (`prenotazione_id`), `GET /preventivi?prenotazione_id=` — `ClientiPreventivoScheda.jsx` (state `prenotazione`) | admin/superadmin (chi può creare preventivi) | 🆕 2026-10-20 |
+| C-P-041 | Conferma dell'evento: «→ Confermato» salva, chiede quale menù se ce ne sono più d'uno, poi scrive il menù scelto (nome, prezzo, portate) sulla prenotazione — quella collegata, o del cliente in quel giorno, o ne crea una — e passa a «prenotato»; campanello (M.A) a sala, sommelier, chef, sous_chef, commis; messaggio pronto per i gruppi WhatsApp di sala e cucina (condivisione del testo, si spuntano i due gruppi). «📣 Avvisa sala e cucina» lo rilancia | `POST /preventivi/{id}/conferma` `{menu_scelto_id?}` — `preventivi_service.conferma_evento` + servizio platform `evento_confermato_service` (scrive `clienti_prenotazioni.menu_evento/preventivo_id`, mig 204); `PreventivoAvvisoStaff.jsx` | admin | 🆕 2026-10-20 |
 
 **Auth:** tutte le route richiedono JWT; le letture sono aperte a ogni utente loggato, le scritture (e `GET /stats`) richiedono admin/superadmin via `is_admin()`.
 
@@ -190,8 +191,8 @@ Il service è difensivo: se le tabelle 075/079 mancano (DB legacy non migrato) d
 
 # 11. Non implementato / differenze dalla spec 2026-04
 
-- **Collegamento alla prenotazione**: dal 2026-10-20 `prenotazione_id` si scrive quando il preventivo nasce dal tasto «📋 Preventivo» del Planning (C-P-040). Manca il verso opposto: un preventivo confermato non crea la prenotazione, e lo stato "prenotato" resta un'etichetta manuale.
-- **Notifiche staff (M.A)**: la spec prevedeva `crea_notifica` sui preventivi confermati; non c'è alcuna chiamata al mattone.
+- **Collegamento alla prenotazione**: dal 2026-10-20 `prenotazione_id` si scrive quando il preventivo nasce dal tasto «📋 Preventivo» del Planning (C-P-040). Dal 2026-10-20 c'è anche il verso opposto (C-P-041): la conferma scrive il menù sulla prenotazione (o la crea) e porta il preventivo a «prenotato». Restano manuali «completato» e «fatturato»; la caparra non è tracciata.
+- **Notifiche staff (M.A)**: ✅ dal 2026-10-20 alla conferma (C-P-041).
 - **`scaduto` automatico**: la spec lo prevedeva allo scadere di `scadenza_conferma`; oggi è solo transizione manuale (nessun job/checker M.F). La lista evidenzia le scadenze imminenti come promemoria visivo.
 - **Versioning (Fase D)**: campo `versione` fermo a 1, nessuna logica.
 - **Invio WA/email (Fase C)**: ✅ dal 2026-10-19 (§8.1). Restano fuori: link pubblico al PDF (deciso: no), tracking aperture email, copia dell'email nella cartella «Inviata» della casella (SMTP non la salva).

@@ -1712,6 +1712,114 @@ def messaggio_breve(prev: dict, formato: str = "whatsapp", firma: str = "") -> s
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------------------
+# Conferma dell'evento (2026-10-20): prenotazione aggiornata + avvisi a sala e cucina
+# ---------------------------------------------------------------------------
+
+STATI_CONFERMABILI = ("bozza", "inviato", "in_attesa", "confermato", "prenotato")
+
+
+def _menu_dell_evento(prev: dict) -> dict | None:
+    menus = [m for m in prev.get("menu_list") or [] if m.get("righe")]
+    if prev.get("menu_scelto_id"):
+        return next((m for m in menus if m["id"] == prev["menu_scelto_id"]), None)
+    return menus[0] if len(menus) == 1 else None
+
+
+def _prezzo_scelto(m: dict) -> str:
+    """Il prezzo che vale per l'evento (col doppio prezzo: quello scelto, vino escluso o incluso)."""
+    sconto = float(m.get("sconto") or 0)
+    if m.get("pricing_mode") == "corpo" and m.get("doppio_prezzo"):
+        incl = m.get("prezzo_corpo_scelta") == "incluso"
+        v = max(0.0, float(m.get("prezzo_corpo_vino" if incl else "prezzo_corpo") or 0) - sconto)
+        return f"{_euro(v)} € a persona, vino {'incluso' if incl else 'escluso'}"
+    return f"{_euro(m.get('prezzo_persona') or 0)} € a persona"
+
+
+def conferma_evento(preventivo_id: int, username: str, menu_scelto_id: int | None = None) -> dict | None:
+    """Conferma il preventivo e fa partire quello che segue (decisione di Marco):
+    prenotazione trovata o creata col menù scritto sopra, avviso nel campanello a
+    sala e cucina, messaggio pronto per i gruppi WhatsApp. Si può rilanciare:
+    riscrive il menù sulla prenotazione e riavvisa."""
+    from app.services.preventivi_pdf import GIORNI, MESI, _nome_menu
+    from app.services import evento_confermato_service as ev
+
+    if menu_scelto_id:
+        aggiorna_preventivo(preventivo_id, {"menu_scelto_id": menu_scelto_id})
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        return None
+    if prev.get("stato") not in STATI_CONFERMABILI:
+        raise ValueError(f"Un preventivo «{prev.get('stato')}» non si conferma")
+    m = _menu_dell_evento(prev)
+    if m is None:
+        raise ValueError("Scegli prima il menù che ha scelto il cliente")
+
+    nome_menu = _nome_menu(m.get("nome")) or "del preventivo"
+    prezzo = _prezzo_scelto(m)
+    piatti = []
+    for r in m.get("righe") or []:
+        desc = (r.get("description") or "").replace(" · ", ", ").strip()
+        piatti.append(f"• {r['name']}" + (f" ({desc})" if desc else ""))
+    menu_evento = "\n".join([f"Menù {nome_menu} — {prezzo} — {prev.get('numero') or ''}".rstrip(" —"), *piatti])
+
+    conn = get_clienti_conn()
+    try:
+        if prev["stato"] in ("bozza", "inviato", "in_attesa"):
+            conn.execute("UPDATE clienti_preventivi SET stato = 'confermato', is_bozza_auto = 0 WHERE id = ?",
+                         (preventivo_id,))
+            conn.commit()
+    finally:
+        conn.close()
+    prev = get_preventivo(preventivo_id)
+
+    pren = ev.collega_prenotazione(prev, menu_evento, username)
+
+    if pren["prenotazione_id"] and prev["stato"] == "confermato":
+        conn = get_clienti_conn()
+        try:
+            conn.execute("UPDATE clienti_preventivi SET stato = 'prenotato' WHERE id = ?", (preventivo_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    try:
+        d = datetime.strptime(prev.get("data_evento") or "", "%Y-%m-%d")
+        quando = f"{GIORNI[d.weekday()]} {d.day} {MESI[d.month - 1]}"
+        breve = d.strftime("%d/%m")
+    except ValueError:
+        quando, breve = "", ""
+    cliente = " ".join(x for x in [(prev.get("cliente_cognome") or "").strip(),
+                                    (prev.get("cliente_nome") or "").strip()] if x) or (prev.get("titolo") or "")
+    pax = prev.get("n_persone")
+    allergie = ev.allergie_prenotazione(pren["prenotazione_id"])
+
+    righe_msg = ["✅ *Evento confermato*"]
+    if quando:
+        righe_msg.append(f"*{quando[:1].upper() + quando[1:]}*" + (f" — ore {prev['ora_evento']}" if prev.get("ora_evento") else ""))
+    righe_msg.append(" · ".join(x for x in [cliente, f"{pax} persone" if pax else "", prev.get("luogo") or ""] if x))
+    righe_msg += ["", f"*Menù {nome_menu}* ({prezzo})", *piatti]
+    if allergie:
+        righe_msg += ["", f"⚠️ *Allergie:* {allergie}"]
+    for x in pren["avvisi"]:
+        righe_msg.append(f"⚠️ {x}")
+    righe_msg += ["", f"_{prev.get('numero') or ''}_"]
+    messaggio_staff = "\n".join(righe_msg)
+
+    titolo = f"✅ {breve} {cliente}: {pax or '?'} pax, Menù {nome_menu}".strip()
+    corpo_notifica = "\n".join([*piatti] + ([f"Allergie: {allergie}"] if allergie else []))
+    link = f"/prenotazioni/planning/{prev['data_evento']}" if prev.get("data_evento") else f"/clienti/preventivi/{preventivo_id}"
+    n_notifiche = ev.avvisa_staff(titolo, corpo_notifica, link, preventivo_id)
+
+    finale = get_preventivo(preventivo_id) or prev
+    return {
+        "stato": finale.get("stato"),
+        "prenotazione": pren,
+        "messaggio_staff": messaggio_staff,
+        "notifiche": n_notifiche,
+    }
+
+
 def _firma_locale() -> str:
     """Nome mittente della casella del locale (M.D): firma di email e WhatsApp."""
     from app.services import email_service

@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-20 — Preventivo confermato: prenotazione col menù + avvisi a sala e cucina `[core]`
+
+Sistema 5.69, clienti 3.14, prenotazioni 2.18, **mig 204** (`clienti_prenotazioni.menu_evento`, `preventivo_id`). Nella scheda preventivo «→ Confermato» ora: salva; se ci sono più menù chiede quale ha scelto il cliente; scrive il menù scelto (nome, prezzo vino escluso/incluso, portate) sulla prenotazione — quella da cui è nato il preventivo, oppure quella del cliente in quel giorno (anche TheFork), oppure ne crea una — e porta il preventivo a «prenotato»; manda l'avviso nel campanello a sala, sommelier e brigata di cucina; apre il messaggio pronto per i gruppi WhatsApp di sala e cucina (modificabile; dall'iPad «Condividi» e si spuntano i due gruppi insieme). Se coperti od ora della prenotazione non tornano col preventivo, lo segnala. «📣 Avvisa sala e cucina» rilancia tutto. Nel Planning 🍽️ sulla riga e il menù in verde nella riga aperta. Ponte tra i due moduli nel servizio platform `evento_confermato_service.py`. Provato su copia del DB con Locatelli: trovata la prenotazione TheFork del 24/10, menù Quadri scritto, preventivo «prenotato».
+
 ## 2026-10-20 — Preventivo da una prenotazione `[core]`
 
 Clienti 3.13, prenotazioni 2.17, nessuna migrazione (la colonna `clienti_preventivi.prenotazione_id` c'era già, mai scritta). Nel Planning, aprendo una prenotazione, c'è **«📋 Preventivo»**: apre il preventivo nuovo già impostato con cliente (o un cliente nuovo coi dati dell'ospite se la prenotazione non è collegata all'anagrafica), titolo («Cena Locatelli — 24/10», o l'occasione), data, ora, coperti e nelle note interne allergie e note della prenotazione; il preventivo resta collegato alla prenotazione e in scheda c'è «📅 Nato dalla prenotazione… — apri il Planning». Se quella prenotazione ha già un preventivo, il tasto apre quello. Il tasto lo vede solo chi vede Gestione Clienti › Preventivi ed è admin/superadmin (creare preventivi è admin lato backend).
