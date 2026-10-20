@@ -6,6 +6,8 @@
 
 **Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
 
+**DA PUSHARE — Q nel browser** (login 2.3, nessuna migrazione) `[core]` — link usa-e-getta dal connettore (`accesso_browser`) → `/accesso-q` → sessione «Q» superadmin senza PIN. Dopo il push: provare da Cowork (chiedere il link, aprirlo nel browser, entrare in Dipendenti).
+
 **DA PUSHARE — Vini: tolta la pagina «Sommelier»** (vini 4.1, nessuna migrazione) `[core]` — `ViniNav.jsx`, `modulesMenu.js`, `CartaVini.jsx`, `App.jsx` (redirect `/vini/carta-staff` → Carta), `versions.jsx`. Dopo il push: la tab Sommelier non c'è più, il vecchio link apre la Carta.
 
 **DA PUSHARE — Linea cucina L1** (mig 202, cucinaScorte 1.9, sistema 5.67) `[core]` — `cucina_scorte_db.py`, `cucina_scorte_router.py` (endpoint `/cucina/scorte/linea/…`), `ricette_lookup.py` (+`righe_ricetta`), nuovo `pages/ricette/LineaTab.jsx` + tab «Linea» in `RicetteDettaglio.jsx`. Spec `docs/spec_linea_cucina.md`. Dopo il push: ricetta base (es. Crema Hokkaido) › Linea › Crea articolo, minimi, + Linea. Travaso dei parametri delle 8 Linee rinviato da Marco. I piatti d'autunno non hanno righe di ricetta: la scheda Linea dei piatti resta vuota finché non si compila la Composizione (oggi vuole qty > 0 — da decidere insieme alle grammature). (La «Checklist collegate alle ricette», mig 201, è in produzione dal 19/10: 5.66.)
@@ -96,6 +98,18 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-20 — Q nel browser `[core]`
+
+Marco: «utente Q con psw interna per gestire il browser e fare dei lavori direttamente da Cowork». Scelte sue: accesso «la cosa più sicura, senza passaggi da me» → link usa-e-getta (nessuna password); ruolo superadmin; Q entra in Dipendenti senza PIN.
+- `connettore_db` 1.1: tabella `connettore_accesso_q` (sha256, scade, creato_da, usato_il).
+- `oauth.py` 1.2: `crea_accesso_q` / `usa_accesso_q` (2 minuti, una volta, solo con `TRGB_CHIAVE_Q`).
+- `server.py` 1.5: strumento `accesso_browser` (platform, solo superadmin), riga BROWSER nelle istruzioni; `costruisci(..., url_app)`; `main.py` passa `TRGB_APP_URL` o `dominio_app` (nuovo in `locali/tregobbi/locale.json`).
+- `auth_service`: identità «Q» nei token (`q`, `q_fino`) senza stare in users.json, `token_q()`, «Q» riservato in `add_user`. `auth_router`: `POST /auth/accesso-q`, refresh di Q fino a `q_fino`, verifica-pin ok per Q.
+- Frontend: `pages/AccessoQ.jsx` (toglie subito il segreto dalla barra), `App.jsx` la apre prima del login, `SezionePinGate` lascia passare Q.
+- Prove (copia nel container): 11 casi auth (primo uso, riuso, falso, scaduto, token Q senza claim, sessione finita, senza chiave, «Q» riservato, tiles) e strumento MCP (Q sì, admin no, URL su app.tregobbi.it). JSX compilato con esbuild. Non provato nel browser vero: si prova dopo il push.
+
+Commit: `./push.sh "[core] Q nel browser: link d'accesso usa-e-getta dal connettore (accesso_browser), pagina /accesso-q, Q superadmin senza PIN (login 2.3)"`
 
 ## SESSIONE 2026-10-19 — «Le mie buste paga» nella nav di Dipendenti `[core]`
 

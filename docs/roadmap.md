@@ -223,7 +223,7 @@ un ruolo al widget — **il Monitor è dove si decide, la pagina è dove si ordi
 | K.12 | **Unificare import Excel → `shift_closures` (dismettere `daily_closures`)** | L | 🔴 ALTA — deciso Marco 2026-05-21 | Doppia tabella che si incrocia male. Vedi dettaglio §K.12 |
 | K.14 | Omaggi nell'imponibile IVA + annulli nel PDF commercialista | S | ✅ FATTO 2026-09-03 (`ada50c12`) | mig 170, corrispettivi 4.9 |
 | K.13 | **Import XML corrispettivi telematici dal portale AdE come fonte aggiuntiva** | M | MEDIA — deciso Marco 2026-05-21 | Parser dei file XML 7.0 scaricati da "Fatture e Corrispettivi". Vedi dettaglio §K.13 |
-| K.15 | **Conti iPratico Cloud riga per riga** (tavolo, coperti, orari, righe) — base per «cosa ha mangiato e speso il cliente» | M | ✅ FASI 1-3 FATTE 2026-10-18 (1-2 pushate 419c6b43, 3 da pushare) | Scarico notturno + storico da 09/2024, DB `cassa_conti.sqlite3`; abbinamento conto ↔ prenotazione alla Chiusura turno (idea di Marco) + da Impostazioni. Fase 3: scheda cliente «Cosa ha mangiato» (clienti 3.6). Vedi `analisi_ipratico_cloud.md` |
+| K.15 | **Conti iPratico Cloud riga per riga** (tavolo, coperti, orari, righe) — base per «cosa ha mangiato e speso il cliente» | M | ✅ FASI 1-3 FATTE 2026-10-18 (pushate) | Scarico notturno + storico da 09/2024, DB `cassa_conti.sqlite3`; abbinamento conto ↔ prenotazione alla Chiusura turno (idea di Marco) + da Impostazioni. Fase 3: scheda cliente «Cosa ha mangiato» (clienti 3.6). Vedi `analisi_ipratico_cloud.md` |
 
 ### K.12 — Unificazione corrispettivi: una tabella sola 🔴 ALTA (deciso 2026-05-21)
 
@@ -260,21 +260,37 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 
 ## IP — iPRATICO CLOUD (dati dalla cassa, riga per riga)
 
-> Nate dall'analisi del 2026-10-18 (`analisi_ipratico_cloud.md` §5). La base c'è già: K.15 (conti per tavolo con le righe, scarico notturno, storico da 09/2024, abbinamento ai clienti). Fonte: API interna del back office iPratico, non ufficiale — se cambia, queste funzioni si fermano finché non si adegua lo scarico. I conti in «modalità test» restano fuori (decisione 2026-10-18).
-> **Priorità = proposta di Claude, da decidere con Marco.**
+> Riscritta il 2026-10-20 (prima versione 2026-10-18, `analisi_ipratico_cloud.md` §5). Fonte: API interna del back office iPratico, non ufficiale — se iPratico la cambia, queste funzioni si fermano finché non si adegua lo scarico. I conti in «modalità test» restano fuori (decisione 2026-10-18). **Ordine e priorità = proposta di Claude, da decidere con Marco.**
 
-| # | Cosa | Effort | Priorità (proposta) | Note |
-|---|---|---|---|---|
-| IP.1 | **Statistiche dai conti, senza import `.xls`** — vendite per giorno, turno, fascia oraria, tavolo, cameriere, portata | M | ALTA | Sostituisce l'import mensile aggregato di Statistiche. Sblocca ST.2 sui singoli prodotti e ST.3 YoY (lo storico parte da 09/2024). Modulo `statistiche` (aggregatore read-only) |
-| IP.2 | **Scarico cantina dai vini venduti** — bottiglie e calici battuti in cassa → movimento di scarico automatico | M | ALTA | È V.10 dal lato vendite. Serve la corrispondenza prodotto iPratico ↔ vino TRGB (lo SKU vini iPratico esiste già). Prima in modalità «proposta da confermare», poi automatico |
-| IP.3 | **Food cost reale per conto e per piatto** — prodotto iPratico ↔ ricetta TRGB | M | MEDIA | Margine per piatto venduto, per servizio, per cliente. Tabella di corrispondenza come per i tavoli |
-| IP.4 | **Chiusura turno precompilata** — coperti, incasso, IVA, categorie dalla chiusura Z (`/statistics/closures`) | M | MEDIA | Da fare insieme a K.12 (una tabella sola dei corrispettivi). Contanti/POS restano da inserire a mano (in cassa risultano quasi tutti «carta») |
-| IP.5 | **Controllo cassa con M.F** — righe tolte, tavoli svuotati, cassetto aperto senza vendita, ristampe (`/business-member-operations`) | S | MEDIA | 236 righe tolte e 35 tavoli svuotati in 6 settimane (set-ott 2026): avviso settimanale, non allarme per ogni riga. Soglie configurabili |
-| IP.6 | **Sala in tempo reale** — mappa serale con tavoli aperti in cassa, coperti seduti, portata in corso, minuti dall'ultimo invio; stato prenotazione SEATED/BILL automatico | L | MEDIA | `/statistics/orders` + `/tables`, lettura ogni 1-2 minuti solo durante il servizio |
-| IP.7 | **Ritmo della cucina** — tempi tra antipasto, primo, secondo, dolce per servizio, giorno, coperti | S | BASSA | Dai campi `portata` e `inviata_at` già salvati in `cassa_conti_righe`: niente scarico nuovo |
-| IP.8 | **Allergeni** — confronto allergeni dei prodotti iPratico ↔ carta TRGB, segnala le differenze | S | BASSA | `/products` → `allergenIds` |
-| IP.9 | **Segmentazione clienti per valore** — la «M» di RFM dalla spesa reale | S | MEDIA | È CL.10: i dati ci sono (`/clienti/{id}/consumi`). Segmenti in Impostazioni Clienti |
-| IP.10 | **Abbinamento: richiesta del cliente in cassa** — se il cameriere associa il cliente al conto in iPratico, usarlo come abbinamento sicuro | XS | BASSA | Oggi succede quasi solo per le fatture (`cliente_cassa_id`) |
+**Già fatto (K.15)**
+- Scarico dei conti chiusi riga per riga: tavolo, sala, coperti, orari, piatti, portata, prezzi, pagamenti. Ogni notte + storico dal 1/9/2024 (8.471 conti).
+- Abbinamento conto ↔ prenotazione ↔ cliente alla Chiusura turno (automatico se sicuro, proposta da confermare, «Chi era?» per gli altri) e da Impostazioni › iPratico Cloud.
+- Scheda cliente: spesa, media a visita e a coperto; scontrino di ogni visita diviso in Mangiato/Bevuto per tipo; «Prende di solito» per tipo; linguetta Acquisti (clienti 3.6–3.8).
+
+**Prossimi — usano dati che abbiamo già**
+
+| # | Cosa | A cosa serve | Effort | Priorità | Note |
+|---|---|---|---|---|---|
+| IP.1 | **Statistiche dai conti** — vendite per giorno, turno, fascia oraria, tavolo, cameriere, portata, piatto | Basta import `.xls` mensile; si vede *quando* e *cosa* si vende | M | ALTA | Sblocca ST.2 sui singoli prodotti e ST.3 YoY. Modulo `statistiche` (sola lettura) |
+| IP.9 | **Clienti per valore** — la «M» di RFM dalla spesa vera | Sapere chi vale di più, chi spende meno di prima | S | MEDIA | È CL.10. Segmenti in Impostazioni Clienti |
+| IP.7 | **Ritmo della cucina** — minuti tra antipasto, primo, secondo, dolce | Vedere dove il servizio rallenta, per giorno e coperti | S | BASSA | Da `portata` e `inviata_at` già salvati: niente scarico nuovo |
+
+**Poi — collegano la cassa agli altri moduli**
+
+| # | Cosa | A cosa serve | Effort | Priorità | Note |
+|---|---|---|---|---|---|
+| IP.2 | **Scarico cantina dai vini venduti** | Giacenza giusta senza scaricare a mano bottiglie e calici | M | ALTA | È V.10 lato vendite. Corrispondenza prodotto iPratico ↔ vino TRGB (lo SKU vini iPratico c'è). Prima «proposta da confermare», poi automatico |
+| IP.4 | **Chiusura turno precompilata** dalla chiusura Z | Coperti, incasso, IVA e categorie già scritti; a mano solo contanti/POS | M | MEDIA | Insieme a K.12 (una tabella sola dei corrispettivi) |
+| IP.3 | **Food cost reale** per piatto venduto e per conto | Margine vero per piatto, servizio, cliente | M | MEDIA | Corrispondenza prodotto iPratico ↔ ricetta TRGB |
+| IP.5 | **Controllo cassa** — righe tolte, tavoli svuotati, cassetto aperto senza vendita, ristampe | Avviso settimanale (M.F), non un allarme per ogni riga | S | MEDIA | 236 righe tolte e 35 tavoli svuotati in 6 settimane (set–ott 2026). Soglie configurabili |
+
+**Più avanti**
+
+| # | Cosa | A cosa serve | Effort | Priorità | Note |
+|---|---|---|---|---|---|
+| IP.6 | **Sala in tempo reale** — tavoli aperti in cassa, coperti seduti, portata in corso, minuti dall'ultimo invio | Mappa della sera viva; prenotazione «seduta»/«al conto» da sola | L | MEDIA | Lettura ogni 1-2 minuti solo durante il servizio |
+| IP.8 | **Allergeni** — prodotti iPratico ↔ carta TRGB | Segnala dove i due elenchi non coincidono | S | BASSA | `/products` → `allergenIds` |
+| IP.10 | **Cliente scelto in cassa** come abbinamento sicuro | Meno conti da sistemare a mano | XS | BASSA | Oggi il cameriere lo fa quasi solo per le fatture |
 
 ## B — BANCA (flussi + riconciliazione)
 

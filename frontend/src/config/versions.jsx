@@ -360,9 +360,11 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   auth: {
+    // 2.3 (2026-10-20): Q nel browser — POST /auth/accesso-q (link usa-e-getta del
+    //   connettore, strumento accesso_browser), pagina /accesso-q, Q senza PIN di sezione.
     // 2.2 (2026-07-10): lockout brute-force login (A1-04, backoff progressivo,
     // soglie in auth_settings.json) + PIN minimo 6 cifre per admin/contabile.
-    version: "2.2.2",
+    version: "2.3",
     label: "Login & Ruoli",
     status: "stabile",
     color: "green",

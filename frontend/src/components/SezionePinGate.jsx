@@ -114,6 +114,8 @@ export default function SezionePinGate({ children }) {
   }, [sezione?.id]);
 
   if (!sezione || sbloccata === sezione.id) return children;
+  // Q (sessione dal link del connettore) non ha PIN: decisione di Marco 2026-10-20
+  if (localStorage.getItem("username") === "Q") return children;
 
   const role = localStorage.getItem("role") || "";
   const nome = localStorage.getItem("display_name") || localStorage.getItem("username") || "";

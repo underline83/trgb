@@ -11,6 +11,10 @@ class VerificaPinRequest(BaseModel):
     pin: str
 
 
+class AccessoQRequest(BaseModel):
+    token: str  # il segreto del link usa-e-getta di Q (connettore, accesso_browser)
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

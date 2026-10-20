@@ -248,11 +248,47 @@ def decode_access_token(token: str):
 # ---------------------------------------------------------------------------
 # UTENTE CORRENTE
 # ---------------------------------------------------------------------------
+# Q nel browser (2026-10-20): l'identità «Q», superadmin, NON è in users.json (non ha
+# tile né PIN). Entra solo col link usa-e-getta del connettore (app/connettore/oauth.py
+# crea_accesso_q / usa_accesso_q) e porta nel token q=True e q_fino (fine sessione:
+# i rinnovi non la allungano). Senza TRGB_CHIAVE_Q nel .env i suoi token non valgono.
+Q_USERNAME = "Q"
+
+
+def _q_configurato() -> bool:
+    from app.connettore.oauth import chiave_q  # import tardivo: oauth importa questo modulo
+    return bool(chiave_q())
+
+
+def token_q(fino: float | None = None) -> dict:
+    """Una sessione di Q nel browser (stessa forma di authenticate_user). `fino` = fine
+    della sessione in epoch: alla prima emissione adesso + ACCESS_TOKEN_EXPIRE_MINUTES."""
+    from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
+    ora = _time.time()
+    if fino is None:
+        fino = ora + ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    resta = fino - ora
+    if resta <= 0:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessione di Q finita")
+    access_token = security.create_access_token(
+        {"sub": Q_USERNAME, "role": "superadmin", "q": True, "q_fino": int(fino)},
+        timedelta(seconds=resta),
+    )
+    return {"access_token": access_token, "token_type": "bearer",
+            "role": "superadmin", "display_name": Q_USERNAME}
+
+
 def get_current_user(token: str = Depends(oauth2_scheme)):
     payload = decode_access_token(token)
 
     username: str = payload.get("sub")
     role: str = payload.get("role")
+
+    if username == Q_USERNAME and payload.get("q") is True:
+        if not _q_configurato():
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Utente non valido")
+        return {"username": Q_USERNAME, "role": "superadmin", "dipendente_id": None,
+                "q_fino": payload.get("q_fino")}
 
     if not username or username not in USERS:
         raise HTTPException(
@@ -337,6 +373,8 @@ def set_dipendente(username: str, dipendente_id) -> None:
 
 
 def add_user(username: str, password: str, role: str) -> dict:
+    if username.strip().upper() == Q_USERNAME:
+        raise HTTPException(status_code=400, detail="«Q» è riservato (l'identità di Q, la memoria di Marco)")
     if username in USERS:
         raise HTTPException(status_code=400, detail=f"Utente '{username}' già esistente")
     if role not in VALID_ROLES:

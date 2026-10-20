@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-20 — Q nel browser `[core]`
+
+Login 2.3. Claude può lavorare nelle pagine del gestionale come **Q**: chiede al connettore un link d'accesso (strumento `accesso_browser`, solo superadmin), valido due minuti e una volta sola, e lo apre nel browser. Si entra come «Q», superadmin, senza PIN nella sezione Dipendenti; la sessione dura 8 ore e non si allunga. Nessuna password: niente passa in chat. Q non compare fra i profili del login e non si può creare come utente. Doc: `connettore_mcp.md` §3.
+
 ## 2026-10-20 — Prenotazioni dal sito su prenota.tregobbi.it `[core]`
 
 Prenotazioni 2.21. I clienti prenotano su un indirizzo tutto loro, **prenota.tregobbi.it**: lì c'è solo la pagina di prenotazione, mai la schermata di accesso al gestionale, e il server risponde solo alle richieste della prenotazione (tutto il resto «non trovato»), quindi l'indirizzo del gestionale non compare da nessuna parte. È anche l'unico indirizzo che il sito può mostrare dentro le sue pagine; app.tregobbi.it resta chiuso. Configurazione nginx in `deploy/sites/prenota.tregobbi.it/`, passi in deploy.md.

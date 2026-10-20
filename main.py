@@ -858,7 +858,11 @@ try:
         _locale_info = {}
     _public_url = (os.environ.get("TRGB_PUBLIC_URL", "").strip()
                    or f"https://{_locale_info.get('dominio', 'localhost')}").rstrip("/")
-    _mcp = _connettore.costruisci(_public_url, _locale_info.get("nome", TRGB_LOCALE), APP_VERSION)
+    # Pagine del gestionale (frontend), per i link d'accesso di Q nel browser:
+    # TRGB_APP_URL, altrimenti https://<dominio_app> da locale.json, altrimenti l'indirizzo pubblico.
+    _app_url = (os.environ.get("TRGB_APP_URL", "").strip()
+                or (f"https://{_locale_info['dominio_app']}" if _locale_info.get("dominio_app") else _public_url)).rstrip("/")
+    _mcp = _connettore.costruisci(_public_url, _locale_info.get("nome", TRGB_LOCALE), APP_VERSION, _app_url)
     app.add_middleware(_connettore.Smista, mcp_app=_mcp.streamable_http_app(
         streamable_http_path="/mcp", transport_security=_connettore.sicurezza(_public_url)))
     print(f"🔌 Connettore MCP attivo su {_public_url}/mcp")

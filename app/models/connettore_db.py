@@ -1,4 +1,5 @@
-# @version: v1.0 (2026-10-08) — nascita del connettore MCP (mattone M.K)
+# @version: v1.1 (2026-10-20) — connettore_accesso_q: i link usa-e-getta di Q nel browser
+# v1.0 (2026-10-08) — nascita del connettore MCP (mattone M.K)
 # -*- coding: utf-8 -*-
 """
 Database del connettore MCP — TRGB Gestionale. Modulo: platform (M.K).
@@ -8,6 +9,8 @@ Le autorizzazioni OAuth con cui claude.ai entra in /mcp. Doc: docs/connettore_mc
 - connettore_oauth_clienti — i client registrati da soli (Dynamic Client Registration)
 - connettore_oauth_codici  — i codici dopo utente+PIN: 5 minuti, una volta sola
 - connettore_oauth_token   — accesso (1 ora) e rinnovo (30 giorni, ruota a ogni uso)
+- connettore_accesso_q     — i link con cui Q entra nel gestionale dal browser: due
+                             minuti, una volta sola (dal 2026-10-20)
 
 Codici e token si salvano come sha256, mai in chiaro. Ogni codice e token porta
 lo username di chi ha autorizzato: gli strumenti rileggono il suo ruolo a ogni chiamata.
@@ -64,6 +67,13 @@ def init_connettore_db() -> None:
             motivo      TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_conn_token_famiglia ON connettore_oauth_token(famiglia);
+        CREATE TABLE IF NOT EXISTS connettore_accesso_q (
+            hash        TEXT PRIMARY KEY,
+            scade       REAL NOT NULL,
+            creato_da   TEXT NOT NULL,
+            creato_il   TEXT NOT NULL,
+            usato_il    TEXT
+        );
     """)
     conn.commit()
     conn.close()

@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-10-16) — la chiave di Q: ingresso da server a server (identità «Q», superadmin)
+# @version: v1.2 (2026-10-20) — Q nel browser: link d'accesso usa-e-getta (accesso_browser)
+# v1.1 (2026-10-16) — la chiave di Q: ingresso da server a server (identità «Q», superadmin)
 # -*- coding: utf-8 -*-
 """
 oauth.py — chi può usare il connettore MCP di TRGB, e come ci entra. Modulo: platform (M.K).
@@ -27,6 +28,14 @@ La chiave di Q (dal 2026-10-16, decisione di Marco): Q, la memoria personale di 
 .env del locale (almeno 32 caratteri). Niente PIN né rinnovi. Entra come identità «Q»,
 superadmin, che NON è un utente di users.json: non compare negli elenchi e non fa login.
 Senza la variabile la porta non esiste; per chiuderla basta toglierla e riavviare.
+
+Q nel browser (dal 2026-10-20, decisione di Marco: «la cosa più sicura, senza passaggi da
+me»): lo strumento `accesso_browser` crea un link al gestionale valido DUE MINUTI e UNA
+VOLTA SOLA. Claude lo apre nel browser, la pagina /accesso-q lo scambia (POST
+/auth/accesso-q) con una sessione dell'identità «Q», superadmin, senza PIN di sezione.
+Nessuna password esiste né passa in chat. La sessione dura quanto un login normale
+(ACCESS_TOKEN_EXPIRE_MINUTES) e i rinnovi non la allungano oltre. Anche questa porta
+esiste solo con TRGB_CHIAVE_Q nel .env.
 """
 from __future__ import annotations
 
@@ -60,6 +69,7 @@ DURATA_ACCESSO = 60 * 60                  # un'ora
 DURATA_RINNOVO = 60 * 60 * 24 * 30        # trenta giorni, ricomincia a ogni rinnovo
 DURATA_CODICE = 5 * 60                    # il codice dopo il PIN: cinque minuti, una volta
 DURATA_RICHIESTA = 10 * 60                # la pagina del PIN aperta: dieci minuti
+DURATA_LINK_Q = 2 * 60                    # il link di Q per il browser: due minuti, una volta
 SCOPE = "trgb"
 REGISTRAZIONI_ORA = 20                    # oltre, chi riempie la tabella si ferma
 
@@ -103,6 +113,41 @@ def utente_attivo(username: Optional[str]) -> Optional[dict]:
         return None
     user = {"username": username, "role": info.get("role")}
     return user if ha_ruoli(user, *RUOLI_AUTORIZZATI) else None
+
+
+def crea_accesso_q(creato_da: str) -> str:
+    """Un link d'accesso nuovo per Q nel browser: restituisce il segreto (256 bit), nel DB
+    resta solo lo sha256. Toglie i link scaduti o usati da più di un giorno."""
+    if not chiave_q():
+        raise HTTPException(status_code=403, detail="Q non è configurato su questo gestionale (TRGB_CHIAVE_Q)")
+    segreto = secrets.token_urlsafe(32)
+    c = get_connettore_conn()
+    try:
+        c.execute("DELETE FROM connettore_accesso_q WHERE scade < ?", (time.time() - 86400,))
+        c.execute("INSERT INTO connettore_accesso_q (hash, scade, creato_da, creato_il) VALUES (?,?,?,?)",
+                  (impronta(segreto), time.time() + DURATA_LINK_Q, creato_da, adesso()))
+        c.commit()
+    finally:
+        c.close()
+    print(f"🔑 Link d'accesso di Q nel browser creato da {creato_da}")
+    return segreto
+
+
+def usa_accesso_q(segreto: str) -> bool:
+    """Consuma il link: True una volta sola, entro la scadenza, se Q è configurato."""
+    if not chiave_q() or not segreto or len(segreto) > 200:
+        return False
+    c = get_connettore_conn()
+    try:
+        cur = c.execute("UPDATE connettore_accesso_q SET usato_il = ? "
+                        "WHERE hash = ? AND usato_il IS NULL AND scade >= ?",
+                        (adesso(), impronta(segreto), time.time()))
+        c.commit()
+        ok = cur.rowcount == 1
+    finally:
+        c.close()
+    print(f"🔑 Link d'accesso di Q nel browser: {'usato' if ok else 'rifiutato'}")
+    return ok
 
 
 class Fornitore:

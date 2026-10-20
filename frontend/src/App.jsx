@@ -12,6 +12,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import ModuleRedirect from "./components/ModuleRedirect";
 import ErrorBoundary from "./components/ErrorBoundary";
 import SezionePinGate from "./components/SezionePinGate";
+import AccessoQ from "./pages/AccessoQ";
 import TrgbLoader from "./components/TrgbLoader";
 import { ToastProvider } from "./components/Toast";
 import useUpdateChecker from "./hooks/useUpdateChecker";
@@ -258,6 +259,12 @@ export default function App() {
         </Suspense>
       </BrowserRouter>
     );
+  }
+
+  // Q nel browser (2026-10-20): link usa-e-getta del connettore. Prima del check
+  // token, così sostituisce anche una sessione già aperta.
+  if (path === "/accesso-q") {
+    return <AccessoQ setToken={setToken} setRole={setRole} />;
   }
 
   if (!token) {

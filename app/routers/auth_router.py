@@ -1,7 +1,7 @@
 from typing import List
 from datetime import timedelta
 from fastapi import APIRouter, Depends
-from app.schemas.user_schema import LoginRequest, TokenResponse, UserTile, VerificaPinRequest
+from app.schemas.user_schema import LoginRequest, TokenResponse, UserTile, VerificaPinRequest, AccessoQRequest
 from app.services import auth_service
 from app.core import security, config
 
@@ -27,6 +27,9 @@ def refresh_token(current_user: dict = Depends(auth_service.get_current_user)):
     """
     username = current_user["username"]
     role = current_user["role"]
+    if username == auth_service.Q_USERNAME:
+        # Q nel browser: il rinnovo non allunga la sessione oltre q_fino
+        return auth_service.token_q(current_user.get("q_fino"))
     user = auth_service.USERS.get(username, {})
 
     new_token = security.create_access_token(
@@ -48,5 +51,19 @@ def verifica_pin(data: VerificaPinRequest, current_user: dict = Depends(auth_ser
     deve ridigitare il PIN dell'utente con cui il dispositivo e' loggato.
     Qualsiasi ruolo autenticato: verifica solo il PROPRIO PIN.
     200 {ok: true} · 403 PIN errato · 429 troppi tentativi (stesso blocco del login)."""
+    if current_user["username"] == auth_service.Q_USERNAME:
+        return {"ok": True}  # Q non ha PIN: il blocco di sezione serve all'iPad lasciato loggato
     auth_service.verifica_pin(current_user["username"], data.pin)
     return {"ok": True}
+
+
+@router.post("/accesso-q", response_model=TokenResponse, summary="Q nel browser: scambia il link usa-e-getta con una sessione")
+def accesso_q(data: AccessoQRequest):
+    """Pubblico: il segreto vale da solo (256 bit, due minuti, una volta). Lo crea lo
+    strumento `accesso_browser` del connettore MCP. Sessione dell'identità «Q»,
+    superadmin, senza PIN. Doc: docs/connettore_mcp.md."""
+    from fastapi import HTTPException
+    from app.connettore import oauth
+    if not oauth.usa_accesso_q(data.token):
+        raise HTTPException(status_code=401, detail="Link scaduto o già usato")
+    return auth_service.token_q()

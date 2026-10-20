@@ -1,4 +1,5 @@
-# @version: v1.4 (2026-10-18) — incassi (ieri e mese in corso, con le percentuali)
+# @version: v1.5 (2026-10-20) — accesso_browser: Q entra nel gestionale dal browser con un link usa-e-getta
+# v1.4 (2026-10-18) — incassi (ieri e mese in corso, con le percentuali)
 # v1.2 (2026-10-16) — strumenti candidati (modulo dipendenti)
 # v1.1 (2026-10-16) — Q scrive firmando «Q» (la chiave di Q, vedi oauth.py)
 # -*- coding: utf-8 -*-
@@ -70,12 +71,14 @@ Regole che valgono sempre:
 - SCADENZE DIPENDENTI: cerca con scadenze_dipendenti_elenco prima di crearne una; prima di creare o cambiare riepiloga a Marco e aspetta il sì; non si cancellano da qui.
 - SCADENZIARIO: sola lettura; uscita_segna_pagata solo dopo il sì di Marco (fornitore, importo, data, metodo); spese fisse e rate si fanno dalla pagina.
 - PRENOTAZIONI: prima di crearne una controlla il giorno con prenotazioni_giorno, riepiloga a Marco (giorno, ora, coperti, nome, note, allergie) e aspetta il sì; prenotazione_crea non manda niente al cliente.
-- INCASSI: incassi_riepilogo, sola lettura (ieri contro la media dello stesso giorno della settimana, mese in corso contro lo stesso periodo dell'anno prima)."""
+- INCASSI: incassi_riepilogo, sola lettura (ieri contro la media dello stesso giorno della settimana, mese in corso contro lo stesso periodo dell'anno prima).
+- BROWSER: per lavorare nelle pagine del gestionale, accesso_browser dà un link (2 minuti, una volta) che si apre SUBITO nel browser: si entra come Q. Non mostrarlo e non incollarlo in chat; per un'altra sessione se ne chiede uno nuovo."""
 
 
-def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
+def costruisci(url: str, nome_locale: str, versione: str, url_app: str | None = None) -> MCPServer:
     """Il server MCP. `url` è l'indirizzo pubblico del backend del locale: da lì nascono
-    issuer e risorsa dell'OAuth."""
+    issuer e risorsa dell'OAuth. `url_app` è quello delle pagine (frontend), per i link
+    d'accesso di Q nel browser; senza, si usa `url`."""
     url = url.rstrip("/")
     risorsa = f"{url}/mcp"
     fornitore = oauth.Fornitore(risorsa, nome_locale)
@@ -95,6 +98,7 @@ def costruisci(url: str, nome_locale: str, versione: str) -> MCPServer:
     async def pagina_pin(r: Request):
         return await fornitore.pagina_pin(r)
 
+    _strumento_accesso_browser(mcp, (url_app or url).rstrip("/"))
     if module_loader.is_module_active("pratiche"):
         _strumenti_pratiche(mcp)
     if module_loader.is_module_active("dipendenti"):
@@ -816,6 +820,29 @@ def sicurezza(url: str) -> TransportSecuritySettings:
         allowed_hosts=[u.netloc, "127.0.0.1:*", "localhost:*", "[::1]:*"],
         allowed_origins=[f"{u.scheme}://{u.netloc}", "https://claude.ai", "https://claude.com",
                          "http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"])
+
+
+def _strumento_accesso_browser(mcp: MCPServer, url_app: str) -> None:
+    """Platform. Q nel browser (decisione di Marco del 2026-10-20): un link alla pagina
+    /accesso-q valido due minuti e una volta sola, che apre una sessione dell'identità «Q»
+    (superadmin, senza PIN di sezione). Lo chiede solo un superadmin: Q stesso o Marco.
+    Il segreto sta nel frammento (#), che il browser non manda al server: non finisce
+    nei log di nginx."""
+    from app.services.permessi import ha_ruoli
+
+    @_strumento(mcp, SCRIVE)
+    def accesso_browser() -> dict:
+        """Link d'accesso al gestionale nel browser, come Q (superadmin): vale DUE MINUTI e
+        UNA VOLTA SOLA. Aprilo subito nel browser (navigate): la pagina entra da sola e va
+        alla Home. Non mostrarlo e non incollarlo in chat. Se scade o è già stato usato,
+        chiedine un altro. Solo superadmin."""
+        user = _utente()
+        if not ha_ruoli(user, "superadmin"):
+            raise ToolError("Solo un superadmin può aprire il gestionale come Q. (403)")
+        segreto = oauth.crea_accesso_q(user["username"])
+        return {"url": f"{url_app}/accesso-q#{segreto}",
+                "vale_secondi": oauth.DURATA_LINK_Q,
+                "entri_come": "Q (superadmin)"}
 
 
 def _strumenti_incassi(mcp: MCPServer) -> None:
