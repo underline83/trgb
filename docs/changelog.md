@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-20 — Prenotazioni: nome col solo cognome `[core]`
+
+Prenotazioni 2.19. Nel Planning alcune prenotazioni TheFork comparivano come «—» anche se avevano un nome: il cliente aveva solo il cognome (TheFork Manager spesso salva «Agazzi», «Locatelli» senza nome) e la riga si costruiva partendo dal nome. Ora basta il cognome o il solo nome; lato server un nome vuoto del cliente non copre più quello della prenotazione (`NULLIF` nel planning, nella mappa e nei doppioni).
+
 ## 2026-10-20 — Preventivo confermato: prenotazione col menù + avvisi a sala e cucina `[core]`
 
 Sistema 5.69, clienti 3.14, prenotazioni 2.18, **mig 204** (`clienti_prenotazioni.menu_evento`, `preventivo_id`). Nella scheda preventivo «→ Confermato» ora: salva; se ci sono più menù chiede quale ha scelto il cliente; scrive il menù scelto (nome, prezzo vino escluso/incluso, portate) sulla prenotazione — quella da cui è nato il preventivo, oppure quella del cliente in quel giorno (anche TheFork), oppure ne crea una — e porta il preventivo a «prenotato»; manda l'avviso nel campanello a sala, sommelier e brigata di cucina; apre il messaggio pronto per i gruppi WhatsApp di sala e cucina (modificabile; dall'iPad «Condividi» e si spuntano i due gruppi insieme). Se coperti od ora della prenotazione non tornano col preventivo, lo segnala. «📣 Avvisa sala e cucina» rilancia tutto. Nel Planning 🍽️ sulla riga e il menù in verde nella riga aperta. Ponte tra i due moduli nel servizio platform `evento_confermato_service.py`. Provato su copia del DB con Locatelli: trovata la prenotazione TheFork del 24/10, menù Quadri scritto, preventivo «prenotato».

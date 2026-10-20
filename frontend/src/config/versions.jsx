@@ -474,13 +474,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.19 (2026-10-20): nome cliente mostrato anche quando c'è solo il cognome (prima «—»).
     // 2.18 (2026-10-20): Planning, menù dell'evento confermato (🍽️ nella riga, menù nella riga aperta).
     // 2.17 (2026-10-20): Planning, tasto «📋 Preventivo» nella riga aperta (solo per chi può
     //   creare preventivi): apre il preventivo nuovo già impostato, o quello già fatto.
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.18",
+    version: "2.19",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

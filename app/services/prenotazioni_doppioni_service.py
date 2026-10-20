@@ -77,8 +77,8 @@ def motivi(a: Dict[str, Any], b: Dict[str, Any]) -> List[str]:
 
 _SQL = """
     SELECT p.id, p.data_pasto, p.ora_pasto, p.pax, p.stato, p.fonte, p.thefork_booking_id,
-           COALESCE(c.nome, p.nome_ospite) AS nome,
-           COALESCE(c.cognome, p.cognome_ospite) AS cognome,
+           COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
+           COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
            c.telefono, c.telefono2, c.email
     FROM clienti_prenotazioni p
     LEFT JOIN clienti c ON c.id = p.cliente_id

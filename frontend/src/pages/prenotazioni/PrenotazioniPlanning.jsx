@@ -1,4 +1,4 @@
-// @version: v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -60,9 +60,12 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
-  const nome = pren.nome
-    ? `${pren.nome}${pren.nome2 ? ` & ${pren.nome2}` : ""}${pren.cognome ? ` ${pren.cognome}` : ""}`
-    : (pren.canale === "Walk-in" ? "Walk-in" : "—");
+  // Basta il cognome (o il solo nome): TheFork spesso manda solo uno dei due
+  const nomeCompleto = [
+    pren.nome ? `${pren.nome}${pren.nome2 ? ` & ${pren.nome2}` : ""}` : "",
+    pren.cognome || "",
+  ].filter(Boolean).join(" ");
+  const nome = nomeCompleto || (pren.canale === "Walk-in" ? "Walk-in" : "—");
 
   const oraShort = pren.ora_pasto ? pren.ora_pasto.slice(0, 5) : "—";
 

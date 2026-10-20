@@ -270,8 +270,8 @@ def get_planning(
                 p.menu_evento, p.preventivo_id,
                 p.thefork_booking_id, p.creato_da,
                 p.nome_ospite, p.cognome_ospite,
-                COALESCE(c.nome, p.nome_ospite) AS nome,
-                COALESCE(c.cognome, p.cognome_ospite) AS cognome,
+                COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
+                COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
                 c.nome2, c.cognome2,
                 c.telefono, c.email, c.vip, c.allergie,
                 c.pref_cibo, c.restrizioni_dietetiche, c.protetto,
@@ -1494,8 +1494,8 @@ def get_mappa_tavoli(
                 p.id, p.cliente_id, p.ora_pasto, p.stato, p.pax,
                 p.tavolo, p.nota_ristorante, p.allergie_segnalate,
                 p.turno, p.occasione, p.seggioloni,
-                COALESCE(c.nome, p.nome_ospite) AS nome,
-                COALESCE(c.cognome, p.cognome_ospite) AS cognome,
+                COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
+                COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
                 c.telefono, c.vip, c.allergie
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON p.cliente_id = c.id
