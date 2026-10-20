@@ -634,22 +634,22 @@ rm ~/backups/pre-upgrade-*.tar.gz   # solo se confermato pinato anche su gdrive
 # Fine DEPLOY.md
 
 
-## Iframe prenotazioni dal sito (2026-10-20)
+## Prenotazioni dal sito: prenota.tregobbi.it (2026-10-20)
 
-`app.tregobbi.it` manda `X-Frame-Options: SAMEORIGIN`, quindi il sito non può mostrare `/prenota` in un iframe. Nel file nginx di app.tregobbi.it, dentro il blocco `server` HTTPS, si aggiunge una `location` solo per `/prenota` (in nginx gli `add_header` di una location sostituiscono quelli del server, per questo si ripetono gli altri):
+I clienti prenotano su **prenota.tregobbi.it**, non su app.tregobbi.it: lì c'è solo la pagina di prenotazione (mai il login), e nginx inoltra al server solo `/api/public/prenota/*`; ogni altro `/api/` è 404. È anche l'unico indirizzo che può stare in un iframe nel sito (`frame-ancestors` tregobbi.it), app.tregobbi.it resta `SAMEORIGIN`. File: `deploy/sites/prenota.tregobbi.it/nginx.conf`.
 
-```nginx
-location /prenota {
-    proxy_pass http://127.0.0.1:5173;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "frame-ancestors 'self' https://tregobbi.it https://www.tregobbi.it" always;
-}
-```
+Una tantum:
 
-poi `sudo nginx -t && sudo systemctl reload nginx`. Con il solo bottone «Prenota» che apre la pagina non serve.
+1. DNS (pannello del dominio tregobbi.it): `prenota  A  80.211.131.156`.
+2. Sul VPS, dopo il push:
+   ```bash
+   cd ~/trgb/trgb
+   sudo cp deploy/sites/prenota.tregobbi.it/nginx.conf /etc/nginx/sites-available/prenota.tregobbi.it
+   sudo ln -s /etc/nginx/sites-available/prenota.tregobbi.it /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   sudo certbot --nginx -d prenota.tregobbi.it
+   ```
+3. Il frontend Vite accetta l'host (`allowedHosts` in `vite.config.js`): il servizio del frontend va riavviato una volta perché legga la config.
+4. Impostazioni › Prenotazioni › Dal sito: «Indirizzo pubblico» = `https://prenota.tregobbi.it`.
+
+Verifica: `https://prenota.tregobbi.it` mostra la prenotazione; `https://prenota.tregobbi.it/api/auth/login` → 404.

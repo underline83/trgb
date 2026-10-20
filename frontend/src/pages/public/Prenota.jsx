@@ -1,4 +1,4 @@
-// @version: v1.0 — prenotazioni dal sito (2026-10-20, mig 205)
+// @version: v1.1 — indirizzo dedicato prenota.<dominio>: API sullo stesso indirizzo (/api/public/prenota); v1.0 — prenotazioni dal sito (2026-10-20, mig 205)
 // Pagina pubblica /prenota (anche dentro il sito in iframe) e /prenota/annulla/:token.
 // Senza login: usa fetch diretto. Se nel browser c'è il token di un admin lo manda,
 // così l'anteprima funziona anche quando il widget non è ancora attivo.
@@ -80,10 +80,16 @@ const STILE = `
 .tp-go:disabled { opacity: .4; }
 `;
 
+// Su prenota.<dominio> si parla col server attraverso lo stesso indirizzo (nginx inoltra
+// solo /api/public/prenota): il cliente non vede mai l'indirizzo del gestionale.
+const SU_PRENOTA = typeof window !== "undefined" && window.location.hostname.startsWith("prenota.");
+const BASE = SU_PRENOTA ? "/api/public/prenota" : `${API_BASE}/public/prenota`;
+
 function chiama(path, opts = {}) {
+  // Il token (anteprima admin) esiste solo su app.<dominio>: su prenota.* il localStorage è un altro
   const token = (() => { try { return localStorage.getItem("token"); } catch { return null; } })();
   const headers = { ...(opts.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-  return fetch(`${API_BASE}/public/prenota${path}`, { ...opts, headers });
+  return fetch(`${BASE}${path}`, { ...opts, headers });
 }
 
 function linguaIniziale() {

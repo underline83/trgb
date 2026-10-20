@@ -474,6 +474,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.21 (2026-10-20): indirizzo dedicato prenota.tregobbi.it per le prenotazioni dal sito.
     // 2.20 (2026-10-20): prenotazioni dal sito — pagina pubblica /prenota (anche in iframe), email al cliente, richieste per i gruppi.
     // 2.19 (2026-10-20): nome cliente mostrato anche quando c'è solo il cognome (prima «—»).
     // 2.18 (2026-10-20): Planning, menù dell'evento confermato (🍽️ nella riga, menù nella riga aperta).
@@ -482,7 +483,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.20",
+    version: "2.21",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

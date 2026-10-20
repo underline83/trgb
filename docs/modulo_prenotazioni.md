@@ -226,7 +226,7 @@ Service `app/services/prenotazioni_sito_service.py`, router pubblico `app/router
 - **Cliente**: stesso telefono (ultime cifre) o email → cliente esistente (si completano solo campi vuoti); altrimenti nuovo (`origine='sito'`).
 - **Email** (M.D `email_service`, testo semplice IT/EN): conferma, richiesta, accettata, rifiutata, promemoria (thread, ogni giorno dopo `widget_ora_promemoria`, per domani), annullata; in `prenotazioni_email_log`, una per tipo. Link di annullamento `{widget_url_pubblico}/prenota/annulla/{token_cancellazione}`.
 - **Difese**: campo esca, tempo minimo 3 s, max 5 invii/10' per IP e 3/giorno per telefono, 240 letture/10' per IP; lock sul salvataggio (niente doppio ultimo posto). Con `widget_attivo=0` risponde solo a un admin loggato (anteprima).
-- **Iframe**: la pagina manda `postMessage({type:'trgb-prenota-altezza'})`; codice da incollare in Impostazioni › Dal sito. Serve che nginx di app.tregobbi.it permetta l'iframe su `/prenota` (vedi deploy.md §iframe prenotazioni).
+- **Iframe**: la pagina manda `postMessage({type:'trgb-prenota-altezza'})`; codice da incollare in Impostazioni › Dal sito. Indirizzo pubblico dedicato **prenota.tregobbi.it** (2.21): su quell'host `App.jsx` apre solo la prenotazione e la pagina chiama `/api/public/prenota` sullo stesso indirizzo; nginx (`deploy/sites/prenota.tregobbi.it/nginx.conf`) inoltra solo quello, ogni altro `/api/` è 404, e permette l'iframe solo da tregobbi.it. Vedi deploy.md §«Prenotazioni dal sito». Le prenotazioni dal sito esistono solo in TRGB: TheFork non le vede.
 
 # 9. Limiti noti e incoerenze
 

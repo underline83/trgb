@@ -225,8 +225,11 @@ export default function App() {
   // ToastProvider, useUpdateChecker (cose interne al gestionale).
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const isPublicCarta = path === "/carta" || path.startsWith("/carta?") || path.startsWith("/carta/");
-  // Prenotazioni dal sito (2026-10-20): pagina pubblica, anche in iframe nel sito
-  const isPublicPrenota = path === "/prenota" || path.startsWith("/prenota/");
+  // Prenotazioni dal sito (2026-10-20): pagina pubblica, anche in iframe nel sito.
+  // Sull'indirizzo dedicato (prenota.<dominio>) c'è SOLO questa pagina: niente login,
+  // niente gestionale, qualsiasi percorso apre la prenotazione.
+  const hostPrenota = typeof window !== "undefined" && window.location.hostname.startsWith("prenota.");
+  const isPublicPrenota = hostPrenota || path === "/prenota" || path.startsWith("/prenota/");
   if (isPublicPrenota) {
     return (
       <BrowserRouter>
@@ -235,6 +238,8 @@ export default function App() {
             <Route path="/prenota" element={<Prenota />} />
             <Route path="/prenota/annulla/:token" element={<Prenota annulla />} />
             <Route path="/prenota/*" element={<Prenota />} />
+            <Route path="/annulla/:token" element={<Prenota annulla />} />
+            <Route path="*" element={<Prenota />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

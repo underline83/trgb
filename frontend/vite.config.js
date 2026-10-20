@@ -107,7 +107,7 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5173,
-    allowedHosts: ["app.tregobbi.it"],
+    allowedHosts: ["app.tregobbi.it", "prenota.tregobbi.it"], // prenota.* = solo la pagina di prenotazione
 
     watch: {
       ignored: [

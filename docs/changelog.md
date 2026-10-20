@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-20 — Prenotazioni dal sito su prenota.tregobbi.it `[core]`
+
+Prenotazioni 2.21. I clienti prenotano su un indirizzo tutto loro, **prenota.tregobbi.it**: lì c'è solo la pagina di prenotazione, mai la schermata di accesso al gestionale, e il server risponde solo alle richieste della prenotazione (tutto il resto «non trovato»), quindi l'indirizzo del gestionale non compare da nessuna parte. È anche l'unico indirizzo che il sito può mostrare dentro le sue pagine; app.tregobbi.it resta chiuso. Configurazione nginx in `deploy/sites/prenota.tregobbi.it/`, passi in deploy.md.
+
 ## 2026-10-20 — Prenotazioni dal sito `[core]`
 
 Prenotazioni 2.20, sistema 5.70, mig 205. Nuova pagina pubblica **/prenota** (italiano e inglese), da linkare col bottone «Prenota» del sito o da incollare dentro il sito (codice in Impostazioni › Dal sito). Il cliente sceglie persone, giorno (il calendario mostra solo i giorni liberi; chiusi e pieni non si scelgono) e orario (le fasce aperte online e non piene, tenendo conto di TheFork e della capienza), poi lascia nome, telefono, email, allergie e note. Fino a 6 persone la prenotazione è confermata subito; da 7 a 35 arriva nel Planning come «NUOVA» da accettare o rifiutare; oltre si chiede di telefonare. Il cliente riceve le email (conferma, richiesta, accettata o rifiutata, promemoria il giorno prima, annullamento) con il link per annullare da solo. Sala e admin ricevono un avviso per ogni prenotazione, richiesta e annullamento; nel Planning le prenotazioni dal sito hanno l'icona 🏠. Il cliente viene riconosciuto dal telefono o dall'email. Finché le prenotazioni dal sito sono spente in Impostazioni la pagina dice «non attive», ma chi è entrato nel gestionale come admin la vede in anteprima e può provarla.

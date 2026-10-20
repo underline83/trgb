@@ -1,4 +1,4 @@
-// @version: v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -538,7 +538,8 @@ function TemplateSection({ config, update }) {
 // ── Sezione Widget (placeholder Fase 3) ──
 function WidgetSection({ config, update }) {
   const base = (config.widget_url_pubblico || window.location.origin).replace(/\/$/, "");
-  const url = `${base}/prenota`;
+  // Sull'indirizzo dedicato (prenota.<dominio>) la pagina è la radice
+  const url = /\/\/prenota\./.test(base) ? base : `${base}/prenota`;
   const snippet = `<iframe id="trgb-prenota" src="${url}" style="width:100%;border:0;min-height:720px" title="Prenota"></iframe>
 <script>
 window.addEventListener("message", function (e) {
@@ -599,7 +600,8 @@ window.addEventListener("message", function (e) {
           <input type="checkbox" checked={(config.widget_email_attive ?? "1") === "1"} onChange={(e) => update("widget_email_attive", e.target.checked ? "1" : "0")} />
           Email automatiche ai clienti (conferma, richiesta, accettata/rifiutata, promemoria, annullamento) in italiano o inglese
         </label>
-        <div className="mt-3">{campo("widget_url_pubblico", "Indirizzo del gestionale nei link delle email")}</div>
+        <div className="mt-3">{campo("widget_url_pubblico", "Indirizzo pubblico della pagina (link nelle email e codice per il sito)", { placeholder: "https://prenota.tregobbi.it" })}</div>
+        <p className="text-[11px] text-neutral-400 mt-1">Con l'indirizzo dedicato (prenota.tregobbi.it) i clienti non vedono mai l'indirizzo del gestionale. L'anteprima a prenotazioni spente funziona solo da app.tregobbi.it/prenota.</p>
       </div>
 
       <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-2">
