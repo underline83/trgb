@@ -653,3 +653,5 @@ Una tantum:
 4. Impostazioni › Prenotazioni › Dal sito: «Indirizzo pubblico» = `https://prenota.tregobbi.it`.
 
 Verifica: `https://prenota.tregobbi.it` mostra la prenotazione; `https://prenota.tregobbi.it/api/auth/login` → 404.
+
+Fatto il 2026-10-20 (DNS Aruba, certificato Let's Encrypt fino al 2027-01-18, rinnovo automatico). **Non ricopiare** il `nginx.conf` del repo sopra quello installato: certbot ci ha aggiunto il blocco 443 con il certificato; per cambiarlo modifica il file sul server.
