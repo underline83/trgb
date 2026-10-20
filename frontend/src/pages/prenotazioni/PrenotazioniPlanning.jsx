@@ -1,4 +1,4 @@
-// @version: v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -13,6 +13,7 @@ import FasceTurno from "./components/FasceTurno";
 import Tooltip from "../../components/Tooltip";
 import ClientiScheda from "../clienti/ClientiScheda";
 import { Btn } from "../../components/ui";
+import useModuleAccess from "../../hooks/useModuleAccess";
 
 const oggi = () => new Date().toISOString().slice(0, 10);
 
@@ -55,7 +56,7 @@ function rigaClasses(pren) {
 // ============================================================
 // COMPONENTE RIGA PRENOTAZIONE
 // ============================================================
-function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione }) {
+function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo }) {
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -218,6 +219,15 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
                     💬 {pren.reminder_inviato === 1 ? "Riconferma inviata — reinvia" : "Riconferma su WhatsApp"}
                   </button>
                 )}
+                {onPreventivo && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
+                    title="Crea il preventivo con cliente, data, ora e coperti di questa prenotazione (se c'è già, lo apre)"
+                    className="mb-2 ml-1 px-3 py-1.5 text-xs rounded min-h-[36px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                  >
+                    📋 Preventivo
+                  </button>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {["RECORDED", "REQUESTED"].includes(pren.stato) && (
                     <>
@@ -332,7 +342,7 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, onApriCliente, onRiconferma, onUnisciDoppione }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -401,6 +411,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                   onApriCliente={onApriCliente}
                   onRiconferma={onRiconferma}
                   onUnisciDoppione={onUnisciDoppione}
+                  onPreventivo={onPreventivo}
                 />
               ))}
               {cancellate.length > 0 && (
@@ -420,6 +431,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                       onApriCliente={onApriCliente}
                       onRiconferma={onRiconferma}
                       onUnisciDoppione={onUnisciDoppione}
+                      onPreventivo={onPreventivo}
                     />
                   ))}
                 </>
@@ -439,6 +451,12 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
 export default function PrenotazioniPlanning() {
   const { data: dataParam } = useParams();
   const navigate = useNavigate();
+  // «📋 Preventivo»: solo per chi vede Gestione Clienti › Preventivi e può crearli
+  // (le scritture dei preventivi sono admin/superadmin lato backend).
+  const { canAccessSub } = useModuleAccess();
+  const ruolo = localStorage.getItem("role") || "";
+  const puoPreventivi = canAccessSub("clienti", "preventivi") && ["admin", "superadmin"].includes(ruolo);
+  const apriPreventivo = (pren) => navigate("/clienti/preventivi/nuovo", { state: { prenotazione: pren } });
   const [data, setData] = useState(dataParam || oggi());
   const [planning, setPlanning] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -626,6 +644,7 @@ export default function PrenotazioniPlanning() {
               onApriCliente={apriCliente}
               onRiconferma={riconferma}
               onUnisciDoppione={unisciDoppione}
+              onPreventivo={puoPreventivi ? apriPreventivo : undefined}
             />
 
             {/* Tabella cena */}
@@ -644,6 +663,7 @@ export default function PrenotazioniPlanning() {
               onApriCliente={apriCliente}
               onRiconferma={riconferma}
               onUnisciDoppione={unisciDoppione}
+              onPreventivo={puoPreventivi ? apriPreventivo : undefined}
             />
 
             {/* Riepilogo */}

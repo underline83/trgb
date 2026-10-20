@@ -107,6 +107,8 @@ class PreventivoCreate(BaseModel):
     # viene creato come bozza automatica, nascosta da lista/stats, pensata per
     # permettere al composer menu di funzionare sull'URL /nuovo.
     is_bozza_auto: Optional[int] = 0
+    # 2026-10-20: preventivo creato dal tasto «📋 Preventivo» di una prenotazione
+    prenotazione_id: Optional[int] = None
 
 
 class PreventivoUpdate(BaseModel):
@@ -133,6 +135,7 @@ class PreventivoUpdate(BaseModel):
     is_bozza_auto: Optional[int] = None
     # Mig 187: menu scelto dal cliente tra le alternative. 0 = non ha ancora scelto.
     menu_scelto_id: Optional[int] = None
+    prenotazione_id: Optional[int] = None
 
 
 class LuoghiIn(BaseModel):
@@ -242,6 +245,7 @@ def api_lista_preventivi(
     offset: int = Query(default=0, ge=0),
     includi_bozze_auto: bool = False,
     periodo: Optional[str] = Query(None, description="'prossimi' = eventi da oggi + senza data"),
+    prenotazione_id: Optional[int] = Query(None, description="preventivi nati da questa prenotazione"),
     user: dict = Depends(get_current_user),
 ):
     return lista_preventivi(
@@ -250,6 +254,7 @@ def api_lista_preventivi(
         limit=limit, offset=offset,
         includi_bozze_auto=includi_bozze_auto,
         periodo=periodo,
+        prenotazione_id=prenotazione_id,
     )
 
 

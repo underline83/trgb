@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-20 — Preventivo da una prenotazione `[core]`
+
+Clienti 3.13, prenotazioni 2.17, nessuna migrazione (la colonna `clienti_preventivi.prenotazione_id` c'era già, mai scritta). Nel Planning, aprendo una prenotazione, c'è **«📋 Preventivo»**: apre il preventivo nuovo già impostato con cliente (o un cliente nuovo coi dati dell'ospite se la prenotazione non è collegata all'anagrafica), titolo («Cena Locatelli — 24/10», o l'occasione), data, ora, coperti e nelle note interne allergie e note della prenotazione; il preventivo resta collegato alla prenotazione e in scheda c'è «📅 Nato dalla prenotazione… — apri il Planning». Se quella prenotazione ha già un preventivo, il tasto apre quello. Il tasto lo vede solo chi vede Gestione Clienti › Preventivi ed è admin/superadmin (creare preventivi è admin lato backend).
+
 ## 2026-10-20 — Preventivi: WhatsApp in due passi `[core]`
 
 Clienti 3.12, nessuna migrazione. Provando dall'iPad col WhatsApp dell'osteria, la condivisione «PDF + testo» faceva scegliere solo tra le chat esistenti: il numero di un cliente nuovo non c'era, e il testo non partiva col PDF. Ora nel pannello «📨 Invia al cliente» › WhatsApp: **1 · Apri la chat di {numero} col messaggio** (wa.me, si preme invia in WhatsApp) e poi **2 · Allega il PDF** (condivisione del solo PDF: la chat del cliente è la prima delle recenti; sul Mac «Scarica il PDF» da trascinare). Il messaggio resta modificabile sopra i due tasti.

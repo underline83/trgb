@@ -992,9 +992,9 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
                  n_persone, luogo, stato, note_interne, note_cliente, condizioni,
                  scadenza_conferma, canale, template_id,
                  menu_nome, menu_prezzo_persona, menu_descrizione,
-                 is_bozza_auto,
+                 is_bozza_auto, prenotazione_id,
                  creato_da)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             numero,
             cliente_id,
@@ -1014,6 +1014,7 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
             data.get("menu_prezzo_persona") or 0,
             data.get("menu_descrizione"),
             is_bozza_auto,
+            data.get("prenotazione_id") or None,   # 2026-10-20: nato da una prenotazione
             username,
         ))
         preventivo_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -1124,6 +1125,7 @@ def lista_preventivi(
     offset: int = 0,
     includi_bozze_auto: bool = False,
     periodo: str | None = None,
+    prenotazione_id: int | None = None,
 ) -> dict:
     """Lista preventivi con filtri. Ritorna {items, total}.
 
@@ -1166,6 +1168,9 @@ def lista_preventivi(
         if cliente_id:
             where.append("p.cliente_id = ?")
             params.append(cliente_id)
+        if prenotazione_id:
+            where.append("p.prenotazione_id = ?")
+            params.append(prenotazione_id)
         if tipo:
             where.append("p.tipo = ?")
             params.append(tipo)
@@ -1270,7 +1275,7 @@ def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = Non
             "n_persone", "luogo", "note_interne", "note_cliente", "condizioni",
             "scadenza_conferma", "canale", "template_id",
             "menu_nome", "menu_prezzo_persona", "menu_descrizione",
-            "is_bozza_auto",
+            "is_bozza_auto", "prenotazione_id",
         ]
         for campo in campi_ammessi:
             if campo in data:

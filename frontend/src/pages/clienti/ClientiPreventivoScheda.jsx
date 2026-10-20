@@ -1,4 +1,5 @@
-// @version: v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
+// @version: v1.7 — nuovo preventivo da una prenotazione (tasto «📋 Preventivo» nel Planning), collegato con prenotazione_id (2026-10-20)
+// v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
 // Scheda singolo preventivo: testata + componi menu (snapshot da Cucina) + menu testuale + extra + totale
 // v1.1 (sessione 32): sezione Menu Proposto, cliente cerca/crea inline, luoghi configurabili
@@ -11,7 +12,7 @@
 // v1.6 (2026-10-19): «📨 Invia al cliente» salva e apre PreventivoInvioModal
 // (WhatsApp con PDF vero via condivisione, email col PDF allegato, registro invii).
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import PreventivoMenuComposer from "./PreventivoMenuComposer";
@@ -75,6 +76,8 @@ export default function ClientiPreventivoScheda() {
   const { id } = useParams();
   const isNew = id === "nuovo";
   const navigate = useNavigate();
+  // Prenotazione da cui nasce il preventivo (Planning › «📋 Preventivo»), passata nello state
+  const prenDa = useLocation().state?.prenotazione || null;
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -98,6 +101,7 @@ export default function ClientiPreventivoScheda() {
     menu_nome: "",
     menu_prezzo_persona: 0,
     menu_descrizione: "",
+    prenotazione_id: null,
   });
   const [stato, setStato] = useState("bozza");
   const [numero, setNumero] = useState("");
@@ -133,6 +137,57 @@ export default function ClientiPreventivoScheda() {
   // Pannello invio al cliente (mig 200)
   const [invioOpen, setInvioOpen] = useState(false);
 
+  // ── Nuovo preventivo da una prenotazione (2026-10-20) ──
+  // Se per quella prenotazione c'è già un preventivo, si apre quello; altrimenti
+  // il form parte con cliente, data, ora, coperti e le note della prenotazione.
+  useEffect(() => {
+    if (!isNew || !prenDa) return;
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/preventivi?prenotazione_id=${prenDa.id}&includi_bozze_auto=true`);
+        const d = r.ok ? await r.json() : null;
+        const esistente = d?.items?.[0];
+        if (esistente && vivo) {
+          navigate(`/clienti/preventivi/${esistente.id}`, { replace: true });
+          return;
+        }
+      } catch { /* si prosegue col nuovo */ }
+      if (!vivo) return;
+      const nomeCli = [prenDa.cognome, prenDa.nome].filter(Boolean).join(" ").trim();
+      const [aa, mm, gg] = (prenDa.data_pasto || "").split("-");
+      const titolo = `${prenDa.occasione || "Cena"} ${prenDa.cognome || prenDa.nome || ""}`.trim()
+        + (gg ? ` — ${gg}/${mm}` : "");
+      const note = [
+        `Dalla prenotazione del ${gg ? `${gg}/${mm}/${aa}` : prenDa.data_pasto} ore ${(prenDa.ora_pasto || "").slice(0, 5)}, ${prenDa.pax || "?"} coperti${prenDa.canale ? ` (${prenDa.canale})` : ""}.`,
+        prenDa.allergie_segnalate && `Allergie: ${prenDa.allergie_segnalate}`,
+        prenDa.allergie && `Allergie in anagrafica: ${prenDa.allergie}`,
+        prenDa.nota_cliente && `Nota del cliente: ${prenDa.nota_cliente}`,
+        prenDa.nota_ristorante && `Nota staff: ${prenDa.nota_ristorante}`,
+      ].filter(Boolean).join("\n");
+      setForm((f) => ({
+        ...f,
+        cliente_id: prenDa.cliente_id || null,
+        titolo,
+        data_evento: prenDa.data_pasto || "",
+        ora_evento: (prenDa.ora_pasto || "").slice(0, 5),
+        n_persone: prenDa.pax || "",
+        note_interne: note,
+        prenotazione_id: prenDa.id,
+      }));
+      if (prenDa.cliente_id) {
+        setClienteNome(nomeCli);
+        setClienteMode("cerca");
+      } else if (nomeCli || prenDa.telefono) {
+        // Prenotazione senza cliente in anagrafica (es. TheFork anonimizzata): cliente nuovo
+        setClienteMode("nuovo");
+        setNuovoCliente({ nome: prenDa.nome || "", cognome: prenDa.cognome || "", telefono: prenDa.telefono || "", email: prenDa.email || "" });
+      }
+    })();
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, prenDa?.id]);
+
   // ── Caricamento ──
   useEffect(() => {
     if (!isNew) {
@@ -156,6 +211,7 @@ export default function ClientiPreventivoScheda() {
             menu_nome: data.menu_nome || "",
             menu_prezzo_persona: data.menu_prezzo_persona || 0,
             menu_descrizione: data.menu_descrizione || "",
+            prenotazione_id: data.prenotazione_id || null,
           });
           setStato(data.stato);
           setNumero(data.numero);
@@ -564,6 +620,13 @@ export default function ClientiPreventivoScheda() {
               {/* Testata */}
               <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">
                 <h3 className="text-sm font-semibold text-neutral-700">Dettagli evento</h3>
+                {form.prenotazione_id && (
+                  <button type="button"
+                    onClick={() => form.data_evento && navigate(`/prenotazioni/planning/${form.data_evento}`)}
+                    className="w-full text-left text-xs bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg px-3 py-2 min-h-[40px] hover:bg-indigo-100">
+                    📅 Nato dalla prenotazione del {form.data_evento ? form.data_evento.split("-").reverse().join("/") : "—"}{form.ora_evento ? ` ore ${form.ora_evento}` : ""} — apri il Planning ›
+                  </button>
+                )}
 
                 {/* Template select */}
                 {templates.length > 0 && (

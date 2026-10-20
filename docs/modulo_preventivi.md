@@ -47,6 +47,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`, so
 | C-P-037 | Pannello «📨 Invia al cliente»: salva, prepara testo + PDF, WhatsApp (condivisione PDF+testo o chat col testo + PDF da scaricare), email | `PreventivoInvioModal.jsx` + scheda | admin (invio) | 🆕 2026-10-19 |
 | C-P-038 | Email al cliente col PDF allegato (M.D), destinatario/oggetto/testo proposti e modificabili | `GET /preventivi/{id}/email-bozza`, `POST /preventivi/{id}/invia-email` — `preventivi_service.bozza_email / invia_email_preventivo` | admin | 🆕 2026-10-19 |
 | C-P-039 | Registro invii (canale, a chi, quando, chi, esito); il primo invio riuscito porta bozza → inviato | `GET/POST /preventivi/{id}/invii` — `preventivi_service.registra_invio / lista_invii` | lettura ruoli modulo, scrittura admin | 🆕 2026-10-19 |
+| C-P-040 | Nuovo preventivo da una prenotazione: dal Planning «📋 Preventivo» apre `/clienti/preventivi/nuovo` con cliente (o cliente nuovo coi dati dell'ospite), titolo, data, ora, coperti e note (allergie, note) già compilati; scrive `prenotazione_id`; se la prenotazione ha già un preventivo apre quello; in scheda il riquadro «📅 Nato dalla prenotazione…» riporta al Planning | `POST/PUT /preventivi` (`prenotazione_id`), `GET /preventivi?prenotazione_id=` — `ClientiPreventivoScheda.jsx` (state `prenotazione`) | admin/superadmin (chi può creare preventivi) | 🆕 2026-10-20 |
 
 **Auth:** tutte le route richiedono JWT; le letture sono aperte a ogni utente loggato, le scritture (e `GET /stats`) richiedono admin/superadmin via `is_admin()`.
 
@@ -189,7 +190,7 @@ Il service è difensivo: se le tabelle 075/079 mancano (DB legacy non migrato) d
 
 # 11. Non implementato / differenze dalla spec 2026-04
 
-- **Collegamento alla prenotazione**: la colonna `prenotazione_id` esiste ma **nessun codice la scrive**; lo stato "prenotato" è una pura etichetta manuale. La prenotazione va creata a mano nel modulo Prenotazioni.
+- **Collegamento alla prenotazione**: dal 2026-10-20 `prenotazione_id` si scrive quando il preventivo nasce dal tasto «📋 Preventivo» del Planning (C-P-040). Manca il verso opposto: un preventivo confermato non crea la prenotazione, e lo stato "prenotato" resta un'etichetta manuale.
 - **Notifiche staff (M.A)**: la spec prevedeva `crea_notifica` sui preventivi confermati; non c'è alcuna chiamata al mattone.
 - **`scaduto` automatico**: la spec lo prevedeva allo scadere di `scadenza_conferma`; oggi è solo transizione manuale (nessun job/checker M.F). La lista evidenzia le scadenze imminenti come promemoria visivo.
 - **Versioning (Fase D)**: campo `versione` fermo a 1, nessuna logica.

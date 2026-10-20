@@ -424,6 +424,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.13 (2026-10-20): nuovo preventivo da una prenotazione (cliente, data, ora, coperti,
+    //   note già compilati), collegato con prenotazione_id; se c'è già, si apre quello.
     // 3.12 (2026-10-20): preventivi, WhatsApp in due passi — 1) apri la chat del numero col
     //   messaggio, 2) allega il PDF (il cliente nuovo non compariva tra le chat della condivisione).
     // 3.11 (2026-10-19): preventivi, messaggio WhatsApp asciutto (menù e prezzi, il resto nel PDF)
@@ -464,16 +466,18 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.12",
+    version: "3.13",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.17 (2026-10-20): Planning, tasto «📋 Preventivo» nella riga aperta (solo per chi può
+    //   creare preventivi): apre il preventivo nuovo già impostato, o quello già fatto.
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.16",
+    version: "2.17",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
