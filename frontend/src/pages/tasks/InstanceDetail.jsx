@@ -264,8 +264,16 @@ export default function InstanceDetail() {
     const target = tutteOk ? "SKIPPED" : "OK";
     const daFare = blocco.items.filter(i =>
       i.item_tipo === "CHECKBOX" && (tutteOk || i.stato !== "OK"));
+    // Linea (Marco 2026-10-23): barrare il piatto = tutto verde. Le scorte si
+    // contano dalla Cucina iPhone.
+    const linea = blocco.items.filter(i =>
+      i.item_tipo === "LINEA" && (tutteOk || !(i.stato === "OK" && i.valore_testo === "VERDE")));
     try {
       for (const it of daFare) await doCheck(it.item_id, target);
+      for (const it of linea) {
+        if (tutteOk) await doCheck(it.item_id, "SKIPPED");
+        else await doCheck(it.item_id, "OK", null, "VERDE");
+      }
       toast(tutteOk ? `${blocco.gruppo}: tolte le spunte` : `✓ ${blocco.gruppo}`,
             { kind: tutteOk ? "info" : "success" });
     } catch { /* already toasted */ }

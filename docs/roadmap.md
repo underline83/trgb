@@ -599,6 +599,14 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.7 | Notifiche push / WA su checklist in scadenza (M.C + M.A) | S | MEDIA | |
 | C.8 | Export PDF registro mensile HACCP firmabile | S | MEDIA | M.B |
 | C.9 | Scorte & Frigoriferi a ripiani + Cucina da iPhone (/cucina/mobile) | L | ✅ FATTO 2026-09-07 → 10-02 | mig 171, congelatori con lotti FIFO, correzioni dal telefono, temperature dal gate (cucinaScorte 1.7). Vedi `modulo_scorte_cucina.md` |
+| **Linea cucina** (spec [`spec_linea_cucina.md`](spec_linea_cucina.md)) ||||
+| C.LN1 | **Compositore della linea**: una schermata sola per comporre la linea di un piatto (componenti, dotazione pezzo per pezzo — pentolino, GN 1/9 di scorta… — numeri, minimi frigo/gelo, riordino) invece della scheda Linea ricetta per ricetta | M | DA FARE (Marco 2026-10-23) | Oggi si fa da Ricette › piatto › Linea, testo con «+» |
+| C.LN2 | Accendere le linee «dal menu» di primi, secondi, contorni e spegnere le vecchie a mano | XS | DA FARE | In prova solo «Linea antipasti NEW» (template 15-16). Spegnere a mano: `attiva()` abbina per nome |
+| C.LN3 | Completare le composizioni: uova (battuta), giardiniera (salame), salumi del tagliere (da creare come ingredienti), formaggi | S | DA FARE | Oggi non compaiono in checklist |
+| C.LN4 | L3 — esiti → lavoro: giallo/rosso e scorte sotto il minimo → task (rifornire, produrre) e lista spesa per fornitore, confermata da Marco/chef/sous chef; notifiche | M | DA FARE | spec §6 |
+| C.LN5 | Dolci nella linea | S | RINVIATO | Prima le considerazioni di Marco |
+| C.LN6 | Piatti del pranzo nella linea | M | RINVIATO | Cambiano ogni settimana |
+| C.LN7 | Scheda «Linea» anche nell'articolo della Cucina iPhone | S | DA FARE | Ora solo dalla ricetta (desktop) |
 | **Pranzo settimanale** ||||
 | C.P1 | Aggancio food cost / margine al menu (recipe_id già in DB) | S | MEDIA | Dati pronti |
 | C.P2 | Note allergeni stampate sul PDF | S | MEDIA | |

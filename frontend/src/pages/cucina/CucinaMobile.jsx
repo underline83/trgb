@@ -704,25 +704,68 @@ function TabOggi({ canWrite, onCount }) {
 
   // Tocco sul padre: se tutte le figlie sono OK le toglie, altrimenti spunta
   // quelle che mancano. Le voci con un numero restano da misurare a mano.
+  // Tocco sul piatto (Marco 2026-10-23: «se barro la ricetta principale segna
+  // tutto in verde»): le voci semplici OK, le voci di linea VERDE (anche
+  // quelle gialle o rosse: barrare il piatto vuol dire «e' tutto a posto»),
+  // le scorte confermate col numero proposto se il dato e' affidabile. Una
+  // scorta senza dato affidabile resta da contare: il numero non si inventa.
+  // Se e' gia' tutto fatto, ritoccare toglie le spunte semplici e i colori
+  // (le scorte confermate restano: sono gia' scritte nel frigo).
   async function spuntaGruppo(inst, blocco) {
     if (!canWrite || busy) return;
-    // Semaforo e scorte non si spuntano «in blocco»: vogliono il colore o il numero.
-    const spuntabili = blocco.items.filter((i) => !TIPI_CON_VALORE.includes(i.item_tipo));
     const tutteOk = blocco.items.every((i) => i.stato === "OK");
-    const target = tutteOk ? "SKIPPED" : "OK";
-    const daFare = spuntabili.filter((i) => (tutteOk ? true : i.stato !== "OK"));
     setBusy(`g${inst.id}:${blocco.gruppo}`);
+    const check = async (it, body) => {
+      const res = await apiFetch(`${API_BASE}/tasks/execution/item/${it.item_id}/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instance_id: inst.id, ...body }),
+      });
+      if (!res.ok) throw await erroreDa(res);
+      return res.json();
+    };
+    let restano = 0;
     try {
-      for (const it of daFare) {
-        const res = await apiFetch(`${API_BASE}/tasks/execution/item/${it.item_id}/check`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ instance_id: inst.id, stato: target }),
-        });
-        if (!res.ok) throw await erroreDa(res);
+      // Le spunte condivise fanno cambiare le voci gemelle mentre si gira:
+      // si rilegge lo stato aggiornato dopo ogni scrittura.
+      let correnti = blocco.items;
+      const aggiorna = (istanza) => {
+        const per = new Map((istanza?.items || []).map((x) => [x.item_id, x]));
+        correnti = correnti.map((x) => per.get(x.item_id) || x);
+      };
+      for (const orig of blocco.items) {
+        const it = correnti.find((x) => x.item_id === orig.item_id) || orig;
+        if (it.item_tipo === "LINEA") {
+          if (tutteOk) aggiorna(await check(it, { stato: "SKIPPED" }));
+          else if (!(it.stato === "OK" && it.valore_testo === "VERDE"))
+            aggiorna(await check(it, { stato: "OK", valore_testo: "VERDE" }));
+        } else if (TIPI_SCORTA.includes(it.item_tipo)) {
+          if (tutteOk || it.stato === "OK") continue;
+          const d = datiScorta(it);
+          if (d && d.affidabile) {
+            const fam = it.item_tipo === "SCORTA_GELO" ? "GELO" : "FRIGO";
+            const res = await apiFetch(`${API_BASE}/cucina/scorte/linea/scorte/conferma`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ articolo_id: it.item_articolo_id, famiglia: fam, instance_id: inst.id,
+                conteggi: d.posti.map((p) => ({ ripiano_id: p.ripiano_id, qta: num(p.qta) })) }),
+            });
+            if (!res.ok) throw await erroreDa(res);
+            const { totale } = await res.json();
+            aggiorna(await check(it, { stato: "OK", valore_numerico: totale }));
+          } else {
+            restano += 1;
+          }
+        } else if (!TIPI_CON_VALORE.includes(it.item_tipo)) {
+          if (tutteOk || it.stato !== "OK") aggiorna(await check(it, { stato: tutteOk ? "SKIPPED" : "OK" }));
+        }
+      }
+      if (restano) {
+        setErr(`${blocco.gruppo}: ${restano === 1 ? "una scorta da contare" : `${restano} scorte da contare`} (dato non affidabile).`);
+        setTimeout(() => setErr(null), 5000);
       }
     } catch (e) { setErr(e.message); }
-    finally { await load(); setBusy(null); }
+    finally { await load(); setGiroScorte((g) => g + 1); setBusy(null); }
   }
 
   // Semaforo di linea (Marco 2026-10-23, davanti al frigo): verde = a posto;
