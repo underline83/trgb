@@ -204,7 +204,15 @@ export default function TemplateList() {
                 <div key={t.id} className="p-4 flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-semibold text-neutral-900">{t.nome}</div>
+                      <div className="font-semibold text-neutral-900">
+                        {t.nome}
+                        {t.generato_da && (
+                          <span title="Scritta dal gestionale dal menu in carta e dalla scheda Linea delle ricette"
+                                className="ml-2 align-middle text-[10px] uppercase font-bold tracking-wide px-2 py-0.5 rounded-full border bg-[#fdf3dc] text-[#8a5a00] border-[#f1dcaa]">
+                            dal menu
+                          </span>
+                        )}
+                      </div>
                       <StatusBadge tone={t.attivo ? "success" : "neutral"} size="sm">
                         {t.attivo ? "ATTIVO" : "DISATTIVO"}
                       </StatusBadge>

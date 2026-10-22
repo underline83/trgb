@@ -203,9 +203,18 @@ export default function InstanceDetail() {
 
   // ── Handler item tap ─────────────────────────────────────────
 
-  const handleItemAction = async (item, targetStato) => {
+  const handleItemAction = async (item, targetStato, colore) => {
     if (isViewer) { toast("Sola lettura", { kind: "info" }); return; }
     if (!editable || saving) return;
+
+    // LINEA (mig 207): il semaforo — il colore va in valore_testo.
+    if (item.item_tipo === "LINEA") {
+      const togli = item.stato === "OK" && item.valore_testo === colore;
+      try {
+        await doCheck(item.item_id, togli ? "SKIPPED" : "OK", null, togli ? null : colore);
+      } catch { /* already toasted */ }
+      return;
+    }
 
     // TESTO con OK → apri modal testo
     if (targetStato === "OK" && item.item_tipo === "TESTO") {
@@ -743,6 +752,22 @@ function ItemCard({ item, editable, saving, isViewer, onAction }) {
           </div>
         )}
 
+        {/* Scorta confermata (linea generata, mig 207) */}
+        {(item.item_tipo === "SCORTA_FRIGO" || item.item_tipo === "SCORTA_GELO") && (
+          <div className="mt-1 text-sm text-neutral-600">
+            {item.valore_numerico != null ? (
+              <span className={"font-playfair font-bold text-[20px] " +
+                (item.item_min != null && item.valore_numerico < item.item_min ? "text-brand-red" : "text-brand-ink")}>
+                {fmtNum(item.valore_numerico, (item.item_unita || "").toLowerCase())}
+                {item.item_min != null && item.valore_numerico < item.item_min &&
+                  <span className="ml-2 text-xs font-normal">sotto il minimo</span>}
+              </span>
+            ) : (
+              <span>Si conta dalla Cucina iPhone (Oggi): il numero va anche in Frigoriferi e scorte.</span>
+            )}
+          </div>
+        )}
+
         {/* Valore testo */}
         {item.item_tipo === "TESTO" && item.valore_testo && (
           <div className="mt-1.5 text-sm italic text-neutral-700 bg-[#EFEBE3] border-l-2 border-[#d7d1c2] px-3 py-1.5 rounded">
@@ -760,6 +785,13 @@ function ItemCard({ item, editable, saving, isViewer, onAction }) {
 
       {/* Actions */}
       <div className="flex gap-2 items-center">
+        {item.item_tipo === "LINEA" && SEMAFORO.map((c) => (
+          <button key={c.k} type="button" title={c.t} aria-label={c.t}
+                  disabled={!canTap} onClick={() => onAction(item, "OK", c.k)}
+                  className={"w-11 h-11 rounded-full border-[3px] disabled:opacity-40 " +
+                    (s === "OK" && item.valore_testo === c.k ? c.on : "bg-white " + c.bordo)} />
+        ))}
+
         {item.item_tipo === "CHECKBOX" && (
           <>
             <ActionCircle
@@ -911,8 +943,17 @@ function ActionCircle({ variant, active, disabled, onClick, children, ...rest })
   );
 }
 
+const SEMAFORO = [
+  { k: "VERDE", t: "ok", on: "bg-brand-green border-brand-green", bordo: "border-brand-green" },
+  { k: "GIALLO", t: "quasi finito", on: "bg-amber-400 border-amber-400", bordo: "border-amber-400" },
+  { k: "ROSSO", t: "finito", on: "bg-brand-red border-brand-red", bordo: "border-brand-red" },
+];
+
 function TipoChip({ tipo }) {
   const map = {
+    LINEA:        "bg-[#fdf3dc] text-[#8a5a00] border-[#f1dcaa]",
+    SCORTA_FRIGO: "bg-[#eaf4ff] text-[#1a4fa0] border-[#cfe0f8]",
+    SCORTA_GELO:  "bg-[#eaf4ff] text-[#1a4fa0] border-[#cfe0f8]",
     TEMPERATURA: "bg-[#eaf4ff] text-[#1a4fa0] border-[#cfe0f8]",
     NUMERICO:    "bg-[#f1eefa] text-[#4b32a0] border-[#dccfe8]",
     TESTO:       "bg-[#eef4ef] text-[#2a6a3a] border-[#cfe1d3]",

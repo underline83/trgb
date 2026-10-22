@@ -27,6 +27,8 @@ DUE COSE DA RICORDARE LEGGENDO IL CODICE
 
 from __future__ import annotations
 
+import logging
+
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -61,11 +63,13 @@ from app.services.cucina_scorte_service import (
     crea_lotto,
     trasferisci,
     chiudi_ripiano,
+    conferma_scorta_linea,
     foglio_ripiano,
     giacenza_totale,
     registra_movimento,
     riallinea_semaforo,
     rimuovi_da_lista_spesa,
+    scorte_linea,
     scrivi_riga_conta,
     set_semaforo,
     stato_dato,
@@ -73,6 +77,7 @@ from app.services.cucina_scorte_service import (
 )
 from app.services.permessi import richiede_ruoli, verifica_ruoli
 from app.services.ricette_lookup import nomi_ricette, righe_ricetta
+from app.services import linea_checklist
 
 # PERMESSI (M.G) — chi puo' toccare le scorte.
 # Router: la brigata al completo. Il semaforo, i movimenti e le righe di conta
@@ -152,6 +157,8 @@ class LineaElementoIn(BaseModel):
     linea_qta: Optional[str] = Field(default=None, max_length=120)
     linea_note: Optional[str] = Field(default=None, max_length=300)
     ordine: int = 0
+    # mig 207: nel gruppo «Generale» della partita, sempre presente
+    generale: bool = False
 
 
 class LineaElementoUpdate(BaseModel):
@@ -160,6 +167,25 @@ class LineaElementoUpdate(BaseModel):
     linea_note: Optional[str] = Field(default=None, max_length=300)
     ordine: Optional[int] = None
     attivo: Optional[bool] = None
+    generale: Optional[bool] = None
+
+
+class LineaAttivaIn(BaseModel):
+    # True = accendi le checklist generate dal menu e spegni le vecchie a mano;
+    # False = torna alle vecchie.
+    accendi: bool = True
+
+
+class ConteggioRipianoIn(BaseModel):
+    ripiano_id: int
+    qta: float = Field(..., ge=0)
+
+
+class ConfermaScortaIn(BaseModel):
+    articolo_id: int
+    famiglia: str                      # FRIGO | GELO
+    conteggi: List[ConteggioRipianoIn] = Field(..., min_length=1)
+    instance_id: Optional[int] = None  # l'istanza di checklist da cui arriva
 
 
 class VoceExtraIn(BaseModel):
@@ -486,9 +512,12 @@ def update_articolo(articolo_id: int, payload: ArticoloUpdate,
             assicura_giacenza(conn, articolo_id, d["ripiano_casa_id"])
         riallinea_semaforo(conn, articolo_id, _utente(current_user))
         conn.commit()
-        return {"ok": True, "articolo": _get_articolo(cur, articolo_id)}
+        art = _get_articolo(cur, articolo_id)
     finally:
         conn.close()
+    if set(d) & _CAMPI_LINEA:
+        _risincronizza_linea()
+    return {"ok": True, "articolo": art}
 
 
 @router.delete("/articoli/{articolo_id}")
@@ -501,9 +530,10 @@ def disattiva_articolo(articolo_id: int, current_user=Depends(get_current_user))
         _get_articolo(cur, articolo_id)
         cur.execute("UPDATE cucina_articoli SET attivo = 0 WHERE id = ?", (articolo_id,))
         conn.commit()
-        return {"ok": True, "disattivato": articolo_id}
     finally:
         conn.close()
+    _risincronizza_linea()
+    return {"ok": True, "disattivato": articolo_id}
 
 
 # ─── Il tap del cuoco ──────────────────────────────────────
@@ -1221,7 +1251,7 @@ def _articoli_linea(conn, where: str, args: list) -> List[Dict[str, Any]]:
     for r in rows:
         d = dict(r)
         d["linea"] = [dict(x) for x in conn.execute(
-            """SELECT id, partita, linea_qta, linea_note, ordine, attivo
+            """SELECT id, partita, linea_qta, linea_note, ordine, attivo, generale
                  FROM cucina_linea_elementi
                 WHERE articolo_id = ? AND attivo = 1
                 ORDER BY partita, ordine, id""", (d["id"],)).fetchall()]
@@ -1287,17 +1317,19 @@ def linea_create(payload: LineaElementoIn, current_user=Depends(get_current_user
         cur = conn.cursor()
         _get_articolo(cur, payload.articolo_id)
         cur.execute(
-            """INSERT INTO cucina_linea_elementi (articolo_id, partita, linea_qta, linea_note, ordine)
-               VALUES (?, ?, ?, ?, ?)""",
+            """INSERT INTO cucina_linea_elementi (articolo_id, partita, linea_qta, linea_note, ordine, generale)
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (payload.articolo_id, partita, (payload.linea_qta or "").strip() or None,
-             (payload.linea_note or "").strip() or None, payload.ordine),
+             (payload.linea_note or "").strip() or None, payload.ordine,
+             1 if payload.generale else None),
         )
         new_id = cur.lastrowid
         conn.commit()
-        return {"ok": True, "elemento": dict(cur.execute(
-            "SELECT * FROM cucina_linea_elementi WHERE id = ?", (new_id,)).fetchone())}
+        el = dict(cur.execute("SELECT * FROM cucina_linea_elementi WHERE id = ?", (new_id,)).fetchone())
     finally:
         conn.close()
+    _risincronizza_linea()
+    return {"ok": True, "elemento": el}
 
 
 @router.patch("/linea/{elemento_id}")
@@ -1309,6 +1341,8 @@ def linea_update(elemento_id: int, payload: LineaElementoUpdate,
         d["partita"] = _partita(d["partita"])
     if "attivo" in d:
         d["attivo"] = 1 if d["attivo"] else 0
+    if "generale" in d:
+        d["generale"] = 1 if d["generale"] else None
     if not d:
         raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
     conn = get_foodcost_connection()
@@ -1320,10 +1354,11 @@ def linea_update(elemento_id: int, payload: LineaElementoUpdate,
         cur.execute(f"UPDATE cucina_linea_elementi SET {sets}, updated_at = datetime('now','localtime') WHERE id = ?",
                     [*d.values(), elemento_id])
         conn.commit()
-        return {"ok": True, "elemento": dict(cur.execute(
-            "SELECT * FROM cucina_linea_elementi WHERE id = ?", (elemento_id,)).fetchone())}
+        el = dict(cur.execute("SELECT * FROM cucina_linea_elementi WHERE id = ?", (elemento_id,)).fetchone())
     finally:
         conn.close()
+    _risincronizza_linea()
+    return {"ok": True, "elemento": el}
 
 
 @router.delete("/linea/{elemento_id}")
@@ -1335,9 +1370,10 @@ def linea_delete(elemento_id: int, current_user=Depends(get_current_user)):
         conn.execute("UPDATE cucina_linea_elementi SET attivo = 0, updated_at = datetime('now','localtime') WHERE id = ?",
                      (elemento_id,))
         conn.commit()
-        return {"ok": True}
     finally:
         conn.close()
+    _risincronizza_linea()
+    return {"ok": True}
 
 
 @router.get("/linea/extra/")
@@ -1366,10 +1402,11 @@ def linea_extra_create(payload: VoceExtraIn, current_user=Depends(get_current_us
                      (payload.note or "").strip() or None, payload.ordine))
         new_id = cur.lastrowid
         conn.commit()
-        return {"ok": True, "voce": dict(cur.execute(
-            "SELECT * FROM cucina_linea_voci_extra WHERE id = ?", (new_id,)).fetchone())}
+        voce = dict(cur.execute("SELECT * FROM cucina_linea_voci_extra WHERE id = ?", (new_id,)).fetchone())
     finally:
         conn.close()
+    _risincronizza_linea()
+    return {"ok": True, "voce": voce}
 
 
 @router.patch("/linea/extra/{voce_id}")
@@ -1393,7 +1430,85 @@ def linea_extra_update(voce_id: int, payload: VoceExtraUpdate,
         sets = ", ".join(f"{k} = ?" for k in d)
         cur.execute(f"UPDATE cucina_linea_voci_extra SET {sets} WHERE id = ?", [*d.values(), voce_id])
         conn.commit()
-        return {"ok": True, "voce": dict(cur.execute(
-            "SELECT * FROM cucina_linea_voci_extra WHERE id = ?", (voce_id,)).fetchone())}
+        voce = dict(cur.execute("SELECT * FROM cucina_linea_voci_extra WHERE id = ?", (voce_id,)).fetchone())
+    finally:
+        conn.close()
+    _risincronizza_linea()
+    return {"ok": True, "voce": voce}
+
+
+# ─── Linea L2: checklist generate dal menu (mig 207) ───────
+#
+# Le voci le calcola e le scrive services/linea_checklist.py (ponte platform
+# verso il Task Manager). Qui: anteprima, rigenera, accendi/spegni, e la
+# scorta proposta/confermata delle voci SCORTA_FRIGO / SCORTA_GELO.
+
+# Campi dell'articolo che cambiano una voce di linea (nome, minimi, legami).
+_CAMPI_LINEA = {"nome", "um", "recipe_id", "ingredient_id",
+                "scorta_min_frigo", "scorta_min_gelo", "attivo"}
+
+
+def _risincronizza_linea() -> None:
+    """Dopo ogni modifica della linea o di un articolo: riscrive le checklist
+    generate. Mai bloccante: se fallisce, ci riprova il giro dalla Home."""
+    try:
+        linea_checklist.sincronizza(forza=True)
+    except Exception as e:  # pragma: no cover — degrado morbido
+        logging.getLogger("trgb.cucina.scorte").warning("risincronizzazione linea fallita: %s", e)
+
+
+@router.get("/linea/generata")
+def linea_generata():
+    """Anteprima: cosa conterrebbero le checklist di linea calcolate adesso dal
+    menu in carta, partita per partita. Sola lettura."""
+    return {"partite": linea_checklist.calcola()}
+
+
+@router.post("/linea/genera")
+def linea_genera(current_user=Depends(get_current_user)):
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="rigenerare la linea")
+    return linea_checklist.sincronizza(forza=True)
+
+
+@router.post("/linea/attiva")
+def linea_attiva(payload: LineaAttivaIn, current_user=Depends(get_current_user)):
+    """Il cambio: accende le checklist generate e spegne le vecchie a mano con
+    lo stesso nome (o il contrario). Le istanze di oggi non ancora toccate
+    della parte spenta si chiudono come SALTATE, con il motivo."""
+    verifica_ruoli(current_user, *GESTIONE, cosa="cambiare le checklist di linea")
+    linea_checklist.sincronizza(forza=True)
+    return linea_checklist.attiva(payload.accendi)
+
+
+@router.get("/linea/scorte")
+def linea_scorte(articoli: str = Query(..., description="id articolo separati da virgola")):
+    """La proposta delle voci di scorta: per articolo, i ripiani di frigo e
+    congelatore con la quantita' registrata e quanto e' affidabile."""
+    try:
+        ids = [int(x) for x in articoli.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=422, detail="articoli: id numerici separati da virgola")
+    conn = get_foodcost_connection()
+    try:
+        return scorte_linea(conn, ids)
+    finally:
+        conn.close()
+
+
+@router.post("/linea/scorte/conferma")
+def linea_scorte_conferma(payload: ConfermaScortaIn, current_user=Depends(get_current_user)):
+    """Conferma o corregge la scorta: una RETTIFICA per ripiano contato. Tutta
+    la brigata (guardia di router): la scorta la conta chi e' in linea."""
+    conn = get_foodcost_connection()
+    try:
+        try:
+            res = conferma_scorta_linea(
+                conn, payload.articolo_id, payload.famiglia,
+                [c.dict() for c in payload.conteggi], _utente(current_user),
+                instance_id=payload.instance_id)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        conn.commit()
+        return res
     finally:
         conn.close()

@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-22 — Linea cucina: le checklist di linea si scrivono dal menu `[core]`
+
+Sistema 5.72, cucinaScorte 1.10, tasks 1.8, **mig 207**. Le checklist «Linea Antipasti/Primi/Secondi/Contorni · Pranzo/Sera» le scrive il gestionale: piatti della carta in corso → ricette → articoli che hanno una riga di linea nella partita. Ogni articolo ha la sua voce sotto ogni piatto che lo usa (spunta condivisa), più una voce di scorta frigo e/o gelo per partita; le righe segnate «in Generale» e le voci extra stanno nel gruppo Generale. Se cambia un piatto o una riga di linea, la checklist cambia da sola; le voci che escono restano solo nello storico. Nella Cucina iPhone › Oggi la voce di linea si segna col semaforo (verde, giallo = quasi finito, rosso = finito) e la scorta si conferma col numero proposto da Frigoriferi e scorte o si conta ripiano per ripiano: la conferma scrive anche nel frigo (rettifica, con utente e ora). La prima volta che un articolo non è in nessun frigo si sceglie dove sta. Le checklist nuove nascono spente; quando Marco dà l'ok si accendono e le vecchie a mano si spengono (`POST /cucina/scorte/linea/attiva`). Nel TemplateEditor le voci delle checklist «dal menu» sono in sola lettura. Dati, 2026-10-22: travaso dei parametri di primi, secondi e contorni (27 articoli nuovi, 21 esistenti collegati, alcuni rinominati); 23 articoli in linea con un minimo passati a regime CONTA. Spec `spec_linea_cucina.md` §5.
+
 ## 2026-10-22 — Preventivi: copia a prenotazioni@ e avviso ai gruppi all'invio `[core]`
 
 Clienti 3.15, sistema 5.71, mig 206. Quando un preventivo parte verso il cliente (email o WhatsApp) arriva una copia col PDF a **prenotazioni@tregobbi.it** (l'indirizzo si cambia in Clienti › Impostazioni › Luoghi preventivi; vuoto = nessuna copia) e, chiuso il pannello d'invio, si apre il messaggio «📨 Preventivo inviato» per i gruppi WhatsApp di sala e cucina (giorno, ora, cliente, persone, menù proposti col prezzo, «in attesa di conferma»), da condividere come quello della conferma.

@@ -585,3 +585,21 @@ Due tab su quattro girano su endpoint che esistono già: il lavoro backend di S1
 | C-K-202c | Voci extra di linea (pentole, pass, pescato) | `/cucina/scorte/linea/extra/` (solo API, UI in L2) | admin/chef/sous chef | 🆕 |
 | C-K-202d | Filtrare gli articoli per ricetta o ingrediente | `GET /cucina/scorte/articoli/?recipe_id=&ingredient_id=` | brigata | 🆕 |
 
+## Linea cucina — fase L2 (2026-10-22, mig 207, cucinaScorte 1.10)
+
+> Spec: [spec_linea_cucina.md](spec_linea_cucina.md) §5. Le checklist di linea le scrive il gestionale dal menu in carta.
+
+- **Generatore**: `app/services/linea_checklist.py` (platform, ponte cucina ↔ task_manager). Legge edizione `in_carta` (piatti visibili), righe di ricetta, articoli, `cucina_linea_elementi`, voci extra; scrive `checklist_template`/`checklist_item` delle checklist con `generato_da = 'linea:<partita>:<turno>'`. Gira dopo ogni modifica di linea/articolo, dalla Home (throttle 60 s) e da `POST /linea/genera`.
+- **Config** (`cucina_scorte_config`): `linea_sezioni` (sezione carta → partita), `linea_ora_pranzo` / `linea_ora_sera`, `linea_lotti_avviso_gg`.
+- `cucina_linea_elementi.generale` (mig 207): la riga va nel gruppo «Generale» della partita, sempre presente.
+- **Scorta proposta e confermata**: `scorte_linea()` (sola lettura: ripiani frigo FRIGO/CELLA e gelo FREEZER/ABBATTITORE, quantità, freschezza, lotti in scadenza) e `conferma_scorta_linea()` (una RETTIFICA per ripiano contato, anche a delta zero, `motivo = 'Controllo linea'`, `ref_modulo = 'task_manager'`, `ref_id` = istanza; il primo ripiano diventa il ripiano di casa se mancava) in `cucina_scorte_service.py`.
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-K-207a | Anteprima delle checklist di linea calcolate dal menu | `GET /cucina/scorte/linea/generata` | brigata | 🆕 |
+| C-K-207b | Rigenerare le checklist di linea | `POST /cucina/scorte/linea/genera` | admin/chef/sous chef | 🆕 |
+| C-K-207c | Accendere le generate e spegnere le vecchie a mano (o tornare indietro) | `POST /cucina/scorte/linea/attiva` | admin/chef | 🆕 |
+| C-K-207d | Scorta proposta per le voci di scorta | `GET /cucina/scorte/linea/scorte?articoli=` | brigata | 🆕 |
+| C-K-207e | Confermare/correggere la scorta, scrivendo in Frigoriferi | `POST /cucina/scorte/linea/scorte/conferma`, `CucinaMobile.jsx` `ContaScortaSheet` | brigata | 🆕 |
+| C-K-207f | Riga di linea «in Generale» | `LineaTab.jsx` | admin/chef/sous chef | 🆕 |
+

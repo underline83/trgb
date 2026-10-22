@@ -1566,6 +1566,15 @@ def get_dashboard_home(current_user=Depends(get_current_user)):
     except Exception as e:
         logger.warning(f"Dashboard: alert engine trigger fallito: {e}")
 
+    # ── Linea cucina generata dal menu (mig 207, fire-and-forget) ──
+    # Prima dello scheduler: se e' cambiata la carta, le checklist di linea
+    # sono gia' aggiornate quando si creano le istanze. Throttle 60 s interno.
+    try:
+        from app.services.linea_checklist import sincronizza
+        sincronizza(forza=False)
+    except Exception as e:
+        logger.warning(f"Dashboard: sincronizzazione linea fallita: {e}")
+
     # ── Trigger Task Manager scheduler (fire-and-forget) ──
     # Genera istanze checklist per oggi+1 (idempotente) e marca scadute.
     try:

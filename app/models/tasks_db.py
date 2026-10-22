@@ -60,6 +60,7 @@ def init_tasks_db() -> None:
             note                TEXT,
             created_by          TEXT,
             livello_cucina      TEXT,
+            generato_da         TEXT,
             created_at          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             updated_at          TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
@@ -80,6 +81,9 @@ def init_tasks_db() -> None:
             ubicazione_id   INTEGER,
             gruppo          TEXT,
             recipe_id       INTEGER,
+            articolo_id     INTEGER,
+            linea_ref       TEXT,
+            disattivo_at    TEXT,
             FOREIGN KEY (template_id) REFERENCES checklist_template(id) ON DELETE CASCADE
         )
     """)
@@ -187,7 +191,9 @@ def init_tasks_db() -> None:
     # dichiarata ANCHE qui, sia nel CREATE sopra sia in questa mappa di heal
     # per i DB gia' esistenti.
     HEAL_COLUMNS = {
-        "checklist_template": [("livello_cucina", "TEXT")],
+        # generato_da (mig 207): 'linea:<partita>:<turno>' = checklist scritta dal
+        # generatore della linea cucina (services/linea_checklist.py), non a mano.
+        "checklist_template": [("livello_cucina", "TEXT"), ("generato_da", "TEXT")],
         # reparto (mig 085) e ubicazione_id (mig 171): persi anche loro col DB
         # ricreato a maggio. Senza checklist_instance.reparto la guardia
         # _check_instance_visibility del router esplode: ogni spunta, completa
@@ -199,7 +205,12 @@ def init_tasks_db() -> None:
         # gruppo (mig 182, 2026-10-04): voce "padre" che raggruppa le sotto-voci.
         "checklist_item":     [("ubicazione_id", "INTEGER"), ("gruppo", "TEXT"),
                               # recipe_id (mig 201): voce collegata a una ricetta (foodcost.db, logico)
-                              ("recipe_id", "INTEGER")],
+                              ("recipe_id", "INTEGER"),
+                              # mig 207 (linea generata): articolo in Scorte (foodcost.db,
+                              # logico), chiave stabile del generatore, voce tolta dal menu
+                              # (resta per lo storico delle istanze che l'hanno spuntata).
+                              ("articolo_id", "INTEGER"), ("linea_ref", "TEXT"),
+                              ("disattivo_at", "TEXT")],
     }
     for table, cols in HEAL_COLUMNS.items():
         existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()}

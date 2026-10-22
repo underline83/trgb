@@ -1,6 +1,6 @@
 # Spec — Linea cucina: dal menu alla checklist, dalla checklist agli ordini — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** L1 punti 1-2 sviluppati il 2026-10-20 (mig 202, da pushare); travaso dei parametri rinviato (Marco: «ci sono altre considerazioni da fare») · **Ultima verifica:** 2026-10-20
+> **Tipo:** 📄 pagina wiki · **Stato:** L1 online (mig 202) e travaso fatto per antipasti, primi, secondi e contorni (2026-10-20/22); **L2 sviluppata il 2026-10-22 (mig 207, da pushare)**; dolci e pranzo rinviati da Marco · **Ultima verifica:** 2026-10-22
 > **Vedi anche:** [modulo_cucina.md](modulo_cucina.md) · [modulo_scorte_cucina.md](modulo_scorte_cucina.md) · [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) · [modulo_menu_carta.md](modulo_menu_carta.md) · [modulo_pranzo.md](modulo_pranzo.md) · [modulo_acquisti.md](modulo_acquisti.md)
 
 **Creato:** 2026-10-20
@@ -80,6 +80,16 @@ Ogni giorno, per ogni partita e servizio (Pranzo entro 12:30, Sera entro 23:59 �
 
 Le 8 Linee scritte a mano si **disattivano** quando la generata è pronta; i parametri che Marco ha dettato (linea, scorte, gelo) si travasano negli articoli e in `cucina_linea_elementi` — non si riscrivono.
 
+**Come è fatto (L2, 2026-10-22).** Generatore in `app/services/linea_checklist.py`; il Task Manager resta il motore (istanze, scadenze, Oggi).
+- **Dove**: nelle checklist di oggi (decisione Marco 2026-10-22), non in una schermata a parte. Una checklist per partita e servizio, `generato_da = 'linea:<partita>:<turno>'`, nome «Linea Primi · Sera». Nascono spente; `POST /cucina/scorte/linea/attiva` le accende e spegne le vecchie a mano con lo stesso nome (le istanze di oggi non ancora toccate delle vecchie diventano SALTATE col motivo).
+- **Esplosione**: piatto → righe della ricetta; una preparazione che ha un suo articolo si ferma lì, una che non ce l'ha si esplode; il piatto stesso conta se è un articolo (lasagnetta). Sezione carta → partita da config `linea_sezioni`.
+- **Raggruppamento**: la voce di linea sta sotto **ogni** piatto che usa l'articolo (gremolada sotto ossobuco e rognone, come chiesto da Marco; la spunta è condivisa). Le righe marcate **«Generale»** (`cucina_linea_elementi.generale`) stanno nel gruppo Generale, sempre, insieme alle voci extra. Una riga che nessun piatto in carta usa e non è Generale **non entra** (piatto uscito dalla carta).
+- **Voci**: `LINEA` (semaforo) per piatto; `SCORTA_FRIGO` / `SCORTA_GELO` una volta per partita, se l'articolo ha il minimo. Scorte controllate **a ogni servizio**, pranzo e sera (decisione Marco 2026-10-22).
+- **Stabilità**: ogni voce ha `linea_ref`; al giro dopo si aggiorna sul posto, le spunte restano; una voce sparita prende `disattivo_at` (resta nello storico).
+- **Quando gira**: dopo ogni modifica di linea o articolo, all'apertura della Home (throttle 60 s), `POST /cucina/scorte/linea/genera`. Anteprima: `GET /cucina/scorte/linea/generata`.
+- **Scorta**: proposta da `GET /cucina/scorte/linea/scorte`; tap = confermo (se il dato è fresco), ✎ = conta ripiano per ripiano; la conferma scrive una RETTIFICA per ripiano (`POST /cucina/scorte/linea/scorte/conferma`) e poi spunta la voce col totale. Primo controllo di un articolo mai messo in frigo: si sceglie il ripiano, che diventa il ripiano di casa (decisione Marco 2026-10-22).
+- **Regime**: gli articoli in linea con un minimo frigo/gelo sono passati da SEMAFORO a **CONTA** (23 articoli, 2026-10-22, decisione Marco): servono numeri per proporre e confrontare col minimo.
+
 ### 5.1 Tre controlli per elemento
 
 | Livello | Come si controlla | Regole |
@@ -114,8 +124,8 @@ Solo su esiti **confermati**:
 
 | Fase | Contenuto | Migrazioni |
 |---|---|---|
-| **L1** | ✅ colonne su `cucina_articoli`, `cucina_linea_elementi`, voci extra, endpoint `/cucina/scorte/linea/…`, scheda «Linea» nella ricetta (mig 202, 2026-10-20) · ⏸ scheda Linea nell'articolo (Cucina iPhone) · ⏸ **travaso** dei parametri delle 8 Linee attuali — rinviato, prima altre considerazioni con Marco | sì |
-| **L2** | generatore checklist dal menu in corso (carta + pranzo); semaforo linea; proposta/conferma/correzione scorte con scrittura in Scorte | forse (stato semaforo su execution) |
+| **L1** | ✅ colonne su `cucina_articoli`, `cucina_linea_elementi`, voci extra, endpoint `/cucina/scorte/linea/…`, scheda «Linea» nella ricetta (mig 202, 2026-10-20) · ⏸ scheda Linea nell'articolo (Cucina iPhone) · ✅ **travaso** dei parametri di antipasti, primi, secondi e contorni (articoli collegati a ricetta/ingrediente, minimi frigo/gelo/dispensa, righe di linea e voci extra; dati via API, 2026-10-22) · ⏸ dolci: prima le considerazioni di Marco, poi composizione e linea | sì |
+| **L2** | 🔨 sviluppata 2026-10-22 (mig 207, da pushare): generatore dalla carta in corso; semaforo linea; proposta/conferma/correzione scorte con scrittura in Scorte · ⏸ pranzo del giorno e dolci (rinviati da Marco) | sì (mig 207) |
 | **L3** | esiti → task, lista spesa per fornitore, notifiche; chiusura automatica dei task | no |
 | **L4** | minimi in giorni di copertura dal consumo (vendite × grammature) | sì |
 
@@ -133,7 +143,13 @@ Prerequisito di dati (lavoro una tantum, si fa da UI o lo fa Claude via API): og
 | 2026-10-20 | Grammature per porzione: seconda fase (non bloccano checklist ed esiti) |
 | 2026-10-20 | La lista spesa la confermano Marco, lo chef o il sous chef |
 | 2026-10-20 | I dolci entrano nello stesso giro (partita «dolci») |
+| 2026-10-22 | Dolci e piatti del pranzo rinviati: prima completare il resto e vederlo operativo |
+| 2026-10-22 | Checklist generate dentro le checklist di oggi (stesso motore, stesse schermate) |
+| 2026-10-22 | Scorte frigo/gelo controllate a ogni servizio (pranzo e sera) |
+| 2026-10-22 | Articoli con un minimo frigo/gelo a regime CONTA |
+| 2026-10-22 | Articolo senza ripiano: al primo controllo il cuoco conta e sceglie il ripiano |
 
 ## 9. Domande aperte
 
-Nessuna al 2026-10-20. Prossimo passo: fase L1.
+- Composizione da completare perché tutto entri (anteprima 2026-10-22): nei antipasti Uova (battuta), Giardiniera (salame), salumi del tagliere (porchetta, crudo/culaccio, coppa, coppa di testa/speck) non sono nelle ricette dei piatti → oggi non compaiono.
+- Dopo l'accensione: L3 (esiti → task e lista spesa).

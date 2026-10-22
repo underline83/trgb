@@ -151,6 +151,17 @@ CONFIG_DEFAULT: Dict[str, str] = {
     # Da quanti giorni prima della scadenza un lotto diventa un avviso (alert
     # M.F e chip colorata nel giro). Era un 5 scritto nella query: ora sta qui.
     "scadenza_avviso_gg": "5",
+    # Linea generata dal menu (mig 207, spec_linea_cucina.md §5). Quale sezione
+    # della carta va in quale partita: «sezione:partita» separati da virgola.
+    # Una sezione che non c'e' (piatti del giorno, bambini, servizio) non genera.
+    "linea_sezioni": "antipasti:antipasti,paste_risi_zuppe:primi,secondi:secondi,contorni:contorni,dolci:dolci",
+    # Entro che ora va fatto il controllo di linea, per servizio. Valgono per le
+    # checklist generate; si cambiano anche dal TemplateEditor (ora scadenza).
+    "linea_ora_pranzo": "12:30",
+    "linea_ora_sera": "23:59",
+    # Un lotto che scade entro questi giorni lo dice la voce di scorta («2 buste
+    # scadono domani: usare prima quelle»).
+    "linea_lotti_avviso_gg": "1",
 }
 
 
@@ -428,6 +439,7 @@ SCHEMA_SQL: tuple[str, ...] = (
         linea_note  TEXT,
         ordine      INTEGER NOT NULL DEFAULT 0,
         attivo      INTEGER NOT NULL DEFAULT 1,
+        generale    INTEGER,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
         updated_at  TEXT,
         FOREIGN KEY (articolo_id) REFERENCES cucina_articoli(id) ON DELETE CASCADE
@@ -484,6 +496,10 @@ HEAL_COLUMNS = {
         ("scorta_min_gelo", "REAL"),     # mig 202: minimo sui ripiani FREEZER
         ("qta_riordino", "REAL"),        # mig 202: quanto produrre/ordinare
     ],
+    # mig 207: 1 = voce del gruppo «Generale» della partita (burro e parmigiano
+    # nei primi, fondo bruno nei secondi): c'e' sempre, anche se nessun piatto
+    # in carta la usa. NULL/0 = sta sotto i piatti che la usano.
+    "cucina_linea_elementi": [("generale", "INTEGER")],
 }
 
 

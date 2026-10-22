@@ -449,6 +449,21 @@ Domanda di Marco: «come posso vedere chi fa cosa e quando?». Il dato c'era (ut
 |---|---|---|---|---|
 | C-T-REG1 | Vedere chi ha spuntato/chiuso/completato cosa e a che ora, per periodo e persona | `RegistroAttivita.jsx`, `tasks_router.py` `registro_attivita` | admin/chef/sous_chef | 🆕 |
 
+## 11.2-quater ✅ FATTO — Checklist di linea generate dal menu (2026-10-22, mig 207, tasks 1.8)
+
+Linea cucina fase L2 ([spec_linea_cucina.md](spec_linea_cucina.md) §5). Il Task Manager resta il motore; le voci delle checklist «dal menu» le scrive `app/services/linea_checklist.py`.
+- **Modello**: `checklist_template.generato_da` ('linea:<partita>:<turno>'); `checklist_item.articolo_id` (articolo in Scorte, logico), `linea_ref` (chiave stabile del generatore), `disattivo_at` (voce uscita dal menu: non compare nelle istanze nuove, resta dove è stata spuntata; esclusa da `_fetch_items`, dal punteggio e dalla spunta condivisa).
+- **Tipi nuovi**: `LINEA` (semaforo, `valore_testo` VERDE/GIALLO/ROSSO obbligatorio con OK), `SCORTA_FRIGO` / `SCORTA_GELO` (`valore_numerico` obbligatorio con OK; il numero lo scrive prima Scorte con la rettifica).
+- **Spunta condivisa** estesa: voci con lo stesso `articolo_id` e tipo, stesso giorno e turno, anche nella stessa checklist (articolo sotto due piatti), col loro valore.
+- **Checklist generata**: `PUT /tasks/templates/{id}` con `items` → 400; nel TemplateEditor le voci sono in sola lettura (nome, orario, attivazione si cambiano); badge «dal menu» nella lista; «Duplica» ne fa una copia a mano.
+- **UI**: Cucina iPhone › Oggi — tre pallini sulle voci di linea; voci di scorta con il numero proposto (tap = confermo) e ✎ per contare ripiano per ripiano (`ContaScortaSheet`); InstanceDetail desktop: semaforo, la scorta si conta dall'iPhone.
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-T-207a | Semaforo di linea su una voce | `CucinaMobile.jsx` `VoceOggi`, `InstanceDetail.jsx` `ItemCard` | brigata | 🆕 |
+| C-T-207b | Scorta frigo/gelo proposta, confermata o corretta | `CucinaMobile.jsx` `ContaScortaSheet` | brigata | 🆕 |
+| C-T-207c | Checklist generata in sola lettura nell'editor | `TemplateEditor.jsx`, `TemplateList.jsx` | admin | 🆕 |
+
 ## 11.2-ter ✅ FATTO — Voci collegate alle ricette (2026-10-19, mig 201, tasks 1.7)
 
 Richiesta di Marco: «ogni cosa dovrebbe avere una ricetta». Ogni voce di checklist può puntare a una ricetta (base o piatto) di foodcost.db.

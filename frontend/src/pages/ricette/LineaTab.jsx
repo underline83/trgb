@@ -145,6 +145,12 @@ function RigaLinea({ l, busy, onSave, onRemove }) {
              className="border rounded-lg px-3 py-2 min-h-[44px] text-sm" />
       <Btn variant="secondary" size="sm" disabled={!cambiato || busy}
            onClick={() => onSave({ linea_qta: qta, linea_note: note })}>Salva</Btn>
+      <label className="text-xs text-neutral-600 inline-flex items-center gap-1.5 sm:col-start-2"
+             title="Nel gruppo «Generale» della checklist della partita: c'è sempre, anche se nessun piatto in carta lo usa">
+        <input type="checkbox" checked={!!l.generale} disabled={busy}
+               onChange={(e) => onSave({ generale: e.target.checked })} />
+        in «Generale» della partita
+      </label>
       <Btn variant="chip" tone="red" size="sm" disabled={busy} onClick={onRemove}
            title="Toglie l'elemento da questa linea">Togli</Btn>
     </div>
@@ -194,9 +200,10 @@ export default function LineaTab({ r }) {
       {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">{err}</div>}
 
       <p className="text-xs text-neutral-500">
-        Quello che c'è qui costruirà le checklist di linea: dotazione in linea per partita,
-        minimi di frigo e gelo, quantità da produrre o ordinare. Le giacenze vengono da
-        Frigoriferi e scorte; il ripiano di casa si sceglie da lì.
+        Da qui si scrivono le checklist di linea: per ogni piatto in carta che usa questa
+        ricetta, la voce di linea (semaforo) e, una volta per partita, la scorta di frigo e
+        gelo da confermare. Se cambi qualcosa, le checklist «dal menu» si aggiornano da sole.
+        Le giacenze vengono da Frigoriferi e scorte.
       </p>
 
       <section>

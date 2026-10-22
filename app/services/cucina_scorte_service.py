@@ -1030,3 +1030,139 @@ def alert_scorte(conn: sqlite3.Connection, reparto: str = "cucina") -> Dict[str,
         "totale": (len(mancanti) + len(in_scadenza) + len(aperti_da_troppo)
                    + len(da_verificare) + len(fuori_posto)),
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# Linea cucina L2 — la scorta proposta e confermata (2026-10-22)
+# ─────────────────────────────────────────────────────────────
+#
+# Marco (2026-10-20): «Non compilare da solo la scorta frigo e gelo, leggila,
+# proponila, ma va confermata esplicitamente» e «se lo corregge va corretto
+# anche nel frigorifero/congelatore». Qui le due meta': la proposta (sola
+# lettura) e la conferma, che scrive una RETTIFICA per ripiano — anche a delta
+# zero, perche' una conferma e' una conta e va tracciata (come in registra_movimento).
+# La spunta della voce la scrive poi il client sul Task Manager, col totale.
+
+FAMIGLIE_LINEA = {"FRIGO": ("FRIGO", "CELLA"), "GELO": ("FREEZER", "ABBATTITORE")}
+
+
+def scorte_linea(conn: sqlite3.Connection, articolo_ids: List[int]) -> Dict[str, Any]:
+    """Per ogni articolo: dove sta in frigo e in gelo, quanto, quanto e' fresco
+    il dato, i lotti in scadenza. Piu' i ripiani tra cui scegliere la prima
+    volta (articolo mai messo in un frigo)."""
+    avviso_gg = config_int(conn, "linea_lotti_avviso_gg", 1)
+    out: Dict[str, Any] = {}
+    ids = sorted({int(i) for i in articolo_ids if i})
+    for aid in ids:
+        art = conn.execute("SELECT * FROM cucina_articoli WHERE id = ?", (aid,)).fetchone()
+        if not art:
+            continue
+        art = dict(art)
+        voce: Dict[str, Any] = {"articolo_id": aid, "nome": art["nome"], "um": art["um"],
+                                "regime": art["regime"], "ripiano_casa_id": art["ripiano_casa_id"]}
+        for fam, tipi in FAMIGLIE_LINEA.items():
+            ph = ",".join("?" * len(tipi))
+            posti = [dict(r) for r in conn.execute(f"""
+                SELECT g.ripiano_id, r.codice AS ripiano, r.nome AS ripiano_nome,
+                       u.id AS ubicazione_id, u.nome AS ubicazione,
+                       g.qta, g.aggiornato_at, g.aggiornato_da
+                  FROM cucina_giacenze g
+                  JOIN cucina_ripiani r    ON r.id = g.ripiano_id
+                  JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
+                 WHERE g.articolo_id = ? AND u.tipo IN ({ph}) AND u.attivo = 1
+                   AND (g.in_dotazione = 1 OR COALESCE(g.qta, 0) > 0)
+                 ORDER BY u.ordine, u.id, r.ordine, r.id
+            """, (aid, *tipi))]
+            for p in posti:
+                p["stato_dato"] = stato_dato(conn, art, p["aggiornato_at"])["stato"]
+            affidabile = bool(posti) and all(
+                p["aggiornato_at"] and p["stato_dato"] == "FRESCO" for p in posti)
+            lotti = [dict(r) for r in conn.execute(f"""
+                SELECT l.id, l.ripiano_id, l.qta_residua, l.data_scadenza,
+                       CAST(julianday(l.data_scadenza) - julianday('now','localtime','start of day') AS INTEGER) AS giorni
+                  FROM cucina_lotti l
+                  JOIN cucina_ripiani r    ON r.id = l.ripiano_id
+                  JOIN cucina_ubicazioni u ON u.id = r.ubicazione_id
+                 WHERE l.articolo_id = ? AND u.tipo IN ({ph})
+                   AND l.stato IN ('CHIUSO','APERTO') AND COALESCE(l.qta_residua, 0) > 0
+                   AND l.data_scadenza IS NOT NULL
+                   AND julianday(l.data_scadenza) - julianday('now','localtime','start of day') <= ?
+                 ORDER BY l.data_scadenza
+            """, (aid, *tipi, avviso_gg))]
+            voce[fam.lower()] = {
+                "min": art["scorta_min_frigo"] if fam == "FRIGO" else art["scorta_min_gelo"],
+                "posti": posti,
+                "totale": sum(_num(p["qta"]) for p in posti) if posti else None,
+                "affidabile": affidabile,
+                "lotti_in_scadenza": lotti,
+            }
+        out[str(aid)] = voce
+
+    ripiani: Dict[str, List[Dict[str, Any]]] = {}
+    for fam, tipi in FAMIGLIE_LINEA.items():
+        ph = ",".join("?" * len(tipi))
+        ripiani[fam.lower()] = [dict(r) for r in conn.execute(f"""
+            SELECT r.id AS ripiano_id, r.codice AS ripiano, r.nome AS ripiano_nome,
+                   u.id AS ubicazione_id, u.nome AS ubicazione
+              FROM cucina_ripiani r JOIN cucina_ubicazioni u ON u.id = r.ubicazione_id
+             WHERE u.tipo IN ({ph}) AND u.attivo = 1 AND r.attivo = 1
+             ORDER BY u.ordine, u.id, r.ordine, r.id
+        """, tipi)]
+    return {"articoli": out, "ripiani": ripiani}
+
+
+def conferma_scorta_linea(
+    conn: sqlite3.Connection,
+    articolo_id: int,
+    famiglia: str,
+    conteggi: List[Dict[str, Any]],
+    utente: str,
+    instance_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Conferma (o corregge) la scorta frigo/gelo di un articolo, ripiano per
+    ripiano. Ogni ripiano contato = un movimento RETTIFICA con il numero di
+    prima e quello nuovo: frigorifero e checklist dicono lo stesso numero.
+
+    Il primo controllo di un articolo mai messo in frigo arriva con un ripiano
+    scelto dal cuoco: quel ripiano diventa anche il ripiano di casa se
+    l'articolo non ne ha uno.
+    """
+    fam = (famiglia or "").upper()
+    if fam not in FAMIGLIE_LINEA:
+        raise ValueError("famiglia: FRIGO o GELO")
+    if not conteggi:
+        raise ValueError("serve almeno un ripiano contato")
+    art = conn.execute("SELECT id, ripiano_casa_id FROM cucina_articoli WHERE id = ?",
+                       (articolo_id,)).fetchone()
+    if not art:
+        raise ValueError("articolo non trovato")
+
+    movimenti = []
+    totale = 0.0
+    for c in conteggi:
+        rid = int(c["ripiano_id"])
+        qta = _num(c.get("qta"))
+        if qta < 0:
+            raise ValueError("una quantita' non puo' essere negativa")
+        tipo_u = conn.execute(
+            "SELECT u.tipo FROM cucina_ripiani r JOIN cucina_ubicazioni u ON u.id = r.ubicazione_id"
+            " WHERE r.id = ?", (rid,)).fetchone()
+        if not tipo_u or tipo_u["tipo"] not in FAMIGLIE_LINEA[fam]:
+            raise ValueError(f"il ripiano {rid} non e' un {'frigo' if fam == 'FRIGO' else 'congelatore'}")
+        riga = assicura_giacenza(conn, articolo_id, rid)
+        prima = _num(riga["qta"])
+        res = registra_movimento(
+            conn, articolo_id=articolo_id, ripiano_id=rid, tipo="RETTIFICA",
+            qta_delta=qta - prima, utente=utente, qta_precedente=prima,
+            motivo="Controllo linea", origine=ORIGINE_MOBILE,
+            ref_modulo="task_manager" if instance_id else None, ref_id=instance_id,
+        )
+        if qta < prima:
+            res["lotti"] = consuma_lotti(conn, articolo_id, rid, prima - qta)
+        movimenti.append(res)
+        totale += qta
+    if not art["ripiano_casa_id"]:
+        conn.execute("UPDATE cucina_articoli SET ripiano_casa_id = ? WHERE id = ?",
+                     (int(conteggi[0]["ripiano_id"]), articolo_id))
+    semaforo = riallinea_semaforo(conn, articolo_id, utente)
+    return {"ok": True, "totale": totale, "movimenti": movimenti, "semaforo": semaforo}

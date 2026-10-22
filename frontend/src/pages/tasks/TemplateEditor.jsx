@@ -95,6 +95,7 @@ export default function TemplateEditor() {
           ubicazione_id: it.ubicazione_id ?? null,
           gruppo: it.gruppo || "",
           recipe_id: it.recipe_id ?? null,
+          articolo_id: it.articolo_id ?? null,
         })),
       }))
       .catch(e => setError(e.message))
@@ -121,8 +122,12 @@ export default function TemplateEditor() {
     items: t.items.map((it, i) => i === idx ? { ...it, [k]: v } : it),
   }));
 
+  // Checklist generata dalla linea (mig 207): le voci non si toccano da qui.
+  const generata = !!tpl.generato_da;
+
   const validate = () => {
     if (!tpl.nome.trim()) return "Nome obbligatorio";
+    if (generata) return null;
     if (tpl.items.length === 0) return "Aggiungi almeno un item";
     for (const [i, it] of tpl.items.entries()) {
       if (!it.titolo.trim()) return `Item #${i + 1}: titolo mancante`;
@@ -156,7 +161,8 @@ export default function TemplateEditor() {
       attivo: !!tpl.attivo,
       note: tpl.note?.trim() || null,
       livello_cucina: tpl.reparto === "cucina" ? (tpl.livello_cucina || null) : null,
-      items: tpl.items.map(it => ({
+    };
+    if (!generata) payload.items = tpl.items.map(it => ({
         titolo: it.titolo.trim(),
         tipo: it.tipo,
         obbligatorio: !!it.obbligatorio,
@@ -167,8 +173,8 @@ export default function TemplateEditor() {
         ubicazione_id: it.ubicazione_id ?? null,
         gruppo: it.gruppo?.trim() || null,
         recipe_id: it.recipe_id ?? null,
-      })),
-    };
+        articolo_id: it.articolo_id ?? null,
+      }));
 
     try {
       const url = isNew
@@ -334,6 +340,25 @@ export default function TemplateEditor() {
         </div>
 
         {/* Items */}
+        {generata ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-5">
+            <h2 className="text-lg font-semibold text-red-900 mb-2">Voci ({tpl.items.length})</h2>
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg text-sm mb-3">
+              Questa checklist la scrive il gestionale dal <b>menu in carta</b> e dalla scheda
+              <b> Linea</b> delle ricette: se cambia un piatto, cambia da sola. Le voci non si
+              modificano da qui; qui si cambiano nome, orario e attivazione.
+            </div>
+            <ul className="text-sm space-y-1">
+              {tpl.items.map((it, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-neutral-400 w-36 shrink-0 truncate">{it.gruppo}</span>
+                  <span className="text-[10px] uppercase font-semibold text-neutral-500 w-24 shrink-0 pt-0.5">{it.tipo}</span>
+                  <span>{it.titolo}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-red-900">
@@ -379,6 +404,7 @@ export default function TemplateEditor() {
             ))}
           </div>
         </div>
+        )}
 
         {/* Azioni */}
         <div className="sticky bottom-0 bg-brand-cream pt-3 pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 border-t border-red-200 flex gap-2 flex-wrap">

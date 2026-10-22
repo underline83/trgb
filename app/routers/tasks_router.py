@@ -33,7 +33,7 @@ from app.services.auth_service import get_current_user
 from app.services.permessi import richiede_ruoli
 from app.services import tasks_scheduler
 from app.schemas.tasks_schema import (
-    FREQUENZE, REPARTI, TURNI, ITEM_TIPI, LIVELLI_CUCINA,
+    FREQUENZE, REPARTI, TURNI, ITEM_TIPI, ITEM_TIPI_LINEA, SEMAFORO_LINEA, LIVELLI_CUCINA,
     INSTANCE_STATI, EXEC_STATI, TASK_STATI, TASK_PRIORITA,
     ChecklistItemIn, ChecklistItemOut,
     ChecklistTemplateIn, ChecklistTemplateUpdate, ChecklistTemplateOut,
@@ -176,6 +176,7 @@ def _row_to_item(row) -> ChecklistItemOut:
         ubicazione_id=(row["ubicazione_id"] if "ubicazione_id" in row.keys() else None),
         gruppo=(row["gruppo"] if "gruppo" in row.keys() else None),
         recipe_id=(row["recipe_id"] if "recipe_id" in row.keys() else None),
+        articolo_id=(row["articolo_id"] if "articolo_id" in row.keys() else None),
     )
 
 
@@ -194,6 +195,7 @@ def _row_to_template(row, items: List[ChecklistItemOut]) -> ChecklistTemplateOut
         attivo=bool(row["attivo"]),
         note=row["note"],
         livello_cucina=livello_cucina,
+        generato_da=(row["generato_da"] if "generato_da" in row.keys() else None),
         created_by=row["created_by"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -202,8 +204,10 @@ def _row_to_template(row, items: List[ChecklistItemOut]) -> ChecklistTemplateOut
 
 
 def _fetch_items(conn, template_id: int) -> List[ChecklistItemOut]:
+    # disattivo_at (mig 207): voce uscita dal menu, resta solo per lo storico.
     rows = conn.execute(
-        "SELECT * FROM checklist_item WHERE template_id = ? ORDER BY ordine, id",
+        "SELECT * FROM checklist_item WHERE template_id = ? AND disattivo_at IS NULL"
+        " ORDER BY ordine, id",
         (template_id,),
     ).fetchall()
     return [_row_to_item(r) for r in rows]
@@ -214,8 +218,9 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
         conn.execute("""
             INSERT INTO checklist_item
                 (template_id, ordine, titolo, tipo, obbligatorio,
-                 min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo, recipe_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo, recipe_id,
+                 articolo_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             template_id,
             it.ordine if it.ordine else idx,
@@ -229,6 +234,7 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
             it.ubicazione_id,
             (it.gruppo or "").strip() or None,
             it.recipe_id or None,
+            it.articolo_id or None,
         ))
 
 
@@ -401,6 +407,13 @@ def update_template(
                 params,
             )
 
+        # Checklist generata dalla linea (mig 207): le voci le scrive il
+        # generatore. Un replace-all qui cancellerebbe le spunte di oggi e
+        # verrebbe rifatto al giro dopo: si cambiano dalla scheda Linea.
+        if payload.items is not None and ("generato_da" in row.keys() and row["generato_da"]):
+            raise HTTPException(400, "Checklist generata dal menu: le voci si cambiano dalla "
+                                     "scheda Linea della ricetta, non da qui")
+
         # Replace-all items se payload.items valorizzato
         if payload.items is not None:
             conn.execute("DELETE FROM checklist_item WHERE template_id = ?", (tid,))
@@ -471,16 +484,20 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
         new_tid = cur.lastrowid
 
         # Copia items
+        # La copia di una generata diventa una checklist a mano: niente
+        # linea_ref ne' generato_da, e niente voci gia' uscite dal menu.
         items = conn.execute(
-            "SELECT * FROM checklist_item WHERE template_id = ? ORDER BY ordine, id",
+            "SELECT * FROM checklist_item WHERE template_id = ? AND disattivo_at IS NULL"
+            " ORDER BY ordine, id",
             (tid,),
         ).fetchall()
         for it in items:
             conn.execute("""
                 INSERT INTO checklist_item
                     (template_id, ordine, titolo, tipo, obbligatorio,
-                     min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo, recipe_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     min_valore, max_valore, unita_misura, note, ubicazione_id, gruppo, recipe_id,
+                     articolo_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 new_tid,
                 it["ordine"],
@@ -494,6 +511,7 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
                 it["ubicazione_id"] if "ubicazione_id" in it.keys() else None,
                 it["gruppo"] if "gruppo" in it.keys() else None,
                 it["recipe_id"] if "recipe_id" in it.keys() else None,
+                it["articolo_id"] if "articolo_id" in it.keys() else None,
             ))
 
         conn.commit()
@@ -531,6 +549,7 @@ def _row_to_execution(row, item_row=None) -> dict:
         item_unita=row["item_unita"],
         item_gruppo=(row["item_gruppo"] if "item_gruppo" in row.keys() else None),
         item_recipe_id=(row["item_recipe_id"] if "item_recipe_id" in row.keys() else None),
+        item_articolo_id=(row["item_articolo_id"] if "item_articolo_id" in row.keys() else None),
     )
     return out.model_dump()
 
@@ -561,6 +580,7 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
             it.unita_misura AS item_unita,
             it.gruppo       AS item_gruppo,
             it.recipe_id    AS item_recipe_id,
+            it.articolo_id  AS item_articolo_id,
             ex.id           AS exec_id,
             ex.stato        AS exec_stato,
             ex.valore_numerico,
@@ -572,6 +592,7 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
           LEFT JOIN checklist_execution ex
                  ON ex.item_id = it.id AND ex.instance_id = ?
          WHERE it.template_id = ?
+           AND (it.disattivo_at IS NULL OR ex.id IS NOT NULL)
          ORDER BY it.ordine, it.id
     """, (instance_id, instance_id, inst["template_id"])).fetchall()
 
@@ -925,27 +946,39 @@ def salta_instance(
 
 # ─── POST /tasks/execution/item/{item_id}/check ───────────────────────
 
-def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, note, now):
-    """Replica la spunta sulle voci CHECKBOX con la stessa ricetta nelle istanze
-    dello stesso giorno+turno (altre checklist, non chiuse). Rispetta la
-    visibilita' per livello: dove l'utente non puo' scrivere, salta."""
+def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, note, now,
+                            tipo="CHECKBOX", articolo_id=None,
+                            valore_numerico=None, valore_testo=None):
+    """Replica la spunta sulle voci gemelle nelle istanze dello stesso
+    giorno+turno (anche la stessa checklist, se la voce compare sotto due
+    piatti), purche' non chiuse. Rispetta la visibilita' per livello: dove
+    l'utente non puo' scrivere, salta.
+
+    Gemelle = CHECKBOX con la stessa ricetta (mig 201), oppure — voci della
+    linea generata (mig 207) — stesso articolo e stesso tipo: il semaforo e la
+    scorta confermata valgono per tutte, col loro valore."""
     src = conn.execute(
         "SELECT data_riferimento, turno FROM checklist_instance WHERE id = ?",
         (instance_id,),
     ).fetchone()
     if not src:
         return
-    rows = conn.execute("""
+    if tipo in ITEM_TIPI_LINEA:
+        cond, chiave = "it.articolo_id = ? AND it.tipo = ?", (articolo_id, tipo)
+    else:
+        cond, chiave = "it.recipe_id = ? AND it.tipo = 'CHECKBOX'", (recipe_id,)
+        valore_numerico = valore_testo = None
+    rows = conn.execute(f"""
         SELECT i.id AS iid, it.id AS item_id, i.stato AS istato
           FROM checklist_item it
           JOIN checklist_instance i ON i.template_id = it.template_id
-         WHERE it.recipe_id = ?
-           AND it.tipo = 'CHECKBOX'
+         WHERE {cond}
+           AND it.disattivo_at IS NULL
            AND i.data_riferimento = ?
            AND COALESCE(i.turno, '') = COALESCE(?, '')
            AND i.stato NOT IN ('COMPLETATA', 'SALTATA', 'SCADUTA')
            AND NOT (i.id = ? AND it.id = ?)
-    """, (recipe_id, src["data_riferimento"], src["turno"], instance_id, item_id)).fetchall()
+    """, (*chiave, src["data_riferimento"], src["turno"], instance_id, item_id)).fetchall()
     for r in rows:
         try:
             _check_instance_visibility(conn, user["role"], r["iid"])
@@ -955,13 +988,16 @@ def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, 
             INSERT INTO checklist_execution
                 (instance_id, item_id, stato, valore_numerico, valore_testo, note,
                  completato_at, completato_da)
-            VALUES (?, ?, ?, NULL, NULL, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(instance_id, item_id) DO UPDATE SET
                 stato = excluded.stato,
+                valore_numerico = excluded.valore_numerico,
+                valore_testo = excluded.valore_testo,
                 note = excluded.note,
                 completato_at = excluded.completato_at,
                 completato_da = excluded.completato_da
-        """, (r["iid"], r["item_id"], stato, note, now, user["username"]))
+        """, (r["iid"], r["item_id"], stato, valore_numerico, valore_testo,
+              note, now, user["username"]))
         if r["istato"] == "APERTA":
             conn.execute(
                 "UPDATE checklist_instance SET stato = 'IN_CORSO' WHERE id = ?",
@@ -1000,11 +1036,18 @@ def check_item(
             raise HTTPException(404, "Item non trovato")
         if item["template_id"] != inst["template_id"]:
             raise HTTPException(400, "Item non appartiene al template dell'istanza")
+        if item["disattivo_at"]:
+            raise HTTPException(400, "Voce tolta dalla checklist (il piatto non e' piu' in carta)")
 
         # Validazione valore per tipo
-        if item["tipo"] in ("NUMERICO", "TEMPERATURA") and payload.stato == "OK":
+        if item["tipo"] in ("NUMERICO", "TEMPERATURA", "SCORTA_FRIGO", "SCORTA_GELO") \
+                and payload.stato == "OK":
             if payload.valore_numerico is None:
                 raise HTTPException(400, f"Item {item['tipo']}: valore_numerico obbligatorio")
+        if item["tipo"] == "LINEA" and payload.stato == "OK":
+            if (payload.valore_testo or "").upper() not in SEMAFORO_LINEA:
+                raise HTTPException(400, "Voce di linea: valore_testo VERDE, GIALLO o ROSSO")
+            payload.valore_testo = payload.valore_testo.upper()
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1040,6 +1083,13 @@ def check_item(
         if rid and item["tipo"] == "CHECKBOX":
             _propaga_spunta_ricetta(conn, user, payload.instance_id, item_id, rid,
                                     payload.stato, payload.note, now)
+        # Linea generata (mig 207): stesso articolo e tipo, stesso giorno+turno.
+        if item["tipo"] in ITEM_TIPI_LINEA and item["articolo_id"]:
+            _propaga_spunta_ricetta(conn, user, payload.instance_id, item_id, None,
+                                    payload.stato, payload.note, now,
+                                    tipo=item["tipo"], articolo_id=item["articolo_id"],
+                                    valore_numerico=payload.valore_numerico,
+                                    valore_testo=payload.valore_testo)
 
         conn.commit()
         return _fetch_instance(conn, payload.instance_id)

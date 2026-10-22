@@ -18,7 +18,13 @@ LIVELLI_CUCINA = {"chef", "sous_chef", "commis"}
 # lowercase prima di validare per non rompere chiamate legacy.
 REPARTI = {"cucina", "bar", "sala", "pulizia", "manutenzione"}
 TURNI = {"APERTURA", "PRANZO", "POMERIGGIO", "CENA", "CHIUSURA", "GIORNATA"}
-ITEM_TIPI = {"CHECKBOX", "NUMERICO", "TEMPERATURA", "TESTO"}
+ITEM_TIPI = {"CHECKBOX", "NUMERICO", "TEMPERATURA", "TESTO",
+             # Linea cucina generata dal menu (mig 207, spec_linea_cucina.md §5.1):
+             # LINEA = semaforo (valore_testo VERDE/GIALLO/ROSSO); SCORTA_FRIGO /
+             # SCORTA_GELO = giacenza proposta da Scorte e confermata (valore_numerico).
+             "LINEA", "SCORTA_FRIGO", "SCORTA_GELO"}
+ITEM_TIPI_LINEA = {"LINEA", "SCORTA_FRIGO", "SCORTA_GELO"}
+SEMAFORO_LINEA = {"VERDE", "GIALLO", "ROSSO"}
 INSTANCE_STATI = {"APERTA", "IN_CORSO", "COMPLETATA", "SCADUTA", "SALTATA"}
 EXEC_STATI = {"OK", "FAIL", "SKIPPED", "PENDING"}
 TASK_STATI = {"APERTO", "IN_CORSO", "COMPLETATO", "SCADUTO", "ANNULLATO"}
@@ -44,6 +50,9 @@ class ChecklistItemIn(BaseModel):
     # Ricetta collegata (mig 201): id in foodcost.db.recipes. Stessa ricetta
     # nello stesso giorno+turno = spunta condivisa tra checklist.
     recipe_id: Optional[int] = None
+    # Articolo in Frigoriferi e scorte (mig 207): lo scrive il generatore della
+    # linea. Stesso articolo, stesso tipo, stesso giorno+turno = spunta condivisa.
+    articolo_id: Optional[int] = None
 
 
 class ChecklistItemOut(ChecklistItemIn):
@@ -97,6 +106,9 @@ class ChecklistTemplateOut(BaseModel):
     attivo: bool
     note: Optional[str]
     livello_cucina: Optional[str] = None
+    # 'linea:<partita>:<turno>' se la checklist la scrive il generatore (mig 207):
+    # le voci non si modificano a mano, si cambiano dalla scheda Linea.
+    generato_da: Optional[str] = None
     created_by: Optional[str]
     created_at: str
     updated_at: str
@@ -142,6 +154,7 @@ class ChecklistExecutionOut(BaseModel):
     item_gruppo: Optional[str] = None
     item_recipe_id: Optional[int] = None
     item_recipe_nome: Optional[str] = None
+    item_articolo_id: Optional[int] = None
 
 
 class ChecklistInstanceOut(BaseModel):

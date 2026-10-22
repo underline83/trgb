@@ -282,6 +282,17 @@ const STYLE = `
   font-weight:700;cursor:pointer;padding:0;}
 .km-tick.on{background:var(--green);border-color:var(--green);}
 .km-tick.fail{background:var(--red);border-color:var(--red);}
+/* Linea generata (L2): il semaforo della voce e la scorta da confermare. */
+.km-sem{display:flex;gap:5px;flex:0 0 auto;}
+.km-sem button{width:26px;height:26px;min-width:26px;border-radius:50%;padding:0;cursor:pointer;
+  border:2px solid var(--c);background:#fff;}
+.km-sem button.on{background:var(--c);}
+.km-sem button:disabled{opacity:.45;cursor:default;}
+.km-scad{font-size:12px;color:var(--amberi);margin-top:2px;}
+.km-conta-riga{display:flex;gap:8px;align-items:center;margin-top:9px;}
+.km-conta-riga select,.km-conta-riga input{font-size:16px;padding:9px 10px;border-radius:10px;
+  border:1px solid var(--hair);background:#fff;}
+.km-conta-riga input{width:92px;text-align:right;}
 .km-prog{height:6px;border-radius:99px;background:var(--cream2);overflow:hidden;margin-top:9px;}
 .km-prog i{display:block;height:100%;border-radius:99px;background:var(--green);}
 
@@ -602,6 +613,11 @@ function TabOggi({ canWrite, onCount }) {
   // Gruppi aperti/chiusi a mano: chiave `${instId}:${gruppo}`. Default:
   // aperto finche' non e' tutto OK, poi si chiude da solo.
   const [aperti, setAperti] = useState({});
+  // Linea generata (L2): la scorta proposta per gli articoli delle voci
+  // SCORTA_*, e la voce che si sta contando (sheet).
+  const [scorte, setScorte] = useState(null);
+  const [giroScorte, setGiroScorte] = useState(0);
+  const [conta, setConta] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -617,6 +633,22 @@ function TabOggi({ canWrite, onCount }) {
   const istanze = useMemo(
     () => (agenda?.turni || []).flatMap((t) => t.instances || []), [agenda]);
 
+  const idsScorta = useMemo(() => [...new Set(istanze
+    .filter((i) => i.stato !== "COMPLETATA" && i.stato !== "SALTATA" && i.stato !== "SCADUTA")
+    .flatMap((i) => (i.items || []))
+    .filter((x) => TIPI_SCORTA.includes(x.item_tipo) && x.item_articolo_id)
+    .map((x) => x.item_articolo_id))].sort((a, b) => a - b).join(","), [istanze]);
+
+  useEffect(() => {
+    if (!idsScorta) { setScorte(null); return; }
+    let vivo = true;
+    apiFetch(`${API_BASE}/cucina/scorte/linea/scorte?articoli=${idsScorta}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (vivo) setScorte(j); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [idsScorta, giroScorte]);
+
   useEffect(() => {
     const aperte = istanze.filter((i) => i.stato !== "COMPLETATA" && i.stato !== "SALTATA").length;
     const task = (agenda?.tasks || []).filter((t) => t.stato === "APERTO").length;
@@ -627,6 +659,7 @@ function TabOggi({ canWrite, onCount }) {
     if (!canWrite || busy) return;
     // Le voci con un numero (temperature, pesi) non si spuntano al volo: senza
     // il valore l'endpoint rifiuta, ed è giusto — una temperatura va letta.
+    if (item.item_tipo === "LINEA" || TIPI_SCORTA.includes(item.item_tipo)) return;
     if (item.item_tipo === "TEMPERATURA" || item.item_tipo === "NUMERICO") {
       setErr(`«${item.item_titolo}» vuole un valore: aprila dall'agenda completa.`);
       setTimeout(() => setErr(null), 4000);
@@ -652,8 +685,8 @@ function TabOggi({ canWrite, onCount }) {
   // quelle che mancano. Le voci con un numero restano da misurare a mano.
   async function spuntaGruppo(inst, blocco) {
     if (!canWrite || busy) return;
-    const spuntabili = blocco.items.filter(
-      (i) => i.item_tipo !== "TEMPERATURA" && i.item_tipo !== "NUMERICO");
+    // Semaforo e scorte non si spuntano «in blocco»: vogliono il colore o il numero.
+    const spuntabili = blocco.items.filter((i) => !TIPI_CON_VALORE.includes(i.item_tipo));
     const tutteOk = blocco.items.every((i) => i.stato === "OK");
     const target = tutteOk ? "SKIPPED" : "OK";
     const daFare = spuntabili.filter((i) => (tutteOk ? true : i.stato !== "OK"));
@@ -669,6 +702,81 @@ function TabOggi({ canWrite, onCount }) {
       }
     } catch (e) { setErr(e.message); }
     finally { await load(); setBusy(null); }
+  }
+
+  // Semaforo di linea: il colore tocca e si salva; ritoccare lo stesso lo toglie.
+  async function segnaLinea(inst, item, colore) {
+    if (!canWrite || busy) return;
+    const togli = item.stato === "OK" && item.valore_testo === colore;
+    setBusy(item.item_id);
+    try {
+      const res = await apiFetch(`${API_BASE}/tasks/execution/item/${item.item_id}/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(togli
+          ? { instance_id: inst.id, stato: "SKIPPED" }
+          : { instance_id: inst.id, stato: "OK", valore_testo: colore }),
+      });
+      if (!res.ok) throw await erroreDa(res);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(null); }
+  }
+
+  // Scorta: la conferma scrive in Frigoriferi (una rettifica per ripiano,
+  // anche se il numero e' lo stesso) e poi spunta la voce col totale.
+  async function confermaScorta(inst, item, conteggi) {
+    const fam = item.item_tipo === "SCORTA_GELO" ? "GELO" : "FRIGO";
+    setBusy(item.item_id);
+    try {
+      let res = await apiFetch(`${API_BASE}/cucina/scorte/linea/scorte/conferma`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articolo_id: item.item_articolo_id, famiglia: fam,
+                               conteggi, instance_id: inst.id }),
+      });
+      if (!res.ok) throw await erroreDa(res);
+      const { totale } = await res.json();
+      res = await apiFetch(`${API_BASE}/tasks/execution/item/${item.item_id}/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instance_id: inst.id, stato: "OK", valore_numerico: totale }),
+      });
+      if (!res.ok) throw await erroreDa(res);
+      setConta(null);
+      await load();
+      setGiroScorte((g) => g + 1);
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(null); }
+  }
+
+  function datiScorta(item) {
+    const a = scorte?.articoli?.[String(item.item_articolo_id)];
+    if (!a) return null;
+    return item.item_tipo === "SCORTA_GELO" ? { art: a, fam: "gelo", ...a.gelo } : { art: a, fam: "frigo", ...a.frigo };
+  }
+
+  // Tocco sulla casella della scorta: se il dato e' affidabile si conferma
+  // com'e', altrimenti (o se c'e' gia' una risposta) si apre la conta.
+  function tapScorta(inst, item) {
+    if (!canWrite || busy) return;
+    const d = datiScorta(item);
+    if (d && d.affidabile && item.stato !== "OK") {
+      confermaScorta(inst, item, d.posti.map((p) => ({ ripiano_id: p.ripiano_id, qta: num(p.qta) })));
+    } else {
+      setConta({ inst, item });
+    }
+  }
+
+  function voce(inst, it) {
+    return (
+      <VoceOggi key={it.item_id} it={it} canWrite={canWrite}
+                busy={busy === it.item_id} onTap={() => spuntaItem(inst, it)}
+                scorta={TIPI_SCORTA.includes(it.item_tipo) ? datiScorta(it) : null}
+                onLinea={(col) => segnaLinea(inst, it, col)}
+                onScorta={() => tapScorta(inst, it)}
+                onConta={() => canWrite && setConta({ inst, item: it })} />
+    );
   }
 
   async function completaTask(t) {
@@ -723,10 +831,7 @@ function TabOggi({ canWrite, onCount }) {
             {!chiusa && inst.stato !== "SCADUTA" && items.length > 0 && (
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 7 }}>
                 {bloccaPerGruppo(items).map((b, bi) => {
-                  if (!b.gruppo) return b.items.map((it) => (
-                    <VoceOggi key={it.item_id} it={it} canWrite={canWrite}
-                              busy={busy === it.item_id} onTap={() => spuntaItem(inst, it)} />
-                  ));
+                  if (!b.gruppo) return b.items.map((it) => voce(inst, it));
                   const ok = b.items.filter((i) => i.stato === "OK").length;
                   const tutte = ok === b.items.length;
                   const chiave = `${inst.id}:${b.gruppo}`;
@@ -752,10 +857,7 @@ function TabOggi({ canWrite, onCount }) {
                         <div style={{ marginTop: 7, marginLeft: 22, paddingLeft: 12,
                                       borderLeft: "2px solid var(--line, #e5e5e5)",
                                       display: "flex", flexDirection: "column", gap: 7 }}>
-                          {b.items.map((it) => (
-                            <VoceOggi key={it.item_id} it={it} canWrite={canWrite}
-                                      busy={busy === it.item_id} onTap={() => spuntaItem(inst, it)} />
-                          ))}
+                          {b.items.map((it) => voce(inst, it))}
                         </div>
                       )}
                     </div>
@@ -766,6 +868,14 @@ function TabOggi({ canWrite, onCount }) {
           </div>
         );
       })}
+
+      {conta && (
+        <ContaScortaSheet item={conta.item} dati={datiScorta(conta.item)}
+                          ripiani={scorte?.ripiani?.[conta.item.item_tipo === "SCORTA_GELO" ? "gelo" : "frigo"] || []}
+                          busy={busy === conta.item.item_id}
+                          onChiudi={() => setConta(null)}
+                          onConferma={(conteggi) => confermaScorta(conta.inst, conta.item, conteggi)} />
+      )}
 
       {tasks.length > 0 && <div className="km-lbl">Task</div>}
       {tasks.map((t) => {
@@ -794,7 +904,70 @@ function TabOggi({ canWrite, onCount }) {
   );
 }
 
-function VoceOggi({ it, canWrite, busy, onTap }) {
+const TIPI_SCORTA = ["SCORTA_FRIGO", "SCORTA_GELO"];
+const TIPI_CON_VALORE = ["TEMPERATURA", "NUMERICO", "LINEA", ...TIPI_SCORTA];
+const SEMAFORO_LINEA = [
+  { k: "VERDE", c: "var(--green)", t: "ok" },
+  { k: "GIALLO", c: "var(--amber)", t: "quasi finito" },
+  { k: "ROSSO", c: "var(--red)", t: "finito" },
+];
+
+function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onScorta, onConta }) {
+  const fatto = it.stato === "OK";
+  const ricetta = it.item_recipe_id && (
+    <a href={`/ricette/${it.item_recipe_id}`} onClick={(e) => e.stopPropagation()}
+       title={it.item_recipe_nome || "Apri la ricetta"}
+       style={{ marginLeft: 6, fontSize: 12, textDecoration: "none" }}>📖</a>
+  );
+
+  if (it.item_tipo === "LINEA") {
+    return (
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="km-sem">
+          {SEMAFORO_LINEA.map((s) => (
+            <button key={s.k} title={s.t} aria-label={s.t} style={{ "--c": s.c }}
+                    className={fatto && it.valore_testo === s.k ? "on" : ""}
+                    disabled={!canWrite || busy} onClick={() => onLinea(s.k)} />
+          ))}
+        </div>
+        <div style={{ flex: 1, fontSize: 14, opacity: fatto && it.valore_testo === "VERDE" ? 0.55 : 1 }}>
+          {it.item_titolo}{ricetta}
+        </div>
+      </div>
+    );
+  }
+
+  if (TIPI_SCORTA.includes(it.item_tipo)) {
+    const um = (it.item_unita || "").toLowerCase();
+    const sotto = fatto && it.item_min != null && num(it.valore_numerico) < num(it.item_min);
+    const lotti = scorta?.lotti_in_scadenza || [];
+    let proposta = "da contare";
+    if (scorta && scorta.affidabile && scorta.totale != null) proposta = `c'è: ${fmtQta(scorta.totale)} ${um}`;
+    return (
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <button className={`km-tick${fatto ? (sotto ? " fail" : " on") : ""}`}
+                disabled={!canWrite || busy} onClick={onScorta}
+                title={fatto ? "Ricontare" : scorta?.affidabile ? "Confermo il numero proposto" : "Contare"}>
+          {fatto ? (sotto ? "!" : "✓") : ""}
+        </button>
+        <div style={{ flex: 1, fontSize: 14, opacity: fatto && !sotto ? 0.55 : 1 }}>
+          {it.item_titolo}{ricetta}
+          {lotti.length > 0 && (
+            <div className="km-scad">
+              ⚠ {fmtQta(lotti.reduce((t, l) => t + num(l.qta_residua), 0))} {um} in scadenza
+              {lotti[0].giorni <= 0 ? " oggi" : lotti[0].giorni === 1 ? " domani" : ` tra ${lotti[0].giorni} giorni`}: usare prima quelli
+            </div>
+          )}
+        </div>
+        <span onClick={onConta} style={{ cursor: canWrite ? "pointer" : "default" }}>
+          <Chip tone={fatto ? (sotto ? "r" : "g") : scorta?.affidabile ? "b" : "a"}>
+            {fatto ? `${fmtQta(it.valore_numerico)} ${um}${sotto ? " · sotto il minimo" : ""}` : proposta} ✎
+          </Chip>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
       <button className={`km-tick${it.stato === "OK" ? " on" : it.stato === "FAIL" ? " fail" : ""}`}
@@ -802,12 +975,7 @@ function VoceOggi({ it, canWrite, busy, onTap }) {
         {it.stato === "OK" ? "✓" : it.stato === "FAIL" ? "✕" : ""}
       </button>
       <div style={{ flex: 1, fontSize: 14, opacity: it.stato === "OK" ? 0.55 : 1 }}>
-        {it.item_titolo}
-        {it.item_recipe_id && (
-          <a href={`/ricette/${it.item_recipe_id}`} onClick={(e) => e.stopPropagation()}
-             title={it.item_recipe_nome || "Apri la ricetta"}
-             style={{ marginLeft: 6, fontSize: 12, textDecoration: "none" }}>📖</a>
-        )}
+        {it.item_titolo}{ricetta}
         {(it.item_tipo === "TEMPERATURA" || it.item_tipo === "NUMERICO") && (
           <span style={{ marginLeft: 6 }}>
             <Chip tone="b">{it.valore_numerico != null
@@ -815,6 +983,76 @@ function VoceOggi({ it, canWrite, busy, onTap }) {
               : "da misurare"}</Chip>
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** La conta di una voce di scorta: un numero per ripiano. Il numero proposto
+ *  c'e' solo se il dato e' affidabile; la prima volta si sceglie il ripiano.
+ *  Confermare scrive in Frigoriferi e spunta la voce (Marco 2026-10-20). */
+function ContaScortaSheet({ item, dati, ripiani, busy, onChiudi, onConferma }) {
+  const um = (item.item_unita || "").toLowerCase();
+  const casa = dati?.art?.ripiano_casa_id;
+  const iniziali = () => {
+    const posti = dati?.posti || [];
+    if (posti.length) {
+      return posti.map((p) => ({ ripiano_id: p.ripiano_id, fisso: true,
+        dove: `${p.ubicazione} · ripiano ${p.ripiano_nome || p.ripiano}`,
+        qta: p.stato_dato === "FRESCO" && p.qta != null ? String(p.qta) : "" }));
+    }
+    const pref = ripiani.find((r) => r.ripiano_id === casa) || ripiani[0];
+    return [{ ripiano_id: pref?.ripiano_id ?? "", fisso: false, qta: "" }];
+  };
+  const [righe, setRighe] = useState(iniziali);
+  const pronte = righe.length > 0 && righe.every((r) => r.ripiano_id !== "" && r.qta !== "" && num(r.qta) >= 0);
+  const totale = righe.reduce((t, r) => t + num(r.qta), 0);
+  const usati = new Set(righe.map((r) => Number(r.ripiano_id)));
+  const cambia = (i, k, v) => setRighe((rr) => rr.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+
+  return (
+    <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div className="km-sheet-in">
+        <h3 className="km-serif">Quanti ce ne sono?</h3>
+        <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+          {item.item_titolo}
+          {dati && !dati.affidabile && (dati.posti || []).length > 0 && " · il dato registrato è vecchio: conta"}
+          {dati && (dati.posti || []).length === 0 && " · non è ancora in nessun "
+            + (item.item_tipo === "SCORTA_GELO" ? "congelatore" : "frigo") + ": scegli dove sta"}
+        </div>
+        {righe.map((r, i) => (
+          <div key={i} className="km-conta-riga">
+            {r.fisso ? (
+              <div style={{ flex: 1, fontSize: 14 }}>{r.dove}</div>
+            ) : (
+              <select style={{ flex: 1, minWidth: 0 }} value={r.ripiano_id}
+                      onChange={(e) => cambia(i, "ripiano_id", e.target.value === "" ? "" : Number(e.target.value))}>
+                <option value="">Dove?</option>
+                {ripiani.filter((x) => x.ripiano_id === Number(r.ripiano_id) || !usati.has(x.ripiano_id)).map((x) => (
+                  <option key={x.ripiano_id} value={x.ripiano_id}>
+                    {x.ubicazione} · ripiano {x.ripiano_nome || x.ripiano}
+                  </option>
+                ))}
+              </select>
+            )}
+            <input type="number" inputMode="decimal" step="0.1" min="0" placeholder="0"
+                   value={r.qta} autoFocus={i === 0} onChange={(e) => cambia(i, "qta", e.target.value)} />
+            <span style={{ fontSize: 13, color: "var(--muted)", minWidth: 24 }}>{um}</span>
+          </div>
+        ))}
+        <button className="km-btn ghost" style={{ marginTop: 10 }}
+                onClick={() => setRighe((rr) => [...rr, { ripiano_id: "", fisso: false, qta: "" }])}>
+          + un altro ripiano
+        </button>
+        <button className="km-btn" style={{ marginTop: 9 }} disabled={busy || !pronte}
+                onClick={() => onConferma(righe.map((r) => ({ ripiano_id: Number(r.ripiano_id), qta: num(r.qta) })))}>
+          {busy ? "Salvo…" : `Confermo: ${fmtQta(totale)} ${um}`}
+          {item.item_min != null && totale < num(item.item_min) ? " (sotto il minimo)" : ""}
+        </button>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+          Il numero va anche in Frigoriferi e scorte, come rettifica ripiano per ripiano.
+        </div>
+        <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={onChiudi}>Annulla</button>
       </div>
     </div>
   );

@@ -196,9 +196,15 @@ def calcola_score_compliance(conn: sqlite3.Connection, instance_id: int) -> int:
         return 0
     tid = row["template_id"]
 
+    # Voci uscite dal menu (disattivo_at, mig 207) contano solo dove sono
+    # state spuntate: in un'istanza nuova non ci sono.
     total = cur.execute(
-        "SELECT COUNT(*) FROM checklist_item WHERE template_id = ?",
-        (tid,),
+        """SELECT COUNT(*) FROM checklist_item it
+            WHERE it.template_id = ?
+              AND (it.disattivo_at IS NULL OR EXISTS (
+                   SELECT 1 FROM checklist_execution e
+                    WHERE e.item_id = it.id AND e.instance_id = ?))""",
+        (tid, instance_id),
     ).fetchone()[0]
     if total == 0:
         return 100
