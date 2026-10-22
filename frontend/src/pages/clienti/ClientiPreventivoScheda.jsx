@@ -1,4 +1,4 @@
-// @version: v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
+// @version: v1.9 — dopo l'invio al cliente si apre il messaggio per i gruppi (e parte la copia per email all'osteria); v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
 // v1.7 — nuovo preventivo da una prenotazione (tasto «📋 Preventivo» nel Planning), collegato con prenotazione_id (2026-10-20)
 // v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
@@ -141,6 +141,8 @@ export default function ClientiPreventivoScheda() {
   // Conferma evento (2026-10-20): scelta del menù se ce ne sono più d'uno, poi esito + avviso gruppi
   const [sceltaMenuOpen, setSceltaMenuOpen] = useState(false);
   const [esitoConferma, setEsitoConferma] = useState(null);
+  // Dopo un invio al cliente: alla chiusura del pannello invio si apre l'avviso per i gruppi
+  const ultimoInvio = useRef(null);
   const [confermando, setConfermando] = useState(false);
 
   // ── Nuovo preventivo da una prenotazione (2026-10-20) ──
@@ -1112,8 +1114,12 @@ export default function ClientiPreventivoScheda() {
           prevId={prevId}
           numero={numero}
           clienteNome={clienteNome}
-          onClose={() => setInvioOpen(false)}
-          onInviato={(s) => s && setStato(s)}
+          onClose={() => {
+            setInvioOpen(false);
+            if (ultimoInvio.current?.messaggio_staff) setEsitoConferma({ ...ultimoInvio.current, tipo: "invio" });
+            ultimoInvio.current = null;
+          }}
+          onInviato={(s, d) => { if (s) setStato(s); if (d?.messaggio_staff) ultimoInvio.current = d; }}
           showToast={showToast}
         />
       )}

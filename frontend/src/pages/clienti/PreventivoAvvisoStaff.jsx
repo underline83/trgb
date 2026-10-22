@@ -1,4 +1,4 @@
-// @version: v1.0 — evento confermato: esito (prenotazione, campanello) + messaggio per i gruppi WhatsApp di sala e cucina (2026-10-20)
+// @version: v1.1 — anche dopo l'invio al cliente (esito.tipo = "invio"): copia all'osteria; v1.0 — evento confermato: esito (prenotazione, campanello) + messaggio per i gruppi WhatsApp di sala e cucina (2026-10-20)
 // Modulo: clienti (sub-modulo preventivi)
 //
 // Arriva dopo POST /preventivi/{id}/conferma. WhatsApp non lascia scrivere in un
@@ -11,6 +11,7 @@ import { Btn } from "../../components/ui";
 export default function PreventivoAvvisoStaff({ esito, onClose, showToast }) {
   const [testo, setTesto] = useState(esito?.messaggio_staff || "");
   const pren = esito?.prenotazione || {};
+  const invio = esito?.tipo === "invio";
   const puoCondividere = typeof navigator !== "undefined" && !!navigator.share;
 
   const condividi = () => {
@@ -40,14 +41,20 @@ export default function PreventivoAvvisoStaff({ esito, onClose, showToast }) {
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-neutral-900">✅ Evento confermato</h3>
+            <h3 className="text-base font-semibold text-neutral-900">{invio ? "📨 Preventivo inviato" : "✅ Evento confermato"}</h3>
             <p className="text-xs text-neutral-500">Ora avvisa i gruppi WhatsApp di sala e cucina</p>
           </div>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none px-2 min-h-[44px]">✕</button>
         </div>
 
         <ul className="text-xs space-y-1">
-          <li className={pren.azione === "nessuna" ? "text-amber-700" : "text-emerald-700"}>{esitoPren}</li>
+          {invio ? (
+            esito?.copia_a
+              ? <li className="text-emerald-700">✉️ Copia col PDF a {esito.copia_a}</li>
+              : <li className="text-neutral-500">Nessuna copia per email (indirizzo in Impostazioni › Luoghi preventivi)</li>
+          ) : (
+            <li className={pren.azione === "nessuna" ? "text-amber-700" : "text-emerald-700"}>{esitoPren}</li>
+          )}
           {esito?.notifiche > 0 && <li className="text-emerald-700">🔔 Avviso nel campanello di sala e cucina</li>}
           {(pren.avvisi || []).map((a, i) => <li key={i} className="text-amber-700">⚠️ {a}</li>)}
         </ul>

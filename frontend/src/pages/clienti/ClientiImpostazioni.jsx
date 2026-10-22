@@ -1,4 +1,4 @@
-// @version: v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
+// @version: v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
 // Layout Impostazioni CRM: sidebar sinistra + sezioni (segmenti, import, duplicati, mailchimp)
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -503,6 +503,31 @@ function LuoghiSection() {
 
   useEffect(() => { fetchLuoghi(); }, []);
 
+  // Copia per email di ogni preventivo inviato al cliente (2026-10-22)
+  const [emailCopia, setEmailCopia] = useState("");
+  const [emailCopiaSalvata, setEmailCopiaSalvata] = useState("");
+  useEffect(() => {
+    apiFetch(`${API_BASE}/preventivi/config/email-copia`)
+      .then((r) => (r.ok ? r.json() : { email: "" }))
+      .then((d) => { setEmailCopia(d.email || ""); setEmailCopiaSalvata(d.email || ""); })
+      .catch(() => {});
+  }, []);
+  const salvaEmailCopia = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/config/email-copia`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailCopia }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || "Errore salvataggio");
+      setEmailCopia(d.email || ""); setEmailCopiaSalvata(d.email || "");
+      showToast("Indirizzo copia salvato");
+    } catch (err) {
+      showToast(err.message || "Errore", true);
+    }
+  };
+
   const aggiungi = () => {
     const v = (nuovo || "").trim();
     if (!v) return;
@@ -638,6 +663,24 @@ function LuoghiSection() {
           <Btn variant="success" size="md" onClick={salva} disabled={!dirty || saving} loading={saving}>
             Salva
           </Btn>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
+          <h2 className="text-sm font-semibold text-neutral-800">Copia dei preventivi inviati</h2>
+        </div>
+        <div className="px-5 py-4 space-y-2">
+          <p className="text-xs text-neutral-500">
+            Ogni volta che un preventivo parte verso il cliente (email o WhatsApp) arriva una copia col PDF a questi indirizzi.
+            Più indirizzi separati da virgola; vuoto = nessuna copia.
+          </p>
+          <div className="flex gap-2">
+            <input type="text" value={emailCopia} onChange={(e) => setEmailCopia(e.target.value)}
+              placeholder="prenotazioni@…"
+              className="flex-1 border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
+            <Btn variant="primary" size="sm" onClick={salvaEmailCopia} disabled={emailCopia === emailCopiaSalvata}>Salva</Btn>
+          </div>
         </div>
       </div>
 

@@ -5,9 +5,12 @@ Sessione 32 (10.3): menu proposto strutturato, luoghi configurabili, crea client
 """
 
 import json
+import logging
 from datetime import datetime
 from app.models.clienti_db import get_clienti_conn
 from app.models.foodcost_db import get_foodcost_connection
+
+logger = logging.getLogger("trgb.preventivi")
 
 
 # ---------------------------------------------------------------------------
@@ -1710,6 +1713,121 @@ def messaggio_breve(prev: dict, formato: str = "whatsapp", firma: str = "") -> s
     if firma:
         out.append(firma)
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Dopo l'invio al cliente (2026-10-22): copia per email all'osteria + messaggio
+# per i gruppi WhatsApp di sala e cucina
+# ---------------------------------------------------------------------------
+
+def get_email_copia() -> str:
+    """Indirizzi (separati da virgola) che ricevono la copia di ogni preventivo inviato."""
+    conn = get_clienti_conn()
+    try:
+        r = conn.execute(
+            "SELECT valore FROM clienti_impostazioni WHERE chiave = 'preventivi_email_copia'"
+        ).fetchone()
+        return (r["valore"] if r else "") or ""
+    finally:
+        conn.close()
+
+
+def set_email_copia(valore: str) -> str:
+    indirizzi = [x.strip() for x in (valore or "").replace(";", ",").split(",") if x.strip()]
+    for x in indirizzi:
+        if "@" not in x or "." not in x.split("@")[-1]:
+            raise ValueError(f"Indirizzo non valido: {x}")
+    v = ", ".join(indirizzi)
+    conn = get_clienti_conn()
+    try:
+        conn.execute("""
+            INSERT INTO clienti_impostazioni (chiave, valore, descrizione)
+            VALUES ('preventivi_email_copia', ?, 'Copia (col PDF) di ogni preventivo inviato al cliente; vuoto = nessuna copia')
+            ON CONFLICT(chiave) DO UPDATE SET valore = excluded.valore
+        """, (v,))
+        conn.commit()
+        return v
+    finally:
+        conn.close()
+
+
+def _riassunto_evento(prev: dict) -> tuple[str, str, str]:
+    """(quando lungo, dd/mm, cliente) per messaggi e oggetti."""
+    from app.services.preventivi_pdf import GIORNI, MESI
+    try:
+        d = datetime.strptime(prev.get("data_evento") or "", "%Y-%m-%d")
+        quando = f"{GIORNI[d.weekday()]} {d.day} {MESI[d.month - 1]}"
+        breve = d.strftime("%d/%m")
+    except ValueError:
+        quando, breve = "", ""
+    cliente = " ".join(x for x in [(prev.get("cliente_cognome") or "").strip(),
+                                    (prev.get("cliente_nome") or "").strip()] if x) or (prev.get("titolo") or "")
+    return quando, breve, cliente
+
+
+def messaggio_invio_gruppi(prev: dict, canale: str) -> str:
+    """Messaggio per i gruppi di sala e cucina: proposta mandata al cliente, menù proposti."""
+    from app.services.preventivi_pdf import _nome_menu, _prezzo_menu
+    quando, _, cliente = _riassunto_evento(prev)
+    righe = ["📨 *Preventivo inviato*"]
+    if quando:
+        righe.append(f"*{quando[:1].upper() + quando[1:]}*" + (f" — ore {prev['ora_evento']}" if prev.get("ora_evento") else ""))
+    pax = prev.get("n_persone")
+    righe.append(" · ".join(x for x in [cliente, f"{pax} persone" if pax else "", prev.get("luogo") or ""] if x))
+    menus = [m for m in prev.get("menu_list") or [] if m.get("righe")]
+    if menus:
+        righe.append("")
+        doppio = False
+        for i, m in enumerate(menus):
+            prezzo, nota = _prezzo_menu(m)
+            doppio = doppio or nota.startswith("vino")
+            nm = _nome_menu(m.get("nome")) or (f"Opzione {OPZIONI[i]}" if len(menus) > 1 else "Menù")
+            righe.append(f"• {nm} — {prezzo.replace('/', ' / ')} €")
+        righe.append("_a persona" + (", vino escluso / incluso_" if doppio else "_"))
+    righe += ["", f"Mandato al cliente via {'email' if canale == 'email' else 'WhatsApp'}. In attesa di conferma.",
+              f"_{prev.get('numero') or ''}_"]
+    return "\n".join(righe)
+
+
+def _manda_copia(preventivo_id: int, canale: str, destinatario: str | None, username: str) -> None:
+    """Copia col PDF agli indirizzi dell'osteria (in background: non rallenta l'invio)."""
+    from app.services import email_service
+    try:
+        copia = [x.strip() for x in get_email_copia().split(",") if x.strip()]
+        gia = {x.strip().lower() for x in (destinatario or "").split(",")}
+        copia = [x for x in copia if x.lower() not in gia]
+        if not copia:
+            return
+        prev = get_preventivo(preventivo_id)
+        gen = genera_pdf(preventivo_id)
+        if not prev or gen is None:
+            return
+        pdf, filename = gen
+        quando, breve, cliente = _riassunto_evento(prev)
+        oggetto = f"Preventivo inviato — {cliente} {breve} ({prev.get('numero') or ''})".replace("  ", " ")
+        corpo = "\n".join([
+            f"Preventivo {prev.get('numero') or ''} mandato a {cliente or 'cliente'}"
+            f" via {'email' if canale == 'email' else 'WhatsApp'}"
+            + (f" ({destinatario})" if destinatario else "") + f" da {username}.",
+            "",
+            messaggio_invio_gruppi(prev, canale).replace("*", "").replace("_", ""),
+        ])
+        esito = email_service.invia_email(to=copia, subject=oggetto, body=corpo,
+                                          allegati=[(filename, pdf, "application/pdf")])
+        if not esito.ok:
+            logger.warning("Copia preventivo %s a %s non partita: %s", preventivo_id, copia, esito.errore)
+    except Exception:  # noqa: BLE001 — la copia non deve mai bloccare l'invio
+        logger.exception("Copia preventivo %s fallita", preventivo_id)
+
+
+def dopo_invio(preventivo_id: int, canale: str, destinatario: str | None, username: str) -> dict:
+    """Dopo un invio riuscito: copia per email all'osteria e messaggio per i gruppi."""
+    import threading
+    prev = get_preventivo(preventivo_id) or {}
+    copia = get_email_copia()
+    threading.Thread(target=_manda_copia, args=(preventivo_id, canale, destinatario, username),
+                     name=f"copia-preventivo-{preventivo_id}", daemon=True).start()
+    return {"messaggio_staff": messaggio_invio_gruppi(prev, canale) if prev else "", "copia_a": copia}
 
 
 # ---------------------------------------------------------------------------

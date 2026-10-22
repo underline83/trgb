@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-22 — Preventivi: copia a prenotazioni@ e avviso ai gruppi all'invio `[core]`
+
+Clienti 3.15, sistema 5.71, mig 206. Quando un preventivo parte verso il cliente (email o WhatsApp) arriva una copia col PDF a **prenotazioni@tregobbi.it** (l'indirizzo si cambia in Clienti › Impostazioni › Luoghi preventivi; vuoto = nessuna copia) e, chiuso il pannello d'invio, si apre il messaggio «📨 Preventivo inviato» per i gruppi WhatsApp di sala e cucina (giorno, ora, cliente, persone, menù proposti col prezzo, «in attesa di conferma»), da condividere come quello della conferma.
+
 ## 2026-10-20 — Q nel browser `[core]`
 
 Login 2.3. Claude può lavorare nelle pagine del gestionale come **Q**: chiede al connettore un link d'accesso (strumento `accesso_browser`, solo superadmin), valido due minuti e una volta sola, e lo apre nel browser. Si entra come «Q», superadmin, senza PIN nella sezione Dipendenti; la sessione dura 8 ore e non si allunga. Nessuna password: niente passa in chat. Q non compare fra i profili del login e non si può creare come utente. Doc: `connettore_mcp.md` §3.

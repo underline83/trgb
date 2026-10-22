@@ -25,6 +25,9 @@ from app.services.preventivi_service import (
     elimina_template,
     get_luoghi,
     set_luoghi,
+    get_email_copia,
+    set_email_copia,
+    dopo_invio,
     lista_menu_righe,
     aggiungi_menu_riga,
     aggiorna_menu_riga,
@@ -279,6 +282,26 @@ def api_get_luoghi(user: dict = Depends(get_current_user)):
 def api_set_luoghi(body: LuoghiIn, user: dict = Depends(get_current_user)):
     _require_admin(user)
     return {"luoghi": set_luoghi(body.luoghi)}
+
+
+class EmailCopiaIn(BaseModel):
+    email: str = ""
+
+
+@router.get("/config/email-copia")
+def api_get_email_copia(user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return {"email": get_email_copia()}
+
+
+@router.put("/config/email-copia")
+def api_set_email_copia(body: EmailCopiaIn, user: dict = Depends(get_current_user)):
+    """Indirizzi che ricevono la copia (col PDF) di ogni preventivo inviato; vuoto = nessuna."""
+    _require_admin(user)
+    try:
+        return {"email": set_email_copia(body.email)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ---------------------------------------------------------------------------
@@ -640,6 +663,8 @@ def api_registra_invio(preventivo_id: int, body: InvioIn, user: dict = Depends(g
         raise HTTPException(status_code=400, detail=str(e))
     if res is None:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    # Copia all'osteria + messaggio per i gruppi (2026-10-22)
+    res.update(dopo_invio(preventivo_id, "whatsapp", body.destinatario, user["username"]))
     return res
 
 
@@ -664,6 +689,8 @@ def api_invia_email(preventivo_id: int, body: EmailIn, user: dict = Depends(get_
         raise HTTPException(status_code=400, detail="Oggetto vuoto")
     try:
         res = invia_email_preventivo(preventivo_id, to, body.oggetto.strip(), body.corpo, user["username"])
+        if res and res.get("ok"):  # copia all'osteria + messaggio per i gruppi (2026-10-22)
+            res.update(dopo_invio(preventivo_id, "email", ", ".join(to), user["username"]))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

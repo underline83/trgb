@@ -1,4 +1,4 @@
-// @version: v1.2 — WhatsApp in due passi: 1) apri la chat del numero col messaggio, 2) allega il PDF (2026-10-20)
+// @version: v1.3 — passa l'esito dell'invio (messaggio per i gruppi, copia all'osteria) a chi apre il pannello; v1.2 — WhatsApp in due passi: 1) apri la chat del numero col messaggio, 2) allega il PDF (2026-10-20)
 // v1.1 — messaggio WhatsApp asciutto e modificabile (2026-10-19)
 // v1.0 — invio preventivo al cliente: WhatsApp (testo + PDF), email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
@@ -96,7 +96,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Invio non registrato");
       const d = await r.json();
-      onInviato?.(d.stato);
+      onInviato?.(d.stato, d);
       await caricaInvii();
     } catch (e) {
       waRegistrato.current = false;
@@ -149,7 +149,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
       if (!r.ok) throw new Error(d.detail || "Errore invio");
       await caricaInvii();
       if (!d.ok) throw new Error(`Email NON partita: ${d.errore || "errore"}`);
-      onInviato?.(d.stato);
+      onInviato?.(d.stato, d);
       showToast(`✉️ Email inviata a ${mail.to}`);
     } catch (e) {
       showToast(e.message, true);

@@ -426,6 +426,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.15 (2026-10-22): preventivo inviato al cliente → copia col PDF a prenotazioni@ (configurabile) + messaggio per i gruppi WhatsApp.
     // 3.14 (2026-10-20): «Confermato» su un preventivo: menù scelto sulla prenotazione (trovata o
     //   creata), campanello a sala e cucina, messaggio pronto per i gruppi WhatsApp; poi «prenotato».
     // 3.13 (2026-10-20): nuovo preventivo da una prenotazione (cliente, data, ora, coperti,
@@ -470,7 +471,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.14",
+    version: "3.15",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -576,6 +577,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.71 (2026-10-22): mig 206 — clienti_impostazioni.preventivi_email_copia (clienti 3.15).
     // 5.70 (2026-10-20): mig 205 — config prenotazioni dal sito, router pubblico /public/prenota (prenotazioni 2.20).
     // 5.69 (2026-10-20): mig 204 clienti_prenotazioni.menu_evento/preventivo_id — conferma dei
     //   preventivi con prenotazione aggiornata e avvisi a sala e cucina (clienti 3.14, prenotazioni 2.18).
@@ -673,7 +675,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.70",
+    version: "5.71",
     label: "Sistema",
     status: "stabile",
     color: "green",
