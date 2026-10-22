@@ -618,6 +618,8 @@ function TabOggi({ canWrite, onCount }) {
   const [scorte, setScorte] = useState(null);
   const [giroScorte, setGiroScorte] = useState(0);
   const [conta, setConta] = useState(null);
+  // Giallo/rosso su una voce con dotazione numerica: «quante ne hai?»
+  const [quante, setQuante] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -704,10 +706,20 @@ function TabOggi({ canWrite, onCount }) {
     finally { await load(); setBusy(null); }
   }
 
-  // Semaforo di linea: il colore tocca e si salva; ritoccare lo stesso lo toglie.
-  async function segnaLinea(inst, item, colore) {
+  // Semaforo di linea (Marco 2026-10-23, davanti al frigo): verde = a posto;
+  // giallo = vado a prendere/controllare, la voce resta aperta e ci torno;
+  // rosso = manca la merce. Lo stato lo decide il server dal colore.
+  // Ritoccare lo stesso colore lo toglie.
+  // Con giallo e rosso, se la voce ha una dotazione numerica, prima si dice
+  // quante ce ne sono (Marco 2026-10-23: «cosi' so quanto rimpiazzare»).
+  // Col verde il numero e' la dotazione piena: lo mette il server.
+  async function segnaLinea(inst, item, colore, numero) {
     if (!canWrite || busy) return;
-    const togli = item.stato === "OK" && item.valore_testo === colore;
+    const togli = numero === undefined && item.stato !== "SKIPPED" && item.valore_testo === colore;
+    if (!togli && colore !== "VERDE" && item.item_max != null && numero === undefined) {
+      setQuante({ inst, item, colore });
+      return;
+    }
     setBusy(item.item_id);
     try {
       const res = await apiFetch(`${API_BASE}/tasks/execution/item/${item.item_id}/check`, {
@@ -715,9 +727,11 @@ function TabOggi({ canWrite, onCount }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(togli
           ? { instance_id: inst.id, stato: "SKIPPED" }
-          : { instance_id: inst.id, stato: "OK", valore_testo: colore }),
+          : { instance_id: inst.id, stato: "OK", valore_testo: colore,
+              valore_numerico: numero ?? null }),
       });
       if (!res.ok) throw await erroreDa(res);
+      setQuante(null);
       await load();
     } catch (e) { setErr(e.message); }
     finally { setBusy(null); }
@@ -774,6 +788,8 @@ function TabOggi({ canWrite, onCount }) {
                 busy={busy === it.item_id} onTap={() => spuntaItem(inst, it)}
                 scorta={TIPI_SCORTA.includes(it.item_tipo) ? datiScorta(it) : null}
                 onLinea={(col) => segnaLinea(inst, it, col)}
+                onQuante={() => canWrite && it.stato !== "SKIPPED" && it.valore_testo !== "VERDE"
+                  && it.item_max != null && setQuante({ inst, item: it, colore: it.valore_testo })}
                 onScorta={() => tapScorta(inst, it)}
                 onConta={() => canWrite && setConta({ inst, item: it })} />
     );
@@ -869,6 +885,12 @@ function TabOggi({ canWrite, onCount }) {
         );
       })}
 
+      {quante && (
+        <QuanteSheet item={quante.item} colore={quante.colore} busy={busy === quante.item.item_id}
+                     onChiudi={() => setQuante(null)}
+                     onConferma={(n) => segnaLinea(quante.inst, quante.item, quante.colore, n)} />
+      )}
+
       {conta && (
         <ContaScortaSheet item={conta.item} dati={datiScorta(conta.item)}
                           ripiani={scorte?.ripiani?.[conta.item.item_tipo === "SCORTA_GELO" ? "gelo" : "frigo"] || []}
@@ -908,11 +930,11 @@ const TIPI_SCORTA = ["SCORTA_FRIGO", "SCORTA_GELO"];
 const TIPI_CON_VALORE = ["TEMPERATURA", "NUMERICO", "LINEA", ...TIPI_SCORTA];
 const SEMAFORO_LINEA = [
   { k: "VERDE", c: "var(--green)", t: "ok" },
-  { k: "GIALLO", c: "var(--amber)", t: "quasi finito" },
-  { k: "ROSSO", c: "var(--red)", t: "finito" },
+  { k: "GIALLO", c: "var(--amber)", t: "vado a prendere: ci torno" },
+  { k: "ROSSO", c: "var(--red)", t: "manca la merce" },
 ];
 
-function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onScorta, onConta }) {
+function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onQuante, onScorta, onConta }) {
   const fatto = it.stato === "OK";
   const ricetta = it.item_recipe_id && (
     <a href={`/ricette/${it.item_recipe_id}`} onClick={(e) => e.stopPropagation()}
@@ -926,12 +948,22 @@ function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onScorta, onCont
         <div className="km-sem">
           {SEMAFORO_LINEA.map((s) => (
             <button key={s.k} title={s.t} aria-label={s.t} style={{ "--c": s.c }}
-                    className={fatto && it.valore_testo === s.k ? "on" : ""}
+                    className={it.stato !== "SKIPPED" && it.valore_testo === s.k ? "on" : ""}
                     disabled={!canWrite || busy} onClick={() => onLinea(s.k)} />
           ))}
         </div>
         <div style={{ flex: 1, fontSize: 14, opacity: fatto && it.valore_testo === "VERDE" ? 0.55 : 1 }}>
           {it.item_titolo}{ricetta}
+          {it.stato !== "SKIPPED" && (it.valore_testo === "GIALLO" || it.valore_testo === "ROSSO") && (
+            <span style={{ marginLeft: 6, cursor: canWrite ? "pointer" : "default" }} onClick={onQuante}>
+              <Chip tone={it.valore_testo === "GIALLO" ? "a" : "r"}>
+                {it.valore_testo === "GIALLO" ? "da riprendere" : "manca merce"}
+                {it.valore_numerico != null && it.item_max != null && (
+                  ` · ne hai ${fmtQta(it.valore_numerico)}, mancano ${fmtQta(Math.max(0, num(it.item_max) - num(it.valore_numerico)))}`
+                )}
+              </Chip>
+            </span>
+          )}
         </div>
       </div>
     );
@@ -983,6 +1015,38 @@ function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onScorta, onCont
               : "da misurare"}</Chip>
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Giallo o rosso su una voce con dotazione numerica: quante ce ne sono in
+ *  linea. Mostra subito quante ne mancano per arrivare alla dotazione. */
+function QuanteSheet({ item, colore, busy, onChiudi, onConferma }) {
+  const [val, setVal] = useState(item.valore_testo === colore && item.valore_numerico != null
+    ? String(item.valore_numerico) : "");
+  const dot = num(item.item_max);
+  const manca = Math.max(0, dot - num(val));
+  return (
+    <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div className="km-sheet-in">
+        <h3 className="km-serif">Quante ne hai in linea?</h3>
+        <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+          {item.item_titolo} · dotazione {fmtQta(dot)}
+          {colore === "ROSSO" ? " · manca la merce per completare" : " · vai a prendere e ci torni"}
+        </div>
+        <input className="km-num" type="number" inputMode="decimal" step="1" min="0" placeholder="0"
+               value={val} autoFocus onChange={(e) => setVal(e.target.value)} />
+        <div className="km-step">
+          <button onClick={() => setVal(String(Math.max(0, num(val) - 1)))}>−1</button>
+          <button onClick={() => setVal("0")} style={{ width: "auto", padding: "0 14px", fontSize: 14 }}>nessuna</button>
+          <button onClick={() => setVal(String(num(val) + 1))}>+1</button>
+        </div>
+        <button className="km-btn" disabled={busy || val === "" || num(val) < 0}
+                onClick={() => onConferma(num(val))}>
+          {busy ? "Salvo…" : `Ne ho ${fmtQta(num(val))} · mancano ${fmtQta(manca)}`}
+        </button>
+        <button className="km-btn ghost" style={{ marginTop: 9 }} onClick={onChiudi}>Annulla</button>
       </div>
     </div>
   );

@@ -94,7 +94,7 @@ Le 8 Linee scritte a mano si **disattivano** quando la generata è pronta; i par
 
 | Livello | Come si controlla | Regole |
 |---|---|---|
-| **Linea** | **semaforo**: 🟢 ok · 🟡 quasi finito · 🔴 finito (decisione Marco 2026-10-20, «proviamo») | manuale |
+| **Linea** | **semaforo** (Marco 2026-10-23, davanti al frigo): 🟢 a posto → voce OK · 🟡 vado a prendere e controllare → la voce resta **aperta**, ci si torna e la si chiude in verde (sistemando anche la scorta) · 🔴 non ho la merce per completare → voce FAIL (in L3: produzione/ordine). Lo stato lo deriva il server dal colore. **Numero** (mig 208): con il verde è la dotazione piena (`linea_qta_num` → `checklist_item.max_valore`); con giallo e rosso il cuoco dice quante ce ne sono e si vede quante ne mancano. Dotazione senza numero (GN, pentolino) → solo il colore | manuale |
 | **Scorta frigo** | il gestionale **legge e propone** la giacenza dai ripiani FRIGO; il cuoco **conferma** o **corregge** | mai compilata da sola: senza conferma la voce resta aperta |
 | **Scorta gelo** | come frigo, sui ripiani FREEZER (solo se `scorta_min_gelo` è valorizzato) | idem |
 
@@ -148,6 +148,9 @@ Prerequisito di dati (lavoro una tantum, si fa da UI o lo fa Claude via API): og
 | 2026-10-22 | Scorte frigo/gelo controllate a ogni servizio (pranzo e sera) |
 | 2026-10-22 | Articoli con un minimo frigo/gelo a regime CONTA |
 | 2026-10-22 | Articolo senza ripiano: al primo controllo il cuoco conta e sceglie il ripiano |
+| 2026-10-23 | Semaforo: verde a posto, giallo «vado a prendere, ci torno» (voce aperta), rosso «manca la merce» |
+| 2026-10-23 | Il numero in linea: verde conferma la dotazione, giallo e rosso chiedono quante ce ne sono |
+| 2026-10-23 | Prova: accesa solo la linea antipasti «dal menu» (Pranzo e Sera), insieme alle vecchie a mano |
 
 ## 9. Domande aperte
 

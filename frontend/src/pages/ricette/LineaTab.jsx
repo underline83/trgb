@@ -135,7 +135,9 @@ function ArticoloCard({ art, onChanged, setErr }) {
 function RigaLinea({ l, busy, onSave, onRemove }) {
   const [qta, setQta] = useState(l.linea_qta || "");
   const [note, setNote] = useState(l.linea_note || "");
-  const cambiato = qta !== (l.linea_qta || "") || note !== (l.linea_note || "");
+  const [qn, setQn] = useState(l.linea_qta_num ?? "");
+  const cambiato = qta !== (l.linea_qta || "") || note !== (l.linea_note || "")
+    || String(qn) !== String(l.linea_qta_num ?? "");
   return (
     <div className="grid grid-cols-1 sm:grid-cols-[150px_1fr_1fr_auto_auto] gap-2 items-center">
       <span className="text-sm font-medium capitalize">{l.partita}</span>
@@ -144,8 +146,15 @@ function RigaLinea({ l, busy, onSave, onRemove }) {
       <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota"
              className="border rounded-lg px-3 py-2 min-h-[44px] text-sm" />
       <Btn variant="secondary" size="sm" disabled={!cambiato || busy}
-           onClick={() => onSave({ linea_qta: qta, linea_note: note })}>Salva</Btn>
+           onClick={() => onSave({ linea_qta: qta, linea_note: note,
+                                   linea_qta_num: qn === "" ? null : Number(qn) })}>Salva</Btn>
       <label className="text-xs text-neutral-600 inline-flex items-center gap-1.5 sm:col-start-2"
+             title="La dotazione come numero: col giallo e il rosso in checklist si dice quante ce ne sono e il gestionale dice quante ne mancano. Vuoto = non si conta (GN, pentolino)">
+        dotazione n°
+        <input type="number" min="0" step="1" value={qn} onChange={(e) => setQn(e.target.value)}
+               className="border rounded-lg px-2 py-1 w-20 text-sm" />
+      </label>
+      <label className="text-xs text-neutral-600 inline-flex items-center gap-1.5"
              title="Nel gruppo «Generale» della checklist della partita: c'è sempre, anche se nessun piatto in carta lo usa">
         <input type="checkbox" checked={!!l.generale} disabled={busy}
                onChange={(e) => onSave({ generale: e.target.checked })} />

@@ -440,6 +440,7 @@ SCHEMA_SQL: tuple[str, ...] = (
         ordine      INTEGER NOT NULL DEFAULT 0,
         attivo      INTEGER NOT NULL DEFAULT 1,
         generale    INTEGER,
+        linea_qta_num REAL,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
         updated_at  TEXT,
         FOREIGN KEY (articolo_id) REFERENCES cucina_articoli(id) ON DELETE CASCADE
@@ -499,7 +500,11 @@ HEAL_COLUMNS = {
     # mig 207: 1 = voce del gruppo «Generale» della partita (burro e parmigiano
     # nei primi, fondo bruno nei secondi): c'e' sempre, anche se nessun piatto
     # in carta la usa. NULL/0 = sta sotto i piatti che la usano.
-    "cucina_linea_elementi": [("generale", "INTEGER")],
+    "cucina_linea_elementi": [("generale", "INTEGER"),
+                              # mig 208: la dotazione in linea come numero (le 6 rose
+                              # di «6 scongelate»). Con il giallo/rosso il cuoco dice
+                              # quante ne ha: «ne mancano 4». NULL = non si conta (GN 1/9).
+                              ("linea_qta_num", "REAL")],
 }
 
 
@@ -606,6 +611,17 @@ def ubicazione_di_ripiano(conn: sqlite3.Connection, ripiano_id: int) -> Optional
 # ─────────────────────────────────────────────────────────────
 # Validazione liste chiuse
 # ─────────────────────────────────────────────────────────────
+
+def numero_dotazione(testo: Optional[str]) -> Optional[float]:
+    """La dotazione di linea come numero, dal testo (mig 208): il primo numero
+    se il testo e' una cosa sola («6 scongelate» → 6, «300 g» → 300). Testi
+    composti («1 sifone + 1 busta», «GN 1/9») → None: si contano a occhio."""
+    import re
+    if not testo or "+" in testo or "/" in testo:
+        return None
+    m = re.match(r"^\s*(\d+(?:[.,]\d+)?)\b", testo)
+    return float(m.group(1).replace(",", ".")) if m else None
+
 
 def valida(valore: Any, ammessi: Iterable[str], campo: str) -> Optional[str]:
     """Valida un valore contro una lista chiusa. `None` passa (campo opzionale).

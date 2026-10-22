@@ -188,6 +188,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.11 (2026-10-23): dotazione di linea come numero (mig 208, campo «dotazione n°»
+    //   nella scheda Linea); giallo/rosso in Oggi chiedono quante ce ne sono →
+    //   «ne hai 2, mancano 4»; il verde conferma la dotazione piena.
     // 1.10 (2026-10-22): linea cucina L2 (mig 207) — checklist di linea scritte
     //   dal menu in carta (services/linea_checklist.py); in Oggi semaforo
     //   verde/giallo/rosso e scorta frigo/gelo proposta e confermata: la
@@ -241,7 +244,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.10",
+    version: "1.11",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -503,6 +506,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   tasks: {
+    // 1.9 (2026-10-23): semaforo di linea come lo usa la cucina — verde = OK,
+    //   giallo = voce aperta «da riprendere», rosso = FAIL «manca merce».
     // 1.8 (2026-10-22): voci LINEA / SCORTA_FRIGO / SCORTA_GELO e checklist
     //   generate (generato_da, mig 207): voci in sola lettura nel TemplateEditor,
     //   badge «dal menu», spunta condivisa per articolo, voci uscite dal menu
@@ -519,7 +524,7 @@ const MODULE_VERSIONS = {
     //   nel TemplateEditor); il padre si spunta da solo, toccarlo spunta tutte.
     //   Oggi (Cucina iPhone): scadute non più spuntabili (prima HTTP 400 muto),
     //   errori col messaggio del backend. Duplica copia anche ubicazione_id.
-    version: "1.8",
+    version: "1.9",
     label: "Task Manager",
     status: "beta",
     color: "blue",
@@ -586,6 +591,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.73 (2026-10-23): mig 208 — cucina_linea_elementi.linea_qta_num (dotazione di linea come numero).
     // 5.72 (2026-10-22): mig 207 — linea cucina L2: checklist generate dal menu (cucinaScorte 1.10, tasks 1.8).
     // 5.71 (2026-10-22): mig 206 — clienti_impostazioni.preventivi_email_copia (clienti 3.15).
     // 5.70 (2026-10-20): mig 205 — config prenotazioni dal sito, router pubblico /public/prenota (prenotazioni 2.20).
@@ -685,7 +691,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.72",
+    version: "5.73",
     label: "Sistema",
     status: "stabile",
     color: "green",

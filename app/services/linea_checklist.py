@@ -143,7 +143,8 @@ def _leggi(conn) -> Dict[str, Any]:
 
     linea: Dict[str, Dict[int, dict]] = {}
     for r in conn.execute("""
-        SELECT id, articolo_id, partita, linea_qta, linea_note, ordine, COALESCE(generale, 0) AS generale
+        SELECT id, articolo_id, partita, linea_qta, linea_note, ordine, COALESCE(generale, 0) AS generale,
+               linea_qta_num
           FROM cucina_linea_elementi WHERE attivo = 1 ORDER BY partita, ordine, id
     """):
         if r["articolo_id"] in articoli:
@@ -206,7 +207,10 @@ def _voci_articolo(a: dict, riga: dict, gruppo: str, ref_gruppo: str,
         "tipo": "LINEA",
         "titolo": f"{a['nome']} — {qta}" if qta else f"{a['nome']} — in linea",
         "gruppo": gruppo, "articolo_id": a["id"], "recipe_id": a["recipe_id"],
-        "min_valore": None, "unita_misura": None, "note": riga["linea_note"],
+        # max_valore = la dotazione come numero (mig 208): verde la conferma,
+        # giallo/rosso fanno dire quante ce ne sono → «ne mancano N».
+        "min_valore": None, "max_valore": riga.get("linea_qta_num"),
+        "unita_misura": None, "note": riga["linea_note"],
     }]
     if con_scorte:
         for tipo, campo, dove in (("SCORTA_FRIGO", "scorta_min_frigo", "frigo"),
@@ -217,7 +221,7 @@ def _voci_articolo(a: dict, riga: dict, gruppo: str, ref_gruppo: str,
                     "tipo": tipo,
                     "titolo": f"{a['nome']} — scorta {dove}: min {_fmt(a[campo])} {um}".rstrip(),
                     "gruppo": gruppo, "articolo_id": a["id"], "recipe_id": a["recipe_id"],
-                    "min_valore": a[campo], "unita_misura": a["um"], "note": None,
+                    "min_valore": a[campo], "max_valore": None, "unita_misura": a["um"], "note": None,
                 })
     return voci
 
@@ -254,7 +258,7 @@ def calcola(conn=None) -> Dict[str, Dict[str, Any]]:
         for x in d["extra"].get(partita, []):
             voci.append({"linea_ref": f"X{x['id']}", "tipo": "CHECKBOX", "titolo": x["titolo"],
                          "gruppo": GRUPPO_GENERALE, "articolo_id": None, "recipe_id": None,
-                         "min_valore": None, "unita_misura": None, "note": x["note"]})
+                         "min_valore": None, "max_valore": None, "unita_misura": None, "note": x["note"]})
 
         nomi_piatti = []
         for p in piatti:
@@ -282,7 +286,7 @@ def calcola(conn=None) -> Dict[str, Dict[str, Any]]:
 # ─────────────────────────────────────────────────────────────
 
 _CAMPI = ("titolo", "tipo", "gruppo", "ordine", "articolo_id", "recipe_id",
-          "min_valore", "unita_misura", "note")
+          "min_valore", "max_valore", "unita_misura", "note")
 
 
 def _tasks_conn() -> Optional[sqlite3.Connection]:

@@ -47,6 +47,7 @@ from app.models.cucina_scorte_db import (
     UNITA_MISURA,
     incompatibile,
     leggi_config,
+    numero_dotazione,
     valida,
 )
 from app.models.foodcost_db import get_foodcost_connection
@@ -159,6 +160,8 @@ class LineaElementoIn(BaseModel):
     ordine: int = 0
     # mig 207: nel gruppo «Generale» della partita, sempre presente
     generale: bool = False
+    # mig 208: la dotazione come numero (6 di «6 scongelate»); None = non si conta
+    linea_qta_num: Optional[float] = Field(default=None, ge=0)
 
 
 class LineaElementoUpdate(BaseModel):
@@ -168,6 +171,7 @@ class LineaElementoUpdate(BaseModel):
     ordine: Optional[int] = None
     attivo: Optional[bool] = None
     generale: Optional[bool] = None
+    linea_qta_num: Optional[float] = Field(default=None, ge=0)
 
 
 class LineaAttivaIn(BaseModel):
@@ -1251,7 +1255,7 @@ def _articoli_linea(conn, where: str, args: list) -> List[Dict[str, Any]]:
     for r in rows:
         d = dict(r)
         d["linea"] = [dict(x) for x in conn.execute(
-            """SELECT id, partita, linea_qta, linea_note, ordine, attivo, generale
+            """SELECT id, partita, linea_qta, linea_note, ordine, attivo, generale, linea_qta_num
                  FROM cucina_linea_elementi
                 WHERE articolo_id = ? AND attivo = 1
                 ORDER BY partita, ordine, id""", (d["id"],)).fetchall()]
@@ -1317,11 +1321,14 @@ def linea_create(payload: LineaElementoIn, current_user=Depends(get_current_user
         cur = conn.cursor()
         _get_articolo(cur, payload.articolo_id)
         cur.execute(
-            """INSERT INTO cucina_linea_elementi (articolo_id, partita, linea_qta, linea_note, ordine, generale)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO cucina_linea_elementi (articolo_id, partita, linea_qta, linea_note, ordine,
+                                                    generale, linea_qta_num)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (payload.articolo_id, partita, (payload.linea_qta or "").strip() or None,
              (payload.linea_note or "").strip() or None, payload.ordine,
-             1 if payload.generale else None),
+             1 if payload.generale else None,
+             payload.linea_qta_num if payload.linea_qta_num is not None
+             else numero_dotazione(payload.linea_qta)),
         )
         new_id = cur.lastrowid
         conn.commit()

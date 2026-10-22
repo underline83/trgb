@@ -969,7 +969,7 @@ def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, 
         cond, chiave = "it.recipe_id = ? AND it.tipo = 'CHECKBOX'", (recipe_id,)
         valore_numerico = valore_testo = None
     rows = conn.execute(f"""
-        SELECT i.id AS iid, it.id AS item_id, i.stato AS istato
+        SELECT i.id AS iid, it.id AS item_id, i.stato AS istato, it.max_valore AS item_max
           FROM checklist_item it
           JOIN checklist_instance i ON i.template_id = it.template_id
          WHERE {cond}
@@ -996,8 +996,10 @@ def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, 
                 note = excluded.note,
                 completato_at = excluded.completato_at,
                 completato_da = excluded.completato_da
-        """, (r["iid"], r["item_id"], stato, valore_numerico, valore_testo,
-              note, now, user["username"]))
+        """, (r["iid"], r["item_id"], stato,
+              # verde di linea: ogni voce gemella prende la SUA dotazione piena
+              r["item_max"] if (tipo == "LINEA" and valore_testo == "VERDE") else valore_numerico,
+              valore_testo, note, now, user["username"]))
         if r["istato"] == "APERTA":
             conn.execute(
                 "UPDATE checklist_instance SET stato = 'IN_CORSO' WHERE id = ?",
@@ -1048,6 +1050,20 @@ def check_item(
             if (payload.valore_testo or "").upper() not in SEMAFORO_LINEA:
                 raise HTTPException(400, "Voce di linea: valore_testo VERDE, GIALLO o ROSSO")
             payload.valore_testo = payload.valore_testo.upper()
+            # Logica operativa di Marco (2026-10-23), davanti al frigo:
+            #   VERDE  = a posto                         → OK
+            #   GIALLO = devo andare a prendere/controllare: la voce resta
+            #            APERTA, ci si torna e la si chiude in verde → PENDING
+            #   ROSSO  = non ho la merce per completare  → FAIL (manca: L3
+            #            ne fara' produzione o ordine)
+            payload.stato = {"VERDE": "OK", "GIALLO": "PENDING", "ROSSO": "FAIL"}[payload.valore_testo]
+            # Il numero (Marco 2026-10-23): col verde e' la dotazione piena
+            # (max_valore, mig 208); con giallo e rosso lo dice il cuoco —
+            # quante ce ne sono in linea, cosi' si sa quanto rimpiazzare.
+            if payload.valore_testo == "VERDE":
+                payload.valore_numerico = item["max_valore"]
+            elif payload.valore_numerico is not None and payload.valore_numerico < 0:
+                raise HTTPException(400, "Quante ce ne sono: non puo' essere negativo")
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

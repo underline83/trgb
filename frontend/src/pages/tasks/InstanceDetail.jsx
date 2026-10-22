@@ -209,7 +209,7 @@ export default function InstanceDetail() {
 
     // LINEA (mig 207): il semaforo — il colore va in valore_testo.
     if (item.item_tipo === "LINEA") {
-      const togli = item.stato === "OK" && item.valore_testo === colore;
+      const togli = item.stato !== "SKIPPED" && item.valore_testo === colore;
       try {
         await doCheck(item.item_id, togli ? "SKIPPED" : "OK", null, togli ? null : colore);
       } catch { /* already toasted */ }
@@ -752,6 +752,15 @@ function ItemCard({ item, editable, saving, isViewer, onAction }) {
           </div>
         )}
 
+        {/* Linea: quante ce ne sono (giallo/rosso, mig 208) */}
+        {item.item_tipo === "LINEA" && s !== "SKIPPED" && item.valore_testo && item.valore_testo !== "VERDE" && (
+          <div className={"mt-1 text-sm " + (item.valore_testo === "ROSSO" ? "text-brand-red" : "text-amber-700")}>
+            {item.valore_testo === "ROSSO" ? "Manca la merce" : "Da riprendere"}
+            {item.valore_numerico != null && item.item_max != null &&
+              ` · ne ha ${fmtNum(item.valore_numerico)}, mancano ${fmtNum(Math.max(0, item.item_max - item.valore_numerico))}`}
+          </div>
+        )}
+
         {/* Scorta confermata (linea generata, mig 207) */}
         {(item.item_tipo === "SCORTA_FRIGO" || item.item_tipo === "SCORTA_GELO") && (
           <div className="mt-1 text-sm text-neutral-600">
@@ -789,7 +798,7 @@ function ItemCard({ item, editable, saving, isViewer, onAction }) {
           <button key={c.k} type="button" title={c.t} aria-label={c.t}
                   disabled={!canTap} onClick={() => onAction(item, "OK", c.k)}
                   className={"w-11 h-11 rounded-full border-[3px] disabled:opacity-40 " +
-                    (s === "OK" && item.valore_testo === c.k ? c.on : "bg-white " + c.bordo)} />
+                    (s !== "SKIPPED" && item.valore_testo === c.k ? c.on : "bg-white " + c.bordo)} />
         ))}
 
         {item.item_tipo === "CHECKBOX" && (
@@ -945,8 +954,8 @@ function ActionCircle({ variant, active, disabled, onClick, children, ...rest })
 
 const SEMAFORO = [
   { k: "VERDE", t: "ok", on: "bg-brand-green border-brand-green", bordo: "border-brand-green" },
-  { k: "GIALLO", t: "quasi finito", on: "bg-amber-400 border-amber-400", bordo: "border-amber-400" },
-  { k: "ROSSO", t: "finito", on: "bg-brand-red border-brand-red", bordo: "border-brand-red" },
+  { k: "GIALLO", t: "vado a prendere: ci torno", on: "bg-amber-400 border-amber-400", bordo: "border-amber-400" },
+  { k: "ROSSO", t: "manca la merce", on: "bg-brand-red border-brand-red", bordo: "border-brand-red" },
 ];
 
 function TipoChip({ tipo }) {
