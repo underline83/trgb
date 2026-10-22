@@ -613,13 +613,15 @@ def ubicazione_di_ripiano(conn: sqlite3.Connection, ripiano_id: int) -> Optional
 # ─────────────────────────────────────────────────────────────
 
 def numero_dotazione(testo: Optional[str]) -> Optional[float]:
-    """La dotazione di linea come numero, dal testo (mig 208): il primo numero
-    se il testo e' una cosa sola («6 scongelate» → 6, «300 g» → 300). Testi
-    composti («1 sifone + 1 busta», «GN 1/9») → None: si contano a occhio."""
+    """La dotazione di linea come numero, dal testo (mig 208): il numero con
+    cui comincia il testo, se e' una cosa sola («6 scongelate» → 6, «300 g» →
+    300, «1 GN 1/6 di scorta» → 1). Testi composti («1 sifone + 1 busta») e
+    senza numero davanti («GN 1/9», «in linea») → None. Le parti di un testo
+    composto diventano voci separate (services/linea_checklist.py)."""
     import re
-    if not testo or "+" in testo or "/" in testo:
+    if not testo or "+" in testo:
         return None
-    m = re.match(r"^\s*(\d+(?:[.,]\d+)?)\b", testo)
+    m = re.match(r"^\s*(\d+(?:[.,]\d+)?)(?![\d/.,])", testo)
     return float(m.group(1).replace(",", ".")) if m else None
 
 

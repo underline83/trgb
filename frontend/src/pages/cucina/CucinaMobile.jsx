@@ -601,6 +601,25 @@ function bloccaPerGruppo(items) {
   return out;
 }
 
+/** Secondo livello (Marco 2026-10-23): dentro il piatto, le voci di fila
+ *  dello stesso articolo stanno sotto il suo nome — «Crema di zucca» →
+ *  «1 sifone pronto», «1 busta scongelata», «scorta gelo: min 3 pz».
+ *  Il nome e' quello che il generatore mette prima di « — » nel titolo. */
+function perArticolo(items) {
+  const out = [];
+  for (const it of items) {
+    const last = out[out.length - 1];
+    const [nome, ...resto] = (it.item_titolo || "").split(" — ");
+    const voce = { it, breve: resto.length ? resto.join(" — ") : null };
+    if (it.item_articolo_id && last && last.articolo_id === it.item_articolo_id && last.nome === nome) {
+      last.voci.push(voce);
+    } else {
+      out.push({ articolo_id: it.item_articolo_id || null, nome, voci: [voce] });
+    }
+  }
+  return out;
+}
+
 async function erroreDa(res) {
   const body = await res.json().catch(() => ({}));
   return new Error(body.detail || `HTTP ${res.status}`);
@@ -782,9 +801,9 @@ function TabOggi({ canWrite, onCount }) {
     }
   }
 
-  function voce(inst, it) {
+  function voce(inst, it, breve) {
     return (
-      <VoceOggi key={it.item_id} it={it} canWrite={canWrite}
+      <VoceOggi key={it.item_id} it={it} canWrite={canWrite} titolo={breve}
                 busy={busy === it.item_id} onTap={() => spuntaItem(inst, it)}
                 scorta={TIPI_SCORTA.includes(it.item_tipo) ? datiScorta(it) : null}
                 onLinea={(col) => segnaLinea(inst, it, col)}
@@ -873,7 +892,21 @@ function TabOggi({ canWrite, onCount }) {
                         <div style={{ marginTop: 7, marginLeft: 22, paddingLeft: 12,
                                       borderLeft: "2px solid var(--line, #e5e5e5)",
                                       display: "flex", flexDirection: "column", gap: 7 }}>
-                          {b.items.map((it) => voce(inst, it))}
+                          {perArticolo(b.items).map((a, ai) => (a.voci.length === 1
+                            ? voce(inst, a.voci[0].it)
+                            : (
+                              <div key={`a${ai}`}>
+                                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 5 }}>
+                                  {a.nome}
+                                  <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 12, color: "var(--muted)" }}>
+                                    {a.voci.filter((v) => v.it.stato === "OK").length}/{a.voci.length}
+                                  </span>
+                                </div>
+                                <div style={{ marginLeft: 10, display: "flex", flexDirection: "column", gap: 7 }}>
+                                  {a.voci.map((v) => voce(inst, v.it, v.breve))}
+                                </div>
+                              </div>
+                            )))}
                         </div>
                       )}
                     </div>
@@ -934,8 +967,9 @@ const SEMAFORO_LINEA = [
   { k: "ROSSO", c: "var(--red)", t: "manca la merce" },
 ];
 
-function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onQuante, onScorta, onConta }) {
+function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onQuante, onScorta, onConta, titolo }) {
   const fatto = it.stato === "OK";
+  const label = titolo || it.item_titolo;
   const ricetta = it.item_recipe_id && (
     <a href={`/ricette/${it.item_recipe_id}`} onClick={(e) => e.stopPropagation()}
        title={it.item_recipe_nome || "Apri la ricetta"}
@@ -953,7 +987,7 @@ function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onQuante, onScor
           ))}
         </div>
         <div style={{ flex: 1, fontSize: 14, opacity: fatto && it.valore_testo === "VERDE" ? 0.55 : 1 }}>
-          {it.item_titolo}{ricetta}
+          {label}{ricetta}
           {it.stato !== "SKIPPED" && (it.valore_testo === "GIALLO" || it.valore_testo === "ROSSO") && (
             <span style={{ marginLeft: 6, cursor: canWrite ? "pointer" : "default" }} onClick={onQuante}>
               <Chip tone={it.valore_testo === "GIALLO" ? "a" : "r"}>
@@ -983,7 +1017,7 @@ function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onQuante, onScor
           {fatto ? (sotto ? "!" : "✓") : ""}
         </button>
         <div style={{ flex: 1, fontSize: 14, opacity: fatto && !sotto ? 0.55 : 1 }}>
-          {it.item_titolo}{ricetta}
+          {label}{ricetta}
           {lotti.length > 0 && (
             <div className="km-scad">
               ⚠ {fmtQta(lotti.reduce((t, l) => t + num(l.qta_residua), 0))} {um} in scadenza
@@ -1007,7 +1041,7 @@ function VoceOggi({ it, canWrite, busy, onTap, scorta, onLinea, onQuante, onScor
         {it.stato === "OK" ? "✓" : it.stato === "FAIL" ? "✕" : ""}
       </button>
       <div style={{ flex: 1, fontSize: 14, opacity: it.stato === "OK" ? 0.55 : 1 }}>
-        {it.item_titolo}{ricetta}
+        {label}{ricetta}
         {(it.item_tipo === "TEMPERATURA" || it.item_tipo === "NUMERICO") && (
           <span style={{ marginLeft: 6 }}>
             <Chip tone="b">{it.valore_numerico != null

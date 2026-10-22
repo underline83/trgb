@@ -58,6 +58,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.models.cucina_scorte_db import numero_dotazione
 from app.models.foodcost_db import get_foodcost_connection
 from app.utils.locale_data import locale_data_path
 
@@ -198,20 +199,37 @@ def _elementi_piatto(d: Dict[str, Any], recipe_id: int) -> List[int]:
 # Calcolo delle voci
 # ─────────────────────────────────────────────────────────────
 
+def _parti_linea(riga: dict) -> List[Tuple[str, Optional[float]]]:
+    """La dotazione spezzata nei suoi pezzi (Marco 2026-10-23: «1 sifone pronto
+    + 1 busta scongelata sono due righe»), ognuno col suo numero.
+
+    Una cosa sola: il numero e' quello della scheda Linea, o letto dal testo.
+    Piu' pezzi: ogni pezzo legge il suo numero dal proprio testo."""
+    testo = (riga["linea_qta"] or "").strip()
+    pezzi = [p.strip() for p in testo.split("+") if p.strip()]
+    if len(pezzi) <= 1:
+        num = riga.get("linea_qta_num")
+        return [(testo, num if num is not None else numero_dotazione(testo))]
+    return [(p, numero_dotazione(p)) for p in pezzi]
+
+
 def _voci_articolo(a: dict, riga: dict, gruppo: str, ref_gruppo: str,
                    con_scorte: bool) -> List[dict]:
     um = _UM.get((a["um"] or "").upper(), (a["um"] or "").lower())
-    qta = (riga["linea_qta"] or "").strip()
-    voci = [{
-        "linea_ref": f"A{a['id']}:L:{ref_gruppo}",
-        "tipo": "LINEA",
-        "titolo": f"{a['nome']} — {qta}" if qta else f"{a['nome']} — in linea",
-        "gruppo": gruppo, "articolo_id": a["id"], "recipe_id": a["recipe_id"],
-        # max_valore = la dotazione come numero (mig 208): verde la conferma,
-        # giallo/rosso fanno dire quante ce ne sono → «ne mancano N».
-        "min_valore": None, "max_valore": riga.get("linea_qta_num"),
-        "unita_misura": None, "note": riga["linea_note"],
-    }]
+    voci = []
+    parti = _parti_linea(riga)
+    for k, (qta, num) in enumerate(parti):
+        voci.append({
+            # il primo pezzo tiene la chiave di sempre: le spunte gia' date restano
+            "linea_ref": f"A{a['id']}:L:{ref_gruppo}" + (f":{k}" if k else ""),
+            "tipo": "LINEA",
+            "titolo": f"{a['nome']} — {qta}" if qta else f"{a['nome']} — in linea",
+            "gruppo": gruppo, "articolo_id": a["id"], "recipe_id": a["recipe_id"],
+            # max_valore = la dotazione come numero (mig 208): verde la conferma,
+            # giallo/rosso fanno dire quante ce ne sono → «ne mancano N».
+            "min_valore": None, "max_valore": num,
+            "unita_misura": None, "note": riga["linea_note"] if k == len(parti) - 1 else None,
+        })
     if con_scorte:
         for tipo, campo, dove in (("SCORTA_FRIGO", "scorta_min_frigo", "frigo"),
                                   ("SCORTA_GELO", "scorta_min_gelo", "gelo")):

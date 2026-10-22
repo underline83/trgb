@@ -46,6 +46,25 @@ function bloccaPerGruppo(items) {
   return out;
 }
 
+/** Secondo livello (Marco 2026-10-23): dentro il piatto, le voci di fila
+ *  dello stesso articolo stanno sotto il suo nome — «Crema di zucca» →
+ *  «1 sifone pronto», «1 busta scongelata», «scorta gelo: min 3 pz».
+ *  Il nome e' quello che il generatore mette prima di « — » nel titolo. */
+function perArticolo(items) {
+  const out = [];
+  for (const it of items) {
+    const last = out[out.length - 1];
+    const [nome, ...resto] = (it.item_titolo || "").split(" — ");
+    const voce = { it, breve: resto.length ? resto.join(" — ") : null };
+    if (it.item_articolo_id && last && last.articolo_id === it.item_articolo_id && last.nome === nome) {
+      last.voci.push(voce);
+    } else {
+      out.push({ articolo_id: it.item_articolo_id || null, nome, voci: [voce] });
+    }
+  }
+  return out;
+}
+
 function initialOf(name) {
   if (!name) return "?";
   return name.trim().charAt(0).toUpperCase();
@@ -393,16 +412,33 @@ export default function InstanceDetail() {
               isViewer={isViewer}
               onGruppo={handleGruppo}
             >
-              {b.items.map(item => (
-                <ItemCard
-                  key={item.item_id}
-                  item={item}
-                  editable={editable}
-                  saving={saving}
-                  isViewer={isViewer}
-                  onAction={handleItemAction}
-                />
-              ))}
+              {perArticolo(b.items).map((a, ai) => {
+                const card = (v) => (
+                  <ItemCard
+                    key={v.it.item_id}
+                    item={v.it}
+                    titolo={a.voci.length > 1 ? v.breve : null}
+                    editable={editable}
+                    saving={saving}
+                    isViewer={isViewer}
+                    onAction={handleItemAction}
+                  />
+                );
+                if (a.voci.length === 1) return card(a.voci[0]);
+                return (
+                  <div key={`a${ai}`} className="flex flex-col gap-2">
+                    <div className="font-playfair font-semibold text-brand-ink text-[15px] pt-1">
+                      {a.nome}
+                      <span className="ml-2 text-xs font-normal text-neutral-500">
+                        {a.voci.filter(v => v.it.stato === "OK").length}/{a.voci.length}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2 pl-4 border-l-2 border-neutral-100">
+                      {a.voci.map(card)}
+                    </div>
+                  </div>
+                );
+              })}
             </GruppoCard>
           ) : b.items.map(item => (
             <ItemCard
@@ -676,7 +712,7 @@ const ITEM_LEFT = {
   PENDING: "border-l-[#e6e1d8]",
 };
 
-function ItemCard({ item, editable, saving, isViewer, onAction }) {
+function ItemCard({ item, editable, saving, isViewer, onAction, titolo }) {
   const s = item.stato || "PENDING";
   const canTap = editable && !saving && !isViewer;
   const strike = s === "SKIPPED";
@@ -702,7 +738,7 @@ function ItemCard({ item, editable, saving, isViewer, onAction }) {
             "text-base sm:text-[17px] " +
             (strike ? "line-through decoration-2 decoration-[#b9b4aa]" : "")
           }>
-            {item.item_titolo}
+            {titolo || item.item_titolo}
           </span>
           {item.item_recipe_id && (
             <Link to={`/ricette/${item.item_recipe_id}`}

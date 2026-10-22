@@ -506,6 +506,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   tasks: {
+    // 1.10 (2026-10-23): dotazione di linea con «+» = una voce per pezzo; spunta
+    //   condivisa delle voci LINEA solo a parità di titolo. Secondo livello:
+    //   dentro il piatto le voci dello stesso articolo stanno sotto il suo nome.
     // 1.9 (2026-10-23): semaforo di linea come lo usa la cucina — verde = OK,
     //   giallo = voce aperta «da riprendere», rosso = FAIL «manca merce».
     // 1.8 (2026-10-22): voci LINEA / SCORTA_FRIGO / SCORTA_GELO e checklist
@@ -524,7 +527,7 @@ const MODULE_VERSIONS = {
     //   nel TemplateEditor); il padre si spunta da solo, toccarlo spunta tutte.
     //   Oggi (Cucina iPhone): scadute non più spuntabili (prima HTTP 400 muto),
     //   errori col messaggio del backend. Duplica copia anche ubicazione_id.
-    version: "1.9",
+    version: "1.10",
     label: "Task Manager",
     status: "beta",
     color: "blue",

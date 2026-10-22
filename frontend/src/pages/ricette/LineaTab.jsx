@@ -149,7 +149,7 @@ function RigaLinea({ l, busy, onSave, onRemove }) {
            onClick={() => onSave({ linea_qta: qta, linea_note: note,
                                    linea_qta_num: qn === "" ? null : Number(qn) })}>Salva</Btn>
       <label className="text-xs text-neutral-600 inline-flex items-center gap-1.5 sm:col-start-2"
-             title="La dotazione come numero: col giallo e il rosso in checklist si dice quante ce ne sono e il gestionale dice quante ne mancano. Vuoto = non si conta (GN, pentolino)">
+             title="La dotazione come numero: col giallo e il rosso in checklist si dice quante ce ne sono e il gestionale dice quante ne mancano. Vuoto = non si conta (GN, pentolino). Una dotazione con «+» diventa più voci, ognuna col suo numero letto dal testo">
         dotazione n°
         <input type="number" min="0" step="1" value={qn} onChange={(e) => setQn(e.target.value)}
                className="border rounded-lg px-2 py-1 w-20 text-sm" />

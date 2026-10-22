@@ -948,7 +948,7 @@ def salta_instance(
 
 def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, note, now,
                             tipo="CHECKBOX", articolo_id=None,
-                            valore_numerico=None, valore_testo=None):
+                            valore_numerico=None, valore_testo=None, titolo=None):
     """Replica la spunta sulle voci gemelle nelle istanze dello stesso
     giorno+turno (anche la stessa checklist, se la voce compare sotto due
     piatti), purche' non chiuse. Rispetta la visibilita' per livello: dove
@@ -963,7 +963,12 @@ def _propaga_spunta_ricetta(conn, user, instance_id, item_id, recipe_id, stato, 
     ).fetchone()
     if not src:
         return
-    if tipo in ITEM_TIPI_LINEA:
+    if tipo == "LINEA":
+        # Una dotazione composta e' spezzata in piu' voci dello stesso articolo
+        # («1 sifone pronto», «1 busta scongelata»): gemelle solo a parita' di
+        # voce (stesso titolo), cosi' spuntarne una non spunta l'altra.
+        cond, chiave = "it.articolo_id = ? AND it.tipo = ? AND it.titolo = ?", (articolo_id, tipo, titolo)
+    elif tipo in ITEM_TIPI_LINEA:
         cond, chiave = "it.articolo_id = ? AND it.tipo = ?", (articolo_id, tipo)
     else:
         cond, chiave = "it.recipe_id = ? AND it.tipo = 'CHECKBOX'", (recipe_id,)
@@ -1105,7 +1110,8 @@ def check_item(
                                     payload.stato, payload.note, now,
                                     tipo=item["tipo"], articolo_id=item["articolo_id"],
                                     valore_numerico=payload.valore_numerico,
-                                    valore_testo=payload.valore_testo)
+                                    valore_testo=payload.valore_testo,
+                                    titolo=item["titolo"])
 
         conn.commit()
         return _fetch_instance(conn, payload.instance_id)
