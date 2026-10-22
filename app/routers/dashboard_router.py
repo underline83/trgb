@@ -1572,6 +1572,8 @@ def get_dashboard_home(current_user=Depends(get_current_user)):
     try:
         from app.services.linea_checklist import sincronizza
         sincronizza(forza=False)
+        from app.services.linea_esiti import valuta as valuta_esiti_linea
+        valuta_esiti_linea(forza=False)
     except Exception as e:
         logger.warning(f"Dashboard: sincronizzazione linea fallita: {e}")
 

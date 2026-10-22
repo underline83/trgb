@@ -603,7 +603,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.LN1 | **Compositore della linea**: una schermata sola per comporre la linea di un piatto (componenti, dotazione pezzo per pezzo — pentolino, GN 1/9 di scorta… — numeri, minimi frigo/gelo, riordino) invece della scheda Linea ricetta per ricetta | M | DA FARE (Marco 2026-10-23) | Oggi si fa da Ricette › piatto › Linea, testo con «+» |
 | C.LN2 | Accendere le linee «dal menu» di primi, secondi, contorni e spegnere le vecchie a mano | XS | DA FARE | In prova solo «Linea antipasti NEW» (template 15-16). Spegnere a mano: `attiva()` abbina per nome |
 | C.LN3 | Completare le composizioni: uova (battuta), giardiniera (salame), salumi del tagliere (da creare come ingredienti), formaggi | S | DA FARE | Oggi non compaiono in checklist |
-| C.LN4 | L3 — esiti → lavoro: giallo/rosso e scorte sotto il minimo → task (rifornire, produrre) e lista spesa per fornitore, confermata da Marco/chef/sous chef; notifiche | M | DA FARE | spec §6 |
+| C.LN4 | L3 — esiti → lavoro: rosso e scorte sotto il minimo → task «Produrre» o spesa «da confermare»; giallo scaduto → «Rifornire»; avvisi; chiusura da sola | M | 🔨 2026-10-23 (mig 209, da pushare) | spec §6 |
 | C.LN5 | Dolci nella linea | S | RINVIATO | Prima le considerazioni di Marco |
 | C.LN6 | Piatti del pranzo nella linea | M | RINVIATO | Cambiano ogni settimana |
 | C.LN7 | Scheda «Linea» anche nell'articolo della Cucina iPhone | S | DA FARE | Ora solo dalla ricetta (desktop) |

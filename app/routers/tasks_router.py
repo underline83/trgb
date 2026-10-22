@@ -1114,6 +1114,10 @@ def check_item(
                                     titolo=item["titolo"])
 
         conn.commit()
+        # L3 (mig 209): un esito di linea puo' diventare un task o una spesa.
+        if item["tipo"] in ITEM_TIPI_LINEA and item["articolo_id"]:
+            from app.services.linea_esiti import valuta_silenzioso
+            valuta_silenzioso()
         return _fetch_instance(conn, payload.instance_id)
     finally:
         conn.close()

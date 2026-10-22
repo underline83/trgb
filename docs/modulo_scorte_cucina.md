@@ -603,3 +603,14 @@ Due tab su quattro girano su endpoint che esistono già: il lavoro backend di S1
 | C-K-207e | Confermare/correggere la scorta, scrivendo in Frigoriferi | `POST /cucina/scorte/linea/scorte/conferma`, `CucinaMobile.jsx` `ContaScortaSheet` | brigata | 🆕 |
 | C-K-207f | Riga di linea «in Generale» | `LineaTab.jsx` | admin/chef/sous chef | 🆕 |
 
+## Linea cucina — fase L3 (2026-10-23, mig 209, cucinaScorte 1.12)
+
+> Spec: [spec_linea_cucina.md](spec_linea_cucina.md) §6. `app/services/linea_esiti.py` (platform): esiti di linea → `task_singolo` (origine LINEA) e `lista_spesa_items` (+ `articolo_id`, `origine`, `da_confermare`, `confermato_da`, `confermato_at`).
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-K-209a | Rosso o scorta sotto il minimo su una preparazione → task «Produrre» (rosso urgente + avviso chef/sous chef) | `linea_esiti.valuta()` | brigata | 🆕 |
+| C-K-209b | Stessa cosa su un componente → Spesa «proposta dalla linea · da confermare» | `linea_esiti.valuta()`, `CucinaMobile.jsx` `TabSpesa` | brigata | 🆕 |
+| C-K-209c | Confermare o scartare la spesa proposta | `POST /lista-spesa/items/{id}/conferma`, `DELETE /lista-spesa/items/{id}` | admin/chef/sous chef | 🆕 |
+| C-K-209d | Task e proposte che si chiudono da soli quando la scorta copre il minimo o la linea torna verde | `linea_esiti.valuta()` | — | 🆕 |
+

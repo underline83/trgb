@@ -120,13 +120,19 @@ Solo su esiti **confermati**:
 - Niente doppioni: se c'è già un task/riga aperta per lo stesso articolo, si aggiorna quella.
 - Notifica (M.A) a chef/sous chef per gli urgenti.
 
+**Come è fatto (L3, 2026-10-23, decisioni Marco).** `app/services/linea_esiti.py` `valuta()`: gira dopo ogni spunta di linea/scorta, conferma di scorta, movimento di magazzino e dalla Home (throttle 60 s).
+- **Rosso** («manca la merce») o **scorta confermata oggi sotto il minimo**: preparazione (`articolo.recipe_id`) → task «Produrre: X · quantità» (`origine='LINEA'`, `ref_modulo='cucina_articoli'`, `ref_id`=articolo; rosso = ALTA + campanello a chef e sous chef, sotto il minimo = MEDIA; link ricetta nella descrizione). Componente → riga in Lista spesa con `da_confermare = 1` (fornitore: quello dell'articolo, poi il default dell'ingrediente, poi l'ultimo in fattura; quantità: `qta_riordino`, altrimenti «almeno» quanto manca al minimo); si spunta come presa solo dopo la conferma (`POST /lista-spesa/items/{id}/conferma`, admin/chef/sous chef) o si scarta («Non serve»).
+- **Giallo**: niente, salvo checklist SCADUTA ancora gialla → task «Rifornire la linea: X».
+- **Idempotenza**: un task di linea aperto e una proposta aperta per articolo (aggiornati, priorità che sale e non scende); ogni esito agisce una volta (un task chiuso a mano non rinasce dallo stesso esito); un task aperto di ieri torna a oggi.
+- **Chiusura da sola**, solo su fatto positivo: giacenza che copre tutti i minimi, o (articolo senza minimi) linea verde dopo il task. Le proposte non confermate spariscono alla stessa condizione; quelle confermate restano (sono ordini).
+
 ## 7. Fasi
 
 | Fase | Contenuto | Migrazioni |
 |---|---|---|
 | **L1** | ✅ colonne su `cucina_articoli`, `cucina_linea_elementi`, voci extra, endpoint `/cucina/scorte/linea/…`, scheda «Linea» nella ricetta (mig 202, 2026-10-20) · ⏸ scheda Linea nell'articolo (Cucina iPhone) · ✅ **travaso** dei parametri di antipasti, primi, secondi e contorni (articoli collegati a ricetta/ingrediente, minimi frigo/gelo/dispensa, righe di linea e voci extra; dati via API, 2026-10-22) · ⏸ dolci: prima le considerazioni di Marco, poi composizione e linea | sì |
 | **L2** | 🔨 sviluppata 2026-10-22 (mig 207, da pushare): generatore dalla carta in corso; semaforo linea; proposta/conferma/correzione scorte con scrittura in Scorte · ⏸ pranzo del giorno e dolci (rinviati da Marco) | sì (mig 207) |
-| **L3** | esiti → task, lista spesa per fornitore, notifiche; chiusura automatica dei task | no |
+| **L3** | 🔨 sviluppata 2026-10-23 (mig 209, da pushare): `services/linea_esiti.py` — esiti → task e lista spesa da confermare, avvisi, chiusura da sola | sì (mig 209) |
 | **L4** | minimi in giorni di copertura dal consumo (vendite × grammature) | sì |
 
 Prerequisito di dati (lavoro una tantum, si fa da UI o lo fa Claude via API): ogni elemento dei piatti in corso deve avere il suo articolo in Scorte con ripiano di casa; le ricette dei piatti devono avere le righe (preparazioni e componenti). **Le grammature per porzione non servono per L1-L3**: si completano in seconda fase (food cost e L4).

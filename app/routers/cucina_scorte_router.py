@@ -79,6 +79,7 @@ from app.services.cucina_scorte_service import (
 from app.services.permessi import richiede_ruoli, verifica_ruoli
 from app.services.ricette_lookup import nomi_ricette, righe_ricetta
 from app.services import linea_checklist
+from app.services.linea_esiti import valuta_silenzioso as valuta_esiti_linea
 
 # PERMESSI (M.G) — chi puo' toccare le scorte.
 # Router: la brigata al completo. Il semaforo, i movimenti e le righe di conta
@@ -838,9 +839,11 @@ def post_movimento(payload: MovimentoIn, current_user=Depends(get_current_user))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         conn.commit()
-        return {"ok": True, "movimento": res}
     finally:
         conn.close()
+    # Una scorta che risale chiude da sola i task/le proposte della linea (L3).
+    valuta_esiti_linea()
+    return {"ok": True, "movimento": res}
 
 
 @router.delete("/movimenti/{mov_id}")
@@ -1516,6 +1519,7 @@ def linea_scorte_conferma(payload: ConfermaScortaIn, current_user=Depends(get_cu
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         conn.commit()
-        return res
     finally:
         conn.close()
+    valuta_esiti_linea()
+    return res

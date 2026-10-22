@@ -988,6 +988,14 @@ function TabOggi({ canWrite, onCount }) {
               <div className="km-ct" style={{ fontSize: 15, textDecoration: fatto ? "line-through" : "none" }}>
                 {t.titolo}
               </div>
+              {t.origine === "LINEA" && t.descrizione && (
+                <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>
+                  {t.descrizione.split("\n")[0]}
+                  {t.descrizione.includes("/ricette/") && (
+                    <a href={t.descrizione.match(/\/ricette\/\d+/)[0]} style={{ marginLeft: 6, textDecoration: "none" }}>📖</a>
+                  )}
+                </div>
+              )}
               <div className="km-cm">
                 {!fatto && t.priorita === "ALTA" && <Chip tone="r">alta</Chip>}
                 {t.ora_scadenza && <span>{t.ora_scadenza}</span>}
@@ -2292,8 +2300,35 @@ function TabSpesa({ canWrite, onCount, modi }) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (dati?.kpi) onCount(dati.kpi.da_fare || 0); }, [dati, onCount]);
 
+  // Linea L3 (mig 209): la spesa proposta dalla linea la confermano admin,
+  // chef e sous chef; prima di allora non si spunta come presa.
+  const ruolo = localStorage.getItem("role");
+  const puoConfermare = ["admin", "superadmin", "chef", "sous_chef"].includes(ruolo);
+
+  async function conferma(item) {
+    if (busy) return;
+    setBusy(item.id);
+    try {
+      const res = await apiFetch(`${API_BASE}/lista-spesa/items/${item.id}/conferma`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(null); }
+  }
+
+  async function scarta(item) {
+    if (busy) return;
+    setBusy(item.id);
+    try {
+      const res = await apiFetch(`${API_BASE}/lista-spesa/items/${item.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(null); }
+  }
+
   async function toggle(item) {
-    if (!canWrite || busy) return;
+    if (!canWrite || busy || item.da_confermare) return;
     setBusy(item.id);
     try {
       const res = await apiFetch(`${API_BASE}/lista-spesa/items/${item.id}`, {
@@ -2393,18 +2428,28 @@ function TabSpesa({ canWrite, onCount, modi }) {
             {items.map((it) => (
               <div key={it.id} className="km-art">
                 <button className={`km-tick${it.fatto ? " on" : ""}`}
-                        disabled={!canWrite || busy === it.id}
+                        disabled={!canWrite || busy === it.id || !!it.da_confermare}
+                        title={it.da_confermare ? "Proposta dalla linea: prima va confermata" : undefined}
                         onClick={() => toggle(it)}>{it.fatto ? "✓" : ""}</button>
                 <div className="gr" style={{ opacity: it.fatto ? 0.55 : 1 }}>
                   <div className="nm" style={{ textDecoration: it.fatto ? "line-through" : "none" }}>
                     {it.titolo}{it.quantita_libera ? ` · ${it.quantita_libera}` : ""}
                   </div>
                   <div className="ln">
+                    {!it.fatto && it.da_confermare ? <Chip tone="a">proposta dalla linea · da confermare</Chip> : null}
+                    {!it.fatto && it.origine === "LINEA" && !it.da_confermare && it.confermato_da
+                      && <Chip tone="g">confermata · {it.confermato_da}</Chip>}
                     {!it.fatto && it.urgente && <Chip tone="r">urgente</Chip>}
                     {it.note && <Chip tone="n">{it.note}</Chip>}
                     {it.fatto && it.completato_da && <span>preso · {it.completato_da}</span>}
                     {!it.fatto && it.created_at && <span>{it.created_at.slice(0, 10)}</span>}
                   </div>
+                  {!it.fatto && !!it.da_confermare && puoConfermare && (
+                    <div style={{ display: "flex", gap: 8, marginTop: 7 }}>
+                      <button className="km-pill on" disabled={busy === it.id} onClick={() => conferma(it)}>Confermo, da ordinare</button>
+                      <button className="km-pill" disabled={busy === it.id} onClick={() => scarta(it)}>Non serve</button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

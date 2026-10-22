@@ -28,7 +28,11 @@ from pydantic import BaseModel, Field
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
 
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import richiede_ruoli, verifica_ruoli
+
+# Linea cucina L3 (mig 209, Marco 2026-10-23): la spesa proposta dalla linea
+# diventa da ordinare quando la conferma lui, lo chef o il sous chef.
+CONFERMA_SPESA = ("admin", "chef", "sous_chef")
 
 # PERMESSI (2026-09-01, M.G) — lista della spesa
 # Era aperta la DELETE che svuota la lista intera.
@@ -90,9 +94,7 @@ def list_items(
         args.append(f"%{fornitore.lower()}%")
 
     sql = """
-        SELECT id, titolo, quantita_libera, urgente, fatto,
-               fornitore_freeform, ingredient_id, note,
-               created_by, completato_da, created_at, completato_at
+        SELECT *
           FROM lista_spesa_items
     """
     if where:
@@ -184,6 +186,8 @@ def update_item(item_id: int, payload: ListaSpesaItemUpdate, current_user=Depend
             sets.append("note = ?"); args.append((d["note"] or "").strip() or None)
 
         # Toggle fatto: aggiorna anche completato_at + completato_da
+        if "fatto" in d and d["fatto"] and ("da_confermare" in existing.keys() and existing["da_confermare"]):
+            raise HTTPException(status_code=400, detail="Proposta dalla linea: prima va confermata")
         if "fatto" in d:
             new_fatto = 1 if d["fatto"] else 0
             sets.append("fatto = ?"); args.append(new_fatto)
@@ -204,6 +208,27 @@ def update_item(item_id: int, payload: ListaSpesaItemUpdate, current_user=Depend
         conn.commit()
         row = cur.execute("SELECT * FROM lista_spesa_items WHERE id = ?", (item_id,)).fetchone()
         return {"ok": True, "item": dict(row)}
+    finally:
+        conn.close()
+
+
+@router.post("/items/{item_id}/conferma")
+def conferma_item(item_id: int, current_user=Depends(get_current_user)):
+    """Proposta della linea → da ordinare. Solo admin, chef, sous chef."""
+    verifica_ruoli(current_user, *CONFERMA_SPESA, cosa="confermare la spesa proposta dalla linea")
+    user = (current_user or {}).get("username") or "?"
+    conn = get_foodcost_connection()
+    try:
+        cur = conn.cursor()
+        row = cur.execute("SELECT * FROM lista_spesa_items WHERE id = ?", (item_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Item non trovato")
+        cur.execute("""UPDATE lista_spesa_items SET da_confermare = 0, confermato_da = ?,
+                              confermato_at = ? WHERE id = ?""",
+                    (user, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), item_id))
+        conn.commit()
+        return {"ok": True, "item": dict(cur.execute(
+            "SELECT * FROM lista_spesa_items WHERE id = ?", (item_id,)).fetchone())}
     finally:
         conn.close()
 
