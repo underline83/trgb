@@ -4526,6 +4526,8 @@ def scollega_uscita(
             updated_at = ?
         WHERE id = ?
     """, (oggi_str, uscita_id))
+    # Tranche dei bonifici (mig 211): scollegata l'uscita, spariscono tutte.
+    fc.execute("DELETE FROM banca_uscite_link WHERE uscita_id = ?", (uscita_id,))
 
     # Propaga: rimuovi anche il link in banca_fatture_link
     if u.get("fattura_id") and u["banca_movimento_id"]:
@@ -4598,6 +4600,8 @@ def paga_uscita_contanti(
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (data_pag, note_final or None, uscita_id))
+        # Tranche dei bonifici (mig 211): pagata fuori banca, si staccano.
+        fc.execute("DELETE FROM banca_uscite_link WHERE uscita_id = ?", (uscita_id,))
         fc.commit()
 
         return {
@@ -4740,6 +4744,8 @@ def paga_uscita_carta(
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (data_pag, note_final or None, uscita_id))
+        # Tranche dei bonifici (mig 211): pagata fuori banca, si staccano.
+        fc.execute("DELETE FROM banca_uscite_link WHERE uscita_id = ?", (uscita_id,))
         fc.commit()
 
         return {

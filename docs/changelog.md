@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-23 — Riconciliazione: stipendi, affitti e rate pagati in più bonifici `[core]`
+
+Flussi di Cassa 1.23, sistema 5.76, **mig 211**. Un'uscita senza fattura (stipendio, affitto, rata, spesa fissa) pagata in parte da un bonifico ora accetta il secondo: prima la Riconciliazione rispondeva «Uscita già collegata o non trovata» (limite noto, `modulo_banca.md` §6.5). Ogni bonifico tiene la sua quota in `banca_uscite_link`; l'uscita resta «parziale» finché la somma non arriva al totale, poi è pagata. Scollegando un bonifico successivo l'uscita torna parziale con quel che resta; il primo si stacca solo dopo gli altri. Suggerimenti e ricerca mostrano le uscite parziali con l'importo ancora scoperto, così il secondo bonifico le trova. Caso d'origine: stipendio di gennaio di E. Beretta, 3.339,46 € in due bonifici da 1.669,73 € (17/02 e 22/10). File: `banca_router.py`, `controllo_gestione_router.py` (scollega / paga in contanti o carta tolgono le tranche), mig 211, `versions.jsx`, `modulo_banca.md` §6.5.
+
 ## 2026-10-23 — Visite del sito in TRGB `[core]`
 
 Sistema 5.75, statistiche 1.3, **mig 210**, modulo nuovo **sito**. Il sito (www.tregobbi.it) manda a TRGB una «vista» per ogni pagina aperta e un «clic» sui contatti segnati (`data-obiettivo`: Prenota, telefono, WhatsApp, email, PDF menu e vini, mappa) con `POST /public/sito/evento` (pubblico, risponde sempre 204). Niente cookie, niente IP né browser salvati: servono solo al momento per scartare i bot, limitare gli invii e contare i visitatori del giorno con un codice che cambia ogni giorno. Domini ammessi e pagine escluse (`/nuovo/`) in `locale.json` › `sito`. Nuova linguetta **Statistiche › Sito** (solo admin): viste al giorno contro il periodo prima, pagine, lingue, provenienze, mobile/desktop, clic per obiettivo e i clic su Prenota accanto alle prenotazioni fatte dal sito (widget TheFork e widget TRGB). Gli eventi grezzi restano 13 mesi, i totali per giorno per sempre. Strumento MCP `visite_sito_riepilogo` (sola lettura). Snippet per il sito: `docs/snippet/sito_visite.js` (con `?nonconto=1` per escludere il proprio browser). Doc: `modulo_sito.md`.

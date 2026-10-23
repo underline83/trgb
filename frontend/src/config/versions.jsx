@@ -325,7 +325,8 @@ const MODULE_VERSIONS = {
   },
   flussiCassa: {
     // v1.22 (2026-10-02): Riconciliazione mostrava solo i 500 movimenti più recenti (default limit backend) — ora tutti.
-    version: "1.22",
+    // v1.23 (2026-10-23): uscite dirette (stipendi, affitti, rate) pagate in più bonifici — tranche in banca_uscite_link (mig 211).
+    version: "1.23",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
@@ -603,6 +604,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.76 (2026-10-23): mig 211 — banca_uscite_link, tranche delle uscite dirette
+    //   pagate in più bonifici (Flussi di Cassa 1.23).
     // 5.75 (2026-10-23): mig 210 — modulo nuovo «sito» (visite del sito): sito.sqlite3, POST /public/sito/evento, Statistiche › Sito (statistiche 1.3), strumento MCP visite_sito_riepilogo.
     // 5.74 (2026-10-23): mig 209 — lista_spesa_items articolo_id/origine/da_confermare/confermato_* (linea L3).
     // 5.73 (2026-10-23): mig 208 — cucina_linea_elementi.linea_qta_num (dotazione di linea come numero).
@@ -705,7 +708,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.75",
+    version: "5.76",
     label: "Sistema",
     status: "stabile",
     color: "green",

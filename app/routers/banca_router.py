@@ -982,6 +982,17 @@ def get_cross_ref(
         })
 
     # ── 3. Carica link uscite CG ──
+    # Tranche (mig 211): un'uscita diretta pagata da PIÙ movimenti tiene la
+    # quota di ciascuno in `banca_uscite_link`. Per il primo movimento (quello
+    # in `banca_movimento_id`) la quota sostituisce `importo_pagato`, che a
+    # quel punto è la somma di tutte le tranche; gli altri movimenti hanno un
+    # link proprio (`t<id>`), aggiunto dopo il ciclo.
+    cur.execute(f"""
+        SELECT bul.id, bul.movimento_id, bul.uscita_id, bul.importo_applicato
+        FROM banca_uscite_link bul
+        WHERE bul.movimento_id IN ({ph})
+    """, mov_ids)
+    tranche = {(r["movimento_id"], r["uscita_id"]): dict(r) for r in cur.fetchall()}
     # Prende TUTTE le uscite agganciate al movimento, non solo quelle senza
     # fattura: un'uscita con `fattura_id` valorizzata ma senza riga in
     # `banca_fatture_link` (match A del modulo carta, o propagazione storica)
@@ -1009,17 +1020,52 @@ def get_cross_ref(
         allocato = d["totale"]
         if d["stato"] == "PARZIALE" and (d["importo_pagato"] or 0) > 0:
             allocato = d["importo_pagato"]
+        t = tranche.pop((d["mov_id"], d["id"]), None)
+        if t is not None:
+            allocato = t["importo_applicato"]
         lk_uscita.setdefault(d["mov_id"], []).append({
             "link_id": f"u{d['id']}", "tipo": d["tipo"],
             "fornitore_nome": d["fornitore_nome"],
             "numero_fattura": d.get("numero_fattura"),
             "data": d["data_scadenza"], "totale": d["totale"],
             "allocato": allocato,
-            "parziale": d["stato"] == "PARZIALE",
+            "parziale": (
+                d["stato"] == "PARZIALE"
+                or (t is not None and abs((d["totale"] or 0) - allocato) >= tol_residuo)
+            ),
             "source": "uscita", "source_id": d["id"],
             "periodo_riferimento": d.get("periodo_riferimento"),
             "fattura_id": d.get("fattura_id"),
         })
+
+    # Tranche successive alla prima: il movimento non è in `banca_movimento_id`
+    # dell'uscita, il collegamento vive solo in `banca_uscite_link`.
+    if tranche:
+        u_ids = sorted({k[1] for k in tranche})
+        ph_u = ",".join("?" * len(u_ids))
+        cur.execute(f"""
+            SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
+                   cu.data_scadenza, cu.totale, cu.stato,
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
+                   cu.periodo_riferimento, cu.fattura_id
+            FROM cg_uscite cu WHERE cu.id IN ({ph_u})
+        """, u_ids)
+        usc_by_id = {r["id"]: dict(r) for r in cur.fetchall()}
+        for (m_id, u_id), t in tranche.items():
+            u = usc_by_id.get(u_id)
+            if u is None:
+                continue
+            lk_uscita.setdefault(m_id, []).append({
+                "link_id": f"t{t['id']}", "tipo": u["tipo"],
+                "fornitore_nome": u["fornitore_nome"],
+                "numero_fattura": u.get("numero_fattura"),
+                "data": u["data_scadenza"], "totale": u["totale"],
+                "allocato": t["importo_applicato"],
+                "parziale": abs((u["totale"] or 0) - t["importo_applicato"]) >= tol_residuo,
+                "source": "uscita", "source_id": u_id,
+                "periodo_riferimento": u.get("periodo_riferimento"),
+                "fattura_id": u.get("fattura_id"),
+            })
 
     # ── 4. Carica link entrate registrate ──
     cur.execute(f"""
@@ -1225,16 +1271,15 @@ def get_cross_ref(
         # PAGATO_MANUALE incluso: rate/spese chiuse a mano sono ricollegabili
         # al movimento bancario quando viene importato.
         cur3 = conn.cursor()
-        cur3.execute("""
+        cur3.execute(f"""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
-                   cu.data_scadenza AS data_ref, cu.totale,
+                   cu.data_scadenza AS data_ref, {_SQL_DA_PAGARE} AS totale,
                    COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
                    cu.periodo_riferimento
             FROM cg_uscite cu
-            WHERE cu.banca_movimento_id IS NULL
-              AND cu.fattura_id IS NULL
-              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
-        """)
+            WHERE cu.fattura_id IS NULL
+              AND {_SQL_USCITA_COLLEGABILE}
+        """, (mov["id"], mov["id"]))
         for r in cur3.fetchall():
             if not _nome_match(r["fornitore_nome"] or "", desc_lower):
                 continue
@@ -1254,20 +1299,19 @@ def get_cross_ref(
         # 4) Uscite CG: match per importo simile (±15%) entro ±30 giorni
         # PAGATO_MANUALE incluso: vedi nota sulla query (3).
         cur3b = conn.cursor()
-        cur3b.execute("""
+        cur3b.execute(f"""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
-                   cu.data_scadenza AS data_ref, cu.totale,
+                   cu.data_scadenza AS data_ref, {_SQL_DA_PAGARE} AS totale,
                    COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
                    cu.periodo_riferimento
             FROM cg_uscite cu
-            WHERE cu.banca_movimento_id IS NULL
-              AND cu.fattura_id IS NULL
-              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
-              AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.15
+            WHERE cu.fattura_id IS NULL
+              AND {_SQL_USCITA_COLLEGABILE}
+              AND ABS({_SQL_DA_PAGARE} - ?) / MAX(?, 0.01) < 0.15
               AND cu.data_scadenza BETWEEN date(?, '-30 days') AND date(?, '+30 days')
-            ORDER BY ABS(cu.totale - ?) ASC
+            ORDER BY ABS({_SQL_DA_PAGARE} - ?) ASC
             LIMIT 10
-        """, (target, target, data_c, data_c, target))
+        """, (mov["id"], mov["id"], target, target, data_c, data_c, target))
         for r in cur3b.fetchall():
             key = ("uscita", r["id"])
             if key in seen_keys:
@@ -1299,6 +1343,38 @@ def get_cross_ref(
     return movimenti
 
 
+# Quanto resta da pagare di un'uscita: per una PARZIALE è il totale meno
+# quanto ha già incassato, altrimenti il totale. Usato da suggerimenti e
+# ricerca, così un secondo bonifico trova lo scoperto (mig 211).
+_SQL_DA_PAGARE = (
+    "(cu.totale - CASE WHEN cu.stato = 'PARZIALE' "
+    "THEN COALESCE(cu.importo_pagato, 0) ELSE 0 END)"
+)
+
+# Uscita diretta collegabile a un movimento: libera (mai collegata, non
+# pagata o pagata a mano), oppure PARZIALE già legata a un ALTRO movimento
+# e non ancora a questo — la tranche successiva (mig 211). Parametri: due
+# volte l'id del movimento.
+_SQL_USCITA_COLLEGABILE = """(
+    (cu.banca_movimento_id IS NULL
+     AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE'))
+    OR (cu.stato = 'PARZIALE'
+        AND cu.banca_movimento_id IS NOT NULL
+        AND cu.banca_movimento_id != ?
+        AND NOT EXISTS (SELECT 1 FROM banca_uscite_link b
+                         WHERE b.uscita_id = cu.id AND b.movimento_id = ?))
+)"""
+
+
+# Come sopra, senza un movimento di riferimento (ricerca manuale): il
+# controllo «non già su questo movimento» lo fa create_link.
+_SQL_USCITA_LIBERA_O_PARZIALE = """(
+    (cu.banca_movimento_id IS NULL
+     AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE'))
+    OR (cu.stato = 'PARZIALE' AND cu.banca_movimento_id IS NOT NULL)
+)"""
+
+
 def _totale_gia_allocato(cur, movimento_id: int) -> float:
     """Quanto del movimento è già finito su documenti collegati.
 
@@ -1314,17 +1390,32 @@ def _totale_gia_allocato(cur, movimento_id: int) -> float:
     """, (movimento_id,)).fetchone()
     tot += abs(row[0] or 0)
 
+    # Uscita pagata in tranche (mig 211): pesa la quota di QUESTO movimento,
+    # non `importo_pagato` (che è la somma di tutte le tranche).
     row = cur.execute("""
         SELECT COALESCE(SUM(
-            CASE WHEN cu.stato = 'PARZIALE' AND COALESCE(cu.importo_pagato, 0) > 0
+            CASE WHEN bul.id IS NOT NULL THEN bul.importo_applicato
+                 WHEN cu.stato = 'PARZIALE' AND COALESCE(cu.importo_pagato, 0) > 0
                  THEN cu.importo_pagato ELSE cu.totale END
         ), 0)
         FROM cg_uscite cu
+        LEFT JOIN banca_uscite_link bul
+               ON bul.uscita_id = cu.id AND bul.movimento_id = cu.banca_movimento_id
         WHERE cu.banca_movimento_id = ?
           AND (cu.fattura_id IS NULL
                OR NOT EXISTS (SELECT 1 FROM banca_fatture_link bl
                                WHERE bl.movimento_id = cu.banca_movimento_id
                                  AND bl.fattura_id = cu.fattura_id))
+    """, (movimento_id,)).fetchone()
+    tot += abs(row[0] or 0)
+
+    # Tranche successive alla prima: il movimento non è in banca_movimento_id.
+    row = cur.execute("""
+        SELECT COALESCE(SUM(bul.importo_applicato), 0)
+        FROM banca_uscite_link bul
+        JOIN cg_uscite cu ON cu.id = bul.uscita_id
+        WHERE bul.movimento_id = ?
+          AND COALESCE(cu.banca_movimento_id, -1) != bul.movimento_id
     """, (movimento_id,)).fetchone()
     tot += abs(row[0] or 0)
 
@@ -1509,26 +1600,59 @@ def create_link(req: CrossRefLinkRequest):
                 conn.close()
                 raise HTTPException(409, "Entrata già collegata o non trovata")
         else:
-            # ── Link uscita diretta (spesa fissa, affitto, tassa…) ──
-            rows = cur.execute("""
-                SELECT id, totale, importo_pagato, stato
+            # ── Link uscita diretta (spesa fissa, affitto, stipendio, rata…) ──
+            u = cur.execute("""
+                SELECT id, totale, importo_pagato, stato, banca_movimento_id
                   FROM cg_uscite
-                 WHERE id = ? AND banca_movimento_id IS NULL
-            """, (req.uscita_id,)).fetchall()
-            if not rows:
+                 WHERE id = ?
+            """, (req.uscita_id,)).fetchone()
+            if u is None:
                 conn.close()
-                raise HTTPException(409, "Uscita già collegata o non trovata")
-            # Un'uscita diretta (senza fattura) è legata a un solo movimento:
-            # `banca_movimento_id` è una colonna sola. Una spesa fissa pagata in
-            # due tranche non è modellabile — limite noto, v. modulo_banca.md §6.5.
-            uscite = [
-                {**dict(r), "gia_pagato": (r["importo_pagato"] or 0) if r["stato"] == "PARZIALE" else 0}
-                for r in rows
-            ]
+                raise HTTPException(404, "Uscita non trovata")
+            u = dict(u)
+            primo_mov = u["banca_movimento_id"]
+            # Tranche (mig 211): un'uscita già pagata IN PARTE da un altro
+            # movimento accetta un secondo bonifico. Le quote di ciascun
+            # movimento vanno in `banca_uscite_link`; `banca_movimento_id`
+            # resta al primo, come per le fatture.
+            e_tranche = (
+                primo_mov is not None
+                and u["stato"] == "PARZIALE"
+                and primo_mov != req.movimento_id
+                and cur.execute(
+                    "SELECT 1 FROM banca_uscite_link WHERE uscita_id = ? AND movimento_id = ?",
+                    (u["id"], req.movimento_id),
+                ).fetchone() is None
+            )
+            if primo_mov is not None and not e_tranche:
+                conn.close()
+                raise HTTPException(
+                    409,
+                    "Uscita già collegata: pagata per intero, o già su questo movimento",
+                )
             disponibile = round(abs(mov["importo"] or 0) - _totale_gia_allocato(cur, req.movimento_id), 2)
+            if e_tranche:
+                # Prima tranche: si fissa la quota del primo movimento PRIMA che
+                # `importo_pagato` diventi la somma delle due.
+                cur.execute("""
+                    INSERT OR IGNORE INTO banca_uscite_link
+                        (movimento_id, uscita_id, importo_applicato)
+                    VALUES (?, ?, ?)
+                """, (primo_mov, u["id"], round(u["importo_pagato"] or 0, 2)))
+            uscite = [{**u, "gia_pagato": (u["importo_pagato"] or 0) if u["stato"] == "PARZIALE" else 0}]
             allocazione = _alloca_su_uscite(
                 cur, req.movimento_id, uscite, disponibile, tol, data_mov
             )
+            if e_tranche:
+                quota = allocazione[0]["quota"] if allocazione else 0
+                if quota <= 0:
+                    conn.rollback()
+                    conn.close()
+                    raise HTTPException(400, "Il movimento è già tutto collegato: niente da applicare a questa uscita")
+                cur.execute("""
+                    INSERT INTO banca_uscite_link (movimento_id, uscita_id, importo_applicato)
+                    VALUES (?, ?, ?)
+                """, (req.movimento_id, u["id"], quota))
 
         conn.commit()
     except sqlite3.IntegrityError:
@@ -1547,6 +1671,38 @@ def create_link(req: CrossRefLinkRequest):
         "residuo_movimento": residuo_movimento,
         "tolleranza": tol,
     }
+
+
+def _ricalcola_tranche(cur, uscita_id: int, tol: float) -> None:
+    """Rimette stato e importo pagato di un'uscita pagata in tranche (mig 211).
+
+    Dopo aver tolto una tranche: quel che resta è la somma delle quote
+    rimaste. Se resta solo il primo movimento si torna al modello a colonna
+    singola (si cancella anche la sua riga): `importo_pagato` ne conserva la
+    quota e l'uscita torna PARZIALE.
+    """
+    u = cur.execute(
+        "SELECT totale FROM cg_uscite WHERE id = ?", (uscita_id,)
+    ).fetchone()
+    if u is None:
+        return
+    righe = cur.execute(
+        "SELECT importo_applicato FROM banca_uscite_link WHERE uscita_id = ?",
+        (uscita_id,),
+    ).fetchall()
+    pagato = round(sum(r[0] or 0 for r in righe), 2)
+    if len(righe) <= 1:
+        cur.execute("DELETE FROM banca_uscite_link WHERE uscita_id = ?", (uscita_id,))
+    totale = float(u["totale"] or 0)
+    if totale - pagato < tol:
+        stato, importo = "PAGATO", totale
+    else:
+        stato, importo = "PARZIALE", pagato
+    cur.execute("""
+        UPDATE cg_uscite
+           SET stato = ?, importo_pagato = ?, updated_at = datetime('now')
+         WHERE id = ?
+    """, (stato, importo, uscita_id))
 
 
 @router.delete("/cross-ref/link/{link_id}")
@@ -1571,9 +1727,41 @@ def delete_link(link_id: str):
         conn.close()
         return {"ok": True}
 
+    if str(link_id).startswith("t"):
+        # ── Scollega una tranche successiva alla prima (mig 211) ──
+        tranche_id = int(str(link_id)[1:])
+        t = cur.execute(
+            "SELECT uscita_id FROM banca_uscite_link WHERE id = ?", (tranche_id,)
+        ).fetchone()
+        if t is None:
+            conn.close()
+            raise HTTPException(404, "Collegamento non trovato")
+        cur.execute("DELETE FROM banca_uscite_link WHERE id = ?", (tranche_id,))
+        _ricalcola_tranche(cur, t["uscita_id"], _tolleranza_residuo(conn))
+        conn.commit()
+        conn.close()
+        return {"ok": True}
+
     if str(link_id).startswith("u"):
         # ── Scollega uscita diretta ──
         uscita_id = int(str(link_id)[1:])
+        # Pagata in più bonifici (mig 211): il primo non si stacca finché ci
+        # sono gli altri, altrimenti l'uscita perderebbe il movimento di
+        # riferimento con le tranche ancora appese.
+        altre = cur.execute("""
+            SELECT COUNT(*) FROM banca_uscite_link bul
+              JOIN cg_uscite cu ON cu.id = bul.uscita_id
+             WHERE bul.uscita_id = ?
+               AND bul.movimento_id != COALESCE(cu.banca_movimento_id, -1)
+        """, (uscita_id,)).fetchone()[0]
+        if altre:
+            conn.close()
+            raise HTTPException(
+                409,
+                "Questa uscita è pagata da più bonifici: scollega prima gli altri "
+                "(dal loro movimento), poi questo",
+            )
+        cur.execute("DELETE FROM banca_uscite_link WHERE uscita_id = ?", (uscita_id,))
         cur.execute("""
             UPDATE cg_uscite
             SET banca_movimento_id = NULL,
@@ -1688,6 +1876,9 @@ def chiudi_riconciliazione(movimento_id: int, req: RiconciliaChiudiRequest = Bod
     ).fetchone()[0]
     n_ent = cur.execute(
         "SELECT COUNT(*) FROM cg_entrate WHERE banca_movimento_id = ?", (movimento_id,)
+    ).fetchone()[0]
+    n_usc += cur.execute(
+        "SELECT COUNT(*) FROM banca_uscite_link WHERE movimento_id = ?", (movimento_id,)
     ).fetchone()[0]
     if (n_fatt + n_usc + n_ent) == 0:
         conn.close()
@@ -1836,17 +2027,17 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
         # Uscite CG per importo (solo non-fattura)
         # PAGATO_MANUALE incluso: l'utente ha chiuso a mano la rata e ora vuole
         # collegare il vero movimento bancario (il link UPDATE setta stato=PAGATO).
-        cur.execute("""
+        # PARZIALE incluso (mig 211): il secondo bonifico cerca lo scoperto.
+        cur.execute(f"""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
-                   cu.data_scadenza AS data_ref, cu.totale,
+                   cu.data_scadenza AS data_ref, {_SQL_DA_PAGARE} AS totale,
                    COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
                    cu.periodo_riferimento
             FROM cg_uscite cu
-            WHERE cu.banca_movimento_id IS NULL
-              AND cu.fattura_id IS NULL
-              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
-              AND ABS(cu.totale - ?) < MAX(? * 0.1, 1.0)
-            ORDER BY ABS(cu.totale - ?) ASC
+            WHERE cu.fattura_id IS NULL
+              AND {_SQL_USCITA_LIBERA_O_PARZIALE}
+              AND ABS({_SQL_DA_PAGARE} - ?) < MAX(? * 0.1, 1.0)
+            ORDER BY ABS({_SQL_DA_PAGARE} - ?) ASC
             LIMIT ?
         """, (importo, importo, importo, limit))
         for r in cur.fetchall():
@@ -1898,15 +2089,14 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
 
         # Uscite CG per testo (solo non-fattura)
         # PAGATO_MANUALE incluso: vedi nota analoga sulla query per importo.
-        cur.execute("""
+        cur.execute(f"""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
-                   cu.data_scadenza AS data_ref, cu.totale,
+                   cu.data_scadenza AS data_ref, {_SQL_DA_PAGARE} AS totale,
                    COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
                    cu.periodo_riferimento
             FROM cg_uscite cu
-            WHERE cu.banca_movimento_id IS NULL
-              AND cu.fattura_id IS NULL
-              AND cu.stato IN ('PROGRAMMATO', 'SCADUTO', 'PAGATO_MANUALE')
+            WHERE cu.fattura_id IS NULL
+              AND {_SQL_USCITA_LIBERA_O_PARZIALE}
               AND (cu.fornitore_nome LIKE ? OR cu.numero_fattura LIKE ?)
             ORDER BY cu.data_scadenza DESC
             LIMIT ?
@@ -2566,7 +2756,15 @@ def delete_duplicato(keep_id: int, delete_ids: str = ""):
         """, (keep_id, did, keep_id))
         migrated += cur.rowcount
 
+        # Migra tranche delle uscite dirette (mig 211)
+        cur.execute("""
+            UPDATE OR IGNORE banca_uscite_link SET movimento_id = ?
+            WHERE movimento_id = ?
+        """, (keep_id, did))
+        migrated += cur.rowcount
+
         # Elimina link orfani rimasti
+        cur.execute("DELETE FROM banca_uscite_link WHERE movimento_id = ?", (did,))
         cur.execute("DELETE FROM banca_fatture_link WHERE movimento_id = ?", (did,))
         cur.execute("UPDATE cg_uscite SET banca_movimento_id = NULL WHERE banca_movimento_id = ?", (did,))
         cur.execute("UPDATE cg_entrate SET banca_movimento_id = NULL WHERE banca_movimento_id = ?", (did,))
