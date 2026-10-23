@@ -556,12 +556,15 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   home: {
+    // 3.8 (2026-10-23): griglia a 3 colonne con minmax(0,…) — su iPad in
+    //   orizzontale (1024px) la colonna centrale si allargava col contenuto
+    //   e spingeva fuori schermo le azioni rapide. Stesso fix in DashboardSala.
     // 3.7 (2026-07-27): widget Bacheca sostituito da "La Lavagna" — briefing
     // di servizio auto-composto (coperti, tavoli da segnalare, selezioni,
     // turni, task) + nota del turno a frizione zero + strato eventi che
     // assorbe la vecchia card Alert. Stesso widget anche in DashboardSala,
     // dove il ruolo sala lo vede in sola lettura.
-    version: "3.7",
+    version: "3.8",
     label: "Home",
     status: "beta",
     color: "blue",

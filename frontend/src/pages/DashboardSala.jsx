@@ -108,7 +108,7 @@ export default function DashboardSala() {
 
       {/* ── Layout 3 colonne (landscape) / stack (portrait) ── */}
       <div className="flex-1 min-h-0 px-5 lg:px-8 pb-4">
-        <div className="h-full grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_.7fr] gap-3.5">
+        <div className="h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,.7fr)] gap-3.5">
 
           {/* ═══ COL 1: Prenotazioni oggi ═══ */}
           <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden min-h-[300px] lg:min-h-0">

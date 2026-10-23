@@ -239,7 +239,7 @@ export default function Home() {
 
             {/* ════════ PAGINA 1: COMMAND CENTER 3 COLONNE ════════ */}
             <div className="w-full flex-shrink-0 lg:min-h-0 px-5 lg:px-8 pb-4">
-              <div className="lg:h-full grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_.7fr] gap-3.5">
+              <div className="lg:h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,.7fr)] gap-3.5">
 
                 {/* ═══ COL 1: Prenotazioni + Mini stats ═══ */}
                 <div className="flex flex-col gap-3.5 lg:min-h-0">
