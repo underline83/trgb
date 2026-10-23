@@ -1116,6 +1116,36 @@ def list_mappings(ingredient_id: Optional[int] = None):
 #   ENDPOINT: ELIMINA MAPPING
 # ─────────────────────────────────────────────
 
+class PreferitoIn(BaseModel):
+    ingredient_id: int
+    supplier_id: int
+    preferito: bool = True
+
+
+@router.post("/preferito")
+def set_preferito(payload: PreferitoIn):
+    """Fornitore preferito di un ingrediente (Marco 2026-10-23): se c'e',
+    «sovrascrive» l'ultimo da cui si e' comprato quando la linea propone la
+    spesa (services/linea_esiti.py). Uno solo per ingrediente: tutti i
+    collegamenti di quel fornitore diventano preferiti, gli altri no.
+    preferito=false lo toglie (torna a valere l'ultimo acquisto)."""
+    conn = get_foodcost_connection()
+    try:
+        cur = conn.cursor()
+        if not cur.execute("SELECT 1 FROM ingredient_supplier_map WHERE ingredient_id = ? AND supplier_id = ?",
+                           (payload.ingredient_id, payload.supplier_id)).fetchone():
+            raise HTTPException(status_code=404, detail="Nessun collegamento con questo fornitore")
+        cur.execute("UPDATE ingredient_supplier_map SET is_default = 0 WHERE ingredient_id = ?",
+                    (payload.ingredient_id,))
+        if payload.preferito:
+            cur.execute("UPDATE ingredient_supplier_map SET is_default = 1 WHERE ingredient_id = ? AND supplier_id = ?",
+                        (payload.ingredient_id, payload.supplier_id))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @router.delete("/mappings/{mapping_id}")
 def delete_mapping(mapping_id: int):
     conn = get_foodcost_connection()

@@ -159,23 +159,30 @@ def _coperto(fc, a: Dict[str, Any]) -> Optional[bool]:
 
 
 def _fornitore(fc, a: Dict[str, Any]) -> Optional[str]:
-    if (a.get("fornitore_freeform") or "").strip():
-        return a["fornitore_freeform"].strip()
-    if not a.get("ingredient_id"):
-        return None
-    for sql in (
-        """SELECT s.name FROM ingredient_supplier_map m JOIN suppliers s ON s.id = m.supplier_id
-            WHERE m.ingredient_id = ? ORDER BY COALESCE(m.is_default, 0) DESC, m.id LIMIT 1""",
-        """SELECT s.name FROM ingredient_prices p JOIN suppliers s ON s.id = p.supplier_id
-            WHERE p.ingredient_id = ? ORDER BY date(p.price_date) DESC, p.id DESC LIMIT 1""",
-    ):
+    """Da chi si ordina (Marco 2026-10-23): il preferito, se l'ha segnato,
+    «sovrascrive»; altrimenti l'ultimo da cui si e' comprato. Il fornitore
+    scritto sull'articolo vale come scelta esplicita per chi non fattura
+    elettronicamente, dopo il preferito."""
+    def uno(sql):
         try:
             r = fc.execute(sql, (a["ingredient_id"],)).fetchone()
         except sqlite3.Error:
             r = None
-        if r and r[0]:
-            return r[0]
-    return None
+        return r[0] if r and r[0] else None
+
+    if a.get("ingredient_id"):
+        pref = uno("""SELECT s.name FROM ingredient_supplier_map m JOIN suppliers s ON s.id = m.supplier_id
+                       WHERE m.ingredient_id = ? AND m.is_default = 1 ORDER BY m.id LIMIT 1""")
+        if pref:
+            return pref
+    if (a.get("fornitore_freeform") or "").strip():
+        return a["fornitore_freeform"].strip()
+    if not a.get("ingredient_id"):
+        return None
+    return uno("""SELECT s.name FROM ingredient_prices p JOIN suppliers s ON s.id = p.supplier_id
+                   WHERE p.ingredient_id = ? ORDER BY date(p.price_date) DESC, p.id DESC LIMIT 1""") \
+        or uno("""SELECT s.name FROM ingredient_supplier_map m JOIN suppliers s ON s.id = m.supplier_id
+                   WHERE m.ingredient_id = ? ORDER BY m.id DESC LIMIT 1""")
 
 
 def _quanto(a: Dict[str, Any], sotto: Dict[str, Dict[str, float]]) -> Optional[str]:

@@ -343,6 +343,23 @@ export default function RicetteIngredientiPrezzi() {
     }
   };
 
+  // Fornitore preferito (Marco 2026-10-23): se c'è, la spesa proposta dalla
+  // linea va a lui; se non c'è, all'ultimo da cui si è comprato.
+  const handlePreferito = async (supplierId, preferito) => {
+    setError("");
+    try {
+      const r = await apiFetch(`${MATCH}/preferito`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredient_id: Number(id), supplier_id: supplierId, preferito }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      await refreshPrezziMappings();
+    } catch (e) {
+      setError(`Errore: ${e.message}`);
+    }
+  };
+
   const handleScollega = async (mappingId) => {
     if (!window.confirm("Rimuovere questo collegamento? I prezzi già registrati restano nello storico.")) return;
     setError("");
@@ -936,8 +953,22 @@ export default function RicetteIngredientiPrezzi() {
                 <div className="space-y-4 mb-5">
                   {mappingsByForn.map(([forn, righe]) => (
                     <div key={forn}>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
-                        {forn} <span className="font-normal lowercase">· {righe.length} {righe.length === 1 ? "riga" : "righe"}</span>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5 flex items-center gap-2">
+                        <span>{forn} <span className="font-normal lowercase">· {righe.length} {righe.length === 1 ? "riga" : "righe"}</span></span>
+                        {righe[0]?.supplier_id && (() => {
+                          const pref = righe.some((m) => m.is_default);
+                          return (
+                            <button type="button"
+                                    onClick={() => handlePreferito(righe[0].supplier_id, !pref)}
+                                    title={pref
+                                      ? "Fornitore preferito: la spesa proposta dalla linea va a lui. Tocca per toglierlo"
+                                      : "Segna come preferito: senza preferito la spesa va all'ultimo da cui hai comprato"}
+                                    className={`normal-case tracking-normal font-medium px-2 py-0.5 rounded-full border ${
+                                      pref ? "bg-amber-100 border-amber-300 text-amber-800" : "bg-white border-neutral-200 text-neutral-400 hover:text-amber-700"}`}>
+                              {pref ? "★ preferito" : "☆ preferito"}
+                            </button>
+                          );
+                        })()}
                       </div>
                       <div className="space-y-2">
                         {righe.map((m) => {
