@@ -118,6 +118,7 @@ const MODULES_MENU = {
       { label: "Prodotti",          go: "/statistiche/prodotti" },
       { label: "Coperti & Incassi", go: "/statistiche/coperti" },
       { label: "Storico",           go: "/statistiche/storico" },
+      { label: "Sito",              go: "/statistiche/sito", check: "admin" },
       { label: "Import iPratico",   go: "/statistiche/import", check: "admin" },
     ],
   },

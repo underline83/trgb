@@ -4,11 +4,17 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.63 (58666449) · **Migrazione più recente:** 199
+**Sistema:** 5.75 (da pushare; in produzione 5.74, 4e6431c8) · **Migrazione più recente:** 210
+
+> **Verifica git 2026-10-23 (sessione Visite del sito):** `HEAD = origin/main = 4e6431c8`. Tutte le voci «DA PUSHARE» di questa intestazione scritte prima del 23/10 sono già committate e pushate (Q nel browser 1845bade, Sommelier tolta, Preventivi PDF, tastierino PIN b382a519, Cambia PIN f84ec002, Lista clienti d30b6753, Registro attività 31c4ee2e, dotazione con «+» b694d1a0, barrare il piatto ab22c8ae, fornitore preferito 4e6431c8): vanno tolte dall'intestazione. Fuori da git oggi ci sono solo: Visite del sito (sotto) e «Prezzi a pezzo dalle fatture» (`foodcost_recipes_router.py`, altra sessione).
+
+**DA PUSHARE — Visite del sito** (mig 210, sistema 5.75, statistiche 1.3, modulo nuovo `sito`) `[core]` — `sito_pubblico_router.py`, `sito_visite_service.py`, `models/sito_db.py`, mig 210, `core/moduli/sito/module.json`, `statistiche_router.py` (endpoint 13 `/statistiche/sito`), `StatisticheSito.jsx` + linguetta, `connettore/server.py` (`visite_sito_riepilogo`), `locale.json` › `sito`. Dopo il push: i due curl di `modulo_sito.md` §8 (204 + riga; Googlebot 204 senza riga), Statistiche › Sito, poi lo snippet `docs/snippet/sito_visite.js` alla sessione Underline Studio.
 
 **DA PUSHARE — Q nel browser** (login 2.3, nessuna migrazione) `[core]` — link usa-e-getta dal connettore (`accesso_browser`) → `/accesso-q` → sessione «Q» superadmin senza PIN. Dopo il push: provare da Cowork (chiedere il link, aprirlo nel browser, entrare in Dipendenti).
 
 **DA PUSHARE — Vini: tolta la pagina «Sommelier»** (vini 4.1, nessuna migrazione) `[core]` — `ViniNav.jsx`, `modulesMenu.js`, `CartaVini.jsx`, `App.jsx` (redirect `/vini/carta-staff` → Carta), `versions.jsx`. Dopo il push: la tab Sommelier non c'è più, il vecchio link apre la Carta.
+
+**Dati 2026-10-23 — fornitori collegati agli ingredienti** (via API, matching fatture): 36 ingredienti, 108 collegamenti, ~1.130 prezzi storici dall'auto-match; fattori controllati (riso San Massimo cartone 15 kg, zafferano 50×0,12 g = 6 g, Cazzaniga €/kg) e prezzi confrontati col mercato. Poi matching fatture in autonomia (Marco 2026-10-23): 61 fornitori non-cucina esclusi (vini/bevande, servizi, attrezzature), ~240 descrizioni ignorate (spese, trasporto, consumo, bevande da sala), 1.091 ingredienti creati dallo smart-suggest con unità/fattore calcolati e 35 fattori corretti dopo controllo prezzi; righe pending 7.735 → 1.914. Coniglio: resa (ricetta base 222, STIMA 60%). Battuta: monoporzioni Cazzaniga → ingrediente 116 a 2,15 €/porzione. Pulizia: 105 doppioni uniti (patate, grana grattato, pecorino, porcini, vongole, gamberi rossi, oli…), ~880 nomi ripuliti (abbreviazioni sciolte, maiuscole), 20 articoli non-cibo disattivati; fusilli Mancini → Fusilloni (117), ossobuchi Cazzaniga/Orobica → Vitello ossobuco (5); coniglio alla bergamasca su coniglio intero (a pezzi con l'osso). Aperti: insalatine (Marco verifica), salame e casoncelli di produzione propria (da fare ricette base), nocciole Schiaccianoci senza fattura elettronica, 1.914 righe pending per fornitore da valutare con Marco.
 
 **Pushato (42ef23ea) — Linea cucina L3: dagli esiti al lavoro** (mig 209, sistema 5.74, cucinaScorte 1.12); **DA PUSHARE: fornitore preferito** (sotto) `[core]` — nuovo `services/linea_esiti.py`; hook in `tasks_router.check_item`, `cucina_scorte_router` (conferma scorta, movimenti), `dashboard_router`; `lista_spesa_router.py` (`SELECT *`, `POST /items/{id}/conferma`, niente spunta prima della conferma); `CucinaMobile.jsx` (Spesa: proposta/conferma/scarta; Oggi: motivo e 📖 sui task di linea); fornitore preferito: `foodcost_matching_router.py` (`POST /preferito`), ☆ in `RicetteIngredientiPrezzi.jsx`. Dopo il push: provare un rosso su una preparazione → task ALTA e campanello; una scorta sotto il minimo su un componente → Spesa «da confermare». Avviso: 29 componenti senza fornitore → finiscono in «Senza fornitore».
 
@@ -100,6 +106,17 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-23 — Visite del sito `[core]`
+
+Brief (Underline Studio/Marco): leggere in TRGB le visite del nuovo www.tregobbi.it (statico su Aruba) e capire se porta prenotazioni, senza cookie né banner.
+
+- **Decisione:** modulo a sé `sito` (riceve e scrive dati, tabelle `sito_*` in `sito.sqlite3`), pagina come linguetta di Statistiche (aggregatore read-only che la affianca alle prenotazioni). Marco ok 2026-10-23.
+- **Marco, note al piano:** (1) le sue visite non contano: `?nonconto=1` → flag in localStorage, `?nonconto=0` lo toglie; (2) solo percorsi pubblici veri: `/nuovo/` escluso da configurazione, pagine `noindex` escluse dallo snippet; (3) prima del push l'elenco dei file; (4) Recharts solo se già presente → c'è (`^3.6.0`).
+- **Privacy:** IP e User-Agent solo in memoria (bot, 120 eventi/10 min per IP, hash del giorno con sale in memoria); hash azzerato a giorno chiuso; grezzi 13 mesi, totali giornalieri per sempre.
+- **Prenotazioni dal sito** = `fonte` `widget` (TheFork Booking Module, 65 negli ultimi 30 giorni) + `sito` (widget TRGB), per `data_prenotazione`.
+- **Prova locale** (venv di prova, DB `clienti` copiato): 4 eventi buoni registrati; scartati `/nuovo/`, obiettivo fuori elenco, tipo ignoto, URL al posto del percorso, Googlebot, curl, Origin estraneo, senza Origin, JSON rotto, 3 KB; chiusura del giorno e pulizia oltre 13 mesi ok; JSX controllati con esbuild.
+- **Aperto:** la voce «Sito» nel menu ☰ di Statistiche si vede anche se il modulo `sito` fosse spento (la linguetta no): da sistemare se un locale lo spegne.
 
 ## SESSIONE 2026-10-20 — Q nel browser `[core]`
 

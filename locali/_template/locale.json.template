@@ -10,5 +10,10 @@
   "creato_il": "<YYYY-MM-DD>",
   "creato_in_sessione": "<sessione di creazione>",
   "note": "Locale creato copiando locali/_template. Da popolare branding.json, strings.json, deploy/env.production, assets/, seeds/.",
-  "moduli_attivi_default": "*"
+  "moduli_attivi_default": "*",
+  "sito": {
+    "domini": [],
+    "escludi": [],
+    "nota": "Visite del sito (modulo sito): domini del sito pubblico da cui accettare gli eventi (es. [\"miosito.it\"]); vuoto = non si registra niente. escludi = prefissi di percorso da scartare."
+  }
 }

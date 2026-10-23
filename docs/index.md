@@ -58,6 +58,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_pratiche.md](modulo_pratiche.md) — Pratiche: scambi formali con enti, fornitori e creditori in attesa di esito (stati, termine, passi, allegati, avviso). Pratiche 1.0, dal 2026-10-08.
 - 📄 [modulo_scorte_cucina.md](modulo_scorte_cucina.md) — Scorte & Frigoriferi cucina: **schema proposto, non implementato**. Mockup dei flussi in [`mockups/cucina_mobile_scorte_frigo.html`](mockups/cucina_mobile_scorte_frigo.html).
 - 📄 [modulo_statistiche.md](modulo_statistiche.md) — Statistiche: import iPratico, KPI, top prodotti.
+- 📄 [modulo_sito.md](modulo_sito.md) — Visite del sito: viste e clic dal sito pubblico senza cookie, Statistiche › Sito, snippet `snippet/sito_visite.js`. Sito 1.0, dal 2026-10-23.
 - 📄 [modulo_selezioni.md](modulo_selezioni.md) — stub storico (rinominato in Vendite, NOMEN-1 2026-05-19).
 
 **Spec puntuali:** 📄 [spec_home_per_ruolo.md](spec_home_per_ruolo.md) (home differenziata per ruolo) · 📄 [spec_riconciliazione.md](spec_riconciliazione.md) (riconciliazione bancaria) · 📄 [spec_utenze.md](spec_utenze.md) (utenze multi-layout) · 📄 [spec_linea_cucina.md](spec_linea_cucina.md) (linea cucina: dal menu alla checklist agli ordini — proposta) · 📄 [refactor_anagrafiche_vini.md](refactor_anagrafiche_vini.md) (refactor anagrafiche vini). · 📄 [pec_archivio_spec.md](pec_archivio_spec.md) (archivio PEC automatico via IMAP — proposta, da sviluppare)

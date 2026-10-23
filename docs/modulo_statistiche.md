@@ -23,6 +23,7 @@ Funzionalita' principali:
 - Storico import con possibilita' di eliminare un mese
 - **Storico incassi pluriennale** (YoY 2021→oggi) e media per giorno della settimana
 - **Spesa per coperto per categoria** (incrocio venduto iPratico ÷ coperti chiusure turno)
+- **Sito** (v1.3, 2026-10-23): visite del sito dal modulo `sito` accanto alle prenotazioni fatte dal sito — vedi [modulo_sito.md](modulo_sito.md)
 
 ### Lettura cross-modulo (v1.2)
 
@@ -285,3 +286,13 @@ L'import e' idempotente: reimportare lo stesso mese sovrascrive i dati precedent
 | Matching prodotti iPratico → ingredienti foodcost | Da fare |
 | Margine per prodotto (incrocio con food cost) | Da fare |
 | Post-K.12: rimuovere ramo daily_closures dalla cucitura storico | Da fare (dopo K.12) |
+
+---
+
+## Linguetta «Sito» (v1.3, 2026-10-23)
+
+Endpoint 13 `GET /statistiche/sito?giorni=N&a=AAAA-MM-GG` (admin, come tutto il router): legge il riepilogo del modulo **sito** (`sito_visite_service.riepilogo`) e, in sola lettura `mode=ro`, `clienti.sqlite3` per le prenotazioni fatte dal sito nel periodo (`fonte` IN `widget`, `sito`, per `data_prenotazione`). Solo confronto fra totali. Pagina `StatisticheSito.jsx`, linguetta visibile se il modulo `sito` è attivo. Dettagli in [modulo_sito.md](modulo_sito.md).
+
+| Codice | Cosa fa | Riferimento | Audience | Docs |
+|---|---|---|---|---|
+| C-ST-SITO | Visite del sito (viste, visitatori, pagine, lingue, provenienze, dispositivi, clic per obiettivo) contro il periodo prima, con clic su Prenota accanto alle prenotazioni dal sito | `statistiche_router.py:sito_visite`, `StatisticheSito.jsx` | admin | 🆕 |

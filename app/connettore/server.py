@@ -1,4 +1,5 @@
-# @version: v1.5 (2026-10-20) — accesso_browser: Q entra nel gestionale dal browser con un link usa-e-getta
+# @version: v1.6 (2026-10-23) — visite_sito_riepilogo (modulo sito, sola lettura)
+# v1.5 (2026-10-20) — accesso_browser: Q entra nel gestionale dal browser con un link usa-e-getta
 # v1.4 (2026-10-18) — incassi (ieri e mese in corso, con le percentuali)
 # v1.2 (2026-10-16) — strumenti candidati (modulo dipendenti)
 # v1.1 (2026-10-16) — Q scrive firmando «Q» (la chiave di Q, vedi oauth.py)
@@ -72,6 +73,7 @@ Regole che valgono sempre:
 - SCADENZIARIO: sola lettura; uscita_segna_pagata solo dopo il sì di Marco (fornitore, importo, data, metodo); spese fisse e rate si fanno dalla pagina.
 - PRENOTAZIONI: prima di crearne una controlla il giorno con prenotazioni_giorno, riepiloga a Marco (giorno, ora, coperti, nome, note, allergie) e aspetta il sì; prenotazione_crea non manda niente al cliente.
 - INCASSI: incassi_riepilogo, sola lettura (ieri contro la media dello stesso giorno della settimana, mese in corso contro lo stesso periodo dell'anno prima).
+- SITO: visite_sito_riepilogo, sola lettura (viste, pagine, provenienze, clic su Prenota/telefono/WhatsApp e prenotazioni dal sito nel periodo, contro il periodo prima). Nessun dato personale: sono solo conteggi.
 - BROWSER: per lavorare nelle pagine del gestionale, accesso_browser dà un link (2 minuti, una volta) che si apre SUBITO nel browser: si entra come Q. Non mostrarlo e non incollarlo in chat; per un'altra sessione se ne chiede uno nuovo."""
 
 
@@ -110,6 +112,8 @@ def costruisci(url: str, nome_locale: str, versione: str, url_app: str | None = 
         _strumenti_prenotazioni(mcp)
     if module_loader.is_module_active("cassa"):
         _strumenti_incassi(mcp)
+    if module_loader.is_module_active("sito") and module_loader.is_module_active("statistiche"):
+        _strumenti_sito(mcp)
     return mcp
 
 
@@ -896,3 +900,34 @@ def _strumenti_incassi(mcp: MCPServer) -> None:
         else:
             out["mese"] = {"da": primo.isoformat(), "nota": "oggi è il primo del mese: niente da contare ancora"}
         return out
+
+
+def _strumenti_sito(mcp: MCPServer) -> None:
+    """Visite del sito (modulo sito, letto da Statistiche): solo admin, come la pagina
+    Statistiche › Sito. Chiama la funzione della rotta /statistiche/sito."""
+    from app.routers import statistiche_router
+    strumento = functools.partial(_strumento, mcp)
+
+    @strumento(SOLA_LETTURA)
+    def visite_sito_riepilogo(
+        giorni: Annotated[int, Field(ge=1, le=400, description="Lunghezza del periodo in giorni (30 se manca)")] = 30,
+        a: Annotated[Giorno | None, Field(description="Ultimo giorno del periodo. Oggi se manca")] = None,
+    ) -> dict:
+        """Le visite del sito in un periodo, contro il periodo subito prima della stessa
+        lunghezza: pagine viste, visitatori (somma giornaliera), clic su Prenota, prenotazioni
+        fatte dal sito (widget TheFork e widget TRGB) nello stesso periodo, le 10 pagine più
+        viste, provenienze, lingue, mobile/desktop e i clic per obiettivo (prenota_apri,
+        telefono, whatsapp, email, pdf_menu, pdf_vini, mappa). Solo conteggi, nessun dato
+        personale."""
+        _ruoli("admin", cosa="le visite del sito")
+        r = statistiche_router.sito_visite(giorni=giorni, a=a)
+        p = r["prenotazioni"]
+        return {
+            "periodo": r["periodo"], "periodo_prima": r["periodo_prima"], "dati_dal": r["dati_dal"],
+            "totali": r["totali"],
+            "prenotazioni_dal_sito": {"totale": p["totale"], "totale_prima": p["totale_prima"],
+                                      "coperti": p["coperti"], "per_fonte": p["per_fonte"]},
+            "clic": r["clic"],
+            "pagine": r["pagine"][:10], "provenienze": r["provenienze"][:10],
+            "lingue": r["lingue"], "dispositivi": r["dispositivi"], "campagne": r["campagne"][:10],
+        }

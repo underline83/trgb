@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-23 — Visite del sito in TRGB `[core]`
+
+Sistema 5.75, statistiche 1.3, **mig 210**, modulo nuovo **sito**. Il sito (www.tregobbi.it) manda a TRGB una «vista» per ogni pagina aperta e un «clic» sui contatti segnati (`data-obiettivo`: Prenota, telefono, WhatsApp, email, PDF menu e vini, mappa) con `POST /public/sito/evento` (pubblico, risponde sempre 204). Niente cookie, niente IP né browser salvati: servono solo al momento per scartare i bot, limitare gli invii e contare i visitatori del giorno con un codice che cambia ogni giorno. Domini ammessi e pagine escluse (`/nuovo/`) in `locale.json` › `sito`. Nuova linguetta **Statistiche › Sito** (solo admin): viste al giorno contro il periodo prima, pagine, lingue, provenienze, mobile/desktop, clic per obiettivo e i clic su Prenota accanto alle prenotazioni fatte dal sito (widget TheFork e widget TRGB). Gli eventi grezzi restano 13 mesi, i totali per giorno per sempre. Strumento MCP `visite_sito_riepilogo` (sola lettura). Snippet per il sito: `docs/snippet/sito_visite.js` (con `?nonconto=1` per escludere il proprio browser). Doc: `modulo_sito.md`.
+
+## 2026-10-23 — Prezzi a pezzo dalle fatture `[core]`
+
+Ricette/food cost: le unità «a pezzo» come le scrivono i fornitori — PEZZI (Milesi), N., NR, NUM., PCS, EA, CAD — valgono come «pz» (`UNIT_TO_BASE` e famiglia pz in `foodcost_recipes_router.py`). Prima un prezzo a pezzo verso un ingrediente a pezzi veniva scartato e la riga restava da abbinare (basilico, insalatine, lamponi, erbe di Milesi). CF e CT restano fuori: lì serve il fattore della confezione. Lo stesso giorno, via API: fornitori, ingredienti e prezzi collegati dalle fatture (vedi sessione.md).
+
 ## 2026-10-23 — Linea cucina: dagli esiti al lavoro `[core]`
 
 Sistema 5.74, cucinaScorte 1.12, **mig 209**. Quello che si segna nelle checklist di linea diventa lavoro. Rosso («manca la merce») o scorta confermata sotto il minimo: se è una preparazione nasce il task «Produrre: Crema di zucca · quantità» con il link alla ricetta (rosso = urgente, con avviso nel campanello a chef e sous chef); se è un componente comprato entra nella Spesa come «proposta dalla linea · da confermare», col fornitore (il preferito dell'ingrediente se l'hai segnato con ☆ nella pagina prezzi, altrimenti l'ultimo da cui hai comprato) e quanto manca, e diventa da ordinare quando la confermano Marco, lo chef o il sous chef («Confermo, da ordinare» / «Non serve»). Il giallo non crea niente, salvo se la checklist scade ancora gialla («Rifornire la linea»). Un task resta finché non è risolto (torna a oggi se è di ieri) e si chiude da solo quando la scorta torna sopra il minimo o la linea torna verde; un esito agisce una volta sola, quindi un task chiuso a mano non rinasce.

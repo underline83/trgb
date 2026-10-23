@@ -216,6 +216,18 @@ UNIT_TO_BASE = {
     "hg": 0.1,      # ettogrammi
     "lt": 1.0,      # litri scritti "LT"
     "lit": 1.0,
+    # Pezzi come li scrivono le fatture (2026-10-23): «PEZZI» di Milesi,
+    # «N.», «NR», «NUM.», «PCS», «EA», «CAD». Stessa famiglia di «pz»: un
+    # prezzo a pezzo entra come prezzo a pezzo. CF/CT (confezione, cartone)
+    # restano fuori apposta: lì serve il fattore.
+    "pezzi": 1.0,
+    "pezzo": 1.0,
+    "n": 1.0,
+    "nr": 1.0,
+    "num": 1.0,
+    "pcs": 1.0,
+    "ea": 1.0,
+    "cad": 1.0,
 }
 
 
@@ -266,7 +278,7 @@ def convert_qty(qty: float, from_unit: str, to_unit: str,
             return "peso"
         if u in volume_units:
             return "volume"
-        if u == "pz":
+        if u in {"pz", "pezzi", "pezzo", "n", "nr", "num", "pcs", "ea", "cad"}:
             return "pz"
         return None
 
@@ -384,7 +396,7 @@ def _standard_convert(fu: str, tu: str) -> Optional[float]:
             return "peso"
         if u in volume_units:
             return "volume"
-        if u == "pz":
+        if u in {"pz", "pezzi", "pezzo", "n", "nr", "num", "pcs", "ea", "cad"}:
             return "pz"
         return None
 

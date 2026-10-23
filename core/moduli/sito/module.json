@@ -1,0 +1,24 @@
+{
+  "id": "sito",
+  "nome": "Visite del sito",
+  "versione": "1.0",
+  "descrizione": "Visite e clic del sito del locale (viste, pagine, lingue, provenienze, clic su Prenota/telefono/WhatsApp) senza cookie né dati personali",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "permessi", "ui_primitives"],
+  "dipendenze_opzionali": ["statistiche", "prenotazioni"],
+  "note": "Raccoglie gli eventi dal sito pubblico (POST /public/sito/evento, sendBeacon). Domini ammessi e percorsi esclusi in locale.json «sito». La pagina si vede in Statistiche › Sito (aggregatore read-only), che accosta i clic su Prenota alle prenotazioni del periodo.",
+  "router_files": [
+    "sito_pubblico_router"
+  ],
+  "endpoint_prefix": [
+    "/public/sito"
+  ],
+  "tabelle_db": [
+    "sito_eventi",
+    "sito_giorni",
+    "sito_giorni_chiusi",
+    "sito_stato"
+  ],
+  "frontend_route": ["/statistiche/sito"],
+  "frontend_menu_key": "statistiche"
+}

@@ -748,6 +748,7 @@ Ordine dentro ogni fase: prima sola lettura → poi bozze (finiscono nelle Bozze
 | ST.4 | Export PDF/Excel report mensile (M.B) | S | BASSA | |
 | ST.5 | Spesa per coperto per categoria (iPratico × chiusure turno) | S | ✅ FATTO 2026-07-02 | v1.2 sezione "Cosa consuma un coperto" in Coperti & Incassi |
 | ST.6 | Post-K.12: rimuovere ramo daily_closures dalla cucitura storico | XS | dopo K.12 | Cutover dinamico = MIN(date) shift_closures: il codice sopravvive da solo |
+| ST.7 | Visite del sito: modulo `sito` + linguetta «Sito» (clic su Prenota accanto alle prenotazioni dal sito) + MCP `visite_sito_riepilogo` | M | ✅ FATTO 2026-10-23 (da pushare) | mig 210, sistema 5.75. Dopo il push: snippet nel sito (sessione Underline Studio). [modulo_sito.md](modulo_sito.md) |
 
 ---
 

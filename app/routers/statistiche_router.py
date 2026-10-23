@@ -1,4 +1,4 @@
-# @version: v1.2.1-statistiche
+# @version: v1.3-statistiche (2026-10-23: linguetta Sito — /statistiche/sito)
 # -*- coding: utf-8 -*-
 # Modulo: statistiche
 """
@@ -18,6 +18,7 @@ Endpoint per import dati iPratico e query analytics.
 10. GET /statistiche/coperto           — Spesa per coperto per categoria (mese per mese)
 11. GET /statistiche/movimenti         — Prodotti in crescita/calo mese su mese
 12. GET /statistiche/storico/giorni    — Incassi giornalieri di un mese (cucitura daily+shift)
+13. GET /statistiche/sito              — Visite del sito (modulo sito) + prenotazioni dal sito, read-only
 
 NOTA cross-modulo: gli endpoint 8-10 leggono `admin_finance.sqlite3`
 (daily_closures + shift_closures, modulo cassa/banca) in SOLA LETTURA.
@@ -847,3 +848,63 @@ def movimenti_prodotti(
         "up": up, "down": down,
         "nuovi": nuovi[:n], "spariti": spariti[:n],
     }
+
+
+# =============================================================
+# 13. SITO — visite del sito accanto alle prenotazioni (2026-10-23, mig 210)
+# =============================================================
+# Aggregatore read-only: le visite vengono dal modulo `sito` (sito_visite_service),
+# le prenotazioni da clienti.sqlite3 (modulo prenotazioni), aperto in sola lettura.
+# Solo il confronto fra totali per giorno: nessun legame fra persone e clic.
+# Prenotazioni «dal sito» = fonte 'widget' (modulo prenotazioni TheFork, canale
+# «Booking Module») + fonte 'sito' (widget TRGB), contate sul giorno in cui sono
+# state fatte (data_prenotazione), non sul giorno del pasto.
+FONTI_PRENOTAZIONI_SITO = ("widget", "sito")
+
+
+def _prenotazioni_dal_sito(da: str, a: str) -> Dict[str, Any]:
+    p = locale_data_path("clienti.sqlite3")
+    vuoto = {"per_giorno": {}, "totale": 0, "coperti": 0, "per_fonte": {}}
+    if not p.exists():
+        return vuoto
+    conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True, timeout=10)
+    try:
+        segnaposti = ",".join("?" * len(FONTI_PRENOTAZIONI_SITO))
+        righe = conn.execute(
+            f"""SELECT substr(data_prenotazione,1,10) AS g, fonte, COUNT(*), COALESCE(SUM(pax),0)
+                FROM clienti_prenotazioni
+                WHERE fonte IN ({segnaposti}) AND substr(data_prenotazione,1,10) BETWEEN ? AND ?
+                GROUP BY g, fonte""",
+            (*FONTI_PRENOTAZIONI_SITO, da, a),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return vuoto
+    finally:
+        conn.close()
+    out = {"per_giorno": {}, "totale": 0, "coperti": 0, "per_fonte": {}}
+    for g, fonte, n, pax in righe:
+        out["per_giorno"][g] = out["per_giorno"].get(g, 0) + n
+        out["per_fonte"][fonte] = out["per_fonte"].get(fonte, 0) + n
+        out["totale"] += n
+        out["coperti"] += pax
+    return out
+
+
+@router.get("/sito", summary="Visite del sito e prenotazioni dal sito nel periodo")
+def sito_visite(
+    giorni: int = Query(30, ge=1, le=400, description="Lunghezza del periodo in giorni"),
+    a: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ultimo giorno (oggi se manca)"),
+):
+    from app.services import sito_visite_service as sito
+    r = sito.riepilogo(giorni, a)
+    ora = _prenotazioni_dal_sito(r["periodo"]["da"], r["periodo"]["a"])
+    prima = _prenotazioni_dal_sito(r["periodo_prima"]["da"], r["periodo_prima"]["a"])
+    for g in r["giorni"]:
+        g["prenotazioni"] = ora["per_giorno"].get(g["giorno"], 0)
+    r["prenotazioni"] = {
+        "totale": ora["totale"], "coperti": ora["coperti"], "per_fonte": ora["per_fonte"],
+        "totale_prima": prima["totale"],
+        "fonti": list(FONTI_PRENOTAZIONI_SITO),
+        "nota": "Prenotazioni fatte nel periodo dal widget TheFork del sito (fonte «widget») e dal widget TRGB (fonte «sito»). Il widget TheFork può stare anche su altri siti: è un confronto, non un legame.",
+    }
+    return r

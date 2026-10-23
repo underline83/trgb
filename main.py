@@ -148,6 +148,7 @@ from app.routers.bevande_router import router as bevande_router
 # PRATICHE — pratiche aperte con enti, fornitori, studi e creditori (2026-10-08)
 # Doc: docs/modulo_pratiche.md
 from app.routers.pratiche_router import router as pratiche_router
+from app.routers.sito_pubblico_router import router as sito_pubblico_router  # visite del sito (mig 210)
 
 # CASSA — conti chiusi letti da iPratico Cloud (2026-10-18). Doc: docs/analisi_ipratico_cloud.md
 from app.routers.cassa_ipratico_router import router as cassa_ipratico_router
@@ -764,6 +765,8 @@ if module_loader.is_router_active("prenotazioni_pubblico_router"):
     # Email di promemoria del giorno prima alle prenotazioni dal sito
     from app.services.prenotazioni_sito_service import avvia_promemoria_periodico as _promemoria_sito
     _promemoria_sito()
+# VISITE DEL SITO (modulo sito) — evento pubblico dal sito; la lettura è in Statistiche › Sito
+_mount("sito_pubblico_router", sito_pubblico_router)
 _mount("prenotazioni_router", prenotazioni_router)
 
 # PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)

@@ -394,7 +394,9 @@ const MODULE_VERSIONS = {
     //   shift_preconti per omogeneità con daily-era. Marzo 104k→71.6k
     //   (iPratico 71.5k). + fallback pre-cutover in Coperti & Incassi
     //   (gen/feb da registro corrispettivi, endpoint 12 /storico/giorni).
-    version: "1.2.1",
+    // 1.3 (2026-10-23): linguetta «Sito» — visite del sito (modulo sito, mig 210)
+    //   accanto alle prenotazioni dal sito, endpoint 13 /statistiche/sito.
+    version: "1.3",
     label: "Statistiche",
     status: "beta",
     color: "blue",
@@ -598,6 +600,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.75 (2026-10-23): mig 210 — modulo nuovo «sito» (visite del sito): sito.sqlite3, POST /public/sito/evento, Statistiche › Sito (statistiche 1.3), strumento MCP visite_sito_riepilogo.
     // 5.74 (2026-10-23): mig 209 — lista_spesa_items articolo_id/origine/da_confermare/confermato_* (linea L3).
     // 5.73 (2026-10-23): mig 208 — cucina_linea_elementi.linea_qta_num (dotazione di linea come numero).
     // 5.72 (2026-10-22): mig 207 — linea cucina L2: checklist generate dal menu (cucinaScorte 1.10, tasks 1.8).
@@ -699,7 +702,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.74",
+    version: "5.75",
     label: "Sistema",
     status: "stabile",
     color: "green",
