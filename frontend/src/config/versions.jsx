@@ -254,10 +254,13 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
+    // 1.9 (2026-10-24): GET /pranzo/public/settimana/ pubblico (CORS *) per la
+    //   sezione Pranzo del sito tregobbi.it/menu/ (QR): menu della settimana,
+    //   prezzi Menù Business e note di servizio, letti dal browser del cliente.
     // 1.8 (2026-08-03): "Pubblica il menu sul sito" nel compositore (mattone
     //   M.J): il PDF cliente della settimana finisce da solo sull'FTP
     //   dell'hosting, nome remoto fisso -> link su WordPress invariato.
-    version: "1.8",
+    version: "1.9",
     label: "Menu Pranzo del Giorno",
     status: "beta",
     color: "blue",

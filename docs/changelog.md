@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-24 — Menu pranzo pubblico per il sito `[core]`
+
+Pranzo 1.9, nessuna migrazione. Nuovo `GET /pranzo/public/settimana/` (pubblico, senza login): il menu pranzo della settimana corrente con testata, prezzi del Menù Business, note di servizio e piatti per categoria, nello stesso ordine del PDF. Serve alla sezione «Pranzo» di `tregobbi.it/menu/`, la pagina del QR, che lo legge dal browser del cliente: il menu salvato in TRGB compare sul sito senza PDF e senza rilanciare il build. CORS `*` solo su questo endpoint (dato pubblico, niente credenziali), cache 5 minuti, sempre 200 (`disponibile:false` senza menu). Non escono recipe_id, note interne delle righe, autore, food cost. Il vecchio `/privata/pranzo.pdf` resta aggiornabile col bottone «Pubblica sul sito» ma il QR non ci punta più.
+
 ## 2026-10-23 — Riconciliazione: stipendi, affitti e rate pagati in più bonifici `[core]`
 
 Flussi di Cassa 1.23, sistema 5.76, **mig 211**. Un'uscita senza fattura (stipendio, affitto, rata, spesa fissa) pagata in parte da un bonifico ora accetta il secondo: prima la Riconciliazione rispondeva «Uscita già collegata o non trovata» (limite noto, `modulo_banca.md` §6.5). Ogni bonifico tiene la sua quota in `banca_uscite_link`; l'uscita resta «parziale» finché la somma non arriva al totale, poi è pagata. Scollegando un bonifico successivo l'uscita torna parziale con quel che resta; il primo si stacca solo dopo gli altri. Suggerimenti e ricerca mostrano le uscite parziali con l'importo ancora scoperto, così il secondo bonifico le trova. Caso d'origine: stipendio di gennaio di E. Beretta, 3.339,46 € in due bonifici da 1.669,73 € (17/02 e 22/10). File: `banca_router.py`, `controllo_gestione_router.py` (scollega / paga in contanti o carta tolgono le tranche), mig 211, `versions.jsx`, `modulo_banca.md` §6.5.

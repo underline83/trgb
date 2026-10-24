@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v2.1-pranzo-settimanale-oggi (Modulo B, 2026-04-26)
+# @version: v2.2-pranzo-public-settimana (2026-10-24: menu pubblico per il sito)
 # -*- coding: utf-8 -*-
 """
 Router Pranzo settimanale — sessione 58 cont. (2026-04-26)
@@ -33,6 +33,9 @@ Endpoint:
 
   ── PROGRAMMAZIONE (vista comparativa) ──
   GET    /pranzo/programmazione/?n=8&fino_a=YYYY-MM-DD   ultime N settimane con righe
+
+  ── PUBBLICO (no auth) ──
+  GET    /pranzo/public/settimana/  menu della settimana corrente per il sito/QR (CORS *)
 
   ── SETTINGS ──
   GET    /pranzo/settings/        default titolo/prezzi/footer
@@ -108,6 +111,100 @@ def pranzo_health():
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────
+# MENU PUBBLICO PER IL SITO (2026-10-24) — [core]
+# ─────────────────────────────────────────────────────────────
+# Il sito (pagina /menu/, quella del QR) legge il menu della settimana
+# corrente direttamente dal browser del cliente: niente login, niente
+# rebuild del sito ogni settimana. Escono SOLO i dati che il cliente vede
+# anche sul PDF: testata, prezzi del Menù Business, note di servizio,
+# piatti per categoria. Mai recipe_id, note interne delle righe, autore,
+# food cost o margine.
+#
+# CORS: il dato è pubblico per costruzione, quindi la risposta porta
+# Access-Control-Allow-Origin: * su QUESTO endpoint soltanto (nessun dominio
+# del locale scritto nel codice, nessun cookie: il browser lo legge senza
+# credenziali). La lista CORS generale di main.py resta com'è.
+#
+# Le etichette (Antipasti, Primi, «Una portata a scelta»...) NON arrivano da
+# qui: le traduce il sito nelle sue lingue. Da qui arrivano le chiavi
+# (categoria, portate) e i testi scritti in Impostazioni Cucina, in italiano.
+
+def _menu_pubblico_settimana(oggi: date_cls) -> Dict[str, Any]:
+    from app.services.pranzo_pdf_service import ORDINE_CATEGORIA
+
+    monday = (oggi - timedelta(days=oggi.weekday())).isoformat()
+    menu = repo.get_menu_by_settimana(monday)
+    settings = repo.get_settings() or {}
+
+    prezzi = []
+    for n in (1, 2, 3):
+        v = settings.get(f"prezzo_{n}_default")
+        if v is not None:
+            prezzi.append({"portate": n, "prezzo": float(v)})
+
+    footer = (settings.get("footer_default") or "").strip()
+
+    categorie: List[Dict[str, Any]] = []
+    righe = sorted(
+        (menu or {}).get("righe") or [],
+        key=lambda r: (
+            ORDINE_CATEGORIA.get((r.get("categoria") or "altro").lower(), 99),
+            int(r.get("ordine") or 0),
+        ),
+    )
+    for r in righe:
+        nome = (r.get("nome") or "").strip()
+        if not nome:
+            continue
+        cat = (r.get("categoria") or "altro").lower()
+        if categorie and categorie[-1]["categoria"] == cat:
+            categorie[-1]["piatti"].append({"nome": nome})
+        else:
+            categorie.append({"categoria": cat, "piatti": [{"nome": nome}]})
+
+    return {
+        "oggi": oggi.isoformat(),
+        "settimana_inizio": monday,
+        "disponibile": bool(categorie),
+        "titolo": (settings.get("titolo_default") or "").strip(),
+        "sottotitolo": (settings.get("sottotitolo_default") or "").strip(),
+        "titolo_business": (settings.get("titolo_business") or "").strip(),
+        "prezzi": prezzi,
+        "note_servizio": [x.strip() for x in footer.splitlines() if x.strip()],
+        "categorie": categorie,
+        "aggiornato_il": (menu or {}).get("updated_at"),
+    }
+
+
+@public_router.get("/public/settimana/")
+def pranzo_public_settimana(response: Response):
+    """
+    Menu pranzo della settimana corrente, PUBBLICO (no auth) — per il sito/QR.
+
+    Sempre 200: senza menu salvato per la settimana, `disponibile` è false e
+    `categorie` è vuota (il sito nasconde la sezione). Su errore DB idem, con
+    `errore: true` — al cliente col telefono in mano non arriva mai un 500.
+    """
+    import logging
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Cache-Control"] = "public, max-age=300"
+    try:
+        return _menu_pubblico_settimana(date_cls.today())
+    except Exception as e:
+        logging.getLogger("pranzo").error(f"[pranzo] public/settimana FAIL: {type(e).__name__}: {e}")
+        oggi = date_cls.today()
+        return {
+            "oggi": oggi.isoformat(),
+            "settimana_inizio": (oggi - timedelta(days=oggi.weekday())).isoformat(),
+            "disponibile": False,
+            "titolo": "", "sottotitolo": "", "titolo_business": "",
+            "prezzi": [], "note_servizio": [], "categorie": [],
+            "aggiornato_il": None,
+            "errore": True,
+        }
 
 
 CATEGORIE_VALIDE = {"antipasto", "primo", "secondo", "contorno", "dolce", "altro"}

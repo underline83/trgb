@@ -79,6 +79,7 @@ Scritture: ruolo `superadmin | admin | chef` (`_check_admin`).
 | `GET /pranzo/programmazione/?n=8` | ultime N settimane con righe (vista comparativa) |
 | `GET /pranzo/settings/` · `PUT` | default testata/prezzi/footer (PUT admin) |
 | `GET /pranzo/health` · `GET /pranzo/smoke/{s}/` | diagnostica (no auth) |
+| `GET /pranzo/public/settimana/` | 🆕 2026-10-24 — **pubblico (no auth, CORS `*`, cache 5 min)**: menu della settimana corrente per il sito (`tregobbi.it/menu/`, QR). Escono solo testata, prezzi Menù Business (`prezzi[{portate,prezzo}]`), `note_servizio` (righe del footer), `categorie[{categoria, piatti[{nome}]}]` in ordine PDF, `disponibile`, `aggiornato_il`. Mai recipe_id, note delle righe, autore, food cost. Sempre 200 (`disponibile:false` senza menu; `errore:true` su guasto DB) |
 
 ## Frontend
 
@@ -132,6 +133,7 @@ mancano, WeasyPrint usa il fallback.
 | C-P-010 | Storie Instagram serie da 2: copertina (logo, claim, Menù Business a righe, recapiti da settings) + menù per categoria, PNG 1080×1920 client-side | `PranzoStoryCanvas.jsx` | chef/admin | ✅ v2.0 (2026-07-19, sostituisce la storia singola antracite 1.7) |
 | C-P-011 | PDF esterno "da bacheca": solo antipasti/primi/secondi a corpo grande (23pt), nessun altro dato — per la cornice fuori dal locale | `pranzo_pdf_service.py genera_pdf_menu_esterno` + `GET /menu/{settimana}/pdf-esterno/` | chef/admin | ✅ 2026-07-19 |
 | C-P-012 | Nome file sensato sui PDF aperti in tab (File nominato, niente più "unknown") | `PranzoMenu.jsx apriPdf` | chef/admin | ✅ v3.9 |
+| C-P-014 | Menu della settimana leggibile dal sito senza login: la sezione Pranzo di `tregobbi.it/menu/` lo carica dal browser del cliente, niente PDF né rebuild settimanale | `pranzo_router.py GET /public/settimana/` (`_menu_pubblico_settimana`) | cliente (sito/QR) | ✅ 2026-10-24 |
 | C-P-013 | Pubblica il menu della settimana sul sito: PDF cliente caricato via FTP sull'hosting con nome fisso (mattone M.J), stato + data ultima pubblicazione in pagina | `pranzo_router.py POST /menu/{settimana}/pubblica/` + `GET /menu/{settimana}/pubblicazione/` · `PubblicaSulSito.jsx` | chef/admin | ✅ 2026-08-03 |
 
 ## Riferimenti
@@ -148,4 +150,4 @@ mancano, WeasyPrint usa il fallback.
 - C.P1: completare aggancio food cost (il margine F.1 c'è; manca food cost per piatto nel compositore).
 - C.P2: allergeni sul PDF. C.P3: multi-edizione.
 - C.L3: lista spesa auto da menu pranzo (cross-modulo).
-- QR pubblico `GET /pranzo/oggi/pubblico` (pattern carta vini). Notifica M.A a pubblicazione. Drag&drop righe.
+- ~~QR pubblico `GET /pranzo/oggi/pubblico`~~ ✅ 2026-10-24 come `GET /pranzo/public/settimana/` (C-P-014); resta la sezione sul sito (repo del sito, non TRGB). Notifica M.A a pubblicazione. Drag&drop righe.
