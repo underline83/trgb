@@ -18,6 +18,8 @@
 
 **Pranzo e food cost (2026-10-25, mig 212):** il «Valore vendita piatto» di Impostazioni → Menu Pranzo (default 10 €) è il prezzo su cui si calcola il food cost dei piatti del pranzo senza prezzo loro. Dettagli: [modulo_pranzo.md](modulo_pranzo.md) C-P-015 e [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) §5.2.
 
+**Voci «qb» nelle ricette (2026-10-25, ricette 3.36):** sale, pepe, olio a crudo e simili si scrivono con unità «qb» anche dalla pagina di modifica: niente quantità, elencati e negli allergeni, fuori dal food cost. Dettagli: [modulo_ricette_foodcost.md](modulo_ricette_foodcost.md) C-R-QB.
+
 ---
 
 # 0. Indice

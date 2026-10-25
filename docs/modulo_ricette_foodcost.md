@@ -342,6 +342,7 @@ prezzo_riferimento = selling_price se > 0                                  (font
 | Capability | Cosa fa | Riferimento | Audience | Stato docs |
 |---|---|---|---|---|
 | C-R-FC-PRANZO | Food cost dei piatti del pranzo senza prezzo sul valore di Impostazioni → Menu Pranzo, etichetta «pranzo» | `foodcost_prezzo_service.py` · `foodcost_recipes_router.py _enrich_recipe_with_costs` · `PrezzoVendita.jsx` | chef, admin | 🆕 2026-10-25 |
+| C-R-QB | Voci «qb» (quanto basta) nella modifica e nella creazione ricetta: tendina con qb, quantità disattivata, salvate con qty 0; fuori dal food cost anche senza prezzo, negli allergeni sì. Riconoscimento unico in `app/services/ricette_qb.py` (import, `RecipeItemIn`, `_calc_item_cost`, storico FC) | `VoceQuantita.jsx` · `RicetteModifica.jsx` · `RicetteNuova.jsx` · `foodcost_recipes_router.py` | chef, admin | 🆕 2026-10-25 |
 
 ## 5.3 Esempio concreto
 

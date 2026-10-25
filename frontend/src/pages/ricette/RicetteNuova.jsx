@@ -23,6 +23,7 @@ import RicetteNav from "./RicetteNav";
 import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
 import IngredientPicker, { QuickCreateIngrediente } from "./IngredientPicker";
+import VoceQuantita, { vociDaSalvare } from "./VoceQuantita";
 
 const FC = `${API_BASE}/foodcost`;
 const UNITS = ["kg", "g", "L", "ml", "cl", "pz", "n"];
@@ -404,6 +405,11 @@ export default function RicetteNuova() {
   // ─────────────────────────────────────────────────────────────
   // SALVATAGGIO
   // ─────────────────────────────────────────────────────────────
+  // Nome leggibile di una riga, per il messaggio «manca la quantità»
+  const nomeRiga = (it) => it.tipo === "ingrediente"
+    ? ingredienti.find((x) => String(x.id) === String(it.ingredient_id))?.name || ""
+    : basi.find((x) => String(x.id) === String(it.sub_recipe_id))?.name || "";
+
   const handleSave = async (e) => {
     e.preventDefault();
     setErrorMsg("");
@@ -421,15 +427,8 @@ export default function RicetteNuova() {
     }
 
     // Items: solo righe valide passano. Lista vuota = piatto placeholder.
-    const items = form.items
-      .filter((it) => (it.tipo === "ingrediente" ? it.ingredient_id : it.sub_recipe_id) && it.qty)
-      .map((it) => ({
-        ingredient_id: it.tipo === "ingrediente" ? parseInt(it.ingredient_id) : null,
-        sub_recipe_id: it.tipo === "sub_ricetta" ? parseInt(it.sub_recipe_id) : null,
-        qty: parseFloat(it.qty),
-        unit: it.unit || "g",
-        note: it.note || null,
-      }));
+    const { items, errore } = vociDaSalvare(form.items, nomeRiga);
+    if (errore) { setErrorMsg(errore); return; }
 
     const payload = {
       name: form.name.trim(),
@@ -731,23 +730,11 @@ export default function RicetteNuova() {
                           )}
                         </div>
 
-                        <input
-                          type="number"
-                          step="0.001"
-                          min="0"
-                          value={row.qty}
-                          onChange={(e) => updateItem(idx, "qty", e.target.value)}
-                          className="w-20 border border-neutral-300 rounded px-2 py-1.5 text-sm"
-                          placeholder="q.tà"
+                        <VoceQuantita
+                          row={row}
+                          onChange={(field, value) => updateItem(idx, field, value)}
+                          inputClassName="border border-neutral-300 rounded px-2 py-1.5 text-sm"
                         />
-                        <select
-                          value={row.unit}
-                          onChange={(e) => updateItem(idx, "unit", e.target.value)}
-                          className="w-20 border border-neutral-300 rounded px-2 py-1.5 text-sm"
-                        >
-                          {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                          <option value="porzioni">porzioni</option>
-                        </select>
                         <input
                           type="text"
                           value={row.note || ""}

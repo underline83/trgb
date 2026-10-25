@@ -46,6 +46,7 @@ from typing import Any, Dict, List, Optional
 
 from app.models.cucina_db import get_cucina_connection
 from app.services.foodcost_prezzo_service import prezzo_riferimento
+from app.services.ricette_qb import is_qb
 
 logger = logging.getLogger("foodcost_history")
 
@@ -113,9 +114,11 @@ def _compute_recipe_cost_at_date(
     yield_qty = rec["yield_qty"]
 
     items = conn.execute(
-        "SELECT ingredient_id, sub_recipe_id, qty FROM recipe_items WHERE recipe_id = ?",
+        "SELECT ingredient_id, sub_recipe_id, qty, unit FROM recipe_items WHERE recipe_id = ?",
         (recipe_id,),
     ).fetchall()
+    # Voci «qb» fuori dal food cost e dal conteggio di completezza
+    items = [it for it in items if not is_qb(it["unit"])]
     if not items:
         return {"total_cost": None, "cost_per_unit": None, "n_ingredienti_con_prezzo": 0, "n_ingredienti_totali": 0}
 

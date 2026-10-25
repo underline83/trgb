@@ -43,6 +43,7 @@ from app.services.allergeni_service import (
 )
 from app.services.foodcost_history_service import compute_recipe_fc_history
 from app.services.foodcost_prezzo_service import contesto_pranzo, prezzo_riferimento
+from app.services.ricette_qb import QB_UNITS, is_qb
 
 from app.services.permessi import richiede_ruoli
 
@@ -563,6 +564,11 @@ def _calc_item_cost(cur, item, visited: Set[int]) -> Optional[float]:
     qty = item["qty"]
     unit = item["unit"]
 
+    # Voce «qb»: fuori dal food cost, anche se l'ingrediente non ha prezzo
+    # (non deve rendere la ricetta «incompleta»).
+    if is_qb(unit):
+        return 0.0
+
     if item["ingredient_id"]:
         # Ingrediente base
         unit_cost = _get_ingredient_unit_cost(cur, item["ingredient_id"])
@@ -654,7 +660,11 @@ def _enrich_items_with_costs(cur, items: list) -> list:
     for item in items:
         d = dict(item)
 
-        if item["ingredient_id"]:
+        if is_qb(item["unit"]):
+            # Voce «qb»: elencata, fuori dal food cost (riga costo «—» in scheda)
+            d["unit_cost"] = None
+            d["line_cost"] = None
+        elif item["ingredient_id"]:
             unit_cost = _get_ingredient_unit_cost(cur, item["ingredient_id"])
             d["unit_cost"] = round(unit_cost, 4) if unit_cost is not None else None
 
@@ -1509,13 +1519,9 @@ def _imp_score(a: str, b: str) -> float:
 
 # Unità "quanto basta": l'ingrediente è elencato nella ricetta ma escluso dal
 # food cost (qty 0). Forma canonica salvata: "qb".
-_QB_UNITS = {"qb", "q.b.", "q.b", "qb.", "q b", "quanto basta",
-             "a piacere", "qs", "q.s.", "qbas"}
-
-
-def _is_qb(unita) -> bool:
-    """True se l'unità indica 'quanto basta' / a piacere."""
-    return (unita or "").strip().lower() in _QB_UNITS
+# Voci «qb»: definizione unica in app/services/ricette_qb.py (import, validazione, costo, storico)
+_QB_UNITS = QB_UNITS
+_is_qb = is_qb
 
 
 def _imp_unit(units: List[str]) -> str:

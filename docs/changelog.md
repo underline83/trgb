@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-25 — Voci «qb» nella modifica ricetta `[core]`
+
+Ricette 3.36, nessuna migrazione. Le ricette importate con voci «qb» (quanto basta: sale, pepe, olio a crudo) si modificano di nuovo dalla pagina: la tendina delle unità ha «qb (quanto basta)», anche per le righe nuove e nella pagina Nuova ricetta; con qb il campo quantità è vuoto e disattivato. Una riga con ingrediente ma senza quantità ora blocca il salvataggio con un messaggio invece di sparire in silenzio; un'unità fuori elenco (es. «porzione») resta visibile. Le voci qb restano elencate e negli allergeni e sono fuori dal food cost anche quando l'ingrediente non ha prezzo (non rendono più la ricetta incompleta); in scheda la loro riga costo è «—». Un solo riconoscimento di «qb» per import, validazione, costo e storico (`app/services/ricette_qb.py`). File: `VoceQuantita.jsx` (nuovo), `RicetteModifica.jsx`, `RicetteNuova.jsx`, `ricette_qb.py` (nuovo), `foodcost_recipes_router.py`, `foodcost_history_service.py`.
+
 ## 2026-10-25 — Food cost dei piatti del pranzo `[core]`
 
 Sistema 5.77, ricette 3.35, pranzo 1.10, **mig 212**. I piatti del pranzo di lavoro non hanno un prezzo loro (si paga il Menù Business) e il loro food cost era «n/d». Ora in Impostazioni → Menu Pranzo c'è «Valore vendita piatto (food cost)», default 10 €: il food cost di un piatto del pranzo senza prezzo suo si calcola su quel valore. Se il piatto ha un prezzo suo (es. sta anche in carta) vince quello, e la scheda mostra in più il food cost «pranzo». Ovunque compare il valore del pranzo c'è l'etichetta «PRANZO» (archivio, dashboard Food Cost, scheda ricetta); vale anche per lo storico del food cost, il widget Home («senza prezzo») e il connettore. Il prezzo della ricetta non viene toccato. File: `foodcost_prezzo_service.py` (nuovo), mig 212, `pranzo_repository.py`, `pranzo_router.py`, `foodcost_recipes_router.py`, `foodcost_history_service.py`, `dashboard_router.py`, `connettore/server.py`, `PrezzoVendita.jsx` (nuovo), `PranzoSettingsPanel.jsx`, `RicetteArchivio/Dashboard/Dettaglio.jsx`.

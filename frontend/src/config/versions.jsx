@@ -176,7 +176,9 @@ const MODULE_VERSIONS = {
     // 3.35 (2026-10-25): food cost dei piatti del pranzo di lavoro senza prezzo sul valore
     //   di Impostazioni → Menu Pranzo (mig 212, foodcost_prezzo_service), etichetta «pranzo»
     //   in archivio, dashboard e scheda; FC pranzo in più nella scheda se il piatto ha un prezzo suo.
-    version: "3.35",
+    // 3.36 (2026-10-25): voci «qb» nella modifica e nella creazione ricetta (VoceQuantita.jsx),
+    //   righe senza quantità non spariscono più in silenzio, qb fuori dal costo anche senza prezzo.
+    version: "3.36",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",

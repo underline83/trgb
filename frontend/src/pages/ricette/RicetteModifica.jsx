@@ -9,9 +9,9 @@ import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import { Btn } from "../../components/ui";
 import IngredientPicker, { QuickCreateIngrediente } from "./IngredientPicker";
+import VoceQuantita, { rigaDaVoce, vociDaSalvare } from "./VoceQuantita";
 
 const FC = `${API_BASE}/foodcost`;
-const UNITS = ["kg", "g", "L", "ml", "cl", "pz", "n"];
 
 export default function RicetteModifica() {
   const { id } = useParams();
@@ -84,8 +84,7 @@ export default function RicetteModifica() {
             tipo: it.sub_recipe_id ? "sub_ricetta" : "ingrediente",
             ingredient_id: it.ingredient_id ? String(it.ingredient_id) : "",
             sub_recipe_id: it.sub_recipe_id ? String(it.sub_recipe_id) : "",
-            qty: String(it.qty),
-            unit: it.unit || "g",
+            ...rigaDaVoce(it),   // «qb» → quantità vuota, unità qb
             note: it.note || "",
           })),
         });
@@ -140,6 +139,11 @@ export default function RicetteModifica() {
     });
   };
 
+  // Nome leggibile di una riga, per il messaggio «manca la quantità»
+  const nomeRiga = (it) => it.tipo === "ingrediente"
+    ? ingredienti.find((x) => String(x.id) === String(it.ingredient_id))?.name || ""
+    : basi.find((x) => String(x.id) === String(it.sub_recipe_id))?.name || "";
+
   // Salvataggio (PUT)
   const handleSave = async (e) => {
     e.preventDefault();
@@ -148,15 +152,8 @@ export default function RicetteModifica() {
     if (!form.name.trim()) { setErrorMsg("Nome obbligatorio."); return; }
     if (!form.yield_qty || parseFloat(form.yield_qty) <= 0) { setErrorMsg("Resa obbligatoria."); return; }
 
-    const items = form.items
-      .filter((it) => (it.tipo === "ingrediente" ? it.ingredient_id : it.sub_recipe_id) && it.qty)
-      .map((it) => ({
-        ingredient_id: it.tipo === "ingrediente" ? parseInt(it.ingredient_id) : null,
-        sub_recipe_id: it.tipo === "sub_ricetta" ? parseInt(it.sub_recipe_id) : null,
-        qty: parseFloat(it.qty),
-        unit: it.unit || "g",
-        note: it.note || null,
-      }));
+    const { items, errore } = vociDaSalvare(form.items, nomeRiga);
+    if (errore) { setErrorMsg(errore); return; }
 
     const payload = {
       name: form.name.trim(),
@@ -394,15 +391,11 @@ export default function RicetteModifica() {
                     )}
                   </div>
 
-                  <input type="number" step="0.001" min="0" value={row.qty}
-                    onChange={(e) => updateItem(idx, "qty", e.target.value)}
-                    className="w-20 border border-neutral-300 rounded-lg px-2 py-1.5" placeholder="q.t\u00E0" />
-
-                  <select value={row.unit} onChange={(e) => updateItem(idx, "unit", e.target.value)}
-                    className="w-20 border border-neutral-300 rounded-lg px-2 py-1.5">
-                    {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                    <option value="porzioni">porzioni</option>
-                  </select>
+                  <VoceQuantita
+                    row={row}
+                    onChange={(field, value) => updateItem(idx, field, value)}
+                    inputClassName="border border-neutral-300 rounded-lg px-2 py-1.5"
+                  />
 
                   <input type="text" value={row.note || ""} onChange={(e) => updateItem(idx, "note", e.target.value)}
                     className="w-28 border border-neutral-300 rounded-lg px-2 py-1.5" placeholder="note" />
