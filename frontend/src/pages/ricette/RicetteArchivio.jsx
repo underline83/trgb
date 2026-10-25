@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
+import PrezzoVendita from "./PrezzoVendita";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -589,7 +590,7 @@ export default function RicetteArchivio() {
                         <SortTh label="Resa" field="yield_qty" sort={sort} setSort={setSort} align="right" />
                         <SortTh label="Costo tot." field="total_cost" sort={sort} setSort={setSort} align="right" />
                         <SortTh label="Costo/pz" field="cost_per_unit" sort={sort} setSort={setSort} align="right" />
-                        <SortTh label="Vendita" field="selling_price" sort={sort} setSort={setSort} align="right" />
+                        <SortTh label="Vendita" field="prezzo_riferimento" sort={sort} setSort={setSort} align="right" />
                         <SortTh label="FC %" field="food_cost_pct" sort={sort} setSort={setSort} align="center" />
                         <th className="p-3 text-center font-semibold" title="Allergeni calcolati">⚠️</th>
                         <th className="p-3 text-right font-semibold">Azioni</th>
@@ -643,7 +644,7 @@ export default function RicetteArchivio() {
                               {r.cost_per_unit != null ? `${r.cost_per_unit.toFixed(2)} €` : "—"}
                             </td>
                             <td className="p-3 text-right text-neutral-700 cursor-pointer" onClick={() => navigate(`/ricette/${r.id}`)}>
-                              {r.selling_price != null ? `${r.selling_price.toFixed(2)} €` : "—"}
+                              <PrezzoVendita r={r} />
                             </td>
                             <td className="p-3 text-center cursor-pointer" onClick={() => navigate(`/ricette/${r.id}`)}>
                               <FcBadge pct={r.food_cost_pct} />

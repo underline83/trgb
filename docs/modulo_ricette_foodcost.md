@@ -1,10 +1,10 @@
 # Modulo Ricette & Food Cost — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-25
 > **Vedi anche:** [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md), [modulo_acquisti.md](modulo_acquisti.md) (matching fatture), [modulo_menu_carta.md](modulo_menu_carta.md) (pubblicazione piatti), [modulo_cucina.md](modulo_cucina.md) (MEP/dashboard cucina)
 
 **Stato:** stabile, in produzione
-**Versione modulo (`versions.jsx`):** ricette v3.33 (beta) · selezioni v1.1 (vedi pagina dedicata)
+**Versione modulo (`versions.jsx`):** ricette v3.34 (beta) · selezioni v1.1 (vedi pagina dedicata)
 **Router:** `foodcost_recipes_router.py`, `foodcost_matching_router.py`, `foodcost_ingredients_router.py` + `foodcost_router.py` (legacy, vedi §3.1)
 **DB:** `foodcost.db` — live in `locali/tregobbi/data/` (in `app/data/` solo fallback legacy). Migrazioni parte ricette: 001-013 (v1/v2), poi 074 (menu/servizi), 098 (cache allergeni + campi menu carta), 136 (placeholder), 137 (procedimento), 138 (drop FK invoices), 145 (foodcost_settings)
 **Roadmap:** sezione `R.` di `docs/roadmap.md`
@@ -74,7 +74,7 @@ Serve una **tabella di mapping** che collega la descrizione/codice del fornitore
 
 ## 2.5 Voci "qb" (quanto basta)
 
-Nell'import JSON (e nel tracciato) gli ingredienti a piacere (sale, pepe, olio per condire) si dichiarano con `unita: "qb"`: vengono salvati in `recipe_items` con `qty=0` e unità canonica `"qb"` → elencati nella ricetta ma **esclusi dal food cost**. Sinonimi riconosciuti: q.b., quanto basta, a piacere, qs… (`_QB_UNITS`, `foodcost_recipes_router.py:1434`).
+Nell'import JSON (e nel tracciato) gli ingredienti a piacere (sale, pepe, olio per condire) si dichiarano con `unita: "qb"`: vengono salvati in `recipe_items` con `qty=0` e unità canonica `"qb"` → elencati nella ricetta ma **esclusi dal food cost**. Sinonimi riconosciuti: q.b., quanto basta, a piacere, qs… (`_QB_UNITS`, `foodcost_recipes_router.py`). Dal 2026-10-25 lo stesso vale per POST/PUT ricetta (`RecipeItemIn`: unità «qb» → qty 0; altrimenti qty > 0): prima la modifica di una ricetta importata con voci «qb» falliva con 422.
 
 ---
 
@@ -94,6 +94,8 @@ Registrazione in `main.py:635-638`. I 5 router delle Selezioni del Giorno (prefi
 ⚠️ Il router legacy espone `GET /foodcost/ingredienti` (lista ingredienti + ultimo prezzo) e `GET /foodcost/ingredient/{id}` (ultimo prezzo + medie 30/90gg) **senza `Depends(get_current_user)`** — unico punto non autenticato del modulo, candidato a fix/rimozione (verificare se il FE lo usa ancora).
 
 ## 3.2 Endpoint (censimento completo, righe = `foodcost_*_router.py`)
+
+> Dal 2026-10-25 `GET /foodcost/ricette` torna anche `n_voci` (0 = composizione vuota). `PUT /foodcost/ingredients/{id}` con `allergeni` e `POST …/merge` ricalcolano gli allergeni delle ricette che usano l'ingrediente e dei piatti sopra. I numeri di riga qui sotto sono quelli del censimento di agosto.
 
 ### Ricette (`foodcost_recipes_router.py`)
 - `GET /foodcost/ricette` (:1028) — lista con food cost calcolato in real-time. Filtri: `solo_basi`, `solo_piatti`, `kind` (dish|base), `service_type_id`, `search` (name/menu_name). Include `allergeni_calcolati` e `service_type_ids`
@@ -159,6 +161,21 @@ Registrazione in `main.py:635-638`. I 5 router delle Selezioni del Giorno (prefi
 - Sinonimi unità fattura: GR, HG, LT, LIT + normalizzazione punti ("KG." → kg) via `_norm_unit`.
 - Scheda ingrediente: fattore visibile e "Correggi" su OGNI collegamento (non solo sospetti) + hint ⚠ multipack se descrizione contiene X12/12x e fattore=1.
 - Ingredienti a numero pesabili (base "n", es. tuorli): conversione custom "1 n = 20 g" → catena standard+custom converte da sola le fatture a peso (1 KG = 50 n) e le ricette a grammi. pz→n resta manuale (ambiguo). Catena lato destinazione in `_get_custom_conversion` (recipes_router:271), `_standard_convert` allineato a famiglie strette.
+
+## 3.3 Connettore MCP — Claude dalla chat (2026-10-25, server 1.7)
+
+Claude inserisce e completa ricette senza browser con 8 strumenti del connettore (`app/connettore/server.py`, `_strumenti_ricette`, registrati se il modulo `ricette` è attivo). Chiamano le funzioni delle rotte qui sopra, nessuna logica propria; dettaglio in [connettore_mcp.md](connettore_mcp.md) §4.
+
+| Capability | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-R-MCP-01 `ricette_cerca` | cerca ricette (nome/menu, tipo, servizio, vuote) con costi, servizi, `n_voci`, simili | `server.py` `_strumenti_ricette` → `list_ricette` | chef, sala, admin | 🆕 |
+| C-R-MCP-02 `ricetta_leggi` | scheda completa con voci nel formato di aggiorna | → `get_ricetta` | chef, sala, admin | 🆕 |
+| C-R-MCP-03 `ricetta_aggiorna` | completa/corregge una ricetta (voci e servizi sostituiti) | → `update_ricetta` | chef, admin | 🆕 |
+| C-R-MCP-04 `ricetta_importa` | import con anteprima e override, blocco doppioni | → `import_analizza_ricette` + `import_conferma_ricette` | chef, admin | 🆕 |
+| C-R-MCP-05 `ingredienti_cerca` | cerca ingredienti con prezzo, fornitore, allergeni, placeholder | → `list_ingredients` + `get_ingredient` | chef, admin | 🆕 |
+| C-R-MCP-06 `ingrediente_prezzo_aggiungi` | «+ Aggiungi prezzo» con fornitore per nome/P.IVA | → `create_ingredient_price` | chef, admin | 🆕 |
+| C-R-MCP-07 `ingrediente_aggiorna` | categoria, unità base (non se ha prezzi), allergeni, completato | → `update_ingredient` | chef, admin | 🆕 |
+| C-R-MCP-08 `ingrediente_unisci` | unisce un doppione nell'ingrediente vero (cancella il doppione) | → `merge_ingredient` | chef, admin | 🆕 |
 
 ---
 
@@ -312,8 +329,19 @@ dove costo_riga =
 prezzo_corrente = MEDIANA(unit_price negli ultimi N giorni)   ← N da foodcost_settings, default 90
                   fallback: ultimo prezzo in assoluto
 
-food_cost_pct = (costo_porzione / selling_price) × 100
+food_cost_pct = (costo_porzione / prezzo_riferimento) × 100
+
+prezzo_riferimento = selling_price se > 0                                  (fonte "ricetta")
+                     altrimenti, piatto del pranzo di lavoro → pranzo_settings.valore_piatto_fc
+                                                                           (fonte "pranzo", default 10 €)
+                     altrimenti nessuno → food cost n/d
 ```
+
+**Prezzo di riferimento (2026-10-25, mig 212, ricette 3.35).** I piatti con tipo servizio «Pranzo di lavoro» non hanno un prezzo loro (il cliente paga il Menù Business): per il food cost valgono il «Valore vendita piatto» di Impostazioni → Menu Pranzo (decisione Marco: 10 €, il resto del prezzo del menu copre le altre spese). Unico punto: `app/services/foodcost_prezzo_service.py` (`prezzo_riferimento`, `contesto_pranzo`, costante `PRANZO_SERVICE_NAME` usata anche da `pranzo_repository`). Lo chiamano `_enrich_recipe_with_costs` (scheda, archivio, dashboard, connettore MCP), lo storico FC e il conteggio «senza prezzo» del widget Home. Se il piatto ha un prezzo suo vince quello; se sta anche al pranzo la scheda mostra in più `food_cost_pct_pranzo`. Le basi non sono mai piatti del pranzo. Valore 0 = regola spenta. `selling_price` resta com'è (il valore del pranzo non si salva sulla ricetta). Campi API: `prezzo_riferimento`, `prezzo_fonte` (`ricetta`|`pranzo`|null), in scheda anche `valore_pranzo`, `food_cost_pct_pranzo`; dashboard `ricette_fc_pranzo`, `valore_piatto_pranzo`. UI: `PrezzoVendita.jsx` (etichetta «pranzo») in archivio, dashboard e scheda.
+
+| Capability | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-R-FC-PRANZO | Food cost dei piatti del pranzo senza prezzo sul valore di Impostazioni → Menu Pranzo, etichetta «pranzo» | `foodcost_prezzo_service.py` · `foodcost_recipes_router.py _enrich_recipe_with_costs` · `PrezzoVendita.jsx` | chef, admin | 🆕 2026-10-25 |
 
 ## 5.3 Esempio concreto
 
@@ -349,7 +377,7 @@ food_cost_pct = (costo_porzione / selling_price) × 100
 ## 5.5 Storico FC (Modulo F.2) e allergeni (Modulo C)
 
 - **Storico:** `compute_recipe_fc_history` (`app/services/foodcost_history_service.py`) ricostruisce il FC a snapshot mensili/settimanali usando per ogni data l'**ultimo prezzo vigente a quella data** (non la mediana) — serve al grafico trend nella scheda ricetta e ai delta 30/90gg con flag alert ≥20%.
-- **Allergeni:** `app/services/allergeni_service.py` — pipeline `ingredients.allergeni` (CSV libero) → `recipes.allergeni_calcolati` (unione ricorsiva con protezione cicli, CSV lowercase ordinato) → `menu_dish_publications.allergeni_dichiarati` (override per-pubblicazione lato Menu Carta). Ricalcolo automatico su POST/PUT/clone ricetta, on-demand singolo o batch (endpoint §3.2).
+- **Allergeni:** `app/services/allergeni_service.py` — pipeline `ingredients.allergeni` (CSV libero) → `recipes.allergeni_calcolati` (unione ricorsiva con protezione cicli, CSV lowercase ordinato) → `menu_dish_publications.allergeni_dichiarati` (override per-pubblicazione lato Menu Carta). Ricalcolo automatico su POST/PUT/clone ricetta, on-demand singolo o batch (endpoint §3.2). Dal 2026-10-25 il ricalcolo **risale**: `ricalcola_risalendo(ids, conn)` aggiorna anche le ricette che usano quelle come sotto-ricetta, a ogni livello (PUT ricetta), e `ricalcola_per_ingrediente` lo fa dopo PUT ingrediente con allergeni e dopo l'unione di due ingredienti. Prima un allergene aggiunto a un ingrediente non arrivava a nessuna ricetta finché non si risalvava.
 
 ---
 

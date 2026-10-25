@@ -22,6 +22,7 @@ from datetime import date as date_cls, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.models.cucina_db import get_cucina_connection
+from app.services.foodcost_prezzo_service import PRANZO_SERVICE_NAME  # unico punto che identifica i piatti del pranzo
 
 
 # ─────────────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ def _ensure_schema(conn) -> None:
             prezzo_1_default     REAL NOT NULL DEFAULT 15.0,
             prezzo_2_default     REAL NOT NULL DEFAULT 25.0,
             prezzo_3_default     REAL NOT NULL DEFAULT 35.0,
+            valore_piatto_fc     REAL DEFAULT 10.0,
             footer_default       TEXT NOT NULL DEFAULT 'acqua, coperto e servizio inclusi
 da lunedì a venerdì',
             ig_telefono          TEXT NOT NULL DEFAULT '',
@@ -198,6 +200,8 @@ da lunedì a venerdì',
         "prezzo_1_default":    ("REAL", "15.0"),
         "prezzo_2_default":    ("REAL", "25.0"),
         "prezzo_3_default":    ("REAL", "35.0"),
+        # Valore di vendita attribuito a ogni piatto del pranzo per il food cost (mig 212, 2026-10-25)
+        "valore_piatto_fc":    ("REAL", "10.0"),
         "footer_default":      ("TEXT", "acqua, coperto e servizio inclusi"),
         # Recapiti per la storia Instagram (CTA in fondo) — 2026-06-08
         "ig_telefono":         ("TEXT", ""),
@@ -462,6 +466,7 @@ def update_settings(**fields) -> Dict[str, Any]:
     allowed = {
         "titolo_default", "sottotitolo_default", "titolo_business",
         "prezzo_1_default", "prezzo_2_default", "prezzo_3_default",
+        "valore_piatto_fc",
         "footer_default", "ig_telefono", "ig_indirizzo",
     }
     set_fields = {k: v for k, v in fields.items() if k in allowed and v is not None}
@@ -508,13 +513,13 @@ def list_piatti_disponibili() -> List[Dict[str, Any]]:
               JOIN recipe_service_types rst ON rst.recipe_id = r.id
               JOIN service_types st         ON st.id = rst.service_type_id
               LEFT JOIN recipe_categories rc ON rc.id = r.category_id
-             WHERE st.name = 'Pranzo di lavoro'
+             WHERE st.name = ?
                AND st.active = 1
                AND r.is_active = 1
                AND COALESCE(r.is_base, 0) = 0
              ORDER BY rc.sort_order, COALESCE(r.menu_name, r.name) COLLATE NOCASE
         """
-        rows = conn.execute(sql).fetchall()
+        rows = conn.execute(sql, (PRANZO_SERVICE_NAME,)).fetchall()
         out = []
         for r in rows:
             d = _row_to_dict(r)
@@ -562,7 +567,8 @@ def promuovi_riga_a_ricetta(nome: str, categoria: str) -> Dict[str, Any]:
         _ensure_schema(conn)
 
         st = conn.execute(
-            "SELECT id FROM service_types WHERE name = 'Pranzo di lavoro' AND active = 1"
+            "SELECT id FROM service_types WHERE name = ? AND active = 1",
+            (PRANZO_SERVICE_NAME,),
         ).fetchone()
         if not st:
             raise ValueError("Service type 'Pranzo di lavoro' non trovato o disattivo")
@@ -636,7 +642,8 @@ def rimuovi_ricetta_dal_pool(recipe_id: int) -> Dict[str, Any]:
             raise ValueError(f"Ricetta {recipe_id} non trovata")
 
         st = conn.execute(
-            "SELECT id FROM service_types WHERE name = 'Pranzo di lavoro'"
+            "SELECT id FROM service_types WHERE name = ?",
+            (PRANZO_SERVICE_NAME,),
         ).fetchone()
         if not st:
             raise ValueError("Service type 'Pranzo di lavoro' non trovato")

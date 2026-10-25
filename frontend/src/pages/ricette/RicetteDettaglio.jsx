@@ -16,6 +16,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import LineaTab from "./LineaTab";
 import { Btn, StatusBadge } from "../../components/ui";
+import PrezzoVendita, { EtichettaPranzo } from "./PrezzoVendita";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -325,11 +326,20 @@ ${r.note ? `<h2>Note</h2><p class="note">${esc(r.note)}</p>` : ""}
             />
             <Kpi
               label="Prezzo vendita"
-              value={r.selling_price != null ? `${r.selling_price.toFixed(2)} €` : "—"}
+              value={<PrezzoVendita r={r} />}
             />
             <Kpi
               label="Food Cost"
-              value={<FcBadge pct={r.food_cost_pct} />}
+              value={
+                <>
+                  <FcBadge pct={r.food_cost_pct} />
+                  {r.food_cost_pct_pranzo != null && (
+                    <div className="mt-1 text-xs font-normal text-neutral-600 whitespace-nowrap">
+                      <EtichettaPranzo valore={r.valore_pranzo} /> <FcBadge pct={r.food_cost_pct_pranzo} />
+                    </div>
+                  )}
+                </>
+              }
             />
           </div>
 

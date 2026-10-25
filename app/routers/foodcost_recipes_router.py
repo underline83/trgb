@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# @version: v2.2-foodcost-recipes-router-import (2026-05-23)
+# @version: v2.3 (2026-10-25) — voci 'qb' salvabili anche da modifica (qty 0), n_voci nell'elenco,
+#   PUT ricetta ricalcola gli allergeni anche dei piatti che la usano come base
+# v2.2-foodcost-recipes-router-import (2026-05-23)
 # Modulo: ricette
 # -*- coding: utf-8 -*-
 
@@ -30,15 +32,17 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.cucina_db import get_cucina_connection
 from app.services.auth_service import get_current_user
 from app.services.allergeni_service import (
     update_recipe_allergens_cache,
     recompute_all_recipes_allergens,
+    ricalcola_risalendo,
 )
 from app.services.foodcost_history_service import compute_recipe_fc_history
+from app.services.foodcost_prezzo_service import contesto_pranzo, prezzo_riferimento
 
 from app.services.permessi import richiede_ruoli
 
@@ -69,9 +73,20 @@ class RecipeCategoryCreate(BaseModel):
 class RecipeItemIn(BaseModel):
     ingredient_id: Optional[int] = None
     sub_recipe_id: Optional[int] = None
-    qty: float = Field(..., gt=0)
+    qty: float = Field(..., ge=0)
     unit: str = Field(..., min_length=1)
     note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _qty_o_qb(self):
+        # Le voci 'qb' (quanto basta) hanno qty 0 e restano fuori dal food cost, come
+        # nell'import. Prima qui c'era gt=0: una ricetta importata con voci 'qb' non si
+        # poteva più salvare dalla pagina di modifica (422).
+        if _is_qb(self.unit):
+            self.qty, self.unit = 0.0, "qb"
+        elif self.qty <= 0:
+            raise ValueError("quantità maggiore di zero (o unità 'qb')")
+        return self
 
 
 class RecipeCreate(BaseModel):
@@ -172,7 +187,12 @@ class RecipeOut(BaseModel):
     # Food cost calcolati
     total_cost: Optional[float] = None         # costo totale ricetta
     cost_per_unit: Optional[float] = None      # costo per unità di resa (€/porzione, €/kg)
-    food_cost_pct: Optional[float] = None      # % food cost su selling_price
+    food_cost_pct: Optional[float] = None      # % food cost su prezzo_riferimento
+    # Prezzo usato per il food cost (mig 212): selling_price, o il valore del pranzo
+    prezzo_riferimento: Optional[float] = None
+    prezzo_fonte: Optional[str] = None         # "ricetta" | "pranzo" | None
+    valore_pranzo: Optional[float] = None      # valorizzato se è un piatto del pranzo
+    food_cost_pct_pranzo: Optional[float] = None  # solo se piatto del pranzo CON prezzo suo
     # Allergeni (Modulo C, 2026-04-27): cache ricorsiva da ingredients.allergeni
     allergeni_calcolati: Optional[str] = None  # CSV ordinato (es. "glutine,latte,uova")
 
@@ -190,11 +210,14 @@ class RecipeListItem(BaseModel):
     total_cost: Optional[float] = None
     cost_per_unit: Optional[float] = None
     food_cost_pct: Optional[float] = None
+    prezzo_riferimento: Optional[float] = None  # mig 212: prezzo usato per il food cost
+    prezzo_fonte: Optional[str] = None          # "ricetta" | "pranzo" | None
     # Campi menu/preventivi (mig 074)
     menu_name: Optional[str] = None
     menu_description: Optional[str] = None
     kind: Optional[str] = None
     service_type_ids: List[int] = []
+    n_voci: int = 0  # 0 = composizione vuota (es. piatto creato dal preventivo, da riempire)
 
 
 # ─────────────────────────────────────────────
@@ -585,8 +608,14 @@ def _calc_item_cost(cur, item, visited: Set[int]) -> Optional[float]:
     return None
 
 
-def _enrich_recipe_with_costs(cur, recipe: dict) -> dict:
-    """Aggiunge i campi food cost calcolati a un dict ricetta."""
+def _enrich_recipe_with_costs(cur, recipe: dict, ctx: Optional[dict] = None) -> dict:
+    """Aggiunge i campi food cost calcolati a un dict ricetta.
+
+    Il food cost si calcola sul prezzo di riferimento (foodcost_prezzo_service):
+    il prezzo della ricetta se c'è, altrimenti — per i piatti del pranzo — il
+    valore di Impostazioni → Menu Pranzo. `ctx` = contesto_pranzo() letto una
+    volta sola per le liste; se None si legge per questa ricetta.
+    """
     recipe_id = recipe["id"]
 
     total_cost = _calc_recipe_cost(cur, recipe_id)
@@ -598,16 +627,23 @@ def _enrich_recipe_with_costs(cur, recipe: dict) -> dict:
     else:
         recipe["cost_per_unit"] = None
 
-    if (
-        recipe["cost_per_unit"] is not None
-        and recipe.get("selling_price")
-        and recipe["selling_price"] > 0
-    ):
-        recipe["food_cost_pct"] = round(
-            (recipe["cost_per_unit"] / recipe["selling_price"]) * 100, 2
-        )
+    rif = prezzo_riferimento(cur, recipe, ctx)
+    recipe["prezzo_riferimento"] = rif["prezzo"]
+    recipe["prezzo_fonte"] = rif["fonte"]
+    recipe["valore_pranzo"] = rif["valore_pranzo"]
+
+    cpu = recipe["cost_per_unit"]
+    if cpu is not None and rif["prezzo"]:
+        recipe["food_cost_pct"] = round((cpu / rif["prezzo"]) * 100, 2)
     else:
         recipe["food_cost_pct"] = None
+
+    # Piatto del pranzo che ha anche un prezzo suo: food cost «pranzo» in più
+    # (mostrato solo nella scheda ricetta — decisione Marco 2026-10-25)
+    if cpu is not None and rif["fonte"] == "ricetta" and rif["valore_pranzo"]:
+        recipe["food_cost_pct_pranzo"] = round((cpu / rif["valore_pranzo"]) * 100, 2)
+    else:
+        recipe["food_cost_pct_pranzo"] = None
 
     return recipe
 
@@ -763,6 +799,10 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
         total_cost=rec_dict.get("total_cost"),
         cost_per_unit=rec_dict.get("cost_per_unit"),
         food_cost_pct=rec_dict.get("food_cost_pct"),
+        prezzo_riferimento=rec_dict.get("prezzo_riferimento"),
+        prezzo_fonte=rec_dict.get("prezzo_fonte"),
+        valore_pranzo=rec_dict.get("valore_pranzo"),
+        food_cost_pct_pranzo=rec_dict.get("food_cost_pct_pranzo"),
         allergeni_calcolati=rec_dict.get("allergeni_calcolati"),
     )
 
@@ -902,10 +942,11 @@ def dashboard_stats():
         """
     ).fetchall()
 
+    ctx = contesto_pranzo(cur, [r["id"] for r in rows])
     ricette = []
     for row in rows:
         d = dict(row)
-        d = _enrich_recipe_with_costs(cur, d)
+        d = _enrich_recipe_with_costs(cur, d, ctx)
         ricette.append(d)
 
     conn.close()
@@ -937,14 +978,19 @@ def dashboard_stats():
         "food_cost_medio": round(avg_fc, 1),
         "ricette_critiche": len(critiche),
         "ricette_buone": len(buone),
+        # quante delle ricette con FC usano il valore del pranzo (mig 212)
+        "ricette_fc_pranzo": len([r for r in attive if r.get("food_cost_pct") is not None and r.get("prezzo_fonte") == "pranzo"]),
+        "valore_piatto_pranzo": ctx.get("valore"),
         "top_food_cost": [
             {"id": r["id"], "name": r["name"], "category": r.get("category_name"), "food_cost_pct": round(r["food_cost_pct"], 1),
-             "total_cost": round(r.get("total_cost", 0), 2), "selling_price": r.get("selling_price")}
+             "total_cost": round(r.get("total_cost", 0), 2), "selling_price": r.get("selling_price"),
+             "prezzo_riferimento": r.get("prezzo_riferimento"), "prezzo_fonte": r.get("prezzo_fonte")}
             for r in top_fc
         ],
         "best_margin": [
             {"id": r["id"], "name": r["name"], "category": r.get("category_name"), "food_cost_pct": round(r["food_cost_pct"], 1),
-             "total_cost": round(r.get("total_cost", 0), 2), "selling_price": r.get("selling_price")}
+             "total_cost": round(r.get("total_cost", 0), 2), "selling_price": r.get("selling_price"),
+             "prezzo_riferimento": r.get("prezzo_riferimento"), "prezzo_fonte": r.get("prezzo_fonte")}
             for r in best_margin
         ],
     }
@@ -1121,11 +1167,20 @@ def list_ricette(
                 rst_map.setdefault(rr["recipe_id"], []).append(rr["service_type_id"])
         except Exception:
             pass
+        voci_map = {
+            rr["recipe_id"]: rr["n"] for rr in cur.execute(
+                f"SELECT recipe_id, COUNT(*) AS n FROM recipe_items WHERE recipe_id IN ({placeholders}) GROUP BY recipe_id",
+                ids,
+            ).fetchall()
+        }
+    else:
+        voci_map = {}
 
+    ctx = contesto_pranzo(cur, [r["id"] for r in rows])
     result = []
     for row in rows:
         d = dict(row)
-        d = _enrich_recipe_with_costs(cur, d)
+        d = _enrich_recipe_with_costs(cur, d, ctx)
         result.append(RecipeListItem(
             id=d["id"],
             name=d["name"],
@@ -1138,11 +1193,14 @@ def list_ricette(
             total_cost=d.get("total_cost"),
             cost_per_unit=d.get("cost_per_unit"),
             food_cost_pct=d.get("food_cost_pct"),
+            prezzo_riferimento=d.get("prezzo_riferimento"),
+            prezzo_fonte=d.get("prezzo_fonte"),
             menu_name=d.get("menu_name"),
             menu_description=d.get("menu_description"),
             kind=d.get("kind") or ("base" if bool(d.get("is_base")) else "dish"),
             service_type_ids=rst_map.get(d["id"], []),
             allergeni_calcolati=d.get("allergeni_calcolati"),
+            n_voci=voci_map.get(d["id"], 0),
         ))
 
     conn.close()
@@ -2047,8 +2105,9 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
         # Modulo C: ricalcolo allergeni cache se gli items sono stati toccati
         # (anche su update header-only ricalcoliamo per allinearsi a eventuali
         # cambi ingredients.allergeni avvenuti nel frattempo — costo trascurabile)
+        # (2026-10-25) anche i piatti che la usano come base: prima restavano vecchi
         try:
-            update_recipe_allergens_cache(recipe_id, conn=conn)
+            ricalcola_risalendo([recipe_id], conn)
         except Exception as _e:
             import logging
             logging.getLogger("foodcost").warning(f"[allergeni] ricalcolo update fail recipe={recipe_id}: {_e}")

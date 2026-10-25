@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# @version: v1.0-allergeni-recursive (Modulo C, 2026-04-27)
+# @version: v1.1 (2026-10-25) — ricalcola_risalendo / ricalcola_per_ingrediente: la cache risale ai piatti che usano la base
+# v1.0-allergeni-recursive (Modulo C, 2026-04-27)
 # -*- coding: utf-8 -*-
 """
 Servizio calcolo allergeni ricette (Modulo C audit cucina).
@@ -20,6 +21,9 @@ Trigger di ricalcolo:
 - Automatico in POST/PUT ricetta (modifica items)
 - On-demand via endpoint POST /foodcost/ricette/{id}/ricalcola-allergeni
 - Batch via endpoint POST /foodcost/ricette/ricalcola-allergeni-tutti
+- Automatico in PUT ingrediente (se cambiano gli allergeni) e nell'unione di due
+  ingredienti: ricalcola_per_ingrediente (ricette che lo usano + chi le usa come base)
+- In PUT ricetta si ricalcola anche chi la usa come sotto-ricetta (ricalcola_risalendo)
 
 Format CSV: lowercase, separato da virgola, ordinato alfabeticamente.
 Esempio: "glutine,latte,uova,sedano".
@@ -182,6 +186,39 @@ def recompute_all_recipes_allergens() -> Dict[str, Any]:
         }
     finally:
         conn.close()
+
+
+def ricalcola_risalendo(recipe_ids, conn) -> List[int]:
+    """
+    Ricalcola la cache delle ricette date e, risalendo, di quelle che le usano come
+    sotto-ricetta (una base con un allergene nuovo lo passa a ogni piatto che la
+    contiene, a qualunque livello). Usa la conn di chi chiama, NON fa commit.
+    Ritorna gli id ricalcolati. Protetto dai cicli (ogni ricetta una volta sola).
+    """
+    ids = {int(r) for r in recipe_ids if r}
+    frontiera = set(ids)
+    while frontiera:
+        ph = ",".join("?" * len(frontiera))
+        sopra = {r["recipe_id"] for r in conn.execute(
+            f"SELECT DISTINCT recipe_id FROM recipe_items WHERE sub_recipe_id IN ({ph})",
+            list(frontiera),
+        ).fetchall()}
+        frontiera = sopra - ids
+        ids |= sopra
+    # le basi prima dei piatti non serve: compute_recipe_allergens ricorre da sé
+    for rid in sorted(ids):
+        update_recipe_allergens_cache(rid, conn=conn)
+    return sorted(ids)
+
+
+def ricalcola_per_ingrediente(ingredient_id: int, conn) -> List[int]:
+    """Ricalcola le ricette che usano l'ingrediente e chi le usa (ricalcola_risalendo).
+    Da chiamare dopo un cambio dei suoi allergeni o un'unione. NON fa commit."""
+    dirette = [r["recipe_id"] for r in conn.execute(
+        "SELECT DISTINCT recipe_id FROM recipe_items WHERE ingredient_id = ?",
+        (ingredient_id,),
+    ).fetchall()]
+    return ricalcola_risalendo(dirette, conn)
 
 
 # ─────────────────────────────────────────────────────────────

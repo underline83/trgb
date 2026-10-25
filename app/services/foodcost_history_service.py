@@ -11,7 +11,8 @@ o settimanali) usando i prezzi degli ingredienti **vigenti in quella data**
 Per ogni snapshot:
   - costo_totale = sum(item.qty * unit_price_alla_data)
   - cost_per_unit = costo_totale / yield_qty
-  - food_cost_pct = (cost_per_unit / selling_price) * 100
+  - food_cost_pct = (cost_per_unit / prezzo di riferimento) * 100
+    (selling_price, o il valore del piatto del pranzo — foodcost_prezzo_service, mig 212)
 
 Use case (Modulo F.2):
   - UI scheda ricetta tab Storico: grafico Recharts trend FC ultimi 6 mesi
@@ -44,6 +45,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.models.cucina_db import get_cucina_connection
+from app.services.foodcost_prezzo_service import prezzo_riferimento
 
 logger = logging.getLogger("foodcost_history")
 
@@ -188,13 +190,18 @@ def compute_recipe_fc_history(
         if not rec:
             return {"recipe_id": recipe_id, "snapshots": [], "error": "Ricetta non trovata"}
 
+        # Prezzo di riferimento (mig 212): il prezzo della ricetta o, per i piatti
+        # del pranzo senza prezzo, il valore di Impostazioni → Menu Pranzo.
+        rif = prezzo_riferimento(conn.cursor(), {"id": rec["id"], "selling_price": rec["selling_price"]})
+        prezzo = rif["prezzo"]
+
         snapshot_dates = _genera_snapshot_dates(giorni, intervallo)
         snapshots = []
         for d in snapshot_dates:
             stats = _compute_recipe_cost_at_date(conn, recipe_id, d)
             food_cost_pct = None
-            if stats["cost_per_unit"] is not None and rec["selling_price"]:
-                food_cost_pct = (stats["cost_per_unit"] / rec["selling_price"]) * 100
+            if stats["cost_per_unit"] is not None and prezzo:
+                food_cost_pct = (stats["cost_per_unit"] / prezzo) * 100
             completezza = 0
             if stats["n_ingredienti_totali"] > 0:
                 completezza = (stats["n_ingredienti_con_prezzo"] / stats["n_ingredienti_totali"]) * 100
@@ -205,6 +212,7 @@ def compute_recipe_fc_history(
                 "cost_per_unit": round(stats["cost_per_unit"], 2) if stats["cost_per_unit"] is not None else None,
                 "food_cost_pct": round(food_cost_pct, 1) if food_cost_pct is not None else None,
                 "selling_price": rec["selling_price"],
+                "prezzo_riferimento": prezzo,
                 "n_ingredienti_con_prezzo": stats["n_ingredienti_con_prezzo"],
                 "n_ingredienti_totali": stats["n_ingredienti_totali"],
                 "completezza_pct": round(completezza, 1),
@@ -218,6 +226,8 @@ def compute_recipe_fc_history(
             "recipe_id": recipe_id,
             "recipe_name": rec["name"],
             "selling_price": rec["selling_price"],
+            "prezzo_riferimento": prezzo,
+            "prezzo_fonte": rif["fonte"],
             "intervallo": intervallo,
             "snapshots": snapshots,
             "delta_30gg": delta_30,

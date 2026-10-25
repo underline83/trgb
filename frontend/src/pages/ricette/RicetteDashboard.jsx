@@ -6,6 +6,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
 import { Btn } from "../../components/ui";
+import PrezzoVendita, { EtichettaPranzo } from "./PrezzoVendita";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -106,6 +107,13 @@ export default function RicetteDashboard() {
                 color="text-green-600"
               />
             </div>
+            {stats.ricette_fc_pranzo > 0 && (
+              <p className="-mt-4 mb-6 text-xs text-neutral-500">
+                <EtichettaPranzo valore={stats.valore_piatto_pranzo} />{" "}
+                {stats.ricette_fc_pranzo} piatti del pranzo di lavoro senza prezzo loro: il food cost è calcolato
+                su {Number(stats.valore_piatto_pranzo).toFixed(2)} € (Impostazioni → Menu Pranzo).
+              </p>
+            )}
 
             {/* TABELLE AFFIANCATE */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -136,7 +144,7 @@ export default function RicetteDashboard() {
                           <td className="p-3 font-medium text-neutral-900">{r.name}</td>
                           <td className="p-3 text-neutral-600">{r.category || "—"}</td>
                           <td className="p-3 text-right">{r.total_cost.toFixed(2)} €</td>
-                          <td className="p-3 text-right">{r.selling_price ? `${r.selling_price.toFixed(2)} €` : "—"}</td>
+                          <td className="p-3 text-right"><PrezzoVendita r={r} /></td>
                           <td className="p-3 text-center"><FcBadge pct={r.food_cost_pct} /></td>
                         </tr>
                       ))}
@@ -175,7 +183,7 @@ export default function RicetteDashboard() {
                           <td className="p-3 font-medium text-neutral-900">{r.name}</td>
                           <td className="p-3 text-neutral-600">{r.category || "—"}</td>
                           <td className="p-3 text-right">{r.total_cost.toFixed(2)} €</td>
-                          <td className="p-3 text-right">{r.selling_price ? `${r.selling_price.toFixed(2)} €` : "—"}</td>
+                          <td className="p-3 text-right"><PrezzoVendita r={r} /></td>
                           <td className="p-3 text-center"><FcBadge pct={r.food_cost_pct} /></td>
                         </tr>
                       ))}

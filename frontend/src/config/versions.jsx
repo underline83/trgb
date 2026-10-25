@@ -170,7 +170,13 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   ricette: {
-    version: "3.33",
+    // 3.34 (2026-10-25): connettore MCP ricette/ingredienti (server 1.7); voci «qb» salvabili
+    //   dalla modifica; allergeni ricalcolati anche nei piatti che usano la base e dopo
+    //   modifica/unione di un ingrediente; n_voci nell'elenco ricette.
+    // 3.35 (2026-10-25): food cost dei piatti del pranzo di lavoro senza prezzo sul valore
+    //   di Impostazioni → Menu Pranzo (mig 212, foodcost_prezzo_service), etichetta «pranzo»
+    //   in archivio, dashboard e scheda; FC pranzo in più nella scheda se il piatto ha un prezzo suo.
+    version: "3.35",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
@@ -254,13 +260,15 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
+    // 1.10 (2026-10-25): «Valore vendita piatto (food cost)» nelle impostazioni Menu Pranzo
+    //   (mig 212, default 10 €).
     // 1.9 (2026-10-24): GET /pranzo/public/settimana/ pubblico (CORS *) per la
     //   sezione Pranzo del sito tregobbi.it/menu/ (QR): menu della settimana,
     //   prezzi Menù Business e note di servizio, letti dal browser del cliente.
     // 1.8 (2026-08-03): "Pubblica il menu sul sito" nel compositore (mattone
     //   M.J): il PDF cliente della settimana finisce da solo sull'FTP
     //   dell'hosting, nome remoto fisso -> link su WordPress invariato.
-    version: "1.9",
+    version: "1.10",
     label: "Menu Pranzo del Giorno",
     status: "beta",
     color: "blue",
@@ -607,6 +615,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.77 (2026-10-25): mig 212 — pranzo_settings.valore_piatto_fc, valore di vendita dei
+    //   piatti del pranzo per il food cost (ricette 3.35, pranzo 1.10).
     // 5.76 (2026-10-23): mig 211 — banca_uscite_link, tranche delle uscite dirette
     //   pagate in più bonifici (Flussi di Cassa 1.23).
     // 5.75 (2026-10-23): mig 210 — modulo nuovo «sito» (visite del sito): sito.sqlite3, POST /public/sito/evento, Statistiche › Sito (statistiche 1.3), strumento MCP visite_sito_riepilogo.
@@ -711,7 +721,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.76",
+    version: "5.77",
     label: "Sistema",
     status: "stabile",
     color: "green",

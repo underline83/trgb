@@ -1305,6 +1305,19 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
         n_piatti = (row["piatti"] if row else 0) or 0
         n_basi = (row["basi"] if row else 0) or 0
         n_con_prezzo = (row["con_prezzo"] if row else 0) or 0
+        # Piatti del pranzo senza prezzo: hanno il valore di Impostazioni → Menu Pranzo (mig 212)
+        try:
+            from app.services.foodcost_prezzo_service import contesto_pranzo
+            _ctx = contesto_pranzo(conn.cursor())
+            if _ctx["valore"] and _ctx["ids"]:
+                _ph = ",".join("?" * len(_ctx["ids"]))
+                n_con_prezzo += conn.execute(
+                    f"SELECT COUNT(*) FROM recipes WHERE id IN ({_ph}) AND COALESCE(is_active,1)=1 "
+                    "AND (selling_price IS NULL OR selling_price <= 0)",
+                    list(_ctx["ids"]),
+                ).fetchone()[0]
+        except Exception:
+            pass
         n_senza_prezzo = max(0, n_piatti - n_con_prezzo)
         conn.close()
 

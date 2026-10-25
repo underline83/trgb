@@ -1,4 +1,5 @@
-// @version: v1.0 — Pannello impostazioni Menu Pranzo (sessione 58, 2026-04-26)
+// @version: v1.1 — Pannello impostazioni Menu Pranzo (sessione 58, 2026-04-26; v1.1 2026-10-25 valore vendita piatto per il food cost)
+// Modulo: cucina (sub-modulo pranzo)
 //
 // Vive dentro RicetteSettings (sidebar Impostazioni Cucina, sezione "Menu Pranzo").
 // La pagina PranzoMenu non ha piu' una tab Impostazioni: rimanda qui.
@@ -46,6 +47,8 @@ export default function PranzoSettingsPanel() {
           prezzo_1_default: Number(form.prezzo_1_default),
           prezzo_2_default: Number(form.prezzo_2_default),
           prezzo_3_default: Number(form.prezzo_3_default),
+          valore_piatto_fc: form.valore_piatto_fc === "" || form.valore_piatto_fc == null
+            ? 0 : Number(form.valore_piatto_fc),
           footer_default: form.footer_default,
           ig_telefono: form.ig_telefono || "",
           ig_indirizzo: form.ig_indirizzo || "",
@@ -134,6 +137,25 @@ export default function PranzoSettingsPanel() {
             />
           </div>
         ))}
+        {/* Valore di vendita per il food cost (mig 212, 2026-10-25) */}
+        <div className="pt-3 mt-1 border-t border-neutral-200">
+          <div className="flex items-center gap-3">
+            <label className="w-28 text-sm text-neutral-600">Valore vendita piatto (food cost)</label>
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              value={form.valore_piatto_fc ?? ""}
+              onChange={(e) => update("valore_piatto_fc", e.target.value)}
+              className="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <p className="text-xs text-neutral-500 mt-2">
+            Il food cost dei piatti del pranzo di lavoro senza un prezzo loro si calcola su questo valore
+            (il resto del prezzo del menu copre le altre spese). Se il piatto ha un prezzo suo vince quello.
+            Lascia 0 per non usarlo.
+          </p>
+        </div>
       </div>
 
       {/* Footer */}

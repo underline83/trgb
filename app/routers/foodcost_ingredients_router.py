@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# @version: v1.4-foodcost-ingredients-conversions
+# @version: v1.5 (2026-10-25) — allergeni: PUT ingrediente e unione ricalcolano le ricette che lo usano
+# v1.4-foodcost-ingredients-conversions
 # -*- coding: utf-8 -*-
 """
 Router anagrafica ingredienti (foodcost)
@@ -30,6 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.models.cucina_db import get_cucina_connection
+from app.services.allergeni_service import ricalcola_per_ingrediente
 from app.services.auth_service import get_current_user
 
 
@@ -599,6 +601,9 @@ def update_ingredient(ingredient_id: int, payload: IngredientUpdate):
             cur.execute(
                 f"UPDATE ingredients SET {', '.join(updates)} WHERE id = ?", params
             )
+            if payload.allergeni is not None:
+                # le ricette tengono gli allergeni in cache: senza questo restavano vecchi
+                ricalcola_per_ingrediente(ingredient_id, conn)
             conn.commit()
 
         row = _fetch_ingredient_detail(cur, ingredient_id)
@@ -659,6 +664,8 @@ def merge_ingredient(ingredient_id: int, payload: IngredientMergeRequest):
             (payload.target_id, ingredient_id),
         )
         cur.execute("DELETE FROM ingredients WHERE id = ?", (ingredient_id,))
+        # le voci spostate ora portano gli allergeni del target
+        ricalcola_per_ingrediente(payload.target_id, conn)
 
         conn.commit()
         return {

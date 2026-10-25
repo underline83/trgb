@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-25 — Food cost dei piatti del pranzo `[core]`
+
+Sistema 5.77, ricette 3.35, pranzo 1.10, **mig 212**. I piatti del pranzo di lavoro non hanno un prezzo loro (si paga il Menù Business) e il loro food cost era «n/d». Ora in Impostazioni → Menu Pranzo c'è «Valore vendita piatto (food cost)», default 10 €: il food cost di un piatto del pranzo senza prezzo suo si calcola su quel valore. Se il piatto ha un prezzo suo (es. sta anche in carta) vince quello, e la scheda mostra in più il food cost «pranzo». Ovunque compare il valore del pranzo c'è l'etichetta «PRANZO» (archivio, dashboard Food Cost, scheda ricetta); vale anche per lo storico del food cost, il widget Home («senza prezzo») e il connettore. Il prezzo della ricetta non viene toccato. File: `foodcost_prezzo_service.py` (nuovo), mig 212, `pranzo_repository.py`, `pranzo_router.py`, `foodcost_recipes_router.py`, `foodcost_history_service.py`, `dashboard_router.py`, `connettore/server.py`, `PrezzoVendita.jsx` (nuovo), `PranzoSettingsPanel.jsx`, `RicetteArchivio/Dashboard/Dettaglio.jsx`.
+
+## 2026-10-25 — Claude in cucina: ricette e ingredienti dal connettore `[core]`
+
+Connettore MCP 1.7, ricette 3.34, nessuna migrazione. Otto strumenti nuovi per Claude, sopra le funzioni della pagina Ricette: cercare, leggere e completare ricette (`ricette_cerca`, `ricetta_leggi`, `ricetta_aggiorna`), importarne di nuove con anteprima e correzione degli abbinamenti (`ricetta_importa`, ferma i doppioni), cercare e completare gli ingredienti (`ingredienti_cerca`, `ingrediente_aggiorna`, `ingrediente_prezzo_aggiungi` col fornitore per nome, `ingrediente_unisci`). Valgono anche per le pagine: gli allergeni di un ingrediente ora arrivano a tutte le ricette che lo usano e ai piatti che usano quelle basi (prima restavano vecchi); le ricette con voci «qb» si salvano di nuovo dalla modifica; l'elenco ricette dice quante voci ha ogni ricetta. `VERSION` riallineato a 5.76.
+
 ## 2026-10-24 — Menu pranzo pubblico per il sito `[core]`
 
 Pranzo 1.9, nessuna migrazione. Nuovo `GET /pranzo/public/settimana/` (pubblico, senza login): il menu pranzo della settimana corrente con testata, prezzi del Menù Business, note di servizio e piatti per categoria, nello stesso ordine del PDF. Serve alla sezione «Pranzo» di `tregobbi.it/menu/`, la pagina del QR, che lo legge dal browser del cliente: il menu salvato in TRGB compare sul sito senza PDF e senza rilanciare il build. CORS `*` solo su questo endpoint (dato pubblico, niente credenziali), cache 5 minuti, sempre 200 (`disponibile:false` senza menu). Non escono recipe_id, note interne delle righe, autore, food cost. Il vecchio `/privata/pranzo.pdf` resta aggiornabile col bottone «Pubblica sul sito» ma il QR non ci punta più.

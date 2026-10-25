@@ -246,6 +246,7 @@ class SettingsUpdate(BaseModel):
     prezzo_1_default: Optional[float] = None
     prezzo_2_default: Optional[float] = None
     prezzo_3_default: Optional[float] = None
+    valore_piatto_fc: Optional[float] = Field(None, ge=0)  # food cost dei piatti del pranzo (mig 212)
     footer_default: Optional[str] = None
     ig_telefono: Optional[str] = None
     ig_indirizzo: Optional[str] = None

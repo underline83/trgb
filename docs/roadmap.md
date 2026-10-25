@@ -719,6 +719,7 @@ Oggi il connettore (M.K) espone solo le pratiche: per tutto il resto Claude deve
 | MK.3 | Preventivi / eventi: elenco, leggi, crea bozza preventivo, segna caparra | M | DA FARE | Cene di gruppo (Tenaris, lauree…). Esporre anche i campi a corpo del menu (`pricing_mode`, `prezzo_corpo`, `prezzo_corpo_vino`, `doppio_prezzo`, `prezzo_corpo_scelta`), `menu_scelto_id`, stagione dei template e `testo_cliente()` (mig 187, già nel service) |
 | MK.4 | Fornitori e fatture: cerca fornitore, fatture aperte/non pagate | S | DA FARE | Solo lettura all'inizio |
 | MK.5 | Turni / chiamate intermittenti: leggi turni, registra chiamata | M | DA VALUTARE | |
+| MK.8 | Ricette e ingredienti: `ricette_cerca`, `ricetta_leggi`, `ricetta_aggiorna`, `ricetta_importa` (anteprima + override, blocco doppioni), `ingredienti_cerca`, `ingrediente_prezzo_aggiungi`, `ingrediente_aggiorna`, `ingrediente_unisci` | M | ✅ FATTO 2026-10-25 (da pushare) | Server 1.7, ricette 3.34. Con fix allergeni che risalgono ai piatti e voci «qb» salvabili. `connettore_mcp.md` §4, `modulo_ricette_foodcost.md` §3.3 |
 
 ### ML — Posta nel connettore MCP (deciso con Marco 2026-10-10)
 
