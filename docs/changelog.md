@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-25 — Gift card: etichetta in PDF 62×29 e «Prenota il tavolo» `[mixed]`
+
+Clienti 3.17, prenotazioni 2.22, nessuna migrazione. L'etichetta non si stampa più come pagina web: Safari ignorava la misura 62×29 e mandava un A4 alla stampante predefinita con intestazioni. Ora esce un PDF della misura esatta (`utils/pdfEtichetta.js`, vettoriale, senza librerie) che si apre in una scheda: Stampa → Brother; funziona anche da iPad via AirPrint. Dopo «Emetti» si apre la card con «🏷️ Etichetta QR». Sulla pagina `/regalo` del cliente, se il buono è valido, c'è «Prenota il tavolo»: widget TRGB con la nota «Gift card <codice>» già scritta, oppure TheFork (`locale.json → prenota_esterno`, `[locale:tregobbi]`) finché il widget TRGB è spento.
+
 ## 2026-10-25 — Gift card: etichetta QR sul buono `[mixed]`
 
 Sistema 5.78, clienti 3.16, **mig 213**. Il buono stampato ha un riquadro per un'etichetta: dalla pagina Gift Card (🏷️ sulla riga, «Etichetta QR» nel dettaglio, e da sola dopo l'emissione) si stampa sulla Brother QL-820NWB un'etichetta 62×29 (DK-11209) con QR, codice e scadenza. Il QR non porta il codice (si indovina in sequenza) ma una chiave casuale (`clienti_giftcard.token_pubblico`, assegnata anche alle card già emesse) e apre `/regalo/<chiave>`: chi non è loggato vede cosa gli hanno regalato, se è valido e fino a quando, **mai l'importo**; un telefono loggato in TRGB vede la card completa con **Scarica** a due tocchi. Endpoint nuovi: `GET /public/regalo/{token}` (pubblico), `GET /clienti/giftcard/qr/{token}`, `GET /clienti/giftcard/{id}/etichetta`. `[locale:tregobbi]`: colori della pagina in `branding.json → giftcard` (bordeaux del buono). Il QR SVG è ora `components/QrSvg.jsx`, condiviso con le etichette vini. Doc: `modulo_clienti_crm.md` §16.6b.

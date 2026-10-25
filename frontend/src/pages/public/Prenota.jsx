@@ -1,4 +1,4 @@
-// @version: v1.1 — indirizzo dedicato prenota.<dominio>: API sullo stesso indirizzo (/api/public/prenota); v1.0 — prenotazioni dal sito (2026-10-20, mig 205)
+// @version: v1.2 — PrenotaIncorporata: il widget dentro altre pagine pubbliche (gift card /regalo), con nota precompilata (2026-10-25); v1.1 — indirizzo dedicato prenota.<dominio>: API sullo stesso indirizzo (/api/public/prenota); v1.0 — prenotazioni dal sito (2026-10-20, mig 205)
 // Pagina pubblica /prenota (anche dentro il sito in iframe) e /prenota/annulla/:token.
 // Senza login: usa fetch diretto. Se nel browser c'è il token di un admin lo manda,
 // così l'anteprima funziona anche quando il widget non è ancora attivo.
@@ -156,7 +156,7 @@ function Calendario({ t, mese, setMese, giorni, scelto, onScegli, minMese, maxMe
   );
 }
 
-function Prenotazione() {
+function Prenotazione({ notaIniziale = "" }) {
   const [lingua, setLingua] = useState(linguaIniziale);
   const t = T[lingua];
   const radice = useRef(null);
@@ -170,7 +170,8 @@ function Prenotazione() {
   const [data, setData] = useState(null);
   const [orari, setOrari] = useState(null);
   const [ora, setOra] = useState(null);
-  const [f, setF] = useState({ nome: "", cognome: "", telefono: "", email: "", occasione: "", allergie: "", note: "", privacy: false, sito_web: "" });
+  const vuoto = { nome: "", cognome: "", telefono: "", email: "", occasione: "", allergie: "", note: notaIniziale, privacy: false, sito_web: "" };
+  const [f, setF] = useState(vuoto);
   const [errore, setErrore] = useState(null);
   const [invio, setInvio] = useState(false);
   const [fatto, setFatto] = useState(null);
@@ -374,6 +375,32 @@ function Annulla() {
       {stato === "fatto" && <p className="text-lg">{t.annullata}</p>}
     </div>
   );
+}
+
+/**
+ * Il widget dentro un'altra pagina pubblica (es. /regalo/<chiave> della gift card).
+ * `nota` precompila «Note per noi» (il cliente la vede e la può cambiare).
+ * Le regole restano quelle del widget: se `widget_attivo` è 0 mostra «non attive»,
+ * quindi chi lo incorpora controlla prima /public/prenota/info (vedi `widgetAttivo`).
+ */
+export function PrenotaIncorporata({ nota }) {
+  return (
+    <>
+      <style>{STILE}</style>
+      <Prenotazione notaIniziale={nota || ""} />
+    </>
+  );
+}
+
+/** true se il widget TRGB accetta prenotazioni (o se un admin loggato è in anteprima). */
+export async function widgetAttivo() {
+  try {
+    const r = await chiama("/info");
+    const d = await r.json();
+    return !!d.attivo;
+  } catch {
+    return false;
+  }
 }
 
 export default function Prenota({ annulla }) {

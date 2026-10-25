@@ -454,6 +454,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.17 (2026-10-25): etichetta gift card come PDF 62×29 (Safari ignorava la misura e stampava A4
+    //   sulla stampante predefinita); «Prenota il tavolo» nella pagina /regalo (widget TRGB con nota
+    //   «Gift card <codice>», TheFork da locale.json → prenota_esterno se il widget è spento).
     // 3.16 (2026-10-25): gift card, etichetta QR 62×29 (Brother QL-820NWB, DK-11209) da incollare
     //   sul buono stampato; il QR apre /regalo/<chiave>: il cliente vede cosa gli hanno regalato
     //   (mai l'importo), lo staff loggato la card con Scarica a due tocchi. Mig 213.
@@ -502,12 +505,13 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.16",
+    version: "3.17",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.22 (2026-10-25): PrenotaIncorporata — il widget dentro la pagina della gift card (/regalo), con la nota precompilata.
     // 2.21 (2026-10-20): indirizzo dedicato prenota.tregobbi.it per le prenotazioni dal sito.
     // 2.20 (2026-10-20): prenotazioni dal sito — pagina pubblica /prenota (anche in iframe), email al cliente, richieste per i gruppi.
     // 2.19 (2026-10-20): nome cliente mostrato anche quando c'è solo il cognome (prima «—»).
@@ -517,7 +521,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.21",
+    version: "2.22",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

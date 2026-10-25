@@ -1,12 +1,12 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-25 — **DA PUSHARE:** gift card etichetta QR + /regalo (mig 213, sistema 5.78). Pushato: voci «qb» (7ac2a5bb). Pushati: food cost pranzo + connettore ricette (f4d774ba), menu pranzo pubblico (ecddc43c), riconciliazione uscite in più bonifici (e101541a, mig 211). 2026-10-16 — **Pushati (b29003e4):** /uploads pubblico solo per menu_carta (verificato in produzione: 404 sui link diretti, 401 senza login, download da admin confermato da Marco), Candidati (mig 188, sistema 5.52), bozze preventivi in lista (clienti 3.3), e — entrato nello stesso commit — il lavoro TheFork di un'altra sessione (mig 189 applicata). Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-25 — **DA PUSHARE:** gift card etichetta in PDF 62×29 + «Prenota il tavolo» su /regalo (clienti 3.17, prenotazioni 2.22, nessuna migrazione). Pushati: etichetta QR + /regalo (d8171a2c, mig 213, sistema 5.78), voci «qb» (7ac2a5bb). Pushati: food cost pranzo + connettore ricette (f4d774ba), menu pranzo pubblico (ecddc43c), riconciliazione uscite in più bonifici (e101541a, mig 211). 2026-10-16 — **Pushati (b29003e4):** /uploads pubblico solo per menu_carta (verificato in produzione: 404 sui link diretti, 401 senza login, download da admin confermato da Marco), Candidati (mig 188, sistema 5.52), bozze preventivi in lista (clienti 3.3), e — entrato nello stesso commit — il lavoro TheFork di un'altra sessione (mig 189 applicata). Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.78 da pushare (5.77 pushato f4d774ba) · **Migrazione più recente:** 213 (da pushare)
+**Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
-**DA PUSHARE — Gift card: etichetta QR sul buono + pagina /regalo** (mig 213, sistema 5.78, clienti 3.16) `[mixed]` — vedi sessione 2026-10-25 (4). Dopo il push: card di prova → etichetta → scansione da telefono non loggato e loggato → annullare la prova.
+**DA PUSHARE — Gift card: etichetta PDF 62×29 + Prenota su /regalo** (clienti 3.17, prenotazioni 2.22) `[mixed]` — vedi sessione 2026-10-25 (5). Dopo il push: card di prova → 🏷️ → si apre il PDF 62×29 → Stampa → Brother (da Mac e da iPad); scansione da telefono non loggato → «Prenota il tavolo» apre TheFork (widget TRGB spento); annullare la prova.
 
 **DA PUSHARE — Voci «qb» nella modifica ricetta** (ricette 3.36, nessuna migrazione) `[core]` — `VoceQuantita.jsx` (nuovo: tendina con «qb», quantità disattivata, `rigaDaVoce`/`vociDaSalvare`), `RicetteModifica.jsx`, `RicetteNuova.jsx`, `app/services/ricette_qb.py` (nuovo: `is_qb` unico), `foodcost_recipes_router.py` (`_calc_item_cost`/`_enrich_items_with_costs`: qb fuori dal costo), `foodcost_history_service.py`, `versions.jsx`, docs. **Dopo il push:** aprire e salvare senza modifiche R229, R230, R231 (Ctrl+Shift+R prima); poi Claude sostituisce in R231 «Burro unigrana» con «Burro nostrano latini novita'» (45 g), dopo l'ok di Marco.
 
@@ -118,6 +118,12 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-25 (5) — Gift card: etichetta in PDF e «Prenota il tavolo» `[mixed]`
+
+Alla prima prova da Safari il dialogo proponeva HP Smart Tank, A4, intestazioni: Safari ignora `@page size` e una pagina web non può scegliere la stampante. Marco vuole stampare anche dagli iPad (la QL-820NWB fa AirPrint; consigliato cavo di rete + IP fisso). Soluzione: PDF 62×29 generato nel browser (`utils/pdfEtichetta.js`, nuovo, platform), aperto in scheda nuova aperta dentro il clic; dopo «Emetti» si apre la card (l'apertura automatica sarebbe bloccata). Pagina `/regalo`: «Prenota il tavolo» col widget TRGB incorporato (nota «Gift card <codice>») o TheFork da `locale.json → prenota_esterno` se il widget è spento (oggi `widget_attivo = 0`). Scelto da Marco: widget TRGB. Provati: PDF 175,7×82,2 pt, 1 pagina, qpdf ok, QR letto con OpenCV; rendering /regalo con widget acceso e spento. Non provato: stampa reale, iPad.
+
+Commit: `./push.sh "[mixed] Gift card: etichetta in PDF 62x29 (Mac e iPad) + Prenota il tavolo su /regalo (clienti 3.17, prenotazioni 2.22)"`
 
 ## SESSIONE 2026-10-25 (4) — Gift card: etichetta QR sul buono stampato `[mixed]`
 

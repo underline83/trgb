@@ -1,6 +1,7 @@
 // frontend/src/pages/public/Regalo.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.0 — pagina del QR sull'etichetta del buono (2026-10-25)
+// @version: v1.1 — «Prenota il tavolo»: widget TRGB con la nota della gift card, TheFork se è spento (2026-10-25)
+// v1.0 — pagina del QR sull'etichetta del buono (2026-10-25)
 //
 // /regalo/:token — la apre chi inquadra il QR incollato sul buono.
 // Stesso QR, due risposte:
@@ -15,6 +16,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+import { PrenotaIncorporata, widgetAttivo } from "./Prenota";
 
 const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
   "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
@@ -111,6 +113,7 @@ function VistaCliente({ pub, errore, c, nome }) {
   const valido = pub.esito === "valida";
 
   return (
+    <>
     <Riquadro c={c}>
       <div className="text-center text-sm uppercase mb-3" style={{ color: c.oro, letterSpacing: ".18em" }}>
         Ti hanno regalato
@@ -157,6 +160,56 @@ function VistaCliente({ pub, errore, c, nome }) {
         </div>
       )}
     </Riquadro>
+    {valido && <PrenotaRegalo pub={pub} c={c} />}
+    </>
+  );
+}
+
+// Prenotazione dalla pagina del regalo. Widget TRGB se è acceso: la prenotazione
+// nasce con «Gift card <codice>» nelle note, così in sala si sa già. Se è spento
+// (widget_attivo = 0) si prenota dal widget esterno del locale
+// (locale.json → prenota_esterno, oggi TheFork), lo stesso del sito.
+function PrenotaRegalo({ pub, c }) {
+  const [aperto, setAperto] = useState(false);
+  const [modo, setModo] = useState(null); // "trgb" | "esterno" | "nessuno"
+  const nota = `Gift card ${pub.codice}`;
+
+  const apri = async () => {
+    setAperto(true);
+    if (modo) return;
+    const attivo = await widgetAttivo();
+    setModo(attivo ? "trgb" : pub.locale?.prenota_esterno ? "esterno" : "nessuno");
+  };
+
+  if (!aperto) {
+    return (
+      <button type="button" onClick={apri}
+        className="mt-6 w-full max-w-md min-h-[52px] rounded-xl font-semibold tracking-wide"
+        style={{ background: c.oro_chiaro, color: c.fondo }}>
+        Prenota il tavolo
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-6 w-full max-w-xl bg-white rounded-2xl overflow-hidden shadow-lg">
+      {!modo && <div className="p-6 text-center text-neutral-400">…</div>}
+      {modo === "trgb" && <PrenotaIncorporata nota={nota} />}
+      {modo === "esterno" && (
+        <>
+          <div className="px-5 pt-4 pb-2 text-sm text-neutral-700">
+            Nelle note della prenotazione scrivi <b>{nota}</b>.
+          </div>
+          <iframe src={pub.locale.prenota_esterno} title="Prenota" allow="payment *"
+            className="w-full border-0" style={{ height: 760 }} />
+        </>
+      )}
+      {modo === "nessuno" && (
+        <div className="p-6 text-center text-neutral-700">
+          Le prenotazioni online non sono attive: contattaci e di' che hai la {nota}.
+        </div>
+      )}
+    </div>
   );
 }
 

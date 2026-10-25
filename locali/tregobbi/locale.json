@@ -12,6 +12,11 @@
   "creato_in_sessione": "60 (R1)",
   "note": "Personalizzazioni complete in branding.json (R2), strings.json (R5), seeds/ (R3), data/ (R6). Deploy su VPS Aruba, dominio trgb.tregobbi.it.",
   "moduli_attivi_default": "*",
+  "prenota_esterno": {
+    "url": "https://widget.thefork.com/it/69a43eb1-ea96-4b1b-a25c-a5bfa4a4a360",
+    "nome": "TheFork",
+    "nota": "Dove si prenota quando il widget TRGB è spento (widget_attivo = 0): lo usa la pagina del QR della gift card (/regalo). Stesso widget del sito."
+  },
   "sito": {
     "domini": [
       "tregobbi.it"

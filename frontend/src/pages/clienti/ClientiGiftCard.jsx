@@ -14,7 +14,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
-import StampaEtichettaGiftCard from "./EtichettaGiftCard";
+import { stampaEtichettaGiftCard } from "./EtichettaGiftCard";
+import { apriFinestraVuota } from "../../utils/pdfEtichetta";
 import {
   Btn, PageLayout, StatusBadge, EmptyState,
   FieldLabel, TextInput, Select, Textarea, Modal,
@@ -85,7 +86,6 @@ export default function ClientiGiftCard() {
   // Modali
   const [modaleNuova, setModaleNuova] = useState(false);
   const [dettaglio, setDettaglio] = useState(null);
-  const [etichetta, setEtichetta] = useState(null); // dati /etichetta in stampa
 
   const mostraToast = (testo, tone = "success") => {
     setToast({ testo, tone });
@@ -216,13 +216,17 @@ export default function ClientiGiftCard() {
 
   // Etichetta QR (Brother 62×29) da incollare nel riquadro del buono stampato.
   // Il backend assegna la chiave del QR se la card non l'ha ancora.
+  // Esce un PDF 62×29 in una scheda nuova (Stampa → Brother): la scheda si apre
+  // subito, dentro il clic, altrimenti Safari la blocca dopo l'attesa della rete.
   const stampaEtichetta = async (gcId) => {
+    const finestra = apriFinestraVuota();
     try {
       const r = await apiFetch(`${API_BASE}/clienti/giftcard/${gcId}/etichetta`);
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || "Errore etichetta");
-      setEtichetta(d);
+      stampaEtichettaGiftCard(d, finestra);
     } catch (e) {
+      if (finestra && !finestra.closed) finestra.close();
       mostraToast(e.message || "Errore etichetta", "danger");
     }
   };
@@ -410,9 +414,10 @@ export default function ClientiGiftCard() {
             setModaleNuova(false);
             mostraToast(`Gift card ${gc.codice} emessa`);
             ricarica();
-            // Dal 2026-10-25 il buono è stampato: si stampa l'etichetta QR da
-            // incollarci sopra. Il PDF resta nei bottoni (per i buoni via mail).
-            stampaEtichetta(gc.id);
+            // Dal 2026-10-25 il buono è stampato: si apre la card appena emessa,
+            // dove c'è «🏷️ Etichetta QR» (la scheda del PDF va aperta da un clic,
+            // non a fine emissione, o Safari la blocca). Il PDF A5 resta per i buoni via mail.
+            apriDettaglio(gc);
           }}
           onErrore={(m) => mostraToast(m, "danger")}
         />
@@ -429,9 +434,6 @@ export default function ClientiGiftCard() {
         />
       )}
 
-      {etichetta && (
-        <StampaEtichettaGiftCard e={etichetta} onFine={() => setEtichetta(null)} />
-      )}
 
       {toast && (
         <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium z-50 ${
@@ -527,7 +529,7 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
       footer={
         <>
           <Btn variant="secondary" onClick={onClose}>Annulla</Btn>
-          <Btn onClick={salva} loading={salvando} disabled={!valido}>Emetti e stampa etichetta</Btn>
+          <Btn onClick={salva} loading={salvando} disabled={!valido}>Emetti</Btn>
         </>
       }
     >

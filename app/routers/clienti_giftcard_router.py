@@ -837,8 +837,11 @@ def regalo_pubblico(token: str):
 
     info = locale_info()
     sito = ((info.get("sito") or {}).get("domini") or [None])[0]
+    esterno = info.get("prenota_esterno") or {}
     locale = {"nome": info.get("nome") or "", "sito": f"https://{sito}" if sito else None,
-              "colori": _colori_regalo()}
+              "colori": _colori_regalo(),
+              # dove prenotare se il widget TRGB e' spento (locale.json → prenota_esterno)
+              "prenota_esterno": esterno.get("url") or None}
 
     t = (token or "").strip()
     if not t or len(t) > 64:
