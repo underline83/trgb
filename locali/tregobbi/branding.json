@@ -100,5 +100,13 @@
     "primary_color": "#5b2c1a",
     "accent_color": "#c4a77d",
     "page_bg": "#ffffff"
+  },
+
+  "giftcard": {
+    "_note": "Pagina del QR della gift card (/regalo/<token>): stessi colori del buono stampato bordeaux (decisione Marco 2026-10-22).",
+    "fondo": "#6B2737",
+    "carta": "#F3EFE7",
+    "oro": "#9A7B4F",
+    "oro_chiaro": "#D9BE8C"
   }
 }

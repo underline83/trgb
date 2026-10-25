@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/clienti/ClientiGiftCard.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.0-giftcard
+// @version: v1.1-giftcard — etichetta QR 62×29 per il buono stampato (2026-10-25)
 //
 // Due usi in una pagina sola:
 //  1) BANCO: campo grande "digita il codice" → verdetto immediato → Scarica.
@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import StampaEtichettaGiftCard from "./EtichettaGiftCard";
 import {
   Btn, PageLayout, StatusBadge, EmptyState,
   FieldLabel, TextInput, Select, Textarea, Modal,
@@ -84,6 +85,7 @@ export default function ClientiGiftCard() {
   // Modali
   const [modaleNuova, setModaleNuova] = useState(false);
   const [dettaglio, setDettaglio] = useState(null);
+  const [etichetta, setEtichetta] = useState(null); // dati /etichetta in stampa
 
   const mostraToast = (testo, tone = "success") => {
     setToast({ testo, tone });
@@ -209,6 +211,19 @@ export default function ClientiGiftCard() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       mostraToast(e.message || "Errore PDF", "danger");
+    }
+  };
+
+  // Etichetta QR (Brother 62×29) da incollare nel riquadro del buono stampato.
+  // Il backend assegna la chiave del QR se la card non l'ha ancora.
+  const stampaEtichetta = async (gcId) => {
+    try {
+      const r = await apiFetch(`${API_BASE}/clienti/giftcard/${gcId}/etichetta`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Errore etichetta");
+      setEtichetta(d);
+    } catch (e) {
+      mostraToast(e.message || "Errore etichetta", "danger");
     }
   };
 
@@ -370,6 +385,7 @@ export default function ClientiGiftCard() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <Btn size="sm" variant="ghost" onClick={() => stampaEtichetta(gc.id)} title="Etichetta QR 62×29 per il buono">🏷️</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => apriPdf(gc.id, gc.codice)}>PDF</Btn>
                       <Btn size="sm" variant="secondary" onClick={() => apriDettaglio(gc)}>Apri</Btn>
                     </td>
@@ -394,7 +410,9 @@ export default function ClientiGiftCard() {
             setModaleNuova(false);
             mostraToast(`Gift card ${gc.codice} emessa`);
             ricarica();
-            apriPdf(gc.id, gc.codice);
+            // Dal 2026-10-25 il buono è stampato: si stampa l'etichetta QR da
+            // incollarci sopra. Il PDF resta nei bottoni (per i buoni via mail).
+            stampaEtichetta(gc.id);
           }}
           onErrore={(m) => mostraToast(m, "danger")}
         />
@@ -407,7 +425,12 @@ export default function ClientiGiftCard() {
           onClose={() => setDettaglio(null)}
           onAzione={azione}
           onPdf={() => apriPdf(dettaglio.id, dettaglio.codice)}
+          onEtichetta={() => stampaEtichetta(dettaglio.id)}
         />
+      )}
+
+      {etichetta && (
+        <StampaEtichettaGiftCard e={etichetta} onFine={() => setEtichetta(null)} />
       )}
 
       {toast && (
@@ -504,7 +527,7 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
       footer={
         <>
           <Btn variant="secondary" onClick={onClose}>Annulla</Btn>
-          <Btn onClick={salva} loading={salvando} disabled={!valido}>Emetti e stampa</Btn>
+          <Btn onClick={salva} loading={salvando} disabled={!valido}>Emetti e stampa etichetta</Btn>
         </>
       }
     >
@@ -615,7 +638,7 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
 // ─────────────────────────────────────────────────────────
 // Dettaglio + storico movimenti
 // ─────────────────────────────────────────────────────────
-function ModaleDettaglio({ gc, alertGiorni, onClose, onAzione, onPdf }) {
+function ModaleDettaglio({ gc, alertGiorni, onClose, onAzione, onPdf, onEtichetta }) {
   const [nota, setNota] = useState("");
   const ruolo = localStorage.getItem("role");
   const isAdmin = ruolo === "admin" || ruolo === "superadmin";
@@ -629,7 +652,8 @@ function ModaleDettaglio({ gc, alertGiorni, onClose, onAzione, onPdf }) {
       size="md"
       footer={
         <>
-          <Btn variant="secondary" onClick={onPdf}>Stampa buono</Btn>
+          <Btn variant="secondary" onClick={onEtichetta}>🏷️ Etichetta QR</Btn>
+          <Btn variant="secondary" onClick={onPdf}>PDF buono</Btn>
           {gc.stato === "attiva" && (
             <>
               <Btn variant="danger" onClick={() => onAzione(gc.id, "annulla", nota)}>Annulla</Btn>

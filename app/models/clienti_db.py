@@ -601,6 +601,15 @@ def init_clienti_db() -> None:
         # SQLite troppo vecchio per gli indici su espressione: resta il
         # controllo applicativo nel router.
         pass
+    # Chiave casuale del QR sull'etichetta (2026-10-25, mig 213): il QR NON
+    # porta il codice (B126-354 si indovina in sequenza) ma questa chiave.
+    gc_cols = {r[1] for r in cur.execute("PRAGMA table_info(clienti_giftcard)").fetchall()}
+    if "token_pubblico" not in gc_cols:
+        cur.execute("ALTER TABLE clienti_giftcard ADD COLUMN token_pubblico TEXT")
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_gc_token "
+        "ON clienti_giftcard(token_pubblico) WHERE token_pubblico IS NOT NULL"
+    )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_stato ON clienti_giftcard(stato)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_cliente ON clienti_giftcard(cliente_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_gc_scadenza ON clienti_giftcard(data_scadenza)")

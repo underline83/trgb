@@ -28,6 +28,8 @@ const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
 const CartaClienti = lazy(() => import("./pages/public/CartaClienti"));
 const CartaMenuPubblica = lazy(() => import("./pages/public/CartaMenuPubblica"));
 const Prenota = lazy(() => import("./pages/public/Prenota"));
+// PUBBLICA: pagina del QR sull'etichetta della gift card (2026-10-25)
+const Regalo = lazy(() => import("./pages/public/Regalo"));
 // STAFF: vista sommelier (loggata) — sessione 58 fase 2 iter 5
 // 2026-10-20: CartaStaff (vista sommelier) tolta dal modulo Vini — file archiviato, route → Carta.
 // V.9 fase 1 (2026-08-03): "Cantina da iPhone" — finder mobile + scheda mobile read-only.
@@ -232,6 +234,20 @@ export default function App() {
   // niente gestionale, qualsiasi percorso apre la prenotazione.
   const hostPrenota = typeof window !== "undefined" && window.location.hostname.startsWith("prenota.");
   const isPublicPrenota = hostPrenota || path === "/prenota" || path.startsWith("/prenota/");
+  // Gift card (2026-10-25): /regalo/<chiave> dal QR sull'etichetta del buono.
+  // Pubblica (il cliente vede cosa gli hanno regalato); se nel browser c'è il
+  // login TRGB la pagina stessa mostra la vista staff con Scarica.
+  if (path.startsWith("/regalo/")) {
+    return (
+      <BrowserRouter>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/regalo/:token" element={<Regalo />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    );
+  }
   if (isPublicPrenota) {
     return (
       <BrowserRouter>

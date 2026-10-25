@@ -482,6 +482,21 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 | C-CL-G09 | PDF A5 del buono con identità del locale | `giftcard_pdf_service.py:genera_pdf_giftcard` | admin, sala | ✅ |
 | C-CL-G10 | Alert card in scadenza / scadute non usate | `alert_engine.py:_check_giftcard_scadenza` | admin | ✅ |
 | C-CL-G11 | Pagina unica banco + ufficio | `frontend/src/pages/clienti/ClientiGiftCard.jsx` | admin, sala | ✅ |
+| C-CL-G12 | Etichetta QR 62×29 (Brother QL-820NWB, DK-11209) per il buono stampato; parte da sola dopo l'emissione | `clienti_giftcard_router.py:etichetta_giftcard`, `EtichettaGiftCard.jsx` | admin, sala | 🆕 |
+| C-CL-G13 | Pagina del QR `/regalo/<chiave>` per il cliente: cosa gli hanno regalato, valido/usato/scaduto, scadenza. Mai importo né intestatario | `clienti_giftcard_router.py:regalo_pubblico` (`GET /public/regalo/{token}`), `pages/public/Regalo.jsx` | cliente (pubblico) | 🆕 |
+| C-CL-G14 | Stessa pagina vista dallo staff loggato: card completa e Scarica a due tocchi | `clienti_giftcard_router.py:da_qr` (`GET /clienti/giftcard/qr/{token}`), `Regalo.jsx:VistaStaff` | sala, admin | 🆕 |
+
+## 16.6b Etichetta QR sul buono stampato (2026-10-25, mig 213)
+
+**Contesto:** dal 2026-10-22 il buono è stampato (bordeaux, `00_underline_studio/.../gift-card/`) con un riquadro 122×36 mm al posto del codice scritto a mano. Ci si incolla un'etichetta **62×29** stampata dalla Brother QL-820NWB (rotolo DK-11209): QR 25 mm a sinistra, codice, «valida fino al …».
+
+**Il QR non contiene il codice.** `B126-354` si indovina in sequenza; il QR porta `https://<dominio_app>/regalo/<token_pubblico>`, chiave casuale da 96 bit (`secrets.token_urlsafe(12)`). Colonna `clienti_giftcard.token_pubblico` (mig 213, indice UNIQUE parziale), assegnata all'emissione; le card vecchie l'hanno avuta dalla migrazione, e `GET /{id}/etichetta` la crea se mancasse.
+
+**Stesso QR, due risposte** (`pages/public/Regalo.jsx`, rotta pubblica fuori dal login come `/carta`):
+- **cliente** → `GET /public/regalo/{token}`: «Ti hanno regalato» + descrizione (solo per le esperienze; per i buoni a valore «Un buono regalo»), esito (valida / usata / scaduta / annullata), scadenza, codice. **Decisione Marco 2026-10-25: l'importo non compare mai**, nemmeno sui buoni a valore. Niente intestatario, note, chi l'ha emessa. Colori da `branding.json → giftcard`.
+- **staff** (nel browser c'è il login TRGB con un ruolo del modulo) → `GET /clienti/giftcard/qr/{token}`: card completa, motivo se non spendibile, **Scarica** a due tocchi (una scansione per sbaglio non la brucia; nota del movimento «scaricata da QR»), link «vedi cosa vede il cliente». Se il login è scaduto la pagina mostra la vista cliente e un link per rientrare.
+
+**Stampa:** dal browser con `@page 62mm 29mm` (come `/vini/etichette`); nel dialogo: QL-820NWB, carta 29 × 62 mm, margini nessuno, scala 100%. Dopo «Emetti» parte da sola l'etichetta (prima si scaricava il PDF A5, che resta nei bottoni per i buoni via mail). QR in locale (`components/QrSvg.jsx`, condiviso con le etichette vini).
 
 ## 16.7 PDF — perché non usa M.B
 

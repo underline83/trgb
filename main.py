@@ -76,6 +76,7 @@ from app.routers import ipratico_products_router
 # CLIENTI CRM
 from app.routers.clienti_router import router as clienti_router
 from app.routers.clienti_giftcard_router import router as clienti_giftcard_router
+from app.routers.clienti_giftcard_router import public_router as clienti_giftcard_public_router
 
 # PRENOTAZIONI
 from app.routers.prenotazioni_router import router as prenotazioni_router
@@ -749,6 +750,7 @@ _mount("ipratico_products_router", ipratico_products_router.router)
 # CLIENTI CRM
 _mount("clienti_router", clienti_router)
 _mount("clienti_giftcard_router", clienti_giftcard_router)
+_mount("clienti_giftcard_router", clienti_giftcard_public_router)  # /public/regalo (QR etichetta)
 
 # PRENOTAZIONI
 # TheFork (webhook pubblico + strumenti admin) PRIMA del router principale,

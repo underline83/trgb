@@ -42,6 +42,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import secrets
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -65,6 +66,10 @@ router = APIRouter(prefix="/clienti/giftcard", tags=["Clienti - Gift Card"],
         Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", cosa="gift card")),
     ],
 )
+
+# Pagina del QR (/regalo/<token>): senza login, la apre il cliente che
+# inquadra l'etichetta sul buono. Montato in main.py accanto a `router`.
+public_router = APIRouter(prefix="/public/regalo", tags=["Clienti - Gift Card (pubblico)"])
 
 init_clienti_db()
 
@@ -132,6 +137,28 @@ def _genera_codice(conn) -> str:
             return codice
         progressivo += 1
     raise HTTPException(500, "Impossibile calcolare il prossimo codice libero, riprova")
+
+
+def _nuovo_token(conn) -> str:
+    """Chiave casuale del QR (96 bit): non si indovina, a differenza del codice."""
+    for _ in range(10):
+        t = secrets.token_urlsafe(12)
+        if not conn.execute("SELECT 1 FROM clienti_giftcard WHERE token_pubblico = ?", (t,)).fetchone():
+            return t
+    raise HTTPException(500, "Impossibile generare la chiave del QR, riprova")
+
+
+def _assicura_token(conn, gc_id: int) -> str:
+    """Le card nate prima della mig 213 (o importate) prendono la chiave alla prima etichetta."""
+    row = conn.execute("SELECT token_pubblico FROM clienti_giftcard WHERE id = ?", (gc_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Gift card non trovata")
+    if row["token_pubblico"]:
+        return row["token_pubblico"]
+    t = _nuovo_token(conn)
+    conn.execute("UPDATE clienti_giftcard SET token_pubblico = ? WHERE id = ?", (t, gc_id))
+    conn.commit()
+    return t
 
 
 def _normalizza_codice(codice: str) -> str:
@@ -436,6 +463,46 @@ def lookup_codice(codice: str, current_user: Dict[str, Any] = Depends(get_curren
         conn.close()
 
 
+@router.get("/qr/{token}")
+def da_qr(token: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    La card dalla chiave del QR, per lo staff loggato che inquadra l'etichetta
+    (pagina /regalo/<token>). Stessi dati del lookup per codice.
+    """
+    conn = get_clienti_conn()
+    try:
+        row = conn.execute(
+            "SELECT id FROM clienti_giftcard WHERE token_pubblico = ?", ((token or "").strip(),)
+        ).fetchone()
+        if not row:
+            return {"trovata": False, "motivo": "QR non riconosciuto"}
+        gc = _serializza(_carica(conn, row["id"]))
+        if gc["stato"] == "usata":
+            gc["motivo"] = f"Gia' utilizzata il {gc.get('data_utilizzo') or '?'}"
+        elif gc["stato"] == "annullata":
+            gc["motivo"] = "Gift card annullata"
+        elif gc["scaduta"]:
+            gc["motivo"] = f"Scaduta il {gc['data_scadenza']}"
+        else:
+            gc["motivo"] = None
+        return {"trovata": True, **gc}
+    finally:
+        conn.close()
+
+
+@router.get("/{gc_id}/etichetta")
+def etichetta_giftcard(gc_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Dati per l'etichetta QR (Brother 62x29): codice, scadenza, chiave del QR."""
+    conn = get_clienti_conn()
+    try:
+        token = _assicura_token(conn, gc_id)
+        gc = _serializza(_carica(conn, gc_id))
+        return {"id": gc_id, "codice": gc["codice"], "data_scadenza": gc.get("data_scadenza"),
+                "token": token}
+    finally:
+        conn.close()
+
+
 @router.get("/{gc_id}")
 def dettaglio_giftcard(gc_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
     conn = get_clienti_conn()
@@ -500,8 +567,8 @@ def crea_giftcard(body: GiftCardCreate, current_user: Dict[str, Any] = Depends(g
             """
             INSERT INTO clienti_giftcard
                 (codice, tipo, importo, descrizione, cliente_id, intestatario_nome,
-                 stato, data_scadenza, emessa_da, note)
-            VALUES (?,?,?,?,?,?, 'attiva', ?,?,?)
+                 stato, data_scadenza, emessa_da, note, token_pubblico)
+            VALUES (?,?,?,?,?,?, 'attiva', ?,?,?,?)
             """,
             (
                 codice,
@@ -517,6 +584,7 @@ def crea_giftcard(body: GiftCardCreate, current_user: Dict[str, Any] = Depends(g
                 data_scadenza,
                 current_user["username"],
                 (body.note or "").strip() or None,
+                _nuovo_token(conn),
             ),
         )
         gc_id = cur.lastrowid
@@ -733,3 +801,76 @@ def elimina_giftcard(gc_id: int, current_user: Dict[str, Any] = Depends(get_curr
         return {"status": "ok"}
     finally:
         conn.close()
+
+
+# ─────────────────────────────────────────────────────────────
+# Pubblico — la pagina del QR vista dal cliente (senza login)
+# ─────────────────────────────────────────────────────────────
+
+def _colori_regalo() -> Dict[str, str]:
+    """Colori della pagina del QR da branding.json → giftcard (identita' del locale, non di TRGB)."""
+    colori = {"fondo": "#2b2b2b", "carta": "#faf8f4", "oro": "#8a7a5c", "oro_chiaro": "#d8cdb6"}
+    try:
+        from app.utils.locale_data import locale_data_dir
+        f = locale_data_dir().parent / "branding.json"
+        if f.exists():
+            gc = json.loads(f.read_text(encoding="utf-8")).get("giftcard") or {}
+            for k in colori:
+                if isinstance(gc.get(k), str) and gc[k].startswith("#"):
+                    colori[k] = gc[k]
+    except Exception as e:
+        logger.warning("branding.json non leggibile per la pagina regalo: %s", e)
+    return colori
+
+
+@public_router.get("/{token}")
+def regalo_pubblico(token: str):
+    """
+    Cosa vede chi inquadra il QR senza essere loggato: cosa gli hanno
+    regalato, se e' ancora valido, fino a quando.
+
+    Decisione Marco 2026-10-25: l'IMPORTO non compare MAI, nemmeno sui buoni
+    a valore. Niente intestatario, note, chi l'ha emessa, storico.
+    Sulle esperienze si mostra la descrizione ("Cena degustazione per due").
+    """
+    from app.utils.locale_data import locale_info
+
+    info = locale_info()
+    sito = ((info.get("sito") or {}).get("domini") or [None])[0]
+    locale = {"nome": info.get("nome") or "", "sito": f"https://{sito}" if sito else None,
+              "colori": _colori_regalo()}
+
+    t = (token or "").strip()
+    if not t or len(t) > 64:
+        return {"trovata": False, "locale": locale}
+
+    conn = get_clienti_conn()
+    try:
+        row = conn.execute(
+            "SELECT * FROM clienti_giftcard WHERE token_pubblico = ?", (t,)
+        ).fetchone()
+        if not row:
+            return {"trovata": False, "locale": locale}
+        gc = _serializza(row)
+    finally:
+        conn.close()
+
+    if gc["stato"] == "usata":
+        esito = "usata"
+    elif gc["stato"] == "annullata":
+        esito = "annullata"
+    elif gc["scaduta"]:
+        esito = "scaduta"
+    else:
+        esito = "valida"
+
+    return {
+        "trovata": True,
+        "locale": locale,
+        "codice": gc["codice"],
+        "tipo": gc["tipo"],
+        "descrizione": gc.get("descrizione") if gc["tipo"] == "esperienza" else None,
+        "esito": esito,
+        "data_scadenza": gc.get("data_scadenza"),
+        "data_utilizzo": gc.get("data_utilizzo") if esito == "usata" else None,
+    }

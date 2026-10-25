@@ -454,6 +454,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.16 (2026-10-25): gift card, etichetta QR 62×29 (Brother QL-820NWB, DK-11209) da incollare
+    //   sul buono stampato; il QR apre /regalo/<chiave>: il cliente vede cosa gli hanno regalato
+    //   (mai l'importo), lo staff loggato la card con Scarica a due tocchi. Mig 213.
     // 3.15 (2026-10-22): preventivo inviato al cliente → copia col PDF a prenotazioni@ (configurabile) + messaggio per i gruppi WhatsApp.
     // 3.14 (2026-10-20): «Confermato» su un preventivo: menù scelto sulla prenotazione (trovata o
     //   creata), campanello a sala e cucina, messaggio pronto per i gruppi WhatsApp; poi «prenotato».
@@ -499,7 +502,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.15",
+    version: "3.16",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -617,6 +620,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.78 (2026-10-25): mig 213 — clienti_giftcard.token_pubblico, QR sull'etichetta del
+    //   buono → pagina pubblica /regalo/<chiave> (clienti 3.16).
     // 5.77 (2026-10-25): mig 212 — pranzo_settings.valore_piatto_fc, valore di vendita dei
     //   piatti del pranzo per il food cost (ricette 3.35, pranzo 1.10).
     // 5.76 (2026-10-23): mig 211 — banca_uscite_link, tranche delle uscite dirette
@@ -723,7 +728,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.77",
+    version: "5.78",
     label: "Sistema",
     status: "stabile",
     color: "green",

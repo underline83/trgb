@@ -26,7 +26,7 @@ import { useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, PageLayout, EmptyState } from "../../components/ui";
 import ViniNav from "./ViniNav";
-import qrcode from "../../utils/vendor/qrcode";
+import QrSvg from "../../components/QrSvg";
 
 const FORMATI = {
   "29x62": { label: "29×62 fustellata (DK-11209)", w: 62, h: 29, qr: 25 },
@@ -36,28 +36,6 @@ const MAX_COPIE = 99;
 
 function urlScheda(id) {
   return `${window.location.origin}/vini/cantina-mobile/${id}`;
-}
-
-/** QR come SVG vettoriale: nitido a qualsiasi risoluzione di stampa. */
-function QrSvg({ text, sizeMm }) {
-  const { n, d } = useMemo(() => {
-    const qr = qrcode(0, "M");
-    qr.addData(text);
-    qr.make();
-    const count = qr.getModuleCount();
-    let path = "";
-    for (let r = 0; r < count; r++)
-      for (let c = 0; c < count; c++)
-        if (qr.isDark(r, c)) path += `M${c + 2} ${r + 2}h1v1h-1z`;
-    return { n: count + 4, d: path };
-  }, [text]);
-  return (
-    <svg viewBox={`0 0 ${n} ${n}`} width={`${sizeMm}mm`} height={`${sizeMm}mm`}
-      shapeRendering="crispEdges" style={{ display: "block", flex: "none" }}>
-      <rect width={n} height={n} fill="#fff" />
-      <path d={d} fill="#000" />
-    </svg>
-  );
 }
 
 function den(v) { return v.DENOMINAZIONE || v.d_display || ""; }

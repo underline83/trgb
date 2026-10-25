@@ -687,6 +687,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.15 | Gift Card — emissione, codici, scarico a uso unico, annullo, PDF, alert scadenza | M | ✅ FATTO | 2026-08-08, clienti 3.1. Sostituisce l'Excel. Vedi `modulo_clienti_crm.md` §16 |
 | CL.16 | Storico gift card dall'Excel — travaso one-shot | S | ✅ FATTO | 2026-08-08, mig 167 (TRGB_SPECIFIC). 90 card su 174 (74 attive, 12.825 €). **Niente funzione di import nel prodotto**: scelta di Marco, era un travaso. Regole in `modulo_clienti_crm.md` §16.9 |
 | CL.17 | Tab Gift Card nella scheda cliente | S | BASSA | Oggi si filtra dalla pagina Gift Card |
+| CL.18 | Gift card: etichetta QR sul buono stampato + pagina /regalo (cliente vede il regalo, staff scarica) | S | ✅ FATTO | 2026-10-25, clienti 3.16, mig 213. `modulo_clienti_crm.md` §16.6b |
 
 **Bug/debt:**
 - C-DEBT4 — `clienti_router.py` 2404 righe — refactor opportunistico in moduli (non urgente)

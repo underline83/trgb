@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-25 — Gift card: etichetta QR sul buono `[mixed]`
+
+Sistema 5.78, clienti 3.16, **mig 213**. Il buono stampato ha un riquadro per un'etichetta: dalla pagina Gift Card (🏷️ sulla riga, «Etichetta QR» nel dettaglio, e da sola dopo l'emissione) si stampa sulla Brother QL-820NWB un'etichetta 62×29 (DK-11209) con QR, codice e scadenza. Il QR non porta il codice (si indovina in sequenza) ma una chiave casuale (`clienti_giftcard.token_pubblico`, assegnata anche alle card già emesse) e apre `/regalo/<chiave>`: chi non è loggato vede cosa gli hanno regalato, se è valido e fino a quando, **mai l'importo**; un telefono loggato in TRGB vede la card completa con **Scarica** a due tocchi. Endpoint nuovi: `GET /public/regalo/{token}` (pubblico), `GET /clienti/giftcard/qr/{token}`, `GET /clienti/giftcard/{id}/etichetta`. `[locale:tregobbi]`: colori della pagina in `branding.json → giftcard` (bordeaux del buono). Il QR SVG è ora `components/QrSvg.jsx`, condiviso con le etichette vini. Doc: `modulo_clienti_crm.md` §16.6b.
+
 ## 2026-10-25 — Voci «qb» nella modifica ricetta `[core]`
 
 Ricette 3.36, nessuna migrazione. Le ricette importate con voci «qb» (quanto basta: sale, pepe, olio a crudo) si modificano di nuovo dalla pagina: la tendina delle unità ha «qb (quanto basta)», anche per le righe nuove e nella pagina Nuova ricetta; con qb il campo quantità è vuoto e disattivato. Una riga con ingrediente ma senza quantità ora blocca il salvataggio con un messaggio invece di sparire in silenzio; un'unità fuori elenco (es. «porzione») resta visibile. Le voci qb restano elencate e negli allergeni e sono fuori dal food cost anche quando l'ingrediente non ha prezzo (non rendono più la ricetta incompleta); in scheda la loro riga costo è «—». Un solo riconoscimento di «qb» per import, validazione, costo e storico (`app/services/ricette_qb.py`). File: `VoceQuantita.jsx` (nuovo), `RicetteModifica.jsx`, `RicetteNuova.jsx`, `ricette_qb.py` (nuovo), `foodcost_recipes_router.py`, `foodcost_history_service.py`.
