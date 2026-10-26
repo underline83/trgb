@@ -454,6 +454,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.18 (2026-10-26): etichetta gift card sul rotolo 29×90 montato nella Brother: 90×29 orizzontale,
+    //   QR e testo centrati, PDF in piedi nel verso del rotolo (provata in stampa).
     // 3.17 (2026-10-25): etichetta gift card come PDF 62×29 (Safari ignorava la misura e stampava A4
     //   sulla stampante predefinita); «Prenota il tavolo» nella pagina /regalo (widget TRGB con nota
     //   «Gift card <codice>», TheFork da locale.json → prenota_esterno se il widget è spento).
@@ -505,7 +507,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.17",
+    version: "3.18",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

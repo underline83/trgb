@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/clienti/ClientiGiftCard.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.1-giftcard — etichetta QR 62×29 per il buono stampato (2026-10-25)
+// @version: v1.2-giftcard — etichetta QR 90×29 (rotolo 29×90) per il buono stampato (2026-10-26)
 //
 // Due usi in una pagina sola:
 //  1) BANCO: campo grande "digita il codice" → verdetto immediato → Scarica.
@@ -214,9 +214,9 @@ export default function ClientiGiftCard() {
     }
   };
 
-  // Etichetta QR (Brother 62×29) da incollare nel riquadro del buono stampato.
+  // Etichetta QR (Brother, rotolo 29×90) da incollare nel riquadro del buono stampato.
   // Il backend assegna la chiave del QR se la card non l'ha ancora.
-  // Esce un PDF 62×29 in una scheda nuova (Stampa → Brother): la scheda si apre
+  // Esce un PDF 29×90 in una scheda nuova (Stampa → Brother): la scheda si apre
   // subito, dentro il clic, altrimenti Safari la blocca dopo l'attesa della rete.
   const stampaEtichetta = async (gcId) => {
     const finestra = apriFinestraVuota();
@@ -389,7 +389,7 @@ export default function ClientiGiftCard() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <Btn size="sm" variant="ghost" onClick={() => stampaEtichetta(gc.id)} title="Etichetta QR 62×29 per il buono">🏷️</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => stampaEtichetta(gc.id)} title="Etichetta QR 90×29 per il buono">🏷️</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => apriPdf(gc.id, gc.codice)}>PDF</Btn>
                       <Btn size="sm" variant="secondary" onClick={() => apriDettaglio(gc)}>Apri</Btn>
                     </td>

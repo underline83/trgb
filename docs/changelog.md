@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-26 — Gift card: etichetta sul rotolo 29×90 `[core]`
+
+Clienti 3.18, nessuna migrazione. Il rotolo nella Brother è 29×90 (non 29×62): l'etichetta è ora 90×29, con QR e testo centrati, e sta nel riquadro 122×36 del buono. Il PDF esce in piedi 29×90, nel verso del rotolo: nel dialogo di stampa carta «29x90mm», niente rotazione né riduzione. Provata in stampa da Anteprima. `utils/pdfEtichetta.js` v1.2: opzioni `ruota` e `centra`.
+
 ## 2026-10-25 — Gift card: etichetta in PDF 62×29 e «Prenota il tavolo» `[mixed]`
 
 Clienti 3.17, prenotazioni 2.22, nessuna migrazione. L'etichetta non si stampa più come pagina web: Safari ignorava la misura 62×29 e mandava un A4 alla stampante predefinita con intestazioni. Ora esce un PDF della misura esatta (`utils/pdfEtichetta.js`, vettoriale, senza librerie) che si apre in una scheda: Stampa → Brother; funziona anche da iPad via AirPrint. Dopo «Emetti» si apre la card con «🏷️ Etichetta QR». Sulla pagina `/regalo` del cliente, se il buono è valido, c'è «Prenota il tavolo»: widget TRGB con la nota «Gift card <codice>» già scritta, oppure TheFork (`locale.json → prenota_esterno`, `[locale:tregobbi]`) finché il widget TRGB è spento.

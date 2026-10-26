@@ -1,8 +1,8 @@
 // frontend/src/pages/clienti/EtichettaGiftCard.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.1 — etichetta come PDF 62×29 (Safari ignorava la misura e stampava A4); v1.0 2026-10-25
+// @version: v1.3 — rotolo 29×90: etichetta 90×29 orizzontale, PDF in piedi; v1.2 — prova verticale 29×62; v1.1 — etichetta come PDF 62×29 (Safari ignorava la misura e stampava A4); v1.0 2026-10-25
 //
-// Etichetta 62×29 mm (Brother QL-820NWB, rotolo DK-11209) da incollare nel
+// Etichetta 90×29 mm (Brother QL-820NWB, rotolo 29×90) da incollare nel
 // riquadro «Codice Gift-Card» del buono (122×36 mm): QR a sinistra, codice e
 // scadenza a destra.
 //
@@ -27,18 +27,24 @@ function fmtData(iso) {
 
 /** e = risposta di GET /clienti/giftcard/{id}/etichetta; finestra = scheda già aperta nel clic */
 export function stampaEtichettaGiftCard(e, finestra) {
+  // Rotolo montato: 29×90,3 mm (misurato da Marco il 2026-10-26).
+  // Incollata in orizzontale nel riquadro 122×36 del buono: 90×29, QR a
+  // sinistra e testo a destra. Il PDF esce in piedi 29×90 (`ruota`), nel verso
+  // della carta «29x90» del driver: niente rotazione automatica, niente riduzione.
   const blob = pdfEtichettaQr({
-    wMm: 62,
+    ruota: true,
+    centra: true, // QR + testo centrati nell'etichetta (richiesta Marco 2026-10-26)
+    wMm: 90,
     hMm: 29,
     qrText: urlRegalo(e.token),
     qrMm: 25,
-    margineMm: 1.5,
-    gapMm: 2,
+    margineMm: 3,
+    gapMm: 3,
     righe: [
-      { testo: "GIFT CARD", sizePt: 6.5, bold: true, spaziatura: 0.8 },
-      { testo: e.codice, sizePt: 15, bold: true, spazioPrimaMm: 2.2 },
-      { testo: e.data_scadenza ? `valida fino al ${fmtData(e.data_scadenza)}` : "senza scadenza", sizePt: 7, spazioPrimaMm: 2 },
-      { testo: "inquadra il QR", sizePt: 6, spazioPrimaMm: 1.6 },
+      { testo: "GIFT CARD", sizePt: 7.5, bold: true, spaziatura: 1 },
+      { testo: e.codice, sizePt: 20, bold: true, spazioPrimaMm: 2.4 },
+      { testo: e.data_scadenza ? `valida fino al ${fmtData(e.data_scadenza)}` : "senza scadenza", sizePt: 8.5, spazioPrimaMm: 2.4 },
+      { testo: "inquadra il QR", sizePt: 7, spazioPrimaMm: 1.8 },
     ],
   });
   mostraPdf(blob, `etichetta_${String(e.codice).replace(/\s/g, "_")}.pdf`, finestra);

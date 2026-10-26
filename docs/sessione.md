@@ -1,12 +1,12 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-25 — **DA PUSHARE:** gift card etichetta in PDF 62×29 + «Prenota il tavolo» su /regalo (clienti 3.17, prenotazioni 2.22, nessuna migrazione). Pushati: etichetta QR + /regalo (d8171a2c, mig 213, sistema 5.78), voci «qb» (7ac2a5bb). Pushati: food cost pranzo + connettore ricette (f4d774ba), menu pranzo pubblico (ecddc43c), riconciliazione uscite in più bonifici (e101541a, mig 211). 2026-10-16 — **Pushati (b29003e4):** /uploads pubblico solo per menu_carta (verificato in produzione: 404 sui link diretti, 401 senza login, download da admin confermato da Marco), Candidati (mig 188, sistema 5.52), bozze preventivi in lista (clienti 3.3), e — entrato nello stesso commit — il lavoro TheFork di un'altra sessione (mig 189 applicata). Preventivi «a corpo» pushati (680eb06c, mig 187 verificata sul DB di produzione, clienti 3.2, sistema 5.51). **Da verificare:** PRE-2026-001 (450 €) e PRE-2026-002 («da 800 a 2.400 €»); composer a corpo nel browser (non ancora provato in UI); primo template di stagione. Chiave di Q e SKU vini iPratico pushati (b3210a66, 70276dba): export + import in iPratico, poi controllare lo SKU dei vini nel riexport. **Da fare a mano:** IVA 10 nei «🧮 Parametri prezzo» di Distillati e Amari; accisa grappe Marolo; costo tonica G&T.
+**Ultimo aggiornamento:** 2026-10-26 — **DA PUSHARE:** etichetta gift card 90×29 sul rotolo 29×90 (clienti 3.18). Pushati: PDF etichetta + Prenota su /regalo (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
 **Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
-**DA PUSHARE — Gift card: etichetta PDF 62×29 + Prenota su /regalo** (clienti 3.17, prenotazioni 2.22) `[mixed]` — vedi sessione 2026-10-25 (5). Dopo il push: card di prova → 🏷️ → si apre il PDF 62×29 → Stampa → Brother (da Mac e da iPad); scansione da telefono non loggato → «Prenota il tavolo» apre TheFork (widget TRGB spento); annullare la prova.
+**DA PUSHARE — Gift card: etichetta 90×29 sul rotolo 29×90** (clienti 3.18) `[core]` — vedi sessione 2026-10-26. Dopo il push: TRGB › Gift Card › 🏷️ su una card → PDF → Stampa → Brother, carta «29x90mm» → salvare il preset «Etichetta gift card». Da verificare: Prenota su /regalo (8025baa1) da telefono non loggato → TheFork.
 
 **DA PUSHARE — Voci «qb» nella modifica ricetta** (ricette 3.36, nessuna migrazione) `[core]` — `VoceQuantita.jsx` (nuovo: tendina con «qb», quantità disattivata, `rigaDaVoce`/`vociDaSalvare`), `RicetteModifica.jsx`, `RicetteNuova.jsx`, `app/services/ricette_qb.py` (nuovo: `is_qb` unico), `foodcost_recipes_router.py` (`_calc_item_cost`/`_enrich_items_with_costs`: qb fuori dal costo), `foodcost_history_service.py`, `versions.jsx`, docs. **Dopo il push:** aprire e salvare senza modifiche R229, R230, R231 (Ctrl+Shift+R prima); poi Claude sostituisce in R231 «Burro unigrana» con «Burro nostrano latini novita'» (45 g), dopo l'ok di Marco.
 
@@ -118,6 +118,12 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-26 — Gift card: etichetta sul rotolo 29×90 `[core]`
+
+Prova di stampa fatta da Claude sul Mac di Marco (Anteprima, Brother QL-820NWB condivisa da «UnderlineBook»). 62×29 orizzontale e 29×62 verticale stampavano solo il QR: il rotolo montato è **29×90,3 mm** (misurato da Marco), non il 29×62. Ora l'etichetta è 90×29 con QR e testo centrati (richiesta di Marco), e il PDF esce in piedi 29×90 nel verso del rotolo (`pdfEtichetta.js` v1.2, `ruota` + `centra`). Marco l'ha stampata scegliendo la carta «29x90mm»: funziona. Il dialogo della Brother propone ancora «Altra 210×297»: serve un preset salvato. Magnet (gestore finestre) blocca i clic di Claude nel dialogo di stampa. Le etichette vini (`/vini/etichette`) hanno ancora i formati 29×62 e 62×40 col vecchio window.print.
+
+Commit: `./push.sh "[core] Gift card: etichetta 90x29 sul rotolo 29x90, QR e testo centrati (clienti 3.18)"`
 
 ## SESSIONE 2026-10-25 (5) — Gift card: etichetta in PDF e «Prenota il tavolo» `[mixed]`
 

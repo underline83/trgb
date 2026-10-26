@@ -1,6 +1,6 @@
 // frontend/src/utils/pdfEtichetta.js
 // Platform (M.I) — PDF vettoriale di un'etichetta con QR, della misura esatta del rotolo.
-// @version: v1.0 (2026-10-25)
+// @version: v1.2 — `ruota`: si disegna in orizzontale, la pagina esce in piedi come la carta del driver (2026-10-26); v1.1 — layout «verticale»: QR sopra e testo sotto, centrati (2026-10-26); v1.0 2026-10-25
 //
 // PERCHE' UN PDF E NON window.print() della pagina:
 //   Safari (Mac e iPad) ignora @page size: stampa la pagina in A4 sulla
@@ -58,11 +58,25 @@ function n(v) { return (Math.round(v * 1000) / 1000).toString(); }
  *   gapMm         spazio fra QR e testo (default 2)
  *   righe         [{ testo, sizePt, bold, spazioPrimaMm, spaziatura }]
  *                 spaziatura = tracking in punti fra le lettere (es. 0.8)
+ *   layout        "orizzontale" (default: QR a sinistra, testo a destra) o
+ *                 "verticale" (QR in alto, testo sotto, tutto centrato: per le
+ *                 etichette 29×62 stampate per il lungo, senza rotazioni del driver)
+ *   margineAltoMm solo verticale: spazio sopra il QR (default 2)
+ *   centra        solo orizzontale: QR + testo come un gruppo unico centrato
+ *                 nella larghezza (invece del QR attaccato al margine sinistro)
+ *   ruota         true = si disegna su wMm×hMm (es. 90×29, come si legge
+ *                 incollata) ma la pagina del PDF esce hMm×wMm (29×90), cioè
+ *                 nel verso in cui il rotolo Brother scorre: il driver non
+ *                 deve ruotare né ridurre niente, da Mac come da iPad.
  * @returns {Blob} application/pdf
  */
-export function pdfEtichettaQr({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, righe = [] }) {
+export function pdfEtichettaQr({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, righe = [],
+  layout = "orizzontale", margineAltoMm = 2, ruota = false, centra = false }) {
+  const vert = layout === "verticale";
+  const largRiga = (r) => larghezzaTesto(r.testo, r.sizePt, r.bold) + (r.spaziatura || 0) * Math.max(0, [...r.testo].length - 1);
   const W = wMm * PT, H = hMm * PT;
-  const ops = ["0 g"];
+  // con `ruota` il disegno (W×H) è girato di 90° su una pagina H×W
+  const ops = ruota ? [`q 0 1 -1 0 ${n(H)} 0 cm`, "0 g"] : ["0 g"];
 
   // QR: righe di moduli scuri unite in rettangoli orizzontali
   const qr = qrcode(0, "M");
@@ -72,8 +86,9 @@ export function pdfEtichettaQr({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm 
   const tot = count + 4; // 2 moduli di zona di rispetto per lato
   const lato = qrMm * PT;
   const mod = lato / tot;
-  const x0 = margineMm * PT;
-  const y0 = (H - lato) / 2;
+  const gruppo = lato + gapMm * PT + Math.max(0, ...righe.map(largRiga));
+  const x0 = vert ? (W - lato) / 2 : centra ? Math.max(margineMm * PT, (W - gruppo) / 2) : margineMm * PT;
+  const y0 = vert ? H - margineAltoMm * PT - lato : (H - lato) / 2;
   for (let r = 0; r < count; r++) {
     let c = 0;
     while (c < count) {
@@ -88,21 +103,25 @@ export function pdfEtichettaQr({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm 
   }
   ops.push("f");
 
-  // Testo: blocco centrato in verticale nello spazio a destra del QR
+  // Testo. Orizzontale: blocco centrato in verticale a destra del QR.
+  // Verticale: righe centrate in orizzontale, dal bordo sotto il QR in giù.
   const xt = x0 + lato + gapMm * PT;
   const altezze = righe.map((r, i) => (i ? (r.spazioPrimaMm || 0) * PT : 0) + r.sizePt * 0.72);
   const blocco = altezze.reduce((a, b) => a + b, 0);
-  let y = (H + blocco) / 2;
+  let y = vert ? y0 - gapMm * PT : (H + blocco) / 2;
   righe.forEach((r, i) => {
     y -= altezze[i];
-    ops.push(`BT /${r.bold ? "F2" : "F1"} ${n(r.sizePt)} Tf ${n(r.spaziatura || 0)} Tc ${n(xt)} ${n(y)} Td ${strPdf(r.testo)} Tj ET`);
+    const x = vert ? (W - largRiga(r)) / 2 : xt;
+    ops.push(`BT /${r.bold ? "F2" : "F1"} ${n(r.sizePt)} Tf ${n(r.spaziatura || 0)} Tc ${n(x)} ${n(y)} Td ${strPdf(r.testo)} Tj ET`);
   });
 
+  if (ruota) ops.push("Q");
   const contenuto = ops.join("\n");
+  const [PW, PH] = ruota ? [H, W] : [W, H];
   const oggetti = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(W)} ${n(H)}] /Contents 4 0 R ` +
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(PW)} ${n(PH)}] /Contents 4 0 R ` +
       "/Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
     `<< /Length ${contenuto.length} >>\nstream\n${contenuto}\nendstream`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
