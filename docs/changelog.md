@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-26 — Gift card: «Buono non riconosciuto» leggibile `[core]`
+
+Clienti 3.19, nessuna migrazione. Sulla pagina `/regalo`, con un QR che non corrisponde a nessuna card (o con un errore di rete) il riquadro restava bianco: il testo era avorio su fondo avorio. Ora prende il bordeaux come il resto. File: `Regalo.jsx`.
+
 ## 2026-10-26 — Gift card: etichetta sul rotolo 29×90 `[core]`
 
 Clienti 3.18, nessuna migrazione. Il rotolo nella Brother è 29×90 (non 29×62): l'etichetta è ora 90×29, con QR e testo centrati, e sta nel riquadro 122×36 del buono. Il PDF esce in piedi 29×90, nel verso del rotolo: nel dialogo di stampa carta «29x90mm», niente rotazione né riduzione. Provata in stampa da Anteprima. `utils/pdfEtichetta.js` v1.2: opzioni `ruota` e `centra`.

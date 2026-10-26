@@ -1,6 +1,6 @@
 // frontend/src/pages/public/Regalo.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.1 — «Prenota il tavolo»: widget TRGB con la nota della gift card, TheFork se è spento (2026-10-25)
+// @version: v1.2 — testo leggibile nel riquadro anche per «non riconosciuto»/errori (era avorio su avorio) (2026-10-26); v1.1 — «Prenota il tavolo»: widget TRGB con la nota della gift card, TheFork se è spento (2026-10-25)
 // v1.0 — pagina del QR sull'etichetta del buono (2026-10-25)
 //
 // /regalo/:token — la apre chi inquadra il QR incollato sul buono.
@@ -216,7 +216,7 @@ function PrenotaRegalo({ pub, c }) {
 function Riquadro({ c, children }) {
   return (
     <div className="w-full max-w-md rounded-2xl px-6 py-8"
-      style={{ background: c.carta, border: `1.5px solid ${c.oro_chiaro}`, boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
+      style={{ background: c.carta, color: c.fondo, border: `1.5px solid ${c.oro_chiaro}`, boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
       {children}
     </div>
   );

@@ -1,12 +1,12 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-26 — **DA PUSHARE:** etichetta gift card 90×29 sul rotolo 29×90 (clienti 3.18). Pushati: PDF etichetta + Prenota su /regalo (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-10-26 — **DA PUSHARE:** /regalo, «Buono non riconosciuto» leggibile (clienti 3.19). Pushati: etichetta 90×29 (bf06db76), PDF etichetta + Prenota su /regalo (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
 **Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
-**DA PUSHARE — Gift card: etichetta 90×29 sul rotolo 29×90** (clienti 3.18) `[core]` — vedi sessione 2026-10-26. Dopo il push: TRGB › Gift Card › 🏷️ su una card → PDF → Stampa → Brother, carta «29x90mm» → salvare il preset «Etichetta gift card». Da verificare: Prenota su /regalo (8025baa1) da telefono non loggato → TheFork.
+**DA PUSHARE — /regalo: testo del riquadro leggibile** (clienti 3.19) `[core]`. **Pushato (bf06db76) — etichetta 90×29:** salvare il preset «Etichetta gift card» (Brother, 29x90mm). Dopo il push: QR di prova → «Buono non riconosciuto» leggibile; QR di una card vera da telefono non loggato → «Prenota il tavolo» → TheFork.
 
 **DA PUSHARE — Voci «qb» nella modifica ricetta** (ricette 3.36, nessuna migrazione) `[core]` — `VoceQuantita.jsx` (nuovo: tendina con «qb», quantità disattivata, `rigaDaVoce`/`vociDaSalvare`), `RicetteModifica.jsx`, `RicetteNuova.jsx`, `app/services/ricette_qb.py` (nuovo: `is_qb` unico), `foodcost_recipes_router.py` (`_calc_item_cost`/`_enrich_items_with_costs`: qb fuori dal costo), `foodcost_history_service.py`, `versions.jsx`, docs. **Dopo il push:** aprire e salvare senza modifiche R229, R230, R231 (Ctrl+Shift+R prima); poi Claude sostituisce in R231 «Burro unigrana» con «Burro nostrano latini novita'» (45 g), dopo l'ok di Marco.
 
