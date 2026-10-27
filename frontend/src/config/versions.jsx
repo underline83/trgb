@@ -292,6 +292,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
+    // 4.12 (2026-10-27): Chiusura turno — un preconto con importo ma senza tavolo non sparisce
+    //   più in silenzio: si salva col tavolo «—» (FE + backend). Nessuna migrazione.
     // 4.11 (2026-10-19): Conti del servizio — «🚶 Walk-in, senza nome» sui conti collegati a un
     //   walk-in TheFork (chiude il «Dai un nome»); le prenotazioni mai segnate arrivate (RECORDED)
     //   si collegano a mano dal «Scegli» e diventano «andati» (LEFT). Nessuna migrazione.
@@ -319,7 +321,7 @@ const MODULE_VERSIONS = {
     //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
     //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
     //   consumer (CalendarView shading). Nessuna migrazione DB.
-    version: "4.11",
+    version: "4.12",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
@@ -454,6 +456,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.20 (2026-10-27): Gift Card › «📷 Scansiona» al banco legge il QR dell'etichetta; /regalo solo vista cliente.
     // 3.19 (2026-10-26): pagina /regalo, «Buono non riconosciuto» ed errori ora leggibili (testo avorio su avorio).
     // 3.18 (2026-10-26): etichetta gift card sul rotolo 29×90 montato nella Brother: 90×29 orizzontale,
     //   QR e testo centrati, PDF in piedi nel verso del rotolo (provata in stampa).
@@ -508,7 +511,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.19",
+    version: "3.20",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

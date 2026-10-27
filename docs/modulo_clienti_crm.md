@@ -485,7 +485,7 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 | C-CL-G12 | Etichetta QR 90×29 (Brother QL-820NWB, rotolo 29×90) per il buono stampato, PDF della misura esatta | `clienti_giftcard_router.py:etichetta_giftcard`, `EtichettaGiftCard.jsx` | admin, sala | 🆕 |
 | C-CL-G13 | Pagina del QR `/regalo/<chiave>` per il cliente: cosa gli hanno regalato, valido/usato/scaduto, scadenza. Mai importo né intestatario | `clienti_giftcard_router.py:regalo_pubblico` (`GET /public/regalo/{token}`), `pages/public/Regalo.jsx` | cliente (pubblico) | 🆕 |
 | C-CL-G15 | «Prenota il tavolo» dalla pagina del regalo (widget TRGB con nota della card, o TheFork se spento) | `Regalo.jsx:PrenotaRegalo`, `Prenota.jsx:PrenotaIncorporata` | cliente (pubblico) | 🆕 |
-| C-CL-G14 | Stessa pagina vista dallo staff loggato: card completa e Scarica a due tocchi | `clienti_giftcard_router.py:da_qr` (`GET /clienti/giftcard/qr/{token}`), `Regalo.jsx:VistaStaff` | sala, admin | 🆕 |
+| C-CL-G14 | Lettura staff del QR **solo dall'app**: Gift Card › «📷 Scansiona» (QrScanner) → card nel riquadro banco con Scarica. Vale anche dall'app sulla schermata Home. Dal 2026-10-27 la pagina `/regalo` non ha più la vista staff | `ClientiGiftCard.jsx:daScansione`, `GET /clienti/giftcard/qr/{token}` | sala, admin | 🆕 |
 
 ## 16.6b Etichetta QR sul buono stampato (2026-10-25, mig 213)
 
@@ -495,7 +495,7 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 
 **Stesso QR, due risposte** (`pages/public/Regalo.jsx`, rotta pubblica fuori dal login come `/carta`):
 - **cliente** → `GET /public/regalo/{token}`: «Ti hanno regalato» + descrizione (solo per le esperienze; per i buoni a valore «Un buono regalo»), esito (valida / usata / scaduta / annullata), scadenza, codice. **Decisione Marco 2026-10-25: l'importo non compare mai**, nemmeno sui buoni a valore. Niente intestatario, note, chi l'ha emessa. Colori da `branding.json → giftcard`.
-- **staff** (nel browser c'è il login TRGB con un ruolo del modulo) → `GET /clienti/giftcard/qr/{token}`: card completa, motivo se non spendibile, **Scarica** a due tocchi (una scansione per sbaglio non la brucia; nota del movimento «scaricata da QR»), link «vedi cosa vede il cliente». Se il login è scaduto la pagina mostra la vista cliente e un link per rientrare.
+- **staff** → non da questa pagina (decisione Marco 2026-10-27: la vista staff legata al login del browser non funzionava dall'app sulla schermata Home e scadeva dopo 8 ore). Si legge dall'app: Gift Card › **«📷 Scansiona»** (`components/QrScanner.jsx`): il QR `…/regalo/<chiave>` va a `GET /clienti/giftcard/qr/{token}`, la card compare nel riquadro del banco con Scarica; se la fotocamera legge un testo che non è un link /regalo, si prova come codice.
 
 **Stampa (v3.18, provata sulla Brother il 2026-10-26):** il PDF si disegna 90×29 ma la pagina esce **in piedi 29×90** (`ruota: true`), nel verso in cui scorre il rotolo: nel dialogo si sceglie la carta **29x90mm** e il driver non ruota né riduce niente. Prove fallite prima: 62×29 orizzontale e 29×62 verticale stampavano solo il QR, perché il rotolo montato non era il 29×62. Se si cambia rotolo, cambiano `wMm/hMm` in `EtichettaGiftCard.jsx`.
 

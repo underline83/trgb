@@ -1,12 +1,12 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-26 — **DA PUSHARE:** /regalo, «Buono non riconosciuto» leggibile (clienti 3.19). Pushati: etichetta 90×29 (bf06db76), PDF etichetta + Prenota su /regalo (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-10-27 — **DA PUSHARE:** Gift Card «📷 Scansiona» al banco, /regalo solo cliente (clienti 3.20). Pushati: «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
 **Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
-**DA PUSHARE — /regalo: testo del riquadro leggibile** (clienti 3.19) `[core]`. **Pushato (bf06db76) — etichetta 90×29:** salvare il preset «Etichetta gift card» (Brother, 29x90mm). Dopo il push: QR di prova → «Buono non riconosciuto» leggibile; QR di una card vera da telefono non loggato → «Prenota il tavolo» → TheFork.
+**DA PUSHARE — Gift card: «📷 Scansiona» al banco** (clienti 3.20) `[core]`. Dopo il push: dall'app (anche icona Home) Gift Card › Scansiona → QR di una card vera → card nel riquadro con Scarica; lo stesso QR dalla fotocamera di un telefono → solo vista cliente. Da fare: preset «Etichetta gift card» (Brother, 29x90mm).
 
 **DA PUSHARE — Voci «qb» nella modifica ricetta** (ricette 3.36, nessuna migrazione) `[core]` — `VoceQuantita.jsx` (nuovo: tendina con «qb», quantità disattivata, `rigaDaVoce`/`vociDaSalvare`), `RicetteModifica.jsx`, `RicetteNuova.jsx`, `app/services/ricette_qb.py` (nuovo: `is_qb` unico), `foodcost_recipes_router.py` (`_calc_item_cost`/`_enrich_items_with_costs`: qb fuori dal costo), `foodcost_history_service.py`, `versions.jsx`, docs. **Dopo il push:** aprire e salvare senza modifiche R229, R230, R231 (Ctrl+Shift+R prima); poi Claude sostituisce in R231 «Burro unigrana» con «Burro nostrano latini novita'» (45 g), dopo l'ok di Marco.
 
@@ -118,6 +118,12 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+## SESSIONE 2026-10-27 — Gift card: lo staff scansiona dall'app `[core]`
+
+Marco: la vista staff su `/regalo` dipendeva dal login di Safari (non vale dall'app sulla schermata Home, scade in 8 ore). Decisione: lo staff legge il QR solo dall'app. «📷 Scansiona» nel banco di `ClientiGiftCard.jsx` (riusa `QrScanner`), `/regalo` solo vista cliente. Provati: sintassi e rendering di `/regalo`. Non provato: scansione reale da iPhone.
+
+Commit: `./push.sh "[core] Gift card: Scansiona QR al banco dall'app, /regalo solo vista cliente (clienti 3.20)"`
 
 ## SESSIONE 2026-10-26 — Gift card: etichetta sul rotolo 29×90 `[core]`
 

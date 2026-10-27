@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/clienti/ClientiGiftCard.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.2-giftcard — etichetta QR 90×29 (rotolo 29×90) per il buono stampato (2026-10-26)
+// @version: v1.3-giftcard — «📷 Scansiona» al banco: legge il QR dell'etichetta (2026-10-27); v1.2 — etichetta QR 90×29 (rotolo 29×90) per il buono stampato (2026-10-26)
 //
 // Due usi in una pagina sola:
 //  1) BANCO: campo grande "digita il codice" → verdetto immediato → Scarica.
@@ -16,6 +16,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import { stampaEtichettaGiftCard } from "./EtichettaGiftCard";
 import { apriFinestraVuota } from "../../utils/pdfEtichetta";
+import QrScanner from "../../components/QrScanner";
 import {
   Btn, PageLayout, StatusBadge, EmptyState,
   FieldLabel, TextInput, Select, Textarea, Modal,
@@ -81,6 +82,7 @@ export default function ClientiGiftCard() {
   const [codiceBanco, setCodiceBanco] = useState("");
   const [esito, setEsito] = useState(null);
   const [verificando, setVerificando] = useState(false);
+  const [scanner, setScanner] = useState(false);
   const inputBanco = useRef(null);
 
   // Modali
@@ -147,6 +149,30 @@ export default function ClientiGiftCard() {
       const r = await apiFetch(`${API_BASE}/clienti/giftcard/lookup/${encodeURIComponent(codice)}`);
       const d = await r.json();
       setEsito(d);
+    } catch {
+      setEsito({ trovata: false, motivo: "Errore di collegamento" });
+    } finally {
+      setVerificando(false);
+    }
+  };
+
+  // Lettura dello staff: SOLO da qui (decisione Marco 2026-10-27). Il QR
+  // dell'etichetta contiene …/regalo/<chiave>; se la fotocamera legge altro
+  // (un codice scritto, un QR vecchio) lo si prova come codice.
+  const daScansione = async (testo) => {
+    setScanner(false);
+    const t = (testo || "").trim();
+    const m = t.match(/\/regalo\/([A-Za-z0-9_-]+)/);
+    setVerificando(true);
+    setEsito(null);
+    try {
+      const url = m
+        ? `${API_BASE}/clienti/giftcard/qr/${encodeURIComponent(m[1])}`
+        : `${API_BASE}/clienti/giftcard/lookup/${encodeURIComponent(t)}`;
+      const r = await apiFetch(url);
+      const d = await r.json();
+      setEsito(d);
+      setCodiceBanco(d.trovata ? d.codice : (m ? "" : t));
     } catch {
       setEsito({ trovata: false, motivo: "Errore di collegamento" });
     } finally {
@@ -267,6 +293,10 @@ export default function ClientiGiftCard() {
             </FieldLabel>
             <Btn type="submit" size="lg" loading={verificando} disabled={!codiceBanco.trim()}>
               Verifica
+            </Btn>
+            <Btn type="button" variant="secondary" size="lg" onClick={() => setScanner(true)}
+              title="Inquadra il QR dell'etichetta sul buono">
+              📷 Scansiona
             </Btn>
             {(esito || codiceBanco) && (
               <Btn
@@ -434,6 +464,10 @@ export default function ClientiGiftCard() {
         />
       )}
 
+
+      {scanner && (
+        <QrScanner title="Inquadra il QR del buono" onResult={daScansione} onClose={() => setScanner(false)} />
+      )}
 
       {toast && (
         <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium z-50 ${

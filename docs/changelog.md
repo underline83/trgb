@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-27 — Chiusura turno: preconto senza tavolo non si perde più `[core]`
+
+Corrispettivi 4.12, nessuna migrazione. Un preconto con l'importo ma senza il tavolo veniva scartato in silenzio, sia dalla pagina sia dal server, anche quando si correggeva una chiusura già salvata. Ora si salva col tavolo «—». Solo le righe vuote (niente tavolo, niente importo) restano scartate. File: `ChiusuraTurno.jsx`, `chiusure_turno.py`.
+
+## 2026-10-27 — Gift card: lo staff scansiona dall'app `[core]`
+
+Clienti 3.20, nessuna migrazione. Nella pagina Gift Card, accanto a «Verifica», c'è **«📷 Scansiona»**: si inquadra il QR dell'etichetta e la card compare nel riquadro del banco con Scarica. Funziona anche dall'app sulla schermata Home e non dipende dal login di Safari. La pagina `/regalo` mostra ora sempre e solo la vista del cliente: la vista staff col login del browser è tolta (decisione di Marco). Riusa `components/QrScanner.jsx` (lo stesso delle Vendite vini) e `GET /clienti/giftcard/qr/{token}`. File: `ClientiGiftCard.jsx`, `Regalo.jsx`.
+
 ## 2026-10-26 — Gift card: «Buono non riconosciuto» leggibile `[core]`
 
 Clienti 3.19, nessuna migrazione. Sulla pagina `/regalo`, con un QR che non corrisponde a nessuna card (o con un errore di rete) il riquadro restava bianco: il testo era avorio su fondo avorio. Ora prende il bordeaux come il resto. File: `Regalo.jsx`.

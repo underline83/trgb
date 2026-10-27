@@ -1306,13 +1306,16 @@ async def upsert_shift_closure(
         # Insert new preconti
         if payload.preconti:
             for p in payload.preconti:
-                if p.tavolo.strip():
+                # Riga vuota (niente tavolo, niente importo) → scartata.
+                # Importo senza tavolo → si salva col tavolo «—», non si perde.
+                tavolo = (p.tavolo or "").strip()
+                if tavolo or p.importo:
                     cur.execute(
                         """
                         INSERT INTO shift_preconti (shift_closure_id, tavolo, importo)
                         VALUES (?, ?, ?)
                         """,
-                        (shift_closure_id, p.tavolo.strip(), p.importo),
+                        (shift_closure_id, tavolo or "—", p.importo),
                     )
 
         # Handle spese

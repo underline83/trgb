@@ -429,8 +429,9 @@ export default function ChiusuraTurno() {
           mance: toNumber(mance),
           note: note.trim() || null,
           checklist,
-          preconti: preconti.filter(p => p.tavolo.trim()).map(p => ({
-            tavolo: p.tavolo.trim(),
+          // Un preconto con importo ma senza tavolo si salva col tavolo «—» (prima spariva in silenzio)
+          preconti: preconti.filter(p => p.tavolo.trim() || toNumber(p.importo)).map(p => ({
+            tavolo: p.tavolo.trim() || "—",
             importo: toNumber(p.importo),
           })),
           spese: spese.filter(s => s.descrizione.trim()).map(s => ({
