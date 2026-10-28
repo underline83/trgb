@@ -1547,6 +1547,34 @@ def crea_combinazione(
         conn.close()
 
 
+class CombinazioneUpdate(BaseModel):
+    nome: Optional[str] = None
+    posti: Optional[int] = None
+    posti_min: Optional[int] = None
+
+
+@router.put("/tavoli/combinazioni/{combo_id}", dependencies=[Depends(solo_admin(cosa="le combinazioni di tavoli"))])
+def modifica_combinazione(combo_id: int, req: CombinazioneUpdate):
+    """Posti della combinazione decisi da chi conosce la sala (es. 0+1 coi capotavola = 6), non la somma."""
+    campi = {k: v for k, v in (req.model_dump() if hasattr(req, "model_dump") else req.dict()).items() if v is not None}
+    if not campi:
+        return {"message": "Nessuna modifica"}
+    if campi.get("posti") is not None and campi["posti"] < 1:
+        raise HTTPException(status_code=400, detail="Posti massimi almeno 1")
+    conn = get_clienti_conn()
+    try:
+        cur = conn.execute(
+            f"UPDATE tavoli_combinazioni SET {', '.join(f'{k} = ?' for k in campi)} WHERE id = ?",
+            [*campi.values(), combo_id],
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Combinazione non trovata")
+        return {"message": "Combinazione aggiornata", "id": combo_id}
+    finally:
+        conn.close()
+
+
 @router.get("/tavoli/combinazioni/proposte")
 def proposte_combinazioni(user: dict = Depends(get_current_user)):
     """Coppie di tavoli combinabili vicini sulla piantina (stessa sala), non ancora salvate."""

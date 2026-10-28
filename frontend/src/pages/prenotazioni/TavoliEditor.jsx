@@ -1,4 +1,4 @@
-// @version: v2.2-combinazioni — combinazioni di tavoli per sala (nuova, proposte dei tavoli vicini, elimina); v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
+// @version: v2.2-combinazioni — combinazioni di tavoli per sala (nuova, proposte dei tavoli vicini, posti decisi a mano e modificabili, elimina); v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
 // Modulo: prenotazioni
 // Editor piantina tavoli — drag & drop SVG, Fase 2 Prenotazioni
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -682,9 +682,11 @@ export default function TavoliEditor() {
 
 // ── Combinazioni di tavoli della sala (2026-10-28) ──
 // Tavoli che si uniscono per i gruppi (es. 2+3). Servono al motore della disponibilità per tavoli.
+// I posti li decide chi conosce la sala (0+1 coi capotavola = 6): la somma è solo il punto di partenza.
 function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
-  const [nuova, setNuova] = useState(null);       // {ids:Set, posti_min, posti}
+  const [nuova, setNuova] = useState(null);       // {ids:Set, posti_min, posti, toccati}
   const [proposte, setProposte] = useState(null);
+  const [modifica, setModifica] = useState(null); // {id, posti_min, posti}
   const nomeDi = (ids) => tavoli.filter(t => ids.includes(t.id)).map(t => t.nome).join("+");
   const idsDi = (c) => { try { return JSON.parse(c.tavoli_ids); } catch { return []; } };
   const della = combinazioni.filter(c => {
@@ -692,17 +694,30 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
     return c.zona ? c.zona === sala : ids.some(id => tavoli.some(t => t.id === id));
   });
 
-  const salva = async (c) => {
+  const salva = async () => {
+    const ids = [...nuova.ids];
     const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/combinazioni`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: c.nome, tavoli_ids: JSON.stringify(c.tavoli_ids), posti: c.posti, posti_min: c.posti_min, zona: sala }),
+      body: JSON.stringify({ nome: nomeDi(ids), tavoli_ids: JSON.stringify(ids), posti: nuova.posti, posti_min: nuova.posti_min, zona: sala }),
     });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { flash("err", d.detail || "Errore"); return false; }
-    flash("ok", `Combinazione ${c.nome} salvata`);
+    if (!r.ok) { flash("err", d.detail || "Errore"); return; }
+    flash("ok", `Combinazione ${nomeDi(ids)} salvata`);
+    if (proposte) setProposte(proposte.filter(p => nomeDi(p.tavoli_ids) !== nomeDi(ids)));
+    setNuova(null);
     onCambio();
-    return true;
+  };
+  const salvaModifica = async () => {
+    const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/combinazioni/${modifica.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ posti: modifica.posti, posti_min: modifica.posti_min }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { flash("err", d.detail || "Errore"); return; }
+    setModifica(null);
+    onCambio();
   };
   const elimina = async (c) => {
     if (!confirm(`Eliminare la combinazione ${c.nome}?`)) return;
@@ -714,31 +729,58 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
     const d = await r.json().catch(() => ({ proposte: [] }));
     setProposte((d.proposte || []).filter(p => p.zona === sala));
   };
+  // Somma dei tavoli scelti: solo proposta finché i posti non li hai toccati tu
+  const conTavoli = (ids, base) => {
+    const scelti = tavoli.filter(t => ids.has(t.id));
+    if (base?.toccati) return { ...base, ids };
+    return { ids, toccati: false, posti: scelti.reduce((a, t) => a + (t.posti_max || 0), 0), posti_min: Math.max(1, ...scelti.map(t => t.posti_min || 1)) };
+  };
   const toggle = (id) => {
     const ids = new Set(nuova.ids);
     ids.has(id) ? ids.delete(id) : ids.add(id);
-    const scelti = tavoli.filter(t => ids.has(t.id));
-    setNuova({ ids, posti: scelti.reduce((a, t) => a + (t.posti_max || 0), 0), posti_min: Math.max(1, ...scelti.map(t => t.posti_min || 1)) });
+    setNuova(conTavoli(ids, nuova));
   };
+  const posti = (v, onChange) => ( // funzione, non componente: così gli input non perdono il fuoco
+    <div className="flex items-center gap-2 text-xs">
+      <span>posti</span>
+      <input type="number" min={1} value={v.posti_min} onChange={e => onChange({ ...v, posti_min: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded" />
+      <span>–</span>
+      <input type="number" min={1} value={v.posti} onChange={e => onChange({ ...v, posti: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded" />
+    </div>
+  );
 
   return (
     <div className="bg-white rounded-xl border border-neutral-200 p-4 space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-neutral-800 text-sm">Combinazioni · {sala}</h3>
-        {!nuova && <button onClick={() => setNuova({ ids: new Set(), posti: 0, posti_min: 1 })} className="text-xs text-indigo-700 hover:underline">+ Nuova</button>}
+        {!nuova && <button onClick={() => setNuova({ ids: new Set(), posti: 0, posti_min: 1, toccati: false })} className="text-xs text-indigo-700 hover:underline">+ Nuova</button>}
       </div>
       {della.length === 0 && !nuova && <p className="text-[11px] text-neutral-400">Nessuna: i gruppi si siedono solo sui tavoli singoli.</p>}
       {della.map(c => (
-        <div key={c.id} className="flex items-center gap-2 text-xs">
-          <span className="font-medium text-neutral-800">{c.nome}</span>
-          <span className="text-neutral-500">{c.posti_min ? `${c.posti_min}–` : ""}{c.posti}p</span>
-          <button onClick={() => elimina(c)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
-        </div>
+        modifica?.id === c.id ? (
+          <div key={c.id} className="space-y-1 border border-indigo-200 rounded p-2">
+            <div className="text-xs font-medium text-neutral-800">{c.nome}</div>
+            {posti(modifica, setModifica)}
+            <div className="flex gap-2">
+              <button onClick={salvaModifica} className="text-xs px-2 py-1 rounded bg-indigo-600 text-white">Salva</button>
+              <button onClick={() => setModifica(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
+            </div>
+          </div>
+        ) : (
+          <div key={c.id} className="flex items-center gap-2 text-xs">
+            <span className="font-medium text-neutral-800">{c.nome}</span>
+            <button onClick={() => setModifica({ id: c.id, posti: c.posti, posti_min: c.posti_min || 1 })}
+              title="Cambia i posti" className="text-neutral-500 hover:text-indigo-700 underline decoration-dotted">
+              {c.posti_min ? `${c.posti_min}–` : ""}{c.posti}p
+            </button>
+            <button onClick={() => elimina(c)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
+          </div>
+        )
       ))}
 
       {nuova && (
         <div className="border-t border-neutral-100 pt-2 space-y-2">
-          <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono:</p>
+          <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono, poi scrivi quanti ci stanno davvero (capotavola compresi):</p>
           <div className="flex flex-wrap gap-1">
             {tavoli.map(t => (
               <button key={t.id} onClick={() => toggle(t.id)}
@@ -747,15 +789,9 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span>posti</span>
-            <input type="number" min={1} value={nuova.posti_min} onChange={e => setNuova({ ...nuova, posti_min: +e.target.value })} className="w-14 px-1 py-0.5 border rounded" />
-            <span>–</span>
-            <input type="number" min={1} value={nuova.posti} onChange={e => setNuova({ ...nuova, posti: +e.target.value })} className="w-14 px-1 py-0.5 border rounded" />
-          </div>
+          {posti(nuova, setNuova)}
           <div className="flex gap-2">
-            <button disabled={nuova.ids.size < 2}
-              onClick={async () => { const ids = [...nuova.ids]; if (await salva({ nome: nomeDi(ids), tavoli_ids: ids, posti: nuova.posti, posti_min: nuova.posti_min })) setNuova(null); }}
+            <button disabled={nuova.ids.size < 2 || !nuova.posti} onClick={salva}
               className="text-xs px-2 py-1 rounded bg-indigo-600 text-white disabled:opacity-40">Salva {nuova.ids.size >= 2 ? nomeDi([...nuova.ids]) : ""}</button>
             <button onClick={() => setNuova(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
           </div>
@@ -769,13 +805,12 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
           <p className="text-[11px] text-neutral-400">Nessun'altra coppia di tavoli vicini da proporre.</p>
         ) : (
           <div className="space-y-1">
-            <p className="text-[11px] text-neutral-500">Tavoli vicini sulla piantina:</p>
+            <p className="text-[11px] text-neutral-500">Tavoli vicini sulla piantina (scegli e correggi i posti):</p>
             {proposte.map(p => (
               <div key={p.nome} className="flex items-center gap-2 text-xs">
                 <span className="text-neutral-700">{p.nome}</span>
-                <span className="text-neutral-400">{p.posti_min}–{p.posti}p</span>
-                <button onClick={async () => { if (await salva(p)) setProposte(proposte.filter(x => x.nome !== p.nome)); }}
-                  className="ml-auto text-indigo-700 hover:underline">+ aggiungi</button>
+                <button onClick={() => setNuova({ ids: new Set(p.tavoli_ids), posti: p.posti, posti_min: p.posti_min, toccati: false })}
+                  className="ml-auto text-indigo-700 hover:underline">usa →</button>
               </div>
             ))}
           </div>
