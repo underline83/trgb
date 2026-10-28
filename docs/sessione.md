@@ -6,7 +6,7 @@
 
 **Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
-**DA PUSHARE — Statistiche dai conti + Cucina › Piatti che vanno** (ricette 3.37, statistiche 1.4, nessuna migrazione) `[core]` — IP.1 parte 1
+**Pushato (d28dfef9, messaggio di commit sbagliato: è quello della chiusura turno), da verificare — Statistiche dai conti + Cucina › Piatti che vanno** (ricette 3.37, statistiche 1.4, nessuna migrazione) `[core]` — IP.1 parte 1
 - Dopo il push: Cucina › «📈 Piatti che vanno» (da admin e da uno chef): 7 giorni, poi Cena; tocco su un piatto = barre giorno per giorno. Da un utente sala la voce non c'è.
 - Dal 1/11: Statistiche › Import deve mostrare novembre come «conti iPratico Cloud · fino al …» senza caricare il .xls; ottobre va ancora importato a mano (o si sposta `statistiche_conti_config.dal_mese` a 2026-10).
 
