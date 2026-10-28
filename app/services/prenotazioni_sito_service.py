@@ -170,7 +170,12 @@ def orari(conn, data: str, pax: int, adesso: Optional[datetime] = None,
         fasce = fasce_srv.fasce_giorno(conn, data, turno, cfg)["fasce"]
         if not fasce:
             continue
-        capienza = _int(cfg, f"capienza_{turno}", 0)
+        from app.services import prenotazioni_sale_service as sale_srv
+        capienza = sale_srv.capienza(conn, data, turno)  # tavoli delle sale aperte (mig 214)
+        if capienza is None:
+            capienza = _int(cfg, f"capienza_{turno}", 0)
+        elif capienza == 0:
+            continue  # tutte le sale chiuse in quel turno
         occupati = _coperti_turno(conn, data, turno)
         lista = []
         for f in fasce:

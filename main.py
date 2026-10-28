@@ -153,6 +153,8 @@ from app.routers.sito_pubblico_router import router as sito_pubblico_router  # v
 
 # CASSA — conti chiusi letti da iPratico Cloud (2026-10-18). Doc: docs/analisi_ipratico_cloud.md
 from app.routers.cassa_ipratico_router import router as cassa_ipratico_router
+# CUCINA › Piatti che vanno (modulo ricette) — porzioni dai conti di cassa (IP.1, 2026-10-28)
+from app.routers.cucina_vendite_router import router as cucina_vendite_router
 
 # R8b — module loader: feature flags per locale.
 # Legge locali/<TRGB_LOCALE>/moduli_attivi.json + core/moduli/<id>/module.json
@@ -837,6 +839,9 @@ if module_loader.is_router_active("cassa_ipratico_router"):
     # Scarico notturno dei conti (IPRATICO_CLOUD_ORA, default 05:30; IPRATICO_CLOUD_NOTTE=0 = spento)
     from app.services.ipratico_cloud_service import avvia_scarico_notturno as _ipratico_notte
     _ipratico_notte()
+
+# CUCINA › Piatti che vanno (modulo ricette) — legge i conti via vendite_conti_service
+_mount("cucina_vendite_router", cucina_vendite_router)
 
 
 # Banner finale del module loader

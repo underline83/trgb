@@ -71,6 +71,7 @@ const MODULES_MENU = {
       { label: "Selezioni · Salumi",    go: "/selezioni/salumi", roles: ["admin", "chef", "sous_chef", "sala", "sommelier"] },
       { label: "Selezioni · Formaggi",  go: "/selezioni/formaggi", roles: ["admin", "chef", "sous_chef", "sala", "sommelier"] },
       { label: "Menu Carta",    go: "/menu-carta", roles: ["admin", "chef", "sous_chef"] },
+      { label: "Piatti che vanno", go: "/cucina/piatti", roles: ["admin", "chef", "sous_chef"] },
       { label: "Menu Pranzo",   go: "/pranzo", roles: ["admin", "chef", "sous_chef"] },
       // Commis (2026-10-03): solo la visualizzazione dei due menu
       { label: "Vedi menu pranzo", go: "/pranzo/vista", roles: ["commis"], sub: "archivio" },

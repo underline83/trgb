@@ -38,6 +38,7 @@ from app.services.auth_service import get_current_user
 from app.utils.whatsapp import build_wa_link, fill_template
 from app.services.prenotazioni_doppioni_service import doppioni_del_giorno
 from app.services import prenotazioni_fasce_service as fasce_srv
+from app.services import prenotazioni_sale_service as sale_srv
 
 logger = logging.getLogger("trgb.prenotazioni")
 
@@ -156,6 +157,23 @@ def _minuti(hhmm: Optional[str]) -> Optional[int]:
         return None
 
 
+def durata_tavolo(config: Dict[str, str], turno: str, data: str) -> int:
+    """Minuti di occupazione di un tavolo: cena; pranzo, o pranzo «lungo» nei giorni scelti (sab/dom)."""
+    def _n(k, d):
+        try:
+            return int(config.get(k) or d)
+        except ValueError:
+            return d
+    if turno == "pranzo" and data:
+        try:
+            giorni = json.loads(config.get("giorni_pranzo_lungo") or "[5,6]")
+            if date.fromisoformat(data[:10]).weekday() in giorni:
+                return _n("durata_pranzo_lungo", 120)
+        except (ValueError, TypeError):
+            pass
+    return _n(f"durata_{turno}", _n("durata_media_tavolo_min", 90))
+
+
 def _timeline_turno(prenotazioni: List[Dict[str, Any]], config: Dict[str, str], turno: str) -> List[Dict[str, Any]]:
     """
     Occupazione della sala per orario (come la barra in alto di TheFork Manager):
@@ -164,20 +182,26 @@ def _timeline_turno(prenotazioni: List[Dict[str, Any]], config: Dict[str, str], 
     Slot = quelli in config + gli orari di arrivo reali.
     """
     try:
-        durata = int(config.get(f"durata_{turno}") or config.get("durata_media_tavolo_min") or 90)
-    except ValueError:
-        durata = 90
-    try:
         slot_cfg = json.loads(config.get(f"slot_{turno}") or "[]")
     except ValueError:
         slot_cfg = []
     attive = [p for p in prenotazioni if p.get("stato") not in ("CANCELED", "NO_SHOW", "REFUSED")
               and _minuti(p.get("ora_pasto")) is not None]
+    data = (attive[0].get("data_pasto") if attive else None) or ""
+    durata_base = durata_tavolo(config, turno, data)
+    try:
+        soglia_gruppo = int(config.get("gruppo_turno_intero") or 10)
+    except ValueError:
+        soglia_gruppo = 10
+
+    def _durata(p):  # i gruppi grandi non girano: tutto il turno
+        return 24 * 60 if (p.get("pax") or 0) >= soglia_gruppo else durata_base
+
     orari = {m for m in (_minuti(x) for x in slot_cfg) if m is not None}
     orari |= {_minuti(p["ora_pasto"]) // 15 * 15 for p in attive}  # arrivi sul quarto d'ora
     out = []
     for m in sorted(orari):
-        in_sala = [p for p in attive if _minuti(p["ora_pasto"]) <= m < _minuti(p["ora_pasto"]) + durata]
+        in_sala = [p for p in attive if _minuti(p["ora_pasto"]) <= m < _minuti(p["ora_pasto"]) + _durata(p)]
         tavoli = set()
         for p in in_sala:
             for t in str(p.get("tavolo") or "").replace(",", "+").split("+"):
@@ -230,6 +254,7 @@ class PrenotazioneUpdate(BaseModel):
     tavolo_esterno: Optional[int] = None
     seggioloni: Optional[str] = None
     stato: Optional[str] = None
+    cliente_id: Optional[int] = None
 
 
 class StatoUpdate(BaseModel):
@@ -358,8 +383,13 @@ def get_planning(
                 "pranzo_pax": pax_pranzo,
                 "cena_pax": pax_cena,
                 "senza_tavolo": senza_tavolo,
-                "capienza_pranzo": int(config.get("capienza_pranzo", 35)),
-                "capienza_cena": int(config.get("capienza_cena", 50)),
+                # Capienza = posti dei tavoli delle sale aperte (mig 214); senza tavoli, il numero fisso
+                "capienza_pranzo": _capienza_turno(conn, data, "pranzo", config),
+                "capienza_cena": _capienza_turno(conn, data, "cena", config),
+            },
+            "sale": {
+                "pranzo": sale_srv.elenco(conn, data, "pranzo"),
+                "cena": sale_srv.elenco(conn, data, "cena"),
             },
         }
     finally:
@@ -642,7 +672,7 @@ def get_tavoli(user: dict = Depends(get_current_user)):
         """).fetchall()
 
         combinazioni = conn.execute("""
-            SELECT id, nome, tavoli_ids, posti, uso_frequente, note
+            SELECT *
             FROM tavoli_combinazioni
             ORDER BY uso_frequente DESC, nome
         """).fetchall()
@@ -751,7 +781,9 @@ class TavoloUpdate(BaseModel):
 class CombinazioneCreate(BaseModel):
     nome: str
     tavoli_ids: str          # JSON array di id, es. "[4,5]"
-    posti: int
+    posti: int               # posti massimi
+    posti_min: Optional[int] = None
+    zona: Optional[str] = None
     uso_frequente: int = 0
     note: Optional[str] = None
 
@@ -938,6 +970,65 @@ def get_fasce_thefork(data: str, turno: str, coperti: int = Query(default=2, ge=
         raise HTTPException(status_code=503, detail=str(e))
     except tf.TheForkErroreAPI as e:
         raise HTTPException(status_code=502, detail=f"TheFork: {e}")
+
+
+# ============================================================
+# SALE APERTE per giorno e turno (2026-10-28, mig 214)
+# ============================================================
+
+def _capienza_turno(conn, data: str, turno: str, config: Dict[str, str]) -> int:
+    c = sale_srv.capienza(conn, data, turno)
+    if c is None:
+        try:
+            return int(config.get(f"capienza_{turno}") or 0)
+        except ValueError:
+            return 0
+    return c
+
+
+class SalaDefault(BaseModel):
+    aperta: bool
+
+
+class SalaGiorno(BaseModel):
+    data: str
+    turno: str
+    aperta: Optional[bool] = None   # None = torna al default
+
+
+@router.get("/sale")
+def get_sale(data: Optional[str] = Query(None), turno: Optional[str] = Query(None),
+             user: dict = Depends(get_current_user)):
+    conn = get_clienti_conn()
+    try:
+        return {"sale": sale_srv.elenco(conn, data, turno)}
+    finally:
+        conn.close()
+
+
+@router.put("/sale/{zona}/default", dependencies=[Depends(solo_admin(cosa="le sale"))])
+def put_sala_default(zona: str, req: SalaDefault):
+    conn = get_clienti_conn()
+    try:
+        sale_srv.imposta_default(conn, zona, req.aperta)
+        return {"sale": sale_srv.elenco(conn)}
+    finally:
+        conn.close()
+
+
+@router.put("/sale/{zona}/giorno")
+def put_sala_giorno(zona: str, req: SalaGiorno, user: dict = Depends(get_current_user)):
+    """Apre o chiude una sala per un giorno e turno (Planning). aperta=null → default."""
+    verifica_ruoli(user, "admin", "sala", cosa="l'apertura delle sale")
+    if req.turno not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno: pranzo o cena")
+    conn = get_clienti_conn()
+    try:
+        sale_srv.imposta_giorno(conn, req.data, req.turno, zona, req.aperta, user.get("username"))
+        return {"sale": sale_srv.elenco(conn, req.data, req.turno),
+                "capienza": _capienza_turno(conn, req.data, req.turno, _get_config(conn))}
+    finally:
+        conn.close()
 
 
 # ============================================================
@@ -1440,12 +1531,48 @@ def crea_combinazione(
     """Crea una nuova combinazione di tavoli."""
     conn = get_clienti_conn()
     try:
+        try:
+            ids = [int(x) for x in json.loads(req.tavoli_ids)]
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="tavoli_ids: lista di id")
+        if len(ids) < 2:
+            raise HTTPException(status_code=400, detail="Una combinazione ha almeno due tavoli")
         cur = conn.execute("""
-            INSERT INTO tavoli_combinazioni (nome, tavoli_ids, posti, uso_frequente, note)
-            VALUES (?, ?, ?, ?, ?)
-        """, (req.nome, req.tavoli_ids, req.posti, req.uso_frequente, req.note))
+            INSERT INTO tavoli_combinazioni (nome, tavoli_ids, posti, posti_min, zona, uso_frequente, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (req.nome, json.dumps(ids), req.posti, req.posti_min, req.zona, req.uso_frequente, req.note))
         conn.commit()
         return {"id": cur.lastrowid, "message": f"Combinazione '{req.nome}' creata"}
+    finally:
+        conn.close()
+
+
+@router.get("/tavoli/combinazioni/proposte")
+def proposte_combinazioni(user: dict = Depends(get_current_user)):
+    """Coppie di tavoli combinabili vicini sulla piantina (stessa sala), non ancora salvate."""
+    conn = get_clienti_conn()
+    try:
+        tav = [dict(r) for r in conn.execute(
+            "SELECT id, nome, zona, posti_min, posti_max, posizione_x x, posizione_y y, larghezza w, altezza h "
+            "FROM tavoli WHERE attivo = 1 AND combinabile = 1")]
+        esistenti = set()
+        for r in conn.execute("SELECT tavoli_ids FROM tavoli_combinazioni"):
+            try:
+                esistenti.add(tuple(sorted(int(x) for x in json.loads(r["tavoli_ids"]))))
+            except Exception:
+                pass
+        out = []
+        for i, a in enumerate(tav):
+            for b in tav[i + 1:]:
+                if a["zona"] != b["zona"]:
+                    continue
+                dx = max(0, max(a["x"], b["x"]) - min(a["x"] + a["w"], b["x"] + b["w"]))
+                dy = max(0, max(a["y"], b["y"]) - min(a["y"] + a["h"], b["y"] + b["h"]))
+                if max(dx, dy) <= 25 and tuple(sorted((a["id"], b["id"]))) not in esistenti:
+                    out.append({"nome": f"{a['nome']}+{b['nome']}", "tavoli_ids": [a["id"], b["id"]], "zona": a["zona"],
+                                "posti": (a["posti_max"] or 0) + (b["posti_max"] or 0),
+                                "posti_min": max(a["posti_min"] or 1, b["posti_min"] or 1)})
+        return {"proposte": out}
     finally:
         conn.close()
 
@@ -1555,6 +1682,7 @@ def get_mappa_tavoli(
             "layout_attivo": dict(layout_attivo) if layout_attivo else None,
             "elementi": _elementi_piantina(conn),
             "sale": _sale(conn),
+            "sale_stato": sale_srv.elenco(conn, data, turno),
         }
     finally:
         conn.close()
@@ -1592,7 +1720,10 @@ def modifica_prenotazione(
     req: PrenotazioneUpdate,
     user: dict = Depends(get_current_user),
 ):
-    """Modifica una prenotazione esistente."""
+    """Modifica una prenotazione esistente (form «Modifica» del Planning, 2026-10-28)."""
+    verifica_ruoli(user, "admin", "sala", "sommelier", cosa="la modifica delle prenotazioni")
+    if req.stato is not None and req.stato not in STATI_VALIDI:
+        raise HTTPException(status_code=400, detail=f"Stato non valido: {req.stato}")
     conn = get_clienti_conn()
     try:
         existing = conn.execute(
@@ -1620,6 +1751,7 @@ def modifica_prenotazione(
             "tavolo_esterno": req.tavolo_esterno,
             "seggioloni": req.seggioloni,
             "stato": req.stato,
+            "cliente_id": req.cliente_id,
         }
 
         for field, value in fields.items():

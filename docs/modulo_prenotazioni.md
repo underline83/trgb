@@ -29,7 +29,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-002 | Riepilogo settimanale (7 giorni, count+pax per turno) | `GET /prenotazioni/settimana/{data}` — `:273` | sala | ✅ |
 | C-P-003 | Conteggi mensili per mini-calendario (con saturazione) | `GET /prenotazioni/calendario/{anno}/{mese}` — `:337` | sala | ✅ |
 | C-P-004 | Crea prenotazione manuale (+ cliente CRM al volo) | `POST /prenotazioni/` — `:379` | sala | ✅ |
-| C-P-005 | Modifica prenotazione (ricalcola turno se cambia ora) | `PUT /prenotazioni/{id}` — `:1055` | sala | ✅ |
+| C-P-005 | Modifica prenotazione (ricalcola turno se cambia ora): dal 2.23 «✏️ Modifica» nel Planning (PrenotazioniForm con prop `prenotazione`), cambio cliente, avviso per le TheFork | `PUT /prenotazioni/{id}` | sala, sommelier, admin | ✅ |
 | C-P-006 | Cambio stato rapido con transizioni validate | `PATCH /prenotazioni/{id}/stato` — `:1124` | sala | ✅ |
 | C-P-007 | Cancella (soft: stato → CANCELED) | `DELETE /prenotazioni/{id}` — `:1171` | sala | ✅ |
 | C-P-008 | Config modulo (capienze, slot, soglia, template WA…) | `GET/PUT /prenotazioni/config` — `:454, :467` | admin (solo UI, vedi §9) | ✅ |
@@ -207,6 +207,10 @@ La **sala** è `tavoli.zona` (testo libero; le sale si ordinano col minimo `ordi
 ## 8.2b Tavoli dividibili (prenotazioni 2.12, mig 196)
 
 `tavoli.dividibile` (0/1, dall'Editor) e `tavoli_divisioni` (data_pasto, turno, tavolo_id). Per quel turno mappa e disponibilità sostituiscono il tavolo con due metà virtuali: id `"<id>A"`/`"<id>B"`, nome `<nome>A`/`<nome>B`, posti_max divisi (A arrotonda per eccesso), sagoma tagliata sul lato lungo, `diviso_da`, `divisione_id`. Le prenotazioni si assegnano col nome della metà. Non si divide un tavolo assegnato o bloccato, né se esiste già un tavolo vero chiamato come una metà; non si riunisce se una metà ha una prenotazione. Le metà non si bloccano.
+
+## 8.2c Sale aperte, capienza dai tavoli, combinazioni (prenotazioni 2.24, mig 214)
+
+Verso la disponibilità per tavoli. `sale_config` (zona, aperta_default) e `sale_aperture` (data, turno, zona, aperta) → `prenotazioni_sale_service.py` (`elenco`, `aperte`, `capienza` = Σ posti_max dei tavoli attivi delle sale aperte meno i bloccati; None senza tavoli → `capienza_{turno}`). Endpoint `GET /prenotazioni/sale`, `PUT /sale/{zona}/default` (admin), `PUT /sale/{zona}/giorno` (admin, sala). Planning: `sale` per turno e capienza calcolata; mappa: `sale_stato`. Combinazioni: `tavoli_combinazioni` + `posti_min`, `zona`; `GET /tavoli/combinazioni/proposte` (coppie combinabili a ≤25 px). Durata: `durata_tavolo(config, turno, data)` — `durata_pranzo_lungo` nei `giorni_pranzo_lungo` (default sab, dom), e da `gruppo_turno_intero` coperti (10) occupato tutto il turno. Config per il passo dopo: `soglia_online_tavolo` (6). Prossimi passi: motore di assegnazione per tavoli (sito, form, tavolo suggerito), chiusura automatica su TheFork.
 
 ## 8.3 Fasce orarie del servizio (prenotazioni 2.11, mig 195)
 

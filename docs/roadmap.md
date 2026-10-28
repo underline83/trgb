@@ -271,7 +271,7 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 
 | # | Cosa | A cosa serve | Effort | Priorità | Note |
 |---|---|---|---|---|---|
-| IP.1 | **Statistiche dai conti** — vendite per giorno, turno, fascia oraria, tavolo, cameriere, portata, piatto | Basta import `.xls` mensile; si vede *quando* e *cosa* si vende | M | ALTA | Sblocca ST.2 sui singoli prodotti e ST.3 YoY. Modulo `statistiche` (sola lettura) |
+| IP.1 | **Statistiche dai conti** — vendite per giorno, turno, fascia oraria, tavolo, cameriere, portata, piatto | Basta import `.xls` mensile; si vede *quando* e *cosa* si vende | M | 🟡 PARTE 1 FATTA 2026-10-28: mesi dai conti da nov 2026 (statistiche 1.4) + Cucina › Piatti che vanno (ricette 3.37). Restano: viste per fascia oraria, tavolo, cameriere | Sblocca ST.2 sui singoli prodotti e ST.3 YoY. Modulo `statistiche` (sola lettura) |
 | IP.9 | **Clienti per valore** — la «M» di RFM dalla spesa vera | Sapere chi vale di più, chi spende meno di prima | S | MEDIA | È CL.10. Segmenti in Impostazioni Clienti |
 | IP.7 | **Ritmo della cucina** — minuti tra antipasto, primo, secondo, dolce | Vedere dove il servizio rallenta, per giorno e coperti | S | BASSA | Da `portata` e `inviata_at` già salvati: niente scarico nuovo |
 

@@ -1,4 +1,4 @@
-// @version: v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -56,7 +56,7 @@ function rigaClasses(pren) {
 // ============================================================
 // COMPONENTE RIGA PRENOTAZIONE
 // ============================================================
-function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo }) {
+function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -218,6 +218,14 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
               {/* Colonna 3: azioni */}
               <div>
                 <div className="font-semibold text-neutral-700 mb-2">Azioni</div>
+                {onModifica && !["LEFT"].includes(pren.stato) && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onModifica(pren); }}
+                    className="mb-2 mr-2 px-3 py-1.5 text-xs rounded min-h-[36px] border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  >
+                    ✏️ Modifica
+                  </button>
+                )}
                 {pren.telefono && ["RECORDED", "REQUESTED"].includes(pren.stato) && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onRiconferma && onRiconferma(pren); }}
@@ -353,7 +361,7 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -376,6 +384,19 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
           })()}
         </div>
         <div className="flex items-center gap-3 text-sm">
+          {(sale || []).length > 1 && (
+            <div className="flex items-center gap-1">
+              {sale.map((s) => (
+                <button key={s.zona} onClick={() => onSala && onSala(s.zona, !s.aperta)}
+                  title={s.aperta ? `${s.zona} aperta (${s.posti_max} posti): clicca per chiuderla in questo turno` : `${s.zona} chiusa: clicca per aprirla in questo turno`}
+                  className={`text-xs px-2 py-0.5 rounded-full border ${s.aperta
+                    ? "bg-white border-emerald-300 text-emerald-700"
+                    : "bg-neutral-100 border-neutral-200 text-neutral-400 line-through"}`}>
+                  {s.zona}{s.eccezione ? " •" : ""}
+                </button>
+              ))}
+            </div>
+          )}
           {(() => {
             const chiuse = (fasce || []).filter((f) => !f.aperta).length;
             const offline = (fasce || []).filter((f) => f.aperta && !f.online_aperta).length;
@@ -423,6 +444,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                   onRiconferma={onRiconferma}
                   onUnisciDoppione={onUnisciDoppione}
                   onPreventivo={onPreventivo}
+                  onModifica={onModifica}
                 />
               ))}
               {cancellate.length > 0 && (
@@ -443,6 +465,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                       onRiconferma={onRiconferma}
                       onUnisciDoppione={onUnisciDoppione}
                       onPreventivo={onPreventivo}
+                      onModifica={onModifica}
                     />
                   ))}
                 </>
@@ -560,6 +583,26 @@ export default function PrenotazioniPlanning() {
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const [inModifica, setInModifica] = useState(null); // prenotazione aperta nel form di modifica
+
+  // Apre/chiude una sala per questo giorno e turno (mig 214): la capienza si ricalcola dai tavoli
+  const cambiaSala = async (turno, zona, aperta) => {
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/sale/${encodeURIComponent(zona)}/giorno`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data, turno, aperta }),
+      });
+      const d = await r.json();
+      if (!r.ok) setToast({ type: "err", text: d.detail || "Errore" });
+      else setToast({ type: "ok", text: `${zona} ${aperta ? "aperta" : "chiusa"} a ${turno} · ${d.capienza} posti` });
+      loadPlanning();
+    } catch {
+      setToast({ type: "err", text: "Errore di connessione" });
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleFormSuccess = () => {
     setShowForm(false);
     loadPlanning();
@@ -649,6 +692,8 @@ export default function PrenotazioniPlanning() {
               timeline={planning.timeline?.pranzo}
               fasce={planning.fasce?.pranzo}
               onFasce={() => setFasceTurno("pranzo")}
+              sale={planning.sale?.pranzo}
+              onSala={(zona, aperta) => cambiaSala("pranzo", zona, aperta)}
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}
@@ -656,6 +701,7 @@ export default function PrenotazioniPlanning() {
               onRiconferma={riconferma}
               onUnisciDoppione={unisciDoppione}
               onPreventivo={puoPreventivi ? apriPreventivo : undefined}
+              onModifica={setInModifica}
             />
 
             {/* Tabella cena */}
@@ -668,6 +714,8 @@ export default function PrenotazioniPlanning() {
               timeline={planning.timeline?.cena}
               fasce={planning.fasce?.cena}
               onFasce={() => setFasceTurno("cena")}
+              sale={planning.sale?.cena}
+              onSala={(zona, aperta) => cambiaSala("cena", zona, aperta)}
               onStatoChange={handleStatoChange}
               expandedId={expandedId}
               onExpand={handleExpand}
@@ -675,6 +723,7 @@ export default function PrenotazioniPlanning() {
               onRiconferma={riconferma}
               onUnisciDoppione={unisciDoppione}
               onPreventivo={puoPreventivi ? apriPreventivo : undefined}
+              onModifica={setInModifica}
             />
 
             {/* Riepilogo */}
@@ -705,6 +754,18 @@ export default function PrenotazioniPlanning() {
           defaultData={data}
           onClose={() => setShowForm(false)}
           onSuccess={handleFormSuccess}
+        />
+      )}
+      {inModifica && (
+        <PrenotazioniForm
+          prenotazione={inModifica}
+          onClose={() => setInModifica(null)}
+          onSuccess={() => {
+            setInModifica(null);
+            loadPlanning();
+            setToast({ type: "ok", text: "Prenotazione aggiornata" });
+            setTimeout(() => setToast(null), 3000);
+          }}
         />
       )}
     </div>

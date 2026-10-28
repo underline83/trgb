@@ -1,4 +1,4 @@
-// @version: v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -6,20 +6,26 @@ import { API_BASE, apiFetch } from "../../config/api";
 const CANALI = ["Telefono", "WhatsApp", "Walk-in", "Email", "Altro"];
 const OCCASIONI = ["", "Compleanno", "Anniversario", "Laurea", "Cresima", "Battesimo", "Cena aziendale", "Altro"];
 
-export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, defaultCliente, onClose, onSuccess }) {
+export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, defaultCliente, prenotazione, onClose, onSuccess }) {
+  // Modifica (2026-10-28): con «prenotazione» il form parte dai suoi dati e salva con PUT
+  const modifica = !!prenotazione;
+  const P = prenotazione || {};
+  const clienteIniziale = modifica && (P.cliente_id || P.nome || P.cognome)
+    ? { id: P.cliente_id, nome: P.nome || "", cognome: P.cognome || "", telefono: P.telefono, visite_totali: P.visite_precedenti }
+    : (defaultCliente || null);
   const [form, setForm] = useState({
-    data_pasto: defaultData || new Date().toISOString().slice(0, 10),
-    ora_pasto: "20:00",
-    pax: 2,
-    canale: "Telefono",
-    tavolo: defaultTavolo || "",
-    nota_ristorante: "",
-    nota_cliente: "",
-    occasione: "",
-    allergie_segnalate: "",
-    tavolo_esterno: 0,
-    seggioloni: "",
-    cliente_id: defaultCliente?.id ?? null,
+    data_pasto: P.data_pasto || defaultData || new Date().toISOString().slice(0, 10),
+    ora_pasto: (P.ora_pasto || "20:00").slice(0, 5),
+    pax: P.pax || 2,
+    canale: P.canale || "Telefono",
+    tavolo: P.tavolo || defaultTavolo || "",
+    nota_ristorante: P.nota_ristorante || "",
+    nota_cliente: P.nota_cliente || "",
+    occasione: P.occasione || "",
+    allergie_segnalate: P.allergie_segnalate || "",
+    tavolo_esterno: P.tavolo_esterno || 0,
+    seggioloni: P.seggioloni || "",
+    cliente_id: modifica ? (P.cliente_id ?? null) : (defaultCliente?.id ?? null),
     nuovo_nome: "",
     nuovo_cognome: "",
     nuovo_telefono: "",
@@ -29,9 +35,9 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   const [slotPranzo, setSlotPranzo] = useState([]);
   const [slotCena, setSlotCena] = useState([]);
   const [soglia, setSoglia] = useState("15:00");
-  const [searchQ, setSearchQ] = useState(defaultCliente ? `${defaultCliente.nome || ""} ${defaultCliente.cognome || ""}`.trim() : "");
+  const [searchQ, setSearchQ] = useState(clienteIniziale ? `${clienteIniziale.nome || ""} ${clienteIniziale.cognome || ""}`.trim() : "");
   const [searchResults, setSearchResults] = useState([]);
-  const [selectedCliente, setSelectedCliente] = useState(defaultCliente || null);
+  const [selectedCliente, setSelectedCliente] = useState(clienteIniziale);
   const [showNuovo, setShowNuovo] = useState(false);
   const [tavoli, setTavoli] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -49,7 +55,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         try { setSlotCena(JSON.parse(cfg.slot_cena || "[]")); } catch { setSlotCena([]); }
         setSoglia(cfg.soglia_pranzo_cena || "15:00");
         // Aperto dalla mappa: primo orario del turno scelto
-        if (defaultTurno) {
+        if (defaultTurno && !modifica) {
           let slots = [];
           try { slots = JSON.parse((defaultTurno === "pranzo" ? cfg.slot_pranzo : cfg.slot_cena) || "[]"); } catch { slots = []; }
           if (slots.length) setForm((f) => ({ ...f, ora_pasto: slots[0] }));
@@ -94,7 +100,12 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     for (const f of fasce) if (f.ora <= ora) scelta = f;
     return scelta || fasce[0] || null;
   };
-  const fasciaScelta = fasciaDi(form.ora_pasto);
+  const fasciaGrezza = fasciaDi(form.ora_pasto);
+  // In modifica la prenotazione stessa è già contata nella sua fascia: non va contata due volte
+  const fasciaScelta = fasciaGrezza && modifica && P.data_pasto === form.data_pasto
+    && fasciaDi((P.ora_pasto || "").slice(0, 5))?.ora === fasciaGrezza.ora
+    ? { ...fasciaGrezza, coperti: Math.max(0, fasciaGrezza.coperti - (P.pax || 0)) }
+    : fasciaGrezza;
   const avvisoFascia = !fasciaScelta ? null
     : !fasciaScelta.aperta ? `La fascia delle ${fasciaScelta.ora} è chiusa`
     : fasciaScelta.max_coperti != null && fasciaScelta.coperti + form.pax > fasciaScelta.max_coperti
@@ -119,22 +130,34 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.cliente_id && !form.nuovo_cognome) {
+    if (!modifica && !form.cliente_id && !form.nuovo_cognome) {
       alert("Seleziona un cliente o inserisci i dati per crearne uno nuovo.");
       return;
     }
     setSubmitting(true);
     try {
-      const r = await apiFetch(`${API_BASE}/prenotazioni/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const r = modifica
+        ? await apiFetch(`${API_BASE}/prenotazioni/${P.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              data_pasto: form.data_pasto, ora_pasto: form.ora_pasto, pax: form.pax, tavolo: form.tavolo,
+              canale: form.canale, nota_ristorante: form.nota_ristorante, nota_cliente: form.nota_cliente,
+              occasione: form.occasione, allergie_segnalate: form.allergie_segnalate,
+              tavolo_esterno: form.tavolo_esterno, seggioloni: form.seggioloni,
+              ...(form.cliente_id && form.cliente_id !== P.cliente_id ? { cliente_id: form.cliente_id } : {}),
+            }),
+          })
+        : await apiFetch(`${API_BASE}/prenotazioni/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(form),
+          });
       if (r.ok) {
         onSuccess();
       } else {
         const err = await r.json();
-        alert(err.detail || "Errore nella creazione");
+        alert(err.detail || (modifica ? "Errore nella modifica" : "Errore nella creazione"));
       }
     } catch {
       alert("Errore di connessione");
@@ -147,11 +170,17 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 mb-8">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-200">
-          <h2 className="text-lg font-bold text-neutral-800">Nuova Prenotazione</h2>
+          <h2 className="text-lg font-bold text-neutral-800">{modifica ? "Modifica prenotazione" : "Nuova Prenotazione"}</h2>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 text-xl">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {modifica && P.thefork_booking_id && (
+            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+              Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, altrimenti al prossimo
+              aggiornamento da TheFork tornano come lì. Tavolo e note restano quelli di TRGB.
+            </div>
+          )}
           {/* Data e Ora */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -355,7 +384,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               >
                 <option value="">— Assegna dopo —</option>
                 {tavoli.map((t) => (
-                  <option key={t.id} value={t.nome} disabled={t.occupato || t.bloccato}>
+                  <option key={t.id} value={t.nome} disabled={(t.occupato || t.bloccato) && !(modifica && t.nome === P.tavolo)}>
                     {t.nome} ({t.zona}, {t.posti_min}-{t.posti_max}p){t.occupato ? " — OCCUPATO" : t.bloccato ? " — BLOCCATO" : ""}
                   </option>
                 ))}
@@ -442,7 +471,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               disabled={submitting}
               className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50"
             >
-              {submitting ? "Salvataggio..." : "Salva Prenotazione"}
+              {submitting ? "Salvataggio..." : modifica ? "Salva modifiche" : "Salva Prenotazione"}
             </button>
           </div>
         </form>

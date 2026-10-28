@@ -6,6 +6,10 @@
 
 **Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
+**DA PUSHARE — Statistiche dai conti + Cucina › Piatti che vanno** (ricette 3.37, statistiche 1.4, nessuna migrazione) `[core]` — IP.1 parte 1
+- Dopo il push: Cucina › «📈 Piatti che vanno» (da admin e da uno chef): 7 giorni, poi Cena; tocco su un piatto = barre giorno per giorno. Da un utente sala la voce non c'è.
+- Dal 1/11: Statistiche › Import deve mostrare novembre come «conti iPratico Cloud · fino al …» senza caricare il .xls; ottobre va ancora importato a mano (o si sposta `statistiche_conti_config.dal_mese` a 2026-10).
+
 **DA PUSHARE — Gift card: «📷 Scansiona» al banco** (clienti 3.20) `[core]`. Dopo il push: dall'app (anche icona Home) Gift Card › Scansiona → QR di una card vera → card nel riquadro con Scarica; lo stesso QR dalla fotocamera di un telefono → solo vista cliente. Da fare: preset «Etichetta gift card» (Brother, 29x90mm).
 
 **DA PUSHARE — Voci «qb» nella modifica ricetta** (ricette 3.36, nessuna migrazione) `[core]` — `VoceQuantita.jsx` (nuovo: tendina con «qb», quantità disattivata, `rigaDaVoce`/`vociDaSalvare`), `RicetteModifica.jsx`, `RicetteNuova.jsx`, `app/services/ricette_qb.py` (nuovo: `is_qb` unico), `foodcost_recipes_router.py` (`_calc_item_cost`/`_enrich_items_with_costs`: qb fuori dal costo), `foodcost_history_service.py`, `versions.jsx`, docs. **Dopo il push:** aprire e salvare senza modifiche R229, R230, R231 (Ctrl+Shift+R prima); poi Claude sostituisce in R231 «Burro unigrana» con «Burro nostrano latini novita'» (45 g), dopo l'ok di Marco.

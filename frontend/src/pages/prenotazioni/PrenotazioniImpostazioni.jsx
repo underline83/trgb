@@ -1,4 +1,4 @@
-// @version: v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -266,7 +266,7 @@ function CapienzaSection({ config, update }) {
               min={0}
               max={200}
             />
-            <p className="text-[11px] text-neutral-400 mt-1">Usato per calcolo saturazione</p>
+            <p className="text-[11px] text-neutral-400 mt-1">Vale solo senza tavoli in piantina: con i tavoli conta la somma dei posti delle sale aperte</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral-600 mb-1">Cena</label>
@@ -278,7 +278,7 @@ function CapienzaSection({ config, update }) {
               min={0}
               max={200}
             />
-            <p className="text-[11px] text-neutral-400 mt-1">Usato per calcolo saturazione</p>
+            <p className="text-[11px] text-neutral-400 mt-1">Vale solo senza tavoli in piantina: con i tavoli conta la somma dei posti delle sale aperte</p>
           </div>
         </div>
       </div>
@@ -342,8 +342,42 @@ function CapienzaSection({ config, update }) {
             />
           </div>
         </div>
-        <p className="text-[11px] text-neutral-400 mt-2">Utile per Fase 2 (mappa tavoli) — stima rotazione</p>
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Pranzo «lungo» (minuti)</label>
+            <input type="number" value={config.durata_pranzo_lungo ?? "120"} onChange={(e) => update("durata_pranzo_lungo", e.target.value)}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" min={30} max={300} step={15} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Gruppi da (coperti): tavolo occupato tutto il turno</label>
+            <input type="number" value={config.gruppo_turno_intero ?? "10"} onChange={(e) => update("gruppo_turno_intero", e.target.value)}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" min={2} max={100} />
+          </div>
+        </div>
+        <div className="mt-3">
+          <label className="block text-xs font-medium text-neutral-600 mb-1">Giorni col pranzo lungo (come la sera)</label>
+          <div className="flex gap-2 flex-wrap">
+            {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((g, i) => {
+              let giorni = [];
+              try { giorni = JSON.parse(config.giorni_pranzo_lungo || "[5,6]"); } catch { giorni = [5, 6]; }
+              const on = giorni.includes(i);
+              return (
+                <button key={g} type="button"
+                  onClick={() => update("giorni_pranzo_lungo", JSON.stringify(on ? giorni.filter((x) => x !== i) : [...giorni, i].sort()))}
+                  className={`px-2.5 py-1 rounded-lg text-xs border ${on ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-neutral-600 border-neutral-300"}`}>
+                  {g}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p className="text-[11px] text-neutral-400 mt-2">
+          Quanto resta occupato un tavolo: serve alla barra «in sala» del Planning e alla disponibilità per tavoli.
+          Nei giorni col pranzo lungo il pranzo dura come indicato sopra; i gruppi grandi non girano.
+        </p>
       </div>
+
+      <SaleDefault />
 
       {/* Limiti per fascia oraria (default del turno; il singolo giorno si cambia dal Planning) */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5">
@@ -402,6 +436,43 @@ function CapienzaSection({ config, update }) {
         </div>
         <p className="text-[11px] text-neutral-400 mt-2">Visite fatte prima di quel giorno: 0 = Prima visita, sotto la soglia = Occasionale, dalla soglia in su = Frequente. Durate medie sopra = timeline della sala nel Planning.</p>
       </div>
+    </div>
+  );
+}
+
+// ── Sale aperte di default (mig 214) ──
+function SaleDefault() {
+  const [sale, setSale] = useState(null);
+  const carica = () => apiFetch(`${API_BASE}/prenotazioni/sale`).then((r) => r.json()).then((d) => setSale(d.sale || [])).catch(() => setSale([]));
+  useEffect(() => { carica(); }, []);
+  const cambia = async (zona, aperta) => {
+    const r = await apiFetch(`${API_BASE}/prenotazioni/sale/${encodeURIComponent(zona)}/default`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aperta }),
+    });
+    if (r.ok) setSale((await r.json()).sale || []);
+  };
+  if (!sale || sale.length === 0) return null;
+  return (
+    <div className="bg-white rounded-xl border border-neutral-200 p-5">
+      <h4 className="font-semibold text-neutral-700 mb-3 text-sm">Sale</h4>
+      <div className="space-y-2">
+        {sale.map((s) => (
+          <label key={s.zona} className="flex items-center justify-between gap-3 text-sm">
+            <span>
+              <span className="font-medium text-neutral-800">{s.zona}</span>
+              <span className="text-xs text-neutral-500 ml-2">{s.tavoli} tavoli · {s.posti_min}–{s.posti_max} posti</span>
+            </span>
+            <span className="flex items-center gap-2 text-xs text-neutral-600">
+              {s.aperta_default ? "aperta di solito" : "chiusa di solito"}
+              <input type="checkbox" checked={s.aperta_default} onChange={(e) => cambia(s.zona, e.target.checked)} />
+            </span>
+          </label>
+        ))}
+      </div>
+      <p className="text-[11px] text-neutral-400 mt-2">
+        Contano solo i tavoli delle sale aperte: la capienza del turno è la somma dei loro posti massimi.
+        Per una sera sola (es. Veranda col bel tempo) apri o chiudi la sala dal Planning. I posti dei tavoli si cambiano in Editor Tavoli.
+      </p>
     </div>
   );
 }

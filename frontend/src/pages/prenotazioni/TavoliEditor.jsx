@@ -1,4 +1,4 @@
-// @version: v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
+// @version: v2.2-combinazioni — combinazioni di tavoli per sala (nuova, proposte dei tavoli vicini, elimina); v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
 // Modulo: prenotazioni
 // Editor piantina tavoli — drag & drop SVG, Fase 2 Prenotazioni
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -656,6 +656,10 @@ export default function TavoliEditor() {
               )}
             </div>
 
+            {/* Combinazioni di tavoli (per la disponibilità per tavoli) */}
+            <Combinazioni sala={sala} tavoli={tavoli.filter(t => (t.zona || "sala") === sala)}
+              combinazioni={combinazioni} onCambio={loadAll} flash={flash} />
+
             {/* Sale */}
             <div className="bg-white rounded-xl border border-neutral-200 p-4">
               <h3 className="font-semibold text-neutral-800 text-sm mb-2">Sale</h3>
@@ -670,6 +674,112 @@ export default function TavoliEditor() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── Combinazioni di tavoli della sala (2026-10-28) ──
+// Tavoli che si uniscono per i gruppi (es. 2+3). Servono al motore della disponibilità per tavoli.
+function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
+  const [nuova, setNuova] = useState(null);       // {ids:Set, posti_min, posti}
+  const [proposte, setProposte] = useState(null);
+  const nomeDi = (ids) => tavoli.filter(t => ids.includes(t.id)).map(t => t.nome).join("+");
+  const idsDi = (c) => { try { return JSON.parse(c.tavoli_ids); } catch { return []; } };
+  const della = combinazioni.filter(c => {
+    const ids = idsDi(c);
+    return c.zona ? c.zona === sala : ids.some(id => tavoli.some(t => t.id === id));
+  });
+
+  const salva = async (c) => {
+    const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/combinazioni`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: c.nome, tavoli_ids: JSON.stringify(c.tavoli_ids), posti: c.posti, posti_min: c.posti_min, zona: sala }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { flash("err", d.detail || "Errore"); return false; }
+    flash("ok", `Combinazione ${c.nome} salvata`);
+    onCambio();
+    return true;
+  };
+  const elimina = async (c) => {
+    if (!confirm(`Eliminare la combinazione ${c.nome}?`)) return;
+    await apiFetch(`${API_BASE}/prenotazioni/tavoli/combinazioni/${c.id}`, { method: "DELETE" });
+    onCambio();
+  };
+  const caricaProposte = async () => {
+    const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/combinazioni/proposte`);
+    const d = await r.json().catch(() => ({ proposte: [] }));
+    setProposte((d.proposte || []).filter(p => p.zona === sala));
+  };
+  const toggle = (id) => {
+    const ids = new Set(nuova.ids);
+    ids.has(id) ? ids.delete(id) : ids.add(id);
+    const scelti = tavoli.filter(t => ids.has(t.id));
+    setNuova({ ids, posti: scelti.reduce((a, t) => a + (t.posti_max || 0), 0), posti_min: Math.max(1, ...scelti.map(t => t.posti_min || 1)) });
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-neutral-200 p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-neutral-800 text-sm">Combinazioni · {sala}</h3>
+        {!nuova && <button onClick={() => setNuova({ ids: new Set(), posti: 0, posti_min: 1 })} className="text-xs text-indigo-700 hover:underline">+ Nuova</button>}
+      </div>
+      {della.length === 0 && !nuova && <p className="text-[11px] text-neutral-400">Nessuna: i gruppi si siedono solo sui tavoli singoli.</p>}
+      {della.map(c => (
+        <div key={c.id} className="flex items-center gap-2 text-xs">
+          <span className="font-medium text-neutral-800">{c.nome}</span>
+          <span className="text-neutral-500">{c.posti_min ? `${c.posti_min}–` : ""}{c.posti}p</span>
+          <button onClick={() => elimina(c)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
+        </div>
+      ))}
+
+      {nuova && (
+        <div className="border-t border-neutral-100 pt-2 space-y-2">
+          <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono:</p>
+          <div className="flex flex-wrap gap-1">
+            {tavoli.map(t => (
+              <button key={t.id} onClick={() => toggle(t.id)}
+                className={`text-xs px-2 py-1 rounded border ${nuova.ids.has(t.id) ? "bg-indigo-600 text-white border-indigo-600" : "border-neutral-300 text-neutral-600"}`}>
+                {t.nome}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span>posti</span>
+            <input type="number" min={1} value={nuova.posti_min} onChange={e => setNuova({ ...nuova, posti_min: +e.target.value })} className="w-14 px-1 py-0.5 border rounded" />
+            <span>–</span>
+            <input type="number" min={1} value={nuova.posti} onChange={e => setNuova({ ...nuova, posti: +e.target.value })} className="w-14 px-1 py-0.5 border rounded" />
+          </div>
+          <div className="flex gap-2">
+            <button disabled={nuova.ids.size < 2}
+              onClick={async () => { const ids = [...nuova.ids]; if (await salva({ nome: nomeDi(ids), tavoli_ids: ids, posti: nuova.posti, posti_min: nuova.posti_min })) setNuova(null); }}
+              className="text-xs px-2 py-1 rounded bg-indigo-600 text-white disabled:opacity-40">Salva {nuova.ids.size >= 2 ? nomeDi([...nuova.ids]) : ""}</button>
+            <button onClick={() => setNuova(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-neutral-100 pt-2">
+        {proposte === null ? (
+          <button onClick={caricaProposte} className="text-xs text-indigo-700 hover:underline">Proponi i tavoli vicini</button>
+        ) : proposte.length === 0 ? (
+          <p className="text-[11px] text-neutral-400">Nessun'altra coppia di tavoli vicini da proporre.</p>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-[11px] text-neutral-500">Tavoli vicini sulla piantina:</p>
+            {proposte.map(p => (
+              <div key={p.nome} className="flex items-center gap-2 text-xs">
+                <span className="text-neutral-700">{p.nome}</span>
+                <span className="text-neutral-400">{p.posti_min}–{p.posti}p</span>
+                <button onClick={async () => { if (await salva(p)) setProposte(proposte.filter(x => x.nome !== p.nome)); }}
+                  className="ml-auto text-indigo-700 hover:underline">+ aggiungi</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

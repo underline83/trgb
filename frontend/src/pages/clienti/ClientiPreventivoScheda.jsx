@@ -1,4 +1,4 @@
-// @version: v1.9 — dopo l'invio al cliente si apre il messaggio per i gruppi (e parte la copia per email all'osteria); v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
+// @version: v1.11 — «✅ Conferma l'evento» accanto al menù scelto; v1.10 — conferma che non resta muta: menù riletti dal server se il composer non li ha passati, scelta del menù anche dopo l'errore, «✅ Confermato» nella barra da telefono/iPad, errori visibili più a lungo; v1.9 — dopo l'invio al cliente si apre il messaggio per i gruppi (e parte la copia per email all'osteria); v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
 // v1.7 — nuovo preventivo da una prenotazione (tasto «📋 Preventivo» nel Planning), collegato con prenotazione_id (2026-10-20)
 // v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
@@ -504,7 +504,14 @@ export default function ClientiPreventivoScheda() {
         body: JSON.stringify({ menu_scelto_id: menuId }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "Errore conferma");
+      if (!res.ok) {
+        // Più menù e nessuno scelto: invece del solo messaggio, si chiede quale
+        if (res.status === 400 && /menù/i.test(data.detail || "")) {
+          const menus = await caricaMenuServer();
+          if (menus.length >= 2) { setSceltaMenuOpen(true); return; }
+        }
+        throw new Error(data.detail || "Errore conferma");
+      }
       setStato(data.stato);
       if (data.prenotazione?.prenotazione_id) setForm((f) => ({ ...f, prenotazione_id: data.prenotazione.prenotazione_id }));
       if (menuId) setMenuAlt((a) => ({ ...a, menu_scelto_id: menuId }));
@@ -517,10 +524,25 @@ export default function ClientiPreventivoScheda() {
     }
   };
 
+  // I menù del preventivo dal server (se il composer non li ha ancora passati alla scheda)
+  const caricaMenuServer = async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/preventivi/${prevId}/menu`);
+      const d = r.ok ? await r.json() : { items: [] };
+      const menus = (d.items || []).filter((m) => (m.n_righe ?? m.righe?.length ?? 1) > 0);
+      setMenuAlt((a) => ({ ...a, menus }));
+      return menus;
+    } catch {
+      return [];
+    }
+  };
+
   const handleConferma = async () => {
     const ok = await handleSalva();
     if (!ok) return;
-    if (menuAlt.menus.length >= 2 && !menuAlt.menu_scelto_id) { setSceltaMenuOpen(true); return; }
+    let menus = menuAlt.menus;
+    if (!menus.length) menus = await caricaMenuServer();
+    if (menus.length >= 2 && !menuAlt.menu_scelto_id) { setSceltaMenuOpen(true); return; }
     eseguiConferma(null);
   };
 
@@ -614,7 +636,7 @@ export default function ClientiPreventivoScheda() {
 
   const showToast = (msg, isError = false) => {
     setToast({ msg, isError });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), isError ? 7000 : 3000);
   };
 
   if (loading) return (
@@ -844,6 +866,7 @@ export default function ClientiPreventivoScheda() {
                   refreshMenuCount();
                 }}
                 onToast={showToast}
+                onConferma={!isNew && (TRANSIZIONI[stato] || []).includes("confermato") ? handleConferma : null}
               />
               {!isNew && bozzaAuto && (
                 <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-800">
@@ -1093,7 +1116,12 @@ export default function ClientiPreventivoScheda() {
               className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium">
               {saving ? "..." : isNew ? "Crea" : "Salva"}
             </button>
-            {!isNew && transizioniDisp.length > 0 && (
+            {!isNew && transizioniDisp.includes("confermato") ? (
+              <button onClick={handleConferma} disabled={confermando}
+                className="px-4 py-2.5 border border-emerald-300 bg-emerald-600 text-white rounded-lg text-sm font-medium">
+                ✅ Confermato
+              </button>
+            ) : !isNew && transizioniDisp.length > 0 && (
               <button onClick={() => handleCambiaStato(transizioniDisp[0])}
                 className="px-4 py-2.5 border border-neutral-300 rounded-lg text-sm">
                 → {STATI_LABEL[transizioniDisp[0]]}

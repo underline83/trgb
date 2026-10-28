@@ -59,6 +59,7 @@ const RicetteMatching = lazy(() => import("./pages/ricette/RicetteMatching"));
 const RicetteDashboard = lazy(() => import("./pages/ricette/RicetteDashboard"));
 const DashboardCucina = lazy(() => import("./pages/cucina/DashboardCucina"));
 const ListaSpesa = lazy(() => import("./pages/cucina/ListaSpesa"));
+const CucinaPiatti = lazy(() => import("./pages/cucina/CucinaPiatti"));
 // «Cucina da iPhone» — 4 tab Oggi/Scorte/Frigo/Spesa (2026-09-07, gemella di CantinaMobile)
 const CucinaMobile = lazy(() => import("./pages/cucina/CucinaMobile"));
 const RicetteSettings = lazy(() => import("./pages/ricette/RicetteSettings"));
@@ -384,6 +385,7 @@ export default function App() {
         <Route path="/cucina/dashboard" element={<ProtectedRoute module="ricette" sub="cucina_dashboard"><DashboardCucina /></ProtectedRoute>} />
 
         {/* --- LISTA SPESA Cucina (sotto Gestione Cucina, sessione 59 cont. c — Modulo J Fase 1) --- */}
+        <Route path="/cucina/piatti" element={<ProtectedRoute module="ricette" roles={["admin", "chef", "sous_chef"]}><CucinaPiatti /></ProtectedRoute>} />
         <Route path="/cucina/spesa" element={<ProtectedRoute module="ricette" sub="spesa"><ListaSpesa /></ProtectedRoute>} />
 
         {/* --- CUCINA DA IPHONE (2026-09-07) — 4 tab: Oggi / Scorte / Frigo / Spesa.

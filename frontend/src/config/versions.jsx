@@ -178,7 +178,10 @@ const MODULE_VERSIONS = {
     //   in archivio, dashboard e scheda; FC pranzo in più nella scheda se il piatto ha un prezzo suo.
     // 3.36 (2026-10-25): voci «qb» nella modifica e nella creazione ricetta (VoceQuantita.jsx),
     //   righe senza quantità non spariscono più in silenzio, qb fuori dal costo anche senza prezzo.
-    version: "3.36",
+    // 3.37 (2026-10-28): Cucina › «Piatti che vanno» — porzioni per tipo dai conti di cassa,
+    //   confronto col periodo prima, in crescita/in calo/non usciti più, andamento giorno per giorno
+    //   (GET /cucina/vendite/piatti/, servizio vendite_conti_service). Admin, chef, sous chef.
+    version: "3.37",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
@@ -412,7 +415,9 @@ const MODULE_VERSIONS = {
     //   (gen/feb da registro corrispettivi, endpoint 12 /storico/giorni).
     // 1.3 (2026-10-23): linguetta «Sito» — visite del sito (modulo sito, mig 210)
     //   accanto alle prenotazioni dal sito, endpoint 13 /statistiche/sito.
-    version: "1.3",
+    // 1.4 (2026-10-28): da novembre 2026 i mesi si calcolano dai conti di cassa iPratico Cloud
+    //   (niente più import .xls); un .xls caricato a mano vince. POST /statistiche/conti/aggiorna/.
+    version: "1.4",
     label: "Statistiche",
     status: "beta",
     color: "blue",
@@ -456,6 +461,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.21 (2026-10-28): conferma del preventivo che non resta muta (menù riletti, scelta del menù dopo l'errore, «✅ Confermato» su telefono/iPad, «✅ Conferma l'evento» accanto al menù scelto).
     // 3.20 (2026-10-27): Gift Card › «📷 Scansiona» al banco legge il QR dell'etichetta; /regalo solo vista cliente.
     // 3.19 (2026-10-26): pagina /regalo, «Buono non riconosciuto» ed errori ora leggibili (testo avorio su avorio).
     // 3.18 (2026-10-26): etichetta gift card sul rotolo 29×90 montato nella Brother: 90×29 orizzontale,
@@ -511,12 +517,14 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.20",
+    version: "3.21",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.24 (2026-10-28): sale aperte per giorno/turno, capienza dai tavoli, combinazioni nell'Editor, durata tavolo (pranzo lungo weekend, gruppi tutto il turno).
+    // 2.23 (2026-10-28): «✏️ Modifica» della prenotazione nel Planning (stesso form, PUT con permesso sala/sommelier/admin).
     // 2.22 (2026-10-25): PrenotaIncorporata — il widget dentro la pagina della gift card (/regalo), con la nota precompilata.
     // 2.21 (2026-10-20): indirizzo dedicato prenota.tregobbi.it per le prenotazioni dal sito.
     // 2.20 (2026-10-20): prenotazioni dal sito — pagina pubblica /prenota (anche in iframe), email al cliente, richieste per i gruppi.
@@ -527,7 +535,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.22",
+    version: "2.24",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -630,6 +638,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.79 (2026-10-28): mig 214 — sale_config, sale_aperture, combinazioni posti_min/zona, regole durata (prenotazioni 2.24).
     // 5.78 (2026-10-25): mig 213 — clienti_giftcard.token_pubblico, QR sull'etichetta del
     //   buono → pagina pubblica /regalo/<chiave> (clienti 3.16).
     // 5.77 (2026-10-25): mig 212 — pranzo_settings.valore_piatto_fc, valore di vendita dei
@@ -738,7 +747,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.78",
+    version: "5.79",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -1,4 +1,4 @@
-// @version: v2.3 — prezzo «a corpo» per menu, doppio prezzo vino, stagione template, carica piu' template (mig 187)
+// @version: v2.4 — accanto al menù scelto, «✅ Conferma l'evento» (scelta ≠ conferma: la conferma scrive la prenotazione e avvisa sala e cucina); v2.3 — prezzo «a corpo» per menu, doppio prezzo vino, stagione template, carica piu' template (mig 187)
 // Modulo: clienti (sub-modulo preventivi)
 // Pannello "Componi menu" per preventivi con supporto N menu alternativi.
 // Un preventivo puo' avere 1..N menu che il cliente sceglie: i prezzi sono
@@ -41,6 +41,7 @@ export default function PreventivoMenuComposer({
   onEnsureSaved,       // async () => pid | null
   onTotaleMenuChange,  // callback({menu_subtotale, menu_sconto, menu_prezzo_persona, n_menu, menus, menu_scelto_id})
   onToast,
+  onConferma,          // opzionale: «✅ Conferma l'evento» accanto al menù scelto (solo se non è già confermato)
 }) {
   // ── Stato menu multipli ──
   const [menus, setMenus] = useState([]); // [{id, nome, sort_order, sconto, subtotale, prezzo_persona, righe:[...]}]
@@ -1053,7 +1054,15 @@ export default function PreventivoMenuComposer({
                   : <>{menus.length} menu alternativi: finché il cliente non sceglie, il totale si mostra «da … a …». Sul PDF compaiono le opzioni A, B, C…</>}
               </span>
               {menuSceltoId === activeMenu.id ? (
-                <Btn variant="ghost" size="sm" type="button" onClick={() => setScelto(null)}>Togli scelta</Btn>
+                <span className="flex gap-2">
+                  {onConferma && (
+                    <Btn variant="chip" tone="emerald" size="sm" type="button" onClick={onConferma}
+                      title="Conferma l'evento: menù sulla prenotazione, avviso a sala e cucina, messaggio per i gruppi">
+                      ✅ Conferma l'evento
+                    </Btn>
+                  )}
+                  <Btn variant="ghost" size="sm" type="button" onClick={() => setScelto(null)}>Togli scelta</Btn>
+                </span>
               ) : (
                 <Btn variant="chip" tone="emerald" size="sm" type="button" onClick={() => setScelto(activeMenu.id)}>
                   ✓ Scelto dal cliente

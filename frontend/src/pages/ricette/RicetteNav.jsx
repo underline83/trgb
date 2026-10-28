@@ -1,4 +1,4 @@
-// @version: v1.1-ricette-nav-orange
+// @version: v1.2 — linguetta «Piatti che vanno» (porzioni dai conti di cassa, 2026-10-28) · v1.1-ricette-nav-orange
 // Tab navigation persistente per la sezione ricette
 // Matching e Impostazioni visibili solo per admin/sommelier
 import React from "react";
@@ -16,6 +16,7 @@ const TABS = [
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
   { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },
   { key: "menu", label: "Menu", path: "/menu-carta", icon: "📋", roles: ["admin", "chef", "sous_chef"] },
+  { key: "piatti", label: "Piatti che vanno", path: "/cucina/piatti", icon: "📈", roles: ["admin", "chef", "sous_chef"] },
   { key: "dashboard", label: "Food Cost", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },
 ];

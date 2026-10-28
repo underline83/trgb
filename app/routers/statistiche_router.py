@@ -19,6 +19,14 @@ Endpoint per import dati iPratico e query analytics.
 11. GET /statistiche/movimenti         — Prodotti in crescita/calo mese su mese
 12. GET /statistiche/storico/giorni    — Incassi giornalieri di un mese (cucitura daily+shift)
 13. GET /statistiche/sito              — Visite del sito (modulo sito) + prenotazioni dal sito, read-only
+14. POST /statistiche/conti/aggiorna   — Rifà subito i mesi presi dai conti di cassa (da novembre 2026)
+
+DA NOVEMBRE 2026 (IP.1, deciso con Marco il 2026-10-28) i mesi non si importano più
+dal .xls: si calcolano dai conti di cassa iPratico Cloud (servizio platform
+`vendite_conti_service`, sola lettura) e si scrivono nelle stesse tabelle
+ipratico_categorie/ipratico_prodotti, così tutte le pagine continuano a funzionare.
+Un mese caricato a mano dal .xls vince sui conti. Il mese di partenza sta in
+`statistiche_conti_config.dal_mese` (default 2026-11).
 
 NOTA cross-modulo: gli endpoint 8-10 leggono `admin_finance.sqlite3`
 (daily_closures + shift_closures, modulo cassa/banca) in SOLA LETTURA.
@@ -75,13 +83,97 @@ from app.services.permessi import richiede_ruoli
 # Ruoli allineati a modules.json (`statistiche`). Verificato che nessuna pagina
 # aperta a ruoli operativi (sala, sommelier, cucina) chiami questi endpoint.
 # Contesto: docs/audit_permessi_2026-09-01.md
+# ---------------------------------------------------------
+# Mesi dai conti di cassa (da novembre 2026, al posto del .xls)
+# ---------------------------------------------------------
+import logging
+import time
+from datetime import date as _date
+
+_log = logging.getLogger("trgb.statistiche")
+CONTI_FILENAME = "conti iPratico Cloud"   # segno dei mesi calcolati dai conti
+CONTI_DAL_MESE_DEFAULT = "2026-11"
+_ultima_sync = {"t": 0.0}
+
+
+def _conti_dal_mese(conn) -> str:
+    conn.execute("CREATE TABLE IF NOT EXISTS statistiche_conti_config (chiave TEXT PRIMARY KEY, valore TEXT)")
+    conn.execute("INSERT OR IGNORE INTO statistiche_conti_config (chiave, valore) VALUES ('dal_mese', ?)",
+                 (CONTI_DAL_MESE_DEFAULT,))
+    return conn.execute("SELECT valore FROM statistiche_conti_config WHERE chiave = 'dal_mese'").fetchone()[0]
+
+
+def sincronizza_mesi_da_conti(forza: bool = False) -> List[str]:
+    """
+    Riscrive i mesi da `dal_mese` a oggi con le vendite dei conti di cassa.
+    Al massimo una volta ogni 10 minuti (le pagine la chiamano a ogni richiesta).
+    Non tocca i mesi caricati a mano dal .xls. Non fa mai fallire una pagina.
+    """
+    if not forza and time.time() - _ultima_sync["t"] < 600:
+        return []
+    _ultima_sync["t"] = time.time()
+    try:
+        from app.services import vendite_conti_service as vc
+    except Exception:
+        return []
+    fatti: List[str] = []
+    conn = _get_conn()
+    try:
+        a, m = (int(x) for x in _conti_dal_mese(conn).split("-")[:2])
+        oggi = _date.today()
+        while (a, m) <= (oggi.year, oggi.month):
+            imp = conn.execute("SELECT filename FROM ipratico_imports WHERE anno = ? AND mese = ?", (a, m)).fetchone()
+            if not imp or (imp["filename"] or "").startswith(CONTI_FILENAME):
+                r = vc.riepilogo_mese(a, m)
+                if r["conti"]:
+                    conn.execute("DELETE FROM ipratico_categorie WHERE anno = ? AND mese = ?", (a, m))
+                    conn.execute("DELETE FROM ipratico_prodotti WHERE anno = ? AND mese = ?", (a, m))
+                    conn.execute("DELETE FROM ipratico_imports WHERE anno = ? AND mese = ?", (a, m))
+                    for c in r["categorie"]:
+                        conn.execute(
+                            "INSERT INTO ipratico_categorie (anno, mese, categoria, quantita, totale_cent) VALUES (?, ?, ?, ?, ?)",
+                            (a, m, c["categoria"], round(c["quantita"], 2), int(round(c["totale"] * 100))))
+                    for p in r["prodotti"]:
+                        conn.execute(
+                            "INSERT INTO ipratico_prodotti (anno, mese, categoria, prodotto, quantita, totale_cent, plu, barcode) "
+                            "VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)",
+                            (a, m, p["categoria"], p["prodotto"], round(p["quantita"], 2), int(round(p["totale"] * 100))))
+                    conn.execute(
+                        "INSERT INTO ipratico_imports (anno, mese, filename, n_categorie, n_prodotti, totale_euro) VALUES (?, ?, ?, ?, ?, ?)",
+                        (a, m, f"{CONTI_FILENAME} · fino al {r['dati_fino_al']}", len(r["categorie"]), len(r["prodotti"]), r["totale"]))
+                    fatti.append(f"{a}-{m:02d}")
+            a, m = (a + 1, 1) if m == 12 else (a, m + 1)
+        conn.commit()
+    except Exception:
+        _log.exception("Statistiche: mesi dai conti di cassa non aggiornati")
+    finally:
+        conn.close()
+    return fatti
+
+
+def _sync_conti_dep():
+    sincronizza_mesi_da_conti()
+
+
 router = APIRouter(
     prefix="/statistiche",
     tags=["Statistiche"],
     dependencies=[
         Depends(richiede_ruoli("admin", cosa="statistiche")),
+        Depends(_sync_conti_dep),
     ],
 )
+
+
+@router.post("/conti/aggiorna/", summary="Rifà subito i mesi presi dai conti di cassa")
+def aggiorna_mesi_da_conti():
+    conn = _get_conn()
+    try:
+        dal = _conti_dal_mese(conn)
+        conn.commit()
+    finally:
+        conn.close()
+    return {"dal_mese": dal, "aggiornati": sincronizza_mesi_da_conti(forza=True)}
 
 
 # ---------------------------------------------------------
