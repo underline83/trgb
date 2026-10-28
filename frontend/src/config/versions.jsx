@@ -523,6 +523,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.25 (2026-10-29): prolunghe nelle combinazioni (anche un tavolo solo o una coppia + prolunga), prolunghe disponibili in Impostazioni.
     // 2.24 (2026-10-28): sale aperte per giorno/turno, capienza dai tavoli, combinazioni nell'Editor, durata tavolo (pranzo lungo weekend, gruppi tutto il turno).
     // 2.23 (2026-10-28): «✏️ Modifica» della prenotazione nel Planning (stesso form, PUT con permesso sala/sommelier/admin).
     // 2.22 (2026-10-25): PrenotaIncorporata — il widget dentro la pagina della gift card (/regalo), con la nota precompilata.
@@ -535,7 +536,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.24",
+    version: "2.25",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -638,6 +639,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.80 (2026-10-29): mig 215 — tavoli_combinazioni.prolunghe, config prolunghe_disponibili (prenotazioni 2.25).
     // 5.79 (2026-10-28): mig 214 — sale_config, sale_aperture, combinazioni posti_min/zona, regole durata (prenotazioni 2.24).
     // 5.78 (2026-10-25): mig 213 — clienti_giftcard.token_pubblico, QR sull'etichetta del
     //   buono → pagina pubblica /regalo/<chiave> (clienti 3.16).
@@ -747,7 +749,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.79",
+    version: "5.80",
     label: "Sistema",
     status: "stabile",
     color: "green",

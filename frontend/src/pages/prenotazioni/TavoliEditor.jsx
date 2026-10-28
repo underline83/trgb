@@ -1,4 +1,4 @@
-// @version: v2.2-combinazioni — combinazioni di tavoli per sala (nuova, proposte dei tavoli vicini, posti decisi a mano e modificabili, elimina); v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
+// @version: v2.2-combinazioni — combinazioni di tavoli per sala (nuova, proposte dei tavoli vicini, posti decisi a mano e modificabili, prolunghe anche su un tavolo solo, elimina); v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
 // Modulo: prenotazioni
 // Editor piantina tavoli — drag & drop SVG, Fase 2 Prenotazioni
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -687,7 +687,9 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
   const [nuova, setNuova] = useState(null);       // {ids:Set, posti_min, posti, toccati}
   const [proposte, setProposte] = useState(null);
   const [modifica, setModifica] = useState(null); // {id, posti_min, posti}
-  const nomeDi = (ids) => tavoli.filter(t => ids.includes(t.id)).map(t => t.nome).join("+");
+  const nomeTavoli = (ids) => tavoli.filter(t => ids.includes(t.id)).map(t => t.nome).join("+");
+  const nomeDi = (ids, prolunghe = 0) => nomeTavoli(ids) + (prolunghe > 0 ? ` + ${prolunghe === 1 ? "prolunga" : `${prolunghe} prolunghe`}` : "");
+  const valida = (v) => v && v.posti > 0 && (v.ids.size >= 2 || (v.ids.size === 1 && v.prolunghe > 0));
   const idsDi = (c) => { try { return JSON.parse(c.tavoli_ids); } catch { return []; } };
   const della = combinazioni.filter(c => {
     const ids = idsDi(c);
@@ -699,12 +701,12 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
     const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/combinazioni`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nomeDi(ids), tavoli_ids: JSON.stringify(ids), posti: nuova.posti, posti_min: nuova.posti_min, zona: sala }),
+      body: JSON.stringify({ nome: nomeDi(ids, nuova.prolunghe), tavoli_ids: JSON.stringify(ids), posti: nuova.posti, posti_min: nuova.posti_min, prolunghe: nuova.prolunghe || 0, zona: sala }),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { flash("err", d.detail || "Errore"); return; }
-    flash("ok", `Combinazione ${nomeDi(ids)} salvata`);
-    if (proposte) setProposte(proposte.filter(p => nomeDi(p.tavoli_ids) !== nomeDi(ids)));
+    flash("ok", `Combinazione ${nomeDi(ids, nuova.prolunghe)} salvata`);
+    if (proposte && !nuova.prolunghe) setProposte(proposte.filter(p => nomeTavoli(p.tavoli_ids) !== nomeTavoli(ids)));
     setNuova(null);
     onCambio();
   };
@@ -712,7 +714,7 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
     const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/combinazioni/${modifica.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ posti: modifica.posti, posti_min: modifica.posti_min }),
+      body: JSON.stringify({ nome: nomeDi(modifica.ids, modifica.prolunghe || 0), posti: modifica.posti, posti_min: modifica.posti_min, prolunghe: modifica.prolunghe || 0 }),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { flash("err", d.detail || "Errore"); return; }
@@ -733,7 +735,7 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
   const conTavoli = (ids, base) => {
     const scelti = tavoli.filter(t => ids.has(t.id));
     if (base?.toccati) return { ...base, ids };
-    return { ids, toccati: false, posti: scelti.reduce((a, t) => a + (t.posti_max || 0), 0), posti_min: Math.max(1, ...scelti.map(t => t.posti_min || 1)) };
+    return { ids, toccati: false, prolunghe: base?.prolunghe || 0, posti: scelti.reduce((a, t) => a + (t.posti_max || 0), 0), posti_min: Math.max(1, ...scelti.map(t => t.posti_min || 1)) };
   };
   const toggle = (id) => {
     const ids = new Set(nuova.ids);
@@ -746,6 +748,8 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
       <input type="number" min={1} value={v.posti_min} onChange={e => onChange({ ...v, posti_min: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded" />
       <span>–</span>
       <input type="number" min={1} value={v.posti} onChange={e => onChange({ ...v, posti: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded" />
+      <span className="ml-2">prolunghe</span>
+      <input type="number" min={0} max={9} value={v.prolunghe || 0} onChange={e => onChange({ ...v, prolunghe: Math.max(0, +e.target.value) })} className="w-12 px-1 py-0.5 border rounded" />
     </div>
   );
 
@@ -753,13 +757,13 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
     <div className="bg-white rounded-xl border border-neutral-200 p-4 space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-neutral-800 text-sm">Combinazioni · {sala}</h3>
-        {!nuova && <button onClick={() => setNuova({ ids: new Set(), posti: 0, posti_min: 1, toccati: false })} className="text-xs text-indigo-700 hover:underline">+ Nuova</button>}
+        {!nuova && <button onClick={() => setNuova({ ids: new Set(), posti: 0, posti_min: 1, prolunghe: 0, toccati: false })} className="text-xs text-indigo-700 hover:underline">+ Nuova</button>}
       </div>
       {della.length === 0 && !nuova && <p className="text-[11px] text-neutral-400">Nessuna: i gruppi si siedono solo sui tavoli singoli.</p>}
       {della.map(c => (
         modifica?.id === c.id ? (
           <div key={c.id} className="space-y-1 border border-indigo-200 rounded p-2">
-            <div className="text-xs font-medium text-neutral-800">{c.nome}</div>
+            <div className="text-xs font-medium text-neutral-800">{nomeDi(modifica.ids, modifica.prolunghe || 0)}</div>
             {posti(modifica, setModifica)}
             <div className="flex gap-2">
               <button onClick={salvaModifica} className="text-xs px-2 py-1 rounded bg-indigo-600 text-white">Salva</button>
@@ -769,8 +773,9 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
         ) : (
           <div key={c.id} className="flex items-center gap-2 text-xs">
             <span className="font-medium text-neutral-800">{c.nome}</span>
-            <button onClick={() => setModifica({ id: c.id, posti: c.posti, posti_min: c.posti_min || 1 })}
-              title="Cambia i posti" className="text-neutral-500 hover:text-indigo-700 underline decoration-dotted">
+            {c.prolunghe > 0 && <span title={`${c.prolunghe} prolung${c.prolunghe === 1 ? "a" : "he"}`}>🔧{c.prolunghe > 1 ? c.prolunghe : ""}</span>}
+            <button onClick={() => setModifica({ id: c.id, ids: idsDi(c), posti: c.posti, posti_min: c.posti_min || 1, prolunghe: c.prolunghe || 0 })}
+              title="Cambia posti o prolunghe" className="text-neutral-500 hover:text-indigo-700 underline decoration-dotted">
               {c.posti_min ? `${c.posti_min}–` : ""}{c.posti}p
             </button>
             <button onClick={() => elimina(c)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
@@ -780,7 +785,7 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
 
       {nuova && (
         <div className="border-t border-neutral-100 pt-2 space-y-2">
-          <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono, poi scrivi quanti ci stanno davvero (capotavola compresi):</p>
+          <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono (anche uno solo, se lo allunghi con la prolunga), poi scrivi quanti ci stanno davvero, capotavola compresi:</p>
           <div className="flex flex-wrap gap-1">
             {tavoli.map(t => (
               <button key={t.id} onClick={() => toggle(t.id)}
@@ -791,8 +796,8 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
           </div>
           {posti(nuova, setNuova)}
           <div className="flex gap-2">
-            <button disabled={nuova.ids.size < 2 || !nuova.posti} onClick={salva}
-              className="text-xs px-2 py-1 rounded bg-indigo-600 text-white disabled:opacity-40">Salva {nuova.ids.size >= 2 ? nomeDi([...nuova.ids]) : ""}</button>
+            <button disabled={!valida(nuova)} onClick={salva}
+              className="text-xs px-2 py-1 rounded bg-indigo-600 text-white disabled:opacity-40">Salva {nuova.ids.size >= 1 ? nomeDi([...nuova.ids], nuova.prolunghe) : ""}</button>
             <button onClick={() => setNuova(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
           </div>
         </div>
@@ -809,7 +814,7 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
             {proposte.map(p => (
               <div key={p.nome} className="flex items-center gap-2 text-xs">
                 <span className="text-neutral-700">{p.nome}</span>
-                <button onClick={() => setNuova({ ids: new Set(p.tavoli_ids), posti: p.posti, posti_min: p.posti_min, toccati: false })}
+                <button onClick={() => setNuova({ ids: new Set(p.tavoli_ids), posti: p.posti, posti_min: p.posti_min, prolunghe: 0, toccati: false })}
                   className="ml-auto text-indigo-700 hover:underline">usa →</button>
               </div>
             ))}

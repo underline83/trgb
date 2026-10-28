@@ -784,6 +784,7 @@ class CombinazioneCreate(BaseModel):
     posti: int               # posti massimi
     posti_min: Optional[int] = None
     zona: Optional[str] = None
+    prolunghe: int = 0       # mig 215: quante prolunghe usa (anche con un tavolo solo)
     uso_frequente: int = 0
     note: Optional[str] = None
 
@@ -1535,12 +1536,13 @@ def crea_combinazione(
             ids = [int(x) for x in json.loads(req.tavoli_ids)]
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="tavoli_ids: lista di id")
-        if len(ids) < 2:
-            raise HTTPException(status_code=400, detail="Una combinazione ha almeno due tavoli")
+        prolunghe = max(0, req.prolunghe or 0)
+        if len(ids) < 2 and not (len(ids) == 1 and prolunghe > 0):
+            raise HTTPException(status_code=400, detail="Servono almeno due tavoli, o un tavolo con la prolunga")
         cur = conn.execute("""
-            INSERT INTO tavoli_combinazioni (nome, tavoli_ids, posti, posti_min, zona, uso_frequente, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (req.nome, json.dumps(ids), req.posti, req.posti_min, req.zona, req.uso_frequente, req.note))
+            INSERT INTO tavoli_combinazioni (nome, tavoli_ids, posti, posti_min, zona, prolunghe, uso_frequente, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (req.nome, json.dumps(ids), req.posti, req.posti_min, req.zona, prolunghe, req.uso_frequente, req.note))
         conn.commit()
         return {"id": cur.lastrowid, "message": f"Combinazione '{req.nome}' creata"}
     finally:
@@ -1551,6 +1553,7 @@ class CombinazioneUpdate(BaseModel):
     nome: Optional[str] = None
     posti: Optional[int] = None
     posti_min: Optional[int] = None
+    prolunghe: Optional[int] = None
 
 
 @router.put("/tavoli/combinazioni/{combo_id}", dependencies=[Depends(solo_admin(cosa="le combinazioni di tavoli"))])
@@ -1563,6 +1566,10 @@ def modifica_combinazione(combo_id: int, req: CombinazioneUpdate):
         raise HTTPException(status_code=400, detail="Posti massimi almeno 1")
     conn = get_clienti_conn()
     try:
+        if campi.get("prolunghe") == 0:
+            r = conn.execute("SELECT tavoli_ids FROM tavoli_combinazioni WHERE id = ?", (combo_id,)).fetchone()
+            if r and len(json.loads(r["tavoli_ids"] or "[]")) < 2:
+                raise HTTPException(status_code=400, detail="Un tavolo solo è una combinazione solo con la prolunga")
         cur = conn.execute(
             f"UPDATE tavoli_combinazioni SET {', '.join(f'{k} = ?' for k in campi)} WHERE id = ?",
             [*campi.values(), combo_id],
