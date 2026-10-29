@@ -1,4 +1,4 @@
-// @version: v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -596,6 +596,11 @@ export default function TavoliMappa() {
                   {selectedTavolo && selectedPren.stato !== "LEFT" && (
                     <button onClick={() => liberaTavolo(selectedPren.id)}
                       className="px-2 py-1 text-[10px] border border-neutral-300 text-neutral-600 rounded">Libera tavolo</button>
+                  )}
+                  {selectedTavolo?.unione_id && (
+                    <button onClick={() => { staccaUnione(selectedTavolo); setSelectedPren(null); setSelectedTavolo(null); }}
+                      title={`Stacca ${selectedTavolo.membri_nomi?.join(" e ")}: la prenotazione resta, i tavoli tornano singoli`}
+                      className="px-2 py-1 text-[10px] border border-neutral-300 text-neutral-600 rounded">✂️ Stacca {selectedTavolo.nome}</button>
                   )}
                 </div>
               </div>

@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-29 — Mappa: «Stacca» anche da un'unione occupata `[core]`
+
+Prenotazioni 2.31 (fix, nessuna migrazione). Un'unione su cui c'è una prenotazione (anche solo su uno dei suoi tavoli) al clic apre la scheda della prenotazione, non il menu del tavolo: «✂️ Stacca» non si raggiungeva (segnalato da Marco con 10+8 sotto la Manenti). Ora c'è anche nella scheda della prenotazione.
+
 ## 2026-10-29 — Prenotazioni: la sala si sposta durante il servizio `[core]`
 
 Prenotazioni 2.31, sistema 5.84, mig 219. Marco: «mi permette anche di trascinare e spostare i tavoli per quel servizio; quando vado in assegnazione posso editare la sala». Nella mappa del turno, in assegnazione o con «✋ Sposta», i tavoli e le tavolate unite si trascinano (scatto di 5 px; un tocco senza trascinare resta un clic). La posizione vale solo per quel giorno e turno (`tavoli_posizioni_turno`, chiave = id del tavolo, «11A», «Lu<id>» per un'unione, «Lp<id>» per i tavoli di una prenotazione) e non tocca la piantina dell'Editor. `PUT /prenotazioni/tavoli/posizioni-turno/sposta`, `DELETE /prenotazioni/tavoli/posizioni-turno/{data}/{turno}` («↺ Sala com'era»: le unioni restano). Una tavolata spostata a mano resta dove l'hanno messa.
