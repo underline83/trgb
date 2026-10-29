@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-29 — Prenotazioni: tavolate per lungo in mappa `[core]`
+
+Prenotazioni 2.30, nessuna migrazione. Marco (screenshot della Manenti su 7+9+4+8+10 disegnata in verticale e «non ci sta»): «la nostra sala va per lungo non per largo, quindi il 10 devi girarlo… se stai in quello spazio sei giusto». `_unisci_in_mappa`: la tavolata corre nel verso della sala (`prenotazioni_config.verso_tavolate`, default orizzontale), ogni tavolo col lato lungo nella fila, spessore del tavolo più largo; si piazza il più vicino possibile a dove stanno i suoi tavoli senza toccare altri tavoli né elementi (bancone, colonne). Se il disegno non ha posto resta sopra (il disegno non è in scala); «non ci sta» solo se è più lunga della sala, finché non arrivano le misure vere.
+
 ## 2026-10-29 — Prenotazioni: la sala cambia mentre unisci i tavoli `[core]`
 
 Prenotazioni 2.29, sistema 5.83, mig 218. Marco: «vorrei che la sala cambiasse dinamicamente in base a come unisci il tavolo». Nella mappa del turno «🔗 Unisci» (anche durante «assegna», dove diventa «Unisci e assegna»), si toccano i tavoli, prolunghe facoltative → `POST /prenotazioni/tavoli/unioni` crea l'unione per quel giorno e turno (`tavoli_unioni`). In mappa i tavoli diventano un rettangolo unico: parte dal tavolo più grande, lungo il suo lato lungo, verso gli altri (+16 px a prolunga finché non ci sono le misure vere); se finisce sopra un altro tavolo della sala o fuori dal disegno è rosso «non ci sta (…)». Lo stesso disegno per una prenotazione scritta su più tavoli. Menu del rettangolo: aggiungi prenotazione, «✂️ Stacca» (`DELETE /tavoli/unioni/{id}`). Posti: quelli della combinazione salvata se è la stessa (corretti per le prolunghe), se no la regola di Marco (2 di capotavola + posti del tavolo meno 1, minimo 2 + 2 a prolunga); `PUT /tavoli/unioni/{id}` per correggerli. Il motore per tavoli usa l'unione intera (o una combinazione più grande che la contiene), mai un suo tavolo da solo. Unire una metà (4C) divide il 4 per il turno. Gli «assetti» fissi provati prima sono stati scartati: non pubblicati.

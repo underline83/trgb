@@ -1183,44 +1183,61 @@ def stacca_unione(unione_id: int, user: dict = Depends(get_current_user)):
         conn.close()
 
 
-def _unisci_in_mappa(tavoli: List[Dict[str, Any]], gruppi: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _unisci_in_mappa(tavoli: List[Dict[str, Any]], gruppi: List[Dict[str, Any]],
+                     verso: str = "orizzontale", elementi: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """
     Disegna come un tavolo solo i tavoli di un'unione del turno e quelli di una stessa
-    prenotazione: i tavoli «si spostano» e si mettono in fila a partire dal più grande,
-    lungo il suo lato lungo, verso gli altri (+ un pezzo per ogni prolunga). Se il
-    rettangolo finisce sopra un altro tavolo o fuori dalla sala → `non_ci_sta`.
-    Le misure sono quelle del disegno finché non ci sono quelle vere della sala.
+    prenotazione. La tavolata corre lungo la sala (`verso`: orizzontale = per lungo nel
+    disegno, come la sala dei Tre Gobbi): ogni tavolo si gira col lato lungo nel verso
+    della tavolata, la lunghezza è la somma (+ un pezzo per prolunga), lo spessore
+    quello del tavolo più largo. Si piazza il più vicino possibile a dove stanno i suoi
+    tavoli, senza toccare altri tavoli né elementi; se il disegno non ha posto resta lì
+    sopra (`sopra` = i tavoli coperti: il disegno non è in scala); `non_ci_sta` solo se
+    è più lunga della sala. Con le misure vere diventerà il controllo vero.
     """
     PROLUNGA = 16   # px nel disegno, finché non c'è la misura vera
+    W, H = 1000, 600   # CANVAS_W × CANVAS_H di Piantina.jsx
     per_nome = {str(t["nome"]): t for t in tavoli}
     usati, nuovi = set(), []
     geo = lambda m: (m["posizione_x"] or 0, m["posizione_y"] or 0, m["larghezza"] or 60, m["altezza"] or 60)
+    orizz = verso != "verticale"
     for g in gruppi:
         membri = [per_nome.get(n) for n in g["nomi"]]
-        if len(membri) < 1 or any(m is None for m in membri) or any(m["nome"] in usati for m in membri):
+        if not membri or any(m is None for m in membri) or any(m["nome"] in usati for m in membri):
             continue
         if len(membri) < 2 and not g.get("prolunghe"):
             continue
         ancora = max(membri, key=lambda m: geo(m)[2] * geo(m)[3])
         ax, ay, aw, ah = geo(ancora)
-        altri = [m for m in membri if m is not ancora]
-        cx = sum(geo(m)[0] + geo(m)[2] / 2 for m in altri) / len(altri) if altri else ax + aw
-        cy = sum(geo(m)[1] + geo(m)[3] / 2 for m in altri) / len(altri) if altri else ay + ah / 2
-        verticale = ah > aw or (ah == aw and abs(cy - (ay + ah / 2)) > abs(cx - (ax + aw / 2)))
-        extra = (g.get("prolunghe") or 0) * PROLUNGA
-        if verticale:
-            L = ah + sum(geo(m)[3] for m in altri) + extra
-            x, w, h = ax, aw, L
-            y = ay if cy >= ay + ah / 2 else ay + ah - L
-        else:
-            L = aw + sum(geo(m)[2] for m in altri) + extra
-            y, w, h = ay, L, ah
-            x = ax if cx >= ax + aw / 2 else ax + aw - L
+        L = sum(max(geo(m)[2], geo(m)[3]) for m in membri) + (g.get("prolunghe") or 0) * PROLUNGA
+        S = max(min(geo(m)[2], geo(m)[3]) for m in membri)
+        w, h = (L, S) if orizz else (S, L)
         nomi = {m["nome"] for m in membri}
-        sopra = [t["nome"] for t in tavoli if t["nome"] not in nomi and t["nome"] not in usati
-                 and (t.get("zona") or "") == (ancora.get("zona") or "")
-                 and x < geo(t)[0] + geo(t)[2] and geo(t)[0] < x + w and y < geo(t)[1] + geo(t)[3] and geo(t)[1] < y + h]
-        fuori = x < 0 or y < 0 or x + w > 1000 or y + h > 600   # CANVAS_W × CANVAS_H di Piantina.jsx
+        ostacoli = [geo(t) for t in tavoli if t["nome"] not in nomi and t["nome"] not in usati
+                    and (t.get("zona") or "") == (ancora.get("zona") or "")]
+        ostacoli += [(e.get("posizione_x") or 0, e.get("posizione_y") or 0, e.get("larghezza") or 0, e.get("altezza") or 0)
+                     for e in (elementi or []) if (e.get("zona") or "") == (ancora.get("zona") or "")]
+        tocca = lambda x, y: [o for o in ostacoli if x < o[0] + o[2] and o[0] < x + w and y < o[1] + o[3] and o[1] < y + h]
+        dentro = lambda x, y: x >= 0 and y >= 0 and x + w <= W and y + h <= H
+        # posizioni da provare, dalla più vicina al tavolo più grande: prima dove stanno i
+        # tavoli dell'unione, poi spostandosi di 10 px in ogni direzione
+        cx = (min(geo(m)[0] for m in membri) + max(geo(m)[0] + geo(m)[2] for m in membri)) / 2
+        cy = (min(geo(m)[1] for m in membri) + max(geo(m)[1] + geo(m)[3] for m in membri)) / 2
+        x0, y0 = cx - w / 2, cy - h / 2
+        prove = sorted({(round(x0 + 10 * i), round(y0 + 10 * j)) for i in range(-60, 61) for j in range(-40, 41)},
+                       key=lambda p: (p[0] - x0) ** 2 + (p[1] - y0) ** 2)
+        prove = [p for p in prove if dentro(*p)]
+        scelta = next((p for p in prove if not tocca(*p)), None)
+        if prove and scelta is None:   # il disegno non ha posto: la mettiamo dove stanno, sopra gli altri
+            x, y = prove[0]
+            sopra = [t["nome"] for t in tavoli if t["nome"] not in nomi and t["nome"] not in usati
+                     and (t.get("zona") or "") == (ancora.get("zona") or "")
+                     and x < geo(t)[0] + geo(t)[2] and geo(t)[0] < x + w and y < geo(t)[1] + geo(t)[3] and geo(t)[1] < y + h]
+            non_ci_sta = False
+        elif scelta is None:           # più lunga della sala intera
+            x, y, sopra, non_ci_sta = max(0, x0), max(0, y0), [], True
+        else:
+            (x, y), sopra, non_ci_sta = scelta, [], False
         usati |= nomi
         nuovi.append({
             **ancora,
@@ -1231,7 +1248,7 @@ def _unisci_in_mappa(tavoli: List[Dict[str, Any]], gruppi: List[Dict[str, Any]])
             "dividibile": 0, "diviso_da": None, "legato": g["origine"],
             "unione_id": g.get("unione_id"), "prolunghe": g.get("prolunghe") or 0,
             "membri": [m["id"] for m in membri], "membri_nomi": [m["nome"] for m in membri],
-            "non_ci_sta": bool(sopra) or fuori, "sopra": sopra,
+            "non_ci_sta": non_ci_sta, "sopra": sopra,
         })
     return [t for t in tavoli if t["nome"] not in usati] + nuovi
 
@@ -1883,7 +1900,9 @@ def get_mappa_tavoli(
             nomi = tavoli_srv.nomi_tavolo(p["tavolo"])
             if len(nomi) >= 2:
                 gruppi.append({"chiave": f"p{p['id']}", "nome": "+".join(nomi), "nomi": nomi, "origine": "prenotazione"})
-        tavoli = _unisci_in_mappa([dict(t) for t in tavoli], gruppi)
+        tavoli = _unisci_in_mappa([dict(t) for t in tavoli], gruppi,
+                                  (_get_config(conn).get("verso_tavolate") or "orizzontale"),
+                                  _elementi_piantina(conn))
 
         # Arricchisci tavoli con info prenotazione
         blocchi = _blocchi_turno(conn, data, turno)
