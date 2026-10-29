@@ -1,4 +1,4 @@
-# @version: v1.0 — fasce orarie del servizio (2026-10-16, mig 195)
+# @version: v1.1 — online deciso a mano o dal motore per tavoli (online_modo, mig 216); v1.0 — fasce orarie del servizio (2026-10-16, mig 195)
 # -*- coding: utf-8 -*-
 """
 Fasce orarie del servizio — Modulo: prenotazioni — [core]
@@ -83,9 +83,18 @@ def _eccezioni(conn, data: str) -> Dict[str, Dict[str, Any]]:
     return {r["ora"]: dict(r) for r in rows}
 
 
+def _auto(conn, data: str) -> Dict[str, Dict[str, Any]]:
+    try:
+        return {r["ora"]: dict(r) for r in conn.execute(
+            "SELECT * FROM prenotazioni_fasce_auto WHERE data_pasto = ?", (data,))}
+    except Exception:  # mig 216 non ancora passata
+        return {}
+
+
 def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     config = config or _config(conn)
     dflt = default_turno(config, turno)
+    auto = {o: a for o, a in _auto(conn, data).items() if a["turno"] == turno}
     eccezioni = {o: e for o, e in _eccezioni(conn, data).items() if e["turno"] == turno}
     ore = sorted(set(_slot(config, turno)) | set(eccezioni), key=_minuti)
 
@@ -128,6 +137,10 @@ def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] =
             "piena": max_coperti is not None and c["coperti"] >= max_coperti,
             "online_piena": max_online is not None and c["online"] >= max_online,
             "thefork_esito": e.get("thefork_esito"),
+            # vendita online automatica (mig 216): chi l'ha decisa e cosa vuole il motore per tavoli
+            "online_modo": e.get("online_modo"),
+            "auto_vuole_aperto": (bool(auto[o]["vuole_aperto"]) if o in auto else None),
+            "auto_motivo": (auto[o]["motivo"] if o in auto else None),
             "aggiornato_da": e.get("aggiornato_da"),
             "updated_at": e.get("updated_at"),
         })
@@ -158,13 +171,28 @@ def _descrivi(modifiche: Dict[str, Any]) -> str:
 
 
 def imposta_fasce(conn, data: str, turno: str, ore: List[str], modifiche: Dict[str, Any],
-                  utente: Optional[str]) -> Dict[str, Any]:
+                  utente: Optional[str], modo: str = "manuale", motivo: Optional[str] = None) -> Dict[str, Any]:
     """
     Applica `modifiche` (sottoinsieme di CAMPI; per i limiti None = torna al
     default) alle fasce `ore` del giorno. Se cambia la vendita online la scrive su
     TheFork (se configurato). Ritorna le fasce aggiornate e gli esiti TheFork.
     """
+    # «online_auto»: la fascia torna a deciderla il motore per tavoli
+    torna_auto = bool(modifiche.pop("online_auto", False)) if isinstance(modifiche, dict) else False
     modifiche = {k: v for k, v in modifiche.items() if k in CAMPI}
+    if torna_auto and not modifiche:
+        ore_ok = [_hhmm(_minuti(o)) for o in ore if _minuti(o) is not None]
+        for o in ore_ok:
+            try:
+                conn.execute("UPDATE prenotazioni_fasce SET online_modo = NULL WHERE data_pasto = ? AND ora = ?", (data, o))
+            except Exception:
+                pass
+        conn.execute(
+            "INSERT INTO prenotazioni_fasce_log (data_pasto, ore, modifica, thefork_esito, utente) VALUES (?, ?, ?, ?, ?)",
+            (data, ", ".join(ore_ok), f"{turno}: online di nuovo automatico", None, utente),
+        )
+        conn.commit()
+        return fasce_giorno(conn, data, turno)
     for k in ("aperta", "online_aperta"):
         if k in modifiche:
             modifiche[k] = 1 if modifiche[k] else 0
@@ -189,6 +217,12 @@ def imposta_fasce(conn, data: str, turno: str, ore: List[str], modifiche: Dict[s
                 max_coperti = excluded.max_coperti, max_online = excluded.max_online,
                 aggiornato_da = excluded.aggiornato_da, updated_at = datetime('now','localtime')
         """, (data, o, turno, nuovo["aperta"], nuovo["online_aperta"], nuovo["max_coperti"], nuovo["max_online"], utente))
+    if "online_aperta" in modifiche:  # chi ha deciso l'online: la sala (il motore poi non tocca) o il motore
+        try:
+            conn.executemany("UPDATE prenotazioni_fasce SET online_modo = ? WHERE data_pasto = ? AND ora = ?",
+                             [(None if torna_auto else modo, data, o) for o in ore])
+        except Exception:  # mig 216 non ancora passata
+            pass
     conn.commit()
 
     dopo = {f["ora"]: f for f in fasce_giorno(conn, data, turno)["fasce"]}
@@ -214,21 +248,28 @@ def imposta_fasce(conn, data: str, turno: str, ore: List[str], modifiche: Dict[s
         esiti.append({"ore": cambiate, "esito": "TheFork non configurato: cambiato solo in TRGB"})
 
     # Le fasce tornate al default non servono più, salvo un errore TheFork da mostrare
-    conn.execute("""
+    # (e salvo un «online aperto» deciso a mano: il motore non deve richiuderlo)
+    manuale = "AND COALESCE(online_modo, '') != 'manuale'" if _ha_modo(conn) else ""
+    conn.execute(f"""
         DELETE FROM prenotazioni_fasce
         WHERE data_pasto = ? AND aperta = 1 AND online_aperta = 1
           AND max_coperti IS NULL AND max_online IS NULL
           AND COALESCE(thefork_esito, '') NOT LIKE 'errore%'
+          {manuale}
     """, (data,))
     conn.execute(
         "INSERT INTO prenotazioni_fasce_log (data_pasto, ore, modifica, thefork_esito, utente) VALUES (?, ?, ?, ?, ?)",
-        (data, ", ".join(ore), f"{turno}: {_descrivi(modifiche)}",
+        (data, ", ".join(ore), f"{turno}: {_descrivi(modifiche)}" + (f" — {motivo}" if motivo else ""),
          " · ".join(e["esito"] for e in esiti) or None, utente),
     )
     conn.commit()
     out = fasce_giorno(conn, data, turno)
     out["thefork"] = esiti
     return out
+
+
+def _ha_modo(conn) -> bool:
+    return "online_modo" in {r[1] for r in conn.execute("PRAGMA table_info(prenotazioni_fasce)")}
 
 
 def registro(conn, data: str) -> List[Dict[str, Any]]:

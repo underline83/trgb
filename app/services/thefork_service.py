@@ -609,6 +609,11 @@ def elabora_evento(evento_id: int) -> Dict[str, Any]:
                 try:
                     if entita == "reservation":
                         esito = _sincronizza_prenotazione(conn, ev["uuid"])
+                        try:  # una prenotazione TheFork nuova o cambiata: il motore ricontrolla l'online
+                            from app.services import prenotazioni_online_auto_service as online_auto
+                            online_auto.ricalcola_presto()
+                        except Exception:  # noqa: BLE001
+                            pass
                     elif entita == "review":
                         from app.services import thefork_recensioni_service as recensioni
                         esito = recensioni.sincronizza_una(ev["uuid"])

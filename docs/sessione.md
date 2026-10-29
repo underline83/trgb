@@ -6,6 +6,8 @@
 
 **Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
+**DA PUSHARE — Prenotazioni 2.27: motore per tavoli nel Planning/form/sito + online automatico + metà tavoli (mig 216, sistema 5.81)** `[core]`. Dopo il push: Impostazioni › Capienza › «🤖 Online automatico» resta «In prova»; Editor Tavoli › 4 › nomi delle metà «4, 4C»; Planning di stasera: il doppione Manenti in rosso «non entra»; Fasce di sabato: righe «il motore chiuderebbe». Quando i numeri convincono → «Attivo» (controllare il primo cambio nel registro delle fasce e su TheFork Manager).
+
 **Pushato (d28dfef9, messaggio di commit sbagliato: è quello della chiusura turno), da verificare — Statistiche dai conti + Cucina › Piatti che vanno** (ricette 3.37, statistiche 1.4, nessuna migrazione) `[core]` — IP.1 parte 1
 - Dopo il push: Cucina › «📈 Piatti che vanno» (da admin e da uno chef): 7 giorni, poi Cena; tocco su un piatto = barre giorno per giorno. Da un utente sala la voce non c'è.
 - Dal 1/11: Statistiche › Import deve mostrare novembre come «conti iPratico Cloud · fino al …» senza caricare il .xls; ottobre va ancora importato a mano (o si sposta `statistiche_conti_config.dal_mese` a 2026-10).

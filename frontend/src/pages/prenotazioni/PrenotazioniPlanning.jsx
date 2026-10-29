@@ -1,4 +1,4 @@
-// @version: v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -56,7 +56,40 @@ function rigaClasses(pren) {
 // ============================================================
 // COMPONENTE RIGA PRENOTAZIONE
 // ============================================================
-function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
+// Tavolo della riga: quello scritto, oppure il suggerito dal motore per tavoli (clic = assegna)
+function CellaTavolo({ pren, motore, onAssegna }) {
+  if (pren.tavolo) {
+    if (motore && motore.stato === "conflitto") {
+      return (
+        <Tooltip label={`Tavolo ${motore.tavoli_doppi.join(", ")} già occupato a quell'ora da un'altra prenotazione`}>
+          <span className="text-red-600 font-medium">⚠️ {pren.tavolo}</span>
+        </Tooltip>
+      );
+    }
+    return <>{pren.tavolo}</>;
+  }
+  if (!motore || ["CANCELED", "NO_SHOW", "REFUSED"].includes(pren.stato)) return <span className="text-amber-500">—</span>;
+  if (motore.stato === "senza_posto") {
+    return (
+      <Tooltip label="Nessun tavolo o unione salvata libera per questi coperti a quell'ora">
+        <span className="text-[11px] font-semibold text-red-600">non entra</span>
+      </Tooltip>
+    );
+  }
+  const s = motore.suggerito;
+  if (!s) return <span className="text-amber-500">—</span>;
+  const forzato = motore.stato === "forzato";
+  return (
+    <Tooltip label={`${forzato ? "Solo su un tavolo più grande del necessario (sotto il suo minimo)" : "Tavolo suggerito"}: ${s.nome} (${s.posti} posti${s.prolunghe ? ", prolunga" : ""}). Clicca per assegnarlo`}>
+      <button onClick={(e) => { e.stopPropagation(); onAssegna && onAssegna([motore]); }}
+        className={`text-xs px-1.5 py-0.5 rounded border border-dashed ${forzato ? "border-amber-400 text-amber-700" : "border-indigo-300 text-indigo-600"} hover:bg-indigo-50`}>
+        → {s.nome}
+      </button>
+    </Tooltip>
+  );
+}
+
+function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -138,7 +171,7 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded, onApriClien
 
         {/* Tavolo */}
         <td className="px-3 py-2 text-sm text-center text-neutral-600">
-          {pren.tavolo || <span className="text-amber-500">—</span>}
+          <CellaTavolo pren={pren} motore={motore} onAssegna={onAssegna} />
           {pren.tavolo_esterno === 1 && <Tooltip label="Esterno"><span className="ml-1">🌳</span></Tooltip>}
         </td>
 
@@ -361,11 +394,14 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
   const percentuale = capienza > 0 ? Math.round((pax / capienza) * 100) : 0;
+  const perId = Object.fromEntries(((motore && motore.prenotazioni) || []).map((v) => [v.id, v]));
+  const conta = (motore && motore.conta) || {};
+  const suggeriti = ((motore && motore.prenotazioni) || []).filter((v) => v.stato === "suggerito");
   const coloreCapienza = percentuale > 90 ? "text-red-600" : percentuale > 70 ? "text-amber-600" : "text-emerald-600";
 
   return (
@@ -384,6 +420,23 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
           })()}
         </div>
         <div className="flex items-center gap-3 text-sm">
+          {conta.senza_posto > 0 && (
+            <Tooltip label="Con i tavoli e le unioni salvate queste prenotazioni non trovano posto (durata del tavolo compresa): salva l'unione che usate, apri una sala o controlla i doppioni">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-300 font-medium">🔴 {conta.senza_posto} non {conta.senza_posto === 1 ? "entra" : "entrano"}</span>
+            </Tooltip>
+          )}
+          {conta.conflitto > 0 && (
+            <Tooltip label="Due prenotazioni sullo stesso tavolo nello stesso momento">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-300">⚠️ {conta.conflitto} tavoli doppi</span>
+            </Tooltip>
+          )}
+          {suggeriti.length > 0 && onAssegna && (
+            <button onClick={() => onAssegna(suggeriti)}
+              title="Scrive su ogni prenotazione senza tavolo il tavolo suggerito dal motore"
+              className="text-xs px-2 py-0.5 rounded-full border border-indigo-300 bg-white text-indigo-700 hover:bg-indigo-100">
+              🪑 Assegna i suggeriti ({suggeriti.length})
+            </button>
+          )}
           {(sale || []).length > 1 && (
             <div className="flex items-center gap-1">
               {sale.map((s) => (
@@ -437,6 +490,8 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, o
                 <RigaPrenotazione
                   key={p.id}
                   pren={p}
+                  motore={perId[p.id]}
+                  onAssegna={onAssegna}
                   onStatoChange={onStatoChange}
                   onExpand={onExpand}
                   expanded={expandedId === p.id}
@@ -583,6 +638,25 @@ export default function PrenotazioniPlanning() {
     setExpandedId(expandedId === id ? null : id);
   };
 
+  // Scrive il tavolo suggerito dal motore (una o più prenotazioni)
+  const assegnaSuggeriti = async (voci) => {
+    if (voci.length > 1 && !window.confirm(`Assegno il tavolo suggerito a ${voci.length} prenotazioni?`)) return;
+    let ok = 0;
+    for (const v of voci) {
+      try {
+        const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/assegna/${v.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tavolo: v.suggerito.tavoli.join("+") }),
+        });
+        if (r.ok) ok += 1;
+      } catch { /* conta solo le riuscite */ }
+    }
+    setToast({ type: ok === voci.length ? "ok" : "err", text: voci.length === 1 && ok ? `Tavolo ${voci[0].suggerito.nome} assegnato` : `Tavoli assegnati: ${ok} su ${voci.length}` });
+    loadPlanning();
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const [inModifica, setInModifica] = useState(null); // prenotazione aperta nel form di modifica
 
   // Apre/chiude una sala per questo giorno e turno (mig 214): la capienza si ricalcola dai tavoli
@@ -689,6 +763,8 @@ export default function PrenotazioniPlanning() {
               conteggio={c.pranzo_count}
               pax={c.pranzo_pax}
               capienza={c.capienza_pranzo}
+              motore={planning.motore?.pranzo}
+              onAssegna={assegnaSuggeriti}
               timeline={planning.timeline?.pranzo}
               fasce={planning.fasce?.pranzo}
               onFasce={() => setFasceTurno("pranzo")}
@@ -711,6 +787,8 @@ export default function PrenotazioniPlanning() {
               conteggio={c.cena_count}
               pax={c.cena_pax}
               capienza={c.capienza_cena}
+              motore={planning.motore?.cena}
+              onAssegna={assegnaSuggeriti}
               timeline={planning.timeline?.cena}
               fasce={planning.fasce?.cena}
               onFasce={() => setFasceTurno("cena")}

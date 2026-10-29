@@ -1,4 +1,4 @@
-// @version: v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -357,6 +357,34 @@ function CapienzaSection({ config, update }) {
             <label className="block text-xs font-medium text-neutral-600 mb-1">Prolunghe che avete</label>
             <input type="number" value={config.prolunghe_disponibili ?? ""} onChange={(e) => update("prolunghe_disponibili", e.target.value)}
               placeholder="non contarle" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" min={0} max={20} />
+          </div>
+        </div>
+        <div className="mt-4 p-3 rounded-lg border border-indigo-200 bg-indigo-50/50">
+          <div className="text-xs font-semibold text-indigo-900 mb-1">🤖 Online automatico (TheFork e sito)</div>
+          <p className="text-[11px] text-neutral-600 mb-2">
+            Fascia per fascia il motore per tavoli tiene aperto l'online finché a quell'ora entra ancora un tavolo da N persone;
+            quando non c'è più, lo chiude (anche su TheFork) e lo riapre se si libera. Le fasce cambiate a mano non le tocca.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Modalità</label>
+              <select value={config.online_automatico || "prova"} onChange={(e) => update("online_automatico", e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+                <option value="spento">Spento</option>
+                <option value="prova">In prova (mostra, non tocca)</option>
+                <option value="attivo">Attivo</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Online aperto finché entra un tavolo da</label>
+              <input type="number" value={config.soglia_online_tavolo ?? "6"} onChange={(e) => update("soglia_online_tavolo", e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" min={1} max={20} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Giorni controllati in avanti</label>
+              <input type="number" value={config.online_automatico_giorni ?? "14"} onChange={(e) => update("online_automatico_giorni", e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" min={1} max={90} />
+            </div>
           </div>
         </div>
         <div className="mt-3">

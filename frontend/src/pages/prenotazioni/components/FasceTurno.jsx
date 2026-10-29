@@ -1,4 +1,4 @@
-// @version: v1.0 — fasce orarie del servizio (copia «Andamento per fascia oraria» di TheFork Manager)
+// @version: v1.1 — online automatico del motore per tavoli (prova/attivo, ✋ a mano, torna automatico); v1.0 — fasce orarie del servizio (copia «Andamento per fascia oraria» di TheFork Manager)
 // Modulo: prenotazioni
 // Pannello per un giorno e un turno: apertura della fascia, limite coperti, vendita online
 // (scritta anche su TheFork), limite online, verifica di cosa vede il cliente su TheFork, registro.
@@ -126,6 +126,14 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
             </div>
           )}
 
+          {info?.online_automatico && info.online_automatico !== "spento" && (
+            <div className={`px-3 py-2 rounded text-xs border ${info.online_automatico === "attivo" ? "bg-indigo-50 border-indigo-200 text-indigo-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+              🤖 {info.online_automatico === "attivo"
+                ? "Online automatico ATTIVO: il motore per tavoli apre e chiude l'online (anche su TheFork) quando non c'è più un tavolo per il numero di persone scelto in Impostazioni. Le fasce cambiate a mano (✋) le lascia stare."
+                : "Online automatico IN PROVA: qui vedi cosa farebbe il motore per tavoli, ma non tocca niente né su TRGB né su TheFork. Si attiva in Impostazioni."}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2 text-xs">
             <button disabled={occupato || !tutte.length} onClick={() => imposta(tutte, { online_aperta: false })}
               className="px-2.5 py-1 rounded border border-neutral-300 hover:bg-neutral-50">🌐✕ Chiudi online tutto il turno</button>
@@ -172,6 +180,18 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
                     </button>
                     {f.thefork_esito && String(f.thefork_esito).startsWith("errore") && (
                       <span title={f.thefork_esito} className="ml-1 text-red-600">⚠️</span>
+                    )}
+                    {f.aperta && f.online_modo === "manuale" && info?.online_automatico !== "spento" && (
+                      <div className="text-[10px] text-neutral-500 mt-0.5">
+                        ✋ deciso a mano ·{" "}
+                        <button disabled={occupato} onClick={() => imposta([f.ora], { online_auto: true })}
+                          className="text-indigo-700 hover:underline">torna automatico</button>
+                      </div>
+                    )}
+                    {f.aperta && f.online_modo !== "manuale" && f.auto_vuole_aperto === false && (
+                      <div className="text-[10px] text-amber-700 mt-0.5" title={f.auto_motivo || ""}>
+                        🤖 {info?.online_automatico === "attivo" ? "chiuso dal motore" : "il motore chiuderebbe"}: {f.auto_motivo}
+                      </div>
                     )}
                   </td>
                   <td className="py-1.5 text-center whitespace-nowrap">

@@ -386,7 +386,7 @@ export default function TavoliMappa() {
                       <>
                         {menuTavolo.dividibile === 1 && (
                           <button onClick={() => dividiTavolo(menuTavolo)}
-                            className="w-full text-left px-3 py-2 hover:bg-neutral-50">✂️ Dividi in due ({menuTavolo.nome}A + {menuTavolo.nome}B)</button>
+                            className="w-full text-left px-3 py-2 hover:bg-neutral-50">✂️ Dividi in due ({(menuTavolo.nomi_meta || "").includes(",") ? menuTavolo.nomi_meta.replace(",", " +") : `${menuTavolo.nome}A + ${menuTavolo.nome}B`})</button>
                         )}
                         <button onClick={() => bloccaTavolo(menuTavolo)}
                           className="w-full text-left px-3 py-2 hover:bg-neutral-50">🚫 Blocca questo tavolo</button>

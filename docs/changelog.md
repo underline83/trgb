@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-10-29 — Prenotazioni: il motore per tavoli al lavoro, online automatico `[core]`
+
+Prenotazioni 2.27, sistema 5.81, mig 216. Chiesto da Marco dopo il doppione del 29/10 («lavoriamo per sistemarlo da oggi»).
+- **Planning:** nella colonna Tavolo, per chi non ce l'ha, il tavolo suggerito dal motore («→ 0+1», clic = assegna; tratteggio giallo = solo sotto il minimo del tavolo); «non entra» in rosso; tavolo scritto su un tavolo già occupato a quell'ora = ⚠️. Nell'intestazione del turno: «🔴 N non entrano», «⚠️ tavoli doppi», «🪑 Assegna i suggeriti». Il planning porta `motore.{pranzo,cena}` (`piano_sicuro`).
+- **Form:** sotto data/ora/persone «🪑 Entra: tavolo suggerito X» con «Usa», oppure «🔴 non c'è un tavolo». La tendina del tavolo accetta anche le unioni («0+1»).
+- **Sito:** un orario si vende solo se il motore trova un tavolo (gruppi in richiesta esclusi); coi tavoli in mappa la capienza in coperti non conta più (era quella che sbagliava col doppione).
+- **Online automatico** (`prenotazioni_online_auto_service.py`): fascia per fascia l'online resta aperto finché entra un tavolo da `soglia_online_tavolo` (6) e la fascia non è piena; se no si chiude, anche su TheFork, e si riapre quando si libera. Modalità in Impostazioni: spento / in prova (default: calcola e mostra nel pannello Fasce «il motore chiuderebbe», non tocca niente) / attivo. Le fasce cambiate a mano (✋) il motore non le tocca finché non si preme «torna automatico». Ricalcolo dopo ogni scrittura su /prenotazioni, dopo un evento TheFork, dopo una prenotazione dal sito, e ogni 10 minuti, per `online_automatico_giorni` (14) giorni. Motivo nel registro delle fasce.
+- **Metà dei tavoli dividibili:** in Editor Tavoli si scrivono i nomi delle due metà (`tavoli.nomi_meta`, es. «4, 4C»). Il motore usa il tavolo intero o, se conviene, una metà; le metà si mettono nelle combinazioni (id «11A»/«11B»); scrivere una prenotazione su «4C» divide il 4 per quel turno (la mappa mostra 4 e 4C). «4» scritto vale il tavolo intero, o la metà se quel turno qualcuno è sul 4C.
+- Le prenotazioni «andate» (LEFT) liberano il tavolo per il motore.
+- Prova sullo storico (1/8–28/10, tavoli tolti, 4 = 4 + 4C): 1.097 su 1.109 trovano posto; la cena del 10/10 passa da 5 a 2 fuori.
+
 ## 2026-10-29 — Gift card «in bianco» per le scatoline di Natale `[core]`
 
 Clienti 3.22, nessuna migrazione (stato nuovo `in_bianco`, colonne già esistenti). «+ Lotto in bianco» crea N codici di fila (es. 20, B126-359 …) senza prezzo, con una scadenza fissa per tutto il lotto (es. 25/12/2027) o vuota (allora parte dalla vendita). Non sono spendibili e non contano nel valore in circolazione né negli avvisi. Dal filtro «In bianco» si stampano tutte le etichette in un PDF solo (una per pagina, rotolo 29×90). Alla vendita: Scansiona o codice → «Vendi» → prezzo (o esperienza) e intestatario; la card diventa attiva con data di emissione = vendita. Chi inquadra una card non ancora venduta legge «non ancora attivato»; Scarica la rifiuta. Una card in bianco annullata e riattivata torna in bianco, non attiva. Endpoint: `POST /clienti/giftcard/in-bianco`, `POST /clienti/giftcard/{id}/vendi`. File: `clienti_giftcard_router.py`, `ClientiGiftCard.jsx` (ModaleInBianco, ModaleNuova in modalità vendita), `EtichettaGiftCard.jsx`, `utils/pdfEtichetta.js` (v1.3, più pagine), `Regalo.jsx`.
@@ -10,6 +21,8 @@ Clienti 3.22, nessuna migrazione (stato nuovo `in_bianco`, colonne già esistent
 ## 2026-10-29 — Prenotazioni: motore per tavoli (passo 2, backend) `[core]`
 
 Prenotazioni 2.26, nessuna migrazione. Service nuovo `prenotazioni_tavoli_service.py`, sola lettura: per un giorno e turno mette ogni prenotazione senza tavolo sul tavolo o sulla combinazione che fa stare tutti col minor spreco di posti (sale aperte, tavoli divisi e bloccati, durata 90/120, gruppi da 10 tutto il turno, prolunghe disponibili), tenendo fermi i tavoli già scritti. Un tavolo sotto il suo minimo si usa solo se serve e viene segnato «forzato». Endpoint `GET /prenotazioni/motore/piano` (tavolo suggerito per prenotazione) e `GET /prenotazioni/motore/verifica` (una prenotazione nuova di N persone alle HH:MM entra senza lasciare fuori nessuno? dove?). Provato sulle 141 serate e pranzi dal 1° agosto al 28 ottobre togliendo i tavoli scritti: 1.105 prenotazioni su 1.122 trovano posto da sole; restano fuori i gruppi grandi su unioni non salvate (7+8+9+10, 4+5+7+8+9…) e la cena del 10 ottobre, piena oltre i tavoli con 120 minuti. Nessuna schermata ancora: arrivano nel Planning e nel form.
+
+**Fix doppione** («Tieni quella TheFork, elimina questa»): ora passano alla prenotazione tenuta anche il preventivo collegato (`preventivo_id`, e `clienti_preventivi.prenotazione_id`), il menù dell'evento e la richiesta del cliente; prima si perdevano. La risposta dice `clienti_diversi` quando TheFork ha creato un suo cliente: quello va unito a mano in Clienti.
 
 ## 2026-10-29 — Prenotazioni: prolunghe nelle combinazioni `[core]`
 

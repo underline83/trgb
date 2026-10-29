@@ -53,9 +53,21 @@ from app.services.permessi import richiede_ruoli, solo_admin, verifica_ruoli
 # cliente. Non e' un allargamento reale: il contabile vede gia' gli stessi nominativi
 # e telefoni dal modulo Clienti. Togliendolo si rompe la ricerca dentro il preventivo.
 # Contesto: docs/audit_permessi_2026-09-01.md
+async def _dopo_modifica(request: Request):
+    """Dopo ogni scrittura (prenotazioni, tavoli, sale, fasce): il motore ricontrolla la vendita online."""
+    yield
+    if request.method != "GET":
+        try:
+            from app.services import prenotazioni_online_auto_service as online_auto
+            online_auto.ricalcola_presto()
+        except Exception:  # noqa: BLE001 — mai bloccare la risposta
+            logging.getLogger(__name__).exception("online automatico")
+
+
 router = APIRouter(prefix="/prenotazioni", tags=["Prenotazioni"],
     dependencies=[
         Depends(richiede_ruoli("admin", "sala", "sommelier", "contabile", cosa="prenotazioni")),
+        Depends(_dopo_modifica),
     ],
 )
 
@@ -392,6 +404,11 @@ def get_planning(
                 "pranzo": sale_srv.elenco(conn, data, "pranzo"),
                 "cena": sale_srv.elenco(conn, data, "cena"),
             },
+            # Motore per tavoli: tavolo suggerito, chi non entra, tavoli doppi (sola lettura)
+            "motore": {
+                "pranzo": tavoli_srv.piano_sicuro(conn, data, "pranzo"),
+                "cena": tavoli_srv.piano_sicuro(conn, data, "cena"),
+            },
         }
     finally:
         conn.close()
@@ -567,9 +584,11 @@ def crea_prenotazione(
             token,
         ))
         conn.commit()
+        nuovo_id = cur.lastrowid
+        tavoli_srv.dividi_se_meta(conn, nuovo_id, user.get("username"))
 
         return {
-            "id": cur.lastrowid,
+            "id": nuovo_id,
             "cliente_id": cliente_id,
             "message": "Prenotazione creata",
         }
@@ -777,6 +796,7 @@ class TavoloUpdate(BaseModel):
     note: Optional[str] = None
     ordine: Optional[int] = None
     dividibile: Optional[int] = None
+    nomi_meta: Optional[str] = None   # mig 216: «4, 4C» (vuoto = 4A, 4B)
 
 
 class CombinazioneCreate(BaseModel):
@@ -840,7 +860,13 @@ def modifica_tavolo(
 
         updates = []
         values = []
-        for field, value in req.dict(exclude_none=True).items():
+        campi = req.dict(exclude_none=True)
+        if "nomi_meta" in campi:
+            parti = [x.strip() for x in campi["nomi_meta"].split(",") if x.strip()]
+            if campi["nomi_meta"].strip() and len(parti) != 2:
+                raise HTTPException(status_code=400, detail="Nomi delle metà: due nomi separati da virgola, es. «4, 4C»")
+            campi["nomi_meta"] = ", ".join(parti) or None
+        for field, value in campi.items():
             updates.append(f"{field} = ?")
             values.append(value)
 
@@ -932,8 +958,17 @@ def _turno_valido(turno: str) -> str:
 def get_fasce(data: str, turno: str, user: dict = Depends(get_current_user)):
     conn = get_clienti_conn()
     try:
+        from app.services import prenotazioni_online_auto_service as online_auto
+        cfg = fasce_srv._config(conn)
+        modo = online_auto.modo(cfg)
+        if modo == "prova":  # in prova il calcolo è innocuo: lo rifacciamo per mostrarlo fresco
+            try:
+                online_auto.applica(conn, data, _turno_valido(turno), cfg)
+            except Exception:  # noqa: BLE001
+                logging.getLogger(__name__).exception("online automatico")
         out = fasce_srv.fasce_giorno(conn, data, _turno_valido(turno))
         out["registro"] = fasce_srv.registro(conn, data)
+        out["online_automatico"] = modo
         return out
     finally:
         conn.close()
@@ -1146,9 +1181,10 @@ def _meta_tavolo(t: Dict[str, Any], lato: str, divisione_id: int) -> Dict[str, A
         h2 = (h - spazio) / 2
         m.update(posizione_y=y if lato == "A" else y + h2 + spazio, altezza=h2)
     posti = t.get("posti_max") or 2
+    nomi = tavoli_srv.nomi_meta(t)
     m.update(
         id=f"{t['id']}{lato}",
-        nome=f"{t['nome']}{lato}",
+        nome=nomi[0] if lato == "A" else nomi[1],
         posti_min=1,
         posti_max=(posti + 1) // 2 if lato == "A" else max(1, posti // 2),
         forma="rect" if t.get("forma") == "diamond" else t.get("forma"),
@@ -1207,15 +1243,16 @@ def dividi_tavolo(req: DivisioneTavolo, user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è assegnato a una prenotazione: liberalo prima di dividerlo")
         if req.tavolo_id in _blocchi_turno(conn, req.data, req.turno):
             raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è bloccato: sbloccalo prima")
-        doppi = conn.execute("SELECT nome FROM tavoli WHERE nome IN (?, ?) AND attivo = 1",
-                             (f"{t['nome']}A", f"{t['nome']}B")).fetchall()
+        nA, nB = tavoli_srv.nomi_meta(dict(t))
+        doppi = conn.execute("SELECT nome FROM tavoli WHERE nome IN (?, ?) AND attivo = 1 AND id != ?",
+                             (nA, nB, t["id"])).fetchall()
         if doppi:
             raise HTTPException(status_code=400, detail=f"Esiste già un tavolo {doppi[0]['nome']}: non posso chiamare così le due metà")
         conn.execute("""
             INSERT OR IGNORE INTO tavoli_divisioni (data_pasto, turno, tavolo_id, creato_da) VALUES (?, ?, ?, ?)
         """, (req.data, req.turno, req.tavolo_id, user.get("username")))
         conn.commit()
-        return {"message": f"Tavolo {t['nome']} diviso in {t['nome']}A e {t['nome']}B"}
+        return {"message": f"Tavolo {t['nome']} diviso in {nA} e {nB}"}
     finally:
         conn.close()
 
@@ -1226,11 +1263,11 @@ def riunisci_tavolo(divisione_id: int, user: dict = Depends(get_current_user)):
     conn = get_clienti_conn()
     try:
         d = conn.execute("""
-            SELECT d.*, t.nome FROM tavoli_divisioni d JOIN tavoli t ON t.id = d.tavolo_id WHERE d.id = ?
+            SELECT d.*, t.nome, t.nomi_meta FROM tavoli_divisioni d JOIN tavoli t ON t.id = d.tavolo_id WHERE d.id = ?
         """, (divisione_id,)).fetchone()
         if not d:
             raise HTTPException(status_code=404, detail="Divisione non trovata")
-        occupate = {f"{d['nome']}A", f"{d['nome']}B"} & _nomi_occupati(conn, d["data_pasto"], d["turno"])
+        occupate = set(tavoli_srv.nomi_meta(dict(d))) & _nomi_occupati(conn, d["data_pasto"], d["turno"])
         if occupate:
             raise HTTPException(status_code=400, detail=f"{', '.join(sorted(occupate))} ha una prenotazione: spostala prima di riunire")
         conn.execute("DELETE FROM tavoli_divisioni WHERE id = ?", (divisione_id,))
@@ -1548,6 +1585,13 @@ def get_combinazioni(user: dict = Depends(get_current_user)):
         conn.close()
 
 
+def _id_combinazione(x):
+    """Un tavolo intero (id) o una sua metà («11A»/«11B»)."""
+    if isinstance(x, str) and x[:-1].isdigit() and x[-1:] in ("A", "B"):
+        return x
+    return int(x)
+
+
 @router.post("/tavoli/combinazioni", dependencies=[Depends(solo_admin(cosa="le combinazioni di tavoli"))])
 def crea_combinazione(
     req: CombinazioneCreate,
@@ -1557,9 +1601,9 @@ def crea_combinazione(
     conn = get_clienti_conn()
     try:
         try:
-            ids = [int(x) for x in json.loads(req.tavoli_ids)]
+            ids = [_id_combinazione(x) for x in json.loads(req.tavoli_ids)]
         except (ValueError, TypeError):
-            raise HTTPException(status_code=400, detail="tavoli_ids: lista di id")
+            raise HTTPException(status_code=400, detail="tavoli_ids: lista di id (o metà, es. «11A»)")
         prolunghe = max(0, req.prolunghe or 0)
         if len(ids) < 2 and not (len(ids) == 1 and prolunghe > 0):
             raise HTTPException(status_code=400, detail="Servono almeno due tavoli, o un tavolo con la prolunga")
@@ -1763,6 +1807,7 @@ async def assegna_tavolo(
             (tavolo, pren_id),
         )
         conn.commit()
+        tavoli_srv.dividi_se_meta(conn, pren_id, user.get("username"))
         return {"message": f"Tavolo assegnato: '{tavolo}'" if tavolo else "Tavolo rimosso", "id": pren_id}
     finally:
         conn.close()
@@ -1831,6 +1876,7 @@ def modifica_prenotazione(
             values,
         )
         conn.commit()
+        tavoli_srv.dividi_se_meta(conn, pren_id, user.get("username"))
 
         return {"message": "Prenotazione aggiornata", "id": pren_id}
     except HTTPException:
@@ -1952,8 +1998,9 @@ def unisci_prenotazione_doppia(
         upd = {}
         if a["nota_ristorante"] and (a["nota_ristorante"] not in (b["nota_ristorante"] or "")):
             upd["nota_ristorante"] = " · ".join(x for x in (b["nota_ristorante"], a["nota_ristorante"]) if x)
-        for campo in ("allergie_segnalate", "tavolo", "cliente_id", "occasione", "seggioloni"):
-            if a[campo] and not b[campo]:
+        for campo in ("allergie_segnalate", "tavolo", "cliente_id", "occasione", "seggioloni",
+                      "nota_cliente", "menu_evento", "preventivo_id"):
+            if campo in a.keys() and a[campo] and not b[campo]:
                 upd[campo] = a[campo]
         if a["reminder_inviato"] and not b["reminder_inviato"]:
             upd["reminder_inviato"] = 1
@@ -1963,9 +2010,14 @@ def unisci_prenotazione_doppia(
                 "updated_at = datetime('now','localtime') WHERE id = ?",
                 [*upd.values(), altra_id],
             )
+        try:  # il preventivo segue la prenotazione tenuta
+            conn.execute("UPDATE clienti_preventivi SET prenotazione_id = ? WHERE prenotazione_id = ?", (altra_id, pren_id))
+        except Exception:
+            pass
         conn.execute("DELETE FROM clienti_prenotazioni WHERE id = ?", (pren_id,))
         conn.commit()
-        return {"tenuta": altra_id, "eliminata": pren_id, "copiati": list(upd.keys())}
+        return {"tenuta": altra_id, "eliminata": pren_id, "copiati": list(upd.keys()),
+                "clienti_diversi": bool(a["cliente_id"] and b["cliente_id"] and a["cliente_id"] != b["cliente_id"])}
     except HTTPException:
         raise
     except Exception as e:

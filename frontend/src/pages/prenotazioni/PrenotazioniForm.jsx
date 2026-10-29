@@ -1,4 +1,4 @@
-// @version: v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -112,6 +112,22 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
       ? `Fascia delle ${fasciaScelta.ora}: ${fasciaScelta.coperti} coperti già prenotati su ${fasciaScelta.max_coperti}, con questa diventano ${fasciaScelta.coperti + form.pax}`
     : null;
   const slotCorrente = turnoCorrente === "pranzo" ? slotPranzo : slotCena;
+
+  // Motore per tavoli: la prenotazione entra senza lasciare fuori nessuno? Su quale tavolo?
+  const [posto, setPosto] = useState(null);
+  useEffect(() => {
+    if (!form.data_pasto || !form.ora_pasto || !form.pax) { setPosto(null); return; }
+    const q = new URLSearchParams({ data: form.data_pasto, turno: turnoCorrente, pax: form.pax, ora: form.ora_pasto });
+    if (modifica && P.id) q.set("escludi_id", P.id);
+    const t = setTimeout(() => {
+      apiFetch(`${API_BASE}/prenotazioni/motore/verifica?${q}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then(setPosto)
+        .catch(() => setPosto(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [form.data_pasto, form.ora_pasto, form.pax, turnoCorrente]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tavoloProposto = posto && posto.entra && posto.tavolo ? posto.tavolo.tavoli.join("+") : "";
 
   const selezionaCliente = (c) => {
     setSelectedCliente(c);
@@ -232,6 +248,20 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
 
           {avvisoFascia && (
             <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">⚠️ {avvisoFascia}. Puoi inserirla lo stesso.</div>
+          )}
+          {posto && !posto.entra && (
+            <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs">
+              🔴 A quest'ora non c'è un tavolo o un'unione salvata libera per {form.pax} persone{posto.gia_fuori > 0 ? ` (e ${posto.gia_fuori} prenotazioni sono già senza posto)` : ""}. Prova un altro orario, apri una sala o inseriscila lo stesso.
+            </div>
+          )}
+          {posto && posto.entra && posto.tavolo && (
+            <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+              <span>🪑 Entra: tavolo suggerito <strong>{posto.tavolo.nome}</strong> ({posto.tavolo.posti} posti{posto.tavolo.prolunghe ? ", con prolunga" : ""})</span>
+              {form.tavolo !== tavoloProposto && (
+                <button type="button" onClick={() => setForm({ ...form, tavolo: tavoloProposto })}
+                  className="ml-auto px-2 py-0.5 rounded border border-emerald-400 bg-white hover:bg-emerald-100">Usa</button>
+              )}
+            </div>
           )}
 
           {/* Pax e Canale */}
@@ -383,6 +413,9 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
               >
                 <option value="">— Assegna dopo —</option>
+                {form.tavolo && !tavoli.some((t) => t.nome === form.tavolo) && (
+                  <option value={form.tavolo}>{form.tavolo}</option>
+                )}
                 {tavoli.map((t) => (
                   <option key={t.id} value={t.nome} disabled={(t.occupato || t.bloccato) && !(modifica && t.nome === P.tavolo)}>
                     {t.nome} ({t.zona}, {t.posti_min}-{t.posti_max}p){t.occupato ? " — OCCUPATO" : t.bloccato ? " — BLOCCATO" : ""}

@@ -177,6 +177,16 @@ def orari(conn, data: str, pax: int, adesso: Optional[datetime] = None,
         elif capienza == 0:
             continue  # tutte le sale chiuse in quel turno
         occupati = _coperti_turno(conn, data, turno)
+        # Motore per tavoli: un orario si vende solo se c'è davvero un tavolo libero
+        from app.services import prenotazioni_tavoli_service as tavoli_srv
+        motore = None
+        if not out["richiesta"]:
+            try:
+                motore = tavoli_srv.Verificatore(conn, data, turno)
+                if not motore.ha_tavoli:
+                    motore = None
+            except Exception:
+                motore = None
         lista = []
         for f in fasce:
             quando = datetime.combine(d, datetime.strptime(f["ora"], "%H:%M").time())
@@ -188,8 +198,11 @@ def orari(conn, data: str, pax: int, adesso: Optional[datetime] = None,
                 libero = (
                     (f["max_coperti"] is None or f["coperti"] + pax <= f["max_coperti"])
                     and (f["max_online"] is None or f["online"] + pax <= f["max_online"])
-                    and (capienza <= 0 or occupati + pax <= capienza)
+                    # senza tavoli in mappa conta la capienza in coperti; coi tavoli decide il motore
+                    and (motore is not None or capienza <= 0 or occupati + pax <= capienza)
                 )
+                if libero and motore is not None:
+                    libero = motore.verifica(pax, f["ora"])["entra"]
             lista.append({"ora": f["ora"], "libero": libero})
         if lista:
             out["turni"].append({"turno": turno, "orari": lista})
@@ -324,6 +337,11 @@ def crea(dati: Dict[str, Any]) -> Dict[str, Any]:
                   turno, token, nome, cognome))
             pid = cur.lastrowid
             conn.commit()
+            try:  # posto venduto dal sito: il motore ricontrolla l'online (TheFork)
+                from app.services import prenotazioni_online_auto_service as online_auto
+                online_auto.ricalcola_presto()
+            except Exception:  # noqa: BLE001
+                pass
 
             try:
                 from app.services.prenotazioni_doppioni_service import doppioni_di

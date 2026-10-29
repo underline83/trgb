@@ -772,6 +772,10 @@ if module_loader.is_router_active("prenotazioni_pubblico_router"):
 # VISITE DEL SITO (modulo sito) — evento pubblico dal sito; la lettura è in Statistiche › Sito
 _mount("sito_pubblico_router", sito_pubblico_router)
 _mount("prenotazioni_router", prenotazioni_router)
+if module_loader.is_router_active("prenotazioni_router"):
+    # Vendita online per fascia decisa dal motore per tavoli (online_automatico: spento | prova | attivo)
+    from app.services.prenotazioni_online_auto_service import avvia_periodico as _online_auto
+    _online_auto()
 
 # PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)
 _mount("preventivi_router", preventivi_router)

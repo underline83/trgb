@@ -525,6 +525,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.27 (2026-10-29): motore per tavoli in uso — tavolo suggerito nel Planning (clic = assegna, «Assegna i suggeriti», «non entra», tavoli doppi), «entra / non entra» nel form, sito venduto per tavoli, online automatico per fascia (prova/attivo, anche su TheFork), metà dei tavoli dividibili coi loro nomi (4 e 4C) e nelle combinazioni.
     // 2.26 (2026-10-29): motore per tavoli (backend) — tavolo suggerito e «entra o no», GET /prenotazioni/motore/piano e /motore/verifica.
     // 2.25 (2026-10-29): prolunghe nelle combinazioni (anche un tavolo solo o una coppia + prolunga), prolunghe disponibili in Impostazioni.
     // 2.24 (2026-10-28): sale aperte per giorno/turno, capienza dai tavoli, combinazioni nell'Editor, durata tavolo (pranzo lungo weekend, gruppi tutto il turno).
@@ -539,7 +540,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.26",
+    version: "2.27",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -642,6 +643,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.81 (2026-10-29): mig 216 — prenotazioni_fasce.online_modo, prenotazioni_fasce_auto, online_automatico/_giorni, tavoli.nomi_meta (prenotazioni 2.27).
     // 5.80 (2026-10-29): mig 215 — tavoli_combinazioni.prolunghe, config prolunghe_disponibili (prenotazioni 2.25).
     // 5.79 (2026-10-28): mig 214 — sale_config, sale_aperture, combinazioni posti_min/zona, regole durata (prenotazioni 2.24).
     // 5.78 (2026-10-25): mig 213 — clienti_giftcard.token_pubblico, QR sull'etichetta del
@@ -752,7 +754,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.80",
+    version: "5.81",
     label: "Sistema",
     status: "stabile",
     color: "green",

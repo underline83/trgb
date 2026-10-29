@@ -1,4 +1,4 @@
-// @version: v2.2-combinazioni — combinazioni di tavoli per sala (nuova, proposte dei tavoli vicini, posti decisi a mano e modificabili, prolunghe anche su un tavolo solo, elimina); v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
+// @version: v2.3-meta — nomi delle metà dei tavoli dividibili (es. 4 e 4C), metà usabili nelle combinazioni; v2.2-combinazioni — combinazioni di tavoli per sala (nuova, proposte dei tavoli vicini, posti decisi a mano e modificabili, prolunghe anche su un tavolo solo, elimina); v2.1-dividibile — flag «dividibile in due»; v2.0-sale — sale come schede (Osteria/Dehor/Veranda), rombo, elementi non prenotabili, importa piantina
 // Modulo: prenotazioni
 // Editor piantina tavoli — drag & drop SVG, Fase 2 Prenotazioni
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -577,8 +577,17 @@ export default function TavoliEditor() {
                   <input type="checkbox" checked={selectedTavolo.dividibile === 1}
                     onChange={e => updateSelected("dividibile", e.target.checked ? 1 : 0)} />
                   Dividibile in due
-                  <span className="text-[11px] text-neutral-400">(dalla mappa: ✂️ Dividi → {selectedTavolo.nome}A + {selectedTavolo.nome}B)</span>
                 </label>
+                {selectedTavolo.dividibile === 1 && (
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Nomi delle due metà (es. «4, 4C»)</label>
+                    <input key={`meta-${selectedTavolo.id}`} defaultValue={selectedTavolo.nomi_meta || ""}
+                      placeholder={`${selectedTavolo.nome}A, ${selectedTavolo.nome}B`}
+                      onBlur={e => { if ((e.target.value || "") !== (selectedTavolo.nomi_meta || "")) updateSelected("nomi_meta", e.target.value); }}
+                      className="w-full px-2 py-1.5 border rounded-lg text-sm" />
+                    <p className="text-[11px] text-neutral-400 mt-1">Il motore usa anche una metà da sola se serve; dalla mappa ✂️ Dividi la spezzi per tutto il turno. Le metà si possono mettere nelle combinazioni.</p>
+                  </div>
+                )}
                 <Btn variant="chip" tone="red" size="sm" onClick={() => disattivaTavolo(selectedTavolo.id)} className="w-full">
                   Disattiva tavolo
                 </Btn>
@@ -683,11 +692,21 @@ export default function TavoliEditor() {
 // ── Combinazioni di tavoli della sala (2026-10-28) ──
 // Tavoli che si uniscono per i gruppi (es. 2+3). Servono al motore della disponibilità per tavoli.
 // I posti li decide chi conosce la sala (0+1 coi capotavola = 6): la somma è solo il punto di partenza.
-function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
+function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flash }) {
   const [nuova, setNuova] = useState(null);       // {ids:Set, posti_min, posti, toccati}
   const [proposte, setProposte] = useState(null);
   const [modifica, setModifica] = useState(null); // {id, posti_min, posti}
-  const nomeTavoli = (ids) => tavoli.filter(t => ids.includes(t.id)).map(t => t.nome).join("+");
+  // I tavoli dividibili valgono anche come due metà («4» e «4C»): id «11A»/«11B»
+  const tavoli = tavoliInteri.flatMap(t => {
+    if (t.dividibile !== 1) return [t];
+    const nomi = (t.nomi_meta || "").split(",").map(x => x.trim()).filter(Boolean);
+    const [nA, nB] = nomi.length >= 2 ? nomi : [`${t.nome}A`, `${t.nome}B`];
+    const p = t.posti_max || 2;
+    return [t,
+      { id: `${t.id}A`, nome: nA, posti_min: 1, posti_max: Math.ceil(p / 2), meta: t.id },
+      { id: `${t.id}B`, nome: nB, posti_min: 1, posti_max: Math.max(1, Math.floor(p / 2)), meta: t.id }];
+  });
+  const nomeTavoli = (ids) => ids.map(id => tavoli.find(t => t.id === id)?.nome).filter(Boolean).join("+");
   const nomeDi = (ids, prolunghe = 0) => nomeTavoli(ids) + (prolunghe > 0 ? ` + ${prolunghe === 1 ? "prolunga" : `${prolunghe} prolunghe`}` : "");
   const valida = (v) => v && v.posti > 0 && (v.ids.size >= 2 || (v.ids.size === 1 && v.prolunghe > 0));
   const idsDi = (c) => { try { return JSON.parse(c.tavoli_ids); } catch { return []; } };
@@ -739,7 +758,14 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
   };
   const toggle = (id) => {
     const ids = new Set(nuova.ids);
-    ids.has(id) ? ids.delete(id) : ids.add(id);
+    if (ids.has(id)) ids.delete(id);
+    else {
+      ids.add(id);
+      // un tavolo intero e una sua metà non stanno insieme
+      const t = tavoli.find(x => x.id === id);
+      if (t && t.meta) ids.delete(t.meta);                       // scelgo una metà: via il tavolo intero
+      for (const x of tavoli) if (x.meta && x.meta === id) ids.delete(x.id);  // scelgo l'intero: via le metà
+    }
     setNuova(conTavoli(ids, nuova));
   };
   const posti = (v, onChange) => ( // funzione, non componente: così gli input non perdono il fuoco
@@ -788,9 +814,9 @@ function Combinazioni({ sala, tavoli, combinazioni, onCambio, flash }) {
           <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono (anche uno solo, se lo allunghi con la prolunga), poi scrivi quanti ci stanno davvero, capotavola compresi:</p>
           <div className="flex flex-wrap gap-1">
             {tavoli.map(t => (
-              <button key={t.id} onClick={() => toggle(t.id)}
-                className={`text-xs px-2 py-1 rounded border ${nuova.ids.has(t.id) ? "bg-indigo-600 text-white border-indigo-600" : "border-neutral-300 text-neutral-600"}`}>
-                {t.nome}
+              <button key={t.id} onClick={() => toggle(t.id)} title={t.meta ? "Metà di un tavolo dividibile" : undefined}
+                className={`text-xs px-2 py-1 rounded border ${nuova.ids.has(t.id) ? "bg-indigo-600 text-white border-indigo-600" : t.meta ? "border-dashed border-neutral-300 text-neutral-500" : "border-neutral-300 text-neutral-600"}`}>
+                {t.nome}{t.meta ? " ½" : ""}
               </button>
             ))}
           </div>
