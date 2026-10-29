@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
+import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -1117,6 +1118,124 @@ class BloccoTavolo(BaseModel):
     motivo: Optional[str] = None
 
 
+# ============================================================
+# UNIONI di tavoli per giorno e turno (2026-10-29, mig 218) — solo TRGB
+# ============================================================
+# Dalla mappa: «🔗 Unisci» + i tavoli → un tavolo solo per quel turno (rettangolo
+# unico in mappa; il motore lo usa intero). «Stacca» lo toglie.
+
+class UnioneCrea(BaseModel):
+    data: str
+    turno: str
+    tavoli_ids: List[Any]          # id dei tavoli, o metà «11A»/«11B»
+    prolunghe: int = 0
+
+
+class UnioneModifica(BaseModel):
+    posti_min: Optional[int] = None
+    posti_max: Optional[int] = None
+    prolunghe: Optional[int] = None
+
+
+@router.post("/tavoli/unioni")
+def crea_unione(req: UnioneCrea, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="l'unione dei tavoli")
+    if req.turno not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno: pranzo o cena")
+    conn = get_clienti_conn()
+    try:
+        u = tavoli_srv.crea_unione(conn, req.data, req.turno, [_id_combinazione(x) for x in req.tavoli_ids],
+                                   max(0, req.prolunghe or 0), user.get("username"))
+        return {"unione": u, "message": f"Tavoli uniti: {u['nome']} ({u['posti_min']}–{u['posti_max']} posti)"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.put("/tavoli/unioni/{unione_id}")
+def modifica_unione(unione_id: int, req: UnioneModifica, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="l'unione dei tavoli")
+    conn = get_clienti_conn()
+    try:
+        campi = {k: v for k, v in req.dict().items() if v is not None}
+        if campi:
+            conn.execute(f"UPDATE tavoli_unioni SET {', '.join(f'{k} = ?' for k in campi)} WHERE id = ?",
+                         [*campi.values(), unione_id])
+            conn.commit()
+        return {"message": "Unione aggiornata"}
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/unioni/{unione_id}")
+def stacca_unione(unione_id: int, user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="l'unione dei tavoli")
+    conn = get_clienti_conn()
+    try:
+        r = conn.execute("SELECT nome FROM tavoli_unioni WHERE id = ?", (unione_id,)).fetchone()
+        if not r:
+            raise HTTPException(status_code=404, detail="Unione non trovata")
+        conn.execute("DELETE FROM tavoli_unioni WHERE id = ?", (unione_id,))
+        conn.commit()
+        return {"message": f"{r['nome']} staccati"}
+    finally:
+        conn.close()
+
+
+def _unisci_in_mappa(tavoli: List[Dict[str, Any]], gruppi: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Disegna come un tavolo solo i tavoli di un'unione del turno e quelli di una stessa
+    prenotazione: i tavoli «si spostano» e si mettono in fila a partire dal più grande,
+    lungo il suo lato lungo, verso gli altri (+ un pezzo per ogni prolunga). Se il
+    rettangolo finisce sopra un altro tavolo o fuori dalla sala → `non_ci_sta`.
+    Le misure sono quelle del disegno finché non ci sono quelle vere della sala.
+    """
+    PROLUNGA = 16   # px nel disegno, finché non c'è la misura vera
+    per_nome = {str(t["nome"]): t for t in tavoli}
+    usati, nuovi = set(), []
+    geo = lambda m: (m["posizione_x"] or 0, m["posizione_y"] or 0, m["larghezza"] or 60, m["altezza"] or 60)
+    for g in gruppi:
+        membri = [per_nome.get(n) for n in g["nomi"]]
+        if len(membri) < 1 or any(m is None for m in membri) or any(m["nome"] in usati for m in membri):
+            continue
+        if len(membri) < 2 and not g.get("prolunghe"):
+            continue
+        ancora = max(membri, key=lambda m: geo(m)[2] * geo(m)[3])
+        ax, ay, aw, ah = geo(ancora)
+        altri = [m for m in membri if m is not ancora]
+        cx = sum(geo(m)[0] + geo(m)[2] / 2 for m in altri) / len(altri) if altri else ax + aw
+        cy = sum(geo(m)[1] + geo(m)[3] / 2 for m in altri) / len(altri) if altri else ay + ah / 2
+        verticale = ah > aw or (ah == aw and abs(cy - (ay + ah / 2)) > abs(cx - (ax + aw / 2)))
+        extra = (g.get("prolunghe") or 0) * PROLUNGA
+        if verticale:
+            L = ah + sum(geo(m)[3] for m in altri) + extra
+            x, w, h = ax, aw, L
+            y = ay if cy >= ay + ah / 2 else ay + ah - L
+        else:
+            L = aw + sum(geo(m)[2] for m in altri) + extra
+            y, w, h = ay, L, ah
+            x = ax if cx >= ax + aw / 2 else ax + aw - L
+        nomi = {m["nome"] for m in membri}
+        sopra = [t["nome"] for t in tavoli if t["nome"] not in nomi and t["nome"] not in usati
+                 and (t.get("zona") or "") == (ancora.get("zona") or "")
+                 and x < geo(t)[0] + geo(t)[2] and geo(t)[0] < x + w and y < geo(t)[1] + geo(t)[3] and geo(t)[1] < y + h]
+        fuori = x < 0 or y < 0 or x + w > 1000 or y + h > 600   # CANVAS_W × CANVAS_H di Piantina.jsx
+        usati |= nomi
+        nuovi.append({
+            **ancora,
+            "id": f"L{g['chiave']}", "nome": g["nome"], "forma": "rect",
+            "posizione_x": x, "posizione_y": y, "larghezza": w, "altezza": h,
+            "posti_min": g.get("posti_min") or sum(m["posti_min"] or 1 for m in membri),
+            "posti_max": g.get("posti_max") or sum(m["posti_max"] or 2 for m in membri),
+            "dividibile": 0, "diviso_da": None, "legato": g["origine"],
+            "unione_id": g.get("unione_id"), "prolunghe": g.get("prolunghe") or 0,
+            "membri": [m["id"] for m in membri], "membri_nomi": [m["nome"] for m in membri],
+            "non_ci_sta": bool(sopra) or fuori, "sopra": sopra,
+        })
+    return [t for t in tavoli if t["nome"] not in usati] + nuovi
+
+
 @router.post("/tavoli/blocchi")
 def blocca_tavolo(req: BloccoTavolo, user: dict = Depends(get_current_user)):
     verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="il blocco dei tavoli")
@@ -1754,15 +1873,30 @@ def get_mappa_tavoli(
             else:
                 senza_tavolo.append(pdict)
 
+        # Tavoli uniti: le unioni fatte dalla mappa per questo turno, poi quelle di una stessa prenotazione
+        gruppi = []
+        for u in tavoli_srv.unioni_turno(conn, data, turno):
+            gruppi.append({"chiave": f"u{u['id']}", "nome": u["nome"], "nomi": u["nomi"], "unione_id": u["id"],
+                           "posti_min": u["posti_min"], "posti_max": u["posti_max"], "prolunghe": u["prolunghe"],
+                           "origine": "unione"})
+        for p in prenotazioni:
+            nomi = tavoli_srv.nomi_tavolo(p["tavolo"])
+            if len(nomi) >= 2:
+                gruppi.append({"chiave": f"p{p['id']}", "nome": "+".join(nomi), "nomi": nomi, "origine": "prenotazione"})
+        tavoli = _unisci_in_mappa([dict(t) for t in tavoli], gruppi)
+
         # Arricchisci tavoli con info prenotazione
         blocchi = _blocchi_turno(conn, data, turno)
         tavoli_result = []
         for t in tavoli:
             td = dict(t)
             pren = tavolo_pren.get(td["nome"])
+            if pren is None and td.get("membri_nomi"):
+                pren = next((tavolo_pren[n] for n in td["membri_nomi"] if n in tavolo_pren), None)
             td["prenotazione"] = pren
             td["occupato"] = pren is not None
-            td["blocco"] = blocchi.get(td["id"])
+            td["blocco"] = blocchi.get(td["id"]) if not td.get("membri") else next(
+                (blocchi[i] for i in td["membri"] if i in blocchi), None)
             td["stato_tavolo"] = pren["stato"] if pren else ("BLOCCATO" if td["blocco"] else "LIBERO")
             tavoli_result.append(td)
 

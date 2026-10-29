@@ -525,6 +525,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.29 (2026-10-29): unioni di tavoli dalla mappa — «🔗 Unisci» (anche assegnando), rettangolo unico per il turno, «non ci sta», «Stacca»; uniti anche i tavoli di una stessa prenotazione; il motore usa l'unione intera.
     // 2.28 (2026-10-29): prolunga facoltativa — il motore usa una combinazione anche con meno prolunghe (posti_prolunga in meno per ognuna).
     // 2.27 (2026-10-29): motore per tavoli in uso — tavolo suggerito nel Planning (clic = assegna, «Assegna i suggeriti», «non entra», tavoli doppi), «entra / non entra» nel form, sito venduto per tavoli, online automatico per fascia (prova/attivo, anche su TheFork), metà dei tavoli dividibili coi loro nomi (4 e 4C) e nelle combinazioni.
     // 2.26 (2026-10-29): motore per tavoli (backend) — tavolo suggerito e «entra o no», GET /prenotazioni/motore/piano e /motore/verifica.
@@ -541,7 +542,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.28",
+    version: "2.29",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -644,6 +645,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.83 (2026-10-29): mig 218 — tavoli_unioni (prenotazioni 2.29).
     // 5.82 (2026-10-29): mig 217 — prenotazioni_config.posti_prolunga (prenotazioni 2.28).
     // 5.81 (2026-10-29): mig 216 — prenotazioni_fasce.online_modo, prenotazioni_fasce_auto, online_automatico/_giorni, tavoli.nomi_meta (prenotazioni 2.27).
     // 5.80 (2026-10-29): mig 215 — tavoli_combinazioni.prolunghe, config prolunghe_disponibili (prenotazioni 2.25).
@@ -756,7 +758,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.82",
+    version: "5.83",
     label: "Sistema",
     status: "stabile",
     color: "green",

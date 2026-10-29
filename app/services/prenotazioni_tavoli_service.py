@@ -181,7 +181,132 @@ def _unita(conn, data: str, turno: str, sale: set, posti_prolunga: int = 2) -> T
                 "posti_min": max(1, pmin - meno), "posti_max": posti - meno, "prolunghe": j, "combinazione": True,
                 "mezzo": any(isinstance(i, str) for i in ids),
             })
+    # Unioni fatte dalla mappa per questo turno (mig 218): quei tavoli sono un tavolo solo,
+    # si usano interi (l'unione, o una combinazione più grande che li contiene tutti)
+    for un in unioni_turno(conn, data, turno):
+        if not un["ids"] or any(i not in pezzo for i in un["ids"]):
+            continue
+        blocco = {x for i in un["ids"] for x in pezzo[i]["pezzi"]}
+        unita = [u for u in unita if not (set(u["pezzi"]) & blocco) or blocco <= set(u["pezzi"])]
+        if not any(set(u["pezzi"]) == blocco and u["posti_max"] == un["posti_max"] for u in unita):
+            unita.append({
+                "chiave": f"u{un['id']}", "nome": un["nome"], "zona": pezzo[un["ids"][0]]["zona"],
+                "pezzi": sorted(blocco), "parti": un["nomi"], "posti_min": un["posti_min"] or 1,
+                "posti_max": un["posti_max"] or 2, "prolunghe": un["prolunghe"] or 0, "combinazione": True,
+                "mezzo": any(isinstance(i, str) for i in un["ids"]),
+            })
+        mappa[un["nome"]] = sorted(blocco)
     return unita, mappa
+
+
+def unioni_turno(conn, data: str, turno: str) -> List[Dict[str, Any]]:
+    """Le unioni del turno, con gli id e i nomi dei tavoli."""
+    try:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM tavoli_unioni WHERE data_pasto = ? AND turno = ? ORDER BY id", (data, turno))]
+    except Exception:  # mig 218 non ancora passata
+        return []
+    nomi = _nomi_pezzi(conn)
+    for r in rows:
+        try:
+            r["ids"] = json.loads(r["tavoli_ids"] or "[]")
+        except ValueError:
+            r["ids"] = []
+        r["nomi"] = [nomi.get(str(i), str(i)) for i in r["ids"]]
+    return rows
+
+
+def _nomi_pezzi(conn) -> Dict[str, str]:
+    """id tavolo (e «11A»/«11B» per le metà) → nome."""
+    out: Dict[str, str] = {}
+    for r in conn.execute("SELECT * FROM tavoli WHERE attivo = 1"):
+        r = dict(r)
+        out[str(r["id"])] = r["nome"]
+        if r.get("dividibile"):
+            nA, nB = nomi_meta(r)
+            out[f"{r['id']}A"], out[f"{r['id']}B"] = nA, nB
+    return out
+
+
+def posti_unione(conn, ids: List[Any], prolunghe: int, cfg: Optional[Dict[str, str]] = None) -> Tuple[int, int, Optional[int]]:
+    """
+    Posti di un'unione: se è una combinazione salvata (stessi tavoli) quelli decisi da
+    Marco, corretti per le prolunghe; se no la sua regola: 2 di capotavola + per ogni
+    tavolo i suoi posti meno uno (minimo 2: 8, 9 → 2; 5, 7 → 2; 10 → 6) + 2 a prolunga.
+    """
+    cfg = cfg or _config(conn)
+    passo = _int(cfg.get("posti_prolunga"), 2)
+    chiave = sorted(str(i) for i in ids)
+    for c in conn.execute("SELECT * FROM tavoli_combinazioni"):
+        try:
+            cids = sorted(str(i) for i in json.loads(c["tavoli_ids"] or "[]"))
+        except ValueError:
+            continue
+        if cids == chiave:
+            k = c["prolunghe"] if "prolunghe" in c.keys() and c["prolunghe"] else 0
+            meno = (k - prolunghe) * passo
+            mx = (c["posti"] or 0) - meno
+            mn = (c["posti_min"] or max(1, mx - 2)) - meno
+            return max(1, mn), max(1, mx), c["id"]
+    tav = {str(r["id"]): dict(r) for r in conn.execute("SELECT * FROM tavoli WHERE attivo = 1")}
+    somma = 0
+    for i in ids:
+        k = str(i)
+        if k[-1:] in ("A", "B") and k[:-1] in tav:
+            pA, pB = posti_meta(tav[k[:-1]]["posti_max"] or 2)
+            somma += pA if k.endswith("A") else pB
+        elif k in tav:
+            somma += max(2, (tav[k]["posti_max"] or 2) - 1)
+    mx = 2 + somma + passo * prolunghe
+    return max(1, mx - 2), mx, None
+
+
+def crea_unione(conn, data: str, turno: str, ids: List[Any], prolunghe: int, utente: Optional[str]) -> Dict[str, Any]:
+    if len(ids) < 2 and not (len(ids) == 1 and prolunghe > 0):
+        raise ValueError("Scegli almeno due tavoli (o un tavolo e la prolunga)")
+    if len({str(i) for i in ids}) != len(ids):
+        raise ValueError("Un tavolo è scelto due volte")
+    nomi = _nomi_pezzi(conn)
+    for i in ids:
+        if str(i) not in nomi:
+            raise ValueError(f"Tavolo {i} inesistente")
+    basi = {str(i)[:-1] if str(i)[-1:] in ("A", "B") else str(i) for i in ids}
+    for i in ids:   # un tavolo intero e una sua metà insieme no
+        if str(i)[-1:] in ("A", "B") and str(i)[:-1] in {str(x) for x in ids}:
+            raise ValueError(f"{nomi[str(i)[:-1]]} è già intero nell'unione")
+    for un in unioni_turno(conn, data, turno):
+        gia = {str(x)[:-1] if str(x)[-1:] in ("A", "B") else str(x) for x in un["ids"]} & basi
+        if gia:
+            raise ValueError(f"{', '.join(nomi.get(g, g) for g in sorted(gia))} è già in «{un['nome']}»: staccalo prima")
+    try:
+        bloccati = {str(r[0]) for r in conn.execute(
+            "SELECT tavolo_id FROM tavoli_blocchi WHERE data_pasto = ? AND turno = ?", (data, turno))}
+    except Exception:
+        bloccati = set()
+    if basi & bloccati:
+        raise ValueError(f"{', '.join(nomi[b] for b in sorted(basi & bloccati))} è bloccato")
+    try:
+        divisi = {str(r[0]) for r in conn.execute(
+            "SELECT tavolo_id FROM tavoli_divisioni WHERE data_pasto = ? AND turno = ?", (data, turno))}
+    except Exception:
+        divisi = set()
+    for i in ids:
+        if str(i) in divisi:
+            raise ValueError(f"Il {nomi[str(i)]} quel turno è diviso: scegli le sue metà")
+    for i in ids:   # una metà nell'unione: il tavolo quel turno è diviso
+        k = str(i)
+        if k[-1:] in ("A", "B") and k[:-1] not in divisi:
+            conn.execute("INSERT OR IGNORE INTO tavoli_divisioni (data_pasto, turno, tavolo_id, creato_da) VALUES (?, ?, ?, ?)",
+                         (data, turno, int(k[:-1]), utente or "unione"))
+            divisi.add(k[:-1])
+    pmin, pmax, cid = posti_unione(conn, ids, prolunghe)
+    nome = "+".join(nomi[str(i)] for i in ids)
+    uid = conn.execute("""
+        INSERT INTO tavoli_unioni (data_pasto, turno, tavoli_ids, nome, posti_min, posti_max, prolunghe, combinazione_id, creato_da)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (data, turno, json.dumps(ids), nome, pmin, pmax, prolunghe, cid, utente)).lastrowid
+    conn.commit()
+    return {"id": uid, "nome": nome, "posti_min": pmin, "posti_max": pmax, "prolunghe": prolunghe, "combinazione_id": cid}
 
 
 def dividi_se_meta(conn, pren_id: int, utente: Optional[str] = None) -> Optional[str]:

@@ -1,4 +1,4 @@
-// @version: v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -39,6 +39,7 @@ export default function TavoliMappa() {
   const [sala, setSala] = useState(null);
   const [menuTavolo, setMenuTavolo] = useState(null);   // tavolo libero/bloccato cliccato
   const [formTavolo, setFormTavolo] = useState(null);   // nome tavolo per nuova prenotazione
+  const [unendo, setUnendo] = useState(null);           // {ids:[], nomi:[], prolunghe} — «🔗 Unisci» in corso
   const svgRef = useRef(null);
   const refreshTimer = useRef(null);
 
@@ -165,6 +166,39 @@ export default function TavoliMappa() {
     }
   };
 
+  // ── Unisci tavoli per questo turno (anche mentre si assegna una prenotazione) ──
+  const toccaPerUnire = (t) => {
+    const i = unendo.ids.indexOf(t.id);
+    if (i >= 0) setUnendo({ ...unendo, ids: unendo.ids.filter((_, k) => k !== i), nomi: unendo.nomi.filter((_, k) => k !== i) });
+    else setUnendo({ ...unendo, ids: [...unendo.ids, t.id], nomi: [...unendo.nomi, t.nome] });
+  };
+  const confermaUnione = async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/unioni`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data, turno, tavoli_ids: unendo.ids, prolunghe: unendo.prolunghe || 0 }),
+      });
+      const d = await r.json();
+      if (!r.ok) { flash("err", d.detail || "Errore"); return; }
+      setUnendo(null);
+      if (assegnando) await assegnaTavolo(assegnando, d.unione.nome);
+      else { flash("ok", d.message); loadMappa(); }
+    } catch {
+      flash("err", "Errore di connessione");
+    }
+  };
+  const staccaUnione = async (t) => {
+    setMenuTavolo(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/unioni/${t.unione_id}`, { method: "DELETE" });
+      const d = await r.json();
+      if (r.ok) { flash("ok", d.message); loadMappa(); } else flash("err", d.detail || "Errore");
+    } catch {
+      flash("err", "Errore di connessione");
+    }
+  };
+
   // ── Libera tavolo ──
   const liberaTavolo = async (prenId) => {
     await assegnaTavolo(prenId, "");
@@ -235,10 +269,30 @@ export default function TavoliMappa() {
               Cena
             </button>
           </div>
-          {assegnando && (
-            <div className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium animate-pulse">
-              Clicca su un tavolo libero per assegnare
+          {assegnando && !unendo && (
+            <div className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium">
+              <span className="animate-pulse">Clicca su un tavolo libero per assegnare</span>
+              <button onClick={() => setUnendo({ ids: [], nomi: [], prolunghe: 0 })}
+                className="ml-2 px-2 py-0.5 rounded bg-white border border-amber-300 hover:bg-amber-50">🔗 Unisci tavoli</button>
               <button onClick={() => setAssegnando(null)} className="ml-2 text-amber-600 hover:text-amber-800">✕</button>
+            </div>
+          )}
+          {!assegnando && !unendo && (
+            <button onClick={() => { setMenuTavolo(null); setUnendo({ ids: [], nomi: [], prolunghe: 0 }); }}
+              title="Unisci dei tavoli per questo turno: tocca i tavoli, poi Unisci"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50">🔗 Unisci</button>
+          )}
+          {unendo && (
+            <div className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-medium flex items-center gap-2 flex-wrap">
+              <span>{unendo.nomi.length ? `Unisci ${unendo.nomi.join("+")}` : "Tocca i tavoli da unire"}</span>
+              <label className="flex items-center gap-1">prolunghe
+                <input type="number" min={0} max={9} value={unendo.prolunghe}
+                  onChange={e => setUnendo({ ...unendo, prolunghe: Math.max(0, +e.target.value || 0) })}
+                  className="w-10 px-1 py-0.5 border rounded" />
+              </label>
+              <button disabled={unendo.ids.length < 2 && !(unendo.ids.length === 1 && unendo.prolunghe > 0)} onClick={confermaUnione}
+                className="px-2 py-0.5 rounded bg-indigo-600 text-white disabled:opacity-40">{assegnando ? "Unisci e assegna" : "Unisci"}</button>
+              <button onClick={() => setUnendo(null)} className="text-indigo-500 hover:text-indigo-800">Annulla</button>
             </div>
           )}
         </div>
@@ -265,14 +319,17 @@ export default function TavoliMappa() {
                 const stato = t.stato_tavolo || "LIBERO";
                 const colori = COLORI_STATO[stato] || COLORI_STATO.LIBERO;
                 const pren = t.prenotazione;
-                const isClickable = assegnando && stato === "LIBERO";
+                const scelto = unendo && unendo.ids.includes(t.id);
+                const isClickable = (assegnando || unendo) && stato === "LIBERO" && !(unendo && t.legato);
                 const bloccato = stato === "BLOCCATO";
 
                 return (
                   <g
                     key={t.id}
                     onClick={() => {
-                      if (assegnando && stato === "LIBERO") {
+                      if (unendo) {
+                        if (stato === "LIBERO" && !t.legato) toccaPerUnire(t);
+                      } else if (assegnando && stato === "LIBERO") {
                         assegnaTavolo(assegnando, t.nome);
                       } else if (pren) {
                         setMenuTavolo(null);
@@ -284,10 +341,16 @@ export default function TavoliMappa() {
                     }}
                     style={{ cursor: isClickable ? "crosshair" : assegnando && !isClickable ? "not-allowed" : "pointer" }}
                   >
-                    <FormaTavolo t={t} fill={colori.fill}
-                      stroke={isClickable ? "#f59e0b" : colori.stroke}
-                      strokeWidth={isClickable || menuTavolo?.id === t.id ? 3 : 1.5}
+                    <FormaTavolo t={t} fill={scelto ? "#c7d2fe" : colori.fill}
+                      stroke={scelto ? "#4f46e5" : t.non_ci_sta ? "#dc2626" : isClickable ? "#f59e0b" : colori.stroke}
+                      strokeWidth={scelto || isClickable || menuTavolo?.id === t.id ? 3 : 1.5}
                       dash={isClickable || bloccato ? "4 2" : "none"} />
+                    {t.non_ci_sta && (
+                      <text x={t.posizione_x + t.larghezza / 2} y={t.posizione_y + t.altezza - 6}
+                        textAnchor="middle" fontSize="8" fill="#dc2626" className="select-none pointer-events-none">
+                        non ci sta{t.sopra?.length ? ` (${t.sopra.join(", ")})` : ""}
+                      </text>
+                    )}
                     {bloccato && (
                       <text
                         x={t.posizione_x + t.larghezza / 2}
@@ -379,7 +442,12 @@ export default function TavoliMappa() {
                   <>
                     <button onClick={() => { setFormTavolo(menuTavolo.nome); setMenuTavolo(null); }}
                       className="w-full text-left px-3 py-2 hover:bg-neutral-50">➕ Aggiungi una prenotazione</button>
-                    {menuTavolo.diviso_da ? (
+                    {menuTavolo.legato ? (
+                      menuTavolo.unione_id ? (
+                        <button onClick={() => staccaUnione(menuTavolo)}
+                          className="w-full text-left px-3 py-2 hover:bg-neutral-50">✂️ Stacca {menuTavolo.membri_nomi?.join(" e ")}</button>
+                      ) : null
+                    ) : menuTavolo.diviso_da ? (
                       <button onClick={() => riunisciTavolo(menuTavolo)}
                         className="w-full text-left px-3 py-2 hover:bg-neutral-50">🔗 Riunisci il tavolo {String(menuTavolo.nome).slice(0, -1)}</button>
                     ) : (

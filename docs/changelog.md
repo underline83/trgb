@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-29 — Prenotazioni: la sala cambia mentre unisci i tavoli `[core]`
+
+Prenotazioni 2.29, sistema 5.83, mig 218. Marco: «vorrei che la sala cambiasse dinamicamente in base a come unisci il tavolo». Nella mappa del turno «🔗 Unisci» (anche durante «assegna», dove diventa «Unisci e assegna»), si toccano i tavoli, prolunghe facoltative → `POST /prenotazioni/tavoli/unioni` crea l'unione per quel giorno e turno (`tavoli_unioni`). In mappa i tavoli diventano un rettangolo unico: parte dal tavolo più grande, lungo il suo lato lungo, verso gli altri (+16 px a prolunga finché non ci sono le misure vere); se finisce sopra un altro tavolo della sala o fuori dal disegno è rosso «non ci sta (…)». Lo stesso disegno per una prenotazione scritta su più tavoli. Menu del rettangolo: aggiungi prenotazione, «✂️ Stacca» (`DELETE /tavoli/unioni/{id}`). Posti: quelli della combinazione salvata se è la stessa (corretti per le prolunghe), se no la regola di Marco (2 di capotavola + posti del tavolo meno 1, minimo 2 + 2 a prolunga); `PUT /tavoli/unioni/{id}` per correggerli. Il motore per tavoli usa l'unione intera (o una combinazione più grande che la contiene), mai un suo tavolo da solo. Unire una metà (4C) divide il 4 per il turno. Gli «assetti» fissi provati prima sono stati scartati: non pubblicati.
+
 ## 2026-10-29 — Prenotazioni: prolunga facoltativa `[core]`
 
 Prenotazioni 2.28, sistema 5.82, mig 217. Marco: «se la collego la prolunga aggiunge 2 posti, se non mi serve posso non metterla». Una combinazione si salva con tutte le prolunghe montate; il motore per tavoli la usa anche con meno prolunghe (fino a nessuna, se i tavoli sono almeno due), togliendo `posti_prolunga` (2, Impostazioni) posti per ognuna, e conta solo le prolunghe davvero usate contro «Prolunghe che avete». Non servono più le stesse unioni salvate con e senza prolunga. Una prenotazione scritta su un'unione con prolunghe usa la variante più piccola dove sta.
