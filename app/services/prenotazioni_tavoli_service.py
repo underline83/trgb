@@ -93,7 +93,7 @@ def posti_meta(posti_max: int) -> Tuple[int, int]:
     return (p + 1) // 2, max(1, p // 2)
 
 
-def _unita(conn, data: str, turno: str, sale: set) -> Tuple[List[Dict[str, Any]], Dict[str, List[str]]]:
+def _unita(conn, data: str, turno: str, sale: set, posti_prolunga: int = 2) -> Tuple[List[Dict[str, Any]], Dict[str, List[str]]]:
     """
     Unità prenotabili del turno e mappa «nome scritto → pezzi occupati».
 
@@ -161,13 +161,26 @@ def _unita(conn, data: str, turno: str, sale: set) -> Tuple[List[Dict[str, Any]]
         if len(set(pz)) != len(pz):
             continue   # un tavolo e la sua metà insieme: non ha senso
         posti = c.get("posti") or sum(t["posti"] for t in ts)
-        unita.append({
-            "chiave": f"c{c['id']}", "nome": c.get("nome") or "+".join(t["nome"] for t in ts),
-            "zona": ts[0]["zona"], "pezzi": pz, "parti": [t["nome"] for t in ts],
-            "posti_min": c.get("posti_min") or max(1, min(posti, max(t["posti"] for t in ts) + 1)),
-            "posti_max": posti, "prolunghe": c.get("prolunghe") or 0, "combinazione": True,
-            "mezzo": any(isinstance(i, str) for i in ids),
-        })
+        pmin = c.get("posti_min") or max(1, min(posti, max(t["posti"] for t in ts) + 1))
+        k = c.get("prolunghe") or 0
+        parti = [t["nome"] for t in ts]
+        # La prolunga è facoltativa (Marco: «se la collego aggiunge 2 posti, se non mi serve
+        # posso non metterla»): la combinazione salvata è quella con tutte le prolunghe, il
+        # motore la usa anche con meno prolunghe e `posti_prolunga` posti in meno per ognuna.
+        for j in range(k, -1, -1):
+            if j < k and (len(ts) < 2 or posti_prolunga <= 0):
+                break   # un tavolo solo senza prolunga è già il tavolo; prolunga che non aggiunge posti: inutile
+            meno = (k - j) * posti_prolunga
+            if posti - meno < 1:
+                break
+            unita.append({
+                "chiave": f"c{c['id']}" + (f"p{j}" if j < k else ""),
+                "nome": (c.get("nome") or "+".join(parti)) if j == k else
+                        "+".join(parti) + (f" + {j} prolung{'a' if j == 1 else 'he'}" if j else ""),
+                "zona": ts[0]["zona"], "pezzi": pz, "parti": parti,
+                "posti_min": max(1, pmin - meno), "posti_max": posti - meno, "prolunghe": j, "combinazione": True,
+                "mezzo": any(isinstance(i, str) for i in ids),
+            })
     return unita, mappa
 
 
@@ -241,7 +254,10 @@ def risolvi(prenotazioni: List[Dict[str, Any]], unita: List[Dict[str, Any]], dur
                 conflitti[p["id"]] = doppi
             for n in nomi:
                 occ.setdefault(n, []).append(iv)
-            u = next((u for u in unita if u["combinazione"] and sorted(u["parti"]) == sorted(scritti)), None)
+            # stesse parti: la variante più piccola dove stanno (con meno prolunghe)
+            simili = sorted((u for u in unita if u["combinazione"] and sorted(u["parti"]) == sorted(scritti)),
+                            key=lambda u: u["posti_max"])
+            u = next((u for u in simili if u["posti_max"] >= (p.get("pax") or 0)), simili[-1] if simili else None)
             if u and u["prolunghe"]:
                 prol_usate.append((iv, u["prolunghe"]))
         else:
@@ -333,7 +349,7 @@ def _contesto(conn, data: str, turno: str):
                 tutti[n] = r["zona"]
     # una sala chiusa ma con tavoli già assegnati quel turno conta come aperta
     sale = _sale_aperte(conn, data, turno, {tutti[n] for n in nomi_scritti if n in tutti})
-    unita, mappa = _unita(conn, data, turno, sale)
+    unita, mappa = _unita(conn, data, turno, sale, _int(config.get("posti_prolunga"), 2))
     # «4» è sia il tavolo intero sia una metà (metà «4» e «4C»): se quel turno qualcuno
     # è scritto sull'altra metà, «4» vuol dire la metà
     for r in conn.execute("SELECT * FROM tavoli WHERE attivo = 1 AND dividibile = 1"):

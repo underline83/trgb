@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-29 — Prenotazioni: prolunga facoltativa `[core]`
+
+Prenotazioni 2.28, sistema 5.82, mig 217. Marco: «se la collego la prolunga aggiunge 2 posti, se non mi serve posso non metterla». Una combinazione si salva con tutte le prolunghe montate; il motore per tavoli la usa anche con meno prolunghe (fino a nessuna, se i tavoli sono almeno due), togliendo `posti_prolunga` (2, Impostazioni) posti per ognuna, e conta solo le prolunghe davvero usate contro «Prolunghe che avete». Non servono più le stesse unioni salvate con e senza prolunga. Una prenotazione scritta su un'unione con prolunghe usa la variante più piccola dove sta.
+
 ## 2026-10-29 — Prenotazioni: il motore per tavoli al lavoro, online automatico `[core]`
 
 Prenotazioni 2.27, sistema 5.81, mig 216. Chiesto da Marco dopo il doppione del 29/10 («lavoriamo per sistemarlo da oggi»).

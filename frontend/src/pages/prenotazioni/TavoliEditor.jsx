@@ -811,7 +811,7 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
 
       {nuova && (
         <div className="border-t border-neutral-100 pt-2 space-y-2">
-          <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono (anche uno solo, se lo allunghi con la prolunga), poi scrivi quanti ci stanno davvero, capotavola compresi:</p>
+          <p className="text-[11px] text-neutral-500">Spunta i tavoli che si uniscono (anche uno solo, se lo allunghi con la prolunga), poi scrivi quanti ci stanno davvero, capotavola compresi, con tutte le prolunghe montate: senza prolunga il motore la usa da solo con i posti in meno (Impostazioni).</p>
           <div className="flex flex-wrap gap-1">
             {tavoli.map(t => (
               <button key={t.id} onClick={() => toggle(t.id)} title={t.meta ? "Metà di un tavolo dividibile" : undefined}
