@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-29 — Prenotazioni: la sala si sposta durante il servizio `[core]`
+
+Prenotazioni 2.31, sistema 5.84, mig 219. Marco: «mi permette anche di trascinare e spostare i tavoli per quel servizio; quando vado in assegnazione posso editare la sala». Nella mappa del turno, in assegnazione o con «✋ Sposta», i tavoli e le tavolate unite si trascinano (scatto di 5 px; un tocco senza trascinare resta un clic). La posizione vale solo per quel giorno e turno (`tavoli_posizioni_turno`, chiave = id del tavolo, «11A», «Lu<id>» per un'unione, «Lp<id>» per i tavoli di una prenotazione) e non tocca la piantina dell'Editor. `PUT /prenotazioni/tavoli/posizioni-turno/sposta`, `DELETE /prenotazioni/tavoli/posizioni-turno/{data}/{turno}` («↺ Sala com'era»: le unioni restano). Una tavolata spostata a mano resta dove l'hanno messa.
+
+**Più tavoli da TheFork** (Marco: «se gli arriva questa info da TheFork deve già creare secondo quella info, unendo, senza prolunghe»): `thefork_service._sincronizza_prenotazione` chiama `tavoli_srv.unione_da_prenotazione(pid)` → unione del turno coi tavoli di TheFork (nomi → id, metà comprese), `creato_da = thefork:<id>`, senza prolunghe; tavoli cambiati = unione rifatta, prenotazione cancellata = tolta. Anche nel recupero periodico, una volta, per quelle di oggi in poi già arrivate. «Stacca» su un'unione da TheFork la segna `staccata` (mig 219) invece di cancellarla, così non torna; la mappa non la ridisegna unita.
+
 ## 2026-10-29 — Prenotazioni: tavolate per lungo in mappa `[core]`
 
 Prenotazioni 2.30, nessuna migrazione. Marco (screenshot della Manenti su 7+9+4+8+10 disegnata in verticale e «non ci sta»): «la nostra sala va per lungo non per largo, quindi il 10 devi girarlo… se stai in quello spazio sei giusto». `_unisci_in_mappa`: la tavolata corre nel verso della sala (`prenotazioni_config.verso_tavolate`, default orizzontale), ogni tavolo col lato lungo nella fila, spessore del tavolo più largo; si piazza il più vicino possibile a dove stanno i suoi tavoli senza toccare altri tavoli né elementi (bancone, colonne). Se il disegno non ha posto resta sopra (il disegno non è in scala); «non ci sta» solo se è più lunga della sala, finché non arrivano le misure vere.

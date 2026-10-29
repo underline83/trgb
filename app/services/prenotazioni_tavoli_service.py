@@ -203,7 +203,8 @@ def unioni_turno(conn, data: str, turno: str) -> List[Dict[str, Any]]:
     """Le unioni del turno, con gli id e i nomi dei tavoli."""
     try:
         rows = [dict(r) for r in conn.execute(
-            "SELECT * FROM tavoli_unioni WHERE data_pasto = ? AND turno = ? ORDER BY id", (data, turno))]
+            "SELECT * FROM tavoli_unioni WHERE data_pasto = ? AND turno = ? ORDER BY id", (data, turno))
+                if not dict(r).get("staccata")]
     except Exception:  # mig 218 non ancora passata
         return []
     nomi = _nomi_pezzi(conn)
@@ -555,3 +556,46 @@ class Verificatore:
 def verifica(conn, data: str, turno: str, pax: int, ora: str, escludi_id: Optional[int] = None) -> Dict[str, Any]:
     """Una prenotazione nuova (pax, ora) entra senza spostare fuori nessun altro? Dove?"""
     return Verificatore(conn, data, turno, escludi_id).verifica(pax, ora)
+
+
+def unione_da_prenotazione(conn, pren_id: int, origine: str = "thefork", solo_se_manca: bool = False) -> Optional[str]:
+    """
+    Una prenotazione arrivata con più tavoli (es. da TheFork «7+9+4+8+10»): li unisce per
+    quel turno come se l'avesse fatto la sala, senza prolunghe (da TheFork non si gestiscono).
+    L'unione è segnata `creato_da = "<origine>:<id>"`: se la prenotazione cambia tavoli o
+    si cancella, quella vecchia si toglie. Non solleva mai: torna il nome o il motivo.
+    """
+    try:
+        p = conn.execute("SELECT data_pasto, turno, tavolo, stato FROM clienti_prenotazioni WHERE id = ?",
+                         (pren_id,)).fetchone()
+        if not p:
+            return None
+        marca = f"{origine}:{pren_id}"
+        prima = conn.execute("SELECT * FROM tavoli_unioni WHERE creato_da = ?", (marca,)).fetchone()
+        if solo_se_manca and prima:
+            return None
+        nomi = nomi_tavolo(p["tavolo"])
+        if prima and prima["nome"] == "+".join(nomi) and p["stato"] not in ATTIVE_NO:
+            return prima["nome"]   # stessi tavoli: resta com'è (anche se la sala l'ha staccata)
+        conn.execute("DELETE FROM tavoli_unioni WHERE creato_da = ?", (marca,))
+        conn.commit()
+        if p["stato"] in ATTIVE_NO or len(nomi) < 2 or p["turno"] not in ("pranzo", "cena"):
+            return None
+        # nome → id: prima i tavoli interi, poi le metà («4C» → «11A»)
+        per_nome: Dict[str, Any] = {}
+        for r in conn.execute("SELECT * FROM tavoli WHERE attivo = 1"):
+            per_nome[r["nome"]] = r["id"]
+        for r in conn.execute("SELECT * FROM tavoli WHERE attivo = 1 AND dividibile = 1"):
+            nA, nB = nomi_meta(dict(r))
+            per_nome.setdefault(nA, f"{r['id']}A")
+            per_nome.setdefault(nB, f"{r['id']}B")
+        if any(n not in per_nome for n in nomi):
+            return "tavolo sconosciuto"
+        ids = [per_nome[n] for n in nomi]
+        chiave = sorted(str(i) for i in ids)
+        for un in unioni_turno(conn, p["data_pasto"], p["turno"]):
+            if sorted(str(i) for i in un["ids"]) == chiave:
+                return un["nome"]   # già unita (dalla sala)
+        return crea_unione(conn, p["data_pasto"], p["turno"], ids, 0, marca)["nome"]
+    except Exception as e:  # noqa: BLE001 — tavoli già uniti in altro modo, bloccati…: resta il disegno della prenotazione
+        return f"non unita: {e}"

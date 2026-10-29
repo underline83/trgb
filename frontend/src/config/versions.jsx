@@ -455,7 +455,7 @@ const MODULE_VERSIONS = {
     // v2.27 (2026-10-16): F24 paghe nello Scadenzario — spesa fissa «F24 paghe» (F24_STIPENDI) con rate scritte dall'import F24, nota delega + 📄 PDF (cg_uscite.allegato_url, mig 190); CE cassa conta l'F24 paghe solo quando è pagato (data_pagamento).
     // v2.28 (2026-10-16): Conto Economico — regole di spalmatura per (sotto)categoria applicate per RIGA (es. VINO 3 mesi): quote «(quota k/N)» dal mese di competenza, solo fatture dal mese di validità; spalmatura manuale della fattura vince (mig 191).
     // v2.29 (2026-10-17): le regole di spalmatura per (sotto)categoria valgono anche per le spese fisse NON mensili (una tantum/trimestrali/annuali, es. spese condominiali): ogni pagamento in N quote dal mese di riferimento; esclusi mensili, prestiti, rateizzazioni, stipendi, F24; spalmatura manuale della spesa fissa vince.
-    version: "2.30",
+    version: "2.31",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -525,6 +525,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.31 (2026-10-29): tavoli trascinabili in mappa per il turno (in assegnazione o «✋ Sposta»), «↺ Sala com'era». Più tavoli da TheFork = unione del turno senza prolunghe (staccabile, non torna).
     // 2.30 (2026-10-29): tavolate in mappa per lungo (come la sala): ogni tavolo girato col lato lungo nella fila, piazzata dove stanno i suoi tavoli senza coprirne altri.
     // 2.29 (2026-10-29): unioni di tavoli dalla mappa — «🔗 Unisci» (anche assegnando), rettangolo unico per il turno, «non ci sta», «Stacca»; uniti anche i tavoli di una stessa prenotazione; il motore usa l'unione intera.
     // 2.28 (2026-10-29): prolunga facoltativa — il motore usa una combinazione anche con meno prolunghe (posti_prolunga in meno per ognuna).
@@ -646,6 +647,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.84 (2026-10-29): mig 219 — tavoli_posizioni_turno (prenotazioni 2.31).
     // 5.83 (2026-10-29): mig 218 — tavoli_unioni (prenotazioni 2.29).
     // 5.82 (2026-10-29): mig 217 — prenotazioni_config.posti_prolunga (prenotazioni 2.28).
     // 5.81 (2026-10-29): mig 216 — prenotazioni_fasce.online_modo, prenotazioni_fasce_auto, online_automatico/_giorni, tavoli.nomi_meta (prenotazioni 2.27).
@@ -759,7 +761,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.83",
+    version: "5.84",
     label: "Sistema",
     status: "stabile",
     color: "green",

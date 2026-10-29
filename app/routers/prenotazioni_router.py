@@ -28,7 +28,7 @@ import logging
 import secrets
 import sqlite3
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -1173,18 +1173,70 @@ def stacca_unione(unione_id: int, user: dict = Depends(get_current_user)):
     verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="l'unione dei tavoli")
     conn = get_clienti_conn()
     try:
-        r = conn.execute("SELECT nome FROM tavoli_unioni WHERE id = ?", (unione_id,)).fetchone()
+        r = conn.execute("SELECT nome, creato_da FROM tavoli_unioni WHERE id = ?", (unione_id,)).fetchone()
         if not r:
             raise HTTPException(status_code=404, detail="Unione non trovata")
-        conn.execute("DELETE FROM tavoli_unioni WHERE id = ?", (unione_id,))
+        if str(r["creato_da"] or "").startswith("thefork:"):   # arrivata da TheFork: resta segnata, non torna
+            conn.execute("UPDATE tavoli_unioni SET staccata = 1 WHERE id = ?", (unione_id,))
+        else:
+            conn.execute("DELETE FROM tavoli_unioni WHERE id = ?", (unione_id,))
         conn.commit()
         return {"message": f"{r['nome']} staccati"}
     finally:
         conn.close()
 
 
+class PosizioneTurno(BaseModel):
+    data: str
+    turno: str
+    chiave: str          # id del tavolo, «11A», «Lu<id>», «Lp<id>»
+    x: float
+    y: float
+
+
+def _posizioni_turno(conn, data: str, turno: str) -> Dict[str, Tuple[float, float]]:
+    try:
+        return {r["chiave"]: (r["x"], r["y"]) for r in conn.execute(
+            "SELECT chiave, x, y FROM tavoli_posizioni_turno WHERE data_pasto = ? AND turno = ?", (data, turno))}
+    except Exception:  # mig 219 non ancora passata
+        return {}
+
+
+@router.put("/tavoli/posizioni-turno/sposta")   # 3 segmenti: non si scontra con PUT /tavoli/{tavolo_id}
+def sposta_tavolo_turno(req: PosizioneTurno, user: dict = Depends(get_current_user)):
+    """Un tavolo (o una tavolata) trascinato nella mappa: la posizione vale solo per quel turno."""
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="lo spostamento dei tavoli")
+    if req.turno not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno: pranzo o cena")
+    conn = get_clienti_conn()
+    try:
+        conn.execute("""
+            INSERT INTO tavoli_posizioni_turno (data_pasto, turno, chiave, x, y, aggiornato_da) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(data_pasto, turno, chiave) DO UPDATE SET x = excluded.x, y = excluded.y,
+                aggiornato_da = excluded.aggiornato_da, updated_at = datetime('now','localtime')
+        """, (req.data, req.turno, req.chiave, max(0.0, req.x), max(0.0, req.y), user.get("username")))
+        conn.commit()
+        return {"message": "Spostato per questo turno"}
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/posizioni-turno/{data}/{turno}")
+def rimetti_sala(data: str, turno: str, user: dict = Depends(get_current_user)):
+    """«Rimetti la sala com'era»: via gli spostamenti del turno (le unioni restano)."""
+    verifica_ruoli(user, *RUOLI_BLOCCO_TAVOLI, cosa="lo spostamento dei tavoli")
+    conn = get_clienti_conn()
+    try:
+        n = conn.execute("DELETE FROM tavoli_posizioni_turno WHERE data_pasto = ? AND turno = ?", (data, turno)).rowcount
+        conn.commit()
+        return {"message": f"Sala rimessa com'era ({n} spostamenti tolti)"}
+    finally:
+        conn.close()
+
+
 def _unisci_in_mappa(tavoli: List[Dict[str, Any]], gruppi: List[Dict[str, Any]],
-                     verso: str = "orizzontale", elementi: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+                     verso: str = "orizzontale", elementi: Optional[List[Dict[str, Any]]] = None,
+                     posizioni: Optional[Dict[str, Tuple[float, float]]] = None) -> List[Dict[str, Any]]:
     """
     Disegna come un tavolo solo i tavoli di un'unione del turno e quelli di una stessa
     prenotazione. La tavolata corre lungo la sala (`verso`: orizzontale = per lungo nel
@@ -1228,6 +1280,9 @@ def _unisci_in_mappa(tavoli: List[Dict[str, Any]], gruppi: List[Dict[str, Any]],
                        key=lambda p: (p[0] - x0) ** 2 + (p[1] - y0) ** 2)
         prove = [p for p in prove if dentro(*p)]
         scelta = next((p for p in prove if not tocca(*p)), None)
+        spostata = (posizioni or {}).get(f"L{g['chiave']}")
+        if spostata:   # trascinata a mano in questo turno: resta dove l'hanno messa
+            scelta = spostata
         if prove and scelta is None:   # il disegno non ha posto: la mettiamo dove stanno, sopra gli altri
             x, y = prove[0]
             sopra = [t["nome"] for t in tavoli if t["nome"] not in nomi and t["nome"] not in usati
@@ -1896,13 +1951,24 @@ def get_mappa_tavoli(
             gruppi.append({"chiave": f"u{u['id']}", "nome": u["nome"], "nomi": u["nomi"], "unione_id": u["id"],
                            "posti_min": u["posti_min"], "posti_max": u["posti_max"], "prolunghe": u["prolunghe"],
                            "origine": "unione"})
+        try:   # unioni da TheFork staccate dalla sala: quei tavoli non si disegnano uniti
+            staccate = {r[0] for r in conn.execute(
+                "SELECT creato_da FROM tavoli_unioni WHERE data_pasto = ? AND turno = ? AND staccata = 1", (data, turno))}
+        except Exception:
+            staccate = set()
         for p in prenotazioni:
             nomi = tavoli_srv.nomi_tavolo(p["tavolo"])
-            if len(nomi) >= 2:
+            if len(nomi) >= 2 and f"thefork:{p['id']}" not in staccate:
                 gruppi.append({"chiave": f"p{p['id']}", "nome": "+".join(nomi), "nomi": nomi, "origine": "prenotazione"})
-        tavoli = _unisci_in_mappa([dict(t) for t in tavoli], gruppi,
+        posizioni = _posizioni_turno(conn, data, turno)
+        tavoli = [dict(t) for t in tavoli]
+        for t in tavoli:   # tavoli spostati a mano per questo turno
+            if str(t["id"]) in posizioni:
+                t["posizione_x"], t["posizione_y"] = posizioni[str(t["id"])]
+                t["spostato"] = True
+        tavoli = _unisci_in_mappa(tavoli, gruppi,
                                   (_get_config(conn).get("verso_tavolate") or "orizzontale"),
-                                  _elementi_piantina(conn))
+                                  _elementi_piantina(conn), posizioni)
 
         # Arricchisci tavoli con info prenotazione
         blocchi = _blocchi_turno(conn, data, turno)

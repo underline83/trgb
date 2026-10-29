@@ -1,4 +1,4 @@
-// @version: v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -40,6 +40,9 @@ export default function TavoliMappa() {
   const [menuTavolo, setMenuTavolo] = useState(null);   // tavolo libero/bloccato cliccato
   const [formTavolo, setFormTavolo] = useState(null);   // nome tavolo per nuova prenotazione
   const [unendo, setUnendo] = useState(null);           // {ids:[], nomi:[], prolunghe} — «🔗 Unisci» in corso
+  const [spostando, setSpostando] = useState(false);    // «✋ Sposta»: la sala si modifica per questo turno
+  const [trascina, setTrascina] = useState(null);       // {id, ox, oy, x, y, mosso}
+  const appenaTrascinato = useRef(false);
   const svgRef = useRef(null);
   const refreshTimer = useRef(null);
 
@@ -199,6 +202,56 @@ export default function TavoliMappa() {
     }
   };
 
+  // ── Trascina i tavoli (solo per questo turno): in assegnazione o con «✋ Sposta» ──
+  const modificaSala = !!assegnando || spostando;
+  const puntoSvg = (e) => {
+    const svg = svgRef.current;
+    const pt = svg.createSVGPoint();
+    const src = e.touches ? e.touches[0] : e.changedTouches ? e.changedTouches[0] : e;
+    pt.x = src.clientX; pt.y = src.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  const iniziaTrascina = (e, t) => {
+    if (!modificaSala) return;
+    const p = puntoSvg(e);
+    setTrascina({ id: t.id, ox: p.x - t.posizione_x, oy: p.y - t.posizione_y, x: t.posizione_x, y: t.posizione_y, w: t.larghezza, h: t.altezza, mosso: false, p0: p });
+  };
+  const muoviTrascina = (e) => {
+    if (!trascina) return;
+    const p = puntoSvg(e);
+    const mosso = trascina.mosso || Math.hypot(p.x - trascina.p0.x, p.y - trascina.p0.y) > 6;
+    if (!mosso) return;
+    if (e.cancelable) e.preventDefault();
+    setTrascina({ ...trascina, mosso,
+      x: Math.max(0, Math.min(CANVAS_W - trascina.w, Math.round((p.x - trascina.ox) / 5) * 5)),
+      y: Math.max(0, Math.min(CANVAS_H - trascina.h, Math.round((p.y - trascina.oy) / 5) * 5)) });
+  };
+  const fineTrascina = async () => {
+    const t = trascina;
+    setTrascina(null);
+    if (!t || !t.mosso) return;
+    appenaTrascinato.current = true;   // il clic che segue non è un clic
+    setTimeout(() => { appenaTrascinato.current = false; }, 300);
+    setMappaData(md => md && ({ ...md, tavoli: md.tavoli.map(x => (x.id === t.id ? { ...x, posizione_x: t.x, posizione_y: t.y } : x)) }));
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/posizioni-turno/sposta`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data, turno, chiave: String(t.id), x: t.x, y: t.y }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); flash("err", d.detail || "Errore"); }
+    } catch {
+      flash("err", "Errore di connessione");
+    }
+  };
+  const rimettiSala = async () => {
+    if (!window.confirm("Rimetto i tavoli dove stanno nella piantina? (le unioni restano)")) return;
+    const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/posizioni-turno/${data}/${turno}`, { method: "DELETE" });
+    const d = await r.json().catch(() => ({}));
+    flash(r.ok ? "ok" : "err", d.message || d.detail || "Errore");
+    loadMappa();
+  };
+
   // ── Libera tavolo ──
   const liberaTavolo = async (prenId) => {
     await assegnaTavolo(prenId, "");
@@ -271,11 +324,20 @@ export default function TavoliMappa() {
           </div>
           {assegnando && !unendo && (
             <div className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium">
-              <span className="animate-pulse">Clicca su un tavolo libero per assegnare</span>
+              <span className="animate-pulse">Clicca su un tavolo libero per assegnare (puoi anche trascinare i tavoli)</span>
               <button onClick={() => setUnendo({ ids: [], nomi: [], prolunghe: 0 })}
                 className="ml-2 px-2 py-0.5 rounded bg-white border border-amber-300 hover:bg-amber-50">🔗 Unisci tavoli</button>
               <button onClick={() => setAssegnando(null)} className="ml-2 text-amber-600 hover:text-amber-800">✕</button>
             </div>
+          )}
+          {!assegnando && !unendo && (
+            <button onClick={() => setSpostando(!spostando)}
+              title="Trascina i tavoli per questo turno (la piantina dell'Editor non cambia)"
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${spostando ? "bg-indigo-600 text-white border-indigo-600" : "border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"}`}>
+              ✋ {spostando ? "Fine spostamenti" : "Sposta"}</button>
+          )}
+          {modificaSala && (
+            <button onClick={rimettiSala} className="px-2 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-800">↺ Sala com'era</button>
           )}
           {!assegnando && !unendo && (
             <button onClick={() => { setMenuTavolo(null); setUnendo({ ids: [], nomi: [], prolunghe: 0 }); }}
@@ -306,7 +368,9 @@ export default function TavoliMappa() {
               ref={svgRef}
               viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
               className="w-full"
-              style={{ minHeight: 400 }}
+              style={{ minHeight: 400, cursor: trascina?.mosso ? "grabbing" : undefined, touchAction: modificaSala ? "none" : undefined }}
+              onMouseMove={muoviTrascina} onMouseUp={fineTrascina} onMouseLeave={fineTrascina}
+              onTouchMove={muoviTrascina} onTouchEnd={fineTrascina}
             >
               {/* Sfondo */}
               <rect width={CANVAS_W} height={CANVAS_H} fill="#fafafa" />
@@ -315,7 +379,8 @@ export default function TavoliMappa() {
               {elementi.map(e => <FormaElemento key={`e${e.id}`} e={e} />)}
 
               {/* Tavoli */}
-              {tavoli.map(t => {
+              {tavoli.map(t0 => {
+                const t = trascina?.mosso && trascina.id === t0.id ? { ...t0, posizione_x: trascina.x, posizione_y: trascina.y } : t0;
                 const stato = t.stato_tavolo || "LIBERO";
                 const colori = COLORI_STATO[stato] || COLORI_STATO.LIBERO;
                 const pren = t.prenotazione;
@@ -326,7 +391,10 @@ export default function TavoliMappa() {
                 return (
                   <g
                     key={t.id}
+                    onMouseDown={(e) => iniziaTrascina(e, t)}
+                    onTouchStart={(e) => iniziaTrascina(e, t)}
                     onClick={() => {
+                      if (appenaTrascinato.current) return;
                       if (unendo) {
                         if (stato === "LIBERO" && !t.legato) toccaPerUnire(t);
                       } else if (assegnando && stato === "LIBERO") {
@@ -339,7 +407,7 @@ export default function TavoliMappa() {
                         setMenuTavolo(menuTavolo?.id === t.id ? null : t);
                       }
                     }}
-                    style={{ cursor: isClickable ? "crosshair" : assegnando && !isClickable ? "not-allowed" : "pointer" }}
+                    style={{ cursor: spostando ? "grab" : isClickable ? "crosshair" : assegnando ? "grab" : "pointer" }}
                   >
                     <FormaTavolo t={t} fill={scelto ? "#c7d2fe" : colori.fill}
                       stroke={scelto ? "#4f46e5" : t.non_ci_sta ? "#dc2626" : isClickable ? "#f59e0b" : colori.stroke}

@@ -6,7 +6,7 @@
 
 **Sistema:** 5.78 (pushato d8171a2c) · **Migrazione più recente:** 213
 
-**DA PUSHARE — Prenotazioni 2.29: unioni di tavoli dalla mappa (mig 218, sistema 5.83).** Dopo il push: Mappa › cena di oggi › 🔗 Unisci › 10 e 9 › Unisci → rettangolo «10+9»; ✂️ Stacca. Da chiarire con Marco: quale metà del 4 tocca il 5 (nel disegno è la sinistra = «4»). Poi le misure vere (sala, tavoli, prolunga, passaggio). In claude/_to_delete/ la bozza scartata degli assetti (mig 218 vecchia): da cancellare.
+**DA PUSHARE — Prenotazioni 2.30–2.31: tavolate per lungo, tavoli trascinabili per il turno (mig 219, sistema 5.84).** Dopo il push: Mappa › cena › ✋ Sposta › trascina un tavolo → ricarica: resta lì; ↺ Sala com'era. Assegnazione Manenti di stasera tolta su richiesta di Marco (la rifà lui); doppione Manenti 34108/34126 ancora da unire. Poi misure vere della sala. In claude/_to_delete/ la bozza scartata degli assetti: da cancellare.
 
 **PUSHATO (4aa7f48e) — Prenotazioni 2.27: motore per tavoli nel Planning/form/sito + online automatico + metà tavoli (mig 216, sistema 5.81)** `[core]`. Dopo il push: Impostazioni › Capienza › «🤖 Online automatico» resta «In prova»; Editor Tavoli › 4 › nomi delle metà «4, 4C»; Planning di stasera: il doppione Manenti in rosso «non entra»; Fasce di sabato: righe «il motore chiuderebbe». Quando i numeri convincono → «Attivo» (controllare il primo cambio nel registro delle fasce e su TheFork Manager).
 

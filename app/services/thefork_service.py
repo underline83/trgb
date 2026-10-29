@@ -506,6 +506,12 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
             "SELECT * FROM clienti_prenotazioni WHERE thefork_booking_id = ?", (rec["thefork_booking_id"],)
         ).fetchone()
         if gia and all(_uguale(gia[k], v) for k, v in rec.items() if k != "updated_at" and k in gia.keys()):
+            try:  # più tavoli già arrivati prima che esistessero le unioni: si uniscono adesso
+                if "+" in str(gia["tavolo"] or "") and gia["data_pasto"] >= datetime.now().strftime("%Y-%m-%d"):
+                    from app.services import prenotazioni_tavoli_service as tavoli_srv
+                    tavoli_srv.unione_da_prenotazione(conn, gia["id"], "thefork", solo_se_manca=True)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("unione tavoli: %s", e)
             return "INVARIATA"
 
     cliente_id = None
@@ -538,6 +544,11 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
 
     esito, pid = upsert_prenotazione(conn, rec)
     conn.commit()
+    try:  # più tavoli da TheFork: in TRGB diventano un'unione per il turno (senza prolunghe)
+        from app.services import prenotazioni_tavoli_service as tavoli_srv
+        tavoli_srv.unione_da_prenotazione(conn, pid, "thefork")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("unione tavoli #%s: %s", pid, e)
     testo = (f"prenotazione {esito} #{pid}: {rec['data_pasto']} {str(rec.get('ora_pasto') or '')[:5]}, "
              f"{rec['pax']} pax, {rec['stato']}{note_cliente}")
 
