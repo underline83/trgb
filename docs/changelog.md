@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-10-29 — Gift card «in bianco» per le scatoline di Natale `[core]`
+
+Clienti 3.22, nessuna migrazione (stato nuovo `in_bianco`, colonne già esistenti). «+ Lotto in bianco» crea N codici di fila (es. 20, B126-359 …) senza prezzo, con una scadenza fissa per tutto il lotto (es. 25/12/2027) o vuota (allora parte dalla vendita). Non sono spendibili e non contano nel valore in circolazione né negli avvisi. Dal filtro «In bianco» si stampano tutte le etichette in un PDF solo (una per pagina, rotolo 29×90). Alla vendita: Scansiona o codice → «Vendi» → prezzo (o esperienza) e intestatario; la card diventa attiva con data di emissione = vendita. Chi inquadra una card non ancora venduta legge «non ancora attivato»; Scarica la rifiuta. Una card in bianco annullata e riattivata torna in bianco, non attiva. Endpoint: `POST /clienti/giftcard/in-bianco`, `POST /clienti/giftcard/{id}/vendi`. File: `clienti_giftcard_router.py`, `ClientiGiftCard.jsx` (ModaleInBianco, ModaleNuova in modalità vendita), `EtichettaGiftCard.jsx`, `utils/pdfEtichetta.js` (v1.3, più pagine), `Regalo.jsx`.
+
+## 2026-10-29 — Prenotazioni: motore per tavoli (passo 2, backend) `[core]`
+
+Prenotazioni 2.26, nessuna migrazione. Service nuovo `prenotazioni_tavoli_service.py`, sola lettura: per un giorno e turno mette ogni prenotazione senza tavolo sul tavolo o sulla combinazione che fa stare tutti col minor spreco di posti (sale aperte, tavoli divisi e bloccati, durata 90/120, gruppi da 10 tutto il turno, prolunghe disponibili), tenendo fermi i tavoli già scritti. Un tavolo sotto il suo minimo si usa solo se serve e viene segnato «forzato». Endpoint `GET /prenotazioni/motore/piano` (tavolo suggerito per prenotazione) e `GET /prenotazioni/motore/verifica` (una prenotazione nuova di N persone alle HH:MM entra senza lasciare fuori nessuno? dove?). Provato sulle 141 serate e pranzi dal 1° agosto al 28 ottobre togliendo i tavoli scritti: 1.105 prenotazioni su 1.122 trovano posto da sole; restano fuori i gruppi grandi su unioni non salvate (7+8+9+10, 4+5+7+8+9…) e la cena del 10 ottobre, piena oltre i tavoli con 120 minuti. Nessuna schermata ancora: arrivano nel Planning e nel form.
+
 ## 2026-10-29 — Prenotazioni: prolunghe nelle combinazioni `[core]`
 
 Prenotazioni 2.25, sistema 5.80, mig 215. Una combinazione di tavoli può usare le prolunghe: una coppia allungata («0+1 + prolunga») o anche un tavolo solo («4 + prolunga»). In Editor Tavoli › Combinazioni, accanto ai posti, c'è il campo «prolunghe»; il nome si aggiorna da solo e le combinazioni con prolunga hanno 🔧. Si cambia anche dopo, cliccando sui posti. In Impostazioni si scrive quante prolunghe ha il locale: il motore per tavoli (passo 2) non ne userà più di quante ce ne sono nello stesso turno.

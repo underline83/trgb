@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-27 — **DA PUSHARE:** Gift Card «📷 Scansiona» al banco, /regalo solo cliente (clienti 3.20). Pushati: «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-10-29 — **DA PUSHARE:** gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -122,6 +122,15 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
+
+
+## SESSIONE 2026-10-29 — Gift card «in bianco» per le scatoline di Natale `[core]`
+
+Marco: 20 codici «aperti» da stampare per le scatoline di Natale, prezzo da segnare quando si vendono; scadenza 25/12/2027 per tutto il lotto. Fatto: stato `in_bianco`, `POST /in-bianco` e `POST /{id}/vendi`, filtro e stampa lotto, «Vendi» al banco e nel dettaglio, pagina pubblica «non ancora attivato». Nessuna migrazione. Provati: backend con TestClient su DB vuoto (creazione lotto, esclusione da stats, Scarica rifiutato 409, vendita, doppia vendita 409, annulla→riattiva torna in bianco), PDF di 20 pagine col QR leggibile. Non provato in produzione.
+
+Dopo il push: Gift Card › «+ Lotto in bianco» → 20, scadenza 25/12/2027, nota «scatoline Natale 2026» → filtro «In bianco» → «🏷️ Stampa 20 etichette» (carta 29x90mm). Attenzione: una sessione parallela ha modifiche Prenotazioni non committate nello stesso repo (prenotazioni_router.py, prenotazioni_tavoli_service.py).
+
+Commit: `./push.sh "[core] Gift card in bianco: lotto di codici da stampare, prezzo alla vendita (clienti 3.22)"`
 
 ## SESSIONE 2026-10-27 — Gift card: lo staff scansiona dall'app `[core]`
 

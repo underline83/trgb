@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/clienti/ClientiGiftCard.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.3-giftcard — «📷 Scansiona» al banco: legge il QR dell'etichetta (2026-10-27); v1.2 — etichetta QR 90×29 (rotolo 29×90) per il buono stampato (2026-10-26)
+// @version: v1.4-giftcard — lotti «in bianco» (scatoline di Natale) e Vendi (2026-10-29); v1.3-giftcard — «📷 Scansiona» al banco: legge il QR dell'etichetta (2026-10-27); v1.2 — etichetta QR 90×29 (rotolo 29×90) per il buono stampato (2026-10-26)
 //
 // Due usi in una pagina sola:
 //  1) BANCO: campo grande "digita il codice" → verdetto immediato → Scarica.
@@ -14,7 +14,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
-import { stampaEtichettaGiftCard } from "./EtichettaGiftCard";
+import { stampaEtichettaGiftCard, stampaEtichetteGiftCard } from "./EtichettaGiftCard";
 import { apriFinestraVuota } from "../../utils/pdfEtichetta";
 import QrScanner from "../../components/QrScanner";
 import {
@@ -24,6 +24,7 @@ import {
 
 const FILTRI = [
   { key: "spendibili", label: "Spendibili" },
+  { key: "in_bianco", label: "In bianco" },
   { key: "in_scadenza", label: "In scadenza" },
   { key: "usata", label: "Usate" },
   { key: "annullata", label: "Annullate" },
@@ -48,6 +49,7 @@ function nomeIntestatario(gc) {
 }
 
 function descrizioneValore(gc) {
+  if (gc.stato === "in_bianco") return "Da vendere";
   return gc.tipo === "valore" ? fmtEuro(gc.importo) : (gc.descrizione || "Esperienza");
 }
 
@@ -55,6 +57,7 @@ function descrizioneValore(gc) {
 function ChipStato({ gc }) {
   if (gc.stato === "usata") return <StatusBadge tone="neutral">Usata</StatusBadge>;
   if (gc.stato === "annullata") return <StatusBadge tone="danger">Annullata</StatusBadge>;
+  if (gc.stato === "in_bianco") return <StatusBadge tone="info">In bianco</StatusBadge>;
   return <StatusBadge tone="success">Attiva</StatusBadge>;
 }
 
@@ -83,6 +86,8 @@ export default function ClientiGiftCard() {
   const [esito, setEsito] = useState(null);
   const [verificando, setVerificando] = useState(false);
   const [scanner, setScanner] = useState(false);
+  const [modaleInBianco, setModaleInBianco] = useState(false);
+  const [vendita, setVendita] = useState(null); // card in bianco che si sta vendendo
   const inputBanco = useRef(null);
 
   // Modali
@@ -109,6 +114,7 @@ export default function ClientiGiftCard() {
       else if (filtro === "in_scadenza") p.set("solo_scadute", "true");
       else if (filtro === "usata") p.set("stato", "usata");
       else if (filtro === "annullata") p.set("stato", "annullata");
+      else if (filtro === "in_bianco") { p.set("stato", "in_bianco"); p.set("limit", "1000"); }
       if (ricerca.trim()) p.set("q", ricerca.trim());
 
       const r = await apiFetch(`${API_BASE}/clienti/giftcard/?${p.toString()}`);
@@ -272,7 +278,12 @@ export default function ClientiGiftCard() {
         nav={<ClientiNav current="giftcard" />}
         title="Gift Card"
         subtitle={stats ? `${stats.spendibili} spendibili · ${fmtEuro(stats.valore_spendibile)} ancora da onorare` : " "}
-        actions={<Btn onClick={() => setModaleNuova(true)}>+ Nuova gift card</Btn>}
+        actions={
+          <div className="flex gap-2 flex-wrap">
+            <Btn variant="secondary" onClick={() => setModaleInBianco(true)}>+ Lotto in bianco</Btn>
+            <Btn onClick={() => setModaleNuova(true)}>+ Nuova gift card</Btn>
+          </div>
+        }
       >
         {/* ── BANCO: verifica codice ───────────────────────── */}
         <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 mb-5">
@@ -342,6 +353,9 @@ export default function ClientiGiftCard() {
                     {esito.spendibile && (
                       <Btn variant="success" size="lg" onClick={scaricaDalBanco}>Scarica</Btn>
                     )}
+                    {esito.stato === "in_bianco" && (
+                      <Btn variant="primary" size="lg" onClick={() => setVendita(esito)}>Vendi</Btn>
+                    )}
                   </div>
                 </div>
               )}
@@ -381,6 +395,17 @@ export default function ClientiGiftCard() {
             />
           </div>
         </div>
+
+        {filtro === "in_bianco" && items.length > 0 && (
+          <div className="mb-3 flex items-center gap-3 flex-wrap bg-white border border-neutral-200 rounded-xl px-4 py-3">
+            <div className="text-sm text-neutral-700 flex-1 min-w-0">
+              {items.length} {items.length === 1 ? "card in bianco" : "card in bianco"}: codici già pronti, il prezzo si scrive alla vendita.
+            </div>
+            <Btn variant="secondary" onClick={() => stampaEtichetteGiftCard(items, apriFinestraVuota())}>
+              🏷️ Stampa {items.length} {items.length === 1 ? "etichetta" : "etichette"}
+            </Btn>
+          </div>
+        )}
 
         {/* ── Elenco ───────────────────────────────────────── */}
         {loading ? (
@@ -453,6 +478,36 @@ export default function ClientiGiftCard() {
         />
       )}
 
+      {modaleInBianco && (
+        <ModaleInBianco
+          impostazioni={impostazioni}
+          onClose={() => setModaleInBianco(false)}
+          onCreate={(lista) => {
+            setModaleInBianco(false);
+            mostraToast(`${lista.length} gift card in bianco create (${lista[0].codice} … ${lista[lista.length - 1].codice})`);
+            setFiltro("in_bianco");
+            ricarica();
+          }}
+          onErrore={(m) => mostraToast(m, "danger")}
+        />
+      )}
+
+      {vendita && (
+        <ModaleNuova
+          impostazioni={impostazioni}
+          vendita={vendita}
+          onClose={() => setVendita(null)}
+          onCreata={(gc) => {
+            setVendita(null);
+            mostraToast(`Gift card ${gc.codice} venduta`);
+            if (esito?.id === gc.id) setEsito({ trovata: true, ...gc, motivo: null });
+            if (dettaglio?.id === gc.id) setDettaglio(gc);
+            ricarica();
+          }}
+          onErrore={(m) => mostraToast(m, "danger")}
+        />
+      )}
+
       {dettaglio && (
         <ModaleDettaglio
           gc={dettaglio}
@@ -461,6 +516,7 @@ export default function ClientiGiftCard() {
           onAzione={azione}
           onPdf={() => apriPdf(dettaglio.id, dettaglio.codice)}
           onEtichetta={() => stampaEtichetta(dettaglio.id)}
+          onVendi={() => setVendita(dettaglio)}
         />
       )}
 
@@ -493,7 +549,9 @@ function Riquadro({ label, valore, nota, colore }) {
 // ─────────────────────────────────────────────────────────
 // Emissione
 // ─────────────────────────────────────────────────────────
-function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
+// Emissione di una card nuova, oppure (con `vendita`) vendita di una card in
+// bianco: stessi campi, senza validità e codice (già stampati).
+function ModaleNuova({ impostazioni, onClose, onCreata, onErrore, vendita = null }) {
   const [tipo, setTipo] = useState("valore");
   const [importo, setImporto] = useState("");
   const [descrizione, setDescrizione] = useState("");
@@ -534,13 +592,16 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
         codice: codiceManuale.trim() || null,
         note: note.trim() || null,
       };
-      const r = await apiFetch(`${API_BASE}/clienti/giftcard/`, {
+      const url = vendita
+        ? `${API_BASE}/clienti/giftcard/${vendita.id}/vendi`
+        : `${API_BASE}/clienti/giftcard/`;
+      const r = await apiFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || "Emissione fallita");
+      if (!r.ok) throw new Error(d.detail || (vendita ? "Vendita non riuscita" : "Emissione fallita"));
       onCreata(d);
     } catch (e) {
       onErrore(e.message);
@@ -557,13 +618,15 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
     <Modal
       open
       onClose={onClose}
-      title="Nuova gift card"
-      subtitle="Il codice viene generato in automatico se non ne indichi uno"
+      title={vendita ? `Vendi ${vendita.codice}` : "Nuova gift card"}
+      subtitle={vendita
+        ? (vendita.data_scadenza ? `Scade il ${fmtData(vendita.data_scadenza)} (come stampato)` : "La scadenza parte da oggi")
+        : "Il codice viene generato in automatico se non ne indichi uno"}
       size="md"
       footer={
         <>
           <Btn variant="secondary" onClick={onClose}>Annulla</Btn>
-          <Btn onClick={salva} loading={salvando} disabled={!valido}>Emetti</Btn>
+          <Btn onClick={salva} loading={salvando} disabled={!valido}>{vendita ? "Vendi" : "Emetti"}</Btn>
         </>
       }
     >
@@ -635,7 +698,7 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
           )}
         </FieldLabel>
 
-        <div className="grid grid-cols-2 gap-3">
+        {!vendita && <div className="grid grid-cols-2 gap-3">
           <FieldLabel label="Validità">
             <Select
               value={String(mesi)}
@@ -661,7 +724,7 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
               placeholder={impostazioni?.prossimo_codice || "automatico"}
             />
           </FieldLabel>
-        </div>
+        </div>}
 
         <FieldLabel label="Note interne" hint="Non compaiono sul buono se lasciate vuote">
           <Textarea value={note} onChange={setNote} rows={2} />
@@ -672,9 +735,78 @@ function ModaleNuova({ impostazioni, onClose, onCreata, onErrore }) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Lotto in bianco: N codici di fila, prezzo alla vendita
+// ─────────────────────────────────────────────────────────
+function ModaleInBianco({ impostazioni, onClose, onCreate, onErrore }) {
+  const [quantita, setQuantita] = useState("20");
+  const [scadenza, setScadenza] = useState("");
+  const [note, setNote] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const n = parseInt(quantita, 10);
+  const valido = n >= 1 && n <= 200;
+
+  const crea = async () => {
+    setSalvando(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/clienti/giftcard/in-bianco`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantita: n, data_scadenza: scadenza || null, note: note.trim() || null }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Creazione non riuscita");
+      onCreate(d.items || []);
+    } catch (e) {
+      onErrore(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Lotto di gift card in bianco"
+      subtitle="Codici pronti da stampare; il prezzo si scrive quando si vende"
+      size="md"
+      footer={
+        <>
+          <Btn variant="secondary" onClick={onClose}>Annulla</Btn>
+          <Btn onClick={crea} loading={salvando} disabled={!valido}>Crea {valido ? n : ""}</Btn>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <FieldLabel label="Quante" required>
+            <TextInput value={quantita} onChange={setQuantita} type="number" />
+          </FieldLabel>
+          <FieldLabel label="Scadenza" hint="Uguale per tutto il lotto. Vuota = dalla vendita">
+            <TextInput value={scadenza} onChange={setScadenza} type="date" />
+          </FieldLabel>
+        </div>
+        {impostazioni?.prossimo_codice && valido && (
+          <p className="text-sm text-neutral-600">
+            Codici da <b className="font-mono">{impostazioni.prossimo_codice}</b> in avanti, di seguito.
+          </p>
+        )}
+        <FieldLabel label="Note interne" hint="Es. «scatoline Natale 2026»">
+          <Textarea value={note} onChange={setNote} rows={2} />
+        </FieldLabel>
+        <p className="text-xs text-neutral-500">
+          Finché non le vendi non sono spendibili e non contano nel valore in circolazione.
+          Le etichette si stampano dal filtro «In bianco».
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
 // Dettaglio + storico movimenti
 // ─────────────────────────────────────────────────────────
-function ModaleDettaglio({ gc, alertGiorni, onClose, onAzione, onPdf, onEtichetta }) {
+function ModaleDettaglio({ gc, alertGiorni, onClose, onAzione, onPdf, onEtichetta, onVendi }) {
   const [nota, setNota] = useState("");
   const ruolo = localStorage.getItem("role");
   const isAdmin = ruolo === "admin" || ruolo === "superadmin";
@@ -690,6 +822,12 @@ function ModaleDettaglio({ gc, alertGiorni, onClose, onAzione, onPdf, onEtichett
         <>
           <Btn variant="secondary" onClick={onEtichetta}>🏷️ Etichetta QR</Btn>
           <Btn variant="secondary" onClick={onPdf}>PDF buono</Btn>
+          {gc.stato === "in_bianco" && (
+            <>
+              <Btn variant="danger" onClick={() => onAzione(gc.id, "annulla", nota)}>Annulla</Btn>
+              <Btn variant="primary" onClick={onVendi}>Vendi</Btn>
+            </>
+          )}
           {gc.stato === "attiva" && (
             <>
               <Btn variant="danger" onClick={() => onAzione(gc.id, "annulla", nota)}>Annulla</Btn>

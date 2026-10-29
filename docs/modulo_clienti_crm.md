@@ -485,7 +485,19 @@ Le tabelle nascono da `init_clienti_db()` (CREATE IF NOT EXISTS), non da migrazi
 | C-CL-G12 | Etichetta QR 90×29 (Brother QL-820NWB, rotolo 29×90) per il buono stampato, PDF della misura esatta | `clienti_giftcard_router.py:etichetta_giftcard`, `EtichettaGiftCard.jsx` | admin, sala | 🆕 |
 | C-CL-G13 | Pagina del QR `/regalo/<chiave>` per il cliente: cosa gli hanno regalato, valido/usato/scaduto, scadenza. Mai importo né intestatario | `clienti_giftcard_router.py:regalo_pubblico` (`GET /public/regalo/{token}`), `pages/public/Regalo.jsx` | cliente (pubblico) | 🆕 |
 | C-CL-G15 | «Prenota il tavolo» dalla pagina del regalo (widget TRGB con nota della card, o TheFork se spento) | `Regalo.jsx:PrenotaRegalo`, `Prenota.jsx:PrenotaIncorporata` | cliente (pubblico) | 🆕 |
+| C-CL-G16 | Lotto di gift card «in bianco»: N codici di fila senza prezzo, scadenza fissa del lotto, etichette in un PDF solo | `clienti_giftcard_router.py:crea_in_bianco` (`POST /clienti/giftcard/in-bianco`), `ClientiGiftCard.jsx:ModaleInBianco` | admin, sala | 🆕 |
+| C-CL-G17 | Vendita di una card in bianco: prezzo/esperienza e intestatario, diventa attiva | `clienti_giftcard_router.py:vendi_giftcard` (`POST /{id}/vendi`), `ModaleNuova` con `vendita` | sala, admin | 🆕 |
 | C-CL-G14 | Lettura staff del QR **solo dall'app**: Gift Card › «📷 Scansiona» (QrScanner) → card nel riquadro banco con Scarica. Vale anche dall'app sulla schermata Home. Dal 2026-10-27 la pagina `/regalo` non ha più la vista staff | `ClientiGiftCard.jsx:daScansione`, `GET /clienti/giftcard/qr/{token}` | sala, admin | 🆕 |
+
+## 16.6c Card «in bianco» (2026-10-29)
+
+Per le scatoline di Natale: i codici si stampano prima, il prezzo si decide quando si vendono. Terzo valore del ciclo di vita prima di `attiva`: **`in_bianco`** (nessuna migrazione: `stato` è testo, `importo` era già nullable).
+
+- **Creazione:** «+ Lotto in bianco» → `POST /clienti/giftcard/in-bianco {quantita, data_scadenza?, note?}`. Codici della serie normale, di seguito (`_genera_codice`), chiave del QR, `tipo='valore'`, `importo=NULL`. La scadenza del lotto è fissa (Marco: 25/12/2027 per Natale 2026) e va sull'etichetta; vuota = calcolata alla vendita.
+- **Fuori dai conti:** stats, valore in circolazione, filtri spendibili/scadute e alert M.F guardano tutti `stato='attiva'`, quindi le card in bianco non ci sono. `stats.in_bianco` le conta a parte; `totali` («emesse in tutto») le esclude.
+- **Etichette:** filtro «In bianco» → «🏷️ Stampa N etichette» = un PDF con una pagina per card (`pdfEtichetteQr`).
+- **Vendita:** dal banco (Scansiona o codice → «Vendi») o dal dettaglio. Stesso modale dell'emissione senza validità e codice. `POST /{id}/vendi` vuole `stato='in_bianco'` (409 altrimenti), scrive tipo/importo/descrizione/intestatario, `data_emissione` = oggi, `emessa_da` = chi vende, movimento `vendita`.
+- **Protezioni:** Scarica rifiuta una card in bianco; la pagina pubblica dice «non ancora attivato» (esito `non_attiva`, niente Prenota); annullata e poi riattivata torna `in_bianco` se non ha mai avuto prezzo né descrizione.
 
 ## 16.6b Etichetta QR sul buono stampato (2026-10-25, mig 213)
 

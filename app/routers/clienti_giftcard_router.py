@@ -73,7 +73,10 @@ public_router = APIRouter(prefix="/public/regalo", tags=["Clienti - Gift Card (p
 
 init_clienti_db()
 
-STATI_VALIDI = {"attiva", "usata", "annullata"}
+# 'in_bianco' (2026-10-29): codice gia' stampato (scatoline di Natale) ma non
+# ancora venduto. Niente importo, non spendibile, fuori da valore e avvisi
+# (che guardano tutti stato='attiva'). Diventa 'attiva' con POST /{id}/vendi.
+STATI_VALIDI = {"in_bianco", "attiva", "usata", "annullata"}
 TIPI_VALIDI = {"valore", "esperienza"}
 
 # Schema storico dei codici Tre Gobbi: <lettera>1<AA>-<progressivo>.
@@ -249,6 +252,23 @@ class GiftCardUpdate(BaseModel):
     note: Optional[str] = None
 
 
+class InBiancoCreate(BaseModel):
+    quantita: int = Field(..., ge=1, le=200)
+    # Scadenza fissa del lotto (es. le scatoline di Natale: 2027-12-25).
+    # Vuota = la scadenza la calcola la vendita con giftcard_validita_mesi.
+    data_scadenza: Optional[str] = None
+    note: Optional[str] = None
+
+
+class VenditaRequest(BaseModel):
+    tipo: str = Field(default="valore", description="'valore' o 'esperienza'")
+    importo: Optional[float] = None
+    descrizione: Optional[str] = None
+    cliente_id: Optional[int] = None
+    intestatario_nome: Optional[str] = None
+    note: Optional[str] = None
+
+
 class AzioneRequest(BaseModel):
     note: Optional[str] = None
 
@@ -259,7 +279,7 @@ class AzioneRequest(BaseModel):
 
 @router.get("/")
 def lista_giftcard(
-    stato: Optional[str] = Query(None, description="attiva | usata | annullata"),
+    stato: Optional[str] = Query(None, description="in_bianco | attiva | usata | annullata"),
     tipo: Optional[str] = Query(None),
     cliente_id: Optional[int] = Query(None),
     q: Optional[str] = Query(None, description="Ricerca su codice, intestatario, descrizione"),
@@ -344,10 +364,11 @@ def stats_giftcard(current_user: Dict[str, Any] = Depends(get_current_user)):
         r = conn.execute(
             """
             SELECT
-              COUNT(*) AS totali,
+              SUM(CASE WHEN stato<>'in_bianco' THEN 1 ELSE 0 END) AS totali,
               SUM(CASE WHEN stato='attiva'    THEN 1 ELSE 0 END) AS attive,
               SUM(CASE WHEN stato='usata'     THEN 1 ELSE 0 END) AS usate,
-              SUM(CASE WHEN stato='annullata' THEN 1 ELSE 0 END) AS annullate
+              SUM(CASE WHEN stato='annullata' THEN 1 ELSE 0 END) AS annullate,
+              SUM(CASE WHEN stato='in_bianco' THEN 1 ELSE 0 END) AS in_bianco
             FROM clienti_giftcard
             """
         ).fetchone()
@@ -383,6 +404,7 @@ def stats_giftcard(current_user: Dict[str, Any] = Depends(get_current_user)):
             "attive": r["attive"] or 0,
             "usate": r["usate"] or 0,
             "annullate": r["annullate"] or 0,
+            "in_bianco": r["in_bianco"] or 0,
             "spendibili": spendibili["n"] or 0,
             # Valore ancora "aperto" verso i clienti: quanto potrebbero
             # presentarsi a incassare domani. Solo card a valore.
@@ -449,7 +471,9 @@ def lookup_codice(codice: str, current_user: Dict[str, Any] = Depends(get_curren
 
         gc = _serializza(row)
 
-        if gc["stato"] == "usata":
+        if gc["stato"] == "in_bianco":
+            gc["motivo"] = "Non ancora venduta: premi Vendi e scrivi il prezzo"
+        elif gc["stato"] == "usata":
             gc["motivo"] = f"Gia' utilizzata il {gc.get('data_utilizzo') or '?'}"
         elif gc["stato"] == "annullata":
             gc["motivo"] = "Gift card annullata"
@@ -477,7 +501,9 @@ def da_qr(token: str, current_user: Dict[str, Any] = Depends(get_current_user)):
         if not row:
             return {"trovata": False, "motivo": "QR non riconosciuto"}
         gc = _serializza(_carica(conn, row["id"]))
-        if gc["stato"] == "usata":
+        if gc["stato"] == "in_bianco":
+            gc["motivo"] = "Non ancora venduta: premi Vendi e scrivi il prezzo"
+        elif gc["stato"] == "usata":
             gc["motivo"] = f"Gia' utilizzata il {gc.get('data_utilizzo') or '?'}"
         elif gc["stato"] == "annullata":
             gc["motivo"] = "Gift card annullata"
@@ -602,6 +628,106 @@ def crea_giftcard(body: GiftCardCreate, current_user: Dict[str, Any] = Depends(g
         conn.close()
 
 
+@router.post("/in-bianco")
+def crea_in_bianco(body: InBiancoCreate, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    Un lotto di codici «in bianco»: si stampano le etichette prima (scatoline
+    di Natale) e il prezzo si mette quando si vende (POST /{id}/vendi).
+    Codici della serie normale, di seguito. Stessi ruoli dell'emissione.
+    """
+    if body.data_scadenza:
+        try:
+            datetime.strptime(body.data_scadenza, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(400, "data_scadenza deve essere AAAA-MM-GG")
+
+    conn = get_clienti_conn()
+    try:
+        ids = []
+        for _ in range(body.quantita):
+            codice = _genera_codice(conn)
+            cur = conn.execute(
+                """
+                INSERT INTO clienti_giftcard
+                    (codice, tipo, stato, data_scadenza, emessa_da, note, token_pubblico)
+                VALUES (?, 'valore', 'in_bianco', ?, ?, ?, ?)
+                """,
+                (codice, body.data_scadenza, current_user["username"],
+                 (body.note or "").strip() or None, _nuovo_token(conn)),
+            )
+            _log_movimento(conn, cur.lastrowid, "in_bianco", None, "in_bianco",
+                           current_user["username"], body.note)
+            ids.append(cur.lastrowid)
+        conn.commit()
+        items = [_serializza(_carica(conn, i)) for i in ids]
+        return {"status": "ok", "creati": len(items), "items": items}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Errore creazione gift card in bianco")
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@router.post("/{gc_id}/vendi")
+def vendi_giftcard(gc_id: int, body: VenditaRequest,
+                   current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    Vendita di una card in bianco: si scrive cosa vale e diventa 'attiva'.
+    La data di emissione diventa quella della vendita. La scadenza resta
+    quella del lotto se c'era, altrimenti parte da oggi (giftcard_validita_mesi).
+    """
+    if body.tipo not in TIPI_VALIDI:
+        raise HTTPException(400, f"Tipo non valido: {body.tipo}")
+    if body.tipo == "valore" and (body.importo is None or body.importo <= 0):
+        raise HTTPException(400, "Scrivi il prezzo del buono")
+    if body.tipo == "esperienza" and not (body.descrizione or "").strip():
+        raise HTTPException(400, "Scrivi cosa comprende il buono (es. 'Cena degustazione per 2')")
+
+    conn = get_clienti_conn()
+    try:
+        row = _carica(conn, gc_id)
+        if row["stato"] != "in_bianco":
+            raise HTTPException(409, f"La gift card {row['codice']} non e' in bianco (stato: {row['stato']})")
+
+        data_scadenza = row["data_scadenza"]
+        if not data_scadenza:
+            mesi = int(_get_setting(conn, "giftcard_validita_mesi", "12") or 12)
+            if mesi > 0:
+                data_scadenza = (date.today() + timedelta(days=30 * mesi)).isoformat()
+
+        conn.execute(
+            """
+            UPDATE clienti_giftcard
+            SET stato = 'attiva', tipo = ?, importo = ?, descrizione = ?,
+                cliente_id = ?, intestatario_nome = ?, data_scadenza = ?,
+                data_emissione = date('now','localtime'), emessa_da = ?,
+                note = COALESCE(?, note)
+            WHERE id = ?
+            """,
+            (
+                body.tipo, body.importo, (body.descrizione or "").strip() or None,
+                body.cliente_id, None if body.cliente_id else ((body.intestatario_nome or "").strip() or None),
+                data_scadenza, current_user["username"], (body.note or "").strip() or None, gc_id,
+            ),
+        )
+        _log_movimento(conn, gc_id, "vendita", "in_bianco", "attiva",
+                       current_user["username"], body.note)
+        conn.commit()
+        return {"status": "ok", **_serializza(_carica(conn, gc_id))}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        logger.exception("Errore vendita gift card %s", gc_id)
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
 @router.put("/{gc_id}")
 def modifica_giftcard(gc_id: int, body: GiftCardUpdate,
                       current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -657,6 +783,8 @@ def scarica_giftcard(gc_id: int, body: AzioneRequest = AzioneRequest(),
         row = _carica(conn, gc_id)
         gc = _serializza(row)
 
+        if gc["stato"] == "in_bianco":
+            raise HTTPException(409, "Gift card non ancora venduta: prima Vendi e scrivi il prezzo")
         if gc["stato"] == "usata":
             raise HTTPException(409, f"Gift card gia' utilizzata il {gc.get('data_utilizzo') or '?'}")
         if gc["stato"] == "annullata":
@@ -727,18 +855,21 @@ def riattiva_giftcard(gc_id: int, body: AzioneRequest = AzioneRequest(),
     conn = get_clienti_conn()
     try:
         row = _carica(conn, gc_id)
-        if row["stato"] == "attiva":
+        if row["stato"] in ("attiva", "in_bianco"):
             return {"status": "ok", **_serializza(row)}
 
+        # Una card mai venduta (niente importo ne' descrizione) torna in bianco,
+        # non 'attiva': sarebbe spendibile senza che nessuno l'abbia pagata.
+        nuovo = "in_bianco" if (row["importo"] is None and not row["descrizione"]) else "attiva"
         conn.execute(
             """
             UPDATE clienti_giftcard
-            SET stato = 'attiva', data_utilizzo = NULL, utilizzata_da = NULL
+            SET stato = ?, data_utilizzo = NULL, utilizzata_da = NULL
             WHERE id = ?
             """,
-            (gc_id,),
+            (nuovo, gc_id),
         )
-        _log_movimento(conn, gc_id, "riattivazione", row["stato"], "attiva",
+        _log_movimento(conn, gc_id, "riattivazione", row["stato"], nuovo,
                        current_user["username"], body.note)
         conn.commit()
         return {"status": "ok", **_serializza(_carica(conn, gc_id))}
@@ -858,7 +989,9 @@ def regalo_pubblico(token: str):
     finally:
         conn.close()
 
-    if gc["stato"] == "usata":
+    if gc["stato"] == "in_bianco":
+        esito = "non_attiva"
+    elif gc["stato"] == "usata":
         esito = "usata"
     elif gc["stato"] == "annullata":
         esito = "annullata"

@@ -1,6 +1,6 @@
 // frontend/src/pages/public/Regalo.jsx
 // Modulo: clienti — Gift Card
-// @version: v1.3 — solo vista cliente, lo staff scansiona dall'app (2026-10-27); v1.2 — testo leggibile nel riquadro anche per «non riconosciuto»/errori (era avorio su avorio) (2026-10-26); v1.1 — «Prenota il tavolo»: widget TRGB con la nota della gift card, TheFork se è spento (2026-10-25)
+// @version: v1.4 — esito «non ancora attivato» per le card in bianco (2026-10-29); v1.3 — solo vista cliente, lo staff scansiona dall'app (2026-10-27); v1.2 — testo leggibile nel riquadro anche per «non riconosciuto»/errori (era avorio su avorio) (2026-10-26); v1.1 — «Prenota il tavolo»: widget TRGB con la nota della gift card, TheFork se è spento (2026-10-25)
 // v1.0 — pagina del QR sull'etichetta del buono (2026-10-25)
 //
 // /regalo/:token — la apre chi inquadra il QR incollato sul buono.
@@ -100,6 +100,11 @@ function VistaCliente({ pub, errore, c, nome }) {
         {pub.esito === "scaduta" && (
           <div className="font-semibold" style={{ color: c.fondo }}>
             Questo buono è scaduto il {dataLunga(pub.data_scadenza)}. Contattaci: vediamo cosa si può fare.
+          </div>
+        )}
+        {pub.esito === "non_attiva" && (
+          <div className="font-semibold" style={{ color: c.fondo }}>
+            Questo buono non è ancora stato attivato. Se l'hai appena ricevuto, contattaci e lo controlliamo.
           </div>
         )}
         {pub.esito === "annullata" && (

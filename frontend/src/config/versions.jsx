@@ -461,6 +461,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.22 (2026-10-29): gift card «in bianco» — lotto di codici con scadenza fissa (scatoline di Natale),
+    //   etichette del lotto in un PDF solo, «Vendi» al banco o dal dettaglio scrive il prezzo e la attiva.
     // 3.21 (2026-10-28): conferma del preventivo che non resta muta (menù riletti, scelta del menù dopo l'errore, «✅ Confermato» su telefono/iPad, «✅ Conferma l'evento» accanto al menù scelto).
     // 3.20 (2026-10-27): Gift Card › «📷 Scansiona» al banco legge il QR dell'etichetta; /regalo solo vista cliente.
     // 3.19 (2026-10-26): pagina /regalo, «Buono non riconosciuto» ed errori ora leggibili (testo avorio su avorio).
@@ -517,12 +519,13 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.21",
+    version: "3.22",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.26 (2026-10-29): motore per tavoli (backend) — tavolo suggerito e «entra o no», GET /prenotazioni/motore/piano e /motore/verifica.
     // 2.25 (2026-10-29): prolunghe nelle combinazioni (anche un tavolo solo o una coppia + prolunga), prolunghe disponibili in Impostazioni.
     // 2.24 (2026-10-28): sale aperte per giorno/turno, capienza dai tavoli, combinazioni nell'Editor, durata tavolo (pranzo lungo weekend, gruppi tutto il turno).
     // 2.23 (2026-10-28): «✏️ Modifica» della prenotazione nel Planning (stesso form, PUT con permesso sala/sommelier/admin).
@@ -536,7 +539,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.25",
+    version: "2.26",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

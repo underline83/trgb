@@ -39,6 +39,7 @@ from app.utils.whatsapp import build_wa_link, fill_template
 from app.services.prenotazioni_doppioni_service import doppioni_del_giorno
 from app.services import prenotazioni_fasce_service as fasce_srv
 from app.services import prenotazioni_sale_service as sale_srv
+from app.services import prenotazioni_tavoli_service as tavoli_srv
 
 logger = logging.getLogger("trgb.prenotazioni")
 
@@ -1003,6 +1004,29 @@ def get_sale(data: Optional[str] = Query(None), turno: Optional[str] = Query(Non
     conn = get_clienti_conn()
     try:
         return {"sale": sale_srv.elenco(conn, data, turno)}
+    finally:
+        conn.close()
+
+
+# Motore per tavoli (2026-10-29): tavolo suggerito e «entra o no» — sola lettura, solo TRGB
+@router.get("/motore/piano")
+def get_motore_piano(data: str = Query(...), turno: str = Query(...), user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, "admin", "sala", "sommelier", cosa="i tavoli suggeriti")
+    conn = get_clienti_conn()
+    try:
+        return tavoli_srv.piano(conn, data, turno)
+    finally:
+        conn.close()
+
+
+@router.get("/motore/verifica")
+def get_motore_verifica(data: str = Query(...), turno: str = Query(...), pax: int = Query(..., ge=1),
+                        ora: str = Query(...), escludi_id: Optional[int] = Query(None),
+                        user: dict = Depends(get_current_user)):
+    verifica_ruoli(user, "admin", "sala", "sommelier", cosa="la disponibilità dei tavoli")
+    conn = get_clienti_conn()
+    try:
+        return tavoli_srv.verifica(conn, data, turno, pax, ora, escludi_id)
     finally:
         conn.close()
 
