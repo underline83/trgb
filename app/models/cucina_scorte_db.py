@@ -246,6 +246,7 @@ SCHEMA_SQL: tuple[str, ...] = (
         recipe_id               INTEGER,
         scorta_min_frigo        REAL,
         scorta_min_gelo         REAL,
+        scorta_min_dispensa     REAL,
         qta_riordino            REAL,
         FOREIGN KEY (ingredient_id)   REFERENCES ingredients(id)     ON DELETE SET NULL,
         FOREIGN KEY (ripiano_casa_id) REFERENCES cucina_ripiani(id)  ON DELETE SET NULL
@@ -495,6 +496,7 @@ HEAL_COLUMNS = {
         ("recipe_id", "INTEGER"),        # mig 202: la preparazione che l'articolo E'
         ("scorta_min_frigo", "REAL"),    # mig 202: minimo sui ripiani FRIGO/CELLA
         ("scorta_min_gelo", "REAL"),     # mig 202: minimo sui ripiani FREEZER
+        ("scorta_min_dispensa", "REAL"), # mig 220: minimo sui ripiani DISPENSA/SCAFFALE
         ("qta_riordino", "REAL"),        # mig 202: quanto produrre/ordinare
     ],
     # mig 207: 1 = voce del gruppo «Generale» della partita (burro e parmigiano
@@ -619,7 +621,11 @@ def numero_dotazione(testo: Optional[str]) -> Optional[float]:
     senza numero davanti («GN 1/9», «in linea») → None. Le parti di un testo
     composto diventano voci separate (services/linea_checklist.py)."""
     import re
-    if not testo or "+" in testo:
+    if not testo:
+        return None
+    # una nota fra parentesi non conta («6 porzionati (+ 1 intero in cella)» → 6)
+    testo = re.sub(r"\([^)]*\)", "", testo)
+    if "+" in testo:
         return None
     m = re.match(r"^\s*(\d+(?:[.,]\d+)?)(?![\d/.,])", testo)
     return float(m.group(1).replace(",", ".")) if m else None

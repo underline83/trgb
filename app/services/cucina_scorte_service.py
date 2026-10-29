@@ -1043,7 +1043,11 @@ def alert_scorte(conn: sqlite3.Connection, reparto: str = "cucina") -> Dict[str,
 # zero, perche' una conferma e' una conta e va tracciata (come in registra_movimento).
 # La spunta della voce la scrive poi il client sul Task Manager, col totale.
 
-FAMIGLIE_LINEA = {"FRIGO": ("FRIGO", "CELLA"), "GELO": ("FREEZER", "ABBATTITORE")}
+FAMIGLIE_LINEA = {"FRIGO": ("FRIGO", "CELLA"), "GELO": ("FREEZER", "ABBATTITORE"),
+                  "DISPENSA": ("DISPENSA", "SCAFFALE")}   # mig 220
+_MIN_LINEA = {"FRIGO": "scorta_min_frigo", "GELO": "scorta_min_gelo",
+              "DISPENSA": "scorta_min_dispensa"}
+_DOVE_LINEA = {"FRIGO": "frigo", "GELO": "congelatore", "DISPENSA": "ripiano di dispensa"}
 
 
 def scorte_linea(conn: sqlite3.Connection, articolo_ids: List[int]) -> Dict[str, Any]:
@@ -1090,7 +1094,7 @@ def scorte_linea(conn: sqlite3.Connection, articolo_ids: List[int]) -> Dict[str,
                  ORDER BY l.data_scadenza
             """, (aid, *tipi, avviso_gg))]
             voce[fam.lower()] = {
-                "min": art["scorta_min_frigo"] if fam == "FRIGO" else art["scorta_min_gelo"],
+                "min": art.get(_MIN_LINEA[fam]),
                 "posti": posti,
                 "totale": sum(_num(p["qta"]) for p in posti) if posti else None,
                 "affidabile": affidabile,
@@ -1129,7 +1133,7 @@ def conferma_scorta_linea(
     """
     fam = (famiglia or "").upper()
     if fam not in FAMIGLIE_LINEA:
-        raise ValueError("famiglia: FRIGO o GELO")
+        raise ValueError("famiglia: FRIGO, GELO o DISPENSA")
     if not conteggi:
         raise ValueError("serve almeno un ripiano contato")
     art = conn.execute("SELECT id, ripiano_casa_id FROM cucina_articoli WHERE id = ?",
@@ -1148,7 +1152,7 @@ def conferma_scorta_linea(
             "SELECT u.tipo FROM cucina_ripiani r JOIN cucina_ubicazioni u ON u.id = r.ubicazione_id"
             " WHERE r.id = ?", (rid,)).fetchone()
         if not tipo_u or tipo_u["tipo"] not in FAMIGLIE_LINEA[fam]:
-            raise ValueError(f"il ripiano {rid} non e' un {'frigo' if fam == 'FRIGO' else 'congelatore'}")
+            raise ValueError(f"il ripiano {rid} non e' un {_DOVE_LINEA[fam]}")
         riga = assicura_giacenza(conn, articolo_id, rid)
         prima = _num(riga["qta"])
         res = registra_movimento(

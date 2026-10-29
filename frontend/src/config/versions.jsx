@@ -199,6 +199,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.13 (2026-10-29): scorta di dispensa nella linea (mig 220, voce SCORTA_DISPENSA,
+    //   «Minimo dispensa» nella scheda Linea); il «+» fra parentesi non spezza la voce
+    //   («6 porzionati (+ 1 intero in cella)» resta una riga, numero 6).
     // 1.12 (2026-10-23): linea L3 (services/linea_esiti.py) — rosso o scorta sotto
     //   il minimo: preparazione → task «Produrre» (rosso = ALTA + avviso a chef e
     //   sous chef), componente → Lista spesa «da confermare» (conferma admin/chef/
@@ -259,7 +262,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.12",
+    version: "1.13",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -647,6 +650,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.85 (2026-10-29): mig 220 — cucina_articoli.scorta_min_dispensa (cucinaScorte 1.13).
     // 5.84 (2026-10-29): mig 219 — tavoli_posizioni_turno (prenotazioni 2.31).
     // 5.83 (2026-10-29): mig 218 — tavoli_unioni (prenotazioni 2.29).
     // 5.82 (2026-10-29): mig 217 — prenotazioni_config.posti_prolunga (prenotazioni 2.28).
@@ -761,7 +765,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.84",
+    version: "5.85",
     label: "Sistema",
     status: "stabile",
     color: "green",

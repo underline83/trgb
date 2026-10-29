@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-10-29 — Linea cucina: scorta di dispensa, e il «+» fra parentesi non spezza la voce `[core]`
+
+cucinaScorte 1.13, sistema 5.85, mig 220. Marco: «mettiamo la dispensa». Nuovo `cucina_articoli.scorta_min_dispensa` (riempito dal `scorta_minima` degli articoli SECCO: riso 10 kg, fusilloni 5, pasta mista 3, pipe 5); con un minimo la partita ha la voce `SCORTA_DISPENSA`, contata sui ripiani DISPENSA/SCAFFALE come frigo e gelo (conferma = rettifica per ripiano; sotto il minimo → Lista spesa «da confermare»). «Minimo dispensa» e giacenza in dispensa nella scheda Linea delle ricette. File: mig 220, `cucina_scorte_db`, `cucina_scorte_router`, `cucina_scorte_service` (FAMIGLIE_LINEA), `linea_checklist`, `linea_esiti`, `tasks_schema`, `tasks_router`, `CucinaMobile.jsx`, `InstanceDetail.jsx`, `LineaTab.jsx`. Dati: create via UI-API le ubicazioni «Banco frigo 1» (3 sportelli × 2 ripiani, S1-1…S3-2), «Banco frigo 2» (2 sportelli × 3 ripiani + 2 cassettoni, S1-1…S2-3, C1, C2) e «Dispensa» (1 ripiano).
+
+Inoltre, senza migrazione: Nella dotazione di linea il «+» spezza in più voci solo fuori dalle parentesi: «Filetto di manzo — 6 porzionati (+ 1 intero in cella)» usciva in due righe monche; ora è una riga sola col numero 6 (`services/linea_checklist._parti_linea`, `cucina_scorte_db.numero_dotazione`).
+
 ## 2026-10-29 — Mappa: «Stacca» anche da un'unione occupata `[core]`
 
 Prenotazioni 2.31 (fix, nessuna migrazione). Un'unione su cui c'è una prenotazione (anche solo su uno dei suoi tavoli) al clic apre la scheda della prenotazione, non il menu del tavolo: «✂️ Stacca» non si raggiungeva (segnalato da Marco con 10+8 sotto la Manenti). Ora c'è anche nella scheda della prenotazione.

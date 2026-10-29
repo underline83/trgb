@@ -53,7 +53,11 @@ logger = logging.getLogger("trgb.linea_esiti")
 TASKS_DB = locale_data_path("tasks.sqlite3")
 ORIGINE = "LINEA"
 REF_MODULO = "cucina_articoli"
-FAMIGLIE = {"FRIGO": ("FRIGO", "CELLA"), "GELO": ("FREEZER", "ABBATTITORE")}
+FAMIGLIE = {"FRIGO": ("FRIGO", "CELLA"), "GELO": ("FREEZER", "ABBATTITORE"),
+            "DISPENSA": ("DISPENSA", "SCAFFALE")}   # mig 220
+CAMPI_MIN = (("FRIGO", "scorta_min_frigo"), ("GELO", "scorta_min_gelo"),
+             ("DISPENSA", "scorta_min_dispensa"))
+DOVE = {"FRIGO": "frigo", "GELO": "gelo", "DISPENSA": "dispensa"}
 _UM = {"PZ": "pz", "CF": "conf.", "KG": "kg", "G": "g", "L": "l", "ML": "ml"}
 
 _ultimo = 0.0
@@ -86,7 +90,7 @@ def _esiti(tk, oggi: str) -> Dict[int, Dict[str, Any]]:
          WHERE i.data_riferimento = ?
            AND t.generato_da LIKE 'linea:%'
            AND it.articolo_id IS NOT NULL
-           AND it.tipo IN ('LINEA', 'SCORTA_FRIGO', 'SCORTA_GELO')
+           AND it.tipo IN ('LINEA', 'SCORTA_FRIGO', 'SCORTA_GELO', 'SCORTA_DISPENSA')
          ORDER BY e.completato_at
     """, (oggi,)).fetchall()
     out: Dict[int, Dict[str, Any]] = {}
@@ -116,7 +120,7 @@ def _esiti(tk, oggi: str) -> Dict[int, Dict[str, Any]]:
 
 def _articolo(fc, aid: int) -> Optional[Dict[str, Any]]:
     r = fc.execute("""SELECT id, nome, um, recipe_id, ingredient_id, fornitore_freeform,
-                             scorta_min_frigo, scorta_min_gelo, qta_riordino
+                             scorta_min_frigo, scorta_min_gelo, scorta_min_dispensa, qta_riordino
                         FROM cucina_articoli WHERE id = ? AND attivo = 1""", (aid,)).fetchone()
     return dict(r) if r else None
 
@@ -133,9 +137,9 @@ def _giacenza(fc, aid: int, fam: str) -> Optional[float]:
 
 
 def _sotto(fc, a: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
-    """{FRIGO|GELO: {giacenza, minimo}} per le famiglie sotto il minimo (dato presente)."""
+    """{FRIGO|GELO|DISPENSA: {giacenza, minimo}} per le famiglie sotto il minimo (dato presente)."""
     out = {}
-    for fam, campo in (("FRIGO", "scorta_min_frigo"), ("GELO", "scorta_min_gelo")):
+    for fam, campo in CAMPI_MIN:
         if a[campo] is None:
             continue
         g = _giacenza(fc, a["id"], fam)
@@ -148,7 +152,7 @@ def _coperto(fc, a: Dict[str, Any]) -> Optional[bool]:
     """True se la giacenza registrata copre tutti i minimi; None se non ha
     minimi o manca il dato (allora non si chiude da solo per le scorte)."""
     esiti = []
-    for fam, campo in (("FRIGO", "scorta_min_frigo"), ("GELO", "scorta_min_gelo")):
+    for fam, campo in CAMPI_MIN:
         if a[campo] is None:
             continue
         g = _giacenza(fc, a["id"], fam)
@@ -201,7 +205,7 @@ def _motivo(a, e, sotto) -> str:
     if e["rosso"]:
         pezzi.append(f"linea {', '.join(sorted(e['partite']))}: rosso, manca la merce")
     for fam, v in sotto.items():
-        pezzi.append(f"scorta {'frigo' if fam == 'FRIGO' else 'gelo'} {_fmt(v['giacenza'])} {um}, "
+        pezzi.append(f"scorta {DOVE[fam]} {_fmt(v['giacenza'])} {um}, "
                      f"minimo {_fmt(v['minimo'])}")
     if e["giallo_scaduto"] and not pezzi:
         pezzi.append(f"linea {', '.join(sorted(e['partite']))}: rimasta gialla a fine controllo")
@@ -238,9 +242,9 @@ def valuta(forza: bool = True) -> Dict[str, Any]:
             if not a:
                 continue
             sotto = {fam: v for fam, v in _sotto(fc, a).items()
-                     if ("SCORTA_FRIGO" if fam == "FRIGO" else "SCORTA_GELO") in e["scorte"]}
+                     if "SCORTA_" + fam in e["scorte"]}
             evento = max([t for t in [e["rosso"], e["giallo_scaduto"],
-                          *[e["scorte"][("SCORTA_FRIGO" if f == "FRIGO" else "SCORTA_GELO")] for f in sotto]]
+                          *[e["scorte"]["SCORTA_" + f] for f in sotto]]
                           if t] or [""])
             if not evento:
                 continue

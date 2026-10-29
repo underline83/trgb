@@ -743,7 +743,7 @@ function TabOggi({ canWrite, onCount }) {
           if (tutteOk || it.stato === "OK") continue;
           const d = datiScorta(it);
           if (d && d.affidabile) {
-            const fam = it.item_tipo === "SCORTA_GELO" ? "GELO" : "FRIGO";
+            const fam = famScorta(it.item_tipo).FAM;
             const res = await apiFetch(`${API_BASE}/cucina/scorte/linea/scorte/conferma`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -802,7 +802,7 @@ function TabOggi({ canWrite, onCount }) {
   // Scorta: la conferma scrive in Frigoriferi (una rettifica per ripiano,
   // anche se il numero e' lo stesso) e poi spunta la voce col totale.
   async function confermaScorta(inst, item, conteggi) {
-    const fam = item.item_tipo === "SCORTA_GELO" ? "GELO" : "FRIGO";
+    const fam = famScorta(item.item_tipo).FAM;
     setBusy(item.item_id);
     try {
       let res = await apiFetch(`${API_BASE}/cucina/scorte/linea/scorte/conferma`, {
@@ -829,7 +829,8 @@ function TabOggi({ canWrite, onCount }) {
   function datiScorta(item) {
     const a = scorte?.articoli?.[String(item.item_articolo_id)];
     if (!a) return null;
-    return item.item_tipo === "SCORTA_GELO" ? { art: a, fam: "gelo", ...a.gelo } : { art: a, fam: "frigo", ...a.frigo };
+    const k = famScorta(item.item_tipo).k;
+    return { art: a, fam: k, ...a[k] };
   }
 
   // Tocco sulla casella della scorta: se il dato e' affidabile si conferma
@@ -969,7 +970,7 @@ function TabOggi({ canWrite, onCount }) {
 
       {conta && (
         <ContaScortaSheet item={conta.item} dati={datiScorta(conta.item)}
-                          ripiani={scorte?.ripiani?.[conta.item.item_tipo === "SCORTA_GELO" ? "gelo" : "frigo"] || []}
+                          ripiani={scorte?.ripiani?.[famScorta(conta.item.item_tipo).k] || []}
                           busy={busy === conta.item.item_id}
                           onChiudi={() => setConta(null)}
                           onConferma={(conteggi) => confermaScorta(conta.inst, conta.item, conteggi)} />
@@ -1010,7 +1011,13 @@ function TabOggi({ canWrite, onCount }) {
   );
 }
 
-const TIPI_SCORTA = ["SCORTA_FRIGO", "SCORTA_GELO"];
+const TIPI_SCORTA = ["SCORTA_FRIGO", "SCORTA_GELO", "SCORTA_DISPENSA"];
+// La famiglia di posti di una voce di scorta (dispensa: mig 220).
+function famScorta(tipo) {
+  if (tipo === "SCORTA_GELO") return { FAM: "GELO", k: "gelo", dove: "congelatore" };
+  if (tipo === "SCORTA_DISPENSA") return { FAM: "DISPENSA", k: "dispensa", dove: "ripiano di dispensa" };
+  return { FAM: "FRIGO", k: "frigo", dove: "frigo" };
+}
 const TIPI_CON_VALORE = ["TEMPERATURA", "NUMERICO", "LINEA", ...TIPI_SCORTA];
 const SEMAFORO_LINEA = [
   { k: "VERDE", c: "var(--green)", t: "ok" },
@@ -1167,7 +1174,7 @@ function ContaScortaSheet({ item, dati, ripiani, busy, onChiudi, onConferma }) {
           {item.item_titolo}
           {dati && !dati.affidabile && (dati.posti || []).length > 0 && " · il dato registrato è vecchio: conta"}
           {dati && (dati.posti || []).length === 0 && " · non è ancora in nessun "
-            + (item.item_tipo === "SCORTA_GELO" ? "congelatore" : "frigo") + ": scegli dove sta"}
+            + famScorta(item.item_tipo).dove + ": scegli dove sta"}
         </div>
         {righe.map((r, i) => (
           <div key={i} className="km-conta-riga">

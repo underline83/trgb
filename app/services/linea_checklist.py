@@ -30,7 +30,8 @@ Per ogni articolo in linea nella partita:
                   (gremolada sotto ossobuco e sotto rognone: la spunta e'
                   condivisa, se ne fa una e valgono tutte e due);
   · SCORTA_FRIGO  se l'articolo ha un minimo frigo — una sola per partita;
-  · SCORTA_GELO   se ha un minimo gelo — una sola per partita.
+  · SCORTA_GELO   se ha un minimo gelo — una sola per partita;
+  · SCORTA_DISPENSA se ha un minimo dispensa (riso, pasta secca; mig 220).
 Le righe di linea marcate `generale` vanno nel gruppo «Generale» (c'e'
 sempre, anche se nessun piatto le usa: burro e parmigiano nei primi). Le voci
 extra della partita (pentole in bollore, salvia sul pass) stanno li' anche
@@ -131,7 +132,7 @@ def _leggi(conn) -> Dict[str, Any]:
         righe.setdefault(r["recipe_id"], []).append((r["ingredient_id"], r["sub_recipe_id"]))
 
     articoli = {r["id"]: dict(r) for r in conn.execute("""
-        SELECT id, nome, um, recipe_id, ingredient_id, scorta_min_frigo, scorta_min_gelo
+        SELECT id, nome, um, recipe_id, ingredient_id, scorta_min_frigo, scorta_min_gelo, scorta_min_dispensa
           FROM cucina_articoli WHERE attivo = 1
     """)}
     per_ricetta: Dict[int, List[int]] = {}
@@ -206,7 +207,17 @@ def _parti_linea(riga: dict) -> List[Tuple[str, Optional[float]]]:
     Una cosa sola: il numero e' quello della scheda Linea, o letto dal testo.
     Piu' pezzi: ogni pezzo legge il suo numero dal proprio testo."""
     testo = (riga["linea_qta"] or "").strip()
-    pezzi = [p.strip() for p in testo.split("+") if p.strip()]
+    # si spezza solo sui «+» fuori dalle parentesi: «6 porzionati (+ 1 intero
+    # in cella)» e' una riga sola, con la nota fra parentesi
+    pezzi, buf, liv = [], "", 0
+    for ch in testo:
+        liv += (ch == "(") - (ch == ")")
+        if ch == "+" and liv <= 0:
+            pezzi.append(buf); buf = ""
+        else:
+            buf += ch
+    pezzi.append(buf)
+    pezzi = [p.strip() for p in pezzi if p.strip()]
     if len(pezzi) <= 1:
         num = riga.get("linea_qta_num")
         return [(testo, num if num is not None else numero_dotazione(testo))]
@@ -232,7 +243,8 @@ def _voci_articolo(a: dict, riga: dict, gruppo: str, ref_gruppo: str,
         })
     if con_scorte:
         for tipo, campo, dove in (("SCORTA_FRIGO", "scorta_min_frigo", "frigo"),
-                                  ("SCORTA_GELO", "scorta_min_gelo", "gelo")):
+                                  ("SCORTA_GELO", "scorta_min_gelo", "gelo"),
+                                  ("SCORTA_DISPENSA", "scorta_min_dispensa", "dispensa")):
             if a[campo] is not None:
                 voci.append({
                     "linea_ref": f"A{a['id']}:{tipo[7]}",

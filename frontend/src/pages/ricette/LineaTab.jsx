@@ -30,6 +30,7 @@ function ArticoloCard({ art, onChanged, setErr }) {
   const [f, setF] = useState({
     scorta_min_frigo: art.scorta_min_frigo ?? "",
     scorta_min_gelo: art.scorta_min_gelo ?? "",
+    scorta_min_dispensa: art.scorta_min_dispensa ?? "",
     qta_riordino: art.qta_riordino ?? "",
   });
   const [nuova, setNuova] = useState({ partita: "", linea_qta: "", linea_note: "" });
@@ -37,6 +38,7 @@ function ArticoloCard({ art, onChanged, setErr }) {
   const cambiato =
     String(f.scorta_min_frigo) !== String(art.scorta_min_frigo ?? "") ||
     String(f.scorta_min_gelo) !== String(art.scorta_min_gelo ?? "") ||
+    String(f.scorta_min_dispensa) !== String(art.scorta_min_dispensa ?? "") ||
     String(f.qta_riordino) !== String(art.qta_riordino ?? "");
 
   const run = async (fn) => {
@@ -48,6 +50,7 @@ function ArticoloCard({ art, onChanged, setErr }) {
     body: JSON.stringify({
       scorta_min_frigo: numOrNull(f.scorta_min_frigo),
       scorta_min_gelo: numOrNull(f.scorta_min_gelo),
+      scorta_min_dispensa: numOrNull(f.scorta_min_dispensa),
       qta_riordino: numOrNull(f.qta_riordino),
     }),
   }));
@@ -74,15 +77,16 @@ function ArticoloCard({ art, onChanged, setErr }) {
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <div className="font-semibold text-brand-ink">{art.nome}</div>
         <div className="text-xs text-neutral-500">
-          In frigo: <b>{fmt(art.giacenza_frigo)}</b> {um} · In gelo: <b>{fmt(art.giacenza_gelo)}</b> {um}
+          In frigo: <b>{fmt(art.giacenza_frigo)}</b> {um} · In gelo: <b>{fmt(art.giacenza_gelo)}</b> {um} · In dispensa: <b>{fmt(art.giacenza_dispensa)}</b> {um}
           {!art.ripiano_casa_id && <span className="ml-2 text-amber-700">· nessun ripiano di casa</span>}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
         {[
           ["scorta_min_frigo", "Minimo frigo"],
           ["scorta_min_gelo", "Minimo gelo"],
+          ["scorta_min_dispensa", "Minimo dispensa"],
           ["qta_riordino", "Riordino / produzione"],
         ].map(([k, label]) => (
           <label key={k} className="text-xs text-neutral-600">

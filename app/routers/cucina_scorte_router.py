@@ -125,6 +125,7 @@ class ArticoloIn(BaseModel):
     recipe_id: Optional[int] = None
     scorta_min_frigo: Optional[float] = None
     scorta_min_gelo: Optional[float] = None
+    scorta_min_dispensa: Optional[float] = None
     qta_riordino: Optional[float] = None
 
 
@@ -150,6 +151,7 @@ class ArticoloUpdate(BaseModel):
     recipe_id: Optional[int] = None
     scorta_min_frigo: Optional[float] = None
     scorta_min_gelo: Optional[float] = None
+    scorta_min_dispensa: Optional[float] = None
     qta_riordino: Optional[float] = None
 
 
@@ -188,7 +190,7 @@ class ConteggioRipianoIn(BaseModel):
 
 class ConfermaScortaIn(BaseModel):
     articolo_id: int
-    famiglia: str                      # FRIGO | GELO
+    famiglia: str                      # FRIGO | GELO | DISPENSA
     conteggi: List[ConteggioRipianoIn] = Field(..., min_length=1)
     instance_id: Optional[int] = None  # l'istanza di checklist da cui arriva
 
@@ -1244,12 +1246,14 @@ def _articoli_linea(conn, where: str, args: list) -> List[Dict[str, Any]]:
     """Articoli con parametri di linea, giacenze frigo/gelo e righe di linea."""
     rows = conn.execute(f"""
         SELECT a.id, a.nome, a.um, a.regime, a.natura, a.recipe_id, a.ingredient_id,
-               a.scorta_minima, a.scorta_min_frigo, a.scorta_min_gelo, a.qta_riordino,
+               a.scorta_minima, a.scorta_min_frigo, a.scorta_min_gelo, a.scorta_min_dispensa, a.qta_riordino,
                a.ripiano_casa_id,
                (SELECT SUM(g.qta) FROM cucina_giacenze g JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
                  WHERE g.articolo_id = a.id AND u.tipo IN ('FRIGO','CELLA'))  AS giacenza_frigo,
                (SELECT SUM(g.qta) FROM cucina_giacenze g JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
-                 WHERE g.articolo_id = a.id AND u.tipo = 'FREEZER')           AS giacenza_gelo
+                 WHERE g.articolo_id = a.id AND u.tipo = 'FREEZER')           AS giacenza_gelo,
+               (SELECT SUM(g.qta) FROM cucina_giacenze g JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
+                 WHERE g.articolo_id = a.id AND u.tipo IN ('DISPENSA','SCAFFALE')) AS giacenza_dispensa
           FROM cucina_articoli a
          WHERE a.attivo = 1 AND {where}
          ORDER BY a.nome
@@ -1451,11 +1455,11 @@ def linea_extra_update(voce_id: int, payload: VoceExtraUpdate,
 #
 # Le voci le calcola e le scrive services/linea_checklist.py (ponte platform
 # verso il Task Manager). Qui: anteprima, rigenera, accendi/spegni, e la
-# scorta proposta/confermata delle voci SCORTA_FRIGO / SCORTA_GELO.
+# scorta proposta/confermata delle voci SCORTA_FRIGO / SCORTA_GELO / SCORTA_DISPENSA.
 
 # Campi dell'articolo che cambiano una voce di linea (nome, minimi, legami).
 _CAMPI_LINEA = {"nome", "um", "recipe_id", "ingredient_id",
-                "scorta_min_frigo", "scorta_min_gelo", "attivo"}
+                "scorta_min_frigo", "scorta_min_gelo", "scorta_min_dispensa", "attivo"}
 
 
 def _risincronizza_linea() -> None:

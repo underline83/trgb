@@ -1047,7 +1047,7 @@ def check_item(
             raise HTTPException(400, "Voce tolta dalla checklist (il piatto non e' piu' in carta)")
 
         # Validazione valore per tipo
-        if item["tipo"] in ("NUMERICO", "TEMPERATURA", "SCORTA_FRIGO", "SCORTA_GELO") \
+        if item["tipo"] in ("NUMERICO", "TEMPERATURA", "SCORTA_FRIGO", "SCORTA_GELO", "SCORTA_DISPENSA") \
                 and payload.stato == "OK":
             if payload.valore_numerico is None:
                 raise HTTPException(400, f"Item {item['tipo']}: valore_numerico obbligatorio")

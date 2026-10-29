@@ -806,7 +806,7 @@ function ItemCard({ item, editable, saving, isViewer, onAction, titolo }) {
         )}
 
         {/* Scorta confermata (linea generata, mig 207) */}
-        {(item.item_tipo === "SCORTA_FRIGO" || item.item_tipo === "SCORTA_GELO") && (
+        {(item.item_tipo === "SCORTA_FRIGO" || item.item_tipo === "SCORTA_GELO" || item.item_tipo === "SCORTA_DISPENSA") && (
           <div className="mt-1 text-sm text-neutral-600">
             {item.valore_numerico != null ? (
               <span className={"font-playfair font-bold text-[20px] " +
@@ -1007,6 +1007,7 @@ function TipoChip({ tipo }) {
     LINEA:        "bg-[#fdf3dc] text-[#8a5a00] border-[#f1dcaa]",
     SCORTA_FRIGO: "bg-[#eaf4ff] text-[#1a4fa0] border-[#cfe0f8]",
     SCORTA_GELO:  "bg-[#eaf4ff] text-[#1a4fa0] border-[#cfe0f8]",
+    SCORTA_DISPENSA: "bg-[#f4efe6] text-[#6b4f1d] border-[#e6dccb]",
     TEMPERATURA: "bg-[#eaf4ff] text-[#1a4fa0] border-[#cfe0f8]",
     NUMERICO:    "bg-[#f1eefa] text-[#4b32a0] border-[#dccfe8]",
     TESTO:       "bg-[#eef4ef] text-[#2a6a3a] border-[#cfe1d3]",

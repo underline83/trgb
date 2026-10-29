@@ -66,6 +66,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 ## 🚢 Deploy & infrastruttura
 
 - 📄 [deploy.md](deploy.md) — procedura push, post-receive hook VPS, recovery SQLite, §6 anti-conflitto.
+- 📄 [ripristino_mac.md](ripristino_mac.md) — rimettere in piedi un Mac nuovo: SSH verso il VPS, clone repo, Claude/Cowork (audit 2026-10-29).
 - 📄 [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md) — comandi operativi rapidi: ssh, backup, log, restart, setup nuovo PC.
 - 📄 [installazione_nuovo_server.md](installazione_nuovo_server.md) — runbook setup server per nuovo cliente.
 - 📄 [sicurezza_backup.md](sicurezza_backup.md) — architettura backup post-incidente S60-INC1.

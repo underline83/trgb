@@ -22,8 +22,9 @@ ITEM_TIPI = {"CHECKBOX", "NUMERICO", "TEMPERATURA", "TESTO",
              # Linea cucina generata dal menu (mig 207, spec_linea_cucina.md §5.1):
              # LINEA = semaforo (valore_testo VERDE/GIALLO/ROSSO); SCORTA_FRIGO /
              # SCORTA_GELO = giacenza proposta da Scorte e confermata (valore_numerico).
-             "LINEA", "SCORTA_FRIGO", "SCORTA_GELO"}
-ITEM_TIPI_LINEA = {"LINEA", "SCORTA_FRIGO", "SCORTA_GELO"}
+             # SCORTA_DISPENSA (mig 220) = idem sui ripiani di dispensa.
+             "LINEA", "SCORTA_FRIGO", "SCORTA_GELO", "SCORTA_DISPENSA"}
+ITEM_TIPI_LINEA = {"LINEA", "SCORTA_FRIGO", "SCORTA_GELO", "SCORTA_DISPENSA"}
 SEMAFORO_LINEA = {"VERDE", "GIALLO", "ROSSO"}
 INSTANCE_STATI = {"APERTA", "IN_CORSO", "COMPLETATA", "SCADUTA", "SALTATA"}
 EXEC_STATI = {"OK", "FAIL", "SKIPPED", "PENDING"}
