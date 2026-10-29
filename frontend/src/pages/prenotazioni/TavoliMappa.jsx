@@ -1,4 +1,4 @@
-// @version: v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -322,41 +322,43 @@ export default function TavoliMappa() {
               Cena
             </button>
           </div>
-          {assegnando && !unendo && (
-            <div className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium">
-              <span className="animate-pulse">Clicca su un tavolo libero per assegnare (puoi anche trascinare i tavoli)</span>
-              <button onClick={() => setUnendo({ ids: [], nomi: [], prolunghe: 0 })}
-                className="ml-2 px-2 py-0.5 rounded bg-white border border-amber-300 hover:bg-amber-50">🔗 Unisci tavoli</button>
-              <button onClick={() => setAssegnando(null)} className="ml-2 text-amber-600 hover:text-amber-800">✕</button>
-            </div>
-          )}
-          {!assegnando && !unendo && (
-            <button onClick={() => setSpostando(!spostando)}
-              title="Trascina i tavoli per questo turno (la piantina dell'Editor non cambia)"
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${spostando ? "bg-indigo-600 text-white border-indigo-600" : "border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"}`}>
-              ✋ {spostando ? "Fine spostamenti" : "Sposta"}</button>
-          )}
-          {modificaSala && (
-            <button onClick={rimettiSala} className="px-2 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-800">↺ Sala com'era</button>
-          )}
-          {!assegnando && !unendo && (
-            <button onClick={() => { setMenuTavolo(null); setUnendo({ ids: [], nomi: [], prolunghe: 0 }); }}
-              title="Unisci dei tavoli per questo turno: tocca i tavoli, poi Unisci"
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50">🔗 Unisci</button>
-          )}
-          {unendo && (
-            <div className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-medium flex items-center gap-2 flex-wrap">
-              <span>{unendo.nomi.length ? `Unisci ${unendo.nomi.join("+")}` : "Tocca i tavoli da unire"}</span>
-              <label className="flex items-center gap-1">prolunghe
-                <input type="number" min={0} max={9} value={unendo.prolunghe}
-                  onChange={e => setUnendo({ ...unendo, prolunghe: Math.max(0, +e.target.value || 0) })}
-                  className="w-10 px-1 py-0.5 border rounded" />
-              </label>
-              <button disabled={unendo.ids.length < 2 && !(unendo.ids.length === 1 && unendo.prolunghe > 0)} onClick={confermaUnione}
-                className="px-2 py-0.5 rounded bg-indigo-600 text-white disabled:opacity-40">{assegnando ? "Unisci e assegna" : "Unisci"}</button>
-              <button onClick={() => setUnendo(null)} className="text-indigo-500 hover:text-indigo-800">Annulla</button>
-            </div>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {assegnando && !unendo && (
+              <div className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium">
+                <span className="animate-pulse">Clicca su un tavolo libero per assegnare (puoi anche trascinare i tavoli)</span>
+                <button onClick={() => setUnendo({ ids: [], nomi: [], prolunghe: 0 })}
+                  className="ml-2 px-2 py-0.5 rounded bg-white border border-amber-300 hover:bg-amber-50">🔗 Unisci tavoli</button>
+                <button onClick={() => setAssegnando(null)} className="ml-2 text-amber-600 hover:text-amber-800">✕</button>
+              </div>
+            )}
+            {!assegnando && !unendo && (
+              <button onClick={() => setSpostando(!spostando)}
+                title="Trascina i tavoli per questo turno (la piantina dell'Editor non cambia)"
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${spostando ? "bg-indigo-600 text-white border-indigo-600" : "border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"}`}>
+                ✋ {spostando ? "Fine spostamenti" : "Sposta"}</button>
+            )}
+            {!assegnando && !unendo && (
+              <button onClick={() => { setMenuTavolo(null); setUnendo({ ids: [], nomi: [], prolunghe: 0 }); }}
+                title="Unisci dei tavoli per questo turno: tocca i tavoli, poi Unisci"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50">🔗 Unisci</button>
+            )}
+            {modificaSala && (
+              <button onClick={rimettiSala} className="px-2 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-800">↺ Sala com'era</button>
+            )}
+            {unendo && (
+              <div className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-medium flex items-center gap-2 flex-wrap">
+                <span>{unendo.nomi.length ? `Unisci ${unendo.nomi.join("+")}` : "Tocca i tavoli da unire"}</span>
+                <label className="flex items-center gap-1">prolunghe
+                  <input type="number" min={0} max={9} value={unendo.prolunghe}
+                    onChange={e => setUnendo({ ...unendo, prolunghe: Math.max(0, +e.target.value || 0) })}
+                    className="w-10 px-1 py-0.5 border rounded" />
+                </label>
+                <button disabled={unendo.ids.length < 2 && !(unendo.ids.length === 1 && unendo.prolunghe > 0)} onClick={confermaUnione}
+                  className="px-2 py-0.5 rounded bg-indigo-600 text-white disabled:opacity-40">{assegnando ? "Unisci e assegna" : "Unisci"}</button>
+                <button onClick={() => setUnendo(null)} className="text-indigo-500 hover:text-indigo-800">Annulla</button>
+              </div>
+            )}
+          </div>
         </div>
 
         <SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} conteggi={occupatiPerSala} />
