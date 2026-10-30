@@ -18,7 +18,7 @@ const MODULES_MENU = {
       { label: "Carta dei Vini", go: "/vini/carta" },
       // Audit 2026-07-18: "Sommelier" (carta staff) e "Anagrafiche" erano in
       // ViniNav ma assenti dal dropdown. Anagrafiche filtrata via modules.json
-      // (sub-key "anagrafiche", solo admin — la route è protetta da sub=settings).
+      // (sub-key "anagrafiche": admin + sommelier dal 2026-10-30 — la route è protetta da sub=settings).
       // 2026-10-20: "Sommelier" (/vini/carta-staff) tolta — pagina non usata.
       { label: "Vendite",        go: "/vini/vendite" },
       // Audit 2026-07-12 (M11): puntava a /vini/magazzino (deprecata,
@@ -66,10 +66,10 @@ const MODULES_MENU = {
       { label: "Matching",      go: "/ricette/matching",   check: "admin" },
       { label: "Dashboard FC",  go: "/ricette/dashboard" },
       // Selezioni del giorno: gestite qui dentro (sessione 2026-04-20 — niente tile a sé in Home)
-      { label: "Selezioni · Macellaio", go: "/selezioni/macellaio", roles: ["admin", "chef", "sous_chef", "sala", "sommelier"] },
-      { label: "Selezioni · Pescato",   go: "/selezioni/pescato", roles: ["admin", "chef", "sous_chef", "sala", "sommelier"] },
-      { label: "Selezioni · Salumi",    go: "/selezioni/salumi", roles: ["admin", "chef", "sous_chef", "sala", "sommelier"] },
-      { label: "Selezioni · Formaggi",  go: "/selezioni/formaggi", roles: ["admin", "chef", "sous_chef", "sala", "sommelier"] },
+      { label: "Selezioni · Macellaio", go: "/selezioni/macellaio", roles: ["admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"] },
+      { label: "Selezioni · Pescato",   go: "/selezioni/pescato", roles: ["admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"] },
+      { label: "Selezioni · Salumi",    go: "/selezioni/salumi", roles: ["admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"] },
+      { label: "Selezioni · Formaggi",  go: "/selezioni/formaggi", roles: ["admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"] },
       { label: "Menu Carta",    go: "/menu-carta", roles: ["admin", "chef", "sous_chef"] },
       { label: "Piatti che vanno", go: "/cucina/piatti", roles: ["admin", "chef", "sous_chef"] },
       { label: "Menu Pranzo",   go: "/pranzo", roles: ["admin", "chef", "sous_chef"] },

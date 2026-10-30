@@ -176,11 +176,11 @@ const SchedaVino = forwardRef(function SchedaVino({
 }, ref) {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const canDelete = isAdminRole(role) || role === "sommelier" || role === "sala";
+  const canDelete = isAdminRole(role) || role === "sommelier" || role === "capo_sala" || role === "sala";
   const canEditDataMov = isAdminRole(role);  // modifica data movimento: admin-only (Marco 2026-05-19)
   // Gestione catalogo vini = admin/superadmin/sommelier (Marco 2026-05-21).
   // Sala e viewer hanno sola lettura: niente bottoni Modifica/Duplica/Elimina.
-  const isViniManager = isAdminRole(role) || role === "sommelier";
+  const isViniManager = isAdminRole(role) || role === "sommelier" || role === "capo_sala";
   // readOnly effettivo: o forzato dal parent, o perche' il ruolo non e' manager.
   const roReadOnly = readOnly || !isViniManager;
   // Toggle mescita al calice = azione operativa: la può fare anche la sala

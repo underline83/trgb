@@ -474,7 +474,7 @@ const VITIGNO_FIELDS = [
 // ===============================================================
 function DenominazioniPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
-  const canEdit = role === "admin" || role === "superadmin" || role === "sommelier";
+  const canEdit = role === "admin" || role === "superadmin" || role === "sommelier" || role === "capo_sala";
 
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");

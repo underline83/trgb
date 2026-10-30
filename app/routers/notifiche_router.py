@@ -170,7 +170,7 @@ com_router = APIRouter(prefix="/comunicazioni", tags=["comunicazioni"])
 # l'Header interroga il contatore su ogni pagina, per ogni ruolo.
 # Se in futuro anche chef e sommelier devono scrivere la nota di servizio, la
 # strada e' sostituire `_require_admin` con
-# `verifica_ruoli(user, "admin", "chef", "sommelier")` sui due endpoint /nota.
+# `verifica_ruoli(user, "admin", "chef", "sommelier", "capo_sala")` sui due endpoint /nota.
 
 
 @com_router.get("")

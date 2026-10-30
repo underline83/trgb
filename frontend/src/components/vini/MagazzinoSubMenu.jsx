@@ -17,7 +17,7 @@ export default function MagazzinoSubMenu() {
   const role = localStorage.getItem("role");
   // Gestione catalogo = admin/superadmin/sommelier (Marco 2026-05-21).
   // Sala/viewer: sola lettura, niente "Nuovo vino".
-  const isViniManager = isAdminRole(role) || role === "sommelier";
+  const isViniManager = isAdminRole(role) || role === "sommelier" || role === "capo_sala";
 
   return (
     <div className="mb-6">

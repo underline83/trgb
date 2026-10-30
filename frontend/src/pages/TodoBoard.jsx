@@ -10,7 +10,7 @@ import { API_BASE, apiFetch } from "../config/api";
 
 const RUOLO = {
   superadmin: "admin", admin: "admin", chef: "chef", sous_chef: "sous chef", commis: "commis",
-  sala: "sala", sommelier: "sommelier", contabile: "contabile", viewer: "viewer",
+  sala: "sala", sommelier: "sommelier", capo_sala: "capo sala", contabile: "contabile", viewer: "viewer",
 };
 
 export default function TodoBoard() {

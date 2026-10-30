@@ -37,7 +37,7 @@ from app.services.permessi import richiede_ruoli, verifica_ruoli
 # Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(prefix="/menu-templates", tags=["Menu Templates"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", cosa="template menu")),
+        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", "capo_sala", cosa="template menu")),
     ],
 )
 

@@ -52,7 +52,7 @@ from app.services.permessi import richiede_ruoli
 # Ruoli da modules.json (`ricette`): admin, chef, sous_chef, commis, sala, sommelier, contabile (+superadmin implicito).
 # Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(dependencies=[
-        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", "sala", "sommelier", "contabile", cosa="archivio ricette")),
+        Depends(richiede_ruoli("admin", "chef", "sous_chef", "commis", "sala", "sommelier", "capo_sala", "contabile", cosa="archivio ricette")),
     ])
 
 

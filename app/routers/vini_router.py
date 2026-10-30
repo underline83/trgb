@@ -393,7 +393,7 @@ def genera_carta_vini_pdf():
 # ATTENZIONE: si pubblica SOLO la carta CLIENTE. La versione staff
 # (/carta/pdf-staff) e' interna e non deve mai finire su un server pubblico.
 # ------------------------------------------------------------
-_RUOLI_PUBBLICAZIONE = ("superadmin", "admin", "sommelier")
+_RUOLI_PUBBLICAZIONE = ("superadmin", "admin", "sommelier", "capo_sala")
 
 
 @router.get("/carta/pubblicazione/", dependencies=[Depends(richiede_ruoli("admin", cosa="la pubblicazione della carta sul sito"))])
@@ -414,7 +414,7 @@ def stato_pubblicazione_carta(user=Depends(get_current_user)):
 def pubblica_carta_sul_sito(user=Depends(get_current_user)):
     """Rigenera la carta vini cliente e la carica sull'FTP del sito."""
     if (user or {}).get("role", "") not in _RUOLI_PUBBLICAZIONE:
-        raise HTTPException(status_code=403, detail="Operazione riservata ad admin/sommelier")
+        raise HTTPException(status_code=403, detail="Operazione riservata ad admin/capo sala/sommelier")
 
     try:
         pdf_bytes = _render_carta_pdf_cliente()
@@ -443,7 +443,7 @@ def pubblica_carta_sul_sito(user=Depends(get_current_user)):
 # ------------------------------------------------------------
 # PDF STAFF
 # ------------------------------------------------------------
-@router.get("/carta/pdf-staff", dependencies=[Depends(richiede_ruoli_con(_get_user_flessibile, "admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
+@router.get("/carta/pdf-staff", dependencies=[Depends(richiede_ruoli_con(_get_user_flessibile, "admin", "sala", "sommelier", "capo_sala", cosa="la carta vini di servizio"))])
 def genera_carta_vini_pdf_staff(
     current_user: Any = Depends(_get_user_flessibile),
 ):
@@ -533,7 +533,7 @@ class MovimentoCreate(BaseModel):
     )
 
 
-@router.get("/{vino_id}/movimenti", response_class=JSONResponse, dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
+@router.get("/{vino_id}/movimenti", response_class=JSONResponse, dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", cosa="la carta vini di servizio"))])
 def lista_movimenti_vino(
     vino_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -552,7 +552,7 @@ def lista_movimenti_vino(
     return JSONResponse(content={"vino_id": vino_id, "movimenti": movimenti})
 
 
-@router.post("/{vino_id}/movimenti", response_class=JSONResponse, dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="la carta vini di servizio"))])
+@router.post("/{vino_id}/movimenti", response_class=JSONResponse, dependencies=[Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", cosa="la carta vini di servizio"))])
 def crea_movimento_vino(
     vino_id: int,
     payload: MovimentoCreate,

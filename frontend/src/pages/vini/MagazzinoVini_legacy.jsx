@@ -380,7 +380,7 @@ export default function MagazzinoVini() {
   // ── MULTI-SELECT & BULK EDIT ──
   const role = localStorage.getItem("role");
   const isAdmin = isAdminRole(role);
-  const isSommelier = role === "sommelier";
+  const isSommelier = role === "sommelier" || role === "capo_sala";
   const isSala = role === "sala";
   const canPrint = isAdmin || isSommelier || isSala;
   const canBulkEdit = isAdmin;

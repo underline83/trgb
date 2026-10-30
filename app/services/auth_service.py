@@ -308,7 +308,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 VALID_ROLES = {
     "superadmin", "admin", "contabile",
     "chef", "sous_chef", "commis",
-    "sommelier", "sala", "viewer",
+    "sommelier", "capo_sala", "sala", "viewer",
 }
 
 
@@ -333,7 +333,7 @@ def is_vini_manager(role: str) -> bool:
     + scheda bottiglia). Gli altri ruoli (sala, viewer, cucina...) hanno sola
     lettura sul modulo Vini. Le operazioni distruttive di massa (merge, migrate,
     sync) restano comunque riservate ai soli admin via is_admin()."""
-    return role in ("admin", "superadmin", "sommelier")
+    return role in ("admin", "superadmin", "sommelier", "capo_sala")
 
 
 def list_users() -> list:

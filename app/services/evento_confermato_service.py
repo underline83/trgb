@@ -28,7 +28,7 @@ logger = logging.getLogger("trgb.evento_confermato")
 
 STATI_SPENTI = ("CANCELED", "NO_SHOW", "REFUSED")
 # Chi riceve l'avviso nel campanello (ruoli di sala e di cucina)
-RUOLI_AVVISO = ("sala", "sommelier", "chef", "sous_chef", "commis")
+RUOLI_AVVISO = ("sala", "sommelier", "capo_sala", "chef", "sous_chef", "commis")
 
 
 def _turno(conn, ora: str | None) -> str:

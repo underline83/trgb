@@ -172,7 +172,7 @@ def richiede_ruoli_con(dipendenza_utente: Callable, *ruoli: str, cosa: str | Non
     passandolo qui, la guardia di ruolo vale anche su quegli endpoint.
 
         router = APIRouter(dependencies=[
-            Depends(richiede_ruoli_con(_get_user_flessibile, "admin", "sommelier"))
+            Depends(richiede_ruoli_con(_get_user_flessibile, "admin", "sommelier", "capo_sala"))
         ])
 
     Trovato il 2026-09-01: una guardia costruita su `get_current_user` messa

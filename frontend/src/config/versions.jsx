@@ -3,6 +3,9 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.2 (2026-10-30): il sommelier ha tutto il modulo Vini — Anagrafiche, Impostazioni
+    //   e iPratico Sync. In Impostazioni le sezioni che chiamano endpoint admin
+    //   (Import/Export, Markup, Locazioni, Manutenzione) si vedono solo da admin.
     // 4.1 (2026-10-20): tolta la pagina «Sommelier» (/vini/carta-staff, CartaStaff)
     //   — non usata. Tab, voce di menu e bottone in Carta rimossi; la route
     //   redirige alla Carta. Endpoint GET /vini/magazzino/carta-staff/ lasciato.
@@ -164,7 +167,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.1",
+    version: "4.2",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -650,6 +653,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.86 (2026-10-30): mig 221 — ruolo capo_sala (= permessi di oggi del sommelier), home_actions copiate. VERSION riallineato (era 5.78).
     // 5.85 (2026-10-29): mig 220 — cucina_articoli.scorta_min_dispensa (cucinaScorte 1.13).
     // 5.84 (2026-10-29): mig 219 — tavoli_posizioni_turno (prenotazioni 2.31).
     // 5.83 (2026-10-29): mig 218 — tavoli_unioni (prenotazioni 2.29).

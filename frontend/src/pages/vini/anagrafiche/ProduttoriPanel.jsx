@@ -29,7 +29,7 @@ import { Btn, Card, Modal, FieldLabel, TextInput, Select, Textarea } from "../..
 
 export default function ProduttoriPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
-  const canEdit = role === "admin" || role === "superadmin" || role === "sommelier";
+  const canEdit = role === "admin" || role === "superadmin" || role === "sommelier" || role === "capo_sala";
 
   // Dati
   const [items, setItems] = useState([]);

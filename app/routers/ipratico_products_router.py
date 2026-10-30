@@ -43,13 +43,15 @@ from app.services.permessi import richiede_ruoli
 
 # PERMESSI (2026-09-01, M.G) — sync iPratico
 # Erano aperti upload, export e mapping prodotti iPratico.
-# Ruoli da modules.json (`vini/ipratico`): admin (+superadmin implicito).
+# Ruoli da modules.json (`vini/ipratico`): admin, sommelier (+superadmin implicito).
+# 2026-10-30 (Marco): il sommelier ha tutto il modulo Vini. L'export produce
+# solo l'Excel da reimportare a mano in iPratico, non scrive sulla cassa.
 # Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(
     prefix="/vini/ipratico",
     tags=["ipratico-products"],
     dependencies=[
-        Depends(richiede_ruoli("admin", cosa="sync iPratico")),
+        Depends(richiede_ruoli("admin", "sommelier", cosa="sync iPratico")),
     ],
 )
 

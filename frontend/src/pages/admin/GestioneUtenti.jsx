@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, PageLayout, StatusBadge, EmptyState } from "../../components/ui";
 
-const ROLES = ["admin", "chef", "sous_chef", "commis", "sommelier", "sala", "viewer"];
+const ROLES = ["admin", "chef", "sous_chef", "commis", "sommelier", "capo_sala", "sala", "viewer"];
 
 const ROLE_LABELS = {
   admin: "👑 Admin",
@@ -15,6 +15,7 @@ const ROLE_LABELS = {
   sous_chef: "🥘 Sous Chef",
   commis: "🔪 Commis",
   sommelier: "🍷 Sommelier",
+  capo_sala: "🎩 Capo Sala",
   sala: "🍽️ Sala",
   viewer: "👁 Viewer",
 };

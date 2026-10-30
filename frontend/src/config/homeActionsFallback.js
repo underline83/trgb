@@ -49,6 +49,7 @@ export const HOME_ACTIONS_FALLBACK = {
   superadmin: VINI_FALLBACK,
   contabile:  ADMIN_FALLBACK,
   sommelier:  VINI_FALLBACK,
+  capo_sala:  VINI_FALLBACK,
   chef:       CUCINA_FALLBACK,
   sous_chef:  CUCINA_FALLBACK,
   commis:     COMMIS_FALLBACK,

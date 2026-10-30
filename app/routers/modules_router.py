@@ -30,7 +30,7 @@ MODULES_META_FILE = locale_data_path("modules.runtime.meta.json")
 VALID_ROLES = {
     "superadmin", "admin", "contabile",
     "chef", "sous_chef", "commis",
-    "sommelier", "sala", "viewer",
+    "sommelier", "capo_sala", "sala", "viewer",
 }
 
 
@@ -68,14 +68,14 @@ DEFAULT_MODULES = [
     {
         "key": "vini", "label": "Gestione Vini", "icon": "\U0001f377",
         "description": "Carta vini, magazzino, vendite, impostazioni",
-        "roles": ["superadmin", "admin", "sommelier", "sala"],
+        "roles": ["superadmin", "admin", "sommelier", "capo_sala", "sala"],
         "sub": [
-            {"key": "carta",     "label": "Carta dei Vini", "roles": ["superadmin", "admin", "sommelier", "sala"]},
-            {"key": "vendite",   "label": "Vendite",        "roles": ["superadmin", "admin", "sommelier", "sala"]},
-            {"key": "magazzino", "label": "Cantina",        "roles": ["superadmin", "admin", "sommelier", "sala"]},
-            {"key": "dashboard", "label": "Dashboard",      "roles": ["superadmin", "admin", "sommelier", "sala"]},
-            {"key": "ipratico",  "label": "iPratico Sync",  "roles": ["superadmin", "admin"]},
-            {"key": "settings",  "label": "Impostazioni",   "roles": ["superadmin", "admin"]},
+            {"key": "carta",     "label": "Carta dei Vini", "roles": ["superadmin", "admin", "sommelier", "capo_sala", "sala"]},
+            {"key": "vendite",   "label": "Vendite",        "roles": ["superadmin", "admin", "sommelier", "capo_sala", "sala"]},
+            {"key": "magazzino", "label": "Cantina",        "roles": ["superadmin", "admin", "sommelier", "capo_sala", "sala"]},
+            {"key": "dashboard", "label": "Dashboard",      "roles": ["superadmin", "admin", "sommelier", "capo_sala", "sala"]},
+            {"key": "ipratico",  "label": "iPratico Sync",  "roles": ["superadmin", "admin", "sommelier"]},
+            {"key": "settings",  "label": "Impostazioni",   "roles": ["superadmin", "admin", "sommelier"]},
         ],
     },
     {
@@ -93,7 +93,7 @@ DEFAULT_MODULES = [
     {
         "key": "ricette", "label": "Gestione Cucina", "icon": "\U0001f4d8",
         "description": "Archivio ricette, food cost, ingredienti",
-        "roles": ["superadmin", "admin", "chef", "sala", "sommelier"],
+        "roles": ["superadmin", "admin", "chef", "sala", "sommelier", "capo_sala"],
         "sub": [
             {"key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef"]},
             {"key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef"]},
@@ -107,20 +107,20 @@ DEFAULT_MODULES = [
         # Sostituisce le sub omonime sotto `ricette` (sessione 50, refactor pagina unica /selezioni).
         "key": "selezioni", "label": "Selezioni del Giorno", "icon": "\U0001f37d\ufe0f",
         "description": "Macellaio, salumi, formaggi e pescato del giorno per la sala",
-        "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"],
+        "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"],
         "sub": [
-            {"key": "macellaio", "label": "Macellaio", "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
-            {"key": "salumi",    "label": "Salumi",    "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
-            {"key": "formaggi",  "label": "Formaggi",  "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
-            {"key": "pescato",   "label": "Pescato",   "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier"]},
+            {"key": "macellaio", "label": "Macellaio", "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"]},
+            {"key": "salumi",    "label": "Salumi",    "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"]},
+            {"key": "formaggi",  "label": "Formaggi",  "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"]},
+            {"key": "pescato",   "label": "Pescato",   "roles": ["superadmin", "admin", "chef", "sous_chef", "sala", "sommelier", "capo_sala"]},
         ],
     },
     {
         "key": "vendite", "label": "Gestione Vendite", "icon": "\U0001f4b5",
         "description": "Corrispettivi, chiusure cassa, dashboard vendite",
-        "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"],
+        "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"],
         "sub": [
-            {"key": "fine-turno",   "label": "Chiusura Turno", "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
+            {"key": "fine-turno",   "label": "Chiusura Turno", "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "chiusure",     "label": "Lista Chiusure", "roles": ["superadmin", "admin"]},
             {"key": "riepilogo",    "label": "Riepilogo",      "roles": ["superadmin", "admin", "contabile"]},
             {"key": "dashboard",    "label": "Dashboard",      "roles": ["superadmin", "admin", "contabile"]},
@@ -130,14 +130,14 @@ DEFAULT_MODULES = [
     {
         "key": "flussi-cassa", "label": "Flussi di Cassa", "icon": "\U0001f3e6",
         "description": "Conti correnti, carta di credito, contanti, mance",
-        "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"],
+        "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "capo_sala", "chef"],
         "sub": [
             {"key": "dashboard",    "label": "Dashboard",        "roles": ["superadmin", "admin", "contabile"]},
             {"key": "cc",           "label": "Conti Correnti",   "roles": ["superadmin", "admin", "contabile"]},
             {"key": "crossref",     "label": "Riconciliazione",  "roles": ["superadmin", "admin", "contabile"]},
             {"key": "carta",        "label": "Carta di Credito", "roles": ["superadmin", "admin", "contabile"]},
             {"key": "contanti",     "label": "Contanti",         "roles": ["superadmin", "admin"]},
-            {"key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"]},
+            {"key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "capo_sala", "chef"]},
             {"key": "impostazioni", "label": "Impostazioni",     "roles": ["superadmin", "admin"]},
         ],
     },
@@ -164,11 +164,11 @@ DEFAULT_MODULES = [
     {
         "key": "dipendenti", "label": "Dipendenti", "icon": "\U0001f465",
         "description": "Personale, buste paga, turni, scadenze documenti, costi",
-        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"],
+        "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "chef", "contabile"],
         "sub": [
             {"key": "anagrafica",   "label": "Anagrafica",   "roles": ["superadmin", "admin"]},
             {"key": "buste-paga",   "label": "Buste Paga",   "roles": ["superadmin", "admin"]},
-            {"key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"]},
+            {"key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "chef", "contabile"]},
             {"key": "scadenze",     "label": "Scadenze",     "roles": ["superadmin", "admin"]},
             # Candidati (2026-10-16): CV di persone esterne → solo admin.
             {"key": "candidati",    "label": "Candidati",    "roles": ["superadmin", "admin"]},
@@ -179,11 +179,11 @@ DEFAULT_MODULES = [
     {
         "key": "prenotazioni", "label": "Prenotazioni", "icon": "\U0001f4c5",
         "description": "Planning giornaliero, gestione prenotazioni, tavoli",
-        "roles": ["superadmin", "admin", "sala", "sommelier"],
+        "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala"],
         "sub": [
-            {"key": "planning",     "label": "Planning",      "roles": ["superadmin", "admin", "sala", "sommelier"]},
-            {"key": "mappa",        "label": "Mappa Tavoli",  "roles": ["superadmin", "admin", "sala", "sommelier"]},
-            {"key": "settimana",    "label": "Settimana",     "roles": ["superadmin", "admin", "sala", "sommelier"]},
+            {"key": "planning",     "label": "Planning",      "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala"]},
+            {"key": "mappa",        "label": "Mappa Tavoli",  "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala"]},
+            {"key": "settimana",    "label": "Settimana",     "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala"]},
             {"key": "tavoli",       "label": "Editor Tavoli", "roles": ["superadmin", "admin"]},
             {"key": "impostazioni", "label": "Impostazioni",  "roles": ["superadmin", "admin"]},
         ],
@@ -191,13 +191,13 @@ DEFAULT_MODULES = [
     {
         "key": "clienti", "label": "Gestione Clienti", "icon": "\U0001f91d",
         "description": "Anagrafica clienti, CRM, tag, note, import TheFork",
-        "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"],
+        "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"],
         "sub": [
-            {"key": "lista",        "label": "Anagrafica",   "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
-            {"key": "prenotazioni", "label": "Prenotazioni", "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
-            {"key": "preventivi",   "label": "Preventivi",   "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
-            {"key": "giftcard",     "label": "Gift Card",    "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
-            {"key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"]},
+            {"key": "lista",        "label": "Anagrafica",   "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
+            {"key": "prenotazioni", "label": "Prenotazioni", "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
+            {"key": "preventivi",   "label": "Preventivi",   "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
+            {"key": "giftcard",     "label": "Gift Card",    "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
+            {"key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "import",       "label": "Import",       "roles": ["superadmin", "admin"]},
             {"key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"]},
         ],

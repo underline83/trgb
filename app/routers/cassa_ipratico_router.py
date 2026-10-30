@@ -46,7 +46,7 @@ router = APIRouter(prefix="/cassa/ipratico", tags=["cassa", "ipratico"])
 
 _admin = richiede_ruoli("admin", cosa="conti iPratico")
 # Chi fa la Chiusura turno (stessi ruoli di chiusure_turno.check_allowed_role)
-_servizio = richiede_ruoli("admin", "sommelier", "sala", cosa="i conti del servizio")
+_servizio = richiede_ruoli("admin", "sommelier", "capo_sala", "sala", cosa="i conti del servizio")
 
 
 class Periodo(BaseModel):

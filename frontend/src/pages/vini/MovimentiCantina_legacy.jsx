@@ -21,7 +21,7 @@ export default function MovimentiCantina() {
   const { id } = useParams();
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const canDelete = isAdminRole(role) || role === "sommelier" || role === "sala";
+  const canDelete = isAdminRole(role) || role === "sommelier" || role === "capo_sala" || role === "sala";
 
   const [vino, setVino] = useState(null);
   const [movimenti, setMovimenti] = useState([]);

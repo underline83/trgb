@@ -67,7 +67,7 @@ async def _dopo_modifica(request: Request):
 
 router = APIRouter(prefix="/prenotazioni", tags=["Prenotazioni"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "sala", "sommelier", "contabile", cosa="prenotazioni")),
+        Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", "contabile", cosa="prenotazioni")),
         Depends(_dopo_modifica),
     ],
 )
@@ -1047,7 +1047,7 @@ def get_sale(data: Optional[str] = Query(None), turno: Optional[str] = Query(Non
 # Motore per tavoli (2026-10-29): tavolo suggerito e «entra o no» — sola lettura, solo TRGB
 @router.get("/motore/piano")
 def get_motore_piano(data: str = Query(...), turno: str = Query(...), user: dict = Depends(get_current_user)):
-    verifica_ruoli(user, "admin", "sala", "sommelier", cosa="i tavoli suggeriti")
+    verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="i tavoli suggeriti")
     conn = get_clienti_conn()
     try:
         return tavoli_srv.piano(conn, data, turno)
@@ -1059,7 +1059,7 @@ def get_motore_piano(data: str = Query(...), turno: str = Query(...), user: dict
 def get_motore_verifica(data: str = Query(...), turno: str = Query(...), pax: int = Query(..., ge=1),
                         ora: str = Query(...), escludi_id: Optional[int] = Query(None),
                         user: dict = Depends(get_current_user)):
-    verifica_ruoli(user, "admin", "sala", "sommelier", cosa="la disponibilità dei tavoli")
+    verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="la disponibilità dei tavoli")
     conn = get_clienti_conn()
     try:
         return tavoli_srv.verifica(conn, data, turno, pax, ora, escludi_id)
@@ -1098,7 +1098,7 @@ def put_sala_giorno(zona: str, req: SalaGiorno, user: dict = Depends(get_current
 # «Blocca questo tavolo» come in TheFork Manager: il tavolo resta sulla mappa
 # ma non si assegna per quel turno. Solo in TRGB (l'API TheFork non lo prevede).
 
-RUOLI_BLOCCO_TAVOLI = ("admin", "sala", "sommelier")
+RUOLI_BLOCCO_TAVOLI = ("admin", "sala", "sommelier", "capo_sala")
 
 
 def _blocchi_turno(conn, data: str, turno: str) -> Dict[int, Dict[str, Any]]:
@@ -2044,7 +2044,7 @@ def modifica_prenotazione(
     user: dict = Depends(get_current_user),
 ):
     """Modifica una prenotazione esistente (form «Modifica» del Planning, 2026-10-28)."""
-    verifica_ruoli(user, "admin", "sala", "sommelier", cosa="la modifica delle prenotazioni")
+    verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="la modifica delle prenotazioni")
     if req.stato is not None and req.stato not in STATI_VALIDI:
         raise HTTPException(status_code=400, detail=f"Stato non valido: {req.stato}")
     conn = get_clienti_conn()

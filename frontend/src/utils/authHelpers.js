@@ -18,7 +18,7 @@ export function isAdminRole(role) {
  * autorizza a parte.
  */
 export function isViniManagerRole(role) {
-  return role === "admin" || role === "superadmin" || role === "sommelier";
+  return role === "admin" || role === "superadmin" || role === "sommelier" || role === "capo_sala";
 }
 
 /**

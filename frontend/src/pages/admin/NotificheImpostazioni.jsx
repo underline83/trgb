@@ -14,6 +14,7 @@ const RUOLI = [
   { value: "contabile", label: "Contabile" },
   { value: "chef", label: "Chef" },
   { value: "sommelier", label: "Sommelier" },
+  { value: "capo_sala", label: "Capo Sala" },
   { value: "sala", label: "Sala" },
 ];
 

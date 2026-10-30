@@ -25,7 +25,7 @@ function FcBadge({ pct }) {
 export default function RicetteDashboard() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAllowed = isAdminRole(role) || role === "sommelier";
+  const isAllowed = isAdminRole(role) || role === "sommelier" || role === "capo_sala";
 
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +52,7 @@ export default function RicetteDashboard() {
           <div className="text-5xl mb-4">🔒</div>
           <h2 className="text-xl font-bold text-neutral-800 mb-2">Accesso riservato</h2>
           <p className="text-neutral-600 text-sm mb-4">
-            Questa sezione è disponibile solo per amministratori e sommelier.
+            Questa sezione è disponibile solo per amministratori, capo sala e sommelier.
           </p>
           <Btn variant="secondary" size="md" onClick={() => navigate("/ricette")}>
             ← Menu Ricette

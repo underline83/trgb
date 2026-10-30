@@ -30,7 +30,7 @@ from app.services.permessi import richiede_ruoli
 # Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(prefix="/vini/ordini", tags=["vini-ordini"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="ordini ai fornitori")),
+        Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", cosa="ordini ai fornitori")),
     ],
 )
 
@@ -59,7 +59,7 @@ def _require_manager(current_user: Any) -> None:
     if not is_vini_manager(_role_of(current_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin e sommelier.",
+            detail="Operazione riservata ad admin, capo sala e sommelier.",
         )
 
 

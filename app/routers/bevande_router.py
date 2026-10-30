@@ -1,7 +1,7 @@
 # @version: v1.5-accisa — campo accisa_bottiglia (mig 184) sommato al costo nel calcolo.
 # v1.4-calcolo-prezzo — costo bottiglia + calcolo prezzo a dose (mig 183):
 #   campi costo_bottiglia/bottiglia_cl/dose_cl sulle voci, `calcolo` nelle letture
-#   (solo admin/sommelier/sala, agli altri il costo viene tolto), PUT
+#   (solo admin/capo sala/sommelier/sala, agli altri il costo viene tolto), PUT
 #   /sezioni/{key}/calcolo-prezzo (parametri), POST /calcolo-prezzo/anteprima.
 # v1.3-tipologie-endpoint — PUT /sezioni/{key}/tipologie: gestione
 #   sotto-categorie (options del select tipologia) da Impostazioni. Rename
@@ -89,14 +89,14 @@ LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 # PERMESSI
 # ─────────────────────────────────────────────
 
-_ROLES_EDITOR = {"admin", "superadmin", "sommelier"}
+_ROLES_EDITOR = {"admin", "superadmin", "sommelier", "capo_sala"}
 _ROLES_VIEWER_BLOCK = {"viewer"}
 
 
 def _require_editor(user: dict) -> None:
     role = (user or {}).get("role") or ""
     if role not in _ROLES_EDITOR:
-        raise HTTPException(403, "Permesso negato: solo admin/sommelier possono modificare la carta bevande.")
+        raise HTTPException(403, "Permesso negato: solo admin/capo sala/sommelier possono modificare la carta bevande.")
 
 
 def _require_reader(user: dict) -> None:
@@ -470,7 +470,7 @@ def update_tipologie_sezione(key: str, payload: TipologieUpdate, user: dict = De
 def update_calcolo_prezzo(
     key: str,
     payload: dict,
-    user: dict = Depends(richiede_ruoli("admin", "sommelier", cosa="i parametri del calcolo prezzo")),
+    user: dict = Depends(richiede_ruoli("admin", "sommelier", "capo_sala", cosa="i parametri del calcolo prezzo")),
 ):
     """Salva i parametri del calcolo prezzo della sezione (incidenza, IVA, dosi…)."""
     _ensure_db()

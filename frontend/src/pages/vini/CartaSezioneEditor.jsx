@@ -36,8 +36,8 @@ const NUMERIC_FIELDS = new Set(["gradazione", "ibu", "prezzo_eur", "costo_bottig
 // Campi del calcolo prezzo (mig 183): fuori dallo schema_form, gestiti da CalcoloPrezzoBox
 const COST_FIELDS = ["costo_bottiglia", "accisa_bottiglia", "bottiglia_cl", "dose_cl"];
 // Ruoli (allineati al backend): chi vede i costi / chi modifica la carta
-const ROLES_COSTI = ["admin", "superadmin", "sommelier", "sala"];
-const ROLES_EDITOR = ["admin", "superadmin", "sommelier"];
+const ROLES_COSTI = ["admin", "superadmin", "sommelier", "capo_sala", "sala"];
+const ROLES_EDITOR = ["admin", "superadmin", "sommelier", "capo_sala"];
 // Campi boolean (checkbox) → 0/1 al backend (mig 106 birre: gluten_free)
 const BOOLEAN_FIELDS = new Set(["gluten_free", "analcolica"]);
 

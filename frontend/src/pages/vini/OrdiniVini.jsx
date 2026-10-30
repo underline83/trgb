@@ -79,7 +79,7 @@ export default function OrdiniVini() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
-  const canEdit = ["admin", "superadmin", "sommelier"].includes(role);
+  const canEdit = ["admin", "superadmin", "sommelier", "capo_sala"].includes(role);
 
   // La dashboard linka qui con ?fornitore=<nome>: chi clicca "+ ordina" su un
   // vino deve atterrare sul distributore giusto, non sul primo della lista.

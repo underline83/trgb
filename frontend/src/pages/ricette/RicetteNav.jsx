@@ -17,7 +17,7 @@ const TABS = [
   { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },
   { key: "menu", label: "Menu", path: "/menu-carta", icon: "📋", roles: ["admin", "chef", "sous_chef"] },
   { key: "piatti", label: "Piatti che vanno", path: "/cucina/piatti", icon: "📈", roles: ["admin", "chef", "sous_chef"] },
-  { key: "dashboard", label: "Food Cost", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier"] },
+  { key: "dashboard", label: "Food Cost", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier", "capo_sala"] },
   { key: "settings", label: "Impostazioni", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },
 ];
 

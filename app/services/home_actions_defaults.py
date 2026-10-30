@@ -147,6 +147,7 @@ DEFAULTS_BY_ROLE: Dict[str, List[Dict]] = {
     "superadmin": VINI_ACTIONS_DEFAULTS,
     "contabile":  ADMIN_ACTIONS_DEFAULTS,
     "sommelier":  VINI_ACTIONS_DEFAULTS,
+    "capo_sala":  VINI_ACTIONS_DEFAULTS,
     "chef":       CUCINA_ACTIONS_DEFAULTS,
     "sous_chef":  CUCINA_ACTIONS_DEFAULTS,
     "commis":     COMMIS_ACTIONS_DEFAULTS,

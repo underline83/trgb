@@ -76,16 +76,16 @@ function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder
 // SIDEBAR MENU ITEMS
 // ---------------------------------------------------------------
 const MENU = [
-  { key: "import",      label: "Import / Export",     icon: "📥", desc: "Sync cantina, import CSV, reset giacenze" },
+  { key: "import",      label: "Import / Export",     icon: "📥", desc: "Sync cantina, import CSV, reset giacenze", adminOnly: true },
   { key: "ipratico",    label: "iPratico Sync",       icon: "🔄", desc: "Import / export verso iPratico Cloud" },
   { key: "carta",       label: "Carta dei Vini",      icon: "📜", desc: "Genera PDF/DOCX pubblica e staff" },
   { key: "ordinamento", label: "Ordinamento Carta",   icon: "📋", desc: "Ordine tipologie, regioni, denominazioni" },
-  { key: "markup",      label: "Markup Prezzi",       icon: "💰", desc: "Ricarichi per fascia costo / tipologia" },
-  { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍", desc: "Frigo, cantina, sale, matrici posti" },
+  { key: "markup",      label: "Markup Prezzi",       icon: "💰", desc: "Ricarichi per fascia costo / tipologia", adminOnly: true },
+  { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍", desc: "Frigo, cantina, sale, matrici posti", adminOnly: true },
   { key: "stati",       label: "Stati",               icon: "🏷️", desc: "Stati vendita, riordino, conservazione" },
   { key: "widget",      label: "Widget e soglie",     icon: "⚙️", desc: "Calici, dashboard, prezzi, ritmo vendita" },
   // Voce "🧪 Anagrafiche (beta)" rimossa qui — vive in /vini/anagrafiche da M2.5-arch.
-  { key: "manutenzione",label: "Manutenzione",        icon: "🔧", desc: "Cleanup DB, backup, integrità dati" },
+  { key: "manutenzione",label: "Manutenzione",        icon: "🔧", desc: "Cleanup DB, backup, integrità dati", adminOnly: true },
 ];
 
 // ===============================================================
@@ -94,9 +94,14 @@ const MENU = [
 export default function ViniImpostazioni() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAllowed = isAdminRole(role) || role === "sommelier";
+  const isAllowed = isAdminRole(role) || role === "sommelier" || role === "capo_sala";
 
-  const [activeSection, setActiveSection] = useState("import");
+  // 2026-10-30 (Marco): il sommelier entra in Impostazioni Vini. Le sezioni
+  // `adminOnly` chiamano endpoint riservati agli admin (import/reset, ricalcolo
+  // di tutti i prezzi, configurazione locazioni, backup): agli altri non si mostrano.
+  const isAdminUser = isAdminRole(role);
+  const menuVisibile = MENU.filter((m) => !m.adminOnly || isAdminUser);
+  const [activeSection, setActiveSection] = useState(isAdminUser ? "import" : "carta");
 
   // --- Sync / Import / Export ---
   const [syncResult, setSyncResult] = useState(null);
@@ -566,7 +571,7 @@ export default function ViniImpostazioni() {
         <div className="bg-white shadow-xl rounded-2xl p-10 text-center max-w-md">
           <div className="text-5xl mb-4">🔒</div>
           <h2 className="text-xl font-bold text-neutral-800 mb-2">Accesso riservato</h2>
-          <p className="text-neutral-600 text-sm mb-4">Questa sezione è disponibile solo per amministratori e sommelier.</p>
+          <p className="text-neutral-600 text-sm mb-4">Questa sezione è disponibile solo per amministratori, capo sala e sommelier.</p>
           <Btn variant="secondary" size="md" onClick={() => navigate("/vini")}>← Menu Vini</Btn>
         </div>
       </div>
@@ -2330,7 +2335,7 @@ export default function ViniImpostazioni() {
                 Impostazioni Vini
               </h2>
               <nav className="space-y-0.5">
-                {MENU.map(item => {
+                {menuVisibile.map(item => {
                   const active = activeSection === item.key;
                   return (
                     <button key={item.key}
@@ -2361,7 +2366,7 @@ export default function ViniImpostazioni() {
               {/* ERRORE GLOBALE */}
               {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>}
               <main className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm min-h-[500px]">
-                {sectionRenderers[activeSection]?.()}
+                {menuVisibile.some((m) => m.key === activeSection) && sectionRenderers[activeSection]?.()}
               </main>
             </div>
 

@@ -63,7 +63,7 @@ from app.services.permessi import richiede_ruoli
 # Contesto: docs/audit_permessi_2026-09-01.md
 router = APIRouter(prefix="/clienti/giftcard", tags=["Clienti - Gift Card"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", cosa="gift card")),
+        Depends(richiede_ruoli("admin", "contabile", "sala", "sommelier", "capo_sala", cosa="gift card")),
     ],
 )
 

@@ -12,6 +12,7 @@ const RUOLI_DEST = [
   { value: "tutti", label: "Tutti" },
   { value: "sala", label: "Sala" },
   { value: "cucina", label: "Cucina" },
+  { value: "capo_sala", label: "Capo Sala" },
   { value: "sommelier", label: "Sommelier" },
   { value: "admin", label: "Admin" },
 ];

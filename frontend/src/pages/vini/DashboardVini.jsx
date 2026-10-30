@@ -58,7 +58,7 @@ export default function DashboardVini() {
   // Gestione catalogo = admin/superadmin/sommelier (Marco 2026-05-21).
   // Sala/viewer: sola lettura, niente "Nuovo vino" nell'accesso rapido.
   const _role = localStorage.getItem("role");
-  const isViniManager = isAdminRole(_role) || _role === "sommelier";
+  const isViniManager = isAdminRole(_role) || _role === "sommelier" || _role === "capo_sala";
 
   const [stats, setStats]         = useState(null);
   const [loading, setLoading]     = useState(false);

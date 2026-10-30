@@ -138,7 +138,7 @@ def _get_user_flessibile(
 # Ruoli da modules.json (`vini`): admin, sala, sommelier (+superadmin implicito).
 router.dependencies.append(
     Depends(richiede_ruoli_con(
-        _get_user_flessibile, "admin", "sala", "sommelier", cosa="strumenti cantina",
+        _get_user_flessibile, "admin", "sala", "sommelier", "capo_sala", cosa="strumenti cantina",
     ))
 )
 

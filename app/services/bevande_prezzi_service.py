@@ -39,7 +39,7 @@ from app.services.permessi import ha_ruoli
 
 # Chi vede costo e calcolo (deciso da Marco il 2026-10-10). La modifica resta
 # ai ruoli editor della carta bevande (admin/sommelier, _require_editor).
-RUOLI_COSTI = ("admin", "sommelier", "sala")
+RUOLI_COSTI = ("admin", "sommelier", "capo_sala", "sala")
 
 CAMPI_COSTO = ("costo_bottiglia", "accisa_bottiglia")
 

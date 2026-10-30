@@ -38,7 +38,7 @@ router = APIRouter(
     prefix="/vini/v2",
     tags=["Vini v2 — Gestione Vino 2 (test parallelo)"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="Cantina 2")),
+        Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", cosa="Cantina 2")),
     ],
 )
 

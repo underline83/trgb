@@ -31,6 +31,7 @@ MENU_BY_ROLE = {
     "admin": ["Gestione Vini", "Gestione Ricette", "Gestione Acquisti", "Gestione Amministrativa"],
     "chef": ["Gestione Ricette", "Gestione Acquisti"],
     "sommelier": ["Gestione Vini"],
+    "capo_sala": ["Gestione Vini"],
     "sala": ["Gestione Vini"],
     "viewer": []
 }

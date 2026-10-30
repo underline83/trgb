@@ -41,7 +41,7 @@ router = APIRouter(
     prefix="/vini/pricing",
     tags=["Vini Pricing"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="prezzi vini")),
+        Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", cosa="prezzi vini")),
     ],
 )
 

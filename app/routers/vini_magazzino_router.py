@@ -40,7 +40,7 @@ router = APIRouter(
     prefix="/vini/magazzino",
     tags=["Vini Magazzino"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="cantina e magazzino vini")),
+        Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", cosa="cantina e magazzino vini")),
     ],
 )
 
@@ -378,7 +378,7 @@ def create_vino_magazzino(
     if not is_vini_manager(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin e sommelier.",
+            detail="Operazione riservata ad admin, capo sala e sommelier.",
         )
 
     data: Dict[str, Any] = payload.dict(exclude_unset=True)
@@ -487,7 +487,7 @@ def duplicate_vino_endpoint(
     if not is_vini_manager(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin e sommelier.",
+            detail="Operazione riservata ad admin, capo sala e sommelier.",
         )
 
     annata = None
@@ -561,7 +561,7 @@ def delete_vino_endpoint(
     if not is_vini_manager(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin e sommelier.",
+            detail="Operazione riservata ad admin, capo sala e sommelier.",
         )
 
     deleted = db.delete_vino(vino_id)
@@ -785,7 +785,7 @@ def update_vino_magazzino(
     if not is_vini_manager(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin e sommelier.",
+            detail="Operazione riservata ad admin, capo sala e sommelier.",
         )
 
     row = db.get_vino_by_id(vino_id)
@@ -923,7 +923,7 @@ def update_bottiglia_aperta(
     if not (is_vini_manager(role) or role == "sala"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin, sommelier e sala.",
+            detail="Operazione riservata ad admin, capo sala, sommelier e sala.",
         )
 
     row = db.get_vino_by_id(vino_id)
@@ -1183,10 +1183,10 @@ def delete_movimento(
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if not (is_admin(role) or role in ("sommelier", "sala")):
+    if not (is_admin(role) or role in ("sommelier", "capo_sala", "sala")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin, sommelier o sala.",
+            detail="Operazione riservata ad admin, capo sala, sommelier o sala.",
         )
 
     # Pre-fetch per capire se sto cancellando un'ATTIVAZIONE CALICI DA RESIDUO

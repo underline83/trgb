@@ -85,7 +85,7 @@ export default function SchedaMadreV2({ madre, onOpenAnnata, onClose, onMadreSav
   // Riusa MadreEditModal del modulo Anagrafiche. Gated: admin/superadmin/sommelier.
   const [editing, setEditing] = useState(false);
   const _role = localStorage.getItem("role");
-  const isViniManager = isAdminRole(_role) || _role === "sommelier";
+  const isViniManager = isAdminRole(_role) || _role === "sommelier" || _role === "capo_sala";
   const [movimenti, setMovimenti] = useState([]);
   const [stats, setStats] = useState(null);
   const [prezziStorico, setPrezziStorico] = useState([]);

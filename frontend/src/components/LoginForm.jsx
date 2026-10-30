@@ -8,6 +8,7 @@ const ROLE_COLORS = {
   admin:      "border-amber-500",
   contabile:  "border-cyan-500",
   sommelier:  "border-purple-500",
+  capo_sala:  "border-indigo-500",
   sala:       "border-rose-500",
   chef:       "border-emerald-500",
   sous_chef:  "border-orange-500",
@@ -19,6 +20,7 @@ const ROLE_BG = {
   admin:      "bg-amber-50",
   contabile:  "bg-cyan-50",
   sommelier:  "bg-purple-50",
+  capo_sala:  "bg-indigo-50",
   sala:       "bg-rose-50",
   chef:       "bg-emerald-50",
   sous_chef:  "bg-orange-50",
@@ -30,6 +32,7 @@ const ROLE_LABELS = {
   admin:      "Admin",
   contabile:  "Contabile",
   sommelier:  "Sommelier",
+  capo_sala:  "Capo Sala",
   sala:       "Sala",
   chef:       "Chef",
   sous_chef:  "Sous Chef",
@@ -149,6 +152,7 @@ export default function LoginForm({ setToken, setRole }) {
                 ${u.role === "admin" || u.role === "superadmin" ? "bg-amber-500" :
                   u.role === "contabile" ? "bg-cyan-500" :
                   u.role === "sommelier" ? "bg-purple-500" :
+                  u.role === "capo_sala" ? "bg-indigo-500" :
                   u.role === "sala" ? "bg-rose-500" :
                   u.role === "chef" ? "bg-emerald-500" :
                   u.role === "sous_chef" ? "bg-orange-500" :
@@ -188,6 +192,7 @@ export default function LoginForm({ setToken, setRole }) {
           ${selectedUser.role === "admin" || selectedUser.role === "superadmin" ? "bg-amber-500" :
             selectedUser.role === "contabile" ? "bg-cyan-500" :
             selectedUser.role === "sommelier" ? "bg-purple-500" :
+            selectedUser.role === "capo_sala" ? "bg-indigo-500" :
             selectedUser.role === "sala" ? "bg-rose-500" :
             selectedUser.role === "chef" ? "bg-emerald-500" :
             selectedUser.role === "sous_chef" ? "bg-orange-500" :

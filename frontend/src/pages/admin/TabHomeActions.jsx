@@ -25,6 +25,7 @@ const ROLES = [
   { key: "superadmin", label: "Superadmin", icon: "⭐" },
   { key: "contabile",  label: "Contabile",  icon: "📊" },
   { key: "sommelier",  label: "Sommelier",  icon: "🍷" },
+  { key: "capo_sala",  label: "Capo Sala",  icon: "🎩" },
   { key: "chef",       label: "Chef",       icon: "👨‍🍳" },
   { key: "sous_chef",  label: "Sous Chef",  icon: "🥘" },
   { key: "commis",     label: "Commis",     icon: "🔪" },

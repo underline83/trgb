@@ -665,7 +665,7 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
     strumento = functools.partial(_strumento, mcp)
 
     def sala() -> dict:
-        return _ruoli("admin", "sala", "sommelier", "contabile", cosa="le prenotazioni")
+        return _ruoli("admin", "sala", "sommelier", "capo_sala", "contabile", cosa="le prenotazioni")
 
     def voce(p: dict) -> dict:
         # niente telefono/email, preferenze o restrizioni: solo le allergie dichiarate
@@ -811,7 +811,7 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
 
 # ── Ricette (modulo ricette) ─────────────────────────────────────────────────
 
-LETTURA_RICETTE = ("admin", "chef", "sous_chef", "commis", "sala", "sommelier", "contabile")
+LETTURA_RICETTE = ("admin", "chef", "sous_chef", "commis", "sala", "sommelier", "capo_sala", "contabile")
 CUCINA = ("admin", "chef", "sous_chef", "commis")
 DISTRUGGE = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False)
 

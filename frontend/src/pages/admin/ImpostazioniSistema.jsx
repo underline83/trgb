@@ -10,7 +10,7 @@ import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 // ---------------------------------------------------------------------------
 // COSTANTI
 // ---------------------------------------------------------------------------
-const ROLES = ["contabile", "chef", "sous_chef", "commis", "sommelier", "sala", "viewer"];
+const ROLES = ["contabile", "chef", "sous_chef", "commis", "sommelier", "capo_sala", "sala", "viewer"];
 const ROLE_LABELS = {
   admin:     { label: "Admin",     icon: "👑" },
   contabile: { label: "Contabile", icon: "📊" },
@@ -18,10 +18,11 @@ const ROLE_LABELS = {
   sous_chef: { label: "Sous Chef", icon: "🥘" },
   commis:    { label: "Commis",    icon: "🔪" },
   sommelier: { label: "Sommelier", icon: "🍷" },
+  capo_sala: { label: "Capo Sala", icon: "🎩" },
   sala:      { label: "Sala",      icon: "🍽️" },
   viewer:    { label: "Viewer",    icon: "👁" },
 };
-const ALL_ROLES = ["admin", "contabile", "chef", "sous_chef", "commis", "sommelier", "sala", "viewer"];
+const ALL_ROLES = ["admin", "contabile", "chef", "sous_chef", "commis", "sommelier", "capo_sala", "sala", "viewer"];
 const VALID_TABS = ["utenti", "moduli", "notifiche", "email", "home-actions", "backup"];
 
 // ---------------------------------------------------------------------------

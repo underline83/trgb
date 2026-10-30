@@ -45,7 +45,7 @@ const LS_CONTATTI = "vini_distributori_contatti";
 
 export default function DistributoriPanel() {
   const role = (typeof localStorage !== "undefined" ? localStorage.getItem("role") : "") || "";
-  const canEdit = role === "admin" || role === "superadmin" || role === "sommelier";
+  const canEdit = role === "admin" || role === "superadmin" || role === "sommelier" || role === "capo_sala";
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -751,7 +751,7 @@ function InterruttoreAttivo({ attivo, readOnly, saving, onToggle }) {
       disabled={readOnly || saving}
       onClick={onToggle}
       aria-pressed={attivo}
-      title={readOnly ? "Serve il ruolo admin o sommelier"
+      title={readOnly ? "Serve il ruolo admin, capo sala o sommelier"
             : attivo ? "Attivo: compare fra i distributori a cui ordinare"
                      : "Non attivo: nascosto dalla pagina Ordini (i suoi vini restano in cantina)"}
       className={`relative w-10 h-5 rounded-full transition-colors ${saving ? "opacity-50" : ""} ${
@@ -874,7 +874,7 @@ function ContattoCell({ fornitore, col, editing, saving, error, readOnly, onOpen
       type="button"
       disabled={readOnly}
       onClick={onOpen}
-      title={readOnly ? "Serve il ruolo admin o sommelier" : `Modifica ${col.label.toLowerCase()}`}
+      title={readOnly ? "Serve il ruolo admin, capo sala o sommelier" : `Modifica ${col.label.toLowerCase()}`}
       className={`w-full text-left px-2 py-1 rounded-md border border-transparent transition min-h-[32px] ${
         readOnly ? "cursor-default" : "hover:border-amber-300 hover:bg-amber-50/60 cursor-text"
       }`}

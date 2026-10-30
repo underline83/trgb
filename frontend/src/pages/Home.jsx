@@ -128,7 +128,7 @@ export default function Home() {
       .then((r) => r.json())
       .then(setModules)
       .catch(() => {
-        setModules(Object.keys(MODULES_MENU).map((key) => ({ key, roles: ["superadmin", "admin", "chef", "sommelier", "sala", "viewer"] })));
+        setModules(Object.keys(MODULES_MENU).map((key) => ({ key, roles: ["superadmin", "admin", "chef", "sommelier", "capo_sala", "sala", "viewer"] })));
       })
       .finally(() => setModulesLoading(false));
   }, []);

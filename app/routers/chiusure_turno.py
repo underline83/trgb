@@ -252,7 +252,7 @@ def check_allowed_role(current_user: dict) -> None:
     Allowed roles: admin, sommelier, sala
     NOT allowed: viewer, chef
     """
-    allowed_roles = {"superadmin", "admin", "sommelier", "sala"}
+    allowed_roles = {"superadmin", "admin", "sommelier", "capo_sala", "sala"}
     user_role = current_user.get("role")
 
     if user_role not in allowed_roles:

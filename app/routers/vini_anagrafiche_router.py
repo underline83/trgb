@@ -34,7 +34,7 @@ router = APIRouter(
     prefix="/vini/anagrafiche",
     tags=["Vini Anagrafiche (refactor V.6+V.7+V.8)"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "sala", "sommelier", cosa="anagrafiche vini")),
+        Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", cosa="anagrafiche vini")),
     ],
 )
 
@@ -66,7 +66,7 @@ def _require_vini_manager(current_user: Any):
     if not is_vini_manager(_role_of(current_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin e sommelier."
+            detail="Operazione riservata ad admin, capo sala e sommelier."
         )
 
 

@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-30 — Nuovo ruolo «Capo Sala» `[core]`
+
+Sistema 5.86, mig 221. Il livello che finora si chiamava Sommelier è in realtà il Capo Sala: nasce `capo_sala` con gli stessi permessi del sommelier di oggi (vini, prenotazioni, clienti, selezioni, chiusura turno, ricette in lettura, food cost) e le stesse azioni in Home. Il sommelier invece ha ora tutto il modulo Vini (vini 4.2): Anagrafiche, Impostazioni e iPratico Sync. Le operazioni di massa (import/reset, ricalcolo di tutti i prezzi, locazioni, backup) restano agli admin.
+
 ## 2026-10-29 — Linea cucina: scorta di dispensa, e il «+» fra parentesi non spezza la voce `[core]`
 
 cucinaScorte 1.13, sistema 5.85, mig 220. Marco: «mettiamo la dispensa». Nuovo `cucina_articoli.scorta_min_dispensa` (riempito dal `scorta_minima` degli articoli SECCO: riso 10 kg, fusilloni 5, pasta mista 3, pipe 5); con un minimo la partita ha la voce `SCORTA_DISPENSA`, contata sui ripiani DISPENSA/SCAFFALE come frigo e gelo (conferma = rettifica per ripiano; sotto il minimo → Lista spesa «da confermare»). «Minimo dispensa» e giacenza in dispensa nella scheda Linea delle ricette. File: mig 220, `cucina_scorte_db`, `cucina_scorte_router`, `cucina_scorte_service` (FAMIGLIE_LINEA), `linea_checklist`, `linea_esiti`, `tasks_schema`, `tasks_router`, `CucinaMobile.jsx`, `InstanceDetail.jsx`, `LineaTab.jsx`. Dati: create via UI-API le ubicazioni «Banco frigo 1» (3 sportelli × 2 ripiani, S1-1…S3-2), «Banco frigo 2» (2 sportelli × 3 ripiani + 2 cassettoni, S1-1…S2-3, C1, C2) e «Dispensa» (1 ripiano).

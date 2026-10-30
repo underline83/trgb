@@ -66,7 +66,7 @@ router = APIRouter(
     prefix="/piatti-giorno",
     tags=["piatti-giorno"],
     dependencies=[
-        Depends(richiede_ruoli("admin", "chef", "sala", "sommelier", cosa="piatti del giorno")),
+        Depends(richiede_ruoli("admin", "chef", "sala", "sommelier", "capo_sala", cosa="piatti del giorno")),
     ],
 )
 

@@ -36,7 +36,7 @@ function FilterCheck({ label, count, checked, onChange, tone }) {
 export default function RicetteIngredienti() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const canMatch = ["admin", "sommelier", "superadmin"].includes(role);
+  const canMatch = ["admin", "sommelier", "capo_sala", "superadmin"].includes(role);
   const sort = useSortableTable("nome", "asc");
 
   const [items, setItems] = useState([]);
