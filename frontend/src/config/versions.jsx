@@ -653,6 +653,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.87 (2026-10-30): mig 222 — ruoli capo_sala/sommelier scritti nei modules.json VERI del locale (seed + runtime in locali/<id>/data); app/data/modules.json non è letto da nessuno. Riallineato anche il campo version (era rimasto 5.85 al push 5.86).
     // 5.86 (2026-10-30): mig 221 — ruolo capo_sala (= permessi di oggi del sommelier), home_actions copiate. VERSION riallineato (era 5.78).
     // 5.85 (2026-10-29): mig 220 — cucina_articoli.scorta_min_dispensa (cucinaScorte 1.13).
     // 5.84 (2026-10-29): mig 219 — tavoli_posizioni_turno (prenotazioni 2.31).
@@ -769,7 +770,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.85",
+    version: "5.87",
     label: "Sistema",
     status: "stabile",
     color: "green",

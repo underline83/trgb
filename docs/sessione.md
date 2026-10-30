@@ -1,10 +1,12 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-10-30 — **DA PUSHARE:** ruolo Capo Sala (mig 221); gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.86 (da pushare) · **Migrazione più recente:** 221
+**Sistema:** 5.87 (da pushare) · **Migrazione più recente:** 222
+
+**DA PUSHARE — FIX ruoli moduli sul VPS** (mig 222, sistema 5.87) `[core]` — il push 035a4403 (capo_sala + sommelier su tutto Vini) aveva toccato `app/data/modules.json`, che NON è letto: seed e runtime veri sono in `locali/<id>/data/`. Sintomo: Paolo cliccando Anagrafiche tornava alla Home. La mig 222 patcha seed (se c'è) e runtime sul VPS. Dopo il push: Paolo ricarica (Ctrl+Shift+R) → Vini › Anagrafiche si apre. ⚠️ `app/data/modules.json` è un file morto tracciato in git: i ruoli si cambiano da Impostazioni › Moduli o con una migrazione sul runtime.
 
 **DA PUSHARE — Ruolo «Capo Sala»** (mig 221, sistema 5.86) `[core]` — Marco 2026-10-30: «il livello attuale di Sommelier in realtà è il Capo Sala». Nuovo ruolo `capo_sala` con ESATTAMENTE i permessi di oggi del sommelier: aggiunto accanto a `sommelier` in tutti i `richiede_ruoli`/`verifica_ruoli`, `VALID_ROLES`, `is_vini_manager`, `modules.json` (27 liste) + `DEFAULT_MODULES`, check FE (`=== "sommelier"`, liste roles), etichette/colori (🎩, indigo), destinatari comunicazioni/notifiche, Home (defaults + mig 221 copia le azioni del sommelier). Il sommelier resta com'è: Marco lo ridefinisce dopo. Dopo il push: Gestione Utenti → Paolo Sola e Iryna a «Capo Sala»; login con uno dei due → stessi moduli di prima. NB: il seed modules.json cambia → le modifiche ai ruoli fatte da Impostazioni › Moduli vengono riscritte dal seed. Notifiche/alert già destinati a «sommelier» non arrivano a capo_sala.
 
