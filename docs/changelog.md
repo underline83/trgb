@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-10-31 — Prenotazioni: il 4 si divide anche quando è occupato `[core]`
+
+Prenotazioni 2.32, nessuna migrazione. Marco: «è sparita la possibilità di dividere il 4, infatti vedi una prenotazione che "non ha posto" ma in realtà c'è» (sabato 31, cena: Pavoni 2 persone sul «4», Buquicchio 2 persone senza posto). Le metà del 4 si chiamano «4C» e «4»: «4» scritto valeva sempre il tavolo intero. Ora nel motore (`_contesto` → `ambigui`, `risolvi`) «4» da solo con coperti che stanno nella metà «4» occupa solo quella metà, e il 4C resta libero (suggerito). `POST /tavoli/divisioni` accetta un tavolo occupato se la sua metà ha lo stesso nome e chi c'è sopra ci sta; in mappa «✂️ Dividi» c'è anche nella scheda della prenotazione (prima solo nel menu del tavolo libero).
+
 ## 2026-10-30 — Nuovo ruolo «Capo Sala» `[core]`
 
 Sistema 5.86, mig 221. Il livello che finora si chiamava Sommelier è in realtà il Capo Sala: nasce `capo_sala` con gli stessi permessi del sommelier di oggi (vini, prenotazioni, clienti, selezioni, chiusura turno, ricette in lettura, food cost) e le stesse azioni in Home. Il sommelier invece ha ora tutto il modulo Vini (vini 4.2): Anagrafiche, Impostazioni e iPratico Sync. Le operazioni di massa (import/reset, ricalcolo di tutti i prezzi, locazioni, backup) restano agli admin.

@@ -1,4 +1,4 @@
-// @version: v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -603,6 +603,11 @@ export default function TavoliMappa() {
                     <button onClick={() => { staccaUnione(selectedTavolo); setSelectedPren(null); setSelectedTavolo(null); }}
                       title={`Stacca ${selectedTavolo.membri_nomi?.join(" e ")}: la prenotazione resta, i tavoli tornano singoli`}
                       className="px-2 py-1 text-[10px] border border-neutral-300 text-neutral-600 rounded">✂️ Stacca {selectedTavolo.nome}</button>
+                  )}
+                  {selectedTavolo?.dividibile === 1 && !selectedTavolo.diviso_da && !selectedTavolo.legato && (
+                    <button onClick={() => { dividiTavolo(selectedTavolo); setSelectedPren(null); setSelectedTavolo(null); }}
+                      title="Dividi il tavolo in due per questo turno: se la prenotazione ci sta, resta su una metà e l'altra si libera"
+                      className="px-2 py-1 text-[10px] border border-neutral-300 text-neutral-600 rounded">✂️ Dividi {(selectedTavolo.nomi_meta || "").includes(",") ? selectedTavolo.nomi_meta.replace(",", " +") : ""}</button>
                   )}
                 </div>
               </div>

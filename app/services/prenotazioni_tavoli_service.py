@@ -357,7 +357,8 @@ def _sovrap(a, b) -> bool:
 
 def risolvi(prenotazioni: List[Dict[str, Any]], unita: List[Dict[str, Any]], dur: int, soglia: int,
             prolunghe_max: Optional[int] = None, fisse_da_tavolo: bool = True,
-            mappa: Optional[Dict[str, List[str]]] = None) -> Dict[str, Any]:
+            mappa: Optional[Dict[str, List[str]]] = None,
+            ambigui: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
     """
     Assegna le prenotazioni senza tavolo alle unità. Ritorna
     {assegnate: {pren_id: unità}, senza_posto: [pren_id], fisse: {pren_id: [nomi]}, forzate: {pren_id: unità}}.
@@ -372,7 +373,10 @@ def risolvi(prenotazioni: List[Dict[str, Any]], unita: List[Dict[str, Any]], dur
     for p in prenotazioni:
         iv = _intervallo(p, dur, soglia)
         scritti = nomi_tavolo(p.get("tavolo")) if fisse_da_tavolo else []
-        nomi = [x for n in scritti for x in mappa.get(n, [])]
+        if len(scritti) == 1 and scritti[0] in (ambigui or {}) and (p.get("pax") or 0) <= ambigui[scritti[0]]:
+            nomi = [scritti[0]]   # «4» con 2 persone = la metà «4»: l'altra (4C) resta libera
+        else:
+            nomi = [x for n in scritti for x in mappa.get(n, [])]
         if scritti:   # tavolo scritto a mano: resta quello, anche se non è nella mappa
             fisse[p["id"]] = scritti
             doppi = [n for n in nomi if any(_sovrap(iv, x) for x in occ.get(n, ()))]
@@ -478,6 +482,8 @@ def _contesto(conn, data: str, turno: str):
     unita, mappa = _unita(conn, data, turno, sale, _int(config.get("posti_prolunga"), 2))
     # «4» è sia il tavolo intero sia una metà (metà «4» e «4C»): se quel turno qualcuno
     # è scritto sull'altra metà, «4» vuol dire la metà
+    # e se ci sono poche persone (stanno nella metà), «4» è la metà: l'altra resta libera
+    ambigui: Dict[str, int] = {}
     for r in conn.execute("SELECT * FROM tavoli WHERE attivo = 1 AND dividibile = 1"):
         r = dict(r)
         meta = nomi_meta(r)
@@ -485,9 +491,13 @@ def _contesto(conn, data: str, turno: str):
             altra = meta[1] if meta[0] == r["nome"] else meta[0]
             if altra in nomi_scritti:
                 mappa[r["nome"]] = [r["nome"]]
+            elif len(mappa[r["nome"]]) == 2:
+                pA, pB = posti_meta(r["posti_max"] or 2)
+                ambigui[r["nome"]] = pA if meta[0] == r["nome"] else pB
     pm = config.get("prolunghe_disponibili")
     return config, pren, unita, {
         "mappa": mappa,
+        "ambigui": ambigui,
         "dur": durata(config, turno, data),
         "soglia": _int(config.get("gruppo_turno_intero"), 10),
         "prolunghe_max": _int(pm, None) if pm not in (None, "") else None,
@@ -503,7 +513,7 @@ def _u(u) -> Dict[str, Any]:
 def piano(conn, data: str, turno: str) -> Dict[str, Any]:
     """Tavolo suggerito per ogni prenotazione senza tavolo del turno."""
     _, pren, unita, k = _contesto(conn, data, turno)
-    r = risolvi(pren, unita, k["dur"], k["soglia"], k["prolunghe_max"], mappa=k["mappa"])
+    r = risolvi(pren, unita, k["dur"], k["soglia"], k["prolunghe_max"], mappa=k["mappa"], ambigui=k["ambigui"])
     out = []
     for p in pren:
         voce = {"id": p["id"], "ora": (p["ora_pasto"] or "")[:5], "pax": p["pax"], "nome": p["nome"], "tavolo": p["tavolo"] or None}
@@ -539,13 +549,13 @@ class Verificatore:
     def __init__(self, conn, data: str, turno: str, escludi_id: Optional[int] = None):
         _, pren, self.unita, self.k = _contesto(conn, data, turno)
         self.pren = [p for p in pren if p["id"] != escludi_id]
-        base = risolvi(self.pren, self.unita, self.k["dur"], self.k["soglia"], self.k["prolunghe_max"], mappa=self.k["mappa"])
+        base = risolvi(self.pren, self.unita, self.k["dur"], self.k["soglia"], self.k["prolunghe_max"], mappa=self.k["mappa"], ambigui=self.k["ambigui"])
         self.fuori_prima = len(base["senza_posto"])
         self.ha_tavoli = bool(self.unita)
 
     def verifica(self, pax: int, ora: str) -> Dict[str, Any]:
         nuova = {"id": "_nuova", "ora_pasto": ora, "pax": pax, "tavolo": None}
-        r = risolvi(self.pren + [nuova], self.unita, self.k["dur"], self.k["soglia"], self.k["prolunghe_max"], mappa=self.k["mappa"])
+        r = risolvi(self.pren + [nuova], self.unita, self.k["dur"], self.k["soglia"], self.k["prolunghe_max"], mappa=self.k["mappa"], ambigui=self.k["ambigui"])
         fuori_dopo = len(r["senza_posto"])
         u = r["assegnate"].get("_nuova") or r["forzate"].get("_nuova")
         entra = u is not None and fuori_dopo <= self.fuori_prima

@@ -1431,7 +1431,17 @@ def dividi_tavolo(req: DivisioneTavolo, user: dict = Depends(get_current_user)):
         if not t["dividibile"]:
             raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} non è segnato come dividibile (Editor Tavoli)")
         if t["nome"] in _nomi_occupati(conn, req.data, req.turno):
-            raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è assegnato a una prenotazione: liberalo prima di dividerlo")
+            # Ammesso se la metà ha lo stesso nome del tavolo (4 = «4» + «4C») e chi c'è sopra
+            # ci sta: dopo la divisione resta sulla metà «4», l'altra si libera.
+            meta = tavoli_srv.nomi_meta(dict(t))
+            pA, pB = tavoli_srv.posti_meta(t["posti_max"] or 2)
+            posti_meta_uguale = pA if meta[0] == t["nome"] else pB if meta[1] == t["nome"] else 0
+            sopra = [r["pax"] or 0 for r in conn.execute("""
+                SELECT pax, tavolo FROM clienti_prenotazioni
+                WHERE data_pasto = ? AND turno = ? AND stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+            """, (req.data, req.turno)) if t["nome"] in tavoli_srv.nomi_tavolo(r["tavolo"])]
+            if not posti_meta_uguale or any(n > posti_meta_uguale for n in sopra):
+                raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è assegnato a una prenotazione che non sta in metà tavolo: spostala prima di dividerlo")
         if req.tavolo_id in _blocchi_turno(conn, req.data, req.turno):
             raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è bloccato: sbloccalo prima")
         nA, nB = tavoli_srv.nomi_meta(dict(t))
