@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-01 — Calendario turni: la Sala Cena col suo orario `[core]`
+
+Dipendenti 2.42, nessuna migrazione. Marco: «mi sono iscritto al mio calendario turni, ma vedo solo la cucina e non la sala». Il feed conteneva già tutti i turni, ma la Sala Cena finisce alle «24:00» (orario del reparto Sala): `time(24, 0)` andava in errore e il turno usciva come evento di tutto il giorno, che sull'iPhone finisce nella fascetta in alto. `turni_calendario_service`: gli orari si leggono in minuti (24:00 = fine giornata) e il turno che passa la mezzanotte va al giorno dopo. Il telefono rilegge il feed da solo (REFRESH 1h).
+
 ## 2026-10-31 — Prenotazioni: il 4 si divide anche quando è occupato `[core]`
 
 Prenotazioni 2.32, nessuna migrazione. Marco: «è sparita la possibilità di dividere il 4, infatti vedi una prenotazione che "non ha posto" ma in realtà c'è» (sabato 31, cena: Pavoni 2 persone sul «4», Buquicchio 2 persone senza posto). Le metà del 4 si chiamano «4C» e «4»: «4» scritto valeva sempre il tavolo intero. Ora nel motore (`_contesto` → `ambigui`, `risolvi`) «4» da solo con coperti che stanno nella metà «4» occupa solo quella metà, e il 4C resta libero (suggerito). `POST /tavoli/divisioni` accetta un tavolo occupato se la sua metà ha lo stesso nome e chi c'è sopra ci sta; in mappa «✂️ Dividi» c'è anche nella scheda della prenotazione (prima solo nel menu del tavolo libero).

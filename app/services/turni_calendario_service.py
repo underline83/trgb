@@ -110,10 +110,16 @@ def _utc(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _hhmm(s: Optional[str]) -> Optional[time]:
+def _minuti(s: Optional[str]) -> Optional[int]:
+    """'HH:MM' → minuti dalla mezzanotte. Accetta '24:00' (= 1440, fine giornata):
+    è l'orario di chiusura della sala; con time() andava in errore e il turno
+    finiva nel calendario come evento di tutto il giorno."""
     try:
         h, m = (s or "").strip()[:5].split(":")
-        return time(int(h), int(m))
+        h, m = int(h), int(m)
+        if not (0 <= m < 60 and 0 <= h <= 24) or (h == 24 and m):
+            return None
+        return h * 60 + m
     except Exception:
         return None
 
@@ -172,12 +178,14 @@ def genera_ics(dipendente_id: int) -> str:
         opz = (t.get("stato") or "").upper() == "OPZIONALE"
         titolo = (t.get("turno_nome") or "Turno") + (" (da confermare)" if opz else "")
         ev = ["BEGIN:VEVENT", f"UID:turno-{t['id']}@{host}", f"DTSTAMP:{stamp}"]
-        hi, hf = _hhmm(t.get("ora_inizio")), _hhmm(t.get("ora_fine"))
-        if hi and hf:
-            ini = datetime.combine(g, hi, tzinfo=tz)
-            fin = datetime.combine(g, hf, tzinfo=tz)
-            if fin <= ini:  # turno che passa la mezzanotte
-                fin = datetime.combine(g + timedelta(days=1), hf, tzinfo=tz)
+        mi, mf = _minuti(t.get("ora_inizio")), _minuti(t.get("ora_fine"))
+        if mi is not None and mf is not None:
+            mezzanotte = datetime.combine(g, time(0, 0))
+            if mf <= mi:  # turno che passa la mezzanotte (es. 18:00-01:00)
+                mf += 1440
+            # ora locale → tz solo alla fine (gestisce il cambio ora legale)
+            ini = (mezzanotte + timedelta(minutes=mi)).replace(tzinfo=tz)
+            fin = (mezzanotte + timedelta(minutes=mf)).replace(tzinfo=tz)
             ev += [f"DTSTART:{_utc(ini)}", f"DTEND:{_utc(fin)}"]
         else:
             ev += [f"DTSTART;VALUE=DATE:{g:%Y%m%d}", f"DTEND;VALUE=DATE:{g + timedelta(days=1):%Y%m%d}"]

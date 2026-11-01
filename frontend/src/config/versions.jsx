@@ -391,7 +391,9 @@ const MODULE_VERSIONS = {
     //   «Area personale» (Home, menu, nav, blocco PIN). Route invariate.
     // 2.41 (2026-10-20): «📅 Calendario» in I miei turni — abbonamento iPhone
     //   (webcal) / Google Calendar e file .ics; link personale rigenerabile. Mig 203.
-    version: "2.41",
+    // 2.42 (2026-11-01): calendario .ics — i turni che finiscono alle 24:00 (Sala
+    //   Cena) uscivano come eventi «tutto il giorno»; ora hanno l'orario giusto.
+    version: "2.42",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
