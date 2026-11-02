@@ -1724,6 +1724,7 @@ const SchedaVino = forwardRef(function SchedaVino({
                     "BULK-UPDATE":           { label: "Modifica massiva", cls: "bg-orange-50 text-orange-700 border-orange-200" },
                     "PRICING-CALCOLA":       { label: "Ricalcolo",    cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
                     "PRICING-APPLICA":       { label: "Applica prezzi", cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+                    "MULTIFORNITORE":        { label: "Ultimo pagato", cls: "bg-amber-50 text-amber-700 border-amber-200" },
                   };
                   const filtered = prezziFiltroCampo
                     ? prezziStorico.filter(p => p.campo === prezziFiltroCampo)

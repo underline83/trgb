@@ -2282,13 +2282,20 @@ def get_piano_rate(
                 bm.data_contabile    AS banca_data_contabile,
                 bm.importo           AS banca_importo,
                 bm.descrizione       AS banca_descrizione,
-                bm.ragione_sociale   AS banca_ragione_sociale
+                bm.ragione_sociale   AS banca_ragione_sociale,
+                -- 2026-11-02 (pratiche v1.1): data originale e distinta, per
+                -- vedere le rate «in distinta» non ancora abbinate in banca
+                u.data_scadenza_originale AS uscita_scadenza_originale,
+                u.pagamento_batch_id AS batch_id,
+                pb.titolo            AS batch_titolo
             FROM cg_piano_rate pr
             LEFT JOIN cg_uscite u
               ON u.spesa_fissa_id = pr.spesa_fissa_id
              AND u.periodo_riferimento = pr.periodo
             LEFT JOIN banca_movimenti bm
               ON bm.id = u.banca_movimento_id
+            LEFT JOIN cg_pagamenti_batch pb
+              ON pb.id = u.pagamento_batch_id
             WHERE pr.spesa_fissa_id = ?
             ORDER BY pr.periodo
         """, (spesa_id,)).fetchall()

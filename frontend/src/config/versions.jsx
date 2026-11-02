@@ -3,6 +3,9 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.4 (2026-11-02): Fornitori e «Da chi arriva» con lo stile della scheda (tabelle,
+    //   pill, campi del form Movimenti, Btn); «Ultimo pagato» come origine nello storico prezzi.
+    //   Wizard Nuovo Vino: iPratico acceso di default.
     // 4.3 (2026-11-02): VMF.1+VMF.2 multi-fornitore — scheda vino › Prezzi › Fornitori
     //   (più fornitori per vino, ⭐ preferito = quello degli ordini, prezzo pagato/listino
     //   per fornitore e storico); carico con «Da chi arriva» (ordine aperto che il carico
@@ -171,7 +174,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.3",
+    version: "4.4",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

@@ -1,10 +1,11 @@
 // Modulo: vini (multi-fornitore) — [core]
-// @version: v1.0 — VMF.2 (2026-11-02). Spec: docs/spec_vini_multifornitore.md D3
+// @version: v1.1 — stile del form Movimenti. v1.0 VMF.2 (2026-11-02). Spec: docs/spec_vini_multifornitore.md D3
 // «Da chi arriva» nel carico della scheda vino. Marco 02/11: se c'è un ordine
 // aperto fatto dal modulo Ordini lo propone (e il carico lo chiude); se no,
 // tendina coi fornitori del vino, l'ultimo usato in cima, e «aggiungi».
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn } from "../ui";
 
 const euro = (v) => (v == null ? null : Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + " €");
 const dataIt = (d) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "");
@@ -78,10 +79,10 @@ export default function CaricoFornitore({ bottigliaId, madreId, canAdd, value, o
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">Da chi arriva</span>
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Da chi arriva</span>
       <select value={aggiungo ? "__nuovo" : valoreSelect} onChange={e => scegli(e.target.value)}
-        className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white min-h-[44px] max-w-full">
+        className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 max-w-full">
         {prop.ordini_aperti.length > 0 && (
           <optgroup label="Ordini aperti">
             {prop.ordini_aperti.map(o => (
@@ -105,8 +106,8 @@ export default function CaricoFornitore({ bottigliaId, madreId, canAdd, value, o
         <>
           <input autoFocus value={nomeNuovo} onChange={e => setNomeNuovo(e.target.value)} placeholder="Nome (es. Diretto)"
             onKeyDown={e => { if (e.key === "Enter") salvaNuovo(); }}
-            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm min-h-[44px]" />
-          <button type="button" onClick={salvaNuovo} className="text-sm text-brand-blue font-semibold px-2 min-h-[44px]">Aggiungi</button>
+            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+          <Btn variant="secondary" size="md" type="button" onClick={salvaNuovo} disabled={!nomeNuovo.trim()}>Aggiungi</Btn>
         </>
       )}
       {value?.tipo === "ordine" && (

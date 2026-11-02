@@ -1105,7 +1105,9 @@ def _check_pratiche_termini(dry_run: bool = False, config: dict = None) -> Check
     Tre gruppi in una notifica sola (forma di `dipendenti_scadenze`):
       1. scadute (termine passato, pratica aperta) → urgenza alta;
       2. in scadenza entro `soglia_giorni` (default 3);
-      3. ferme: aperte, senza termine, senza passi da 30 giorni.
+      3. ferme: aperte, senza termine, senza passi da 30 giorni;
+      4. (pratiche v1.1) in attesa di mezzi arrivate alla data di revisione.
+    Le pratiche in attesa di mezzi non sono mai scadute né ferme.
     Il tempo non cambia lo stato della pratica: qui si avvisa e basta.
     Legge pratiche.sqlite3 attraverso il service del modulo, non dal router
     (regola 2 di CLAUDE.md). Doc: docs/modulo_pratiche.md §3.
@@ -1123,12 +1125,14 @@ def _check_pratiche_termini(dry_run: bool = False, config: dict = None) -> Check
         return result
 
     scadute, in_scadenza, ferme = gruppi["scadute"], gruppi["in_scadenza"], gruppi["ferme"]
-    tutte = scadute + in_scadenza + ferme
+    da_rivedere = gruppi.get("da_rivedere", [])
+    tutte = scadute + in_scadenza + ferme + da_rivedere
     result.found = len(tutte)
     if result.found == 0:
         return result
 
-    for nome, lista in (("scaduta", scadute), ("in_scadenza", in_scadenza), ("ferma", ferme)):
+    for nome, lista in (("scaduta", scadute), ("in_scadenza", in_scadenza), ("ferma", ferme),
+                        ("da_rivedere", da_rivedere)):
         for p in lista:
             result.details.append({
                 "id": p["id"], "titolo": p["titolo"], "controparte": p["controparte"],
@@ -1150,6 +1154,8 @@ def _check_pratiche_termini(dry_run: bool = False, config: dict = None) -> Check
         parti.append(f"{len(in_scadenza)} in scadenza")
     if ferme:
         parti.append(f"{len(ferme)} ferm{'a' if len(ferme) == 1 else 'e'}")
+    if da_rivedere:
+        parti.append(f"{len(da_rivedere)} da rivedere")
 
     _send_notification(cfg,
         tipo="alert_pratiche_termini",

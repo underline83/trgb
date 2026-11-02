@@ -1499,6 +1499,8 @@ def _pratiche_summary() -> ModuloSummary:
             parti.append(f"{c['tocca_a_me']} tocca a me")
         if c["ferme"]:
             parti.append(f"{c['ferme']} ferm{'a' if c['ferme'] == 1 else 'e'}")
+        if c.get("da_rivedere"):
+            parti.append(f"{c['da_rivedere']} da rivedere")
         return ModuloSummary(
             key="pratiche", line1=line1,
             line2=" · ".join(parti) if parti else "Enti, fornitori, studi, creditori",

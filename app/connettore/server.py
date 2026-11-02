@@ -70,6 +70,15 @@ Regole che valgono sempre:
   suo sì. Un passo semplice («è arrivata la PEC», «ho telefonato») si scrive e si
   conferma dopo, dicendo cosa hai scritto.
 - Gli allegati si caricano dalla pagina /pratiche del gestionale, non da qui.
+- SEZIONI delle pratiche (Agenzia Entrate, Riscossione, Enti e fondi…): le decide Marco
+  dalla pagina; pratiche_riepilogo dà i conteggi. Campi del debito: tipo d'atto (col
+  gradino: comunicazione → avviso bonario → cartella → intimazione → pignoramento),
+  riferimento dell'atto, periodo, importo dovuto e residuo. Il passaggio di gradino si
+  scrive come passo (pratica_passo con tipo_atto); il passaggio da Agenzia Entrate a
+  Riscossione lo decide Marco, quando l'ADER richiama gli stessi atti.
+- IN ATTESA DI MEZZI: pratiche note che oggi non si possono pagare. Non sono scadute né
+  ferme; tornano «da rivedere» alla data di revisione (pratiche_riepilogo). Un passo
+  scritto su una pratica in attesa la conta come rivista e sposta la revisione.
 - CANDIDATI (CV ricevuti): prima di crearne uno cerca con candidati_elenco (nome/telefono/email); dati di terzi: niente dati sanitari né documenti d'identità; il CV si carica dalla pagina.
 - Date sempre AAAA-MM-GG. Mai IBAN nelle risposte; niente dati sanitari (salvo le allergie dichiarate di una prenotazione).
 - SCADENZE DIPENDENTI: cerca con scadenze_dipendenti_elenco prima di crearne una; prima di creare o cambiare riepiloga a Marco e aspetta il sì; non si cancellano da qui.
@@ -191,31 +200,108 @@ def _oggi() -> str:
     return date.today().isoformat()
 
 
+def _rate_collegate(user: dict, collegamenti: list[dict]) -> list[dict]:
+    """Per le spese fisse collegate a una pratica (modulo controllo_gestione, tipo
+    spesa_fissa): il piano rate con pagate, scadute e «in distinta» non abbinate in
+    banca. Legge con get_piano_rate (la funzione del modale Piano), sola lettura."""
+    if not module_loader.is_module_active("controllo_gestione"):
+        return []
+    from app.routers import controllo_gestione_router as cg
+    oggi = _oggi()
+    out = []
+    for c in collegamenti:
+        if c.get("modulo") != "controllo_gestione" or c.get("tipo") != "spesa_fissa":
+            continue
+        try:
+            piano = cg.get_piano_rate(int(c["ref_id"]), current_user=user)
+        except (TypeError, ValueError):
+            continue
+        if not piano.get("ok"):
+            out.append({"spesa_fissa_id": c["ref_id"], "etichetta": c["etichetta"],
+                        "errore": piano.get("error")})
+            continue
+        pagate, scadute, in_distinta, da_pagare = [], [], [], []
+        for r in piano.get("rate", []):
+            riga = _senza_vuoti({
+                "rata": r.get("numero_rata"), "periodo": r.get("periodo"), "importo": r.get("importo"),
+                "scadenza": r.get("uscita_scadenza"), "stato": r.get("uscita_stato"),
+                "scadenza_originale": r.get("uscita_scadenza_originale"),
+                "in_distinta": r.get("batch_titolo"), "pagata_il": r.get("uscita_data_pagamento"),
+                "in_banca": r.get("banca_data_contabile")})
+            stato = r.get("uscita_stato")
+            if stato in ("PAGATO", "PAGATO_MANUALE"):
+                pagate.append(riga)
+            elif r.get("batch_id") and not r.get("banca_movimento_id"):
+                in_distinta.append(riga)
+            elif r.get("uscita_scadenza") and r["uscita_scadenza"] < oggi:
+                scadute.append(riga)
+            else:
+                da_pagare.append(riga)
+        somma = lambda xs: round(sum(x.get("importo") or 0 for x in xs), 2)
+        out.append({
+            "spesa_fissa_id": c["ref_id"], "etichetta": c["etichetta"],
+            "titolo": (piano.get("spesa") or {}).get("titolo"),
+            "n_rate": len(piano.get("rate", [])),
+            "pagate": {"quante": len(pagate), "importo": somma(pagate)},
+            "scadute": {"quante": len(scadute), "importo": somma(scadute), "voci": scadute},
+            "in_distinta_non_abbinate": {"quante": len(in_distinta), "importo": somma(in_distinta),
+                                         "voci": in_distinta},
+            "da_pagare": {"quante": len(da_pagare), "importo": somma(da_pagare)},
+        })
+    return out
+
+
 def _strumenti_pratiche(mcp: MCPServer) -> None:
     from app.services import pratiche_service as svc
     strumento = functools.partial(_strumento, mcp)
     autore = _autore
+
+    def campi_debito(**valori) -> dict:
+        """Solo i campi passati; per sezione e tipo d'atto vanno bene i nomi."""
+        mappa = {"sezione": "sezione_id", "tipo_atto": "tipo_atto_id"}
+        return {mappa.get(k, k): v for k, v in valori.items() if v is not None}
 
     @strumento(SOLA_LETTURA)
     def pratiche_elenco(
         stato: Stato | None = None,
         scadute: Annotated[bool | None, Field(description="true = solo le scadute")] = None,
         ferme: Annotated[bool | None, Field(description="true = solo le ferme (senza termine e senza passi da 30 giorni)")] = None,
-        q: Annotated[str | None, Field(description="Cerca in titolo e controparte")] = None,
+        q: Annotated[str | None, Field(description="Cerca in titolo, controparte e riferimento dell'atto")] = None,
         chiuse: Annotated[bool, Field(description="true = anche le chiuse")] = False,
+        sezione: Annotated[str | None, Field(description="Nome della sezione (anche un pezzo: «entrate»); «nessuna» = senza sezione")] = None,
+        in_attesa: Annotated[bool | None, Field(description="true = solo quelle in attesa di mezzi")] = None,
+        da_rivedere: Annotated[bool | None, Field(description="true = solo quelle in attesa di mezzi arrivate alla revisione")] = None,
     ) -> dict:
         """Le pratiche, ordinate per termine (senza termine in fondo). Di default solo le
-        aperte; stato=chiusa per le chiuse. Ogni pratica ha i valori calcolati scaduta,
-        ferma e giorni_al_termine. Usalo anche per cercare se una pratica esiste già."""
+        aperte; stato=chiusa per le chiuse. Ogni pratica ha sezione, tipo_atto (e gradino),
+        rif_atto, periodo, importo_dovuto e importo_residuo, e i valori calcolati scaduta,
+        ferma, giorni_al_termine, in_attesa, da_rivedere, revisione_il. Usalo anche per
+        cercare se una pratica esiste già."""
         _utente()
-        return svc.elenco(stato=stato, scadute=scadute, ferme=ferme, q=q, chiuse=chiuse)
+        return svc.elenco(stato=stato, scadute=scadute, ferme=ferme, q=q, chiuse=chiuse,
+                          sezione=sezione, in_attesa=in_attesa, da_rivedere=da_rivedere)
+
+    @strumento(SOLA_LETTURA)
+    def pratiche_riepilogo() -> dict:
+        """Il quadro delle pratiche per il giro del mattino: per ogni sezione quante aperte,
+        tocca a me, tocca a loro, scadute, in attesa di mezzi, da rivedere e il residuo
+        dovuto; poi l'elenco delle pratiche in attesa di mezzi DA RIVEDERE oggi e di quelle
+        ancora in attesa (con la data di revisione)."""
+        _utente()
+        return svc.riepilogo()
 
     @strumento(SOLA_LETTURA)
     def pratica_leggi(id: Id) -> dict:
         """Una pratica con tutta la storia: i passi dal più recente (data, testo, cambio di
-        stato e di termine, autore, se ha un allegato) e i collegamenti ad altri moduli."""
-        _utente()
-        return svc.leggi(id)
+        stato, di termine e dei campi del debito, autore, se ha un allegato), i collegamenti
+        ad altri moduli e, se è collegata a una rateizzazione dello scadenziario, le rate:
+        pagate, scadute e «in distinta» non ancora abbinate in banca."""
+        user = _utente()
+        p = svc.leggi(id)
+        rate = _rate_collegate(user, p.get("collegamenti", []))
+        if rate:
+            p["rate"] = rate
+        return p
 
     @strumento(SCRIVE)
     def pratica_crea(
@@ -226,12 +312,23 @@ def _strumenti_pratiche(mcp: MCPServer) -> None:
         contatto: Annotated[str | None, Field(description="Email, PEC o telefono della controparte")] = None,
         termine: Giorno | None = None,
         aperta_il: Annotated[Giorno | None, Field(description="Quando è cominciata davvero (anche passata). Oggi se manca")] = None,
+        sezione: Annotated[str | None, Field(description="La sezione, col suo nome: «Agenzia Entrate»")] = None,
+        tipo_atto: Annotated[str | None, Field(description="«Comunicazione di irregolarità», «Avviso bonario», «Cartella»…")] = None,
+        rif_atto: Annotated[str | None, Field(description="ID comunicazione, numero cartella o avviso")] = None,
+        periodo: Annotated[str | None, Field(description="Anno o periodo d'imposta: «2026 II trim.»")] = None,
+        importo_dovuto: Annotated[float | None, Field(ge=0, description="Euro, dall'atto")] = None,
+        importo_residuo: Annotated[float | None, Field(ge=0, description="Euro ancora da pagare. Se manca = dovuto")] = None,
+        in_attesa_mezzi: Annotated[bool, Field(description="true = nota ma oggi non si può pagare: torna da rivedere ogni N giorni")] = False,
     ) -> dict:
         """Una pratica nuova con il suo primo passo. PRIMA cerca con pratiche_elenco se
-        esiste già, e riepiloga a Marco cosa crei: crea solo dopo il suo sì."""
+        esiste già, e riepiloga a Marco cosa crei (sezione e campi del debito compresi):
+        crea solo dopo il suo sì."""
+        campi = campi_debito(sezione=sezione, tipo_atto=tipo_atto, rif_atto=rif_atto, periodo=periodo,
+                             importo_dovuto=importo_dovuto, importo_residuo=importo_residuo,
+                             in_attesa_mezzi=in_attesa_mezzi or None)
         return svc.crea_pratica(titolo=titolo, controparte=controparte, testo=testo, stato=stato,
                                 controparte_contatto=contatto, termine=termine, aperta_il=aperta_il,
-                                autore=autore())
+                                autore=autore(), campi=campi)
 
     @strumento(SCRIVE)
     def pratica_passo(
@@ -242,15 +339,50 @@ def _strumenti_pratiche(mcp: MCPServer) -> None:
         esito: Annotated[str | None, Field(description="Obbligatorio per chiudere: come è finita")] = None,
         termine: Annotated[Giorno | None, Field(description="Nuovo termine, solo se cambia")] = None,
         togli_termine: Annotated[bool, Field(description="true = la pratica resta senza termine")] = False,
+        sezione: Annotated[str | None, Field(description="Solo se cambia sezione (es. Agenzia Entrate → Riscossione: lo decide Marco)")] = None,
+        tipo_atto: Annotated[str | None, Field(description="Solo se sale di gradino: «Avviso bonario», «Cartella»…")] = None,
+        rif_atto: Annotated[str | None, Field(description="Solo se cambia: il riferimento dell'atto nuovo")] = None,
+        periodo: Annotated[str | None, Field(description="Solo se cambia")] = None,
+        importo_dovuto: Annotated[float | None, Field(ge=0, description="Solo se cambia (sanzioni, interessi)")] = None,
+        importo_residuo: Annotated[float | None, Field(ge=0, description="Solo se cambia (dopo un pagamento)")] = None,
+        in_attesa_mezzi: Annotated[bool | None, Field(description="true = mettila in attesa di mezzi; false = toglila")] = None,
     ) -> dict:
         """Il gesto di tutti i giorni: aggiunge un passo alla storia. Può anche cambiare
-        stato (chiudere con esito, riaprire) e spostare o togliere il termine. Un passo
-        semplice scrivilo e poi dillo a Marco; per CHIUDERE chiedi prima il suo sì."""
+        stato (chiudere con esito, riaprire), spostare o togliere il termine e cambiare i
+        campi del debito: ogni cambio resta nel passo come «da → a». Su una pratica in
+        attesa di mezzi vale come revisione. Un passo semplice scrivilo e poi dillo a
+        Marco; per CHIUDERE chiedi prima il suo sì."""
         if termine and togli_termine:
             raise ToolError("Passa termine oppure togli_termine, non tutti e due.")
         nuovo_termine = None if togli_termine else (termine if termine else svc.NON_CAMBIA)
+        campi = campi_debito(sezione=sezione, tipo_atto=tipo_atto, rif_atto=rif_atto, periodo=periodo,
+                             importo_dovuto=importo_dovuto, importo_residuo=importo_residuo,
+                             in_attesa_mezzi=in_attesa_mezzi)
         return svc.aggiungi_passo(id, testo=testo, data=data, stato_a=stato, termine_a=nuovo_termine,
-                                  esito=esito, autore=autore())
+                                  esito=esito, autore=autore(), campi=campi)
+
+    @strumento(SCRIVE)
+    def pratica_correggi(
+        id: Id,
+        titolo: Annotated[str | None, Field(description="Solo se cambia")] = None,
+        controparte: Annotated[str | None, Field(description="Solo se cambia")] = None,
+        contatto: Annotated[str | None, Field(description="Solo se cambia")] = None,
+        sezione: Annotated[str | None, Field(description="La sezione, col suo nome")] = None,
+        tipo_atto: str | None = None,
+        rif_atto: str | None = None,
+        periodo: str | None = None,
+        importo_dovuto: Annotated[float | None, Field(ge=0)] = None,
+        importo_residuo: Annotated[float | None, Field(ge=0)] = None,
+    ) -> dict:
+        """Completa o corregge la testata senza un fatto nuovo: titolo, controparte,
+        contatto e i campi del debito. Un campo vuoto si riempie e basta (è una
+        classificazione); se cambia un valore già scritto resta un passo automatico «da →
+        a». Per un fatto (atto nuovo, pagamento, cambio di sezione deciso) usa pratica_passo.
+        Riepiloga a Marco cosa scrivi."""
+        campi = campi_debito(sezione=sezione, tipo_atto=tipo_atto, rif_atto=rif_atto, periodo=periodo,
+                             importo_dovuto=importo_dovuto, importo_residuo=importo_residuo)
+        return svc.aggiorna_testata(id, titolo=titolo, controparte=controparte,
+                                    controparte_contatto=contatto, campi_debito=campi, autore=autore())
 
 
 

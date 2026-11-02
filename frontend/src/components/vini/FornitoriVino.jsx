@@ -1,5 +1,5 @@
 // Modulo: vini (multi-fornitore) — [core]
-// @version: v1.0 — VMF.1 (2026-11-02). Spec: docs/spec_vini_multifornitore.md
+// @version: v1.1 — stile allineato al resto della scheda (tabelle, pill, campi, Btn). v1.0 VMF.1 (2026-11-02). Spec: docs/spec_vini_multifornitore.md
 // Fornitori di un vino nella scheda (tab Prezzi): chi lo vende, il preferito
 // (quello degli ordini), per questa annata l'ultimo pagato e l'ultimo listino
 // presso ciascuno, e lo storico. Regola del costo: ULTIMO PAGATO (Marco 02/11).
@@ -10,6 +10,22 @@ import { Btn } from "../ui";
 const euro = (v) => (v == null ? "—" : Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + " €");
 const dataIt = (d) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "—");
 const FONTI = { storico: "storico", carico: "carico", ordine: "ordine", fattura: "fattura", listino: "listino", manuale: "a mano" };
+// Pill come «Origine» dello storico prezzi della scheda
+const FONTE_CLS = {
+  storico: "bg-neutral-50 text-neutral-600 border-neutral-200",
+  carico:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  ordine:  "bg-blue-50 text-blue-700 border-blue-200",
+  fattura: "bg-violet-50 text-violet-700 border-violet-200",
+  listino: "bg-teal-50 text-teal-700 border-teal-200",
+  manuale: "bg-amber-50 text-amber-700 border-amber-200",
+};
+// Stessi campi del form Movimenti
+const CAMPO = "border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300";
+const ETICHETTA = "text-xs font-semibold text-neutral-600 uppercase tracking-wide";
+
+function Pill({ cls, children }) {
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}`}>{children}</span>;
+}
 
 export default function FornitoriVino({ madreId, bottigliaId, canEdit, onCostoCambiato }) {
   const [dati, setDati] = useState(null);
@@ -92,57 +108,65 @@ export default function FornitoriVino({ madreId, bottigliaId, canEdit, onCostoCa
   const storicoAnnata = dati.storico.filter(s => s.bottiglia_id === bottigliaId);
 
   return (
-    <div className="space-y-3">
-      {errore && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errore}</div>}
+    <div className="space-y-4">
+      {errore && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{errore}</div>
+      )}
 
       {annata?.costo_da && (
-        <div className="text-xs text-neutral-600">
-          Il costo in uso ({euro(annata.euro_listino)}) è l'ultimo pagato: <b>{annata.costo_da.fornitore_nome}</b>, {dataIt(annata.costo_da.data)} ({FONTI[annata.costo_da.fonte] || annata.costo_da.fonte}).
-          {annata.forza_prezzo ? " Prezzo in carta forzato: non si ricalcola." : ""}
+        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-sm text-neutral-700">
+          <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-2">Costo in uso</span>
+          <b className="text-neutral-900">{euro(annata.euro_listino)}</b>
+          {" "}= ultimo pagato a <b>{annata.costo_da.fornitore_nome}</b>, {dataIt(annata.costo_da.data)}{" "}
+          <Pill cls={FONTE_CLS[annata.costo_da.fonte] || FONTE_CLS.storico}>{FONTI[annata.costo_da.fonte] || annata.costo_da.fonte}</Pill>
+          {annata.forza_prezzo ? <span className="text-neutral-500"> · prezzo in carta forzato, non si ricalcola</span> : null}
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-neutral-500 border-b">
-              <th className="py-2 pr-2">Fornitore</th>
-              <th className="py-2 pr-2 text-right">Ultimo pagato</th>
-              <th className="py-2 pr-2 text-right">Listino</th>
-              <th className="py-2 pr-2">Ultimo acquisto</th>
-              {canEdit && <th className="py-2" />}
+      <div className="border border-neutral-200 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
+          <thead className="bg-neutral-100">
+            <tr className="text-xs text-neutral-600 uppercase tracking-wide">
+              <th className="px-3 py-2 text-left">Fornitore</th>
+              <th className="px-3 py-2 text-right">Ultimo pagato</th>
+              <th className="px-3 py-2 text-right">Listino</th>
+              <th className="px-3 py-2 text-left">Ultimo acquisto</th>
+              {canEdit && <th className="px-3 py-2 text-right" />}
             </tr>
           </thead>
           <tbody>
             {dati.fornitori.map(f => {
               const p = prezzoDi(f.fornitore_id);
               return (
-                <tr key={f.fornitore_id} className="border-b border-neutral-100">
-                  <td className="py-2 pr-2">
-                    {f.preferito ? <span title="Preferito: gli ordini vanno qui">⭐ </span> : null}
-                    <span className={f.attivo === 0 ? "text-neutral-400" : ""}>{f.nome}</span>
+                <tr key={f.fornitore_id} className="border-t border-neutral-100 hover:bg-neutral-50 transition">
+                  <td className="px-3 py-2">
+                    <span className={`font-medium ${f.attivo === 0 ? "text-neutral-400" : "text-neutral-900"}`}>{f.nome}</span>
+                    {f.preferito && <span className="ml-2"><Pill cls="bg-amber-50 text-amber-700 border-amber-200">⭐ Preferito</Pill></span>}
                   </td>
-                  <td className="py-2 pr-2 text-right tabular-nums">
-                    {p.pagato ? <span title={`${dataIt(p.pagato.data)} · ${FONTI[p.pagato.fonte] || p.pagato.fonte}`}>{euro(p.pagato.prezzo)}</span> : "—"}
+                  <td className="px-3 py-2 text-right font-mono text-xs font-semibold text-neutral-900"
+                    title={p.pagato ? `${dataIt(p.pagato.data)} · ${FONTI[p.pagato.fonte] || p.pagato.fonte}` : undefined}>
+                    {p.pagato ? euro(p.pagato.prezzo) : <span className="text-neutral-300">—</span>}
                   </td>
-                  <td className="py-2 pr-2 text-right tabular-nums text-neutral-500">
-                    {p.listino ? <span title={dataIt(p.listino.data)}>{euro(p.listino.prezzo)}</span> : "—"}
+                  <td className="px-3 py-2 text-right font-mono text-xs text-neutral-600"
+                    title={p.listino ? dataIt(p.listino.data) : undefined}>
+                    {p.listino ? euro(p.listino.prezzo) : <span className="text-neutral-300">—</span>}
                   </td>
-                  <td className="py-2 pr-2 text-neutral-500">{dataIt(f.ultimo_acquisto)}</td>
+                  <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">
+                    {f.ultimo_acquisto ? dataIt(f.ultimo_acquisto) : <span className="text-neutral-300">—</span>}
+                  </td>
                   {canEdit && (
-                    <td className="py-2 text-right whitespace-nowrap">
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
                       {!f.preferito && (
-                        <button type="button" disabled={busy} className="text-xs text-brand-blue hover:underline mr-3"
-                          onClick={() => chiama(`${API_BASE}/vini/multifornitore/madre/${madreId}/preferito/`, { method: "POST", body: JSON.stringify({ fornitore_id: f.fornitore_id }) })}>
-                          ⭐ preferito
-                        </button>
-                      )}
-                      {!f.preferito && (
-                        <button type="button" disabled={busy} className="text-xs text-neutral-400 hover:text-red-600"
-                          title="Togli questo fornitore dal vino"
-                          onClick={() => chiama(`${API_BASE}/vini/multifornitore/madre/${madreId}/fornitori/${f.fornitore_id}`, { method: "DELETE" })}>
-                          ✕
-                        </button>
+                        <div className="inline-flex gap-1.5">
+                          <Btn variant="chip" tone="amber" size="sm" type="button" disabled={busy}
+                            onClick={() => chiama(`${API_BASE}/vini/multifornitore/madre/${madreId}/preferito/`, { method: "POST", body: JSON.stringify({ fornitore_id: f.fornitore_id }) })}>
+                            ⭐ Rendi preferito
+                          </Btn>
+                          <Btn variant="ghost" size="sm" type="button" disabled={busy} title="Togli questo fornitore dal vino"
+                            onClick={() => chiama(`${API_BASE}/vini/multifornitore/madre/${madreId}/fornitori/${f.fornitore_id}`, { method: "DELETE" })}>
+                            Togli
+                          </Btn>
+                        </div>
                       )}
                     </td>
                   )}
@@ -150,77 +174,117 @@ export default function FornitoriVino({ madreId, bottigliaId, canEdit, onCostoCa
               );
             })}
             {dati.fornitori.length === 0 && (
-              <tr><td colSpan={5} className="py-3 text-neutral-500">Nessun fornitore: aggiungilo qui sotto o arriverà col primo carico.</td></tr>
+              <tr className="border-t border-neutral-100">
+                <td colSpan={5} className="px-3 py-6 text-center text-sm text-neutral-500">
+                  Nessun fornitore: aggiungilo qui sotto, oppure arriva col primo carico.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
 
       {canEdit && (
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={nuovoForn} onChange={e => setNuovoForn(e.target.value)}
-            className="border border-neutral-300 rounded-lg px-2 py-2 text-sm min-h-[44px]">
-            <option value="">➕ Aggiungi un fornitore…</option>
-            {anagrafica.filter(f => !giaCollegati.has(f.id)).map(f => (
-              <option key={f.id} value={`id:${f.id}`}>{f.nome}</option>
-            ))}
-            <option value="__nuovo">— nuovo fornitore (scrivi il nome) —</option>
-          </select>
-          {nuovoForn === "__nuovo" && (
-            <input autoFocus placeholder="Nome del fornitore (es. Diretto)" value={nomeNuovo} onChange={e => setNomeNuovo(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") aggiungi(); }}
-              className="border border-neutral-300 rounded-lg px-2 py-2 text-sm min-h-[44px]" />
-          )}
-          <Btn size="md" variant="secondary" type="button" disabled={busy || !nuovoForn || (nuovoForn === "__nuovo" && !nomeNuovo.trim())} onClick={aggiungi}>Aggiungi</Btn>
-        </div>
-      )}
-
-      {canEdit && dati.fornitori.length > 0 && (
-        <div className="border border-neutral-200 rounded-lg p-3 space-y-2">
-          <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Prezzo a mano per questa annata</div>
-          <div className="flex flex-wrap gap-2 items-center">
-            <select value={form.fornitore_id} onChange={e => setForm({ ...form, fornitore_id: e.target.value })}
-              className="border border-neutral-300 rounded-lg px-2 py-2 text-sm min-h-[44px]">
-              <option value="">Fornitore…</option>
-              {dati.fornitori.map(f => <option key={f.fornitore_id} value={f.fornitore_id}>{f.nome}</option>)}
+        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={ETICHETTA}>Aggiungi fornitore</span>
+            <select value={nuovoForn} onChange={e => setNuovoForn(e.target.value)} className={CAMPO}>
+              <option value="">— Scegli —</option>
+              {anagrafica.filter(f => !giaCollegati.has(f.id)).map(f => (
+                <option key={f.id} value={`id:${f.id}`}>{f.nome}</option>
+              ))}
+              <option value="__nuovo">➕ Nuovo fornitore…</option>
             </select>
-            <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}
-              className="border border-neutral-300 rounded-lg px-2 py-2 text-sm min-h-[44px]">
-              <option value="pagato">pagato (cambia il costo se è il più recente)</option>
-              <option value="listino">listino (solo riferimento)</option>
-            </select>
-            <input inputMode="decimal" placeholder="€/bt" value={form.prezzo} onChange={e => setForm({ ...form, prezzo: e.target.value })}
-              className="border border-neutral-300 rounded-lg px-2 py-2 text-sm w-24 min-h-[44px]" />
-            <input type="date" value={form.data} onChange={e => setForm({ ...form, data: e.target.value })}
-              className="border border-neutral-300 rounded-lg px-2 py-2 text-sm min-h-[44px]" />
-            <input placeholder="nota" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })}
-              className="border border-neutral-300 rounded-lg px-2 py-2 text-sm flex-1 min-w-[120px] min-h-[44px]" />
-            <Btn size="md" type="button" disabled={busy} onClick={salvaPrezzo}>Salva</Btn>
+            {nuovoForn === "__nuovo" && (
+              <input autoFocus placeholder="Nome (es. Diretto)" value={nomeNuovo} onChange={e => setNomeNuovo(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") aggiungi(); }} className={CAMPO} />
+            )}
+            <Btn variant="secondary" size="md" type="button" onClick={aggiungi}
+              disabled={busy || !nuovoForn || (nuovoForn === "__nuovo" && !nomeNuovo.trim())}>
+              Aggiungi
+            </Btn>
           </div>
+
+          {dati.fornitori.length > 0 && (
+            <div className="space-y-2 pt-3 border-t border-neutral-200">
+              <div className={ETICHETTA}>Prezzo a mano per questa annata</div>
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <select value={form.fornitore_id} onChange={e => setForm({ ...form, fornitore_id: e.target.value })} className={CAMPO}>
+                  <option value="">— Fornitore —</option>
+                  {dati.fornitori.map(f => <option key={f.fornitore_id} value={f.fornitore_id}>{f.nome}</option>)}
+                </select>
+                <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} className={CAMPO}
+                  title="Pagato: diventa il costo se è il più recente. Listino: solo riferimento.">
+                  <option value="pagato">Pagato</option>
+                  <option value="listino">Listino</option>
+                </select>
+                <div className="relative">
+                  <input type="number" step="0.01" min={0} placeholder="€/bt" value={form.prezzo}
+                    onChange={e => setForm({ ...form, prezzo: e.target.value })} className={`${CAMPO} w-full pr-7`} />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 pointer-events-none">€</span>
+                </div>
+                <input type="date" value={form.data} onChange={e => setForm({ ...form, data: e.target.value })} className={CAMPO} />
+                <input placeholder="Nota (opz.)" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} className={CAMPO} />
+                <Btn variant="primary" size="md" type="button" onClick={salvaPrezzo} disabled={busy} loading={busy}>Salva</Btn>
+              </div>
+              <div className="text-xs text-neutral-500">
+                «Pagato» diventa il costo se è il più recente; «Listino» resta solo come riferimento.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {storicoAnnata.length > 0 && (
-        <details className="text-sm">
-          <summary className="cursor-pointer text-neutral-600">Storico prezzi per fornitore ({storicoAnnata.length})</summary>
-          <table className="w-full text-sm mt-2">
-            <tbody>
-              {storicoAnnata.map(s => (
-                <tr key={s.id} className={`border-b border-neutral-100 ${s.stato === "scartato" ? "text-neutral-400 line-through" : ""}`}>
-                  <td className="py-1 pr-2">{dataIt(s.data)}</td>
-                  <td className="py-1 pr-2">{s.fornitore_nome}</td>
-                  <td className="py-1 pr-2">{s.tipo}{s.stato === "da_verificare" ? " · da verificare" : ""}</td>
-                  <td className="py-1 pr-2 text-neutral-500">{FONTI[s.fonte] || s.fonte}{s.ordine_id ? ` #${s.ordine_id}` : ""}</td>
-                  <td className="py-1 pr-2 text-right tabular-nums">{euro(s.prezzo)}</td>
-                  <td className="py-1 text-right">
-                    {canEdit && s.stato !== "scartato" && (
-                      <button type="button" className="text-xs text-neutral-400 hover:text-red-600" disabled={busy} onClick={() => scarta(s.id)}>scarta</button>
-                    )}
-                  </td>
+        <details className="group">
+          <summary className={`${ETICHETTA} cursor-pointer select-none`}>
+            Storico per fornitore ({storicoAnnata.length})
+          </summary>
+          <div className="border border-neutral-200 rounded-xl overflow-x-auto mt-2">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead className="bg-neutral-100">
+                <tr className="text-xs text-neutral-600 uppercase tracking-wide">
+                  <th className="px-3 py-2 text-left">Data</th>
+                  <th className="px-3 py-2 text-left">Fornitore</th>
+                  <th className="px-3 py-2 text-center">Tipo</th>
+                  <th className="px-3 py-2 text-center">Origine</th>
+                  <th className="px-3 py-2 text-right">Prezzo</th>
+                  <th className="px-3 py-2 text-left">Note</th>
+                  {canEdit && <th className="px-3 py-2" />}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {storicoAnnata.map(s => {
+                  const scartato = s.stato === "scartato";
+                  return (
+                    <tr key={s.id} className={`border-t border-neutral-100 hover:bg-neutral-50 transition ${scartato ? "opacity-50" : ""}`}>
+                      <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">{dataIt(s.data)}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-800">{s.fornitore_nome}</td>
+                      <td className="px-3 py-2 text-center">
+                        <Pill cls={s.tipo === "pagato" ? "bg-neutral-50 text-neutral-700 border-neutral-200" : "bg-teal-50 text-teal-700 border-teal-200"}>
+                          {s.tipo === "pagato" ? "Pagato" : "Listino"}
+                        </Pill>
+                        {s.stato === "da_verificare" && <span className="ml-1"><Pill cls="bg-red-50 text-red-700 border-red-200">Da verificare</Pill></span>}
+                        {scartato && <span className="ml-1"><Pill cls="bg-neutral-100 text-neutral-500 border-neutral-200">Scartato</Pill></span>}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <Pill cls={FONTE_CLS[s.fonte] || FONTE_CLS.storico}>{FONTI[s.fonte] || s.fonte}{s.ordine_id ? ` #${s.ordine_id}` : ""}</Pill>
+                      </td>
+                      <td className={`px-3 py-2 text-right font-mono text-xs font-semibold ${scartato ? "line-through text-neutral-500" : "text-neutral-900"}`}>{euro(s.prezzo)}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-600" style={{ maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis" }}>{s.note || ""}</td>
+                      {canEdit && (
+                        <td className="px-3 py-2 text-right">
+                          {!scartato && (
+                            <Btn variant="ghost" size="sm" type="button" disabled={busy} onClick={() => scarta(s.id)}>Scarta</Btn>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </details>
       )}
     </div>

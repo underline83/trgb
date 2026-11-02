@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-02 — Vini 4.4: Fornitori con lo stile della scheda `[core]`
+
+Nessuna migrazione. La sezione Fornitori (scheda vino › Prezzi) e «Da chi arriva» (Movimenti › Carico) usano gli stessi elementi delle altre linguette: tabelle con intestazione grigia, pill per preferito/origine/tipo, campi del form Movimenti, pulsanti `Btn` («⭐ Rendi preferito», «Togli», «Scarta»), riquadro «Costo in uso». Nello storico prezzi i cambi del multi-fornitore compaiono come «Ultimo pagato». File: `FornitoriVino.jsx`, `CaricoFornitore.jsx`, `SchedaVino.jsx`.
+
 ## 2026-11-02 — Vini multi-fornitore (VMF.1 + VMF.2) `[core]`
 
 Vini 4.3, sistema 5.90, **mig 225**. Un vino si può comprare da più fornitori: scheda vino › Prezzi › **Fornitori** con ⭐ preferito (quello degli ordini), per ogni annata l'ultimo prezzo pagato e di listino presso ciascun fornitore, prezzo a mano, storico e «scarta». Regola del costo decisa da Marco: **il costo è l'ultimo prezzo pagato**, da chiunque; un listino resta solo riferimento. Nel **carico** compare «Da chi arriva»: l'ordine aperto (il carico lo chiude e vale il prezzo dell'ordine) oppure la tendina dei fornitori del vino con l'ultimo usato in cima e «➕ aggiungi». Quando il costo cambia passa dallo storico prezzi e il prezzo in carta si ricalcola col markup (non se «forza prezzo»). Dati di oggi: il distributore di ogni vino diventa il suo primo fornitore e il costo attuale un pagato «storico». Nuova soglia `vmf_soglia_fattura_pct` (2%) per le fatture (VMF.3, da fare). Spec `docs/spec_vini_multifornitore.md`.

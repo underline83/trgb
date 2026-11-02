@@ -1751,7 +1751,8 @@ function emptyAnnata() {
     ANNATA: "", FORMATO: "BT", VITIGNI: "", GRADO_ALCOLICO: "",
     EURO_LISTINO: "", SCONTO: "", PREZZO_CARTA: "", PREZZO_CALICE: "",
     PREZZO_CALICE_MANUALE: 0, NOTE_PREZZO: "",
-    CARTA: 1, VENDITA_CALICE: 0, BIOLOGICO: 0, IPRATICO: 0, FORZA_PREZZO: 0,
+    // IPRATICO = 1 di default (Marco 2026-11-02): il vino nuovo va subito anche in cassa.
+    CARTA: 1, VENDITA_CALICE: 0, BIOLOGICO: 0, IPRATICO: 1, FORZA_PREZZO: 0,
     // Defaults sensati per nuovi vini (Marco 2026-05-16):
     //  - STATO_VENDITA = 2 ("Vendere") — il nuovo vino è subito vendibile
     //  - STATO_CONSERVAZIONE = "3" ("Perfetta — non urgente") — appena entrato in cantina
