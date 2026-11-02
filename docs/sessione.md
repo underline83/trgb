@@ -1,10 +1,17 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-02 — **DA PUSHARE:** note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.88 (da pushare) · **Migrazione più recente:** 223
+**Sistema:** 5.90 (da pushare) · **Migrazione più recente:** 225
+
+**DA PUSHARE — Vini multi-fornitore VMF.1+VMF.2** (mig 225, sistema 5.90, vini 4.3) `[core]` — più fornitori per vino, costo = ultimo pagato, carico «Da chi arriva». Spec `docs/spec_vini_multifornitore.md`. **Dopo il push:** (1) nel log del boot «[225] multi-fornitore vini pronto: ~1000 fornitori collegati, ~1300 costi storici»; (2) Ctrl+Shift+R → scheda di un vino › Prezzi › Fornitori: c'è il distributore con ⭐; (3) Claude sistema Scavino Langhe Nebbiolo 2024 (id 1231): scarta lo «storico» attribuito a 0,75, «Diretto» pagato 11,125, 0,75 listino 13,00 (preferito: chiedere a Marco); (4) prova un carico con «Da chi arriva». VMF.3 (fatture) da fare.
+
+**DA PUSHARE — Statistiche › Servizio** (statistiche 1.5, nessuna migrazione) `[core]` — IP.1 parte 2
+- Dopo il push, da admin: Statistiche › 🕐 Servizio → 3 mesi e 12 mesi: numeri con le frecce, tabella giorni/turni colorata, arrivi per mezz'ora, sale, tavoli, mese per mese.
+
+**DA PUSHARE — WhatsApp del locale in sola lettura per il giro** (mig 224, sistema 5.89, clienti 3.23, connettore 1.8) `[core]` — webhook Meta `/clienti/whatsapp/webhook`, archivio `clienti_wa_*` (90 giorni), pagina Clienti › Impostazioni › WhatsApp, strumenti MCP `whatsapp_conversazioni`, `whatsapp_cerca`, `preventivi_inviati`. Nessun invio ai clienti. **Dopo il push:** seguire `docs/guida_whatsapp_meta.md` (app Meta → `.env` con `WA_*` + restart → webhook nel pannello Meta → «Collega WhatsApp»). La prova vera è se Meta offre «collega account WhatsApp Business esistente» senza essere partner. Senza `.env` il webhook risponde 503 (spento).
 
 **DA PUSHARE — Note di credito collegate alla fattura** (roadmap A.1 fase 3, mig 223, sistema 5.88, Gestione Acquisti 3.4) `[core]` — nuovo `services/note_credito_service.py` (collega/scollega/elenco), tabella `fe_nc_collegamenti`; `fe_import.py` (GET/POST `/contabilita/fe/fatture/{id}/note-credito`, DELETE `/contabilita/fe/note-credito/collegamenti/{id}`); `banca_router.py` (staccando un bonifico la quota NC resta pagata); `fatture_stato_service.recompute_all_states` non riporta a PAGATO_MANUALE una fattura chiusa da NC; `NoteCreditoPanel.jsx` nel Riepilogo di `FattureDettaglio.jsx`. La NC si somma al pagato dell'uscita come un secondo bonifico; NC che copre tutta la fattura senza bonifico → PAGATO (niente da pagare). Collegamento automatico da `DatiFattureCollegate` NON fatto (il dato non viene salvato). Testato su copia del DB (Orobica 206649 + NC 101745/NCV in tutti e due gli ordini, stacca banca, stacca NC, doppio collegamento, altro fornitore). **Dopo il push:** Claude collega la NC 101745/NCV (4,81) alla fattura Orobica 206649/FTM → PAGATO; aprire una fattura Orobica e vedere il pannello. Da guardare: Orobica ha anche la NC 100114/NCM (31/01, 67,76 €) mai collegata.
 
@@ -139,6 +146,30 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-02 (3) — Listini fornitori e vini multi-fornitore `[core]`
+
+**Dati (via API, con l'ok di Marco):** listino 0,75 ottobre 2026 applicato a 18 vini il 01/11 (costo + prezzo carta ricalcolato; Scavino escluso: comprato diretto); listino Marenzi novembre 2026: 34 voci Carta Bevande con costo, accisa, formato (+ formato a Cointreau, Capo, Jägermeister, Braulio, Sambuca), vini Cavalleri BdB 20,63, Monte Rossa Coupé 19,41, Bollinger 47,78 (= fatture Marenzi 7IT39). PDF in OneDrive `06-Fornitori/075/2026-10-listino-075.pdf` e `06-Fornitori/Marenzi/2026-11-listino.pdf`; confronti in `claude/confronto_listino_*.md`.
+
+**Codice — VMF.1+VMF.2** (decisioni Marco in spec §1):
+- mig 225: `vini_madre_fornitori`, `vini_prezzi_fornitore`, backfill (distributore → primo fornitore; EURO_LISTINO → pagato «storico»), setting `vmf_soglia_fattura_pct` (2).
+- `app/services/vini_fornitori_service.py` (fornitori_del_vino, proposta_carico, aggiungi/rimuovi, imposta_preferito, registra_prezzo, scarta_prezzo, riallinea_costo); `app/routers/vini_multifornitore_router.py` (`/vini/multifornitore/*`), montato in `main.py`, in `core/moduli/vini/module.json`.
+- `vini_magazzino_router` (MovimentoCreate.fornitore_id, risposta con `movimento_id` e `costo`), `vini_magazzino_db.ultimo_movimento_id`, `vini_ordini_db.ricevi` (prezzo riga → movimento e pagato fonte «ordine»; `movimento_id` per legare un carico già fatto), `vini_ordini_router.RigaRicevuta.movimento_id`.
+- FE: `components/vini/FornitoriVino.jsx` (scheda › Prezzi), `components/vini/CaricoFornitore.jsx` (Movimenti › Carico), `SchedaVino.jsx`.
+- Provato su copia DB: backfill idempotente, carico Scavino da 0,75 → costo 13 e carta 39,50, pagato più vecchio non cambia il costo, ordine ricevuto → pagato «ordine», carico da scheda + ricevi con movimento_id → giacenza contata una volta, preferito → DISTRIBUTORE riscritto. Endpoint non provati via HTTP (fastapi non c'è nella VM): provarli dopo il push.
+- Nota: chi ha il ruolo sala può caricare con fornitore (registra il pagato) ma non chiudere un ordine (ricevi è da manager): il messaggio lo dice.
+
+## SESSIONE 2026-11-02 (2) — WhatsApp del locale in sola lettura `[core]`
+
+Marco: il giro del mattino non vede WhatsApp (gruppi, eventi, proposte menù). Ricerca fonti Meta del 2/11: la strada sicura è la «coexistence» (Cloud API + app Business sullo stesso numero, storico 6 mesi, niente gruppi, app da aprire ogni ~13 giorni); Baileys/whatsmeow scartati (termini WhatsApp, rischio blocco del numero). Decisione (Q #295): provare il fai-da-te con un'app Meta propria; riserve YCloud (gratis, da verificare) e 360dialog (49 €/mese). Modulo scelto da Marco: **clienti**.
+- `224_clienti_whatsapp.py`: `clienti_wa_messaggi`, `clienti_wa_contatti`, `clienti_wa_eventi` + `clienti_impostazioni.wa_conservazione_giorni` = 90.
+- `clienti_whatsapp_service.py` (nuovo): firma HMAC, elaborazione `messages`/`smb_message_echoes`/`history`/`smb_app_state_sync`/`account_update` (notifica agli admin se scollegato), pulizia oraria, `conversazioni`, `cerca`, `stato`, `collega` (scambio codice → `subscribed_apps` → dati numero → `smb_app_data` rubrica e storico; token non salvato).
+- `clienti_whatsapp_router.py` (nuovo): webhook pubblico + `/stato`, `/collega`, `/conversazioni`, `/cerca`, `/conservazione` (solo admin). Montato prima di `clienti_router` in `main.py`; aggiunto a `core/moduli/clienti/module.json`.
+- `preventivi_service.preventivi_con_invii` (nuovo, sola lettura) + connettore 1.8: `whatsapp_conversazioni`, `whatsapp_cerca`, `preventivi_inviati` (admin).
+- `ClientiWhatsApp.jsx` (nuovo) + sezione «WhatsApp» in `ClientiImpostazioni.jsx` (Embedded Signup con `featureType: whatsapp_business_app_onboarding`).
+- Test: webhook con payload finti su DB di prova (firma, doppioni, numero estraneo ignorato, payload rotto registrato, reazioni escluse dal «da rispondere», cliente riconosciuto dal telefono), `collega` con Graph simulato, strumenti MCP registrati e chiamati, JSX compilato con esbuild. `preventivi_con_invii` provato in sola lettura sul DB vero (Milesi: inviato via email il 22/10).
+- VERSION era rimasto 5.87 al push 5.88: riallineato a 5.89.
+- Doc: `modulo_clienti_crm.md` §17, `connettore_mcp.md`, `guida_whatsapp_meta.md` (nuova), roadmap CL.19, changelog.
 
 ## SESSIONE 2026-10-29 — Gift card «in bianco» per le scatoline di Natale `[core]`
 

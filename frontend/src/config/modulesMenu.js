@@ -118,6 +118,7 @@ const MODULES_MENU = {
       // Audit 2026-07-18: era in StatisticheNav ma assente dal dropdown.
       { label: "Prodotti",          go: "/statistiche/prodotti" },
       { label: "Coperti & Incassi", go: "/statistiche/coperti" },
+      { label: "Servizio",          go: "/statistiche/servizio" },
       { label: "Storico",           go: "/statistiche/storico" },
       { label: "Sito",              go: "/statistiche/sito", check: "admin" },
       { label: "Import iPratico",   go: "/statistiche/import", check: "admin" },

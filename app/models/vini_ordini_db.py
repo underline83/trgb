@@ -743,12 +743,14 @@ def ricevi(
     conn = _conn()
     movimenti: List[int] = []
     righe_saltate: List[str] = []
+    pagati: List[tuple] = []  # VMF.2: (vino_id, prezzo, movimento_id)
+    fornitore_ordine: Optional[int] = None
     try:
         cur = conn.cursor()
         cur.execute("BEGIN IMMEDIATE;")
 
         testata = cur.execute(
-            "SELECT stato FROM vini_ordini WHERE id = ?", (ordine_id,)
+            "SELECT stato, fornitore_id FROM vini_ordini WHERE id = ?", (ordine_id,)
         ).fetchone()
         if not testata:
             conn.rollback()
@@ -756,6 +758,7 @@ def ricevi(
         if testata["stato"] in ("chiuso", "annullato"):
             conn.rollback()
             raise ValueError(f"L'ordine è in stato '{testata['stato']}': non accetta arrivi")
+        fornitore_ordine = testata["fornitore_id"]
         if testata["stato"] == "bozza":
             # Ricevere una bozza vorrebbe dire caricare merce mai ordinata e
             # saltare lo stato 'inviato', perdendo la data di partenza (e quindi
@@ -772,7 +775,7 @@ def ricevi(
                 continue
 
             r = cur.execute(
-                "SELECT vino_id, descrizione, qta_ordinata, qta_ricevuta"
+                "SELECT vino_id, descrizione, qta_ordinata, qta_ricevuta, prezzo_unit"
                 "  FROM vini_ordini_righe WHERE id = ? AND ordine_id = ?",
                 (riga_id, ordine_id),
             ).fetchone()
@@ -815,6 +818,32 @@ def ricevi(
                 (nuova_ricevuta, riga_id),
             )
 
+            prezzo_riga = r["prezzo_unit"] if r["prezzo_unit"] and float(r["prezzo_unit"]) > 0 else None
+
+            # VMF.2: carico già registrato dalla scheda vino (giacenza, locazione
+            # e celle già a posto). Qui solo: riga ricevuta + prezzo legato al
+            # movimento. Niente secondo CARICO, niente doppia giacenza.
+            mov_esistente = item.get("movimento_id")
+            if mov_esistente:
+                mv = cur.execute(
+                    "SELECT id FROM vini_magazzino_movimenti "
+                    "WHERE id = ? AND vino_id = ? AND tipo = 'CARICO'",
+                    (int(mov_esistente), vino_id),
+                ).fetchone()
+                if not mv:
+                    conn.rollback()
+                    raise ValueError(f"Carico id={mov_esistente} non trovato per «{r['descrizione']}»")
+                cur.execute(
+                    "UPDATE vini_magazzino_movimenti SET "
+                    "prezzo_unitario = COALESCE(?, prezzo_unitario), "
+                    "note = TRIM(COALESCE(note,'') || ' (ordine #' || ? || ')') WHERE id = ?",
+                    (prezzo_riga, ordine_id, int(mov_esistente)),
+                )
+                movimenti.append(int(mov_esistente))
+                if prezzo_riga and testata["fornitore_id"]:
+                    pagati.append((vino_id, float(prezzo_riga), int(mov_esistente)))
+                continue
+
             cur.execute(
                 "UPDATE vini_bottiglie SET QTA_TOTALE = ?, UPDATED_AT = ? WHERE id = ?",
                 (int(b["q"]) + qta, now, vino_id),
@@ -830,11 +859,16 @@ def ricevi(
 
             cur.execute(
                 """INSERT INTO vini_magazzino_movimenti
-                     (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
-                   VALUES (?, ?, 'CARICO', ?, NULL, ?, 'ORDINE_ARRIVO', ?, ?)""",
-                (vino_id, now, qta, nota_finale, utente, now),
+                     (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at,
+                      prezzo_unitario)
+                   VALUES (?, ?, 'CARICO', ?, NULL, ?, 'ORDINE_ARRIVO', ?, ?, ?)""",
+                (vino_id, now, qta, nota_finale, utente, now, prezzo_riga),
             )
             movimenti.append(cur.lastrowid)
+            # VMF.2: il prezzo della riga d'ordine è un «pagato» del fornitore
+            # dell'ordine — registrato dopo il commit (spec D3).
+            if prezzo_riga and testata["fornitore_id"]:
+                pagati.append((vino_id, float(prezzo_riga), cur.lastrowid))
 
             if b["STATO_RIORDINO"] == "0":
                 cur.execute(
@@ -878,7 +912,23 @@ def ricevi(
         raise
     conn.close()
 
+    # VMF.2 — costo = ultimo pagato. Best-effort: l'arrivo è già registrato,
+    # un errore qui non deve far credere che il carico sia fallito.
+    costi = []
+    if pagati and fornitore_ordine:
+        from app.services import vini_fornitori_service as vmf
+        for vino_id, prezzo, mov_id in pagati:
+            try:
+                costi.append(vmf.registra_prezzo(
+                    vino_id, int(fornitore_ordine), prezzo, tipo="pagato",
+                    data=now[:10], fonte="ordine", movimento_id=mov_id,
+                    ordine_id=ordine_id, utente=utente,
+                ))
+            except Exception as e:  # noqa: BLE001
+                costi.append({"vino_id": vino_id, "errore": str(e)})
+
     ordine = get_ordine(ordine_id)
+    ordine["_costi_aggiornati"] = costi
     ordine["_movimenti_creati"] = movimenti
     ordine["_righe_saltate"] = righe_saltate
     return ordine

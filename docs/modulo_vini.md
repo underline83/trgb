@@ -35,6 +35,10 @@ Tabelle satellite **NON rinominate** (restano col vecchio prefisso):
 - `matrice_celle` — celle scaffali fisici (riga, colonna, vino_id)
 - `vini_prezzi_storico`, `vini_ordini_pending`, `locazioni_config` — utility
 
+Multi-fornitore (mig 225, 2026-11-02 — [spec](spec_vini_multifornitore.md)):
+- `vini_madre_fornitori` — fornitori da cui si compra un vino (madre). Il **preferito** resta `vini_madre.fornitore_id` (ordini, `DISTRIBUTORE` denormalizzato).
+- `vini_prezzi_fornitore` — prezzi di un'annata presso un fornitore: `tipo` pagato | listino, `data`, `fonte` (storico, carico, ordine, fattura, listino, manuale), collegamenti a movimento / ordine / riga fattura, `stato` ok | da_verificare | scartato. **`EURO_LISTINO` = ultimo pagato valido** (decisione Marco 02/11), riallineato da `vini_fornitori_service.riallinea_costo` passando da `update_vino` (storico prezzi, origine `MULTIFORNITORE`); prezzo carta ricalcolato col markup salvo `FORZA_PREZZO`.
+
 ## Relazioni chiave
 
 ```
@@ -142,6 +146,20 @@ Tutti gli endpoint puntano ora a `vini_bottiglie` (post sed F11). Usato da Sched
 
 Lettura: qualsiasi utente loggato. Scrittura: `is_vini_manager` (admin/sommelier).
 Dettagli e scelte di schema in [modulo_vini_ordini.md](modulo_vini_ordini.md).
+
+### `/vini/multifornitore/*` (vini multi-fornitore — VMF.1/VMF.2, 2026-11-02)
+
+| Cap. | Metodo | Path | Cosa fa | Audience | Docs |
+|------|--------|------|---------|----------|------|
+| C-V-VMF1 | `GET` | `/vini/multifornitore/madre/{id}/` | fornitori del vino, preferito, per annata ultimo pagato e listino per fornitore, storico | tutti i ruoli Vini | 🆕 |
+| C-V-VMF2 | `POST` | `/vini/multifornitore/madre/{id}/fornitori/` | aggiunge un fornitore (esistente o nuovo per nome) | manager vini | 🆕 |
+| C-V-VMF3 | `DELETE` | `/vini/multifornitore/madre/{id}/fornitori/{fid}` | toglie un fornitore (non il preferito, non se ha acquisti) | manager vini | 🆕 |
+| C-V-VMF4 | `POST` | `/vini/multifornitore/madre/{id}/preferito/` | cambia il preferito (update madre + sync bottiglie) | manager vini | 🆕 |
+| C-V-VMF5 | `POST` | `/vini/multifornitore/prezzi/` · `/prezzi/{id}/scarta` | prezzo a mano pagato/listino · scarta un prezzo sbagliato | manager vini | 🆕 |
+| C-V-VMF6 | `GET` | `/vini/multifornitore/bottiglia/{id}/carico/` | proposta per il carico: ordini aperti + fornitori (ultimo usato in cima) | tutti i ruoli Vini | 🆕 |
+| C-V-VMF7 | `POST` | `/vini/magazzino/{id}/movimenti` (`fornitore_id`) · `/vini/ordini/{id}/ricevi` (`movimento_id`) | carico da un fornitore → pagato; arrivo d'ordine legato al carico già fatto dalla scheda | come prima | 🆕 |
+
+UI: `SchedaVino` › Prezzi › **Fornitori** (`components/vini/FornitoriVino.jsx`); Movimenti › Carico › **Da chi arriva** (`components/vini/CaricoFornitore.jsx`). Codice: `app/services/vini_fornitori_service.py`, `app/routers/vini_multifornitore_router.py`. Fatture → vini (VMF.3) da fare.
 
 ### `/vini/cantina-tools/*` (utility)
 - `GET /matrice/stato|celle/{vid}` + `POST /matrice/assegna|rimuovi` — gestione celle scaffali

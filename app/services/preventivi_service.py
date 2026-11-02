@@ -2140,3 +2140,43 @@ def set_luoghi(luoghi: list[str]) -> list[str]:
         return pulita
     finally:
         conn.close()
+
+
+def preventivi_con_invii(q: str | None = None, giorni: int = 60, limite: int = 30) -> list:
+    """Preventivi creati o aggiornati negli ultimi `giorni`, col registro degli invii
+    (canale, quando, a chi, chi l'ha mandato). `q` cerca nel nome del cliente, nel titolo
+    o nel numero del preventivo (2026-11-02, per il giro del mattino: «ho mandato la
+    proposta a Milesi?»). Sola lettura."""
+    conn = get_clienti_conn()
+    try:
+        righe = conn.execute(
+            """SELECT p.id, p.numero, p.titolo, p.tipo, p.data_evento, p.n_persone, p.stato,
+                      p.menu_nome, p.menu_prezzo_persona, p.created_at, p.updated_at,
+                      TRIM(COALESCE(c.nome,'') || ' ' || COALESCE(c.cognome,'')) AS cliente, p.cliente_id
+               FROM clienti_preventivi p LEFT JOIN clienti c ON c.id = p.cliente_id
+               WHERE COALESCE(p.updated_at, p.created_at) >= datetime('now','localtime', ?)
+               ORDER BY COALESCE(p.updated_at, p.created_at) DESC""",
+            (f"-{int(giorni)} days",),
+        ).fetchall()
+        parole = (q or "").lower().split()
+        out = []
+        for r in righe:
+            testo = f"{r['cliente'] or ''} {r['titolo'] or ''} {r['numero'] or ''}".lower()
+            if parole and not all(p in testo for p in parole):
+                continue
+            invii = []
+            if _invii_table_exists(conn):
+                invii = [dict(i) for i in conn.execute(
+                    """SELECT canale, destinatario, esito, inviato_da, created_at AS quando
+                       FROM clienti_preventivi_invii WHERE preventivo_id = ? ORDER BY id DESC""",
+                    (r["id"],),
+                )]
+            v = dict(r)
+            v["invii"] = invii
+            v["inviato"] = any(i["esito"] == "ok" for i in invii)
+            out.append(v)
+            if len(out) >= limite:
+                break
+        return out
+    finally:
+        conn.close()

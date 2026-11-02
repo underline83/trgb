@@ -20,6 +20,7 @@ Endpoint per import dati iPratico e query analytics.
 12. GET /statistiche/storico/giorni    — Incassi giornalieri di un mese (cucitura daily+shift)
 13. GET /statistiche/sito              — Visite del sito (modulo sito) + prenotazioni dal sito, read-only
 14. POST /statistiche/conti/aggiorna   — Rifà subito i mesi presi dai conti di cassa (da novembre 2026)
+15. GET  /statistiche/servizio/       — Come lavora la sala: giorni e turni, arrivi, sale, tavoli, mesi (dai conti)
 
 DA NOVEMBRE 2026 (IP.1, deciso con Marco il 2026-10-28) i mesi non si importano più
 dal .xls: si calcolano dai conti di cassa iPratico Cloud (servizio platform
@@ -1000,3 +1001,27 @@ def sito_visite(
         "nota": "Prenotazioni fatte nel periodo dal widget TheFork del sito (fonte «widget») e dal widget TRGB (fonte «sito»). Il widget TheFork può stare anche su altri siti: è un confronto, non un legame.",
     }
     return r
+
+
+# =============================================================
+# 15. SERVIZIO — dai conti di cassa (IP.1 parte 2, 2026-11-02)
+# =============================================================
+@router.get("/servizio/", summary="Giorni e turni, orari di arrivo, sale, tavoli, mese per mese (dai conti di cassa)")
+def servizio(
+    giorni: int = Query(90, ge=7, le=800),
+    dal: Optional[str] = Query(None),
+    al: Optional[str] = Query(None),
+):
+    from datetime import timedelta
+    from app.services import vendite_conti_service as vc
+    try:
+        a = _date.fromisoformat(al) if al else _date.today() - timedelta(days=1)
+        d = _date.fromisoformat(dal) if dal else a - timedelta(days=giorni - 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date nel formato AAAA-MM-GG")
+    if abs((a - d).days) > 800:
+        raise HTTPException(status_code=400, detail="Al massimo 800 giorni")
+    try:
+        return vc.servizio_riepilogo(d, a)
+    except Exception as e:  # cassa non attiva o DB conti assente
+        raise HTTPException(status_code=503, detail=f"Conti di cassa non disponibili: {e}")

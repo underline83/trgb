@@ -84,6 +84,10 @@ class InvioPayload(BaseModel):
 class RigaRicevuta(BaseModel):
     riga_id: int
     qta: int = Field(..., ge=0, description="quantità arrivata ORA (incremento, non totale)")
+    # VMF.2 (2026-11-02): carico già fatto dalla scheda vino (con locazione e
+    # celle). L'ordine segna la riga ricevuta e lega il prezzo a quel movimento
+    # senza toccare di nuovo la giacenza.
+    movimento_id: Optional[int] = Field(None, description="CARICO già registrato per questa riga")
 
 
 class RicezionePayload(BaseModel):

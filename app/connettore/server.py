@@ -1,4 +1,5 @@
-# @version: v1.7 (2026-10-25) — ricette e ingredienti (modulo ricette): import con anteprima, cerca/leggi/aggiorna, prezzi, allergeni, unione
+# @version: v1.8 (2026-11-02) — WhatsApp in sola lettura + preventivi inviati (modulo clienti)
+# v1.7 (2026-10-25) — ricette e ingredienti (modulo ricette): import con anteprima, cerca/leggi/aggiorna, prezzi, allergeni, unione
 # v1.6 (2026-10-23) — visite_sito_riepilogo (modulo sito, sola lettura)
 # v1.5 (2026-10-20) — accesso_browser: Q entra nel gestionale dal browser con un link usa-e-getta
 # v1.4 (2026-10-18) — incassi (ieri e mese in corso, con le percentuali)
@@ -81,6 +82,7 @@ Regole che valgono sempre:
 - ricetta_aggiorna con voci o servizi li SOSTITUISCE tutti: leggi prima con ricetta_leggi e rimanda anche quelli che restano.
 - INGREDIENTI: cerca con ingredienti_cerca prima di usarne o crearne uno. I placeholder nati da un import (da_completare) si completano con ingrediente_aggiorna (categoria, unità base, allergeni, completato=true) e ingrediente_prezzo_aggiungi. Allergeni coi 14 nomi UE in minuscolo (glutine, crostacei, uova, pesce, arachidi, soia, latte, frutta a guscio, sedano, senape, sesamo, anidride solforosa e solfiti, lupini, molluschi); [] = nessuno. Un doppione si unisce con ingrediente_unisci, che cancella il doppione: solo dopo il sì di Marco.
 - Prezzi, rese e quantità a porzione che stimi tu (non dati da Marco o da una fattura) li dichiari a Marco come stime. Il prezzo di un ingrediente è per la sua unità base (€/kg se è in kg).
+- WHATSAPP del locale: whatsapp_conversazioni, whatsapp_cerca e preventivi_inviati sono SOLA LETTURA. TRGB non manda messaggi ai clienti: le risposte le scrive Marco dal telefono. Se aggiornamento.collegato è false o ultimo_webhook è vecchio, dillo: i dati potrebbero mancare. Le chat di gruppo WhatsApp e i messaggi scritti da WhatsApp per Windows non ci sono. Nel riepilogo niente numeri di telefono interi se non servono; mai dati sanitari salvo allergie dichiarate.
 - BROWSER: per lavorare nelle pagine del gestionale, accesso_browser dà un link (2 minuti, una volta) che si apre SUBITO nel browser: si entra come Q. Non mostrarlo e non incollarlo in chat; per un'altra sessione se ne chiede uno nuovo."""
 
 
@@ -121,6 +123,8 @@ def costruisci(url: str, nome_locale: str, versione: str, url_app: str | None = 
         _strumenti_incassi(mcp)
     if module_loader.is_module_active("ricette"):
         _strumenti_ricette(mcp)
+    if module_loader.is_module_active("clienti"):
+        _strumenti_whatsapp(mcp)
     if module_loader.is_module_active("sito") and module_loader.is_module_active("statistiche"):
         _strumenti_sito(mcp)
     return mcp
@@ -1406,3 +1410,53 @@ def _strumenti_sito(mcp: MCPServer) -> None:
             "pagine": r["pagine"][:10], "provenienze": r["provenienze"][:10],
             "lingue": r["lingue"], "dispositivi": r["dispositivi"], "campagne": r["campagne"][:10],
         }
+
+
+def _strumenti_whatsapp(mcp: MCPServer) -> None:
+    """WhatsApp del locale (modulo clienti) in SOLA LETTURA: solo admin, come la pagina
+    Clienti › Impostazioni › WhatsApp. Chiama clienti_whatsapp_service e preventivi_service."""
+    from app.services import clienti_whatsapp_service as wa
+    from app.services.preventivi_service import preventivi_con_invii
+    strumento = functools.partial(_strumento, mcp)
+
+    @strumento(SOLA_LETTURA)
+    def whatsapp_conversazioni(
+        giorni: Annotated[int, Field(ge=1, le=365, description="Chat attive negli ultimi N giorni (7 se manca)")] = 7,
+        solo_da_rispondere: Annotated[bool, Field(description="true = solo quelle dove l'ultimo messaggio è del cliente")] = False,
+    ) -> dict:
+        """Le chat WhatsApp del numero del locale con almeno un messaggio negli ultimi N
+        giorni: nome (cliente TRGB, rubrica o nome WhatsApp), numero, ultimo messaggio del
+        cliente e ultimo del locale con data e testo, stato (da_rispondere = l'ultimo è del
+        cliente; risposto; scritto_solo_io = solo messaggi del locale) e ore di attesa.
+        Prima quelle da rispondere. «aggiornamento» dice se il collegamento è vivo."""
+        _ruoli("admin", cosa="WhatsApp del locale")
+        return wa.conversazioni(giorni=giorni, solo_da_rispondere=solo_da_rispondere)
+
+    @strumento(SOLA_LETTURA)
+    def whatsapp_cerca(
+        chi: Annotated[str | None, Field(description="Nome (cliente, rubrica, nome WhatsApp) o numero, anche parziale")] = None,
+        testo: Annotated[str | None, Field(description="Parole da cercare nei messaggi (tutte), es. «proposta menù»")] = None,
+        giorni: Annotated[int, Field(ge=1, le=730, description="Quanto indietro (180 se manca)")] = 180,
+    ) -> dict:
+        """Cerca nelle chat WhatsApp del locale per persona e/o parole: per ogni chat
+        trovata i messaggi più recenti con chi li ha scritti (cliente / locale) e quando.
+        Serve a rispondere a «ho mandato la proposta menù a Milesi?». Almeno uno fra chi e
+        testo."""
+        _ruoli("admin", cosa="WhatsApp del locale")
+        try:
+            return wa.cerca(chi=chi, testo=testo, giorni=giorni)
+        except ValueError as e:
+            raise ToolError(f"{e} (400)") from None
+
+    @strumento(SOLA_LETTURA)
+    def preventivi_inviati(
+        q: Annotated[str | None, Field(description="Nome del cliente, titolo o numero del preventivo")] = None,
+        giorni: Annotated[int, Field(ge=1, le=365, description="Preventivi creati o modificati negli ultimi N giorni (60 se manca)")] = 60,
+    ) -> list:
+        """I preventivi (eventi, gruppi, proposte menù) degli ultimi N giorni con il
+        registro degli invii fatti dal gestionale: canale (whatsapp/email), quando, a chi,
+        da chi. inviato=true se almeno un invio è andato. NB: l'invio WhatsApp è registrato
+        quando lo si apre dal gestionale; una proposta scritta a mano dal telefono si
+        trova con whatsapp_cerca."""
+        _ruoli("admin", cosa="i preventivi")
+        return preventivi_con_invii(q=q, giorni=giorni)

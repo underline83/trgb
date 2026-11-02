@@ -1,4 +1,4 @@
-// @version: v1.1-statistiche-nav (2026-10-23: linguetta Sito, se il modulo sito è attivo)
+// @version: v1.2 (2026-11-02: linguetta Servizio, dai conti di cassa) · v1.1-statistiche-nav (2026-10-23: linguetta Sito, se il modulo sito è attivo)
 // Tab navigation per la sezione Statistiche
 import React from "react";
 import { ModuleNav } from "../../components/ui";
@@ -8,6 +8,7 @@ const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/statistiche/dashboard", icon: "📊" },
   { key: "prodotti", label: "Prodotti", path: "/statistiche/prodotti", icon: "🍽️" },
   { key: "coperti", label: "Coperti & Incassi", path: "/statistiche/coperti", icon: "👥" },
+  { key: "servizio", label: "Servizio", path: "/statistiche/servizio", icon: "🕐" },
   { key: "storico", label: "Storico", path: "/statistiche/storico", icon: "🕰️" },
   { key: "sito", label: "Sito", path: "/statistiche/sito", icon: "🌐", roles: ["admin"], modulo: "sito" },
   { key: "import", label: "Import iPratico", path: "/statistiche/import", icon: "📥", roles: ["admin"] },

@@ -1305,6 +1305,20 @@ LOCAZIONE_TO_COLUMN = {
 }
 
 
+def ultimo_movimento_id(vino_id: int, tipo: str) -> Optional[int]:
+    """VMF.2: id dell'ultimo movimento di un tipo per un vino (registra_movimento
+    non restituisce l'id: il carico appena scritto è l'ultimo)."""
+    conn = get_magazzino_connection()
+    try:
+        r = conn.execute(
+            "SELECT MAX(id) FROM vini_magazzino_movimenti WHERE vino_id = ? AND tipo = ?",
+            (vino_id, tipo),
+        ).fetchone()
+        return int(r[0]) if r and r[0] else None
+    finally:
+        conn.close()
+
+
 def registra_movimento(
     vino_id: int,
     tipo: str,

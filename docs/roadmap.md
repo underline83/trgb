@@ -163,6 +163,18 @@ un ruolo al widget — **il Monitor è dove si decide, la pagina è dove si ordi
 | **RD.6** | **Assorbimento del widget «Riordini per fornitore» nella pagina Ordini** — migrate listino inline con storico prezzi, duplica nuova annata (mette in bozza), ordinamenti (+ urgenza), tracciamento `A`/`X` («Messi da parte», nuovo `GET /vini/ordini/archivio/`). Rimosse 536 righe da `DashboardVini.jsx` e la query `riordini_per_fornitore` (~940 righe di payload, dashboard 25→19 ms). **Chiude B3 del piano O** | M | **✅ FATTO 2026-08-08** (vini 3.84) |
 | **RD.5** | Notifica sottoscorta senza aprire la dashboard: checker M.F su `sql_da_riordinare()` + `crea_notifica` M.A. È la parte che resta di **V.2** | S | DA FARE |
 
+### VMF — Vini multi-fornitore — 2026-11-02
+
+Spec: [`spec_vini_multifornitore.md`](spec_vini_multifornitore.md). Decisioni Marco 02/11: si parte dai vini; costo = **ultimo pagato**; pagato da carico e fattura; fattura vs carico entro ±2% corregge da sola (soglia `vmf_soglia_fattura_pct`).
+
+| ID | Cosa | Effort | Stato |
+|----|------|--------|-------|
+| **VMF.1** | Schema (mig 225) + dati di oggi + service + `/vini/multifornitore/*` + scheda vino › Prezzi › Fornitori | M | **✅ FATTO 2026-11-02** (vini 4.3, sistema 5.90 — da pushare) |
+| **VMF.2** | Carico «Da chi arriva»: ordine aperto (lo chiude, prezzo dell'ordine) o tendina fornitori + aggiungi; `ricevi` registra il pagato | M | **✅ FATTO 2026-11-02** (vini 4.3 — da pushare) |
+| **VMF.3** | Fatture → vini: abbinamento `fe_righe` dei fornitori vino alle bottiglie (auto + conferma), confronto col carico con soglia, lista «da verificare» | L | DA FARE |
+| **VMF.4** | Import listino (PDF) come prezzi `listino` del fornitore | M | DA FARE |
+| **VMF.5** | Estensione alla carta bevande | — | DA DECIDERE (Marco: pochi casi) |
+
 **Bug/debt:**
 - V-BUG1 — FALSO POSITIVO 2026-05-12: l'endpoint `POST /vini/magazzino/import` citato non esiste. Tutti gli endpoint massivi reali (`/reset-database`, `/import-excel`, `/bulk-update`, `/bulk-duplicate`, `/delete-vino/{id}`) hanno già admin guard. Voce da chiudere in [`problemi.md`](problemi.md).
 - V-DEBT1 — `app/models/vini_db.py`: file già rimosso. Voce obsoleta, da rimuovere.
@@ -271,7 +283,7 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 
 | # | Cosa | A cosa serve | Effort | Priorità | Note |
 |---|---|---|---|---|---|
-| IP.1 | **Statistiche dai conti** — vendite per giorno, turno, fascia oraria, tavolo, cameriere, portata, piatto | Basta import `.xls` mensile; si vede *quando* e *cosa* si vende | M | 🟡 PARTE 1 FATTA 2026-10-28: mesi dai conti da nov 2026 (statistiche 1.4) + Cucina › Piatti che vanno (ricette 3.37). Restano: viste per fascia oraria, tavolo, cameriere | Sblocca ST.2 sui singoli prodotti e ST.3 YoY. Modulo `statistiche` (sola lettura) |
+| IP.1 | **Statistiche dai conti** — vendite per giorno, turno, fascia oraria, tavolo, cameriere, portata, piatto | Basta import `.xls` mensile; si vede *quando* e *cosa* si vende | M | 🟡 PARTI 1-2 FATTE: mesi dai conti da nov 2026 (statistiche 1.4, 28/10) + Cucina › Piatti che vanno (ricette 3.37) + Statistiche › Servizio: giorni/turni, arrivi, sale, tavoli, mesi (statistiche 1.5, 02/11). Resta: cameriere (in cassa le righe sono battute da «SALA»/«Cassa», serve un utente per persona) | Sblocca ST.2 sui singoli prodotti e ST.3 YoY. Modulo `statistiche` (sola lettura) |
 | IP.9 | **Clienti per valore** — la «M» di RFM dalla spesa vera | Sapere chi vale di più, chi spende meno di prima | S | MEDIA | È CL.10. Segmenti in Impostazioni Clienti |
 | IP.7 | **Ritmo della cucina** — minuti tra antipasto, primo, secondo, dolce | Vedere dove il servizio rallenta, per giorno e coperti | S | BASSA | Da `portata` e `inviata_at` già salvati: niente scarico nuovo |
 
@@ -686,6 +698,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.14 | Google Contacts API | M | BASSA | Futuro |
 | CL.15 | Gift Card — emissione, codici, scarico a uso unico, annullo, PDF, alert scadenza | M | ✅ FATTO | 2026-08-08, clienti 3.1. Sostituisce l'Excel. Vedi `modulo_clienti_crm.md` §16 |
 | CL.16 | Storico gift card dall'Excel — travaso one-shot | S | ✅ FATTO | 2026-08-08, mig 167 (TRGB_SPECIFIC). 90 card su 174 (74 attive, 12.825 €). **Niente funzione di import nel prodotto**: scelta di Marco, era un travaso. Regole in `modulo_clienti_crm.md` §16.9 |
+| CL.19 | WhatsApp del locale in sola lettura per il giro (coexistence Meta, webhook, chat da rispondere, strumenti MCP) | M | 🟡 CODICE FATTO 2026-11-02 (da pushare, mig 224, clienti 3.23) — manca la prova di collegamento su Meta | Doc `modulo_clienti_crm.md` §17, guida `guida_whatsapp_meta.md` |
 | CL.17 | Tab Gift Card nella scheda cliente | S | BASSA | Oggi si filtra dalla pagina Gift Card |
 | CL.18 | Gift card: etichetta QR sul buono stampato + pagina /regalo (cliente vede il regalo, staff scarica) | S | ✅ FATTO | 2026-10-25, clienti 3.16, mig 213. `modulo_clienti_crm.md` §16.6b |
 

@@ -253,3 +253,137 @@ def riepilogo_mese(anno: int, mese: int) -> Dict[str, Any]:
         "categorie": sorted(categorie.values(), key=lambda x: -x["totale"]),
         "prodotti": sorted(prodotti.values(), key=lambda x: -x["totale"]),
     }
+
+
+# ============================================================
+# STATISTICHE › SERVIZIO (IP.1 parte 2, 2026-11-02)
+# ============================================================
+GIORNI_SETTIMANA = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"]
+FASCE_TAVOLO = [(1, 1, "1"), (2, 2, "2"), (3, 4, "3-4"), (5, 7, "5-7"), (8, 999, "8+")]
+
+
+def _numeri(conn, dal: date, al: date) -> Dict[str, Any]:
+    """Totali del periodo. La spesa a coperto usa solo i conti con coperti (eventi e
+    fatture senza coperti contano nell'incasso ma non falsano il «a coperto»)."""
+    r = conn.execute("""
+        SELECT COUNT(*) AS conti,
+               COALESCE(SUM(totale), 0) AS incasso,
+               COALESCE(SUM(coperti), 0) AS coperti,
+               COALESCE(SUM(CASE WHEN coperti > 0 THEN totale END), 0) AS incasso_con_coperti,
+               SUM(CASE WHEN COALESCE(coperti, 0) = 0 THEN 1 ELSE 0 END) AS senza_coperti,
+               COALESCE(SUM(CASE WHEN COALESCE(coperti, 0) = 0 THEN totale END), 0) AS incasso_senza_coperti,
+               AVG(CASE WHEN durata_min BETWEEN 5 AND 480 THEN durata_min END) AS durata,
+               COUNT(DISTINCT data_rif || COALESCE(turno, '')) AS servizi,
+               COUNT(DISTINCT data_rif) AS giorni
+        FROM cassa_conti WHERE data_rif BETWEEN ? AND ?
+    """, (dal.isoformat(), al.isoformat())).fetchone()
+    d = dict(r)
+    d["incasso"] = round(d["incasso"], 2)
+    d["a_coperto"] = round(d["incasso_con_coperti"] / d["coperti"], 2) if d["coperti"] else None
+    d["coperti_a_servizio"] = round(d["coperti"] / d["servizi"], 1) if d["servizi"] else None
+    d["durata"] = round(d["durata"]) if d["durata"] else None
+    d["incasso_senza_coperti"] = round(d["incasso_senza_coperti"], 2)
+    del d["incasso_con_coperti"]
+    return d
+
+
+def servizio_riepilogo(dal, al) -> Dict[str, Any]:
+    """
+    Come lavora la sala nel periodo: giorni e turni, orari di arrivo, sale,
+    dimensione dei tavoli, durata, mese per mese; numeri a confronto col periodo
+    prima della stessa lunghezza.
+    """
+    dal, al = _d(dal), _d(al)
+    if al < dal:
+        dal, al = al, dal
+    giorni = (al - dal).days + 1
+    p_al = dal - timedelta(days=1)
+    p_dal = p_al - timedelta(days=giorni - 1)
+    a, b = dal.isoformat(), al.isoformat()
+
+    conn = get_cassa_conti_conn()
+    try:
+        ora = _numeri(conn, dal, al)
+        prima = _numeri(conn, p_dal, p_al)
+
+        # Giorno della settimana × turno: medie per servizio
+        settimana = []
+        for r in conn.execute("""
+            SELECT CAST(strftime('%w', data_rif) AS INTEGER) AS dow, turno,
+                   COUNT(DISTINCT data_rif) AS servizi,
+                   COALESCE(SUM(coperti), 0) AS coperti,
+                   COALESCE(SUM(totale), 0) AS incasso,
+                   COALESCE(SUM(CASE WHEN coperti > 0 THEN totale END), 0) AS incasso_cop
+            FROM cassa_conti
+            WHERE data_rif BETWEEN ? AND ? AND turno IN ('pranzo', 'cena')
+            GROUP BY dow, turno
+        """, (a, b)):
+            n = r["servizi"] or 1
+            settimana.append({
+                "dow": r["dow"], "giorno": GIORNI_SETTIMANA[r["dow"]], "turno": r["turno"],
+                "servizi": r["servizi"],
+                "coperti_medi": round(r["coperti"] / n, 1),
+                "incasso_medio": round(r["incasso"] / n),
+                "a_coperto": round(r["incasso_cop"] / r["coperti"], 1) if r["coperti"] else None,
+            })
+
+        # Arrivi: apertura del conto per mezz'ora
+        arrivi = []
+        for r in conn.execute("""
+            SELECT turno,
+                   substr(aperto_at, 12, 2) || ':' || CASE WHEN CAST(substr(aperto_at, 15, 2) AS INTEGER) < 30 THEN '00' ELSE '30' END AS ora,
+                   COUNT(*) AS conti, COALESCE(SUM(coperti), 0) AS coperti
+            FROM cassa_conti
+            WHERE data_rif BETWEEN ? AND ? AND turno IN ('pranzo', 'cena') AND aperto_at IS NOT NULL
+            GROUP BY turno, ora ORDER BY turno, ora
+        """, (a, b)):
+            arrivi.append(dict(r))
+
+        sale = [{**dict(r), "a_coperto": round(r["incasso_cop"] / r["coperti"], 1) if r["coperti"] else None}
+                for r in conn.execute("""
+            SELECT COALESCE(sala, '—') AS sala, COUNT(*) AS conti, COALESCE(SUM(coperti), 0) AS coperti,
+                   ROUND(COALESCE(SUM(totale), 0)) AS incasso,
+                   COALESCE(SUM(CASE WHEN coperti > 0 THEN totale END), 0) AS incasso_cop
+            FROM cassa_conti WHERE data_rif BETWEEN ? AND ? AND COALESCE(coperti, 0) > 0
+            GROUP BY 1 ORDER BY coperti DESC
+        """, (a, b))]
+        for s in sale:
+            s.pop("incasso_cop", None)
+
+        tavoli = []
+        for lo, hi, label in FASCE_TAVOLO:
+            r = conn.execute("""
+                SELECT COUNT(*) AS conti, COALESCE(SUM(coperti), 0) AS coperti, COALESCE(SUM(totale), 0) AS incasso,
+                       AVG(CASE WHEN durata_min BETWEEN 5 AND 480 THEN durata_min END) AS durata
+                FROM cassa_conti WHERE data_rif BETWEEN ? AND ? AND coperti BETWEEN ? AND ?
+            """, (a, b, lo, hi)).fetchone()
+            if r["conti"]:
+                tavoli.append({"persone": label, "conti": r["conti"], "coperti": r["coperti"],
+                               "a_coperto": round(r["incasso"] / r["coperti"], 1) if r["coperti"] else None,
+                               "durata": round(r["durata"]) if r["durata"] else None})
+
+        mesi = [{**dict(r), "a_coperto": round(r["incasso_cop"] / r["coperti"], 1) if r["coperti"] else None}
+                for r in conn.execute("""
+            SELECT substr(data_rif, 1, 7) AS mese, COUNT(*) AS conti, COALESCE(SUM(coperti), 0) AS coperti,
+                   ROUND(COALESCE(SUM(totale), 0)) AS incasso,
+                   COALESCE(SUM(CASE WHEN coperti > 0 THEN totale END), 0) AS incasso_cop
+            FROM cassa_conti WHERE data_rif BETWEEN ? AND ? GROUP BY 1 ORDER BY 1
+        """, (a, b))]
+        for m in mesi:
+            m.pop("incasso_cop", None)
+
+        durata_turno = {r["turno"]: round(r["d"]) for r in conn.execute("""
+            SELECT turno, AVG(durata_min) AS d FROM cassa_conti
+            WHERE data_rif BETWEEN ? AND ? AND turno IN ('pranzo','cena') AND durata_min BETWEEN 5 AND 480
+            GROUP BY turno""", (a, b)) if r["d"]}
+        ultimo = conn.execute("SELECT MAX(data_rif) FROM cassa_conti").fetchone()[0]
+    finally:
+        conn.close()
+
+    return {
+        "dal": a, "al": b, "prima_dal": p_dal.isoformat(), "prima_al": p_al.isoformat(),
+        "dati_fino_al": ultimo,
+        "numeri": ora, "numeri_prima": prima,
+        "settimana": settimana, "arrivi": arrivi, "sale": sale, "tavoli": tavoli,
+        "mesi": mesi, "durata_turno": durata_turno,
+    }

@@ -15,6 +15,8 @@ import {
 } from "../../config/viniConstants";
 import LocationPicker from "./LocationPicker";
 import MatricePicker from "./MatricePicker";
+import FornitoriVino from "../../components/vini/FornitoriVino";
+import CaricoFornitore from "../../components/vini/CaricoFornitore";
 import { Btn } from "../../components/ui";
 
 /** Formatta un numero con la virgola come separatore decimale */
@@ -238,6 +240,9 @@ const SchedaVino = forwardRef(function SchedaVino({
   const [prezzoMovTouched, setPrezzoMovTouched] = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [submitMsg, setSubmitMsg]     = useState("");
+  // VMF.2 (2026-11-02): da chi arriva un CARICO — ordine aperto o fornitore
+  const [daChi, setDaChi]             = useState(null);
+  const [daChiKey, setDaChiKey]       = useState(0);
 
   // ── matrice nei movimenti + coerenza giacenza (vini 3.89, 2026-09-10) ──
   // loc3 È la matrice: un movimento su loc3 passa sempre dalle celle (una per
@@ -838,6 +843,14 @@ const SchedaVino = forwardRef(function SchedaVino({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoMov, vino?.PREZZO_CARTA, vino?.EURO_LISTINO]);
 
+  // VMF.2: nel carico il €/bt proposto è quello dell'ordine o l'ultimo pagato
+  // a quel fornitore (se l'utente non l'ha già scritto lui).
+  useEffect(() => {
+    if (tipoMov !== "CARICO" || prezzoMovTouched || !daChi || daChi.prezzo == null) return;
+    setPrezzoMov(String(daChi.prezzo));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daChi, tipoMov]);
+
   const submitMovimento = async () => {
     if (movInMatrice && celleMov.length === 0) {
       alert(tipoMov === "CARICO"
@@ -871,17 +884,37 @@ const SchedaVino = forwardRef(function SchedaVino({
           note: noteMov || null,
           prezzo_unitario: prezzoNum,
           ...(movInMatrice ? { celle_matrice: celleMov.map(c => [c.riga, c.colonna]) } : {}),
+          // VMF.2: col fornitore il prezzo diventa un «pagato». Con un ordine
+          // no: il pagato lo registra l'ordine col suo prezzo (sotto).
+          ...(tipoMov === "CARICO" && daChi?.tipo === "fornitore" ? { fornitore_id: daChi.fornitore_id } : {}),
         }),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
-      const data = await r.json();
+      let data = await r.json();
+      let avvisoOrdine = "";
+      if (tipoMov === "CARICO" && daChi?.tipo === "ordine" && data.movimento_id) {
+        const ro = await apiFetch(`${API_BASE}/vini/ordini/${daChi.ordine_id}/ricevi`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ righe: [{ riga_id: daChi.riga_id, qta: qtaNum, movimento_id: data.movimento_id }] }),
+        });
+        if (!ro.ok) {
+          const e = await ro.json().catch(() => ({}));
+          avvisoOrdine = ` ⚠️ Carico fatto, ma l'ordine #${daChi.ordine_id} non si è chiuso: ${e.detail || ro.status}`;
+        } else {
+          const rv = await apiFetch(`${API_BASE}${apiBaseDettaglio}/${vinoId}`);
+          if (rv.ok) data = { ...data, vino: await rv.json() };
+        }
+      }
       if (data.vino) notifyUpdate(data.vino);
       if (data.movimenti) setMovimenti(data.movimenti);
       fetchGiacenzaStorica();  // rifresca andamento (giacenza cambiata)
       setQtaMov(""); setLocMov(""); setNoteMov(""); setCelleMov([]);
       setPrezzoMovTouched(false); // riabilita autopop
       setPrezzoMov(suggerisciPrezzoPerTipo(tipoMov, data.vino || vino));
-      setSubmitMsg("✅ Registrato."); setTimeout(() => setSubmitMsg(""), 3000);
+      if (tipoMov === "CARICO") setDaChiKey(k => k + 1);  // ricarica ordini aperti / ultimo usato
+      setSubmitMsg(avvisoOrdine ? `✅ Registrato.${avvisoOrdine}` : "✅ Registrato.");
+      if (!avvisoOrdine) setTimeout(() => setSubmitMsg(""), 3000);
     } catch (e) { setSubmitMsg(`❌ ${e.message}`); }
     finally { setSubmitting(false); }
   };
@@ -1468,6 +1501,16 @@ const SchedaVino = forwardRef(function SchedaVino({
                       {submitting ? "Registro…" : "Registra"}
                     </Btn>
                   </div>
+                  {tipoMov === "CARICO" && (
+                    <CaricoFornitore
+                      bottigliaId={vino.id}
+                      madreId={vino.madre_id}
+                      canAdd={!roReadOnly}
+                      value={daChi}
+                      onChange={setDaChi}
+                      refreshKey={daChiKey}
+                    />
+                  )}
                   {movInMatrice && tipoMov !== "CARICO" && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
                       <div className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide mb-2">
@@ -1594,6 +1637,16 @@ const SchedaVino = forwardRef(function SchedaVino({
             {/* ── STORICO PREZZI (Fase 8) ── */}
             {activeTab === "prezzi" && (
             <div>
+              {/* VMF.1 (2026-11-02): fornitori del vino e prezzi per fornitore */}
+              <SectionHeader title="Fornitori" />
+              <div className="p-5 border-b border-neutral-200">
+                <FornitoriVino
+                  madreId={vino.madre_id}
+                  bottigliaId={vino.id}
+                  canEdit={!roReadOnly}
+                  onCostoCambiato={() => { fetchVino(); fetchPrezziStorico(); }}
+                />
+              </div>
               <SectionHeader title="Storico prezzi">
                 {prezziLoading && <span className="text-xs text-neutral-400">Aggiornamento…</span>}
                 <Btn variant="secondary" size="sm" type="button" onClick={fetchPrezziStorico} disabled={prezziLoading}>

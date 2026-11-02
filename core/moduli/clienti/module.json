@@ -7,7 +7,8 @@
   "dipendenze_platform": ["auth", "notifiche", "permessi", "ui_primitives", "wa"],
   "dipendenze_opzionali": ["prenotazioni"],
   "router_files": [
-    "clienti_router"
+    "clienti_router",
+    "clienti_whatsapp_router"
   ],
   "endpoint_prefix": [
     "/clienti"
@@ -18,7 +19,10 @@
     "clienti_tag_assoc",
     "clienti_note",
     "clienti_alias",
-    "clienti_impostazioni"
+    "clienti_impostazioni",
+    "clienti_wa_messaggi",
+    "clienti_wa_contatti",
+    "clienti_wa_eventi"
   ],
   "frontend_route": ["/clienti"],
   "frontend_menu_key": "clienti"

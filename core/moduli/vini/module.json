@@ -19,6 +19,7 @@
     "vini_settings_router",
     "vini_magazzino_router",
     "vini_ordini_router",
+    "vini_multifornitore_router",
     "vini_cantina_tools_router",
     "vini_pricing_router",
     "ipratico_products_router",
@@ -43,7 +44,9 @@
     "regione_order",
     "filtri_carta",
     "bevande_sezioni",
-    "bevande_voci"
+    "bevande_voci",
+    "vini_madre_fornitori",
+    "vini_prezzi_fornitore"
   ],
   "frontend_route": [
     "/vini"

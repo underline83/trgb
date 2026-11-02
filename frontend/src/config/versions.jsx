@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.3 (2026-11-02): VMF.1+VMF.2 multi-fornitore — scheda vino › Prezzi › Fornitori
+    //   (più fornitori per vino, ⭐ preferito = quello degli ordini, prezzo pagato/listino
+    //   per fornitore e storico); carico con «Da chi arriva» (ordine aperto che il carico
+    //   chiude, oppure tendina fornitori + aggiungi). Costo = ultimo pagato (mig 225).
     // 4.2 (2026-10-30): il sommelier ha tutto il modulo Vini — Anagrafiche, Impostazioni
     //   e iPratico Sync. In Impostazioni le sezioni che chiamano endpoint admin
     //   (Import/Export, Markup, Locazioni, Manutenzione) si vedono solo da admin.
@@ -167,7 +171,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.2",
+    version: "4.3",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -428,7 +432,9 @@ const MODULE_VERSIONS = {
     //   accanto alle prenotazioni dal sito, endpoint 13 /statistiche/sito.
     // 1.4 (2026-10-28): da novembre 2026 i mesi si calcolano dai conti di cassa iPratico Cloud
     //   (niente più import .xls); un .xls caricato a mano vince. POST /statistiche/conti/aggiorna/.
-    version: "1.4",
+    // 1.5 (2026-11-02): linguetta «Servizio» dai conti di cassa — giorni e turni, arrivi per
+    //   mezz'ora, sale, tavoli per persone, durata, mese per mese (GET /statistiche/servizio/).
+    version: "1.5",
     label: "Statistiche",
     status: "beta",
     color: "blue",
@@ -472,6 +478,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.23 (2026-11-02): Impostazioni › WhatsApp — collegamento del numero del locale (Embedded Signup,
+    //   coexistence con l'app Business), archivio in sola lettura, chat «da rispondere», conservazione.
     // 3.22 (2026-10-29): gift card «in bianco» — lotto di codici con scadenza fissa (scatoline di Natale),
     //   etichette del lotto in un PDF solo, «Vendi» al banco o dal dettaglio scrive il prezzo e la attiva.
     // 3.21 (2026-10-28): conferma del preventivo che non resta muta (menù riletti, scelta del menù dopo l'errore, «✅ Confermato» su telefono/iPad, «✅ Conferma l'evento» accanto al menù scelto).
@@ -530,7 +538,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.22",
+    version: "3.23",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -659,6 +667,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.90 (2026-11-02): mig 225 — vini_madre_fornitori + vini_prezzi_fornitore, vini
+    //   multi-fornitore (vini 4.3) + soglia vmf_soglia_fattura_pct nelle impostazioni Vini.
+    // 5.89 (2026-11-02): mig 224 — clienti_wa_messaggi/contatti/eventi, WhatsApp del locale in
+    //   sola lettura (coexistence Meta) + strumenti MCP whatsapp_* e preventivi_inviati (server 1.8).
+    //   Riallineato VERSION (era rimasto 5.87 al push 5.88).
     // 5.88 (2026-11-02): mig 223 — fe_nc_collegamenti, note di credito collegate
     //   alle fatture (Gestione Acquisti 3.4).
     // 5.87 (2026-10-30): mig 222 — ruoli capo_sala/sommelier scritti nei modules.json VERI del locale (seed + runtime in locali/<id>/data); app/data/modules.json non è letto da nessuno. Riallineato anche il campo version (era rimasto 5.85 al push 5.86).
@@ -778,7 +791,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.88",
+    version: "5.90",
     label: "Sistema",
     status: "stabile",
     color: "green",

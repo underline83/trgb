@@ -91,6 +91,14 @@ Cambi alle rotte entrati con questi strumenti (valgono anche per le pagine): `Re
 
 Notifiche: `crea_prenotazione` non manda niente (niente email, WhatsApp, notifiche M.A): verificato, quindi non è servito un parametro per spegnerle. Le risposte non portano telefono, email, preferenze o restrizioni del cliente, né IBAN delle uscite. Fuori apposta: spese fisse e piani rate, cancellazione di scadenze e prenotazioni, modifica e cambio stato delle prenotazioni.
 
+**WhatsApp del locale e preventivi inviati** (2026-11-02, server 1.8, modulo `clienti` — [modulo_clienti_crm.md](modulo_clienti_crm.md) §17). SOLA LETTURA, per il giro del mattino: TRGB non manda messaggi ai clienti. Solo admin, come la pagina Clienti › Impostazioni › WhatsApp.
+
+| Strumento | Cosa fa | Funzione | Ruoli | Tipo |
+|---|---|---|---|---|
+| `whatsapp_conversazioni` | chat con messaggi negli ultimi `giorni` (7): nome (cliente TRGB › rubrica › nome WhatsApp), numero, ultimo messaggio del cliente e del locale, `stato` da_rispondere / risposto / scritto_solo_io, ore di attesa; `solo_da_rispondere`; blocco `aggiornamento` (collegato, ultimo webhook) | `clienti_whatsapp_service.conversazioni` | admin | sola lettura |
+| `whatsapp_cerca` | per `chi` (nome o numero) e/o `testo` (parole nei messaggi), `giorni` (180): per ogni chat i messaggi con chi/quando | `clienti_whatsapp_service.cerca` | admin | sola lettura |
+| `preventivi_inviati` | preventivi creati o modificati negli ultimi `giorni` (60), filtro `q` (cliente, titolo, numero), col registro invii (canale, quando, a chi) e `inviato` | `preventivi_service.preventivi_con_invii` | admin | sola lettura |
+
 Fuori dalla prima versione, apposta:
 - **allegati**: si caricano dalla UI; dalla chat non c'è un file da passare in modo pulito;
 - **collegamenti** e **correzione della testata**: rari, si fanno dalla UI;

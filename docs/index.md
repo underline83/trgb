@@ -51,7 +51,8 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_banca.md](modulo_banca.md) — Banca + Flussi di Cassa: estratti conto, riconciliazione, contanti, mance.
 - 📄 [modulo_dipendenti.md](modulo_dipendenti.md) — Dipendenti: anagrafica. Turni v2: [modulo_dipendenti_turni.md](modulo_dipendenti_turni.md). Chiamate intermittenti: [modulo_intermittenti.md](modulo_intermittenti.md).
 - 📄 [modulo_prenotazioni.md](modulo_prenotazioni.md) — Prenotazioni: planning, vista settimanale, mappa tavoli. Preventivi: [modulo_preventivi.md](modulo_preventivi.md).
-- 📄 [modulo_clienti_crm.md](modulo_clienti_crm.md) — Clienti / CRM: anagrafica, tag, segmenti, sync Mailchimp.
+- 📄 [modulo_clienti_crm.md](modulo_clienti_crm.md) — Clienti / CRM: anagrafica, tag, segmenti, sync Mailchimp, WhatsApp del locale in sola lettura (§17).
+- 📄 [guida_whatsapp_meta.md](guida_whatsapp_meta.md) — guida passo-passo per collegare WhatsApp (coexistence Meta) a TRGB.
 - 📄 [modulo_vendite.md](modulo_vendite.md) — Vendite / Cassa (ex "Selezioni", NOMEN-1): corrispettivi, chiusure turno, preconti.
 - 📄 [modulo_menu_carta.md](modulo_menu_carta.md) — Menu Carta: edizioni, sezioni, QR pubblico, generatore MEP. Pranzo: [modulo_pranzo.md](modulo_pranzo.md).
 - 📄 [modulo_cucina.md](modulo_cucina.md) — Cucina: checklist HACCP, task manager (split task_manager previsto, DH.5), MEP.
@@ -61,7 +62,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_sito.md](modulo_sito.md) — Visite del sito: viste e clic dal sito pubblico senza cookie, Statistiche › Sito, snippet `snippet/sito_visite.js`. Sito 1.0, dal 2026-10-23.
 - 📄 [modulo_selezioni.md](modulo_selezioni.md) — stub storico (rinominato in Vendite, NOMEN-1 2026-05-19).
 
-**Spec puntuali:** 📄 [spec_home_per_ruolo.md](spec_home_per_ruolo.md) (home differenziata per ruolo) · 📄 [spec_riconciliazione.md](spec_riconciliazione.md) (riconciliazione bancaria) · 📄 [spec_utenze.md](spec_utenze.md) (utenze multi-layout) · 📄 [spec_linea_cucina.md](spec_linea_cucina.md) (linea cucina: dal menu alla checklist agli ordini — proposta) · 📄 [refactor_anagrafiche_vini.md](refactor_anagrafiche_vini.md) (refactor anagrafiche vini). · 📄 [pec_archivio_spec.md](pec_archivio_spec.md) (archivio PEC automatico via IMAP — proposta, da sviluppare)
+**Spec puntuali:** 📄 [spec_home_per_ruolo.md](spec_home_per_ruolo.md) (home differenziata per ruolo) · 📄 [spec_riconciliazione.md](spec_riconciliazione.md) (riconciliazione bancaria) · 📄 [spec_utenze.md](spec_utenze.md) (utenze multi-layout) · 📄 [spec_vini_multifornitore.md](spec_vini_multifornitore.md) (vini da più fornitori, costo = ultimo pagato) · 📄 [spec_linea_cucina.md](spec_linea_cucina.md) (linea cucina: dal menu alla checklist agli ordini — proposta) · 📄 [refactor_anagrafiche_vini.md](refactor_anagrafiche_vini.md) (refactor anagrafiche vini). · 📄 [pec_archivio_spec.md](pec_archivio_spec.md) (archivio PEC automatico via IMAP — proposta, da sviluppare)
 
 ## 🚢 Deploy & infrastruttura
 

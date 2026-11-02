@@ -234,6 +234,10 @@ class MovimentoCreate(BaseModel):
         None, ge=0,
         description="€/unità di questo movimento. Se omesso, autopop per VENDITA (prezzo carta) e CARICO (listino).",
     )
+    # VMF.2 (mig 225, 2026-11-02): da chi arriva un CARICO. Con un prezzo
+    # esplicito diventa un «pagato» di quel fornitore e può cambiare il costo
+    # (regola: ultimo pagato). Senza prezzo il movimento si registra e basta.
+    fornitore_id: Optional[int] = Field(None, description="Solo CARICO: fornitore da cui arriva")
 
 
 class NotaCreate(BaseModel):
@@ -1163,6 +1167,20 @@ def crea_movimento(
             detail=str(e),
         )
 
+    # VMF.2 — carico da un fornitore con prezzo vero → «pagato» (spec D3)
+    costo_vmf = None
+    if (payload.tipo or "").upper() == "CARICO" and payload.fornitore_id and payload.prezzo_unitario:
+        try:
+            from app.services import vini_fornitori_service as vmf
+            mov_id = db.ultimo_movimento_id(vino_id, "CARICO")
+            costo_vmf = vmf.registra_prezzo(
+                vino_id, int(payload.fornitore_id), float(payload.prezzo_unitario),
+                tipo="pagato", data=(payload.data_mov or None), fonte="carico",
+                movimento_id=mov_id, utente=utente,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Carico registrato, prezzo no: {e}")
+
     # ritorna vino aggiornato + ultimi movimenti
     updated = db.get_vino_by_id(vino_id)
     movs = db.list_movimenti_vino(vino_id, limit=50)
@@ -1170,6 +1188,9 @@ def crea_movimento(
     return {
         "vino": dict(updated) if updated else None,
         "movimenti": [dict(m) for m in movs],
+        "costo": costo_vmf,
+        # VMF.2: id del movimento appena scritto, per legarlo a un ordine
+        "movimento_id": db.ultimo_movimento_id(vino_id, (payload.tipo or "").upper()),
     }
 
 

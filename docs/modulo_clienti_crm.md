@@ -567,3 +567,38 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 2. **Le 35 righe senza importo restano fuori** per scelta: sono per lo più "BOX" o celle vuote. Se Marco ritrova gli scontrini, si inseriscono a mano.
 3. **Scadenza calcolata a 30 giorni per mese** in emissione (`mesi × 30`): approssimazione voluta, la data è modificabile a mano.
 4. **Le card importate non hanno intestatario**: l'Excel non lo registrava (la colonna Utente è chi ha venduto, non chi ha ricevuto). Al banco si riconoscono dal codice.
+
+---
+
+# 17. WhatsApp del locale in sola lettura (v3.23, 2026-11-02, mig 224)
+
+**Perché.** Il giro del mattino legge mail, prenotazioni e agenda ma non WhatsApp, dove passano gruppi, eventi e proposte menù. Serve sapere chi aspetta una risposta e se una proposta è già partita. Decisione di Marco (2026-11-02, Q #295): **solo lettura**, numero sull'app WhatsApp Business del telefono come oggi, strada ufficiale Meta («coexistence»), prima prova senza provider a pagamento. Escluse le librerie non ufficiali (Baileys, whatsmeow): violano i termini WhatsApp, il numero del locale rischierebbe il blocco.
+
+**Come funziona.** Con la coexistence lo stesso numero è anche sulla Cloud API. Meta manda al webhook di TRGB: `messages` (in arrivo), `smb_message_echoes` (scritti dall'app o da un dispositivo collegato), `history` (ultimi 6 mesi, una volta sola, entro 24 ore dal collegamento), `smb_app_state_sync` (rubrica dell'app), `account_update` (es. scollegato). Meta non fa pagare i messaggi ricevuti né quelli scritti dall'app. TRGB non usa l'API per scrivere.
+
+**Cosa NON si vede** (limiti Meta): chat di gruppo; messaggi scritti da WhatsApp per Windows o WearOS; i media (si tiene solo la didascalia). Dopo il collegamento: messaggi effimeri e «visualizza una volta» spenti, liste broadcast in sola lettura, dispositivi collegati da ricollegare; l'app va aperta almeno ogni ~13-14 giorni, altrimenti Meta scollega (arriva una notifica M.A agli admin).
+
+**Tabelle** (`clienti.sqlite3`): `clienti_wa_messaggi` (wamid unico, numero, direzione in/out, tipo, testo, ts, fonte webhook/eco/storico), `clienti_wa_contatti` (nome WhatsApp e nome in rubrica per numero), `clienti_wa_eventi` (registro webhook senza contenuto; il payload si tiene solo se l'elaborazione fallisce). Impostazioni `clienti_impostazioni.wa_*`: `wa_conservazione_giorni` (90, da 7 a 730, dalla pagina), collegamento (waba, phone_number_id, numero), stato storico, ultimo webhook. Nessun segreto nel DB: chiavi nel `.env` (`WA_APP_ID`, `WA_APP_SECRET`, `WA_CONFIG_ID`, `WA_VERIFY_TOKEN`, `WA_GRAPH_VERSION`); il token del business si usa al collegamento e non si salva.
+
+**Conservazione e privacy.** I messaggi oltre la conservazione si cancellano da soli (al più una volta l'ora, al webhook o alla lettura); il registro eventi tiene al massimo 30 giorni. Finalità: rispondere a prenotazioni, eventi e preventivi — niente marketing né profilazione. Da fare lato Marco: informativa privacy del sito aggiornata (canale WhatsApp, Meta come fornitore), riga nel registro dei trattamenti.
+
+**Chi è chi.** Il nome viene dal cliente TRGB col telefono uguale (`normalize_phone` su telefono/telefono2), poi dalla rubrica dell'app, poi dal nome WhatsApp. «Da rispondere» = l'ultimo messaggio (reazioni escluse) è del cliente.
+
+**Collegamento.** Impostazioni › WhatsApp › «Collega WhatsApp»: Embedded Signup di Meta con `featureType: whatsapp_business_app_onboarding`; il codice (vale 30 s) va a `POST /clienti/whatsapp/collega`, che scambia il token, iscrive l'app al WABA (`subscribed_apps`), legge il numero (`is_on_biz_app`) e chiede rubrica e storico (`smb_app_data`). Guida passo-passo per il pannello Meta: [guida_whatsapp_meta.md](guida_whatsapp_meta.md). **Il webhook deve essere già in produzione prima di collegare**, altrimenti lo storico si perde.
+
+## 17.1 Capability
+
+| Codice | Cosa fa | Dove | Audience | Stato |
+|---|---|---|---|---|
+| C-CL-W01 | Webhook Meta: verifica (`hub.verify_token`) e ricezione firmata (`X-Hub-Signature-256`), salva messaggi/eco/storico/rubrica | `clienti_whatsapp_router.py:webhook_verifica/webhook_ricevi` (`GET/POST /clienti/whatsapp/webhook`), `clienti_whatsapp_service.elabora_webhook` | Meta (pubblico) | 🆕 |
+| C-CL-W02 | Collega WhatsApp (Embedded Signup + iscrizione + sync storico) | `POST /clienti/whatsapp/collega`, `ClientiWhatsApp.jsx:collega` | admin | 🆕 |
+| C-CL-W03 | Stato collegamento, archivio, conservazione | `GET /clienti/whatsapp/stato`, `PUT /clienti/whatsapp/conservazione`, `ClientiWhatsApp.jsx` | admin | 🆕 |
+| C-CL-W04 | Chat recenti con «da rispondere» | `GET /clienti/whatsapp/conversazioni`, MCP `whatsapp_conversazioni` | admin, giro | 🆕 |
+| C-CL-W05 | Ricerca per persona/numero/parole | `GET /clienti/whatsapp/cerca`, MCP `whatsapp_cerca` | admin, giro | 🆕 |
+| C-CL-W06 | Preventivi recenti col registro invii | `preventivi_service.preventivi_con_invii`, MCP `preventivi_inviati` | admin, giro | 🆕 |
+
+## 17.2 Punti aperti
+
+1. **Da provare:** se Meta lascia collegare il proprio numero in coexistence a un'app propria senza essere Tech Provider approvato. Se no: Tech Provider (revisione app con due video) o provider (YCloud gratis da verificare, 360dialog 49 €/mese) — il codice TRGB resta lo stesso, cambia solo da dove arrivano i webhook.
+2. Webhook con l'app Meta in modalità sviluppo: da verificare alla prova se Meta li manda o serve l'app «Live».
+

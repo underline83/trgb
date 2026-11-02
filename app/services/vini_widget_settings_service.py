@@ -82,6 +82,9 @@ WIDGET_DEFAULTS = [
     # Prezzo calice automatico (fallback / ricalcola-batch)
     ("prezzo_calice_divisore",        "5",   "float",   "Divisore default: PREZZO_CARTA / N = prezzo calice automatico"),
     ("prezzo_calice_step_round",      "0.5", "float",   "Step arrotondamento prezzo calice (es. 0.5 = €,50)"),
+    # VMF (2026-11-02) — multi-fornitore: fattura contro carico. Marco: «nell'ordine
+    # del max +/- 2% fa da solo; dopo chiede». Spec docs/spec_vini_multifornitore.md D4.
+    ("vmf_soglia_fattura_pct",        "2",   "percent", "%: se il prezzo in fattura differisce dal carico entro ±N% vince la fattura in automatico; oltre va in «da verificare»"),
 ]
 
 
