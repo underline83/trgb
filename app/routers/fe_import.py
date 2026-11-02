@@ -1447,6 +1447,71 @@ def get_fattura_detail(fattura_id: int):
 
 
 # -------------------------------------------------------------------
+# A.1 fase 3 — Note di credito collegate alla fattura (mig 223)
+# -------------------------------------------------------------------
+# Logica in app/services/note_credito_service.py: la quota della NC si somma
+# al pagato dell'uscita della fattura, come un secondo bonifico.
+
+@router.get(
+    "/fatture/{fattura_id}/note-credito",
+    response_model=Dict[str, Any],
+    summary="Note di credito collegate (fattura) o fatture stornate (nota)",
+)
+def get_note_credito_fattura(fattura_id: int):
+    from app.services.note_credito_service import elenco, NotaCreditoErrore
+    conn = _get_conn()
+    try:
+        return elenco(conn, fattura_id)
+    except NotaCreditoErrore as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.post(
+    "/fatture/{fattura_id}/note-credito",
+    response_model=Dict[str, Any],
+    summary="Collega una nota di credito alla fattura che storna",
+)
+def post_collega_nota_credito(fattura_id: int, payload: Dict[str, Any] = Body(...)):
+    """Body: {nota_id: int, importo?: float}. Senza importo usa tutto il
+    residuo della nota fino allo scoperto della fattura."""
+    from app.services.note_credito_service import collega, NotaCreditoErrore
+    nota_id = payload.get("nota_id")
+    if not nota_id:
+        raise HTTPException(status_code=400, detail="nota_id obbligatorio")
+    conn = _get_conn()
+    try:
+        res = collega(conn, fattura_id, int(nota_id), payload.get("importo"))
+        conn.commit()
+        return res
+    except NotaCreditoErrore as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.delete(
+    "/note-credito/collegamenti/{collegamento_id}",
+    response_model=Dict[str, Any],
+    summary="Scollega una nota di credito dalla fattura",
+)
+def delete_collegamento_nota_credito(collegamento_id: int):
+    from app.services.note_credito_service import scollega, NotaCreditoErrore
+    conn = _get_conn()
+    try:
+        res = scollega(conn, collegamento_id)
+        conn.commit()
+        return res
+    except NotaCreditoErrore as e:
+        conn.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
+    finally:
+        conn.close()
+
+
+# -------------------------------------------------------------------
 # C.2 / TAB CE — Impatto fattura nel Conto Economico
 # -------------------------------------------------------------------
 

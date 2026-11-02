@@ -1806,8 +1806,22 @@ def delete_link(link_id: str):
             """, (l["fattura_id"],)).fetchone()
             resta = round(float(row[0] or 0), 2)
             tol = _tolleranza_residuo(conn)
+            # Note di credito collegate (mig 223): la loro quota resta pagata
+            # anche quando si stacca il bonifico.
+            from app.services.note_credito_service import somma_nc_fattura
+            nc = somma_nc_fattura(conn, l["fattura_id"])
 
-            if resta <= 0:
+            if resta <= 0 and nc > 0:
+                cur.execute("""
+                    UPDATE cg_uscite
+                    SET banca_movimento_id = NULL,
+                        stato = CASE WHEN totale - ? < ? THEN 'PAGATO' ELSE 'PARZIALE' END,
+                        importo_pagato = MIN(?, totale),
+                        data_pagamento = NULL,
+                        updated_at = datetime('now')
+                    WHERE fattura_id = ? AND banca_movimento_id = ?
+                """, (nc, tol, nc, l["fattura_id"], l["movimento_id"]))
+            elif resta <= 0:
                 cur.execute("""
                     UPDATE cg_uscite
                     SET banca_movimento_id = NULL,
@@ -1834,7 +1848,7 @@ def delete_link(link_id: str):
                            updated_at = datetime('now')
                      WHERE fattura_id = ?
                        AND stato NOT IN ('PAGATO_MANUALE')
-                """, (altro_mov, resta, tol, resta, l["fattura_id"]))
+                """, (altro_mov, resta + nc, tol, resta + nc, l["fattura_id"]))
 
     conn.commit()
     conn.close()

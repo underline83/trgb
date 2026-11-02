@@ -342,7 +342,10 @@ const MODULE_VERSIONS = {
     // v3.3 (2026-10-16): spalmatura di default per categoria/sottocategoria
     //   (Impostazioni › Categorie, chip 📆) e badge «📆 N mesi» nel
     //   dettaglio fattura (mig 191).
-    version: "3.3",
+    // v3.4 (2026-11-02): note di credito collegate alla fattura che stornano
+    //   (A.1 fase 3, mig 223) — la cifra della NC conta come pagata; pannello
+    //   «Note di credito» nel Riepilogo del dettaglio.
+    version: "3.4",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
@@ -656,6 +659,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.88 (2026-11-02): mig 223 — fe_nc_collegamenti, note di credito collegate
+    //   alle fatture (Gestione Acquisti 3.4).
     // 5.87 (2026-10-30): mig 222 — ruoli capo_sala/sommelier scritti nei modules.json VERI del locale (seed + runtime in locali/<id>/data); app/data/modules.json non è letto da nessuno. Riallineato anche il campo version (era rimasto 5.85 al push 5.86).
     // 5.86 (2026-10-30): mig 221 — ruolo capo_sala (= permessi di oggi del sommelier), home_actions copiate. VERSION riallineato (era 5.78).
     // 5.85 (2026-10-29): mig 220 — cucina_articoli.scorta_min_dispensa (cucinaScorte 1.13).
@@ -773,7 +778,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.87",
+    version: "5.88",
     label: "Sistema",
     status: "stabile",
     color: "green",

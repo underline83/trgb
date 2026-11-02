@@ -28,7 +28,7 @@ Il modulo consente di importare file FatturaPA in formato XML e trasformarli in 
 - **FattureInCloud (FIC) API v2 Sync**: router dedicato `/fic/*` con XML enrichment (quando FIC API ritorna `is_detailed: false`, il sistema recupera le righe dall'XML SDI allegato) — vedi [modulo_fatture_in_cloud.md](modulo_fatture_in_cloud.md)
 
 ### Da fare
-- Gestione Note di Credito come storno con segno (dal 2026-10-02 le TD04 arrivano anche da FIC e sono escluse da **tutte** le query di costo via `app/services/fatture_filtri.escludi_nc` — roadmap A.1 fase 1; il segno negativo è la fase 2)
+- Gestione Note di Credito come storno con segno (dal 2026-10-02 le TD04 arrivano anche da FIC e sono escluse da **tutte** le query di costo via `app/services/fatture_filtri.escludi_nc` — roadmap A.1 fase 1; il segno negativo è la fase 2; dal 2026-11-02 una NC si collega alla fattura che storna e la sua cifra conta come pagata — fase 3, mig 223, `app/services/note_credito_service.py`)
 - Carichi magazzino automatici da fatture
 
 ---

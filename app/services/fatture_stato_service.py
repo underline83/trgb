@@ -35,6 +35,9 @@ Invarianti:
     on_riconciliazione_removed riporta a 'pagato_manuale' (preserva intenzione
     utente di dichiarare pagata).
   - Hook riconciliazione (INSERT su banca_fatture_link): forza 'pagato'.
+  - Eccezione (mig 223): una nota di credito collegata che copre il resto della
+    fattura la porta a PAGATO anche senza bonifico (niente da pagare). Vedi
+    app/services/note_credito_service.py.
 
 Use case principali (interfaccia INVARIATA rispetto v1):
   - UI button "Segna pagato manuale": set_stato(id, 'pagato_manuale')
@@ -108,8 +111,8 @@ def _ensure_cg_uscita(conn, fattura_id: int) -> Optional[int]:
         return None
 
     # Note di credito (TD04, A.1 fase 1): non sono un debito da pagare, quindi
-    # niente cg_uscite. Il collegamento con la fattura stornata (fase 3)
-    # gestirà il residuo; fino ad allora una nota di credito non tocca il CG.
+    # niente cg_uscite. Collegate alla fattura stornata (fase 3, mig 223) la
+    # loro quota va sull'uscita della fattura: note_credito_service.py.
     tipo = f["tipo_documento"] if hasattr(f, "keys") else f[6]
     if tipo == "TD04":
         logger.info(f"[stato_pagamento] fattura={fattura_id} è nota di credito: nessuna cg_uscite")
@@ -286,6 +289,8 @@ def recompute_all_states(conn) -> dict:
           AND fattura_id IS NOT NULL
           AND fattura_id NOT IN (SELECT DISTINCT fattura_id FROM banca_fatture_link)
           AND COALESCE(banca_movimento_id, 0) = 0
+          -- Chiusa da nota di credito (mig 223): non c'era niente da pagare.
+          AND fattura_id NOT IN (SELECT DISTINCT fattura_id FROM fe_nc_collegamenti)
     """)
     n_man = cur.rowcount
 

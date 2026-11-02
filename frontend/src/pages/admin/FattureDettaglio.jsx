@@ -1,4 +1,5 @@
-// @version: v3.2-note-credito — header NC per TipoDocumento TD04 (2026-10-02, A.1 fase 1)
+// @version: v3.3-nc-collegate — pannello Note di credito nel Riepilogo (2026-11-02, A.1 fase 3, mig 223)
+// v3.2-note-credito — header NC per TipoDocumento TD04 (2026-10-02, A.1 fase 1)
 // v3.1-3D — Modello 3-dimensioni (2026-05-18, vedi §15)
 // v3.1: zona chip header e tab Pagamenti riscritte secondo modello D1/D2/D3:
 //   - D1+D2 stato pagamento via <StatoPagamentoBadge>
@@ -19,6 +20,7 @@ import { Btn } from "../../components/ui";
 import StatoPagamentoBadge from "../../components/StatoPagamentoBadge";
 import StatoScadenzaBadge, { deriveStatoScadenza, giorniLabel } from "../../components/StatoScadenzaBadge";
 import { isChiuso } from "../../utils/statoPagamento";
+import NoteCreditoPanel from "./NoteCreditoPanel";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CG = `${API_BASE}/controllo-gestione`;
@@ -622,7 +624,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
                 </span>
                 {isNotaCredito ? (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-sky-100 text-sky-800 border-sky-200"
-                    title="Le note di credito non entrano nei totali, nel conto economico né nello scadenzario. Il collegamento alla fattura stornata arriverà più avanti.">
+                    title="Le note di credito non entrano nei totali né nello scadenzario; nel conto economico contano col segno meno. Collegata alla fattura che storna, la sua cifra conta come pagata su quella fattura.">
                     Nota di credito · fuori da totali e scadenzario
                   </span>
                 ) : (
@@ -742,6 +744,9 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
           {/* ── RIEPILOGO (nuovo, sessione 55) ── */}
           {activeTab === "riepilogo" && (
           <div className="p-5 space-y-5">
+            {/* A.1 fase 3 (mig 223): note di credito collegate / fatture stornate */}
+            <NoteCreditoPanel fatturaId={fattura.id} onChanged={refetch} />
+
             {isRateizzata && (
               <div className="p-3 bg-purple-100/60 border border-purple-300 rounded-lg text-sm text-purple-900">
                 Questa fattura è stata rateizzata nella spesa fissa{" "}

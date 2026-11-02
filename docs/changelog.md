@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-02 — Note di credito collegate alla fattura `[core]`
+
+Gestione Acquisti 3.4, sistema 5.88, **mig 223** (roadmap A.1 fase 3). Una nota di credito si collega alla fattura dello stesso fornitore che storna, dal pannello **Note di credito** nel Riepilogo del dettaglio fattura (compare se il fornitore ha note ancora da usare): la sua cifra conta come pagata su quella fattura, come un secondo bonifico. Caso d'origine: Orobica 206649/FTM da 7.625,93 € pagata con RiBa da 7.621,12 € + NC 101745/NCV da 4,81 € → prima restava «parziale» per sempre, ora è pagata. Se la NC arriva prima del pagamento la fattura resta parziale e il bonifico del resto la chiude; se la NC storna tutta la fattura, la fattura è chiusa senza bonifico. Una nota si può dividere su più fatture finché ne resta; si scollega con ✕. Sul dettaglio della nota si vedono le fatture che storna e quanto ne resta. Una NC non collegata continua a contare solo nel conto economico (fase 2). Il collegamento automatico dai dati della fattura elettronica (DatiFattureCollegate) non c'è ancora. File: `note_credito_service.py`, `fe_import.py`, `banca_router.py`, `fatture_stato_service.py`, `NoteCreditoPanel.jsx`, `FattureDettaglio.jsx`, mig 223.
+
 ## 2026-11-01 — Calendario turni: la Sala Cena col suo orario `[core]`
 
 Dipendenti 2.42, nessuna migrazione. Marco: «mi sono iscritto al mio calendario turni, ma vedo solo la cucina e non la sala». Il feed conteneva già tutti i turni, ma la Sala Cena finisce alle «24:00» (orario del reparto Sala): `time(24, 0)` andava in errore e il turno usciva come evento di tutto il giorno, che sull'iPhone finisce nella fascetta in alto. `turni_calendario_service`: gli orari si leggono in minuti (24:00 = fine giornata) e il turno che passa la mezzanotte va al giorno dopo. Il telefono rilegge il feed da solo (REFRESH 1h).
