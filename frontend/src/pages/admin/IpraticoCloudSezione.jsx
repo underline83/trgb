@@ -1,4 +1,4 @@
-// @version: v1.2 — righe con varianti e note (2026-11-03) · v1.1 — + conti da abbinare, tavoli della cassa, tolleranza (2026-10-18)
+// @version: v1.3 — «Righe come arrivano» per trovare le varianti (2026-11-03) · v1.2 — righe con varianti e note (2026-11-03) · v1.1 — + conti da abbinare, tavoli della cassa, tolleranza (2026-10-18)
 // Modulo: cassa — scarico dei conti chiusi da iPratico Cloud (riga per riga).
 // Backend: app/routers/cassa_ipratico_router.py · Doc: docs/analisi_ipratico_cloud.md
 import React, { useCallback, useEffect, useState } from "react";
@@ -181,6 +181,14 @@ export default function IpraticoCloudSezione() {
     catch (e) { setErrore(e.message); }
   };
 
+  // Righe come arrivano da iPratico (per capire dove stanno le varianti del Piatto pranzo)
+  const [grezzo, setGrezzo] = useState(null);
+  const vediGrezzo = async () => {
+    setErrore(null); setGrezzo("…");
+    try { setGrezzo(await leggi(await apiFetch(`${BASE}/grezzo/?data=${giorno}&cerca=pranzo`))); }
+    catch (e) { setErrore(e.message); setGrezzo(null); }
+  };
+
   const p = stato?.periodo;
 
   return (
@@ -289,10 +297,16 @@ export default function IpraticoCloudSezione() {
           <input type="date" value={giorno} onChange={(e) => setGiorno(e.target.value)}
             className="border border-neutral-300 rounded-lg px-3 py-2 min-h-[44px]" />
           <Btn variant="secondary" size="md" onClick={vediConti}>Mostra</Btn>
+          <Btn variant="ghost" size="md" onClick={vediGrezzo}>Righe come arrivano (pranzo)</Btn>
           {conti && <span className="text-sm text-neutral-600">
             {conti.length} conti · {conti.reduce((a, c) => a + (c.coperti || 0), 0)} coperti · {euro(conti.reduce((a, c) => a + c.totale, 0))}
           </span>}
         </div>
+        {grezzo && (
+          <pre className="text-[11px] leading-snug bg-neutral-900 text-neutral-100 rounded-lg p-3 max-h-96 overflow-auto whitespace-pre-wrap break-all">
+            {grezzo === "…" ? "Leggo da iPratico…" : JSON.stringify({ percorsi_sospetti: grezzo.percorsi_sospetti, righe: grezzo.righe }, null, 2)}
+          </pre>
+        )}
         {conti && conti.length === 0 && <p className="text-sm text-neutral-500">Nessun conto salvato per questo giorno.</p>}
         {conti && conti.length > 0 && (
           <div className="divide-y divide-neutral-100">

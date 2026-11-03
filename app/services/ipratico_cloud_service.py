@@ -583,21 +583,53 @@ def conti_del_giorno(giorno: str) -> List[Dict[str, Any]]:
         conn.close()
 
 
+def _percorsi(v, base: str = "", fuori: Optional[List[str]] = None) -> List[str]:
+    """Tutti i percorsi JSON il cui nome contiene variant/modifier/note/extra (diagnostica)."""
+    fuori = [] if fuori is None else fuori
+    if isinstance(v, dict):
+        for k, x in v.items():
+            p = f"{base}.{k}" if base else k
+            if any(t in k.lower() for t in ("variant", "modifier", "note", "extra", "addition", "option")):
+                fuori.append(f"{p} = {json.dumps(x, ensure_ascii=False)[:200]}")
+            _percorsi(x, p, fuori)
+    elif isinstance(v, list):
+        for i, x in enumerate(v[:50]):
+            _percorsi(x, f"{base}[{i}]", fuori)
+    return fuori
+
+
 def righe_grezze(giorno: date, cerca: str = "pranzo", limite: int = 5) -> Dict[str, Any]:
     """Le righe come arrivano da iPratico (per vedere dove stanno varianti e note).
-    Solo lettura, solo admin: serve a capire la struttura, non si salva niente."""
+    Solo admin. Salva anche un campione in `cassa_campioni` (così arriva sul Mac col push)."""
     g = giorno.isoformat()
     dati = _api_get("/statistics/closed-payment-sessions", {
         "application": "eat", "training": 0,
         "dateFrom": f"{g} 00:00:00", "dateTo": f"{g} 23:59:59",
     }) or {}
+    sessioni = dati.get("paymentSessions") or []
     trovate = []
-    for s in dati.get("paymentSessions") or []:
+    for s in sessioni:
         for chiave in ("originalOrderItems", "printedOrderItems"):
             for it in s.get(chiave) or []:
                 nome = str(it.get("orderItemName") or it.get("printedOrderItemName") or "")
-                if cerca.lower() in nome.lower():
+                if cerca.lower() in nome.lower() and len(trovate) < limite:
                     trovate.append({"da": chiave, "chiavi": sorted(it.keys()), "varianti_lette": _varianti(it), "riga": it})
-                    if len(trovate) >= limite:
-                        return {"giorno": g, "cerca": cerca, "righe": trovate}
-    return {"giorno": g, "cerca": cerca, "righe": trovate}
+    sessione_con = next((s for s in sessioni if any(
+        cerca.lower() in str(it.get("orderItemName") or "").lower()
+        for k in ("originalOrderItems", "printedOrderItems") for it in (s.get(k) or []))), None)
+    out = {
+        "giorno": g, "cerca": cerca, "sessioni": len(sessioni),
+        "chiavi_sessione": sorted(sessione_con.keys()) if sessione_con else [],
+        "percorsi_sospetti": _percorsi(sessione_con)[:80] if sessione_con else [],
+        "righe": trovate,
+    }
+    conn = get_cassa_conti_conn()
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS cassa_campioni (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                     "giorno TEXT, cerca TEXT, json TEXT, creato_at TEXT DEFAULT (datetime('now','localtime')))")
+        conn.execute("INSERT INTO cassa_campioni (giorno, cerca, json) VALUES (?, ?, ?)",
+                     (g, cerca, json.dumps({**out, "sessione": sessione_con}, ensure_ascii=False)))
+        conn.commit()
+    finally:
+        conn.close()
+    return out

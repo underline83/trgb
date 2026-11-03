@@ -1,4 +1,4 @@
-// @version: v9.5 — widget «⏳ Preventivi in attesa» sotto le Selezioni (2026-11-03)
+// @version: v9.5 — widget «⏳ Preventivi in attesa» sotto le Selezioni; la pagina 1 scorre in verticale su iPad/desktop (2026-11-03)
 // v9.4 — ruoli di cucina (chef, sous_chef, commis) → HomeCucina: turni, Lavagna, tasti;
 //   niente incasso/coperti/prenotazioni, nemmeno con ?full=1 (2026-10-02)
 // v9.3 — Home v3.6: widget Bacheca sostituito da La Lavagna
@@ -240,13 +240,13 @@ export default function Home() {
           >
 
             {/* ════════ PAGINA 1: COMMAND CENTER 3 COLONNE ════════ */}
-            <div className="w-full flex-shrink-0 lg:min-h-0 px-5 lg:px-8 pb-4">
-              <div className="lg:h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,.7fr)] gap-3.5">
+            <div className="w-full flex-shrink-0 lg:min-h-0 lg:overflow-y-auto px-5 lg:px-8 pb-4">
+              <div className="lg:min-h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,.7fr)] gap-3.5">
 
                 {/* ═══ COL 1: Prenotazioni + Mini stats ═══ */}
                 <div className="flex flex-col gap-3.5 lg:min-h-0">
                   {/* Prenotazioni */}
-                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden max-h-[360px] lg:max-h-none lg:flex-1 lg:min-h-0">
+                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden max-h-[360px] lg:max-h-[calc(100dvh-280px)] lg:flex-1 lg:min-h-0">
                     <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
                       <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">
                         📅 Prenotazioni oggi
