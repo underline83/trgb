@@ -1,10 +1,10 @@
-// @version: v1.0-statistiche-servizio (2026-11-02, IP.1 parte 2)
+// @version: v1.1 (2026-11-03): arrivi con le prenotazioni accanto alla cassa + minuti fra ora prenotata e conto · v1.0-statistiche-servizio (2026-11-02, IP.1 parte 2)
 // Modulo: statistiche (aggregatore read-only) — dati dai conti di cassa iPratico Cloud (modulo cassa)
 // Come lavora la sala: numeri del periodo contro il periodo prima, giorni e turni,
 // orari di arrivo, sale, dimensione dei tavoli, mese per mese.
 // Fonte: GET /statistiche/servizio/?giorni=N (solo admin). Servizio: vendite_conti_service.servizio_riepilogo
 import React, { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
 import StatisticheNav from "./StatisticheNav";
 import TrgbLoader from "../../components/TrgbLoader";
@@ -58,7 +58,13 @@ export default function StatisticheServizio() {
   const cella = {};
   (d?.settimana || []).forEach((s) => { cella[`${s.dow}|${s.turno}`] = s; });
   const maxCop = Math.max(1, ...(d?.settimana || []).map((s) => s.coperti_medi));
-  const arrivi = (turno) => (d?.arrivi || []).filter((a) => a.turno === turno && a.coperti > 0);
+  // Coperti per mezz'ora: ora prenotata (prenotazioni venute) e apertura del conto in cassa
+  const arrivi = (turno) => {
+    const m = {};
+    (d?.arrivi_prenotazioni || []).filter((a) => a.turno === turno).forEach((a) => { m[a.ora] = { ora: a.ora, prenotati: a.coperti, cassa: 0 }; });
+    (d?.arrivi || []).filter((a) => a.turno === turno && a.coperti > 0).forEach((a) => { m[a.ora] = { ...(m[a.ora] || { ora: a.ora, prenotati: 0 }), cassa: a.coperti }; });
+    return Object.values(m).sort((x, y) => x.ora.localeCompare(y.ora));
+  };
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
@@ -145,16 +151,19 @@ export default function StatisticheServizio() {
             {/* Arrivi */}
             <div className="grid gap-3 md:grid-cols-2">
               {["pranzo", "cena"].map((t) => (
-                <Card key={t} titolo={`Arrivi a ${t} — coperti per mezz'ora`} nota="Dall'ora di apertura del conto in cassa.">
+                <Card key={t} titolo={`Arrivi a ${t} — coperti per mezz'ora`}
+                  nota={`Prenotati: ora del pasto delle prenotazioni che si sono presentate. In cassa: apertura del conto (anche chi entra senza prenotare).${d.attesa_comanda?.[t]?.minuti != null ? ` Fra l'ora prenotata e l'apertura del conto passano di solito ${d.attesa_comanda[t].minuti} minuti (su ${num(d.attesa_comanda[t].prenotazioni)} prenotazioni abbinate).` : ""}`}>
                   {arrivi(t).length === 0 ? <div className="text-sm text-neutral-400">Nessun dato.</div> : (
-                    <div className="h-48">
+                    <div className="h-56">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={arrivi(t)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                           <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
                           <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(v) => [num(v), "coperti"]} />
-                          <Bar dataKey="coperti" fill="#9f1239" radius={[4, 4, 0, 0]} />
+                          <Tooltip formatter={(v, nome) => [`${num(v)} coperti`, nome]} />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Bar dataKey="prenotati" name="Prenotati" fill="#fda4af" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="cassa" name="In cassa" fill="#9f1239" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>

@@ -1,4 +1,5 @@
-// @version: v9.4 — ruoli di cucina (chef, sous_chef, commis) → HomeCucina: turni, Lavagna, tasti;
+// @version: v9.5 — widget «⏳ Preventivi in attesa» sotto le Selezioni (2026-11-03)
+// v9.4 — ruoli di cucina (chef, sous_chef, commis) → HomeCucina: turni, Lavagna, tasti;
 //   niente incasso/coperti/prenotazioni, nemmeno con ?full=1 (2026-10-02)
 // v9.3 — Home v3.6: widget Bacheca sostituito da La Lavagna
 //   (briefing di servizio auto-composto + nota del turno + eventi).
@@ -17,6 +18,7 @@ import useHomeActions from "../hooks/useHomeActions";
 import SelezioniCard from "../components/widgets/SelezioniCard";
 import Lavagna from "../components/widgets/Lavagna";
 import TodoPersonale from "../components/widgets/TodoPersonale";
+import PreventiviInAttesaCard from "../components/widgets/PreventiviInAttesaCard";
 // R8c: filtra Home grid per moduli attivi del locale (feature flags).
 import { useActiveModules } from "../utils/activeModules";
 
@@ -330,6 +332,8 @@ export default function Home() {
                 <div className="flex flex-col gap-3.5 lg:min-h-0">
                   {/* Widget Selezioni del Giorno — 4 mini-blocchi (macellaio/pescato/salumi/formaggi) */}
                   <SelezioniCard data={widgets?.selezioni} />
+                  {/* Preventivi in attesa di conferma (2026-11-03): si vede solo se ce ne sono */}
+                  <PreventiviInAttesaCard />
 
                   {/* La Lavagna — briefing di servizio.
                       Sostituisce il widget Bacheca (restava vuoto: era l'unico

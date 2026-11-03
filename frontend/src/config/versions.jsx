@@ -441,7 +441,9 @@ const MODULE_VERSIONS = {
     //   (niente più import .xls); un .xls caricato a mano vince. POST /statistiche/conti/aggiorna/.
     // 1.5 (2026-11-02): linguetta «Servizio» dai conti di cassa — giorni e turni, arrivi per
     //   mezz'ora, sale, tavoli per persone, durata, mese per mese (GET /statistiche/servizio/).
-    version: "1.5",
+    // 1.6 (2026-11-03): negli arrivi anche le prenotazioni venute (ora del pasto, clienti.sqlite3 in
+    //   sola lettura) accanto all'apertura del conto, e i minuti fra ora prenotata e conto.
+    version: "1.6",
     label: "Statistiche",
     status: "beta",
     color: "blue",
@@ -485,6 +487,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.25 (2026-11-03): widget Home «⏳ Preventivi in attesa» (scadenza più vicina, Proroga e
+    //   Libera tavolo per admin), per i ruoli avvisati di Impostazioni › Preventivi.
     // 3.24 (2026-11-03): preventivi, scadenza della conferma (proposta da Impostazioni, avvisi
     //   allo staff prima e il giorno stesso, «Proroga», «Libera tavolo», storico) + email al
     //   cliente con lo staff in CC visibile e Rispondi a (una sola email allo staff).
@@ -548,7 +552,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.24",
+    version: "3.25",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

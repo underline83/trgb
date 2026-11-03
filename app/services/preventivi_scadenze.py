@@ -345,3 +345,59 @@ def avvia_periodico(minuti: int = 60) -> None:
             time.sleep(minuti * 60)
 
     threading.Thread(target=_ciclo, name="preventivi-scadenze", daemon=True).start()
+
+
+# ─────────────────────────── widget Home (2026-11-03) ───────────────────────────
+
+def in_attesa(limite: int = 6) -> dict:
+    """Per il widget «Preventivi in attesa» della Home: i preventivi che aspettano la
+    conferma del cliente (o già scaduti col tavolo ancora da liberare), dalla
+    scadenza più vicina. giorni = giorni alla scadenza (negativi = passata)."""
+    cfg = get_config()
+    oggi = date.today()
+    conn = get_clienti_conn()
+    try:
+        righe = conn.execute(
+            """SELECT p.id, p.numero, p.titolo, p.stato, p.data_evento, p.ora_evento, p.n_persone,
+                      p.scadenza_conferma, p.prenotazione_id,
+                      c.nome AS cliente_nome, c.cognome AS cliente_cognome
+               FROM clienti_preventivi p LEFT JOIN clienti c ON c.id = p.cliente_id
+               WHERE p.stato IN ('bozza', 'inviato', 'in_attesa', 'scaduto')
+                 AND COALESCE(p.is_bozza_auto, 0) = 0
+                 AND (p.stato != 'scaduto' OR p.prenotazione_id IS NOT NULL)
+                 AND (COALESCE(p.data_evento, '') = '' OR date(p.data_evento) >= date('now', 'localtime'))
+               ORDER BY CASE WHEN COALESCE(p.scadenza_conferma, '') = '' THEN 1 ELSE 0 END,
+                        p.scadenza_conferma, p.data_evento""",
+        ).fetchall()
+        # «scaduto» con prenotazione: resta in lista solo se la prenotazione è ancora attiva
+        attive = {}
+        ids = [r["prenotazione_id"] for r in righe if r["prenotazione_id"]]
+        if ids:
+            attive = {r[0]: r[1] for r in conn.execute(
+                f"SELECT id, stato FROM clienti_prenotazioni WHERE id IN ({','.join('?' * len(ids))})", ids)}
+    finally:
+        conn.close()
+    items = []
+    for r in righe:
+        stato_pren = attive.get(r["prenotazione_id"]) if r["prenotazione_id"] else None
+        tavolo_tenuto = stato_pren is not None and stato_pren not in ("CANCELED", "NO_SHOW", "REFUSED")
+        if r["stato"] == "scaduto" and not tavolo_tenuto:
+            continue
+        try:
+            giorni = (datetime.strptime(r["scadenza_conferma"], "%Y-%m-%d").date() - oggi).days
+        except (TypeError, ValueError):
+            giorni = None
+        cliente = " ".join(x for x in [(r["cliente_cognome"] or "").strip(), (r["cliente_nome"] or "").strip()] if x)
+        items.append({
+            "id": r["id"], "numero": r["numero"], "titolo": r["titolo"], "stato": r["stato"],
+            "cliente": cliente or r["titolo"], "data_evento": r["data_evento"], "ora_evento": r["ora_evento"],
+            "n_persone": r["n_persone"], "scadenza": r["scadenza_conferma"], "giorni": giorni,
+            "tavolo_tenuto": tavolo_tenuto,
+        })
+    return {
+        "totale": len(items),
+        "items": items[:limite],
+        "avviso_giorni": cfg["preventivi_avviso_giorni"],
+        "proroga_giorni": cfg["preventivi_proroga_giorni"],
+        "ruoli": [x.strip() for x in cfg["preventivi_avviso_ruoli"].split(",") if x.strip()],
+    }

@@ -4,14 +4,19 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.93 (da pushare) · **Migrazione più recente:** 227
+**Sistema:** 5.93 (45edcf98) · **Migrazione più recente:** 227
 
-**DA PUSHARE — Preventivi: scadenza della conferma col tavolo + staff in CC** (mig 227, sistema 5.93, clienti 3.24, prenotazioni 2.30) `[core]` — dopo il push: Impostazioni Clienti › «Email, scadenze e avvisi»; preventivo di prova: Proroga, Storico, Libera tavolo; email di prova con CC → una sola email allo staff.
+**DA PUSHARE — Home: widget «⏳ Preventivi in attesa»** (clienti 3.25, nessuna migrazione) `[core]` — dopo il push: Home da admin/capo sala → card sotto le Selezioni (Ferraro 12/11 «scaduta», PRE-2026-011 «tra 10 gg»).
+
+**Pushato (45edcf98, messaggio di commit sbagliato «Statistiche 1.5»: contiene anche Vini › Fatture mig 226, Pratiche 1.2 e questo) — Preventivi: scadenza della conferma + staff in CC** (mig 227, sistema 5.93, clienti 3.24, prenotazioni 2.30) `[core]` — verificato in produzione il 03/11 su un preventivo di prova poi eliminato: scadenza proposta +10 gg, proroga e storico, Libera tavolo, email con prenotazioni@ in CC e nessuna copia separata. Planning: PRE-2026-011 (Montagnosi, 18/12) mostra ⏳ «scade il 13/11». Da vedere: il primo avviso vero (PRE-2026-011, 11/11 e 13/11).
 
 **DA PUSHARE — Vini › Fatture VMF.3** (mig 226, sistema 5.92, vini 4.5) `[core]` — fatture → prezzi pagati dei vini, chi emette decide il fornitore (cantina = Diretto), soglia 2%, pagati netti. **Dopo il push:** (1) boot «[226] … N prezzi portati al netto» (~218); (2) Vini › Fatture: Claude classifica gli emittenti con Marco (proposta in chat 03/11), poi «Abbina i sicuri»; (3) Marco guarda «Da verificare» (0,75 −3%, Balan −15%, sconti di scheda Marenzi/Magri). VMF.1+2 pushati (71fa5ca1, 4.4 in d7530b53).
 
 **DA PUSHARE — Pratiche 1.2: sezioni, debiti, «in attesa di mezzi»** (sistema 5.91, connettore 1.9, nessuna migrazione numerata: schema `pratiche.sqlite3` al boot con backup) `[core]` — il backend è GIÀ in produzione dentro d7530b53 (push di un'altra sessione, `git add -A`), verificato via MCP: colonne nuove, dati intatti. Restano da pushare: `PraticaScheda.jsx` v1.1 (campi del debito, Rivista, rate), fix residuo iniziale, doc, versioni. **Dopo il push:** (1) Ctrl+Shift+R → /pratiche: chip delle sezioni, «Sezioni» apre il modale; (2) Claude applica le sezioni alle 15 pratiche con `pratica_correggi` (proposta approvata da Marco) e collega la 12 alla spesa fissa 32 (Fondo Est 572) → nella scheda le rate 8 e 9 «in distinta 06/10, non in banca»; (3) crea con il sì di Marco la pratica AE CO275462467 (€ 5.008,07, in attesa di mezzi); (4) riconnettere il connettore TRGB in claude.ai per vedere gli strumenti nuovi. Doc `modulo_pratiche.md` §8.
 
+
+**DA PUSHARE — Servizio: arrivi prenotati accanto alla cassa** (statistiche 1.6, nessuna migrazione) `[core]`
+- Dopo il push: Statistiche › Servizio → grafici Arrivi con due colori (Prenotati / In cassa) e la frase sui minuti fra ora prenotata e conto.
 
 **Pushato (d7530b53), da verificare — Statistiche › Servizio** (statistiche 1.5, nessuna migrazione) `[core]` — IP.1 parte 2
 - Dopo il push, da admin: Statistiche › 🕐 Servizio → 3 mesi e 12 mesi: numeri con le frecce, tabella giorni/turni colorata, arrivi per mezz'ora, sale, tavoli, mese per mese.

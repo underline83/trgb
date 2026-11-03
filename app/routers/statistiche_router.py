@@ -1022,6 +1022,68 @@ def servizio(
     if abs((a - d).days) > 800:
         raise HTTPException(status_code=400, detail="Al massimo 800 giorni")
     try:
-        return vc.servizio_riepilogo(d, a)
+        r = vc.servizio_riepilogo(d, a)
     except Exception as e:  # cassa non attiva o DB conti assente
         raise HTTPException(status_code=503, detail=f"Conti di cassa non disponibili: {e}")
+    try:
+        aperture = vc.aperture_per_prenotazione(d, a)
+    except Exception:
+        aperture = {}
+    r.update(_prenotazioni_orari(r["dal"], r["al"], aperture))
+    return r
+
+
+# Prenotazioni che si sono presentate (modulo prenotazioni, clienti.sqlite3 in sola lettura)
+STATI_VENUTI = ("SEATED", "ARRIVED", "BILL", "LEFT", "PARTIALLY_ARRIVED")
+
+
+def _prenotazioni_orari(da: str, a: str, aperture: Dict[int, str]) -> Dict[str, Any]:
+    """Coperti prenotati per mezz'ora (ora del pasto) e minuti fra l'ora prenotata e
+    l'apertura del conto in cassa, sulle prenotazioni abbinate a un conto."""
+    from datetime import datetime
+    vuoto = {"arrivi_prenotazioni": [], "attesa_comanda": None}
+    p = locale_data_path("clienti.sqlite3")
+    if not p.exists():
+        return vuoto
+    conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True, timeout=10)
+    try:
+        segnaposti = ",".join("?" * len(STATI_VENUTI))
+        righe = conn.execute(
+            f"""SELECT id, data_pasto, substr(ora_pasto,1,5) AS ora, turno, COALESCE(pax,0)
+                FROM clienti_prenotazioni
+                WHERE data_pasto BETWEEN ? AND ? AND stato IN ({segnaposti}) AND ora_pasto IS NOT NULL""",
+            (da, a, *STATI_VENUTI),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return vuoto
+    finally:
+        conn.close()
+    gruppi: Dict[tuple, Dict[str, Any]] = {}
+    attese: Dict[str, List[float]] = {"pranzo": [], "cena": []}
+    for pid, giorno, ora, turno, pax in righe:
+        if not ora or len(ora) < 5:
+            continue
+        t = turno if turno in ("pranzo", "cena") else ("pranzo" if ora < "16:00" else "cena")
+        mezz = f"{ora[:2]}:{'00' if int(ora[3:5]) < 30 else '30'}"
+        g = gruppi.setdefault((t, mezz), {"turno": t, "ora": mezz, "prenotazioni": 0, "coperti": 0})
+        g["prenotazioni"] += 1
+        g["coperti"] += pax
+        ap = aperture.get(pid)
+        if ap:
+            try:
+                m = (datetime.fromisoformat(ap[:19]) - datetime.fromisoformat(f"{giorno} {ora}:00")).total_seconds() / 60
+                if -60 <= m <= 180:   # fuori da qui è un abbinamento storto, non un'attesa
+                    attese[t].append(m)
+            except ValueError:
+                pass
+
+    def mediana(v: List[float]):
+        if not v:
+            return None
+        v = sorted(v)
+        return round(v[len(v) // 2])
+
+    return {
+        "arrivi_prenotazioni": sorted(gruppi.values(), key=lambda x: (x["turno"], x["ora"])),
+        "attesa_comanda": {t: {"minuti": mediana(v), "prenotazioni": len(v)} for t, v in attese.items()},
+    }

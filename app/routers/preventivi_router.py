@@ -333,6 +333,13 @@ def api_set_config_preventivi(body: ConfigPreventiviIn, user: dict = Depends(get
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/in-attesa")
+def api_in_attesa(limite: int = Query(6, ge=1, le=50), user: dict = Depends(get_current_user)):
+    """Widget Home «Preventivi in attesa» (2026-11-03): dalla scadenza più vicina."""
+    from app.services.preventivi_scadenze import in_attesa
+    return in_attesa(limite)
+
+
 @router.post("/scadenze/controlla")
 def api_controlla_scadenze(dry_run: bool = Query(True), user: dict = Depends(get_current_user)):
     """Il controllo che gira ogni ora; a mano (admin) per prova: dry_run=true non manda niente."""

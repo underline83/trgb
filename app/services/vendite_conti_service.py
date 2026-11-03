@@ -387,3 +387,18 @@ def servizio_riepilogo(dal, al) -> Dict[str, Any]:
         "settimana": settimana, "arrivi": arrivi, "sale": sale, "tavoli": tavoli,
         "mesi": mesi, "durata_turno": durata_turno,
     }
+
+
+def aperture_per_prenotazione(dal, al) -> Dict[int, str]:
+    """Ora di apertura del conto per ogni prenotazione abbinata (per misurare quanto
+    passa fra l'ora prenotata e la prima comanda)."""
+    dal, al = _d(dal), _d(al)
+    conn = get_cassa_conti_conn()
+    try:
+        return {r["prenotazione_id"]: r["aperto_at"] for r in conn.execute("""
+            SELECT prenotazione_id, MIN(aperto_at) AS aperto_at FROM cassa_conti
+            WHERE data_rif BETWEEN ? AND ? AND prenotazione_id IS NOT NULL AND aperto_at IS NOT NULL
+              AND abbinamento IN ('auto', 'manuale')
+            GROUP BY prenotazione_id""", (dal.isoformat(), al.isoformat()))}
+    finally:
+        conn.close()
