@@ -983,6 +983,11 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
 
         is_bozza_auto = 1 if data.get("is_bozza_auto") else 0
 
+        # Scadenza di conferma proposta (2026-11-03): oggi + N giorni da Impostazioni
+        if not (data.get("scadenza_conferma") or "").strip():
+            from app.services.preventivi_scadenze import scadenza_proposta
+            data = {**data, "scadenza_conferma": scadenza_proposta()}
+
         # Titolo placeholder per auto-bozza (cosi' la colonna NOT-NULL e' sempre valida)
         titolo = (data.get("titolo") or "").strip()
         if not titolo:
@@ -1257,14 +1262,27 @@ def stats_preventivi() -> dict:
         conn.close()
 
 
-def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = None, nuovo_cliente: dict | None = None) -> dict | None:
+def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = None, nuovo_cliente: dict | None = None,
+                        username: str | None = None) -> dict | None:
     """Aggiorna testata + opzionalmente righe. Ricalcola totale.
     Se nuovo_cliente e' presente crea un cliente al volo e aggiorna cliente_id."""
     conn = get_clienti_conn()
     try:
-        existing = conn.execute("SELECT id FROM clienti_preventivi WHERE id = ?", (preventivo_id,)).fetchone()
+        existing = conn.execute(
+            "SELECT id, scadenza_conferma FROM clienti_preventivi WHERE id = ?", (preventivo_id,)
+        ).fetchone()
         if not existing:
             return None
+
+        # Scadenza cambiata a mano → storico (2026-11-03); "" = nessuna scadenza
+        if "scadenza_conferma" in data:
+            nuova = (data.get("scadenza_conferma") or "").strip() or None
+            data = {**data, "scadenza_conferma": nuova}
+            if (existing["scadenza_conferma"] or None) != nuova:
+                from app.services.preventivi_scadenze import scrivi_storico, _gg_mm
+                scrivi_storico(preventivo_id, "scadenza_modificata",
+                               f"Scadenza conferma: {_gg_mm(existing['scadenza_conferma']) if existing['scadenza_conferma'] else 'nessuna'}"
+                               f" → {_gg_mm(nuova) if nuova else 'nessuna'}", username, conn)
 
         if nuovo_cliente:
             new_id = _crea_cliente_inline(conn, nuovo_cliente)
@@ -1344,7 +1362,7 @@ TRANSIZIONI = {
 }
 
 
-def cambia_stato(preventivo_id: int, nuovo_stato: str) -> dict | None:
+def cambia_stato(preventivo_id: int, nuovo_stato: str, username: str | None = None) -> dict | None:
     """Cambia stato con validazione transizioni. Ritorna preventivo aggiornato."""
     conn = get_clienti_conn()
     try:
@@ -1361,6 +1379,8 @@ def cambia_stato(preventivo_id: int, nuovo_stato: str) -> dict | None:
             "UPDATE clienti_preventivi SET stato = ? WHERE id = ?",
             (nuovo_stato, preventivo_id),
         )
+        from app.services.preventivi_scadenze import scrivi_storico
+        scrivi_storico(preventivo_id, "stato", f"Stato: {stato_attuale} → {nuovo_stato}", username, conn)
         conn.commit()
         return get_preventivo(preventivo_id)
     finally:
@@ -1622,7 +1642,8 @@ def lista_invii(preventivo_id: int) -> list:
 
 def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, username: str,
                    oggetto: str | None = None, esito: str = "ok",
-                   errore: str | None = None, message_id: str | None = None) -> dict | None:
+                   errore: str | None = None, message_id: str | None = None,
+                   cc: str | None = None, reply_to: str | None = None) -> dict | None:
     """Scrive l'invio nel registro. Se riuscito e il preventivo è in «bozza»
     lo porta a «inviato» (ed esce dalle bozze automatiche: è stato mandato)."""
     if canale not in ("whatsapp", "email"):
@@ -1636,12 +1657,22 @@ def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, us
             return None
         if not _invii_table_exists(conn):
             raise ValueError("Registro invii non disponibile (migrazione 200 non applicata)")
-        cur = conn.execute(
-            """INSERT INTO clienti_preventivi_invii
-               (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, inviato_da)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, username),
-        )
+        colonne = {c[1] for c in conn.execute("PRAGMA table_info(clienti_preventivi_invii)")}
+        if "cc" in colonne:                                   # mig 227: cc e reply-to
+            cur = conn.execute(
+                """INSERT INTO clienti_preventivi_invii
+                   (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, inviato_da, cc, reply_to)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, username,
+                 cc or None, reply_to or None),
+            )
+        else:
+            cur = conn.execute(
+                """INSERT INTO clienti_preventivi_invii
+                   (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, inviato_da)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (preventivo_id, canale, destinatario, oggetto, esito, errore, message_id, username),
+            )
         stato = row["stato"]
         if esito == "ok":
             if stato == "bozza":
@@ -1719,6 +1750,11 @@ def messaggio_breve(prev: dict, formato: str = "whatsapp", firma: str = "") -> s
 # Dopo l'invio al cliente (2026-10-22): copia per email all'osteria + messaggio
 # per i gruppi WhatsApp di sala e cucina
 # ---------------------------------------------------------------------------
+
+def _reply_to() -> str:
+    from app.services.preventivi_scadenze import get_config
+    return get_config().get("preventivi_reply_to") or ""
+
 
 def get_email_copia() -> str:
     """Indirizzi (separati da virgola) che ricevono la copia di ogni preventivo inviato."""
@@ -1820,11 +1856,16 @@ def _manda_copia(preventivo_id: int, canale: str, destinatario: str | None, user
         logger.exception("Copia preventivo %s fallita", preventivo_id)
 
 
-def dopo_invio(preventivo_id: int, canale: str, destinatario: str | None, username: str) -> dict:
-    """Dopo un invio riuscito: copia per email all'osteria e messaggio per i gruppi."""
+def dopo_invio(preventivo_id: int, canale: str, destinatario: str | None, username: str,
+               cc: list[str] | None = None) -> dict:
+    """Dopo un invio riuscito: copia per email all'osteria e messaggio per i gruppi.
+    Email (2026-11-03): chi era già in A o in CC non riceve la copia separata, così
+    lo staff in CC non ha due email. WhatsApp: copia separata come prima."""
     import threading
     prev = get_preventivo(preventivo_id) or {}
-    copia = get_email_copia()
+    gia = {x.strip().lower() for x in ((destinatario or "") + "," + ",".join(cc or [])).split(",") if x.strip()}
+    copia = ", ".join(x.strip() for x in get_email_copia().split(",") if x.strip() and x.strip().lower() not in gia)
+    destinatario = ", ".join(x for x in [destinatario or "", *(cc or [])] if x)
     threading.Thread(target=_manda_copia, args=(preventivo_id, canale, destinatario, username),
                      name=f"copia-preventivo-{preventivo_id}", daemon=True).start()
     return {"messaggio_staff": messaggio_invio_gruppi(prev, canale) if prev else "", "copia_a": copia}
@@ -1886,6 +1927,9 @@ def conferma_evento(preventivo_id: int, username: str, menu_scelto_id: int | Non
         if prev["stato"] in ("bozza", "inviato", "in_attesa"):
             conn.execute("UPDATE clienti_preventivi SET stato = 'confermato', is_bozza_auto = 0 WHERE id = ?",
                          (preventivo_id,))
+            from app.services.preventivi_scadenze import scrivi_storico
+            scrivi_storico(preventivo_id, "stato", f"Stato: {prev['stato']} → confermato (menù {_nome_menu(m.get('nome')) or ''})".rstrip(" ()"),
+                           username, conn)
             conn.commit()
     finally:
         conn.close()
@@ -1977,26 +2021,35 @@ def bozza_email(preventivo_id: int) -> dict | None:
         "to": prev.get("cliente_email") or "",
         "oggetto": oggetto,
         "corpo": messaggio_breve(prev, "email", firma),
+        # 2026-11-03: staff in CC visibile e Reply-To, da Impostazioni › Preventivi
+        "cc": get_email_copia(),
+        "reply_to": _reply_to(),
         "email_configurata": st.get("configurato", False),
         "email_mancanti": st.get("mancanti") or [],
     }
 
 
 def invia_email_preventivo(preventivo_id: int, to: list[str], oggetto: str, corpo: str,
-                           username: str) -> dict | None:
-    """Manda l'email col PDF allegato (M.D) e la registra, anche se fallisce."""
+                           username: str, cc: list[str] | None = None,
+                           reply_to: str | None = None) -> dict | None:
+    """Manda l'email col PDF allegato (M.D) e la registra, anche se fallisce.
+    cc: visibile al cliente (lo staff, così «rispondi a tutti» arriva anche alla
+    sala); reply_to: dove vanno le risposte (2026-11-03)."""
     from app.services import email_service
     gen = genera_pdf(preventivo_id)
     if gen is None:
         return None
     pdf, filename = gen
+    cc = [x for x in (cc or []) if x.strip().lower() not in {t.strip().lower() for t in to}]
     esito = email_service.invia_email(
         to=to, subject=oggetto, body=corpo,
         allegati=[(filename, pdf, "application/pdf")],
+        cc=cc or None, reply_to=(reply_to or None),
     )
     reg = registra_invio(
         preventivo_id, "email", ", ".join(to), username, oggetto=oggetto,
         esito="ok" if esito.ok else "errore", errore=esito.errore, message_id=esito.message_id,
+        cc=", ".join(cc), reply_to=reply_to,
     )
     return {"ok": esito.ok, "errore": esito.errore, **(reg or {})}
 

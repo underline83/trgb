@@ -1,6 +1,6 @@
 # Modulo Pratiche — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (pratiche 1.0, sistema 5.45) · **Ultima verifica:** 2026-10-08
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (pratiche 1.0, sistema 5.45); sezioni, debito e «in attesa di mezzi» il 2026-11-02 (pratiche 1.2, sistema 5.91, §8) · **Ultima verifica:** 2026-11-02
 > **Vedi anche:** [architettura_mattoni.md](architettura_mattoni.md) (M.A notifiche, M.F alert, M.G permessi, M.I UI), [modulo_preventivi.md](modulo_preventivi.md), [modulo_controllo_gestione.md](modulo_controllo_gestione.md), [pec_archivio_spec.md](pec_archivio_spec.md), [refactor_monorepo.md](refactor_monorepo.md)
 
 **Classificazione:** `[core]`. Ogni ristorante ha pratiche aperte con enti, fornitori, studi e creditori. I contenuti di Tre Gobbi sono dati del locale, non codice.
@@ -196,7 +196,31 @@ Marco, 2026-10-08: «vai coi default».
 
 ---
 
-## 8. Capability
+## 8. Sezioni, campi del debito, «in attesa di mezzi» (2026-11-02)
+
+Marco, 2026-11-02: tutto stava in un'unica lista; vuole **sezioni** (a partire da «Agenzia Entrate») dove archiviare e tenere sotto controllo anche i debiti che oggi non può pagare (es. comunicazione di incoerenza IVA II trim. 2026, € 5.008,07, ID CO275462467: senza termine sparirebbe dal radar, ma diventerà un avviso bonario e poi una cartella). Disegno approvato da Marco lo stesso giorno («sul resto sono d'accordo»).
+
+**Decisioni**
+- **Sezioni** in tabella `pratiche_sezioni`, le decide Marco dal modale «Sezioni» della pagina (niente valori fissi nel codice). Partenza: Agenzia Entrate, Riscossione (ADER), Enti e fondi, Tributi locali, Fornitori e recupero crediti, Legale. Non si cancellano: si disattivano (le pratiche le tengono; in elenco finiscono in «Senza sezione»).
+- **Campi del debito** sulla testata: `tipo_atto_id` (tabella `pratiche_tipi_atto` con `gradino`), `rif_atto`, `periodo`, `importo_dovuto`, `importo_residuo`. Scala dell'erario: 1 comunicazione di irregolarità → 2 avviso bonario → 3 cartella → 4 avviso di intimazione → 5 pignoramento (i primi due in sezione Agenzia Entrate, gli altri in Riscossione; gradini e tipi si cambiano dalla pagina).
+- **Primo valore e cambi.** Un campo vuoto si riempie e basta (è una classificazione, niente passo). Se cambia un valore già scritto resta la traccia: in un passo (colonna `pratiche_passi.modifiche`, JSON `[{campo, da, a}]`) o, dalla testata, in un passo automatico «Atto: A → B». Il passaggio di gradino è un passo. Il primo «dovuto» porta con sé il residuo uguale.
+- **Da Agenzia Entrate a Riscossione:** lo decide Marco, quando l'Agenzia Riscossione arriva e «richiama gli stessi atti» (cartella o intimazione che cita la comunicazione). È un passo con cambio di sezione e di atto.
+- **In attesa di mezzi** è un flag (`in_attesa_mezzi`, `revisione_il`), NON un quarto stato: lo `stato` ha un CHECK sui tre valori e cambiarlo vorrebbe dire ricostruire la tabella sul DB live (vietato in R). La pratica in attesa non è mai «scaduta» né «ferma»: ha il suo gruppo, col termine in rosso se passato (`termine_passato`). Torna **da rivedere** alla data di revisione = oggi + `giorni_revisione` (30, in `pratiche_config`, si cambia dal modale). «Rivista, ancora senza mezzi» (`POST /pratiche/{id}/rivedi`) e ogni passo scritto a mano spostano la revisione in avanti.
+- **Scadenziario:** una pratica si collega a una rateizzazione con un collegamento `controllo_gestione / spesa_fissa / <id>`. La scheda (e `pratica_leggi` nell'MCP) legge il piano rate da `GET /controllo-gestione/spese-fisse/{id}/piano-rate` (che ora porta anche distinta e data originale) e mostra pagate, **in distinta non abbinate in banca**, scadute, da pagare. Il modulo pratiche non importa codice del Controllo Gestione: legge la pagina (FE) e il connettore (platform).
+
+**Schema** (`pratiche_db.py` v1.1, al boot, idempotente): tabelle `pratiche_sezioni`, `pratiche_tipi_atto`, `pratiche_config`; colonne nullable su `pratiche` (`sezione_id`, `tipo_atto_id`, `rif_atto`, `periodo`, `importo_dovuto`, `importo_residuo`, `in_attesa_mezzi`, `revisione_il`) e su `pratiche_passi` (`modifiche`). Prima di aggiungere le colonne il boot fa una copia `pratiche.sqlite3.bak-v11-<data>` accanto al DB (API backup di SQLite). I valori di partenza si scrivono una volta (`pratiche_config.seed_v11`). Passi esistenti: non toccati.
+
+**API nuove:** `GET /pratiche/riepilogo`, `GET|POST /pratiche/sezioni`, `PATCH /pratiche/sezioni/{id}`, `GET|POST /pratiche/tipi-atto`, `PATCH /pratiche/tipi-atto/{id}`, `GET|PUT /pratiche/config`, `POST /pratiche/{id}/rivedi`. `GET /pratiche/` accetta anche `sezione`, `in_attesa`, `da_rivedere` (e `q` cerca anche in `rif_atto`). Creazione e passo accettano i campi del debito (multipart: assente = non cambia, `svuota=campo1,campo2` per toglierli); `PATCH /pratiche/{id}` li accetta in JSON (null = svuota).
+
+**MCP:** `pratiche_elenco` (+ `sezione`, `in_attesa`, `da_rivedere`), `pratiche_riepilogo` (conteggi per sezione, da rivedere, in attesa — per il giro del mattino), `pratica_leggi` (+ `rate`), `pratica_crea` e `pratica_passo` (+ campi del debito), `pratica_correggi` (testata). Le regole del connettore: [connettore_mcp.md](connettore_mcp.md).
+
+**Avvisi:** il checker `pratiche_termini` ha un quarto gruppo «da rivedere»; la card Home dice «N da rivedere».
+
+**Incidente di consegna (2026-11-02 20:43):** il backend v1.1 è andato in produzione dentro il commit d7530b53 di un'altra sessione (`push.sh` fa `git add -A`), prima del guardiano. Verificato via MCP: colonne create, dati intatti. La scheda v1.2 e la documentazione vanno col push successivo.
+
+---
+
+## 9. Capability
 
 | Codice | Cosa fa | Riferimento | Audience | Stato docs |
 |---|---|---|---|---|
@@ -211,4 +235,11 @@ Marco, 2026-10-08: «vai coi default».
 | C-P-009 | Collegamento manuale a un oggetto di un altro modulo (modulo, tipo, id, etichetta, link) | `pratiche_router.py:nuovo_collegamento`, `pratiche_service.py:collega` | admin | ✅ |
 | C-P-010 | Scollegamento con passo automatico «Scollegata: …» | `pratiche_router.py:togli_collegamento`, `pratiche_service.py:scollega` | admin | ✅ |
 | C-P-011 | Avviso unico: scadute + in scadenza entro 3 giorni + ferme da 30 giorni senza termine | `alert_engine.py:_check_pratiche_termini` | admin | ✅ |
-| C-P-012 | Card Home «N aperte · M scadute», badge rosso sulle scadute | `dashboard_router.py:_pratiche_summary`, `Home.jsx` | admin | ✅ |
+| C-P-012 | Card Home «N aperte · M scadute», badge rosso sulle scadute (+ «N da rivedere» dal 2026-11-02) | `dashboard_router.py:_pratiche_summary`, `Home.jsx` | admin | ✅ |
+| C-P-013 | Sezioni come chip in /pratiche con conteggi (aperte, scadute, da rivedere), filtro e residuo della sezione | `pratiche_router.py:riepilogo_pratiche`, `pratiche_service.py:riepilogo`, `PraticheElenco.jsx` | admin | 🆕 |
+| C-P-014 | Modale «Sezioni e atti»: sezioni e tipi d'atto (gradino) da aggiungere, rinominare, riordinare, disattivare; giorni di revisione | `pratiche_router.py` (`/sezioni`, `/tipi-atto`, `/config`), `PraticheCampi.jsx:GestioneSezioni` | admin | 🆕 |
+| C-P-015 | Campi del debito (sezione, tipo d'atto, riferimento, periodo, dovuto, residuo) in creazione, testata e passo; il cambio di un valore già scritto resta nella storia «da → a» | `pratiche_service.py:_differenze`, `aggiorna_testata`, `aggiungi_passo`, `PraticaScheda.jsx` | admin | 🆕 |
+| C-P-016 | «In attesa di mezzi»: fuori da scadute e ferme, gruppo proprio, da rivedere alla data di revisione; «Rivista, ancora senza mezzi» | `pratiche_service.py:_arricchisci`, `rivedi`, `pratiche_router.py:rivedi_pratica` | admin | 🆕 |
+| C-P-017 | Rate della rateizzazione collegata (spesa fissa): pagate, in distinta non abbinate in banca, scadute, da pagare | `PraticaScheda.jsx:RateCollegate`, `controllo_gestione_router.py:get_piano_rate` | admin | 🆕 |
+| C-P-018 | Avviso `pratiche_termini` col gruppo «da rivedere» | `alert_engine.py:_check_pratiche_termini` | admin | 🆕 |
+| C-P-019 | MCP: `pratiche_riepilogo`, `pratica_correggi`, sezione e campi del debito in elenco/crea/passo, rate in `pratica_leggi` | `connettore/server.py:_strumenti_pratiche`, `_rate_collegate` | admin (Claude/Q) | 🆕 |

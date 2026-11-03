@@ -143,3 +143,70 @@ def avvisa_staff(titolo: str, messaggio: str, link: str, entity_id: int) -> int:
         except Exception:                               # noqa: BLE001 — un avviso non blocca la conferma
             logger.exception("Notifica evento confermato fallita per %s", ruolo)
     return n
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Scadenza della conferma (2026-11-03): tavolo da liberare e vista nel Planning
+# ─────────────────────────────────────────────────────────────────────────
+
+def libera_prenotazione(prenotazione_id: int, motivo: str) -> dict:
+    """Cancella la prenotazione (stato CANCELED) col motivo. Non manda niente al
+    cliente. Se è di TheFork lo segnala: TRGB non scrive le cancellazioni su
+    TheFork, va cancellata anche lì."""
+    conn = get_clienti_conn()
+    try:
+        r = conn.execute(
+            "SELECT id, stato, data_pasto, thefork_booking_id FROM clienti_prenotazioni WHERE id = ?",
+            (prenotazione_id,),
+        ).fetchone()
+        if not r:
+            return {"cancellata": False, "stato": "non trovata"}
+        out = {"id": r["id"], "data": r["data_pasto"], "thefork": bool(r["thefork_booking_id"]),
+               "stato": r["stato"], "cancellata": False}
+        if r["stato"] in STATI_SPENTI:
+            return out
+        colonne = {c[1] for c in conn.execute("PRAGMA table_info(clienti_prenotazioni)")}
+        if "motivo_cancellazione" in colonne:
+            conn.execute(
+                """UPDATE clienti_prenotazioni SET stato = 'CANCELED', motivo_cancellazione = ?,
+                   updated_at = datetime('now','localtime') WHERE id = ?""",
+                (motivo, prenotazione_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE clienti_prenotazioni SET stato = 'CANCELED', updated_at = datetime('now','localtime') WHERE id = ?",
+                (prenotazione_id,),
+            )
+        conn.commit()
+        out.update(stato="CANCELED", cancellata=True)
+        return out
+    finally:
+        conn.close()
+
+
+def preventivi_in_attesa(prenotazione_ids: list[int]) -> dict[int, dict]:
+    """Per il Planning: {prenotazione_id: {preventivo_id, numero, scadenza, stato}}
+    dei preventivi collegati che aspettano ancora la conferma del cliente."""
+    ids = [int(i) for i in prenotazione_ids if i]
+    if not ids:
+        return {}
+    conn = get_clienti_conn()
+    try:
+        rows = conn.execute(
+            f"""SELECT id, numero, scadenza_conferma, stato, prenotazione_id
+                FROM clienti_preventivi
+                WHERE prenotazione_id IN ({','.join('?' * len(ids))})
+                  AND stato IN ('bozza', 'inviato', 'in_attesa', 'scaduto')
+                  AND COALESCE(is_bozza_auto, 0) = 0
+                ORDER BY id DESC""",
+            ids,
+        ).fetchall()
+        out: dict[int, dict] = {}
+        for r in rows:
+            out.setdefault(r["prenotazione_id"], {
+                "preventivo_id": r["id"], "numero": r["numero"],
+                "scadenza": r["scadenza_conferma"], "stato": r["stato"],
+            })
+        return out
+    finally:
+        conn.close()

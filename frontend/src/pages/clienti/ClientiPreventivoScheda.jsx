@@ -144,6 +144,9 @@ export default function ClientiPreventivoScheda() {
   // Dopo un invio al cliente: alla chiusura del pannello invio si apre l'avviso per i gruppi
   const ultimoInvio = useRef(null);
   const [confermando, setConfermando] = useState(false);
+  // Scadenza conferma + storico (2026-11-03)
+  const [cfgPrev, setCfgPrev] = useState(null);
+  const [storico, setStorico] = useState([]);
 
   // ── Nuovo preventivo da una prenotazione (2026-10-20) ──
   // Se per quella prenotazione c'è già un preventivo, si apre quello; altrimenti
@@ -494,6 +497,77 @@ export default function ClientiPreventivoScheda() {
   };
 
   // ── Cambia stato ──
+  // ── Scadenza conferma (2026-11-03): proposta da Impostazioni, proroga, tavolo, storico ──
+  useEffect(() => {
+    apiFetch(`${API_BASE}/preventivi/config/impostazioni`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setCfgPrev(d);
+        if (isNew && d.scadenza_proposta) {
+          setForm((f) => (f.scadenza_conferma ? f : { ...f, scadenza_conferma: d.scadenza_proposta }));
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew]);
+
+  const caricaStorico = useCallback(() => {
+    if (!prevId) return;
+    apiFetch(`${API_BASE}/preventivi/${prevId}/storico`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setStorico(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [prevId]);
+  useEffect(() => { caricaStorico(); }, [caricaStorico, stato]);
+
+  const inAttesa = ["bozza", "inviato", "in_attesa"].includes(stato);
+  const giorniScadenza = (() => {
+    if (!form.scadenza_conferma) return null;
+    const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+    return Math.round((new Date(form.scadenza_conferma + "T00:00:00") - oggi) / 86400000);
+  })();
+
+  const handleProroga = async () => {
+    const proposti = cfgPrev?.preventivi_proroga_giorni ?? 5;
+    const v = window.prompt("Tieni il tavolo per altri quanti giorni?", String(proposti));
+    if (v === null) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${prevId}/proroga`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ giorni: parseInt(v, 10) }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.detail || "Errore proroga");
+      setForm((f) => ({ ...f, scadenza_conferma: d.scadenza_conferma }));
+      setStato(d.stato);
+      showToast(`⏳ Scadenza spostata al ${d.scadenza_conferma.split("-").reverse().join("/")}`);
+      caricaStorico();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
+
+  const handleLiberaTavolo = async () => {
+    if (!window.confirm("Liberare il tavolo? La prenotazione collegata viene cancellata (motivo «preventivo scaduto») e il preventivo passa a «scaduto». Al cliente non parte niente.")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${prevId}/libera-tavolo`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.detail || "Errore");
+      setStato(d.stato);
+      const p = d.prenotazione;
+      if (p?.thefork && p?.cancellata) {
+        window.alert("Tavolo liberato in TRGB. La prenotazione è di TheFork: cancellala anche in TheFork Manager, altrimenti torna.");
+      } else {
+        showToast(p?.cancellata ? "🔓 Tavolo liberato, preventivo scaduto" : "Preventivo segnato scaduto");
+      }
+      caricaStorico();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
+
   // ── Conferma evento: POST /conferma (prenotazione col menù + campanello + messaggio gruppi) ──
   const eseguiConferma = async (menuId = null) => {
     setConfermando(true);
@@ -848,6 +922,12 @@ export default function ClientiPreventivoScheda() {
                     <input type="date" value={form.scadenza_conferma}
                       onChange={(e) => setForm({ ...form, scadenza_conferma: e.target.value })}
                       className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
+                    {giorniScadenza !== null && (inAttesa || stato === "scaduto") && (
+                      <p className={`text-[11px] mt-1 ${giorniScadenza < 0 ? "text-red-600" : giorniScadenza <= (cfgPrev?.preventivi_avviso_giorni ?? 2) ? "text-amber-700" : "text-neutral-500"}`}>
+                        {giorniScadenza > 0 ? `⏳ Tra ${giorniScadenza} giorni` : giorniScadenza === 0 ? "⏳ Scade oggi" : `⌛ Scaduta da ${-giorniScadenza} giorni`}
+                        {form.prenotazione_id ? " — il tavolo è tenuto fino ad allora" : ""}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1049,6 +1129,24 @@ export default function ClientiPreventivoScheda() {
                     rows={3} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm resize-none" />
                 )}
               </div>
+
+              {/* ── STORICO del preventivo (2026-11-03) ── */}
+              {!isNew && storico.length > 0 && (
+                <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
+                  <h3 className="text-sm font-semibold text-neutral-700 mb-2">🕓 Storico</h3>
+                  <ul className="space-y-1.5">
+                    {storico.map((r) => (
+                      <li key={r.id} className="text-xs text-neutral-600 flex flex-wrap gap-x-2">
+                        <span className="text-neutral-400 whitespace-nowrap">
+                          {(r.created_at || "").slice(8, 10)}/{(r.created_at || "").slice(5, 7)} {(r.created_at || "").slice(11, 16)}
+                        </span>
+                        <span>{(r.testo || "").replace(/ \[\d{4}-\d{2}-\d{2}\]/, "")}</span>
+                        {r.utente && <span className="text-neutral-400">— {r.utente}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* ── SIDEBAR AZIONI ── */}
@@ -1074,6 +1172,18 @@ export default function ClientiPreventivoScheda() {
                       </div>
                     )}
 
+                    {(inAttesa || stato === "scaduto") && (
+                      <Btn variant="chip" tone="amber" size="sm" onClick={handleProroga} className="w-full justify-start"
+                        title="Sposta la scadenza della conferma e lo scrive nello storico">
+                        ⏳ Proroga scadenza
+                      </Btn>
+                    )}
+                    {(inAttesa || stato === "scaduto") && form.prenotazione_id && (
+                      <Btn variant="chip" tone="red" size="sm" onClick={handleLiberaTavolo} className="w-full justify-start"
+                        title="Cancella la prenotazione collegata (preventivo scaduto) e mette il preventivo in «scaduto». Al cliente non parte niente">
+                        🔓 Libera tavolo
+                      </Btn>
+                    )}
                     {["confermato", "prenotato"].includes(stato) && (
                       <Btn variant="chip" tone="emerald" size="sm" onClick={() => eseguiConferma(null)} disabled={confermando}
                         className="w-full justify-start" title="Riscrive il menù sulla prenotazione, riavvisa sala e cucina e prepara il messaggio per i gruppi">

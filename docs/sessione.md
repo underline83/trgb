@@ -1,14 +1,19 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.90 (da pushare) · **Migrazione più recente:** 225
+**Sistema:** 5.93 (da pushare) · **Migrazione più recente:** 227
 
-**DA PUSHARE — Vini multi-fornitore VMF.1+VMF.2** (mig 225, sistema 5.90, vini 4.3) `[core]` — più fornitori per vino, costo = ultimo pagato, carico «Da chi arriva». Spec `docs/spec_vini_multifornitore.md`. **Dopo il push:** (1) nel log del boot «[225] multi-fornitore vini pronto: ~1000 fornitori collegati, ~1300 costi storici»; (2) Ctrl+Shift+R → scheda di un vino › Prezzi › Fornitori: c'è il distributore con ⭐; (3) Claude sistema Scavino Langhe Nebbiolo 2024 (id 1231): scarta lo «storico» attribuito a 0,75, «Diretto» pagato 11,125, 0,75 listino 13,00 (preferito: chiedere a Marco); (4) prova un carico con «Da chi arriva». VMF.3 (fatture) da fare.
+**DA PUSHARE — Preventivi: scadenza della conferma col tavolo + staff in CC** (mig 227, sistema 5.93, clienti 3.24, prenotazioni 2.30) `[core]` — dopo il push: Impostazioni Clienti › «Email, scadenze e avvisi»; preventivo di prova: Proroga, Storico, Libera tavolo; email di prova con CC → una sola email allo staff.
 
-**DA PUSHARE — Statistiche › Servizio** (statistiche 1.5, nessuna migrazione) `[core]` — IP.1 parte 2
+**DA PUSHARE — Vini › Fatture VMF.3** (mig 226, sistema 5.92, vini 4.5) `[core]` — fatture → prezzi pagati dei vini, chi emette decide il fornitore (cantina = Diretto), soglia 2%, pagati netti. **Dopo il push:** (1) boot «[226] … N prezzi portati al netto» (~218); (2) Vini › Fatture: Claude classifica gli emittenti con Marco (proposta in chat 03/11), poi «Abbina i sicuri»; (3) Marco guarda «Da verificare» (0,75 −3%, Balan −15%, sconti di scheda Marenzi/Magri). VMF.1+2 pushati (71fa5ca1, 4.4 in d7530b53).
+
+**DA PUSHARE — Pratiche 1.2: sezioni, debiti, «in attesa di mezzi»** (sistema 5.91, connettore 1.9, nessuna migrazione numerata: schema `pratiche.sqlite3` al boot con backup) `[core]` — il backend è GIÀ in produzione dentro d7530b53 (push di un'altra sessione, `git add -A`), verificato via MCP: colonne nuove, dati intatti. Restano da pushare: `PraticaScheda.jsx` v1.1 (campi del debito, Rivista, rate), fix residuo iniziale, doc, versioni. **Dopo il push:** (1) Ctrl+Shift+R → /pratiche: chip delle sezioni, «Sezioni» apre il modale; (2) Claude applica le sezioni alle 15 pratiche con `pratica_correggi` (proposta approvata da Marco) e collega la 12 alla spesa fissa 32 (Fondo Est 572) → nella scheda le rate 8 e 9 «in distinta 06/10, non in banca»; (3) crea con il sì di Marco la pratica AE CO275462467 (€ 5.008,07, in attesa di mezzi); (4) riconnettere il connettore TRGB in claude.ai per vedere gli strumenti nuovi. Doc `modulo_pratiche.md` §8.
+
+
+**Pushato (d7530b53), da verificare — Statistiche › Servizio** (statistiche 1.5, nessuna migrazione) `[core]` — IP.1 parte 2
 - Dopo il push, da admin: Statistiche › 🕐 Servizio → 3 mesi e 12 mesi: numeri con le frecce, tabella giorni/turni colorata, arrivi per mezz'ora, sale, tavoli, mese per mese.
 
 **DA PUSHARE — WhatsApp del locale in sola lettura per il giro** (mig 224, sistema 5.89, clienti 3.23, connettore 1.8) `[core]` — webhook Meta `/clienti/whatsapp/webhook`, archivio `clienti_wa_*` (90 giorni), pagina Clienti › Impostazioni › WhatsApp, strumenti MCP `whatsapp_conversazioni`, `whatsapp_cerca`, `preventivi_inviati`. Nessun invio ai clienti. **Dopo il push:** seguire `docs/guida_whatsapp_meta.md` (app Meta → `.env` con `WA_*` + restart → webhook nel pannello Meta → «Collega WhatsApp»). La prova vera è se Meta offre «collega account WhatsApp Business esistente» senza essere partner. Senza `.env` il webhook risponde 503 (spento).
@@ -146,6 +151,16 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-03 — Vini › Fatture (VMF.3) `[core]`
+
+Decisioni Marco: «se arrivano con la fattura della cantina sono diretti», «se arrivano con 0,75 arrivano dal loro magazzino», «considera il 2026».
+- mig 226: `vini_fe_emittenti`, `vini_fe_righe`, `vini_fe_mappa`, `vini_prezzi_fornitore.confronto_id`, pagati → netti, setting `vmf_fatture_dal`.
+- `app/services/fatture_righe_service.py` (platform, sola lettura `fe_righe`), `app/services/vini_fatture_service.py` (emittenti, aggiorna, suggerisci, abbina, ignora, risolvi, conferma_sicuri, stato), endpoint `/vini/multifornitore/fatture/*`.
+- `vini_fornitori_service`: costo = ultimo pagato NETTO, EURO_LISTINO = netto ÷ (1 − SCONTO%); `netto_da_listino`; `proposta_carico` dà `prezzo_proposto`/`prezzo_netto`. `vini_ordini_db.ricevi`: pagato netto. SchedaVino: €/bt del carico proposto netto. FornitoriVino: «Ultimo pagato (netto)», costo in uso con listino − sconto.
+- FE: `pages/vini/FattureVini.jsx`, ViniNav «🧾 Fatture» (admin, sommelier, capo sala), route `/vini/fatture`.
+- Prova su copia DB: v. spec §4-bis. Endpoint non provati via HTTP (niente fastapi nella VM): provarli dopo il push.
+- Aperto: sconti di scheda (SCONTO) che la fattura non riporta — decisione di Marco (spec D9).
 
 ## SESSIONE 2026-11-02 (3) — Listini fornitori e vini multi-fornitore `[core]`
 

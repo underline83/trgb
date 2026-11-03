@@ -1,4 +1,5 @@
-# @version: v1.8 (2026-11-02) — WhatsApp in sola lettura + preventivi inviati (modulo clienti)
+# @version: v1.9 (2026-11-02) — pratiche: sezioni, campi del debito, in attesa di mezzi, rate collegate
+# v1.8 (2026-11-02) — WhatsApp in sola lettura + preventivi inviati (modulo clienti)
 # v1.7 (2026-10-25) — ricette e ingredienti (modulo ricette): import con anteprima, cerca/leggi/aggiorna, prezzi, allergeni, unione
 # v1.6 (2026-10-23) — visite_sito_riepilogo (modulo sito, sola lettura)
 # v1.5 (2026-10-20) — accesso_browser: Q entra nel gestionale dal browser con un link usa-e-getta

@@ -116,7 +116,8 @@ export default function FornitoriVino({ madreId, bottigliaId, canEdit, onCostoCa
       {annata?.costo_da && (
         <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-sm text-neutral-700">
           <span className="text-[10px] text-neutral-500 uppercase tracking-wide mr-2">Costo in uso</span>
-          <b className="text-neutral-900">{euro(annata.euro_listino)}</b>
+          <b className="text-neutral-900">{euro(annata.costo_da.prezzo)}</b>
+          {Number(annata.sconto) > 0 && <span className="text-neutral-500"> (listino {euro(annata.euro_listino)} − {Number(annata.sconto).toLocaleString("it-IT")}%)</span>}
           {" "}= ultimo pagato a <b>{annata.costo_da.fornitore_nome}</b>, {dataIt(annata.costo_da.data)}{" "}
           <Pill cls={FONTE_CLS[annata.costo_da.fonte] || FONTE_CLS.storico}>{FONTI[annata.costo_da.fonte] || annata.costo_da.fonte}</Pill>
           {annata.forza_prezzo ? <span className="text-neutral-500"> · prezzo in carta forzato, non si ricalcola</span> : null}
@@ -128,7 +129,7 @@ export default function FornitoriVino({ madreId, bottigliaId, canEdit, onCostoCa
           <thead className="bg-neutral-100">
             <tr className="text-xs text-neutral-600 uppercase tracking-wide">
               <th className="px-3 py-2 text-left">Fornitore</th>
-              <th className="px-3 py-2 text-right">Ultimo pagato</th>
+              <th className="px-3 py-2 text-right">Ultimo pagato (netto)</th>
               <th className="px-3 py-2 text-right">Listino</th>
               <th className="px-3 py-2 text-left">Ultimo acquisto</th>
               {canEdit && <th className="px-3 py-2 text-right" />}
@@ -215,7 +216,7 @@ export default function FornitoriVino({ madreId, bottigliaId, canEdit, onCostoCa
                 </select>
                 <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} className={CAMPO}
                   title="Pagato: diventa il costo se è il più recente. Listino: solo riferimento.">
-                  <option value="pagato">Pagato</option>
+                  <option value="pagato">Pagato (netto)</option>
                   <option value="listino">Listino</option>
                 </select>
                 <div className="relative">
@@ -228,7 +229,7 @@ export default function FornitoriVino({ madreId, bottigliaId, canEdit, onCostoCa
                 <Btn variant="primary" size="md" type="button" onClick={salvaPrezzo} disabled={busy} loading={busy}>Salva</Btn>
               </div>
               <div className="text-xs text-neutral-500">
-                «Pagato» diventa il costo se è il più recente; «Listino» resta solo come riferimento.
+                «Pagato» è il prezzo netto della fattura e diventa il costo se è il più recente; «Listino» resta solo come riferimento.
               </div>
             </div>
           )}

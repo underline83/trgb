@@ -44,10 +44,12 @@ TRGB diventa un **connettore personalizzato di claude.ai**. Da qualsiasi chat (w
 
 | Strumento | Cosa fa | Funzione del service | Tipo |
 |---|---|---|---|
-| `pratiche_elenco` | aperte (o chiuse, o tutte), filtri `stato`, `scadute`, `ferme`, `q` | `elenco` | sola lettura |
-| `pratica_leggi` | una pratica con passi e collegamenti | `leggi` | sola lettura |
-| `pratica_crea` | nuova pratica con il primo passo (data di apertura anche passata, termine facoltativo) | `crea_pratica` | scrive |
-| `pratica_passo` | il gesto di tutti i giorni: testo, data, cambio di stato (anche chiudere con esito o riaprire), nuovo termine o nessun termine | `aggiungi_passo` | scrive |
+| `pratiche_elenco` | aperte (o chiuse, o tutte), filtri `stato`, `scadute`, `ferme`, `q`; dal 2026-11-02 anche `sezione`, `in_attesa`, `da_rivedere` | `elenco` | sola lettura |
+| `pratiche_riepilogo` | (2026-11-02) conteggi per sezione (aperte, tocca a me/loro, scadute, in attesa, da rivedere, residuo) + le pratiche in attesa di mezzi da rivedere oggi: per il giro del mattino | `riepilogo` | sola lettura |
+| `pratica_leggi` | una pratica con passi e collegamenti; dal 2026-11-02 con `rate` se è collegata a una rateizzazione (pagate, scadute, in distinta non abbinate) | `leggi` + `get_piano_rate` | sola lettura |
+| `pratica_crea` | nuova pratica con il primo passo (data di apertura anche passata, termine facoltativo); dal 2026-11-02 con sezione e campi del debito | `crea_pratica` | scrive |
+| `pratica_passo` | il gesto di tutti i giorni: testo, data, cambio di stato (anche chiudere con esito o riaprire), nuovo termine o nessun termine; dal 2026-11-02 cambio di sezione, gradino, importi, «in attesa di mezzi» | `aggiungi_passo` | scrive |
+| `pratica_correggi` | (2026-11-02) completa la testata: titolo, controparte, contatto, campi del debito. Un vuoto si riempie senza passo; un cambio lascia un passo automatico | `aggiorna_testata` | scrive |
 
 **Candidati** (2026-10-16, server 1.2, modulo `dipendenti`, solo admin — [modulo_dipendenti.md](modulo_dipendenti.md) §5.9):
 

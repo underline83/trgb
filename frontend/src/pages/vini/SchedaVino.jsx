@@ -829,8 +829,12 @@ const SchedaVino = forwardRef(function SchedaVino({
       return p != null && p !== "" ? String(p) : "";
     }
     if (tipo === "CARICO") {
+      // VMF.3: nel carico va il prezzo PAGATO, cioè il netto (listino − sconto)
       const p = v.EURO_LISTINO;
-      return p != null && p !== "" ? String(p) : "";
+      if (p == null || p === "") return "";
+      const sc = Number(v.SCONTO) || 0;
+      const netto = sc > 0 && sc < 100 ? Number(p) * (1 - sc / 100) : Number(p);
+      return String(Math.round(netto * 100) / 100);
     }
     return "";
   };
@@ -1483,14 +1487,14 @@ const SchedaVino = forwardRef(function SchedaVino({
                         min={0}
                         placeholder={
                           tipoMov === "VENDITA" ? "€/bt (carta)"
-                          : tipoMov === "CARICO" ? "€/bt (listino)"
+                          : tipoMov === "CARICO" ? "€/bt pagato (netto)"
                           : "€/bt (opz.)"
                         }
                         value={prezzoMov}
                         onChange={e => { setPrezzoMov(e.target.value); setPrezzoMovTouched(true); }}
                         title={
                           tipoMov === "VENDITA" ? "Prezzo carta al momento della vendita (modificabile)"
-                          : tipoMov === "CARICO" ? "Prezzo di acquisto / listino (modificabile)"
+                          : tipoMov === "CARICO" ? "Prezzo pagato a bottiglia, già scontato (modificabile)"
                           : "Prezzo unitario (opzionale per rettifiche/scarichi)"
                         }
                         className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 pr-7"

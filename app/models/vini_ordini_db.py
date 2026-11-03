@@ -919,6 +919,8 @@ def ricevi(
         from app.services import vini_fornitori_service as vmf
         for vino_id, prezzo, mov_id in pagati:
             try:
+                # il prezzo della riga è lo snapshot di EURO_LISTINO: al pagato va il netto
+                prezzo = vmf.netto_da_listino(vino_id, prezzo)
                 costi.append(vmf.registra_prezzo(
                     vino_id, int(fornitore_ordine), prezzo, tipo="pagato",
                     data=now[:10], fonte="ordine", movimento_id=mov_id,

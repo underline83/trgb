@@ -30,13 +30,13 @@ export default function CaricoFornitore({ bottigliaId, madreId, canAdd, value, o
       // Scelta iniziale: l'ordine aperto più recente, se no l'ultimo fornitore usato.
       if (scegliId) {
         const f = j.fornitori.find(x => x.fornitore_id === scegliId);
-        if (f) onChange({ tipo: "fornitore", fornitore_id: f.fornitore_id, prezzo: f.ultimo_pagato ?? f.ultimo_listino, nome: f.nome });
+        if (f) onChange({ tipo: "fornitore", fornitore_id: f.fornitore_id, prezzo: f.prezzo_proposto, nome: f.nome });
       } else if (j.ordini_aperti.length) {
         const o = j.ordini_aperti[0];
-        onChange({ tipo: "ordine", ordine_id: o.ordine_id, riga_id: o.riga_id, prezzo: o.prezzo_unit, residuo: o.qta_ordinata - o.qta_ricevuta, nome: o.fornitore_nome });
+        onChange({ tipo: "ordine", ordine_id: o.ordine_id, riga_id: o.riga_id, prezzo: o.prezzo_netto ?? o.prezzo_unit, residuo: o.qta_ordinata - o.qta_ricevuta, nome: o.fornitore_nome });
       } else if (j.fornitori.length) {
         const f = j.fornitori[0];
-        onChange({ tipo: "fornitore", fornitore_id: f.fornitore_id, prezzo: f.ultimo_pagato ?? f.ultimo_listino, nome: f.nome });
+        onChange({ tipo: "fornitore", fornitore_id: f.fornitore_id, prezzo: f.prezzo_proposto, nome: f.nome });
       } else {
         onChange(null);
       }
@@ -56,10 +56,10 @@ export default function CaricoFornitore({ bottigliaId, madreId, canAdd, value, o
     if (!v) { onChange(null); return; }
     if (v.startsWith("o:")) {
       const o = prop.ordini_aperti.find(x => String(x.riga_id) === v.slice(2));
-      onChange({ tipo: "ordine", ordine_id: o.ordine_id, riga_id: o.riga_id, prezzo: o.prezzo_unit, residuo: o.qta_ordinata - o.qta_ricevuta, nome: o.fornitore_nome });
+      onChange({ tipo: "ordine", ordine_id: o.ordine_id, riga_id: o.riga_id, prezzo: o.prezzo_netto ?? o.prezzo_unit, residuo: o.qta_ordinata - o.qta_ricevuta, nome: o.fornitore_nome });
     } else {
       const f = prop.fornitori.find(x => String(x.fornitore_id) === v.slice(2));
-      onChange({ tipo: "fornitore", fornitore_id: f.fornitore_id, prezzo: f.ultimo_pagato ?? f.ultimo_listino, nome: f.nome });
+      onChange({ tipo: "fornitore", fornitore_id: f.fornitore_id, prezzo: f.prezzo_proposto, nome: f.nome });
     }
   };
 
@@ -87,7 +87,7 @@ export default function CaricoFornitore({ bottigliaId, madreId, canAdd, value, o
           <optgroup label="Ordini aperti">
             {prop.ordini_aperti.map(o => (
               <option key={`o${o.riga_id}`} value={`o:${o.riga_id}`}>
-                📦 Ordine #{o.ordine_id} · {o.fornitore_nome} · {dataIt(o.data_invio)} · {o.qta_ordinata - o.qta_ricevuta} da ricevere{o.prezzo_unit ? ` · ${euro(o.prezzo_unit)}` : ""}
+                📦 Ordine #{o.ordine_id} · {o.fornitore_nome} · {dataIt(o.data_invio)} · {o.qta_ordinata - o.qta_ricevuta} da ricevere{o.prezzo_netto ? ` · ${euro(o.prezzo_netto)}` : ""}
               </option>
             ))}
           </optgroup>

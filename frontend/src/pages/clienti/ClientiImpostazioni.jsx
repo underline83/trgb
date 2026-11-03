@@ -1,4 +1,4 @@
-// @version: v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
+// @version: v2.4 — Preventivi: indirizzo staff (CC), Rispondi a, giorni di scadenza/avviso/proroga, ruoli avvisati (2026-11-03); v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
 // Layout Impostazioni CRM: sidebar sinistra + sezioni (segmenti, import, duplicati, mailchimp)
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -506,26 +506,31 @@ function LuoghiSection() {
 
   useEffect(() => { fetchLuoghi(); }, []);
 
-  // Copia per email di ogni preventivo inviato al cliente (2026-10-22)
-  const [emailCopia, setEmailCopia] = useState("");
-  const [emailCopiaSalvata, setEmailCopiaSalvata] = useState("");
+  // Impostazioni dei preventivi (2026-11-03): staff in CC, Rispondi a, scadenza, avvisi
+  const CAMPI_PREV = ["preventivi_email_copia", "preventivi_reply_to", "preventivi_scadenza_giorni",
+    "preventivi_avviso_giorni", "preventivi_proroga_giorni", "preventivi_avviso_ruoli"];
+  const [cfgPrev, setCfgPrev] = useState(null);
+  const [cfgPrevSalvata, setCfgPrevSalvata] = useState(null);
   useEffect(() => {
-    apiFetch(`${API_BASE}/preventivi/config/email-copia`)
-      .then((r) => (r.ok ? r.json() : { email: "" }))
-      .then((d) => { setEmailCopia(d.email || ""); setEmailCopiaSalvata(d.email || ""); })
+    apiFetch(`${API_BASE}/preventivi/config/impostazioni`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) { const v = Object.fromEntries(CAMPI_PREV.map((k) => [k, d[k] ?? ""])); setCfgPrev(v); setCfgPrevSalvata(v); } })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const salvaEmailCopia = async () => {
+  const cfgPrevDirty = cfgPrev && JSON.stringify(cfgPrev) !== JSON.stringify(cfgPrevSalvata);
+  const salvaCfgPrev = async () => {
     try {
-      const res = await apiFetch(`${API_BASE}/preventivi/config/email-copia`, {
+      const res = await apiFetch(`${API_BASE}/preventivi/config/impostazioni`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailCopia }),
+        body: JSON.stringify(cfgPrev),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail || "Errore salvataggio");
-      setEmailCopia(d.email || ""); setEmailCopiaSalvata(d.email || "");
-      showToast("Indirizzo copia salvato");
+      const v = Object.fromEntries(CAMPI_PREV.map((k) => [k, d[k] ?? ""]));
+      setCfgPrev(v); setCfgPrevSalvata(v);
+      showToast("Impostazioni preventivi salvate");
     } catch (err) {
       showToast(err.message || "Errore", true);
     }
@@ -670,21 +675,56 @@ function LuoghiSection() {
       </div>
 
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
-        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
-          <h2 className="text-sm font-semibold text-neutral-800">Copia dei preventivi inviati</h2>
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-neutral-800">Email, scadenze e avvisi dei preventivi</h2>
+          {cfgPrev && <Btn variant="primary" size="sm" onClick={salvaCfgPrev} disabled={!cfgPrevDirty}>Salva</Btn>}
         </div>
-        <div className="px-5 py-4 space-y-2">
-          <p className="text-xs text-neutral-500">
-            Ogni volta che un preventivo parte verso il cliente (email o WhatsApp) arriva una copia col PDF a questi indirizzi.
-            Più indirizzi separati da virgola; vuoto = nessuna copia.
-          </p>
-          <div className="flex gap-2">
-            <input type="text" value={emailCopia} onChange={(e) => setEmailCopia(e.target.value)}
-              placeholder="prenotazioni@…"
-              className="flex-1 border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
-            <Btn variant="primary" size="sm" onClick={salvaEmailCopia} disabled={emailCopia === emailCopiaSalvata}>Salva</Btn>
+        {cfgPrev && (
+          <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="block">
+                <span className="text-xs font-semibold text-neutral-700">Indirizzo staff (CC)</span>
+                <input type="text" value={cfgPrev.preventivi_email_copia} placeholder="prenotazioni@…"
+                  onChange={(e) => setCfgPrev({ ...cfgPrev, preventivi_email_copia: e.target.value })}
+                  className="mt-1 w-full border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
+                <span className="text-[11px] text-neutral-500">In CC visibile nelle email al cliente; copia col PDF dei preventivi mandati su WhatsApp; email degli avvisi di scadenza. Più indirizzi separati da virgola.</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-neutral-700">Rispondi a</span>
+                <input type="text" value={cfgPrev.preventivi_reply_to} placeholder="vuoto = la casella che manda"
+                  onChange={(e) => setCfgPrev({ ...cfgPrev, preventivi_reply_to: e.target.value })}
+                  className="mt-1 w-full border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
+                <span className="text-[11px] text-neutral-500">Dove vanno le risposte del cliente. Vuoto = la casella che manda.</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-neutral-700">Giorni per confermare</span>
+                <input type="number" value={cfgPrev.preventivi_scadenza_giorni} placeholder=""
+                  onChange={(e) => setCfgPrev({ ...cfgPrev, preventivi_scadenza_giorni: e.target.value })}
+                  className="mt-1 w-full border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
+                <span className="text-[11px] text-neutral-500">Scadenza proposta su un preventivo nuovo: oggi + questi giorni (si cambia a mano nel preventivo).</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-neutral-700">Avviso prima della scadenza (giorni)</span>
+                <input type="number" value={cfgPrev.preventivi_avviso_giorni} placeholder=""
+                  onChange={(e) => setCfgPrev({ ...cfgPrev, preventivi_avviso_giorni: e.target.value })}
+                  className="mt-1 w-full border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
+                <span className="text-[11px] text-neutral-500">Avviso allo staff questi giorni prima, e poi il giorno della scadenza. 0 = solo il giorno stesso.</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-neutral-700">Giorni di proroga</span>
+                <input type="number" value={cfgPrev.preventivi_proroga_giorni} placeholder=""
+                  onChange={(e) => setCfgPrev({ ...cfgPrev, preventivi_proroga_giorni: e.target.value })}
+                  className="mt-1 w-full border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
+                <span className="text-[11px] text-neutral-500">Proposti dal tasto «Proroga» nel preventivo.</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-neutral-700">Chi riceve gli avvisi nel campanello</span>
+                <input type="text" value={cfgPrev.preventivi_avviso_ruoli} placeholder=""
+                  onChange={(e) => setCfgPrev({ ...cfgPrev, preventivi_avviso_ruoli: e.target.value })}
+                  className="mt-1 w-full border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400" />
+                <span className="text-[11px] text-neutral-500">Ruoli separati da virgola (es. admin, capo_sala, sala).</span>
+              </label>
           </div>
-        </div>
+        )}
       </div>
 
       {toast && (

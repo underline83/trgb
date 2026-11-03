@@ -6,9 +6,10 @@ Un vino (madre) si compra da più fornitori; il PREFERITO resta
 `vini_madre.fornitore_id` (serve agli ordini). Ogni annata (bottiglia) ha
 prezzi per fornitore in `vini_prezzi_fornitore`, `tipo` pagato | listino.
 
-REGOLA DEL COSTO (decisione Marco 2026-11-02, D2): il costo in uso
-(`vini_bottiglie.EURO_LISTINO`) è l'ULTIMO PREZZO PAGATO, da qualunque
-fornitore — riga `pagato`, stato `ok`, data più recente (a parità id più alto).
+REGOLA DEL COSTO (decisione Marco 2026-11-02, D2): il costo in uso è
+l'ULTIMO PREZZO PAGATO (NETTO), da qualunque fornitore; in
+`vini_bottiglie.EURO_LISTINO` va il listino equivalente (netto ÷ (1 − SCONTO%)),
+così costo netto = EURO_LISTINO × (1 − SCONTO%) resta vero — riga `pagato`, stato `ok`, data più recente (a parità id più alto).
 Un prezzo `listino` non tocca il costo (D5). Quando il costo cambia passa da
 `update_vino` (storico prezzi) e il prezzo in carta si ricalcola col markup,
 salvo `FORZA_PREZZO = 1`.
@@ -130,7 +131,7 @@ def fornitori_del_vino(madre_id: int) -> Dict[str, Any]:
 
         annate = []
         for b in cur.execute(
-            "SELECT id, ANNATA, FORMATO, EURO_LISTINO, PREZZO_CARTA, FORZA_PREZZO, "
+            "SELECT id, ANNATA, FORMATO, EURO_LISTINO, SCONTO, PREZZO_CARTA, FORZA_PREZZO, "
             "COALESCE(QTA_TOTALE,0) AS qta FROM vini_bottiglie WHERE madre_id = ? "
             "ORDER BY ANNATA DESC, id DESC",
             (madre_id,),
@@ -144,7 +145,7 @@ def fornitori_del_vino(madre_id: int) -> Dict[str, Any]:
                 })
             annate.append({
                 "bottiglia_id": b["id"], "annata": b["ANNATA"], "formato": b["FORMATO"],
-                "euro_listino": b["EURO_LISTINO"], "prezzo_carta": b["PREZZO_CARTA"],
+                "euro_listino": b["EURO_LISTINO"], "sconto": b["SCONTO"], "prezzo_carta": b["PREZZO_CARTA"],
                 "forza_prezzo": b["FORZA_PREZZO"], "qta": b["qta"],
                 "costo_da": _ultimo(cur, b["id"], None, "pagato"),
                 "prezzi": prezzi,
@@ -186,6 +187,14 @@ def proposta_carico(bottiglia_id: int) -> Dict[str, Any]:
             """,
             (bottiglia_id,),
         ).fetchall()]
+        b = cur.execute("SELECT SCONTO FROM vini_bottiglie WHERE id = ?", (bottiglia_id,)).fetchone()
+        try:
+            sconto = float(b["SCONTO"] or 0) if b else 0.0
+        except (TypeError, ValueError):
+            sconto = 0.0
+        netto = (lambda p: None if p is None else (round(float(p) * (1 - sconto / 100.0), 4) if 0 < sconto < 100 else float(p)))
+        for o in ordini:
+            o["prezzo_netto"] = netto(o["prezzo_unit"])
         fornitori: List[Dict[str, Any]] = []
         preferito = None
         if madre_id:
@@ -212,15 +221,31 @@ def proposta_carico(bottiglia_id: int) -> Dict[str, Any]:
                 ul = _ultimo(cur, bottiglia_id, d["fornitore_id"], "listino")
                 d["ultimo_pagato"] = up["prezzo"] if up else None
                 d["ultimo_listino"] = ul["prezzo"] if ul else None
+                # prezzo da proporre nel carico: NETTO (ultimo pagato, o listino − sconto)
+                d["prezzo_proposto"] = d["ultimo_pagato"] if up else netto(d["ultimo_listino"])
                 fornitori.append(d)
         # ultimo usato in cima, poi il preferito, poi alfabetico
         fornitori.sort(key=lambda d: (d["ultimo_acquisto"] is None,
                                       "" if d["ultimo_acquisto"] is None else _inv(d["ultimo_acquisto"]),
                                       not d["preferito"], d["nome"].lower()))
-        return {"bottiglia_id": bottiglia_id, "madre_id": madre_id,
+        return {"bottiglia_id": bottiglia_id, "madre_id": madre_id, "sconto": sconto,
                 "ordini_aperti": ordini, "fornitori": fornitori}
     finally:
         conn.close()
+
+
+def netto_da_listino(bottiglia_id: int, prezzo_listino: Optional[float]) -> Optional[float]:
+    """Netto pagato a partire da un prezzo «di listino» della scheda (EURO_LISTINO,
+    snapshot delle righe d'ordine): applica lo SCONTO della bottiglia."""
+    if prezzo_listino is None:
+        return None
+    row = mag.get_vino_by_id(bottiglia_id)
+    try:
+        sconto = float(row["SCONTO"] or 0) if row else 0.0
+    except (TypeError, ValueError):
+        sconto = 0.0
+    p = float(prezzo_listino)
+    return round(p * (1 - sconto / 100.0), 4) if 0 < sconto < 100 else p
 
 
 def _inv(d: str) -> str:
@@ -362,8 +387,18 @@ def riallinea_costo(bottiglia_id: int, utente: Optional[str] = None) -> Optional
     if not row:
         return None
     attuale = row["EURO_LISTINO"]
-    nuovo = round(float(up["prezzo"]), 4)
-    esito = {"prezzo": nuovo, "fornitore": up.get("fornitore_nome"), "data": up["data"], "cambiato": False}
+    # VMF.3 (mig 226): i «pagato» sono NETTI (quello che esce davvero, = fattura).
+    # EURO_LISTINO in TRGB è il listino a cui si applica SCONTO (costo netto =
+    # EURO_LISTINO × (1 − SCONTO%)): per non cambiare il significato di 218 vini
+    # con sconto, si riporta il netto al listino equivalente.
+    netto = float(up["prezzo"])
+    try:
+        sconto = float(row["SCONTO"] or 0)
+    except (TypeError, ValueError):
+        sconto = 0.0
+    nuovo = round(netto / (1 - sconto / 100.0), 4) if 0 < sconto < 100 else round(netto, 4)
+    esito = {"prezzo": nuovo, "netto": round(netto, 4), "sconto": sconto,
+             "fornitore": up.get("fornitore_nome"), "data": up["data"], "cambiato": False}
     if attuale is not None and abs(float(attuale) - nuovo) < 0.005:
         return esito
     data = {"EURO_LISTINO": nuovo}

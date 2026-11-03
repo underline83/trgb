@@ -1,4 +1,4 @@
-// @version: v1.3 — passa l'esito dell'invio (messaggio per i gruppi, copia all'osteria) a chi apre il pannello; v1.2 — WhatsApp in due passi: 1) apri la chat del numero col messaggio, 2) allega il PDF (2026-10-20)
+// @version: v1.4 — email: staff in CC visibile (precompilato da Impostazioni, modificabile) + Rispondi a (2026-11-03); v1.3 — passa l'esito dell'invio (messaggio per i gruppi, copia all'osteria) a chi apre il pannello; v1.2 — WhatsApp in due passi: 1) apri la chat del numero col messaggio, 2) allega il PDF (2026-10-20)
 // v1.1 — messaggio WhatsApp asciutto e modificabile (2026-10-19)
 // v1.0 — invio preventivo al cliente: WhatsApp (testo + PDF), email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
@@ -38,7 +38,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
   const [pdfFile, setPdfFile] = useState(null);
   const [puoCondividere, setPuoCondividere] = useState(false);
 
-  const [mail, setMail] = useState({ to: "", oggetto: "", corpo: "" });
+  const [mail, setMail] = useState({ to: "", cc: "", reply_to: "", oggetto: "", corpo: "" });
   const [mailCfg, setMailCfg] = useState({ ok: true, mancanti: [] });
   const [inviando, setInviando] = useState(false);
 
@@ -72,7 +72,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
         setTelefono(t.telefono || "");
         setPdfFile(file);
         setPuoCondividere(!!(navigator.canShare && navigator.canShare({ files: [file] })));
-        setMail({ to: m.to || "", oggetto: m.oggetto || "", corpo: m.corpo || "" });
+        setMail({ to: m.to || "", cc: m.cc || "", reply_to: m.reply_to || "", oggetto: m.oggetto || "", corpo: m.corpo || "" });
         setMailCfg({ ok: !!m.email_configurata, mancanti: m.email_mancanti || [] });
         await caricaInvii();
       } catch (e) {
@@ -150,7 +150,7 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
       await caricaInvii();
       if (!d.ok) throw new Error(`Email NON partita: ${d.errore || "errore"}`);
       onInviato?.(d.stato, d);
-      showToast(`✉️ Email inviata a ${mail.to}`);
+      showToast(`✉️ Email inviata a ${mail.to}${mail.cc ? ` (CC ${mail.cc})` : ""}`);
     } catch (e) {
       showToast(e.message, true);
     } finally {
@@ -240,6 +240,14 @@ export default function PreventivoInvioModal({ prevId, numero, clienteNome, onCl
                 <span className="text-xs text-neutral-500">A (più indirizzi separati da virgola)</span>
                 <input type="email" value={mail.to} onChange={(e) => setMail({ ...mail, to: e.target.value })}
                   className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" placeholder="cliente@esempio.it" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-neutral-500">CC — lo staff, visibile al cliente: «rispondi a tutti» arriva anche a voi</span>
+                <input type="text" value={mail.cc} onChange={(e) => setMail({ ...mail, cc: e.target.value })}
+                  className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" placeholder="vuoto = nessuno in copia" />
+                <span className="text-[11px] text-neutral-400">
+                  Le risposte vanno a {mail.reply_to || "la casella che manda"} (Impostazioni › Preventivi).
+                </span>
               </label>
               <label className="block">
                 <span className="text-xs text-neutral-500">Oggetto</span>

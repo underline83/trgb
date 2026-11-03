@@ -13,6 +13,9 @@
 | D4 | Fattura contro carico: entro **±2%** vince la fattura e corregge da sola; oltre, finisce in «da verificare» e decide Marco. Il 2% è un'impostazione (`vmf_soglia_fattura_pct`), non una costante. | Marco 02/11 |
 | D5 | Un prezzo da **listino** aggiorna solo il riferimento di quel fornitore, non il costo in carta. | proposta accettata 02/11 |
 | D6 | Dati di oggi: il distributore attuale di ogni vino diventa il suo primo fornitore e il preferito; il costo di oggi diventa un «pagato» di quel fornitore con fonte `storico`. | proposta accettata 02/11 |
+| D7 | **Chi emette la fattura decide il fornitore.** 0,75 fa due mestieri: da agente il vino arriva con la fattura della cantina → acquisto **Diretto**; da distributore «arriva dal loro magazzino» con la fattura di 0,75 → fornitore 0,75. Lo stesso per Marenzi e gli altri. Il preferito per gli ordini resta chi si chiama per ordinare. | Marco 02/11 |
+| D8 | Le fatture si leggono **dal 2026** (`vmf_fatture_dal` = 2026-01-01). | Marco 03/11 |
+| D9 | I «pagato» sono **netti** (= fattura). `EURO_LISTINO` resta il listino a cui la scheda applica `SCONTO`: quando cambia il costo vi va netto ÷ (1 − SCONTO%). I prezzi pagati scritti prima (storico, ordini, carichi, a mano) sono stati portati al netto dalla mig 226. | tecnica 03/11, da confermare con Marco (sconti di scheda non aggiornati) |
 
 ## 2. Modello dati (mig 225, `vini_magazzino.sqlite3`)
 
@@ -30,7 +33,7 @@
 |---|---|---|
 | VMF.1 | Schema + migrazione dati (mig 225) + service `vini_fornitori_service.py` + endpoint `/vini/multifornitore/*` + sezione **Fornitori** nella scheda vino (elenco, ⭐ preferito, ➕ aggiungi, prezzo manuale pagato/listino, storico per fornitore) | in sviluppo 02/11 |
 | VMF.2 | **Carico**: dalla scheda vino il carico propone l'ordine aperto (lo riceve con `/vini/ordini/{id}/ricevi`) oppure la tendina fornitori; `ricevi` registra il pagato col `prezzo_unit` della riga ordine | in sviluppo 02/11 |
-| VMF.3 | **Fatture**: abbinamento righe `fe_righe` dei fornitori vino → bottiglia (auto + conferma dei dubbi, come gli ingredienti), confronto col carico con soglia D4, lista «da verificare» | da fare |
+| VMF.3 | **Fatture** (mig 226, pagina Vini › Fatture): righe BEVANDE › VINO dal 2026 via `fatture_righe_service` (platform, sola lettura); emittenti classificati una volta (distributore / cantina → Diretto / non vini); suggerimenti per produttore+nome+annata+formato, «Abbina i sicuri» in blocco, abbinamenti ricordati per P.IVA+descrizione; prezzo netto a bottiglia anche da cartoni («0,75X6», CT senza numero → 6 presunte, da verificare); confronto col pagato registrato (carico/ordine/storico, finestra −120/+45 gg): entro soglia sostituisce (anche il fornitore), oltre «da verificare» con «Vale la fattura / Vale il registrato» | fatto 03/11 (da pushare) |
 | VMF.4 | Listini: import di un listino PDF come prezzi `listino` del fornitore (oggi a mano/via Claude) | da fare |
 | VMF.5 | Valutare l'estensione alla carta bevande (D1) | da decidere |
 
@@ -43,6 +46,14 @@
 - `POST /vini/multifornitore/prezzi/` — registra un prezzo a mano (`tipo` pagato/listino).
 - `GET  /vini/multifornitore/bottiglia/{bottiglia_id}/carico/` — proposta per il carico: ordini aperti con questo vino + fornitori ordinati (ultimo usato in cima).
 - Movimento `CARICO` (`POST /vini/magazzino/{id}/movimenti`) accetta `fornitore_id`: con prezzo registra un `pagato` fonte `carico`.
+
+## 4-bis. Endpoint VMF.3 (`/vini/multifornitore/fatture/*`, solo manager vini)
+
+- `GET /fatture/` stato della pagina · `POST /fatture/aggiorna` legge le fatture nuove e applica la memoria
+- `POST /fatture/emittenti/` {piva, tipo, fornitore_id} · `POST /fatture/righe/{id}/abbina` {bottiglia_id} · `POST /fatture/righe/{id}/ignora`
+- `POST /fatture/prezzi/{id}/risolvi` {vale: fattura|carico} · `POST /fatture/conferma-sicuri` · `GET /fatture/cerca-vini/?q=`
+
+Prova su copia DB (03/11): 397 righe vino 2026; con 7 distributori e 9 cantine classificati, «Abbina i sicuri» ne abbina 137 (98 ok, 39 da verificare); dei 95 confronti col registrato, 64 entro il 2%. Fuori soglia ricorrenti: 0,75 fattura −3% rispetto al listino, Balan −15%, sconti di scheda che la fattura non riporta (Marenzi 9%, Magri 10%).
 
 ## 5. Casi limite
 

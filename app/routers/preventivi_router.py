@@ -305,6 +305,43 @@ def api_set_email_copia(body: EmailCopiaIn, user: dict = Depends(get_current_use
 
 
 # ---------------------------------------------------------------------------
+# Impostazioni › Preventivi: CC/Rispondi a, giorni di scadenza, avvisi (2026-11-03)
+# ---------------------------------------------------------------------------
+
+class ConfigPreventiviIn(BaseModel):
+    preventivi_email_copia: Optional[str] = None
+    preventivi_reply_to: Optional[str] = None
+    preventivi_scadenza_giorni: Optional[int] = None
+    preventivi_avviso_giorni: Optional[int] = None
+    preventivi_proroga_giorni: Optional[int] = None
+    preventivi_avviso_ruoli: Optional[str] = None
+
+
+@router.get("/config/impostazioni")
+def api_get_config_preventivi(user: dict = Depends(get_current_user)):
+    from app.services.preventivi_scadenze import get_config, scadenza_proposta
+    return {**get_config(), "scadenza_proposta": scadenza_proposta()}
+
+
+@router.put("/config/impostazioni")
+def api_set_config_preventivi(body: ConfigPreventiviIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    from app.services.preventivi_scadenze import set_config
+    try:
+        return set_config(body.dict(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/scadenze/controlla")
+def api_controlla_scadenze(dry_run: bool = Query(True), user: dict = Depends(get_current_user)):
+    """Il controllo che gira ogni ora; a mano (admin) per prova: dry_run=true non manda niente."""
+    _require_admin(user)
+    from app.services.preventivi_scadenze import controlla_scadenze
+    return controlla_scadenze(dry_run=dry_run)
+
+
+# ---------------------------------------------------------------------------
 # Template (path fissi /template/* PRIMA di /{preventivo_id})
 # ---------------------------------------------------------------------------
 
@@ -366,7 +403,8 @@ def api_aggiorna_preventivo(preventivo_id: int, body: PreventivoUpdate, user: di
     righe = [r.dict() for r in body.righe] if body.righe is not None else None
     nuovo_cliente = body.nuovo_cliente.dict() if body.nuovo_cliente else None
     try:
-        result = aggiorna_preventivo(preventivo_id, data, righe, nuovo_cliente=nuovo_cliente)
+        result = aggiorna_preventivo(preventivo_id, data, righe, nuovo_cliente=nuovo_cliente,
+                                     username=user.get("username"))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not result:
@@ -387,12 +425,51 @@ def api_elimina_preventivo(preventivo_id: int, user: dict = Depends(get_current_
 def api_cambia_stato(preventivo_id: int, body: StatoIn, user: dict = Depends(get_current_user)):
     _require_admin(user)
     try:
-        result = cambia_stato(preventivo_id, body.stato)
+        result = cambia_stato(preventivo_id, body.stato, user.get("username"))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result
+
+
+class ProrogaIn(BaseModel):
+    giorni: Optional[int] = None      # None = giorni proposti in Impostazioni
+
+
+@router.get("/{preventivo_id}/storico")
+def api_storico(preventivo_id: int, user: dict = Depends(get_current_user)):
+    from app.services.preventivi_scadenze import lista_storico
+    return lista_storico(preventivo_id)
+
+
+@router.post("/{preventivo_id}/proroga")
+def api_proroga(preventivo_id: int, body: ProrogaIn, user: dict = Depends(get_current_user)):
+    """«Tieni il tavolo altri N giorni»: sposta la scadenza e lo scrive nello storico."""
+    _require_admin(user)
+    from app.services.preventivi_scadenze import proroga
+    try:
+        res = proroga(preventivo_id, body.giorni, user["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res
+
+
+@router.post("/{preventivo_id}/libera-tavolo")
+def api_libera_tavolo(preventivo_id: int, user: dict = Depends(get_current_user)):
+    """Cancella la prenotazione collegata (motivo «preventivo scaduto») e mette il
+    preventivo in «scaduto». Al cliente non parte niente."""
+    _require_admin(user)
+    from app.services.preventivi_scadenze import libera_tavolo
+    try:
+        res = libera_tavolo(preventivo_id, user["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res
 
 
 class ConfermaIn(BaseModel):
@@ -643,6 +720,8 @@ class EmailIn(BaseModel):
     to: str                            # uno o più indirizzi separati da virgola
     oggetto: str
     corpo: str = ""
+    cc: Optional[str] = None           # 2026-11-03: staff in CC visibile (default da Impostazioni)
+    reply_to: Optional[str] = None     # 2026-11-03: dove vanno le risposte del cliente
 
 
 @router.get("/{preventivo_id}/invii")
@@ -687,10 +766,17 @@ def api_invia_email(preventivo_id: int, body: EmailIn, user: dict = Depends(get_
         raise HTTPException(status_code=400, detail="Indirizzo email non valido")
     if not body.oggetto.strip():
         raise HTTPException(status_code=400, detail="Oggetto vuoto")
+    cc = [t.strip() for t in (body.cc or "").replace(";", ",").split(",") if t.strip()]
+    if any("@" not in t for t in cc):
+        raise HTTPException(status_code=400, detail="Indirizzo in CC non valido")
+    reply_to = (body.reply_to or "").strip() or None
+    if reply_to and "@" not in reply_to:
+        raise HTTPException(status_code=400, detail="Indirizzo «Rispondi a» non valido")
     try:
-        res = invia_email_preventivo(preventivo_id, to, body.oggetto.strip(), body.corpo, user["username"])
-        if res and res.get("ok"):  # copia all'osteria + messaggio per i gruppi (2026-10-22)
-            res.update(dopo_invio(preventivo_id, "email", ", ".join(to), user["username"]))
+        res = invia_email_preventivo(preventivo_id, to, body.oggetto.strip(), body.corpo, user["username"],
+                                     cc=cc, reply_to=reply_to)
+        if res and res.get("ok"):  # copia all'osteria (non a chi era già in CC) + messaggio per i gruppi
+            res.update(dopo_invio(preventivo_id, "email", ", ".join(to), user["username"], cc=cc))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

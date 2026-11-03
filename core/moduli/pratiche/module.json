@@ -1,7 +1,7 @@
 {
   "id": "pratiche",
   "nome": "Pratiche",
-  "versione": "1.0",
+  "versione": "1.2",
   "descrizione": "Pratiche aperte con enti, fornitori, studi e creditori: stato, termine, storia dei passi, allegati, avvisi",
   "vendibile": true,
   "dipendenze_platform": ["auth", "notifiche", "alert", "permessi", "ui_primitives"],
@@ -15,7 +15,10 @@
   "tabelle_db": [
     "pratiche",
     "pratiche_passi",
-    "pratiche_collegamenti"
+    "pratiche_collegamenti",
+    "pratiche_sezioni",
+    "pratiche_tipi_atto",
+    "pratiche_config"
   ],
   "frontend_route": ["/pratiche"],
   "frontend_menu_key": "pratiche"

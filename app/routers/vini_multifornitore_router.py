@@ -112,3 +112,77 @@ def post_scarta(prezzo_id: int, current_user: Any = Depends(get_current_user)):
 @router.get("/bottiglia/{bottiglia_id}/carico/", summary="Proposta per il carico: ordini aperti e fornitori")
 def get_proposta_carico(bottiglia_id: int, current_user: Any = Depends(get_current_user)):
     return _esegui(svc.proposta_carico, bottiglia_id)
+
+
+# ─────────────────────────────────────────────
+# VMF.3 — fatture → vini (mig 226). Logica in app/services/vini_fatture_service.py
+# Tutto riservato ai manager vini: sono prezzi d'acquisto e cambiano il costo.
+# ─────────────────────────────────────────────
+from app.services import vini_fatture_service as vfat  # noqa: E402
+
+
+class EmittenteIn(BaseModel):
+    piva: str = Field(..., min_length=5, max_length=20)
+    tipo: str = Field(..., pattern="^(distributore|cantina|non_vini)$")
+    fornitore_id: Optional[int] = None
+    nome: Optional[str] = None
+
+
+class AbbinaIn(BaseModel):
+    bottiglia_id: int
+
+
+class RisolviIn(BaseModel):
+    vale: str = Field(..., pattern="^(fattura|carico)$")
+
+
+@router.get("/fatture/", summary="Fatture → vini: da classificare, da abbinare, da verificare")
+def get_fatture(current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return vfat.stato()
+
+
+@router.post("/fatture/aggiorna", summary="Legge le fatture nuove e applica gli abbinamenti imparati")
+def post_fatture_aggiorna(current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    esito = _esegui(vfat.aggiorna, utente=_username(current_user))
+    return {"esito": esito, **vfat.stato()}
+
+
+@router.post("/fatture/emittenti/", summary="Dice chi è chi emette le fatture: distributore, cantina o non vini")
+def post_emittente(payload: EmittenteIn, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    _esegui(vfat.classifica_emittente, payload.piva, payload.tipo, payload.fornitore_id,
+            payload.nome, utente=_username(current_user))
+    return vfat.stato()
+
+
+@router.post("/fatture/righe/{fe_riga_id}/abbina", summary="Abbina una riga di fattura a un vino")
+def post_abbina(fe_riga_id: int, payload: AbbinaIn, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vfat.abbina, fe_riga_id, payload.bottiglia_id, utente=_username(current_user))
+
+
+@router.post("/fatture/righe/{fe_riga_id}/ignora", summary="Riga che non è un vino in cantina (la ricorda)")
+def post_ignora(fe_riga_id: int, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    _esegui(vfat.ignora, fe_riga_id, utente=_username(current_user))
+    return {"ok": True}
+
+
+@router.post("/fatture/prezzi/{prezzo_id}/risolvi", summary="Da verificare: vale la fattura o il carico")
+def post_risolvi(prezzo_id: int, payload: RisolviIn, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vfat.risolvi, prezzo_id, payload.vale, utente=_username(current_user))
+
+
+@router.post("/fatture/conferma-sicuri", summary="Abbina in blocco i suggerimenti netti")
+def post_conferma_sicuri(current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vfat.conferma_sicuri, utente=_username(current_user))
+
+
+@router.get("/fatture/cerca-vini/", summary="Cerca un vino per abbinarlo a mano")
+def get_cerca_vini(q: str, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return vfat.suggerisci(q, limite=15)

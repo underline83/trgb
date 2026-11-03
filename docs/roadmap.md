@@ -171,7 +171,7 @@ Spec: [`spec_vini_multifornitore.md`](spec_vini_multifornitore.md). Decisioni Ma
 |----|------|--------|-------|
 | **VMF.1** | Schema (mig 225) + dati di oggi + service + `/vini/multifornitore/*` + scheda vino › Prezzi › Fornitori | M | **✅ FATTO 2026-11-02** (vini 4.3, sistema 5.90 — da pushare) |
 | **VMF.2** | Carico «Da chi arriva»: ordine aperto (lo chiude, prezzo dell'ordine) o tendina fornitori + aggiungi; `ricevi` registra il pagato | M | **✅ FATTO 2026-11-02** (vini 4.3 — da pushare) |
-| **VMF.3** | Fatture → vini: abbinamento `fe_righe` dei fornitori vino alle bottiglie (auto + conferma), confronto col carico con soglia, lista «da verificare» | L | DA FARE |
+| **VMF.3** | Fatture → vini: emittenti (distributore / cantina = Diretto), abbinamento righe con memoria, confronto col carico con soglia 2%, «da verificare», pagina Vini › Fatture (mig 226) | L | **✅ FATTO 2026-11-03** (vini 4.5, sistema 5.92 — da pushare) |
 | **VMF.4** | Import listino (PDF) come prezzi `listino` del fornitore | M | DA FARE |
 | **VMF.5** | Estensione alla carta bevande | — | DA DECIDERE (Marco: pochi casi) |
 
@@ -719,6 +719,9 @@ Doc: [`modulo_pratiche.md`](modulo_pratiche.md). Modello deciso con Marco il 202
 | PRT.4 | Connettore MCP di TRGB: `pratiche_elenco`, `pratica_leggi`, `pratica_passo`, `pratica_crea` sopra `pratiche_service` | M | ✅ FATTO | 2026-10-08, mattone M.K (sistema 5.46). Da provare da claude.ai dopo il push. Doc `connettore_mcp.md` |
 | PRT.5 | Selettore per tipo nei collegamenti (cerca un'uscita o un dipendente) | S | BASSA | Solo se il collegamento a mano non basta |
 | PRT.6 | Passo che punta a una PEC dell'archivio invece di tenerne una copia | S | → ML.2 | Assorbito da ML.2 (`pec_collega_pratica`), vedi sotto |
+| PRT.7 | Sezioni (scelte da Marco), campi del debito con la scala degli atti, «in attesa di mezzi» con revisione, rate della rateizzazione collegata; MCP `pratiche_riepilogo` e `pratica_correggi` | M | ✅ FATTO | 2026-11-02, pratiche 1.2, sistema 5.91, connettore 1.9. Backend andato su dentro d7530b53 (push di un'altra sessione), scheda e docs nel push dopo. `modulo_pratiche.md` §8 |
+| PRT.8 | Sezione delle 15 pratiche esistenti + collegamento Fondo Est → spesa fissa 32 (piano 572) | XS | DA FARE | Dati, via MCP `pratica_correggi` dopo il sì di Marco |
+| PRT.9 | Chiudere da sola la pratica quando TRGB vede il pagamento riconciliato (preferenza di Marco del 01/11) | S | DA FARE | Serve il collegamento pratica → uscita/rata; ora c'è per le rateizzazioni |
 
 ### MK — Altri strumenti nel connettore MCP (chiesto da Marco 2026-10-10)
 

@@ -306,7 +306,7 @@ def get_planning(
                 p.data_prenotazione, p.prenotato_da, p.turno, p.fonte,
                 p.allergie_segnalate, p.tavolo_esterno, p.seggioloni,
                 p.menu_preset, p.degustazione, p.offerta_speciale, p.yums,
-                p.menu_evento, p.preventivo_id,
+                p.menu_evento, p.preventivo_id, p.motivo_cancellazione,
                 p.thefork_booking_id, p.creato_da,
                 p.nome_ospite, p.cognome_ospite,
                 COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
@@ -347,8 +347,17 @@ def get_planning(
         except ValueError:
             soglia_frequente = 5
 
+        # Preventivi collegati che aspettano la conferma del cliente (2026-11-03):
+        # lettura dal servizio platform, niente join col modulo preventivi
+        try:
+            from app.services.evento_confermato_service import preventivi_in_attesa
+            attese = preventivi_in_attesa([r["id"] for r in rows])
+        except Exception:  # noqa: BLE001 — il Planning non deve mai rompersi per questo
+            attese = {}
+
         for r in rows:
             item = dict(r)
+            item["preventivo_attesa"] = attese.get(item["id"])
             item["possibili_doppioni"] = doppioni.get(item["id"], [])
             item["bollino"] = _bollino_cliente(item, soglia_frequente)
             turno = item.get("turno") or _calcola_turno(item.get("ora_pasto"), soglia)

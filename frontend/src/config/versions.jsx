@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.5 (2026-11-03): VMF.3 — pagina Vini › Fatture: le righe vino delle fatture
+    //   elettroniche (dal 2026) diventano prezzi pagati; chi emette decide il fornitore
+    //   (cantina = Diretto), entro ±2% dal carico vale la fattura, oltre «da verificare»;
+    //   abbinamenti ricordati. I «pagato» sono NETTI (listino − sconto della scheda).
     // 4.4 (2026-11-02): Fornitori e «Da chi arriva» con lo stile della scheda (tabelle,
     //   pill, campi del form Movimenti, Btn); «Ultimo pagato» come origine nello storico prezzi.
     //   Wizard Nuovo Vino: iPratico acceso di default.
@@ -174,7 +178,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.4",
+    version: "4.5",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -481,6 +485,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.24 (2026-11-03): preventivi, scadenza della conferma (proposta da Impostazioni, avvisi
+    //   allo staff prima e il giorno stesso, «Proroga», «Libera tavolo», storico) + email al
+    //   cliente con lo staff in CC visibile e Rispondi a (una sola email allo staff).
     // 3.23 (2026-11-02): Impostazioni › WhatsApp — collegamento del numero del locale (Embedded Signup,
     //   coexistence con l'app Business), archivio in sola lettura, chat «da rispondere», conservazione.
     // 3.22 (2026-10-29): gift card «in bianco» — lotto di codici con scadenza fissa (scatoline di Natale),
@@ -541,12 +548,14 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.23",
+    version: "3.24",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.30 (2026-11-03): Planning, ⏳ prenotazione in attesa di conferma preventivo con scadenza,
+    //   «Libera tavolo», motivo della cancellazione.
     // 2.32 (2026-10-31): «4» con poche persone = la metà «4» (il 4C resta libero per il motore); «✂️ Dividi» anche da tavolo occupato se chi c'è sta in metà.
     // 2.31 (2026-10-29): tavoli trascinabili in mappa per il turno (in assegnazione o «✋ Sposta»), «↺ Sala com'era». Più tavoli da TheFork = unione del turno senza prolunghe (staccabile, non torna).
     // 2.30 (2026-10-29): tavolate in mappa per lungo (come la sala): ogni tavolo girato col lato lungo nella fila, piazzata dove stanno i suoi tavoli senza coprirne altri.
@@ -567,7 +576,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.29",
+    version: "2.30",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -606,12 +615,17 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   pratiche: {
+    // 1.2 (2026-11-02): SEZIONI scelte da Marco (chip con conteggi, filtro,
+    //   modale «Sezioni e atti»), campi del debito (tipo d'atto col gradino,
+    //   riferimento, periodo, dovuto, residuo; ogni cambio resta nella storia),
+    //   «in attesa di mezzi» con data di revisione e «Rivista», rate della
+    //   rateizzazione collegata nella scheda. Schema al boot con backup.
     // 1.1 (2026-10-08): strumenti per il connettore MCP (M.K); messaggio
     //   «Per chiudere serve l'esito» al posto di quello ridondante.
     // 1.0 (2026-10-08): nascita. Elenco Scadute / Tocca a me / Tocca a loro,
     //   scheda con storia dei passi, nuovo passo (stato, termine, allegato),
     //   collegamenti manuali ad altri moduli, avviso pratiche_termini.
-    version: "1.1",
+    version: "1.2",
     label: "Pratiche",
     status: "beta",
     color: "blue",
@@ -670,6 +684,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.93 (2026-11-03): mig 227 — storico dei preventivi, cc/reply-to nel registro invii,
+    //   motivo_cancellazione delle prenotazioni; controllo orario delle scadenze (clienti 3.24).
+    // 5.92 (2026-11-03): mig 226 — vini_fe_emittenti, vini_fe_righe, vini_fe_mappa,
+    //   vini_prezzi_fornitore.confronto_id; pagati portati al netto; setting vmf_fatture_dal (vini 4.5).
+    // 5.91 (2026-11-02): pratiche.sqlite3 v1.1 al boot (con backup) — pratiche_sezioni,
+    //   pratiche_tipi_atto, pratiche_config + colonne del debito e «in attesa di mezzi»
+    //   (pratiche 1.2, connettore 1.9).
     // 5.90 (2026-11-02): mig 225 — vini_madre_fornitori + vini_prezzi_fornitore, vini
     //   multi-fornitore (vini 4.3) + soglia vmf_soglia_fattura_pct nelle impostazioni Vini.
     // 5.89 (2026-11-02): mig 224 — clienti_wa_messaggi/contatti/eventi, WhatsApp del locale in
@@ -794,7 +815,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.90",
+    version: "5.93",
     label: "Sistema",
     status: "stabile",
     color: "green",

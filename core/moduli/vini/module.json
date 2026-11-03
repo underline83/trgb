@@ -46,7 +46,10 @@
     "bevande_sezioni",
     "bevande_voci",
     "vini_madre_fornitori",
-    "vini_prezzi_fornitore"
+    "vini_prezzi_fornitore",
+    "vini_fe_emittenti",
+    "vini_fe_righe",
+    "vini_fe_mappa"
   ],
   "frontend_route": [
     "/vini"

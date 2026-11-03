@@ -349,6 +349,13 @@ def _differenze(conn, p, nuovi: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Di
     return upd, modifiche, gia_scritto
 
 
+def _residuo_iniziale(p, nuovi: Dict[str, Any]) -> None:
+    """Primo «dovuto» su una pratica senza residuo: il residuo parte uguale."""
+    if (nuovi.get("importo_dovuto") is not None and "importo_residuo" not in nuovi
+            and p["importo_residuo"] is None):
+        nuovi["importo_residuo"] = nuovi["importo_dovuto"]
+
+
 def _testo_modifiche(modifiche: List[Dict[str, str]]) -> str:
     return "; ".join(f"{m['campo']}: {m['da']} → {m['a']}" for m in modifiche)
 
@@ -836,6 +843,7 @@ def aggiorna_testata(
         nuovi = _normalizza_campi(conn, campi_debito)
         if "in_attesa_mezzi" in nuovi or "revisione_il" in nuovi:
             _attesa(conn, p, nuovi, o, passo_a_mano=False)
+        _residuo_iniziale(p, nuovi)
         upd, modifiche, gia_scritto = _differenze(conn, p, nuovi)
         for k, v in upd.items():
             campi.append(f"{k} = ?")
@@ -918,6 +926,7 @@ def aggiungi_passo(
 
         # v1.1 — campi del debito e attesa di mezzi
         nuovi = _normalizza_campi(conn, campi)
+        _residuo_iniziale(p, nuovi)
         if upd.get("stato") != "chiusa":
             _attesa(conn, p, nuovi, o, passo_a_mano=not automatico)
         diff, modifiche, _ = _differenze(conn, p, nuovi)

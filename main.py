@@ -788,6 +788,10 @@ if module_loader.is_router_active("prenotazioni_router"):
 
 # PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)
 _mount("preventivi_router", preventivi_router)
+if module_loader.is_router_active("preventivi_router"):
+    # Scadenza della conferma: avvisi allo staff X giorni prima e il giorno stesso (2026-11-03)
+    from app.services.preventivi_scadenze import avvia_periodico as _scadenze_preventivi
+    _scadenze_preventivi()
 _mount("menu_templates_router", menu_templates_router)
 _mount("menu_templates_router", menu_templates_preventivi_bridge_router)
 

@@ -85,6 +85,7 @@ WIDGET_DEFAULTS = [
     # VMF (2026-11-02) — multi-fornitore: fattura contro carico. Marco: «nell'ordine
     # del max +/- 2% fa da solo; dopo chiede». Spec docs/spec_vini_multifornitore.md D4.
     ("vmf_soglia_fattura_pct",        "2",   "percent", "%: se il prezzo in fattura differisce dal carico entro ±N% vince la fattura in automatico; oltre va in «da verificare»"),
+    ("vmf_fatture_dal",               "2026-01-01", "text", "Data (AAAA-MM-GG): le fatture dei vini si leggono da questa data in poi (Marco 03/11: «considera il 2026»)"),
 ]
 
 

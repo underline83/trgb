@@ -1,4 +1,4 @@
-// @version: v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -89,7 +89,7 @@ function CellaTavolo({ pren, motore, onAssegna }) {
   );
 }
 
-function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
+function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo }) {
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -142,6 +142,11 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
             )}
             {pren.menu_evento && (
               <Tooltip label="Evento confermato: menù nella riga aperta"><span className="text-xs">🍽️</span></Tooltip>
+            )}
+            {pren.preventivo_attesa && (
+              <Tooltip label={`In attesa di conferma preventivo ${pren.preventivo_attesa.numero}${pren.preventivo_attesa.scadenza ? ` — scade il ${(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}` : ""}`}>
+                <span className={`text-xs ${pren.preventivo_attesa.stato === "scaduto" ? "text-red-600" : "text-amber-600"}`}>⏳</span>
+              </Tooltip>
             )}
             {pren.bollino && BOLLINI[pren.bollino] && (
               <Tooltip label={`${pren.visite_precedenti || 0} visite prima di oggi`}>
@@ -246,6 +251,31 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
                   </div>
                 )}
                 {pren.degustazione && <div>🍷 Degustazione: {pren.degustazione}</div>}
+                {pren.preventivo_attesa && (
+                  <div className={`mt-1 p-2 rounded border ${pren.preventivo_attesa.stato === "scaduto" ? "bg-red-50 border-red-200 text-red-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+                    ⏳ <b>{pren.preventivo_attesa.stato === "scaduto" ? "Preventivo scaduto" : "In attesa di conferma preventivo"}</b> {pren.preventivo_attesa.numero}
+                    {pren.preventivo_attesa.scadenza && <> — {pren.preventivo_attesa.stato === "scaduto" ? "scaduto" : "scade"} il {(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}</>}
+                    {(onPreventivo || onLiberaTavolo) && (
+                      <div className="mt-1.5 flex flex-wrap gap-2">
+                        {onPreventivo && (
+                          <button onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
+                            className="px-2 py-1 text-xs rounded border border-amber-300 bg-white hover:bg-amber-100 min-h-[32px]">
+                            📋 Apri preventivo
+                          </button>
+                        )}
+                        {onLiberaTavolo && (
+                          <button onClick={(e) => { e.stopPropagation(); onLiberaTavolo(pren); }}
+                            className="px-2 py-1 text-xs rounded border border-red-300 bg-white text-red-700 hover:bg-red-50 min-h-[32px]">
+                            🔓 Libera tavolo
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {pren.motivo_cancellazione && ["CANCELED", "REFUSED"].includes(pren.stato) && (
+                  <div className="mt-1 text-neutral-500">✖ Cancellata: {pren.motivo_cancellazione}</div>
+                )}
               </div>
 
               {/* Colonna 3: azioni */}
@@ -394,7 +424,7 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica }) {
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo }) {
   const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
   const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
 
@@ -499,6 +529,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, m
                   onRiconferma={onRiconferma}
                   onUnisciDoppione={onUnisciDoppione}
                   onPreventivo={onPreventivo}
+                  onLiberaTavolo={onLiberaTavolo}
                   onModifica={onModifica}
                 />
               ))}
@@ -520,6 +551,7 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, m
                       onRiconferma={onRiconferma}
                       onUnisciDoppione={onUnisciDoppione}
                       onPreventivo={onPreventivo}
+                      onLiberaTavolo={onLiberaTavolo}
                       onModifica={onModifica}
                     />
                   ))}
@@ -546,6 +578,23 @@ export default function PrenotazioniPlanning() {
   const ruolo = localStorage.getItem("role") || "";
   const puoPreventivi = canAccessSub("clienti", "preventivi") && ["admin", "superadmin"].includes(ruolo);
   const apriPreventivo = (pren) => navigate("/clienti/preventivi/nuovo", { state: { prenotazione: pren } });
+  // «Libera tavolo» dal Planning (2026-11-03): prenotazione cancellata (preventivo scaduto), preventivo «scaduto»
+  const liberaTavolo = async (pren) => {
+    const pa = pren.preventivo_attesa;
+    if (!pa) return;
+    if (!window.confirm(`Liberare il tavolo di ${pren.cognome || pren.nome || ""}? La prenotazione viene cancellata (motivo «preventivo scaduto») e il preventivo ${pa.numero} passa a «scaduto». Al cliente non parte niente.`)) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pa.preventivo_id}/libera-tavolo`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.detail || "Errore");
+      if (d.prenotazione?.thefork && d.prenotazione?.cancellata) {
+        window.alert("Tavolo liberato in TRGB. La prenotazione è di TheFork: cancellala anche in TheFork Manager, altrimenti torna.");
+      }
+      loadPlanning();
+    } catch (err) {
+      window.alert(err.message || "Errore");
+    }
+  };
   const [data, setData] = useState(dataParam || oggi());
   const [planning, setPlanning] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -777,6 +826,7 @@ export default function PrenotazioniPlanning() {
               onRiconferma={riconferma}
               onUnisciDoppione={unisciDoppione}
               onPreventivo={puoPreventivi ? apriPreventivo : undefined}
+              onLiberaTavolo={puoPreventivi ? liberaTavolo : undefined}
               onModifica={setInModifica}
             />
 
@@ -801,6 +851,7 @@ export default function PrenotazioniPlanning() {
               onRiconferma={riconferma}
               onUnisciDoppione={unisciDoppione}
               onPreventivo={puoPreventivi ? apriPreventivo : undefined}
+              onLiberaTavolo={puoPreventivi ? liberaTavolo : undefined}
               onModifica={setInModifica}
             />
 
