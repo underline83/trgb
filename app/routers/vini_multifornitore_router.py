@@ -160,14 +160,16 @@ def post_emittente(payload: EmittenteIn, current_user: Any = Depends(get_current
 @router.post("/fatture/righe/{fe_riga_id}/abbina", summary="Abbina una riga di fattura a un vino")
 def post_abbina(fe_riga_id: int, payload: AbbinaIn, current_user: Any = Depends(get_current_user)):
     _manager(current_user)
-    return _esegui(vfat.abbina, fe_riga_id, payload.bottiglia_id, utente=_username(current_user))
+    esito = _esegui(vfat.abbina, fe_riga_id, payload.bottiglia_id, utente=_username(current_user))
+    esito["uguali"] = vfat.applica_a_uguali(fe_riga_id, utente=_username(current_user))
+    return esito
 
 
 @router.post("/fatture/righe/{fe_riga_id}/ignora", summary="Riga che non è un vino in cantina (la ricorda)")
 def post_ignora(fe_riga_id: int, current_user: Any = Depends(get_current_user)):
     _manager(current_user)
     _esegui(vfat.ignora, fe_riga_id, utente=_username(current_user))
-    return {"ok": True}
+    return {"ok": True, "uguali": vfat.applica_a_uguali(fe_riga_id, utente=_username(current_user))}
 
 
 @router.post("/fatture/prezzi/{prezzo_id}/risolvi", summary="Da verificare: vale la fattura o il carico")

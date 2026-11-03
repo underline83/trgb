@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-11-03 — Vini 4.7: Fatture, le righe uguali seguono subito `[core]`
+
+Nessuna migrazione. Abbinando (o togliendo con «Non è in cantina») una riga di fattura, le altre righe ancora da abbinare dello stesso fornitore con la stessa descrizione seguono subito la stessa scelta; prima succedeva solo ricaricando la pagina, e sembrava che la riga non sparisse (Sogegross ha 19 righe identiche «PINOT NERO A.A.DOC CL.75 S.MICHELE A»). File: `vini_fatture_service.applica_a_uguali`, `vini_multifornitore_router.py`, `FattureVini.jsx`.
+
+## 2026-11-03 — Vini 4.6: fatture, «CT» che è una bottiglia sola `[core]`
+
+Nessuna migrazione. Balan fattura a volte una bottiglia con unità «CT»: con il cartone da 6 presunto, Le Cerrate 2023 (fattura 833/1) risultava 1,90 € invece di 11,39 €. Ora, se il cartone non dice quante bottiglie, TRGB sceglie la lettura (6 o 1) più vicina al prezzo registrato. Il caso è stato corretto a mano (pagato Balan 11,39 € del 23/03/2026). File: `vini_fatture_service.py`.
+
+## 2026-11-03 — Conti iPratico: varianti delle righe (il «Piatto pranzo» dice quale piatto è) `[core]`
+
+Corrispettivi 4.13, nessuna migrazione numerata: due colonne nullable `varianti` e `note` in `cassa_conti_righe`, aggiunte al boot se mancano. In sala il «Piatto pranzo» si batte con una variante che dice quale piatto è: finora TRGB salvava solo il nome della riga. Lo scarico ora legge ogni campo della riga che contiene «variant»/«modifier» e le note. **Cucina › Piatti che vanno:** nel tipo Pranzo i piatti si separano per variante («Piatto Pranzo · Casoncelli»). **Scheda cliente:** nello scontrino e in «Prende di solito» la variante sta accanto al nome. **Impostazioni Vendite › iPratico Cloud › conti di un giorno:** varianti in verde e note in arancio. I giorni già scaricati non hanno le varianti finché non si riscaricano (da quella pagina, «Scarica» un periodo). Per controllo: `GET /cassa/ipratico/grezzo/?data=AAAA-MM-GG&cerca=pranzo` (admin) mostra le righe come arrivano da iPratico.
+
 ## 2026-11-03 — Statistiche › Servizio: arrivi prenotati accanto alla cassa `[core]`
 
 Statistiche 1.6, nessuna migrazione. Nei grafici degli arrivi (pranzo e cena) ci sono due barre per mezz'ora: **Prenotati** (coperti delle prenotazioni che si sono presentate, per ora del pasto) e **In cassa** (coperti per apertura del conto, walk-in compresi). Sotto, i minuti che passano di solito fra l'ora prenotata e l'apertura del conto, sulle prenotazioni abbinate a un conto (mediana; ultimi 3 mesi: 2 minuti a pranzo, 6 a cena). Le prenotazioni si leggono da `clienti.sqlite3` in sola lettura, come per la linguetta Sito.

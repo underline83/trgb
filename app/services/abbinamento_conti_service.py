@@ -492,7 +492,8 @@ def consumi_cliente(cliente_id: int, limite_visite: int = 100) -> Dict[str, Any]
         bere: Dict[str, Dict[str, Any]] = {}
         for c in conti:
             righe = [dict(r) for r in conn_c.execute(
-                "SELECT nome, categoria, famiglia, portata, quantita, totale FROM cassa_conti_righe "
+                "SELECT CASE WHEN COALESCE(TRIM(varianti), '') <> '' THEN TRIM(nome) || ' · ' || TRIM(varianti) ELSE nome END AS nome, "
+                "categoria, famiglia, portata, quantita, totale FROM cassa_conti_righe "
                 "WHERE conto_id = ? AND servizio = 0 AND totale <> 0 ORDER BY COALESCE(portata, 99), id", (c["id"],))]
             c["righe"] = righe
             visti = set()

@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.7 (2026-11-03): Fatture vini — abbinando (o togliendo) una riga, le righe uguali
+    //   dello stesso fornitore seguono subito (prima solo ricaricando la pagina).
+    // 4.6 (2026-11-03): fatture vini — una riga «CT» senza numero di bottiglie si legge
+    //   come 1 bottiglia se è più vicina al prezzo registrato (Le Cerrate Balan: 1,90 → 11,39).
     // 4.5 (2026-11-03): VMF.3 — pagina Vini › Fatture: le righe vino delle fatture
     //   elettroniche (dal 2026) diventano prezzi pagati; chi emette decide il fornitore
     //   (cantina = Diretto), entro ±2% dal carico vale la fattura, oltre «da verificare»;
@@ -178,7 +182,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.5",
+    version: "4.7",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -312,6 +316,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
+    // 4.13 (2026-11-03): conti iPratico — si salvano anche le varianti delle righe (in sala il
+    //   «Piatto pranzo» dice quale piatto è con la variante) e le note; Cucina › Piatti che vanno
+    //   e la scheda cliente le usano. GET /cassa/ipratico/grezzo/ per vedere le righe come arrivano.
     // 4.12 (2026-10-27): Chiusura turno — un preconto con importo ma senza tavolo non sparisce
     //   più in silenzio: si salva col tavolo «—» (FE + backend). Nessuna migrazione.
     // 4.11 (2026-10-19): Conti del servizio — «🚶 Walk-in, senza nome» sui conti collegati a un
@@ -341,7 +348,7 @@ const MODULE_VERSIONS = {
     //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
     //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
     //   consumer (CalendarView shading). Nessuna migrazione DB.
-    version: "4.12",
+    version: "4.13",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",

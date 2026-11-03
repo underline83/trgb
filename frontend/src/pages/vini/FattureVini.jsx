@@ -1,5 +1,5 @@
 // Modulo: vini (multi-fornitore) — [core]
-// @version: v1.0 — VMF.3 fatture → vini (2026-11-03). Spec: docs/spec_vini_multifornitore.md
+// @version: v1.1 — abbinando una riga si abbinano subito anche le righe uguali. v1.0 VMF.3 (2026-11-03). Spec: docs/spec_vini_multifornitore.md
 // Le righe vino delle fatture elettroniche diventano «prezzi pagati» dei vini.
 // Regole di Marco: la fattura decide il fornitore da chi la emette (distributore
 // → lui, cantina → Diretto); entro ±soglia% dal carico vince da sola, oltre si
@@ -163,13 +163,18 @@ export default function FattureVini() {
   const abbina = async (id, bottiglia_id) => {
     const j = await chiama(`${API_BASE}/vini/multifornitore/fatture/righe/${id}/abbina`, { method: "POST", body: JSON.stringify({ bottiglia_id }) });
     if (j) {
-      toast(j.stato === "ok" ? (j.costo?.cambiato ? "Abbinata · costo aggiornato" : "Abbinata") : "Abbinata · da verificare (prezzo diverso dal carico)",
-        { kind: j.stato === "ok" ? "success" : "warn", duration: 2600 });
+      const altre = j.uguali ? ` · e altre ${j.uguali} righe uguali` : "";
+      toast((j.stato === "ok" ? (j.costo?.cambiato ? "Abbinata · costo aggiornato" : "Abbinata") : "Abbinata · da verificare (prezzo diverso dal carico)") + altre,
+        { kind: j.stato === "ok" ? "success" : "warn", duration: 3000 });
       ricarica();
     }
   };
   const ignora = async (id) => {
-    if (await chiama(`${API_BASE}/vini/multifornitore/fatture/righe/${id}/ignora`, { method: "POST" })) ricarica();
+    const j = await chiama(`${API_BASE}/vini/multifornitore/fatture/righe/${id}/ignora`, { method: "POST" });
+    if (j) {
+      if (j.uguali) toast(`Tolta · e altre ${j.uguali} righe uguali`, { kind: "success" });
+      ricarica();
+    }
   };
   const risolvi = async (id, vale) => {
     if (await chiama(`${API_BASE}/vini/multifornitore/fatture/prezzi/${id}/risolvi`, { method: "POST", body: JSON.stringify({ vale }) })) {

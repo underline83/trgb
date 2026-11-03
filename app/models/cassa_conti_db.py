@@ -98,6 +98,14 @@ def init_cassa_conti_db() -> None:
             battuta_da      TEXT                         -- dispositivo/operatore ("SALA", "Cassa")
         )
     """)
+    # 2026-11-03: varianti (es. quale piatto è il «Piatto pranzo») e note della riga.
+    # Colonne nullable, aggiunte al boot se mancano: le righe vecchie restano NULL finché
+    # non si riscarica il giorno.
+    colonne = {r[1] for r in cur.execute("PRAGMA table_info(cassa_conti_righe)")}
+    if "varianti" not in colonne:
+        cur.execute("ALTER TABLE cassa_conti_righe ADD COLUMN varianti TEXT")
+    if "note" not in colonne:
+        cur.execute("ALTER TABLE cassa_conti_righe ADD COLUMN note TEXT")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_cassa_righe_conto ON cassa_conti_righe(conto_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_cassa_righe_prodotto ON cassa_conti_righe(prodotto_id)")
 

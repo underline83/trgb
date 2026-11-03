@@ -81,6 +81,16 @@ def scarica(periodo: Periodo, user=Depends(_admin)):
         raise HTTPException(status_code=409, detail=str(e))
 
 
+@router.get("/grezzo/")
+def grezzo(data: date = Query(..., description="AAAA-MM-GG"), cerca: str = Query("pranzo", min_length=1),
+           user=Depends(_admin)):
+    """Righe grezze di iPratico che contengono `cerca` (per leggere varianti e note)."""
+    try:
+        return svc.righe_grezze(data, cerca)
+    except svc.IpraticoErrore as e:
+        raise HTTPException(502, str(e))
+
+
 @router.get("/conti/")
 def conti(data: date = Query(..., description="AAAA-MM-GG"), user=Depends(_admin)):
     return {"data": data.isoformat(), "conti": svc.conti_del_giorno(data.isoformat())}

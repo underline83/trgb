@@ -1,4 +1,4 @@
-// @version: v1.1 — + conti da abbinare, tavoli della cassa, tolleranza (2026-10-18)
+// @version: v1.2 — righe con varianti e note (2026-11-03) · v1.1 — + conti da abbinare, tavoli della cassa, tolleranza (2026-10-18)
 // Modulo: cassa — scarico dei conti chiusi da iPratico Cloud (riga per riga).
 // Backend: app/routers/cassa_ipratico_router.py · Doc: docs/analisi_ipratico_cloud.md
 import React, { useCallback, useEffect, useState } from "react";
@@ -313,7 +313,7 @@ export default function IpraticoCloudSezione() {
                     {c.righe.filter((r) => !r.servizio).map((r, i) => (
                       <li key={i} className="flex gap-3">
                         <span className="w-10 text-right">{r.quantita}×</span>
-                        <span className="flex-1">{r.nome}<span className="text-neutral-400"> · {r.categoria || "—"}</span></span>
+                        <span className="flex-1">{r.nome}{r.varianti ? <b className="text-teal-800"> · {r.varianti}</b> : null}{r.note ? <i className="text-amber-700"> «{r.note}»</i> : null}<span className="text-neutral-400"> · {r.categoria || "—"}</span></span>
                         <span className="w-20 text-right">{euro(r.totale)}</span>
                       </li>
                     ))}

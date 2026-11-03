@@ -15,6 +15,9 @@
 **DA PUSHARE — Pratiche 1.2: sezioni, debiti, «in attesa di mezzi»** (sistema 5.91, connettore 1.9, nessuna migrazione numerata: schema `pratiche.sqlite3` al boot con backup) `[core]` — il backend è GIÀ in produzione dentro d7530b53 (push di un'altra sessione, `git add -A`), verificato via MCP: colonne nuove, dati intatti. Restano da pushare: `PraticaScheda.jsx` v1.1 (campi del debito, Rivista, rate), fix residuo iniziale, doc, versioni. **Dopo il push:** (1) Ctrl+Shift+R → /pratiche: chip delle sezioni, «Sezioni» apre il modale; (2) Claude applica le sezioni alle 15 pratiche con `pratica_correggi` (proposta approvata da Marco) e collega la 12 alla spesa fissa 32 (Fondo Est 572) → nella scheda le rate 8 e 9 «in distinta 06/10, non in banca»; (3) crea con il sì di Marco la pratica AE CO275462467 (€ 5.008,07, in attesa di mezzi); (4) riconnettere il connettore TRGB in claude.ai per vedere gli strumenti nuovi. Doc `modulo_pratiche.md` §8.
 
 
+**DA PUSHARE — Varianti delle righe di cassa** (corrispettivi 4.13, colonne nuove al boot) `[core]`
+- Dopo il push: Impostazioni Vendite › iPratico Cloud → «Scarica» dal 2026-10-01 a ieri; poi «Controlla i conti di un giorno» su un pranzo: accanto a «Piatto Pranzo» deve comparire il piatto in verde. Se non compare, la variante sta in un campo con un altro nome: guardare `/cassa/ipratico/grezzo/` e adeguare `_varianti`. Se va, riscaricare lo storico dal 2024-09-01.
+
 **DA PUSHARE — Servizio: arrivi prenotati accanto alla cassa** (statistiche 1.6, nessuna migrazione) `[core]`
 - Dopo il push: Statistiche › Servizio → grafici Arrivi con due colori (Prenotati / In cassa) e la frase sui minuti fra ora prenotata e conto.
 

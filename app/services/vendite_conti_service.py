@@ -37,6 +37,13 @@ TIPI_CIBO = [
 CATEGORIE_NON_PIATTO = ("Servizio",)
 NOME_SENZA_PIATTO = "no_name"
 CATEGORIA_SENZA = "BATTUTA SINGOLA"  # come la chiama l'export .xls di iPratico
+# Il «Piatto pranzo» è uno solo in cassa: quale piatto fosse lo dice la variante (2026-11-03).
+# Per la cucina conta il piatto vero, quindi nel pranzo il nome diventa «Piatto pranzo · Casoncelli».
+CATEGORIE_NOME_CON_VARIANTE = ("Pranzo",)
+NOME_SQL = (
+    "CASE WHEN r.categoria IN ('Pranzo') AND COALESCE(TRIM(r.varianti), '') <> '' "
+    "THEN TRIM(r.nome) || ' · ' || TRIM(r.varianti) ELSE TRIM(r.nome) END"
+)
 
 
 def _d(x) -> date:
@@ -54,7 +61,7 @@ def _porzioni(conn, dal: date, al: date, turno: Optional[str]) -> Dict[tuple, Di
         args.append(turno)
     segnaposti = ", ".join("?" for _ in CATEGORIE_NON_PIATTO)
     rows = conn.execute(f"""
-        SELECT r.categoria, TRIM(r.nome) AS nome,
+        SELECT r.categoria, {NOME_SQL} AS nome,
                SUM(r.quantita) AS porzioni,
                COUNT(DISTINCT r.conto_id) AS conti,
                COUNT(DISTINCT k.data_rif || k.turno) AS servizi
@@ -65,7 +72,7 @@ def _porzioni(conn, dal: date, al: date, turno: Optional[str]) -> Dict[tuple, Di
           AND COALESCE(r.categoria, '') NOT IN ({segnaposti})
           AND r.nome IS NOT NULL AND LOWER(TRIM(r.nome)) <> ?
           AND r.quantita > 0
-        GROUP BY r.categoria, TRIM(r.nome)
+        GROUP BY r.categoria, {NOME_SQL}
     """, args + list(CATEGORIE_NON_PIATTO) + [NOME_SENZA_PIATTO]).fetchall()
     return {(r["categoria"], r["nome"]): dict(r) for r in rows}
 
@@ -190,7 +197,7 @@ def piatto_per_giorno(nome: str, dal, al, turno: Optional[str] = None) -> List[D
         rows = conn.execute(f"""
             SELECT k.data_rif AS giorno, k.turno, SUM(r.quantita) AS porzioni
             FROM cassa_conti_righe r JOIN cassa_conti k ON k.id = r.conto_id
-            WHERE TRIM(r.nome) = ? AND k.data_rif BETWEEN ? AND ? {_filtro_turno(turno)}
+            WHERE {NOME_SQL} = ? AND k.data_rif BETWEEN ? AND ? {_filtro_turno(turno)}
               AND r.servizio = 0
             GROUP BY k.data_rif, k.turno ORDER BY k.data_rif, k.turno
         """, args).fetchall()

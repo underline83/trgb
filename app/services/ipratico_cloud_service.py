@@ -221,6 +221,44 @@ def _num(v: Any, default: float = 0.0) -> float:
         return default
 
 
+_CHIAVI_TESTO = ("name", "variantName", "orderItemVariantName", "description", "label", "value", "text")
+
+
+def _testi(v) -> List[str]:
+    """Testi leggibili dentro una variante (stringa, oggetto o lista di oggetti)."""
+    if isinstance(v, str):
+        return [v.strip()] if v.strip() else []
+    if isinstance(v, dict):
+        for k in _CHIAVI_TESTO:
+            x = v.get(k)
+            if isinstance(x, str) and x.strip():
+                return [x.strip()]
+        out: List[str] = []
+        for x in v.values():
+            if isinstance(x, (dict, list)):
+                out += _testi(x)
+        return out
+    if isinstance(v, list):
+        out = []
+        for x in v:
+            out += _testi(x)
+        return out
+    return []
+
+
+def _varianti(item: Dict[str, Any]) -> Optional[str]:
+    """Le varianti della riga (in sala si usano per dire quale piatto è il «Piatto pranzo»).
+    Cerca ogni campo il cui nome contiene «variant» o «modifier»."""
+    trovate: List[str] = []
+    for k, v in item.items():
+        kl = k.lower()
+        if ("variant" in kl or "modifier" in kl) and v:
+            for t in _testi(v):
+                if t not in trovate:
+                    trovate.append(t)
+    return " · ".join(trovate) or None
+
+
 def _riga(item: Dict[str, Any], fuso) -> Optional[Dict[str, Any]]:
     if item.get("itemType") == "dutchItem":      # «1 Menu» degli scontrini alla romana: non è un piatto
         return None
@@ -241,6 +279,9 @@ def _riga(item: Dict[str, Any], fuso) -> Optional[Dict[str, Any]]:
         "servizio": 1 if item.get("serviceCharge") else 0,
         "inviata_at": _fmt(_ora(item.get("dateSend"), fuso)),
         "battuta_da": (item.get("log") or {}).get("createdBy"),
+        "varianti": _varianti(item),
+        "note": next((item[k].strip() for k in ("notes", "note", "comment", "comments")
+                      if isinstance(item.get(k), str) and item[k].strip()), None),
     }
 
 
@@ -332,7 +373,7 @@ _CAMPI_CONTO = (
 )
 _CAMPI_RIGA = (
     "riga_id", "prodotto_id", "nome", "categoria", "famiglia", "portata", "quantita", "prezzo_unitario",
-    "totale", "servizio", "inviata_at", "battuta_da",
+    "totale", "servizio", "inviata_at", "battuta_da", "varianti", "note",
 )
 
 
@@ -534,9 +575,29 @@ def conti_del_giorno(giorno: str) -> List[Dict[str, Any]]:
         for c in conti:
             c["pagamenti"] = json.loads(c.pop("pagamenti_json") or "[]")
             c["righe"] = [dict(r) for r in conn.execute(
-                "SELECT nome, categoria, famiglia, portata, quantita, prezzo_unitario, totale, servizio, inviata_at "
+                "SELECT nome, categoria, famiglia, portata, quantita, prezzo_unitario, totale, servizio, inviata_at, varianti, note "
                 "FROM cassa_conti_righe WHERE conto_id = ? ORDER BY COALESCE(portata, 99), id", (c["id"],)
             )]
         return conti
     finally:
         conn.close()
+
+
+def righe_grezze(giorno: date, cerca: str = "pranzo", limite: int = 5) -> Dict[str, Any]:
+    """Le righe come arrivano da iPratico (per vedere dove stanno varianti e note).
+    Solo lettura, solo admin: serve a capire la struttura, non si salva niente."""
+    g = giorno.isoformat()
+    dati = _api_get("/statistics/closed-payment-sessions", {
+        "application": "eat", "training": 0,
+        "dateFrom": f"{g} 00:00:00", "dateTo": f"{g} 23:59:59",
+    }) or {}
+    trovate = []
+    for s in dati.get("paymentSessions") or []:
+        for chiave in ("originalOrderItems", "printedOrderItems"):
+            for it in s.get(chiave) or []:
+                nome = str(it.get("orderItemName") or it.get("printedOrderItemName") or "")
+                if cerca.lower() in nome.lower():
+                    trovate.append({"da": chiave, "chiavi": sorted(it.keys()), "varianti_lette": _varianti(it), "riga": it})
+                    if len(trovate) >= limite:
+                        return {"giorno": g, "cerca": cerca, "righe": trovate}
+    return {"giorno": g, "cerca": cerca, "righe": trovate}

@@ -373,7 +373,23 @@ def abbina(fe_riga_id: int, bottiglia_id: int, utente: Optional[str] = None, ric
     stato, esito_confronto = "ok", None
     n_pezzi, presunto = pezzi_per_unita(riga)
     if presunto:
-        stato = "da_verificare"  # cartone senza numero di bottiglie: 6 è una supposizione
+        # Cartone senza numero di bottiglie (es. Balan «CT»): a volte è davvero un
+        # cartone da 6, a volte è UNA bottiglia fatturata come «CT» (caso reale:
+        # Le Cerrate 2023, fattura Balan 833/1, 11,39 € → con 6 veniva 1,90 €).
+        # Se c'è un prezzo registrato si sceglie la lettura più vicina; senza, si
+        # tiene 6 ma va verificato.
+        try:
+            q = float(riga.get("quantita") or 1)
+            tot = float(riga.get("prezzo_totale") or (riga.get("prezzo_unitario") or 0) * q)
+            p1 = round(tot / q, 4)
+        except (TypeError, ValueError, ZeroDivisionError):
+            p1 = None
+        if cand and p1 and cand["prezzo"]:
+            rif = float(cand["prezzo"])
+            if abs(p1 - rif) < abs(prezzo - rif):
+                prezzo, n_pezzi = p1, 1
+        if n_pezzi > 1:
+            stato = "da_verificare"
     if cand:
         diff = (prezzo - float(cand["prezzo"])) / float(cand["prezzo"]) * 100 if cand["prezzo"] else 100.0
         esito_confronto = {"id": cand["id"], "prezzo": cand["prezzo"], "fonte": cand["fonte"],
@@ -383,6 +399,8 @@ def abbina(fe_riga_id: int, bottiglia_id: int, utente: Optional[str] = None, ric
     nota = f"fattura {riga['numero_fattura']} del {riga['data_fattura']} · {riga['fornitore_nome']}"
     if n_pezzi > 1:
         nota += f" · cartone da {n_pezzi}{' (presunto)' if presunto else ''}"
+    elif presunto:
+        nota += " · «CT» letto come 1 bottiglia (più vicino al prezzo registrato)"
     r = vmf.registra_prezzo(bottiglia_id, fornitore_id, prezzo, tipo="pagato", data=riga["data_fattura"],
                             fonte="fattura", fe_riga_id=fe_riga_id, stato=stato, note=nota, utente=utente)
     conn = _conn()
@@ -409,6 +427,42 @@ def abbina(fe_riga_id: int, bottiglia_id: int, utente: Optional[str] = None, ric
         vmf.scarta_prezzo(int(cand["id"]), utente=utente)
     costo = vmf.riallinea_costo(bottiglia_id, utente=utente)
     return {"prezzo_id": r["id"], "stato": stato, "prezzo": prezzo, "confronto": esito_confronto, "costo": costo}
+
+
+def applica_a_uguali(fe_riga_id: int, utente: Optional[str] = None) -> int:
+    """Dopo un abbinamento (o un «non è in cantina») fatto a mano: le altre righe
+    ancora da abbinare con la stessa P.IVA e la stessa descrizione seguono subito
+    la stessa scelta (prima succedeva solo al ricaricamento della pagina, e la
+    riga sembrava non sparire: ne compariva subito una identica)."""
+    riga = fe.riga(fe_riga_id)
+    if not riga:
+        return 0
+    k = chiave(riga["descrizione"])
+    conn = _conn()
+    try:
+        m = conn.execute("SELECT bottiglia_id, ignora FROM vini_fe_mappa WHERE piva = ? AND chiave = ?",
+                         (riga["fornitore_piva"], k)).fetchone()
+        altre = [r[0] for r in conn.execute(
+            "SELECT fe_riga_id FROM vini_fe_righe WHERE stato = 'da_abbinare' AND piva = ? AND fe_riga_id <> ?",
+            (riga["fornitore_piva"], fe_riga_id)).fetchall()]
+    finally:
+        conn.close()
+    if not m:
+        return 0
+    fatte = 0
+    for rid in altre:
+        r = fe.riga(rid)
+        if not r or chiave(r["descrizione"]) != k:
+            continue
+        try:
+            if m["ignora"]:
+                ignora(rid, utente=utente, ricorda=False)
+            elif m["bottiglia_id"]:
+                abbina(rid, int(m["bottiglia_id"]), utente=utente, ricorda=False)
+            fatte += 1
+        except ValueError:
+            pass
+    return fatte
 
 
 def ignora(fe_riga_id: int, utente: Optional[str] = None, ricorda: bool = True) -> None:
