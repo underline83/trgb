@@ -187,4 +187,4 @@ def post_conferma_sicuri(current_user: Any = Depends(get_current_user)):
 @router.get("/fatture/cerca-vini/", summary="Cerca un vino per abbinarlo a mano")
 def get_cerca_vini(q: str, current_user: Any = Depends(get_current_user)):
     _manager(current_user)
-    return vfat.suggerisci(q, limite=15)
+    return vfat.cerca_vini(q)

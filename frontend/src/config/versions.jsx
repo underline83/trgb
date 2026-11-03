@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.8 (2026-11-03): Fatture vini — «Cerca un altro vino» cerca mentre scrivi, come in Vendite;
+    //   devono comparire tutte le parole, include le annate a 0 bt, niente più limite a 15.
     // 4.7 (2026-11-03): Fatture vini — abbinando (o togliendo) una riga, le righe uguali
     //   dello stesso fornitore seguono subito (prima solo ricaricando la pagina).
     // 4.6 (2026-11-03): fatture vini — una riga «CT» senza numero di bottiglie si legge
@@ -182,7 +184,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.7",
+    version: "4.8",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

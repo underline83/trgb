@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-03 — Vini 4.8: Fatture, ricerca del vino come in Vendite `[core]`
+
+Nessuna migrazione. In Vini › Fatture la casella «Cerca un altro vino» cerca mentre scrivi (come in Vendite) su produttore, nome, denominazione e annata: devono comparire tutte le parole («michael pinot 2024»), entrano anche le annate a 0 bottiglie e non c'è più il limite a 15 risultati (cercando «corne» mancavano dei vini). Ordine: produttore, vino, annata più recente. File: `vini_fatture_service.cerca_vini`, `vini_multifornitore_router.py`, `FattureVini.jsx`.
+
 ## 2026-11-03 — Vini 4.7: Fatture, le righe uguali seguono subito `[core]`
 
 Nessuna migrazione. Abbinando (o togliendo con «Non è in cantina») una riga di fattura, le altre righe ancora da abbinare dello stesso fornitore con la stessa descrizione seguono subito la stessa scelta; prima succedeva solo ricaricando la pagina, e sembrava che la riga non sparisse (Sogegross ha 19 righe identiche «PINOT NERO A.A.DOC CL.75 S.MICHELE A»). File: `vini_fatture_service.applica_a_uguali`, `vini_multifornitore_router.py`, `FattureVini.jsx`.

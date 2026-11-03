@@ -284,6 +284,35 @@ def _bottiglie(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
     return righe
 
 
+def cerca_vini(q: str, limite: int = 200) -> List[Dict[str, Any]]:
+    """Ricerca a mano per l'abbinamento (vini 4.8): come l'autocomplete delle
+    Vendite (LIKE su produttore/descrizione/denominazione), ma ogni parola deve
+    comparire e include anche le annate a 0 bt. Ordine: produttore, vino, annata."""
+    parole = [w for w in re.split(r"\s+", (q or "").strip()) if w]
+    if not parole:
+        return []
+    campo = ("(COALESCE(PRODUTTORE,'') || ' ' || COALESCE(DESCRIZIONE,'') || ' ' || "
+             "COALESCE(DENOMINAZIONE,'') || ' ' || COALESCE(CAST(ANNATA AS TEXT),''))")
+    where = " AND ".join([f"{campo} LIKE ?"] * len(parole))
+    args: List[Any] = [f"%{w}%" for w in parole]
+    if len(parole) == 1 and parole[0].isdigit():
+        where = f"({where} OR CAST(id AS TEXT) = ?)"
+        args.append(parole[0])
+    conn = _conn()
+    try:
+        rows = conn.execute(
+            f"SELECT id, madre_id, PRODUTTORE, DESCRIZIONE, ANNATA, FORMATO, COALESCE(QTA_TOTALE,0) AS qta "
+            f"FROM vini_bottiglie WHERE {where} "
+            f"ORDER BY PRODUTTORE COLLATE NOCASE, DESCRIZIONE COLLATE NOCASE, ANNATA DESC LIMIT ?",
+            (*args, limite),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{"bottiglia_id": r["id"], "madre_id": r["madre_id"], "produttore": r["PRODUTTORE"],
+             "descrizione": r["DESCRIZIONE"], "annata": r["ANNATA"], "formato": r["FORMATO"],
+             "qta": r["qta"]} for r in rows]
+
+
 def suggerisci(descrizione: str, piva: Optional[str] = None, limite: int = 5,
                _bott: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     tok = _token(descrizione)

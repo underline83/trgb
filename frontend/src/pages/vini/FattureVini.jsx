@@ -1,5 +1,5 @@
 // Modulo: vini (multi-fornitore) — [core]
-// @version: v1.1 — abbinando una riga si abbinano subito anche le righe uguali. v1.0 VMF.3 (2026-11-03). Spec: docs/spec_vini_multifornitore.md
+// @version: v1.2 — ricerca vino mentre scrivi, tutte le parole, senza limite a 15. v1.1 abbinando una riga si abbinano subito anche le righe uguali. v1.0 VMF.3 (2026-11-03). Spec: docs/spec_vini_multifornitore.md
 // Le righe vino delle fatture elettroniche diventano «prezzi pagati» dei vini.
 // Regole di Marco: la fattura decide il fornitore da chi la emette (distributore
 // → lui, cantina → Diretto); entro ±soglia% dal carico vince da sola, oltre si
@@ -73,15 +73,21 @@ function RigaDaAbbinare({ r, onAbbina, onIgnora, busy }) {
   const [cerca, setCerca] = useState("");
   const [trovati, setTrovati] = useState(null);
   const opzioni = trovati || r.suggerimenti || [];
-  const cercaVini = async () => {
-    if (cerca.trim().length < 3) return;
-    const res = await apiFetch(`${API_BASE}/vini/multifornitore/fatture/cerca-vini/?q=${encodeURIComponent(cerca.trim())}`);
-    if (res.ok) {
-      const j = await res.json();
-      setTrovati(j);
-      setScelta(j[0] ? String(j[0].bottiglia_id) : "");
-    }
-  };
+  // vini 4.8: ricerca mentre scrivi, come in Vendite (tutte le parole, nessun limite a 15)
+  useEffect(() => {
+    const q = cerca.trim();
+    if (q.length < 2) { setTrovati(null); return; }
+    let vivo = true;
+    const t = setTimeout(async () => {
+      const res = await apiFetch(`${API_BASE}/vini/multifornitore/fatture/cerca-vini/?q=${encodeURIComponent(q)}`);
+      if (res.ok && vivo) {
+        const j = await res.json();
+        setTrovati(j);
+        setScelta(j[0] ? String(j[0].bottiglia_id) : "");
+      }
+    }, 250);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [cerca]);
   return (
     <tr className="border-t border-neutral-100 hover:bg-neutral-50 transition align-top">
       <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">{dataIt(r.data)}</td>
@@ -104,9 +110,9 @@ function RigaDaAbbinare({ r, onAbbina, onIgnora, busy }) {
             ))}
           </select>
           <div className="flex gap-2">
-            <input value={cerca} onChange={e => setCerca(e.target.value)} onKeyDown={e => { if (e.key === "Enter") cercaVini(); }}
-              placeholder="Cerca un altro vino…" className={`${CAMPO} flex-1`} />
-            <Btn variant="secondary" size="md" type="button" onClick={cercaVini}>Cerca</Btn>
+            <input value={cerca} onChange={e => setCerca(e.target.value)}
+              placeholder="Cerca un altro vino (produttore, nome, annata)…" className={`${CAMPO} flex-1`} />
+            {trovati && <span className="text-xs text-neutral-500 self-center whitespace-nowrap">{trovati.length} trovati</span>}
           </div>
         </div>
       </td>
