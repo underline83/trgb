@@ -6,7 +6,9 @@
 
 **Sistema:** 5.93 (45edcf98) · **Migrazione più recente:** 228 (da pushare)
 
-**DA PUSHARE — Home 4.0: card unica «Il turno»** (proposta B, nessuna migrazione) `[core]` — il widget Preventivi in attesa è già pushato in db30c70d. **Dopo il push** (Ctrl+Shift+R): (1) Home da admin: striscia azioni + incasso/coperti in alto, card «Il turno» aperta sul turno in corso, a destra Preventivi e To-do; (2) da telefono: azioni in cima, numeri in fondo; (3) utente sala: stessa card in sola lettura + Calici; (4) lasciata aperta, dopo 3 minuti si aggiorna da sola (prenotazione nuova o nota). Attenzione: `push.sh` porta su anche il lavoro di Vini 4.9 Listini (mig 228) dell'altra sessione.
+**DA PUSHARE — Home 4.1: numeri di cassa solo ad admin e capo sala + pulizia** (clienti 3.26, nessuna migrazione) `[core]` — **dopo il push** (Ctrl+Shift+R): (1) da admin Incasso/Coperti ci sono, da un utente sommelier o contabile no; (2) Preventivi in attesa: ⏳ apre «Tieni il tavolo altri N giorni» dentro la card, 🔓 chiede conferma dentro la card; (3) Impostazioni › Home per ruolo si salva ancora da admin.
+
+**Pushato (941622d5) — Home 4.0: card unica «Il turno»** `[core]` — verificato in produzione il 05/11: card aperta sul turno in corso, selezioni/staff/task dalla Lavagna, Preventivi e To-do, `/dashboard/home?lieve=1` risponde 200. Da vedere: Home su iPad in orizzontale e utente sala. Lo stesso commit contiene anche Vini 4.9 Listini (mig 228) dell'altra sessione.
 
 **Pushato (45edcf98, messaggio di commit sbagliato «Statistiche 1.5»: contiene anche Vini › Fatture mig 226, Pratiche 1.2 e questo) — Preventivi: scadenza della conferma + staff in CC** (mig 227, sistema 5.93, clienti 3.24, prenotazioni 2.30) `[core]` — verificato in produzione il 03/11 su un preventivo di prova poi eliminato: scadenza proposta +10 gg, proroga e storico, Libera tavolo, email con prenotazioni@ in CC e nessuna copia separata. Planning: PRE-2026-011 (Montagnosi, 18/12) mostra ⏳ «scade il 13/11». Da vedere: il primo avviso vero (PRE-2026-011, 11/11 e 13/11).
 
@@ -161,6 +163,12 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-05 — Home 4.1: decisioni C ed E `[core]`
+
+- **C (Marco):** Incasso ieri e Coperti del mese solo ad admin e capo sala. Backend: `ha_ruoli(user, "admin", "capo_sala")` → `mostra_numeri_cassa`, altrimenti campi vuoti; le card moduli (pagina 2) calcolate prima, invariate. FE Home: KPI mostrati solo col flag.
+- **E:** PreventiviInAttesaCard v1.2 (azioni inline + `useToast`, chip `bg-brand-cream`); `home_actions_router` con `Depends(solo_admin(...))` su 6 endpoint; 4 widget rinominati `_legacy.jsx` (rename, nessuna cancellazione).
+- Verifica: esbuild sui file toccati, render della card preventivi con dati finti (proroga e libera inline), `py_compile` dei due router.
 
 ## SESSIONE 2026-11-04 — Home 4.0: card unica «Il turno» `[core]`
 

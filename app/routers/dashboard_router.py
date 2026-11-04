@@ -3,7 +3,8 @@
 # Dashboard Home — endpoint aggregatore per widget Home v3
 # ============================================================
 
-# @version: v1.1-dashboard-home — /home senza selezioni (le porta la Lavagna) + ?lieve=1 per l'aggiornamento automatico (2026-11-04)
+# @version: v1.2-dashboard-home — incasso/coperti della Home solo ad admin e capo sala, flag mostra_numeri_cassa (2026-11-05)
+# v1.1-dashboard-home — /home senza selezioni (le porta la Lavagna) + ?lieve=1 per l'aggiornamento automatico (2026-11-04)
 # -*- coding: utf-8 -*-
 """
 Endpoint GET /dashboard/home + GET /dashboard/lavagna
@@ -168,6 +169,9 @@ class DashboardHome(BaseModel):
     selezioni: SelezioniWidget = SelezioniWidget()
     alerts: List[AlertItem] = []
     moduli: List[ModuloSummary] = []
+    # Incasso ieri / Coperti del mese nella Home: solo admin e capo sala
+    # (Marco 2026-11-05). Per gli altri i due campi tornano vuoti.
+    mostra_numeri_cassa: bool = False
 
 
 # ─────────────────────────────────────────────────────────
@@ -1564,6 +1568,15 @@ def get_dashboard_home(
         alerts=_alerts(oggi_str),
         moduli=_moduli_summary(oggi_str, prenotazioni, incasso, fatture, coperti),
     )
+    # Incasso ieri e Coperti del mese (widget della Home): solo admin e capo
+    # sala (Marco 2026-11-05). Le card moduli sopra li hanno gia' usati: lì
+    # la visibilità la decide il modulo, non questo flag.
+    if ha_ruoli(current_user, "admin", "capo_sala"):
+        response.mostra_numeri_cassa = True
+    else:
+        response.incasso_ieri = IncassoIeri()
+        response.coperti_mese = CopertiMese()
+
     # Pratiche: contenuti riservati (pignoramenti, contenziosi) → solo admin.
     if ha_ruoli(current_user, "admin"):
         response.moduli.append(_pratiche_summary())

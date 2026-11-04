@@ -498,6 +498,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.26 (2026-11-05): widget Preventivi in attesa — Proroga e Libera tavolo si confermano
+    //   dentro la card (niente prompt/confirm/alert del browser), esiti ed errori in toast.
     // 3.25 (2026-11-03): widget Home «⏳ Preventivi in attesa» (scadenza più vicina, Proroga e
     //   Libera tavolo per admin), per i ruoli avvisati di Impostazioni › Preventivi.
     // 3.24 (2026-11-03): preventivi, scadenza della conferma (proposta da Impostazioni, avvisi
@@ -563,7 +565,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.25",
+    version: "3.26",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -652,6 +654,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   home: {
+    // 4.1 (2026-11-05): Incasso ieri e Coperti del mese solo ad admin e capo sala (flag
+    //   mostra_numeri_cassa da /dashboard/home); Home per ruolo protetta con M.G solo_admin();
+    //   SelezioniCard/MacellaioCard/SalumiCard/FormaggiCard archiviate come _legacy.
     // 4.0 (2026-11-04): proposta B (docs/revisione_home_2026-11-04.md) — card unica
     //   «Il turno» (TurnoCard: prenotazioni + Lavagna + selezioni + eventi, tab sul
     //   turno in corso), striscia in testa con azioni rapide e incasso/coperti, a
@@ -665,7 +670,7 @@ const MODULE_VERSIONS = {
     // turni, task) + nota del turno a frizione zero + strato eventi che
     // assorbe la vecchia card Alert. Stesso widget anche in DashboardSala,
     // dove il ruolo sala lo vede in sola lettura.
-    version: "4.0",
+    version: "4.1",
     label: "Home",
     status: "beta",
     color: "blue",

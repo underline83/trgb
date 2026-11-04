@@ -1,6 +1,6 @@
 # Revisione Home — widget (2026-11-04)
 
-> **Stato 2026-11-04:** Marco ha scelto la proposta **B** (card unica «Il turno»), fatta in home 4.0 — vedi `docs/changelog.md`. Aggiornamento automatico: 3 minuti fissi (decisione D). Restano aperte C ed E.
+> **Stato 2026-11-04:** Marco ha scelto la proposta **B** (card unica «Il turno»), fatta in home 4.0 — vedi `docs/changelog.md`. Aggiornamento automatico: 3 minuti fissi (decisione D). C ed E fatte in home 4.1 (2026-11-05): numeri di cassa solo ad admin e capo sala, pulizia dei punti 8, 9, 10.
 >
 > Analisi iniziale: le decisioni in fondo sono di Marco.
 > Riferimenti: `frontend/src/pages/Home.jsx` v9.5, `DashboardSala.jsx` v5.3, `HomeCucina.jsx`,

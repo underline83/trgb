@@ -1,4 +1,5 @@
-// @version: v10.0 — proposta B: card unica «Il turno» (prenotazioni + Lavagna + selezioni,
+// @version: v10.1 — Incasso/Coperti solo ad admin e capo sala (flag mostra_numeri_cassa) (2026-11-05)
+// v10.0 — proposta B: card unica «Il turno» (prenotazioni + Lavagna + selezioni,
 //   tab sul turno in corso), striscia in testa con azioni rapide e incasso/coperti,
 //   a destra Preventivi in attesa e To-do; si ricarica da sola ogni 3 minuti (2026-11-04)
 // v9.5 — widget «⏳ Preventivi in attesa» sotto le Selezioni; la pagina 1 scorre in verticale su iPad/desktop (2026-11-03)
@@ -243,12 +244,12 @@ export default function Home() {
                 <AzioniRapideStrip
                   actions={homeActions}
                   onGo={(route) => navigate(resolveRoute(route))}
-                  extra={
+                  extra={widgets?.mostra_numeri_cassa && (
                     <>
                       <div className="hidden lg:block"><KpiIncasso incasso={widgets?.incasso_ieri} /></div>
                       <div className="hidden lg:block"><KpiCoperti coperti={widgets?.coperti_mese} /></div>
                     </>
-                  }
+                  )}
                 />
 
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-3.5 lg:flex-1 lg:min-h-0">
@@ -267,11 +268,14 @@ export default function Home() {
                     <PreventiviInAttesaCard />
                     {/* Le mie cose da fare — lista personale (2026-10-03) */}
                     <TodoPersonale compact />
-                    {/* Numeri di cassa: su telefono qui in fondo, su iPad nella striscia */}
-                    <div className="grid grid-cols-2 gap-3.5 lg:hidden">
-                      <KpiIncasso incasso={widgets?.incasso_ieri} />
-                      <KpiCoperti coperti={widgets?.coperti_mese} />
-                    </div>
+                    {/* Numeri di cassa: su telefono qui in fondo, su iPad nella striscia.
+                        Solo admin e capo sala (flag dal backend, 2026-11-05). */}
+                    {widgets?.mostra_numeri_cassa && (
+                      <div className="grid grid-cols-2 gap-3.5 lg:hidden">
+                        <KpiIncasso incasso={widgets?.incasso_ieri} />
+                        <KpiCoperti coperti={widgets?.coperti_mese} />
+                      </div>
+                    )}
                     <button
                       onClick={() => setPage(1)}
                       className="text-[12px] text-[#a8a49e] text-center hover:text-brand-ink transition py-2 lg:mt-auto"

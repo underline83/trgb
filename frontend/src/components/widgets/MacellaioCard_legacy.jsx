@@ -1,6 +1,7 @@
-// FILE: frontend/src/components/widgets/SalumiCard.jsx
-// @version: v1.0 — Widget Scelta dei Salumi raggruppato per categoria
-// Mostra count salumi disponibili + preview per categoria. Click → /salumi.
+// ARCHIVIATO 2026-11-05 (_legacy): non più usato da nessuna pagina, sostituito dalla card «Il turno» (Home 4.0). Da cancellare in R7.
+// FILE: frontend/src/components/widgets/MacellaioCard.jsx
+// @version: v2.0 — Widget Scelta del Macellaio raggruppato per categoria
+// Mostra count tagli disponibili + preview per categoria. Click → /macellaio.
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
@@ -17,7 +18,7 @@ function formatGrammi(g) {
 }
 
 /**
- * Widget Scelta dei Salumi, raggruppato per categoria.
+ * Widget Scelta del Macellaio, raggruppato per categoria.
  *
  * Props:
  *   data: {
@@ -27,7 +28,7 @@ function formatGrammi(g) {
  *     altre: int
  *   }
  */
-export default function SalumiCard({ data }) {
+export default function MacellaioCard({ data }) {
   const navigate = useNavigate();
   const disp = data?.disponibili ?? 0;
   const venduti = data?.venduti_oggi ?? 0;
@@ -36,20 +37,20 @@ export default function SalumiCard({ data }) {
 
   return (
     <div
-      onClick={() => navigate("/salumi")}
-      className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-amber-200 flex flex-col overflow-hidden cursor-pointer active:scale-[.99] transition-transform flex-shrink-0"
+      onClick={() => navigate("/macellaio")}
+      className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-red-200 flex flex-col overflow-hidden cursor-pointer active:scale-[.99] transition-transform flex-shrink-0"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
         <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">
-          🥓 Scelta dei salumi
+          🥩 Scelta del macellaio
         </span>
         <div className="flex items-baseline gap-1">
           <span className="text-xl font-extrabold text-brand-ink leading-none tabular-nums">
             {disp}
           </span>
           <span className="text-[10px] text-[#a8a49e] font-medium">
-            {disp === 1 ? "salume" : "salumi"}
+            {disp === 1 ? "taglio" : "tagli"}
           </span>
         </div>
       </div>
@@ -120,7 +121,7 @@ export default function SalumiCard({ data }) {
         </div>
       ) : (
         <div className="border-t border-[#f0ede8] px-4 py-5 text-center text-[12px] text-[#a8a49e]">
-          Nessun salume disponibile
+          Nessun taglio disponibile
         </div>
       )}
     </div>

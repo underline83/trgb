@@ -1,3 +1,4 @@
+// ARCHIVIATO 2026-11-05 (_legacy): non più usato da nessuna pagina, sostituito dalla card «Il turno» (Home 4.0). Da cancellare in R7.
 // FILE: frontend/src/components/widgets/SelezioniCard.jsx
 // @version: v1.4 — Widget unificato "Selezioni del Giorno"
 //   - v1.0 (sessione 50): card unica con 4 mini-blocchi (preview categorie + count).

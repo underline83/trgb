@@ -6,7 +6,7 @@
 //
 // Nota (sessione 2026-04-20): Selezioni del Giorno non ha piu' tile a se' in Home ne'
 // voce top-level nel dropdown Header. Vive come sotto-voce di "Gestione Cucina" (ricette).
-// Il widget SelezioniCard sulla Home pagina 1 resta (widget di servizio).
+// Le selezioni del giorno in Home stanno nella card «Il turno» (dalla Lavagna); SelezioniCard è archiviata come _legacy (2026-11-05).
 
 import { isAdminRole } from "../utils/authHelpers";
 

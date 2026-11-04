@@ -1,4 +1,5 @@
-# @version: v1.0-home-actions
+# @version: v1.1-home-actions — scritture e /all/ protette con M.G solo_admin() al posto del controllo scritto a mano (2026-11-05)
+# v1.0-home-actions
 # -*- coding: utf-8 -*-
 """
 Router Home per ruolo — TRGB Gestionale (sessione 49, 2026-04-19).
@@ -25,6 +26,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 
 from app.services.auth_service import get_current_user
+from app.services.permessi import solo_admin
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.home_actions_defaults import (
     DEFAULTS_BY_ROLE,
@@ -37,15 +39,6 @@ router = APIRouter(prefix="/settings/home-actions", tags=["home-actions"])
 # ─────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────
-
-def _require_admin(user):
-    role = user.get("role", "") if isinstance(user, dict) else getattr(user, "role", "")
-    if role not in ("admin", "superadmin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo admin può modificare la Home per ruolo",
-        )
-
 
 def _validate_ruolo(ruolo: str) -> str:
     if ruolo not in VALID_ROLES:
@@ -152,9 +145,8 @@ def list_actions(
 
 
 @router.get("/all/")
-def list_all_actions(user=Depends(get_current_user)):
+def list_all_actions(user=Depends(solo_admin(cosa="la Home per ruolo"))):
     """Mappa {ruolo: [azioni]} per tutti i ruoli. Usata dalla UI Impostazioni."""
-    _require_admin(user)
 
     conn = get_foodcost_connection()
     try:
@@ -175,8 +167,7 @@ def list_all_actions(user=Depends(get_current_user)):
 # ─────────────────────────────────────────────
 
 @router.post("/")
-def create_action(payload: ActionCreate, user=Depends(get_current_user)):
-    _require_admin(user)
+def create_action(payload: ActionCreate, user=Depends(solo_admin(cosa="la Home per ruolo"))):
     _validate_ruolo(payload.ruolo)
     _validate_route(payload.route)
 
@@ -223,8 +214,7 @@ def create_action(payload: ActionCreate, user=Depends(get_current_user)):
 
 
 @router.put("/{action_id}")
-def update_action(action_id: int, payload: ActionUpdate, user=Depends(get_current_user)):
-    _require_admin(user)
+def update_action(action_id: int, payload: ActionUpdate, user=Depends(solo_admin(cosa="la Home per ruolo"))):
 
     conn = get_foodcost_connection()
     try:
@@ -267,8 +257,7 @@ def update_action(action_id: int, payload: ActionUpdate, user=Depends(get_curren
 
 
 @router.delete("/{action_id}")
-def delete_action(action_id: int, user=Depends(get_current_user)):
-    _require_admin(user)
+def delete_action(action_id: int, user=Depends(solo_admin(cosa="la Home per ruolo"))):
 
     conn = get_foodcost_connection()
     try:
@@ -283,8 +272,7 @@ def delete_action(action_id: int, user=Depends(get_current_user)):
 
 
 @router.post("/reorder/")
-def reorder_actions(payload: ReorderPayload, user=Depends(get_current_user)):
-    _require_admin(user)
+def reorder_actions(payload: ReorderPayload, user=Depends(solo_admin(cosa="la Home per ruolo"))):
     _validate_ruolo(payload.ruolo)
 
     conn = get_foodcost_connection()
@@ -315,11 +303,10 @@ def reorder_actions(payload: ReorderPayload, user=Depends(get_current_user)):
 
 
 @router.post("/reset/")
-def reset_to_defaults(payload: ResetPayload, user=Depends(get_current_user)):
+def reset_to_defaults(payload: ResetPayload, user=Depends(solo_admin(cosa="la Home per ruolo"))):
     """Ripristina il seed di default per il ruolo indicato.
     Cancella TUTTE le azioni del ruolo e le riscrive dal modulo defaults.
     """
-    _require_admin(user)
     _validate_ruolo(payload.ruolo)
 
     defaults = DEFAULTS_BY_ROLE.get(payload.ruolo, [])
