@@ -20,6 +20,8 @@ const TABS = [
   { key: "ordini", label: "Ordini", path: "/vini/ordini", icon: "📦" },
   // VMF.3 (2026-11-03): fatture dei vini → prezzi pagati (multi-fornitore)
   { key: "fatture", label: "Fatture", path: "/vini/fatture", icon: "🧾", roles: ["admin", "sommelier", "capo_sala"] },
+  // VMF.4 (2026-11-04): listini dei fornitori → prezzi di listino
+  { key: "listini", label: "Listini", path: "/vini/listini", icon: "📋", roles: ["admin", "sommelier", "capo_sala"] },
   // M2.5-arch (2026-05-16): tab "Anagrafiche" — pannello dedicato alle entità master
   // (produttori, distributori, denominazioni, vitigni, vini madre). Promosso dalla
   // sotto-pagina "🧪 Anagrafiche (beta)" che viveva sotto Impostazioni.

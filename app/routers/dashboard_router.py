@@ -3,7 +3,7 @@
 # Dashboard Home — endpoint aggregatore per widget Home v3
 # ============================================================
 
-# @version: v1.0-dashboard-home
+# @version: v1.1-dashboard-home — /home senza selezioni (le porta la Lavagna) + ?lieve=1 per l'aggiornamento automatico (2026-11-04)
 # -*- coding: utf-8 -*-
 """
 Endpoint GET /dashboard/home + GET /dashboard/lavagna
@@ -23,7 +23,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.models.clienti_db import get_clienti_conn
@@ -1522,11 +1522,21 @@ RUOLI_CUCINA = ("chef", "sous_chef", "commis")
 
 
 @router.get("/home", response_model=DashboardHome)
-def get_dashboard_home(current_user=Depends(get_current_user)):
+def get_dashboard_home(
+    current_user=Depends(get_current_user),
+    lieve: bool = Query(False, description="Aggiornamento automatico della Home: salta i trigger di alert engine, linea e scheduler"),
+):
     """
     Endpoint aggregatore per la Home v3.
     Restituisce tutti i dati necessari ai widget in un'unica chiamata.
     Per i ruoli di cucina i numeri di sala/cassa tornano vuoti.
+
+    2026-11-04 (Home v10, card «Il turno»): le selezioni del giorno non si
+    calcolano piu' qui — le porta /dashboard/lavagna, che la Home chiama
+    comunque. I campi macellaio/salumi/formaggi/pescato/selezioni restano
+    nella risposta (vuoti) per non rompere client vecchi in cache.
+    Con ?lieve=1 (ricarica automatica ogni pochi minuti) non si lanciano i
+    trigger fire-and-forget: li lancia gia' la prima apertura della pagina.
     """
     oggi = date.today()
     ieri = oggi - timedelta(days=1)
@@ -1539,10 +1549,6 @@ def get_dashboard_home(current_user=Depends(get_current_user)):
     incasso = _incasso_ieri(ieri_str, giorno_settimana)
     fatture = _fatture_pending()
     coperti = _coperti_mese(oggi)
-    macellaio = _macellaio_widget(oggi_str)
-    salumi = _salumi_widget(oggi_str)
-    formaggi = _formaggi_widget(oggi_str)
-    pescato = _pescato_widget(oggi_str)
 
     if (current_user or {}).get("role") in RUOLI_CUCINA:
         prenotazioni = PrenotazioniOggi()
@@ -1555,22 +1561,15 @@ def get_dashboard_home(current_user=Depends(get_current_user)):
         incasso_ieri=incasso,
         coperti_mese=coperti,
         fatture_pending=fatture,
-        macellaio=macellaio,
-        salumi=salumi,
-        formaggi=formaggi,
-        pescato=pescato,
-        selezioni=SelezioniWidget(
-            macellaio=macellaio,
-            salumi=salumi,
-            formaggi=formaggi,
-            pescato=pescato,
-        ),
         alerts=_alerts(oggi_str),
         moduli=_moduli_summary(oggi_str, prenotazioni, incasso, fatture, coperti),
     )
     # Pratiche: contenuti riservati (pignoramenti, contenziosi) → solo admin.
     if ha_ruoli(current_user, "admin"):
         response.moduli.append(_pratiche_summary())
+
+    if lieve:
+        return response
 
     # ── Trigger Alert Engine M.F (fire-and-forget) ──
     # Esegue i checker e crea notifiche se necessario.

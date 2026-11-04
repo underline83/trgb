@@ -1,5 +1,9 @@
 // FILE: frontend/src/components/widgets/Lavagna.jsx
-// @version: v1.0 — La Lavagna (sostituisce il widget Bacheca nella Home)
+// @version: v1.1 — spezzata in pezzi riusabili (LavagnaNota, LavagnaServizio,
+//   LavagnaEventi, CopiaBriefing, BachecaLink) per la card «Il turno» della
+//   Home v10; chip delle selezioni cliccabili (2026-11-04). La card intera
+//   resta uguale per HomeCucina.
+// v1.0 — La Lavagna (sostituisce il widget Bacheca nella Home)
 //
 // PERCHÉ ESISTE
 // La Bacheca era l'unico blocco della Home che richiedeva lavoro umano per
@@ -25,21 +29,12 @@ const TONO_CHIP = {
   neutro: "bg-brand-cream text-[#6b6862] border-[#e9e4db]",
 };
 
-export default function Lavagna({ lavagna, loading, saving, scriviNota, rimuoviNota, isAdmin }) {
-  const navigate = useNavigate();
-  const [bozza, setBozza] = useState("");
+/* ── Tasto «Copia» del briefing per il gruppo WhatsApp ──
+   Il mattone M.C costruisce link wa.me, che NON funzionano sui gruppi:
+   qui si copia soltanto, l'invio nel gruppo lo fa Marco a mano. */
+export function CopiaBriefing({ testo }) {
   const [copiato, setCopiato] = useState(false);
-
-  const invia = async () => {
-    if (!bozza.trim() || saving) return;
-    const ok = await scriviNota(bozza);
-    if (ok) setBozza("");
-  };
-
-  // Il mattone M.C costruisce link wa.me, che NON funzionano sui gruppi:
-  // qui si copia soltanto, l'invio nel gruppo lo fa Marco a mano.
-  const copiaWhatsapp = async () => {
-    const testo = lavagna?.whatsapp;
+  const copia = async () => {
     if (!testo) return;
     try {
       await navigator.clipboard.writeText(testo);
@@ -49,24 +44,221 @@ export default function Lavagna({ lavagna, loading, saving, scriviNota, rimuoviN
       console.warn("Lavagna: clipboard non disponibile");
     }
   };
+  return (
+    <button
+      onClick={copia}
+      title="Copia il briefing per incollarlo nel gruppo staff"
+      className="flex-shrink-0 text-[11px] font-bold rounded-[9px] px-2.5 py-1.5 border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
+    >
+      {copiato ? "Copiato ✓" : "Copia"}
+    </button>
+  );
+}
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex-1 min-h-0 flex items-center justify-center py-10">
-        <span className="text-[13px] text-[#a8a49e]">Caricamento…</span>
+/* ── STRATO 2 — la nota del turno (+ campo di scrittura per admin) ── */
+export function LavagnaNota({ lavagna, saving, scriviNota, rimuoviNota, isAdmin }) {
+  const [bozza, setBozza] = useState("");
+  const nota = lavagna?.nota;
+
+  const invia = async () => {
+    if (!bozza.trim() || saving) return;
+    const ok = await scriviNota(bozza);
+    if (ok) setBozza("");
+  };
+
+  return (
+    <>
+      {nota && (
+        <div className="px-4 py-3.5 bg-[#FFF9E6] border-b border-[#f2e7c4]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[.8px] text-[#a08b3a]">
+              Nota di {lavagna.turno} · {nota.autore}
+            </span>
+            {isAdmin && (
+              <button
+                onClick={rimuoviNota}
+                disabled={saving}
+                className="text-[12px] font-bold text-[#c2b280] hover:text-[#a08b3a] transition leading-none"
+                title="Togli la nota"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="text-[15px] font-semibold text-brand-ink leading-snug">
+            {nota.messaggio}
+          </div>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="flex gap-2 px-4 py-2.5 border-b border-[#f0ede8]">
+          <input
+            type="text"
+            value={bozza}
+            maxLength={500}
+            onChange={(e) => setBozza(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") invia(); }}
+            placeholder="Scrivi una riga per il servizio…"
+            className="flex-1 min-w-0 px-3 py-2 rounded-[10px] border border-[#e4e0d8] bg-[#fbfaf8] text-[13px] focus:outline-none focus:border-brand-blue focus:bg-white focus:ring-2 focus:ring-brand-blue/15 transition"
+            style={{ fontSize: "16px" }}
+          />
+          <button
+            onClick={invia}
+            disabled={saving || !bozza.trim()}
+            className="flex-shrink-0 px-3.5 rounded-[10px] bg-brand-ink text-white text-[13px] font-bold disabled:opacity-30 transition"
+          >
+            {saving ? "…" : "Appendi"}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── STRATO 1 — il servizio (frase, tavoli notevoli, selezioni, staff, task) ──
+   showLede=false: la card «Il turno» mette la frase in testa, fuori da qui. */
+export function LavagnaServizio({ lavagna, showLede = true, showTitolo = true }) {
+  const navigate = useNavigate();
+  const { lede, notevoli = [], selezioni = [], staff = [], task } = lavagna || {};
+
+  return (
+    <div className="px-4 pt-3.5 pb-1">
+      {showTitolo && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] font-bold uppercase tracking-[.9px] text-[#a8a49e]">Il servizio</span>
+          <span className="text-[9px] font-bold uppercase tracking-[.5px] rounded-full px-1.5 py-0.5 bg-[#eef4fd] text-brand-blue">
+            si compila da sola
+          </span>
+        </div>
+      )}
+
+      {showLede && lede && <p className="text-[15px] leading-relaxed text-brand-ink mb-2.5">{lede}</p>}
+
+      <div className="-mx-1">
+        {notevoli.map((n, i) => (
+          <div key={i} className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2]">
+            <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">{n.icona}</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] leading-tight">
+                <b className={`font-bold ${n.tono === "red" ? "text-brand-red" : "text-brand-ink"}`}>{n.titolo}</b>
+                {n.chip && (
+                  <span className={`inline-block ml-1.5 text-[10px] font-bold uppercase tracking-[.4px] rounded-md px-1.5 py-0.5 border ${TONO_CHIP[n.tono] || TONO_CHIP.neutro}`}>
+                    {n.chip}
+                  </span>
+                )}
+              </div>
+              {n.dettaglio && <div className="text-[11.5px] text-[#a8a49e] mt-0.5">{n.dettaglio}</div>}
+            </div>
+          </div>
+        ))}
+
+        {selezioni.length > 0 && (
+          <div className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2]">
+            <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">🔪</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] leading-tight">Selezioni del giorno</div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {selezioni.map((s, i) => (
+                  <span
+                    key={i}
+                    onClick={s.chiave ? () => navigate(`/selezioni/${s.chiave}`) : undefined}
+                    className={`text-[11px] bg-brand-cream border border-[#e9e4db] rounded-[7px] px-1.5 py-0.5 text-[#5a564f] ${s.chiave ? "cursor-pointer hover:border-brand-blue/40 active:scale-[.98] transition" : ""}`}
+                  >
+                    {s.label} <b className="text-brand-ink font-bold">{s.valore}</b>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {staff.length > 0 && (
+          <div className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2]">
+            <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">👥</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] leading-tight">In turno</div>
+              <div className="text-[11.5px] text-[#a8a49e] mt-0.5">
+                {staff.map((s) => `${s.reparto}: ${s.persone}`).join(" · ")}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {task?.count > 0 && (
+          <div
+            className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2] cursor-pointer hover:bg-brand-cream rounded-lg transition"
+            onClick={() => navigate("/tasks")}
+          >
+            <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">✅</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] leading-tight">
+                {task.count} task apert{task.count === 1 ? "o" : "i"} per oggi
+              </div>
+              {task.titoli?.length > 0 && (
+                <div className="text-[11.5px] text-[#a8a49e] mt-0.5 truncate">
+                  {task.titoli.join(" · ")}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  if (!lavagna) {
-    return (
-      <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex-1 min-h-0 flex items-center justify-center py-10">
-        <span className="text-[13px] text-[#a8a49e]">Lavagna non disponibile</span>
+/* ── STRATO 3 — gli eventi («Successo oggi») ── */
+export function LavagnaEventi({ lavagna, className = "mt-2" }) {
+  const eventi = lavagna?.eventi || [];
+  if (eventi.length === 0) return null;
+  return (
+    <div className={`border-t border-[#f0ede8] bg-[#fcfbf9] ${className}`}>
+      <div className="flex items-center justify-between px-4 pt-2.5 pb-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-[.9px] text-[#a8a49e]">Successo oggi</span>
+        <span className="text-[10px] font-bold text-white rounded-full text-center"
+              style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}>
+          {eventi.length}
+        </span>
       </div>
-    );
-  }
+      {eventi.map((e, i) => (
+        <div key={i} className="flex gap-2.5 items-start px-4 py-1.5 border-t border-[#f8f6f2]">
+          <span className="w-[34px] flex-shrink-0 text-[10.5px] font-bold text-[#a8a49e] pt-0.5 tabular-nums">{e.ora}</span>
+          <span className="w-[17px] flex-shrink-0 text-center text-[13px]">{e.icona}</span>
+          <span className="flex-1 text-[12.5px] leading-snug text-brand-ink">{e.testo}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const { nota, lede, notevoli = [], selezioni = [], staff = [], task, eventi = [] } = lavagna;
+/* ── Piede: la bacheca classica resta raggiungibile ── */
+export function BachecaLink() {
+  const navigate = useNavigate();
+  return (
+    <div className="px-4 py-2 border-t border-[#f0ede8] text-center flex-shrink-0">
+      <button
+        onClick={() => navigate("/comunicazioni")}
+        className="text-[11.5px] font-bold text-brand-blue hover:underline"
+      >
+        Bacheca comunicazioni →
+      </button>
+    </div>
+  );
+}
+
+export function LavagnaVuota({ testo }) {
+  return (
+    <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex-1 min-h-0 flex items-center justify-center py-10">
+      <span className="text-[13px] text-[#a8a49e]">{testo}</span>
+    </div>
+  );
+}
+
+/* ── La card intera (HomeCucina e chi la vuole così) ── */
+export default function Lavagna({ lavagna, loading, saving, scriviNota, rimuoviNota, isAdmin }) {
+  if (loading) return <LavagnaVuota testo="Caricamento…" />;
+  if (!lavagna) return <LavagnaVuota testo="Lavagna non disponibile" />;
 
   return (
     <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-[#e7e2d9] flex flex-col overflow-hidden max-h-[560px] lg:max-h-none lg:flex-1 lg:min-h-0">
@@ -82,171 +274,17 @@ export default function Lavagna({ lavagna, loading, saving, scriviNota, rimuoviN
             {lavagna.data_label}
           </span>
         </div>
-        <button
-          onClick={copiaWhatsapp}
-          title="Copia il briefing per incollarlo nel gruppo staff"
-          className="flex-shrink-0 text-[11px] font-bold rounded-[9px] px-2.5 py-1.5 border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
-        >
-          {copiato ? "Copiato ✓" : "Copia"}
-        </button>
+        <CopiaBriefing testo={lavagna.whatsapp} />
       </div>
 
       <div className="flex-1 overflow-y-auto">
-
-        {/* ═══ STRATO 2 — la nota del turno ═══ */}
-        {nota && (
-          <div className="px-4 py-3.5 bg-[#FFF9E6] border-b border-[#f2e7c4]">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-[.8px] text-[#a08b3a]">
-                Nota di {lavagna.turno} · {nota.autore}
-              </span>
-              {isAdmin && (
-                <button
-                  onClick={rimuoviNota}
-                  disabled={saving}
-                  className="text-[12px] font-bold text-[#c2b280] hover:text-[#a08b3a] transition leading-none"
-                  title="Togli la nota"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            <div className="text-[15px] font-semibold text-brand-ink leading-snug">
-              {nota.messaggio}
-            </div>
-          </div>
-        )}
-
-        {isAdmin && (
-          <div className="flex gap-2 px-4 py-2.5 border-b border-[#f0ede8]">
-            <input
-              type="text"
-              value={bozza}
-              maxLength={500}
-              onChange={(e) => setBozza(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") invia(); }}
-              placeholder="Scrivi una riga per il servizio…"
-              className="flex-1 min-w-0 px-3 py-2 rounded-[10px] border border-[#e4e0d8] bg-[#fbfaf8] text-[13px] focus:outline-none focus:border-brand-blue focus:bg-white focus:ring-2 focus:ring-brand-blue/15 transition"
-              style={{ fontSize: "16px" }}
-            />
-            <button
-              onClick={invia}
-              disabled={saving || !bozza.trim()}
-              className="flex-shrink-0 px-3.5 rounded-[10px] bg-brand-ink text-white text-[13px] font-bold disabled:opacity-30 transition"
-            >
-              {saving ? "…" : "Appendi"}
-            </button>
-          </div>
-        )}
-
-        {/* ═══ STRATO 1 — il servizio ═══ */}
-        <div className="px-4 pt-3.5 pb-1">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-[.9px] text-[#a8a49e]">Il servizio</span>
-            <span className="text-[9px] font-bold uppercase tracking-[.5px] rounded-full px-1.5 py-0.5 bg-[#eef4fd] text-brand-blue">
-              si compila da sola
-            </span>
-          </div>
-
-          {lede && <p className="text-[15px] leading-relaxed text-brand-ink mb-2.5">{lede}</p>}
-
-          <div className="-mx-1">
-            {notevoli.map((n, i) => (
-              <div key={i} className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2]">
-                <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">{n.icona}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] leading-tight">
-                    <b className={`font-bold ${n.tono === "red" ? "text-brand-red" : "text-brand-ink"}`}>{n.titolo}</b>
-                    {n.chip && (
-                      <span className={`inline-block ml-1.5 text-[10px] font-bold uppercase tracking-[.4px] rounded-md px-1.5 py-0.5 border ${TONO_CHIP[n.tono] || TONO_CHIP.neutro}`}>
-                        {n.chip}
-                      </span>
-                    )}
-                  </div>
-                  {n.dettaglio && <div className="text-[11.5px] text-[#a8a49e] mt-0.5">{n.dettaglio}</div>}
-                </div>
-              </div>
-            ))}
-
-            {selezioni.length > 0 && (
-              <div className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2]">
-                <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">🔪</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] leading-tight">Selezioni del giorno</div>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {selezioni.map((s, i) => (
-                      <span key={i} className="text-[11px] bg-brand-cream border border-[#e9e4db] rounded-[7px] px-1.5 py-0.5 text-[#5a564f]">
-                        {s.label} <b className="text-brand-ink font-bold">{s.valore}</b>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {staff.length > 0 && (
-              <div className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2]">
-                <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">👥</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] leading-tight">In turno</div>
-                  <div className="text-[11.5px] text-[#a8a49e] mt-0.5">
-                    {staff.map((s) => `${s.reparto}: ${s.persone}`).join(" · ")}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {task?.count > 0 && (
-              <div
-                className="flex gap-2.5 items-start px-1 py-2 border-t border-[#f8f6f2] cursor-pointer hover:bg-brand-cream rounded-lg transition"
-                onClick={() => navigate("/tasks")}
-              >
-                <span className="w-[19px] flex-shrink-0 text-center text-[14px] leading-tight">✅</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] leading-tight">
-                    {task.count} task apert{task.count === 1 ? "o" : "i"} per oggi
-                  </div>
-                  {task.titoli?.length > 0 && (
-                    <div className="text-[11.5px] text-[#a8a49e] mt-0.5 truncate">
-                      {task.titoli.join(" · ")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ═══ STRATO 3 — gli eventi ═══ */}
-        {eventi.length > 0 && (
-          <div className="border-t border-[#f0ede8] bg-[#fcfbf9] mt-2">
-            <div className="flex items-center justify-between px-4 pt-2.5 pb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-[.9px] text-[#a8a49e]">Successo oggi</span>
-              <span className="text-[10px] font-bold text-white rounded-full text-center"
-                    style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}>
-                {eventi.length}
-              </span>
-            </div>
-            {eventi.map((e, i) => (
-              <div key={i} className="flex gap-2.5 items-start px-4 py-1.5 border-t border-[#f8f6f2]">
-                <span className="w-[34px] flex-shrink-0 text-[10.5px] font-bold text-[#a8a49e] pt-0.5 tabular-nums">{e.ora}</span>
-                <span className="w-[17px] flex-shrink-0 text-center text-[13px]">{e.icona}</span>
-                <span className="flex-1 text-[12.5px] leading-snug text-brand-ink">{e.testo}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <LavagnaNota lavagna={lavagna} saving={saving} scriviNota={scriviNota}
+                     rimuoviNota={rimuoviNota} isAdmin={isAdmin} />
+        <LavagnaServizio lavagna={lavagna} />
+        <LavagnaEventi lavagna={lavagna} />
       </div>
 
-      {/* ═══ Piede: la bacheca classica resta raggiungibile ═══ */}
-      <div className="px-4 py-2 border-t border-[#f0ede8] text-center flex-shrink-0">
-        <button
-          onClick={() => navigate("/comunicazioni")}
-          className="text-[11.5px] font-bold text-brand-blue hover:underline"
-        >
-          Bacheca comunicazioni →
-        </button>
-      </div>
+      <BachecaLink />
     </div>
   );
 }

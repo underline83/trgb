@@ -159,8 +159,9 @@ Dettagli e scelte di schema in [modulo_vini_ordini.md](modulo_vini_ordini.md).
 | C-V-VMF6 | `GET` | `/vini/multifornitore/bottiglia/{id}/carico/` | proposta per il carico: ordini aperti + fornitori (ultimo usato in cima) | tutti i ruoli Vini | 🆕 |
 | C-V-VMF7 | `POST` | `/vini/magazzino/{id}/movimenti` (`fornitore_id`) · `/vini/ordini/{id}/ricevi` (`movimento_id`) | carico da un fornitore → pagato; arrivo d'ordine legato al carico già fatto dalla scheda | come prima | 🆕 |
 | C-V-VMF8 | `GET`/`POST` | `/vini/multifornitore/fatture/*` | fatture → vini: emittenti, abbinamenti (con memoria), da verificare, abbina i sicuri | manager vini | 🆕 |
+| C-V-VMF9 | `GET`/`POST`/`DELETE` | `/vini/multifornitore/listini/*` | listini fornitori: carica PDF, proposte vino (con memoria), conferma → prezzi `listino`, PDF archiviato | manager vini | 🆕 |
 
-UI: `SchedaVino` › Prezzi › **Fornitori** (`components/vini/FornitoriVino.jsx`); Movimenti › Carico › **Da chi arriva** (`components/vini/CaricoFornitore.jsx`). Pagina **Vini › Fatture** (`pages/vini/FattureVini.jsx`, VMF.3). Codice: `app/services/vini_fornitori_service.py`, `app/services/vini_fatture_service.py`, `app/services/fatture_righe_service.py` (platform, lettura fatture), `app/routers/vini_multifornitore_router.py`. Tabelle mig 226: `vini_fe_emittenti`, `vini_fe_righe`, `vini_fe_mappa`.
+UI: `SchedaVino` › Prezzi › **Fornitori** (`components/vini/FornitoriVino.jsx`); Movimenti › Carico › **Da chi arriva** (`components/vini/CaricoFornitore.jsx`). Pagina **Vini › Fatture** (`pages/vini/FattureVini.jsx`, VMF.3). Codice: `app/services/vini_fornitori_service.py`, `app/services/vini_fatture_service.py`, `app/services/fatture_righe_service.py` (platform, lettura fatture), `app/routers/vini_multifornitore_router.py`. Tabelle mig 226: `vini_fe_emittenti`, `vini_fe_righe`, `vini_fe_mappa`. Pagina **Vini › Listini** (`pages/vini/ListiniVini.jsx`, VMF.4): `app/services/vini_listini_service.py`, tabelle mig 228 `vini_listini`, `vini_listini_righe`.
 
 ### `/vini/cantina-tools/*` (utility)
 - `GET /matrice/stato|celle/{vid}` + `POST /matrice/assegna|rimuovi` — gestione celle scaffali

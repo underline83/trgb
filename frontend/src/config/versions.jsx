@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.9 (2026-11-04): VMF.4 Listini dei fornitori — pagina Vini › Listini: carichi il PDF, TRGB propone
+    //   il vino per ogni riga, confermi e diventano prezzi di listino del fornitore (mig 228).
     // 4.8 (2026-11-03): Fatture vini — «Cerca un altro vino» cerca mentre scrivi, come in Vendite;
     //   devono comparire tutte le parole, include le annate a 0 bt, niente più limite a 15.
     // 4.7 (2026-11-03): Fatture vini — abbinando (o togliendo) una riga, le righe uguali
@@ -184,7 +186,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.8",
+    version: "4.9",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -650,6 +652,11 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   home: {
+    // 4.0 (2026-11-04): proposta B (docs/revisione_home_2026-11-04.md) — card unica
+    //   «Il turno» (TurnoCard: prenotazioni + Lavagna + selezioni + eventi, tab sul
+    //   turno in corso), striscia in testa con azioni rapide e incasso/coperti, a
+    //   destra Preventivi e To-do. Stessa card in DashboardSala (+ Calici). Ricarica
+    //   automatica ogni 3 minuti (useAutoRefresh, /dashboard/home?lieve=1).
     // 3.8 (2026-10-23): griglia a 3 colonne con minmax(0,…) — su iPad in
     //   orizzontale (1024px) la colonna centrale si allargava col contenuto
     //   e spingeva fuori schermo le azioni rapide. Stesso fix in DashboardSala.
@@ -658,7 +665,7 @@ const MODULE_VERSIONS = {
     // turni, task) + nota del turno a frizione zero + strato eventi che
     // assorbe la vecchia card Alert. Stesso widget anche in DashboardSala,
     // dove il ruolo sala lo vede in sola lettura.
-    version: "3.8",
+    version: "4.0",
     label: "Home",
     status: "beta",
     color: "blue",

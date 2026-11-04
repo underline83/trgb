@@ -1,4 +1,5 @@
-// @version: v1.0 — widget Home «Preventivi in attesa» (2026-11-03)
+// @version: v1.1 — si ricarica da solo ogni 3 minuti (2026-11-04)
+// v1.0 — widget Home «Preventivi in attesa» (2026-11-03)
 // Modulo: clienti (sub-modulo preventivi)
 //
 // I preventivi che aspettano la conferma del cliente, dalla scadenza più vicina
@@ -9,6 +10,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import useAutoRefresh from "../../hooks/useAutoRefresh";
 
 const ggmm = (iso) => (iso ? iso.split("-").reverse().slice(0, 2).join("/") : "");
 
@@ -35,6 +37,7 @@ export default function PreventiviInAttesaCard() {
       .catch(() => setDati(null));
   }, []);
   useEffect(() => { carica(); }, [carica]);
+  useAutoRefresh(carica);
 
   if (!dati || !dati.totale) return null;
   const puoVedere = isAdmin || (dati.ruoli || []).includes(role);

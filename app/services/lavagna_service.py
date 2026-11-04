@@ -486,7 +486,7 @@ def _selezioni_flat(selezioni: Optional[Any]) -> List[Dict[str, str]]:
 
     Forma in ingresso (dashboard_router.SelezioniWidget):
         { macellaio: { categorie: [ { nome, tagli: [ {nome, ...} ] } ] }, ... }
-    In uscita: [ {label: "Carne", valore: "Fassona, Scottona"} ]
+    In uscita: [ {label: "Carne", valore: "Fassona, Scottona", chiave: "macellaio"} ]
 
     Preferisce i nomi dei tagli (dicono qualcosa allo staff); se non ci sono
     ripiega sui nomi delle categorie. Accetta modello Pydantic, dict o None.
@@ -533,7 +533,9 @@ def _selezioni_flat(selezioni: Optional[Any]) -> List[Dict[str, str]]:
         # Tutte, senza tagliarle (Marco 2026-10-03): prima ne mostrava due.
         scelti = nomi_tagli or nomi_cat
         if scelti:
-            out.append({"label": label, "valore": ", ".join(scelti)})
+            # `chiave` (2026-11-04): la card «Il turno» rende il chip
+            # cliccabile verso /selezioni/<chiave>.
+            out.append({"label": label, "valore": ", ".join(scelti), "chiave": chiave})
 
     return out
 

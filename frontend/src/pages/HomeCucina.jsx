@@ -1,5 +1,6 @@
 // FILE: frontend/src/pages/HomeCucina.jsx
-// @version: v1.0 — Home dei ruoli di cucina (chef, sous_chef, commis) (2026-10-02)
+// @version: v1.1 — la Lavagna si ricarica da sola ogni 3 minuti (2026-11-04)
+// v1.0 — Home dei ruoli di cucina (chef, sous_chef, commis) (2026-10-02)
 //
 // Marco: «quando entrano vedono la bacheca, va bene; non devono vedere il
 // fatturato del giorno prima, né i coperti, né le prenotazioni. Facciamo un
@@ -142,7 +143,7 @@ export default function HomeCucina() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
   const displayName = localStorage.getItem("display_name") || localStorage.getItem("username") || "";
-  const { lavagna, loading: lavagnaLoading, saving, scriviNota, rimuoviNota } = useLavagna();
+  const { lavagna, loading: lavagnaLoading, saving, scriviNota, rimuoviNota } = useLavagna({ autoRefresh: true });
   const { actions } = useHomeActions(role);
 
   return (

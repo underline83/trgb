@@ -4,11 +4,13 @@
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.93 (45edcf98) · **Migrazione più recente:** 227
+**Sistema:** 5.93 (45edcf98) · **Migrazione più recente:** 228 (da pushare)
 
-**DA PUSHARE — Home: widget «⏳ Preventivi in attesa»** (clienti 3.25, nessuna migrazione) `[core]` — dopo il push: Home da admin/capo sala → card sotto le Selezioni (Ferraro 12/11 «scaduta», PRE-2026-011 «tra 10 gg»).
+**DA PUSHARE — Home 4.0: card unica «Il turno»** (proposta B, nessuna migrazione) `[core]` — il widget Preventivi in attesa è già pushato in db30c70d. **Dopo il push** (Ctrl+Shift+R): (1) Home da admin: striscia azioni + incasso/coperti in alto, card «Il turno» aperta sul turno in corso, a destra Preventivi e To-do; (2) da telefono: azioni in cima, numeri in fondo; (3) utente sala: stessa card in sola lettura + Calici; (4) lasciata aperta, dopo 3 minuti si aggiorna da sola (prenotazione nuova o nota). Attenzione: `push.sh` porta su anche il lavoro di Vini 4.9 Listini (mig 228) dell'altra sessione.
 
 **Pushato (45edcf98, messaggio di commit sbagliato «Statistiche 1.5»: contiene anche Vini › Fatture mig 226, Pratiche 1.2 e questo) — Preventivi: scadenza della conferma + staff in CC** (mig 227, sistema 5.93, clienti 3.24, prenotazioni 2.30) `[core]` — verificato in produzione il 03/11 su un preventivo di prova poi eliminato: scadenza proposta +10 gg, proroga e storico, Libera tavolo, email con prenotazioni@ in CC e nessuna copia separata. Planning: PRE-2026-011 (Montagnosi, 18/12) mostra ⏳ «scade il 13/11». Da vedere: il primo avviso vero (PRE-2026-011, 11/11 e 13/11).
+
+**DA PUSHARE — VMF.4 Vini › Listini** (mig 228, vini 4.9) `[core]` — dopo il push: Vini › Listini → caricare `06-Fornitori/075/2026-10-listino-075.pdf` (fornitore 0,75) e `Marenzi/2026-11-listino.pdf` (Marenzi), guardare le spuntate e confermare; i prezzi compaiono nella scheda vino › Prezzi › Fornitori come «listino».
 
 **VMF.3 Vini › Fatture — IN PRODUZIONE** (mig 226; vini 4.7 in 5c8712ce) `[core]` — 268 righe fattura 2026 abbinate, 20 emittenti classificati (03/11). Resta: ~120 righe da abbinare (soprattutto Sogegross), sconti di scheda non aggiornati (spec D9), velocità (~2 s per abbinamento).
 
@@ -159,6 +161,19 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-04 — Home 4.0: card unica «Il turno» `[core]`
+
+Revisione della Home (`docs/revisione_home_2026-11-04.md`), tre proposte disegnate, Marco ha scelto la **B**. Nessuna migrazione, sistema invariato (5.93), home 4.0.
+
+- **TurnoCard.jsx** (nuovo): Prenotazioni + La Lavagna + Selezioni in una card. Tab sul turno in corso (`lavagna.turno`, ripiego 15:00), frase del turno solo sul turno in corso, chip selezioni cliccabili (`/selezioni/<chiave>`).
+- **Lavagna.jsx** spezzata in pezzi esportati (`CopiaBriefing`, `LavagnaNota`, `LavagnaServizio`, `LavagnaEventi`, `BachecaLink`, `LavagnaVuota`); la card intera resta per HomeCucina.
+- **AzioniRapideStrip.jsx** e **KpiMini.jsx** (nuovi), usati da Home e DashboardSala.
+- **useAutoRefresh.js** (nuovo): 3 minuti fissi nel codice (scelta di Marco, come useNotifiche) + ricarica al ritorno in primo piano. Home la accende solo se non c'è la Home propria (sala/cucina) per non raddoppiare le chiamate.
+- **Backend:** `/dashboard/home` non calcola più le 4 selezioni (le dà `/dashboard/lavagna`; campi vuoti per compatibilità) e con `?lieve=1` salta alert engine, linea e scheduler. `_selezioni_flat` aggiunge `chiave`.
+- `SelezioniCard.jsx` non è più usata (resta il file, come Macellaio/Salumi/Formaggi Card: pulizia decisione E della revisione).
+- Verifica: esbuild su tutti i file toccati, render con dati finti a 1180, 1024 e 390 px. Il `vite build` locale non gira nella VM Linux (binari rollup del Mac).
+- Restano aperte le decisioni C (incasso/coperti a sommelier e viewer) ed E (pulizia) della revisione.
 
 ## SESSIONE 2026-11-03 — Vini › Fatture (VMF.3) `[core]`
 

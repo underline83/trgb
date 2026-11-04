@@ -1,4 +1,7 @@
-// @version: v9.5 — widget «⏳ Preventivi in attesa» sotto le Selezioni; la pagina 1 scorre in verticale su iPad/desktop (2026-11-03)
+// @version: v10.0 — proposta B: card unica «Il turno» (prenotazioni + Lavagna + selezioni,
+//   tab sul turno in corso), striscia in testa con azioni rapide e incasso/coperti,
+//   a destra Preventivi in attesa e To-do; si ricarica da sola ogni 3 minuti (2026-11-04)
+// v9.5 — widget «⏳ Preventivi in attesa» sotto le Selezioni; la pagina 1 scorre in verticale su iPad/desktop (2026-11-03)
 // v9.4 — ruoli di cucina (chef, sous_chef, commis) → HomeCucina: turni, Lavagna, tasti;
 //   niente incasso/coperti/prenotazioni, nemmeno con ?full=1 (2026-10-02)
 // v9.3 — Home v3.6: widget Bacheca sostituito da La Lavagna
@@ -15,8 +18,9 @@ import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 import useLavagna from "../hooks/useLavagna";
 import useHomeActions from "../hooks/useHomeActions";
-import SelezioniCard from "../components/widgets/SelezioniCard";
-import Lavagna from "../components/widgets/Lavagna";
+import TurnoCard from "../components/widgets/TurnoCard";
+import AzioniRapideStrip from "../components/widgets/AzioniRapideStrip";
+import { KpiIncasso, KpiCoperti } from "../components/widgets/KpiMini";
 import TodoPersonale from "../components/widgets/TodoPersonale";
 import PreventiviInAttesaCard from "../components/widgets/PreventiviInAttesaCard";
 // R8c: filtra Home grid per moduli attivi del locale (feature flags).
@@ -84,11 +88,6 @@ function formatDate() {
   return `${giorni[d.getDay()]} ${d.getDate()} ${mesi[d.getMonth()]}`;
 }
 
-function dotColor(stato) {
-  if (["RECORDED", "ARRIVED", "SEATED"].includes(stato)) return "#2EB872";
-  if (["BILL", "LEFT"].includes(stato)) return "#a8a49e";
-  return "#D4A017";
-}
 
 
 
@@ -107,15 +106,17 @@ export default function Home() {
   const [modules, setModules] = useState([]);
   const [modulesLoading, setModulesLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const [turnoTab, setTurnoTab] = useState("pranzo");
-  const { data: widgets, loading: widgetsLoading } = useHomeWidgets();
+  // Sala e cucina hanno la loro Home (sotto): lì si ricaricano da sole, qui no,
+  // altrimenti ogni 3 minuti partirebbero due giri di chiamate.
+  const homePropria = (role === "sala" && !searchParams.get("full")) || ["chef", "sous_chef", "commis"].includes(role);
+  const { data: widgets, loading: widgetsLoading } = useHomeWidgets({ autoRefresh: !homePropria });
   const {
     lavagna,
     loading: lavagnaLoading,
     saving: lavagnaSaving,
     scriviNota,
     rimuoviNota,
-  } = useLavagna();
+  } = useLavagna({ autoRefresh: !homePropria });
   // Azioni rapide configurate in Impostazioni (con fallback statico se BE down)
   const { actions: homeActions } = useHomeActions();
   // R8c: feature flags moduli per locale (su tregobbi wildcard → no-op).
@@ -136,7 +137,7 @@ export default function Home() {
   }, []);
 
   // "selezioni" non ha piu' tile a se' in Home: vive sotto "Gestione Cucina" (sub di ricette)
-  // Il widget SelezioniCard a pagina 1 resta (e' un widget di servizio, non un tile modulo).
+  // Le selezioni del giorno stanno nella card «Il turno» a pagina 1 (dalla Lavagna).
   // R8c: ulteriore filtro sui moduli attivi per il locale corrente (feature flags).
   const visibleModules = modules
     .filter((m) => m.key !== "selezioni")
@@ -175,14 +176,7 @@ export default function Home() {
 
   const loading = modulesLoading || widgetsLoading;
   const turno = getTurno();
-
-  // Prenotazioni per turno
-  const allPren = widgets?.prenotazioni?.lista || [];
-  const prenPranzo = allPren.filter((r) => r.turno === "pranzo");
-  const prenCena = allPren.filter((r) => r.turno === "cena");
-  const prenVisible = turnoTab === "pranzo" ? prenPranzo : prenCena;
-  const paxPranzo = widgets?.prenotazioni?.pranzo_pax || 0;
-  const paxCena = widgets?.prenotazioni?.cena_pax || 0;
+  const isAdmin = role === "admin" || role === "superadmin";
 
   return (
     <div className="bg-brand-cream flex flex-col lg:overflow-hidden min-h-[calc(100dvh-56px)] lg:h-[calc(100dvh-56px)]">
@@ -239,142 +233,52 @@ export default function Home() {
             style={{ transform: `translateX(-${page * 100}%)` }}
           >
 
-            {/* ════════ PAGINA 1: COMMAND CENTER 3 COLONNE ════════ */}
+            {/* ════════ PAGINA 1: IL TURNO (Home v10, proposta B 2026-11-04) ════════
+                Striscia in testa (azioni rapide + incasso/coperti), poi a sinistra
+                la card unica «Il turno», a destra Preventivi e To-do.
+                Su telefono: azioni → turno → preventivi → to-do → numeri. */}
             <div className="w-full flex-shrink-0 lg:min-h-0 lg:overflow-y-auto px-5 lg:px-8 pb-4">
-              <div className="lg:min-h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,.7fr)] gap-3.5">
+              <div className="flex flex-col gap-3.5 lg:h-full lg:min-h-[560px]">
 
-                {/* ═══ COL 1: Prenotazioni + Mini stats ═══ */}
-                <div className="flex flex-col gap-3.5 lg:min-h-0">
-                  {/* Prenotazioni */}
-                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden max-h-[360px] lg:max-h-[calc(100dvh-280px)] lg:flex-1 lg:min-h-0">
-                    <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">
-                        📅 Prenotazioni oggi
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-xl font-extrabold text-brand-ink leading-none">
-                          {widgets?.prenotazioni?.totale_pax || 0}
-                        </span>
-                        <span className="text-[10px] text-[#a8a49e] font-medium">pax</span>
-                      </div>
-                    </div>
-                    {/* Turno tabs */}
-                    <div className="flex border-b border-[#f0ede8]">
-                      <button
-                        onClick={() => setTurnoTab("pranzo")}
-                        className={`flex-1 text-center py-2 text-[11px] font-semibold transition ${
-                          turnoTab === "pranzo" ? "text-brand-ink border-b-2 border-brand-ink font-bold" : "text-[#a8a49e]"
-                        }`}
-                      >
-                        ☀️ Pranzo · {paxPranzo} pax
-                      </button>
-                      <button
-                        onClick={() => setTurnoTab("cena")}
-                        className={`flex-1 text-center py-2 text-[11px] font-semibold transition ${
-                          turnoTab === "cena" ? "text-brand-ink border-b-2 border-brand-ink font-bold" : "text-[#a8a49e]"
-                        }`}
-                      >
-                        🌙 Cena · {paxCena} pax
-                      </button>
-                    </div>
-                    {/* Lista */}
-                    <div className="flex-1 overflow-y-auto">
-                      {prenVisible.length > 0 ? (
-                        prenVisible.map((r, i) => (
-                          <div key={i} className={`flex items-center gap-2.5 px-4 py-2.5 ${i < prenVisible.length - 1 ? "border-b border-[#f8f6f2]" : ""}`}>
-                            <span className="text-[11px] font-semibold text-[#a8a49e] w-10 flex-shrink-0 tabular-nums">{r.ora?.slice(0, 5)}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[13px] font-semibold text-brand-ink leading-tight truncate">{r.nome}</div>
-                              {r.nota && <div className="text-[11px] text-[#a8a49e] mt-0.5 truncate">{r.nota}</div>}
-                            </div>
-                            <span className="text-[13px] font-bold text-brand-ink w-6 text-right">{r.pax}</span>
-                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dotColor(r.stato) }} />
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-4 py-8 text-center text-[13px] text-[#a8a49e]">
-                          Nessuna prenotazione per {turnoTab === "pranzo" ? "pranzo" : "cena"}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <AzioniRapideStrip
+                  actions={homeActions}
+                  onGo={(route) => navigate(resolveRoute(route))}
+                  extra={
+                    <>
+                      <div className="hidden lg:block"><KpiIncasso incasso={widgets?.incasso_ieri} /></div>
+                      <div className="hidden lg:block"><KpiCoperti coperti={widgets?.coperti_mese} /></div>
+                    </>
+                  }
+                />
 
-                  {/* Mini stats */}
-                  <div className="grid grid-cols-2 gap-3.5 flex-shrink-0">
-                    <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-indigo-200 p-4">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-[#a8a49e] mb-2">💵 Incasso ieri</div>
-                      <div className="text-2xl font-extrabold text-brand-ink leading-none tracking-tight">
-                        € {(widgets?.incasso_ieri?.totale || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </div>
-                      {widgets?.incasso_ieri?.delta_pct != null && (
-                        <div className={`text-[11px] font-semibold mt-1.5 ${widgets.incasso_ieri.delta_pct >= 0 ? "text-[#2EB872]" : "text-brand-red"}`}>
-                          {widgets.incasso_ieri.delta_pct >= 0 ? "↑" : "↓"} {Math.abs(widgets.incasso_ieri.delta_pct)}%
-                        </div>
-                      )}
-                    </div>
-                    <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-rose-200 p-4">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-[#a8a49e] mb-2">
-                        📈 Coperti {new Date().toLocaleString("it-IT", { month: "short" })}
-                      </div>
-                      <div className="text-2xl font-extrabold text-brand-ink leading-none tracking-tight">
-                        {widgets?.coperti_mese?.totale || 0}
-                      </div>
-                      {widgets?.coperti_mese?.anno_precedente > 0 && (
-                        <div className="text-[11px] font-semibold text-[#2E7BE8] mt-1.5">
-                          vs {widgets.coperti_mese.anno_precedente} prec.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ═══ COL 2: Selezioni + Lavagna ═══ */}
-                <div className="flex flex-col gap-3.5 lg:min-h-0">
-                  {/* Widget Selezioni del Giorno — 4 mini-blocchi (macellaio/pescato/salumi/formaggi) */}
-                  <SelezioniCard data={widgets?.selezioni} />
-                  {/* Preventivi in attesa di conferma (2026-11-03): si vede solo se ce ne sono */}
-                  <PreventiviInAttesaCard />
-
-                  {/* La Lavagna — briefing di servizio.
-                      Sostituisce il widget Bacheca (restava vuoto: era l'unico
-                      blocco che richiedeva lavoro umano per riempirsi) e assorbe
-                      la vecchia card "⚠️ Attenzione": gli alert dell'engine M.F
-                      ora scorrono nello strato "Successo oggi". */}
-                  <Lavagna
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-3.5 lg:flex-1 lg:min-h-0">
+                  <TurnoCard
+                    prenotazioni={widgets?.prenotazioni}
                     lavagna={lavagna}
-                    loading={lavagnaLoading}
+                    lavagnaLoading={lavagnaLoading}
                     saving={lavagnaSaving}
                     scriviNota={scriviNota}
                     rimuoviNota={rimuoviNota}
-                    isAdmin={role === "admin" || role === "superadmin"}
+                    isAdmin={isAdmin}
                   />
-                  {/* Le mie cose da fare — lista personale (2026-10-03) */}
-                  <TodoPersonale compact />
-                </div>
 
-                {/* ═══ COL 3: Azioni rapide (config da Impostazioni → Home per ruolo) ═══ */}
-                <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2.5 lg:overflow-visible pb-2 lg:pb-0">
-                  {homeActions.map((a) => (
-                    <div
-                      key={a.id ?? a.key}
-                      onClick={() => navigate(resolveRoute(a.route))}
-                      className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 ${a.color || ""}`}
-                      style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}
-                    >
-                      <span className="text-2xl leading-none">{a.emoji}</span>
-                      <div className="min-w-0">
-                        <div className="text-[14px] font-bold leading-tight truncate">{a.label}</div>
-                        {a.sub && <div className="text-[11px] opacity-60 mt-0.5 hidden lg:block">{a.sub}</div>}
-                      </div>
+                  <div className="flex flex-col gap-3.5 lg:min-h-0 lg:overflow-y-auto">
+                    {/* Preventivi in attesa di conferma: si vede solo se ce ne sono */}
+                    <PreventiviInAttesaCard />
+                    {/* Le mie cose da fare — lista personale (2026-10-03) */}
+                    <TodoPersonale compact />
+                    {/* Numeri di cassa: su telefono qui in fondo, su iPad nella striscia */}
+                    <div className="grid grid-cols-2 gap-3.5 lg:hidden">
+                      <KpiIncasso incasso={widgets?.incasso_ieri} />
+                      <KpiCoperti coperti={widgets?.coperti_mese} />
                     </div>
-                  ))}
-                  <div className="hidden lg:block lg:flex-1" />
-                  <button
-                    onClick={() => setPage(1)}
-                    className="col-span-2 lg:col-span-1 text-[12px] text-[#a8a49e] text-center lg:mt-2 hover:text-brand-ink transition py-2"
-                  >
-                    Tutti i moduli →
-                  </button>
+                    <button
+                      onClick={() => setPage(1)}
+                      className="text-[12px] text-[#a8a49e] text-center hover:text-brand-ink transition py-2 lg:mt-auto"
+                    >
+                      Tutti i moduli →
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

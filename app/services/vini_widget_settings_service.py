@@ -86,6 +86,10 @@ WIDGET_DEFAULTS = [
     # del max +/- 2% fa da solo; dopo chiede». Spec docs/spec_vini_multifornitore.md D4.
     ("vmf_soglia_fattura_pct",        "2",   "percent", "%: se il prezzo in fattura differisce dal carico entro ±N% vince la fattura in automatico; oltre va in «da verificare»"),
     ("vmf_fatture_dal",               "2026-01-01", "text", "Data (AAAA-MM-GG): le fatture dei vini si leggono da questa data in poi (Marco 03/11: «considera il 2026»)"),
+    # VMF.4 (2026-11-04) — listini dei fornitori: punteggio dell'abbinamento riga di listino → vino.
+    ("vmf_listino_soglia_sicuri",     "80",  "int",     "Punteggio: righe di listino con abbinamento da N in su arrivano già spuntate da confermare"),
+    ("vmf_listino_soglia_min",        "55",  "int",     "Punteggio: sotto N la riga di listino non propone nessun vino (resta da abbinare a mano)"),
+    ("vmf_listino_scarto_max_pct",    "60",  "percent", "%: una riga di listino che si scosta più di ±N% dal costo in uso non arriva spuntata (magnum letto come bottiglia, cassa…)"),
 ]
 
 

@@ -34,7 +34,7 @@
 | VMF.1 | Schema + migrazione dati (mig 225) + service `vini_fornitori_service.py` + endpoint `/vini/multifornitore/*` + sezione **Fornitori** nella scheda vino (elenco, ⭐ preferito, ➕ aggiungi, prezzo manuale pagato/listino, storico per fornitore) | in sviluppo 02/11 |
 | VMF.2 | **Carico**: dalla scheda vino il carico propone l'ordine aperto (lo riceve con `/vini/ordini/{id}/ricevi`) oppure la tendina fornitori; `ricevi` registra il pagato col `prezzo_unit` della riga ordine | in sviluppo 02/11 |
 | VMF.3 | **Fatture** (mig 226, pagina Vini › Fatture): righe BEVANDE › VINO dal 2026 via `fatture_righe_service` (platform, sola lettura); emittenti classificati una volta (distributore / cantina → Diretto / non vini); suggerimenti per produttore+nome+annata+formato, «Abbina i sicuri» in blocco, abbinamenti ricordati per P.IVA+descrizione; prezzo netto a bottiglia anche da cartoni («0,75X6», CT senza numero → 6 presunte, da verificare); confronto col pagato registrato (carico/ordine/storico, finestra −120/+45 gg): entro soglia sostituisce (anche il fornitore), oltre «da verificare» con «Vale la fattura / Vale il registrato» | fatto 03/11 (da pushare) |
-| VMF.4 | Listini: import di un listino PDF come prezzi `listino` del fornitore (oggi a mano/via Claude) | da fare |
+| VMF.4 | **Listini** (mig 228, pagina Vini › Listini): carichi il PDF scegliendo il fornitore; TRGB legge le righe (prezzo = ultimo numero con la virgola della riga; produttore dalla colonna a sinistra del pallino nei listini 0,75, dalla riga sotto l'articolo nei gestionali tipo Marenzi), propone il vino (produttore obbligatorio, parole del nome, annata, formato; ogni vino una riga sola; a parità il prezzo più vicino al costo), spunta da sola le righe sicure (punteggio ≥ `vmf_listino_soglia_sicuri`, stessa annata, scarto dal costo entro `vmf_listino_scarto_max_pct`); le confermate diventano prezzi `listino` del fornitore con la data del listino e fanno da memoria per il listino dopo. PDF archiviato negli upload (`vini_listini/`). Solo PDF per ora | fatto 04/11 (da pushare) |
 | VMF.5 | Valutare l'estensione alla carta bevande (D1) | da decidere |
 
 ## 4. Endpoint VMF.1–2 (`/vini/multifornitore`, ruoli: lettura modulo vini, scrittura `is_vini_manager`)
@@ -54,6 +54,13 @@
 - `POST /fatture/prezzi/{id}/risolvi` {vale: fattura|carico} · `POST /fatture/conferma-sicuri` · `GET /fatture/cerca-vini/?q=`
 
 Prova su copia DB (03/11): 397 righe vino 2026; con 7 distributori e 9 cantine classificati, «Abbina i sicuri» ne abbina 137 (98 ok, 39 da verificare); dei 95 confronti col registrato, 64 entro il 2%. Fuori soglia ricorrenti: 0,75 fattura −3% rispetto al listino, Balan −15%, sconti di scheda che la fattura non riporta (Marenzi 9%, Magri 10%).
+
+## 4-ter. Endpoint VMF.4 (`/vini/multifornitore/listini/*`, solo manager vini)
+
+- `GET /listini/` elenco · `POST /listini/` multipart {fornitore_id, data?, file} legge e propone · `GET /listini/{id}/` righe con proposta, listino di prima, Δ, «sicura» · `GET /listini/{id}/pdf`
+- `POST /listini/righe/{id}/abbina` {bottiglia_id} · `POST /listini/righe/{id}/scarta` · `POST /listini/{id}/conferma` {righe:[id]} · `DELETE /listini/{id}` (solo se nessun prezzo confermato)
+
+Prova su copia DB (04/11): listino 0,75 10/2026 → 878 righe lette, 156 con un vino proposto, 69 su vini con bottiglie in cantina (33 spuntate); 17 dei 19 vini aggiornati a mano il 01/11 riconosciuti (mancano Sforzato, scritto «Sorzato», e Bakkanali Rosso 2024). Marenzi 11/2026 → 2285 righe (acque e birre comprese), 52 proposte, 16 su vini in cantina. Ricaricando lo stesso listino la memoria riconosce 56 righe su 60 confermate.
 
 ## 5. Casi limite
 

@@ -188,3 +188,80 @@ def post_conferma_sicuri(current_user: Any = Depends(get_current_user)):
 def get_cerca_vini(q: str, current_user: Any = Depends(get_current_user)):
     _manager(current_user)
     return vfat.cerca_vini(q)
+
+
+# ─────────────────────────────────────────────
+# VMF.4 — listini dei fornitori (mig 228). Logica in app/services/vini_listini_service.py
+# Scrittura e lettura solo manager (admin, sommelier, capo sala): un listino
+# porta i prezzi del fornitore.
+# ─────────────────────────────────────────────
+from typing import List  # noqa: E402
+
+from fastapi import File, Form, UploadFile  # noqa: E402
+from fastapi.responses import FileResponse  # noqa: E402
+
+from app.services import vini_listini_service as vlis  # noqa: E402
+
+
+class AbbinaListinoIn(BaseModel):
+    bottiglia_id: int
+
+
+class ConfermaListinoIn(BaseModel):
+    righe: List[int] = Field(default_factory=list)
+
+
+@router.get("/listini/", summary="Listini dei fornitori caricati")
+def get_listini(current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return vlis.elenco()
+
+
+@router.post("/listini/", summary="Carica il PDF di un listino: legge le righe e propone i vini")
+async def post_listino(
+    fornitore_id: int = Form(...),
+    data: Optional[str] = Form(None),
+    file: UploadFile = File(...),
+    current_user: Any = Depends(get_current_user),
+):
+    _manager(current_user)
+    contenuto = await file.read(vlis.MAX_BYTES + 1)
+    return _esegui(vlis.carica, fornitore_id, contenuto, file.filename, data=data or None,
+                   utente=_username(current_user))
+
+
+@router.get("/listini/{listino_id}/", summary="Un listino: righe, proposte, confronto col costo")
+def get_listino(listino_id: int, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vlis.dettaglio, listino_id)
+
+
+@router.get("/listini/{listino_id}/pdf", summary="Il PDF del listino")
+def get_listino_pdf(listino_id: int, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    path, nome = _esegui(vlis.percorso_file, listino_id)
+    return FileResponse(path, filename=nome, media_type="application/pdf", content_disposition_type="inline")
+
+
+@router.post("/listini/righe/{riga_id}/abbina", summary="Abbina a mano una riga di listino a un vino")
+def post_listino_abbina(riga_id: int, payload: AbbinaListinoIn, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vlis.abbina_riga, riga_id, payload.bottiglia_id, utente=_username(current_user))
+
+
+@router.post("/listini/righe/{riga_id}/scarta", summary="Riga di listino che non interessa")
+def post_listino_scarta(riga_id: int, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vlis.scarta_riga, riga_id, utente=_username(current_user))
+
+
+@router.post("/listini/{listino_id}/conferma", summary="Le righe scelte diventano prezzi di listino del fornitore")
+def post_listino_conferma(listino_id: int, payload: ConfermaListinoIn, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vlis.conferma, listino_id, payload.righe, utente=_username(current_user))
+
+
+@router.delete("/listini/{listino_id}", summary="Elimina un listino senza prezzi confermati")
+def delete_listino(listino_id: int, current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return _esegui(vlis.elimina, listino_id)

@@ -44,6 +44,7 @@ const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
 const DashboardVini = lazy(() => import("./pages/vini/DashboardVini"));
 const OrdiniVini = lazy(() => import("./pages/vini/OrdiniVini"));
 const FattureVini = lazy(() => import("./pages/vini/FattureVini"));
+const ListiniVini = lazy(() => import("./pages/vini/ListiniVini"));
 // V.6+V.7+V.8 — Modulo "Cantina 2" (test parallelo read-only sulle tabelle _v2)
 const GestioneVino2 = lazy(() => import("./pages/vini/v2/GestioneVino2"));
 // M2.5-arch — Hub Anagrafiche Vini (produttori, distributori, denominazioni, vitigni, madre)
@@ -328,6 +329,7 @@ export default function App() {
         <Route path="/vini/carta/anteprima" element={<ProtectedRoute module="vini" sub="carta"><CartaAnteprima /></ProtectedRoute>} />
         <Route path="/vini/ordini" element={<ProtectedRoute module="vini" sub="magazzino"><OrdiniVini /></ProtectedRoute>} />
         <Route path="/vini/fatture" element={<ProtectedRoute module="vini" sub="magazzino"><FattureVini /></ProtectedRoute>} />
+        <Route path="/vini/listini" element={<ProtectedRoute module="vini" sub="magazzino"><ListiniVini /></ProtectedRoute>} />
         <Route path="/vini/carta-staff" element={<Navigate to="/vini/carta/vini" replace />} />
         {/* V.9 fase 1: Cantina da iPhone — finder mobile-first + scheda mobile (read-only) */}
         <Route path="/vini/cantina-mobile" element={<ProtectedRoute module="vini" sub="magazzino"><CantinaMobile /></ProtectedRoute>} />

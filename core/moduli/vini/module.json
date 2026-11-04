@@ -49,7 +49,7 @@
     "vini_prezzi_fornitore",
     "vini_fe_emittenti",
     "vini_fe_righe",
-    "vini_fe_mappa"
+    "vini_fe_mappa", "vini_listini", "vini_listini_righe"
   ],
   "frontend_route": [
     "/vini"

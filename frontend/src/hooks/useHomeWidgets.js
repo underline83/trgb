@@ -1,9 +1,11 @@
 // FILE: frontend/src/hooks/useHomeWidgets.js
-// @version: v1.0 — Home v3 widget data hook
+// @version: v1.1 — ricarica automatica ogni 3 minuti con ?lieve=1 (2026-11-04)
+// v1.0 — Home v3 widget data hook
 // Fetch dati aggregati da GET /dashboard/home per i widget della Home.
 
 import { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../config/api";
+import useAutoRefresh from "./useAutoRefresh";
 
 /**
  * Hook per i dati widget della Home v3.
@@ -14,14 +16,15 @@ import { API_BASE, apiFetch } from "../config/api";
  *   error    — messaggio errore se il fetch fallisce
  *   refetch  — funzione per ricaricare manualmente
  */
-export default function useHomeWidgets() {
+export default function useHomeWidgets({ autoRefresh = false } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchData = useCallback(async () => {
+  // lieve=true: ricarica automatica, il backend salta i trigger fire-and-forget
+  const fetchData = useCallback(async (lieve = false) => {
     try {
-      const res = await apiFetch(`${API_BASE}/dashboard/home`);
+      const res = await apiFetch(`${API_BASE}/dashboard/home${lieve === true ? "?lieve=1" : ""}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
@@ -38,6 +41,8 @@ export default function useHomeWidgets() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useAutoRefresh(() => fetchData(true), { enabled: autoRefresh });
 
   return { data, loading, error, refetch: fetchData };
 }

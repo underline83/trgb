@@ -1,5 +1,6 @@
 // FILE: frontend/src/hooks/useLavagna.js
-// @version: v1.0 — La Lavagna (briefing di servizio Home)
+// @version: v1.1 — ricarica automatica opzionale (2026-11-04)
+// v1.0 — La Lavagna (briefing di servizio Home)
 //
 // Endpoint:
 //   GET    /dashboard/lavagna       → briefing completo del turno corrente
@@ -11,8 +12,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../config/api";
+import useAutoRefresh from "./useAutoRefresh";
 
-export default function useLavagna() {
+export default function useLavagna({ autoRefresh = false } = {}) {
   const [lavagna, setLavagna] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,6 +34,8 @@ export default function useLavagna() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useAutoRefresh(fetchData, { enabled: autoRefresh });
 
   // ── Scrive la riga del turno ──
   // Aggiorna subito la nota in locale (la card non deve "lampeggiare"),

@@ -172,7 +172,7 @@ Spec: [`spec_vini_multifornitore.md`](spec_vini_multifornitore.md). Decisioni Ma
 | **VMF.1** | Schema (mig 225) + dati di oggi + service + `/vini/multifornitore/*` + scheda vino › Prezzi › Fornitori | M | **✅ FATTO 2026-11-02** (vini 4.3, sistema 5.90 — da pushare) |
 | **VMF.2** | Carico «Da chi arriva»: ordine aperto (lo chiude, prezzo dell'ordine) o tendina fornitori + aggiungi; `ricevi` registra il pagato | M | **✅ FATTO 2026-11-02** (vini 4.3 — da pushare) |
 | **VMF.3** | Fatture → vini: emittenti (distributore / cantina = Diretto), abbinamento righe con memoria, confronto col carico con soglia 2%, «da verificare», pagina Vini › Fatture (mig 226) | L | **✅ FATTO 2026-11-03** (vini 4.5, sistema 5.92 — da pushare) |
-| **VMF.4** | Import listino (PDF) come prezzi `listino` del fornitore | M | DA FARE |
+| **VMF.4** | Import listino (PDF) come prezzi `listino` del fornitore: pagina Vini › Listini, proposte con memoria, conferma in blocco (mig 228) | M | **✅ FATTO 2026-11-04** (vini 4.9 — da pushare) |
 | **VMF.5** | Estensione alla carta bevande | — | DA DECIDERE (Marco: pochi casi) |
 
 **Bug/debt:**
