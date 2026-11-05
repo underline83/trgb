@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home per reparto</title>
+<style>
+:root{--red:#E8402B;--green:#2EB872;--blue:#2E7BE8;--ink:#111;--cream:#F4F1EC;--mute:#8a857d;--line:#e5e2dd}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--ink);font:14px/1.45 -apple-system,"Helvetica Neue",Arial,sans-serif;padding:24px 16px 60px}
+.w{max-width:1100px;margin:0 auto}
+h1{font:700 28px Georgia,serif;margin:0 0 6px}h2{font:700 20px Georgia,serif;margin:0}
+.sub{color:#6b6760;margin:0 0 20px}
+.key{background:#111;color:#fff;border-radius:16px;padding:16px 18px;margin-bottom:22px}
+.key b{color:#ffd88a}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.r{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.who{font-size:12px;color:var(--mute);margin:2px 0 10px}
+.lbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--mute);margin:12px 0 4px}
+ul{margin:0;padding-left:18px}li{margin:3px 0}
+.ok{color:#1d8a52;font-weight:700}.new{color:var(--blue);font-weight:700}.q{color:#b45309;font-weight:700}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#f4f2ee;margin-left:6px;vertical-align:middle}
+.leg{font-size:12px;color:#6b6760;margin:-8px 0 16px}
+</style></head><body><div class="w">
+<h1>Home per reparto</h1>
+<p class="sub">Cosa vede oggi ogni reparto, cosa gli servirebbe all'inizio del turno, e quanto c'è già in TRGB.</p>
+
+<div class="key"><b>Il punto vero, prima dei widget.</b> A luglio, per la Lavagna, eri tu a dirlo: la Home non la apre nessuno con regolarità. Il problema non sono i riquadri, è che manca l'abitudine. E oggi TRGB non registra chi apre la Home: non sappiamo quale reparto la usa e quale no. Proposta: contare le aperture per ruolo e per turno (anonime, un numero al giorno). Prima di ridisegnare, due settimane di numeri.</div>
+
+<p class="leg"><span class="ok">●</span> il dato c'è già in TRGB &nbsp; <span class="new">●</span> da costruire &nbsp; <span class="q">?</span> da confermare con te</p>
+
+<div class="grid">
+
+<div class="r"><h2>Cucina <span class="tag">HomeCucina</span></h2>
+<div class="who">chef · sous chef · commis</div>
+<div class="lbl">Oggi</div>
+<ul><li>I miei turni, Lavagna (sola lettura), To-do, tasti</li><li>Niente prenotazioni, coperti, incassi (deciso il 02/10)</li></ul>
+<div class="lbl">Cosa gli serve a inizio turno</div>
+<ul>
+<li><span class="ok">●</span> Checklist di linea del turno: quante voci fatte, quali mancano (esiti di linea già calcolati)</li>
+<li><span class="ok">●</span> Da produrre oggi: i task «Produrre: …» (oggi stanno in fondo alla Lavagna)</li>
+<li><span class="ok">●</span> Scorte basse da Frigoriferi e scorte, lista spesa aperta</li>
+<li><span class="ok">●</span> Menu del pranzo di oggi: pubblicato o in bozza</li>
+<li><span class="q">?</span> <b>Incoerenza trovata:</b> la Lavagna che la cucina vede mostra già coperti totali («24 coperti su 5 tavoli»), nomi e pax dei tavoli con allergie, occasioni e gruppi. Va contro la decisione del 02/10. Cosa tenere: solo le allergie con l'ora, senza nome? O va bene così?</li>
+</ul></div>
+
+<div class="r"><h2>Sala <span class="tag">DashboardSala</span></h2>
+<div class="who">sala</div>
+<div class="lbl">Oggi</div>
+<ul><li>Card «Il turno» (sola lettura), Calici al banco, To-do, tasti</li></ul>
+<div class="lbl">Cosa gli serve</div>
+<ul>
+<li><span class="ok">●</span> Tavoli del turno con arrivi, allergie, occasioni, seggioloni (c'è)</li>
+<li><span class="ok">●</span> Calici aperti e da finire (c'è)</li>
+<li><span class="new">●</span> Cosa è finito stasera («86»): oggi passa solo dalla nota libera della Lavagna</li>
+<li><span class="new">●</span> Fuori carta e piatti del giorno con prezzo, da dire al tavolo</li>
+<li><span class="q">?</span> Segnare «arrivato» dalla lista, senza aprire Prenotazioni</li>
+</ul></div>
+
+<div class="r"><h2>Capo sala</h2>
+<div class="who">capo_sala (Paolo, Iryna) — oggi vede la Home admin</div>
+<div class="lbl">Oggi</div>
+<ul><li>Stessa Home di admin: azioni, numeri di cassa, Il turno, Preventivi, To-do</li></ul>
+<div class="lbl">Cosa gli serve in più della sala</div>
+<ul>
+<li><span class="ok">●</span> Chi è in turno stasera e chi manca (turni)</li>
+<li><span class="ok">●</span> Preventivi in attesa, gruppi dei prossimi 7 giorni</li>
+<li><span class="ok">●</span> Chiusura turno di ieri: fatta o no, differenze di cassa</li>
+<li><span class="q">?</span> I numeri di cassa gli servono qui, o bastano in chiusura turno?</li>
+</ul></div>
+
+<div class="r"><h2>Direzione</h2>
+<div class="who">admin · superadmin (tu)</div>
+<div class="lbl">Oggi</div>
+<ul><li>Il turno, numeri di cassa, Preventivi, To-do; tutto il resto a pagina 2 nelle card moduli</li></ul>
+<div class="lbl">Cosa ti servirebbe: «cosa aspetta una mia decisione»</div>
+<ul>
+<li><span class="ok">●</span> Pagamenti in scadenza nei prossimi 7 giorni e scaduti</li>
+<li><span class="ok">●</span> Pratiche «tocca a me» e scadute</li>
+<li><span class="ok">●</span> Fatture da registrare, banca indietro (oggi: «2 mesi indietro»)</li>
+<li><span class="ok">●</span> Scadenze dipendenti, candidati nuovi</li>
+<li><span class="new">●</span> Una card unica «Da decidere» al posto di cercarli in 5 card moduli</li>
+</ul></div>
+
+<div class="r"><h2>Cantina <span class="tag">sommelier</span></h2>
+<div class="who">ruolo da ridefinire (lo hai detto il 30/10)</div>
+<div class="lbl">Oggi</div>
+<ul><li>Home admin senza numeri di cassa</li></ul>
+<div class="lbl">Cosa gli servirebbe</div>
+<ul>
+<li><span class="ok">●</span> Calici aperti e da finire</li>
+<li><span class="ok">●</span> Vini da riordinare per fornitore (giorni di copertura)</li>
+<li><span class="ok">●</span> Fatture vino da abbinare, listini nuovi</li>
+<li><span class="ok">●</span> Vini usciti di carta per giacenza a zero</li>
+</ul></div>
+
+<div class="r"><h2>Amministrazione <span class="tag">contabile</span></h2>
+<div class="who">contabile · viewer</div>
+<div class="lbl">Oggi</div>
+<ul><li>Home admin senza numeri di cassa: Il turno e Preventivi, che non gli servono</li></ul>
+<div class="lbl">Cosa gli servirebbe</div>
+<ul>
+<li><span class="ok">●</span> Fatture da registrare, scadenziario, riconciliazione banca</li>
+<li><span class="ok">●</span> Corrispettivi mancanti, utenze da caricare</li>
+<li><span class="q">?</span> Il contabile oggi è qualcuno di reale in TRGB, o è un ruolo previsto?</li>
+</ul></div>
+
+</div></div></body></html>
