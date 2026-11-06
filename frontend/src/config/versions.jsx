@@ -664,6 +664,8 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   home: {
+    // 4.3 (2026-11-06): «I miei turni» diventa widget condiviso (MieiTurniCard) ed entra in tutte
+    //   le Home (admin/capo sala, sala, sommelier, cucina); sparisce se l'utente non è collegato a un dipendente.
     // 4.2 (2026-11-05): il ruolo sommelier atterra su HomeSommelier (come sala → DashboardSala);
     //   tasti di default del sommelier: Cantina mobile, Cantina Vini, Ordini, Fatture, Carta, Vendite.
     // 4.1 (2026-11-05): Incasso ieri e Coperti del mese solo ad admin e capo sala (flag
@@ -682,7 +684,7 @@ const MODULE_VERSIONS = {
     // turni, task) + nota del turno a frizione zero + strato eventi che
     // assorbe la vecchia card Alert. Stesso widget anche in DashboardSala,
     // dove il ruolo sala lo vede in sola lettura.
-    version: "4.2",
+    version: "4.3",
     label: "Home",
     status: "beta",
     color: "blue",

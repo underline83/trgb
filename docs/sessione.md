@@ -12,7 +12,9 @@
 
 **DA PUSHARE — Calendario turni, uno per reparto** (dipendenti 2.43, nessuna migrazione) `[core]` — **dopo il push:** Marco da iPhone, I miei turni › 📅 Calendario: abbonarsi a «Turni Cucina» e «Turni Sala», togliere il vecchio «Turni · Osteria Tre Gobbi», verificare i due colori. File da committare: `app/services/turni_calendario_service.py`, `app/routers/turni_router.py`, `frontend/src/pages/dipendenti/CalendarioTelefono.jsx`, `versions.jsx` (riga dipendenti), `docs/modulo_dipendenti.md`.
 
-**DA PUSHARE — Home sommelier + «Vendi o apri»** (vini 4.10, home 4.2, nessuna migrazione) `[core]` — **dopo il push:** (1) Impostazioni › Home per ruolo › sommelier → «Ripristina» per avere i tasti nuovi; (2) da un utente sommelier: la Home è quella nuova; (3) **Vini › Vendite va riprovata** (vendita bottiglia, calici, da Matrice con celle, QR, «decidi prezzo calice»): la logica è stata spostata in un hook condiviso; (4) Vendi o apri dalla Home: una vendita compare in «Ultime» e in Vendite.
+**DA PUSHARE — Home 4.3: «I miei turni» in tutte le Home** (nessuna migrazione) `[core]` — dopo il push: da un utente collegato a un dipendente il riquadro c'è in Home, sala, sommelier e cucina; dall'account admin non collegato non compare.
+
+**Pushato (02a7626d), da verificare — Home sommelier + «Vendi o apri»** (vini 4.10, home 4.2, nessuna migrazione) `[core]` — **dopo il push:** (1) Impostazioni › Home per ruolo › sommelier → «Ripristina» per avere i tasti nuovi; (2) da un utente sommelier: la Home è quella nuova; (3) **Vini › Vendite va riprovata** (vendita bottiglia, calici, da Matrice con celle, QR, «decidi prezzo calice»): la logica è stata spostata in un hook condiviso; (4) Vendi o apri dalla Home: una vendita compare in «Ultime» e in Vendite.
 
 **Pushato (7d36893c + d10f25db) — Home 4.1: numeri di cassa solo ad admin e capo sala + pulizia** (clienti 3.26) `[core]` — da verificare: Incasso/Coperti spariti a sommelier/contabile; Preventivi ⏳/🔓 con conferma nella card; Impostazioni › Home per ruolo si salva.
 

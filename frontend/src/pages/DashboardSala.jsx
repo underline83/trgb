@@ -1,5 +1,6 @@
 // FILE: frontend/src/pages/DashboardSala.jsx
-// @version: v6.0 — Home v10 per la sala: card unica «Il turno» (prenotazioni +
+// @version: v6.1 — «I miei turni» a destra, sotto i Calici (2026-11-06)
+// v6.0 — Home v10 per la sala: card unica «Il turno» (prenotazioni +
 //   Lavagna + selezioni, tab sul turno in corso), azioni rapide in testa, a destra
 //   Calici e To-do; si ricarica da sola ogni 3 minuti (2026-11-04)
 // v5.3 — widget Bacheca sostituito da La Lavagna (briefing di servizio,
@@ -15,6 +16,7 @@ import TrgbLoader from "../components/TrgbLoader";
 import TurnoCard from "../components/widgets/TurnoCard";
 import AzioniRapideStrip from "../components/widgets/AzioniRapideStrip";
 import TodoPersonale from "../components/widgets/TodoPersonale";
+import MieiTurniCard from "../components/widgets/MieiTurniCard";
 import CaliciDisponibiliCard from "../components/widgets/CaliciDisponibiliCard";
 import { Btn } from "../components/ui";
 
@@ -118,6 +120,7 @@ export default function DashboardSala() {
                 compact={true}
                 onClick={(v) => navigate(`/vini/magazzino/${v.id}`)}
               />
+              <MieiTurniCard nascondiSeNonCollegato />
               <TodoPersonale compact />
               <Btn
                 variant="ghost"

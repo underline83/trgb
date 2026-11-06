@@ -1,4 +1,5 @@
-// @version: v10.2 — ruolo sommelier → HomeSommelier (2026-11-05)
+// @version: v10.3 — «I miei turni» nella colonna destra (2026-11-06)
+// v10.2 — ruolo sommelier → HomeSommelier (2026-11-05)
 // v10.1 — Incasso/Coperti solo ad admin e capo sala (flag mostra_numeri_cassa) (2026-11-05)
 // v10.0 — proposta B: card unica «Il turno» (prenotazioni + Lavagna + selezioni,
 //   tab sul turno in corso), striscia in testa con azioni rapide e incasso/coperti,
@@ -26,6 +27,7 @@ import AzioniRapideStrip from "../components/widgets/AzioniRapideStrip";
 import { KpiIncasso, KpiCoperti } from "../components/widgets/KpiMini";
 import TodoPersonale from "../components/widgets/TodoPersonale";
 import PreventiviInAttesaCard from "../components/widgets/PreventiviInAttesaCard";
+import MieiTurniCard from "../components/widgets/MieiTurniCard";
 // R8c: filtra Home grid per moduli attivi del locale (feature flags).
 import { useActiveModules } from "../utils/activeModules";
 
@@ -272,6 +274,8 @@ export default function Home() {
                   <div className="flex flex-col gap-3.5 lg:min-h-0 lg:overflow-y-auto">
                     {/* Preventivi in attesa di conferma: si vede solo se ce ne sono */}
                     <PreventiviInAttesaCard />
+                    {/* I miei turni (2026-11-06): si vede solo se l'utente è collegato a un dipendente */}
+                    <MieiTurniCard nascondiSeNonCollegato />
                     {/* Le mie cose da fare — lista personale (2026-10-03) */}
                     <TodoPersonale compact />
                     {/* Numeri di cassa: su telefono qui in fondo, su iPad nella striscia.

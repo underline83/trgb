@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-06 — Home 4.3: «I miei turni» in tutte le Home `[core]`
+
+Nessuna migrazione. Il riquadro «🗓️ I miei turni» (oggi + 6 giorni, Buste paga, Tutto il mese) esisteva solo nella Home della cucina. Marco: «è un widget molto comodo che terrei». Ora è `components/widgets/MieiTurniCard.jsx` ed è anche nella Home admin/capo sala (colonna destra), nella dashboard sala (sotto i calici) e nella Home sommelier (al centro). Fuori dalla cucina sparisce se l'utente non è collegato a un dipendente, invece di mostrare l'avviso.
+
 ## 2026-11-05 — Dipendenti 2.43: un calendario per reparto `[core]`
 Chi lavora in più reparti (Marco: cucina e sala) in «I miei turni › 📅 Calendario» trova un abbonamento per reparto: il feed `/turni/calendario/{token}.ics?reparto=CUCINA|SALA` tiene solo i turni di quel reparto (dal tipo, `turni_tipi.ruolo`), col nome «Turni Cucina · …» e il colore del reparto come suggerimento per Calendario Apple. Sul telefono diventano due calendari, ognuno col suo colore (il colore del singolo evento negli abbonamenti iPhone/Google non esiste). Ferie e permessi solo nel calendario del reparto principale. Chi ha un reparto solo non vede niente di nuovo. Nessuna migrazione. File: `turni_calendario_service.py`, `turni_router.py`, `CalendarioTelefono.jsx` (v1.1).
 

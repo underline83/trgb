@@ -1,5 +1,6 @@
 // FILE: frontend/src/pages/HomeSommelier.jsx
-// @version: v1.0 — Home del sommelier (2026-11-05)
+// @version: v1.1 — «I miei turni» al centro (2026-11-06)
+// v1.0 — Home del sommelier (2026-11-05)
 // Modulo: vini (pagina Home per ruolo, come DashboardSala e HomeCucina)
 //
 // Marco 2026-11-05: si parte dal sommelier per vedere come la usano.
@@ -19,6 +20,7 @@ import AzioniRapideStrip from "../components/widgets/AzioniRapideStrip";
 import VendiOApriCard from "../components/widgets/VendiOApriCard";
 import CaliciDisponibiliCard from "../components/widgets/CaliciDisponibiliCard";
 import TodoPersonale from "../components/widgets/TodoPersonale";
+import MieiTurniCard from "../components/widgets/MieiTurniCard";
 import {
   RiordinoCard, InArrivoCard, FattureViniCard, ListiniCard, EsauritiCartaCard,
 } from "../components/widgets/CantinaWidgets";
@@ -93,6 +95,7 @@ export default function HomeSommelier() {
           <div className="flex flex-col gap-3.5">
             <RiordinoCard fornitori={dati.fornitori} />
             <InArrivoCard fornitori={dati.fornitori} riepilogo={dati.riepilogo} />
+            <MieiTurniCard nascondiSeNonCollegato />
           </div>
 
           {/* Destra: cosa registrare */}
