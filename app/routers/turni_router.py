@@ -19,7 +19,7 @@ Prefisso: /turni
 - GET  /turni/chiusure?settimana=YYYY-Www
 - GET  /turni/miei-turni/calendario/          (self-service) link calendario personale
 - POST /turni/miei-turni/calendario/rigenera  (self-service) nuovo link
-- GET  /turni/calendario/{token}.ics          PUBBLICO (token) feed iCalendar
+- GET  /turni/calendario/{token}.ics          PUBBLICO (token) feed iCalendar (?reparto=CODICE)
 """
 
 from __future__ import annotations
@@ -641,7 +641,12 @@ def get_mio_calendario_link(current_user: Dict[str, Any] = Depends(get_current_u
     """Self-service: il token del calendario personale (lo crea al primo uso)."""
     dip_id = _mio_dipendente_id(current_user)
     token = turni_calendario_service.token_dipendente(dip_id, current_user.get("username") or "")
-    return {"token": token, "path": f"/turni/calendario/{token}.ics"}
+    return {
+        "token": token,
+        "path": f"/turni/calendario/{token}.ics",
+        # più di un reparto → un abbonamento per reparto (?reparto=CODICE), un colore ciascuno
+        "reparti": turni_calendario_service.reparti_dipendente(dip_id),
+    }
 
 
 @router.post("/miei-turni/calendario/rigenera")
@@ -651,23 +656,35 @@ def rigenera_mio_calendario_link(current_user: Dict[str, Any] = Depends(get_curr
     token = turni_calendario_service.token_dipendente(
         dip_id, current_user.get("username") or "", rigenera=True
     )
-    return {"token": token, "path": f"/turni/calendario/{token}.ics"}
+    return {
+        "token": token,
+        "path": f"/turni/calendario/{token}.ics",
+        "reparti": turni_calendario_service.reparti_dipendente(dip_id),
+    }
 
 
 @router.get("/calendario/{token}.ics")
-def feed_calendario(token: str, scarica: int = Query(0, ge=0, le=1)):
+def feed_calendario(
+    token: str,
+    scarica: int = Query(0, ge=0, le=1),
+    reparto: Optional[str] = Query(None, max_length=30),
+):
     """PUBBLICO (token nell'URL): i turni del dipendente in formato iCalendar.
-    scarica=1 → allegato da salvare (file), altrimenti feed per l'abbonamento."""
+    scarica=1 → allegato da salvare (file), altrimenti feed per l'abbonamento.
+    reparto=CODICE → solo i turni di quel reparto (un calendario per reparto)."""
     dip_id = turni_calendario_service.dipendente_da_token(token)
     if not dip_id:
         raise HTTPException(status_code=404, detail="Calendario non trovato")
-    testo = turni_calendario_service.genera_ics(dip_id)
+    testo = turni_calendario_service.genera_ics(dip_id, reparto=reparto)
+    if testo is None:
+        raise HTTPException(status_code=404, detail="Calendario non trovato")
     disp = "attachment" if scarica else "inline"
+    nome_file = f"turni-{reparto.lower()}.ics" if reparto else "turni.ics"
     return Response(
         content=testo.encode("utf-8"),
         media_type="text/calendar; charset=utf-8",
         headers={
-            "Content-Disposition": f'{disp}; filename="turni.ics"',
+            "Content-Disposition": f'{disp}; filename="{nome_file}"',
             "Cache-Control": "no-cache, no-store, must-revalidate",
         },
     )

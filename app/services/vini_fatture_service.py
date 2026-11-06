@@ -571,6 +571,41 @@ def conferma_sicuri(soglia_punteggio: int = 85, utente: Optional[str] = None) ->
 # PAGINA
 # ─────────────────────────────────────────────
 
+def conteggi() -> Dict[str, Any]:
+    """Numeri delle fatture vino per la Home del sommelier (2026-11-05).
+
+    Solo conteggi, senza i suggerimenti di abbinamento che `stato()` calcola
+    riga per riga (lenti): righe da abbinare per emittente e prezzi da
+    verificare. Il lavoro vero resta in Vini › Fatture.
+    """
+    em = emittenti()
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        per_piva = cur.execute(
+            "SELECT piva, COUNT(*) AS n FROM vini_fe_righe WHERE stato = 'da_abbinare' "
+            "GROUP BY piva ORDER BY n DESC").fetchall()
+        da_verificare = cur.execute(
+            "SELECT COUNT(*) FROM vini_prezzi_fornitore "
+            "WHERE fonte = 'fattura' AND stato = 'da_verificare'").fetchone()[0]
+    finally:
+        conn.close()
+    righe = []
+    for r in per_piva:
+        e = em.get(r["piva"]) or {}
+        righe.append({
+            "nome": e.get("fornitore_nome") or e.get("nome") or None,
+            "piva": r["piva"],
+            "da_abbinare": r["n"],
+            "classificato": bool(e),
+        })
+    return {
+        "da_abbinare": sum(x["da_abbinare"] for x in righe),
+        "da_verificare": da_verificare,
+        "emittenti": righe,
+    }
+
+
 def stato(limite: int = 200) -> Dict[str, Any]:
     em = emittenti()
     conn = _conn()

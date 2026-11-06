@@ -6,7 +6,11 @@
 
 **Sistema:** 5.93 (45edcf98) · **Migrazione più recente:** 228 (da pushare)
 
-**DA PUSHARE — Home 4.1: numeri di cassa solo ad admin e capo sala + pulizia** (clienti 3.26, nessuna migrazione) `[core]` — **dopo il push** (Ctrl+Shift+R): (1) da admin Incasso/Coperti ci sono, da un utente sommelier o contabile no; (2) Preventivi in attesa: ⏳ apre «Tieni il tavolo altri N giorni» dentro la card, 🔓 chiede conferma dentro la card; (3) Impostazioni › Home per ruolo si salva ancora da admin.
+**DA PUSHARE — Calendario turni, uno per reparto** (dipendenti 2.43, nessuna migrazione) `[core]` — **dopo il push:** Marco da iPhone, I miei turni › 📅 Calendario: abbonarsi a «Turni Cucina» e «Turni Sala», togliere il vecchio «Turni · Osteria Tre Gobbi», verificare i due colori. File da committare: `app/services/turni_calendario_service.py`, `app/routers/turni_router.py`, `frontend/src/pages/dipendenti/CalendarioTelefono.jsx`, `versions.jsx` (riga dipendenti), `docs/modulo_dipendenti.md`.
+
+**DA PUSHARE — Home sommelier + «Vendi o apri»** (vini 4.10, home 4.2, nessuna migrazione) `[core]` — **dopo il push:** (1) Impostazioni › Home per ruolo › sommelier → «Ripristina» per avere i tasti nuovi; (2) da un utente sommelier: la Home è quella nuova; (3) **Vini › Vendite va riprovata** (vendita bottiglia, calici, da Matrice con celle, QR, «decidi prezzo calice»): la logica è stata spostata in un hook condiviso; (4) Vendi o apri dalla Home: una vendita compare in «Ultime» e in Vendite.
+
+**Pushato (7d36893c + d10f25db) — Home 4.1: numeri di cassa solo ad admin e capo sala + pulizia** (clienti 3.26) `[core]` — da verificare: Incasso/Coperti spariti a sommelier/contabile; Preventivi ⏳/🔓 con conferma nella card; Impostazioni › Home per ruolo si salva.
 
 **Pushato (941622d5) — Home 4.0: card unica «Il turno»** `[core]` — verificato in produzione il 05/11: card aperta sul turno in corso, selezioni/staff/task dalla Lavagna, Preventivi e To-do, `/dashboard/home?lieve=1` risponde 200. Da vedere: Home su iPad in orizzontale e utente sala. Lo stesso commit contiene anche Vini 4.9 Listini (mig 228) dell'altra sessione.
 
@@ -163,6 +167,15 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-05 (2) — Home sommelier `[core]`
+
+Revisione Home per reparto (`docs/revisione_home_2026-11-04.md`, mockup capo sala/cucina/sommelier approvati in chat). Marco: «iniziamo dal sommelier, così vedo come lo usano».
+- `useRegistraVenditaVino.js` = codice di ViniVendite (vini 3.93) spostato, regole invariate; unica differenza: `alert()` → messaggio del form. `submitVendita(mod)` accetta la modalità (i due tasti della Home). `confermaPrezzoCalice` = ramo «vendita al calice» del modale; il ramo «attivazione da residuo» resta nella pagina.
+- `MatriceCelleVendita.jsx` estratta dalla pagina; `VendiOApriCard.jsx`, `CantinaWidgets.jsx`, `HomeSommelier.jsx` nuovi; Home → HomeSommelier per `role === "sommelier"` senza `?full=1`.
+- Dati: `/vini/ordini/fornitori/` + `/riepilogo/`, `/vini/multifornitore/fatture/conteggi/` (nuovo), `/vini/multifornitore/listini/`, `/vini/magazzino/dashboard` (esauriti = `alert_carta_senza_giacenza` con QTA 0).
+- Verifica: eslint (no-undef) e esbuild su tutti i file; render con dati finti a 1180 e 390 px con ricerca e scelta vino; query di `conteggi()` provata sul DB scaricato (66 righe Sogegross). ViniVendite non renderizzata in prova: va riprovata dopo il push.
+- Capo sala e cucina: mockup approvati, da fare dopo aver visto l'uso del sommelier.
 
 ## SESSIONE 2026-11-05 — Home 4.1: decisioni C ed E `[core]`
 

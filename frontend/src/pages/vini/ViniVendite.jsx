@@ -1,6 +1,7 @@
 // src/pages/vini/ViniVendite.jsx
 // Modulo: vini
-// @version: v2.5-scanner-qr — 📷 Scansiona QR etichetta → vino selezionato (vini 3.93)
+// @version: v2.6-hook-condiviso — registrazione vendita spostata in useRegistraVenditaVino (stessa della Home sommelier), avvisi nel messaggio del form invece di alert (2026-11-05)
+// v2.5-scanner-qr — 📷 Scansiona QR etichetta → vino selezionato (vini 3.93)
 // @version: v2.4-matrice-celle — vendita da Matrice guidata dalle celle reali, non dal testo LOCAZIONE_3 (vini 3.89). v2.3: M.I primitives
 // Hub Vendite — registrazione vendita bottiglia o calici, storico vendite, KPI
 
@@ -11,8 +12,12 @@ import Tooltip from "../../components/Tooltip";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 import CaliciDisponibiliCard from "../../components/widgets/CaliciDisponibiliCard";
-import DecidiPrezzoCalice, { roundToHalf } from "../../components/vini/DecidiPrezzoCalice";
+import DecidiPrezzoCalice from "../../components/vini/DecidiPrezzoCalice";
+import useRegistraVenditaVino, {
+  MODALITA, buildLocOptions, defaultPrezzoCalice, prezzoCaliceSalvato,
+} from "../../hooks/useRegistraVenditaVino";
 import QrScanner from "../../components/QrScanner";
+import MatriceCelleVendita from "../../components/vini/MatriceCelleVendita";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -20,10 +25,7 @@ import QrScanner from "../../components/QrScanner";
 // MODALITA: solo le due modalità REGISTRABILI dal form Vendite (tab Bottiglia
 // e Calici). La costante è iterata per generare le tab del form, quindi NON
 // va estesa con eventi non-registrabili (regressione vini 3.63 → fix 3.65).
-const MODALITA = {
-  BOTTIGLIA:   { label: "Bottiglia",   icon: "🍾",  desc: "Vendita bottiglia intera",  color: "bg-violet-100 text-violet-800 border-violet-300" },
-  CALICI:      { label: "Calici",      icon: "🥂",  desc: "Aperta per vendita al calice", color: "bg-rose-100 text-rose-800 border-rose-300" },
-};
+// (MODALITA vive in hooks/useRegistraVenditaVino.js dal 2026-11-05)
 
 // BADGE_TIPI: superset di MODALITA usato SOLO per il rendering del badge nella
 // tabella Storico vendite. Include ATTIVAZIONE che è un evento tracciato (non
@@ -33,23 +35,6 @@ const BADGE_TIPI = {
   ...MODALITA,
   ATTIVAZIONE: { label: "Attivazione", icon: "🥂↻", desc: "Bottiglia aperta per servizio al calice (non è una vendita)", color: "bg-amber-50 text-amber-800 border-amber-200" },
 };
-
-// Riferimento del modale "Decidi prezzo calice": fallback storico
-// PREZZO_CARTA / 5 arrotondato a 0,50. È il valore su cui il modale calcola
-// le soglie di nota obbligatoria — NON va cambiato.
-function defaultPrezzoCalice(vino) {
-  const carta = Number(vino?.PREZZO_CARTA || 0);
-  return carta > 0 ? roundToHalf(carta / 5) : 0;
-}
-
-// Valore precompilato nel campo: se il vino ha già un PREZZO_CALICE deciso in
-// un'apertura precedente si riparte da lì. 2026-09-01: serve perché
-// l'apertura estemporanea non accende più VENDITA_CALICE, quindi il modale
-// ricompare alla bottiglia successiva e senza questo ripartirebbe da capo.
-function prezzoCaliceSalvato(vino) {
-  const salvato = Number(vino?.PREZZO_CALICE || 0);
-  return salvato > 0 ? salvato : undefined;
-}
 
 function formatDate(isoStr) {
   if (!isoStr) return "—";
@@ -62,18 +47,6 @@ function formatDate(isoStr) {
   } catch {
     return isoStr;
   }
-}
-
-function buildLocOptions(vino) {
-  if (!vino) return [];
-  // vini 3.89: loc3 è sempre la Matrice (LOCAZIONE_3 è solo il riassunto celle)
-  const loc3Label = "Matrice";
-  return [
-    { value: "frigo", label: vino.FRIGORIFERO || "Frigo",  qta: vino.QTA_FRIGO ?? 0 },
-    { value: "loc1",  label: vino.LOCAZIONE_1 || "Loc 1",  qta: vino.QTA_LOC1 ?? 0 },
-    { value: "loc2",  label: vino.LOCAZIONE_2 || "Loc 2",  qta: vino.QTA_LOC2 ?? 0 },
-    { value: "loc3",  label: loc3Label,                     qta: vino.QTA_LOC3 ?? 0 },
-  ];
 }
 
 /** Riconosce la modalità da una nota di movimento */
@@ -97,30 +70,24 @@ export default function ViniVendite() {
   const [stats, setStats] = useState(null);
 
   // ── Registrazione rapida ──
-  const [searchText, setSearchText] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedVino, setSelectedVino] = useState(null);
-  const [modalita, setModalita] = useState("BOTTIGLIA");
-  const [regLoc, setRegLoc] = useState("");
-  const [regQta, setRegQta] = useState("1");
-  const [regNote, setRegNote] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitMsg, setSubmitMsg] = useState("");
-  // Modale "Decidi prezzo calice" — si apre quando il sommelier apre per calici un
-  // vino con VENDITA_CALICE != 'SI' e BOTTIGLIA_APERTA = 0 (prima apertura manuale).
-  // Sessione 2026-05-11.
-  const [decidiPrezzo, setDecidiPrezzo] = useState(null); // null o { vino, defaultPrezzo }
-  const searchRef = useRef(null);
+  // La logica di registrazione (ricerca, QR, locazione, Matrice, «decidi prezzo
+  // calice») vive in useRegistraVenditaVino: è la stessa del riquadro «Vendi o
+  // apri» della Home sommelier (2026-11-05).
   const formRef = useRef(null);
-  const [scanOpen, setScanOpen] = useState(false);
-  const suggestionsRef = useRef(null);
-
-  // ── Matrice (selezione celle per vendita da loc3) ──
-  const [matriceStato, setMatriceStato] = useState(null); // {righe, colonne, nome, celle}
-  const [myCelleMatrice, setMyCelleMatrice] = useState([]); // [{riga, colonna}]
-  const [selectedCelle, setSelectedCelle] = useState([]); // celle selezionate per la vendita
-  const [matriceLoading, setMatriceLoading] = useState(false);
+  const {
+    searchText, setSearchText, suggestions, showSuggestions, setShowSuggestions,
+    selectedVino, setSelectedVino, modalita, setModalita,
+    regLoc, setRegLoc, regQta, setRegQta, regNote, setRegNote,
+    submitting, submitMsg, setSubmitMsg,
+    decidiPrezzo, setDecidiPrezzo, confermaPrezzoCalice,
+    searchRef, suggestionsRef, scanOpen, setScanOpen,
+    matriceStato, myCelleMatrice, selectedCelle, matriceLoading, usaGriglia, toggleCella,
+    selectVino, onScan, clearVino, submitVendita,
+  } = useRegistraVenditaVino({
+    onRegistrata: () => { fetchMovimenti(true); fetchStats(); },
+    onCaliceAttivato: () => { fetchMovimenti(true); fetchStats(); },
+    onScanSelezionato: () => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+  });
 
   // ── Storico vendite ──
   const [movimenti, setMovimenti] = useState([]);
@@ -198,140 +165,6 @@ export default function ViniVendite() {
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchMovimenti(); }, [fetchMovimenti]);
-
-  // ── Autocomplete vini ──
-  useEffect(() => {
-    if (searchText.length < 2 || selectedVino) { setSuggestions([]); return; }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await apiFetch(
-          `${API_BASE}/vini/magazzino/autocomplete?q=${encodeURIComponent(searchText)}&limit=8&solo_disponibili=true`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data);
-          setShowSuggestions(true);
-        }
-      } catch { /* silenzioso */ }
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [searchText, selectedVino]);
-
-  // Chiudi suggestions al click fuori
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (
-        suggestionsRef.current && !suggestionsRef.current.contains(e.target) &&
-        searchRef.current && !searchRef.current.contains(e.target)
-      ) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  // ── Seleziona vino ──
-  const selectVino = (v) => {
-    setSelectedVino(v);
-    setSearchText(v.DESCRIZIONE + (v.PRODUTTORE ? ` — ${v.PRODUTTORE}` : ""));
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setRegLoc("");
-  };
-
-  // ── Scansione QR etichetta (vini 3.93) ──
-  // Le etichette di /vini/etichette puntano a …/vini/cantina-mobile/{id}.
-  // Accetta anche un QR col solo numero. Seleziona il vino e, se è in un
-  // solo posto, preimposta la locazione: resta da premere «Registra».
-  const onScan = async (testo) => {
-    setScanOpen(false);
-    const t = String(testo || "").trim();
-    const m = t.match(/\/cantina-mobile\/(\d+)/) || t.match(/^#?(\d+)$/);
-    if (!m) {
-      setSubmitMsg("❌ QR non riconosciuto: non è un'etichetta vino TRGB.");
-      setTimeout(() => setSubmitMsg(""), 5000);
-      return;
-    }
-    try {
-      const r = await apiFetch(`${API_BASE}/vini/magazzino/${m[1]}`);
-      if (!r.ok) throw new Error(`Vino #${m[1]} non trovato`);
-      const vino = await r.json();
-      selectVino(vino);
-      const posti = buildLocOptions(vino).filter((o) => Number(o.qta) > 0);
-      if (posti.length === 1) setRegLoc(posti[0].value);
-      if (modalita === "BOTTIGLIA" && !Number(vino.QTA_TOTALE)) {
-        setSubmitMsg(`❌ ${vino.DESCRIZIONE}: giacenza 0, niente da scaricare.`);
-        setTimeout(() => setSubmitMsg(""), 5000);
-      }
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch (err) {
-      setSubmitMsg(`❌ ${err.message}`);
-      setTimeout(() => setSubmitMsg(""), 5000);
-    }
-  };
-
-  // ── Deseleziona ──
-  const clearVino = () => {
-    setSelectedVino(null);
-    setSearchText("");
-    setRegLoc("");
-    setSelectedCelle([]);
-    setMatriceStato(null);
-    setMyCelleMatrice([]);
-  };
-
-  // ── Matrice: detect se loc3 è matrice e carica griglia ──
-  // vini 3.89: loc3 = Matrice sempre → le celle si caricano sempre. La griglia
-  // (scelta celle obbligatoria) si usa solo se il vino ha celle VERE: prima
-  // decideva il testo di LOCAZIONE_3, e un vino con "(8,3)" nel testo ma zero
-  // celle (#607) restava bloccato — griglia vuota, vendita impossibile.
-  const isLoc3Matrice = !!selectedVino;
-  const usaGriglia = regLoc === "loc3" && myCelleMatrice.length > 0;
-
-  const fetchMatriceData = useCallback(async () => {
-    if (!selectedVino || !isLoc3Matrice) return;
-    setMatriceLoading(true);
-    try {
-      const [rStato, rCelle] = await Promise.all([
-        apiFetch(`${API_BASE}/vini/cantina-tools/matrice/stato`),
-        apiFetch(`${API_BASE}/vini/cantina-tools/matrice/celle/${selectedVino.id}`),
-      ]);
-      if (rStato.ok) setMatriceStato(await rStato.json());
-      if (rCelle.ok) {
-        const data = await rCelle.json();
-        setMyCelleMatrice(data.celle || []);
-      }
-    } catch { /* silenzioso */ }
-    setMatriceLoading(false);
-  }, [selectedVino, isLoc3Matrice]);
-
-  // Quando cambia locazione a loc3-matrice, carica la griglia
-  useEffect(() => {
-    if (regLoc === "loc3" && isLoc3Matrice) {
-      fetchMatriceData();
-      setSelectedCelle([]);
-    } else {
-      setSelectedCelle([]);
-    }
-  }, [regLoc, isLoc3Matrice, fetchMatriceData]);
-
-  // Toggle selezione cella per vendita
-  const toggleCella = (riga, colonna) => {
-    const key = `${riga},${colonna}`;
-    setSelectedCelle(prev => {
-      const exists = prev.some(c => `${c.riga},${c.colonna}` === key);
-      if (exists) return prev.filter(c => `${c.riga},${c.colonna}` !== key);
-      return [...prev, { riga, colonna }];
-    });
-  };
-
-  // Quando le celle selezionate cambiano, aggiorna la quantità
-  useEffect(() => {
-    if (usaGriglia && selectedCelle.length > 0) {
-      setRegQta(String(selectedCelle.length));
-    }
-  }, [selectedCelle, usaGriglia]);
 
   // ── Registra vendita ──
   // "Attiva calice da bottiglia residua": click dal bottone +🥂 in storico
@@ -433,101 +266,6 @@ export default function ViniVendite() {
   // Esegue effettivamente la POST del movimento. Estratto da submitVendita
   // perché può essere chiamato sia direttamente sia dopo la conferma del modale
   // "Decidi prezzo calice" (con prezzo+nota aggiuntiva).
-  const eseguiVendita = async ({ extraNota = "", prezzoCustom = null } = {}) => {
-    const qtaNum = Number(regQta);
-    setSubmitting(true);
-    setSubmitMsg("");
-    try {
-      // Se il sommelier ha scelto un prezzo custom per il calice, propaga il
-      // valore nell'anagrafica del vino PRIMA della registrazione movimento.
-      // Setta anche PREZZO_CALICE_MANUALE=1 per non farlo sovrascrivere dai
-      // ricalcoli automatici (logica già usata in vini_pricing_router).
-      if (prezzoCustom != null) {
-        const resPatch = await apiFetch(`${API_BASE}/vini/magazzino/${selectedVino.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            PREZZO_CALICE: prezzoCustom,
-            PREZZO_CALICE_MANUALE: 1,
-          }),
-        });
-        if (!resPatch.ok) {
-          const err = await resPatch.json().catch(() => ({}));
-          throw new Error(`Errore PATCH prezzo calice: ${err.detail || resPatch.status}`);
-        }
-      }
-
-      // Compone nota: tag modalità + nota utente + eventuale extraNota (motivazione)
-      const modTag = `[${modalita}]`;
-      const notaParts = [modTag];
-      if (regNote.trim()) notaParts.push(regNote.trim());
-      if (extraNota && extraNota.trim()) notaParts.push(`[MOTIV: ${extraNota.trim()}]`);
-      const notaFinale = notaParts.join(" ");
-
-      const payload = {
-        tipo: "VENDITA",
-        qta: qtaNum,
-        locazione: regLoc,
-        note: notaFinale,
-      };
-      if (usaGriglia && selectedCelle.length > 0) {
-        payload.celle_matrice = selectedCelle.map(c => [c.riga, c.colonna]);
-      }
-
-      const res = await apiFetch(`${API_BASE}/vini/magazzino/${selectedVino.id}/movimenti`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Errore ${res.status}`);
-      }
-
-      const modInfo = MODALITA[modalita];
-      setSubmitMsg(`✅ ${modInfo.icon} ${modInfo.label} — ${qtaNum} bt di ${selectedVino.DESCRIZIONE}`);
-      clearVino();
-      setRegQta("1");
-      setRegNote("");
-      setTimeout(() => setSubmitMsg(""), 5000);
-      fetchMovimenti(true);
-      fetchStats();
-    } catch (err) {
-      setSubmitMsg(`❌ ${err.message}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const submitVendita = async () => {
-    if (!selectedVino) { alert("Seleziona un vino dalla ricerca."); return; }
-    const qtaNum = Number(regQta);
-    if (!regQta || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
-    if (!regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
-
-    if (usaGriglia && selectedCelle.length === 0) {
-      alert("Seleziona dalla griglia le celle da svuotare."); return;
-    }
-
-    // Intercetto: modalità CALICI su vino con VENDITA_CALICE != 'SI' e bottiglia
-    // non ancora aperta → apri modale "Decidi prezzo calice" (sessione 2026-05-11).
-    // Logica: è una scelta del sommelier, deve fissare lui il prezzo.
-    const isCaliceNonStd =
-      modalita === "CALICI" &&
-      selectedVino.VENDITA_CALICE !== 1 &&
-      !selectedVino.BOTTIGLIA_APERTA;
-    if (isCaliceNonStd) {
-      setDecidiPrezzo({
-        vino: selectedVino,
-        defaultPrezzo: defaultPrezzoCalice(selectedVino),
-        prezzoIniziale: prezzoCaliceSalvato(selectedVino),
-      });
-      return; // attende conferma utente nel modale, poi chiama eseguiVendita
-    }
-
-    await eseguiVendita();
-  };
-
   // ── Filtri storico ──
   const applicaFiltri = () => fetchMovimenti(true);
   const resetFiltri = () => {
@@ -762,83 +500,10 @@ export default function ViniVendite() {
             </p>
           )}
           {regLoc === "loc3" && (matriceLoading || myCelleMatrice.length > 0) && (
-            <div className="mt-4">
-              {matriceLoading ? (
-                <div className="text-sm text-neutral-400 py-4 text-center">Caricamento griglia…</div>
-              ) : matriceStato && matriceStato.righe > 0 ? (
-                <div className="border border-violet-200 rounded-2xl p-4 bg-violet-50/40">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
-                      Tocca le tue bottiglie per selezionare quelle da scaricare
-                    </span>
-                    {selectedCelle.length > 0 && (
-                      <span className="text-sm font-bold text-violet-600 bg-violet-100 px-3 py-1 rounded-full">
-                        {selectedCelle.length} {selectedCelle.length === 1 ? "bottiglia" : "bottiglie"}
-                      </span>
-                    )}
-                  </div>
-                  {/* Legenda */}
-                  <div className="flex flex-wrap gap-4 mb-3 text-xs">
-                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-violet-500 border border-violet-600 inline-block"></span> Selezionata</span>
-                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-amber-400 border border-amber-500 inline-block"></span> Tua bottiglia</span>
-                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-neutral-300 border border-neutral-400 inline-block"></span> Altro vino</span>
-                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-white border border-neutral-200 inline-block"></span> Vuota</span>
-                  </div>
-                  <div className="overflow-x-auto pb-2">
-                    <div className="inline-block">
-                      {/* Intestazione colonne */}
-                      <div className="flex">
-                        <div className="w-8 h-8"></div>
-                        {Array.from({ length: matriceStato.colonne }, (_, c) => (
-                          <div key={c} className="w-12 h-8 text-center text-xs font-bold text-neutral-500 flex items-end justify-center">{c + 1}</div>
-                        ))}
-                      </div>
-                      {/* Righe */}
-                      {Array.from({ length: matriceStato.righe }, (_, r) => {
-                        const riga = r + 1;
-                        return (
-                          <div key={r} className="flex">
-                            <div className="w-8 h-12 flex items-center justify-center text-xs font-bold text-neutral-500">{riga}</div>
-                            {Array.from({ length: matriceStato.colonne }, (_, c) => {
-                              const colonna = c + 1;
-                              const cellKey = `${riga},${colonna}`;
-                              const isMine = myCelleMatrice.some(mc => mc.riga === riga && mc.colonna === colonna);
-                              const isSelected = selectedCelle.some(sc => sc.riga === riga && sc.colonna === colonna);
-                              const occupiedCell = (matriceStato.celle || []).find(mc => mc.riga === riga && mc.colonna === colonna);
-                              const isOther = occupiedCell && !isMine;
-
-                              let cls = "w-12 h-12 border text-base font-semibold flex items-center justify-center rounded-lg transition-all ";
-                              if (isSelected) {
-                                cls += "bg-violet-500 border-violet-600 text-white ring-2 ring-violet-300 cursor-pointer scale-105";
-                              } else if (isMine) {
-                                cls += "bg-amber-400 border-amber-500 text-white cursor-pointer hover:bg-violet-400 hover:border-violet-500 hover:scale-105 active:scale-95";
-                              } else if (isOther) {
-                                cls += "bg-neutral-200 border-neutral-300 text-neutral-400 cursor-not-allowed";
-                              } else {
-                                cls += "bg-white border-neutral-100 cursor-not-allowed";
-                              }
-
-                              return (
-                                <div key={cellKey} className={cls}
-                                  onClick={() => isMine && toggleCella(riga, colonna)}
-                                  title={
-                                    isSelected ? `Selezionata: (${colonna},${riga}) — click per deselezionare` :
-                                    isMine ? `Tua: (${colonna},${riga}) — click per selezionare` :
-                                    isOther ? `Occupata da: ${occupiedCell.DESCRIZIONE || "?"}` :
-                                    "Vuota"
-                                  }>
-                                  {isSelected ? "✓" : isMine ? "●" : isOther ? "·" : ""}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <MatriceCelleVendita
+              matriceStato={matriceStato} myCelleMatrice={myCelleMatrice}
+              selectedCelle={selectedCelle} matriceLoading={matriceLoading} toggleCella={toggleCella}
+            />
           )}
 
           {/* Note (riga sotto) */}
@@ -1086,33 +751,9 @@ export default function ViniVendite() {
               }
               return;
             }
-            // Caso normale: vendita al calice di un vino NON ancora al calice.
-            // Devo fare DUE cose: registrare la vendita E aprire la bottiglia
-            // in mescita (= BOTTIGLIA_APERTA=1 + prezzo calice manuale).
-            // Fix 2026-06-24 (Marco #1310): prima qui c'era solo
-            // `eseguiVendita` → il movimento risultava "Calici" nello storico
-            // (badge dalla nota [CALICI]) ma il vino restava con
-            // BOTTIGLIA_APERTA=0 → widget Calici NON lo mostrava.
-            // 2026-09-01 (Marco): rimosso il set VENDITA_CALICE=1. Era
-            // ridondante (la carta calici include già BOTTIGLIA_APERTA=1, v.
-            // vini_repository.load_vini_calici) e non reversibile: chiudendo
-            // la mescita il flag di anagrafica restava a 1 e il vino
-            // continuava a comparire al calice senza essere in mescita.
-            // L'attivazione è best-effort: se fallisce la vendita resta
-            // valida e segnalo il problema nel msg.
-            await eseguiVendita({ extraNota: nota, prezzoCustom: prezzo });
-            try {
-              const extra = {
-                PREZZO_CALICE: prezzo,
-                PREZZO_CALICE_MANUALE: 1,
-              };
-              await patchAttivaCalice(vino.id, extra);
-            } catch (err) {
-              setSubmitMsg(prev =>
-                `${prev || `✅ Vendita registrata`} ⚠ Attivazione mescita fallita: ${err.message}`
-              );
-              setTimeout(() => setSubmitMsg(""), 7000);
-            }
+            // Caso normale: vendita al calice di un vino NON ancora al calice →
+            // registrazione + apertura mescita, nel hook condiviso.
+            await confermaPrezzoCalice({ prezzo, nota });
           }}
         />
       )}

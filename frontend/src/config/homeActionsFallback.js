@@ -17,8 +17,18 @@ const ADMIN_FALLBACK = [
 // Tasto Cantina mobile (mig 175): solo ai ruoli con accesso a vini/magazzino.
 const CANTINA_MOBILE = { key: "cantina-mobile", label: "Cantina mobile", sub: "Trova e muovi bottiglie", emoji: "📱", route: "/vini/cantina-mobile", color: "bg-amber-50 border-amber-200 text-amber-900" };
 
-// admin / superadmin / sommelier: admin + Cantina mobile dopo Cantina Vini
+// admin / superadmin / capo_sala: admin + Cantina mobile dopo Cantina Vini
 const VINI_FALLBACK = [...ADMIN_FALLBACK.slice(0, 3), CANTINA_MOBILE, ...ADMIN_FALLBACK.slice(3)];
+
+// Sommelier (2026-11-05): specchio di SOMMELIER_ACTIONS_DEFAULTS nel backend.
+const SOMMELIER_FALLBACK = [
+  { key: "cantina-mobile", label: "Cantina mobile", sub: "Trova e muovi bottiglie", emoji: "📱", route: "/vini/cantina-mobile", color: "bg-amber-50 border-amber-200 text-amber-900" },
+  { key: "cantina-vini", label: "Cantina Vini", sub: "Magazzino", emoji: "🍷", route: "/vini/magazzino", color: "bg-rose-50 border-rose-200 text-rose-900" },
+  { key: "ordini-vini", label: "Ordini vini", sub: "Riordini e arrivi", emoji: "📦", route: "/vini/ordini", color: "bg-orange-50 border-orange-200 text-orange-900" },
+  { key: "fatture-vini", label: "Fatture vini", sub: "Abbina le righe", emoji: "🧾", route: "/vini/fatture", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
+  { key: "carta-vini", label: "Carta dei Vini", sub: "Cerca vini", emoji: "📜", route: "/vini/carta", color: "bg-sky-50 border-sky-200 text-sky-900" },
+  { key: "vendite-vini", label: "Vendite", sub: "Bottiglie e calici", emoji: "🥂", route: "/vini/vendite", color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
+];
 
 const SALA_FALLBACK = [
   { key: "chiusura-turno", label: "Chiusura Turno",  sub: "Fine servizio",     emoji: "💵", route: "/vendite/fine-turno", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
@@ -48,7 +58,7 @@ export const HOME_ACTIONS_FALLBACK = {
   admin:      VINI_FALLBACK,
   superadmin: VINI_FALLBACK,
   contabile:  ADMIN_FALLBACK,
-  sommelier:  VINI_FALLBACK,
+  sommelier:  SOMMELIER_FALLBACK,
   capo_sala:  VINI_FALLBACK,
   chef:       CUCINA_FALLBACK,
   sous_chef:  CUCINA_FALLBACK,

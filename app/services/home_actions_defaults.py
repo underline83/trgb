@@ -60,8 +60,44 @@ def _dopo(lista: List[Dict], key: str, azione: Dict) -> List[Dict]:
     return lista[:i] + [azione] + lista[i:]
 
 
-# admin / superadmin / sommelier: come admin + Cantina mobile dopo Cantina Vini
+# admin / superadmin / capo_sala: come admin + Cantina mobile dopo Cantina Vini
 VINI_ACTIONS_DEFAULTS: List[Dict] = _dopo(ADMIN_ACTIONS_DEFAULTS, "cantina-vini", CANTINA_MOBILE_ACTION)
+
+# Sommelier (2026-11-05, Home sommelier): i tasti della cantina, niente Food
+# Cost / Controllo Gestione / Prenotazioni. Si applicano con «Ripristina» in
+# Impostazioni › Home per ruolo (le azioni gia' in DB non cambiano da sole).
+SOMMELIER_ACTIONS_DEFAULTS: List[Dict] = [
+    {
+        "key": "cantina-mobile", "label": "Cantina mobile", "sub": "Trova e muovi bottiglie",
+        "emoji": "📱", "route": "/vini/cantina-mobile",
+        "color": "bg-amber-50 border-amber-200 text-amber-900",
+    },
+    {
+        "key": "cantina-vini", "label": "Cantina Vini", "sub": "Magazzino",
+        "emoji": "🍷", "route": "/vini/magazzino",
+        "color": "bg-rose-50 border-rose-200 text-rose-900",
+    },
+    {
+        "key": "ordini-vini", "label": "Ordini vini", "sub": "Riordini e arrivi",
+        "emoji": "📦", "route": "/vini/ordini",
+        "color": "bg-orange-50 border-orange-200 text-orange-900",
+    },
+    {
+        "key": "fatture-vini", "label": "Fatture vini", "sub": "Abbina le righe",
+        "emoji": "🧾", "route": "/vini/fatture",
+        "color": "bg-indigo-50 border-indigo-200 text-indigo-900",
+    },
+    {
+        "key": "carta-vini", "label": "Carta dei Vini", "sub": "Cerca vini",
+        "emoji": "📜", "route": "/vini/carta",
+        "color": "bg-sky-50 border-sky-200 text-sky-900",
+    },
+    {
+        "key": "vendite-vini", "label": "Vendite", "sub": "Bottiglie e calici",
+        "emoji": "🥂", "route": "/vini/vendite",
+        "color": "bg-emerald-50 border-emerald-200 text-emerald-900",
+    },
+]
 
 SALA_ACTIONS_DEFAULTS: List[Dict] = [
     {
@@ -146,7 +182,7 @@ DEFAULTS_BY_ROLE: Dict[str, List[Dict]] = {
     "admin":      VINI_ACTIONS_DEFAULTS,
     "superadmin": VINI_ACTIONS_DEFAULTS,
     "contabile":  ADMIN_ACTIONS_DEFAULTS,
-    "sommelier":  VINI_ACTIONS_DEFAULTS,
+    "sommelier":  SOMMELIER_ACTIONS_DEFAULTS,
     "capo_sala":  VINI_ACTIONS_DEFAULTS,
     "chef":       CUCINA_ACTIONS_DEFAULTS,
     "sous_chef":  CUCINA_ACTIONS_DEFAULTS,

@@ -3,6 +3,9 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.10 (2026-11-05): Home del sommelier (HomeSommelier) con «🍾 Vendi o apri»: la registrazione
+    //   vendita di Vini › Vendite spostata in useRegistraVenditaVino + MatriceCelleVendita e usata
+    //   in tutti e due i posti; GET /vini/multifornitore/fatture/conteggi/; calici con ricarica.
     // 4.9 (2026-11-04): VMF.4 Listini dei fornitori — pagina Vini › Listini: carichi il PDF, TRGB propone
     //   il vino per ogni riga, confermi e diventano prezzi di listino del fornitore (mig 228).
     // 4.8 (2026-11-03): Fatture vini — «Cerca un altro vino» cerca mentre scrivi, come in Vendite;
@@ -186,7 +189,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.9",
+    version: "4.10",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -418,7 +421,10 @@ const MODULE_VERSIONS = {
     //   (webcal) / Google Calendar e file .ics; link personale rigenerabile. Mig 203.
     // 2.42 (2026-11-01): calendario .ics — i turni che finiscono alle 24:00 (Sala
     //   Cena) uscivano come eventi «tutto il giorno»; ora hanno l'orario giusto.
-    version: "2.42",
+    // 2.43 (2026-11-05): calendario .ics — chi lavora in più reparti (Marco:
+    //   cucina e sala) ha un abbonamento per reparto (?reparto=CUCINA/SALA), così
+    //   sul telefono sono due calendari di due colori. Ferie/permessi nel principale.
+    version: "2.43",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -654,6 +660,8 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   home: {
+    // 4.2 (2026-11-05): il ruolo sommelier atterra su HomeSommelier (come sala → DashboardSala);
+    //   tasti di default del sommelier: Cantina mobile, Cantina Vini, Ordini, Fatture, Carta, Vendite.
     // 4.1 (2026-11-05): Incasso ieri e Coperti del mese solo ad admin e capo sala (flag
     //   mostra_numeri_cassa da /dashboard/home); Home per ruolo protetta con M.G solo_admin();
     //   SelezioniCard/MacellaioCard/SalumiCard/FormaggiCard archiviate come _legacy.
@@ -670,7 +678,7 @@ const MODULE_VERSIONS = {
     // turni, task) + nota del turno a frizione zero + strato eventi che
     // assorbe la vecchia card Alert. Stesso widget anche in DashboardSala,
     // dove il ruolo sala lo vede in sola lettura.
-    version: "4.1",
+    version: "4.2",
     label: "Home",
     status: "beta",
     color: "blue",

@@ -1,4 +1,5 @@
-// @version: v10.1 — Incasso/Coperti solo ad admin e capo sala (flag mostra_numeri_cassa) (2026-11-05)
+// @version: v10.2 — ruolo sommelier → HomeSommelier (2026-11-05)
+// v10.1 — Incasso/Coperti solo ad admin e capo sala (flag mostra_numeri_cassa) (2026-11-05)
 // v10.0 — proposta B: card unica «Il turno» (prenotazioni + Lavagna + selezioni,
 //   tab sul turno in corso), striscia in testa con azioni rapide e incasso/coperti,
 //   a destra Preventivi in attesa e To-do; si ricarica da sola ogni 3 minuti (2026-11-04)
@@ -15,6 +16,7 @@ import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
 import MODULES_MENU, { menuFor } from "../config/modulesMenu";
 import DashboardSala from "./DashboardSala";
 import HomeCucina from "./HomeCucina";
+import HomeSommelier from "./HomeSommelier";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 import useLavagna from "../hooks/useLavagna";
@@ -109,7 +111,7 @@ export default function Home() {
   const [page, setPage] = useState(0);
   // Sala e cucina hanno la loro Home (sotto): lì si ricaricano da sole, qui no,
   // altrimenti ogni 3 minuti partirebbero due giri di chiamate.
-  const homePropria = (role === "sala" && !searchParams.get("full")) || ["chef", "sous_chef", "commis"].includes(role);
+  const homePropria = (["sala", "sommelier"].includes(role) && !searchParams.get("full")) || ["chef", "sous_chef", "commis"].includes(role);
   const { data: widgets, loading: widgetsLoading } = useHomeWidgets({ autoRefresh: !homePropria });
   const {
     lavagna,
@@ -168,6 +170,10 @@ export default function Home() {
   // (→ /?full=1) il re-render non cambia il numero di hook (no React #310).
   if (isSalaDashboard) {
     return <DashboardSala />;
+  }
+  // Sommelier → Home sua (2026-11-05); «Mostra tutti i moduli» = /?full=1.
+  if (role === "sommelier" && !searchParams.get("full")) {
+    return <HomeSommelier />;
   }
   // Cucina: la Home è HomeCucina, senza scappatoia «tutti i moduli» — i
   // numeri di cassa/sala non devono vedersi (il backend li manda vuoti).

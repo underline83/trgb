@@ -1,4 +1,5 @@
 // src/components/widgets/CaliciDisponibiliCard.jsx
+// v1.3 (2026-11-05): prop `aggiorna` per ricaricare dall'esterno + ricarica automatica ogni 3 minuti (Home).
 // @version: v1.1 — sessione 2026-05-11
 // Widget compatto: lista vini con bottiglia in mescita + toggle on/off rapido.
 // Usato da ViniVendite (admin/sommelier) e DashboardSala (per la sala).
@@ -25,6 +26,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import useAutoRefresh from "../../hooks/useAutoRefresh";
 import useViniWidgetSettings from "../../hooks/useViniWidgetSettings";
 import { isViniTimerAdminRole } from "../../utils/authHelpers";
 
@@ -61,6 +63,9 @@ export default function CaliciDisponibiliCard({
   showToggleOff = true,
   showResetTimer = false,
   onClick = null,
+  // 2026-11-05: cambia quando chi la contiene registra una vendita/apertura
+  // (Home sommelier) → la lista si ricarica subito.
+  aggiorna = 0,
 }) {
   const [vini, setVini] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,8 +77,9 @@ export default function CaliciDisponibiliCard({
   const FRESH_HOURS = Number(getSetting("calici_fresh_hours", 12));
   const ALERT_HOURS = Number(getSetting("calici_alert_hours", 36));
 
+  // Il «Caricamento» solo al primo giro: le ricariche successive (automatiche o
+  // dopo una vendita) aggiornano la lista senza farla sparire.
   const fetchVini = useCallback(async () => {
-    setLoading(true);
     try {
       const r = await apiFetch(`${API_BASE}/vini/magazzino/calici-disponibili/`);
       if (r.ok) setVini(await r.json());
@@ -82,7 +88,8 @@ export default function CaliciDisponibiliCard({
     }
   }, []);
 
-  useEffect(() => { fetchVini(); }, [fetchVini]);
+  useEffect(() => { fetchVini(); }, [fetchVini, aggiorna]);
+  useAutoRefresh(fetchVini);
 
   const spegniBottiglia = async (vinoId, e) => {
     if (e) e.stopPropagation();

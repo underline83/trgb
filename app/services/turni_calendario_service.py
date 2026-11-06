@@ -16,6 +16,16 @@ Cosa entra nel calendario:
 Finestra: da oggi − calendario_giorni_indietro a oggi + calendario_giorni_avanti
 (dipendenti_settings, default 30/90).
 
+Un calendario per reparto (2026-11-05): chi lavora in più reparti (Marco:
+cucina e sala) si abbona a un feed per reparto (?reparto=CUCINA / SALA), così
+il telefono li tiene come due calendari distinti, ognuno col suo colore. Il
+colore del singolo evento in un abbonamento .ics né iPhone né Google lo
+rispettano: l'unico colore che conta è quello del calendario. Il turno «sa»
+il suo reparto dal tipo (turni_tipi.ruolo = reparti.codice), con la stessa
+rete di sicurezza del foglio (tipo di un reparto che la persona non ha → va
+nel principale). Ferie e permessi vanno solo nel calendario del reparto
+principale, per non vederli doppi.
+
 Il token è l'unica autenticazione del feed (il calendario del telefono non sa
 mandare il JWT): 32 byte casuali, uno per dipendente, rigenerabile.
 """
@@ -86,6 +96,29 @@ def dipendente_da_token(token: str) -> Optional[int]:
         conn.close()
 
 
+# ---------------------------------------------------------------- reparti ---
+def reparti_dipendente(dipendente_id: int) -> List[Dict[str, Any]]:
+    """I reparti della persona: il principale per primo, poi gli aggiuntivi (mig 162)."""
+    conn = get_dipendenti_conn()
+    try:
+        righe = conn.execute(
+            """SELECT r.id, r.codice, r.nome, r.icona, r.colore,
+                      CASE WHEN r.id = d.reparto_id THEN 1 ELSE 0 END AS principale
+               FROM dipendenti d
+               JOIN reparti r
+                 ON r.id = d.reparto_id
+                 OR r.id IN (SELECT reparto_id FROM dipendenti_reparti WHERE dipendente_id = d.id)
+               WHERE d.id = ? AND COALESCE(r.attivo, 1) = 1
+               ORDER BY principale DESC, r.ordine, r.id""",
+            (dipendente_id,),
+        ).fetchall()
+    except Exception:
+        return []
+    finally:
+        conn.close()
+    return [dict(r) for r in righe]
+
+
 # -------------------------------------------------------------------- ics ---
 def _esc(s: str) -> str:
     return (s or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\r", "").replace("\n", "\\n")
@@ -124,13 +157,22 @@ def _minuti(s: Optional[str]) -> Optional[int]:
         return None
 
 
-def genera_ics(dipendente_id: int) -> str:
-    """Il calendario .ics del dipendente (testo con CRLF)."""
+def genera_ics(dipendente_id: int, reparto: Optional[str] = None) -> Optional[str]:
+    """Il calendario .ics del dipendente (testo con CRLF).
+    reparto=codice → solo i turni di quel reparto; None se la persona non ce l'ha."""
     tz = locale_timezone()
     info = locale_info()
     nome_locale = info.get("nome") or "TRGB"
     host = info.get("dominio") or "trgb"
     oggi = datetime.now(tz).date()
+
+    reparti = reparti_dipendente(dipendente_id)
+    codici = [(r.get("codice") or "").upper() for r in reparti]
+    principale = codici[0] if codici else None
+    filtro = (reparto or "").strip().upper() or None
+    if filtro and filtro not in codici:
+        return None
+    rep_filtro = next((r for r in reparti if (r.get("codice") or "").upper() == filtro), None)
 
     conn = get_dipendenti_conn()
     try:
@@ -140,7 +182,8 @@ def genera_ics(dipendente_id: int) -> str:
             """SELECT tc.id, tc.data, tc.stato, tc.note, tc.updated_at,
                       COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
                       COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
-                      tt.nome AS turno_nome, COALESCE(tt.categoria, '') AS categoria
+                      tt.nome AS turno_nome, COALESCE(tt.categoria, '') AS categoria,
+                      UPPER(COALESCE(tt.ruolo, '')) AS reparto_tipo
                FROM turni_calendario tc
                JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
                WHERE tc.dipendente_id = ? AND tc.data BETWEEN ? AND ?
@@ -157,6 +200,18 @@ def genera_ics(dipendente_id: int) -> str:
     finally:
         conn.close()
 
+    if filtro:
+        # reparto del turno = quello del tipo; tipo di un reparto che la persona
+        # non ha → principale (come SQL_TURNO_DEL_REPARTO del foglio)
+        turni = [t for t in turni
+                 if (t["reparto_tipo"] if t["reparto_tipo"] in codici else principale) == filtro]
+        if filtro != principale:
+            assenze = []
+
+    nome_cal = "Turni · " + nome_locale
+    if rep_filtro:
+        nome_cal = f"Turni {rep_filtro.get('nome') or filtro} · {nome_locale}"
+
     stamp = _utc(datetime.now(timezone.utc))
     righe: List[str] = [
         "BEGIN:VCALENDAR",
@@ -164,11 +219,15 @@ def genera_ics(dipendente_id: int) -> str:
         "PRODID:-//TRGB//Turni//IT",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
-        f"X-WR-CALNAME:{_esc('Turni · ' + nome_locale)}",
+        f"X-WR-CALNAME:{_esc(nome_cal)}",
         f"X-WR-TIMEZONE:{tz.key}",
         "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
         "X-PUBLISHED-TTL:PT1H",
     ]
+    colore = (rep_filtro or {}).get("colore") or ""
+    if colore.startswith("#") and len(colore) == 7:
+        # suggerimento per Calendario Apple al primo abbonamento (si può cambiare)
+        righe.append(f"X-APPLE-CALENDAR-COLOR:{colore.upper()}")
 
     for t in turni:
         try:

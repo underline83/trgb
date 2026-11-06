@@ -142,6 +142,12 @@ def get_fatture(current_user: Any = Depends(get_current_user)):
     return vfat.stato()
 
 
+@router.get("/fatture/conteggi/", summary="Numeri delle fatture vino (Home sommelier): da abbinare per emittente, da verificare")
+def get_fatture_conteggi(current_user: Any = Depends(get_current_user)):
+    _manager(current_user)
+    return vfat.conteggi()
+
+
 @router.post("/fatture/aggiorna", summary="Legge le fatture nuove e applica gli abbinamenti imparati")
 def post_fatture_aggiorna(current_user: Any = Depends(get_current_user)):
     _manager(current_user)
