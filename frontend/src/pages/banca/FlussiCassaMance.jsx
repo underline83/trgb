@@ -1,5 +1,5 @@
 // src/pages/banca/FlussiCassaMance.jsx
-// @version: v1.1-mattoni — StatusBadge turno + EmptyState
+// @version: v1.2 — mance da /shift-closures/mance/, senza incassi (2026-11-06) · v1.1-mattoni — StatusBadge turno + EmptyState
 // Mance dentro Flussi di Cassa (visibile a tutti, incluso SALA)
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import FlussiCassaNav from "./FlussiCassaNav";
@@ -31,7 +31,7 @@ export default function FlussiCassaMance() {
   const fetchMance = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures/`);
+      const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures/mance/?anno=${anno}&mese=${mese}`);
       if (!res.ok) throw new Error("Errore caricamento");
       const all = await res.json();
       const filtered = all.filter(sc => {

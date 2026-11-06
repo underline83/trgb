@@ -1,7 +1,7 @@
-// @version: v5.1 — sezione iPratico Cloud (2026-10-18) · v5.0-mattoni — refactor con M.I UI primitives (Btn), bg brand-cream, focus ring
+// @version: v5.2 — sezione Chiusura turno: giorni indietro modificabili da sala e sommelier (2026-11-06) · v5.1 — sezione iPratico Cloud (2026-10-18) · v5.0-mattoni — refactor con M.I UI primitives (Btn), bg brand-cream, focus ring
 // Impostazioni Vendite — Layout sidebar uniformato a ClientiImpostazioni
 // Nota: NON usa PageLayout (sidebar full-height custom).
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import VenditeNav from "./VenditeNav";
 import CalendarioChiusure from "./CalendarioChiusure";
 import IpraticoCloudSezione from "./IpraticoCloudSezione";
@@ -20,7 +20,67 @@ const MENU = [
   { key: "chiusure",     label: "Calendario Chiusure", icon: "📅", desc: "Chiusura settimanale e ferie" },
   { key: "importexport", label: "Import / Export",     icon: "📤", desc: "Excel corrispettivi, template, export" },
   { key: "ipratico",     label: "iPratico Cloud",      icon: "🧾", desc: "Conti chiusi riga per riga dalla cassa" },
+  { key: "fineturno",    label: "Chiusura turno",      icon: "🔒", desc: "Fino a quando sala e sommelier possono correggere" },
 ];
+
+// ---------------------------------------------------------------
+// SEZIONE: Chiusura turno
+// ---------------------------------------------------------------
+function SezioneFineTurno() {
+  const [giorni, setGiorni] = useState("");
+  const [salvato, setSalvato] = useState(null);
+  const [errore, setErrore] = useState(null);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/admin/finance/shift-closures/impostazioni`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`Errore ${r.status}`))))
+      .then(d => { setGiorni(String(d.giorni_indietro_compila)); setSalvato(d.giorni_indietro_compila); })
+      .catch(e => setErrore(e.message));
+  }, []);
+
+  const salva = async () => {
+    const n = Number(giorni);
+    if (!Number.isInteger(n) || n < 0 || n > 60) { setErrore("Scrivi un numero intero da 0 a 60."); return; }
+    setSalvando(true); setErrore(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/admin/finance/shift-closures/impostazioni`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ giorni_indietro_compila: n }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
+      const d = await r.json();
+      setSalvato(d.giorni_indietro_compila);
+    } catch (e) { setErrore(e.message); } finally { setSalvando(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold text-neutral-800 mb-1">Chiusura turno</h2>
+        <p className="text-neutral-500 text-sm">
+          Sala e sommelier aprono e salvano la chiusura solo degli ultimi giorni: i giorni più vecchi
+          li correggono admin e capo sala. Così una chiusura vecchia non viene risalvata per sbaglio
+          (risalvare riscrive pre-conti, spese e checklist).
+        </p>
+      </div>
+      <div className="flex items-end gap-3 flex-wrap">
+        <label className="block">
+          <span className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Giorni indietro modificabili da chi compila</span>
+          <input type="number" min={0} max={60} value={giorni} onChange={e => setGiorni(e.target.value)}
+            className="w-28 border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+        </label>
+        <Btn onClick={salva} loading={salvando} disabled={giorni === "" || Number(giorni) === salvato}>Salva</Btn>
+      </div>
+      <p className="text-sm text-neutral-600">
+        {salvato === null ? "" : salvato === 0
+          ? "Adesso: solo il giorno stesso."
+          : `Adesso: oggi e ${salvato === 1 ? "ieri" : `i ${salvato} giorni prima`} (ieri serve per la cena chiusa dopo mezzanotte).`}
+      </p>
+      {errore && <p className="text-sm text-brand-red">{errore}</p>}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------
 // SEZIONE: Import / Export
@@ -254,6 +314,7 @@ export default function CorrispettiviImport() {
     chiusure: () => <SezioneChiusure />,
     importexport: () => <SezioneImportExport />,
     ipratico: () => <IpraticoCloudSezione />,
+    fineturno: () => <SezioneFineTurno />,
   };
 
   return (

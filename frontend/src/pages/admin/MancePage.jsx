@@ -1,5 +1,5 @@
 // src/pages/admin/MancePage.jsx
-// @version: v2.0-mattoni — refactor con M.I UI primitives (PageLayout, EmptyState)
+// @version: v2.1 — mance da /shift-closures/mance/, senza incassi (2026-11-06) · v2.0-mattoni — refactor con M.I UI primitives (PageLayout, EmptyState)
 // Pagina Mance standalone (accessibile anche a ruolo SALA)
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -32,7 +32,7 @@ export default function MancePage() {
   const fetchMance = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures/`);
+      const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures/mance/?anno=${anno}&mese=${mese}`);
       if (!res.ok) throw new Error("Errore caricamento");
       const all = await res.json();
       const filtered = all.filter(sc => {

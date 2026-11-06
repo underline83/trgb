@@ -275,13 +275,20 @@ Prefix reale del router: **`/admin/finance/shift-closures`** (`chiusure_turno.py
 | GET | `/admin/finance/shift-closures/spese` | 🆕 Storico spese fine turno — superadmin; usato da Flussi di Cassa/GestioneContanti (`:326`) |
 | GET | `/admin/finance/shift-closures/stats/daily` | 🆕 Statistiche giornaliere coperti/incassi, split pranzo-cena (`:399`) |
 | GET | `/admin/finance/shift-closures/config/all` | 🆕 Lista checklist config (`:534`) |
+| GET/PUT | `/admin/finance/shift-closures/impostazioni` | 🆕 (2026-11-06) `giorni_indietro_compila`: quanti giorni prima di oggi sala e sommelier aprono e salvano. Lettura a chi compila e allo storico, scrittura admin |
+| GET | `/admin/finance/shift-closures/mance/?anno=&mese=` | 🆕 (2026-11-06) Solo data, turno, coperti, mance, note — senza incassi. Per le pagine Mance |
 | POST | `/admin/finance/shift-closures/config` | 🆕 Crea item checklist — admin (`:578`) |
 | PATCH | `/admin/finance/shift-closures/config/{id}` | 🆕 Aggiorna item checklist — admin (`:640`) |
 | DELETE | `/admin/finance/shift-closures/config/{id}` | 🆕 Soft-delete item checklist (attivo=0) — admin (`:708`) |
 
 ⚠️ Il **trailing slash conta**: chiamare `/shift-closures` senza slash produce un 307 redirect che in alcuni contesti perde l'Authorization header (`ChiusureTurnoLista.jsx:76-78`).
 
-Ruoli (dal codice): scrittura superadmin/admin/sommelier/sala (`check_allowed_role`, `:240-253`); lista, lettura singola e stats richiedono **solo autenticazione** lato backend (il limite "solo admin" è applicato dal frontend); pre-conti e spese storici solo superadmin; delete e config-write solo admin/superadmin.
+Ruoli (dal codice, M.G, decisione Marco 2026-11-06 — prima lista, lettura e stats erano aperte a qualsiasi login):
+- **Storico** (`RUOLI_STORICO` = admin, contabile, capo sala): elenco `GET /`, `stats/daily`, lettura di qualsiasi giorno.
+- **Chi compila** (`RUOLI_COMPILA` = sala, sommelier): `GET /{date}/{turno}` e `POST /` solo per gli ultimi N giorni, N = `giorni_indietro_compila` (tabella `shift_impostazioni`, default 1 = oggi e ieri, da Impostazioni Vendite › 🔒 Chiusura turno). Il controllo (`verifica_giorno`) sta PRIMA di qualsiasi lettura o scrittura: un salvataggio rigenera pre-conti, spese e checklist, quindi un giorno vecchio non si risalva per sbaglio. Admin e capo sala correggono qualsiasi giorno.
+- **Scrittura**: superadmin/admin/capo sala/sommelier/sala (`check_allowed_role`); il contabile legge ma non salva.
+- **Mance** (`/mance/`): admin, contabile, capo sala, sala, sommelier, chef.
+- Pre-conti e spese storici solo superadmin (confermato da Marco 2026-11-06); delete e config-write solo admin/superadmin.
 
 > **Nota** (chiude il gap CRIT-3/DH.4 dell'audit 2026-05-19): la tabella sopra è ora il mapping completo endpoint:linea degli 11 endpoint reali.
 
@@ -293,6 +300,7 @@ In `admin_finance.sqlite3` (DDL in `ensure_shift_closures_tables`, `chiusure_tur
 - `shift_spese` — spese: tipo + descrizione + importo per chiusura
 - `shift_checklist_config` — config checklist (predisposta, non ancora popolata)
 - `shift_checklist_responses` — risposte checklist (predisposta)
+- 🆕 `shift_impostazioni` — chiave/valore del fine turno (2026-11-06): `giorni_indietro_compila` (default 1)
 
 > 🆕 **Rettifica pre-conti (luglio 2026) — id volatili:** l'upsert `POST /shift-closures/` fa sempre **DELETE + reinsert** delle righe `shift_preconti` e `shift_spese` della chiusura (`chiusure_turno.py:1283-1315`). Gli `id` di `shift_preconti`/`shift_spese` NON sono quindi stabili tra un salvataggio e l'altro: nessun consumer deve usarli come riferimento persistente (l'endpoint storico `/preconti` infatti non li espone, `:288-320`).
 
@@ -474,7 +482,7 @@ Tutti i file vivono in `frontend/src/pages/admin/` (verifica 2026-07-25; route c
 
 ## 13.1 Visibilità per ruolo
 
-- **Fine Turno:** visibile a tutti (staff inserisce la chiusura)
+- **Fine Turno:** sala, sommelier, capo sala, contabile, admin; sala e sommelier solo sugli ultimi N giorni (Impostazioni › 🔒 Chiusura turno)
 - **Chiusure, Riepilogo, Dashboard, Impostazioni:** solo admin
 - **Pre-conti:** solo superadmin (nascosto in Impostazioni menu)
 
@@ -534,4 +542,6 @@ Lo scarico legge dall'API interna del back office iPratico i **conti chiusi**: t
 | C-K-IP6 | Pagina Impostazioni Vendite › 🧾 iPratico Cloud: stato, scarico, conti da abbinare, tavoli della cassa, tolleranza | `frontend/src/pages/admin/IpraticoCloudSezione.jsx` | admin | 🆕 |
 | C-K-IP7 | Chiusura turno › 🧾 Conti del servizio: scarica + abbina, conferma proposte, «chi era?» (prenotazione libera, prenotazione mai segnata arrivata → «andati», cliente, nuovo, di passaggio), «🚶 Walk-in, senza nome» | `POST /cassa/ipratico/servizio/{data}/{turno}/prepara/`, `GET …/servizio/{data}/{turno}/`, `POST /cassa/ipratico/conti/{id}/abbina/` — `components/cassa/ContiServizio.jsx` | admin, sommelier, sala (vedono anche gli importi, decisione Marco 2026-10-18) | 🆕 |
 | C-K-IP8 | Giorni/turni con conti ancora da abbinare | `GET /cassa/ipratico/da-sistemare/` | admin, sommelier, sala | 🆕 |
+| C-K-FT1 | Impostazioni Vendite › 🔒 Chiusura turno: giorni indietro modificabili da sala e sommelier | `GET/PUT /admin/finance/shift-closures/impostazioni` — `CorrispettiviImport.jsx` (`SezioneFineTurno`) | admin (lettura anche a chi compila) | 🆕 |
+| C-K-FT2 | Mance senza incassi | `GET /admin/finance/shift-closures/mance/` — `MancePage.jsx`, `FlussiCassaMance.jsx` | admin, contabile, capo sala, sala, sommelier, chef | 🆕 |
 | C-K-IP9 | Tavoli della cassa → tavoli TRGB (alias) e tolleranza in minuti | `GET/PUT /cassa/ipratico/tavoli/`, `PUT /cassa/ipratico/finestra/` | admin | 🆕 |

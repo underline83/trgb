@@ -1,6 +1,7 @@
 # app/routers/chiusure_turno.py
 # Shift closures (fine turno pranzo/cena) at restaurant Osteria Tre Gobbi
-# @version: v1.0
+# @version: v1.1 — lo storico (elenco, statistiche, giorni vecchi) solo ad admin, contabile e capo sala;
+#   chi compila (sala, sommelier) apre e salva solo gli ultimi N giorni, N nelle impostazioni (2026-11-06)
 
 from datetime import date as date_type, datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.services.auth_service import get_current_user
+from app.services.permessi import ha_ruoli, richiede_ruoli, solo_admin
 
 # ---------------------------------------------------------
 # DATABASE
@@ -129,6 +131,19 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (shift_closure_id) REFERENCES shift_closures(id)
         )
         """
+    )
+
+    # Table: shift_impostazioni (chiave/valore del fine turno, modificabili da Impostazioni Vendite)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shift_impostazioni (
+            chiave TEXT PRIMARY KEY,
+            valore TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        "INSERT OR IGNORE INTO shift_impostazioni (chiave, valore) VALUES ('giorni_indietro_compila', '1')"
     )
 
     conn.commit()
@@ -260,6 +275,116 @@ def check_allowed_role(current_user: dict) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Role '{user_role}' not allowed to submit shift closures. Allowed roles: {', '.join(allowed_roles)}",
         )
+
+
+# Chi vede lo storico (tutti i giorni, elenco, statistiche). superadmin implicito in admin.
+RUOLI_STORICO = ("admin", "contabile", "capo_sala")
+# Chi compila la chiusura: oltre allo storico, solo gli ultimi N giorni.
+RUOLI_COMPILA = ("sala", "sommelier")
+# Chi vede le mance (pagine Mance di Flussi di Cassa).
+RUOLI_MANCE = ("admin", "contabile", "capo_sala", "sala", "sommelier", "chef")
+
+
+def giorni_indietro_compila(conn: sqlite3.Connection) -> int:
+    """Quanti giorni prima di oggi chi compila può ancora aprire e salvare (0 = solo oggi)."""
+    row = conn.execute(
+        "SELECT valore FROM shift_impostazioni WHERE chiave = 'giorni_indietro_compila'"
+    ).fetchone()
+    try:
+        return max(0, int(row[0])) if row else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def verifica_giorno(conn: sqlite3.Connection, current_user: dict, giorno: date_type) -> None:
+    """Admin, contabile e capo sala: qualsiasi giorno. Sala e sommelier: solo gli ultimi N giorni.
+    Va chiamata PRIMA di leggere o riscrivere: un salvataggio rigenera pre-conti, spese e checklist."""
+    if ha_ruoli(current_user, *RUOLI_STORICO):
+        return
+    if not ha_ruoli(current_user, *RUOLI_COMPILA):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Le chiusure turno non sono visibili al tuo ruolo.")
+    n = giorni_indietro_compila(conn)
+    if (date_type.today() - giorno).days > n:
+        quando = "solo il giorno stesso" if n == 0 else f"fino a {n} giorn{'o' if n == 1 else 'i'} prima"
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Puoi aprire e salvare una chiusura {quando}. "
+                                   "Per i giorni più vecchi chiedi a un admin o al capo sala.")
+
+
+# ---------------------------------------------------------
+# IMPOSTAZIONI (DEVONO stare PRIMA di /{date}/{turno})
+# ---------------------------------------------------------
+
+class ImpostazioniFineTurno(BaseModel):
+    giorni_indietro_compila: int = Field(..., ge=0, le=60)
+
+
+@router.get("/impostazioni", response_model=ImpostazioniFineTurno)
+async def get_impostazioni(
+    current_user: dict = Depends(richiede_ruoli(*RUOLI_STORICO, *RUOLI_COMPILA, cosa="le chiusure turno")),
+):
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        ensure_shift_closures_tables(conn)
+        return ImpostazioniFineTurno(giorni_indietro_compila=giorni_indietro_compila(conn))
+    finally:
+        conn.close()
+
+
+@router.put("/impostazioni", response_model=ImpostazioniFineTurno,
+            dependencies=[Depends(solo_admin(cosa="le impostazioni del fine turno"))])
+async def put_impostazioni(payload: ImpostazioniFineTurno):
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        ensure_shift_closures_tables(conn)
+        conn.execute(
+            "INSERT INTO shift_impostazioni (chiave, valore) VALUES ('giorni_indietro_compila', ?) "
+            "ON CONFLICT(chiave) DO UPDATE SET valore = excluded.valore",
+            (str(payload.giorni_indietro_compila),),
+        )
+        conn.commit()
+        return ImpostazioniFineTurno(giorni_indietro_compila=giorni_indietro_compila(conn))
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------
+# MANCE — solo le mance, senza incassi (pagine Mance)
+# ---------------------------------------------------------
+
+class ManceRiga(BaseModel):
+    id: int
+    date: str
+    turno: str
+    coperti: int = 0
+    mance: float = 0
+    note: Optional[str] = None
+
+
+@router.get("/mance/", response_model=List[ManceRiga])
+async def list_mance(
+    anno: Optional[int] = Query(None),
+    mese: Optional[int] = Query(None, ge=1, le=12),
+    current_user: dict = Depends(richiede_ruoli(*RUOLI_MANCE, cosa="le mance")),
+):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        ensure_shift_closures_tables(conn)
+        q = "SELECT id, date, turno, coperti, mance, note FROM shift_closures WHERE COALESCE(mance, 0) > 0"
+        args: list = []
+        if anno:
+            q += " AND substr(date, 1, 4) = ?"
+            args.append(f"{anno:04d}")
+        if anno and mese:
+            q += " AND substr(date, 6, 2) = ?"
+            args.append(f"{mese:02d}")
+        q += " ORDER BY date DESC, turno DESC"
+        return [ManceRiga(id=r["id"], date=r["date"], turno=r["turno"], coperti=r["coperti"] or 0,
+                          mance=r["mance"] or 0, note=r["note"]) for r in conn.execute(q, args)]
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------
@@ -409,7 +534,7 @@ async def list_spese(
 async def stats_daily(
     year: Optional[int] = Query(None, description="Anno (es. 2026)"),
     month: Optional[int] = Query(None, ge=1, le=12, description="Mese 1-12"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(richiede_ruoli(*RUOLI_STORICO, cosa="le statistiche di incassi e coperti")),
 ):
     """
     Ritorna statistiche giornaliere aggregate da shift_closures.
@@ -542,7 +667,7 @@ def check_admin_role(current_user: dict) -> None:
 
 @router.get("/config/all", response_model=List[ChecklistItemOut])
 async def get_checklist_config(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(richiede_ruoli(*RUOLI_STORICO, *RUOLI_COMPILA, cosa="le chiusure turno")),
 ):
     """
     List all checklist configuration items (active and inactive).
@@ -756,7 +881,7 @@ async def list_shift_closures(
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     turno: Optional[str] = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(richiede_ruoli(*RUOLI_STORICO, cosa="l'elenco delle chiusure turno")),
 ):
     """
     List shift closures with optional filters.
@@ -966,6 +1091,12 @@ async def get_shift_closure(
     ensure_shift_closures_tables(conn)
 
     try:
+        try:
+            giorno = date_type.fromisoformat(date)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Data non valida.")
+        verifica_giorno(conn, current_user, giorno)
+
         cur = conn.cursor()
 
         # Get the shift closure
@@ -1157,6 +1288,9 @@ async def upsert_shift_closure(
     ensure_shift_closures_tables(conn)
 
     try:
+        # Prima di tutto: un salvataggio cancella e riscrive pre-conti, spese e checklist.
+        verifica_giorno(conn, current_user, payload.date)
+
         cur = conn.cursor()
 
         # Check if shift closure already exists

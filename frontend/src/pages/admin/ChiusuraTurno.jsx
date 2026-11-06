@@ -1,5 +1,5 @@
 // src/pages/admin/ChiusuraTurno.jsx
-// @version: v2.2 — card «Conti del servizio» (abbinamento conti iPratico ↔ clienti, 2026-10-18) · v2.1-mattoni — M.I primitives (Btn) su CTA Salva chiusura (tocco minimo, file 976 righe)
+// @version: v2.3 — sala e sommelier: data minima dalle impostazioni (giorni indietro modificabili), messaggio se il giorno è chiuso (2026-11-06) · v2.2 — card «Conti del servizio» (abbinamento conti iPratico ↔ clienti, 2026-10-18) · v2.1-mattoni — M.I primitives (Btn) su CTA Salva chiusura (tocco minimo, file 976 righe)
 // Form fine turno pranzo/cena — per responsabili sala/sommelier
 // A cena i valori sono giornalieri (cumulativi pranzo+cena), i parziali vengono calcolati automaticamente
 
@@ -37,6 +37,14 @@ export default function ChiusuraTurno() {
 
   // ── State ──
   const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
+  // Sala e sommelier aprono solo gli ultimi N giorni (Impostazioni Vendite › Chiusura turno); gli altri qualsiasi giorno
+  const compilaSolo = ["sala", "sommelier"].includes(localStorage.getItem("role") || "");
+  const [giorniIndietro, setGiorniIndietro] = useState(1);
+  const minStr = (() => {
+    if (!compilaSolo) return undefined;
+    const d = new Date(); d.setDate(d.getDate() - giorniIndietro);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  })();
   const [date, setDate] = useState(() =>
     searchParams.get("date") || todayStr
   );
@@ -310,6 +318,15 @@ export default function ChiusuraTurno() {
     } catch { /* silenzioso */ }
   }, [token]);
 
+  // ── Fetch impostazioni (giorni indietro) ──
+  useEffect(() => {
+    if (!compilaSolo) return;
+    fetch(`${API}/admin/finance/shift-closures/impostazioni`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && Number.isInteger(d.giorni_indietro_compila)) setGiorniIndietro(d.giorni_indietro_compila); })
+      .catch(() => { /* resta 1 */ });
+  }, [compilaSolo, token]);
+
   // ── Fetch closure ──
   const fetchClosure = useCallback(async () => {
     setLoading(true);
@@ -332,6 +349,13 @@ export default function ChiusuraTurno() {
           setMessage({ type: "info", text: "📝 Bozza ripristinata — dati recuperati dalla sessione precedente." });
           setTimeout(() => setMessage(null), 5000);
         }
+        return;
+      }
+      if (res.status === 403) {
+        resetForm();
+        const err = await res.json().catch(() => ({}));
+        setMessage({ type: "error", text: err.detail || "Questo giorno non è più modificabile." });
+        setLoading(false);
         return;
       }
       if (!res.ok) throw new Error("Errore caricamento");
@@ -492,7 +516,7 @@ export default function ChiusuraTurno() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Data</label>
-              <input type="date" value={date} max={todayStr} onChange={e => setDate(e.target.value)}
+              <input type="date" value={date} min={minStr} max={todayStr} onChange={e => setDate(e.target.value)}
                 className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
             </div>
             <div>

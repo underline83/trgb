@@ -323,6 +323,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
+    // 4.14 (2026-11-06): chiusure turno — lo storico (elenco, statistiche, giorni vecchi) solo ad
+    //   admin, contabile e capo sala; sala e sommelier aprono e salvano solo gli ultimi N giorni
+    //   (Impostazioni › 🔒 Chiusura turno, default 1). Mance da /mance/ senza incassi. Tabella
+    //   shift_impostazioni al boot, nessuna migrazione numerata.
     // 4.13 (2026-11-03): conti iPratico — si salvano anche le varianti delle righe (in sala il
     //   «Piatto pranzo» dice quale piatto è con la variante) e le note; Cucina › Piatti che vanno
     //   e la scheda cliente le usano. GET /cassa/ipratico/grezzo/ per vedere le righe come arrivano.
@@ -355,7 +359,7 @@ const MODULE_VERSIONS = {
     //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
     //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
     //   consumer (CalendarView shading). Nessuna migrazione DB.
-    version: "4.13",
+    version: "4.14",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
