@@ -6,6 +6,8 @@
 
 **Sistema:** 5.93 (45edcf98) · **Migrazione più recente:** 228 (da pushare)
 
+**DA PUSHARE — Connettore 1.10: Q collega pratica e uscita** (nessuna migrazione) `[core]` — strumenti `pratica_collega` / `pratica_scollega` (solo col sì di Marco, Q #324) e `spesa_fissa_id` nelle voci dello `scadenziario`. Prove 13/13 (in locale installato `mcp==2.3.0` ed `email-validator` nel venv per provarlo). **Dopo il push:** da claude.ai il connettore TRGB va riaperto (gli strumenti nuovi compaiono dopo il riaggancio); prova: «collega la pratica 7 Metro alla sua uscita» → Q propone l'uscita e aspetta il sì.
+
 **DA PUSHARE — Dipendenti 2.44: il paese dell'indirizzo non si cancella più** (nessuna migrazione) `[core]` — bug 1 del 16/10 (inventario tappa 0). La pagina Anagrafica non leggeva né mandava `indirizzo_paese` e il PUT lo scriveva NULL: ora c'è il campo «Paese» e il PUT tiene il valore salvato se il campo non arriva. Nessun dato perso (0 paesi anche nel backup del 30/10). **Dopo il push:** Dipendenti › Anagrafica › un dipendente → scrivi un Paese → Salva → riapri: c'è; salva di nuovo cambiando solo il telefono: c'è ancora.
 
 **DA PUSHARE — Pratiche 1.3: il pagamento chiude la pratica** (nessuna migrazione numerata: `pratiche_pagamenti_visti` e `controllo_pagamenti_minuti` al primo giro) `[core]` — controllo ogni 10 minuti delle uscite e rate collegate (decisioni Q #321). Prove 24/24; giro di prova su copia dei dati veri: nessuna modifica (solo pratica 12, 8/10 rate). **Dopo il push:** (1) Pratiche › Sezioni e atti › «Pagamenti collegati» mostra 10; (2) `GET /pratiche/controllo-pagamenti` dopo ~1 minuto ha `ultimo` valorizzato e `guardate: 1`; (3) alla prossima uscita collegata pagata la pratica si chiude da sola.

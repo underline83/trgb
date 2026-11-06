@@ -1,4 +1,5 @@
-# @version: v1.9 (2026-11-02) — pratiche: sezioni, campi del debito, in attesa di mezzi, rate collegate
+# @version: v1.10 (2026-11-06) — pratica_collega / pratica_scollega (pratica ↔ uscita o rateizzazione, col sì di Marco); spesa_fissa_id nello scadenziario
+# v1.9 (2026-11-02) — pratiche: sezioni, campi del debito, in attesa di mezzi, rate collegate
 # v1.8 (2026-11-02) — WhatsApp in sola lettura + preventivi inviati (modulo clienti)
 # v1.7 (2026-10-25) — ricette e ingredienti (modulo ricette): import con anteprima, cerca/leggi/aggiorna, prezzi, allergeni, unione
 # v1.6 (2026-10-23) — visite_sito_riepilogo (modulo sito, sola lettura)
@@ -385,6 +386,101 @@ def _strumenti_pratiche(mcp: MCPServer) -> None:
         return svc.aggiorna_testata(id, titolo=titolo, controparte=controparte,
                                     controparte_contatto=contatto, campi_debito=campi, autore=autore())
 
+    # ── v1.10 (2026-11-06): pratica ↔ uscita, per il controllo pagamenti (Q #321, #324) ──
+    def _euro(v) -> str:
+        return f"€ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _gg(iso) -> str:
+        return f"{iso[8:10]}/{iso[5:7]}/{iso[:4]}" if iso and len(iso) >= 10 else (iso or "")
+
+    def _quadro_pagamenti(pratica_id: int) -> dict:
+        """Cosa vede il controllo pagamenti (pratiche_pagamenti.situazione) dopo il cambio."""
+        from app.services import pratiche_pagamenti as pp
+        p = svc.leggi(pratica_id)
+        fc = pp._fc()
+        try:
+            s = pp.situazione(fc, p.get("collegamenti", []))
+        finally:
+            fc.close()
+        if not s:
+            return {"conta": False, "nota": "Nessun collegamento che il controllo pagamenti conta."}
+        out = {"conta": True, "uscite": s["quante"], "pagate": s["pagate"], "tutte_pagate": s["tutte"]}
+        if s["tutte"] and p["stato"] != "chiusa":
+            out["avviso"] = (f"Risulta già tutto pagato: il controllo pagamenti chiuderà la pratica "
+                             f"da solo entro {pp.minuti()} minuti. Dillo a Marco.")
+        return out
+
+    @strumento(SCRIVE)
+    def pratica_collega(
+        id: Id,
+        uscita_id: Annotated[int | None, Field(ge=1, description="id dell'uscita, da scadenziario (campo id)")] = None,
+        spesa_fissa_id: Annotated[int | None, Field(ge=1, description="id della rateizzazione/prestito, da scadenziario (campo spesa_fissa_id delle rate)")] = None,
+    ) -> dict:
+        """Collega la pratica a un'uscita dello scadenziario oppure a una rateizzazione (tutte
+        le sue rate). Serve al controllo pagamenti: quando TUTTE le uscite collegate risultano
+        pagate, TRGB chiude la pratica da solo (entro qualche minuto) e la riapre se un
+        pagamento viene annullato. SOLO DOPO IL SÌ DI MARCO: prima riepiloga «collego la
+        pratica N (titolo) all'uscita X, fornitore, € importo, scad. gg» e aspetta. La risposta
+        dice anche cosa vedrà il controllo (quante pagate) e avvisa se si chiuderà subito."""
+        _utente()
+        if bool(uscita_id) == bool(spesa_fissa_id):
+            raise ToolError("Passa uscita_id oppure spesa_fissa_id, uno solo. (400)")
+        if not module_loader.is_module_active("controllo_gestione"):
+            raise ToolError("Il modulo Controllo di gestione non è attivo. (409)")
+        from app.routers import controllo_gestione_router as cg
+        from app.services import pratiche_pagamenti as pp
+        conn = cg.get_fc_db()
+        try:
+            if uscita_id:
+                r = conn.execute("SELECT id, fornitore_nome, totale, data_scadenza, stato FROM cg_uscite "
+                                 "WHERE id = ?", (uscita_id,)).fetchone()
+                if not r:
+                    raise ToolError(f"Uscita {uscita_id} non trovata. (404)")
+                tipo, ref = "uscita", str(uscita_id)
+                etichetta = f"{r['fornitore_nome']} · {_euro(r['totale'] or 0)}"
+                if r["data_scadenza"]:
+                    etichetta += f" · scad. {_gg(r['data_scadenza'])}"
+                link = "/controllo-gestione/uscite"
+                nota = None
+            else:
+                r = conn.execute("SELECT id, titolo, tipo, data_fine FROM cg_spese_fisse WHERE id = ?",
+                                 (spesa_fissa_id,)).fetchone()
+                if not r:
+                    raise ToolError(f"Spesa fissa {spesa_fissa_id} non trovata. (404)")
+                tipo, ref = "spesa_fissa", str(spesa_fissa_id)
+                etichetta = r["titolo"]
+                link = "/controllo-gestione/spese-fisse"
+                nota = None
+                if r["tipo"] not in pp.TIPI_CON_FINE or not r["data_fine"]:
+                    nota = ("Questa spesa fissa non ha una fine (non è una rateizzazione o un prestito con "
+                            "data di fine): il controllo pagamenti non la conta, resta un riferimento.")
+        finally:
+            conn.close()
+        p = svc.leggi(id)
+        if any(c["modulo"] == "controllo_gestione" and c["tipo"] == tipo and str(c["ref_id"]) == ref
+               for c in p.get("collegamenti", [])):
+            raise ToolError(f"La pratica {id} è già collegata a questa {'uscita' if tipo == 'uscita' else 'spesa fissa'}. (409)")
+        p = svc.collega(id, "controllo_gestione", tipo, ref, etichetta, link=link)
+        out = {"pratica": {"id": p["id"], "titolo": p["titolo"], "stato": p["stato"],
+                           "collegamenti": p["collegamenti"]},
+               "controllo_pagamenti": _quadro_pagamenti(id)}
+        if nota:
+            out["nota"] = nota
+        return out
+
+    @strumento(SCRIVE)
+    def pratica_scollega(
+        id: Id,
+        collegamento_id: Annotated[int, Field(ge=1, description="id del collegamento, da pratica_leggi (collegamenti[].id)")],
+    ) -> dict:
+        """Toglie un collegamento dalla pratica e lascia il passo automatico «Scollegata: …».
+        SOLO DOPO IL SÌ DI MARCO: prima riepiloga quale collegamento togli."""
+        _utente()
+        p = svc.scollega(id, collegamento_id, autore=autore())
+        return {"pratica": {"id": p["id"], "titolo": p["titolo"], "stato": p["stato"],
+                            "collegamenti": p["collegamenti"]},
+                "controllo_pagamenti": _quadro_pagamenti(id)}
+
 
 
 StatoCandidato = Literal["NUOVO", "DA_SENTIRE", "COLLOQUIO", "IN_PROVA", "ASSUNTO", "SCARTATO"]
@@ -696,6 +792,7 @@ def _strumenti_scadenziario(mcp: MCPServer) -> None:
             "data_pagamento": u.get("data_pagamento"),
             "metodo_pagamento": u.get("metodo_pagamento_label"),
             "periodo": u.get("periodo_riferimento"),
+            "spesa_fissa_id": u.get("spesa_fissa_id"),  # v1.10: per pratica_collega
             "scadenza_originale": u.get("data_scadenza_originale") if u.get("stato") == "SPOSTATO" else None,
             "in_distinta": u.get("batch_titolo"), "note": u.get("note")})
 
