@@ -480,7 +480,7 @@ export default function ViniVendite() {
             <div className="md:col-span-3">
               <button
                 type="button"
-                onClick={submitVendita}
+                onClick={() => submitVendita()}
                 disabled={submitting || !selectedVino}
                 className={`w-full text-white rounded-xl px-4 py-2.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm ${
                   modalita === "CALICI"

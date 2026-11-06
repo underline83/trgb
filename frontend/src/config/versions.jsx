@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.11 (2026-11-06): fix Vini › Vendite — «Registra» passava l'evento del click come modalità:
+    //   pagina in errore, vendita al calice senza modale prezzo né apertura mescita.
     // 4.10 (2026-11-05): Home del sommelier (HomeSommelier) con «🍾 Vendi o apri»: la registrazione
     //   vendita di Vini › Vendite spostata in useRegistraVenditaVino + MatriceCelleVendita e usata
     //   in tutti e due i posti; GET /vini/multifornitore/fatture/conteggi/; calici con ricarica.
@@ -189,7 +191,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.10",
+    version: "4.11",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

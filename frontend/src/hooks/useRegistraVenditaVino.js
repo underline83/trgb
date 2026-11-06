@@ -1,5 +1,5 @@
 // FILE: frontend/src/hooks/useRegistraVenditaVino.js
-// @version: v1.0 — registrazione vendita vino (bottiglia / apertura calici) estratta da
+// @version: v1.1 — registrazione vendita vino (bottiglia / apertura calici) estratta da
 //   ViniVendite.jsx per riusarla nella Home del sommelier (2026-11-05)
 // Modulo: vini
 //
@@ -284,6 +284,10 @@ export default function useRegistraVenditaVino({ onRegistrata, onScanSelezionato
   };
 
   const submitVendita = async (mod = null) => {
+    // v1.1 (2026-11-06): accetto solo "BOTTIGLIA"/"CALICI". Vini › Vendite
+    // passava l'evento del click come `mod`: la modalità diventava un oggetto,
+    // la pagina andava in errore e la vendita al calice saltava il modale prezzo.
+    if (!MODALITA[mod]) mod = null;
     const modo = mod || modalita;
     if (mod) setModalita(mod);
     if (!selectedVino) { avviso("❌ Scegli un vino dalla ricerca."); return; }

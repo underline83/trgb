@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-06 — Vini 4.11: fix vendita al calice in Vini › Vendite `[core]`
+
+Nessuna migrazione. Dopo il passaggio a `useRegistraVenditaVino` (vini 4.10) il tasto «Registra» di Vini › Vendite passava l'evento del click come modalità: la modalità diventava un oggetto, la pagina andava in errore (`MODALITA[modalita].icon`), la vendita veniva registrata con nota `[[object Object]]` e, al calice, senza modale «Decidi prezzo calice» né apertura della mescita. Fix: `onClick={() => submitVendita()}` e il hook (v1.1) accetta solo BOTTIGLIA/CALICI. La Home sommelier («Vendi o apri») non era toccata.
+
 ## 2026-11-06 — Home 4.3: «I miei turni» in tutte le Home `[core]`
 
 Nessuna migrazione. Il riquadro «🗓️ I miei turni» (oggi + 6 giorni, Buste paga, Tutto il mese) esisteva solo nella Home della cucina. Marco: «è un widget molto comodo che terrei». Ora è `components/widgets/MieiTurniCard.jsx` ed è anche nella Home admin/capo sala (colonna destra), nella dashboard sala (sotto i calici) e nella Home sommelier (al centro). Fuori dalla cucina sparisce se l'utente non è collegato a un dipendente, invece di mostrare l'avviso.
