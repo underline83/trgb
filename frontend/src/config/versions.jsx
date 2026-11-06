@@ -388,6 +388,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   dipendenti: {
+    // 2.44 (2026-11-06): Anagrafica — campo Paese dell'indirizzo letto, mostrato e salvato; il PUT
+    //   tiene il paese salvato se il client non manda il campo (bug del 16/10: si cancellava a ogni salvataggio).
     // 2.30 (2026-07-30): sotto-area Intermittenti — comunicazione preventiva
     //   UNI-Intermittenti generata dai turni, invio email, registro con prova,
     //   annullamento, checker M.F a 48h. Migrazione 156.
@@ -428,7 +430,7 @@ const MODULE_VERSIONS = {
     // 2.43 (2026-11-05): calendario .ics — chi lavora in più reparti (Marco:
     //   cucina e sala) ha un abbonamento per reparto (?reparto=CUCINA/SALA), così
     //   sul telefono sono due calendari di due colori. Ferie/permessi nel principale.
-    version: "2.43",
+    version: "2.44",
     label: "Dipendenti",
     status: "stabile",
     color: "green",

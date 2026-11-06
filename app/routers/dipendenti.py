@@ -211,6 +211,16 @@ class DipendenteBase(BaseModel):
     reparti_extra: Optional[List[int]] = None
 
 
+def _paese_da_salvare(payload, existing):
+    """indirizzo_paese nel PUT (bug del 16/10, chiuso il 2026-11-06): se il client non
+    manda il campo, si tiene quello salvato invece di scriverlo NULL. Mandarlo vuoto
+    lo cancella davvero."""
+    inviati = getattr(payload, "model_fields_set", None) or getattr(payload, "__fields_set__", set())
+    if "indirizzo_paese" not in inviati:
+        return existing["indirizzo_paese"]
+    return payload.indirizzo_paese.strip() if payload.indirizzo_paese else None
+
+
 # ── Reparti aggiuntivi (mig 162) ────────────────────────────────────────────
 # `reparto_id` resta il reparto PRINCIPALE; `dipendenti_reparti` tiene quelli in
 # più, per chi lavora in due posti (es. Marco: cucina di ruolo, sala quando serve).
@@ -566,7 +576,7 @@ def update_dipendente(
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT id, codice FROM dipendenti WHERE id = ?;", (dipendente_id,))
+    cur.execute("SELECT id, codice, indirizzo_paese FROM dipendenti WHERE id = ?;", (dipendente_id,))
     existing = cur.fetchone()
     if not existing:
         conn.close()
@@ -616,7 +626,7 @@ def update_dipendente(
                 payload.indirizzo_cap.strip() if payload.indirizzo_cap else None,
                 payload.indirizzo_citta.strip() if payload.indirizzo_citta else None,
                 payload.indirizzo_provincia.strip() if payload.indirizzo_provincia else None,
-                payload.indirizzo_paese.strip() if payload.indirizzo_paese else None,
+                _paese_da_salvare(payload, existing),
                 payload.iban.strip() if payload.iban else None,
                 payload.nickname.strip() if payload.nickname else None,
                 payload.note.strip() if payload.note else None,

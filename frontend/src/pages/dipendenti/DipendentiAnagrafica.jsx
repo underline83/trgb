@@ -1,5 +1,6 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.8-mattoni — M.I primitives (Btn) su CTA header, form submit, upload docs
+// @version: v2.9 — campo Paese dell'indirizzo letto, mostrato e salvato (prima si cancellava a ogni salvataggio, 2026-11-06)
+// v2.8-mattoni — M.I primitives (Btn) su CTA header, form submit, upload docs
 //  - Codice opzionale (placeholder "Auto"): se vuoto, lo genera il backend (DIPNNN)
 //  - Nuovo campo Nickname: appare nelle stampe turno al posto del nome anagrafico
 // Layout: DipendentiNav + header bar + sidebar lista + dettaglio con tabs
@@ -27,6 +28,7 @@ const EMPTY_FORM = {
   id: null, codice: "", nome: "", cognome: "", nickname: "", ruolo: "",
   telefono: "", email: "", iban: "",
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
+  indirizzo_paese: "",
   note: "", attivo: true,
   reparto_id: null, colore: "", a_chiamata: false, reparti_extra: [],
   // Intermittenti (2026-07-30): il CF serve alla comunicazione UNI, il flag
@@ -149,6 +151,7 @@ export default function DipendentiAnagrafica() {
       iban: d.iban || "", indirizzo_via: d.indirizzo_via || "",
       indirizzo_cap: d.indirizzo_cap || "", indirizzo_citta: d.indirizzo_citta || "",
       indirizzo_provincia: d.indirizzo_provincia || "",
+      indirizzo_paese: d.indirizzo_paese || "",
       note: d.note || "", attivo: d.attivo ?? true,
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
       reparti_extra: Array.isArray(d.reparti_extra) ? d.reparti_extra : [],
@@ -189,6 +192,7 @@ export default function DipendentiAnagrafica() {
       indirizzo_cap: form.indirizzo_cap || null,
       indirizzo_citta: form.indirizzo_citta || null,
       indirizzo_provincia: form.indirizzo_provincia || null,
+      indirizzo_paese: form.indirizzo_paese || null,
       note: form.note || null, attivo: !!form.attivo,
       reparto_id: form.reparto_id || null,
       reparti_extra: (form.reparti_extra || []).filter(id => id !== form.reparto_id),
@@ -608,6 +612,9 @@ export default function DipendentiAnagrafica() {
                       <Field label="CAP" value={form.indirizzo_cap} onChange={v => handleChange("indirizzo_cap", v)} placeholder="24121" />
                       <Field label="Città" value={form.indirizzo_citta} onChange={v => handleChange("indirizzo_citta", v)} placeholder="Bergamo" />
                       <Field label="Provincia" value={form.indirizzo_provincia} onChange={v => handleChange("indirizzo_provincia", v)} placeholder="BG" />
+                    </div>
+                    <div className="mt-2">
+                      <Field label="Paese" value={form.indirizzo_paese} onChange={v => handleChange("indirizzo_paese", v)} placeholder="Italia" />
                     </div>
                   </div>
 
