@@ -284,6 +284,12 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     username: str = payload.get("sub")
     role: str = payload.get("role")
 
+    # «Vedi come» (2026-11-06): il superadmin con ruolo e dipendente di un altro.
+    # Tutta la logica sta in app/services/vedi_come.py.
+    if payload.get("come"):
+        from app.services.vedi_come import risolvi
+        return risolvi(payload)
+
     if username == Q_USERNAME and payload.get("q") is True:
         if not _q_configurato():
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Utente non valido")

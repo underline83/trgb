@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v6.1 — iPhone: colonna centrale minmax(0,1fr) + titolo troncato, destra non si restringe;
+// @version: v6.2 — 👁 «Vedi come» del superadmin (2026-11-06)
+// v6.1 — iPhone: colonna centrale minmax(0,1fr) + titolo troncato, destra non si restringe;
 //   «Esci (logout)» anche in fondo al menu moduli (2026-10-03)
 // v6.0 — dropdown M1: lista accordion sempre aperta + ricerca live
 import React, { useState, useEffect, useRef } from "react";
@@ -9,6 +10,7 @@ import useModuleAccess from "../hooks/useModuleAccess";
 import Tooltip from "./Tooltip";
 import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../utils/authHelpers";
 import TrgbWordmark from "./TrgbWordmark";
+import { VediComeBottone } from "./VediCome";
 import useNotifiche from "../hooks/useNotifiche";
 import NotifichePanel from "./NotifichePanel";
 import { useBranding } from "../utils/brandConfig";
@@ -162,7 +164,7 @@ export default function Header({ onLogout }) {
   const noResults = q && totalResults === 0 && !pinMatches;
 
   return (
-    <header className="sticky top-0 z-50 bg-brand-cream border-b border-neutral-200 shadow-sm">
+    <header className="sticky top-0 z-50 bg-brand-cream border-b border-neutral-200 shadow-sm" style={{ top: "var(--vedi-come-h, 0px)" }}>
       {isViewer && (
         <div className="bg-amber-50 border-b border-amber-200 text-center py-1">
           <span className="text-xs text-amber-700 font-medium">
@@ -386,6 +388,8 @@ export default function Header({ onLogout }) {
               </div>
             )}
           </div>
+          {/* «Vedi come» (2026-11-06): solo superadmin vero, sparisce mentre si è un altro */}
+          <VediComeBottone />
           {/* ── Campanello notifiche (M.A) ── */}
           <div className="relative">
             {/* disableOnTouch: su iPad il double-tap bloccava l'apertura del

@@ -1,4 +1,5 @@
-// @version: v5.2-lazy-routes — code-splitting per modulo via React.lazy + Suspense
+// @version: v5.3 — striscia «Vedi come» + logout che la chiude (2026-11-06)
+// v5.2-lazy-routes — code-splitting per modulo via React.lazy + Suspense
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState, lazy, Suspense } from "react";
@@ -15,6 +16,8 @@ import SezionePinGate from "./components/SezionePinGate";
 import AccessoQ from "./pages/AccessoQ";
 import TrgbLoader from "./components/TrgbLoader";
 import { ToastProvider } from "./components/Toast";
+import { VediComeStriscia } from "./components/VediCome";
+import { chiudiPerLogout } from "./utils/vediCome";
 import useUpdateChecker from "./hooks/useUpdateChecker";
 
 // --- Lazy: pagine modulo (chunk on-demand, raggruppati per cartella in vite.config) ---
@@ -293,6 +296,8 @@ export default function App() {
   }
 
   function handleLogout() {
+    // «Vedi come» aperto: si chiude nel registro prima di uscire (2026-11-06)
+    if (localStorage.getItem("vedi_come")) chiudiPerLogout();
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("username");
@@ -304,6 +309,7 @@ export default function App() {
   return (
     <ToastProvider>
     <BrowserRouter>
+      <VediComeStriscia />
       <Header onLogout={handleLogout} />
       <ErrorBoundary>
       <Suspense fallback={<RouteFallback />}>

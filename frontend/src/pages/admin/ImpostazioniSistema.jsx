@@ -1,4 +1,5 @@
-// @version: v1.2 — tab "Home per ruolo" (sessione 49)
+// @version: v1.3 — «Vedi come»: durata e registro sotto Utenti, solo superadmin (2026-11-06)
+// v1.2 — tab "Home per ruolo" (sessione 49)
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -82,6 +83,7 @@ export default function ImpostazioniSistema() {
 
         {/* CONTENUTO */}
         {tab === "utenti" && <TabUtenti currentUsername={currentUsername} />}
+        {tab === "utenti" && role === "superadmin" && !localStorage.getItem("vedi_come") && <VediComeImpostazioni />}
         {tab === "moduli" && <TabModuli />}
         {tab === "notifiche" && <NotificheImpostazioni />}
         {tab === "email" && <TabEmail />}
@@ -1108,6 +1110,64 @@ function TabEmail() {
           </Btn>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// «VEDI COME» — durata (minuti) e registro, solo superadmin (2026-11-06)
+// ---------------------------------------------------------------------------
+function VediComeImpostazioni() {
+  const [minuti, setMinuti] = useState("");
+  const [salvati, setSalvati] = useState(null);
+  const [registro, setRegistro] = useState([]);
+  const [msg, setMsg] = useState("");
+
+  const carica = () =>
+    apiFetch(`${API_BASE}/auth/vedi-come/impostazioni`)
+      .then((r) => r.json())
+      .then((d) => { setMinuti(String(d.minuti)); setSalvati(d.minuti); setRegistro(d.registro || []); })
+      .catch(() => setMsg("Non riesco a leggere le impostazioni di «Vedi come»"));
+  useEffect(() => { carica(); }, []);
+
+  async function salva() {
+    setMsg("");
+    const n = parseInt(minuti, 10);
+    const r = await apiFetch(`${API_BASE}/auth/vedi-come/impostazioni`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ minuti: n }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { setMsg(typeof d.detail === "string" ? d.detail : "Valore non valido (1–1440)"); return; }
+    setSalvati(d.minuti); setMsg("Salvato");
+  }
+
+  return (
+    <div className="mt-6 bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] p-5">
+      <h3 className="text-base font-semibold text-brand-ink">👁 Vedi come</h3>
+      <p className="text-sm text-neutral-500 mt-1">
+        Dal 👁 in alto vedi e provi TRGB come una persona o un ruolo. Scade da sola dopo:
+      </p>
+      <div className="flex items-center gap-2 mt-3">
+        <input
+          type="number" min={1} max={1440} value={minuti}
+          onChange={(e) => setMinuti(e.target.value)}
+          className="w-24 border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+        />
+        <span className="text-sm text-neutral-600">minuti</span>
+        <Btn size="sm" onClick={salva} disabled={String(salvati) === minuti}>Salva</Btn>
+        {msg && <span className="text-xs text-neutral-500">{msg}</span>}
+      </div>
+      <div className="text-[11px] uppercase tracking-wider text-neutral-400 mt-5 mb-1">Registro</div>
+      {registro.length === 0
+        ? <div className="text-sm text-neutral-400">Ancora nessuna volta.</div>
+        : (
+          <ul className="text-sm text-neutral-700 space-y-1">
+            {registro.map((r) => <li key={r.id}>{r.frase}</li>)}
+          </ul>
+        )}
     </div>
   );
 }

@@ -64,9 +64,9 @@ def _get_user_flessibile(
     """
     auth = request.headers.get("authorization") or ""
     if auth.lower().startswith("bearer "):
-        return decode_access_token(auth.split(" ", 1)[1])
+        return get_current_user(auth.split(" ", 1)[1])  # 2026-11-06: passa da get_current_user («Vedi come», Q)
     if token:
-        return decode_access_token(token)
+        return get_current_user(token)  # 2026-11-06: passa da get_current_user («Vedi come», Q)
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Autenticazione richiesta (header Authorization o ?token=...).",

@@ -27,6 +27,11 @@ export async function apiFetch(url, options = {}) {
     // Log QUALE endpoint ha provocato il 401 — fondamentale per debug
     console.error(`[apiFetch] 401 su: ${url}`);
     console.error(`[apiFetch] Token presente: ${!!token}, lunghezza: ${token?.length || 0}`);
+    // «Vedi come» scaduto (2026-11-06): non si esce, si torna al superadmin
+    if (localStorage.getItem("vedi_come") && localStorage.getItem("vero_token")) {
+      import("../utils/vediCome").then((m) => m.tornaAMe({ scaduto: true }));
+      throw new Error("«Vedi come» scaduto: torno al tuo utente.");
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     window.location.href = "/login";

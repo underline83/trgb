@@ -1,8 +1,10 @@
-from typing import List
+# Modulo: platform (auth) — [core] · v1.1 2026-11-06: «Vedi come» del superadmin (/auth/vedi-come/*)
+from typing import List, Optional
+from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import APIRouter, Depends
 from app.schemas.user_schema import LoginRequest, TokenResponse, UserTile, VerificaPinRequest, AccessoQRequest
-from app.services import auth_service
+from app.services import auth_service, vedi_come
 from app.core import security, config
 
 router = APIRouter()
@@ -27,6 +29,11 @@ def refresh_token(current_user: dict = Depends(auth_service.get_current_user)):
     """
     username = current_user["username"]
     role = current_user["role"]
+    if current_user.get("vedi_come"):
+        # «Vedi come»: il rinnovo non allunga la durata decisa all'inizio
+        out = vedi_come.token_come(current_user["vero_username"], current_user.get("come_username"),
+                                   role, current_user.get("come_id"), int(current_user["come_fino"]))
+        return {**out, "role": role}
     if username == auth_service.Q_USERNAME:
         # Q nel browser: il rinnovo non allunga la sessione oltre q_fino
         return auth_service.token_q(current_user.get("q_fino"))
@@ -53,8 +60,48 @@ def verifica_pin(data: VerificaPinRequest, current_user: dict = Depends(auth_ser
     200 {ok: true} · 403 PIN errato · 429 troppi tentativi (stesso blocco del login)."""
     if current_user["username"] == auth_service.Q_USERNAME:
         return {"ok": True}  # Q non ha PIN: il blocco di sezione serve all'iPad lasciato loggato
-    auth_service.verifica_pin(current_user["username"], data.pin)
+    # In «Vedi come» il PIN di sezione è quello del superadmin vero, mai quello della persona
+    auth_service.verifica_pin(current_user.get("vero_username") or current_user["username"], data.pin)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# «VEDI COME» — solo superadmin (logica in app/services/vedi_come.py)
+# ---------------------------------------------------------------------------
+class VediComeInizio(BaseModel):
+    username: Optional[str] = None   # una persona (ruolo + dipendente suoi)
+    ruolo: Optional[str] = None      # oppure un ruolo «vuoto», senza dipendente
+
+
+class VediComeFine(BaseModel):
+    id: int
+    scaduto: bool = False
+
+
+class VediComeMinuti(BaseModel):
+    minuti: int = Field(..., ge=1, le=vedi_come.MINUTI_MAX)
+
+
+@router.post("/vedi-come/inizia", summary="Superadmin: inizia a vedere TRGB come una persona o un ruolo")
+def vedi_come_inizia(data: VediComeInizio, current_user: dict = Depends(auth_service.get_current_user)):
+    return vedi_come.inizia(current_user, (data.username or "").strip() or None, (data.ruolo or "").strip() or None)
+
+
+@router.post("/vedi-come/fine", summary="Superadmin (pass vero): chiude «Vedi come» e lo scrive nel registro")
+def vedi_come_fine(data: VediComeFine, current_user: dict = Depends(auth_service.get_current_user)):
+    return vedi_come.fine(current_user, data.id, data.scaduto)
+
+
+@router.get("/vedi-come/impostazioni", summary="Superadmin: durata di «Vedi come» e registro")
+def vedi_come_impostazioni(current_user: dict = Depends(auth_service.get_current_user)):
+    vedi_come._verifica_superadmin_vero(current_user)
+    return {"minuti": vedi_come.minuti(), "registro": vedi_come.registro()}
+
+
+@router.put("/vedi-come/impostazioni", summary="Superadmin: cambia la durata di «Vedi come»")
+def vedi_come_imposta(data: VediComeMinuti, current_user: dict = Depends(auth_service.get_current_user)):
+    vedi_come._verifica_superadmin_vero(current_user)
+    return {"minuti": vedi_come.imposta_minuti(data.minuti)}
 
 
 @router.post("/accesso-q", response_model=TokenResponse, summary="Q nel browser: scambia il link usa-e-getta con una sessione")

@@ -721,6 +721,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.94 (2026-11-06): «Vedi come» del superadmin — app/services/vedi_come.py, registro in
+    //   accessi.sqlite3 (creato al boot del primo uso, nessuna migrazione numerata), durata
+    //   vedi_come_minuti in auth_settings.json. vini_router/vini_cantina_tools passano da get_current_user.
     // 5.93 (2026-11-03): mig 227 — storico dei preventivi, cc/reply-to nel registro invii,
     //   motivo_cancellazione delle prenotazioni; controllo orario delle scadenze (clienti 3.24).
     // 5.92 (2026-11-03): mig 226 — vini_fe_emittenti, vini_fe_righe, vini_fe_mappa,
@@ -852,7 +855,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.93",
+    version: "5.94",
     label: "Sistema",
     status: "stabile",
     color: "green",

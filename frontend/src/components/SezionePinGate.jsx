@@ -118,7 +118,8 @@ export default function SezionePinGate({ children }) {
   if (localStorage.getItem("username") === "Q") return children;
 
   const role = localStorage.getItem("role") || "";
-  const nome = localStorage.getItem("display_name") || localStorage.getItem("username") || "";
+  // «Vedi come»: il PIN chiesto è quello del superadmin vero (lo verifica anche il backend)
+  const nome = localStorage.getItem("vero_display_name") || localStorage.getItem("display_name") || localStorage.getItem("username") || "";
   // Lunghezza reale del PIN salvata al login; se manca (sessione aperta prima del
   // 2026-10-19) stima dal ruolo senza invio automatico.
   const pinLenNoto = parseInt(localStorage.getItem("pin_len") || "", 10) || null;
