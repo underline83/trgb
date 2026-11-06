@@ -1,4 +1,5 @@
-// @version: v1.0 — campi del debito, sezioni, tipi d'atto (2026-11-02)
+// @version: v1.1 — minuti del controllo pagamenti nel modale (2026-11-06)
+// v1.0 — campi del debito, sezioni, tipi d'atto (2026-11-02)
 // Modulo: pratiche
 // Pezzi condivisi da PraticheElenco e PraticaScheda: i campi del debito, la
 // spunta «in attesa di mezzi», il caricamento di sezioni/tipi d'atto/config e
@@ -95,6 +96,7 @@ export function GestioneSezioni({ open, onClose, onCambiato }) {
   const [sezioni, setSezioni] = useState([]);
   const [tipi, setTipi] = useState([]);
   const [giorni, setGiorni] = useState("30");
+  const [minutiPag, setMinutiPag] = useState("10");
   const [nuovaSez, setNuovaSez] = useState("");
   const [nuovoTipo, setNuovoTipo] = useState({ nome: "", gradino: "", sezione_id: "" });
   const [errore, setErrore] = useState("");
@@ -109,7 +111,11 @@ export function GestioneSezioni({ open, onClose, onCambiato }) {
       ]);
       if (rs.ok) setSezioni(await rs.json());
       if (rt.ok) setTipi(await rt.json());
-      if (rc.ok) setGiorni(String((await rc.json()).giorni_revisione));
+      if (rc.ok) {
+        const cfg = await rc.json();
+        setGiorni(String(cfg.giorni_revisione));
+        if (cfg.controllo_pagamenti_minuti != null) setMinutiPag(String(cfg.controllo_pagamenti_minuti));
+      }
     } catch (e) { setErrore(e.message); }
   }, []);
   useEffect(() => { if (open) { setErrore(""); carica(); } }, [open, carica]);
@@ -210,6 +216,23 @@ export function GestioneSezioni({ open, onClose, onCambiato }) {
             </FieldLabel>
             <Btn size="md" variant="secondary" disabled={saving}
               onClick={() => esegui(() => invia(`${API_BASE}/pratiche/config`, "PUT", { giorni_revisione: Number(giorni) }))}>
+              Salva
+            </Btn>
+          </div>
+        </section>
+
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-600 mb-2">Pagamenti collegati</h3>
+          <p className="text-xs text-neutral-500 mb-2">
+            Quando tutte le uscite collegate (rate comprese) risultano pagate, la pratica si chiude da sola.
+            Se un pagamento viene annullato si riapre; se l'avevi chiusa tu resta chiusa e ti arriva una notifica.
+          </p>
+          <div className="flex gap-2 items-end">
+            <FieldLabel label="Controlla ogni (minuti, 0 = spento)">
+              <TextInput size="md" type="number" value={minutiPag} onChange={setMinutiPag} className="w-24" />
+            </FieldLabel>
+            <Btn size="md" variant="secondary" disabled={saving}
+              onClick={() => esegui(() => invia(`${API_BASE}/pratiche/config`, "PUT", { controllo_pagamenti_minuti: Number(minutiPag) }))}>
               Salva
             </Btn>
           </div>

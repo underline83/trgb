@@ -642,6 +642,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   pratiche: {
+    // 1.3 (2026-11-06): il pagamento delle uscite collegate (rate comprese) chiude la pratica —
+    //   controllo ogni N minuti (pratiche_config.controllo_pagamenti_minuti, 10), riapertura se
+    //   annullato, notifica se era chiusa a mano. Tabella pratiche_pagamenti_visti al boot.
     // 1.2 (2026-11-02): SEZIONI scelte da Marco (chip con conteggi, filtro,
     //   modale «Sezioni e atti»), campi del debito (tipo d'atto col gradino,
     //   riferimento, periodo, dovuto, residuo; ogni cambio resta nella storia),
@@ -652,7 +655,7 @@ const MODULE_VERSIONS = {
     // 1.0 (2026-10-08): nascita. Elenco Scadute / Tocca a me / Tocca a loro,
     //   scheda con storia dei passi, nuovo passo (stato, termine, allegato),
     //   collegamenti manuali ad altri moduli, avviso pratiche_termini.
-    version: "1.2",
+    version: "1.3",
     label: "Pratiche",
     status: "beta",
     color: "blue",

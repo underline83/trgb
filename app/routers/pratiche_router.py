@@ -17,7 +17,9 @@ Endpoint (tutti solo admin/superadmin: pignoramenti, creditori, contenziosi):
     GET    /pratiche/riepilogo                         conteggi per sezione + in attesa di mezzi / da rivedere
     GET    /pratiche/sezioni · POST · PATCH /{id}      le sezioni (non si cancellano: si disattivano)
     GET    /pratiche/tipi-atto · POST · PATCH /{id}    i tipi d'atto con il gradino
-    GET    /pratiche/config · PUT                      giorni fra una revisione e l'altra
+    GET    /pratiche/config · PUT                      giorni fra una revisione e l'altra,
+                                                       minuti del controllo pagamenti (v1.2)
+    GET    /pratiche/controllo-pagamenti · POST        stato / un giro subito (v1.2)
     POST   /pratiche/                                  nuova pratica + primo passo (multipart)
     GET    /pratiche/{id}                              pratica con passi e collegamenti
     PATCH  /pratiche/{id}                              titolo, controparte, contatto + campi del debito
@@ -173,7 +175,8 @@ def correggi_tipo_atto(tipo_id: int, body: TipoAttoIn):
 
 
 class ConfigIn(BaseModel):
-    giorni_revisione: int
+    giorni_revisione: Optional[int] = None
+    controllo_pagamenti_minuti: Optional[int] = None   # v1.2: 0 = spento
 
 
 @router.get("/config")
@@ -183,7 +186,20 @@ def leggi_config():
 
 @router.put("/config")
 def salva_config(body: ConfigIn):
-    return _errori(svc.salva_config, body.giorni_revisione)
+    return _errori(svc.salva_config, body.giorni_revisione, body.controllo_pagamenti_minuti)
+
+
+@router.post("/controllo-pagamenti")
+def controllo_pagamenti_ora():
+    """Fa subito un giro del controllo pagamenti (senza aspettare i minuti)."""
+    from app.services import pratiche_pagamenti
+    return pratiche_pagamenti.giro()
+
+
+@router.get("/controllo-pagamenti")
+def controllo_pagamenti_stato():
+    from app.services import pratiche_pagamenti
+    return pratiche_pagamenti.stato()
 
 
 @router.post("/")

@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-11-02) — sezioni, campi del debito, «in attesa di mezzi»
+# @version: v1.2 (2026-11-06) — config del controllo pagamenti (app/services/pratiche_pagamenti.py)
+# v1.1 (2026-11-02) — sezioni, campi del debito, «in attesa di mezzi»
 # -*- coding: utf-8 -*-
 """
 Service Pratiche — TRGB Gestionale. Modulo: pratiche.
@@ -208,10 +209,18 @@ def giorni_revisione(conn=None) -> int:
 
 
 def leggi_config() -> Dict[str, Any]:
-    return {"giorni_revisione": giorni_revisione()}
+    from app.services.pratiche_pagamenti import minuti
+    return {"giorni_revisione": giorni_revisione(), "controllo_pagamenti_minuti": minuti()}
 
 
-def salva_config(giorni_revisione_nuovi: int) -> Dict[str, Any]:
+def salva_config(giorni_revisione_nuovi: Optional[int] = None,
+                 controllo_pagamenti_minuti: Optional[int] = None) -> Dict[str, Any]:
+    """v1.2: anche i minuti del controllo pagamenti (0 = spento). I campi assenti restano."""
+    if controllo_pagamenti_minuti is not None:
+        from app.services.pratiche_pagamenti import salva_minuti
+        salva_minuti(controllo_pagamenti_minuti)
+    if giorni_revisione_nuovi is None:
+        return leggi_config()
     try:
         n = int(giorni_revisione_nuovi)
     except (TypeError, ValueError):

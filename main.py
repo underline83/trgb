@@ -849,6 +849,11 @@ _mount("bevande_router", bevande_router)
 
 # PRATICHE (modulo pratiche) — schema creato all'import del router (init_pratiche_db)
 _mount("pratiche_router", pratiche_router)
+if module_loader.is_router_active("pratiche_router"):
+    # Il pagamento delle uscite collegate chiude la pratica: controllo ogni N minuti
+    # (pratiche_config.controllo_pagamenti_minuti, default 10, 0 = spento) — 2026-11-06
+    from app.services.pratiche_pagamenti import avvia as _pratiche_pagamenti
+    _pratiche_pagamenti()
 
 # CASSA (modulo cassa) — conti iPratico Cloud; schema al boot (init_cassa_conti_db)
 _mount("cassa_ipratico_router", cassa_ipratico_router)

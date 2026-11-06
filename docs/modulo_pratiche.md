@@ -220,6 +220,19 @@ Marco, 2026-11-02: tutto stava in un'unica lista; vuole **sezioni** (a partire d
 
 ---
 
+## 8bis. Il pagamento chiude la pratica (2026-11-06, Q #315 #319 #321)
+
+Decisioni di Marco, una alla volta:
+- **Come si accorge:** controllo a intervalli, non un aggancio nei ~37 punti che scrivono PAGATO (prende ogni strada, anche future e correzioni a mano, e le riaperture). Thread di sfondo avviato in `main.py` come lo scarico notturno di iPratico. Ogni `controllo_pagamenti_minuti` (pratiche_config, partenza **10**, 0 = spento), modale «Sezioni e atti» › Pagamenti collegati.
+- **Cosa conta:** collegamenti `controllo_gestione` di tipo `uscita` (ref_id = `cg_uscite.id`) e `spesa_fissa` di tipo RATEIZZAZIONE / RATEIZZAZIONE_TASSE / PRESTITO con `data_fine`: tutte le rate di `cg_piano_rate`. Una spesa fissa senza fine (affitto) è solo un riferimento. Pagata = `PAGATO` o `PAGATO_MANUALE`.
+- **Quando chiude:** quando sono pagate **tutte** le uscite contate. Passo automatico (autore «TRGB (controllo pagamenti)»), esito «Pagato € X il gg» o «Pagate tutte: N rate, € X in totale, ultima il gg».
+- **Pagamento annullato:** chiusa dal controllo → passo e riapertura in «tocca a me»; chiusa a mano → resta chiusa, passo «… annullato … resta chiusa» e notifica (superadmin e admin); già riaperta → solo il passo.
+- **Solo sui cambi:** lo stato visto sta in `pratiche_pagamenti_visti` (pratica_id, tutte_pagate, quante, pagate, totale, ultimo_pagamento, passo_chiusura_id). «Chiusa dal controllo» = l'ultimo passo di chiusura è quello scritto dal controllo. Al primo giro: se è già tutto pagato e la pratica è aperta si chiude; l'annullamento si riconosce solo dopo aver visto «tutto pagato».
+- Codice: `app/services/pratiche_pagamenti.py`. Endpoint: `GET/POST /pratiche/controllo-pagamenti` (stato / un giro subito).
+- Prova sui dati veri del 06/11 (copia in sola lettura): guarda solo la pratica 12 (Fondo Est, 8 rate pagate su 10), nessuna modifica.
+
+---
+
 ## 9. Capability
 
 | Codice | Cosa fa | Riferimento | Audience | Stato docs |
@@ -243,3 +256,4 @@ Marco, 2026-11-02: tutto stava in un'unica lista; vuole **sezioni** (a partire d
 | C-P-017 | Rate della rateizzazione collegata (spesa fissa): pagate, in distinta non abbinate in banca, scadute, da pagare | `PraticaScheda.jsx:RateCollegate`, `controllo_gestione_router.py:get_piano_rate` | admin | 🆕 |
 | C-P-018 | Avviso `pratiche_termini` col gruppo «da rivedere» | `alert_engine.py:_check_pratiche_termini` | admin | 🆕 |
 | C-P-019 | MCP: `pratiche_riepilogo`, `pratica_correggi`, sezione e campi del debito in elenco/crea/passo, rate in `pratica_leggi` | `connettore/server.py:_strumenti_pratiche`, `_rate_collegate` | admin (Claude/Q) | 🆕 |
+| C-P-020 | Il pagamento chiude la pratica: controllo ogni N minuti (default 10) delle uscite e delle rate collegate; tutte pagate → chiusa con passo automatico; annullato → riaperta se l'aveva chiusa il controllo, altrimenti passo + notifica | `pratiche_pagamenti.py`, `main.py` (avvio), `pratiche_router.py` (`/config`, `/controllo-pagamenti`), `PraticheCampi.jsx` | admin | 🆕 2026-11-06 |
