@@ -1,6 +1,7 @@
 // frontend/src/pages/vini/EtichetteVini.jsx
 // Modulo: vini
-// @version: v1.3 — «Etichetta collo bottiglia» 29×47 senza QR, predefinita (2026-11-07)
+// @version: v1.4 — collo bottiglia: descrizione fino a 3 righe in 11 pt (2026-11-07)
+//           v1.3 — «Etichetta collo bottiglia» 29×47 senza QR, predefinita (2026-11-07)
 //           v1.2 — DK-22211 a 47 mm, QR 14 mm (ECC L), testi grandi (2026-11-07)
 //           v1.1 — rotolo DK-22211 (29 mm continuo) predefinito + stampa in PDF della misura esatta (2026-11-07)
 //           v1.0 — etichette QR bottiglie per Brother QL-820NWB (2026-10-06)
@@ -52,6 +53,17 @@ function urlScheda(id) {
 }
 
 function den(v) { return v.DENOMINAZIONE || v.d_display || ""; }
+
+// Per l'etichetta collo: via i vitigni tra parentesi e la gradazione («(45% Cabernet…)», «13,5%», «14°»).
+// Sono in anagrafica, sul collo rubano le righe al nome. Solo stampa: il dato non si tocca.
+export function descrizioneCorta(testo) {
+  return String(testo || "")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\b\d{1,2}(?:[.,]\d{1,2})?\s*(?:%|°)(?:\s*vol\.?)?/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[\s\-–,]+$/, "")
+    .trim();
+}
 function prod(v) { return v.PRODUTTORE || v.p_nome || ""; }
 
 // ── PDF ──────────────────────────────────────────────────────────────
@@ -93,12 +105,22 @@ function opzioniPdf(v, formato) {
     // 29 continuo sposta la stampa verso la coda e taglia l'ultimo mezzo carattere a destra («#67(»).
     const marg = 2.5, margDx = 4.5;
     const maxC = (f.w - marg - margDx) * PT;
+    // Descrizione fino a 3 righe in 11 pt (richiesta Marco 2026-11-07: i nomi lunghi in 2 righe non stavano).
+    // Blocco più alto possibile: ~22 mm, centrato nei 29 mm (la Brother stampa ~25,9 mm).
     if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxC, 7, true), sizePt: 7, bold: true, spaziatura: 0.3 });
-    aCapo(v.DESCRIZIONE, maxC, 12, true, 2).forEach((t, i) =>
-      righe.push({ testo: t, sizePt: 12, bold: true, spazioPrimaMm: i ? 1.3 : (righe.length ? 1.6 : 0) }));
-    if (prod(v)) righe.push({ testo: taglia(prod(v), maxC, 9, false), sizePt: 9, spazioPrimaMm: 1.6 });
+    // 11 pt; se in 3 righe non ci sta, scende a 10 e poi a 9 prima di tagliare con «...»
+    const desc = descrizioneCorta(v.DESCRIZIONE) || v.DESCRIZIONE;
+    let szNome = 11, righeNome = aCapo(desc, maxC, 11, true, 3);
+    for (const sz of [10, 9]) {
+      if (!righeNome[righeNome.length - 1]?.endsWith("...")) break;
+      szNome = sz; righeNome = aCapo(desc, maxC, sz, true, 3);
+    }
+    righeNome.forEach((t, i) =>
+      righe.push({ testo: t, sizePt: szNome, bold: true, spazioPrimaMm: i ? 1.1 : (righe.length ? 1.4 : 0) }));
+    const prodCorto = prod(v).replace(/\([^)]*\)/g, " ").replace(/\s{2,}/g, " ").trim() || prod(v);
+    if (prodCorto) righe.push({ testo: taglia(prodCorto, maxC, 8.5, false), sizePt: 8.5, spazioPrimaMm: 1.4 });
     righe.push({
-      testo: String(v.ANNATA || "s.a."), sizePt: 12, bold: true, spazioPrimaMm: 1.9,
+      testo: String(v.ANNATA || "s.a."), sizePt: 11, bold: true, spazioPrimaMm: 1.7,
       destra: { testo: `#${v.id}`, sizePt: 8, bold: true },
     });
     return { wMm: f.w, hMm: f.h, ruota: f.ruota, qrText: "", qrMm: 0, margineMm: marg, margineDxMm: margDx, gapMm: 0, righe };
@@ -136,7 +158,7 @@ export function Etichetta({ v, formato }) {
       <div className="etv-lbl etv-collo" style={{ width: `${f.w}mm`, height: `${f.h}mm` }}>
         <div className="etv-txt">
           {den(v) && <div className="etv-den">{den(v)}</div>}
-          <div className="etv-nome" style={{ WebkitLineClamp: 2 }}>{v.DESCRIZIONE}</div>
+          <div className="etv-nome" style={{ WebkitLineClamp: 3 }}>{descrizioneCorta(v.DESCRIZIONE) || v.DESCRIZIONE}</div>
           {prod(v) && <div className="etv-prod">{prod(v)}</div>}
           <div className="etv-foot">
             <span className="etv-ann">{v.ANNATA || "s.a."}</span>
@@ -190,9 +212,9 @@ export const LABEL_CSS = `
 .etv-id{font-size:6.5pt;font-weight:700}
 .etv-collo{padding:2mm 4.5mm 2mm 2.5mm}
 .etv-collo .etv-den{font-size:7pt;letter-spacing:.04em}
-.etv-collo .etv-nome{font-size:12pt}
-.etv-collo .etv-prod{font-size:9pt}
-.etv-collo .etv-ann{font-size:12pt}
+.etv-collo .etv-nome{font-size:11pt}
+.etv-collo .etv-prod{font-size:8.5pt}
+.etv-collo .etv-ann{font-size:11pt}
 .etv-collo .etv-id{font-size:8pt}
 .etv-comp{gap:1.5mm;padding:1mm 1.2mm}
 .etv-comp .etv-den{font-size:6pt}

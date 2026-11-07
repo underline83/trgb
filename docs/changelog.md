@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-07 — Vini 4.12–4.14: etichette su DK-22211, etichetta collo bottiglia `[core]`
+
+Nessuna migrazione. **4.12**: «🏷️ Etichetta» nel piede di `SchedaVino`, quindi anche nella scheda aperta dentro Cantina (prima c'era solo nella pagina a sé e nella scheda mobile). La pagina `/vini/etichette` stampa ora un **PDF della misura esatta** (`utils/pdfEtichetta.js`, come le gift card) invece di `window.print()`. Il rotolo montato è il **DK-22211** (pellicola 29 mm continua). **4.13**: etichetta QR 29×47, QR al minimo leggibile (14 mm, correzione L) e testi grandi. **4.14**: nuova **«Etichetta collo bottiglia»** 29×47 **senza QR** (denominazione, descrizione su 2 righe, produttore, annata, #id), predefinita. Margini 2,5 mm a sinistra e 4,5 mm a destra, perché la Brother sul continuo sposta la stampa verso la coda e taglia a destra (prova di Marco). Pagina rinominata «Etichette vini». `pdfEtichetta` v1.6: `ecc`, `destra`, etichetta senza QR, `margineDxMm`. Sul Mac di Marco: carte personalizzate «Vini 29x40»/«Vini 29x47» e preset di stampa «Vini QR 29x47» per la QL-820NWB (scala 100%); il preset «Etichetta 29x90» resta per le gift card.
+
 ## 2026-11-06 — Vini 4.11: fix vendita al calice in Vini › Vendite `[core]`
 
 Nessuna migrazione. Dopo il passaggio a `useRegistraVenditaVino` (vini 4.10) il tasto «Registra» di Vini › Vendite passava l'evento del click come modalità: la modalità diventava un oggetto, la pagina andava in errore (`MODALITA[modalita].icon`), la vendita veniva registrata con nota `[[object Object]]` e, al calice, senza modale «Decidi prezzo calice» né apertura della mescita. Fix: `onClick={() => submitVendita()}` e il hook (v1.1) accetta solo BOTTIGLIA/CALICI. La Home sommelier («Vendi o apri») non era toccata.
