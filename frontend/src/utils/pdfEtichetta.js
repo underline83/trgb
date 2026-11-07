@@ -1,6 +1,6 @@
 // frontend/src/utils/pdfEtichetta.js
 // Platform (M.I) — PDF vettoriale di un'etichetta con QR, della misura esatta del rotolo.
-// @version: v1.4 — `ecc` (correzione d'errore del QR) e `destra` (testo allineato a destra sulla stessa riga), 2026-11-07; v1.3 — più etichette in un PDF (pdfEtichetteQr), 2026-10-29; v1.2 — `ruota`: si disegna in orizzontale, la pagina esce in piedi come la carta del driver (2026-10-26); v1.1 — layout «verticale»: QR sopra e testo sotto, centrati (2026-10-26); v1.0 2026-10-25
+// @version: v1.5 — etichetta senza QR (qrText vuoto o qrMm 0: solo testo), 2026-11-07; v1.4 — `ecc` (correzione d'errore del QR) e `destra` (testo allineato a destra sulla stessa riga), 2026-11-07; v1.3 — più etichette in un PDF (pdfEtichetteQr), 2026-10-29; v1.2 — `ruota`: si disegna in orizzontale, la pagina esce in piedi come la carta del driver (2026-10-26); v1.1 — layout «verticale»: QR sopra e testo sotto, centrati (2026-10-26); v1.0 2026-10-25
 //
 // PERCHE' UN PDF E NON window.print() della pagina:
 //   Safari (Mac e iPad) ignora @page size: stampa la pagina in A4 sulla
@@ -83,14 +83,16 @@ function paginaEtichetta({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, r
   const ops = ruota ? [`q 0 1 -1 0 ${n(H)} 0 cm`, "0 g"] : ["0 g"];
 
   // QR: righe di moduli scuri unite in rettangoli orizzontali
-  const qr = qrcode(0, ecc);
-  qr.addData(qrText);
-  qr.make();
-  const count = qr.getModuleCount();
+  // Senza QR (qrText vuoto o qrMm 0) il testo parte dal margine sinistro
+  const conQr = !!qrText && qrMm > 0;
+  const qr = conQr ? qrcode(0, ecc) : null;
+  if (qr) { qr.addData(qrText); qr.make(); }
+  const count = qr ? qr.getModuleCount() : 0;
   const tot = count + 4; // 2 moduli di zona di rispetto per lato
-  const lato = qrMm * PT;
+  const lato = conQr ? qrMm * PT : 0;
+  const gap = conQr ? gapMm * PT : 0;
   const mod = lato / tot;
-  const gruppo = lato + gapMm * PT + Math.max(0, ...righe.map(largRiga));
+  const gruppo = lato + gap + Math.max(0, ...righe.map(largRiga));
   const x0 = vert ? (W - lato) / 2 : centra ? Math.max(margineMm * PT, (W - gruppo) / 2) : margineMm * PT;
   const y0 = vert ? H - margineAltoMm * PT - lato : (H - lato) / 2;
   for (let r = 0; r < count; r++) {
@@ -105,11 +107,11 @@ function paginaEtichetta({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, r
       c = fine;
     }
   }
-  ops.push("f");
+  if (conQr) ops.push("f");
 
   // Testo. Orizzontale: blocco centrato in verticale a destra del QR.
   // Verticale: righe centrate in orizzontale, dal bordo sotto il QR in giù.
-  const xt = x0 + lato + gapMm * PT;
+  const xt = x0 + lato + gap;
   const altezze = righe.map((r, i) => (i ? (r.spazioPrimaMm || 0) * PT : 0) + r.sizePt * 0.72);
   const blocco = altezze.reduce((a, b) => a + b, 0);
   let y = vert ? y0 - gapMm * PT : (H + blocco) / 2;

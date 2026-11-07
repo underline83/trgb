@@ -2029,7 +2029,7 @@ const SchedaVino = forwardRef(function SchedaVino({
             )}
             {vinoId && (
               <Btn variant="secondary" size="md" type="button" onClick={() => navigate(`/vini/etichette?ids=${vinoId}`)}>
-                🏷️ Etichetta QR
+                🏷️ Etichetta
               </Btn>
             )}
             {!roReadOnly && (

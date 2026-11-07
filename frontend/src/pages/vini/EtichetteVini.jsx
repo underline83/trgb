@@ -1,6 +1,7 @@
 // frontend/src/pages/vini/EtichetteVini.jsx
 // Modulo: vini
-// @version: v1.2 — DK-22211 a 47 mm, QR 14 mm (ECC L), testi grandi (2026-11-07)
+// @version: v1.3 — «Etichetta collo bottiglia» 29×47 senza QR, predefinita (2026-11-07)
+//           v1.2 — DK-22211 a 47 mm, QR 14 mm (ECC L), testi grandi (2026-11-07)
 //           v1.1 — rotolo DK-22211 (29 mm continuo) predefinito + stampa in PDF della misura esatta (2026-11-07)
 //           v1.0 — etichette QR bottiglie per Brother QL-820NWB (2026-10-06)
 //
@@ -10,6 +11,8 @@
 // (base dell'inventario con QR, roadmap V.13).
 //
 // Formati (rotoli Brother DK):
+//   · collo  → «Etichetta collo bottiglia»: DK-22211 29×47, SENZA QR, solo testo
+//              (denominazione, descrizione, produttore, #id). Richiesta Marco 2026-11-07.
 //   · 29c    → DK-22211, pellicola continua 29 mm tagliata a 47 mm (montato da Marco il 2026-11-07).
 //              QR al minimo leggibile (14 mm, correzione L, modulo ~0,42 mm = 5 punti a 300 dpi)
 //              e testo più grande. Sul Mac: carta personalizzata 29×47 + preset «Vini QR 29x47».
@@ -36,11 +39,12 @@ import { pdfEtichetteQr, mostraPdf, apriFinestraVuota, larghezzaTesto } from "..
 
 // carta = cosa scegliere nel dialogo di stampa; ruota = pagina in piedi (verso del rotolo)
 const FORMATI = {
+  "collo": { label: "Etichetta collo bottiglia 29×47 (DK-22211, senza QR)", w: 47, h: 29, qr: 0, ruota: true, carta: "29×47 (preset «Vini QR 29x47» sul Mac)", collo: true },
   "29c":   { label: "29 continuo × 47 mm (DK-22211)", w: 47, h: 29, qr: 14, ecc: "L", ruota: true,  carta: "29×47 (preset «Vini QR 29x47» sul Mac)", compatta: true },
   "29x62": { label: "29×62 fustellata (DK-11209)",    w: 62, h: 29, qr: 25, ruota: true,  carta: "29 × 62 mm" },
   "62x40": { label: "62 continuo × 40 mm (DK-22205)", w: 62, h: 40, qr: 34, ruota: false, carta: "62 mm (continuo)" },
 };
-const FORMATO_DEFAULT = "29c";
+const FORMATO_DEFAULT = "collo";
 const MAX_COPIE = 99;
 
 function urlScheda(id) {
@@ -84,6 +88,20 @@ function opzioniPdf(v, formato) {
   const margine = f.compatta ? 1.2 : 1.5, gap = f.compatta ? 1.5 : 2;
   const maxPt = (f.w - margine * 2 - f.qr - gap) * PT;
   const righe = [];
+  if (f.collo) {
+    // tutta la larghezza al testo: ~44 mm
+    const maxC = (f.w - 3) * PT;
+    if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxC, 7.5, true), sizePt: 7.5, bold: true, spaziatura: 0.4 });
+    aCapo(v.DESCRIZIONE, maxC, 13, true, 2).forEach((t, i) =>
+      righe.push({ testo: t, sizePt: 13, bold: true, spazioPrimaMm: i ? 1.4 : (righe.length ? 1.8 : 0) }));
+    const idTxt = `#${v.id}`;
+    const maxProd = maxC - larghezzaTesto(idTxt, 8, true) - 2 * PT;
+    righe.push({
+      testo: prod(v) ? taglia(prod(v), maxProd, 9.5, false) : " ", sizePt: 9.5, spazioPrimaMm: 2,
+      destra: { testo: idTxt, sizePt: 8, bold: true },
+    });
+    return { wMm: f.w, hMm: f.h, ruota: f.ruota, qrText: "", qrMm: 0, margineMm: 1.5, gapMm: 0, righe };
+  }
   if (f.compatta) {
     // ~29 mm di testo: denominazione, nome su 2 righe grande, produttore, annata grande con #id a destra
     if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxPt, 6, true), sizePt: 6, bold: true, spaziatura: 0.3 });
@@ -112,6 +130,20 @@ function opzioniPdf(v, formato) {
 export function Etichetta({ v, formato }) {
   const f = FORMATI[formato];
   const big = formato === "62x40";
+  if (f.collo) {
+    return (
+      <div className="etv-lbl etv-collo" style={{ width: `${f.w}mm`, height: `${f.h}mm` }}>
+        <div className="etv-txt">
+          {den(v) && <div className="etv-den">{den(v)}</div>}
+          <div className="etv-nome" style={{ WebkitLineClamp: 2 }}>{v.DESCRIZIONE}</div>
+          <div className="etv-foot">
+            <span className="etv-prod">{prod(v)}</span>
+            <span className="etv-id">#{v.id}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (f.compatta) {
     return (
       <div className="etv-lbl etv-comp" style={{ width: `${f.w}mm`, height: `${f.h}mm` }}>
@@ -154,6 +186,11 @@ export const LABEL_CSS = `
 .etv-foot{display:flex;align-items:baseline;justify-content:space-between;margin-top:.6mm}
 .etv-ann{font-size:12pt;font-weight:800}
 .etv-id{font-size:6.5pt;font-weight:700}
+.etv-collo{padding:1.5mm}
+.etv-collo .etv-den{font-size:7.5pt;letter-spacing:.05em}
+.etv-collo .etv-nome{font-size:13pt}
+.etv-collo .etv-prod{font-size:9.5pt}
+.etv-collo .etv-id{font-size:8pt}
 .etv-comp{gap:1.5mm;padding:1mm 1.2mm}
 .etv-comp .etv-den{font-size:6pt}
 .etv-comp .etv-nome{font-size:10pt}
@@ -238,8 +275,8 @@ export default function EtichetteVini() {
       <ViniNav current="cantina" />
       <style>{LABEL_CSS}</style>
       <PageLayout
-        title="🏷️ Etichette QR"
-        subtitle="Il QR apre la scheda mobile della bottiglia: inquadralo con l'iPhone per registrare vendita, scarico o conta."
+        title="🏷️ Etichette vini"
+        subtitle="Etichetta collo bottiglia (solo testo) o etichetta con QR: il QR apre la scheda mobile della bottiglia per registrare vendita, scarico o conta."
         actions={
           <Btn variant="primary" size="md" disabled={!daStampare.length} onClick={stampa}>
             🖨️ Stampa {daStampare.length || ""} {daStampare.length === 1 ? "etichetta" : "etichette"}
