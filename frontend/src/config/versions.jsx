@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.13 (2026-11-07): Etichette QR v1.2 — DK-22211 a 47 mm: QR al minimo leggibile (14 mm, correzione L),
+    //   testi molto più grandi (nome 10 pt su 2 righe, annata 15 pt, #id a destra). pdfEtichetta v1.4: `ecc`, `destra`.
     // 4.12 (2026-11-07): «🏷️ Etichetta QR» nel piede della scheda vino (SchedaVino), quindi anche
     //   nella scheda aperta dentro Cantina; tolto il doppione dal wrapper SchedaVinoV2.
     //   Etichette QR v1.1: rotolo DK-22211 (29 mm continuo, 40 mm, layout compatto) predefinito; stampa in PDF della
@@ -195,7 +197,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.12",
+    version: "4.13",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

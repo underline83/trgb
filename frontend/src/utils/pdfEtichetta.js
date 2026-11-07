@@ -1,6 +1,6 @@
 // frontend/src/utils/pdfEtichetta.js
 // Platform (M.I) — PDF vettoriale di un'etichetta con QR, della misura esatta del rotolo.
-// @version: v1.3 — più etichette in un PDF (pdfEtichetteQr), 2026-10-29; v1.2 — `ruota`: si disegna in orizzontale, la pagina esce in piedi come la carta del driver (2026-10-26); v1.1 — layout «verticale»: QR sopra e testo sotto, centrati (2026-10-26); v1.0 2026-10-25
+// @version: v1.4 — `ecc` (correzione d'errore del QR) e `destra` (testo allineato a destra sulla stessa riga), 2026-11-07; v1.3 — più etichette in un PDF (pdfEtichetteQr), 2026-10-29; v1.2 — `ruota`: si disegna in orizzontale, la pagina esce in piedi come la carta del driver (2026-10-26); v1.1 — layout «verticale»: QR sopra e testo sotto, centrati (2026-10-26); v1.0 2026-10-25
 //
 // PERCHE' UN PDF E NON window.print() della pagina:
 //   Safari (Mac e iPad) ignora @page size: stampa la pagina in A4 sulla
@@ -56,8 +56,12 @@ function n(v) { return (Math.round(v * 1000) / 1000).toString(); }
  *   qrMm          lato del QR compresa la zona di rispetto
  *   margineMm     margine sinistro/destro (default 1.5)
  *   gapMm         spazio fra QR e testo (default 2)
- *   righe         [{ testo, sizePt, bold, spazioPrimaMm, spaziatura }]
+ *   righe         [{ testo, sizePt, bold, spazioPrimaMm, spaziatura, destra }]
  *                 spaziatura = tracking in punti fra le lettere (es. 0.8)
+ *                 destra = { testo, sizePt, bold }: sulla stessa linea di base,
+ *                 allineato al margine destro (solo layout orizzontale)
+ *   ecc           correzione d'errore del QR: "M" (default) o "L" (QR più
+ *                 piccolo a parità di contenuto: per etichette strette)
  *   layout        "orizzontale" (default: QR a sinistra, testo a destra) o
  *                 "verticale" (QR in alto, testo sotto, tutto centrato: per le
  *                 etichette 29×62 stampate per il lungo, senza rotazioni del driver)
@@ -71,7 +75,7 @@ function n(v) { return (Math.round(v * 1000) / 1000).toString(); }
  * @returns {Blob} application/pdf
  */
 function paginaEtichetta({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, righe = [],
-  layout = "orizzontale", margineAltoMm = 2, ruota = false, centra = false }) {
+  layout = "orizzontale", margineAltoMm = 2, ruota = false, centra = false, ecc = "M" }) {
   const vert = layout === "verticale";
   const largRiga = (r) => larghezzaTesto(r.testo, r.sizePt, r.bold) + (r.spaziatura || 0) * Math.max(0, [...r.testo].length - 1);
   const W = wMm * PT, H = hMm * PT;
@@ -79,7 +83,7 @@ function paginaEtichetta({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, r
   const ops = ruota ? [`q 0 1 -1 0 ${n(H)} 0 cm`, "0 g"] : ["0 g"];
 
   // QR: righe di moduli scuri unite in rettangoli orizzontali
-  const qr = qrcode(0, "M");
+  const qr = qrcode(0, ecc);
   qr.addData(qrText);
   qr.make();
   const count = qr.getModuleCount();
@@ -113,6 +117,11 @@ function paginaEtichetta({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, r
     y -= altezze[i];
     const x = vert ? (W - largRiga(r)) / 2 : xt;
     ops.push(`BT /${r.bold ? "F2" : "F1"} ${n(r.sizePt)} Tf ${n(r.spaziatura || 0)} Tc ${n(x)} ${n(y)} Td ${strPdf(r.testo)} Tj ET`);
+    if (r.destra && !vert) {
+      const d = r.destra;
+      const xd = W - margineMm * PT - larghezzaTesto(d.testo, d.sizePt, d.bold);
+      ops.push(`BT /${d.bold ? "F2" : "F1"} ${n(d.sizePt)} Tf 0 Tc ${n(xd)} ${n(y)} Td ${strPdf(d.testo)} Tj ET`);
+    }
   });
 
   if (ruota) ops.push("Q");
