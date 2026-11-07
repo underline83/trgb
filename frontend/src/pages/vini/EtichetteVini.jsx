@@ -12,7 +12,7 @@
 //
 // Formati (rotoli Brother DK):
 //   · collo  → «Etichetta collo bottiglia»: DK-22211 29×47, SENZA QR, solo testo
-//              (denominazione, descrizione, produttore, #id). Richiesta Marco 2026-11-07.
+//              (denominazione, descrizione, produttore, annata, #id), margini 2,5 mm sx / 4,5 mm dx. Richiesta Marco 2026-11-07.
 //   · 29c    → DK-22211, pellicola continua 29 mm tagliata a 47 mm (montato da Marco il 2026-11-07).
 //              QR al minimo leggibile (14 mm, correzione L, modulo ~0,42 mm = 5 punti a 300 dpi)
 //              e testo più grande. Sul Mac: carta personalizzata 29×47 + preset «Vini QR 29x47».
@@ -89,18 +89,19 @@ function opzioniPdf(v, formato) {
   const maxPt = (f.w - margine * 2 - f.qr - gap) * PT;
   const righe = [];
   if (f.collo) {
-    // tutta la larghezza al testo: ~44 mm
-    const maxC = (f.w - 3) * PT;
-    if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxC, 7.5, true), sizePt: 7.5, bold: true, spaziatura: 0.4 });
-    aCapo(v.DESCRIZIONE, maxC, 13, true, 2).forEach((t, i) =>
-      righe.push({ testo: t, sizePt: 13, bold: true, spazioPrimaMm: i ? 1.4 : (righe.length ? 1.8 : 0) }));
-    const idTxt = `#${v.id}`;
-    const maxProd = maxC - larghezzaTesto(idTxt, 8, true) - 2 * PT;
+    // Margini: 2,5 mm a sinistra, 4,5 mm a destra. Prova di Marco 2026-11-07: la Brother sul
+    // 29 continuo sposta la stampa verso la coda e taglia l'ultimo mezzo carattere a destra («#67(»).
+    const marg = 2.5, margDx = 4.5;
+    const maxC = (f.w - marg - margDx) * PT;
+    if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxC, 7, true), sizePt: 7, bold: true, spaziatura: 0.3 });
+    aCapo(v.DESCRIZIONE, maxC, 12, true, 2).forEach((t, i) =>
+      righe.push({ testo: t, sizePt: 12, bold: true, spazioPrimaMm: i ? 1.3 : (righe.length ? 1.6 : 0) }));
+    if (prod(v)) righe.push({ testo: taglia(prod(v), maxC, 9, false), sizePt: 9, spazioPrimaMm: 1.6 });
     righe.push({
-      testo: prod(v) ? taglia(prod(v), maxProd, 9.5, false) : " ", sizePt: 9.5, spazioPrimaMm: 2,
-      destra: { testo: idTxt, sizePt: 8, bold: true },
+      testo: String(v.ANNATA || "s.a."), sizePt: 12, bold: true, spazioPrimaMm: 1.9,
+      destra: { testo: `#${v.id}`, sizePt: 8, bold: true },
     });
-    return { wMm: f.w, hMm: f.h, ruota: f.ruota, qrText: "", qrMm: 0, margineMm: 1.5, gapMm: 0, righe };
+    return { wMm: f.w, hMm: f.h, ruota: f.ruota, qrText: "", qrMm: 0, margineMm: marg, margineDxMm: margDx, gapMm: 0, righe };
   }
   if (f.compatta) {
     // ~29 mm di testo: denominazione, nome su 2 righe grande, produttore, annata grande con #id a destra
@@ -136,8 +137,9 @@ export function Etichetta({ v, formato }) {
         <div className="etv-txt">
           {den(v) && <div className="etv-den">{den(v)}</div>}
           <div className="etv-nome" style={{ WebkitLineClamp: 2 }}>{v.DESCRIZIONE}</div>
+          {prod(v) && <div className="etv-prod">{prod(v)}</div>}
           <div className="etv-foot">
-            <span className="etv-prod">{prod(v)}</span>
+            <span className="etv-ann">{v.ANNATA || "s.a."}</span>
             <span className="etv-id">#{v.id}</span>
           </div>
         </div>
@@ -186,10 +188,11 @@ export const LABEL_CSS = `
 .etv-foot{display:flex;align-items:baseline;justify-content:space-between;margin-top:.6mm}
 .etv-ann{font-size:12pt;font-weight:800}
 .etv-id{font-size:6.5pt;font-weight:700}
-.etv-collo{padding:1.5mm}
-.etv-collo .etv-den{font-size:7.5pt;letter-spacing:.05em}
-.etv-collo .etv-nome{font-size:13pt}
-.etv-collo .etv-prod{font-size:9.5pt}
+.etv-collo{padding:2mm 4.5mm 2mm 2.5mm}
+.etv-collo .etv-den{font-size:7pt;letter-spacing:.04em}
+.etv-collo .etv-nome{font-size:12pt}
+.etv-collo .etv-prod{font-size:9pt}
+.etv-collo .etv-ann{font-size:12pt}
 .etv-collo .etv-id{font-size:8pt}
 .etv-comp{gap:1.5mm;padding:1mm 1.2mm}
 .etv-comp .etv-den{font-size:6pt}

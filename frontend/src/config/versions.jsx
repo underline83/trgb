@@ -3,7 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    // 4.14 (2026-11-07): nuova «Etichetta collo bottiglia» 29×47 senza QR (denominazione, descrizione, produttore, #id),
+    // 4.14 (2026-11-07): nuova «Etichetta collo bottiglia» 29×47 senza QR (denominazione, descrizione, produttore, annata, #id; margini 2,5 sx / 4,5 dx: la Brother taglia a destra),
     //   predefinita; pagina rinominata «Etichette vini», bottone in scheda «🏷️ Etichetta». pdfEtichetta v1.5: senza QR.
     // 4.13 (2026-11-07): Etichette QR v1.2 — DK-22211 a 47 mm: QR al minimo leggibile (14 mm, correzione L),
     //   testi molto più grandi (nome 10 pt su 2 righe, annata 15 pt, #id a destra). pdfEtichetta v1.4: `ecc`, `destra`.
