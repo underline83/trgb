@@ -2027,6 +2027,11 @@ const SchedaVino = forwardRef(function SchedaVino({
                 🍷 Vai al madre
               </Btn>
             )}
+            {vinoId && (
+              <Btn variant="secondary" size="md" type="button" onClick={() => navigate(`/vini/etichette?ids=${vinoId}`)}>
+                🏷️ Etichetta QR
+              </Btn>
+            )}
             {!roReadOnly && (
               <Btn variant="secondary" size="md" type="button" onClick={handleDuplica} disabled={duplicating}>
                 {duplicating ? "Duplico…" : "Duplica vino"}

@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.12 (2026-11-07): «🏷️ Etichetta QR» nel piede della scheda vino (SchedaVino), quindi anche
+    //   nella scheda aperta dentro Cantina; tolto il doppione dal wrapper SchedaVinoV2.
+    //   Etichette QR v1.1: rotolo DK-22211 (29 mm continuo, 62 mm) predefinito; stampa in PDF della
+    //   misura esatta (utils/pdfEtichetta) al posto di window.print, come le gift card.
     // 4.11 (2026-11-06): fix Vini › Vendite — «Registra» passava l'evento del click come modalità:
     //   pagina in errore, vendita al calice senza modale prezzo né apertura mescita.
     // 4.10 (2026-11-05): Home del sommelier (HomeSommelier) con «🍾 Vendi o apri»: la registrazione
@@ -191,7 +195,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.11",
+    version: "4.12",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",

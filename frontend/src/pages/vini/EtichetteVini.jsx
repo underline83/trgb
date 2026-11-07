@@ -1,6 +1,7 @@
 // frontend/src/pages/vini/EtichetteVini.jsx
 // Modulo: vini
-// @version: v1.0 — etichette QR bottiglie per Brother QL-820NWB (2026-10-06)
+// @version: v1.1 — rotolo DK-22211 (29 mm continuo) predefinito + stampa in PDF della misura esatta (2026-11-07)
+//           v1.0 — etichette QR bottiglie per Brother QL-820NWB (2026-10-06)
 //
 // Stampa etichette con QR da attaccare a bottiglie o scaffali. Il QR punta
 // alla scheda mobile /vini/cantina-mobile/{id}: lo inquadri con la fotocamera
@@ -8,11 +9,13 @@
 // (base dell'inventario con QR, roadmap V.13).
 //
 // Formati (rotoli Brother DK):
+//   · 29c    → DK-22211, pellicola continua 29 mm tagliata a 62 mm (montato da Marco il 2026-11-07)
 //   · 29x62  → DK-11209, etichetta fustellata 62×29 mm
 //   · 62x40  → DK-22205, rotolo continuo 62 mm tagliato a 40 mm
-// La pagina stampa dal browser (window.print) con @page della misura
-// dell'etichetta: nel dialogo di stampa scegliere la QL-820NWB, carta della
-// stessa misura, margini nessuno, scala 100%.
+// Stampa: PDF vettoriale della misura esatta (utils/pdfEtichetta.js, come le
+// gift card), non window.print(): Safari ignora @page e manda un A4. Sui rotoli
+// da 29 mm il disegno è 62×29 ma la pagina esce 29×62 (`ruota`), nel verso in
+// cui scorre la carta. Il QR sta dentro l'area stampabile del 29 mm (~25,9 mm).
 //
 // QR generato in locale (utils/vendor/qrcode.js), niente servizi esterni.
 // Nessuna modifica backend: GET /vini/v2/bottiglie/{id} e /vini/v2/bottiglie/?search=
@@ -21,17 +24,20 @@
 // ricerca nella pagina per comporre un lotto.
 
 import React, { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, PageLayout, EmptyState } from "../../components/ui";
 import ViniNav from "./ViniNav";
 import QrSvg from "../../components/QrSvg";
+import { pdfEtichetteQr, mostraPdf, apriFinestraVuota, larghezzaTesto } from "../../utils/pdfEtichetta";
 
+// carta = cosa scegliere nel dialogo di stampa; ruota = pagina in piedi (verso del rotolo)
 const FORMATI = {
-  "29x62": { label: "29×62 fustellata (DK-11209)", w: 62, h: 29, qr: 25 },
-  "62x40": { label: "62 continuo × 40 mm (DK-22205)", w: 62, h: 40, qr: 34 },
+  "29c":   { label: "29 continuo × 62 mm (DK-22211)", w: 62, h: 29, qr: 23, ruota: true,  carta: "29 mm (continuo)" },
+  "29x62": { label: "29×62 fustellata (DK-11209)",    w: 62, h: 29, qr: 25, ruota: true,  carta: "29 × 62 mm" },
+  "62x40": { label: "62 continuo × 40 mm (DK-22205)", w: 62, h: 40, qr: 34, ruota: false, carta: "62 mm (continuo)" },
 };
+const FORMATO_DEFAULT = "29c";
 const MAX_COPIE = 99;
 
 function urlScheda(id) {
@@ -40,6 +46,53 @@ function urlScheda(id) {
 
 function den(v) { return v.DENOMINAZIONE || v.d_display || ""; }
 function prod(v) { return v.PRODUTTORE || v.p_nome || ""; }
+
+// ── PDF ──────────────────────────────────────────────────────────────
+const PT = 72 / 25.4;
+
+// Taglia un testo alla larghezza (punti), con «...» se serve
+function taglia(testo, maxPt, sizePt, bold) {
+  const t = String(testo || "").trim();
+  if (larghezzaTesto(t, sizePt, bold) <= maxPt) return t;
+  let out = t;
+  while (out.length > 1 && larghezzaTesto(out + "...", sizePt, bold) > maxPt) out = out.slice(0, -1);
+  return out.trimEnd() + "...";
+}
+
+// Va a capo per parole su al massimo `maxRighe` righe; l'ultima si taglia
+function aCapo(testo, maxPt, sizePt, bold, maxRighe) {
+  const parole = String(testo || "").trim().split(/\s+/).filter(Boolean);
+  const righe = [];
+  let cur = "";
+  for (let i = 0; i < parole.length; i++) {
+    const prova = cur ? `${cur} ${parole[i]}` : parole[i];
+    if (larghezzaTesto(prova, sizePt, bold) <= maxPt || !cur) { cur = prova; continue; }
+    righe.push(cur);
+    cur = parole[i];
+    if (righe.length === maxRighe - 1) { cur = parole.slice(i).join(" "); break; }
+  }
+  if (cur) righe.push(cur);
+  return righe.slice(0, maxRighe).map((r, i, a) => (i === a.length - 1 ? taglia(r, maxPt, sizePt, bold) : r));
+}
+
+function opzioniPdf(v, formato) {
+  const f = FORMATI[formato];
+  const big = formato === "62x40";
+  const margine = 1.5, gap = 2;
+  const maxPt = (f.w - margine * 2 - f.qr - gap) * PT;
+  const righe = [];
+  if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxPt, 6.5, true), sizePt: 6.5, bold: true, spaziatura: 0.2 });
+  aCapo(v.DESCRIZIONE, maxPt, big ? 10 : 9, true, big ? 3 : 2).forEach((t, i) =>
+    righe.push({ testo: t, sizePt: big ? 10 : 9, bold: true, spazioPrimaMm: i ? 0.9 : (righe.length ? 1.3 : 0) }));
+  if (prod(v)) righe.push({ testo: taglia(prod(v), maxPt, 7, false), sizePt: 7, spazioPrimaMm: 1.3 });
+  if (big && v.FORMATO) righe.push({ testo: taglia(v.FORMATO, maxPt, 7, false), sizePt: 7, spazioPrimaMm: 1 });
+  righe.push({ testo: `${v.ANNATA || "s.a."}   #${v.id}`, sizePt: big ? 12 : 11, bold: true, spazioPrimaMm: 1.6 });
+  return {
+    wMm: f.w, hMm: f.h, ruota: f.ruota,
+    qrText: urlScheda(v.id), qrMm: f.qr,
+    margineMm: margine, gapMm: gap, righe,
+  };
+}
 
 export function Etichetta({ v, formato }) {
   const f = FORMATI[formato];
@@ -70,26 +123,15 @@ export const LABEL_CSS = `
 .etv-foot{display:flex;align-items:baseline;justify-content:space-between;margin-top:.6mm}
 .etv-ann{font-size:12pt;font-weight:800}
 .etv-id{font-size:6.5pt;font-weight:700}
-#etv-print-root{display:none}
 `;
-
-export function printCss(formato) {
-  const f = FORMATI[formato];
-  return `
-@media print{
-  @page{size:${f.w}mm ${f.h}mm;margin:0}
-  html,body{margin:0!important;padding:0!important;background:#fff!important}
-  body>*:not(#etv-print-root){display:none!important}
-  #etv-print-root{display:block!important}
-  #etv-print-root .etv-lbl{page-break-after:always;break-after:page}
-  #etv-print-root .etv-lbl:last-child{page-break-after:auto;break-after:auto}
-}`;
-}
 
 export default function EtichetteVini() {
   const [params] = useSearchParams();
   const [formato, setFormato] = useState(() => {
-    try { return localStorage.getItem("etv-formato") || "29x62"; } catch { return "29x62"; }
+    try {
+      const k = localStorage.getItem("etv-formato-v2");
+      return FORMATI[k] ? k : FORMATO_DEFAULT;
+    } catch { return FORMATO_DEFAULT; }
   });
   const [items, setItems] = useState([]); // [{ v, copie }]
   const [loading, setLoading] = useState(false);
@@ -98,7 +140,7 @@ export default function EtichetteVini() {
   const [risultati, setRisultati] = useState([]);
 
   useEffect(() => {
-    try { localStorage.setItem("etv-formato", formato); } catch { /* niente */ }
+    try { localStorage.setItem("etv-formato-v2", formato); } catch { /* niente */ }
   }, [formato]);
 
   // Precarico da ?ids=
@@ -145,15 +187,24 @@ export default function EtichetteVini() {
     [items]
   );
 
+  // Safari blocca le finestre aperte dopo un'attesa: la scheda si apre dentro il clic
+  const stampa = () => {
+    if (!daStampare.length) return;
+    const finestra = apriFinestraVuota();
+    const blob = pdfEtichetteQr(daStampare.map((v) => opzioniPdf(v, formato)));
+    const nome = daStampare.length === 1 ? `etichetta_vino_${daStampare[0].id}.pdf` : `etichette_vini_${daStampare.length}.pdf`;
+    mostraPdf(blob, nome, finestra);
+  };
+
   return (
     <>
       <ViniNav current="cantina" />
-      <style>{LABEL_CSS + printCss(formato)}</style>
+      <style>{LABEL_CSS}</style>
       <PageLayout
         title="🏷️ Etichette QR"
         subtitle="Il QR apre la scheda mobile della bottiglia: inquadralo con l'iPhone per registrare vendita, scarico o conta."
         actions={
-          <Btn variant="primary" size="md" disabled={!daStampare.length} onClick={() => window.print()}>
+          <Btn variant="primary" size="md" disabled={!daStampare.length} onClick={stampa}>
             🖨️ Stampa {daStampare.length || ""} {daStampare.length === 1 ? "etichetta" : "etichette"}
           </Btn>
         }
@@ -170,7 +221,7 @@ export default function EtichetteVini() {
                 ))}
               </div>
               <p className="text-xs text-neutral-500 mt-2">
-                Nel dialogo di stampa: QL-820NWB, carta {FORMATI[formato].h === 29 ? "29 × 62 mm" : "62 mm continuo"}, margini nessuno, scala 100%.
+                Esce un PDF della misura esatta: Stampa → QL-820NWB, carta {FORMATI[formato].carta}, scala 100%, niente rotazione.
               </p>
             </div>
 
@@ -239,13 +290,6 @@ export default function EtichetteVini() {
           </div>
         </div>
       </PageLayout>
-
-      {createPortal(
-        <div id="etv-print-root">
-          {daStampare.map((v, i) => <Etichetta key={`${v.id}-${i}`} v={v} formato={formato} />)}
-        </div>,
-        document.body
-      )}
     </>
   );
 }
