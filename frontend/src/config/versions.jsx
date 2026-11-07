@@ -5,7 +5,7 @@ const MODULE_VERSIONS = {
   vini: {
     // 4.12 (2026-11-07): «🏷️ Etichetta QR» nel piede della scheda vino (SchedaVino), quindi anche
     //   nella scheda aperta dentro Cantina; tolto il doppione dal wrapper SchedaVinoV2.
-    //   Etichette QR v1.1: rotolo DK-22211 (29 mm continuo, 62 mm) predefinito; stampa in PDF della
+    //   Etichette QR v1.1: rotolo DK-22211 (29 mm continuo, 40 mm, layout compatto) predefinito; stampa in PDF della
     //   misura esatta (utils/pdfEtichetta) al posto di window.print, come le gift card.
     // 4.11 (2026-11-06): fix Vini › Vendite — «Registra» passava l'evento del click come modalità:
     //   pagina in errore, vendita al calice senza modale prezzo né apertura mescita.

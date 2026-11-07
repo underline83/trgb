@@ -9,12 +9,13 @@
 // (base dell'inventario con QR, roadmap V.13).
 //
 // Formati (rotoli Brother DK):
-//   · 29c    → DK-22211, pellicola continua 29 mm tagliata a 62 mm (montato da Marco il 2026-11-07)
+//   · 29c    → DK-22211, pellicola continua 29 mm tagliata a 40 mm (montato da Marco il 2026-11-07,
+//              «largo 4 cm massimo»): layout compatto, niente denominazione
 //   · 29x62  → DK-11209, etichetta fustellata 62×29 mm
 //   · 62x40  → DK-22205, rotolo continuo 62 mm tagliato a 40 mm
 // Stampa: PDF vettoriale della misura esatta (utils/pdfEtichetta.js, come le
 // gift card), non window.print(): Safari ignora @page e manda un A4. Sui rotoli
-// da 29 mm il disegno è 62×29 ma la pagina esce 29×62 (`ruota`), nel verso in
+// da 29 mm il disegno è largo×29 ma la pagina esce in piedi (`ruota`), nel verso in
 // cui scorre la carta. Il QR sta dentro l'area stampabile del 29 mm (~25,9 mm).
 //
 // QR generato in locale (utils/vendor/qrcode.js), niente servizi esterni.
@@ -33,7 +34,7 @@ import { pdfEtichetteQr, mostraPdf, apriFinestraVuota, larghezzaTesto } from "..
 
 // carta = cosa scegliere nel dialogo di stampa; ruota = pagina in piedi (verso del rotolo)
 const FORMATI = {
-  "29c":   { label: "29 continuo × 62 mm (DK-22211)", w: 62, h: 29, qr: 23, ruota: true,  carta: "29 mm (continuo)" },
+  "29c":   { label: "29 continuo × 40 mm (DK-22211)", w: 40, h: 29, qr: 20, ruota: true,  carta: "29 mm (continuo)", compatta: true },
   "29x62": { label: "29×62 fustellata (DK-11209)",    w: 62, h: 29, qr: 25, ruota: true,  carta: "29 × 62 mm" },
   "62x40": { label: "62 continuo × 40 mm (DK-22205)", w: 62, h: 40, qr: 34, ruota: false, carta: "62 mm (continuo)" },
 };
@@ -78,9 +79,18 @@ function aCapo(testo, maxPt, sizePt, bold, maxRighe) {
 function opzioniPdf(v, formato) {
   const f = FORMATI[formato];
   const big = formato === "62x40";
-  const margine = 1.5, gap = 2;
+  const margine = f.compatta ? 1.2 : 1.5, gap = f.compatta ? 1.5 : 2;
   const maxPt = (f.w - margine * 2 - f.qr - gap) * PT;
   const righe = [];
+  if (f.compatta) {
+    // ~13 mm di testo: nome su 3 righe, produttore, annata grande, #id
+    aCapo(v.DESCRIZIONE, maxPt, 6, true, 3).forEach((t, i) =>
+      righe.push({ testo: t, sizePt: 6, bold: true, spazioPrimaMm: i ? 0.7 : 0 }));
+    if (prod(v)) righe.push({ testo: taglia(prod(v), maxPt, 5.5, false), sizePt: 5.5, spazioPrimaMm: 1.1 });
+    righe.push({ testo: taglia(String(v.ANNATA || "s.a."), maxPt, 11, true), sizePt: 11, bold: true, spazioPrimaMm: 1.6 });
+    righe.push({ testo: `#${v.id}`, sizePt: 6, bold: true, spazioPrimaMm: 1.1 });
+    return { wMm: f.w, hMm: f.h, ruota: f.ruota, qrText: urlScheda(v.id), qrMm: f.qr, margineMm: margine, gapMm: gap, righe };
+  }
   if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxPt, 6.5, true), sizePt: 6.5, bold: true, spaziatura: 0.2 });
   aCapo(v.DESCRIZIONE, maxPt, big ? 10 : 9, true, big ? 3 : 2).forEach((t, i) =>
     righe.push({ testo: t, sizePt: big ? 10 : 9, bold: true, spazioPrimaMm: i ? 0.9 : (righe.length ? 1.3 : 0) }));
@@ -97,6 +107,19 @@ function opzioniPdf(v, formato) {
 export function Etichetta({ v, formato }) {
   const f = FORMATI[formato];
   const big = formato === "62x40";
+  if (f.compatta) {
+    return (
+      <div className="etv-lbl etv-comp" style={{ width: `${f.w}mm`, height: `${f.h}mm` }}>
+        <QrSvg text={urlScheda(v.id)} sizeMm={f.qr} />
+        <div className="etv-txt">
+          <div className="etv-nome" style={{ WebkitLineClamp: 3 }}>{v.DESCRIZIONE}</div>
+          {prod(v) && <div className="etv-prod">{prod(v)}</div>}
+          <div className="etv-ann">{v.ANNATA || "s.a."}</div>
+          <div className="etv-id">#{v.id}</div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="etv-lbl" style={{ width: `${f.w}mm`, height: `${f.h}mm` }}>
       <QrSvg text={urlScheda(v.id)} sizeMm={f.qr} />
@@ -123,6 +146,11 @@ export const LABEL_CSS = `
 .etv-foot{display:flex;align-items:baseline;justify-content:space-between;margin-top:.6mm}
 .etv-ann{font-size:12pt;font-weight:800}
 .etv-id{font-size:6.5pt;font-weight:700}
+.etv-comp{gap:1.5mm;padding:1mm 1.2mm}
+.etv-comp .etv-nome{font-size:6pt}
+.etv-comp .etv-prod{font-size:5.5pt}
+.etv-comp .etv-ann{font-size:11pt;margin-top:.8mm}
+.etv-comp .etv-id{font-size:6pt}
 `;
 
 export default function EtichetteVini() {
