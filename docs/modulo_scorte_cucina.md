@@ -470,7 +470,7 @@ Deciso con Marco: date e scadenze subito, **180 giorni** di scadenza proposta qu
 
 | Gesto | Dove | Cosa succede |
 |---|---|---|
-| **↔ Sposta** | scheda articolo (regime movimenti) | scegli da quale ripiano, quanti, verso quale posto e ripiano. Due movimenti `TRASFERIMENTO` legati (`ref_modulo='trasferimento'`, `ref_id` = l'altra gamba): l'undo li annulla insieme. Rifiuta se sul ripiano di partenza ce ne sono meno. I lotti si spostano FIFO; se se ne sposta una parte il lotto si divide e tiene le sue date |
+| **↔ Sposta** | scheda articolo (regime movimenti; dal 2026-11-08 tutti i regimi, v. sotto) | scegli da quale ripiano, quanti, verso quale posto e ripiano. Due movimenti `TRASFERIMENTO` legati (`ref_modulo='trasferimento'`, `ref_id` = l'altra gamba): l'undo li annulla insieme. Rifiuta se sul ripiano di partenza ce ne sono meno. I lotti si spostano FIFO; se se ne sposta una parte il lotto si divide e tiene le sue date |
 | **Carico con date** | scheda articolo → Carico | in congelatore/abbattitore chiede «congelato il» (oggi) e «scade il» (oggi + `scadenza_congelato_gg`): nasce un lotto. Altrove «scade il» è facoltativo: senza, è un carico e basta |
 | **＋ Aggiungi** | giro del frigo, su ogni ripiano | «cosa metti?» cerca fra gli articoli esistenti (niente doppioni); se non c'è, «＋ Nuovo». Nuovo in congelatore = regime `MOVIMENTI`, famiglia `CONGELATO`. Quantità facoltativa (vuota = «sta qui»), con le date come sopra |
 | **scadenza nel giro** | righe del ripiano | la scadenza più vicina dei lotti su quel ripiano; chip colorata se dentro `scadenza_avviso_gg` |
@@ -614,3 +614,14 @@ Due tab su quattro girano su endpoint che esistono già: il lavoro backend di S1
 | C-K-209c | Confermare o scartare la spesa proposta | `POST /lista-spesa/items/{id}/conferma`, `DELETE /lista-spesa/items/{id}` | admin/chef/sous chef | 🆕 |
 | C-K-209d | Task e proposte che si chiudono da soli quando la scorta copre il minimo o la linea torna verde | `linea_esiti.valuta()` | — | 🆕 |
 
+## Sposta per tutti i regimi (2026-11-08, cucinaScorte 1.14)
+
+Deciso con Marco: «per semaforo sposta e lascia traccia, per conta idem, per movimenti crea un movimento che sposta; i vecchi movimenti restano sulla locazione vecchia, non ci interessa».
+
+- **SEMAFORO e CONTA** (e MOVIMENTI senza quantità sul ripiano): `cambia_posto()` sposta la riga intera — quantità, pallino, dotazione, ora dell'ultimo dato — con lotti e ripiano di casa. Il posto vecchio sparisce. Traccia: un movimento `TRASFERIMENTO` a delta zero con `ref_modulo='cambio_posto'`, che nella scheda si legge «Spostato · da X a Y». Non si annulla dall'undo: si rimette a posto con un altro Sposta. Se sul ripiano d'arrivo l'articolo c'è già, le righe si fondono (quantità sommate).
+- **MOVIMENTI con quantità**: come prima, `trasferisci()` a due gambe; spostato tutto, ora anche il ripiano di casa segue.
+- I movimenti vecchi restano sul posto vecchio.
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-K-SP1 | Spostare un articolo su un altro ripiano/posto, qualunque regime | `POST /cucina/scorte/sposta/` (`cucina_scorte_router.py` `post_sposta`), `cucina_scorte_service.cambia_posto`, `CucinaMobile.jsx` scheda articolo «↔️ Sposta» | brigata | 🆕 |

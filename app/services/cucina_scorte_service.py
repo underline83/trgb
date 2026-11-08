@@ -1,5 +1,6 @@
 # Modulo: cucina
-# @version: v1.0 — logica scorte: semaforo, movimenti, freschezza, conta (2026-09-07)
+# @version: v1.1 — cambia_posto: Sposta per tutti i regimi (2026-11-08)
+# v1.0 — logica scorte: semaforo, movimenti, freschezza, conta (2026-09-07)
 # -*- coding: utf-8 -*-
 """
 Servizio Scorte cucina — la logica che i router non devono duplicare.
@@ -433,6 +434,8 @@ def annulla_movimento(conn: sqlite3.Connection, mov_id: int, utente: str) -> Dic
         raise ValueError("movimento non trovato")
     if mov["annullato_at"]:
         raise ValueError("movimento gia' annullato")
+    if mov["ref_modulo"] == REF_CAMBIO_POSTO:
+        raise ValueError("un cambio di posto non si annulla: si rimette a posto con Sposta")
 
     if mov["ripiano_id"]:
         # La riga puo' essere uscita (finito a regime conta, o zero su un
@@ -616,7 +619,102 @@ def trasferisci(
                 "DELETE FROM cucina_giacenze WHERE articolo_id = ? AND ripiano_id = ?",
                 (articolo_id, da_ripiano_id),
             )
+            # Se era il suo ripiano di casa, la casa lo segue (2026-11-08).
+            conn.execute(
+                "UPDATE cucina_articoli SET ripiano_casa_id = ? WHERE id = ? AND ripiano_casa_id = ?",
+                (a_ripiano_id, articolo_id, da_ripiano_id),
+            )
     return {"esce": esce, "entra": entra}
+
+
+# Un cambio di posto e' UNA riga di traccia, non due gambe: non sposta una
+# quantita', sposta la riga. Si riconosce da qui (timeline, undo).
+REF_CAMBIO_POSTO = "cambio_posto"
+
+
+def cambia_posto(
+    conn: sqlite3.Connection,
+    articolo_id: int,
+    da_ripiano_id: int,
+    a_ripiano_id: int,
+    utente: str,
+    motivo: Optional[str] = None,
+    origine: str = ORIGINE_MOBILE,
+) -> Dict[str, Any]:
+    """L'articolo cambia posto, tutto insieme (Marco 2026-11-08).
+
+    Per i regimi SEMAFORO e CONTA, e per un articolo a MOVIMENTI che su quel
+    ripiano non ha una quantita' (riga «sta qui», qta NULL o 0): si sposta la
+    riga intera — quantita', pallino, dotazione, ora dell'ultimo dato — e con
+    lei i lotti e il ripiano di casa. Il posto vecchio sparisce.
+
+    Traccia: un movimento TRASFERIMENTO a delta zero (`ref_modulo` =
+    'cambio_posto', da `ripiano_id` a `ripiano_dest_id`). Non tocca la
+    giacenza e non si annulla dall'undo: si torna indietro rispostando.
+    I movimenti vecchi restano sul posto vecchio: e' storia, va bene cosi'.
+
+    Se sul ripiano di arrivo l'articolo c'e' gia', le due righe si fondono:
+    quantita' sommate, il pallino e l'ora di arrivo vincono se ci sono.
+    """
+    if da_ripiano_id == a_ripiano_id:
+        raise ValueError("origine e destinazione sono lo stesso ripiano")
+    src = conn.execute(
+        "SELECT * FROM cucina_giacenze WHERE articolo_id = ? AND ripiano_id = ?",
+        (articolo_id, da_ripiano_id),
+    ).fetchone()
+    if not src:
+        raise ValueError("l'articolo non sta su quel ripiano")
+    ubic_da = ubicazione_di_ripiano(conn, da_ripiano_id)
+    ubic_a = ubicazione_di_ripiano(conn, a_ripiano_id)
+    if ubic_a is None:
+        raise ValueError(f"ripiano {a_ripiano_id} inesistente")
+
+    dst = conn.execute(
+        "SELECT * FROM cucina_giacenze WHERE articolo_id = ? AND ripiano_id = ?",
+        (articolo_id, a_ripiano_id),
+    ).fetchone()
+    if dst:
+        qta = None if src["qta"] is None and dst["qta"] is None else _num(src["qta"]) + _num(dst["qta"])
+        conn.execute(
+            """UPDATE cucina_giacenze
+                  SET qta = ?,
+                      stato_semaforo = COALESCE(stato_semaforo, ?),
+                      in_dotazione   = MAX(in_dotazione, ?),
+                      aggiornato_at  = COALESCE(aggiornato_at, ?),
+                      aggiornato_da  = COALESCE(aggiornato_da, ?)
+                WHERE id = ?""",
+            (qta, src["stato_semaforo"], src["in_dotazione"], src["aggiornato_at"],
+             src["aggiornato_da"], dst["id"]),
+        )
+        conn.execute("DELETE FROM cucina_giacenze WHERE id = ?", (src["id"],))
+    else:
+        conn.execute(
+            "UPDATE cucina_giacenze SET ripiano_id = ?, ubicazione_id = ? WHERE id = ?",
+            (a_ripiano_id, ubic_a, src["id"]),
+        )
+
+    conn.execute(
+        """UPDATE cucina_lotti SET ripiano_id = ?
+            WHERE articolo_id = ? AND ripiano_id = ? AND stato IN ('CHIUSO','APERTO')""",
+        (a_ripiano_id, articolo_id, da_ripiano_id),
+    )
+    conn.execute(
+        "UPDATE cucina_articoli SET ripiano_casa_id = ? WHERE id = ? AND ripiano_casa_id = ?",
+        (a_ripiano_id, articolo_id, da_ripiano_id),
+    )
+
+    q = _num(src["qta"])
+    cur = conn.execute(
+        """
+        INSERT INTO cucina_movimenti
+            (articolo_id, ripiano_id, ubicazione_id, ripiano_dest_id, tipo,
+             qta_delta, qta_precedente, qta_risultante, motivo, origine, ref_modulo, utente)
+        VALUES (?, ?, ?, ?, 'TRASFERIMENTO', 0, ?, ?, ?, ?, ?, ?)
+        """,
+        (articolo_id, da_ripiano_id, ubic_da, a_ripiano_id, q, q, motivo, origine,
+         REF_CAMBIO_POSTO, utente),
+    )
+    return {"movimento_id": cur.lastrowid, "fuso": bool(dst)}
 
 
 def ultimo_movimento(

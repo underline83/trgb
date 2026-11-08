@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-08 — Scorte cucina 1.14: ↔️ Sposta per tutti i regimi `[core]`
+Nella scheda articolo il bottone Sposta c'è anche per gli articoli a semaforo e a conta: cambia posto tutto insieme (quantità, pallino, date, ripiano di casa) e lascia una riga «Spostato · da X a Y» nei movimenti. A movimenti resta lo spostamento di una quantità. Endpoint `POST /cucina/scorte/sposta/`. Nessuna migrazione.
+
 ## 2026-11-08 — Pranzo 1.11: tolto «Pubblica il menu sul sito» (FTP) `[core]`
 
 Nessuna migrazione. Il bottone caricava il PDF del pranzo via FTP in `/privata/` (mattone M.J, 2026-08-03), ma l'FTP non è mai stato configurato e dal 2026-10-24 il sito legge il menu da `GET /pranzo/public/settimana/` (pranzo 1.9): il bottone restava grigio con l'avviso «FTP non configurato». Tolti `GET /pranzo/menu/{settimana}/pubblicazione/`, `POST /pranzo/menu/{settimana}/pubblica/`, il blocco in `PranzoMenu.jsx` e la chiave `menu_pranzo` da M.J. M.J resta per la carta vini (`ViniImpostazioni`).

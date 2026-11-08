@@ -59,6 +59,7 @@ from app.services.cucina_scorte_service import (
     annulla_movimento,
     apri_conta,
     assicura_giacenza,
+    cambia_posto,
     chiudi_conta,
     consuma_lotti,
     crea_lotto,
@@ -242,6 +243,16 @@ class MovimentoIn(BaseModel):
     # data_lotto = quando e' entrato (congelato il / arrivato il).
     data_lotto: Optional[str] = None
     data_scadenza: Optional[str] = None
+
+
+class SpostaIn(BaseModel):
+    """Il gesto «Sposta» della scheda articolo, per tutti i regimi."""
+    articolo_id: int
+    da_ripiano_id: int
+    a_ripiano_id: int
+    # Solo per il regime MOVIMENTI: quanti spostarne. Vuoto = tutto.
+    qta: Optional[float] = None
+    motivo: Optional[str] = Field(default=None, max_length=300)
 
 
 class ContaIn(BaseModel):
@@ -449,10 +460,13 @@ def get_articolo(articolo_id: int):
 
         a["movimenti"] = [dict(r) for r in cur.execute(
             """
-            SELECT m.*, r.codice AS ripiano, u.nome AS ubicazione
+            SELECT m.*, r.codice AS ripiano, u.nome AS ubicazione,
+                    rd.codice AS ripiano_dest, ud.nome AS ubicazione_dest
               FROM cucina_movimenti m
-              LEFT JOIN cucina_ripiani r    ON r.id = m.ripiano_id
-              LEFT JOIN cucina_ubicazioni u ON u.id = m.ubicazione_id
+              LEFT JOIN cucina_ripiani r     ON r.id = m.ripiano_id
+              LEFT JOIN cucina_ubicazioni u  ON u.id = m.ubicazione_id
+              LEFT JOIN cucina_ripiani rd    ON rd.id = m.ripiano_dest_id
+              LEFT JOIN cucina_ubicazioni ud ON ud.id = rd.ubicazione_id
              WHERE m.articolo_id = ?
              ORDER BY m.id DESC LIMIT 20
             """,
@@ -783,6 +797,48 @@ def _piu_simile(nome: str, candidati) -> Optional[str]:
 
 
 # ─── Movimenti ─────────────────────────────────────────────
+
+@router.post("/sposta/")
+def post_sposta(payload: SpostaIn, current_user=Depends(get_current_user)):
+    """Sposta un articolo su un altro ripiano, anche di un altro posto (2026-11-08).
+
+    · MOVIMENTI con una quantita' sul ripiano: e' un TRASFERIMENTO a due gambe
+      (`trasferisci`) di `qta`, o di tutto se `qta` manca. Spostato tutto, il
+      posto vecchio sparisce e il ripiano di casa segue.
+    · SEMAFORO, CONTA, o MOVIMENTI senza quantita': cambia posto la riga intera
+      (`cambia_posto`) e resta una riga di traccia nei movimenti.
+    Permessi: quelli del router (la brigata), come i movimenti.
+    """
+    utente = _utente(current_user)
+    conn = get_foodcost_connection()
+    try:
+        cur = conn.cursor()
+        art = _get_articolo(cur, payload.articolo_id)
+        src = cur.execute(
+            "SELECT qta FROM cucina_giacenze WHERE articolo_id = ? AND ripiano_id = ?",
+            (payload.articolo_id, payload.da_ripiano_id),
+        ).fetchone()
+        if not src:
+            raise HTTPException(status_code=422, detail="L'articolo non sta su quel ripiano")
+        disponibile = float(src["qta"] or 0)
+        try:
+            if (art.get("regime") or "").upper() == "MOVIMENTI" and disponibile > 0:
+                qta = abs(float(payload.qta)) if payload.qta else disponibile
+                res = {"modo": "trasferimento",
+                       **trasferisci(conn, payload.articolo_id, payload.da_ripiano_id,
+                                     payload.a_ripiano_id, qta, utente, motivo=payload.motivo)}
+            else:
+                res = {"modo": "cambio_posto",
+                       **cambia_posto(conn, payload.articolo_id, payload.da_ripiano_id,
+                                      payload.a_ripiano_id, utente, motivo=payload.motivo)}
+            res["semaforo"] = riallinea_semaforo(conn, payload.articolo_id, utente)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        conn.commit()
+        return {"ok": True, **res}
+    finally:
+        conn.close()
+
 
 @router.post("/movimenti/", status_code=201)
 def post_movimento(payload: MovimentoIn, current_user=Depends(get_current_user)):

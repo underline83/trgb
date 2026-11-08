@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Scorte cucina 1.14** (Sposta per tutti i regimi, sotto). **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -179,6 +179,14 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-08 (3) — Scorte cucina 1.14: Sposta per tutti i regimi `[core]`
+
+Logica di Marco: semaforo e conta spostano e lasciano traccia; movimenti fa un movimento che sposta; i movimenti vecchi restano dov'erano. Service `cambia_posto()` + `REF_CAMBIO_POSTO` (undo bloccato), `trasferisci()` ora sposta anche il ripiano di casa quando sposta tutto, endpoint `POST /cucina/scorte/sposta/` (sceglie fra le due), timeline della scheda con «da … a …». FE `CucinaMobile.jsx` v1.8: bottone sotto «Dove si trova» per semaforo/conta, foglio Sposta senza quantità quando non serve. Provato il service su copia del DB (semaforo, conta, movimenti, fusione su ripiano già occupato, undo rifiutato); JSX compilato. **Da verificare dopo il push:** su iPhone, Sposta su un articolo a semaforo.
+
+## SESSIONE 2026-11-08 (2) — Frigo cucina: roba sui posti giusti `[locale:tregobbi]`
+
+Errore di inserimento in Scorte & Frigoriferi: la roba era segnata su posti sbagliati (Banco frigo 1, Frigorifero 2, Frigorifero 3, Banco frigo 2). Script una-tantum `scripts/inverti_contenuto_frigo.py` con la mappa ripiano per ripiano confermata da Marco in chat (17 righe): sposta giacenze, lotti, `ripiano_casa_id` e movimenti; non tocca ubicazioni, soglie HACCP, checklist, manutenzioni, conte. Backup `foodcost.db.pre_fix_frigo_*` e segno `fix_frigo_2026_11_08` in `cucina_scorte_config` contro il doppio giro. **Applicato in produzione l'08/11, Marco: «a posto».** Nessuna migrazione, nessuna versione.
 
 ## SESSIONE 2026-11-08 — Pranzo 1.11: via la pubblicazione FTP del menu `[core]`
 

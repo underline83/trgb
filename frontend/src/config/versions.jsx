@@ -236,6 +236,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.14 (2026-11-08): ↔️ Sposta per tutti i regimi (POST /cucina/scorte/sposta/):
+    //   semaforo e conta cambiano posto con una riga di traccia (cambio_posto),
+    //   a movimenti resta il trasferimento di una quantità; la casa segue.
     // 1.13 (2026-10-29): scorta di dispensa nella linea (mig 220, voce SCORTA_DISPENSA,
     //   «Minimo dispensa» nella scheda Linea); il «+» fra parentesi non spezza la voce
     //   («6 porzionati (+ 1 intero in cella)» resta una riga, numero 6).
@@ -299,7 +302,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.13",
+    version: "1.14",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

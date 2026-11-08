@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.7 — Spesa: si scrive a mano cosa serve (riga libera + quantità + urgente) (2026-10-03)
+// @version: v1.8 — ↔️ Sposta per tutti i regimi: semaforo e conta cambiano posto con traccia (2026-11-08)
+// v1.7 — Spesa: si scrive a mano cosa serve (riga libera + quantità + urgente) (2026-10-03)
 // v1.6 — «Gestione Frigoriferi e scorte»: la barra resta con Frigo e Scorte; Oggi e Spesa
 //            diventano pagine a sé (stesse route, senza barra), aperte dai tasti della Home (2026-10-03)
 // v1.5 — scheda articolo su una pagina sola: quantità, gesti, dove/lotti, DETTAGLI modificabili
@@ -1413,8 +1414,11 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
   }
 
   async function apriSposta() {
-    const pieni = (a.posti || []).filter((p) => num(p.qta) > 0);
-    const da = (pieni.find((p) => p.e_casa) || pieni[0] || (a.posti || [])[0]);
+    const posti = a.posti || [];
+    const pieni = posti.filter((p) => num(p.qta) > 0);
+    const da = a.regime === "MOVIMENTI"
+      ? (pieni.find((p) => p.e_casa) || pieni[0] || posti[0])
+      : (posti.find((p) => p.e_casa) || posti[0]);
     setSposta({ da: da?.ripiano_id, qta: num(da?.qta) || 1, ubiId: null, a: null });
     if (!ubis) {
       try {
@@ -1430,16 +1434,23 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
     }
   }
 
+  function conQta(sp) {
+    return a.regime === "MOVIMENTI" && !!sp &&
+      num((a.posti || []).find((p) => p.ripiano_id === sp.da)?.qta) > 0;
+  }
+
   async function confermaSposta() {
     if (!sposta || busy || !sposta.da || !sposta.a) return;
     setBusy(true);
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/scorte/movimenti/`, {
+      // Un endpoint solo per tutti i regimi (2026-11-08): a movimenti con una
+      // quantita' sposta quanti ne dici, altrimenti cambia posto la riga intera.
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/sposta/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          articolo_id: a.id, tipo: "TRASFERIMENTO", qta: num(sposta.qta),
-          ripiano_id: sposta.da, ripiano_dest_id: sposta.a,
+          articolo_id: a.id, da_ripiano_id: sposta.da, a_ripiano_id: sposta.a,
+          qta: conQta(sposta) ? num(sposta.qta) : null,
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
@@ -1514,6 +1525,9 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
 
   const sd = a.stato_dato;
   const movimenti = a.regime === "MOVIMENTI";
+  // Si chiede «quanti» solo a movimenti e se sul ripiano di partenza c'e' una
+  // quantita'; altrimenti Sposta porta via tutto (semaforo, conta, «sta qui»).
+  const spostaConQta = conQta(sposta);
 
   return (
     <>
@@ -1597,6 +1611,11 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
             </div>
           ))}
         </div>
+        {!movimenti && canWrite && (a.posti || []).length > 0 && (
+          <button className="km-btn ghost" style={{ marginTop: -2, marginBottom: 6 }} onClick={apriSposta}>
+            ↔️ Sposta
+          </button>
+        )}
 
         {(a.lotti || []).length > 0 && (
           <>
@@ -1698,18 +1717,26 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
                 <div key={m.id} className="km-tl" style={{ opacity: m.annullato_at ? 0.45 : 1 }}>
                   <div className="bul" style={{
                     background: m.tipo === "CARICO" ? "var(--green)"
-                              : m.tipo === "RETTIFICA" ? "var(--amber)" : "var(--red)" }} />
+                              : m.tipo === "RETTIFICA" ? "var(--amber)"
+                              : m.tipo === "TRASFERIMENTO" ? "var(--blue)" : "var(--red)" }} />
                   <div>
                     <div className="t1" style={{ textDecoration: m.annullato_at ? "line-through" : "none" }}>
-                      {m.tipo.charAt(0) + m.tipo.slice(1).toLowerCase()} {fmtQta(Math.abs(num(m.qta_delta)))} {a.um}
+                      {m.ref_modulo === "cambio_posto"
+                        ? "Spostato"
+                        : `${m.tipo.charAt(0) + m.tipo.slice(1).toLowerCase()} ${fmtQta(Math.abs(num(m.qta_delta)))} ${a.um}`}
                     </div>
+                    {m.tipo === "TRASFERIMENTO" && m.ubicazione_dest && (
+                      <div className="t2">
+                        da {m.ubicazione} · rip. {m.ripiano} a {m.ubicazione_dest} · rip. {m.ripiano_dest}
+                      </div>
+                    )}
                     <div className="t2">
                       {(m.created_at || "").slice(0, 16).replace("T", " ")} · {m.utente}
                       {m.motivo && ` · ${m.motivo}`}
                       {m.annullato_at && ` · annullato da ${m.annullato_da}`}
                     </div>
                   </div>
-                  <div className="rq">{fmtQta(m.qta_risultante)}</div>
+                  <div className="rq">{m.ref_modulo === "cambio_posto" ? "" : fmtQta(m.qta_risultante)}</div>
                 </div>
               ))}
             </div>
@@ -1779,8 +1806,14 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
               ))}
             </div>
 
-            <input className="km-num" type="number" inputMode="decimal" step="0.1" min="0"
-                   value={sposta.qta} onChange={(e) => setSposta({ ...sposta, qta: e.target.value })} />
+            {spostaConQta ? (
+              <input className="km-num" type="number" inputMode="decimal" step="0.1" min="0"
+                     value={sposta.qta} onChange={(e) => setSposta({ ...sposta, qta: e.target.value })} />
+            ) : (
+              <div style={{ fontSize: 12.5, color: "var(--muted)", margin: "8px 0 4px" }}>
+                Si sposta tutto: quantità, pallino, date e ripiano di casa.
+              </div>
+            )}
 
             <div className="km-flbl">A</div>
             {!ubis && <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Carico i posti…</div>}
@@ -1804,9 +1837,9 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
               </div>
             )}
 
-            <button className="km-btn" disabled={busy || !sposta.da || !sposta.a || num(sposta.qta) <= 0}
+            <button className="km-btn" disabled={busy || !sposta.da || !sposta.a || (spostaConQta && num(sposta.qta) <= 0)}
                     onClick={confermaSposta}>
-              {busy ? "Sposto…" : `Sposta ${fmtQta(num(sposta.qta))} ${a.um}`}
+              {busy ? "Sposto…" : spostaConQta ? `Sposta ${fmtQta(num(sposta.qta))} ${a.um}` : "Sposta qui"}
             </button>
             <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
               Le date viaggiano con la roba: prima esce quella che scade prima.
