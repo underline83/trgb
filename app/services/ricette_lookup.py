@@ -73,3 +73,60 @@ def righe_ricetta(recipe_id: int) -> list:
         return []
     finally:
         conn.close()
+
+
+def nomi_ingredienti(ids: Iterable[int]) -> Dict[int, str]:
+    """{ingredient_id: nome} per gli id dati — come `nomi_ricette` (2026-11-08,
+    per la riga «È: …» della scheda articolo delle scorte cucina)."""
+    uniq = sorted({int(i) for i in ids if i})
+    if not uniq:
+        return {}
+    try:
+        conn = get_foodcost_connection()
+    except Exception:
+        return {}
+    try:
+        ph = ",".join("?" * len(uniq))
+        rows = conn.execute(f"SELECT id, name FROM ingredients WHERE id IN ({ph})", uniq).fetchall()
+        return {int(r[0]): r[1] for r in rows}
+    except Exception:
+        return {}
+    finally:
+        conn.close()
+
+
+def cerca_ricette_ingredienti(q: str, limite: int = 15) -> Dict[str, list]:
+    """Ricerca per nome fra ricette e ingredienti attivi (sola lettura).
+
+    {ricette: [{id, nome, base}], ingredienti: [{id, nome}]}. Prima chi comincia
+    con il testo, poi chi lo contiene. Serve al «Collega» delle scorte cucina.
+    """
+    testo = (q or "").strip()
+    if len(testo) < 2:
+        return {"ricette": [], "ingredienti": []}
+    try:
+        conn = get_foodcost_connection()
+    except Exception:
+        return {"ricette": [], "ingredienti": []}
+    like, inizio = f"%{testo}%", f"{testo}%"
+    try:
+        ric = conn.execute(
+            """SELECT id, name, is_base FROM recipes
+                WHERE COALESCE(is_active, 1) = 1 AND name LIKE ? COLLATE NOCASE
+                ORDER BY (name LIKE ? COLLATE NOCASE) DESC, name LIMIT ?""",
+            (like, inizio, limite),
+        ).fetchall()
+        ing = conn.execute(
+            """SELECT id, name FROM ingredients
+                WHERE COALESCE(is_active, 1) = 1 AND name LIKE ? COLLATE NOCASE
+                ORDER BY (name LIKE ? COLLATE NOCASE) DESC, name LIMIT ?""",
+            (like, inizio, limite),
+        ).fetchall()
+        return {
+            "ricette": [{"id": r[0], "nome": r[1], "base": bool(r[2])} for r in ric],
+            "ingredienti": [{"id": r[0], "nome": r[1]} for r in ing],
+        }
+    except Exception:
+        return {"ricette": [], "ingredienti": []}
+    finally:
+        conn.close()

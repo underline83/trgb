@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Clienti 3.27 — preventivo ↔ prenotazione** (aggancio automatico al salvataggio + «🔗 Collega prenotazione» a mano, nessuna migrazione) — dopo il push: aprire PRE-2026-013 (Schintu 15/11) → «🔗 Collega prenotazione» → scegliere quella delle 12:30 (13 coperti); nel Planning del 15/11 deve comparire il ⏳. **DA PUSHARE: Scorte cucina 1.16 + Lista spesa 1.1** (🖨️ Stampa, sotto). **Da verificare (1.15 caricata):** su iPhone tap rosso/giallo/verde su un articolo senza numero e con numero, e l'annulla. **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Clienti 3.27 — preventivo ↔ prenotazione** (aggancio automatico al salvataggio + «🔗 Collega prenotazione» a mano, nessuna migrazione) — dopo il push: aprire PRE-2026-013 (Schintu 15/11) → «🔗 Collega prenotazione» → scegliere quella delle 12:30 (13 coperti); nel Planning del 15/11 deve comparire il ⏳. **DA PUSHARE: Scorte cucina 1.17** («È: …» + Collega, Elimina prodotto, Non serve, sotto). **Da verificare (1.15 caricata):** su iPhone tap rosso/giallo/verde su un articolo senza numero e con numero, e l'annulla. **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -179,6 +179,14 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-08 (6) — Scorte cucina 1.17: «È: …», Collega, Elimina, Non serve `[core]`
+
+Domande di Marco: «come cancello una cosa da riordinare?» e «la ricetta o l'ingrediente collegato dove lo trovo?». Anticipata una parte di P3:
+- `ricette_lookup.nomi_ingredienti()` + `cerca_ricette_ingredienti(q)` (platform, sola lettura); `GET /cucina/scorte/collega/cerca?q=`; `get_articolo` porta `ricetta_nome` / `ingrediente_nome`.
+- Scheda (`CucinaMobile.jsx` 1.11): riga «È: …» con link (`/ricette/{id}` o `/ricette/ingredienti/{id}/prezzi`), foglio «Collega» (ricetta → toglie l'ingrediente e viceversa; «Non-food» toglie entrambi) via PATCH articolo; «🗑 Elimina prodotto» admin/chef con doppio tocco → `DELETE /articoli/{id}` (disattiva).
+- Spesa iPhone: «🗑 Non serve» su ogni riga non fatta (prima solo sulle proposte della linea).
+- Resta di P3: la pagina di abbinamento guidato per i ~150 scollegati.
 
 ## SESSIONE 2026-11-08 (5) — Scorte cucina 1.16 + Lista spesa 1.1: 🖨️ Stampa `[core]`
 

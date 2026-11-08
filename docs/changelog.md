@@ -6,6 +6,9 @@
 ## 2026-11-08 — Clienti 3.27: il preventivo si collega alla prenotazione `[core]`
 Un preventivo creato da Preventivi › Nuovo restava scollegato dalla prenotazione fino alla conferma (caso PRE-2026-013, Schintu 15/11): niente ⏳ nel Planning, niente «Libera tavolo» alla scadenza. Ora al salvataggio si aggancia da solo alla prenotazione del cliente in quel giorno (se nessun altro preventivo la tiene) e nella scheda c'è «🔗 Collega prenotazione» / Cambia / Scollega. Endpoint `GET /preventivi/{id}/prenotazioni-candidate`, `PUT /preventivi/{id}/prenotazione`. Nessuna migrazione.
 
+## 2026-11-08 — Scorte cucina 1.17: «È: …», Collega, Elimina, Non serve `[core]`
+Nella scheda del prodotto si vede cos'è: la ricetta che lo produce o l'ingrediente che si compra, con il link; «Collega» cerca fra ricette e ingredienti (o «Non-food»). Admin e chef hanno «🗑 Elimina prodotto» (lo disattiva, la storia resta). Nella Spesa da iPhone ogni riga ha «🗑 Non serve». Nessuna migrazione.
+
 ## 2026-11-08 — Scorte cucina 1.16 + Lista spesa 1.1: 🖨️ Stampa `[core]`
 Bottone 🖨️ Stampa nel frigo (ripiano per ripiano, con quello che dice TRGB e una colonna vuota per contare a penna; con «Solo mancanti» stampa solo rossi e gialli) e nella Lista spesa, da iPhone e da computer (solo da comprare, per fornitore, urgenti in cima). Foglio A4 dalla stampa del browser. Nessuna migrazione.
 

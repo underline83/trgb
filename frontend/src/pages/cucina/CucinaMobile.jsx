@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.10 — 🖨️ Stampa del frigo (con colonna «Contato») e della lista spesa (2026-11-08)
+// @version: v1.11 — scheda: riga «È: …» con Collega (ricetta / ingrediente / non-food), 🗑 Elimina prodotto (admin/chef); Spesa: 🗑 Non serve su ogni riga (2026-11-08)
+// v1.10 — 🖨️ Stampa del frigo (con colonna «Contato») e della lista spesa (2026-11-08)
 // v1.9 — tutto a movimenti: il tap scrive il numero (rosso 0, giallo al minimo, verde conferma), «da riordinare», via la scelta del regime (2026-11-08)
 // v1.8 — ↔️ Sposta per tutti i regimi: semaforo e conta cambiano posto con traccia (2026-11-08)
 // v1.7 — Spesa: si scrive a mano cosa serve (riga libera + quantità + urgente) (2026-10-03)
@@ -1394,6 +1395,10 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
   const [mod, setMod] = useState(null);       // bozza anagrafica: {nome, um, confezione, regime, natura}
   const [corr, setCorr] = useState(null);     // {ripiano_id, dove, prima, val}
   const [sposta, setSposta] = useState(null); // {da, qta, ubiId, a}
+  const [collega, setCollega] = useState(null); // {q, res} — il «Collega» (2026-11-08)
+  const [eliminaOk, setEliminaOk] = useState(false); // primo tocco su «Elimina»
+  const ruoloScheda = localStorage.getItem("role");
+  const puoEliminare = ["superadmin", "admin", "chef"].includes(ruoloScheda);
   const [ubis, setUbis] = useState(null);     // posti per lo Sposta: [{id,nome,tipo,ripiani:[]}]
   const [busy, setBusy] = useState(false);
   const cfg = useScorteConfig();
@@ -1440,6 +1445,48 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
         setUbis(lista);
       } catch (e) { setErr(e.message); }
     }
+  }
+
+  // «Collega»: ogni prodotto e' UNA cosa — ricetta, ingrediente o niente
+  // (non-food). Scegliere l'una toglie l'altra (Marco 2026-11-08, Q #328).
+  useEffect(() => {
+    if (!collega || (collega.q || "").trim().length < 2) return;
+    const q = collega.q.trim();
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/cucina/scorte/collega/cerca?q=${encodeURIComponent(q)}`);
+        const d = await res.json();
+        setCollega((c) => (c && c.q.trim() === q ? { ...c, res: d } : c));
+      } catch (e) { setErr(e.message); }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [collega?.q]);
+
+  async function salvaCollega(patch) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/articoli/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      setCollega(null);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function elimina() {
+    if (!eliminaOk) { setEliminaOk(true); setTimeout(() => setEliminaOk(false), 5000); return; }
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/cucina/scorte/articoli/${a.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+      indietro();
+    } catch (e) { setErr(e.message); setBusy(false); }
   }
 
   function conQta(sp) {
@@ -1569,6 +1616,28 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
             {sd?.stato === "DA_VERIFICARE" && <Chip tone="v">fermo da {sd.giorni} gg · da verificare</Chip>}
             {sd?.stato === "IGNOTO" && <Chip tone="v">mai movimentato</Chip>}
           </div>
+        </div>
+
+        <div className="km-card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em" }}>È</div>
+            {a.recipe_id ? (
+              <a href={`/ricette/${a.recipe_id}`} style={{ fontWeight: 600 }}>
+                📖 {a.ricetta_nome || `ricetta #${a.recipe_id}`} <span style={{ color: "var(--muted)", fontWeight: 400 }}>· preparazione</span>
+              </a>
+            ) : a.ingredient_id ? (
+              <a href={`/ricette/ingredienti/${a.ingredient_id}/prezzi`} style={{ fontWeight: 600 }}>
+                🧺 {a.ingrediente_nome || `ingrediente #${a.ingredient_id}`} <span style={{ color: "var(--muted)", fontWeight: 400 }}>· ingrediente</span>
+              </a>
+            ) : (
+              <div style={{ color: "var(--muted)" }}>non collegato · nessuna ricetta né ingrediente</div>
+            )}
+          </div>
+          {canWrite && (
+            <button className="km-pill" onClick={() => setCollega({ q: a.nome.slice(0, 20), res: null })}>
+              {a.recipe_id || a.ingredient_id ? "Cambia" : "Collega"}
+            </button>
+          )}
         </div>
 
         {movimenti && canWrite && (
@@ -1750,7 +1819,57 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
             </div>
           </>
         )}
+
+        {puoEliminare && (
+          <button className="km-btn ghost" disabled={busy}
+                  style={{ marginTop: 18, color: "var(--red)", borderColor: "var(--red)" }}
+                  onClick={elimina}>
+            {eliminaOk ? "Tocca ancora per eliminare (la storia resta)" : "🗑 Elimina prodotto"}
+          </button>
+        )}
       </div>
+
+      {collega && (
+        <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setCollega(null); }}>
+          <div className="km-sheet-in">
+            <h3 className="km-serif">Cos'è · {a.nome}</h3>
+            <input className="km-search" style={{ marginTop: 4 }} autoFocus value={collega.q}
+                   placeholder="Cerca ricetta o ingrediente…"
+                   onChange={(e) => setCollega({ ...collega, q: e.target.value, res: null })} />
+            <div style={{ maxHeight: "50vh", overflowY: "auto", marginTop: 8 }}>
+              {collega.q.trim().length >= 2 && !collega.res && (
+                <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Cerco…</div>
+              )}
+              {collega.res && (collega.res.ricette || []).length > 0 && (
+                <div className="km-flbl">Preparazioni (ricette)</div>
+              )}
+              {(collega.res?.ricette || []).map((r) => (
+                <button key={`r${r.id}`} className="km-tl tap" style={{ width: "100%", textAlign: "left", background: "none", border: 0 }}
+                        disabled={busy} onClick={() => salvaCollega({ recipe_id: r.id, ingredient_id: null })}>
+                  <div>📖 {r.nome}{r.base ? " · base" : ""}</div>
+                </button>
+              ))}
+              {collega.res && (collega.res.ingredienti || []).length > 0 && (
+                <div className="km-flbl">Ingredienti</div>
+              )}
+              {(collega.res?.ingredienti || []).map((i) => (
+                <button key={`i${i.id}`} className="km-tl tap" style={{ width: "100%", textAlign: "left", background: "none", border: 0 }}
+                        disabled={busy} onClick={() => salvaCollega({ ingredient_id: i.id, recipe_id: null })}>
+                  <div>🧺 {i.nome}</div>
+                </button>
+              ))}
+              {collega.res && !(collega.res.ricette || []).length && !(collega.res.ingredienti || []).length && (
+                <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Niente con questo nome.</div>
+              )}
+            </div>
+            <button className="km-btn ghost" style={{ marginTop: 10 }} disabled={busy}
+                    onClick={() => salvaCollega({ recipe_id: null, ingredient_id: null })}>
+              Non-food · niente collegamento
+            </button>
+            <button className="km-btn ghost" style={{ marginTop: 8 }} onClick={() => setCollega(null)}>Annulla</button>
+          </div>
+        </div>
+      )}
 
       {sheet && (
         <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setSheet(null); }}>
@@ -2523,6 +2642,10 @@ function TabSpesa({ canWrite, onCount, modi }) {
                     {it.fatto && it.completato_da && <span>preso · {it.completato_da}</span>}
                     {!it.fatto && it.created_at && <span>{it.created_at.slice(0, 10)}</span>}
                   </div>
+                  {!it.fatto && !it.da_confermare && canWrite && (
+                    <button className="km-pill" style={{ marginTop: 7 }} disabled={busy === it.id}
+                            onClick={() => scarta(it)}>🗑 Non serve</button>
+                  )}
                   {!it.fatto && !!it.da_confermare && puoConfermare && (
                     <div style={{ display: "flex", gap: 8, marginTop: 7 }}>
                       <button className="km-pill on" disabled={busy === it.id} onClick={() => conferma(it)}>Confermo, da ordinare</button>

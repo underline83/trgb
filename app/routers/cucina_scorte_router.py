@@ -80,7 +80,9 @@ from app.services.cucina_scorte_service import (
     ultimo_movimento,
 )
 from app.services.permessi import richiede_ruoli, verifica_ruoli
-from app.services.ricette_lookup import nomi_ricette, righe_ricetta
+from app.services.ricette_lookup import (
+    cerca_ricette_ingredienti, nomi_ingredienti, nomi_ricette, righe_ricetta,
+)
 from app.services import linea_checklist
 from app.services.linea_esiti import valuta_silenzioso as valuta_esiti_linea
 
@@ -424,6 +426,13 @@ def list_articoli(
         conn.close()
 
 
+@router.get("/collega/cerca")
+def cerca_da_collegare(q: str = Query("", max_length=80)):
+    """Per il «Collega» della scheda: ricette e ingredienti per nome (2026-11-08).
+    Sola lettura via `ricette_lookup`; permessi del router (la brigata)."""
+    return cerca_ricette_ingredienti(q)
+
+
 @router.get("/articoli/{articolo_id}")
 def get_articolo(articolo_id: int):
     """La scheda: dove sta (ripiano per ripiano), lotti, ultimi movimenti.
@@ -484,6 +493,12 @@ def get_articolo(articolo_id: int):
             """,
             (articolo_id,),
         ).fetchall()]
+
+        # «È: …» (2026-11-08): cosa e' davvero questo articolo — la ricetta che
+        # lo produce o l'ingrediente che si compra. Nomi dal ponte read-only.
+        a["ricetta_nome"] = nomi_ricette([a.get("recipe_id")]).get(a.get("recipe_id")) if a.get("recipe_id") else None
+        a["ingrediente_nome"] = (nomi_ingredienti([a.get("ingredient_id")]).get(a.get("ingredient_id"))
+                                 if a.get("ingredient_id") else None)
 
         a["azioni_rapide"] = {
             "scarico": ultimo_movimento(conn, articolo_id, "SCARICO"),

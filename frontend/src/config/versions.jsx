@@ -238,6 +238,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.17 (2026-11-08): scheda articolo — riga «È: …» (ricetta o ingrediente collegato, con link)
+    //   e «Collega» (GET /cucina/scorte/collega/cerca, via ricette_lookup), 🗑 Elimina prodotto
+    //   (admin/chef, disattiva); Spesa iPhone: 🗑 Non serve su ogni riga.
     // 1.16 (2026-11-08): 🖨️ Stampa del frigo (ripiano per ripiano, «In TRGB» + «Contato»
     //   a penna) e della lista spesa (utils/stampaLista.js); via la chip «movimenti».
     // 1.15 (2026-11-08): tutto a movimenti (mig 229) — il tap sul pallino scrive il numero
@@ -309,7 +312,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.16",
+    version: "1.17",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
