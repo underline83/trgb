@@ -89,7 +89,7 @@ export default function useRegistraVenditaVino({ onRegistrata, onScanSelezionato
     const timer = setTimeout(async () => {
       try {
         const res = await apiFetch(
-          `${API_BASE}/vini/magazzino/autocomplete?q=${encodeURIComponent(searchText)}&limit=8&solo_disponibili=true`
+          `${API_BASE}/vini/magazzino/autocomplete?q=${encodeURIComponent(searchText)}&limit=20&solo_disponibili=true`
         );
         if (res.ok) {
           const data = await res.json();

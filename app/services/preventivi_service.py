@@ -1030,6 +1030,9 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
         if righe:
             _salva_righe(conn, preventivo_id, righe)
         _ricalcola_totale(conn, preventivo_id)
+        # 2026-11-08: la bozza automatica non aggancia; si aggancia quando diventa vera
+        if not is_bozza_auto:
+            _aggancia_prenotazione(conn, preventivo_id, username)
 
         conn.commit()
         return get_preventivo(preventivo_id)
@@ -1262,6 +1265,85 @@ def stats_preventivi() -> dict:
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# Preventivo ↔ prenotazione (2026-11-08)
+#   A. aggancio automatico: al salvataggio, se il preventivo non è collegato e ha
+#      cliente e data, si prende la prenotazione del cliente in quel giorno
+#      (stessa ricerca della conferma) che non sia già di un altro preventivo.
+#   B. a mano: elenco delle prenotazioni del giorno, collega / scollega.
+# ---------------------------------------------------------------------------
+
+def _aggancia_prenotazione(conn, preventivo_id: int, username: str | None = None) -> int | None:
+    from app.services import evento_confermato_service as ev
+    r = conn.execute(
+        "SELECT cliente_id, data_evento, ora_evento, prenotazione_id, stato FROM clienti_preventivi WHERE id = ?",
+        (preventivo_id,),
+    ).fetchone()
+    if not r or r["prenotazione_id"] or not r["cliente_id"] or not r["data_evento"]:
+        return None
+    if r["stato"] in ev.STATI_PREVENTIVO_MORTI:
+        return None
+    pid = ev.cerca_prenotazione(conn, r["cliente_id"], r["data_evento"], r["ora_evento"],
+                                escludi_preventivo_id=preventivo_id)
+    if not pid:
+        return None
+    conn.execute("UPDATE clienti_preventivi SET prenotazione_id = ? WHERE id = ?", (pid, preventivo_id))
+    try:
+        from app.services.preventivi_scadenze import scrivi_storico
+        p = conn.execute("SELECT data_pasto, ora_pasto, pax FROM clienti_prenotazioni WHERE id = ?", (pid,)).fetchone()
+        scrivi_storico(preventivo_id, "prenotazione_collegata",
+                       f"Collegato da solo alla prenotazione del {_data_it(p['data_pasto'])}"
+                       f" ore {(p['ora_pasto'] or '')[:5]}, {p['pax'] or '?'} coperti", username, conn)
+    except Exception:                                   # noqa: BLE001 — lo storico non blocca
+        logger.exception("storico aggancio prenotazione")
+    return pid
+
+
+def prenotazioni_candidate(preventivo_id: int) -> dict | None:
+    """Le prenotazioni del giorno dell'evento tra cui scegliere (tasto «Collega»)."""
+    from app.services import evento_confermato_service as ev
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        return None
+    if not prev.get("data_evento"):
+        return {"data": None, "prenotazione_id": prev.get("prenotazione_id"), "items": []}
+    return {
+        "data": prev["data_evento"],
+        "prenotazione_id": prev.get("prenotazione_id"),
+        "items": ev.prenotazioni_del_giorno(prev["data_evento"], prev.get("cliente_id"), preventivo_id),
+    }
+
+
+def collega_prenotazione_a_mano(preventivo_id: int, prenotazione_id: int | None, username: str) -> dict | None:
+    """Collega il preventivo a una prenotazione scelta, o lo scollega (None)."""
+    from app.services.preventivi_scadenze import scrivi_storico
+    conn = get_clienti_conn()
+    try:
+        prev = conn.execute(
+            "SELECT id, prenotazione_id FROM clienti_preventivi WHERE id = ?", (preventivo_id,)
+        ).fetchone()
+        if not prev:
+            return None
+        if prenotazione_id:
+            p = conn.execute(
+                "SELECT id, data_pasto, ora_pasto, pax FROM clienti_prenotazioni WHERE id = ?", (prenotazione_id,)
+            ).fetchone()
+            if not p:
+                raise ValueError("Prenotazione non trovata")
+            testo = (f"Collegato a mano alla prenotazione del {_data_it(p['data_pasto'])}"
+                     f" ore {(p['ora_pasto'] or '')[:5]}, {p['pax'] or '?'} coperti")
+        else:
+            testo = "Scollegato dalla prenotazione"
+        if (prev["prenotazione_id"] or None) != (prenotazione_id or None):
+            conn.execute("UPDATE clienti_preventivi SET prenotazione_id = ? WHERE id = ?",
+                         (prenotazione_id or None, preventivo_id))
+            scrivi_storico(preventivo_id, "prenotazione_collegata", testo, username, conn)
+            conn.commit()
+    finally:
+        conn.close()
+    return get_preventivo(preventivo_id)
+
+
 def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = None, nuovo_cliente: dict | None = None,
                         username: str | None = None) -> dict | None:
     """Aggiorna testata + opzionalmente righe. Ricalcola totale.
@@ -1269,7 +1351,8 @@ def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = Non
     conn = get_clienti_conn()
     try:
         existing = conn.execute(
-            "SELECT id, scadenza_conferma FROM clienti_preventivi WHERE id = ?", (preventivo_id,)
+            "SELECT id, scadenza_conferma, cliente_id, data_evento, is_bozza_auto"
+            " FROM clienti_preventivi WHERE id = ?", (preventivo_id,)
         ).fetchone()
         if not existing:
             return None
@@ -1325,6 +1408,19 @@ def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = Non
             _salva_righe(conn, preventivo_id, righe)
 
         _ricalcola_totale(conn, preventivo_id)
+
+        # Aggancio automatico alla prenotazione (2026-11-08): solo quando cambia
+        # cliente o data, o la bozza automatica diventa vera. Così uno «Scollega»
+        # fatto a mano non viene disfatto al salvataggio dopo.
+        dopo = conn.execute(
+            "SELECT cliente_id, data_evento, is_bozza_auto FROM clienti_preventivi WHERE id = ?",
+            (preventivo_id,),
+        ).fetchone()
+        if (dopo["cliente_id"] != existing["cliente_id"]
+                or (dopo["data_evento"] or "") != (existing["data_evento"] or "")
+                or (existing["is_bozza_auto"] and not dopo["is_bozza_auto"])):
+            _aggancia_prenotazione(conn, preventivo_id, username)
+
         conn.commit()
         return get_preventivo(preventivo_id)
     finally:

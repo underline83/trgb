@@ -3,6 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.16 (2026-11-08): Vendite — la ricerca vino mostra fino a 20 risultati (prima 8); vale anche per «Vendi o apri» in Home.
     // 4.15 (2026-11-07): etichetta collo bottiglia — descrizione fino a 3 righe (11 pt), senza vitigni
     //   tra parentesi né gradazione (solo in stampa, descrizioneCorta).
     // 4.14 (2026-11-07): nuova «Etichetta collo bottiglia» 29×47 senza QR (denominazione, descrizione, produttore, annata, #id; margini 2,5 sx / 4,5 dx: la Brother taglia a destra),
@@ -201,7 +202,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.15",
+    version: "4.16",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -530,6 +531,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.27 (2026-11-08): preventivo ↔ prenotazione — al salvataggio il preventivo si aggancia da solo
+    //   alla prenotazione del cliente in quel giorno (se nessun altro preventivo la tiene); nella scheda
+    //   «🔗 Collega prenotazione» / Cambia / Scollega tra le prenotazioni del giorno. Storico.
     // 3.26 (2026-11-05): widget Preventivi in attesa — Proroga e Libera tavolo si confermano
     //   dentro la card (niente prompt/confirm/alert del browser), esiti ed errori in toast.
     // 3.25 (2026-11-03): widget Home «⏳ Preventivi in attesa» (scadenza più vicina, Proroga e
@@ -597,7 +601,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.26",
+    version: "3.27",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

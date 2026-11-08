@@ -43,6 +43,71 @@ def _turno(conn, ora: str | None) -> str:
     return "pranzo" if ora and ora[:5] < soglia else "cena"
 
 
+# Stati del preventivo che non tengono più una prenotazione (per l'aggancio automatico)
+STATI_PREVENTIVO_MORTI = ("rifiutato", "scaduto")
+
+
+def cerca_prenotazione(conn, cliente_id: int, data: str, ora: str | None = None,
+                       escludi_preventivo_id: int | None = None) -> int | None:
+    """La prenotazione attiva del cliente in quel giorno, la più vicina all'ora.
+    Con escludi_preventivo_id (aggancio automatico, 2026-11-08) salta quelle già
+    tenute da un ALTRO preventivo vivo, così due preventivi non si contendono un tavolo."""
+    altri = ""
+    params: list = [cliente_id, data, *STATI_SPENTI]
+    if escludi_preventivo_id is not None:
+        altri = f"""AND NOT EXISTS (
+                        SELECT 1 FROM clienti_preventivi q
+                        WHERE q.prenotazione_id = p.id AND q.id != ?
+                          AND COALESCE(q.is_bozza_auto, 0) = 0
+                          AND q.stato NOT IN ({",".join("?" * len(STATI_PREVENTIVO_MORTI))}))"""
+        params += [escludi_preventivo_id, *STATI_PREVENTIVO_MORTI]
+    params.append(ora)
+    r = conn.execute(
+        f"""SELECT p.id FROM clienti_prenotazioni p
+            WHERE p.cliente_id = ? AND p.data_pasto = ?
+              AND p.stato NOT IN ({",".join("?" * len(STATI_SPENTI))})
+              {altri}
+            ORDER BY ABS(strftime('%s', '2000-01-01 ' || COALESCE(p.ora_pasto, '20:00'))
+                         - strftime('%s', '2000-01-01 ' || COALESCE(?, '20:00'))), p.id
+            LIMIT 1""",
+        params,
+    ).fetchone()
+    return r["id"] if r else None
+
+
+def prenotazioni_del_giorno(data: str, cliente_id: int | None, preventivo_id: int) -> list[dict]:
+    """Le prenotazioni attive di un giorno, per scegliere a mano quella del preventivo
+    (tasto «Collega prenotazione», 2026-11-08). Quelle del cliente del preventivo per prime;
+    per ognuna l'eventuale altro preventivo vivo che la tiene già."""
+    conn = get_clienti_conn()
+    try:
+        righe = conn.execute(
+            f"""SELECT p.id, p.data_pasto, p.ora_pasto, p.pax, p.stato, p.tavolo, p.fonte, p.canale,
+                       p.cliente_id,
+                       COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
+                       COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
+                       (SELECT q.numero FROM clienti_preventivi q
+                         WHERE q.prenotazione_id = p.id AND q.id != ?
+                           AND COALESCE(q.is_bozza_auto, 0) = 0
+                           AND q.stato NOT IN ({",".join("?" * len(STATI_PREVENTIVO_MORTI))})
+                         ORDER BY q.id DESC LIMIT 1) AS altro_preventivo
+                FROM clienti_prenotazioni p
+                LEFT JOIN clienti c ON c.id = p.cliente_id
+                WHERE p.data_pasto = ?
+                  AND p.stato NOT IN ({",".join("?" * len(STATI_SPENTI))})
+                ORDER BY CASE WHEN p.cliente_id = ? THEN 0 ELSE 1 END, p.ora_pasto, p.id""",
+            (preventivo_id, *STATI_PREVENTIVO_MORTI, data, *STATI_SPENTI, cliente_id or -1),
+        ).fetchall()
+        out = []
+        for r in righe:
+            d = dict(r)
+            d["stesso_cliente"] = bool(cliente_id and d["cliente_id"] == cliente_id)
+            out.append(d)
+        return out
+    finally:
+        conn.close()
+
+
 def collega_prenotazione(prev: dict, menu_evento: str, username: str) -> dict:
     """Trova (o crea) la prenotazione dell'evento e ci scrive il menù.
     Ritorna {prenotazione_id, azione, avvisi}: azione = aggiornata | creata | nessuna."""
@@ -60,17 +125,7 @@ def collega_prenotazione(prev: dict, menu_evento: str, username: str) -> dict:
             elif r:
                 avvisi.append(f"La prenotazione collegata è «{r['stato']}»: ne cerco un'altra.")
         if not pid and prev.get("cliente_id") and data:
-            r = conn.execute(
-                f"""SELECT id FROM clienti_prenotazioni
-                    WHERE cliente_id = ? AND data_pasto = ?
-                      AND stato NOT IN ({",".join("?" * len(STATI_SPENTI))})
-                    ORDER BY ABS(strftime('%s', '2000-01-01 ' || COALESCE(ora_pasto, '20:00'))
-                                 - strftime('%s', '2000-01-01 ' || COALESCE(?, '20:00'))), id
-                    LIMIT 1""",
-                (prev["cliente_id"], data, *STATI_SPENTI, prev.get("ora_evento")),
-            ).fetchone()
-            if r:
-                pid = r["id"]
+            pid = cerca_prenotazione(conn, prev["cliente_id"], data, prev.get("ora_evento"))
 
         azione = "aggiornata"
         if not pid:

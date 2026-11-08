@@ -1,4 +1,4 @@
-// @version: v1.11 — «✅ Conferma l'evento» accanto al menù scelto; v1.10 — conferma che non resta muta: menù riletti dal server se il composer non li ha passati, scelta del menù anche dopo l'errore, «✅ Confermato» nella barra da telefono/iPad, errori visibili più a lungo; v1.9 — dopo l'invio al cliente si apre il messaggio per i gruppi (e parte la copia per email all'osteria); v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
+// @version: v1.12 — collegamento alla prenotazione: si aggancia da solo al salvataggio (cliente + data) e «🔗 Collega prenotazione» / Cambia / Scollega a mano (2026-11-08); v1.11 — «✅ Conferma l'evento» accanto al menù scelto; v1.10 — conferma che non resta muta: menù riletti dal server se il composer non li ha passati, scelta del menù anche dopo l'errore, «✅ Confermato» nella barra da telefono/iPad, errori visibili più a lungo; v1.9 — dopo l'invio al cliente si apre il messaggio per i gruppi (e parte la copia per email all'osteria); v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
 // v1.7 — nuovo preventivo da una prenotazione (tasto «📋 Preventivo» nel Planning), collegato con prenotazione_id (2026-10-20)
 // v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
@@ -147,6 +147,10 @@ export default function ClientiPreventivoScheda() {
   // Scadenza conferma + storico (2026-11-03)
   const [cfgPrev, setCfgPrev] = useState(null);
   const [storico, setStorico] = useState([]);
+  // Collegamento alla prenotazione a mano (2026-11-08)
+  const [collegaOpen, setCollegaOpen] = useState(false);
+  const [candidate, setCandidate] = useState(null);
+  const [collegando, setCollegando] = useState(false);
 
   // ── Nuovo preventivo da una prenotazione (2026-10-20) ──
   // Se per quella prenotazione c'è già un preventivo, si apre quello; altrimenti
@@ -474,6 +478,9 @@ export default function ClientiPreventivoScheda() {
       } else {
         setStato(data.stato);
         setNumero(data.numero);
+        // Aggancio automatico (2026-11-08): il backend può aver trovato la prenotazione
+        if (data.prenotazione_id && !form.prenotazione_id) showToast("Preventivo salvato e collegato alla prenotazione");
+        setForm((f) => ({ ...f, prenotazione_id: data.prenotazione_id || null }));
         setRighe(Array.isArray(data.righe) ? data.righe : []);
         setMenuSnapshot({
           n_righe: Array.isArray(data.menu_righe) ? data.menu_righe.length : 0,
@@ -493,6 +500,43 @@ export default function ClientiPreventivoScheda() {
       return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Prenotazione collegata a mano (2026-11-08) ──
+  const apriCollega = async () => {
+    if (!prevId) return;
+    setCollegaOpen(true);
+    setCandidate(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/preventivi/${prevId}/prenotazioni-candidate`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || "Errore caricamento prenotazioni");
+      setCandidate(d);
+    } catch (err) {
+      showToast(err.message, true);
+      setCollegaOpen(false);
+    }
+  };
+  const collegaPrenotazione = async (prenId) => {
+    if (!prevId) return;
+    if (!prenId && !window.confirm("Scollegare il preventivo dalla prenotazione? La prenotazione resta com'è.")) return;
+    setCollegando(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/preventivi/${prevId}/prenotazione`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prenotazione_id: prenId || null }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || "Errore collegamento");
+      setForm((f) => ({ ...f, prenotazione_id: d.prenotazione_id || null }));
+      setCollegaOpen(false);
+      showToast(prenId ? "Collegato alla prenotazione" : "Scollegato dalla prenotazione");
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      setCollegando(false);
     }
   };
 
@@ -756,11 +800,71 @@ export default function ClientiPreventivoScheda() {
               <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">
                 <h3 className="text-sm font-semibold text-neutral-700">Dettagli evento</h3>
                 {form.prenotazione_id && (
-                  <button type="button"
-                    onClick={() => form.data_evento && navigate(`/prenotazioni/planning/${form.data_evento}`)}
-                    className="w-full text-left text-xs bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg px-3 py-2 min-h-[40px] hover:bg-indigo-100">
-                    📅 Nato dalla prenotazione del {form.data_evento ? form.data_evento.split("-").reverse().join("/") : "—"}{form.ora_evento ? ` ore ${form.ora_evento}` : ""} — apri il Planning ›
+                  <div className="flex gap-2">
+                    <button type="button"
+                      onClick={() => form.data_evento && navigate(`/prenotazioni/planning/${form.data_evento}`)}
+                      className="flex-1 text-left text-xs bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg px-3 py-2 min-h-[44px] hover:bg-indigo-100">
+                      📅 Collegato alla prenotazione del {form.data_evento ? form.data_evento.split("-").reverse().join("/") : "—"} — apri il Planning ›
+                    </button>
+                    {!isNew && prevId && (
+                      <button type="button" onClick={apriCollega}
+                        className="text-xs border border-indigo-200 text-indigo-700 rounded-lg px-3 min-h-[44px] hover:bg-indigo-50">
+                        Cambia
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!form.prenotazione_id && !isNew && prevId && (
+                  <button type="button" onClick={apriCollega}
+                    className="w-full text-left text-xs bg-neutral-50 border border-dashed border-neutral-300 text-neutral-700 rounded-lg px-3 py-2 min-h-[44px] hover:bg-neutral-100">
+                    🔗 Non collegato a una prenotazione — <b>Collega prenotazione</b>
                   </button>
+                )}
+                {collegaOpen && (
+                  <div className="border border-indigo-200 rounded-lg p-3 bg-white space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-neutral-700">
+                        Prenotazioni del {candidate?.data ? candidate.data.split("-").reverse().join("/") : "giorno dell'evento"}
+                      </span>
+                      <button type="button" onClick={() => setCollegaOpen(false)}
+                        className="text-neutral-400 hover:text-neutral-600 text-sm min-h-[44px] px-2">✕</button>
+                    </div>
+                    {!candidate && <div className="text-xs text-neutral-500">Carico…</div>}
+                    {candidate && !candidate.data && (
+                      <div className="text-xs text-neutral-500">Il preventivo non ha la data dell'evento: mettila e salva, poi collega.</div>
+                    )}
+                    {candidate?.data && candidate.items.length === 0 && (
+                      <div className="text-xs text-neutral-500">Nessuna prenotazione attiva in quel giorno.</div>
+                    )}
+                    {candidate?.items?.map((p) => {
+                      const attuale = p.id === form.prenotazione_id;
+                      return (
+                        <button key={p.id} type="button" disabled={collegando || attuale}
+                          onClick={() => collegaPrenotazione(p.id)}
+                          className={`w-full text-left text-xs rounded-lg border px-3 py-2 min-h-[44px] transition ${
+                            attuale ? "bg-indigo-50 border-indigo-300 text-indigo-800"
+                              : p.stesso_cliente ? "border-emerald-300 bg-emerald-50 hover:bg-emerald-100"
+                              : "border-neutral-200 hover:bg-neutral-50"}`}>
+                          <span className="font-semibold">{(p.ora_pasto || "").slice(0, 5)}</span>
+                          {" · "}{[p.cognome, p.nome].filter(Boolean).join(" ") || "—"}
+                          {" · "}{p.pax || "?"} coperti
+                          {p.tavolo ? ` · tav. ${p.tavolo}` : ""}
+                          {p.fonte ? <span className="text-neutral-400"> · {p.fonte}</span> : null}
+                          {attuale && <span className="ml-1">✓ collegata</span>}
+                          {!attuale && p.stesso_cliente && <span className="ml-1 text-emerald-700">· stesso cliente</span>}
+                          {p.altro_preventivo && (
+                            <div className="text-amber-700 mt-0.5">⚠️ già collegata al preventivo {p.altro_preventivo}</div>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {form.prenotazione_id && (
+                      <button type="button" disabled={collegando} onClick={() => collegaPrenotazione(null)}
+                        className="text-xs text-red-600 hover:underline min-h-[44px]">
+                        Scollega dalla prenotazione
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* Template select */}

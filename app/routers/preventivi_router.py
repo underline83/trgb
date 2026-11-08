@@ -479,6 +479,37 @@ def api_libera_tavolo(preventivo_id: int, user: dict = Depends(get_current_user)
     return res
 
 
+# ---------------------------------------------------------------------------
+# Preventivo ↔ prenotazione a mano (2026-11-08): scegli tra le prenotazioni del giorno
+# ---------------------------------------------------------------------------
+
+class CollegaPrenotazioneIn(BaseModel):
+    prenotazione_id: Optional[int] = None     # None = scollega
+
+
+@router.get("/{preventivo_id}/prenotazioni-candidate")
+def api_prenotazioni_candidate(preventivo_id: int,
+                               user: dict = Depends(richiede_ruoli("admin", cosa="collegare preventivi e prenotazioni"))):
+    from app.services.preventivi_service import prenotazioni_candidate
+    res = prenotazioni_candidate(preventivo_id)
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res
+
+
+@router.put("/{preventivo_id}/prenotazione")
+def api_collega_prenotazione(preventivo_id: int, body: CollegaPrenotazioneIn,
+                             user: dict = Depends(richiede_ruoli("admin", cosa="collegare preventivi e prenotazioni"))):
+    from app.services.preventivi_service import collega_prenotazione_a_mano
+    try:
+        res = collega_prenotazione_a_mano(preventivo_id, body.prenotazione_id, user["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if res is None:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return res
+
+
 class ConfermaIn(BaseModel):
     menu_scelto_id: Optional[int] = None
 

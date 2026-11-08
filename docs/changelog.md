@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-08 — Clienti 3.27: il preventivo si collega alla prenotazione `[core]`
+Un preventivo creato da Preventivi › Nuovo restava scollegato dalla prenotazione fino alla conferma (caso PRE-2026-013, Schintu 15/11): niente ⏳ nel Planning, niente «Libera tavolo» alla scadenza. Ora al salvataggio si aggancia da solo alla prenotazione del cliente in quel giorno (se nessun altro preventivo la tiene) e nella scheda c'è «🔗 Collega prenotazione» / Cambia / Scollega. Endpoint `GET /preventivi/{id}/prenotazioni-candidate`, `PUT /preventivi/{id}/prenotazione`. Nessuna migrazione.
+
 ## 2026-11-08 — Scorte cucina 1.15: tutto a movimenti (mig 229, sistema 5.95) `[core]`
 Un solo modo di seguire le scorte: tutti gli articoli a movimenti. Il tap sul pallino resta e scrive il numero (rosso = 0, giallo = al minimo, verde = conferma; se non basta chiede «Quanti ce ne sono?»), con l'annulla. Nuovo flag «Da riordinare» nella scheda: su «no» un articolo finito non va in Lista spesa. Sparisce la scelta semaforo/conta/movimenti.
 
