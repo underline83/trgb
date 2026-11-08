@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # Modulo: cucina
 """
-Collega 43 articoli delle scorte cucina a ingrediente o ricetta (2026-11-08).
+Collega 42 articoli delle scorte cucina a ingrediente o ricetta (2026-11-08).
 [locale:tregobbi] — script una-tantum. Proposte dell'abbinamento guidato
 («sicuri», punteggio >= 85) riviste da Claude: tolte le 10 dubbie (Caponata,
 Parmigiana, Millefoglie, Salsa rosa, Mango, Brasato, Filetto di maiale, Pollo,
-Panna, Gamberi), che restano da fare a mano in Scorte › 🔗 Collega.
+Panna, Gamberi) e, su indicazione di Marco, «pasta gialla» (proposta
+sbagliata), che restano da fare a mano in Scorte › 🔗 Collega.
 
 Per ogni riga controlla che l'articolo esista, sia attivo, abbia ancora quel
 nome e sia ancora scollegato; altrimenti la salta e lo dice.
@@ -68,7 +69,6 @@ VOCI = [
     (215, 'Lonza', "ing", 632, 'Lonza di suino'),
     (35, 'Gambero rosso', "ing", 159, 'Gambero rosso intero congelato'),
     (41, 'Vongole', "ing", 1154, 'Vongole veraci grosse'),
-    (219, 'pasta gialla', "ing", 210, 'Pasta prec. gialla zerbetto surgelato'),
 ]
 
 
