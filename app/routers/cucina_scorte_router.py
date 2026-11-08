@@ -74,6 +74,8 @@ from app.services.cucina_scorte_service import (
     scorte_linea,
     scrivi_riga_conta,
     set_semaforo,
+    tap_movimenti,
+    ServeQuantita,
     stato_dato,
     ultimo_movimento,
 )
@@ -111,7 +113,7 @@ class ArticoloIn(BaseModel):
     um: str = "PZ"
     confezione: Optional[str] = Field(default=None, max_length=60)
     reparto: str = "cucina"
-    regime: str = "SEMAFORO"
+    regime: str = "MOVIMENTI"  # un regime solo dal 2026-11-08 (mig 229)
     natura: Optional[str] = None
     famiglia_freschezza: str = "SECCO"
     giorni_dato_fresco: Optional[int] = None
@@ -128,6 +130,8 @@ class ArticoloIn(BaseModel):
     scorta_min_gelo: Optional[float] = None
     scorta_min_dispensa: Optional[float] = None
     qta_riordino: Optional[float] = None
+    # Flag «da riordinare» (mig 229): None = si' (default), False = finisce e basta.
+    da_riordinare: Optional[bool] = None
 
 
 class ArticoloUpdate(BaseModel):
@@ -154,6 +158,8 @@ class ArticoloUpdate(BaseModel):
     scorta_min_gelo: Optional[float] = None
     scorta_min_dispensa: Optional[float] = None
     qta_riordino: Optional[float] = None
+    # Flag «da riordinare» (mig 229): None = si' (default), False = finisce e basta.
+    da_riordinare: Optional[bool] = None
 
 
 class LineaElementoIn(BaseModel):
@@ -214,6 +220,9 @@ class VoceExtraUpdate(BaseModel):
 class SemaforoIn(BaseModel):
     ripiano_id: int
     stato: str
+    # L'undo di un tap che ha cambiato solo il colore (quantita' ignota):
+    # rimette il colore e basta, senza le regole del tap (2026-11-08).
+    solo_colore: bool = False
 
 
 class DotazioneIn(BaseModel):
@@ -320,7 +329,10 @@ def _normalizza_articolo(d: Dict[str, Any]) -> Dict[str, Any]:
     if "reparto" in d:
         d["reparto"] = _v(lambda: valida(d["reparto"], REPARTI, "reparto")) or "cucina"
     if "regime" in d:
-        d["regime"] = _v(lambda: valida(d["regime"], REGIMI, "regime")) or "SEMAFORO"
+        # Un regime solo dal 2026-11-08 (mig 229): un client vecchio che manda
+        # SEMAFORO/CONTA non riporta indietro l'articolo.
+        _v(lambda: valida(d["regime"], REGIMI, "regime"))
+        d["regime"] = "MOVIMENTI"
     if "natura" in d:
         d["natura"] = _v(lambda: valida(d["natura"], NATURE_ARTICOLO, "natura"))
     if "famiglia_freschezza" in d:
@@ -573,17 +585,25 @@ def patch_semaforo(articolo_id: int, payload: SemaforoIn,
     try:
         cur = conn.cursor()
         art = _get_articolo(cur, articolo_id)
-        # Sugli articoli a MOVIMENTI il colore segue la quantita' (2026-10-02):
-        # cambiarlo a mano farebbe di nuovo dire al pallino una cosa e al
-        # numero un'altra. Il client li manda a «Quanti ce ne sono?».
-        if (art.get("regime") or "").upper() == "MOVIMENTI":
-            raise HTTPException(
-                status_code=409,
-                detail="Per questo articolo il colore lo decide la quantita': correggi quanti ce ne sono",
-            )
+        # A MOVIMENTI (oggi tutti, mig 229) il tap e' una scorciatoia che scrive
+        # il numero (Marco 2026-11-08): rosso = 0, giallo = al minimo, verde =
+        # conferma. Quando il tap non basta → 409 e il client chiede «Quanti?».
         try:
-            res = set_semaforo(conn, articolo_id, payload.ripiano_id, stato,
-                               _utente(current_user))
+            if (art.get("regime") or "").upper() == "MOVIMENTI" and not payload.solo_colore:
+                try:
+                    res = tap_movimenti(conn, articolo_id, payload.ripiano_id, stato,
+                                        _utente(current_user))
+                except ServeQuantita as e:
+                    raise HTTPException(status_code=409, detail=str(e))
+            elif payload.solo_colore:
+                conn.execute(
+                    "UPDATE cucina_giacenze SET stato_semaforo = ? WHERE articolo_id = ? AND ripiano_id = ?",
+                    (stato, articolo_id, payload.ripiano_id),
+                )
+                res = {"articolo_id": articolo_id, "ripiano_id": payload.ripiano_id, "stato": stato}
+            else:
+                res = set_semaforo(conn, articolo_id, payload.ripiano_id, stato,
+                                   _utente(current_user))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         conn.commit()
@@ -738,8 +758,8 @@ def dotazione_da_testo(payload: DotazioneTestoIn, current_user=Depends(get_curre
                 um = _v(lambda: valida(r["um"], UNITA_MISURA, "um")) if r["um"] else "PZ"
                 cur.execute(
                     """
-                    INSERT INTO cucina_articoli (nome, um, reparto, ripiano_casa_id, created_by)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO cucina_articoli (nome, um, reparto, ripiano_casa_id, created_by, regime)
+                    VALUES (?, ?, ?, ?, ?, 'MOVIMENTI')
                     """,
                     (r["nome"], um or "PZ", rip["reparto"], rip["id"], utente),
                 )

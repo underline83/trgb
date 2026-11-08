@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Scorte cucina 1.14** (Sposta per tutti i regimi, sotto). **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Scorte cucina 1.15 + mig 229** (tutto a movimenti, sotto) — dopo il push: su iPhone tap rosso/giallo/verde su un articolo senza numero e con numero, e l'annulla. **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -179,6 +179,16 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-08 (4) — Scorte cucina 1.15: tutto a movimenti (P1) `[core]`
+
+Decisioni di Marco Q #326–#330 (doc `modulo_scorte_cucina.md` «Tutto a movimenti»). P1 di 3:
+- **mig 229** (sistema 5.95): `cucina_articoli.da_riordinare` (nullable, riempita a 1); SEMAFORO/CONTA → MOVIMENTI senza inventare numeri (rosso → 0, verde/giallo senza numero restano NULL). Prova su copia DB: 238 articoli, 4 righe rosse a 0, 106 semaforo + 43 conta passati, idempotente.
+- `tap_movimenti()`: rosso = RETTIFICA a 0; giallo = al minimo (senza minimo → 409 «Quanti?»); verde = conferma a delta 0 (quantità ignota → solo colore; a 0 → 409). Undo: annulla del movimento; da quantità ignota torna a «non so» col colore di prima (`ref_modulo` `tap_ignoto:<colore>`). `PATCH /semaforo` non dà più 409 fisso; `solo_colore` per l'undo.
+- `aggiungi_a_lista_spesa` rispetta `da_riordinare = 0`. Articoli nuovi (form, incolla-testo, Linea) nascono MOVIMENTI; `_normalizza_articolo` forza MOVIMENTI.
+- FE `CucinaMobile.jsx` 1.9: giro del frigo sempre col tap (409 → «Quanti?»), scheda senza scelta del regime, con «Da riordinare sì/no» e scorta minima sempre visibile. `LineaTab.jsx` regime MOVIMENTI.
+- **Effetto da sapere:** il «fermo da N gg · da verificare» ora vale per tutti gli articoli (prima solo movimenti).
+- Restano P2 (riordino a copertura 14/3, linea_esiti col flag) e P3 (collegamenti + abbinamento guidato).
 
 ## SESSIONE 2026-11-08 (3) — Scorte cucina 1.14: Sposta per tutti i regimi `[core]`
 

@@ -195,7 +195,7 @@ export default function LineaTab({ r }) {
           ingredient_id: ingredient_id || null,
           // Preparazioni: buste e vaschette si contano. Componenti: si parte
           // dal semaforo, che costa zero disciplina (modulo_scorte_cucina §3).
-          regime: preparazione ? "MOVIMENTI" : "SEMAFORO",
+          regime: "MOVIMENTI",
           natura: preparazione ? "SEMILAVORATO" : null,
           um: "PZ",
         }),

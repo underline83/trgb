@@ -625,3 +625,26 @@ Deciso con Marco: «per semaforo sposta e lascia traccia, per conta idem, per mo
 | Capability | Cosa fa | Rif. | Audience | Docs |
 |---|---|---|---|---|
 | C-K-SP1 | Spostare un articolo su un altro ripiano/posto, qualunque regime | `POST /cucina/scorte/sposta/` (`cucina_scorte_router.py` `post_sposta`), `cucina_scorte_service.cambia_posto`, `CucinaMobile.jsx` scheda articolo «↔️ Sposta» | brigata | 🆕 |
+
+## Tutto a movimenti — decisioni e piano (2026-11-08, P1 fatto in cucinaScorte 1.15 / mig 229)
+
+Decisioni di Marco (Q #326–#330), prese una alla volta in chat:
+
+1. **Un solo regime: MOVIMENTI.** Semaforo e conta spariscono come scelta. Il pallino lo calcola il sistema, ma il tap resta come scorciatoia: 🔴 = rettifica a 0 · 🟡 = quantità al minimo (o «quanti ce ne sono?» se il minimo non c'è) · 🟢 = conferma senza cambiare il numero.
+2. **Flag `da_riordinare`, default sì** (anche per gli esistenti). Sì → sotto soglia: ingrediente → Lista spesa (fornitore preferito, `qta_riordino` o quanto manca); preparazione → task «Produrre X» con link ricetta. No → a zero resta un buco sul ripiano, niente spesa né task. Oggi invece tutto ciò che va a zero va in spesa.
+3. **Ogni prodotto è una di tre cose:** ingrediente (`ingredient_id`), preparazione (`recipe_id`), non-food (nessun collegamento). Scheda: riga «È: …» + «Collega». I ~150 scollegati: abbinamento guidato con punteggio, conferma in blocco dei sicuri.
+4. **Passaggio dei 138 non-movimenti:** CONTA tiene la quantità; SEMAFORO 🔴 → 0; SEMAFORO 🟢/🟡 senza numero restano NULL («non so») col pallino com'è.
+5. **Soglia a giorni di copertura:** consumo/giorno = (SCARICO+SCARTO ultimi N gg)/N; copertura = quantità/consumo. Scatta sotto soglia. Config `riordino_finestra_gg = 14`, `riordino_copertura_gg = 3`; per articolo `giorni_copertura`. Senza storia: `scorta_minima`, altrimenti zero. Schema del riordino vini (RD.1).
+
+Piano a tre push, ognuno deployabile da solo:
+
+| Push | Contenuto | Migrazione |
+|---|---|---|
+| **P1 — un regime** ✅ 1.15 | colonna `da_riordinare`; passaggio dei regimi (punto 4); articoli nuovi nascono MOVIMENTI; tap sul pallino su MOVIMENTI con le regole del punto 1 (via il 409); via la scelta del regime dalla UI | sì (ADD COLUMN + UPDATE dati) |
+| **P2 — riordino a copertura** | `copertura()` nel service; `riallinea_semaforo` e Lista spesa / linea_esiti guidati da copertura + flag; config 14/3 in `cucina_scorte_config`; flag e soglia nella scheda | seed config |
+| **P3 — collegamenti** | riga «È: …» + «Collega» nella scheda; pagina abbinamento guidato per gli scollegati | no |
+
+| Capability | Cosa fa | Rif. | Audience | Docs |
+|---|---|---|---|---|
+| C-K-229a | Tap sul pallino che scrive il numero (rosso 0 / giallo al minimo / verde conferma), 409 → «Quanti?», annulla | `PATCH /cucina/scorte/articoli/{id}/semaforo`, `cucina_scorte_service.tap_movimenti`, `CucinaMobile.jsx` `useSemaforo` | brigata | 🆕 |
+| C-K-229b | Flag «Da riordinare» nella scheda (no = niente Lista spesa) | `PATCH /cucina/scorte/articoli/{id}` campo `da_riordinare`, `aggiungi_a_lista_spesa` | brigata | 🆕 |

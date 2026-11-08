@@ -229,7 +229,7 @@ SCHEMA_SQL: tuple[str, ...] = (
         um                      TEXT    NOT NULL DEFAULT 'PZ',
         confezione              TEXT,
         reparto                 TEXT    NOT NULL DEFAULT 'cucina',
-        regime                  TEXT    NOT NULL DEFAULT 'SEMAFORO',
+        regime                  TEXT    NOT NULL DEFAULT 'MOVIMENTI',
         natura                  TEXT,
         famiglia_freschezza     TEXT    NOT NULL DEFAULT 'SECCO',
         giorni_dato_fresco      INTEGER,
@@ -498,6 +498,7 @@ HEAL_COLUMNS = {
         ("scorta_min_gelo", "REAL"),     # mig 202: minimo sui ripiani FREEZER
         ("scorta_min_dispensa", "REAL"), # mig 220: minimo sui ripiani DISPENSA/SCAFFALE
         ("qta_riordino", "REAL"),        # mig 202: quanto produrre/ordinare
+        ("da_riordinare", "INTEGER"),   # mig 229: 1/NULL = riordina sotto soglia, 0 = finisce e basta
     ],
     # mig 207: 1 = voce del gruppo «Generale» della partita (burro e parmigiano
     # nei primi, fondo bruno nei secondi): c'e' sempre, anche se nessun piatto

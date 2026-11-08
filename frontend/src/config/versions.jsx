@@ -236,6 +236,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.15 (2026-11-08): tutto a movimenti (mig 229) — il tap sul pallino scrive il numero
+    //   (rosso 0, giallo al minimo, verde conferma; «Quanti?» quando non basta), flag
+    //   «da riordinare» (no = niente spesa), via la scelta del regime.
     // 1.14 (2026-11-08): ↔️ Sposta per tutti i regimi (POST /cucina/scorte/sposta/):
     //   semaforo e conta cambiano posto con una riga di traccia (cambio_posto),
     //   a movimenti resta il trasferimento di una quantità; la casa segue.
@@ -302,7 +305,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.14",
+    version: "1.15",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -745,6 +748,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.95 (2026-11-08): mig 229 — scorte cucina tutto a movimenti + flag da_riordinare
+    //   (cucinaScorte 1.15).
     // 5.94 (2026-11-06): «Vedi come» del superadmin — app/services/vedi_come.py, registro in
     //   accessi.sqlite3 (creato al boot del primo uso, nessuna migrazione numerata), durata
     //   vedi_come_minuti in auth_settings.json. vini_router/vini_cantina_tools passano da get_current_user.
@@ -879,7 +884,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.94",
+    version: "5.95",
     label: "Sistema",
     status: "stabile",
     color: "green",

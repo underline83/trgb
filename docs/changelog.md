@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-08 — Scorte cucina 1.15: tutto a movimenti (mig 229, sistema 5.95) `[core]`
+Un solo modo di seguire le scorte: tutti gli articoli a movimenti. Il tap sul pallino resta e scrive il numero (rosso = 0, giallo = al minimo, verde = conferma; se non basta chiede «Quanti ce ne sono?»), con l'annulla. Nuovo flag «Da riordinare» nella scheda: su «no» un articolo finito non va in Lista spesa. Sparisce la scelta semaforo/conta/movimenti.
+
 ## 2026-11-08 — Scorte cucina 1.14: ↔️ Sposta per tutti i regimi `[core]`
 Nella scheda articolo il bottone Sposta c'è anche per gli articoli a semaforo e a conta: cambia posto tutto insieme (quantità, pallino, date, ripiano di casa) e lascia una riga «Spostato · da X a Y» nei movimenti. A movimenti resta lo spostamento di una quantità. Endpoint `POST /cucina/scorte/sposta/`. Nessuna migrazione.
 

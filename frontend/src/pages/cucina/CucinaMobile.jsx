@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.8 — ↔️ Sposta per tutti i regimi: semaforo e conta cambiano posto con traccia (2026-11-08)
+// @version: v1.9 — tutto a movimenti: il tap scrive il numero (rosso 0, giallo al minimo, verde conferma), «da riordinare», via la scelta del regime (2026-11-08)
+// v1.8 — ↔️ Sposta per tutti i regimi: semaforo e conta cambiano posto con traccia (2026-11-08)
 // v1.7 — Spesa: si scrive a mano cosa serve (riga libera + quantità + urgente) (2026-10-03)
 // v1.6 — «Gestione Frigoriferi e scorte»: la barra resta con Frigo e Scorte; Oggi e Spesa
 //            diventano pagine a sé (stesse route, senza barra), aperte dai tasti della Home (2026-10-03)
@@ -62,11 +63,6 @@ const UNDO_MS = 8000;
 // Liste chiuse: specchio di app/models/cucina_scorte_db.py (UNITA_MISURA,
 // REGIMI, NATURE_ARTICOLO). Se cambiano là, vanno cambiate qui.
 const UM_OPZ = ["PZ", "CF", "KG", "G", "L", "ML"];
-const REGIME_OPZ = [
-  { k: "SEMAFORO", t: "semaforo", d: "solo c'è / sta finendo / finito" },
-  { k: "CONTA", t: "conta", d: "una quantità, aggiornata quando conti" },
-  { k: "MOVIMENTI", t: "movimenti", d: "ogni carico e scarico, con la storia" },
-];
 const NATURA_OPZ = ["CRUDO", "COTTO", "SEMILAVORATO", "PRONTO", "NON_FOOD"];
 
 // La sotto-app è «Gestione Frigoriferi e scorte» (Marco 2026-10-03): nella
@@ -536,7 +532,10 @@ function useSemaforo(ricarica) {
 
   useEffect(() => () => clearTimeout(timerRef.current), []);
 
-  const tap = useCallback(async (articolo, statoCorrente, ripianoId) => {
+  // Dal 2026-11-08 tutto e' a movimenti: il tap scrive il numero (rosso = 0,
+  // giallo = al minimo, verde = conferma). Quando il tap non basta il server
+  // risponde 409 e si apre «Quanti ce ne sono?» (`serveQuantita`).
+  const tap = useCallback(async (articolo, statoCorrente, ripianoId, serveQuantita) => {
     const nuovo = CICLO[statoCorrente || "OK"];
     const artId = articolo.articolo_id || articolo.id;
     try {
@@ -545,13 +544,17 @@ function useSemaforo(ricarica) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ripiano_id: ripianoId, stato: nuovo }),
       });
+      if (res.status === 409 && serveQuantita) { serveQuantita(); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
       clearTimeout(timerRef.current);
-      undoRef.current = { artId, ripianoId, statoPrima: statoCorrente || "OK", spesaId: data.spesa_id };
+      undoRef.current = { artId, ripianoId, statoPrima: data.stato_prima || statoCorrente || "OK",
+                          spesaId: data.spesa_id, movId: data.movimento_id,
+                          soloColore: !!data.solo_colore };
       setToast(nuovo === "FINITO"
-        ? (data.uscito ? `${articolo.nome} finito → tolto dal ripiano, in lista spesa` : `${articolo.nome} → in lista spesa`)
+        ? (data.uscito ? `${articolo.nome} finito → tolto dal ripiano, in lista spesa`
+           : data.spesa_id ? `${articolo.nome} → in lista spesa` : `${articolo.nome} · finito`)
         : `${articolo.nome} · ${nuovo === "ESAURIMENTO" ? "agli sgoccioli" : "a posto"}`);
       timerRef.current = setTimeout(() => { setToast(null); undoRef.current = null; }, UNDO_MS);
       ricarica();
@@ -568,11 +571,16 @@ function useSemaforo(ricarica) {
     undoRef.current = null;
     if (!u) return;
     try {
-      await apiFetch(`${API_BASE}/cucina/scorte/articoli/${u.artId}/semaforo`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ripiano_id: u.ripianoId, stato: u.statoPrima }),
-      });
+      if (u.movId) {
+        // Il tap ha scritto una rettifica: l'annulla la toglie (e il numero torna).
+        await apiFetch(`${API_BASE}/cucina/scorte/movimenti/${u.movId}`, { method: "DELETE" });
+      } else {
+        await apiFetch(`${API_BASE}/cucina/scorte/articoli/${u.artId}/semaforo`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ripiano_id: u.ripianoId, stato: u.statoPrima, solo_colore: u.soloColore }),
+        });
+      }
       // Seconda metà dell'undo: la riga di spesa nata col rosso se ne va con lui.
       if (u.spesaId) {
         await apiFetch(`${API_BASE}/cucina/scorte/spesa/${u.spesaId}`, { method: "DELETE" });
@@ -1489,8 +1497,9 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
   // compare solo se qualcosa è cambiato davvero.
   const daArticolo = (x) => ({
     nome: x.nome || "", um: x.um || "PZ", confezione: x.confezione || "",
-    regime: x.regime || "SEMAFORO", natura: x.natura || null,
+    natura: x.natura || null,
     scorta_minima: x.scorta_minima ?? "",
+    da_riordinare: x.da_riordinare !== 0,
   });
   useEffect(() => { if (a) setMod(daArticolo(a)); }, [a]);
   function resetModifica() { if (a) setMod(daArticolo(a)); }
@@ -1505,8 +1514,9 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nome: mod.nome.trim(), um: mod.um, confezione: mod.confezione.trim() || null,
-          regime: mod.regime, natura: mod.natura,
+          natura: mod.natura,
           scorta_minima: mod.scorta_minima === "" ? null : num(mod.scorta_minima),
+          da_riordinare: mod.da_riordinare,
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
@@ -1554,7 +1564,7 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
             {a.um}{a.posti?.length > 1 ? ` · su ${a.posti.filter((p) => p.qta > 0).length || a.posti.length} ripiani` : ""}
           </div>
           <div style={{ marginTop: 9, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
-            <Chip tone="b">regime: {(a.regime || "").toLowerCase()}</Chip>
+            {a.da_riordinare === 0 && <Chip tone="n">non si riordina</Chip>}
             {a.natura && <Chip tone="n">{a.natura.toLowerCase()}</Chip>}
             {sd?.stato === "DA_VERIFICARE" && <Chip tone="v">fermo da {sd.giorni} gg · da verificare</Chip>}
             {sd?.stato === "IGNOTO" && <Chip tone="v">mai movimentato</Chip>}
@@ -1664,28 +1674,26 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
               <input className="km-in" value={mod.confezione} placeholder="vaschetta 500 g, sacchetto, porzione…"
                      onChange={(e) => setMod({ ...mod, confezione: e.target.value })} />
 
-              <div className="km-flbl">Come lo seguiamo</div>
+              <div className="km-flbl">Da riordinare</div>
               <div className="km-pills wrap">
-                {REGIME_OPZ.map((r) => (
-                  <button key={r.k} className={`km-pill${mod.regime === r.k ? " on" : ""}`}
-                          onClick={() => setMod({ ...mod, regime: r.k })}>{r.t}</button>
-                ))}
+                <button className={`km-pill${mod.da_riordinare ? " on" : ""}`}
+                        onClick={() => setMod({ ...mod, da_riordinare: true })}>sì</button>
+                <button className={`km-pill${!mod.da_riordinare ? " on" : ""}`}
+                        onClick={() => setMod({ ...mod, da_riordinare: false })}>no</button>
               </div>
               <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                {REGIME_OPZ.find((r) => r.k === mod.regime)?.d}
+                {mod.da_riordinare
+                  ? "Quando finisce va in Lista spesa (o in produzione, se è una preparazione)."
+                  : "Quando finisce resta il buco sul ripiano, niente spesa."}
               </div>
 
-              {mod.regime === "MOVIMENTI" && (
-                <>
-                  <div className="km-flbl">Scorta minima ({(mod.um || "pz").toLowerCase()})</div>
-                  <input className="km-in" type="number" inputMode="decimal" step="0.1" min="0"
-                         value={mod.scorta_minima} placeholder="vuoto = niente giallo"
-                         onChange={(e) => setMod({ ...mod, scorta_minima: e.target.value })} />
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                    Quando in tutto ne restano così pochi il pallino diventa giallo.
-                  </div>
-                </>
-              )}
+              <div className="km-flbl">Scorta minima ({(mod.um || "pz").toLowerCase()})</div>
+              <input className="km-in" type="number" inputMode="decimal" step="0.1" min="0"
+                     value={mod.scorta_minima} placeholder="vuoto = niente giallo"
+                     onChange={(e) => setMod({ ...mod, scorta_minima: e.target.value })} />
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                Quando in tutto ne restano così pochi il pallino diventa giallo; il tap sul giallo porta lì il numero.
+              </div>
 
               <div className="km-flbl">Cos'è</div>
               <div className="km-pills wrap">
@@ -2071,9 +2079,8 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
               )}
               {righe.map((a) => (
                 <RigaArticolo key={a.giacenza_id} a={a} canWrite={canWrite}
-                              onTap={(art, stato) => (art.regime === "MOVIMENTI"
-                                ? setCorr({ art, ripiano: r })
-                                : tap(art, stato, r.id))}
+                              onTap={(art, stato) => tap(art, stato, r.id,
+                                () => setCorr({ art, ripiano: r }))}
                               onApri={(art) => apriArticolo(art.articolo_id,
                                 { path: `/cucina/mobile/frigo/${id}`, label: u.nome })} />
               ))}
@@ -2215,7 +2222,7 @@ function AggiungiSheet({ ubicazione, ripiano, onChiudi, onFatto }) {
           method: "POST", headers: json,
           body: JSON.stringify({
             nome: q.trim(), um, confezione: confezione.trim() || null,
-            regime: gelo ? "MOVIMENTI" : "SEMAFORO",
+            regime: "MOVIMENTI",
             famiglia_freschezza: gelo ? "CONGELATO" : "SECCO",
             ripiano_casa_id: ripiano.id,
           }),

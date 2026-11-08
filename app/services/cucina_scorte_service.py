@@ -227,6 +227,80 @@ def set_semaforo(
             "stato": stato, "spesa_id": spesa_id}
 
 
+# ref_modulo di un tap su una riga a quantita' ignota: «tap_ignoto:<colore di prima>».
+REF_TAP_IGNOTO = "tap_ignoto:"
+
+
+class ServeQuantita(ValueError):
+    """Il tap non basta: serve sapere quanti ce ne sono (il client apre «Quanti?»)."""
+
+
+def tap_movimenti(
+    conn: sqlite3.Connection,
+    articolo_id: int,
+    ripiano_id: int,
+    stato: str,
+    utente: str,
+) -> Dict[str, Any]:
+    """Il tap sul pallino di un articolo a MOVIMENTI (Marco 2026-11-08, Q #326).
+
+    Il colore lo decide il numero, ma il gesto deve restare un tap:
+      · FINITO       → RETTIFICA a 0 (e il riordino, se il flag e' si')
+      · ESAURIMENTO  → RETTIFICA alla scorta minima, se c'e' e se ce n'e' di
+                       piu'; senza minimo → ServeQuantita
+      · OK           → conferma: RETTIFICA a delta zero (un fatto anche lui);
+                       se la quantita' non si sa, solo il colore; se e' 0, «c'e'»
+                       contraddice il numero → ServeQuantita
+    Ritorna `movimento_id` (l'undo annulla quello) o `solo_colore` + lo stato di
+    prima (l'undo rimette il colore).
+    """
+    art = conn.execute("SELECT scorta_minima FROM cucina_articoli WHERE id = ?",
+                       (articolo_id,)).fetchone()
+    if not art:
+        raise ValueError("articolo non trovato")
+    riga = assicura_giacenza(conn, articolo_id, ripiano_id)
+    qta, prima = riga["qta"], riga["stato_semaforo"] or "OK"
+    minima = _num(art["scorta_minima"]) if art["scorta_minima"] is not None else None
+
+    target = None
+    if stato == "FINITO":
+        target = 0.0
+    elif stato == "ESAURIMENTO":
+        if not minima or minima <= 0:
+            raise ServeQuantita("serve la quantita'")
+        target = minima if (qta is None or _num(qta) > minima) else _num(qta)
+    else:  # OK
+        if qta is None:
+            conn.execute(
+                """UPDATE cucina_giacenze SET stato_semaforo = 'OK', aggiornato_at = ?,
+                          aggiornato_da = ?, origine = 'SEMAFORO'
+                    WHERE articolo_id = ? AND ripiano_id = ?""",
+                (_ora(), utente, articolo_id, ripiano_id),
+            )
+            return {"articolo_id": articolo_id, "ripiano_id": ripiano_id, "stato": "OK",
+                    "solo_colore": True, "stato_prima": prima, "spesa_id": None}
+        if _num(qta) <= 0:
+            raise ServeQuantita("a zero non puo' esserci: quanti ce ne sono?")
+        target = _num(qta)
+
+    precedente = _num(qta)
+    mov = registra_movimento(
+        conn, articolo_id, ripiano_id, "RETTIFICA", target - precedente, utente,
+        qta_precedente=precedente,
+        motivo={"FINITO": "Tap: finito", "ESAURIMENTO": "Tap: sta finendo",
+                "OK": "Tap: c'è"}[stato],
+        # Prima il numero non si sapeva: l'undo deve tornare a «non so», non a 0.
+        ref_modulo=f"{REF_TAP_IGNOTO}{prima}" if qta is None else None,
+    )
+    if target < precedente:
+        consuma_lotti(conn, articolo_id, ripiano_id, precedente - target)
+    # Il colore lo decide riallinea sul TOTALE: giallo se il totale e' al minimo.
+    sem = riallinea_semaforo(conn, articolo_id, utente)
+    return {"articolo_id": articolo_id, "ripiano_id": ripiano_id, "stato": stato,
+            "movimento_id": mov["id"], "spesa_id": sem.get("spesa_id"),
+            "qta_risultante": mov["qta_risultante"]}
+
+
 def riallinea_semaforo(conn: sqlite3.Connection, articolo_id: int, utente: str) -> Dict[str, Any]:
     """Sugli articoli a MOVIMENTI il colore lo decide la quantita' (Marco 2026-10-02).
 
@@ -317,10 +391,14 @@ def aggiungi_a_lista_spesa(
     e' il motivo per cui questa lista vale piu' di un foglietto.
     """
     art = conn.execute(
-        "SELECT nome, ingredient_id, fornitore_freeform FROM cucina_articoli WHERE id = ?",
+        "SELECT * FROM cucina_articoli WHERE id = ?",
         (articolo_id,),
     ).fetchone()
     if not art:
+        return None
+    # Flag «da riordinare» = no (Marco 2026-11-08): finisce e basta, resta il
+    # buco sul ripiano ma niente spesa. NULL vale come si'.
+    if "da_riordinare" in art.keys() and art["da_riordinare"] == 0:
         return None
 
     gia = conn.execute(
@@ -437,7 +515,16 @@ def annulla_movimento(conn: sqlite3.Connection, mov_id: int, utente: str) -> Dic
     if mov["ref_modulo"] == REF_CAMBIO_POSTO:
         raise ValueError("un cambio di posto non si annulla: si rimette a posto con Sposta")
 
-    if mov["ripiano_id"]:
+    if (mov["ref_modulo"] or "").startswith(REF_TAP_IGNOTO) and mov["ripiano_id"]:
+        # Il tap aveva dato un numero a una riga che non lo aveva: si torna a
+        # «non so» col colore di prima (2026-11-08).
+        assicura_giacenza(conn, mov["articolo_id"], mov["ripiano_id"])
+        conn.execute(
+            """UPDATE cucina_giacenze SET qta = NULL, stato_semaforo = ?
+                WHERE articolo_id = ? AND ripiano_id = ?""",
+            (mov["ref_modulo"][len(REF_TAP_IGNOTO):] or "OK", mov["articolo_id"], mov["ripiano_id"]),
+        )
+    elif mov["ripiano_id"]:
         # La riga puo' essere uscita (finito a regime conta, o zero su un
         # ripiano mentre c'e' altrove): annullare la rimette sul ripiano.
         assicura_giacenza(conn, mov["articolo_id"], mov["ripiano_id"])
