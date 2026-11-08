@@ -1,10 +1,12 @@
-// @version: v1.0 — Modulo J Lista Spesa Cucina Fase 1 MVP (sessione 59 cont. c, 2026-04-27)
+// @version: v1.1 — 🖨️ Stampa della lista (solo da fare, per fornitore) (2026-11-08)
+// v1.0 — Modulo J Lista Spesa Cucina Fase 1 MVP (sessione 59 cont. c, 2026-04-27)
 // CRUD lista spesa testuale: titolo + quantità + urgente + fornitore freeform.
 // Stile Home v3 originale potenziato (palette orange cucina + RicetteNav).
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import RicetteNav from "../ricette/RicetteNav";
 import { API_BASE, apiFetch } from "../../config/api";
 import TrgbLoader from "../../components/TrgbLoader";
+import { stampaListaSpesa } from "../../utils/stampaLista";
 
 const SP = `${API_BASE}/lista-spesa`;
 
@@ -197,6 +199,10 @@ export default function ListaSpesa() {
               Cosa serve in cucina — checklist condivisa
             </p>
           </div>
+          <button type="button" onClick={() => stampaListaSpesa(items)}
+            className="self-start sm:self-auto px-4 min-h-[44px] rounded-lg border border-orange-300 bg-white text-orange-900 text-sm font-semibold hover:bg-orange-50">
+            🖨️ Stampa
+          </button>
         </div>
 
         {/* ═══ KPI ROW ═══ */}

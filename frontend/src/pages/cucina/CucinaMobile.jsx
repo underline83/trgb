@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.9 — tutto a movimenti: il tap scrive il numero (rosso 0, giallo al minimo, verde conferma), «da riordinare», via la scelta del regime (2026-11-08)
+// @version: v1.10 — 🖨️ Stampa del frigo (con colonna «Contato») e della lista spesa (2026-11-08)
+// v1.9 — tutto a movimenti: il tap scrive il numero (rosso 0, giallo al minimo, verde conferma), «da riordinare», via la scelta del regime (2026-11-08)
 // v1.8 — ↔️ Sposta per tutti i regimi: semaforo e conta cambiano posto con traccia (2026-11-08)
 // v1.7 — Spesa: si scrive a mano cosa serve (riga libera + quantità + urgente) (2026-10-03)
 // v1.6 — «Gestione Frigoriferi e scorte»: la barra resta con Frigo e Scorte; Oggi e Spesa
@@ -54,6 +55,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isCucinaWriterRole } from "../../utils/authHelpers";
+import { stampaLista, stampaListaSpesa } from "../../utils/stampaLista";
 
 const REFRESH_MS = 90_000;
 /** Finestra dell'«Annulla». Stessa di CantinaMobile: in servizio è il tempo di
@@ -504,8 +506,6 @@ function RigaArticolo({ a, canWrite, onTap, onApri }) {
           {stato === "ESAURIMENTO" && <Chip tone="a">agli sgoccioli</Chip>}
           {a.fuori_posto && <Chip tone="a">⚠ {(a.natura || "").toLowerCase()} qui</Chip>}
           {sd?.stato === "DA_VERIFICARE" && <Chip tone="v">fermo da {sd.giorni} gg</Chip>}
-          {a.regime === "MOVIMENTI" && stato === "OK" && !a.fuori_posto && sd?.stato !== "DA_VERIFICARE"
-            && <Chip tone="b">movimenti</Chip>}
           {a.prossima_scadenza && (() => {
             // Chip colorata solo dentro la finestra d'avviso (config scadenza_avviso_gg,
             // la stessa dell'alert): oltre, la data e basta.
@@ -1998,6 +1998,30 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
 
   const t = u.temperature?.[0];
   const finiti = (u.ripiani || []).reduce((s, r) => s + (r.finiti || 0), 0);
+
+  // Stampa del frigo (Marco 2026-11-08): ripiano per ripiano, con quello che
+  // dice TRGB e una colonna vuota per contare a penna. Segue la vista
+  // («Solo mancanti» stampa solo rossi e gialli).
+  function stampa() {
+    const sezioni = (u.ripiani || []).map((r) => ({
+      titolo: `${r.nome || `Ripiano ${r.codice}`}${r.destinazione ? ` · ${r.destinazione.toLowerCase()}` : ""}`,
+      righe: (r.dotazione || [])
+        .filter((d) => !soloMancanti || d.stato_semaforo === "FINITO" || d.stato_semaforo === "ESAURIMENTO")
+        .map((d) => ({
+          testo: d.nome,
+          dettaglio: [d.confezione, d.prossima_scadenza ? `scade ${fmtData(d.prossima_scadenza)}` : null]
+            .filter(Boolean).join(" · "),
+          qta: d.qta == null ? "—" : `${fmtQta(d.qta)} ${(d.um || "").toLowerCase()}`,
+          segno: d.stato_semaforo === "FINITO" ? "finito" : d.stato_semaforo === "ESAURIMENTO" ? "poco" : null,
+        })),
+    }));
+    stampaLista({
+      titolo: u.nome,
+      sottotitolo: `${soloMancanti ? "solo mancanti · " : ""}${totArt} articoli · ${(u.ripiani || []).length} ripiani`,
+      colonne: { qta: "In TRGB", penna: "Contato" },
+      sezioni,
+    });
+  }
   const totArt = (u.ripiani || []).reduce((s, r) => s + (r.dotazione || []).length, 0);
 
   return (
@@ -2031,6 +2055,9 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
             <button className={`km-pill${vista === "registro" ? " on" : ""}`} onClick={() => setVista("registro")}>
               Registro
             </button>
+          )}
+          {vista !== "registro" && (
+            <button className="km-pill" onClick={stampa}>🖨️ Stampa</button>
           )}
         </div>
       </div>
@@ -2422,6 +2449,10 @@ function TabSpesa({ canWrite, onCount, modi }) {
       a[0] === "__nessuno__" ? 1 : b[0] === "__nessuno__" ? -1 : a[0].localeCompare(b[0]));
   }, [dati]);
 
+  function stampa() {
+    stampaListaSpesa(dati?.items || []);
+  }
+
   return (
     <>
       <div className="km-head">
@@ -2438,6 +2469,7 @@ function TabSpesa({ canWrite, onCount, modi }) {
         <div className="km-pills">
           <button className={`km-pill${!mostraFatti ? " on" : ""}`} onClick={() => setMostraFatti(false)}>Da fare</button>
           <button className={`km-pill${mostraFatti ? " on" : ""}`} onClick={() => setMostraFatti(true)}>Anche i fatti</button>
+          <button className="km-pill" onClick={stampa}>🖨️ Stampa</button>
         </div>
         {canWrite && (
           <form onSubmit={aggiungi} style={{ marginTop: 10 }}>

@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Clienti 3.27 — preventivo ↔ prenotazione** (aggancio automatico al salvataggio + «🔗 Collega prenotazione» a mano, nessuna migrazione) — dopo il push: aprire PRE-2026-013 (Schintu 15/11) → «🔗 Collega prenotazione» → scegliere quella delle 12:30 (13 coperti); nel Planning del 15/11 deve comparire il ⏳. **DA PUSHARE: Scorte cucina 1.15 + mig 229** (tutto a movimenti, sotto) — dopo il push: su iPhone tap rosso/giallo/verde su un articolo senza numero e con numero, e l'annulla. **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Clienti 3.27 — preventivo ↔ prenotazione** (aggancio automatico al salvataggio + «🔗 Collega prenotazione» a mano, nessuna migrazione) — dopo il push: aprire PRE-2026-013 (Schintu 15/11) → «🔗 Collega prenotazione» → scegliere quella delle 12:30 (13 coperti); nel Planning del 15/11 deve comparire il ⏳. **DA PUSHARE: Scorte cucina 1.16 + Lista spesa 1.1** (🖨️ Stampa, sotto). **Da verificare (1.15 caricata):** su iPhone tap rosso/giallo/verde su un articolo senza numero e con numero, e l'annulla. **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -179,6 +179,10 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-08 (5) — Scorte cucina 1.16 + Lista spesa 1.1: 🖨️ Stampa `[core]`
+
+`utils/stampaLista.js` (nuovo, platform UI): finestra A4 + stampa del browser — non è il mattone M.B (PDF brand), è un foglio di lavoro. Bottone nel frigo (`DentroFrigo`: ripiano per ripiano, colonne «In TRGB» e «Contato» a penna, segue «Solo mancanti») e nella Lista spesa mobile (`TabSpesa`) e desktop (`ListaSpesa.jsx` 1.1): solo da fare, per fornitore, urgenti in cima. Tolta la chip «movimenti» dalle righe del frigo (dopo la mig 229 sarebbe su tutte). Provato il rendering dei due fogli in Chromium; JSX compilato. Nessuna migrazione.
 
 ## SESSIONE 2026-11-08 (4) — Scorte cucina 1.15: tutto a movimenti (P1) `[core]`
 

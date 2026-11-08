@@ -231,12 +231,15 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   listaSpesa: {
-    version: "1.0",
+    // 1.1 (2026-11-08): 🖨️ Stampa (solo da fare, per fornitore, urgenti in cima).
+    version: "1.1",
     label: "Lista Spesa Cucina",
     status: "alpha",
     color: "orange",
   },
   cucinaScorte: {
+    // 1.16 (2026-11-08): 🖨️ Stampa del frigo (ripiano per ripiano, «In TRGB» + «Contato»
+    //   a penna) e della lista spesa (utils/stampaLista.js); via la chip «movimenti».
     // 1.15 (2026-11-08): tutto a movimenti (mig 229) — il tap sul pallino scrive il numero
     //   (rosso 0, giallo al minimo, verde conferma; «Quanti?» quando non basta), flag
     //   «da riordinare» (no = niente spesa), via la scelta del regime.
@@ -306,7 +309,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.15",
+    version: "1.16",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

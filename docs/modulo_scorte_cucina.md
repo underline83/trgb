@@ -648,3 +648,4 @@ Piano a tre push, ognuno deployabile da solo:
 |---|---|---|---|---|
 | C-K-229a | Tap sul pallino che scrive il numero (rosso 0 / giallo al minimo / verde conferma), 409 → «Quanti?», annulla | `PATCH /cucina/scorte/articoli/{id}/semaforo`, `cucina_scorte_service.tap_movimenti`, `CucinaMobile.jsx` `useSemaforo` | brigata | 🆕 |
 | C-K-229b | Flag «Da riordinare» nella scheda (no = niente Lista spesa) | `PATCH /cucina/scorte/articoli/{id}` campo `da_riordinare`, `aggiungi_a_lista_spesa` | brigata | 🆕 |
+| C-K-229c | Stampare il contenuto di un frigo (ripiano per ripiano, «In TRGB» + «Contato») e la lista spesa | `utils/stampaLista.js`, `CucinaMobile.jsx` `DentroFrigo`/`TabSpesa`, `ListaSpesa.jsx` | brigata | 🆕 |
