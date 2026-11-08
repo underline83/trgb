@@ -305,6 +305,8 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
+    // 1.11 (2026-11-08): tolto «Pubblica il menu sul sito» (FTP, mai configurato):
+    //   il sito legge il menu da GET /pranzo/public/settimana/ (1.9).
     // 1.10 (2026-10-25): «Valore vendita piatto (food cost)» nelle impostazioni Menu Pranzo
     //   (mig 212, default 10 €).
     // 1.9 (2026-10-24): GET /pranzo/public/settimana/ pubblico (CORS *) per la
@@ -313,7 +315,7 @@ const MODULE_VERSIONS = {
     // 1.8 (2026-08-03): "Pubblica il menu sul sito" nel compositore (mattone
     //   M.J): il PDF cliente della settimana finisce da solo sull'FTP
     //   dell'hosting, nome remoto fisso -> link su WordPress invariato.
-    version: "1.10",
+    version: "1.11",
     label: "Menu Pranzo del Giorno",
     status: "beta",
     color: "blue",

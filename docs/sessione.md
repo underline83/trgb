@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
+**Ultimo aggiornamento:** 2026-11-08 — **DA PUSHARE: Pranzo 1.11** (tolto «Pubblica il menu sul sito», sotto). Prima, 2026-11-02 (sera) — **DA PUSHARE: Pratiche 1.2** (sotto). Prima, 2026-11-02 — **DA PUSHARE:** WhatsApp in sola lettura (mig 224, sotto) + note di credito collegate (mig 223, sotto). Precedente 2026-10-30 — **DA PUSHARE:** fix ruoli moduli VPS (mig 222). Pushato 035a4403: ruolo Capo Sala (mig 221). gift card «in bianco» (clienti 3.22, sessione 2026-10-29). Pushati: Scansiona al banco (be8a47b1), «non riconosciuto» leggibile (87154fa3), etichetta 90×29 (bf06db76), PDF + Prenota (8025baa1), etichetta QR + /regalo (d8171a2c, mig 213).
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
@@ -179,6 +179,12 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
 - Da pushare.
 
+
+## SESSIONE 2026-11-08 — Pranzo 1.11: via la pubblicazione FTP del menu `[core]`
+
+Marco vedeva in Menu Pranzo il bottone «Pubblica il menu sul sito» grigio con «FTP non configurato». Verificato: il sito legge già il menu da `GET /pranzo/public/settimana/` (risponde, settimana corrente). La strada FTP (PDF in `/privata/`) è superata dal 2026-10-24 e non è mai stata configurata. Tolti i due endpoint pranzo di pubblicazione, il blocco `<PubblicaSulSito>` in `PranzoMenu.jsx`, `menu_pranzo` da `_CHIAVI` e `_NOMI_DEFAULT` di M.J; docs `modulo_pranzo.md` (C-P-013 ❌ obsoleto), `architettura_mattoni.md`, `versions.jsx` pranzo 1.11. M.J e `PubblicaSulSito.jsx` restano: li usa la carta vini. Verificato: `py_compile` sui tre file Python; JSX non compilato (esbuild del Mac non gira nella VM), modifica = sola rimozione di un import e di un blocco.
+
+Dopo il push: aprire Menu Pranzo, il blocco giallo non deve più esserci; PDF, PDF esterno e Storia invariati.
 
 ## SESSIONE 2026-11-05 (2) — Home sommelier `[core]`
 

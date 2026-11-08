@@ -16,7 +16,6 @@ import tra router di moduli diversi), chiamando il servizio platform.
   GET  /pubblicazione/storico/     ultime N pubblicazioni (tutte o per chiave)
 
 Chi pubblica cosa:
-  POST /pranzo/menu/{settimana}/pubblica/   → menu del pranzo (modulo menu_carta/pranzo)
   POST /vini/carta/pubblica/                → carta vini cliente (modulo vini)
 """
 
@@ -36,7 +35,7 @@ router = APIRouter(
 )
 
 # Chiavi note: servono solo a dare alla UI un riepilogo ordinato.
-_CHIAVI = ("menu_pranzo", "carta_vini")
+_CHIAVI = ("carta_vini",)  # menu_pranzo tolto 2026-11-08: il sito legge /pranzo/public/settimana/
 
 
 def _check_admin(user: Dict[str, Any]) -> None:

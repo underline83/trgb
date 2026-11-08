@@ -3,6 +3,10 @@
 
 ---
 
+## 2026-11-08 — Pranzo 1.11: tolto «Pubblica il menu sul sito» (FTP) `[core]`
+
+Nessuna migrazione. Il bottone caricava il PDF del pranzo via FTP in `/privata/` (mattone M.J, 2026-08-03), ma l'FTP non è mai stato configurato e dal 2026-10-24 il sito legge il menu da `GET /pranzo/public/settimana/` (pranzo 1.9): il bottone restava grigio con l'avviso «FTP non configurato». Tolti `GET /pranzo/menu/{settimana}/pubblicazione/`, `POST /pranzo/menu/{settimana}/pubblica/`, il blocco in `PranzoMenu.jsx` e la chiave `menu_pranzo` da M.J. M.J resta per la carta vini (`ViniImpostazioni`).
+
 ## 2026-11-07 — Vini 4.12–4.14: etichette su DK-22211, etichetta collo bottiglia `[core]`
 
 Nessuna migrazione. **4.12**: «🏷️ Etichetta» nel piede di `SchedaVino`, quindi anche nella scheda aperta dentro Cantina (prima c'era solo nella pagina a sé e nella scheda mobile). La pagina `/vini/etichette` stampa ora un **PDF della misura esatta** (`utils/pdfEtichetta.js`, come le gift card) invece di `window.print()`. Il rotolo montato è il **DK-22211** (pellicola 29 mm continua). **4.13**: etichetta QR 29×47, QR al minimo leggibile (14 mm, correzione L) e testi grandi. **4.14**: nuova **«Etichetta collo bottiglia»** 29×47 **senza QR** (denominazione, descrizione su 2 righe, produttore, annata, #id), predefinita. Margini 2,5 mm a sinistra e 4,5 mm a destra, perché la Brother sul continuo sposta la stampa verso la coda e taglia a destra (prova di Marco). Pagina rinominata «Etichette vini». `pdfEtichetta` v1.6: `ecc`, `destra`, etichetta senza QR, `margineDxMm`. Sul Mac di Marco: carte personalizzate «Vini 29x40»/«Vini 29x47» e preset di stampa «Vini QR 29x47» per la QL-820NWB (scala 100%); il preset «Etichetta 29x90» resta per le gift card.

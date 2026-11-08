@@ -383,7 +383,7 @@ def pubblica(
     """
     Carica `contenuto` sull'FTP come `nome_file` dentro FTP_DIR, in modo atomico.
 
-    chiave: identificatore stabile della pubblicazione ('menu_pranzo',
+    chiave: identificatore stabile della pubblicazione ('carta_vini',
             'carta_vini'), usato per lo storico e per la UI.
     descrizione: testo libero mostrato nello storico (es. "settimana 2026-08-03").
 
@@ -584,7 +584,6 @@ def storico(chiave: Optional[str] = None, limit: int = 20) -> List[dict]:
 # ─────────────────────────────────────────────
 
 _NOMI_DEFAULT = {
-    "menu_pranzo": "menu-pranzo.pdf",
     "carta_vini": "carta-vini.pdf",
 }
 
@@ -592,7 +591,6 @@ _NOMI_DEFAULT = {
 def nome_file_per(chiave: str) -> str:
     """
     Nome remoto del file per una pubblicazione. Override da .env:
-        FTP_FILE_MENU_PRANZO=menu-pranzo.pdf
         FTP_FILE_CARTA_VINI=carta-vini.pdf
     Il nome deve restare STABILE nel tempo: il link su WordPress è fisso.
     """

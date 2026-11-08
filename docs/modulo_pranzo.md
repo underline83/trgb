@@ -135,7 +135,7 @@ mancano, WeasyPrint usa il fallback.
 | C-P-011 | PDF esterno "da bacheca": solo antipasti/primi/secondi a corpo grande (23pt), nessun altro dato — per la cornice fuori dal locale | `pranzo_pdf_service.py genera_pdf_menu_esterno` + `GET /menu/{settimana}/pdf-esterno/` | chef/admin | ✅ 2026-07-19 |
 | C-P-012 | Nome file sensato sui PDF aperti in tab (File nominato, niente più "unknown") | `PranzoMenu.jsx apriPdf` | chef/admin | ✅ v3.9 |
 | C-P-014 | Menu della settimana leggibile dal sito senza login: la sezione Pranzo di `tregobbi.it/menu/` lo carica dal browser del cliente, niente PDF né rebuild settimanale | `pranzo_router.py GET /public/settimana/` (`_menu_pubblico_settimana`) | cliente (sito/QR) | ✅ 2026-10-24 |
-| C-P-013 | Pubblica il menu della settimana sul sito: PDF cliente caricato via FTP sull'hosting con nome fisso (mattone M.J), stato + data ultima pubblicazione in pagina | `pranzo_router.py POST /menu/{settimana}/pubblica/` + `GET /menu/{settimana}/pubblicazione/` · `PubblicaSulSito.jsx` | chef/admin | ✅ 2026-08-03 |
+| C-P-013 | ~~Pubblica il menu della settimana sul sito via FTP (mattone M.J)~~ — **tolto 2026-11-08**: FTP mai configurato, il sito legge C-P-014 | ~~`pranzo_router.py POST /menu/{settimana}/pubblica/` + `GET /menu/{settimana}/pubblicazione/`~~ | — | ❌ obsoleto |
 
 ## Riferimenti
 
