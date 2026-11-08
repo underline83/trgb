@@ -238,6 +238,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.18 (2026-11-08): «🔗 Collega i prodotti» in Scorte (admin/chef) — abbinamento guidato
+    //   (GET /collega/proposte, POST /collega/conferma, soglie collega_soglia_sicuri/min in config);
+    //   Collega: ingredienti prima, ricerca per parole; CollegaSheet condiviso; non-food = natura NON_FOOD.
     // 1.17 (2026-11-08): scheda articolo — riga «È: …» (ricetta o ingrediente collegato, con link)
     //   e «Collega» (GET /cucina/scorte/collega/cerca, via ricette_lookup), 🗑 Elimina prodotto
     //   (admin/chef, disattiva); Spesa iPhone: 🗑 Non serve su ogni riga.
@@ -312,7 +315,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.17",
+    version: "1.18",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

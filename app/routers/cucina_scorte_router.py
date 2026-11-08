@@ -36,6 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.models.cucina_scorte_db import (
+    config_int,
     FAMIGLIE_FRESCHEZZA,
     NATURE_ARTICOLO,
     PARTITE,
@@ -81,7 +82,7 @@ from app.services.cucina_scorte_service import (
 )
 from app.services.permessi import richiede_ruoli, verifica_ruoli
 from app.services.ricette_lookup import (
-    cerca_ricette_ingredienti, nomi_ingredienti, nomi_ricette, righe_ricetta,
+    cerca_ricette_ingredienti, nomi_ingredienti, nomi_ricette, proponi_collegamenti, righe_ricetta,
 )
 from app.services import linea_checklist
 from app.services.linea_esiti import valuta_silenzioso as valuta_esiti_linea
@@ -254,6 +255,17 @@ class MovimentoIn(BaseModel):
     # data_lotto = quando e' entrato (congelato il / arrivato il).
     data_lotto: Optional[str] = None
     data_scadenza: Optional[str] = None
+
+
+class CollegaVoce(BaseModel):
+    articolo_id: int
+    # Una sola delle due; entrambe vuote = non-food (niente collegamento).
+    ingredient_id: Optional[int] = None
+    recipe_id: Optional[int] = None
+
+
+class CollegaConfermaIn(BaseModel):
+    voci: List[CollegaVoce] = Field(..., min_length=1, max_length=500)
 
 
 class SpostaIn(BaseModel):
@@ -431,6 +443,79 @@ def cerca_da_collegare(q: str = Query("", max_length=80)):
     """Per il «Collega» della scheda: ricette e ingredienti per nome (2026-11-08).
     Sola lettura via `ricette_lookup`; permessi del router (la brigata)."""
     return cerca_ricette_ingredienti(q)
+
+
+@router.get("/collega/proposte")
+def proposte_collegamento(current_user=Depends(get_current_user)):
+    """L'abbinamento guidato (Marco 2026-11-08, Q #328): per ogni articolo attivo
+    senza ricetta ne' ingrediente, la proposta migliore col suo punteggio.
+
+    `fascia`: SICURO (>= collega_soglia_sicuri: si conferma in blocco), DUBBIO
+    (>= collega_soglia_min: uno a uno), NESSUNA (sotto: si cerca a mano).
+    Soglie in cucina_scorte_config. Il calcolo dei nomi sta in ricette_lookup.
+    """
+    verifica_ruoli(current_user, *GESTIONE, cosa="l'abbinamento guidato")
+    conn = get_foodcost_connection()
+    try:
+        cfg_sicuri = config_int(conn, "collega_soglia_sicuri", 85)
+        cfg_min = config_int(conn, "collega_soglia_min", 55)
+        art = conn.execute(
+            """SELECT id, nome, natura FROM cucina_articoli
+                WHERE attivo = 1 AND ingredient_id IS NULL AND recipe_id IS NULL
+                  AND COALESCE(natura, '') <> 'NON_FOOD'
+                ORDER BY nome"""
+        ).fetchall()
+    finally:
+        conn.close()
+    nature = {r["id"]: r["natura"] for r in art}
+    nomi = {r["id"]: r["nome"] for r in art}
+    voci = []
+    for p in proponi_collegamenti([(r["id"], r["nome"]) for r in art]):
+        i, r = p["ingrediente"], p["ricetta"]
+        pi, pr = (i or {}).get("punteggio", 0), (r or {}).get("punteggio", 0)
+        migliore = ("ricetta", r) if pr > pi else ("ingrediente", i)
+        alt = ("ingrediente", i) if migliore[0] == "ricetta" else ("ricetta", r)
+        punti = max(pi, pr)
+        voci.append({
+            "articolo_id": p["articolo_id"], "nome": nomi[p["articolo_id"]],
+            "natura": nature[p["articolo_id"]],
+            "proposta": {"tipo": migliore[0], **(migliore[1] or {})} if punti >= cfg_min else None,
+            "alternativa": {"tipo": alt[0], **alt[1]} if alt[1] and alt[1]["punteggio"] >= cfg_min else None,
+            "punteggio": punti,
+            "fascia": "SICURO" if punti >= cfg_sicuri else "DUBBIO" if punti >= cfg_min else "NESSUNA",
+        })
+    voci.sort(key=lambda v: (-v["punteggio"], v["nome"]))
+    return {"voci": voci, "soglie": {"sicuri": cfg_sicuri, "min": cfg_min}}
+
+
+@router.post("/collega/conferma")
+def conferma_collegamenti(payload: CollegaConfermaIn, current_user=Depends(get_current_user)):
+    """Scrive i collegamenti scelti, anche in blocco. Ogni articolo e' UNA cosa:
+    ingrediente o ricetta (o nessuna = non-food, che poi esce dalla lista dei
+    da collegare solo se ha natura NON_FOOD)."""
+    verifica_ruoli(current_user, *GESTIONE, cosa="collegare gli articoli in blocco")
+    conn = get_foodcost_connection()
+    n = 0
+    try:
+        for v in payload.voci:
+            if v.ingredient_id and v.recipe_id:
+                raise HTTPException(status_code=422, detail="un articolo e' un ingrediente O una ricetta, non tutti e due")
+            if v.ingredient_id or v.recipe_id:
+                conn.execute(
+                    "UPDATE cucina_articoli SET ingredient_id = ?, recipe_id = ? WHERE id = ? AND attivo = 1",
+                    (v.ingredient_id, v.recipe_id, v.articolo_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE cucina_articoli SET ingredient_id = NULL, recipe_id = NULL, natura = 'NON_FOOD' WHERE id = ? AND attivo = 1",
+                    (v.articolo_id,),
+                )
+            n += 1
+        conn.commit()
+    finally:
+        conn.close()
+    _risincronizza_linea()
+    return {"ok": True, "collegati": n}
 
 
 @router.get("/articoli/{articolo_id}")

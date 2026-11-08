@@ -642,7 +642,7 @@ Piano a tre push, ognuno deployabile da solo:
 |---|---|---|
 | **P1 — un regime** ✅ 1.15 | colonna `da_riordinare`; passaggio dei regimi (punto 4); articoli nuovi nascono MOVIMENTI; tap sul pallino su MOVIMENTI con le regole del punto 1 (via il 409); via la scelta del regime dalla UI | sì (ADD COLUMN + UPDATE dati) |
 | **P2 — riordino a copertura** | `copertura()` nel service; `riallinea_semaforo` e Lista spesa / linea_esiti guidati da copertura + flag; config 14/3 in `cucina_scorte_config`; flag e soglia nella scheda | seed config |
-| **P3 — collegamenti** | riga «È: …» + «Collega» nella scheda; pagina abbinamento guidato per gli scollegati | no |
+| **P3 — collegamenti** ✅ 1.17–1.18 | riga «È: …» + «Collega» nella scheda; pagina abbinamento guidato per gli scollegati | no |
 
 | Capability | Cosa fa | Rif. | Audience | Docs |
 |---|---|---|---|---|
@@ -652,3 +652,4 @@ Piano a tre push, ognuno deployabile da solo:
 | C-K-229d | Vedere cos'è un articolo (ricetta o ingrediente, con link) e collegarlo | `GET /cucina/scorte/collega/cerca`, `get_articolo` (`ricetta_nome`/`ingrediente_nome`), `CucinaMobile.jsx` scheda «È: …» | brigata | 🆕 |
 | C-K-229e | Eliminare (disattivare) un articolo dalla scheda | `DELETE /cucina/scorte/articoli/{id}`, scheda «🗑 Elimina prodotto» | admin/chef | 🆕 |
 | C-K-229f | Togliere una riga dalla Lista spesa da iPhone | `DELETE /lista-spesa/items/{id}`, `TabSpesa` «🗑 Non serve» | brigata | 🆕 |
+| C-K-229g | Abbinamento guidato dei prodotti scollegati (sicuri in blocco, dubbi uno a uno) | `GET /cucina/scorte/collega/proposte`, `POST /cucina/scorte/collega/conferma`, `ricette_lookup.proponi_collegamenti`, `CucinaMobile.jsx` `Abbina` | admin/chef | 🆕 |

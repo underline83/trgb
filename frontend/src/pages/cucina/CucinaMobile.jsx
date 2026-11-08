@@ -1,6 +1,8 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.11 — scheda: riga «È: …» con Collega (ricetta / ingrediente / non-food), 🗑 Elimina prodotto (admin/chef); Spesa: 🗑 Non serve su ogni riga (2026-11-08)
+// @version: v1.13 — «Collega i prodotti»: abbinamento guidato (sicuri in blocco, dubbi uno a uno, ricerca a mano) da Scorte; CollegaSheet condiviso (2026-11-08)
+// v1.12 — Collega: ingredienti prima delle ricette, ricerca per parole, si parte dalla prima parola del nome (2026-11-08)
+// v1.11 — scheda: riga «È: …» con Collega (ricetta / ingrediente / non-food), 🗑 Elimina prodotto (admin/chef); Spesa: 🗑 Non serve su ogni riga (2026-11-08)
 // v1.10 — 🖨️ Stampa del frigo (con colonna «Contato») e della lista spesa (2026-11-08)
 // v1.9 — tutto a movimenti: il tap scrive il numero (rosso 0, giallo al minimo, verde conferma), «da riordinare», via la scelta del regime (2026-11-08)
 // v1.8 — ↔️ Sposta per tutti i regimi: semaforo e conta cambiano posto con traccia (2026-11-08)
@@ -1262,6 +1264,9 @@ function TabScorte({ canWrite, onCount, apri, modi }) {
     return articoli;
   }, [filtro, articoli, mancanti]);
 
+  // Quanti non sanno ancora cosa sono (né ricetta né ingrediente): Q #328.
+  const scollegati = articoli.filter((a) => !a.ingredient_id && !a.recipe_id && a.natura !== "NON_FOOD").length;
+
   return (
     <>
       <div className="km-head">
@@ -1282,6 +1287,11 @@ function TabScorte({ canWrite, onCount, apri, modi }) {
               {lbl}{n > 0 && <span className="c">{n}</span>}
             </button>
           ))}
+          {["superadmin", "admin", "chef"].includes(localStorage.getItem("role")) && (
+            <button className="km-pill" onClick={() => apri("abbina")}>
+              🔗 Collega{scollegati > 0 && <span className="c">{scollegati}</span>}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1317,6 +1327,196 @@ function TabScorte({ canWrite, onCount, apri, modi }) {
         ))}
       </div>
       <Toast testo={toast} onAnnulla={annulla} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// «Cos'è» — cerca fra ingredienti e ricette e sceglie (2026-11-08). La usano
+// la scheda articolo e l'abbinamento guidato. `onScegli(patch)` riceve
+// {ingredient_id, recipe_id} (uno dei due) o il non-food.
+// ─────────────────────────────────────────────────────────────
+function CollegaSheet({ nome, busy, onScegli, onChiudi }) {
+  const [q, setQ] = useState((nome || "").split(" ")[0]);
+  const [res, setRes] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    const t = q.trim();
+    if (t.length < 2) { setRes(null); return; }
+    setRes(null);
+    const h = setTimeout(async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/cucina/scorte/collega/cerca?q=${encodeURIComponent(t)}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        setRes(await r.json());
+      } catch (e) { setErr(e.message); }
+    }, 250);
+    return () => clearTimeout(h);
+  }, [q]);
+  const riga = { width: "100%", textAlign: "left", background: "none", border: 0 };
+  return (
+    <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div className="km-sheet-in">
+        <h3 className="km-serif">Cos'è · {nome}</h3>
+        {err && <div className="km-err">{err}</div>}
+        <input className="km-search" style={{ marginTop: 4 }} autoFocus value={q}
+               placeholder="Cerca ingrediente o ricetta…" onChange={(e) => setQ(e.target.value)} />
+        <div style={{ maxHeight: "50vh", overflowY: "auto", marginTop: 8 }}>
+          {q.trim().length >= 2 && !res && <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Cerco…</div>}
+          {res?.parola && (
+            <div style={{ fontSize: 12, color: "var(--muted)", padding: "4px 0" }}>
+              Niente con tutte le parole: ecco quelli con «{res.parola}».
+            </div>
+          )}
+          {(res?.ingredienti || []).length > 0 && <div className="km-flbl">🧺 Ingredienti · si comprano</div>}
+          {(res?.ingredienti || []).map((i) => (
+            <button key={`i${i.id}`} className="km-tl tap" style={riga} disabled={busy}
+                    onClick={() => onScegli({ ingredient_id: i.id, recipe_id: null })}>
+              <div>🧺 {i.nome}</div>
+            </button>
+          ))}
+          {(res?.ricette || []).length > 0 && <div className="km-flbl">📖 Preparazioni · si fanno in casa</div>}
+          {(res?.ricette || []).map((r) => (
+            <button key={`r${r.id}`} className="km-tl tap" style={riga} disabled={busy}
+                    onClick={() => onScegli({ recipe_id: r.id, ingredient_id: null })}>
+              <div>📖 {r.nome}{r.base ? " · base" : ""}</div>
+            </button>
+          ))}
+          {res && !(res.ingredienti || []).length && !(res.ricette || []).length && (
+            <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Niente con questo nome.</div>
+          )}
+        </div>
+        <button className="km-btn ghost" style={{ marginTop: 10 }} disabled={busy}
+                onClick={() => onScegli({ recipe_id: null, ingredient_id: null, natura: "NON_FOOD" })}>
+          Non-food · niente collegamento
+        </button>
+        <button className="km-btn ghost" style={{ marginTop: 8 }} onClick={onChiudi}>Annulla</button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Abbinamento guidato (Marco 2026-11-08, Q #328): i prodotti senza ricetta né
+// ingrediente, con la proposta migliore. I SICURI si confermano in blocco,
+// i DUBBI uno a uno, gli altri si cercano a mano. Admin e chef.
+// ─────────────────────────────────────────────────────────────
+function Abbina({ indietro }) {
+  const [dati, setDati] = useState(null);
+  const [tolti, setTolti] = useState({});        // sicuri deselezionati
+  const [cerca, setCerca] = useState(null);      // la voce per cui si cerca a mano
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [fatti, setFatti] = useState(0);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/cucina/scorte/collega/proposte`);
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
+      setDati(await r.json()); setErr(null);
+    } catch (e) { setErr(e.message); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function conferma(voci) {
+    if (busy || !voci.length) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/cucina/scorte/collega/conferma`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voci }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
+      setFatti((n) => n + voci.length);
+      setCerca(null);
+      await load();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  }
+  const voce = (v, p) => ({ articolo_id: v.articolo_id,
+    ingredient_id: p?.tipo === "ingrediente" ? p.id : null, recipe_id: p?.tipo === "ricetta" ? p.id : null });
+  const etichetta = (p) => `${p.tipo === "ricetta" ? "📖" : "🧺"} ${p.nome}`;
+
+  const voci = dati?.voci || [];
+  const sicuri = voci.filter((v) => v.fascia === "SICURO");
+  const dubbi = voci.filter((v) => v.fascia === "DUBBIO");
+  const nessuna = voci.filter((v) => v.fascia === "NESSUNA");
+  const scelti = sicuri.filter((v) => !tolti[v.articolo_id]);
+
+  return (
+    <>
+      <div className="km-head">
+        <button className="km-back" onClick={indietro}>‹ Scorte</button>
+        <div className="km-htop">
+          <div>
+            <h1 className="km-serif">Collega i prodotti</h1>
+            <div className="km-sub">
+              {dati ? `${voci.length} senza ricetta né ingrediente` : "…"}{fatti ? ` · ${fatti} collegati ora` : ""}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="km-body">
+        {err && <div className="km-err">{err}</div>}
+        {!dati && !err && <Vuoto icona="⏳" titolo="Cerco le somiglianze…" />}
+        {dati && voci.length === 0 && <Vuoto icona="✅" titolo="Tutti collegati" testo="Ogni prodotto sa cos'è." />}
+
+        {sicuri.length > 0 && (
+          <>
+            <div className="km-lbl">Sicuri · {sicuri.length}</div>
+            <div className="km-card" style={{ padding: "4px 14px" }}>
+              {sicuri.map((v) => (
+                <label key={v.articolo_id} className="km-tl" style={{ cursor: "pointer" }}>
+                  <input type="checkbox" checked={!tolti[v.articolo_id]} style={{ width: 20, height: 20, marginTop: 2 }}
+                         onChange={() => setTolti({ ...tolti, [v.articolo_id]: !tolti[v.articolo_id] })} />
+                  <div>
+                    <div className="t1">{v.nome}</div>
+                    <div className="t2">→ {etichetta(v.proposta)}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <button className="km-btn" disabled={busy || !scelti.length}
+                    onClick={() => conferma(scelti.map((v) => voce(v, v.proposta)))}>
+              {busy ? "Collego…" : `Conferma i ${scelti.length} selezionati`}
+            </button>
+          </>
+        )}
+
+        {dubbi.length > 0 && <div className="km-lbl" style={{ marginTop: 14 }}>Da guardare · {dubbi.length}</div>}
+        {dubbi.map((v) => (
+          <div key={v.articolo_id} className="km-card" style={{ padding: "10px 14px" }}>
+            <div style={{ fontWeight: 600 }}>{v.nome}</div>
+            <div className="km-pills wrap" style={{ marginTop: 6 }}>
+              <button className="km-pill on" disabled={busy} onClick={() => conferma([voce(v, v.proposta)])}>
+                {etichetta(v.proposta)}
+              </button>
+              {v.alternativa && (
+                <button className="km-pill" disabled={busy} onClick={() => conferma([voce(v, v.alternativa)])}>
+                  {etichetta(v.alternativa)}
+                </button>
+              )}
+              <button className="km-pill" disabled={busy} onClick={() => setCerca(v)}>🔎 Altro…</button>
+            </div>
+          </div>
+        ))}
+
+        {nessuna.length > 0 && <div className="km-lbl" style={{ marginTop: 14 }}>Senza proposta · {nessuna.length}</div>}
+        {nessuna.length > 0 && (
+          <div className="km-card" style={{ padding: "4px 14px" }}>
+            {nessuna.map((v) => (
+              <div key={v.articolo_id} className="km-tl tap" onClick={() => setCerca(v)}>
+                <div><div className="t1">{v.nome}</div><div className="t2">tocca per cercare</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {cerca && (
+        <CollegaSheet nome={cerca.nome} busy={busy} onChiudi={() => setCerca(null)}
+                      onScegli={(patch) => conferma([{ articolo_id: cerca.articolo_id,
+                        ingredient_id: patch.ingredient_id || null, recipe_id: patch.recipe_id || null }])} />
+      )}
     </>
   );
 }
@@ -1395,7 +1595,7 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
   const [mod, setMod] = useState(null);       // bozza anagrafica: {nome, um, confezione, regime, natura}
   const [corr, setCorr] = useState(null);     // {ripiano_id, dove, prima, val}
   const [sposta, setSposta] = useState(null); // {da, qta, ubiId, a}
-  const [collega, setCollega] = useState(null); // {q, res} — il «Collega» (2026-11-08)
+  const [collega, setCollega] = useState(false); // il foglio «Collega» (2026-11-08)
   const [eliminaOk, setEliminaOk] = useState(false); // primo tocco su «Elimina»
   const ruoloScheda = localStorage.getItem("role");
   const puoEliminare = ["superadmin", "admin", "chef"].includes(ruoloScheda);
@@ -1449,19 +1649,6 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
 
   // «Collega»: ogni prodotto e' UNA cosa — ricetta, ingrediente o niente
   // (non-food). Scegliere l'una toglie l'altra (Marco 2026-11-08, Q #328).
-  useEffect(() => {
-    if (!collega || (collega.q || "").trim().length < 2) return;
-    const q = collega.q.trim();
-    const t = setTimeout(async () => {
-      try {
-        const res = await apiFetch(`${API_BASE}/cucina/scorte/collega/cerca?q=${encodeURIComponent(q)}`);
-        const d = await res.json();
-        setCollega((c) => (c && c.q.trim() === q ? { ...c, res: d } : c));
-      } catch (e) { setErr(e.message); }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [collega?.q]);
-
   async function salvaCollega(patch) {
     if (busy) return;
     setBusy(true);
@@ -1634,7 +1821,7 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
             )}
           </div>
           {canWrite && (
-            <button className="km-pill" onClick={() => setCollega({ q: a.nome.slice(0, 20), res: null })}>
+            <button className="km-pill" onClick={() => setCollega(true)}>
               {a.recipe_id || a.ingredient_id ? "Cambia" : "Collega"}
             </button>
           )}
@@ -1830,45 +2017,8 @@ function SchedaArticolo({ id, canWrite, indietro, etichettaIndietro = "Scorte" }
       </div>
 
       {collega && (
-        <div className="km-sheet" onClick={(e) => { if (e.target === e.currentTarget) setCollega(null); }}>
-          <div className="km-sheet-in">
-            <h3 className="km-serif">Cos'è · {a.nome}</h3>
-            <input className="km-search" style={{ marginTop: 4 }} autoFocus value={collega.q}
-                   placeholder="Cerca ricetta o ingrediente…"
-                   onChange={(e) => setCollega({ ...collega, q: e.target.value, res: null })} />
-            <div style={{ maxHeight: "50vh", overflowY: "auto", marginTop: 8 }}>
-              {collega.q.trim().length >= 2 && !collega.res && (
-                <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Cerco…</div>
-              )}
-              {collega.res && (collega.res.ricette || []).length > 0 && (
-                <div className="km-flbl">Preparazioni (ricette)</div>
-              )}
-              {(collega.res?.ricette || []).map((r) => (
-                <button key={`r${r.id}`} className="km-tl tap" style={{ width: "100%", textAlign: "left", background: "none", border: 0 }}
-                        disabled={busy} onClick={() => salvaCollega({ recipe_id: r.id, ingredient_id: null })}>
-                  <div>📖 {r.nome}{r.base ? " · base" : ""}</div>
-                </button>
-              ))}
-              {collega.res && (collega.res.ingredienti || []).length > 0 && (
-                <div className="km-flbl">Ingredienti</div>
-              )}
-              {(collega.res?.ingredienti || []).map((i) => (
-                <button key={`i${i.id}`} className="km-tl tap" style={{ width: "100%", textAlign: "left", background: "none", border: 0 }}
-                        disabled={busy} onClick={() => salvaCollega({ ingredient_id: i.id, recipe_id: null })}>
-                  <div>🧺 {i.nome}</div>
-                </button>
-              ))}
-              {collega.res && !(collega.res.ricette || []).length && !(collega.res.ingredienti || []).length && (
-                <div style={{ fontSize: 13, color: "var(--muted)", padding: "6px 0" }}>Niente con questo nome.</div>
-              )}
-            </div>
-            <button className="km-btn ghost" style={{ marginTop: 10 }} disabled={busy}
-                    onClick={() => salvaCollega({ recipe_id: null, ingredient_id: null })}>
-              Non-food · niente collegamento
-            </button>
-            <button className="km-btn ghost" style={{ marginTop: 8 }} onClick={() => setCollega(null)}>Annulla</button>
-          </div>
-        </div>
+        <CollegaSheet nome={a.nome} busy={busy}
+                      onScegli={salvaCollega} onChiudi={() => setCollega(null)} />
       )}
 
       {sheet && (
@@ -2841,6 +2991,8 @@ export default function CucinaMobile() {
   let vista;
   if (attivo === "frigo" && id) {
     vista = <DentroFrigo id={id} canWrite={canWrite} indietro={() => vai("frigo")} apriArticolo={apriArticolo} />;
+  } else if (attivo === "scorte" && id === "abbina") {
+    vista = <Abbina indietro={() => vai("scorte")} />;
   } else if (attivo === "scorte" && id) {
     vista = <SchedaArticolo id={id} canWrite={canWrite}
                             indietro={() => (da?.path ? navigate(da.path) : vai("scorte"))}

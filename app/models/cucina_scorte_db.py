@@ -142,6 +142,11 @@ CONFIG_DEFAULT: Dict[str, str] = {
     # in servizio e' il modo piu' rapido per far smettere la gente di usare
     # l'app. Se un giorno l'ASL pretende il blocco, si gira questa chiave.
     "blocca_incompatibilita_ripiano": "0",
+    # Abbinamento guidato articoli ↔ ricette/ingredienti (Marco 2026-11-08):
+    # da quanto una proposta e' «sicura» (si conferma in blocco) e sotto quanto
+    # non si propone niente. Punteggio 0-100+ di ricette_lookup.punteggio_nome.
+    "collega_soglia_sicuri": "85",
+    "collega_soglia_min": "55",
     # Congelatori (Marco 2026-10-01). Scadenza proposta quando si congela una
     # preparazione: si cambia pezzo per pezzo, questo e' solo il precompilato.
     "scadenza_congelato_gg": "180",
