@@ -180,6 +180,14 @@ Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome,
 - Da pushare.
 
 
+## SESSIONE 2026-11-09 — Capo Sala chiude le fasce orarie `[core]`
+
+`RUOLI_FASCE` in `prenotazioni_router.py` ora `admin, sala, capo_sala`: il Capo Sala apre/chiude le fasce, cambia i limiti e la vendita online (`PUT /prenotazioni/fasce/{data}/{turno}`) e vede «cosa vede il cliente su TheFork». FE senza controlli di ruolo sulle fasce: niente da cambiare. Prenotazioni 2.33, C-P-035 aggiornata. Da pushare.
+
+## SESSIONE 2026-11-08 (8) — 42 articoli collegati in produzione `[locale:tregobbi]`
+
+`scripts/collega_scorte_2026_11_08.py`: i «sicuri» dell'abbinamento guidato rivisti da Claude (tolti 10 dubbi) e da Marco (tolta «pasta gialla»). **Applicato l'08/11 alle 22:26: 42 collegati, 0 saltati**, backup `foodcost.db.pre_collega_20261108_222611`. Restano ~110 scollegati da fare in Scorte › 🔗 Collega.
+
 ## SESSIONE 2026-11-08 (7) — Scorte cucina 1.18: abbinamento guidato `[core]`
 
 Chiude P3. `ricette_lookup`: `punteggio_nome()` (parole ritrovate 55% + somiglianza 30% + prima parola 15%), `proponi_collegamenti()` (ricette base +5), `cerca_ricette_ingredienti` ora per parole con ripiego sulla prima. Router: `GET /cucina/scorte/collega/proposte` (fasce SICURO/DUBBIO/NESSUNA da `collega_soglia_sicuri` 85 / `collega_soglia_min` 55 in `cucina_scorte_config`, seed da `CONFIG_DEFAULT` al boot), `POST /collega/conferma` (in blocco; vuoto = NON_FOOD) — entrambi admin/chef. FE `CucinaMobile.jsx` 1.13: vista `/cucina/mobile/scorte/abbina` («Collega i prodotti»), bottone «🔗 Collega N» in Scorte, `CollegaSheet` condiviso con la scheda. Sul DB del 08/11: 152 scollegati → 53 sicuri, 62 dubbi, 37 senza proposta (prova in `claude/abbina_scorte.py`).

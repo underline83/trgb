@@ -955,7 +955,7 @@ def disattiva_tavolo(
 # «Modifica servizio › Andamento per fascia oraria» di TheFork Manager, deciso
 # in TRGB: apertura e limiti per fascia; la vendita online va anche su TheFork.
 
-RUOLI_FASCE = ("admin", "sala")
+RUOLI_FASCE = ("admin", "sala", "capo_sala")  # capo_sala dal 2026-11-09
 
 
 def _turno_valido(turno: str) -> str:

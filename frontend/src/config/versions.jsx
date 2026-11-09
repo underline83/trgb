@@ -616,6 +616,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.33 (2026-11-09): anche il Capo Sala (capo_sala) apre/chiude le fasce orarie e i limiti (PUT /prenotazioni/fasce).
     // 2.30 (2026-11-03): Planning, ⏳ prenotazione in attesa di conferma preventivo con scadenza,
     //   «Libera tavolo», motivo della cancellazione.
     // 2.32 (2026-10-31): «4» con poche persone = la metà «4» (il 4C resta libero per il motore); «✂️ Dividi» anche da tavolo occupato se chi c'è sta in metà.
@@ -638,7 +639,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.30",
+    version: "2.33",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
