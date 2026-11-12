@@ -1,6 +1,6 @@
 # Connettore MCP di TRGB — Claude dentro il gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (mattone M.K, sistema 5.46) · **Ultima verifica:** 2026-10-16
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — implementato il 2026-10-08 (mattone M.K, sistema 5.46) · **Ultima verifica:** 2026-11-12
 > **Vedi anche:** [modulo_pratiche.md](modulo_pratiche.md), [architettura_mattoni.md](architettura_mattoni.md) (M.G permessi), [refactor_monorepo.md](refactor_monorepo.md)
 
 **Classificazione:** `[core]`, platform, mattone **M.K** (Marco, 2026-10-08). Ogni locale che compra TRGB può collegare Claude al suo gestionale; quali strumenti vede dipende dai moduli attivi e dal ruolo di chi autorizza.
@@ -102,6 +102,21 @@ Notifiche: `crea_prenotazione` non manda niente (niente email, WhatsApp, notific
 | `whatsapp_conversazioni` | chat con messaggi negli ultimi `giorni` (7): nome (cliente TRGB › rubrica › nome WhatsApp), numero, ultimo messaggio del cliente e del locale, `stato` da_rispondere / risposto / scritto_solo_io, ore di attesa; `solo_da_rispondere`; blocco `aggiornamento` (collegato, ultimo webhook) | `clienti_whatsapp_service.conversazioni` | admin | sola lettura |
 | `whatsapp_cerca` | per `chi` (nome o numero) e/o `testo` (parole nei messaggi), `giorni` (180): per ogni chat i messaggi con chi/quando | `clienti_whatsapp_service.cerca` | admin | sola lettura |
 | `preventivi_inviati` | preventivi creati o modificati negli ultimi `giorni` (60), filtro `q` (cliente, titolo, numero), col registro invii (canale, quando, a chi) e `inviato` | `preventivi_service.preventivi_con_invii` | admin | sola lettura |
+
+**Preventivi e lettore generale** (2026-11-12, server 1.11). Nati dalla chat del 12/11: Marco chiede a Q «confermo il menù di Ferraro che è il Quadri, aggiorna prenotazione e manda messaggi» e Q non trova il Quadri, perché `preventivi_inviati` dava solo il registro degli invii (`menu_nome` vuoto coi menù multipli) e la conferma non aveva strumento. Decisione di Marco dello stesso giorno: **«Q deve poter sapere tutto: se mancano dei connettori deve averli».**
+
+| Strumento | Cosa fa | Funzione | Ruoli | Tipo |
+|---|---|---|---|---|
+| `preventivi_elenco` | come la lista della pagina (`q`, `stato`, `solo_prossimi`): numero, titolo, cliente, data, persone, stato, totale/forbice, quanti menù, scadenza conferma, prenotazione | `preventivi_service.lista_preventivi` | admin, contabile, sala, sommelier, capo_sala | sola lettura |
+| `preventivo_leggi` | il preventivo intero: tutti i menù col nome corto («Menù gruppi Quadri» → «Quadri»), prezzo e piatti per portata, `menu_scelto`, `da_scegliere`, extra, note, condizioni (IBAN coperto), invii (senza numero), storico | `get_preventivo` + `lista_invii` + `lista_storico` | come sopra | sola lettura |
+| `preventivo_conferma` | il bottone «Conferma evento»: menù per nome o id, confermato → prenotazione del giorno trovata o creata col menù scritto sopra → «prenotato», campanello a sala e cucina, `messaggio_staff` per i gruppi WhatsApp (con allergie e avvisi, es. ora diversa). Rilanciabile. **Solo dopo il sì di Marco** | `conferma_evento` | admin | scrive |
+| `preventivo_testo_cliente` | il testo del pannello d'invio (breve o completo) e il link `wa.me` col testo già scritto | `testo_breve` / `testo_cliente` + `build_wa_link` | lettura | sola lettura |
+| `trgb_mappa` | **platform.** Tutte le letture GET dell'API (476 a oggi) divise per area (tag del router), con descrizione e parametri; `cerca` per parole, `area` esatta | `app.routes` | chiunque abbia autorizzato | sola lettura |
+| `trgb_leggi` | **platform.** Chiama una lettura GET dentro il processo (httpx `ASGITransport`) con un token dell'utente collegato (Q → `token_q`, gli altri un token di 5 minuti col loro ruolo): **stessi permessi della pagina**, la rotta rifà i suoi controlli M.G. Solo percorsi GET esistenti (lo slash finale si aggiusta da solo); esclusi auth, oauth, mcp, accesso-q, pubblici e webhook. Risposte oltre 60.000 caratteri tagliate con «nota»; file (PDF, Excel) non passano; IBAN coperti ovunque | il router della pagina | quelli della rotta | sola lettura |
+
+Regola nelle istruzioni: prima di dire «non lo trovo» o chiedere a Marco dove sta una cosa, Q la cerca con `trgb_mappa` e la legge con `trgb_leggi`. Le scritture restano strumenti dedicati, uno per gesto, ognuno con le sue regole di conferma.
+
+Prove (2026-11-12) su una copia dei dati veri poi cancellata, chiamando gli strumenti come Q: 39 strumenti; Ferraro → 5 menù (Cuori, Fiori, Jolly, Picche, Quadri); `preventivo_conferma(10, "quadri")` → prenotazione 33977 aggiornata, stato prenotato, 6 notifiche, messaggio per i gruppi con l'avviso «ora diversa: prenotazione 20:00, preventivo 19:30»; menù inesistente → errore che elenca i 5; mappa 476 letture; `trgb_leggi` su storico, lista preventivi (con e senza slash), magazzino vini; percorso inesistente 404; PDF → nota; IBAN coperto nelle condizioni. Non provato: il giro da claude.ai vero.
 
 Fuori dalla prima versione, apposta:
 - **allegati**: si caricano dalla UI; dalla chat non c'è un file da passare in modo pulito;

@@ -1,4 +1,5 @@
-# @version: v1.10 (2026-11-06) — pratica_collega / pratica_scollega (pratica ↔ uscita o rateizzazione, col sì di Marco); spesa_fissa_id nello scadenziario
+# @version: v1.11 (2026-11-12) — preventivi (elenco, leggi coi menù, conferma evento, testo cliente) + lettore generale trgb_mappa / trgb_leggi («Q deve poter sapere tutto»)
+# v1.10 (2026-11-06) — pratica_collega / pratica_scollega (pratica ↔ uscita o rateizzazione, col sì di Marco); spesa_fissa_id nello scadenziario
 # v1.9 (2026-11-02) — pratiche: sezioni, campi del debito, in attesa di mezzi, rate collegate
 # v1.8 (2026-11-02) — WhatsApp in sola lettura + preventivi inviati (modulo clienti)
 # v1.7 (2026-10-25) — ricette e ingredienti (modulo ricette): import con anteprima, cerca/leggi/aggiorna, prezzi, allergeni, unione
@@ -26,6 +27,7 @@ Ogni strumento:
 """
 import functools
 import json
+import re
 from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -51,8 +53,13 @@ SCRIVE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_worl
 
 ISTRUZIONI = """TRGB, il gestionale del ristorante. Da qui si gestiscono le PRATICHE, i CANDIDATI,
 le SCADENZE dei dipendenti, si legge lo SCADENZIARIO dei pagamenti, si leggono e
-creano le PRENOTAZIONI e si gestiscono RICETTE e INGREDIENTI della cucina (ogni gruppo
-c'è solo se il suo modulo è attivo).
+creano le PRENOTAZIONI, si leggono e confermano i PREVENTIVI e si gestiscono RICETTE e
+INGREDIENTI della cucina (ogni gruppo c'è solo se il suo modulo è attivo).
+
+TUTTO IL RESTO SI LEGGE: trgb_mappa elenca ogni lettura del gestionale (le stesse delle
+pagine: vini, cantina, fatture, fornitori, turni, dipendenti, scorte, menù, cassa, banca,
+statistiche…) e trgb_leggi la chiama. Prima di dire «non lo trovo» o di chiedere a Marco
+dove sta una cosa, cercala con trgb_mappa e leggila con trgb_leggi.
 
 Una pratica è uno scambio formale con qualcuno di esterno (ente, fornitore, studio,
 creditore) che aspetta un esito: una PEC, un reclamo, un pignoramento, un contenzioso.
@@ -93,14 +100,16 @@ Regole che valgono sempre:
 - ricetta_aggiorna con voci o servizi li SOSTITUISCE tutti: leggi prima con ricetta_leggi e rimanda anche quelli che restano.
 - INGREDIENTI: cerca con ingredienti_cerca prima di usarne o crearne uno. I placeholder nati da un import (da_completare) si completano con ingrediente_aggiorna (categoria, unità base, allergeni, completato=true) e ingrediente_prezzo_aggiungi. Allergeni coi 14 nomi UE in minuscolo (glutine, crostacei, uova, pesce, arachidi, soia, latte, frutta a guscio, sedano, senape, sesamo, anidride solforosa e solfiti, lupini, molluschi); [] = nessuno. Un doppione si unisce con ingrediente_unisci, che cancella il doppione: solo dopo il sì di Marco.
 - Prezzi, rese e quantità a porzione che stimi tu (non dati da Marco o da una fattura) li dichiari a Marco come stime. Il prezzo di un ingrediente è per la sua unità base (€/kg se è in kg).
+- PREVENTIVI: un evento con un cliente (cena privata, gruppo). preventivi_elenco per trovarlo, preventivo_leggi per i menù: hanno un nome corto («Menù gruppi Quadri» = «Quadri»), prezzo e piatti, e menu_scelto dice quale ha scelto il cliente. «Confermo il menù X di Tizio» = preventivo_conferma: segna il menù, aggiorna la prenotazione del giorno col menù, avvisa sala e cucina nel campanello e torna messaggio_staff per i gruppi WhatsApp. Prima riepiloga (preventivo, menù, persone) e aspetta il sì; dopo, dai a Marco messaggio_staff pronto da incollare. Il testo per il cliente e il link wa.me: preventivo_testo_cliente.
 - WHATSAPP del locale: whatsapp_conversazioni, whatsapp_cerca e preventivi_inviati sono SOLA LETTURA. TRGB non manda messaggi ai clienti: le risposte le scrive Marco dal telefono. Se aggiornamento.collegato è false o ultimo_webhook è vecchio, dillo: i dati potrebbero mancare. Le chat di gruppo WhatsApp e i messaggi scritti da WhatsApp per Windows non ci sono. Nel riepilogo niente numeri di telefono interi se non servono; mai dati sanitari salvo allergie dichiarate.
 - BROWSER: per lavorare nelle pagine del gestionale, accesso_browser dà un link (2 minuti, una volta) che si apre SUBITO nel browser: si entra come Q. Non mostrarlo e non incollarlo in chat; per un'altra sessione se ne chiede uno nuovo."""
 
 
-def costruisci(url: str, nome_locale: str, versione: str, url_app: str | None = None) -> MCPServer:
+def costruisci(url: str, nome_locale: str, versione: str, url_app: str | None = None, app=None) -> MCPServer:
     """Il server MCP. `url` è l'indirizzo pubblico del backend del locale: da lì nascono
     issuer e risorsa dell'OAuth. `url_app` è quello delle pagine (frontend), per i link
-    d'accesso di Q nel browser; senza, si usa `url`."""
+    d'accesso di Q nel browser; senza, si usa `url`. `app` è la FastAPI del gestionale:
+    serve al lettore generale (trgb_mappa, trgb_leggi)."""
     url = url.rstrip("/")
     risorsa = f"{url}/mcp"
     fornitore = oauth.Fornitore(risorsa, nome_locale)
@@ -121,6 +130,8 @@ def costruisci(url: str, nome_locale: str, versione: str, url_app: str | None = 
         return await fornitore.pagina_pin(r)
 
     _strumento_accesso_browser(mcp, (url_app or url).rstrip("/"))
+    if app is not None:
+        _strumenti_lettore(mcp, app)
     if module_loader.is_module_active("pratiche"):
         _strumenti_pratiche(mcp)
     if module_loader.is_module_active("dipendenti"):
@@ -136,6 +147,8 @@ def costruisci(url: str, nome_locale: str, versione: str, url_app: str | None = 
         _strumenti_ricette(mcp)
     if module_loader.is_module_active("clienti"):
         _strumenti_whatsapp(mcp)
+    if module_loader.is_router_active("preventivi_router"):
+        _strumenti_preventivi(mcp)
     if module_loader.is_module_active("sito") and module_loader.is_module_active("statistiche"):
         _strumenti_sito(mcp)
     return mcp
@@ -1690,3 +1703,305 @@ def _strumenti_whatsapp(mcp: MCPServer) -> None:
         trova con whatsapp_cerca."""
         _ruoli("admin", cosa="i preventivi")
         return preventivi_con_invii(q=q, giorni=giorni)
+
+
+# ---------------------------------------------------------------------------
+# PREVENTIVI (2026-11-12, server 1.11) — modulo prenotazioni (preventivi_router).
+# Nati dalla chat del 12/11 in cui Q non riusciva a confermare il menù «Quadri» di
+# Ferraro: i menù del preventivo non gli arrivavano e la conferma non aveva strumento.
+# Chiamano preventivi_service come la pagina ClientiPreventivoScheda.
+# ---------------------------------------------------------------------------
+
+def _strumenti_preventivi(mcp: MCPServer) -> None:
+    """Preventivi: lettura ai ruoli del router (admin, contabile, sala, sommelier,
+    capo_sala); la conferma solo admin, come «Conferma evento» della pagina."""
+    import unicodedata
+    from app.services import preventivi_service as ps
+    from app.services.preventivi_pdf import _nome_menu
+    from app.services.preventivi_scadenze import lista_storico
+    from app.utils.whatsapp import build_wa_link
+    strumento = functools.partial(_strumento, mcp)
+    LETTURA = ("admin", "contabile", "sala", "sommelier", "capo_sala")
+
+    def piano(s) -> str:
+        s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode()
+        return " ".join(s.lower().split())
+
+    def un_preventivo(pid: int) -> dict:
+        prev = ps.get_preventivo(pid)
+        if not prev:
+            raise ToolError(f"Preventivo {pid} non trovato (404)")
+        return prev
+
+    def voce_menu(m: dict, scelto) -> dict:
+        return {
+            "id": m["id"],
+            "nome": _nome_menu(m.get("nome")) or m.get("nome") or "",
+            "nome_completo": m.get("nome") or "",
+            "prezzo": m.get("prezzo_etichetta"),
+            "scelto": bool(scelto) and m["id"] == scelto,
+            "piatti": [_senza_vuoti({"portata": r.get("category_name"), "piatto": r.get("name"),
+                                     "descrizione": r.get("description")})
+                       for r in m.get("righe") or []],
+        }
+
+    def menu_per_nome(prev: dict, menu: str) -> int:
+        menus = [m for m in prev.get("menu_list") or [] if m.get("righe")]
+        if not menus:
+            raise ToolError("Il preventivo non ha menù con dei piatti: si compone dalla pagina. (400)")
+        elenco = "; ".join(f"{m['id']} = {_nome_menu(m.get('nome')) or m.get('nome') or 'senza nome'}" for m in menus)
+        if str(menu).strip().isdigit():
+            mid = int(str(menu).strip())
+            if any(m["id"] == mid for m in menus):
+                return mid
+            raise ToolError(f"Il menù {mid} non è di questo preventivo. Ci sono: {elenco} (404)")
+        cerca = piano(menu)
+        trovati = [m for m in menus if cerca and cerca in piano(m.get("nome"))]
+        if len(trovati) == 1:
+            return trovati[0]["id"]
+        if not trovati:
+            raise ToolError(f"Nessun menù «{menu}» in questo preventivo. Ci sono: {elenco} (404)")
+        raise ToolError(f"«{menu}» corrisponde a più menù: {elenco}. Richiama con l'id. (409)")
+
+    @strumento(SOLA_LETTURA)
+    def preventivi_elenco(
+        q: Annotated[str | None, Field(description="Cliente, titolo o numero (PRE-2026-007)")] = None,
+        stato: Annotated[str | None, Field(description="bozza, inviato, in_attesa, confermato, prenotato, rifiutato, scaduto…")] = None,
+        solo_prossimi: Annotated[bool, Field(description="true (default) = eventi da oggi in poi e preventivi senza data")] = True,
+        limite: Annotated[int, Field(ge=1, le=200)] = 50,
+    ) -> list:
+        """I preventivi (eventi, cene private, gruppi) come la lista della pagina: numero,
+        titolo, cliente, data e ora, persone, stato, totale. Per i menù e i piatti usa
+        preventivo_leggi."""
+        _ruoli(*LETTURA, cosa="i preventivi")
+        res = ps.lista_preventivi(q=q, stato=stato, periodo="prossimi" if solo_prossimi else None, limit=limite)
+        campi = ("id", "numero", "titolo", "tipo", "stato", "data_evento", "ora_evento", "n_persone",
+                 "luogo", "cliente_id", "cliente_nome", "cliente_cognome", "totale", "totale_min",
+                 "totale_max", "n_menu", "scadenza_conferma", "prenotazione_id")
+        return [_senza_vuoti({k: r.get(k) for k in campi}) for r in res.get("items") or []]
+
+    @strumento(SOLA_LETTURA)
+    def preventivo_leggi(id: Id) -> dict:
+        """Un preventivo completo: cliente, data, ora, persone, luogo, stato, scadenza
+        della conferma, note, TUTTI I MENÙ col loro nome (es. «Quadri»), prezzo e piatti
+        per portata, quale ha scelto il cliente (menu_scelto), extra, prenotazione
+        collegata, invii fatti e storico. Un menù si chiama col nome corto: «Menù gruppi
+        Quadri» è «Quadri»."""
+        _ruoli(*LETTURA, cosa="i preventivi")
+        p = un_preventivo(id)
+        scelto = p.get("menu_scelto_id")
+        menus = [voce_menu(m, scelto) for m in p.get("menu_list") or []]
+        cliente = " ".join(x for x in [p.get("cliente_cognome"), p.get("cliente_nome")] if x)
+        return _senza_iban(_senza_vuoti({
+            "id": p["id"], "numero": p.get("numero"), "titolo": p.get("titolo"), "tipo": p.get("tipo"),
+            "stato": p.get("stato"), "data_evento": p.get("data_evento"), "ora_evento": p.get("ora_evento"),
+            "n_persone": p.get("n_persone"), "luogo": p.get("luogo"),
+            "cliente": cliente or None, "cliente_id": p.get("cliente_id"),
+            "scadenza_conferma": p.get("scadenza_conferma"),
+            "note_cliente": p.get("note_cliente"), "note_interne": p.get("note_interne"),
+            "condizioni": p.get("condizioni"),
+            "totale": p.get("totale"), "totale_min": p.get("totale_min"), "totale_max": p.get("totale_max"),
+            "menu": menus,
+            "menu_scelto": next((m["nome"] for m in menus if m["scelto"]), None),
+            "da_scegliere": len([m for m in menus if m["piatti"]]) > 1 and not scelto,
+            "extra": [_senza_vuoti({"descrizione": r.get("descrizione"), "quantita": r.get("qta") or r.get("quantita"),
+                                    "prezzo": r.get("prezzo_unitario") or r.get("prezzo"), "tipo": r.get("tipo_riga")})
+                      for r in p.get("righe") or [] if (r.get("descrizione") or "").strip()],
+            "prenotazione_id": p.get("prenotazione_id"),
+            "invii": [{k: v for k, v in i.items() if k != "destinatario"} for i in ps.lista_invii(id)],
+            "storico": lista_storico(id),
+        }))
+
+    @strumento(SCRIVE)
+    def preventivo_conferma(
+        id: Id,
+        menu: Annotated[str | None, Field(description="Il menù scelto dal cliente: nome (anche solo «Quadri») o id. Vuoto = quello già scelto, o l'unico")] = None,
+    ) -> dict:
+        """«Conferma evento» della pagina: segna il menù scelto, porta il preventivo a
+        confermato, trova o crea la PRENOTAZIONE del giorno e ci scrive sopra il menù coi
+        piatti (poi stato «prenotato»), manda l'avviso nel campanello di TRGB a sala e
+        cucina e torna il MESSAGGIO PER I GRUPPI WhatsApp di sala e cucina (messaggio_staff),
+        con le allergie della prenotazione. Si può rilanciare: riscrive il menù e riavvisa.
+        PRIMA riepiloga a Marco (preventivo, menù, persone) e aspetta il suo sì. TRGB non
+        manda WhatsApp: il messaggio_staff dallo a Marco pronto da incollare nei gruppi."""
+        _ruoli("admin", cosa="la conferma di un evento")
+        mid = menu_per_nome(un_preventivo(id), menu) if menu else None
+        try:
+            res = ps.conferma_evento(id, _autore(), mid)
+        except ValueError as e:
+            raise ToolError(f"{e} (400)") from None
+        if res is None:
+            raise ToolError(f"Preventivo {id} non trovato (404)")
+        res["da_fare"] = ("Incolla messaggio_staff nei gruppi WhatsApp di sala e cucina: "
+                          "TRGB non manda messaggi. Il campanello di TRGB è già partito.")
+        return res
+
+    @strumento(SOLA_LETTURA)
+    def preventivo_testo_cliente(
+        id: Id,
+        tipo: Annotated[Literal["breve", "completo"], Field(description="breve = menù e prezzo a persona (il resto è nel PDF); completo = con portate e condizioni")] = "breve",
+    ) -> dict:
+        """Il messaggio per il cliente, lo stesso del pannello d'invio della pagina, e il
+        link wa.me che apre la chat col testo già scritto. TRGB non manda: lo manda Marco
+        dal telefono (il link si apre e si preme invio)."""
+        _ruoli(*LETTURA, cosa="i preventivi")
+        p = un_preventivo(id)
+        testo = ps.testo_cliente(id) if tipo == "completo" else ps.testo_breve(id)
+        tel = p.get("cliente_telefono")
+        return _senza_vuoti({"testo": testo, "wa_link": build_wa_link(tel, testo) if tel else None,
+                             "senza_telefono": not tel})
+
+
+# ---------------------------------------------------------------------------
+# LETTORE GENERALE (2026-11-12, server 1.11) — platform. Decisione di Marco del
+# 12/11: «Q deve poter sapere tutto». Ogni pagina del gestionale legge da una rotta
+# GET dell'API: trgb_mappa le elenca, trgb_leggi ne chiama una con l'utente del
+# token (stessi permessi della pagina: la rotta rifà i suoi controlli M.G). Solo
+# GET: le scritture restano strumenti dedicati, ognuno con le sue regole.
+# ---------------------------------------------------------------------------
+
+_LETTORE_ESCLUSE = ("/auth", "/oauth", "/mcp", "/.well-known", "/docs", "/redoc", "/openapi",
+                    "/accesso-q", "/prenotazioni/pubblico", "/widget", "/webhook")
+_LETTORE_MAX = 60_000
+_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b")
+
+
+def _senza_iban(x):
+    """Mai IBAN nelle risposte (regola del connettore): li copre anche dentro i testi."""
+    if isinstance(x, str):
+        return _IBAN.sub("[IBAN nascosto]", x)
+    if isinstance(x, list):
+        return [_senza_iban(v) for v in x]
+    if isinstance(x, dict):
+        return {k: ("[nascosto]" if "iban" in str(k).lower() and v else _senza_iban(v)) for k, v in x.items()}
+    return x
+
+
+def _rotte_get(app) -> list:
+    from fastapi.routing import APIRoute
+    return [r for r in app.routes
+            if isinstance(r, APIRoute) and "GET" in (r.methods or set()) and r.include_in_schema
+            and not r.path.startswith(_LETTORE_ESCLUSE)]
+
+
+def _descrivi_rotta(r) -> dict:
+    doc = (r.summary or (r.endpoint.__doc__ or "").strip().split("\n\n")[0] or r.name or "").strip()
+    query = [p.name for p in r.dependant.query_params]
+    area = str(r.tags[0]) if r.tags else (r.path.strip("/").split("/")[0] or "sistema")
+    return {"percorso": r.path, "area": area, **_senza_vuoti({"cosa": " ".join(doc.split())[:240], "parametri": query})}
+
+
+def _accorcia(dati, limite: int = _LETTORE_MAX):
+    """Se la risposta è troppo lunga taglia le liste (le più lunghe prima) e lo dice."""
+    def lungo(x):
+        return len(json.dumps(x, default=str, ensure_ascii=False))
+    if lungo(dati) <= limite:
+        return dati, None
+    if isinstance(dati, list):
+        n = len(dati)
+        while len(dati) > 1 and lungo(dati) > limite:
+            dati = dati[: max(1, len(dati) * 2 // 3)]
+        return dati, f"lista tagliata: {len(dati)} elementi su {n}. Usa i parametri (filtri, date, limit) per stringere."
+    if isinstance(dati, dict):
+        dati = dict(dati)
+        note = []
+        for _ in range(40):
+            if lungo(dati) <= limite:
+                break
+            liste = [(k, v) for k, v in dati.items() if isinstance(v, list) and len(v) > 1]
+            if not liste:
+                break
+            k, v = max(liste, key=lambda kv: lungo(kv[1]))
+            dati[k] = v[: max(1, len(v) * 2 // 3)]
+            note.append(k)
+        if lungo(dati) <= limite:
+            return dati, f"liste tagliate ({', '.join(sorted(set(note)))}). Usa i parametri per stringere."
+    testo = json.dumps(dati, default=str, ensure_ascii=False)
+    return testo[:limite], "risposta troppo lunga, tagliata come testo. Usa i parametri per stringere."
+
+
+def _strumenti_lettore(mcp: MCPServer, app) -> None:
+    from datetime import timedelta
+    import anyio.from_thread
+    import httpx
+    from app.core import security
+    from app.services import auth_service
+    strumento = functools.partial(_strumento, mcp)
+
+    def token_per(user: dict) -> str:
+        if user["username"] == "Q":
+            return auth_service.token_q()["access_token"]
+        return security.create_access_token({"sub": user["username"], "role": user["role"]},
+                                            timedelta(minutes=5))
+
+    @strumento(SOLA_LETTURA)
+    def trgb_mappa(
+        cerca: Annotated[str | None, Field(description="Parole da cercare in percorso, area e descrizione (es. «preventivi menu», «turni», «fatture fornitore», «scorte»)")] = None,
+        area: Annotated[str | None, Field(description="Un'area esatta, come la dà trgb_mappa senza argomenti")] = None,
+    ) -> dict:
+        """La MAPPA di tutto quello che il gestionale sa: le letture dell'API (le stesse che
+        usano le pagine) divise per area, con cosa fanno e i parametri. Senza argomenti: le
+        aree con quante letture ha ognuna. Con cerca o area: le letture con il percorso da
+        passare a trgb_leggi. Usala SEMPRE prima di dire che un dato non c'è."""
+        _utente()
+        rotte = [_descrivi_rotta(r) for r in _rotte_get(app)]
+        if not cerca and not area:
+            aree: dict = {}
+            for r in rotte:
+                aree[r["area"]] = aree.get(r["area"], 0) + 1
+            return {"aree": dict(sorted(aree.items())), "letture": len(rotte),
+                    "come": "trgb_mappa(area=…) o trgb_mappa(cerca=…) per i percorsi, poi trgb_leggi"}
+        if area:
+            rotte = [r for r in rotte if r["area"].lower() == area.lower()]
+        if cerca:
+            parole = cerca.lower().split()
+            rotte = [r for r in rotte if all(p in f"{r['percorso']} {r['area']} {r.get('cosa', '')}".lower() for p in parole)] \
+                or [r for r in rotte if any(p in f"{r['percorso']} {r['area']} {r.get('cosa', '')}".lower() for p in parole)]
+        return {"quante": len(rotte), "letture": rotte[:150]}
+
+    @strumento(SOLA_LETTURA)
+    def trgb_leggi(
+        percorso: Annotated[str, Field(description="Il percorso come lo dà trgb_mappa, coi valori al posto delle {graffe}: /preventivi/10")] ,
+        parametri: Annotated[dict | None, Field(description="Parametri della lettura (query), es. {\"q\": \"Ferraro\", \"limit\": 20}")] = None,
+    ) -> dict:
+        """Legge QUALSIASI dato del gestionale da una lettura dell'API (trgb_mappa le elenca):
+        la stessa risposta che riceve la pagina, con i permessi di chi è collegato. Solo
+        lettura: non cambia niente. Le risposte lunghe vengono tagliate (lo dice «nota»):
+        stringi coi parametri. File (PDF, Excel) non passano: si aprono dalla pagina."""
+        user = _utente()
+        percorso = "/" + percorso.strip().lstrip("/")
+        from starlette.routing import Match
+        percorso = percorso.split("?")[0]
+
+        def esiste(p: str) -> bool:
+            scope = {"type": "http", "path": p, "method": "GET"}
+            return any(r.matches(scope)[0] == Match.FULL for r in _rotte_get(app))
+        if not esiste(percorso):
+            altro = percorso.rstrip("/") if percorso.endswith("/") else percorso + "/"
+            if not esiste(altro):
+                raise ToolError(f"«{percorso}» non è una lettura del gestionale: cercala con trgb_mappa. (404)")
+            percorso = altro
+        tok = token_per(user)
+
+        async def chiama():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                         base_url="http://trgb.interno", timeout=60) as c:
+                return await c.get(percorso, params={k: v for k, v in (parametri or {}).items() if v is not None},
+                                   headers={"Authorization": f"Bearer {tok}"})
+
+        r = anyio.from_thread.run(chiama)
+        if r.status_code >= 400:
+            try:
+                det = r.json().get("detail")
+            except ValueError:
+                det = r.text[:300]
+            raise ToolError(f"{det} ({r.status_code})")
+        tipo = r.headers.get("content-type", "")
+        if "json" not in tipo:
+            if tipo.startswith("text/"):
+                testo, nota = _accorcia(_senza_iban(r.text))
+                return _senza_vuoti({"stato": r.status_code, "testo": testo, "nota": nota})
+            return {"stato": r.status_code, "tipo": tipo,
+                    "nota": "È un file (PDF, Excel, immagine): da qui non passa, si apre dalla pagina."}
+        dati, nota = _accorcia(_senza_iban(r.json()))
+        return _senza_vuoti({"stato": r.status_code, "dati": dati, "nota": nota})

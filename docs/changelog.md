@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-12 — Connettore 1.11: Q legge tutto il gestionale e conferma i preventivi `[core]`
+Q non riusciva a confermare il menù «Quadri» di Ferraro: dei preventivi vedeva solo gli invii, non i menù, e la conferma non aveva strumento. Ora: `preventivi_elenco`, `preventivo_leggi` (tutti i menù per nome coi piatti), `preventivo_conferma` (lo stesso «Conferma evento» della pagina: prenotazione col menù, campanello a sala e cucina, messaggio pronto per i gruppi WhatsApp; solo dopo il sì di Marco), `preventivo_testo_cliente` (testo + link wa.me). E il lettore generale `trgb_mappa` / `trgb_leggi`: tutte le 476 letture del gestionale, con i permessi di chi è collegato, IBAN coperti. Nessuna migrazione.
+
 ## 2026-11-08 — Clienti 3.27: il preventivo si collega alla prenotazione `[core]`
 Un preventivo creato da Preventivi › Nuovo restava scollegato dalla prenotazione fino alla conferma (caso PRE-2026-013, Schintu 15/11): niente ⏳ nel Planning, niente «Libera tavolo» alla scadenza. Ora al salvataggio si aggancia da solo alla prenotazione del cliente in quel giorno (se nessun altro preventivo la tiene) e nella scheda c'è «🔗 Collega prenotazione» / Cambia / Scollega. Endpoint `GET /preventivi/{id}/prenotazioni-candidate`, `PUT /preventivi/{id}/prenotazione`. Nessuna migrazione.
 

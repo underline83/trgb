@@ -6,6 +6,8 @@
 
 **Sistema:** 5.93 (45edcf98) · **Migrazione più recente:** 228 (da pushare)
 
+**DA PUSHARE — Connettore 1.11: Q legge tutto + conferma i preventivi** (nessuna migrazione) `[core]` — decisione di Marco 12/11 «Q deve poter sapere tutto». Strumenti `preventivi_elenco`, `preventivo_leggi`, `preventivo_conferma`, `preventivo_testo_cliente` + lettore generale `trgb_mappa` / `trgb_leggi` (tutte le GET, permessi della pagina). File: `app/connettore/server.py`, `main.py` (passa `app=app`). **Dopo il push:** riagganciare il connettore TRGB in claude.ai (e in Q); prova: «che menù ha il preventivo di Ferraro?» → 5 menù; «quante bottiglie di X ho in cantina?» → Q passa da trgb_mappa/trgb_leggi.
+
 **DA PUSHARE — Connettore 1.10: Q collega pratica e uscita** (nessuna migrazione) `[core]` — strumenti `pratica_collega` / `pratica_scollega` (solo col sì di Marco, Q #324) e `spesa_fissa_id` nelle voci dello `scadenziario`. Prove 13/13 (in locale installato `mcp==2.3.0` ed `email-validator` nel venv per provarlo). **Dopo il push:** da claude.ai il connettore TRGB va riaperto (gli strumenti nuovi compaiono dopo il riaggancio); prova: «collega la pratica 7 Metro alla sua uscita» → Q propone l'uscita e aspetta il sì.
 
 **DA PUSHARE — Dipendenti 2.44: il paese dell'indirizzo non si cancella più** (nessuna migrazione) `[core]` — bug 1 del 16/10 (inventario tappa 0). La pagina Anagrafica non leggeva né mandava `indirizzo_paese` e il PUT lo scriveva NULL: ora c'è il campo «Paese» e il PUT tiene il valore salvato se il campo non arriva. Nessun dato perso (0 paesi anche nel backup del 30/10). **Dopo il push:** Dipendenti › Anagrafica › un dipendente → scrivi un Paese → Salva → riapri: c'è; salva di nuovo cambiando solo il telefono: c'è ancora.
