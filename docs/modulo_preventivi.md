@@ -26,7 +26,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`, so
 
 | Codice | Cosa fa | Riferimento | Audience | Stato docs |
 |---|---|---|---|---|
-| C-P-019 | Lista preventivi con filtri + KPI (in ballo, confermati, valore mese). Default «Prossimi»: eventi da oggi + senza data (`periodo=prossimi`, 2026-10-16) | `GET /preventivi` + `GET /preventivi/stats` — `preventivi_router.py` | admin (stats), tutti (lista) | ✅ |
+| C-P-019 | Lista preventivi con filtri + KPI (in ballo, confermati, valore mese). Default «Prossimi»: eventi da oggi + senza data (`periodo=prossimi`, 2026-10-16). Colonna «Inviato» (2026-11-13): canale ✉️/💬 e data dell'ultimo invio riuscito, quanti invii se più d'uno (`ultimo_invio_at`, `ultimo_invio_canale`, `n_invii`, `canali_invio` nella risposta) | `GET /preventivi` + `GET /preventivi/stats` — `preventivi_router.py` | admin (stats), tutti (lista) | ✅ |
 | C-P-020 | Luoghi evento configurabili | `GET/PUT /preventivi/config/luoghi` — `:232, :237` | admin (PUT) | ✅ |
 | C-P-021 | Template di testata (righe extra + condizioni precompilate) | `GET /preventivi/template/lista` + `POST/PUT/DELETE /template[/{id}]` — `:247-:268` | admin | ✅ |
 | C-P-022 | CRUD preventivo (numero automatico, cliente inline, righe in blocco) | `GET/POST/PUT/DELETE /preventivi[/{id}]` — `:281, :289, :298, :310` | admin (scritture) | ✅ |

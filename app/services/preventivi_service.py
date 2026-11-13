@@ -1204,13 +1204,26 @@ def lista_preventivi(
             if _menu_table_exists(conn)
             else "0"
         )
+        # Ultimo invio riuscito al cliente + canali usati (2026-11-13, colonna «Inviato» della lista)
+        if _invii_table_exists(conn):
+            invii_expr = """,
+                   (SELECT i.created_at FROM clienti_preventivi_invii i
+                     WHERE i.preventivo_id = p.id AND i.esito = 'ok' ORDER BY i.id DESC LIMIT 1) AS ultimo_invio_at,
+                   (SELECT i.canale FROM clienti_preventivi_invii i
+                     WHERE i.preventivo_id = p.id AND i.esito = 'ok' ORDER BY i.id DESC LIMIT 1) AS ultimo_invio_canale,
+                   (SELECT COUNT(*) FROM clienti_preventivi_invii i
+                     WHERE i.preventivo_id = p.id AND i.esito = 'ok') AS n_invii,
+                   (SELECT GROUP_CONCAT(DISTINCT i.canale) FROM clienti_preventivi_invii i
+                     WHERE i.preventivo_id = p.id AND i.esito = 'ok') AS canali_invio"""
+        else:
+            invii_expr = ""
 
         rows = conn.execute(f"""
             SELECT p.*,
                    c.nome AS cliente_nome,
                    c.cognome AS cliente_cognome,
                    c.telefono AS cliente_telefono,
-                   {n_menu_expr} AS n_menu
+                   {n_menu_expr} AS n_menu{invii_expr}
             FROM clienti_preventivi p
             LEFT JOIN clienti c ON p.cliente_id = c.id
             WHERE {where_sql}

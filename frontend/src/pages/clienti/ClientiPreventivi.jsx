@@ -1,4 +1,4 @@
-// @version: v1.3 — contatore «📥 Risposte da gestire» (posta in arrivo, 2026-11-13) + badge sulla riga; v1.2 — filtri visibili anche sotto lg, periodo «Prossimi» di default
+// @version: v1.4 — colonna «Inviato»: quando e su che canale è partito l'ultimo invio al cliente (2026-11-13); v1.3 — contatore «📥 Risposte da gestire» (posta in arrivo, 2026-11-13) + badge sulla riga; v1.2 — filtri visibili anche sotto lg, periodo «Prossimi» di default
 // Modulo: clienti (sub-modulo preventivi)
 // Lista preventivi con filtri, stats, paginazione — Fase A (10.1)
 // v1.2 (2026-10-16): la sidebar filtri era `hidden lg:block` (invisibile su iPad
@@ -285,6 +285,7 @@ export default function ClientiPreventivi() {
                           <th className="px-3 py-2 text-center text-xs font-medium text-neutral-500">Pax</th>
                           <th className="px-3 py-2 text-right text-xs font-medium text-neutral-500">Totale</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Stato</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Inviato</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Scadenza</th>
                         </tr>
                       </thead>
@@ -349,6 +350,19 @@ export default function ClientiPreventivi() {
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATI_COLORI[p.stato] || "bg-neutral-100 text-neutral-600"}`}>
                                   {STATI_LABEL[p.stato] || p.stato}
                                 </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-xs whitespace-nowrap text-neutral-600"
+                                title={p.n_invii > 1 ? `${p.n_invii} invii (${(p.canali_invio || "").replace(",", ", ")}); qui l'ultimo` : undefined}>
+                                {p.ultimo_invio_at ? (
+                                  <>
+                                    <span className="mr-1">{p.ultimo_invio_canale === "email" ? "✉️" : "💬"}</span>
+                                    {p.ultimo_invio_canale === "email" ? "Email" : "WhatsApp"}{" "}
+                                    <span className="text-neutral-400">
+                                      {p.ultimo_invio_at.slice(8, 10)}/{p.ultimo_invio_at.slice(5, 7)} {p.ultimo_invio_at.slice(11, 16)}
+                                    </span>
+                                    {p.n_invii > 1 && <span className="ml-1 text-neutral-400">({p.n_invii})</span>}
+                                  </>
+                                ) : <span className="text-neutral-300">—</span>}
                               </td>
                               <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                                 {gg !== null ? (
