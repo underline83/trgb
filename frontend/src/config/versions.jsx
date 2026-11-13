@@ -540,6 +540,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.28 (2026-11-13): preventivi — «📨 Invii di questo preventivo» e «📥 Risposte ricevute»
+    //   nella scheda (mail dei clienti lette dalla casella del gestionale, abbinate al preventivo,
+    //   «Segna gestita»); contatore «Risposte da gestire» e badge 📥 nella lista Preventivi.
     // 3.27 (2026-11-08): preventivo ↔ prenotazione — al salvataggio il preventivo si aggancia da solo
     //   alla prenotazione del cliente in quel giorno (se nessun altro preventivo la tiene); nella scheda
     //   «🔗 Collega prenotazione» / Cambia / Scollega tra le prenotazioni del giorno. Storico.
@@ -610,7 +613,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.27",
+    version: "3.28",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -762,6 +765,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.96 (2026-11-13): mig 230 — posta in arrivo (M.D lettura): IMAP in sola lettura della
+    //   casella del gestionale ogni 5 minuti, email.sqlite3 (email_in), abbinamento ai preventivi,
+    //   /email/in, connettore 1.13 (posta_trgb_*, preventivi_senza_risposta) (clienti 3.28).
     // 5.95 (2026-11-08): mig 229 — scorte cucina tutto a movimenti + flag da_riordinare
     //   (cucinaScorte 1.15).
     // 5.94 (2026-11-06): «Vedi come» del superadmin — app/services/vedi_come.py, registro in
@@ -898,7 +904,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.95",
+    version: "5.96",
     label: "Sistema",
     status: "stabile",
     color: "green",

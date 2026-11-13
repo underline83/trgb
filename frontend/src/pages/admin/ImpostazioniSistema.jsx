@@ -1,4 +1,5 @@
-// @version: v1.3 — «Vedi come»: durata e registro sotto Utenti, solo superadmin (2026-11-06)
+// @version: v1.4 — tab Email: «📥 Posta in arrivo» (lettura IMAP in sola lettura, stato del job, Leggi adesso) (2026-11-13)
+// v1.3 — «Vedi come»: durata e registro sotto Utenti, solo superadmin (2026-11-06)
 // v1.2 — tab "Home per ruolo" (sessione 49)
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -1107,6 +1108,91 @@ function TabEmail() {
           <Btn onClick={salva} disabled={saving}>{saving ? "Salvo…" : "Salva"}</Btn>
           <Btn variant="secondary" onClick={prova} disabled={saving || !stato?.configurato || !form.test_to}>
             Manda email di prova
+          </Btn>
+        </div>
+      </div>
+
+      <LetturaPosta />
+    </div>
+  );
+}
+
+// Posta in arrivo (2026-11-13): stessa casella, letta via IMAP in SOLA LETTURA ogni N minuti.
+function LetturaPosta() {
+  const [st, setSt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : "—");
+
+  const carica = () =>
+    apiFetch(`${API_BASE}/email/lettura/`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setSt(d))
+      .catch(() => {});
+  useEffect(() => { carica(); }, []);
+
+  const leggiOra = async () => {
+    setBusy(true); setMsg("");
+    try {
+      const r = await apiFetch(`${API_BASE}/email/lettura/giro`, { method: "POST" });
+      const d = await r.json();
+      setMsg(d.esito === "ok" ? `Letta: ${d.nuove} nuove${d.nota ? ` (${d.nota})` : ""}.`
+        : d.esito === "saltato" ? `Non letta: ${d.nota}.` : `Errore: ${d.errore || d.detail}`);
+      carica();
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const accendi = async (attiva) => {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/email/lettura/`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attiva }),
+      });
+      if (r.ok) setSt(await r.json());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!st) return null;
+  return (
+    <div className="mt-8">
+      <h2 className="text-lg font-bold text-neutral-800 mb-1">📥 Posta in arrivo</h2>
+      <p className="text-sm text-neutral-500 mb-4">
+        Il gestionale legge la stessa casella (stesse credenziali) ogni {st.minuti} minuti, in sola lettura:
+        non cancella, non sposta e non segna come lette le mail sul server. Le risposte ai preventivi
+        compaiono nella scheda del preventivo; tutta la posta la legge Q dal connettore.
+      </p>
+      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-5 space-y-3 text-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusBadge tone={!st.attiva ? "neutral" : st.errori_di_fila > 0 || !st.configurata ? "warning" : "success"} dot>
+            {!st.attiva ? "Spenta" : !st.configurata ? "Non configurata" : st.errori_di_fila > 0 ? "Errori" : "Attiva"}
+          </StatusBadge>
+          <span className="text-xs text-neutral-500">
+            {st.imap_host ? `${st.imap_host}:${st.imap_port} · ${st.cartella}` : "server IMAP non impostato"}
+            {st.mancanti?.length ? ` — manca: ${st.mancanti.join(", ")}` : ""}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs text-neutral-600">
+          <div>Ultimo giro: <strong>{fmt(st.ultimo_giro)}</strong></div>
+          <div>Ultima lettura riuscita: <strong>{fmt(st.ultimo_ok)}</strong></div>
+          <div>Primo import ({st.giorni_primo_import} giorni): <strong>{st.primo_import_fatto ? "fatto" : "non ancora"}</strong></div>
+          <div>Oltre {st.max_mb} MB si legge solo l'intestazione</div>
+        </div>
+        {st.ultimo_errore && (
+          <div className="px-3 py-2 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-800">
+            {st.errori_di_fila} giri falliti di fila — {st.ultimo_errore}
+          </div>
+        )}
+        {msg && <div className="text-xs text-neutral-700">{msg}</div>}
+        <div className="flex items-center gap-3 pt-1">
+          <Btn onClick={leggiOra} disabled={busy || !st.attiva || !st.configurata}>{busy ? "Leggo…" : "Leggi adesso"}</Btn>
+          <Btn variant="secondary" onClick={() => accendi(!st.attiva)} disabled={busy}>
+            {st.attiva ? "Spegni la lettura" : "Accendi la lettura"}
           </Btn>
         </div>
       </div>

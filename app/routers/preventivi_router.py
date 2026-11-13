@@ -340,6 +340,14 @@ def api_in_attesa(limite: int = Query(6, ge=1, le=50), user: dict = Depends(get_
     return in_attesa(limite)
 
 
+@router.get("/senza-risposta")
+def api_senza_risposta(giorni: int = Query(3, ge=0, le=60), user: dict = Depends(get_current_user)):
+    """Preventivi inviati in attesa di conferma, con la scadenza entro N giorni (anche
+    passata) e nessuna mail ricevuta: i candidati a un sollecito (2026-11-13)."""
+    from app.services.preventivi_email_risposte import senza_risposta
+    return senza_risposta(giorni)
+
+
 @router.post("/scadenze/controlla")
 def api_controlla_scadenze(dry_run: bool = Query(True), user: dict = Depends(get_current_user)):
     """Il controllo che gira ogni ora; a mano (admin) per prova: dry_run=true non manda niente."""
@@ -760,6 +768,20 @@ class EmailIn(BaseModel):
     corpo: str = ""
     cc: Optional[str] = None           # 2026-11-03: staff in CC visibile (default da Impostazioni)
     reply_to: Optional[str] = None     # 2026-11-03: dove vanno le risposte del cliente
+
+
+@router.get("/{preventivo_id}/risposte")
+def api_risposte(preventivo_id: int, user: dict = Depends(get_current_user)):
+    """Le mail ricevute abbinate al preventivo (posta in arrivo, 2026-11-13), col testo
+    ripulito: per la sezione «Risposte ricevute» della scheda."""
+    from app.services import email_in_service
+    el = email_in_service.elenco(preventivo_id=preventivo_id, limite=200)
+    out = []
+    for m in el["mail"]:
+        d = email_in_service.leggi(m["id"]) or m
+        d.pop("altre_mail_del_preventivo", None)
+        out.append(d)
+    return {"risposte": out, "aggiornamento": el["aggiornamento"]}
 
 
 @router.get("/{preventivo_id}/invii")

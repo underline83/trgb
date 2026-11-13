@@ -1,4 +1,4 @@
-// @version: v1.12 — collegamento alla prenotazione: si aggancia da solo al salvataggio (cliente + data) e «🔗 Collega prenotazione» / Cambia / Scollega a mano (2026-11-08); v1.11 — «✅ Conferma l'evento» accanto al menù scelto; v1.10 — conferma che non resta muta: menù riletti dal server se il composer non li ha passati, scelta del menù anche dopo l'errore, «✅ Confermato» nella barra da telefono/iPad, errori visibili più a lungo; v1.9 — dopo l'invio al cliente si apre il messaggio per i gruppi (e parte la copia per email all'osteria); v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
+// @version: v1.13 — sezione «📨 Invii di questo preventivo» + «📥 Risposte ricevute» via email (posta in arrivo, 2026-11-13); v1.12 — collegamento alla prenotazione: si aggancia da solo al salvataggio (cliente + data) e «🔗 Collega prenotazione» / Cambia / Scollega a mano (2026-11-08); v1.11 — «✅ Conferma l'evento» accanto al menù scelto; v1.10 — conferma che non resta muta: menù riletti dal server se il composer non li ha passati, scelta del menù anche dopo l'errore, «✅ Confermato» nella barra da telefono/iPad, errori visibili più a lungo; v1.9 — dopo l'invio al cliente si apre il messaggio per i gruppi (e parte la copia per email all'osteria); v1.8 — «Confermato» aggiorna la prenotazione col menù, avvisa sala e cucina e prepara il messaggio per i gruppi WhatsApp (2026-10-20)
 // v1.7 — nuovo preventivo da una prenotazione (tasto «📋 Preventivo» nel Planning), collegato con prenotazione_id (2026-10-20)
 // v1.6 — «📨 Invia al cliente»: WhatsApp testo completo + PDF, email col PDF, storico invii (mig 200)
 // Modulo: clienti (sub-modulo preventivi)
@@ -20,6 +20,7 @@ import PreventivoMenuComposer from "./PreventivoMenuComposer";
 import { Btn } from "../../components/ui";
 import PreventivoInvioModal from "./PreventivoInvioModal";
 import PreventivoAvvisoStaff from "./PreventivoAvvisoStaff";
+import PreventivoRisposte from "./PreventivoRisposte";
 
 const fmtEuro = (v) => (parseFloat(v) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -1233,6 +1234,12 @@ export default function ClientiPreventivoScheda() {
                     rows={3} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm resize-none" />
                 )}
               </div>
+
+              {/* ── INVII + RISPOSTE RICEVUTE via email (2026-11-13, posta in arrivo) ── */}
+              {!isNew && (
+                <PreventivoRisposte prevId={prevId} aggiorna={`${invioOpen}-${stato}`}
+                  onCambio={caricaStorico} onToast={showToast} />
+              )}
 
               {/* ── STORICO del preventivo (2026-11-03) ── */}
               {!isNew && storico.length > 0 && (

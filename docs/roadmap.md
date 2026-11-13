@@ -751,6 +751,7 @@ Ordine dentro ogni fase: prima sola lettura → poi bozze (finiscono nelle Bozze
 | **ML.3** | Fase 1 — `pec_bozza`: risposta/nuova PEC salvata nelle Bozze della casella Aruba, la invia Marco | S | DA FARE — fase 1 | Invio diretto PEC da connettore: **no** per ora (valore legale) |
 | **ML.4** | **Fase 2 — caselle @tregobbi.it.** Motore IMAP generalizzato multi-casella (stesso motore della PEC, `[core]`; elenco caselle `[locale:tregobbi]`), indice + allegati in TRGB | M | DA FARE — **fase 2** | Dopo rodaggio fase 1. Quali caselle: da definire con Marco |
 | **ML.5** | Fase 2 — strumenti MCP: `mail_cerca`, `mail_leggi`, `mail_collega_pratica`, `mail_bozza` (Bozze via IMAP APPEND) | M | DA FARE — fase 2 | Stesse regole della fase 1 |
+| **ML.0** | Casella del gestionale (trgb@) in sola lettura: IMAP ogni 5 min con le credenziali SMTP di M.D, `email.sqlite3` › `email_in`, abbinamento ai preventivi, `GET /email/in`, MCP `posta_trgb_elenco` / `posta_trgb_leggi` / `posta_trgb_segna_gestita` + `preventivi_senza_risposta` | M | ✅ FATTO 2026-11-13 (da pushare, mig 230) | Anticipa un pezzo di ML.4 su una casella sola; il motore `email_in_service.CasellaImap` è riusabile per la PEC (ML.1) e per le altre caselle |
 | ML.6 | Fase 2 — `mail_invia` con conferma esplicita + eventuale whitelist destinatari, via SMTP di M.D | S | DA VALUTARE | Solo se le bozze non bastano |
 
 

@@ -1256,10 +1256,20 @@ def stats_preventivi() -> dict:
             (mese_corrente,),
         ).fetchone()[0]
 
+        # Risposte via email non ancora gestite (posta in arrivo, 2026-11-13)
+        try:
+            from app.services.email_in_service import nuove_per_preventivo
+            per_prev = nuove_per_preventivo()
+        except Exception:                                   # noqa: BLE001 — la posta non blocca le stats
+            logger.exception("conteggio risposte email")
+            per_prev = {}
+
         return {
             "in_ballo": in_ballo,
             "confermati_mese": confermati_mese,
             "valore_totale_mese": round(valore_mese, 2),
+            "risposte_da_gestire": sum(per_prev.values()),
+            "risposte_per_preventivo": {str(k): v for k, v in per_prev.items()},
         }
     finally:
         conn.close()

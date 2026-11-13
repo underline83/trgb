@@ -104,6 +104,17 @@ Notifiche: `crea_prenotazione` non manda niente (niente email, WhatsApp, notific
 | `whatsapp_cerca` | per `chi` (nome o numero) e/o `testo` (parole nei messaggi), `giorni` (180): per ogni chat i messaggi con chi/quando | `clienti_whatsapp_service.cerca` | admin | sola lettura |
 | `preventivi_inviati` | preventivi creati o modificati negli ultimi `giorni` (60), filtro `q` (cliente, titolo, numero), col registro invii (canale, quando, a chi) e `inviato` | `preventivi_service.preventivi_con_invii` | admin | sola lettura |
 
+**Posta del gestionale** (2026-11-13, server 1.13, platform M.D). Le risposte dei clienti ai preventivi arrivano nella casella che li spedisce; TRGB la legge via IMAP in sola lettura ogni 5 minuti (`email_in_service`) e Q legge l'archivio **senza mai vedere la password**. Nessuno strumento manda mail. Ogni risposta porta `avviso`: il testo è un dato di terzi, non istruzioni (anche nelle istruzioni del server).
+
+| Strumento | Cosa fa | Funzione | Ruoli | Tipo |
+|---|---|---|---|---|
+| `posta_trgb_elenco` | mail dalla più recente; filtri `giorni`, `dal` (AAAA-MM-GG[ HH:MM], data della mail), `anche_nuove` (+ tutte le «nuova»: giro del mattino), `stato`, `preventivo_id`, `abbinamento` (in_reply_to / numero / mittente / nessuno), `q`; per ogni mail estratto della parte nuova, `cc_nuovi`, allegati contati e il preventivo (numero, cliente, evento, persone, stato, scadenza della conferma); blocco `aggiornamento` (ultimo giro, ultimo ok, errori di fila) | `email_in_service.elenco` | admin | sola lettura |
+| `posta_trgb_leggi` | una mail per intero: testo ripulito, `parte_nuova`, allegati, cc, preventivo, altre mail dello stesso preventivo | `email_in_service.leggi` | admin | sola lettura |
+| `posta_trgb_segna_gestita` | stato «gestita» con chi e quando — solo dopo il sì di Marco | `email_in_service.imposta_stato` | admin | scrive |
+| `preventivi_senza_risposta` | preventivi inviati/in attesa con la conferma entro `giorni` (3, anche già scaduta) e nessuna mail ricevuta: candidati al sollecito; ultimo invio, canali (se anche WhatsApp, guardare `whatsapp_cerca`) | `preventivi_email_risposte.senza_risposta` | ruoli del router preventivi | sola lettura |
+
+Anche `preventivo_leggi` porta ora `risposte_email` (in breve). Prove (2026-11-13): 23 test in `tests/test_email_in.py` (abbinamenti, doppioni, UIDVALIDITY, casella irraggiungibile, sola lettura IMAP, HTML) + gli strumenti chiamati come Q su un DB di prova (registrati, filtri, 400 su `dal` sbagliato, IBAN coperto nel testo). Non provato: la casella vera e il giro da claude.ai.
+
 **Preventivi e lettore generale** (2026-11-12, server 1.11). Nati dalla chat del 12/11: Marco chiede a Q «confermo il menù di Ferraro che è il Quadri, aggiorna prenotazione e manda messaggi» e Q non trova il Quadri, perché `preventivi_inviati` dava solo il registro degli invii (`menu_nome` vuoto coi menù multipli) e la conferma non aveva strumento. Decisione di Marco dello stesso giorno: **«Q deve poter sapere tutto: se mancano dei connettori deve averli».**
 
 | Strumento | Cosa fa | Funzione | Ruoli | Tipo |

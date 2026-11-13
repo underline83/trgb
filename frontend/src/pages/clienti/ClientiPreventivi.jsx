@@ -1,4 +1,4 @@
-// @version: v1.2 — filtri visibili anche sotto lg, periodo «Prossimi» di default
+// @version: v1.3 — contatore «📥 Risposte da gestire» (posta in arrivo, 2026-11-13) + badge sulla riga; v1.2 — filtri visibili anche sotto lg, periodo «Prossimi» di default
 // Modulo: clienti (sub-modulo preventivi)
 // Lista preventivi con filtri, stats, paginazione — Fase A (10.1)
 // v1.2 (2026-10-16): la sidebar filtri era `hidden lg:block` (invisibile su iPad
@@ -153,6 +153,14 @@ export default function ClientiPreventivi() {
                     <div className="text-lg font-bold text-indigo-700">€{stats.valore_totale_mese?.toLocaleString("it-IT")}</div>
                     <div className="text-[10px] text-neutral-500 uppercase">Valore mese</div>
                   </div>
+                  {stats.risposte_da_gestire !== undefined && (
+                    <div title="Risposte dei clienti arrivate via email e non ancora segnate come gestite">
+                      <div className={`text-lg font-bold ${stats.risposte_da_gestire > 0 ? "text-red-600" : "text-neutral-400"}`}>
+                        📥 {stats.risposte_da_gestire}
+                      </div>
+                      <div className="text-[10px] text-neutral-500 uppercase">Risposte da gestire</div>
+                    </div>
+                  )}
                 </div>
               )}
               <Btn variant="primary" size="md" onClick={() => navigate("/clienti/preventivi/nuovo")}>
@@ -292,7 +300,15 @@ export default function ClientiPreventivi() {
                                 {p.numero}
                               </td>
                               <td className="px-3 py-2.5 font-medium text-neutral-900 max-w-[260px]">
-                                <div className="truncate">{p.titolo}</div>
+                                <div className="truncate">
+                                  {p.titolo}
+                                  {(stats?.risposte_per_preventivo?.[String(p.id)] || 0) > 0 && (
+                                    <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700"
+                                      title="Risposte via email da gestire: aprilo, sezione «Risposte ricevute»">
+                                      📥 {stats.risposte_per_preventivo[String(p.id)]}
+                                    </span>
+                                  )}
+                                </div>
                                 {!!p.is_bozza_auto && (
                                   <span
                                     className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 border border-orange-200"

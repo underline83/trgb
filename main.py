@@ -732,6 +732,16 @@ _mount("reparti", reparti_router)
 _mount("turni_router", turni_router)
 _mount("intermittenti_router", intermittenti_router)
 _mount("email_router", email_router)
+if module_loader.is_router_active("email_router"):
+    # Posta in arrivo (M.D lettura, 2026-11-13): IMAP in sola lettura ogni N minuti.
+    # Parte solo se il canale ha credenziali e la lettura è attiva (email_lettura.json).
+    try:
+        from app.models.email_db import init_email_db as _init_email_db
+        _init_email_db()
+        from app.services.email_in_service import avvia_periodico as _posta_in
+        _posta_in()
+    except Exception as _e:  # noqa: BLE001 — la posta non deve impedire l'avvio
+        print(f"⚠️  Posta in arrivo non avviata: {_e}")
 
 # BANCA
 _mount("banca_router", banca_router.router)
@@ -792,6 +802,9 @@ if module_loader.is_router_active("preventivi_router"):
     # Scadenza della conferma: avvisi allo staff X giorni prima e il giorno stesso (2026-11-03)
     from app.services.preventivi_scadenze import avvia_periodico as _scadenze_preventivi
     _scadenze_preventivi()
+    # Risposte dei clienti via email: abbinamento al preventivo (posta in arrivo, 2026-11-13)
+    from app.services.preventivi_email_risposte import registra as _risposte_email
+    _risposte_email()
 _mount("menu_templates_router", menu_templates_router)
 _mount("menu_templates_router", menu_templates_preventivi_bridge_router)
 
