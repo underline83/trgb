@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-13 — Connettore 1.12: Q modifica le prenotazioni `[core]`
+La prenotazione 34363 (Irina du Bois, 15/11) andava corretta in ora (19:30 → 19:00), coperti (30 → 35), nota staff, richiesta del cliente, occasione e allergie: dal connettore non si poteva, il connettore sapeva solo leggere e creare, e Q doveva passare dal browser. Ora c'è `prenotazione_aggiorna`, che chiama lo stesso `PUT /prenotazioni/{id}` del «✏️ Modifica» del Planning — nessuna logica parallela: cambia solo i campi passati (data, ora, coperti, tavolo anche unito «1+2+0», canale, nota staff che sostituisce o `aggiungi_nota` che aggiunge una riga datata, richiesta del cliente, occasione, allergie, seggioloni, stato), ricalcola il turno se cambia l'ora, torna la prenotazione nel formato di `prenotazioni_giorno` con l'elenco «prima → dopo», l'avviso del motore per tavoli quando i coperti non entrano (avvisa, non blocca, come la pagina) e l'avviso per le prenotazioni TheFork (giorno, ora e persone vanno cambiati anche in TheFork Manager). Non manda niente al cliente, come la creazione; ruoli admin, sala, sommelier, capo sala come il router. Nessuna migrazione.
+
 ## 2026-11-12 — Connettore 1.11: Q legge tutto il gestionale e conferma i preventivi `[core]`
 Q non riusciva a confermare il menù «Quadri» di Ferraro: dei preventivi vedeva solo gli invii, non i menù, e la conferma non aveva strumento. Ora: `preventivi_elenco`, `preventivo_leggi` (tutti i menù per nome coi piatti), `preventivo_conferma` (lo stesso «Conferma evento» della pagina: prenotazione col menù, campanello a sala e cucina, messaggio pronto per i gruppi WhatsApp; solo dopo il sì di Marco), `preventivo_testo_cliente` (testo + link wa.me). E il lettore generale `trgb_mappa` / `trgb_leggi`: tutte le 476 letture del gestionale, con i permessi di chi è collegato, IBAN coperti. Nessuna migrazione.
 

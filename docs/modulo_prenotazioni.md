@@ -1,6 +1,6 @@
 # Modulo Prenotazioni — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-08-03
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-11-13
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
 **Versione modulo (`versions.jsx`):** prenotazioni v2.8
@@ -69,6 +69,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-041 | Prenotazione legata a un preventivo in attesa: ⏳ sulla riga, nella riga aperta «In attesa di conferma preventivo PRE-… — scade il gg/mm» (rosso se scaduto) con «Apri preventivo» e «🔓 Libera tavolo» (chi può creare preventivi); se cancellata, «Cancellata: <motivo>» (`motivo_cancellazione`, mig 227) | `GET /prenotazioni/planning/{data}` (`preventivo_attesa` da `evento_confermato_service.preventivi_in_attesa`, `motivo_cancellazione`) | lettura tutti; Libera tavolo admin | 🆕 2026-11-03 |
 | C-P-MCP1 | Strumenti MCP `prenotazioni_giorno`, `prenotazioni_periodo` (max 31 giorni, anche solo totali): ora, coperti, nome, stato, tavolo, note, allergie (niente telefono/email/preferenze) | `app/connettore/server.py` `_strumenti_prenotazioni` → `get_planning` | admin/sala/sommelier/contabile (Q / claude.ai) | 🆕 2026-10-16 |
 | C-P-MCP2 | Strumento MCP `prenotazione_crea`: come «+ Nuova» (fonte manuale, `creato_da`/`prenotato_da` = «Q» o «claude (utente)»), cliente per id o ritrovato dal telefono, altrimenti errore con i possibili; non manda niente al cliente | `server.py` → `crea_prenotazione` + `search_clienti` | admin/sala/sommelier/contabile (Q / claude.ai) | 🆕 2026-10-16 |
+| C-P-MCP3 | Strumento MCP `prenotazione_aggiorna`: cambia una prenotazione che c'è già (data, ora, coperti, tavolo anche unito «1+2+0», canale, note che sostituiscono o `aggiungi_nota` datata, richiesta del cliente, occasione, allergie, seggioloni, stato) chiamando lo stesso `PUT /prenotazioni/{id}` del «✏️ Modifica» del Planning: solo i campi passati, turno ricalcolato, `dividi_se_meta` sui tavoli. Torna la prenotazione più «prima → dopo», l'avviso del motore per tavoli se i coperti non entrano (avvisa, non blocca) e l'avviso TheFork. Non manda niente al cliente | `server.py` → `modifica_prenotazione` + `get_motore_verifica` | admin/sala/sommelier/capo_sala (Q / claude.ai) | 🆕 2026-11-13 |
 
 Capability collegate fuori router: widget "Prenotazioni oggi" in Home e DashboardSala via `GET /dashboard/home` (`dashboard_router.py:_prenotazioni_oggi`); storico prenotazioni per cliente in `/clienti/prenotazioni` e nella scheda cliente (modulo Clienti).
 

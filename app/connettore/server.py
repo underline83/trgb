@@ -1,4 +1,5 @@
-# @version: v1.11 (2026-11-12) — preventivi (elenco, leggi coi menù, conferma evento, testo cliente) + lettore generale trgb_mappa / trgb_leggi («Q deve poter sapere tutto»)
+# @version: v1.12 (2026-11-13) — prenotazione_aggiorna: Q modifica una prenotazione che c'è già (stesso PUT del «✏️ Modifica» del Planning, avvisi tavoli e TheFork)
+# v1.11 (2026-11-12) — preventivi (elenco, leggi coi menù, conferma evento, testo cliente) + lettore generale trgb_mappa / trgb_leggi («Q deve poter sapere tutto»)
 # v1.10 (2026-11-06) — pratica_collega / pratica_scollega (pratica ↔ uscita o rateizzazione, col sì di Marco); spesa_fissa_id nello scadenziario
 # v1.9 (2026-11-02) — pratiche: sezioni, campi del debito, in attesa di mezzi, rate collegate
 # v1.8 (2026-11-02) — WhatsApp in sola lettura + preventivi inviati (modulo clienti)
@@ -53,7 +54,7 @@ SCRIVE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_worl
 
 ISTRUZIONI = """TRGB, il gestionale del ristorante. Da qui si gestiscono le PRATICHE, i CANDIDATI,
 le SCADENZE dei dipendenti, si legge lo SCADENZIARIO dei pagamenti, si leggono e
-creano le PRENOTAZIONI, si leggono e confermano i PREVENTIVI e si gestiscono RICETTE e
+creano e modificano le PRENOTAZIONI, si leggono e confermano i PREVENTIVI e si gestiscono RICETTE e
 INGREDIENTI della cucina (ogni gruppo c'è solo se il suo modulo è attivo).
 
 TUTTO IL RESTO SI LEGGE: trgb_mappa elenca ogni lettura del gestionale (le stesse delle
@@ -92,7 +93,7 @@ Regole che valgono sempre:
 - Date sempre AAAA-MM-GG. Mai IBAN nelle risposte; niente dati sanitari (salvo le allergie dichiarate di una prenotazione).
 - SCADENZE DIPENDENTI: cerca con scadenze_dipendenti_elenco prima di crearne una; prima di creare o cambiare riepiloga a Marco e aspetta il sì; non si cancellano da qui.
 - SCADENZIARIO: sola lettura; uscita_segna_pagata solo dopo il sì di Marco (fornitore, importo, data, metodo); spese fisse e rate si fanno dalla pagina.
-- PRENOTAZIONI: prima di crearne una controlla il giorno con prenotazioni_giorno, riepiloga a Marco (giorno, ora, coperti, nome, note, allergie) e aspetta il sì; prenotazione_crea non manda niente al cliente.
+- PRENOTAZIONI: si leggono, creano e MODIFICANO. Prima di crearne una controlla il giorno con prenotazioni_giorno, riepiloga a Marco (giorno, ora, coperti, nome, note, allergie) e aspetta il sì. prenotazione_aggiorna cambia una che c'è già (ora, coperti, tavolo anche unito «1+2+0», note, allergie…): solo i campi che passi, e prima riepiloga a Marco cosa cambi e aspetta il suo sì. Né prenotazione_crea né prenotazione_aggiorna mandano niente al cliente.
 - INCASSI: incassi_riepilogo, sola lettura (ieri contro la media dello stesso giorno della settimana, mese in corso contro lo stesso periodo dell'anno prima).
 - SITO: visite_sito_riepilogo, sola lettura (viste, pagine, provenienze, clic su Prenota/telefono/WhatsApp e prenotazioni dal sito nel periodo, contro il periodo prima). Nessun dato personale: sono solo conteggi.
 - RICETTE: un piatto è fatto di voci: ingredienti (l'anagrafica legata ai fornitori, coi prezzi) e sotto-ricette (le preparazioni base, altre ricette). Prima di creare una ricetta cercala con ricette_cerca (guarda anche «simili»): se c'è già, la completi con ricetta_aggiorna e non la duplichi (es. un piatto del pranzo nato vuoto, vuota=true).
@@ -1053,6 +1054,110 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
         p = next((p for t in ("pranzo", "cena") for p in pl[t] if p["id"] == r["id"]), None)
         out = voce(p) if p else {"id": r["id"]}
         out["cliente"] = "esistente" if trovato else "nuovo"
+        return out
+
+    # Il form «✏️ Modifica» del Planning manda questi campi a PUT /prenotazioni/{id}:
+    # qui i nomi per Claude, lì le colonne.
+    CAMPI = {"data": "data_pasto", "ora": "ora_pasto", "coperti": "pax", "tavolo": "tavolo",
+             "canale": "canale", "note": "nota_ristorante", "richiesta_cliente": "nota_cliente",
+             "occasione": "occasione", "allergie": "allergie_segnalate",
+             "seggioloni": "seggioloni", "stato": "stato"}
+
+    def riga(pren_id: int) -> dict:
+        conn = get_clienti_conn()
+        try:
+            r = conn.execute("SELECT * FROM clienti_prenotazioni WHERE id = ?", (pren_id,)).fetchone()
+        finally:
+            conn.close()
+        if not r:
+            raise ToolError(f"Prenotazione {pren_id} non trovata. (404)")
+        return dict(r)
+
+    def dal_planning(user: dict, pren_id: int, data: str) -> dict | None:
+        pl = rotte.get_planning(data=data, user=user)
+        return next((p for t in ("pranzo", "cena") for p in pl[t] if p["id"] == pren_id), None)
+
+    def mostra(campo: str, valore):
+        return (valore or "")[:5] if campo == "ora" else valore
+
+    @strumento(SCRIVE)
+    def prenotazione_aggiorna(
+        id: Annotated[int, Field(ge=1, description="L’id da prenotazioni_giorno o prenotazioni_periodo")],
+        data: Annotated[Giorno | None, Field(description="Sposta la prenotazione a un altro giorno")] = None,
+        ora: Ora | None = None,
+        coperti: Annotated[int | None, Field(ge=1, le=50)] = None,
+        tavolo: Annotated[str | None, Field(description="Nome del tavolo, anche un’unione come nel Planning («1+2+0», «7+9+4+8+5»). «» lo toglie")] = None,
+        canale: Annotated[str | None, Field(description="Come è arrivata: Telefono, WhatsApp, Email, Di persona…")] = None,
+        note: Annotated[str | None, Field(description="Nota interna del ristorante: SOSTITUISCE quella che c’è («» la svuota)")] = None,
+        aggiungi_nota: Annotated[str | None, Field(description="Riga da AGGIUNGERE in fondo alla nota interna, con la data di oggi")] = None,
+        richiesta_cliente: Annotated[str | None, Field(description="Cosa ha chiesto il cliente («tavolo vicino alla finestra»): SOSTITUISCE")] = None,
+        occasione: Annotated[str | None, Field(description="«compleanno», «anniversario»…: SOSTITUISCE")] = None,
+        allergie: Annotated[str | None, Field(description="Solo le allergie/intolleranze dichiarate dal cliente: SOSTITUISCE")] = None,
+        seggioloni: str | None = None,
+        stato: Annotated[str | None, Field(description="Uno di: " + ", ".join(sorted(rotte.STATI_VALIDI)))] = None,
+    ) -> dict:
+        """Cambia una prenotazione che c’è già, come il «✏️ Modifica» del Planning: stesso
+        endpoint, stesse regole, stesso ricalcolo di turno e tavoli. Cambia SOLO i campi che
+        passi, gli altri restano com’erano. Non manda NIENTE al cliente (niente email,
+        WhatsApp, notifiche): la conferma la dà Marco. PRIMA riepiloga a Marco cosa cambi,
+        campo per campo (prima → dopo), e aspetta il suo sì. L’id lo danno
+        prenotazioni_giorno e prenotazioni_periodo. Il tavolo accetta anche le unioni
+        («1+2+0»). Se con i coperti nuovi non c’è più posto torna lo stesso avviso del
+        Planning, ma la modifica si fa lo stesso: decide Marco. Torna la prenotazione
+        aggiornata e l’elenco di cosa è cambiato. Date AAAA-MM-GG, ora HH:MM. Mai dati
+        sanitari oltre alle allergie dichiarate."""
+        user = _ruoli("admin", "sala", "sommelier", "capo_sala", cosa="la modifica delle prenotazioni")
+        if note is not None and aggiungi_nota:
+            raise ToolError("Passa note oppure aggiungi_nota, non tutti e due. (400)")
+        if stato is not None and not str(stato).strip():
+            raise ToolError("Lo stato non può essere vuoto. (400)")
+        prima = riga(id)
+        passati = {"data": data, "ora": ora, "coperti": coperti, "tavolo": tavolo,
+                   "canale": canale, "note": note, "richiesta_cliente": richiesta_cliente,
+                   "occasione": occasione, "allergie": allergie, "seggioloni": seggioloni,
+                   "stato": stato}
+        campi = {CAMPI[k]: v for k, v in passati.items() if v is not None}
+        if aggiungi_nota:
+            r = f"[{_oggi()}] {aggiungi_nota.strip()}"
+            vecchia = (prima.get("nota_ristorante") or "").strip()
+            campi["nota_ristorante"] = f"{vecchia}\n{r}" if vecchia else r
+        if not campi:
+            raise ToolError("Niente da cambiare: passa almeno un campo. (400)")
+        rotte.modifica_prenotazione(pren_id=id, req=rotte.PrenotazioneUpdate(**campi),
+                                    user={**user, "username": _autore()})
+        dopo = riga(id)
+
+        cambiato = {}
+        for nome, colonna in CAMPI.items():
+            pv, dv = mostra(nome, prima.get(colonna)), mostra(nome, dopo.get(colonna))
+            if colonna in campi and pv != dv:
+                cambiato[nome] = {"prima": pv, "dopo": dv}
+        if aggiungi_nota and "note" not in cambiato:
+            cambiato["note"] = {"prima": prima.get("nota_ristorante"), "dopo": dopo.get("nota_ristorante")}
+        if prima.get("turno") != dopo.get("turno"):
+            cambiato["turno"] = {"prima": prima.get("turno"), "dopo": dopo.get("turno")}
+
+        p = dal_planning(user, id, dopo["data_pasto"])
+        out = voce(p) if p else {"id": id}
+        out["cambiato"] = cambiato or "niente (i valori erano già questi)"
+        # Stessi avvisi della pagina: il motore per tavoli (escludendo questa prenotazione)
+        if any(k in campi for k in ("data_pasto", "ora_pasto", "pax")):
+            posto = rotte.get_motore_verifica(
+                data=dopo["data_pasto"], turno=dopo["turno"], pax=dopo["pax"],
+                ora=(dopo.get("ora_pasto") or "")[:5], escludi_id=id, user=user)
+            if not posto.get("entra"):
+                fuori = posto.get("gia_fuori") or 0
+                out["avviso_tavoli"] = (
+                    f"A quest’ora non c’è un tavolo o un’unione salvata libera per {dopo['pax']} persone"
+                    + (f" (e {fuori} prenotazioni sono già senza posto)" if fuori else "")
+                    + ". Prova un altro orario, apri una sala o lasciala così: la modifica è già salvata.")
+            elif posto.get("tavolo"):
+                out["tavolo_suggerito"] = posto["tavolo"].get("nome")
+            if dopo.get("thefork_booking_id"):
+                out["avviso_thefork"] = (
+                    "Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, "
+                    "altrimenti al prossimo aggiornamento da TheFork tornano come lì. "
+                    "Tavolo e note restano quelli di TRGB.")
         return out
 
 
