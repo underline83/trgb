@@ -1,12 +1,52 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-11-13 — **DA PUSHARE: Connettore 1.12 — `prenotazione_aggiorna`** (Q modifica una prenotazione che c'è già, nessuna migrazione; sotto). **Da verificare dopo l'ultimo push (768d0ddb, Connettore 1.11):** riagganciare il connettore TRGB in claude.ai e in Q, poi «che menù ha il preventivo di Ferraro?» e una lettura via trgb_mappa/trgb_leggi. **Da verificare (3ee7acda, Prenotazioni 2.33):** il Capo Sala apre/chiude le fasce orarie. ⚠️ **Il resto dell'intestazione è vecchio:** al 13/11 l'albero è pulito e ogni voce «DA PUSHARE» qui sotto risulta già committata e già scritta in `changelog.md` — va archiviata nel corpo (regola qui sotto), lavoro non fatto in questa sessione.
+**Ultimo aggiornamento:** 2026-11-13 — **Pushato (30072fe9): Connettore 1.12 — `prenotazione_aggiorna`** (Q modifica una prenotazione che c'è già, nessuna migrazione; sotto). **Da verificare:** riagganciare il connettore TRGB in claude.ai e in Q (gli strumenti nuovi compaiono solo dopo il riaggancio), poi una modifica vera di prova. **Da verificare (768d0ddb, Connettore 1.11):** «che menù ha il preventivo di Ferraro?» e una lettura via trgb_mappa/trgb_leggi. **Da verificare (3ee7acda, Prenotazioni 2.33):** il Capo Sala apre/chiude le fasce orarie. — Intestazione ripulita il 13/11: le 56 voci già pushate (da fine ottobre in poi) stanno in «INTESTAZIONE ARCHIVIATA — 2026-11-13» più sotto, com'erano.
 
 > **Regola dell'intestazione** (da `CLAUDE.md`): qui stanno SOLO (1) cosa è da pushare adesso, (2) cosa va fatto/verificato dopo l'ultimo push, (3) le pendenze aperte che contano. Quando una voce è pushata o chiusa si TOGLIE da qui (resta nel corpo della sessione). Massimo ~15 righe.
 
-**Sistema:** 5.95 (768d0ddb) · **Migrazione più recente:** 229 (pushata)
+**Sistema:** 5.95 (30072fe9) · **Migrazione più recente:** 229 (pushata)
 
-**DA PUSHARE — Connettore 1.12: Q modifica le prenotazioni** (nessuna migrazione) `[core]` — strumento `prenotazione_aggiorna`: cambia una prenotazione che c'è già (ora, coperti, tavolo anche unito «1+2+0», nota staff che sostituisce o `aggiungi_nota` datata, richiesta del cliente, occasione, allergie, seggioloni, canale, data, stato) chiamando lo stesso `PUT /prenotazioni/{id}` del «✏️ Modifica» del Planning: niente logica parallela, turno ricalcolato, avviso del motore per tavoli se i coperti non entrano (avvisa, non blocca) e avviso TheFork. Non manda niente al cliente. Nato dalla prenotazione 34363 (Irina du Bois, 15/11) che si è dovuta correggere dal browser. Prove su una copia dei dati veri poi cancellata (13 casi, compresi tavolo unito, coperti che non entrano, TheFork, id inesistente). File: `app/connettore/server.py`, `docs/connettore_mcp.md`, `docs/modulo_prenotazioni.md`, `docs/changelog.md`. **Dopo il push:** riagganciare il connettore TRGB in claude.ai (e in Q); prova: «sposta alle 19:00 la prenotazione di sabato di … e portala a 35 coperti» → Q riepiloga, aspetta il sì, poi dice cosa è cambiato.
+**Pushato (30072fe9), da verificare — Connettore 1.12: Q modifica le prenotazioni** (nessuna migrazione) `[core]` — strumento `prenotazione_aggiorna`: cambia una prenotazione che c'è già (ora, coperti, tavolo anche unito «1+2+0», nota staff che sostituisce o `aggiungi_nota` datata, richiesta del cliente, occasione, allergie, seggioloni, canale, data, stato) chiamando lo stesso `PUT /prenotazioni/{id}` del «✏️ Modifica» del Planning: niente logica parallela, turno ricalcolato, avviso del motore per tavoli se i coperti non entrano (avvisa, non blocca) e avviso TheFork. Non manda niente al cliente. Nato dalla prenotazione 34363 (Irina du Bois, 15/11) che si è dovuta correggere dal browser. Prove su una copia dei dati veri poi cancellata (13 casi, compresi tavolo unito, coperti che non entrano, TheFork, id inesistente). File: `app/connettore/server.py`, `docs/connettore_mcp.md`, `docs/modulo_prenotazioni.md`, `docs/changelog.md`. **Dopo il push:** riagganciare il connettore TRGB in claude.ai (e in Q); prova: «sposta alle 19:00 la prenotazione di sabato di … e portala a 35 coperti» → Q riepiloga, aspetta il sì, poi dice cosa è cambiato.
+
+**VMF.3 Vini › Fatture — IN PRODUZIONE** (mig 226; vini 4.7 in 5c8712ce) `[core]` — 268 righe fattura 2026 abbinate, 20 emittenti classificati (03/11). Resta: ~120 righe da abbinare (soprattutto Sogegross), sconti di scheda non aggiornati (spec D9), velocità (~2 s per abbinamento).
+
+**DA FARE DOPO IL PUSH**
+- Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), pushato in b29003e4. Da fare: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
+
+**Da verificare dopo gli ultimi push**
+- Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
+- Home cucina: `POST /settings/home-actions/reset/` per chef, sous_chef, commis (se non già fatto).
+- Cucina iPhone: salvataggio temperature dal gate e spunta nel tab Oggi (fix `tasks_db.py` 1.4).
+- iPhone: menu moduli e `<ModuleNav>` su Vini, Dipendenti, Clienti, Statistiche.
+
+**Aperto**
+- Linea Primi / Linea Secondi: proposta inviata a Marco, attendo quantità. Vecchi template «MEP Carta · … · estate-2026» ancora attivi: chiedere se disattivarli.
+- Formaggi/salumi in checklist collegati alle Selezioni: idea di Marco, design proposto, 2 domande aperte (disattivare in Selezioni su «finito»? alternative anche per i salumi?).
+- Abaco 5155: rate 7–10 + piano 5155 r1 pagate con carta il 02/10 → collegare con l'estratto carta di ottobre.
+- Pregis: mastrino chiesto il 02/10 (85 fatture aperte 2024-25, 17.321 €). Risto Team: mastrino da chiedere (RiBa 30/04 1.266,56 non collegata) + uscita doppia 896/V marzo 2026 da eliminare a mano.
+- Fatture mancanti: Amazon 20,48 (marzo ×2), Il Post mar–ago 2026, Aruba settembre.
+- Formaggi: collegare gli ingredienti all'arrivo della fattura Real Group.
+- `ModuleNav`: lista voce per voce `mobile: false` da decidere con Marco.
+- Uscite rimaste dopo mig 179: 73 PAGATO_MANUALE + BLC/FZ/Lara in VERIFICARE.
+
+
+### 2026-10-19 — Conti del servizio: walk-in senza nome + prenotazioni mai segnate arrivate (c134d8e8) — PUSHATO E VERIFICATO
+
+Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome, Tavolo 00 collegato a Bellistrì (mai segnata seduta → «andati»). Verificato da Marco in produzione.
+
+### 2026-10-03 (cont.) — fix Lavagna dopo push 4abd6897
+- `lavagna_service._staff_in_turno`: reparto da `turni_tipi.ruolo` → `reparti.codice` (fallback reparto del dipendente), servizio da `turni_tipi.servizio` (fallback SOGLIA_TURNO), esclusi tipi non LAVORO.
+- `_lede`: stringa vuota se pax=0; `Lavagna.jsx` e `_testo_whatsapp` non mostrano la riga vuota.
+- `cucina_scorte_service.trasferisci`: se l'origine va a 0 e non ha lotti residui, la riga giacenza d'origine si cancella e la destinazione eredita in_dotazione. Testato su copia del DB (andata/ritorno/parziale).
+- Regime CONTA contato a 0 → `togli_finito` (RETTIFICA ref_modulo='finito', riga giacenza cancellata); registro `GET /cucina/scorte/finiti/` (admin/chef/sous_chef); annulla ricrea la riga. Testato su copia DB. Registro = tab «Registro» in DentroFrigo (CucinaMobile, `RegistroFiniti`, ruoli superadmin/admin/chef/sous_chef, filtro ubicazione_id, «Rimetti» = DELETE movimento). UI conta (S3) non esiste ancora.
+- `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
+- `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
+- Da pushare.
+
+
+## INTESTAZIONE ARCHIVIATA — 2026-11-13 (voci già pushate, tolte dalla testa)
+
+Al 13/11 l'albero era pulito (`git status` senza modifiche) e ogni voce «DA PUSHARE» rimasta nell'intestazione risultava già committata e già scritta in `changelog.md`: alcune erano lì da fine ottobre. Qui sotto stanno com'erano, nell'ordine in cui erano scritte, comprese le note «dopo il push» che non sono state spuntate una per una. Nell'intestazione sono rimasti solo l'ultimo push, i residui di VMF.3 e le tre liste aperte (DA FARE DOPO IL PUSH, Da verificare dopo gli ultimi push, Aperto).
 
 **DA PUSHARE — Connettore 1.11: Q legge tutto + conferma i preventivi** (nessuna migrazione) `[core]` — decisione di Marco 12/11 «Q deve poter sapere tutto». Strumenti `preventivi_elenco`, `preventivo_leggi`, `preventivo_conferma`, `preventivo_testo_cliente` + lettore generale `trgb_mappa` / `trgb_leggi` (tutte le GET, permessi della pagina). File: `app/connettore/server.py`, `main.py` (passa `app=app`). **Dopo il push:** riagganciare il connettore TRGB in claude.ai (e in Q); prova: «che menù ha il preventivo di Ferraro?» → 5 menù; «quante bottiglie di X ho in cantina?» → Q passa da trgb_mappa/trgb_leggi.
 
@@ -33,8 +73,6 @@
 **Pushato (45edcf98, messaggio di commit sbagliato «Statistiche 1.5»: contiene anche Vini › Fatture mig 226, Pratiche 1.2 e questo) — Preventivi: scadenza della conferma + staff in CC** (mig 227, sistema 5.93, clienti 3.24, prenotazioni 2.30) `[core]` — verificato in produzione il 03/11 su un preventivo di prova poi eliminato: scadenza proposta +10 gg, proroga e storico, Libera tavolo, email con prenotazioni@ in CC e nessuna copia separata. Planning: PRE-2026-011 (Montagnosi, 18/12) mostra ⏳ «scade il 13/11». Da vedere: il primo avviso vero (PRE-2026-011, 11/11 e 13/11).
 
 **DA PUSHARE — VMF.4 Vini › Listini** (mig 228, vini 4.9) `[core]` — dopo il push: Vini › Listini → caricare `06-Fornitori/075/2026-10-listino-075.pdf` (fornitore 0,75) e `Marenzi/2026-11-listino.pdf` (Marenzi), guardare le spuntate e confermare; i prezzi compaiono nella scheda vino › Prezzi › Fornitori come «listino».
-
-**VMF.3 Vini › Fatture — IN PRODUZIONE** (mig 226; vini 4.7 in 5c8712ce) `[core]` — 268 righe fattura 2026 abbinate, 20 emittenti classificati (03/11). Resta: ~120 righe da abbinare (soprattutto Sogegross), sconti di scheda non aggiornati (spec D9), velocità (~2 s per abbinamento).
 
 **DA PUSHARE — Pratiche 1.2: sezioni, debiti, «in attesa di mezzi»** (sistema 5.91, connettore 1.9, nessuna migrazione numerata: schema `pratiche.sqlite3` al boot con backup) `[core]` — il backend è GIÀ in produzione dentro d7530b53 (push di un'altra sessione, `git add -A`), verificato via MCP: colonne nuove, dati intatti. Restano da pushare: `PraticaScheda.jsx` v1.1 (campi del debito, Rivista, rate), fix residuo iniziale, doc, versioni. **Dopo il push:** (1) Ctrl+Shift+R → /pratiche: chip delle sezioni, «Sezioni» apre il modale; (2) Claude applica le sezioni alle 15 pratiche con `pratica_correggi` (proposta approvata da Marco) e collega la 12 alla spesa fissa 32 (Fondo Est 572) → nella scheda le rate 8 e 9 «in distinta 06/10, non in banca»; (3) crea con il sì di Marco la pratica AE CO275462467 (€ 5.008,07, in attesa di mezzi); (4) riconnettere il connettore TRGB in claude.ai per vedere gli strumenti nuovi. Doc `modulo_pratiche.md` §8.
 
@@ -149,39 +187,6 @@
 - All'arrivo delle credenziali: `THEFORK_CLIENT_ID`/`THEFORK_CLIENT_SECRET` (+ `THEFORK_RESTAURANT_UUID`) → riavvio → Impostazioni Prenotazioni › 🍴 TheFork: «Prova connessione», «Rielabora in sospeso», «Recupera un periodo».
 
 **F24 paghe nello Scadenzario** — pushato (4fa71e02, sistema 5.54, mig 190). Caricati mag–set 2026: 6 rate (set € 6.638,12 al 16/10), PDF ok, categoria TASSE E IMPOSTE messa. Rata 209,77 collegata al movimento I24 1868 (PAGATO); stime nov 2026–gen 2027 a 6.638,12 presenti. Resta: F24 gen–apr (OneDrive «solo online»). Copie dei PDF in `claude/f24_da_caricare/` (si possono cancellare).
-
-**DA FARE DOPO IL PUSH**
-- Candidati in Dipendenti (mig 188, dipendenti 2.35, sistema 5.52), pushato in b29003e4. Da fare: aprire /dipendenti/candidati da admin (tab 📝 visibile, da sala no), poi `python3 scripts/importa_candidati_sb.py` sul VPS (o `--db`) per i 5 CV del second brain — prima a vuoto, poi `--scrivi`.
-
-**Da verificare dopo gli ultimi push**
-- Menu Autunno: /carta/menu (anche ?lang=en/de), allergeni dei 9 piatti nuovi, approvare le traduzioni nuove (tab Traduzioni).
-- Home cucina: `POST /settings/home-actions/reset/` per chef, sous_chef, commis (se non già fatto).
-- Cucina iPhone: salvataggio temperature dal gate e spunta nel tab Oggi (fix `tasks_db.py` 1.4).
-- iPhone: menu moduli e `<ModuleNav>` su Vini, Dipendenti, Clienti, Statistiche.
-
-**Aperto**
-- Linea Primi / Linea Secondi: proposta inviata a Marco, attendo quantità. Vecchi template «MEP Carta · … · estate-2026» ancora attivi: chiedere se disattivarli.
-- Formaggi/salumi in checklist collegati alle Selezioni: idea di Marco, design proposto, 2 domande aperte (disattivare in Selezioni su «finito»? alternative anche per i salumi?).
-- Abaco 5155: rate 7–10 + piano 5155 r1 pagate con carta il 02/10 → collegare con l'estratto carta di ottobre.
-- Pregis: mastrino chiesto il 02/10 (85 fatture aperte 2024-25, 17.321 €). Risto Team: mastrino da chiedere (RiBa 30/04 1.266,56 non collegata) + uscita doppia 896/V marzo 2026 da eliminare a mano.
-- Fatture mancanti: Amazon 20,48 (marzo ×2), Il Post mar–ago 2026, Aruba settembre.
-- Formaggi: collegare gli ingredienti all'arrivo della fattura Real Group.
-- `ModuleNav`: lista voce per voce `mobile: false` da decidere con Marco.
-- Uscite rimaste dopo mig 179: 73 PAGATO_MANUALE + BLC/FZ/Lara in VERIFICARE.
-
-
-### 2026-10-19 — Conti del servizio: walk-in senza nome + prenotazioni mai segnate arrivate (c134d8e8) — PUSHATO E VERIFICATO
-
-Corrispettivi 4.11. Fine turno cena 19/10: Tavolo 08 marcato walk-in senza nome, Tavolo 00 collegato a Bellistrì (mai segnata seduta → «andati»). Verificato da Marco in produzione.
-
-### 2026-10-03 (cont.) — fix Lavagna dopo push 4abd6897
-- `lavagna_service._staff_in_turno`: reparto da `turni_tipi.ruolo` → `reparti.codice` (fallback reparto del dipendente), servizio da `turni_tipi.servizio` (fallback SOGLIA_TURNO), esclusi tipi non LAVORO.
-- `_lede`: stringa vuota se pax=0; `Lavagna.jsx` e `_testo_whatsapp` non mostrano la riga vuota.
-- `cucina_scorte_service.trasferisci`: se l'origine va a 0 e non ha lotti residui, la riga giacenza d'origine si cancella e la destinazione eredita in_dotazione. Testato su copia del DB (andata/ritorno/parziale).
-- Regime CONTA contato a 0 → `togli_finito` (RETTIFICA ref_modulo='finito', riga giacenza cancellata); registro `GET /cucina/scorte/finiti/` (admin/chef/sous_chef); annulla ricrea la riga. Testato su copia DB. Registro = tab «Registro» in DentroFrigo (CucinaMobile, `RegistroFiniti`, ruoli superadmin/admin/chef/sous_chef, filtro ubicazione_id, «Rimetti» = DELETE movimento). UI conta (S3) non esiste ancora.
-- `riallinea_semaforo` (MOVIMENTI): righe a 0 senza lotti tolte se il totale > 0; `annulla_movimento` fa sempre assicura_giacenza. Testato su copia DB.
-- `set_semaforo`: regime CONTA + FINITO → togli_finito + spesa (`uscito: True`); undo entro 2 min annulla l'uscita. Testato su copia DB.
-- Da pushare.
 
 
 ## SESSIONE 2026-11-09 — Capo Sala chiude le fasce orarie `[core]`
