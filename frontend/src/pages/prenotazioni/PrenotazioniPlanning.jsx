@@ -358,7 +358,6 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
                 )}
                 <div className="flex flex-wrap gap-2">
                   {info(pren.stato).transizioni
-                    .filter((a) => !(pren.thefork_booking_id && info(a).solo_trgb))
                     .map((a) => {
                       const az = azioneStato(pren.stato, a);
                       return (

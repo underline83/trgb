@@ -167,6 +167,9 @@ CONFIG_DEFAULT: Dict[str, str] = {
     # Un lotto che scade entro questi giorni lo dice la voce di scorta («2 buste
     # scadono domani: usare prima quelle»).
     "linea_lotti_avviso_gg": "1",
+    # Controllo menu (mig 233): fino a quante porzioni «subito» un piatto e'
+    # segnato in giallo («poche»). Zero e' sempre rosso.
+    "controllo_menu_poche_porzioni": "5",
 }
 
 
@@ -468,6 +471,27 @@ SCHEMA_SQL: tuple[str, ...] = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_cuc_linea_extra ON cucina_linea_voci_extra(partita, attivo)",
 
+    # ── Controllo menu (mig 233): quante porzioni di un piatto si fanno con
+    #    quello che c'e' in casa. Una riga per (piatto, elemento della ricetta):
+    #    `porzioni_per_pezzo` = quante porzioni DI QUEL PIATTO da' un'unita' di
+    #    scorta dell'articolo (1 busta di fondo = 20 porzioni di filetto).
+    #    `recipe_id = 0` = vale per tutti i piatti: li' sta solo `non_limita`
+    #    (sale, olio: non fermano mai un piatto). `tipo` 'I' = ingrediente,
+    #    'R' = preparazione (ricetta); `ref_id` il suo id.
+    """
+    CREATE TABLE IF NOT EXISTS cucina_menu_elementi (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipe_id           INTEGER NOT NULL DEFAULT 0,
+        tipo                TEXT    NOT NULL,
+        ref_id              INTEGER NOT NULL,
+        porzioni_per_pezzo  REAL,
+        non_limita          INTEGER NOT NULL DEFAULT 0,
+        updated_at          TEXT,
+        updated_by          TEXT,
+        UNIQUE (recipe_id, tipo, ref_id)
+    )
+    """,
+
     # ── Config di modulo, stesso pattern di macellaio_config & co.
     """
     CREATE TABLE IF NOT EXISTS cucina_scorte_config (
@@ -492,6 +516,7 @@ TABELLE = (
     "cucina_scorte_config",
     "cucina_linea_elementi",
     "cucina_linea_voci_extra",
+    "cucina_menu_elementi",
 )
 
 # Colonne aggiunte dopo la 171: il CREATE sopra le ha per gli ambienti freschi,

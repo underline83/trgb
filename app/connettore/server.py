@@ -1,4 +1,4 @@
-# @version: v1.14 (2026-11-13) — prenotazioni: stati OPTION/WAITLIST, coperti_in_opzione / coperti_in_lista_attesa a parte, tenuto_fino_al; v1.13 (2026-11-13) — posta in arrivo della casella del gestionale (posta_trgb_elenco/leggi/segna_gestita) + preventivi_senza_risposta
+# @version: v1.15 (2026-11-13) — prenotazione_aggiorna: tenuto_fino_al, OPTION anche su TheFork; v1.14 (2026-11-13) — prenotazioni: stati OPTION/WAITLIST, coperti_in_opzione / coperti_in_lista_attesa a parte, tenuto_fino_al; v1.13 (2026-11-13) — posta in arrivo della casella del gestionale (posta_trgb_elenco/leggi/segna_gestita) + preventivi_senza_risposta
 # v1.12 (2026-11-13) — prenotazione_aggiorna: Q modifica una prenotazione che c'è già (stesso PUT del «✏️ Modifica» del Planning, avvisi tavoli e TheFork)
 # v1.11 (2026-11-12) — preventivi (elenco, leggi coi menù, conferma evento, testo cliente) + lettore generale trgb_mappa / trgb_leggi («Q deve poter sapere tutto»)
 # v1.10 (2026-11-06) — pratica_collega / pratica_scollega (pratica ↔ uscita o rateizzazione, col sì di Marco); spesa_fissa_id nello scadenziario
@@ -1076,7 +1076,7 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
     CAMPI = {"data": "data_pasto", "ora": "ora_pasto", "coperti": "pax", "tavolo": "tavolo",
              "canale": "canale", "note": "nota_ristorante", "richiesta_cliente": "nota_cliente",
              "occasione": "occasione", "allergie": "allergie_segnalate",
-             "seggioloni": "seggioloni", "stato": "stato"}
+             "seggioloni": "seggioloni", "stato": "stato", "tenuto_fino_al": "tenuto_fino_al"}
 
     def riga(pren_id: int) -> dict:
         conn = get_clienti_conn()
@@ -1109,7 +1109,9 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
         occasione: Annotated[str | None, Field(description="«compleanno», «anniversario»…: SOSTITUISCE")] = None,
         allergie: Annotated[str | None, Field(description="Solo le allergie/intolleranze dichiarate dal cliente: SOSTITUISCE")] = None,
         seggioloni: str | None = None,
-        stato: Annotated[str | None, Field(description="Uno di: " + ", ".join(sorted(rotte.STATI_VALIDI)))] = None,
+        stato: Annotated[str | None, Field(description="Uno di: " + ", ".join(sorted(rotte.STATI_VALIDI))
+                                           + ". OPTION = in opzione (tavolo tenuto, tocca al cliente), WAITLIST = lista d'attesa")] = None,
+        tenuto_fino_al: Annotated[Giorno | None, Field(description="Per OPTION: fino a quando si tiene il tavolo. Se manca, la proposta delle impostazioni")] = None,
     ) -> dict:
         """Cambia una prenotazione che c’è già, come il «✏️ Modifica» del Planning: stesso
         endpoint, stesse regole, stesso ricalcolo di turno e tavoli. Cambia SOLO i campi che
@@ -1130,7 +1132,7 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
         passati = {"data": data, "ora": ora, "coperti": coperti, "tavolo": tavolo,
                    "canale": canale, "note": note, "richiesta_cliente": richiesta_cliente,
                    "occasione": occasione, "allergie": allergie, "seggioloni": seggioloni,
-                   "stato": stato}
+                   "stato": stato, "tenuto_fino_al": tenuto_fino_al}
         campi = {CAMPI[k]: v for k, v in passati.items() if v is not None}
         if aggiungi_nota:
             r = f"[{_oggi()}] {aggiungi_nota.strip()}"
@@ -1172,7 +1174,7 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
                 out["avviso_thefork"] = (
                     "Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, "
                     "altrimenti al prossimo aggiornamento da TheFork tornano come lì. "
-                    "Tavolo e note restano quelli di TRGB.")
+                    "Nota staff, occasione, tavolo, allergie e lo stato «in opzione» restano quelli di TRGB.")
         return out
 
 

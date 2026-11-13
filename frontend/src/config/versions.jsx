@@ -240,6 +240,10 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.19 (2026-11-13): «✅ Controllo menu» (mig 233) — per ogni piatto in carta le porzioni che si
+    //   fanno con le scorte: «subito» (frigo e dispensa) e «con il gelo», collo di bottiglia, dati
+    //   mancanti, semaforo di linea di oggi; «porzioni per pezzo» per piatto e «non limita»
+    //   (GET /cucina/scorte/controllo-menu, PUT …/elemento, servizio controllo_menu). Admin, chef, sous chef.
     // 1.18 (2026-11-08): «🔗 Collega i prodotti» in Scorte (admin/chef) — abbinamento guidato
     //   (GET /collega/proposte, POST /collega/conferma, soglie collega_soglia_sicuri/min in config);
     //   Collega: ingredienti prima, ricerca per parole; CollegaSheet condiviso; non-food = natura NON_FOOD.
@@ -317,7 +321,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.18",
+    version: "1.19",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -633,6 +637,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.35 (2026-11-13): sincronizzazione TheFork con priorità a TRGB sul descrittivo (nota staff,
+    //   occasione, tavolo, allergie, seggioloni, stato In opzione/Lista d'attesa/arrivato…andato contro
+    //   un «prenotata» di TheFork); In opzione e Lista d'attesa anche sulle prenotazioni TheFork.
     // 2.34 (2026-11-13): stati in tabella (prenotazioni_stati, mig 232) + «⏳ In opzione» (tavolo tenuto
     //   fino al…, proroga, coperti a parte «+N in opzione» in Planning/Home/Lavagna/Settimana, avviso alla
     //   scadenza senza liberare da solo, segue il preventivo collegato) e «🕰️ Lista d'attesa» (non occupa,
@@ -661,7 +668,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.34",
+    version: "2.35",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -784,6 +791,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.99 (2026-11-13): mig 233 — cucina_menu_elementi (porzioni per pezzo per piatto, «non limita»)
+    //   per la pagina Cucina › Controllo menu (cucinaScorte 1.19).
     // 5.98 (2026-11-13): mig 232 — prenotazioni_stati + prenotazioni_stati_transizioni (stati e
     //   passaggi in tabella, servizio prenotazioni_stati), stati OPTION/WAITLIST, colonne
     //   tenuto_fino_al/opzione_avvisata, config opzione_giorni_default/avvisi_prenotazioni_ruoli
@@ -929,7 +938,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.98",
+    version: "5.99",
     label: "Sistema",
     status: "stabile",
     color: "green",

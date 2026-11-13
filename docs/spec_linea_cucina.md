@@ -157,8 +157,26 @@ Prerequisito di dati (lavoro una tantum, si fa da UI o lo fa Claude via API): og
 | 2026-10-23 | Semaforo: verde a posto, giallo «vado a prendere, ci torno» (voce aperta), rosso «manca la merce» |
 | 2026-10-23 | Il numero in linea: verde conferma la dotazione, giallo e rosso chiedono quante ce ne sono |
 | 2026-10-23 | Prova: accesa solo la linea antipasti «dal menu» (Pranzo e Sera), insieme alle vecchie a mano |
+| 2026-11-13 | Controllo menu: pezzi → porzioni con «porzioni per pezzo» scritte per piatto; due numeri (subito / con il gelo); gli elementi senza dato non limitano ma si vedono; pagina in Gestione Cucina |
 
 ## 9. Domande aperte
 
 - Composizione da completare perché tutto entri (anteprima 2026-10-22): nei antipasti Uova (battuta), Giardiniera (salame), salumi del tagliere (porchetta, crudo/culaccio, coppa, coppa di testa/speck) non sono nelle ricette dei piatti → oggi non compaiono.
 - Dopo l'accensione: L3 (esiti → task e lista spesa).
+
+## 10. Controllo menu — quante porzioni si possono fare (2026-11-13, mig 233)
+
+Pagina **Gestione Cucina › ✅ Controllo menu** (`/cucina/controllo-menu`, admin / chef / sous chef). Stessa catena della linea (carta in corso → ricetta → elementi → articoli → giacenze), ma la domanda è un'altra: **per ogni piatto, quante porzioni escono con quello che c'è in casa**. Sola lettura sulle scorte. Codice: `app/services/controllo_menu.py`, endpoint in `cucina_scorte_router.py`, pagina `CucinaControlloMenu.jsx`.
+
+- **Piatti**: quelli della carta `in_carta`, visibili, **con una ricetta** (coperto, acqua, «raccontati a voce» non entrano). Il pranzo del giorno non c'è ancora.
+- **Elementi**: le righe della ricetta. Una preparazione con un suo articolo si ferma lì; senza articolo ma con righe si esplode; se il piatto stesso è un articolo (lasagnetta) c'è anche «… (pronto)». Più articoli sullo stesso ingrediente o ricetta si sommano.
+- **Due numeri** (Marco): **subito** = giacenze in tutto ciò che non è gelo (frigo, cella, dispensa, banco); **con il gelo** = subito + FREEZER/ABBATTITORE.
+- **Dai pezzi alle porzioni** (Marco: «porzioni per pezzo»): `cucina_menu_elementi(recipe_id, tipo I/R, ref_id, porzioni_per_pezzo)` — quante porzioni **di quel piatto** dà un'unità di scorta dell'elemento. Si scrive dalla riga aperta del piatto. Dove non è scritto e le unità si parlano (scorta KG/G e ricetta in g/kg, L/ML e ml/l, PZ e pz/n) si ricava dalla grammatura della riga diretta del piatto (`porzioni_auto`, mostrato come «dalla ricetta»). Busta ↔ grammi non si ricava: serve il numero.
+- **Il piatto** prende il **minimo** fra i suoi elementi con un numero: è il collo di bottiglia («ferma: …»). Porzioni = parte intera di giacenza × porzioni per pezzo.
+- **Senza dato** (Marco: non limitano, ma si vede): elemento senza articolo («non è in Frigoriferi e scorte»), mai contato, o senza porzioni per pezzo → non entra nel minimo, il piatto dice «mancano N dati». Nessun elemento con un numero → piatto «senza conto».
+- **Non limita**: riga con `recipe_id = 0`, vale per tutti i piatti (sale, olio): l'elemento non conta e non viene segnalato.
+- **Ogni piatto è contato da solo**: due piatti con lo stesso fondo non si dividono la scorta.
+- **Colori**: 0 rosso, fino a `controllo_menu_poche_porzioni` (config, default 5) giallo, sopra verde. **Conta vecchia**: giacenza oltre la soglia di freschezza dell'articolo (`stato_dato`) → avviso, il numero resta.
+- **Checklist**: il pallino è l'ultimo semaforo di LINEA dato oggi sugli articoli dell'elemento (il peggiore sul piatto), letto da tasks.sqlite3 in sola lettura.
+
+**Da fare**: compilare le porzioni per pezzo (oggi 9 piatti su 38 hanno un numero); riassunto in «Oggi»; pranzo del giorno; campo per la soglia «poche» in una schermata; eventuale conto «a scorta divisa» fra piatti.

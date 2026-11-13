@@ -653,3 +653,5 @@ Piano a tre push, ognuno deployabile da solo:
 | C-K-229e | Eliminare (disattivare) un articolo dalla scheda | `DELETE /cucina/scorte/articoli/{id}`, scheda «🗑 Elimina prodotto» | admin/chef | 🆕 |
 | C-K-229f | Togliere una riga dalla Lista spesa da iPhone | `DELETE /lista-spesa/items/{id}`, `TabSpesa` «🗑 Non serve» | brigata | 🆕 |
 | C-K-229g | Abbinamento guidato dei prodotti scollegati (sicuri in blocco, dubbi uno a uno) | `GET /cucina/scorte/collega/proposte`, `POST /cucina/scorte/collega/conferma`, `ricette_lookup.proponi_collegamenti`, `CucinaMobile.jsx` `Abbina` | admin/chef | 🆕 |
+| C-K-233a | Controllo menu: per ogni piatto in carta le porzioni realizzabili (subito / con il gelo), collo di bottiglia, dati mancanti, semaforo di linea di oggi | `GET /cucina/scorte/controllo-menu`, `services/controllo_menu.py` `calcola()`, `CucinaControlloMenu.jsx` | admin/chef/sous chef | 🆕 |
+| C-K-233b | Scrivere «porzioni per pezzo» di un elemento per un piatto e «non limita» (per tutti i piatti) | `PUT /cucina/scorte/controllo-menu/elemento`, `controllo_menu.salva_elemento()`, tabella `cucina_menu_elementi` | admin/chef/sous chef | 🆕 |

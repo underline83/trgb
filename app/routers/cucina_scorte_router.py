@@ -84,7 +84,7 @@ from app.services.permessi import richiede_ruoli, verifica_ruoli
 from app.services.ricette_lookup import (
     cerca_ricette_ingredienti, nomi_ingredienti, nomi_ricette, proponi_collegamenti, righe_ricetta,
 )
-from app.services import linea_checklist
+from app.services import controllo_menu, linea_checklist
 from app.services.linea_esiti import valuta_silenzioso as valuta_esiti_linea
 
 # PERMESSI (M.G) — chi puo' toccare le scorte.
@@ -1703,3 +1703,47 @@ def linea_scorte_conferma(payload: ConfermaScortaIn, current_user=Depends(get_cu
         conn.close()
     valuta_esiti_linea()
     return res
+
+
+# ─── Controllo menu (mig 233, spec_linea_cucina.md §10) ────
+# Quante porzioni di ogni piatto in carta si fanno con quello che c'e' in casa.
+# Lettura e porzioni per pezzo: admin, chef, sous chef (LINEA_SCRITTURA).
+
+class ControlloMenuElementoIn(BaseModel):
+    recipe_id: int = Field(default=0, ge=0, description="il piatto; 0 se si cambia solo «non limita»")
+    tipo: str = Field(..., description="I = ingrediente, R = preparazione")
+    ref_id: int = Field(..., gt=0)
+    # presente (anche null) = si cambia; null = torna al calcolo automatico
+    porzioni_per_pezzo: Optional[float] = Field(default=None, gt=0, le=100000)
+    non_limita: Optional[bool] = None
+
+
+@router.get("/controllo-menu")
+def controllo_menu_leggi(current_user=Depends(get_current_user)):
+    """Per ogni piatto della carta in corso: porzioni «subito» (frigo e dispensa)
+    e «con il gelo», il collo di bottiglia, cosa manca per un conto completo,
+    il semaforo di linea di oggi."""
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="vedere il controllo del menu")
+    return controllo_menu.calcola()
+
+
+@router.put("/controllo-menu/elemento")
+def controllo_menu_elemento(payload: ControlloMenuElementoIn, current_user=Depends(get_current_user)):
+    """Scrive le porzioni per pezzo di un elemento per un piatto e/o il flag
+    «non limita» (che vale per tutti i piatti). Ritorna il conto rifatto."""
+    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="cambiare le porzioni per pezzo")
+    conn = get_foodcost_connection()
+    try:
+        try:
+            controllo_menu.salva_elemento(
+                conn, payload.recipe_id, payload.tipo.strip().upper(), payload.ref_id,
+                _utente(current_user),
+                porzioni_per_pezzo=payload.porzioni_per_pezzo,
+                cambia_porzioni="porzioni_per_pezzo" in (getattr(payload, "model_fields_set", None) or getattr(payload, "__fields_set__", set())),
+                non_limita=payload.non_limita)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        conn.commit()
+        return controllo_menu.calcola(conn)
+    finally:
+        conn.close()

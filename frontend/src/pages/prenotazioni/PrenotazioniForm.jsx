@@ -200,7 +200,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
           {modifica && P.thefork_booking_id && (
             <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
               Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, altrimenti al prossimo
-              aggiornamento da TheFork tornano come lì. Tavolo e note restano quelli di TRGB.
+              aggiornamento da TheFork tornano come lì. Nota staff, occasione, tavolo, allergie e lo stato «In opzione» restano quelli di TRGB.
             </div>
           )}
           {/* Stato di partenza (2026-11-13) */}

@@ -294,7 +294,8 @@ def preventivi_in_attesa(prenotazione_ids: list[int]) -> dict[int, dict]:
 #   inviato / collegato a un preventivo in attesa  → «In opzione» (tocca al cliente)
 #   confermato                                     → «Confermata» (lo fa collega_prenotazione)
 #   rifiutato / scaduto                            → «Cancellata» se era in opzione
-# Le prenotazioni di TheFork non si toccano (la sincronizzazione riscrive lo stato).
+# Vale anche per le prenotazioni TheFork: la sincronizzazione non riscrive «In opzione»
+# quando TheFork dice solo «prenotata» (priorità a TRGB sul descrittivo, 2026-11-13).
 # ─────────────────────────────────────────────────────────────────────────
 
 def allinea_prenotazione(preventivo_id: int, evento: str, username: str | None = None) -> dict | None:
@@ -316,7 +317,7 @@ def allinea_prenotazione(preventivo_id: int, evento: str, username: str | None =
             "SELECT id, stato, thefork_booking_id FROM clienti_prenotazioni WHERE id = ?",
             (prev["prenotazione_id"],),
         ).fetchone()
-        if not p or p["thefork_booking_id"]:
+        if not p:
             return None
         incerte = stati_srv.gruppo("incerta")
         da, a, motivo = p["stato"], None, None

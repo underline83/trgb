@@ -619,6 +619,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.LN5 | Dolci nella linea | S | RINVIATO | Prima le considerazioni di Marco |
 | C.LN6 | Piatti del pranzo nella linea | M | RINVIATO | Cambiano ogni settimana |
 | C.LN7 | Scheda «Linea» anche nell'articolo della Cucina iPhone | S | DA FARE | Ora solo dalla ricetta (desktop) |
+| C.LN8 | **Controllo menu**: porzioni realizzabili per piatto (subito / con il gelo), collo di bottiglia, dati mancanti, porzioni per pezzo | M | 🔨 2026-11-13 (mig 233, da pushare) | spec §10. Restano: compilare le porzioni per pezzo, riassunto in «Oggi», pranzo del giorno, soglia «poche» in una schermata |
 | **Pranzo settimanale** ||||
 | C.P1 | Aggancio food cost / margine al menu (recipe_id già in DB) | S | MEDIA | Dati pronti |
 | C.P2 | Note allergeni stampate sul PDF | S | MEDIA | |

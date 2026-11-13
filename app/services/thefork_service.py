@@ -486,6 +486,43 @@ def _uguale(a: Any, b: Any) -> bool:
     return str(a) == str(b)
 
 
+# ── Priorità a TRGB sulle cose descrittive (decisione di Marco, 2026-11-13) ──
+# «Salvo le modifiche importanti, le cose descrittive sul nostro programma devono
+# avere la priorità.» Da TheFork passano sempre: giorno, ora, coperti, canale, conto,
+# garanzia, menù/offerta e i cambi di stato VERI (cancellata, no-show, rifiutata,
+# arrivato/seduto/al conto/andato). Restano quelli di TRGB, se in TRGB c'è già un
+# valore: nota dello staff, occasione, tavolo, allergie, seggioloni. E uno stato
+# messo in TRGB («In opzione», «Lista d'attesa», o arrivato/seduto/al conto/andato)
+# non torna indietro quando TheFork dice solo «prenotata» / «da confermare».
+# La richiesta del cliente (nota_cliente) resta di TheFork: sono parole del cliente.
+CAMPI_DESCRITTIVI_TRGB = ("nota_ristorante", "occasione", "tavolo", "allergie_segnalate", "seggioloni")
+STATI_TF_NON_IMPORTANTI = ("RECORDED", "REQUESTED")
+
+
+def _priorita_trgb(conn, rec: Dict[str, Any]) -> List[str]:
+    """Toglie da `rec` quello che TRGB tiene suo. Ritorna i campi lasciati a TRGB."""
+    gia = conn.execute(
+        "SELECT * FROM clienti_prenotazioni WHERE thefork_booking_id = ?", (rec.get("thefork_booking_id"),)
+    ).fetchone()
+    if not gia:
+        return []
+    tenuti = []
+    for k in CAMPI_DESCRITTIVI_TRGB:
+        if k in rec and k in gia.keys() and gia[k] not in (None, "") and not _uguale(gia[k], rec[k]):
+            rec.pop(k)
+            tenuti.append(k)
+    if rec.get("stato") in STATI_TF_NON_IMPORTANTI and gia["stato"] != rec["stato"]:
+        try:
+            from app.services import prenotazioni_stati as stati_srv
+            stati_trgb = (*stati_srv.gruppo("solo_trgb"), *stati_srv.gruppo("venuto"))
+        except Exception:  # noqa: BLE001
+            stati_trgb = ("OPTION", "WAITLIST", "ARRIVED", "PARTIALLY_ARRIVED", "SEATED", "BILL", "LEFT")
+        if gia["stato"] in stati_trgb:
+            rec.pop("stato")
+            tenuti.append("stato")
+    return tenuti
+
+
 def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> str:
     r = api_get(f"/v1/reservations/{uuid}", {"include": "tables,creditCardGuaranteeDetails"})
     if r is None:
@@ -498,6 +535,7 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
     rec = mappa_prenotazione(r, _soglia_turno(conn))
     if not rec.get("data_pasto"):
         raise ValueError("prenotazione senza mealDate")
+    tenuti_trgb = _priorita_trgb(conn, rec)   # descrittivo: vince TRGB (2026-11-13)
 
     if solo_se_cambia:
         # Recupero periodico: se in TRGB è già tutto uguale non si tocca niente
@@ -550,7 +588,8 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
     except Exception as e:  # noqa: BLE001
         logger.warning("unione tavoli #%s: %s", pid, e)
     testo = (f"prenotazione {esito} #{pid}: {rec['data_pasto']} {str(rec.get('ora_pasto') or '')[:5]}, "
-             f"{rec['pax']} pax, {rec['stato']}{note_cliente}")
+             f"{rec['pax']} pax, {rec.get('stato', 'stato di TRGB')}{note_cliente}"
+             + (f", tenuti quelli di TRGB: {', '.join(tenuti_trgb)}" if tenuti_trgb else ""))
 
     # Già segnata a mano in TRGB? Si segnala, non si unisce.
     try:

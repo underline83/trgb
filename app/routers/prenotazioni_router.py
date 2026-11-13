@@ -286,14 +286,9 @@ def _data_ok(v: Optional[str]) -> Optional[str]:
         raise HTTPException(status_code=400, detail=f"Data non valida: {v} (AAAA-MM-GG)")
 
 
-def _controlla_solo_trgb(stato: str, thefork_booking_id: Optional[str]) -> None:
-    """In opzione / Lista d'attesa non esistono in TheFork: la sincronizzazione li riscriverebbe."""
-    if thefork_booking_id and stato in stati_srv.gruppo("solo_trgb"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"«{stati_srv.etichetta(stato)}» c'è solo in TRGB: su una prenotazione di TheFork "
-                   "la sincronizzazione lo riscriverebbe. Gestiscila in TheFork Manager.",
-        )
+# «In opzione» / «Lista d'attesa» valgono anche sulle prenotazioni TheFork (2026-11-13):
+# la sincronizzazione non li riscrive quando TheFork dice solo «prenotata»
+# (thefork_service._priorita_trgb — sul descrittivo vince TRGB).
 
 
 # ============================================================
@@ -2143,8 +2138,6 @@ def modifica_prenotazione(
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Prenotazione non trovata")
-        if req.stato is not None and req.stato != existing["stato"]:
-            _controlla_solo_trgb(req.stato, existing["thefork_booking_id"])
 
         config = _get_config(conn)
         soglia = config.get("soglia_pranzo_cena", "15:00")
@@ -2178,12 +2171,15 @@ def modifica_prenotazione(
             updates.append("turno = ?")
             values.append(_calcola_turno(req.ora_pasto, soglia))
 
-        # «Tenuto fino al» (In opzione): cambiarlo = proroga, l'avviso riparte per la data nuova
-        if req.tenuto_fino_al is not None:
-            nuova = _data_ok(req.tenuto_fino_al)
-            if nuova != (existing["tenuto_fino_al"] or None):
-                updates += ["tenuto_fino_al = ?", "opzione_avvisata = NULL"]
-                values.append(nuova)
+        # «Tenuto fino al» (In opzione): cambiarlo = proroga, l'avviso riparte per la data nuova.
+        # Passando a «In opzione» senza data: la proposta di config (come dal pulsante).
+        nuova = _data_ok(req.tenuto_fino_al) if req.tenuto_fino_al is not None else (existing["tenuto_fino_al"] or None)
+        if req.stato in stati_srv.gruppo("incerta") and req.stato != existing["stato"] and not nuova:
+            from app.services.prenotazioni_attese_service import tenuto_fino_proposto
+            nuova = tenuto_fino_proposto(conn, req.data_pasto or existing["data_pasto"])
+        if nuova != (existing["tenuto_fino_al"] or None):
+            updates += ["tenuto_fino_al = ?", "opzione_avvisata = NULL"]
+            values.append(nuova)
 
         updates.append("updated_at = datetime('now','localtime')")
         values.append(pren_id)
@@ -2239,7 +2235,6 @@ def cambio_stato(
                 detail=f"Da «{stati_srv.etichetta(stato_attuale)}» non si passa a «{stati_srv.etichetta(req.stato)}». "
                        f"Possibili: {', '.join(stati_srv.etichetta(t) for t in transizioni_ok) or 'nessuno'}",
             )
-        _controlla_solo_trgb(req.stato, existing["thefork_booking_id"])
 
         sets, vals = ["stato = ?", "updated_at = datetime('now','localtime')"], [req.stato]
         if req.stato in stati_srv.gruppo("incerta"):
