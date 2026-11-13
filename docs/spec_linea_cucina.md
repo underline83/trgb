@@ -192,6 +192,20 @@ Pagina **Gestione Cucina › ✅ Controllo menu** (`/cucina/controllo-menu`, adm
 - **Solo admin** (Marco: «lo uso solo io»): linguetta, rotta ed endpoint (`CONTROLLO_MENU = ("admin",)`).
 - **Giacenze correggibili dalla pagina**, ripiano per ripiano, anche su un ripiano nuovo («+ altro ripiano…»). `POST /cucina/scorte/controllo-menu/conta` → `controllo_menu.salva_conteggio()`: una RETTIFICA per ripiano scritto (motivo «Controllo menu», anche a numero uguale: è una conta), lotti scalati se il numero scende, ripiano di casa se mancava, pallino riallineato, poi `valuta_esiti_linea()` (task e spesa). Frigoriferi e scorte e Controllo menu dicono lo stesso numero.
 - **Ultimo controllo**: su ogni elemento e su ogni ripiano data, ora e utente dell'ultima conta (`cucina_giacenze.aggiornato_at/_da`); sul piatto quelli dell'elemento che lo ferma.
-- Non si correggono da qui: grammature (dalla ricetta, link «Apri la ricetta») e minimi frigo/gelo (scheda Linea / articolo).
+
+### 10.3 Aggiornamento 2026-11-13 — il libro mastro
+
+Marco: «se riesci a linkare tutto lì dentro diventa una sorta di libro mastro per me dove correggere tutto velocemente». Dalla riga dell'elemento ora si corregge e si raggiunge tutto:
+
+| Cosa | Dove si scrive | Come |
+|---|---|---|
+| Grammatura a porzione (quantità e unità) | `recipe_items` | `PUT /cucina/scorte/controllo-menu/grammatura` → servizio platform `ricette_righe.aggiorna_grammatura()` (il modulo cucina non importa il router delle ricette). Solo righe dirette del piatto; dentro una preparazione esplosa o con due righe per lo stesso elemento si corregge dalla ricetta |
+| Giacenza per ripiano | `cucina_giacenze` + RETTIFICA | `POST …/controllo-menu/conta` (§10.2) |
+| Porzioni per pezzo | `cucina_articoli.contenuto_*` | `PUT …/controllo-menu/elemento` (§10.1) |
+| Nome, unità, minimo frigo/gelo/dispensa, riordino dell'articolo | `cucina_articoli` | `PATCH /cucina/scorte/articoli/{id}` (lo stesso di Frigoriferi e scorte: risincronizza la linea) |
+| Dotazione di linea per partita | `cucina_linea_elementi` | `PATCH /cucina/scorte/linea/{id}` (lo stesso della scheda Linea; il numero si rilegge dal testo) |
+| Articolo che manca | `cucina_articoli` | «+ Crea in Scorte»: `POST /cucina/scorte/articoli/` già collegato all'ingrediente o alla preparazione; poi «+ altro ripiano…» per metterlo a posto |
+
+Link: il nome dell'elemento apre la ricetta della preparazione o i prezzi dell'ingrediente; «Articolo» apre la scheda in Frigoriferi e scorte; «Apri la ricetta» il piatto. Ogni campo si salva uscendo (o con Invio) e il conto si rifà.
 
 **Da fare**: compilare le porzioni per pezzo (oggi 9 piatti su 38 hanno un numero); riassunto in «Oggi»; pranzo del giorno; campo per la soglia «poche» in una schermata; eventuale conto «a scorta divisa» fra piatti.

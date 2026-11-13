@@ -84,7 +84,7 @@ from app.services.permessi import richiede_ruoli, verifica_ruoli
 from app.services.ricette_lookup import (
     cerca_ricette_ingredienti, nomi_ingredienti, nomi_ricette, proponi_collegamenti, righe_ricetta,
 )
-from app.services import controllo_menu, linea_checklist
+from app.services import controllo_menu, linea_checklist, ricette_righe
 from app.services.linea_esiti import valuta_silenzioso as valuta_esiti_linea
 
 # PERMESSI (M.G) — chi puo' toccare le scorte.
@@ -1784,4 +1784,27 @@ def controllo_menu_conta(payload: ControlloMenuContaIn, current_user=Depends(get
         conn.close()
     valuta_esiti_linea()
     return dati
+
+
+class ControlloMenuGrammaturaIn(BaseModel):
+    item_id: int = Field(..., gt=0, description="la riga di ricetta (recipe_items.id)")
+    qty: float = Field(..., ge=0)
+    unit: str = Field(..., min_length=1, max_length=20)
+
+
+@router.put("/controllo-menu/grammatura")
+def controllo_menu_grammatura(payload: ControlloMenuGrammaturaIn, current_user=Depends(get_current_user)):
+    """Corregge la grammatura a porzione di una riga di ricetta dal Controllo
+    menu (scrive tramite il servizio platform ricette_righe). Ritorna il conto rifatto."""
+    verifica_ruoli(current_user, *CONTROLLO_MENU, cosa="correggere le grammature dal controllo menu")
+    conn = get_foodcost_connection()
+    try:
+        try:
+            ricette_righe.aggiorna_grammatura(conn, payload.item_id, payload.qty, payload.unit)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        conn.commit()
+        return controllo_menu.calcola(conn)
+    finally:
+        conn.close()
 

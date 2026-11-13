@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-13 — Controllo menu 1.22: il libro mastro `[core]`
+Dalla riga di ogni elemento ora si corregge tutto senza cambiare pagina: grammatura a porzione, giacenze per ripiano, porzioni per pezzo, nome e unità dell'articolo, minimi frigo/gelo/dispensa, riordino e dotazione di linea; gli elementi senza articolo si creano con «+ Crea in Scorte». Il nome dell'elemento porta alla ricetta o ai prezzi dell'ingrediente, «Articolo» alla scheda in Frigoriferi e scorte. Ogni campo si salva uscendo e il conto si rifà.
+
 ## 2026-11-13 — Controllo menu 1.21: solo admin, giacenze correggibili, ultimo controllo `[core]`
 La pagina ora è solo dell'admin e da lì si corregge tutto: sotto ogni elemento ci sono i ripiani dove sta, col numero da riscrivere (o un ripiano nuovo da aggiungere); «Salva conteggio» scrive il movimento di rettifica in Frigoriferi e scorte, scala i lotti, riallinea il pallino e rivaluta task e spesa della linea. Su ogni elemento e su ogni ripiano si legge data, ora e utente dell'ultimo controllo.
 

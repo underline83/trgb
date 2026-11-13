@@ -240,6 +240,10 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.22 (2026-11-13): Controllo menu come libro mastro — dalla riga dell'elemento si correggono
+    //   grammatura (PUT …/controllo-menu/grammatura, servizio ricette_righe), nome, unità, minimi,
+    //   riordino e dotazione di linea dell'articolo; «+ Crea in Scorte» per gli elementi senza articolo;
+    //   link a ricetta, prezzi dell'ingrediente e articolo.
     // 1.21 (2026-11-13): Controllo menu solo admin e tutto correggibile — giacenze ripiano per ripiano
     //   (POST /cucina/scorte/controllo-menu/conta: RETTIFICA per ripiano, lotti, ripiano di casa,
     //   pallino, esiti di linea), anche su un ripiano nuovo.
@@ -328,7 +332,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.21",
+    version: "1.22",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

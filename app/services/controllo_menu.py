@@ -1,5 +1,5 @@
 # Modulo: cucina (legge menu_carta, ricette e task_manager in sola lettura)  ·  [core]
-# @version: v1.2 — giacenze correggibili dalla pagina (RETTIFICA per ripiano), solo admin · v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
+# @version: v1.3 — libro mastro: grammatura, scheda articolo e linea nella risposta · v1.2 — giacenze correggibili dalla pagina (RETTIFICA per ripiano), solo admin · v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
 # -*- coding: utf-8 -*-
 """
 Controllo menu — per ogni piatto in carta, quante porzioni si possono fare con
@@ -173,7 +173,7 @@ def _leggi(conn) -> Dict[str, Any]:
 
     righe: Dict[int, List[dict]] = {}
     for r in conn.execute("""
-        SELECT i.recipe_id, i.ingredient_id, i.sub_recipe_id, i.qty, i.unit,
+        SELECT i.id AS item_id, i.recipe_id, i.ingredient_id, i.sub_recipe_id, i.qty, i.unit,
                ing.name AS ing_nome, sr.name AS sub_nome
           FROM recipe_items i
           LEFT JOIN ingredients ing ON ing.id = i.ingredient_id
@@ -184,7 +184,8 @@ def _leggi(conn) -> Dict[str, Any]:
 
     articoli = {r["id"]: dict(r) for r in conn.execute("""
         SELECT id, nome, um, regime, recipe_id, ingredient_id,
-               famiglia_freschezza, giorni_dato_fresco, contenuto_qta, contenuto_um
+               famiglia_freschezza, giorni_dato_fresco, contenuto_qta, contenuto_um,
+               scorta_min_frigo, scorta_min_gelo, scorta_min_dispensa, qta_riordino
           FROM cucina_articoli WHERE attivo = 1
     """)}
     per: Dict[Tuple[str, int], List[int]] = {}
@@ -223,6 +224,17 @@ def _leggi(conn) -> Dict[str, Any]:
     for r in conn.execute("SELECT recipe_id, tipo, ref_id, porzioni_per_pezzo, non_limita, gelo_diretto FROM cucina_menu_elementi"):
         regole[(r["recipe_id"], r["tipo"], r["ref_id"])] = dict(r)
 
+    # la dotazione di linea di ogni articolo, per partita (si corregge dalla pagina)
+    for a in articoli.values():
+        a["linea"] = []
+    for r in conn.execute("""
+        SELECT id, articolo_id, partita, linea_qta FROM cucina_linea_elementi
+         WHERE attivo = 1 ORDER BY partita, ordine, id
+    """):
+        if r["articolo_id"] in articoli:
+            articoli[r["articolo_id"]]["linea"].append(
+                {"id": r["id"], "partita": r["partita"], "linea_qta": r["linea_qta"]})
+
     # tutti i ripiani, per mettere un articolo su un posto nuovo dalla pagina
     ripiani = [dict(r) for r in conn.execute("""
         SELECT rp.id AS ripiano_id, u.nome AS ubicazione,
@@ -244,16 +256,18 @@ def _elementi(d: Dict[str, Any], recipe_id: int) -> List[dict]:
     out: Dict[Tuple[str, int], dict] = {}
     visti = set()
 
-    def metti(tipo: str, ref: int, nome: str, qty, unit):
+    def metti(tipo: str, ref: int, nome: str, qty, unit, item_id=None):
         k = (tipo, ref)
         if k in out:
             e = out[k]
+            e["item_id"] = None          # due righe per lo stesso elemento: si corregge dalla ricetta
             if e["qty"] is not None and qty is not None and (e["unit"] or "") == (unit or ""):
                 e["qty"] += qty
             else:
                 e["qty"] = e["unit"] = None
             return
-        out[k] = {"tipo": tipo, "ref_id": ref, "nome": nome, "qty": qty, "unit": unit}
+        # item_id = la riga di ricetta da cui viene la grammatura (correggibile dalla pagina)
+        out[k] = {"tipo": tipo, "ref_id": ref, "nome": nome, "qty": qty, "unit": unit, "item_id": item_id}
 
     def visita(rid: int, prof: int):
         if rid in visti or prof > 6:
@@ -261,12 +275,13 @@ def _elementi(d: Dict[str, Any], recipe_id: int) -> List[dict]:
         visti.add(rid)
         for r in d["righe"].get(rid, []):
             qty, unit = (r["qty"], r["unit"]) if prof == 0 else (None, None)
+            iid = r["item_id"] if prof == 0 else None
             if r["ingredient_id"]:
-                metti("I", r["ingredient_id"], r["ing_nome"] or "?", qty, unit)
+                metti("I", r["ingredient_id"], r["ing_nome"] or "?", qty, unit, iid)
             elif r["sub_recipe_id"]:
                 sub = r["sub_recipe_id"]
                 if d["per"].get(("R", sub)) or not d["righe"].get(sub):
-                    metti("R", sub, r["sub_nome"] or "?", qty, unit)
+                    metti("R", sub, r["sub_nome"] or "?", qty, unit, iid)
                 else:
                     visita(sub, prof + 1)
 
@@ -369,9 +384,15 @@ def calcola(conn=None) -> Dict[str, Any]:
 
             el = {
                 "tipo": e["tipo"], "ref_id": e["ref_id"], "nome": e["nome"],
-                "qty": e["qty"], "unit": e["unit"],
+                "qty": e["qty"], "unit": e["unit"], "item_id": e["item_id"],
+                # il piatto stesso come articolo («… (pronto)») non e' una riga di ricetta
+                "pronto": e["tipo"] == "R" and e["ref_id"] == p["recipe_id"],
                 "articoli": [{"id": a["id"], "nome": a["nome"],
                               "um": _UM.get((a["um"] or "").upper(), (a["um"] or "").lower()),
+                              "um_codice": (a["um"] or "").upper(),
+                              "scorta_min_frigo": a["scorta_min_frigo"], "scorta_min_gelo": a["scorta_min_gelo"],
+                              "scorta_min_dispensa": a["scorta_min_dispensa"], "qta_riordino": a["qta_riordino"],
+                              "linea": a["linea"],
                               "posti": d["giac"].get(a["id"], {}).get("posti", [])} for a in arts],
                 "um": _UM.get(um, (um or "").lower()) if um else None,
                 "subito": subito, "gelo": gelo, "aggiornato_at": agg, "aggiornato_da": ultimo[1],

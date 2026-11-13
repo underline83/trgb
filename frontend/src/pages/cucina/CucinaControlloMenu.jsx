@@ -1,5 +1,5 @@
 // Modulo: cucina
-// @version: v1.2 — giacenze correggibili ripiano per ripiano (POST …/conta → RETTIFICA), pagina solo admin · v1.1 — spunta «dal gelo diretto» (mig 234) · v1.0 — Cucina › Controllo menu (2026-11-13, mig 233): per ogni piatto in carta quante
+// @version: v1.3 — libro mastro: grammatura, scheda articolo (nome, unità, minimi, riordino, linea), «Crea in Scorte», link a ricetta/ingrediente/articolo · v1.2 — giacenze correggibili ripiano per ripiano (POST …/conta → RETTIFICA), pagina solo admin · v1.1 — spunta «dal gelo diretto» (mig 234) · v1.0 — Cucina › Controllo menu (2026-11-13, mig 233): per ogni piatto in carta quante
 //   porzioni si fanno con quello che c'è in casa. Due numeri: «subito» (frigo e dispensa) e
 //   «con il gelo». Il collo di bottiglia, cosa manca per un conto completo, il semaforo di linea di oggi.
 // Dati: GET /cucina/scorte/controllo-menu (servizio controllo_menu, sola lettura);
@@ -105,7 +105,67 @@ function Giacenze({ a, conNome, ripiani, conta, occupato }) {
   );
 }
 
-function Elemento({ e, recipeId, salva, conta, ripiani, occupato }) {
+// Un campo che si salva quando si esce (o con Invio), solo se è cambiato. tipo "num": vuoto = nessun valore.
+function Campo({ valore, tipo = "testo", onSalva, etichetta, larghezza = "w-16", occupato, segnaposto = "—" }) {
+  const iniziale = valore == null ? "" : (tipo === "num" ? String(valore).replace(".", ",") : String(valore));
+  const [testo, setTesto] = useState(iniziale);
+  useEffect(() => { setTesto(iniziale); }, [iniziale]);
+  const esci = () => {
+    const t = testo.trim();
+    if (t === iniziale.trim()) return;
+    if (tipo === "num") {
+      const n = t === "" ? null : Number(t.replace(",", "."));
+      if (n !== null && (!Number.isFinite(n) || n < 0)) { setTesto(iniziale); return; }
+      onSalva(n);
+    } else {
+      onSalva(t);
+    }
+  };
+  return (
+    <input type="text" inputMode={tipo === "num" ? "decimal" : "text"} value={testo} disabled={occupato}
+      placeholder={segnaposto} aria-label={etichetta}
+      onChange={(ev) => setTesto(ev.target.value)} onBlur={esci}
+      onKeyDown={(ev) => { if (ev.key === "Enter") ev.currentTarget.blur(); }}
+      className={`${larghezza} min-h-[36px] border border-neutral-300 rounded-lg px-2 py-1 text-xs ${tipo === "num" ? "text-right tabular-nums" : ""} focus:outline-none focus:ring-2 focus:ring-brand-blue`} />
+  );
+}
+
+const UNITA = ["PZ", "CF", "KG", "G", "L", "ML"];
+
+// La scheda dell'articolo dentro il libro mastro: nome, unità, minimi, riordino, dotazione di linea.
+// Ogni campo scrive sull'articolo (gli stessi endpoint di Frigoriferi e scorte e della scheda Linea).
+function SchedaArticolo({ a, azione, occupato }) {
+  const art = (corpo) => azione("PATCH", `articoli/${a.id}`, corpo);
+  const Etichetta = ({ children }) => <span className="text-[11px] text-neutral-500">{children}</span>;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-neutral-50 border border-neutral-200 px-2.5 py-2">
+      <Link to={`/cucina/mobile/scorte/${a.id}`} className="text-[11px] font-bold uppercase tracking-wider text-orange-800 underline" title="Apri in Frigoriferi e scorte">Articolo</Link>
+      <Campo valore={a.nome} larghezza="w-44" occupato={occupato} etichetta={`Nome dell'articolo ${a.nome}`}
+        onSalva={(v) => v && art({ nome: v })} />
+      <label className="flex items-center gap-1"><Etichetta>unità</Etichetta>
+        <select value={a.um_codice} disabled={occupato} onChange={(ev) => art({ um: ev.target.value })} aria-label={`Unità di ${a.nome}`}
+          className="min-h-[36px] border border-neutral-300 rounded-lg px-1.5 py-1 text-xs bg-white">
+          {UNITA.map((u) => <option key={u} value={u}>{u.toLowerCase()}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center gap-1"><Etichetta>min frigo</Etichetta>
+        <Campo tipo="num" valore={a.scorta_min_frigo} occupato={occupato} etichetta={`Minimo frigo di ${a.nome}`} onSalva={(v) => art({ scorta_min_frigo: v })} /></label>
+      <label className="flex items-center gap-1"><Etichetta>min gelo</Etichetta>
+        <Campo tipo="num" valore={a.scorta_min_gelo} occupato={occupato} etichetta={`Minimo gelo di ${a.nome}`} onSalva={(v) => art({ scorta_min_gelo: v })} /></label>
+      <label className="flex items-center gap-1"><Etichetta>min dispensa</Etichetta>
+        <Campo tipo="num" valore={a.scorta_min_dispensa} occupato={occupato} etichetta={`Minimo dispensa di ${a.nome}`} onSalva={(v) => art({ scorta_min_dispensa: v })} /></label>
+      <label className="flex items-center gap-1"><Etichetta>riordino</Etichetta>
+        <Campo tipo="num" valore={a.qta_riordino} occupato={occupato} etichetta={`Quantità di riordino di ${a.nome}`} onSalva={(v) => art({ qta_riordino: v })} /></label>
+      {a.linea.map((l) => (
+        <label key={l.id} className="flex items-center gap-1"><Etichetta>linea {l.partita}</Etichetta>
+          <Campo valore={l.linea_qta} larghezza="w-44" occupato={occupato} etichetta={`Dotazione di linea ${l.partita} di ${a.nome}`}
+            onSalva={(v) => azione("PATCH", `linea/${l.id}`, { linea_qta: v || null, linea_qta_num: null })} /></label>
+      ))}
+    </div>
+  );
+}
+
+function Elemento({ e, recipeId, salva, conta, azione, grammatura, ripiani, occupato }) {
   // nel campo sta il numero scritto (sull'articolo o solo per il piatto); quello ricavato dalle unità è il segnaposto
   const scritto = e.porzioni_scritta != null ? String(e.porzioni_scritta).replace(".", ",") : "";
   const [testo, setTesto] = useState(scritto);
@@ -121,17 +181,35 @@ function Elemento({ e, recipeId, salva, conta, ripiani, occupato }) {
   const um = e.um || "pz";
   const haArticolo = e.articoli.length > 0;
 
+  // dove porta il nome: la preparazione alla sua ricetta, il componente ai suoi prezzi
+  const versoOrigine = e.tipo === "R" ? `/ricette/${e.ref_id}` : `/ricette/ingredienti/${e.ref_id}/prezzi`;
+  const creaArticolo = () => azione("POST", "articoli/", {
+    nome: e.nome.slice(0, 160), um: "PZ", ...(e.tipo === "R" ? { recipe_id: e.ref_id } : { ingredient_id: e.ref_id }),
+  });
+
   return (
+    <>
     <tr className={`border-t border-neutral-100 align-top ${e.non_limita ? "text-neutral-400" : ""}`}>
       <td className="py-2 pr-3">
         <div className="flex items-center gap-2">
           <Pallino colore={e.linea} />
-          <span className={`text-sm ${e.non_limita ? "" : "text-neutral-900"}`}>{e.nome}</span>
+          <Link to={versoOrigine} className={`text-sm underline decoration-neutral-300 underline-offset-2 hover:decoration-orange-600 ${e.non_limita ? "" : "text-neutral-900"}`}
+            title={e.tipo === "R" ? "Apri la ricetta della preparazione" : "Apri i prezzi dell'ingrediente"}>{e.nome}</Link>
         </div>
-        <div className="text-xs text-neutral-500">
-          {e.qty != null ? `${num(e.qty)} ${e.unit || ""} a porzione` : "grammatura non in ricetta"}
-          {e.motivo && <span className="ml-2 font-semibold text-amber-700">· {e.motivo}</span>}
-          {e.da_verificare && <span className="ml-2 font-semibold text-amber-700">· conta vecchia</span>}
+        <div className="text-xs text-neutral-500 flex flex-wrap items-center gap-1 mt-0.5">
+          {e.item_id ? (
+            <>
+              <Campo tipo="num" valore={e.qty} larghezza="w-14" occupato={occupato} etichetta={`Grammatura a porzione di ${e.nome}`}
+                onSalva={(v) => v != null && grammatura({ item_id: e.item_id, qty: v, unit: e.unit || "g" })} />
+              <Campo valore={e.unit} larghezza="w-14" occupato={occupato} etichetta={`Unità della grammatura di ${e.nome}`}
+                onSalva={(v) => v && grammatura({ item_id: e.item_id, qty: e.qty ?? 0, unit: v })} />
+              <span>a porzione</span>
+            </>
+          ) : (
+            <span>{e.pronto ? "il piatto già pronto" : (e.qty != null ? `${num(e.qty)} ${e.unit || ""} a porzione` : "grammatura dentro una preparazione: si corregge dalla ricetta")}</span>
+          )}
+          {e.motivo && <span className="ml-1 font-semibold text-amber-700">· {e.motivo}</span>}
+          {e.da_verificare && <span className="ml-1 font-semibold text-amber-700">· conta vecchia</span>}
         </div>
         <div className={`text-xs ${e.da_verificare ? "text-amber-700" : "text-neutral-500"}`}>
           {e.aggiornato_at ? <>ultimo controllo: {controllo(e.aggiornato_at, e.aggiornato_da)}</> : (haArticolo ? "mai controllato" : "")}
@@ -162,7 +240,12 @@ function Elemento({ e, recipeId, salva, conta, ripiani, occupato }) {
               className="w-20 min-h-[40px] border border-neutral-300 rounded-lg px-2 py-1 text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-blue" />
             <span className="text-neutral-500">porz.</span>
           </label>
-        ) : <span className="text-xs text-neutral-400">prima va messo in Scorte</span>}
+        ) : (
+          <button type="button" disabled={occupato} onClick={creaArticolo}
+            className="min-h-[40px] px-3 rounded-lg border border-orange-300 bg-orange-50 text-orange-900 text-xs font-semibold disabled:opacity-50">
+            + Crea in Scorte
+          </button>
+        )}
         {haArticolo && (
           <div className="text-[11px] text-neutral-500 mt-0.5">
             {e.porzioni_origine === "articolo" && e.contenuto && <>sull'articolo: 1 {um} = {num(e.contenuto.qta)} {e.contenuto.um === "porz" ? "porzioni" : e.contenuto.um} · vale per tutti i piatti</>}
@@ -187,7 +270,7 @@ function Elemento({ e, recipeId, salva, conta, ripiani, occupato }) {
           non limita
         </label>
         {haArticolo && (
-          <label className="flex items-center justify-end gap-1.5 text-xs text-sky-800 min-h-[40px] cursor-pointer"
+          <label className="flex items-center justify-end gap-1.5 text-xs text-sky-800 min-h-[40px] cursor-pointer whitespace-nowrap"
             title="Si usa direttamente dal congelatore: il gelo conta già nel numero «subito»">
             <input type="checkbox" checked={!!e.gelo_diretto} disabled={occupato} className="w-4 h-4 accent-sky-700"
               onChange={(ev) => salva({ recipe_id: 0, tipo: e.tipo, ref_id: e.ref_id, gelo_diretto: ev.target.checked })} />
@@ -196,10 +279,18 @@ function Elemento({ e, recipeId, salva, conta, ripiani, occupato }) {
         )}
       </td>
     </tr>
+    {haArticolo && (
+      <tr>
+        <td colSpan={5} className="pb-3 space-y-1.5">
+          {e.articoli.map((a) => <SchedaArticolo key={a.id} a={a} azione={azione} occupato={occupato} />)}
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 
-function Piatto({ p, aperto, apri, salva, conta, ripiani, occupato }) {
+function Piatto({ p, aperto, apri, salva, conta, azione, grammatura, ripiani, occupato }) {
   const s = STATO[p.stato] || STATO.SENZA_DATO;
   const nMancanti = p.mancanti.length;
   return (
@@ -243,7 +334,7 @@ function Piatto({ p, aperto, apri, salva, conta, ripiani, occupato }) {
               <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500">
-                    <th className="py-1 pr-3 font-bold">Elemento</th>
+                    <th className="py-1 pr-3 font-bold">Elemento e grammatura</th>
                     <th className="py-1 pr-3 font-bold">In casa (per ripiano)</th>
                     <th className="py-1 pr-3 font-bold">Porzioni per pezzo</th>
                     <th className="py-1 pr-3 font-bold text-right">Porzioni</th>
@@ -252,7 +343,7 @@ function Piatto({ p, aperto, apri, salva, conta, ripiani, occupato }) {
                 </thead>
                 <tbody>
                   {p.elementi.map((e) => (
-                    <Elemento key={`${e.tipo}${e.ref_id}`} e={e} recipeId={p.recipe_id} salva={salva} conta={conta} ripiani={ripiani} occupato={occupato} />
+                    <Elemento key={`${e.tipo}${e.ref_id}`} e={e} recipeId={p.recipe_id} salva={salva} conta={conta} azione={azione} grammatura={grammatura} ripiani={ripiani} occupato={occupato} />
                   ))}
                 </tbody>
               </table>
@@ -296,6 +387,22 @@ export default function CucinaControlloMenu() {
   };
   const salva = (corpo) => scrivi("elemento", "PUT", corpo);     // porzioni per pezzo, non limita, gelo diretto
   const conta = (corpo) => scrivi("conta", "POST", corpo);       // giacenza per ripiano → RETTIFICA in Scorte
+  const grammatura = (corpo) => scrivi("grammatura", "PUT", corpo); // grammatura a porzione → riga della ricetta
+  // scheda articolo e dotazione di linea: gli endpoint di Frigoriferi e scorte, poi si rifà il conto
+  const azione = (metodo, percorso, corpo) => {
+    setOccupato(true); setErrore(null);
+    apiFetch(`${API_BASE}/cucina/scorte/${percorso}`, {
+      method: metodo, headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+    })
+      .then(async (r) => {
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(typeof j.detail === "string" ? j.detail : "Non salvato"); }
+        return apiFetch(`${API_BASE}/cucina/scorte/controllo-menu`);
+      })
+      .then((r) => r.json())
+      .then(setD)
+      .catch((e) => setErrore(e.message || "Non salvato"))
+      .finally(() => setOccupato(false));
+  };
 
   const passa = (p) => filtro === "tutti" || (filtro === "guardare" ? (p.stato === "ZERO" || p.stato === "POCHE") : !p.completo);
   const r = d?.riassunto;
@@ -347,6 +454,7 @@ export default function CucinaControlloMenu() {
               ma il piatto li segnala. Tocca un piatto per vedere gli elementi e scrivere quante porzioni dà un pezzo: il numero si salva sull'articolo
               (come contenuto del pezzo) e aggiorna tutti i piatti che lo usano.
               Le quantità si correggono qui, ripiano per ripiano: «Salva conteggio» scrive il movimento in Frigoriferi e scorte.
+              Da qui si correggono anche grammature, nome e unità dell'articolo, minimi, riordino e dotazione di linea: ogni campo si salva uscendo.
               Il pallino è il semaforo di linea di oggi.
             </p>
 
@@ -365,7 +473,7 @@ export default function CucinaControlloMenu() {
                   <ul className="divide-y divide-neutral-100">
                     {piatti.map((p) => (
                       <Piatto key={p.pub_id} p={p} aperto={aperto === p.pub_id}
-                        apri={() => setAperto(aperto === p.pub_id ? null : p.pub_id)} salva={salva} conta={conta}
+                        apri={() => setAperto(aperto === p.pub_id ? null : p.pub_id)} salva={salva} conta={conta} azione={azione} grammatura={grammatura}
                         ripiani={d.ripiani || []} occupato={occupato} />
                     ))}
                   </ul>
