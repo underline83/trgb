@@ -121,6 +121,7 @@ const ClientiDashboard = lazy(() => import("./pages/clienti/ClientiDashboard"));
 const ClientiPreventivi = lazy(() => import("./pages/clienti/ClientiPreventivi"));
 const ClientiPreventivoScheda = lazy(() => import("./pages/clienti/ClientiPreventivoScheda"));
 const ClientiGiftCard = lazy(() => import("./pages/clienti/ClientiGiftCard"));
+const ClientiPosta = lazy(() => import("./pages/clienti/ClientiPosta"));
 const ClientiImport = lazy(() => import("./pages/clienti/ClientiImport"));
 const ClientiDuplicati = lazy(() => import("./pages/clienti/ClientiDuplicati"));
 const ClientiMailchimp = lazy(() => import("./pages/clienti/ClientiMailchimp"));
@@ -577,6 +578,7 @@ export default function App() {
         <Route path="/clienti/preventivi" element={<ProtectedRoute module="clienti"><ClientiPreventivi /></ProtectedRoute>} />
         <Route path="/clienti/preventivi/:id" element={<ProtectedRoute module="clienti"><ClientiPreventivoScheda /></ProtectedRoute>} />
         <Route path="/clienti/giftcard" element={<ProtectedRoute module="clienti"><ClientiGiftCard /></ProtectedRoute>} />
+        <Route path="/clienti/posta" element={<ProtectedRoute module="clienti" roles={["admin"]}><ClientiPosta /></ProtectedRoute>} />
         <Route path="/clienti/dashboard" element={<ProtectedRoute module="clienti" sub="dashboard"><ClientiDashboard /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni/:section" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />

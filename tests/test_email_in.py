@@ -465,6 +465,16 @@ class TestTesto(unittest.TestCase):
         self.assertEqual(E.parte_nuova(t), "Perfetto, confermiamo il menù Quadri.")
         self.assertEqual(E.parte_nuova("ok\n> citato"), "ok")
 
+    def test_codifica_storta(self):
+        self.assertEqual(E.ripara_codifica("il messaggio Ã¨ stato inviato"), "il messaggio è stato inviato")
+        self.assertEqual(E.ripara_codifica("con oggetto \"Test\" ï¿½ stato inviato"), 'con oggetto "Test" \ufffd stato inviato')
+        self.assertEqual(E.ripara_codifica("già giusto: è"), "già giusto: è")
+        # parte dichiarata latin-1 ma scritta in UTF-8
+        m = EmailMessage()
+        m["From"], m["Subject"], m["Message-ID"] = "a@x.it", "Prova", "<c@x.it>"
+        m.set_payload("Il messaggio è arrivato".encode("utf-8"), charset="iso-8859-1")
+        self.assertEqual(E.analizza(m.as_bytes())["testo"], "Il messaggio è arrivato")
+
     def test_troncato(self):
         r = E.analizza(mail("<t@x.it>", "a@x.it", "Lungo", testo="a" * 500), max_caratteri=100)
         self.assertEqual(len(r["testo"]), 100)

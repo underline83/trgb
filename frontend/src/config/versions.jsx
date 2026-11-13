@@ -540,6 +540,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.29 (2026-11-13): pagina «📥 Posta» (/clienti/posta, solo admin): tutta la posta della casella
+    //   del gestionale, anche quella non collegata a un preventivo; filtri, mail aperta, «Segna gestita»,
+    //   «Leggi adesso»; tab col numero da gestire. Lettere accentate storte riparate in lettura.
     // 3.28 (2026-11-13): preventivi — «📨 Invii di questo preventivo» e «📥 Risposte ricevute»
     //   nella scheda (mail dei clienti lette dalla casella del gestionale, abbinate al preventivo,
     //   «Segna gestita»); contatore «Risposte da gestire» e badge 📥 nella lista Preventivi.
@@ -613,7 +616,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.28",
+    version: "3.29",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

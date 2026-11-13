@@ -142,6 +142,7 @@ const MODULES_MENU = {
     sub: [
       { label: "Clienti",       go: "/clienti/lista" },
       { label: "Preventivi",    go: "/clienti/preventivi" },
+      { label: "Posta",         go: "/clienti/posta", check: "admin" },
       { label: "Gift Card",     go: "/clienti/giftcard" },
       { label: "Statistiche",   go: "/clienti/dashboard" },
       { label: "Impostazioni",  go: "/clienti/impostazioni", check: "admin" },

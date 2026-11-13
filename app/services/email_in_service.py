@@ -219,6 +219,25 @@ def html_a_testo(s: str) -> str:
     return _pulisci(t)
 
 
+_MOJIBAKE = ("Ã", "â€", "Â ", "ï¿½")
+
+
+def ripara_codifica(t: str) -> str:
+    """Testo UTF-8 letto come Latin-1/CP1252 («Ã¨» per «è», «ï¿½» per «�»): lo si
+    rimette a posto se la ridecodifica riesce e toglie i segni. Altrimenti resta com'è."""
+    if not t or not any(x in t for x in _MOJIBAKE):
+        return t
+    for cod in ("cp1252", "latin-1"):
+        try:
+            r = t.encode(cod).decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+        if sum(r.count(x) for x in _MOJIBAKE) < sum(t.count(x) for x in _MOJIBAKE):
+            return r
+    # pezzi misti: si ripara almeno la sequenza del carattere sostitutivo
+    return t.replace("ï¿½", "\ufffd")
+
+
 def _pulisci(t: str) -> str:
     t = (t or "").replace("\r\n", "\n").replace("\r", "\n").replace("\xa0", " ")
     t = re.sub(r"[​-‏  ﻿]", "", t)
@@ -341,6 +360,8 @@ def analizza(raw: bytes, dimensione: Optional[int] = None, oltre_limite: bool = 
         testo = html_a_testo("\n".join(testo_html))
     else:
         testo = ""
+    testo = ripara_codifica(testo)
+    oggetto = ripara_codifica(oggetto)
     troncato = len(testo) > max_caratteri
     if troncato:
         testo = testo[:max_caratteri]
@@ -687,6 +708,8 @@ def avvia_periodico() -> None:
 
 def _riga(r, descr: Dict[int, dict], completa: bool = False) -> dict:
     d = dict(r)
+    d["testo"] = ripara_codifica(d.get("testo") or "")      # anche per le mail salvate prima del fix
+    d["oggetto"] = ripara_codifica(d.get("oggetto") or "")
     try:
         allegati = json.loads(d.get("allegati") or "[]")
     except ValueError:

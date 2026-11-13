@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-13 — Clienti 3.29: la pagina «📥 Posta» `[core]`
+La posta letta dalla casella del gestionale ora si vede tutta in Clienti › Posta (solo admin), anche le mail che non c'entrano con un preventivo: prima si vedevano solo quelle collegate, dentro la scheda del preventivo, e il resto lo leggeva solo Q. Filtri per da gestire / gestite, con preventivo / non collegate, periodo e ricerca; la mail si apre a destra col testo, gli allegati elencati e il preventivo collegato; «Segna gestita» e «Leggi adesso». Sistemate anche le lettere accentate storte (es. nelle ricevute PEC di Aruba). Nessuna migrazione.
+
 ## 2026-11-13 — Posta in arrivo: TRGB legge la casella del gestionale (sistema 5.96, mig 230) `[core]`
 Le risposte dei clienti ai preventivi arrivavano in trgb@tregobbi.it e nessuno le leggeva. Ora TRGB legge la casella ogni 5 minuti via IMAP, in sola lettura (non cancella, non sposta, non segna come lette) e con le stesse credenziali dell'invio: nessuna password nuova e nessuna password in giro. Ogni mail si collega al preventivo giusto (risposta a un invio, numero PRE nell'oggetto, o indirizzo del cliente), scrive un passo nello storico, suona il campanello ai ruoli dei preventivi e segnala gli indirizzi nuovi in copia senza toccare il cliente. Nella scheda del preventivo ci sono «Invii di questo preventivo» e «Risposte ricevute» (con «Segna gestita»), nella lista il contatore delle risposte da gestire. Q le legge dal connettore (`posta_trgb_elenco`, `posta_trgb_leggi`, `posta_trgb_segna_gestita` solo col sì di Marco) e trova i preventivi da sollecitare (`preventivi_senza_risposta`). Nessuno strumento manda mail.
 
