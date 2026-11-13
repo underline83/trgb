@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-13 — Controllo menu 1.21: solo admin, giacenze correggibili, ultimo controllo `[core]`
+La pagina ora è solo dell'admin e da lì si corregge tutto: sotto ogni elemento ci sono i ripiani dove sta, col numero da riscrivere (o un ripiano nuovo da aggiungere); «Salva conteggio» scrive il movimento di rettifica in Frigoriferi e scorte, scala i lotti, riallinea il pallino e rivaluta task e spesa della linea. Su ogni elemento e su ogni ripiano si legge data, ora e utente dell'ultimo controllo.
+
 ## 2026-11-13 — Controllo menu: porzioni salvate sull'articolo e «dal gelo diretto» (sistema 6.0, mig 234) `[core]`
 Le porzioni per pezzo scritte su un piatto ora si salvano sull'articolo, come contenuto del pezzo (25 porzioni da 20 ml → 1 pz = 500 ml): tutti gli altri piatti che usano lo stesso articolo si aggiornano da soli con la propria grammatura. Sotto il campo si legge da dove viene il numero (sull'articolo, solo per questo piatto, dalla grammatura in ricetta). Nuova spunta «dal gelo diretto» per ciò che va dal congelatore alla pentola, come i casoncelli: il gelo conta già nel numero «subito».
 

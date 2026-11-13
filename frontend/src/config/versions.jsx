@@ -240,6 +240,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.21 (2026-11-13): Controllo menu solo admin e tutto correggibile — giacenze ripiano per ripiano
+    //   (POST /cucina/scorte/controllo-menu/conta: RETTIFICA per ripiano, lotti, ripiano di casa,
+    //   pallino, esiti di linea), anche su un ripiano nuovo.
     // 1.20 (2026-11-13): Controllo menu — spunta «dal gelo diretto» sull'elemento (mig 234): per ciò
     //   che va dal congelatore alla pentola (casoncelli) il gelo conta già nel numero «subito».
     //   Le porzioni per pezzo si salvano sull'articolo come contenuto del pezzo
@@ -325,7 +328,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.20",
+    version: "1.21",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

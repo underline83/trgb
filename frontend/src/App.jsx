@@ -399,7 +399,7 @@ export default function App() {
 
         {/* --- LISTA SPESA Cucina (sotto Gestione Cucina, sessione 59 cont. c — Modulo J Fase 1) --- */}
         <Route path="/cucina/piatti" element={<ProtectedRoute module="ricette" roles={["admin", "chef", "sous_chef"]}><CucinaPiatti /></ProtectedRoute>} />
-        <Route path="/cucina/controllo-menu" element={<ProtectedRoute module="ricette" roles={["admin", "chef", "sous_chef"]}><CucinaControlloMenu /></ProtectedRoute>} />
+        <Route path="/cucina/controllo-menu" element={<ProtectedRoute module="ricette" roles={["admin"]}><CucinaControlloMenu /></ProtectedRoute>} />
         <Route path="/cucina/spesa" element={<ProtectedRoute module="ricette" sub="spesa"><ListaSpesa /></ProtectedRoute>} />
 
         {/* --- CUCINA DA IPHONE (2026-09-07) — 4 tab: Oggi / Scorte / Frigo / Spesa.

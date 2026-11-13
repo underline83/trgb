@@ -1715,7 +1715,9 @@ def linea_scorte_conferma(payload: ConfermaScortaIn, current_user=Depends(get_cu
 
 # ─── Controllo menu (mig 233, spec_linea_cucina.md §10) ────
 # Quante porzioni di ogni piatto in carta si fanno con quello che c'e' in casa.
-# Lettura e porzioni per pezzo: admin, chef, sous chef (LINEA_SCRITTURA).
+# Solo admin (Marco 2026-11-13: «lo uso solo io», e dalla pagina si corregge
+# tutto: porzioni, giacenze per ripiano con movimento).
+CONTROLLO_MENU = ("admin",)
 
 class ControlloMenuElementoIn(BaseModel):
     recipe_id: int = Field(default=0, ge=0, description="il piatto; 0 se si cambia solo «non limita»")
@@ -1732,7 +1734,7 @@ def controllo_menu_leggi(current_user=Depends(get_current_user)):
     """Per ogni piatto della carta in corso: porzioni «subito» (frigo e dispensa)
     e «con il gelo», il collo di bottiglia, cosa manca per un conto completo,
     il semaforo di linea di oggi."""
-    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="vedere il controllo del menu")
+    verifica_ruoli(current_user, *CONTROLLO_MENU, cosa="vedere il controllo del menu")
     return controllo_menu.calcola()
 
 
@@ -1740,7 +1742,7 @@ def controllo_menu_leggi(current_user=Depends(get_current_user)):
 def controllo_menu_elemento(payload: ControlloMenuElementoIn, current_user=Depends(get_current_user)):
     """Scrive le porzioni per pezzo di un elemento per un piatto e/o il flag
     «non limita» (che vale per tutti i piatti). Ritorna il conto rifatto."""
-    verifica_ruoli(current_user, *LINEA_SCRITTURA, cosa="cambiare le porzioni per pezzo")
+    verifica_ruoli(current_user, *CONTROLLO_MENU, cosa="cambiare le porzioni per pezzo")
     conn = get_foodcost_connection()
     try:
         try:
@@ -1756,3 +1758,30 @@ def controllo_menu_elemento(payload: ControlloMenuElementoIn, current_user=Depen
         return controllo_menu.calcola(conn)
     finally:
         conn.close()
+
+
+class ControlloMenuContaIn(BaseModel):
+    articolo_id: int = Field(..., gt=0)
+    conteggi: List[ConteggioRipianoIn] = Field(..., min_length=1)
+
+
+@router.post("/controllo-menu/conta")
+def controllo_menu_conta(payload: ControlloMenuContaIn, current_user=Depends(get_current_user)):
+    """Corregge la giacenza di un articolo dal Controllo menu: una RETTIFICA per
+    ripiano scritto (qualunque ripiano, anche uno nuovo), lotti, ripiano di casa,
+    pallino; poi rivaluta gli esiti di linea. Ritorna il conto rifatto."""
+    verifica_ruoli(current_user, *CONTROLLO_MENU, cosa="correggere le giacenze dal controllo menu")
+    conn = get_foodcost_connection()
+    try:
+        try:
+            controllo_menu.salva_conteggio(conn, payload.articolo_id,
+                                           [c.dict() for c in payload.conteggi], _utente(current_user))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        conn.commit()
+        dati = controllo_menu.calcola(conn)
+    finally:
+        conn.close()
+    valuta_esiti_linea()
+    return dati
+

@@ -1,5 +1,5 @@
 # Modulo: cucina (legge menu_carta, ricette e task_manager in sola lettura)  ·  [core]
-# @version: v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
+# @version: v1.2 — giacenze correggibili dalla pagina (RETTIFICA per ripiano), solo admin · v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
 # -*- coding: utf-8 -*-
 """
 Controllo menu — per ogni piatto in carta, quante porzioni si possono fare con
@@ -48,7 +48,8 @@ viene segnalato.
 Ogni piatto e' calcolato da solo: due piatti che usano lo stesso fondo non si
 dividono la scorta (il numero risponde a «se faccio solo questo»).
 
-Nessuna scrittura qui, tranne `salva_elemento()` (i due campi della tabella).
+Scritture: `salva_elemento()` (porzioni, non limita, gelo diretto) e
+`salva_conteggio()` (giacenza per ripiano, con movimento RETTIFICA).
 """
 
 from __future__ import annotations
@@ -60,7 +61,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.models.cucina_scorte_db import config_int
 from app.models.foodcost_db import get_foodcost_connection
-from app.services.cucina_scorte_service import stato_dato
+from app.services.cucina_scorte_service import (
+    assicura_giacenza, consuma_lotti, registra_movimento, riallinea_semaforo, stato_dato,
+)
 from app.services.menu_i18n_service import SEZIONI_LABEL
 from app.utils.locale_data import locale_data_path
 
@@ -193,24 +196,45 @@ def _leggi(conn) -> Dict[str, Any]:
 
     giac: Dict[int, Dict[str, Any]] = {}
     for r in conn.execute("""
-        SELECT g.articolo_id, u.tipo, g.qta, g.aggiornato_at
-          FROM cucina_giacenze g JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
+        SELECT g.articolo_id, g.ripiano_id, u.tipo, g.qta, g.aggiornato_at, g.aggiornato_da, g.in_dotazione,
+               u.nome AS ubicazione, COALESCE(NULLIF(TRIM(rp.nome), ''), rp.codice) AS ripiano
+          FROM cucina_giacenze g
+          JOIN cucina_ubicazioni u ON u.id = g.ubicazione_id
+          LEFT JOIN cucina_ripiani rp ON rp.id = g.ripiano_id
          WHERE u.attivo = 1
+         ORDER BY u.ordine, u.id, rp.ordine, rp.id
     """):
-        g = giac.setdefault(r["articolo_id"], {"subito": 0.0, "gelo": 0.0, "contato": False, "agg": None})
+        g = giac.setdefault(r["articolo_id"], {"subito": 0.0, "gelo": 0.0, "contato": False, "agg": None,
+                                               "da": None, "posti": []})
+        # i posti dove l'articolo sta (o stava): si correggono dalla pagina
+        if r["ripiano_id"] and (r["in_dotazione"] or (r["qta"] or 0) > 0):
+            g["posti"].append({"articolo_id": r["articolo_id"], "ripiano_id": r["ripiano_id"],
+                               "ubicazione": r["ubicazione"], "ripiano": r["ripiano"],
+                               "gelo": (r["tipo"] or "").upper() in TIPI_GELO, "qta": r["qta"],
+                               "aggiornato_at": r["aggiornato_at"], "aggiornato_da": r["aggiornato_da"]})
         if r["qta"] is None:
             continue
         g["contato"] = True
         g["gelo" if (r["tipo"] or "").upper() in TIPI_GELO else "subito"] += float(r["qta"])
         if r["aggiornato_at"] and (g["agg"] is None or r["aggiornato_at"] > g["agg"]):
-            g["agg"] = r["aggiornato_at"]
+            g["agg"], g["da"] = r["aggiornato_at"], r["aggiornato_da"]
 
     regole: Dict[Tuple[int, str, int], dict] = {}
     for r in conn.execute("SELECT recipe_id, tipo, ref_id, porzioni_per_pezzo, non_limita, gelo_diretto FROM cucina_menu_elementi"):
         regole[(r["recipe_id"], r["tipo"], r["ref_id"])] = dict(r)
 
+    # tutti i ripiani, per mettere un articolo su un posto nuovo dalla pagina
+    ripiani = [dict(r) for r in conn.execute("""
+        SELECT rp.id AS ripiano_id, u.nome AS ubicazione,
+               COALESCE(NULLIF(TRIM(rp.nome), ''), rp.codice) AS ripiano,
+               CASE WHEN UPPER(u.tipo) IN ('FREEZER', 'ABBATTITORE') THEN 1 ELSE 0 END AS gelo
+          FROM cucina_ripiani rp JOIN cucina_ubicazioni u ON u.id = rp.ubicazione_id
+         WHERE u.attivo = 1 AND rp.attivo = 1
+         ORDER BY u.ordine, u.id, rp.ordine, rp.id
+    """)]
+
     return {"piatti": piatti, "righe": righe, "articoli": articoli, "per": per,
-            "giac": giac, "regole": regole}
+            "giac": giac, "regole": regole, "ripiani": ripiani}
 
 
 def _elementi(d: Dict[str, Any], recipe_id: int) -> List[dict]:
@@ -283,6 +307,7 @@ def calcola(conn=None) -> Dict[str, Any]:
             "pub_id": p["pub_id"], "recipe_id": p["recipe_id"], "nome": p["nome"] or "(senza nome)",
             "porzioni_subito": None, "porzioni_con_gelo": None,
             "collo_subito": None, "collo_con_gelo": None,
+            "collo_controllo_at": None, "collo_controllo_da": None,
             "mancanti": [], "da_verificare": [], "linea": None, "elementi": [], "avviso": None,
         }
         elementi = _elementi(d, p["recipe_id"]) if p["recipe_id"] else []
@@ -299,7 +324,10 @@ def calcola(conn=None) -> Dict[str, Any]:
             contati = [i for i in ids if d["giac"].get(i, {}).get("contato")]
             subito = sum(d["giac"][i]["subito"] for i in contati) if contati else None
             gelo = sum(d["giac"][i]["gelo"] for i in contati) if contati else None
-            agg = max((d["giac"][i]["agg"] for i in contati if d["giac"][i]["agg"]), default=None)
+            # l'ultimo controllo dell'elemento: quando e chi (Marco 2026-11-13)
+            ultimo = max(((d["giac"][i]["agg"], d["giac"][i]["da"]) for i in contati if d["giac"][i]["agg"]),
+                         key=lambda x: x[0], default=(None, None))
+            agg = ultimo[0]
             vecchio = bool(contati) and any(stato_art.get(i) == "DA_VERIFICARE" for i in contati)
 
             propria = d["regole"].get((p["recipe_id"], e["tipo"], e["ref_id"])) or {}
@@ -342,9 +370,12 @@ def calcola(conn=None) -> Dict[str, Any]:
             el = {
                 "tipo": e["tipo"], "ref_id": e["ref_id"], "nome": e["nome"],
                 "qty": e["qty"], "unit": e["unit"],
-                "articoli": [{"id": a["id"], "nome": a["nome"]} for a in arts],
+                "articoli": [{"id": a["id"], "nome": a["nome"],
+                              "um": _UM.get((a["um"] or "").upper(), (a["um"] or "").lower()),
+                              "posti": d["giac"].get(a["id"], {}).get("posti", [])} for a in arts],
                 "um": _UM.get(um, (um or "").lower()) if um else None,
-                "subito": subito, "gelo": gelo, "aggiornato_at": agg, "da_verificare": vecchio,
+                "subito": subito, "gelo": gelo, "aggiornato_at": agg, "aggiornato_da": ultimo[1],
+                "da_verificare": vecchio,
                 "porzioni_per_pezzo": round(ppp, 2) if ppp else None,
                 # piatto = scritto solo per questo piatto · articolo = dal contenuto
                 # dell'articolo (vale per tutti i piatti) · auto = dalle unita'
@@ -365,6 +396,8 @@ def calcola(conn=None) -> Dict[str, Any]:
                 for campo, collo in (("porzioni_subito", "collo_subito"), ("porzioni_con_gelo", "collo_con_gelo")):
                     if piatto[campo] is None or el[campo] < piatto[campo]:
                         piatto[campo], piatto[collo] = el[campo], e["nome"]
+                        if campo == "porzioni_subito":      # quando e chi ha contato il collo di bottiglia
+                            piatto["collo_controllo_at"], piatto["collo_controllo_da"] = agg, ultimo[1]
                 if vecchio:
                     piatto["da_verificare"].append(e["nome"])
             elif motivo:
@@ -390,6 +423,7 @@ def calcola(conn=None) -> Dict[str, Any]:
         "edizione": d["piatti"][0]["edizione"] if d["piatti"] else None,
         "calcolato_at": datetime.now().isoformat(timespec="seconds"),
         "soglia_poche": soglia,
+        "ripiani": d["ripiani"],
         "riassunto": {
             "piatti": len(tutti),
             "zero": sum(1 for x in tutti if x["stato"] == "ZERO"),
@@ -459,3 +493,43 @@ def salva_elemento(conn, recipe_id: int, tipo: str, ref_id: int, utente: str, *,
                 gelo_diretto = excluded.gelo_diretto,
                 updated_at = excluded.updated_at, updated_by = excluded.updated_by
         """, (tipo, ref_id, 1 if gelo_diretto else 0, ora, utente))
+
+
+def salva_conteggio(conn, articolo_id: int, conteggi: List[Dict[str, Any]], utente: str) -> Dict[str, Any]:
+    """Corregge la giacenza di un articolo dal Controllo menu, ripiano per
+    ripiano (Marco 2026-11-13: «quando salvo sistema i movimenti e le cose»).
+
+    Come la conferma di scorta della linea (`conferma_scorta_linea`), ma su
+    qualunque ripiano: ogni numero scritto = un movimento RETTIFICA col numero
+    di prima e quello nuovo (anche se uguali: e' una conta, rinfresca il dato),
+    i lotti scalano se il numero scende, il primo ripiano diventa quello di
+    casa se l'articolo non ne ha uno, il pallino si riallinea."""
+    if not conteggi:
+        raise ValueError("serve almeno un ripiano")
+    art = conn.execute("SELECT id, ripiano_casa_id FROM cucina_articoli WHERE id = ? AND attivo = 1",
+                       (articolo_id,)).fetchone()
+    if not art:
+        raise ValueError("articolo non trovato")
+    movimenti = []
+    for c in conteggi:
+        rid = int(c["ripiano_id"])
+        qta = float(c["qta"])
+        if qta < 0:
+            raise ValueError("una quantita' non puo' essere negativa")
+        if not conn.execute("SELECT 1 FROM cucina_ripiani WHERE id = ? AND attivo = 1", (rid,)).fetchone():
+            raise ValueError(f"ripiano {rid} non trovato")
+        riga = assicura_giacenza(conn, articolo_id, rid)
+        prima = float(riga["qta"] or 0)
+        res = registra_movimento(
+            conn, articolo_id=articolo_id, ripiano_id=rid, tipo="RETTIFICA",
+            qta_delta=qta - prima, utente=utente, qta_precedente=prima,
+            motivo="Controllo menu",
+        )
+        if qta < prima:
+            consuma_lotti(conn, articolo_id, rid, prima - qta)
+        movimenti.append(res)
+    if not art["ripiano_casa_id"]:
+        conn.execute("UPDATE cucina_articoli SET ripiano_casa_id = ? WHERE id = ?",
+                     (int(conteggi[0]["ripiano_id"]), articolo_id))
+    riallinea_semaforo(conn, articolo_id, utente)
+    return {"movimenti": len(movimenti)}

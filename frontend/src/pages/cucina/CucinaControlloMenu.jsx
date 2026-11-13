@@ -1,5 +1,5 @@
 // Modulo: cucina
-// @version: v1.1 — spunta «dal gelo diretto» (mig 234) · v1.0 — Cucina › Controllo menu (2026-11-13, mig 233): per ogni piatto in carta quante
+// @version: v1.2 — giacenze correggibili ripiano per ripiano (POST …/conta → RETTIFICA), pagina solo admin · v1.1 — spunta «dal gelo diretto» (mig 234) · v1.0 — Cucina › Controllo menu (2026-11-13, mig 233): per ogni piatto in carta quante
 //   porzioni si fanno con quello che c'è in casa. Due numeri: «subito» (frigo e dispensa) e
 //   «con il gelo». Il collo di bottiglia, cosa manca per un conto completo, il semaforo di linea di oggi.
 // Dati: GET /cucina/scorte/controllo-menu (servizio controllo_menu, sola lettura);
@@ -12,13 +12,14 @@ import { API_BASE, apiFetch } from "../../config/api";
 
 const num = (n) => (n == null ? "—" : Number(n).toLocaleString("it-IT", { maximumFractionDigits: 2 }));
 const ora = (iso) => (iso ? iso.slice(11, 16) : "");
-function quando(iso) {
+// «13 nov 22:04 · aryn»: quando e chi ha fatto l'ultimo controllo
+function controllo(iso, chi) {
   if (!iso) return "";
   const d = new Date(iso.replace(" ", "T"));
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+  const giorno = d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+  return `${giorno} ${iso.slice(11, 16)}${chi ? ` · ${chi}` : ""}`;
 }
-
 const STATO = {
   ZERO: { testo: "text-red-700", bordo: "border-l-red-500" },
   POCHE: { testo: "text-amber-700", bordo: "border-l-amber-400" },
@@ -52,7 +53,59 @@ function Pallino({ colore }) {
 }
 
 // Una riga della ricetta: quanto ce n'è, quante porzioni dà un pezzo, quante porzioni ne escono
-function Elemento({ e, recipeId, salva, occupato }) {
+// Le giacenze di un articolo, ripiano per ripiano: si correggono qui. Salvando parte una RETTIFICA per ripiano.
+function Giacenze({ a, conNome, ripiani, conta, occupato }) {
+  const [valori, setValori] = useState({});       // ripiano_id → testo scritto
+  const [nuovo, setNuovo] = useState("");          // ripiano da aggiungere
+  const chiave = a.posti.map((p) => `${p.ripiano_id}:${p.qta}`).join("|");
+  useEffect(() => { setValori({}); setNuovo(""); }, [chiave]);
+
+  const righe = [...a.posti];
+  if (nuovo) {
+    const r = ripiani.find((x) => String(x.ripiano_id) === nuovo);
+    if (r && !righe.some((p) => p.ripiano_id === r.ripiano_id)) righe.push({ ...r, qta: null, nuovo: true });
+  }
+  const scritti = Object.entries(valori).filter(([, v]) => v.trim() !== "");
+  const numeri = scritti.map(([rid, v]) => ({ ripiano_id: Number(rid), qta: Number(v.trim().replace(",", ".")) }));
+  const validi = numeri.length > 0 && numeri.every((c) => Number.isFinite(c.qta) && c.qta >= 0);
+  const liberi = ripiani.filter((x) => !righe.some((p) => p.ripiano_id === x.ripiano_id));
+
+  return (
+    <div className="mt-1 space-y-1">
+      {conNome && <div className="text-[11px] font-semibold text-neutral-500">{a.nome}</div>}
+      {righe.map((p) => (
+        <label key={p.ripiano_id} className="flex items-center gap-1.5 text-xs">
+          <input type="text" inputMode="decimal" disabled={occupato}
+            value={valori[p.ripiano_id] ?? ""} placeholder={p.qta == null ? "?" : num(p.qta)}
+            onChange={(ev) => setValori({ ...valori, [p.ripiano_id]: ev.target.value })}
+            aria-label={`Quantità di ${a.nome} in ${p.ubicazione}, ${p.ripiano}`}
+            className="w-16 min-h-[36px] border border-neutral-300 rounded-lg px-2 py-1 text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+          <span className={p.gelo ? "text-sky-700" : "text-neutral-600"}>
+            {a.um} · {p.ubicazione} › {p.ripiano}
+            <span className="block text-[11px] text-neutral-400">{p.aggiornato_at ? controllo(p.aggiornato_at, p.aggiornato_da) : (p.nuovo ? "ripiano nuovo" : "mai contato")}</span>
+          </span>
+        </label>
+      ))}
+      <div className="flex flex-wrap items-center gap-2">
+        {!nuovo && liberi.length > 0 && (
+          <select value="" disabled={occupato} onChange={(ev) => setNuovo(ev.target.value)} aria-label={`Aggiungi un ripiano per ${a.nome}`}
+            className="min-h-[36px] max-w-[190px] border border-neutral-300 rounded-lg px-2 py-1 text-xs text-neutral-600 bg-white">
+            <option value="">+ altro ripiano…</option>
+            {liberi.map((x) => <option key={x.ripiano_id} value={x.ripiano_id}>{x.ubicazione} › {x.ripiano}{x.gelo ? " (gelo)" : ""}</option>)}
+          </select>
+        )}
+        {scritti.length > 0 && (
+          <button type="button" disabled={occupato || !validi} onClick={() => conta({ articolo_id: a.id, conteggi: numeri })}
+            className="min-h-[36px] px-3 rounded-lg bg-orange-700 text-white text-xs font-semibold disabled:opacity-50">
+            Salva conteggio
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Elemento({ e, recipeId, salva, conta, ripiani, occupato }) {
   // nel campo sta il numero scritto (sull'articolo o solo per il piatto); quello ricavato dalle unità è il segnaposto
   const scritto = e.porzioni_scritta != null ? String(e.porzioni_scritta).replace(".", ",") : "";
   const [testo, setTesto] = useState(scritto);
@@ -78,16 +131,24 @@ function Elemento({ e, recipeId, salva, occupato }) {
         <div className="text-xs text-neutral-500">
           {e.qty != null ? `${num(e.qty)} ${e.unit || ""} a porzione` : "grammatura non in ricetta"}
           {e.motivo && <span className="ml-2 font-semibold text-amber-700">· {e.motivo}</span>}
-          {e.da_verificare && <span className="ml-2 font-semibold text-amber-700">· conta vecchia{e.aggiornato_at ? ` (${quando(e.aggiornato_at)})` : ""}</span>}
+          {e.da_verificare && <span className="ml-2 font-semibold text-amber-700">· conta vecchia</span>}
+        </div>
+        <div className={`text-xs ${e.da_verificare ? "text-amber-700" : "text-neutral-500"}`}>
+          {e.aggiornato_at ? <>ultimo controllo: {controllo(e.aggiornato_at, e.aggiornato_da)}</> : (haArticolo ? "mai controllato" : "")}
         </div>
       </td>
-      <td className="py-2 pr-3 text-sm tabular-nums whitespace-nowrap">
-        {e.subito == null ? <span className="text-neutral-400">—</span> : (
-          <>
-            <b>{num(e.subito)}</b> {um}
-            {e.gelo > 0 && <span className="text-sky-700"> + {num(e.gelo)} gelo</span>}
-          </>
-        )}
+      <td className="py-2 pr-3 text-sm tabular-nums">
+        <div className="whitespace-nowrap">
+          {e.subito == null ? <span className="text-neutral-400">—</span> : (
+            <>
+              <b>{num(e.subito)}</b> {um}
+              {e.gelo > 0 && <span className="text-sky-700"> + {num(e.gelo)} gelo</span>}
+            </>
+          )}
+        </div>
+        {e.articoli.map((a) => (
+          <Giacenze key={a.id} a={a} conNome={e.articoli.length > 1} ripiani={ripiani} conta={conta} occupato={occupato} />
+        ))}
       </td>
       <td className="py-2 pr-3 whitespace-nowrap">
         {haArticolo ? (
@@ -138,7 +199,7 @@ function Elemento({ e, recipeId, salva, occupato }) {
   );
 }
 
-function Piatto({ p, aperto, apri, salva, occupato }) {
+function Piatto({ p, aperto, apri, salva, conta, ripiani, occupato }) {
   const s = STATO[p.stato] || STATO.SENZA_DATO;
   const nMancanti = p.mancanti.length;
   return (
@@ -155,7 +216,7 @@ function Piatto({ p, aperto, apri, salva, occupato }) {
           <span className="block text-xs text-neutral-500 truncate">
             {p.avviso ? <span className="text-amber-700 font-semibold">{p.avviso}</span> : (
               <>
-                {p.collo_subito && <>ferma: <b className="font-semibold text-neutral-700">{p.collo_subito}</b></>}
+                {p.collo_subito && <>ferma: <b className="font-semibold text-neutral-700">{p.collo_subito}</b>{p.collo_controllo_at ? ` (contato ${controllo(p.collo_controllo_at, p.collo_controllo_da)})` : ""}</>}
                 {nMancanti > 0 && <span className="text-amber-700 font-semibold">{p.collo_subito ? " · " : ""}{nMancanti === 1 ? "manca 1 dato" : `mancano ${nMancanti} dati`}</span>}
                 {p.da_verificare.length > 0 && <span className="text-amber-700"> · conte vecchie</span>}
               </>
@@ -183,7 +244,7 @@ function Piatto({ p, aperto, apri, salva, occupato }) {
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500">
                     <th className="py-1 pr-3 font-bold">Elemento</th>
-                    <th className="py-1 pr-3 font-bold">In casa</th>
+                    <th className="py-1 pr-3 font-bold">In casa (per ripiano)</th>
                     <th className="py-1 pr-3 font-bold">Porzioni per pezzo</th>
                     <th className="py-1 pr-3 font-bold text-right">Porzioni</th>
                     <th className="py-1 font-bold" />
@@ -191,7 +252,7 @@ function Piatto({ p, aperto, apri, salva, occupato }) {
                 </thead>
                 <tbody>
                   {p.elementi.map((e) => (
-                    <Elemento key={`${e.tipo}${e.ref_id}`} e={e} recipeId={p.recipe_id} salva={salva} occupato={occupato} />
+                    <Elemento key={`${e.tipo}${e.ref_id}`} e={e} recipeId={p.recipe_id} salva={salva} conta={conta} ripiani={ripiani} occupato={occupato} />
                   ))}
                 </tbody>
               </table>
@@ -223,16 +284,18 @@ export default function CucinaControlloMenu() {
   }, []);
   useEffect(() => { carica(); }, [carica]);
 
-  const salva = (corpo) => {
+  const scrivi = (percorso, metodo, corpo) => {
     setOccupato(true); setErrore(null);
-    apiFetch(`${API_BASE}/cucina/scorte/controllo-menu/elemento`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+    apiFetch(`${API_BASE}/cucina/scorte/controllo-menu/${percorso}`, {
+      method: metodo, headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
     })
       .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Non salvato"); return r.json(); })
       .then(setD)
       .catch((e) => setErrore(typeof e.message === "string" ? e.message : "Non salvato"))
       .finally(() => setOccupato(false));
   };
+  const salva = (corpo) => scrivi("elemento", "PUT", corpo);     // porzioni per pezzo, non limita, gelo diretto
+  const conta = (corpo) => scrivi("conta", "POST", corpo);       // giacenza per ripiano → RETTIFICA in Scorte
 
   const passa = (p) => filtro === "tutti" || (filtro === "guardare" ? (p.stato === "ZERO" || p.stato === "POCHE") : !p.completo);
   const r = d?.riassunto;
@@ -283,6 +346,7 @@ export default function CucinaControlloMenu() {
               due piatti con lo stesso fondo non se lo dividono. Il numero vale per i dati che ci sono: gli elementi senza dato non lo fermano,
               ma il piatto li segnala. Tocca un piatto per vedere gli elementi e scrivere quante porzioni dà un pezzo: il numero si salva sull'articolo
               (come contenuto del pezzo) e aggiorna tutti i piatti che lo usano.
+              Le quantità si correggono qui, ripiano per ripiano: «Salva conteggio» scrive il movimento in Frigoriferi e scorte.
               Il pallino è il semaforo di linea di oggi.
             </p>
 
@@ -301,7 +365,8 @@ export default function CucinaControlloMenu() {
                   <ul className="divide-y divide-neutral-100">
                     {piatti.map((p) => (
                       <Piatto key={p.pub_id} p={p} aperto={aperto === p.pub_id}
-                        apri={() => setAperto(aperto === p.pub_id ? null : p.pub_id)} salva={salva} occupato={occupato} />
+                        apri={() => setAperto(aperto === p.pub_id ? null : p.pub_id)} salva={salva} conta={conta}
+                        ripiani={d.ripiani || []} occupato={occupato} />
                     ))}
                   </ul>
                 </section>

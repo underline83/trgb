@@ -187,4 +187,11 @@ Pagina **Gestione Cucina › ✅ Controllo menu** (`/cucina/controllo-menu`, adm
 - Ordine: numero del solo piatto → contenuto dell'articolo → unità che si parlano («dalla grammatura in ricetta»). Con più articoli sullo stesso elemento ognuno conta col suo contenuto.
 - **Dal gelo diretto** (`cucina_menu_elementi.gelo_diretto`, riga `recipe_id = 0`): per ciò che va dal congelatore alla pentola (casoncelli) il gelo conta già nel numero «subito». Purè, lasagnetta e coniglio vanno scongelati: restano «0 subito» finché non sono in frigo (Marco 2026-11-13).
 
+### 10.2 Aggiornamento 2026-11-13 — solo admin, tutto correggibile, ultimo controllo
+
+- **Solo admin** (Marco: «lo uso solo io»): linguetta, rotta ed endpoint (`CONTROLLO_MENU = ("admin",)`).
+- **Giacenze correggibili dalla pagina**, ripiano per ripiano, anche su un ripiano nuovo («+ altro ripiano…»). `POST /cucina/scorte/controllo-menu/conta` → `controllo_menu.salva_conteggio()`: una RETTIFICA per ripiano scritto (motivo «Controllo menu», anche a numero uguale: è una conta), lotti scalati se il numero scende, ripiano di casa se mancava, pallino riallineato, poi `valuta_esiti_linea()` (task e spesa). Frigoriferi e scorte e Controllo menu dicono lo stesso numero.
+- **Ultimo controllo**: su ogni elemento e su ogni ripiano data, ora e utente dell'ultima conta (`cucina_giacenze.aggiornato_at/_da`); sul piatto quelli dell'elemento che lo ferma.
+- Non si correggono da qui: grammature (dalla ricetta, link «Apri la ricetta») e minimi frigo/gelo (scheda Linea / articolo).
+
 **Da fare**: compilare le porzioni per pezzo (oggi 9 piatti su 38 hanno un numero); riassunto in «Oggi»; pranzo del giorno; campo per la soglia «poche» in una schermata; eventuale conto «a scorta divisa» fra piatti.
