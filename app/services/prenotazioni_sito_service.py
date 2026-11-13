@@ -41,10 +41,10 @@ from app.models.clienti_db import get_clienti_conn
 from app.services import prenotazioni_fasce_service as fasce_srv
 from app.services.clienti_thefork_service import pulisci_telefono
 from app.services.notifiche_service import crea_notifica
+from app.services import prenotazioni_stati as stati_srv
 
 log = logging.getLogger("trgb.prenotazioni.sito")
 
-STATI_ATTIVI_ESCLUSI = ("CANCELED", "NO_SHOW", "REFUSED")
 _lock = threading.Lock()
 
 
@@ -130,8 +130,8 @@ def turni_chiusi(cfg: Dict[str, str], d: date, chiusure: Optional[Dict[str, Any]
 def _coperti_turno(conn, data: str, turno: str) -> int:
     r = conn.execute(f"""
         SELECT COALESCE(SUM(pax), 0) FROM clienti_prenotazioni
-        WHERE data_pasto = ? AND turno = ? AND stato NOT IN ({','.join('?' * len(STATI_ATTIVI_ESCLUSI))})
-    """, (data, turno, *STATI_ATTIVI_ESCLUSI)).fetchone()
+        WHERE data_pasto = ? AND turno = ? AND stato NOT IN ({','.join('?' * len(stati_srv.non_occupano()))})
+    """, (data, turno, *stati_srv.non_occupano())).fetchone()
     return int(r[0] or 0)
 
 
@@ -424,8 +424,11 @@ def annulla(token: str) -> Dict[str, Any]:
         """, (r["id"],))
         conn.commit()
         pid, data, ora, pax, nome = r["id"], r["data_pasto"], (r["ora_pasto"] or "")[:5], r["pax"], r["nome"]
+        stato_prima = r["stato"]
     finally:
         conn.close()
+    from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
+    avvisa_posto_liberato_sicuro(pid, stato_prima, "CANCELED")  # lista d'attesa (2026-11-13)
     try:
         gg = data.split("-")
         crea_notifica(tipo="prenotazioni", titolo=f"Annullata dal cliente: {nome or ''}, {pax} pax",

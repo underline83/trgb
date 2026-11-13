@@ -26,10 +26,10 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.services import thefork_service as tf
+from app.services import prenotazioni_stati as stati_srv
 
 log = logging.getLogger("trgb.prenotazioni.fasce")
 
-STATI_ESCLUSI = ("CANCELED", "NO_SHOW", "REFUSED")
 CAMPI = ("aperta", "online_aperta", "max_coperti", "max_online")
 
 
@@ -100,8 +100,8 @@ def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] =
 
     pren = conn.execute(f"""
         SELECT ora_pasto, pax, thefork_booking_id, fonte FROM clienti_prenotazioni
-        WHERE data_pasto = ? AND turno = ? AND stato NOT IN ({','.join('?' * len(STATI_ESCLUSI))})
-    """, (data, turno, *STATI_ESCLUSI)).fetchall()
+        WHERE data_pasto = ? AND turno = ? AND stato NOT IN ({','.join('?' * len(stati_srv.non_occupano()))})
+    """, (data, turno, *stati_srv.non_occupano())).fetchall()
 
     conti = {o: {"coperti": 0, "online": 0, "prenotazioni": 0} for o in ore}
     minuti_ore = [(_minuti(o), o) for o in ore]

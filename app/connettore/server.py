@@ -1,4 +1,4 @@
-# @version: v1.13 (2026-11-13) — posta in arrivo della casella del gestionale (posta_trgb_elenco/leggi/segna_gestita) + preventivi_senza_risposta
+# @version: v1.14 (2026-11-13) — prenotazioni: stati OPTION/WAITLIST, coperti_in_opzione / coperti_in_lista_attesa a parte, tenuto_fino_al; v1.13 (2026-11-13) — posta in arrivo della casella del gestionale (posta_trgb_elenco/leggi/segna_gestita) + preventivi_senza_risposta
 # v1.12 (2026-11-13) — prenotazione_aggiorna: Q modifica una prenotazione che c'è già (stesso PUT del «✏️ Modifica» del Planning, avvisi tavoli e TheFork)
 # v1.11 (2026-11-12) — preventivi (elenco, leggi coi menù, conferma evento, testo cliente) + lettore generale trgb_mappa / trgb_leggi («Q deve poter sapere tutto»)
 # v1.10 (2026-11-06) — pratica_collega / pratica_scollega (pratica ↔ uscita o rateizzazione, col sì di Marco); spesa_fissa_id nello scadenziario
@@ -931,6 +931,7 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
             "seggioloni": p.get("seggioloni"), "vip": p.get("vip") or None,
             "cliente_id": p.get("cliente_id"), "visite_precedenti": p.get("visite_precedenti"),
             "no_show_passati": p.get("no_show_totali") or None, "creata_da": p.get("creato_da"),
+            "tenuto_fino_al": p.get("tenuto_fino_al") if p.get("stato") == "OPTION" else None,
             "possibili_doppioni": [d.get("id") for d in p.get("possibili_doppioni") or []]})
 
     def giorno(user: dict, data: str, turno, cancellate: bool, dettaglio: bool = True) -> dict:
@@ -938,11 +939,20 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
         tutte = [p for t in ("pranzo", "cena") if turno in (None, t) for p in pl[t]]
         attive = [p for p in tutte if p["stato"] not in STATI_FUORI]
         out = {"data": data, "giorno": GIORNI[date.fromisoformat(data).weekday()]}
+        # «In opzione» e «Lista d'attesa» (2026-11-13): coperti a parte, non nel conto
+        from app.services import prenotazioni_stati as stati_srv
+        a_parte = (*stati_srv.gruppo("incerta"), *[s for s in stati_srv.non_occupano() if s not in STATI_FUORI])
         for t in ("pranzo", "cena"):
             if turno in (None, t):
-                quelle = [p for p in attive if p.get("turno") == t]
+                quelle = [p for p in attive if p.get("turno") == t and p["stato"] not in a_parte]
                 out[t] = {"prenotazioni": len(quelle), "coperti": sum(p.get("pax") or 0 for p in quelle),
                           "capienza": pl["contatori"].get(f"capienza_{t}")}
+                opz = pl["contatori"].get(f"{t}_opzione_pax") or 0
+                att = pl["contatori"].get(f"{t}_attesa_pax") or 0
+                if opz:
+                    out[t]["coperti_in_opzione"] = opz
+                if att:
+                    out[t]["coperti_in_lista_attesa"] = att
         if dettaglio:
             out["prenotazioni"] = [voce(p) for p in (tutte if cancellate else attive)]
         return out
@@ -955,7 +965,9 @@ def _strumenti_prenotazioni(mcp: MCPServer) -> None:
     ) -> dict:
         """Le prenotazioni di un giorno, per ora: coperti, nome, stato, tavolo, note,
         richiesta del cliente, allergie, fonte (thefork, widget, manuale), con i totali di
-        pranzo e cena. Stati: RECORDED (prenotata), REQUESTED (da confermare), ARRIVED,
+        pranzo e cena. Stati: RECORDED (prenotata), REQUESTED (da confermare, tocca a noi),
+        OPTION (in opzione: tavolo tenuto fino a tenuto_fino_al, tocca al cliente — coperti a
+        parte in coperti_in_opzione), WAITLIST (lista d'attesa: non occupa tavoli), ARRIVED,
         SEATED (al tavolo), BILL, LEFT (andati), CANCELED, NO_SHOW, REFUSED.
         possibili_doppioni = id della stessa prenotazione segnata a mano e in TheFork."""
         return giorno(sala(), data, turno, cancellate)

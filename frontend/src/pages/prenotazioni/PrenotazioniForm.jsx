@@ -1,4 +1,4 @@
-// @version: v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -30,7 +30,11 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     nuovo_cognome: "",
     nuovo_telefono: "",
     nuovo_email: "",
+    // 2026-11-13: stato di partenza e, per «In opzione», fino a quando si tiene il tavolo
+    stato: "RECORDED",
+    tenuto_fino_al: P.tenuto_fino_al || "",
   });
+  const [giorniOpzione, setGiorniOpzione] = useState(null);
 
   const [slotPranzo, setSlotPranzo] = useState([]);
   const [slotCena, setSlotCena] = useState([]);
@@ -54,6 +58,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         try { setSlotPranzo(JSON.parse(cfg.slot_pranzo || "[]")); } catch { setSlotPranzo([]); }
         try { setSlotCena(JSON.parse(cfg.slot_cena || "[]")); } catch { setSlotCena([]); }
         setSoglia(cfg.soglia_pranzo_cena || "15:00");
+        setGiorniOpzione(cfg.opzione_giorni_default || null);
         // Aperto dalla mappa: primo orario del turno scelto
         if (defaultTurno && !modifica) {
           let slots = [];
@@ -162,12 +167,13 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               occasione: form.occasione, allergie_segnalate: form.allergie_segnalate,
               tavolo_esterno: form.tavolo_esterno, seggioloni: form.seggioloni,
               ...(form.cliente_id && form.cliente_id !== P.cliente_id ? { cliente_id: form.cliente_id } : {}),
+              ...(P.stato === "OPTION" && (form.tenuto_fino_al || "") !== (P.tenuto_fino_al || "") ? { tenuto_fino_al: form.tenuto_fino_al } : {}),
             }),
           })
         : await apiFetch(`${API_BASE}/prenotazioni/`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(form),
+            body: JSON.stringify({ ...form, tenuto_fino_al: form.stato === "OPTION" ? (form.tenuto_fino_al || null) : null }),
           });
       if (r.ok) {
         onSuccess();
@@ -197,6 +203,45 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               aggiornamento da TheFork tornano come lì. Tavolo e note restano quelli di TRGB.
             </div>
           )}
+          {/* Stato di partenza (2026-11-13) */}
+          {!modifica && (
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Stato</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: "RECORDED", l: "📅 Confermata", on: "bg-indigo-600 text-white border-indigo-600" },
+                  { v: "OPTION", l: "⏳ In opzione", on: "bg-amber-500 text-white border-amber-500" },
+                  { v: "WAITLIST", l: "🕰️ Lista d'attesa", on: "bg-violet-500 text-white border-violet-500" },
+                ].map((o) => (
+                  <button key={o.v} type="button" onClick={() => setForm({ ...form, stato: o.v })}
+                    className={`px-2 py-2 rounded-lg border text-xs font-medium min-h-[44px] ${form.stato === o.v ? o.on : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"}`}>
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+              {form.stato === "OPTION" && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-amber-900">
+                  <label>Tavolo tenuto fino al</label>
+                  <input type="date" value={form.tenuto_fino_al} max={form.data_pasto}
+                    onChange={(e) => setForm({ ...form, tenuto_fino_al: e.target.value })}
+                    className="px-2 py-1 border border-amber-300 rounded min-h-[36px]" />
+                  {!form.tenuto_fino_al && <span className="text-amber-700">vuoto = {giorniOpzione ? `tra ${giorniOpzione} giorni` : "proposta delle impostazioni"}</span>}
+                </div>
+              )}
+              {form.stato === "WAITLIST" && (
+                <div className="mt-2 text-xs text-violet-800">Non occupa tavoli: se nel turno si libera un posto arriva l'avviso nel campanello.</div>
+              )}
+            </div>
+          )}
+          {modifica && P.stato === "OPTION" && (
+            <div className="flex items-center gap-2 text-xs text-amber-900 px-3 py-2 rounded-lg bg-amber-50 border border-dashed border-amber-300">
+              <span>⏳ In opzione — tavolo tenuto fino al</span>
+              <input type="date" value={form.tenuto_fino_al} max={form.data_pasto}
+                onChange={(e) => setForm({ ...form, tenuto_fino_al: e.target.value })}
+                className="px-2 py-1 border border-amber-300 rounded bg-white min-h-[36px]" />
+            </div>
+          )}
+
           {/* Data e Ora */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -249,7 +294,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
           {avvisoFascia && (
             <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">⚠️ {avvisoFascia}. Puoi inserirla lo stesso.</div>
           )}
-          {posto && !posto.entra && (
+          {posto && !posto.entra && form.stato !== "WAITLIST" && (
             <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs">
               🔴 A quest'ora non c'è un tavolo o un'unione salvata libera per {form.pax} persone{posto.gia_fuori > 0 ? ` (e ${posto.gia_fuori} prenotazioni sono già senza posto)` : ""}. Prova un altro orario, apri una sala o inseriscila lo stesso.
             </div>

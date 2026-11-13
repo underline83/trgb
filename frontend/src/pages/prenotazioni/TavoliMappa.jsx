@@ -1,4 +1,4 @@
-// @version: v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -20,6 +20,7 @@ const COLORI_STATO = {
   NO_SHOW:   { fill: "#fecaca", stroke: "#ef4444", text: "#7f1d1d" }, // red
   CANCELED:  { fill: "#e5e7eb", stroke: "#9ca3af", text: "#6b7280" }, // gray
   REQUESTED: { fill: "#ddd6fe", stroke: "#8b5cf6", text: "#4c1d95" }, // violet
+  OPTION:    { fill: "#fef3c7", stroke: "#d97706", text: "#78350f" }, // ambra tratteggiato: tenuto, non confermato
   BLOCCATO:  { fill: "#e5e7eb", stroke: "#6b7280", text: "#6b7280" }, // grigio tratteggiato
 };
 
@@ -414,7 +415,7 @@ export default function TavoliMappa() {
                     <FormaTavolo t={t} fill={scelto ? "#c7d2fe" : colori.fill}
                       stroke={scelto ? "#4f46e5" : t.non_ci_sta ? "#dc2626" : isClickable ? "#f59e0b" : colori.stroke}
                       strokeWidth={scelto || isClickable || menuTavolo?.id === t.id ? 3 : 1.5}
-                      dash={isClickable || bloccato ? "4 2" : "none"} />
+                      dash={isClickable || bloccato || stato === "OPTION" ? "4 2" : "none"} />
                     {t.non_ci_sta && (
                       <text x={t.posizione_x + t.larghezza / 2} y={t.posizione_y + t.altezza - 6}
                         textAnchor="middle" fontSize="8" fill="#dc2626" className="select-none pointer-events-none">
@@ -540,6 +541,7 @@ export default function TavoliMappa() {
               {[
                 { label: "Libero", color: COLORE_TAVOLO },
                 { label: "Prenotato", color: "#c7d2fe" },
+                { label: "In opzione", color: "#fef3c7" },
                 { label: "Arrivato", color: "#fde68a" },
                 { label: "Seduto", color: "#a7f3d0" },
                 { label: "No-show", color: "#fecaca" },
@@ -586,6 +588,10 @@ export default function TavoliMappa() {
                       <button onClick={() => cambiaStato(selectedPren.id, "NO_SHOW")}
                         className="px-2 py-1 text-[10px] bg-red-600 text-white rounded font-medium">No-show</button>
                     </>
+                  )}
+                  {selectedPren.stato === "OPTION" && (
+                    <button onClick={() => cambiaStato(selectedPren.id, "RECORDED")}
+                      className="px-2 py-1 text-[10px] bg-indigo-600 text-white rounded font-medium">✓ Conferma</button>
                   )}
                   {selectedPren.stato === "ARRIVED" && (
                     <button onClick={() => cambiaStato(selectedPren.id, "SEATED")}

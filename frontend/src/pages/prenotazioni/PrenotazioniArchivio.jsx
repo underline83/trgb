@@ -1,6 +1,7 @@
-// @version: v2.0 — spostato da Clienti a Prenotazioni › Archivio (redesign 2026-10-19), API /prenotazioni/archivio/ · v1.1-mattoni
+// @version: v2.1 — filtro stati dalla tabella stati (In opzione, Lista d'attesa) (2026-11-13) · v2.0 — spostato da Clienti a Prenotazioni › Archivio (redesign 2026-10-19), API /prenotazioni/archivio/ · v1.1-mattoni
 // Archivio prenotazioni: tutte, con filtri, ricerca, paginazione
 import React, { useState, useEffect, useCallback } from "react";
+import usePrenotazioniStati from "./components/statiPrenotazioni";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
@@ -19,6 +20,8 @@ const STATO_TONE = {
   REFUSED: "danger",
   REQUESTED: "brand",
   PARTIALLY_ARRIVED: "warning",
+  OPTION: "warning",
+  WAITLIST: "brand",
 };
 
 const STATI_LABEL = {
@@ -32,10 +35,13 @@ const STATI_LABEL = {
   REFUSED: "Rifiutata",
   REQUESTED: "Richiesta",
   PARTIALLY_ARRIVED: "Parziale",
+  OPTION: "In opzione",
+  WAITLIST: "Lista d'attesa",
 };
 
 export default function PrenotazioniArchivio() {
   const navigate = useNavigate();
+  const { stati: statiElenco } = usePrenotazioniStati();  // filtro dalla tabella stati (2026-11-13)
   const [prenotazioni, setPrenotazioni] = useState([]);
   const [totale, setTotale] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -136,12 +142,7 @@ export default function PrenotazioniArchivio() {
                   <select value={stato} onChange={(e) => setStato(e.target.value)}
                     className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm">
                     <option value="">Tutti</option>
-                    <option value="SEATED">Seduto</option>
-                    <option value="RECORDED">Confermata</option>
-                    <option value="CANCELED">Cancellata</option>
-                    <option value="NO_SHOW">No Show</option>
-                    <option value="ARRIVED">Arrivato</option>
-                    <option value="REFUSED">Rifiutata</option>
+                    {statiElenco.map((s) => <option key={s.codice} value={s.codice}>{s.etichetta}</option>)}
                   </select>
                 </div>
 

@@ -1,5 +1,7 @@
 # Modulo: clienti (sub-modulo preventivi) → export iPratico — [core]
-# @version: v1.0 — menu template dei preventivi come articoli iPratico (mig 231, 2026-11-13)
+# @version: v1.1 — Family e reparti presi da un articolo già esistente della categoria (non dai
+#   default dei vini, che davano Family «beverage») — 2026-11-13
+# v1.0 — menu template dei preventivi come articoli iPratico (mig 231, 2026-11-13)
 # -*- coding: utf-8 -*-
 """
 Sincronizzazione Menu Template (preventivi) → iPratico
@@ -24,7 +26,9 @@ Sull'export che arriva da iPratico (riconoscimento SOLO dallo SKU M####/M####V):
 - template spento, cancellato, senza doppio prezzo (per la «V») o a prezzo 0
   → Hidden = Si (la riga resta, iPratico non la perde);
 - articolo attivo e mancante → riga nuova coi default di ipratico_export_defaults,
-  tutti i 12 prezzi uguali, senza Id (lo assegna iPratico).
+  tutti i 12 prezzi uguali, senza Id (lo assegna iPratico);
+- Family e reparti (CAMPI_MODELLO) si copiano da un articolo che c'è già nella
+  categoria: i default sono quelli dei vini e davano Family «beverage» (v1.1).
 """
 
 from __future__ import annotations
@@ -39,6 +43,13 @@ SUFFISSO_VINO = "V"
 CATEGORIA_DEFAULT = "Degustazioni"
 CHIAVE_CATEGORIA = "ipratico_categoria_menu"
 _RE_SKU = re.compile(r"^\s*M(\d{4})(V?)\s*$")
+
+# Campi copiati da un articolo che c'è già nella categoria (es. «Degustazione Prima volta»):
+# i default di ipratico_export_defaults sono quelli dei vini (Family beverage).
+CAMPI_MODELLO = (
+    "Family", "Table_Service_Department", "Counter_Service_Department",
+    "Takeaway_Department", "Delivery_Department",
+)
 
 PRICE_FIELDS = (
     "Price_table", "Price_counter", "Price_takeaway", "Price_delivery",
@@ -168,6 +179,28 @@ def sincronizza_foglio(ws, headers: dict[str, int], defaults: dict[str, str]) ->
           "aggiunti": 0, "senza_prezzo": [], "doppi": 0}
     presenti: set[str] = set()
 
+    # Articolo modello: il primo della stessa categoria che non è un menu nostro
+    modello: dict[str, Any] = {}
+    id_col = headers.get("Id")
+    for row in range(2, ws.max_row + 1):
+        if ws.cell(row=row, column=cat_col).value != categoria:
+            continue
+        if da_sku(ws.cell(row=row, column=sku_col).value):
+            continue
+        if id_col and not ws.cell(row=row, column=id_col).value:
+            continue
+        for f in CAMPI_MODELLO:
+            col = headers.get(f)
+            v = ws.cell(row=row, column=col).value if col else None
+            if v not in (None, ""):
+                modello[f] = v
+        break
+    st["modello"] = bool(modello)
+
+    def _applica_modello(r: int) -> None:
+        for f, v in modello.items():
+            ws.cell(row=r, column=headers[f]).value = v
+
     for row in range(2, ws.max_row + 1):
         parsed = da_sku(ws.cell(row=row, column=sku_col).value)
         if not parsed:
@@ -197,6 +230,7 @@ def sincronizza_foglio(ws, headers: dict[str, int], defaults: dict[str, str]) ->
         if p1_col and ws.cell(row=row, column=p1_col).value != a["prezzo"]:
             ws.cell(row=row, column=p1_col).value = a["prezzo"]
             st["prezzi"] += 1
+        _applica_modello(row)
 
     for cod, a in attivi.items():
         if cod in presenti:
@@ -209,6 +243,7 @@ def sincronizza_foglio(ws, headers: dict[str, int], defaults: dict[str, str]) ->
             col = headers.get(field)
             if col:
                 ws.cell(row=r, column=col).value = value
+        _applica_modello(r)
         ws.cell(row=r, column=cat_col).value = categoria
         ws.cell(row=r, column=name_col).value = a["nome"]
         ws.cell(row=r, column=sku_col).value = cod

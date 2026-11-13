@@ -41,6 +41,7 @@ from app.services.prenotazioni_doppioni_service import doppioni_del_giorno
 from app.services import prenotazioni_fasce_service as fasce_srv
 from app.services import prenotazioni_sale_service as sale_srv
 from app.services import prenotazioni_tavoli_service as tavoli_srv
+from app.services import prenotazioni_stati as stati_srv
 
 logger = logging.getLogger("trgb.prenotazioni")
 
@@ -80,25 +81,15 @@ init_clienti_db()
 # HELPERS
 # ============================================================
 
-STATI_VALIDI = {
-    "RECORDED", "ARRIVED", "SEATED", "LEFT",
-    "CANCELED", "NO_SHOW", "REFUSED", "REQUESTED",
-    "BILL", "PARTIALLY_ARRIVED",
-}
+# Stati e passaggi permessi: tabella prenotazioni_stati (mig 232, 2026-11-13),
+# letta dal servizio. STATI_VALIDI resta come elenco di riferimento (descrizione
+# dello strumento del connettore); la validazione vera usa stati_srv.codici().
+STATI_VALIDI = {s[0] for s in stati_srv.DEFAULT_STATI}
 
-# Transizioni di stato permesse
-TRANSIZIONI = {
-    "RECORDED":   ["ARRIVED", "SEATED", "CANCELED", "NO_SHOW", "REFUSED"],
-    "REQUESTED":  ["RECORDED", "REFUSED", "CANCELED"],
-    "ARRIVED":    ["SEATED", "CANCELED", "NO_SHOW"],
-    "SEATED":     ["LEFT", "BILL"],
-    "BILL":       ["LEFT"],
-    "LEFT":       [],
-    "CANCELED":   ["RECORDED"],  # ripristino
-    "NO_SHOW":    ["RECORDED"],  # ripristino
-    "REFUSED":    ["RECORDED"],  # ripristino
-    "PARTIALLY_ARRIVED": ["SEATED", "LEFT"],
-}
+
+def _sql_non_occupano() -> str:
+    """('CANCELED','NO_SHOW','REFUSED','WAITLIST'): stati che non tengono il tavolo."""
+    return stati_srv.sql_in(stati_srv.non_occupano())
 
 
 def _get_config(conn) -> Dict[str, str]:
@@ -199,7 +190,8 @@ def _timeline_turno(prenotazioni: List[Dict[str, Any]], config: Dict[str, str], 
         slot_cfg = json.loads(config.get(f"slot_{turno}") or "[]")
     except ValueError:
         slot_cfg = []
-    attive = [p for p in prenotazioni if p.get("stato") not in ("CANCELED", "NO_SHOW", "REFUSED")
+    non_occ = stati_srv.non_occupano()  # anche «In opzione» tiene il tavolo; la lista d'attesa no
+    attive = [p for p in prenotazioni if p.get("stato") not in non_occ
               and _minuti(p.get("ora_pasto")) is not None]
     data = (attive[0].get("data_pasto") if attive else None) or ""
     durata_base = durata_tavolo(config, turno, data)
@@ -248,6 +240,9 @@ class PrenotazioneCreate(BaseModel):
     allergie_segnalate: Optional[str] = None
     tavolo_esterno: int = 0
     seggioloni: Optional[str] = None
+    # Stato di partenza (2026-11-13): Confermata, In opzione o Lista d'attesa
+    stato: str = "RECORDED"
+    tenuto_fino_al: Optional[str] = None
     # Per creazione cliente al volo
     nuovo_nome: Optional[str] = None
     nuovo_cognome: Optional[str] = None
@@ -269,10 +264,36 @@ class PrenotazioneUpdate(BaseModel):
     seggioloni: Optional[str] = None
     stato: Optional[str] = None
     cliente_id: Optional[int] = None
+    tenuto_fino_al: Optional[str] = None   # "" = togli la data
 
 
 class StatoUpdate(BaseModel):
     stato: str
+    tenuto_fino_al: Optional[str] = None   # per «In opzione»: se manca, la proposta di config
+
+
+# Stati con cui può nascere una prenotazione dal form (2026-11-13)
+STATI_INIZIALI = ("RECORDED", "OPTION", "WAITLIST")
+
+
+def _data_ok(v: Optional[str]) -> Optional[str]:
+    """AAAA-MM-GG o None; altro → 400."""
+    if v is None or str(v).strip() == "":
+        return None
+    try:
+        return datetime.strptime(str(v)[:10], "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Data non valida: {v} (AAAA-MM-GG)")
+
+
+def _controlla_solo_trgb(stato: str, thefork_booking_id: Optional[str]) -> None:
+    """In opzione / Lista d'attesa non esistono in TheFork: la sincronizzazione li riscriverebbe."""
+    if thefork_booking_id and stato in stati_srv.gruppo("solo_trgb"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"«{stati_srv.etichetta(stato)}» c'è solo in TRGB: su una prenotazione di TheFork "
+                   "la sincronizzazione lo riscriverebbe. Gestiscila in TheFork Manager.",
+        )
 
 
 # ============================================================
@@ -307,7 +328,7 @@ def get_planning(
                 p.allergie_segnalate, p.tavolo_esterno, p.seggioloni,
                 p.menu_preset, p.degustazione, p.offerta_speciale, p.yums,
                 p.menu_evento, p.preventivo_id, p.motivo_cancellazione,
-                p.thefork_booking_id, p.creato_da,
+                p.thefork_booking_id, p.creato_da, p.tenuto_fino_al,
                 p.nome_ospite, p.cognome_ospite,
                 COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
                 COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
@@ -340,6 +361,12 @@ def get_planning(
         pax_pranzo = 0
         pax_cena = 0
         senza_tavolo = 0
+        # Stati dalla tabella (mig 232): «In opzione» tiene il tavolo ma i suoi coperti
+        # si contano a parte (decisione di Marco 2026-11-13); la lista d'attesa non conta.
+        non_occ = stati_srv.non_occupano()
+        incerte = stati_srv.gruppo("incerta")
+        opz = {"pranzo": [0, 0], "cena": [0, 0]}      # [prenotazioni, coperti] in opzione
+        attesa = {"pranzo": [0, 0], "cena": [0, 0]}   # [prenotazioni, coperti] in lista d'attesa
         # Stessa prenotazione segnata a mano e in TheFork (nome / telefono / email)
         doppioni = doppioni_del_giorno(conn, data)
         try:
@@ -375,17 +402,24 @@ def get_planning(
                 item["tags"] = []
 
             # Contatori
-            if item["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED"):
-                if not item.get("tavolo"):
-                    senza_tavolo += 1
+            occupa = item["stato"] not in non_occ
+            if occupa and not item.get("tavolo"):
+                senza_tavolo += 1
+            if item["stato"] == "WAITLIST":
+                attesa[turno][0] += 1
+                attesa[turno][1] += item.get("pax") or 0
+            elif occupa and item["stato"] in incerte:
+                opz[turno][0] += 1
+                opz[turno][1] += item.get("pax") or 0
 
+            sicura = occupa and item["stato"] not in incerte
             if turno == "pranzo":
                 pranzo.append(item)
-                if item["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED"):
+                if sicura:
                     pax_pranzo += item.get("pax") or 0
             else:
                 cena.append(item)
-                if item["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED"):
+                if sicura:
                     pax_cena += item.get("pax") or 0
 
         return {
@@ -401,10 +435,15 @@ def get_planning(
                 "cena": fasce_srv.fasce_giorno(conn, data, "cena", config)["fasce"],
             },
             "contatori": {
-                "pranzo_count": len([p for p in pranzo if p["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED")]),
-                "cena_count": len([c for c in cena if c["stato"] not in ("CANCELED", "NO_SHOW", "REFUSED")]),
+                "pranzo_count": len([p for p in pranzo if p["stato"] not in non_occ and p["stato"] not in incerte]),
+                "cena_count": len([c for c in cena if c["stato"] not in non_occ and c["stato"] not in incerte]),
                 "pranzo_pax": pax_pranzo,
                 "cena_pax": pax_cena,
+                # «+ N in opzione» e lista d'attesa, a parte (2026-11-13)
+                "pranzo_opzione_count": opz["pranzo"][0], "pranzo_opzione_pax": opz["pranzo"][1],
+                "cena_opzione_count": opz["cena"][0], "cena_opzione_pax": opz["cena"][1],
+                "pranzo_attesa_count": attesa["pranzo"][0], "pranzo_attesa_pax": attesa["pranzo"][1],
+                "cena_attesa_count": attesa["cena"][0], "cena_attesa_pax": attesa["cena"][1],
                 "senza_tavolo": senza_tavolo,
                 # Capienza = posti dei tavoli delle sale aperte (mig 214); senza tavoli, il numero fisso
                 "capienza_pranzo": _capienza_turno(conn, data, "pranzo", config),
@@ -456,19 +495,24 @@ def get_settimana(
             giorno = lunedi + timedelta(days=i)
             giorno_str = giorno.isoformat()
 
-            rows = conn.execute("""
+            rows = conn.execute(f"""
                 SELECT ora_pasto, pax, stato, turno
                 FROM clienti_prenotazioni
                 WHERE data_pasto = ?
-                  AND stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+                  AND stato NOT IN {_sql_non_occupano()}
             """, (giorno_str,)).fetchall()
 
             pax_pranzo = 0
             pax_cena = 0
             count_pranzo = 0
             count_cena = 0
+            pax_opzione = 0
+            incerte = stati_srv.gruppo("incerta")
             for r in rows:
                 turno = r["turno"] or _calcola_turno(r["ora_pasto"], soglia)
+                if r["stato"] in incerte:      # in opzione: coperti a parte
+                    pax_opzione += r["pax"] or 0
+                    continue
                 if turno == "pranzo":
                     count_pranzo += 1
                     pax_pranzo += r["pax"] or 0
@@ -484,6 +528,7 @@ def get_settimana(
                 "pranzo_pax": pax_pranzo,
                 "cena_count": count_cena,
                 "cena_pax": pax_cena,
+                "opzione_pax": pax_opzione,
             })
 
         return {"lunedi": lunedi.isoformat(), "giorni": giorni}
@@ -509,11 +554,11 @@ def get_calendario(
         capienza_cena = int(config.get("capienza_cena", 50))
 
         prefix = f"{anno:04d}-{mese:02d}"
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT data_pasto, COUNT(*) as n, SUM(pax) as pax_tot
             FROM clienti_prenotazioni
             WHERE data_pasto LIKE ? || '%'
-              AND stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+              AND stato NOT IN {_sql_non_occupano()}
             GROUP BY data_pasto
         """, (prefix,)).fetchall()
 
@@ -543,10 +588,18 @@ def crea_prenotazione(
     user: dict = Depends(get_current_user),
 ):
     """Inserisce una nuova prenotazione manuale."""
+    if req.stato not in STATI_INIZIALI:
+        raise HTTPException(status_code=400, detail=f"Una prenotazione nuova nasce {', '.join(STATI_INIZIALI)}, non {req.stato}")
+    tenuto = _data_ok(req.tenuto_fino_al)
     conn = get_clienti_conn()
     try:
         config = _get_config(conn)
         soglia = config.get("soglia_pranzo_cena", "15:00")
+        if req.stato in stati_srv.gruppo("incerta") and not tenuto:
+            from app.services.prenotazioni_attese_service import tenuto_fino_proposto
+            tenuto = tenuto_fino_proposto(conn, req.data_pasto)
+        if req.stato not in stati_srv.gruppo("incerta"):
+            tenuto = None
 
         cliente_id = req.cliente_id
 
@@ -573,12 +626,13 @@ def crea_prenotazione(
                 canale, occasione, nota_ristorante, nota_cliente,
                 allergie_segnalate, tavolo_esterno, seggioloni,
                 data_prenotazione, prenotato_da, turno, fonte, creato_da,
-                token_cancellazione
-            ) VALUES (?, ?, ?, 'RECORDED', ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?, 'manuale', ?, ?)
+                token_cancellazione, tenuto_fino_al
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?, 'manuale', ?, ?, ?)
         """, (
             cliente_id,
             req.data_pasto,
             req.ora_pasto,
+            req.stato,
             req.pax,
             req.tavolo,
             req.canale,
@@ -592,6 +646,7 @@ def crea_prenotazione(
             turno,
             user.get("username", "staff"),
             token,
+            tenuto,
         ))
         conn.commit()
         nuovo_id = cur.lastrowid
@@ -613,6 +668,21 @@ def crea_prenotazione(
 # ENDPOINT: CONFIGURAZIONE
 # (PRIMA delle route con {pren_id} per evitare conflitti!)
 # ============================================================
+
+@router.get("/stati/")
+def get_stati(user: dict = Depends(get_current_user)):
+    """Stati delle prenotazioni con etichetta, emoji, tono, gruppi e passaggi permessi
+    (tabella prenotazioni_stati, 2026-11-13). Lettura per badge, pulsanti e filtri."""
+    return {"stati": stati_srv.elenco()}
+
+
+@router.get("/opzioni-scadute/")
+def get_opzioni_scadute(user: dict = Depends(get_current_user)):
+    """Prenotazioni «In opzione» senza preventivo in attesa, col «tenuto fino al» passato o di oggi."""
+    from app.services.prenotazioni_attese_service import opzioni_scadute
+    items = opzioni_scadute()
+    return {"totale": len(items), "items": items}
+
 
 @router.get("/config")
 def get_config(user: dict = Depends(get_current_user)):
@@ -740,10 +810,10 @@ def get_tavoli_disponibili(
         """).fetchall())
 
         # Prenotazioni con tavolo assegnato per questa data/turno
-        occupati = conn.execute("""
+        occupati = conn.execute(f"""
             SELECT tavolo FROM clienti_prenotazioni
             WHERE data_pasto = ? AND turno = ?
-              AND stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+              AND stato NOT IN {_sql_non_occupano()}
               AND tavolo IS NOT NULL AND tavolo != ''
         """, (data, turno)).fetchall()
 
@@ -1410,9 +1480,9 @@ def _tavoli_del_turno(conn, data: str, turno: str, rows) -> List[Dict[str, Any]]
 
 def _nomi_occupati(conn, data: str, turno: str) -> set:
     nomi = set()
-    for r in conn.execute("""
+    for r in conn.execute(f"""
         SELECT tavolo FROM clienti_prenotazioni
-        WHERE data_pasto = ? AND turno = ? AND stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+        WHERE data_pasto = ? AND turno = ? AND stato NOT IN {_sql_non_occupano()}
           AND tavolo IS NOT NULL AND tavolo != ''
     """, (data, turno)):
         for n in str(r["tavolo"]).replace(",", "+").split("+"):
@@ -1445,9 +1515,9 @@ def dividi_tavolo(req: DivisioneTavolo, user: dict = Depends(get_current_user)):
             meta = tavoli_srv.nomi_meta(dict(t))
             pA, pB = tavoli_srv.posti_meta(t["posti_max"] or 2)
             posti_meta_uguale = pA if meta[0] == t["nome"] else pB if meta[1] == t["nome"] else 0
-            sopra = [r["pax"] or 0 for r in conn.execute("""
+            sopra = [r["pax"] or 0 for r in conn.execute(f"""
                 SELECT pax, tavolo FROM clienti_prenotazioni
-                WHERE data_pasto = ? AND turno = ? AND stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+                WHERE data_pasto = ? AND turno = ? AND stato NOT IN {_sql_non_occupano()}
             """, (req.data, req.turno)) if t["nome"] in tavoli_srv.nomi_tavolo(r["tavolo"])]
             if not posti_meta_uguale or any(n > posti_meta_uguale for n in sopra):
                 raise HTTPException(status_code=400, detail=f"Il tavolo {t['nome']} è assegnato a una prenotazione che non sta in metà tavolo: spostala prima di dividerlo")
@@ -1929,7 +1999,7 @@ def get_mappa_tavoli(
 
         # Prenotazioni del turno (non cancellate)
         # COALESCE: preferisci nome CRM, fallback a snapshot TheFork (migraz. 068)
-        prenotazioni = conn.execute("""
+        prenotazioni = conn.execute(f"""
             SELECT
                 p.id, p.cliente_id, p.ora_pasto, p.stato, p.pax,
                 p.tavolo, p.nota_ristorante, p.allergie_segnalate,
@@ -1940,7 +2010,7 @@ def get_mappa_tavoli(
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON p.cliente_id = c.id
             WHERE p.data_pasto = ? AND p.turno = ?
-              AND p.stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+              AND p.stato NOT IN {_sql_non_occupano()}
             ORDER BY p.ora_pasto
         """, (data, turno)).fetchall()
 
@@ -2064,7 +2134,7 @@ def modifica_prenotazione(
 ):
     """Modifica una prenotazione esistente (form «Modifica» del Planning, 2026-10-28)."""
     verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="la modifica delle prenotazioni")
-    if req.stato is not None and req.stato not in STATI_VALIDI:
+    if req.stato is not None and req.stato not in stati_srv.codici():
         raise HTTPException(status_code=400, detail=f"Stato non valido: {req.stato}")
     conn = get_clienti_conn()
     try:
@@ -2073,6 +2143,8 @@ def modifica_prenotazione(
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Prenotazione non trovata")
+        if req.stato is not None and req.stato != existing["stato"]:
+            _controlla_solo_trgb(req.stato, existing["thefork_booking_id"])
 
         config = _get_config(conn)
         soglia = config.get("soglia_pranzo_cena", "15:00")
@@ -2106,6 +2178,13 @@ def modifica_prenotazione(
             updates.append("turno = ?")
             values.append(_calcola_turno(req.ora_pasto, soglia))
 
+        # «Tenuto fino al» (In opzione): cambiarlo = proroga, l'avviso riparte per la data nuova
+        if req.tenuto_fino_al is not None:
+            nuova = _data_ok(req.tenuto_fino_al)
+            if nuova != (existing["tenuto_fino_al"] or None):
+                updates += ["tenuto_fino_al = ?", "opzione_avvisata = NULL"]
+                values.append(nuova)
+
         updates.append("updated_at = datetime('now','localtime')")
         values.append(pren_id)
 
@@ -2115,6 +2194,9 @@ def modifica_prenotazione(
         )
         conn.commit()
         tavoli_srv.dividi_se_meta(conn, pren_id, user.get("username"))
+        if req.stato is not None and req.stato != existing["stato"]:
+            from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
+            avvisa_posto_liberato_sicuro(pren_id, existing["stato"], req.stato)
 
         return {"message": "Prenotazione aggiornata", "id": pren_id}
     except HTTPException:
@@ -2136,32 +2218,46 @@ def cambio_stato(
     req: StatoUpdate,
     user: dict = Depends(get_current_user),
 ):
-    """Cambio stato rapido con validazione transizioni."""
-    if req.stato not in STATI_VALIDI:
+    """Cambio stato con i passaggi permessi della tabella prenotazioni_stati_transizioni."""
+    if req.stato not in stati_srv.codici():
         raise HTTPException(status_code=400, detail=f"Stato non valido: {req.stato}")
 
     conn = get_clienti_conn()
     try:
         existing = conn.execute(
-            "SELECT stato FROM clienti_prenotazioni WHERE id = ?", (pren_id,)
+            "SELECT stato, data_pasto, tenuto_fino_al, thefork_booking_id FROM clienti_prenotazioni WHERE id = ?",
+            (pren_id,),
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Prenotazione non trovata")
 
         stato_attuale = existing["stato"]
-        transizioni_ok = TRANSIZIONI.get(stato_attuale, [])
+        transizioni_ok = stati_srv.transizioni(stato_attuale)
         if req.stato not in transizioni_ok:
             raise HTTPException(
                 status_code=400,
-                detail=f"Transizione non permessa: {stato_attuale} → {req.stato}. "
-                       f"Transizioni possibili: {transizioni_ok}",
+                detail=f"Da «{stati_srv.etichetta(stato_attuale)}» non si passa a «{stati_srv.etichetta(req.stato)}». "
+                       f"Possibili: {', '.join(stati_srv.etichetta(t) for t in transizioni_ok) or 'nessuno'}",
             )
+        _controlla_solo_trgb(req.stato, existing["thefork_booking_id"])
 
+        sets, vals = ["stato = ?", "updated_at = datetime('now','localtime')"], [req.stato]
+        if req.stato in stati_srv.gruppo("incerta"):
+            # In opzione: la data scelta, o quella che c'era, o la proposta di config.
+            # Con un preventivo in attesa vale la sua scadenza (la data resta solo come appunto).
+            from app.services.prenotazioni_attese_service import tenuto_fino_proposto
+            tenuto = _data_ok(req.tenuto_fino_al) or existing["tenuto_fino_al"] \
+                or tenuto_fino_proposto(conn, existing["data_pasto"])
+            if tenuto != existing["tenuto_fino_al"]:
+                sets += ["tenuto_fino_al = ?", "opzione_avvisata = NULL"]
+                vals.append(tenuto)
         conn.execute(
-            "UPDATE clienti_prenotazioni SET stato = ?, updated_at = datetime('now','localtime') WHERE id = ?",
-            (req.stato, pren_id),
+            f"UPDATE clienti_prenotazioni SET {', '.join(sets)} WHERE id = ?",
+            (*vals, pren_id),
         )
         conn.commit()
+        from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
+        avvisa_posto_liberato_sicuro(pren_id, stato_attuale, req.stato)
         try:  # richiesta dal sito accettata/rifiutata → email al cliente
             from app.services.prenotazioni_sito_service import dopo_cambio_stato
             dopo_cambio_stato(pren_id, stato_attuale, req.stato)
@@ -2201,6 +2297,8 @@ def cancella_prenotazione(
             (pren_id,),
         )
         conn.commit()
+        from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
+        avvisa_posto_liberato_sicuro(pren_id, existing["stato"], "CANCELED")
 
         return {"message": "Prenotazione cancellata", "id": pren_id}
     finally:

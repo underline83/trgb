@@ -43,6 +43,8 @@ export default function TurnoCard({
 
   const lista = (prenotazioni?.lista || []).filter((r) => r.turno === tab);
   const pax = { pranzo: prenotazioni?.pranzo_pax || 0, cena: prenotazioni?.cena_pax || 0 };
+  // «In opzione»: tavolo tenuto ma non confermato, coperti a parte (2026-11-13)
+  const opz = { pranzo: prenotazioni?.pranzo_opzione_pax || 0, cena: prenotazioni?.cena_opzione_pax || 0 };
   const t = TURNI[tab];
 
   if (lavagnaLoading && !lavagna) return <LavagnaVuota testo="Caricamento…" />;
@@ -65,6 +67,9 @@ export default function TurnoCard({
           <div className="flex items-baseline gap-1">
             <span className="text-[22px] font-extrabold text-brand-ink leading-none tabular-nums">{pax[tab]}</span>
             <span className="text-[10px] text-[#a8a49e] font-medium">pax</span>
+            {opz[tab] > 0 && (
+              <span className="text-[11px] font-semibold text-amber-700 tabular-nums" title="In opzione: tavolo tenuto, non ancora confermato">+{opz[tab]} ⏳</span>
+            )}
           </div>
           {lavagna?.whatsapp && <CopiaBriefing testo={lavagna.whatsapp} />}
         </div>
@@ -80,7 +85,7 @@ export default function TurnoCard({
               tab === k ? "text-brand-ink border-b-2 border-brand-ink font-bold" : "text-[#a8a49e]"
             }`}
           >
-            {TURNI[k].emoji} {TURNI[k].label} · {pax[k]} pax
+            {TURNI[k].emoji} {TURNI[k].label} · {pax[k]} pax{opz[k] > 0 ? ` +${opz[k]} ⏳` : ""}
           </button>
         ))}
       </div>

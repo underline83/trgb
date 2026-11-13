@@ -3,7 +3,7 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-11-13
 > **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md)
 
-**Versione modulo (`versions.jsx`):** prenotazioni v2.8
+**Versione modulo (`versions.jsx`):** prenotazioni v2.34
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)
 **Backend:** router `app/routers/prenotazioni_router.py`, prefix `/prenotazioni/*`; integrazione TheFork in `app/routers/prenotazioni_thefork_router.py` + `app/services/thefork_service.py` (§12)
 **DB:** `clienti.sqlite3` (condiviso col CRM, path live `locali/tregobbi/data/`)
@@ -67,6 +67,11 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-039 | Menù dell'evento confermato: quando un preventivo è confermato la prenotazione riceve `menu_evento` (menù scelto, prezzo, portate) e `preventivo_id` (mig 204; campi propri perché `menu_preset`/`nota_ristorante` li riscrive la sincronizzazione TheFork). Nel Planning 🍽️ nella riga e il menù in verde nella riga aperta | `GET /prenotazioni/planning/{data}` (campi `menu_evento`, `preventivo_id`); scritti da `app/services/evento_confermato_service.py` | tutti (lettura) | 🆕 2026-10-20 |
 | C-P-040 | Widget prenotazioni incorporabile in un'altra pagina pubblica, con «Note per noi» precompilate (prima uso: pagina della gift card `/regalo`, nota «Gift card <codice>») | `Prenota.jsx:PrenotaIncorporata`, `widgetAttivo()` | cliente (pubblico) | 🆕 2026-10-25 |
 | C-P-041 | Prenotazione legata a un preventivo in attesa: ⏳ sulla riga, nella riga aperta «In attesa di conferma preventivo PRE-… — scade il gg/mm» (rosso se scaduto) con «Apri preventivo» e «🔓 Libera tavolo» (chi può creare preventivi); se cancellata, «Cancellata: <motivo>» (`motivo_cancellazione`, mig 227) | `GET /prenotazioni/planning/{data}` (`preventivo_attesa` da `evento_confermato_service.preventivi_in_attesa`, `motivo_cancellazione`) | lettura tutti; Libera tavolo admin | 🆕 2026-11-03 |
+| C-P-042 | Stati in tabella: `prenotazioni_stati` (etichetta, emoji, tono, gruppi occupa/venuto/fuori/incerta/solo_trgb) e `prenotazioni_stati_transizioni` (mig 232). Badge, pulsanti di stato del Planning, filtro Archivio leggono da qui; i pulsanti mostrano solo i passaggi permessi | `GET /prenotazioni/stati/`, `app/services/prenotazioni_stati.py`, `components/statiPrenotazioni.js` | tutti (lettura) | 🆕 2026-11-13 |
+| C-P-043 | «⏳ In opzione» (OPTION): tavolo tenuto fino a `tenuto_fino_al` (proposta = oggi + `opzione_giorni_default`, mai oltre il giorno), proroga dalla riga aperta o dal form; coperti a parte («+N in opzione») in Planning, Home, Lavagna, Settimana, connettore. Alla scadenza niente di automatico: avviso nel campanello una volta per data (thread orario). Solo prenotazioni TRGB (non TheFork) | `PATCH /{id}/stato` (`tenuto_fino_al`), `PUT /{id}` (`tenuto_fino_al`), `POST /` (`stato`, `tenuto_fino_al`), `GET /opzioni-scadute/`, `prenotazioni_attese_service.controlla_opzioni` | sala/admin | 🆕 2026-11-13 |
+| C-P-044 | «🕰️ Lista d'attesa» (WAITLIST): non occupa tavoli (fuori da disponibilità, motore, fasce, mappa); sezione propria nel Planning; quando nello stesso giorno/turno una prenotazione smette di tenere il tavolo (cancellata, no-show, rifiutata, tavolo liberato) avviso nel campanello con chi è in attesa | `prenotazioni_attese_service.avvisa_posto_liberato` (da cambio stato, PUT, DELETE, `libera_prenotazione`) | sala/admin | 🆕 2026-11-13 |
+| C-P-045 | Preventivo → stato della prenotazione collegata: inviato (o collegato quando è già inviato) → In opzione con la scadenza del preventivo; confermato → Confermata; rifiutato/scaduto → Cancellata se era in opzione. Scritto nello storico del preventivo | `evento_confermato_service.allinea_prenotazione` (da `registra_invio`, `cambia_stato`, aggancio, collega a mano), `collega_prenotazione` | automatico | 🆕 2026-11-13 |
+| C-P-046 | Stato di partenza nel form «Nuova prenotazione»: Confermata, In opzione (con data) o Lista d'attesa | `PrenotazioniForm.jsx`, `POST /prenotazioni/` | sala/admin | 🆕 2026-11-13 |
 | C-P-MCP1 | Strumenti MCP `prenotazioni_giorno`, `prenotazioni_periodo` (max 31 giorni, anche solo totali): ora, coperti, nome, stato, tavolo, note, allergie (niente telefono/email/preferenze) | `app/connettore/server.py` `_strumenti_prenotazioni` → `get_planning` | admin/sala/sommelier/contabile (Q / claude.ai) | 🆕 2026-10-16 |
 | C-P-MCP2 | Strumento MCP `prenotazione_crea`: come «+ Nuova» (fonte manuale, `creato_da`/`prenotato_da` = «Q» o «claude (utente)»), cliente per id o ritrovato dal telefono, altrimenti errore con i possibili; non manda niente al cliente | `server.py` → `crea_prenotazione` + `search_clienti` | admin/sala/sommelier/contabile (Q / claude.ai) | 🆕 2026-10-16 |
 | C-P-MCP3 | Strumento MCP `prenotazione_aggiorna`: cambia una prenotazione che c'è già (data, ora, coperti, tavolo anche unito «1+2+0», canale, note che sostituiscono o `aggiungi_nota` datata, richiesta del cliente, occasione, allergie, seggioloni, stato) chiamando lo stesso `PUT /prenotazioni/{id}` del «✏️ Modifica» del Planning: solo i campi passati, turno ricalcolato, `dividi_se_meta` sui tavoli. Torna la prenotazione più «prima → dopo», l'avviso del motore per tavoli se i coperti non entrano (avvisa, non blocca) e l'avviso TheFork. Non manda niente al cliente | `server.py` → `modifica_prenotazione` + `get_motore_verifica` | admin/sala/sommelier/capo_sala (Q / claude.ai) | 🆕 2026-11-13 |
@@ -152,14 +157,29 @@ Tutti con JWT (`Depends(get_current_user)`); nessun controllo di ruolo nel route
 
 # 5. Stati e transizioni
 
-10 stati, compatibili 1:1 con l'export TheFork: `RECORDED, ARRIVED, SEATED, LEFT, CANCELED, NO_SHOW, REFUSED, REQUESTED, BILL, PARTIALLY_ARRIVED`.
+Dal 2026-11-13 (prenotazioni 2.34, mig 232) stati e passaggi stanno in tabella (`prenotazioni_stati`, `prenotazioni_stati_transizioni` in clienti.sqlite3) e il codice li legge da `app/services/prenotazioni_stati.py` (default uguali al seed se la tabella manca). Prima erano copiati a mano in una decina di file.
 
-Transizioni permesse (`TRANSIZIONI` in `prenotazioni_router.py:59`):
+12 stati: i 10 dell'export TheFork + 2 solo TRGB (`solo_trgb`: non si mettono su prenotazioni TheFork, la sincronizzazione li riscriverebbe).
+
+| Codice | Etichetta | Gruppi | Note |
+|---|---|---|---|
+| WAITLIST | Lista d'attesa | — (non occupa) | solo TRGB; avviso quando nel turno si libera un posto |
+| REQUESTED | Da confermare | occupa | tocca a noi (richiesta dal sito oltre N persone, TheFork) |
+| OPTION | In opzione | occupa, incerta | solo TRGB; tocca al cliente; `tenuto_fino_al`; coperti a parte |
+| RECORDED | Confermata | occupa | |
+| ARRIVED / PARTIALLY_ARRIVED / SEATED / BILL / LEFT | Arrivato / Parziale / Seduto / Al conto / Completata | occupa, venuto | |
+| CANCELED / NO_SHOW / REFUSED | Cancellata / No-show / Rifiutata | fuori | |
+
+Gruppi: **occupa** = tiene il tavolo (le query usano `stato NOT IN non_occupano()`, così uno stato sconosciuto conta come prima); **venuto**; **fuori** (sezione «Cancellate» del Planning); **incerta** = tiene il tavolo ma i coperti si contano a parte.
+
+Passaggi permessi (seed):
 
 | Da | A |
 |---|---|
-| RECORDED | ARRIVED, SEATED, CANCELED, NO_SHOW, REFUSED |
-| REQUESTED | RECORDED, REFUSED, CANCELED |
+| REQUESTED | RECORDED, OPTION, WAITLIST, REFUSED, CANCELED |
+| OPTION | RECORDED, CANCELED (la proroga cambia la data, non lo stato) |
+| WAITLIST | OPTION, RECORDED, CANCELED |
+| RECORDED | ARRIVED, SEATED, OPTION, CANCELED, NO_SHOW, REFUSED |
 | ARRIVED | SEATED, CANCELED, NO_SHOW |
 | SEATED | LEFT, BILL |
 | BILL | LEFT |
@@ -167,11 +187,13 @@ Transizioni permesse (`TRANSIZIONI` in `prenotazioni_router.py:59`):
 | CANCELED / NO_SHOW / REFUSED | RECORDED (ripristino) |
 | LEFT | — (terminale) |
 
-Etichette UI (`StatoBadge`): RECORDED = "Confermata", REQUESTED = "Da confermare", BILL = "Al conto", LEFT = "Completata". Nota: `REQUESTED` è previsto per il futuro widget pubblico; oggi nessun flusso interno lo genera (può arrivare solo dall'import TheFork).
+I passaggi automatici dal preventivo (C-P-045) e la sincronizzazione TheFork non passano da questa tabella. Il `PUT /{id}` (form, connettore `prenotazione_aggiorna`) accetta qualsiasi stato valido senza controllare i passaggi (come prima).
+
+Decisioni di Marco (2026-11-13): alla scadenza dell'opzione il tavolo NON si libera da solo (avviso, decide lui — come le pratiche); i coperti in opzione si mostrano separati («48 coperti + 12 in opzione»); al cliente non parte niente da questi stati.
 
 # 6. Configurazione (`prenotazioni_config`)
 
-Chiavi seed (da `init_clienti_db()` + migr. 050): `capienza_pranzo` (35), `capienza_cena` (50), `slot_pranzo` / `slot_cena` (JSON array orari), `soglia_pranzo_cena` (15:00 — prima = pranzo, dopo = cena), `giorni_anticipo_max` (60), `giorni_anticipo_min_ore` (2), `giorno_chiusura` (3), `durata_media_tavolo_min` (90, legacy), `durata_pranzo` (90) e `durata_cena` (120) (migr. 050), `widget_attivo` (0), `widget_messaggio_pieno`, `template_wa_conferma`, `template_wa_reminder`. Dalla mig 192: `cliente_frequente_visite` (5) — soglia del bollino «Frequente» (Impostazioni → Capienza & Turni → Bollino cliente).
+Chiavi seed (da `init_clienti_db()` + migr. 050): `capienza_pranzo` (35), `capienza_cena` (50), `slot_pranzo` / `slot_cena` (JSON array orari), `soglia_pranzo_cena` (15:00 — prima = pranzo, dopo = cena), `giorni_anticipo_max` (60), `giorni_anticipo_min_ore` (2), `giorno_chiusura` (3), `durata_media_tavolo_min` (90, legacy), `durata_pranzo` (90) e `durata_cena` (120) (migr. 050), `widget_attivo` (0), `widget_messaggio_pieno`, `template_wa_conferma`, `template_wa_reminder`. Dalla mig 192: `cliente_frequente_visite` (5) — soglia del bollino «Frequente» (Impostazioni → Capienza & Turni → Bollino cliente). Dalla mig 232: `opzione_giorni_default` (7) — giorni proposti per «tenuto fino al»; `avvisi_prenotazioni_ruoli` (admin,capo_sala) — chi riceve gli avvisi di opzione scaduta e posto liberato (Impostazioni → Capienza & Turni → In opzione e Lista d'attesa).
 
 UI: `/prenotazioni/impostazioni`, sidebar a 4 sezioni — **Capienza & Turni** (capienze, soglia, giorno chiusura, durate medie), **Slot Orari** (chips add/remove con anteprima), **Template Messaggi** (WA conferma/reminder con variabili e anteprima), **Widget Pubblico** (placeholder "In arrivo — Fase 3", checkbox disabilitata).
 
@@ -179,11 +201,12 @@ UI: `/prenotazioni/impostazioni`, sidebar a 4 sezioni — **Capienza & Turni** (
 
 Tabelle create idempotentemente da `init_clienti_db()` in `app/models/clienti_db.py` (non da migrazioni numerate, salvo 050 e 068):
 
-- **`clienti_prenotazioni`** — base storica TheFork (data/ora pasto, stato, pax, tavolo, canale, occasione, note, yums/imprint, thefork_booking_id UNIQUE, thefork_customer_id, allergie_segnalate, tavolo_esterno, seggioloni, waiting_list…) + colonne del modulo: `turno` (pranzo/cena), `fonte` (manuale/thefork/widget), `creato_da`, `conferma_inviata`, `reminder_inviato`, `token_cancellazione`, `updated_at`, `nome_ospite`/`cognome_ospite` (snapshot migr. 068 per prenotazioni senza `cliente_id`). Indici su cliente, data, stato, thefork_*, turno, fonte, token.
+- **`clienti_prenotazioni`** — base storica TheFork (data/ora pasto, stato, pax, tavolo, canale, occasione, note, yums/imprint, thefork_booking_id UNIQUE, thefork_customer_id, allergie_segnalate, tavolo_esterno, seggioloni, waiting_list…) + colonne del modulo: `turno` (pranzo/cena), `fonte` (manuale/thefork/widget), `creato_da`, `conferma_inviata`, `reminder_inviato`, `token_cancellazione`, `updated_at`, `nome_ospite`/`cognome_ospite` (snapshot migr. 068 per prenotazioni senza `cliente_id`), `tenuto_fino_al` e `opzione_avvisata` (mig 232: data dell'opzione e ultima scadenza già avvisata). Indici su cliente, data, stato, thefork_*, turno, fonte, token.
 - **`tavoli`** — nome UNIQUE, zona, posti_min/max, combinabile, posizione_x/y, larghezza/altezza, forma, attivo, note, ordine.
 - **`tavoli_combinazioni`** — nome, `tavoli_ids` JSON, posti, uso_frequente, note.
 - **`tavoli_layout`** — nome UNIQUE, `tavoli_attivi` JSON, `posizioni` JSON, attivo.
 - **`prenotazioni_config`** — chiave/valore/descrizione (§6).
+- **`prenotazioni_stati`**, **`prenotazioni_stati_transizioni`** (mig 232) — stati, gruppi e passaggi permessi (§5).
 - **`prenotazioni_email_log`** — predisposta per la Fase 4, **mai scritta da nessun codice** (0 righe).
 - **`prenotazioni_thefork_eventi`** (mig 189) — registro degli avvisi TheFork: tipo, uuid, payload grezzo, `stato` (ricevuto/fatto/ignorato/in_attesa/errore), tentativi, esito, ultimo errore (§12).
 
@@ -259,7 +282,9 @@ Service `app/services/prenotazioni_sito_service.py`, router pubblico `app/router
 2. ~~**Restrizione admin solo frontend.**~~ Risolto in 2.13: `PUT /config`, CRUD tavoli (`POST/PUT/DELETE /tavoli`, `PUT /tavoli/batch/posizioni`), layout e combinazioni richiedono admin lato server (M.G `solo_admin`). Le letture e l'assegnazione dei tavoli restano aperte a chi è loggato.
 3. **Combinazioni tavoli senza UI.** Endpoint CRUD presenti (C-P-016) ma nessuna pagina li usa: `TavoliEditor` carica le combinazioni e non le mostra; si gestiscono solo via API. In compenso mappa e disponibilità spacchettano le combinazioni scritte a mano nel campo `tavolo` ("4+5").
 4. **Campi Fase 4 inerti.** `token_cancellazione` viene generato a ogni POST ma mai consumato; `reminder_inviato` è usato dalla riconferma WhatsApp (2.8), `conferma_inviata` ancora no; `prenotazioni_email_log` mai scritta. Serviranno con widget + M.D Email.
-5. **REQUESTED senza produttore.** La UI lo gestisce (badge NUOVA, conferma/rifiuta) ma oggi nessun flusso lo crea (widget assente).
+5. ~~**REQUESTED senza produttore.**~~ Superato: lo creano le prenotazioni dal sito oltre N persone (2.20) e TheFork.
+7. **Liste «venuti» ancora scritte a mano.** Le query di visite/statistiche (`stato IN ('SEATED','LEFT','ARRIVED','BILL')` in prenotazioni, clienti, statistiche) non leggono ancora il gruppo `venuto` della tabella (che include anche PARTIALLY_ARRIVED): da allineare quando si toccano.
+8. **Lista d'attesa e TheFork.** L'avviso «posto liberato» parte dalle azioni in TRGB e dalla cancellazione dal sito, non dalle cancellazioni che arrivano dalla sincronizzazione TheFork.
 6. Il widget Home calcola il turno con soglia hardcoded "15:00" invece della config (vedi §8).
 
 # 10. Non implementato (dalla spec 2026-04) → roadmap §PR

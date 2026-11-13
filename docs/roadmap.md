@@ -665,11 +665,12 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | PR.3 | No-show tracking + alert scheda CRM (M.A + M.F) | S | 🟡 PARZIALE 2026-10-16 | Badge «N no-show» + affidabilità nel Planning (prenotazioni 2.8). Resta: scheda CRM e alert M.F |
 | PR.4 | Dashboard "stasera" (coperti + tavoli + cancellazioni) | S | ALTA | Dati pronti |
 | PR.5 | Distacco TheFork Manager — Fase 5 (M.H) | M-L | MEDIA | M.H blocca |
-| PR.6 | Lista d'attesa con notifica WA (M.C + M.A) | S | MEDIA | |
+| PR.6 | Lista d'attesa con notifica WA (M.C + M.A) | S | 🟡 PARZIALE 2026-11-13 | Stato «🕰️ Lista d'attesa» (non occupa tavoli) + avviso nel campanello quando nel turno si libera un posto (prenotazioni 2.34, mig 232). Resta: messaggio WhatsApp al cliente in attesa e avviso dalle cancellazioni della sync TheFork |
 | PR.7 | Report coperti previsti (prenotati + stima walk-in) | S | MEDIA | Dati pronti |
 | PR.8 | Allergie/preferenze cliente in planning (display) | S | MEDIA | Campo esiste in CRM |
 | PR.9 | Reminder cliente automatico 24h prima (M.C + scheduler) | S | 🟡 PARZIALE 2026-10-16 | Riconferma WhatsApp manuale dal Planning con «inviata» e contatore (prenotazioni 2.8). Resta l'invio automatico |
 | PR.10 | Prenotazioni TheFork in tempo reale (webhook B2B API) | M | 🟡 CODICE PRONTO 2026-10-16 | mig 189, prenotazioni 2.3, sistema 5.53. Attivo quando sul VPS ci sono `THEFORK_WEBHOOK_TOKEN` + credenziali (in arrivo da TheFork). Vedi `modulo_prenotazioni.md` §12. Avvicina PR.5 |
+| PR.11 | Pre-prenotazioni: stato «⏳ In opzione» (tavolo tenuto fino al…, coperti a parte, avviso alla scadenza, segue il preventivo collegato) + stati e passaggi in tabella | M | ✅ FATTO 2026-11-13 | prenotazioni 2.34, mig 232, sistema 5.98 — da pushare. Prossimo passo possibile: editor degli stati in Impostazioni (etichette, passaggi) |
 
 **Bug/debt:**
 - PR-DEBT1 — [`modulo_prenotazioni.md`](modulo_prenotazioni.md) "In progettazione" ma codice impl (Fase 1+2 fatte). Da consolidare Fase 5.

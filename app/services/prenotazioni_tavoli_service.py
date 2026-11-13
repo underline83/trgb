@@ -27,7 +27,14 @@ import json
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
-ATTIVE_NO = ("CANCELED", "NO_SHOW", "REFUSED", "LEFT")   # andati: il tavolo è di nuovo libero
+from app.services import prenotazioni_stati as stati_srv
+
+
+def _attive_no() -> tuple:
+    """Non tengono il tavolo: fuori, lista d'attesa (tabella stati, 2026-11-13) e gli andati."""
+    return (*stati_srv.non_occupano(), "LEFT")   # andati: il tavolo è di nuovo libero
+
+
 TUTTO_TURNO = 24 * 60
 LIMITE_NODI = 40000
 PENALITA_FORZATA = 6   # un tavolo sotto il suo minimo «costa» come 6 posti sprecati
@@ -339,9 +346,9 @@ def _prenotazioni(conn, data: str, turno: str) -> List[Dict[str, Any]]:
     return [dict(r) for r in conn.execute(f"""
         SELECT p.id, p.ora_pasto, p.pax, p.tavolo, p.stato, TRIM({nome}) AS nome
         FROM clienti_prenotazioni p LEFT JOIN clienti c ON c.id = p.cliente_id
-        WHERE p.data_pasto = ? AND p.turno = ? AND p.stato NOT IN ({','.join('?' * len(ATTIVE_NO))})
+        WHERE p.data_pasto = ? AND p.turno = ? AND p.stato NOT IN ({','.join('?' * len(_attive_no()))})
         ORDER BY p.ora_pasto, p.id
-    """, (data, turno, *ATTIVE_NO))]
+    """, (data, turno, *_attive_no()))]
 
 
 # ── algoritmo (puro) ───────────────────────────────────────────
@@ -585,11 +592,11 @@ def unione_da_prenotazione(conn, pren_id: int, origine: str = "thefork", solo_se
         if solo_se_manca and prima:
             return None
         nomi = nomi_tavolo(p["tavolo"])
-        if prima and prima["nome"] == "+".join(nomi) and p["stato"] not in ATTIVE_NO:
+        if prima and prima["nome"] == "+".join(nomi) and p["stato"] not in _attive_no():
             return prima["nome"]   # stessi tavoli: resta com'è (anche se la sala l'ha staccata)
         conn.execute("DELETE FROM tavoli_unioni WHERE creato_da = ?", (marca,))
         conn.commit()
-        if p["stato"] in ATTIVE_NO or len(nomi) < 2 or p["turno"] not in ("pranzo", "cena"):
+        if p["stato"] in _attive_no() or len(nomi) < 2 or p["turno"] not in ("pranzo", "cena"):
             return None
         # nome → id: prima i tavoli interi, poi le metà («4C» → «11A»)
         per_nome: Dict[str, Any] = {}

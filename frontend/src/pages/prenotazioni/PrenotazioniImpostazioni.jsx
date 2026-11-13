@@ -1,4 +1,4 @@
-// @version: v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -442,6 +442,34 @@ function CapienzaSection({ config, update }) {
           ))}
         </div>
         <p className="text-[11px] text-neutral-400 mt-2">Coperti che arrivano in ciascuna fascia (come «Andamento per fascia oraria» di TheFork). Vuoto = nessun limite. Per un giorno preciso: Planning → «🕒 Fasce». I limiti valgono in TRGB; su TheFork si può solo aprire o chiudere l'online.</p>
+      </div>
+
+      {/* Pre-prenotazioni: In opzione e Lista d'attesa (2026-11-13) */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-5">
+        <h4 className="font-semibold text-neutral-700 mb-3 text-sm">⏳ In opzione e 🕰️ Lista d'attesa</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">«In opzione»: tavolo tenuto per (giorni)</label>
+            <input
+              type="number"
+              value={config.opzione_giorni_default ?? "7"}
+              onChange={(e) => update("opzione_giorni_default", e.target.value)}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+              min={0}
+              max={90}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Avvisi nel campanello a (ruoli, separati da virgola)</label>
+            <input
+              type="text"
+              value={config.avvisi_prenotazioni_ruoli ?? "admin,capo_sala"}
+              onChange={(e) => update("avvisi_prenotazioni_ruoli", e.target.value)}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-neutral-400 mt-2">Data proposta per «tenuto fino al» quando metti una prenotazione in opzione (mai dopo il giorno della prenotazione). Con un preventivo collegato vale la scadenza del preventivo. Alla scadenza il tavolo resta tenuto: arriva l'avviso e decidi tu. Gli stessi ruoli ricevono l'avviso quando si libera un posto in un turno con qualcuno in lista d'attesa.</p>
       </div>
 
       {/* Bollino cliente nel Planning */}

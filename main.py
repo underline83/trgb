@@ -796,6 +796,9 @@ if module_loader.is_router_active("prenotazioni_router"):
     # Vendita online per fascia decisa dal motore per tavoli (online_automatico: spento | prova | attivo)
     from app.services.prenotazioni_online_auto_service import avvia_periodico as _online_auto
     _online_auto()
+    # Opzioni scadute («In opzione» senza preventivo): avviso allo staff, niente di automatico (2026-11-13)
+    from app.services.prenotazioni_attese_service import avvia_periodico as _opzioni_scadute
+    _opzioni_scadute()
 
 # PREVENTIVI (modulo prenotazioni — gestione preventivi eventi)
 _mount("preventivi_router", preventivi_router)

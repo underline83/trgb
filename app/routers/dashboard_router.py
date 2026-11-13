@@ -62,6 +62,9 @@ class PrenotazioniOggi(BaseModel):
     cena_count: int = 0
     cena_pax: int = 0
     totale_pax: int = 0
+    # «In opzione» (tavolo tenuto, non confermato): coperti a parte (2026-11-13)
+    pranzo_opzione_pax: int = 0
+    cena_opzione_pax: int = 0
     lista: List[PrenotazioneWidget] = []
 
 class IncassoIeri(BaseModel):
@@ -193,6 +196,16 @@ def _prenotazioni_oggi(oggi: str) -> PrenotazioniOggi:
               AND p.stato IN (?, ?, ?, ?, ?)
             ORDER BY p.ora_pasto, p.id
         """, (oggi, *STATI_ATTIVI)).fetchall()
+        opz = {"pranzo": 0, "cena": 0}
+        try:
+            from app.services import prenotazioni_stati as stati_srv
+            for r in conn.execute(
+                f"SELECT ora_pasto, pax FROM clienti_prenotazioni WHERE data_pasto = ? "
+                f"AND stato IN {stati_srv.sql_in(stati_srv.gruppo('incerta'))}", (oggi,)
+            ):
+                opz["pranzo" if (r["ora_pasto"] or "12:00") < "15:00" else "cena"] += r["pax"] or 0
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Dashboard: coperti in opzione: {e}")
         conn.close()
 
         # Leggo soglia pranzo/cena dalla config (default 15:00)
@@ -227,6 +240,7 @@ def _prenotazioni_oggi(oggi: str) -> PrenotazioniOggi:
             pranzo_count=pranzo_c, pranzo_pax=pranzo_p,
             cena_count=cena_c, cena_pax=cena_p,
             totale_pax=pranzo_p + cena_p,
+            pranzo_opzione_pax=opz["pranzo"], cena_opzione_pax=opz["cena"],
             lista=lista,
         )
     except Exception as e:

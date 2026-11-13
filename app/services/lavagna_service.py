@@ -130,9 +130,22 @@ def _nome_occasione(raw: str) -> str:
 
 def _prenotazioni_turno(oggi: str, turno: str) -> Dict[str, Any]:
     """Prenotazioni attive del turno richiesto, con i tavoli da segnalare."""
-    vuoto = {"pax": 0, "tavoli": 0, "picco": None, "notevoli": []}
+    vuoto = {"pax": 0, "tavoli": 0, "picco": None, "notevoli": [], "pax_opzione": 0}
     try:
         conn = get_clienti_conn()
+        # «In opzione»: coperti a parte, non nel conto del turno (Marco 2026-11-13)
+        pax_opzione = 0
+        try:
+            from app.services import prenotazioni_stati as stati_srv
+            incerte = stati_srv.gruppo("incerta")
+            for r in conn.execute(
+                f"SELECT ora_pasto, pax FROM clienti_prenotazioni WHERE data_pasto = ? AND stato IN {stati_srv.sql_in(incerte)}",
+                (oggi,),
+            ):
+                if ("pranzo" if (r["ora_pasto"] or "12:00")[:5] < SOGLIA_TURNO else "cena") == turno:
+                    pax_opzione += r["pax"] or 0
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Lavagna: coperti in opzione non leggibili: {e}")
         rows = conn.execute(f"""
             SELECT p.ora_pasto, p.pax, p.nota_ristorante, p.allergie_segnalate,
                    p.occasione, p.seggioloni,
@@ -215,7 +228,7 @@ def _prenotazioni_turno(oggi: str, turno: str) -> Dict[str, Any]:
         if len(x["dettaglio"]) > 90:
             x["dettaglio"] = x["dettaglio"][:87].rstrip() + "…"
 
-    return {"pax": pax, "tavoli": tavoli,
+    return {"pax": pax, "tavoli": tavoli, "pax_opzione": pax_opzione,
             "picco": _fascia_picco(per_ora), "notevoli": notevoli}
 
 
@@ -340,6 +353,8 @@ def _lede(pren: Dict[str, Any], turno: str) -> str:
     if picco and tavoli > 1:
         da, a = picco.split("-")
         frase += f" Il grosso tra le {da} e le {a}."
+    if pren.get("pax_opzione"):
+        frase += f" Più {pren['pax_opzione']} in opzione (non ancora confermati)."
     return frase
 
 
@@ -468,6 +483,7 @@ def build_lavagna(
         "data_label": _data_label(d, t),
         "lede": _lede(pren, t),
         "pax": pren["pax"],
+        "pax_opzione": pren.get("pax_opzione", 0),
         "tavoli": pren["tavoli"],
         "notevoli": pren["notevoli"][:4],
         "selezioni": _selezioni_flat(selezioni),

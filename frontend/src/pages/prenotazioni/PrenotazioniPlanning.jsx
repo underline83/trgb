@@ -1,4 +1,4 @@
-// @version: v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -8,6 +8,7 @@ import PrenotazioniNav from "./PrenotazioniNav";
 import PrenotazioniForm from "./PrenotazioniForm";
 import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
+import usePrenotazioniStati from "./components/statiPrenotazioni";
 import CanaleBadge from "./components/CanaleBadge";
 import FasceTurno from "./components/FasceTurno";
 import Tooltip from "../../components/Tooltip";
@@ -49,6 +50,8 @@ function rigaClasses(pren) {
   if (pren.stato === "LEFT" || pren.stato === "BILL") return "bg-emerald-50";
   if (pren.stato === "SEATED" || pren.stato === "ARRIVED") return "bg-green-50";
   if (pren.stato === "REQUESTED") return "bg-blue-50";
+  if (pren.stato === "OPTION") return "bg-amber-50/60 border-l-4 border-l-amber-300 border-dashed";
+  if (pren.stato === "WAITLIST") return "bg-violet-50/60";
   if (isRitardo(pren)) return "bg-amber-50";
   return "bg-white";
 }
@@ -89,7 +92,30 @@ function CellaTavolo({ pren, motore, onAssegna }) {
   );
 }
 
-function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo }) {
+// Pulsanti di stato (2026-11-13): uno per ogni passaggio permesso dalla tabella stati
+const AZIONI_STATO = {
+  SEATED:   { label: "✅ Seduto", cls: "bg-emerald-600 hover:bg-emerald-700" },
+  ARRIVED:  { label: "🚶 Arrivato", cls: "bg-teal-600 hover:bg-teal-700" },
+  BILL:     { label: "🧾 Al conto", cls: "bg-amber-600 hover:bg-amber-700" },
+  LEFT:     { label: "🚪 Andato via", cls: "bg-neutral-500 hover:bg-neutral-600" },
+  OPTION:   { label: "⏳ In opzione", cls: "bg-amber-500 hover:bg-amber-600" },
+  WAITLIST: { label: "🕰️ Lista d'attesa", cls: "bg-violet-500 hover:bg-violet-600" },
+  CANCELED: { label: "✖ Cancella", cls: "bg-neutral-400 hover:bg-neutral-500" },
+  NO_SHOW:  { label: "👻 No-show", cls: "bg-red-500 hover:bg-red-600" },
+  REFUSED:  { label: "⛔ Rifiuta", cls: "bg-red-400 hover:bg-red-500" },
+};
+function azioneStato(da, a) {
+  if (a === "RECORDED") {
+    return ["CANCELED", "NO_SHOW", "REFUSED"].includes(da)
+      ? { label: "↩ Ripristina", cls: "bg-indigo-500 hover:bg-indigo-600" }
+      : { label: "✓ Conferma", cls: "bg-indigo-600 hover:bg-indigo-700" };
+  }
+  return AZIONI_STATO[a] || { label: a, cls: "bg-neutral-500 hover:bg-neutral-600" };
+}
+const ggmm = (iso) => (iso || "").split("-").reverse().slice(0, 2).join("/");
+
+function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+  const { info } = usePrenotazioniStati();
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -251,6 +277,26 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
                   </div>
                 )}
                 {pren.degustazione && <div>🍷 Degustazione: {pren.degustazione}</div>}
+                {pren.stato === "OPTION" && !pren.preventivo_attesa && (
+                  <div className="mt-1 p-2 rounded border border-dashed border-amber-300 bg-amber-50 text-amber-900">
+                    ⏳ <b>In opzione</b>{pren.tenuto_fino_al ? <> — tavolo tenuto fino al {ggmm(pren.tenuto_fino_al)}</> : " — senza data"}
+                    {pren.tenuto_fino_al && pren.tenuto_fino_al < new Date().toISOString().slice(0, 10) && <span className="ml-1 text-red-700 font-semibold">(scaduta)</span>}
+                    {onTenutoFino && (
+                      <div className="mt-1.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <label className="text-xs">Proroga al</label>
+                        <input type="date" defaultValue={pren.tenuto_fino_al || ""} max={pren.data_pasto}
+                          onChange={(e) => e.target.value && onTenutoFino(pren, e.target.value)}
+                          className="px-2 py-1 text-xs border border-amber-300 rounded bg-white min-h-[32px]" />
+                      </div>
+                    )}
+                    <div className="mt-1 text-[11px] text-amber-800">Alla scadenza il tavolo resta tenuto: arriva l'avviso e decidi tu.</div>
+                  </div>
+                )}
+                {pren.stato === "WAITLIST" && (
+                  <div className="mt-1 p-2 rounded border border-violet-200 bg-violet-50 text-violet-900">
+                    🕰️ <b>Lista d'attesa</b> — non occupa tavoli. Se nel turno si libera un posto arriva l'avviso nel campanello.
+                  </div>
+                )}
                 {pren.preventivo_attesa && (
                   <div className={`mt-1 p-2 rounded border ${pren.preventivo_attesa.stato === "scaduto" ? "bg-red-50 border-red-200 text-red-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
                     ⏳ <b>{pren.preventivo_attesa.stato === "scaduto" ? "Preventivo scaduto" : "In attesa di conferma preventivo"}</b> {pren.preventivo_attesa.numero}
@@ -311,62 +357,20 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
                   </button>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  {["RECORDED", "REQUESTED"].includes(pren.stato) && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, "SEATED"); }}
-                        className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                      >
-                        ✅ Seduto
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, "CANCELED"); }}
-                        className="px-3 py-1 text-xs bg-neutral-400 text-white rounded hover:bg-neutral-500"
-                      >
-                        ✖ Cancella
-                      </button>
-                    </>
-                  )}
-                  {pren.stato === "RECORDED" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, "NO_SHOW"); }}
-                      className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
-                    >
-                      👻 No-show
-                    </button>
-                  )}
-                  {pren.stato === "REQUESTED" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, "RECORDED"); }}
-                      className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                    >
-                      ✓ Conferma
-                    </button>
-                  )}
-                  {pren.stato === "SEATED" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, "LEFT"); }}
-                      className="px-3 py-1 text-xs bg-neutral-500 text-white rounded hover:bg-neutral-600"
-                    >
-                      🚪 Andato via
-                    </button>
-                  )}
-                  {pren.stato === "ARRIVED" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, "SEATED"); }}
-                      className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                    >
-                      ✅ Seduto
-                    </button>
-                  )}
-                  {["CANCELED", "NO_SHOW", "REFUSED"].includes(pren.stato) && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, "RECORDED"); }}
-                      className="px-3 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600"
-                    >
-                      ↩ Ripristina
-                    </button>
-                  )}
+                  {info(pren.stato).transizioni
+                    .filter((a) => !(pren.thefork_booking_id && info(a).solo_trgb))
+                    .map((a) => {
+                      const az = azioneStato(pren.stato, a);
+                      return (
+                        <button
+                          key={a}
+                          onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, a); }}
+                          className={`px-3 py-1 text-xs text-white rounded min-h-[32px] ${az.cls}`}
+                        >
+                          {az.label}
+                        </button>
+                      );
+                    })}
                 </div>
                 {pren.thefork_booking_id && (
                   <div className="mt-2 text-[10px] text-neutral-400">TF: {pren.thefork_booking_id}</div>
@@ -424,9 +428,16 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo }) {
-  const attive = prenotazioni.filter((p) => !["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
-  const cancellate = prenotazioni.filter((p) => ["CANCELED", "NO_SHOW", "REFUSED"].includes(p.stato));
+function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, opzionePax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+  // Gruppi dalla tabella stati (2026-11-13): fuori = cancellate/no-show/rifiutate;
+  // lista d'attesa = né occupa né fuori → sezione a parte
+  const { gruppo } = usePrenotazioniStati();
+  const fuori = gruppo("fuori");
+  const occupa = gruppo("occupa");
+  const cancellate = prenotazioni.filter((p) => fuori.includes(p.stato));
+  const inAttesa = prenotazioni.filter((p) => !fuori.includes(p.stato) && !occupa.includes(p.stato));
+  const attive = prenotazioni.filter((p) => !cancellate.includes(p) && !inAttesa.includes(p));
+  const rigaProps = { onStatoChange, onExpand, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onLiberaTavolo, onModifica, onTenutoFino };
 
   const percentuale = capienza > 0 ? Math.round((pax / capienza) * 100) : 0;
   const perId = Object.fromEntries(((motore && motore.prenotazioni) || []).map((v) => [v.id, v]));
@@ -491,14 +502,24 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, m
               </button>
             );
           })()}
+          {inAttesa.length > 0 && (
+            <Tooltip label="In lista d'attesa: non occupano tavoli, avviso se si libera un posto">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">🕰️ {inAttesa.length} in attesa</span>
+            </Tooltip>
+          )}
           <span className={`font-medium ${coloreCapienza}`}>
             {pax} / {capienza} pax ({percentuale}%)
           </span>
+          {opzionePax > 0 && (
+            <Tooltip label="In opzione: tavolo tenuto ma non ancora confermato (non contati nei pax)">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-dashed border-amber-300 font-medium">+{opzionePax} ⏳ in opzione</span>
+            </Tooltip>
+          )}
         </div>
       </div>
       {attive.length > 0 && <TimelineSala slot={timeline} capienza={capienza} fasce={fasce} onFasce={onFasce} />}
 
-      {attive.length === 0 && cancellate.length === 0 ? (
+      {attive.length === 0 && cancellate.length === 0 && inAttesa.length === 0 ? (
         <div className="border border-t-0 border-neutral-200 rounded-b-lg p-6 text-center text-neutral-400">
           Nessuna prenotazione
         </div>
@@ -531,8 +552,21 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, capienza, m
                   onPreventivo={onPreventivo}
                   onLiberaTavolo={onLiberaTavolo}
                   onModifica={onModifica}
+                  onTenutoFino={onTenutoFino}
                 />
               ))}
+              {inAttesa.length > 0 && (
+                <>
+                  <tr>
+                    <td colSpan={6} className="px-3 py-1 text-[10px] uppercase text-violet-500 bg-violet-50/60 border-t">
+                      🕰️ Lista d'attesa ({inAttesa.length}) — non occupano tavoli
+                    </td>
+                  </tr>
+                  {inAttesa.map((p) => (
+                    <RigaPrenotazione key={p.id} pren={p} expanded={expandedId === p.id} {...rigaProps} />
+                  ))}
+                </>
+              )}
               {cancellate.length > 0 && (
                 <>
                   <tr>
@@ -595,6 +629,7 @@ export default function PrenotazioniPlanning() {
       window.alert(err.message || "Errore");
     }
   };
+  const { info: statiInfo } = usePrenotazioniStati();
   const [data, setData] = useState(dataParam || oggi());
   const [planning, setPlanning] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -671,12 +706,30 @@ export default function PrenotazioniPlanning() {
         body: JSON.stringify({ stato: nuovoStato }),
       });
       if (r.ok) {
-        setToast({ type: "ok", text: `Stato aggiornato → ${nuovoStato}` });
+        setToast({ type: "ok", text: `Stato aggiornato → ${statiInfo(nuovoStato).etichetta}` });
         loadPlanning();
       } else {
         const err = await r.json();
         setToast({ type: "err", text: err.detail || "Errore" });
       }
+    } catch {
+      setToast({ type: "err", text: "Errore di connessione" });
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // «In opzione»: proroga del «tenuto fino al» (2026-11-13)
+  const handleTenutoFino = async (pren, data) => {
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/${pren.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenuto_fino_al: data }),
+      });
+      const d = await r.json().catch(() => ({}));
+      setToast(r.ok ? { type: "ok", text: `Tavolo tenuto fino al ${data.split("-").reverse().slice(0, 2).join("/")}` }
+                    : { type: "err", text: d.detail || "Errore" });
+      if (r.ok) loadPlanning();
     } catch {
       setToast({ type: "err", text: "Errore di connessione" });
     }
@@ -811,6 +864,7 @@ export default function PrenotazioniPlanning() {
               prenotazioni={planning.pranzo}
               conteggio={c.pranzo_count}
               pax={c.pranzo_pax}
+              opzionePax={c.pranzo_opzione_pax}
               capienza={c.capienza_pranzo}
               motore={planning.motore?.pranzo}
               onAssegna={assegnaSuggeriti}
@@ -828,6 +882,7 @@ export default function PrenotazioniPlanning() {
               onPreventivo={puoPreventivi ? apriPreventivo : undefined}
               onLiberaTavolo={puoPreventivi ? liberaTavolo : undefined}
               onModifica={setInModifica}
+              onTenutoFino={handleTenutoFino}
             />
 
             {/* Tabella cena */}
@@ -836,6 +891,7 @@ export default function PrenotazioniPlanning() {
               prenotazioni={planning.cena}
               conteggio={c.cena_count}
               pax={c.cena_pax}
+              opzionePax={c.cena_opzione_pax}
               capienza={c.capienza_cena}
               motore={planning.motore?.cena}
               onAssegna={assegnaSuggeriti}
@@ -853,6 +909,7 @@ export default function PrenotazioniPlanning() {
               onPreventivo={puoPreventivi ? apriPreventivo : undefined}
               onLiberaTavolo={puoPreventivi ? liberaTavolo : undefined}
               onModifica={setInModifica}
+              onTenutoFino={handleTenutoFino}
             />
 
             {/* Riepilogo */}
@@ -860,6 +917,12 @@ export default function PrenotazioniPlanning() {
               <span>
                 Totale: <strong>{(c.pranzo_count || 0) + (c.cena_count || 0)}</strong> prenotazioni ·{" "}
                 <strong>{(c.pranzo_pax || 0) + (c.cena_pax || 0)}</strong> coperti
+                {(c.pranzo_opzione_pax || 0) + (c.cena_opzione_pax || 0) > 0 && (
+                  <span className="text-amber-700"> + {(c.pranzo_opzione_pax || 0) + (c.cena_opzione_pax || 0)} in opzione</span>
+                )}
+                {(c.pranzo_attesa_count || 0) + (c.cena_attesa_count || 0) > 0 && (
+                  <span className="text-violet-700"> · {(c.pranzo_attesa_count || 0) + (c.cena_attesa_count || 0)} in lista d'attesa</span>
+                )}
               </span>
               {c.senza_tavolo > 0 && (
                 <span className="text-amber-600 font-medium">

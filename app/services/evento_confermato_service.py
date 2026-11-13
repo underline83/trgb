@@ -45,6 +45,16 @@ def _turno(conn, ora: str | None) -> str:
 
 # Stati del preventivo che non tengono più una prenotazione (per l'aggancio automatico)
 STATI_PREVENTIVO_MORTI = ("rifiutato", "scaduto")
+# Stati della prenotazione «prima della conferma» (2026-11-13): richiesta, opzione, lista d'attesa
+PRE_PRENOTAZIONE = ("REQUESTED", "OPTION", "WAITLIST")
+
+
+def _etichetta(stato: str) -> str:
+    try:
+        from app.services.prenotazioni_stati import etichetta
+        return etichetta(stato)
+    except Exception:                                   # noqa: BLE001
+        return stato
 
 
 def cerca_prenotazione(conn, cliente_id: int, data: str, ora: str | None = None,
@@ -155,6 +165,15 @@ def collega_prenotazione(prev: dict, menu_evento: str, username: str) -> dict:
                 "UPDATE clienti_prenotazioni SET menu_evento = ?, preventivo_id = ? WHERE id = ?",
                 (menu_evento, prev["id"], pid),
             )
+            # Pre-prenotazione (in opzione / da confermare / lista d'attesa): col preventivo
+            # confermato diventa Confermata (decisione di Marco 2026-11-13)
+            st = conn.execute("SELECT stato FROM clienti_prenotazioni WHERE id = ?", (pid,)).fetchone()["stato"]
+            if st in PRE_PRENOTAZIONE:
+                conn.execute(
+                    "UPDATE clienti_prenotazioni SET stato = 'RECORDED', updated_at = datetime('now','localtime') WHERE id = ?",
+                    (pid,),
+                )
+                avvisi.append(f"La prenotazione era «{_etichetta(st)}»: ora è Confermata.")
             if prev.get("n_persone") and r["pax"] and int(r["pax"]) != int(prev["n_persone"]):
                 avvisi.append(f"Coperti diversi: prenotazione {r['pax']}, preventivo {prev['n_persone']}.")
             if prev.get("ora_evento") and r["ora_pasto"] and r["ora_pasto"][:5] != prev["ora_evento"][:5]:
@@ -217,7 +236,7 @@ def libera_prenotazione(prenotazione_id: int, motivo: str) -> dict:
         if not r:
             return {"cancellata": False, "stato": "non trovata"}
         out = {"id": r["id"], "data": r["data_pasto"], "thefork": bool(r["thefork_booking_id"]),
-               "stato": r["stato"], "cancellata": False}
+               "stato": r["stato"], "stato_prima": r["stato"], "cancellata": False}
         if r["stato"] in STATI_SPENTI:
             return out
         colonne = {c[1] for c in conn.execute("PRAGMA table_info(clienti_prenotazioni)")}
@@ -234,9 +253,12 @@ def libera_prenotazione(prenotazione_id: int, motivo: str) -> dict:
             )
         conn.commit()
         out.update(stato="CANCELED", cancellata=True)
-        return out
     finally:
         conn.close()
+    if out.get("cancellata"):  # posto liberato: avviso a chi è in lista d'attesa (2026-11-13)
+        from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
+        avvisa_posto_liberato_sicuro(prenotazione_id, out["stato_prima"], "CANCELED")
+    return out
 
 
 def preventivi_in_attesa(prenotazione_ids: list[int]) -> dict[int, dict]:
@@ -265,3 +287,77 @@ def preventivi_in_attesa(prenotazione_ids: list[int]) -> dict[int, dict]:
         return out
     finally:
         conn.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Preventivo → stato della prenotazione (2026-11-13, decisione di Marco)
+#   inviato / collegato a un preventivo in attesa  → «In opzione» (tocca al cliente)
+#   confermato                                     → «Confermata» (lo fa collega_prenotazione)
+#   rifiutato / scaduto                            → «Cancellata» se era in opzione
+# Le prenotazioni di TheFork non si toccano (la sincronizzazione riscrive lo stato).
+# ─────────────────────────────────────────────────────────────────────────
+
+def allinea_prenotazione(preventivo_id: int, evento: str, username: str | None = None) -> dict | None:
+    """Porta la prenotazione collegata nello stato che segue il preventivo.
+    evento: inviato | collegato | rifiutato | scaduto. Ritorna {da, a} se ha cambiato."""
+    from app.services import prenotazioni_stati as stati_srv
+    conn = get_clienti_conn()
+    try:
+        prev = conn.execute(
+            "SELECT id, numero, stato, prenotazione_id, scadenza_conferma FROM clienti_preventivi WHERE id = ?",
+            (preventivo_id,),
+        ).fetchone()
+        if not prev or not prev["prenotazione_id"]:
+            return None
+        colonne = {c[1] for c in conn.execute("PRAGMA table_info(clienti_prenotazioni)")}
+        if "tenuto_fino_al" not in colonne:             # mig 232 non applicata
+            return None
+        p = conn.execute(
+            "SELECT id, stato, thefork_booking_id FROM clienti_prenotazioni WHERE id = ?",
+            (prev["prenotazione_id"],),
+        ).fetchone()
+        if not p or p["thefork_booking_id"]:
+            return None
+        incerte = stati_srv.gruppo("incerta")
+        da, a, motivo = p["stato"], None, None
+        if evento in ("inviato", "collegato"):
+            if prev["stato"] in ("inviato", "in_attesa") and da in ("RECORDED", "REQUESTED", "WAITLIST"):
+                a = "OPTION"
+        elif evento in ("rifiutato", "scaduto"):
+            if da in incerte:
+                a, motivo = "CANCELED", f"preventivo {evento}"
+        if not a or a == da:
+            return None
+        if a == "OPTION":
+            conn.execute(
+                """UPDATE clienti_prenotazioni SET stato = 'OPTION', tenuto_fino_al = ?, opzione_avvisata = NULL,
+                   updated_at = datetime('now','localtime') WHERE id = ?""",
+                (prev["scadenza_conferma"] or None, p["id"]),
+            )
+        else:
+            conn.execute(
+                """UPDATE clienti_prenotazioni SET stato = ?, motivo_cancellazione = ?,
+                   updated_at = datetime('now','localtime') WHERE id = ?""",
+                (a, motivo, p["id"]),
+            )
+        try:
+            from app.services.preventivi_scadenze import scrivi_storico
+            scrivi_storico(preventivo_id, "stato",
+                           f"Prenotazione collegata: {_etichetta(da)} → {_etichetta(a)}", username or "sistema", conn)
+        except Exception:                               # noqa: BLE001 — lo storico non blocca
+            logger.exception("storico allinea prenotazione")
+        conn.commit()
+    finally:
+        conn.close()
+    if a == "CANCELED":
+        from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
+        avvisa_posto_liberato_sicuro(p["id"], da, a)
+    return {"prenotazione_id": p["id"], "da": da, "a": a}
+
+
+def allinea_prenotazione_sicuro(preventivo_id: int, evento: str, username: str | None = None) -> None:
+    """Non solleva mai: il preventivo non deve rompersi per la prenotazione."""
+    try:
+        allinea_prenotazione(preventivo_id, evento, username)
+    except Exception as e:                              # noqa: BLE001
+        logger.warning("allinea prenotazione (preventivo %s, %s): %s", preventivo_id, evento, e)

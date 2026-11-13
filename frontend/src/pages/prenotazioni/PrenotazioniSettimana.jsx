@@ -1,4 +1,4 @@
-// @version: v1.1-mattoni — M.I primitives (Btn) su CTA "Questa settimana"
+// @version: v1.2 — coperti «In opzione» a parte (2026-11-13); v1.1-mattoni — M.I primitives (Btn) su CTA "Questa settimana"
 // Vista settimanale riepilogativa — modulo Prenotazioni TRGB
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -135,9 +135,12 @@ export default function PrenotazioniSettimana() {
                         </div>
                       </div>
                       {/* Totale */}
-                      {tot > 0 && (
+                      {(tot > 0 || g.opzione_pax > 0) && (
                         <div className="text-center pt-1 border-t border-neutral-100">
                           <span className="text-xs font-bold text-indigo-600">{tot} pren · {totPax} pax</span>
+                          {g.opzione_pax > 0 && (
+                            <div className="text-[10px] font-semibold text-amber-700" title="In opzione: tavolo tenuto, non ancora confermato">+{g.opzione_pax} ⏳ in opzione</div>
+                          )}
                         </div>
                       )}
                     </div>

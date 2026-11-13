@@ -31,6 +31,12 @@ from app.models.clienti_db import get_clienti_conn
 
 logger = logging.getLogger("trgb.preventivi.scadenze")
 
+
+def stato_srv_occupa(stato: str) -> bool:
+    """La prenotazione tiene ancora il tavolo? (tabella stati prenotazioni, 2026-11-13)"""
+    from app.services.prenotazioni_stati import is_occupa
+    return is_occupa(stato)
+
 # chiave → (valore iniziale, descrizione per la tabella impostazioni)
 CONFIG = {
     "preventivi_email_copia": ("", "Indirizzo staff: in CC nelle email dei preventivi al cliente, copia col PDF dei preventivi mandati su WhatsApp, avvisi di scadenza"),
@@ -380,7 +386,7 @@ def in_attesa(limite: int = 6) -> dict:
     items = []
     for r in righe:
         stato_pren = attive.get(r["prenotazione_id"]) if r["prenotazione_id"] else None
-        tavolo_tenuto = stato_pren is not None and stato_pren not in ("CANCELED", "NO_SHOW", "REFUSED")
+        tavolo_tenuto = stato_pren is not None and stato_srv_occupa(stato_pren)
         if r["stato"] == "scaduto" and not tavolo_tenuto:
             continue
         try:

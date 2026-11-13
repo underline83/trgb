@@ -13,7 +13,7 @@ clienti_menu_template:
             acceso di default come per i vini)
 clienti_impostazioni:
   ipratico_categoria_menu = 'Degustazioni' (categoria iPratico degli articoli,
-            modificabile da Impostazioni CRM → Menu Template)
+            modificabile da Clienti › Impostazioni › Menu Template)
 
 Solo ADD COLUMN + INSERT OR IGNORE, idempotente. DB toccato: clienti.sqlite3.
 """

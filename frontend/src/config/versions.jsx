@@ -542,8 +542,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.33 (2026-11-13): menu su iPratico — Family e reparti copiati da un articolo già in
+    //   Degustazioni (prima uscivano «beverage», i default dei vini). ipratico_menu_service 1.1.
+    // 3.32 (2026-11-13): preventivo inviato (o collegato a una prenotazione quando è già inviato) →
+    //   la prenotazione va «In opzione»; rifiutato/scaduto → liberata se era in opzione; confermato →
+    //   «Confermata». Ogni passaggio scritto nello storico del preventivo.
     // 3.31 (2026-11-13): menu template — interruttore «Va su iPratico» (default acceso) e
-    //   «Categoria iPratico» (Degustazioni) in Impostazioni › Menu Template (mig 231).
+    //   «Categoria iPratico» (Degustazioni) in Clienti › Impostazioni › Menu Template (mig 231).
     // 3.30 (2026-11-13): lista Preventivi, colonna «Inviato» — canale e data dell'ultimo invio riuscito
     //   al cliente (e quanti invii, se più d'uno), dal registro invii.
     // 3.29 (2026-11-13): pagina «📥 Posta» (/clienti/posta, solo admin): tutta la posta della casella
@@ -622,12 +627,17 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.31",
+    version: "3.33",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.34 (2026-11-13): stati in tabella (prenotazioni_stati, mig 232) + «⏳ In opzione» (tavolo tenuto
+    //   fino al…, proroga, coperti a parte «+N in opzione» in Planning/Home/Lavagna/Settimana, avviso alla
+    //   scadenza senza liberare da solo, segue il preventivo collegato) e «🕰️ Lista d'attesa» (non occupa,
+    //   avviso quando si libera un posto). Pulsanti di stato dai passaggi permessi (via «Seduto» su
+    //   «Da confermare», che dava errore); stato di partenza nel form; impostazioni giorni/ruoli.
     // 2.33 (2026-11-09): anche il Capo Sala (capo_sala) apre/chiude le fasce orarie e i limiti (PUT /prenotazioni/fasce).
     // 2.30 (2026-11-03): Planning, ⏳ prenotazione in attesa di conferma preventivo con scadenza,
     //   «Libera tavolo», motivo della cancellazione.
@@ -651,7 +661,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.33",
+    version: "2.34",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -774,6 +784,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.98 (2026-11-13): mig 232 — prenotazioni_stati + prenotazioni_stati_transizioni (stati e
+    //   passaggi in tabella, servizio prenotazioni_stati), stati OPTION/WAITLIST, colonne
+    //   tenuto_fino_al/opzione_avvisata, config opzione_giorni_default/avvisi_prenotazioni_ruoli
+    //   (prenotazioni 2.34, clienti 3.32, connettore 1.14).
     // 5.97 (2026-11-13): mig 231 — menu template dei preventivi come articoli iPratico
     //   (clienti_menu_template.ipratico, clienti_impostazioni.ipratico_categoria_menu) (clienti 3.31, vini 4.17).
     // 5.96 (2026-11-13): mig 230 — posta in arrivo (M.D lettura): IMAP in sola lettura della
@@ -915,7 +929,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.97",
+    version: "5.98",
     label: "Sistema",
     status: "stabile",
     color: "green",

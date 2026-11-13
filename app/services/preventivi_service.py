@@ -1364,6 +1364,9 @@ def collega_prenotazione_a_mano(preventivo_id: int, prenotazione_id: int | None,
             conn.commit()
     finally:
         conn.close()
+    if prenotazione_id:  # preventivo già inviato → la prenotazione va «In opzione» (2026-11-13)
+        from app.services.evento_confermato_service import allinea_prenotazione_sicuro
+        allinea_prenotazione_sicuro(preventivo_id, "collegato", username)
     return get_preventivo(preventivo_id)
 
 
@@ -1442,9 +1445,14 @@ def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = Non
         if (dopo["cliente_id"] != existing["cliente_id"]
                 or (dopo["data_evento"] or "") != (existing["data_evento"] or "")
                 or (existing["is_bozza_auto"] and not dopo["is_bozza_auto"])):
-            _aggancia_prenotazione(conn, preventivo_id, username)
+            agganciata = _aggancia_prenotazione(conn, preventivo_id, username)
+        else:
+            agganciata = None
 
         conn.commit()
+        if agganciata:  # preventivo già inviato → la prenotazione va «In opzione» (2026-11-13)
+            from app.services.evento_confermato_service import allinea_prenotazione_sicuro
+            allinea_prenotazione_sicuro(preventivo_id, "collegato", username)
         return get_preventivo(preventivo_id)
     finally:
         conn.close()
@@ -1501,9 +1509,13 @@ def cambia_stato(preventivo_id: int, nuovo_stato: str, username: str | None = No
         from app.services.preventivi_scadenze import scrivi_storico
         scrivi_storico(preventivo_id, "stato", f"Stato: {stato_attuale} → {nuovo_stato}", username, conn)
         conn.commit()
-        return get_preventivo(preventivo_id)
     finally:
         conn.close()
+    # Prenotazione collegata (2026-11-13): inviato → In opzione; rifiutato/scaduto → libera se in opzione
+    if nuovo_stato in ("inviato", "rifiutato", "scaduto"):
+        from app.services.evento_confermato_service import allinea_prenotazione_sicuro
+        allinea_prenotazione_sicuro(preventivo_id, nuovo_stato, username)
+    return get_preventivo(preventivo_id)
 
 
 def duplica_preventivo(preventivo_id: int, username: str) -> dict | None:
@@ -1767,6 +1779,7 @@ def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, us
     lo porta a «inviato» (ed esce dalle bozze automatiche: è stato mandato)."""
     if canale not in ("whatsapp", "email"):
         raise ValueError(f"Canale non valido: {canale}")
+    diventato_inviato = False
     conn = get_clienti_conn()
     try:
         row = conn.execute(
@@ -1796,6 +1809,7 @@ def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, us
         if esito == "ok":
             if stato == "bozza":
                 stato = "inviato"
+                diventato_inviato = True
                 conn.execute(
                     "UPDATE clienti_preventivi SET stato = 'inviato', is_bozza_auto = 0 WHERE id = ?",
                     (preventivo_id,),
@@ -1808,9 +1822,13 @@ def registra_invio(preventivo_id: int, canale: str, destinatario: str | None, us
         invio = conn.execute(
             "SELECT * FROM clienti_preventivi_invii WHERE id = ?", (cur.lastrowid,)
         ).fetchone()
-        return {"invio": dict(invio), "stato": stato}
+        esito_invio = {"invio": dict(invio), "stato": stato}
     finally:
         conn.close()
+    if diventato_inviato:  # preventivo mandato → la prenotazione collegata va «In opzione» (2026-11-13)
+        from app.services.evento_confermato_service import allinea_prenotazione_sicuro
+        allinea_prenotazione_sicuro(preventivo_id, "inviato", username)
+    return esito_invio
 
 
 def messaggio_breve(prev: dict, formato: str = "whatsapp", firma: str = "") -> str:
