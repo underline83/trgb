@@ -1,4 +1,5 @@
-// @version: v1.2 — stagione + prezzo a corpo (doppio vino escluso/incluso) sul template (mig 187)
+// @version: v1.3 — interruttore «iPratico» sul template + categoria iPratico dei menu (mig 231)
+// v1.2 — stagione + prezzo a corpo (doppio vino escluso/incluso) sul template (mig 187)
 // Modulo: clienti (sub-modulo preventivi)
 // Libreria Menu Template — pagina CRUD riutilizzabile dal composer preventivi.
 // Lista a sinistra, dettaglio (metadati + righe) a destra. Le righe si
@@ -24,6 +25,7 @@ export default function ClientiMenuTemplates({ embedded = false }) {
   const [filterStagione, setFilterStagione] = useState("");
   const [stagioni, setStagioni] = useState([]);
   const [toast, setToast] = useState(null);
+  const [iprCategoria, setIprCategoria] = useState("");
 
   // Aggiunta riga (picker dal ricettario o quick)
   const [showPicker, setShowPicker] = useState(false);
@@ -33,6 +35,32 @@ export default function ClientiMenuTemplates({ embedded = false }) {
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickerService, setPickerService] = useState("");
   const [pickerBusy, setPickerBusy] = useState(false);
+
+  // Mig 231: categoria iPratico degli articoli menu (una sola per tutti i template)
+  useEffect(() => {
+    apiFetch(`${API_BASE}/menu-templates/ipratico`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setIprCategoria(d.categoria || ""))
+      .catch(() => {});
+  }, []);
+
+  const saveIprCategoria = async (val) => {
+    const v = (val || "").trim();
+    if (!v || v === iprCategoria) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/menu-templates/ipratico`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoria: v }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio categoria");
+      const d = await res.json();
+      setIprCategoria(d.categoria);
+      showToast("Categoria iPratico salvata");
+    } catch (e) {
+      showToast(e.message || "Errore", "error");
+    }
+  };
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -341,6 +369,12 @@ export default function ClientiMenuTemplates({ embedded = false }) {
               <option value="">Tutte le stagioni</option>
               {stagioni.map((st) => <option key={st} value={st}>{st}</option>)}
             </select>
+            <label className="flex items-center gap-2 text-xs text-neutral-600">
+              <span className="whitespace-nowrap">Categoria iPratico</span>
+              <input type="text" defaultValue={iprCategoria} key={`ipr-${iprCategoria}`}
+                onBlur={(e) => saveIprCategoria(e.target.value)}
+                className="flex-1 min-w-0 border border-neutral-300 rounded-lg px-2 py-1 text-xs" />
+            </label>
           </div>
           <div className="flex-1 overflow-auto">
             {loading ? (
@@ -364,6 +398,7 @@ export default function ClientiMenuTemplates({ embedded = false }) {
                       <div className="text-xs text-neutral-500 flex flex-wrap gap-x-2 mt-0.5">
                         {t.service_type_name && <span className="text-amber-700">🍽️ {t.service_type_name}</span>}
                         {t.stagione && <span className="text-indigo-700">🗓️ {t.stagione}</span>}
+                        {t.ipratico === 0 && <span className="text-neutral-400">🚫 non su iPratico</span>}
                         <span>{t.n_righe || 0} righ{t.n_righe === 1 ? "a" : "e"}</span>
                         {t.pricing_mode === "corpo" ? (
                           <span>🏷️ a corpo €{parseFloat(t.prezzo_corpo || 0)}{t.doppio_prezzo ? `/${parseFloat(t.prezzo_corpo_vino || 0)}` : ""}/pax</span>
@@ -482,6 +517,17 @@ export default function ClientiMenuTemplates({ embedded = false }) {
                     )}
                   </div>
                 )}
+                {/* Mig 231: il template va su iPratico come articolo (2 col doppio prezzo) */}
+                <label className="flex items-start gap-2 text-xs text-neutral-700 min-h-[36px]">
+                  <input type="checkbox" className="mt-0.5" checked={detail.ipratico !== 0}
+                    onChange={(e) => updateDetailField("ipratico", e.target.checked)} />
+                  <span>
+                    Va su iPratico (categoria «{iprCategoria || "…"}», codice M{String(detail.id).padStart(4, "0")}
+                    {detail.pricing_mode === "corpo" && detail.doppio_prezzo
+                      ? ` e M${String(detail.id).padStart(4, "0")}V «con vino»` : ""})
+                    <span className="block text-neutral-400">Il prezzo arriva in cassa col prossimo «Genera Export» di iPratico Sync.</span>
+                  </span>
+                </label>
                 <div className="flex gap-2 pt-1">
                   <Btn variant="ghost" size="sm" type="button" onClick={() => duplicate(detail.id)}>⎘ Duplica</Btn>
                   <Btn variant="chip" tone="red" size="sm" type="button" onClick={() => remove(detail.id, detail.nome)}>🗑 Elimina</Btn>

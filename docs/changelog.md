@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-13 — Menu template dei preventivi su iPratico (sistema 5.97, mig 231) `[core]`
+Marco: i prezzi battuti in cassa devono essere quelli dei preventivi. Ora ogni menu template con «Va su iPratico» acceso (default) entra nello stesso «Genera Export» di vini e bevande, nella categoria «Degustazioni» (modificabile in Impostazioni › Menu Template), con codice nello SKU: `M0012`, e col doppio prezzo un secondo articolo separato `M0012V` «… con vino» (niente varianti, per non confondersi in cassa). TRGB comanda: nome e prezzo si aggiornano a ogni export; template spento o cancellato → nascosto in iPratico. Gli articoli nuovi vanno senza Id.
+
 ## 2026-11-13 — Clienti 3.29: la pagina «📥 Posta» `[core]`
 La posta letta dalla casella del gestionale ora si vede tutta in Clienti › Posta (solo admin), anche le mail che non c'entrano con un preventivo: prima si vedevano solo quelle collegate, dentro la scheda del preventivo, e il resto lo leggeva solo Q. Filtri per da gestire / gestite, con preventivo / non collegate, periodo e ricerca; la mail si apre a destra col testo, gli allegati elencati e il preventivo collegato; «Segna gestita» e «Leggi adesso». Sistemate anche le lettere accentate storte (es. nelle ricevute PEC di Aruba). Nessuna migrazione.
 

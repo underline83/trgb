@@ -17,6 +17,9 @@ Tabelle (clienti.sqlite3, mig 080):
 Mig 187: il template salva anche la modalita' di prezzo (pricing_mode 'somma' |
 'corpo', prezzo_corpo, prezzo_corpo_vino, doppio_prezzo) e una «stagione» libera
 (es. «Autunno-Inverno 2026») per tenere in libreria le proposte di ogni stagione.
+
+Mig 231: `ipratico` 0/1 (default 1) — il template va su iPratico come articolo
+(export in app/services/ipratico_menu_service.py).
 """
 from __future__ import annotations
 
@@ -266,6 +269,14 @@ def aggiorna_template(template_id: int, data: dict) -> dict | None:
                 params,
             )
         _set_campi_187(conn, template_id, data)
+        # Mig 231: interruttore «va su iPratico»
+        if "ipratico" in data:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(clienti_menu_template)").fetchall()}
+            if "ipratico" in cols:
+                conn.execute(
+                    "UPDATE clienti_menu_template SET ipratico = ? WHERE id = ?",
+                    (1 if data["ipratico"] else 0, template_id),
+                )
         conn.commit()
         return get_template(template_id)
     finally:

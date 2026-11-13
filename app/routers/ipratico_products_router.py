@@ -1,4 +1,6 @@
-# @version: v2.2-sku-vini — anche i vini hanno il codice nello SKU (0123), oltre che in
+# @version: v2.3-menu-template — anche i menu template dei preventivi (SKU M0012 / M0012V con vino,
+#   categoria da clienti_impostazioni) nello stesso export: app/services/ipratico_menu_service.py (mig 231).
+# v2.2-sku-vini — anche i vini hanno il codice nello SKU (0123), oltre che in
 #   testa al nome (lo leggono i ragazzi): il riconoscimento prova prima lo SKU, poi il nome.
 # v2.1-bevande — anche le voci della Carta Bevande vanno su iPratico
 #   (codice «B0123» nella colonna SKU — v1.1 del service —, categorie per sezione): stesso export dei vini,
@@ -37,6 +39,7 @@ from typing import List as TList
 
 from app.services.auth_service import get_current_user
 from app.services import ipratico_bevande_service as bev_ipr
+from app.services import ipratico_menu_service as menu_ipr
 
 # Audit 2026-06-12 [A1 CRIT]: auth a livello router — endpoint (incluso upload) erano pubblici.
 from app.services.permessi import richiede_ruoli
@@ -520,6 +523,16 @@ async def export_ipratico(file: UploadFile = File(...)):
         k: (len(v) if isinstance(v, list) else v) for k, v in bev.items()
     })
 
+    # 6. Menu template dei preventivi (codice M0012 / M0012V con vino) — mig 231
+    try:
+        mnu = menu_ipr.sincronizza_foglio(ws, headers, defaults)
+    except Exception as e:  # i menu non devono bloccare l'export dei vini
+        print(f"[ipratico export] menu template non sincronizzati: {e}")
+        mnu = {"errore": str(e)}
+    menu_header = json.dumps({
+        k: (len(v) if isinstance(v, list) else v) for k, v in mnu.items()
+    })
+
     # Log
     fc = _fc_conn()
     fc.execute(
@@ -549,6 +562,7 @@ async def export_ipratico(file: UploadFile = File(...)):
             "X-Added-Missing": str(n_added),
             "X-Updated-Sku": str(n_updated_sku),
             "X-Bevande-Sync": bev_header,
+            "X-Menu-Sync": menu_header,
         },
     )
 

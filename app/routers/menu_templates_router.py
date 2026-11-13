@@ -10,6 +10,8 @@ accessibili a qualsiasi utente loggato (il composer preventivi le usa).
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+
+from app.services import ipratico_menu_service
 from typing import Optional, List
 
 from app.services.auth_service import get_current_user
@@ -86,6 +88,7 @@ class MenuTemplateUpdateIn(BaseModel):
     prezzo_corpo_vino: Optional[float] = None
     doppio_prezzo: Optional[bool] = None
     stagione: Optional[str] = None   # stringa vuota = togli la stagione
+    ipratico: Optional[bool] = None  # mig 231: il template va su iPratico
 
 
 class MenuTemplateDuplicaIn(BaseModel):
@@ -133,6 +136,25 @@ def api_lista_templates(
 def api_lista_stagioni(user: dict = Depends(get_current_user)):
     """Stagioni gia' usate nei template (mig 187), per filtro e suggerimenti."""
     return {"items": lista_stagioni()}
+
+
+class IpraticoConfigIn(BaseModel):
+    categoria: str
+
+
+@router.get("/ipratico")
+def api_ipratico_anteprima(user: dict = Depends(get_current_user)):
+    """Mig 231: categoria iPratico + articoli che l'export iPratico scrive (M0012 / M0012V)."""
+    return ipratico_menu_service.anteprima()
+
+
+@router.put("/ipratico")
+def api_ipratico_categoria(body: IpraticoConfigIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    try:
+        return {"categoria": ipratico_menu_service.set_categoria(body.categoria)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{template_id}")

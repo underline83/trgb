@@ -3,6 +3,7 @@
 // v2.2 (2026-10-10): chip «SKU agg.» — anche i vini hanno il codice nello SKU.
 // v2.1 (2026-10-10): riquadro «Carta Bevande su iPratico» (categorie per sezione,
 //   anteprima voci) + conteggi bevande nell'esito dell'export (header X-Bevande-Sync).
+//   + conteggi menu template dei preventivi (header X-Menu-Sync, mig 231).
 //   Le voci bevande hanno il codice B0123 nella colonna SKU (v2.2: non più nel nome);
 //   «Alcolici» resta ai generici.
 // Importa → Verifica → Esporta (giacenze + testi TRGB + vini mancanti)
@@ -612,6 +613,7 @@ function ExportSection() {
         added: resp.headers.get("X-Added-Missing") || "0",
         sku: resp.headers.get("X-Updated-Sku") || "0",
         bev: (() => { try { return JSON.parse(resp.headers.get("X-Bevande-Sync") || "null"); } catch { return null; } })(),
+        menu: (() => { try { return JSON.parse(resp.headers.get("X-Menu-Sync") || "null"); } catch { return null; } })(),
       });
       fileRef.current.value = "";
     } catch (e) { setError(e.message); }
@@ -624,7 +626,7 @@ function ExportSection() {
         <div>
           <h2 className="text-sm font-bold text-emerald-800">Esporta per iPratico</h2>
           <p className="text-[11px] text-neutral-400 mt-0.5">
-            Carica lo stesso file export — aggiorna giacenze, testi (priorità TRGB), prezzi e aggiunge i vini mancanti. Nello stesso file sincronizza anche la Carta Bevande.
+            Carica lo stesso file export — aggiorna giacenze, testi (priorità TRGB), prezzi e aggiunge i vini mancanti. Nello stesso file sincronizza anche la Carta Bevande e i menu template dei preventivi.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -671,6 +673,21 @@ function ExportSection() {
       )}
       {result?.bev?.errore && (
         <div className="mt-2 text-xs text-red-700">Bevande non sincronizzate: {result.bev.errore}</div>
+      )}
+      {result?.menu && !result.menu.errore && (
+        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+          <span className="self-center font-semibold text-neutral-600">Menu preventivi:</span>
+          <StatChip label="Abbinati" val={result.menu.abbinati} color="text-emerald-700" />
+          <StatChip label="Aggiunti" val={result.menu.aggiunti} color="text-rose-600" />
+          <StatChip label="Nomi agg." val={result.menu.nomi} color="text-violet-700" />
+          <StatChip label="Prezzi agg." val={result.menu.prezzi} color="text-amber-700" />
+          <StatChip label="Nascosti" val={result.menu.nascosti} color="text-neutral-500" />
+          {result.menu.doppi > 0 && <StatChip label="Doppioni (non toccati)" val={result.menu.doppi} color="text-red-600" />}
+          {result.menu.senza_prezzo > 0 && <StatChip label="Senza prezzo (saltati)" val={result.menu.senza_prezzo} color="text-red-600" />}
+        </div>
+      )}
+      {result?.menu?.errore && (
+        <div className="mt-2 text-xs text-red-700">Menu preventivi non sincronizzati: {result.menu.errore}</div>
       )}
 
       <DefaultsConfig />

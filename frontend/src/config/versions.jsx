@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.17 (2026-11-13): iPratico Sync — «Genera Export» porta anche i menu template dei preventivi
+    //   (SKU M0012 / M0012V «con vino», chip «Menu preventivi»; mig 231).
     // 4.16 (2026-11-08): Vendite — la ricerca vino mostra fino a 20 risultati (prima 8); vale anche per «Vendi o apri» in Home.
     // 4.15 (2026-11-07): etichetta collo bottiglia — descrizione fino a 3 righe (11 pt), senza vitigni
     //   tra parentesi né gradazione (solo in stampa, descrizioneCorta).
@@ -202,7 +204,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.16",
+    version: "4.17",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -540,6 +542,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.31 (2026-11-13): menu template — interruttore «Va su iPratico» (default acceso) e
+    //   «Categoria iPratico» (Degustazioni) in Impostazioni › Menu Template (mig 231).
     // 3.30 (2026-11-13): lista Preventivi, colonna «Inviato» — canale e data dell'ultimo invio riuscito
     //   al cliente (e quanti invii, se più d'uno), dal registro invii.
     // 3.29 (2026-11-13): pagina «📥 Posta» (/clienti/posta, solo admin): tutta la posta della casella
@@ -618,7 +622,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.30",
+    version: "3.31",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -770,6 +774,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 5.97 (2026-11-13): mig 231 — menu template dei preventivi come articoli iPratico
+    //   (clienti_menu_template.ipratico, clienti_impostazioni.ipratico_categoria_menu) (clienti 3.31, vini 4.17).
     // 5.96 (2026-11-13): mig 230 — posta in arrivo (M.D lettura): IMAP in sola lettura della
     //   casella del gestionale ogni 5 minuti, email.sqlite3 (email_in), abbinamento ai preventivi,
     //   /email/in, connettore 1.13 (posta_trgb_*, preventivi_senza_risposta) (clienti 3.28).
@@ -909,7 +915,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.96",
+    version: "5.97",
     label: "Sistema",
     status: "stabile",
     color: "green",

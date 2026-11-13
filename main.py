@@ -577,6 +577,7 @@ app.add_middleware(
         "X-Total-Matched",
         "X-Added-Missing",
         "X-Bevande-Sync",
+        "X-Menu-Sync",
         "X-Updated-Sku",
     ],
 )
