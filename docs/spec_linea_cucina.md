@@ -158,6 +158,7 @@ Prerequisito di dati (lavoro una tantum, si fa da UI o lo fa Claude via API): og
 | 2026-10-23 | Il numero in linea: verde conferma la dotazione, giallo e rosso chiedono quante ce ne sono |
 | 2026-10-23 | Prova: accesa solo la linea antipasti «dal menu» (Pranzo e Sera), insieme alle vecchie a mano |
 | 2026-11-13 | Controllo menu: pezzi → porzioni con «porzioni per pezzo» scritte per piatto; due numeri (subito / con il gelo); gli elementi senza dato non limitano ma si vedono; pagina in Gestione Cucina |
+| 2026-11-13 | Controllo menu: le porzioni per pezzo si salvano sull'articolo (contenuto del pezzo) e valgono per tutti i piatti; «dal gelo diretto» per i casoncelli, mentre purè, lasagnetta e coniglio vanno scongelati |
 
 ## 9. Domande aperte
 
@@ -178,5 +179,12 @@ Pagina **Gestione Cucina › ✅ Controllo menu** (`/cucina/controllo-menu`, adm
 - **Ogni piatto è contato da solo**: due piatti con lo stesso fondo non si dividono la scorta.
 - **Colori**: 0 rosso, fino a `controllo_menu_poche_porzioni` (config, default 5) giallo, sopra verde. **Conta vecchia**: giacenza oltre la soglia di freschezza dell'articolo (`stato_dato`) → avviso, il numero resta.
 - **Checklist**: il pallino è l'ultimo semaforo di LINEA dato oggi sugli articoli dell'elemento (il peggiore sul piatto), letto da tasks.sqlite3 in sola lettura.
+
+### 10.1 Aggiornamento 2026-11-13 (mig 234) — tutto collegato all'articolo, «dal gelo diretto»
+
+- **Le porzioni per pezzo si salvano sull'articolo** (Marco: «salvale negli articoli, tieni tutto linkato»). Nella pagina si scrive sempre «1 pezzo = N porzioni» sul piatto; se la riga ha una grammatura in g/ml/pz/porzioni il numero diventa il **contenuto del pezzo** dell'articolo: `cucina_articoli.contenuto_qta` / `contenuto_um` = N × grammatura (25 porzioni da 20 ml → 1 pz = 500 ml). Ogni altro piatto che usa lo stesso articolo ricava le sue porzioni dalla propria grammatura (lo stesso fondo a 50 ml → 10 porzioni). Cambiare il numero su un piatto cambia quindi tutti gli altri. Il contenuto passa anche da `PATCH /cucina/scorte/articoli/{id}`.
+- Solo quando la riga non ha grammatura utilizzabile (preparazione esplosa) il numero resta in `cucina_menu_elementi.porzioni_per_pezzo`, per quel piatto («solo per questo piatto»).
+- Ordine: numero del solo piatto → contenuto dell'articolo → unità che si parlano («dalla grammatura in ricetta»). Con più articoli sullo stesso elemento ognuno conta col suo contenuto.
+- **Dal gelo diretto** (`cucina_menu_elementi.gelo_diretto`, riga `recipe_id = 0`): per ciò che va dal congelatore alla pentola (casoncelli) il gelo conta già nel numero «subito». Purè, lasagnetta e coniglio vanno scongelati: restano «0 subito» finché non sono in frigo (Marco 2026-11-13).
 
 **Da fare**: compilare le porzioni per pezzo (oggi 9 piatti su 38 hanno un numero); riassunto in «Oggi»; pranzo del giorno; campo per la soglia «poche» in una schermata; eventuale conto «a scorta divisa» fra piatti.

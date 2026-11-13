@@ -1,5 +1,5 @@
 // Modulo: cucina
-// @version: v1.0 — Cucina › Controllo menu (2026-11-13, mig 233): per ogni piatto in carta quante
+// @version: v1.1 — spunta «dal gelo diretto» (mig 234) · v1.0 — Cucina › Controllo menu (2026-11-13, mig 233): per ogni piatto in carta quante
 //   porzioni si fanno con quello che c'è in casa. Due numeri: «subito» (frigo e dispensa) e
 //   «con il gelo». Il collo di bottiglia, cosa manca per un conto completo, il semaforo di linea di oggi.
 // Dati: GET /cucina/scorte/controllo-menu (servizio controllo_menu, sola lettura);
@@ -53,16 +53,16 @@ function Pallino({ colore }) {
 
 // Una riga della ricetta: quanto ce n'è, quante porzioni dà un pezzo, quante porzioni ne escono
 function Elemento({ e, recipeId, salva, occupato }) {
-  const [testo, setTesto] = useState(e.porzioni_manuale != null ? String(e.porzioni_manuale).replace(".", ",") : "");
-  useEffect(() => {
-    setTesto(e.porzioni_manuale != null ? String(e.porzioni_manuale).replace(".", ",") : "");
-  }, [e.porzioni_manuale]);
+  // nel campo sta il numero scritto (sull'articolo o solo per il piatto); quello ricavato dalle unità è il segnaposto
+  const scritto = e.porzioni_scritta != null ? String(e.porzioni_scritta).replace(".", ",") : "";
+  const [testo, setTesto] = useState(scritto);
+  useEffect(() => { setTesto(scritto); }, [scritto]);
 
   const conferma = () => {
     const pulito = testo.trim().replace(",", ".");
     const nuovo = pulito === "" ? null : Number(pulito);
     if (nuovo !== null && (!Number.isFinite(nuovo) || nuovo <= 0)) { setTesto(""); return; }
-    if (nuovo === (e.porzioni_manuale ?? null)) return;
+    if (nuovo === (e.porzioni_scritta ?? null)) return;
     salva({ recipe_id: recipeId, tipo: e.tipo, ref_id: e.ref_id, porzioni_per_pezzo: nuovo });
   };
   const um = e.um || "pz";
@@ -100,9 +100,16 @@ function Elemento({ e, recipeId, salva, occupato }) {
               aria-label={`Porzioni per ${um} di ${e.nome}`}
               className="w-20 min-h-[40px] border border-neutral-300 rounded-lg px-2 py-1 text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-blue" />
             <span className="text-neutral-500">porz.</span>
-            {e.porzioni_origine === "auto" && testo === "" && <span className="text-[11px] text-neutral-400">dalla ricetta</span>}
           </label>
         ) : <span className="text-xs text-neutral-400">prima va messo in Scorte</span>}
+        {haArticolo && (
+          <div className="text-[11px] text-neutral-500 mt-0.5">
+            {e.porzioni_origine === "articolo" && e.contenuto && <>sull'articolo: 1 {um} = {num(e.contenuto.qta)} {e.contenuto.um === "porz" ? "porzioni" : e.contenuto.um} · vale per tutti i piatti</>}
+            {e.porzioni_origine === "piatto" && <>solo per questo piatto</>}
+            {e.porzioni_origine === "auto" && <>dalla grammatura in ricetta</>}
+            {!e.porzioni_origine && (e.collegabile ? <>si salva sull'articolo, vale per tutti i piatti</> : <>vale solo per questo piatto (riga senza grammatura)</>)}
+          </div>
+        )}
       </td>
       <td className="py-2 pr-3 text-sm tabular-nums whitespace-nowrap text-right">
         {e.porzioni_subito == null ? <span className="text-neutral-400">—</span> : (
@@ -118,6 +125,14 @@ function Elemento({ e, recipeId, salva, occupato }) {
             onChange={(ev) => salva({ recipe_id: 0, tipo: e.tipo, ref_id: e.ref_id, non_limita: ev.target.checked })} />
           non limita
         </label>
+        {haArticolo && (
+          <label className="flex items-center justify-end gap-1.5 text-xs text-sky-800 min-h-[40px] cursor-pointer"
+            title="Si usa direttamente dal congelatore: il gelo conta già nel numero «subito»">
+            <input type="checkbox" checked={!!e.gelo_diretto} disabled={occupato} className="w-4 h-4 accent-sky-700"
+              onChange={(ev) => salva({ recipe_id: 0, tipo: e.tipo, ref_id: e.ref_id, gelo_diretto: ev.target.checked })} />
+            dal gelo diretto
+          </label>
+        )}
       </td>
     </tr>
   );
@@ -264,9 +279,10 @@ export default function CucinaControlloMenu() {
             </div>
 
             <p className="text-xs text-neutral-500">
-              <b>Subito</b> = frigo e dispensa. <b>Con il gelo</b> = aggiungendo quello che è in congelatore. Ogni piatto è contato da solo:
+              <b>Subito</b> = frigo e dispensa (più il gelo per gli elementi segnati «dal gelo diretto»). <b>Con il gelo</b> = aggiungendo quello che è in congelatore. Ogni piatto è contato da solo:
               due piatti con lo stesso fondo non se lo dividono. Il numero vale per i dati che ci sono: gli elementi senza dato non lo fermano,
-              ma il piatto li segnala. Tocca un piatto per vedere gli elementi e scrivere quante porzioni dà un pezzo.
+              ma il piatto li segnala. Tocca un piatto per vedere gli elementi e scrivere quante porzioni dà un pezzo: il numero si salva sull'articolo
+              (come contenuto del pezzo) e aggiorna tutti i piatti che lo usano.
               Il pallino è il semaforo di linea di oggi.
             </p>
 

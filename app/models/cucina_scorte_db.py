@@ -256,6 +256,8 @@ SCHEMA_SQL: tuple[str, ...] = (
         scorta_min_gelo         REAL,
         scorta_min_dispensa     REAL,
         qta_riordino            REAL,
+        contenuto_qta           REAL,
+        contenuto_um            TEXT,
         FOREIGN KEY (ingredient_id)   REFERENCES ingredients(id)     ON DELETE SET NULL,
         FOREIGN KEY (ripiano_casa_id) REFERENCES cucina_ripiani(id)  ON DELETE SET NULL
     )
@@ -476,7 +478,9 @@ SCHEMA_SQL: tuple[str, ...] = (
     #    `porzioni_per_pezzo` = quante porzioni DI QUEL PIATTO da' un'unita' di
     #    scorta dell'articolo (1 busta di fondo = 20 porzioni di filetto).
     #    `recipe_id = 0` = vale per tutti i piatti: li' sta solo `non_limita`
-    #    (sale, olio: non fermano mai un piatto). `tipo` 'I' = ingrediente,
+    #    (sale, olio: non fermano mai un piatto) e `gelo_diretto` (mig 234: si
+    #    usa direttamente dal congelatore, come i casoncelli: il gelo conta
+    #    gia' nel numero «subito»). `tipo` 'I' = ingrediente,
     #    'R' = preparazione (ricetta); `ref_id` il suo id.
     """
     CREATE TABLE IF NOT EXISTS cucina_menu_elementi (
@@ -486,6 +490,7 @@ SCHEMA_SQL: tuple[str, ...] = (
         ref_id              INTEGER NOT NULL,
         porzioni_per_pezzo  REAL,
         non_limita          INTEGER NOT NULL DEFAULT 0,
+        gelo_diretto        INTEGER,
         updated_at          TEXT,
         updated_by          TEXT,
         UNIQUE (recipe_id, tipo, ref_id)
@@ -528,6 +533,11 @@ HEAL_COLUMNS = {
         ("scorta_min_gelo", "REAL"),     # mig 202: minimo sui ripiani FREEZER
         ("scorta_min_dispensa", "REAL"), # mig 220: minimo sui ripiani DISPENSA/SCAFFALE
         ("qta_riordino", "REAL"),        # mig 202: quanto produrre/ordinare
+        # mig 234: quanto contiene UNA unita' di scorta (1 busta = 480 ml). E' il
+        # ponte pezzi → porzioni del Controllo menu, uno per articolo: vale per
+        # tutti i piatti che lo usano. contenuto_um: g | ml | pz | porz.
+        ("contenuto_qta", "REAL"),
+        ("contenuto_um", "TEXT"),
         ("da_riordinare", "INTEGER"),   # mig 229: 1/NULL = riordina sotto soglia, 0 = finisce e basta
     ],
     # mig 207: 1 = voce del gruppo «Generale» della partita (burro e parmigiano
@@ -538,6 +548,9 @@ HEAL_COLUMNS = {
                               # di «6 scongelate»). Con il giallo/rosso il cuoco dice
                               # quante ne ha: «ne mancano 4». NULL = non si conta (GN 1/9).
                               ("linea_qta_num", "REAL")],
+    # mig 234: l'elemento si usa direttamente dal gelo (casoncelli) → nel
+    # Controllo menu il congelatore conta gia' nel numero «subito».
+    "cucina_menu_elementi": [("gelo_diretto", "INTEGER")],
 }
 
 

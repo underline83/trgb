@@ -1,5 +1,5 @@
 # Modulo: cucina (legge menu_carta, ricette e task_manager in sola lettura)  ·  [core]
-# @version: v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
+# @version: v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
 # -*- coding: utf-8 -*-
 """
 Controllo menu — per ogni piatto in carta, quante porzioni si possono fare con
@@ -18,8 +18,13 @@ articolo); una che non ce l'ha si esplode nelle sue righe.
 DAI PEZZI ALLE PORZIONI (decisione Marco 2026-11-13)
 ----------------------------------------------------
 Le ricette sono in g/ml a porzione, le scorte in pezzi (buste, vaschette).
-Il ponte e' `cucina_menu_elementi.porzioni_per_pezzo`: per quel piatto, quante
-porzioni da' UNA unita' di scorta dell'elemento. Si scrive dalla pagina.
+Nella pagina si scrive «1 pezzo = N porzioni» sul piatto. Il numero si salva
+SULL'ARTICOLO («salvale negli articoli, tieni tutto linkato») come contenuto
+del pezzo: `cucina_articoli.contenuto_qta/_um` = N × grammatura della riga
+(8 porzioni da 60 ml → 1 busta = 480 ml). Ogni altro piatto che usa lo stesso
+articolo ricava le sue porzioni dalla propria grammatura. Solo quando la riga
+non ha una grammatura in g/ml/pz (riga «1 porzione», preparazione esplosa) il
+numero resta in `cucina_menu_elementi.porzioni_per_pezzo`, per quel piatto.
 Dove non e' scritto e le unita' si parlano da sole (scorta in kg e ricetta in
 grammi, scorta in litri e ricetta in ml, scorta in pezzi e ricetta in pezzi)
 il numero si ricava dalla grammatura: e' segnato `auto`. Altrimenti l'elemento
@@ -27,7 +32,9 @@ resta «senza dato».
 
 DUE NUMERI (decisione Marco 2026-11-13)
 ---------------------------------------
-  · subito      = frigo, cella, dispensa, banco (tutto cio' che non e' gelo)
+  · subito      = frigo, cella, dispensa, banco (tutto cio' che non e' gelo);
+                  per gli elementi marcati `gelo_diretto` (casoncelli: dal
+                  congelatore alla pentola, Marco 2026-11-13) anche il gelo
   · con il gelo = subito + congelatore/abbattitore (va scongelato)
 Il piatto prende il minimo fra i suoi elementi: quello e' il collo di bottiglia.
 
@@ -65,6 +72,34 @@ _PESO = {"g": 1.0, "gr": 1.0, "kg": 1000.0}
 _VOLUME = {"ml": 1.0, "cl": 10.0, "dl": 100.0, "l": 1000.0, "lt": 1000.0}
 _PEZZI = {"pz", "n", "nr", "pezzo", "pezzi"}
 _PEGGIO = {"ROSSO": 3, "GIALLO": 2, "VERDE": 1}
+_PORZIONI = {"porzione", "porzioni", "porz"}
+UM_CONTENUTO = {"g", "ml", "pz", "porz"}   # cucina_articoli.contenuto_um
+
+
+def _base(qty: Optional[float], unit: Optional[str]) -> Optional[Tuple[str, float]]:
+    """La grammatura di una riga in unita' base: ('g'|'ml'|'pz', quantita')."""
+    if not qty or qty <= 0:
+        return None
+    u = (unit or "").strip().lower().rstrip(".")
+    if u in _PESO:
+        return "g", qty * _PESO[u]
+    if u in _VOLUME:
+        return "ml", qty * _VOLUME[u]
+    if u in _PEZZI:
+        return "pz", qty
+    if u in _PORZIONI:
+        return "porz", qty
+    return None
+
+
+def _ppp_articolo(a: dict, qty, unit) -> Tuple[Optional[float], Optional[str]]:
+    """Porzioni che da' una unita' di scorta di QUESTO articolo per una riga di
+    ricetta: prima dal contenuto scritto sull'articolo, poi dalle unita'."""
+    b = _base(qty, unit)
+    if b and a.get("contenuto_qta") and (a.get("contenuto_um") or "") == b[0]:
+        return a["contenuto_qta"] / b[1], "articolo"
+    auto = porzioni_auto(a.get("um"), qty, unit)
+    return (auto, "auto") if auto else (None, None)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -146,7 +181,7 @@ def _leggi(conn) -> Dict[str, Any]:
 
     articoli = {r["id"]: dict(r) for r in conn.execute("""
         SELECT id, nome, um, regime, recipe_id, ingredient_id,
-               famiglia_freschezza, giorni_dato_fresco
+               famiglia_freschezza, giorni_dato_fresco, contenuto_qta, contenuto_um
           FROM cucina_articoli WHERE attivo = 1
     """)}
     per: Dict[Tuple[str, int], List[int]] = {}
@@ -171,7 +206,7 @@ def _leggi(conn) -> Dict[str, Any]:
             g["agg"] = r["aggiornato_at"]
 
     regole: Dict[Tuple[int, str, int], dict] = {}
-    for r in conn.execute("SELECT recipe_id, tipo, ref_id, porzioni_per_pezzo, non_limita FROM cucina_menu_elementi"):
+    for r in conn.execute("SELECT recipe_id, tipo, ref_id, porzioni_per_pezzo, non_limita, gelo_diretto FROM cucina_menu_elementi"):
         regole[(r["recipe_id"], r["tipo"], r["ref_id"])] = dict(r)
 
     return {"piatti": piatti, "righe": righe, "articoli": articoli, "per": per,
@@ -270,11 +305,27 @@ def calcola(conn=None) -> Dict[str, Any]:
             propria = d["regole"].get((p["recipe_id"], e["tipo"], e["ref_id"])) or {}
             globale = d["regole"].get((0, e["tipo"], e["ref_id"])) or {}
             non_limita = bool(globale.get("non_limita"))
-            ppp, origine = propria.get("porzioni_per_pezzo"), "manuale"
-            if not ppp:
-                ppp, origine = (porzioni_auto(um, e["qty"], e["unit"]) if um else None), "auto"
-            if not ppp:
-                origine = None
+            # dal gelo si usa subito (casoncelli): il congelatore conta gia' in «subito»
+            gelo_diretto = bool(globale.get("gelo_diretto"))
+            # Porzioni per pezzo, articolo per articolo. Ordine: il numero scritto
+            # solo per questo piatto (quando la grammatura non permette di salvarlo
+            # sull'articolo), poi il contenuto dell'articolo, poi le unita'.
+            solo_piatto = propria.get("porzioni_per_pezzo")
+            ppp_art: Dict[int, float] = {}
+            origini = set()
+            for a in arts:
+                v, o = (solo_piatto, "piatto") if solo_piatto else _ppp_articolo(a, e["qty"], e["unit"])
+                if v:
+                    ppp_art[a["id"]] = v
+                    origini.add(o)
+            da_contare = contati or ids
+            completo_ppp = bool(da_contare) and all(i in ppp_art for i in da_contare)
+            valori = {round(ppp_art[i], 6) for i in da_contare if i in ppp_art}
+            ppp = next(iter(valori)) if completo_ppp and len(valori) == 1 else None
+            origine = ("piatto" if "piatto" in origini else "articolo" if "articolo" in origini
+                       else "auto" if origini else None) if completo_ppp else None
+            contenuti = {(a["contenuto_qta"], a["contenuto_um"]) for a in arts if a.get("contenuto_qta")}
+            contenuto = next(iter(contenuti)) if len(contenuti) == 1 else None
 
             colori = [linea[i] for i in ids if i in linea]
             col = max(colori, key=lambda c: _PEGGIO[c]) if colori else None
@@ -285,7 +336,7 @@ def calcola(conn=None) -> Dict[str, Any]:
                     motivo = "non è in Frigoriferi e scorte"
                 elif not contati:
                     motivo = "mai contato"
-                elif not ppp:
+                elif not completo_ppp:
                     motivo = "mancano le porzioni per pezzo"
 
             el = {
@@ -295,14 +346,22 @@ def calcola(conn=None) -> Dict[str, Any]:
                 "um": _UM.get(um, (um or "").lower()) if um else None,
                 "subito": subito, "gelo": gelo, "aggiornato_at": agg, "da_verificare": vecchio,
                 "porzioni_per_pezzo": round(ppp, 2) if ppp else None,
+                # piatto = scritto solo per questo piatto · articolo = dal contenuto
+                # dell'articolo (vale per tutti i piatti) · auto = dalle unita'
                 "porzioni_origine": origine,
-                "porzioni_manuale": propria.get("porzioni_per_pezzo"),
-                "non_limita": non_limita, "motivo": motivo, "linea": col,
+                "porzioni_scritta": round(ppp, 2) if ppp and origine in ("piatto", "articolo") else None,
+                "contenuto": {"qta": contenuto[0], "um": contenuto[1]} if contenuto else None,
+                # si puo' salvare sull'articolo? serve la grammatura in g/ml/pz
+                "collegabile": bool(arts) and _base(e["qty"], e["unit"]) is not None,
+                "non_limita": non_limita, "gelo_diretto": gelo_diretto, "motivo": motivo, "linea": col,
                 "porzioni_subito": None, "porzioni_con_gelo": None,
             }
             if not non_limita and not motivo:
-                el["porzioni_subito"] = _porzioni(subito, ppp)
-                el["porzioni_con_gelo"] = _porzioni(subito + gelo, ppp)
+                g = d["giac"]
+                el["porzioni_subito"] = _porzioni(sum(
+                    (g[i]["subito"] + (g[i]["gelo"] if gelo_diretto else 0)) * ppp_art[i] for i in contati), 1)
+                el["porzioni_con_gelo"] = _porzioni(sum(
+                    (g[i]["subito"] + g[i]["gelo"]) * ppp_art[i] for i in contati), 1)
                 for campo, collo in (("porzioni_subito", "collo_subito"), ("porzioni_con_gelo", "collo_con_gelo")):
                     if piatto[campo] is None or el[campo] < piatto[campo]:
                         piatto[campo], piatto[collo] = el[campo], e["nome"]
@@ -349,9 +408,10 @@ def calcola(conn=None) -> Dict[str, Any]:
 
 def salva_elemento(conn, recipe_id: int, tipo: str, ref_id: int, utente: str, *,
                    porzioni_per_pezzo: Optional[float] = None, cambia_porzioni: bool = False,
-                   non_limita: Optional[bool] = None) -> None:
+                   non_limita: Optional[bool] = None, gelo_diretto: Optional[bool] = None) -> None:
     """`porzioni_per_pezzo` vale per quel piatto (None = torna al calcolo
-    automatico); `non_limita` vale per tutti i piatti (riga con recipe_id = 0)."""
+    automatico); `non_limita` e `gelo_diretto` valgono per tutti i piatti
+    (riga con recipe_id = 0)."""
     if tipo not in TIPI_ELEMENTO:
         raise ValueError("tipo: I (ingrediente) o R (preparazione)")
     ora = datetime.now().isoformat(timespec="seconds")
@@ -360,13 +420,29 @@ def salva_elemento(conn, recipe_id: int, tipo: str, ref_id: int, utente: str, *,
             raise ValueError("porzioni per pezzo: un numero maggiore di zero")
         if not recipe_id:
             raise ValueError("porzioni per pezzo: serve il piatto")
+        # Marco 2026-11-13: «salvale negli articoli, tieni tutto linkato». Se la
+        # riga del piatto ha una grammatura in g/ml/pz, il numero diventa il
+        # CONTENUTO dell'articolo (porzioni × grammatura): vale per tutti i
+        # piatti che lo usano. Altrimenti resta scritto solo per questo piatto.
+        d = _leggi(conn)
+        riga = next((x for x in _elementi(d, recipe_id) if (x["tipo"], x["ref_id"]) == (tipo, ref_id)), None)
+        ids = d["per"].get((tipo, ref_id), [])
+        base = _base(riga["qty"], riga["unit"]) if riga else None
+        sull_articolo = bool(ids) and base is not None
+        if sull_articolo:
+            ph = ",".join("?" * len(ids))
+            if porzioni_per_pezzo is None:
+                conn.execute(f"UPDATE cucina_articoli SET contenuto_qta = NULL, contenuto_um = NULL WHERE id IN ({ph})", ids)
+            else:
+                conn.execute(f"UPDATE cucina_articoli SET contenuto_qta = ?, contenuto_um = ? WHERE id IN ({ph})",
+                             [round(porzioni_per_pezzo * base[1], 4), base[0], *ids])
         conn.execute("""
             INSERT INTO cucina_menu_elementi (recipe_id, tipo, ref_id, porzioni_per_pezzo, updated_at, updated_by)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(recipe_id, tipo, ref_id) DO UPDATE SET
                 porzioni_per_pezzo = excluded.porzioni_per_pezzo,
                 updated_at = excluded.updated_at, updated_by = excluded.updated_by
-        """, (recipe_id, tipo, ref_id, porzioni_per_pezzo, ora, utente))
+        """, (recipe_id, tipo, ref_id, None if sull_articolo else porzioni_per_pezzo, ora, utente))
     if non_limita is not None:
         conn.execute("""
             INSERT INTO cucina_menu_elementi (recipe_id, tipo, ref_id, non_limita, updated_at, updated_by)
@@ -375,3 +451,11 @@ def salva_elemento(conn, recipe_id: int, tipo: str, ref_id: int, utente: str, *,
                 non_limita = excluded.non_limita,
                 updated_at = excluded.updated_at, updated_by = excluded.updated_by
         """, (tipo, ref_id, 1 if non_limita else 0, ora, utente))
+    if gelo_diretto is not None:
+        conn.execute("""
+            INSERT INTO cucina_menu_elementi (recipe_id, tipo, ref_id, gelo_diretto, updated_at, updated_by)
+            VALUES (0, ?, ?, ?, ?, ?)
+            ON CONFLICT(recipe_id, tipo, ref_id) DO UPDATE SET
+                gelo_diretto = excluded.gelo_diretto,
+                updated_at = excluded.updated_at, updated_by = excluded.updated_by
+        """, (tipo, ref_id, 1 if gelo_diretto else 0, ora, utente))

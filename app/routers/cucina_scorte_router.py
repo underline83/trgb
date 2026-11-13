@@ -133,6 +133,9 @@ class ArticoloIn(BaseModel):
     scorta_min_gelo: Optional[float] = None
     scorta_min_dispensa: Optional[float] = None
     qta_riordino: Optional[float] = None
+    # mig 234: quanto contiene una unita' di scorta (Controllo menu)
+    contenuto_qta: Optional[float] = Field(default=None, gt=0)
+    contenuto_um: Optional[str] = Field(default=None, max_length=4)
     # Flag «da riordinare» (mig 229): None = si' (default), False = finisce e basta.
     da_riordinare: Optional[bool] = None
 
@@ -161,6 +164,9 @@ class ArticoloUpdate(BaseModel):
     scorta_min_gelo: Optional[float] = None
     scorta_min_dispensa: Optional[float] = None
     qta_riordino: Optional[float] = None
+    # mig 234: quanto contiene una unita' di scorta (Controllo menu)
+    contenuto_qta: Optional[float] = Field(default=None, gt=0)
+    contenuto_um: Optional[str] = Field(default=None, max_length=4)
     # Flag «da riordinare» (mig 229): None = si' (default), False = finisce e basta.
     da_riordinare: Optional[bool] = None
 
@@ -349,6 +355,8 @@ def _normalizza_articolo(d: Dict[str, Any]) -> Dict[str, Any]:
         d["regime"] = "MOVIMENTI"
     if "natura" in d:
         d["natura"] = _v(lambda: valida(d["natura"], NATURE_ARTICOLO, "natura"))
+    if d.get("contenuto_um") is not None:
+        d["contenuto_um"] = _v(lambda: valida(d["contenuto_um"].strip().lower(), controllo_menu.UM_CONTENUTO, "contenuto_um"))
     if "famiglia_freschezza" in d:
         d["famiglia_freschezza"] = _v(
             lambda: valida(d["famiglia_freschezza"], FAMIGLIE_FRESCHEZZA, "famiglia_freschezza")
@@ -1716,6 +1724,7 @@ class ControlloMenuElementoIn(BaseModel):
     # presente (anche null) = si cambia; null = torna al calcolo automatico
     porzioni_per_pezzo: Optional[float] = Field(default=None, gt=0, le=100000)
     non_limita: Optional[bool] = None
+    gelo_diretto: Optional[bool] = None   # mig 234: si usa direttamente dal congelatore
 
 
 @router.get("/controllo-menu")
@@ -1740,7 +1749,7 @@ def controllo_menu_elemento(payload: ControlloMenuElementoIn, current_user=Depen
                 _utente(current_user),
                 porzioni_per_pezzo=payload.porzioni_per_pezzo,
                 cambia_porzioni="porzioni_per_pezzo" in (getattr(payload, "model_fields_set", None) or getattr(payload, "__fields_set__", set())),
-                non_limita=payload.non_limita)
+                non_limita=payload.non_limita, gelo_diretto=payload.gelo_diretto)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         conn.commit()

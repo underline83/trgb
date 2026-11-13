@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-13 — Controllo menu: porzioni salvate sull'articolo e «dal gelo diretto» (sistema 6.0, mig 234) `[core]`
+Le porzioni per pezzo scritte su un piatto ora si salvano sull'articolo, come contenuto del pezzo (25 porzioni da 20 ml → 1 pz = 500 ml): tutti gli altri piatti che usano lo stesso articolo si aggiornano da soli con la propria grammatura. Sotto il campo si legge da dove viene il numero (sull'articolo, solo per questo piatto, dalla grammatura in ricetta). Nuova spunta «dal gelo diretto» per ciò che va dal congelatore alla pentola, come i casoncelli: il gelo conta già nel numero «subito».
+
 ## 2026-11-13 — Cucina: «✅ Controllo menu», quante porzioni si possono fare (sistema 5.99, mig 233) `[core]`
 Nuova pagina in Gestione Cucina (admin, chef, sous chef): per ogni piatto con ricetta della carta in corso dice quante porzioni si fanno con quello che c'è in Frigoriferi e scorte. Due numeri: **subito** (frigo, cella, dispensa) e **con il gelo** (aggiungendo il congelatore); sotto, l'elemento che ferma il piatto, quanti dati mancano e il semaforo di linea di oggi. Aprendo il piatto si vedono gli elementi della ricetta con la giacenza e si scrive **quante porzioni dà un pezzo** (vale per quel piatto); dove non è scritto e le unità si parlano (kg e grammi, litri e ml, pezzi e pezzi) il conto viene dalla grammatura. Gli elementi senza dato non fermano il numero ma il piatto li segnala; «non limita» (sale, olio) vale per tutti i piatti. Ogni piatto è contato da solo. Sola lettura sulle scorte: la pagina non muove niente.
 

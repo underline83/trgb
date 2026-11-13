@@ -240,6 +240,10 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.20 (2026-11-13): Controllo menu — spunta «dal gelo diretto» sull'elemento (mig 234): per ciò
+    //   che va dal congelatore alla pentola (casoncelli) il gelo conta già nel numero «subito».
+    //   Le porzioni per pezzo si salvano sull'articolo come contenuto del pezzo
+    //   (cucina_articoli.contenuto_qta/um): scritte su un piatto valgono per tutti i piatti.
     // 1.19 (2026-11-13): «✅ Controllo menu» (mig 233) — per ogni piatto in carta le porzioni che si
     //   fanno con le scorte: «subito» (frigo e dispensa) e «con il gelo», collo di bottiglia, dati
     //   mancanti, semaforo di linea di oggi; «porzioni per pezzo» per piatto e «non limita»
@@ -321,7 +325,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.19",
+    version: "1.20",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",
@@ -791,6 +795,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.0 (2026-11-13): mig 234 — cucina_articoli.contenuto_qta/um (contenuto del pezzo) e
+    //   cucina_menu_elementi.gelo_diretto (Controllo menu, cucinaScorte 1.20).
     // 5.99 (2026-11-13): mig 233 — cucina_menu_elementi (porzioni per pezzo per piatto, «non limita»)
     //   per la pagina Cucina › Controllo menu (cucinaScorte 1.19).
     // 5.98 (2026-11-13): mig 232 — prenotazioni_stati + prenotazioni_stati_transizioni (stati e
@@ -938,7 +944,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "5.99",
+    version: "6.0",
     label: "Sistema",
     status: "stabile",
     color: "green",
