@@ -557,6 +557,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.34 (2026-11-14): differenze con TheFork con regole — maiuscole/accenti non contano, nome/cognome/
+    //   titolo restano del CRM, lingua di TheFork solo sopra quella di partenza, prefissi invertiti e alias
+    //   Apple sistemati da soli, «Ignora» ricordato; «Riordina la coda con le regole» (anteprima + Procedi)
+    //   in Impostazioni › Import; riquadro «TheFork dice» nella scheda cliente (admin).
     // 3.33 (2026-11-13): menu su iPratico — Family e reparti copiati da un articolo già in
     //   Degustazioni (prima uscivano «beverage», i default dei vini). ipratico_menu_service 1.1.
     // 3.32 (2026-11-13): preventivo inviato (o collegato a una prenotazione quando è già inviato) →
@@ -642,7 +646,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.33",
+    version: "3.34",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-14 — Clienti 3.34: la coda «differenze TheFork» con regole `[core]`
+Il badge 3043 sulla linguetta Impostazioni erano le differenze tra CRM e TheFork sui clienti protetti, quasi tutte arretrate: ~1970 di sole maiuscole («Sciacca» / «SCIACCA») rimaste dall'import di luglio, il resto dall'import completo del 3 ottobre. Ora ogni differenza passa da regole (Marco 13/11: «le cose descrittive sul nostro programma devono avere la priorità»): maiuscole, accenti e spazi non contano; nome, cognome e titolo restano i nostri; la lingua di TheFork vale solo se da noi c'è quella di partenza; il prefisso invertito «+93…» al posto di «+39…» e l'alias email di Apple si sistemano da soli; tutto il resto diverso davvero va in coda. Un «Ignora» viene ricordato (prima la stessa differenza tornava alla prenotazione successiva). In Impostazioni › Import, «Riordina la coda con le regole» mostra l'anteprima e poi chiude e applica (sulla copia del DB: 2772 chiuse, 144 applicate, 127 restano). Le differenze di un cliente compaiono anche nella sua scheda, riquadro «TheFork dice» (admin). Corretto anche un errore latente: ignorare due volte lo stesso campo dello stesso cliente andava in errore (UNIQUE cliente/campo/stato). Nessuna migrazione. File: `clienti_thefork_service.py`, `clienti_router.py`, `DiffTheFork.jsx` (nuovo), `ClientiImport.jsx`, `ClientiScheda.jsx`, `versions.jsx`.
+
 ## 2026-11-13 — Controllo menu 1.22: il libro mastro `[core]`
 Dalla riga di ogni elemento ora si corregge tutto senza cambiare pagina: grammatura a porzione, giacenze per ripiano, porzioni per pezzo, nome e unità dell'articolo, minimi frigo/gelo/dispensa, riordino e dotazione di linea; gli elementi senza articolo si creano con «+ Crea in Scorte». Il nome dell'elemento porta alla ricetta o ai prezzi dell'ingrediente, «Articolo» alla scheda in Frigoriferi e scorte. Ogni campo si salva uscendo e il conto si rifà.
 

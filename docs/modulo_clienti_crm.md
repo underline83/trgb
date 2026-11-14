@@ -90,7 +90,7 @@ Colonne reali (`app/models/clienti_db.py:151-197` + ALTER `:289-308`): `id`, `cl
 | `clienti_note` | Diario interazioni: `tipo` (nota/telefonata/evento/reclamo/preferenza), `testo`, `data`, `autore` |
 | `clienti_alias` | Merge duplicati: mappa i `thefork_id` dei clienti assorbiti verso il cliente principale, così i re-import li riconoscono |
 | `clienti_no_duplicato` | Coppie marcate "non è un duplicato" (es. coniugi con stesso telefono), escluse dai suggerimenti |
-| `clienti_import_diff` | Coda revisione: differenze campo-per-campo tra CRM (cliente `protetto`) e TheFork trovate all'import; `stato` pending/applica/ignora |
+| `clienti_import_diff` | Coda revisione: differenze campo-per-campo tra CRM (cliente `protetto`) e TheFork trovate all'import o dal webhook; `stato` pending / applica / ignora (scelte di Marco) / auto_applica / auto_ignora (chiuse dalle regole, §8). UNIQUE(cliente, campo, stato): una decisione nuova sostituisce la vecchia dello stesso campo |
 | `clienti_impostazioni` | Chiave/valore: soglie segmenti `seg_*` (§6) + `preventivi_luoghi` |
 
 ## 2.4 Tabelle di altri moduli nello stesso DB
@@ -147,9 +147,10 @@ Router unico con prefix `/clienti`, tag "Clienti". **Tutti gli endpoint richiedo
 |---|---|---|---|
 | POST | `/clienti/import/thefork` | Import clienti da XLSX TheFork. Upsert su `thefork_id` (anche via `clienti_alias`). Cliente `protetto`: aggiorna solo campi TheFork-specifici + riempie i vuoti + salva le differenze in `clienti_import_diff`. Cliente non protetto: sovrascrive. Auto-tag VIP (`auto=1`) | :324 |
 | POST | `/clienti/import/prenotazioni` | Import prenotazioni da XLSX TheFork. Upsert su `thefork_booking_id`, collega `cliente_id` via `thefork_id`/alias, salva snapshot `nome_ospite`/`cognome_ospite` | :566 |
-| GET | `/clienti/import/diff` | Coda revisione differenze (raggruppate per cliente), filtro `stato` | :1274 |
+| GET | `/clienti/import/diff` | Coda revisione differenze (raggruppate per cliente), filtri `stato` e `cliente_id` (scheda cliente); `totale` = quante in tutto | `lista_import_diff` |
 | GET | `/clienti/import/diff/count` | Conteggio diff pending (badge sulla tab Impostazioni) | :1328 |
-| POST | `/clienti/import/diff/risolvi` | Applica o ignora una o più diff (`azione: applica|ignora`, whitelist campi anti-injection) | :1348 |
+| POST | `/clienti/import/diff/risolvi` | Applica o ignora una o più diff (`azione: applica|ignora`, whitelist campi anti-injection). Logica in `clienti_thefork_service.risolvi_differenze` | `risolvi_import_diff` |
+| POST | `/clienti/import/diff/riordina` | **admin**. Riapplica le regole (§8) alla coda: `prova=true` conta soltanto, `false` chiude e applica. Ritorna chiuse / applicate / restano, anche per campo | `riordina_import_diff` |
 | GET | `/clienti/export/google-csv` | Export CSV formato Google Contacts (tag → gruppi `* TRGB`, note combinate, birthday convertito in `yyyy-mm-dd`); query `solo_attivi`, `solo_con_contatto` | :217 |
 
 ## 3.6 Duplicati, merge, pulizia
@@ -192,7 +193,8 @@ File in `frontend/src/pages/clienti/`. Route in `frontend/src/App.jsx:458-475`. 
 | `ClientiPreventivi.jsx`, `ClientiPreventivoScheda.jsx` | `/clienti/preventivi`, `/clienti/preventivi/:id` | Modulo Preventivi — vedi [modulo_preventivi.md](modulo_preventivi.md) |
 | `ClientiDashboard.jsx` (v1.3-mattoni) | `/clienti/dashboard` (sub `dashboard`) | Dashboard CRM (§5.4) |
 | `ClientiImpostazioni.jsx` (v2.1-mattoni) | `/clienti/impostazioni[/:section]` (sub `import`, tab visibile solo admin/superadmin) | Layout sidebar con 7 sezioni: segmenti, template_preventivi, menu_templates, luoghi_preventivi, import, duplicati, mailchimp |
-| `ClientiImport.jsx` (v2.0-mattoni) | — (embedded in Impostazioni → Import/Export) | Upload XLSX clienti + prenotazioni, revisione diff, export Google CSV |
+| `ClientiImport.jsx` (v2.0-mattoni) | — (embedded in Impostazioni → Import/Export) | Upload XLSX clienti + prenotazioni, revisione diff (con «Riordina la coda con le regole»), export Google CSV |
+| `DiffTheFork.jsx` | componente | Righe differenze CRM ↔ TheFork con Applica/Ignora (`DiffRighe`), riquadro scheda cliente (`DiffTheForkCliente`), `CAMPO_LABELS` — usato da `ClientiImport` e `ClientiScheda` |
 | `ClientiDuplicati.jsx` (v1.3-mattoni) | — (embedded in Impostazioni → Duplicati) | Suggerimenti duplicati, merge guidato, auto-merge, pulizia telefoni |
 | `ClientiMailchimp.jsx` (v1.1-mattoni) | — (embedded in Impostazioni → Mailchimp) | Stato connessione + sync (§11) |
 | `ClientiMenuTemplates.jsx` | — (embedded in Impostazioni → Menu Template) | Libreria menu per preventivi — vedi [modulo_preventivi.md](modulo_preventivi.md) |
@@ -223,6 +225,7 @@ File in `frontend/src/pages/clienti/`. Route in `frontend/src/App.jsx:458-475`. 
 - **Tab Preventivi**: fetch `GET /preventivi?cliente_id=` (router preventivi) + CTA "Nuovo preventivo" → `/clienti/preventivi/nuovo` (`ClientiScheda.jsx:782,807`).
 - **Merge manuale** dal pannello scheda: ricerca del duplicato, preview, opzione **"merge come coppia"** che salva nome/cognome del secondario come `nome2`/`cognome2` del principale (`ClientiScheda.jsx:92-247`).
 - Tipi nota: nota 📝, telefonata 📞, evento 🎉, reclamo ⚠️, preferenza 🍽️.
+- 🆕 **v3.34 (2026-11-14)**: in testa alla linguetta Anagrafica, riquadro ambra **«TheFork dice»** con le differenze pending di quel cliente (Applica / Ignora, anche tutte insieme); compare solo se ce ne sono e solo ad admin (§8).
 
 ## 5.4 Dashboard (`ClientiDashboard.jsx`)
 
@@ -277,8 +280,26 @@ Flusso in **Impostazioni → Import / Export** (`ClientiImport.jsx`):
 
 1. **Import clienti** (XLSX export TheFork) → `POST /clienti/import/thefork`. Upsert per `thefork_id`, riconosce anche gli ID assorbiti nei merge via `clienti_alias`. Telefoni placeholder scartati. Esito: inseriti / aggiornati / errori / diff trovati.
 2. **Import prenotazioni** (XLSX) → `POST /clienti/import/prenotazioni`. Upsert per `thefork_booking_id`, collega il cliente, salva snapshot nome ospite.
-3. **Revisione diff**: per i clienti `protetto`, i campi che differiscono tra CRM e TheFork (confronto case-insensitive) finiscono in `clienti_import_diff`. La UI li mostra raggruppati per cliente; Marco sceglie **Applica** (vince TheFork) o **Ignora** (vince il CRM) → `POST /clienti/import/diff/risolvi`. Il conteggio pending appare come badge amber sulla tab Impostazioni (`ClientiNav.jsx:27-31,69-73`).
+3. **Revisione diff**: per i clienti `protetto`, un campo diverso tra CRM e TheFork passa dalle **regole** (`clienti_thefork_service.valuta_differenza`, 2026-11-14 — Marco: «le cose descrittive sul nostro programma devono avere la priorità»). Vale per l'import XLSX e per il webhook TheFork:
+   - vuoto nel CRM → si riempie con TheFork;
+   - uguali a meno di maiuscole, accenti, spazi e punteggiatura → niente;
+   - **nome, cognome, titolo** → resta il CRM, niente in coda (quasi sempre è un'altra persona che ha prenotato con lo stesso telefono);
+   - **lingua** → TheFork vale solo se nel CRM c'è ancora quella di partenza (default della colonna `clienti.lingua`, oggi `it_IT`), altrimenti resta la nostra;
+   - **telefono** → stesso numero con prefisso diverso: si corregge da solo solo il refuso a cifre invertite (`+93…` nel CRM, `+39…` in TheFork, prefisso preso da `normalize_phone`); prefisso aggiunto/tolto o refuso di TheFork → resta il nostro; numero TheFork non valido → niente;
+   - **email** → alias Apple (`@privaterelay.appleid.com`) in TheFork → resta la nostra; alias nel CRM e indirizzo vero in TheFork → si prende quello vero;
+   - tutto il resto diverso davvero → **coda** (`clienti_import_diff`, pending).
+   Un **Ignora** di Marco viene ricordato: la stessa coppia (campo, valore TheFork) non torna in coda. La UI (Impostazioni › Import) mostra la coda raggruppata per cliente con **Applica** / **Ignora** e **«Riordina la coda con le regole»** (anteprima, poi Procedi → `POST /clienti/import/diff/riordina`), utile dopo un cambio di regole. Le stesse righe compaiono nella **scheda cliente** (riquadro «TheFork dice», solo admin, componente condiviso `DiffTheFork.jsx`). Il conteggio pending è il badge amber sulla tab Impostazioni (`ClientiNav.jsx`).
+   Al 2026-11-14 la coda era 3043, quasi tutta arretrata: ~1970 di sole maiuscole dall'import di luglio (prima del confronto case-insensitive), il resto dall'import completo del 3 ottobre. Con le regole: 2772 chiuse, 144 applicate, 127 da guardare (telefoni ed email cambiati davvero).
 4. **Export Google CSV** (§10).
+
+## 8.1 Capability (coda differenze TheFork)
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-CL-T01 | Regole sulle differenze di un cliente protetto (applica / ignora / in coda), «Ignora» ricordato | `clienti_thefork_service.py:valuta_differenza`, `upsert_cliente` | sistema (import XLSX, webhook TheFork) | 🆕 |
+| C-CL-T02 | Riordino della coda con le regole, con anteprima | `clienti_router.py:riordina_import_diff` (`POST /clienti/import/diff/riordina`), `ClientiImport.jsx:DiffReviewSection` | admin | 🆕 |
+| C-CL-T03 | Differenze del singolo cliente nella scheda («TheFork dice») | `GET /clienti/import/diff?cliente_id=`, `DiffTheFork.jsx:DiffTheForkCliente` in `ClientiScheda.jsx` | admin | 🆕 |
+| C-CL-T04 | Applica / Ignora differenze (una, per cliente, tutte) | `clienti_router.py:risolvi_import_diff` → `risolvi_differenze` | admin | ✅ |
 
 ---
 

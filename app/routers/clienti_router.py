@@ -36,6 +36,8 @@ from app.models.clienti_db import get_clienti_conn, init_clienti_db
 from app.services.auth_service import get_current_user
 from app.services.clienti_thefork_service import (
     aggiorna_tag_vip,
+    riordina_coda,
+    risolvi_differenze,
     trova_cliente_id,
     upsert_cliente,
     upsert_prenotazione,
@@ -1181,22 +1183,31 @@ def escludi_duplicato(
 def lista_import_diff(
     stato: str = Query("pending"),
     limit: int = Query(200, ge=1, le=1000),
+    cliente_id: Optional[int] = Query(None, description="Solo le differenze di questo cliente (scheda cliente)"),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Ritorna le differenze trovate tra CRM e TheFork durante l'import.
     Raggruppate per cliente, con nome/cognome per la UI.
+    `totale` = quante sono in tutto (la lista si ferma a `limit`).
     """
     conn = get_clienti_conn()
     try:
-        rows = conn.execute("""
+        filtro, args = "d.stato = ?", [stato]
+        if cliente_id is not None:
+            filtro += " AND d.cliente_id = ?"
+            args.append(cliente_id)
+        totale = conn.execute(
+            f"SELECT COUNT(*) FROM clienti_import_diff d WHERE {filtro}", args
+        ).fetchone()[0]
+        rows = conn.execute(f"""
             SELECT d.*, c.nome, c.cognome, c.telefono, c.email
             FROM clienti_import_diff d
             JOIN clienti c ON c.id = d.cliente_id
-            WHERE d.stato = ?
+            WHERE {filtro}
             ORDER BY d.data_import DESC
             LIMIT ?
-        """, (stato, limit)).fetchall()
+        """, args + [limit]).fetchall()
 
         # Raggruppa per cliente
         grouped = {}
@@ -1226,6 +1237,7 @@ def lista_import_diff(
             "clienti": result,
             "totale_clienti": len(result),
             "totale_diff": totale_diff,
+            "totale": totale,
         })
     finally:
         conn.close()
@@ -1266,43 +1278,10 @@ def risolvi_import_diff(
 
     conn = get_clienti_conn()
     try:
-        applicati = 0
-        ignorati = 0
-
-        for diff_id in req.ids:
-            diff_row = conn.execute(
-                "SELECT * FROM clienti_import_diff WHERE id = ? AND stato = 'pending'",
-                (diff_id,),
-            ).fetchone()
-            if not diff_row:
-                continue
-
-            if req.azione == "applica":
-                # Aggiorna il campo nel cliente con il valore TheFork
-                campo = diff_row["campo"]
-                # Validazione: solo campi conosciuti (anti-injection)
-                campi_validi = {
-                    "email", "telefono", "telefono2", "data_nascita",
-                    "indirizzo", "cap", "citta", "paese",
-                    "pref_cibo", "pref_bevande", "pref_posto",
-                    "restrizioni_dietetiche", "allergie", "note_thefork",
-                    "nome", "cognome", "titolo", "lingua",
-                }
-                if campo not in campi_validi:
-                    continue
-                conn.execute(
-                    f"UPDATE clienti SET {campo} = ? WHERE id = ?",
-                    (diff_row["valore_thefork"], diff_row["cliente_id"]),
-                )
-                applicati += 1
-            else:
-                ignorati += 1
-
-            # Segna come risolto
-            conn.execute(
-                "UPDATE clienti_import_diff SET stato = ?, risolto_at = datetime('now','localtime') WHERE id = ?",
-                (req.azione, diff_id),
-            )
+        # Logica nel service (2026-11-14): una decisione nuova sostituisce la
+        # vecchia dello stesso campo (UNIQUE cliente/campo/stato), e un «ignora»
+        # viene ricordato dagli import successivi.
+        applicati, ignorati = risolvi_differenze(conn, req.ids, req.azione)
 
         conn.commit()
         return JSONResponse({
@@ -1312,6 +1291,34 @@ def risolvi_import_diff(
         })
     except Exception as e:
         logger.exception("Errore risoluzione diff import")
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+class RiordinaDiffRequest(BaseModel):
+    prova: bool = Field(True, description="true = conta soltanto, false = chiude e applica davvero")
+
+
+@router.post("/import/diff/riordina")
+def riordina_import_diff(
+    req: RiordinaDiffRequest,
+    current_user: Dict[str, Any] = Depends(richiede_ruoli("admin", cosa="riordinare la coda TheFork")),
+):
+    """
+    Riapplica le regole alla coda delle differenze (2026-11-14): chiude quelle
+    che le regole non chiederebbero più (maiuscole, nome/cognome/titolo, lingua,
+    prefissi, alias Apple, ignorate prima) e applica quelle sicure. Con
+    prova=true dice solo cosa farebbe.
+    """
+    conn = get_clienti_conn()
+    try:
+        conti = riordina_coda(conn, scrivi=not req.prova)
+        if not req.prova:
+            conn.commit()
+        return JSONResponse({"prova": req.prova, **conti})
+    except Exception as e:
+        logger.exception("Errore riordino coda diff import")
         raise HTTPException(500, str(e))
     finally:
         conn.close()

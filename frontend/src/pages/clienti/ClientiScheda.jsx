@@ -9,6 +9,7 @@ import Tooltip from "../../components/Tooltip";
 import { Btn } from "../../components/ui";
 import PrenotazioniForm from "../prenotazioni/PrenotazioniForm";
 import { openWhatsApp } from "../../utils/whatsapp";
+import { DiffTheForkCliente } from "./DiffTheFork";
 
 const LINGUE = { it_IT: "Italiano", en_GB: "Inglese", en_US: "Inglese", de_DE: "Tedesco", fr_FR: "Francese", es_ES: "Spagnolo", nl_NL: "Olandese", pt_PT: "Portoghese" };
 const PAESI = { Italy: "Italia", Germany: "Germania", France: "Francia", Spain: "Spagna", Switzerland: "Svizzera", "United Kingdom": "Regno Unito", "United States": "Stati Uniti", Netherlands: "Paesi Bassi", Austria: "Austria", Belgium: "Belgio", Norway: "Norvegia" };
@@ -94,6 +95,9 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   const [tab, setTab] = useState("anagrafica"); // anagrafica | visite | acquisti | preventivi | note (redesign 2026-10-19)
   const [consumi, setConsumi] = useState(null);   // conti di cassa (GET /clienti/{id}/consumi)
   const [showPrenota, setShowPrenota] = useState(false);
+  // Differenze con TheFork: le guarda chi cura l'anagrafica (come la revisione in Impostazioni)
+  const ruolo = localStorage.getItem("role");
+  const vedeDiffTheFork = ruolo === "admin" || ruolo === "superadmin";
 
   const [nuovaNota, setNuovaNota] = useState({ tipo: "nota", testo: "" });
 
@@ -522,6 +526,9 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
             {/* ANAGRAFICA: da sapere in sala, dati, preferenze, etichette, unione doppioni */}
             {tab === "anagrafica" && (
               <div className="space-y-3">
+              {vedeDiffTheFork && (
+                <DiffTheForkCliente clienteId={cliente.id} onCambiato={fetchCliente} onMessaggio={showToast} />
+              )}
               {/* ── DA SAPERE IN SALA ── */}
               <div className="space-y-2.5">
                 <div className="text-xs font-bold tracking-wider uppercase text-neutral-500">Da sapere in sala</div>

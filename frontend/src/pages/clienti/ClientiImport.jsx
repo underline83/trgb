@@ -4,8 +4,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
-import Tooltip from "../../components/Tooltip";
 import { PageLayout, Btn, StatusBadge } from "../../components/ui";
+import { DiffRighe, risolviDifferenze } from "./DiffTheFork";
 
 function ImportSection({ title, icon, instructions, endpoint, color, note }) {
   const [file, setFile] = useState(null);
@@ -128,25 +128,44 @@ function ImportSection({ title, icon, instructions, endpoint, color, note }) {
 }
 
 // Etichette italiane per i campi
-const CAMPO_LABELS = {
-  nome: "Nome", cognome: "Cognome", titolo: "Titolo", email: "Email",
-  telefono: "Telefono", telefono2: "Telefono 2", data_nascita: "Data nascita",
-  lingua: "Lingua", indirizzo: "Indirizzo", cap: "CAP", citta: "Città",
-  paese: "Paese", pref_cibo: "Pref. cibo", pref_bevande: "Pref. bevande",
-  pref_posto: "Pref. posto", restrizioni_dietetiche: "Restrizioni",
-  allergie: "Allergie", note_thefork: "Note TheFork",
-};
 
 function DiffReviewSection({ onCountChange }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState({});
+  const [riordino, setRiordino] = useState(null); // anteprima del riordino con le regole
+  const [riordinando, setRiordinando] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "success" }), 4000);
+  };
+
+  // Riapplica le regole alla coda: prima un'anteprima, poi «Procedi»
+  const riordina = async (prova) => {
+    setRiordinando(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/import/diff/riordina`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prova }),
+      });
+      if (!res.ok) throw new Error(res.status === 403 ? "Solo l'amministratore può riordinare la coda" : "Errore nel riordino");
+      const r = await res.json();
+      if (prova) {
+        setRiordino(r);
+      } else {
+        setRiordino(null);
+        showToast(`Chiuse ${r.chiuse}, applicate ${r.applicate}: restano ${r.restano} da guardare`);
+        fetchDiff();
+      }
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setRiordinando(false);
+    }
   };
 
   const fetchDiff = useCallback(async () => {
@@ -155,7 +174,7 @@ function DiffReviewSection({ onCountChange }) {
       if (!res.ok) throw new Error("Errore caricamento diff");
       const d = await res.json();
       setData(d);
-      if (onCountChange) onCountChange(d.totale_diff || 0);
+      if (onCountChange) onCountChange(d.totale ?? d.totale_diff ?? 0);
     } catch (err) {
       console.error(err);
     } finally {
@@ -169,13 +188,7 @@ function DiffReviewSection({ onCountChange }) {
     const key = ids.join(",");
     setActing(prev => ({ ...prev, [key]: true }));
     try {
-      const res = await apiFetch(`${API_BASE}/clienti/import/diff/risolvi`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids, azione }),
-      });
-      if (!res.ok) throw new Error("Errore");
-      const r = await res.json();
+      const r = await risolviDifferenze(ids, azione);
       showToast(azione === "applica"
         ? `${r.applicati} modifiche applicate`
         : `${r.ignorati} modifiche ignorate`);
@@ -196,17 +209,58 @@ function DiffReviewSection({ onCountChange }) {
 
   if (loading) return <div className="text-sm text-neutral-500 py-4">Caricamento revisioni...</div>;
   if (!data || data.totale_diff === 0) return null;
+  const totale = data.totale ?? data.totale_diff;
+  const NOMI_CAMPO = { cognome: "cognomi", nome: "nomi", lingua: "lingue", telefono: "telefoni", email: "email", titolo: "titoli" };
 
   return (
     <div className="mb-8">
       <h2 className="text-lg font-bold text-neutral-900 mb-3 flex items-center gap-2">
         Revisione Differenze Import
-        <StatusBadge tone="warning" size="md">{data.totale_diff}</StatusBadge>
+        <StatusBadge tone="warning" size="md">{totale}</StatusBadge>
       </h2>
       <p className="text-sm text-neutral-500 mb-4">
-        Queste differenze sono state trovate tra i dati nel CRM e l'ultimo import TheFork.
-        Per ogni campo puoi decidere se applicare il valore TheFork o mantenere quello attuale.
+        Dati diversi tra il CRM e TheFork sui clienti protetti. Per ogni campo puoi applicare il valore
+        di TheFork o tenere il nostro; un «Ignora» viene ricordato. Le trovi anche nella scheda del cliente.
+        {totale > data.totale_diff && ` Qui sotto le ultime ${data.totale_diff} di ${totale}.`}
       </p>
+
+      {/* Riordino con le regole (2026-11-14) */}
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4 mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[240px] text-sm text-neutral-600">
+            <span className="font-semibold text-neutral-800">Regole automatiche:</span> maiuscole e accenti non contano;
+            nome, cognome e titolo restano i nostri; la lingua di TheFork vale solo se da noi c'è quella di partenza;
+            prefissi invertiti («+93» per «+39») e alias email di Apple si sistemano da soli.
+          </div>
+          {!riordino && (
+            <Btn variant="secondary" size="md" onClick={() => riordina(true)} loading={riordinando} disabled={riordinando}>
+              Riordina la coda con le regole
+            </Btn>
+          )}
+        </div>
+        {riordino && (
+          <div className="mt-3 rounded-lg bg-neutral-50 border border-neutral-200 p-3 text-sm space-y-2">
+            <div>
+              Chiudo <b>{riordino.chiuse}</b>, applico <b>{riordino.applicate}</b> dati di TheFork,
+              restano <b>{riordino.restano}</b> da guardare.
+            </div>
+            <div className="text-xs text-neutral-500">
+              {Object.entries(riordino.per_campo || {})
+                .sort((a, b) => (b[1].chiuse + b[1].applicate + b[1].restano) - (a[1].chiuse + a[1].applicate + a[1].restano))
+                .map(([campo, c]) => `${NOMI_CAMPO[campo] || campo}: ${[c.chiuse && `${c.chiuse} chiuse`, c.applicate && `${c.applicate} applicate`, c.restano && `${c.restano} restano`].filter(Boolean).join(", ")}`)
+                .join(" · ")}
+            </div>
+            <div className="flex gap-2">
+              <Btn variant="primary" size="md" onClick={() => riordina(false)} loading={riordinando} disabled={riordinando}>
+                Procedi
+              </Btn>
+              <Btn variant="ghost" size="md" onClick={() => setRiordino(null)} disabled={riordinando}>
+                Annulla
+              </Btn>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Azioni globali */}
       <div className="flex gap-2 mb-4">
@@ -244,42 +298,8 @@ function DiffReviewSection({ onCountChange }) {
               </div>
             </div>
 
-            {/* Righe diff */}
-            <div className="divide-y divide-neutral-100">
-              {cliente.diff.map(d => {
-                const dKey = String(d.id);
-                return (
-                  <div key={d.id} className="flex items-center px-4 py-2 text-sm gap-3">
-                    <div className="w-28 text-xs font-semibold text-neutral-500 uppercase shrink-0">
-                      {CAMPO_LABELS[d.campo] || d.campo}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Tooltip label={d.valore_crm}>
-                          <span className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded border border-red-200 truncate max-w-[200px]">
-                            {d.valore_crm}
-                          </span>
-                        </Tooltip>
-                        <span className="text-neutral-400 text-xs">→</span>
-                        <Tooltip label={d.valore_thefork}>
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded border border-emerald-200 truncate max-w-[200px]">
-                            {d.valore_thefork}
-                          </span>
-                        </Tooltip>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <Btn variant="primary" size="sm" onClick={() => handleAction([d.id], "applica")} disabled={acting[dKey]}>
-                        Applica
-                      </Btn>
-                      <Btn variant="secondary" size="sm" onClick={() => handleAction([d.id], "ignora")} disabled={acting[dKey]}>
-                        Ignora
-                      </Btn>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {/* Righe diff (componente condiviso con la scheda cliente) */}
+            <DiffRighe diff={cliente.diff} onAction={handleAction} acting={acting} />
           </div>
         );
       })}
