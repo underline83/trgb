@@ -221,7 +221,10 @@ const MODULE_VERSIONS = {
     // 3.37 (2026-10-28): Cucina › «Piatti che vanno» — porzioni per tipo dai conti di cassa,
     //   confronto col periodo prima, in crescita/in calo/non usciti più, andamento giorno per giorno
     //   (GET /cucina/vendite/piatti/, servizio vendite_conti_service). Admin, chef, sous chef.
-    version: "3.37",
+    // 3.38 (2026-11-15): costo di riga unico (servizio costo_ricette) per totale, scheda, ricette
+    //   per ingrediente, storico FC e costi menu pranzo; unità non convertibile = riga senza costo
+    //   (prima 1 ml = 1 kg: risotto Kissabel a 241 €); motivo sulla riga e totale «parziale».
+    version: "3.38",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
@@ -338,6 +341,8 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   pranzo: {
+    // 1.12 (2026-11-15): costi medi del menu dal conto unico delle ricette (costo_ricette):
+    //   quantità convertite e prezzo corrente come in scheda (prima 70 g su ingrediente a kg = 70 kg).
     // 1.11 (2026-11-08): tolto «Pubblica il menu sul sito» (FTP, mai configurato):
     //   il sito legge il menu da GET /pranzo/public/settimana/ (1.9).
     // 1.10 (2026-10-25): «Valore vendita piatto (food cost)» nelle impostazioni Menu Pranzo
@@ -348,7 +353,7 @@ const MODULE_VERSIONS = {
     // 1.8 (2026-08-03): "Pubblica il menu sul sito" nel compositore (mattone
     //   M.J): il PDF cliente della settimana finisce da solo sull'FTP
     //   dell'hosting, nome remoto fisso -> link su WordPress invariato.
-    version: "1.11",
+    version: "1.12",
     label: "Menu Pranzo del Giorno",
     status: "beta",
     color: "blue",

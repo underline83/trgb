@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# @version: v2.3 (2026-10-25) — voci 'qb' salvabili anche da modifica (qty 0), n_voci nell'elenco,
+# @version: v2.4 (2026-11-15) — costo di riga unico (app/services/costo_ricette.py): unità non
+#   convertibile = riga senza costo con motivo, scheda e totale con lo stesso conto, totale «parziale»
+# v2.3 (2026-10-25) — voci 'qb' salvabili anche da modifica (qty 0), n_voci nell'elenco,
 #   PUT ricetta ricalcola gli allergeni anche dei piatti che la usano come base
 # v2.2-foodcost-recipes-router-import (2026-05-23)
 # Modulo: ricette
@@ -44,6 +46,15 @@ from app.services.allergeni_service import (
 from app.services.foodcost_history_service import compute_recipe_fc_history
 from app.services.foodcost_prezzo_service import contesto_pranzo, prezzo_riferimento
 from app.services.ricette_qb import QB_UNITS, is_qb
+from app.services.prezzi_ingredienti import finestra_giorni as _finestra_giorni_platform
+from app.services.prezzi_ingredienti import prezzo_corrente as _prezzo_corrente_platform
+# Costo di riga unico + conversioni unità (2026-11-15). UNIT_TO_BASE, _norm_unit,
+# convert_qty, _get_custom_conversion, _standard_convert sono riesportati con lo
+# stesso nome: foodcost_matching_router li importa da qui.
+from app.services.costo_ricette import (  # noqa: F401
+    UNIT_TO_BASE, _norm_unit, convert_qty, _get_custom_conversion, _standard_convert,
+    costo_riga, costo_ricetta, prezzo_corrente_fn, testo_parziale,
+)
 
 from app.services.permessi import richiede_ruoli
 
@@ -162,6 +173,10 @@ class RecipeItemOut(BaseModel):
     # Food cost calcolati
     unit_cost: Optional[float] = None    # costo per unità base dell'ingrediente/sub-ricetta
     line_cost: Optional[float] = None    # costo di questa riga (qty × unit_cost convertito)
+    # 2026-11-15: perché la riga non ha costo («unità non convertibile: g → ml»,
+    # «ingrediente senza prezzo»…) e se la base usata è a sua volta parziale
+    motivo_senza_costo: Optional[str] = None
+    base_parziale: bool = False
 
 
 class RecipeOut(BaseModel):
@@ -189,6 +204,10 @@ class RecipeOut(BaseModel):
     total_cost: Optional[float] = None         # costo totale ricetta
     cost_per_unit: Optional[float] = None      # costo per unità di resa (€/porzione, €/kg)
     food_cost_pct: Optional[float] = None      # % food cost su prezzo_riferimento
+    # Totale parziale (2026-11-15): righe senza costo e righe con base parziale
+    righe_senza_costo: int = 0
+    basi_parziali: int = 0
+    costo_parziale: Optional[str] = None       # «parziale: 2 righe senza costo» o None
     # Prezzo usato per il food cost (mig 212): selling_price, o il valore del pranzo
     prezzo_riferimento: Optional[float] = None
     prezzo_fonte: Optional[str] = None         # "ricetta" | "pranzo" | None
@@ -211,6 +230,7 @@ class RecipeListItem(BaseModel):
     total_cost: Optional[float] = None
     cost_per_unit: Optional[float] = None
     food_cost_pct: Optional[float] = None
+    costo_parziale: Optional[str] = None        # 2026-11-15: «parziale: …» o None
     prezzo_riferimento: Optional[float] = None  # mig 212: prezzo usato per il food cost
     prezzo_fonte: Optional[str] = None          # "ricetta" | "pranzo" | None
     # Campi menu/preventivi (mig 074)
@@ -221,213 +241,8 @@ class RecipeListItem(BaseModel):
     n_voci: int = 0  # 0 = composizione vuota (es. piatto creato dal preventivo, da riempire)
 
 
-# ─────────────────────────────────────────────
-#   CONVERSIONE UNITÀ
-# ─────────────────────────────────────────────
-
-# Fattori di conversione verso l'unità base (kg per peso, L per liquidi)
-UNIT_TO_BASE = {
-    "kg": 1.0,
-    "g": 0.001,
-    "mg": 0.000001,
-    "L": 1.0,
-    "l": 1.0,
-    "ml": 0.001,
-    "cl": 0.01,
-    "pz": 1.0,
-    # Sinonimi frequenti nelle fatture elettroniche (fix 2026-06-07)
-    "gr": 0.001,    # grammi scritti "GR"
-    "hg": 0.1,      # ettogrammi
-    "lt": 1.0,      # litri scritti "LT"
-    "lit": 1.0,
-    # Pezzi come li scrivono le fatture (2026-10-23): «PEZZI» di Milesi,
-    # «N.», «NR», «NUM.», «PCS», «EA», «CAD». Stessa famiglia di «pz»: un
-    # prezzo a pezzo entra come prezzo a pezzo. CF/CT (confezione, cartone)
-    # restano fuori apposta: lì serve il fattore.
-    "pezzi": 1.0,
-    "pezzo": 1.0,
-    "n": 1.0,
-    "nr": 1.0,
-    "num": 1.0,
-    "pcs": 1.0,
-    "ea": 1.0,
-    "cad": 1.0,
-}
-
-
-def _norm_unit(u: str) -> str:
-    """Normalizza un'unità fattura: trim, minuscole, via punti ('KG.' → 'kg')."""
-    return (u or "").strip().lower().replace(".", "")
-
-
-def convert_qty(qty: float, from_unit: str, to_unit: str,
-                ingredient_id: int = None, cur=None) -> Optional[float]:
-    """
-    Converte una quantità da from_unit a to_unit.
-
-    1. Se ingredient_id e cur sono forniti, cerca prima conversioni personalizzate
-       nella tabella ingredient_unit_conversions (es. 1 pz = 60g per le uova)
-    2. Altrimenti usa le conversioni standard (kg↔g↔mg, L↔ml↔cl)
-    3. Ritorna None se la conversione non è possibile (unità incompatibili).
-    """
-    fu = _norm_unit(from_unit)
-    tu = _norm_unit(to_unit)
-
-    if fu == tu:
-        return qty
-
-    # 1. Prova conversione personalizzata per ingrediente
-    if ingredient_id and cur:
-        custom = _get_custom_conversion(cur, ingredient_id, fu, tu)
-        if custom is not None:
-            return qty * custom
-
-    # 2. Conversione standard
-    f_base = UNIT_TO_BASE.get(fu)
-    t_base = UNIT_TO_BASE.get(tu)
-
-    if f_base is None or t_base is None:
-        return None
-
-    # Verifica compatibilità STRETTA per famiglia (fix 2026-06-07):
-    # peso↔peso, volume↔volume, pz↔pz. Prima il check era lasco e 'pz'
-    # convertiva implicitamente verso peso/volume come se 1 pz = 1 kg/L —
-    # fonte di prezzi sballati. pz→peso/volume ora richiede SEMPRE una
-    # conversione personalizzata (gestita sopra, punto 1).
-    weight_units = {"kg", "g", "mg", "gr", "hg"}
-    volume_units = {"l", "ml", "cl", "lt", "lit"}
-
-    def _family(u: str) -> Optional[str]:
-        if u in weight_units:
-            return "peso"
-        if u in volume_units:
-            return "volume"
-        if u in {"pz", "pezzi", "pezzo", "n", "nr", "num", "pcs", "ea", "cad"}:
-            return "pz"
-        return None
-
-    if _family(fu) is None or _family(fu) != _family(tu):
-        return None
-
-    return qty * f_base / t_base
-
-
-def _get_custom_conversion(cur, ingredient_id: int, fu: str, tu: str) -> Optional[float]:
-    """
-    Cerca una conversione personalizzata per un ingrediente.
-    Cerca sia diretta (from→to) sia inversa (to→from con 1/factor).
-    """
-    # Diretta
-    row = cur.execute(
-        """
-        SELECT factor FROM ingredient_unit_conversions
-        WHERE ingredient_id = ? AND LOWER(from_unit) = ? AND LOWER(to_unit) = ?
-        """,
-        (ingredient_id, fu, tu),
-    ).fetchone()
-    if row:
-        return row["factor"]
-
-    # Inversa
-    row = cur.execute(
-        """
-        SELECT factor FROM ingredient_unit_conversions
-        WHERE ingredient_id = ? AND LOWER(from_unit) = ? AND LOWER(to_unit) = ?
-        """,
-        (ingredient_id, tu, fu),
-    ).fetchone()
-    if row and row["factor"] != 0:
-        return 1.0 / row["factor"]
-
-    # Prova conversione a catena: from → intermediario → to
-    # Es: pz → g (custom) poi g → kg (standard)
-    customs = cur.execute(
-        """
-        SELECT from_unit, to_unit, factor FROM ingredient_unit_conversions
-        WHERE ingredient_id = ? AND (LOWER(from_unit) = ? OR LOWER(to_unit) = ?)
-        """,
-        (ingredient_id, fu, fu),
-    ).fetchall()
-
-    for c in customs:
-        c_from = c["from_unit"].strip().lower()
-        c_to = c["to_unit"].strip().lower()
-
-        if c_from == fu:
-            # from → c_to (custom), c_to → to (standard?)
-            intermediate = c["factor"]
-            std = _standard_convert(c_to, tu)
-            if std is not None:
-                return intermediate * std
-        elif c_to == fu:
-            # from → c_from (inverse custom), c_from → to (standard?)
-            if c["factor"] != 0:
-                intermediate = 1.0 / c["factor"]
-                std = _standard_convert(c_from, tu)
-                if std is not None:
-                    return intermediate * std
-
-    # Catena lato DESTINAZIONE (fix 2026-06-07, "cose pesabili"):
-    # standard prima, custom dopo. Es. ingrediente a numero con "1 n = 20 g":
-    # KG → n  =  KG → g (standard, 1000)  ×  g → n (custom inversa, 1/20)  =  50.
-    # Copre fatture a peso/volume per ingredienti contati a numero e viceversa.
-    customs_tu = cur.execute(
-        """
-        SELECT from_unit, to_unit, factor FROM ingredient_unit_conversions
-        WHERE ingredient_id = ? AND (LOWER(from_unit) = ? OR LOWER(to_unit) = ?)
-        """,
-        (ingredient_id, tu, tu),
-    ).fetchall()
-
-    for c in customs_tu:
-        c_from = c["from_unit"].strip().lower()
-        c_to = c["to_unit"].strip().lower()
-
-        if c_from == tu and c["factor"] != 0:
-            # from → c_to (standard), poi c_to → tu (custom inversa)
-            std = _standard_convert(fu, c_to)
-            if std is not None:
-                return std / c["factor"]
-        elif c_to == tu:
-            # from → c_from (standard), poi c_from → tu (custom diretta)
-            std = _standard_convert(fu, c_from)
-            if std is not None:
-                return std * c["factor"]
-
-    return None
-
-
-def _standard_convert(fu: str, tu: str) -> Optional[float]:
-    """
-    Conversione solo standard (senza custom), usata internamente.
-    Fix 2026-06-07: famiglie STRETTE come convert_qty (peso↔peso,
-    volume↔volume, pz↔pz) — prima 'pz' convertiva a peso come 1 pz = 1 kg.
-    """
-    fu = _norm_unit(fu)
-    tu = _norm_unit(tu)
-    if fu == tu:
-        return 1.0
-    f_base = UNIT_TO_BASE.get(fu)
-    t_base = UNIT_TO_BASE.get(tu)
-    if f_base is None or t_base is None:
-        return None
-
-    weight_units = {"kg", "g", "mg", "gr", "hg"}
-    volume_units = {"l", "ml", "cl", "lt", "lit"}
-
-    def _family(u: str) -> Optional[str]:
-        if u in weight_units:
-            return "peso"
-        if u in volume_units:
-            return "volume"
-        if u in {"pz", "pezzi", "pezzo", "n", "nr", "num", "pcs", "ea", "cad"}:
-            return "pz"
-        return None
-
-    if _family(fu) is None or _family(fu) != _family(tu):
-        return None
-
-    return f_base / t_base
+# Conversioni unità: spostate in app/services/costo_ricette.py (2026-11-15),
+# importate sopra con lo stesso nome.
 
 
 # ─────────────────────────────────────────────
@@ -435,69 +250,18 @@ def _standard_convert(fu: str, tu: str) -> Optional[float]:
 # ─────────────────────────────────────────────
 
 def _foodcost_finestra_giorni(cur) -> int:
-    """
-    Finestra (giorni) per il prezzo corrente, da foodcost_settings (id=1).
-    Default 90 se la tabella/riga non esiste ancora (pre-mig 145).
-    """
-    try:
-        row = cur.execute(
-            "SELECT prezzo_finestra_giorni FROM foodcost_settings WHERE id = 1"
-        ).fetchone()
-        if row and row["prezzo_finestra_giorni"]:
-            return int(row["prezzo_finestra_giorni"])
-    except Exception:
-        pass
-    return 90
+    """Finestra (giorni) del prezzo corrente — dal servizio platform prezzi_ingredienti."""
+    return _finestra_giorni_platform(cur)
 
 
 def prezzo_corrente_ingrediente(cur, ingredient_id: int,
                                 finestra_giorni: Optional[int] = None) -> Optional[float]:
     """
-    Prezzo corrente robusto (€/unità base) di un ingrediente (fix Sedano 2026-06-08).
-
-    Strategia MEDIANA: mediana dei `unit_price` registrati negli ultimi
-    `finestra_giorni` (default da settings). La mediana ignora gli outlier
-    (acquisti occasionali/retail) che con la vecchia logica "ultimo prezzo"
-    inquinavano food cost e KPI.
-
-    Fallback: se nessun prezzo cade nella finestra (ingrediente comprato di
-    rado), usa l'ULTIMO prezzo disponibile — meglio un dato vecchio che None.
+    Prezzo corrente robusto (€/unità base): mediana nella finestra, fallback
+    all'ultimo prezzo. Dal 2026-11-15 delega alla copia canonica del servizio
+    platform prezzi_ingredienti (debito dichiarato il 2026-09-07, chiuso).
     """
-    if finestra_giorni is None:
-        finestra_giorni = _foodcost_finestra_giorni(cur)
-
-    rows = cur.execute(
-        """
-        SELECT unit_price
-        FROM ingredient_prices
-        WHERE ingredient_id = ?
-          AND unit_price IS NOT NULL
-          AND date(price_date) >= date('now', ?)
-        ORDER BY unit_price
-        """,
-        (ingredient_id, f"-{int(finestra_giorni)} days"),
-    ).fetchall()
-
-    valori = [r["unit_price"] for r in rows if r["unit_price"] is not None]
-    if valori:
-        n = len(valori)
-        mid = n // 2
-        if n % 2:
-            return float(valori[mid])
-        return (float(valori[mid - 1]) + float(valori[mid])) / 2.0
-
-    # Fallback: ultimo prezzo in assoluto
-    row = cur.execute(
-        """
-        SELECT unit_price
-        FROM ingredient_prices
-        WHERE ingredient_id = ? AND unit_price IS NOT NULL
-        ORDER BY date(price_date) DESC, id DESC
-        LIMIT 1
-        """,
-        (ingredient_id,),
-    ).fetchone()
-    return row["unit_price"] if row else None
+    return _prezzo_corrente_platform(cur, ingredient_id, finestra_giorni)
 
 
 def _get_ingredient_unit_cost(cur, ingredient_id: int) -> Optional[float]:
@@ -524,94 +288,12 @@ def _calc_recipe_cost(
     visited: Optional[Set[int]] = None,
 ) -> Optional[float]:
     """
-    Calcola il costo totale di una ricetta, risolvendo ricorsivamente le sub-ricette.
-
-    visited: set di recipe_id già visitati per evitare cicli infiniti.
-    Ritorna None se non è possibile calcolare (ingredienti senza prezzo).
+    Costo totale di una ricetta (basi risolte ricorsivamente) — conto unico di
+    app/services/costo_ricette.py. None se nessuna riga ha costo.
+    Le righe senza costo (senza prezzo, unità non convertibile…) non entrano:
+    il totale è parziale (righe_senza_costo / basi_parziali in _enrich_recipe_with_costs).
     """
-    if visited is None:
-        visited = set()
-
-    if recipe_id in visited:
-        return None  # ciclo rilevato
-    visited.add(recipe_id)
-
-    items = cur.execute(
-        """
-        SELECT ri.ingredient_id, ri.sub_recipe_id, ri.qty, ri.unit
-        FROM recipe_items ri
-        WHERE ri.recipe_id = ?
-        ORDER BY ri.sort_order, ri.id
-        """,
-        (recipe_id,),
-    ).fetchall()
-
-    total = 0.0
-    all_priced = True
-
-    for item in items:
-        line_cost = _calc_item_cost(cur, item, visited)
-        if line_cost is not None:
-            total += line_cost
-        else:
-            all_priced = False
-
-    return total if total > 0 or all_priced else None
-
-
-def _calc_item_cost(cur, item, visited: Set[int]) -> Optional[float]:
-    """Calcola il costo di una singola riga ricetta."""
-    qty = item["qty"]
-    unit = item["unit"]
-
-    # Voce «qb»: fuori dal food cost, anche se l'ingrediente non ha prezzo
-    # (non deve rendere la ricetta «incompleta»).
-    if is_qb(unit):
-        return 0.0
-
-    if item["ingredient_id"]:
-        # Ingrediente base
-        unit_cost = _get_ingredient_unit_cost(cur, item["ingredient_id"])
-        if unit_cost is None:
-            return None
-
-        default_unit = _get_ingredient_default_unit(cur, item["ingredient_id"])
-        if default_unit is None:
-            return None
-
-        # Converti qty nell'unità base dell'ingrediente (con supporto conversioni custom)
-        converted = convert_qty(qty, unit, default_unit,
-                                ingredient_id=item["ingredient_id"], cur=cur)
-        if converted is None:
-            # Unità incompatibili — usa qty direttamente (es. "pz")
-            return qty * unit_cost
-
-        return converted * unit_cost
-
-    elif item["sub_recipe_id"]:
-        # Sub-ricetta — calcolo ricorsivo
-        sub_cost = _calc_recipe_cost(cur, item["sub_recipe_id"], visited.copy())
-        if sub_cost is None:
-            return None
-
-        # Resa della sub-ricetta
-        sub = cur.execute(
-            "SELECT yield_qty, yield_unit FROM recipes WHERE id = ?",
-            (item["sub_recipe_id"],),
-        ).fetchone()
-        if not sub or not sub["yield_qty"]:
-            return None
-
-        cost_per_yield_unit = sub_cost / sub["yield_qty"]
-
-        # Converti la qty richiesta nell'unità di resa della sub-ricetta
-        converted = convert_qty(qty, unit, sub["yield_unit"])
-        if converted is None:
-            return qty * cost_per_yield_unit
-
-        return converted * cost_per_yield_unit
-
-    return None
+    return costo_ricetta(cur, recipe_id, _visited=visited)["totale"]
 
 
 def _enrich_recipe_with_costs(cur, recipe: dict, ctx: Optional[dict] = None) -> dict:
@@ -624,8 +306,14 @@ def _enrich_recipe_with_costs(cur, recipe: dict, ctx: Optional[dict] = None) -> 
     """
     recipe_id = recipe["id"]
 
-    total_cost = _calc_recipe_cost(cur, recipe_id)
+    calc = costo_ricetta(cur, recipe_id)
+    total_cost = calc["totale"]
     recipe["total_cost"] = round(total_cost, 4) if total_cost is not None else None
+    # Totale parziale (decisione Marco 2026-11-15): quante righe non hanno costo
+    # e quante usano una base a sua volta parziale
+    recipe["righe_senza_costo"] = calc["senza_costo"]
+    recipe["basi_parziali"] = calc["basi_parziali"]
+    recipe["costo_parziale"] = testo_parziale(calc["senza_costo"], calc["basi_parziali"])
 
     if total_cost is not None and recipe.get("yield_qty"):
         cpu = total_cost / recipe["yield_qty"]
@@ -655,51 +343,30 @@ def _enrich_recipe_with_costs(cur, recipe: dict, ctx: Optional[dict] = None) -> 
 
 
 def _enrich_items_with_costs(cur, items: list) -> list:
-    """Aggiunge unit_cost e line_cost a ogni item."""
+    """Aggiunge unit_cost, line_cost e il motivo di una riga senza costo a ogni item.
+
+    Stesso conto del totale (costo_riga): conversioni personalizzate comprese,
+    unità non convertibile = riga senza costo (mai la quantità grezza).
+    """
+    prezzo = prezzo_corrente_fn(cur)
+
+    def _base(sid: int):
+        r = costo_ricetta(cur, sid, prezzo)
+        return r["totale"], r["parziale"]
+
     result = []
     for item in items:
         d = dict(item)
-
-        if is_qb(item["unit"]):
+        r = costo_riga(cur, item, prezzo, _base)
+        if r["motivo"] == "qb":
             # Voce «qb»: elencata, fuori dal food cost (riga costo «—» in scheda)
             d["unit_cost"] = None
             d["line_cost"] = None
-        elif item["ingredient_id"]:
-            unit_cost = _get_ingredient_unit_cost(cur, item["ingredient_id"])
-            d["unit_cost"] = round(unit_cost, 4) if unit_cost is not None else None
-
-            if unit_cost is not None:
-                default_unit = _get_ingredient_default_unit(cur, item["ingredient_id"])
-                converted = convert_qty(item["qty"], item["unit"], default_unit) if default_unit else None
-                if converted is not None:
-                    d["line_cost"] = round(converted * unit_cost, 4)
-                else:
-                    d["line_cost"] = round(item["qty"] * unit_cost, 4)
-            else:
-                d["line_cost"] = None
-
-        elif item["sub_recipe_id"]:
-            sub_cost = _calc_recipe_cost(cur, item["sub_recipe_id"])
-            sub = cur.execute(
-                "SELECT yield_qty, yield_unit FROM recipes WHERE id = ?",
-                (item["sub_recipe_id"],),
-            ).fetchone()
-
-            if sub_cost is not None and sub and sub["yield_qty"]:
-                cpu = sub_cost / sub["yield_qty"]
-                d["unit_cost"] = round(cpu, 4)
-                converted = convert_qty(item["qty"], item["unit"], sub["yield_unit"])
-                if converted is not None:
-                    d["line_cost"] = round(converted * cpu, 4)
-                else:
-                    d["line_cost"] = round(item["qty"] * cpu, 4)
-            else:
-                d["unit_cost"] = None
-                d["line_cost"] = None
         else:
-            d["unit_cost"] = None
-            d["line_cost"] = None
-
+            d["unit_cost"] = round(r["costo_unitario"], 4) if r["costo_unitario"] is not None else None
+            d["line_cost"] = round(r["costo"], 4) if r["costo"] is not None else None
+        d["motivo_senza_costo"] = r["testo"]
+        d["base_parziale"] = bool(r["base_parziale"])
         result.append(d)
     return result
 
@@ -803,12 +470,17 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
                 note=it.get("note"),
                 unit_cost=it.get("unit_cost"),
                 line_cost=it.get("line_cost"),
+                motivo_senza_costo=it.get("motivo_senza_costo"),
+                base_parziale=it.get("base_parziale", False),
             )
             for it in items_enriched
         ],
         total_cost=rec_dict.get("total_cost"),
         cost_per_unit=rec_dict.get("cost_per_unit"),
         food_cost_pct=rec_dict.get("food_cost_pct"),
+        righe_senza_costo=rec_dict.get("righe_senza_costo", 0),
+        basi_parziali=rec_dict.get("basi_parziali", 0),
+        costo_parziale=rec_dict.get("costo_parziale"),
         prezzo_riferimento=rec_dict.get("prezzo_riferimento"),
         prezzo_fonte=rec_dict.get("prezzo_fonte"),
         valore_pranzo=rec_dict.get("valore_pranzo"),
@@ -1203,6 +875,7 @@ def list_ricette(
             total_cost=d.get("total_cost"),
             cost_per_unit=d.get("cost_per_unit"),
             food_cost_pct=d.get("food_cost_pct"),
+            costo_parziale=d.get("costo_parziale"),
             prezzo_riferimento=d.get("prezzo_riferimento"),
             prezzo_fonte=d.get("prezzo_fonte"),
             menu_name=d.get("menu_name"),
@@ -1259,10 +932,12 @@ def ricette_per_ingrediente(ingredient_id: int):
         ).fetchall()
 
         out = []
+        prezzo = prezzo_corrente_fn(cur)
         for row in rows:
             item = {"ingredient_id": ingredient_id, "sub_recipe_id": None,
                     "qty": row["qty"], "unit": row["unit"]}
-            line_cost = _calc_item_cost(cur, item, set())
+            # Stesso conto della scheda (costo_riga): qb = 0, unità non convertibile = None
+            line_cost = costo_riga(cur, item, prezzo, lambda _sid: (None, False))["costo"]
             total = _calc_recipe_cost(cur, row["recipe_id"])
             pct = None
             if line_cost is not None and total and total > 0:

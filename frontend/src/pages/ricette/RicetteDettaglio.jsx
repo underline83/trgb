@@ -1,4 +1,5 @@
-// @version: v3.0-testa-tab — pattern uniforme testa fissa + tab (Modulo E, 2026-04-27)
+// @version: v3.1 (2026-11-15) — riga senza costo col motivo, «base incompleta», totale «parziale»
+// v3.0-testa-tab — pattern uniforme testa fissa + tab (Modulo E, 2026-04-27)
 // Dettaglio Ricetta — coerente con SchedaVino (S55) e MenuCartaDettaglio (S57)
 //
 // Pattern:
@@ -318,7 +319,14 @@ ${r.note ? `<h2>Note</h2><p class="note">${esc(r.note)}</p>` : ""}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
             <Kpi
               label="Costo totale"
-              value={r.total_cost != null ? `${r.total_cost.toFixed(2)} €` : "—"}
+              value={
+                <>
+                  {r.total_cost != null ? `${r.total_cost.toFixed(2)} €` : "—"}
+                  {r.total_cost != null && r.costo_parziale && (
+                    <div className="mt-0.5 text-xs font-normal text-amber-700">{r.costo_parziale}</div>
+                  )}
+                </>
+              }
             />
             <Kpi
               label={`Costo / ${r.yield_unit || "unità"}`}
@@ -487,6 +495,17 @@ function CompositionTab({ r, ricalcolaAllergeni, recalcLoading }) {
                       </td>
                       <td className="p-3 text-right font-semibold">
                         {item.line_cost != null ? `${item.line_cost.toFixed(2)} €` : "—"}
+                        {/* 2026-11-15: perché la riga non ha costo, o se la base è incompleta */}
+                        {item.line_cost == null && item.motivo_senza_costo && (
+                          <div className="text-xs font-normal text-amber-700 whitespace-nowrap">
+                            {item.motivo_senza_costo}
+                          </div>
+                        )}
+                        {item.line_cost != null && item.base_parziale && (
+                          <div className="text-xs font-normal text-amber-700 whitespace-nowrap">
+                            base incompleta
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-neutral-500 text-xs">{item.note || ""}</td>
                     </tr>
@@ -500,6 +519,11 @@ function CompositionTab({ r, ricalcolaAllergeni, recalcLoading }) {
                       </td>
                       <td className="p-3 text-right font-bold text-orange-900 text-base">
                         {r.total_cost.toFixed(2)} €
+                        {r.costo_parziale && (
+                          <div className="text-xs font-normal text-amber-700 whitespace-nowrap">
+                            {r.costo_parziale}
+                          </div>
+                        )}
                       </td>
                       <td></td>
                     </tr>

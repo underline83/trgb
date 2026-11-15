@@ -1,10 +1,10 @@
 # Modulo Ricette & Food Cost — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-10-25
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-11-15
 > **Vedi anche:** [modulo_selezioni_giorno.md](modulo_selezioni_giorno.md), [modulo_acquisti.md](modulo_acquisti.md) (matching fatture), [modulo_menu_carta.md](modulo_menu_carta.md) (pubblicazione piatti), [modulo_cucina.md](modulo_cucina.md) (MEP/dashboard cucina)
 
 **Stato:** stabile, in produzione
-**Versione modulo (`versions.jsx`):** ricette v3.34 (beta) · selezioni v1.1 (vedi pagina dedicata)
+**Versione modulo (`versions.jsx`):** ricette v3.38 (beta) · selezioni v1.1 (vedi pagina dedicata)
 **Router:** `foodcost_recipes_router.py`, `foodcost_matching_router.py`, `foodcost_ingredients_router.py` + `foodcost_router.py` (legacy, vedi §3.1)
 **DB:** `foodcost.db` — live in `locali/tregobbi/data/` (in `app/data/` solo fallback legacy). Migrazioni parte ricette: 001-013 (v1/v2), poi 074 (menu/servizi), 098 (cache allergeni + campi menu carta), 136 (placeholder), 137 (procedimento), 138 (drop FK invoices), 145 (foodcost_settings)
 **Roadmap:** sezione `R.` di `docs/roadmap.md`
@@ -56,7 +56,7 @@ Nella tabella `recipe_items`, ogni riga punta a UN ingrediente OPPURE a UNA sub-
 Il "prezzo corrente" di un ingrediente è la **MEDIANA dei `unit_price` registrati negli ultimi N giorni** (default 90, configurabile da `foodcost_settings.prezzo_finestra_giorni` — UI: Impostazioni Cucina · Prezzi & Food Cost). La mediana neutralizza gli outlier (acquisti occasionali/retail).
 
 - **Fallback:** se nessun prezzo cade nella finestra, si usa l'ultimo prezzo disponibile in assoluto (meglio un dato vecchio che nessun dato).
-- Implementazione: `prezzo_corrente_ingrediente()` in `app/routers/foodcost_recipes_router.py:409`; usata da `_get_ingredient_unit_cost` (food cost ricorsivo, riga 459) e replicata nella lista ingredienti (`foodcost_ingredients_router.py:386-436`, una query sola, no N+1).
+- Implementazione: copia canonica `prezzo_corrente()` nel servizio platform `app/services/prezzi_ingredienti.py`; dal 2026-11-15 `prezzo_corrente_ingrediente()` del router delega a quella (debito del 2026-09-07 chiuso) e il food cost la usa tramite `costo_ricette.prezzo_corrente_fn` (finestra letta una volta, prezzi in cache per calcolo). Replicata nella lista ingredienti (`foodcost_ingredients_router.py:386-436`, una query sola, no N+1).
 - `foodcost_settings.prezzo_strategia` esiste (default `'mediana'`) ma il calcolo oggi usa SEMPRE la mediana: il campo non è ancora letto come switch.
 - Lo storico è tenuto integralmente in `ingredient_prices` (mai sovrascritto). "Medio storico" nella scheda ingrediente = media di tutti i prezzi.
 
@@ -306,22 +306,27 @@ Nello stesso DB vivono anche le tabelle delle **Selezioni del Giorno** (`macella
 
 ## 5.1 Algoritmo (ricorsivo con cycle detection)
 
-Implementazione: `_calc_recipe_cost` / `_calc_item_cost` (`foodcost_recipes_router.py:477-565`).
+Implementazione (dal 2026-11-15): **un solo conto** nel servizio platform `app/services/costo_ricette.py` — `costo_riga()` per la riga, `costo_ricetta()` ricorsivo. Lo usano tutti: totale (`_calc_recipe_cost`), scheda (`_enrich_items_with_costs`), ricette per ingrediente, storico FC (`foodcost_history_service`, col prezzo alla data) e costi medi del menu pranzo (`pranzo_repository._compute_recipe_cost_per_unit`). Prima erano cinque copie: scheda senza conversioni personalizzate, storico e pranzo senza nessuna conversione (70 g su un ingrediente a kg = 70 kg).
 
 ```
-costo_ricetta = Σ (costo_riga per ogni item)
+costo_ricetta = Σ (costo_riga per ogni item con costo)
 costo_per_unita = costo_ricetta / yield_qty
 
 dove costo_riga =
-  - se ingrediente: convert_qty(qty, unit, default_unit) × prezzo_corrente
-                    (se la conversione fallisce: fallback qty × prezzo_corrente, es. "pz")
+  - se qb: 0 (fuori dal food cost)
+  - se ingrediente: convert_qty(qty, unit, default_unit, conversioni personalizzate) × prezzo
   - se sub-ricetta: convert_qty(qty, unit, yield_unit_sub) × (costo_sub / yield_qty_sub)
-                    (chiamata ricorsiva)
+                    (chiamata ricorsiva; le basi non hanno conversioni personalizzate)
+  - se la conversione non si fa → riga SENZA COSTO (motivo «unita»), MAI qty grezza
 ```
+
+**Unità non convertibile (decisione Marco 2026-11-15).** Fino al 14/11 una riga con unità incompatibili moltiplicava la quantità grezza: 40 ml di una base che rende in kg = 40 kg (risotto Kissabel 167: 241 € a porzione, FC 1342%). Ora la riga resta senza costo, come un ingrediente senza prezzo, e dice perché. Niente densità inventate: ml ↔ g solo con la conversione personalizzata dell'ingrediente; per le basi si riscrive la riga nell'unità della resa (nessun campo nuovo, decisione Marco). Misura sul DB del 14/11: 12 righe (olio/vino/panna in g su ingredienti a ml, aglio/erbe/sedano in pz su ingredienti a g/kg), 6 ricette cambiate — dettaglio in `claude/misura_unita_non_convertibili.md`.
+
+**Motivi** (`costo_ricette.testo_motivo`): «ingrediente senza prezzo», «unità non convertibile: g → ml», «ingrediente senza unità base», «base senza costo», «base senza resa», «voce senza ingrediente». Una riga che usa una base a sua volta parziale ha costo ma è segnata «base incompleta» (`base_parziale`).
 
 **Cycle detection:** il set `visited` dei recipe_id già attraversati blocca i cicli (ricetta A usa B che usa A): il ramo ciclico ritorna `None` → quel costo risulta non calcolabile (nessun loop infinito; non viene sollevato un errore esplicito all'utente).
 
-**Righe senza prezzo:** se un ingrediente non ha prezzi, la riga vale `None`; il totale ricetta resta calcolato con le righe prezzabili (>0) — il grado di completezza è visibile nello storico FC (`completezza_pct`).
+**Righe senza costo:** la riga vale `None`; il totale ricetta resta calcolato con le righe che hanno costo (>0) ed è **parziale**: `righe_senza_costo`, `basi_parziali` e `costo_parziale` («parziale: 2 righe senza costo, 1 base incompleta») in scheda e in archivio; in scheda il testo compare sotto il KPI «Costo totale» e sotto il TOTALE, il motivo sotto il «—» della riga. Sul DB del 14/11 le ricette attive parziali sono 47 su 241 (63 righe di ingredienti senza prezzo — Acqua, brodi, miele… — e 10 di unità). Il grado di completezza resta visibile anche nello storico FC (`completezza_pct`).
 
 ## 5.2 Formule chiave
 
@@ -342,7 +347,9 @@ prezzo_riferimento = selling_price se > 0                                  (font
 | Capability | Cosa fa | Riferimento | Audience | Stato docs |
 |---|---|---|---|---|
 | C-R-FC-PRANZO | Food cost dei piatti del pranzo senza prezzo sul valore di Impostazioni → Menu Pranzo, etichetta «pranzo» | `foodcost_prezzo_service.py` · `foodcost_recipes_router.py _enrich_recipe_with_costs` · `PrezzoVendita.jsx` | chef, admin | 🆕 2026-10-25 |
-| C-R-QB | Voci «qb» (quanto basta) nella modifica e nella creazione ricetta: tendina con qb, quantità disattivata, salvate con qty 0; fuori dal food cost anche senza prezzo, negli allergeni sì. Riconoscimento unico in `app/services/ricette_qb.py` (import, `RecipeItemIn`, `_calc_item_cost`, storico FC) | `VoceQuantita.jsx` · `RicetteModifica.jsx` · `RicetteNuova.jsx` · `foodcost_recipes_router.py` | chef, admin | 🆕 2026-10-25 |
+| C-R-QB | Voci «qb» (quanto basta) nella modifica e nella creazione ricetta: tendina con qb, quantità disattivata, salvate con qty 0; fuori dal food cost anche senza prezzo, negli allergeni sì. Riconoscimento unico in `app/services/ricette_qb.py` (import, `RecipeItemIn`, `costo_ricette.costo_riga`, storico FC) | `VoceQuantita.jsx` · `RicetteModifica.jsx` · `RicetteNuova.jsx` · `foodcost_recipes_router.py` | chef, admin | 🆕 2026-10-25 |
+| C-R-COSTO-RIGA | Costo di riga unico (`costo_ricette.costo_riga`/`costo_ricetta`) per totale, scheda, ricette per ingrediente, storico FC e costi menu pranzo; unità non convertibile = riga senza costo (mai la quantità grezza) | `app/services/costo_ricette.py` · `foodcost_recipes_router.py` `_calc_recipe_cost`, `_enrich_items_with_costs`, `ricette_per_ingrediente` · `foodcost_history_service.py` · `pranzo_repository.py` | chef, admin | 🆕 2026-11-15 |
+| C-R-COSTO-MOTIVO | Scheda ricetta: sotto il «—» della riga il motivo («unità non convertibile: g → ml», «ingrediente senza prezzo»…), «base incompleta» sulle basi parziali, «parziale: N righe senza costo» sotto Costo totale e TOTALE. API: `motivo_senza_costo`, `base_parziale` sulle voci; `righe_senza_costo`, `basi_parziali`, `costo_parziale` sulla ricetta (`costo_parziale` anche in archivio) | `RicetteDettaglio.jsx` · `RecipeItemOut` / `RecipeOut` / `RecipeListItem` | chef, admin | 🆕 2026-11-15 |
 
 ## 5.3 Esempio concreto
 
@@ -377,7 +384,7 @@ prezzo_riferimento = selling_price se > 0                                  (font
 
 ## 5.5 Storico FC (Modulo F.2) e allergeni (Modulo C)
 
-- **Storico:** `compute_recipe_fc_history` (`app/services/foodcost_history_service.py`) ricostruisce il FC a snapshot mensili/settimanali usando per ogni data l'**ultimo prezzo vigente a quella data** (non la mediana) — serve al grafico trend nella scheda ricetta e ai delta 30/90gg con flag alert ≥20%.
+- **Storico:** `compute_recipe_fc_history` (`app/services/foodcost_history_service.py`) ricostruisce il FC a snapshot mensili/settimanali usando per ogni data l'**ultimo prezzo vigente a quella data** (non la mediana) — serve al grafico trend nella scheda ricetta e ai delta 30/90gg con flag alert ≥20%. Dal 2026-11-15 il costo di riga è quello di `costo_ricette` (unità convertite): prima faceva qty × prezzo con la quantità nell'unità della riga, e su 32 ricette lo storico dava cifre assurde (Fondo al Valcalepio 5.288 € invece di 5,53 €).
 - **Allergeni:** `app/services/allergeni_service.py` — pipeline `ingredients.allergeni` (CSV libero) → `recipes.allergeni_calcolati` (unione ricorsiva con protezione cicli, CSV lowercase ordinato) → `menu_dish_publications.allergeni_dichiarati` (override per-pubblicazione lato Menu Carta). Ricalcolo automatico su POST/PUT/clone ricetta, on-demand singolo o batch (endpoint §3.2). Dal 2026-10-25 il ricalcolo **risale**: `ricalcola_risalendo(ids, conn)` aggiorna anche le ricette che usano quelle come sotto-ricetta, a ogni livello (PUT ricetta), e `ricalcola_per_ingrediente` lo fa dopo PUT ingrediente con allergeni e dopo l'unione di due ingredienti. Prima un allergene aggiunto a un ingrediente non arrivava a nessuna ricetta finché non si risalvava.
 
 ---
@@ -424,7 +431,7 @@ Per ogni riga fattura (fe_righe) pending:
 
 # 7. Conversioni unità di misura
 
-Sistema a **3 livelli** (`convert_qty`, recipes_router:219):
+Sistema a **3 livelli** (`convert_qty`, dal 2026-11-15 in `app/services/costo_ricette.py`, riesportato da `foodcost_recipes_router` con lo stesso nome per `foodcost_matching_router`):
 
 1. **Custom per ingrediente** (tabella `ingredient_unit_conversions`):
    - Diretta: `1 CF → 25 kg` — Inversa automatica: `1/fattore`
@@ -435,6 +442,7 @@ Sistema a **3 livelli** (`convert_qty`, recipes_router:219):
    - Volume: L=1, ml=0.001, cl=0.01, + sinonimi lt/lit
    - Conta: pz=1
 3. **Compatibilità STRETTA per famiglia** (fix 2026-06-07): solo peso↔peso, volume↔volume, pz↔pz. Mai peso↔volume senza densità (non implementato — richiederebbe campo `densita`, voce roadmap). pz↔peso/volume SOLO via conversione custom.
+4. **Se nessun livello converte** (2026-11-15): `convert_qty` torna `None` e il food cost lascia la riga **senza costo** col motivo «unità non convertibile: da → a». Prima totale e scheda moltiplicavano la quantità grezza (1 ml = 1 kg).
 
 **UI conversioni:** `/ricette/ingredienti/:id/prezzi` — sezione conversioni custom con add/remove inline (upsert su coppia from/to).
 

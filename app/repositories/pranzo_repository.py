@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# @version: v2.0-pranzo-settimanale-recipes
+# @version: v2.1 (2026-11-15) — costo ricette dal servizio costo_ricette (unità convertite)
+# v2.0-pranzo-settimanale-recipes
 # -*- coding: utf-8 -*-
 """
 Repository Pranzo settimanale — sessione 58 cont. (2026-04-26)
@@ -23,6 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from app.models.cucina_db import get_cucina_connection
 from app.services.foodcost_prezzo_service import PRANZO_SERVICE_NAME  # unico punto che identifica i piatti del pranzo
+from app.services.costo_ricette import costo_ricetta  # servizio platform: costo di riga unico (2026-11-15)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -310,8 +312,7 @@ def compute_margine_settimana(settimana_inizio: str) -> Dict[str, Any]:
 
         # Per ogni riga del menu, prendo categoria + cost_per_unit della ricetta
         # cost_per_unit non e' nello schema recipes (e' calcolato runtime),
-        # quindi lo calcoliamo qui replicando la logica di _enrich_recipe_with_costs.
-        # Per semplicita': leggiamo recipe_items + ingredient_prices.
+        # quindi lo calcoliamo col servizio platform costo_ricette (stesso conto della scheda).
         righe = conn.execute(
             """SELECT recipe_id, categoria, nome
                  FROM pranzo_menu_righe
@@ -409,57 +410,23 @@ def _sum_or_none(*values) -> Optional[float]:
 
 def _compute_recipe_cost_per_unit(conn, recipe_id: int, _visited=None) -> Optional[float]:
     """
-    Calcolo runtime cost_per_unit di una ricetta:
-      sum(item.qty * unit_cost) / yield_qty
+    Costo per unità di resa di una ricetta: totale / yield_qty.
 
-    unit_cost = ultimo prezzo di ingredient_prices per quel fornitore (semplifico:
-    prendo media degli ultimi prezzi). Per le sub-ricette: ricorre.
-
-    Protezione cicli con _visited.
-    Ritorna None se mancano dati (no items, no prezzi ingredienti).
+    Dal 2026-11-15 il totale viene dal conto unico del servizio platform
+    costo_ricette (lo stesso della scheda ricetta: prezzo corrente a mediana,
+    quantità convertite nell'unità base / nella resa, unità non convertibile =
+    riga senza costo). Prima faceva qty × ultimo prezzo con la quantità
+    nell'unità della riga (70 g su un ingrediente a kg = 70 kg).
+    Ritorna None se mancano dati (resa, righe con costo).
     """
-    if _visited is None:
-        _visited = set()
-    if recipe_id in _visited:
-        return None
-    _visited = _visited | {recipe_id}
-
     rec = conn.execute(
         "SELECT yield_qty FROM recipes WHERE id = ?",
         (recipe_id,),
     ).fetchone()
     if not rec or not rec["yield_qty"]:
         return None
-    yield_qty = rec["yield_qty"]
-
-    items = conn.execute(
-        "SELECT ingredient_id, sub_recipe_id, qty FROM recipe_items WHERE recipe_id = ?",
-        (recipe_id,),
-    ).fetchall()
-    if not items:
-        return None
-
-    total = 0.0
-    for it in items:
-        qty = it["qty"] or 0
-        unit_cost = None
-        if it["ingredient_id"]:
-            # Ultimo prezzo ingrediente
-            p = conn.execute(
-                """SELECT unit_price FROM ingredient_prices
-                    WHERE ingredient_id = ?
-                    ORDER BY price_date DESC, id DESC LIMIT 1""",
-                (it["ingredient_id"],),
-            ).fetchone()
-            if p:
-                unit_cost = p["unit_price"]
-        elif it["sub_recipe_id"]:
-            unit_cost = _compute_recipe_cost_per_unit(conn, it["sub_recipe_id"], _visited)
-        if unit_cost is not None:
-            total += qty * unit_cost
-        # Se manca prezzo per un ingrediente, lo skippo (sotto-stima, ma meglio di None)
-
-    return total / yield_qty if yield_qty else None
+    totale = costo_ricetta(conn, recipe_id, _visited=_visited)["totale"]
+    return totale / rec["yield_qty"] if totale is not None else None
 
 
 def update_settings(**fields) -> Dict[str, Any]:

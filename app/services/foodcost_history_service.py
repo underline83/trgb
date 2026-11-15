@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# @version: v1.0-foodcost-history (Modulo F.2, 2026-04-27)
+# @version: v1.1 (2026-11-15) — costo di riga dal conto unico (costo_ricette): unità convertite
+# v1.0-foodcost-history (Modulo F.2, 2026-04-27)
 # -*- coding: utf-8 -*-
 """
 Servizio storico variazione Food Cost ricette (Modulo F.2 audit cucina).
@@ -9,7 +10,7 @@ o settimanali) usando i prezzi degli ingredienti **vigenti in quella data**
 (query `ingredient_prices` con `price_date <= snapshot_date`).
 
 Per ogni snapshot:
-  - costo_totale = sum(item.qty * unit_price_alla_data)
+  - costo_totale = somma dei costi di riga (costo_ricette.costo_riga) col prezzo alla data
   - cost_per_unit = costo_totale / yield_qty
   - food_cost_pct = (cost_per_unit / prezzo di riferimento) * 100
     (selling_price, o il valore del piatto del pranzo — foodcost_prezzo_service, mig 212)
@@ -47,6 +48,7 @@ from typing import Any, Dict, List, Optional
 from app.models.cucina_db import get_cucina_connection
 from app.services.foodcost_prezzo_service import prezzo_riferimento
 from app.services.ricette_qb import is_qb
+from app.services.costo_ricette import costo_ricetta
 
 logger = logging.getLogger("foodcost_history")
 
@@ -93,65 +95,52 @@ def _compute_recipe_cost_at_date(
     """
     Calcola costo ricetta usando prezzi vigenti alla data snapshot.
 
+    Dal 2026-11-15 usa il conto unico di app/services/costo_ricette.py (lo
+    stesso della scheda): quantità convertite nell'unità base / nella resa,
+    unità non convertibile = riga senza costo. Prima faceva qty × prezzo con la
+    quantità nell'unità della riga (70 g su un ingrediente a kg = 70 kg).
+    Il prezzo è l'ultimo registrato entro la data dello snapshot.
+
     Ritorna dict con:
       - total_cost: float | None
       - cost_per_unit: float | None
-      - n_ingredienti_con_prezzo: int
-      - n_ingredienti_totali: int
+      - n_ingredienti_con_prezzo: int  (righe con costo)
+      - n_ingredienti_totali: int      (righe, qb escluse)
     """
-    if _visited is None:
-        _visited = set()
-    if recipe_id in _visited:
-        return {"total_cost": None, "cost_per_unit": None, "n_ingredienti_con_prezzo": 0, "n_ingredienti_totali": 0}
-    _visited = _visited | {recipe_id}
-
+    vuoto = {"total_cost": None, "cost_per_unit": None, "n_ingredienti_con_prezzo": 0, "n_ingredienti_totali": 0}
     rec = conn.execute(
         "SELECT yield_qty FROM recipes WHERE id = ?",
         (recipe_id,),
     ).fetchone()
     if not rec or not rec["yield_qty"]:
-        return {"total_cost": None, "cost_per_unit": None, "n_ingredienti_con_prezzo": 0, "n_ingredienti_totali": 0}
+        return vuoto
     yield_qty = rec["yield_qty"]
 
-    items = conn.execute(
-        "SELECT ingredient_id, sub_recipe_id, qty, unit FROM recipe_items WHERE recipe_id = ?",
-        (recipe_id,),
-    ).fetchall()
+    giorno = snapshot_date.isoformat()
+
+    def _prezzo_alla_data(iid: int) -> Optional[float]:
+        p = conn.execute(
+            """SELECT unit_price FROM ingredient_prices
+                WHERE ingredient_id = ? AND price_date <= ?
+                ORDER BY price_date DESC, id DESC LIMIT 1""",
+            (iid, giorno),
+        ).fetchone()
+        return p["unit_price"] if p else None
+
+    calc = costo_ricetta(conn, recipe_id, _prezzo_alla_data, _visited)
     # Voci «qb» fuori dal food cost e dal conteggio di completezza
-    items = [it for it in items if not is_qb(it["unit"])]
-    if not items:
-        return {"total_cost": None, "cost_per_unit": None, "n_ingredienti_con_prezzo": 0, "n_ingredienti_totali": 0}
+    righe = [r for it, r in calc["righe"] if not is_qb(it["unit"])]
+    n_tot = len(righe)
+    n_ok = sum(1 for r in righe if r["costo"] is not None)
+    if n_tot == 0:
+        return vuoto
+    if n_ok == 0 or calc["totale"] is None:
+        return {**vuoto, "n_ingredienti_totali": n_tot}
 
-    total = 0.0
-    n_ok = 0
-    n_tot = len(items)
-    for it in items:
-        qty = it["qty"] or 0
-        unit_cost = None
-        if it["ingredient_id"]:
-            # Ultimo prezzo <= snapshot_date
-            p = conn.execute(
-                """SELECT unit_price FROM ingredient_prices
-                    WHERE ingredient_id = ? AND price_date <= ?
-                    ORDER BY price_date DESC, id DESC LIMIT 1""",
-                (it["ingredient_id"], snapshot_date.isoformat()),
-            ).fetchone()
-            if p:
-                unit_cost = p["unit_price"]
-        elif it["sub_recipe_id"]:
-            sub = _compute_recipe_cost_at_date(conn, it["sub_recipe_id"], snapshot_date, _visited)
-            unit_cost = sub.get("cost_per_unit")
-        if unit_cost is not None:
-            total += qty * unit_cost
-            n_ok += 1
-
-    if n_ok == 0:
-        return {"total_cost": None, "cost_per_unit": None, "n_ingredienti_con_prezzo": 0, "n_ingredienti_totali": n_tot}
-
-    cost_per_unit = total / yield_qty if yield_qty else None
+    total = calc["totale"]
     return {
         "total_cost": total,
-        "cost_per_unit": cost_per_unit,
+        "cost_per_unit": total / yield_qty if yield_qty else None,
         "n_ingredienti_con_prezzo": n_ok,
         "n_ingredienti_totali": n_tot,
     }

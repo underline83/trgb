@@ -1,5 +1,6 @@
 # Modulo: platform (servizio condiviso ricette ↔ cucina)
-# @version: v1.0 — estratto da foodcost_recipes_router (2026-09-07)
+# @version: v1.1 (2026-11-15) — unica copia: il router ricette delega qui
+# v1.0 — estratto da foodcost_recipes_router (2026-09-07)
 # -*- coding: utf-8 -*-
 """
 Prezzo corrente di un ingrediente — servizio platform.
@@ -11,14 +12,11 @@ il prezzo di un ingrediente. Quel prezzo lo sa calcolare il modulo `ricette`.
 La regola 4 di disciplina modulare vieta a un modulo di importare dal router di
 un altro: la via consentita e' un servizio platform condiviso, ed e' questo.
 
-⚠️ DEBITO DICHIARATO (2026-09-07)
-`foodcost_recipes_router.prezzo_corrente_ingrediente()` contiene oggi la stessa
-logica. Non l'ho toccato di proposito: quella e' una modifica al modulo ricette
-e questa e' una sessione cucina — una sessione, una direzione. In una prossima
-sessione ricette, `foodcost_recipes_router` va fatto importare da qui e la sua
-copia va cancellata. Finche' convivono, **questo file e' la copia canonica**:
-ogni fix va fatto qui e riportato li', mai il contrario.
-Tracciato in docs/modulo_scorte_cucina.md §10.2.
+DEBITO DEL 2026-09-07 — CHIUSO IL 2026-11-15
+`foodcost_recipes_router.prezzo_corrente_ingrediente()` aveva una copia della
+stessa logica: ora delega a `prezzo_corrente()` di questo file, e il food cost
+(servizio `costo_ricette`) usa direttamente questo. **Questo file e' l'unica
+copia**: ogni fix va fatto qui.
 
 STRATEGIA — MEDIANA, non ultimo prezzo
 --------------------------------------

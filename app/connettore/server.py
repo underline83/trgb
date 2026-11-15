@@ -1,4 +1,4 @@
-# @version: v1.15 (2026-11-13) — prenotazione_aggiorna: tenuto_fino_al, OPTION anche su TheFork; v1.14 (2026-11-13) — prenotazioni: stati OPTION/WAITLIST, coperti_in_opzione / coperti_in_lista_attesa a parte, tenuto_fino_al; v1.13 (2026-11-13) — posta in arrivo della casella del gestionale (posta_trgb_elenco/leggi/segna_gestita) + preventivi_senza_risposta
+# @version: v1.16 (2026-11-15) — ricette: senza_costo_perche e base_parziale sulle voci, costo_parziale sul totale; v1.15 (2026-11-13) — prenotazione_aggiorna: tenuto_fino_al, OPTION anche su TheFork; v1.14 (2026-11-13) — prenotazioni: stati OPTION/WAITLIST, coperti_in_opzione / coperti_in_lista_attesa a parte, tenuto_fino_al; v1.13 (2026-11-13) — posta in arrivo della casella del gestionale (posta_trgb_elenco/leggi/segna_gestita) + preventivi_senza_risposta
 # v1.12 (2026-11-13) — prenotazione_aggiorna: Q modifica una prenotazione che c'è già (stesso PUT del «✏️ Modifica» del Planning, avvisi tavoli e TheFork)
 # v1.11 (2026-11-12) — preventivi (elenco, leggi coi menù, conferma evento, testo cliente) + lettore generale trgb_mappa / trgb_leggi («Q deve poter sapere tutto»)
 # v1.10 (2026-11-06) — pratica_collega / pratica_scollega (pratica ↔ uscita o rateizzazione, col sì di Marco); spesa_fissa_id nello scadenziario
@@ -1254,6 +1254,8 @@ def _strumenti_ricette(mcp: MCPServer) -> None:
             "allergeni": allergeni(r.allergeni_calcolati),
             "costo_totale": r.total_cost, "costo_per_unita_resa": r.cost_per_unit,
             "food_cost_pct": r.food_cost_pct, "attiva": r.is_active, "aggiornata": r.updated_at,
+            # 2026-11-15: il totale non conta righe senza costo / basi parziali
+            "costo_parziale": r.costo_parziale,
             # mig 212: se il food cost usa il valore del pranzo e non il prezzo della ricetta
             "food_cost_su": f"valore pranzo {r.prezzo_riferimento:g} €" if r.prezzo_fonte == "pranzo" else None,
             "food_cost_pct_pranzo": r.food_cost_pct_pranzo,
@@ -1263,6 +1265,9 @@ def _strumenti_ricette(mcp: MCPServer) -> None:
                 "quantita": i.qty, "unita": i.unit, "note": i.note,
                 "costo_unitario": i.unit_cost, "costo_riga": i.line_cost,
                 "senza_costo": i.line_cost is None and i.unit != "qb" or None,
+                # perché: «unità non convertibile: g → ml», «ingrediente senza prezzo»…
+                "senza_costo_perche": i.motivo_senza_costo,
+                "base_parziale": i.base_parziale or None,
             }) for i in r.items],
         })
 
@@ -1272,6 +1277,7 @@ def _strumenti_ricette(mcp: MCPServer) -> None:
             "categoria": r.category_name, "resa": f"{r.yield_qty:g} {r.yield_unit}",
             "prezzo_vendita": r.selling_price, "costo_totale": r.total_cost,
             "costo_per_unita_resa": r.cost_per_unit, "food_cost_pct": r.food_cost_pct,
+            "costo_parziale": r.costo_parziale,
             "food_cost_su": f"valore pranzo {r.prezzo_riferimento:g} €" if r.prezzo_fonte == "pranzo" else None,
             "servizi": [nomi_servizi.get(i, i) for i in r.service_type_ids],
             "voci": r.n_voci, "vuota": r.n_voci == 0 or None,
@@ -1313,8 +1319,10 @@ def _strumenti_ricette(mcp: MCPServer) -> None:
     def ricetta_leggi(id: Id) -> dict:
         """La scheda completa di una ricetta: dati, procedimento, note, nome e descrizione di
         menu, servizi, allergeni calcolati (anche dalle sotto-ricette), costi, e le voci con
-        id, quantità, unità, note e costo di riga (senza_costo = ingrediente senza prezzo o
-        unità non convertibile). Le voci sono nel formato di ricetta_aggiorna."""
+        id, quantità, unità, note e costo di riga (senza_costo con senza_costo_perche:
+        «ingrediente senza prezzo», «unità non convertibile: g → ml»…; base_parziale = la
+        base usata ha righe senza costo). costo_parziale dice se il totale è incompleto.
+        Le voci sono nel formato di ricetta_aggiorna."""
         lettura()
         return scheda(rotte.get_ricetta(id))
 
