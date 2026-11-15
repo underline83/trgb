@@ -191,7 +191,11 @@ def init_dipendenti_db() -> None:
     # Colonne aggiuntive su dipendenti (safe: ignora se già esistono)
     for col_def in [
         "costo_orario REAL",
-        "giorno_paga INTEGER DEFAULT 27",
+        # 2026-11-16: niente DEFAULT 27 (default storico sbagliato, la policy e' 15).
+        # Vuoto = vale il default di Impostazioni; gli INSERT passano comunque
+        # il valore esplicito (dipendenti._giorno_paga_default). I DB esistenti
+        # tengono il DEFAULT 27 nello schema: per questo il valore va passato.
+        "giorno_paga INTEGER",
         "codice_fiscale TEXT",
         "data_nascita TEXT",
         "tipo_rapporto TEXT",

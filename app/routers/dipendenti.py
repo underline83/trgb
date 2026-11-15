@@ -123,6 +123,29 @@ def _get_setting_int(key: str, default: int) -> int:
         return default
 
 
+def _giorno_paga_default(conn) -> int:
+    """Giorno di paga da scrivere su un dipendente NUOVO (2026-11-16, mig 235).
+
+    Nei DB esistenti la colonna `dipendenti.giorno_paga` ha DEFAULT 27 (default
+    storico sbagliato; SQLite non lo cambia senza ricreare la tabella). Ogni
+    INSERT che ometteva il campo prendeva 27, e il default di Impostazioni
+    (`giorno_pagamento_stipendi_default`, 15) non scattava piu': cosi' Nicoli,
+    Spuri e Verderio sono nati col 27 e i loro stipendi scadevano il 27.
+    Regola: OGNI INSERT in `dipendenti` passa questo valore esplicitamente.
+    Legge con la connessione del chiamante (niente seconda connessione durante
+    una scrittura)."""
+    try:
+        row = conn.execute(
+            "SELECT value FROM dipendenti_settings WHERE key = ?",
+            ("giorno_pagamento_stipendi_default",),
+        ).fetchone()
+        if row is not None:
+            return int(row[0])
+    except Exception:
+        pass
+    return 15
+
+
 @router.get("/settings/", response_class=JSONResponse)
 def get_dipendenti_settings(current_user: dict = Depends(get_current_user)):
     """Ritorna tutti i settings dipendenti come dict {key: value}.
@@ -482,6 +505,10 @@ def create_dipendente(
     if not codice_da_usare:
         codice_da_usare = _genera_codice_dipendente(cur)
 
+    # 2026-11-16: giorno di paga esplicito dal default di Impostazioni,
+    # altrimenti la colonna mette il suo DEFAULT 27 (v. _giorno_paga_default).
+    giorno_paga_nuovo = _giorno_paga_default(conn)
+
     try:
         cur.execute(
             """
@@ -494,8 +521,9 @@ def create_dipendente(
                note, attivo,
                reparto_id, colore, a_chiamata,
                is_amministratore,
-               codice_fiscale, intermittente, codice_comunicazione)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               codice_fiscale, intermittente, codice_comunicazione,
+               giorno_paga)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 codice_da_usare,
@@ -521,6 +549,7 @@ def create_dipendente(
                 payload.codice_fiscale.strip().upper() if payload.codice_fiscale else None,
                 1 if payload.intermittente else 0,
                 payload.codice_comunicazione.strip() if payload.codice_comunicazione else None,
+                giorno_paga_nuovo,
             ),
         )
         new_id = cur.lastrowid
@@ -1964,12 +1993,13 @@ def _crea_dipendente_da_cedolino(conn, ced: dict) -> Optional[dict]:
     # Ruolo dal livello/qualifica del cedolino
     qualifica = ced.get("qualifica", "")
     ruolo = qualifica.lower() if qualifica else "dipendente"
+    giorno_paga_nuovo = _giorno_paga_default(conn)  # era 15 scritto fisso (2026-11-16)
 
     conn.execute("""
         INSERT INTO dipendenti
         (codice, nome, cognome, ruolo, iban, codice_fiscale, data_nascita,
          tipo_rapporto, livello, qualifica, attivo, giorno_paga)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 15)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
     """, [
         codice, nome, cognome, ruolo,
         ced.get("iban"),
@@ -1978,6 +2008,7 @@ def _crea_dipendente_da_cedolino(conn, ced: dict) -> Optional[dict]:
         ced.get("tipo_rapporto"),
         ced.get("livello"),
         qualifica,
+        giorno_paga_nuovo,
     ])
     conn.commit()
     new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -1987,7 +2018,7 @@ def _crea_dipendente_da_cedolino(conn, ced: dict) -> Optional[dict]:
         "nome": nome,
         "cognome": cognome,
         "codice_fiscale": ced.get("codice_fiscale"),
-        "giorno_paga": 15,
+        "giorno_paga": giorno_paga_nuovo,
     }
 
 
@@ -3619,12 +3650,13 @@ def auto_create_dipendenti_mancanti(
 
             cur = conn.execute("""
                 INSERT INTO dipendenti
-                (codice, cognome, nome, ruolo, attivo, created_at, updated_at, note)
+                (codice, cognome, nome, ruolo, attivo, created_at, updated_at, note, giorno_paga)
                 VALUES (?, ?, ?, 'Auto-creato da ELAB', 0,
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                        ?)
+                        ?, ?)
             """, (codice, new_cognome, new_nome,
-                  f"Placeholder creato auto da import ELAB ({sample['fonte_pdf']}) — matricola paghe {matricola}"))
+                  f"Placeholder creato auto da import ELAB ({sample['fonte_pdf']}) — matricola paghe {matricola}",
+                  _giorno_paga_default(conn)))
             new_id = cur.lastrowid
 
             # Update tutti i record di questo gruppo

@@ -95,7 +95,7 @@ Il "menu hub" a tile previsto all'inizio è stato eliminato (sessione 39): la na
 
 ### `dipendenti`
 Anagrafica: `codice` (UNIQUE, auto `DIPNNN` al create), `nome`, `cognome`, `ruolo`, `telefono`, `email`, indirizzo (via/cap/città/provincia/paese), `iban`, `nickname` (mig 081, usato nelle stampe turni), `note`, `attivo`. Estensioni:
-- `costo_orario REAL`, `giorno_paga INTEGER DEFAULT 27` (il default operativo però è il setting `giorno_pagamento_stipendi_default` = 15, mig 118)
+- `costo_orario REAL`, `giorno_paga INTEGER`. Nei DB esistenti lo schema ha ancora DEFAULT 27 (storico, SQLite non lo toglie senza ricreare la tabella): per questo ogni INSERT in `dipendenti` passa esplicitamente il setting `giorno_pagamento_stipendi_default` (15) con `_giorno_paga_default(conn)` (2026-11-16, dipendenti 2.45). La mig 118 aveva portato a 15 i dipendenti di maggio, la mig 235 i tre nati poi col 27 (Nicoli, Spuri, Verderio) e i loro stipendi non pagati.
 - `codice_fiscale`, `data_nascita`, `tipo_rapporto`, `livello`, `qualifica` (popolati dall'import LUL)
 - `reparto_id` (FK reparti, principale), `colore` HEX univoco, `a_chiamata` (mig 073: extra pagato a ore)
 - `is_amministratore` (mig 134, per il CE: categoria AMMINISTRATORI vs STAFF)

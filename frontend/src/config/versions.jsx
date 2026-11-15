@@ -440,6 +440,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   dipendenti: {
+    // 2.45 (2026-11-16): giorno di paga dei nuovi dipendenti = default di Impostazioni (15). Prima la
+    //   creazione da Anagrafica non passava il campo e la colonna metteva il suo DEFAULT 27: stipendi
+    //   di Nicoli e Spuri al 27/11, fuori distinta. Mig 235 sistema i dati (sistema 6.1).
     // 2.44 (2026-11-06): Anagrafica — campo Paese dell'indirizzo letto, mostrato e salvato; il PUT
     //   tiene il paese salvato se il client non manda il campo (bug del 16/10: si cancellava a ogni salvataggio).
     // 2.30 (2026-07-30): sotto-area Intermittenti — comunicazione preventiva
@@ -482,7 +485,7 @@ const MODULE_VERSIONS = {
     // 2.43 (2026-11-05): calendario .ics — chi lavora in più reparti (Marco:
     //   cucina e sala) ha un abbonamento per reparto (?reparto=CUCINA/SALA), così
     //   sul telefono sono due calendari di due colori. Ferie/permessi nel principale.
-    version: "2.44",
+    version: "2.45",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -811,6 +814,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.1 (2026-11-16): mig 235 — giorno di paga 27 → default di Impostazioni (15) per i dipendenti
+    //   creati dopo la mig 118 (Nicoli, Spuri, Verderio) e i loro stipendi non pagati al 27; i nuovi
+    //   dipendenti prendono il default di Impostazioni (dipendenti 2.45).
     // 6.0 (2026-11-13): mig 234 — cucina_articoli.contenuto_qta/um (contenuto del pezzo) e
     //   cucina_menu_elementi.gelo_diretto (Controllo menu, cucinaScorte 1.20).
     // 5.99 (2026-11-13): mig 233 — cucina_menu_elementi (porzioni per pezzo per piatto, «non limita»)
@@ -960,7 +966,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.0",
+    version: "6.1",
     label: "Sistema",
     status: "stabile",
     color: "green",
