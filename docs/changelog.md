@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-16 — Clienti 3.37: stella oro automatica per i VIP di TheFork (sistema 6.3, mig 237) `[core]`
+Marco: «i VIP di TheFork hanno la stella oro in automatico». Oggi sono 37. La stella oro resta sua: può toglierla a un VIP dalla scheda e resta tolta anche se TheFork lo tiene VIP (`clienti.stella_oro_tolta`); può metterla a chiunque altro. La scheda dice da dove viene la stella (VIP su TheFork, messa a mano, tolta a mano). File: mig 237, `clienti_db.py`, `clienti_profilo_service.py`, `clienti_router.py`, `ProfiloCliente.jsx`, `ClientiImpostazioni.jsx`, `versions.jsx`, `VERSION`.
+
 ## 2026-11-16 — Clienti 3.36: stelle e segmenti nostri (sistema 6.2, mig 236) `[core]`
 Il rank di TheFork resta in scheda come informazione ma non conta più: ogni cliente ha **stelle TRGB**, fino a 6. Fino a 3 **nere** per quanto viene (punti: 10 per visita degli ultimi 24 mesi fino a 60, 3 per visita più vecchia fino a 15, 15 per evento confermato da preventivo, −15 per no-show; ★ da 10, ★★ da 20, ★★★ da 40); fino a 2 **argento** per quanto spende (scontrino medio a coperto dai conti di cassa abbinati: da 75 € e da 90 €); 1 **oro** che mette solo Marco dalla scheda. I **segmenti** sono ritarati sui dati veri (gli «abituali» erano 12): Di casa, Affezionato, Nuovo, Una volta, In calo, Dormiente, Perso, Mai venuto, ognuno col suo colore e senza emoji; «Attenzione» in rosso per chi ha più no-show. Si vedono in lista (filtri e ordine per stelle, chip «★ Oro»), in testata e nel nuovo riquadro «Stelle e segmento» della scheda (col perché, voce per voce) e nel Planning accanto al nome. Tutte le soglie in Clienti › Impostazioni › «Segmenti e stelle», con conteggi e «Ricalcola adesso». Il calcolo è uno solo (`clienti_profilo_service`, tabella `clienti_profilo`, ricalcolo ogni notte): prima le regole dei segmenti erano copiate in quattro punti del router. Prenotazioni 2.36 (Planning).
 

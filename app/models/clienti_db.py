@@ -288,7 +288,8 @@ def init_clienti_db() -> None:
     # Stella oro (la mette solo il superadmin) + profilo calcolato (mig 236, 2026-11-16).
     # Qui per le installazioni nuove: la migrazione salta se clienti.sqlite3 non c'era ancora.
     cols_cl = {r[1] for r in cur.execute("PRAGMA table_info(clienti)").fetchall()}
-    for col, tipo in (("stella_oro", "INTEGER NOT NULL DEFAULT 0"), ("stella_oro_da", "TEXT"), ("stella_oro_il", "TEXT")):
+    for col, tipo in (("stella_oro", "INTEGER NOT NULL DEFAULT 0"), ("stella_oro_da", "TEXT"), ("stella_oro_il", "TEXT"),
+                      ("stella_oro_tolta", "INTEGER NOT NULL DEFAULT 0")):  # mig 237: tolta a un VIP TheFork
         if col not in cols_cl:
             cur.execute(f"ALTER TABLE clienti ADD COLUMN {col} {tipo}")
     if not cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='clienti_profilo'").fetchone():

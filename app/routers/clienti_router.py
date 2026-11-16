@@ -1785,7 +1785,8 @@ def lista_clienti(
             where.append("pr.stelle_argento >= ?")
             params.append(argento_min)
         if oro is not None:
-            where.append("COALESCE(c.stella_oro, 0) = ?")
+            # oro effettivo: a mano o VIP TheFork non tolto (mig 237)
+            where.append(f"{profilo_srv.ORO_SQL} = ?")
             params.append(1 if oro else 0)
         if attenzione is not None:
             where.append("COALESCE(pr.attenzione, 0) = ?")
@@ -1808,8 +1809,8 @@ def lista_clienti(
             "ultima_visita_desc": "ultima_visita DESC",
             "ultima_visita_asc": "ultima_visita IS NULL, ultima_visita ASC",  # chi non è mai venuto in fondo
             # stelle: oro + nere + argento, a parità i punti delle visite
-            "stelle_desc": "(COALESCE(c.stella_oro,0) + COALESCE(pr.stelle_nere,0) + COALESCE(pr.stelle_argento,0)) DESC, COALESCE(pr.punti,0) DESC, c.cognome ASC",
-            "stelle_asc": "(COALESCE(c.stella_oro,0) + COALESCE(pr.stelle_nere,0) + COALESCE(pr.stelle_argento,0)) ASC, COALESCE(pr.punti,0) ASC, c.cognome ASC",
+            "stelle_desc": f"((CASE WHEN {profilo_srv.ORO_SQL} THEN 1 ELSE 0 END) + COALESCE(pr.stelle_nere,0) + COALESCE(pr.stelle_argento,0)) DESC, COALESCE(pr.punti,0) DESC, c.cognome ASC",
+            "stelle_asc": f"((CASE WHEN {profilo_srv.ORO_SQL} THEN 1 ELSE 0 END) + COALESCE(pr.stelle_nere,0) + COALESCE(pr.stelle_argento,0)) ASC, COALESCE(pr.punti,0) ASC, c.cognome ASC",
         }
         order_sql = order_map.get(ordine, "c.cognome ASC, c.nome ASC")
 
@@ -1844,6 +1845,8 @@ def lista_clienti(
         ).fetchall()
 
         risultati = [dict(r) for r in rows]
+        for d in risultati:  # stella oro effettiva (VIP TheFork in automatico, mig 237)
+            d["stella_oro"] = profilo_srv.oro_effettivo(d.get("stella_oro"), d.get("vip"), d.get("stella_oro_tolta"))
         # Clienti senza profilo (nuovi da oggi): calcolati al volo
         mancanti = [d["id"] for d in risultati if d.get("segmento") is None and d.get("attivo")]
         if mancanti:

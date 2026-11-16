@@ -1,6 +1,7 @@
 // Modulo: clienti — [core]
 // Stelle e segmento del cliente (rank TRGB, 2026-11-16 — decisione di Marco).
-//  ★ nere  (0-3) quanto viene · ★ argento (0-2) quanto spende · ★ oro (0-1) la mette solo Marco.
+//  ★ nere  (0-3) quanto viene · ★ argento (0-2) quanto spende · ★ oro (0-1) la mette solo Marco
+//  (i VIP di TheFork ce l'hanno in automatico finché non la toglie, mig 237).
 //  Segmento = a che punto è il rapporto: solo colore, niente icone (le stelle sono già simboli).
 // Usato da lista e scheda clienti e dal Planning delle prenotazioni.
 import React, { useState } from "react";
@@ -64,6 +65,7 @@ export function Attenzione({ className = "" }) {
 }
 
 const euro = (n) => (n == null ? "—" : `${Math.round(n)} €`);
+const quando = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 // Riquadro della scheda cliente: stelle, segmento e il perché; stella oro (solo superadmin)
 export function SchedaStelle({ clienteId, profilo, rankTheFork, onCambiato, onMessaggio }) {
@@ -126,9 +128,13 @@ export function SchedaStelle({ clienteId, profilo, rankTheFork, onCambiato, onMe
         </li>
         <li>
           <span className="text-amber-400">★</span>{" "}
-          {profilo.stella_oro
-            ? <>Stella oro{profilo.stella_oro_da ? ` messa da ${profilo.stella_oro_da}` : ""}{profilo.stella_oro_il ? ` il ${profilo.stella_oro_il.slice(8, 10)}/${profilo.stella_oro_il.slice(5, 7)}/${profilo.stella_oro_il.slice(0, 4)}` : ""}.</>
-            : <span className="text-neutral-500">La stella oro la mette solo Marco.</span>}
+          {profilo.stella_oro && profilo.stella_oro_origine === "vip"
+            ? <>Stella oro automatica: è VIP su TheFork.</>
+            : profilo.stella_oro
+              ? <>Stella oro{profilo.stella_oro_da ? ` messa da ${profilo.stella_oro_da}` : ""}{profilo.stella_oro_il ? ` il ${quando(profilo.stella_oro_il)}` : ""}.</>
+              : profilo.stella_oro_tolta
+                ? <span className="text-neutral-500">Stella oro tolta{profilo.stella_oro_da ? ` da ${profilo.stella_oro_da}` : ""}{profilo.stella_oro_il ? ` il ${quando(profilo.stella_oro_il)}` : ""} (su TheFork è VIP).</span>
+                : <span className="text-neutral-500">La stella oro la mette solo Marco; i VIP di TheFork ce l'hanno in automatico.</span>}
         </li>
         {rankTheFork && <li className="text-xs text-neutral-500">Rank TheFork: {rankTheFork} (solo informazione, non conta)</li>}
       </ul>

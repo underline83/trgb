@@ -227,7 +227,7 @@ function SegmentiSection() {
       <h1 className="text-2xl font-bold text-neutral-900 mb-2">Segmenti e stelle</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Il <b>segmento</b> dice a che punto è il rapporto col cliente; le <b>stelle</b> quanto vale per noi:
-        nere per quanto viene, argento per quanto spende, oro la mette solo il superadmin dalla scheda.
+        nere per quanto viene, argento per quanto spende, oro la mette solo il superadmin dalla scheda (i VIP di TheFork ce l'hanno in automatico, finché non gliela togli).
         Si ricalcolano ogni notte e quando salvi qui. Il rank di TheFork resta in scheda solo come informazione.
       </p>
 

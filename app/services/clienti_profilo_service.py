@@ -9,7 +9,9 @@ informazione ma non si usa; il rank è nostro, a stelle (massimo 6):
     eventi confermati da preventivo, meno i no-show;
   - fino a 2 stelle ARGENTO → quanto spende: scontrino medio a coperto dai conti
     di cassa abbinati (abbinamento_conti_service.spesa_per_cliente);
-  - 1 stella ORO → la mette solo Marco (superadmin), colonna clienti.stella_oro.
+  - 1 stella ORO → la mette solo Marco (superadmin), colonna clienti.stella_oro; i VIP di
+    TheFork ce l'hanno in automatico, finché Marco non gliela toglie (stella_oro_tolta,
+    mig 237 — «i VIP di thefork hanno la stella oro in automatico», 16/11/2026).
 Il segmento dice a che punto è il rapporto: Di casa, Affezionato, Nuovo, Una volta,
 In calo, Dormiente, Perso, Mai venuto. Le due cose sono indipendenti.
 
@@ -57,6 +59,13 @@ _COLONNE = ("cliente_id", "segmento", "punti", "stelle_nere", "stelle_argento", 
             "conti_cassa", "visite", "visite_recenti", "prima_visita", "ultima_visita",
             "no_show", "eventi", "attenzione", "aggiornato_at")
 _ORA_NOTTURNA = 4  # il ricalcolo completo parte dopo quest'ora (tecnico, non operativo)
+
+# Stella oro effettiva (alias della tabella clienti = c): a mano, oppure VIP TheFork non tolto a mano
+ORO_SQL = "(COALESCE(c.stella_oro,0) = 1 OR (COALESCE(c.vip,0) = 1 AND COALESCE(c.stella_oro_tolta,0) = 0))"
+
+
+def oro_effettivo(stella_oro: Any, vip: Any, tolta: Any) -> int:
+    return 1 if (stella_oro or (vip and not tolta)) else 0
 
 
 # ─────────────────────────────────────────────────────────── soglie ───
@@ -243,7 +252,8 @@ def profilo(cliente_id: int) -> Dict[str, Any]:
         s = soglie(conn)
         r = conn.execute("SELECT * FROM clienti_profilo WHERE cliente_id = ?", (cliente_id,)).fetchone()
         oro = conn.execute(
-            "SELECT stella_oro, stella_oro_da, stella_oro_il FROM clienti WHERE id = ?", (cliente_id,)).fetchone()
+            "SELECT stella_oro, stella_oro_da, stella_oro_il, vip, COALESCE(stella_oro_tolta, 0) AS tolta "
+            "FROM clienti WHERE id = ?", (cliente_id,)).fetchone()
     finally:
         conn.close()
     if not r:
@@ -254,8 +264,11 @@ def profilo(cliente_id: int) -> Dict[str, Any]:
     d["soglie"] = {k: s[k] for k in ("stelle_soglia_1", "stelle_soglia_2", "stelle_soglia_3",
                                      "argento_soglia_1", "argento_soglia_2", "stelle_mesi_recenti")}
     if oro:
-        d.update({"stella_oro": oro["stella_oro"] or 0, "stella_oro_da": oro["stella_oro_da"],
-                  "stella_oro_il": oro["stella_oro_il"]})
+        eff = oro_effettivo(oro["stella_oro"], oro["vip"], oro["tolta"])
+        d.update({"stella_oro": eff, "stella_oro_da": oro["stella_oro_da"], "stella_oro_il": oro["stella_oro_il"],
+                  # da dove viene: «mano» (messa da Marco) | «vip» (VIP TheFork) | None
+                  "stella_oro_origine": ("mano" if oro["stella_oro"] else "vip") if eff else None,
+                  "stella_oro_tolta": 1 if (oro["vip"] and oro["tolta"] and not eff) else 0})
     return d
 
 
@@ -270,7 +283,7 @@ def profili(ids: Iterable[int]) -> Dict[int, Dict[str, Any]]:
         try:
             return {r["cliente_id"]: dict(r) for r in conn.execute(f"""
                 SELECT p.cliente_id, p.segmento, p.stelle_nere, p.stelle_argento, p.attenzione,
-                       COALESCE(c.stella_oro, 0) AS stella_oro
+                       CASE WHEN {ORO_SQL} THEN 1 ELSE 0 END AS stella_oro
                 FROM clienti_profilo p JOIN clienti c ON c.id = p.cliente_id
                 WHERE p.cliente_id IN ({_segnaposti(ids_l)})""", ids_l)}
         finally:
@@ -299,7 +312,7 @@ def conteggi() -> Dict[str, Any]:
             SELECT p.stelle_argento, COUNT(*) FROM clienti_profilo p
             JOIN clienti c ON c.id = p.cliente_id AND COALESCE(c.attivo, 1) = 1
             GROUP BY p.stelle_argento""").fetchall())
-        oro = conn.execute("SELECT COUNT(*) FROM clienti WHERE COALESCE(attivo, 1) = 1 AND stella_oro = 1").fetchone()[0]
+        oro = conn.execute(f"SELECT COUNT(*) FROM clienti c WHERE COALESCE(c.attivo, 1) = 1 AND {ORO_SQL}").fetchone()[0]
         attenzione = conn.execute("""
             SELECT COUNT(*) FROM clienti_profilo p JOIN clienti c ON c.id = p.cliente_id
             WHERE COALESCE(c.attivo, 1) = 1 AND p.attenzione = 1""").fetchone()[0]
@@ -317,15 +330,24 @@ def conteggi() -> Dict[str, Any]:
 
 # ─────────────────────────────────────────────────────────── stella oro ───
 def imposta_oro(cliente_id: int, oro: bool, utente: str) -> Dict[str, Any]:
+    """Mette o toglie la stella oro. A un VIP di TheFork toglierla vuol dire
+    segnarla «tolta», così non torna da sola; rimetterla cancella il segno."""
     conn = get_clienti_conn()
     try:
-        cur = conn.execute(
-            "UPDATE clienti SET stella_oro = ?, stella_oro_da = ?, stella_oro_il = ? WHERE id = ?",
-            (1 if oro else 0, utente if oro else None,
-             datetime.now().strftime("%Y-%m-%d %H:%M") if oro else None, cliente_id),
-        )
+        r = conn.execute("SELECT vip FROM clienti WHERE id = ?", (cliente_id,)).fetchone()
+        if not r:
+            return {"ok": False}
+        adesso = datetime.now().strftime("%Y-%m-%d %H:%M")
+        if oro:
+            conn.execute(
+                "UPDATE clienti SET stella_oro = 1, stella_oro_tolta = 0, stella_oro_da = ?, stella_oro_il = ? WHERE id = ?",
+                (utente, adesso, cliente_id))
+        else:
+            conn.execute(
+                "UPDATE clienti SET stella_oro = 0, stella_oro_tolta = ?, stella_oro_da = ?, stella_oro_il = ? WHERE id = ?",
+                (1 if r["vip"] else 0, utente if r["vip"] else None, adesso if r["vip"] else None, cliente_id))
         conn.commit()
-        return {"ok": cur.rowcount == 1, "stella_oro": 1 if oro else 0}
+        return {"ok": True, "stella_oro": 1 if oro else 0}
     finally:
         conn.close()
 
