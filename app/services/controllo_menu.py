@@ -1,5 +1,5 @@
 # Modulo: cucina (legge menu_carta, ricette e task_manager in sola lettura)  ·  [core]
-# @version: v1.3 — libro mastro: grammatura, scheda articolo e linea nella risposta · v1.2 — giacenze correggibili dalla pagina (RETTIFICA per ripiano), solo admin · v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
+# @version: v1.4 — il piatto che e' un articolo conta solo come pronto (non le righe che lo producono) · v1.3 — libro mastro: grammatura, scheda articolo e linea nella risposta · v1.2 — giacenze correggibili dalla pagina (RETTIFICA per ripiano), solo admin · v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
 # -*- coding: utf-8 -*-
 """
 Controllo menu — per ogni piatto in carta, quante porzioni si possono fare con
@@ -13,7 +13,9 @@ LA CATENA (la stessa della linea, services/linea_checklist.py)
       → articoli in Frigoriferi e scorte → giacenze per ripiano
 
 Una preparazione che ha un suo articolo si ferma li' (il fondo bruno e' un
-articolo); una che non ce l'ha si esplode nelle sue righe.
+articolo); una che non ce l'ha si esplode nelle sue righe. Lo stesso vale per
+il piatto: se e' lui stesso un articolo (pure', lasagnetta pronti) conta solo
+quello, le righe della sua ricetta servono a produrlo.
 
 DAI PEZZI ALLE PORZIONI (decisione Marco 2026-11-13)
 ----------------------------------------------------
@@ -288,6 +290,11 @@ def _elementi(d: Dict[str, Any], recipe_id: int) -> List[dict]:
     propri = d["per"].get(("R", recipe_id))                # il piatto stesso e' un articolo (lasagnetta)
     if propri:
         metti("R", recipe_id, f"{d['articoli'][propri[0]]['nome']} (pronto)", 1.0, "pz")
+        # Marco 2026-11-16 (pure'): «noi abbiamo quello pronto, perche' mi metti
+        # anche patate, burro, panna e sale?». Il piatto che e' un articolo si
+        # ferma li', come una preparazione col suo articolo: le righe della sua
+        # ricetta servono a PRODURLO, non a servirlo.
+        return list(out.values())
     visita(recipe_id, 0)
     return list(out.values())
 

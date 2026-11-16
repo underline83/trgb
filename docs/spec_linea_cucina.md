@@ -208,4 +208,8 @@ Marco: «se riesci a linkare tutto lì dentro diventa una sorta di libro mastro 
 
 Link: il nome dell'elemento apre la ricetta della preparazione o i prezzi dell'ingrediente; «Articolo» apre la scheda in Frigoriferi e scorte; «Apri la ricetta» il piatto. Ogni campo si salva uscendo (o con Invio) e il conto si rifà.
 
+### 10.4 Aggiornamento 2026-11-16 — il piatto già pronto
+
+Marco sul purè: «noi abbiamo quello pronto, perché mi metti anche patate, burro di malga, panna fresca e sale?». Se il piatto è lui stesso un articolo in Scorte, nel Controllo menu conta **solo quello** («… (pronto)»): le righe della sua ricetta servono a produrlo, non a servirlo. È la stessa regola delle preparazioni con un loro articolo. Tocca purè, patate arrosto, spadellata, lasagnetta e coniglio. Conseguenza da tenere d'occhio: nel coniglio non compaiono più fondo e polenta, che in ricetta sono righe del piatto (se servono al servizio va deciso come contarli). La checklist di linea non cambia.
+
 **Da fare**: compilare le porzioni per pezzo (oggi 9 piatti su 38 hanno un numero); riassunto in «Oggi»; pranzo del giorno; campo per la soglia «poche» in una schermata; eventuale conto «a scorta divisa» fra piatti.

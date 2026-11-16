@@ -243,6 +243,8 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.23 (2026-11-16): Controllo menu — un piatto che è già un articolo pronto (purè, lasagnetta)
+    //   conta solo quello: niente più patate, burro, panna e sale della ricetta che lo produce.
     // 1.22 (2026-11-13): Controllo menu come libro mastro — dalla riga dell'elemento si correggono
     //   grammatura (PUT …/controllo-menu/grammatura, servizio ricette_righe), nome, unità, minimi,
     //   riordino e dotazione di linea dell'articolo; «+ Crea in Scorte» per gli elementi senza articolo;
@@ -335,7 +337,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.22",
+    version: "1.23",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

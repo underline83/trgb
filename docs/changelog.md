@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-16 — Controllo menu 1.23: il piatto già pronto conta da solo `[core]`
+Un piatto che è già un articolo in Scorte (purè, patate arrosto, spadellata, lasagnetta, coniglio) nel Controllo menu ora conta solo come pezzo pronto: non compaiono più gli ingredienti della ricetta che lo produce (per il purè: patate, burro, panna, sale).
+
 ## 2026-11-16 — Dipendenti 2.45: tutti gli stipendi scadono il 15, anche quelli dei nuovi assunti `[core]`
 Caricate le buste paga di ottobre, gli stipendi di Paolo Nicoli e Giulia Spuri scadevano il 27/11 invece del 15/11 ed erano rimasti fuori dalla distinta del 13/11. È lo stesso errore corretto a maggio con la mig 118, ma allora erano stati sistemati solo i dati: nello schema la colonna `dipendenti.giorno_paga` ha ancora DEFAULT 27 e la creazione da Anagrafica non passava il campo, quindi chi è stato assunto dopo (Nicoli, Spuri, Verderio) è nato col 27 e il default 15 di Impostazioni non scattava. Ora ogni nuovo dipendente (da Anagrafica, dall'import del LUL, dai segnaposto ELAB) prende il giorno di Impostazioni › Stipendi. La mig 235 porta al 15 i tre dipendenti e sposta al 15/11 gli stipendi di ottobre di Nicoli e Spuri, senza segnarli «spostati» perché è una correzione. Decisione di Marco del 16/11: «di base tutte le buste paga le mettiamo al 15» (dipendenti 2.45, sistema 6.1).
 
