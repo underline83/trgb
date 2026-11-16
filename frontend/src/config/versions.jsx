@@ -567,6 +567,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.38 (2026-11-16): fix — il ricalcolo completo di stelle e segmenti partiva solo se clienti_profilo era vuota: i calcoli al volo della lista lo bloccavano (412 clienti su 26.000). Ora si segna la fine del giro completo.
     // 3.37 (2026-11-16): stella oro automatica per i VIP di TheFork (toglibile a mano, resta tolta); scheda dice da dove viene (mig 237).
     // 3.36 (2026-11-16): stelle TRGB (★ nere da visite/eventi/no-show, ★ argento da scontrino medio a coperto,
     //   ★ oro solo superadmin) e segmenti nuovi a colori (Di casa, Affezionato, Nuovo, Una volta, In calo,
@@ -663,7 +664,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.37",
+    version: "3.38",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

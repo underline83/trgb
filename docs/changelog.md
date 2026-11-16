@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-16 — Clienti 3.38: il primo ricalcolo di stelle e segmenti non partiva `[core]`
+Dopo il push del 3.36 Marco vedeva 3 «Di casa» e 3 «Affezionati» invece di 34 e 215: in `clienti_profilo` c'erano solo 412 clienti su 26.000. Il thread aspetta 90 secondi dopo l'avvio e calcolava tutto solo se la tabella era vuota o vecchia di un giorno; nel frattempo la lista e le schede aperte avevano già calcolato al volo qualche cliente, e il thread ha creduto che il giro di oggi fosse fatto. Ora la fine del ricalcolo completo si segna a parte (`clienti_impostazioni.profilo_ultimo_ricalcolo`) e il thread guarda quella. Subito, senza aspettare il push: Clienti › Impostazioni › «Segmenti e stelle» › «Ricalcola adesso». File: `clienti_profilo_service.py`, `versions.jsx`.
+
 ## 2026-11-16 — Clienti 3.37: stella oro automatica per i VIP di TheFork (sistema 6.3, mig 237) `[core]`
 Marco: «i VIP di TheFork hanno la stella oro in automatico». Oggi sono 37. La stella oro resta sua: può toglierla a un VIP dalla scheda e resta tolta anche se TheFork lo tiene VIP (`clienti.stella_oro_tolta`); può metterla a chiunque altro. La scheda dice da dove viene la stella (VIP su TheFork, messa a mano, tolta a mano). File: mig 237, `clienti_db.py`, `clienti_profilo_service.py`, `clienti_router.py`, `ProfiloCliente.jsx`, `ClientiImpostazioni.jsx`, `versions.jsx`, `VERSION`.
 

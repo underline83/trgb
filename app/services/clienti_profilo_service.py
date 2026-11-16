@@ -59,6 +59,10 @@ _COLONNE = ("cliente_id", "segmento", "punti", "stelle_nere", "stelle_argento", 
             "conti_cassa", "visite", "visite_recenti", "prima_visita", "ultima_visita",
             "no_show", "eventi", "attenzione", "aggiornato_at")
 _ORA_NOTTURNA = 4  # il ricalcolo completo parte dopo quest'ora (tecnico, non operativo)
+# Quando è finito l'ultimo ricalcolo COMPLETO (riga tecnica in clienti_impostazioni). Non si
+# deduce da clienti_profilo: le righe calcolate al volo (lista, scheda) la riempiono a pezzi
+# e il 16/11 hanno fatto credere al thread che il giro di oggi fosse già fatto (412 su 26.000).
+_CHIAVE_ULTIMO = "profilo_ultimo_ricalcolo"
 
 # Stella oro effettiva (alias della tabella clienti = c): a mano, oppure VIP TheFork non tolto a mano
 ORO_SQL = "(COALESCE(c.stella_oro,0) = 1 OR (COALESCE(c.vip,0) = 1 AND COALESCE(c.stella_oro_tolta,0) = 0))"
@@ -232,6 +236,12 @@ def ricalcola(ids: Optional[Iterable[int]] = None) -> Dict[str, Any]:
                 f"INSERT INTO clienti_profilo ({', '.join(_COLONNE)}) VALUES ({_segnaposti(list(_COLONNE))})",
                 [tuple(r[c] for c in _COLONNE) for r in righe],
             )
+            if ids_l is None:
+                conn.execute(
+                    "INSERT OR REPLACE INTO clienti_impostazioni (chiave, valore, descrizione) VALUES (?, ?, ?)",
+                    (_CHIAVE_ULTIMO, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                     "Tecnico: fine dell'ultimo ricalcolo completo di stelle e segmenti"),
+                )
             conn.commit()
         finally:
             conn.close()
@@ -316,7 +326,7 @@ def conteggi() -> Dict[str, Any]:
         attenzione = conn.execute("""
             SELECT COUNT(*) FROM clienti_profilo p JOIN clienti c ON c.id = p.cliente_id
             WHERE COALESCE(c.attivo, 1) = 1 AND p.attenzione = 1""").fetchone()[0]
-        aggiornato = conn.execute("SELECT MIN(aggiornato_at) FROM clienti_profilo").fetchone()[0]
+        aggiornato = _ultimo_completo(conn)
     finally:
         conn.close()
     out: Dict[str, Any] = {k: int(seg.get(k, 0)) for k in SEGMENTI}
@@ -356,15 +366,20 @@ def imposta_oro(cliente_id: int, oro: bool, utente: str) -> Dict[str, Any]:
 _avviato = {"ok": False}
 
 
+def _ultimo_completo(conn) -> Optional[str]:
+    r = conn.execute("SELECT valore FROM clienti_impostazioni WHERE chiave = ?", (_CHIAVE_ULTIMO,)).fetchone()
+    return r[0] if r and r[0] else None
+
+
 def _da_ricalcolare() -> bool:
     conn = get_clienti_conn()
     try:
-        r = conn.execute("SELECT COUNT(*), MIN(aggiornato_at) FROM clienti_profilo").fetchone()
+        ultimo = _ultimo_completo(conn)
     finally:
         conn.close()
-    if not r[0]:
-        return True  # tabella vuota (primo avvio): subito
-    return str(r[1] or "")[:10] < date.today().isoformat() and datetime.now().hour >= _ORA_NOTTURNA
+    if not ultimo:
+        return True  # mai fatto un giro completo: subito
+    return ultimo[:10] < date.today().isoformat() and datetime.now().hour >= _ORA_NOTTURNA
 
 
 def avvia_periodico() -> None:
