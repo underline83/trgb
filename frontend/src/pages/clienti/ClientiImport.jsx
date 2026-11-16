@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import { PageLayout, Btn, StatusBadge } from "../../components/ui";
-import { DiffRighe, risolviDifferenze } from "./DiffTheFork";
+import { DiffRighe, risolviDifferenze, avvisaConteggioDiff } from "./DiffTheFork";
 
 function ImportSection({ title, icon, instructions, endpoint, color, note }) {
   const [file, setFile] = useState(null);
@@ -174,7 +174,9 @@ function DiffReviewSection({ onCountChange }) {
       if (!res.ok) throw new Error("Errore caricamento diff");
       const d = await res.json();
       setData(d);
-      if (onCountChange) onCountChange(d.totale ?? d.totale_diff ?? 0);
+      const totale = d.totale ?? d.totale_diff ?? 0;
+      if (onCountChange) onCountChange(totale);
+      avvisaConteggioDiff(totale); // badge Impostazioni anche quando la pagina è dentro Impostazioni
     } catch (err) {
       console.error(err);
     } finally {

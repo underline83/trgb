@@ -18,6 +18,12 @@ export const CAMPO_LABELS = {
   allergie: "Allergie", note_thefork: "Note TheFork",
 };
 
+// Avvisa il badge di ClientiNav che la coda è cambiata (numero nuovo se noto)
+export const EVENTO_CONTEGGIO_DIFF = "clienti:diff-count";
+export function avvisaConteggioDiff(totale) {
+  window.dispatchEvent(new CustomEvent(EVENTO_CONTEGGIO_DIFF, { detail: totale }));
+}
+
 export async function risolviDifferenze(ids, azione) {
   const res = await apiFetch(`${API_BASE}/clienti/import/diff/risolvi`, {
     method: "POST",
@@ -92,6 +98,7 @@ export function DiffTheForkCliente({ clienteId, onCambiato, onMessaggio }) {
     setActing((p) => ({ ...p, [key]: true }));
     try {
       const r = await risolviDifferenze(ids, az);
+      avvisaConteggioDiff();
       await carica();
       if (az === "applica" && r.applicati && onCambiato) onCambiato();
       if (onMessaggio) onMessaggio(az === "applica" ? "Preso il dato di TheFork" : "Tenuto il nostro");

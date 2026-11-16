@@ -1,10 +1,11 @@
-// @version: v1.4 — tab «📥 Posta» (solo admin) col numero delle mail da gestire (2026-11-13) · v1.3 — redesign: «Anagrafica» diventa «Clienti», «Dashboard» diventa «Statistiche»; via «Prenotazioni» (ora Prenotazioni › Archivio) · v1.2-clienti-nav
+// @version: v1.5 — badge Impostazioni sempre aggiornato (evento «clienti:diff-count», 2026-11-16) · v1.4 — tab «📥 Posta» (solo admin) col numero delle mail da gestire (2026-11-13) · v1.3 — redesign: «Anagrafica» diventa «Clienti», «Dashboard» diventa «Statistiche»; via «Prenotazioni» (ora Prenotazioni › Archivio) · v1.2-clienti-nav
 // Tab navigation per il modulo Clienti CRM
 // Import, Duplicati, Mailchimp spostati dentro Impostazioni (sidebar)
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { ModuleNav } from "../../components/ui";
 import { API_BASE, apiFetch } from "../../config/api";
+import { EVENTO_CONTEGGIO_DIFF } from "./DiffTheFork";
 
 const TABS = [
   { key: "lista", label: "Clienti", path: "/clienti/lista", icon: "📇" },
@@ -36,11 +37,17 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
       setDiffCount(externalDiffCount);
       return;
     }
-    apiFetch(`${API_BASE}/clienti/import/diff/count`)
+    const leggi = () => apiFetch(`${API_BASE}/clienti/import/diff/count`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setDiffCount(d.pending || 0); })
       .catch(() => {});
-  }, [externalDiffCount]);
+    leggi();
+    // La coda cambia da sotto (riordino, Applica/Ignora in Impostazioni o nella scheda):
+    // chi la cambia manda l'evento, col numero nuovo se lo sa, altrimenti si rilegge.
+    const suEvento = (e) => (typeof e.detail === "number" ? setDiffCount(e.detail) : leggi());
+    window.addEventListener(EVENTO_CONTEGGIO_DIFF, suEvento);
+    return () => window.removeEventListener(EVENTO_CONTEGGIO_DIFF, suEvento);
+  }, [externalDiffCount, location.pathname]);
 
   // superadmin eredita tutti i permessi di admin (allineato a useModuleAccess.roleMatch)
   const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin")));

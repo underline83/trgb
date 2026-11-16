@@ -565,6 +565,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.35 (2026-11-16): badge «Impostazioni» aggiornato da solo dopo riordino e Applica/Ignora (restava
+    //   il numero vecchio finché non si cambiava pagina: dentro Impostazioni la Nav non sentiva la coda).
     // 3.34 (2026-11-14): differenze con TheFork con regole — maiuscole/accenti non contano, nome/cognome/
     //   titolo restano del CRM, lingua di TheFork solo sopra quella di partenza, prefissi invertiti e alias
     //   Apple sistemati da soli, «Ignora» ricordato; «Riordina la coda con le regole» (anteprima + Procedi)
@@ -654,7 +656,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.34",
+    version: "3.35",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
