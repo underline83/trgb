@@ -55,6 +55,7 @@ Codici dall'audit 2026-05-19 (`docs/audit-2026-05-19/01_AUDIT_PER_MODULO.md`).
 | C-P-028 | Piantina per sale (schede Osteria / Dehor / Veranda), tavoli rettangolo / cerchio / rombo | `GET /prenotazioni/tavoli` → `sale`, `elementi`; `TavoliEditor`, `TavoliMappa` | admin / sala | 🆕 |
 | C-P-029 | Elementi non prenotabili (bancone, colonne, scale, fioriere): crea, modifica, elimina | `POST/PUT/DELETE /prenotazioni/tavoli/elementi[/{id}]` | admin | 🆕 |
 | C-P-030 | Importa piantina da file JSON (tavoli per nome + elementi, «sostituisci» disattiva i vecchi) | `POST /prenotazioni/tavoli/importa` | admin | 🆕 |
+| C-P-048 | Stelle TRGB (nere, argento, oro) e pallino del segmento accanto al nome nel Planning (al posto della ⭐ VIP TheFork) — prenotazioni 2.36, 2026-11-16 | `GET /prenotazioni/planning/{data}` → `profilo` (da `clienti_profilo_service.profili`) | sala | 🆕 |
 | C-P-031 | Affidabilità cliente nel Planning: no-show e cancellazioni passate (badge «N no-show», dettaglio nella riga) | `GET /prenotazioni/planning/{data}` → `no_show_totali`, `cancellate_totali` | sala | 🆕 |
 | C-P-032 | Riconferma WhatsApp dal Planning (template «reminder»), segnata come inviata; contatore «da riconfermare» per turno | `GET /prenotazioni/{id}/wa-link?tipo=reminder` + `POST /prenotazioni/{id}/inviato?tipo=reminder` | sala | 🆕 |
 | C-P-033 | Doppione TheFork / a mano: «Tieni quella TheFork, elimina questa» (copia nota staff, allergie, tavolo, cliente mancanti; elimina senza contarla come cancellazione) | `POST /prenotazioni/{id}/unisci-in/{altra_id}` | sala | 🆕 |

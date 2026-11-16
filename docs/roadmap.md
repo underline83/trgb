@@ -693,11 +693,11 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.7 | Note rapide inline da lista clienti | S | MEDIA | Popup |
 | CL.8 | Preview merge side-by-side | M | MEDIA | UX upgrade |
 | CL.9 | Audit log modifiche CRM | S | MEDIA | Tabella nuova |
-| CL.10 | Segmentazione RFM automatica | M | MEDIA | Da storico. La M (spesa) ora c'è: `/clienti/{id}/consumi` (K.15, 2026-10-18) |
+| CL.10 | Segmentazione RFM automatica → **stelle e segmenti TRGB** | M | ✅ FATTO 2026-11-16 (da pushare, mig 236, clienti 3.36) | ★ nere (visite, eventi, no-show), ★ argento (scontrino medio a coperto), ★ oro solo superadmin; 8 segmenti ritarati; `clienti_profilo` ricalcolato ogni notte. Rank TheFork solo informazione. `modulo_clienti_crm.md` §6 |
 | CL.11 | Timeline cliente unificata (prenotazioni + note + email + no-show) | S | MEDIA | Marco: tienilo, da rivedere |
 | CL.12 | Import clienti da TheFork (M.H) | S | MEDIA | M.H blocca |
 | CL.13 | Filtri combinati avanzati per campagne | M | BASSA | Dipende CL.1 |
-| CL.14 | Google Contacts API | M | BASSA | Futuro |
+| CL.14 | Rubrica dei clienti sul telefono (riconoscere chi chiama, nomi su WhatsApp Business) | M | ALTA — prossimo push | 2026-11-16: decisa la rubrica in abbonamento da TRGB (CardDAV, sola lettura) invece di Google Contacts (tetto 25.000); entrano i clienti con telefono e almeno una stella (~4.660) |
 | CL.15 | Gift Card — emissione, codici, scarico a uso unico, annullo, PDF, alert scadenza | M | ✅ FATTO | 2026-08-08, clienti 3.1. Sostituisce l'Excel. Vedi `modulo_clienti_crm.md` §16 |
 | CL.16 | Storico gift card dall'Excel — travaso one-shot | S | ✅ FATTO | 2026-08-08, mig 167 (TRGB_SPECIFIC). 90 card su 174 (74 attive, 12.825 €). **Niente funzione di import nel prodotto**: scelta di Marco, era un travaso. Regole in `modulo_clienti_crm.md` §16.9 |
 | CL.19 | WhatsApp del locale in sola lettura per il giro (coexistence Meta, webhook, chat da rispondere, strumenti MCP) | M | 🟡 CODICE FATTO 2026-11-02 (da pushare, mig 224, clienti 3.23) — manca la prova di collegamento su Meta | Doc `modulo_clienti_crm.md` §17, guida `guida_whatsapp_meta.md` |

@@ -1,4 +1,4 @@
-// @version: v4.1 — rank (Gold/Silver/Bronze) e frequenza (abituale, in calo…) come pillole colorate, filo colorato del rank; ordine toccando Cliente/Visite/Ultima · v4.0 — redesign bozzetto A (2026-10-19): ricerca grande, filtri rapidi, lista compatta + anteprima a destra; azioni di massa in «Esporta e contatta»; via le voci senza nome · v3.4-mattoni — M.I primitives (Btn) su CTA + barra marketing + paginazione + nota rapida
+// @version: v4.2 — stelle TRGB (nere, argento, oro) e segmenti nuovi a colori; via rank TheFork e VIP dalla lista (2026-11-16) · v4.1 — rank (Gold/Silver/Bronze) e frequenza (abituale, in calo…) come pillole colorate, filo colorato del rank; ordine toccando Cliente/Visite/Ultima · v4.0 — redesign bozzetto A (2026-10-19): ricerca grande, filtri rapidi, lista compatta + anteprima a destra; azioni di massa in «Esporta e contatta»; via le voci senza nome · v3.4-mattoni — M.I primitives (Btn) su CTA + barra marketing + paginazione + nota rapida
 // Lista clienti — ricerca, filtri rapidi, lista compatta, anteprima scheda a destra, pannello Esporta e contatta
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,23 +8,8 @@ import ClientiScheda from "./ClientiScheda";
 import { buildWaLink, fillTemplate, WA_TEMPLATES } from "../../utils/whatsapp";
 import { Btn } from "../../components/ui";
 
-// ── Segmenti marketing ──────────────────────────────────
-const SEGMENTO_CONFIG = {
-  abituale:    { label: "Abituale",    icon: "🔥", badge: "bg-emerald-100 text-emerald-800 border-emerald-300", dot: "bg-emerald-500" },
-  occasionale: { label: "Occasionale", icon: "👋", badge: "bg-sky-100 text-sky-700 border-sky-300", dot: "bg-sky-500" },
-  nuovo:       { label: "Nuovo",       icon: "🆕", badge: "bg-violet-100 text-violet-700 border-violet-300", dot: "bg-violet-500" },
-  in_calo:     { label: "In calo",     icon: "📉", badge: "bg-amber-100 text-amber-800 border-amber-300", dot: "bg-amber-500" },
-  perso:       { label: "Perso",       icon: "💤", badge: "bg-red-100 text-red-700 border-red-300", dot: "bg-red-400" },
-  mai_venuto:  { label: "Mai venuto",  icon: "👻", badge: "bg-neutral-100 text-neutral-500 border-neutral-300", dot: "bg-neutral-400" },
-};
-
-// ── Rank (Gold/Silver/Bronze/Caution): pillola + filo colorato a sinistra della riga ──
-const RANK_STILE = {
-  Gold:    { pill: "bg-yellow-100 text-yellow-900 border-yellow-300", filo: "border-l-yellow-400" },
-  Silver:  { pill: "bg-slate-100 text-slate-700 border-slate-300", filo: "border-l-slate-400" },
-  Bronze:  { pill: "bg-orange-100 text-orange-800 border-orange-300", filo: "border-l-orange-400" },
-  Caution: { pill: "bg-red-100 text-red-700 border-red-300", filo: "border-l-red-400" },
-};
+// Stelle e segmenti: componente condiviso (rank TRGB, 2026-11-16)
+import { SEGMENTI, ORDINE_SEGMENTI, Stelle, SegmentoPill, Attenzione } from "./ProfiloCliente";
 
 const PAGE_SIZE = 50;
 
@@ -38,9 +23,10 @@ export default function ClientiLista() {
 
   // Filtri
   const [q, setQ] = useState("");
-  const [vipOnly, setVipOnly] = useState(false);
+  const [oroOnly, setOroOnly] = useState(false);
   const [tagFiltro, setTagFiltro] = useState("");
-  const [rankFiltro, setRankFiltro] = useState("");
+  const [stelleMin, setStelleMin] = useState("");
+  const [argentoMin, setArgentoMin] = useState("");
   const [segmentoFiltro, setSegmentoFiltro] = useState("");
   const [conEmail, setConEmail] = useState(false);
   const [conTelefono, setConTelefono] = useState(false);
@@ -84,9 +70,10 @@ export default function ClientiLista() {
     try {
       const params = new URLSearchParams();
       if (q) params.set("q", q);
-      if (vipOnly) params.set("vip", "true");
+      if (oroOnly) params.set("oro", "true");
       if (tagFiltro) params.set("tag_id", tagFiltro);
-      if (rankFiltro) params.set("rank", rankFiltro);
+      if (stelleMin) params.set("stelle_min", stelleMin);
+      if (argentoMin) params.set("argento_min", argentoMin);
       if (segmentoFiltro) params.set("segmento", segmentoFiltro);
       if (conEmail) params.set("con_email", "true");
       if (conTelefono) params.set("con_telefono", "true");
@@ -105,7 +92,7 @@ export default function ClientiLista() {
     } finally {
       setLoading(false);
     }
-  }, [q, vipOnly, tagFiltro, rankFiltro, segmentoFiltro, conEmail, conTelefono, mostraInattivi, offset, sortKey, sortDir]);
+  }, [q, oroOnly, tagFiltro, stelleMin, argentoMin, segmentoFiltro, conEmail, conTelefono, mostraInattivi, offset, sortKey, sortDir]);
 
   useEffect(() => { fetchClienti(); }, [fetchClienti]);
 
@@ -117,26 +104,27 @@ export default function ClientiLista() {
   }, []);
 
   // Reset offset quando cambiano filtri (il cambio di ordine azzera da solo)
-  useEffect(() => { setOffset(0); }, [q, vipOnly, tagFiltro, rankFiltro, segmentoFiltro, conEmail, conTelefono, mostraInattivi]);
+  useEffect(() => { setOffset(0); }, [q, oroOnly, tagFiltro, stelleMin, argentoMin, segmentoFiltro, conEmail, conTelefono, mostraInattivi]);
 
   const pagina = Math.floor(offset / PAGE_SIZE) + 1;
   const totalePagine = Math.ceil(totale / PAGE_SIZE);
 
   const resetFiltri = () => {
-    setQ(""); setVipOnly(false); setTagFiltro(""); setRankFiltro("");
+    setQ(""); setOroOnly(false); setTagFiltro(""); setStelleMin(""); setArgentoMin("");
     setSegmentoFiltro(""); setConEmail(false); setConTelefono(false); setMostraInattivi(false);
   };
 
-  const filtriAttivi = [q, vipOnly, tagFiltro, rankFiltro, segmentoFiltro, conEmail, conTelefono, mostraInattivi]
+  const filtriAttivi = [q, oroOnly, tagFiltro, stelleMin, argentoMin, segmentoFiltro, conEmail, conTelefono, mostraInattivi]
     .filter(v => v && v !== "").length;
 
   // ── Funzioni marketing: copia/export ──
   const buildFilterParams = () => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
-    if (vipOnly) p.set("vip", "true");
+    if (oroOnly) p.set("oro", "true");
     if (tagFiltro) p.set("tag_id", tagFiltro);
-    if (rankFiltro) p.set("rank", rankFiltro);
+    if (stelleMin) p.set("stelle_min", stelleMin);
+    if (argentoMin) p.set("argento_min", argentoMin);
     if (segmentoFiltro) p.set("segmento", segmentoFiltro);
     if (conEmail) p.set("con_email", "true");
     if (conTelefono) p.set("con_telefono", "true");
@@ -179,7 +167,7 @@ export default function ClientiLista() {
     try {
       const all = await fetchAllFiltered();
       if (!all.length) { setToast("Nessun dato da esportare"); return; }
-      const headers = ["cognome", "nome", "email", "telefono", "telefono2", "rank", "vip", "data_nascita", "citta", "allergie", "pref_cibo", "pref_bevande", "tags", "segmento", "n_prenotazioni", "ultima_visita"];
+      const headers = ["cognome", "nome", "email", "telefono", "telefono2", "stelle_nere", "stelle_argento", "stella_oro", "data_nascita", "citta", "allergie", "pref_cibo", "pref_bevande", "tags", "segmento", "n_prenotazioni", "ultima_visita"];
       const csvRows = [headers.join(";")];
       for (const c of all) {
         csvRows.push(headers.map(h => {
@@ -220,16 +208,16 @@ export default function ClientiLista() {
   // ── Redesign 2026-10-19 (bozzetto A): lista a sinistra, anteprima a destra (iPad/Mac); su telefono la scheda si apre a pagina intera ──
   const CHIPS = [
     { key: "", label: "Tutti" },
-    { key: "abituale", label: "Abituali" },
-    { key: "vip", label: "VIP" },
+    { key: "di_casa", label: "Di casa" },
+    { key: "affezionato", label: "Affezionati" },
     { key: "nuovo", label: "Nuovi" },
     { key: "in_calo", label: "In calo" },
-    { key: "perso", label: "Persi" },
+    { key: "oro", label: "★ Oro" },
   ];
-  const chipAttivo = (k) => (k === "vip" ? vipOnly : !vipOnly && segmentoFiltro === k);
+  const chipAttivo = (k) => (k === "oro" ? oroOnly : !oroOnly && segmentoFiltro === k);
   const scegliChip = (k) => {
-    if (k === "vip") { setVipOnly(!vipOnly); setSegmentoFiltro(""); }
-    else { setVipOnly(false); setSegmentoFiltro(k); }
+    if (k === "oro") { setOroOnly(!oroOnly); setSegmentoFiltro(""); }
+    else { setOroOnly(false); setSegmentoFiltro(k); }
   };
   const apri = (c) => {
     if (window.matchMedia && window.matchMedia("(min-width: 1024px)").matches) setSelectedId(c.id);
@@ -315,7 +303,7 @@ export default function ClientiLista() {
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {CHIPS.map((ch) => {
                   const on = chipAttivo(ch.key);
-                  const n = ch.key && ch.key !== "vip" ? segmentiCount[ch.key] : null;
+                  const n = ch.key ? segmentiCount[ch.key] : null;
                   return (
                     <button key={ch.key || "tutti"} type="button" aria-pressed={on} onClick={() => scegliChip(ch.key)}
                       className={`min-h-[36px] px-3 rounded-full text-sm font-semibold border transition ${on ? "bg-teal-800 border-teal-800 text-white" : "bg-white border-neutral-300 text-neutral-700 hover:border-teal-400"}`}>
@@ -332,10 +320,22 @@ export default function ClientiLista() {
               {showFiltri && (
                 <div className="mt-3 bg-white border border-neutral-200 rounded-xl p-3 grid grid-cols-2 gap-3">
                   <div>
-                    <label className={lbl} htmlFor="f-rank">Rank TheFork</label>
-                    <select id="f-rank" value={rankFiltro} onChange={(e) => setRankFiltro(e.target.value)} className={sel}>
-                      <option value="">Tutti</option><option value="Gold">Gold</option><option value="Silver">Silver</option>
-                      <option value="Bronze">Bronze</option><option value="Caution">Caution</option>
+                    <label className={lbl} htmlFor="f-seg">Segmento</label>
+                    <select id="f-seg" value={segmentoFiltro} onChange={(e) => { setOroOnly(false); setSegmentoFiltro(e.target.value); }} className={sel}>
+                      <option value="">Tutti</option>
+                      {ORDINE_SEGMENTI.map((k) => <option key={k} value={k}>{SEGMENTI[k].label}{segmentiCount[k] ? ` (${segmentiCount[k].toLocaleString("it-IT")})` : ""}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl} htmlFor="f-stelle">Stelle nere</label>
+                    <select id="f-stelle" value={stelleMin} onChange={(e) => setStelleMin(e.target.value)} className={sel}>
+                      <option value="">Tutte</option><option value="1">★ o più</option><option value="2">★★ o più</option><option value="3">★★★</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl} htmlFor="f-argento">Stelle argento (spesa)</label>
+                    <select id="f-argento" value={argentoMin} onChange={(e) => setArgentoMin(e.target.value)} className={sel}>
+                      <option value="">Tutte</option><option value="1">★ o più</option><option value="2">★★</option>
                     </select>
                   </div>
                   <div>
@@ -348,6 +348,7 @@ export default function ClientiLista() {
                   <div>
                     <label className={lbl} htmlFor="f-ord">Ordina per</label>
                     <select id="f-ord" value={`${sortKey}_${sortDir}`} onChange={(e) => { const v = e.target.value; const i = v.lastIndexOf("_"); setSortKey(v.slice(0, i)); setSortDir(v.slice(i + 1)); setOffset(0); }} className={sel}>
+                      <option value="stelle_desc">Stelle, più alte prima</option>
                       <option value="cognome_asc">Cognome A→Z</option>
                       <option value="cognome_desc">Cognome Z→A</option>
                       <option value="ultima_visita_desc">Ultima visita, recenti prima</option>
@@ -381,21 +382,21 @@ export default function ClientiLista() {
                 {!loading && clienti.length === 0 && <div className="py-12 text-center text-sm text-neutral-400">Nessun cliente trovato.</div>}
                 {clienti.map((c) => {
                   const scelto = selectedId === c.id;
-                  const seg = SEGMENTO_CONFIG[c.segmento];
-                  const rk = RANK_STILE[c.rank];
-                  const mostraSeg = seg && c.segmento !== "mai_venuto";
+                  const mostraSeg = c.segmento && c.segmento !== "mai_venuto";
+                  const haStelle = c.stelle_nere || c.stelle_argento || c.stella_oro;
                   const etichette = c.tags ? c.tags.split(", ").filter(Boolean).slice(0, 2).join(" · ") : "";
                   return (
                     <button key={c.id} type="button" onClick={() => apri(c)}
-                      className={`w-full text-left min-h-[56px] px-3 py-1.5 rounded-xl border border-l-4 ${rk ? rk.filo : "border-l-transparent"} grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 items-center transition ${scelto ? "bg-teal-50 border-teal-300" : "bg-white border-neutral-200 hover:border-teal-300"} ${!c.attivo ? "opacity-50" : ""}`}>
+                      className={`w-full text-left min-h-[56px] px-3 py-1.5 rounded-xl border grid grid-cols-[minmax(0,1fr)_64px_72px] gap-2 items-center transition ${scelto ? "bg-teal-50 border-teal-300" : "bg-white border-neutral-200 hover:border-teal-300"} ${!c.attivo ? "opacity-50" : ""}`}>
                       <span className="min-w-0">
                         <span className="block text-[15px] font-semibold text-neutral-900 truncate">
-                          {c.vip ? "★ " : ""}{c.cognome}{c.cognome2 && c.cognome2 !== c.cognome ? ` / ${c.cognome2}` : ""} <span className="font-normal text-neutral-700">{c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
+                          {c.cognome}{c.cognome2 && c.cognome2 !== c.cognome ? ` / ${c.cognome2}` : ""} <span className="font-normal text-neutral-700">{c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
                         </span>
-                        {(rk || mostraSeg || etichette) && (
-                          <span className="mt-0.5 flex items-center gap-1 min-w-0 overflow-hidden">
-                            {rk && <span className={`shrink-0 px-1.5 py-px rounded-full border text-[11px] font-bold ${rk.pill}`}>{c.rank}</span>}
-                            {mostraSeg && <span className={`shrink-0 px-1.5 py-px rounded-full border text-[11px] font-semibold ${seg.badge}`}>{seg.label}</span>}
+                        {(haStelle || mostraSeg || c.attenzione || etichette) && (
+                          <span className="mt-0.5 flex items-center gap-1.5 min-w-0 overflow-hidden">
+                            {haStelle ? <Stelle nere={c.stelle_nere} argento={c.stelle_argento} oro={c.stella_oro} className="shrink-0 text-[13px]" /> : null}
+                            {mostraSeg && <SegmentoPill segmento={c.segmento} className="shrink-0" />}
+                            {c.attenzione ? <Attenzione className="shrink-0" /> : null}
                             {etichette && <span className="text-xs text-neutral-500 truncate">{etichette}</span>}
                           </span>
                         )}

@@ -462,6 +462,57 @@ def imposta_finestra(minuti: int) -> int:
 # SCHEDA CLIENTE: cosa ha mangiato e speso
 # ============================================================
 
+def spesa_per_cliente(clienti_ids: Optional[List[int]] = None) -> Dict[int, Dict[str, float]]:
+    """
+    Spesa dai conti di cassa per cliente, con la stessa regola di `consumi_cliente`:
+    conti collegati al cliente o a una sua prenotazione, abbinati o proposti.
+    {cliente_id: {"totale": €, "coperti": n, "conti": n}}. Serve alle stelle argento
+    (clienti_profilo_service, 2026-11-16). Senza ids: tutti i clienti.
+    """
+    conn_p = get_clienti_conn()
+    try:
+        if clienti_ids is None:
+            righe = conn_p.execute(
+                "SELECT id, cliente_id FROM clienti_prenotazioni WHERE cliente_id IS NOT NULL").fetchall()
+        elif not clienti_ids:
+            return {}
+        else:
+            segnaposti = ", ".join("?" for _ in clienti_ids)
+            righe = conn_p.execute(
+                f"SELECT id, cliente_id FROM clienti_prenotazioni WHERE cliente_id IN ({segnaposti})",
+                list(clienti_ids)).fetchall()
+        pren_cliente = {r["id"]: r["cliente_id"] for r in righe}
+    finally:
+        conn_p.close()
+
+    ids_set = set(clienti_ids) if clienti_ids is not None else None
+    conn_c = get_cassa_conti_conn()
+    try:
+        cond, args = "", []
+        if clienti_ids is not None:
+            cond = f"AND (cliente_id IN ({', '.join('?' for _ in clienti_ids)})"
+            args = list(clienti_ids)
+            if pren_cliente:
+                cond += f" OR prenotazione_id IN ({', '.join('?' for _ in pren_cliente)})"
+                args += list(pren_cliente)
+            cond += ")"
+        out: Dict[int, Dict[str, float]] = {}
+        for r in conn_c.execute(f"""
+            SELECT cliente_id, prenotazione_id, totale, coperti FROM cassa_conti
+            WHERE abbinamento IN ('auto','manuale','proposto') {cond}
+        """, args):
+            cid = r["cliente_id"] or pren_cliente.get(r["prenotazione_id"])
+            if not cid or (ids_set is not None and cid not in ids_set):
+                continue
+            v = out.setdefault(cid, {"totale": 0.0, "coperti": 0, "conti": 0})
+            v["totale"] += r["totale"] or 0
+            v["coperti"] += r["coperti"] or 0
+            v["conti"] += 1
+        return out
+    finally:
+        conn_c.close()
+
+
 def consumi_cliente(cliente_id: int, limite_visite: int = 100) -> Dict[str, Any]:
     """
     I conti del cliente: quelli collegati direttamente e quelli collegati a una

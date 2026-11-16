@@ -285,6 +285,33 @@ def init_clienti_db() -> None:
     except sqlite3.OperationalError:
         pass
 
+    # Stella oro (la mette solo il superadmin) + profilo calcolato (mig 236, 2026-11-16).
+    # Qui per le installazioni nuove: la migrazione salta se clienti.sqlite3 non c'era ancora.
+    cols_cl = {r[1] for r in cur.execute("PRAGMA table_info(clienti)").fetchall()}
+    for col, tipo in (("stella_oro", "INTEGER NOT NULL DEFAULT 0"), ("stella_oro_da", "TEXT"), ("stella_oro_il", "TEXT")):
+        if col not in cols_cl:
+            cur.execute(f"ALTER TABLE clienti ADD COLUMN {col} {tipo}")
+    if not cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='clienti_profilo'").fetchone():
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS clienti_profilo (
+                cliente_id      INTEGER PRIMARY KEY,
+                segmento        TEXT NOT NULL,
+                punti           INTEGER NOT NULL DEFAULT 0,
+                stelle_nere     INTEGER NOT NULL DEFAULT 0,
+                stelle_argento  INTEGER NOT NULL DEFAULT 0,
+                scontrino_medio REAL,
+                conti_cassa     INTEGER NOT NULL DEFAULT 0,
+                visite          INTEGER NOT NULL DEFAULT 0,
+                visite_recenti  INTEGER NOT NULL DEFAULT 0,
+                prima_visita    TEXT,
+                ultima_visita   TEXT,
+                no_show         INTEGER NOT NULL DEFAULT 0,
+                eventi          INTEGER NOT NULL DEFAULT 0,
+                attenzione      INTEGER NOT NULL DEFAULT 0,
+                aggiornato_at   TEXT
+            )
+        """)
+
     # ── PRENOTAZIONI: colonne aggiuntive per modulo Prenotazioni ──
     pren_cols = [
         ("turno", "TEXT"),                       # 'pranzo' / 'cena'

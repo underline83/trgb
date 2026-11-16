@@ -1,4 +1,4 @@
-// @version: v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -13,6 +13,7 @@ import CanaleBadge from "./components/CanaleBadge";
 import FasceTurno from "./components/FasceTurno";
 import Tooltip from "../../components/Tooltip";
 import ClientiScheda from "../clienti/ClientiScheda";
+import { Stelle, SegmentoPill } from "../clienti/ProfiloCliente";
 import { Btn } from "../../components/ui";
 import useModuleAccess from "../../hooks/useModuleAccess";
 
@@ -155,7 +156,12 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
             ) : (
               <span className="text-sm text-neutral-600">{nome}</span>
             )}
-            {pren.vip === 1 && <Tooltip label="VIP"><span>⭐</span></Tooltip>}
+            {pren.profilo && (
+              <>
+                <Stelle nere={pren.profilo.stelle_nere} argento={pren.profilo.stelle_argento} oro={pren.profilo.stella_oro} className="text-xs" />
+                {pren.profilo.segmento && pren.profilo.segmento !== "mai_venuto" && <SegmentoPill segmento={pren.profilo.segmento} compatto />}
+              </>
+            )}
             {pren.no_show_totali > 0 && (
               <Tooltip label={`Affidabilità: ${pren.no_show_totali} no-show e ${pren.cancellate_totali || 0} cancellazioni in passato`}>
                 <span className="px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-200 text-[10px] font-semibold rounded-full">

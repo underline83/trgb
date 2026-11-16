@@ -1,4 +1,4 @@
-// @version: v2.4 — Preventivi: indirizzo staff (CC), Rispondi a, giorni di scadenza/avviso/proroga, ruoli avvisati (2026-11-03); v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
+// @version: v2.5 — «Segmenti e stelle»: soglie dei segmenti nuovi e delle stelle (nere, argento), conteggi, Ricalcola adesso (2026-11-16); v2.4 — Preventivi: indirizzo staff (CC), Rispondi a, giorni di scadenza/avviso/proroga, ruoli avvisati (2026-11-03); v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
 // Layout Impostazioni CRM: sidebar sinistra + sezioni (segmenti, import, duplicati, mailchimp)
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -10,10 +10,11 @@ import ClientiMailchimp from "./ClientiMailchimp";
 import ClientiMenuTemplates from "./ClientiMenuTemplates";
 import ClientiWhatsApp from "./ClientiWhatsApp";
 import { Btn, EmptyState } from "../../components/ui";
+import { ORDINE_SEGMENTI, SegmentoPill, Stelle } from "./ProfiloCliente";
 
 // ── Sidebar items ──
 const SECTIONS = [
-  { key: "segmenti", label: "Segmenti", icon: "📊", desc: "Soglie segmentazione clienti" },
+  { key: "segmenti", label: "Segmenti e stelle", icon: "⭐", desc: "Segmenti, stelle nere e argento" },
   { key: "template_preventivi", label: "Template Preventivi", icon: "📋", desc: "Menu e condizioni riutilizzabili" },
   { key: "menu_templates", label: "Menu Template", icon: "🍽️", desc: "Libreria menu riutilizzabili sui preventivi" },
   { key: "luoghi_preventivi", label: "Luoghi Preventivi", icon: "📍", desc: "Sale e spazi per eventi (Sala, Giardino, Dehor…)" },
@@ -23,14 +24,31 @@ const SECTIONS = [
   { key: "whatsapp", label: "WhatsApp", icon: "💬", desc: "Chat del locale in sola lettura per il giro" },
 ];
 
-// ── Configurazione soglie segmenti ──
-const SEGMENTI_CONFIG = [
-  { chiave: "seg_abituale_min", label: "Abituale — visite minime", desc: "Quante visite nella finestra per essere considerato abituale", type: "number", min: 1, max: 50 },
-  { chiave: "seg_occasionale_min", label: "Occasionale — visite minime", desc: "Quante visite nella finestra per essere considerato occasionale (sotto la soglia abituale)", type: "number", min: 1, max: 50 },
-  { chiave: "seg_finestra_mesi", label: "Finestra di osservazione (mesi)", desc: "Quanti mesi guardare indietro per contare le visite (abituale/occasionale)", type: "number", min: 1, max: 36 },
-  { chiave: "seg_nuovo_giorni", label: "Nuovo — entro quanti giorni", desc: "Giorni dalla prima visita per considerare un cliente come nuovo", type: "number", min: 7, max: 365 },
-  { chiave: "seg_nuovo_max_visite", label: "Nuovo — max visite", desc: "Numero massimo di visite per restare nel segmento nuovo", type: "number", min: 1, max: 20 },
-  { chiave: "seg_perso_giorni", label: "Perso — dopo quanti giorni", desc: "Giorni senza visite per considerare un cliente come perso", type: "number", min: 30, max: 730 },
+// ── Soglie di segmenti e stelle (clienti_impostazioni, mig 236 — 2026-11-16) ──
+const SOGLIE_SEGMENTI = [
+  { chiave: "seg_dicasa_visite", label: "Di casa — visite almeno", desc: "nella finestra qui sotto", min: 1, max: 50 },
+  { chiave: "seg_dicasa_mesi", label: "Di casa — finestra (mesi)", min: 1, max: 60 },
+  { chiave: "seg_affezionato_visite", label: "Affezionato — visite almeno", desc: "nella finestra qui sotto", min: 1, max: 50 },
+  { chiave: "seg_affezionato_mesi", label: "Affezionato — finestra (mesi)", min: 1, max: 60 },
+  { chiave: "seg_attivo_mesi", label: "Affezionato — ultima visita entro (mesi)", desc: "oltre, chi tornava diventa «In calo»", min: 1, max: 60 },
+  { chiave: "seg_recente_mesi", label: "Una volta / In calo — ultima visita entro (mesi)", desc: "oltre diventa «Dormiente»", min: 1, max: 120 },
+  { chiave: "seg_perso_anni", label: "Perso — ultima visita oltre (anni)", min: 1, max: 20 },
+  { chiave: "seg_nuovo_giorni", label: "Nuovo — prima e unica visita entro (giorni)", min: 7, max: 365 },
+];
+const SOGLIE_STELLE = [
+  { chiave: "stelle_mesi_recenti", label: "Visite recenti = ultimi (mesi)", min: 1, max: 120 },
+  { chiave: "stelle_punti_recente", label: "Punti per visita recente", min: 0, max: 100 },
+  { chiave: "stelle_max_recenti", label: "Tetto punti visite recenti", min: 0, max: 1000 },
+  { chiave: "stelle_punti_vecchia", label: "Punti per visita più vecchia", min: 0, max: 100 },
+  { chiave: "stelle_max_vecchie", label: "Tetto punti visite vecchie", min: 0, max: 1000 },
+  { chiave: "stelle_punti_evento", label: "Punti per evento confermato (preventivo)", min: 0, max: 200 },
+  { chiave: "stelle_malus_noshow", label: "Punti tolti per ogni no-show", min: 0, max: 200 },
+  { chiave: "stelle_soglia_1", label: "★ dai punti", min: 1, max: 1000 },
+  { chiave: "stelle_soglia_2", label: "★★ dai punti", min: 1, max: 1000 },
+  { chiave: "stelle_soglia_3", label: "★★★ dai punti", min: 1, max: 1000 },
+  { chiave: "argento_soglia_1", label: "Argento ★ — scontrino medio a coperto (€)", min: 1, max: 1000 },
+  { chiave: "argento_soglia_2", label: "Argento ★★ — scontrino medio a coperto (€)", min: 1, max: 1000 },
+  { chiave: "attenzione_noshow", label: "«Attenzione» dai no-show", min: 1, max: 50 },
 ];
 
 export default function ClientiImpostazioni() {
@@ -105,6 +123,7 @@ export default function ClientiImpostazioni() {
 // ── Sezione Segmenti (ex contenuto ClientiImpostazioni v1) ──
 function SegmentiSection() {
   const [impostazioni, setImpostazioni] = useState({});
+  const [conteggi, setConteggi] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -115,7 +134,8 @@ function SegmentiSection() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  useEffect(() => { fetchImpostazioni(); }, []);
+  const fetchConteggi = () =>
+    apiFetch(`${API_BASE}/clienti/segmenti/conteggi`).then((r) => (r.ok ? r.json() : null)).then(setConteggi).catch(() => {});
 
   const fetchImpostazioni = async () => {
     setLoading(true);
@@ -134,22 +154,33 @@ function SegmentiSection() {
     }
   };
 
+  useEffect(() => { fetchImpostazioni(); fetchConteggi(); }, []);
+
   const handleChange = (chiave, valore) => {
     setImpostazioni((prev) => ({ ...prev, [chiave]: valore }));
     setDirty(true);
   };
 
+  const ricalcola = async () => {
+    const res = await apiFetch(`${API_BASE}/clienti/profilo/ricalcola`, { method: "POST" });
+    if (!res.ok) throw new Error(res.status === 403 ? "Il ricalcolo lo fa l'amministratore" : "Ricalcolo non riuscito");
+    await fetchConteggi();
+  };
+
   const handleSave = async () => {
-    const abMin = parseInt(impostazioni.seg_abituale_min || "5");
-    const ocMin = parseInt(impostazioni.seg_occasionale_min || "1");
-    if (ocMin >= abMin) {
-      showToast(`La soglia occasionale (${ocMin}) deve essere inferiore a quella abituale (${abMin})`, "error");
+    const n = (k) => parseFloat(impostazioni[k]);
+    if (!(n("stelle_soglia_1") < n("stelle_soglia_2") && n("stelle_soglia_2") < n("stelle_soglia_3"))) {
+      showToast("Le soglie delle stelle nere devono crescere: ★ < ★★ < ★★★", "error");
+      return;
+    }
+    if (!(n("argento_soglia_1") < n("argento_soglia_2"))) {
+      showToast("La seconda stella argento deve avere una soglia più alta della prima", "error");
       return;
     }
     setSaving(true);
     try {
       const body = {};
-      SEGMENTI_CONFIG.forEach((c) => {
+      [...SOGLIE_SEGMENTI, ...SOGLIE_STELLE].forEach((c) => {
         if (impostazioni[c.chiave] !== undefined) body[c.chiave] = impostazioni[c.chiave];
       });
       const res = await apiFetch(`${API_BASE}/clienti/impostazioni`, {
@@ -158,7 +189,8 @@ function SegmentiSection() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Errore salvataggio");
-      showToast("Impostazioni salvate — i segmenti verranno ricalcolati al prossimo caricamento");
+      await ricalcola();
+      showToast("Salvate: stelle e segmenti ricalcolati");
       setDirty(false);
     } catch (err) {
       showToast(err.message, "error");
@@ -167,86 +199,83 @@ function SegmentiSection() {
     }
   };
 
-  const handleReset = () => {
-    if (!window.confirm("Ripristinare i valori di default?")) return;
-    setImpostazioni({
-      seg_abituale_min: "5", seg_occasionale_min: "1", seg_nuovo_giorni: "90",
-      seg_nuovo_max_visite: "2", seg_perso_giorni: "365", seg_finestra_mesi: "12",
-    });
-    setDirty(true);
-  };
-
-  const esempio = () => {
-    const fm = impostazioni.seg_finestra_mesi || "12";
-    const ab = impostazioni.seg_abituale_min || "5";
-    const oc = impostazioni.seg_occasionale_min || "1";
-    const ng = impostazioni.seg_nuovo_giorni || "90";
-    const nv = impostazioni.seg_nuovo_max_visite || "2";
-    const pg = impostazioni.seg_perso_giorni || "365";
-    return [
-      { segmento: "Abituale", regola: `${ab}+ visite negli ultimi ${fm} mesi`, color: "text-teal-700 bg-teal-50" },
-      { segmento: "Occasionale", regola: `${oc}-${parseInt(ab) - 1} visite negli ultimi ${fm} mesi`, color: "text-sky-700 bg-sky-50" },
-      { segmento: "Nuovo", regola: `Prima visita entro ${ng} giorni, max ${nv} visite`, color: "text-emerald-700 bg-emerald-50" },
-      { segmento: "Perso", regola: `Nessuna visita da ${pg}+ giorni`, color: "text-red-700 bg-red-50" },
-      { segmento: "Mai venuto", regola: "Nessuna prenotazione completata", color: "text-neutral-500 bg-neutral-50" },
-    ];
+  const ricalcolaAdesso = async () => {
+    setSaving(true);
+    try { await ricalcola(); showToast("Stelle e segmenti ricalcolati"); }
+    catch (err) { showToast(err.message, "error"); }
+    finally { setSaving(false); }
   };
 
   if (loading) return <div className="text-center py-12 text-neutral-400">Caricamento...</div>;
 
+  const campo = (cfg) => (
+    <div key={cfg.chiave} className="flex items-center gap-4">
+      <div className="flex-1">
+        <label htmlFor={`s-${cfg.chiave}`} className="block text-sm font-medium text-neutral-800">{cfg.label}</label>
+        {cfg.desc && <p className="text-xs text-neutral-500 mt-0.5">{cfg.desc}</p>}
+      </div>
+      <input id={`s-${cfg.chiave}`} type="number" min={cfg.min} max={cfg.max}
+        value={impostazioni[cfg.chiave] ?? ""}
+        onChange={(e) => handleChange(cfg.chiave, e.target.value)}
+        className="w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
+    </div>
+  );
+  const nf = (v) => (v || 0).toLocaleString("it-IT");
+
   return (
     <>
-      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Segmenti Marketing</h1>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Segmenti e stelle</h1>
       <p className="text-sm text-neutral-500 mb-6">
-        Configura le soglie per la segmentazione automatica dei clienti. I segmenti vengono ricalcolati in tempo reale.
+        Il <b>segmento</b> dice a che punto è il rapporto col cliente; le <b>stelle</b> quanto vale per noi:
+        nere per quanto viene, argento per quanto spende, oro la mette solo il superadmin dalla scheda.
+        Si ricalcolano ogni notte e quando salvi qui. Il rank di TheFork resta in scheda solo come informazione.
       </p>
 
-      {/* Soglie */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
-        <div className="p-5 space-y-5">
-          {SEGMENTI_CONFIG.map((cfg) => (
-            <div key={cfg.chiave} className="flex items-start gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-neutral-800">{cfg.label}</label>
-                <p className="text-xs text-neutral-500 mt-0.5">{cfg.desc}</p>
-              </div>
-              <input
-                type={cfg.type}
-                min={cfg.min}
-                max={cfg.max}
-                value={impostazioni[cfg.chiave] || ""}
-                onChange={(e) => handleChange(cfg.chiave, e.target.value)}
-                className="w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm text-center
-                  focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
-              />
-            </div>
-          ))}
-        </div>
-        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between">
-          <Btn variant="ghost" size="sm" onClick={handleReset}>
-            Ripristina default
-          </Btn>
-          <div className="flex items-center gap-3">
-            {dirty && <span className="text-xs text-amber-600 font-medium">Modifiche non salvate</span>}
-            <Btn variant="success" size="md" onClick={handleSave} disabled={!dirty || saving} loading={saving}>
-              Salva
-            </Btn>
+      {conteggi && (
+        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 mb-6">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-neutral-800">Oggi</h2>
+            <span className="text-xs text-neutral-500">{conteggi.aggiornato ? `calcolati il ${conteggi.aggiornato.slice(8, 10)}/${conteggi.aggiornato.slice(5, 7)} alle ${conteggi.aggiornato.slice(11, 16)}` : "mai calcolati"}</span>
           </div>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {ORDINE_SEGMENTI.map((k) => (
+              <span key={k} className="inline-flex items-center gap-1.5"><SegmentoPill segmento={k} /><span className="text-sm text-neutral-600 tabular-nums">{nf(conteggi[k])}</span></span>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-neutral-700">
+            {[1, 2, 3].map((n) => (
+              <span key={`n${n}`} className="inline-flex items-center gap-1.5"><Stelle nere={n} /> {nf(conteggi.stelle_nere?.[String(n)])}</span>
+            ))}
+            {[1, 2].map((n) => (
+              <span key={`a${n}`} className="inline-flex items-center gap-1.5"><Stelle argento={n} /> {nf(conteggi.stelle_argento?.[String(n)])}</span>
+            ))}
+            <span className="inline-flex items-center gap-1.5"><Stelle oro={1} /> {nf(conteggi.oro)}</span>
+            <span className="text-red-700">Attenzione {nf(conteggi.attenzione)}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100"><h2 className="text-sm font-semibold text-neutral-800">Segmenti</h2></div>
+        <div className="p-5 space-y-4">{SOGLIE_SEGMENTI.map(campo)}</div>
+        <div className="px-5 pb-5 text-xs text-neutral-500 space-y-0.5">
+          <div>Ordine: Nuovo → Di casa → Affezionato → In calo / Una volta → Dormiente → Perso. «Mai venuto» = nessuna visita registrata.</div>
         </div>
       </div>
 
-      {/* Preview */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
-          <h2 className="text-sm font-semibold text-neutral-800">Preview regole attuali</h2>
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100"><h2 className="text-sm font-semibold text-neutral-800">Stelle</h2></div>
+        <div className="p-5 space-y-4">{SOGLIE_STELLE.map(campo)}</div>
+        <div className="px-5 pb-5 text-xs text-neutral-500">
+          La spesa viene dai conti di cassa abbinati al cliente (da settembre 2024): chi non ne ha non prende stelle argento, non perché spenda poco.
         </div>
-        <div className="p-5 space-y-2">
-          {esempio().map((e) => (
-            <div key={e.segmento} className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${e.color}`}>
-              <span className="text-sm font-semibold">{e.segmento}</span>
-              <span className="text-xs">{e.regola}</span>
-            </div>
-          ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <Btn variant="ghost" size="md" onClick={ricalcolaAdesso} disabled={saving}>Ricalcola adesso</Btn>
+        <div className="flex items-center gap-3">
+          {dirty && <span className="text-xs text-amber-600 font-medium">Modifiche non salvate</span>}
+          <Btn variant="success" size="md" onClick={handleSave} disabled={!dirty || saving} loading={saving}>Salva e ricalcola</Btn>
         </div>
       </div>
 

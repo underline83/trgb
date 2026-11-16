@@ -567,6 +567,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.36 (2026-11-16): stelle TRGB (★ nere da visite/eventi/no-show, ★ argento da scontrino medio a coperto,
+    //   ★ oro solo superadmin) e segmenti nuovi a colori (Di casa, Affezionato, Nuovo, Una volta, In calo,
+    //   Dormiente, Perso, Mai venuto) in lista, scheda («Stelle e segmento» col perché) e Impostazioni
+    //   («Segmenti e stelle», soglie e Ricalcola). Rank TheFork solo informazione in scheda (mig 236).
     // 3.35 (2026-11-16): badge «Impostazioni» aggiornato da solo dopo riordino e Applica/Ignora (restava
     //   il numero vecchio finché non si cambiava pagina: dentro Impostazioni la Nav non sentiva la coda).
     // 3.34 (2026-11-14): differenze con TheFork con regole — maiuscole/accenti non contano, nome/cognome/
@@ -658,12 +662,13 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.35",
+    version: "3.36",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.36 (2026-11-16): Planning — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork).
     // 2.35 (2026-11-13): sincronizzazione TheFork con priorità a TRGB sul descrittivo (nota staff,
     //   occasione, tavolo, allergie, seggioloni, stato In opzione/Lista d'attesa/arrivato…andato contro
     //   un «prenotata» di TheFork); In opzione e Lista d'attesa anche sulle prenotazioni TheFork.
@@ -695,7 +700,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.35",
+    version: "2.36",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -818,6 +823,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.2 (2026-11-16): mig 236 — stelle e segmenti dei clienti calcolati da TRGB (clienti.stella_oro,
+    //   tabella clienti_profilo, soglie in clienti_impostazioni); servizio clienti_profilo_service con
+    //   ricalcolo notturno (clienti 3.36, prenotazioni 2.36).
     // 6.1 (2026-11-16): mig 235 — giorno di paga 27 → default di Impostazioni (15) per i dipendenti
     //   creati dopo la mig 118 (Nicoli, Spuri, Verderio) e i loro stipendi non pagati al 27; i nuovi
     //   dipendenti prendono il default di Impostazioni (dipendenti 2.45).
@@ -970,7 +978,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.1",
+    version: "6.2",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -377,9 +377,19 @@ def get_planning(
         except Exception:  # noqa: BLE001 — il Planning non deve mai rompersi per questo
             attese = {}
 
+        # Stelle e segmento del cliente (rank TRGB, 2026-11-16): servizio platform del modulo clienti
+        try:
+            from app.services.clienti_profilo_service import profili
+            profilo_clienti = profili(r["cliente_id"] for r in rows if r["cliente_id"])
+        except Exception:  # noqa: BLE001 — il Planning non deve mai rompersi per questo
+            profilo_clienti = {}
+
         for r in rows:
             item = dict(r)
             item["preventivo_attesa"] = attese.get(item["id"])
+            pc = profilo_clienti.get(item["cliente_id"]) if item["cliente_id"] else None
+            item["profilo"] = ({k: pc[k] for k in ("segmento", "stelle_nere", "stelle_argento", "stella_oro", "attenzione")}
+                               if pc else None)
             item["possibili_doppioni"] = doppioni.get(item["id"], [])
             item["bollino"] = _bollino_cliente(item, soglia_frequente)
             turno = item.get("turno") or _calcola_turno(item.get("ora_pasto"), soglia)

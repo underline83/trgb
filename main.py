@@ -771,6 +771,10 @@ _mount("ipratico_products_router", ipratico_products_router.router)
 _mount("clienti_whatsapp_router", clienti_whatsapp_public_router)
 _mount("clienti_whatsapp_router", clienti_whatsapp_router)
 _mount("clienti_router", clienti_router)
+if module_loader.is_router_active("clienti_router"):
+    # Stelle e segmenti dei clienti: ricalcolo completo una volta al giorno (2026-11-16, mig 236)
+    from app.services.clienti_profilo_service import avvia_periodico as _profilo_clienti
+    _profilo_clienti()
 _mount("clienti_giftcard_router", clienti_giftcard_router)
 _mount("clienti_giftcard_router", clienti_giftcard_public_router)  # /public/regalo (QR etichetta)
 

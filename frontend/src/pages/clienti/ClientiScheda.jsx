@@ -10,6 +10,7 @@ import { Btn } from "../../components/ui";
 import PrenotazioniForm from "../prenotazioni/PrenotazioniForm";
 import { openWhatsApp } from "../../utils/whatsapp";
 import { DiffTheForkCliente } from "./DiffTheFork";
+import { Stelle, SegmentoPill, Attenzione, SchedaStelle } from "./ProfiloCliente";
 
 const LINGUE = { it_IT: "Italiano", en_GB: "Inglese", en_US: "Inglese", de_DE: "Tedesco", fr_FR: "Francese", es_ES: "Spagnolo", nl_NL: "Olandese", pt_PT: "Portoghese" };
 const PAESI = { Italy: "Italia", Germany: "Germania", France: "Francia", Spain: "Spagna", Switzerland: "Svizzera", "United Kingdom": "Regno Unito", "United States": "Stati Uniti", Netherlands: "Paesi Bassi", Austria: "Austria", Belgium: "Belgio", Norway: "Norvegia" };
@@ -324,10 +325,6 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
     { key: "note", label: `Note${cliente.note?.length ? ` (${cliente.note.length})` : ""}` },
     { key: "recensioni", label: "Recensioni" },
   ];
-  const RANK_CHIP = {
-    Gold: "bg-yellow-200 text-yellow-900", Silver: "bg-neutral-200 text-neutral-700",
-    Bronze: "bg-orange-200 text-orange-900", Caution: "bg-red-200 text-red-900",
-  };
 
   return (
     <>
@@ -361,15 +358,21 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
 
             <div className="flex items-center gap-4 mt-2">
               <div aria-hidden="true"
-                className={`w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center font-playfair text-2xl font-bold ${cliente.rank === "Gold" ? "bg-yellow-200 text-yellow-900" : "bg-white/15 text-white"}`}>
+                className={`w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center font-playfair text-2xl font-bold ${cliente.profilo?.stella_oro ? "bg-amber-200 text-amber-900" : "bg-white/15 text-white"}`}>
                 {iniziali.toUpperCase()}
               </div>
               <div className="min-w-0">
                 <h1 className="font-playfair text-[28px] leading-tight font-bold break-words">
-                  {cliente.vip ? "★ " : ""}{nomeCompleto || "Senza nome"}
+                  {nomeCompleto || "Senza nome"}
                 </h1>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[13px]">
-                  {cliente.rank && <span className={`px-2 py-0.5 rounded-full font-bold ${RANK_CHIP[cliente.rank] || "bg-white/15"}`}>{cliente.rank}</span>}
+                  {(cliente.profilo?.stelle_nere || cliente.profilo?.stelle_argento || cliente.profilo?.stella_oro) ? (
+                    <span className="px-2 py-0.5 rounded-full bg-white">
+                      <Stelle nere={cliente.profilo.stelle_nere} argento={cliente.profilo.stelle_argento} oro={cliente.profilo.stella_oro} className="text-[13px]" />
+                    </span>
+                  ) : null}
+                  {cliente.profilo?.segmento && cliente.profilo.segmento !== "mai_venuto" && <SegmentoPill segmento={cliente.profilo.segmento} />}
+                  {cliente.profilo?.attenzione ? <Attenzione /> : null}
                   {(cliente.tags || []).slice(0, 2).map((t) => (
                     <span key={t.id} className="px-2 py-0.5 rounded-full bg-white/15">{t.nome}</span>
                   ))}
@@ -529,6 +532,8 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
               {vedeDiffTheFork && (
                 <DiffTheForkCliente clienteId={cliente.id} onCambiato={fetchCliente} onMessaggio={showToast} />
               )}
+              <SchedaStelle clienteId={cliente.id} profilo={cliente.profilo} rankTheFork={cliente.rank}
+                onCambiato={fetchCliente} onMessaggio={showToast} />
               {/* ── DA SAPERE IN SALA ── */}
               <div className="space-y-2.5">
                 <div className="text-xs font-bold tracking-wider uppercase text-neutral-500">Da sapere in sala</div>
@@ -608,7 +613,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                         <Field label="Paese" value={PAESI[cliente.paese] || cliente.paese} />
                       </div>
                       <div className="flex flex-wrap gap-1.5 border-t border-neutral-100 pt-4">
-                        {cliente.vip ? <Pillola tono="oro">VIP</Pillola> : null}
+                        {cliente.vip ? <Pillola tono="neutro">VIP TheFork</Pillola> : null}
                         {cliente.newsletter ? <Pillola tono="teal">Newsletter</Pillola> : null}
                         {cliente.attivo ? <Pillola tono="teal">Attivo</Pillola> : <Pillola tono="rosso">Inattivo</Pillola>}
                       </div>

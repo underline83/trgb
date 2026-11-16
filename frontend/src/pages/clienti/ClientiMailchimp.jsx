@@ -134,7 +134,7 @@ MAILCHIMP_LIST_ID=il-tuo-audience-id`}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 bg-violet-500 rounded-full" />
-                    Segmenti marketing (abituale, in_calo, perso, etc.)
+                    Segmenti (di_casa, affezionato, in_calo, perso…)
                   </div>
                 </div>
               </div>

@@ -90,6 +90,7 @@ Colonne reali (`app/models/clienti_db.py:151-197` + ALTER `:289-308`): `id`, `cl
 | `clienti_note` | Diario interazioni: `tipo` (nota/telefonata/evento/reclamo/preferenza), `testo`, `data`, `autore` |
 | `clienti_alias` | Merge duplicati: mappa i `thefork_id` dei clienti assorbiti verso il cliente principale, così i re-import li riconoscono |
 | `clienti_no_duplicato` | Coppie marcate "non è un duplicato" (es. coniugi con stesso telefono), escluse dai suggerimenti |
+| `clienti_profilo` | Segmento e stelle calcolati, uno per cliente attivo (mig 236, §6) — scritto da `clienti_profilo_service` |
 | `clienti_import_diff` | Coda revisione: differenze campo-per-campo tra CRM (cliente `protetto`) e TheFork trovate all'import o dal webhook; `stato` pending / applica / ignora (scelte di Marco) / auto_applica / auto_ignora (chiuse dalle regole, §8). UNIQUE(cliente, campo, stato): una decisione nuova sostituisce la vecchia dello stesso campo |
 | `clienti_impostazioni` | Chiave/valore: soglie segmenti `seg_*` (§6) + `preventivi_luoghi` |
 
@@ -237,30 +238,57 @@ KPI reali (da `/clienti/dashboard/stats` + `/clienti/prenotazioni/stats`):
 
 ---
 
-# 6. Segmentazione marketing
+# 6. Segmenti e stelle (rank TRGB)
 
-**Non esiste un campo `segmento_marketing` sul DB**: il segmento è **calcolato runtime** a ogni richiesta (lista clienti, conteggi, sync Mailchimp) dallo storico `clienti_prenotazioni` con stati completati `SEATED/ARRIVED/BILL/LEFT`.
+> **Dal 2026-11-16 (clienti 3.36, mig 236, sistema 6.2).** Decisione di Marco: il rank di TheFork (Gold/Silver/Bronze/Caution) **resta in scheda come informazione ma non conta più**; TRGB ha un rank suo a **stelle** e **segmenti ritarati** sui dati veri (prima gli «abituali» erano 12 con la soglia di 5 visite in 12 mesi). Le due cose sono indipendenti: il segmento dice **a che punto è il rapporto**, le stelle **quanto vale il cliente per noi**.
 
-## 6.1 Segmenti (6)
+**Dove vive il calcolo.** `app/services/clienti_profilo_service.py` (servizio platform del modulo clienti) scrive la tabella `clienti_profilo` (una riga per cliente attivo: segmento, punti, stelle nere/argento, scontrino medio, visite, prima/ultima visita, no-show, eventi, attenzione). Ricalcolo completo una volta al giorno (thread `clienti-profilo`, dopo le 4; al primo avvio subito; ~0,2 s per 26.000 clienti), quando si salvano le soglie e con «Ricalcola adesso»; il singolo cliente si ricalcola quando si apre la sua scheda, e quelli senza riga (nuovi da oggi) al volo in lista e nel Planning. Visite = **giorni distinti** con una prenotazione in uno stato «venuto» (`prenotazioni_stati.gruppo("venuto")`), solo passati. Prima le stesse regole erano copiate in 4 punti di `clienti_router.py` (conteggi, filtro lista, riga lista, Mailchimp): ora leggono tutti `clienti_profilo`.
 
-| Segmento | Regola (con soglie default) |
-|---|---|
-| `nuovo` | prima visita ≤ 90 giorni fa e ≤ 2 visite totali |
-| `abituale` | ≥ 5 visite nella finestra di 12 mesi |
-| `occasionale` | 1–4 visite nella finestra di 12 mesi |
-| `in_calo` | ≥ 3 visite tra 18 e 6 mesi fa e ≤ 1 negli ultimi 6 mesi (finestre 6/18 mesi hardcoded nel router) |
-| `perso` | ultima visita > 365 giorni fa |
-| `mai_venuto` | nessuna prenotazione completata collegata |
+## 6.1 Segmenti (8, uno per cliente, in quest'ordine)
 
-## 6.2 Soglie configurabili
+| Segmento | Regola (soglie default) | Colore |
+|---|---|---|
+| `nuovo` | prima e unica visita negli ultimi 90 giorni (`seg_nuovo_giorni`) | viola |
+| `di_casa` | almeno 3 visite negli ultimi 12 mesi (`seg_dicasa_visite`, `seg_dicasa_mesi`) | verde scuro |
+| `affezionato` | almeno 2 visite negli ultimi 24 mesi e l'ultima entro 12 (`seg_affezionato_visite`, `seg_affezionato_mesi`, `seg_attivo_mesi`) | verde chiaro |
+| `in_calo` | tornava (2+ visite) ma l'ultima è di 12-24 mesi fa (`seg_attivo_mesi`, `seg_recente_mesi`) | ambra — l'unico che chiede di fare qualcosa |
+| `una_volta` | una visita sola negli ultimi 24 mesi (`seg_recente_mesi`) | azzurro |
+| `dormiente` | ultima visita tra 2 e 5 anni fa (`seg_perso_anni`) | grigio |
+| `perso` | ultima visita oltre 5 anni fa | grigio chiaro |
+| `mai_venuto` | nessuna visita registrata (solo annullate/no-show, o solo anagrafica) | bordo tratteggiato |
 
-Le soglie vivono in `clienti_impostazioni` (`seg_abituale_min`, `seg_occasionale_min`, `seg_nuovo_giorni`, `seg_nuovo_max_visite`, `seg_perso_giorni`, `seg_finestra_mesi`) e si modificano dalla UI **Impostazioni → Segmenti** (`ClientiImpostazioni.jsx:25-32`). Lettura backend in `_get_soglie_segmenti()` (`clienti_router.py:1693`).
+Al 2026-11-16 (copia del 13/11): Di casa 34, Affezionato 215, Nuovo 388, Una volta 3.760, In calo 302, Dormiente 5.021, Perso 5.420, Mai venuto 10.998. Da noi tornare è raro: negli ultimi 12 mesi 2.397 clienti su 2.540 sono venuti una volta sola; per chi torna, la mediana tra due visite è ~4 mesi.
 
-## 6.3 Dove si usano
+## 6.2 Stelle (massimo 6)
 
-- **Lista clienti**: filtro `segmento` + badge colorato per riga (config UI in `ClientiLista.jsx:22-29`), conteggi per segmento in sidebar da `/clienti/segmenti/conteggi`.
-- **Mailchimp**: il segmento va nel merge field `SEGMENTO` e nel tag `segmento:<nome>` (§11).
-- **RFM**: Recency e Frequency sì; Monetary ora disponibile dai conti di cassa abbinati (`/clienti/{id}/consumi`, dal 2026-10-18; storico iPratico da settembre 2024). Segmentazione RFM automatica = CL.10 in roadmap, ⏳ da fare.
+- **★ nere (0-3) — quanto viene.** Punti: 10 per visita negli ultimi 24 mesi (tetto 60) + 3 per visita più vecchia (tetto 15) + 15 per evento confermato da preventivo (`clienti_preventivi.stato` confermato/prenotato) − 15 per no-show. ★ da 10, ★★ da 20, ★★★ da 40 punti. La spesa NON entra nelle nere (sarebbe contata due volte). Le gift card no: `clienti_giftcard.cliente_id` è chi la riceve, non chi la compra. Oggi: 4.473 / 292 / 54.
+- **★ argento (0-2) — quanto spende.** Scontrino medio **a coperto** (non a conto: un tavolo da 8 non vale più di una coppia) dai conti di cassa abbinati al cliente o a una sua prenotazione (`abbinamento_conti_service.spesa_per_cliente`, stessa regola della scheda), da settembre 2024: ★ da 75 €, ★★ da 90 €. Senza conti abbinati niente argento: il dato non c'è, non «spende poco». Oggi: 882 / 412.
+- **★ oro (0-1) — la mette solo Marco.** `clienti.stella_oro` (+ `stella_oro_da`, `stella_oro_il`), dal riquadro «Stelle e segmento» della scheda; `PUT /clienti/{id}/stella-oro` con `solo_superadmin` (l'admin no).
+- **«Attenzione»** (etichetta rossa, indipendente dalle stelle): dai 2 no-show in su (`attenzione_noshow`).
+
+Colori: nere `text-neutral-900`, argento `text-slate-400`, oro `text-amber-400`; i segmenti hanno solo colore (niente emoji), il rosso è riservato ad «Attenzione». Componenti condivisi in `frontend/src/pages/clienti/ProfiloCliente.jsx` (`Stelle`, `SegmentoPill` anche compatta a pallino, `Attenzione`, `SchedaStelle`).
+
+## 6.3 Soglie configurabili
+
+Tutte in `clienti_impostazioni` (mig 236), da **Clienti › Impostazioni › Segmenti e stelle**: `seg_*` (8) e `stelle_*`, `argento_soglia_1/2`, `attenzione_noshow` (13). «Salva e ricalcola» controlla che le soglie crescano e ricalcola subito. Le chiavi vecchie (`seg_abituale_min`, `seg_occasionale_min`, `seg_finestra_mesi`, `seg_nuovo_max_visite`, `seg_perso_giorni`) restano nel DB ma non si usano più.
+
+## 6.4 Dove si vedono
+
+- **Lista clienti**: stelle + pillola del segmento + «Attenzione» sulla seconda riga; chip Tutti / Di casa / Affezionati / Nuovi / In calo / ★ Oro; in «Altri filtri» segmento, stelle nere, stelle argento; ordine «Stelle, più alte prima». Via il rank TheFork (pillola, filo colorato, filtro) e la ★ VIP davanti al nome.
+- **Scheda**: stelle su fondo bianco e segmento in testata (avatar ambra se c'è la stella oro); riquadro «Stelle e segmento» in Anagrafica col perché (punti voce per voce, scontrino medio, soglie), bottone stella oro per il superadmin, rank TheFork come riga informativa. Il VIP di TheFork diventa la pillola grigia «VIP TheFork».
+- **Planning** (prenotazioni 2.36): stelle e pallino del segmento accanto al nome, al posto della ⭐ VIP.
+- **Newsletter** (Mailchimp): merge field `SEGMENTO` e tag `segmento:<nome>` coi nomi nuovi.
+
+## 6.5 Capability
+
+| Codice | Cosa fa | Riferimento | Audience | Stato docs |
+|---|---|---|---|---|
+| C-CL-S01 | Calcolo di segmenti e stelle (tutti / un cliente), ricalcolo notturno | `clienti_profilo_service.py:ricalcola`, `avvia_periodico` | sistema | 🆕 |
+| C-CL-S02 | Conteggi per segmento, stelle, oro, attenzione | `GET /clienti/segmenti/conteggi` | admin, sala | 🆕 |
+| C-CL-S03 | Filtri e ordine per stelle e segmento nella lista | `GET /clienti/?segmento=&stelle_min=&argento_min=&oro=&attenzione=&ordine=stelle_desc`, `ClientiLista.jsx` | admin, sala | 🆕 |
+| C-CL-S04 | Stella oro (solo superadmin) | `PUT /clienti/{id}/stella-oro`, `ProfiloCliente.jsx:SchedaStelle` | superadmin | 🆕 |
+| C-CL-S05 | Perché delle stelle nella scheda | `GET /clienti/{id}` → `profilo`, `SchedaStelle` | admin, sala | 🆕 |
+| C-CL-S06 | Soglie e «Ricalcola adesso» | `POST /clienti/profilo/ricalcola` (admin), `ClientiImpostazioni.jsx:SegmentiSection` | admin | 🆕 |
 
 ---
 
